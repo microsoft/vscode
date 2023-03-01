@@ -835,6 +835,11 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 				this._loadTypeAheadAddon(xterm);
 			}
 		}));
+		this._register(this._viewDescriptorService.onDidChangeLocation(({ views }) => {
+			if (views.some(v => v.id === TERMINAL_VIEW_ID)) {
+				xterm.refresh();
+			}
+		}));
 
 		this._pathService.userHome().then(userHome => {
 			this._userHome = userHome.fsPath;

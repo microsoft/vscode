@@ -15,7 +15,7 @@ import { TerminalConfigHelper } from 'vs/workbench/contrib/terminal/browser/term
 import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { IShellIntegration, TerminalSettingId } from 'vs/platform/terminal/common/terminal';
-import { ITerminalFont, TERMINAL_VIEW_ID } from 'vs/workbench/contrib/terminal/common/terminal';
+import { ITerminalFont } from 'vs/workbench/contrib/terminal/common/terminal';
 import { isSafari } from 'vs/base/browser/browser';
 import { IMarkTracker, IInternalXtermTerminal, IXtermTerminal, ISuggestController, IXtermColorProvider } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { ILogService } from 'vs/platform/log/common/log';
@@ -25,7 +25,6 @@ import { INotificationService, IPromptChoice, Severity } from 'vs/platform/notif
 import { MarkNavigationAddon } from 'vs/workbench/contrib/terminal/browser/xterm/markNavigationAddon';
 import { localize } from 'vs/nls';
 import { IColorTheme, IThemeService } from 'vs/platform/theme/common/themeService';
-import { IViewDescriptorService } from 'vs/workbench/common/views';
 import { PANEL_BACKGROUND } from 'vs/workbench/common/theme';
 import { TERMINAL_FOREGROUND_COLOR, TERMINAL_BACKGROUND_COLOR, TERMINAL_CURSOR_FOREGROUND_COLOR, TERMINAL_CURSOR_BACKGROUND_COLOR, ansiColorIdentifiers, TERMINAL_SELECTION_BACKGROUND_COLOR, TERMINAL_FIND_MATCH_BACKGROUND_COLOR, TERMINAL_FIND_MATCH_HIGHLIGHT_BACKGROUND_COLOR, TERMINAL_FIND_MATCH_BORDER_COLOR, TERMINAL_OVERVIEW_RULER_FIND_MATCH_FOREGROUND_COLOR, TERMINAL_FIND_MATCH_HIGHLIGHT_BORDER_COLOR, TERMINAL_OVERVIEW_RULER_CURSOR_FOREGROUND_COLOR, TERMINAL_SELECTION_FOREGROUND_COLOR, TERMINAL_INACTIVE_SELECTION_BACKGROUND_COLOR } from 'vs/workbench/contrib/terminal/common/terminalColorRegistry';
 import { ShellIntegrationAddon } from 'vs/platform/terminal/common/xterm/shellIntegrationAddon';
@@ -199,8 +198,6 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal, II
 		@INotificationService private readonly _notificationService: INotificationService,
 		@IStorageService private readonly _storageService: IStorageService,
 		@IThemeService private readonly _themeService: IThemeService,
-		// TODO: Remove
-		@IViewDescriptorService private readonly _viewDescriptorService: IViewDescriptorService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService
 	) {
 		super();
@@ -252,12 +249,6 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal, II
 		}));
 
 		this.add(this._themeService.onDidColorThemeChange(theme => this._updateTheme(theme)));
-		this.add(this._viewDescriptorService.onDidChangeLocation(({ views }) => {
-			if (views.some(v => v.id === TERMINAL_VIEW_ID)) {
-				this._updateTheme();
-				this._decorationAddon.refreshLayouts();
-			}
-		}));
 
 		// Refire events
 		this.add(this.raw.onSelectionChange(() => this._onDidChangeSelection.fire()));
@@ -740,6 +731,11 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal, II
 
 	private _updateTheme(theme?: IColorTheme): void {
 		this.raw.options.theme = this._getXtermTheme(theme);
+	}
+
+	refresh() {
+		this._updateTheme();
+		this._decorationAddon.refreshLayouts();
 	}
 
 	private async _updateUnicodeVersion(): Promise<void> {

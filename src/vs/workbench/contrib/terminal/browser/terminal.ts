@@ -1051,6 +1051,11 @@ export interface IXtermTerminal {
 	 * Focuses the accessible buffer, updating its contents
 	 */
 	focusAccessibleBuffer(): Promise<void>;
+
+	/**
+	 * Refreshes the terminal after it has been moved.
+	 */
+	refresh(): void;
 }
 
 export interface IInternalXtermTerminal {
