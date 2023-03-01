@@ -60,6 +60,7 @@ import { IEditorConfiguration } from 'vs/editor/common/config/editorConfiguratio
 import { IDimension } from 'vs/editor/common/core/dimension';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import { CodeEditorContributions } from 'vs/editor/browser/widget/codeEditorContributions';
+import { TabFocus, TabFocusContext } from 'vs/editor/browser/config/tabFocus';
 
 let EDITOR_ID = 0;
 
@@ -284,6 +285,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		@ILanguageFeaturesService languageFeaturesService: ILanguageFeaturesService,
 	) {
 		super();
+		codeEditorService.willCreateCodeEditor();
 
 		const options = { ..._options };
 
@@ -1962,6 +1964,7 @@ class EditorContextKeysManager extends Disposable {
 		this._register(this._editor.onDidBlurEditorText(() => this._updateFromFocus()));
 		this._register(this._editor.onDidChangeModel(() => this._updateFromModel()));
 		this._register(this._editor.onDidChangeConfiguration(() => this._updateFromModel()));
+		this._register(TabFocus.onDidChangeTabFocus(() => this._editorTabMovesFocus.set(TabFocus.getTabFocusMode(TabFocusContext.Editor))));
 
 		this._updateFromConfig();
 		this._updateFromSelection();

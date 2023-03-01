@@ -393,12 +393,12 @@
 	},
 	{
 		"c": "tag",
-		"t": "source.ts string.template.ts entity.name.function.tagged-template.ts",
+		"t": "source.ts entity.name.function.tagged-template.ts",
 		"r": {
 			"dark_plus": "entity.name.function: #DCDCAA",
 			"light_plus": "entity.name.function: #795E26",
-			"dark_vs": "string: #CE9178",
-			"light_vs": "string: #A31515",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
 			"hc_black": "entity.name.function: #DCDCAA",
 			"dark_plus_experimental": "entity.name.function: #DCDCAA",
 			"hc_light": "entity.name.function: #5E2CBC",

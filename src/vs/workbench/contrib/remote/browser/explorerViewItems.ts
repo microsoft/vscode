@@ -26,7 +26,7 @@ interface IRemoteSelectItem extends ISelectOptionItem {
 	virtualWorkspace?: string;
 }
 
-export class SwitchRemoteViewItem extends SelectActionViewItem {
+export class SwitchRemoteViewItem extends SelectActionViewItem<IRemoteSelectItem> {
 
 	constructor(
 		action: IAction,
@@ -92,7 +92,7 @@ export class SwitchRemoteViewItem extends SelectActionViewItem {
 		}
 	}
 
-	protected override getActionContext(_: string, index: number): any {
+	protected override getActionContext(_: string, index: number): IRemoteSelectItem {
 		return this.optionsItems[index];
 	}
 

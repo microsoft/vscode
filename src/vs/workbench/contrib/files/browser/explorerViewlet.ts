@@ -277,6 +277,7 @@ export const VIEW_CONTAINER: ViewContainer = viewContainerRegistry.registerViewC
 	storageId: 'workbench.explorer.views.state',
 	icon: explorerViewIcon,
 	alwaysUseContainerInfo: true,
+	hideIfEmpty: true,
 	order: 0,
 	openCommandActionDescriptor: {
 		id: VIEWLET_ID,

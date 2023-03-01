@@ -171,6 +171,10 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 		// throw new Error('Method not implemented.');
 	}
 
+	updatePerformanceMetadata(cellId: string, executionId: string, duration: number, rendererId: string): void {
+		// throw new Error('Method not implemented.');
+	}
+
 	async focusNotebookCell(cell: IGenericCellViewModel, focus: 'output' | 'editor' | 'container'): Promise<void> {
 		// throw new Error('Method not implemented.');
 	}
@@ -1044,7 +1048,7 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 		}
 	}
 
-	layout(dimension: DOM.Dimension): void {
+	layout(dimension: DOM.Dimension, _position: DOM.IDomPosition): void {
 		this._rootElement.classList.toggle('mid-width', dimension.width < 1000 && dimension.width >= 600);
 		this._rootElement.classList.toggle('narrow-width', dimension.width < 600);
 		const overviewRulerEnabled = this.isOverviewRulerEnabled();

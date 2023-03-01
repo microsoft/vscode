@@ -27,8 +27,8 @@ function getId(manifest: IExtensionManifest, withVersion?: boolean): string {
 	}
 }
 
+type InstallVSIXInfo = { vsix: URI; installOptions: InstallOptions };
 type InstallExtensionInfo = { id: string; version?: string; installOptions: InstallOptions };
-
 
 export class ExtensionManagementCLI {
 
@@ -77,7 +77,7 @@ export class ExtensionManagementCLI {
 		}
 	}
 
-	public async installExtensions(extensions: (string | URI)[], builtinExtensionIds: string[], installOptions: InstallOptions, force: boolean, output: CLIOutput = console): Promise<void> {
+	public async installExtensions(extensions: (string | URI)[], builtinExtensions: (string | URI)[], installOptions: InstallOptions, force: boolean, output: CLIOutput = console): Promise<void> {
 		const failed: string[] = [];
 		const installedExtensionsManifests: IExtensionManifest[] = [];
 		if (extensions.length) {
@@ -102,11 +102,11 @@ export class ExtensionManagementCLI {
 		const addInstallExtensionInfo = (id: string, version: string | undefined, isBuiltin: boolean) => {
 			installExtensionInfos.push({ id, version: version !== 'prerelease' ? version : undefined, installOptions: { ...installOptions, isBuiltin, installPreReleaseVersion: version === 'prerelease' || installOptions.installPreReleaseVersion } });
 		};
-		const vsixs: URI[] = [];
+		const installVSIXInfos: InstallVSIXInfo[] = [];
 		const installExtensionInfos: InstallExtensionInfo[] = [];
 		for (const extension of extensions) {
 			if (extension instanceof URI) {
-				vsixs.push(extension);
+				installVSIXInfos.push({ vsix: extension, installOptions });
 			} else {
 				const [id, version] = getIdAndVersion(extension);
 				if (checkIfNotInstalled(id, version)) {
@@ -114,17 +114,21 @@ export class ExtensionManagementCLI {
 				}
 			}
 		}
-		for (const extension of builtinExtensionIds) {
-			const [id, version] = getIdAndVersion(extension);
-			if (checkIfNotInstalled(id, version)) {
-				addInstallExtensionInfo(id, version, true);
+		for (const extension of builtinExtensions) {
+			if (extension instanceof URI) {
+				installVSIXInfos.push({ vsix: extension, installOptions: { ...installOptions, isBuiltin: true, donotIncludePackAndDependencies: false } });
+			} else {
+				const [id, version] = getIdAndVersion(extension);
+				if (checkIfNotInstalled(id, version)) {
+					addInstallExtensionInfo(id, version, true);
+				}
 			}
 		}
 
-		if (vsixs.length) {
-			await Promise.all(vsixs.map(async vsix => {
+		if (installVSIXInfos.length) {
+			await Promise.all(installVSIXInfos.map(async ({ vsix, installOptions }) => {
 				try {
-					const manifest = await this.installVSIX(vsix, { ...installOptions, isBuiltin: false }, force, output);
+					const manifest = await this.installVSIX(vsix, installOptions, force, output);
 					if (manifest) {
 						installedExtensionsManifests.push(manifest);
 					}

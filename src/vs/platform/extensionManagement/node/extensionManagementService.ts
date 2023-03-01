@@ -164,13 +164,20 @@ export class ExtensionManagementService extends AbstractExtensionManagementServi
 		if (!local) {
 			throw new Error(`Cannot find a valid extension from the location ${location.toString()}`);
 		}
-		await this.addExtensionsToProfile([local], profileLocation);
+		await this.addExtensionsToProfile([[local, undefined]], profileLocation);
 		this.logService.info('Successfully installed extension', local.identifier.id, profileLocation.toString());
 		return local;
 	}
 
-	getMetadata(extension: ILocalExtension, profileLocation: URI = this.userDataProfilesService.defaultProfile.extensionsResource): Promise<Metadata | undefined> {
-		return this.extensionsScanner.scanMetadata(extension, profileLocation);
+	async installExtensionsFromProfile(extensions: IExtensionIdentifier[], fromProfileLocation: URI, toProfileLocation: URI): Promise<ILocalExtension[]> {
+		this.logService.trace('ExtensionManagementService#installExtensionsFromProfile', extensions, fromProfileLocation.toString(), toProfileLocation.toString());
+		const extensionsToInstall = (await this.extensionsScanner.scanExtensions(ExtensionType.User, fromProfileLocation)).filter(e => extensions.some(id => areSameExtensions(id, e.identifier)));
+		if (extensionsToInstall.length) {
+			const metadata = await Promise.all(extensionsToInstall.map(e => this.extensionsScanner.scanMetadata(e, fromProfileLocation)));
+			await this.addExtensionsToProfile(extensionsToInstall.map((e, index) => [e, metadata[index]]), toProfileLocation);
+			this.logService.info('Successfully installed extensions', extensionsToInstall.map(e => e.identifier.id), toProfileLocation.toString());
+		}
+		return extensionsToInstall;
 	}
 
 	async updateMetadata(local: ILocalExtension, metadata: Partial<Metadata>, profileLocation: URI = this.userDataProfilesService.defaultProfile.extensionsResource): Promise<ILocalExtension> {
@@ -207,6 +214,10 @@ export class ExtensionManagementService extends AbstractExtensionManagementServi
 			throw new Error(nls.localize('removeError', "Error while removing the extension: {0}. Please Quit and Start VS Code before trying again.", toErrorMessage(e)));
 		}
 		return this.installFromGallery(galleryExtension);
+	}
+
+	copyExtensions(fromProfileLocation: URI, toProfileLocation: URI): Promise<void> {
+		return this.extensionsScanner.copyExtensions(fromProfileLocation, toProfileLocation);
 	}
 
 	markAsUninstalled(...extensions: IExtension[]): Promise<void> {
@@ -364,15 +375,16 @@ export class ExtensionManagementService extends AbstractExtensionManagementServi
 		}
 
 		if (added.length) {
-			await this.addExtensionsToProfile(added, this.userDataProfilesService.defaultProfile.extensionsResource);
+			await this.addExtensionsToProfile(added.map(e => [e, undefined]), this.userDataProfilesService.defaultProfile.extensionsResource);
 			this.logService.info('Added extensions to default profile from external source', added.map(e => e.identifier.id));
 		}
 	}
 
-	private async addExtensionsToProfile(extensions: ILocalExtension[], profileLocation: URI): Promise<void> {
-		await this.setInstalled(extensions);
-		await this.extensionsProfileScannerService.addExtensionsToProfile(extensions.map(local => ([local, undefined])), profileLocation);
-		this._onDidInstallExtensions.fire(extensions.map(local => ({ local, identifier: local.identifier, operation: InstallOperation.None, profileLocation })));
+	private async addExtensionsToProfile(extensions: [ILocalExtension, Metadata | undefined][], profileLocation: URI): Promise<void> {
+		const localExtensions = extensions.map(e => e[0]);
+		await this.setInstalled(localExtensions);
+		await this.extensionsProfileScannerService.addExtensionsToProfile(extensions, profileLocation);
+		this._onDidInstallExtensions.fire(localExtensions.map(local => ({ local, identifier: local.identifier, operation: InstallOperation.None, profileLocation })));
 	}
 
 	private async setInstalled(extensions: ILocalExtension[]): Promise<void> {
@@ -528,6 +540,14 @@ export class ExtensionsScanner extends Disposable {
 	async removeUninstalledExtension(extension: ILocalExtension | IScannedExtension): Promise<void> {
 		await this.removeExtension(extension, 'uninstalled');
 		await this.withUninstalledExtensions(uninstalled => delete uninstalled[ExtensionKey.create(extension).toString()]);
+	}
+
+	async copyExtensions(fromProfileLocation: URI, toProfileLocation: URI): Promise<void> {
+		const fromExtensions = await this.scanExtensions(ExtensionType.User, fromProfileLocation);
+		const extensions: [ILocalExtension, Metadata | undefined][] = await Promise.all(fromExtensions
+			.filter(e => !e.isApplicationScoped) /* remove application scoped extensions */
+			.map(async e => ([e, await this.scanMetadata(e, fromProfileLocation)])));
+		await this.extensionsProfileScannerService.addExtensionsToProfile(extensions, toProfileLocation);
 	}
 
 	private async withUninstalledExtensions(updateFn?: (uninstalled: IStringDictionary<boolean>) => void): Promise<IStringDictionary<boolean>> {
@@ -866,16 +886,23 @@ class InstallVSIXTask extends InstallExtensionTask {
 		super({ id: getGalleryExtensionId(manifest.publisher, manifest.name) }, location, options, extensionsScanner, uriIdentityService, userDataProfilesService, extensionsScannerService, extensionsProfileScannerService, logService);
 	}
 
+	protected override async doRun(token: CancellationToken): Promise<ILocalExtension> {
+		const local = await super.doRun(token);
+		this.updateMetadata(local, token);
+		return local;
+	}
+
 	protected async install(token: CancellationToken): Promise<[ILocalExtension, Metadata]> {
 		const extensionKey = new ExtensionKey(this.identifier, this.manifest.version);
 		const installedExtensions = await this.extensionsScanner.scanExtensions(ExtensionType.User, this.options.profileLocation);
 		const existing = installedExtensions.find(i => areSameExtensions(this.identifier, i.identifier));
-		const metadata = await this.getMetadata(this.identifier.id, this.manifest.version, token);
-		metadata.isApplicationScoped = isApplicationScopedExtension(this.manifest);
-		metadata.isMachineScoped = this.options.isMachineScoped || existing?.isMachineScoped;
-		metadata.isBuiltin = this.options.isBuiltin || existing?.isBuiltin;
-		metadata.installedTimestamp = Date.now();
-		metadata.pinned = this.options.installGivenVersion ? true : undefined;
+		const metadata: Metadata = {
+			isApplicationScoped: isApplicationScopedExtension(this.manifest),
+			isMachineScoped: this.options.isMachineScoped || existing?.isMachineScoped,
+			isBuiltin: this.options.isBuiltin || existing?.isBuiltin,
+			installedTimestamp: Date.now(),
+			pinned: this.options.installGivenVersion ? true : undefined,
+		};
 
 		if (existing) {
 			this._operation = InstallOperation.Update;
@@ -905,25 +932,25 @@ class InstallVSIXTask extends InstallExtensionTask {
 		return [local, metadata];
 	}
 
-	private async getMetadata(id: string, version: string, token: CancellationToken): Promise<Metadata> {
+	private async updateMetadata(extension: ILocalExtension, token: CancellationToken): Promise<void> {
 		try {
-			let [galleryExtension] = await this.galleryService.getExtensions([{ id, version }], token);
+			let [galleryExtension] = await this.galleryService.getExtensions([{ id: extension.identifier.id, version: extension.manifest.version }], token);
 			if (!galleryExtension) {
-				[galleryExtension] = await this.galleryService.getExtensions([{ id }], token);
+				[galleryExtension] = await this.galleryService.getExtensions([{ id: extension.identifier.id }], token);
 			}
 			if (galleryExtension) {
-				return {
+				const metadata = {
 					id: galleryExtension.identifier.uuid,
 					publisherDisplayName: galleryExtension.publisherDisplayName,
 					publisherId: galleryExtension.publisherId,
 					isPreReleaseVersion: galleryExtension.properties.isPreReleaseVersion,
 					preRelease: galleryExtension.properties.isPreReleaseVersion || this.options.installPreReleaseVersion
 				};
+				await this.extensionsScanner.updateMetadata(extension, metadata, this.options.profileLocation);
 			}
 		} catch (error) {
 			/* Ignore Error */
 		}
-		return {};
 	}
 }
 

@@ -95,7 +95,7 @@ export class BaseTextEditorModel extends EditorModel implements ITextEditorModel
 			return;
 		}
 
-		this.modelService.setMode(this.textEditorModel, this.languageService.createById(languageId), source);
+		this.textEditorModel.setLanguage(this.languageService.createById(languageId), source);
 	}
 
 	protected installModelListeners(model: ITextModel): void {
@@ -211,7 +211,7 @@ export class BaseTextEditorModel extends EditorModel implements ITextEditorModel
 
 		// language (only if specific and changed)
 		if (preferredLanguageId && preferredLanguageId !== PLAINTEXT_LANGUAGE_ID && this.textEditorModel.getLanguageId() !== preferredLanguageId) {
-			this.modelService.setMode(this.textEditorModel, this.languageService.createById(preferredLanguageId));
+			this.textEditorModel.setLanguage(this.languageService.createById(preferredLanguageId));
 		}
 	}
 

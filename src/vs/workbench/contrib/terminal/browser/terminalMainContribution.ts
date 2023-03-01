@@ -5,8 +5,10 @@
 
 import { Disposable } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { TabFocus, TabFocusContext } from 'vs/editor/browser/config/tabFocus';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ILabelService } from 'vs/platform/label/common/label';
+import { TerminalSettingId } from 'vs/platform/terminal/common/terminal';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { ITerminalEditorService, ITerminalGroupService, ITerminalService, terminalEditorId } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { terminalStrings } from 'vs/workbench/contrib/terminal/common/terminalStrings';
@@ -20,11 +22,11 @@ import { IEditorResolverService, RegisteredEditorPriority } from 'vs/workbench/s
 export class TerminalMainContribution extends Disposable implements IWorkbenchContribution {
 	constructor(
 		@IEditorResolverService editorResolverService: IEditorResolverService,
-		@IEnvironmentService environmentService: IEnvironmentService,
 		@ILabelService labelService: ILabelService,
 		@ITerminalService terminalService: ITerminalService,
 		@ITerminalEditorService terminalEditorService: ITerminalEditorService,
-		@ITerminalGroupService terminalGroupService: ITerminalGroupService
+		@ITerminalGroupService terminalGroupService: ITerminalGroupService,
+		@IConfigurationService configurationService: IConfigurationService
 	) {
 		super();
 
@@ -70,6 +72,8 @@ export class TerminalMainContribution extends Disposable implements IWorkbenchCo
 				separator: ''
 			}
 		});
-	}
 
+		TabFocus.setTabFocusMode(configurationService.getValue('editor.tabFocusMode'), TabFocusContext.Editor);
+		TabFocus.setTabFocusMode(configurationService.getValue(TerminalSettingId.TabFocusMode), TabFocusContext.Terminal);
+	}
 }

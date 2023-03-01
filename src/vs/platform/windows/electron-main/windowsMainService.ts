@@ -36,7 +36,7 @@ import { ILogService } from 'vs/platform/log/common/log';
 import product from 'vs/platform/product/common/product';
 import { IProtocolMainService } from 'vs/platform/protocol/electron-main/protocol';
 import { getRemoteAuthority } from 'vs/platform/remote/common/remoteHosts';
-import { IStateMainService } from 'vs/platform/state/electron-main/state';
+import { IStateService } from 'vs/platform/state/node/state';
 import { IAddFoldersRequest, INativeOpenFileRequest, INativeWindowConfiguration, IOpenEmptyWindowOptions, IPath, IPathsToWaitFor, isFileToOpen, isFolderToOpen, isWorkspaceToOpen, IWindowOpenable, IWindowSettings } from 'vs/platform/window/common/window';
 import { CodeWindow } from 'vs/platform/windows/electron-main/windowImpl';
 import { IOpenConfiguration, IOpenEmptyConfiguration, IWindowsCountChangedEvent, IWindowsMainService, OpenContext } from 'vs/platform/windows/electron-main/windows';
@@ -195,14 +195,14 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 	private readonly _onDidTriggerSystemContextMenu = this._register(new Emitter<{ window: ICodeWindow; x: number; y: number }>());
 	readonly onDidTriggerSystemContextMenu = this._onDidTriggerSystemContextMenu.event;
 
-	private readonly windowsStateHandler = this._register(new WindowsStateHandler(this, this.stateMainService, this.lifecycleMainService, this.logService, this.configurationService));
+	private readonly windowsStateHandler = this._register(new WindowsStateHandler(this, this.stateService, this.lifecycleMainService, this.logService, this.configurationService));
 
 	constructor(
 		private readonly machineId: string,
 		private readonly initialUserEnv: IProcessEnvironment,
 		@ILogService private readonly logService: ILogService,
 		@ILoggerMainService private readonly loggerService: ILoggerMainService,
-		@IStateMainService private readonly stateMainService: IStateMainService,
+		@IStateService private readonly stateService: IStateService,
 		@IPolicyService private readonly policyService: IPolicyService,
 		@IEnvironmentMainService private readonly environmentMainService: IEnvironmentMainService,
 		@IUserDataProfilesMainService private readonly userDataProfilesMainService: IUserDataProfilesMainService,
@@ -1323,6 +1323,13 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 			}
 		}
 
+		let preferUtilityProcess = false;
+		if (typeof windowConfig?.experimental?.sharedProcessUseUtilityProcess === 'boolean') {
+			preferUtilityProcess = windowConfig.experimental.sharedProcessUseUtilityProcess;
+		} else {
+			preferUtilityProcess = product.quality !== 'stable';
+		}
+
 		// Build up the window configuration from provided options, config and environment
 		const configuration: INativeWindowConfiguration = {
 
@@ -1347,6 +1354,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 			backupPath: options.emptyWindowBackupInfo ? join(this.environmentMainService.backupHome, options.emptyWindowBackupInfo.backupFolder) : undefined,
 
 			profiles: {
+				home: this.userDataProfilesMainService.profilesHome,
 				all: this.userDataProfilesMainService.profiles,
 				// Set to default profile first and resolve and update the profile
 				// only after the workspace-backup is registered.
@@ -1372,7 +1380,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 				window: [],
 				global: this.loggerService.getRegisteredLoggers()
 			},
-			logsPath: this.environmentMainService.logsPath,
+			logsPath: this.environmentMainService.logsHome.fsPath,
 
 			product,
 			isInitialStartup: options.initialStartup,
@@ -1386,6 +1394,8 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 			colorScheme: this.themeMainService.getColorScheme(),
 			policiesData: this.policyService.serialize(),
 			continueOn: this.environmentMainService.continueOn,
+
+			preferUtilityProcess
 		};
 
 		// New window

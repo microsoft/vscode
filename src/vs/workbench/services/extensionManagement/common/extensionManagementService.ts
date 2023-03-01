@@ -42,10 +42,6 @@ export class ExtensionManagementService extends Disposable implements IWorkbench
 	readonly onUninstallExtension: Event<UninstallExtensionOnServerEvent>;
 	readonly onDidUninstallExtension: Event<DidUninstallExtensionOnServerEvent>;
 	readonly onDidUpdateExtensionMetadata: Event<ILocalExtension>;
-	readonly onProfileAwareInstallExtension: Event<InstallExtensionOnServerEvent>;
-	readonly onProfileAwareDidInstallExtensions: Event<readonly InstallExtensionResult[]>;
-	readonly onProfileAwareUninstallExtension: Event<UninstallExtensionOnServerEvent>;
-	readonly onProfileAwareDidUninstallExtension: Event<DidUninstallExtensionOnServerEvent>;
 	readonly onDidChangeProfile: Event<DidChangeProfileForServerEvent>;
 
 	protected readonly servers: IExtensionManagementServer[] = [];
@@ -81,10 +77,6 @@ export class ExtensionManagementService extends Disposable implements IWorkbench
 		this.onUninstallExtension = this._register(this.servers.reduce((emitter: EventMultiplexer<UninstallExtensionOnServerEvent>, server) => { emitter.add(Event.map(server.extensionManagementService.onUninstallExtension, e => ({ ...e, server }))); return emitter; }, new EventMultiplexer<UninstallExtensionOnServerEvent>())).event;
 		this.onDidUninstallExtension = this._register(this.servers.reduce((emitter: EventMultiplexer<DidUninstallExtensionOnServerEvent>, server) => { emitter.add(Event.map(server.extensionManagementService.onDidUninstallExtension, e => ({ ...e, server }))); return emitter; }, new EventMultiplexer<DidUninstallExtensionOnServerEvent>())).event;
 		this.onDidUpdateExtensionMetadata = this._register(this.servers.reduce((emitter: EventMultiplexer<ILocalExtension>, server) => { emitter.add(server.extensionManagementService.onDidUpdateExtensionMetadata); return emitter; }, new EventMultiplexer<ILocalExtension>())).event;
-		this.onProfileAwareInstallExtension = this._register(this.servers.reduce((emitter: EventMultiplexer<InstallExtensionOnServerEvent>, server) => { emitter.add(Event.map(server.extensionManagementService.onProfileAwareInstallExtension, e => ({ ...e, server }))); return emitter; }, new EventMultiplexer<InstallExtensionOnServerEvent>())).event;
-		this.onProfileAwareDidInstallExtensions = this._register(this.servers.reduce((emitter: EventMultiplexer<readonly InstallExtensionResult[]>, server) => { emitter.add(server.extensionManagementService.onProfileAwareDidInstallExtensions); return emitter; }, new EventMultiplexer<readonly InstallExtensionResult[]>())).event;
-		this.onProfileAwareUninstallExtension = this._register(this.servers.reduce((emitter: EventMultiplexer<UninstallExtensionOnServerEvent>, server) => { emitter.add(Event.map(server.extensionManagementService.onProfileAwareUninstallExtension, e => ({ ...e, server }))); return emitter; }, new EventMultiplexer<UninstallExtensionOnServerEvent>())).event;
-		this.onProfileAwareDidUninstallExtension = this._register(this.servers.reduce((emitter: EventMultiplexer<DidUninstallExtensionOnServerEvent>, server) => { emitter.add(Event.map(server.extensionManagementService.onProfileAwareDidUninstallExtension, e => ({ ...e, server }))); return emitter; }, new EventMultiplexer<DidUninstallExtensionOnServerEvent>())).event;
 		this.onDidChangeProfile = this._register(this.servers.reduce((emitter: EventMultiplexer<DidChangeProfileForServerEvent>, server) => { emitter.add(Event.map(server.extensionManagementService.onDidChangeProfile, e => ({ ...e, server }))); return emitter; }, new EventMultiplexer<DidChangeProfileForServerEvent>())).event;
 	}
 
@@ -529,17 +521,11 @@ export class ExtensionManagementService extends Disposable implements IWorkbench
 		return this._targetPlatformPromise;
 	}
 
-	async getMetadata(extension: ILocalExtension): Promise<Metadata | undefined> {
-		const server = this.getServer(extension);
-		if (!server) {
-			return undefined;
-		}
-		return server.extensionManagementService.getMetadata(extension);
-	}
-
 	async cleanUp(): Promise<void> {
 		await Promise.allSettled(this.servers.map(server => server.extensionManagementService.cleanUp()));
 	}
 
 	registerParticipant() { throw new Error('Not Supported'); }
+	copyExtensions(): Promise<void> { throw new Error('Not Supported'); }
+	installExtensionsFromProfile(extensions: IExtensionIdentifier[], fromProfileLocation: URI, toProfileLocation: URI): Promise<ILocalExtension[]> { throw new Error('Not Supported'); }
 }

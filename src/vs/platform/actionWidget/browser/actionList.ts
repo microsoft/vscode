@@ -14,7 +14,6 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { OS } from 'vs/base/common/platform';
 import 'vs/css!./actionWidget';
 import { localize } from 'vs/nls';
-import { IActionItem } from 'vs/platform/actionWidget/common/actionWidget';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { defaultListStyles } from 'vs/platform/theme/browser/defaultStyles';
@@ -23,12 +22,12 @@ import { asCssVariable } from 'vs/platform/theme/common/colorRegistry';
 export const acceptSelectedActionCommand = 'acceptSelectedCodeAction';
 export const previewSelectedActionCommand = 'previewSelectedCodeAction';
 
-export interface IRenderDelegate {
+export interface IActionListDelegate<T> {
 	onHide(didCancel?: boolean): void;
-	onSelect(action: IActionItem, preview?: boolean): Promise<any>;
+	onSelect(action: T, preview?: boolean): void;
 }
 
-export interface IListMenuItem<T extends IActionItem> {
+export interface IActionListItem<T> {
 	readonly item?: T;
 	readonly kind: ActionListItemKind;
 	readonly group?: { kind?: any; icon?: ThemeIcon; title: string };
@@ -56,7 +55,7 @@ interface IHeaderTemplateData {
 	readonly text: HTMLElement;
 }
 
-class HeaderRenderer<T extends IListMenuItem<IActionItem>> implements IListRenderer<T, IHeaderTemplateData> {
+class HeaderRenderer<T> implements IListRenderer<IActionListItem<T>, IHeaderTemplateData> {
 
 	get templateId(): string { return ActionListItemKind.Header; }
 
@@ -69,7 +68,7 @@ class HeaderRenderer<T extends IListMenuItem<IActionItem>> implements IListRende
 		return { container, text };
 	}
 
-	renderElement(element: IListMenuItem<IActionItem>, _index: number, templateData: IHeaderTemplateData): void {
+	renderElement(element: IActionListItem<T>, _index: number, templateData: IHeaderTemplateData): void {
 		templateData.text.textContent = element.group?.title ?? '';
 	}
 
@@ -78,7 +77,7 @@ class HeaderRenderer<T extends IListMenuItem<IActionItem>> implements IListRende
 	}
 }
 
-class ActionItemRenderer<T extends IListMenuItem<IActionItem>> implements IListRenderer<T, IActionMenuTemplateData> {
+class ActionItemRenderer<T> implements IListRenderer<IActionListItem<T>, IActionMenuTemplateData> {
 
 	get templateId(): string { return ActionListItemKind.Action; }
 
@@ -103,7 +102,7 @@ class ActionItemRenderer<T extends IListMenuItem<IActionItem>> implements IListR
 		return { container, icon, text, keybinding };
 	}
 
-	renderElement(element: T, _index: number, data: IActionMenuTemplateData): void {
+	renderElement(element: IActionListItem<T>, _index: number, data: IActionMenuTemplateData): void {
 		if (element.group?.icon) {
 			data.icon.className = ThemeIcon.asClassName(element.group.icon);
 			if (element.group.icon.color) {
@@ -162,22 +161,22 @@ class PreviewSelectedEvent extends UIEvent {
 	constructor() { super('previewSelectedAction'); }
 }
 
-export class ActionList<T extends IActionItem> extends Disposable {
+export class ActionList<T> extends Disposable {
 
 	public readonly domNode: HTMLElement;
 
-	private readonly _list: List<IListMenuItem<IActionItem>>;
+	private readonly _list: List<IActionListItem<T>>;
 
 	private readonly _actionLineHeight = 24;
 	private readonly _headerLineHeight = 26;
 
-	private readonly _allMenuItems: readonly IListMenuItem<IActionItem>[];
+	private readonly _allMenuItems: readonly IActionListItem<T>[];
 
 	constructor(
 		user: string,
 		preview: boolean,
-		items: readonly IListMenuItem<T>[],
-		private readonly _delegate: IRenderDelegate,
+		items: readonly IActionListItem<T>[],
+		private readonly _delegate: IActionListDelegate<T>,
 		@IContextViewService private readonly _contextViewService: IContextViewService,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService
 	) {
@@ -185,13 +184,13 @@ export class ActionList<T extends IActionItem> extends Disposable {
 
 		this.domNode = document.createElement('div');
 		this.domNode.classList.add('actionList');
-		const virtualDelegate: IListVirtualDelegate<IListMenuItem<IActionItem>> = {
+		const virtualDelegate: IListVirtualDelegate<IActionListItem<T>> = {
 			getHeight: element => element.kind === ActionListItemKind.Header ? this._headerLineHeight : this._actionLineHeight,
 			getTemplateId: element => element.kind
 		};
 
 		this._list = this._register(new List(user, this.domNode, virtualDelegate, [
-			new ActionItemRenderer<IListMenuItem<IActionItem>>(preview, this._keybindingService),
+			new ActionItemRenderer<IActionListItem<T>>(preview, this._keybindingService),
 			new HeaderRenderer(),
 		], {
 			keyboardSupport: false,
@@ -226,7 +225,7 @@ export class ActionList<T extends IActionItem> extends Disposable {
 		}
 	}
 
-	private focusCondition(element: IListMenuItem<IActionItem>): boolean {
+	private focusCondition(element: IActionListItem<unknown>): boolean {
 		return !element.disabled && element.kind === ActionListItemKind.Action;
 	}
 
@@ -291,7 +290,7 @@ export class ActionList<T extends IActionItem> extends Disposable {
 		this._list.setSelection([focusIndex], event);
 	}
 
-	private onListSelection(e: IListEvent<IListMenuItem<IActionItem>>): void {
+	private onListSelection(e: IListEvent<IActionListItem<T>>): void {
 		if (!e.elements.length) {
 			return;
 		}
@@ -304,11 +303,11 @@ export class ActionList<T extends IActionItem> extends Disposable {
 		}
 	}
 
-	private onListHover(e: IListMouseEvent<IListMenuItem<IActionItem>>): void {
+	private onListHover(e: IListMouseEvent<IActionListItem<T>>): void {
 		this._list.setFocus(typeof e.index === 'number' ? [e.index] : []);
 	}
 
-	private onListClick(e: IListMouseEvent<IListMenuItem<IActionItem>>): void {
+	private onListClick(e: IListMouseEvent<IActionListItem<T>>): void {
 		if (e.element && this.focusCondition(e.element)) {
 			this._list.setFocus([]);
 		}

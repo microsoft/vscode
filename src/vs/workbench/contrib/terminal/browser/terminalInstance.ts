@@ -25,7 +25,7 @@ import { isMacintosh, isWindows, OperatingSystem, OS } from 'vs/base/common/plat
 import { ScrollbarVisibility } from 'vs/base/common/scrollable';
 import { withNullAsUndefined } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
-import { TabFocus } from 'vs/editor/browser/config/tabFocus';
+import { TabFocus, TabFocusContext } from 'vs/editor/browser/config/tabFocus';
 import { FindReplaceState } from 'vs/editor/contrib/find/browser/findState';
 import * as nls from 'vs/nls';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
@@ -122,7 +122,7 @@ function getXtermConstructor(): Promise<typeof XTermTerminal> {
 		// Localize strings
 		Terminal.strings.promptLabel = nls.localize('terminal.integrated.a11yPromptLabel', 'Terminal input');
 		Terminal.strings.tooMuchOutput = nls.localize('terminal.integrated.a11yTooMuchOutput', 'Too much output to announce, navigate to rows manually to read');
-		Terminal.strings.accessibilityBuffer = nls.localize('terminal.integrated.accessibleBuffer', 'Terminal buffer');
+		Terminal.strings.accessibleBuffer = nls.localize('terminal.integrated.accessibleBuffer', 'Terminal buffer');
 		resolve(Terminal);
 	});
 	return xtermConstructor;
@@ -473,7 +473,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			}
 			return findWidget;
 		});
-
 		this._logService.trace(`terminalInstance#ctor (instanceId: ${this.instanceId})`, this._shellLaunchConfig);
 		this._register(this.capabilities.onDidAddCapability(e => {
 			this._logService.debug('terminalInstance added capability', e);
@@ -1025,7 +1024,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			}
 
 			// If tab focus mode is on, tab is not passed to the terminal
-			if (TabFocus.getTabFocusMode() && event.keyCode === 9) {
+			if (TabFocus.getTabFocusMode(TabFocusContext.Terminal) && event.keyCode === 9) {
 				return false;
 			}
 
@@ -2658,19 +2657,6 @@ export function parseExitResult(
 	return { code, message };
 }
 
-const introMessage = nls.localize('introMsg', "Welcome to Terminal Accessibility Help");
-const focusAccessibleBufferNls = nls.localize('focusAccessibleBuffer', 'The Focus Accessible Buffer ({0}) command enables screen readers to read terminal contents.');
-const focusAccessibleBufferNoKb = nls.localize('focusAccessibleBufferNoKb', 'The Focus Accessible Buffer command enables screen readers to read terminal contents and is currently not triggerable by a keybinding.');
-const shellIntegration = nls.localize('shellIntegration', "The terminal has a feature called shell integration that offers an enhanced experience and provides useful commands for screen readers such as:");
-const runRecentCommand = nls.localize('runRecentCommand', 'Run Recent Command ({0})');
-const runRecentCommandNoKb = nls.localize('runRecentCommandNoKb', 'Run Recent Command is currently not triggerable by a keybinding.');
-const goToRecent = nls.localize('goToRecentDirectory', 'Go to Recent Directory ({0})');
-const goToRecentNoKb = nls.localize('goToRecentDirectoryNoKb', 'Go to Recent Directory is currently not triggerable by a keybinding.');
-const readMoreLink = nls.localize('readMore', '[Read more about terminal accessibility](https://code.visualstudio.com/docs/editor/accessibility#_terminal-accessibility)');
-const dismiss = nls.localize('dismiss', "You can dismiss this dialog by pressing Escape or focusing elsewhere.");
-const openDetectedLink = nls.localize('openDetectedLink', 'The Open Detected Link ({0}) command enables screen readers to easily open links found in the terminal.');
-const openDetectedLinkNoKb = nls.localize('openDetectedLinkNoKb', 'The Open Detected Link command enables screen readers to easily open links found in the terminal and is currently not triggerable by a keybinding.');
-
 class AccessibilityHelpWidget extends Widget implements ITerminalWidget {
 	readonly id = 'help';
 	private _container: HTMLElement | undefined;
@@ -2680,13 +2666,14 @@ class AccessibilityHelpWidget extends Widget implements ITerminalWidget {
 	private readonly _markdownRenderer: MarkdownRenderer;
 
 	constructor(
-		instance: ITerminalInstance,
+		private readonly _instance: ITerminalInstance,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
 		@IInstantiationService instantiationService: IInstantiationService,
-		@IOpenerService private readonly _openerService: IOpenerService
+		@IOpenerService private readonly _openerService: IOpenerService,
+		@IContextKeyService private readonly _contextKeyService: IContextKeyService
 	) {
 		super();
-		this._hasShellIntegration = instance.xterm?.shellIntegration.status === ShellIntegrationStatus.VSCode;
+		this._hasShellIntegration = _instance.xterm?.shellIntegration.status === ShellIntegrationStatus.VSCode;
 		this._domNode = createFastDomNode(document.createElement('div'));
 		this._contentDomNode = createFastDomNode(document.createElement('div'));
 		this._contentDomNode.setClassName('terminal-accessibility-help');
@@ -2698,9 +2685,10 @@ class AccessibilityHelpWidget extends Widget implements ITerminalWidget {
 		this._register(dom.addStandardDisposableListener(this._contentDomNode.domNode, 'keydown', (e) => {
 			if (e.keyCode === KeyCode.Escape) {
 				this.hide();
+				_instance.focus();
 			}
 		}));
-		this._register(instance.onDidFocus(() => this.hide()));
+		this._register(_instance.onDidFocus(() => this.hide()));
 		this._markdownRenderer = this._register(instantiationService.createInstance(MarkdownRenderer, {}));
 	}
 
@@ -2724,7 +2712,7 @@ class AccessibilityHelpWidget extends Widget implements ITerminalWidget {
 	}
 
 	private _descriptionForCommand(commandId: string, msg: string, noKbMsg: string): string {
-		const kb = this._keybindingService.lookupKeybinding(commandId);
+		const kb = this._keybindingService.lookupKeybinding(commandId, this._contextKeyService);
 		if (kb) {
 			return strings.format(msg, kb.getAriaLabel());
 		}
@@ -2732,13 +2720,39 @@ class AccessibilityHelpWidget extends Widget implements ITerminalWidget {
 	}
 
 	private _buildContent(): void {
+		const introMessage = nls.localize('introMsg', "Welcome to Terminal Accessibility Help");
+		const focusAccessibleBufferNls = nls.localize('focusAccessibleBuffer', 'The Focus Accessible Buffer ({0}) command enables screen readers to read terminal contents.');
+		const focusAccessibleBufferNoKb = nls.localize('focusAccessibleBufferNoKb', 'The Focus Accessible Buffer command enables screen readers to read terminal contents and is currently not triggerable by a keybinding.');
+		const shellIntegration = nls.localize('shellIntegration', "The terminal has a feature called shell integration that offers an enhanced experience and provides useful commands for screen readers such as:");
+		const runRecentCommand = nls.localize('runRecentCommand', 'Run Recent Command ({0})');
+		const runRecentCommandNoKb = nls.localize('runRecentCommandNoKb', 'Run Recent Command is currently not triggerable by a keybinding.');
+		const goToRecentNoShellIntegration = nls.localize('goToRecentDirectoryNoShellIntegration', 'The Go to Recent Directory command ({0}) enables screen readers to easily navigate to a directory that has been used in the terminal.');
+		const goToRecentNoKbNoShellIntegration = nls.localize('goToRecentDirectoryNoKbNoShellIntegration', 'The Go to Recent Directory command enables screen readers to easily navigate to a directory that has been used in the terminal and is currently not triggerable by a keybinding.');
+		const goToRecent = nls.localize('goToRecentDirectory', 'Go to Recent Directory ({0})');
+		const goToRecentNoKb = nls.localize('goToRecentDirectoryNoKb', 'Go to Recent Directory is currently not triggerable by a keybinding.');
+		const readMoreLink = nls.localize('readMore', '[Read more about terminal accessibility](https://code.visualstudio.com/docs/editor/accessibility#_terminal-accessibility)');
+		const dismiss = nls.localize('dismiss', "You can dismiss this dialog by pressing Escape or focusing elsewhere.");
+		const openDetectedLink = nls.localize('openDetectedLink', 'The Open Detected Link ({0}) command enables screen readers to easily open links found in the terminal.');
+		const openDetectedLinkNoKb = nls.localize('openDetectedLinkNoKb', 'The Open Detected Link command enables screen readers to easily open links found in the terminal and is currently not triggerable by a keybinding.');
+		const newWithProfile = nls.localize('newWithProfile', 'The Create New Terminal (With Profile) ({0}) command allows for easy terminal creation using a specific profile.');
+		const newWithProfileNoKb = nls.localize('newWithProfileNoKb', 'The Create New Terminal (With Profile) command allows for easy terminal creation using a specific profile and is currently not triggerable by a keybinding.');
+		const accessibilitySettings = nls.localize('accessibilitySettings', 'Access accessibility settings such as `terminal.integrated.tabFocusMode` via the Preferences: Open Accessibility Settings command.');
+		const commandPrompt = nls.localize('commandPromptMigration', "Consider using powershell instead of command prompt for an improved experience");
+
 		const content = [];
 		content.push(this._descriptionForCommand(TerminalCommandId.FocusAccessibleBuffer, focusAccessibleBufferNls, focusAccessibleBufferNoKb));
+		if (this._instance.shellType === WindowsShellType.CommandPrompt) {
+			content.push(commandPrompt);
+		}
 		if (this._hasShellIntegration) {
 			content.push(shellIntegration);
 			content.push('- ' + this._descriptionForCommand(TerminalCommandId.RunRecentCommand, runRecentCommand, runRecentCommandNoKb) + '\n- ' + this._descriptionForCommand(TerminalCommandId.GoToRecentDirectory, goToRecent, goToRecentNoKb));
+		} else {
+			content.push(this._descriptionForCommand(TerminalCommandId.GoToRecentDirectory, goToRecentNoShellIntegration, goToRecentNoKbNoShellIntegration));
 		}
 		content.push(this._descriptionForCommand(TerminalCommandId.OpenDetectedLink, openDetectedLink, openDetectedLinkNoKb));
+		content.push(this._descriptionForCommand(TerminalCommandId.NewWithProfile, newWithProfile, newWithProfileNoKb));
+		content.push(accessibilitySettings);
 		content.push(readMoreLink, dismiss);
 		const element = renderElementAsMarkdown(this._markdownRenderer, this._openerService, content.join('\n\n'), this._register(new DisposableStore()));
 		const anchorElements = element.querySelectorAll('a');
