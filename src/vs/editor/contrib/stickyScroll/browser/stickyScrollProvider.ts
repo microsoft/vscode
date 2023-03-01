@@ -8,7 +8,7 @@ import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import { OutlineModel, OutlineElement, OutlineGroup } from 'vs/editor/contrib/documentSymbols/browser/outlineModel';
 import { CancellationToken, CancellationTokenSource, } from 'vs/base/common/cancellation';
-import { EditorOption, IEditorStickyScrollOptions } from 'vs/editor/common/config/editorOptions';
+import { DefaultModel as ModelProvider, EditorOption, IEditorStickyScrollOptions } from 'vs/editor/common/config/editorOptions';
 import { CancelablePromise, createCancelablePromise, Delayer, RunOnceScheduler } from 'vs/base/common/async';
 import { Range } from 'vs/editor/common/core/range';
 import { Emitter } from 'vs/base/common/event';
@@ -28,6 +28,12 @@ import { IFeatureDebounceInformation, ILanguageFeatureDebounceService } from 'vs
 import { FoldingDecorationProvider } from 'vs/editor/contrib/folding/browser/foldingDecorations';
 import { onUnexpectedError } from 'vs/base/common/errors';
 
+enum ModelProvider {
+	OUTLINE_MODEL = 'Outline Model',
+	FOLDING_PROVIDER_MODEL = 'Folding Provider Model',
+	INDENTATION_MODEL = 'Indentation Model'
+}
+
 export class StickyRange {
 	constructor(
 		public readonly startLineNumber: number,
@@ -41,12 +47,6 @@ export class StickyLineCandidate {
 		public readonly endLineNumber: number,
 		public readonly nestingDepth: number,
 	) { }
-}
-
-enum DefaultModel {
-	OUTLINE_MODEL = 'Outline Model',
-	FOLDING_PROVIDER_MODEL = 'Folding Provider Model',
-	INDENTATION_MODEL = 'Indentation Model'
 }
 
 export class StickyLineCandidateProvider extends Disposable {
@@ -107,19 +107,16 @@ export class StickyLineCandidateProvider extends Disposable {
 			this._sessionStore.clear();
 			return;
 		} else {
-
-			console.log('this._options.defaultModel : ', this._options.defaultModel);
-
 			// Specifying the order in which the model providers should be called depending on the setting options
-			if (this._options.defaultModel === DefaultModel.INDENTATION_MODEL) {
-				this._modelProviders.unshift(this.stickyModelFromIndentationFoldingModel.bind(this));
+			if (this._options.defaultModel === ModelProvider.INDENTATION_MODEL) {
+				this._modelProviders.unshift(this.stickyModelFromIndentationProvider.bind(this));
 			}
-			else if (this._options.defaultModel === DefaultModel.OUTLINE_MODEL || this._options.defaultModel === DefaultModel.FOLDING_PROVIDER_MODEL) {
+			else if (this._options.defaultModel === ModelProvider.OUTLINE_MODEL || this._options.defaultModel === ModelProvider.FOLDING_PROVIDER_MODEL) {
 				// By construction the folding provider model already falls back on the indentation model, so don't need to include the indentation model as the last element in the priority list
-				this._modelProviders.unshift(this.stickyModelFromFoldingProviderModel.bind(this));
+				this._modelProviders.unshift(this.stickyModelFromFoldingProvider.bind(this));
 
-				if (this._options.defaultModel === DefaultModel.OUTLINE_MODEL) {
-					this._modelProviders.unshift(this.stickyModelFromOutlineModel.bind(this));
+				if (this._options.defaultModel === ModelProvider.OUTLINE_MODEL) {
+					this._modelProviders.unshift(this.stickyModelFromOutlineProvider.bind(this));
 				}
 			}
 		}
@@ -174,7 +171,6 @@ export class StickyLineCandidateProvider extends Disposable {
 		// The current folding model and folding regions promises are set to null
 		this._foldingStore.add({
 			dispose: () => {
-				console.log('Entered into the dispose method');
 				if (this._foldingRegionPromise) {
 					this._foldingRegionPromise.cancel();
 					this._foldingRegionPromise = null;
@@ -189,7 +185,6 @@ export class StickyLineCandidateProvider extends Disposable {
 		// Cycle through the array until one of the model providers provides a valid folding model
 		for (const modelProvider of this._modelProviders) {
 			const status = await modelProvider(textModel, modelVersionId, token);
-			console.log('status :', status);
 			// If status is undefined, then the cancellation token has been called, then cancel the update operation
 			if (status === undefined) {
 				return;
@@ -204,8 +199,7 @@ export class StickyLineCandidateProvider extends Disposable {
 		clearTimeout(resetHandle);
 	}
 
-	private async stickyModelFromOutlineModel(textModel: ITextModel, modelVersionId: number, token: CancellationToken): Promise<boolean | undefined> {
-		console.log('Inside of sticky model from outline model');
+	private async stickyModelFromOutlineProvider(textModel: ITextModel, modelVersionId: number, token: CancellationToken): Promise<boolean | undefined> {
 		const outlineModel = await OutlineModel.create(this._languageFeaturesService.documentSymbolProvider, textModel, token);
 		if (token.isCancellationRequested) {
 			return;
@@ -220,27 +214,24 @@ export class StickyLineCandidateProvider extends Disposable {
 		}
 	}
 
-	private async stickyModelFromFoldingProviderModel(textModel: ITextModel, modelVersionId: number, token: CancellationToken): Promise<boolean | undefined> {
-		console.log('Inside of sticky model from folding provider model');
+	private async stickyModelFromFoldingProvider(textModel: ITextModel, modelVersionId: number, token: CancellationToken): Promise<boolean | undefined> {
 		const indentRangeProvider = new IndentRangeProvider(textModel, this._languageConfigurationService, this._foldingLimitReporter);
 		const selectedProviders = FoldingController.getFoldingRangeProviders(this._languageFeaturesService, textModel);
 		let provider: RangeProvider;
 		if (selectedProviders.length > 0) {
-			provider = new SyntaxRangeProvider(textModel, selectedProviders, () => this.stickyModelFromFoldingProviderModel(textModel, modelVersionId, token), this._foldingLimitReporter, indentRangeProvider);
+			provider = new SyntaxRangeProvider(textModel, selectedProviders, () => this.stickyModelFromFoldingProvider(textModel, modelVersionId, token), this._foldingLimitReporter, indentRangeProvider);
 		} else {
 			provider = indentRangeProvider;
 		}
 		return this.stickyModelFromProvider(textModel, modelVersionId, token, provider);
 	}
 
-	private async stickyModelFromIndentationFoldingModel(textModel: ITextModel, modelVersionId: number, token: CancellationToken): Promise<boolean | undefined> {
-		console.log('inside of sticky model from indentation folding model');
+	private async stickyModelFromIndentationProvider(textModel: ITextModel, modelVersionId: number, token: CancellationToken): Promise<boolean | undefined> {
 		const provider = new IndentRangeProvider(textModel, this._languageConfigurationService, this._foldingLimitReporter);
 		return this.stickyModelFromProvider(textModel, modelVersionId, token, provider);
 	}
 
 	private async stickyModelFromProvider(textModel: ITextModel, modelVersionId: number, token: CancellationToken, provider: RangeProvider): Promise<boolean | undefined> {
-		console.log('Inside of sticky model from general provider');
 		if (this._updateScheduler) {
 			if (this._foldingRegionPromise) {
 				this._foldingRegionPromise.cancel();
@@ -258,7 +249,6 @@ export class StickyLineCandidateProvider extends Disposable {
 							this._updateScheduler.defaultDelay = newValue;
 						}
 					}
-					console.log('folding model : ', foldingModel);
 					return foldingModel;
 				});
 			}).then(undefined, (err) => {
@@ -267,7 +257,6 @@ export class StickyLineCandidateProvider extends Disposable {
 			});
 
 			return this._foldingModelPromise!.then((foldingModel) => {
-				console.log('After resolving the folding model promise');
 				return this.stickyModelFromFoldingModel(textModel, modelVersionId, token, foldingModel);
 			});
 		} else {
@@ -276,7 +265,6 @@ export class StickyLineCandidateProvider extends Disposable {
 	}
 
 	private async stickyModelFromFoldingModel(textModel: ITextModel, modelVersionId: number, token: CancellationToken, foldingModel: FoldingModel | null): Promise<boolean | undefined> {
-		console.log('Inside of sticky model from general folding model');
 		// Return undefined when the token is cancelled
 		if (token.isCancellationRequested) {
 			return;
