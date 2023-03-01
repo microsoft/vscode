@@ -9,6 +9,7 @@ import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { findInFilesCommand, IFindInFilesArgs } from 'vs/workbench/contrib/search/browser/searchActionsFind';
 import { TerminalFindWidget } from 'vs/workbench/contrib/terminal/browser/find/terminalFindWidget';
 import { ITerminalInstance, ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { TerminalCommandId } from 'vs/workbench/contrib/terminal/common/terminal';
@@ -233,5 +234,29 @@ registerAction2(class extends Action2 {
 			widget.show();
 			widget.find(true);
 		}
+	}
+});
+
+// Global workspace file search
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: TerminalCommandId.SearchWorkspace,
+			title: { value: localize('workbench.action.terminal.searchWorkspace', "Search Workspace"), original: 'Search Workspace' },
+			f1: true,
+			category,
+			keybinding: [
+				{
+					primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyF,
+					when: ContextKeyExpr.and(TerminalContextKeys.processSupported, TerminalContextKeys.focus, TerminalContextKeys.textSelected),
+					weight: KeybindingWeight.WorkbenchContrib + 50
+				}
+			],
+			precondition: TerminalContextKeys.processSupported
+		});
+	}
+	run(accessor: ServicesAccessor) {
+		const query = accessor.get(ITerminalService).activeInstance?.selection;
+		findInFilesCommand(accessor, { query } as IFindInFilesArgs);
 	}
 });
