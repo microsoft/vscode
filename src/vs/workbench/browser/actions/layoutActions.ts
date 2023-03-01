@@ -487,11 +487,13 @@ registerAction2(ToggleStatusbarVisibilityAction);
 
 // --- Toggle Tabs Visibility
 
-registerAction2(class extends Action2 {
+export class ToggleTabsVisibilityAction extends Action2 {
+
+	static readonly ID = 'workbench.action.toggleTabsVisibility';
 
 	constructor() {
 		super({
-			id: 'workbench.action.toggleTabsVisibility',
+			id: ToggleTabsVisibilityAction.ID,
 			title: {
 				value: localize('toggleTabs', "Toggle Tab Visibility"),
 				original: 'Toggle Tab Visibility'
@@ -509,7 +511,8 @@ registerAction2(class extends Action2 {
 
 		return configurationService.updateValue('workbench.editor.showTabs', newVisibilityValue);
 	}
-});
+}
+registerAction2(ToggleTabsVisibilityAction);
 
 // --- Toggle Zen Mode
 

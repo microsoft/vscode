@@ -730,11 +730,8 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 	async resolveProxy(windowId: number | undefined, url: string): Promise<string | undefined> {
 		const window = this.windowById(windowId);
 		const session = window?.win?.webContents?.session;
-		if (session) {
-			return session.resolveProxy(url);
-		} else {
-			return undefined;
-		}
+
+		return session?.resolveProxy(url);
 	}
 
 	findFreePort(windowId: number | undefined, startPort: number, giveUpAfter: number, timeout: number, stride = 1): Promise<number> {

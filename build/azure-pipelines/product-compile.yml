@@ -177,4 +177,5 @@ steps:
         displayName: "Component Detection"
         inputs:
           sourceScanPath: $(Build.SourcesDirectory)
+          alertWarningLevel: 'Medium'
         continueOnError: true

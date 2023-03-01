@@ -11,13 +11,13 @@ import { CancellationToken, CancellationTokenSource, } from 'vs/base/common/canc
 import { EditorOption, IEditorStickyScrollOptions } from 'vs/editor/common/config/editorOptions';
 import { CancelablePromise, createCancelablePromise, Delayer, RunOnceScheduler } from 'vs/base/common/async';
 import { Range } from 'vs/editor/common/core/range';
-import { Emitter } from 'vs/base/common/event';
 import { binarySearch } from 'vs/base/common/arrays';
 import { Iterable } from 'vs/base/common/iterator';
 import { FoldingController, RangeProvider, RangesLimitReporter } from 'vs/editor/contrib/folding/browser/folding';
 import { FoldingModel } from 'vs/editor/contrib/folding/browser/foldingModel';
 import { URI } from 'vs/base/common/uri';
 import { isEqual } from 'vs/base/common/resources';
+import { Event, Emitter } from 'vs/base/common/event';
 import { ITextModel } from 'vs/editor/common/model';
 import { SyntaxRangeProvider } from 'vs/editor/contrib/folding/browser/syntaxRangeProvider';
 import { IndentRangeProvider } from 'vs/editor/contrib/folding/browser/indentRangeProvider';
@@ -49,7 +49,18 @@ export class StickyLineCandidate {
 	) { }
 }
 
-export class StickyLineCandidateProvider extends Disposable {
+export interface IStickyLineCandidateProvider {
+
+	dispose(): void;
+	getVersionId(): number | undefined;
+	update(): Promise<void>;
+	getCandidateStickyLinesIntersectingFromOutline(range: StickyRange, outlineModel: StickyOutlineElement, result: StickyLineCandidate[], depth: number, lastStartLineNumber: number): void;
+	getCandidateStickyLinesIntersecting(range: StickyRange): StickyLineCandidate[];
+	onDidChangeStickyScroll: Event<void>;
+
+}
+
+export class StickyLineCandidateProvider extends Disposable implements IStickyLineCandidateProvider {
 
 	static readonly ID = 'store.contrib.stickyScrollController';
 
@@ -132,7 +143,7 @@ export class StickyLineCandidateProvider extends Disposable {
 		this.update();
 	}
 
-	public getVersionId() {
+	public getVersionId(): number | undefined {
 		return this._model?.version;
 	}
 

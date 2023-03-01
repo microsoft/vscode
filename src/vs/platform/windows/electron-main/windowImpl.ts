@@ -125,6 +125,9 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 	private _lastFocusTime = -1;
 	get lastFocusTime(): number { return this._lastFocusTime; }
 
+	private _isSandboxed = false;
+	get isSandboxed(): boolean { return this._isSandboxed; }
+
 	get backupPath(): string | undefined { return this._config?.backupPath; }
 
 	get openedWorkspace(): IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | undefined { return this._config?.workspace; }
@@ -232,6 +235,8 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 			} else {
 				useSandbox = typeof this.productService.quality === 'string' && this.productService.quality !== 'stable';
 			}
+
+			this._isSandboxed = useSandbox;
 
 			const options: BrowserWindowConstructorOptions & { experimentalDarkMode: boolean } = {
 				width: this.windowState.width,
@@ -1082,7 +1087,8 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		configuration.continueOn = this.environmentMainService.continueOn;
 		configuration.profiles = {
 			all: this.userDataProfilesService.profiles,
-			profile: this.profile || this.userDataProfilesService.defaultProfile
+			profile: this.profile || this.userDataProfilesService.defaultProfile,
+			home: this.userDataProfilesService.profilesHome
 		};
 		configuration.logLevel = this.loggerMainService.getLogLevel();
 		configuration.loggers = {

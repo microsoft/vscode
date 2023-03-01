@@ -5,7 +5,6 @@
 
 import { stringDiff } from 'vs/base/common/diff/diff';
 import { IDisposable } from 'vs/base/common/lifecycle';
-import { globals } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
 import { IRequestHandler } from 'vs/base/common/worker/simpleWorker';
 import { IPosition, Position } from 'vs/editor/common/core/position';
@@ -702,5 +701,5 @@ declare function importScripts(...urls: string[]): void;
 
 if (typeof importScripts === 'function') {
 	// Running in a web worker
-	globals.monaco = createMonacoBaseAPI();
+	globalThis.monaco = createMonacoBaseAPI();
 }

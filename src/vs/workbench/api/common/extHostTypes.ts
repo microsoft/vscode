@@ -2608,23 +2608,23 @@ export class DataTransfer implements vscode.DataTransfer {
 
 	constructor(init?: Iterable<readonly [string, DataTransferItem]>) {
 		for (const [mime, item] of init ?? []) {
-			const existing = this.#items.get(mime);
+			const existing = this.#items.get(this.#normalizeMime(mime));
 			if (existing) {
 				existing.push(item);
 			} else {
-				this.#items.set(mime, [item]);
+				this.#items.set(this.#normalizeMime(mime), [item]);
 			}
 		}
 	}
 
 	get(mimeType: string): DataTransferItem | undefined {
-		return this.#items.get(mimeType)?.[0];
+		return this.#items.get(this.#normalizeMime(mimeType))?.[0];
 	}
 
 	set(mimeType: string, value: DataTransferItem): void {
 		// This intentionally overwrites all entries for a given mimetype.
 		// This is similar to how the DOM DataTransfer type works
-		this.#items.set(mimeType, [value]);
+		this.#items.set(this.#normalizeMime(mimeType), [value]);
 	}
 
 	forEach(callbackfn: (value: DataTransferItem, key: string, dataTransfer: DataTransfer) => void, thisArg?: unknown): void {
@@ -2641,6 +2641,10 @@ export class DataTransfer implements vscode.DataTransfer {
 				yield [mime, item];
 			}
 		}
+	}
+
+	#normalizeMime(mimeType: string): string {
+		return mimeType.toLowerCase();
 	}
 }
 

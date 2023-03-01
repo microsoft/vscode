@@ -582,6 +582,21 @@
           "additionalProperties": {
             "type": "string"
           }
+        },
+        "markdown.preferredMdPathExtensionStyle": {
+          "type": "string",
+          "default": "auto",
+          "markdownDescription": "%configuration.markdown.preferredMdPathExtensionStyle%",
+          "enum": [
+            "auto",
+            "includeExtension",
+            "removeExtension"
+          ],
+          "markdownEnumDescriptions": [
+            "%configuration.markdown.preferredMdPathExtensionStyle.auto%",
+            "%configuration.markdown.preferredMdPathExtensionStyle.includeExtension%",
+            "%configuration.markdown.preferredMdPathExtensionStyle.removeExtension%"
+          ]
         }
       }
     },

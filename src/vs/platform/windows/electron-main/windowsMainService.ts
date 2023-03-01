@@ -1323,6 +1323,13 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 			}
 		}
 
+		let preferUtilityProcess = false;
+		if (typeof windowConfig?.experimental?.sharedProcessUseUtilityProcess === 'boolean') {
+			preferUtilityProcess = windowConfig.experimental.sharedProcessUseUtilityProcess;
+		} else {
+			preferUtilityProcess = product.quality !== 'stable';
+		}
+
 		// Build up the window configuration from provided options, config and environment
 		const configuration: INativeWindowConfiguration = {
 
@@ -1347,6 +1354,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 			backupPath: options.emptyWindowBackupInfo ? join(this.environmentMainService.backupHome, options.emptyWindowBackupInfo.backupFolder) : undefined,
 
 			profiles: {
+				home: this.userDataProfilesMainService.profilesHome,
 				all: this.userDataProfilesMainService.profiles,
 				// Set to default profile first and resolve and update the profile
 				// only after the workspace-backup is registered.
@@ -1372,7 +1380,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 				window: [],
 				global: this.loggerService.getRegisteredLoggers()
 			},
-			logsPath: this.environmentMainService.logsPath,
+			logsPath: this.environmentMainService.logsHome.fsPath,
 
 			product,
 			isInitialStartup: options.initialStartup,
@@ -1386,6 +1394,8 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 			colorScheme: this.themeMainService.getColorScheme(),
 			policiesData: this.policyService.serialize(),
 			continueOn: this.environmentMainService.continueOn,
+
+			preferUtilityProcess
 		};
 
 		// New window

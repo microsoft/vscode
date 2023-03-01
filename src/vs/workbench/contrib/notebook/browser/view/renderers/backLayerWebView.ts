@@ -89,6 +89,7 @@ export interface INotebookDelegateForWebview {
 	didResizeOutput(cellId: string): void;
 	setScrollTop(scrollTop: number): void;
 	triggerScroll(event: IMouseWheelEvent): void;
+	updatePerformanceMetadata(cellId: string, executionId: string, duration: number, rendererId: string): void;
 }
 
 interface BacklayerWebviewOptions {
@@ -107,6 +108,7 @@ interface BacklayerWebviewOptions {
 	readonly markupFontSize: number;
 	readonly outputLineHeight: number;
 	readonly outputScrolling: boolean;
+	readonly outputWordWrap: boolean;
 	readonly outputLineLimit: number;
 }
 
@@ -228,6 +230,11 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 			type: 'notebookOptions',
 			options: {
 				dragAndDropEnabled: this.options.dragAndDropEnabled
+			},
+			renderOptions: {
+				lineLimit: this.options.outputLineLimit,
+				outputScrolling: this.options.outputScrolling,
+				outputWordWrap: this.options.outputWordWrap
 			}
 		});
 	}
@@ -264,7 +271,8 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 		const preloadsData = this.getStaticPreloadsData();
 		const renderOptions = {
 			lineLimit: this.options.outputLineLimit,
-			outputScrolling: this.options.outputScrolling
+			outputScrolling: this.options.outputScrolling,
+			outputWordWrap: this.options.outputWordWrap
 		};
 		const preloadScript = preloadsScriptStr(
 			this.options,
@@ -675,7 +683,9 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 								'github-issues.authNow',
 								'workbench.extensions.search',
 								'workbench.action.openSettings',
-								'notebook.selectKernel',
+								'_notebook.selectKernel',
+								// TODO@rebornix explore open output channel with name command
+								'jupyter.viewOutput'
 							],
 						});
 						return;
@@ -810,6 +820,10 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 				}
 				case 'logRendererDebugMessage': {
 					this._logRendererDebugMessage(`${data.message}${data.data ? ' ' + JSON.stringify(data.data, null, 4) : ''}`);
+					break;
+				}
+				case 'notebookPerformanceMessage': {
+					this.notebookEditor.updatePerformanceMetadata(data.cellId, data.executionId, data.duration, data.rendererId);
 					break;
 				}
 			}
@@ -1284,6 +1298,7 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 
 		const messageBase = {
 			type: 'html',
+			executionId: cellInfo.executionId,
 			cellId: cellInfo.cellId,
 			cellTop: cellTop,
 			outputOffset: offset,

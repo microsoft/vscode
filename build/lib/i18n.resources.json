@@ -263,10 +263,6 @@
 			"project": "vscode-workbench"
 		},
 		{
-			"name": "vs/workbench/contrib/welcomeOverlay",
-			"project": "vscode-workbench"
-		},
-		{
 			"name": "vs/workbench/contrib/welcomePage",
 			"project": "vscode-workbench"
 		},
@@ -493,6 +489,10 @@
 		{
 			"name": "vs/workbench/services/userDataProfile",
 			"project": "vscode-profiles"
+		},
+		{
+			"name": "vs/workbench/services/localization",
+			"project": "vscode-workbench"
 		}
 	]
 }

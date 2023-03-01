@@ -27,7 +27,7 @@ export interface ILanguagePackService {
 	readonly _serviceBrand: undefined;
 	getAvailableLanguages(): Promise<Array<ILanguagePackItem>>;
 	getInstalledLanguages(): Promise<Array<ILanguagePackItem>>;
-	getBuiltInExtensionTranslationsUri(id: string): Promise<URI | undefined>;
+	getBuiltInExtensionTranslationsUri(id: string, language: string): Promise<URI | undefined>;
 }
 
 export abstract class LanguagePackBaseService extends Disposable implements ILanguagePackService {
@@ -37,7 +37,7 @@ export abstract class LanguagePackBaseService extends Disposable implements ILan
 		super();
 	}
 
-	abstract getBuiltInExtensionTranslationsUri(id: string): Promise<URI | undefined>;
+	abstract getBuiltInExtensionTranslationsUri(id: string, language: string): Promise<URI | undefined>;
 
 	abstract getInstalledLanguages(): Promise<Array<ILanguagePackItem>>;
 
