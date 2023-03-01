@@ -22,7 +22,7 @@ import { MissingExtensionDependency, ActivationKind, checkProposedApiEnabled, is
 import { ExtensionDescriptionRegistry, IActivationEventsReader } from 'vs/workbench/services/extensions/common/extensionDescriptionRegistry';
 import * as errors from 'vs/base/common/errors';
 import type * as vscode from 'vscode';
-import { ExtensionIdentifier, ExtensionIdentifierMap, ExtensionIdentifierSet, IExtensionDescription, IRelaxedExtensionDescription } from 'vs/platform/extensions/common/extensions';
+import { ExtensionIdentifier, ExtensionIdentifierMap, ExtensionIdentifierSet, IExtensionDescription, IRelaxedExtensionDescription, isResolverExtension } from 'vs/platform/extensions/common/extensions';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { ExtensionGlobalMemento, ExtensionMemento } from 'vs/workbench/api/common/extHostMemento';
 import { RemoteAuthorityResolverError, ExtensionKind, ExtensionMode, ExtensionRuntime } from 'vs/workbench/api/common/extHostTypes';
@@ -653,7 +653,8 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 		this._register(this._extHostWorkspace.onDidChangeWorkspace((e) => this._handleWorkspaceContainsEagerExtensions(e.added)));
 		const folders = this._extHostWorkspace.workspace ? this._extHostWorkspace.workspace.folders : [];
 		const workspaceContainsActivation = this._handleWorkspaceContainsEagerExtensions(folders);
-		const eagerExtensionsActivation = Promise.all([starActivation, workspaceContainsActivation]).then(() => { });
+		const remoteResolverActivation = this._handleRemoteResolverEagerExtensions();
+		const eagerExtensionsActivation = Promise.all([remoteResolverActivation, starActivation, workspaceContainsActivation]).then(() => { });
 
 		Promise.race([eagerExtensionsActivation, timeout(10000)]).then(() => {
 			this._activateAllStartupFinished();
@@ -697,6 +698,21 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 			this._activateById(desc.identifier, { startup: true, extensionId: desc.identifier, activationEvent: result.activationEvent })
 				.then(undefined, err => this._logService.error(err))
 		);
+	}
+
+	private async _handleRemoteResolverEagerExtensions(): Promise<void> {
+		return Promise.all(
+			this._myRegistry.getAllExtensionDescriptions().map((desc) => {
+				if (this.isActivated(desc.identifier) || !isResolverExtension(desc, this._initData.remote.authority)) {
+					return;
+				}
+
+				return (
+					this._activateById(desc.identifier, { startup: true, extensionId: desc.identifier, activationEvent: `onResolveRemoteAuthority:${this._initData.remote.authority}` })
+						.then(undefined, err => this._logService.error(err))
+				);
+			})
+		).then(() => { });
 	}
 
 	public async $extensionTestsExecute(): Promise<number> {
