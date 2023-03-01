@@ -5,10 +5,11 @@
 
 import 'vs/css!./media/activityaction';
 import { localize } from 'vs/nls';
-import { EventType, addDisposableListener, EventHelper } from 'vs/base/browser/dom';
+import { EventType, addDisposableListener, EventHelper, append, $, clearNode, hide, show } from 'vs/base/browser/dom';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { EventType as TouchEventType, GestureEvent } from 'vs/base/browser/touch';
 import { Action, IAction, Separator, SubmenuAction, toAction } from 'vs/base/common/actions';
+import { Event } from 'vs/base/common/event';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { IMenuService, MenuId, IMenu, registerAction2, Action2, IAction2Options } from 'vs/platform/actions/common/actions';
@@ -344,6 +345,9 @@ export interface IProfileActivity extends IActivity {
 
 export class GlobalActivityActionViewItem extends MenuActivityActionViewItem {
 
+	private profileBadge: HTMLElement | undefined;
+	private profileBadgeContent: HTMLElement | undefined;
+
 	constructor(
 		action: ActivityAction,
 		contextMenuActionsProvider: () => IAction[],
@@ -360,6 +364,40 @@ export class GlobalActivityActionViewItem extends MenuActivityActionViewItem {
 		@IKeybindingService keybindingService: IKeybindingService,
 	) {
 		super(MenuId.GlobalActivity, action, contextMenuActionsProvider, true, colors, activityHoverOptions, themeService, hoverService, menuService, contextMenuService, contextKeyService, configurationService, environmentService, keybindingService);
+		this._register(Event.any(this.userDataProfileService.onDidUpdateCurrentProfile, this.userDataProfileService.onDidChangeCurrentProfile)(() => this.updateProfileBadge()));
+	}
+
+	override render(container: HTMLElement): void {
+		super.render(container);
+
+		this.profileBadge = append(container, $('.profile-badge'));
+		this.profileBadgeContent = append(this.profileBadge, $('.profile-badge-content'));
+		this.updateProfileBadge();
+	}
+
+	private updateProfileBadge(): void {
+		if (!this.profileBadge || !this.profileBadgeContent) {
+			return;
+		}
+
+		clearNode(this.profileBadgeContent);
+		hide(this.profileBadge);
+
+		if (this.userDataProfileService.currentProfile.isDefault) {
+			return;
+		}
+
+		if ((this.action as ActivityAction).getBadge()) {
+			return;
+		}
+
+		this.profileBadgeContent.textContent = this.userDataProfileService.currentProfile.name.substring(0, 2).toUpperCase();
+		show(this.profileBadge);
+	}
+
+	protected override updateBadge(): void {
+		super.updateBadge();
+		this.updateProfileBadge();
 	}
 
 	protected override computeTitle(): string {

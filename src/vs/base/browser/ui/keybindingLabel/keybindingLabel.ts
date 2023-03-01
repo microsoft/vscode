@@ -157,11 +157,11 @@ export class KeybindingLabel {
 		if (this.options.keybindingLabelBackground) {
 			keyElement.style.backgroundColor = this.options.keybindingLabelBackground;
 		}
-		if (this.options.keybindingLabelForeground) {
-			keyElement.style.borderColor = this.options.keybindingLabelForeground;
-		}
 		if (this.options.keybindingLabelBorder) {
-			keyElement.style.borderBottomColor = this.options.keybindingLabelBorder;
+			keyElement.style.borderColor = this.options.keybindingLabelBorder;
+		}
+		if (this.options.keybindingLabelBottomBorder) {
+			keyElement.style.borderBottomColor = this.options.keybindingLabelBottomBorder;
 		}
 		if (this.options.keybindingLabelShadow) {
 			keyElement.style.boxShadow = `inset 0 -1px 0 ${this.options.keybindingLabelShadow}`;

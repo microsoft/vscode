@@ -20,6 +20,7 @@ async function createInteractiveWindow(kernel: Kernel) {
 		`vscode.vscode-api-tests/${kernel.controller.id}`,
 		undefined
 	)) as unknown as INativeInteractiveWindow;
+	assert.ok(notebookEditor, 'Interactive Window was not created successfully');
 
 	return { notebookEditor, inputUri };
 }
@@ -66,7 +67,6 @@ async function addCellAndRun(code: string, notebook: vscode.NotebookDocument, i:
 	test('Can open an interactive window and execute from input box', async () => {
 		assert.ok(vscode.workspace.workspaceFolders);
 		const { notebookEditor, inputUri } = await createInteractiveWindow(defaultKernel);
-		assert.ok(notebookEditor);
 
 		const inputBox = vscode.window.visibleTextEditors.find(
 			(e) => e.document.uri.path === inputUri.path
@@ -83,7 +83,6 @@ async function addCellAndRun(code: string, notebook: vscode.NotebookDocument, i:
 	test('Interactive window scrolls after execute', async () => {
 		assert.ok(vscode.workspace.workspaceFolders);
 		const { notebookEditor } = await createInteractiveWindow(defaultKernel);
-		assert.ok(notebookEditor);
 
 		// Run and add a bunch of cells
 		for (let i = 0; i < 10; i++) {
@@ -97,19 +96,18 @@ async function addCellAndRun(code: string, notebook: vscode.NotebookDocument, i:
 
 	test('Interactive window has the correct kernel', async () => {
 		assert.ok(vscode.workspace.workspaceFolders);
-		const { notebookEditor } = await createInteractiveWindow(defaultKernel);
-		assert.ok(notebookEditor);
+		await createInteractiveWindow(defaultKernel);
 
 		await vscode.commands.executeCommand('workbench.action.closeActiveEditor');
 
 		// Create a new interactive window with a different kernel
-		const { notebookEditor: notebookEditor2 } = await createInteractiveWindow(secondKernel);
-		assert.ok(notebookEditor2);
+		const { notebookEditor } = await createInteractiveWindow(secondKernel);
+		assert.ok(notebookEditor);
 
 		// Verify the kernel is the secondary one
-		await addCellAndRun(`print`, notebookEditor2.notebook, 0);
+		await addCellAndRun(`print`, notebookEditor.notebook, 0);
 
-		assert.strictEqual(secondKernel.associatedNotebooks.has(notebookEditor2.notebook.uri.toString()), true, `Secondary kernel was not set as the kernel for the interactive window`);
+		assert.strictEqual(secondKernel.associatedNotebooks.has(notebookEditor.notebook.uri.toString()), true, `Secondary kernel was not set as the kernel for the interactive window`);
 
 	});
 });

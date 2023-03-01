@@ -119,10 +119,7 @@ export class CodeCell extends Disposable {
 		this._outputContainerRenderer.render();
 		this._renderedOutputCollapseState = false; // the output is always rendered initially
 		// Need to do this after the intial renderOutput
-		if (this.viewCell.isOutputCollapsed === undefined && this.viewCell.isInputCollapsed === undefined) {
-			this.initialViewUpdateExpanded();
-			this.viewCell.layoutChange({});
-		}
+		this.initialViewUpdateExpanded();
 
 		this._register(this.viewCell.onLayoutInfoRead(() => {
 			this.cellParts.prepareLayout();
@@ -480,10 +477,10 @@ export class CodeCell extends Disposable {
 
 	private initialViewUpdateExpanded(): void {
 		this.templateData.container.classList.toggle('input-collapsed', false);
-		this._showInput();
+		DOM.show(this.templateData.editorPart);
+		DOM.hide(this.templateData.cellInputCollapsedContainer);
 		this.templateData.container.classList.toggle('output-collapsed', false);
 		this._showOutput(true);
-		this.relayoutCell();
 	}
 
 	private layoutEditor(dimension: IDimension): void {

@@ -7,6 +7,7 @@ import { URI } from 'vs/base/common/uri';
 import { MainThreadDiaglogsShape, MainContext, MainThreadDialogOpenOptions, MainThreadDialogSaveOptions } from '../common/extHost.protocol';
 import { extHostNamedCustomer, IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
 import { IFileDialogService, IOpenDialogOptions, ISaveDialogOptions } from 'vs/platform/dialogs/common/dialogs';
+import { Schemas } from 'vs/base/common/network';
 
 @extHostNamedCustomer(MainContext.MainThreadDialogs)
 export class MainThreadDialogs implements MainThreadDiaglogsShape {
@@ -46,7 +47,7 @@ export class MainThreadDialogs implements MainThreadDiaglogsShape {
 			canSelectMany: options?.canSelectMany,
 			defaultUri: options?.defaultUri ? URI.revive(options.defaultUri) : undefined,
 			title: options?.title || undefined,
-			availableFileSystems: []
+			availableFileSystems: options?.allowUIResources ? [Schemas.vscodeRemote, Schemas.file] : []
 		};
 		if (options?.filters) {
 			result.filters = [];

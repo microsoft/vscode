@@ -663,7 +663,6 @@ function getOutputMatchForCommand(executedMarker: IMarker | undefined, endMarker
 	const matcher = outputMatcher.lineMatcher;
 	const linesToCheck = typeof matcher === 'string' ? 1 : outputMatcher.length || countNewLines(matcher);
 	const lines: string[] = [];
-	let wrappedLines = 1;
 	let match: RegExpMatchArray | null | undefined;
 	if (outputMatcher.anchor === 'bottom') {
 		for (let i = endLine - (outputMatcher.offset || 0); i >= startLine; i--) {
@@ -675,10 +674,9 @@ function getOutputMatchForCommand(executedMarker: IMarker | undefined, endMarker
 			i = wrappedLineStart;
 			lines.unshift(getXtermLineContent(buffer, wrappedLineStart, wrappedLineEnd, cols));
 			if (!match) {
-				match = lines.join('\n').match(matcher);
-				wrappedLines++;
+				match = lines[0].match(matcher);
 			}
-			if (wrappedLines >= linesToCheck) {
+			if (lines.length >= linesToCheck) {
 				break;
 			}
 		}
@@ -692,9 +690,9 @@ function getOutputMatchForCommand(executedMarker: IMarker | undefined, endMarker
 			i = wrappedLineEnd;
 			lines.push(getXtermLineContent(buffer, wrappedLineStart, wrappedLineEnd, cols));
 			if (!match) {
-				match = lines.join('\n').match(matcher);
+				match = lines[lines.length - 1].match(matcher);
 			}
-			if (wrappedLines >= linesToCheck) {
+			if (lines.length >= linesToCheck) {
 				break;
 			}
 		}

@@ -45,7 +45,7 @@ import { ViewPaneContainer } from 'vs/workbench/browser/parts/views/viewPaneCont
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { EditSessionsDataViews } from 'vs/workbench/contrib/editSessions/browser/editSessionsViews';
 import { EditSessionsFileSystemProvider } from 'vs/workbench/contrib/editSessions/browser/editSessionsFileSystemProvider';
-import { isNative } from 'vs/base/common/platform';
+import { isNative, isWeb } from 'vs/base/common/platform';
 import { VirtualWorkspaceContext, WorkspaceFolderCountContext } from 'vs/workbench/common/contextkeys';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { equals } from 'vs/base/common/objects';
@@ -118,6 +118,8 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 	private static APPLICATION_LAUNCHED_VIA_CONTINUE_ON_STORAGE_KEY = 'applicationLaunchedViaContinueOn';
 	private accountsMenuBadgeDisposable = this._register(new MutableDisposable());
 
+	private registeredCommands = new Set<string>();
+
 	constructor(
 		@IEditSessionsStorageService private readonly editSessionsStorageService: IEditSessionsStorageService,
 		@IFileService private readonly fileService: IFileService,
@@ -156,7 +158,11 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 		this.shouldShowViewsContext = EDIT_SESSIONS_SHOW_VIEW.bindTo(this.contextKeyService);
 
 		this._register(this.fileService.registerProvider(EditSessionsFileSystemProvider.SCHEMA, new EditSessionsFileSystemProvider(this.editSessionsStorageService)));
-		this.lifecycleService.onWillShutdown((e) => e.join(this.autoStoreEditSession(), { id: 'autoStoreWorkingChanges', label: localize('autoStoreWorkingChanges', 'Storing current working changes...') }));
+		this.lifecycleService.onWillShutdown((e) => {
+			if (this.configurationService.getValue('workbench.experimental.cloudChanges.autoStore') === 'onShutdown' && !isWeb) {
+				e.join(this.autoStoreEditSession(), { id: 'autoStoreWorkingChanges', label: localize('autoStoreWorkingChanges', 'Storing current working changes...') });
+			}
+		});
 		this._register(this.editSessionsStorageService.onDidSignIn(() => this.updateAccountsMenuBadge()));
 		this._register(this.editSessionsStorageService.onDidSignOut(() => this.updateAccountsMenuBadge()));
 	}
@@ -221,17 +227,15 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 	}
 
 	private async autoStoreEditSession() {
-		if (this.configurationService.getValue('workbench.experimental.cloudChanges.autoStore') === 'onShutdown') {
-			const cancellationTokenSource = new CancellationTokenSource();
-			await this.progressService.withProgress({
-				location: ProgressLocation.Window,
-				type: 'syncing',
-				title: localize('store working changes', 'Storing working changes...')
-			}, async () => this.storeEditSession(false, cancellationTokenSource.token), () => {
-				cancellationTokenSource.cancel();
-				cancellationTokenSource.dispose();
-			});
-		}
+		const cancellationTokenSource = new CancellationTokenSource();
+		await this.progressService.withProgress({
+			location: ProgressLocation.Window,
+			type: 'syncing',
+			title: localize('store working changes', 'Storing working changes...')
+		}, async () => this.storeEditSession(false, cancellationTokenSource.token), () => {
+			cancellationTokenSource.cancel();
+			cancellationTokenSource.dispose();
+		});
 	}
 
 	private registerViews() {
@@ -396,8 +400,8 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 				});
 			}
 
-			async run(accessor: ServicesAccessor, editSessionId?: string): Promise<void> {
-				await that.progressService.withProgress({ ...resumeProgressOptions, title: resumeProgressOptionsTitle }, async () => await that.resumeEditSession(editSessionId));
+			async run(accessor: ServicesAccessor, editSessionId?: string, force?: boolean): Promise<void> {
+				await that.progressService.withProgress({ ...resumeProgressOptions, title: resumeProgressOptionsTitle }, async () => await that.resumeEditSession(editSessionId, undefined, force));
 			}
 		}));
 	}
@@ -796,7 +800,7 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 					));
 
 					if (contribution.qualifiedName) {
-						this.generateStandaloneOptionCommand(command.id, contribution.qualifiedName, command.category, when, contribution.remoteGroup);
+						this.generateStandaloneOptionCommand(command.id, contribution.qualifiedName, contribution.category ?? command.category, when, contribution.remoteGroup);
 					}
 				}
 			}
@@ -813,22 +817,26 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 			f1: true
 		};
 
-		registerAction2(class StandaloneContinueOnOption extends Action2 {
-			constructor() {
-				super(command);
-			}
+		if (!this.registeredCommands.has(command.id)) {
+			this.registeredCommands.add(command.id);
 
-			async run(accessor: ServicesAccessor): Promise<void> {
-				return accessor.get(ICommandService).executeCommand(continueWorkingOnCommand.id, undefined, commandId);
-			}
-		});
+			registerAction2(class StandaloneContinueOnOption extends Action2 {
+				constructor() {
+					super(command);
+				}
 
-		if (remoteGroup !== undefined) {
-			MenuRegistry.appendMenuItem(MenuId.StatusBarRemoteIndicatorMenu, {
-				group: remoteGroup,
-				command: command,
-				when: command.precondition
+				async run(accessor: ServicesAccessor): Promise<void> {
+					return accessor.get(ICommandService).executeCommand(continueWorkingOnCommand.id, undefined, commandId);
+				}
 			});
+
+			if (remoteGroup !== undefined) {
+				MenuRegistry.appendMenuItem(MenuId.StatusBarRemoteIndicatorMenu, {
+					group: remoteGroup,
+					command: command,
+					when: command.precondition
+				});
+			}
 		}
 	}
 
@@ -980,6 +988,7 @@ interface ICommand {
 	when: string;
 	documentation?: string;
 	qualifiedName?: string;
+	category?: string;
 	remoteGroup?: string;
 }
 
@@ -1038,7 +1047,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			'type': 'string',
 			'tags': ['experimental', 'usesOnlineServices'],
 			'default': 'off',
-			'markdownDescription': localize('autoStoreWorkingChangesDescription', "Controls whether to automatically store available working changes in the cloud for the current workspace."),
+			'markdownDescription': localize('autoStoreWorkingChangesDescription', "Controls whether to automatically store available working changes in the cloud for the current workspace. This setting has no effect in the web."),
 		},
 		'workbench.cloudChanges.autoResume': {
 			enum: ['onReload', 'off'],

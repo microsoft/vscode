@@ -209,7 +209,7 @@
 	position: relative;
 }
 
-.xterm .xterm-accessibility-buffer {
+.xterm .xterm-accessible-buffer {
 	position: absolute;
 	left: 0;
 	top: 0;
@@ -221,7 +221,11 @@
 	overflow-x: hidden;
 }
 
-.xterm .xterm-accessibility-buffer:focus {
+.xterm .xterm-accessible-buffer div {
+	white-space: pre-wrap;
+}
+
+.xterm .xterm-accessible-buffer:focus-within {
 	opacity: 1;
 	z-index: 33;
 	top: -5px;

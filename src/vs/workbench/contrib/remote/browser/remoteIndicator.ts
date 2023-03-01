@@ -21,7 +21,7 @@ import { IBrowserWorkbenchEnvironmentService } from 'vs/workbench/services/envir
 import { PersistentConnectionEventType } from 'vs/platform/remote/common/remoteAgentConnection';
 import { IRemoteAuthorityResolverService } from 'vs/platform/remote/common/remoteAuthorityResolver';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
-import { isWeb } from 'vs/base/common/platform';
+import { PlatformToString, isWeb, platform } from 'vs/base/common/platform';
 import { once } from 'vs/base/common/functional';
 import { truncate } from 'vs/base/common/strings';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
@@ -37,6 +37,11 @@ import { IMarkdownString, MarkdownString } from 'vs/base/common/htmlContent';
 import { RemoteNameContext, VirtualWorkspaceContext } from 'vs/workbench/common/contextkeys';
 import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
 import { ViewContainerLocation } from 'vs/workbench/common/views';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { WorkbenchActionExecutedClassification, WorkbenchActionExecutedEvent } from 'vs/base/common/actions';
+import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
+import { IProductService } from 'vs/platform/product/common/productService';
 
 type ActionGroup = [string, Array<MenuItemAction | SubmenuItemAction>];
 export class RemoteStatusIndicator extends Disposable implements IWorkbenchContribution {
@@ -78,7 +83,9 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 		@IHostService private readonly hostService: IHostService,
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
 		@ILogService private readonly logService: ILogService,
-		@IExtensionGalleryService private readonly extensionGalleryService: IExtensionGalleryService
+		@IExtensionGalleryService private readonly extensionGalleryService: IExtensionGalleryService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
+		@IProductService private readonly productService: IProductService,
 	) {
 		super();
 
@@ -109,6 +116,10 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 					category,
 					title: { value: nls.localize('remote.showMenu', "Show Remote Menu"), original: 'Show Remote Menu' },
 					f1: true,
+					keybinding: {
+						weight: KeybindingWeight.WorkbenchContrib,
+						primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KeyO,
+					}
 				});
 			}
 			run = () => that.showRemoteMenu();
@@ -154,7 +165,7 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 					const paneCompositeService = accessor.get(IPaneCompositePartService);
 					return paneCompositeService.openPaneComposite(VIEWLET_ID, ViewContainerLocation.Sidebar, true).then(viewlet => {
 						if (viewlet) {
-							(viewlet?.getViewPaneContainer() as IExtensionsViewPaneContainer).search(`tag:"remote-menu"`);
+							(viewlet?.getViewPaneContainer() as IExtensionsViewPaneContainer).search(`@recommended:remotes`);
 							viewlet.focus();
 						}
 					});
@@ -455,7 +466,7 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 				}
 			}
 
-			if (!this.remoteAuthority && !this.virtualWorkspaceLocation && this.extensionGalleryService.isEnabled()) {
+			if (this.extensionGalleryService.isEnabled() && this.hasAdditionalRemoteExtensions()) {
 				items.push({
 					id: RemoteStatusIndicator.INSTALL_REMOTE_EXTENSIONS_ID,
 					label: nls.localize('installRemotes', "Install Additional Remote Extensions..."),
@@ -479,7 +490,12 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 		once(quickPick.onDidAccept)((_ => {
 			const selectedItems = quickPick.selectedItems;
 			if (selectedItems.length === 1) {
-				this.commandService.executeCommand(selectedItems[0].id!);
+				const commandId = selectedItems[0].id!;
+				this.telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', {
+					id: commandId,
+					from: 'remote indicator'
+				});
+				this.commandService.executeCommand(commandId);
 			}
 
 			quickPick.hide();
@@ -493,6 +509,21 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 		quickPick.onDidHide(itemUpdater.dispose);
 
 		quickPick.show();
+	}
+
+	private hasAdditionalRemoteExtensions() {
+		const extensionTips = { ...this.productService.remoteExtensionTips, ...this.productService.virtualWorkspaceExtensionTips };
+		const currentPlatform = PlatformToString(platform);
+		for (const extension of Object.values(extensionTips)) {
+			const { extensionId: recommendedExtensionId, supportedPlatforms } = extension;
+			if (!supportedPlatforms || supportedPlatforms.includes(currentPlatform)) {
+				// if this recommended extension isn't already installed, return early
+				if (!this.extensionService.extensions.some((extension) => extension.id?.toLowerCase() === recommendedExtensionId.toLowerCase())) {
+					return true;
+				}
+			}
+		}
+		return false;
 	}
 
 	private hasRemoteMenuCommands(ignoreInstallAdditional: boolean): boolean {

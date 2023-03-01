@@ -67,7 +67,7 @@ import { flatten } from 'vs/base/common/arrays';
 import { fromNow } from 'vs/base/common/date';
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
 import { getLocale } from 'vs/platform/languagePacks/common/languagePacks';
-import { ILocaleService } from 'vs/workbench/contrib/localization/common/locale';
+import { ILocaleService } from 'vs/workbench/services/localization/common/locale';
 import { isString } from 'vs/base/common/types';
 import { showWindowLogActionId } from 'vs/workbench/common/logConstants';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -177,7 +177,7 @@ export class PromptExtensionInstallFailureAction extends Action {
 			return undefined;
 		}
 		let targetPlatform = this.extension.gallery.properties.targetPlatform;
-		if (this.extensionManagementServerService.remoteExtensionManagementServer) {
+		if (targetPlatform !== TargetPlatform.UNIVERSAL && targetPlatform !== TargetPlatform.UNDEFINED && this.extensionManagementServerService.remoteExtensionManagementServer) {
 			try {
 				const manifest = await this.galleryService.getManifest(this.extension.gallery, CancellationToken.None);
 				if (manifest && this.extensionManifestPropertiesService.prefersExecuteOnWorkspace(manifest)) {
