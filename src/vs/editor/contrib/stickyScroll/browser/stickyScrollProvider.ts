@@ -101,7 +101,7 @@ export class StickyLineCandidateProvider extends Disposable {
 
 				} else if (this._options.defaultModel === DefaultModel.FOLDING_PROVIDER_MODEL
 					|| this._options.defaultModel === DefaultModel.INDENTATION_MODEL) {
-					// Register the fact that we are listening on the folding provider model
+					// Register the listener on the folding provider model or the indentation model, and unregister the other listener
 					const foldingModelListenerTypeToRegister = this._options.defaultModel === DefaultModel.FOLDING_PROVIDER_MODEL ? DefaultModel.FOLDING_PROVIDER_MODEL : DefaultModel.INDENTATION_MODEL;
 					const foldingModelListenerTypeToUnregister = this._options.defaultModel === DefaultModel.FOLDING_PROVIDER_MODEL ? DefaultModel.INDENTATION_MODEL : DefaultModel.FOLDING_PROVIDER_MODEL;
 					this._foldingController.registerFoldingModelListenerOfType(foldingModelListenerTypeToRegister);
@@ -109,11 +109,12 @@ export class StickyLineCandidateProvider extends Disposable {
 				}
 			}
 
-			// Specifying the order in which the model providers should be called
+			// Specifying the order in which the model providers should be called depending on the setting options
 			if (this._options.defaultModel === DefaultModel.INDENTATION_MODEL) {
 				this._modelProviders.unshift(this.stickyModelFromIndentationFoldingModel.bind(this));
 			}
 			else if (this._options.defaultModel === DefaultModel.OUTLINE_MODEL || this._options!.defaultModel === DefaultModel.FOLDING_PROVIDER_MODEL) {
+				// By construction the folding provider model already falls back on the indentation model, so don't need to include the indentation model as the last element in the priority list
 				this._modelProviders.unshift(this.stickyModelFromFoldingProviderModel.bind(this));
 
 				if (this._options.defaultModel === DefaultModel.OUTLINE_MODEL) {
@@ -140,11 +141,11 @@ export class StickyLineCandidateProvider extends Disposable {
 	public async update(): Promise<void> {
 		this._cts?.dispose(true);
 		this._cts = new CancellationTokenSource();
-		await this.updateOutlineModel(this._cts.token);
+		await this.updateStickyModel(this._cts.token);
 		this._onDidChangeStickyScroll.fire();
 	}
 
-	private async updateOutlineModel(token: CancellationToken): Promise<void> {
+	private async updateStickyModel(token: CancellationToken): Promise<void> {
 		if (!this._editor.hasModel()) {
 			return;
 		}
@@ -164,11 +165,15 @@ export class StickyLineCandidateProvider extends Disposable {
 		// Cycle through the array until one of the model providers provides a folding model
 		for (const modelProvider of this._modelProviders) {
 			const status = await modelProvider(model, modelVersionId, token);
+			// If status is undefined, then the cancellation token has been called, then cancel the update operation
 			if (status === undefined) {
 				return;
-			} else if (status === true) {
+			}
+			// Suppose that the status is true, then a model has been found from which to construct the sticky model, break the for loop
+			else if (status === true) {
 				break;
 			}
+			// If the status is false, then continue to the next model provider
 		}
 
 		clearTimeout(resetHandle);
@@ -189,11 +194,11 @@ export class StickyLineCandidateProvider extends Disposable {
 		}
 	}
 
-	private async stickyModelFromFoldingProviderModel(textModel: ITextModel, modelVersionId: number, token: CancellationToken): Promise<boolean | null | undefined> {
+	private async stickyModelFromFoldingProviderModel(textModel: ITextModel, modelVersionId: number, token: CancellationToken): Promise<boolean | undefined> {
 		if (this._foldingController) {
 			// First check if the folding controller has registered a listener on the folding provider model
 			// This can happen for example if the outline model is chosen by default, so the listener on the folding provider is not registered
-			// but the outline model does not exist, hence we need to register the listener on the folding provider model
+			// If the outline model does not exist, we need to register the listener on the folding provider model
 			if (!this._foldingController.storeFoldingProviderModel) {
 				this._foldingController.registerFoldingModelListenerOfType(DefaultModel.FOLDING_PROVIDER_MODEL);
 			}
@@ -204,7 +209,7 @@ export class StickyLineCandidateProvider extends Disposable {
 		}
 	}
 
-	private async stickyModelFromIndentationFoldingModel(textModel: ITextModel, modelVersionId: number, token: CancellationToken): Promise<boolean | null | undefined> {
+	private async stickyModelFromIndentationFoldingModel(textModel: ITextModel, modelVersionId: number, token: CancellationToken): Promise<boolean | undefined> {
 		if (this._foldingController) {
 			// First check if the folding controller has registered a listener on the indentation model
 			// This can happen for example if the folding provider model is chosen by default, so the listener on the indentation model is not registered
@@ -219,19 +224,18 @@ export class StickyLineCandidateProvider extends Disposable {
 		}
 	}
 
-	private async stickyModelFromFoldingModel(textModel: ITextModel, modelVersionId: number, token: CancellationToken, foldingModel: FoldingModel | null | undefined): Promise<boolean | undefined | null> {
-
-		if (foldingModel === null) {
-			return null;
-		}
+	private async stickyModelFromFoldingModel(textModel: ITextModel, modelVersionId: number, token: CancellationToken, foldingModel: FoldingModel | null): Promise<boolean | undefined> {
 
 		// Return undefined when the token is cancelled
 		if (token.isCancellationRequested) {
 			return;
 		}
 
-		// Else the folding model exists, it can however be empty, have no regions
-		if (foldingModel!.regions.length !== 0) {
+		if (foldingModel === null) {
+			return false;
+		}
+		// Else the folding model exist, it can however be empty, have no regions
+		else if (foldingModel.regions.length !== 0) {
 			// If it has folding regions, construct the sticky outline model from it, return true
 			const foldingElement = StickyOutlineElement.fromFoldingModel(foldingModel!);
 			this._model = new StickyOutlineModel(textModel.uri, modelVersionId, foldingElement, undefined);
