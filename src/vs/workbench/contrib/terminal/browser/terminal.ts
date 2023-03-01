@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 import { Dimension } from 'vs/base/browser/dom';
 import { Orientation } from 'vs/base/browser/ui/splitview/splitview';
+import { Color } from 'vs/base/common/color';
 import { Event } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { OperatingSystem } from 'vs/base/common/platform';
@@ -12,6 +13,7 @@ import { createDecorator } from 'vs/platform/instantiation/common/instantiation'
 import { IKeyMods } from 'vs/platform/quickinput/common/quickInput';
 import { IMarkProperties, ITerminalCapabilityStore, ITerminalCommand } from 'vs/platform/terminal/common/capabilities/capabilities';
 import { IExtensionTerminalProfile, IReconnectionProperties, IShellIntegration, IShellLaunchConfig, ITerminalDimensions, ITerminalLaunchError, ITerminalProfile, ITerminalTabLayoutInfoById, TerminalExitReason, TerminalIcon, TerminalLocation, TerminalShellType, TerminalType, TitleEventSource, WaitOnExitValue } from 'vs/platform/terminal/common/terminal';
+import { IColorTheme } from 'vs/platform/theme/common/themeService';
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { IEditableData } from 'vs/workbench/common/views';
@@ -1006,11 +1008,6 @@ export interface IXtermTerminal {
 	 */
 	readonly isStdinDisabled: boolean;
 
-	/**
-	 * The position of the terminal.
-	 */
-	target?: TerminalLocation;
-
 	findResult?: { resultIndex: number; resultCount: number };
 
 	/**
@@ -1065,6 +1062,11 @@ export interface IXtermTerminal {
 	 * Focuses the accessible buffer, updating its contents
 	 */
 	focusAccessibleBuffer(): Promise<void>;
+
+	/**
+	 * Refreshes the terminal after it has been moved.
+	 */
+	refresh(): void;
 }
 
 export interface IInternalXtermTerminal {
@@ -1075,6 +1077,10 @@ export interface IInternalXtermTerminal {
 	 * developer purposed inside the terminal component.
 	 */
 	_writeText(data: string): void; // eslint-disable-line @typescript-eslint/naming-convention
+}
+
+export interface IXtermColorProvider {
+	getBackgroundColor(theme: IColorTheme): Color | undefined;
 }
 
 export interface IRequestAddInstanceToGroupEvent {
