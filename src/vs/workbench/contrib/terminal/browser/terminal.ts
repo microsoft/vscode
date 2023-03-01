@@ -457,8 +457,6 @@ export interface ITerminalInstance {
 
 	quickFix: ITerminalQuickFixAddon | undefined;
 
-	// readonly findWidget: Lazy<TerminalFindWidget>;
-
 	/**
 	 * The process ID of the shell process, this is undefined when there is no process associated
 	 * with this terminal.
@@ -982,7 +980,8 @@ export interface ITerminalInstance {
 	registerChildElement(element: ITerminalChildElement): IDisposable;
 }
 
-// TODO: The terminal widget sub system is very similar to this
+// NOTE: This interface is very similar to the widget manager internal to TerminalInstance, in the
+// future these should probably be consolidated.
 export interface ITerminalChildElement {
 	element: HTMLElement;
 	layout(dimension: Dimension): void;
