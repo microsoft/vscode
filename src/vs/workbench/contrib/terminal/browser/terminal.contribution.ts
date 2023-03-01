@@ -289,3 +289,5 @@ setupTerminalCommands();
 setupTerminalMenus();
 
 registerColors();
+
+import './find/terminal.find.contribution';
