@@ -74,11 +74,8 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService
 	) {
 		super();
-
 		this._stickyScrollWidget = new StickyScrollWidget(this._editor);
 		this._stickyLineCandidateProvider = new StickyLineCandidateProvider(this._editor, _languageFeaturesService, _languageConfigurationService, _languageFeatureDebounceService);
-		this._widgetState = new StickyScrollWidgetState([], 0);
-
 		this._register(this._stickyScrollWidget);
 		this._register(this._stickyLineCandidateProvider);
 
