@@ -2,10 +2,10 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
+import { Dimension } from 'vs/base/browser/dom';
 import { Orientation } from 'vs/base/browser/ui/splitview/splitview';
 import { Color } from 'vs/base/common/color';
 import { Event } from 'vs/base/common/event';
-import { Lazy } from 'vs/base/common/lazy';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { OperatingSystem } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
@@ -17,7 +17,6 @@ import { IColorTheme } from 'vs/platform/theme/common/themeService';
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { IEditableData } from 'vs/workbench/common/views';
-import { TerminalFindWidget } from 'vs/workbench/contrib/terminal/browser/terminalFindWidget';
 import { ITerminalStatusList } from 'vs/workbench/contrib/terminal/browser/terminalStatusList';
 import { ScrollPosition } from 'vs/workbench/contrib/terminal/browser/xterm/markNavigationAddon';
 import { ITerminalQuickFixAddon } from 'vs/workbench/contrib/terminal/browser/xterm/quickFixAddon';
@@ -442,6 +441,7 @@ export interface ITerminalInstance {
 	readonly maxRows: number;
 	readonly fixedCols?: number;
 	readonly fixedRows?: number;
+	readonly container?: HTMLElement;
 	readonly icon?: TerminalIcon;
 	readonly color?: string;
 	readonly reconnectionProperties?: IReconnectionProperties;
@@ -458,8 +458,6 @@ export interface ITerminalInstance {
 	readonly statusList: ITerminalStatusList;
 
 	quickFix: ITerminalQuickFixAddon | undefined;
-
-	readonly findWidget: Lazy<TerminalFindWidget>;
 
 	/**
 	 * The process ID of the shell process, this is undefined when there is no process associated
@@ -574,10 +572,6 @@ export interface ITerminalInstance {
 	 * the ITerminalInstance being disposed.
 	 */
 	onExit: Event<number | ITerminalLaunchError | undefined>;
-
-	onDidChangeFindResults: Event<{ resultIndex: number; resultCount: number } | undefined>;
-
-	onDidFocusFindWidget: Event<void>;
 
 	/**
 	 * The exit code or undefined when the terminal process hasn't yet exited or
@@ -970,8 +964,31 @@ export interface ITerminalInstance {
 	 * Hides the suggest widget.
 	 */
 	hideSuggestWidget(): void;
+
+	/**
+	 * Force the scroll bar to be visible until {@link resetScrollbarVisibility} is called.
+	 */
+	forceScrollbarVisibility(): void;
+
+	/**
+	 * Resets the scroll bar to only be visible when needed, this does nothing unless
+	 * {@link forceScrollbarVisibility} was called.
+	 */
+	resetScrollbarVisibility(): void;
+
+	/**
+	 * Register a child element to the terminal instance's container.
+	 */
+	registerChildElement(element: ITerminalChildElement): IDisposable;
 }
 
+// NOTE: This interface is very similar to the widget manager internal to TerminalInstance, in the
+// future these should probably be consolidated.
+export interface ITerminalChildElement {
+	element: HTMLElement;
+	layout(dimension: Dimension): void;
+	xtermReady(xterm: IXtermTerminal): void;
+}
 
 export interface IXtermTerminal {
 	/**
@@ -986,6 +1003,7 @@ export interface IXtermTerminal {
 	readonly shellIntegration: IShellIntegration;
 
 	readonly onDidChangeSelection: Event<void>;
+	readonly onDidChangeFindResults: Event<{ resultIndex: number; resultCount: number } | undefined>;
 
 	/**
 	 * Gets a view of the current texture atlas used by the renderers.
