@@ -7,9 +7,9 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { IFileService } from 'vs/platform/files/common/files';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
-import { ITerminalLinkResolverService, TerminalBuiltinLinkType } from 'vs/workbench/contrib/terminal/browser/links/links';
-import { TerminalLinkResolverService } from 'vs/workbench/contrib/terminal/browser/links/terminalLinkResolverService';
-import { TerminalUriLinkDetector } from 'vs/workbench/contrib/terminal/browser/links/terminalUriLinkDetector';
+import { ITerminalLinkResolverService, TerminalBuiltinLinkType } from 'vs/workbench/contrib/terminal/contrib/links/browser/links';
+import { TerminalLinkResolverService } from 'vs/workbench/contrib/terminal/contrib/links/browser/terminalLinkResolverService';
+import { TerminalUriLinkDetector } from 'vs/workbench/contrib/terminal/contrib/links/browser/terminalUriLinkDetector';
 import { assertLinkHelper } from 'vs/workbench/contrib/terminal/test/browser/links/linkTestUtils';
 import { createFileStat } from 'vs/workbench/test/common/workbenchTestServices';
 import { URI } from 'vs/base/common/uri';

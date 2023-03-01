@@ -5,7 +5,7 @@
 
 import * as assert from 'assert';
 import { IBufferLine, IBufferCell } from 'xterm';
-import { convertLinkRangeToBuffer } from 'vs/workbench/contrib/terminal/browser/links/terminalLinkHelpers';
+import { convertLinkRangeToBuffer } from 'vs/workbench/contrib/terminal/contrib/links/browser/terminalLinkHelpers';
 
 suite('Workbench - Terminal Link Helpers', () => {
 	suite('convertLinkRangeToBuffer', () => {

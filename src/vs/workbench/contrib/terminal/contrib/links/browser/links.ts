@@ -8,7 +8,7 @@ import { URI } from 'vs/base/common/uri';
 import { IHoverAction } from 'vs/workbench/services/hover/browser/hover';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { ITerminalBackend, ITerminalProcessManager } from 'vs/workbench/contrib/terminal/common/terminal';
-import { IParsedLink } from 'vs/workbench/contrib/terminal/browser/links/terminalLinkParsing';
+import { IParsedLink } from 'vs/workbench/contrib/terminal/contrib/links/browser/terminalLinkParsing';
 
 export const ITerminalLinkResolverService = createDecorator<ITerminalLinkResolverService>('terminalLinkResolverService');
 export interface ITerminalLinkResolverService {

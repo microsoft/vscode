@@ -9,8 +9,8 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { matchesScheme } from 'vs/platform/opener/common/opener';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { TerminalSettingId } from 'vs/platform/terminal/common/terminal';
-import { ITerminalSimpleLink, ITerminalLinkDetector, TerminalBuiltinLinkType } from 'vs/workbench/contrib/terminal/browser/links/links';
-import { convertLinkRangeToBuffer, getXtermLineContent } from 'vs/workbench/contrib/terminal/browser/links/terminalLinkHelpers';
+import { ITerminalSimpleLink, ITerminalLinkDetector, TerminalBuiltinLinkType } from 'vs/workbench/contrib/terminal/contrib/links/browser/links';
+import { convertLinkRangeToBuffer, getXtermLineContent } from 'vs/workbench/contrib/terminal/contrib/links/browser/terminalLinkHelpers';
 import { ITerminalConfiguration, TERMINAL_CONFIG_SECTION } from 'vs/workbench/contrib/terminal/common/terminal';
 import { IBufferLine, Terminal } from 'xterm';
 

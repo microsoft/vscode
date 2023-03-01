@@ -7,7 +7,7 @@ import { EventType } from 'vs/base/browser/dom';
 import { Emitter } from 'vs/base/common/event';
 import { localize } from 'vs/nls';
 import { QuickPickItem, IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
-import { IDetectedLinks } from 'vs/workbench/contrib/terminal/browser/links/terminalLinkManager';
+import { IDetectedLinks } from 'vs/workbench/contrib/terminal/contrib/links/browser/terminalLinkManager';
 import { TerminalLinkQuickPickEvent } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { ILink } from 'xterm';
 

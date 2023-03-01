@@ -53,8 +53,8 @@ import { IWorkspaceContextService, IWorkspaceFolder } from 'vs/platform/workspac
 import { IWorkspaceTrustRequestService } from 'vs/platform/workspace/common/workspaceTrust';
 import { IViewDescriptorService, IViewsService, ViewContainerLocation } from 'vs/workbench/common/views';
 import { TaskSettingId } from 'vs/workbench/contrib/tasks/common/tasks';
-import { IDetectedLinks, TerminalLinkManager } from 'vs/workbench/contrib/terminal/browser/links/terminalLinkManager';
-import { TerminalLinkQuickpick } from 'vs/workbench/contrib/terminal/browser/links/terminalLinkQuickpick';
+import { IDetectedLinks, TerminalLinkManager } from 'vs/workbench/contrib/terminal/contrib/links/browser/terminalLinkManager';
+import { TerminalLinkQuickpick } from 'vs/workbench/contrib/terminal/contrib/links/browser/terminalLinkQuickpick';
 import { IRequestAddInstanceToGroupEvent, ITerminalChildElement, ITerminalExternalLinkProvider, ITerminalInstance, TerminalDataTransfers } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { TerminalLaunchHelpAction } from 'vs/workbench/contrib/terminal/browser/terminalActions';
 import { freePort, gitCreatePr, gitPushSetUpstream, gitSimilar, gitTwoDashes, pwshGeneralError as pwshGeneralError, pwshUnixCommandNotFoundError } from 'vs/workbench/contrib/terminal/browser/terminalQuickFixBuiltinActions';

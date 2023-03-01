@@ -13,8 +13,8 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { ITerminalLinkOpener, ITerminalSimpleLink } from 'vs/workbench/contrib/terminal/browser/links/links';
-import { osPathModule, updateLinkWithRelativeCwd } from 'vs/workbench/contrib/terminal/browser/links/terminalLinkHelpers';
+import { ITerminalLinkOpener, ITerminalSimpleLink } from 'vs/workbench/contrib/terminal/contrib/links/browser/links';
+import { osPathModule, updateLinkWithRelativeCwd } from 'vs/workbench/contrib/terminal/contrib/links/browser/terminalLinkHelpers';
 import { ITerminalCapabilityStore, TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
@@ -22,7 +22,7 @@ import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { QueryBuilder } from 'vs/workbench/services/search/common/queryBuilder';
 import { ISearchService } from 'vs/workbench/services/search/common/search';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { getLinkSuffix } from 'vs/workbench/contrib/terminal/browser/links/terminalLinkParsing';
+import { getLinkSuffix } from 'vs/workbench/contrib/terminal/contrib/links/browser/terminalLinkParsing';
 
 export class TerminalLocalFileLinkOpener implements ITerminalLinkOpener {
 	constructor(

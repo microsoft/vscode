@@ -287,5 +287,6 @@ setupTerminalMenus();
 
 registerColors();
 
-import './accessibility/terminal.accessibility.contribution';
-import './find/terminal.find.contribution';
+import '../contrib/accessibility/browser/terminal.accessibility.contribution';
+import '../contrib/find/browser/terminal.find.contribution';
+import '../contrib/link/browser/terminal.link.contribution';

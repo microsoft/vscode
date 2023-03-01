@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { TerminalLinkResolverService } from 'vs/workbench/contrib/terminal/browser/links/terminalLinkResolverService';
-import { ITerminalLinkResolverService } from 'vs/workbench/contrib/terminal/browser/links/links';
+import { TerminalLinkResolverService } from 'vs/workbench/contrib/terminal/contrib/links/browser/terminalLinkResolverService';
+import { ITerminalLinkResolverService } from 'vs/workbench/contrib/terminal/contrib/links/browser/links';
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { localize } from 'vs/nls';

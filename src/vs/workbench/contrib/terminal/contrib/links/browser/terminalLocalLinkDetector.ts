@@ -7,12 +7,12 @@ import { OperatingSystem, OS } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { ITerminalLinkDetector, ITerminalLinkResolverService, ITerminalSimpleLink, ResolvedLink, TerminalBuiltinLinkType } from 'vs/workbench/contrib/terminal/browser/links/links';
-import { convertLinkRangeToBuffer, getXtermLineContent, getXtermRangesByAttr, osPathModule, updateLinkWithRelativeCwd } from 'vs/workbench/contrib/terminal/browser/links/terminalLinkHelpers';
+import { ITerminalLinkDetector, ITerminalLinkResolverService, ITerminalSimpleLink, ResolvedLink, TerminalBuiltinLinkType } from 'vs/workbench/contrib/terminal/contrib/links/browser/links';
+import { convertLinkRangeToBuffer, getXtermLineContent, getXtermRangesByAttr, osPathModule, updateLinkWithRelativeCwd } from 'vs/workbench/contrib/terminal/contrib/links/browser/terminalLinkHelpers';
 import { ITerminalCapabilityStore, TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
 import { IBufferLine, IBufferRange, Terminal } from 'xterm';
 import { ITerminalBackend, ITerminalProcessManager } from 'vs/workbench/contrib/terminal/common/terminal';
-import { detectLinks } from 'vs/workbench/contrib/terminal/browser/links/terminalLinkParsing';
+import { detectLinks } from 'vs/workbench/contrib/terminal/contrib/links/browser/terminalLinkParsing';
 
 const enum Constants {
 	/**

@@ -5,7 +5,7 @@
 
 import { deepStrictEqual, ok, strictEqual } from 'assert';
 import { OperatingSystem } from 'vs/base/common/platform';
-import { detectLinks, detectLinkSuffixes, getLinkSuffix, IParsedLink, removeLinkSuffix } from 'vs/workbench/contrib/terminal/browser/links/terminalLinkParsing';
+import { detectLinks, detectLinkSuffixes, getLinkSuffix, IParsedLink, removeLinkSuffix } from 'vs/workbench/contrib/terminal/contrib/links/browser/terminalLinkParsing';
 
 interface ITestLink {
 	link: string;
