@@ -1775,56 +1775,6 @@ export function registerTerminalActions() {
 	registerAction2(class extends Action2 {
 		constructor() {
 			super({
-				id: TerminalCommandId.OpenDetectedLink,
-				title: { value: localize('workbench.action.terminal.openDetectedLink', "Open Detected Link..."), original: 'Open Detected Link...' },
-				f1: true,
-				category,
-				precondition: TerminalContextKeys.terminalHasBeenCreated,
-				keybinding: {
-					primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyO,
-					weight: KeybindingWeight.WorkbenchContrib + 1,
-					when: TerminalContextKeys.focus,
-				}
-			});
-		}
-		run(accessor: ServicesAccessor) {
-			accessor.get(ITerminalService).doWithActiveInstance(t => t.showLinkQuickpick());
-		}
-	});
-
-	registerAction2(class extends Action2 {
-		constructor() {
-			super({
-				id: TerminalCommandId.OpenWebLink,
-				title: { value: localize('workbench.action.terminal.openLastUrlLink', "Open Last Url Link"), original: 'Open Last Url Link' },
-				f1: true,
-				category,
-				precondition: TerminalContextKeys.terminalHasBeenCreated,
-			});
-		}
-		run(accessor: ServicesAccessor) {
-			accessor.get(ITerminalService).doWithActiveInstance(t => t.openRecentLink('url'));
-		}
-	});
-
-	registerAction2(class extends Action2 {
-		constructor() {
-			super({
-				id: TerminalCommandId.OpenFileLink,
-				title: { value: localize('workbench.action.terminal.openLastLocalFileLink', "Open Last Local File Link"), original: 'Open Last Local File Link' },
-				f1: true,
-				category,
-				precondition: TerminalContextKeys.terminalHasBeenCreated,
-			});
-		}
-		run(accessor: ServicesAccessor) {
-			accessor.get(ITerminalService).doWithActiveInstance(t => t.openRecentLink('localFile'));
-		}
-	});
-
-	registerAction2(class extends Action2 {
-		constructor() {
-			super({
 				id: TerminalCommandId.SelectDefaultProfile,
 				title: { value: localize('workbench.action.terminal.selectDefaultShell', "Select Default Profile"), original: 'Select Default Profile' },
 				f1: true,
