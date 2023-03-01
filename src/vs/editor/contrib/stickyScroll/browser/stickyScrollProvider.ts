@@ -88,7 +88,7 @@ export class StickyLineCandidateProvider extends Disposable implements IStickyLi
 		editor: ICodeEditor,
 		@ILanguageFeaturesService private readonly _languageFeaturesService: ILanguageFeaturesService,
 		@ILanguageConfigurationService private readonly _languageConfigurationService: ILanguageConfigurationService,
-		@ILanguageFeatureDebounceService languageFeatureDebounceService: ILanguageFeatureDebounceService
+		@ILanguageFeatureDebounceService _languageFeatureDebounceService: ILanguageFeatureDebounceService
 	) {
 		super();
 		this._editor = editor;
@@ -96,7 +96,7 @@ export class StickyLineCandidateProvider extends Disposable implements IStickyLi
 
 		this._foldingDecorationProvider = new FoldingDecorationProvider(editor);
 		this._foldingLimitReporter = new RangesLimitReporter(editor);
-		this._updateDebounceInfo = languageFeatureDebounceService.for(_languageFeaturesService.foldingRangeProvider, 'Folding', { min: 200 });
+		this._updateDebounceInfo = _languageFeatureDebounceService.for(_languageFeaturesService.foldingRangeProvider, 'Folding', { min: 200 });
 
 		this._register(this._editor.onDidChangeConfiguration(e => {
 			if (e.hasChanged(EditorOption.stickyScroll)) {

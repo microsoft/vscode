@@ -16,14 +16,18 @@ import { ILogService, NullLogService } from 'vs/platform/log/common/log';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { mock } from 'vs/base/test/common/mock';
 import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
-import { ILanguageFeatureDebounceService } from 'vs/editor/common/services/languageFeatureDebounce';
+import { ILanguageFeatureDebounceService, LanguageFeatureDebounceService } from 'vs/editor/common/services/languageFeatureDebounce';
+import { TestLanguageConfigurationService } from 'vs/editor/test/common/modes/testLanguageConfigurationService';
+import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 
 suite('Sticky Scroll Tests', () => {
 
 	const serviceCollection = new ServiceCollection(
 		[ILanguageFeaturesService, new LanguageFeaturesService()],
 		[ILogService, new NullLogService()],
-		[IContextMenuService, new class extends mock<IContextMenuService>() { }]
+		[IContextMenuService, new class extends mock<IContextMenuService>() { }],
+		[ILanguageConfigurationService, new TestLanguageConfigurationService()],
+		[ILanguageFeatureDebounceService, new SyncDescriptor(LanguageFeatureDebounceService)],
 	);
 
 	const text = [
@@ -108,7 +112,13 @@ suite('Sticky Scroll Tests', () => {
 
 	test('Testing the function getCandidateStickyLinesIntersecting', async () => {
 		const model = createTextModel(text);
-		await withAsyncTestCodeEditor(model, { serviceCollection }, async (editor, _viewModel, instantiationService) => {
+		await withAsyncTestCodeEditor(model, {
+			stickyScroll: {
+				enabled: true,
+				maxLineCount: 5,
+				defaultModel: 'Outline Model'
+			}, serviceCollection: serviceCollection
+		}, async (editor, _viewModel, instantiationService) => {
 			const languageService = instantiationService.get(ILanguageFeaturesService);
 			const languageConfigurationService = instantiationService.get(ILanguageConfigurationService);
 			const languageFeatureDebounceService = instantiationService.get(ILanguageFeatureDebounceService);
@@ -127,7 +137,13 @@ suite('Sticky Scroll Tests', () => {
 	test('issue #157180: Render the correct line corresponding to the scope definition', async () => {
 
 		const model = createTextModel(text);
-		await withAsyncTestCodeEditor(model, { serviceCollection }, async (editor, _viewModel, instantiationService) => {
+		await withAsyncTestCodeEditor(model, {
+			stickyScroll: {
+				enabled: true,
+				maxLineCount: 5,
+				defaultModel: 'Outline Model'
+			}, serviceCollection
+		}, async (editor, _viewModel, instantiationService) => {
 
 			const stickyScrollController: StickyScrollController = editor.registerAndInstantiateContribution(StickyScrollController.ID, StickyScrollController);
 			const lineHeight: number = editor.getOption(EditorOption.lineHeight);
@@ -169,7 +185,13 @@ suite('Sticky Scroll Tests', () => {
 	test('issue #156268 : Do not reveal sticky lines when they are in a folded region ', async () => {
 
 		const model = createTextModel(text);
-		await withAsyncTestCodeEditor(model, { serviceCollection }, async (editor, viewModel, instantiationService) => {
+		await withAsyncTestCodeEditor(model, {
+			stickyScroll: {
+				enabled: true,
+				maxLineCount: 5,
+				defaultModel: 'Outline Model'
+			}, serviceCollection
+		}, async (editor, viewModel, instantiationService) => {
 
 			const stickyScrollController: StickyScrollController = editor.registerAndInstantiateContribution(StickyScrollController.ID, StickyScrollController);
 			const lineHeight = editor.getOption(EditorOption.lineHeight);
@@ -256,7 +278,13 @@ suite('Sticky Scroll Tests', () => {
 	test('issue #159271 : render the correct widget state when the child scope starts on the same line as the parent scope', async () => {
 
 		const model = createTextModel(textWithScopesWithSameStartingLines);
-		await withAsyncTestCodeEditor(model, { serviceCollection }, async (editor, _viewModel, instantiationService) => {
+		await withAsyncTestCodeEditor(model, {
+			stickyScroll: {
+				enabled: true,
+				maxLineCount: 5,
+				defaultModel: 'Outline Model'
+			}, serviceCollection
+		}, async (editor, _viewModel, instantiationService) => {
 
 			const stickyScrollController: StickyScrollController = editor.registerAndInstantiateContribution(StickyScrollController.ID, StickyScrollController);
 			await stickyScrollController.stickyScrollCandidateProvider.update();

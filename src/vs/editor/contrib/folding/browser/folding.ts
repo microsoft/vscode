@@ -363,6 +363,7 @@ export class FoldingController extends Disposable implements IEditorContribution
 	private onCursorPositionChanged() {
 		if (this.hiddenRangeModel && this.hiddenRangeModel.hasRanges()) {
 			this.cursorChangedScheduler!.schedule();
+
 		}
 	}
 
