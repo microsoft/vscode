@@ -66,10 +66,8 @@ export class StickyLineCandidateProvider extends Disposable {
 
 	private _modelProviders: ((textModel: ITextModel, modelVersionId: number, token: CancellationToken) => Promise<boolean | null | undefined>)[] = [];
 	private _foldingLimitReporter: RangesLimitReporter;
-	private _foldingProviderRegionPromise: CancelablePromise<FoldingRegions | null> | null = null;
-	private _foldingProviderModelPromise: Promise<FoldingModel | null> | null = null;
-	private _indentationRegionPromise: CancelablePromise<FoldingRegions | null> | null = null;
-	private _indentationModelPromise: Promise<FoldingModel | null> | null = null;
+	private _foldingRegionPromise: CancelablePromise<FoldingRegions | null> | null = null;
+	private _foldingModelPromise: Promise<FoldingModel | null> | null = null;
 	private _updateScheduler: Delayer<FoldingModel | null> | null;
 	private _foldingDecorationProvider: FoldingDecorationProvider;
 	private readonly _updateDebounceInfo: IFeatureDebounceInformation;
@@ -185,20 +183,14 @@ export class StickyLineCandidateProvider extends Disposable {
 		clearTimeout(resetHandle);
 		this.localToDispose.add({
 			dispose: () => {
-				if (this._foldingProviderRegionPromise) {
-					this._foldingProviderRegionPromise.cancel();
-					this._foldingProviderRegionPromise = null;
-				}
-				if (this._indentationRegionPromise) {
-					this._indentationRegionPromise.cancel();
-					this._indentationRegionPromise = null;
+				if (this._foldingRegionPromise) {
+					this._foldingRegionPromise.cancel();
+					this._foldingRegionPromise = null;
 				}
 				this._updateScheduler?.cancel();
 				this._updateScheduler = null;
-				this._foldingProviderModelPromise = null;
-				this._foldingProviderRegionPromise = null;
-				this._indentationModelPromise = null;
-				this._indentationRegionPromise = null;
+				this._foldingModelPromise = null;
+				this._foldingRegionPromise = null;
 			}
 		});
 	}
@@ -237,16 +229,16 @@ export class StickyLineCandidateProvider extends Disposable {
 
 	private async stickyModelFromProvider(textModel: ITextModel, modelVersionId: number, token: CancellationToken, provider: RangeProvider): Promise<boolean | undefined> {
 		if (this._updateScheduler) {
-			if (this._foldingProviderRegionPromise) {
-				this._foldingProviderRegionPromise.cancel();
-				this._foldingProviderRegionPromise = null;
+			if (this._foldingRegionPromise) {
+				this._foldingRegionPromise.cancel();
+				this._foldingRegionPromise = null;
 			}
-			this._foldingProviderModelPromise = this._updateScheduler.trigger(() => {
-				const foldingRegionPromise = this._foldingProviderRegionPromise = createCancelablePromise(token => provider.compute(token));
+			this._foldingModelPromise = this._updateScheduler.trigger(() => {
+				const foldingRegionPromise = this._foldingRegionPromise = createCancelablePromise(token => provider.compute(token));
 				const foldingModel = new FoldingModel(textModel, this._foldingDecorationProvider);
 				const sw = new StopWatch(true);
 				return foldingRegionPromise.then(foldingRanges => {
-					if (foldingRanges && foldingRegionPromise === this._foldingProviderRegionPromise) {
+					if (foldingRanges && foldingRegionPromise === this._foldingRegionPromise) {
 						foldingModel.update(foldingRanges, []);
 						const newValue = this._updateDebounceInfo.update(foldingModel.textModel, sw.elapsed());
 						if (this._updateScheduler) {
@@ -258,7 +250,7 @@ export class StickyLineCandidateProvider extends Disposable {
 				});
 			});
 			return new Promise<boolean>(resolve => {
-				this._foldingProviderModelPromise!.then(() => {
+				this._foldingModelPromise!.then(() => {
 					resolve(true);
 				}, () => {
 					resolve(false);

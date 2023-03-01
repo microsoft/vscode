@@ -15,6 +15,8 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import * as dom from 'vs/base/browser/dom';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { MenuId } from 'vs/platform/actions/common/actions';
+import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
+import { ILanguageFeatureDebounceService } from 'vs/editor/common/services/languageFeatureDebounce';
 
 export class StickyScrollController extends Disposable implements IEditorContribution {
 
@@ -32,11 +34,13 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 		@IContextMenuService private readonly _contextMenuService: IContextMenuService,
 		@ILanguageFeaturesService languageFeaturesService: ILanguageFeaturesService,
 		@IInstantiationService instaService: IInstantiationService,
+		@ILanguageConfigurationService languageConfigurationService: ILanguageConfigurationService,
+		@ILanguageFeatureDebounceService languageFeatureDebounceService: ILanguageFeatureDebounceService
 	) {
 		super();
 
 		this._stickyScrollWidget = new StickyScrollWidget(this._editor, languageFeaturesService, instaService);
-		this._stickyLineCandidateProvider = new StickyLineCandidateProvider(this._editor, languageFeaturesService);
+		this._stickyLineCandidateProvider = new StickyLineCandidateProvider(this._editor, languageFeaturesService, languageConfigurationService, languageFeatureDebounceService);
 		this._widgetState = new StickyScrollWidgetState([], 0);
 
 		this._register(this._stickyScrollWidget);
