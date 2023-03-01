@@ -14,7 +14,6 @@ import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { onUnexpectedError, setUnexpectedErrorHandler } from 'vs/base/common/errors';
 import { combinedDisposable, Disposable, toDisposable } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
-import { joinPath } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { IPCServer, ProxyChannel, StaticRouter } from 'vs/base/parts/ipc/common/ipc';
 import { Server as UtilityProcessMessagePortServer, once } from 'vs/base/parts/ipc/node/ipc.mp';
@@ -233,11 +232,11 @@ class SharedProcessMain extends Disposable {
 		services.set(INativeEnvironmentService, environmentService);
 
 		// Logger
-		const loggerService = new LoggerChannelClient(undefined, this.configuration.logLevel, this.configuration.loggers.map(loggerResource => ({ ...loggerResource, resource: URI.revive(loggerResource.resource) })), mainProcessService.getChannel('logger'));
+		const loggerService = new LoggerChannelClient(undefined, this.configuration.logLevel, environmentService.logsHome, this.configuration.loggers.map(loggerResource => ({ ...loggerResource, resource: URI.revive(loggerResource.resource) })), mainProcessService.getChannel('logger'));
 		services.set(ILoggerService, loggerService);
 
 		// Log
-		const logger = this._register(loggerService.createLogger(joinPath(URI.file(environmentService.logsPath), 'sharedprocess.log'), { id: 'sharedLog', name: localize('sharedLog', "Shared") }));
+		const logger = this._register(loggerService.createLogger('sharedprocess', { name: localize('sharedLog', "Shared") }));
 		const consoleLogger = this._register(new ConsoleLogger(logger.getLevel()));
 		const logService = this._register(new LogService(logger, [consoleLogger]));
 		services.set(ILogService, logService);
@@ -387,7 +386,7 @@ class SharedProcessMain extends Disposable {
 			shortGraceTime: LocalReconnectConstants.ShortGraceTime,
 			scrollback: configurationService.getValue<number>(TerminalSettingId.PersistentSessionScrollback) ?? 100
 		},
-			localize('ptyHost', "Pty Host"),
+			false,
 			configurationService,
 			environmentService,
 			logService,

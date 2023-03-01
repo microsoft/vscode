@@ -15,7 +15,6 @@ import { joinPath } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { generateUuid } from 'vs/base/common/uuid';
 import { IMessagePassingProtocol } from 'vs/base/parts/ipc/common/ipc';
-import { localize } from 'vs/nls';
 import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
@@ -30,10 +29,9 @@ import { parentOriginHash } from 'vs/workbench/browser/iframe';
 import { IBrowserWorkbenchEnvironmentService } from 'vs/workbench/services/environment/browser/environmentService';
 import { ExtensionHostExitCode, IExtensionHostInitData, MessageType, UIKind, createMessageOfType, isMessageOfType } from 'vs/workbench/services/extensions/common/extensionHostProtocol';
 import { LocalWebWorkerRunningLocation } from 'vs/workbench/services/extensions/common/extensionRunningLocation';
-import { ExtensionHostExtensions, ExtensionHostLogFileName, IExtensionHost } from 'vs/workbench/services/extensions/common/extensions';
+import { ExtensionHostExtensions, ExtensionHostStartup, IExtensionHost } from 'vs/workbench/services/extensions/common/extensions';
 
 export interface IWebWorkerExtensionHostInitData {
-	readonly autoStart: boolean;
 	readonly allExtensions: IExtensionDescription[];
 	readonly myExtensions: ExtensionIdentifier[];
 }
@@ -45,7 +43,6 @@ export interface IWebWorkerExtensionHostDataProvider {
 export class WebWorkerExtensionHost extends Disposable implements IExtensionHost {
 
 	public readonly remoteAuthority = null;
-	public readonly lazyStart: boolean;
 	public readonly extensions = new ExtensionHostExtensions();
 
 	private readonly _onDidExit = this._register(new Emitter<[number, string | null]>());
@@ -56,11 +53,10 @@ export class WebWorkerExtensionHost extends Disposable implements IExtensionHost
 	private _protocol: IMessagePassingProtocol | null;
 
 	private readonly _extensionHostLogsLocation: URI;
-	private readonly _extensionHostLogFile: URI;
 
 	constructor(
 		public readonly runningLocation: LocalWebWorkerRunningLocation,
-		lazyStart: boolean,
+		public readonly startup: ExtensionHostStartup,
 		private readonly _initDataProvider: IWebWorkerExtensionHostDataProvider,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@IWorkspaceContextService private readonly _contextService: IWorkspaceContextService,
@@ -74,12 +70,10 @@ export class WebWorkerExtensionHost extends Disposable implements IExtensionHost
 		@IStorageService private readonly _storageService: IStorageService,
 	) {
 		super();
-		this.lazyStart = lazyStart;
 		this._isTerminating = false;
 		this._protocolPromise = null;
 		this._protocol = null;
 		this._extensionHostLogsLocation = joinPath(this._environmentService.extHostLogsPath, 'webWorker');
-		this._extensionHostLogFile = joinPath(this._extensionHostLogsLocation, `${ExtensionHostLogFileName}.log`);
 	}
 
 	private async _getWebWorkerExtensionHostIframeSrc(): Promise<string> {
@@ -310,15 +304,14 @@ export class WebWorkerExtensionHost extends Disposable implements IExtensionHost
 				logNative: this._environmentService.debugRenderer
 			},
 			allExtensions: deltaExtensions.toAdd,
+			activationEvents: deltaExtensions.addActivationEvents,
 			myExtensions: deltaExtensions.myToAdd,
 			nlsBaseUrl: nlsUrlWithDetails,
 			telemetryInfo,
 			logLevel: this._logService.getLevel(),
 			loggers: [...this._loggerService.getRegisteredLoggers()],
 			logsLocation: this._extensionHostLogsLocation,
-			logFile: this._extensionHostLogFile,
-			logName: localize('name', "Worker Extension Host"),
-			autoStart: initData.autoStart,
+			autoStart: (this.startup === ExtensionHostStartup.EagerAutoStart),
 			remote: {
 				authority: this._environmentService.remoteAuthority,
 				connectionData: null,

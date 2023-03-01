@@ -17,13 +17,13 @@ import { tokenizeToString } from 'vs/editor/common/languages/textToHtmlTokenizer
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 
 export interface IMarkdownRenderResult extends IDisposable {
-	element: HTMLElement;
+	readonly element: HTMLElement;
 }
 
 export interface IMarkdownRendererOptions {
-	editor?: ICodeEditor;
-	codeBlockFontFamily?: string;
-	codeBlockFontSize?: string;
+	readonly editor?: ICodeEditor;
+	readonly codeBlockFontFamily?: string;
+	readonly codeBlockFontSize?: string;
 }
 
 /**

@@ -10,9 +10,9 @@ import { URL } from 'url';
 import { parseTree, findNodeAtLocation, Node as JsonNode, getNodeValue } from 'jsonc-parser';
 import * as MarkdownItType from 'markdown-it';
 
-import { languages, workspace, Disposable, TextDocument, Uri, Diagnostic, Range, DiagnosticSeverity, Position, env, l10n } from 'vscode';
+import { commands, languages, workspace, Disposable, TextDocument, Uri, Diagnostic, Range, DiagnosticSeverity, Position, env, l10n } from 'vscode';
 import { INormalizedVersion, normalizeVersion, parseVersion } from './extensionEngineValidation';
-import { TextDecoder } from 'util';
+import { JsonStringScanner } from './jsonReconstruct';
 
 const product = JSON.parse(fs.readFileSync(path.join(env.appRoot, 'product.json'), { encoding: 'utf-8' }));
 const allowedBadgeProviders: string[] = (product.extensionAllowedBadgeProviders || []).map((s: string) => s.toLowerCase());
@@ -37,6 +37,7 @@ const implicitActivationEvent = l10n.t("This activation event cannot be explicit
 const redundantImplicitActivationEvent = l10n.t("This activation event can be removed as VS Code generates these automatically from your package.json contribution declarations.");
 const bumpEngineForImplicitActivationEvents = l10n.t("This activation event can be removed for extensions targeting engine version ^1.75 as VS Code will generate these automatically from your package.json contribution declarations.");
 const starActivation = l10n.t("Using '*' activation is usually a bad idea as it impacts performance.");
+const parsingErrorHeader = l10n.t("Error parsing the when-clause:");
 
 enum Context {
 	ICON,
@@ -70,7 +71,6 @@ export class ExtensionLinter {
 	private timer: NodeJS.Timer | undefined;
 	private markdownIt: MarkdownItType.MarkdownIt | undefined;
 	private parse5: typeof import('parse5') | undefined;
-	private textDecoder = new TextDecoder();
 
 	constructor() {
 		this.disposables.push(
@@ -112,15 +112,17 @@ export class ExtensionLinter {
 	}
 
 	private async lint() {
-		this.lintPackageJson();
-		await this.lintReadme();
+		await Promise.all([
+			this.lintPackageJson(),
+			this.lintReadme()
+		]);
 	}
 
-	private lintPackageJson() {
-		this.packageJsonQ.forEach(document => {
+	private async lintPackageJson() {
+		for (const document of Array.from(this.packageJsonQ)) {
 			this.packageJsonQ.delete(document);
 			if (document.isClosed) {
-				return;
+				continue;
 			}
 
 			const diagnostics: Diagnostic[] = [];
@@ -192,16 +194,88 @@ export class ExtensionLinter {
 						}
 					}
 				}
+
+				const whenClauseLinting = await this.lintWhenClauses(findNodeAtLocation(tree, ['contributes']), document);
+				diagnostics.push(...whenClauseLinting);
 			}
 			this.diagnosticsCollection.set(document.uri, diagnostics);
-		});
+		}
+	}
+
+	/** lints `when` and `enablement` clauses */
+	private async lintWhenClauses(contributesNode: JsonNode | undefined, document: TextDocument): Promise<Diagnostic[]> {
+		if (!contributesNode) {
+			return [];
+		}
+
+		const whenClauses: JsonNode[] = [];
+
+		function findWhens(node: JsonNode | undefined, clauseName: string) {
+			if (node) {
+				switch (node.type) {
+					case 'property':
+						if (node.children && node.children.length === 2) {
+							const key = node.children[0];
+							const value = node.children[1];
+							switch (value.type) {
+								case 'string':
+									if (key.value === clauseName && typeof value.value === 'string' /* careful: `.value` MUST be a string 1) because a when/enablement clause is string; so also, type cast to string below is safe */) {
+										whenClauses.push(value);
+									}
+								case 'object':
+								case 'array':
+									findWhens(value, clauseName);
+							}
+						}
+						break;
+					case 'object':
+					case 'array':
+						if (node.children) {
+							node.children.forEach(n => findWhens(n, clauseName));
+						}
+				}
+			}
+		}
+
+		[
+			findNodeAtLocation(contributesNode, ['menus']),
+			findNodeAtLocation(contributesNode, ['views']),
+			findNodeAtLocation(contributesNode, ['viewsWelcome']),
+			findNodeAtLocation(contributesNode, ['keybindings']),
+		].forEach(n => findWhens(n, 'when'));
+
+		findWhens(findNodeAtLocation(contributesNode, ['commands']), 'enablement');
+
+		const parseResults = await commands.executeCommand<{ errorMessage: string; offset: number; length: number }[][]>('_validateWhenClauses', whenClauses.map(w => w.value as string /* we make sure to capture only if `w.value` is string above */));
+
+		const diagnostics: Diagnostic[] = [];
+		for (let i = 0; i < parseResults.length; ++i) {
+			const whenClauseJSONNode = whenClauses[i];
+
+			const jsonStringScanner = new JsonStringScanner(document.getText(), whenClauseJSONNode.offset + 1);
+
+			for (const error of parseResults[i]) {
+				const realOffset = jsonStringScanner.getOffsetInEncoded(error.offset);
+				const realOffsetEnd = jsonStringScanner.getOffsetInEncoded(error.offset + error.length);
+				const start = document.positionAt(realOffset /* +1 to account for the quote (I think) */);
+				const end = document.positionAt(realOffsetEnd);
+				const errMsg = `${parsingErrorHeader}\n\n${error.errorMessage}`;
+				const diagnostic = new Diagnostic(new Range(start, end), errMsg, DiagnosticSeverity.Error);
+				diagnostic.code = {
+					value: 'See docs',
+					target: Uri.parse('https://code.visualstudio.com/api/references/when-clause-contexts'),
+				};
+				diagnostics.push(diagnostic);
+			}
+		}
+		return diagnostics;
 	}
 
 	private async lintReadme() {
-		for (const document of Array.from(this.readmeQ)) {
+		for (const document of this.readmeQ) {
 			this.readmeQ.delete(document);
 			if (document.isClosed) {
-				return;
+				continue;
 			}
 
 			const folder = this.getUriFolder(document.uri);
@@ -349,7 +423,7 @@ export class ExtensionLinter {
 		const file = folder.with({ path: path.posix.join(folder.path, 'package.json') });
 		try {
 			const fileContents = await workspace.fs.readFile(file); // #174888
-			return parseTree(this.textDecoder.decode(fileContents));
+			return parseTree(Buffer.from(fileContents).toString('utf-8'));
 		} catch (err) {
 			return undefined;
 		}

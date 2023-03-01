@@ -185,6 +185,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 	private _localCellStateListeners: DisposableStore[] = [];
 	private _fontInfo: FontInfo | undefined;
 	private _dimension?: DOM.Dimension;
+	private _position?: DOM.IDomPosition;
 	private _shadowElement?: HTMLElement;
 	private _shadowElementViewInfo: { height: number; width: number; top: number; left: number } | null = null;
 
@@ -329,7 +330,21 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 				this._generateFontInfo();
 			}
 
-			if (e.compactView || e.focusIndicator || e.insertToolbarPosition || e.cellToolbarLocation || e.dragAndDropEnabled || e.fontSize || e.outputFontSize || e.markupFontSize || e.fontFamily || e.outputFontFamily || e.insertToolbarAlignment || e.outputLineHeight) {
+			if (e.compactView
+				|| e.focusIndicator
+				|| e.insertToolbarPosition
+				|| e.cellToolbarLocation
+				|| e.dragAndDropEnabled
+				|| e.fontSize
+				|| e.markupFontSize
+				|| e.fontFamily
+				|| e.insertToolbarAlignment
+				|| e.outputFontSize
+				|| e.outputLineHeight
+				|| e.outputFontFamily
+				|| e.outputWordWrap
+				|| e.outputScrolling
+			) {
 				this._styleElement?.remove();
 				this._createLayoutStyles();
 				this._webview?.updateOptions({
@@ -349,7 +364,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 			}
 
 			this.updateShadowElement(this._shadowElement, this._dimension);
-			this.layoutContainerOverShadowElement(this._dimension);
+			this.layoutContainerOverShadowElement(this._dimension, this._position);
 		}));
 
 		this.notebookEditorService.addNotebookEditor(this);
@@ -1709,9 +1724,10 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		return this._scrollBeyondLastLine && !this.isEmbedded;
 	}
 
-	layout(dimension: DOM.Dimension, shadowElement?: HTMLElement, _position?: DOM.IDomPosition): void {
+	layout(dimension: DOM.Dimension, shadowElement?: HTMLElement, position?: DOM.IDomPosition): void {
 		if (!shadowElement && this._shadowElementViewInfo === null) {
 			this._dimension = dimension;
+			this._position = position;
 			return;
 		}
 
@@ -1721,7 +1737,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		}
 
 		if (shadowElement) {
-			this.updateShadowElement(shadowElement, dimension, /*position*/ undefined);
+			this.updateShadowElement(shadowElement, dimension, position);
 		}
 
 		if (this._shadowElementViewInfo && this._shadowElementViewInfo.width <= 0 && this._shadowElementViewInfo.height <= 0) {
@@ -1730,6 +1746,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		}
 
 		this._dimension = dimension;
+		this._position = position;
 		const newBodyHeight = Math.max(dimension.height - (this._notebookTopToolbar?.useGlobalToolbar ? /** Toolbar height */ 26 : 0), 0);
 		DOM.size(this._body, dimension.width, newBodyHeight);
 
@@ -1750,7 +1767,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		this._overlayContainer.style.position = 'absolute';
 		this._overlayContainer.style.overflow = 'hidden';
 
-		this.layoutContainerOverShadowElement(dimension, /*position*/ undefined);
+		this.layoutContainerOverShadowElement(dimension, position);
 
 		if (this._webviewTransparentCover) {
 			this._webviewTransparentCover.style.height = `${dimension.height}px`;
@@ -2095,6 +2112,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 
 	async executeNotebookCells(cells?: Iterable<ICellViewModel>): Promise<void> {
 		if (!this.viewModel || !this.hasModel()) {
+			this.logService.info('notebookEditorWidget', 'No NotebookViewModel, cannot execute cells');
 			return;
 		}
 		if (!cells) {

@@ -99,9 +99,10 @@ export class FileLoggerService extends AbstractLoggerService implements ILoggerS
 
 	constructor(
 		logLevel: LogLevel,
-		@IFileService private readonly fileService: IFileService,
+		logsHome: URI,
+		private readonly fileService: IFileService,
 	) {
-		super(logLevel);
+		super(logLevel, logsHome);
 	}
 
 	protected doCreateLogger(resource: URI, logLevel: LogLevel, options?: ILoggerOptions): ILogger {

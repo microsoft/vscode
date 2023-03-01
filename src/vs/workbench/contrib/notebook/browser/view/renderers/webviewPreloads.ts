@@ -88,9 +88,8 @@ async function webviewPreloads(ctx: PreloadContext) {
 
 	let currentOptions = ctx.options;
 	let isWorkspaceTrusted = ctx.isWorkspaceTrusted;
-	const lineLimit = ctx.renderOptions.lineLimit;
-	const outputScrolling = ctx.renderOptions.outputScrolling;
-	const outputWordWrap = ctx.renderOptions.outputWordWrap;
+	let currentRenderOptions = ctx.renderOptions;
+	const settingChange: EmitterLike<RenderOptions> = createEmitter<RenderOptions>();
 
 	const acquireVsCodeApi = globalThis.acquireVsCodeApi;
 	const vscode = acquireVsCodeApi();
@@ -185,6 +184,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 	document.body.addEventListener('click', handleInnerClick);
 
 	interface RendererContext extends rendererApi.RendererContext<unknown> {
+		readonly onDidChangeSettings: Event<RenderOptions>;
 		readonly settings: RenderOptions;
 	}
 
@@ -1250,6 +1250,8 @@ async function webviewPreloads(ctx: PreloadContext) {
 			case 'notebookOptions':
 				currentOptions = event.data.options;
 				viewModel.toggleDragDropEnabled(currentOptions.dragAndDropEnabled);
+				currentRenderOptions = event.data.renderOptions;
+				settingChange.fire(currentRenderOptions);
 				break;
 			case 'updateWorkspaceTrust': {
 				isWorkspaceTrusted = event.data.isTrusted;
@@ -1368,10 +1370,11 @@ async function webviewPreloads(ctx: PreloadContext) {
 					get isTrusted() { return isWorkspaceTrusted; }
 				},
 				settings: {
-					get lineLimit() { return lineLimit; },
-					get outputScrolling() { return outputScrolling; },
-					get outputWordWrap() { return outputWordWrap; },
-				}
+					get lineLimit() { return currentRenderOptions.lineLimit; },
+					get outputScrolling() { return currentRenderOptions.outputScrolling; },
+					get outputWordWrap() { return currentRenderOptions.outputWordWrap; },
+				},
+				get onDidChangeSettings() { return settingChange.event; }
 			};
 
 			if (messaging) {

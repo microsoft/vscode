@@ -133,10 +133,7 @@ function canShowSuggestOnTriggerCharacters(editor: ICodeEditor, contextKeyServic
 		// Use setting if available.
 		return Boolean(allowQuickSuggestions);
 	}
-
-	// Don't allow if inline suggestions are visible and no suggest preview is configured.
-	// TODO disabled for copilot
-	return false && isSuggestPreviewEnabled(editor);
+	return true;
 }
 
 export class SuggestModel implements IDisposable {

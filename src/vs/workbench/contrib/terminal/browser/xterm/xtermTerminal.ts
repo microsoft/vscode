@@ -48,6 +48,7 @@ import { getSimpleEditorOptions } from 'vs/workbench/contrib/codeEditor/browser/
 import { IEditorConstructionOptions } from 'vs/editor/browser/config/editorConfiguration';
 import { LinkDetector } from 'vs/editor/contrib/links/browser/links';
 import { SelectionClipboardContributionID } from 'vs/workbench/contrib/codeEditor/browser/selectionClipboard';
+import { addDisposableListener } from 'vs/base/browser/dom';
 
 const enum RenderConstants {
 	/**
@@ -150,7 +151,7 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal, II
 	private _webglAddon?: WebglAddonType;
 	private _serializeAddon?: SerializeAddonType;
 
-	private _accessibileBuffer: AccessibleBuffer | undefined;
+	private _accessibleBuffer: AccessibleBuffer | undefined;
 
 	private _lastFindResult: { resultIndex: number; resultCount: number } | undefined;
 	get findResult(): { resultIndex: number; resultCount: number } | undefined { return this._lastFindResult; }
@@ -290,7 +291,7 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal, II
 	}
 
 	async focusAccessibleBuffer(): Promise<void> {
-		this._accessibileBuffer?.focus();
+		this._accessibleBuffer?.focus();
 	}
 
 	async getSelectionAsHtml(command?: ITerminalCommand): Promise<string> {
@@ -320,7 +321,7 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal, II
 		if (!this._container) {
 			this.raw.open(container);
 		}
-		this._accessibileBuffer = this._instantiationService.createInstance(AccessibleBuffer, this, this._capabilities);
+		this._accessibleBuffer = this._instantiationService.createInstance(AccessibleBuffer, this, this._capabilities);
 		// TODO: Move before open to the DOM renderer doesn't initialize
 		if (this._shouldLoadWebgl()) {
 			this._enableWebglRenderer();
@@ -771,7 +772,11 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal, II
 		this.raw.write(data);
 	}
 }
-const enum ACCESSIBLE_BUFFER { Scheme = 'terminal-accessible-buffer' }
+
+const enum AccessibleBufferConstants {
+	Scheme = 'terminal-accessible-buffer'
+}
+
 class AccessibleBuffer extends DisposableStore {
 	private _accessibleBuffer: HTMLElement;
 	private _bufferEditor: CodeEditorWidget;
@@ -807,7 +812,6 @@ class AccessibleBuffer extends DisposableStore {
 			wrappingIndent: 'none',
 			padding: { top: 2, bottom: 2 },
 			quickSuggestions: false,
-			scrollbar: { alwaysConsumeMouseWheel: false },
 			renderWhitespace: 'none',
 			dropIntoEditor: { enabled: true },
 			accessibilitySupport: configurationService.getValue<'auto' | 'off' | 'on'>('editor.accessibilitySupport'),
@@ -815,6 +819,9 @@ class AccessibleBuffer extends DisposableStore {
 			readOnly: true
 		};
 		this._accessibleBuffer = this._terminal.raw.element!.querySelector('.xterm-accessible-buffer') as HTMLElement;
+		// Prevent the accessible buffer letting mouse events to propogate to xterm.js while it's
+		// visible.
+		this.add(addDisposableListener(this._accessibleBuffer, 'mousedown', e => e.stopImmediatePropagation()));
 		this._accessibleBuffer.tabIndex = -1;
 		this._editorContainer = document.createElement('div');
 		this._bufferEditor = this._instantiationService.createInstance(CodeEditorWidget, this._editorContainer, editorOptions, codeEditorWidgetOptions);
@@ -832,7 +839,7 @@ class AccessibleBuffer extends DisposableStore {
 	private async _updateBufferEditor(): Promise<void> {
 		const commandDetection = this._capabilities.get(TerminalCapability.CommandDetection);
 		const fragment = !!commandDetection ? this._getShellIntegrationContent() : this._getAllContent();
-		const model = await this._getTextModel(URI.from({ scheme: ACCESSIBLE_BUFFER.Scheme, fragment }));
+		const model = await this._getTextModel(URI.from({ scheme: AccessibleBufferConstants.Scheme, fragment }));
 		if (model) {
 			this._bufferEditor.setModel(model);
 		}
@@ -868,7 +875,7 @@ class AccessibleBuffer extends DisposableStore {
 		this._bufferEditor.focus();
 	}
 
-	async _getTextModel(resource: URI): Promise<ITextModel | null> {
+	private async _getTextModel(resource: URI): Promise<ITextModel | null> {
 		const existing = this._modelService.getModel(resource);
 		if (existing && !existing.isDisposed()) {
 			return existing;
@@ -880,9 +887,8 @@ class AccessibleBuffer extends DisposableStore {
 	private _getShellIntegrationContent(): string {
 		const commands = this._capabilities.get(TerminalCapability.CommandDetection)?.commands;
 		const sb = new StringBuilder(10000);
-		let content = localize('terminal.integrated.noContent', "No terminal content available for this session. Run some commands to create content.");
 		if (!commands?.length) {
-			return content;
+			return this._getAllContent();
 		}
 		for (const command of commands) {
 			sb.appendString(command.command.replace(new RegExp(' ', 'g'), '\xA0'));
@@ -892,8 +898,7 @@ class AccessibleBuffer extends DisposableStore {
 			sb.appendString('\n');
 			sb.appendString(command.getOutput()?.replace(new RegExp(' ', 'g'), '\xA0') || '');
 		}
-		content = sb.build();
-		return content;
+		return sb.build();
 	}
 
 	private _getAllContent(): string {

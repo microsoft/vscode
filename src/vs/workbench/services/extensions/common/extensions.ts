@@ -8,6 +8,7 @@ import Severity from 'vs/base/common/severity';
 import { URI } from 'vs/base/common/uri';
 import { IMessagePassingProtocol } from 'vs/base/parts/ipc/common/ipc';
 import { getExtensionId, getGalleryExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
+import { ImplicitActivationEvents } from 'vs/platform/extensionManagement/common/implicitActivationEvents';
 import { ExtensionIdentifier, ExtensionIdentifierMap, ExtensionIdentifierSet, ExtensionType, IExtension, IExtensionContributions, IExtensionDescription, TargetPlatform } from 'vs/platform/extensions/common/extensions';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IV8Profile } from 'vs/platform/profiling/common/profiling';
@@ -43,7 +44,9 @@ export interface IMessage {
 }
 
 export interface IExtensionsStatus {
+	id: ExtensionIdentifier;
 	messages: IMessage[];
+	activationStarted: boolean;
 	activationTimes: ActivationTimes | undefined;
 	runtimeErrors: Error[];
 	runningLocation: ExtensionRunningLocation | null;
@@ -93,10 +96,25 @@ export interface IExtensionHostProfile {
 	getAggregatedTimes(): Map<ProfileSegmentId, number>;
 }
 
+export const enum ExtensionHostStartup {
+	/**
+	 * The extension host should be launched immediately and doesn't require a `$startExtensionHost` call.
+	 */
+	EagerAutoStart = 1,
+	/**
+	 * The extension host should be launched immediately and needs a `$startExtensionHost` call.
+	 */
+	EagerManualStart = 2,
+	/**
+	 * The extension host should be launched lazily and only when it has extensions it needs to host. It needs a `$startExtensionHost` call.
+	 */
+	Lazy = 3,
+}
+
 export interface IExtensionHost {
 	readonly runningLocation: ExtensionRunningLocation;
 	readonly remoteAuthority: string | null;
-	readonly lazyStart: boolean;
+	readonly startup: ExtensionHostStartup;
 	/**
 	 * A collection of extensions which includes information about which
 	 * extension will execute or is executing on this extension host.
@@ -125,6 +143,7 @@ export class ExtensionHostExtensions {
 		return {
 			toRemove: [],
 			toAdd: this._allExtensions,
+			addActivationEvents: ImplicitActivationEvents.createActivationEventsMap(this._allExtensions),
 			myToRemove: [],
 			myToAdd: this._myExtensions
 		};
@@ -190,7 +209,8 @@ export class ExtensionHostExtensions {
 			}
 		}
 
-		const delta = { toRemove, toAdd, myToRemove, myToAdd };
+		const addActivationEvents = ImplicitActivationEvents.createActivationEventsMap(toAdd);
+		const delta = { toRemove, toAdd, addActivationEvents, myToRemove, myToAdd };
 		this.delta(delta);
 		return delta;
 	}
@@ -283,8 +303,6 @@ export class ExtensionPointContribution<T> {
 		this.value = value;
 	}
 }
-
-export const ExtensionHostLogFileName = 'exthost';
 
 export interface IWillActivateEvent {
 	readonly event: string;

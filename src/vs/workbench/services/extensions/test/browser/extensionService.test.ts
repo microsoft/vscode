@@ -12,6 +12,7 @@ import { TestConfigurationService } from 'vs/platform/configuration/test/common/
 import { ExtensionKind, IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { ExtensionIdentifier, IExtension, IRelaxedExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { IFileService } from 'vs/platform/files/common/files';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { TestInstantiationService, createServices } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { ILogService, NullLogService } from 'vs/platform/log/common/log';
 import { INotificationService } from 'vs/platform/notification/common/notification';
@@ -26,14 +27,17 @@ import { UriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentitySe
 import { IUserDataProfilesService, UserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IWorkspaceTrustEnablementService } from 'vs/platform/workspace/common/workspaceTrust';
+import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IWebExtensionsScannerService, IWorkbenchExtensionEnablementService, IWorkbenchExtensionManagementService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { BrowserExtensionHostKindPicker } from 'vs/workbench/services/extensions/browser/extensionService';
-import { AbstractExtensionService } from 'vs/workbench/services/extensions/common/abstractExtensionService';
+import { AbstractExtensionService, IExtensionHostFactory, ResolvedExtensions } from 'vs/workbench/services/extensions/common/abstractExtensionService';
 import { ExtensionHostKind, ExtensionRunningPreference } from 'vs/workbench/services/extensions/common/extensionHostKind';
 import { IExtensionHostManager } from 'vs/workbench/services/extensions/common/extensionHostManager';
 import { ExtensionManifestPropertiesService, IExtensionManifestPropertiesService } from 'vs/workbench/services/extensions/common/extensionManifestPropertiesService';
 import { ExtensionRunningLocation } from 'vs/workbench/services/extensions/common/extensionRunningLocation';
+import { ExtensionRunningLocationTracker } from 'vs/workbench/services/extensions/common/extensionRunningLocationTracker';
 import { IExtensionHost, IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
+import { ExtensionsProposedApi } from 'vs/workbench/services/extensions/common/extensionsProposedApi';
 import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
@@ -124,12 +128,60 @@ suite('BrowserExtensionService', () => {
 suite('ExtensionService', () => {
 
 	class MyTestExtensionService extends AbstractExtensionService {
+
+		constructor(
+			@IInstantiationService instantiationService: IInstantiationService,
+			@INotificationService notificationService: INotificationService,
+			@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
+			@ITelemetryService telemetryService: ITelemetryService,
+			@IWorkbenchExtensionEnablementService extensionEnablementService: IWorkbenchExtensionEnablementService,
+			@IFileService fileService: IFileService,
+			@IProductService productService: IProductService,
+			@IWorkbenchExtensionManagementService extensionManagementService: IWorkbenchExtensionManagementService,
+			@IWorkspaceContextService contextService: IWorkspaceContextService,
+			@IConfigurationService configurationService: IConfigurationService,
+			@IExtensionManifestPropertiesService extensionManifestPropertiesService: IExtensionManifestPropertiesService,
+			@ILogService logService: ILogService,
+			@IRemoteAgentService remoteAgentService: IRemoteAgentService,
+			@IRemoteExtensionsScannerService remoteExtensionsScannerService: IRemoteExtensionsScannerService,
+			@ILifecycleService lifecycleService: ILifecycleService,
+		) {
+			const extensionsProposedApi = instantiationService.createInstance(ExtensionsProposedApi);
+			const extensionHostFactory = new class implements IExtensionHostFactory {
+				createExtensionHost(runningLocations: ExtensionRunningLocationTracker, runningLocation: ExtensionRunningLocation, isInitialStart: boolean): IExtensionHost | null {
+					return new class extends mock<IExtensionHost>() {
+						override runningLocation = runningLocation;
+					};
+				}
+			};
+			super(
+				extensionsProposedApi,
+				extensionHostFactory,
+				null!,
+				instantiationService,
+				notificationService,
+				environmentService,
+				telemetryService,
+				extensionEnablementService,
+				fileService,
+				productService,
+				extensionManagementService,
+				contextService,
+				configurationService,
+				extensionManifestPropertiesService,
+				logService,
+				remoteAgentService,
+				remoteExtensionsScannerService,
+				lifecycleService
+			);
+		}
+
 		private _extHostId = 0;
 		public readonly order: string[] = [];
 		protected _pickExtensionHostKind(extensionId: ExtensionIdentifier, extensionKinds: ExtensionKind[], isInstalledLocally: boolean, isInstalledRemotely: boolean, preference: ExtensionRunningPreference): ExtensionHostKind | null {
 			throw new Error('Method not implemented.');
 		}
-		protected override _doCreateExtensionHostManager(extensionHost: IExtensionHost, isInitialStart: boolean, initialActivationEvents: string[]): IExtensionHostManager {
+		protected override _doCreateExtensionHostManager(extensionHost: IExtensionHost, initialActivationEvents: string[]): IExtensionHostManager {
 			const order = this.order;
 			const extensionHostId = ++this._extHostId;
 			order.push(`create ${extensionHostId}`);
@@ -144,12 +196,7 @@ suite('ExtensionService', () => {
 				}
 			};
 		}
-		protected _createExtensionHost(runningLocation: ExtensionRunningLocation, isInitialStart: boolean): IExtensionHost | null {
-			return new class extends mock<IExtensionHost>() {
-				override runningLocation = runningLocation;
-			};
-		}
-		protected _scanAndHandleExtensions(): Promise<void> {
+		protected _resolveExtensions(): Promise<ResolvedExtensions> {
 			throw new Error('Method not implemented.');
 		}
 		protected _scanSingleExtension(extension: IExtension): Promise<Readonly<IRelaxedExtensionDescription> | null> {

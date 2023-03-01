@@ -276,7 +276,7 @@ export class BrowserMain extends Disposable {
 		serviceCollection.set(IWorkbenchFileService, fileService);
 
 		// Logger
-		const loggerService = new FileLoggerService(logLevel, fileService);
+		const loggerService = new FileLoggerService(logLevel, logsPath, fileService);
 		serviceCollection.set(ILoggerService, loggerService);
 
 		// URI Identity
@@ -341,7 +341,7 @@ export class BrowserMain extends Disposable {
 		this._register(workspaceTrustManagementService.onDidChangeTrust(() => configurationService.updateWorkspaceTrust(workspaceTrustManagementService.isWorkspaceTrusted())));
 
 		// Request Service
-		const requestService = new BrowserRequestService(remoteAgentService, configurationService, logService);
+		const requestService = new BrowserRequestService(remoteAgentService, configurationService, loggerService);
 		serviceCollection.set(IRequestService, requestService);
 
 		// Userdata Sync Store Management Service

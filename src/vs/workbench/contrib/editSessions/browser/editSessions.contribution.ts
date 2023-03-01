@@ -400,8 +400,8 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 				});
 			}
 
-			async run(accessor: ServicesAccessor, editSessionId?: string): Promise<void> {
-				await that.progressService.withProgress({ ...resumeProgressOptions, title: resumeProgressOptionsTitle }, async () => await that.resumeEditSession(editSessionId));
+			async run(accessor: ServicesAccessor, editSessionId?: string, force?: boolean): Promise<void> {
+				await that.progressService.withProgress({ ...resumeProgressOptions, title: resumeProgressOptionsTitle }, async () => await that.resumeEditSession(editSessionId, undefined, force));
 			}
 		}));
 	}
