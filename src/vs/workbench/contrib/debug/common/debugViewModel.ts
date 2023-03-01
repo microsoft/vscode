@@ -36,21 +36,23 @@ export class ViewModel implements IViewModel {
 	private disassembleRequestSupported!: IContextKey<boolean>;
 	private focusedStackFrameHasInstructionPointerReference!: IContextKey<boolean>;
 
-	constructor(contextKeyService: IContextKeyService) {
-		this.expressionSelectedContextKey = CONTEXT_EXPRESSION_SELECTED.bindTo(contextKeyService);
-		this.loadedScriptsSupportedContextKey = CONTEXT_LOADED_SCRIPTS_SUPPORTED.bindTo(contextKeyService);
-		this.stepBackSupportedContextKey = CONTEXT_STEP_BACK_SUPPORTED.bindTo(contextKeyService);
-		this.focusedSessionIsAttach = CONTEXT_FOCUSED_SESSION_IS_ATTACH.bindTo(contextKeyService);
-		this.restartFrameSupportedContextKey = CONTEXT_RESTART_FRAME_SUPPORTED.bindTo(contextKeyService);
-		this.stepIntoTargetsSupported = CONTEXT_STEP_INTO_TARGETS_SUPPORTED.bindTo(contextKeyService);
-		this.jumpToCursorSupported = CONTEXT_JUMP_TO_CURSOR_SUPPORTED.bindTo(contextKeyService);
-		this.setVariableSupported = CONTEXT_SET_VARIABLE_SUPPORTED.bindTo(contextKeyService);
-		this.setExpressionSupported = CONTEXT_SET_EXPRESSION_SUPPORTED.bindTo(contextKeyService);
-		this.multiSessionDebug = CONTEXT_MULTI_SESSION_DEBUG.bindTo(contextKeyService);
-		this.terminateDebuggeeSupported = CONTEXT_TERMINATE_DEBUGGEE_SUPPORTED.bindTo(contextKeyService);
-		this.suspendDebuggeeSupported = CONTEXT_SUSPEND_DEBUGGEE_SUPPORTED.bindTo(contextKeyService);
-		this.disassembleRequestSupported = CONTEXT_DISASSEMBLE_REQUEST_SUPPORTED.bindTo(contextKeyService);
-		this.focusedStackFrameHasInstructionPointerReference = CONTEXT_FOCUSED_STACK_FRAME_HAS_INSTRUCTION_POINTER_REFERENCE.bindTo(contextKeyService);
+	constructor(private contextKeyService: IContextKeyService) {
+		contextKeyService.bufferChangeEvents(() => {
+			this.expressionSelectedContextKey = CONTEXT_EXPRESSION_SELECTED.bindTo(contextKeyService);
+			this.loadedScriptsSupportedContextKey = CONTEXT_LOADED_SCRIPTS_SUPPORTED.bindTo(contextKeyService);
+			this.stepBackSupportedContextKey = CONTEXT_STEP_BACK_SUPPORTED.bindTo(contextKeyService);
+			this.focusedSessionIsAttach = CONTEXT_FOCUSED_SESSION_IS_ATTACH.bindTo(contextKeyService);
+			this.restartFrameSupportedContextKey = CONTEXT_RESTART_FRAME_SUPPORTED.bindTo(contextKeyService);
+			this.stepIntoTargetsSupported = CONTEXT_STEP_INTO_TARGETS_SUPPORTED.bindTo(contextKeyService);
+			this.jumpToCursorSupported = CONTEXT_JUMP_TO_CURSOR_SUPPORTED.bindTo(contextKeyService);
+			this.setVariableSupported = CONTEXT_SET_VARIABLE_SUPPORTED.bindTo(contextKeyService);
+			this.setExpressionSupported = CONTEXT_SET_EXPRESSION_SUPPORTED.bindTo(contextKeyService);
+			this.multiSessionDebug = CONTEXT_MULTI_SESSION_DEBUG.bindTo(contextKeyService);
+			this.terminateDebuggeeSupported = CONTEXT_TERMINATE_DEBUGGEE_SUPPORTED.bindTo(contextKeyService);
+			this.suspendDebuggeeSupported = CONTEXT_SUSPEND_DEBUGGEE_SUPPORTED.bindTo(contextKeyService);
+			this.disassembleRequestSupported = CONTEXT_DISASSEMBLE_REQUEST_SUPPORTED.bindTo(contextKeyService);
+			this.focusedStackFrameHasInstructionPointerReference = CONTEXT_FOCUSED_STACK_FRAME_HAS_INSTRUCTION_POINTER_REFERENCE.bindTo(contextKeyService);
+		});
 	}
 
 	getId(): string {
@@ -77,19 +79,21 @@ export class ViewModel implements IViewModel {
 		this._focusedThread = thread;
 		this._focusedSession = session;
 
-		this.loadedScriptsSupportedContextKey.set(session ? !!session.capabilities.supportsLoadedSourcesRequest : false);
-		this.stepBackSupportedContextKey.set(session ? !!session.capabilities.supportsStepBack : false);
-		this.restartFrameSupportedContextKey.set(session ? !!session.capabilities.supportsRestartFrame : false);
-		this.stepIntoTargetsSupported.set(session ? !!session.capabilities.supportsStepInTargetsRequest : false);
-		this.jumpToCursorSupported.set(session ? !!session.capabilities.supportsGotoTargetsRequest : false);
-		this.setVariableSupported.set(session ? !!session.capabilities.supportsSetVariable : false);
-		this.setExpressionSupported.set(session ? !!session.capabilities.supportsSetExpression : false);
-		this.terminateDebuggeeSupported.set(session ? !!session.capabilities.supportTerminateDebuggee : false);
-		this.suspendDebuggeeSupported.set(session ? !!session.capabilities.supportSuspendDebuggee : false);
-		this.disassembleRequestSupported.set(!!session?.capabilities.supportsDisassembleRequest);
-		this.focusedStackFrameHasInstructionPointerReference.set(!!stackFrame?.instructionPointerReference);
-		const attach = !!session && isSessionAttach(session);
-		this.focusedSessionIsAttach.set(attach);
+		this.contextKeyService.bufferChangeEvents(() => {
+			this.loadedScriptsSupportedContextKey.set(session ? !!session.capabilities.supportsLoadedSourcesRequest : false);
+			this.stepBackSupportedContextKey.set(session ? !!session.capabilities.supportsStepBack : false);
+			this.restartFrameSupportedContextKey.set(session ? !!session.capabilities.supportsRestartFrame : false);
+			this.stepIntoTargetsSupported.set(session ? !!session.capabilities.supportsStepInTargetsRequest : false);
+			this.jumpToCursorSupported.set(session ? !!session.capabilities.supportsGotoTargetsRequest : false);
+			this.setVariableSupported.set(session ? !!session.capabilities.supportsSetVariable : false);
+			this.setExpressionSupported.set(session ? !!session.capabilities.supportsSetExpression : false);
+			this.terminateDebuggeeSupported.set(session ? !!session.capabilities.supportTerminateDebuggee : false);
+			this.suspendDebuggeeSupported.set(session ? !!session.capabilities.supportSuspendDebuggee : false);
+			this.disassembleRequestSupported.set(!!session?.capabilities.supportsDisassembleRequest);
+			this.focusedStackFrameHasInstructionPointerReference.set(!!stackFrame?.instructionPointerReference);
+			const attach = !!session && isSessionAttach(session);
+			this.focusedSessionIsAttach.set(attach);
+		});
 
 		if (shouldEmitForSession) {
 			this._onDidFocusSession.fire(session);

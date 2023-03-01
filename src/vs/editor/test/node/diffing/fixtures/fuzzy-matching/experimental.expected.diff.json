@@ -1,0 +1,26 @@
+{
+	"originalFileName": "./1.txt",
+	"modifiedFileName": "./2.txt",
+	"diffs": [
+		{
+			"originalRange": "[1,1)",
+			"modifiedRange": "[1,9)",
+			"innerChanges": [
+				{
+					"originalRange": "[1,1 -> 1,1]",
+					"modifiedRange": "[1,1 -> 9,1]"
+				}
+			]
+		},
+		{
+			"originalRange": "[2,9)",
+			"modifiedRange": "[10,10)",
+			"innerChanges": [
+				{
+					"originalRange": "[2,1 -> 9,1]",
+					"modifiedRange": "[10,1 -> 10,1]"
+				}
+			]
+		}
+	]
+}

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { execFile } from 'child_process';
+import { execFile, exec } from 'child_process';
 import { AutoOpenBarrier, ProcessTimeRunOnceScheduler, Promises, Queue } from 'vs/base/common/async';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
@@ -18,7 +18,7 @@ import { escapeNonWindowsPath } from 'vs/platform/terminal/common/terminalEnviro
 import { Terminal as XtermTerminal } from 'xterm-headless';
 import type { ISerializeOptions, SerializeAddon as XtermSerializeAddon } from 'xterm-addon-serialize';
 import type { Unicode11Addon as XtermUnicode11Addon } from 'xterm-addon-unicode11';
-import { IGetTerminalLayoutInfoArgs, IProcessDetails, IPtyHostProcessReplayEvent, ISetTerminalLayoutInfoArgs, ITerminalTabLayoutInfoDto } from 'vs/platform/terminal/common/terminalProcess';
+import { IGetTerminalLayoutInfoArgs, IProcessDetails, ISetTerminalLayoutInfoArgs, ITerminalTabLayoutInfoDto } from 'vs/platform/terminal/common/terminalProcess';
 import { getWindowsBuildNumber } from 'vs/platform/terminal/node/terminalEnvironment';
 import { TerminalProcess } from 'vs/platform/terminal/node/terminalProcess';
 import { localize } from 'vs/nls';
@@ -27,6 +27,9 @@ import { TerminalAutoResponder } from 'vs/platform/terminal/common/terminalAutoR
 import { ErrorNoTelemetry } from 'vs/base/common/errors';
 import { ShellIntegrationAddon } from 'vs/platform/terminal/common/xterm/shellIntegrationAddon';
 import { formatMessageForTerminal } from 'vs/platform/terminal/common/terminalStrings';
+import { IPtyHostProcessReplayEvent } from 'vs/platform/terminal/common/capabilities/capabilities';
+import { IProductService } from 'vs/platform/product/common/productService';
+import { join } from 'path';
 
 type WorkspaceId = string;
 
@@ -63,6 +66,7 @@ export class PtyService extends Disposable implements IPtyService {
 	constructor(
 		private _lastPtyId: number,
 		private readonly _logService: ILogService,
+		private readonly _productService: IProductService,
 		private readonly _reconnectConstants: IReconnectConstants
 	) {
 		super();
@@ -100,6 +104,31 @@ export class PtyService extends Disposable implements IPtyService {
 			processDetails = await this._buildProcessDetails(persistentProcessId, pty);
 		}
 		this._detachInstanceRequestStore.acceptReply(requestId, processDetails);
+	}
+
+	async freePortKillProcess(port: string): Promise<{ port: string; processId: string }> {
+		const stdout = await new Promise<string>((resolve, reject) => {
+			exec(isWindows ? `netstat -ano | findstr "${port}"` : `lsof -nP -iTCP -sTCP:LISTEN | grep ${port}`, {}, (err, stdout) => {
+				if (err) {
+					return reject('Problem occurred when listing active processes');
+				}
+				resolve(stdout);
+			});
+		});
+		const processesForPort = stdout.split('\n');
+		if (processesForPort.length >= 1) {
+			const capturePid = /\s+(\d+)\s+/;
+			const processId = processesForPort[0].match(capturePid)?.[1];
+			if (processId) {
+				try {
+					process.kill(Number.parseInt(processId));
+				} catch { }
+			} else {
+				throw new Error(`Processes for port ${port} were not found`);
+			}
+			return { port, processId };
+		}
+		throw new Error(`Could not kill process with port ${port}`);
 	}
 
 	async serializeTerminalState(ids: number[]): Promise<string> {
@@ -183,7 +212,7 @@ export class PtyService extends Disposable implements IPtyService {
 			throw new Error('Attempt to create a process when attach object was provided');
 		}
 		const id = ++this._lastPtyId;
-		const process = new TerminalProcess(shellLaunchConfig, cwd, cols, rows, env, executableEnv, options, this._logService);
+		const process = new TerminalProcess(shellLaunchConfig, cwd, cols, rows, env, executableEnv, options, this._logService, this._productService);
 		process.onProcessData(event => this._onProcessData.fire({ id, event }));
 		const processLaunchOptions: IPersistentTerminalProcessLaunchConfig = {
 			env,
@@ -224,8 +253,8 @@ export class PtyService extends Disposable implements IPtyService {
 		this._throwIfNoPty(id).setTitle(title, titleSource);
 	}
 
-	async updateIcon(id: number, icon: URI | { light: URI; dark: URI } | { id: string; color?: { id: string } }, color?: string): Promise<void> {
-		this._throwIfNoPty(id).setIcon(icon, color);
+	async updateIcon(id: number, userInitiated: boolean, icon: URI | { light: URI; dark: URI } | { id: string; color?: { id: string } }, color?: string): Promise<void> {
+		this._throwIfNoPty(id).setIcon(userInitiated, icon, color);
 	}
 
 	async refreshProperty<T extends ProcessPropertyType>(id: number, type: T): Promise<IProcessPropertyMap[T]> {
@@ -322,19 +351,56 @@ export class PtyService extends Disposable implements IPtyService {
 		return { ...process.env };
 	}
 
-	async getWslPath(original: string): Promise<string> {
-		if (!isWindows) {
-			return original;
-		}
-		if (getWindowsBuildNumber() < 17063) {
-			return original.replace(/\\/g, '/');
-		}
-		return new Promise<string>(c => {
-			const proc = execFile('bash.exe', ['-c', `wslpath ${escapeNonWindowsPath(original)}`], {}, (error, stdout, stderr) => {
-				c(escapeNonWindowsPath(stdout.trim()));
+	async getWslPath(original: string, direction: 'unix-to-win' | 'win-to-unix' | unknown): Promise<string> {
+		if (direction === 'win-to-unix') {
+			if (!isWindows) {
+				return original;
+			}
+			if (getWindowsBuildNumber() < 17063) {
+				return original.replace(/\\/g, '/');
+			}
+			const wslExecutable = this._getWSLExecutablePath();
+			if (!wslExecutable) {
+				return original;
+			}
+			return new Promise<string>(c => {
+				const proc = execFile(wslExecutable, ['-e', 'wslpath', original], {}, (error, stdout, stderr) => {
+					c(error ? original : escapeNonWindowsPath(stdout.trim()));
+				});
+				proc.stdin!.end();
 			});
-			proc.stdin!.end();
-		});
+		}
+		if (direction === 'unix-to-win') {
+			// The backend is Windows, for example a local Windows workspace with a wsl session in
+			// the terminal.
+			if (isWindows) {
+				if (getWindowsBuildNumber() < 17063) {
+					return original;
+				}
+				const wslExecutable = this._getWSLExecutablePath();
+				if (!wslExecutable) {
+					return original;
+				}
+				return new Promise<string>(c => {
+					const proc = execFile(wslExecutable, ['-e', 'wslpath', '-w', original], {}, (error, stdout, stderr) => {
+						c(error ? original : stdout.trim());
+					});
+					proc.stdin!.end();
+				});
+			}
+		}
+		// Fallback just in case
+		return original;
+	}
+
+	private _getWSLExecutablePath(): string | undefined {
+		const useWSLexe = getWindowsBuildNumber() >= 16299;
+		const is32ProcessOn64Windows = process.env.hasOwnProperty('PROCESSOR_ARCHITEW6432');
+		const systemRoot = process.env['SystemRoot'];
+		if (systemRoot) {
+			return join(systemRoot, is32ProcessOn64Windows ? 'Sysnative' : 'System32', useWSLexe ? 'wsl.exe' : 'bash.exe');
+		}
+		return undefined;
 	}
 
 	async getRevivedPtyNewId(id: number): Promise<number | undefined> {
@@ -415,7 +481,8 @@ export class PtyService extends Disposable implements IPtyService {
 			waitOnExit: persistentProcess.shellLaunchConfig.waitOnExit,
 			hideFromUser: persistentProcess.shellLaunchConfig.hideFromUser,
 			isFeatureTerminal: persistentProcess.shellLaunchConfig.isFeatureTerminal,
-			type: persistentProcess.shellLaunchConfig.type
+			type: persistentProcess.shellLaunchConfig.type,
+			hasChildProcesses: persistentProcess.hasChildProcesses
 		};
 	}
 
@@ -437,7 +504,7 @@ const enum InteractionState {
 	Session = 'Session'
 }
 
-export class PersistentTerminalProcess extends Disposable {
+class PersistentTerminalProcess extends Disposable {
 
 	private readonly _bufferer: TerminalDataBufferer;
 	private readonly _autoReplies: Map<string, TerminalAutoResponder> = new Map();
@@ -485,6 +552,7 @@ export class PersistentTerminalProcess extends Disposable {
 	get icon(): TerminalIcon | undefined { return this._icon; }
 	get color(): string | undefined { return this._color; }
 	get fixedDimensions(): IFixedTerminalDimensions | undefined { return this._fixedDimensions; }
+	get hasChildProcesses(): boolean { return this._terminalProcess.hasChildProcesses; }
 
 	setTitle(title: string, titleSource: TitleEventSource): void {
 		if (titleSource === TitleEventSource.Api) {
@@ -495,12 +563,14 @@ export class PersistentTerminalProcess extends Disposable {
 		this._titleSource = titleSource;
 	}
 
-	setIcon(icon: TerminalIcon, color?: string): void {
+	setIcon(userInitiated: boolean, icon: TerminalIcon, color?: string): void {
 		if (!this._icon || 'id' in icon && 'id' in this._icon && icon.id !== this._icon.id ||
 			!this.color || color !== this._color) {
 
 			this._serializer.freeRawReviveBuffer();
-			this._interactionState.setValue(InteractionState.Session, 'setIcon');
+			if (userInitiated) {
+				this._interactionState.setValue(InteractionState.Session, 'setIcon');
+			}
 		}
 		this._icon = icon;
 		this._color = color;
@@ -921,7 +991,7 @@ function printTime(ms: number): string {
 	return `${_h}${_m}${_s}${_ms}`;
 }
 
-export interface ITerminalSerializer {
+interface ITerminalSerializer {
 	handleData(data: string): void;
 	freeRawReviveBuffer(): void;
 	handleResize(cols: number, rows: number): void;

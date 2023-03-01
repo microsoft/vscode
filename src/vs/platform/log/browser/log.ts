@@ -17,7 +17,6 @@ function logLevelToString(level: LogLevel): string {
 		case LogLevel.Info: return 'info';
 		case LogLevel.Warning: return 'warn';
 		case LogLevel.Error: return 'error';
-		case LogLevel.Critical: return 'error';
 	}
 	return 'info';
 }

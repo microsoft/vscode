@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { autorunWithStore } from 'vs/base/common/observable';
+import { autorunWithStore, observableFromEvent } from 'vs/base/common/observable';
+import { IAudioCueService, AudioCue, AudioCueService } from 'vs/platform/audioCues/browser/audioCueService';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { AudioCue, IAudioCueService } from 'vs/workbench/contrib/audioCues/browser/audioCueService';
 import { IDebugService, IDebugSession } from 'vs/workbench/contrib/debug/common/debug';
 
 export class AudioCueLineDebuggerContribution
@@ -15,12 +15,16 @@ export class AudioCueLineDebuggerContribution
 
 	constructor(
 		@IDebugService debugService: IDebugService,
-		@IAudioCueService private readonly audioCueService: IAudioCueService,
+		@IAudioCueService private readonly audioCueService: AudioCueService,
 	) {
 		super();
 
+		const isEnabled = observableFromEvent(
+			audioCueService.onEnabledChanged(AudioCue.onDebugBreak),
+			() => audioCueService.isEnabled(AudioCue.onDebugBreak)
+		);
 		this._register(autorunWithStore((reader, store) => {
-			if (!audioCueService.isEnabled(AudioCue.onDebugBreak).read(reader)) {
+			if (!isEnabled.read(reader)) {
 				return;
 			}
 

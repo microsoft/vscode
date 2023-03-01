@@ -29,6 +29,10 @@ export class ViewOverlays extends ViewPart implements IVisibleLinesHost<ViewOver
 		this._visibleLines = new VisibleLinesCollection<ViewOverlayLine>(this);
 		this.domNode = this._visibleLines.domNode;
 
+		const options = this._context.configuration.options;
+		const fontInfo = options.get(EditorOption.fontInfo);
+		applyFontInfo(this.domNode, fontInfo);
+
 		this._dynamicOverlays = [];
 		this._isFocused = false;
 
@@ -86,6 +90,11 @@ export class ViewOverlays extends ViewPart implements IVisibleLinesHost<ViewOver
 			const line = this._visibleLines.getVisibleLine(lineNumber);
 			line.onConfigurationChanged(e);
 		}
+
+		const options = this._context.configuration.options;
+		const fontInfo = options.get(EditorOption.fontInfo);
+		applyFontInfo(this.domNode, fontInfo);
+
 		return true;
 	}
 	public override onFlushed(e: viewEvents.ViewFlushedEvent): boolean {
@@ -189,13 +198,13 @@ export class ViewOverlayLine implements IVisibleLine {
 
 		this._renderedContent = result;
 
-		sb.appendASCIIString('<div style="position:absolute;top:');
-		sb.appendASCIIString(String(deltaTop));
-		sb.appendASCIIString('px;width:100%;height:');
-		sb.appendASCIIString(String(this._lineHeight));
-		sb.appendASCIIString('px;">');
-		sb.appendASCIIString(result);
-		sb.appendASCIIString('</div>');
+		sb.appendString('<div style="position:absolute;top:');
+		sb.appendString(String(deltaTop));
+		sb.appendString('px;width:100%;height:');
+		sb.appendString(String(this._lineHeight));
+		sb.appendString('px;">');
+		sb.appendString(result);
+		sb.appendString('</div>');
 
 		return true;
 	}

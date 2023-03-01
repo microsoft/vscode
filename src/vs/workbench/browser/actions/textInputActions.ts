@@ -94,9 +94,8 @@ export class TextInputActionsProvider extends Disposable implements IWorkbenchCo
 			getAnchor: () => e,
 			getActions: () => this.textInputActions,
 			getActionsContext: () => target,
-			onHide: () => target.focus() // fixes https://github.com/microsoft/vscode/issues/52948
 		});
 	}
 }
 
-Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(TextInputActionsProvider, 'TextInputActionsProvider', LifecyclePhase.Ready);
+Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(TextInputActionsProvider, LifecyclePhase.Ready);

@@ -4,12 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { asArray, coalesce, isNonEmptyArray } from 'vs/base/common/arrays';
-import { VSBuffer } from 'vs/base/common/buffer';
+import { encodeBase64, VSBuffer } from 'vs/base/common/buffer';
+import { IDataTransferItem, UriList, VSDataTransfer } from 'vs/base/common/dataTransfer';
+import { once } from 'vs/base/common/functional';
 import * as htmlContent from 'vs/base/common/htmlContent';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { ResourceSet } from 'vs/base/common/map';
 import { marked } from 'vs/base/common/marked/marked';
 import { parse } from 'vs/base/common/marshalling';
+import { Mimes } from 'vs/base/common/mime';
 import { cloneAndChange } from 'vs/base/common/objects';
 import { isEmptyObject, isNumber, isString, isUndefinedOrNull, withNullAsUndefined } from 'vs/base/common/types';
 import { URI, UriComponents } from 'vs/base/common/uri';
@@ -19,8 +22,8 @@ import { IPosition } from 'vs/editor/common/core/position';
 import * as editorRange from 'vs/editor/common/core/range';
 import { ISelection } from 'vs/editor/common/core/selection';
 import { IContentDecorationRenderOptions, IDecorationOptions, IDecorationRenderOptions, IThemeDecorationRenderOptions } from 'vs/editor/common/editorCommon';
-import * as languages from 'vs/editor/common/languages';
 import * as encodedTokenAttributes from 'vs/editor/common/encodedTokenAttributes';
+import * as languages from 'vs/editor/common/languages';
 import * as languageSelector from 'vs/editor/common/languageSelector';
 import { EndOfLineSequence, TrackedRangeStickiness } from 'vs/editor/common/model';
 import { ITextEditorOptions } from 'vs/platform/editor/common/editor';
@@ -39,8 +42,6 @@ import { EditorGroupColumn } from 'vs/workbench/services/editor/common/editorGro
 import { ACTIVE_GROUP, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import type * as vscode from 'vscode';
 import * as types from './extHostTypes';
-import { once } from 'vs/base/common/functional';
-import { VSDataTransfer } from 'vs/base/common/dataTransfer';
 
 export namespace Command {
 
@@ -569,7 +570,7 @@ export namespace WorkspaceEdit {
 		getNotebookDocumentVersion(uri: URI): number | undefined;
 	}
 
-	export function from(value: vscode.WorkspaceEdit, versionInfo?: IVersionInformationProvider, allowSnippetTextEdit?: boolean): extHostProtocol.IWorkspaceEditDto {
+	export function from(value: vscode.WorkspaceEdit, versionInfo?: IVersionInformationProvider): extHostProtocol.IWorkspaceEditDto {
 		const result: extHostProtocol.IWorkspaceEditDto = {
 			edits: []
 		};
@@ -592,7 +593,7 @@ export namespace WorkspaceEdit {
 					result.edits.push(<languages.IWorkspaceFileEdit>{
 						oldResource: entry.from,
 						newResource: entry.to,
-						options: entry.options,
+						options: { ...entry.options, contentsBase64: entry.options?.contents && encodeBase64(VSBuffer.wrap(entry.options.contents)) },
 						metadata: entry.metadata
 					});
 
@@ -605,11 +606,6 @@ export namespace WorkspaceEdit {
 						metadata: entry.metadata
 					});
 				} else if (entry._type === types.FileEditType.Snippet) {
-					// snippet text edits
-					if (!allowSnippetTextEdit) {
-						console.warn(`DROPPING snippet text edit because proposal IS NOT ENABLED`, entry);
-						continue;
-					}
 					result.edits.push(<languages.IWorkspaceTextEdit>{
 						resource: entry.uri,
 						textEdit: {
@@ -1139,6 +1135,10 @@ export namespace CompletionItem {
 
 export namespace ParameterInformation {
 	export function from(info: types.ParameterInformation): languages.ParameterInformation {
+		if (typeof info.label !== 'string' && !Array.isArray(info.label)) {
+			throw new TypeError('Invalid label');
+		}
+
 		return {
 			label: info.label,
 			documentation: MarkdownString.fromStrict(info.documentation)
@@ -1382,6 +1382,13 @@ export namespace FoldingRange {
 		}
 		return range;
 	}
+	export function to(r: languages.FoldingRange): vscode.FoldingRange {
+		const range: vscode.FoldingRange = { start: r.start - 1, end: r.end - 1 };
+		if (r.kind) {
+			range.kind = FoldingRangeKind.to(r.kind);
+		}
+		return range;
+	}
 }
 
 export namespace FoldingRangeKind {
@@ -1394,6 +1401,19 @@ export namespace FoldingRangeKind {
 					return languages.FoldingRangeKind.Imports;
 				case types.FoldingRangeKind.Region:
 					return languages.FoldingRangeKind.Region;
+			}
+		}
+		return undefined;
+	}
+	export function to(kind: languages.FoldingRangeKind | undefined): vscode.FoldingRangeKind | undefined {
+		if (kind) {
+			switch (kind.value) {
+				case languages.FoldingRangeKind.Comment.value:
+					return types.FoldingRangeKind.Comment;
+				case languages.FoldingRangeKind.Imports.value:
+					return types.FoldingRangeKind.Imports;
+				case languages.FoldingRangeKind.Region.value:
+					return types.FoldingRangeKind.Region;
 			}
 		}
 		return undefined;
@@ -1705,12 +1725,27 @@ export namespace NotebookStatusBarItem {
 	}
 }
 
+export namespace NotebookKernelSourceAction {
+	export function from(item: vscode.NotebookKernelSourceAction, commandsConverter: Command.ICommandsConverter, disposables: DisposableStore): notebooks.INotebookKernelSourceAction {
+		const command = typeof item.command === 'string' ? { title: '', command: item.command } : item.command;
+
+		return {
+			command: commandsConverter.toInternal(command, disposables),
+			label: item.label,
+			description: item.description,
+			detail: item.detail,
+			documentation: item.documentation
+		};
+	}
+}
+
 export namespace NotebookDocumentContentOptions {
 	export function from(options: vscode.NotebookDocumentContentOptions | undefined): notebooks.TransientOptions {
 		return {
 			transientOutputs: options?.transientOutputs ?? false,
 			transientCellMetadata: options?.transientCellMetadata ?? {},
-			transientDocumentMetadata: options?.transientDocumentMetadata ?? {}
+			transientDocumentMetadata: options?.transientDocumentMetadata ?? {},
+			cellContentMetadata: options?.cellContentMetadata ?? {}
 		};
 	}
 }
@@ -1846,7 +1881,8 @@ export namespace TestResults {
 		const byInternalId = new Map<string, TestResultItem.Serialized>();
 		for (const item of serialized.items) {
 			byInternalId.set(item.item.extId, item);
-			if (serialized.request.targets.some(t => t.controllerId === item.controllerId && t.testIds.includes(item.item.extId))) {
+			const controllerId = TestId.root(item.item.extId);
+			if (serialized.request.targets.some(t => t.controllerId === controllerId && t.testIds.includes(item.item.extId))) {
 				roots.push(item);
 			}
 		}
@@ -1965,7 +2001,7 @@ export namespace ViewBadge {
 }
 
 export namespace DataTransferItem {
-	export function toDataTransferItem(item: extHostProtocol.DataTransferItemDTO, resolveFileData: () => Promise<Uint8Array>): types.DataTransferItem {
+	export function to(mime: string, item: extHostProtocol.DataTransferItemDTO, resolveFileData: () => Promise<Uint8Array>): types.DataTransferItem {
 		const file = item.fileData;
 		if (file) {
 			return new class extends types.DataTransferItem {
@@ -1976,17 +2012,63 @@ export namespace DataTransferItem {
 						data: once(() => resolveFileData()),
 					};
 				}
-			}('');
-		} else {
-			return new types.DataTransferItem(item.asString);
+			}('', item.id);
 		}
+
+		if (mime === Mimes.uriList && item.uriListData) {
+			return new types.DataTransferItem(reviveUriList(item.uriListData));
+		}
+
+		return new types.DataTransferItem(item.asString);
+	}
+
+	export async function from(mime: string, item: vscode.DataTransferItem | IDataTransferItem): Promise<extHostProtocol.DataTransferItemDTO> {
+		const stringValue = await item.asString();
+
+		if (mime === Mimes.uriList) {
+			return {
+				id: (item as IDataTransferItem | types.DataTransferItem).id,
+				asString: stringValue,
+				fileData: undefined,
+				uriListData: serializeUriList(stringValue),
+			};
+		}
+
+		const fileValue = item.asFile();
+		return {
+			id: (item as IDataTransferItem | types.DataTransferItem).id,
+			asString: stringValue,
+			fileData: fileValue ? { name: fileValue.name, uri: fileValue.uri } : undefined,
+		};
+	}
+
+	function serializeUriList(stringValue: string): ReadonlyArray<string | URI> {
+		return UriList.split(stringValue).map(part => {
+			if (part.startsWith('#')) {
+				return part;
+			}
+
+			try {
+				return URI.parse(part);
+			} catch {
+				// noop
+			}
+
+			return part;
+		});
+	}
+
+	function reviveUriList(parts: ReadonlyArray<string | UriComponents>): string {
+		return UriList.create(parts.map(part => {
+			return typeof part === 'string' ? part : URI.revive(part);
+		}));
 	}
 }
 
 export namespace DataTransfer {
-	export function toDataTransfer(value: extHostProtocol.DataTransferDTO, resolveFileData: (dataItemIndex: number) => Promise<Uint8Array>): types.DataTransfer {
-		const init = value.items.map(([type, item], index) => {
-			return [type, DataTransferItem.toDataTransferItem(item, () => resolveFileData(index))] as const;
+	export function toDataTransfer(value: extHostProtocol.DataTransferDTO, resolveFileData: (itemId: string) => Promise<Uint8Array>): types.DataTransfer {
+		const init = value.items.map(([type, item]) => {
+			return [type, DataTransferItem.to(type, item, () => resolveFileData(item.id))] as const;
 		});
 		return new types.DataTransfer(init);
 	}
@@ -1995,14 +2077,10 @@ export namespace DataTransfer {
 		const newDTO: extHostProtocol.DataTransferDTO = { items: [] };
 
 		const promises: Promise<any>[] = [];
+
 		value.forEach((value, key) => {
 			promises.push((async () => {
-				const stringValue = await value.asString();
-				const fileValue = value.asFile();
-				newDTO.items.push([key, {
-					asString: stringValue,
-					fileData: fileValue ? { name: fileValue.name, uri: fileValue.uri } : undefined,
-				}]);
+				newDTO.items.push([key, await DataTransferItem.from(key, value)]);
 			})());
 		});
 

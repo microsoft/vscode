@@ -12,8 +12,10 @@
   "enabledApiProposals": [
     "diffCommand",
     "contribEditorContentMenu",
+    "contribEditSessions",
     "contribViewsWelcome",
     "editSessionIdentityProvider",
+    "quickDiffProvider",
     "scmActionButton",
     "scmSelectedProvider",
     "scmValidation",
@@ -50,41 +52,49 @@
   "contributes": {
     "commands": [
       {
-        "command": "git.setLogLevel",
-        "title": "%command.setLogLevel%",
-        "category": "Git"
+        "command": "git.continueInLocalClone",
+        "title": "%command.continueInLocalClone%",
+        "category": "Git",
+        "icon": "$(repo-clone)",
+        "enablement": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0 && remoteName"
       },
       {
         "command": "git.clone",
         "title": "%command.clone%",
-        "category": "Git"
+        "category": "Git",
+        "enablement": "!operationInProgress"
       },
       {
         "command": "git.cloneRecursive",
         "title": "%command.cloneRecursive%",
-        "category": "Git"
+        "category": "Git",
+        "enablement": "!operationInProgress"
       },
       {
         "command": "git.init",
         "title": "%command.init%",
         "category": "Git",
-        "icon": "$(add)"
+        "icon": "$(add)",
+        "enablement": "!operationInProgress"
       },
       {
         "command": "git.openRepository",
         "title": "%command.openRepository%",
-        "category": "Git"
+        "category": "Git",
+        "enablement": "!operationInProgress"
       },
       {
         "command": "git.close",
         "title": "%command.close%",
-        "category": "Git"
+        "category": "Git",
+        "enablement": "!operationInProgress"
       },
       {
         "command": "git.refresh",
         "title": "%command.refresh%",
         "category": "Git",
-        "icon": "$(refresh)"
+        "icon": "$(refresh)",
+        "enablement": "!operationInProgress"
       },
       {
         "command": "git.openChange",
@@ -118,198 +128,215 @@
         "command": "git.stage",
         "title": "%command.stage%",
         "category": "Git",
-        "icon": "$(add)"
+        "icon": "$(add)",
+        "enablement": "!operationInProgress"
       },
       {
         "command": "git.stageAll",
         "title": "%command.stageAll%",
         "category": "Git",
-        "icon": "$(add)"
+        "icon": "$(add)",
+        "enablement": "!operationInProgress"
       },
       {
         "command": "git.stageAllTracked",
         "title": "%command.stageAllTracked%",
         "category": "Git",
-        "icon": "$(add)"
+        "icon": "$(add)",
+        "enablement": "!operationInProgress"
       },
       {
         "command": "git.stageAllUntracked",
         "title": "%command.stageAllUntracked%",
         "category": "Git",
-        "icon": "$(add)"
+        "icon": "$(add)",
+        "enablement": "!operationInProgress"
       },
       {
         "command": "git.stageAllMerge",
         "title": "%command.stageAllMerge%",
         "category": "Git",
-        "icon": "$(add)"
+        "icon": "$(add)",
+        "enablement": "!operationInProgress"
       },
       {
         "command": "git.stageSelectedRanges",
         "title": "%command.stageSelectedRanges%",
-        "category": "Git"
+        "category": "Git",
+        "enablement": "!operationInProgress"
       },
       {
         "command": "git.revertSelectedRanges",
         "title": "%command.revertSelectedRanges%",
-        "category": "Git"
+        "category": "Git",
+        "enablement": "!operationInProgress"
       },
       {
         "command": "git.stageChange",
         "title": "%command.stageChange%",
         "category": "Git",
-        "icon": "$(add)"
+        "icon": "$(add)",
+        "enablement": "!operationInProgress"
       },
       {
         "command": "git.revertChange",
         "title": "%command.revertChange%",
         "category": "Git",
-        "icon": "$(discard)"
+        "icon": "$(discard)",
+        "enablement": "!operationInProgress"
       },
       {
         "command": "git.unstage",
         "title": "%command.unstage%",
         "category": "Git",
-        "icon": "$(remove)"
+        "icon": "$(remove)",
+        "enablement": "!operationInProgress"
       },
       {
         "command": "git.unstageAll",
         "title": "%command.unstageAll%",
         "category": "Git",
-        "icon": "$(remove)"
+        "icon": "$(remove)",
+        "enablement": "!operationInProgress"
       },
       {
         "command": "git.unstageSelectedRanges",
         "title": "%command.unstageSelectedRanges%",
-        "category": "Git"
+        "category": "Git",
+        "enablement": "!operationInProgress"
       },
       {
         "command": "git.clean",
         "title": "%command.clean%",
         "category": "Git",
-        "icon": "$(discard)"
+        "icon": "$(discard)",
+        "enablement": "!operationInProgress"
       },
       {
         "command": "git.cleanAll",
         "title": "%command.cleanAll%",
         "category": "Git",
-        "icon": "$(discard)"
+        "icon": "$(discard)",
+        "enablement": "!operationInProgress"
       },
       {
         "command": "git.cleanAllTracked",
         "title": "%command.cleanAllTracked%",
         "category": "Git",
-        "icon": "$(discard)"
+        "icon": "$(discard)",
+        "enablement": "!operationInProgress"
       },
       {
         "command": "git.cleanAllUntracked",
         "title": "%command.cleanAllUntracked%",
         "category": "Git",
-        "icon": "$(discard)"
+        "icon": "$(discard)",
+        "enablement": "!operationInProgress"
       },
       {
         "command": "git.rename",
         "title": "%command.rename%",
         "category": "Git",
-        "icon": "$(discard)"
+        "icon": "$(discard)",
+        "enablement": "!operationInProgress"
       },
       {
         "command": "git.commit",
         "title": "%command.commit%",
         "category": "Git",
         "icon": "$(check)",
-        "enablement": "!commitInProgress"
+        "enablement": "!operationInProgress"
       },
       {
         "command": "git.commitStaged",
         "title": "%command.commitStaged%",
         "category": "Git",
-        "enablement": "!commitInProgress"
+        "enablement": "!operationInProgress"
       },
       {
         "command": "git.commitEmpty",
         "title": "%command.commitEmpty%",
         "category": "Git",
-        "enablement": "!commitInProgress"
+        "enablement": "!operationInProgress"
       },
       {
         "command": "git.commitStagedSigned",
         "title": "%command.commitStagedSigned%",
         "category": "Git",
-        "enablement": "!commitInProgress"
+        "enablement": "!operationInProgress"
       },
       {
         "command": "git.commitStagedAmend",
         "title": "%command.commitStagedAmend%",
         "category": "Git",
-        "enablement": "!commitInProgress"
+        "enablement": "!operationInProgress"
       },
       {
         "command": "git.commitAll",
         "title": "%command.commitAll%",
         "category": "Git",
-        "enablement": "!commitInProgress"
+        "enablement": "!operationInProgress"
       },
       {
         "command": "git.commitAllSigned",
         "title": "%command.commitAllSigned%",
         "category": "Git",
-        "enablement": "!commitInProgress"
+        "enablement": "!operationInProgress"
       },
       {
         "command": "git.commitAllAmend",
         "title": "%command.commitAllAmend%",
         "category": "Git",
-        "enablement": "!commitInProgress"
+        "enablement": "!operationInProgress"
       },
       {
         "command": "git.commitNoVerify",
         "title": "%command.commitNoVerify%",
         "category": "Git",
         "icon": "$(check)",
-        "enablement": "!commitInProgress"
+        "enablement": "!operationInProgress"
       },
       {
         "command": "git.commitStagedNoVerify",
         "title": "%command.commitStagedNoVerify%",
         "category": "Git",
-        "enablement": "!commitInProgress"
+        "enablement": "!operationInProgress"
       },
       {
         "command": "git.commitEmptyNoVerify",
         "title": "%command.commitEmptyNoVerify%",
         "category": "Git",
-        "enablement": "!commitInProgress"
+        "enablement": "!operationInProgress"
       },
       {
         "command": "git.commitStagedSignedNoVerify",
         "title": "%command.commitStagedSignedNoVerify%",
         "category": "Git",
-        "enablement": "!commitInProgress"
+        "enablement": "!operationInProgress"
       },
       {
         "command": "git.commitStagedAmendNoVerify",
         "title": "%command.commitStagedAmendNoVerify%",
         "category": "Git",
-        "enablement": "!commitInProgress"
+        "enablement": "!operationInProgress"
       },
       {
         "command": "git.commitAllNoVerify",
         "title": "%command.commitAllNoVerify%",
         "category": "Git",
-        "enablement": "!commitInProgress"
+        "enablement": "!operationInProgress"
       },
       {
         "command": "git.commitAllSignedNoVerify",
         "title": "%command.commitAllSignedNoVerify%",
         "category": "Git",
-        "enablement": "!commitInProgress"
+        "enablement": "!operationInProgress"
       },
       {
         "command": "git.commitAllAmendNoVerify",
         "title": "%command.commitAllAmendNoVerify%",
         "category": "Git",
-        "enablement": "!commitInProgress"
+        "enablement": "!operationInProgress"
       },
       {
         "command": "git.commitMessageAccept",
@@ -326,158 +353,200 @@
       {
         "command": "git.restoreCommitTemplate",
         "title": "%command.restoreCommitTemplate%",
-        "category": "Git"
+        "category": "Git",
+        "enablement": "!operationInProgress"
       },
       {
         "command": "git.undoCommit",
         "title": "%command.undoCommit%",
         "category": "Git",
-        "enablement": "!commitInProgress"
+        "enablement": "!operationInProgress"
       },
       {
         "command": "git.checkout",
         "title": "%command.checkout%",
-        "category": "Git"
+        "category": "Git",
+        "enablement": "!operationInProgress"
       },
       {
         "command": "git.checkoutDetached",
         "title": "%command.checkoutDetached%",
-        "category": "Git"
+        "category": "Git",
+        "enablement": "!operationInProgress"
       },
       {
         "command": "git.branch",
         "title": "%command.branch%",
-        "category": "Git"
+        "category": "Git",
+        "enablement": "!operationInProgress"
       },
       {
         "command": "git.branchFrom",
         "title": "%command.branchFrom%",
-        "category": "Git"
+        "category": "Git",
+        "enablement": "!operationInProgress"
       },
       {
         "command": "git.deleteBranch",
         "title": "%command.deleteBranch%",
-        "category": "Git"
+        "category": "Git",
+        "enablement": "!operationInProgress"
       },
       {
         "command": "git.renameBranch",
         "title": "%command.renameBranch%",
-        "category": "Git"
+        "category": "Git",
+        "enablement": "!operationInProgress"
       },
       {
         "command": "git.merge",
         "title": "%command.merge%",
-        "category": "Git"
+        "category": "Git",
+        "enablement": "!operationInProgress"
+      },
+      {
+        "command": "git.mergeAbort",
+        "title": "%command.mergeAbort%",
+        "category": "Git",
+        "enablement": "gitMergeInProgress"
       },
       {
         "command": "git.rebase",
         "title": "%command.rebase%",
-        "category": "Git"
+        "category": "Git",
+        "enablement": "!operationInProgress"
       },
       {
         "command": "git.createTag",
         "title": "%command.createTag%",
-        "category": "Git"
+        "category": "Git",
+        "enablement": "!operationInProgress"
       },
       {
         "command": "git.deleteTag",
         "title": "%command.deleteTag%",
-        "category": "Git"
+        "category": "Git",
+        "enablement": "!operationInProgress"
+      },
+      {
+        "command": "git.deleteRemoteTag",
+        "title": "%command.deleteRemoteTag%",
+        "category": "Git",
+        "enablement": "!operationInProgress"
       },
       {
         "command": "git.fetch",
         "title": "%command.fetch%",
-        "category": "Git"
+        "category": "Git",
+        "enablement": "!operationInProgress"
       },
       {
         "command": "git.fetchPrune",
         "title": "%command.fetchPrune%",
-        "category": "Git"
+        "category": "Git",
+        "enablement": "!operationInProgress"
       },
       {
         "command": "git.fetchAll",
         "title": "%command.fetchAll%",
-        "category": "Git"
+        "category": "Git",
+        "enablement": "!operationInProgress"
       },
       {
         "command": "git.pull",
         "title": "%command.pull%",
-        "category": "Git"
+        "category": "Git",
+        "enablement": "!operationInProgress"
       },
       {
         "command": "git.pullRebase",
         "title": "%command.pullRebase%",
-        "category": "Git"
+        "category": "Git",
+        "enablement": "!operationInProgress"
       },
       {
         "command": "git.pullFrom",
         "title": "%command.pullFrom%",
-        "category": "Git"
+        "category": "Git",
+        "enablement": "!operationInProgress"
       },
       {
         "command": "git.push",
         "title": "%command.push%",
-        "category": "Git"
+        "category": "Git",
+        "enablement": "!operationInProgress"
       },
       {
         "command": "git.pushForce",
         "title": "%command.pushForce%",
-        "category": "Git"
+        "category": "Git",
+        "enablement": "!operationInProgress"
       },
       {
         "command": "git.pushTo",
         "title": "%command.pushTo%",
-        "category": "Git"
+        "category": "Git",
+        "enablement": "!operationInProgress"
       },
       {
         "command": "git.pushToForce",
         "title": "%command.pushToForce%",
-        "category": "Git"
+        "category": "Git",
+        "enablement": "!operationInProgress"
       },
       {
         "command": "git.pushTags",
         "title": "%command.pushTags%",
-        "category": "Git"
+        "category": "Git",
+        "enablement": "!operationInProgress"
       },
       {
         "command": "git.pushWithTags",
         "title": "%command.pushFollowTags%",
-        "category": "Git"
+        "category": "Git",
+        "enablement": "!operationInProgress"
       },
       {
         "command": "git.pushWithTagsForce",
         "title": "%command.pushFollowTagsForce%",
-        "category": "Git"
+        "category": "Git",
+        "enablement": "!operationInProgress"
       },
       {
         "command": "git.cherryPick",
         "title": "%command.cherryPick%",
-        "category": "Git"
+        "category": "Git",
+        "enablement": "!operationInProgress"
       },
       {
         "command": "git.addRemote",
         "title": "%command.addRemote%",
-        "category": "Git"
+        "category": "Git",
+        "enablement": "!operationInProgress"
       },
       {
         "command": "git.removeRemote",
         "title": "%command.removeRemote%",
-        "category": "Git"
+        "category": "Git",
+        "enablement": "!operationInProgress"
       },
       {
         "command": "git.sync",
         "title": "%command.sync%",
-        "category": "Git"
+        "category": "Git",
+        "enablement": "!operationInProgress"
       },
       {
         "command": "git.syncRebase",
         "title": "%command.syncRebase%",
-        "category": "Git"
+        "category": "Git",
+        "enablement": "!operationInProgress"
       },
       {
         "command": "git.publish",
         "title": "%command.publish%",
-        "category": "Git"
+        "category": "Git",
+        "enablement": "!operationInProgress"
       },
       {
         "command": "git.showOutput",
@@ -487,7 +556,8 @@
       {
         "command": "git.ignore",
         "title": "%command.ignore%",
-        "category": "Git"
+        "category": "Git",
+        "enablement": "!operationInProgress"
       },
       {
         "command": "git.revealInExplorer",
@@ -512,42 +582,56 @@
       {
         "command": "git.stashIncludeUntracked",
         "title": "%command.stashIncludeUntracked%",
-        "category": "Git"
+        "category": "Git",
+        "enablement": "!operationInProgress"
       },
       {
         "command": "git.stash",
         "title": "%command.stash%",
-        "category": "Git"
+        "category": "Git",
+        "enablement": "!operationInProgress"
+      },
+      {
+        "command": "git.stashStaged",
+        "title": "%command.stashStaged%",
+        "category": "Git",
+        "enablement": "!operationInProgress && gitVersion2.35"
       },
       {
         "command": "git.stashPop",
         "title": "%command.stashPop%",
-        "category": "Git"
+        "category": "Git",
+        "enablement": "!operationInProgress"
       },
       {
         "command": "git.stashPopLatest",
         "title": "%command.stashPopLatest%",
-        "category": "Git"
+        "category": "Git",
+        "enablement": "!operationInProgress"
       },
       {
         "command": "git.stashApply",
         "title": "%command.stashApply%",
-        "category": "Git"
+        "category": "Git",
+        "enablement": "!operationInProgress"
       },
       {
         "command": "git.stashApplyLatest",
         "title": "%command.stashApplyLatest%",
-        "category": "Git"
+        "category": "Git",
+        "enablement": "!operationInProgress"
       },
       {
         "command": "git.stashDrop",
         "title": "%command.stashDrop%",
-        "category": "Git"
+        "category": "Git",
+        "enablement": "!operationInProgress"
       },
       {
         "command": "git.stashDropAll",
         "title": "%command.stashDropAll%",
-        "category": "Git"
+        "category": "Git",
+        "enablement": "!operationInProgress"
       },
       {
         "command": "git.timeline.openDiff",
@@ -578,12 +662,14 @@
       {
         "command": "git.rebaseAbort",
         "title": "%command.rebaseAbort%",
-        "category": "Git"
+        "category": "Git",
+        "enablement": "gitRebaseInProgress"
       },
       {
         "command": "git.closeAllDiffEditors",
         "title": "%command.closeAllDiffEditors%",
-        "category": "Git"
+        "category": "Git",
+        "enablement": "!operationInProgress"
       },
       {
         "command": "git.api.getRepositories",
@@ -622,6 +708,24 @@
         "title": "%command.git.runGitMergeDiff3%",
         "category": "Git",
         "enablement": "isMergeEditor"
+      },
+      {
+        "command": "git.manageUnsafeRepositories",
+        "title": "%command.manageUnsafeRepositories%",
+        "category": "Git"
+      },
+      {
+        "command": "git.openRepositoriesInParentFolders",
+        "title": "%command.openRepositoriesInParentFolders%",
+        "category": "Git"
+      }
+    ],
+    "continueEditSession": [
+      {
+        "command": "git.continueInLocalClone",
+        "qualifiedName": "%command.continueInLocalClone.qualifiedName%",
+        "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0 && remoteName",
+        "remoteGroup": "remote_42_git_0_local@0"
       }
     ],
     "keybindings": [
@@ -647,8 +751,8 @@
     "menus": {
       "commandPalette": [
         {
-          "command": "git.setLogLevel",
-          "when": "config.git.enabled && !git.missing"
+          "command": "git.continueInLocalClone",
+          "when": "false"
         },
         {
           "command": "git.clone",
@@ -660,7 +764,7 @@
         },
         {
           "command": "git.init",
-          "when": "config.git.enabled && !git.missing"
+          "when": "config.git.enabled && !git.missing && remoteName != 'codespaces'"
         },
         {
           "command": "git.openRepository",
@@ -708,7 +812,7 @@
         },
         {
           "command": "git.stageSelectedRanges",
-          "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0"
+          "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0 && resourceScheme =~ /^git$|^file$/"
         },
         {
           "command": "git.stageChange",
@@ -716,7 +820,7 @@
         },
         {
           "command": "git.revertSelectedRanges",
-          "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0"
+          "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0 && resourceScheme =~ /^git$|^file$/"
         },
         {
           "command": "git.revertChange",
@@ -736,7 +840,7 @@
         },
         {
           "command": "git.unstageSelectedRanges",
-          "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0"
+          "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0 && isInDiffEditor && resourceScheme =~ /^git$|^file$/"
         },
         {
           "command": "git.clean",
@@ -899,6 +1003,10 @@
           "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0"
         },
         {
+          "command": "git.mergeAbort",
+          "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0 && gitMergeInProgress"
+        },
+        {
           "command": "git.rebase",
           "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0"
         },
@@ -908,6 +1016,10 @@
         },
         {
           "command": "git.deleteTag",
+          "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0"
+        },
+        {
+          "command": "git.deleteRemoteTag",
           "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0"
         },
         {
@@ -987,6 +1099,10 @@
           "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0"
         },
         {
+          "command": "git.stashStaged",
+          "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0 && gitVersion2.35"
+        },
+        {
           "command": "git.stashPop",
           "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0"
         },
@@ -1049,6 +1165,14 @@
         {
           "command": "git.openMergeEditor",
           "when": "false"
+        },
+        {
+          "command": "git.manageUnsafeRepositories",
+          "when": "config.git.enabled && !git.missing && git.unsafeRepositoryCount != 0"
+        },
+        {
+          "command": "git.openRepositoriesInParentFolders",
+          "when": "config.git.enabled && !git.missing && git.parentRepositoryCount != 0"
         }
       ],
       "scm/title": [
@@ -1530,12 +1654,12 @@
         {
           "command": "git.commitMessageAccept",
           "group": "navigation",
-          "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0 && editorLangId == git-commit && commitInProgress"
+          "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0 && editorLangId == git-commit"
         },
         {
           "command": "git.commitMessageDiscard",
           "group": "navigation",
-          "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0 && editorLangId == git-commit && commitInProgress"
+          "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0 && editorLangId == git-commit"
         },
         {
           "command": "git.stageSelectedRanges",
@@ -1579,16 +1703,6 @@
           "command": "git.openMergeEditor",
           "group": "navigation@-10",
           "when": "config.git.enabled && !git.missing && !isInDiffEditor && !isMergeEditor && resource in git.mergeChanges"
-        }
-      ],
-      "mergeEditor/result/title": [
-        {
-          "command": "git.runGitMerge",
-          "when": "isMergeEditor"
-        },
-        {
-          "command": "git.runGitMergeDiff3",
-          "when": "isMergeEditor"
         }
       ],
       "scm/change/title": [
@@ -1818,28 +1932,33 @@
           "group": "stash@2"
         },
         {
-          "command": "git.stashApplyLatest",
+          "command": "git.stashStaged",
+          "when": "gitVersion2.35",
           "group": "stash@3"
         },
         {
-          "command": "git.stashApply",
+          "command": "git.stashApplyLatest",
           "group": "stash@4"
         },
         {
-          "command": "git.stashPopLatest",
+          "command": "git.stashApply",
           "group": "stash@5"
         },
         {
-          "command": "git.stashPop",
+          "command": "git.stashPopLatest",
           "group": "stash@6"
         },
         {
-          "command": "git.stashDrop",
+          "command": "git.stashPop",
           "group": "stash@7"
         },
         {
-          "command": "git.stashDropAll",
+          "command": "git.stashDrop",
           "group": "stash@8"
+        },
+        {
+          "command": "git.stashDropAll",
+          "group": "stash@9"
         }
       ],
       "git.tags": [
@@ -1850,6 +1969,10 @@
         {
           "command": "git.deleteTag",
           "group": "tags@2"
+        },
+        {
+          "command": "git.deleteRemoteTag",
+          "group": "tags@3"
         }
       ]
     },
@@ -2331,6 +2454,12 @@
           "default": false,
           "description": "%config.rebaseWhenSync%"
         },
+        "git.pullBeforeCheckout": {
+          "type": "boolean",
+          "scope": "resource",
+          "default": false,
+          "description": "%config.pullBeforeCheckout%"
+        },
         "git.fetchOnPull": {
           "type": "boolean",
           "scope": "resource",
@@ -2541,35 +2670,36 @@
           "default": [],
           "markdownDescription": "%config.commandsToLog%"
         },
-        "git.logLevel": {
-          "type": "string",
-          "default": "Info",
-          "enum": [
-            "Trace",
-            "Debug",
-            "Info",
-            "Warning",
-            "Error",
-            "Critical",
-            "Off"
-          ],
-          "enumDescriptions": [
-            "%config.logLevel.trace%",
-            "%config.logLevel.debug%",
-            "%config.logLevel.info%",
-            "%config.logLevel.warn%",
-            "%config.logLevel.error%",
-            "%config.logLevel.critical%",
-            "%config.logLevel.off%"
-          ],
-          "markdownDescription": "%config.logLevel%",
-          "scope": "window"
-        },
         "git.mergeEditor": {
           "type": "boolean",
-          "default": true,
+          "default": false,
           "markdownDescription": "%config.mergeEditor%",
           "scope": "window"
+        },
+        "git.optimisticUpdate": {
+          "type": "boolean",
+          "default": true,
+          "markdownDescription": "%config.optimisticUpdate%",
+          "scope": "resource",
+          "tags": [
+            "experimental"
+          ]
+        },
+        "git.openRepositoryInParentFolders": {
+          "type": "string",
+          "enum": [
+            "always",
+            "never",
+            "prompt"
+          ],
+          "enumDescriptions": [
+            "%config.openRepositoryInParentFolders.always%",
+            "%config.openRepositoryInParentFolders.never%",
+            "%config.openRepositoryInParentFolders.prompt%"
+          ],
+          "default": "prompt",
+          "markdownDescription": "%config.openRepositoryInParentFolders%",
+          "scope": "resource"
         }
       }
     },
@@ -2715,56 +2845,81 @@
       {
         "view": "scm",
         "contents": "%view.workbench.scm.empty%",
-        "when": "config.git.enabled && !git.missing && workbenchState == empty",
+        "when": "config.git.enabled && !git.missing && workbenchState == empty && git.parentRepositoryCount == 0 && git.unsafeRepositoryCount == 0",
         "enablement": "git.state == initialized",
         "group": "2_open@1"
       },
       {
         "view": "scm",
-        "contents": "%view.workbench.scm.folder%",
-        "when": "config.git.enabled && !git.missing && workbenchState == folder",
+        "contents": "%view.workbench.scm.emptyWorkspace%",
+        "when": "config.git.enabled && !git.missing && workbenchState == workspace && workspaceFolderCount == 0 && git.parentRepositoryCount == 0 && git.unsafeRepositoryCount == 0",
         "enablement": "git.state == initialized",
+        "group": "2_open@1"
+      },
+      {
+        "view": "scm",
+        "contents": "%view.workbench.scm.scanFolderForRepositories%",
+        "when": "config.git.enabled && !git.missing && workbenchState == folder && workspaceFolderCount != 0 && git.state != initialized"
+      },
+      {
+        "view": "scm",
+        "contents": "%view.workbench.scm.scanWorkspaceForRepositories%",
+        "when": "config.git.enabled && !git.missing && workbenchState == workspace && workspaceFolderCount != 0 && git.state != initialized"
+      },
+      {
+        "view": "scm",
+        "contents": "%view.workbench.scm.folder%",
+        "when": "config.git.enabled && !git.missing && git.state == initialized && workbenchState == folder && scmRepositoryCount == 0 && git.parentRepositoryCount == 0 && git.unsafeRepositoryCount == 0 && remoteName != 'codespaces'",
         "group": "5_scm@1"
       },
       {
         "view": "scm",
         "contents": "%view.workbench.scm.workspace%",
-        "when": "config.git.enabled && !git.missing && workbenchState == workspace && workspaceFolderCount != 0",
-        "enablement": "git.state == initialized",
+        "when": "config.git.enabled && !git.missing && git.state == initialized && workbenchState == workspace && workspaceFolderCount != 0 && scmRepositoryCount == 0 && git.parentRepositoryCount == 0 && git.unsafeRepositoryCount == 0 && remoteName != 'codespaces'",
         "group": "5_scm@1"
       },
       {
         "view": "scm",
-        "contents": "%view.workbench.scm.emptyWorkspace%",
-        "when": "config.git.enabled && !git.missing && workbenchState == workspace && workspaceFolderCount == 0",
-        "enablement": "git.state == initialized",
-        "group": "2_open@1"
+        "contents": "%view.workbench.scm.repositoryInParentFolders%",
+        "when": "config.git.enabled && !git.missing && git.state == initialized && git.parentRepositoryCount == 1"
+      },
+      {
+        "view": "scm",
+        "contents": "%view.workbench.scm.repositoriesInParentFolders%",
+        "when": "config.git.enabled && !git.missing && git.state == initialized && git.parentRepositoryCount > 1"
+      },
+      {
+        "view": "scm",
+        "contents": "%view.workbench.scm.unsafeRepository%",
+        "when": "config.git.enabled && !git.missing && git.state == initialized && git.unsafeRepositoryCount == 1"
+      },
+      {
+        "view": "scm",
+        "contents": "%view.workbench.scm.unsafeRepositories%",
+        "when": "config.git.enabled && !git.missing && git.state == initialized && git.unsafeRepositoryCount > 1"
       },
       {
         "view": "explorer",
         "contents": "%view.workbench.cloneRepository%",
-        "when": "config.git.enabled",
-        "enablement": "git.state == initialized",
+        "when": "config.git.enabled && git.state == initialized && scmRepositoryCount == 0",
         "group": "5_scm@1"
       },
       {
         "view": "explorer",
         "contents": "%view.workbench.learnMore%",
-        "when": "config.git.enabled",
-        "enablement": "git.state == initialized",
+        "when": "config.git.enabled && git.state == initialized && scmRepositoryCount == 0",
         "group": "5_scm@10"
       }
     ]
   },
   "dependencies": {
-    "@joaomoreno/unique-names-generator": "5.0.0",
-    "@vscode/extension-telemetry": "0.6.2",
+    "@joaomoreno/unique-names-generator": "^5.1.0",
+    "@vscode/extension-telemetry": "0.7.5",
     "@vscode/iconv-lite-umd": "0.7.0",
     "byline": "^5.0.0",
     "file-type": "16.5.4",
     "jschardet": "3.0.0",
     "picomatch": "2.3.1",
-    "vscode-nls": "^5.1.0",
     "vscode-uri": "^2.0.0",
     "which": "^1.3.0"
   },

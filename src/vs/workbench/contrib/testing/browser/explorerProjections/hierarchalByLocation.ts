@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { AbstractTreeViewState } from 'vs/base/browser/ui/tree/abstractTree';
 import { ObjectTree } from 'vs/base/browser/ui/tree/objectTree';
 import { Emitter } from 'vs/base/common/event';
 import { FuzzyScore } from 'vs/base/common/filters';
@@ -13,11 +12,13 @@ import { isDefined } from 'vs/base/common/types';
 import { ByLocationTestItemElement } from 'vs/workbench/contrib/testing/browser/explorerProjections/hierarchalNodes';
 import { IActionableTestTreeElement, ITestTreeProjection, TestExplorerTreeElement, TestItemTreeElement, TestTreeErrorMessage } from 'vs/workbench/contrib/testing/browser/explorerProjections/index';
 import { NodeChangeList, NodeRenderDirective, NodeRenderFn, peersHaveChildren } from 'vs/workbench/contrib/testing/browser/explorerProjections/nodeHelper';
+import { ISerializedTestTreeCollapseState, isCollapsedInSerializedTestTree } from 'vs/workbench/contrib/testing/browser/explorerProjections/testingViewState';
 import { IComputedStateAndDurationAccessor, refreshComputedState } from 'vs/workbench/contrib/testing/common/getComputedState';
-import { InternalTestItem, TestDiffOpType, TestItemExpandState, TestResultState, TestsDiff } from 'vs/workbench/contrib/testing/common/testTypes';
+import { TestId } from 'vs/workbench/contrib/testing/common/testId';
 import { TestResultItemChangeReason } from 'vs/workbench/contrib/testing/common/testResult';
 import { ITestResultService } from 'vs/workbench/contrib/testing/common/testResultService';
 import { ITestService } from 'vs/workbench/contrib/testing/common/testService';
+import { InternalTestItem, TestDiffOpType, TestItemExpandState, TestResultState, TestsDiff } from 'vs/workbench/contrib/testing/common/testTypes';
 
 const computedStateAccessor: IComputedStateAndDurationAccessor<IActionableTestTreeElement> = {
 	getOwnState: i => i instanceof TestItemTreeElement ? i.ownState : TestResultState.Unset,
@@ -61,7 +62,7 @@ export class HierarchicalByLocationProjection extends Disposable implements ITes
 	public readonly onUpdate = this.updateEmitter.event;
 
 	constructor(
-		private readonly lastState: AbstractTreeViewState,
+		public lastState: ISerializedTestTreeCollapseState,
 		@ITestService private readonly testService: ITestService,
 		@ITestResultService private readonly results: ITestResultService,
 	) {
@@ -161,6 +162,9 @@ export class HierarchicalByLocationProjection extends Disposable implements ITes
 					} else {
 						this.changes.updated(existing);
 					}
+					if (patch.item?.sortText || (patch.item?.label && !existing.sortText)) {
+						this.changes.sortKeyUpdated(existing);
+					}
 					break;
 				}
 
@@ -212,7 +216,8 @@ export class HierarchicalByLocationProjection extends Disposable implements ITes
 	}
 
 	protected createItem(item: InternalTestItem): ByLocationTestItemElement {
-		const parent = item.parent ? this.items.get(item.parent)! : null;
+		const parentId = TestId.parentId(item.item.extId);
+		const parent = parentId ? this.items.get(parentId)! : null;
 		return new ByLocationTestItemElement(item, parent, n => this.changes.addedOrRemoved(n));
 	}
 
@@ -241,9 +246,7 @@ export class HierarchicalByLocationProjection extends Disposable implements ITes
 		return {
 			element: node,
 			collapsible: node.test.expand !== TestItemExpandState.NotExpandable,
-			collapsed: this.lastState.expanded[node.test.item.extId] !== undefined
-				? !this.lastState.expanded[node.test.item.extId]
-				: node.depth > 0,
+			collapsed: isCollapsedInSerializedTestTree(this.lastState, node.test.item.extId) ?? node.depth > 0,
 			children: recurse(node.children),
 		};
 	};
@@ -265,7 +268,7 @@ export class HierarchicalByLocationProjection extends Disposable implements ITes
 		this.changes.addedOrRemoved(treeElement);
 
 		const reveal = this.getRevealDepth(treeElement);
-		if (reveal !== undefined || this.lastState.expanded[treeElement.test.item.extId]) {
+		if (reveal !== undefined || isCollapsedInSerializedTestTree(this.lastState, treeElement.test.item.extId) === false) {
 			this.expandElement(treeElement, reveal || 0);
 		}
 

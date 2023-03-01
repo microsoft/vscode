@@ -5,7 +5,6 @@
 
 import { Readable, ReadableStream, newWriteableStream, listenStream } from 'vs/base/common/stream';
 import { VSBuffer, VSBufferReadable, VSBufferReadableStream } from 'vs/base/common/buffer';
-import { IDisposable } from 'vs/base/common/lifecycle';
 
 export const UTF8 = 'utf8';
 export const UTF8_with_bom = 'utf8bom';
@@ -123,7 +122,6 @@ export function toDecodeStream(source: VSBufferReadableStream, options: IDecodeS
 		let bytesBuffered = 0;
 
 		let decoder: IDecoderStream | undefined = undefined;
-		let sourceListener: IDisposable | undefined = undefined;
 
 		const createDecoder = async () => {
 			try {
@@ -166,7 +164,7 @@ export function toDecodeStream(source: VSBufferReadableStream, options: IDecodeS
 			}
 		};
 
-		sourceListener = listenStream(source, {
+		const sourceListener = listenStream(source, {
 			onData: async chunk => {
 
 				// if the decoder is ready, we just write directly

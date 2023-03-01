@@ -6,15 +6,16 @@
 .monaco-editor .rename-box {
 	z-index: 100;
 	color: inherit;
+	border-radius: 4px;
 }
 
 .monaco-editor .rename-box.preview {
-	padding: 3px 3px 0 3px;
+	padding: 4px 4px 0 4px;
 }
 
 .monaco-editor .rename-box .rename-input {
 	padding: 3px;
-	width: calc(100% - 6px);
+	border-radius: 2px;
 }
 
 .monaco-editor .rename-box .rename-label {

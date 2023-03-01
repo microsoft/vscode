@@ -14,8 +14,9 @@ import { INotificationService } from 'vs/platform/notification/common/notificati
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IRemoteAuthorityResolverService } from 'vs/platform/remote/common/remoteAuthorityResolver';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
+import { ISerializedCommand } from 'vs/platform/terminal/common/capabilities/capabilities';
 import { IShellLaunchConfig, IShellLaunchConfigDto, ITerminalChildProcess, ITerminalEnvironment, ITerminalProcessOptions, ITerminalProfile, ITerminalsLayoutInfo, ITerminalsLayoutInfoById, ProcessPropertyType, TerminalIcon, TerminalSettingId, TitleEventSource } from 'vs/platform/terminal/common/terminal';
-import { IProcessDetails, ISerializedCommand } from 'vs/platform/terminal/common/terminalProcess';
+import { IProcessDetails } from 'vs/platform/terminal/common/terminalProcess';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { BaseTerminalBackend } from 'vs/workbench/contrib/terminal/browser/baseTerminalBackend';
@@ -288,8 +289,8 @@ class RemoteTerminalBackend extends BaseTerminalBackend implements ITerminalBack
 		await this._remoteTerminalChannel?.updateTitle(id, title, titleSource);
 	}
 
-	async updateIcon(id: number, icon: TerminalIcon, color?: string): Promise<void> {
-		await this._remoteTerminalChannel?.updateIcon(id, icon, color);
+	async updateIcon(id: number, userInitiated: boolean, icon: TerminalIcon, color?: string): Promise<void> {
+		await this._remoteTerminalChannel?.updateIcon(id, userInitiated, icon, color);
 	}
 
 	async getDefaultSystemShell(osOverride?: OperatingSystem): Promise<string> {
@@ -313,12 +314,12 @@ class RemoteTerminalBackend extends BaseTerminalBackend implements ITerminalBack
 		return resolverResult.options?.extensionHostEnv as any;
 	}
 
-	async getWslPath(original: string): Promise<string> {
+	async getWslPath(original: string, direction: 'unix-to-win' | 'win-to-unix'): Promise<string> {
 		const env = await this._remoteAgentService.getEnvironment();
 		if (env?.os !== OperatingSystem.Windows) {
 			return original;
 		}
-		return this._remoteTerminalChannel?.getWslPath(original) || original;
+		return this._remoteTerminalChannel?.getWslPath(original, direction) || original;
 	}
 
 	async setTerminalLayoutInfo(layout?: ITerminalsLayoutInfoById): Promise<void> {

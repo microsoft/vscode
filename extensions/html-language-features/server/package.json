@@ -9,12 +9,12 @@
   },
   "main": "./out/node/htmlServerMain",
   "dependencies": {
-    "vscode-css-languageservice": "^6.1.0",
-    "vscode-html-languageservice": "^5.0.1",
-    "vscode-languageserver": "^8.1.0-next.1",
-    "vscode-languageserver-textdocument": "^1.0.7",
-    "vscode-nls": "^5.2.0",
-    "vscode-uri": "^3.0.3"
+    "@vscode/l10n": "^0.0.11",
+    "vscode-css-languageservice": "^6.2.4",
+    "vscode-html-languageservice": "^5.0.4",
+    "vscode-languageserver": "^8.1.0",
+    "vscode-languageserver-textdocument": "^1.0.8",
+    "vscode-uri": "^3.0.7"
   },
   "devDependencies": {
     "@types/mocha": "^9.1.1",

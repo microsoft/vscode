@@ -7,7 +7,8 @@ import * as DOM from 'vs/base/browser/dom';
 import { renderIcon } from 'vs/base/browser/ui/iconLabel/iconLabels';
 import { disposableTimeout, raceCancellation } from 'vs/base/common/async';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
-import { Codicon, CSSIcon } from 'vs/base/common/codicons';
+import { Codicon } from 'vs/base/common/codicons';
+import { ThemeIcon } from 'vs/base/common/themables';
 import { Disposable, DisposableStore, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
@@ -17,6 +18,7 @@ import { ILanguageService } from 'vs/editor/common/languages/language';
 import { tokenizeToStringSync } from 'vs/editor/common/languages/textToHtmlTokenizer';
 import { IReadonlyTextBuffer } from 'vs/editor/common/model';
 import { localize } from 'vs/nls';
+import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -27,7 +29,6 @@ import { collapsedIcon, expandedIcon } from 'vs/workbench/contrib/notebook/brows
 import { CellEditorOptions } from 'vs/workbench/contrib/notebook/browser/view/cellParts/cellEditorOptions';
 import { MarkdownCellRenderTemplate } from 'vs/workbench/contrib/notebook/browser/view/notebookRenderingCommon';
 import { MarkupCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/markupCellViewModel';
-import { INotebookCellStatusBarService } from 'vs/workbench/contrib/notebook/common/notebookCellStatusBarService';
 
 export class MarkupCell extends Disposable {
 
@@ -48,8 +49,8 @@ export class MarkupCell extends Disposable {
 		private readonly viewCell: MarkupCellViewModel,
 		private readonly templateData: MarkdownCellRenderTemplate,
 		private readonly renderedEditors: Map<ICellViewModel, ICodeEditor | undefined>,
+		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
-		@INotebookCellStatusBarService readonly notebookCellStatusBarService: INotebookCellStatusBarService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@ILanguageService private readonly languageService: ILanguageService,
 		@IConfigurationService private configurationService: IConfigurationService,
@@ -67,9 +68,14 @@ export class MarkupCell extends Disposable {
 		this.registerListeners();
 
 		// update for init state
-		this.templateData.cellParts.forEach(cellPart => cellPart.renderCell(this.viewCell));
+		this.templateData.cellParts.scheduleRenderCell(this.viewCell);
+
 		this._register(toDisposable(() => {
-			this.templateData.cellParts.forEach(cellPart => cellPart.unrenderCell(this.viewCell));
+			this.templateData.cellParts.unrenderCell(this.viewCell);
+		}));
+
+		this._register(this.accessibilityService.onDidChangeScreenReaderOptimized(() => {
+			this.viewUpdate();
 		}));
 
 		this.updateForHover();
@@ -93,9 +99,7 @@ export class MarkupCell extends Disposable {
 	}
 
 	layoutCellParts() {
-		this.templateData.cellParts.forEach(part => {
-			part.updateInternalLayoutNow(this.viewCell);
-		});
+		this.templateData.cellParts.updateInternalLayoutNow(this.viewCell);
 	}
 
 	private constructDOM() {
@@ -117,9 +121,7 @@ export class MarkupCell extends Disposable {
 
 	private registerListeners() {
 		this._register(this.viewCell.onDidChangeState(e => {
-			this.templateData.cellParts.forEach(cellPart => {
-				cellPart.updateState(this.viewCell, e);
-			});
+			this.templateData.cellParts.updateState(this.viewCell, e);
 		}));
 
 		this._register(this.viewCell.model.onDidChangeMetadata(() => {
@@ -168,8 +170,6 @@ export class MarkupCell extends Disposable {
 			const layoutInfo = this.editor?.getLayoutInfo();
 			if (e.outerWidth && this.viewCell.getEditState() === CellEditState.Editing && layoutInfo && layoutInfo.width !== this.viewCell.layoutInfo.editorWidth) {
 				this.onCellEditorWidthChange();
-			} else if (e.totalHeight || e.outerWidth) {
-				this.relayoutCell();
 			}
 		}));
 
@@ -254,7 +254,7 @@ export class MarkupCell extends Disposable {
 		this.templateData.cellInputCollapsedContainer.innerText = '';
 
 		const markdownIcon = DOM.append(this.templateData.cellInputCollapsedContainer, DOM.$('span'));
-		markdownIcon.classList.add(...CSSIcon.asClassNameArray(Codicon.markdown));
+		markdownIcon.classList.add(...ThemeIcon.asClassNameArray(Codicon.markdown));
 
 		const element = DOM.$('div');
 		element.classList.add('cell-collapse-preview');
@@ -263,10 +263,10 @@ export class MarkupCell extends Disposable {
 		this.templateData.cellInputCollapsedContainer.appendChild(element);
 
 		const expandIcon = DOM.append(element, DOM.$('span.expandInputIcon'));
-		expandIcon.classList.add(...CSSIcon.asClassNameArray(Codicon.more));
+		expandIcon.classList.add(...ThemeIcon.asClassNameArray(Codicon.more));
 		const keybinding = this.keybindingService.lookupKeybinding(EXPAND_CELL_INPUT_COMMAND_ID);
 		if (keybinding) {
-			element.title = localize('cellExpandInputButtonLabelWithDoubleClick', "Double click to expand cell input ({0})", keybinding.getLabel());
+			element.title = localize('cellExpandInputButtonLabelWithDoubleClick', "Double-click to expand cell input ({0})", keybinding.getLabel());
 			expandIcon.title = localize('cellExpandInputButtonLabel', "Expand Cell Input ({0})", keybinding.getLabel());
 		}
 
@@ -384,7 +384,11 @@ export class MarkupCell extends Disposable {
 
 		this.markdownAccessibilityContainer.innerText = '';
 		if (this.viewCell.renderedHtml) {
-			DOM.safeInnerHtml(this.markdownAccessibilityContainer, this.viewCell.renderedHtml);
+			if (this.accessibilityService.isScreenReaderOptimized()) {
+				DOM.safeInnerHtml(this.markdownAccessibilityContainer, this.viewCell.renderedHtml);
+			} else {
+				DOM.clearNode(this.markdownAccessibilityContainer);
+			}
 		}
 
 		this.notebookEditor.createMarkupPreview(this.viewCell);
@@ -440,12 +444,15 @@ export class MarkupCell extends Disposable {
 	private layoutFoldingIndicator() {
 		switch (this.foldingState) {
 			case CellFoldingState.None:
+				this.templateData.foldingIndicator.style.display = 'none';
 				this.templateData.foldingIndicator.innerText = '';
 				break;
 			case CellFoldingState.Collapsed:
+				this.templateData.foldingIndicator.style.display = '';
 				DOM.reset(this.templateData.foldingIndicator, renderIcon(collapsedIcon));
 				break;
 			case CellFoldingState.Expanded:
+				this.templateData.foldingIndicator.style.display = '';
 				DOM.reset(this.templateData.foldingIndicator, renderIcon(expandedIcon));
 				break;
 
@@ -460,16 +467,8 @@ export class MarkupCell extends Disposable {
 		this.focusSwitchDisposable.clear();
 
 		this.localDisposables.add(editor.onDidContentSizeChange(e => {
-			const viewLayout = editor.getLayoutInfo();
-
 			if (e.contentHeightChanged) {
-				this.viewCell.editorHeight = e.contentHeight;
-				editor.layout(
-					{
-						width: viewLayout.width,
-						height: e.contentHeight
-					}
-				);
+				this.onCellEditorHeightChange(editor, e.contentHeight);
 			}
 		}));
 
@@ -482,6 +481,12 @@ export class MarkupCell extends Disposable {
 			const selections = editor.getSelections();
 
 			if (selections?.length) {
+				const contentHeight = editor.getContentHeight();
+				const layoutContentHeight = this.viewCell.layoutInfo.editorHeight;
+
+				if (contentHeight !== layoutContentHeight) {
+					this.onCellEditorHeightChange(editor, contentHeight);
+				}
 				const lastSelection = selections[selections.length - 1];
 				this.notebookEditor.revealRangeInViewAsync(this.viewCell, lastSelection);
 			}
@@ -504,5 +509,16 @@ export class MarkupCell extends Disposable {
 		}));
 
 		updateFocusMode();
+	}
+
+	private onCellEditorHeightChange(editor: CodeEditorWidget, newHeight: number): void {
+		const viewLayout = editor.getLayoutInfo();
+		this.viewCell.editorHeight = newHeight;
+		editor.layout(
+			{
+				width: viewLayout.width,
+				height: newHeight
+			}
+		);
 	}
 }

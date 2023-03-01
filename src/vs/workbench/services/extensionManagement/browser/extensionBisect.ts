@@ -7,7 +7,7 @@ import { localize } from 'vs/nls';
 import { IExtensionManagementService, IGlobalExtensionEnablementService, ILocalExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { ExtensionType, IExtension, isResolverExtension } from 'vs/platform/extensions/common/extensions';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { INotificationService, IPromptChoice, Severity } from 'vs/platform/notification/common/notification';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { createDecorator, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
@@ -23,7 +23,8 @@ import { IProductService } from 'vs/platform/product/common/productService';
 import { IWorkbenchIssueService } from 'vs/workbench/services/issue/common/issue';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
-import { CATEGORIES } from 'vs/workbench/common/actions';
+import { Categories } from 'vs/platform/action/common/actionCommonCategories';
+import { IWorkbenchExtensionEnablementService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 
 // --- bisect service
 
@@ -161,7 +162,7 @@ class ExtensionBisectService implements IExtensionBisectService {
 	}
 }
 
-registerSingleton(IExtensionBisectService, ExtensionBisectService, true);
+registerSingleton(IExtensionBisectService, ExtensionBisectService, InstantiationType.Delayed);
 
 // --- bisect UI
 
@@ -211,7 +212,6 @@ class ExtensionBisectUi {
 
 Registry.as<IWorkbenchContributionsRegistry>(Extensions.Workbench).registerWorkbenchContribution(
 	ExtensionBisectUi,
-	'ExtensionBisectUi',
 	LifecyclePhase.Restored
 );
 
@@ -220,7 +220,7 @@ registerAction2(class extends Action2 {
 		super({
 			id: 'extension.bisect.start',
 			title: { value: localize('title.start', "Start Extension Bisect"), original: 'Start Extension Bisect' },
-			category: CATEGORIES.Help,
+			category: Categories.Help,
 			f1: true,
 			precondition: ExtensionBisectUi.ctxIsBisectActive.negate(),
 			menu: {
@@ -236,16 +236,15 @@ registerAction2(class extends Action2 {
 		const dialogService = accessor.get(IDialogService);
 		const hostService = accessor.get(IHostService);
 		const extensionManagement = accessor.get(IExtensionManagementService);
-		const extensionEnablementService = accessor.get(IGlobalExtensionEnablementService);
+		const extensionEnablementService = accessor.get(IWorkbenchExtensionEnablementService);
 		const extensionsBisect = accessor.get(IExtensionBisectService);
 
-		const disabled = new Set(extensionEnablementService.getDisabledExtensions().map(id => id.id));
-		const extensions = (await extensionManagement.getInstalled(ExtensionType.User)).filter(ext => !disabled.has(ext.identifier.id));
+		const extensions = (await extensionManagement.getInstalled(ExtensionType.User)).filter(ext => extensionEnablementService.isEnabled(ext));
 
 		const res = await dialogService.confirm({
 			message: localize('msg.start', "Extension Bisect"),
 			detail: localize('detail.start', "Extension Bisect will use binary search to find an extension that causes a problem. During the process the window reloads repeatedly (~{0} times). Each time you must confirm if you are still seeing problems.", 2 + Math.log2(extensions.length) | 0),
-			primaryButton: localize('msg2', "Start Extension Bisect")
+			primaryButton: localize({ key: 'msg2', comment: ['&& denotes a mnemonic'] }, "&&Start Extension Bisect")
 		});
 
 		if (res.confirmed) {
@@ -260,7 +259,7 @@ registerAction2(class extends Action2 {
 		super({
 			id: 'extension.bisect.next',
 			title: { value: localize('title.isBad', "Continue Extension Bisect"), original: 'Continue Extension Bisect' },
-			category: localize('help', "Help"),
+			category: Categories.Help,
 			f1: true,
 			precondition: ExtensionBisectUi.ctxIsBisectActive
 		});
@@ -297,24 +296,25 @@ registerAction2(class extends Action2 {
 
 		if (done.bad) {
 			// DONE but nothing found
-			await dialogService.show(Severity.Info, localize('done.msg', "Extension Bisect"), undefined, {
-				detail: localize('done.detail2', "Extension Bisect is done but no extension has been identified. This might be a problem with {0}.", productService.nameShort)
-			});
+			await dialogService.info(
+				localize('done.msg', "Extension Bisect"),
+				localize('done.detail2', "Extension Bisect is done but no extension has been identified. This might be a problem with {0}.", productService.nameShort)
+			);
 
 		} else {
 			// DONE and identified extension
-			const res = await dialogService.show(Severity.Info, localize('done.msg', "Extension Bisect"),
-				[localize('report', "Report Issue & Continue"), localize('done', "Continue")],
-				{
-					detail: localize('done.detail', "Extension Bisect is done and has identified {0} as the extension causing the problem.", done.id),
-					checkbox: { label: localize('done.disbale', "Keep this extension disabled"), checked: true },
-					cancelId: 1
-				}
-			);
+			const res = await dialogService.confirm({
+				type: Severity.Info,
+				message: localize('done.msg', "Extension Bisect"),
+				primaryButton: localize({ key: 'report', comment: ['&& denotes a mnemonic'] }, "&&Report Issue & Continue"),
+				cancelButton: localize('continue', "Continue"),
+				detail: localize('done.detail', "Extension Bisect is done and has identified {0} as the extension causing the problem.", done.id),
+				checkbox: { label: localize('done.disbale', "Keep this extension disabled"), checked: true }
+			});
 			if (res.checkboxChecked) {
 				await extensionEnablementService.disableExtension({ id: done.id }, undefined);
 			}
-			if (res.choice === 0) {
+			if (res.confirmed) {
 				await issueService.openReporter({ extensionId: done.id });
 			}
 		}
@@ -323,22 +323,30 @@ registerAction2(class extends Action2 {
 	}
 
 	private async _checkForBad(dialogService: IDialogService, bisectService: IExtensionBisectService): Promise<boolean | undefined | null> {
-		const options = {
-			cancelId: 3,
+		const { result } = await dialogService.prompt<boolean | undefined | null>({
+			type: Severity.Info,
+			message: localize('msg.next', "Extension Bisect"),
 			detail: localize('bisect', "Extension Bisect is active and has disabled {0} extensions. Check if you can still reproduce the problem and proceed by selecting from these options.", bisectService.disabledCount),
-		};
-		const res = await dialogService.show(
-			Severity.Info,
-			localize('msg.next', "Extension Bisect"),
-			[localize('next.good', "Good now"), localize('next.bad', "This is bad"), localize('next.stop', "Stop Bisect"), localize('next.cancel', "Cancel")],
-			options
-		);
-		switch (res.choice) {
-			case 0: return false; //good now
-			case 1: return true; //bad
-			case 2: return undefined; //stop
-		}
-		return null; //cancel
+			buttons: [
+				{
+					label: localize({ key: 'next.good', comment: ['&& denotes a mnemonic'] }, "&&Good now"),
+					run: () => false // good now
+				},
+				{
+					label: localize({ key: 'next.bad', comment: ['&& denotes a mnemonic'] }, "This is &&bad"),
+					run: () => true // bad
+				},
+				{
+					label: localize({ key: 'next.stop', comment: ['&& denotes a mnemonic'] }, "&&Stop Bisect"),
+					run: () => undefined // stop
+				}
+			],
+			cancelButton: {
+				label: localize({ key: 'next.cancel', comment: ['&& denotes a mnemonic'] }, "&&Cancel Bisect"),
+				run: () => null // cancel
+			}
+		});
+		return result;
 	}
 });
 
@@ -347,7 +355,7 @@ registerAction2(class extends Action2 {
 		super({
 			id: 'extension.bisect.stop',
 			title: { value: localize('title.stop', "Stop Extension Bisect"), original: 'Stop Extension Bisect' },
-			category: localize('help', "Help"),
+			category: Categories.Help,
 			f1: true,
 			precondition: ExtensionBisectUi.ctxIsBisectActive
 		});

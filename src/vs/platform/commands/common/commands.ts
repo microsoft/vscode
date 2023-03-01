@@ -6,7 +6,7 @@
 import { Emitter, Event } from 'vs/base/common/event';
 import { Iterable } from 'vs/base/common/iterator';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
-import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { LinkedList } from 'vs/base/common/linkedList';
 import { TypeConstraint, validateConstraints } from 'vs/base/common/types';
 import { createDecorator, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
@@ -137,15 +137,6 @@ export const CommandsRegistry: ICommandRegistry = new class implements ICommandR
 			}
 		}
 		return result;
-	}
-};
-
-export const NullCommandService: ICommandService = {
-	_serviceBrand: undefined,
-	onWillExecuteCommand: () => Disposable.None,
-	onDidExecuteCommand: () => Disposable.None,
-	executeCommand() {
-		return Promise.resolve(undefined);
 	}
 };
 

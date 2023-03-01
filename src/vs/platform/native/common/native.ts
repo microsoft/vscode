@@ -9,6 +9,8 @@ import { URI } from 'vs/base/common/uri';
 import { MessageBoxOptions, MessageBoxReturnValue, MouseInputEvent, OpenDevToolsOptions, OpenDialogOptions, OpenDialogReturnValue, SaveDialogOptions, SaveDialogReturnValue } from 'vs/base/parts/sandbox/common/electronTypes';
 import { ISerializableCommandAction } from 'vs/platform/action/common/action';
 import { INativeOpenDialogOptions } from 'vs/platform/dialogs/common/dialogs';
+import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { IV8Profile } from 'vs/platform/profiling/common/profiling';
 import { IPartsSplash } from 'vs/platform/theme/common/themeService';
 import { IColorScheme, IOpenedWindow, IOpenEmptyWindowOptions, IOpenWindowOptions, IWindowOpenable } from 'vs/platform/window/common/window';
 
@@ -121,6 +123,8 @@ export interface ICommonNativeHostService {
 
 	getOSColorScheme(): Promise<IColorScheme>;
 
+	hasWSLFeatureInstalled(): Promise<boolean>;
+
 	// Process
 	killProcess(pid: number, code: string): Promise<void>;
 
@@ -160,6 +164,10 @@ export interface ICommonNativeHostService {
 	toggleDevTools(): Promise<void>;
 	toggleSharedProcessWindow(): Promise<void>;
 	sendInputEvent(event: MouseInputEvent): Promise<void>;
+	enableSandbox(enabled: boolean): Promise<void>; // TODO@bpasero remove me
+
+	// Perf Introspection
+	profileRenderer(session: string, duration: number): Promise<IV8Profile>;
 
 	// Connectivity
 	resolveProxy(url: string): Promise<string | undefined>;
@@ -168,3 +176,14 @@ export interface ICommonNativeHostService {
 	// Registry (windows only)
 	windowsGetStringRegKey(hive: 'HKEY_CURRENT_USER' | 'HKEY_LOCAL_MACHINE' | 'HKEY_CLASSES_ROOT' | 'HKEY_USERS' | 'HKEY_CURRENT_CONFIG', path: string, name: string): Promise<string | undefined>;
 }
+
+export const INativeHostService = createDecorator<INativeHostService>('nativeHostService');
+
+/**
+ * A set of methods specific to a native host, i.e. unsupported in web
+ * environments.
+ *
+ * @see {@link IHostService} for methods that can be used in native and web
+ * hosts.
+ */
+export interface INativeHostService extends ICommonNativeHostService { }

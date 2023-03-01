@@ -16,15 +16,15 @@ import { IExtensionDescription } from 'vs/platform/extensions/common/extensions'
 import { URI } from 'vs/base/common/uri';
 import { joinPath } from 'vs/base/common/resources';
 import { FileAccess } from 'vs/base/common/network';
-import { IExtensionManagementService } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { EXTENSION_INSTALL_SKIP_WALKTHROUGH_CONTEXT, IExtensionManagementService } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { ThemeIcon } from 'vs/base/common/themables';
 import { walkthroughs } from 'vs/workbench/contrib/welcomeGettingStarted/common/gettingStartedContent';
 import { IWorkbenchAssignmentService } from 'vs/workbench/services/assignment/common/assignmentService';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ILink, LinkedText, parseLinkedText } from 'vs/base/common/linkedText';
 import { walkthroughsExtensionPoint } from 'vs/workbench/contrib/welcomeGettingStarted/browser/gettingStartedExtensionPoint';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { dirname } from 'vs/base/common/path';
 import { coalesce, flatten } from 'vs/base/common/arrays';
 import { IViewsService } from 'vs/workbench/common/views';
@@ -216,8 +216,8 @@ export class WalkthroughsService extends Disposable implements IWalkthroughsServ
 									: {
 										type: 'markdown',
 										path: convertInternalMediaPathToFileURI(step.media.path).with({ query: JSON.stringify({ moduleId: 'vs/workbench/contrib/welcomeGettingStarted/common/media/' + step.media.path }) }),
-										base: FileAccess.asFileUri('vs/workbench/contrib/welcomeGettingStarted/common/media/', require),
-										root: FileAccess.asFileUri('vs/workbench/contrib/welcomeGettingStarted/common/media/', require),
+										base: FileAccess.asFileUri('vs/workbench/contrib/welcomeGettingStarted/common/media/'),
+										root: FileAccess.asFileUri('vs/workbench/contrib/welcomeGettingStarted/common/media/'),
 									},
 						});
 					})
@@ -237,7 +237,7 @@ export class WalkthroughsService extends Disposable implements IWalkthroughsServ
 			for (const e of result) {
 				// If the window had last focus and the install didn't specify to skip the walkthrough
 				// Then add it to the sessionInstallExtensions to be opened
-				if (hadLastFoucs && !e?.context?.skipWalkthrough) {
+				if (hadLastFoucs && !e?.context?.[EXTENSION_INSTALL_SKIP_WALKTHROUGH_CONTEXT]) {
 					this.sessionInstalledExtensions.add(e.identifier.id.toLowerCase());
 				}
 				this.progressByEvent(`extensionInstalled:${e.identifier.id.toLowerCase()}`);
@@ -281,12 +281,12 @@ export class WalkthroughsService extends Disposable implements IWalkthroughsServ
 	private async registerExtensionWalkthroughContributions(extension: IExtensionDescription) {
 		const convertExtensionPathToFileURI = (path: string) => path.startsWith('https://')
 			? URI.parse(path, true)
-			: FileAccess.asFileUri(joinPath(extension.extensionLocation, path));
+			: FileAccess.uriToFileUri(joinPath(extension.extensionLocation, path));
 
 		const convertExtensionRelativePathsToBrowserURIs = (path: string | { hc: string; hcLight?: string; dark: string; light: string }): { hcDark: URI; hcLight: URI; dark: URI; light: URI } => {
 			const convertPath = (path: string) => path.startsWith('https://')
 				? URI.parse(path, true)
-				: FileAccess.asBrowserUri(joinPath(extension.extensionLocation, path));
+				: FileAccess.uriToBrowserUri(joinPath(extension.extensionLocation, path));
 
 			if (typeof path === 'string') {
 				const converted = convertPath(path);
@@ -353,7 +353,7 @@ export class WalkthroughsService extends Disposable implements IWalkthroughsServ
 						type: 'markdown',
 						path: convertExtensionPathToFileURI(step.media.markdown),
 						base: convertExtensionPathToFileURI(dirname(step.media.markdown)),
-						root: FileAccess.asFileUri(extension.extensionLocation),
+						root: FileAccess.uriToFileUri(extension.extensionLocation),
 					};
 				}
 				else if (step.media.svg) {
@@ -389,6 +389,7 @@ export class WalkthroughsService extends Disposable implements IWalkthroughsServ
 				isFeatured = await this.instantiationService.invokeFunction(a => checkGlobFileExists(a, folders, walkthrough.featuredFor!, token.token));
 			}
 
+			const iconStr = walkthrough.icon ?? extension.icon;
 			const walkthoughDescriptor: IWalkthrough = {
 				description: walkthrough.description,
 				title: walkthrough.title,
@@ -399,8 +400,8 @@ export class WalkthroughsService extends Disposable implements IWalkthroughsServ
 				steps,
 				icon: {
 					type: 'image',
-					path: extension.icon
-						? FileAccess.asBrowserUri(joinPath(extension.extensionLocation, extension.icon)).toString(true)
+					path: iconStr
+						? FileAccess.uriToBrowserUri(joinPath(extension.extensionLocation, iconStr)).toString(true)
 						: DefaultIconPath
 				},
 				when: ContextKeyExpr.deserialize(override ?? walkthrough.when) ?? ContextKeyExpr.true(),
@@ -656,11 +657,11 @@ const parseDescription = (desc: string): LinkedText[] => desc.split('\n').filter
 
 export const convertInternalMediaPathToFileURI = (path: string) => path.startsWith('https://')
 	? URI.parse(path, true)
-	: FileAccess.asFileUri('vs/workbench/contrib/welcomeGettingStarted/common/media/' + path, require);
+	: FileAccess.asFileUri(`vs/workbench/contrib/welcomeGettingStarted/common/media/${path}`);
 
 const convertInternalMediaPathToBrowserURI = (path: string) => path.startsWith('https://')
 	? URI.parse(path, true)
-	: FileAccess.asBrowserUri('vs/workbench/contrib/welcomeGettingStarted/common/media/' + path, require);
+	: FileAccess.asBrowserUri(`vs/workbench/contrib/welcomeGettingStarted/common/media/${path}`);
 const convertInternalMediaPathsToBrowserURIs = (path: string | { hc: string; hcLight?: string; dark: string; light: string }): { hcDark: URI; hcLight: URI; dark: URI; light: URI } => {
 	if (typeof path === 'string') {
 		const converted = convertInternalMediaPathToBrowserURI(path);
@@ -716,4 +717,4 @@ registerAction2(class extends Action2 {
 	}
 });
 
-registerSingleton(IWalkthroughsService, WalkthroughsService, false);
+registerSingleton(IWalkthroughsService, WalkthroughsService, InstantiationType.Delayed);

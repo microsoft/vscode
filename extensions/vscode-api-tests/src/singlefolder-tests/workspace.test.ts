@@ -897,6 +897,7 @@ suite('vscode API - workspace', () => {
 	async function test77735(withOpenedEditor: boolean): Promise<void> {
 		const docUriOriginal = await createRandomFile();
 		const docUriMoved = docUriOriginal.with({ path: `${docUriOriginal.path}.moved` });
+		await deleteFile(docUriMoved); // ensure target does not exist
 
 		if (withOpenedEditor) {
 			const document = await vscode.workspace.openTextDocument(docUriOriginal);
@@ -938,7 +939,7 @@ suite('vscode API - workspace', () => {
 		}
 	}
 
-	test('The api workspace.applyEdit failed for some case of mixing resourceChange and textEdit #80688', async function () {
+	test('The api workspace.applyEdit failed for some case of mixing resourceChange and textEdit #80688, 1/2', async function () {
 		const file1 = await createRandomFile();
 		const file2 = await createRandomFile();
 		const we = new vscode.WorkspaceEdit();
@@ -957,7 +958,7 @@ suite('vscode API - workspace', () => {
 		assert.strictEqual(document.getText(), expected2);
 	});
 
-	test('The api workspace.applyEdit failed for some case of mixing resourceChange and textEdit #80688', async function () {
+	test('The api workspace.applyEdit failed for some case of mixing resourceChange and textEdit #80688, 2/2', async function () {
 		const file1 = await createRandomFile();
 		const file2 = await createRandomFile();
 		const we = new vscode.WorkspaceEdit();
@@ -1168,5 +1169,22 @@ suite('vscode API - workspace', () => {
 		assert.ok(success);
 		assert.strictEqual(document.getText(), 'foobarhello\nworld');
 		assert.deepStrictEqual(edt.selections, [new vscode.Selection(0, 0, 0, 3)]);
+	});
+
+
+	test('Support creating binary files in a WorkspaceEdit', async function (): Promise<any> {
+
+		const fileUri = vscode.Uri.parse(`${testFs.scheme}:/${rndName()}`);
+		const data = Buffer.from('Hello Binary Files');
+
+		const ws = new vscode.WorkspaceEdit();
+		ws.createFile(fileUri, { contents: data, ignoreIfExists: false, overwrite: false });
+
+		const success = await vscode.workspace.applyEdit(ws);
+		assert.ok(success);
+
+		const actual = await vscode.workspace.fs.readFile(fileUri);
+
+		assert.deepStrictEqual(actual, data);
 	});
 });

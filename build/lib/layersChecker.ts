@@ -57,7 +57,8 @@ const CORE_TYPES = [
 	'MessageChannel',
 	'MessagePort',
 	'URL',
-	'URLSearchParams'
+	'URLSearchParams',
+	'ReadonlyArray',
 ];
 
 // Types that are defined in a common layer but are known to be only
@@ -67,7 +68,9 @@ const NATIVE_TYPES = [
 	'INativeEnvironmentService',
 	'AbstractNativeEnvironmentService',
 	'INativeWindowConfiguration',
-	'ICommonNativeHostService'
+	'ICommonNativeHostService',
+	'INativeHostService',
+	'IMainProcessService'
 ];
 
 const RULES: IRule[] = [
@@ -76,12 +79,6 @@ const RULES: IRule[] = [
 	{
 		target: '**/vs/**/test/**',
 		skip: true // -> skip all test files
-	},
-
-	// TODO@bpasero remove me once electron utility process has landed
-	{
-		target: '**/vs/workbench/services/extensions/electron-sandbox/nativeLocalProcessExtensionHost.ts',
-		skip: true
 	},
 
 	// Common: vs/base/common/platform.ts

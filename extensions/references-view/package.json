@@ -27,12 +27,7 @@
   ],
   "activationEvents": [
     "onCommand:references-view.find",
-    "onCommand:references-view.findReferences",
-    "onCommand:references-view.findImplementations",
-    "onCommand:references-view.showCallHierarchy",
-    "onCommand:references-view.showTypeHierarchy",
-    "onCommand:editor.action.showReferences",
-    "onView:references-view.tree"
+    "onCommand:editor.action.showReferences"
   ],
   "main": "./out/extension",
   "browser": "./dist/extension.js",
@@ -405,9 +400,6 @@
   "scripts": {
     "compile": "npx gulp compile-extension:references-view",
     "watch": "npx gulp watch-extension:references-view"
-  },
-  "dependencies": {
-    "vscode-nls": "^5.1.0"
   },
   "devDependencies": {
     "@types/node": "16.x"

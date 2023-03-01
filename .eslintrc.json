@@ -72,6 +72,7 @@
 		"local/code-no-nls-in-standalone-editor": "warn",
 		"local/code-no-standalone-editor": "warn",
 		"local/code-no-unexternalized-strings": "warn",
+		"local/code-declare-service-brand": "warn",
 		"local/code-layering": [
 			"warn",
 			{
@@ -226,6 +227,7 @@
 							"@vscode/vscode-languagedetection",
 							"@vscode/ripgrep",
 							"@vscode/iconv-lite-umd",
+							"@vscode/policy-watcher",
 							"assert",
 							"child_process",
 							"console",
@@ -253,7 +255,6 @@
 							"url",
 							"util",
 							"v8-inspect-profiler",
-							"vscode-policy-watcher",
 							"vscode-proxy-agent",
 							"vscode-regexpp",
 							"vscode-textmate",
@@ -331,7 +332,7 @@
 							"vs/base/parts/*/~",
 							"vs/platform/*/~",
 							"tas-client-umd", // node module allowed even in /common/
-							"@microsoft/1ds-core-js",// node module allowed even in /common/
+							"@microsoft/1ds-core-js", // node module allowed even in /common/
 							"@microsoft/1ds-post-js" // node module allowed even in /common/
 						]
 					},
@@ -487,6 +488,14 @@
 							{
 								"when": "hasBrowser",
 								"pattern": "vs/workbench/workbench.web.main"
+							},
+							{
+								"when": "hasBrowser",
+								"pattern": "vs/workbench/~"
+							},
+							{
+								"when": "hasBrowser",
+								"pattern": "vs/workbench/services/*/~"
 							}
 						]
 					},

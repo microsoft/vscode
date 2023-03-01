@@ -13,7 +13,7 @@ import { connectionTokenCookieName, connectionTokenQueryName } from 'vs/base/com
 import { ServerParsedArgs } from 'vs/server/node/serverEnvironmentService';
 import { Promises } from 'vs/base/node/pfs';
 
-const connectionTokenRegex = /^[0-9A-Za-z-]+$/;
+const connectionTokenRegex = /^[0-9A-Za-z_-]+$/;
 
 export const enum ServerConnectionTokenType {
 	None,
@@ -85,7 +85,7 @@ export async function parseServerConnectionToken(args: ServerParsedArgs, default
 		}
 
 		if (!connectionTokenRegex.test(rawConnectionToken)) {
-			return new ServerConnectionTokenParseError(`The connection token defined in '${connectionTokenFile} does not adhere to the characters 0-9, a-z, A-Z or -.`);
+			return new ServerConnectionTokenParseError(`The connection token defined in '${connectionTokenFile} does not adhere to the characters 0-9, a-z, A-Z, _, or -.`);
 		}
 
 		return new MandatoryServerConnectionToken(rawConnectionToken);

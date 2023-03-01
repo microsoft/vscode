@@ -7,14 +7,14 @@ import * as es from 'event-stream';
 import _debounce = require('debounce');
 import * as _filter from 'gulp-filter';
 import * as rename from 'gulp-rename';
-import * as _ from 'underscore';
 import * as path from 'path';
 import * as fs from 'fs';
 import * as _rimraf from 'rimraf';
 import * as VinylFile from 'vinyl';
 import { ThroughStream } from 'through';
 import * as sm from 'source-map';
-import * as git from './git';
+import { pathToFileURL } from 'url';
+import * as ternaryStream from 'ternary-stream';
 
 const root = path.dirname(path.dirname(__dirname));
 
@@ -253,6 +253,32 @@ export function stripSourceMappingURL(): NodeJS.ReadWriteStream {
 	return es.duplex(input, output);
 }
 
+/** Splits items in the stream based on the predicate, sending them to onTrue if true, or onFalse otherwise */
+export function $if(test: boolean | ((f: VinylFile) => boolean), onTrue: NodeJS.ReadWriteStream, onFalse: NodeJS.ReadWriteStream = es.through()) {
+	if (typeof test === 'boolean') {
+		return test ? onTrue : onFalse;
+	}
+
+	return ternaryStream(test, onTrue, onFalse);
+}
+
+/** Operator that appends the js files' original path a sourceURL, so debug locations map */
+export function appendOwnPathSourceURL(): NodeJS.ReadWriteStream {
+	const input = es.through();
+
+	const output = input
+		.pipe(es.mapSync<VinylFile, VinylFile>(f => {
+			if (!(f.contents instanceof Buffer)) {
+				throw new Error(`contents of ${f.path} are not a buffer`);
+			}
+
+			f.contents = Buffer.concat([f.contents, Buffer.from(`\n//# sourceURL=${pathToFileURL(f.path)}`)]);
+			return f;
+		}));
+
+	return es.duplex(input, output);
+}
+
 export function rewriteSourceMappingURL(sourceMappingURLBase: string): NodeJS.ReadWriteStream {
 	const input = es.through();
 
@@ -317,16 +343,6 @@ export function ensureDir(dirPath: string): void {
 	fs.mkdirSync(dirPath);
 }
 
-export function getVersion(root: string): string | undefined {
-	let version = process.env['VSCODE_DISTRO_COMMIT'] || process.env['BUILD_SOURCEVERSION'];
-
-	if (!version || !/^[0-9a-f]{40}$/i.test(version.trim())) {
-		version = git.getVersion(root);
-	}
-
-	return version;
-}
-
 export function rebase(count: number): NodeJS.ReadWriteStream {
 	return rename(f => {
 		const parts = f.dirname ? f.dirname.split(/[\/\\]/) : [];
@@ -382,7 +398,8 @@ export function acquireWebNodePaths() {
 	for (const key of Object.keys(webPackages)) {
 		const packageJSON = path.join(root, 'node_modules', key, 'package.json');
 		const packageData = JSON.parse(fs.readFileSync(packageJSON, 'utf8'));
-		let entryPoint: string = packageData.browser ?? packageData.main;
+		// Only cases where the browser is a string are handled
+		let entryPoint: string = typeof packageData.browser === 'string' ? packageData.browser : packageData.main;
 
 		// On rare cases a package doesn't have an entrypoint so we assume it has a dist folder with a min.js
 		if (!entryPoint) {
@@ -460,4 +477,3 @@ export function buildWebNodePaths(outDir: string) {
 	result.taskName = 'build-web-node-paths';
 	return result;
 }
-

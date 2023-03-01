@@ -117,12 +117,19 @@ export class MainThreadTreeViews extends Disposable implements MainThreadTreeVie
 		}
 	}
 
-	$resolveDropFileData(destinationViewId: string, requestId: number, dataItemIndex: number): Promise<VSBuffer> {
+	$resolveDropFileData(destinationViewId: string, requestId: number, dataItemId: string): Promise<VSBuffer> {
 		const controller = this._dndControllers.get(destinationViewId);
 		if (!controller) {
 			throw new Error('Unknown tree');
 		}
-		return controller.resolveDropFileData(requestId, dataItemIndex);
+		return controller.resolveDropFileData(requestId, dataItemId);
+	}
+
+	public async $disposeTree(treeViewId: string): Promise<void> {
+		const viewer = this.getTreeView(treeViewId);
+		if (viewer) {
+			viewer.dataProvider = undefined;
+		}
 	}
 
 	private async reveal(treeView: ITreeView, dataProvider: TreeViewDataProvider, itemIn: ITreeItem, parentChain: ITreeItem[], options: IRevealOptions): Promise<void> {
@@ -172,7 +179,7 @@ export class MainThreadTreeViews extends Disposable implements MainThreadTreeVie
 		this._register(treeView.onDidChangeVisibility(isVisible => this._proxy.$setVisible(treeViewId, isVisible)));
 		this._register(treeView.onDidChangeCheckboxState(items => {
 			this._proxy.$changeCheckboxState(treeViewId, <CheckboxUpdate[]>items.map(item => {
-				return { treeItemHandle: item.handle, newState: item.checkboxChecked ?? false };
+				return { treeItemHandle: item.handle, newState: item.checkbox?.isChecked ?? false };
 			}));
 		}));
 	}
@@ -235,8 +242,8 @@ class TreeViewDragAndDropController implements ITreeViewDragAndDropController {
 		return additionalDataTransfer;
 	}
 
-	public resolveDropFileData(requestId: number, dataItemIndex: number): Promise<VSBuffer> {
-		return this.dataTransfersCache.resolveDropFileData(requestId, dataItemIndex);
+	public resolveDropFileData(requestId: number, dataItemId: string): Promise<VSBuffer> {
+		return this.dataTransfersCache.resolveDropFileData(requestId, dataItemId);
 	}
 }
 

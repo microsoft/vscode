@@ -107,4 +107,42 @@ suite('Localize Manifest', () => {
 		assert.strictEqual(localizedManifest.contributes?.authentication?.[0].label, 'Testauthentifizierung');
 		assert.strictEqual((localizedManifest.contributes?.configuration as IConfiguration).title, 'Testkonfiguration');
 	});
+
+	test('replaces template strings - is best effort #164630', function () {
+		const manifestWithTypo: IExtensionManifest = {
+			name: 'test',
+			publisher: 'test',
+			version: '1.0.0',
+			engines: {
+				vscode: '*'
+			},
+			contributes: {
+				authentication: [
+					{
+						id: 'test.authentication',
+						// This not existing in the bundle shouldn't cause an error.
+						label: '%doesnotexist%',
+					}
+				],
+				commands: [
+					{
+						command: 'test.command',
+						title: '%test.command.title%',
+						category: '%test.command.category%'
+					},
+				],
+			}
+		};
+
+		const localizedManifest = localizeManifest(
+			deepClone(manifestWithTypo),
+			{
+				'test.command.title': 'Test Command',
+				'test.command.category': 'Test Category'
+			});
+
+		assert.strictEqual(localizedManifest.contributes?.commands?.[0].title, 'Test Command');
+		assert.strictEqual(localizedManifest.contributes?.commands?.[0].category, 'Test Category');
+		assert.strictEqual(localizedManifest.contributes?.authentication?.[0].label, '%doesnotexist%');
+	});
 });

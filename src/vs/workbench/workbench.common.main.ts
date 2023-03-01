@@ -84,9 +84,11 @@ import 'vs/workbench/services/extensionRecommendations/common/extensionIgnoredRe
 import 'vs/workbench/services/extensionRecommendations/common/workspaceExtensionsConfig';
 import 'vs/workbench/services/notification/common/notificationService';
 import 'vs/workbench/services/userDataSync/common/userDataSyncUtil';
-import 'vs/workbench/services/userDataProfile/common/userDataProfileImportExportService';
+import 'vs/workbench/services/userDataProfile/browser/userDataProfileImportExportService';
 import 'vs/workbench/services/userDataProfile/browser/userDataProfileManagement';
+import 'vs/workbench/services/userDataProfile/common/remoteUserDataProfiles';
 import 'vs/workbench/services/remote/common/remoteExplorerService';
+import 'vs/workbench/services/remote/common/remoteExtensionsScanner';
 import 'vs/workbench/services/workingCopy/common/workingCopyService';
 import 'vs/workbench/services/workingCopy/common/workingCopyFileService';
 import 'vs/workbench/services/workingCopy/common/workingCopyEditorService';
@@ -100,6 +102,8 @@ import 'vs/workbench/services/assignment/common/assignmentService';
 import 'vs/workbench/services/outline/browser/outlineService';
 import 'vs/workbench/services/languageDetection/browser/languageDetectionWorkerServiceImpl';
 import 'vs/editor/common/services/languageFeaturesService';
+import 'vs/editor/common/services/semanticTokensStylingService';
+import 'vs/workbench/services/textMate/browser/textMateTokenizationFeature.contribution';
 
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { ExtensionGalleryService } from 'vs/platform/extensionManagement/common/extensionGalleryService';
@@ -126,23 +130,21 @@ import { IgnoredExtensionsManagementService, IIgnoredExtensionsManagementService
 import { ExtensionStorageService, IExtensionStorageService } from 'vs/platform/extensionManagement/common/extensionStorage';
 import { IUserDataSyncLogService } from 'vs/platform/userDataSync/common/userDataSync';
 import { UserDataSyncLogService } from 'vs/platform/userDataSync/common/userDataSyncLog';
-import { IExtensionsProfileScannerService, ExtensionsProfileScannerService } from 'vs/platform/extensionManagement/common/extensionsProfileScannerService';
 
-registerSingleton(IUserDataSyncLogService, UserDataSyncLogService, true);
-registerSingleton(IIgnoredExtensionsManagementService, IgnoredExtensionsManagementService, true);
-registerSingleton(IGlobalExtensionEnablementService, GlobalExtensionEnablementService, true);
-registerSingleton(IExtensionStorageService, ExtensionStorageService, true);
-registerSingleton(IExtensionGalleryService, ExtensionGalleryService, true);
-registerSingleton(IContextViewService, ContextViewService, true);
-registerSingleton(IListService, ListService, true);
+registerSingleton(IUserDataSyncLogService, UserDataSyncLogService, InstantiationType.Delayed);
+registerSingleton(IIgnoredExtensionsManagementService, IgnoredExtensionsManagementService, InstantiationType.Delayed);
+registerSingleton(IGlobalExtensionEnablementService, GlobalExtensionEnablementService, InstantiationType.Delayed);
+registerSingleton(IExtensionStorageService, ExtensionStorageService, InstantiationType.Delayed);
+registerSingleton(IExtensionGalleryService, ExtensionGalleryService, InstantiationType.Delayed);
+registerSingleton(IContextViewService, ContextViewService, InstantiationType.Delayed);
+registerSingleton(IListService, ListService, InstantiationType.Delayed);
 registerSingleton(IEditorWorkerService, EditorWorkerService, InstantiationType.Eager /* registers link detection and word based suggestions for any document */);
-registerSingleton(IMarkerDecorationsService, MarkerDecorationsService, true);
-registerSingleton(IMarkerService, MarkerService, true);
-registerSingleton(IContextKeyService, ContextKeyService, true);
-registerSingleton(ITextResourceConfigurationService, TextResourceConfigurationService, true);
-registerSingleton(IDownloadService, DownloadService, true);
-registerSingleton(IOpenerService, OpenerService, true);
-registerSingleton(IExtensionsProfileScannerService, ExtensionsProfileScannerService, true);
+registerSingleton(IMarkerDecorationsService, MarkerDecorationsService, InstantiationType.Delayed);
+registerSingleton(IMarkerService, MarkerService, InstantiationType.Delayed);
+registerSingleton(IContextKeyService, ContextKeyService, InstantiationType.Delayed);
+registerSingleton(ITextResourceConfigurationService, TextResourceConfigurationService, InstantiationType.Delayed);
+registerSingleton(IDownloadService, DownloadService, InstantiationType.Delayed);
+registerSingleton(IOpenerService, OpenerService, InstantiationType.Delayed);
 
 //#endregion
 
@@ -234,6 +236,7 @@ import 'vs/workbench/contrib/extensions/browser/extensions.contribution';
 import 'vs/workbench/contrib/extensions/browser/extensionsViewlet';
 
 // Output View
+import 'vs/workbench/contrib/output/common/outputChannelModelService';
 import 'vs/workbench/contrib/output/browser/output.contribution';
 import 'vs/workbench/contrib/output/browser/outputView';
 
@@ -269,6 +272,12 @@ import 'vs/workbench/contrib/snippets/browser/snippets.contribution';
 // Formatter Help
 import 'vs/workbench/contrib/format/browser/format.contribution';
 
+// Folding
+import 'vs/workbench/contrib/folding/browser/folding.contribution';
+
+// Limit Indicator
+import 'vs/workbench/contrib/limitIndicator/browser/limitIndicator.contribution';
+
 // Inlay Hint Accessibility
 import 'vs/workbench/contrib/inlayHints/browser/inlayHintsAccessibilty';
 
@@ -278,16 +287,12 @@ import 'vs/workbench/contrib/themes/browser/themes.contribution';
 // Update
 import 'vs/workbench/contrib/update/browser/update.contribution';
 
-// Watermark
-import 'vs/workbench/contrib/watermark/browser/watermark';
-
 // Surveys
 import 'vs/workbench/contrib/surveys/browser/nps.contribution';
 import 'vs/workbench/contrib/surveys/browser/ces.contribution';
 import 'vs/workbench/contrib/surveys/browser/languageSurveys.contribution';
 
 // Welcome
-import 'vs/workbench/contrib/welcomeOverlay/browser/welcomeOverlay';
 import 'vs/workbench/contrib/welcomeGettingStarted/browser/gettingStarted.contribution';
 import 'vs/workbench/contrib/welcomeWalkthrough/browser/walkThrough.contribution';
 import 'vs/workbench/contrib/welcomeViews/common/viewsWelcome.contribution';

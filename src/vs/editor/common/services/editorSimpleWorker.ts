@@ -5,7 +5,6 @@
 
 import { stringDiff } from 'vs/base/common/diff/diff';
 import { IDisposable } from 'vs/base/common/lifecycle';
-import { globals } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
 import { IRequestHandler } from 'vs/base/common/worker/simpleWorker';
 import { IPosition, Position } from 'vs/editor/common/core/position';
@@ -16,7 +15,7 @@ import { ensureValidWordDefinition, getWordAtText, IWordAtPosition } from 'vs/ed
 import { IInplaceReplaceSupportResult, ILink, TextEdit } from 'vs/editor/common/languages';
 import { ILinkComputerTarget, computeLinks } from 'vs/editor/common/languages/linkComputer';
 import { BasicInplaceReplace } from 'vs/editor/common/languages/supports/inplaceReplaceSupport';
-import { IDiffComputationResult, IUnicodeHighlightsResult } from 'vs/editor/common/services/editorWorker';
+import { DiffAlgorithmName, IDiffComputationResult, IUnicodeHighlightsResult } from 'vs/editor/common/services/editorWorker';
 import { createMonacoBaseAPI } from 'vs/editor/common/services/editorBaseApi';
 import { IEditorWorkerHost } from 'vs/editor/common/services/editorWorkerHost';
 import { StopWatch } from 'vs/base/common/stopwatch';
@@ -79,7 +78,7 @@ export interface ICommonModel extends ILinkComputerTarget, IMirrorModel {
  * Range of a word inside a model.
  * @internal
  */
-export interface IWordRange {
+interface IWordRange {
 	/**
 	 * The index where the word starts.
 	 */
@@ -93,7 +92,7 @@ export interface IWordRange {
 /**
  * @internal
  */
-export class MirrorModel extends BaseMirrorModel implements ICommonModel {
+class MirrorModel extends BaseMirrorModel implements ICommonModel {
 
 	public get uri(): URI {
 		return this._uri;
@@ -384,18 +383,18 @@ export class EditorSimpleWorker implements IRequestHandler, IDisposable {
 
 	// ---- BEGIN diff --------------------------------------------------------------------------
 
-	public async computeDiff(originalUrl: string, modifiedUrl: string, options: IDocumentDiffProviderOptions): Promise<IDiffComputationResult | null> {
+	public async computeDiff(originalUrl: string, modifiedUrl: string, options: IDocumentDiffProviderOptions, algorithm: DiffAlgorithmName): Promise<IDiffComputationResult | null> {
 		const original = this._getModel(originalUrl);
 		const modified = this._getModel(modifiedUrl);
 		if (!original || !modified) {
 			return null;
 		}
 
-		return EditorSimpleWorker.computeDiff(original, modified, options);
+		return EditorSimpleWorker.computeDiff(original, modified, options, algorithm);
 	}
 
-	private static computeDiff(originalTextModel: ICommonModel | ITextModel, modifiedTextModel: ICommonModel | ITextModel, options: IDocumentDiffProviderOptions): IDiffComputationResult {
-		const diffAlgorithm: ILinesDiffComputer = options.diffAlgorithm === 'experimental' ? linesDiffComputers.experimental : linesDiffComputers.smart;
+	private static computeDiff(originalTextModel: ICommonModel | ITextModel, modifiedTextModel: ICommonModel | ITextModel, options: IDocumentDiffProviderOptions, algorithm: DiffAlgorithmName): IDiffComputationResult {
+		const diffAlgorithm: ILinesDiffComputer = algorithm === 'experimental' ? linesDiffComputers.experimental : linesDiffComputers.smart;
 
 		const originalLines = originalTextModel.getLinesContent();
 		const modifiedLines = modifiedTextModel.getLinesContent();
@@ -702,5 +701,5 @@ declare function importScripts(...urls: string[]): void;
 
 if (typeof importScripts === 'function') {
 	// Running in a web worker
-	globals.monaco = createMonacoBaseAPI();
+	globalThis.monaco = createMonacoBaseAPI();
 }

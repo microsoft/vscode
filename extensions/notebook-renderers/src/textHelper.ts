@@ -5,40 +5,39 @@
 
 import { handleANSIOutput } from './ansi';
 
-function generateViewMoreElement(outputId: string) {
+function generateViewMoreElement(outputId: string, adjustableSize: boolean) {
 	const container = document.createElement('span');
 	const first = document.createElement('span');
-	first.textContent = 'Output exceeds the ';
-	const second = document.createElement('a');
-	second.textContent = 'size limit';
-	second.href = `command:workbench.action.openSettings?%5B%22notebook.output.textLineLimit%22%5D`;
+
+	if (adjustableSize) {
+		first.textContent = 'Output exceeds the ';
+		const second = document.createElement('a');
+		second.textContent = 'size limit';
+		second.href = `command:workbench.action.openSettings?%5B%22notebook.output.textLineLimit%22%5D`;
+		container.appendChild(first);
+		container.appendChild(second);
+	} else {
+		first.textContent = 'Output exceeds the maximium size limit';
+		container.appendChild(first);
+	}
+
 	const third = document.createElement('span');
-	third.textContent = '. Open the full output data';
+	third.textContent = '. Open the full output data ';
 	const forth = document.createElement('a');
-	forth.textContent = ' in a text editor';
+	forth.textContent = 'in a text editor';
 	forth.href = `command:workbench.action.openLargeOutput?${outputId}`;
-	container.appendChild(first);
-	container.appendChild(second);
 	container.appendChild(third);
 	container.appendChild(forth);
 	return container;
 }
 
-export function truncatedArrayOfString(id: string, outputs: string[], linesLimit: number, container: HTMLElement) {
-	const buffer = outputs.join('\n').split(/\r\n|\r|\n/g);
+function truncatedArrayOfString(id: string, buffer: string[], linesLimit: number, container: HTMLElement, trustHtml: boolean) {
 	const lineCount = buffer.length;
-
-	if (lineCount < linesLimit) {
-		const spanElement = handleANSIOutput(buffer.slice(0, linesLimit).join('\n'));
-		container.appendChild(spanElement);
-		return;
-	}
-
-	container.appendChild(generateViewMoreElement(id));
+	container.appendChild(generateViewMoreElement(id, true));
 
 	const div = document.createElement('div');
 	container.appendChild(div);
-	div.appendChild(handleANSIOutput(buffer.slice(0, linesLimit - 5).join('\n')));
+	div.appendChild(handleANSIOutput(buffer.slice(0, linesLimit - 5).join('\n'), trustHtml));
 
 	// view more ...
 	const viewMoreSpan = document.createElement('span');
@@ -47,5 +46,33 @@ export function truncatedArrayOfString(id: string, outputs: string[], linesLimit
 
 	const div2 = document.createElement('div');
 	container.appendChild(div2);
-	div2.appendChild(handleANSIOutput(buffer.slice(lineCount - 5).join('\n')));
+	div2.appendChild(handleANSIOutput(buffer.slice(lineCount - 5).join('\n'), trustHtml));
+}
+
+function scrollableArrayOfString(id: string, buffer: string[], container: HTMLElement, trustHtml: boolean) {
+	const scrollableDiv = document.createElement('div');
+	scrollableDiv.classList.add('scrollable');
+
+	if (buffer.length > 5000) {
+		container.appendChild(generateViewMoreElement(id, false));
+	}
+	container.appendChild(scrollableDiv);
+	scrollableDiv.appendChild(handleANSIOutput(buffer.slice(0, 5000).join('\n'), trustHtml));
+}
+
+export function insertOutput(id: string, outputs: string[], linesLimit: number, scrollable: boolean, container: HTMLElement, trustHtml: boolean) {
+	const buffer = outputs.join('\n').split(/\r\n|\r|\n/g);
+	const lineCount = buffer.length;
+
+	if (lineCount < linesLimit) {
+		const spanElement = handleANSIOutput(buffer.join('\n'), trustHtml);
+		container.appendChild(spanElement);
+		return;
+	}
+
+	if (scrollable) {
+		scrollableArrayOfString(id, buffer, container, trustHtml);
+	} else {
+		truncatedArrayOfString(id, buffer, linesLimit, container, trustHtml);
+	}
 }

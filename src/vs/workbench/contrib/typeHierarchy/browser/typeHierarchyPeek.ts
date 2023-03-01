@@ -30,7 +30,7 @@ import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IWorkbenchAsyncDataTreeOptions, WorkbenchAsyncDataTree } from 'vs/platform/list/browser/listService';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { IColorTheme, IThemeService, registerThemingParticipant, themeColorFromId } from 'vs/platform/theme/common/themeService';
+import { IColorTheme, IThemeService, themeColorFromId } from 'vs/platform/theme/common/themeService';
 import * as typeHTree from 'vs/workbench/contrib/typeHierarchy/browser/typeHierarchyTree';
 import { TypeHierarchyDirection, TypeHierarchyModel } from 'vs/workbench/contrib/typeHierarchy/common/typeHierarchy';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -421,47 +421,3 @@ export class TypeHierarchyTreePeekWidget extends peekView.PeekViewWidget {
 		}
 	}
 }
-
-registerThemingParticipant((theme, collector) => {
-	const referenceHighlightColor = theme.getColor(peekView.peekViewEditorMatchHighlight);
-	if (referenceHighlightColor) {
-		collector.addRule(`.monaco-editor .type-hierarchy .type-decoration { background-color: ${referenceHighlightColor}; }`);
-	}
-	const referenceHighlightBorder = theme.getColor(peekView.peekViewEditorMatchHighlightBorder);
-	if (referenceHighlightBorder) {
-		collector.addRule(`.monaco-editor .type-hierarchy .type-decoration { border: 2px solid ${referenceHighlightBorder}; box-sizing: border-box; }`);
-	}
-	const resultsBackground = theme.getColor(peekView.peekViewResultsBackground);
-	if (resultsBackground) {
-		collector.addRule(`.monaco-editor .type-hierarchy .tree { background-color: ${resultsBackground}; }`);
-	}
-	const resultsMatchForeground = theme.getColor(peekView.peekViewResultsFileForeground);
-	if (resultsMatchForeground) {
-		collector.addRule(`.monaco-editor .type-hierarchy .tree { color: ${resultsMatchForeground}; }`);
-	}
-	const resultsSelectedBackground = theme.getColor(peekView.peekViewResultsSelectionBackground);
-	if (resultsSelectedBackground) {
-		collector.addRule(`.monaco-editor .type-hierarchy .tree .monaco-list:focus .monaco-list-rows > .monaco-list-row.selected:not(.highlighted) { background-color: ${resultsSelectedBackground}; }`);
-	}
-	const resultsSelectedForeground = theme.getColor(peekView.peekViewResultsSelectionForeground);
-	if (resultsSelectedForeground) {
-		collector.addRule(`.monaco-editor .type-hierarchy .tree .monaco-list:focus .monaco-list-rows > .monaco-list-row.selected:not(.highlighted) { color: ${resultsSelectedForeground} !important; }`);
-	}
-	const editorBackground = theme.getColor(peekView.peekViewEditorBackground);
-	if (editorBackground) {
-		collector.addRule(
-			`.monaco-editor .type-hierarchy .editor .monaco-editor .monaco-editor-background,` +
-			`.monaco-editor .type-hierarchy .editor .monaco-editor .inputarea.ime-input {` +
-			`	background-color: ${editorBackground};` +
-			`}`
-		);
-	}
-	const editorGutterBackground = theme.getColor(peekView.peekViewEditorGutterBackground);
-	if (editorGutterBackground) {
-		collector.addRule(
-			`.monaco-editor .type-hierarchy .editor .monaco-editor .margin {` +
-			`	background-color: ${editorGutterBackground};` +
-			`}`
-		);
-	}
-});

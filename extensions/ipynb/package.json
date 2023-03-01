@@ -9,10 +9,11 @@
 		"vscode": "^1.57.0"
 	},
 	"enabledApiProposals": [
-    "documentPaste"
+		"documentPaste",
+		"diffContentOptions"
 	],
 	"activationEvents": [
-		"*"
+		"onNotebook:jupyter-notebook"
 	],
 	"extensionKind": [
 		"workspace",
@@ -27,31 +28,32 @@
 		}
 	},
 	"contributes": {
-    "configuration":[
-      {
-        "properties": {
-          "ipynb.experimental.pasteImages.enabled":{
-            "type": "boolean",
-            "scope": "resource",
-            "markdownDescription": "%ipynb.experimental.pasteImages.enabled%",
-            "default": false,
-            "tags": [
-              "experimental"
-            ]
-          }
-        }
-      }
-    ],
+		"configuration": [
+			{
+				"properties": {
+					"ipynb.pasteImagesAsAttachments.enabled": {
+						"type": "boolean",
+						"scope": "resource",
+						"markdownDescription": "%ipynb.pasteImagesAsAttachments.enabled%",
+						"default": true
+					}
+				}
+			}
+		],
 		"commands": [
 			{
 				"command": "ipynb.newUntitledIpynb",
-				"title": "New Jupyter Notebook",
-				"shortTitle": "Jupyter Notebook",
+				"title": "%newUntitledIpynb.title%",
+				"shortTitle": "%newUntitledIpynb.shortTitle%",
 				"category": "Create"
 			},
 			{
 				"command": "ipynb.openIpynbInNotebookEditor",
-				"title": "Open ipynb file in notebook editor"
+				"title": "%openIpynbInNotebookEditor.title%"
+			},
+			{
+				"command": "ipynb.cleanInvalidImageAttachment",
+				"title": "%cleanInvalidImageAttachment.title%"
 			}
 		],
 		"notebooks": [
@@ -66,16 +68,16 @@
 				"priority": "default"
 			}
 		],
-    "notebookRenderer": [
-      {
-        "id": "vscode.markdown-it-cell-attachment-renderer",
-        "displayName": "Markdown it ipynb Cell Attachment renderer",
-        "entrypoint": {
-          "extends": "vscode.markdown-it-renderer",
-          "path": "./notebook-out/cellAttachmentRenderer.js"
-        }
-      }
-    ],
+		"notebookRenderer": [
+			{
+				"id": "vscode.markdown-it-cell-attachment-renderer",
+				"displayName": "%markdownAttachmentRenderer.displayName%",
+				"entrypoint": {
+					"extends": "vscode.markdown-it-renderer",
+					"path": "./notebook-out/cellAttachmentRenderer.js"
+				}
+			}
+		],
 		"menus": {
 			"file/newFile": [
 				{
@@ -89,6 +91,10 @@
 				},
 				{
 					"command": "ipynb.openIpynbInNotebookEditor",
+					"when": "false"
+				},
+				{
+					"command": "ipynb.cleanInvalidImageAttachment",
 					"when": "false"
 				}
 			]

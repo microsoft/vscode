@@ -127,15 +127,24 @@ export const enum ContentWidgetPositionPreference {
  */
 export interface IContentWidgetPosition {
 	/**
-	 * Desired position for the content widget.
-	 * `preference` will also affect the placement.
+	 * Desired position which serves as an anchor for placing the content widget.
+	 * The widget will be placed above, at, or below the specified position, based on the
+	 * provided preference. The widget will always touch this position.
+	 *
+	 * Given sufficient horizontal space, the widget will be placed to the right of the
+	 * passed in position. This can be tweaked by providing a `secondaryPosition`.
+	 *
+	 * @see preference
+	 * @see secondaryPosition
 	 */
 	position: IPosition | null;
 	/**
-	 * Optionally, a range can be provided to further
-	 * define the position of the content widget.
+	 * Optionally, a secondary position can be provided to further define the placing of
+	 * the content widget. The secondary position must have the same line number as the
+	 * primary position. If possible, the widget will be placed such that it also touches
+	 * the secondary position.
 	 */
-	range?: IRange | null;
+	secondaryPosition?: IPosition | null;
 	/**
 	 * Placement preference for position, in order of preference.
 	 */
@@ -391,6 +400,8 @@ export interface IMouseTargetOverviewRuler extends IBaseMouseTarget {
 }
 export interface IMouseTargetOutsideEditor extends IBaseMouseTarget {
 	readonly type: MouseTargetType.OUTSIDE_EDITOR;
+	readonly outsidePosition: 'above' | 'below' | 'left' | 'right';
+	readonly outsideDistance: number;
 }
 /**
  * Target hit with the mouse in the editor.
@@ -799,7 +810,7 @@ export interface ICodeEditor extends editorCommon.IEditor {
 	 * @id Unique identifier of the contribution.
 	 * @return The action or null if action not found.
 	 */
-	getAction(id: string): editorCommon.IEditorAction;
+	getAction(id: string): editorCommon.IEditorAction | null;
 
 	/**
 	 * Execute a command on the editor.
@@ -852,7 +863,8 @@ export interface ICodeEditor extends editorCommon.IEditor {
 
 	/**
 	 * All decorations added through this call will get the ownerId of this editor.
-	 * @deprecated
+	 * @deprecated Use `createDecorationsCollection`
+	 * @see createDecorationsCollection
 	 */
 	deltaDecorations(oldDecorations: string[], newDecorations: IModelDeltaDecoration[]): string[];
 
@@ -925,6 +937,11 @@ export interface ICodeEditor extends editorCommon.IEditor {
 	 * @internal
 	 */
 	setAriaOptions(options: IEditorAriaOptions): void;
+
+	/**
+	 * Write the screen reader content to be the current selection
+	 */
+	writeScreenReaderContent(reason: string): void;
 
 	/**
 	 * @internal
@@ -1118,6 +1135,12 @@ export interface IDiffEditor extends editorCommon.IEditor {
 	 * @event
 	 */
 	readonly onDidUpdateDiff: Event<void>;
+
+	/**
+	 * An event emitted when the diff model is changed (i.e. the diff editor shows new content).
+	 * @event
+	 */
+	readonly onDidChangeModel: Event<void>;
 
 	/**
 	 * Saves current view state of the editor in a serializable object.

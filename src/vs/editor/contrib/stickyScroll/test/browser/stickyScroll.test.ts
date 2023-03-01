@@ -13,12 +13,15 @@ import { DocumentSymbol, SymbolKind } from 'vs/editor/common/languages';
 import { StickyLineCandidate, StickyLineCandidateProvider } from 'vs/editor/contrib/stickyScroll/browser/stickyScrollProvider';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { ILogService, NullLogService } from 'vs/platform/log/common/log';
+import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
+import { mock } from 'vs/base/test/common/mock';
 
 suite('Sticky Scroll Tests', () => {
 
 	const serviceCollection = new ServiceCollection(
 		[ILanguageFeaturesService, new LanguageFeaturesService()],
-		[ILogService, new NullLogService()]
+		[ILogService, new NullLogService()],
+		[IContextMenuService, new class extends mock<IContextMenuService>() { }]
 	);
 
 	const text = [
@@ -130,27 +133,27 @@ suite('Sticky Scroll Tests', () => {
 			let state;
 
 			editor.setScrollTop(1);
-			state = stickyScrollController.getScrollWidgetState();
+			state = stickyScrollController.findScrollWidgetState();
 			assert.deepStrictEqual(state.lineNumbers, [1]);
 
 			editor.setScrollTop(lineHeight + 1);
-			state = stickyScrollController.getScrollWidgetState();
+			state = stickyScrollController.findScrollWidgetState();
 			assert.deepStrictEqual(state.lineNumbers, [1]);
 
 			editor.setScrollTop(4 * lineHeight + 1);
-			state = stickyScrollController.getScrollWidgetState();
+			state = stickyScrollController.findScrollWidgetState();
 			assert.deepStrictEqual(state.lineNumbers, []);
 
 			editor.setScrollTop(8 * lineHeight + 1);
-			state = stickyScrollController.getScrollWidgetState();
+			state = stickyScrollController.findScrollWidgetState();
 			assert.deepStrictEqual(state.lineNumbers, [7, 9]);
 
 			editor.setScrollTop(9 * lineHeight + 1);
-			state = stickyScrollController.getScrollWidgetState();
+			state = stickyScrollController.findScrollWidgetState();
 			assert.deepStrictEqual(state.lineNumbers, [7, 9]);
 
 			editor.setScrollTop(10 * lineHeight + 1);
-			state = stickyScrollController.getScrollWidgetState();
+			state = stickyScrollController.findScrollWidgetState();
 			assert.deepStrictEqual(state.lineNumbers, [7]);
 
 			stickyScrollController.dispose();
@@ -174,23 +177,23 @@ suite('Sticky Scroll Tests', () => {
 			let state;
 
 			editor.setScrollTop(1);
-			state = stickyScrollController.getScrollWidgetState();
+			state = stickyScrollController.findScrollWidgetState();
 			assert.deepStrictEqual(state.lineNumbers, [1]);
 
 			editor.setScrollTop(lineHeight + 1);
-			state = stickyScrollController.getScrollWidgetState();
+			state = stickyScrollController.findScrollWidgetState();
 			assert.deepStrictEqual(state.lineNumbers, []);
 
 			editor.setScrollTop(6 * lineHeight + 1);
-			state = stickyScrollController.getScrollWidgetState();
+			state = stickyScrollController.findScrollWidgetState();
 			assert.deepStrictEqual(state.lineNumbers, [7, 9]);
 
 			editor.setScrollTop(7 * lineHeight + 1);
-			state = stickyScrollController.getScrollWidgetState();
+			state = stickyScrollController.findScrollWidgetState();
 			assert.deepStrictEqual(state.lineNumbers, [7]);
 
 			editor.setScrollTop(10 * lineHeight + 1);
-			state = stickyScrollController.getScrollWidgetState();
+			state = stickyScrollController.findScrollWidgetState();
 			assert.deepStrictEqual(state.lineNumbers, []);
 
 			stickyScrollController.dispose();
@@ -261,23 +264,23 @@ suite('Sticky Scroll Tests', () => {
 			let state;
 
 			editor.setScrollTop(1);
-			state = stickyScrollController.getScrollWidgetState();
+			state = stickyScrollController.findScrollWidgetState();
 			assert.deepStrictEqual(state.lineNumbers, [1, 2]);
 
 			editor.setScrollTop(lineHeight + 1);
-			state = stickyScrollController.getScrollWidgetState();
+			state = stickyScrollController.findScrollWidgetState();
 			assert.deepStrictEqual(state.lineNumbers, [1, 2]);
 
 			editor.setScrollTop(2 * lineHeight + 1);
-			state = stickyScrollController.getScrollWidgetState();
+			state = stickyScrollController.findScrollWidgetState();
 			assert.deepStrictEqual(state.lineNumbers, [1]);
 
 			editor.setScrollTop(3 * lineHeight + 1);
-			state = stickyScrollController.getScrollWidgetState();
+			state = stickyScrollController.findScrollWidgetState();
 			assert.deepStrictEqual(state.lineNumbers, [1]);
 
 			editor.setScrollTop(4 * lineHeight + 1);
-			state = stickyScrollController.getScrollWidgetState();
+			state = stickyScrollController.findScrollWidgetState();
 			assert.deepStrictEqual(state.lineNumbers, []);
 
 			stickyScrollController.dispose();

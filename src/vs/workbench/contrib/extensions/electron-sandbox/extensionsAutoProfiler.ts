@@ -3,32 +3,43 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { IExtensionService, IResponsiveStateChangeEvent, IExtensionHostProfile, ProfileSession, ExtensionHostKind } from 'vs/workbench/services/extensions/common/extensions';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { ILogService } from 'vs/platform/log/common/log';
+import { timeout } from 'vs/base/common/async';
+import { VSBuffer } from 'vs/base/common/buffer';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { onUnexpectedError } from 'vs/base/common/errors';
+import { IDisposable } from 'vs/base/common/lifecycle';
+import { Schemas } from 'vs/base/common/network';
 import { joinPath } from 'vs/base/common/resources';
-import { IExtensionHostProfileService } from 'vs/workbench/contrib/extensions/electron-sandbox/runtimeExtensionsEditor';
-import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
+import { TernarySearchTree } from 'vs/base/common/ternarySearchTree';
+import { URI } from 'vs/base/common/uri';
+import { generateUuid } from 'vs/base/common/uuid';
 import { localize } from 'vs/nls';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { RuntimeExtensionsInput } from 'vs/workbench/contrib/extensions/common/runtimeExtensionsInput';
-import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { createSlowExtensionAction } from 'vs/workbench/contrib/extensions/electron-sandbox/extensionsSlowActions';
-import { ExtensionHostProfiler } from 'vs/workbench/services/extensions/electron-sandbox/extensionHostProfiler';
-import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { ExtensionIdentifier, ExtensionIdentifierSet, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { IFileService } from 'vs/platform/files/common/files';
-import { VSBuffer } from 'vs/base/common/buffer';
-import { timeout } from 'vs/base/common/async';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { ILogService } from 'vs/platform/log/common/log';
+import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
+import { IProfileAnalysisWorkerService } from 'vs/platform/profiling/electron-sandbox/profileAnalysisWorkerService';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
+import { RuntimeExtensionsInput } from 'vs/workbench/contrib/extensions/common/runtimeExtensionsInput';
+import { createSlowExtensionAction } from 'vs/workbench/contrib/extensions/electron-sandbox/extensionsSlowActions';
+import { IExtensionHostProfileService } from 'vs/workbench/contrib/extensions/electron-sandbox/runtimeExtensionsEditor';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
+import { ExtensionHostKind } from 'vs/workbench/services/extensions/common/extensionHostKind';
+import { IExtensionHostProfile, IExtensionService, IResponsiveStateChangeEvent, ProfileSession } from 'vs/workbench/services/extensions/common/extensions';
+import { ExtensionHostProfiler } from 'vs/workbench/services/extensions/electron-sandbox/extensionHostProfiler';
+import { ITimerService } from 'vs/workbench/services/timer/browser/timerService';
 
-export class ExtensionsAutoProfiler extends Disposable implements IWorkbenchContribution {
+export class ExtensionsAutoProfiler implements IWorkbenchContribution {
 
-	private readonly _blame = new Set<string>();
+	private readonly _blame = new ExtensionIdentifierSet();
+
 	private _session: CancellationTokenSource | undefined;
+	private _unresponsiveListener: IDisposable | undefined;
+	private _perfBaseline: number = -1;
 
 	constructor(
 		@IExtensionService private readonly _extensionService: IExtensionService,
@@ -39,10 +50,24 @@ export class ExtensionsAutoProfiler extends Disposable implements IWorkbenchCont
 		@IEditorService private readonly _editorService: IEditorService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@INativeWorkbenchEnvironmentService private readonly _environmentServie: INativeWorkbenchEnvironmentService,
-		@IFileService private readonly _fileService: IFileService
+		@IProfileAnalysisWorkerService private readonly _profileAnalysisService: IProfileAnalysisWorkerService,
+		@IConfigurationService private readonly _configService: IConfigurationService,
+		@IFileService private readonly _fileService: IFileService,
+		@ITimerService timerService: ITimerService
 	) {
-		super();
-		this._register(_extensionService.onDidChangeResponsiveChange(this._onDidChangeResponsiveChange, this));
+
+		timerService.perfBaseline.then(value => {
+			if (value < 0) {
+				return; // too slow for profiling
+			}
+			this._perfBaseline = value;
+			this._unresponsiveListener = _extensionService.onDidChangeResponsiveChange(this._onDidChangeResponsiveChange, this);
+		});
+	}
+
+	dispose(): void {
+		this._unresponsiveListener?.dispose();
+		this._session?.dispose(true);
 	}
 
 	private async _onDidChangeResponsiveChange(event: IResponsiveStateChangeEvent): Promise<void> {
@@ -50,7 +75,7 @@ export class ExtensionsAutoProfiler extends Disposable implements IWorkbenchCont
 			return;
 		}
 
-		const port = await this._extensionService.getInspectPort(event.extensionHostId, true);
+		const port = await event.getInspectPort(true);
 
 		if (!port) {
 			return;
@@ -103,81 +128,85 @@ export class ExtensionsAutoProfiler extends Disposable implements IWorkbenchCont
 
 	private async _processCpuProfile(profile: IExtensionHostProfile) {
 
-		interface NamedSlice {
-			id: string;
-			total: number;
-			percentage: number;
+		// get all extensions
+		await this._extensionService.whenInstalledExtensionsRegistered();
+
+		// send heavy samples iff enabled
+		if (this._configService.getValue('application.experimental.rendererProfiling')) {
+
+			const searchTree = TernarySearchTree.forUris<IExtensionDescription>();
+			searchTree.fill(this._extensionService.extensions.map(e => [e.extensionLocation, e]));
+
+			await this._profileAnalysisService.analyseBottomUp(
+				profile.data,
+				url => searchTree.findSubstr(URI.parse(url))?.identifier.value ?? '<<not-found>>',
+				this._perfBaseline,
+				false
+			);
 		}
 
-		let data: NamedSlice[] = [];
-		for (let i = 0; i < profile.ids.length; i++) {
-			const id = profile.ids[i];
-			const total = profile.deltas[i];
-			data.push({ id, total, percentage: 0 });
-		}
+		// analyse profile by extension-category
+		const categories: [location: URI, id: string][] = this._extensionService.extensions
+			.filter(e => e.extensionLocation.scheme === Schemas.file)
+			.map(e => [e.extensionLocation, ExtensionIdentifier.toKey(e.identifier)]);
 
-		// merge data by identifier
-		let anchor = 0;
-		data.sort((a, b) => a.id.localeCompare(b.id));
-		for (let i = 1; i < data.length; i++) {
-			if (data[anchor].id === data[i].id) {
-				data[anchor].total += data[i].total;
-			} else {
-				anchor += 1;
-				data[anchor] = data[i];
+		const data = await this._profileAnalysisService.analyseByLocation(profile.data, categories);
+
+		//
+		let overall: number = 0;
+		let top: string = '';
+		let topAggregated: number = -1;
+		for (const [category, aggregated] of data) {
+			overall += aggregated;
+			if (aggregated > topAggregated) {
+				topAggregated = aggregated;
+				top = category;
 			}
 		}
-		data = data.slice(0, anchor + 1);
+		const topPercentage = topAggregated / (overall / 100);
 
-		const duration = profile.endTime - profile.startTime;
-		const percentage = duration / 100;
-		let top: NamedSlice | undefined;
-		for (const slice of data) {
-			slice.percentage = Math.round(slice.total / percentage);
-			if (!top || top.percentage < slice.percentage) {
-				top = slice;
-			}
-		}
-
-		if (!top) {
-			return;
-		}
-
-		const extension = await this._extensionService.getExtension(top.id);
+		// associate extensions to profile node
+		const extension = await this._extensionService.getExtension(top);
 		if (!extension) {
 			// not an extension => idle, gc, self?
 			return;
 		}
 
 
+		const sessionId = generateUuid();
+
 		// print message to log
 		const path = joinPath(this._environmentServie.tmpDir, `exthost-${Math.random().toString(16).slice(2, 8)}.cpuprofile`);
 		await this._fileService.writeFile(path, VSBuffer.fromString(JSON.stringify(profile.data)));
-		this._logService.warn(`UNRESPONSIVE extension host: '${top.id}' took ${top.percentage}% of ${duration / 1e3}ms, saved PROFILE here: '${path}'`, data);
+		this._logService.warn(`UNRESPONSIVE extension host: '${top}' took ${topPercentage}% of ${topAggregated / 1e3}ms, saved PROFILE here: '${path}'`);
 
 		type UnresponsiveData = {
 			duration: number;
-			data: NamedSlice[];
+			sessionId: string;
+			data: string[];
 			id: string;
 		};
 		type UnresponsiveDataClassification = {
 			owner: 'jrieken';
 			comment: 'Profiling data that was collected while the extension host was unresponsive';
+			sessionId: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Identifier of a profiling session' };
 			duration: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Duration for which the extension host was unresponsive' };
 			data: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Extensions ids and core parts that were active while the extension host was frozen' };
 			id: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Top extensions id that took most of the duration' };
 		};
 		this._telemetryService.publicLog2<UnresponsiveData, UnresponsiveDataClassification>('exthostunresponsive', {
-			duration,
-			data,
+			sessionId,
+			duration: overall,
+			data: data.map(tuple => tuple[0]).flat(),
 			id: ExtensionIdentifier.toKey(extension.identifier),
 		});
+
 
 		// add to running extensions view
 		this._extensionProfileService.setUnresponsiveProfile(extension.identifier, profile);
 
 		// prompt: when really slow/greedy
-		if (!(top.percentage >= 99 && top.total >= 5e6)) {
+		if (!(topPercentage >= 95 && topAggregated >= 5e6)) {
 			return;
 		}
 
@@ -189,23 +218,10 @@ export class ExtensionsAutoProfiler extends Disposable implements IWorkbenchCont
 		}
 
 		// only blame once per extension, don't blame too often
-		if (this._blame.has(ExtensionIdentifier.toKey(extension.identifier)) || this._blame.size >= 3) {
+		if (this._blame.has(extension.identifier) || this._blame.size >= 3) {
 			return;
 		}
-		this._blame.add(ExtensionIdentifier.toKey(extension.identifier));
-
-		type UnresponsivePromptData = {
-			id: string;
-		};
-		type UnresponsivePromptDataClassification = {
-			owner: 'digitarald';
-			comment: 'Users got a warning about an extension hanging the extension process';
-			expiration: '1.73';
-			id: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Extension id that froze the extension process' };
-		};
-		this._telemetryService.publicLog2<UnresponsivePromptData, UnresponsivePromptDataClassification>('exthostunresponsiveprompt', {
-			id: ExtensionIdentifier.toKey(extension.identifier),
-		});
+		this._blame.add(extension.identifier);
 
 		// user-facing message when very bad...
 		this._notificationService.prompt(

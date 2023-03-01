@@ -65,7 +65,12 @@ export class WebviewEditor extends EditorPane {
 	) {
 		super(WebviewEditor.ID, telemetryService, themeService, storageService);
 
-		this._register(editorGroupsService.onDidScroll(() => {
+		this._register(Event.any(
+			editorGroupsService.onDidScroll,
+			editorGroupsService.onDidAddGroup,
+			editorGroupsService.onDidRemoveGroup,
+			editorGroupsService.onDidMoveGroup,
+		)(() => {
 			if (this.webview && this._visible) {
 				this.synchronizeWebviewContainerDimensions(this.webview);
 			}
@@ -150,7 +155,7 @@ export class WebviewEditor extends EditorPane {
 		}
 
 		await super.setInput(input, options, context, token);
-		await input.resolve();
+		await input.resolve(options);
 
 		if (token.isCancellationRequested || this._isDisposed) {
 			return;
@@ -192,7 +197,7 @@ export class WebviewEditor extends EditorPane {
 	}
 
 	private synchronizeWebviewContainerDimensions(webview: IOverlayWebview, dimension?: DOM.Dimension) {
-		if (!this._element) {
+		if (!this._element?.isConnected) {
 			return;
 		}
 		const rootContainer = this._workbenchLayoutService.getContainer(Parts.EDITOR_PART);

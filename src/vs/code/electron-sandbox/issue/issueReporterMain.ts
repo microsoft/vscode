@@ -7,7 +7,7 @@ import 'vs/css!./media/issueReporter';
 import 'vs/base/browser/ui/codicons/codiconStyles'; // make sure codicon css is loaded
 import { localize } from 'vs/nls';
 import { $, reset, safeInnerHtml, windowOpenNoOpener } from 'vs/base/browser/dom';
-import { Button } from 'vs/base/browser/ui/button/button';
+import { Button, unthemedButtonStyles } from 'vs/base/browser/ui/button/button';
 import { renderIcon } from 'vs/base/browser/ui/iconLabel/iconLabels';
 import { Delayer } from 'vs/base/common/async';
 import { Codicon } from 'vs/base/common/codicons';
@@ -23,7 +23,7 @@ import { isRemoteDiagnosticError, SystemInfo } from 'vs/platform/diagnostics/com
 import { ElectronIPCMainProcessService } from 'vs/platform/ipc/electron-sandbox/mainProcessService';
 import { IssueReporterData, IssueReporterExtensionData, IssueReporterStyles, IssueReporterWindowConfiguration, IssueType } from 'vs/platform/issue/common/issue';
 import { normalizeGitHubUrl } from 'vs/platform/issue/common/issueReporterUtil';
-import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
+import { INativeHostService } from 'vs/platform/native/common/native';
 import { NativeHostService } from 'vs/platform/native/electron-sandbox/nativeHostService';
 import { applyZoom, zoomIn, zoomOut } from 'vs/platform/window/electron-sandbox/window';
 
@@ -88,7 +88,7 @@ export class IssueReporter extends Disposable {
 
 		const issueReporterElement = this.getElementById('issue-reporter');
 		if (issueReporterElement) {
-			this.previewButton = new Button(issueReporterElement);
+			this.previewButton = new Button(issueReporterElement, unthemedButtonStyles);
 			this.updatePreviewButtonState();
 		}
 

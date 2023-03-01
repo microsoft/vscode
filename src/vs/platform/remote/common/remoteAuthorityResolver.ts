@@ -64,6 +64,10 @@ export enum RemoteAuthorityResolverErrorCode {
 
 export class RemoteAuthorityResolverError extends ErrorNoTelemetry {
 
+	public static isNotAvailable(err: any): boolean {
+		return (err instanceof RemoteAuthorityResolverError) && err._code === RemoteAuthorityResolverErrorCode.NotAvailable;
+	}
+
 	public static isTemporarilyNotAvailable(err: any): boolean {
 		return (err instanceof RemoteAuthorityResolverError) && err._code === RemoteAuthorityResolverErrorCode.TemporarilyNotAvailable;
 	}
@@ -93,9 +97,7 @@ export class RemoteAuthorityResolverError extends ErrorNoTelemetry {
 
 		// workaround when extending builtin objects and when compiling to ES5, see:
 		// https://github.com/microsoft/TypeScript-wiki/blob/master/Breaking-Changes.md#extending-built-ins-like-error-array-and-map-may-no-longer-work
-		if (typeof (<any>Object).setPrototypeOf === 'function') {
-			(<any>Object).setPrototypeOf(this, RemoteAuthorityResolverError.prototype);
-		}
+		Object.setPrototypeOf(this, RemoteAuthorityResolverError.prototype);
 	}
 }
 
@@ -121,4 +123,12 @@ export interface IRemoteAuthorityResolverService {
 	_setResolvedAuthorityError(authority: string, err: any): void;
 	_setAuthorityConnectionToken(authority: string, connectionToken: string): void;
 	_setCanonicalURIProvider(provider: (uri: URI) => Promise<URI>): void;
+}
+
+export function getRemoteAuthorityPrefix(remoteAuthority: string): string {
+	const plusIndex = remoteAuthority.indexOf('+');
+	if (plusIndex === -1) {
+		return remoteAuthority;
+	}
+	return remoteAuthority.substring(0, plusIndex);
 }

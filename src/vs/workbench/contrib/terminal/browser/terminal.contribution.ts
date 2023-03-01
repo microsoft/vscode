@@ -19,11 +19,11 @@ import { Extensions as ViewContainerExtensions, IViewContainersRegistry, ViewCon
 import { Extensions as DragAndDropExtensions, IDragAndDropContributionRegistry, IDraggedResourceEditorInput } from 'vs/platform/dnd/browser/dnd';
 import { registerTerminalActions, terminalSendSequenceCommand } from 'vs/workbench/contrib/terminal/browser/terminalActions';
 import { TerminalViewPane } from 'vs/workbench/contrib/terminal/browser/terminalView';
-import { TERMINAL_VIEW_ID, TerminalCommandId, ITerminalProfileService } from 'vs/workbench/contrib/terminal/common/terminal';
+import { TERMINAL_VIEW_ID, TerminalCommandId, ITerminalProfileService, ITerminalQuickFixService } from 'vs/workbench/contrib/terminal/common/terminal';
 import { registerColors } from 'vs/workbench/contrib/terminal/common/terminalColorRegistry';
 import { setupTerminalCommands } from 'vs/workbench/contrib/terminal/browser/terminalCommands';
 import { TerminalService } from 'vs/workbench/contrib/terminal/browser/terminalService';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { ITerminalEditorService, ITerminalGroupService, ITerminalInstanceService, ITerminalService, TerminalDataTransfers, terminalEditorId } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { ViewPaneContainer } from 'vs/workbench/browser/parts/views/viewPaneContainer';
@@ -32,7 +32,7 @@ import { TerminalQuickAccessProvider } from 'vs/workbench/contrib/terminal/brows
 import { registerTerminalConfiguration } from 'vs/workbench/contrib/terminal/common/terminalConfiguration';
 import { CONTEXT_ACCESSIBILITY_MODE_ENABLED } from 'vs/platform/accessibility/common/accessibility';
 import { terminalViewIcon } from 'vs/workbench/contrib/terminal/browser/terminalIcons';
-import { WindowsShellType } from 'vs/platform/terminal/common/terminal';
+import { TerminalSettingId, WindowsShellType } from 'vs/platform/terminal/common/terminal';
 import { isIOS, isWindows } from 'vs/base/common/platform';
 import { setupTerminalMenus } from 'vs/workbench/contrib/terminal/browser/terminalMenus';
 import { TerminalInstanceService } from 'vs/workbench/contrib/terminal/browser/terminalInstanceService';
@@ -52,13 +52,18 @@ import { RemoteTerminalBackendContribution } from 'vs/workbench/contrib/terminal
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { TerminalMainContribution } from 'vs/workbench/contrib/terminal/browser/terminalMainContribution';
 import { Schemas } from 'vs/base/common/network';
+import { TerminalQuickFixService } from 'vs/workbench/contrib/terminal/browser/terminalQuickFixService';
+import { TerminalLinkResolverService } from 'vs/workbench/contrib/terminal/browser/links/terminalLinkResolverService';
+import { ITerminalLinkResolverService } from 'vs/workbench/contrib/terminal/browser/links/links';
 
 // Register services
-registerSingleton(ITerminalService, TerminalService, true);
-registerSingleton(ITerminalEditorService, TerminalEditorService, true);
-registerSingleton(ITerminalGroupService, TerminalGroupService, true);
-registerSingleton(ITerminalInstanceService, TerminalInstanceService, true);
-registerSingleton(ITerminalProfileService, TerminalProfileService, true);
+registerSingleton(ITerminalService, TerminalService, InstantiationType.Delayed);
+registerSingleton(ITerminalEditorService, TerminalEditorService, InstantiationType.Delayed);
+registerSingleton(ITerminalGroupService, TerminalGroupService, InstantiationType.Delayed);
+registerSingleton(ITerminalInstanceService, TerminalInstanceService, InstantiationType.Delayed);
+registerSingleton(ITerminalProfileService, TerminalProfileService, InstantiationType.Delayed);
+registerSingleton(ITerminalQuickFixService, TerminalQuickFixService, InstantiationType.Delayed);
+registerSingleton(ITerminalLinkResolverService, TerminalLinkResolverService, InstantiationType.Delayed);
 
 // Register quick accesses
 const quickAccessRegistry = (Registry.as<IQuickAccessRegistry>(QuickAccessExtensions.Quickaccess));
@@ -77,8 +82,8 @@ CommandsRegistry.registerCommand({ id: quickAccessNavigatePreviousInTerminalPick
 
 // Register workbench contributions
 const workbenchRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
-workbenchRegistry.registerWorkbenchContribution(TerminalMainContribution, 'TerminalMainContribution', LifecyclePhase.Restored);
-workbenchRegistry.registerWorkbenchContribution(RemoteTerminalBackendContribution, 'RemoteTerminalBackendContribution', LifecyclePhase.Restored);
+workbenchRegistry.registerWorkbenchContribution(TerminalMainContribution, LifecyclePhase.Restored);
+workbenchRegistry.registerWorkbenchContribution(RemoteTerminalBackendContribution, LifecyclePhase.Restored);
 
 // Register configurations
 registerTerminalPlatformConfiguration();
@@ -163,15 +168,17 @@ function registerSendSequenceKeybinding(text: string, rule: { when?: ContextKeyE
 	});
 }
 
-// The text representation of `^<letter>` is `'A'.charCodeAt(0) + 1`.
-const CTRL_LETTER_OFFSET = 64;
+const enum Constants {
+	/** The text representation of `^<letter>` is `'A'.charCodeAt(0) + 1`. */
+	CtrlLetterOffset = 64
+}
 
 // An extra Windows-only ctrl+v keybinding is used for pwsh that sends ctrl+v directly to the
 // shell, this gets handled by PSReadLine which properly handles multi-line pastes. This is
 // disabled in accessibility mode as PowerShell does not run PSReadLine when it detects a screen
 // reader. This works even when clipboard.readText is not supported.
 if (isWindows) {
-	registerSendSequenceKeybinding(String.fromCharCode('V'.charCodeAt(0) - CTRL_LETTER_OFFSET), { // ctrl+v
+	registerSendSequenceKeybinding(String.fromCharCode('V'.charCodeAt(0) - Constants.CtrlLetterOffset), { // ctrl+v
 		when: ContextKeyExpr.and(TerminalContextKeys.focus, ContextKeyExpr.equals(TerminalContextKeyStrings.ShellType, WindowsShellType.PowerShell), CONTEXT_ACCESSIBILITY_MODE_ENABLED.negate()),
 		primary: KeyMod.CtrlCmd | KeyCode.KeyV
 	});
@@ -197,6 +204,11 @@ registerSendSequenceKeybinding('\x1b[24~d', { // F12,d -> shift+end (SelectLine)
 	when: ContextKeyExpr.and(TerminalContextKeys.focus, ContextKeyExpr.equals(TerminalContextKeyStrings.ShellType, WindowsShellType.PowerShell), TerminalContextKeys.terminalShellIntegrationEnabled, CONTEXT_ACCESSIBILITY_MODE_ENABLED.negate()),
 	mac: { primary: KeyMod.Shift | KeyMod.CtrlCmd | KeyCode.RightArrow }
 });
+registerSendSequenceKeybinding('\x1b[24~e', { // F12,e -> ctrl+space (Native suggest)
+	when: ContextKeyExpr.and(TerminalContextKeys.focus, ContextKeyExpr.equals(TerminalContextKeyStrings.ShellType, WindowsShellType.PowerShell), TerminalContextKeys.terminalShellIntegrationEnabled, CONTEXT_ACCESSIBILITY_MODE_ENABLED.negate(), ContextKeyExpr.equals(`config.${TerminalSettingId.ShellIntegrationSuggestEnabled}`, true)),
+	primary: KeyMod.CtrlCmd | KeyCode.Space,
+	mac: { primary: KeyMod.WinCtrl | KeyCode.Space }
+});
 
 // Always on pwsh keybindings
 registerSendSequenceKeybinding('\x1b[1;2H', { // Shift+home
@@ -204,23 +216,37 @@ registerSendSequenceKeybinding('\x1b[1;2H', { // Shift+home
 	mac: { primary: KeyMod.Shift | KeyMod.CtrlCmd | KeyCode.LeftArrow }
 });
 
+// Map ctrl+alt+r -> ctrl+r when in accessibility mode due to default run recent command keybinding
+registerSendSequenceKeybinding('\x12', {
+	when: ContextKeyExpr.and(TerminalContextKeys.focus, CONTEXT_ACCESSIBILITY_MODE_ENABLED),
+	primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KeyR,
+	mac: { primary: KeyMod.WinCtrl | KeyMod.Alt | KeyCode.KeyR }
+});
+
+// Map ctrl+alt+g -> ctrl+g due to default go to recent directory keybinding
+registerSendSequenceKeybinding('\x07', {
+	when: TerminalContextKeys.focus,
+	primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KeyG,
+	mac: { primary: KeyMod.WinCtrl | KeyMod.Alt | KeyCode.KeyG }
+});
+
 // send ctrl+c to the iPad when the terminal is focused and ctrl+c is pressed to kill the process (work around for #114009)
 if (isIOS) {
-	registerSendSequenceKeybinding(String.fromCharCode('C'.charCodeAt(0) - CTRL_LETTER_OFFSET), { // ctrl+c
+	registerSendSequenceKeybinding(String.fromCharCode('C'.charCodeAt(0) - Constants.CtrlLetterOffset), { // ctrl+c
 		when: ContextKeyExpr.and(TerminalContextKeys.focus),
 		primary: KeyMod.WinCtrl | KeyCode.KeyC
 	});
 }
 
 // Delete word left: ctrl+w
-registerSendSequenceKeybinding(String.fromCharCode('W'.charCodeAt(0) - CTRL_LETTER_OFFSET), {
+registerSendSequenceKeybinding(String.fromCharCode('W'.charCodeAt(0) - Constants.CtrlLetterOffset), {
 	primary: KeyMod.CtrlCmd | KeyCode.Backspace,
 	mac: { primary: KeyMod.Alt | KeyCode.Backspace }
 });
 if (isWindows) {
 	// Delete word left: ctrl+h
 	// Windows cmd.exe requires ^H to delete full word left
-	registerSendSequenceKeybinding(String.fromCharCode('H'.charCodeAt(0) - CTRL_LETTER_OFFSET), {
+	registerSendSequenceKeybinding(String.fromCharCode('H'.charCodeAt(0) - Constants.CtrlLetterOffset), {
 		when: ContextKeyExpr.and(TerminalContextKeys.focus, ContextKeyExpr.equals(TerminalContextKeyStrings.ShellType, WindowsShellType.CommandPrompt)),
 		primary: KeyMod.CtrlCmd | KeyCode.Backspace,
 	});
@@ -241,10 +267,6 @@ registerSendSequenceKeybinding(String.fromCharCode('A'.charCodeAt(0) - 64), {
 // Move to line end: ctrl+E
 registerSendSequenceKeybinding(String.fromCharCode('E'.charCodeAt(0) - 64), {
 	mac: { primary: KeyMod.CtrlCmd | KeyCode.RightArrow }
-});
-// Break: ctrl+C
-registerSendSequenceKeybinding(String.fromCharCode('C'.charCodeAt(0) - 64), {
-	mac: { primary: KeyMod.CtrlCmd | KeyCode.Period }
 });
 // NUL: ctrl+shift+2
 registerSendSequenceKeybinding('\u0000', {

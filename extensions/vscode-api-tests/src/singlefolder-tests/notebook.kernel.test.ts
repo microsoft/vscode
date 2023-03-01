@@ -85,15 +85,11 @@ async function assertKernel(kernel: Kernel, notebook: vscode.NotebookDocument): 
 	assert.ok(kernel.associatedNotebooks.has(notebook.uri.toString()));
 }
 
-const apiTestContentProvider: vscode.NotebookContentProvider = {
-	openNotebook: async (resource: vscode.Uri): Promise<vscode.NotebookData> => {
-		if (/.*empty\-.*\.vsctestnb$/.test(resource.path)) {
-			return {
-				metadata: {},
-				cells: []
-			};
-		}
-
+const apiTestSerializer: vscode.NotebookSerializer = {
+	serializeNotebook(_data, _token) {
+		return new Uint8Array();
+	},
+	deserializeNotebook(_content, _token) {
 		const dto: vscode.NotebookData = {
 			metadata: { custom: { testMetadata: false } },
 			cells: [
@@ -124,18 +120,6 @@ const apiTestContentProvider: vscode.NotebookContentProvider = {
 			]
 		};
 		return dto;
-	},
-	saveNotebook: async (_document: vscode.NotebookDocument, _cancellation: vscode.CancellationToken) => {
-		return;
-	},
-	saveNotebookAs: async (_targetResource: vscode.Uri, _document: vscode.NotebookDocument, _cancellation: vscode.CancellationToken) => {
-		return;
-	},
-	backupNotebook: async (_document: vscode.NotebookDocument, _context: vscode.NotebookDocumentBackupContext, _cancellation: vscode.CancellationToken) => {
-		return {
-			id: '1',
-			delete: () => { }
-		};
 	}
 };
 
@@ -155,8 +139,8 @@ const apiTestContentProvider: vscode.NotebookContentProvider = {
 		suiteDisposables.length = 0;
 	});
 
-	suiteSetup(function () {
-		suiteDisposables.push(vscode.workspace.registerNotebookContentProvider('notebookCoreTest', apiTestContentProvider));
+	suiteSetup(() => {
+		suiteDisposables.push(vscode.workspace.registerNotebookSerializer('notebookCoreTest', apiTestSerializer));
 	});
 
 	let defaultKernel: Kernel;
@@ -194,7 +178,8 @@ const apiTestContentProvider: vscode.NotebookContentProvider = {
 		});
 
 		const secondResource = await createRandomNotebookFile();
-		await vscode.commands.executeCommand('vscode.openWith', secondResource, 'notebookCoreTest');
+		const secondDocument = await vscode.workspace.openNotebookDocument(secondResource);
+		await vscode.window.showNotebookDocument(secondDocument);
 
 		await withEvent<vscode.NotebookDocumentChangeEvent>(vscode.workspace.onDidChangeNotebookDocument, async event => {
 			await vscode.commands.executeCommand('notebook.cell.execute', { start: 0, end: 1 }, notebook.uri);

@@ -7,8 +7,12 @@ steps:
     displayName: "Azure Key Vault: Get Secrets"
     inputs:
       azureSubscription: "vscode-builds-subscription"
-      KeyVaultName: vscode
+      KeyVaultName: vscode-build-secrets
       SecretsFilter: "github-distro-mixin-password"
+
+  # allow-any-unicode-next-line
+  - pwsh: Write-Host "##vso[build.addbuildtag]🚀"
+    displayName: Add build tag
 
   - script: |
       set -e
@@ -108,6 +112,7 @@ steps:
       $stages = @(
         if ($env:VSCODE_BUILD_STAGE_WINDOWS -eq 'True') { 'Windows' }
         if ($env:VSCODE_BUILD_STAGE_LINUX -eq 'True') { 'Linux' }
+        if ($env:VSCODE_BUILD_STAGE_ALPINE -eq 'True') { 'Alpine' }
         if ($env:VSCODE_BUILD_STAGE_MACOS -eq 'True') { 'macOS' }
         if ($env:VSCODE_BUILD_STAGE_WEB -eq 'True') { 'Web' }
       )

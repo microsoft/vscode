@@ -3,14 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vscode-nls';
-import { Command, Disposable, Event, EventEmitter, SourceControlActionButton, Uri, workspace } from 'vscode';
-import { Branch, CommitCommand, Status } from './api/git';
+import { Command, Disposable, Event, EventEmitter, SourceControlActionButton, Uri, workspace, l10n } from 'vscode';
+import { Branch, Status } from './api/git';
+import { OperationKind } from './operation';
 import { CommitCommandsCenter } from './postCommitCommands';
-import { Repository, Operation } from './repository';
+import { Repository } from './repository';
 import { dispose } from './util';
-
-const localize = nls.loadMessageBundle();
 
 interface ActionButtonState {
 	readonly HEAD: Branch | undefined;
@@ -97,18 +95,17 @@ export class ActionButtonCommand {
 		return {
 			command: primaryCommand,
 			secondaryCommands: this.getCommitActionButtonSecondaryCommands(),
-			description: primaryCommand.description ?? primaryCommand.title,
 			enabled: (this.state.repositoryHasChangesToCommit || this.state.isRebaseInProgress) && !this.state.isCommitInProgress && !this.state.isMergeInProgress
 		};
 	}
 
-	private getCommitActionButtonPrimaryCommand(): CommitCommand {
+	private getCommitActionButtonPrimaryCommand(): Command {
 		// Rebase Continue
 		if (this.state.isRebaseInProgress) {
 			return {
 				command: 'git.commit',
-				title: localize('scm button continue title', "{0} Continue", '$(check)'),
-				tooltip: this.state.isCommitInProgress ? localize('scm button continuing tooltip', "Continuing Rebase...") : localize('scm button continue tooltip', "Continue Rebase"),
+				title: l10n.t('{0} Continue', '$(check)'),
+				tooltip: this.state.isCommitInProgress ? l10n.t('Continuing Rebase...') : l10n.t('Continue Rebase'),
 				arguments: [this.repository.sourceControl, '']
 			};
 		}
@@ -127,8 +124,7 @@ export class ActionButtonCommand {
 		const commandGroups: Command[][] = [];
 		for (const commands of this.postCommitCommandCenter.getSecondaryCommands()) {
 			commandGroups.push(commands.map(c => {
-				// Use the description as title if present
-				return { command: 'git.commit', title: c.description ?? c.title, tooltip: c.tooltip, arguments: c.arguments };
+				return { command: 'git.commit', title: c.title, tooltip: c.tooltip, arguments: c.arguments };
 			}));
 		}
 
@@ -139,16 +135,23 @@ export class ActionButtonCommand {
 		const config = workspace.getConfiguration('git', Uri.file(this.repository.root));
 		const showActionButton = config.get<{ publish: boolean }>('showActionButton', { publish: true });
 
-		// Branch does have an upstream, commit/merge/rebase is in progress, or the button is disabled
-		if (this.state.HEAD?.upstream || this.state.isCommitInProgress || this.state.isMergeInProgress || this.state.isRebaseInProgress || !showActionButton.publish) { return undefined; }
+		// Not a branch (tag, detached), branch does have an upstream, commit/merge/rebase is in progress, or the button is disabled
+		if (!this.state.HEAD?.name || this.state.HEAD?.upstream || this.state.isCommitInProgress || this.state.isMergeInProgress || this.state.isRebaseInProgress || !showActionButton.publish) { return undefined; }
+
+		// Button icon
+		const icon = this.state.isSyncInProgress ? '$(sync~spin)' : '$(cloud-upload)';
 
 		return {
 			command: {
 				command: 'git.publish',
-				title: localize({ key: 'scm publish branch action button title', comment: ['{Locked="Branch"}', 'Do not translate "Branch" as it is a git term'] }, "{0} Publish Branch", '$(cloud-upload)'),
+				title: l10n.t({ message: '{0} Publish Branch', args: [icon], comment: ['{Locked="Branch"}', 'Do not translate "Branch" as it is a git term'] }),
 				tooltip: this.state.isSyncInProgress ?
-					localize({ key: 'scm button publish branch running', comment: ['{Locked="Branch"}', 'Do not translate "Branch" as it is a git term'] }, "Publishing Branch...") :
-					localize({ key: 'scm button publish branch', comment: ['{Locked="Branch"}', 'Do not translate "Branch" as it is a git term'] }, "Publish Branch"),
+					(this.state.HEAD?.name ?
+						l10n.t({ message: 'Publishing Branch "{0}"...', args: [this.state.HEAD.name], comment: ['{Locked="Branch"}', 'Do not translate "Branch" as it is a git term'] }) :
+						l10n.t({ message: 'Publishing Branch...', comment: ['{Locked="Branch"}', 'Do not translate "Branch" as it is a git term'] })) :
+					(this.repository.HEAD?.name ?
+						l10n.t({ message: 'Publish Branch "{0}"', args: [this.state.HEAD?.name], comment: ['{Locked="Branch"}', 'Do not translate "Branch" as it is a git term'] }) :
+						l10n.t({ message: 'Publish Branch', comment: ['{Locked="Branch"}', 'Do not translate "Branch" as it is a git term'] })),
 				arguments: [this.repository.sourceControl],
 			},
 			enabled: !this.state.isSyncInProgress
@@ -170,26 +173,27 @@ export class ActionButtonCommand {
 		return {
 			command: {
 				command: 'git.sync',
-				title: `${icon}${behind}${ahead}`,
+				title: l10n.t('{0} Sync Changes{1}{2}', icon, behind, ahead),
 				tooltip: this.state.isSyncInProgress ?
-					localize('syncing changes', "Synchronizing Changes...")
+					l10n.t('Synchronizing Changes...')
 					: this.repository.syncTooltip,
 				arguments: [this.repository.sourceControl],
 			},
-			description: localize('scm button sync description', "{0} Sync Changes{1}{2}", icon, behind, ahead),
+			description: `${icon}${behind}${ahead}`,
 			enabled: !this.state.isSyncInProgress
 		};
 	}
 
 	private onDidChangeOperations(): void {
 		const isCommitInProgress =
-			this.repository.operations.isRunning(Operation.Commit) ||
-			this.repository.operations.isRunning(Operation.RebaseContinue);
+			this.repository.operations.isRunning(OperationKind.Commit) ||
+			this.repository.operations.isRunning(OperationKind.PostCommitCommand) ||
+			this.repository.operations.isRunning(OperationKind.RebaseContinue);
 
 		const isSyncInProgress =
-			this.repository.operations.isRunning(Operation.Sync) ||
-			this.repository.operations.isRunning(Operation.Push) ||
-			this.repository.operations.isRunning(Operation.Pull);
+			this.repository.operations.isRunning(OperationKind.Sync) ||
+			this.repository.operations.isRunning(OperationKind.Push) ||
+			this.repository.operations.isRunning(OperationKind.Pull);
 
 		this.state = { ...this.state, isCommitInProgress, isSyncInProgress };
 	}

@@ -9,7 +9,7 @@ import { IChannel } from 'vs/base/parts/ipc/common/ipc';
 import { IExtensionHostDebugService, IOpenExtensionWindowResult } from 'vs/platform/debug/common/extensionHostDebug';
 import { ExtensionHostDebugBroadcastChannel, ExtensionHostDebugChannelClient } from 'vs/platform/debug/common/extensionHostDebugIpc';
 import { IFileService } from 'vs/platform/files/common/files';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { isFolderToOpen, isWorkspaceToOpen } from 'vs/platform/window/common/window';
@@ -172,4 +172,4 @@ class BrowserExtensionHostDebugService extends ExtensionHostDebugChannelClient i
 	}
 }
 
-registerSingleton(IExtensionHostDebugService, BrowserExtensionHostDebugService, true);
+registerSingleton(IExtensionHostDebugService, BrowserExtensionHostDebugService, InstantiationType.Delayed);

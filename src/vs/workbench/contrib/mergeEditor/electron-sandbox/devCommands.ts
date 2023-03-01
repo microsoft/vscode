@@ -9,6 +9,7 @@ import { randomPath } from 'vs/base/common/extpath';
 import { URI } from 'vs/base/common/uri';
 import { ILanguageService } from 'vs/editor/common/languages/language';
 import { localize } from 'vs/nls';
+import { ILocalizedString } from 'vs/platform/action/common/action';
 import { Action2, IAction2Options } from 'vs/platform/actions/common/actions';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { INativeEnvironmentService } from 'vs/platform/environment/common/environment';
@@ -21,11 +22,13 @@ import { MergeEditorViewModel } from 'vs/workbench/contrib/mergeEditor/browser/v
 import { MergeEditorContents } from 'vs/workbench/contrib/mergeEditor/common/mergeEditor';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 
+const MERGE_EDITOR_CATEGORY: ILocalizedString = { value: localize('mergeEditor', "Merge Editor (Dev)"), original: 'Merge Editor (Dev)' };
+
 export class MergeEditorOpenContentsFromJSON extends Action2 {
 	constructor() {
 		super({
 			id: 'merge.dev.openContentsJson',
-			category: 'Merge Editor (Dev)',
+			category: MERGE_EDITOR_CATEGORY,
 			title: {
 				value: localize(
 					'merge.dev.openState',
@@ -132,13 +135,13 @@ export class OpenSelectionInTemporaryMergeEditor extends MergeEditorAction {
 	constructor() {
 		super({
 			id: 'merge.dev.openSelectionInTemporaryMergeEditor',
-			category: 'Merge Editor (Dev)',
+			category: MERGE_EDITOR_CATEGORY,
 			title: {
 				value: localize(
 					'merge.dev.openSelectionInTemporaryMergeEditor',
 					'Open Selection In Temporary Merge Editor'
 				),
-				original: 'Open Selection In Temporary',
+				original: 'Open Selection In Temporary Merge Editor',
 			},
 			icon: Codicon.layoutCentered,
 			f1: true,

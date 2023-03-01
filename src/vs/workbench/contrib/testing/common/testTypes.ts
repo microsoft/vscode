@@ -8,6 +8,7 @@ import { MarshalledId } from 'vs/base/common/marshallingIds';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { IPosition } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
+import { TestId } from 'vs/workbench/contrib/testing/common/testId';
 
 export const enum TestResultState {
 	Unset = 0,
@@ -25,6 +26,7 @@ export const enum TestRunProfileBitset {
 	Coverage = 1 << 3,
 	HasNonDefaultProfile = 1 << 4,
 	HasConfigurable = 1 << 5,
+	SupportsContinuousRun = 1 << 6,
 }
 
 /**
@@ -35,6 +37,8 @@ export const testRunProfileBitsetList = [
 	TestRunProfileBitset.Debug,
 	TestRunProfileBitset.Coverage,
 	TestRunProfileBitset.HasNonDefaultProfile,
+	TestRunProfileBitset.HasConfigurable,
+	TestRunProfileBitset.SupportsContinuousRun,
 ];
 
 /**
@@ -48,6 +52,7 @@ export interface ITestRunProfile {
 	isDefault: boolean;
 	tag: string | null;
 	hasConfigurationHandler: boolean;
+	supportsContinuousRun: boolean;
 }
 
 /**
@@ -62,7 +67,8 @@ export interface ResolvedTestRunRequest {
 		profileId: number;
 	}[];
 	exclude?: string[];
-	isAutoRun?: boolean;
+	/** Whether this is a continuous test run */
+	continuous?: boolean;
 	/** Whether this was trigged by a user action in UI. Default=true */
 	isUiTriggered?: boolean;
 }
@@ -77,20 +83,34 @@ export interface ExtensionRunTestsRequest {
 	controllerId: string;
 	profile?: { group: TestRunProfileBitset; id: number };
 	persist: boolean;
+	/** Whether this is a result of a continuous test run request */
+	continuous: boolean;
 }
 
 /**
- * Request from the main thread to run tests for a single controller.
+ * Request parameters a controller run handler. This is different than
+ * {@link IStartControllerTests}. The latter is used to ask for one or more test
+ * runs tracked directly by the renderer.
+ *
+ * This alone can be used to start an autorun, without a specific associated runId.
  */
-export interface RunTestForControllerRequest {
-	runId: string;
+export interface ICallProfileRunHandler {
 	controllerId: string;
 	profileId: number;
 	excludeExtIds: string[];
 	testIds: string[];
 }
 
-export interface RunTestForControllerResult {
+export const isStartControllerTests = (t: ICallProfileRunHandler | IStartControllerTests): t is IStartControllerTests => ('runId' as keyof IStartControllerTests) in t;
+
+/**
+ * Request from the main thread to run tests for a single controller.
+ */
+export interface IStartControllerTests extends ICallProfileRunHandler {
+	runId: string;
+}
+
+export interface IStartControllerTestsResult {
 	error?: string;
 }
 
@@ -163,8 +183,15 @@ export interface ITestOutputMessage {
 	type: TestMessageType.Output;
 	offset: number;
 	length: number;
+	marker?: number;
 	location: IRichLocation | undefined;
 }
+
+/**
+ * Gets the TTY marker ID for either starting or ending
+ * an ITestOutputMessage.marker of the given ID.
+ */
+export const getMarkId = (marker: number, start: boolean) => `${start ? 's' : 'e'}${marker}`;
 
 export namespace ITestOutputMessage {
 	export interface Serialized {
@@ -326,38 +353,34 @@ export const enum TestItemExpandState {
 }
 
 /**
- * TestItem-like shape, butm with an ID and children as strings.
+ * TestItem-like shape, but with an ID and children as strings.
  */
 export interface InternalTestItem {
 	/** Controller ID from whence this test came */
 	controllerId: string;
 	/** Expandability state */
 	expand: TestItemExpandState;
-	/** Parent ID, if any */
-	parent: string | null;
 	/** Raw test item properties */
 	item: ITestItem;
 }
 
 export namespace InternalTestItem {
 	export interface Serialized {
-		controllerId: string;
 		expand: TestItemExpandState;
-		parent: string | null;
 		item: ITestItem.Serialized;
 	}
 
 	export const serialize = (item: InternalTestItem): Serialized => ({
-		controllerId: item.controllerId,
 		expand: item.expand,
-		parent: item.parent,
 		item: ITestItem.serialize(item.item)
 	});
 
 	export const deserialize = (serialized: Serialized): InternalTestItem => ({
-		controllerId: serialized.controllerId,
+		// the `controllerId` is derived from the test.item.extId. It's redundant
+		// in the non-serialized InternalTestItem too, but there just because it's
+		// checked against in many hot paths.
+		controllerId: TestId.root(serialized.item.extId),
 		expand: serialized.expand,
-		parent: serialized.parent,
 		item: ITestItem.deserialize(serialized.item)
 	});
 }
@@ -369,12 +392,6 @@ export interface ITestItemUpdate {
 	extId: string;
 	expand?: TestItemExpandState;
 	item?: Partial<ITestItem>;
-
-	/**
-	 * The document version at the time the operation was made, if the test has
-	 * a URI and the document was open in the extension host.
-	 */
-	docv?: number;
 }
 
 export namespace ITestItemUpdate {
@@ -382,7 +399,6 @@ export namespace ITestItemUpdate {
 		extId: string;
 		expand?: TestItemExpandState;
 		item?: Partial<ITestItem.Serialized>;
-		docv?: number;
 	}
 
 	export const serialize = (u: ITestItemUpdate): Serialized => {
@@ -399,7 +415,7 @@ export namespace ITestItemUpdate {
 			if (u.item.sortText !== undefined) { item.sortText = u.item.sortText; }
 		}
 
-		return { extId: u.extId, expand: u.expand, item, docv: u.docv };
+		return { extId: u.extId, expand: u.expand, item };
 	};
 
 	export const deserialize = (u: Serialized): ITestItemUpdate => {
@@ -415,7 +431,7 @@ export namespace ITestItemUpdate {
 			if (u.item.sortText !== undefined) { item.sortText = u.item.sortText; }
 		}
 
-		return { extId: u.extId, expand: u.expand, item, docv: u.docv };
+		return { extId: u.extId, expand: u.expand, item };
 	};
 
 }
@@ -468,6 +484,14 @@ export namespace TestResultItem {
 		computedState: original.computedState,
 		tasks: original.tasks.map(ITestTaskState.serialize),
 		retired: original.retired,
+	});
+
+	export const deserialize = (serialized: Serialized): TestResultItem => ({
+		...InternalTestItem.deserialize(serialized),
+		ownComputedState: serialized.ownComputedState,
+		computedState: serialized.computedState,
+		tasks: serialized.tasks.map(ITestTaskState.deserialize),
+		retired: true,
 	});
 }
 
@@ -533,6 +557,8 @@ export const enum TestDiffOpType {
 	Add,
 	/** Shallow-updates an existing test */
 	Update,
+	/** Ranges of some tests in a document were synced, so it should be considered up-to-date */
+	DocumentSynced,
 	/** Removes a test (and all its children) */
 	Remove,
 	/** Changes the number of controllers who are yet to publish their collection roots. */
@@ -552,7 +578,8 @@ export type TestsDiffOp =
 	| { op: TestDiffOpType.Retire; itemId: string }
 	| { op: TestDiffOpType.IncrementPendingExtHosts; amount: number }
 	| { op: TestDiffOpType.AddTag; tag: ITestTagDisplayInfo }
-	| { op: TestDiffOpType.RemoveTag; id: string };
+	| { op: TestDiffOpType.RemoveTag; id: string }
+	| { op: TestDiffOpType.DocumentSynced; uri: URI; docv?: number };
 
 export namespace TestsDiffOp {
 	export type Serialized =
@@ -562,13 +589,16 @@ export namespace TestsDiffOp {
 		| { op: TestDiffOpType.Retire; itemId: string }
 		| { op: TestDiffOpType.IncrementPendingExtHosts; amount: number }
 		| { op: TestDiffOpType.AddTag; tag: ITestTagDisplayInfo }
-		| { op: TestDiffOpType.RemoveTag; id: string };
+		| { op: TestDiffOpType.RemoveTag; id: string }
+		| { op: TestDiffOpType.DocumentSynced; uri: UriComponents; docv?: number };
 
 	export const deserialize = (u: Serialized): TestsDiffOp => {
 		if (u.op === TestDiffOpType.Add) {
 			return { op: u.op, item: InternalTestItem.deserialize(u.item) };
 		} else if (u.op === TestDiffOpType.Update) {
 			return { op: u.op, item: ITestItemUpdate.deserialize(u.item) };
+		} else if (u.op === TestDiffOpType.DocumentSynced) {
+			return { op: u.op, uri: URI.revive(u.uri), docv: u.docv };
 		} else {
 			return u;
 		}
@@ -615,26 +645,26 @@ export interface IncrementalTestCollectionItem extends InternalTestItem {
  * and called with diff changes as they're applied. This is used in the
  * ext host to create a cohesive change event from a diff.
  */
-export class IncrementalChangeCollector<T> {
+export interface IncrementalChangeCollector<T> {
 	/**
 	 * A node was added.
 	 */
-	public add(node: T): void { }
+	add?(node: T): void;
 
 	/**
 	 * A node in the collection was updated.
 	 */
-	public update(node: T): void { }
+	update?(node: T): void;
 
 	/**
 	 * A node was removed.
 	 */
-	public remove(node: T, isNestedOperation: boolean): void { }
+	remove?(node: T, isNestedOperation: boolean): void;
 
 	/**
 	 * Called when the diff has been applied.
 	 */
-	public complete(): void { }
+	complete?(): void;
 }
 
 /**
@@ -676,78 +706,17 @@ export abstract class AbstractIncrementalTestCollection<T extends IncrementalTes
 
 		for (const op of diff) {
 			switch (op.op) {
-				case TestDiffOpType.Add: {
-					const internalTest = InternalTestItem.deserialize(op.item);
-					if (!internalTest.parent) {
-						const created = this.createItem(internalTest);
-						this.roots.add(created);
-						this.items.set(internalTest.item.extId, created);
-						changes.add(created);
-					} else if (this.items.has(internalTest.parent)) {
-						const parent = this.items.get(internalTest.parent)!;
-						parent.children.add(internalTest.item.extId);
-						const created = this.createItem(internalTest, parent);
-						this.items.set(internalTest.item.extId, created);
-						changes.add(created);
-					}
-
-					if (internalTest.expand === TestItemExpandState.BusyExpanding) {
-						this.busyControllerCount++;
-					}
+				case TestDiffOpType.Add:
+					this.add(InternalTestItem.deserialize(op.item), changes);
 					break;
-				}
 
-				case TestDiffOpType.Update: {
-					const patch = ITestItemUpdate.deserialize(op.item);
-					const existing = this.items.get(patch.extId);
-					if (!existing) {
-						break;
-					}
-
-					if (patch.expand !== undefined) {
-						if (existing.expand === TestItemExpandState.BusyExpanding) {
-							this.busyControllerCount--;
-						}
-						if (patch.expand === TestItemExpandState.BusyExpanding) {
-							this.busyControllerCount++;
-						}
-					}
-
-					applyTestItemUpdate(existing, patch);
-					changes.update(existing);
+				case TestDiffOpType.Update:
+					this.update(ITestItemUpdate.deserialize(op.item), changes);
 					break;
-				}
 
-				case TestDiffOpType.Remove: {
-					const toRemove = this.items.get(op.itemId);
-					if (!toRemove) {
-						break;
-					}
-
-					if (toRemove.parent) {
-						const parent = this.items.get(toRemove.parent)!;
-						parent.children.delete(toRemove.item.extId);
-					} else {
-						this.roots.delete(toRemove);
-					}
-
-					const queue: Iterable<string>[] = [[op.itemId]];
-					while (queue.length) {
-						for (const itemId of queue.pop()!) {
-							const existing = this.items.get(itemId);
-							if (existing) {
-								queue.push(existing.children);
-								this.items.delete(itemId);
-								changes.remove(existing, existing !== toRemove);
-
-								if (existing.expand === TestItemExpandState.BusyExpanding) {
-									this.busyControllerCount--;
-								}
-							}
-						}
-					}
+				case TestDiffOpType.Remove:
+					this.remove(op.itemId, changes);
 					break;
-				}
 
 				case TestDiffOpType.Retire:
 					this.retireTest(op.itemId);
@@ -767,7 +736,85 @@ export abstract class AbstractIncrementalTestCollection<T extends IncrementalTes
 			}
 		}
 
-		changes.complete();
+		changes.complete?.();
+	}
+
+	protected add(item: InternalTestItem, changes: IncrementalChangeCollector<T>
+	) {
+		const parentId = TestId.parentId(item.item.extId)?.toString();
+		let created: T;
+		if (!parentId) {
+			created = this.createItem(item);
+			this.roots.add(created);
+			this.items.set(item.item.extId, created);
+		} else if (this.items.has(parentId)) {
+			const parent = this.items.get(parentId)!;
+			parent.children.add(item.item.extId);
+			created = this.createItem(item, parent);
+			this.items.set(item.item.extId, created);
+		} else {
+			console.error(`Test with unknown parent ID: ${JSON.stringify(item)}`);
+			return;
+		}
+
+		changes.add?.(created);
+		if (item.expand === TestItemExpandState.BusyExpanding) {
+			this.busyControllerCount++;
+		}
+
+		return created;
+	}
+
+	protected update(patch: ITestItemUpdate, changes: IncrementalChangeCollector<T>
+	) {
+		const existing = this.items.get(patch.extId);
+		if (!existing) {
+			return;
+		}
+
+		if (patch.expand !== undefined) {
+			if (existing.expand === TestItemExpandState.BusyExpanding) {
+				this.busyControllerCount--;
+			}
+			if (patch.expand === TestItemExpandState.BusyExpanding) {
+				this.busyControllerCount++;
+			}
+		}
+
+		applyTestItemUpdate(existing, patch);
+		changes.update?.(existing);
+		return existing;
+	}
+
+	protected remove(itemId: string, changes: IncrementalChangeCollector<T>) {
+		const toRemove = this.items.get(itemId);
+		if (!toRemove) {
+			return;
+		}
+
+		const parentId = TestId.parentId(toRemove.item.extId)?.toString();
+		if (parentId) {
+			const parent = this.items.get(parentId)!;
+			parent.children.delete(toRemove.item.extId);
+		} else {
+			this.roots.delete(toRemove);
+		}
+
+		const queue: Iterable<string>[] = [[itemId]];
+		while (queue.length) {
+			for (const itemId of queue.pop()!) {
+				const existing = this.items.get(itemId);
+				if (existing) {
+					queue.push(existing.children);
+					this.items.delete(itemId);
+					changes.remove?.(existing, existing !== toRemove);
+
+					if (existing.expand === TestItemExpandState.BusyExpanding) {
+						this.busyControllerCount--;
+					}
+				}
+			}
+		}
 	}
 
 	/**
@@ -789,8 +836,8 @@ export abstract class AbstractIncrementalTestCollection<T extends IncrementalTes
 	/**
 	 * Called before a diff is applied to create a new change collector.
 	 */
-	protected createChangeCollector() {
-		return new IncrementalChangeCollector<T>();
+	protected createChangeCollector(): IncrementalChangeCollector<T> {
+		return {};
 	}
 
 	/**

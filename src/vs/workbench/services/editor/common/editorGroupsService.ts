@@ -62,12 +62,32 @@ export const enum GroupsArrangement {
 }
 
 export interface GroupLayoutArgument {
+
+	/**
+	 * Only applies when there are multiple groups
+	 * arranged next to each other in a row or column.
+	 * If provided, their sum must be 1 to be applied
+	 * per row or column.
+	 */
 	size?: number;
+
+	/**
+	 * Editor groups  will be laid out orthogonal to the
+	 * parent orientation.
+	 */
 	groups?: GroupLayoutArgument[];
 }
 
 export interface EditorGroupLayout {
+
+	/**
+	 * The initial orientation of the editor groups at the root.
+	 */
 	orientation: GroupOrientation;
+
+	/**
+	 * The editor groups at the root of the layout.
+	 */
 	groups: GroupLayoutArgument[];
 }
 
@@ -300,6 +320,11 @@ export interface IEditorGroupsService {
 	 * Applies the provided layout by either moving existing groups or creating new groups.
 	 */
 	applyLayout(layout: EditorGroupLayout): void;
+
+	/**
+	 * Returns an editor layout describing the current grid
+	 */
+	getLayout(): EditorGroupLayout;
 
 	/**
 	 * Enable or disable centered editor layout.

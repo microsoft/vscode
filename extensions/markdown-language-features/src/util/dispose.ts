@@ -53,22 +53,3 @@ export abstract class Disposable {
 		return this._isDisposed;
 	}
 }
-
-export class DisposableStore extends Disposable {
-	private readonly items = new Set<IDisposable>();
-
-	public override dispose() {
-		super.dispose();
-		disposeAll(this.items);
-		this.items.clear();
-	}
-
-	public add<T extends IDisposable>(item: T): T {
-		if (this.isDisposed) {
-			console.warn('Adding to disposed store. Item will be leaked');
-		}
-
-		this.items.add(item);
-		return item;
-	}
-}

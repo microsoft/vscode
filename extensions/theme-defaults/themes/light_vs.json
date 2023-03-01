@@ -2,6 +2,7 @@
 	"$schema": "vscode://schemas/color-theme",
 	"name": "Light (Visual Studio)",
 	"colors": {
+		"checkbox.border": "#919191",
 		"editor.background": "#FFFFFF",
 		"editor.foreground": "#000000",
 		"editor.inactiveSelectionBackground": "#E5EBF1",
@@ -12,6 +13,7 @@
 		"activityBarBadge.background": "#007ACC",
 		"sideBarTitle.foreground": "#6F6F6F",
 		"list.hoverBackground": "#E8E8E8",
+		"menu.border": "#D4D4D4",
 		"input.placeholderForeground": "#767676",
 		"searchEditor.textInputBorder": "#CECECE",
 		"settings.textInputBorder": "#CECECE",
@@ -28,6 +30,7 @@
 		"list.activeSelectionIconForeground": "#FFF",
 		"list.focusAndSelectionOutline": "#90C2F9",
 		"terminal.inactiveSelectionBackground": "#E5EBF1",
+		"widget.border": "#d4d4d4"
 	},
 	"tokenColors": [
 		{
@@ -103,7 +106,7 @@
 		{
 			"scope": "entity.other.attribute-name",
 			"settings": {
-				"foreground": "#ff0000"
+				"foreground": "#e50000"
 			}
 		},
 		{
@@ -328,7 +331,7 @@
 				"source.coffee.embedded"
 			],
 			"settings": {
-				"foreground": "#ff0000"
+				"foreground": "#e50000"
 			}
 		},
 		{

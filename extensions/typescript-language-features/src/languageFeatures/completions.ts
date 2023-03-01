@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import * as nls from 'vscode-nls';
 import { Command, CommandManager } from '../commands/commandManager';
 import type * as Proto from '../protocol';
 import * as PConst from '../protocol.const';
@@ -23,7 +22,6 @@ import * as typeConverters from '../utils/typeConverters';
 import TypingsStatus from '../utils/typingsStatus';
 import FileConfigurationManager from './fileConfigurationManager';
 
-const localize = nls.loadMessageBundle();
 
 interface DotAccessorContext {
 	readonly range: vscode.Range;
@@ -99,7 +97,7 @@ class MyCompletionItem extends vscode.CompletionItem {
 		this.filterText = this.getFilterText(completionContext.line, tsEntry.insertText);
 
 		if (completionContext.isMemberCompletion && completionContext.dotAccessorContext && !(this.insertText instanceof vscode.SnippetString)) {
-			this.filterText = completionContext.dotAccessorContext.text + (this.insertText || this.label);
+			this.filterText = completionContext.dotAccessorContext.text + (this.insertText || this.textLabel);
 			if (!this.range) {
 				const replacementRange = this.getFuzzyWordRange();
 				if (replacementRange) {
@@ -117,13 +115,9 @@ class MyCompletionItem extends vscode.CompletionItem {
 		if (tsEntry.kindModifiers) {
 			const kindModifiers = parseKindModifier(tsEntry.kindModifiers);
 			if (kindModifiers.has(PConst.KindModifiers.optional)) {
-				if (!this.insertText) {
-					this.insertText = this.textLabel;
-				}
+				this.insertText ??= this.textLabel;
+				this.filterText ??= this.textLabel;
 
-				if (!this.filterText) {
-					this.filterText = this.textLabel;
-				}
 				if (typeof this.label === 'string') {
 					this.label += '?';
 				} else {
@@ -177,7 +171,7 @@ class MyCompletionItem extends vscode.CompletionItem {
 		const requestToken = new vscode.CancellationTokenSource();
 
 		const promise = (async (): Promise<ResolvedCompletionItem | undefined> => {
-			const filepath = client.toOpenedFilePath(this.document);
+			const filepath = client.toOpenTsFilePath(this.document);
 			if (!filepath) {
 				return undefined;
 			}
@@ -521,7 +515,7 @@ class MyCompletionItem extends vscode.CompletionItem {
 	}
 }
 
-function getScriptKindDetails(tsEntry: protocol.CompletionEntry,): string | undefined {
+function getScriptKindDetails(tsEntry: Proto.CompletionEntry,): string | undefined {
 	if (!tsEntry.kindModifiers || tsEntry.kind !== PConst.Kind.script) {
 		return;
 	}
@@ -626,7 +620,7 @@ class ApplyCompletionCodeActionCommand implements Command {
 				description: '',
 				action,
 			})), {
-			placeHolder: localize('selectCodeAction', 'Select code action to apply')
+			placeHolder: vscode.l10n.t("Select code action to apply")
 		});
 
 		if (selection) {
@@ -696,16 +690,18 @@ class TypeScriptCompletionItemProvider implements vscode.CompletionItemProvider<
 
 		if (this.typingsStatus.isAcquiringTypings) {
 			return Promise.reject<vscode.CompletionList<MyCompletionItem>>({
-				label: localize(
-					{ key: 'acquiringTypingsLabel', comment: ['Typings refers to the *.d.ts typings files that power our IntelliSense. It should not be localized'] },
-					'Acquiring typings...'),
-				detail: localize(
-					{ key: 'acquiringTypingsDetail', comment: ['Typings refers to the *.d.ts typings files that power our IntelliSense. It should not be localized'] },
-					'Acquiring typings definitions for IntelliSense.')
+				label: vscode.l10n.t({
+					message: "Acquiring typings...",
+					comment: ['Typings refers to the *.d.ts typings files that power our IntelliSense. It should not be localized'],
+				}),
+				detail: vscode.l10n.t({
+					message: "Acquiring typings definitions for IntelliSense.",
+					comment: ['Typings refers to the *.d.ts typings files that power our IntelliSense. It should not be localized'],
+				})
 			});
 		}
 
-		const file = this.client.toOpenedFilePath(document);
+		const file = this.client.toOpenTsFilePath(document);
 		if (!file) {
 			return undefined;
 		}
@@ -908,35 +904,6 @@ class TypeScriptCompletionItemProvider implements vscode.CompletionItemProvider<
 		position: vscode.Position,
 		configuration: CompletionConfiguration,
 	): boolean {
-		if (context.triggerCharacter && this.client.apiVersion.lt(API.v290)) {
-			if ((context.triggerCharacter === '"' || context.triggerCharacter === '\'')) {
-				// make sure we are in something that looks like the start of an import
-				const pre = line.text.slice(0, position.character);
-				if (!/\b(from|import)\s*["']$/.test(pre) && !/\b(import|require)\(['"]$/.test(pre)) {
-					return false;
-				}
-			}
-
-			if (context.triggerCharacter === '/') {
-				// make sure we are in something that looks like an import path
-				const pre = line.text.slice(0, position.character);
-				if (!/\b(from|import)\s*["'][^'"]*$/.test(pre) && !/\b(import|require)\(['"][^'"]*$/.test(pre)) {
-					return false;
-				}
-			}
-
-			if (context.triggerCharacter === '@') {
-				// make sure we are in something that looks like the start of a jsdoc comment
-				const pre = line.text.slice(0, position.character);
-				if (!/^\s*\*[ ]?@/.test(pre) && !/\/\*\*+[ ]?@/.test(pre)) {
-					return false;
-				}
-			}
-
-			if (context.triggerCharacter === '<') {
-				return false;
-			}
-		}
 		if (context.triggerCharacter === ' ') {
 			if (!configuration.importStatementSuggestions || this.client.apiVersion.lt(API.v430)) {
 				return false;

@@ -66,7 +66,7 @@ export class CommentThreadRangeDecorator extends Disposable {
 	}
 
 	private updateCurrent(thread: CommentThread<IRange> | undefined) {
-		if (!this.editor) {
+		if (!this.editor || (thread?.resource && (thread.resource?.toString() !== this.editor.getModel()?.uri.toString()))) {
 			return;
 		}
 		this.currentThreadCollapseStateListener?.dispose();
@@ -90,9 +90,9 @@ export class CommentThreadRangeDecorator extends Disposable {
 		});
 	}
 
-	public update(editor: ICodeEditor, commentInfos: ICommentInfo[]) {
-		const model = editor.getModel();
-		if (!model) {
+	public update(editor: ICodeEditor | undefined, commentInfos: ICommentInfo[]) {
+		const model = editor?.getModel();
+		if (!editor || !model) {
 			return;
 		}
 		dispose(this.threadCollapseStateListeners);

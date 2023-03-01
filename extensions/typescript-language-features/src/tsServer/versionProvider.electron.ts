@@ -6,13 +6,11 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import * as vscode from 'vscode';
-import * as nls from 'vscode-nls';
 import API from '../utils/api';
 import { TypeScriptServiceConfiguration } from '../utils/configuration';
 import { RelativeWorkspacePathResolver } from '../utils/relativePathResolver';
 import { ITypeScriptVersionProvider, TypeScriptVersion, TypeScriptVersionSource } from './versionProvider';
 
-const localize = nls.loadMessageBundle();
 
 export class DiskTypeScriptVersionProvider implements ITypeScriptVersionProvider {
 
@@ -70,9 +68,7 @@ export class DiskTypeScriptVersionProvider implements ITypeScriptVersionProvider
 			return version;
 		}
 
-		vscode.window.showErrorMessage(localize(
-			'noBundledServerFound',
-			'VS Code\'s tsserver was deleted by another application such as a misbehaving virus detection tool. Please reinstall VS Code.'));
+		vscode.window.showErrorMessage(vscode.l10n.t("VS Code\'s tsserver was deleted by another application such as a misbehaving virus detection tool. Please reinstall VS Code."));
 		throw new Error('Could not find bundled tsserver.js');
 	}
 

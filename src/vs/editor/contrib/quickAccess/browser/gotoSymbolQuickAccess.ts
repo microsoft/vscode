@@ -6,6 +6,7 @@
 import { DeferredPromise } from 'vs/base/common/async';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { Codicon } from 'vs/base/common/codicons';
+import { ThemeIcon } from 'vs/base/common/themables';
 import { IMatch } from 'vs/base/common/filters';
 import { IPreparedQuery, pieceToQuery, prepareQuery, scoreFuzzy2 } from 'vs/base/common/fuzzyScorer';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
@@ -17,7 +18,7 @@ import { DocumentSymbol, SymbolKind, SymbolKinds, SymbolTag } from 'vs/editor/co
 import { IOutlineModelService } from 'vs/editor/contrib/documentSymbols/browser/outlineModel';
 import { AbstractEditorNavigationQuickAccessProvider, IEditorNavigationQuickAccessOptions, IQuickAccessTextEditorContext } from 'vs/editor/contrib/quickAccess/browser/editorNavigationQuickAccess';
 import { localize } from 'vs/nls';
-import { IQuickPick, IQuickPickItem, IQuickPickSeparator } from 'vs/platform/quickinput/common/quickInput';
+import { IQuickInputButton, IQuickPick, IQuickPickItem, IQuickPickSeparator } from 'vs/platform/quickinput/common/quickInput';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import { Position } from 'vs/editor/common/core/position';
 import { findLast } from 'vs/base/common/arrays';
@@ -202,16 +203,9 @@ export abstract class AbstractGotoSymbolQuickAccessProvider extends AbstractEdit
 
 
 		// Reveal and decorate when active item changes
-		// However, ignore the very first two events so that
-		// opening the picker is not immediately revealing
-		// and decorating the first entry.
-		let ignoreFirstActiveEvent = 2;
 		disposables.add(picker.onDidChangeActive(() => {
 			const [item] = picker.activeItems;
 			if (item && item.range) {
-				if (ignoreFirstActiveEvent-- > 0) {
-					return;
-				}
 
 				// Reveal
 				editor.revealRangeInCenter(item.range.selection, ScrollType.Smooth);
@@ -244,6 +238,16 @@ export abstract class AbstractGotoSymbolQuickAccessProvider extends AbstractEdit
 		}
 
 		// Convert to symbol picks and apply filtering
+
+		let buttons: IQuickInputButton[] | undefined;
+		const openSideBySideDirection = this.options?.openSideBySideDirection?.();
+		if (openSideBySideDirection) {
+			buttons = [{
+				iconClass: openSideBySideDirection === 'right' ? ThemeIcon.asClassName(Codicon.splitHorizontal) : ThemeIcon.asClassName(Codicon.splitVertical),
+				tooltip: openSideBySideDirection === 'right' ? localize('openToSide', "Open to the Side") : localize('openToBottom', "Open to the Bottom")
+			}];
+		}
+
 		const filteredSymbolPicks: IGotoSymbolQuickPickItem[] = [];
 		for (let index = 0; index < symbols.length; index++) {
 			const symbol = symbols[index];
@@ -323,19 +327,7 @@ export abstract class AbstractGotoSymbolQuickAccessProvider extends AbstractEdit
 					decoration: symbol.range
 				},
 				strikethrough: deprecated,
-				buttons: (() => {
-					const openSideBySideDirection = this.options?.openSideBySideDirection ? this.options?.openSideBySideDirection() : undefined;
-					if (!openSideBySideDirection) {
-						return undefined;
-					}
-
-					return [
-						{
-							iconClass: openSideBySideDirection === 'right' ? Codicon.splitHorizontal.classNames : Codicon.splitVertical.classNames,
-							tooltip: openSideBySideDirection === 'right' ? localize('openToSide', "Open to the Side") : localize('openToBottom', "Open to the Bottom")
-						}
-					];
-				})()
+				buttons
 			});
 		}
 

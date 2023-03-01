@@ -3,13 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { MarkdownString, CompletionItemKind, CompletionItem, DocumentSelector, SnippetString, workspace, Uri } from 'vscode';
+import { MarkdownString, CompletionItemKind, CompletionItem, DocumentSelector, SnippetString, workspace, Uri, l10n } from 'vscode';
 import { IJSONContribution, ISuggestionsCollector } from './jsonContributions';
 import { XHRRequest } from 'request-light';
 import { Location } from 'jsonc-parser';
 
-import * as nls from 'vscode-nls';
-const localize = nls.loadMessageBundle();
 
 const USER_AGENT = 'Visual Studio Code';
 
@@ -46,7 +44,7 @@ export class BowerJSONContribution implements IJSONContribution {
 			'main': '${5:pathToMain}',
 			'dependencies': {}
 		};
-		const proposal = new CompletionItem(localize('json.bower.default', 'Default bower.json'));
+		const proposal = new CompletionItem(l10n.t("Default bower.json"));
 		proposal.kind = CompletionItemKind.Class;
 		proposal.insertText = new SnippetString(JSON.stringify(defaultValue, null, '\t'));
 		collector.add(proposal);
@@ -93,12 +91,12 @@ export class BowerJSONContribution implements IJSONContribution {
 							// ignore
 						}
 					} else {
-						collector.error(localize('json.bower.error.repoaccess', 'Request to the bower repository failed: {0}', success.responseText));
+						collector.error(l10n.t("Request to the bower repository failed: {0}", success.responseText));
 						return 0;
 					}
 					return undefined;
 				}, (error) => {
-					collector.error(localize('json.bower.error.repoaccess', 'Request to the bower repository failed: {0}', error.responseText));
+					collector.error(l10n.t("Request to the bower repository failed: {0}", error.responseText));
 					return 0;
 				});
 			} else {
@@ -131,7 +129,7 @@ export class BowerJSONContribution implements IJSONContribution {
 		}
 		if ((location.matches(['dependencies', '*']) || location.matches(['devDependencies', '*']))) {
 			// not implemented. Could be do done calling the bower command. Waiting for web API: https://github.com/bower/registry/issues/26
-			const proposal = new CompletionItem(localize('json.bower.latest.version', 'latest'));
+			const proposal = new CompletionItem(l10n.t("latest"));
 			proposal.insertText = new SnippetString('"${1:latest}"');
 			proposal.filterText = '""';
 			proposal.kind = CompletionItemKind.Value;

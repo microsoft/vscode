@@ -9,7 +9,7 @@ import { $, addDisposableListener, append, clearNode, EventHelper, EventType, ge
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { toDisposable, MutableDisposable, DisposableStore, disposeIfDisposable } from 'vs/base/common/lifecycle';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { IThemeService, IColorTheme, ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { IThemeService, IColorTheme } from 'vs/platform/theme/common/themeService';
 import { TextBadge, NumberBadge, IBadge, IconBadge, ProgressBadge } from 'vs/workbench/services/activity/common/activity';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { contrastBorder } from 'vs/platform/theme/common/colorRegistry';
@@ -21,6 +21,7 @@ import { CompositeDragAndDropObserver, ICompositeDragAndDrop, Before2D, toggleDr
 import { Color } from 'vs/base/common/color';
 import { IBaseActionViewItemOptions, BaseActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
 import { Codicon } from 'vs/base/common/codicons';
+import { ThemeIcon } from 'vs/base/common/themables';
 import { IHoverService, IHoverWidget } from 'vs/workbench/services/hover/browser/hover';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -48,6 +49,18 @@ export interface ICompositeBar {
 	 * Find out if a composite is pinned in the composite bar.
 	 */
 	isPinned(compositeId: string): boolean;
+
+	/**
+	 * Returns if badges are enabled for that specified composite.
+	 * @param compositeId The id of the composite to check
+	 */
+	areBadgesEnabled(compositeId: string): boolean;
+
+	/**
+	 * Toggles whether or not badges are shown on that particular composite.
+	 * @param compositeId The composite to toggle badge enablement for
+	 */
+	toggleBadgeEnablement(compositeId: string): void;
 
 	/**
 	 * Reorder composite ordering by moving a composite to the location of another composite.
@@ -160,6 +173,7 @@ export class ActivityActionViewItem extends BaseActionViewItem {
 	constructor(
 		action: ActivityAction,
 		options: IActivityActionViewItemOptions,
+		private readonly badgesEnabled: (compositeId: string) => boolean,
 		@IThemeService protected readonly themeService: IThemeService,
 		@IHoverService private readonly hoverService: IHoverService,
 		@IConfigurationService protected readonly configurationService: IConfigurationService,
@@ -293,7 +307,9 @@ export class ActivityActionViewItem extends BaseActionViewItem {
 		clearNode(this.badgeContent);
 		hide(this.badge);
 
-		if (badge) {
+		const shouldRenderBadges = this.badgesEnabled(this.activity.id);
+
+		if (badge && shouldRenderBadges) {
 
 			// Number
 			if (badge instanceof NumberBadge) {
@@ -368,7 +384,7 @@ export class ActivityActionViewItem extends BaseActionViewItem {
 		});
 	}
 
-	private computeTitle(): string {
+	protected computeTitle(): string {
 		this.keybindingLabel = this.computeKeybindingLabel();
 		let title = this.keybindingLabel ? localize('titleKeybinding', "{0} ({1})", this.activity.name, this.keybindingLabel) : this.activity.name;
 		const badge = (this.action as ActivityAction).getBadge();
@@ -400,10 +416,12 @@ export class ActivityActionViewItem extends BaseActionViewItem {
 			}
 		}, true));
 
-		this.hoverDisposables.add(addDisposableListener(this.container, EventType.MOUSE_LEAVE, () => {
-			ActivityActionViewItem.hoverLeaveTime = Date.now();
-			this.hoverService.hideHover();
-			this.showHoverScheduler.cancel();
+		this.hoverDisposables.add(addDisposableListener(this.container, EventType.MOUSE_LEAVE, e => {
+			if (e.target === this.container) {
+				ActivityActionViewItem.hoverLeaveTime = Date.now();
+				this.hoverService.hideHover();
+				this.showHoverScheduler.cancel();
+			}
 		}, true));
 
 		this.hoverDisposables.add(toDisposable(() => {
@@ -448,7 +466,7 @@ export class CompositeOverflowActivityAction extends ActivityAction {
 		super({
 			id: 'additionalComposites.action',
 			name: localize('additionalViews', "Additional Views"),
-			cssClass: Codicon.more.classNames
+			cssClass: ThemeIcon.asClassName(Codicon.more)
 		});
 	}
 
@@ -475,7 +493,7 @@ export class CompositeOverflowActivityActionViewItem extends ActivityActionViewI
 		@IConfigurationService configurationService: IConfigurationService,
 		@IKeybindingService keybindingService: IKeybindingService,
 	) {
-		super(action, { icon: true, colors, hasPopup: true, hoverOptions }, themeService, hoverService, configurationService, keybindingService);
+		super(action, { icon: true, colors, hasPopup: true, hoverOptions }, () => true, themeService, hoverService, configurationService, keybindingService);
 	}
 
 	showMenu(): void {
@@ -546,6 +564,7 @@ export class CompositeActionViewItem extends ActivityActionViewItem {
 		options: IActivityActionViewItemOptions,
 		private readonly compositeActivityAction: ActivityAction,
 		private readonly toggleCompositePinnedAction: IAction,
+		private readonly toggleCompositeBadgeAction: IAction,
 		private readonly compositeContextMenuActionsProvider: (compositeId: string) => IAction[],
 		private readonly contextMenuActionsProvider: () => IAction[],
 		private readonly dndHandler: ICompositeDragAndDrop,
@@ -557,7 +576,15 @@ export class CompositeActionViewItem extends ActivityActionViewItem {
 		@IHoverService hoverService: IHoverService,
 		@IConfigurationService configurationService: IConfigurationService,
 	) {
-		super(compositeActivityAction, options, themeService, hoverService, configurationService, keybindingService);
+		super(
+			compositeActivityAction,
+			options,
+			compositeBar.areBadgesEnabled.bind(compositeBar),
+			themeService,
+			hoverService,
+			configurationService,
+			keybindingService
+		);
 
 		if (!CompositeActionViewItem.manageExtensionAction) {
 			CompositeActionViewItem.manageExtensionAction = instantiationService.createInstance(ManageExtensionAction);
@@ -657,7 +684,7 @@ export class CompositeActionViewItem extends ActivityActionViewItem {
 	}
 
 	private showContextMenu(container: HTMLElement): void {
-		const actions: IAction[] = [this.toggleCompositePinnedAction];
+		const actions: IAction[] = [this.toggleCompositePinnedAction, this.toggleCompositeBadgeAction];
 
 		const compositeContextMenuActions = this.compositeContextMenuActionsProvider(this.activity.id);
 		if (compositeContextMenuActions.length) {
@@ -675,6 +702,13 @@ export class CompositeActionViewItem extends ActivityActionViewItem {
 			this.toggleCompositePinnedAction.checked = false;
 		} else {
 			this.toggleCompositePinnedAction.label = localize('keep', "Keep '{0}'", this.activity.name);
+		}
+
+		const isBadgeEnabled = this.compositeBar.areBadgesEnabled(this.activity.id);
+		if (isBadgeEnabled) {
+			this.toggleCompositeBadgeAction.label = localize('hideBadge', "Hide Badge");
+		} else {
+			this.toggleCompositeBadgeAction.label = localize('showBadge', "Show Badge");
 		}
 
 		const otherActions = this.contextMenuActionsProvider();
@@ -750,5 +784,21 @@ export class ToggleCompositePinnedAction extends Action {
 		} else {
 			this.compositeBar.pin(id);
 		}
+	}
+}
+
+export class ToggleCompositeBadgeAction extends Action {
+	constructor(
+		private activity: IActivity | undefined,
+		private compositeBar: ICompositeBar
+	) {
+		super('show.toggleCompositeBadge', activity ? activity.name : localize('toggleBadge', "Toggle View Badge"));
+
+		this.checked = false;
+	}
+
+	override async run(context: string): Promise<void> {
+		const id = this.activity ? this.activity.id : context;
+		this.compositeBar.toggleBadgeEnablement(id);
 	}
 }

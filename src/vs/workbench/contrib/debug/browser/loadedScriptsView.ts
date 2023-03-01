@@ -440,7 +440,7 @@ export class LoadedScriptsView extends ViewPane {
 		this.loadedScriptsItemType = CONTEXT_LOADED_SCRIPTS_ITEM_TYPE.bindTo(contextKeyService);
 	}
 
-	override renderBody(container: HTMLElement): void {
+	protected override renderBody(container: HTMLElement): void {
 		super.renderBody(container);
 
 		this.element.classList.add('debug-pane');
@@ -617,7 +617,7 @@ export class LoadedScriptsView extends ViewPane {
 		this.debugService.getModel().getSessions().forEach(session => addSourcePathsToSession(session));
 	}
 
-	override layoutBody(height: number, width: number): void {
+	protected override layoutBody(height: number, width: number): void {
 		super.layoutBody(height, width);
 		this.tree.layout(height, width);
 	}

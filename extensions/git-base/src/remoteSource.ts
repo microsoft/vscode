@@ -3,13 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { QuickPickItem, window, QuickPick, QuickPickItemKind } from 'vscode';
-import * as nls from 'vscode-nls';
+import { QuickPickItem, window, QuickPick, QuickPickItemKind, l10n } from 'vscode';
 import { RemoteSourceProvider, RemoteSource, PickRemoteSourceOptions, PickRemoteSourceResult } from './api/git-base';
 import { Model } from './model';
 import { throttle, debounce } from './decorators';
-
-const localize = nls.loadMessageBundle();
 
 async function getQuickPickResult<T extends QuickPickItem>(quickpick: QuickPick<T>): Promise<T | undefined> {
 	const result = await new Promise<T | undefined>(c => {
@@ -33,10 +30,10 @@ class RemoteSourceProviderQuickPick {
 			this.quickpick = window.createQuickPick();
 			this.quickpick.ignoreFocusOut = true;
 			if (this.provider.supportsQuery) {
-				this.quickpick.placeholder = this.provider.placeholder ?? localize('type to search', "Repository name (type to search)");
+				this.quickpick.placeholder = this.provider.placeholder ?? l10n.t('Repository name (type to search)');
 				this.quickpick.onDidChangeValue(this.onDidChangeValue, this);
 			} else {
-				this.quickpick.placeholder = this.provider.placeholder ?? localize('type to filter', "Repository name");
+				this.quickpick.placeholder = this.provider.placeholder ?? l10n.t('Repository name');
 			}
 		}
 	}
@@ -57,7 +54,7 @@ class RemoteSourceProviderQuickPick {
 
 			if (remoteSources.length === 0) {
 				this.quickpick!.items = [{
-					label: localize('none found', "No remote repositories found."),
+					label: l10n.t('No remote repositories found.'),
 					alwaysShow: true
 				}];
 			} else {
@@ -70,7 +67,7 @@ class RemoteSourceProviderQuickPick {
 				}));
 			}
 		} catch (err) {
-			this.quickpick!.items = [{ label: localize('error', "{0} Error: {1}", '$(error)', err.message), alwaysShow: true }];
+			this.quickpick!.items = [{ label: l10n.t('{0} Error: {1}', '$(error)', err.message), alwaysShow: true }];
 			console.error(err);
 		} finally {
 			this.quickpick!.busy = false;
@@ -118,19 +115,19 @@ export async function pickRemoteSource(model: Model, options: PickRemoteSourceOp
 	}
 
 	const items = [
-		{ kind: QuickPickItemKind.Separator, label: localize('remote sources', 'remote sources') },
+		{ kind: QuickPickItemKind.Separator, label: l10n.t('remote sources') },
 		...remoteProviders,
-		{ kind: QuickPickItemKind.Separator, label: localize('recently opened', 'recently opened') },
+		{ kind: QuickPickItemKind.Separator, label: l10n.t('recently opened') },
 		...recentSources.sort((a, b) => b.timestamp - a.timestamp)
 	];
 
 	quickpick.placeholder = options.placeholder ?? (remoteProviders.length === 0
-		? localize('provide url', "Provide repository URL")
-		: localize('provide url or pick', "Provide repository URL or pick a repository source."));
+		? l10n.t('Provide repository URL')
+		: l10n.t('Provide repository URL or pick a repository source.'));
 
 	const updatePicks = (value?: string) => {
 		if (value) {
-			const label = (typeof options.urlLabel === 'string' ? options.urlLabel : options.urlLabel?.(value)) ?? localize('url', "URL");
+			const label = (typeof options.urlLabel === 'string' ? options.urlLabel : options.urlLabel?.(value)) ?? l10n.t('URL');
 			quickpick.items = [{
 				label: label,
 				description: value,
@@ -170,7 +167,7 @@ async function pickProviderSource(provider: RemoteSourceProvider, options: PickR
 		if (typeof remote.url === 'string') {
 			url = remote.url;
 		} else if (remote.url.length > 0) {
-			url = await window.showQuickPick(remote.url, { ignoreFocusOut: true, placeHolder: localize('pick url', "Choose a URL to clone from.") });
+			url = await window.showQuickPick(remote.url, { ignoreFocusOut: true, placeHolder: l10n.t('Choose a URL to clone from.') });
 		}
 	}
 
@@ -189,7 +186,7 @@ async function pickProviderSource(provider: RemoteSourceProvider, options: PickR
 	}
 
 	const branch = await window.showQuickPick(branches, {
-		placeHolder: localize('branch name', "Branch name")
+		placeHolder: l10n.t('Branch name')
 	});
 
 	if (!branch) {

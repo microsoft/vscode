@@ -10,7 +10,6 @@ import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IWorkbenchContribution, IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
 import { IDialogsModel, IDialogViewItem } from 'vs/workbench/common/dialogs';
 import { BrowserDialogHandler } from 'vs/workbench/browser/parts/dialogs/dialogHandler';
@@ -29,7 +28,6 @@ export class DialogHandlerContribution extends Disposable implements IWorkbenchC
 		@IDialogService private dialogService: IDialogService,
 		@ILogService logService: ILogService,
 		@ILayoutService layoutService: ILayoutService,
-		@IThemeService themeService: IThemeService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IProductService productService: IProductService,
@@ -37,7 +35,7 @@ export class DialogHandlerContribution extends Disposable implements IWorkbenchC
 	) {
 		super();
 
-		this.impl = new BrowserDialogHandler(logService, layoutService, themeService, keybindingService, instantiationService, productService, clipboardService);
+		this.impl = new BrowserDialogHandler(logService, layoutService, keybindingService, instantiationService, productService, clipboardService);
 
 		this.model = (this.dialogService as DialogService).model;
 
@@ -60,10 +58,10 @@ export class DialogHandlerContribution extends Disposable implements IWorkbenchC
 				result = await this.impl.confirm(args.confirmation);
 			} else if (this.currentDialog.args.inputArgs) {
 				const args = this.currentDialog.args.inputArgs;
-				result = await this.impl.input(args.severity, args.message, args.buttons, args.inputs, args.options);
-			} else if (this.currentDialog.args.showArgs) {
-				const args = this.currentDialog.args.showArgs;
-				result = await this.impl.show(args.severity, args.message, args.buttons, args.options);
+				result = await this.impl.input(args.input);
+			} else if (this.currentDialog.args.promptArgs) {
+				const args = this.currentDialog.args.promptArgs;
+				result = await this.impl.prompt(args.prompt);
 			} else {
 				await this.impl.about();
 			}
@@ -75,4 +73,4 @@ export class DialogHandlerContribution extends Disposable implements IWorkbenchC
 }
 
 const workbenchRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
-workbenchRegistry.registerWorkbenchContribution(DialogHandlerContribution, 'DialogHandlerContribution', LifecyclePhase.Starting);
+workbenchRegistry.registerWorkbenchContribution(DialogHandlerContribution, LifecyclePhase.Starting);

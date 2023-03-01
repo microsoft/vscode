@@ -19,7 +19,7 @@ suite('Getting Started Markdown Renderer', () => {
 		const languageService = new LanguageService();
 		const renderer = new GettingStartedDetailsRenderer(fileService, new TestNotificationService(), new TestExtensionService(), languageService);
 		const mdPath = convertInternalMediaPathToFileURI('theme_picker').with({ query: JSON.stringify({ moduleId: 'vs/workbench/contrib/welcomeGettingStarted/common/media/theme_picker' }) });
-		const mdBase = FileAccess.asFileUri('vs/workbench/contrib/welcomeGettingStarted/common/media/', require);
+		const mdBase = FileAccess.asFileUri('vs/workbench/contrib/welcomeGettingStarted/common/media/');
 		const rendered = await renderer.renderMarkdown(mdPath, mdBase);
 		const imageSrcs = [...rendered.matchAll(/img src="[^"]*"/g)].map(match => match[0]);
 		for (const src of imageSrcs) {

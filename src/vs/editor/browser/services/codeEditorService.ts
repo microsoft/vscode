@@ -17,20 +17,23 @@ export const ICodeEditorService = createDecorator<ICodeEditorService>('codeEdito
 export interface ICodeEditorService {
 	readonly _serviceBrand: undefined;
 
+	readonly onWillCreateCodeEditor: Event<void>;
 	readonly onCodeEditorAdd: Event<ICodeEditor>;
 	readonly onCodeEditorRemove: Event<ICodeEditor>;
 
+	readonly onWillCreateDiffEditor: Event<void>;
 	readonly onDiffEditorAdd: Event<IDiffEditor>;
 	readonly onDiffEditorRemove: Event<IDiffEditor>;
 
 	readonly onDidChangeTransientModelProperty: Event<ITextModel>;
 	readonly onDecorationTypeRegistered: Event<string>;
 
-
+	willCreateCodeEditor(): void;
 	addCodeEditor(editor: ICodeEditor): void;
 	removeCodeEditor(editor: ICodeEditor): void;
 	listCodeEditors(): readonly ICodeEditor[];
 
+	willCreateDiffEditor(): void;
 	addDiffEditor(editor: IDiffEditor): void;
 	removeDiffEditor(editor: IDiffEditor): void;
 	listDiffEditors(): readonly IDiffEditor[];
@@ -41,6 +44,7 @@ export interface ICodeEditorService {
 	getFocusedCodeEditor(): ICodeEditor | null;
 
 	registerDecorationType(description: string, key: string, options: IDecorationRenderOptions, parentTypeKey?: string, editor?: ICodeEditor): void;
+	listDecorationTypes(): string[];
 	removeDecorationType(key: string): void;
 	resolveDecorationOptions(typeKey: string, writable: boolean): IModelDecorationOptions;
 	resolveDecorationCSSRules(decorationTypeKey: string): CSSRuleList | null;

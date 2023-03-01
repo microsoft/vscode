@@ -1,7 +1,7 @@
 {
 	"displayName": "Reference Search View",
 	"description": "Reference Search results as separate, stable view in the sidebar",
-	"config.references.preferredLocation": "Controls whether 'Peek References' or 'Find References' is invoked when selecting code lens references",
+	"config.references.preferredLocation": "Controls whether 'Peek References' or 'Find References' is invoked when selecting CodeLens references.",
 	"config.references.preferredLocation.peek": "Show references in peek editor.",
 	"config.references.preferredLocation.view": "Show references in separate view.",
 	"container.title": "References",

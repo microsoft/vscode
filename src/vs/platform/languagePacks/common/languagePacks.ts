@@ -6,15 +6,20 @@
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { language } from 'vs/base/common/platform';
-import { IQuickPickItem } from 'vs/base/parts/quickinput/common/quickInput';
+import { URI } from 'vs/base/common/uri';
+import { IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
 import { localize } from 'vs/nls';
 import { IExtensionGalleryService, IGalleryExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 
+export function getLocale(extension: IGalleryExtension): string | undefined {
+	return extension.tags.find(t => t.startsWith('lp-'))?.split('lp-')[1];
+}
+
 export const ILanguagePackService = createDecorator<ILanguagePackService>('languagePackService');
 
 export interface ILanguagePackItem extends IQuickPickItem {
-	readonly extensionId: string;
+	readonly extensionId?: string;
 	readonly galleryExtension?: IGalleryExtension;
 }
 
@@ -22,15 +27,17 @@ export interface ILanguagePackService {
 	readonly _serviceBrand: undefined;
 	getAvailableLanguages(): Promise<Array<ILanguagePackItem>>;
 	getInstalledLanguages(): Promise<Array<ILanguagePackItem>>;
-	getLocale(extension: IGalleryExtension): string | undefined;
+	getBuiltInExtensionTranslationsUri(id: string, language: string): Promise<URI | undefined>;
 }
 
 export abstract class LanguagePackBaseService extends Disposable implements ILanguagePackService {
 	declare readonly _serviceBrand: undefined;
 
-	constructor(@IExtensionGalleryService private readonly extensionGalleryService: IExtensionGalleryService) {
+	constructor(@IExtensionGalleryService protected readonly extensionGalleryService: IExtensionGalleryService) {
 		super();
 	}
+
+	abstract getBuiltInExtensionTranslationsUri(id: string, language: string): Promise<URI | undefined>;
 
 	abstract getInstalledLanguages(): Promise<Array<ILanguagePackItem>>;
 
@@ -52,7 +59,7 @@ export abstract class LanguagePackBaseService extends Disposable implements ILan
 		const languagePackExtensions = result.firstPage.filter(e => e.properties.localizedLanguages?.length && e.tags.some(t => t.startsWith('lp-')));
 		const allFromMarketplace: ILanguagePackItem[] = languagePackExtensions.map(lp => {
 			const languageName = lp.properties.localizedLanguages?.[0];
-			const locale = this.getLocale(lp)!;
+			const locale = getLocale(lp)!;
 			const baseQuickPick = this.createQuickPickItem(locale, languageName, lp);
 			return {
 				...baseQuickPick,
@@ -61,16 +68,9 @@ export abstract class LanguagePackBaseService extends Disposable implements ILan
 			};
 		});
 
-		allFromMarketplace.push({
-			...this.createQuickPickItem('en', 'English'),
-			extensionId: 'default',
-		});
+		allFromMarketplace.push(this.createQuickPickItem('en', 'English'));
 
 		return allFromMarketplace;
-	}
-
-	getLocale(extension: IGalleryExtension): string | undefined {
-		return extension.tags.find(t => t.startsWith('lp-'))?.split('lp-')[1];
 	}
 
 	protected createQuickPickItem(locale: string, languageName?: string, languagePack?: IGalleryExtension): IQuickPickItem {

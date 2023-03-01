@@ -20,14 +20,13 @@ import { IFileService } from 'vs/platform/files/common/files';
 import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
 import { ILifecycleService, ShutdownReason } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { IFileDialogService, IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { ILabelService } from 'vs/platform/label/common/label';
+import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { ILabelService, Verbosity } from 'vs/platform/label/common/label';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { AbstractWorkspaceEditingService } from 'vs/workbench/services/workspaces/browser/abstractWorkspaceEditingService';
-import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
+import { INativeHostService } from 'vs/platform/native/common/native';
 import { isMacintosh } from 'vs/base/common/platform';
-import { mnemonicButtonLabel } from 'vs/base/common/labels';
 import { WorkingCopyBackupService } from 'vs/workbench/services/workingCopy/common/workingCopyBackupService';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { IWorkspaceTrustManagementService } from 'vs/platform/workspace/common/workspaceTrust';
@@ -88,59 +87,54 @@ export class NativeWorkspaceEditingService extends AbstractWorkspaceEditingServi
 			return false; // Windows/Linux: quits when last window is closed, so do not ask then
 		}
 
-		enum ConfirmResult {
-			SAVE,
-			DONT_SAVE,
-			CANCEL
-		}
+		const { result } = await this.dialogService.prompt<boolean>({
+			type: Severity.Warning,
+			message: localize('saveWorkspaceMessage', "Do you want to save your workspace configuration as a file?"),
+			detail: localize('saveWorkspaceDetail', "Save your workspace if you plan to open it again."),
+			buttons: [
+				{
+					label: localize({ key: 'save', comment: ['&& denotes a mnemonic'] }, "&&Save"),
+					run: async () => {
+						const newWorkspacePath = await this.pickNewWorkspacePath();
+						if (!newWorkspacePath || !hasWorkspaceFileExtension(newWorkspacePath)) {
+							return true; // keep veto if no target was provided
+						}
 
-		const buttons = [
-			{ label: mnemonicButtonLabel(localize('save', "Save")), result: ConfirmResult.SAVE },
-			{ label: mnemonicButtonLabel(localize('doNotSave', "Don't Save")), result: ConfirmResult.DONT_SAVE },
-			{ label: localize('cancel', "Cancel"), result: ConfirmResult.CANCEL }
-		];
-		const message = localize('saveWorkspaceMessage', "Do you want to save your workspace configuration as a file?");
-		const detail = localize('saveWorkspaceDetail', "Save your workspace if you plan to open it again.");
-		const { choice } = await this.dialogService.show(Severity.Warning, message, buttons.map(button => button.label), { detail, cancelId: 2 });
+						try {
+							await this.saveWorkspaceAs(workspaceIdentifier, newWorkspacePath);
 
-		switch (buttons[choice].result) {
+							// Make sure to add the new workspace to the history to find it again
+							const newWorkspaceIdentifier = await this.workspacesService.getWorkspaceIdentifier(newWorkspacePath);
+							await this.workspacesService.addRecentlyOpened([{
+								label: this.labelService.getWorkspaceLabel(newWorkspaceIdentifier, { verbose: Verbosity.LONG }),
+								workspace: newWorkspaceIdentifier,
+								remoteAuthority: this.environmentService.remoteAuthority // remember whether this was a remote window
+							}]);
 
-			// Cancel: veto unload
-			case ConfirmResult.CANCEL:
-				return true;
+							// Delete the untitled one
+							await this.workspacesService.deleteUntitledWorkspace(workspaceIdentifier);
+						} catch (error) {
+							// ignore
+						}
 
-			// Don't Save: delete workspace
-			case ConfirmResult.DONT_SAVE:
-				await this.workspacesService.deleteUntitledWorkspace(workspaceIdentifier);
-				return false;
+						return false;
+					}
+				},
+				{
+					label: localize({ key: 'doNotSave', comment: ['&& denotes a mnemonic'] }, "Do&&n't Save"),
+					run: async () => {
+						await this.workspacesService.deleteUntitledWorkspace(workspaceIdentifier);
 
-			// Save: save workspace, but do not veto unload if path provided
-			case ConfirmResult.SAVE: {
-				const newWorkspacePath = await this.pickNewWorkspacePath();
-				if (!newWorkspacePath || !hasWorkspaceFileExtension(newWorkspacePath)) {
-					return true; // keep veto if no target was provided
+						return false;
+					}
 				}
-
-				try {
-					await this.saveWorkspaceAs(workspaceIdentifier, newWorkspacePath);
-
-					// Make sure to add the new workspace to the history to find it again
-					const newWorkspaceIdentifier = await this.workspacesService.getWorkspaceIdentifier(newWorkspacePath);
-					await this.workspacesService.addRecentlyOpened([{
-						label: this.labelService.getWorkspaceLabel(newWorkspaceIdentifier, { verbose: true }),
-						workspace: newWorkspaceIdentifier,
-						remoteAuthority: this.environmentService.remoteAuthority // remember whether this was a remote window
-					}]);
-
-					// Delete the untitled one
-					await this.workspacesService.deleteUntitledWorkspace(workspaceIdentifier);
-				} catch (error) {
-					// ignore
-				}
-
-				return false;
+			],
+			cancelButton: {
+				run: () => true // veto
 			}
-		}
+		});
+
+		return result;
 	}
 
 	override async isValidTargetWorkspacePath(workspaceUri: URI): Promise<boolean> {
@@ -148,13 +142,9 @@ export class NativeWorkspaceEditingService extends AbstractWorkspaceEditingServi
 
 		// Prevent overwriting a workspace that is currently opened in another window
 		if (windows.some(window => isWorkspaceIdentifier(window.workspace) && this.uriIdentityService.extUri.isEqual(window.workspace.configPath, workspaceUri))) {
-			await this.dialogService.show(
-				Severity.Info,
+			await this.dialogService.info(
 				localize('workspaceOpenedMessage', "Unable to save workspace '{0}'", basename(workspaceUri)),
-				undefined,
-				{
-					detail: localize('workspaceOpenedDetail', "The workspace is already opened in another window. Please close that window first and then try again.")
-				}
+				localize('workspaceOpenedDetail', "The workspace is already opened in another window. Please close that window first and then try again.")
 			);
 
 			return false;
@@ -190,4 +180,4 @@ export class NativeWorkspaceEditingService extends AbstractWorkspaceEditingServi
 	}
 }
 
-registerSingleton(IWorkspaceEditingService, NativeWorkspaceEditingService, true);
+registerSingleton(IWorkspaceEditingService, NativeWorkspaceEditingService, InstantiationType.Delayed);

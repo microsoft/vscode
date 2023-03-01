@@ -17,13 +17,11 @@ import { StringBuilder } from 'vs/editor/common/core/stringBuilder';
 import { IModelDeltaDecoration, InjectedTextCursorStops, PositionAffinity } from 'vs/editor/common/model';
 import { ILanguageIdCodec } from 'vs/editor/common/languages';
 import { ILanguageService } from 'vs/editor/common/languages/language';
-import { ghostTextBackground, ghostTextBorder, ghostTextForeground } from 'vs/editor/common/core/editorColorRegistry';
 import { LineDecoration } from 'vs/editor/common/viewLayout/lineDecorations';
 import { RenderLineInput, renderViewLine } from 'vs/editor/common/viewLayout/viewLineRenderer';
 import { InlineDecorationType } from 'vs/editor/common/viewModel';
 import { GhostTextReplacement, GhostTextWidgetModel } from 'vs/editor/contrib/inlineCompletions/browser/ghostText';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 
 const ttPolicy = window.trustedTypes?.createPolicy('editorGhostText', { createHTML: value => value });
 
@@ -357,15 +355,15 @@ function renderLines(domNode: HTMLElement, tabSize: number, lines: LineData[], o
 	const lineHeight = opts.get(EditorOption.lineHeight);
 
 	const sb = new StringBuilder(10000);
-	sb.appendASCIIString('<div class="suggest-preview-text">');
+	sb.appendString('<div class="suggest-preview-text">');
 
 	for (let i = 0, len = lines.length; i < len; i++) {
 		const lineData = lines[i];
 		const line = lineData.content;
-		sb.appendASCIIString('<div class="view-line');
-		sb.appendASCIIString('" style="top:');
-		sb.appendASCIIString(String(i * lineHeight));
-		sb.appendASCIIString('px;width:1000000px;">');
+		sb.appendString('<div class="view-line');
+		sb.appendString('" style="top:');
+		sb.appendString(String(i * lineHeight));
+		sb.appendString('px;width:1000000px;">');
 
 		const isBasicASCII = strings.isBasicASCII(line);
 		const containsRTL = strings.containsRTL(line);
@@ -393,9 +391,9 @@ function renderLines(domNode: HTMLElement, tabSize: number, lines: LineData[], o
 			null
 		), sb);
 
-		sb.appendASCIIString('</div>');
+		sb.appendString('</div>');
 	}
-	sb.appendASCIIString('</div>');
+	sb.appendString('</div>');
 
 	applyFontInfo(domNode, fontInfo);
 	const html = sb.build();
@@ -437,26 +435,3 @@ class ViewMoreLinesContentWidget extends Disposable implements IContentWidget {
 	}
 }
 
-registerThemingParticipant((theme, collector) => {
-	const foreground = theme.getColor(ghostTextForeground);
-	if (foreground) {
-		// `!important` ensures that other decorations don't cause a style conflict (#132017).
-		collector.addRule(`.monaco-editor .ghost-text-decoration { color: ${foreground.toString()} !important; }`);
-		collector.addRule(`.monaco-editor .ghost-text-decoration-preview { color: ${foreground.toString()} !important; }`);
-		collector.addRule(`.monaco-editor .suggest-preview-text .ghost-text { color: ${foreground.toString()} !important; }`);
-	}
-
-	const background = theme.getColor(ghostTextBackground);
-	if (background) {
-		collector.addRule(`.monaco-editor .ghost-text-decoration { background-color: ${background.toString()}; }`);
-		collector.addRule(`.monaco-editor .ghost-text-decoration-preview { background-color: ${background.toString()}; }`);
-		collector.addRule(`.monaco-editor .suggest-preview-text .ghost-text { background-color: ${background.toString()}; }`);
-	}
-
-	const border = theme.getColor(ghostTextBorder);
-	if (border) {
-		collector.addRule(`.monaco-editor .suggest-preview-text .ghost-text { border: 1px solid ${border}; }`);
-		collector.addRule(`.monaco-editor .ghost-text-decoration { border: 1px solid ${border}; }`);
-		collector.addRule(`.monaco-editor .ghost-text-decoration-preview { border: 1px solid ${border}; }`);
-	}
-});

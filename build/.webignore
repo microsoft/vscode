@@ -36,3 +36,16 @@ xterm-addon-webgl/out/**
 # This makes sure the model is included in the package
 !@vscode/vscode-languagedetection/model/**
 
+# Ensure only the required telemetry pieces are loaded in web to reduce bundle size
+@microsoft/1ds-core-js/**
+@microsoft/1ds-post-js/**
+@microsoft/applicationinsights-core-js/**
+@microsoft/applicationinsights-shims/**
+!@microsoft/1ds-core-js/dist/ms.core.min.js
+!@microsoft/1ds-post-js/dist/ms.post.min.js
+!@microsoft/applicationinsights-core-js/browser/applicationinsights-core-js.min.js
+!@microsoft/applicationinsights-shims/dist/umd/applicationinsights-shims.min.js
+
+
+
+

@@ -6,6 +6,7 @@
 import { localize } from 'vs/nls';
 import { Emitter } from 'vs/base/common/event';
 import { URI } from 'vs/base/common/uri';
+import { mark } from 'vs/base/common/performance';
 import { assertIsDefined, withNullAsUndefined } from 'vs/base/common/types';
 import { EncodingMode, ITextFileService, TextFileEditorModelState, ITextFileEditorModel, ITextFileStreamContent, ITextFileResolveOptions, IResolvedTextFileEditorModel, ITextFileSaveOptions, TextFileResolveReason, ITextFileEditorModelSaveEvent } from 'vs/workbench/services/textfile/common/textfiles';
 import { IRevertOptions, SaveReason, SaveSourceRegistry } from 'vs/workbench/common/editor';
@@ -89,12 +90,14 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 
 	private versionId = 0;
 	private bufferSavedVersionId: number | undefined;
+
 	private ignoreDirtyOnModelContentChange = false;
+	private ignoreSaveFromSaveParticipants = false;
 
 	private static readonly UNDO_REDO_SAVE_PARTICIPANTS_AUTO_SAVE_THROTTLE_THRESHOLD = 500;
 	private lastModelContentChangeFromUndoRedo: number | undefined = undefined;
 
-	private lastResolvedFileStat: IFileStatWithMetadata | undefined;
+	lastResolvedFileStat: IFileStatWithMetadata | undefined; // used in tests
 
 	private readonly saveSequentializer = new TaskSequentializer();
 
@@ -194,11 +197,11 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		const firstLineText = this.getFirstLineText(this.textEditorModel);
 		const languageSelection = this.getOrCreateLanguage(this.resource, this.languageService, this.preferredLanguageId, firstLineText);
 
-		this.modelService.setMode(this.textEditorModel, languageSelection);
+		this.textEditorModel.setLanguage(languageSelection);
 	}
 
-	override setLanguageId(languageId: string): void {
-		super.setLanguageId(languageId);
+	override setLanguageId(languageId: string, source?: string): void {
+		super.setLanguageId(languageId, source);
 
 		this.preferredLanguageId = languageId;
 	}
@@ -273,6 +276,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 
 	override async resolve(options?: ITextFileResolveOptions): Promise<void> {
 		this.trace('resolve() - enter');
+		mark('code/willResolveTextFileEditorModel');
 
 		// Return early if we are disposed
 		if (this.isDisposed()) {
@@ -290,7 +294,10 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 			return;
 		}
 
-		return this.doResolve(options);
+		// Resolve either from backup or from file
+		await this.doResolve(options);
+
+		mark('code/didResolveTextFileEditorModel');
 	}
 
 	private async doResolve(options?: ITextFileResolveOptions): Promise<void> {
@@ -430,7 +437,11 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 
 		// Resolve Content
 		try {
-			const content = await this.textFileService.readStream(this.resource, { acceptTextOnly: !allowBinary, etag, encoding: this.preferredEncoding });
+			const content = await this.textFileService.readStream(this.resource, {
+				acceptTextOnly: !allowBinary,
+				etag, encoding: this.preferredEncoding,
+				limits: options?.limits
+			});
 
 			// Clear orphaned state when resolving was successful
 			this.setOrphaned(false);
@@ -556,15 +567,16 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		}
 	}
 
-	private installModelListeners(model: ITextModel): void {
+	protected override installModelListeners(model: ITextModel): void {
 
 		// See https://github.com/microsoft/vscode/issues/30189
 		// This code has been extracted to a different method because it caused a memory leak
 		// where `value` was captured in the content change listener closure scope.
 
-		// Listen to text model events
 		this._register(model.onDidChangeContent(e => this.onModelContentChanged(model, e.isUndoing || e.isRedoing)));
 		this._register(model.onDidChangeLanguage(() => this.onMaybeShouldChangeEncoding())); // detect possible encoding change via language specific settings
+
+		super.installModelListeners(model);
 	}
 
 	private onModelContentChanged(model: ITextModel, isUndoingOrRedoing: boolean): void {
@@ -737,6 +749,15 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		let versionId = this.versionId;
 		this.trace(`doSave(${versionId}) - enter with versionId ${versionId}`);
 
+		// Return early if saved from within save participant to break recursion
+		//
+		// Scenario: a save participant triggers a save() on the model
+		if (this.ignoreSaveFromSaveParticipants) {
+			this.trace(`doSave(${versionId}) - exit - refusing to save() recursively from save participant`);
+
+			return;
+		}
+
 		// Lookup any running pending save for this versionId and return it if found
 		//
 		// Scenario: user invoked the save action multiple times quickly for the same contents
@@ -819,7 +840,12 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 
 					// Run save participants unless save was cancelled meanwhile
 					if (!saveCancellation.token.isCancellationRequested) {
-						await this.textFileService.files.runSaveParticipants(this, { reason: options.reason ?? SaveReason.EXPLICIT }, saveCancellation.token);
+						this.ignoreSaveFromSaveParticipants = true;
+						try {
+							await this.textFileService.files.runSaveParticipants(this, { reason: options.reason ?? SaveReason.EXPLICIT }, saveCancellation.token);
+						} finally {
+							this.ignoreSaveFromSaveParticipants = false;
+						}
 					}
 				} catch (error) {
 					this.logService.error(`[text file model] runSaveParticipants(${versionId}) - resulted in an error: ${error.toString()}`, this.resource.toString());

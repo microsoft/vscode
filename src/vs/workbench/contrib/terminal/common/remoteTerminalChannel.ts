@@ -11,17 +11,19 @@ import { IWorkbenchConfigurationService } from 'vs/workbench/services/configurat
 import { ILogService } from 'vs/platform/log/common/log';
 import { IRemoteAuthorityResolverService } from 'vs/platform/remote/common/remoteAuthorityResolver';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { serializeEnvironmentVariableCollection } from 'vs/workbench/contrib/terminal/common/environmentVariableShared';
+import { serializeEnvironmentVariableCollection } from 'vs/platform/terminal/common/environmentVariableShared';
 import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
 import { SideBySideEditor, EditorResourceAccessor } from 'vs/workbench/common/editor';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { Schemas } from 'vs/base/common/network';
 import { ILabelService } from 'vs/platform/label/common/label';
-import { IEnvironmentVariableService, ISerializableEnvironmentVariableCollection } from 'vs/workbench/contrib/terminal/common/environmentVariable';
+import { IEnvironmentVariableService } from 'vs/workbench/contrib/terminal/common/environmentVariable';
 import { IProcessDataEvent, IRequestResolveVariablesEvent, IShellLaunchConfigDto, ITerminalLaunchError, ITerminalProfile, ITerminalsLayoutInfo, ITerminalsLayoutInfoById, TerminalIcon, IProcessProperty, ProcessPropertyType, IProcessPropertyMap, TitleEventSource, ISerializedTerminalState, IPtyHostController, ITerminalProcessOptions } from 'vs/platform/terminal/common/terminal';
-import { IGetTerminalLayoutInfoArgs, IProcessDetails, IPtyHostProcessReplayEvent, ISetTerminalLayoutInfoArgs } from 'vs/platform/terminal/common/terminalProcess';
+import { IGetTerminalLayoutInfoArgs, IProcessDetails, ISetTerminalLayoutInfoArgs } from 'vs/platform/terminal/common/terminalProcess';
 import { IProcessEnvironment, OperatingSystem } from 'vs/base/common/platform';
 import { ICompleteTerminalConfiguration } from 'vs/workbench/contrib/terminal/common/terminal';
+import { IPtyHostProcessReplayEvent } from 'vs/platform/terminal/common/capabilities/capabilities';
+import { ISerializableEnvironmentVariableCollection } from 'vs/platform/terminal/common/environmentVariable';
 
 export const REMOTE_TERMINAL_CHANNEL_NAME = 'remoteterminal';
 
@@ -57,7 +59,6 @@ export interface ICreateTerminalProcessResult {
 }
 
 export class RemoteTerminalChannelClient implements IPtyHostController {
-
 	get onPtyHostExit(): Event<number> {
 		return this._channel.listen<number>('$onPtyHostExitEvent');
 	}
@@ -237,7 +238,9 @@ export class RemoteTerminalChannelClient implements IPtyHostController {
 	sendCommandResult(reqId: number, isError: boolean, payload: any): Promise<void> {
 		return this._channel.call('$sendCommandResult', [reqId, isError, payload]);
 	}
-
+	freePortKillProcess(port: string): Promise<{ port: string; processId: string }> {
+		return this._channel.call('$freePortKillProcess', [port]);
+	}
 	installAutoReply(match: string, reply: string): Promise<void> {
 		return this._channel.call('$installAutoReply', [match, reply]);
 	}
@@ -258,8 +261,8 @@ export class RemoteTerminalChannelClient implements IPtyHostController {
 		return this._channel.call('$getEnvironment');
 	}
 
-	getWslPath(original: string): Promise<string> {
-		return this._channel.call('$getWslPath', [original]);
+	getWslPath(original: string, direction: 'unix-to-win' | 'win-to-unix'): Promise<string> {
+		return this._channel.call('$getWslPath', [original, direction]);
 	}
 
 	setTerminalLayoutInfo(layout?: ITerminalsLayoutInfoById): Promise<void> {
@@ -275,8 +278,8 @@ export class RemoteTerminalChannelClient implements IPtyHostController {
 		return this._channel.call('$updateTitle', [id, title, titleSource]);
 	}
 
-	updateIcon(id: number, icon: TerminalIcon, color?: string): Promise<string> {
-		return this._channel.call('$updateIcon', [id, icon, color]);
+	updateIcon(id: number, userInitiated: boolean, icon: TerminalIcon, color?: string): Promise<string> {
+		return this._channel.call('$updateIcon', [id, userInitiated, icon, color]);
 	}
 
 	refreshProperty<T extends ProcessPropertyType>(id: number, property: T): Promise<IProcessPropertyMap[T]> {

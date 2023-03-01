@@ -21,6 +21,7 @@ import { once } from 'vs/base/common/functional';
 import { ITextEditorOptions } from 'vs/platform/editor/common/editor';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { localize } from 'vs/nls';
+import { IExpression } from 'vs/base/common/glob';
 
 /**
  * Explorer viewlet id.
@@ -88,6 +89,7 @@ export interface IFilesConfiguration extends PlatformIFilesConfiguration, IWorkb
 			sortOrder: 'editorOrder' | 'alphabetical' | 'fullPath';
 		};
 		autoReveal: boolean | 'focusNoScroll';
+		autoRevealExclude: IExpression;
 		enableDragAndDrop: boolean;
 		confirmDelete: boolean;
 		enableUndo: boolean;

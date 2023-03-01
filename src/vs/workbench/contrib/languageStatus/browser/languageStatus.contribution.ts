@@ -11,7 +11,8 @@ import Severity from 'vs/base/common/severity';
 import { getCodeEditor, ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { localize } from 'vs/nls';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { ThemeColor, themeColorFromId } from 'vs/platform/theme/common/themeService';
+import { themeColorFromId } from 'vs/platform/theme/common/themeService';
+import { ThemeColor, ThemeIcon } from 'vs/base/common/themables';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions, IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { STATUS_BAR_ERROR_ITEM_BACKGROUND, STATUS_BAR_ERROR_ITEM_FOREGROUND, STATUS_BAR_WARNING_ITEM_BACKGROUND, STATUS_BAR_WARNING_ITEM_FOREGROUND } from 'vs/workbench/common/theme';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -30,6 +31,7 @@ import { equals } from 'vs/base/common/arrays';
 import { URI } from 'vs/base/common/uri';
 import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { Categories } from 'vs/platform/action/common/actionCommonCategories';
 
 class LanguageStatusViewModel {
 
@@ -307,14 +309,14 @@ class EditorStatusContribution implements IWorkbenchContribution {
 		store.add(actionBar);
 		let action: Action;
 		if (!isPinned) {
-			action = new Action('pin', localize('pin', "Add to Status Bar"), Codicon.pin.classNames, true, () => {
+			action = new Action('pin', localize('pin', "Add to Status Bar"), ThemeIcon.asClassName(Codicon.pin), true, () => {
 				this._dedicated.add(status.id);
 				this._statusBarService.updateEntryVisibility(status.id, true);
 				this._update();
 				this._storeState();
 			});
 		} else {
-			action = new Action('unpin', localize('unpin', "Remove from Status Bar"), Codicon.pinned.classNames, true, () => {
+			action = new Action('unpin', localize('unpin', "Remove from Status Bar"), ThemeIcon.asClassName(Codicon.pinned), true, () => {
 				this._dedicated.delete(status.id);
 				this._statusBarService.updateEntryVisibility(status.id, false);
 				this._update();
@@ -391,7 +393,7 @@ class EditorStatusContribution implements IWorkbenchContribution {
 	}
 }
 
-Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(EditorStatusContribution, 'EditorStatusContribution', LifecyclePhase.Restored);
+Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(EditorStatusContribution, LifecyclePhase.Restored);
 
 registerAction2(class extends Action2 {
 
@@ -402,10 +404,7 @@ registerAction2(class extends Action2 {
 				value: localize('reset', 'Reset Language Status Interaction Counter'),
 				original: 'Reset Language Status Interaction Counter'
 			},
-			category: {
-				value: localize('cat', 'View'),
-				original: 'View'
-			},
+			category: Categories.View,
 			f1: true
 		});
 	}

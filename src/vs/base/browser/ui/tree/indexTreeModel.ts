@@ -6,7 +6,8 @@
 import { IIdentityProvider } from 'vs/base/browser/ui/list/list';
 import { ICollapseStateChangeEvent, ITreeElement, ITreeFilter, ITreeFilterDataResult, ITreeModel, ITreeModelSpliceEvent, ITreeNode, TreeError, TreeVisibility } from 'vs/base/browser/ui/tree/tree';
 import { splice, tail2 } from 'vs/base/common/arrays';
-import { Delayer, MicrotaskDelay } from 'vs/base/common/async';
+import { Delayer } from 'vs/base/common/async';
+import { MicrotaskDelay } from 'vs/base/common/symbols';
 import { LcsDiff } from 'vs/base/common/diff/diff';
 import { Emitter, Event, EventBufferer } from 'vs/base/common/event';
 import { Iterable } from 'vs/base/common/iterator';
@@ -526,12 +527,12 @@ export class IndexTreeModel<T extends Exclude<any, undefined>, TFilterData = voi
 
 		const childElements = treeElement.children || Iterable.empty();
 		const childRevealed = revealed && visibility !== TreeVisibility.Hidden && !node.collapsed;
-		const childNodes = Iterable.map(childElements, el => this.createTreeNode(el, node, visibility, childRevealed, treeListElements, onDidCreateNode));
 
 		let visibleChildrenCount = 0;
 		let renderNodeCount = 1;
 
-		for (const child of childNodes) {
+		for (const el of childElements) {
+			const child = this.createTreeNode(el, node, visibility, childRevealed, treeListElements, onDidCreateNode);
 			node.children.push(child);
 			renderNodeCount += child.renderNodeCount;
 

@@ -7,10 +7,13 @@ import { Event } from 'vs/base/common/event';
 import { IProcessEnvironment, OperatingSystem } from 'vs/base/common/platform';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { ITerminalCapabilityStore } from 'vs/platform/terminal/common/capabilities/capabilities';
-import { IGetTerminalLayoutInfoArgs, IProcessDetails, IPtyHostProcessReplayEvent, ISerializedCommandDetectionCapability, ISetTerminalLayoutInfoArgs } from 'vs/platform/terminal/common/terminalProcess';
-import { ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { IPtyHostProcessReplayEvent, ISerializedCommandDetectionCapability, ITerminalCapabilityStore } from 'vs/platform/terminal/common/capabilities/capabilities';
+import { IGetTerminalLayoutInfoArgs, IProcessDetails, ISetTerminalLayoutInfoArgs } from 'vs/platform/terminal/common/terminalProcess';
+import { ThemeIcon } from 'vs/base/common/themables';
 import { ISerializableEnvironmentVariableCollections } from 'vs/platform/terminal/common/environmentVariable';
+import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
+
+export const terminalTabFocusContextKey = new RawContextKey<boolean>('terminalTabFocusMode', false, true);
 
 export const enum TerminalSettingPrefix {
 	Shell = 'terminal.integrated.shell.',
@@ -60,6 +63,7 @@ export const enum TerminalSettingId {
 	LetterSpacing = 'terminal.integrated.letterSpacing',
 	LineHeight = 'terminal.integrated.lineHeight',
 	MinimumContrastRatio = 'terminal.integrated.minimumContrastRatio',
+	TabStopWidth = 'terminal.integrated.tabStopWidth',
 	FastScrollSensitivity = 'terminal.integrated.fastScrollSensitivity',
 	MouseWheelScrollSensitivity = 'terminal.integrated.mouseWheelScrollSensitivity',
 	BellDuration = 'terminal.integrated.bellDuration',
@@ -83,6 +87,7 @@ export const enum TerminalSettingId {
 	CommandsToSkipShell = 'terminal.integrated.commandsToSkipShell',
 	AllowChords = 'terminal.integrated.allowChords',
 	AllowMnemonics = 'terminal.integrated.allowMnemonics',
+	TabFocusMode = 'terminal.integrated.tabFocusMode',
 	EnvMacOs = 'terminal.integrated.env.osx',
 	EnvLinux = 'terminal.integrated.env.linux',
 	EnvWindows = 'terminal.integrated.env.windows',
@@ -110,11 +115,8 @@ export const enum TerminalSettingId {
 	ShellIntegrationShowWelcome = 'terminal.integrated.shellIntegration.showWelcome',
 	ShellIntegrationDecorationsEnabled = 'terminal.integrated.shellIntegration.decorationsEnabled',
 	ShellIntegrationCommandHistory = 'terminal.integrated.shellIntegration.history',
+	ShellIntegrationSuggestEnabled = 'terminal.integrated.shellIntegration.suggestEnabled',
 	SmoothScrolling = 'terminal.integrated.smoothScrolling'
-}
-
-export const enum TerminalLogConstants {
-	FileName = 'ptyhost'
 }
 
 export const enum PosixShellType {
@@ -132,7 +134,7 @@ export const enum WindowsShellType {
 	Wsl = 'wsl',
 	GitBash = 'gitbash'
 }
-export type TerminalShellType = PosixShellType | WindowsShellType | undefined;
+export type TerminalShellType = PosixShellType | WindowsShellType;
 
 export interface IRawTerminalInstanceLayoutInfo<T> {
 	relativeSize: number;
@@ -170,6 +172,7 @@ export interface IPtyHostAttachTarget {
 	hideFromUser?: boolean;
 	isFeatureTerminal?: boolean;
 	type?: TerminalType;
+	hasChildProcesses: boolean;
 }
 
 export interface IReconnectionProperties {
@@ -205,7 +208,7 @@ export enum TerminalIpcChannels {
 	/**
 	 * Deals with logging from the pty host process.
 	 */
-	Log = 'log',
+	Logger = 'logger',
 	/**
 	 * Enables the detection of unresponsive pty hosts.
 	 */
@@ -317,20 +320,21 @@ export interface IPtyService extends IPtyHostController {
 	/** Confirm the process is _not_ an orphan. */
 	orphanQuestionReply(id: number): Promise<void>;
 	updateTitle(id: number, title: string, titleSource: TitleEventSource): Promise<void>;
-	updateIcon(id: number, icon: TerminalIcon, color?: string): Promise<void>;
+	updateIcon(id: number, userInitiated: boolean, icon: TerminalIcon, color?: string): Promise<void>;
 	installAutoReply(match: string, reply: string): Promise<void>;
 	uninstallAllAutoReplies(): Promise<void>;
 	uninstallAutoReply(match: string): Promise<void>;
 	getDefaultSystemShell(osOverride?: OperatingSystem): Promise<string>;
 	getProfiles?(workspaceId: string, profiles: unknown, defaultProfile: unknown, includeDetectedProfiles?: boolean): Promise<ITerminalProfile[]>;
 	getEnvironment(): Promise<IProcessEnvironment>;
-	getWslPath(original: string): Promise<string>;
+	getWslPath(original: string, direction: 'unix-to-win' | 'win-to-unix'): Promise<string>;
 	getRevivedPtyNewId(id: number): Promise<number | undefined>;
 	setTerminalLayoutInfo(args: ISetTerminalLayoutInfoArgs): Promise<void>;
 	getTerminalLayoutInfo(args: IGetTerminalLayoutInfoArgs): Promise<ITerminalsLayoutInfo | undefined>;
 	reduceConnectionGraceTime(): Promise<void>;
 	requestDetachInstance(workspaceId: string, instanceId: number): Promise<IProcessDetails | undefined>;
 	acceptDetachInstanceReply(requestId: number, persistentProcessId?: number): Promise<void>;
+	freePortKillProcess?(port: string): Promise<{ port: string; processId: string }>;
 	/**
 	 * Serializes and returns terminal state.
 	 * @param ids The persistent terminal IDs to serialize.
@@ -485,7 +489,7 @@ export interface IShellLaunchConfig {
 	 * Whether the terminal process environment should be exactly as provided in
 	 * `TerminalOptions.env`. When this is false (default), the environment will be based on the
 	 * window's environment and also apply configured platform settings like
-	 * `terminal.integrated.windows.env` on top. When this is true, the complete environment must be
+	 * `terminal.integrated.env.windows` on top. When this is true, the complete environment must be
 	 * provided as nothing will be inherited from the process or any configuration.
 	 */
 	strictEnv?: boolean;
@@ -592,6 +596,7 @@ export interface IShellLaunchConfigDto {
 export interface ITerminalProcessOptions {
 	shellIntegration: {
 		enabled: boolean;
+		suggestEnabled: boolean;
 	};
 	windowsEnableConpty: boolean;
 	environmentVariableCollections: ISerializableEnvironmentVariableCollections | undefined;
@@ -648,6 +653,11 @@ export interface ITerminalChildProcess {
 	 * @param forcePersist Whether to force the process to persist if it supports persistence.
 	 */
 	detach?(forcePersist?: boolean): Promise<void>;
+
+	/**
+	 * Frees the port and kills the process
+	 */
+	freePortKillProcess?(port: string): Promise<{ port: string; processId: string }>;
 
 	/**
 	 * Shutdown the terminal process.
@@ -746,6 +756,17 @@ export interface ITerminalProfile {
 	profileName: string;
 	path: string;
 	isDefault: boolean;
+	/**
+	 * Whether the terminal profile contains a potentially unsafe {@link path}. For example, the path
+	 * `C:\Cygwin` is the default install for Cygwin on Windows, but it could be created by any
+	 * user in a multi-user environment. As such, we don't want to blindly present it as a profile
+	 * without a warning.
+	 */
+	isUnsafePath?: boolean;
+	/**
+	 * An additional unsafe path that must exist, for example a script that appears in {@link args}.
+	 */
+	requiresUnsafePath?: string;
 	isAutoDetected?: boolean;
 	/**
 	 * Whether the profile path was found on the `$PATH` environment variable, if so it will be
@@ -778,19 +799,22 @@ export interface IBaseUnresolvedTerminalProfile {
 	icon?: string | ThemeIcon | URI | { light: URI; dark: URI };
 	color?: string;
 	env?: ITerminalEnvironment;
+	requiresPath?: string | ITerminalUnsafePath;
+}
+
+type OneOrN<T> = T | T[];
+
+export interface ITerminalUnsafePath {
+	path: string;
+	isUnsafe: true;
 }
 
 export interface ITerminalExecutable extends IBaseUnresolvedTerminalProfile {
-	path: string | string[];
+	path: OneOrN<string | ITerminalUnsafePath>;
 }
 
 export interface ITerminalProfileSource extends IBaseUnresolvedTerminalProfile {
 	source: ProfileSource;
-}
-
-
-export interface ITerminalContributions {
-	profiles?: ITerminalProfileContribution[];
 }
 
 export interface ITerminalProfileContribution {
@@ -805,7 +829,6 @@ export interface IExtensionTerminalProfile extends ITerminalProfileContribution 
 }
 
 export type ITerminalProfileObject = ITerminalExecutable | ITerminalProfileSource | IExtensionTerminalProfile | null;
-export type ITerminalProfileType = ITerminalProfile | IExtensionTerminalProfile;
 
 export interface IShellIntegration {
 	readonly capabilities: ITerminalCapabilityStore;
@@ -814,6 +837,10 @@ export interface IShellIntegration {
 	readonly onDidChangeStatus: Event<ShellIntegrationStatus>;
 
 	deserialize(serialized: ISerializedCommandDetectionCapability): void;
+}
+
+export interface ITerminalContributions {
+	profiles?: ITerminalProfileContribution[];
 }
 
 export const enum ShellIntegrationStatus {

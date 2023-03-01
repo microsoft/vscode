@@ -70,7 +70,8 @@ class DefaultFormatter extends Disposable implements IWorkbenchContribution {
 	}
 
 	private async _updateConfigValues(): Promise<void> {
-		let extensions = await this._extensionService.getExtensions();
+		await this._extensionService.whenInstalledExtensionsRegistered();
+		let extensions = [...this._extensionService.extensions];
 
 		extensions = extensions.sort((a, b) => {
 			const boostA = a.categories?.find(cat => cat === 'Formatters' || cat === 'Programming Languages');
@@ -151,13 +152,12 @@ class DefaultFormatter extends Disposable implements IWorkbenchContribution {
 		if (mode !== FormattingMode.Silent) {
 			// running from a user action -> show modal dialog so that users configure
 			// a default formatter
-			const result = await this._dialogService.confirm({
+			const { confirmed } = await this._dialogService.confirm({
 				message: nls.localize('miss.1', "Configure Default Formatter"),
 				detail: formatterOrMessage,
-				primaryButton: nls.localize('do.config', "Configure..."),
-				secondaryButton: nls.localize('cancel', "Cancel")
+				primaryButton: nls.localize({ key: 'do.config', comment: ['&& denotes a mnemonic'] }, "&&Configure...")
 			});
-			if (result.confirmed) {
+			if (confirmed) {
 				return this._pickAndPersistDefaultFormatter(formatter, document);
 			}
 		} else {
@@ -165,7 +165,7 @@ class DefaultFormatter extends Disposable implements IWorkbenchContribution {
 			this._notificationService.prompt(
 				Severity.Info,
 				formatterOrMessage,
-				[{ label: nls.localize('do.config', "Configure..."), run: () => this._pickAndPersistDefaultFormatter(formatter, document) }],
+				[{ label: nls.localize('do.config.notification', "Configure..."), run: () => this._pickAndPersistDefaultFormatter(formatter, document) }],
 				{ silent: true }
 			);
 		}
@@ -220,7 +220,7 @@ class DefaultFormatter extends Disposable implements IWorkbenchContribution {
 			if (typeof result !== 'string') {
 				return;
 			}
-			const command = { id: `formatter/configure/dfl/${generateUuid()}`, title: nls.localize('do.config', "Configure...") };
+			const command = { id: `formatter/configure/dfl/${generateUuid()}`, title: nls.localize('do.config.command', "Configure...") };
 			this._languageStatusStore.add(CommandsRegistry.registerCommand(command.id, () => this._pickAndPersistDefaultFormatter(formatter, document)));
 			this._languageStatusStore.add(this._languageStatusService.addStatus({
 				id: 'formatter.conflict',
@@ -240,7 +240,6 @@ class DefaultFormatter extends Disposable implements IWorkbenchContribution {
 
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(
 	DefaultFormatter,
-	'DefaultFormatter',
 	LifecyclePhase.Restored
 );
 

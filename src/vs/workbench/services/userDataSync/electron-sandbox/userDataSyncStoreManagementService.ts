@@ -9,7 +9,7 @@ import { IStorageService } from 'vs/platform/storage/common/storage';
 import { AbstractUserDataSyncStoreManagementService } from 'vs/platform/userDataSync/common/userDataSyncStoreService';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { UserDataSyncStoreManagementServiceChannelClient } from 'vs/platform/userDataSync/common/userDataSyncIpc';
 
 class UserDataSyncStoreManagementService extends AbstractUserDataSyncStoreManagementService implements IUserDataSyncStoreManagementService {
@@ -37,4 +37,4 @@ class UserDataSyncStoreManagementService extends AbstractUserDataSyncStoreManage
 
 }
 
-registerSingleton(IUserDataSyncStoreManagementService, UserDataSyncStoreManagementService, true);
+registerSingleton(IUserDataSyncStoreManagementService, UserDataSyncStoreManagementService, InstantiationType.Delayed);

@@ -17,37 +17,10 @@ import * as os from 'os';
 import ts = require('typescript');
 import * as File from 'vinyl';
 import * as task from './task';
-import { createSwcClientStream } from './swc';
+import { Mangler } from './mangleTypeScript';
+import { RawSourceMap } from 'source-map';
 const watch = require('./watch');
 
-
-// --- SWC: transpile -------------------------------------
-
-export function transpileClientSWC(src: string, out: string) {
-
-	return function () {
-
-		// run SWC sync and put files straight onto the disk
-		const swcPromise = createSwcClientStream().exec();
-
-		// copy none TS resources, like CSS, images, onto the disk
-		const bom = require('gulp-bom') as typeof import('gulp-bom');
-		const utf8Filter = util.filter(data => /(\/|\\)test(\/|\\).*utf8/.test(data.path));
-		const tsFilter = util.filter(data => !/\.ts$/.test(data.path));
-		const srcStream = gulp.src(`${src}/**`, { base: `${src}` });
-
-		const copyStream = srcStream
-			.pipe(utf8Filter)
-			.pipe(bom()) // this is required to preserve BOM in test files that loose it otherwise
-			.pipe(utf8Filter.restore)
-			.pipe(tsFilter);
-
-		const copyPromise = util.streamToPromise(copyStream.pipe(gulp.dest(out)));
-
-		return Promise.all([swcPromise, copyPromise]);
-	};
-
-}
 
 // --- gulp-tsb: compile and transpile --------------------------------
 
@@ -68,7 +41,7 @@ function getTypeScriptCompilerOptions(src: string): ts.CompilerOptions {
 	return options;
 }
 
-function createCompile(src: string, build: boolean, emitError: boolean, transpileOnly: boolean) {
+function createCompile(src: string, build: boolean, emitError: boolean, transpileOnly: boolean | { swc: boolean }) {
 	const tsb = require('./tsb') as typeof import('./tsb');
 	const sourcemaps = require('gulp-sourcemaps') as typeof import('gulp-sourcemaps');
 
@@ -79,31 +52,35 @@ function createCompile(src: string, build: boolean, emitError: boolean, transpil
 		overrideOptions.inlineSourceMap = true;
 	}
 
-	const compilation = tsb.create(projectPath, overrideOptions, { verbose: false, transpileOnly }, err => reporter(err));
+	const compilation = tsb.create(projectPath, overrideOptions, {
+		verbose: false,
+		transpileOnly: Boolean(transpileOnly),
+		transpileWithSwc: typeof transpileOnly !== 'boolean' && transpileOnly.swc
+	}, err => reporter(err));
 
 	function pipeline(token?: util.ICancellationToken) {
 		const bom = require('gulp-bom') as typeof import('gulp-bom');
 
-		const utf8Filter = util.filter(data => /(\/|\\)test(\/|\\).*utf8/.test(data.path));
 		const tsFilter = util.filter(data => /\.ts$/.test(data.path));
+		const isUtf8Test = (f: File) => /(\/|\\)test(\/|\\).*utf8/.test(f.path);
+		const isRuntimeJs = (f: File) => f.path.endsWith('.js') && !f.path.includes('fixtures');
 		const noDeclarationsFilter = util.filter(data => !(/\.d\.ts$/.test(data.path)));
 
 		const input = es.through();
 		const output = input
-			.pipe(utf8Filter)
-			.pipe(bom()) // this is required to preserve BOM in test files that loose it otherwise
-			.pipe(utf8Filter.restore)
+			.pipe(util.$if(isUtf8Test, bom())) // this is required to preserve BOM in test files that loose it otherwise
+			.pipe(util.$if(!build && isRuntimeJs, util.appendOwnPathSourceURL()))
 			.pipe(tsFilter)
 			.pipe(util.loadSourcemaps())
 			.pipe(compilation(token))
 			.pipe(noDeclarationsFilter)
-			.pipe(build ? nls.nls() : es.through())
+			.pipe(util.$if(build, nls.nls()))
 			.pipe(noDeclarationsFilter.restore)
-			.pipe(transpileOnly ? es.through() : sourcemaps.write('.', {
+			.pipe(util.$if(!transpileOnly, sourcemaps.write('.', {
 				addComment: false,
 				includeContent: !!build,
 				sourceRoot: overrideOptions.sourceRoot
-			}))
+			})))
 			.pipe(tsFilter.restore)
 			.pipe(reporter.end(!!emitError));
 
@@ -112,14 +89,15 @@ function createCompile(src: string, build: boolean, emitError: boolean, transpil
 	pipeline.tsProjectSrc = () => {
 		return compilation.src({ base: src });
 	};
+	pipeline.projectPath = projectPath;
 	return pipeline;
 }
 
-export function transpileTask(src: string, out: string): () => NodeJS.ReadWriteStream {
+export function transpileTask(src: string, out: string, swc: boolean): () => NodeJS.ReadWriteStream {
 
 	return function () {
 
-		const transpile = createCompile(src, false, true, true);
+		const transpile = createCompile(src, false, true, { swc });
 		const srcPipe = gulp.src(`${src}/**`, { base: `${src}` });
 
 		return srcPipe
@@ -143,7 +121,30 @@ export function compileTask(src: string, out: string, build: boolean): () => Nod
 			generator.execute();
 		}
 
+		// mangle: TypeScript to TypeScript
+		let mangleStream = es.through();
+		if (build) {
+			let ts2tsMangler = new Mangler(compile.projectPath, (...data) => fancyLog(ansiColors.blue('[mangler]'), ...data));
+			const newContentsByFileName = ts2tsMangler.computeNewFileContents();
+			mangleStream = es.through(function write(data: File & { sourceMap?: RawSourceMap }) {
+				type TypeScriptExt = typeof ts & { normalizePath(path: string): string };
+				const tsNormalPath = (<TypeScriptExt>ts).normalizePath(data.path);
+				const newContents = newContentsByFileName.get(tsNormalPath);
+				if (newContents !== undefined) {
+					data.contents = Buffer.from(newContents.out);
+					data.sourceMap = newContents.sourceMap && JSON.parse(newContents.sourceMap);
+				}
+				this.push(data);
+			}, function end() {
+				this.push(null);
+				// free resources
+				newContentsByFileName.clear();
+				(<any>ts2tsMangler) = undefined;
+			});
+		}
+
 		return srcPipe
+			.pipe(mangleStream)
 			.pipe(generator.stream)
 			.pipe(compile())
 			.pipe(gulp.dest(out));

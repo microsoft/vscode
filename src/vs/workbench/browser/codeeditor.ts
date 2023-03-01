@@ -7,10 +7,8 @@ import { Widget } from 'vs/base/browser/ui/widget';
 import { IOverlayWidget, ICodeEditor, IOverlayWidgetPosition, OverlayWidgetPositionPreference, isCodeEditor, isCompositeEditor } from 'vs/editor/browser/editorBrowser';
 import { Emitter } from 'vs/base/common/event';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { $, append, clearNode } from 'vs/base/browser/dom';
-import { attachStylerCallback } from 'vs/platform/theme/common/styler';
-import { buttonBackground, buttonForeground, editorBackground, editorForeground, contrastBorder } from 'vs/platform/theme/common/colorRegistry';
+import { buttonBackground, buttonForeground, editorBackground, editorForeground, contrastBorder, asCssVariableWithDefault, asCssVariable } from 'vs/platform/theme/common/colorRegistry';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
@@ -26,6 +24,7 @@ import { IMenuService, MenuId } from 'vs/platform/actions/common/actions';
 import { createAndFillInActionBarActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IAction } from 'vs/base/common/actions';
+import { EmbeddedCodeEditorWidget } from 'vs/editor/browser/widget/embeddedCodeEditorWidget';
 
 export interface IRangeHighlightDecoration {
 	resource: URI;
@@ -146,8 +145,7 @@ export class FloatingClickWidget extends Widget implements IOverlayWidget {
 		private editor: ICodeEditor,
 		private label: string,
 		keyBindingAction: string | null,
-		@IKeybindingService keybindingService: IKeybindingService,
-		@IThemeService private readonly themeService: IThemeService
+		@IKeybindingService keybindingService: IKeybindingService
 	) {
 		super();
 
@@ -180,23 +178,9 @@ export class FloatingClickWidget extends Widget implements IOverlayWidget {
 
 	render() {
 		clearNode(this._domNode);
-
-		this._register(attachStylerCallback(this.themeService, { buttonBackground, buttonForeground, editorBackground, editorForeground, contrastBorder }, colors => {
-			const backgroundColor = colors.buttonBackground ? colors.buttonBackground : colors.editorBackground;
-			if (backgroundColor) {
-				this._domNode.style.backgroundColor = backgroundColor.toString();
-			}
-
-			const foregroundColor = colors.buttonForeground ? colors.buttonForeground : colors.editorForeground;
-			if (foregroundColor) {
-				this._domNode.style.color = foregroundColor.toString();
-			}
-
-			const borderColor = colors.contrastBorder ? colors.contrastBorder.toString() : '';
-			this._domNode.style.borderWidth = borderColor ? '1px' : '';
-			this._domNode.style.borderStyle = borderColor ? 'solid' : '';
-			this._domNode.style.borderColor = borderColor;
-		}));
+		this._domNode.style.backgroundColor = asCssVariableWithDefault(buttonBackground, asCssVariable(editorBackground));
+		this._domNode.style.color = asCssVariableWithDefault(buttonForeground, asCssVariable(editorForeground));
+		this._domNode.style.border = `1px solid ${asCssVariable(contrastBorder)}`;
 
 		append(this._domNode, $('')).textContent = this.label;
 
@@ -224,28 +208,31 @@ export class FloatingClickMenu extends Disposable implements IEditorContribution
 	) {
 		super();
 
-		const menu = menuService.createMenu(MenuId.EditorContent, contextKeyService);
-		const menuDisposables = new DisposableStore();
-		const renderMenuAsFloatingClickBtn = () => {
-			menuDisposables.clear();
-			if (!editor.hasModel() || editor.getOption(EditorOption.inDiffEditor)) {
-				return;
-			}
-			const actions: IAction[] = [];
-			createAndFillInActionBarActions(menu, { renderShortTitle: true, shouldForwardArgs: true }, actions);
-			if (actions.length === 0) {
-				return;
-			}
-			// todo@jrieken find a way to handle N actions, like showing a context menu
-			const [first] = actions;
-			const widget = instantiationService.createInstance(FloatingClickWidget, editor, first.label, first.id);
-			menuDisposables.add(widget);
-			menuDisposables.add(widget.onClick(() => first.run(editor.getModel().uri)));
-			widget.render();
-		};
-		this._store.add(menu);
-		this._store.add(menuDisposables);
-		this._store.add(menu.onDidChange(renderMenuAsFloatingClickBtn));
-		renderMenuAsFloatingClickBtn();
+		// DISABLED for embedded editors. In the future we can use a different MenuId for embedded editors
+		if (!(editor instanceof EmbeddedCodeEditorWidget)) {
+			const menu = menuService.createMenu(MenuId.EditorContent, contextKeyService);
+			const menuDisposables = new DisposableStore();
+			const renderMenuAsFloatingClickBtn = () => {
+				menuDisposables.clear();
+				if (!editor.hasModel() || editor.getOption(EditorOption.inDiffEditor)) {
+					return;
+				}
+				const actions: IAction[] = [];
+				createAndFillInActionBarActions(menu, { renderShortTitle: true, shouldForwardArgs: true }, actions);
+				if (actions.length === 0) {
+					return;
+				}
+				// todo@jrieken find a way to handle N actions, like showing a context menu
+				const [first] = actions;
+				const widget = instantiationService.createInstance(FloatingClickWidget, editor, first.label, first.id);
+				menuDisposables.add(widget);
+				menuDisposables.add(widget.onClick(() => first.run(editor.getModel().uri)));
+				widget.render();
+			};
+			this._store.add(menu);
+			this._store.add(menuDisposables);
+			this._store.add(menu.onDidChange(renderMenuAsFloatingClickBtn));
+			renderMenuAsFloatingClickBtn();
+		}
 	}
 }

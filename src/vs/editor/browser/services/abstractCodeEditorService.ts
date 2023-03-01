@@ -14,17 +14,24 @@ import { ICodeEditorOpenHandler, ICodeEditorService } from 'vs/editor/browser/se
 import { IContentDecorationRenderOptions, IDecorationRenderOptions, IThemeDecorationRenderOptions, isThemeColor } from 'vs/editor/common/editorCommon';
 import { IModelDecorationOptions, IModelDecorationOverviewRulerOptions, InjectedTextOptions, ITextModel, OverviewRulerLane, TrackedRangeStickiness } from 'vs/editor/common/model';
 import { IResourceEditorInput } from 'vs/platform/editor/common/editor';
-import { IColorTheme, IThemeService, ThemeColor } from 'vs/platform/theme/common/themeService';
+import { IColorTheme, IThemeService } from 'vs/platform/theme/common/themeService';
+import { ThemeColor } from 'vs/base/common/themables';
 
 export abstract class AbstractCodeEditorService extends Disposable implements ICodeEditorService {
 
 	declare readonly _serviceBrand: undefined;
+
+	private readonly _onWillCreateCodeEditor = this._register(new Emitter<void>());
+	public readonly onWillCreateCodeEditor = this._onWillCreateCodeEditor.event;
 
 	private readonly _onCodeEditorAdd: Emitter<ICodeEditor> = this._register(new Emitter<ICodeEditor>());
 	public readonly onCodeEditorAdd: Event<ICodeEditor> = this._onCodeEditorAdd.event;
 
 	private readonly _onCodeEditorRemove: Emitter<ICodeEditor> = this._register(new Emitter<ICodeEditor>());
 	public readonly onCodeEditorRemove: Event<ICodeEditor> = this._onCodeEditorRemove.event;
+
+	private readonly _onWillCreateDiffEditor = this._register(new Emitter<void>());
+	public readonly onWillCreateDiffEditor = this._onWillCreateDiffEditor.event;
 
 	private readonly _onDiffEditorAdd: Emitter<IDiffEditor> = this._register(new Emitter<IDiffEditor>());
 	public readonly onDiffEditorAdd: Event<IDiffEditor> = this._onDiffEditorAdd.event;
@@ -54,6 +61,10 @@ export abstract class AbstractCodeEditorService extends Disposable implements IC
 		this._globalStyleSheet = null;
 	}
 
+	willCreateCodeEditor(): void {
+		this._onWillCreateCodeEditor.fire();
+	}
+
 	addCodeEditor(editor: ICodeEditor): void {
 		this._codeEditors[editor.getId()] = editor;
 		this._onCodeEditorAdd.fire(editor);
@@ -67,6 +78,10 @@ export abstract class AbstractCodeEditorService extends Disposable implements IC
 
 	listCodeEditors(): ICodeEditor[] {
 		return Object.keys(this._codeEditors).map(id => this._codeEditors[id]);
+	}
+
+	willCreateDiffEditor(): void {
+		this._onWillCreateDiffEditor.fire();
 	}
 
 	addDiffEditor(editor: IDiffEditor): void {
@@ -156,6 +171,10 @@ export abstract class AbstractCodeEditorService extends Disposable implements IC
 		provider.refCount++;
 	}
 
+	public listDecorationTypes(): string[] {
+		return Array.from(this._decorationOptionProviders.keys());
+	}
+
 	public removeDecorationType(key: string): void {
 		const provider = this._decorationOptionProviders.get(key);
 		if (provider) {
@@ -220,8 +239,11 @@ export abstract class AbstractCodeEditorService extends Disposable implements IC
 			this._transientWatchers[uri] = w;
 		}
 
-		w.set(key, value);
-		this._onDidChangeTransientModelProperty.fire(model);
+		const previousValue = w.get(key);
+		if (previousValue !== value) {
+			w.set(key, value);
+			this._onDidChangeTransientModelProperty.fire(model);
+		}
 	}
 
 	public getTransientModelProperty(model: ITextModel, key: string): any {
@@ -289,7 +311,7 @@ export class ModelTransientSettingWatcher {
 	}
 }
 
-export class RefCountedStyleSheet {
+class RefCountedStyleSheet {
 
 	private readonly _parent: AbstractCodeEditorService;
 	private readonly _editorId: string;
@@ -362,7 +384,7 @@ interface IModelDecorationOptionsProvider extends IDisposable {
 	resolveDecorationCSSRules(): CSSRuleList;
 }
 
-export class DecorationSubTypeOptionsProvider implements IModelDecorationOptionsProvider {
+class DecorationSubTypeOptionsProvider implements IModelDecorationOptionsProvider {
 
 	private readonly _styleSheet: GlobalStyleSheet | RefCountedStyleSheet;
 	public refCount: number;
@@ -417,7 +439,7 @@ interface ProviderArguments {
 }
 
 
-export class DecorationTypeOptionsProvider implements IModelDecorationOptionsProvider {
+class DecorationTypeOptionsProvider implements IModelDecorationOptionsProvider {
 
 	private readonly _disposables = new DisposableStore();
 	private readonly _styleSheet: GlobalStyleSheet | RefCountedStyleSheet;

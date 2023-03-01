@@ -19,22 +19,21 @@ export const IEnvironmentMainService = refineServiceDecorator<IEnvironmentServic
 export interface IEnvironmentMainService extends INativeEnvironmentService {
 
 	// --- NLS cache path
-	cachedLanguagesPath: string;
+	readonly cachedLanguagesPath: string;
 
 	// --- backup paths
-	backupHome: string;
-	backupWorkspacesPath: string;
+	readonly backupHome: string;
 
 	// --- V8 code caching
-	codeCachePath: string | undefined;
-	useCodeCache: boolean;
+	readonly codeCachePath: string | undefined;
+	readonly useCodeCache: boolean;
 
 	// --- IPC
-	mainIPCHandle: string;
-	mainLockfile: string;
+	readonly mainIPCHandle: string;
+	readonly mainLockfile: string;
 
 	// --- config
-	disableUpdates: boolean;
+	readonly disableUpdates: boolean;
 }
 
 export class EnvironmentMainService extends NativeEnvironmentService implements IEnvironmentMainService {
@@ -44,9 +43,6 @@ export class EnvironmentMainService extends NativeEnvironmentService implements 
 
 	@memoize
 	get backupHome(): string { return join(this.userDataPath, 'Backups'); }
-
-	@memoize
-	get backupWorkspacesPath(): string { return join(this.backupHome, 'workspaces.json'); }
 
 	@memoize
 	get mainIPCHandle(): string { return createStaticIPCHandle(this.userDataPath, 'main', this.productService.version); }

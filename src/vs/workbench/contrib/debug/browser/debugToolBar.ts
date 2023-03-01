@@ -27,8 +27,9 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { contrastBorder, widgetShadow } from 'vs/platform/theme/common/colorRegistry';
-import { IThemeService, Themable, ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { widgetBorder, widgetShadow } from 'vs/platform/theme/common/colorRegistry';
+import { IThemeService, Themable } from 'vs/platform/theme/common/themeService';
+import { ThemeIcon } from 'vs/base/common/themables';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { FocusSessionActionViewItem } from 'vs/workbench/contrib/debug/browser/debugActionViewItems';
 import { debugToolBarBackground, debugToolBarBorder } from 'vs/workbench/contrib/debug/browser/debugColors';
@@ -99,7 +100,13 @@ export class DebugToolBar extends Themable implements IWorkbenchContribution {
 		this.updateScheduler = this._register(new RunOnceScheduler(() => {
 			const state = this.debugService.state;
 			const toolBarLocation = this.configurationService.getValue<IDebugConfiguration>('debug').toolBarLocation;
-			if (state === State.Inactive || toolBarLocation === 'docked' || toolBarLocation === 'hidden' || this.debugService.getViewModel().focusedSession?.isSimpleUI || (state === State.Initializing && this.debugService.initializingOptions?.debugUI?.simple)) {
+			if (
+				state === State.Inactive ||
+				toolBarLocation === 'docked' ||
+				toolBarLocation === 'hidden' ||
+				this.debugService.getModel().getSessions().every(s => s.suppressDebugToolbar) ||
+				(state === State.Initializing && this.debugService.initializingOptions?.suppressDebugToolbar)
+			) {
 				return this.hide();
 			}
 
@@ -180,7 +187,7 @@ export class DebugToolBar extends Themable implements IWorkbenchContribution {
 		}
 	}
 
-	protected override updateStyles(): void {
+	override updateStyles(): void {
 		super.updateStyles();
 
 		if (this.$el) {
@@ -189,7 +196,7 @@ export class DebugToolBar extends Themable implements IWorkbenchContribution {
 			const widgetShadowColor = this.getColor(widgetShadow);
 			this.$el.style.boxShadow = widgetShadowColor ? `0 0 8px 2px ${widgetShadowColor}` : '';
 
-			const contrastBorderColor = this.getColor(contrastBorder);
+			const contrastBorderColor = this.getColor(widgetBorder);
 			const borderColor = this.getColor(debugToolBarBorder);
 
 			if (contrastBorderColor) {

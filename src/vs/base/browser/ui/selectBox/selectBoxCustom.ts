@@ -15,7 +15,7 @@ import { ISelectBoxDelegate, ISelectBoxOptions, ISelectBoxStyles, ISelectData, I
 import * as arrays from 'vs/base/common/arrays';
 import { Emitter, Event } from 'vs/base/common/event';
 import { KeyCode, KeyCodeUtils } from 'vs/base/common/keyCodes';
-import { Disposable, dispose, IDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { isMacintosh } from 'vs/base/common/platform';
 import { ScrollbarVisibility } from 'vs/base/common/scrollable';
 import 'vs/css!./selectBoxCustom';
@@ -31,7 +31,6 @@ interface ISelectListTemplateData {
 	text: HTMLElement;
 	detail: HTMLElement;
 	decoratorRight: HTMLElement;
-	disposables: IDisposable[];
 }
 
 class SelectListRenderer implements IListRenderer<ISelectOptionItem, ISelectListTemplateData> {
@@ -40,7 +39,6 @@ class SelectListRenderer implements IListRenderer<ISelectOptionItem, ISelectList
 
 	renderTemplate(container: HTMLElement): ISelectListTemplateData {
 		const data: ISelectListTemplateData = Object.create(null);
-		data.disposables = [];
 		data.root = container;
 		data.text = dom.append(container, $('.option-text'));
 		data.detail = dom.append(container, $('.option-detail'));
@@ -71,8 +69,8 @@ class SelectListRenderer implements IListRenderer<ISelectOptionItem, ISelectList
 		}
 	}
 
-	disposeTemplate(templateData: ISelectListTemplateData): void {
-		templateData.disposables = dispose(templateData.disposables);
+	disposeTemplate(_templateData: ISelectListTemplateData): void {
+		// noop
 	}
 }
 
@@ -89,7 +87,7 @@ export class SelectBoxList extends Disposable implements ISelectBoxDelegate, ILi
 	private options: ISelectOptionItem[] = [];
 	private selected: number;
 	private readonly _onDidSelect: Emitter<ISelectData>;
-	private styles: ISelectBoxStyles;
+	private readonly styles: ISelectBoxStyles;
 	private listRenderer!: SelectListRenderer;
 	private contextViewProvider!: IContextViewProvider;
 	private selectDropDownContainer!: HTMLElement;
@@ -102,6 +100,7 @@ export class SelectBoxList extends Disposable implements ISelectBoxDelegate, ILi
 	private _hasDetails: boolean = false;
 	private selectionDetailsPane!: HTMLElement;
 	private _skipLayout: boolean = false;
+	private _cachedMaxDetailsHeight?: number;
 
 	private _sticky: boolean = false; // for dev purposes only
 
@@ -109,6 +108,8 @@ export class SelectBoxList extends Disposable implements ISelectBoxDelegate, ILi
 
 		super();
 		this._isVisible = false;
+		this.styles = styles;
+
 		this.selectBoxOptions = selectBoxOptions || Object.create(null);
 
 		if (typeof this.selectBoxOptions.minBottomMargin !== 'number') {
@@ -133,8 +134,6 @@ export class SelectBoxList extends Disposable implements ISelectBoxDelegate, ILi
 		this._onDidSelect = new Emitter<ISelectData>();
 		this._register(this._onDidSelect);
 
-		this.styles = styles;
-
 		this.registerListeners();
 		this.constructSelectDropDown(contextViewProvider);
 
@@ -144,12 +143,14 @@ export class SelectBoxList extends Disposable implements ISelectBoxDelegate, ILi
 			this.setOptions(options, selected);
 		}
 
+		this.initStyleSheet();
+
 	}
 
 	// IDelegate - List renderer
 
 	getHeight(): number {
-		return 18;
+		return 22;
 	}
 
 	getTemplateId(): string {
@@ -269,6 +270,7 @@ export class SelectBoxList extends Disposable implements ISelectBoxDelegate, ILi
 			this.options = options;
 			this.selectElement.options.length = 0;
 			this._hasDetails = false;
+			this._cachedMaxDetailsHeight = undefined;
 
 			this.options.forEach((option, index) => {
 				this.selectElement.add(this.createOption(option.text, index, option.isDisabled));
@@ -338,14 +340,12 @@ export class SelectBoxList extends Disposable implements ISelectBoxDelegate, ILi
 		this.container = container;
 		container.classList.add('select-container');
 		container.appendChild(this.selectElement);
-		this.applyStyles();
+		this.styleSelectElement();
 	}
 
-	public style(styles: ISelectBoxStyles): void {
+	private initStyleSheet(): void {
 
 		const content: string[] = [];
-
-		this.styles = styles;
 
 		// Style non-native select mode
 
@@ -361,7 +361,7 @@ export class SelectBoxList extends Disposable implements ISelectBoxDelegate, ILi
 			content.push(`.monaco-select-box-dropdown-container > .select-box-dropdown-list-container .monaco-list .monaco-list-row:not(.focused) .option-decorator-right { color: ${this.styles.decoratorRightForeground}; }`);
 		}
 
-		if (this.styles.selectBackground && this.styles.selectBorder && !this.styles.selectBorder.equals(this.styles.selectBackground)) {
+		if (this.styles.selectBackground && this.styles.selectBorder && this.styles.selectBorder !== this.styles.selectBackground) {
 			content.push(`.monaco-select-box-dropdown-container { border: 1px solid ${this.styles.selectBorder} } `);
 			content.push(`.monaco-select-box-dropdown-container > .select-box-details-pane.border-top { border-top: 1px solid ${this.styles.selectBorder} } `);
 			content.push(`.monaco-select-box-dropdown-container > .select-box-details-pane.border-bottom { border-bottom: 1px solid ${this.styles.selectBorder} } `);
@@ -396,43 +396,29 @@ export class SelectBoxList extends Disposable implements ISelectBoxDelegate, ILi
 		content.push(`.monaco-select-box-dropdown-container > .select-box-dropdown-list-container .monaco-list .monaco-list-row.option-disabled:hover { background-color: transparent !important; color: inherit !important; outline: none !important; }`);
 
 		this.styleElement.textContent = content.join('\n');
-
-		this.applyStyles();
 	}
 
-	public applyStyles(): void {
+	private styleSelectElement(): void {
+		const background = this.styles.selectBackground ?? '';
+		const foreground = this.styles.selectForeground ?? '';
+		const border = this.styles.selectBorder ?? '';
 
-		// Style parent select
-
-		if (this.selectElement) {
-			const background = this.styles.selectBackground ? this.styles.selectBackground.toString() : '';
-			const foreground = this.styles.selectForeground ? this.styles.selectForeground.toString() : '';
-			const border = this.styles.selectBorder ? this.styles.selectBorder.toString() : '';
-
-			this.selectElement.style.backgroundColor = background;
-			this.selectElement.style.color = foreground;
-			this.selectElement.style.borderColor = border;
-		}
-
-		// Style drop down select list (non-native mode only)
-
-		if (this.selectList) {
-			this.styleList();
-		}
+		this.selectElement.style.backgroundColor = background;
+		this.selectElement.style.color = foreground;
+		this.selectElement.style.borderColor = border;
 	}
 
 	private styleList() {
-		if (this.selectList) {
-			const background = this.styles.selectBackground ? this.styles.selectBackground.toString() : '';
-			this.selectList.style({});
+		const background = this.styles.selectBackground ?? '';
 
-			const listBackground = this.styles.selectListBackground ? this.styles.selectListBackground.toString() : background;
-			this.selectDropDownListContainer.style.backgroundColor = listBackground;
-			this.selectionDetailsPane.style.backgroundColor = listBackground;
-			const optionsBorder = this.styles.focusBorder ? this.styles.focusBorder.toString() : '';
-			this.selectDropDownContainer.style.outlineColor = optionsBorder;
-			this.selectDropDownContainer.style.outlineOffset = '-1px';
-		}
+		const listBackground = dom.asCssValueWithDefault(this.styles.selectListBackground, background);
+		this.selectDropDownListContainer.style.backgroundColor = listBackground;
+		this.selectionDetailsPane.style.backgroundColor = listBackground;
+		const optionsBorder = this.styles.focusBorder ?? '';
+		this.selectDropDownContainer.style.outlineColor = optionsBorder;
+		this.selectDropDownContainer.style.outlineOffset = '-1px';
+
+		this.selectList.style(this.styles);
 	}
 
 	private createOption(value: string, index: number, disabled?: boolean): HTMLOptionElement {
@@ -577,7 +563,10 @@ export class SelectBoxList extends Disposable implements ISelectBoxDelegate, ILi
 			this.selectList.layout();
 			let listHeight = this.selectList.contentHeight;
 
-			const maxDetailsPaneHeight = this._hasDetails ? this.measureMaxDetailsHeight() : 0;
+			if (this._hasDetails && this._cachedMaxDetailsHeight === undefined) {
+				this._cachedMaxDetailsHeight = this.measureMaxDetailsHeight();
+			}
+			const maxDetailsPaneHeight = this._hasDetails ? this._cachedMaxDetailsHeight! : 0;
 
 			const minRequiredDropDownHeight = listHeight + verticalPadding + maxDetailsPaneHeight;
 			const maxVisibleOptionsBelow = ((Math.floor((maxSelectDropDownHeightBelow - verticalPadding - maxDetailsPaneHeight) / this.getHeight())));
@@ -880,7 +869,7 @@ export class SelectBoxList extends Disposable implements ISelectBoxDelegate, ILi
 			}
 		};
 
-		const rendered = renderMarkdown({ value: text }, { actionHandler });
+		const rendered = renderMarkdown({ value: text, supportThemeIcons: true }, { actionHandler });
 
 		rendered.element.classList.add('select-box-description-markdown');
 		cleanRenderedMarkdown(rendered.element);

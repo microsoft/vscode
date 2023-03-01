@@ -35,6 +35,7 @@ type BrowserType = 'chromium' | 'firefox' | 'webkit';
 async function runTestsInBrowser(browserType: BrowserType, endpoint: url.UrlWithStringQuery, server: cp.ChildProcess): Promise<void> {
 	const browser = await playwright[browserType].launch({ headless: !Boolean(optimist.argv.debug) });
 	const context = await browser.newContext();
+
 	const page = await context.newPage();
 	await page.setViewportSize({ width, height });
 
@@ -58,21 +59,6 @@ async function runTestsInBrowser(browserType: BrowserType, endpoint: url.UrlWith
 		console.error('Request Failed', e.url(), e.failure()?.errorText);
 	});
 
-	const host = endpoint.host;
-	const protocol = 'vscode-remote';
-
-	const testWorkspacePath = URI.file(path.resolve(optimist.argv.workspacePath)).path;
-	const testExtensionUri = url.format({ pathname: URI.file(path.resolve(optimist.argv.extensionDevelopmentPath)).path, protocol, host, slashes: true });
-	const testFilesUri = url.format({ pathname: URI.file(path.resolve(optimist.argv.extensionTestsPath)).path, protocol, host, slashes: true });
-
-	const payloadParam = `[["extensionDevelopmentPath","${testExtensionUri}"],["extensionTestsPath","${testFilesUri}"],["enableProposedApi",""],["webviewExternalEndpointCommit","ef65ac1ba57f57f2a3961bfe94aa20481caca4c6"],["skipWelcome","true"]]`;
-
-	if (path.extname(testWorkspacePath) === '.code-workspace') {
-		await page.goto(`${endpoint.href}&workspace=${testWorkspacePath}&payload=${payloadParam}`);
-	} else {
-		await page.goto(`${endpoint.href}&folder=${testWorkspacePath}&payload=${payloadParam}`);
-	}
-
 	await page.exposeFunction('codeAutomationLog', (type: string, args: any[]) => {
 		console[type](...args);
 	});
@@ -92,6 +78,21 @@ async function runTestsInBrowser(browserType: BrowserType, endpoint: url.UrlWith
 
 		process.exit(code);
 	});
+
+	const host = endpoint.host;
+	const protocol = 'vscode-remote';
+
+	const testWorkspacePath = URI.file(path.resolve(optimist.argv.workspacePath)).path;
+	const testExtensionUri = url.format({ pathname: URI.file(path.resolve(optimist.argv.extensionDevelopmentPath)).path, protocol, host, slashes: true });
+	const testFilesUri = url.format({ pathname: URI.file(path.resolve(optimist.argv.extensionTestsPath)).path, protocol, host, slashes: true });
+
+	const payloadParam = `[["extensionDevelopmentPath","${testExtensionUri}"],["extensionTestsPath","${testFilesUri}"],["enableProposedApi",""],["webviewExternalEndpointCommit","ef65ac1ba57f57f2a3961bfe94aa20481caca4c6"],["skipWelcome","true"]]`;
+
+	if (path.extname(testWorkspacePath) === '.code-workspace') {
+		await page.goto(`${endpoint.href}&workspace=${testWorkspacePath}&payload=${payloadParam}`);
+	} else {
+		await page.goto(`${endpoint.href}&folder=${testWorkspacePath}&payload=${payloadParam}`);
+	}
 }
 
 function consoleLogFn(msg: playwright.ConsoleMessage) {

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
+import { INativeHostService } from 'vs/platform/native/common/native';
 import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
@@ -14,7 +14,7 @@ import { IAccessibilityService } from 'vs/platform/accessibility/common/accessib
 import { IStartupMetrics, AbstractTimerService, Writeable, ITimerService } from 'vs/workbench/services/timer/browser/timerService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { process } from 'vs/base/parts/sandbox/electron-sandbox/globals';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
@@ -83,9 +83,14 @@ export class TimerService extends AbstractTimerService {
 			// ignore, be on the safe side with these hardware method calls
 		}
 	}
+
+	protected override _shouldReportPerfMarks(): boolean {
+		// always send when running with the prof-append-timers flag
+		return super._shouldReportPerfMarks() || Boolean(this._environmentService.args['prof-append-timers']);
+	}
 }
 
-registerSingleton(ITimerService, TimerService, true);
+registerSingleton(ITimerService, TimerService, InstantiationType.Delayed);
 
 //#region cached data logic
 

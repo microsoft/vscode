@@ -6,7 +6,7 @@
 import { Schemas } from 'vs/base/common/network';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { URI, UriComponents } from 'vs/base/common/uri';
-import { IEditorSerializer } from 'vs/workbench/common/editor';
+import { IEditorSerializer, isUntitledWithAssociatedResource } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { ITextEditorService } from 'vs/workbench/services/textfile/common/textEditorService';
 import { isEqual, toLocalResource } from 'vs/base/common/resources';
@@ -85,8 +85,6 @@ export class UntitledTextEditorInputSerializer implements IEditorSerializer {
 
 export class UntitledTextEditorWorkingCopyEditorHandler extends Disposable implements IWorkbenchContribution {
 
-	private static readonly UNTITLED_REGEX = /Untitled-\d+/;
-
 	constructor(
 		@IWorkingCopyEditorService private readonly workingCopyEditorService: IWorkingCopyEditorService,
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
@@ -105,10 +103,9 @@ export class UntitledTextEditorWorkingCopyEditorHandler extends Disposable imple
 			createEditor: workingCopy => {
 				let editorInputResource: URI;
 
-				// This is a (weak) strategy to find out if the untitled input had
-				// an associated file path or not by just looking at the path. and
-				// if so, we must ensure to restore the local resource it had.
-				if (!UntitledTextEditorWorkingCopyEditorHandler.UNTITLED_REGEX.test(workingCopy.resource.path)) {
+				// If the untitled has an associated resource,
+				// ensure to restore the local resource it had
+				if (isUntitledWithAssociatedResource(workingCopy.resource)) {
 					editorInputResource = toLocalResource(workingCopy.resource, this.environmentService.remoteAuthority, this.pathService.defaultUriScheme);
 				} else {
 					editorInputResource = workingCopy.resource;

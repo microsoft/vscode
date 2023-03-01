@@ -69,6 +69,6 @@ class UserDataSyncReportIssueContribution extends Disposable implements IWorkben
 }
 
 const workbenchRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
-workbenchRegistry.registerWorkbenchContribution(UserDataSyncWorkbenchContribution, 'UserDataSyncWorkbenchContribution', LifecyclePhase.Restored);
-workbenchRegistry.registerWorkbenchContribution(UserDataSyncTrigger, 'UserDataSyncTrigger', LifecyclePhase.Eventually);
-workbenchRegistry.registerWorkbenchContribution(UserDataSyncReportIssueContribution, 'UserDataSyncReportIssueContribution', LifecyclePhase.Eventually);
+workbenchRegistry.registerWorkbenchContribution(UserDataSyncWorkbenchContribution, LifecyclePhase.Restored);
+workbenchRegistry.registerWorkbenchContribution(UserDataSyncTrigger, LifecyclePhase.Eventually);
+workbenchRegistry.registerWorkbenchContribution(UserDataSyncReportIssueContribution, LifecyclePhase.Eventually);

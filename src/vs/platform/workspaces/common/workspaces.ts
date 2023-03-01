@@ -331,10 +331,10 @@ function isSerializedRecentFile(data: any): data is ISerializedRecentFile {
 export function restoreRecentlyOpened(data: RecentlyOpenedStorageData | undefined, logService: ILogService): IRecentlyOpened {
 	const result: IRecentlyOpened = { workspaces: [], files: [] };
 	if (data) {
-		const restoreGracefully = function <T>(entries: T[], func: (entry: T, index: number) => void) {
+		const restoreGracefully = function <T>(entries: T[], onEntry: (entry: T, index: number) => void) {
 			for (let i = 0; i < entries.length; i++) {
 				try {
-					func(entries[i], i);
+					onEntry(entries[i], i);
 				} catch (e) {
 					logService.warn(`Error restoring recent entry ${JSON.stringify(entries[i])}: ${e.toString()}. Skip entry.`);
 				}
@@ -343,7 +343,7 @@ export function restoreRecentlyOpened(data: RecentlyOpenedStorageData | undefine
 
 		const storedRecents = data as ISerializedRecentlyOpened;
 		if (Array.isArray(storedRecents.entries)) {
-			restoreGracefully(storedRecents.entries, (entry) => {
+			restoreGracefully(storedRecents.entries, entry => {
 				const label = entry.label;
 				const remoteAuthority = entry.remoteAuthority;
 

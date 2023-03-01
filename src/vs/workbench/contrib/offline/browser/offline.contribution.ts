@@ -94,4 +94,4 @@ export class OfflineStatusBarController implements IWorkbenchContribution {
 }
 
 Registry.as<IWorkbenchContributionsRegistry>(Extensions.Workbench)
-	.registerWorkbenchContribution(OfflineStatusBarController, 'OfflineStatusBarController', LifecyclePhase.Restored);
+	.registerWorkbenchContribution(OfflineStatusBarController, LifecyclePhase.Restored);

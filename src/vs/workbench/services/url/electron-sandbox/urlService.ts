@@ -5,14 +5,15 @@
 
 import { IURLService, IURLHandler, IOpenURLOptions } from 'vs/platform/url/common/url';
 import { URI, UriComponents } from 'vs/base/common/uri';
-import { IMainProcessService } from 'vs/platform/ipc/electron-sandbox/services';
+import { IMainProcessService } from 'vs/platform/ipc/common/mainProcessService';
 import { URLHandlerChannel } from 'vs/platform/url/common/urlIpc';
 import { IOpenerService, IOpener, matchesScheme } from 'vs/platform/opener/common/opener';
 import { IProductService } from 'vs/platform/product/common/productService';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { ProxyChannel } from 'vs/base/parts/ipc/common/ipc';
-import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
+import { INativeHostService } from 'vs/platform/native/common/native';
 import { NativeURLService } from 'vs/platform/url/common/urlService';
+import { ILogService } from 'vs/platform/log/common/log';
 
 export interface IRelayOpenURLOptions extends IOpenURLOptions {
 	openToSide?: boolean;
@@ -27,7 +28,8 @@ export class RelayURLService extends NativeURLService implements IURLHandler, IO
 		@IMainProcessService mainProcessService: IMainProcessService,
 		@IOpenerService openerService: IOpenerService,
 		@INativeHostService private readonly nativeHostService: INativeHostService,
-		@IProductService productService: IProductService
+		@IProductService productService: IProductService,
+		@ILogService private readonly logService: ILogService
 	) {
 		super(productService);
 
@@ -66,11 +68,15 @@ export class RelayURLService extends NativeURLService implements IURLHandler, IO
 		const result = await super.open(uri, options);
 
 		if (result) {
+			this.logService.trace('URLService#handleURL(): handled', uri.toString(true));
+
 			await this.nativeHostService.focusWindow({ force: true /* Application may not be active */ });
+		} else {
+			this.logService.trace('URLService#handleURL(): not handled', uri.toString(true));
 		}
 
 		return result;
 	}
 }
 
-registerSingleton(IURLService, RelayURLService, false);
+registerSingleton(IURLService, RelayURLService, InstantiationType.Eager);

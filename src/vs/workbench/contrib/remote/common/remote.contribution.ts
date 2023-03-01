@@ -9,12 +9,9 @@ import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle
 import { ILabelService, ResourceLabelFormatting } from 'vs/platform/label/common/label';
 import { OperatingSystem, isWeb, OS } from 'vs/base/common/platform';
 import { Schemas } from 'vs/base/common/network';
-import { IRemoteAgentService, RemoteExtensionLogFileName } from 'vs/workbench/services/remote/common/remoteAgentService';
-import { ILogService } from 'vs/platform/log/common/log';
-import { LogLevelChannel, LogLevelChannelClient } from 'vs/platform/log/common/logIpc';
-import { IOutputChannelRegistry, Extensions as OutputExt, } from 'vs/workbench/services/output/common/output';
+import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
+import { ILoggerService } from 'vs/platform/log/common/log';
 import { localize } from 'vs/nls';
-import { joinPath } from 'vs/base/common/resources';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
@@ -25,14 +22,14 @@ import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace
 import { firstOrDefault } from 'vs/base/common/arrays';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
-import { CATEGORIES } from 'vs/workbench/common/actions';
+import { Categories } from 'vs/platform/action/common/actionCommonCategories';
 import { PersistentConnection } from 'vs/platform/remote/common/remoteAgentConnection';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { getRemoteName } from 'vs/platform/remote/common/remoteHosts';
 import { IDownloadService } from 'vs/platform/download/common/download';
 import { DownloadServiceChannel } from 'vs/platform/download/common/downloadIpc';
 import { timeout } from 'vs/base/common/async';
-import { TerminalLogConstants } from 'vs/platform/terminal/common/terminal';
+import { RemoteLoggerChannelClient } from 'vs/platform/log/common/logIpc';
 
 export class LabelContribution implements IWorkbenchContribution {
 	constructor(
@@ -69,40 +66,16 @@ export class LabelContribution implements IWorkbenchContribution {
 class RemoteChannelsContribution extends Disposable implements IWorkbenchContribution {
 
 	constructor(
-		@ILogService logService: ILogService,
 		@IRemoteAgentService remoteAgentService: IRemoteAgentService,
-		@IDownloadService downloadService: IDownloadService
+		@IDownloadService downloadService: IDownloadService,
+		@ILoggerService loggerService: ILoggerService,
 	) {
 		super();
-		const updateRemoteLogLevel = () => {
-			const connection = remoteAgentService.getConnection();
-			if (!connection) {
-				return;
-			}
-			connection.withChannel('logger', (channel) => LogLevelChannelClient.setLevel(channel, logService.getLevel()));
-		};
-		updateRemoteLogLevel();
-		this._register(logService.onDidChangeLogLevel(updateRemoteLogLevel));
 		const connection = remoteAgentService.getConnection();
 		if (connection) {
 			connection.registerChannel('download', new DownloadServiceChannel(downloadService));
-			connection.registerChannel('logger', new LogLevelChannel(logService));
+			connection.withChannel('logger', async channel => this._register(new RemoteLoggerChannelClient(loggerService, channel)));
 		}
-	}
-}
-
-class RemoteLogOutputChannels implements IWorkbenchContribution {
-
-	constructor(
-		@IRemoteAgentService remoteAgentService: IRemoteAgentService
-	) {
-		remoteAgentService.getEnvironment().then(remoteEnv => {
-			if (remoteEnv) {
-				const outputChannelRegistry = Registry.as<IOutputChannelRegistry>(OutputExt.OutputChannels);
-				outputChannelRegistry.registerChannel({ id: 'remoteExtensionLog', label: localize('remoteExtensionLog', "Remote Server"), file: joinPath(remoteEnv.logsPath, `${RemoteExtensionLogFileName}.log`), log: true });
-				outputChannelRegistry.registerChannel({ id: 'remotePtyHostLog', label: localize('remotePtyHostLog', "Remote Pty Host"), file: joinPath(remoteEnv.logsPath, `${TerminalLogConstants.FileName}.log`), log: true });
-			}
-		});
 	}
 }
 
@@ -150,9 +123,8 @@ class RemoteInvalidWorkspaceDetector extends Disposable implements IWorkbenchCon
 		const res = await this.dialogService.confirm({
 			type: 'warning',
 			message: localize('invalidWorkspaceMessage', "Workspace does not exist"),
-			detail: localize('invalidWorkspaceDetail', "The workspace does not exist. Please select another workspace to open."),
-			primaryButton: localize('invalidWorkspacePrimary', "&&Open Workspace..."),
-			secondaryButton: localize('invalidWorkspaceCancel', "&&Cancel")
+			detail: localize('invalidWorkspaceDetail', "Please select another workspace to open."),
+			primaryButton: localize({ key: 'invalidWorkspacePrimary', comment: ['&& denotes a mnemonic'] }, "&&Open Workspace...")
 		});
 
 		if (res.confirmed) {
@@ -267,11 +239,10 @@ class InitialRemoteConnectionHealthContribution implements IWorkbenchContributio
 }
 
 const workbenchContributionsRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
-workbenchContributionsRegistry.registerWorkbenchContribution(LabelContribution, 'LabelContribution', LifecyclePhase.Starting);
-workbenchContributionsRegistry.registerWorkbenchContribution(RemoteChannelsContribution, 'RemoteChannelsContribution', LifecyclePhase.Starting);
-workbenchContributionsRegistry.registerWorkbenchContribution(RemoteInvalidWorkspaceDetector, 'RemoteInvalidWorkspaceDetector', LifecyclePhase.Starting);
-workbenchContributionsRegistry.registerWorkbenchContribution(RemoteLogOutputChannels, 'RemoteLogOutputChannels', LifecyclePhase.Restored);
-workbenchContributionsRegistry.registerWorkbenchContribution(InitialRemoteConnectionHealthContribution, 'InitialRemoteConnectionHealthContribution', LifecyclePhase.Ready);
+workbenchContributionsRegistry.registerWorkbenchContribution(LabelContribution, LifecyclePhase.Starting);
+workbenchContributionsRegistry.registerWorkbenchContribution(RemoteChannelsContribution, LifecyclePhase.Restored);
+workbenchContributionsRegistry.registerWorkbenchContribution(RemoteInvalidWorkspaceDetector, LifecyclePhase.Starting);
+workbenchContributionsRegistry.registerWorkbenchContribution(InitialRemoteConnectionHealthContribution, LifecyclePhase.Ready);
 
 const enableDiagnostics = true;
 
@@ -281,7 +252,7 @@ if (enableDiagnostics) {
 			super({
 				id: 'workbench.action.triggerReconnect',
 				title: { value: localize('triggerReconnect', "Connection: Trigger Reconnect"), original: 'Connection: Trigger Reconnect' },
-				category: CATEGORIES.Developer,
+				category: Categories.Developer,
 				f1: true,
 			});
 		}
@@ -296,7 +267,7 @@ if (enableDiagnostics) {
 			super({
 				id: 'workbench.action.pauseSocketWriting',
 				title: { value: localize('pauseSocketWriting', "Connection: Pause socket writing"), original: 'Connection: Pause socket writing' },
-				category: CATEGORIES.Developer,
+				category: Categories.Developer,
 				f1: true,
 			});
 		}
@@ -360,6 +331,11 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 					localize('remote.autoForwardPortsSource.output', "Ports will be automatically forwarded when discovered by reading terminal and debug output. Not all processes that use ports will print to the integrated terminal or debug console, so some ports will be missed. Ports forwarded based on output will not be \"un-forwarded\" until reload or until the port is closed by the user in the Ports view.")
 				],
 				default: 'process'
+			},
+			'remote.forwardOnOpen': {
+				type: 'boolean',
+				description: localize('remote.forwardOnClick', "Controls whether local URLs with a port will be forwarded when opened from the terminal and the debug console."),
+				default: true
 			},
 			// Consider making changes to extensions\configuration-editing\schemas\devContainer.schema.src.json
 			// and extensions\configuration-editing\schemas\attachContainer.schema.json

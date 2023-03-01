@@ -5,8 +5,6 @@
 
 import * as vscode from 'vscode';
 import * as interfaces from './interfaces';
-import { loadMessageBundle } from 'vscode-nls';
-const localize = loadMessageBundle();
 
 export default class MergeConflictCodeLensProvider implements vscode.CodeLensProvider, vscode.Disposable {
 	private codeLensRegistrationHandle?: vscode.Disposable | null;
@@ -65,33 +63,34 @@ export default class MergeConflictCodeLensProvider implements vscode.CodeLensPro
 		conflicts.forEach(conflict => {
 			const acceptCurrentCommand: vscode.Command = {
 				command: 'merge-conflict.accept.current',
-				title: localize('acceptCurrentChange', 'Accept Current Change'),
+				title: vscode.l10n.t("Accept Current Change"),
 				arguments: ['known-conflict', conflict]
 			};
 
 			const acceptIncomingCommand: vscode.Command = {
 				command: 'merge-conflict.accept.incoming',
-				title: localize('acceptIncomingChange', 'Accept Incoming Change'),
+				title: vscode.l10n.t("Accept Incoming Change"),
 				arguments: ['known-conflict', conflict]
 			};
 
 			const acceptBothCommand: vscode.Command = {
 				command: 'merge-conflict.accept.both',
-				title: localize('acceptBothChanges', 'Accept Both Changes'),
+				title: vscode.l10n.t("Accept Both Changes"),
 				arguments: ['known-conflict', conflict]
 			};
 
 			const diffCommand: vscode.Command = {
 				command: 'merge-conflict.compare',
-				title: localize('compareChanges', 'Compare Changes'),
+				title: vscode.l10n.t("Compare Changes"),
 				arguments: [conflict]
 			};
 
+			const range = document.lineAt(conflict.range.start.line).range;
 			items.push(
-				new vscode.CodeLens(conflict.range, acceptCurrentCommand),
-				new vscode.CodeLens(conflict.range.with(conflict.range.start.with({ character: conflict.range.start.character + 1 })), acceptIncomingCommand),
-				new vscode.CodeLens(conflict.range.with(conflict.range.start.with({ character: conflict.range.start.character + 2 })), acceptBothCommand),
-				new vscode.CodeLens(conflict.range.with(conflict.range.start.with({ character: conflict.range.start.character + 3 })), diffCommand)
+				new vscode.CodeLens(range, acceptCurrentCommand),
+				new vscode.CodeLens(range, acceptIncomingCommand),
+				new vscode.CodeLens(range, acceptBothCommand),
+				new vscode.CodeLens(range, diffCommand)
 			);
 		});
 

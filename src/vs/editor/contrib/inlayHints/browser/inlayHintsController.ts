@@ -15,6 +15,7 @@ import { assertType } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { IActiveCodeEditor, ICodeEditor, IEditorMouseEvent, MouseTargetType } from 'vs/editor/browser/editorBrowser';
 import { ClassNameReference, CssProperties, DynamicCssRules } from 'vs/editor/browser/editorDom';
+import { StableEditorScrollState } from 'vs/editor/browser/stableEditorScroll';
 import { EditorOption, EDITOR_FONT_DEFAULTS } from 'vs/editor/common/config/editorOptions';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { Range } from 'vs/editor/common/core/range';
@@ -29,7 +30,7 @@ import { ClickLinkGesture, ClickLinkMouseEvent } from 'vs/editor/contrib/gotoSym
 import { InlayHintAnchor, InlayHintItem, InlayHintsFragments } from 'vs/editor/contrib/inlayHints/browser/inlayHints';
 import { goToDefinitionWithLocation, showGoToContextMenu } from 'vs/editor/contrib/inlayHints/browser/inlayHintsLocations';
 import { CommandsRegistry, ICommandService } from 'vs/platform/commands/common/commands';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { createDecorator, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import * as colors from 'vs/platform/theme/common/colorRegistry';
@@ -60,7 +61,7 @@ class InlayHintsCache {
 
 interface IInlayHintsCache extends InlayHintsCache { }
 const IInlayHintsCache = createDecorator<IInlayHintsCache>('IInlayHintsCache');
-registerSingleton(IInlayHintsCache, InlayHintsCache, true);
+registerSingleton(IInlayHintsCache, InlayHintsCache, InstantiationType.Delayed);
 
 // --- rendered label
 
@@ -250,7 +251,7 @@ export class InlayHintsController implements IEditorContribution {
 				if (!this._editor.hasModel()) {
 					return;
 				}
-				const newRenderMode = e.altKey && e.ctrlKey ? altMode : defaultMode;
+				const newRenderMode = e.altKey && e.ctrlKey && !(e.shiftKey || e.metaKey) ? altMode : defaultMode;
 				if (newRenderMode !== this._activeRenderMode) {
 					this._activeRenderMode = newRenderMode;
 					const model = this._editor.getModel();
@@ -297,7 +298,7 @@ export class InlayHintsController implements IEditorContribution {
 				? new ActiveInlayHintInfo(labelPart, mouseEvent.hasTriggerModifier)
 				: undefined;
 
-			const lineNumber = labelPart.item.hint.position.lineNumber;
+			const lineNumber = model.validatePosition(labelPart.item.hint.position).lineNumber;
 			const range = new Range(lineNumber, 1, lineNumber, model.getLineMaxColumn(lineNumber));
 			const lineHints = this._getInlineHintsForRange(range);
 			this._updateHintsDecorators([range], lineHints);
@@ -563,6 +564,8 @@ export class InlayHintsController implements IEditorContribution {
 			}
 		}
 
+		const scrollState = StableEditorScrollState.capture(this._editor);
+
 		this._editor.changeDecorations(accessor => {
 			const newDecorationIds = accessor.deltaDecorations(decorationIdsToReplace, newDecorationsData.map(d => d.decoration));
 			for (let i = 0; i < newDecorationIds.length; i++) {
@@ -570,6 +573,8 @@ export class InlayHintsController implements IEditorContribution {
 				this._decorationsMetadata.set(newDecorationIds[i], data);
 			}
 		});
+
+		scrollState.restore(this._editor);
 	}
 
 	private _fillInColors(props: CssProperties, hint: languages.InlayHint): void {

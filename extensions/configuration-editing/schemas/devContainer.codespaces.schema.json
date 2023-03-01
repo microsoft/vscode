@@ -173,6 +173,13 @@
 									]
 								}
 							}
+						},
+						"openFiles": {
+							"type": "array",
+							"description": "The paths to the files to open when the codespace is created. Paths are relative to the workspace.",
+							"items": {
+								"type": "string"
+							}
 						}
 					}
 				}

@@ -2,26 +2,23 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import * as nls from 'vscode-nls';
-
-const localize = nls.loadMessageBundle();
 
 export type JSONLanguageStatus = { schemas: string[] };
 
 import {
 	workspace, window, languages, commands, ExtensionContext, extensions, Uri, ColorInformation,
 	Diagnostic, StatusBarAlignment, TextEditor, TextDocument, FormattingOptions, CancellationToken, FoldingRange,
-	ProviderResult, TextEdit, Range, Position, Disposable, CompletionItem, CompletionList, CompletionContext, Hover, MarkdownString, FoldingContext, DocumentSymbol, SymbolInformation
+	ProviderResult, TextEdit, Range, Position, Disposable, CompletionItem, CompletionList, CompletionContext, Hover, MarkdownString, FoldingContext, DocumentSymbol, SymbolInformation, l10n
 } from 'vscode';
 import {
-	LanguageClientOptions, RequestType, NotificationType,
+	LanguageClientOptions, RequestType, NotificationType, FormattingOptions as LSPFormattingOptions,
 	DidChangeConfigurationNotification, HandleDiagnosticsSignature, ResponseError, DocumentRangeFormattingParams,
 	DocumentRangeFormattingRequest, ProvideCompletionItemsSignature, ProvideHoverSignature, BaseLanguageClient, ProvideFoldingRangeSignature, ProvideDocumentSymbolsSignature, ProvideDocumentColorsSignature
 } from 'vscode-languageclient';
 
 
 import { hash } from './utils/hash';
-import { createDocumentColorsLimitItem, createDocumentSymbolsLimitItem, createFoldingRangeLimitItem, createLanguageStatusItem, createLimitStatusItem } from './languageStatus';
+import { createDocumentSymbolsLimitItem, createLanguageStatusItem, createLimitStatusItem } from './languageStatus';
 
 namespace VSCodeContentRequest {
 	export const type: RequestType<string, string, any> = new RequestType('vscode/content');
@@ -39,6 +36,23 @@ namespace LanguageStatusRequest {
 	export const type: RequestType<string, JSONLanguageStatus, any> = new RequestType('json/languageStatus');
 }
 
+interface SortOptions extends LSPFormattingOptions {
+}
+
+interface DocumentSortingParams {
+	/**
+	 * The uri of the document to sort.
+	 */
+	readonly uri: string;
+	/**
+	 * The sort options
+	 */
+	readonly options: SortOptions;
+}
+
+namespace DocumentSortingRequest {
+	export const type: RequestType<DocumentSortingParams, TextEdit[], any> = new RequestType('json/sort');
+}
 
 export interface ISchemaAssociations {
 	[pattern: string]: string[];
@@ -60,6 +74,10 @@ type Settings = {
 		keepLines?: { enable?: boolean };
 		validate?: { enable?: boolean };
 		resultLimit?: number;
+		jsonFoldingLimit?: number;
+		jsoncFoldingLimit?: number;
+		jsonColorDecoratorLimit?: number;
+		jsoncColorDecoratorLimit?: number;
 	};
 	http?: {
 		proxy?: string;
@@ -71,6 +89,7 @@ export type JSONSchemaSettings = {
 	fileMatch?: string[];
 	url?: string;
 	schema?: any;
+	folderUri?: string;
 };
 
 export namespace SettingIds {
@@ -79,6 +98,12 @@ export namespace SettingIds {
 	export const enableValidation = 'json.validate.enable';
 	export const enableSchemaDownload = 'json.schemaDownload.enable';
 	export const maxItemsComputed = 'json.maxItemsComputed';
+	export const editorFoldingMaximumRegions = 'editor.foldingMaximumRegions';
+	export const editorColorDecoratorsLimit = 'editor.colorDecoratorsLimit';
+
+	export const editorSection = 'editor';
+	export const foldingMaximumRegions = 'foldingMaximumRegions';
+	export const colorDecoratorsLimit = 'colorDecoratorsLimit';
 }
 
 export interface TelemetryReporter {
@@ -101,9 +126,13 @@ export interface SchemaRequestService {
 	clearCache?(): Promise<string[]>;
 }
 
-export const languageServerDescription = localize('jsonserver.name', 'JSON Language Server');
+export const languageServerDescription = l10n.t('JSON Language Server');
 
 let resultLimit = 5000;
+let jsonFoldingLimit = 5000;
+let jsoncFoldingLimit = 5000;
+let jsonColorDecoratorLimit = 5000;
+let jsoncColorDecoratorLimit = 5000;
 
 export async function startClient(context: ExtensionContext, newLanguageClient: LanguageClientConstructor, runtime: Runtime): Promise<BaseLanguageClient> {
 
@@ -114,7 +143,7 @@ export async function startClient(context: ExtensionContext, newLanguageClient: 
 	const documentSelector = ['json', 'jsonc'];
 
 	const schemaResolutionErrorStatusBarItem = window.createStatusBarItem('status.json.resolveError', StatusBarAlignment.Right, 0);
-	schemaResolutionErrorStatusBarItem.name = localize('json.resolveError', "JSON: Schema Resolution Error");
+	schemaResolutionErrorStatusBarItem.name = l10n.t('JSON: Schema Resolution Error');
 	schemaResolutionErrorStatusBarItem.text = '$(alert)';
 	toDispose.push(schemaResolutionErrorStatusBarItem);
 
@@ -123,17 +152,46 @@ export async function startClient(context: ExtensionContext, newLanguageClient: 
 
 	let isClientReady = false;
 
-	const foldingRangeLimitStatusBarItem = createLimitStatusItem((limit: number) => createFoldingRangeLimitItem(documentSelector, SettingIds.maxItemsComputed, limit));
 	const documentSymbolsLimitStatusbarItem = createLimitStatusItem((limit: number) => createDocumentSymbolsLimitItem(documentSelector, SettingIds.maxItemsComputed, limit));
-	const documentColorsLimitStatusbarItem = createLimitStatusItem((limit: number) => createDocumentColorsLimitItem(documentSelector, SettingIds.maxItemsComputed, limit));
-	toDispose.push(foldingRangeLimitStatusBarItem, documentSymbolsLimitStatusbarItem, documentColorsLimitStatusbarItem);
+	toDispose.push(documentSymbolsLimitStatusbarItem);
 
 	toDispose.push(commands.registerCommand('json.clearCache', async () => {
 		if (isClientReady && runtime.schemaRequests.clearCache) {
 			const cachedSchemas = await runtime.schemaRequests.clearCache();
 			await client.sendNotification(SchemaContentChangeNotification.type, cachedSchemas);
 		}
-		window.showInformationMessage(localize('json.clearCache.completed', "JSON schema cache cleared."));
+		window.showInformationMessage(l10n.t('JSON schema cache cleared.'));
+	}));
+
+	toDispose.push(commands.registerCommand('json.sort', async () => {
+
+		if (isClientReady) {
+			const textEditor = window.activeTextEditor;
+			if (textEditor) {
+				const document = textEditor.document;
+				const filesConfig = workspace.getConfiguration('files', document);
+				const options: SortOptions = {
+					tabSize: textEditor.options.tabSize ? Number(textEditor.options.tabSize) : 4,
+					insertSpaces: textEditor.options.insertSpaces ? Boolean(textEditor.options.insertSpaces) : true,
+					trimTrailingWhitespace: filesConfig.get<boolean>('trimTrailingWhitespace'),
+					trimFinalNewlines: filesConfig.get<boolean>('trimFinalNewlines'),
+					insertFinalNewline: filesConfig.get<boolean>('insertFinalNewline'),
+				};
+				const params: DocumentSortingParams = {
+					uri: document.uri.toString(),
+					options
+				};
+				const textEdits = await client.sendRequest(DocumentSortingRequest.type, params);
+				const success = await textEditor.edit(mutator => {
+					for (const edit of textEdits) {
+						mutator.replace(client.protocol2CodeConverter.asRange(edit.range), edit.newText);
+					}
+				});
+				if (!success) {
+					window.showErrorMessage(l10n.t('Failed to sort the JSONC document, please consider opening an issue.'));
+				}
+			}
+		}
 	}));
 
 	// Options to control the language client
@@ -214,36 +272,18 @@ export async function startClient(context: ExtensionContext, newLanguageClient: 
 				return updateHover(r);
 			},
 			provideFoldingRanges(document: TextDocument, context: FoldingContext, token: CancellationToken, next: ProvideFoldingRangeSignature) {
-				function checkLimit(r: FoldingRange[] | null | undefined): FoldingRange[] | null | undefined {
-					if (Array.isArray(r) && r.length > resultLimit) {
-						r.length = resultLimit; // truncate
-						foldingRangeLimitStatusBarItem.update(document, resultLimit);
-					} else {
-						foldingRangeLimitStatusBarItem.update(document, false);
-					}
-					return r;
-				}
 				const r = next(document, context, token);
 				if (isThenable<FoldingRange[] | null | undefined>(r)) {
-					return r.then(checkLimit);
-				}
-				return checkLimit(r);
-			},
-			provideDocumentColors(document: TextDocument, token: CancellationToken, next: ProvideDocumentColorsSignature) {
-				function checkLimit(r: ColorInformation[] | null | undefined): ColorInformation[] | null | undefined {
-					if (Array.isArray(r) && r.length > resultLimit) {
-						r.length = resultLimit; // truncate
-						documentColorsLimitStatusbarItem.update(document, resultLimit);
-					} else {
-						documentColorsLimitStatusbarItem.update(document, false);
-					}
 					return r;
 				}
+				return r;
+			},
+			provideDocumentColors(document: TextDocument, token: CancellationToken, next: ProvideDocumentColorsSignature) {
 				const r = next(document, token);
 				if (isThenable<ColorInformation[] | null | undefined>(r)) {
-					return r.then(checkLimit);
+					return r;
 				}
-				return checkLimit(r);
+				return r;
 			},
 			provideDocumentSymbols(document: TextDocument, token: CancellationToken, next: ProvideDocumentSymbolsSignature) {
 				type T = SymbolInformation[] | DocumentSymbol[];
@@ -280,7 +320,7 @@ export async function startClient(context: ExtensionContext, newLanguageClient: 
 	client.onRequest(VSCodeContentRequest.type, (uriPath: string) => {
 		const uri = Uri.parse(uriPath);
 		if (uri.scheme === 'untitled') {
-			return Promise.reject(new ResponseError(3, localize('untitled.schema', 'Unable to load {0}', uri.toString())));
+			return Promise.reject(new ResponseError(3, l10n.t('Unable to load {0}', uri.toString())));
 		}
 		if (uri.scheme !== 'http' && uri.scheme !== 'https') {
 			return workspace.openTextDocument(uri).then(doc => {
@@ -304,7 +344,7 @@ export async function startClient(context: ExtensionContext, newLanguageClient: 
 				return Promise.reject(new ResponseError(4, e.toString()));
 			});
 		} else {
-			return Promise.reject(new ResponseError(1, localize('schemaDownloadDisabled', 'Downloading schemas is disabled through setting \'{0}\'', SettingIds.enableSchemaDownload)));
+			return Promise.reject(new ResponseError(1, l10n.t('Downloading schemas is disabled through setting \'{0}\'', SettingIds.enableSchemaDownload)));
 		}
 	});
 
@@ -380,6 +420,8 @@ export async function startClient(context: ExtensionContext, newLanguageClient: 
 			updateFormatterRegistration();
 		} else if (e.affectsConfiguration(SettingIds.enableSchemaDownload)) {
 			updateSchemaDownloadSetting();
+		} else if (e.affectsConfiguration(SettingIds.editorFoldingMaximumRegions) || e.affectsConfiguration(SettingIds.editorColorDecoratorsLimit)) {
+			client.sendNotification(DidChangeConfigurationNotification.type, { settings: getSettings() });
 		}
 	}));
 
@@ -420,11 +462,11 @@ export async function startClient(context: ExtensionContext, newLanguageClient: 
 	function updateSchemaDownloadSetting() {
 		schemaDownloadEnabled = workspace.getConfiguration().get(SettingIds.enableSchemaDownload) !== false;
 		if (schemaDownloadEnabled) {
-			schemaResolutionErrorStatusBarItem.tooltip = localize('json.schemaResolutionErrorMessage', 'Unable to resolve schema. Click to retry.');
+			schemaResolutionErrorStatusBarItem.tooltip = l10n.t('Unable to resolve schema. Click to retry.');
 			schemaResolutionErrorStatusBarItem.command = '_json.retryResolveSchema';
 			handleRetryResolveSchemaCommand();
 		} else {
-			schemaResolutionErrorStatusBarItem.tooltip = localize('json.schemaResolutionDisabledMessage', 'Downloading schemas is disabled. Click to configure.');
+			schemaResolutionErrorStatusBarItem.tooltip = l10n.t('Downloading schemas is disabled. Click to configure.');
 			schemaResolutionErrorStatusBarItem.command = { command: 'workbench.action.openSettings', arguments: [SettingIds.enableSchemaDownload], title: '' };
 		}
 	}
@@ -472,7 +514,18 @@ function getSettings(): Settings {
 	const configuration = workspace.getConfiguration();
 	const httpSettings = workspace.getConfiguration('http');
 
-	resultLimit = Math.trunc(Math.max(0, Number(workspace.getConfiguration().get(SettingIds.maxItemsComputed)))) || 5000;
+	const normalizeLimit = (settingValue: any) => Math.trunc(Math.max(0, Number(settingValue))) || 5000;
+
+	resultLimit = normalizeLimit(workspace.getConfiguration().get(SettingIds.maxItemsComputed));
+	const editorJSONSettings = workspace.getConfiguration(SettingIds.editorSection, { languageId: 'json' });
+	const editorJSONCSettings = workspace.getConfiguration(SettingIds.editorSection, { languageId: 'jsonc' });
+
+	jsonFoldingLimit = normalizeLimit(editorJSONSettings.get(SettingIds.foldingMaximumRegions));
+	jsoncFoldingLimit = normalizeLimit(editorJSONCSettings.get(SettingIds.foldingMaximumRegions));
+	jsonColorDecoratorLimit = normalizeLimit(editorJSONSettings.get(SettingIds.colorDecoratorsLimit));
+	jsoncColorDecoratorLimit = normalizeLimit(editorJSONCSettings.get(SettingIds.colorDecoratorsLimit));
+
+	const schemas: JSONSchemaSettings[] = [];
 
 	const settings: Settings = {
 		http: {
@@ -483,96 +536,57 @@ function getSettings(): Settings {
 			validate: { enable: configuration.get(SettingIds.enableValidation) },
 			format: { enable: configuration.get(SettingIds.enableFormatter) },
 			keepLines: { enable: configuration.get(SettingIds.enableKeepLines) },
-			schemas: [],
-			resultLimit: resultLimit + 1 // ask for one more so we can detect if the limit has been exceeded
+			schemas,
+			resultLimit: resultLimit + 1, // ask for one more so we can detect if the limit has been exceeded
+			jsonFoldingLimit: jsonFoldingLimit + 1,
+			jsoncFoldingLimit: jsoncFoldingLimit + 1,
+			jsonColorDecoratorLimit: jsonColorDecoratorLimit + 1,
+			jsoncColorDecoratorLimit: jsoncColorDecoratorLimit + 1
 		}
 	};
-	const schemaSettingsById: { [schemaId: string]: JSONSchemaSettings } = Object.create(null);
-	const collectSchemaSettings = (schemaSettings: JSONSchemaSettings[], folderUri?: Uri, isMultiRoot?: boolean) => {
 
-		let fileMatchPrefix = undefined;
-		if (folderUri && isMultiRoot) {
-			fileMatchPrefix = folderUri.toString();
-			if (fileMatchPrefix[fileMatchPrefix.length - 1] === '/') {
-				fileMatchPrefix = fileMatchPrefix.substr(0, fileMatchPrefix.length - 1);
-			}
-		}
-		for (const setting of schemaSettings) {
-			const url = getSchemaId(setting, folderUri);
-			if (!url) {
-				continue;
-			}
-			let schemaSetting = schemaSettingsById[url];
-			if (!schemaSetting) {
-				schemaSetting = schemaSettingsById[url] = { url, fileMatch: [] };
-				settings.json!.schemas!.push(schemaSetting);
-			}
-			const fileMatches = setting.fileMatch;
-			if (Array.isArray(fileMatches)) {
-				const resultingFileMatches = schemaSetting.fileMatch || [];
-				schemaSetting.fileMatch = resultingFileMatches;
-				const addMatch = (pattern: string) => { //  filter duplicates
-					if (resultingFileMatches.indexOf(pattern) === -1) {
-						resultingFileMatches.push(pattern);
-					}
-				};
-				for (const fileMatch of fileMatches) {
-					if (fileMatchPrefix) {
-						if (fileMatch[0] === '/') {
-							addMatch(fileMatchPrefix + fileMatch);
-							addMatch(fileMatchPrefix + '/*' + fileMatch);
-						} else {
-							addMatch(fileMatchPrefix + '/' + fileMatch);
-							addMatch(fileMatchPrefix + '/*/' + fileMatch);
-						}
-					} else {
-						addMatch(fileMatch);
-					}
+	const collectSchemaSettings = (schemaSettings: JSONSchemaSettings[] | undefined, folderUri: Uri | undefined = undefined, settingsLocation = folderUri) => {
+		if (schemaSettings) {
+			for (const setting of schemaSettings) {
+				const url = getSchemaId(setting, settingsLocation);
+				if (url) {
+					const schemaSetting: JSONSchemaSettings = { url, fileMatch: setting.fileMatch, folderUri: folderUri?.toString(false), schema: setting.schema };
+					schemas.push(schemaSetting);
 				}
-			}
-			if (setting.schema && !schemaSetting.schema) {
-				schemaSetting.schema = setting.schema;
 			}
 		}
 	};
 
 	const folders = workspace.workspaceFolders;
 
-	// merge global and folder settings. Qualify all file matches with the folder path.
-	const globalSettings = workspace.getConfiguration('json', null).get<JSONSchemaSettings[]>('schemas');
-	if (Array.isArray(globalSettings)) {
-		if (!folders) {
-			collectSchemaSettings(globalSettings);
+	const schemaConfigInfo = workspace.getConfiguration('json', null).inspect<JSONSchemaSettings[]>('schemas');
+	if (schemaConfigInfo) {
+		if (schemaConfigInfo.workspaceValue && workspace.workspaceFile && folders && folders.length) {
+			const settingsLocation = Uri.joinPath(workspace.workspaceFile, '..');
+			for (const folder of folders) {
+				collectSchemaSettings(schemaConfigInfo.workspaceValue, folder.uri, settingsLocation);
+			}
 		}
+		collectSchemaSettings(schemaConfigInfo.globalValue);
 	}
+
 	if (folders) {
-		const isMultiRoot = folders.length > 1;
 		for (const folder of folders) {
-			const folderUri = folder.uri;
-
-			const schemaConfigInfo = workspace.getConfiguration('json', folderUri).inspect<JSONSchemaSettings[]>('schemas');
-
-			const folderSchemas = schemaConfigInfo!.workspaceFolderValue;
-			if (Array.isArray(folderSchemas)) {
-				collectSchemaSettings(folderSchemas, folderUri, isMultiRoot);
-			}
-			if (Array.isArray(globalSettings)) {
-				collectSchemaSettings(globalSettings, folderUri, isMultiRoot);
-			}
-
+			const schemaConfigInfo = workspace.getConfiguration('json', folder.uri).inspect<JSONSchemaSettings[]>('schemas');
+			collectSchemaSettings(schemaConfigInfo?.workspaceFolderValue, folder.uri);
 		}
 	}
 	return settings;
 }
 
-function getSchemaId(schema: JSONSchemaSettings, folderUri?: Uri): string | undefined {
+function getSchemaId(schema: JSONSchemaSettings, settingsLocation?: Uri): string | undefined {
 	let url = schema.url;
 	if (!url) {
 		if (schema.schema) {
 			url = schema.schema.id || `vscode://schemas/custom/${encodeURIComponent(hash(schema.schema).toString(16))}`;
 		}
-	} else if (folderUri && (url[0] === '.' || url[0] === '/')) {
-		url = Uri.joinPath(folderUri, url).toString();
+	} else if (settingsLocation && (url[0] === '.' || url[0] === '/')) {
+		url = Uri.joinPath(settingsLocation, url).toString(false);
 	}
 	return url;
 }

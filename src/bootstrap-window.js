@@ -112,6 +112,15 @@
 
 		window['MonacoEnvironment'] = {};
 
+		// VSCODE_GLOBALS: node_modules
+		globalThis._VSCODE_NODE_MODULES = new Proxy(Object.create(null), { get: (_target, mod) => (require.__$__nodeRequire ?? require)(String(mod)) });
+
+		if (!safeProcess.sandboxed) {
+			// VSCODE_GLOBALS: package/product.json
+			globalThis._VSCODE_PRODUCT_JSON = (require.__$__nodeRequire ?? require)(configuration.appRoot + '/product.json');
+			globalThis._VSCODE_PACKAGE_JSON = (require.__$__nodeRequire ?? require)(configuration.appRoot + '/package.json');
+		}
+
 		const loaderConfig = {
 			baseUrl: `${bootstrapLib.fileUriFromPath(configuration.appRoot, { isWindows: safeProcess.platform === 'win32', scheme: 'vscode-file', fallbackAuthority: 'vscode-app' })}/out`,
 			'vs/nls': nlsConfig,
@@ -175,11 +184,11 @@
 		}
 
 		// Actually require the main module as specified
-		require(modulePaths, async result => {
+		require(modulePaths, async firstModule => {
 			try {
 
 				// Callback only after process environment is resolved
-				const callbackResult = resultCallback(result, configuration);
+				const callbackResult = resultCallback(firstModule, configuration);
 				if (callbackResult instanceof Promise) {
 					await callbackResult;
 

@@ -11,8 +11,8 @@ variables:
     value: true
   - name: skipComponentGovernanceDetection
     value: true
-  - name: ENABLE_TERRAPIN
-    value: false
+  - name: NPM_REGISTRY
+    value: "none"
   - name: VSCODE_CIBUILD
     value: ${{ in(variables['Build.Reason'], 'IndividualCI', 'BatchedCI') }}
   - name: VSCODE_PUBLISH
@@ -48,6 +48,7 @@ jobs:
           parameters:
             VSCODE_PUBLISH: ${{ variables.VSCODE_PUBLISH }}
             VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
+            VSCODE_BUILD_TUNNEL_CLI: false
             VSCODE_RUN_UNIT_TESTS: true
             VSCODE_RUN_INTEGRATION_TESTS: false
             VSCODE_RUN_SMOKE_TESTS: false
@@ -65,6 +66,7 @@ jobs:
           parameters:
             VSCODE_PUBLISH: ${{ variables.VSCODE_PUBLISH }}
             VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
+            VSCODE_BUILD_TUNNEL_CLI: false
             VSCODE_RUN_UNIT_TESTS: false
             VSCODE_RUN_INTEGRATION_TESTS: true
             VSCODE_RUN_SMOKE_TESTS: false
@@ -82,9 +84,68 @@ jobs:
           parameters:
             VSCODE_PUBLISH: ${{ variables.VSCODE_PUBLISH }}
             VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
+            VSCODE_BUILD_TUNNEL_CLI: false
             VSCODE_RUN_UNIT_TESTS: false
             VSCODE_RUN_INTEGRATION_TESTS: false
             VSCODE_RUN_SMOKE_TESTS: true
+
+    - job: LinuxCLI
+      displayName: Linux (CLI)
+      pool: vscode-1es-vscode-linux-20.04
+      timeoutInMinutes: 30
+      steps:
+        - template: cli/test.yml
+
+    - job: Windowsx64UnitTests
+      displayName: Windows (Unit Tests)
+      pool: vscode-1es-vscode-windows-2019
+      timeoutInMinutes: 30
+      variables:
+        VSCODE_ARCH: x64
+        NPM_ARCH: x64
+      steps:
+        - template: win32/product-build-win32.yml
+          parameters:
+            VSCODE_PUBLISH: ${{ variables.VSCODE_PUBLISH }}
+            VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
+            VSCODE_BUILD_TUNNEL_CLI: false
+            VSCODE_RUN_UNIT_TESTS: true
+            VSCODE_RUN_INTEGRATION_TESTS: false
+            VSCODE_RUN_SMOKE_TESTS: false
+
+    - job: Windowsx64IntegrationTests
+      displayName: Windows (Integration Tests)
+      pool: vscode-1es-vscode-windows-2019
+      timeoutInMinutes: 30
+      variables:
+        VSCODE_ARCH: x64
+        NPM_ARCH: x64
+      steps:
+        - template: win32/product-build-win32.yml
+          parameters:
+            VSCODE_PUBLISH: ${{ variables.VSCODE_PUBLISH }}
+            VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
+            VSCODE_BUILD_TUNNEL_CLI: false
+            VSCODE_RUN_UNIT_TESTS: false
+            VSCODE_RUN_INTEGRATION_TESTS: true
+            VSCODE_RUN_SMOKE_TESTS: false
+
+    # - job: Windowsx64SmokeTests
+    #   displayName: Windows (Smoke Tests)
+    #   pool: vscode-1es-vscode-windows-2019
+    #   timeoutInMinutes: 30
+    #   variables:
+    #     VSCODE_ARCH: x64
+    #     NPM_ARCH: x64
+    #   steps:
+    #     - template: win32/product-build-win32.yml
+    #       parameters:
+    #         VSCODE_PUBLISH: ${{ variables.VSCODE_PUBLISH }}
+    #         VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
+    #         VSCODE_BUILD_TUNNEL_CLI: false
+    #         VSCODE_RUN_UNIT_TESTS: false
+    #         VSCODE_RUN_INTEGRATION_TESTS: false
+    #         VSCODE_RUN_SMOKE_TESTS: true
 
   - ${{ if eq(variables['VSCODE_CIBUILD'], true) }}:
     - job: Linuxx64MaintainNodeModulesCache
@@ -96,10 +157,19 @@ jobs:
       steps:
         - template: product-build-pr-cache.yml
 
+    - job: Windowsx64MaintainNodeModulesCache
+      displayName: Windows (Maintain node_modules cache)
+      pool: vscode-1es-vscode-windows-2019
+      timeoutInMinutes: 30
+      variables:
+        VSCODE_ARCH: x64
+      steps:
+        - template: product-build-pr-cache-win32.yml
+
   # - job: macOSUnitTest
   #   displayName: macOS (Unit Tests)
   #   pool:
-  #     vmImage: macOS-latest
+  #     vmImage: macOS-11
   #   timeoutInMinutes: 60
   #   variables:
   #     BUILDSECMON_OPT_IN: true
@@ -115,7 +185,7 @@ jobs:
   # - job: macOSIntegrationTest
   #   displayName: macOS (Integration Tests)
   #   pool:
-  #     vmImage: macOS-latest
+  #     vmImage: macOS-11
   #   timeoutInMinutes: 60
   #   variables:
   #     BUILDSECMON_OPT_IN: true
@@ -131,56 +201,13 @@ jobs:
   # - job: macOSSmokeTest
   #   displayName: macOS (Smoke Tests)
   #   pool:
-  #     vmImage: macOS-latest
+  #     vmImage: macOS-11
   #   timeoutInMinutes: 60
   #   variables:
   #     BUILDSECMON_OPT_IN: true
   #     VSCODE_ARCH: x64
   #   steps:
   #     - template: darwin/product-build-darwin.yml
-  #       parameters:
-  #         VSCODE_PUBLISH: ${{ variables.VSCODE_PUBLISH }}
-  #         VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
-  #         VSCODE_RUN_UNIT_TESTS: false
-  #         VSCODE_RUN_INTEGRATION_TESTS: false
-  #         VSCODE_RUN_SMOKE_TESTS: true
-
-  # - job: WindowsUnitTests
-  #   displayName: Windows (Unit Tests)
-  #   pool: vscode-1es-vscode-windows-2019
-  #   timeoutInMinutes: 60
-  #   variables:
-  #     VSCODE_ARCH: x64
-  #   steps:
-  #     - template: win32/product-build-win32.yml
-  #       parameters:
-  #         VSCODE_PUBLISH: ${{ variables.VSCODE_PUBLISH }}
-  #         VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
-  #         VSCODE_RUN_UNIT_TESTS: true
-  #         VSCODE_RUN_INTEGRATION_TESTS: false
-  #         VSCODE_RUN_SMOKE_TESTS: false
-  # - job: WindowsIntegrationTests
-  #   displayName: Windows (Integration Tests)
-  #   pool: vscode-1es-vscode-windows-2019
-  #   timeoutInMinutes: 60
-  #   variables:
-  #     VSCODE_ARCH: x64
-  #   steps:
-  #     - template: win32/product-build-win32.yml
-  #       parameters:
-  #         VSCODE_PUBLISH: ${{ variables.VSCODE_PUBLISH }}
-  #         VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
-  #         VSCODE_RUN_UNIT_TESTS: false
-  #         VSCODE_RUN_INTEGRATION_TESTS: true
-  #         VSCODE_RUN_SMOKE_TESTS: false
-  # - job: WindowsSmokeTests
-  #   displayName: Windows (Smoke Tests)
-  #   pool: vscode-1es-vscode-windows-2019
-  #   timeoutInMinutes: 60
-  #   variables:
-  #     VSCODE_ARCH: x64
-  #   steps:
-  #     - template: win32/product-build-win32.yml
   #       parameters:
   #         VSCODE_PUBLISH: ${{ variables.VSCODE_PUBLISH }}
   #         VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}

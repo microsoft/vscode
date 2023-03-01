@@ -3,14 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-.monaco-workbench .merge-editor .code-view>.title {
+.monaco-workbench .merge-editor .code-view > .header {
 	padding: 0 10px;
 	height: 30px;
 	display: flex;
 	align-content: center;
+	overflow: hidden;
 }
 
-.monaco-workbench .merge-editor .code-view>.title>SPAN {
+.monaco-workbench .merge-editor .code-view > .header > span {
 	align-self: center;
 	text-overflow: ellipsis;
 	overflow: hidden;
@@ -18,39 +19,54 @@
 	white-space: nowrap;
 }
 
-.monaco-workbench .merge-editor .code-view>.title>SPAN.title {
+.monaco-workbench .merge-editor .code-view > .header > span.title {
 	flex-shrink: 0;
 }
 
-.monaco-workbench .merge-editor .code-view>.title>SPAN.description {
+.monaco-workbench .merge-editor .code-view > .header > span.description {
+	flex-shrink: 0;
 	display: flex;
 	font-size: 12px;
 	align-items: center;
 	color: var(--vscode-descriptionForeground);
 }
 
-.monaco-workbench .merge-editor .code-view>.title>SPAN.description .codicon {
+.monaco-workbench .merge-editor .code-view > .header > span.description .codicon {
 	font-size: 14px;
 	color: var(--vscode-descriptionForeground);
 }
 
-.monaco-workbench .merge-editor .code-view>.title>SPAN.detail {
+.monaco-workbench .merge-editor .code-view > .header > span.detail {
 	margin-left: auto;
-	flex-shrink: 0;
 	font-size: 12px;
 	color: var(--vscode-descriptionForeground);
 }
 
-.monaco-workbench .merge-editor .code-view>.title>SPAN.detail .codicon {
+.monaco-workbench .merge-editor .code-view > .header > span.detail .codicon {
 	font-size: 13px;
 }
 
-.monaco-workbench .merge-editor .code-view>.container {
+/* for input1|2 -> align details to the left  */
+.monaco-workbench .merge-editor .code-view.input > .header > span.detail::before {
+	content: '•';
+	opacity: .5;
+	padding-right: 3px;
+}
+.monaco-workbench .merge-editor .code-view.input > .header > span.detail {
+	margin-left: 0;
+}
+.monaco-workbench .merge-editor .code-view.input > .header > span.toolbar {
+	flex-shrink: 0;
+	margin-left: auto;
+}
+
+
+.monaco-workbench .merge-editor .code-view > .container {
 	display: flex;
 	flex-direction: row;
 }
 
-.monaco-workbench .merge-editor .code-view>.container>.gutter {
+.monaco-workbench .merge-editor .code-view > .container > .gutter {
 	width: 24px;
 	position: relative;
 	overflow: hidden;
@@ -58,47 +74,55 @@
 	flex-grow: 0;
 }
 
-.merge-editor-diff {
+.monaco-workbench .merge-editor .merge-editor-diff {
 	background-color: var(--vscode-mergeEditor-change-background);
 }
 
-.merge-editor-diff-word {
+.monaco-workbench .merge-editor .merge-editor-diff-word {
 	background-color: var(--vscode-mergeEditor-change-word-background);
 }
 
 /* BEGIN: .merge-editor-block */
 
-.merge-editor-block:not(.handled) {
+.monaco-workbench .merge-editor .merge-editor-block:not(.handled) {
 	background-color: var(--vscode-mergeEditor-conflict-unhandledUnfocused-background);
 }
 
-.merge-editor-block:not(.handled):not(.focused) {
+.monaco-workbench .merge-editor .merge-editor-block:not(.handled):not(.focused) {
 	border: 1px solid var(--vscode-mergeEditor-conflict-unhandledUnfocused-border);
 }
 
-.merge-editor-block:not(.handled).focused {
-	border: 1px solid var(--vscode-mergeEditor-conflict-unhandledFocused-border);
+.monaco-workbench .merge-editor .merge-editor-block:not(.handled).focused {
+	border: 2px solid var(--vscode-mergeEditor-conflict-unhandledFocused-border);
 }
 
-.merge-editor-block.handled:not(.focused) {
+.monaco-workbench .merge-editor .merge-editor-block.handled:not(.focused) {
 	border: 1px solid var(--vscode-mergeEditor-conflict-handledUnfocused-border);
 }
 
-.merge-editor-block.handled:not(.focused).conflicting {
+.monaco-workbench .merge-editor .merge-editor-block.handled:not(.focused).conflicting {
 	background-color: var(--vscode-mergeEditor-conflict-handledUnfocused-background);
 }
 
-.merge-editor-block.handled.focused {
+.monaco-workbench .merge-editor .merge-editor-block.handled.focused {
 	border: 1px solid var(--vscode-mergeEditor-conflict-handledFocused-border);
 }
 
-.merge-editor-block.handled.focused.conflicting {
+.monaco-workbench .merge-editor .merge-editor-block.handled.focused.conflicting {
 	background-color: var(--vscode-mergeEditor-conflict-handledFocused-background);
+}
+
+.monaco-workbench .merge-editor .merge-editor-simplified.input.i1, .merge-editor-block.use-simplified-decorations.input.i1 {
+	background-color: var(--vscode-mergeEditor-conflict-input1-background);
+}
+
+.monaco-workbench .merge-editor .merge-editor-simplified.input.i2, .merge-editor-block.use-simplified-decorations.input.i2 {
+	background-color: var(--vscode-mergeEditor-conflict-input2-background);
 }
 
 /* END: .merge-editor-block */
 
-.gutter.monaco-editor>div {
+.gutter.monaco-editor > div {
 	position: absolute;
 }
 
@@ -213,6 +237,63 @@
 	border: 1px solid var(--vscode-mergeEditor-conflict-unhandledFocused-border);
 }
 
-.merge-conflict-input-selection {
-	background-color: red;
+.merge-editor-conflict-actions {
+	margin: 0px 3px;
+	overflow: hidden;
+	display: inline-block;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	color: var(--vscode-editorCodeLens-foreground)
+}
+
+.merge-editor-conflict-actions > span,
+.merge-editor-conflict-actions > a {
+	user-select: none;
+	-webkit-user-select: none;
+	white-space: nowrap;
+}
+
+.merge-editor-conflict-actions > a {
+	text-decoration: none;
+}
+
+.merge-editor-conflict-actions > a:hover {
+	cursor: pointer;
+	color: var(--vscode-editorLink-activeForeground) !important;
+}
+
+.merge-editor-conflict-actions > a:hover .codicon {
+	color: var(--vscode-editorLink-activeForeground) !important;
+}
+
+.merge-editor-conflict-actions .codicon {
+	vertical-align: middle;
+	color: currentColor !important;
+	color: var(--vscode-editorCodeLens-foreground);
+}
+
+.merge-editor-conflict-actions > a:hover .codicon::before {
+	cursor: pointer;
+}
+
+.fixed-zone-widget {
+	width: 100%;
+}
+
+.merge-editor-diff-empty-word.base {
+	margin-left: 3px;
+	border-left: solid var(--vscode-mergeEditor-changeBase-word-background) 3px;
+}
+
+.merge-editor-diff-empty-word.input {
+	margin-left: 3px;
+	border-left: solid var(--vscode-mergeEditor-change-word-background) 3px;
+}
+
+.merge-editor-diff-word.base {
+	background-color: var(--vscode-mergeEditor-changeBase-word-background);
+}
+
+.merge-editor-diff.base {
+	background-color: var(--vscode-mergeEditor-changeBase-background);
 }

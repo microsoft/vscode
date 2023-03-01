@@ -529,7 +529,7 @@ export class SettingsTreeModel {
 	}
 
 	private updateRequireTrustedTargetElements(): void {
-		this.updateSettings(arrays.flatten([...this._treeElementsBySettingName.values()]).filter(s => s.isUntrusted));
+		this.updateSettings([...this._treeElementsBySettingName.values()].flat().filter(s => s.isUntrusted));
 	}
 
 	private getTargetToInspect(settingScope: ConfigurationScope | undefined): SettingsTarget {
@@ -541,11 +541,11 @@ export class SettingsTreeModel {
 	}
 
 	private updateSettings(settings: SettingsTreeSettingElement[]): void {
-		settings.forEach(element => {
+		for (const element of settings) {
 			const target = this.getTargetToInspect(element.setting.scope);
 			const inspectResult = inspectSetting(element.setting.key, target, this._viewState.languageFilter, this._configurationService);
 			element.update(inspectResult, this._isWorkspaceTrusted);
-		});
+		}
 	}
 
 	private createSettingsTreeGroupElement(tocEntry: ITOCEntry<ISetting>, parent?: SettingsTreeGroupElement): SettingsTreeGroupElement {
@@ -612,19 +612,6 @@ export function inspectSetting(key: string, target: SettingsTarget, languageFilt
 				target === ConfigurationTarget.WORKSPACE ? 'workspace' :
 					'workspaceFolder';
 	let isConfigured = typeof inspected[targetSelector] !== 'undefined';
-	if (!isConfigured) {
-		if (target === ConfigurationTarget.APPLICATION) {
-			isConfigured = !!configurationService.restrictedSettings.application?.includes(key);
-		} else if (target === ConfigurationTarget.USER_LOCAL) {
-			isConfigured = !!configurationService.restrictedSettings.userLocal?.includes(key);
-		} else if (target === ConfigurationTarget.USER_REMOTE) {
-			isConfigured = !!configurationService.restrictedSettings.userRemote?.includes(key);
-		} else if (target === ConfigurationTarget.WORKSPACE) {
-			isConfigured = !!configurationService.restrictedSettings.workspace?.includes(key);
-		} else if (target instanceof URI) {
-			isConfigured = !!configurationService.restrictedSettings.workspaceFolder?.get(target)?.includes(key);
-		}
-	}
 
 	const overrideIdentifiers = inspected.overrideIdentifiers;
 	const inspectedLanguageOverrides = new Map<string, IConfigurationValue<unknown>>();
@@ -752,6 +739,7 @@ export function isExcludeSetting(setting: ISetting): boolean {
 	return setting.key === 'files.exclude' ||
 		setting.key === 'search.exclude' ||
 		setting.key === 'workbench.localHistory.exclude' ||
+		setting.key === 'explorer.autoRevealExclude' ||
 		setting.key === 'files.watcherExclude';
 }
 
@@ -896,15 +884,18 @@ export class SearchResultModel extends SettingsTreeModel {
 		this.root.children = this.root.children
 			.filter(child => child instanceof SettingsTreeSettingElement && child.matchesAllTags(this._viewState.tagFilters) && child.matchesScope(this._viewState.settingsTarget, isRemote) && child.matchesAnyExtension(this._viewState.extensionFilters) && child.matchesAnyId(this._viewState.idFilters) && child.matchesAnyFeature(this._viewState.featureFilters) && child.matchesAllLanguages(this._viewState.languageFilter));
 
-		if (this.newExtensionSearchResults && this.newExtensionSearchResults.filterMatches.length) {
-			const resultExtensionIds = this.newExtensionSearchResults.filterMatches
+		if (this.newExtensionSearchResults?.filterMatches.length) {
+			let resultExtensionIds = this.newExtensionSearchResults.filterMatches
 				.map(result => (<IExtensionSetting>result.setting))
 				.filter(setting => setting.extensionName && setting.extensionPublisher)
 				.map(setting => `${setting.extensionPublisher}.${setting.extensionName}`);
+			resultExtensionIds = arrays.distinct(resultExtensionIds);
 
-			const newExtElement = new SettingsTreeNewExtensionsElement('newExtensions', arrays.distinct(resultExtensionIds));
-			newExtElement.parent = this._root;
-			this._root.children.push(newExtElement);
+			if (resultExtensionIds.length) {
+				const newExtElement = new SettingsTreeNewExtensionsElement('newExtensions', resultExtensionIds);
+				newExtElement.parent = this._root;
+				this._root.children.push(newExtElement);
+			}
 		}
 	}
 

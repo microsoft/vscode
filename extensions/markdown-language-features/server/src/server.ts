@@ -3,60 +3,91 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationToken, Connection, InitializeParams, InitializeResult, NotebookDocuments, TextDocuments } from 'vscode-languageserver';
+import * as l10n from '@vscode/l10n';
+import { CancellationToken, CompletionRegistrationOptions, CompletionRequest, Connection, Disposable, DocumentHighlightRegistrationOptions, DocumentHighlightRequest, InitializeParams, InitializeResult, NotebookDocuments, ResponseError, TextDocuments } from 'vscode-languageserver';
 import { TextDocument } from 'vscode-languageserver-textdocument';
 import * as lsp from 'vscode-languageserver-types';
 import * as md from 'vscode-markdown-languageservice';
-import * as nls from 'vscode-nls';
 import { URI } from 'vscode-uri';
-import { getLsConfiguration, LsConfiguration } from './config';
-import { ConfigurationManager } from './configuration';
+import { LsConfiguration, getLsConfiguration } from './config';
+import { ConfigurationManager, Settings } from './configuration';
 import { registerValidateSupport } from './languageFeatures/diagnostics';
 import { LogFunctionLogger } from './logging';
 import * as protocol from './protocol';
 import { IDisposable } from './util/dispose';
 import { VsCodeClientWorkspace } from './workspace';
 
-const localize = nls.loadMessageBundle();
-
 interface MdServerInitializationOptions extends LsConfiguration { }
 
 const organizeLinkDefKind = 'source.organizeLinkDefinitions';
-export async function startServer(connection: Connection) {
+
+export async function startVsCodeServer(connection: Connection) {
+	const logger = new LogFunctionLogger(connection.console.log.bind(connection.console));
+
+	const parser = new class implements md.IMdParser {
+		slugifier = md.githubSlugifier;
+
+		tokenize(document: md.ITextDocument): Promise<md.Token[]> {
+			return connection.sendRequest(protocol.parse, { uri: document.uri.toString() });
+		}
+	};
+
 	const documents = new TextDocuments(TextDocument);
 	const notebooks = new NotebookDocuments(documents);
 
-	const configurationManager = new ConfigurationManager(connection);
+	const workspaceFactory: WorkspaceFactory = ({ connection, config, workspaceFolders }) => {
+		const workspace = new VsCodeClientWorkspace(connection, config, documents, notebooks, logger);
+		workspace.workspaceFolders = (workspaceFolders ?? []).map(x => URI.parse(x.uri));
+		return workspace;
+	};
+
+	return startServer(connection, { documents, notebooks, logger, parser, workspaceFactory });
+}
+
+type WorkspaceFactory = (config: {
+	connection: Connection;
+	config: LsConfiguration;
+	workspaceFolders?: lsp.WorkspaceFolder[] | null;
+}) => md.IWorkspace;
+
+export async function startServer(connection: Connection, serverConfig: {
+	documents: TextDocuments<md.ITextDocument>;
+	notebooks?: NotebookDocuments<md.ITextDocument>;
+	logger: md.ILogger;
+	parser: md.IMdParser;
+	workspaceFactory: WorkspaceFactory;
+}) {
+	const { documents, notebooks } = serverConfig;
 
 	let mdLs: md.IMdLanguageService | undefined;
-	let workspace: VsCodeClientWorkspace | undefined;
 
 	connection.onInitialize((params: InitializeParams): InitializeResult => {
-		const parser = new class implements md.IMdParser {
-			slugifier = md.githubSlugifier;
-
-			async tokenize(document: md.ITextDocument): Promise<md.Token[]> {
-				return await connection.sendRequest(protocol.parse, { uri: document.uri.toString() });
-			}
-		};
-
+		const configurationManager = new ConfigurationManager(connection);
 		const initOptions = params.initializationOptions as MdServerInitializationOptions | undefined;
-		const config = getLsConfiguration(initOptions ?? {});
 
-		const logger = new LogFunctionLogger(connection.console.log.bind(connection.console));
-		workspace = new VsCodeClientWorkspace(connection, config, documents, notebooks, logger);
+		const mdConfig = getLsConfiguration(initOptions ?? {});
+
+		const workspace = serverConfig.workspaceFactory({ connection, config: mdConfig, workspaceFolders: params.workspaceFolders });
 		mdLs = md.createLanguageService({
 			workspace,
-			parser,
-			logger,
-			markdownFileExtensions: config.markdownFileExtensions,
-			excludePaths: config.excludePaths,
+			parser: serverConfig.parser,
+			logger: serverConfig.logger,
+			...mdConfig,
+			get preferredMdPathExtensionStyle() {
+				switch (configurationManager.getSettings()?.markdown.preferredMdPathExtensionStyle) {
+					case 'includeExtension': return md.PreferredMdPathExtensionStyle.includeExtension;
+					case 'removeExtension': return md.PreferredMdPathExtensionStyle.removeExtension;
+					case 'auto':
+					default:
+						return md.PreferredMdPathExtensionStyle.auto;
+				}
+			}
 		});
 
 		registerCompletionsSupport(connection, documents, mdLs, configurationManager);
-		registerValidateSupport(connection, workspace, mdLs, configurationManager, logger);
+		registerDocumentHighlightSupport(connection, documents, mdLs, configurationManager);
+		registerValidateSupport(connection, workspace, documents, mdLs, configurationManager, serverConfig.logger);
 
-		workspace.workspaceFolders = (params.workspaceFolders ?? []).map(x => URI.parse(x.uri));
 		return {
 			capabilities: {
 				diagnosticProvider: {
@@ -66,7 +97,6 @@ export async function startServer(connection: Connection) {
 					workspaceDiagnostics: false,
 				},
 				codeActionProvider: { resolveProvider: true },
-				completionProvider: { triggerCharacters: ['.', '/', '#'] },
 				definitionProvider: true,
 				documentLinkProvider: { resolveProvider: true },
 				documentSymbolProvider: true,
@@ -146,7 +176,16 @@ export async function startServer(connection: Connection) {
 		if (!document) {
 			return undefined;
 		}
-		return mdLs!.prepareRename(document, params.position, token);
+
+		try {
+			return await mdLs!.prepareRename(document, params.position, token);
+		} catch (e) {
+			if (e instanceof md.RenameNotSupportedAtLocationError) {
+				throw new ResponseError(0, e.message);
+			} else {
+				throw e;
+			}
+		}
 	});
 
 	connection.onRenameRequest(async (params, token) => {
@@ -169,7 +208,7 @@ export async function startServer(connection: Connection) {
 
 		if (params.context.only?.some(kind => kind === 'source' || kind.startsWith('source.'))) {
 			const action: lsp.CodeAction = {
-				title: localize('organizeLinkDefAction.title', "Organize link definitions"),
+				title: l10n.t("Organize link definitions"),
 				kind: organizeLinkDefKind,
 				data: <OrganizeLinkActionData>{ uri: document.uri }
 			};
@@ -204,53 +243,113 @@ export async function startServer(connection: Connection) {
 	}));
 
 	connection.onRequest(protocol.getEditForFileRenames, (async (params, token: CancellationToken) => {
-		return mdLs!.getRenameFilesInWorkspaceEdit(params.map(x => ({ oldUri: URI.parse(x.oldUri), newUri: URI.parse(x.newUri) })), token);
+		const result = await mdLs!.getRenameFilesInWorkspaceEdit(params.map(x => ({ oldUri: URI.parse(x.oldUri), newUri: URI.parse(x.newUri) })), token);
+		if (!result) {
+			return result;
+		}
+
+		return {
+			edit: result.edit,
+			participatingRenames: result.participatingRenames.map(rename => ({ oldUri: rename.oldUri.toString(), newUri: rename.newUri.toString() }))
+		};
+	}));
+
+	connection.onRequest(protocol.resolveLinkTarget, (async (params, token: CancellationToken) => {
+		return mdLs!.resolveLinkTarget(params.linkText, URI.parse(params.uri), token);
 	}));
 
 	documents.listen(connection);
-	notebooks.listen(connection);
+	notebooks?.listen(connection);
 	connection.listen();
 }
 
+function registerDynamicClientFeature(
+	config: ConfigurationManager,
+	isEnabled: (settings: Settings | undefined) => boolean,
+	register: () => Promise<Disposable>,
+) {
+	let registration: Promise<IDisposable> | undefined;
+	function update() {
+		const settings = config.getSettings();
+		if (isEnabled(settings)) {
+			if (!registration) {
+				registration = register();
+			}
+		} else {
+			registration?.then(x => x.dispose());
+			registration = undefined;
+		}
+	}
+
+	update();
+	return config.onDidChangeConfiguration(() => update());
+}
 
 function registerCompletionsSupport(
 	connection: Connection,
-	documents: TextDocuments<TextDocument>,
+	documents: TextDocuments<md.ITextDocument>,
 	ls: md.IMdLanguageService,
 	config: ConfigurationManager,
 ): IDisposable {
-	// let registration: Promise<IDisposable> | undefined;
-	function update() {
-		// TODO: client still makes the request in this case. Figure our how to properly unregister.
-		return;
-		// const settings = config.getSettings();
-		// if (settings?.markdown.suggest.paths.enabled) {
-		// 	if (!registration) {
-		// 		registration = connection.client.register(CompletionRequest.type);
-		// 	}
-		// } else {
-		// 	registration?.then(x => x.dispose());
-		// 	registration = undefined;
-		// }
+	function getIncludeWorkspaceHeaderCompletions(): md.IncludeWorkspaceHeaderCompletions {
+		switch (config.getSettings()?.markdown.suggest.paths.includeWorkspaceHeaderCompletions) {
+			case 'onSingleOrDoubleHash': return md.IncludeWorkspaceHeaderCompletions.onSingleOrDoubleHash;
+			case 'onDoubleHash': return md.IncludeWorkspaceHeaderCompletions.onDoubleHash;
+			case 'never':
+			default: return md.IncludeWorkspaceHeaderCompletions.never;
+		}
 	}
 
 	connection.onCompletion(async (params, token): Promise<lsp.CompletionItem[]> => {
-		try {
-			const settings = config.getSettings();
-			if (!settings?.markdown.suggest.paths.enabled) {
-				return [];
-			}
+		const settings = config.getSettings();
+		if (!settings?.markdown.suggest.paths.enabled) {
+			return [];
+		}
 
-			const document = documents.get(params.textDocument.uri);
-			if (document) {
-				return await ls.getCompletionItems(document, params.position, params.context!, token);
-			}
-		} catch (e) {
-			console.error(e.stack);
+		const document = documents.get(params.textDocument.uri);
+		if (document) {
+			// TODO: remove any type after picking up new release with correct types
+			return ls.getCompletionItems(document, params.position, {
+				...(params.context || {}),
+				includeWorkspaceHeaderCompletions: getIncludeWorkspaceHeaderCompletions(),
+			} as any, token);
 		}
 		return [];
 	});
 
-	update();
-	return config.onDidChangeConfiguration(() => update());
+	return registerDynamicClientFeature(config, (settings) => !!settings?.markdown.suggest.paths.enabled, () => {
+		const registrationOptions: CompletionRegistrationOptions = {
+			documentSelector: null,
+			triggerCharacters: ['.', '/', '#'],
+		};
+		return connection.client.register(CompletionRequest.type, registrationOptions);
+	});
+}
+
+function registerDocumentHighlightSupport(
+	connection: Connection,
+	documents: TextDocuments<md.ITextDocument>,
+	mdLs: md.IMdLanguageService,
+	configurationManager: ConfigurationManager
+) {
+	connection.onDocumentHighlight(async (params, token) => {
+		const settings = configurationManager.getSettings();
+		if (!settings?.markdown.occurrencesHighlight.enabled) {
+			return undefined;
+		}
+
+		const document = documents.get(params.textDocument.uri);
+		if (!document) {
+			return undefined;
+		}
+
+		return mdLs!.getDocumentHighlights(document, params.position, token);
+	});
+
+	return registerDynamicClientFeature(configurationManager, (settings) => !!settings?.markdown.occurrencesHighlight.enabled, () => {
+		const registrationOptions: DocumentHighlightRegistrationOptions = {
+			documentSelector: null,
+		};
+		return connection.client.register(DocumentHighlightRequest.type, registrationOptions);
+	});
 }

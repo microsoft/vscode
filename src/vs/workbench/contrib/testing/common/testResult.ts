@@ -7,14 +7,15 @@ import { newWriteableBufferStream, VSBuffer, VSBufferReadableStream, VSBufferWri
 import { Emitter } from 'vs/base/common/event';
 import { Lazy } from 'vs/base/common/lazy';
 import { DisposableStore } from 'vs/base/common/lifecycle';
-import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
 import { IComputedStateAccessor, refreshComputedState } from 'vs/workbench/contrib/testing/common/getComputedState';
 import { IObservableValue, MutableObservableValue, staticObservableValue } from 'vs/workbench/contrib/testing/common/observableValue';
-import { IRichLocation, ISerializedTestResults, ITestItem, ITestMessage, ITestOutputMessage, ITestRunTask, ITestTaskState, ResolvedTestRunRequest, TestItemExpandState, TestMessageType, TestResultItem, TestResultState } from 'vs/workbench/contrib/testing/common/testTypes';
+import { getMarkId, IRichLocation, ISerializedTestResults, ITestItem, ITestMessage, ITestOutputMessage, ITestRunTask, ITestTaskState, ResolvedTestRunRequest, TestItemExpandState, TestMessageType, TestResultItem, TestResultState } from 'vs/workbench/contrib/testing/common/testTypes';
 import { TestCoverage } from 'vs/workbench/contrib/testing/common/testCoverage';
 import { maxPriority, statesInOrder, terminalStatePriorities } from 'vs/workbench/contrib/testing/common/testingStates';
 import { removeAnsiEscapeCodes } from 'vs/base/common/strings';
+import { TestId } from 'vs/workbench/contrib/testing/common/testId';
+import { language } from 'vs/base/common/platform';
 
 export interface ITestRunTaskResults extends ITestRunTask {
 	/**
@@ -85,13 +86,16 @@ export interface ITestResult {
 	 * in the workspace.
 	 */
 	toJSON(): ISerializedTestResults | undefined;
+
+	/**
+	 * Serializes the test result, includes messages. Used to send the test states to the extension host.
+	 */
+	toJSONWithMessages(): ISerializedTestResults | undefined;
 }
 
 export const resultItemParents = function* (results: ITestResult, item: TestResultItem) {
-	let i: TestResultItem | undefined = item;
-	while (i) {
-		yield i;
-		i = i.parent ? results.getStateById(i.parent) : undefined;
+	for (const id of TestId.fromString(item.item.extId).idsToRoot()) {
+		yield results.getStateById(id.toString())!;
 	}
 };
 
@@ -109,17 +113,6 @@ export const makeEmptyCounts = () => {
 	return o as TestStateCount;
 };
 
-export const sumCounts = (counts: Iterable<TestStateCount>) => {
-	const total = makeEmptyCounts();
-	for (const count of counts) {
-		for (const state of statesInOrder) {
-			total[state] += count[state];
-		}
-	}
-
-	return total;
-};
-
 export const maxCountPriority = (counts: Readonly<TestStateCount>) => {
 	for (const state of statesInOrder) {
 		if (counts[state] > 0) {
@@ -130,6 +123,7 @@ export const maxCountPriority = (counts: Readonly<TestStateCount>) => {
 	return TestResultState.Unset;
 };
 
+const getMarkCode = (marker: number, start: boolean) => `\x1b]633;SetMark;Id=${getMarkId(marker, start)};Hidden\x07`;
 
 /**
  * Deals with output of a {@link LiveTestResult}. By default we pass-through
@@ -162,16 +156,24 @@ export class LiveOutputController {
 	/**
 	 * Appends data to the output.
 	 */
-	public append(data: VSBuffer): Promise<void> | void {
+	public append(data: VSBuffer, marker?: number): { offset: number; done: Promise<void> | void } {
 		if (this.closed) {
-			return this.closed;
+			return { offset: this._offset, done: this.closed };
+		}
+
+		let startOffset = this._offset;
+		if (marker !== undefined) {
+			const start = VSBuffer.fromString(getMarkCode(marker, true));
+			const end = VSBuffer.fromString(getMarkCode(marker, false));
+			startOffset += start.byteLength;
+			data = VSBuffer.concat([start, data, end]);
 		}
 
 		this.previouslyWritten?.push(data);
 		this.dataEmitter.fire(data);
 		this._offset += data.byteLength;
 
-		return this.writer.getValue()[0].write(data);
+		return { offset: startOffset, done: this.writer.value[0].write(data) };
 	}
 
 	/**
@@ -232,10 +234,10 @@ export class LiveOutputController {
 			return this.closed;
 		}
 
-		if (!this.writer.hasValue()) {
+		if (!this.writer.hasValue) {
 			this.closed = Promise.resolve();
 		} else {
-			const [stream, ended] = this.writer.getValue();
+			const [stream, ended] = this.writer.value;
 			stream.end();
 			this.closed = ended;
 		}
@@ -257,7 +259,6 @@ interface TestResultItemWithChildren extends TestResultItem {
 }
 
 const itemToNode = (controllerId: string, item: ITestItem, parent: string | null): TestResultItemWithChildren => ({
-	parent,
 	controllerId,
 	expand: TestItemExpandState.NotExpandable,
 	item: { ...item },
@@ -285,12 +286,13 @@ export class LiveTestResult implements ITestResult {
 	private readonly completeEmitter = new Emitter<void>();
 	private readonly changeEmitter = new Emitter<TestResultItemChange>();
 	private readonly testById = new Map<string, TestResultItemWithChildren>();
+	private testMarkerCounter = 0;
 	private _completedAt?: number;
 
 	public readonly onChange = this.changeEmitter.event;
 	public readonly onComplete = this.completeEmitter.event;
 	public readonly tasks: ITestRunTaskResults[] = [];
-	public readonly name = localize('runFinished', 'Test run at {0}', new Date().toLocaleString());
+	public readonly name = localize('runFinished', 'Test run at {0}', new Date().toLocaleString(language));
 
 	/**
 	 * @inheritdoc
@@ -319,14 +321,11 @@ export class LiveTestResult implements ITestResult {
 		getParents: i => {
 			const { testById: testByExtId } = this;
 			return (function* () {
-				for (let parentId = i.parent; parentId;) {
-					const parent = testByExtId.get(parentId);
-					if (!parent) {
-						break;
+				const parentId = TestId.fromString(i.item.extId).parentId;
+				if (parentId) {
+					for (const id of parentId.idsToRoot()) {
+						yield testByExtId.get(id.toString())!;
 					}
-
-					yield parent;
-					parentId = parent.parent;
 				}
 			})();
 		},
@@ -352,15 +351,24 @@ export class LiveTestResult implements ITestResult {
 	 */
 	public appendOutput(output: VSBuffer, taskId: string, location?: IRichLocation, testId?: string): void {
 		const preview = output.byteLength > 100 ? output.slice(0, 100).toString() + '…' : output.toString();
+		let marker: number | undefined;
+
+		// currently, the UI only exposes jump-to-message from tests or locations,
+		// so no need to mark outputs that don't come from either of those.
+		if (testId || location) {
+			marker = this.testMarkerCounter++;
+		}
+
+		const { offset } = this.output.append(output, marker);
 		const message: ITestOutputMessage = {
 			location,
 			message: removeAnsiEscapeCodes(preview),
-			offset: this.output.offset,
+			offset,
 			length: output.byteLength,
+			marker: marker,
 			type: TestMessageType.Output,
 		};
 
-		this.output.append(output);
 
 		const index = this.mustGetTaskIndex(taskId);
 		if (testId) {
@@ -495,7 +503,11 @@ export class LiveTestResult implements ITestResult {
 	 * @inheritdoc
 	 */
 	public toJSON(): ISerializedTestResults | undefined {
-		return this.completedAt && this.persist ? this.doSerialize.getValue() : undefined;
+		return this.completedAt && this.persist ? this.doSerialize.value : undefined;
+	}
+
+	public toJSONWithMessages(): ISerializedTestResults | undefined {
+		return this.completedAt && this.persist ? this.doSerializeWithMessages.value : undefined;
 	}
 
 	/**
@@ -582,6 +594,15 @@ export class LiveTestResult implements ITestResult {
 		request: this.request,
 		items: [...this.testById.values()].map(TestResultItem.serializeWithoutMessages),
 	}));
+
+	private readonly doSerializeWithMessages = new Lazy((): ISerializedTestResults => ({
+		id: this.id,
+		completedAt: this.completedAt!,
+		tasks: this.tasks.map(t => ({ id: t.id, name: t.name })),
+		name: this.name,
+		request: this.request,
+		items: [...this.testById.values()].map(TestResultItem.serialize),
+	}));
 }
 
 /**
@@ -646,11 +667,9 @@ export class HydratedTestResult implements ITestResult {
 		this.request = serialized.request;
 
 		for (const item of serialized.items) {
-			const cast: TestResultItem = { ...item } as any;
-			cast.item.uri = URI.revive(cast.item.uri);
-			cast.retired = true;
-			this.counts[item.ownComputedState]++;
-			this.testById.set(item.item.extId, cast);
+			const de = TestResultItem.deserialize(item);
+			this.counts[de.ownComputedState]++;
+			this.testById.set(item.item.extId, de);
 		}
 	}
 
@@ -680,5 +699,12 @@ export class HydratedTestResult implements ITestResult {
 	 */
 	public toJSON(): ISerializedTestResults | undefined {
 		return this.persist ? this.serialized : undefined;
+	}
+
+	/**
+	 * @inheritdoc
+	 */
+	public toJSONWithMessages(): ISerializedTestResults | undefined {
+		return this.toJSON();
 	}
 }

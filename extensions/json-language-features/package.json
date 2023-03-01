@@ -9,11 +9,11 @@
   "engines": {
     "vscode": "0.10.x"
   },
+  "enabledApiProposals": [],
   "icon": "icons/json.png",
   "activationEvents": [
     "onLanguage:json",
-    "onLanguage:jsonc",
-    "onCommand:json.clearCache"
+    "onLanguage:jsonc"
   ],
   "main": "./client/out/node/jsonClientMain",
   "browser": "./client/dist/browser/jsonClientMain",
@@ -149,14 +149,18 @@
         "command": "json.clearCache",
         "title": "%json.command.clearCache%",
         "category": "JSON"
+      },
+      {
+        "command": "json.sort",
+        "title": "%json.command.sort%",
+        "category": "JSON"
       }
     ]
   },
   "dependencies": {
-    "@vscode/extension-telemetry": "0.6.2",
-    "request-light": "^0.5.8",
-    "vscode-languageclient": "^8.1.0-next.1",
-    "vscode-nls": "^5.2.0"
+    "@vscode/extension-telemetry": "^0.7.5",
+    "request-light": "^0.7.0",
+    "vscode-languageclient": "^8.1.0"
   },
   "devDependencies": {
     "@types/node": "16.x"

@@ -10,7 +10,7 @@ import * as path from 'vs/base/common/path';
 import * as lp from 'vs/base/node/languagePacks';
 import product from 'vs/platform/product/common/product';
 
-const metaData = path.join(FileAccess.asFileUri('', require).fsPath, 'nls.metadata.json');
+const metaData = path.join(FileAccess.asFileUri('').fsPath, 'nls.metadata.json');
 const _cache: Map<string, Promise<lp.NLSConfiguration>> = new Map();
 
 function exists(file: string) {
@@ -26,7 +26,9 @@ export function getNLSConfiguration(language: string, userDataPath: string): Pro
 		const key = `${language}||${userDataPath}`;
 		let result = _cache.get(key);
 		if (!result) {
-			result = lp.getNLSConfiguration(product.commit, userDataPath, metaData, language).then(value => {
+			// For remote, we just use language for both locale and language since we don't have any use case for the locale
+			// on the server side.
+			result = lp.getNLSConfiguration(product.commit, userDataPath, metaData, language, language).then(value => {
 				if (InternalNLSConfiguration.is(value)) {
 					value._languagePackSupport = true;
 				}

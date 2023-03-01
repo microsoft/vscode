@@ -93,6 +93,19 @@ export function getInheritIndentForLine(
 		};
 	}
 
+	// Use no indent if this is the first non-blank line
+	for (let priorLineNumber = lineNumber - 1; priorLineNumber > 0; priorLineNumber--) {
+		if (model.getLineContent(priorLineNumber) !== '') {
+			break;
+		}
+		if (priorLineNumber === 1) {
+			return {
+				indentation: '',
+				action: null
+			};
+		}
+	}
+
 	const precedingUnIgnoredLine = getPrecedingValidLine(model, lineNumber, indentRulesSupport);
 	if (precedingUnIgnoredLine < 0) {
 		return null;
@@ -228,33 +241,43 @@ export function getGoodIndentForLine(
 	if (indent) {
 		const inheritLine = indent.line;
 		if (inheritLine !== undefined) {
-			const enterResult = richEditSupport.onEnter(autoIndent, '', virtualModel.getLineContent(inheritLine), '');
-
-			if (enterResult) {
-				let indentation = strings.getLeadingWhitespace(virtualModel.getLineContent(inheritLine));
-
-				if (enterResult.removeText) {
-					indentation = indentation.substring(0, indentation.length - enterResult.removeText);
+			// Apply enter action as long as there are only whitespace lines between inherited line and this line.
+			let shouldApplyEnterRules = true;
+			for (let inBetweenLine = inheritLine; inBetweenLine < lineNumber - 1; inBetweenLine++) {
+				if (!/^\s*$/.test(virtualModel.getLineContent(inBetweenLine))) {
+					shouldApplyEnterRules = false;
+					break;
 				}
+			}
+			if (shouldApplyEnterRules) {
+				const enterResult = richEditSupport.onEnter(autoIndent, '', virtualModel.getLineContent(inheritLine), '');
 
-				if (
-					(enterResult.indentAction === IndentAction.Indent) ||
-					(enterResult.indentAction === IndentAction.IndentOutdent)
-				) {
-					indentation = indentConverter.shiftIndent(indentation);
-				} else if (enterResult.indentAction === IndentAction.Outdent) {
-					indentation = indentConverter.unshiftIndent(indentation);
+				if (enterResult) {
+					let indentation = strings.getLeadingWhitespace(virtualModel.getLineContent(inheritLine));
+
+					if (enterResult.removeText) {
+						indentation = indentation.substring(0, indentation.length - enterResult.removeText);
+					}
+
+					if (
+						(enterResult.indentAction === IndentAction.Indent) ||
+						(enterResult.indentAction === IndentAction.IndentOutdent)
+					) {
+						indentation = indentConverter.shiftIndent(indentation);
+					} else if (enterResult.indentAction === IndentAction.Outdent) {
+						indentation = indentConverter.unshiftIndent(indentation);
+					}
+
+					if (indentRulesSupport.shouldDecrease(lineContent)) {
+						indentation = indentConverter.unshiftIndent(indentation);
+					}
+
+					if (enterResult.appendText) {
+						indentation += enterResult.appendText;
+					}
+
+					return strings.getLeadingWhitespace(indentation);
 				}
-
-				if (indentRulesSupport.shouldDecrease(lineContent)) {
-					indentation = indentConverter.unshiftIndent(indentation);
-				}
-
-				if (enterResult.appendText) {
-					indentation += enterResult.appendText;
-				}
-
-				return strings.getLeadingWhitespace(indentation);
 			}
 		}
 

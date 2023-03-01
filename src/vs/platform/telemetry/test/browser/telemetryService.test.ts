@@ -224,8 +224,8 @@ suite('TelemetryService', () => {
 			return Promise.all(this.promises);
 		}
 
-		override publicLog(eventName: string, data?: ITelemetryData, anonymizeFilePaths?: boolean): Promise<void> {
-			const p = super.publicLog(eventName, data, anonymizeFilePaths);
+		override publicLog(eventName: string, data?: ITelemetryData): Promise<void> {
+			const p = super.publicLog(eventName, data);
 			// publicLog is called from the ctor and therefore promises can be undefined
 			this.promises = this.promises ?? [];
 			this.promises.push(p);
@@ -499,6 +499,10 @@ suite('TelemetryService', () => {
 
 		assert.strictEqual(errorStub.callCount, 1);
 		// Test that important information remains but personal info does not
+		assert.notStrictEqual(testAppender.events[0].data.callstack.indexOf('(' + settings.nodeModuleAsarPathToRetain), -1);
+		assert.notStrictEqual(testAppender.events[0].data.callstack.indexOf('(' + settings.nodeModulePathToRetain), -1);
+		assert.notStrictEqual(testAppender.events[0].data.callstack.indexOf('(/' + settings.nodeModuleAsarPathToRetain), -1);
+		assert.notStrictEqual(testAppender.events[0].data.callstack.indexOf('(/' + settings.nodeModulePathToRetain), -1);
 		assert.notStrictEqual(testAppender.events[0].data.msg.indexOf(settings.importantInfo), -1);
 		assert.strictEqual(testAppender.events[0].data.msg.indexOf(settings.personalInfo), -1);
 		assert.strictEqual(testAppender.events[0].data.msg.indexOf(settings.filePrefix), -1);
@@ -543,32 +547,6 @@ suite('TelemetryService', () => {
 			Errors.setUnexpectedErrorHandler(origErrorHandler);
 		}
 	}));
-
-	test('Uncaught Error Telemetry removes PII but preserves Code file path', sinonTestFn(async function (this: any) {
-		const errorStub = sinon.stub();
-		window.onerror = errorStub;
-		const settings = new ErrorTestingSettings();
-		const testAppender = new TestTelemetryAppender();
-		const service = new JoinableTelemetryService({ appenders: [testAppender] });
-		const errorTelemetry = new ErrorTelemetry(service);
-
-		const dangerousPathWithImportantInfoError: any = new Error('dangerousPathWithImportantInfo');
-		dangerousPathWithImportantInfoError.stack = settings.stack;
-		(<any>window.onerror)(settings.dangerousPathWithImportantInfo, 'test.js', 2, 42, dangerousPathWithImportantInfoError);
-		this.clock.tick(ErrorTelemetry.ERROR_FLUSH_TIMEOUT);
-		await service.join();
-
-		assert.strictEqual(errorStub.callCount, 1);
-
-		assert.notStrictEqual(testAppender.events[0].data.callstack.indexOf('(' + settings.nodeModuleAsarPathToRetain), -1);
-		assert.notStrictEqual(testAppender.events[0].data.callstack.indexOf('(' + settings.nodeModulePathToRetain), -1);
-		assert.notStrictEqual(testAppender.events[0].data.callstack.indexOf('(/' + settings.nodeModuleAsarPathToRetain), -1);
-		assert.notStrictEqual(testAppender.events[0].data.callstack.indexOf('(/' + settings.nodeModulePathToRetain), -1);
-
-		errorTelemetry.dispose();
-		service.dispose();
-	}));
-
 
 	test('Unexpected Error Telemetry removes PII but preserves Code file path when PIIPath is configured', sinonTestFn(async function (this: any) {
 
@@ -800,15 +778,15 @@ suite('TelemetryService', () => {
 			}
 		}(), TestProductService);
 
-		assert.strictEqual(service.telemetryLevel.value, TelemetryLevel.NONE);
+		assert.strictEqual(service.telemetryLevel, TelemetryLevel.NONE);
 
 		telemetryLevel = TelemetryConfiguration.ON;
-		emitter.fire({});
-		assert.strictEqual(service.telemetryLevel.value, TelemetryLevel.USAGE);
+		emitter.fire({ affectsConfiguration: () => true });
+		assert.strictEqual(service.telemetryLevel, TelemetryLevel.USAGE);
 
 		telemetryLevel = TelemetryConfiguration.ERROR;
-		emitter.fire({});
-		assert.strictEqual(service.telemetryLevel.value, TelemetryLevel.ERROR);
+		emitter.fire({ affectsConfiguration: () => true });
+		assert.strictEqual(service.telemetryLevel, TelemetryLevel.ERROR);
 
 		service.dispose();
 	});

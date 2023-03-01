@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/dart-lang/dart-syntax-highlight/commit/bd5cbdfe533c455a7ff7875923c4a94a5b497382",
+	"version": "https://github.com/dart-lang/dart-syntax-highlight/commit/b6324bfae2058bc29bb01af6bd2011c3eb35545d",
 	"name": "Dart",
 	"scopeName": "source.dart",
 	"patterns": [
@@ -57,6 +57,9 @@
 		},
 		{
 			"include": "#constants-and-special-vars"
+		},
+		{
+			"include": "#operators"
 		},
 		{
 			"include": "#strings"
@@ -230,34 +233,33 @@
 		"class-identifier": {
 			"patterns": [
 				{
-					"name": "storage.type.primitive.dart",
-					"match": "\\bvoid\\b"
+					"match": "(?<!\\$)\\b(bool|num|int|double|dynamic)\\b(?!\\$)",
+					"name": "support.class.dart"
 				},
 				{
-					"name": "support.class.dart",
-					"match": "\\b(bool|num|int|double|dynamic)\\b"
+					"match": "(?<!\\$)\\bvoid\\b(?!\\$)",
+					"name": "storage.type.primitive.dart"
 				},
 				{
-					"match": "\\b([_$]*[A-Z][a-zA-Z0-9_$]*)(<(?:[a-zA-Z0-9_$<>?]|,\\s*|\\s+extends\\s+)+>)?",
-					"captures": {
+					"begin": "(?<![a-zA-Z0-9_$])([_$]*[A-Z][a-zA-Z0-9_$]*)\\b",
+					"end": "(?!<)",
+					"beginCaptures": {
 						"1": {
 							"name": "support.class.dart"
-						},
-						"2": {
-							"patterns": [
-								{
-									"include": "#type-args"
-								}
-							]
 						}
-					}
+					},
+					"patterns": [
+						{
+							"include": "#type-args"
+						}
+					]
 				}
 			]
 		},
 		"function-identifier": {
 			"patterns": [
 				{
-					"match": "([_$]*[a-z][a-zA-Z0-9_$]*)(<(?:[a-zA-Z0-9_$<>?]|,\\s*|\\s+extends\\s+)+>)?[!?]?(\\(|\\s+=>)",
+					"match": "([_$]*[a-z][a-zA-Z0-9_$]*)(<(?:[a-zA-Z0-9_$<>?]|,\\s*|\\s+extends\\s+)+>)?[!?]?\\(",
 					"captures": {
 						"1": {
 							"name": "entity.name.function.dart"
@@ -291,7 +293,7 @@
 					"include": "#class-identifier"
 				},
 				{
-					"match": "[\\s,]+"
+					"match": ","
 				},
 				{
 					"name": "keyword.declaration.dart",
@@ -311,7 +313,7 @@
 				},
 				{
 					"name": "keyword.control.dart",
-					"match": "(?<!\\$)\\b(break|case|continue|default|do|else|for|if|in|return|switch|while)\\b(?!\\$)"
+					"match": "(?<!\\$)\\b(break|case|continue|default|do|else|for|if|in|return|switch|while|when)\\b(?!\\$)"
 				},
 				{
 					"name": "keyword.control.dart",
@@ -327,8 +329,20 @@
 				},
 				{
 					"name": "keyword.declaration.dart",
-					"match": "(?<!\\$)\\b(abstract|class|enum|extends|extension|external|factory|implements|get|mixin|native|operator|set|typedef|with|covariant)\\b(?!\\$)"
+					"match": "(?<!\\$)\\b(abstract|sealed|base|interface|class|enum|extends|extension|external|factory|implements|get(?!\\()|mixin|native|operator|set(?!\\()|typedef|with|covariant)\\b(?!\\$)"
 				},
+				{
+					"name": "storage.modifier.dart",
+					"match": "(?<!\\$)\\b(static|final|const|required|late)\\b(?!\\$)"
+				},
+				{
+					"name": "storage.type.primitive.dart",
+					"match": "(?<!\\$)\\b(?:void|var)\\b(?!\\$)"
+				}
+			]
+		},
+		"operators": {
+			"patterns": [
 				{
 					"name": "keyword.operator.dart",
 					"match": "(?<!\\$)\\b(is\\!?)\\b(?!\\$)"
@@ -372,14 +386,6 @@
 				{
 					"name": "keyword.operator.logical.dart",
 					"match": "(!|&&|\\|\\|)"
-				},
-				{
-					"name": "storage.modifier.dart",
-					"match": "(?<!\\$)\\b(static|final|const|required|late)\\b(?!\\$)"
-				},
-				{
-					"name": "storage.type.primitive.dart",
-					"match": "(?<!\\$)\\b(?:void|var)\\b(?!\\$)"
 				}
 			]
 		},

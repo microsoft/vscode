@@ -9,6 +9,7 @@ import * as vfs from 'vinyl-fs';
 import * as filter from 'gulp-filter';
 import * as _ from 'underscore';
 import * as util from './util';
+import { getVersion } from './getVersion';
 
 type DarwinDocumentSuffix = 'document' | 'script' | 'file' | 'source code';
 type DarwinDocumentType = {
@@ -26,7 +27,7 @@ function isDocumentSuffix(str?: string): str is DarwinDocumentSuffix {
 
 const root = path.dirname(path.dirname(__dirname));
 const product = JSON.parse(fs.readFileSync(path.join(root, 'product.json'), 'utf8'));
-const commit = util.getVersion(root);
+const commit = getVersion(root);
 
 const darwinCreditsTemplate = product.darwinCredits && _.template(fs.readFileSync(path.join(root, product.darwinCredits), 'utf8'));
 
@@ -90,7 +91,7 @@ function darwinBundleDocumentTypes(types: { [name: string]: string | string[] },
 }
 
 export const config = {
-	version: util.getElectronVersion(),
+	version: product.electronRepository ? '22.10.0' : util.getElectronVersion(),
 	productAppName: product.nameLong,
 	companyName: 'Microsoft Corporation',
 	copyright: 'Copyright (C) 2022 Microsoft. All rights reserved',
@@ -211,7 +212,7 @@ function getElectron(arch: string): () => NodeJS.ReadWriteStream {
 }
 
 async function main(arch = process.arch): Promise<void> {
-	const version = util.getElectronVersion();
+	const version = product.electronRepository ? '22.10.0' : util.getElectronVersion();
 	const electronPath = path.join(root, '.build', 'electron');
 	const versionFile = path.join(electronPath, 'version');
 	const isUpToDate = fs.existsSync(versionFile) && fs.readFileSync(versionFile, 'utf8') === `${version}`;

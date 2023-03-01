@@ -174,12 +174,12 @@ export class TerminalGroupService extends Disposable implements ITerminalGroupSe
 			await timeout(0);
 			const instance = this.activeInstance;
 			if (instance) {
+				// HACK: Ensure the panel is still visible at this point as there may have been
+				// a request since it was opened to show a different panel
+				if (pane && !pane.isVisible()) {
+					await this._viewsService.openView(TERMINAL_VIEW_ID, focus);
+				}
 				await instance.focusWhenReady(true);
-				// HACK: as a workaround for https://github.com/microsoft/vscode/issues/134692,
-				// this will trigger a forced refresh of the viewport to sync the viewport and scroll bar.
-				// This can likely be removed after https://github.com/xtermjs/xterm.js/issues/291 is
-				// fixed upstream.
-				instance.setVisible(true);
 			}
 		}
 		this._onDidShow.fire();
@@ -444,7 +444,7 @@ export class TerminalGroupService extends Disposable implements ITerminalGroupSe
 	}
 
 	getGroupForInstance(instance: ITerminalInstance): ITerminalGroup | undefined {
-		return this.groups.find(group => group.terminalInstances.indexOf(instance) !== -1);
+		return this.groups.find(group => group.terminalInstances.includes(instance));
 	}
 
 	getGroupLabels(): string[] {

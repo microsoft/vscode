@@ -206,7 +206,7 @@ declare module 'vscode' {
 		/**
 		 * Get a word-range at the given position. By default words are defined by
 		 * common separators, like space, -, _, etc. In addition, per language custom
-		 * [word definitions} can be defined. It
+		 * [word definitions] can be defined. It
 		 * is also possible to provide a custom regular expression.
 		 *
 		 * * *Note 1:* A custom regular expression must not match the empty string and
@@ -1751,8 +1751,9 @@ declare module 'vscode' {
 
 		/**
 		 * Optional flag indicating if this item is picked initially. This is only honored when using
-		 * the {@link window.showQuickPick()} API. To do the same thing with the {@link window.createQuickPick()} API,
-		 * simply set the {@link QuickPick.selectedItems} to the items you want picked initially.
+		 * the {@link window.showQuickPick showQuickPick()} API. To do the same thing with
+		 * the {@link window.createQuickPick createQuickPick()} API, simply set the {@link QuickPick.selectedItems}
+		 * to the items you want picked initially.
 		 * (*Note:* This is only honored when the picker allows multiple selections.)
 		 *
 		 * @see {@link QuickPickOptions.canPickMany}
@@ -1771,8 +1772,8 @@ declare module 'vscode' {
 		/**
 		 * Optional buttons that will be rendered on this particular item. These buttons will trigger
 		 * an {@link QuickPickItemButtonEvent} when clicked. Buttons are only rendered when using a quickpick
-		 * created by the {@link window.createQuickPick()} API. Buttons are not rendered when using
-		 * the {@link window.showQuickPick()} API.
+		 * created by the {@link window.createQuickPick createQuickPick()} API. Buttons are not rendered when using
+		 * the {@link window.showQuickPick showQuickPick()} API.
 		 *
 		 * Note: this property is ignored when {@link QuickPickItem.kind kind} is set to {@link QuickPickItemKind.Separator}
 		 */
@@ -2018,7 +2019,7 @@ declare module 'vscode' {
 		/**
 		 * Selection of the pre-filled {@linkcode InputBoxOptions.value value}. Defined as tuple of two number where the
 		 * first is the inclusive start index and the second the exclusive end index. When `undefined` the whole
-		 * word will be selected, when empty (start equals end) only the cursor will be set,
+		 * pre-filled value will be selected, when empty (start equals end) only the cursor will be set,
 		 * otherwise the defined range will be selected.
 		 */
 		valueSelection?: [number, number];
@@ -2065,7 +2066,9 @@ declare module 'vscode' {
 	export class RelativePattern {
 
 		/**
-		 * A base file path to which this pattern will be matched against relatively.
+		 * A base file path to which this pattern will be matched against relatively. The
+		 * file path must be absolute, should not have any trailing path separators and
+		 * not include any relative segments (`.` or `..`).
 		 */
 		baseUri: Uri;
 
@@ -2276,6 +2279,18 @@ declare module 'vscode' {
 		static readonly RefactorInline: CodeActionKind;
 
 		/**
+		 * Base kind for refactoring move actions: `refactor.move`
+		 *
+		 * Example move actions:
+		 *
+		 * - Move a function to a new file
+		 * - Move a property between classes
+		 * - Move method to base class
+		 * - ...
+		 */
+		static readonly RefactorMove: CodeActionKind;
+
+		/**
 		 * Base kind for refactoring rewrite actions: `refactor.rewrite`
 		 *
 		 * Example rewrite actions:
@@ -2284,7 +2299,6 @@ declare module 'vscode' {
 		 * - Add or remove parameter
 		 * - Encapsulate field
 		 * - Make method static
-		 * - Move method to base class
 		 * - ...
 		 */
 		static readonly RefactorRewrite: CodeActionKind;
@@ -2469,19 +2483,32 @@ declare module 'vscode' {
 	}
 
 	/**
-	 * The code action interface defines the contract between extensions and
-	 * the [lightbulb](https://code.visualstudio.com/docs/editor/editingevolved#_code-action) feature.
+	 * Provides contextual actions for code. Code actions typically either fix problems or beautify/refactor code.
 	 *
-	 * A code action can be any command that is {@link commands.getCommands known} to the system.
+	 * Code actions are surfaced to users in a few different ways:
+	 *
+	 * - The [lightbulb](https://code.visualstudio.com/docs/editor/editingevolved#_code-action) feature, which shows
+	 *   a list of code actions at the current cursor position. The lightbulb's list of actions includes both quick fixes
+	 *   and refactorings.
+	 * - As commands that users can run, such as `Refactor`. Users can run these from the command palette or with keybindings.
+	 * - As source actions, such `Organize Imports`.
+	 * - {@link CodeActionKind.QuickFix Quick fixes} are shown in the problems view.
+	 * - Change applied on save by the `editor.codeActionsOnSave` setting.
 	 */
 	export interface CodeActionProvider<T extends CodeAction = CodeAction> {
 		/**
-		 * Provide commands for the given document and range.
+		 * Get code actions for a given range in a document.
+		 *
+		 * Only return code actions that are relevant to user for the requested range. Also keep in mind how the
+		 * returned code actions will appear in the UI. The lightbulb widget and `Refactor` commands for instance show
+		 * returned code actions as a list, so do not return a large number of code actions that will overwhelm the user.
 		 *
 		 * @param document The document in which the command was invoked.
-		 * @param range The selector or range for which the command was invoked. This will always be a selection if
-		 * there is a currently active editor.
-		 * @param context Context carrying additional information.
+		 * @param range The selector or range for which the command was invoked. This will always be a
+		 * {@link Selection selection} if the actions are being requested in the currently active editor.
+		 * @param context Provides additional information about what code actions are being requested. You can use this
+		 * to see what specific type of code actions are being requested by the editor in order to return more relevant
+		 * actions and avoid returning irrelevant code actions that the editor will discard.
 		 * @param token A cancellation token.
 		 *
 		 * @return An array of code actions, such as quick fixes or refactorings. The lack of a result can be signaled
@@ -2740,8 +2767,12 @@ declare module 'vscode' {
 		/**
 		 * Indicates that this markdown string is from a trusted source. Only *trusted*
 		 * markdown supports links that execute commands, e.g. `[Run it](command:myCommandId)`.
+		 *
+		 * Defaults to `false` (commands are disabled).
+		 *
+		 * If this is an object, only the set of commands listed in `enabledCommands` are allowed.
 		 */
-		isTrusted?: boolean;
+		isTrusted?: boolean | { readonly enabledCommands: readonly string[] };
 
 		/**
 		 * Indicates that this markdown string can contain {@link ThemeIcon ThemeIcons}, e.g. `$(zap)`.
@@ -3427,6 +3458,54 @@ declare module 'vscode' {
 	}
 
 	/**
+	 * A snippet edit represents an interactive edit that is performed by
+	 * the editor.
+	 *
+	 * *Note* that a snippet edit can always be performed as a normal {@link TextEdit text edit}.
+	 * This will happen when no matching editor is open or when a {@link WorkspaceEdit workspace edit}
+	 * contains snippet edits for multiple files. In that case only those that match the active editor
+	 * will be performed as snippet edits and the others as normal text edits.
+	 */
+	export class SnippetTextEdit {
+
+		/**
+		 * Utility to create a replace snippet edit.
+		 *
+		 * @param range A range.
+		 * @param snippet A snippet string.
+		 * @return A new snippet edit object.
+		 */
+		static replace(range: Range, snippet: SnippetString): SnippetTextEdit;
+
+		/**
+		 * Utility to create an insert snippet edit.
+		 *
+		 * @param position A position, will become an empty range.
+		 * @param snippet A snippet string.
+		 * @return A new snippet edit object.
+		 */
+		static insert(position: Position, snippet: SnippetString): SnippetTextEdit;
+
+		/**
+		 * The range this edit applies to.
+		 */
+		range: Range;
+
+		/**
+		 * The {@link SnippetString snippet} this edit will perform.
+		 */
+		snippet: SnippetString;
+
+		/**
+		 * Create a new snippet edit.
+		 *
+		 * @param range A range.
+		 * @param snippet A snippet string.
+		 */
+		constructor(range: Range, snippet: SnippetString);
+	}
+
+	/**
 	 * A notebook edit represents edits that should be applied to the contents of a notebook.
 	 */
 	export class NotebookEdit {
@@ -3521,6 +3600,16 @@ declare module 'vscode' {
 	}
 
 	/**
+	 * Additional data about a workspace edit.
+	 */
+	export interface WorkspaceEditMetadata {
+		/**
+		 * Signal to the editor that this edit is a refactoring.
+		 */
+		isRefactoring?: boolean;
+	}
+
+	/**
 	 * A workspace edit is a collection of textual and files changes for
 	 * multiple resources and documents.
 	 *
@@ -3571,12 +3660,36 @@ declare module 'vscode' {
 		has(uri: Uri): boolean;
 
 		/**
-		 * Set (and replace) text edits for a resource.
+		 * Set (and replace) text edits or snippet edits for a resource.
 		 *
 		 * @param uri A resource identifier.
 		 * @param edits An array of edits.
 		 */
-		set(uri: Uri, edits: TextEdit[] | NotebookEdit[]): void;
+		set(uri: Uri, edits: ReadonlyArray<TextEdit | SnippetTextEdit>): void;
+
+		/**
+		 * Set (and replace) text edits or snippet edits with metadata for a resource.
+		 *
+		 * @param uri A resource identifier.
+		 * @param edits An array of edits.
+		 */
+		set(uri: Uri, edits: ReadonlyArray<[TextEdit | SnippetTextEdit, WorkspaceEditEntryMetadata]>): void;
+
+		/**
+		 * Set (and replace) notebook edits for a resource.
+		 *
+		 * @param uri A resource identifier.
+		 * @param edits An array of edits.
+		 */
+		set(uri: Uri, edits: readonly NotebookEdit[]): void;
+
+		/**
+		 * Set (and replace) notebook edits with metadata for a resource.
+		 *
+		 * @param uri A resource identifier.
+		 * @param edits An array of edits.
+		 */
+		set(uri: Uri, edits: ReadonlyArray<[NotebookEdit, WorkspaceEditEntryMetadata]>): void;
 
 		/**
 		 * Get the text edits for a resource.
@@ -3589,14 +3702,15 @@ declare module 'vscode' {
 		/**
 		 * Create a regular file.
 		 *
-		 * @param uri Uri of the new file..
+		 * @param uri Uri of the new file.
 		 * @param options Defines if an existing file should be overwritten or be
-		 * ignored. When overwrite and ignoreIfExists are both set overwrite wins.
+		 * ignored. When `overwrite` and `ignoreIfExists` are both set `overwrite` wins.
 		 * When both are unset and when the file already exists then the edit cannot
-		 * be applied successfully.
+		 * be applied successfully. The `content`-property allows to set the initial contents
+		 * the file is being created with.
 		 * @param metadata Optional metadata for the entry.
 		 */
-		createFile(uri: Uri, options?: { overwrite?: boolean; ignoreIfExists?: boolean }, metadata?: WorkspaceEditEntryMetadata): void;
+		createFile(uri: Uri, options?: { readonly overwrite?: boolean; readonly ignoreIfExists?: boolean; readonly contents?: Uint8Array }, metadata?: WorkspaceEditEntryMetadata): void;
 
 		/**
 		 * Delete a file or folder.
@@ -3604,7 +3718,7 @@ declare module 'vscode' {
 		 * @param uri The uri of the file that is to be deleted.
 		 * @param metadata Optional metadata for the entry.
 		 */
-		deleteFile(uri: Uri, options?: { recursive?: boolean; ignoreIfNotExists?: boolean }, metadata?: WorkspaceEditEntryMetadata): void;
+		deleteFile(uri: Uri, options?: { readonly recursive?: boolean; readonly ignoreIfNotExists?: boolean }, metadata?: WorkspaceEditEntryMetadata): void;
 
 		/**
 		 * Rename a file or folder.
@@ -3615,7 +3729,7 @@ declare module 'vscode' {
 		 * ignored. When overwrite and ignoreIfExists are both set overwrite wins.
 		 * @param metadata Optional metadata for the entry.
 		 */
-		renameFile(oldUri: Uri, newUri: Uri, options?: { overwrite?: boolean; ignoreIfExists?: boolean }, metadata?: WorkspaceEditEntryMetadata): void;
+		renameFile(oldUri: Uri, newUri: Uri, options?: { readonly overwrite?: boolean; readonly ignoreIfExists?: boolean }, metadata?: WorkspaceEditEntryMetadata): void;
 
 		/**
 		 * Get all text edits grouped by resource.
@@ -6365,6 +6479,70 @@ declare module 'vscode' {
 	}
 
 	/**
+	 * A channel for containing log output.
+	 *
+	 * To get an instance of a `LogOutputChannel` use
+	 * {@link window.createOutputChannel createOutputChannel}.
+	 */
+	export interface LogOutputChannel extends OutputChannel {
+
+		/**
+		 * The current log level of the channel. Defaults to {@link env.logLevel editor log level}.
+		 */
+		readonly logLevel: LogLevel;
+
+		/**
+		 * An {@link Event} which fires when the log level of the channel changes.
+		 */
+		readonly onDidChangeLogLevel: Event<LogLevel>;
+
+		/**
+		 * Outputs the given trace message to the channel. Use this method to log verbose information.
+		 *
+		 * The message is only loggeed if the channel is configured to display {@link LogLevel.Trace trace} log level.
+		 *
+		 * @param message trace message to log
+		 */
+		trace(message: string, ...args: any[]): void;
+
+		/**
+		 * Outputs the given debug message to the channel.
+		 *
+		 * The message is only loggeed if the channel is configured to display {@link LogLevel.Debug debug} log level or lower.
+		 *
+		 * @param message debug message to log
+		 */
+		debug(message: string, ...args: any[]): void;
+
+		/**
+		 * Outputs the given information message to the channel.
+		 *
+		 * The message is only loggeed if the channel is configured to display {@link LogLevel.Info info} log level or lower.
+		 *
+		 * @param message info message to log
+		 */
+		info(message: string, ...args: any[]): void;
+
+		/**
+		 * Outputs the given warning message to the channel.
+		 *
+		 * The message is only loggeed if the channel is configured to display {@link LogLevel.Warning warning} log level or lower.
+		 *
+		 * @param message warning message to log
+		 */
+		warn(message: string, ...args: any[]): void;
+
+		/**
+		 * Outputs the given error or error message to the channel.
+		 *
+		 * The message is only loggeed if the channel is configured to display {@link LogLevel.Error error} log level or lower.
+		 *
+		 * @param error Error or error message to log
+		 */
+		error(error: string | Error, ...args: any[]): void;
+	}
+
+	/**
 	 * Accessibility information which controls screen reader behavior.
 	 */
 	export interface AccessibilityInformation {
@@ -8309,9 +8487,11 @@ declare module 'vscode' {
 		/**
 		 * Controls whether command uris are enabled in webview content or not.
 		 *
-		 * Defaults to false.
+		 * Defaults to `false` (command uris are disabled).
+		 *
+		 * If you pass in an array, only the commands in the array are allowed.
 		 */
-		readonly enableCommandUris?: boolean;
+		readonly enableCommandUris?: boolean | readonly string[];
 
 		/**
 		 * Root paths from which the webview can load local (filesystem) resources using uris from `asWebviewUri`
@@ -8863,7 +9043,7 @@ declare module 'vscode' {
 	}
 
 	/**
-	 * Additional information used to implement {@linkcode CustomEditableDocument.backup}.
+	 * Additional information used to implement {@linkcode CustomDocumentBackup}.
 	 */
 	interface CustomDocumentBackupContext {
 		/**
@@ -9091,6 +9271,42 @@ declare module 'vscode' {
 	}
 
 	/**
+	 * Log levels
+	 */
+	export enum LogLevel {
+
+		/**
+		 * No messages are logged with this level.
+		 */
+		Off = 0,
+
+		/**
+		 * All messages are logged with this level.
+		 */
+		Trace = 1,
+
+		/**
+		 * Messages with debug and higher log level are logged with this level.
+		 */
+		Debug = 2,
+
+		/**
+		 * Messages with info and higher log level are logged with this level.
+		 */
+		Info = 3,
+
+		/**
+		 * Messages with warning and higher log level are logged with this level.
+		 */
+		Warning = 4,
+
+		/**
+		 * Only error messages are logged with this level.
+		 */
+		Error = 5
+	}
+
+	/**
 	 * Namespace describing the environment the editor runs in.
 	 */
 	export namespace env {
@@ -9159,6 +9375,15 @@ declare module 'vscode' {
 		 * `true` if the user has enabled telemetry or `false` if the user has disabled telemetry.
 		 */
 		export const onDidChangeTelemetryEnabled: Event<boolean>;
+
+		/**
+		 * Creates a new {@link TelemetryLogger telemetry logger}.
+		 *
+		 * @param sender The telemetry sender that is used by the telemetry logger.
+		 * @param options Options for the telemetry logger.
+		 * @returns A new telemetry logger
+		 */
+		export function createTelemetryLogger(sender: TelemetrySender, options?: TelemetryLoggerOptions): TelemetryLogger;
 
 		/**
 		 * The name of a remote. Defined by extensions, popular samples are `wsl` for the Windows
@@ -9254,6 +9479,16 @@ declare module 'vscode' {
 		 * @return A uri that can be used on the client machine.
 		 */
 		export function asExternalUri(target: Uri): Thenable<Uri>;
+
+		/**
+		 * The current log level of the editor.
+		 */
+		export const logLevel: LogLevel;
+
+		/**
+		 * An {@link Event} which fires when the log level of the editor changes.
+		 */
+		export const onDidChangeLogLevel: Event<LogLevel>;
 	}
 
 	/**
@@ -9820,6 +10055,14 @@ declare module 'vscode' {
 		export function createOutputChannel(name: string, languageId?: string): OutputChannel;
 
 		/**
+		 * Creates a new {@link LogOutputChannel log output channel} with the given name.
+		 *
+		 * @param name Human-readable string which will be used to represent the channel in the UI.
+		 * @param options Options for the log output channel.
+		 */
+		export function createOutputChannel(name: string, options: { log: true }): LogOutputChannel;
+
+		/**
 		 * Create and show a new webview panel.
 		 *
 		 * @param viewType Identifies the type of the webview panel.
@@ -10238,6 +10481,7 @@ declare module 'vscode' {
 		 * Retrieves the data transfer item for a given mime type.
 		 *
 		 * @param mimeType The mime type to get the data transfer item for, such as `text/plain` or `image/png`.
+		 * Mimes type look ups are case-insensitive.
 		 *
 		 * Special mime types:
 		 * - `text/uri-list` — A string with `toString()`ed Uris separated by `\r\n`. To specify a cursor position in the file,
@@ -10247,7 +10491,8 @@ declare module 'vscode' {
 
 		/**
 		 * Sets a mime type to data transfer item mapping.
-		 * @param mimeType The mime type to set the data for.
+		 *
+		 * @param mimeType The mime type to set the data for. Mimes types stored in lower case, with case-insensitive looks up.
 		 * @param value The data transfer item for the given mime type.
 		 */
 		set(mimeType: string, value: DataTransferItem): void;
@@ -10642,7 +10887,7 @@ declare module 'vscode' {
 		 * Whether the terminal process environment should be exactly as provided in
 		 * `TerminalOptions.env`. When this is false (default), the environment will be based on the
 		 * window's environment and also apply configured platform settings like
-		 * `terminal.integrated.windows.env` on top. When this is true, the complete environment
+		 * `terminal.integrated.env.windows` on top. When this is true, the complete environment
 		 * must be provided as nothing will be inherited from the process or any configuration.
 		 */
 		strictEnv?: boolean;
@@ -11220,7 +11465,7 @@ declare module 'vscode' {
 		value: string;
 
 		/**
-		 * Optional placeholder in the filter text.
+		 * Optional placeholder shown in the filter textbox when no filter has been entered.
 		 */
 		placeholder: string | undefined;
 
@@ -11312,7 +11557,18 @@ declare module 'vscode' {
 		value: string;
 
 		/**
-		 * Optional placeholder in the filter text.
+		 * Selection range in the input value. Defined as tuple of two number where the
+		 * first is the inclusive start index and the second the exclusive end index. When `undefined` the whole
+		 * pre-filled value will be selected, when empty (start equals end) only the cursor will be set,
+		 * otherwise the defined range will be selected.
+		 *
+		 * This property does not get updated when the user types or makes a selection,
+		 * but it can be updated by the extension.
+		 */
+		valueSelection: readonly [number, number] | undefined;
+
+		/**
+		 * Optional placeholder shown when no value has been input.
 		 */
 		placeholder: string | undefined;
 
@@ -11593,7 +11849,7 @@ declare module 'vscode' {
 	 * An event that is fired when files are going to be deleted.
 	 *
 	 * To make modifications to the workspace before the files are deleted,
-	 * call the {@link FileWillCreateEvent.waitUntil `waitUntil}-function with a
+	 * call the {@link FileWillCreateEvent.waitUntil `waitUntil`}-function with a
 	 * thenable that resolves to a {@link WorkspaceEdit workspace edit}.
 	 */
 	export interface FileWillDeleteEvent {
@@ -11653,7 +11909,7 @@ declare module 'vscode' {
 	 * An event that is fired when files are going to be renamed.
 	 *
 	 * To make modifications to the workspace before the files are renamed,
-	 * call the {@link FileWillCreateEvent.waitUntil `waitUntil}-function with a
+	 * call the {@link FileWillCreateEvent.waitUntil `waitUntil`}-function with a
 	 * thenable that resolves to a {@link WorkspaceEdit workspace edit}.
 	 */
 	export interface FileWillRenameEvent {
@@ -11878,9 +12134,11 @@ declare module 'vscode' {
 		 * by an optional set of `workspaceFoldersToAdd` on the `vscode.workspace.workspaceFolders` array. This "splice"
 		 * behavior can be used to add, remove and change workspace folders in a single operation.
 		 *
-		 * If the first workspace folder is added, removed or changed, the currently executing extensions (including the
-		 * one that called this method) will be terminated and restarted so that the (deprecated) `rootPath` property is
-		 * updated to point to the first workspace folder.
+		 * **Note:** in some cases calling this method may result in the currently executing extensions (including the
+		 * one that called this method) to be terminated and restarted. For example when the first workspace folder is
+		 * added, removed or changed the (deprecated) `rootPath` property is updated to point to the first workspace
+		 * folder. Another case is when transitioning from an empty or single-folder workspace into a multi-folder
+		 * workspace (see also: https://code.visualstudio.com/docs/editor/workspaces).
 		 *
 		 * Use the {@linkcode onDidChangeWorkspaceFolders onDidChangeWorkspaceFolders()} event to get notified when the
 		 * workspace folders have been updated.
@@ -12005,7 +12263,7 @@ declare module 'vscode' {
 		 * If you want to monitor file events across all opened workspace folders:
 		 *
 		 * ```ts
-		 * vscode.workspace.createFileSystemWatcher('**​/*.js'));
+		 * vscode.workspace.createFileSystemWatcher('**​/*.js');
 		 * ```
 		 *
 		 * *Note:* the array of workspace folders can be empty if no workspace is opened (empty window).
@@ -12081,9 +12339,10 @@ declare module 'vscode' {
 		 * not be attempted, when a single edit fails.
 		 *
 		 * @param edit A workspace edit.
+		 * @param metadata Optional {@link WorkspaceEditMetadata metadata} for the edit.
 		 * @return A thenable that resolves when the edit could be applied.
 		 */
-		export function applyEdit(edit: WorkspaceEdit): Thenable<boolean>;
+		export function applyEdit(edit: WorkspaceEdit, metadata?: WorkspaceEditMetadata): Thenable<boolean>;
 
 		/**
 		 * All text documents currently known to the editor.
@@ -12200,11 +12459,11 @@ declare module 'vscode' {
 		export const notebookDocuments: readonly NotebookDocument[];
 
 		/**
-		 * Open a notebook. Will return early if this notebook is already {@link notebook.notebookDocuments loaded}. Otherwise
-		 * the notebook is loaded and the {@linkcode notebook.onDidOpenNotebookDocument onDidOpenNotebookDocument}-event fires.
+		 * Open a notebook. Will return early if this notebook is already {@link notebookDocuments loaded}. Otherwise
+		 * the notebook is loaded and the {@linkcode onDidOpenNotebookDocument}-event fires.
 		 *
 		 * *Note* that the lifecycle of the returned notebook is owned by the editor and not by the extension. That means an
-		 * {@linkcode notebook.onDidCloseNotebookDocument onDidCloseNotebookDocument}-event can occur at any time after.
+		 * {@linkcode onDidCloseNotebookDocument}-event can occur at any time after.
 		 *
 		 * *Note* that opening a notebook does not show a notebook editor. This function only returns a notebook document which
 		 * can be shown in a notebook editor but it can also be used for other things.
@@ -13219,7 +13478,7 @@ declare module 'vscode' {
 	export interface NotebookDocumentCellChange {
 
 		/**
-		 * The affected notebook.
+		 * The affected cell.
 		 */
 		readonly cell: NotebookCell;
 
@@ -14733,6 +14992,26 @@ declare module 'vscode' {
 		 * If compact is true, debug sessions with a single child are hidden in the CALL STACK view to make the tree more compact.
 		 */
 		compact?: boolean;
+
+		/**
+		 * When true, a save will not be triggered for open editors when starting a debug session, regardless of the value of the `debug.saveBeforeStart` setting.
+		 */
+		suppressSaveBeforeStart?: boolean;
+
+		/**
+		 * When true, the debug toolbar will not be shown for this session.
+		 */
+		suppressDebugToolbar?: boolean;
+
+		/**
+		 * When true, the window statusbar color will not be changed for this session.
+		 */
+		suppressDebugStatusbar?: boolean;
+
+		/**
+		 * When true, the debug viewlet will not be automatically revealed for this session.
+		 */
+		suppressDebugView?: boolean;
 	}
 
 	/**
@@ -14813,7 +15092,7 @@ declare module 'vscode' {
 		 *
 		 * @param debugType The debug type for which the provider is registered.
 		 * @param provider The {@link DebugConfigurationProvider debug configuration provider} to register.
-		 * @param triggerKind The {@link DebugConfigurationProviderTrigger trigger} for which the 'provideDebugConfiguration' method of the provider is registered. If `triggerKind` is missing, the value `DebugConfigurationProviderTriggerKind.Initial` is assumed.
+		 * @param triggerKind The {@link DebugConfigurationProviderTriggerKind trigger} for which the 'provideDebugConfiguration' method of the provider is registered. If `triggerKind` is missing, the value `DebugConfigurationProviderTriggerKind.Initial` is assumed.
 		 * @return A {@link Disposable} that unregisters this provider when being disposed.
 		 */
 		export function registerDebugConfigurationProvider(debugType: string, provider: DebugConfigurationProvider, triggerKind?: DebugConfigurationProviderTriggerKind): Disposable;
@@ -14968,6 +15247,14 @@ declare module 'vscode' {
 	}
 
 	/**
+	 * The state of a comment thread.
+	 */
+	export enum CommentThreadState {
+		Unresolved = 0,
+		Resolved = 1
+	}
+
+	/**
 	 * A collection of {@link Comment comments} representing a conversation at a particular range in a document.
 	 */
 	export interface CommentThread {
@@ -15023,6 +15310,11 @@ declare module 'vscode' {
 		 * The optional human-readable label describing the {@link CommentThread Comment Thread}
 		 */
 		label?: string;
+
+		/**
+		 * The optional state of a comment thread, which may affect how the comment is displayed.
+		 */
+		state?: CommentThreadState;
 
 		/**
 		 * Dispose this comment thread.
@@ -15504,6 +15796,82 @@ declare module 'vscode' {
 	}
 
 	/**
+	 * Namespace for localization-related functionality in the extension API. To use this properly,
+	 * you must have `l10n` defined in your extension manifest and have bundle.l10n.<language>.json files.
+	 * For more information on how to generate bundle.l10n.<language>.json files, check out the
+	 * [vscode-l10n repo](https://github.com/microsoft/vscode-l10n).
+	 *
+	 * Note: Built-in extensions (for example, Git, TypeScript Language Features, GitHub Authentication)
+	 * are excluded from the `l10n` property requirement. In other words, they do not need to specify
+	 * a `l10n` in the extension manifest because their translated strings come from Language Packs.
+	 */
+	export namespace l10n {
+		/**
+		 * Marks a string for localization. If a localized bundle is available for the language specified by
+		 * {@link env.language} and the bundle has a localized value for this message, then that localized
+		 * value will be returned (with injected {@link args} values for any templated values).
+		 * @param message - The message to localize. Supports index templating where strings like `{0}` and `{1}` are
+		 * replaced by the item at that index in the {@link args} array.
+		 * @param args - The arguments to be used in the localized string. The index of the argument is used to
+		 * match the template placeholder in the localized string.
+		 * @returns localized string with injected arguments.
+		 * @example `l10n.t('Hello {0}!', 'World');`
+		 */
+		export function t(message: string, ...args: Array<string | number | boolean>): string;
+
+		/**
+		 * Marks a string for localization. If a localized bundle is available for the language specified by
+		 * {@link env.language} and the bundle has a localized value for this message, then that localized
+		 * value will be returned (with injected {@link args} values for any templated values).
+		 * @param message The message to localize. Supports named templating where strings like `{foo}` and `{bar}` are
+		 * replaced by the value in the Record for that key (foo, bar, etc).
+		 * @param args The arguments to be used in the localized string. The name of the key in the record is used to
+		 * match the template placeholder in the localized string.
+		 * @returns localized string with injected arguments.
+		 * @example `l10n.t('Hello {name}', { name: 'Erich' });`
+		 */
+		export function t(message: string, args: Record<string, any>): string;
+		/**
+		 * Marks a string for localization. If a localized bundle is available for the language specified by
+		 * {@link env.language} and the bundle has a localized value for this message, then that localized
+		 * value will be returned (with injected args values for any templated values).
+		 * @param options The options to use when localizing the message.
+		 * @returns localized string with injected arguments.
+		 */
+		export function t(options: {
+			/**
+			 * The message to localize. If {@link options.args args} is an array, this message supports index templating where strings like
+			 * `{0}` and `{1}` are replaced by the item at that index in the {@link options.args args} array. If `args` is a `Record<string, any>`,
+			 * this supports named templating where strings like `{foo}` and `{bar}` are replaced by the value in
+			 * the Record for that key (foo, bar, etc).
+			 */
+			message: string;
+			/**
+			 * The arguments to be used in the localized string. As an array, the index of the argument is used to
+			 * match the template placeholder in the localized string. As a Record, the key is used to match the template
+			 * placeholder in the localized string.
+			 */
+			args?: Array<string | number | boolean> | Record<string, any>;
+			/**
+			 * A comment to help translators understand the context of the message.
+			 */
+			comment: string | string[];
+		}): string;
+		/**
+		 * The bundle of localized strings that have been loaded for the extension.
+		 * It's undefined if no bundle has been loaded. The bundle is typically not loaded if
+		 * there was no bundle found or when we are running with the default language.
+		 */
+		export const bundle: { [key: string]: string } | undefined;
+		/**
+		 * The URI of the localization bundle that has been loaded for the extension.
+		 * It's undefined if no bundle has been loaded. The bundle is typically not loaded if
+		 * there was no bundle found or when we are running with the default language.
+		 */
+		export const uri: Uri | undefined;
+	}
+
+	/**
 	 * Namespace for testing functionality. Tests are published by registering
 	 * {@link TestController} instances, then adding {@link TestItem TestItems}.
 	 * Controllers may also describe how to run tests by creating one or more
@@ -15620,7 +15988,7 @@ declare module 'vscode' {
 	 */
 	export interface TestController {
 		/**
-		 * The id of the controller passed in {@link vscode.tests.createTestController}.
+		 * The id of the controller passed in {@link tests.createTestController}.
 		 * This must be globally unique.
 		 */
 		readonly id: string;
@@ -15636,7 +16004,7 @@ declare module 'vscode' {
 		 * "test tree."
 		 *
 		 * The extension controls when to add tests. For example, extensions should
-		 * add tests for a file when {@link vscode.workspace.onDidOpenTextDocument}
+		 * add tests for a file when {@link workspace.onDidOpenTextDocument}
 		 * fires in order for decorations for tests within a file to be visible.
 		 *
 		 * However, the editor may sometimes explicitly request children using the
@@ -15661,7 +16029,7 @@ declare module 'vscode' {
 		 * A function provided by the extension that the editor may call to request
 		 * children of a test item, if the {@link TestItem.canResolveChildren} is
 		 * `true`. When called, the item should discover children and call
-		 * {@link vscode.tests.createTestItem} as children are discovered.
+		 * {@link TestController.createTestItem} as children are discovered.
 		 *
 		 * Generally the extension manages the lifecycle of test items, but under
 		 * certain conditions the editor may request the children of a specific
@@ -15734,9 +16102,9 @@ declare module 'vscode' {
 
 	/**
 	 * A TestRunRequest is a precursor to a {@link TestRun}, which in turn is
-	 * created by passing a request to {@link tests.runTests}. The TestRunRequest
-	 * contains information about which tests should be run, which should not be
-	 * run, and how they are run (via the {@link TestRunRequest.profile profile}).
+	 * created by passing a request to {@link TestController.createTestRun}. The
+	 * TestRunRequest contains information about which tests should be run, which
+	 * should not be run, and how they are run (via the {@link TestRunRequest.profile profile}).
 	 *
 	 * In general, TestRunRequests are created by the editor and pass to
 	 * {@link TestRunProfile.runHandler}, however you can also create test
@@ -15779,7 +16147,8 @@ declare module 'vscode' {
 	}
 
 	/**
-	 * Options given to {@link TestController.runTests}
+	 * A TestRun represents an in-progress or completed test run and
+	 * provides methods to report the state of individual tests in the run.
 	 */
 	export interface TestRun {
 		/**
@@ -15848,7 +16217,8 @@ declare module 'vscode' {
 		/**
 		 * Appends raw output from the test runner. On the user's request, the
 		 * output will be displayed in a terminal. ANSI escape sequences,
-		 * such as colors and text styles, are supported.
+		 * such as colors and text styles, are supported. New lines must be given
+		 * as CRLF (`\r\n`) rather than LF (`\n`).
 		 *
 		 * @param output Output text to append.
 		 * @param location Indicate that the output was logged at the given
@@ -15944,7 +16314,7 @@ declare module 'vscode' {
 
 		/**
 		 * Tags associated with this test item. May be used in combination with
-		 * {@link TestRunProfile.tags}, or simply as an organizational feature.
+		 * {@link TestRunProfile.tag tags}, or simply as an organizational feature.
 		 */
 		tags: readonly TestTag[];
 
@@ -16257,7 +16627,7 @@ declare module 'vscode' {
 		 * Whether or not the group is currently active.
 		 *
 		 * *Note* that only one tab group is active at a time, but that multiple tab
-		 * groups can have an {@link TabGroup.aciveTab active tab}.
+		 * groups can have an {@link activeTab active tab}.
 		 *
 		 * @see {@link Tab.isActive}
 		 */
@@ -16326,6 +16696,144 @@ declare module 'vscode' {
 		 * @returns A promise that resolves to `true` when all tab groups have been closed.
 		 */
 		close(tabGroup: TabGroup | readonly TabGroup[], preserveFocus?: boolean): Thenable<boolean>;
+	}
+
+	/**
+	 * A special value wrapper denoting a value that is safe to not clean.
+	 * This is to be used when you can guarantee no identifiable information is contained in the value and the cleaning is improperly redacting it.
+	 */
+	export class TelemetryTrustedValue<T = any> {
+		readonly value: T;
+
+		constructor(value: T);
+	}
+
+	/**
+	 * A telemetry logger which can be used by extensions to log usage and error telementry.
+	 *
+	 * A logger wraps around an {@link TelemetrySender sender} but it guarantees that
+	 * - user settings to disable or tweak telemetry are respected, and that
+	 * - potential sensitive data is removed
+	 *
+	 * It also enables an "echo UI" that prints whatever data is send and it allows the editor
+	 * to forward unhandled errors to the respective extensions.
+	 *
+	 * To get an instance of a `TelemetryLogger`, use
+	 * {@link env.createTelemetryLogger `createTelemetryLogger`}.
+	 */
+	export interface TelemetryLogger {
+
+		/**
+		 * An {@link Event} which fires when the enablement state of usage or error telemetry changes.
+		 */
+		readonly onDidChangeEnableStates: Event<TelemetryLogger>;
+
+		/**
+		 * Whether or not usage telemetry is enabled for this logger.
+		 */
+		readonly isUsageEnabled: boolean;
+
+		/**
+		 * Whether or not error telemetry is enabled for this logger.
+		 */
+		readonly isErrorsEnabled: boolean;
+
+		/**
+		 * Log a usage event.
+		 *
+		 * After completing cleaning, telemetry setting checks, and data mix-in calls `TelemetrySender.sendEventData` to log the event.
+		 * Automatically supports echoing to extension telemetry output channel.
+		 * @param eventName The event name to log
+		 * @param data The data to log
+		 */
+		logUsage(eventName: string, data?: Record<string, any | TelemetryTrustedValue>): void;
+
+		/**
+		 * Log an error event.
+		 *
+		 * After completing cleaning, telemetry setting checks, and data mix-in calls `TelemetrySender.sendEventData` to log the event. Differs from `logUsage` in that it will log the event if the telemetry setting is Error+.
+		 * Automatically supports echoing to extension telemetry output channel.
+		 * @param eventName The event name to log
+		 * @param data The data to log
+		 */
+		logError(eventName: string, data?: Record<string, any | TelemetryTrustedValue>): void;
+
+		/**
+		 * Log an error event.
+		 *
+		 * Calls `TelemetrySender.sendErrorData`. Does cleaning, telemetry checks, and data mix-in.
+		 * Automatically supports echoing to extension telemetry output channel.
+		 * Will also automatically log any exceptions thrown within the extension host process.
+		 * @param error The error object which contains the stack trace cleaned of PII
+		 * @param data Additional data to log alongside the stack trace
+		 */
+		logError(error: Error, data?: Record<string, any | TelemetryTrustedValue>): void;
+
+		/**
+		 * Dispose this object and free resources.
+		 */
+		dispose(): void;
+	}
+
+	/**
+	 * The telemetry sender is the contract between a telemetry logger and some telemetry service. **Note** that extensions must NOT
+	 * call the methods of their sender directly as the logger provides extra guards and cleaning.
+	 *
+	 * ```js
+	 * const sender: vscode.TelemetrySender = {...};
+	 * const logger = vscode.env.createTelemetryLogger(sender);
+	 *
+	 * // GOOD - uses the logger
+	 * logger.logUsage('myEvent', { myData: 'myValue' });
+	 *
+	 * // BAD - uses the sender directly: no data cleansing, ignores user settings, no echoing to the telemetry output channel etc
+	 * sender.logEvent('myEvent', { myData: 'myValue' });
+	 * ```
+	 */
+	export interface TelemetrySender {
+		/**
+		 * Function to send event data without a stacktrace. Used within a {@link TelemetryLogger}
+		 *
+		 * @param eventName The name of the event which you are logging
+		 * @param data A serializable key value pair that is being logged
+		 */
+		sendEventData(eventName: string, data?: Record<string, any>): void;
+
+		/**
+		 * Function to send an error. Used within a {@link TelemetryLogger}
+		 *
+		 * @param error The error being logged
+		 * @param data Any additional data to be collected with the exception
+		 */
+		sendErrorData(error: Error, data?: Record<string, any>): void;
+
+		/**
+		 * Optional flush function which will give this sender a chance to send any remaining events
+		 * as its {@link TelemetryLogger} is being disposed
+		 */
+		flush?(): void | Thenable<void>;
+	}
+
+	/**
+	 * Options for creating a {@link TelemetryLogger}
+	 */
+	export interface TelemetryLoggerOptions {
+		/**
+		 * Whether or not you want to avoid having the built-in common properties such as os, extension name, etc injected into the data object.
+		 * Defaults to `false` if not defined.
+		 */
+		readonly ignoreBuiltInCommonProperties?: boolean;
+
+		/**
+		 * Whether or not unhandled errors on the extension host caused by your extension should be logged to your sender.
+		 * Defaults to `false` if not defined.
+		 */
+		readonly ignoreUnhandledErrors?: boolean;
+
+		/**
+		 * Any additional common properties which should be injected into the data object.
+		 */
+		readonly additionalCommonProperties?: Record<string, any>;
 	}
 }
 

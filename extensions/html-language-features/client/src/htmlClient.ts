@@ -3,13 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vscode-nls';
-const localize = nls.loadMessageBundle();
 
 import {
 	languages, ExtensionContext, Position, TextDocument, Range, CompletionItem, CompletionItemKind, SnippetString, workspace, extensions,
 	Disposable, FormattingOptions, CancellationToken, ProviderResult, TextEdit, CompletionContext, CompletionList, SemanticTokensLegend,
-	DocumentSemanticTokensProvider, DocumentRangeSemanticTokensProvider, SemanticTokens, window, commands, OutputChannel
+	DocumentSemanticTokensProvider, DocumentRangeSemanticTokensProvider, SemanticTokens, window, commands, OutputChannel, l10n
 } from 'vscode';
 import {
 	LanguageClientOptions, RequestType, DocumentRangeFormattingParams,
@@ -75,7 +73,7 @@ export interface TelemetryReporter {
 
 export type LanguageClientConstructor = (name: string, description: string, clientOptions: LanguageClientOptions) => BaseLanguageClient;
 
-export const languageServerDescription = localize('htmlserver.name', 'HTML Language Server');
+export const languageServerDescription = l10n.t('HTML Language Server');
 
 export interface Runtime {
 	TextDecoder: { new(encoding?: string): { decode(buffer: ArrayBuffer): string } };
@@ -107,8 +105,8 @@ export async function startClient(context: ExtensionContext, newLanguageClient: 
 				if (e && languageParticipants.hasLanguage(e.document.languageId)) {
 					context.globalState.update(promptForLinkedEditingKey, false);
 					activeEditorListener.dispose();
-					const configure = localize('configureButton', 'Configure');
-					const res = await window.showInformationMessage(localize('linkedEditingQuestion', 'VS Code now has built-in support for auto-renaming tags. Do you want to enable it?'), configure);
+					const configure = l10n.t('Configure');
+					const res = await window.showInformationMessage(l10n.t('VS Code now has built-in support for auto-renaming tags. Do you want to enable it?'), configure);
 					if (res === configure) {
 						commands.executeCommand('workbench.action.openSettings', SettingIds.linkedEditing);
 					}
@@ -299,14 +297,14 @@ async function startClientWithParticipants(languageParticipants: LanguagePartici
 				const beginProposal = new CompletionItem('#region', CompletionItemKind.Snippet);
 				beginProposal.range = range;
 				beginProposal.insertText = new SnippetString('<!-- #region $1-->');
-				beginProposal.documentation = localize('folding.start', 'Folding Region Start');
+				beginProposal.documentation = l10n.t('Folding Region Start');
 				beginProposal.filterText = match[2];
 				beginProposal.sortText = 'za';
 				results.push(beginProposal);
 				const endProposal = new CompletionItem('#endregion', CompletionItemKind.Snippet);
 				endProposal.range = range;
 				endProposal.insertText = new SnippetString('<!-- #endregion -->');
-				endProposal.documentation = localize('folding.end', 'Folding Region End');
+				endProposal.documentation = l10n.t('Folding Region End');
 				endProposal.filterText = match[2];
 				endProposal.sortText = 'zb';
 				results.push(endProposal);
@@ -331,7 +329,7 @@ async function startClientWithParticipants(languageParticipants: LanguagePartici
 					'</body>',
 					'</html>'].join('\n');
 				snippetProposal.insertText = new SnippetString(content);
-				snippetProposal.documentation = localize('folding.html', 'Simple HTML5 starting point');
+				snippetProposal.documentation = l10n.t('Simple HTML5 starting point');
 				snippetProposal.filterText = match2[2];
 				snippetProposal.sortText = 'za';
 				results.push(snippetProposal);

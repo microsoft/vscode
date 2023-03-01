@@ -48,7 +48,7 @@ const invokeCompletionContext: CompletionContext = {
 
 suite('Tests for Expand Abbreviations (HTML)', () => {
 	const oldValueForExcludeLanguages = workspace.getConfiguration('emmet').inspect('excludeLanguages');
-	const oldValueForIncludeLanguages = workspace.getConfiguration('emmet', null).inspect('includeLanguages');
+	const oldValueForIncludeLanguages = workspace.getConfiguration('emmet').inspect('includeLanguages');
 	teardown(closeAllEditors);
 
 	test('Expand snippets (HTML)', () => {

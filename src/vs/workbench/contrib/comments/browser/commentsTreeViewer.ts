@@ -6,21 +6,20 @@
 import * as dom from 'vs/base/browser/dom';
 import * as nls from 'vs/nls';
 import { renderMarkdown } from 'vs/base/browser/markdownRenderer';
-import { onUnexpectedError } from 'vs/base/common/errors';
 import { IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IResourceLabel, ResourceLabels } from 'vs/workbench/browser/labels';
 import { CommentNode, CommentsModel, ResourceWithCommentThreads } from 'vs/workbench/contrib/comments/common/commentModel';
-import { IAsyncDataSource, ITreeFilter, ITreeNode, TreeFilterResult, TreeVisibility } from 'vs/base/browser/ui/tree/tree';
+import { ITreeFilter, ITreeNode, TreeFilterResult, TreeVisibility } from 'vs/base/browser/ui/tree/tree';
 import { IListVirtualDelegate, IListRenderer } from 'vs/base/browser/ui/list/list';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { WorkbenchAsyncDataTree, IListService, IWorkbenchAsyncDataTreeOptions } from 'vs/platform/list/browser/listService';
-import { IColorTheme, IThemeService, ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { IListService, IWorkbenchAsyncDataTreeOptions, WorkbenchObjectTree } from 'vs/platform/list/browser/listService';
+import { IColorTheme, IThemeService } from 'vs/platform/theme/common/themeService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IColorMapping } from 'vs/platform/theme/common/styler';
 import { TimestampWidget } from 'vs/workbench/contrib/comments/browser/timestamp';
 import { Codicon } from 'vs/base/common/codicons';
+import { ThemeIcon } from 'vs/base/common/themables';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { commentViewThreadStateColorVar, getCommentThreadStateColor } from 'vs/workbench/contrib/comments/browser/commentColors';
 import { CommentThreadState } from 'vs/editor/common/languages';
@@ -28,26 +27,13 @@ import { Color } from 'vs/base/common/color';
 import { IMatch } from 'vs/base/common/filters';
 import { FilterOptions } from 'vs/workbench/contrib/comments/browser/commentsFilterOptions';
 import { basename } from 'vs/base/common/resources';
+import { openLinkFromMarkdown } from 'vs/editor/contrib/markdownRenderer/browser/markdownRenderer';
+import { IStyleOverride } from 'vs/platform/theme/browser/defaultStyles';
+import { IListStyles } from 'vs/base/browser/ui/list/listWidget';
 
 export const COMMENTS_VIEW_ID = 'workbench.panel.comments';
 export const COMMENTS_VIEW_STORAGE_ID = 'Comments';
 export const COMMENTS_VIEW_TITLE = nls.localize('comments.view.title', "Comments");
-
-export class CommentsAsyncDataSource implements IAsyncDataSource<any, any> {
-	hasChildren(element: any): boolean {
-		return (element instanceof CommentsModel || element instanceof ResourceWithCommentThreads) && !(element instanceof CommentNode);
-	}
-
-	getChildren(element: any): any[] | Promise<any[]> {
-		if (element instanceof CommentsModel) {
-			return Promise.resolve(element.resourceCommentThreads);
-		}
-		if (element instanceof ResourceWithCommentThreads) {
-			return Promise.resolve(element.commentThreads);
-		}
-		return Promise.resolve([]);
-	}
-}
 
 interface IResourceTemplateData {
 	resourceLabel: IResourceLabel;
@@ -73,7 +59,7 @@ interface ICommentThreadTemplateData {
 	disposables: IDisposable[];
 }
 
-export class CommentsModelVirualDelegate implements IListVirtualDelegate<ResourceWithCommentThreads | CommentNode> {
+class CommentsModelVirualDelegate implements IListVirtualDelegate<ResourceWithCommentThreads | CommentNode> {
 	private static readonly RESOURCE_ID = 'resource-with-comments';
 	private static readonly COMMENT_ID = 'comment-node';
 
@@ -106,11 +92,10 @@ export class ResourceWithCommentsRenderer implements IListRenderer<ITreeNode<Res
 	}
 
 	renderTemplate(container: HTMLElement) {
-		const data = <IResourceTemplateData>Object.create(null);
 		const labelContainer = dom.append(container, dom.$('.resource-container'));
-		data.resourceLabel = this.labels.create(labelContainer);
+		const resourceLabel = this.labels.create(labelContainer);
 
-		return data;
+		return { resourceLabel };
 	}
 
 	renderElement(node: ITreeNode<ResourceWithCommentThreads>, index: number, templateData: IResourceTemplateData, height: number | undefined): void {
@@ -132,11 +117,10 @@ export class CommentNodeRenderer implements IListRenderer<ITreeNode<CommentNode>
 	) { }
 
 	renderTemplate(container: HTMLElement) {
-		const data = <ICommentThreadTemplateData>Object.create(null);
 
 		const threadContainer = dom.append(container, dom.$('.comment-thread-container'));
 		const metadataContainer = dom.append(threadContainer, dom.$('.comment-metadata-container'));
-		data.threadMetadata = {
+		const threadMetadata = {
 			icon: dom.append(metadataContainer, dom.$('.icon')),
 			userNames: dom.append(metadataContainer, dom.$('.user')),
 			timestamp: new TimestampWidget(this.configurationService, dom.append(metadataContainer, dom.$('.timestamp-container'))),
@@ -144,10 +128,10 @@ export class CommentNodeRenderer implements IListRenderer<ITreeNode<CommentNode>
 			commentPreview: dom.append(metadataContainer, dom.$('.text')),
 			range: dom.append(metadataContainer, dom.$('.range'))
 		};
-		data.threadMetadata.separator.innerText = '\u00b7';
+		threadMetadata.separator.innerText = '\u00b7';
 
 		const snippetContainer = dom.append(threadContainer, dom.$('.comment-snippet-container'));
-		data.repliesMetadata = {
+		const repliesMetadata = {
 			container: snippetContainer,
 			icon: dom.append(snippetContainer, dom.$('.icon')),
 			count: dom.append(snippetContainer, dom.$('.count')),
@@ -155,11 +139,11 @@ export class CommentNodeRenderer implements IListRenderer<ITreeNode<CommentNode>
 			separator: dom.append(snippetContainer, dom.$('.separator')),
 			timestamp: new TimestampWidget(this.configurationService, dom.append(snippetContainer, dom.$('.timestamp-container'))),
 		};
-		data.repliesMetadata.separator.innerText = '\u00b7';
-		data.repliesMetadata.icon.classList.add(...ThemeIcon.asClassNameArray(Codicon.indent));
-		data.disposables = [data.threadMetadata.timestamp, data.repliesMetadata.timestamp];
+		repliesMetadata.separator.innerText = '\u00b7';
+		repliesMetadata.icon.classList.add(...ThemeIcon.asClassNameArray(Codicon.indent));
+		const disposables = [threadMetadata.timestamp, repliesMetadata.timestamp];
 
-		return data;
+		return { threadMetadata, repliesMetadata, disposables };
 	}
 
 	private getCountString(commentCount: number): string {
@@ -174,9 +158,7 @@ export class CommentNodeRenderer implements IListRenderer<ITreeNode<CommentNode>
 		const renderedComment = renderMarkdown(commentBody, {
 			inline: true,
 			actionHandler: {
-				callback: (content) => {
-					this.openerService.open(content, { allowCommands: commentBody.isTrusted }).catch(onUnexpectedError);
-				},
+				callback: (link) => openLinkFromMarkdown(this.openerService, link, commentBody.isTrusted),
 				disposables: disposables
 			}
 		});
@@ -190,7 +172,7 @@ export class CommentNodeRenderer implements IListRenderer<ITreeNode<CommentNode>
 		return renderedComment;
 	}
 
-	private getIcon(threadState?: CommentThreadState): Codicon {
+	private getIcon(threadState?: CommentThreadState): ThemeIcon {
 		if (threadState === CommentThreadState.Unresolved) {
 			return Codicon.commentUnresolved;
 		} else {
@@ -253,7 +235,7 @@ export class CommentNodeRenderer implements IListRenderer<ITreeNode<CommentNode>
 }
 
 export interface ICommentsListOptions extends IWorkbenchAsyncDataTreeOptions<any, any> {
-	overrideStyles?: IColorMapping;
+	overrideStyles?: IStyleOverride<IListStyles>;
 }
 
 const enum FilterDataType {
@@ -271,13 +253,17 @@ interface CommentFilterData {
 	textMatches: IMatch[];
 }
 
-export type FilterData = ResourceFilterData | CommentFilterData;
+type FilterData = ResourceFilterData | CommentFilterData;
 
 export class Filter implements ITreeFilter<ResourceWithCommentThreads | CommentNode, FilterData> {
 
 	constructor(public options: FilterOptions) { }
 
 	filter(element: ResourceWithCommentThreads | CommentNode, parentVisibility: TreeVisibility): TreeFilterResult<FilterData> {
+		if (this.options.filter === '' && this.options.showResolved && this.options.showUnresolved) {
+			return TreeVisibility.Visible;
+		}
+
 		if (element instanceof ResourceWithCommentThreads) {
 			return this.filterResourceMarkers(element);
 		} else {
@@ -341,7 +327,7 @@ export class Filter implements ITreeFilter<ResourceWithCommentThreads | CommentN
 	}
 }
 
-export class CommentsList extends WorkbenchAsyncDataTree<CommentsModel | ResourceWithCommentThreads | CommentNode, any> {
+export class CommentsList extends WorkbenchObjectTree<CommentsModel | ResourceWithCommentThreads | CommentNode, any> {
 	constructor(
 		labels: ResourceLabels,
 		container: HTMLElement,
@@ -353,7 +339,6 @@ export class CommentsList extends WorkbenchAsyncDataTree<CommentsModel | Resourc
 		@IConfigurationService configurationService: IConfigurationService,
 	) {
 		const delegate = new CommentsModelVirualDelegate();
-		const dataSource = new CommentsAsyncDataSource();
 
 		const renderers = [
 			instantiationService.createInstance(ResourceWithCommentsRenderer, labels),
@@ -365,7 +350,6 @@ export class CommentsList extends WorkbenchAsyncDataTree<CommentsModel | Resourc
 			container,
 			delegate,
 			renderers,
-			dataSource,
 			{
 				accessibilityProvider: options.accessibilityProvider,
 				identityProvider: {
@@ -389,9 +373,7 @@ export class CommentsList extends WorkbenchAsyncDataTree<CommentsModel | Resourc
 
 					return true;
 				},
-				collapseByDefault: () => {
-					return false;
-				},
+				collapseByDefault: false,
 				overrideStyles: options.overrideStyles,
 				filter: options.filter,
 				findWidgetEnabled: false
@@ -399,8 +381,7 @@ export class CommentsList extends WorkbenchAsyncDataTree<CommentsModel | Resourc
 			instantiationService,
 			contextKeyService,
 			listService,
-			themeService,
-			configurationService
+			configurationService,
 		);
 	}
 

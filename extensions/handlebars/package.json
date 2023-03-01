@@ -11,6 +11,10 @@
   "scripts": {
     "update-grammar": "node ../node_modules/vscode-grammar-updater/bin daaain/Handlebars grammars/Handlebars.json ./syntaxes/Handlebars.tmLanguage.json"
   },
+  "extensionKind": [
+    "ui",
+    "workspace"
+  ],
   "contributes": {
     "languages": [
       {

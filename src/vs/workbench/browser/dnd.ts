@@ -10,7 +10,7 @@ import { IListDragAndDrop } from 'vs/base/browser/ui/list/list';
 import { ElementsDragAndDropData } from 'vs/base/browser/ui/list/listView';
 import { ITreeDragOverReaction } from 'vs/base/browser/ui/tree/tree';
 import { coalesce } from 'vs/base/common/arrays';
-import { VSDataTransfer } from 'vs/base/common/dataTransfer';
+import { UriList, VSDataTransfer } from 'vs/base/common/dataTransfer';
 import { Emitter } from 'vs/base/common/event';
 import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { stringify } from 'vs/base/common/marshalling';
@@ -19,7 +19,6 @@ import { FileAccess, Schemas } from 'vs/base/common/network';
 import { isWindows } from 'vs/base/common/platform';
 import { basename, isEqual } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
-import { UriList } from 'vs/editor/browser/dnd';
 import { CodeDataTransfers, createDraggedEditorInputFromRawResourcesData, Extensions, extractEditorsAndFilesDropData, IDragAndDropContributionRegistry, IDraggedResourceEditorInput, IResourceStat } from 'vs/platform/dnd/browser/dnd';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
@@ -237,7 +236,7 @@ export function fillEditorsDragData(accessor: ServicesAccessor, resourcesOrEdito
 	// - only file:/ resources are supported
 	const firstFile = fileSystemResources.find(({ isDirectory }) => !isDirectory);
 	if (firstFile) {
-		const firstFileUri = FileAccess.asFileUri(firstFile.resource); // enforce `file:` URIs
+		const firstFileUri = FileAccess.uriToFileUri(firstFile.resource); // enforce `file:` URIs
 		if (firstFileUri.scheme === Schemas.file) {
 			event.dataTransfer.setData(DataTransfers.DOWNLOAD_URL, [Mimes.binary, basename(firstFile.resource), firstFileUri.toString()].join(':'));
 		}

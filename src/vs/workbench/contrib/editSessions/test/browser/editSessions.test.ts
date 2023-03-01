@@ -35,6 +35,13 @@ import { Event } from 'vs/base/common/event';
 import { IViewDescriptorService } from 'vs/workbench/common/views';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
+import { IDialogService, IPrompt } from 'vs/platform/dialogs/common/dialogs';
+import { IEditorService, ISaveAllEditorsOptions } from 'vs/workbench/services/editor/common/editorService';
+import { CancellationTokenSource } from 'vs/base/common/cancellation';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
+import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
+import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 
 const folderName = 'test-folder';
 const folderUri = URI.file(`/${folderName}`);
@@ -65,10 +72,31 @@ suite('Edit session sync', () => {
 			override onWillShutdown = Event.None;
 		});
 		instantiationService.stub(INotificationService, new TestNotificationService());
-		instantiationService.stub(IEditSessionsStorageService, new class extends mock<IEditSessionsStorageService>() { });
+		instantiationService.stub(IEditSessionsStorageService, new class extends mock<IEditSessionsStorageService>() {
+			override onDidSignIn = Event.None;
+			override onDidSignOut = Event.None;
+		});
+		instantiationService.stub(IExtensionService, new class extends mock<IExtensionService>() {
+			override onDidChangeExtensions = Event.None;
+		});
 		instantiationService.stub(IProgressService, ProgressService);
 		instantiationService.stub(ISCMService, SCMService);
 		instantiationService.stub(IEnvironmentService, TestEnvironmentService);
+		instantiationService.stub(ITelemetryService, NullTelemetryService);
+		instantiationService.stub(IDialogService, new class extends mock<IDialogService>() {
+			override async prompt(prompt: IPrompt<any>) {
+				const result = prompt.buttons?.[0].run({ checkboxChecked: false });
+				return { result };
+			}
+			override async confirm() {
+				return { confirmed: false };
+			}
+		});
+		instantiationService.stub(IRemoteAgentService, new class extends mock<IRemoteAgentService>() {
+			override async getEnvironment() {
+				return null;
+			}
+		});
 		instantiationService.stub(IConfigurationService, new TestConfigurationService({ workbench: { experimental: { editSessions: { enabled: true } } } }));
 		instantiationService.stub(IWorkspaceContextService, new class extends mock<IWorkspaceContextService>() {
 			override getWorkspace() {
@@ -99,6 +127,9 @@ suite('Edit session sync', () => {
 		});
 		instantiationService.stub(ITextModelService, new class extends mock<ITextModelService>() {
 			override registerTextModelContentProvider = () => ({ dispose: () => { } });
+		});
+		instantiationService.stub(IEditorService, new class extends mock<IEditorService>() {
+			override saveAll = async (_options: ISaveAllEditorsOptions) => true;
 		});
 
 		editSessionsContribution = instantiationService.createInstance(EditSessionsContribution);
@@ -150,7 +181,7 @@ suite('Edit session sync', () => {
 		// Create root folder
 		await fileService.createFolder(folderUri);
 
-		await editSessionsContribution.storeEditSession(true);
+		await editSessionsContribution.storeEditSession(true, new CancellationTokenSource().token);
 
 		// Verify that we did not attempt to write the edit session
 		assert.equal(writeStub.called, false);

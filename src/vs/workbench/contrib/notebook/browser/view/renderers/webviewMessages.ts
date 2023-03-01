@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { RenderOutputType } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import type { PreloadOptions } from 'vs/workbench/contrib/notebook/browser/view/renderers/webviewPreloads';
+import type { PreloadOptions, RenderOptions } from 'vs/workbench/contrib/notebook/browser/view/renderers/webviewPreloads';
 import { NotebookCellMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 
 interface BaseToWebviewMessage {
@@ -138,6 +138,7 @@ export interface ICellDragEndMessage extends BaseToWebviewMessage {
 
 export interface IInitializedMarkupMessage extends BaseToWebviewMessage {
 	readonly type: 'initializedMarkup';
+	readonly requestId: string;
 }
 
 export interface ICodeBlockHighlightRequest {
@@ -179,9 +180,14 @@ export interface IOutputRequestDto {
 	readonly outputId: string;
 }
 
+export interface OutputItemEntry {
+	readonly mime: string;
+	readonly valueBytes: Uint8Array;
+}
+
 export type ICreationContent =
 	| { readonly type: RenderOutputType.Html; readonly htmlContent: string }
-	| { readonly type: RenderOutputType.Extension; readonly outputId: string; readonly valueBytes: Uint8Array; readonly metadata: unknown; readonly mimeType: string };
+	| { readonly type: RenderOutputType.Extension; readonly outputId: string; readonly metadata: unknown; readonly output: OutputItemEntry; readonly allOutputs: ReadonlyArray<{ readonly mime: string }> };
 
 export interface ICreationRequestMessage {
 	readonly type: 'html';
@@ -194,6 +200,7 @@ export interface ICreationRequestMessage {
 	readonly requiredPreloads: readonly IControllerPreload[];
 	readonly initiallyHidden?: boolean;
 	readonly rendererId?: string | undefined;
+	readonly executionId?: string | undefined;
 }
 
 export interface IContentWidgetTopRequest {
@@ -274,11 +281,14 @@ export interface IUpdateControllerPreloadsMessage {
 
 export interface RendererMetadata {
 	readonly id: string;
-	readonly entrypoint: string;
+	readonly entrypoint: { readonly extends: string | undefined; readonly path: string };
 	readonly mimeTypes: readonly string[];
-	readonly extends: string | undefined;
 	readonly messaging: boolean;
 	readonly isBuiltin: boolean;
+}
+
+export interface StaticPreloadMetadata {
+	readonly entrypoint: string;
 }
 
 export interface IUpdateRenderersMessage {
@@ -351,6 +361,7 @@ export interface IMarkupCellInitialization {
 export interface IInitializeMarkupCells {
 	readonly type: 'initializeMarkup';
 	readonly cells: readonly IMarkupCellInitialization[];
+	readonly requestId: string;
 }
 
 export interface INotebookStylesMessage {
@@ -363,6 +374,7 @@ export interface INotebookStylesMessage {
 export interface INotebookOptionsMessage {
 	readonly type: 'notebookOptions';
 	readonly options: PreloadOptions;
+	readonly renderOptions: RenderOptions;
 }
 
 export interface INotebookUpdateWorkspaceTrust {
@@ -401,11 +413,20 @@ export interface IFindStopMessage {
 	readonly type: 'findStop';
 }
 
+export interface ISearchPreviewInfo {
+	line: string;
+	range: {
+		start: number;
+		end: number;
+	};
+}
+
 export interface IFindMatch {
 	readonly type: 'preview' | 'output';
 	readonly cellId: string;
 	readonly id: string;
 	readonly index: number;
+	readonly searchPreviewInfo?: ISearchPreviewInfo;
 }
 
 export interface IDidFindMessage extends BaseToWebviewMessage {
@@ -421,6 +442,33 @@ export interface IDidFindHighlightMessage extends BaseToWebviewMessage {
 export interface IOutputResizedMessage extends BaseToWebviewMessage {
 	readonly type: 'outputResized';
 	readonly cellId: string;
+}
+
+export interface IGetOutputItemMessage extends BaseToWebviewMessage {
+	readonly type: 'getOutputItem';
+	readonly requestId: number;
+	readonly outputId: string;
+	readonly mime: string;
+}
+
+export interface IReturnOutputItemMessage {
+	readonly type: 'returnOutputItem';
+	readonly requestId: number;
+	readonly output: OutputItemEntry | undefined;
+}
+
+export interface ILogRendererDebugMessage extends BaseToWebviewMessage {
+	readonly type: 'logRendererDebugMessage';
+	readonly message: string;
+	readonly data?: Record<string, string>;
+}
+
+export interface IPerformanceMessage extends BaseToWebviewMessage {
+	readonly type: 'notebookPerformanceMessage';
+	readonly executionId: string;
+	readonly cellId: string;
+	readonly duration: number;
+	readonly rendererId: string;
 }
 
 
@@ -452,7 +500,10 @@ export type FromWebviewMessage = WebviewInitialized |
 	IRenderedCellOutputMessage |
 	IDidFindMessage |
 	IDidFindHighlightMessage |
-	IOutputResizedMessage;
+	IOutputResizedMessage |
+	IGetOutputItemMessage |
+	ILogRendererDebugMessage |
+	IPerformanceMessage;
 
 export type ToWebviewMessage = IClearMessage |
 	IFocusOutputMessage |
@@ -483,7 +534,8 @@ export type ToWebviewMessage = IClearMessage |
 	IFindMessage |
 	IFindHighlightMessage |
 	IFindUnHighlightMessage |
-	IFindStopMessage;
+	IFindStopMessage |
+	IReturnOutputItemMessage;
 
 
 export type AnyMessage = FromWebviewMessage | ToWebviewMessage;

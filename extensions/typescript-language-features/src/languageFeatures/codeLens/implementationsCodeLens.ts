@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import * as nls from 'vscode-nls';
 import type * as Proto from '../../protocol';
 import * as PConst from '../../protocol.const';
 import { CachedResponse } from '../../tsServer/cachedResponse';
@@ -15,7 +14,6 @@ import { LanguageDescription } from '../../utils/languageDescription';
 import * as typeConverters from '../../utils/typeConverters';
 import { getSymbolRange, ReferencesCodeLens, TypeScriptBaseCodeLensProvider } from './baseCodeLensProvider';
 
-const localize = nls.loadMessageBundle();
 
 export default class TypeScriptImplementationsCodeLensProvider extends TypeScriptBaseCodeLensProvider {
 
@@ -61,8 +59,8 @@ export default class TypeScriptImplementationsCodeLensProvider extends TypeScrip
 
 	private getTitle(locations: vscode.Location[]): string {
 		return locations.length === 1
-			? localize('oneImplementationLabel', '1 implementation')
-			: localize('manyImplementationLabel', '{0} implementations', locations.length);
+			? vscode.l10n.t("1 implementation")
+			: vscode.l10n.t("{0} implementations", locations.length);
 	}
 
 	protected extractSymbol(
