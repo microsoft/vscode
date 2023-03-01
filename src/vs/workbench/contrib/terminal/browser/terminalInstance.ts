@@ -17,7 +17,6 @@ import { ErrorNoTelemetry } from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { ISeparator, template } from 'vs/base/common/labels';
-import { Lazy } from 'vs/base/common/lazy';
 import { Disposable, DisposableStore, dispose, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
 import * as path from 'vs/base/common/path';
@@ -26,7 +25,6 @@ import { ScrollbarVisibility } from 'vs/base/common/scrollable';
 import { withNullAsUndefined } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { TabFocus, TabFocusContext } from 'vs/editor/browser/config/tabFocus';
-import { FindReplaceState } from 'vs/editor/contrib/find/browser/findState';
 import * as nls from 'vs/nls';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
@@ -58,12 +56,11 @@ import { TaskSettingId } from 'vs/workbench/contrib/tasks/common/tasks';
 import * as strings from 'vs/base/common/strings';
 import { IDetectedLinks, TerminalLinkManager } from 'vs/workbench/contrib/terminal/browser/links/terminalLinkManager';
 import { TerminalLinkQuickpick } from 'vs/workbench/contrib/terminal/browser/links/terminalLinkQuickpick';
-import { IRequestAddInstanceToGroupEvent, ITerminalExternalLinkProvider, ITerminalInstance, TerminalDataTransfers } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { IRequestAddInstanceToGroupEvent, ITerminalChildElement, ITerminalExternalLinkProvider, ITerminalInstance, TerminalDataTransfers } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { TerminalLaunchHelpAction } from 'vs/workbench/contrib/terminal/browser/terminalActions';
 import { freePort, gitCreatePr, gitPushSetUpstream, gitSimilar, gitTwoDashes, pwshGeneralError as pwshGeneralError, pwshUnixCommandNotFoundError } from 'vs/workbench/contrib/terminal/browser/terminalQuickFixBuiltinActions';
 import { TerminalConfigHelper } from 'vs/workbench/contrib/terminal/browser/terminalConfigHelper';
 import { TerminalEditorInput } from 'vs/workbench/contrib/terminal/browser/terminalEditorInput';
-import { TerminalFindWidget } from 'vs/workbench/contrib/terminal/browser/find/terminalFindWidget';
 import { getColorClass, getColorStyleElement, getStandardColors } from 'vs/workbench/contrib/terminal/browser/terminalIcon';
 import { TerminalProcessManager } from 'vs/workbench/contrib/terminal/browser/terminalProcessManager';
 import { showRunRecentQuickPick } from 'vs/workbench/contrib/terminal/browser/terminalRunRecentQuickPick';
@@ -176,6 +173,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	private _title: string = '';
 	private _titleSource: TitleEventSource = TitleEventSource.Process;
 	private _container: HTMLElement | undefined;
+	get container(): HTMLElement | undefined { return this._container; }
 	private _wrapperElement: (HTMLElement & { xterm?: XTermTerminal });
 	private _horizontalScrollbar: DomScrollableElement | undefined;
 	private _terminalFocusContextKey: IContextKey<boolean>;
@@ -227,8 +225,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	 * and registering of command finished listeners
 	 */
 	get quickFix(): ITerminalQuickFixAddon | undefined { return this._quickFixAddon; }
-
-	readonly findWidget: Lazy<TerminalFindWidget>;
 
 	xterm?: XtermTerminal;
 	disableLayout: boolean = false;
@@ -366,8 +362,13 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	readonly onDidChangeHasChildProcesses = this._onDidChangeHasChildProcesses.event;
 	private readonly _onDidChangeFindResults = new Emitter<{ resultIndex: number; resultCount: number } | undefined>();
 	readonly onDidChangeFindResults = this._onDidChangeFindResults.event;
-	private readonly _onDidFocusFindWidget = new Emitter<void>();
-	readonly onDidFocusFindWidget = this._onDidFocusFindWidget.event;
+	// private readonly _onDidFocusFindWidget = new Emitter<void>();
+	// readonly onDidFocusFindWidget = this._onDidFocusFindWidget.event;
+	private readonly _onDidAttachToElement = new Emitter<HTMLElement>();
+	readonly onDidAttachToElement = this._onDidAttachToElement.event;
+	private readonly _onDidLayout = new Emitter<dom.Dimension>();
+	readonly onDidLayout = this._onDidLayout.event;
+
 
 	constructor(
 		private readonly _terminalShellTypeContextKey: IContextKey<string>,
@@ -458,21 +459,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		this._terminalAltBufferActiveContextKey = TerminalContextKeys.altBufferActive.bindTo(scopedContextKeyService);
 		this._terminalShellIntegrationEnabledContextKey = TerminalContextKeys.terminalShellIntegrationEnabled.bindTo(scopedContextKeyService);
 
-		this.findWidget = new Lazy(() => {
-			const findWidget = this._scopedInstantiationService.createInstance(TerminalFindWidget, new FindReplaceState(), this);
-			this._register(findWidget.focusTracker.onDidFocus(() => {
-				this._container?.classList.toggle('find-focused', true);
-				this._onDidFocusFindWidget.fire();
-			}));
-			this._register(findWidget.focusTracker.onDidBlur(() => this._container?.classList.toggle('find-focused', false)));
-			if (this._container) {
-				this._container.appendChild(findWidget.getDomNode());
-			}
-			if (this._lastLayoutDimensions) {
-				findWidget.layout(this._lastLayoutDimensions.width);
-			}
-			return findWidget;
-		});
 		this._logService.trace(`terminalInstance#ctor (instanceId: ${this.instanceId})`, this._shellLaunchConfig);
 		this._register(this.capabilities.onDidAddCapability(e => {
 			this._logService.debug('terminalInstance added capability', e);
@@ -913,9 +899,8 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		// The container changed, reattach
 		this._container = container;
 		this._container.appendChild(this._wrapperElement);
-		if (this.findWidget.hasValue) {
-			this._container.appendChild(this.findWidget.value.getDomNode());
-		}
+		this._onDidAttachToElement.fire(this._container);
+
 		setTimeout(() => this._initDragAndDrop(container));
 	}
 
@@ -937,9 +922,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		this._wrapperElement.appendChild(xtermElement);
 
 		this._container.appendChild(this._wrapperElement);
-		if (this.findWidget.hasValue) {
-			this._container.appendChild(this.findWidget.value.getDomNode());
-		}
 
 		const xterm = this.xterm;
 
@@ -948,7 +930,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 		const screenElement = xterm.attachToElement(xtermElement);
 
-		this._register(xterm.onDidChangeFindResults(() => this.findWidget.value.updateResultCount()));
+		// this._register(xterm.onDidChangeFindResults(() => this.findWidget.value.updateResultCount()));
 		this._register(xterm.shellIntegration.onDidChangeStatus(() => {
 			if (this.hasFocus) {
 				this._setShellIntegrationContextKey();
@@ -1229,7 +1211,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		dispose(this._linkManager);
 		this._linkManager = undefined;
 		dispose(this._widgetManager);
-		dispose(this.findWidget.rawValue);
 
 		if (this.xterm?.raw.element) {
 			this._hadFocusOnExit = this.hasFocus;
@@ -1885,7 +1866,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		}
 
 		this._resize();
-		this.findWidget.rawValue?.layout(dimension.width);
+		this._onDidLayout.fire(dimension);
 
 		// Signal the container is ready
 		this._containerReadyBarrier.open();
@@ -2354,6 +2335,28 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 	hideSuggestWidget(): void {
 		this.xterm?.suggestController?.hideSuggestWidget();
+	}
+
+	forceScrollbarVisibility(): void {
+		this._container?.classList.add('force-scrollbar');
+	}
+
+	resetScrollbarVisibility(): void {
+		this._container?.classList.remove('force-scrollbar');
+	}
+
+	registerChildElement(child: ITerminalChildElement): IDisposable {
+		const store = new DisposableStore();
+		if (this._container) {
+			this._container.appendChild(child.element);
+		} else {
+			store.add(this.onDidAttachToElement(container => container.appendChild(child.element)));
+		}
+		if (this._lastLayoutDimensions) {
+			child.layout(this._lastLayoutDimensions);
+		}
+		store.add(this.onDidLayout(e => child.layout(e)));
+		return store;
 	}
 }
 

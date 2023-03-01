@@ -6,7 +6,6 @@
 import { SimpleFindWidget } from 'vs/workbench/contrib/codeEditor/browser/find/simpleFindWidget';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { FindReplaceState } from 'vs/editor/contrib/find/browser/findState';
 import { ITerminalInstance, IXtermTerminal } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/terminalContextKey';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
@@ -21,7 +20,6 @@ export class TerminalFindWidget extends SimpleFindWidget {
 	private _findWidgetVisible: IContextKey<boolean>;
 
 	constructor(
-		readonly findState: FindReplaceState,
 		private _instance: ITerminalInstance,
 		@IContextViewService _contextViewService: IContextViewService,
 		@IKeybindingService keybindingService: IKeybindingService,
@@ -29,9 +27,9 @@ export class TerminalFindWidget extends SimpleFindWidget {
 		@IThemeService private readonly _themeService: IThemeService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService
 	) {
-		super(findState, { showCommonFindToggles: true, checkImeCompletionState: true, showResultCount: true, type: 'Terminal' }, _contextViewService, _contextKeyService, keybindingService);
+		super({ showCommonFindToggles: true, checkImeCompletionState: true, showResultCount: true, type: 'Terminal' }, _contextViewService, _contextKeyService, keybindingService);
 
-		this._register(findState.onFindReplaceStateChange(() => {
+		this._register(this.state.onFindReplaceStateChange(() => {
 			this.show();
 		}));
 		this._findInputFocused = TerminalContextKeys.findInputFocus.bindTo(this._contextKeyService);

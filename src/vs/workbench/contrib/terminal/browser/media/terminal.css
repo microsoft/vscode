@@ -512,8 +512,12 @@
 	border-color: var(--vscode-contrastActiveBorder);
 }
 
-.monaco-workbench .editor-instance .find-focused .xterm .xterm-viewport,
-.monaco-workbench .pane-body.integrated-terminal .find-focused .xterm .xterm-viewport,
+.monaco-workbench .integrated-terminal .hoverHighlight {
+	background-color: var(--vscode-terminal-hoverHighlightBackground);
+}
+
+.monaco-workbench .editor-instance .force-scrollbar .xterm .xterm-viewport,
+.monaco-workbench .pane-body.integrated-terminal .force-scrollbar .xterm .xterm-viewport,
 .monaco-workbench .editor-instance .xterm.focus .xterm-viewport,
 .monaco-workbench .pane-body.integrated-terminal .xterm.focus .xterm-viewport,
 .monaco-workbench .editor-instance .xterm:focus .xterm-viewport,
@@ -521,10 +525,6 @@
 .monaco-workbench .editor-instance .xterm:hover .xterm-viewport,
 .monaco-workbench .pane-body.integrated-terminal .xterm:hover .xterm-viewport {
 	background-color: var(--vscode-scrollbarSlider-background) !important;
-}
-
-.monaco-workbench .integrated-terminal .hoverHighlight {
-	background-color: var(--vscode-terminal-hoverHighlightBackground);
 }
 
 .monaco-workbench .editor-instance .xterm-viewport,

@@ -7,12 +7,61 @@ import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { localize } from 'vs/nls';
 import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { TerminalFindWidget } from 'vs/workbench/contrib/terminal/browser/find/terminalFindWidget';
+import { ITerminalInstance, ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { TerminalCommandId } from 'vs/workbench/contrib/terminal/common/terminal';
 import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/terminalContextKey';
 import { terminalStrings } from 'vs/workbench/contrib/terminal/common/terminalStrings';
+
+const findWidgets: Map<ITerminalInstance, TerminalFindWidget> = new Map();
+
+function getFindWidget(instance: ITerminalInstance | undefined, accessor: ServicesAccessor): TerminalFindWidget | undefined {
+	if (instance === undefined) {
+		return undefined;
+	}
+	let result = findWidgets.get(instance);
+	if (!result) {
+		const terminalService = accessor.get(ITerminalService);
+		const widget = accessor.get(IInstantiationService).createInstance(TerminalFindWidget, instance);
+
+		// Track focus and set state so we can force the scroll bar to be visible
+		let focusState = false;
+		widget.focusTracker.onDidFocus(() => {
+			focusState = true;
+			instance.forceScrollbarVisibility();
+			terminalService.setActiveInstance(instance);
+		});
+		widget.focusTracker.onDidBlur(() => {
+			focusState = false;
+			instance.resetScrollbarVisibility();
+		});
+
+		// Attach the find widget and listen for layout
+		instance.registerChildElement({
+			element: widget.getDomNode(),
+			layout: dimension => widget.layout(dimension.width),
+			xtermReady: xterm => {
+				xterm.onDidChangeFindResults(() => widget.updateResultCount());
+			}
+		});
+
+		// Cache the widget while the instance exists, dispose it when the terminal is disposed
+		instance.onDisposed(e => {
+			const focusTerminal = focusState;
+			widget?.dispose();
+			findWidgets.delete(e);
+			if (focusTerminal) {
+				instance.focus();
+			}
+		});
+
+		findWidgets.set(instance, widget);
+		result = widget;
+	}
+	return result;
+}
 
 const category = terminalStrings.actionCategory;
 
@@ -32,7 +81,7 @@ registerAction2(class extends Action2 {
 		});
 	}
 	run(accessor: ServicesAccessor) {
-		accessor.get(ITerminalService).activeInstance?.findWidget.value.reveal();
+		getFindWidget(accessor.get(ITerminalService).activeInstance, accessor)?.reveal();
 	}
 });
 registerAction2(class extends Action2 {
@@ -52,7 +101,7 @@ registerAction2(class extends Action2 {
 		});
 	}
 	run(accessor: ServicesAccessor) {
-		accessor.get(ITerminalService).activeInstance?.findWidget.value.hide();
+		getFindWidget(accessor.get(ITerminalService).activeInstance, accessor)?.hide();
 	}
 });
 registerAction2(class extends Action2 {
@@ -72,9 +121,10 @@ registerAction2(class extends Action2 {
 		});
 	}
 	run(accessor: ServicesAccessor) {
-		const terminalService = accessor.get(ITerminalService);
-		const state = terminalService.activeInstance?.findWidget.value.findState;
-		state?.change({ isRegex: !state.isRegex }, false);
+		const state = getFindWidget(accessor.get(ITerminalService).activeInstance, accessor)?.state;
+		if (state) {
+			state.change({ matchCase: !state.isRegex }, false);
+		}
 	}
 });
 registerAction2(class extends Action2 {
@@ -94,9 +144,10 @@ registerAction2(class extends Action2 {
 		});
 	}
 	run(accessor: ServicesAccessor) {
-		const terminalService = accessor.get(ITerminalService);
-		const state = terminalService.activeInstance?.findWidget.value.findState;
-		state?.change({ wholeWord: !state.wholeWord }, false);
+		const state = getFindWidget(accessor.get(ITerminalService).activeInstance, accessor)?.state;
+		if (state) {
+			state.change({ matchCase: !state.wholeWord }, false);
+		}
 	}
 });
 registerAction2(class extends Action2 {
@@ -116,9 +167,10 @@ registerAction2(class extends Action2 {
 		});
 	}
 	run(accessor: ServicesAccessor) {
-		const terminalService = accessor.get(ITerminalService);
-		const state = terminalService.activeInstance?.findWidget.value.findState;
-		state?.change({ matchCase: !state.matchCase }, false);
+		const state = getFindWidget(accessor.get(ITerminalService).activeInstance, accessor)?.state;
+		if (state) {
+			state.change({ matchCase: !state.matchCase }, false);
+		}
 	}
 });
 registerAction2(class extends Action2 {
@@ -145,11 +197,10 @@ registerAction2(class extends Action2 {
 		});
 	}
 	run(accessor: ServicesAccessor) {
-		const terminalService = accessor.get(ITerminalService);
-		const findWidget = terminalService.activeInstance?.findWidget.value;
-		if (findWidget) {
-			findWidget.show();
-			findWidget.find(false);
+		const widget = getFindWidget(accessor.get(ITerminalService).activeInstance, accessor);
+		if (widget) {
+			widget.show();
+			widget.find(false);
 		}
 	}
 });
@@ -177,11 +228,10 @@ registerAction2(class extends Action2 {
 		});
 	}
 	run(accessor: ServicesAccessor) {
-		const terminalService = accessor.get(ITerminalService);
-		const findWidget = terminalService.activeInstance?.findWidget.value;
-		if (findWidget) {
-			findWidget.show();
-			findWidget.find(true);
+		const widget = getFindWidget(accessor.get(ITerminalService).activeInstance, accessor);
+		if (widget) {
+			widget.show();
+			widget.find(true);
 		}
 	}
 });
