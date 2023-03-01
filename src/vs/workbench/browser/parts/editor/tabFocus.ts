@@ -21,14 +21,18 @@ export class TabFocusMode extends Disposable {
 
 	constructor(
 		@IContextKeyService contextKeyService: IContextKeyService,
-		@IConfigurationService configurationService: IConfigurationService
+		@IConfigurationService private readonly _configurationService: IConfigurationService
 	) {
 		super();
 
 		this._editorContext = editorTabFocusContextKey.bindTo(contextKeyService);
-		this._editorContext.set(configurationService.getValue('editor.tabFocusMode'));
 		this._terminalContext = terminalTabFocusContextKey.bindTo(contextKeyService);
-		this._terminalContext.set(configurationService.getValue(TerminalSettingId.TabFocusMode));
+		const editorConfig: boolean = _configurationService.getValue('editor.tabFocusMode');
+		const terminalConfig: boolean = _configurationService.getValue(TerminalSettingId.TabFocusMode) ?? editorConfig;
+		this._editorContext.set(editorConfig);
+		this._terminalContext.set(terminalConfig);
+		TabFocus.setTabFocusMode(editorConfig, TabFocusContext.Editor);
+		TabFocus.setTabFocusMode(terminalConfig, TabFocusContext.Terminal);
 		const viewKey = new Set<string>();
 		viewKey.add('focusedView');
 		this._register(contextKeyService.onDidChangeContext((c) => {
@@ -47,14 +51,24 @@ export class TabFocusMode extends Disposable {
 				this._onDidChange.fire();
 			}
 		}));
-		this._register(configurationService.onDidChangeConfiguration(e => {
+		this._register(_configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration('editor.tabFocusMode')) {
-				TabFocus.setTabFocusMode(configurationService.getValue('editor.tabFocusMode'), TabFocusContext.Editor);
-				this._editorContext.set(configurationService.getValue('editor.tabFocusMode'));
+				const editorConfig: boolean = _configurationService.getValue('editor.tabFocusMode');
+				TabFocus.setTabFocusMode(editorConfig, TabFocusContext.Editor);
+				this._editorContext.set(editorConfig);
+				const terminalConfig: boolean = this._configurationService.getValue(TerminalSettingId.TabFocusMode);
+				if (terminalConfig === null) {
+					// editor config overrides
+					this._configurationService.updateValue(TerminalSettingId.TabFocusMode, editorConfig);
+					TabFocus.setTabFocusMode(editorConfig, TabFocusContext.Terminal);
+					this._terminalContext.set(editorConfig);
+				}
 				this._onDidChange.fire();
 			} else if (e.affectsConfiguration(TerminalSettingId.TabFocusMode)) {
-				TabFocus.setTabFocusMode(configurationService.getValue(TerminalSettingId.TabFocusMode), TabFocusContext.Terminal);
-				this._terminalContext.set(configurationService.getValue(TerminalSettingId.TabFocusMode));
+				const terminalConfig: boolean = this._configurationService.getValue(TerminalSettingId.TabFocusMode) ?? this._configurationService.getValue('editor.tabFocusMode');
+				this._configurationService.updateValue(TerminalSettingId.TabFocusMode, terminalConfig);
+				TabFocus.setTabFocusMode(terminalConfig, TabFocusContext.Terminal);
+				this._terminalContext.set(terminalConfig);
 				this._onDidChange.fire();
 			}
 		}));
