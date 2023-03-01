@@ -37,7 +37,7 @@ suite('MinimapCharRenderer', () => {
 		}
 
 		const rowWidth = Constants.SAMPLED_CHAR_WIDTH * Constants.RGBA_CHANNELS_CNT * Constants.CHAR_COUNT;
-		let chIndex = charCode - Constants.START_CH_CODE;
+		const chIndex = charCode - Constants.START_CH_CODE;
 
 		let globalOutputOffset = chIndex * Constants.SAMPLED_CHAR_WIDTH * Constants.RGBA_CHANNELS_CNT;
 		let inputOffset = 0;
@@ -67,11 +67,11 @@ suite('MinimapCharRenderer', () => {
 
 	test('letter d @ 2x', () => {
 		const sampleData = getSampleData();
-		let renderer = MinimapCharRendererFactory.createFromSampleData(sampleData, 2);
+		const renderer = MinimapCharRendererFactory.createFromSampleData(sampleData, 2);
 
-		let background = new RGBA8(0, 0, 0, 255);
-		let color = new RGBA8(255, 255, 255, 255);
-		let imageData = createFakeImageData(Constants.BASE_CHAR_WIDTH * 2, Constants.BASE_CHAR_HEIGHT * 2);
+		const background = new RGBA8(0, 0, 0, 255);
+		const color = new RGBA8(255, 255, 255, 255);
+		const imageData = createFakeImageData(Constants.BASE_CHAR_WIDTH * 2, Constants.BASE_CHAR_HEIGHT * 2);
 		// set the background color
 		for (let i = 0, len = imageData.data.length / 4; i < len; i++) {
 			imageData.data[4 * i + 0] = background.r;
@@ -81,7 +81,7 @@ suite('MinimapCharRenderer', () => {
 		}
 		renderer.renderChar(imageData, 0, 0, 'd'.charCodeAt(0), color, 255, background, 255, 2, false, false);
 
-		let actual: number[] = [];
+		const actual: number[] = [];
 		for (let i = 0; i < imageData.data.length; i++) {
 			actual[i] = imageData.data[i];
 		}
@@ -96,11 +96,11 @@ suite('MinimapCharRenderer', () => {
 
 	test('letter d @ 1x', () => {
 		const sampleData = getSampleData();
-		let renderer = MinimapCharRendererFactory.createFromSampleData(sampleData, 1);
+		const renderer = MinimapCharRendererFactory.createFromSampleData(sampleData, 1);
 
-		let background = new RGBA8(0, 0, 0, 255);
-		let color = new RGBA8(255, 255, 255, 255);
-		let imageData = createFakeImageData(Constants.BASE_CHAR_WIDTH, Constants.BASE_CHAR_HEIGHT);
+		const background = new RGBA8(0, 0, 0, 255);
+		const color = new RGBA8(255, 255, 255, 255);
+		const imageData = createFakeImageData(Constants.BASE_CHAR_WIDTH, Constants.BASE_CHAR_HEIGHT);
 		// set the background color
 		for (let i = 0, len = imageData.data.length / 4; i < len; i++) {
 			imageData.data[4 * i + 0] = background.r;
@@ -111,7 +111,7 @@ suite('MinimapCharRenderer', () => {
 
 		renderer.renderChar(imageData, 0, 0, 'd'.charCodeAt(0), color, 255, background, 255, 1, false, false);
 
-		let actual: number[] = [];
+		const actual: number[] = [];
 		for (let i = 0; i < imageData.data.length; i++) {
 			actual[i] = imageData.data[i];
 		}

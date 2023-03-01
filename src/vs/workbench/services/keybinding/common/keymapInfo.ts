@@ -7,18 +7,18 @@ import { isWindows, isLinux } from 'vs/base/common/platform';
 import { getKeyboardLayoutId, IKeyboardLayoutInfo } from 'vs/platform/keyboardLayout/common/keyboardLayout';
 
 function deserializeMapping(serializedMapping: ISerializedMapping) {
-	let mapping = serializedMapping;
+	const mapping = serializedMapping;
 
-	let ret: { [key: string]: any } = {};
-	for (let key in mapping) {
-		let result: (string | number)[] = mapping[key];
+	const ret: { [key: string]: any } = {};
+	for (const key in mapping) {
+		const result: (string | number)[] = mapping[key];
 		if (result.length) {
-			let value = result[0];
-			let withShift = result[1];
-			let withAltGr = result[2];
-			let withShiftAltGr = result[3];
-			let mask = Number(result[4]);
-			let vkey = result.length === 6 ? result[5] : undefined;
+			const value = result[0];
+			const withShift = result[1];
+			const withAltGr = result[2];
+			const withShiftAltGr = result[3];
+			const mask = Number(result[4]);
+			const vkey = result.length === 6 ? result[5] : undefined;
 			ret[key] = {
 				'value': value,
 				'vkey': vkey,
@@ -83,7 +83,7 @@ export class KeymapInfo {
 	}
 
 	static createKeyboardLayoutFromDebugInfo(layout: IKeyboardLayoutInfo, value: IRawMixedKeyboardMapping, isUserKeyboardLayout?: boolean): KeymapInfo {
-		let keyboardLayoutInfo = new KeymapInfo(layout, [], {}, true);
+		const keyboardLayoutInfo = new KeymapInfo(layout, [], {}, true);
 		keyboardLayoutInfo.mapping = value;
 		return keyboardLayoutInfo;
 	}
@@ -98,7 +98,7 @@ export class KeymapInfo {
 
 	getScore(other: IRawMixedKeyboardMapping): number {
 		let score = 0;
-		for (let key in other) {
+		for (const key in other) {
 			if (isWindows && (key === 'Backslash' || key === 'KeyQ')) {
 				// keymap from Chromium is probably wrong.
 				continue;
@@ -109,13 +109,13 @@ export class KeymapInfo {
 				continue;
 			}
 
-			let currentMapping = this.mapping[key];
+			const currentMapping = this.mapping[key];
 
 			if (currentMapping === undefined) {
 				score -= 1;
 			}
 
-			let otherMapping = other[key];
+			const otherMapping = other[key];
 
 			if (currentMapping && otherMapping && currentMapping.value !== otherMapping.value) {
 				score -= 1;
@@ -138,7 +138,7 @@ export class KeymapInfo {
 	}
 
 	fuzzyEqual(other: IRawMixedKeyboardMapping): boolean {
-		for (let key in other) {
+		for (const key in other) {
 			if (isWindows && (key === 'Backslash' || key === 'KeyQ')) {
 				// keymap from Chromium is probably wrong.
 				continue;
@@ -147,8 +147,8 @@ export class KeymapInfo {
 				return false;
 			}
 
-			let currentMapping = this.mapping[key];
-			let otherMapping = other[key];
+			const currentMapping = this.mapping[key];
+			const otherMapping = other[key];
 
 			if (currentMapping.value !== otherMapping.value) {
 				return false;

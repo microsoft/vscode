@@ -5,15 +5,9 @@
 
 import { Emitter } from 'vs/base/common/event';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
+import { IOutlineViewState, OutlineSortOrder } from 'vs/workbench/contrib/outline/browser/outline';
 
-
-export const enum OutlineSortOrder {
-	ByPosition,
-	ByName,
-	ByKind
-}
-
-export class OutlineViewState {
+export class OutlineViewState implements IOutlineViewState {
 
 	private _followCursor = false;
 	private _filterOnType = true;
@@ -68,7 +62,7 @@ export class OutlineViewState {
 	}
 
 	restore(storageService: IStorageService): void {
-		let raw = storageService.get('outline/state', StorageScope.WORKSPACE);
+		const raw = storageService.get('outline/state', StorageScope.WORKSPACE);
 		if (!raw) {
 			return;
 		}

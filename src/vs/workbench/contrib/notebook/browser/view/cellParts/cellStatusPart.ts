@@ -19,18 +19,24 @@ import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IThemeService, ThemeColor } from 'vs/platform/theme/common/themeService';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { ThemeColor } from 'vs/base/common/themables';
 import { INotebookCellActionContext } from 'vs/workbench/contrib/notebook/browser/controller/coreActions';
 import { CellFocusMode, ICellViewModel, INotebookEditorDelegate } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { CellPart } from 'vs/workbench/contrib/notebook/browser/view/cellPart';
+import { CellContentPart } from 'vs/workbench/contrib/notebook/browser/view/cellPart';
 import { ClickTargetType, IClickTarget } from 'vs/workbench/contrib/notebook/browser/view/cellParts/cellWidgets';
 import { CodeCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/codeCellViewModel';
 import { CellStatusbarAlignment, INotebookCellStatusBarItem } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { ITooltipMarkdownString, setupCustomHover } from 'vs/base/browser/ui/iconLabel/iconLabelHover';
+import { IHoverDelegate, IHoverDelegateOptions } from 'vs/base/browser/ui/iconLabel/iconHoverDelegate';
+import { IHoverService } from 'vs/workbench/services/hover/browser/hover';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { HoverPosition } from 'vs/base/browser/ui/hover/hoverWidget';
 
 const $ = DOM.$;
 
 
-export class CellEditorStatusBar extends CellPart {
+export class CellEditorStatusBar extends CellContentPart {
 	readonly statusBarContainer: HTMLElement;
 
 	private readonly leftItemsContainer: HTMLElement;
@@ -45,12 +51,16 @@ export class CellEditorStatusBar extends CellPart {
 	protected readonly _onDidClick: Emitter<IClickTarget> = this._register(new Emitter<IClickTarget>());
 	readonly onDidClick: Event<IClickTarget> = this._onDidClick.event;
 
+	private readonly hoverDelegate: IHoverDelegate;
+
 	constructor(
 		private readonly _notebookEditor: INotebookEditorDelegate,
 		private readonly _cellContainer: HTMLElement,
 		editorPart: HTMLElement,
 		private readonly _editor: ICodeEditor | undefined,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@IHoverService hoverService: IHoverService,
+		@IConfigurationService configurationService: IConfigurationService,
 		@IThemeService private readonly _themeService: IThemeService,
 	) {
 		super();
@@ -62,6 +72,27 @@ export class CellEditorStatusBar extends CellPart {
 		this.rightItemsContainer = DOM.append(rightItemsContainer, $('.cell-contributed-items.cell-contributed-items-right'));
 
 		this.itemsDisposable = this._register(new DisposableStore());
+
+		this.hoverDelegate = new class implements IHoverDelegate {
+			private _lastHoverHideTime: number = 0;
+
+			readonly showHover = (options: IHoverDelegateOptions) => {
+				options.hoverPosition = HoverPosition.ABOVE;
+				return hoverService.showHover(options);
+			};
+
+			readonly placement = 'element';
+
+			get delay(): number {
+				return Date.now() - this._lastHoverHideTime < 200
+					? 0  // show instantly when a hover was recently shown
+					: configurationService.getValue<number>('workbench.hover.delay');
+			}
+
+			onDidHideHover() {
+				this._lastHoverHideTime = Date.now();
+			}
+		};
 
 		this._register(this._themeService.onDidColorThemeChange(() => this.currentContext && this.updateContext(this.currentContext)));
 
@@ -205,7 +236,7 @@ export class CellEditorStatusBar extends CellPart {
 				if (existingItem) {
 					existingItem.updateItem(newLeftItem, maxItemWidth);
 				} else {
-					const item = this._instantiationService.createInstance(CellStatusBarItem, this.currentContext!, newLeftItem, maxItemWidth);
+					const item = this._instantiationService.createInstance(CellStatusBarItem, this.currentContext!, this.hoverDelegate, newLeftItem, maxItemWidth);
 					renderedItems.push(item);
 					container.appendChild(item.container);
 				}
@@ -236,6 +267,7 @@ class CellStatusBarItem extends Disposable {
 
 	constructor(
 		private readonly _context: INotebookCellActionContext,
+		private readonly _hoverDelegate: IHoverDelegate,
 		itemModel: INotebookCellStatusBarItem,
 		maxWidth: number | undefined,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
@@ -282,7 +314,11 @@ class CellStatusBarItem extends Disposable {
 
 		this.container.setAttribute('aria-label', ariaLabel);
 		this.container.setAttribute('role', role || '');
-		this.container.title = item.tooltip ?? '';
+
+		if (item.tooltip) {
+			const hoverContent = typeof item.tooltip === 'string' ? item.tooltip : { markdown: item.tooltip } as ITooltipMarkdownString;
+			this._itemDisposables.add(setupCustomHover(this._hoverDelegate, this.container, hoverContent));
+		}
 
 		this.container.classList.toggle('cell-status-item-has-command', !!item.command);
 		if (item.command) {
@@ -313,7 +349,9 @@ class CellStatusBarItem extends Disposable {
 		const id = typeof command === 'string' ? command : command.id;
 		const args = typeof command === 'string' ? [] : command.arguments ?? [];
 
-		args.unshift(this._context);
+		if (typeof command === 'string' || !command.arguments || !Array.isArray(command.arguments) || command.arguments.length === 0) {
+			args.unshift(this._context);
+		}
 
 		this._telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', { id, from: 'cell status bar' });
 		try {

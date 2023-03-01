@@ -26,7 +26,7 @@ export interface IConfigurationOverrides {
 export function isConfigurationUpdateOverrides(thing: any): thing is IConfigurationUpdateOverrides {
 	return thing
 		&& typeof thing === 'object'
-		&& (!thing.overrideIdentifiers || types.isArray(thing.overrideIdentifiers))
+		&& (!thing.overrideIdentifiers || Array.isArray(thing.overrideIdentifiers))
 		&& !thing.overrideIdentifier
 		&& (!thing.resource || thing.resource instanceof URI);
 }
@@ -34,7 +34,8 @@ export function isConfigurationUpdateOverrides(thing: any): thing is IConfigurat
 export type IConfigurationUpdateOverrides = Omit<IConfigurationOverrides, 'overrideIdentifier'> & { overrideIdentifiers?: string[] | null };
 
 export const enum ConfigurationTarget {
-	USER = 1,
+	APPLICATION = 1,
+	USER,
 	USER_LOCAL,
 	USER_REMOTE,
 	WORKSPACE,
@@ -44,6 +45,7 @@ export const enum ConfigurationTarget {
 }
 export function ConfigurationTargetToString(configurationTarget: ConfigurationTarget) {
 	switch (configurationTarget) {
+		case ConfigurationTarget.APPLICATION: return 'APPLICATION';
 		case ConfigurationTarget.USER: return 'USER';
 		case ConfigurationTarget.USER_LOCAL: return 'USER_LOCAL';
 		case ConfigurationTarget.USER_REMOTE: return 'USER_REMOTE';
@@ -62,7 +64,7 @@ export interface IConfigurationChange {
 export interface IConfigurationChangeEvent {
 
 	readonly source: ConfigurationTarget;
-	readonly affectedKeys: string[];
+	readonly affectedKeys: ReadonlySet<string>;
 	readonly change: IConfigurationChange;
 
 	affectsConfiguration(configuration: string, overrides?: IConfigurationOverrides): boolean;
@@ -74,23 +76,38 @@ export interface IConfigurationChangeEvent {
 export interface IConfigurationValue<T> {
 
 	readonly defaultValue?: T;
+	readonly applicationValue?: T;
 	readonly userValue?: T;
 	readonly userLocalValue?: T;
 	readonly userRemoteValue?: T;
 	readonly workspaceValue?: T;
 	readonly workspaceFolderValue?: T;
 	readonly memoryValue?: T;
+	readonly policyValue?: T;
 	readonly value?: T;
 
 	readonly default?: { value?: T; override?: T };
+	readonly application?: { value?: T; override?: T };
 	readonly user?: { value?: T; override?: T };
 	readonly userLocal?: { value?: T; override?: T };
 	readonly userRemote?: { value?: T; override?: T };
 	readonly workspace?: { value?: T; override?: T };
 	readonly workspaceFolder?: { value?: T; override?: T };
 	readonly memory?: { value?: T; override?: T };
+	readonly policy?: { value?: T };
 
 	readonly overrideIdentifiers?: string[];
+}
+
+export interface IConfigurationUpdateOptions {
+	/**
+	 * If `true`, do not notifies the error to user by showing the message box. Default is `false`.
+	 */
+	donotNotifyError?: boolean;
+	/**
+	 * How to handle dirty file when updating the configuration.
+	 */
+	handleDirtyFile?: 'save' | 'revert';
 }
 
 export interface IConfigurationService {
@@ -134,7 +151,7 @@ export interface IConfigurationService {
 	updateValue(key: string, value: any): Promise<void>;
 	updateValue(key: string, value: any, target: ConfigurationTarget): Promise<void>;
 	updateValue(key: string, value: any, overrides: IConfigurationOverrides | IConfigurationUpdateOverrides): Promise<void>;
-	updateValue(key: string, value: any, overrides: IConfigurationOverrides | IConfigurationUpdateOverrides, target: ConfigurationTarget, donotNotifyError?: boolean): Promise<void>;
+	updateValue(key: string, value: any, overrides: IConfigurationOverrides | IConfigurationUpdateOverrides, target: ConfigurationTarget, options?: IConfigurationUpdateOptions): Promise<void>;
 
 	inspect<T>(key: string, overrides?: IConfigurationOverrides): IConfigurationValue<Readonly<T>>;
 
@@ -163,6 +180,8 @@ export interface IOverrides {
 
 export interface IConfigurationData {
 	defaults: IConfigurationModel;
+	policy: IConfigurationModel;
+	application: IConfigurationModel;
 	user: IConfigurationModel;
 	workspace: IConfigurationModel;
 	folders: [UriComponents, IConfigurationModel][];
@@ -178,7 +197,7 @@ export interface IConfigurationCompareResult {
 export function toValuesTree(properties: { [qualifiedKey: string]: any }, conflictReporter: (message: string) => void): any {
 	const root = Object.create(null);
 
-	for (let key in properties) {
+	for (const key in properties) {
 		addToValueTree(root, key, properties[key], conflictReporter);
 	}
 
@@ -191,7 +210,7 @@ export function addToValueTree(settingsTreeRoot: any, key: string, value: any, c
 
 	let curr = settingsTreeRoot;
 	for (let i = 0; i < segments.length; i++) {
-		let s = segments[i];
+		const s = segments[i];
 		let obj = curr[s];
 		switch (typeof obj) {
 			case 'undefined':
@@ -276,19 +295,6 @@ export function merge(base: any, add: any, overwrite: boolean): void {
 			}
 		}
 	});
-}
-
-export function getMigratedSettingValue<T>(configurationService: IConfigurationService, currentSettingName: string, legacySettingName: string): T {
-	const setting = configurationService.inspect<T>(currentSettingName);
-	const legacySetting = configurationService.inspect<T>(legacySettingName);
-
-	if (typeof setting.userValue !== 'undefined' || typeof setting.workspaceValue !== 'undefined' || typeof setting.workspaceFolderValue !== 'undefined') {
-		return setting.value!;
-	} else if (typeof legacySetting.userValue !== 'undefined' || typeof legacySetting.workspaceValue !== 'undefined' || typeof legacySetting.workspaceFolderValue !== 'undefined') {
-		return legacySetting.value!;
-	} else {
-		return setting.defaultValue!;
-	}
 }
 
 export function getLanguageTagSettingPlainKey(settingKey: string) {

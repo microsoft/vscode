@@ -15,10 +15,9 @@ export interface IAssignmentService {
 }
 
 export enum TargetPopulation {
-	Team = 'team',
-	Internal = 'internal',
 	Insiders = 'insider',
 	Public = 'public',
+	Exploration = 'exploration'
 }
 
 /*
@@ -113,9 +112,9 @@ export class AssignmentFilterProvider implements IExperimentationFilterProvider 
 	}
 
 	getFilters(): Map<string, any> {
-		let filters: Map<string, any> = new Map<string, any>();
-		let filterValues = Object.values(Filters);
-		for (let value of filterValues) {
+		const filters: Map<string, any> = new Map<string, any>();
+		const filterValues = Object.values(Filters);
+		for (const value of filterValues) {
 			filters.set(value, this.getFilterValue(value));
 		}
 

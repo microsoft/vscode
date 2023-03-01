@@ -138,7 +138,7 @@ function getRandomInt(min: number, max: number): number {
 }
 
 function getRandomString(minLength: number, maxLength: number): string {
-	let length = getRandomInt(minLength, maxLength);
+	const length = getRandomInt(minLength, maxLength);
 	let r = '';
 	for (let i = 0; i < length; i++) {
 		r += String.fromCharCode(getRandomInt(CharCode.a, CharCode.z));
@@ -147,8 +147,8 @@ function getRandomString(minLength: number, maxLength: number): string {
 }
 
 function generateFile(small: boolean): string {
-	let lineCount = getRandomInt(1, small ? 3 : 10);
-	let lines: string[] = [];
+	const lineCount = getRandomInt(1, small ? 3 : 10);
+	const lines: string[] = [];
 	for (let i = 0; i < lineCount; i++) {
 		lines.push(getRandomString(0, small ? 3 : 10));
 	}
@@ -157,16 +157,16 @@ function generateFile(small: boolean): string {
 
 function generateEdits(content: string): ITestModelEdit[] {
 
-	let result: ITestModelEdit[] = [];
+	const result: ITestModelEdit[] = [];
 	let cnt = getRandomInt(1, 5);
 
 	let maxOffset = content.length;
 
 	while (cnt > 0 && maxOffset > 0) {
 
-		let offset = getRandomInt(0, maxOffset);
-		let length = getRandomInt(0, maxOffset - offset);
-		let text = generateFile(true);
+		const offset = getRandomInt(0, maxOffset);
+		const length = getRandomInt(0, maxOffset - offset);
+		const text = generateFile(true);
 
 		result.push({
 			offset: offset,
@@ -196,12 +196,12 @@ class TestModel {
 	public edits: ISingleEditOperation[];
 
 	private static _generateOffsetToPosition(content: string): Position[] {
-		let result: Position[] = [];
+		const result: Position[] = [];
 		let lineNumber = 1;
 		let column = 1;
 
 		for (let offset = 0, len = content.length; offset <= len; offset++) {
-			let ch = content.charAt(offset);
+			const ch = content.charAt(offset);
 
 			result[offset] = new Position(lineNumber, column);
 
@@ -219,13 +219,13 @@ class TestModel {
 	constructor() {
 		this.initialContent = generateFile(false);
 
-		let edits = generateEdits(this.initialContent);
+		const edits = generateEdits(this.initialContent);
 
-		let offsetToPosition = TestModel._generateOffsetToPosition(this.initialContent);
+		const offsetToPosition = TestModel._generateOffsetToPosition(this.initialContent);
 		this.edits = [];
 		for (const edit of edits) {
-			let startPosition = offsetToPosition[edit.offset];
-			let endPosition = offsetToPosition[edit.offset + edit.length];
+			const startPosition = offsetToPosition[edit.offset];
+			const endPosition = offsetToPosition[edit.offset + edit.length];
 			this.edits.push({
 				range: new Range(startPosition.lineNumber, startPosition.column, endPosition.lineNumber, endPosition.column),
 				text: edit.text
@@ -246,17 +246,17 @@ class TestModel {
 		let r: string[] = [];
 		r.push('testApplyEditsWithSyncedModels(');
 		r.push('\t[');
-		let initialLines = this.initialContent.split('\n');
+		const initialLines = this.initialContent.split('\n');
 		r = r.concat(initialLines.map((i) => `\t\t'${i}',`));
 		r.push('\t],');
 		r.push('\t[');
 		r = r.concat(this.edits.map((i) => {
-			let text = `['` + i.text!.split('\n').join(`', '`) + `']`;
+			const text = `['` + i.text!.split('\n').join(`', '`) + `']`;
 			return `\t\teditOp(${i.range.startLineNumber}, ${i.range.startColumn}, ${i.range.endLineNumber}, ${i.range.endColumn}, ${text}),`;
 		}));
 		r.push('\t],');
 		r.push('\t[');
-		let resultLines = this.resultingContent.split('\n');
+		const resultLines = this.resultingContent.split('\n');
 		r = r.concat(resultLines.map((i) => `\t\t'${i}',`));
 		r.push('\t]');
 		r.push(');');
@@ -271,7 +271,7 @@ if (GENERATE_TESTS) {
 
 		console.log('------BEGIN NEW TEST: ' + number);
 
-		let testModel = new TestModel();
+		const testModel = new TestModel();
 
 		// console.log(testModel.print());
 

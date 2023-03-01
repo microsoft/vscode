@@ -114,6 +114,7 @@ export class ResourceLabels extends Disposable {
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IModelService private readonly modelService: IModelService,
+		@IWorkspaceContextService private readonly workspaceService: IWorkspaceContextService,
 		@ILanguageService private readonly languageService: ILanguageService,
 		@IDecorationsService private readonly decorationsService: IDecorationsService,
 		@IThemeService private readonly themeService: IThemeService,
@@ -151,6 +152,11 @@ export class ResourceLabels extends Disposable {
 			}
 
 			this.widgets.forEach(widget => widget.notifyModelAdded(model));
+		}));
+
+		// notify when workspace folders changes
+		this._register(this.workspaceService.onDidChangeWorkspaceFolders(() => {
+			this.widgets.forEach(widget => widget.notifyWorkspaceFoldersChange());
 		}));
 
 		// notify when file decoration changes
@@ -250,13 +256,14 @@ export class ResourceLabel extends ResourceLabels {
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IModelService modelService: IModelService,
+		@IWorkspaceContextService workspaceService: IWorkspaceContextService,
 		@ILanguageService languageService: ILanguageService,
 		@IDecorationsService decorationsService: IDecorationsService,
 		@IThemeService themeService: IThemeService,
 		@ILabelService labelService: ILabelService,
 		@ITextFileService textFileService: ITextFileService
 	) {
-		super(DEFAULT_LABELS_CONTAINER, instantiationService, configurationService, modelService, languageService, decorationsService, themeService, labelService, textFileService);
+		super(DEFAULT_LABELS_CONTAINER, instantiationService, configurationService, modelService, workspaceService, languageService, decorationsService, themeService, labelService, textFileService);
 
 		this.label = this._register(this.create(container, options));
 	}
@@ -279,6 +286,7 @@ class ResourceLabelWidget extends IconLabel {
 	private computedIconClasses: string[] | undefined = undefined;
 	private computedLanguageId: string | undefined = undefined;
 	private computedPathLabel: string | undefined = undefined;
+	private computedWorkspaceFolderLabel: string | undefined = undefined;
 
 	private needsRedraw: Redraw | undefined = undefined;
 	private isHidden: boolean = false;
@@ -374,6 +382,15 @@ class ResourceLabelWidget extends IconLabel {
 		}
 	}
 
+	notifyWorkspaceFoldersChange(): void {
+		if (typeof this.computedWorkspaceFolderLabel === 'string') {
+			const resource = toResource(this.label);
+			if (URI.isUri(resource) && this.label?.name === this.computedWorkspaceFolderLabel) {
+				this.setFile(resource, this.options);
+			}
+		}
+	}
+
 	setFile(resource: URI, options?: IFileLabelOptions): void {
 		const hideLabel = options?.hideLabel;
 		let name: string | undefined;
@@ -382,6 +399,7 @@ class ResourceLabelWidget extends IconLabel {
 				const workspaceFolder = this.contextService.getWorkspaceFolder(resource);
 				if (workspaceFolder) {
 					name = workspaceFolder.name;
+					this.computedWorkspaceFolderLabel = name;
 				}
 			}
 
@@ -421,7 +439,7 @@ class ResourceLabelWidget extends IconLabel {
 				}
 
 				if (typeof label.description === 'string') {
-					let untitledDescription = untitledModel.resource.path;
+					const untitledDescription = untitledModel.resource.path;
 					if (label.name !== untitledDescription) {
 						label.description = untitledDescription;
 					} else {
@@ -429,7 +447,7 @@ class ResourceLabelWidget extends IconLabel {
 					}
 				}
 
-				let untitledTitle = untitledModel.resource.path;
+				const untitledTitle = untitledModel.resource.path;
 				if (untitledModel.name !== untitledTitle) {
 					options.title = `${untitledModel.name} • ${untitledTitle}`;
 				} else {
@@ -522,7 +540,9 @@ class ResourceLabelWidget extends IconLabel {
 			descriptionMatches: this.options?.descriptionMatches,
 			extraClasses: [],
 			separator: this.options?.separator,
-			domId: this.options?.domId
+			domId: this.options?.domId,
+			disabledCommand: this.options?.disabledCommand,
+			labelEscapeNewLines: this.options?.labelEscapeNewLines
 		};
 
 		const resource = toResource(this.label);
@@ -568,8 +588,13 @@ class ResourceLabelWidget extends IconLabel {
 
 			const decoration = this.decoration.value;
 			if (decoration) {
-				if (decoration.tooltip && (typeof iconLabelOptions.title === 'string')) {
-					iconLabelOptions.title = `${iconLabelOptions.title} • ${decoration.tooltip}`;
+				if (decoration.tooltip) {
+					if (typeof iconLabelOptions.title === 'string') {
+						iconLabelOptions.title = `${iconLabelOptions.title} • ${decoration.tooltip}`;
+					} else if (typeof iconLabelOptions.title?.markdown === 'string') {
+						const title = `${iconLabelOptions.title.markdown} • ${decoration.tooltip}`;
+						iconLabelOptions.title = { markdown: title, markdownNotSupportedFallback: title };
+					}
 				}
 
 				if (decoration.strikethrough) {
@@ -602,5 +627,6 @@ class ResourceLabelWidget extends IconLabel {
 		this.computedLanguageId = undefined;
 		this.computedIconClasses = undefined;
 		this.computedPathLabel = undefined;
+		this.computedWorkspaceFolderLabel = undefined;
 	}
 }

@@ -42,13 +42,13 @@ suite('EditorSimpleWorker', () => {
 	});
 
 	function assertPositionAt(offset: number, line: number, column: number) {
-		let position = model.positionAt(offset);
+		const position = model.positionAt(offset);
 		assert.strictEqual(position.lineNumber, line);
 		assert.strictEqual(position.column, column);
 	}
 
 	function assertOffsetAt(lineNumber: number, column: number, offset: number) {
-		let actual = model.offsetAt({ lineNumber, column });
+		const actual = model.offsetAt({ lineNumber, column });
 		assert.strictEqual(actual, offset);
 	}
 
@@ -82,7 +82,7 @@ suite('EditorSimpleWorker', () => {
 	});
 
 	test('ICommonModel#validatePosition, issue #15882', function () {
-		let model = worker.addModel(['{"id": "0001","type": "donut","name": "Cake","image":{"url": "images/0001.jpg","width": 200,"height": 200},"thumbnail":{"url": "images/thumbnails/0001.jpg","width": 32,"height": 32}}']);
+		const model = worker.addModel(['{"id": "0001","type": "donut","name": "Cake","image":{"url": "images/0001.jpg","width": 200,"height": 200},"thumbnail":{"url": "images/thumbnails/0001.jpg","width": 32,"height": 32}}']);
 		assert.strictEqual(model.offsetAt({ lineNumber: 1, column: 2 }), 1);
 	});
 
@@ -98,7 +98,7 @@ suite('EditorSimpleWorker', () => {
 
 	test('MoreMinimal, issue #15385 newline changes only', function () {
 
-		let model = worker.addModel([
+		const model = worker.addModel([
 			'{',
 			'\t"a":1',
 			'}'
@@ -111,7 +111,7 @@ suite('EditorSimpleWorker', () => {
 
 	test('MoreMinimal, issue #15385 newline changes and other', function () {
 
-		let model = worker.addModel([
+		const model = worker.addModel([
 			'{',
 			'\t"a":1',
 			'}'
@@ -127,7 +127,7 @@ suite('EditorSimpleWorker', () => {
 
 	test('MoreMinimal, issue #15385 newline changes and other', function () {
 
-		let model = worker.addModel([
+		const model = worker.addModel([
 			'package main',	// 1
 			'func foo() {',	// 2
 			'}'				// 3
@@ -144,7 +144,7 @@ suite('EditorSimpleWorker', () => {
 
 	test('ICommonModel#getValueInRange, issue #17424', function () {
 
-		let model = worker.addModel([
+		const model = worker.addModel([
 			'package main',	// 1
 			'func foo() {',	// 2
 			'}'				// 3
@@ -157,7 +157,7 @@ suite('EditorSimpleWorker', () => {
 
 	test('textualSuggest, issue #17785', function () {
 
-		let model = worker.addModel([
+		const model = worker.addModel([
 			'foobar',	// 1
 			'f f'	// 2
 		]);
@@ -174,7 +174,7 @@ suite('EditorSimpleWorker', () => {
 
 	test('get words via iterator, issue #46930', function () {
 
-		let model = worker.addModel([
+		const model = worker.addModel([
 			'one line',	// 1
 			'two line',	// 2
 			'',
@@ -184,7 +184,7 @@ suite('EditorSimpleWorker', () => {
 			'and now we are done'
 		]);
 
-		let words: string[] = [...model.words(/[a-z]+/img)];
+		const words: string[] = [...model.words(/[a-z]+/img)];
 
 		assert.deepStrictEqual(words, ['one', 'line', 'two', 'line', 'past', 'empty', 'single', 'and', 'now', 'we', 'are', 'done']);
 	});

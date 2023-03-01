@@ -4,14 +4,13 @@
 			"component": {
 				"type": "git",
 				"git": {
-					"name": "atom/language-shellscript",
-					"repositoryUrl": "https://github.com/atom/language-shellscript",
-					"commitHash": "4f8d7bb5cc4d1643674551683df10fe552dd5a6f"
+					"name": "jeff-hykin/better-shell-syntax",
+					"repositoryUrl": "https://github.com/jeff-hykin/better-shell-syntax",
+					"commitHash": "ab3c6da1c3651dff20651ebcf0ec5adb5fe413a0"
 				}
 			},
 			"license": "MIT",
-			"description": "The file syntaxes/shell-unix-bash.tmLanguage.json was derived from the Atom package https://github.com/atom/language-shellscript which was originally converted from the TextMate bundle https://github.com/textmate/shellscript.tmbundle.",
-			"version": "0.28.2"
+			"version": "1.3.3"
 		}
 	],
 	"version": 1

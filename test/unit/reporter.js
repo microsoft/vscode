@@ -8,7 +8,7 @@ const FullJsonStreamReporter = require('./fullJsonStreamReporter');
 const path = require('path');
 
 function parseReporterOption(value) {
-	let r = /^([^=]+)=(.*)$/.exec(value);
+	const r = /^([^=]+)=(.*)$/.exec(value);
 	return r ? { [r[1]]: r[2] } : {};
 }
 

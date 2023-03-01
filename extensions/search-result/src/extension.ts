@@ -225,7 +225,7 @@ function parseSearchResults(document: vscode.TextDocument, token?: vscode.Cancel
 			const metadataOffset = (indentation + _lineNumber + separator).length;
 			const targetRange = new vscode.Range(Math.max(lineNumber - 3, 0), 0, lineNumber + 3, line.length);
 
-			let locations: Required<vscode.LocationLink>[] = [];
+			const locations: Required<vscode.LocationLink>[] = [];
 
 			let lastEnd = metadataOffset;
 			let offset = 0;
@@ -256,7 +256,7 @@ function parseSearchResults(document: vscode.TextDocument, token?: vscode.Cancel
 			}
 
 			// Allow line number, indentation, etc to take you to definition as well.
-			let convenienceLocation: Required<vscode.LocationLink> = {
+			const convenienceLocation: Required<vscode.LocationLink> = {
 				targetRange,
 				targetSelectionRange: new vscode.Range(lineNumber, 0, lineNumber, 1),
 				targetUri: currentTarget,

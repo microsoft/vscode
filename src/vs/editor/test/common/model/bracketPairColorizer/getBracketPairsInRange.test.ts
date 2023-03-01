@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import assert = require('assert');
+import * as assert from 'assert';
 import { DisposableStore, disposeOnReturn } from 'vs/base/common/lifecycle';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
@@ -11,6 +11,10 @@ import { BracketPairInfo } from 'vs/editor/common/textModelBracketPairs';
 import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
 import { createModelServices, instantiateTextModel } from 'vs/editor/test/common/testTextModel';
 import { TextModel } from 'vs/editor/common/model/textModel';
+import { TokenInfo, TokenizedDocument } from 'vs/editor/test/common/model/bracketPairColorizer/tokenizer.test';
+import { ILanguageService } from 'vs/editor/common/languages/language';
+import { StandardTokenType } from 'vs/editor/common/encodedTokenAttributes';
+import { TokenizationRegistry } from 'vs/editor/common/languages';
 
 suite('Bracket Pair Colorizer - getBracketPairsInRange', () => {
 
@@ -18,25 +22,41 @@ suite('Bracket Pair Colorizer - getBracketPairsInRange', () => {
 		const languageId = 'testLanguage';
 		const instantiationService = createModelServices(store);
 		const languageConfigurationService = instantiationService.get(ILanguageConfigurationService);
+		const languageService = instantiationService.get(ILanguageService);
+		store.add(languageService.registerLanguage({
+			id: languageId,
+		}));
+
+		const encodedMode1 = languageService.languageIdCodec.encodeLanguageId(languageId);
+		const document = new TokenizedDocument([
+			new TokenInfo(text, encodedMode1, StandardTokenType.Other, true)
+		]);
+		store.add(TokenizationRegistry.register(languageId, document.getTokenizationSupport()));
 
 		store.add(languageConfigurationService.register(languageId, {
+			brackets: [
+				['<', '>']
+			],
 			colorizedBracketPairs: [
 				['{', '}'],
 				['[', ']'],
 				['(', ')'],
 			]
 		}));
-		return store.add(instantiateTextModel(instantiationService, text, languageId));
+		const textModel = store.add(instantiateTextModel(instantiationService, text, languageId));
+		return textModel;
 	}
 
 	test('Basic 1', () => {
 		disposeOnReturn(store => {
 			const doc = new AnnotatedDocument(`{ ( [] ¹ ) [ ² { } ] () } []`);
 			const model = createTextModelWithColorizedBracketPairs(store, doc.text);
+			model.tokenization.getLineTokens(1).getLanguageId(0);
 			assert.deepStrictEqual(
 				model.bracketPairs
 					.getBracketPairsInRange(doc.range(1, 2))
-					.map(bracketPairToJSON),
+					.map(bracketPairToJSON)
+					.toArray(),
 				[
 					{
 						level: 0,
@@ -68,7 +88,8 @@ suite('Bracket Pair Colorizer - getBracketPairsInRange', () => {
 			assert.deepStrictEqual(
 				model.bracketPairs
 					.getBracketPairsInRange(doc.range(1, 2))
-					.map(bracketPairToJSON),
+					.map(bracketPairToJSON)
+					.toArray(),
 				[
 					{
 						level: 0,
@@ -94,7 +115,8 @@ suite('Bracket Pair Colorizer - getBracketPairsInRange', () => {
 			assert.deepStrictEqual(
 				model.bracketPairs
 					.getBracketPairsInRange(doc.range(1, 2))
-					.map(bracketPairToJSON),
+					.map(bracketPairToJSON)
+					.toArray(),
 				[]
 			);
 		});
@@ -107,7 +129,8 @@ suite('Bracket Pair Colorizer - getBracketPairsInRange', () => {
 			assert.deepStrictEqual(
 				model.bracketPairs
 					.getBracketPairsInRange(doc.range(1, 2))
-					.map(bracketPairToJSON),
+					.map(bracketPairToJSON)
+					.toArray(),
 				[
 					{
 						level: 0,
@@ -155,6 +178,251 @@ suite('Bracket Pair Colorizer - getBracketPairsInRange', () => {
 			);
 		});
 	});
+
+	test('getBracketsInRange', () => {
+		disposeOnReturn(store => {
+			const doc = new AnnotatedDocument(`¹ { [ ( [ [ (  ) ] ] ) ] } { } ²`);
+			const model = createTextModelWithColorizedBracketPairs(store, doc.text);
+			assert.deepStrictEqual(
+				model.bracketPairs
+					.getBracketsInRange(doc.range(1, 2))
+					.map(b => ({ level: b.nestingLevel, levelEqualBracketType: b.nestingLevelOfEqualBracketType, range: b.range.toString() }))
+					.toArray(),
+				[
+					{
+						level: 0,
+						levelEqualBracketType: 0,
+						range: "[1,2 -> 1,3]"
+					},
+					{
+						level: 1,
+						levelEqualBracketType: 0,
+						range: "[1,4 -> 1,5]"
+					},
+					{
+						level: 2,
+						levelEqualBracketType: 0,
+						range: "[1,6 -> 1,7]"
+					},
+					{
+						level: 3,
+						levelEqualBracketType: 1,
+						range: "[1,8 -> 1,9]"
+					},
+					{
+						level: 4,
+						levelEqualBracketType: 2,
+						range: "[1,10 -> 1,11]"
+					},
+					{
+						level: 5,
+						levelEqualBracketType: 1,
+						range: "[1,12 -> 1,13]"
+					},
+					{
+						level: 5,
+						levelEqualBracketType: 1,
+						range: "[1,15 -> 1,16]"
+					},
+					{
+						level: 4,
+						levelEqualBracketType: 2,
+						range: "[1,17 -> 1,18]"
+					},
+					{
+						level: 3,
+						levelEqualBracketType: 1,
+						range: "[1,19 -> 1,20]"
+					},
+					{
+						level: 2,
+						levelEqualBracketType: 0,
+						range: "[1,21 -> 1,22]"
+					},
+					{
+						level: 1,
+						levelEqualBracketType: 0,
+						range: "[1,23 -> 1,24]"
+					},
+					{
+						level: 0,
+						levelEqualBracketType: 0,
+						range: "[1,25 -> 1,26]"
+					},
+					{
+						level: 0,
+						levelEqualBracketType: 0,
+						range: "[1,27 -> 1,28]"
+					},
+					{
+						level: 0,
+						levelEqualBracketType: 0,
+						range: "[1,29 -> 1,30]"
+					},
+				]
+			);
+		});
+	});
+
+	test('Test Error Brackets', () => {
+		disposeOnReturn(store => {
+			const doc = new AnnotatedDocument(`¹ { () ] ² `);
+			const model = createTextModelWithColorizedBracketPairs(store, doc.text);
+			assert.deepStrictEqual(
+				model.bracketPairs
+					.getBracketsInRange(doc.range(1, 2))
+					.map(b => ({ level: b.nestingLevel, range: b.range.toString(), isInvalid: b.isInvalid }))
+					.toArray(),
+				[
+					{
+						level: 0,
+						isInvalid: true,
+						range: "[1,2 -> 1,3]",
+					},
+					{
+						level: 1,
+						isInvalid: false,
+						range: "[1,4 -> 1,5]",
+					},
+					{
+						level: 1,
+						isInvalid: false,
+						range: "[1,5 -> 1,6]",
+					},
+					{
+						level: 0,
+						isInvalid: true,
+						range: "[1,7 -> 1,8]"
+					}
+				]
+			);
+		});
+	});
+
+
+	test('colorizedBracketsVSBrackets', () => {
+		disposeOnReturn(store => {
+			const doc = new AnnotatedDocument(`¹ {} [<()>] <{>} ²`);
+			const model = createTextModelWithColorizedBracketPairs(store, doc.text);
+			assert.deepStrictEqual(
+				model.bracketPairs
+					.getBracketsInRange(doc.range(1, 2), true)
+					.map(b => ({ level: b.nestingLevel, levelEqualBracketType: b.nestingLevelOfEqualBracketType, range: b.range.toString() }))
+					.toArray(),
+				[
+					{
+						level: 0,
+						levelEqualBracketType: 0,
+						range: "[1,2 -> 1,3]",
+					},
+					{
+						level: 0,
+						levelEqualBracketType: 0,
+						range: "[1,3 -> 1,4]",
+					},
+					{
+						level: 0,
+						levelEqualBracketType: 0,
+						range: "[1,5 -> 1,6]",
+					},
+					{
+						level: 1,
+						levelEqualBracketType: 0,
+						range: "[1,7 -> 1,8]",
+					},
+					{
+						level: 1,
+						levelEqualBracketType: 0,
+						range: "[1,8 -> 1,9]",
+					},
+					{
+						level: 0,
+						levelEqualBracketType: 0,
+						range: "[1,10 -> 1,11]",
+					},
+					{
+						level: 0,
+						levelEqualBracketType: 0,
+						range: "[1,13 -> 1,14]",
+					},
+					{
+						level: -1,
+						levelEqualBracketType: 0,
+						range: "[1,15 -> 1,16]",
+					},
+				]
+			);
+
+			assert.deepStrictEqual(
+				model.bracketPairs
+					.getBracketsInRange(doc.range(1, 2), false)
+					.map(b => ({ level: b.nestingLevel, levelEqualBracketType: b.nestingLevelOfEqualBracketType, range: b.range.toString() }))
+					.toArray(),
+				[
+					{
+						level: 0,
+						levelEqualBracketType: 0,
+						range: "[1,2 -> 1,3]",
+					},
+					{
+						level: 0,
+						levelEqualBracketType: 0,
+						range: "[1,3 -> 1,4]",
+					},
+					{
+						level: 0,
+						levelEqualBracketType: 0,
+						range: "[1,5 -> 1,6]",
+					},
+					{
+						level: 1,
+						levelEqualBracketType: 0,
+						range: "[1,6 -> 1,7]",
+					},
+					{
+						level: 2,
+						levelEqualBracketType: 0,
+						range: "[1,7 -> 1,8]",
+					},
+					{
+						level: 2,
+						levelEqualBracketType: 0,
+						range: "[1,8 -> 1,9]",
+					},
+					{
+						level: 1,
+						levelEqualBracketType: 0,
+						range: "[1,9 -> 1,10]",
+					},
+					{
+						level: 0,
+						levelEqualBracketType: 0,
+						range: "[1,10 -> 1,11]",
+					},
+					{
+						level: 0,
+						levelEqualBracketType: 0,
+						range: "[1,12 -> 1,13]",
+					},
+					{
+						level: 1,
+						levelEqualBracketType: 0,
+						range: "[1,13 -> 1,14]",
+					},
+					{
+						level: 0,
+						levelEqualBracketType: 0,
+						range: "[1,14 -> 1,15]",
+					},
+					{
+						level: -1,
+						levelEqualBracketType: 0,
+						range: "[1,15 -> 1,16]",
+					},
+				]
+			);
+		});
+	});
 });
 
 function bracketPairToJSON(pair: BracketPairInfo): unknown {
@@ -197,7 +465,7 @@ class AnnotatedDocument {
 		const numbers = ['⁰', '¹', '²', '³', '⁴', '⁵', '⁶', '⁷', '⁸', '⁹'];
 
 		let text = '';
-		let offsetPositions = new Map<number, number>();
+		const offsetPositions = new Map<number, number>();
 
 		let offset = 0;
 		for (let i = 0; i < src.length; i++) {
@@ -213,7 +481,7 @@ class AnnotatedDocument {
 		this.text = text;
 
 		const mapper = new PositionOffsetTransformer(this.text);
-		let positions = new Map<number, Position>();
+		const positions = new Map<number, Position>();
 		for (const [idx, offset] of offsetPositions.entries()) {
 			positions.set(idx, mapper.getPosition(offset));
 		}

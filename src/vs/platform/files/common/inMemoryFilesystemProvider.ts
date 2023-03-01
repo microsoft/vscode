@@ -7,7 +7,7 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import * as resources from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
-import { FileChangeType, IFileDeleteOptions, IFileOverwriteOptions, FileSystemProviderCapabilities, FileSystemProviderError, FileSystemProviderErrorCode, FileType, IFileWriteOptions, IFileChange, IFileSystemProviderWithFileReadWriteCapability, IStat, IWatchOptions } from 'vs/platform/files/common/files';
+import { FileChangeType, IFileDeleteOptions, IFileOverwriteOptions, FileSystemProviderCapabilities, FileSystemProviderErrorCode, FileType, IFileWriteOptions, IFileChange, IFileSystemProviderWithFileReadWriteCapability, IStat, IWatchOptions, createFileSystemProviderError } from 'vs/platform/files/common/files';
 
 class File implements IStat {
 
@@ -48,14 +48,24 @@ class Directory implements IStat {
 	}
 }
 
-export type Entry = File | Directory;
+type Entry = File | Directory;
 
 export class InMemoryFileSystemProvider extends Disposable implements IFileSystemProviderWithFileReadWriteCapability {
 
-	readonly capabilities: FileSystemProviderCapabilities =
-		FileSystemProviderCapabilities.FileReadWrite
-		| FileSystemProviderCapabilities.PathCaseSensitive;
-	readonly onDidChangeCapabilities: Event<void> = Event.None;
+	private _onDidChangeCapabilities = this._register(new Emitter<void>());
+	readonly onDidChangeCapabilities = this._onDidChangeCapabilities.event;
+
+	private _capabilities = FileSystemProviderCapabilities.FileReadWrite | FileSystemProviderCapabilities.PathCaseSensitive;
+	get capabilities(): FileSystemProviderCapabilities { return this._capabilities; }
+
+	setReadOnly(readonly: boolean) {
+		const isReadonly = !!(this._capabilities & FileSystemProviderCapabilities.Readonly);
+		if (readonly !== isReadonly) {
+			this._capabilities = readonly ? FileSystemProviderCapabilities.Readonly | FileSystemProviderCapabilities.PathCaseSensitive | FileSystemProviderCapabilities.FileReadWrite
+				: FileSystemProviderCapabilities.FileReadWrite | FileSystemProviderCapabilities.PathCaseSensitive;
+			this._onDidChangeCapabilities.fire();
+		}
+	}
 
 	root = new Directory('');
 
@@ -67,7 +77,7 @@ export class InMemoryFileSystemProvider extends Disposable implements IFileSyste
 
 	async readdir(resource: URI): Promise<[string, FileType][]> {
 		const entry = this._lookupAsDirectory(resource, false);
-		let result: [string, FileType][] = [];
+		const result: [string, FileType][] = [];
 		entry.entries.forEach((child, name) => result.push([name, child.type]));
 		return result;
 	}
@@ -79,21 +89,21 @@ export class InMemoryFileSystemProvider extends Disposable implements IFileSyste
 		if (data) {
 			return data;
 		}
-		throw new FileSystemProviderError('file not found', FileSystemProviderErrorCode.FileNotFound);
+		throw createFileSystemProviderError('file not found', FileSystemProviderErrorCode.FileNotFound);
 	}
 
 	async writeFile(resource: URI, content: Uint8Array, opts: IFileWriteOptions): Promise<void> {
-		let basename = resources.basename(resource);
-		let parent = this._lookupParentDirectory(resource);
+		const basename = resources.basename(resource);
+		const parent = this._lookupParentDirectory(resource);
 		let entry = parent.entries.get(basename);
 		if (entry instanceof Directory) {
-			throw new FileSystemProviderError('file is directory', FileSystemProviderErrorCode.FileIsADirectory);
+			throw createFileSystemProviderError('file is directory', FileSystemProviderErrorCode.FileIsADirectory);
 		}
 		if (!entry && !opts.create) {
-			throw new FileSystemProviderError('file not found', FileSystemProviderErrorCode.FileNotFound);
+			throw createFileSystemProviderError('file not found', FileSystemProviderErrorCode.FileNotFound);
 		}
 		if (entry && opts.create && !opts.overwrite) {
-			throw new FileSystemProviderError('file exists already', FileSystemProviderErrorCode.FileExists);
+			throw createFileSystemProviderError('file exists already', FileSystemProviderErrorCode.FileExists);
 		}
 		if (!entry) {
 			entry = new File(basename);
@@ -111,14 +121,14 @@ export class InMemoryFileSystemProvider extends Disposable implements IFileSyste
 
 	async rename(from: URI, to: URI, opts: IFileOverwriteOptions): Promise<void> {
 		if (!opts.overwrite && this._lookup(to, true)) {
-			throw new FileSystemProviderError('file exists already', FileSystemProviderErrorCode.FileExists);
+			throw createFileSystemProviderError('file exists already', FileSystemProviderErrorCode.FileExists);
 		}
 
-		let entry = this._lookup(from, false);
-		let oldParent = this._lookupParentDirectory(from);
+		const entry = this._lookup(from, false);
+		const oldParent = this._lookupParentDirectory(from);
 
-		let newParent = this._lookupParentDirectory(to);
-		let newName = resources.basename(to);
+		const newParent = this._lookupParentDirectory(to);
+		const newName = resources.basename(to);
 
 		oldParent.entries.delete(entry.name);
 		entry.name = newName;
@@ -131,9 +141,9 @@ export class InMemoryFileSystemProvider extends Disposable implements IFileSyste
 	}
 
 	async delete(resource: URI, opts: IFileDeleteOptions): Promise<void> {
-		let dirname = resources.dirname(resource);
-		let basename = resources.basename(resource);
-		let parent = this._lookupAsDirectory(dirname, false);
+		const dirname = resources.dirname(resource);
+		const basename = resources.basename(resource);
+		const parent = this._lookupAsDirectory(dirname, false);
 		if (parent.entries.has(basename)) {
 			parent.entries.delete(basename);
 			parent.mtime = Date.now();
@@ -143,11 +153,15 @@ export class InMemoryFileSystemProvider extends Disposable implements IFileSyste
 	}
 
 	async mkdir(resource: URI): Promise<void> {
-		let basename = resources.basename(resource);
-		let dirname = resources.dirname(resource);
-		let parent = this._lookupAsDirectory(dirname, false);
+		if (this._lookup(resource, true)) {
+			throw createFileSystemProviderError('file exists already', FileSystemProviderErrorCode.FileExists);
+		}
 
-		let entry = new Directory(basename);
+		const basename = resources.basename(resource);
+		const dirname = resources.dirname(resource);
+		const parent = this._lookupAsDirectory(dirname, false);
+
+		const entry = new Directory(basename);
 		parent.entries.set(entry.name, entry);
 		parent.mtime = Date.now();
 		parent.size += 1;
@@ -159,7 +173,7 @@ export class InMemoryFileSystemProvider extends Disposable implements IFileSyste
 	private _lookup(uri: URI, silent: false): Entry;
 	private _lookup(uri: URI, silent: boolean): Entry | undefined;
 	private _lookup(uri: URI, silent: boolean): Entry | undefined {
-		let parts = uri.path.split('/');
+		const parts = uri.path.split('/');
 		let entry: Entry = this.root;
 		for (const part of parts) {
 			if (!part) {
@@ -171,7 +185,7 @@ export class InMemoryFileSystemProvider extends Disposable implements IFileSyste
 			}
 			if (!child) {
 				if (!silent) {
-					throw new FileSystemProviderError('file not found', FileSystemProviderErrorCode.FileNotFound);
+					throw createFileSystemProviderError('file not found', FileSystemProviderErrorCode.FileNotFound);
 				} else {
 					return undefined;
 				}
@@ -182,19 +196,19 @@ export class InMemoryFileSystemProvider extends Disposable implements IFileSyste
 	}
 
 	private _lookupAsDirectory(uri: URI, silent: boolean): Directory {
-		let entry = this._lookup(uri, silent);
+		const entry = this._lookup(uri, silent);
 		if (entry instanceof Directory) {
 			return entry;
 		}
-		throw new FileSystemProviderError('file not a directory', FileSystemProviderErrorCode.FileNotADirectory);
+		throw createFileSystemProviderError('file not a directory', FileSystemProviderErrorCode.FileNotADirectory);
 	}
 
 	private _lookupAsFile(uri: URI, silent: boolean): File {
-		let entry = this._lookup(uri, silent);
+		const entry = this._lookup(uri, silent);
 		if (entry instanceof File) {
 			return entry;
 		}
-		throw new FileSystemProviderError('file is a directory', FileSystemProviderErrorCode.FileIsADirectory);
+		throw createFileSystemProviderError('file is a directory', FileSystemProviderErrorCode.FileIsADirectory);
 	}
 
 	private _lookupParentDirectory(uri: URI): Directory {

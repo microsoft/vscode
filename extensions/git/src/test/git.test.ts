@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'mocha';
-import { GitStatusParser, parseGitCommits, parseGitmodules, parseLsTree, parseLsFiles } from '../git';
+import { GitStatusParser, parseGitCommits, parseGitmodules, parseLsTree, parseLsFiles, parseGitRemotes } from '../git';
 import * as assert from 'assert';
 import { splitInChunks } from '../util';
 
@@ -197,6 +197,77 @@ suite('git', () => {
 		});
 	});
 
+	suite('parseGitRemotes', () => {
+		test('empty', () => {
+			assert.deepStrictEqual(parseGitRemotes(''), []);
+		});
+
+		test('single remote', () => {
+			const sample = `[remote "origin"]
+	url = https://github.com/microsoft/vscode.git
+	fetch = +refs/heads/*:refs/remotes/origin/*
+`;
+
+			assert.deepStrictEqual(parseGitRemotes(sample), [
+				{ name: 'origin', fetchUrl: 'https://github.com/microsoft/vscode.git', pushUrl: 'https://github.com/microsoft/vscode.git', isReadOnly: false }
+			]);
+		});
+
+		test('single remote (multiple urls)', () => {
+			const sample = `[remote "origin"]
+	url = https://github.com/microsoft/vscode.git
+	url = https://github.com/microsoft/vscode2.git
+	fetch = +refs/heads/*:refs/remotes/origin/*
+`;
+
+			assert.deepStrictEqual(parseGitRemotes(sample), [
+				{ name: 'origin', fetchUrl: 'https://github.com/microsoft/vscode.git', pushUrl: 'https://github.com/microsoft/vscode.git', isReadOnly: false }
+			]);
+		});
+
+		test('multiple remotes', () => {
+			const sample = `[remote "origin"]
+	url = https://github.com/microsoft/vscode.git
+	pushurl = https://github.com/microsoft/vscode1.git
+	fetch = +refs/heads/*:refs/remotes/origin/*
+[remote "remote2"]
+	url = https://github.com/microsoft/vscode2.git
+	fetch = +refs/heads/*:refs/remotes/origin/*
+`;
+
+			assert.deepStrictEqual(parseGitRemotes(sample), [
+				{ name: 'origin', fetchUrl: 'https://github.com/microsoft/vscode.git', pushUrl: 'https://github.com/microsoft/vscode1.git', isReadOnly: false },
+				{ name: 'remote2', fetchUrl: 'https://github.com/microsoft/vscode2.git', pushUrl: 'https://github.com/microsoft/vscode2.git', isReadOnly: false }
+			]);
+		});
+
+		test('remotes (white space)', () => {
+			const sample = ` [remote "origin"]
+	url  =  https://github.com/microsoft/vscode.git
+	pushurl=https://github.com/microsoft/vscode1.git
+	fetch = +refs/heads/*:refs/remotes/origin/*
+[ remote"remote2"]
+	url = https://github.com/microsoft/vscode2.git
+	fetch = +refs/heads/*:refs/remotes/origin/*
+`;
+
+			assert.deepStrictEqual(parseGitRemotes(sample), [
+				{ name: 'origin', fetchUrl: 'https://github.com/microsoft/vscode.git', pushUrl: 'https://github.com/microsoft/vscode1.git', isReadOnly: false },
+				{ name: 'remote2', fetchUrl: 'https://github.com/microsoft/vscode2.git', pushUrl: 'https://github.com/microsoft/vscode2.git', isReadOnly: false }
+			]);
+		});
+
+		test('remotes (invalid section)', () => {
+			const sample = `[remote "origin"
+	url = https://github.com/microsoft/vscode.git
+	pushurl = https://github.com/microsoft/vscode1.git
+	fetch = +refs/heads/*:refs/remotes/origin/*
+`;
+
+			assert.deepStrictEqual(parseGitRemotes(sample), []);
+		});
+	});
+
 	suite('parseGitCommit', () => {
 		test('single parent commit', function () {
 			const GIT_OUTPUT_SINGLE_PARENT = `52c293a05038d865604c2284aa8698bd087915a1
@@ -205,6 +276,7 @@ john.doe@mail.com
 1580811030
 1580811031
 8e5a374372b8393906c7e380dbb09349c5385554
+main,branch
 This is a commit message.\x00`;
 
 			assert.deepStrictEqual(parseGitCommits(GIT_OUTPUT_SINGLE_PARENT), [{
@@ -215,6 +287,7 @@ This is a commit message.\x00`;
 				authorName: 'John Doe',
 				authorEmail: 'john.doe@mail.com',
 				commitDate: new Date(1580811031000),
+				refNames: ['main', 'branch'],
 			}]);
 		});
 
@@ -225,6 +298,7 @@ john.doe@mail.com
 1580811030
 1580811031
 8e5a374372b8393906c7e380dbb09349c5385554 df27d8c75b129ab9b178b386077da2822101b217
+main
 This is a commit message.\x00`;
 
 			assert.deepStrictEqual(parseGitCommits(GIT_OUTPUT_MULTIPLE_PARENTS), [{
@@ -235,6 +309,7 @@ This is a commit message.\x00`;
 				authorName: 'John Doe',
 				authorEmail: 'john.doe@mail.com',
 				commitDate: new Date(1580811031000),
+				refNames: ['main'],
 			}]);
 		});
 
@@ -245,6 +320,7 @@ john.doe@mail.com
 1580811030
 1580811031
 
+main
 This is a commit message.\x00`;
 
 			assert.deepStrictEqual(parseGitCommits(GIT_OUTPUT_NO_PARENTS), [{
@@ -255,6 +331,7 @@ This is a commit message.\x00`;
 				authorName: 'John Doe',
 				authorEmail: 'john.doe@mail.com',
 				commitDate: new Date(1580811031000),
+				refNames: ['main'],
 			}]);
 		});
 	});

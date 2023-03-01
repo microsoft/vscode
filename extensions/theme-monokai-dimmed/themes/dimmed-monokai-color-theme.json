@@ -59,7 +59,8 @@
 		"terminal.ansiBrightBlue": "#819aff", // hue shifted #AE81FF
 		"terminal.ansiBrightMagenta": "#AE81FF",
 		"terminal.ansiBrightCyan": "#66D9EF",
-		"terminal.ansiBrightWhite": "#f8f8f2"
+		"terminal.ansiBrightWhite": "#f8f8f2",
+		"terminal.inactiveSelectionBackground": "#676b7140"
 	},
 	"tokenColors": [
 		{

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { VSBuffer } from 'vs/base/common/buffer';
+import { decodeBase64, encodeBase64, VSBuffer } from 'vs/base/common/buffer';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IDiffResult } from 'vs/base/common/diff/diff';
 import { Event } from 'vs/base/common/event';
@@ -15,23 +15,25 @@ import { basename } from 'vs/base/common/path';
 import { isWindows } from 'vs/base/common/platform';
 import { ISplice } from 'vs/base/common/sequence';
 import { URI, UriComponents } from 'vs/base/common/uri';
-import { ILineChange } from 'vs/editor/common/diff/diffComputer';
+import { ILineChange } from 'vs/editor/common/diff/smartLinesDiffComputer';
 import * as editorCommon from 'vs/editor/common/editorCommon';
-import { Command } from 'vs/editor/common/languages';
+import { Command, WorkspaceEditMetadata } from 'vs/editor/common/languages';
 import { IReadonlyTextBuffer } from 'vs/editor/common/model';
 import { IAccessibilityInformation } from 'vs/platform/accessibility/common/accessibility';
 import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IEditorModel } from 'vs/platform/editor/common/editor';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
-import { ThemeColor } from 'vs/platform/theme/common/themeService';
+import { ThemeColor } from 'vs/base/common/themables';
 import { UndoRedoGroup } from 'vs/platform/undoRedo/common/undoRedo';
 import { IRevertOptions, ISaveOptions, IUntypedEditorInput } from 'vs/workbench/common/editor';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
 import { ICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
 import { IWorkingCopyBackupMeta, IWorkingCopySaveEvent } from 'vs/workbench/services/workingCopy/common/workingCopy';
+import { IMarkdownString } from 'vs/base/common/htmlContent';
 
 export const NOTEBOOK_EDITOR_ID = 'workbench.editor.notebook';
 export const NOTEBOOK_DIFF_EDITOR_ID = 'workbench.editor.notebookTextDiffEditor';
+export const INTERACTIVE_WINDOW_EDITOR_ID = 'workbench.editor.interactive';
 
 
 export enum CellKind {
@@ -75,7 +77,7 @@ export const RENDERER_EQUIVALENT_EXTENSIONS: ReadonlyMap<string, ReadonlySet<str
 
 export const RENDERER_NOT_AVAILABLE = '_notAvailable';
 
-export type NotebookRendererEntrypoint = string | { extends: string; path: string };
+export type ContributedNotebookRendererEntrypoint = string | { readonly extends: string; readonly path: string };
 
 export enum NotebookRunState {
 	Running = 1,
@@ -104,11 +106,13 @@ export interface NotebookCellMetadata {
 }
 
 export interface NotebookCellInternalMetadata {
+	executionId?: string;
 	executionOrder?: number;
 	lastRunSuccess?: boolean;
 	runStartTime?: number;
 	runStartTimeAdjustment?: number;
 	runEndTime?: number;
+	renderDuration?: { [key: string]: number };
 }
 
 export interface NotebookCellCollapseState {
@@ -123,13 +127,15 @@ export interface NotebookCellDefaultCollapseConfig {
 
 export type InteractiveWindowCollapseCodeCells = 'always' | 'never' | 'fromEditor';
 
-export type TransientCellMetadata = { [K in keyof NotebookCellMetadata]?: boolean };
-export type TransientDocumentMetadata = { [K in keyof NotebookDocumentMetadata]?: boolean };
+export type TransientCellMetadata = { readonly [K in keyof NotebookCellMetadata]?: boolean };
+export type CellContentMetadata = { readonly [K in keyof NotebookCellMetadata]?: boolean };
+export type TransientDocumentMetadata = { readonly [K in keyof NotebookDocumentMetadata]?: boolean };
 
 export interface TransientOptions {
-	transientOutputs: boolean;
-	transientCellMetadata: TransientCellMetadata;
-	transientDocumentMetadata: TransientDocumentMetadata;
+	readonly transientOutputs: boolean;
+	readonly transientCellMetadata: TransientCellMetadata;
+	readonly transientDocumentMetadata: TransientDocumentMetadata;
+	readonly cellContentMetadata: CellContentMetadata;
 }
 
 /** Note: enum values are used for sorting */
@@ -156,19 +162,17 @@ export const enum RendererMessagingSpec {
 	Optional = 'optional',
 }
 
+export type NotebookRendererEntrypoint = { readonly extends: string | undefined; readonly path: URI };
+
 export interface INotebookRendererInfo {
-	id: string;
-	displayName: string;
-	extends?: string;
-	entrypoint: URI;
-	preloads: ReadonlyArray<URI>;
-	extensionLocation: URI;
-	extensionId: ExtensionIdentifier;
-	messaging: RendererMessagingSpec;
+	readonly id: string;
+	readonly displayName: string;
+	readonly entrypoint: NotebookRendererEntrypoint;
+	readonly extensionLocation: URI;
+	readonly extensionId: ExtensionIdentifier;
+	readonly messaging: RendererMessagingSpec;
 
 	readonly mimeTypes: readonly string[];
-
-	readonly dependencies: readonly string[];
 
 	readonly isBuiltin: boolean;
 
@@ -176,6 +180,11 @@ export interface INotebookRendererInfo {
 	matches(mimeType: string, kernelProvides: ReadonlyArray<string>): NotebookRendererMatch;
 }
 
+export interface INotebookStaticPreloadInfo {
+	readonly type: string;
+	readonly entrypoint: URI;
+	readonly extensionLocation: URI;
+}
 
 export interface IOrderedMimeType {
 	mimeType: string;
@@ -199,7 +208,7 @@ export interface ICellOutput {
 	metadata?: Record<string, any>;
 	outputId: string;
 	onDidChangeData: Event<void>;
-	replaceData(items: IOutputItemDto[]): void;
+	replaceData(items: IOutputDto): void;
 	appendData(items: IOutputItemDto[]): void;
 }
 
@@ -497,6 +506,14 @@ export interface ICellMoveEdit {
 export type IImmediateCellEditOperation = ICellOutputEditByHandle | ICellPartialMetadataEditByHandle | ICellOutputItemEdit | ICellPartialInternalMetadataEdit | ICellPartialInternalMetadataEditByHandle | ICellPartialMetadataEdit;
 export type ICellEditOperation = IImmediateCellEditOperation | ICellReplaceEdit | ICellOutputEdit | ICellMetadataEdit | ICellPartialMetadataEdit | ICellPartialInternalMetadataEdit | IDocumentMetadataEdit | ICellMoveEdit | ICellOutputItemEdit | ICellLanguageEdit;
 
+
+export interface IWorkspaceNotebookCellEdit {
+	metadata?: WorkspaceEditMetadata;
+	resource: URI;
+	notebookVersionId: number | undefined;
+	cellEdit: ICellPartialMetadataEdit | IDocumentMetadataEdit | ICellReplaceEdit;
+}
+
 export interface NotebookData {
 	readonly cells: ICellDto2[];
 	readonly metadata: NotebookDocumentMetadata;
@@ -516,30 +533,39 @@ export namespace CellUri {
 
 	export const scheme = Schemas.vscodeNotebookCell;
 
-	const _regex = /^ch(\d{7,})/;
+
+	const _lengths = ['W', 'X', 'Y', 'Z', 'a', 'b', 'c', 'd', 'e', 'f'];
+	const _padRegexp = new RegExp(`^[${_lengths.join('')}]+`);
+	const _radix = 7;
 
 	export function generate(notebook: URI, handle: number): URI {
-		return notebook.with({
-			scheme,
-			fragment: `ch${handle.toString().padStart(7, '0')}${notebook.scheme !== Schemas.file ? notebook.scheme : ''}`
-		});
+
+		const s = handle.toString(_radix);
+		const p = s.length < _lengths.length ? _lengths[s.length - 1] : 'z';
+
+		const fragment = `${p}${s}s${encodeBase64(VSBuffer.fromString(notebook.scheme), true, true)}`;
+		return notebook.with({ scheme, fragment });
 	}
 
 	export function parse(cell: URI): { notebook: URI; handle: number } | undefined {
 		if (cell.scheme !== scheme) {
 			return undefined;
 		}
-		const match = _regex.exec(cell.fragment);
-		if (!match) {
+
+		const idx = cell.fragment.indexOf('s');
+		if (idx < 0) {
 			return undefined;
 		}
-		const handle = Number(match[1]);
+
+		const handle = parseInt(cell.fragment.substring(0, idx).replace(_padRegexp, ''), _radix);
+		const _scheme = decodeBase64(cell.fragment.substring(idx + 1)).toString();
+
+		if (isNaN(handle)) {
+			return undefined;
+		}
 		return {
 			handle,
-			notebook: cell.with({
-				scheme: cell.fragment.substring(match[0].length) || Schemas.file,
-				fragment: null
-			})
+			notebook: cell.with({ scheme: _scheme, fragment: null })
 		};
 	}
 
@@ -571,29 +597,16 @@ export namespace CellUri {
 		};
 	}
 
-	export function generateCellUri(notebook: URI, handle: number, scheme: string): URI {
-		return notebook.with({
-			scheme: scheme,
-			fragment: `ch${handle.toString().padStart(7, '0')}${notebook.scheme !== Schemas.file ? notebook.scheme : ''}`
-		});
+	export function generateCellPropertyUri(notebook: URI, handle: number, scheme: string): URI {
+		return CellUri.generate(notebook, handle).with({ scheme: scheme });
 	}
 
-	export function parseCellUri(metadata: URI, scheme: string) {
-		if (metadata.scheme !== scheme) {
+	export function parseCellPropertyUri(uri: URI, propertyScheme: string) {
+		if (uri.scheme !== propertyScheme) {
 			return undefined;
 		}
-		const match = _regex.exec(metadata.fragment);
-		if (!match) {
-			return undefined;
-		}
-		const handle = Number(match[1]);
-		return {
-			handle,
-			notebook: metadata.with({
-				scheme: metadata.fragment.substring(match[0].length) || Schemas.file,
-				fragment: null
-			})
-		};
+
+		return CellUri.parse(uri.with({ scheme: scheme }));
 	}
 }
 
@@ -687,6 +700,7 @@ export class MimeTypeDisplayOrder {
 }
 
 interface IMutableSplice<T> extends ISplice<T> {
+	readonly toInsert: T[];
 	deleteCount: number;
 }
 
@@ -877,7 +891,7 @@ export interface INotebookCellStatusBarItem {
 	readonly text: string;
 	readonly color?: string | ThemeColor;
 	readonly backgroundColor?: string | ThemeColor;
-	readonly tooltip?: string;
+	readonly tooltip?: string | IMarkdownString;
 	readonly command?: string | Command;
 	readonly accessibilityInformation?: IAccessibilityInformation;
 	readonly opacity?: string;
@@ -909,24 +923,25 @@ export const NotebookSetting = {
 	cellEditorOptionsCustomizations: 'notebook.editorOptionsCustomizations',
 	consolidatedRunButton: 'notebook.consolidatedRunButton',
 	openGettingStarted: 'notebook.experimental.openGettingStarted',
-	textOutputLineLimit: 'notebook.output.textLineLimit',
 	globalToolbarShowLabel: 'notebook.globalToolbarShowLabel',
 	markupFontSize: 'notebook.markup.fontSize',
 	interactiveWindowCollapseCodeCells: 'interactiveWindow.collapseCellInputCode',
-	outputLineHeight: 'notebook.outputLineHeight',
-	outputFontSize: 'notebook.outputFontSize',
-	outputFontFamily: 'notebook.outputFontFamily'
+	kernelPickerType: 'notebook.kernelPicker.type',
+	outputScrolling: 'notebook.experimental.outputScrolling',
+	textOutputLineLimit: 'notebook.output.textLineLimit',
+	outputWordWrap: 'notebook.output.wordWrap',
+	outputLineHeightDeprecated: 'notebook.outputLineHeight',
+	outputLineHeight: 'notebook.output.lineHeight',
+	outputFontSizeDeprecated: 'notebook.outputFontSize',
+	outputFontSize: 'notebook.output.fontSize',
+	outputFontFamilyDeprecated: 'notebook.outputFontFamily',
+	outputFontFamily: 'notebook.output.fontFamily',
+	logging: 'notebook.logging',
 } as const;
 
 export const enum CellStatusbarAlignment {
 	Left = 1,
 	Right = 2
-}
-
-export interface INotebookDecorationRenderOptions {
-	backgroundColor?: string | ThemeColor;
-	borderColor?: string | ThemeColor;
-	top?: editorCommon.IContentDecorationRenderOptions;
 }
 
 export class NotebookWorkingCopyTypeIdentifier {
@@ -948,4 +963,109 @@ export class NotebookWorkingCopyTypeIdentifier {
 export interface NotebookExtensionDescription {
 	readonly id: ExtensionIdentifier;
 	readonly location: UriComponents | undefined;
+}
+
+/**
+ * Whether the provided mime type is a text stream like `stdout`, `stderr`.
+ */
+export function isTextStreamMime(mimeType: string) {
+	return ['application/vnd.code.notebook.stdout', 'application/vnd.code.notebook.stderr'].includes(mimeType);
+}
+
+
+const textDecoder = new TextDecoder();
+
+/**
+ * Given a stream of individual stdout outputs, this function will return the compressed lines, escaping some of the common terminal escape codes.
+ * E.g. some terminal escape codes would result in the previous line getting cleared, such if we had 3 lines and
+ * last line contained such a code, then the result string would be just the first two lines.
+ */
+export function compressOutputItemStreams(outputs: Uint8Array[]) {
+	const buffers: Uint8Array[] = [];
+	let startAppending = false;
+
+	// Pick the first set of outputs with the same mime type.
+	for (const output of outputs) {
+		if ((buffers.length === 0 || startAppending)) {
+			buffers.push(output);
+			startAppending = true;
+		}
+	}
+	compressStreamBuffer(buffers);
+	return formatStreamText(VSBuffer.concat(buffers.map(buffer => VSBuffer.wrap(buffer))));
+}
+const MOVE_CURSOR_1_LINE_COMMAND = `${String.fromCharCode(27)}[A`;
+const MOVE_CURSOR_1_LINE_COMMAND_BYTES = MOVE_CURSOR_1_LINE_COMMAND.split('').map(c => c.charCodeAt(0));
+const LINE_FEED = 10;
+function compressStreamBuffer(streams: Uint8Array[]) {
+	streams.forEach((stream, index) => {
+		if (index === 0 || stream.length < MOVE_CURSOR_1_LINE_COMMAND.length) {
+			return;
+		}
+
+		const previousStream = streams[index - 1];
+
+		// Remove the previous line if required.
+		const command = stream.subarray(0, MOVE_CURSOR_1_LINE_COMMAND.length);
+		if (command[0] === MOVE_CURSOR_1_LINE_COMMAND_BYTES[0] && command[1] === MOVE_CURSOR_1_LINE_COMMAND_BYTES[1] && command[2] === MOVE_CURSOR_1_LINE_COMMAND_BYTES[2]) {
+			const lastIndexOfLineFeed = previousStream.lastIndexOf(LINE_FEED);
+			if (lastIndexOfLineFeed === -1) {
+				return;
+			}
+			streams[index - 1] = previousStream.subarray(0, lastIndexOfLineFeed);
+			streams[index] = stream.subarray(MOVE_CURSOR_1_LINE_COMMAND.length);
+		}
+	});
+}
+
+
+
+/**
+ * Took this from jupyter/notebook
+ * https://github.com/jupyter/notebook/blob/b8b66332e2023e83d2ee04f83d8814f567e01a4e/notebook/static/base/js/utils.js
+ * Remove characters that are overridden by backspace characters
+ */
+function fixBackspace(txt: string) {
+	let tmp = txt;
+	do {
+		txt = tmp;
+		// Cancel out anything-but-newline followed by backspace
+		tmp = txt.replace(/[^\n]\x08/gm, '');
+	} while (tmp.length < txt.length);
+	return txt;
+}
+
+/**
+ * Remove chunks that should be overridden by the effect of carriage return characters
+ * From https://github.com/jupyter/notebook/blob/master/notebook/static/base/js/utils.js
+ */
+function fixCarriageReturn(txt: string) {
+	txt = txt.replace(/\r+\n/gm, '\n'); // \r followed by \n --> newline
+	while (txt.search(/\r[^$]/g) > -1) {
+		const base = txt.match(/^(.*)\r+/m)![1];
+		let insert = txt.match(/\r+(.*)$/m)![1];
+		insert = insert + base.slice(insert.length, base.length);
+		txt = txt.replace(/\r+.*$/m, '\r').replace(/^.*\r/m, insert);
+	}
+	return txt;
+}
+
+const BACKSPACE_CHARACTER = '\b'.charCodeAt(0);
+const CARRIAGE_RETURN_CHARACTER = '\r'.charCodeAt(0);
+function formatStreamText(buffer: VSBuffer): VSBuffer {
+	// We have special handling for backspace and carriage return characters.
+	// Don't unnecessary decode the bytes if we don't need to perform any processing.
+	if (!buffer.buffer.includes(BACKSPACE_CHARACTER) && !buffer.buffer.includes(CARRIAGE_RETURN_CHARACTER)) {
+		return buffer;
+	}
+	// Do the same thing jupyter is doing
+	return VSBuffer.fromString(fixCarriageReturn(fixBackspace(textDecoder.decode(buffer.buffer))));
+}
+
+export interface INotebookKernelSourceAction {
+	readonly label: string;
+	readonly description?: string;
+	readonly detail?: string;
+	readonly command?: string | Command;
+	readonly documentation?: UriComponents | string;
 }

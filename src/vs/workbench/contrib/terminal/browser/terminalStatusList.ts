@@ -11,7 +11,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { TerminalSettingId } from 'vs/platform/terminal/common/terminal';
 import { listErrorForeground, listWarningForeground } from 'vs/platform/theme/common/colorRegistry';
 import { spinningLoading } from 'vs/platform/theme/common/iconRegistry';
-import { ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { ThemeIcon } from 'vs/base/common/themables';
 import { IHoverAction } from 'vs/workbench/services/hover/browser/hover';
 
 /**
@@ -22,6 +22,7 @@ export const enum TerminalStatus {
 	Bell = 'bell',
 	Disconnected = 'disconnected',
 	RelaunchNeeded = 'relaunch-needed',
+	ShellIntegrationAttentionNeeded = 'shell-integration-attention-needed'
 }
 
 export interface ITerminalStatus {

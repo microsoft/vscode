@@ -65,10 +65,10 @@ export class ExplorerDecorationsProvider implements IDecorationsProvider {
 		return this._onDidChange.event;
 	}
 
-	provideDecorations(resource: URI): IDecorationData | undefined {
+	async provideDecorations(resource: URI): Promise<IDecorationData | undefined> {
 		const fileStat = this.explorerService.findClosest(resource);
 		if (!fileStat) {
-			return undefined;
+			throw new Error('ExplorerItem not found');
 		}
 
 		return provideDecorations(fileStat);

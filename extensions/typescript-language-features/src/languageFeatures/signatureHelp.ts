@@ -26,7 +26,7 @@ class TypeScriptSignatureHelpProvider implements vscode.SignatureHelpProvider {
 		token: vscode.CancellationToken,
 		context: vscode.SignatureHelpContext,
 	): Promise<vscode.SignatureHelp | undefined> {
-		const filepath = this.client.toOpenedFilePath(document);
+		const filepath = this.client.toOpenTsFilePath(document);
 		if (!filepath) {
 			return undefined;
 		}
@@ -64,7 +64,7 @@ class TypeScriptSignatureHelpProvider implements vscode.SignatureHelpProvider {
 
 	private getActiveParameter(info: Proto.SignatureHelpItems): number {
 		const activeSignature = info.items[info.selectedItemIndex];
-		if (activeSignature && activeSignature.isVariadic) {
+		if (activeSignature?.isVariadic) {
 			return Math.min(info.argumentIndex, activeSignature.parameters.length - 1);
 		}
 		return info.argumentIndex;

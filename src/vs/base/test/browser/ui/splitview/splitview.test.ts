@@ -62,7 +62,7 @@ class TestView implements IView<number> {
 }
 
 function getSashes(splitview: SplitView): Sash[] {
-	return (splitview as any).sashItems.map((i: any) => i.sash) as Sash[];
+	return splitview.sashItems.map((i: any) => i.sash) as Sash[];
 }
 
 suite('Splitview', () => {
@@ -271,7 +271,7 @@ suite('Splitview', () => {
 		splitview.addView(view2, Sizing.Distribute);
 		splitview.addView(view3, Sizing.Distribute);
 
-		let sashes = getSashes(splitview);
+		const sashes = getSashes(splitview);
 		assert.strictEqual(sashes.length, 2, 'there are two sashes');
 		assert.strictEqual(sashes[0].state, SashState.Enabled, 'first sash is enabled');
 		assert.strictEqual(sashes[1].state, SashState.Enabled, 'second sash is enabled');

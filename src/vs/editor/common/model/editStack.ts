@@ -8,7 +8,7 @@ import { onUnexpectedError } from 'vs/base/common/errors';
 import { Selection } from 'vs/editor/common/core/selection';
 import { EndOfLineSequence, ICursorStateComputer, IValidEditOperation, ITextModel } from 'vs/editor/common/model';
 import { TextModel } from 'vs/editor/common/model/textModel';
-import { IUndoRedoService, IResourceUndoRedoElement, UndoRedoElementType, IWorkspaceUndoRedoElement } from 'vs/platform/undoRedo/common/undoRedo';
+import { IUndoRedoService, IResourceUndoRedoElement, UndoRedoElementType, IWorkspaceUndoRedoElement, UndoRedoGroup } from 'vs/platform/undoRedo/common/undoRedo';
 import { URI } from 'vs/base/common/uri';
 import { TextChange, compressConsecutiveTextChanges } from 'vs/editor/common/core/textChange';
 import * as buffer from 'vs/base/common/buffer';
@@ -354,7 +354,7 @@ export class MultiModelEditStackElement implements IWorkspaceUndoRedoElement {
 	}
 
 	public toString(): string {
-		let result: string[] = [];
+		const result: string[] = [];
 		for (const editStackElement of this._editStackElementsArr) {
 			result.push(`${basename(editStackElement.resource)}: ${editStackElement}`);
 		}
@@ -408,24 +408,24 @@ export class EditStack {
 		this._undoRedoService.removeElements(this._model.uri);
 	}
 
-	private _getOrCreateEditStackElement(beforeCursorState: Selection[] | null): EditStackElement {
+	private _getOrCreateEditStackElement(beforeCursorState: Selection[] | null, group: UndoRedoGroup | undefined): EditStackElement {
 		const lastElement = this._undoRedoService.getLastElement(this._model.uri);
 		if (isEditStackElement(lastElement) && lastElement.canAppend(this._model)) {
 			return lastElement;
 		}
 		const newElement = new SingleModelEditStackElement(nls.localize('edit', "Typing"), 'undoredo.textBufferEdit', this._model, beforeCursorState);
-		this._undoRedoService.pushElement(newElement);
+		this._undoRedoService.pushElement(newElement, group);
 		return newElement;
 	}
 
 	public pushEOL(eol: EndOfLineSequence): void {
-		const editStackElement = this._getOrCreateEditStackElement(null);
+		const editStackElement = this._getOrCreateEditStackElement(null, undefined);
 		this._model.setEOL(eol);
 		editStackElement.append(this._model, [], getModelEOL(this._model), this._model.getAlternativeVersionId(), null);
 	}
 
-	public pushEditOperation(beforeCursorState: Selection[] | null, editOperations: ISingleEditOperation[], cursorStateComputer: ICursorStateComputer | null): Selection[] | null {
-		const editStackElement = this._getOrCreateEditStackElement(beforeCursorState);
+	public pushEditOperation(beforeCursorState: Selection[] | null, editOperations: ISingleEditOperation[], cursorStateComputer: ICursorStateComputer | null, group?: UndoRedoGroup): Selection[] | null {
+		const editStackElement = this._getOrCreateEditStackElement(beforeCursorState, group);
 		const inverseEditOperations = this._model.applyEdits(editOperations, true);
 		const afterCursorState = EditStack._computeCursorState(cursorStateComputer, inverseEditOperations);
 		const textChanges = inverseEditOperations.map((op, index) => ({ index: index, textChange: op.textChange }));

@@ -3,20 +3,22 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Disposable, DisposableMap } from 'vs/base/common/lifecycle';
+import { ILabelService, ResourceLabelFormatter } from 'vs/platform/label/common/label';
 import { MainContext, MainThreadLabelServiceShape } from 'vs/workbench/api/common/extHost.protocol';
 import { extHostNamedCustomer, IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
-import { ResourceLabelFormatter, ILabelService } from 'vs/platform/label/common/label';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 
 @extHostNamedCustomer(MainContext.MainThreadLabelService)
-export class MainThreadLabelService implements MainThreadLabelServiceShape {
+export class MainThreadLabelService extends Disposable implements MainThreadLabelServiceShape {
 
-	private readonly _resourceLabelFormatters = new Map<number, IDisposable>();
+	private readonly _resourceLabelFormatters = this._register(new DisposableMap<number>());
 
 	constructor(
 		_: IExtHostContext,
 		@ILabelService private readonly _labelService: ILabelService
-	) { }
+	) {
+		super();
+	}
 
 	$registerResourceLabelFormatter(handle: number, formatter: ResourceLabelFormatter): void {
 		// Dynamicily registered formatters should have priority over those contributed via package.json
@@ -26,11 +28,6 @@ export class MainThreadLabelService implements MainThreadLabelServiceShape {
 	}
 
 	$unregisterResourceLabelFormatter(handle: number): void {
-		dispose(this._resourceLabelFormatters.get(handle));
-		this._resourceLabelFormatters.delete(handle);
-	}
-
-	dispose(): void {
-		// noop
+		this._resourceLabelFormatters.deleteAndDispose(handle);
 	}
 }

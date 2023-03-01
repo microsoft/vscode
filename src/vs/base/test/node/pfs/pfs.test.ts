@@ -9,10 +9,13 @@ import { tmpdir } from 'os';
 import { timeout } from 'vs/base/common/async';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { randomPath } from 'vs/base/common/extpath';
+import { FileAccess } from 'vs/base/common/network';
 import { join, sep } from 'vs/base/common/path';
 import { isWindows } from 'vs/base/common/platform';
-import { Promises, RimRafMode, rimrafSync, SymlinkSupport, writeFileSync } from 'vs/base/node/pfs';
-import { flakySuite, getPathFromAmdModule, getRandomTestPath } from 'vs/base/test/node/testUtils';
+import { configureFlushOnWrite, Promises, RimRafMode, rimrafSync, SymlinkSupport, writeFileSync } from 'vs/base/node/pfs';
+import { flakySuite, getRandomTestPath } from 'vs/base/test/node/testUtils';
+
+configureFlushOnWrite(false); // speed up all unit tests by disabling flush on write
 
 flakySuite('PFS', function () {
 
@@ -88,6 +91,16 @@ flakySuite('PFS', function () {
 		assert.ok(!fs.existsSync(testDir));
 	});
 
+	test('rimraf - path does not exist - move', async () => {
+		const nonExistingDir = join(testDir, 'unknown-move');
+		await Promises.rm(nonExistingDir, RimRafMode.MOVE);
+	});
+
+	test('rimraf - path does not exist - unlink', async () => {
+		const nonExistingDir = join(testDir, 'unknown-unlink');
+		await Promises.rm(nonExistingDir, RimRafMode.UNLINK);
+	});
+
 	test('rimraf - recursive folder structure - unlink', async () => {
 		fs.writeFileSync(join(testDir, 'somefile.txt'), 'Contents');
 		fs.writeFileSync(join(testDir, 'someOtherFile.txt'), 'Contents');
@@ -153,7 +166,7 @@ flakySuite('PFS', function () {
 	});
 
 	test('copy, move and delete', async () => {
-		const sourceDir = getPathFromAmdModule(require, './fixtures');
+		const sourceDir = FileAccess.asFileUri('vs/base/test/node/pfs/fixtures').fsPath;
 		const parentDir = join(tmpdir(), 'vsctests', 'pfs');
 		const targetDir = randomPath(parentDir);
 		const targetDir2 = randomPath(parentDir);
@@ -368,24 +381,36 @@ flakySuite('PFS', function () {
 		const smallData = 'Hello World';
 		const bigData = (new Array(100 * 1024)).join('Large String\n');
 
-		return testWriteFileAndFlush(smallData, smallData, bigData, bigData);
+		return testWriteFile(smallData, smallData, bigData, bigData);
+	});
+
+	test('writeFile (string) - flush on write', async () => {
+		configureFlushOnWrite(true);
+		try {
+			const smallData = 'Hello World';
+			const bigData = (new Array(100 * 1024)).join('Large String\n');
+
+			return await testWriteFile(smallData, smallData, bigData, bigData);
+		} finally {
+			configureFlushOnWrite(false);
+		}
 	});
 
 	test('writeFile (Buffer)', async () => {
 		const smallData = 'Hello World';
 		const bigData = (new Array(100 * 1024)).join('Large String\n');
 
-		return testWriteFileAndFlush(Buffer.from(smallData), smallData, Buffer.from(bigData), bigData);
+		return testWriteFile(Buffer.from(smallData), smallData, Buffer.from(bigData), bigData);
 	});
 
 	test('writeFile (UInt8Array)', async () => {
 		const smallData = 'Hello World';
 		const bigData = (new Array(100 * 1024)).join('Large String\n');
 
-		return testWriteFileAndFlush(VSBuffer.fromString(smallData).buffer, smallData, VSBuffer.fromString(bigData).buffer, bigData);
+		return testWriteFile(VSBuffer.fromString(smallData).buffer, smallData, VSBuffer.fromString(bigData).buffer, bigData);
 	});
 
-	async function testWriteFileAndFlush(
+	async function testWriteFile(
 		smallData: string | Buffer | Uint8Array,
 		smallDataValue: string,
 		bigData: string | Buffer | Uint8Array,

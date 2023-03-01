@@ -14,7 +14,11 @@ export enum StorageHint {
 	// does not exist on disk yet. This allows
 	// the storage library to improve startup
 	// time by not checking the storage for data.
-	STORAGE_DOES_NOT_EXIST
+	STORAGE_DOES_NOT_EXIST,
+
+	// A hint to the storage that the storage
+	// is backed by an in-memory storage.
+	STORAGE_IN_MEMORY
 }
 
 export interface IStorageOptions {
@@ -339,6 +343,10 @@ export class Storage extends Disposable implements IStorage {
 		return new Promise(resolve => this.whenFlushedCallbacks.push(resolve));
 	}
 
+	isInMemory(): boolean {
+		return this.options.hint === StorageHint.STORAGE_IN_MEMORY;
+	}
+
 	override dispose(): void {
 		this.flushDelayer.dispose();
 
@@ -357,13 +365,9 @@ export class InMemoryStorageDatabase implements IStorageDatabase {
 	}
 
 	async updateItems(request: IUpdateRequest): Promise<void> {
-		if (request.insert) {
-			request.insert.forEach((value, key) => this.items.set(key, value));
-		}
+		request.insert?.forEach((value, key) => this.items.set(key, value));
 
-		if (request.delete) {
-			request.delete.forEach(key => this.items.delete(key));
-		}
+		request.delete?.forEach(key => this.items.delete(key));
 	}
 
 	async close(): Promise<void> { }

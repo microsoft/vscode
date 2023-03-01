@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { StandardTokenType } from 'vs/editor/common/languages';
+import { StandardTokenType } from 'vs/editor/common/encodedTokenAttributes';
 import * as fs from 'fs';
 // import { getPathFromAmdModule } from 'vs/base/test/node/testUtils';
 // import { parse } from 'vs/editor/common/modes/tokenization/typescript';

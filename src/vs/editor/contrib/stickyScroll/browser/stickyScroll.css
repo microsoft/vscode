@@ -1,0 +1,44 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.monaco-editor .sticky-line {
+	color: var(--vscode-editorLineNumber-foreground);
+	overflow: hidden;
+	white-space: nowrap;
+	display: inline-block;
+}
+
+.monaco-editor .sticky-line-number {
+	text-align: right;
+	float: left;
+}
+
+.monaco-editor .sticky-line-root {
+	background-color: inherit;
+	overflow: hidden;
+	white-space: nowrap;
+	width: 100%;
+}
+
+.monaco-editor.hc-black .sticky-widget,
+.monaco-editor.hc-light .sticky-widget {
+	border-bottom: 1px solid var(--vscode-contrastBorder);
+}
+
+.monaco-editor .sticky-line-root:hover {
+	background-color: var(--vscode-editorStickyScrollHover-background);
+	cursor: pointer;
+}
+
+.monaco-editor .sticky-widget {
+	width: 100%;
+	box-shadow: var(--vscode-scrollbar-shadow) 0 3px 2px -2px;
+	z-index: 11;
+	background-color: var(--vscode-editorStickyScroll-background);
+}
+
+.monaco-editor .sticky-widget.peek {
+	background-color: var(--vscode-peekViewEditorStickyScroll-background);
+}

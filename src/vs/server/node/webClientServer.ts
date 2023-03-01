@@ -61,7 +61,7 @@ export async function serveFile(filePath: string, cacheControl: CacheControl, lo
 			const etag = `W/"${[stat.ino, stat.size, stat.mtime.getTime()].join('-')}"`; // weak validator (https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/ETag)
 			if (req.headers['if-none-match'] === etag) {
 				res.writeHead(304);
-				return res.end();
+				return void res.end();
 			}
 
 			responseHeaders['Etag'] = etag;
@@ -86,11 +86,11 @@ export async function serveFile(filePath: string, cacheControl: CacheControl, lo
 		}
 
 		res.writeHead(404, { 'Content-Type': 'text/plain' });
-		return res.end('Not found');
+		return void res.end('Not found');
 	}
 }
 
-const APP_ROOT = dirname(FileAccess.asFileUri('', require).fsPath);
+const APP_ROOT = dirname(FileAccess.asFileUri('').fsPath);
 
 export class WebClientServer {
 
@@ -232,7 +232,7 @@ export class WebClientServer {
 		setResponseHeader('Content-Type');
 		res.writeHead(200, responseHeaders);
 		const buffer = await streamToBuffer(context.stream);
-		return res.end(buffer.buffer);
+		return void res.end(buffer.buffer);
 	}
 
 	/**
@@ -255,7 +255,7 @@ export class WebClientServer {
 			);
 
 			const newQuery = Object.create(null);
-			for (let key in parsedUrl.query) {
+			for (const key in parsedUrl.query) {
 				if (key !== connectionTokenQueryName) {
 					newQuery[key] = parsedUrl.query[key];
 				}
@@ -264,14 +264,15 @@ export class WebClientServer {
 			responseHeaders['Location'] = newLocation;
 
 			res.writeHead(302, responseHeaders);
-			return res.end();
+			return void res.end();
 		}
 
-		let originalHost = req.headers['x-original-host'];
-		if (Array.isArray(originalHost)) {
-			originalHost = originalHost[0];
-		}
-		const remoteAuthority = originalHost || req.headers.host;
+		const getFirstHeader = (headerName: string) => {
+			const val = req.headers[headerName];
+			return Array.isArray(val) ? val[0] : val;
+		};
+
+		const remoteAuthority = getFirstHeader('x-original-host') || getFirstHeader('x-forwarded-host') || req.headers.host;
 		if (!remoteAuthority) {
 			return serveError(req, res, 400, `Bad request.`);
 		}
@@ -289,7 +290,7 @@ export class WebClientServer {
 
 		const resolveWorkspaceURI = (defaultLocation?: string) => defaultLocation && URI.file(path.resolve(defaultLocation)).with({ scheme: Schemas.vscodeRemote, authority: remoteAuthority });
 
-		const filePath = FileAccess.asFileUri(this._environmentService.isBuilt ? 'vs/code/browser/workbench/workbench.html' : 'vs/code/browser/workbench/workbench-dev.html', require).fsPath;
+		const filePath = FileAccess.asFileUri(this._environmentService.isBuilt ? 'vs/code/browser/workbench/workbench.html' : 'vs/code/browser/workbench/workbench-dev.html').fsPath;
 		const authSessionInfo = !this._environmentService.isBuilt && this._environmentService.args['github-auth'] ? {
 			id: generateUuid(),
 			providerId: 'github',
@@ -301,7 +302,7 @@ export class WebClientServer {
 		const workbenchWebConfiguration = {
 			remoteAuthority,
 			_wrapWebWorkerExtHostInIframe,
-			developmentOptions: { enableSmokeTestDriver: this._environmentService.args['enable-smoke-test-driver'] ? true : undefined },
+			developmentOptions: { enableSmokeTestDriver: this._environmentService.args['enable-smoke-test-driver'] ? true : undefined, logLevel: this._logService.getLevel() },
 			settingsSyncOptions: !this._environmentService.isBuilt && this._environmentService.args['enable-sync'] ? { enabled: true } : undefined,
 			enableWorkspaceTrust: !this._environmentService.args['disable-workspace-trust'],
 			folderUri: resolveWorkspaceURI(this._environmentService.args['default-folder']),
@@ -320,10 +321,12 @@ export class WebClientServer {
 			callbackRoute: this._callbackRoute
 		};
 
+		const nlsBaseUrl = this._productService.extensionsGallery?.nlsBaseUrl;
 		const values: { [key: string]: string } = {
 			WORKBENCH_WEB_CONFIGURATION: asJSON(workbenchWebConfiguration),
 			WORKBENCH_AUTH_SESSION: authSessionInfo ? asJSON(authSessionInfo) : '',
 			WORKBENCH_WEB_BASE_URL: this._staticRoute,
+			WORKBENCH_NLS_BASE_URL: nlsBaseUrl ? `${nlsBaseUrl}${!nlsBaseUrl.endsWith('/') ? '/' : ''}${this._productService.commit}/${this._productService.version}/` : '',
 		};
 
 
@@ -333,7 +336,7 @@ export class WebClientServer {
 			data = workbenchTemplate.replace(/\{\{([^}]+)\}\}/g, (_, key) => values[key] ?? 'undefined');
 		} catch (e) {
 			res.writeHead(404, { 'Content-Type': 'text/plain' });
-			return res.end('Not found');
+			return void res.end('Not found');
 		}
 
 		const cspDirectives = [
@@ -343,7 +346,7 @@ export class WebClientServer {
 			`script-src 'self' 'unsafe-eval' ${this._getScriptCspHashes(data).join(' ')} 'sha256-fh3TwPMflhsEIpR8g1OYTIMVWhXTLcjQ9kh2tIpmv54=' http://${remoteAuthority};`, // the sha is the same as in src/vs/workbench/services/extensions/worker/webWorkerExtensionHostIframe.html
 			'child-src \'self\';',
 			`frame-src 'self' https://*.vscode-cdn.net data:;`,
-			'worker-src \'self\' data:;',
+			'worker-src \'self\' data: blob:;',
 			'style-src \'self\' \'unsafe-inline\';',
 			'connect-src \'self\' ws: wss: https:;',
 			'font-src \'self\' blob:;',
@@ -369,7 +372,7 @@ export class WebClientServer {
 		}
 
 		res.writeHead(200, headers);
-		return res.end(data);
+		return void res.end(data);
 	}
 
 	private _getScriptCspHashes(content: string): string[] {
@@ -395,7 +398,7 @@ export class WebClientServer {
 	 * Handle HTTP requests for /callback
 	 */
 	private async _handleCallback(res: http.ServerResponse): Promise<void> {
-		const filePath = FileAccess.asFileUri('vs/code/browser/workbench/callback.html', require).fsPath;
+		const filePath = FileAccess.asFileUri('vs/code/browser/workbench/callback.html').fsPath;
 		const data = (await fsp.readFile(filePath)).toString();
 		const cspDirectives = [
 			'default-src \'self\';',
@@ -410,6 +413,6 @@ export class WebClientServer {
 			'Content-Type': 'text/html',
 			'Content-Security-Policy': cspDirectives
 		});
-		return res.end(data);
+		return void res.end(data);
 	}
 }

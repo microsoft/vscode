@@ -23,6 +23,7 @@ import { resolveMarketplaceHeaders } from 'vs/platform/externalServices/common/m
 import { InMemoryStorageService, IStorageService } from 'vs/platform/storage/common/storage';
 import { TelemetryConfiguration, TELEMETRY_SETTING_ID } from 'vs/platform/telemetry/common/telemetry';
 import { TargetPlatform } from 'vs/platform/extensions/common/extensions';
+import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
 
 class EnvironmentServiceMock extends mock<IEnvironmentService>() {
 	override readonly serviceMachineIdResource: URI;
@@ -52,9 +53,9 @@ suite('Extension Gallery Service', () => {
 	teardown(() => disposables.clear());
 
 	test('marketplace machine id', async () => {
-		const headers = await resolveMarketplaceHeaders(product.version, productService, environmentService, configurationService, fileService, storageService);
+		const headers = await resolveMarketplaceHeaders(product.version, productService, environmentService, configurationService, fileService, storageService, NullTelemetryService);
 		assert.ok(isUUID(headers['X-Market-User-Id']));
-		const headers2 = await resolveMarketplaceHeaders(product.version, productService, environmentService, configurationService, fileService, storageService);
+		const headers2 = await resolveMarketplaceHeaders(product.version, productService, environmentService, configurationService, fileService, storageService, NullTelemetryService);
 		assert.strictEqual(headers['X-Market-User-Id'], headers2['X-Market-User-Id']);
 	});
 

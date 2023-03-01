@@ -24,10 +24,10 @@ import { IFileService, FileChangeType } from 'vs/platform/files/common/files';
 import { URI } from 'vs/base/common/uri';
 import * as resources from 'vs/base/common/resources';
 import { registerColorThemeSchemas } from 'vs/workbench/services/themes/common/colorThemeSchema';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { getRemoteAuthority } from 'vs/platform/remote/common/remoteHosts';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
-import { IExtensionResourceLoaderService } from 'vs/workbench/services/extensionResourceLoader/common/extensionResourceLoader';
+import { IExtensionResourceLoaderService } from 'vs/platform/extensionResourceLoader/common/extensionResourceLoader';
 import { ThemeRegistry, registerColorThemeExtensionPoint, registerFileIconThemeExtensionPoint, registerProductIconThemeExtensionPoint } from 'vs/workbench/services/themes/common/themeExtensionPoints';
 import { updateColorThemeConfigurationSchemas, updateFileIconThemeConfigurationSchemas, ThemeConfiguration, updateProductIconThemeConfigurationSchemas } from 'vs/workbench/services/themes/common/themeConfiguration';
 import { ProductIconThemeData, DEFAULT_PRODUCT_ICON_THEME_ID } from 'vs/workbench/services/themes/browser/productIconThemeData';
@@ -48,6 +48,7 @@ const DEFAULT_COLOR_THEME_ID = 'vs-dark vscode-theme-defaults-themes-dark_plus-j
 const DEFAULT_LIGHT_COLOR_THEME_ID = 'vs vscode-theme-defaults-themes-light_plus-json';
 
 const PERSISTED_OS_COLOR_SCHEME = 'osColorScheme';
+const PERSISTED_OS_COLOR_SCHEME_SCOPE = StorageScope.APPLICATION; // the OS scheme depends on settings in the OS
 
 const defaultThemeExtensionId = 'vscode-theme-defaults';
 
@@ -108,14 +109,14 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 		@IStorageService private readonly storageService: IStorageService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
-		@IBrowserWorkbenchEnvironmentService readonly environmentService: IBrowserWorkbenchEnvironmentService,
+		@IBrowserWorkbenchEnvironmentService private readonly environmentService: IBrowserWorkbenchEnvironmentService,
 		@IFileService fileService: IFileService,
 		@IExtensionResourceLoaderService private readonly extensionResourceLoaderService: IExtensionResourceLoaderService,
-		@IWorkbenchLayoutService readonly layoutService: IWorkbenchLayoutService,
+		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
 		@ILogService private readonly logService: ILogService,
 		@IHostColorSchemeService private readonly hostColorService: IHostColorSchemeService,
-		@IUserDataInitializationService readonly userDataInitializationService: IUserDataInitializationService,
-		@ILanguageService readonly languageService: ILanguageService
+		@IUserDataInitializationService userDataInitializationService: IUserDataInitializationService,
+		@ILanguageService languageService: ILanguageService
 	) {
 		this.container = layoutService.container;
 		this.settings = new ThemeConfiguration(configurationService);
@@ -151,7 +152,7 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 		// the preferred color scheme (high contrast, light, dark) has changed since the last start
 		const preferredColorScheme = this.getPreferredColorScheme();
 
-		if (preferredColorScheme && themeData?.type !== preferredColorScheme && this.storageService.get(PERSISTED_OS_COLOR_SCHEME, StorageScope.GLOBAL) !== preferredColorScheme) {
+		if (preferredColorScheme && themeData?.type !== preferredColorScheme && this.storageService.get(PERSISTED_OS_COLOR_SCHEME, PERSISTED_OS_COLOR_SCHEME_SCOPE) !== preferredColorScheme) {
 			themeData = ColorThemeData.createUnloadedThemeForThemeType(preferredColorScheme);
 		}
 		if (!themeData) {
@@ -209,9 +210,9 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 			const theme = this.colorThemeRegistry.findThemeBySettingsId(this.settings.colorTheme, fallbackTheme);
 
 			const preferredColorScheme = this.getPreferredColorScheme();
-			const prevScheme = this.storageService.get(PERSISTED_OS_COLOR_SCHEME, StorageScope.GLOBAL);
+			const prevScheme = this.storageService.get(PERSISTED_OS_COLOR_SCHEME, PERSISTED_OS_COLOR_SCHEME_SCOPE);
 			if (preferredColorScheme !== prevScheme) {
-				this.storageService.store(PERSISTED_OS_COLOR_SCHEME, preferredColorScheme, StorageScope.GLOBAL, StorageTarget.USER);
+				this.storageService.store(PERSISTED_OS_COLOR_SCHEME, preferredColorScheme, PERSISTED_OS_COLOR_SCHEME_SCOPE, StorageTarget.USER);
 				if (preferredColorScheme && theme?.type !== preferredColorScheme) {
 					return this.applyPreferredColorTheme(preferredColorScheme);
 				}
@@ -372,9 +373,9 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 
 	private async handlePreferredSchemeUpdated() {
 		const scheme = this.getPreferredColorScheme();
-		const prevScheme = this.storageService.get(PERSISTED_OS_COLOR_SCHEME, StorageScope.GLOBAL);
+		const prevScheme = this.storageService.get(PERSISTED_OS_COLOR_SCHEME, PERSISTED_OS_COLOR_SCHEME_SCOPE);
 		if (scheme !== prevScheme) {
-			this.storageService.store(PERSISTED_OS_COLOR_SCHEME, scheme, StorageScope.GLOBAL, StorageTarget.MACHINE);
+			this.storageService.store(PERSISTED_OS_COLOR_SCHEME, scheme, PERSISTED_OS_COLOR_SCHEME_SCOPE, StorageTarget.MACHINE);
 			if (scheme) {
 				if (!prevScheme) {
 					// remember the theme before scheme switching
@@ -579,11 +580,13 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 			const key = themeType + themeData.extensionId;
 			if (!this.themeExtensionsActivated.get(key)) {
 				type ActivatePluginClassification = {
-					id: { classification: 'PublicNonPersonalData'; purpose: 'FeatureInsight' };
-					name: { classification: 'PublicNonPersonalData'; purpose: 'FeatureInsight' };
-					isBuiltin: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true };
-					publisherDisplayName: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
-					themeId: { classification: 'PublicNonPersonalData'; purpose: 'FeatureInsight' };
+					owner: 'aeschli';
+					comment: 'An event is fired when an color theme extension is first used as it provides the currently shown color theme.';
+					id: { classification: 'PublicNonPersonalData'; purpose: 'FeatureInsight'; comment: 'The extension id.' };
+					name: { classification: 'PublicNonPersonalData'; purpose: 'FeatureInsight'; comment: 'The extension name.' };
+					isBuiltin: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the extension is a built-in extension.' };
+					publisherDisplayName: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The extension publisher id.' };
+					themeId: { classification: 'PublicNonPersonalData'; purpose: 'FeatureInsight'; comment: 'The id of the theme that triggered the first extension use.' };
 				};
 				type ActivatePluginEvent = {
 					id: string;
@@ -860,4 +863,7 @@ registerColorThemeSchemas();
 registerFileIconThemeSchemas();
 registerProductIconThemeSchemas();
 
-registerSingleton(IWorkbenchThemeService, WorkbenchThemeService);
+// The WorkbenchThemeService should stay eager as the constructor restores the
+// last used colors / icons from storage. This needs to happen as quickly as possible
+// for a flicker-free startup experience.
+registerSingleton(IWorkbenchThemeService, WorkbenchThemeService, InstantiationType.Eager);

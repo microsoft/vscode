@@ -9,6 +9,7 @@ import { Event } from 'vs/base/common/event';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
 import { URI } from 'vs/base/common/uri';
+import { runWithFakedTimers } from 'vs/base/test/common/timeTravelScheduler';
 import { ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
 import { ConfigurationService } from 'vs/platform/configuration/common/configurationService';
@@ -16,8 +17,8 @@ import { IFileService } from 'vs/platform/files/common/files';
 import { FileService } from 'vs/platform/files/common/fileService';
 import { InMemoryFileSystemProvider } from 'vs/platform/files/common/inMemoryFilesystemProvider';
 import { NullLogService } from 'vs/platform/log/common/log';
+import { NullPolicyService } from 'vs/platform/policy/common/policy';
 import { Registry } from 'vs/platform/registry/common/platform';
-
 
 suite('ConfigurationService', () => {
 
@@ -34,9 +35,9 @@ suite('ConfigurationService', () => {
 
 	teardown(() => disposables.clear());
 
-	test('simple', async () => {
+	test('simple', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		await fileService.writeFile(settingsResource, VSBuffer.fromString('{ "foo": "bar" }'));
-		const testObject = disposables.add(new ConfigurationService(settingsResource, fileService));
+		const testObject = disposables.add(new ConfigurationService(settingsResource, fileService, new NullPolicyService(), new NullLogService()));
 		await testObject.initialize();
 		const config = testObject.getValue<{
 			foo: string;
@@ -44,12 +45,12 @@ suite('ConfigurationService', () => {
 
 		assert.ok(config);
 		assert.strictEqual(config.foo, 'bar');
-	});
+	}));
 
-	test('config gets flattened', async () => {
+	test('config gets flattened', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		await fileService.writeFile(settingsResource, VSBuffer.fromString('{ "testworkbench.editor.tabs": true }'));
 
-		const testObject = disposables.add(new ConfigurationService(settingsResource, fileService));
+		const testObject = disposables.add(new ConfigurationService(settingsResource, fileService, new NullPolicyService(), new NullLogService()));
 		await testObject.initialize();
 		const config = testObject.getValue<{
 			testworkbench: {
@@ -63,31 +64,31 @@ suite('ConfigurationService', () => {
 		assert.ok(config.testworkbench);
 		assert.ok(config.testworkbench.editor);
 		assert.strictEqual(config.testworkbench.editor.tabs, true);
-	});
+	}));
 
-	test('error case does not explode', async () => {
+	test('error case does not explode', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		await fileService.writeFile(settingsResource, VSBuffer.fromString(',,,,'));
 
-		const testObject = disposables.add(new ConfigurationService(settingsResource, fileService));
+		const testObject = disposables.add(new ConfigurationService(settingsResource, fileService, new NullPolicyService(), new NullLogService()));
 		await testObject.initialize();
 		const config = testObject.getValue<{
 			foo: string;
 		}>();
 
 		assert.ok(config);
-	});
+	}));
 
-	test('missing file does not explode', async () => {
-		const testObject = disposables.add(new ConfigurationService(URI.file('__testFile'), fileService));
+	test('missing file does not explode', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		const testObject = disposables.add(new ConfigurationService(URI.file('__testFile'), fileService, new NullPolicyService(), new NullLogService()));
 		await testObject.initialize();
 
 		const config = testObject.getValue<{ foo: string }>();
 
 		assert.ok(config);
-	});
+	}));
 
-	test('trigger configuration change event when file does not exist', async () => {
-		const testObject = disposables.add(new ConfigurationService(settingsResource, fileService));
+	test('trigger configuration change event when file does not exist', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		const testObject = disposables.add(new ConfigurationService(settingsResource, fileService, new NullPolicyService(), new NullLogService()));
 		await testObject.initialize();
 		return new Promise<void>((c, e) => {
 			disposables.add(Event.filter(testObject.onDidChangeConfiguration, e => e.source === ConfigurationTarget.USER)(() => {
@@ -97,10 +98,10 @@ suite('ConfigurationService', () => {
 			fileService.writeFile(settingsResource, VSBuffer.fromString('{ "foo": "bar" }')).catch(e);
 		});
 
-	});
+	}));
 
-	test('trigger configuration change event when file exists', async () => {
-		const testObject = disposables.add(new ConfigurationService(settingsResource, fileService));
+	test('trigger configuration change event when file exists', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		const testObject = disposables.add(new ConfigurationService(settingsResource, fileService, new NullPolicyService(), new NullLogService()));
 		await fileService.writeFile(settingsResource, VSBuffer.fromString('{ "foo": "bar" }'));
 		await testObject.initialize();
 
@@ -111,12 +112,12 @@ suite('ConfigurationService', () => {
 			}));
 			fileService.writeFile(settingsResource, VSBuffer.fromString('{ "foo": "barz" }'));
 		});
-	});
+	}));
 
-	test('reloadConfiguration', async () => {
+	test('reloadConfiguration', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		await fileService.writeFile(settingsResource, VSBuffer.fromString('{ "foo": "bar" }'));
 
-		const testObject = disposables.add(new ConfigurationService(settingsResource, fileService));
+		const testObject = disposables.add(new ConfigurationService(settingsResource, fileService, new NullPolicyService(), new NullLogService()));
 		await testObject.initialize();
 		let config = testObject.getValue<{
 			foo: string;
@@ -132,9 +133,9 @@ suite('ConfigurationService', () => {
 		}>();
 		assert.ok(config);
 		assert.strictEqual(config.foo, 'changed');
-	});
+	}));
 
-	test('model defaults', async () => {
+	test('model defaults', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		interface ITestSetting {
 			configuration: {
 				service: {
@@ -155,7 +156,7 @@ suite('ConfigurationService', () => {
 			}
 		});
 
-		let testObject = disposables.add(new ConfigurationService(URI.file('__testFile'), fileService));
+		let testObject = disposables.add(new ConfigurationService(URI.file('__testFile'), fileService, new NullPolicyService(), new NullLogService()));
 		await testObject.initialize();
 		let setting = testObject.getValue<ITestSetting>();
 
@@ -163,7 +164,8 @@ suite('ConfigurationService', () => {
 		assert.strictEqual(setting.configuration.service.testSetting, 'isSet');
 
 		await fileService.writeFile(settingsResource, VSBuffer.fromString('{ "testworkbench.editor.tabs": true }'));
-		testObject = disposables.add(new ConfigurationService(settingsResource, fileService));
+		testObject = disposables.add(new ConfigurationService(settingsResource, fileService, new NullPolicyService(), new NullLogService()));
+		await testObject.initialize();
 
 		setting = testObject.getValue<ITestSetting>();
 
@@ -176,9 +178,9 @@ suite('ConfigurationService', () => {
 		setting = testObject.getValue<ITestSetting>();
 		assert.ok(setting);
 		assert.strictEqual(setting.configuration.service.testSetting, 'isChanged');
-	});
+	}));
 
-	test('lookup', async () => {
+	test('lookup', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
 		configurationRegistry.registerConfiguration({
 			'id': '_test',
@@ -191,8 +193,8 @@ suite('ConfigurationService', () => {
 			}
 		});
 
-		const testObject = disposables.add(new ConfigurationService(settingsResource, fileService));
-		testObject.initialize();
+		const testObject = disposables.add(new ConfigurationService(settingsResource, fileService, new NullPolicyService(), new NullLogService()));
+		await testObject.initialize();
 
 		let res = testObject.inspect('something.missing');
 		assert.strictEqual(res.value, undefined);
@@ -212,9 +214,9 @@ suite('ConfigurationService', () => {
 		assert.strictEqual(res.userValue, 'bar');
 		assert.strictEqual(res.value, 'bar');
 
-	});
+	}));
 
-	test('lookup with null', async () => {
+	test('lookup with null', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
 		configurationRegistry.registerConfiguration({
 			'id': '_testNull',
@@ -226,8 +228,8 @@ suite('ConfigurationService', () => {
 			}
 		});
 
-		const testObject = disposables.add(new ConfigurationService(settingsResource, fileService));
-		testObject.initialize();
+		const testObject = disposables.add(new ConfigurationService(settingsResource, fileService, new NullPolicyService(), new NullLogService()));
+		await testObject.initialize();
 
 		let res = testObject.inspect('lookup.service.testNullSetting');
 		assert.strictEqual(res.defaultValue, null);
@@ -242,5 +244,5 @@ suite('ConfigurationService', () => {
 		assert.strictEqual(res.defaultValue, null);
 		assert.strictEqual(res.value, null);
 		assert.strictEqual(res.userValue, null);
-	});
+	}));
 });

@@ -49,6 +49,9 @@ export function getHTMLMode(htmlLanguageService: HTMLLanguageService, workspace:
 			} else {
 				formatSettings.contentUnformatted = 'script';
 			}
+			if (formatParams.insertFinalNewline) {
+				formatSettings.endWithNewline = true;
+			}
 			merge(formatParams, formatSettings);
 			return htmlLanguageService.format(document, range, formatSettings);
 		},

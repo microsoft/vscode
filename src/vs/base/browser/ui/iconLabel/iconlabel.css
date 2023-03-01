@@ -31,6 +31,9 @@
 	flex-shrink: 0; /* fix for https://github.com/microsoft/vscode/issues/13787 */
 }
 
+.monaco-icon-label-container.disabled {
+	color: var(--vscode-disabledForeground);
+}
 .monaco-icon-label > .monaco-icon-label-container {
 	min-width: 0;
 	overflow: hidden;

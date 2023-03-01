@@ -5,13 +5,13 @@
 
 import * as assert from 'assert';
 import { EVENT_KEY_CODE_MAP, IMMUTABLE_CODE_TO_KEY_CODE, IMMUTABLE_KEY_CODE_TO_CODE, KeyChord, KeyCode, KeyCodeUtils, KeyMod, NATIVE_WINDOWS_KEY_CODE_TO_KEY_CODE, ScanCode, ScanCodeUtils } from 'vs/base/common/keyCodes';
-import { ChordKeybinding, createKeybinding, Keybinding, SimpleKeybinding } from 'vs/base/common/keybindings';
+import { decodeKeybinding, KeyCodeChord, Keybinding } from 'vs/base/common/keybindings';
 import { OperatingSystem } from 'vs/base/common/platform';
 
 suite('keyCodes', () => {
 
 	function testBinaryEncoding(expected: Keybinding | null, k: number, OS: OperatingSystem): void {
-		assert.deepStrictEqual(createKeybinding(k, OS), expected);
+		assert.deepStrictEqual(decodeKeybinding(k, OS), expected);
 	}
 
 	test('mapping for Minus', () => {
@@ -56,34 +56,34 @@ suite('keyCodes', () => {
 		}
 
 		test(null, 0);
-		test(new SimpleKeybinding(false, false, false, false, KeyCode.Enter).toChord(), KeyCode.Enter);
-		test(new SimpleKeybinding(true, false, false, false, KeyCode.Enter).toChord(), KeyMod.WinCtrl | KeyCode.Enter);
-		test(new SimpleKeybinding(false, false, true, false, KeyCode.Enter).toChord(), KeyMod.Alt | KeyCode.Enter);
-		test(new SimpleKeybinding(true, false, true, false, KeyCode.Enter).toChord(), KeyMod.Alt | KeyMod.WinCtrl | KeyCode.Enter);
-		test(new SimpleKeybinding(false, true, false, false, KeyCode.Enter).toChord(), KeyMod.Shift | KeyCode.Enter);
-		test(new SimpleKeybinding(true, true, false, false, KeyCode.Enter).toChord(), KeyMod.Shift | KeyMod.WinCtrl | KeyCode.Enter);
-		test(new SimpleKeybinding(false, true, true, false, KeyCode.Enter).toChord(), KeyMod.Shift | KeyMod.Alt | KeyCode.Enter);
-		test(new SimpleKeybinding(true, true, true, false, KeyCode.Enter).toChord(), KeyMod.Shift | KeyMod.Alt | KeyMod.WinCtrl | KeyCode.Enter);
-		test(new SimpleKeybinding(false, false, false, true, KeyCode.Enter).toChord(), KeyMod.CtrlCmd | KeyCode.Enter);
-		test(new SimpleKeybinding(true, false, false, true, KeyCode.Enter).toChord(), KeyMod.CtrlCmd | KeyMod.WinCtrl | KeyCode.Enter);
-		test(new SimpleKeybinding(false, false, true, true, KeyCode.Enter).toChord(), KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.Enter);
-		test(new SimpleKeybinding(true, false, true, true, KeyCode.Enter).toChord(), KeyMod.CtrlCmd | KeyMod.Alt | KeyMod.WinCtrl | KeyCode.Enter);
-		test(new SimpleKeybinding(false, true, false, true, KeyCode.Enter).toChord(), KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Enter);
-		test(new SimpleKeybinding(true, true, false, true, KeyCode.Enter).toChord(), KeyMod.CtrlCmd | KeyMod.Shift | KeyMod.WinCtrl | KeyCode.Enter);
-		test(new SimpleKeybinding(false, true, true, true, KeyCode.Enter).toChord(), KeyMod.CtrlCmd | KeyMod.Shift | KeyMod.Alt | KeyCode.Enter);
-		test(new SimpleKeybinding(true, true, true, true, KeyCode.Enter).toChord(), KeyMod.CtrlCmd | KeyMod.Shift | KeyMod.Alt | KeyMod.WinCtrl | KeyCode.Enter);
+		test(new KeyCodeChord(false, false, false, false, KeyCode.Enter).toKeybinding(), KeyCode.Enter);
+		test(new KeyCodeChord(true, false, false, false, KeyCode.Enter).toKeybinding(), KeyMod.WinCtrl | KeyCode.Enter);
+		test(new KeyCodeChord(false, false, true, false, KeyCode.Enter).toKeybinding(), KeyMod.Alt | KeyCode.Enter);
+		test(new KeyCodeChord(true, false, true, false, KeyCode.Enter).toKeybinding(), KeyMod.Alt | KeyMod.WinCtrl | KeyCode.Enter);
+		test(new KeyCodeChord(false, true, false, false, KeyCode.Enter).toKeybinding(), KeyMod.Shift | KeyCode.Enter);
+		test(new KeyCodeChord(true, true, false, false, KeyCode.Enter).toKeybinding(), KeyMod.Shift | KeyMod.WinCtrl | KeyCode.Enter);
+		test(new KeyCodeChord(false, true, true, false, KeyCode.Enter).toKeybinding(), KeyMod.Shift | KeyMod.Alt | KeyCode.Enter);
+		test(new KeyCodeChord(true, true, true, false, KeyCode.Enter).toKeybinding(), KeyMod.Shift | KeyMod.Alt | KeyMod.WinCtrl | KeyCode.Enter);
+		test(new KeyCodeChord(false, false, false, true, KeyCode.Enter).toKeybinding(), KeyMod.CtrlCmd | KeyCode.Enter);
+		test(new KeyCodeChord(true, false, false, true, KeyCode.Enter).toKeybinding(), KeyMod.CtrlCmd | KeyMod.WinCtrl | KeyCode.Enter);
+		test(new KeyCodeChord(false, false, true, true, KeyCode.Enter).toKeybinding(), KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.Enter);
+		test(new KeyCodeChord(true, false, true, true, KeyCode.Enter).toKeybinding(), KeyMod.CtrlCmd | KeyMod.Alt | KeyMod.WinCtrl | KeyCode.Enter);
+		test(new KeyCodeChord(false, true, false, true, KeyCode.Enter).toKeybinding(), KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Enter);
+		test(new KeyCodeChord(true, true, false, true, KeyCode.Enter).toKeybinding(), KeyMod.CtrlCmd | KeyMod.Shift | KeyMod.WinCtrl | KeyCode.Enter);
+		test(new KeyCodeChord(false, true, true, true, KeyCode.Enter).toKeybinding(), KeyMod.CtrlCmd | KeyMod.Shift | KeyMod.Alt | KeyCode.Enter);
+		test(new KeyCodeChord(true, true, true, true, KeyCode.Enter).toKeybinding(), KeyMod.CtrlCmd | KeyMod.Shift | KeyMod.Alt | KeyMod.WinCtrl | KeyCode.Enter);
 
 		test(
-			new ChordKeybinding([
-				new SimpleKeybinding(false, false, false, false, KeyCode.Enter),
-				new SimpleKeybinding(false, false, false, false, KeyCode.Tab)
+			new Keybinding([
+				new KeyCodeChord(false, false, false, false, KeyCode.Enter),
+				new KeyCodeChord(false, false, false, false, KeyCode.Tab)
 			]),
 			KeyChord(KeyCode.Enter, KeyCode.Tab)
 		);
 		test(
-			new ChordKeybinding([
-				new SimpleKeybinding(false, false, false, true, KeyCode.KeyY),
-				new SimpleKeybinding(false, false, false, false, KeyCode.KeyZ)
+			new Keybinding([
+				new KeyCodeChord(false, false, false, true, KeyCode.KeyY),
+				new KeyCodeChord(false, false, false, false, KeyCode.KeyZ)
 			]),
 			KeyChord(KeyMod.CtrlCmd | KeyCode.KeyY, KeyCode.KeyZ)
 		);
@@ -98,34 +98,34 @@ suite('keyCodes', () => {
 			}
 
 			test(null, 0);
-			test(new SimpleKeybinding(false, false, false, false, KeyCode.Enter).toChord(), KeyCode.Enter);
-			test(new SimpleKeybinding(false, false, false, true, KeyCode.Enter).toChord(), KeyMod.WinCtrl | KeyCode.Enter);
-			test(new SimpleKeybinding(false, false, true, false, KeyCode.Enter).toChord(), KeyMod.Alt | KeyCode.Enter);
-			test(new SimpleKeybinding(false, false, true, true, KeyCode.Enter).toChord(), KeyMod.Alt | KeyMod.WinCtrl | KeyCode.Enter);
-			test(new SimpleKeybinding(false, true, false, false, KeyCode.Enter).toChord(), KeyMod.Shift | KeyCode.Enter);
-			test(new SimpleKeybinding(false, true, false, true, KeyCode.Enter).toChord(), KeyMod.Shift | KeyMod.WinCtrl | KeyCode.Enter);
-			test(new SimpleKeybinding(false, true, true, false, KeyCode.Enter).toChord(), KeyMod.Shift | KeyMod.Alt | KeyCode.Enter);
-			test(new SimpleKeybinding(false, true, true, true, KeyCode.Enter).toChord(), KeyMod.Shift | KeyMod.Alt | KeyMod.WinCtrl | KeyCode.Enter);
-			test(new SimpleKeybinding(true, false, false, false, KeyCode.Enter).toChord(), KeyMod.CtrlCmd | KeyCode.Enter);
-			test(new SimpleKeybinding(true, false, false, true, KeyCode.Enter).toChord(), KeyMod.CtrlCmd | KeyMod.WinCtrl | KeyCode.Enter);
-			test(new SimpleKeybinding(true, false, true, false, KeyCode.Enter).toChord(), KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.Enter);
-			test(new SimpleKeybinding(true, false, true, true, KeyCode.Enter).toChord(), KeyMod.CtrlCmd | KeyMod.Alt | KeyMod.WinCtrl | KeyCode.Enter);
-			test(new SimpleKeybinding(true, true, false, false, KeyCode.Enter).toChord(), KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Enter);
-			test(new SimpleKeybinding(true, true, false, true, KeyCode.Enter).toChord(), KeyMod.CtrlCmd | KeyMod.Shift | KeyMod.WinCtrl | KeyCode.Enter);
-			test(new SimpleKeybinding(true, true, true, false, KeyCode.Enter).toChord(), KeyMod.CtrlCmd | KeyMod.Shift | KeyMod.Alt | KeyCode.Enter);
-			test(new SimpleKeybinding(true, true, true, true, KeyCode.Enter).toChord(), KeyMod.CtrlCmd | KeyMod.Shift | KeyMod.Alt | KeyMod.WinCtrl | KeyCode.Enter);
+			test(new KeyCodeChord(false, false, false, false, KeyCode.Enter).toKeybinding(), KeyCode.Enter);
+			test(new KeyCodeChord(false, false, false, true, KeyCode.Enter).toKeybinding(), KeyMod.WinCtrl | KeyCode.Enter);
+			test(new KeyCodeChord(false, false, true, false, KeyCode.Enter).toKeybinding(), KeyMod.Alt | KeyCode.Enter);
+			test(new KeyCodeChord(false, false, true, true, KeyCode.Enter).toKeybinding(), KeyMod.Alt | KeyMod.WinCtrl | KeyCode.Enter);
+			test(new KeyCodeChord(false, true, false, false, KeyCode.Enter).toKeybinding(), KeyMod.Shift | KeyCode.Enter);
+			test(new KeyCodeChord(false, true, false, true, KeyCode.Enter).toKeybinding(), KeyMod.Shift | KeyMod.WinCtrl | KeyCode.Enter);
+			test(new KeyCodeChord(false, true, true, false, KeyCode.Enter).toKeybinding(), KeyMod.Shift | KeyMod.Alt | KeyCode.Enter);
+			test(new KeyCodeChord(false, true, true, true, KeyCode.Enter).toKeybinding(), KeyMod.Shift | KeyMod.Alt | KeyMod.WinCtrl | KeyCode.Enter);
+			test(new KeyCodeChord(true, false, false, false, KeyCode.Enter).toKeybinding(), KeyMod.CtrlCmd | KeyCode.Enter);
+			test(new KeyCodeChord(true, false, false, true, KeyCode.Enter).toKeybinding(), KeyMod.CtrlCmd | KeyMod.WinCtrl | KeyCode.Enter);
+			test(new KeyCodeChord(true, false, true, false, KeyCode.Enter).toKeybinding(), KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.Enter);
+			test(new KeyCodeChord(true, false, true, true, KeyCode.Enter).toKeybinding(), KeyMod.CtrlCmd | KeyMod.Alt | KeyMod.WinCtrl | KeyCode.Enter);
+			test(new KeyCodeChord(true, true, false, false, KeyCode.Enter).toKeybinding(), KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Enter);
+			test(new KeyCodeChord(true, true, false, true, KeyCode.Enter).toKeybinding(), KeyMod.CtrlCmd | KeyMod.Shift | KeyMod.WinCtrl | KeyCode.Enter);
+			test(new KeyCodeChord(true, true, true, false, KeyCode.Enter).toKeybinding(), KeyMod.CtrlCmd | KeyMod.Shift | KeyMod.Alt | KeyCode.Enter);
+			test(new KeyCodeChord(true, true, true, true, KeyCode.Enter).toKeybinding(), KeyMod.CtrlCmd | KeyMod.Shift | KeyMod.Alt | KeyMod.WinCtrl | KeyCode.Enter);
 
 			test(
-				new ChordKeybinding([
-					new SimpleKeybinding(false, false, false, false, KeyCode.Enter),
-					new SimpleKeybinding(false, false, false, false, KeyCode.Tab)
+				new Keybinding([
+					new KeyCodeChord(false, false, false, false, KeyCode.Enter),
+					new KeyCodeChord(false, false, false, false, KeyCode.Tab)
 				]),
 				KeyChord(KeyCode.Enter, KeyCode.Tab)
 			);
 			test(
-				new ChordKeybinding([
-					new SimpleKeybinding(true, false, false, false, KeyCode.KeyY),
-					new SimpleKeybinding(false, false, false, false, KeyCode.KeyZ)
+				new Keybinding([
+					new KeyCodeChord(true, false, false, false, KeyCode.KeyY),
+					new KeyCodeChord(false, false, false, false, KeyCode.KeyZ)
 				]),
 				KeyChord(KeyMod.CtrlCmd | KeyCode.KeyY, KeyCode.KeyZ)
 			);

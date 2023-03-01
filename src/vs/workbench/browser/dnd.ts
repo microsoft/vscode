@@ -10,7 +10,7 @@ import { IListDragAndDrop } from 'vs/base/browser/ui/list/list';
 import { ElementsDragAndDropData } from 'vs/base/browser/ui/list/listView';
 import { ITreeDragOverReaction } from 'vs/base/browser/ui/tree/tree';
 import { coalesce } from 'vs/base/common/arrays';
-import { IDataTransfer } from 'vs/base/common/dataTransfer';
+import { UriList, VSDataTransfer } from 'vs/base/common/dataTransfer';
 import { Emitter } from 'vs/base/common/event';
 import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { stringify } from 'vs/base/common/marshalling';
@@ -19,7 +19,7 @@ import { FileAccess, Schemas } from 'vs/base/common/network';
 import { isWindows } from 'vs/base/common/platform';
 import { basename, isEqual } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
-import { CodeDataTransfers, createDraggedEditorInputFromRawResourcesData, Extensions, extractEditorsDropData, IDragAndDropContributionRegistry, IDraggedResourceEditorInput, IResourceStat } from 'vs/platform/dnd/browser/dnd';
+import { CodeDataTransfers, createDraggedEditorInputFromRawResourcesData, Extensions, extractEditorsAndFilesDropData, IDragAndDropContributionRegistry, IDraggedResourceEditorInput, IResourceStat } from 'vs/platform/dnd/browser/dnd';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { ILabelService } from 'vs/platform/label/common/label';
@@ -52,7 +52,7 @@ export class DraggedTreeItemsIdentifier {
 	constructor(readonly identifier: string) { }
 }
 
-export async function extractTreeDropData(dataTransfer: IDataTransfer): Promise<Array<IDraggedResourceEditorInput>> {
+export async function extractTreeDropData(dataTransfer: VSDataTransfer): Promise<Array<IDraggedResourceEditorInput>> {
 	const editors: IDraggedResourceEditorInput[] = [];
 	const resourcesKey = Mimes.uriList.toLowerCase();
 
@@ -60,7 +60,7 @@ export async function extractTreeDropData(dataTransfer: IDataTransfer): Promise<
 	if (dataTransfer.has(resourcesKey)) {
 		try {
 			const asString = await dataTransfer.get(resourcesKey)?.asString();
-			const rawResourcesData = JSON.stringify(asString?.split('\\n').filter(value => !value.startsWith('#')));
+			const rawResourcesData = JSON.stringify(UriList.parse(asString ?? ''));
 			editors.push(...createDraggedEditorInputFromRawResourcesData(rawResourcesData));
 		} catch (error) {
 			// Invalid transfer
@@ -68,11 +68,6 @@ export async function extractTreeDropData(dataTransfer: IDataTransfer): Promise<
 	}
 
 	return editors;
-}
-
-export function convertResourceUrlsToUriList(resourceUrls: string): string {
-	const asJson: URI[] = JSON.parse(resourceUrls);
-	return asJson.map(uri => uri.toString()).join('\n');
 }
 
 export interface IResourcesDropHandlerOptions {
@@ -105,7 +100,7 @@ export class ResourcesDropHandler {
 	}
 
 	async handleDrop(event: DragEvent, resolveTargetGroup: () => IEditorGroup | undefined, afterDrop: (targetGroup: IEditorGroup | undefined) => void, targetIndex?: number): Promise<void> {
-		const editors = await this.instantiationService.invokeFunction(accessor => extractEditorsDropData(accessor, event));
+		const editors = await this.instantiationService.invokeFunction(accessor => extractEditorsAndFilesDropData(accessor, event));
 		if (!editors.length) {
 			return;
 		}
@@ -125,13 +120,9 @@ export class ResourcesDropHandler {
 		}
 
 		// Add external ones to recently open list unless dropped resource is a workspace
-		// and only for resources that are outside of the currently opened workspace
 		const externalLocalFiles = coalesce(editors.filter(editor => editor.isExternal && editor.resource?.scheme === Schemas.file).map(editor => editor.resource));
 		if (externalLocalFiles.length) {
-			this.workspacesService.addRecentlyOpened(externalLocalFiles
-				.filter(resource => !this.contextService.isInsideWorkspace(resource))
-				.map(resource => ({ fileUri: resource }))
-			);
+			this.workspacesService.addRecentlyOpened(externalLocalFiles.map(resource => ({ fileUri: resource })));
 		}
 
 		// Open in Editor
@@ -193,7 +184,7 @@ export class ResourcesDropHandler {
 			await this.workspaceEditingService.addFolders(folderURIs);
 		}
 
-		// Finaly, enter untitled workspace when dropping >1 folders
+		// Finally, enter untitled workspace when dropping >1 folders
 		else {
 			await this.workspaceEditingService.createAndEnterWorkspace(folderURIs);
 		}
@@ -245,7 +236,7 @@ export function fillEditorsDragData(accessor: ServicesAccessor, resourcesOrEdito
 	// - only file:/ resources are supported
 	const firstFile = fileSystemResources.find(({ isDirectory }) => !isDirectory);
 	if (firstFile) {
-		const firstFileUri = FileAccess.asFileUri(firstFile.resource); // enforce `file:` URIs
+		const firstFileUri = FileAccess.uriToFileUri(firstFile.resource); // enforce `file:` URIs
 		if (firstFileUri.scheme === Schemas.file) {
 			event.dataTransfer.setData(DataTransfers.DOWNLOAD_URL, [Mimes.binary, basename(firstFile.resource), firstFileUri.toString()].join(':'));
 		}
@@ -609,9 +600,7 @@ export class CompositeDragAndDropObserver extends Disposable {
 					return;
 				}
 
-				if (callbacks.onDragLeave) {
-					callbacks.onDragLeave({ eventData: e, dragAndDropData: data! });
-				}
+				callbacks.onDragLeave?.({ eventData: e, dragAndDropData: data! });
 			},
 			onDrop: e => {
 				if (callbacks.onDrop) {

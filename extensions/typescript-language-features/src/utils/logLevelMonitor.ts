@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import { localize } from '../tsServer/versionProvider';
 import { TsServerLogLevel } from './configuration';
 import { Disposable } from './dispose';
+
 
 export class LogLevelMonitor extends Disposable {
 
@@ -76,19 +76,13 @@ export class LogLevelMonitor extends Disposable {
 		}
 
 		vscode.window.showInformationMessage<Item>(
-			localize(
-				'typescript.extendedLogging.isEnabled',
-				"TS Server logging is currently enabled which may impact performance."),
+			vscode.l10n.t("TS Server logging is currently enabled which may impact performance."),
 			{
-				title: localize(
-					'typescript.extendedLogging.disableLogging',
-					"Disable logging"),
+				title: vscode.l10n.t("Disable logging"),
 				choice: Choice.DisableLogging
 			},
 			{
-				title: localize(
-					'typescript.extendedLogging.doNotShowAgain',
-					"Don't show again"),
+				title: vscode.l10n.t("Don't show again"),
 				choice: Choice.DoNotShowAgain
 			})
 			.then(selection => {

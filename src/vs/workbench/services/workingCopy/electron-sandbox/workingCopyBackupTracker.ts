@@ -11,11 +11,10 @@ import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/wo
 import { IWorkingCopy, IWorkingCopyIdentifier, WorkingCopyCapabilities } from 'vs/workbench/services/workingCopy/common/workingCopy';
 import { ILifecycleService, ShutdownReason } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { ConfirmResult, IFileDialogService, IDialogService, getFileNamesMessage } from 'vs/platform/dialogs/common/dialogs';
-import Severity from 'vs/base/common/severity';
 import { WorkbenchState, IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { isMacintosh } from 'vs/base/common/platform';
 import { HotExitConfiguration } from 'vs/platform/files/common/files';
-import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
+import { INativeHostService } from 'vs/platform/native/common/native';
 import { WorkingCopyBackupTracker } from 'vs/workbench/services/workingCopy/common/workingCopyBackupTracker';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -56,12 +55,14 @@ export class NativeWorkingCopyBackupTracker extends WorkingCopyBackupTracker imp
 		// acknowledged to shutdown and then might end up with partial backups
 		// written to disk, or even empty backups or deletes after writes.
 		// (https://github.com/microsoft/vscode/issues/138055)
+
 		this.cancelBackupOperations();
 
 		// For the duration of the shutdown handling, suspend backup operations
 		// and only resume after we have handled backups. Similar to above, we
 		// do not want to trigger backup tracking during our shutdown handling
 		// but we must resume, in case of a veto afterwards.
+
 		const { resume } = this.suspendBackupOperations();
 
 		try {
@@ -85,6 +86,7 @@ export class NativeWorkingCopyBackupTracker extends WorkingCopyBackupTracker imp
 
 		// If auto save is enabled, save all non-untitled working copies
 		// and then check again for dirty copies
+
 		if (this.filesConfigurationService.getAutoSaveMode() !== AutoSaveMode.OFF) {
 
 			// Save all dirty working copies
@@ -100,7 +102,7 @@ export class NativeWorkingCopyBackupTracker extends WorkingCopyBackupTracker imp
 				return this.handleDirtyBeforeShutdown(remainingDirtyWorkingCopies, reason);
 			}
 
-			return false; // no veto (there are no remaining dirty working copies)
+			return this.noVeto([...dirtyWorkingCopies]); // no veto (dirty auto-saved)
 		}
 
 		// Auto save is not enabled
@@ -144,6 +146,7 @@ export class NativeWorkingCopyBackupTracker extends WorkingCopyBackupTracker imp
 
 		// Since a backup did not happen, we have to confirm for
 		// the working copies that did not successfully backup
+
 		try {
 			return await this.confirmBeforeShutdown(remainingDirtyWorkingCopies);
 		} catch (error) {
@@ -212,7 +215,7 @@ export class NativeWorkingCopyBackupTracker extends WorkingCopyBackupTracker imp
 			? getFileNamesMessage(dirtyWorkingCopies.map(x => x.name)) + '\n' + advice
 			: advice;
 
-		this.dialogService.show(Severity.Error, msg, undefined, { detail });
+		this.dialogService.error(msg, detail);
 
 		this.logService.error(error ? `[backup tracker] ${msg}: ${error}` : `[backup tracker] ${msg}`);
 	}
@@ -313,6 +316,7 @@ export class NativeWorkingCopyBackupTracker extends WorkingCopyBackupTracker imp
 
 			// First save through the editor service if we save all to benefit
 			// from some extras like switching to untitled dirty editors before saving.
+
 			let result: boolean | undefined = undefined;
 			if (typeof arg1 === 'boolean' || dirtyWorkingCopies.length === this.workingCopyService.dirtyCount) {
 				result = await this.editorService.saveAll({ includeUntitled: typeof arg1 === 'boolean' ? arg1 : true, ...saveOptions });
@@ -342,16 +346,7 @@ export class NativeWorkingCopyBackupTracker extends WorkingCopyBackupTracker imp
 		}, localize('revertBeforeShutdown', "Reverting editors with unsaved changes is taking a bit longer..."));
 	}
 
-	private async noVeto(backupsToDiscard: IWorkingCopyIdentifier[]): Promise<boolean> {
-
-		// Discard backups from working copies the
-		// user either saved or reverted
-		await this.discardBackupsBeforeShutdown(backupsToDiscard);
-
-		return false; // no veto (no dirty)
-	}
-
-	private async onBeforeShutdownWithoutDirty(): Promise<boolean> {
+	private onBeforeShutdownWithoutDirty(): Promise<boolean> {
 
 		// We are about to shutdown without dirty editors
 		// and will discard any backups that are still
@@ -370,19 +365,31 @@ export class NativeWorkingCopyBackupTracker extends WorkingCopyBackupTracker imp
 		// future. Since we do not restore workspace/folder
 		// windows with backups, this is fine.
 
-		await this.discardBackupsBeforeShutdown({ except: this.contextService.getWorkbenchState() === WorkbenchState.EMPTY ? [] : Array.from(this.unrestoredBackups) });
+		return this.noVeto({ except: this.contextService.getWorkbenchState() === WorkbenchState.EMPTY ? [] : Array.from(this.unrestoredBackups) });
+	}
+
+	private noVeto(backupsToDiscard: IWorkingCopyIdentifier[]): Promise<boolean>;
+	private noVeto(backupsToKeep: { except: IWorkingCopyIdentifier[] }): Promise<boolean>;
+	private async noVeto(arg1: IWorkingCopyIdentifier[] | { except: IWorkingCopyIdentifier[] }): Promise<boolean> {
+
+		// Discard backups from working copies the
+		// user either saved or reverted
+
+		await this.discardBackupsBeforeShutdown(arg1);
 
 		return false; // no veto (no dirty)
 	}
 
 	private discardBackupsBeforeShutdown(backupsToDiscard: IWorkingCopyIdentifier[]): Promise<void>;
 	private discardBackupsBeforeShutdown(backupsToKeep: { except: IWorkingCopyIdentifier[] }): Promise<void>;
+	private discardBackupsBeforeShutdown(backupsToDiscardOrKeep: IWorkingCopyIdentifier[] | { except: IWorkingCopyIdentifier[] }): Promise<void>;
 	private async discardBackupsBeforeShutdown(arg1: IWorkingCopyIdentifier[] | { except: IWorkingCopyIdentifier[] }): Promise<void> {
 
 		// We never discard any backups before we are ready
 		// and have resolved all backups that exist. This
 		// is important to not loose backups that have not
 		// been handled.
+
 		if (!this.isReady) {
 			return;
 		}
@@ -396,6 +403,7 @@ export class NativeWorkingCopyBackupTracker extends WorkingCopyBackupTracker imp
 			//
 			// However, we never want to discard backups that we know
 			// were not restored in the session.
+
 			try {
 				if (Array.isArray(arg1)) {
 					await Promises.settled(arg1.map(workingCopy => this.workingCopyBackupService.discardBackup(workingCopy)));

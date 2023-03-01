@@ -19,7 +19,7 @@ export interface IElectronConfiguration {
 }
 
 export async function resolveElectronConfiguration(options: LaunchOptions): Promise<IElectronConfiguration> {
-	const { codePath, workspacePath, extensionsPath, userDataDir, remote, logger, logsPath, extraArgs } = options;
+	const { codePath, workspacePath, extensionsPath, userDataDir, remote, logger, logsPath, crashesPath, extraArgs } = options;
 	const env = { ...process.env };
 
 	const args = [
@@ -30,7 +30,7 @@ export async function resolveElectronConfiguration(options: LaunchOptions): Prom
 		'--no-cached-data',
 		'--disable-updates',
 		'--disable-keytar',
-		'--disable-crash-reporter',
+		`--crash-reporter-directory=${crashesPath}`,
 		'--disable-workspace-trust',
 		`--extensions-dir=${extensionsPath}`,
 		`--user-data-dir=${userDataDir}`,
@@ -42,7 +42,20 @@ export async function resolveElectronConfiguration(options: LaunchOptions): Prom
 	}
 
 	if (process.platform === 'linux') {
-		args.push('--disable-gpu'); // Linux has trouble in VMs to render properly with GPU enabled
+		// --disable-dev-shm-usage: when run on docker containers where size of /dev/shm
+		// partition < 64MB which causes OOM failure for chromium compositor that uses
+		// this partition for shared memory.
+		// Refs https://github.com/microsoft/vscode/issues/152143
+		args.push('--disable-dev-shm-usage');
+	}
+
+	if (process.platform === 'darwin') {
+		// On macOS force software based rendering since we are seeing GPU process
+		// hangs when initializing GL context. This is very likely possible
+		// that there are new displays available in the CI hardware and
+		// the relevant drivers couldn't be loaded via the GPU sandbox.
+		// TODO(deepak1556): remove this switch with Electron update.
+		args.push('--use-gl=swiftshader');
 	}
 
 	if (remote) {
@@ -51,18 +64,11 @@ export async function resolveElectronConfiguration(options: LaunchOptions): Prom
 
 		if (codePath) {
 			// running against a build: copy the test resolver extension
-			await measureAndLog(copyExtension(root, extensionsPath, 'vscode-test-resolver'), 'copyExtension(vscode-test-resolver)', logger);
+			await measureAndLog(() => copyExtension(root, extensionsPath, 'vscode-test-resolver'), 'copyExtension(vscode-test-resolver)', logger);
 		}
 		args.push('--enable-proposed-api=vscode.vscode-test-resolver');
 		const remoteDataDir = `${userDataDir}-server`;
 		mkdirp.sync(remoteDataDir);
-
-		if (codePath) {
-			// running against a build: copy the test resolver extension into remote extensions dir
-			const remoteExtensionsDir = join(remoteDataDir, 'extensions');
-			mkdirp.sync(remoteExtensionsDir);
-			await measureAndLog(copyExtension(root, remoteExtensionsDir, 'vscode-notebook-tests'), 'copyExtension(vscode-notebook-tests)', logger);
-		}
 
 		env['TESTRESOLVER_DATA_FOLDER'] = remoteDataDir;
 		env['TESTRESOLVER_LOGS_FOLDER'] = join(logsPath, 'server');
@@ -70,8 +76,6 @@ export async function resolveElectronConfiguration(options: LaunchOptions): Prom
 			env['TESTRESOLVER_LOG_LEVEL'] = 'trace';
 		}
 	}
-
-	args.push('--enable-proposed-api=vscode.vscode-notebook-tests');
 
 	if (!codePath) {
 		args.unshift(root);

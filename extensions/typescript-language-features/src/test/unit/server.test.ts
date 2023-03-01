@@ -8,7 +8,7 @@ import 'mocha';
 import * as stream from 'stream';
 import type * as Proto from '../../protocol';
 import { NodeRequestCanceller } from '../../tsServer/cancellation.electron';
-import { ProcessBasedTsServer, TsServerProcess } from '../../tsServer/server';
+import { SingleTsServer, TsServerProcess } from '../../tsServer/server';
 import { ServerType } from '../../typescriptService';
 import { nulToken } from '../../utils/cancellation';
 import { Logger } from '../../utils/logger';
@@ -65,7 +65,7 @@ suite.skip('Server', () => {
 
 	test('should send requests with increasing sequence numbers', async () => {
 		const process = new FakeServerProcess();
-		const server = new ProcessBasedTsServer('semantic', ServerType.Semantic, process, undefined, new NodeRequestCanceller('semantic', tracer), undefined!, NoopTelemetryReporter, tracer);
+		const server = new SingleTsServer('semantic', ServerType.Semantic, process, undefined, new NodeRequestCanceller('semantic', tracer), undefined!, NoopTelemetryReporter, tracer);
 
 		const onWrite1 = process.onWrite();
 		server.executeImpl('geterr', {}, { isAsync: false, token: nulToken, expectsResult: true });

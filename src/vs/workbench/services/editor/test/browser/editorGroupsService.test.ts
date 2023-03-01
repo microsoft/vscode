@@ -201,9 +201,9 @@ suite('EditorGroupsService', () => {
 
 		const rootGroup = part.activeGroup;
 
-		let input1 = new TestFileEditorInput(URI.file('foo/bar1'), TEST_EDITOR_INPUT_ID);
-		let input2 = new TestFileEditorInput(URI.file('foo/bar2'), TEST_EDITOR_INPUT_ID);
-		let input3 = new TestFileEditorInput(URI.file('foo/bar3'), TEST_EDITOR_INPUT_ID);
+		const input1 = new TestFileEditorInput(URI.file('foo/bar1'), TEST_EDITOR_INPUT_ID);
+		const input2 = new TestFileEditorInput(URI.file('foo/bar2'), TEST_EDITOR_INPUT_ID);
+		const input3 = new TestFileEditorInput(URI.file('foo/bar3'), TEST_EDITOR_INPUT_ID);
 
 		await rootGroup.openEditor(input1, { pinned: true });
 		await part.sideGroup.openEditor(input2, { pinned: true });
@@ -215,7 +215,7 @@ suite('EditorGroupsService', () => {
 	});
 
 	test('save & restore state', async function () {
-		let [part, instantiationService] = await createPart();
+		const [part, instantiationService] = await createPart();
 
 		const rootGroup = part.groups[0];
 		const rightGroup = part.addGroup(rootGroup, GroupDirection.RIGHT);
@@ -229,10 +229,10 @@ suite('EditorGroupsService', () => {
 
 		assert.strictEqual(part.groups.length, 3);
 
-		part.saveState();
+		part.testSaveState();
 		part.dispose();
 
-		let [restoredPart] = await createPart(instantiationService);
+		const [restoredPart] = await createPart(instantiationService);
 
 		assert.strictEqual(restoredPart.groups.length, 3);
 		assert.ok(restoredPart.getGroup(rootGroup.id));
@@ -1307,6 +1307,29 @@ suite('EditorGroupsService', () => {
 		part.applyLayout({ groups: [{ groups: [{}, {}] }, { groups: [{}, {}] }], orientation: GroupOrientation.HORIZONTAL });
 
 		assert.strictEqual(part.groups.length, 4);
+	});
+
+	test('getLayout', async function () {
+		const [part] = await createPart();
+
+		// 2x2
+		part.applyLayout({ groups: [{ groups: [{}, {}] }, { groups: [{}, {}] }], orientation: GroupOrientation.HORIZONTAL });
+		let layout = part.getLayout();
+
+		assert.strictEqual(layout.orientation, GroupOrientation.HORIZONTAL);
+		assert.strictEqual(layout.groups.length, 2);
+		assert.strictEqual(layout.groups[0].groups!.length, 2);
+		assert.strictEqual(layout.groups[1].groups!.length, 2);
+
+		// 3 columns
+		part.applyLayout({ groups: [{}, {}, {}], orientation: GroupOrientation.VERTICAL });
+		layout = part.getLayout();
+
+		assert.strictEqual(layout.orientation, GroupOrientation.VERTICAL);
+		assert.strictEqual(layout.groups.length, 3);
+		assert.ok(typeof layout.groups[0].size === 'number');
+		assert.ok(typeof layout.groups[1].size === 'number');
+		assert.ok(typeof layout.groups[2].size === 'number');
 	});
 
 	test('centeredLayout', async function () {

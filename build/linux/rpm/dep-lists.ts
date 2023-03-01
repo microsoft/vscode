@@ -16,19 +16,6 @@ export const additionalDeps = [
 	'xdg-utils' // OS integration
 ];
 
-// Based on https://source.chromium.org/chromium/chromium/src/+/refs/tags/98.0.4758.109:chrome/installer/linux/BUILD.gn;l=64-80
-// and the Linux Archive build
-// Shared library dependencies that we already bundle.
-export const bundledDeps = [
-	'libEGL.so',
-	'libGLESv2.so',
-	'libvulkan.so.1',
-	'swiftshader_libEGL.so',
-	'swiftshader_libGLESv2.so',
-	'libvk_swiftshader.so',
-	'libffmpeg.so'
-];
-
 export const referenceGeneratedDepsByArch = {
 	'x86_64': [
 		'ca-certificates',
@@ -74,10 +61,8 @@ export const referenceGeneratedDepsByArch = {
 		'libgbm.so.1()(64bit)',
 		'libgcc_s.so.1()(64bit)',
 		'libgcc_s.so.1(GCC_3.0)(64bit)',
-		'libgdk_pixbuf-2.0.so.0()(64bit)',
 		'libgio-2.0.so.0()(64bit)',
 		'libglib-2.0.so.0()(64bit)',
-		'libgmodule-2.0.so.0()(64bit)',
 		'libgobject-2.0.so.0()(64bit)',
 		'libgtk-3.so.0()(64bit)',
 		'libm.so.6()(64bit)',
@@ -137,10 +122,11 @@ export const referenceGeneratedDepsByArch = {
 		'libc.so.6',
 		'libc.so.6(GLIBC_2.10)',
 		'libc.so.6(GLIBC_2.11)',
-		'libc.so.6(GLIBC_2.14)',
 		'libc.so.6(GLIBC_2.15)',
 		'libc.so.6(GLIBC_2.16)',
 		'libc.so.6(GLIBC_2.17)',
+		'libc.so.6(GLIBC_2.25)',
+		'libc.so.6(GLIBC_2.28)',
 		'libc.so.6(GLIBC_2.4)',
 		'libc.so.6(GLIBC_2.6)',
 		'libc.so.6(GLIBC_2.7)',
@@ -156,12 +142,9 @@ export const referenceGeneratedDepsByArch = {
 		'libgbm.so.1',
 		'libgcc_s.so.1',
 		'libgcc_s.so.1(GCC_3.0)',
-		'libgcc_s.so.1(GCC_3.4)',
 		'libgcc_s.so.1(GCC_3.5)',
-		'libgdk_pixbuf-2.0.so.0',
 		'libgio-2.0.so.0',
 		'libglib-2.0.so.0',
-		'libgmodule-2.0.so.0',
 		'libgobject-2.0.so.0',
 		'libgtk-3.so.0',
 		'libgtk-3.so.0()(64bit)',
@@ -236,6 +219,8 @@ export const referenceGeneratedDepsByArch = {
 		'libatspi.so.0()(64bit)',
 		'libc.so.6()(64bit)',
 		'libc.so.6(GLIBC_2.17)(64bit)',
+		'libc.so.6(GLIBC_2.25)(64bit)',
+		'libc.so.6(GLIBC_2.28)(64bit)',
 		'libcairo.so.2()(64bit)',
 		'libcurl.so.4()(64bit)',
 		'libdbus-1.so.3()(64bit)',
@@ -249,10 +234,8 @@ export const referenceGeneratedDepsByArch = {
 		'libgcc_s.so.1(GCC_3.0)(64bit)',
 		'libgcc_s.so.1(GCC_4.2.0)(64bit)',
 		'libgcc_s.so.1(GCC_4.5.0)(64bit)',
-		'libgdk_pixbuf-2.0.so.0()(64bit)',
 		'libgio-2.0.so.0()(64bit)',
 		'libglib-2.0.so.0()(64bit)',
-		'libgmodule-2.0.so.0()(64bit)',
 		'libgobject-2.0.so.0()(64bit)',
 		'libgtk-3.so.0()(64bit)',
 		'libm.so.6()(64bit)',

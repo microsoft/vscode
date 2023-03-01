@@ -24,3 +24,7 @@ function _format(message: string, args: any[]): string {
 export function localize(data: ILocalizeInfo | string, message: string, ...args: any[]): string {
 	return _format(message, args);
 }
+
+export function getConfiguredDefaultLocale(_: string) {
+	return undefined;
+}

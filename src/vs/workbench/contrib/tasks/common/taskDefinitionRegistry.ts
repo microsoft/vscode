@@ -47,25 +47,25 @@ const taskDefinitionSchema: IJSONSchema = {
 };
 
 namespace Configuration {
-	export interface TaskDefinition {
+	export interface ITaskDefinition {
 		type?: string;
 		required?: string[];
 		properties?: IJSONSchemaMap;
 		when?: string;
 	}
 
-	export function from(value: TaskDefinition, extensionId: ExtensionIdentifier, messageCollector: ExtensionMessageCollector): Tasks.TaskDefinition | undefined {
+	export function from(value: ITaskDefinition, extensionId: ExtensionIdentifier, messageCollector: ExtensionMessageCollector): Tasks.ITaskDefinition | undefined {
 		if (!value) {
 			return undefined;
 		}
-		let taskType = Types.isString(value.type) ? value.type : undefined;
+		const taskType = Types.isString(value.type) ? value.type : undefined;
 		if (!taskType || taskType.length === 0) {
 			messageCollector.error(nls.localize('TaskTypeConfiguration.noType', 'The task type configuration is missing the required \'taskType\' property'));
 			return undefined;
 		}
-		let required: string[] = [];
+		const required: string[] = [];
 		if (Array.isArray(value.required)) {
-			for (let element of value.required) {
+			for (const element of value.required) {
 				if (Types.isString(element)) {
 					required.push(element);
 				}
@@ -81,8 +81,15 @@ namespace Configuration {
 }
 
 
-const taskDefinitionsExtPoint = ExtensionsRegistry.registerExtensionPoint<Configuration.TaskDefinition[]>({
+const taskDefinitionsExtPoint = ExtensionsRegistry.registerExtensionPoint<Configuration.ITaskDefinition[]>({
 	extensionPoint: 'taskDefinitions',
+	activationEventsGenerator: (contributions: Configuration.ITaskDefinition[], result: { push(item: string): void }) => {
+		for (const task of contributions) {
+			if (task.type) {
+				result.push(`onTaskType:${task.type}`);
+			}
+		}
+	},
 	jsonSchema: {
 		description: nls.localize('TaskDefinitionExtPoint', 'Contributes task kinds'),
 		type: 'array',
@@ -93,15 +100,15 @@ const taskDefinitionsExtPoint = ExtensionsRegistry.registerExtensionPoint<Config
 export interface ITaskDefinitionRegistry {
 	onReady(): Promise<void>;
 
-	get(key: string): Tasks.TaskDefinition;
-	all(): Tasks.TaskDefinition[];
+	get(key: string): Tasks.ITaskDefinition;
+	all(): Tasks.ITaskDefinition[];
 	getJsonSchema(): IJSONSchema;
 	onDefinitionsChanged: Event<void>;
 }
 
 class TaskDefinitionRegistryImpl implements ITaskDefinitionRegistry {
 
-	private taskTypes: IStringDictionary<Tasks.TaskDefinition>;
+	private taskTypes: IStringDictionary<Tasks.ITaskDefinition>;
 	private readyPromise: Promise<void>;
 	private _schema: IJSONSchema | undefined;
 	private _onDefinitionsChanged: Emitter<void> = new Emitter();
@@ -111,19 +118,20 @@ class TaskDefinitionRegistryImpl implements ITaskDefinitionRegistry {
 		this.taskTypes = Object.create(null);
 		this.readyPromise = new Promise<void>((resolve, reject) => {
 			taskDefinitionsExtPoint.setHandler((extensions, delta) => {
+				this._schema = undefined;
 				try {
-					for (let extension of delta.removed) {
-						let taskTypes = extension.value;
-						for (let taskType of taskTypes) {
+					for (const extension of delta.removed) {
+						const taskTypes = extension.value;
+						for (const taskType of taskTypes) {
 							if (this.taskTypes && taskType.type && this.taskTypes[taskType.type]) {
 								delete this.taskTypes[taskType.type];
 							}
 						}
 					}
-					for (let extension of delta.added) {
-						let taskTypes = extension.value;
-						for (let taskType of taskTypes) {
-							let type = Configuration.from(taskType, extension.description.identifier, extension.collector);
+					for (const extension of delta.added) {
+						const taskTypes = extension.value;
+						for (const taskType of taskTypes) {
+							const type = Configuration.from(taskType, extension.description.identifier, extension.collector);
 							if (type) {
 								this.taskTypes[type.taskType] = type;
 							}
@@ -143,19 +151,19 @@ class TaskDefinitionRegistryImpl implements ITaskDefinitionRegistry {
 		return this.readyPromise;
 	}
 
-	public get(key: string): Tasks.TaskDefinition {
+	public get(key: string): Tasks.ITaskDefinition {
 		return this.taskTypes[key];
 	}
 
-	public all(): Tasks.TaskDefinition[] {
+	public all(): Tasks.ITaskDefinition[] {
 		return Object.keys(this.taskTypes).map(key => this.taskTypes[key]);
 	}
 
 	public getJsonSchema(): IJSONSchema {
 		if (this._schema === undefined) {
-			let schemas: IJSONSchema[] = [];
-			for (let definition of this.all()) {
-				let schema: IJSONSchema = {
+			const schemas: IJSONSchema[] = [];
+			for (const definition of this.all()) {
+				const schema: IJSONSchema = {
 					type: 'object',
 					additionalProperties: false
 				};

@@ -14,7 +14,7 @@ import { ScrollType } from 'vs/editor/common/editorCommon';
 import { localize } from 'vs/nls';
 import { IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { editorWidgetBackground, inputBackground, inputBorder, inputForeground, widgetShadow } from 'vs/platform/theme/common/colorRegistry';
+import { editorWidgetBackground, inputBackground, inputBorder, inputForeground, widgetBorder, widgetShadow } from 'vs/platform/theme/common/colorRegistry';
 import { IColorTheme, IThemeService } from 'vs/platform/theme/common/themeService';
 
 export const CONTEXT_RENAME_INPUT_VISIBLE = new RawContextKey<boolean>('renameInputVisible', false, localize('renameInputVisible', "Whether the rename input widget is visible"));
@@ -99,8 +99,10 @@ export class RenameInputField implements IContentWidget {
 		}
 
 		const widgetShadowColor = theme.getColor(widgetShadow);
+		const widgetBorderColor = theme.getColor(widgetBorder);
 		this._domNode.style.backgroundColor = String(theme.getColor(editorWidgetBackground) ?? '');
 		this._domNode.style.boxShadow = widgetShadowColor ? ` 0 0 8px 2px ${widgetShadowColor}` : '';
+		this._domNode.style.border = widgetBorderColor ? `1px solid ${widgetBorderColor}` : '';
 		this._domNode.style.color = String(theme.getColor(inputForeground) ?? '');
 
 		this._input.style.backgroundColor = String(theme.getColor(inputBackground) ?? '');
@@ -146,15 +148,11 @@ export class RenameInputField implements IContentWidget {
 	private _currentCancelInput?: (focusEditor: boolean) => void;
 
 	acceptInput(wantsPreview: boolean): void {
-		if (this._currentAcceptInput) {
-			this._currentAcceptInput(wantsPreview);
-		}
+		this._currentAcceptInput?.(wantsPreview);
 	}
 
 	cancelInput(focusEditor: boolean): void {
-		if (this._currentCancelInput) {
-			this._currentCancelInput(focusEditor);
-		}
+		this._currentCancelInput?.(focusEditor);
 	}
 
 	getInput(where: IRange, value: string, selectionStart: number, selectionEnd: number, supportPreview: boolean, token: CancellationToken): Promise<RenameInputFieldResult | boolean> {
@@ -194,7 +192,7 @@ export class RenameInputField implements IContentWidget {
 			};
 
 			disposeOnDone.add(token.onCancellationRequested(() => this.cancelInput(true)));
-			disposeOnDone.add(this._editor.onDidBlurEditorWidget(() => this.cancelInput(false)));
+			disposeOnDone.add(this._editor.onDidBlurEditorWidget(() => this.cancelInput(!document.hasFocus())));
 
 			this._show();
 

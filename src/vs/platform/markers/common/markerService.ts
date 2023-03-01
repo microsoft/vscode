@@ -12,6 +12,8 @@ import { Schemas } from 'vs/base/common/network';
 import { URI } from 'vs/base/common/uri';
 import { IMarker, IMarkerData, IMarkerService, IResourceMarker, MarkerSeverity, MarkerStatistics } from './markers';
 
+export const unsupportedSchemas = new Set([Schemas.inMemory, Schemas.vscodeSourceControl, Schemas.walkThrough, Schemas.walkThroughSnippet]);
+
 class DoubleResourceMap<V>{
 
 	private _byResource = new ResourceMap<Map<string, V>>();
@@ -34,18 +36,18 @@ class DoubleResourceMap<V>{
 	}
 
 	get(resource: URI, owner: string): V | undefined {
-		let ownerMap = this._byResource.get(resource);
+		const ownerMap = this._byResource.get(resource);
 		return ownerMap?.get(owner);
 	}
 
 	delete(resource: URI, owner: string): boolean {
 		let removedA = false;
 		let removedB = false;
-		let ownerMap = this._byResource.get(resource);
+		const ownerMap = this._byResource.get(resource);
 		if (ownerMap) {
 			removedA = ownerMap.delete(owner);
 		}
-		let resourceMap = this._byOwner.get(owner);
+		const resourceMap = this._byOwner.get(owner);
 		if (resourceMap) {
 			removedB = resourceMap.delete(resource);
 		}
@@ -103,7 +105,7 @@ class MarkerStats implements MarkerStatistics {
 		const result: MarkerStatistics = { errors: 0, warnings: 0, infos: 0, unknowns: 0 };
 
 		// TODO this is a hack
-		if (resource.scheme === Schemas.inMemory || resource.scheme === Schemas.walkThrough || resource.scheme === Schemas.walkThroughSnippet) {
+		if (unsupportedSchemas.has(resource.scheme)) {
 			return result;
 		}
 
@@ -230,7 +232,7 @@ export class MarkerService implements IMarkerService {
 		// remove old marker
 		const existing = this._data.values(owner);
 		if (existing) {
-			for (let data of existing) {
+			for (const data of existing) {
 				const first = Iterable.first(data);
 				if (first) {
 					changes.push(first.resource);
@@ -299,8 +301,8 @@ export class MarkerService implements IMarkerService {
 		} else if (!owner && !resource) {
 			// all
 			const result: IMarker[] = [];
-			for (let markers of this._data.values()) {
-				for (let data of markers) {
+			for (const markers of this._data.values()) {
+				for (const data of markers) {
 					if (MarkerService._accept(data, severities)) {
 						const newLen = result.push(data);
 						if (take > 0 && newLen === take) {
@@ -337,8 +339,8 @@ export class MarkerService implements IMarkerService {
 
 	private static _merge(all: (readonly URI[])[]): URI[] {
 		const set = new ResourceMap<boolean>();
-		for (let array of all) {
-			for (let item of array) {
+		for (const array of all) {
+			for (const item of array) {
 				set.set(item, true);
 			}
 		}

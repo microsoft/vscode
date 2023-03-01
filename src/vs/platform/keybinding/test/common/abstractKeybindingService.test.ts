@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 import * as assert from 'assert';
 import { KeyChord, KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { createKeybinding, createSimpleKeybinding, Keybinding, ResolvedKeybinding, SimpleKeybinding } from 'vs/base/common/keybindings';
+import { createSimpleKeybinding, ResolvedKeybinding, KeyCodeChord, Keybinding } from 'vs/base/common/keybindings';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { OS } from 'vs/base/common/platform';
 import Severity from 'vs/base/common/severity';
@@ -15,6 +15,7 @@ import { IKeyboardEvent } from 'vs/platform/keybinding/common/keybinding';
 import { KeybindingResolver } from 'vs/platform/keybinding/common/keybindingResolver';
 import { ResolvedKeybindingItem } from 'vs/platform/keybinding/common/resolvedKeybindingItem';
 import { USLayoutResolvedKeybinding } from 'vs/platform/keybinding/common/usLayoutResolvedKeybinding';
+import { createUSLayoutResolvedKeybinding } from 'vs/platform/keybinding/test/common/keybindingsTestUtils';
 import { NullLogService } from 'vs/platform/log/common/log';
 import { INotification, INotificationService, IPromptChoice, IPromptOptions, IStatusMessageOptions, NoOpNotification } from 'vs/platform/notification/common/notification';
 import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
@@ -51,18 +52,18 @@ suite('AbstractKeybindingService', () => {
 		}
 
 		public resolveKeybinding(kb: Keybinding): ResolvedKeybinding[] {
-			return [new USLayoutResolvedKeybinding(kb, OS)];
+			return USLayoutResolvedKeybinding.resolveKeybinding(kb, OS);
 		}
 
 		public resolveKeyboardEvent(keyboardEvent: IKeyboardEvent): ResolvedKeybinding {
-			let keybinding = new SimpleKeybinding(
+			const chord = new KeyCodeChord(
 				keyboardEvent.ctrlKey,
 				keyboardEvent.shiftKey,
 				keyboardEvent.altKey,
 				keyboardEvent.metaKey,
 				keyboardEvent.keyCode
-			).toChord();
-			return this.resolveKeybinding(keybinding)[0];
+			).toKeybinding();
+			return this.resolveKeybinding(chord)[0];
 		}
 
 		public resolveUserBinding(userBinding: string): ResolvedKeybinding[] {
@@ -77,6 +78,7 @@ suite('AbstractKeybindingService', () => {
 				shiftKey: keybinding.shiftKey,
 				altKey: keybinding.altKey,
 				metaKey: keybinding.metaKey,
+				altGraphKey: false,
 				keyCode: keybinding.keyCode,
 				code: null!
 			}, null!);
@@ -110,7 +112,7 @@ suite('AbstractKeybindingService', () => {
 
 		createTestKeybindingService = (items: ResolvedKeybindingItem[]): TestKeybindingService => {
 
-			let contextKeyService: IContextKeyService = {
+			const contextKeyService: IContextKeyService = {
 				_serviceBrand: undefined,
 				dispose: undefined!,
 				onDidChangeContext: undefined!,
@@ -126,7 +128,7 @@ suite('AbstractKeybindingService', () => {
 				updateParent: () => { }
 			};
 
-			let commandService: ICommandService = {
+			const commandService: ICommandService = {
 				_serviceBrand: undefined,
 				onWillExecuteCommand: () => Disposable.None,
 				onDidExecuteCommand: () => Disposable.None,
@@ -139,10 +141,12 @@ suite('AbstractKeybindingService', () => {
 				}
 			};
 
-			let notificationService: INotificationService = {
+			const notificationService: INotificationService = {
 				_serviceBrand: undefined,
+				doNotDisturbMode: false,
 				onDidAddNotification: undefined!,
 				onDidRemoveNotification: undefined!,
+				onDidChangeDoNotDisturbMode: undefined!,
 				notify: (notification: INotification) => {
 					showMessageCalls.push({ sev: notification.severity, message: notification.message });
 					return new NoOpNotification();
@@ -169,11 +173,10 @@ suite('AbstractKeybindingService', () => {
 							statusMessageCallsDisposed!.push(message);
 						}
 					};
-				},
-				setFilter() { }
+				}
 			};
 
-			let resolver = new KeybindingResolver(items, [], () => { });
+			const resolver = new KeybindingResolver(items, [], () => { });
 
 			return new TestKeybindingService(resolver, contextKeyService, commandService, notificationService);
 		};
@@ -189,9 +192,8 @@ suite('AbstractKeybindingService', () => {
 	});
 
 	function kbItem(keybinding: number, command: string, when?: ContextKeyExpression): ResolvedKeybindingItem {
-		const resolvedKeybinding = (keybinding !== 0 ? new USLayoutResolvedKeybinding(createKeybinding(keybinding, OS)!, OS) : undefined);
 		return new ResolvedKeybindingItem(
-			resolvedKeybinding,
+			createUSLayoutResolvedKeybinding(keybinding, OS),
 			command,
 			null,
 			when,
@@ -202,13 +204,12 @@ suite('AbstractKeybindingService', () => {
 	}
 
 	function toUsLabel(keybinding: number): string {
-		const usResolvedKeybinding = new USLayoutResolvedKeybinding(createKeybinding(keybinding, OS)!, OS);
-		return usResolvedKeybinding.getLabel()!;
+		return createUSLayoutResolvedKeybinding(keybinding, OS)!.getLabel()!;
 	}
 
 	test('issue #16498: chord mode is quit for invalid chords', () => {
 
-		let kbService = createTestKeybindingService([
+		const kbService = createTestKeybindingService([
 			kbItem(KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyMod.CtrlCmd | KeyCode.KeyX), 'chordCommand'),
 			kbItem(KeyCode.Backspace, 'simpleCommand'),
 		]);
@@ -263,7 +264,7 @@ suite('AbstractKeybindingService', () => {
 
 	test('issue #16833: Keybinding service should not testDispatch on modifier keys', () => {
 
-		let kbService = createTestKeybindingService([
+		const kbService = createTestKeybindingService([
 			kbItem(KeyCode.Ctrl, 'nope'),
 			kbItem(KeyCode.Meta, 'nope'),
 			kbItem(KeyCode.Alt, 'nope'),
@@ -276,7 +277,7 @@ suite('AbstractKeybindingService', () => {
 		]);
 
 		function assertIsIgnored(keybinding: number): void {
-			let shouldPreventDefault = kbService.testDispatch(keybinding);
+			const shouldPreventDefault = kbService.testDispatch(keybinding);
 			assert.strictEqual(shouldPreventDefault, false);
 			assert.deepStrictEqual(executeCommandCalls, []);
 			assert.deepStrictEqual(showMessageCalls, []);
@@ -303,7 +304,7 @@ suite('AbstractKeybindingService', () => {
 
 	test('can trigger command that is sharing keybinding with chord', () => {
 
-		let kbService = createTestKeybindingService([
+		const kbService = createTestKeybindingService([
 			kbItem(KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyMod.CtrlCmd | KeyCode.KeyX), 'chordCommand'),
 			kbItem(KeyMod.CtrlCmd | KeyCode.KeyK, 'simpleCommand', ContextKeyExpr.has('key1')),
 		]);
@@ -365,7 +366,7 @@ suite('AbstractKeybindingService', () => {
 
 	test('cannot trigger chord if command is overwriting', () => {
 
-		let kbService = createTestKeybindingService([
+		const kbService = createTestKeybindingService([
 			kbItem(KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyMod.CtrlCmd | KeyCode.KeyX), 'chordCommand', ContextKeyExpr.has('key1')),
 			kbItem(KeyMod.CtrlCmd | KeyCode.KeyK, 'simpleCommand'),
 		]);
@@ -425,13 +426,13 @@ suite('AbstractKeybindingService', () => {
 
 	test('can have spying command', () => {
 
-		let kbService = createTestKeybindingService([
+		const kbService = createTestKeybindingService([
 			kbItem(KeyMod.CtrlCmd | KeyCode.KeyK, '^simpleCommand'),
 		]);
 
 		// send Ctrl/Cmd + K
 		currentContextValue = createContext({});
-		let shouldPreventDefault = kbService.testDispatch(KeyMod.CtrlCmd | KeyCode.KeyK);
+		const shouldPreventDefault = kbService.testDispatch(KeyMod.CtrlCmd | KeyCode.KeyK);
 		assert.strictEqual(shouldPreventDefault, false);
 		assert.deepStrictEqual(executeCommandCalls, [{
 			commandId: 'simpleCommand',

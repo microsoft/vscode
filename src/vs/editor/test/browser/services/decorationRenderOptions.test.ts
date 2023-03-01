@@ -13,19 +13,19 @@ import { TestColorTheme, TestThemeService } from 'vs/platform/theme/test/common/
 suite('Decoration Render Options', () => {
 	const themeServiceMock = new TestThemeService();
 
-	let options: IDecorationRenderOptions = {
+	const options: IDecorationRenderOptions = {
 		gutterIconPath: URI.parse('https://github.com/microsoft/vscode/blob/main/resources/linux/code.png'),
 		gutterIconSize: 'contain',
 		backgroundColor: 'red',
 		borderColor: 'yellow'
 	};
 	test('register and resolve decoration type', () => {
-		let s = new TestCodeEditorService(themeServiceMock);
+		const s = new TestCodeEditorService(themeServiceMock);
 		s.registerDecorationType('test', 'example', options);
 		assert.notStrictEqual(s.resolveDecorationOptions('example', false), undefined);
 	});
 	test('remove decoration type', () => {
-		let s = new TestCodeEditorService(themeServiceMock);
+		const s = new TestCodeEditorService(themeServiceMock);
 		s.registerDecorationType('test', 'example', options);
 		assert.notStrictEqual(s.resolveDecorationOptions('example', false), undefined);
 		s.removeDecorationType('example');

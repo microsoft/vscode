@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as errors from 'vs/base/common/errors';
 import * as platform from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
 
@@ -56,8 +57,6 @@ export namespace Schemas {
 
 	export const vscodeCustomEditor = 'vscode-custom-editor';
 
-	export const vscodeNotebook = 'vscode-notebook';
-
 	export const vscodeNotebookCell = 'vscode-notebook-cell';
 
 	export const vscodeNotebookCellMetadata = 'vscode-notebook-cell-metadata';
@@ -101,6 +100,11 @@ export namespace Schemas {
 	 * Scheme used vs live share
 	 */
 	export const vsls = 'vsls';
+
+	/**
+	 * Scheme used for the Source Control commit input's text document
+	 */
+	export const vscodeSourceControl = 'vscode-scm';
 }
 
 export const connectionTokenCookieName = 'vscode-tkn';
@@ -141,11 +145,16 @@ class RemoteAuthoritiesImpl {
 
 	rewrite(uri: URI): URI {
 		if (this._delegate) {
-			return this._delegate(uri);
+			try {
+				return this._delegate(uri);
+			} catch (err) {
+				errors.onUnexpectedError(err);
+				return uri;
+			}
 		}
 		const authority = uri.authority;
 		let host = this._hosts[authority];
-		if (host && host.indexOf(':') !== -1) {
+		if (host && host.indexOf(':') !== -1 && host.indexOf('[') === -1) {
 			host = `[${host}]`;
 		}
 		const port = this._ports[authority];
@@ -165,6 +174,22 @@ class RemoteAuthoritiesImpl {
 
 export const RemoteAuthorities = new RemoteAuthoritiesImpl();
 
+/**
+ * A string pointing to a path inside the app. It should not begin with ./ or ../
+ */
+export type AppResourcePath = (
+	`a${string}` | `b${string}` | `c${string}` | `d${string}` | `e${string}` | `f${string}`
+	| `g${string}` | `h${string}` | `i${string}` | `j${string}` | `k${string}` | `l${string}`
+	| `m${string}` | `n${string}` | `o${string}` | `p${string}` | `q${string}` | `r${string}`
+	| `s${string}` | `t${string}` | `u${string}` | `v${string}` | `w${string}` | `x${string}`
+	| `y${string}` | `z${string}`
+);
+
+export const builtinExtensionsPath: AppResourcePath = 'vs/../../extensions';
+export const nodeModulesPath: AppResourcePath = 'vs/../../node_modules';
+export const nodeModulesAsarPath: AppResourcePath = 'vs/../../node_modules.asar';
+export const nodeModulesAsarUnpackedPath: AppResourcePath = 'vs/../../node_modules.asar.unpacked';
+
 class FileAccessImpl {
 
 	private static readonly FALLBACK_AUTHORITY = 'vscode-app';
@@ -175,11 +200,18 @@ class FileAccessImpl {
 	 *
 	 * **Note:** use `dom.ts#asCSSUrl` whenever the URL is to be used in CSS context.
 	 */
-	asBrowserUri(uri: URI): URI;
-	asBrowserUri(moduleId: string, moduleIdToUrl: { toUrl(moduleId: string): string }): URI;
-	asBrowserUri(uriOrModule: URI | string, moduleIdToUrl?: { toUrl(moduleId: string): string }): URI {
-		const uri = this.toUri(uriOrModule, moduleIdToUrl);
+	asBrowserUri(resourcePath: AppResourcePath | ''): URI {
+		const uri = this.toUri(resourcePath, require);
+		return this.uriToBrowserUri(uri);
+	}
 
+	/**
+	 * Returns a URI to use in contexts where the browser is responsible
+	 * for loading (e.g. fetch()) or when used within the DOM.
+	 *
+	 * **Note:** use `dom.ts#asCSSUrl` whenever the URL is to be used in CSS context.
+	 */
+	uriToBrowserUri(uri: URI): URI {
 		// Handle remote URIs via `RemoteAuthorities`
 		if (uri.scheme === Schemas.vscodeRemote) {
 			return RemoteAuthorities.rewrite(uri);
@@ -215,11 +247,16 @@ class FileAccessImpl {
 	 * Returns the `file` URI to use in contexts where node.js
 	 * is responsible for loading.
 	 */
-	asFileUri(uri: URI): URI;
-	asFileUri(moduleId: string, moduleIdToUrl: { toUrl(moduleId: string): string }): URI;
-	asFileUri(uriOrModule: URI | string, moduleIdToUrl?: { toUrl(moduleId: string): string }): URI {
-		const uri = this.toUri(uriOrModule, moduleIdToUrl);
+	asFileUri(resourcePath: AppResourcePath | ''): URI {
+		const uri = this.toUri(resourcePath, require);
+		return this.uriToFileUri(uri);
+	}
 
+	/**
+	 * Returns the `file` URI to use in contexts where node.js
+	 * is responsible for loading.
+	 */
+	uriToFileUri(uri: URI): URI {
 		// Only convert the URI if it is `vscode-file:` scheme
 		if (uri.scheme === Schemas.vscodeFileResource) {
 			return uri.with({
@@ -236,13 +273,63 @@ class FileAccessImpl {
 		return uri;
 	}
 
-	private toUri(uriOrModule: URI | string, moduleIdToUrl?: { toUrl(moduleId: string): string }): URI {
+	private toUri(uriOrModule: URI | string, moduleIdToUrl: { toUrl(moduleId: string): string }): URI {
 		if (URI.isUri(uriOrModule)) {
 			return uriOrModule;
 		}
 
-		return URI.parse(moduleIdToUrl!.toUrl(uriOrModule));
+		return URI.parse(moduleIdToUrl.toUrl(uriOrModule));
 	}
 }
 
 export const FileAccess = new FileAccessImpl();
+
+
+export namespace COI {
+
+	const coiHeaders = new Map<'3' | '2' | '1' | string, Record<string, string>>([
+		['1', { 'Cross-Origin-Opener-Policy': 'same-origin' }],
+		['2', { 'Cross-Origin-Embedder-Policy': 'require-corp' }],
+		['3', { 'Cross-Origin-Opener-Policy': 'same-origin', 'Cross-Origin-Embedder-Policy': 'require-corp' }],
+	]);
+
+	export const CoopAndCoep = Object.freeze(coiHeaders.get('3'));
+
+	const coiSearchParamName = 'vscode-coi';
+
+	/**
+	 * Extract desired headers from `vscode-coi` invocation
+	 */
+	export function getHeadersFromQuery(url: string | URI | URL): Record<string, string> | undefined {
+		let params: URLSearchParams | undefined;
+		if (typeof url === 'string') {
+			params = new URL(url).searchParams;
+		} else if (url instanceof URL) {
+			params = url.searchParams;
+		} else if (URI.isUri(url)) {
+			params = new URL(url.toString(true)).searchParams;
+		}
+		const value = params?.get(coiSearchParamName);
+		if (!value) {
+			return undefined;
+		}
+		return coiHeaders.get(value);
+	}
+
+	/**
+	 * Add the `vscode-coi` query attribute based on wanting `COOP` and `COEP`. Will be a noop when `crossOriginIsolated`
+	 * isn't enabled the current context
+	 */
+	export function addSearchParam(urlOrSearch: URLSearchParams | Record<string, string>, coop: boolean, coep: boolean): void {
+		if (!(<any>globalThis).crossOriginIsolated) {
+			// depends on the current context being COI
+			return;
+		}
+		const value = coop && coep ? '3' : coep ? '2' : '1';
+		if (urlOrSearch instanceof URLSearchParams) {
+			urlOrSearch.set(coiSearchParamName, value);
+		} else {
+			(<Record<string, string>>urlOrSearch)[coiSearchParamName] = value;
+		}
+	}
+}

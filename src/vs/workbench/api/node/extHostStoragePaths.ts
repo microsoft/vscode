@@ -63,9 +63,7 @@ export class ExtensionStoragePaths extends CommonExtensionStoragePaths {
 
 	override onWillDeactivateAll(): void {
 		// the lock will be released soon
-		if (this._workspaceStorageLock) {
-			this._workspaceStorageLock.setWillRelease(6000);
-		}
+		this._workspaceStorageLock?.setWillRelease(6000);
 	}
 }
 

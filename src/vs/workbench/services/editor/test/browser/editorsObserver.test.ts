@@ -375,7 +375,7 @@ suite('EditorsObserver', function () {
 		assert.strictEqual(observer.hasEditor({ resource: input2.resource, typeId: input2.typeId, editorId: input2.editorId }), true);
 		assert.strictEqual(observer.hasEditor({ resource: input3.resource, typeId: input3.typeId, editorId: input3.editorId }), true);
 
-		storage.emitWillSaveState(WillSaveStateReason.SHUTDOWN);
+		storage.testEmitWillSaveState(WillSaveStateReason.SHUTDOWN);
 
 		const restoredObserver = disposables.add(new EditorsObserver(part, storage));
 		await part.whenReady;
@@ -424,7 +424,7 @@ suite('EditorsObserver', function () {
 		assert.strictEqual(observer.hasEditor({ resource: input2.resource, typeId: input2.typeId, editorId: input2.editorId }), true);
 		assert.strictEqual(observer.hasEditor({ resource: input3.resource, typeId: input3.typeId, editorId: input3.editorId }), true);
 
-		storage.emitWillSaveState(WillSaveStateReason.SHUTDOWN);
+		storage.testEmitWillSaveState(WillSaveStateReason.SHUTDOWN);
 
 		const restoredObserver = disposables.add(new EditorsObserver(part, storage));
 		await part.whenReady;
@@ -461,7 +461,7 @@ suite('EditorsObserver', function () {
 		assert.strictEqual(currentEditorsMRU[0].editor, input1);
 		assert.strictEqual(observer.hasEditor({ resource: input1.resource, typeId: input1.typeId, editorId: input1.editorId }), true);
 
-		storage.emitWillSaveState(WillSaveStateReason.SHUTDOWN);
+		storage.testEmitWillSaveState(WillSaveStateReason.SHUTDOWN);
 
 		const restoredObserver = disposables.add(new EditorsObserver(part, storage));
 		await part.whenReady;

@@ -11,12 +11,6 @@ import { Event, Emitter } from 'vs/base/common/event';
 import { Schemas } from 'vs/base/common/network';
 import { getColorForSeverity } from 'vs/workbench/contrib/terminal/browser/terminalStatusList';
 
-export interface ITerminalDecorationData {
-	tooltip: string;
-	statusIcon: string;
-	color: string;
-}
-
 export class TerminalDecorationsProvider implements IDecorationsProvider {
 	readonly label: string = localize('label', "Terminal");
 	private readonly _onDidChange = new Emitter<URI[]>();

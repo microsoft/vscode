@@ -11,6 +11,7 @@ import { basename, dirname, extname, isEqual } from 'vs/base/common/resources';
 import { ILanguageService } from 'vs/editor/common/languages/language';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IModelService } from 'vs/editor/common/services/model';
+import { Schemas } from 'vs/base/common/network';
 
 //#region < --- Workbench --- >
 
@@ -24,7 +25,9 @@ export const EmptyWorkspaceSupportContext = new RawContextKey<boolean>('emptyWor
 export const DirtyWorkingCopiesContext = new RawContextKey<boolean>('dirtyWorkingCopies', false, localize('dirtyWorkingCopies', "Whether there are any working copies with unsaved changes"));
 
 export const RemoteNameContext = new RawContextKey<string>('remoteName', '', localize('remoteName', "The name of the remote the window is connected to or an empty string if not connected to any remote"));
-export const VirtualWorkspaceContext = new RawContextKey<string>('virtualWorkspace', '', localize('virtualWorkspace', "The scheme of the current workspace if is from a virtual file system or an empty string."));
+
+export const VirtualWorkspaceContext = new RawContextKey<string>('virtualWorkspace', '', localize('virtualWorkspace', "The scheme of the current workspace is from a virtual file system or an empty string."));
+export const TemporaryWorkspaceContext = new RawContextKey<boolean>('temporaryWorkspace', false, localize('temporaryWorkspace', "The scheme of the current workspace is from a temporary file system."));
 
 export const IsFullscreenContext = new RawContextKey<boolean>('isFullscreen', false, localize('isFullscreen', "Whether the window is in fullscreen mode"));
 
@@ -142,7 +145,7 @@ export class ResourceContextKey {
 	// UNDEFINED! IT IS IMPORTANT THAT DEFAULTS ARE INHERITED
 	// FROM THE PARENT CONTEXT AND ONLY UNDEFINED DOES THIS
 
-	static readonly Scheme = new RawContextKey<string>('resourceScheme', undefined, { type: 'string', description: localize('resourceScheme', "The scheme of the rsource") });
+	static readonly Scheme = new RawContextKey<string>('resourceScheme', undefined, { type: 'string', description: localize('resourceScheme', "The scheme of the resource") });
 	static readonly Filename = new RawContextKey<string>('resourceFilename', undefined, { type: 'string', description: localize('resourceFilename', "The file name of the resource") });
 	static readonly Dirname = new RawContextKey<string>('resourceDirname', undefined, { type: 'string', description: localize('resourceDirname', "The folder name the resource is contained in") });
 	static readonly Path = new RawContextKey<string>('resourcePath', undefined, { type: 'string', description: localize('resourcePath', "The full path of the resource") });
@@ -169,7 +172,7 @@ export class ResourceContextKey {
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 		@IFileService private readonly _fileService: IFileService,
 		@ILanguageService private readonly _languageService: ILanguageService,
-		@IModelService private readonly _modelService: IModelService,
+		@IModelService private readonly _modelService: IModelService
 	) {
 		this._schemeKey = ResourceContextKey.Scheme.bindTo(this._contextKeyService);
 		this._filenameKey = ResourceContextKey.Filename.bindTo(this._contextKeyService);
@@ -222,13 +225,21 @@ export class ResourceContextKey {
 			this._resourceKey.set(value ? value.toString() : null);
 			this._schemeKey.set(value ? value.scheme : null);
 			this._filenameKey.set(value ? basename(value) : null);
-			this._dirnameKey.set(value ? dirname(value).fsPath : null);
-			this._pathKey.set(value ? value.fsPath : null);
+			this._dirnameKey.set(value ? this.uriToPath(dirname(value)) : null);
+			this._pathKey.set(value ? this.uriToPath(value) : null);
 			this._setLangId();
 			this._extensionKey.set(value ? extname(value) : null);
 			this._hasResource.set(Boolean(value));
 			this._isFileSystemResource.set(value ? this._fileService.hasProvider(value) : false);
 		});
+	}
+
+	private uriToPath(uri: URI): string {
+		if (uri.scheme === Schemas.file) {
+			return uri.fsPath;
+		}
+
+		return uri.path;
 	}
 
 	reset(): void {

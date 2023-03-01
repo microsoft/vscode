@@ -8,7 +8,7 @@ import { TextFileEditorModel } from 'vs/workbench/services/textfile/common/textF
 import { TextFileEditorModelManager } from 'vs/workbench/services/textfile/common/textFileEditorModelManager';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { toResource } from 'vs/base/test/common/utils';
-import { workbenchInstantiationService, TestServiceAccessor, TestTextFileEditorModelManager } from 'vs/workbench/test/browser/workbenchTestServices';
+import { workbenchInstantiationService, TestServiceAccessor, ITestTextFileEditorModelManager } from 'vs/workbench/test/browser/workbenchTestServices';
 import { URI } from 'vs/base/common/uri';
 import { FileOperation } from 'vs/platform/files/common/files';
 import { TestWorkingCopy } from 'vs/workbench/test/common/workbenchTestServices';
@@ -56,8 +56,8 @@ suite('WorkingCopyFileService', () => {
 	});
 
 	test('move - source identical to target', async function () {
-		let sourceModel: TextFileEditorModel = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/file.txt'), 'utf8', undefined);
-		(<TestTextFileEditorModelManager>accessor.textFileService.files).add(sourceModel.resource, sourceModel);
+		const sourceModel: TextFileEditorModel = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/file.txt'), 'utf8', undefined);
+		(<ITestTextFileEditorModelManager>accessor.textFileService.files).add(sourceModel.resource, sourceModel);
 
 		const eventCounter = await testEventsMoveOrCopy([{ file: { source: sourceModel.resource, target: sourceModel.resource }, overwrite: true }], true);
 
@@ -66,12 +66,12 @@ suite('WorkingCopyFileService', () => {
 	});
 
 	test('move - one source == target and another source != target', async function () {
-		let sourceModel1: TextFileEditorModel = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/file1.txt'), 'utf8', undefined);
-		let sourceModel2: TextFileEditorModel = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/file2.txt'), 'utf8', undefined);
-		let targetModel2: TextFileEditorModel = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/file_target2.txt'), 'utf8', undefined);
-		(<TestTextFileEditorModelManager>accessor.textFileService.files).add(sourceModel1.resource, sourceModel1);
-		(<TestTextFileEditorModelManager>accessor.textFileService.files).add(sourceModel2.resource, sourceModel2);
-		(<TestTextFileEditorModelManager>accessor.textFileService.files).add(targetModel2.resource, targetModel2);
+		const sourceModel1: TextFileEditorModel = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/file1.txt'), 'utf8', undefined);
+		const sourceModel2: TextFileEditorModel = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/file2.txt'), 'utf8', undefined);
+		const targetModel2: TextFileEditorModel = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/file_target2.txt'), 'utf8', undefined);
+		(<ITestTextFileEditorModelManager>accessor.textFileService.files).add(sourceModel1.resource, sourceModel1);
+		(<ITestTextFileEditorModelManager>accessor.textFileService.files).add(sourceModel2.resource, sourceModel2);
+		(<ITestTextFileEditorModelManager>accessor.textFileService.files).add(targetModel2.resource, targetModel2);
 
 		const eventCounter = await testEventsMoveOrCopy([
 			{ file: { source: sourceModel1.resource, target: sourceModel1.resource }, overwrite: true },
@@ -100,8 +100,8 @@ suite('WorkingCopyFileService', () => {
 	});
 
 	test('copy - source identical to target', async function () {
-		let sourceModel: TextFileEditorModel = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/file.txt'), 'utf8', undefined);
-		(<TestTextFileEditorModelManager>accessor.textFileService.files).add(sourceModel.resource, sourceModel);
+		const sourceModel: TextFileEditorModel = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/file.txt'), 'utf8', undefined);
+		(<ITestTextFileEditorModelManager>accessor.textFileService.files).add(sourceModel.resource, sourceModel);
 
 		const eventCounter = await testEventsMoveOrCopy([{ file: { source: sourceModel.resource, target: sourceModel.resource }, overwrite: true }]);
 
@@ -110,12 +110,12 @@ suite('WorkingCopyFileService', () => {
 	});
 
 	test('copy - one source == target and another source != target', async function () {
-		let sourceModel1: TextFileEditorModel = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/file1.txt'), 'utf8', undefined);
-		let sourceModel2: TextFileEditorModel = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/file2.txt'), 'utf8', undefined);
-		let targetModel2: TextFileEditorModel = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/file_target2.txt'), 'utf8', undefined);
-		(<TestTextFileEditorModelManager>accessor.textFileService.files).add(sourceModel1.resource, sourceModel1);
-		(<TestTextFileEditorModelManager>accessor.textFileService.files).add(sourceModel2.resource, sourceModel2);
-		(<TestTextFileEditorModelManager>accessor.textFileService.files).add(targetModel2.resource, targetModel2);
+		const sourceModel1: TextFileEditorModel = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/file1.txt'), 'utf8', undefined);
+		const sourceModel2: TextFileEditorModel = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/file2.txt'), 'utf8', undefined);
+		const targetModel2: TextFileEditorModel = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/file_target2.txt'), 'utf8', undefined);
+		(<ITestTextFileEditorModelManager>accessor.textFileService.files).add(sourceModel1.resource, sourceModel1);
+		(<ITestTextFileEditorModelManager>accessor.textFileService.files).add(sourceModel2.resource, sourceModel2);
+		(<ITestTextFileEditorModelManager>accessor.textFileService.files).add(targetModel2.resource, targetModel2);
 
 		const eventCounter = await testEventsMoveOrCopy([
 			{ file: { source: sourceModel1.resource, target: sourceModel1.resource }, overwrite: true },
@@ -142,10 +142,10 @@ suite('WorkingCopyFileService', () => {
 
 	test('getDirty', async function () {
 		const model1 = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/file-1.txt'), 'utf8', undefined);
-		(<TestTextFileEditorModelManager>accessor.textFileService.files).add(model1.resource, model1);
+		(<ITestTextFileEditorModelManager>accessor.textFileService.files).add(model1.resource, model1);
 
 		const model2 = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/file-2.txt'), 'utf8', undefined);
-		(<TestTextFileEditorModelManager>accessor.textFileService.files).add(model2.resource, model2);
+		(<ITestTextFileEditorModelManager>accessor.textFileService.files).add(model2.resource, model2);
 
 		let dirty = accessor.workingCopyFileService.getDirty(model1.resource);
 		assert.strictEqual(dirty.length, 0);
@@ -173,7 +173,7 @@ suite('WorkingCopyFileService', () => {
 
 	test('registerWorkingCopyProvider', async function () {
 		const model1 = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/file-1.txt'), 'utf8', undefined);
-		(<TestTextFileEditorModelManager>accessor.textFileService.files).add(model1.resource, model1);
+		(<ITestTextFileEditorModelManager>accessor.textFileService.files).add(model1.resource, model1);
 		await model1.resolve();
 		model1.textEditorModel!.setValue('foo');
 
@@ -326,10 +326,10 @@ suite('WorkingCopyFileService', () => {
 
 		let eventCounter = 0;
 		const models = await Promise.all(files.map(async ({ source, target }, i) => {
-			let sourceModel: TextFileEditorModel = instantiationService.createInstance(TextFileEditorModel, source, 'utf8', undefined);
-			let targetModel: TextFileEditorModel = instantiationService.createInstance(TextFileEditorModel, target, 'utf8', undefined);
-			(<TestTextFileEditorModelManager>accessor.textFileService.files).add(sourceModel.resource, sourceModel);
-			(<TestTextFileEditorModelManager>accessor.textFileService.files).add(targetModel.resource, targetModel);
+			const sourceModel: TextFileEditorModel = instantiationService.createInstance(TextFileEditorModel, source, 'utf8', undefined);
+			const targetModel: TextFileEditorModel = instantiationService.createInstance(TextFileEditorModel, target, 'utf8', undefined);
+			(<ITestTextFileEditorModelManager>accessor.textFileService.files).add(sourceModel.resource, sourceModel);
+			(<ITestTextFileEditorModelManager>accessor.textFileService.files).add(targetModel.resource, targetModel);
 
 			await sourceModel.resolve();
 			sourceModel.textEditorModel!.setValue('foo' + i);
@@ -422,7 +422,7 @@ suite('WorkingCopyFileService', () => {
 
 		const models = await Promise.all(resources.map(async resource => {
 			const model = instantiationService.createInstance(TextFileEditorModel, resource, 'utf8', undefined);
-			(<TestTextFileEditorModelManager>accessor.textFileService.files).add(model.resource, model);
+			(<ITestTextFileEditorModelManager>accessor.textFileService.files).add(model.resource, model);
 
 			await model.resolve();
 			model!.textEditorModel!.setValue('foo');
@@ -482,7 +482,7 @@ suite('WorkingCopyFileService', () => {
 
 	async function testCreate(resource: URI, contents: VSBuffer) {
 		const model = instantiationService.createInstance(TextFileEditorModel, resource, 'utf8', undefined);
-		(<TestTextFileEditorModelManager>accessor.textFileService.files).add(model.resource, model);
+		(<ITestTextFileEditorModelManager>accessor.textFileService.files).add(model.resource, model);
 
 		await model.resolve();
 		model!.textEditorModel!.setValue('foo');

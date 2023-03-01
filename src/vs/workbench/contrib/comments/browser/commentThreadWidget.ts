@@ -6,7 +6,7 @@
 import 'vs/css!./media/review';
 import * as dom from 'vs/base/browser/dom';
 import { Emitter } from 'vs/base/common/event';
-import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import * as languages from 'vs/editor/common/languages';
 import { IMarkdownRendererOptions } from 'vs/editor/contrib/markdownRenderer/browser/markdownRenderer';
@@ -17,8 +17,8 @@ import { CommentReply } from 'vs/workbench/contrib/comments/browser/commentReply
 import { ICommentService } from 'vs/workbench/contrib/comments/browser/commentService';
 import { CommentThreadBody } from 'vs/workbench/contrib/comments/browser/commentThreadBody';
 import { CommentThreadHeader } from 'vs/workbench/contrib/comments/browser/commentThreadHeader';
+import { CommentThreadAdditionalActions } from 'vs/workbench/contrib/comments/browser/commentThreadAdditionalActions';
 import { CommentContextKeys } from 'vs/workbench/contrib/comments/common/commentContextKeys';
-import { CommentNode } from 'vs/workbench/contrib/comments/common/commentModel';
 import { ICommentThreadWidget } from 'vs/workbench/contrib/comments/common/commentThreadWidget';
 import { IColorTheme } from 'vs/platform/theme/common/themeService';
 import { contrastBorder, focusBorder, inputValidationErrorBackground, inputValidationErrorBorder, inputValidationErrorForeground, textBlockQuoteBackground, textBlockQuoteBorder, textLinkActiveForeground, textLinkForeground } from 'vs/platform/theme/common/colorRegistry';
@@ -27,6 +27,7 @@ import { IRange } from 'vs/editor/common/core/range';
 import { commentThreadStateBackgroundColorVar, commentThreadStateColorVar } from 'vs/workbench/contrib/comments/browser/commentColors';
 import { ICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
 import { FontInfo } from 'vs/editor/common/config/fontInfo';
+import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 
 export const COMMENTEDITOR_DECORATION_KEY = 'commenteditordecoration';
 
@@ -35,6 +36,7 @@ export class CommentThreadWidget<T extends IRange | ICellRange = IRange> extends
 	private _header!: CommentThreadHeader<T>;
 	private _body!: CommentThreadBody<T>;
 	private _commentReply?: CommentReply<T>;
+	private _additionalActions?: CommentThreadAdditionalActions<T>;
 	private _commentMenus: CommentMenus;
 	private _commentThreadDisposables: IDisposable[] = [];
 	private _threadIsEmpty: IContextKey<boolean>;
@@ -54,14 +56,16 @@ export class CommentThreadWidget<T extends IRange | ICellRange = IRange> extends
 		private _contextKeyService: IContextKeyService,
 		private _scopedInstatiationService: IInstantiationService,
 		private _commentThread: languages.CommentThread<T>,
-		private _pendingComment: string | null,
+		private _pendingComment: string | undefined,
+		private _pendingEdits: { [key: number]: string } | undefined,
 		private _markdownOptions: IMarkdownRendererOptions,
 		private _commentOptions: languages.CommentOptions | undefined,
 		private _containerDelegate: {
 			actionRunner: (() => void) | null;
 			collapse: () => void;
 		},
-		@ICommentService private commentService: ICommentService
+		@ICommentService private commentService: ICommentService,
+		@IContextMenuService contextMenuService: IContextMenuService
 	) {
 		super();
 
@@ -78,7 +82,8 @@ export class CommentThreadWidget<T extends IRange | ICellRange = IRange> extends
 			this._commentMenus,
 			this._commentThread,
 			this._contextKeyService,
-			this._scopedInstatiationService
+			this._scopedInstatiationService,
+			contextMenuService
 		);
 
 		this._header.updateCommentThread(this._commentThread);
@@ -93,20 +98,22 @@ export class CommentThreadWidget<T extends IRange | ICellRange = IRange> extends
 			bodyElement,
 			this._markdownOptions,
 			this._commentThread,
+			this._pendingEdits,
 			this._scopedInstatiationService,
 			this
 		) as unknown as CommentThreadBody<T>;
+		this._register(this._body);
 
 		this._styleElement = dom.createStyleSheet(this.container);
 
 
-		this._commentThreadContextValue = this._contextKeyService.createKey<string | undefined>('commentThread', undefined);
+		this._commentThreadContextValue = CommentContextKeys.commentThreadContext.bindTo(this._contextKeyService);
 		this._commentThreadContextValue.set(_commentThread.contextValue);
 
-		const commentControllerKey = this._contextKeyService.createKey<string | undefined>('commentController', undefined);
+		const commentControllerKey = CommentContextKeys.commentControllerContext.bindTo(this._contextKeyService);
 		const controller = this.commentService.getCommentController(this._owner);
 
-		if (controller) {
+		if (controller?.contextValue) {
 			commentControllerKey.set(controller.contextValue);
 		}
 
@@ -147,11 +154,8 @@ export class CommentThreadWidget<T extends IRange | ICellRange = IRange> extends
 	}
 
 	updateCommentThread(commentThread: languages.CommentThread<T>) {
-		if (this._commentThread !== commentThread) {
-			this._commentThreadDisposables.forEach(disposable => disposable.dispose());
-		}
-
 		this._commentThread = commentThread;
+		dispose(this._commentThreadDisposables);
 		this._commentThreadDisposables = [];
 		this._bindCommentThreadListeners();
 
@@ -168,7 +172,7 @@ export class CommentThreadWidget<T extends IRange | ICellRange = IRange> extends
 	}
 
 	display(lineHeight: number) {
-		let headHeight = Math.ceil(lineHeight * 1.2);
+		const headHeight = Math.ceil(lineHeight * 1.2);
 		this._header.updateHeight(headHeight);
 
 		this._body.display();
@@ -177,6 +181,7 @@ export class CommentThreadWidget<T extends IRange | ICellRange = IRange> extends
 		if (this._commentThread.canReply) {
 			this._createCommentForm();
 		}
+		this._createAdditionalActions();
 
 		this._register(this._body.onDidResize(dimension => {
 			this._refresh(dimension);
@@ -239,16 +244,33 @@ export class CommentThreadWidget<T extends IRange | ICellRange = IRange> extends
 		this._register(this._commentReply);
 	}
 
+	private _createAdditionalActions() {
+		this._additionalActions = this._scopedInstatiationService.createInstance(
+			CommentThreadAdditionalActions,
+			this._body.container,
+			this._commentThread,
+			this._contextKeyService,
+			this._commentMenus,
+			this._containerDelegate.actionRunner,
+		);
+
+		this._register(this._additionalActions);
+	}
+
 	getCommentCoords(commentUniqueId: number) {
 		return this._body.getCommentCoords(commentUniqueId);
 	}
 
-	getPendingComment(): string | null {
+	getPendingEdits(): { [key: number]: string } {
+		return this._body.getPendingEdits();
+	}
+
+	getPendingComment(): string | undefined {
 		if (this._commentReply) {
 			return this._commentReply.getPendingComment();
 		}
 
-		return null;
+		return undefined;
 	}
 
 	getDimensions() {
@@ -273,7 +295,9 @@ export class CommentThreadWidget<T extends IRange | ICellRange = IRange> extends
 
 	async submitComment() {
 		const activeComment = this._body.activeComment;
-		if (activeComment && !(activeComment instanceof CommentNode)) {
+		if (activeComment) {
+			activeComment.submitComment();
+		} else if ((this._commentReply?.getPendingComment()?.length ?? 0) > 0) {
 			this._commentReply?.submitComment();
 		}
 	}

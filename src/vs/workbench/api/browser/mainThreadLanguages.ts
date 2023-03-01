@@ -10,10 +10,10 @@ import { MainThreadLanguagesShape, MainContext, ExtHostContext, ExtHostLanguages
 import { extHostNamedCustomer, IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
 import { IPosition } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
-import { StandardTokenType } from 'vs/editor/common/languages';
+import { StandardTokenType } from 'vs/editor/common/encodedTokenAttributes';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { ILanguageStatus, ILanguageStatusService } from 'vs/workbench/services/languageStatus/common/languageStatusService';
-import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
+import { DisposableMap, DisposableStore } from 'vs/base/common/lifecycle';
 
 @extHostNamedCustomer(MainContext.MainThreadLanguages)
 export class MainThreadLanguages implements MainThreadLanguagesShape {
@@ -21,7 +21,7 @@ export class MainThreadLanguages implements MainThreadLanguagesShape {
 	private readonly _disposables = new DisposableStore();
 	private readonly _proxy: ExtHostLanguagesShape;
 
-	private readonly _status = new Map<number, IDisposable>();
+	private readonly _status = new DisposableMap<number>();
 
 	constructor(
 		_extHostContext: IExtHostContext,
@@ -40,11 +40,7 @@ export class MainThreadLanguages implements MainThreadLanguagesShape {
 
 	dispose(): void {
 		this._disposables.dispose();
-
-		for (const status of this._status.values()) {
-			status.dispose();
-		}
-		this._status.clear();
+		this._status.dispose();
 	}
 
 	async $changeLanguage(resource: UriComponents, languageId: string): Promise<void> {
@@ -56,7 +52,7 @@ export class MainThreadLanguages implements MainThreadLanguagesShape {
 		const uri = URI.revive(resource);
 		const ref = await this._resolverService.createModelReference(uri);
 		try {
-			this._modelService.setMode(ref.object.textEditorModel, this._languageService.createById(languageId));
+			ref.object.textEditorModel.setLanguage(this._languageService.createById(languageId));
 		} finally {
 			ref.dispose();
 		}

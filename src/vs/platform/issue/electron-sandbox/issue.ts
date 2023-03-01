@@ -8,4 +8,6 @@ import { ICommonIssueService } from 'vs/platform/issue/common/issue';
 
 export const IIssueService = createDecorator<IIssueService>('issueService');
 
-export interface IIssueService extends ICommonIssueService { }
+export interface IIssueService extends ICommonIssueService {
+	stopTracing(): Promise<void>;
+}

@@ -12,6 +12,10 @@ export function disposeAll(disposables: vscode.Disposable[]) {
 	}
 }
 
+export interface IDisposable {
+	dispose(): void;
+}
+
 export abstract class Disposable {
 	private _isDisposed = false;
 

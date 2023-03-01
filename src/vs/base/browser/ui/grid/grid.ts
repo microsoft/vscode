@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Orientation } from 'vs/base/browser/ui/sash/sash';
+import { IBoundarySashes, Orientation } from 'vs/base/browser/ui/sash/sash';
 import { equals, tail2 as tail } from 'vs/base/common/arrays';
 import { Event } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import 'vs/css!./gridview';
-import { Box, GridView, IBoundarySashes, IGridViewOptions, IGridViewStyles, IView as IGridViewView, IViewSize, orthogonal, Sizing as GridViewSizing } from './gridview';
+import { Box, GridView, IGridViewOptions, IGridViewStyles, IView as IGridViewView, IViewSize, orthogonal, Sizing as GridViewSizing } from './gridview';
 import type { GridLocation } from 'vs/base/browser/ui/grid/gridview';
 ///@ts-ignore
 import type { SplitView } from 'vs/base/browser/ui/splitview/splitview';
@@ -525,6 +525,16 @@ export class Grid<T extends IView = IView> extends Disposable {
 	resizeView(view: T, size: IViewSize): void {
 		const location = this.getViewLocation(view);
 		return this.gridview.resizeView(location, size);
+	}
+
+	/**
+	 * Returns whether all other {@link IView views} are at their minimum size.
+	 *
+	 * @param view The reference {@link IView view}.
+	 */
+	isViewSizeMaximized(view: T): boolean {
+		const location = this.getViewLocation(view);
+		return this.gridview.isViewSizeMaximized(location);
 	}
 
 	/**

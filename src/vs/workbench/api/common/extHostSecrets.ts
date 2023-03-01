@@ -5,7 +5,7 @@
 
 import type * as vscode from 'vscode';
 
-import { ExtHostSecretState } from 'vs/workbench/api/common/exHostSecretState';
+import { ExtHostSecretState } from 'vs/workbench/api/common/extHostSecretState';
 import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { Emitter, Event } from 'vs/base/common/event';
 

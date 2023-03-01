@@ -10,7 +10,6 @@ import { IMenuService, MenuId, MenuItemAction, SubmenuItemAction, Action2 } from
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { timeout } from 'vs/base/common/async';
-import { DisposableStore, toDisposable, dispose } from 'vs/base/common/lifecycle';
 import { AbstractEditorCommandsQuickAccessProvider } from 'vs/editor/contrib/quickAccess/browser/commandsQuickAccess';
 import { IEditor } from 'vs/editor/common/editorCommon';
 import { Language } from 'vs/base/common/platform';
@@ -20,9 +19,10 @@ import { ICommandService } from 'vs/platform/commands/common/commands';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { DefaultQuickAccessFilterValue } from 'vs/platform/quickinput/common/quickAccess';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IConfigurationChangeEvent, IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IWorkbenchQuickAccessConfiguration } from 'vs/workbench/browser/quickaccess';
 import { Codicon } from 'vs/base/common/codicons';
+import { ThemeIcon } from 'vs/base/common/themables';
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
@@ -32,6 +32,7 @@ import { TriggerAction } from 'vs/platform/quickinput/browser/pickerQuickAccess'
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
 import { stripIcons } from 'vs/base/common/iconLabels';
 import { isFirefox } from 'vs/base/browser/browser';
+import { IProductService } from 'vs/platform/product/common/productService';
 
 export class CommandsQuickAccessProvider extends AbstractEditorCommandsQuickAccessProvider {
 
@@ -66,6 +67,7 @@ export class CommandsQuickAccessProvider extends AbstractEditorCommandsQuickAcce
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService,
 		@IPreferencesService private readonly preferencesService: IPreferencesService,
+		@IProductService private readonly productService: IProductService
 	) {
 		super({
 			showAlias: !Language.isDefaultVariant(),
@@ -74,17 +76,33 @@ export class CommandsQuickAccessProvider extends AbstractEditorCommandsQuickAcce
 				commandId: ''
 			}
 		}, instantiationService, keybindingService, commandService, telemetryService, dialogService);
+
+		this._register(configurationService.onDidChangeConfiguration((e) => this.updateSuggestedCommandIds(e)));
+		this.updateSuggestedCommandIds();
 	}
 
 	private get configuration() {
 		const commandPaletteConfig = this.configurationService.getValue<IWorkbenchQuickAccessConfiguration>().workbench.commandPalette;
 
 		return {
-			preserveInput: commandPaletteConfig.preserveInput
+			preserveInput: commandPaletteConfig.preserveInput,
+			experimental: commandPaletteConfig.experimental
 		};
 	}
 
-	protected async getCommandPicks(disposables: DisposableStore, token: CancellationToken): Promise<Array<ICommandQuickPick>> {
+	private updateSuggestedCommandIds(e?: IConfigurationChangeEvent): void {
+		if (e && !e.affectsConfiguration('workbench.commandPalette.experimental.suggestCommands')) {
+			return;
+		}
+
+		const config = this.configuration;
+		const suggestedCommandIds = config.experimental.suggestCommands && this.productService.commandPaletteSuggestedCommandIds?.length
+			? new Set(this.productService.commandPaletteSuggestedCommandIds)
+			: undefined;
+		this.options.suggestedCommandIds = suggestedCommandIds;
+	}
+
+	protected async getCommandPicks(token: CancellationToken): Promise<Array<ICommandQuickPick>> {
 
 		// wait for extensions registration or 800ms once
 		await this.extensionRegistrationRace;
@@ -95,11 +113,11 @@ export class CommandsQuickAccessProvider extends AbstractEditorCommandsQuickAcce
 
 		return [
 			...this.getCodeEditorCommandPicks(),
-			...this.getGlobalCommandPicks(disposables)
+			...this.getGlobalCommandPicks()
 		].map(c => ({
 			...c,
 			buttons: [{
-				iconClass: Codicon.gear.classNames,
+				iconClass: ThemeIcon.asClassName(Codicon.gear),
 				tooltip: localize('configure keybinding', "Configure Keybinding"),
 			}],
 			trigger: (): TriggerAction => {
@@ -109,7 +127,7 @@ export class CommandsQuickAccessProvider extends AbstractEditorCommandsQuickAcce
 		}));
 	}
 
-	private getGlobalCommandPicks(disposables: DisposableStore): ICommandQuickPick[] {
+	private getGlobalCommandPicks(): ICommandQuickPick[] {
 		const globalCommandPicks: ICommandQuickPick[] = [];
 		const scopedContextKeyService = this.editorService.activeEditorPane?.scopedContextKeyService || this.editorGroupService.activeGroup.scopedContextKeyService;
 		const globalCommandsMenu = this.menuService.createMenu(MenuId.CommandPalette, scopedContextKeyService);
@@ -144,7 +162,6 @@ export class CommandsQuickAccessProvider extends AbstractEditorCommandsQuickAcce
 
 		// Cleanup
 		globalCommandsMenu.dispose();
-		disposables.add(toDisposable(() => dispose(globalCommandsMenuActions)));
 
 		return globalCommandPicks;
 	}
@@ -195,10 +212,10 @@ export class ClearCommandHistoryAction extends Action2 {
 
 			// Ask for confirmation
 			const { confirmed } = await dialogService.confirm({
+				type: 'warning',
 				message: localize('confirmClearMessage', "Do you want to clear the history of recently used commands?"),
 				detail: localize('confirmClearDetail', "This action is irreversible!"),
-				primaryButton: localize({ key: 'clearButtonLabel', comment: ['&& denotes a mnemonic'] }, "&&Clear"),
-				type: 'warning'
+				primaryButton: localize({ key: 'clearButtonLabel', comment: ['&& denotes a mnemonic'] }, "&&Clear")
 			});
 
 			if (!confirmed) {

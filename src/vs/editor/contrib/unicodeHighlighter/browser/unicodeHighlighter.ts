@@ -12,7 +12,7 @@ import * as platform from 'vs/base/common/platform';
 import { InvisibleCharacters } from 'vs/base/common/strings';
 import 'vs/css!./unicodeHighlighter';
 import { IActiveCodeEditor, ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { EditorAction, registerEditorAction, registerEditorContribution, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
+import { EditorAction, EditorContributionInstantiation, registerEditorAction, registerEditorContribution, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { InUntrustedWorkspace, inUntrustedWorkspace, EditorOption, InternalUnicodeHighlightOptions, unicodeHighlightConfigKeys } from 'vs/editor/common/config/editorOptions';
 import { Range } from 'vs/editor/common/core/range';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
@@ -163,7 +163,7 @@ export class UnicodeHighlighter extends Disposable implements IEditorContributio
 			allowedCodePoints: Object.keys(options.allowedCharacters).map(c => c.codePointAt(0)!),
 			allowedLocales: Object.keys(options.allowedLocales).map(locale => {
 				if (locale === '_os') {
-					let osLocale = new Intl.NumberFormat().resolvedOptions().locale;
+					const osLocale = new Intl.NumberFormat().resolvedOptions().locale;
 					return osLocale;
 				} else if (locale === '_vscode') {
 					return platform.language;
@@ -407,7 +407,7 @@ export class UnicodeHighlighterHover implements IHoverPart {
 
 export class UnicodeHighlighterHoverParticipant implements IEditorHoverParticipant<MarkdownHover> {
 
-	public readonly hoverOrdinal: number = 4;
+	public readonly hoverOrdinal: number = 5;
 
 	constructor(
 		private readonly _editor: ICodeEditor,
@@ -483,7 +483,7 @@ export class UnicodeHighlighterHoverParticipant implements IEditorHoverParticipa
 				.appendMarkdown(reason)
 				.appendText(' ')
 				.appendLink(uri, adjustSettings);
-			result.push(new MarkdownHover(this, d.range, [markdown], index++));
+			result.push(new MarkdownHover(this, d.range, [markdown], false, index++));
 		}
 		return result;
 	}
@@ -563,7 +563,7 @@ export class DisableHighlightingInCommentsAction extends EditorAction implements
 	}
 
 	public async run(accessor: ServicesAccessor | undefined, editor: ICodeEditor, args: any): Promise<void> {
-		let configurationService = accessor?.get(IConfigurationService);
+		const configurationService = accessor?.get(IConfigurationService);
 		if (configurationService) {
 			this.runAction(configurationService);
 		}
@@ -587,7 +587,7 @@ export class DisableHighlightingInStringsAction extends EditorAction implements 
 	}
 
 	public async run(accessor: ServicesAccessor | undefined, editor: ICodeEditor, args: any): Promise<void> {
-		let configurationService = accessor?.get(IConfigurationService);
+		const configurationService = accessor?.get(IConfigurationService);
 		if (configurationService) {
 			this.runAction(configurationService);
 		}
@@ -611,7 +611,7 @@ export class DisableHighlightingOfAmbiguousCharactersAction extends EditorAction
 	}
 
 	public async run(accessor: ServicesAccessor | undefined, editor: ICodeEditor, args: any): Promise<void> {
-		let configurationService = accessor?.get(IConfigurationService);
+		const configurationService = accessor?.get(IConfigurationService);
 		if (configurationService) {
 			this.runAction(configurationService);
 		}
@@ -635,7 +635,7 @@ export class DisableHighlightingOfInvisibleCharactersAction extends EditorAction
 	}
 
 	public async run(accessor: ServicesAccessor | undefined, editor: ICodeEditor, args: any): Promise<void> {
-		let configurationService = accessor?.get(IConfigurationService);
+		const configurationService = accessor?.get(IConfigurationService);
 		if (configurationService) {
 			this.runAction(configurationService);
 		}
@@ -659,7 +659,7 @@ export class DisableHighlightingOfNonBasicAsciiCharactersAction extends EditorAc
 	}
 
 	public async run(accessor: ServicesAccessor | undefined, editor: ICodeEditor, args: any): Promise<void> {
-		let configurationService = accessor?.get(IConfigurationService);
+		const configurationService = accessor?.get(IConfigurationService);
 		if (configurationService) {
 			this.runAction(configurationService);
 		}
@@ -803,5 +803,5 @@ registerEditorAction(DisableHighlightingOfAmbiguousCharactersAction);
 registerEditorAction(DisableHighlightingOfInvisibleCharactersAction);
 registerEditorAction(DisableHighlightingOfNonBasicAsciiCharactersAction);
 registerEditorAction(ShowExcludeOptions);
-registerEditorContribution(UnicodeHighlighter.ID, UnicodeHighlighter);
+registerEditorContribution(UnicodeHighlighter.ID, UnicodeHighlighter, EditorContributionInstantiation.AfterFirstRender);
 HoverParticipantRegistry.register(UnicodeHighlighterHoverParticipant);

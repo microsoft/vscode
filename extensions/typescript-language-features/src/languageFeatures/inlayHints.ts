@@ -15,14 +15,15 @@ import { Position } from '../utils/typeConverters';
 import FileConfigurationManager, { getInlayHintsPreferences, InlayHintSettingNames } from './fileConfigurationManager';
 
 
-const inlayHintSettingNames = [
+const inlayHintSettingNames = Object.freeze([
 	InlayHintSettingNames.parameterNamesSuppressWhenArgumentMatchesName,
 	InlayHintSettingNames.parameterNamesEnabled,
 	InlayHintSettingNames.variableTypesEnabled,
+	InlayHintSettingNames.variableTypesSuppressWhenTypeMatchesName,
 	InlayHintSettingNames.propertyDeclarationTypesEnabled,
 	InlayHintSettingNames.functionLikeReturnTypesEnabled,
 	InlayHintSettingNames.enumMemberValuesEnabled,
-];
+]);
 
 class TypeScriptInlayHintsProvider extends Disposable implements vscode.InlayHintsProvider {
 
@@ -54,7 +55,7 @@ class TypeScriptInlayHintsProvider extends Disposable implements vscode.InlayHin
 	}
 
 	async provideInlayHints(model: vscode.TextDocument, range: vscode.Range, token: vscode.CancellationToken): Promise<vscode.InlayHint[]> {
-		const filepath = this.client.toOpenedFilePath(model);
+		const filepath = this.client.toOpenTsFilePath(model);
 		if (!filepath) {
 			return [];
 		}

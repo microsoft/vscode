@@ -14,13 +14,18 @@ import { TestId } from 'vs/workbench/contrib/testing/common/testId';
 import { TestProfileService } from 'vs/workbench/contrib/testing/common/testProfileService';
 import { HydratedTestResult, LiveOutputController, LiveTestResult, makeEmptyCounts, resultItemParents, TestResultItemChange, TestResultItemChangeReason } from 'vs/workbench/contrib/testing/common/testResult';
 import { TestResultService } from 'vs/workbench/contrib/testing/common/testResultService';
-import { InMemoryResultStorage, ITestResultStorage } from 'vs/workbench/contrib/testing/common/testResultStorage';
+import { InMemoryResultStorage, ITestResultStorage, TestResultStorage } from 'vs/workbench/contrib/testing/common/testResultStorage';
 import { getInitializedMainTestCollection, testStubs, TestTestCollection } from 'vs/workbench/contrib/testing/test/common/testStubs';
 import { TestStorageService } from 'vs/workbench/test/common/workbenchTestServices';
+import { InMemoryFileSystemProvider } from 'vs/platform/files/common/inMemoryFilesystemProvider';
+import { FileService } from 'vs/platform/files/common/fileService';
+import { DisposableStore } from 'vs/base/common/lifecycle';
+import { URI } from 'vs/base/common/uri';
 
 export const emptyOutputController = () => new LiveOutputController(
 	new Lazy(() => [newWriteableBufferStream(), Promise.resolve()]),
 	() => Promise.resolve(bufferToStream(VSBuffer.alloc(0))),
+	() => Promise.resolve(VSBuffer.alloc(0)),
 );
 
 suite('Workbench - Test Results Service', () => {
@@ -43,8 +48,8 @@ suite('Workbench - Test Results Service', () => {
 	});
 
 	class TestLiveTestResult extends LiveTestResult {
-		public override setAllToState(state: TestResultState, taskId: string, when: (task: ITestTaskState, item: TestResultItem) => boolean) {
-			super.setAllToState(state, taskId, when);
+		public setAllToStatePublic(state: TestResultState, taskId: string, when: (task: ITestTaskState, item: TestResultItem) => boolean) {
+			this.setAllToState(state, taskId, when);
 		}
 	}
 
@@ -116,14 +121,14 @@ suite('Workbench - Test Results Service', () => {
 
 		test('setAllToState', () => {
 			changed.clear();
-			r.setAllToState(TestResultState.Queued, 't', (_, t) => t.item.label !== 'root');
+			r.setAllToStatePublic(TestResultState.Queued, 't', (_, t) => t.item.label !== 'root');
 			assert.deepStrictEqual(r.counts, {
 				...makeEmptyCounts(),
 				[TestResultState.Unset]: 1,
 				[TestResultState.Queued]: 3,
 			});
 
-			r.setAllToState(TestResultState.Failed, 't', (_, t) => t.item.label !== 'root');
+			r.setAllToStatePublic(TestResultState.Failed, 't', (_, t) => t.item.label !== 'root');
 			assert.deepStrictEqual(r.counts, {
 				...makeEmptyCounts(),
 				[TestResultState.Unset]: 1,
@@ -181,7 +186,7 @@ suite('Workbench - Test Results Service', () => {
 		});
 
 		test('markComplete', () => {
-			r.setAllToState(TestResultState.Queued, 't', () => true);
+			r.setAllToStatePublic(TestResultState.Queued, 't', () => true);
 			r.updateState(new TestId(['ctrlId', 'id-a', 'id-aa']).toString(), 't', TestResultState.Passed);
 			changed.clear();
 
@@ -203,7 +208,7 @@ suite('Workbench - Test Results Service', () => {
 		let results: TestResultService;
 
 		class TestTestResultService extends TestResultService {
-			override persistScheduler = { schedule: () => this.persistImmediately() } as any;
+			protected override persistScheduler = { schedule: () => this.persistImmediately() } as any;
 		}
 
 		setup(() => {
@@ -235,8 +240,10 @@ suite('Workbench - Test Results Service', () => {
 			const [rehydrated, actual] = results.getStateById(tests.root.id)!;
 			const expected: any = { ...r.getStateById(tests.root.id)! };
 			expected.item.uri = actual.item.uri;
-			expected.item.children = actual.item.children;
-			assert.deepStrictEqual(actual, { ...expected, children: [new TestId(['ctrlId', 'id-a']).toString()] });
+			expected.item.children = undefined;
+			expected.retired = true;
+			delete expected.children;
+			assert.deepStrictEqual(actual, { ...expected });
 			assert.deepStrictEqual(rehydrated.counts, r.counts);
 			assert.strictEqual(typeof rehydrated.completedAt, 'number');
 		});
@@ -275,7 +282,7 @@ suite('Workbench - Test Results Service', () => {
 		const makeHydrated = async (completedAt = 42, state = TestResultState.Passed) => new HydratedTestResult({
 			completedAt,
 			id: 'some-id',
-			tasks: [{ id: 't', messages: [], name: undefined }],
+			tasks: [{ id: 't', name: undefined }],
 			name: 'hello world',
 			request: defaultOpts([]),
 			items: [{
@@ -283,9 +290,8 @@ suite('Workbench - Test Results Service', () => {
 				tasks: [{ state, duration: 0, messages: [] }],
 				computedState: state,
 				ownComputedState: state,
-				children: [],
 			}]
-		}, () => Promise.resolve(bufferToStream(VSBuffer.alloc(0))));
+		}, () => Promise.resolve(bufferToStream(VSBuffer.alloc(0))), () => Promise.resolve(VSBuffer.alloc(0)));
 
 		test('pushes hydrated results', async () => {
 			results.push(r);
@@ -321,5 +327,67 @@ suite('Workbench - Test Results Service', () => {
 		assert.deepStrictEqual([...resultItemParents(r, r.getStateById(tests.root.id)!)], [
 			r.getStateById(tests.root.id),
 		]);
+	});
+
+	suite('output controller', () => {
+
+		const disposables = new DisposableStore();
+		const ROOT = URI.file('tests').with({ scheme: 'vscode-tests' });
+		let storage: TestResultStorage;
+
+		setup(() => {
+			const logService = new NullLogService();
+			const fileService = disposables.add(new FileService(logService));
+			const fileSystemProvider = disposables.add(new InMemoryFileSystemProvider());
+			disposables.add(fileService.registerProvider(ROOT.scheme, fileSystemProvider));
+
+			storage = new TestResultStorage(
+				new TestStorageService(),
+				new NullLogService(),
+				{ getWorkspace: () => ({ id: 'test' }) } as any,
+				fileService,
+				{ workspaceStorageHome: ROOT } as any
+			);
+		});
+
+		teardown(() => disposables.clear());
+
+		test('reads live output ranges', async () => {
+			const ctrl = storage.getOutputController('a');
+
+			ctrl.append(VSBuffer.fromString('12345'));
+			ctrl.append(VSBuffer.fromString('67890'));
+			ctrl.append(VSBuffer.fromString('12345'));
+			ctrl.append(VSBuffer.fromString('67890'));
+
+			assert.deepStrictEqual(await ctrl.getRange(0, 5), VSBuffer.fromString('12345'));
+			assert.deepStrictEqual(await ctrl.getRange(5, 5), VSBuffer.fromString('67890'));
+			assert.deepStrictEqual(await ctrl.getRange(7, 6), VSBuffer.fromString('890123'));
+			assert.deepStrictEqual(await ctrl.getRange(15, 5), VSBuffer.fromString('67890'));
+			assert.deepStrictEqual(await ctrl.getRange(15, 10), VSBuffer.fromString('67890'));
+		});
+
+		test('corrects offsets for marked ranges', async () => {
+			const ctrl = storage.getOutputController('a');
+
+			const a1 = ctrl.append(VSBuffer.fromString('12345'), 1);
+			const a2 = ctrl.append(VSBuffer.fromString('67890'), 1234);
+
+			assert.deepStrictEqual(await ctrl.getRange(a1.offset, 5), VSBuffer.fromString('12345'));
+			assert.deepStrictEqual(await ctrl.getRange(a2.offset, 5), VSBuffer.fromString('67890'));
+		});
+
+		test('reads stored output ranges', async () => {
+			const ctrl = storage.getOutputController('a');
+
+			ctrl.append(VSBuffer.fromString('12345'));
+			ctrl.append(VSBuffer.fromString('67890'));
+			ctrl.append(VSBuffer.fromString('12345'));
+			ctrl.append(VSBuffer.fromString('67890'));
+			await ctrl.close();
+
+			// sanity:
+			assert.deepStrictEqual(await ctrl.getRange(0, 5), VSBuffer.fromString('12345'));
+		});
 	});
 });

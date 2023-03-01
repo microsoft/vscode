@@ -16,27 +16,26 @@
 
 	// Load workbench main JS, CSS and NLS all in parallel. This is an
 	// optimization to prevent a waterfall of loading to happen, because
-	// we know for a fact that workbench.desktop.sandbox.main will depend on
+	// we know for a fact that workbench.desktop.main will depend on
 	// the related CSS and NLS counterparts.
 	bootstrapWindow.load([
-		'vs/workbench/workbench.desktop.sandbox.main',
+		'vs/workbench/workbench.desktop.main',
 		'vs/nls!vs/workbench/workbench.desktop.main',
 		'vs/css!vs/workbench/workbench.desktop.main'
 	],
-		function (_, configuration) {
+		function (desktopMain, configuration) {
 
 			// Mark start of workbench
 			performance.mark('code/didLoadWorkbenchMain');
 
-			// @ts-ignore
-			return require('vs/workbench/electron-sandbox/desktop.main').main(configuration);
+			return desktopMain.main(configuration);
 		},
 		{
 			configureDeveloperSettings: function (windowConfig) {
 				return {
 					// disable automated devtools opening on error when running extension tests
 					// as this can lead to nondeterministic test execution (devtools steals focus)
-					forceDisableShowDevtoolsOnError: typeof windowConfig.extensionTestsPath === 'string',
+					forceDisableShowDevtoolsOnError: typeof windowConfig.extensionTestsPath === 'string' || windowConfig['enable-smoke-test-driver'] === true,
 					// enable devtools keybindings in extension development window
 					forceEnableDeveloperKeybindings: Array.isArray(windowConfig.extensionDevelopmentPath) && windowConfig.extensionDevelopmentPath.length > 0,
 					removeDeveloperKeybindingsAfterLoad: true
@@ -61,7 +60,7 @@
 				window.requestIdleCallback(() => {
 					const canvas = document.createElement('canvas');
 					const context = canvas.getContext('2d');
-					context.clearRect(0, 0, canvas.width, canvas.height);
+					context?.clearRect(0, 0, canvas.width, canvas.height);
 					canvas.remove();
 				}, { timeout: 50 });
 			}
@@ -156,6 +155,11 @@
 		style.className = 'initialShellColors';
 		document.head.appendChild(style);
 		style.textContent = `body { background-color: ${shellBackground}; color: ${shellForeground}; margin: 0; padding: 0; }`;
+
+		// set zoom level as soon as possible
+		if (typeof data?.zoomLevel === 'number' && typeof globalThis.vscode?.webFrame?.setZoomLevel === 'function') {
+			globalThis.vscode.webFrame.setZoomLevel(data.zoomLevel);
+		}
 
 		// restore parts if possible (we might not always store layout info)
 		if (data?.layoutInfo) {

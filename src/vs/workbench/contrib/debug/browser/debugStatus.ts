@@ -18,8 +18,8 @@ export class DebugStatusContribution implements IWorkbenchContribution {
 
 	constructor(
 		@IStatusbarService private readonly statusBarService: IStatusbarService,
-		@IDebugService readonly debugService: IDebugService,
-		@IConfigurationService readonly configurationService: IConfigurationService
+		@IDebugService private readonly debugService: IDebugService,
+		@IConfigurationService configurationService: IConfigurationService
 	) {
 
 		const addStatusBarEntry = () => {
@@ -49,9 +49,7 @@ export class DebugStatusContribution implements IWorkbenchContribution {
 			}
 		}));
 		this.toDispose.push(this.debugService.getConfigurationManager().onDidSelectConfiguration(e => {
-			if (this.entryAccessor) {
-				this.entryAccessor.update(this.entry);
-			}
+			this.entryAccessor?.update(this.entry);
 		}));
 	}
 
@@ -74,9 +72,7 @@ export class DebugStatusContribution implements IWorkbenchContribution {
 	}
 
 	dispose(): void {
-		if (this.entryAccessor) {
-			this.entryAccessor.dispose();
-		}
+		this.entryAccessor?.dispose();
 		dispose(this.toDispose);
 	}
 }

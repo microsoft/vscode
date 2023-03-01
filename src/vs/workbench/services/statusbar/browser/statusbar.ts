@@ -5,7 +5,7 @@
 
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IDisposable } from 'vs/base/common/lifecycle';
-import { ThemeColor } from 'vs/platform/theme/common/themeService';
+import { ThemeColor } from 'vs/base/common/themables';
 import { Event } from 'vs/base/common/event';
 import { Command } from 'vs/editor/common/languages';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
@@ -182,9 +182,10 @@ export interface IStatusbarEntry {
 	readonly showBeak?: boolean;
 
 	/**
-	 * Will enable a spinning icon in front of the text to indicate progress.
+	 * Will enable a spinning icon in front of the text to indicate progress. When `true` is
+	 * specified, `syncing` will be used.
 	 */
-	readonly showProgress?: boolean;
+	readonly showProgress?: boolean | 'syncing' | 'loading';
 }
 
 export interface IStatusbarEntryAccessor extends IDisposable {

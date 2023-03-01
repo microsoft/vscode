@@ -10,5 +10,7 @@ export const enum TerminalStorageKeys {
 	TabsListWidthVertical = 'tabs-list-width-vertical',
 	EnvironmentVariableCollections = 'terminal.integrated.environmentVariableCollections',
 	TerminalBufferState = 'terminal.integrated.bufferState',
-	TerminalLayoutInfo = 'terminal.integrated.layoutInfo'
+	TerminalLayoutInfo = 'terminal.integrated.layoutInfo',
+	PinnedRecentCommandsPrefix = 'terminal.pinnedRecentCommands',
+	TerminalSuggestSize = 'terminal.integrated.suggestSize'
 }

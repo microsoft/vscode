@@ -14,6 +14,7 @@
 	},
 	"Class Definition": {
 		"prefix": "class",
+		"isFileTemplate": true,
 		"body": [
 			"class ${1:name} {",
 			"\tconstructor(${2:parameters}) {",

@@ -5,7 +5,7 @@
 
 import { Registry } from 'vs/platform/registry/common/platform';
 import { EditorSettingMigration, ISettingsWriter } from 'vs/editor/browser/config/migrateOptions';
-import { ConfigurationKeyValuePairs, Extensions, IConfigurationMigrationRegistry } from 'vs/workbench/common/configurationMigration';
+import { ConfigurationKeyValuePairs, Extensions, IConfigurationMigrationRegistry } from 'vs/workbench/common/configuration';
 
 Registry.as<IConfigurationMigrationRegistry>(Extensions.ConfigurationMigration)
 	.registerConfigurationMigrations(EditorSettingMigration.items.map(item => ({

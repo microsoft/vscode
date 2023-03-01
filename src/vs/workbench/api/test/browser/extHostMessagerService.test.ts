@@ -5,8 +5,8 @@
 
 import * as assert from 'assert';
 import { MainThreadMessageService } from 'vs/workbench/api/browser/mainThreadMessageService';
-import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { INotificationService, INotification, NoOpNotification, INotificationHandle, Severity, IPromptChoice, IPromptOptions, IStatusMessageOptions, NotificationsFilter } from 'vs/platform/notification/common/notification';
+import { IDialogService, IPrompt, IPromptButton } from 'vs/platform/dialogs/common/dialogs';
+import { INotificationService, INotification, NoOpNotification, INotificationHandle, Severity, IPromptChoice, IPromptOptions, IStatusMessageOptions } from 'vs/platform/notification/common/notification';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { mock } from 'vs/base/test/common/mock';
 import { IDisposable, Disposable } from 'vs/base/common/lifecycle';
@@ -24,8 +24,10 @@ const emptyCommandService: ICommandService = {
 
 const emptyNotificationService = new class implements INotificationService {
 	declare readonly _serviceBrand: undefined;
+	doNotDisturbMode: boolean = false;
 	onDidAddNotification: Event<INotification> = Event.None;
 	onDidRemoveNotification: Event<INotification> = Event.None;
+	onDidChangeDoNotDisturbMode: Event<void> = Event.None;
 	notify(...args: any[]): never {
 		throw new Error('not implemented');
 	}
@@ -44,19 +46,17 @@ const emptyNotificationService = new class implements INotificationService {
 	status(message: string | Error, options?: IStatusMessageOptions): IDisposable {
 		return Disposable.None;
 	}
-	setFilter(filter: NotificationsFilter): void {
-		throw new Error('not implemented.');
-	}
 };
 
 class EmptyNotificationService implements INotificationService {
 	declare readonly _serviceBrand: undefined;
-
+	doNotDisturbMode: boolean = false;
 	constructor(private withNotify: (notification: INotification) => void) {
 	}
 
 	onDidAddNotification: Event<INotification> = Event.None;
 	onDidRemoveNotification: Event<INotification> = Event.None;
+	onDidChangeDoNotDisturbMode: Event<void> = Event.None;
 	notify(notification: INotification): INotificationHandle {
 		this.withNotify(notification);
 
@@ -77,16 +77,13 @@ class EmptyNotificationService implements INotificationService {
 	status(message: string, options?: IStatusMessageOptions): IDisposable {
 		return Disposable.None;
 	}
-	setFilter(filter: NotificationsFilter): void {
-		throw new Error('Method not implemented.');
-	}
 }
 
 suite('ExtHostMessageService', function () {
 
 	test('propagte handle on select', async function () {
 
-		let service = new MainThreadMessageService(null!, new EmptyNotificationService(notification => {
+		const service = new MainThreadMessageService(null!, new EmptyNotificationService(notification => {
 			assert.strictEqual(notification.actions!.primary!.length, 1);
 			queueMicrotask(() => notification.actions!.primary![0].run());
 		}), emptyCommandService, new TestDialogService());
@@ -98,12 +95,12 @@ suite('ExtHostMessageService', function () {
 	suite('modal', () => {
 		test('calls dialog service', async () => {
 			const service = new MainThreadMessageService(null!, emptyNotificationService, emptyCommandService, new class extends mock<IDialogService>() {
-				override show(severity: Severity, message: string, buttons: string[]) {
-					assert.strictEqual(severity, 1);
+				override prompt({ type, message, buttons, cancelButton }: IPrompt<any>) {
+					assert.strictEqual(type, 1);
 					assert.strictEqual(message, 'h');
-					assert.strictEqual(buttons.length, 2);
-					assert.strictEqual(buttons[1], 'Cancel');
-					return Promise.resolve({ choice: 0 });
+					assert.strictEqual(buttons!.length, 1);
+					assert.strictEqual((cancelButton as IPromptButton<unknown>)!.label, 'Cancel');
+					return Promise.resolve({ result: buttons![0].run({ checkboxChecked: false }) });
 				}
 			} as IDialogService);
 
@@ -113,8 +110,8 @@ suite('ExtHostMessageService', function () {
 
 		test('returns undefined when cancelled', async () => {
 			const service = new MainThreadMessageService(null!, emptyNotificationService, emptyCommandService, new class extends mock<IDialogService>() {
-				override show() {
-					return Promise.resolve({ choice: 1 });
+				override prompt(prompt: IPrompt<any>) {
+					return Promise.resolve({ result: (prompt.cancelButton as IPromptButton<unknown>)!.run({ checkboxChecked: false }) });
 				}
 			} as IDialogService);
 
@@ -124,9 +121,10 @@ suite('ExtHostMessageService', function () {
 
 		test('hides Cancel button when not needed', async () => {
 			const service = new MainThreadMessageService(null!, emptyNotificationService, emptyCommandService, new class extends mock<IDialogService>() {
-				override show(severity: Severity, message: string, buttons: string[]) {
-					assert.strictEqual(buttons.length, 1);
-					return Promise.resolve({ choice: 0 });
+				override prompt({ type, message, buttons, cancelButton }: IPrompt<any>) {
+					assert.strictEqual(buttons!.length, 0);
+					assert.ok(cancelButton);
+					return Promise.resolve({ result: (cancelButton as IPromptButton<unknown>).run({ checkboxChecked: false }) });
 				}
 			} as IDialogService);
 

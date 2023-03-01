@@ -58,7 +58,7 @@ flakySuite('Native Modules (all platforms)', () => {
 
 	test('vscode-encrypt', async () => {
 		try {
-			const vscodeEncrypt: Encryption = require.__$__nodeRequire('vscode-encrypt');
+			const vscodeEncrypt: Encryption = globalThis._VSCODE_NODE_MODULES['vscode-encrypt'];
 			const encrypted = await vscodeEncrypt.encrypt('salt', 'value');
 			const decrypted = await vscodeEncrypt.decrypt('salt', encrypted);
 
@@ -73,7 +73,7 @@ flakySuite('Native Modules (all platforms)', () => {
 
 	test('vsda', async () => {
 		try {
-			const vsda: any = require.__$__nodeRequire('vsda');
+			const vsda: any = globalThis._VSCODE_NODE_MODULES['vsda'];
 			const signer = new vsda.signer();
 			const signed = await signer.sign('value');
 			assert.ok(typeof signed === 'string', testErrorMessage('vsda'));

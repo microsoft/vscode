@@ -319,7 +319,7 @@ function compileAction(lexer: monarchCommon.ILexerMin, ruleName: string, action:
 		const cases: monarchCommon.IBranch[] = [];
 
 		// for each case, push a test function and result value
-		for (let tkey in action.cases) {
+		for (const tkey in action.cases) {
 			if (action.cases.hasOwnProperty(tkey)) {
 				const val = compileAction(lexer, ruleName, action.cases[tkey]);
 
@@ -500,7 +500,7 @@ export function compile(languageId: string, json: IMonarchLanguage): monarchComm
 	}
 
 	lexer.tokenizer = <any>[];
-	for (let key in json.tokenizer) {
+	for (const key in json.tokenizer) {
 		if (json.tokenizer.hasOwnProperty(key)) {
 			if (!lexer.start) {
 				lexer.start = key;
@@ -527,7 +527,7 @@ export function compile(languageId: string, json: IMonarchLanguage): monarchComm
 			{ open: '<', close: '>', token: 'delimiter.angle' }];
 	}
 	const brackets: IMonarchLanguageBracket[] = [];
-	for (let el of json.brackets) {
+	for (const el of json.brackets) {
 		let desc: any = el;
 		if (desc && Array.isArray(desc) && desc.length === 3) {
 			desc = { token: desc[2], open: desc[0], close: desc[1] };

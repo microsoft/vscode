@@ -32,7 +32,7 @@ export class DeleteWordPartLeft extends DeleteWordCommand {
 	}
 
 	protected _delete(ctx: DeleteWordContext, wordNavigationType: WordNavigationType): Range {
-		let r = WordPartOperations.deleteWordPartLeft(ctx);
+		const r = WordPartOperations.deleteWordPartLeft(ctx);
 		if (r) {
 			return r;
 		}
@@ -57,7 +57,7 @@ export class DeleteWordPartRight extends DeleteWordCommand {
 	}
 
 	protected _delete(ctx: DeleteWordContext, wordNavigationType: WordNavigationType): Range {
-		let r = WordPartOperations.deleteWordPartRight(ctx);
+		const r = WordPartOperations.deleteWordPartRight(ctx);
 		if (r) {
 			return r;
 		}

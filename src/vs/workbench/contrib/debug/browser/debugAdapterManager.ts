@@ -43,8 +43,8 @@ export class AdapterManager extends Disposable implements IAdapterManager {
 	private debuggers: Debugger[];
 	private adapterDescriptorFactories: IDebugAdapterDescriptorFactory[];
 	private debugAdapterFactories = new Map<string, IDebugAdapterFactory>();
-	private debuggersAvailable: IContextKey<boolean>;
-	private debugExtensionsAvailable: IContextKey<boolean>;
+	private debuggersAvailable!: IContextKey<boolean>;
+	private debugExtensionsAvailable!: IContextKey<boolean>;
 	private readonly _onDidRegisterDebugger = new Emitter<void>();
 	private readonly _onDidDebuggersExtPointRead = new Emitter<void>();
 	private breakpointContributions: Breakpoints[] = [];
@@ -72,15 +72,16 @@ export class AdapterManager extends Disposable implements IAdapterManager {
 		this.adapterDescriptorFactories = [];
 		this.debuggers = [];
 		this.registerListeners();
-		this.debuggersAvailable = CONTEXT_DEBUGGERS_AVAILABLE.bindTo(contextKeyService);
+		this.contextKeyService.bufferChangeEvents(() => {
+			this.debuggersAvailable = CONTEXT_DEBUGGERS_AVAILABLE.bindTo(contextKeyService);
+			this.debugExtensionsAvailable = CONTEXT_DEBUG_EXTENSION_AVAILABLE.bindTo(contextKeyService);
+		});
 		this._register(this.contextKeyService.onDidChangeContext(e => {
 			if (e.affectsSome(this.debuggerWhenKeys)) {
 				this.debuggersAvailable.set(this.hasEnabledDebuggers());
 				this.updateDebugAdapterSchema();
 			}
 		}));
-		this.debugExtensionsAvailable = CONTEXT_DEBUG_EXTENSION_AVAILABLE.bindTo(contextKeyService);
-		this.debugExtensionsAvailable.set(true); // Avoid a flash of the default message before extensions load.
 		this._register(this.onDidDebuggersExtPointRead(() => {
 			this.debugExtensionsAvailable.set(this.debuggers.length > 0);
 		}));
@@ -171,6 +172,11 @@ export class AdapterManager extends Disposable implements IAdapterManager {
 					},
 					'presentation': presentationSchema,
 					'internalConsoleOptions': INTERNAL_CONSOLE_OPTIONS_SCHEMA,
+					'suppressMultipleSessionWarning': {
+						type: 'boolean',
+						description: nls.localize('suppressMultipleSessionWarning', "Disable the warning when trying to start the same debug configuration more than once."),
+						default: true
+					}
 				}
 			}
 		};
@@ -303,10 +309,10 @@ export class AdapterManager extends Disposable implements IAdapterManager {
 		return adapter && adapter.enabled ? adapter : undefined;
 	}
 
-	isDebuggerInterestedInLanguage(language: string): boolean {
+	someDebuggerInterestedInLanguage(languageId: string): boolean {
 		return !!this.debuggers
 			.filter(d => d.enabled)
-			.find(a => language && a.languages && a.languages.indexOf(language) >= 0);
+			.find(a => a.interestedInLanguage(languageId));
 	}
 
 	async guessDebugger(gettingConfigurations: boolean): Promise<Debugger | undefined> {
@@ -322,7 +328,7 @@ export class AdapterManager extends Disposable implements IAdapterManager {
 			}
 			const adapters = this.debuggers
 				.filter(a => a.enabled)
-				.filter(a => language && a.languages && a.languages.indexOf(language) >= 0);
+				.filter(a => language && a.interestedInLanguage(language));
 			if (adapters.length === 1) {
 				return adapters[0];
 			}
@@ -344,10 +350,12 @@ export class AdapterManager extends Disposable implements IAdapterManager {
 			if (languageLabel.indexOf(' ') >= 0) {
 				languageLabel = `'${languageLabel}'`;
 			}
-			const message = nls.localize('CouldNotFindLanguage', "You don't have an extension for debugging {0}. Should we find a {0} extension in the Marketplace?", languageLabel);
-			const buttonLabel = nls.localize('findExtension', "Find {0} extension", languageLabel);
-			const showResult = await this.dialogService.show(Severity.Warning, message, [buttonLabel, nls.localize('cancel', "Cancel")], { cancelId: 1 });
-			if (showResult.choice === 0) {
+			const { confirmed } = await this.dialogService.confirm({
+				type: Severity.Warning,
+				message: nls.localize('CouldNotFindLanguage', "You don't have an extension for debugging {0}. Should we find a {0} extension in the Marketplace?", languageLabel),
+				primaryButton: nls.localize({ key: 'findExtension', comment: ['&& denotes a mnemonic'] }, "&&Find {0} extension", languageLabel)
+			});
+			if (confirmed) {
 				await this.commandService.executeCommand('debug.installAdditionalDebuggers', languageLabel);
 			}
 			return undefined;

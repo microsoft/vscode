@@ -5,8 +5,9 @@
 
 import { asCSSPropertyValue, asCSSUrl } from 'vs/base/browser/dom';
 import { Emitter, Event } from 'vs/base/common/event';
+import { ThemeIcon } from 'vs/base/common/themables';
 import { getIconRegistry, IconContribution, IconFontDefinition } from 'vs/platform/theme/common/iconRegistry';
-import { IProductIconTheme, IThemeService, ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { IProductIconTheme, IThemeService } from 'vs/platform/theme/common/themeService';
 
 export interface IIconsStyleSheet {
 	getCSS(): string;
@@ -39,13 +40,13 @@ export function getIconsStyleSheet(themeService: IThemeService | undefined): IIc
 			};
 
 			const rules = [];
-			for (let contribution of iconRegistry.getIcons()) {
+			for (const contribution of iconRegistry.getIcons()) {
 				const rule = formatIconRule(contribution);
 				if (rule) {
 					rules.push(rule);
 				}
 			}
-			for (let id in usedFontIds) {
+			for (const id in usedFontIds) {
 				const definition = usedFontIds[id];
 				const fontWeight = definition.weight ? `font-weight: ${definition.weight};` : '';
 				const fontStyle = definition.style ? `font-style: ${definition.style};` : '';

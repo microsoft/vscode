@@ -17,7 +17,7 @@ interface IResolvedCompressedTreeElement<T> extends ICompressedTreeElement<T> {
 
 function resolve<T>(treeElement: ICompressedTreeElement<T>): IResolvedCompressedTreeElement<T> {
 	const result: any = { element: treeElement.element };
-	const children = [...Iterable.map(Iterable.from(treeElement.children), resolve)];
+	const children = Array.from(Iterable.from(treeElement.children), resolve);
 
 	if (treeElement.incompressible) {
 		result.incompressible = true;

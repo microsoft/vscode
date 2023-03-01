@@ -16,7 +16,7 @@ import { IConfigurationRegistry, Extensions as ConfigurationExtensions, Configur
 import { IContextKeyService, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { CommandsRegistry, ICommandService } from 'vs/platform/commands/common/commands';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { SCMService } from 'vs/workbench/contrib/scm/common/scmService';
 import { IViewContainersRegistry, ViewContainerLocation, Extensions as ViewContainerExtensions, IViewsRegistry } from 'vs/workbench/common/views';
 import { SCMViewPaneContainer } from 'vs/workbench/contrib/scm/browser/scmViewPaneContainer';
@@ -30,6 +30,8 @@ import { SCMRepositoriesViewPane } from 'vs/workbench/contrib/scm/browser/scmRep
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { Context as SuggestContext } from 'vs/editor/contrib/suggest/browser/suggest';
 import { MANAGE_TRUST_COMMAND_ID, WorkspaceTrustContext } from 'vs/workbench/contrib/workspace/common/workspace';
+import { IQuickDiffService } from 'vs/workbench/contrib/scm/common/quickDiff';
+import { QuickDiffService } from 'vs/workbench/contrib/scm/common/quickDiffService';
 
 ModesRegistry.registerLanguage({
 	id: 'scminput',
@@ -52,7 +54,7 @@ const viewContainer = Registry.as<IViewContainersRegistry>(ViewContainerExtensio
 	alwaysUseContainerInfo: true,
 	order: 2,
 	hideIfEmpty: true,
-}, ViewContainerLocation.Sidebar, { donotRegisterOpenCommand: true });
+}, ViewContainerLocation.Sidebar, { doNotRegisterOpenCommand: true });
 
 const viewsRegistry = Registry.as<IViewsRegistry>(ViewContainerExtensions.ViewsRegistry);
 
@@ -76,7 +78,6 @@ viewsRegistry.registerViews([{
 	name: localize('source control', "Source Control"),
 	ctorDescriptor: new SyncDescriptor(SCMViewPane),
 	canToggleVisibility: true,
-	workspace: true,
 	canMoveView: true,
 	weight: 80,
 	order: -999,
@@ -100,7 +101,6 @@ viewsRegistry.registerViews([{
 	ctorDescriptor: new SyncDescriptor(SCMRepositoriesViewPane),
 	canToggleVisibility: true,
 	hideByDefault: true,
-	workspace: true,
 	canMoveView: true,
 	weight: 20,
 	order: -1000,
@@ -155,7 +155,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			type: 'string',
 			enum: ['diff', 'none'],
 			enumDescriptions: [
-				localize('scm.diffDecorationsGutterAction.diff', "Show the inline diff peek view on click."),
+				localize('scm.diffDecorationsGutterAction.diff', "Show the inline diff Peek view on click."),
 				localize('scm.diffDecorationsGutterAction.none', "Do nothing.")
 			],
 			description: localize('scm.diffDecorationsGutterAction', "Controls the behavior of Source Control diff gutter decorations."),
@@ -272,7 +272,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 		},
 		'scm.repositories.visible': {
 			type: 'number',
-			description: localize('providersVisible', "Controls how many repositories are visible in the Source Control Repositories section. Set to `0` to be able to manually resize the view."),
+			description: localize('providersVisible', "Controls how many repositories are visible in the Source Control Repositories section. Set to 0, to be able to manually resize the view."),
 			default: 10
 		},
 		'scm.showActionButton': {
@@ -385,5 +385,6 @@ MenuRegistry.appendMenuItem(MenuId.SCMSourceControl, {
 	when: ContextKeyExpr.equals('scmProviderHasRootUri', true)
 });
 
-registerSingleton(ISCMService, SCMService);
-registerSingleton(ISCMViewService, SCMViewService);
+registerSingleton(ISCMService, SCMService, InstantiationType.Delayed);
+registerSingleton(ISCMViewService, SCMViewService, InstantiationType.Delayed);
+registerSingleton(IQuickDiffService, QuickDiffService, InstantiationType.Delayed);

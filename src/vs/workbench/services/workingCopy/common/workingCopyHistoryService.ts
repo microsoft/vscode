@@ -29,6 +29,7 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { SaveSource, SaveSourceRegistry } from 'vs/workbench/common/editor';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { lastOrDefault } from 'vs/base/common/arrays';
+import { escapeRegExpCharacters } from 'vs/base/common/strings';
 
 interface ISerializedWorkingCopyHistoryModel {
 	readonly version: number;
@@ -103,7 +104,7 @@ export class WorkingCopyHistoryModel {
 		this.workingCopyResource = workingCopyResource;
 		this.workingCopyName = this.labelService.getUriBasenameLabel(workingCopyResource);
 
-		this.historyEntriesNameMatcher = new RegExp(`[A-Za-z0-9]{4}${extname(workingCopyResource)}`);
+		this.historyEntriesNameMatcher = new RegExp(`[A-Za-z0-9]{4}${escapeRegExpCharacters(extname(workingCopyResource))}`);
 
 		// Update locations
 		this.historyEntriesFolder = this.toHistoryEntriesFolder(this.historyHome, workingCopyResource);

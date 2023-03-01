@@ -4,14 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { VSBuffer } from 'vs/base/common/buffer';
-import { IDataTransfer, IDataTransferItem } from 'vs/base/common/dataTransfer';
+import { VSDataTransfer, IDataTransferItem } from 'vs/base/common/dataTransfer';
 
 export class DataTransferCache {
 
 	private requestIdPool = 0;
 	private readonly dataTransfers = new Map</* requestId */ number, ReadonlyArray<IDataTransferItem>>();
 
-	public add(dataTransfer: IDataTransfer): { id: number; dispose: () => void } {
+	public add(dataTransfer: VSDataTransfer): { id: number; dispose: () => void } {
 		const requestId = this.requestIdPool++;
 		this.dataTransfers.set(requestId, [...dataTransfer.values()]);
 		return {
@@ -22,15 +22,20 @@ export class DataTransferCache {
 		};
 	}
 
-	async resolveDropFileData(requestId: number, dataItemIndex: number): Promise<VSBuffer> {
+	async resolveDropFileData(requestId: number, dataItemId: string): Promise<VSBuffer> {
 		const entry = this.dataTransfers.get(requestId);
 		if (!entry) {
 			throw new Error('No data transfer found');
 		}
 
-		const file = entry[dataItemIndex]?.asFile();
+		const item = entry.find(x => x.id === dataItemId);
+		if (!item) {
+			throw new Error('No item found in data transfer');
+		}
+
+		const file = item.asFile();
 		if (!file) {
-			throw new Error('No file item found in data transfer');
+			throw new Error('Found data transfer item is not a file');
 		}
 
 		return VSBuffer.wrap(await file.data());

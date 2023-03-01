@@ -9,11 +9,9 @@ export class SignService implements ISignService {
 
 	declare readonly _serviceBrand: undefined;
 
-	private readonly _tkn: string | null;
-
-	constructor(token: string | undefined) {
-		this._tkn = token || null;
-	}
+	constructor(
+		private readonly _token: Promise<string> | string | undefined
+	) { }
 
 	async createNewMessage(value: string): Promise<IMessage> {
 		return { id: '', data: value };
@@ -22,6 +20,7 @@ export class SignService implements ISignService {
 		return true;
 	}
 	async sign(value: string): Promise<string> {
-		return this._tkn || '';
+		const token = await Promise.resolve(this._token);
+		return token || '';
 	}
 }

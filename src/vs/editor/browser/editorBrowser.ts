@@ -19,7 +19,7 @@ import { OverviewRulerZone } from 'vs/editor/common/viewModel/overviewZoneManage
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IEditorWhitespace, IViewModel } from 'vs/editor/common/viewModel';
 import { InjectedText } from 'vs/editor/common/modelLineProjectionData';
-import { IDiffComputationResult, ILineChange } from 'vs/editor/common/diff/diffComputer';
+import { ILineChange, IDiffComputationResult } from 'vs/editor/common/diff/smartLinesDiffComputer';
 import { IDimension } from 'vs/editor/common/core/dimension';
 
 /**
@@ -127,15 +127,24 @@ export const enum ContentWidgetPositionPreference {
  */
 export interface IContentWidgetPosition {
 	/**
-	 * Desired position for the content widget.
-	 * `preference` will also affect the placement.
+	 * Desired position which serves as an anchor for placing the content widget.
+	 * The widget will be placed above, at, or below the specified position, based on the
+	 * provided preference. The widget will always touch this position.
+	 *
+	 * Given sufficient horizontal space, the widget will be placed to the right of the
+	 * passed in position. This can be tweaked by providing a `secondaryPosition`.
+	 *
+	 * @see preference
+	 * @see secondaryPosition
 	 */
 	position: IPosition | null;
 	/**
-	 * Optionally, a range can be provided to further
-	 * define the position of the content widget.
+	 * Optionally, a secondary position can be provided to further define the placing of
+	 * the content widget. The secondary position must have the same line number as the
+	 * primary position. If possible, the widget will be placed such that it also touches
+	 * the secondary position.
 	 */
-	range?: IRange | null;
+	secondaryPosition?: IPosition | null;
 	/**
 	 * Placement preference for position, in order of preference.
 	 */
@@ -391,6 +400,8 @@ export interface IMouseTargetOverviewRuler extends IBaseMouseTarget {
 }
 export interface IMouseTargetOutsideEditor extends IBaseMouseTarget {
 	readonly type: MouseTargetType.OUTSIDE_EDITOR;
+	readonly outsidePosition: 'above' | 'below' | 'left' | 'right';
+	readonly outsideDistance: number;
 }
 /**
  * Target hit with the mouse in the editor.
@@ -799,7 +810,7 @@ export interface ICodeEditor extends editorCommon.IEditor {
 	 * @id Unique identifier of the contribution.
 	 * @return The action or null if action not found.
 	 */
-	getAction(id: string): editorCommon.IEditorAction;
+	getAction(id: string): editorCommon.IEditorAction | null;
 
 	/**
 	 * Execute a command on the editor.
@@ -852,24 +863,30 @@ export interface ICodeEditor extends editorCommon.IEditor {
 
 	/**
 	 * All decorations added through this call will get the ownerId of this editor.
-	 * @see {@link ITextModel.deltaDecorations}
+	 * @deprecated Use `createDecorationsCollection`
+	 * @see createDecorationsCollection
 	 */
 	deltaDecorations(oldDecorations: string[], newDecorations: IModelDeltaDecoration[]): string[];
 
 	/**
-	 * @internal
+	 * Remove previously added decorations.
 	 */
-	setDecorations(description: string, decorationTypeKey: string, ranges: editorCommon.IDecorationOptions[]): void;
+	removeDecorations(decorationIds: string[]): void;
 
 	/**
 	 * @internal
 	 */
-	setDecorationsFast(decorationTypeKey: string, ranges: IRange[]): void;
+	setDecorationsByType(description: string, decorationTypeKey: string, ranges: editorCommon.IDecorationOptions[]): void;
 
 	/**
 	 * @internal
 	 */
-	removeDecorations(decorationTypeKey: string): void;
+	setDecorationsByTypeFast(decorationTypeKey: string, ranges: IRange[]): void;
+
+	/**
+	 * @internal
+	 */
+	removeDecorationsByType(decorationTypeKey: string): void;
 
 	/**
 	 * Get the layout info for the editor.
@@ -894,9 +911,14 @@ export interface ICodeEditor extends editorCommon.IEditor {
 	getWhitespaces(): IEditorWhitespace[];
 
 	/**
-	 * Get the vertical position (top offset) for the line w.r.t. to the first line.
+	 * Get the vertical position (top offset) for the line's top w.r.t. to the first line.
 	 */
 	getTopForLineNumber(lineNumber: number): number;
+
+	/**
+	 * Get the vertical position (top offset) for the line's bottom w.r.t. to the first line.
+	 */
+	getBottomForLineNumber(lineNumber: number): number;
 
 	/**
 	 * Get the vertical position (top offset) for the position w.r.t. to the first line.
@@ -905,15 +927,21 @@ export interface ICodeEditor extends editorCommon.IEditor {
 
 	/**
 	 * Set the model ranges that will be hidden in the view.
+	 * Hidden areas are stored per source.
 	 * @internal
 	 */
-	setHiddenAreas(ranges: IRange[]): void;
+	setHiddenAreas(ranges: IRange[], source?: unknown): void;
 
 	/**
 	 * Sets the editor aria options, primarily the active descendent.
 	 * @internal
 	 */
 	setAriaOptions(options: IEditorAriaOptions): void;
+
+	/**
+	 * Write the screen reader content to be the current selection
+	 */
+	writeScreenReaderContent(reason: string): void;
 
 	/**
 	 * @internal
@@ -1109,6 +1137,12 @@ export interface IDiffEditor extends editorCommon.IEditor {
 	readonly onDidUpdateDiff: Event<void>;
 
 	/**
+	 * An event emitted when the diff model is changed (i.e. the diff editor shows new content).
+	 * @event
+	 */
+	readonly onDidChangeModel: Event<void>;
+
+	/**
 	 * Saves current view state of the editor in a serializable object.
 	 */
 	saveViewState(): editorCommon.IDiffEditorViewState | null;
@@ -1214,6 +1248,10 @@ export function getCodeEditor(thing: unknown): ICodeEditor | null {
 
 	if (isDiffEditor(thing)) {
 		return thing.getModifiedEditor();
+	}
+
+	if (isCompositeEditor(thing) && isCodeEditor(thing.activeCodeEditor)) {
+		return thing.activeCodeEditor;
 	}
 
 	return null;

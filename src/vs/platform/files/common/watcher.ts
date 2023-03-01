@@ -25,11 +25,6 @@ interface IWatchRequest {
 
 	/**
 	 * A set of glob patterns or paths to exclude from watching.
-	 *
-	 * Paths or basic glob patterns that are relative will be
-	 * resolved to an absolute path using the currently opened
-	 * workspace. Complex glob patterns must match on absolute
-	 * paths via leading or trailing `**`.
 	 */
 	excludes: string[];
 
@@ -37,11 +32,6 @@ interface IWatchRequest {
 	 * An optional set of glob patterns or paths to include for
 	 * watching. If not provided, all paths are considered for
 	 * events.
-	 *
-	 * Paths or basic glob patterns that are relative will be
-	 * resolved to an absolute path using the currently opened
-	 * workspace. Complex glob patterns must match on absolute
-	 * paths via leading or trailing `**`.
 	 */
 	includes?: Array<string | IRelativePattern>;
 }
@@ -228,6 +218,10 @@ export abstract class AbstractWatcherClient extends Disposable {
 		this.onLogMessage({ type: 'error', message: `[File Watcher (${this.options.type})] ${message}` });
 	}
 
+	protected trace(message: string) {
+		this.onLogMessage({ type: 'trace', message: `[File Watcher (${this.options.type})] ${message}` });
+	}
+
 	override dispose(): void {
 
 		// Render the watcher invalid from here
@@ -291,21 +285,26 @@ export function coalesceEvents(changes: IDiskFileChange[]): IDiskFileChange[] {
 	return coalescer.coalesce();
 }
 
+export function normalizeWatcherPattern(path: string, pattern: string | IRelativePattern): string | IRelativePattern {
+
+	// Patterns are always matched on the full absolute path
+	// of the event. As such, if the pattern is not absolute
+	// and is a string and does not start with a leading
+	// `**`, we have to convert it to a relative pattern with
+	// the given `base`
+
+	if (typeof pattern === 'string' && !pattern.startsWith(GLOBSTAR) && !isAbsolute(pattern)) {
+		return { base: path, pattern };
+	}
+
+	return pattern;
+}
+
 export function parseWatcherPatterns(path: string, patterns: Array<string | IRelativePattern>): ParsedPattern[] {
 	const parsedPatterns: ParsedPattern[] = [];
 
 	for (const pattern of patterns) {
-		let normalizedPattern = pattern;
-
-		// Patterns are always matched on the full absolute path
-		// of the event. As such, if the pattern is not absolute
-		// and does not start with a leading `**`, we have to
-		// convert it to a relative pattern with the given `base`
-		if (typeof normalizedPattern === 'string' && !normalizedPattern.startsWith(GLOBSTAR) && !isAbsolute(normalizedPattern)) {
-			normalizedPattern = { base: path, pattern: normalizedPattern };
-		}
-
-		parsedPatterns.push(parse(normalizedPattern));
+		parsedPatterns.push(parse(normalizeWatcherPattern(path, pattern)));
 	}
 
 	return parsedPatterns;

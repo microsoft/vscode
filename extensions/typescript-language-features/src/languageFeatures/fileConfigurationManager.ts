@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as path from 'path';
 import * as vscode from 'vscode';
 import type * as Proto from '../protocol';
 import { ITypeScriptServiceClient } from '../typescriptService';
@@ -67,7 +68,7 @@ export default class FileConfigurationManager extends Disposable {
 		options: vscode.FormattingOptions,
 		token: vscode.CancellationToken
 	): Promise<void> {
-		const file = this.client.toOpenedFilePath(document);
+		const file = this.client.toOpenTsFilePath(document);
 		if (!file) {
 			return;
 		}
@@ -76,24 +77,27 @@ export default class FileConfigurationManager extends Disposable {
 		const cachedOptions = this.formatOptions.get(document.uri);
 		if (cachedOptions) {
 			const cachedOptionsValue = await cachedOptions;
+			if (token.isCancellationRequested) {
+				return;
+			}
+
 			if (cachedOptionsValue && areFileConfigurationsEqual(cachedOptionsValue, currentOptions)) {
 				return;
 			}
 		}
 
-		let resolve: (x: FileConfiguration | undefined) => void;
-		this.formatOptions.set(document.uri, new Promise<FileConfiguration | undefined>(r => resolve = r));
+		const task = (async () => {
+			try {
+				const response = await this.client.execute('configure', { file, ...currentOptions }, token);
+				return response.type === 'response' ? currentOptions : undefined;
+			} catch {
+				return undefined;
+			}
+		})();
 
-		const args: Proto.ConfigureRequestArguments = {
-			file,
-			...currentOptions,
-		};
-		try {
-			const response = await this.client.execute('configure', args, token);
-			resolve!(response.type === 'response' ? currentOptions : undefined);
-		} finally {
-			resolve!(undefined);
-		}
+		this.formatOptions.set(document.uri, task);
+
+		await task;
 	}
 
 	public async setGlobalConfigurationFromDocument(
@@ -161,10 +165,6 @@ export default class FileConfigurationManager extends Disposable {
 	}
 
 	private getPreferences(document: vscode.TextDocument): Proto.UserPreferences {
-		if (this.client.apiVersion.lt(API.v290)) {
-			return {};
-		}
-
 		const config = vscode.workspace.getConfiguration(
 			isTypeScriptDocument(document) ? 'typescript' : 'javascript',
 			document);
@@ -174,6 +174,7 @@ export default class FileConfigurationManager extends Disposable {
 			document);
 
 		const preferences: Proto.UserPreferences = {
+			...config.get('unstable'),
 			quotePreference: this.getQuoteStylePreference(preferencesConfig),
 			importModuleSpecifierPreference: getImportModuleSpecifierPreference(preferencesConfig),
 			importModuleSpecifierEnding: getImportModuleSpecifierEndingPreference(preferencesConfig),
@@ -185,12 +186,14 @@ export default class FileConfigurationManager extends Disposable {
 			provideRefactorNotApplicableReason: true,
 			generateReturnInDocTemplate: config.get<boolean>('suggest.jsdoc.generateReturns', true),
 			includeCompletionsForImportStatements: config.get<boolean>('suggest.includeCompletionsForImportStatements', true),
-			includeCompletionsWithSnippetText: config.get<boolean>('suggest.includeCompletionsWithSnippetText', true),
+			includeCompletionsWithSnippetText: true,
 			includeCompletionsWithClassMemberSnippets: config.get<boolean>('suggest.classMemberSnippets.enabled', true),
 			includeCompletionsWithObjectLiteralMethodSnippets: config.get<boolean>('suggest.objectLiteralMethodSnippets.enabled', true),
+			autoImportFileExcludePatterns: this.getAutoImportFileExcludePatternsPreference(preferencesConfig, vscode.workspace.getWorkspaceFolder(document.uri)?.uri),
 			useLabelDetailsInCompletionEntries: true,
 			allowIncompleteCompletions: true,
 			displayPartsForJSDoc: true,
+			disableLineTextInReferences: true,
 			...getInlayHintsPreferences(config),
 		};
 
@@ -204,12 +207,25 @@ export default class FileConfigurationManager extends Disposable {
 			default: return this.client.apiVersion.gte(API.v333) ? 'auto' : undefined;
 		}
 	}
+
+	private getAutoImportFileExcludePatternsPreference(config: vscode.WorkspaceConfiguration, workspaceFolder: vscode.Uri | undefined): string[] | undefined {
+		return workspaceFolder && config.get<string[]>('autoImportFileExcludePatterns')?.map(p => {
+			// Normalization rules: https://github.com/microsoft/TypeScript/pull/49578
+			const slashNormalized = p.replace(/\\/g, '/');
+			const isRelative = /^\.\.?($|\/)/.test(slashNormalized);
+			return path.isAbsolute(p) ? p :
+				p.startsWith('*') ? '/' + slashNormalized :
+					isRelative ? vscode.Uri.joinPath(workspaceFolder, p).fsPath :
+						'/**/' + slashNormalized;
+		});
+	}
 }
 
 export class InlayHintSettingNames {
 	static readonly parameterNamesSuppressWhenArgumentMatchesName = 'inlayHints.parameterNames.suppressWhenArgumentMatchesName';
 	static readonly parameterNamesEnabled = 'inlayHints.parameterTypes.enabled';
 	static readonly variableTypesEnabled = 'inlayHints.variableTypes.enabled';
+	static readonly variableTypesSuppressWhenTypeMatchesName = 'inlayHints.variableTypes.suppressWhenTypeMatchesName';
 	static readonly propertyDeclarationTypesEnabled = 'inlayHints.propertyDeclarationTypes.enabled';
 	static readonly functionLikeReturnTypesEnabled = 'inlayHints.functionLikeReturnTypes.enabled';
 	static readonly enumMemberValuesEnabled = 'inlayHints.enumMemberValues.enabled';
@@ -221,6 +237,7 @@ export function getInlayHintsPreferences(config: vscode.WorkspaceConfiguration) 
 		includeInlayParameterNameHintsWhenArgumentMatchesName: !config.get<boolean>(InlayHintSettingNames.parameterNamesSuppressWhenArgumentMatchesName, true),
 		includeInlayFunctionParameterTypeHints: config.get<boolean>(InlayHintSettingNames.parameterNamesEnabled, false),
 		includeInlayVariableTypeHints: config.get<boolean>(InlayHintSettingNames.variableTypesEnabled, false),
+		includeInlayVariableTypeHintsWhenTypeMatchesName: !config.get<boolean>(InlayHintSettingNames.variableTypesSuppressWhenTypeMatchesName, true),
 		includeInlayPropertyDeclarationTypeHints: config.get<boolean>(InlayHintSettingNames.propertyDeclarationTypesEnabled, false),
 		includeInlayFunctionLikeReturnTypeHints: config.get<boolean>(InlayHintSettingNames.functionLikeReturnTypesEnabled, false),
 		includeInlayEnumMemberValueHints: config.get<boolean>(InlayHintSettingNames.enumMemberValuesEnabled, false),

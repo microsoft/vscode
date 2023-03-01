@@ -18,6 +18,7 @@ import { IExtHostInitDataService } from 'vs/workbench/api/common/extHostInitData
 import { IExtHostFileSystemInfo } from 'vs/workbench/api/common/extHostFileSystemInfo';
 import { FileSystemProviderCapabilities } from 'vs/platform/files/common/files';
 import { isLinux } from 'vs/base/common/platform';
+import { IURITransformerService } from 'vs/workbench/api/common/extHostUriTransformerService';
 
 suite('ExtHostConfiguration', function () {
 
@@ -30,7 +31,7 @@ suite('ExtHostConfiguration', function () {
 	}
 
 	function createExtHostWorkspace(): ExtHostWorkspace {
-		return new ExtHostWorkspace(new TestRPCProtocol(), new class extends mock<IExtHostInitDataService>() { }, new class extends mock<IExtHostFileSystemInfo>() { override getCapabilities() { return isLinux ? FileSystemProviderCapabilities.PathCaseSensitive : undefined; } }, new NullLogService());
+		return new ExtHostWorkspace(new TestRPCProtocol(), new class extends mock<IExtHostInitDataService>() { }, new class extends mock<IExtHostFileSystemInfo>() { override getCapabilities() { return isLinux ? FileSystemProviderCapabilities.PathCaseSensitive : undefined; } }, new NullLogService(), new class extends mock<IURITransformerService>() { });
 	}
 
 	function createExtHostConfiguration(contents: any = Object.create(null), shape?: MainThreadConfigurationShape) {
@@ -43,6 +44,8 @@ suite('ExtHostConfiguration', function () {
 	function createConfigurationData(contents: any): IConfigurationInitData {
 		return {
 			defaults: new ConfigurationModel(contents),
+			policy: new ConfigurationModel(),
+			application: new ConfigurationModel(),
 			user: new ConfigurationModel(contents),
 			workspace: new ConfigurationModel(),
 			folders: [],
@@ -248,7 +251,7 @@ suite('ExtHostConfiguration', function () {
 			}
 		});
 
-		let testObject: any = all.getConfiguration();
+		const testObject: any = all.getConfiguration();
 
 		try {
 			testObject['get'] = null;
@@ -279,6 +282,8 @@ suite('ExtHostConfiguration', function () {
 						'wordWrap': 'off'
 					}
 				}, ['editor.wordWrap']),
+				policy: new ConfigurationModel(),
+				application: new ConfigurationModel(),
 				user: new ConfigurationModel({
 					'editor': {
 						'wordWrap': 'on'
@@ -328,6 +333,8 @@ suite('ExtHostConfiguration', function () {
 						'wordWrap': 'off'
 					}
 				}, ['editor.wordWrap']),
+				policy: new ConfigurationModel(),
+				application: new ConfigurationModel(),
 				user: new ConfigurationModel({
 					'editor': {
 						'wordWrap': 'on'
@@ -405,6 +412,8 @@ suite('ExtHostConfiguration', function () {
 						'lineNumbers': 'on'
 					}
 				}, ['editor.wordWrap']),
+				policy: new ConfigurationModel(),
+				application: new ConfigurationModel(),
 				user: new ConfigurationModel({
 					'editor': {
 						'wordWrap': 'on'
@@ -508,6 +517,8 @@ suite('ExtHostConfiguration', function () {
 						'editor.wordWrap': 'bounded',
 					}
 				}),
+				policy: new ConfigurationModel(),
+				application: new ConfigurationModel(),
 				user: toConfigurationModel({
 					'editor.wordWrap': 'bounded',
 					'[typescript]': {
@@ -549,6 +560,59 @@ suite('ExtHostConfiguration', function () {
 		assert.deepStrictEqual(actual.languageIds, ['markdown', 'typescript']);
 	});
 
+	test('application is not set in inspect', () => {
+
+		const testObject = new ExtHostConfigProvider(
+			new class extends mock<MainThreadConfigurationShape>() { },
+			createExtHostWorkspace(),
+			{
+				defaults: new ConfigurationModel({
+					'editor': {
+						'wordWrap': 'off',
+						'lineNumbers': 'on',
+						'fontSize': '12px'
+					}
+				}, ['editor.wordWrap']),
+				policy: new ConfigurationModel(),
+				application: new ConfigurationModel({
+					'editor': {
+						'wordWrap': 'on'
+					}
+				}, ['editor.wordWrap']),
+				user: new ConfigurationModel({
+					'editor': {
+						'wordWrap': 'auto',
+						'lineNumbers': 'off'
+					}
+				}, ['editor.wordWrap']),
+				workspace: new ConfigurationModel({}, []),
+				folders: [],
+				configurationScopes: []
+			},
+			new NullLogService()
+		);
+
+		let actual = testObject.getConfiguration().inspect('editor.wordWrap')!;
+		assert.strictEqual(actual.defaultValue, 'off');
+		assert.strictEqual(actual.globalValue, 'auto');
+		assert.strictEqual(actual.workspaceValue, undefined);
+		assert.strictEqual(actual.workspaceFolderValue, undefined);
+		assert.strictEqual(testObject.getConfiguration().get('editor.wordWrap'), 'auto');
+
+		actual = testObject.getConfiguration().inspect('editor.lineNumbers')!;
+		assert.strictEqual(actual.defaultValue, 'on');
+		assert.strictEqual(actual.globalValue, 'off');
+		assert.strictEqual(actual.workspaceValue, undefined);
+		assert.strictEqual(actual.workspaceFolderValue, undefined);
+		assert.strictEqual(testObject.getConfiguration().get('editor.lineNumbers'), 'off');
+
+		actual = testObject.getConfiguration().inspect('editor.fontSize')!;
+		assert.strictEqual(actual.defaultValue, '12px');
+		assert.strictEqual(actual.globalValue, undefined);
+		assert.strictEqual(actual.workspaceValue, undefined);
+		assert.strictEqual(actual.workspaceFolderValue, undefined);
+		assert.strictEqual(testObject.getConfiguration().get('editor.fontSize'), '12px');
+	});
 
 	test('getConfiguration vs get', function () {
 
@@ -609,7 +673,7 @@ suite('ExtHostConfiguration', function () {
 			}
 		}, shape);
 
-		let config = allConfig.getConfiguration('foo');
+		const config = allConfig.getConfiguration('foo');
 		config.update('bar', 42);
 
 		assert.strictEqual(shape.lastArgs[0], null);

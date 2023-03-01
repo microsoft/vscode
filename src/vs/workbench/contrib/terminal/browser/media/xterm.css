@@ -40,6 +40,7 @@
  */
 
 .xterm {
+	cursor: text;
 	position: relative;
 	user-select: none;
 	-ms-user-select: none;
@@ -128,10 +129,6 @@
 	line-height: normal;
 }
 
-.xterm {
-	cursor: text;
-}
-
 .xterm.enable-mouse-events {
 	/* When mouse events are enabled (eg. tmux), revert to the standard pointer cursor */
 	cursor: default;
@@ -170,8 +167,24 @@
 	opacity: 0.5;
 }
 
-.xterm-underline {
+.xterm-underline-1 {
 	text-decoration: underline;
+}
+
+.xterm-underline-2 {
+	text-decoration: double underline;
+}
+
+.xterm-underline-3 {
+	text-decoration: wavy underline;
+}
+
+.xterm-underline-4 {
+	text-decoration: dotted underline;
+}
+
+.xterm-underline-5 {
+	text-decoration: dashed underline;
 }
 
 .xterm-strikethrough {
@@ -188,4 +201,35 @@
 	position: absolute;
 	top: 0;
 	right: 0;
+	pointer-events: none;
+}
+
+.xterm-decoration-top {
+	z-index: 2;
+	position: relative;
+}
+
+.xterm .xterm-accessible-buffer {
+	position: absolute;
+	left: 0;
+	top: 0;
+	bottom: 0;
+	right: 0;
+	padding: .5em;
+	opacity: 0;
+	overflow: scroll;
+	overflow-x: hidden;
+}
+
+.xterm .xterm-accessible-buffer div {
+	white-space: pre-wrap;
+}
+
+.xterm .xterm-accessible-buffer:focus-within {
+	opacity: 1;
+	z-index: 33;
+	top: -5px;
+	left: 5px;
+	pointer-events: none;
+	background-color: var(--vscode-terminal-background, --vscode-panel-background);
 }

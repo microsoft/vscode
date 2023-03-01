@@ -295,7 +295,7 @@ suite('CellUri', function () {
 
 	test('parse, generate (file-scheme)', function () {
 
-		const nb = URI.parse('foo:///bar/følder/file.nb');
+		const nb = URI.parse('file:///bar/følder/file.nb');
 		const id = 17;
 
 		const data = CellUri.generate(nb, id);
@@ -315,6 +315,21 @@ suite('CellUri', function () {
 		assert.ok(Boolean(actual));
 		assert.strictEqual(actual?.handle, id);
 		assert.strictEqual(actual?.notebook.toString(), nb.toString());
+	});
+
+	test('stable order', function () {
+
+		const nb = URI.parse('foo:///bar/følder/file.nb');
+		const handles = [1, 2, 9, 10, 88, 100, 666666, 7777777];
+
+		const uris = handles.map(h => CellUri.generate(nb, h)).sort();
+
+		const strUris = uris.map(String).sort();
+		const parsedUris = strUris.map(s => URI.parse(s));
+
+		const actual = parsedUris.map(u => CellUri.parse(u)?.handle);
+
+		assert.deepStrictEqual(actual, handles);
 	});
 });
 

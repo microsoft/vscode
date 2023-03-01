@@ -9,7 +9,7 @@ import { MainThreadTelemetryShape, MainContext } from 'vs/workbench/api/common/e
 import { ExtHostConfigProvider, IExtHostConfiguration } from 'vs/workbench/api/common/extHostConfiguration';
 import { nullExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
 import * as vscode from 'vscode';
-import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
+import { ExtensionIdentifierMap } from 'vs/platform/extensions/common/extensions';
 import { IExtensionApiFactory, IExtensionRegistries } from 'vs/workbench/api/common/extHost.api.impl';
 import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
 import { IExtHostInitDataService } from 'vs/workbench/api/common/extHostInitDataService';
@@ -73,7 +73,7 @@ export abstract class RequireInterceptor {
 	public register(interceptor: INodeModuleFactory | IAlternativeModuleProvider): void {
 		if ('nodeModuleName' in interceptor) {
 			if (Array.isArray(interceptor.nodeModuleName)) {
-				for (let moduleName of interceptor.nodeModuleName) {
+				for (const moduleName of interceptor.nodeModuleName) {
 					this._factories.set(moduleName, interceptor);
 				}
 			} else {
@@ -149,7 +149,7 @@ class NodeModuleAliasingModuleFactory implements IAlternativeModuleProvider {
 class VSCodeNodeModuleFactory implements INodeModuleFactory {
 	public readonly nodeModuleName = 'vscode';
 
-	private readonly _extApiImpl = new Map<string, typeof vscode>();
+	private readonly _extApiImpl = new ExtensionIdentifierMap<typeof vscode>();
 	private _defaultApiImpl?: typeof vscode;
 
 	constructor(
@@ -166,10 +166,10 @@ class VSCodeNodeModuleFactory implements INodeModuleFactory {
 		// get extension id from filename and api for extension
 		const ext = this._extensionPaths.findSubstr(parent);
 		if (ext) {
-			let apiImpl = this._extApiImpl.get(ExtensionIdentifier.toKey(ext.identifier));
+			let apiImpl = this._extApiImpl.get(ext.identifier);
 			if (!apiImpl) {
 				apiImpl = this._apiFactory(ext, this._extensionRegistry, this._configProvider);
-				this._extApiImpl.set(ExtensionIdentifier.toKey(ext.identifier), apiImpl);
+				this._extApiImpl.set(ext.identifier, apiImpl);
 			}
 			return apiImpl;
 		}
@@ -249,7 +249,9 @@ class KeytarNodeModuleFactory implements INodeModuleFactory {
 	public load(_request: string, parent: URI): any {
 		const ext = this._extensionPaths.findSubstr(parent);
 		type ShimmingKeytarClassification = {
-			extension: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
+			owner: 'jrieken';
+			comment: 'Know when the keytar-shim was used';
+			extension: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The extension is question' };
 		};
 		this._mainThreadTelemetry.$publicLog2<{ extension: string }, ShimmingKeytarClassification>('shimming.keytar', { extension: ext?.identifier.value ?? 'unknown_extension' });
 		return this._impl;
@@ -346,7 +348,9 @@ class OpenNodeModuleFactory implements INodeModuleFactory {
 			return;
 		}
 		type ShimmingOpenClassification = {
-			extension: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
+			owner: 'jrieken';
+			comment: 'Know when the open-shim was used';
+			extension: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The extension is question' };
 		};
 		this._mainThreadTelemetry.$publicLog2<{ extension: string }, ShimmingOpenClassification>('shimming.open', { extension: this._extensionId });
 	}
@@ -356,7 +360,9 @@ class OpenNodeModuleFactory implements INodeModuleFactory {
 			return;
 		}
 		type ShimmingOpenCallNoForwardClassification = {
-			extension: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
+			owner: 'jrieken';
+			comment: 'Know when the open-shim was used';
+			extension: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The extension is question' };
 		};
 		this._mainThreadTelemetry.$publicLog2<{ extension: string }, ShimmingOpenCallNoForwardClassification>('shimming.open.call.noForward', { extension: this._extensionId });
 	}

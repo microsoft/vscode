@@ -12,18 +12,17 @@ import { MarshalledId } from 'vs/base/common/marshallingIds';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { IRange } from 'vs/editor/common/core/range';
 import * as languages from 'vs/editor/common/languages';
-import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
+import { ExtensionIdentifierMap, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { ExtHostDocuments } from 'vs/workbench/api/common/extHostDocuments';
 import * as extHostTypeConverter from 'vs/workbench/api/common/extHostTypeConverters';
 import * as types from 'vs/workbench/api/common/extHostTypes';
-import { checkProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
 import type * as vscode from 'vscode';
 import { ExtHostCommentsShape, IMainContext, MainContext, CommentThreadChanges, CommentChanges } from './extHost.protocol';
 import { ExtHostCommands } from './extHostCommands';
 
 type ProviderHandle = number;
 
-export interface ExtHostComments {
+interface ExtHostComments {
 	createCommentController(extension: IExtensionDescription, id: string, label: string): vscode.CommentController;
 }
 
@@ -37,7 +36,7 @@ export function createExtHostComments(mainContext: IMainContext, commands: ExtHo
 
 		private _commentControllers: Map<ProviderHandle, ExtHostCommentController> = new Map<ProviderHandle, ExtHostCommentController>();
 
-		private _commentControllersByExtension: Map<string, ExtHostCommentController[]> = new Map<string, ExtHostCommentController[]>();
+		private _commentControllersByExtension: ExtensionIdentifierMap<ExtHostCommentController[]> = new ExtensionIdentifierMap<ExtHostCommentController[]>();
 
 
 		constructor(
@@ -66,7 +65,7 @@ export function createExtHostComments(mainContext: IMainContext, commands: ExtHo
 						}
 
 						return commentThread.value;
-					} else if (arg && arg.$mid === MarshalledId.CommentThreadReply) {
+					} else if (arg && (arg.$mid === MarshalledId.CommentThreadReply || arg.$mid === MarshalledId.CommentThreadInstance)) {
 						const commentController = this._commentControllers.get(arg.thread.commentControlHandle);
 
 						if (!commentController) {
@@ -77,6 +76,10 @@ export function createExtHostComments(mainContext: IMainContext, commands: ExtHo
 
 						if (!commentThread) {
 							return arg;
+						}
+
+						if (arg.$mid === MarshalledId.CommentThreadInstance) {
+							return commentThread.value;
 						}
 
 						return {
@@ -96,9 +99,9 @@ export function createExtHostComments(mainContext: IMainContext, commands: ExtHo
 							return arg;
 						}
 
-						let commentUniqueId = arg.commentUniqueId;
+						const commentUniqueId = arg.commentUniqueId;
 
-						let comment = commentThread.getCommentByUniqueId(commentUniqueId);
+						const comment = commentThread.getCommentByUniqueId(commentUniqueId);
 
 						if (!comment) {
 							return arg;
@@ -119,16 +122,21 @@ export function createExtHostComments(mainContext: IMainContext, commands: ExtHo
 							return arg;
 						}
 
-						let body = arg.text;
-						let commentUniqueId = arg.commentUniqueId;
+						const body: string = arg.text;
+						const commentUniqueId = arg.commentUniqueId;
 
-						let comment = commentThread.getCommentByUniqueId(commentUniqueId);
+						const comment = commentThread.getCommentByUniqueId(commentUniqueId);
 
 						if (!comment) {
 							return arg;
 						}
 
-						comment.body = body;
+						// If the old comment body was a markdown string, use a markdown string here too.
+						if (typeof comment.body === 'string') {
+							comment.body = body;
+						} else {
+							comment.body = new types.MarkdownString(body);
+						}
 						return comment;
 					}
 
@@ -142,9 +150,9 @@ export function createExtHostComments(mainContext: IMainContext, commands: ExtHo
 			const commentController = new ExtHostCommentController(extension, handle, id, label);
 			this._commentControllers.set(commentController.handle, commentController);
 
-			const commentControllers = this._commentControllersByExtension.get(ExtensionIdentifier.toKey(extension.identifier)) || [];
+			const commentControllers = this._commentControllersByExtension.get(extension.identifier) || [];
 			commentControllers.push(commentController);
-			this._commentControllersByExtension.set(ExtensionIdentifier.toKey(extension.identifier), commentControllers);
+			this._commentControllersByExtension.set(extension.identifier, commentControllers);
 
 			return commentController.value;
 		}
@@ -172,9 +180,7 @@ export function createExtHostComments(mainContext: IMainContext, commands: ExtHo
 		$deleteCommentThread(commentControllerHandle: number, commentThreadHandle: number) {
 			const commentController = this._commentControllers.get(commentControllerHandle);
 
-			if (commentController) {
-				commentController.$deleteCommentThread(commentThreadHandle);
-			}
+			commentController?.$deleteCommentThread(commentThreadHandle);
 		}
 
 		$provideCommentingRanges(commentControllerHandle: number, uriComponents: UriComponents, token: CancellationToken): Promise<IRange[] | undefined> {
@@ -331,12 +337,10 @@ export function createExtHostComments(mainContext: IMainContext, commands: ExtHo
 		private _state?: vscode.CommentThreadState;
 
 		get state(): vscode.CommentThreadState {
-			checkProposedApiEnabled(this.extensionDescription, 'commentsResolvedState');
 			return this._state!;
 		}
 
 		set state(newState: vscode.CommentThreadState) {
-			checkProposedApiEnabled(this.extensionDescription, 'commentsResolvedState');
 			this._state = newState;
 			this.modifications.state = newState;
 			this._onDidUpdateCommentThread.fire();
@@ -487,9 +491,9 @@ export function createExtHostComments(mainContext: IMainContext, commands: ExtHo
 		}
 
 		getCommentByUniqueId(uniqueId: number): vscode.Comment | undefined {
-			for (let key of this._commentsMap) {
-				let comment = key[0];
-				let id = key[1];
+			for (const key of this._commentsMap) {
+				const comment = key[0];
+				const id = key[1];
 				if (uniqueId === id) {
 					return comment;
 				}
@@ -613,18 +617,16 @@ export function createExtHostComments(mainContext: IMainContext, commands: ExtHo
 		}
 
 		$updateCommentThreadTemplate(threadHandle: number, range: IRange): void {
-			let thread = this._threads.get(threadHandle);
+			const thread = this._threads.get(threadHandle);
 			if (thread) {
 				thread.range = extHostTypeConverter.Range.to(range);
 			}
 		}
 
 		$deleteCommentThread(threadHandle: number): void {
-			let thread = this._threads.get(threadHandle);
+			const thread = this._threads.get(threadHandle);
 
-			if (thread) {
-				thread.dispose();
-			}
+			thread?.dispose();
 
 			this._threads.delete(threadHandle);
 		}

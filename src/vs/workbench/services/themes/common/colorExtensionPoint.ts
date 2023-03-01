@@ -93,7 +93,7 @@ export class ColorExtensionPoint {
 					collector.error(nls.localize('invalid.colorConfiguration', "'configuration.colors' must be a array"));
 					return;
 				}
-				let parseColorValue = (s: string, name: string) => {
+				const parseColorValue = (s: string, name: string) => {
 					if (s.length > 0) {
 						if (s[0] === '#') {
 							return Color.Format.CSS.parseHex(s);
@@ -118,7 +118,7 @@ export class ColorExtensionPoint {
 						collector.error(nls.localize('invalid.description', "'configuration.colors.description' must be defined and can not be empty"));
 						return;
 					}
-					let defaults = colorContribution.defaults;
+					const defaults = colorContribution.defaults;
 					if (!defaults || typeof defaults !== 'object' || typeof defaults.light !== 'string' || typeof defaults.dark !== 'string') {
 						collector.error(nls.localize('invalid.defaults', "'configuration.colors.defaults' must be defined and must contain 'light' and 'dark'"));
 						return;

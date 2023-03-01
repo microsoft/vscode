@@ -8,8 +8,8 @@ import { TrackedRangeStickiness } from 'vs/editor/common/model';
 import { IntervalNode, IntervalTree, NodeColor, SENTINEL, getNodeColor, intervalCompare, nodeAcceptEdit, setNodeStickiness } from 'vs/editor/common/model/intervalTree';
 
 const GENERATE_TESTS = false;
-let TEST_COUNT = GENERATE_TESTS ? 10000 : 0;
-let PRINT_TREE = false;
+const TEST_COUNT = GENERATE_TESTS ? 10000 : 0;
+const PRINT_TREE = false;
 const MIN_INTERVAL_START = 1;
 const MAX_INTERVAL_END = 100;
 const MIN_INSERTS = 1;
@@ -59,9 +59,9 @@ suite('IntervalTree', () => {
 		}
 
 		public search(interval: Interval): Interval[] {
-			let result: Interval[] = [];
+			const result: Interval[] = [];
 			for (let i = 0, len = this.intervals.length; i < len; i++) {
-				let int = this.intervals[i];
+				const int = this.intervals[i];
 				if (int.start <= interval.end && int.end >= interval.start) {
 					result.push(int);
 				}
@@ -83,7 +83,7 @@ suite('IntervalTree', () => {
 				if (PRINT_TREE) {
 					console.log(`insert: {${JSON.stringify(new Interval(op.begin, op.end))}}`);
 				}
-				let nodeId = (++this._lastNodeId);
+				const nodeId = (++this._lastNodeId);
 				this._treeNodes[nodeId] = new IntervalNode(null!, op.begin, op.end);
 				this._tree.insert(this._treeNodes[nodeId]!);
 				this._oracleNodes[nodeId] = this._oracle.insert(new Interval(op.begin, op.end));
@@ -108,9 +108,9 @@ suite('IntervalTree', () => {
 				this._oracle.insert(this._oracleNodes[op.id]!);
 
 			} else {
-				let actualNodes = this._tree.intervalSearch(op.begin, op.end, 0, false, 0);
-				let actual = actualNodes.map(n => new Interval(n.cachedAbsoluteStart, n.cachedAbsoluteEnd));
-				let expected = this._oracle.search(new Interval(op.begin, op.end));
+				const actualNodes = this._tree.intervalSearch(op.begin, op.end, 0, false, 0);
+				const actual = actualNodes.map(n => new Interval(n.cachedAbsoluteStart, n.cachedAbsoluteEnd));
+				const expected = this._oracle.search(new Interval(op.begin, op.end));
 				assert.deepStrictEqual(actual, expected);
 				return;
 			}
@@ -121,8 +121,8 @@ suite('IntervalTree', () => {
 
 			assertTreeInvariants(this._tree);
 
-			let actual = this._tree.getAllInOrder().map(n => new Interval(n.cachedAbsoluteStart, n.cachedAbsoluteEnd));
-			let expected = this._oracle.intervals;
+			const actual = this._tree.getAllInOrder().map(n => new Interval(n.cachedAbsoluteStart, n.cachedAbsoluteEnd));
+			const expected = this._oracle.intervals;
 			assert.deepStrictEqual(actual, expected);
 		}
 
@@ -168,7 +168,7 @@ suite('IntervalTree', () => {
 	type IOperation = IInsertOperation | IDeleteOperation | IChangeOperation | ISearchOperation;
 
 	function testIntervalTree(ops: IOperation[]): void {
-		let state = new TestState();
+		const state = new TestState();
 		for (let i = 0; i < ops.length; i++) {
 			state.acceptOp(ops[i]);
 		}
@@ -179,7 +179,7 @@ suite('IntervalTree', () => {
 	}
 
 	function getRandomRange(min: number, max: number): [number, number] {
-		let begin = getRandomInt(min, max);
+		const begin = getRandomInt(min, max);
 		let length: number;
 		if (getRandomInt(1, 10) <= 2) {
 			// large range
@@ -205,7 +205,7 @@ suite('IntervalTree', () => {
 		}
 
 		private _doRandomInsert(): void {
-			let range = getRandomRange(MIN_INTERVAL_START, MAX_INTERVAL_END);
+			const range = getRandomRange(MIN_INTERVAL_START, MAX_INTERVAL_END);
 			this._run({
 				type: 'insert',
 				begin: range[0],
@@ -214,7 +214,7 @@ suite('IntervalTree', () => {
 		}
 
 		private _doRandomDelete(): void {
-			let idx = getRandomInt(Math.floor(this._deleteCnt / 2), this._deleteCnt - 1);
+			const idx = getRandomInt(Math.floor(this._deleteCnt / 2), this._deleteCnt - 1);
 			this._run({
 				type: 'delete',
 				id: this._state.getExistingNodeId(idx)
@@ -222,8 +222,8 @@ suite('IntervalTree', () => {
 		}
 
 		private _doRandomChange(): void {
-			let idx = getRandomInt(0, this._deleteCnt - 1);
-			let range = getRandomRange(MIN_INTERVAL_START, MAX_INTERVAL_END);
+			const idx = getRandomInt(0, this._deleteCnt - 1);
+			const range = getRandomRange(MIN_INTERVAL_START, MAX_INTERVAL_END);
 			this._run({
 				type: 'change',
 				id: this._state.getExistingNodeId(idx),
@@ -247,7 +247,7 @@ suite('IntervalTree', () => {
 				}
 
 				// Let's also search for something...
-				let searchRange = getRandomRange(MIN_INTERVAL_START, MAX_INTERVAL_END);
+				const searchRange = getRandomRange(MIN_INTERVAL_START, MAX_INTERVAL_END);
 				this._run({
 					type: 'search',
 					begin: searchRange[0],
@@ -461,7 +461,7 @@ suite('IntervalTree', () => {
 		if (i % 100 === 0) {
 			console.log(`TEST ${i + 1}/${TEST_COUNT}`);
 		}
-		let test = new AutoTest();
+		const test = new AutoTest();
 
 		try {
 			test.run();
@@ -475,8 +475,8 @@ suite('IntervalTree', () => {
 	suite('searching', () => {
 
 		function createCormenTree(): IntervalTree {
-			let r = new IntervalTree();
-			let data: [number, number][] = [
+			const r = new IntervalTree();
+			const data: [number, number][] = [
 				[16, 21],
 				[8, 9],
 				[25, 30],
@@ -489,7 +489,7 @@ suite('IntervalTree', () => {
 				[19, 20]
 			];
 			data.forEach((int) => {
-				let node = new IntervalNode(null!, int[0], int[1]);
+				const node = new IntervalNode(null!, int[0], int[1]);
 				r.insert(node);
 			});
 			return r;
@@ -498,8 +498,8 @@ suite('IntervalTree', () => {
 		const T = createCormenTree();
 
 		function assertIntervalSearch(start: number, end: number, expected: [number, number][]): void {
-			let actualNodes = T.intervalSearch(start, end, 0, false, 0);
-			let actual = actualNodes.map((n) => <[number, number]>[n.cachedAbsoluteStart, n.cachedAbsoluteEnd]);
+			const actualNodes = T.intervalSearch(start, end, 0, false, 0);
+			const actual = actualNodes.map((n) => <[number, number]>[n.cachedAbsoluteStart, n.cachedAbsoluteEnd]);
 			assert.deepStrictEqual(actual, expected);
 		}
 
@@ -556,7 +556,7 @@ suite('IntervalTree', () => {
 
 suite('IntervalTree', () => {
 	function assertNodeAcceptEdit(msg: string, nodeStart: number, nodeEnd: number, nodeStickiness: TrackedRangeStickiness, start: number, end: number, textLength: number, forceMoveMarkers: boolean, expectedNodeStart: number, expectedNodeEnd: number): void {
-		let node = new IntervalNode('', nodeStart, nodeEnd);
+		const node = new IntervalNode('', nodeStart, nodeEnd);
 		setNodeStickiness(node, nodeStickiness);
 		nodeAcceptEdit(node, start, end, textLength, forceMoveMarkers);
 		assert.deepStrictEqual([node.start, node.end], [expectedNodeStart, expectedNodeEnd], msg);
@@ -826,7 +826,7 @@ function printTree(T: IntervalTree): void {
 		console.log(`~~ empty`);
 		return;
 	}
-	let out: string[] = [];
+	const out: string[] = [];
 	_printTree(T, T.root, '', 0, out);
 	console.log(out.join(''));
 }
@@ -873,8 +873,8 @@ function assertValidNode(n: IntervalNode, delta: number): void {
 		return;
 	}
 
-	let l = n.left;
-	let r = n.right;
+	const l = n.left;
+	const r = n.right;
 
 	if (getNodeColor(n) === NodeColor.Red) {
 		assert(getNodeColor(l) === NodeColor.Black);

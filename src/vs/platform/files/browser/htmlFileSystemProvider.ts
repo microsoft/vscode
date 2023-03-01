@@ -265,7 +265,7 @@ export class HTMLFileSystemProvider implements IFileSystemProviderWithFileReadWr
 			}
 
 			// Implement file rename by write + delete
-			let fileHandle = await this.getFileHandle(from);
+			const fileHandle = await this.getFileHandle(from);
 			if (fileHandle) {
 				const file = await fileHandle.getFile();
 				const contents = new Uint8Array(await file.arrayBuffer());

@@ -29,7 +29,7 @@ class TestFileWatcher {
 	private onRawFileEvents(events: IDiskFileChange[]): void {
 
 		// Coalesce
-		let coalescedEvents = coalesceEvents(events);
+		const coalescedEvents = coalesceEvents(events);
 
 		// Emit through event emitter
 		if (coalescedEvents.length > 0) {

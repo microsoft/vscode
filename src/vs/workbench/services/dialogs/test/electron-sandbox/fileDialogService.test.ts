@@ -22,13 +22,13 @@ import { ILanguageService } from 'vs/editor/common/languages/language';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILabelService } from 'vs/platform/label/common/label';
-import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
+import { INativeHostService } from 'vs/platform/native/common/native';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
-import { SimpleFileDialog } from 'vs/workbench/services/dialogs/browser/simpleFileDialog';
+import { ISimpleFileDialog } from 'vs/workbench/services/dialogs/browser/simpleFileDialog';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -37,7 +37,7 @@ import { ILogService } from 'vs/platform/log/common/log';
 
 class TestFileDialogService extends FileDialogService {
 	constructor(
-		private simple: SimpleFileDialog,
+		private simple: ISimpleFileDialog,
 		@IHostService hostService: IHostService,
 		@IWorkspaceContextService contextService: IWorkspaceContextService,
 		@IHistoryService historyService: IHistoryService,
@@ -90,7 +90,7 @@ suite('FileDialogService', function () {
 	});
 
 	test('Local - open/save workspaces availableFilesystems', async function () {
-		class TestSimpleFileDialog {
+		class TestSimpleFileDialog implements ISimpleFileDialog {
 			async showOpenDialog(options: IOpenDialogOptions): Promise<URI | undefined> {
 				assert.strictEqual(options.availableFileSystems?.length, 1);
 				assert.strictEqual(options.availableFileSystems[0], Schemas.file);
@@ -136,7 +136,7 @@ suite('FileDialogService', function () {
 	});
 
 	test('Remote - open/save workspaces availableFilesystems', async function () {
-		class TestSimpleFileDialog {
+		class TestSimpleFileDialog implements ISimpleFileDialog {
 			async showOpenDialog(options: IOpenDialogOptions): Promise<URI | undefined> {
 				assert.strictEqual(options.availableFileSystems?.length, 2);
 				assert.strictEqual(options.availableFileSystems[0], Schemas.vscodeRemote);

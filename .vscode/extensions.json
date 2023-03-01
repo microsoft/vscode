@@ -3,6 +3,7 @@
 	// for the documentation about the extensions.json format
 	"recommendations": [
 		"dbaeumer.vscode-eslint",
-		"EditorConfig.EditorConfig"
+		"EditorConfig.EditorConfig",
+		"ms-vscode.vscode-selfhost-test-provider"
 	]
 }

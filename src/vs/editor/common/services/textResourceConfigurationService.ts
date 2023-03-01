@@ -117,8 +117,8 @@ export class TextResourceConfigurationService extends Disposable implements ITex
 	private toResourceConfigurationChangeEvent(configurationChangeEvent: IConfigurationChangeEvent): ITextResourceConfigurationChangeEvent {
 		return {
 			affectedKeys: configurationChangeEvent.affectedKeys,
-			affectsConfiguration: (resource: URI, configuration: string) => {
-				const overrideIdentifier = this.getLanguage(resource, null);
+			affectsConfiguration: (resource: URI | undefined, configuration: string) => {
+				const overrideIdentifier = resource ? this.getLanguage(resource, null) : undefined;
 				return configurationChangeEvent.affectsConfiguration(configuration, { resource, overrideIdentifier });
 			}
 		};

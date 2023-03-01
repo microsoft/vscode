@@ -3,20 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import * as es from 'event-stream';
 import _debounce = require('debounce');
 import * as _filter from 'gulp-filter';
 import * as rename from 'gulp-rename';
-import * as _ from 'underscore';
 import * as path from 'path';
 import * as fs from 'fs';
 import * as _rimraf from 'rimraf';
 import * as VinylFile from 'vinyl';
 import { ThroughStream } from 'through';
 import * as sm from 'source-map';
-import * as git from './git';
+import { pathToFileURL } from 'url';
+import * as ternaryStream from 'ternary-stream';
 
 const root = path.dirname(path.dirname(__dirname));
 
@@ -209,8 +207,8 @@ export function loadSourcemaps(): NodeJS.ReadWriteStream {
 			const contents = (<Buffer>f.contents).toString('utf8');
 
 			const reg = /\/\/# sourceMappingURL=(.*)$/g;
-			let lastMatch: RegExpMatchArray | null = null;
-			let match: RegExpMatchArray | null = null;
+			let lastMatch: RegExpExecArray | null = null;
+			let match: RegExpExecArray | null = null;
 
 			while (match = reg.exec(contents)) {
 				lastMatch = match;
@@ -249,6 +247,32 @@ export function stripSourceMappingURL(): NodeJS.ReadWriteStream {
 		.pipe(es.mapSync<VinylFile, VinylFile>(f => {
 			const contents = (<Buffer>f.contents).toString('utf8');
 			f.contents = Buffer.from(contents.replace(/\n\/\/# sourceMappingURL=(.*)$/gm, ''), 'utf8');
+			return f;
+		}));
+
+	return es.duplex(input, output);
+}
+
+/** Splits items in the stream based on the predicate, sending them to onTrue if true, or onFalse otherwise */
+export function $if(test: boolean | ((f: VinylFile) => boolean), onTrue: NodeJS.ReadWriteStream, onFalse: NodeJS.ReadWriteStream = es.through()) {
+	if (typeof test === 'boolean') {
+		return test ? onTrue : onFalse;
+	}
+
+	return ternaryStream(test, onTrue, onFalse);
+}
+
+/** Operator that appends the js files' original path a sourceURL, so debug locations map */
+export function appendOwnPathSourceURL(): NodeJS.ReadWriteStream {
+	const input = es.through();
+
+	const output = input
+		.pipe(es.mapSync<VinylFile, VinylFile>(f => {
+			if (!(f.contents instanceof Buffer)) {
+				throw new Error(`contents of ${f.path} are not a buffer`);
+			}
+
+			f.contents = Buffer.concat([f.contents, Buffer.from(`\n//# sourceURL=${pathToFileURL(f.path)}`)]);
 			return f;
 		}));
 
@@ -306,7 +330,7 @@ function _rreaddir(dirPath: string, prepend: string, result: string[]): void {
 }
 
 export function rreddir(dirPath: string): string[] {
-	let result: string[] = [];
+	const result: string[] = [];
 	_rreaddir(dirPath, '', result);
 	return result;
 }
@@ -317,16 +341,6 @@ export function ensureDir(dirPath: string): void {
 	}
 	ensureDir(path.dirname(dirPath));
 	fs.mkdirSync(dirPath);
-}
-
-export function getVersion(root: string): string | undefined {
-	let version = process.env['VSCODE_DISTRO_COMMIT'] || process.env['BUILD_SOURCEVERSION'];
-
-	if (!version || !/^[0-9a-f]{40}$/i.test(version.trim())) {
-		version = git.getVersion(root);
-	}
-
-	return version;
 }
 
 export function rebase(count: number): NodeJS.ReadWriteStream {
@@ -384,7 +398,8 @@ export function acquireWebNodePaths() {
 	for (const key of Object.keys(webPackages)) {
 		const packageJSON = path.join(root, 'node_modules', key, 'package.json');
 		const packageData = JSON.parse(fs.readFileSync(packageJSON, 'utf8'));
-		let entryPoint: string = packageData.browser ?? packageData.main;
+		// Only cases where the browser is a string are handled
+		let entryPoint: string = typeof packageData.browser === 'string' ? packageData.browser : packageData.main;
 
 		// On rare cases a package doesn't have an entrypoint so we assume it has a dist folder with a min.js
 		if (!entryPoint) {
@@ -415,6 +430,13 @@ export function acquireWebNodePaths() {
 		nodePaths[key] = entryPoint;
 	}
 
+	// @TODO lramos15 can we make this dynamic like the rest of the node paths
+	// Add these paths as well for 1DS SDK dependencies.
+	// Not sure why given the 1DS entrypoint then requires these modules
+	// they are not fetched from the right location and instead are fetched from out/
+	nodePaths['@microsoft/dynamicproto-js'] = 'lib/dist/umd/dynamicproto-js.min.js';
+	nodePaths['@microsoft/applicationinsights-shims'] = 'dist/umd/applicationinsights-shims.min.js';
+	nodePaths['@microsoft/applicationinsights-core-js'] = 'browser/applicationinsights-core-js.min.js';
 	return nodePaths;
 }
 
@@ -423,7 +445,7 @@ export function createExternalLoaderConfig(webEndpoint?: string, commit?: string
 		return undefined;
 	}
 	webEndpoint = webEndpoint + `/${quality}/${commit}`;
-	let nodePaths = acquireWebNodePaths();
+	const nodePaths = acquireWebNodePaths();
 	Object.keys(nodePaths).map(function (key, _) {
 		nodePaths[key] = `${webEndpoint}/node_modules/${key}/${nodePaths[key]}`;
 	});
@@ -455,4 +477,3 @@ export function buildWebNodePaths(outDir: string) {
 	result.taskName = 'build-web-node-paths';
 	return result;
 }
-

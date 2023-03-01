@@ -17,31 +17,33 @@ export async function launch(options: LaunchOptions): Promise<{ electronProcess:
 	args.push('--enable-smoke-test-driver');
 
 	// Launch electron via playwright
-	const { electron, context, page } = await launchElectron({ electronPath, args, env }, options);
+	const { electron, context, page, windowLoadedPromise } = await launchElectron({ electronPath, args, env }, options);
 	const electronProcess = electron.process();
 
 	return {
 		electronProcess,
-		driver: new PlaywrightDriver(electron, context, page, undefined /* no server process */, options)
+		driver: new PlaywrightDriver(electron, context, page, undefined /* no server process */, windowLoadedPromise, options)
 	};
 }
 
 async function launchElectron(configuration: IElectronConfiguration, options: LaunchOptions) {
 	const { logger, tracing } = options;
 
-	const electron = await measureAndLog(playwright._electron.launch({
+	const electron = await measureAndLog(() => playwright._electron.launch({
 		executablePath: configuration.electronPath,
 		args: configuration.args,
 		env: configuration.env as { [key: string]: string }
 	}), 'playwright-electron#launch', logger);
 
-	const window = await measureAndLog(electron.firstWindow(), 'playwright-electron#firstWindow', logger);
+	const windowLoadedPromise = electron.waitForEvent('window');
+
+	const window = await measureAndLog(() => electron.firstWindow(), 'playwright-electron#firstWindow', logger);
 
 	const context = window.context();
 
 	if (tracing) {
 		try {
-			await measureAndLog(context.tracing.start({ screenshots: true, /* remaining options are off for perf reasons */ }), 'context.tracing.start()', logger);
+			await measureAndLog(() => context.tracing.start({ screenshots: true, /* remaining options are off for perf reasons */ }), 'context.tracing.start()', logger);
 		} catch (error) {
 			logger.log(`Playwright (Electron): Failed to start playwright tracing (${error})`); // do not fail the build when this fails
 		}
@@ -72,5 +74,5 @@ async function launchElectron(configuration: IElectronConfiguration, options: La
 		}
 	});
 
-	return { electron, context, page: window };
+	return { electron, context, page: window, windowLoadedPromise };
 }

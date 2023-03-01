@@ -7,6 +7,7 @@ import { localize } from 'vs/nls';
 import { URI } from 'vs/base/common/uri';
 import { Event } from 'vs/base/common/event';
 import { Schemas } from 'vs/base/common/network';
+import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { IWorkingCopyHistoryEntry, IWorkingCopyHistoryService } from 'vs/workbench/services/workingCopy/common/workingCopyHistory';
 import { API_OPEN_DIFF_EDITOR_COMMAND_ID } from 'vs/workbench/browser/parts/editor/editorCommands';
@@ -28,7 +29,7 @@ import { IModelService } from 'vs/editor/common/services/model';
 import { ILanguageService } from 'vs/editor/common/languages/language';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { firstOrDefault } from 'vs/base/common/arrays';
-import { LOCAL_HISTORY_DATE_FORMATTER, LOCAL_HISTORY_ICON_RESTORE, LOCAL_HISTORY_MENU_CONTEXT_KEY } from 'vs/workbench/contrib/localHistory/browser/localHistory';
+import { getLocalHistoryDateFormatter, LOCAL_HISTORY_ICON_RESTORE, LOCAL_HISTORY_MENU_CONTEXT_KEY } from 'vs/workbench/contrib/localHistory/browser/localHistory';
 import { IPathService } from 'vs/workbench/services/path/common/pathService';
 
 const LOCAL_HISTORY_CATEGORY = { value: localize('localHistory.category', "Local History"), original: 'Local History' };
@@ -253,10 +254,10 @@ async function restore(accessor: ServicesAccessor, item: ITimelineCommandArgumen
 
 		// Ask for confirmation
 		const { confirmed } = await dialogService.confirm({
+			type: 'warning',
 			message: localize('confirmRestoreMessage', "Do you want to restore the contents of '{0}'?", basename(entry.workingCopy.resource)),
 			detail: localize('confirmRestoreDetail', "Restoring will discard any unsaved changes."),
-			primaryButton: localize({ key: 'restoreButtonLabel', comment: ['&& denotes a mnemonic'] }, "&&Restore"),
-			type: 'warning'
+			primaryButton: localize({ key: 'restoreButtonLabel', comment: ['&& denotes a mnemonic'] }, "&&Restore")
 		});
 
 		if (!confirmed) {
@@ -274,7 +275,19 @@ async function restore(accessor: ServicesAccessor, item: ITimelineCommandArgumen
 		}
 
 		// Replace target with contents of history entry
-		await fileService.cloneFile(entry.location, entry.workingCopy.resource);
+		try {
+			await fileService.cloneFile(entry.location, entry.workingCopy.resource);
+		} catch (error) {
+
+			// It is possible that we fail to copy the history entry to the
+			// destination, for example when the destination is write protected.
+			// In that case tell the user and return, it is still possible for
+			// the user to manually copy the changes over from the diff editor.
+
+			await dialogService.error(localize('unableToRestore', "Unable to restore '{0}'.", basename(entry.workingCopy.resource)), toErrorMessage(error));
+
+			return;
+		}
 
 		// Restore all working copies for target
 		if (workingCopies) {
@@ -455,10 +468,10 @@ registerAction2(class extends Action2 {
 
 			// Ask for confirmation
 			const { confirmed } = await dialogService.confirm({
+				type: 'warning',
 				message: localize('confirmDeleteMessage', "Do you want to delete the local history entry of '{0}' from {1}?", entry.workingCopy.name, toLocalHistoryEntryDateLabel(entry.timestamp)),
 				detail: localize('confirmDeleteDetail', "This action is irreversible!"),
 				primaryButton: localize({ key: 'deleteButtonLabel', comment: ['&& denotes a mnemonic'] }, "&&Delete"),
-				type: 'warning'
 			});
 
 			if (!confirmed) {
@@ -493,10 +506,10 @@ registerAction2(class extends Action2 {
 
 		// Ask for confirmation
 		const { confirmed } = await dialogService.confirm({
+			type: 'warning',
 			message: localize('confirmDeleteAllMessage', "Do you want to delete all entries of all files in local history?"),
 			detail: localize('confirmDeleteAllDetail', "This action is irreversible!"),
 			primaryButton: localize({ key: 'deleteAllButtonLabel', comment: ['&& denotes a mnemonic'] }, "&&Delete All"),
-			type: 'warning'
 		});
 
 		if (!confirmed) {
@@ -540,7 +553,7 @@ registerAction2(class extends Action2 {
 		inputBox.placeholder = localize('createLocalHistoryPlaceholder', "Enter the new name of the local history entry for '{0}'", labelService.getUriBasenameLabel(resource));
 		inputBox.show();
 		inputBox.onDidAccept(async () => {
-			let entrySource = inputBox.value;
+			const entrySource = inputBox.value;
 			inputBox.dispose();
 
 			if (entrySource) {
@@ -632,7 +645,7 @@ export async function findLocalHistoryEntry(workingCopyHistoryService: IWorkingC
 
 const SEP = /\//g;
 function toLocalHistoryEntryDateLabel(timestamp: number): string {
-	return `${LOCAL_HISTORY_DATE_FORMATTER.value.format(timestamp).replace(SEP, '-')}`; // preserving `/` will break editor labels, so replace it with a non-path symbol
+	return `${getLocalHistoryDateFormatter().format(timestamp).replace(SEP, '-')}`; // preserving `/` will break editor labels, so replace it with a non-path symbol
 }
 
 //#endregion

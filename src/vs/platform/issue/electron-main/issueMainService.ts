@@ -3,10 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { BrowserWindow, BrowserWindowConstructorOptions, Display, IpcMainEvent, screen } from 'electron';
+import { BrowserWindow, BrowserWindowConstructorOptions, contentTracing, Display, IpcMainEvent, screen } from 'electron';
 import { validatedIpcMain } from 'vs/base/parts/ipc/electron-main/ipcMain';
 import { arch, release, type } from 'os';
-import { mnemonicButtonLabel } from 'vs/base/common/labels';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { FileAccess } from 'vs/base/common/network';
 import { IProcessEnvironment, isMacintosh } from 'vs/base/common/platform';
@@ -18,7 +17,6 @@ import { IDialogMainService } from 'vs/platform/dialogs/electron-main/dialogMain
 import { IEnvironmentMainService } from 'vs/platform/environment/electron-main/environmentMainService';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { ICommonIssueService, IssueReporterData, IssueReporterWindowConfiguration, ProcessExplorerData, ProcessExplorerWindowConfiguration } from 'vs/platform/issue/common/issue';
-import { ILaunchMainService } from 'vs/platform/launch/electron-main/launchMainService';
 import { ILogService } from 'vs/platform/log/common/log';
 import { INativeHostMainService } from 'vs/platform/native/electron-main/nativeHostMainService';
 import product from 'vs/platform/product/common/product';
@@ -26,8 +24,13 @@ import { IProductService } from 'vs/platform/product/common/productService';
 import { IIPCObjectUrl, IProtocolMainService } from 'vs/platform/protocol/electron-main/protocol';
 import { zoomLevelToZoomFactor } from 'vs/platform/window/common/window';
 import { IWindowState } from 'vs/platform/window/electron-main/window';
+import { randomPath } from 'vs/base/common/extpath';
+import { withNullAsUndefined } from 'vs/base/common/types';
+import { IStateService } from 'vs/platform/state/node/state';
+import { UtilityProcess } from 'vs/platform/utilityProcess/electron-main/utilityProcess';
 
 export const IIssueMainService = createDecorator<IIssueMainService>('issueMainService');
+const processExplorerWindowState = 'issue.processExplorerWindowState';
 
 interface IBrowserWindowOptions {
 	backgroundColor: string | undefined;
@@ -36,9 +39,13 @@ interface IBrowserWindowOptions {
 	alwaysOnTop: boolean;
 }
 
-export interface IIssueMainService extends ICommonIssueService { }
+type IStrictWindowState = Required<Pick<IWindowState, 'x' | 'y' | 'width' | 'height'>>;
 
-export class IssueMainService implements ICommonIssueService {
+export interface IIssueMainService extends ICommonIssueService {
+	stopTracing(): Promise<void>;
+}
+
+export class IssueMainService implements IIssueMainService {
 
 	declare readonly _serviceBrand: undefined;
 
@@ -53,21 +60,21 @@ export class IssueMainService implements ICommonIssueService {
 	constructor(
 		private userEnv: IProcessEnvironment,
 		@IEnvironmentMainService private readonly environmentMainService: IEnvironmentMainService,
-		@ILaunchMainService private readonly launchMainService: ILaunchMainService,
 		@ILogService private readonly logService: ILogService,
 		@IDiagnosticsService private readonly diagnosticsService: IDiagnosticsService,
 		@IDiagnosticsMainService private readonly diagnosticsMainService: IDiagnosticsMainService,
 		@IDialogMainService private readonly dialogMainService: IDialogMainService,
 		@INativeHostMainService private readonly nativeHostMainService: INativeHostMainService,
 		@IProtocolMainService private readonly protocolMainService: IProtocolMainService,
-		@IProductService private readonly productService: IProductService
+		@IProductService private readonly productService: IProductService,
+		@IStateService private readonly stateService: IStateService
 	) {
 		this.registerListeners();
 	}
 
 	private registerListeners(): void {
 		validatedIpcMain.on('vscode:issueSystemInfoRequest', async event => {
-			const [info, remoteData] = await Promise.all([this.launchMainService.getMainProcessInfo(), this.diagnosticsMainService.getRemoteDiagnostics({ includeProcesses: false, includeWorkspaceMetadata: false })]);
+			const [info, remoteData] = await Promise.all([this.diagnosticsMainService.getMainDiagnostics(), this.diagnosticsMainService.getRemoteDiagnostics({ includeProcesses: false, includeWorkspaceMetadata: false })]);
 			const msg = await this.diagnosticsService.getSystemInfo(info, remoteData);
 
 			this.safeSend(event, 'vscode:issueSystemInfoResponse', msg);
@@ -77,8 +84,7 @@ export class IssueMainService implements ICommonIssueService {
 			const processes = [];
 
 			try {
-				const mainPid = await this.launchMainService.getMainProcessId();
-				processes.push({ name: localize('local', "Local"), rootProcess: await listProcesses(mainPid) });
+				processes.push({ name: localize('local', "Local"), rootProcess: await listProcesses(process.pid) });
 
 				const remoteDiagnostics = await this.diagnosticsMainService.getRemoteDiagnostics({ includeProcesses: true });
 				remoteDiagnostics.forEach(data => {
@@ -104,22 +110,17 @@ export class IssueMainService implements ICommonIssueService {
 		});
 
 		validatedIpcMain.on('vscode:issueReporterClipboard', async event => {
-			const messageOptions = {
-				title: this.productService.nameLong,
-				message: localize('issueReporterWriteToClipboard', "There is too much data to send to GitHub directly. The data will be copied to the clipboard, please paste it into the GitHub issue page that is opened."),
-				type: 'warning',
-				buttons: [
-					mnemonicButtonLabel(localize({ key: 'ok', comment: ['&& denotes a mnemonic'] }, "&&OK")),
-					mnemonicButtonLabel(localize({ key: 'cancel', comment: ['&& denotes a mnemonic'] }, "&&Cancel")),
-				],
-				defaultId: 0,
-				cancelId: 1,
-				noLink: true
-			};
-
 			if (this.issueReporterWindow) {
-				const result = await this.dialogMainService.showMessageBox(messageOptions, this.issueReporterWindow);
-				this.safeSend(event, 'vscode:issueReporterClipboardResponse', result.response === 0);
+				const { response } = await this.dialogMainService.showMessageBox({
+					type: 'warning',
+					message: localize('issueReporterWriteToClipboard', "There is too much data to send to GitHub directly. The data will be copied to the clipboard, please paste it into the GitHub issue page that is opened."),
+					buttons: [
+						localize({ key: 'ok', comment: ['&& denotes a mnemonic'] }, "&&OK"),
+						localize('cancel', "Cancel")
+					]
+				}, this.issueReporterWindow);
+
+				this.safeSend(event, 'vscode:issueReporterClipboardResponse', response === 0);
 			}
 		});
 
@@ -129,22 +130,17 @@ export class IssueMainService implements ICommonIssueService {
 		});
 
 		validatedIpcMain.on('vscode:issueReporterConfirmClose', async () => {
-			const messageOptions = {
-				title: this.productService.nameLong,
-				message: localize('confirmCloseIssueReporter', "Your input will not be saved. Are you sure you want to close this window?"),
-				type: 'warning',
-				buttons: [
-					mnemonicButtonLabel(localize({ key: 'yes', comment: ['&& denotes a mnemonic'] }, "&&Yes")),
-					mnemonicButtonLabel(localize({ key: 'cancel', comment: ['&& denotes a mnemonic'] }, "&&Cancel")),
-				],
-				defaultId: 0,
-				cancelId: 1,
-				noLink: true
-			};
-
 			if (this.issueReporterWindow) {
-				const result = await this.dialogMainService.showMessageBox(messageOptions, this.issueReporterWindow);
-				if (result.response === 0) {
+				const { response } = await this.dialogMainService.showMessageBox({
+					type: 'warning',
+					message: localize('confirmCloseIssueReporter', "Your input will not be saved. Are you sure you want to close this window?"),
+					buttons: [
+						localize({ key: 'yes', comment: ['&& denotes a mnemonic'] }, "&&Yes"),
+						localize('cancel', "Cancel")
+					]
+				}, this.issueReporterWindow);
+
+				if (response === 0) {
 					if (this.issueReporterWindow) {
 						this.issueReporterWindow.destroy();
 						this.issueReporterWindow = null;
@@ -168,9 +164,7 @@ export class IssueMainService implements ICommonIssueService {
 					throw new Error(`Unexpected command source: ${from}`);
 			}
 
-			if (parentWindow) {
-				parentWindow.webContents.send('vscode:runAction', { id, from, args });
-			}
+			parentWindow?.webContents.send('vscode:runAction', { id, from, args });
 		});
 
 		validatedIpcMain.on('vscode:openExternal', (_: unknown, arg: string) => {
@@ -178,20 +172,26 @@ export class IssueMainService implements ICommonIssueService {
 		});
 
 		validatedIpcMain.on('vscode:closeIssueReporter', event => {
-			if (this.issueReporterWindow) {
-				this.issueReporterWindow.close();
-			}
+			this.issueReporterWindow?.close();
 		});
 
 		validatedIpcMain.on('vscode:closeProcessExplorer', event => {
-			if (this.processExplorerWindow) {
-				this.processExplorerWindow.close();
-			}
+			this.processExplorerWindow?.close();
 		});
 
-		validatedIpcMain.on('vscode:windowsInfoRequest', async event => {
-			const mainProcessInfo = await this.launchMainService.getMainProcessInfo();
-			this.safeSend(event, 'vscode:windowsInfoResponse', mainProcessInfo.windows);
+		validatedIpcMain.on('vscode:pidToNameRequest', async event => {
+			const mainProcessInfo = await this.diagnosticsMainService.getMainDiagnostics();
+
+			const pidToNames: [number, string][] = [];
+			for (const window of mainProcessInfo.windows) {
+				pidToNames.push([window.pid, `window [${window.id}] (${window.title})`]);
+			}
+
+			for (const { pid, name } of UtilityProcess.getAll()) {
+				pidToNames.push([pid, name]);
+			}
+
+			this.safeSend(event, 'vscode:pidToNameResponse', pidToNames);
 		});
 	}
 
@@ -233,7 +233,7 @@ export class IssueMainService implements ICommonIssueService {
 				});
 
 				this.issueReporterWindow.loadURL(
-					FileAccess.asBrowserUri('vs/code/electron-sandbox/issue/issueReporter.html', require).toString(true)
+					FileAccess.asBrowserUri(`vs/code/electron-sandbox/issue/issueReporter${this.environmentMainService.isBuilt ? '' : '-dev'}.html`).toString(true)
 				);
 
 				this.issueReporterWindow.on('close', () => {
@@ -265,7 +265,9 @@ export class IssueMainService implements ICommonIssueService {
 				const processExplorerDisposables = new DisposableStore();
 
 				const processExplorerWindowConfigUrl = processExplorerDisposables.add(this.protocolMainService.createIPCObjectUrl<ProcessExplorerWindowConfiguration>());
-				const position = this.getWindowPosition(this.processExplorerParentWindow, 800, 500);
+
+				const savedPosition = this.stateService.getItem<IWindowState>(processExplorerWindowState, undefined);
+				const position = isStrictWindowState(savedPosition) ? savedPosition : this.getWindowPosition(this.processExplorerParentWindow, 800, 500);
 
 				this.processExplorerWindow = this.createBrowserWindow(position, processExplorerWindowConfigUrl, {
 					backgroundColor: data.styles.backgroundColor,
@@ -284,7 +286,7 @@ export class IssueMainService implements ICommonIssueService {
 				});
 
 				this.processExplorerWindow.loadURL(
-					FileAccess.asBrowserUri('vs/code/electron-sandbox/processExplorer/processExplorer.html', require).toString(true)
+					FileAccess.asBrowserUri(`vs/code/electron-sandbox/processExplorer/processExplorer${this.environmentMainService.isBuilt ? '' : '-dev'}.html`).toString(true)
 				);
 
 				this.processExplorerWindow.on('close', () => {
@@ -300,6 +302,27 @@ export class IssueMainService implements ICommonIssueService {
 						processExplorerDisposables.dispose();
 					}
 				});
+
+				const storeState = () => {
+					if (!this.processExplorerWindow) {
+						return;
+					}
+					const size = this.processExplorerWindow.getSize();
+					const position = this.processExplorerWindow.getPosition();
+					if (!size || !position) {
+						return;
+					}
+					const state: IWindowState = {
+						width: size[0],
+						height: size[1],
+						x: position[0],
+						y: position[1]
+					};
+					this.stateService.setItem(processExplorerWindowState, state);
+				};
+
+				this.processExplorerWindow.on('moved', storeState);
+				this.processExplorerWindow.on('resized', storeState);
 			}
 		}
 
@@ -319,7 +342,7 @@ export class IssueMainService implements ICommonIssueService {
 	private createBrowserWindow<T>(position: IWindowState, ipcObjectUrl: IIPCObjectUrl<T>, options: IBrowserWindowOptions, windowKind: string): BrowserWindow {
 		const window = new BrowserWindow({
 			fullscreen: false,
-			skipTaskbar: true,
+			skipTaskbar: false,
 			resizable: true,
 			width: position.width,
 			height: position.height,
@@ -330,12 +353,11 @@ export class IssueMainService implements ICommonIssueService {
 			title: options.title,
 			backgroundColor: options.backgroundColor || IssueMainService.DEFAULT_BACKGROUND_COLOR,
 			webPreferences: {
-				preload: FileAccess.asFileUri('vs/base/parts/sandbox/electron-browser/preload.js', require).fsPath,
-				additionalArguments: [`--vscode-window-config=${ipcObjectUrl.resource.toString()}`, `--vscode-window-kind=${windowKind}`],
+				preload: FileAccess.asFileUri('vs/base/parts/sandbox/electron-browser/preload.js').fsPath,
+				additionalArguments: [`--vscode-window-config=${ipcObjectUrl.resource.toString()}`],
 				v8CacheOptions: this.environmentMainService.useCodeCache ? 'bypassHeatCheck' : 'none',
 				enableWebSQL: false,
 				spellcheck: false,
-				nativeWindowOpen: true,
 				zoomFactor: zoomLevelToZoomFactor(options.zoomLevel),
 				sandbox: true,
 				contextIsolation: true
@@ -350,12 +372,12 @@ export class IssueMainService implements ICommonIssueService {
 	}
 
 	async getSystemStatus(): Promise<string> {
-		const [info, remoteData] = await Promise.all([this.launchMainService.getMainProcessInfo(), this.diagnosticsMainService.getRemoteDiagnostics({ includeProcesses: false, includeWorkspaceMetadata: false })]);
+		const [info, remoteData] = await Promise.all([this.diagnosticsMainService.getMainDiagnostics(), this.diagnosticsMainService.getRemoteDiagnostics({ includeProcesses: false, includeWorkspaceMetadata: false })]);
 
 		return this.diagnosticsService.getDiagnostics(info, remoteData);
 	}
 
-	private getWindowPosition(parentWindow: BrowserWindow, defaultWidth: number, defaultHeight: number): IWindowState {
+	private getWindowPosition(parentWindow: BrowserWindow, defaultWidth: number, defaultHeight: number): IStrictWindowState {
 
 		// We want the new window to open on the same display that the parent is in
 		let displayToUse: Display | undefined;
@@ -386,14 +408,14 @@ export class IssueMainService implements ICommonIssueService {
 			}
 		}
 
-		const state: IWindowState = {
-			width: defaultWidth,
-			height: defaultHeight
-		};
-
 		const displayBounds = displayToUse.bounds;
-		state.x = displayBounds.x + (displayBounds.width / 2) - (state.width! / 2);
-		state.y = displayBounds.y + (displayBounds.height / 2) - (state.height! / 2);
+
+		const state: IStrictWindowState = {
+			width: defaultWidth,
+			height: defaultHeight,
+			x: displayBounds.x + (displayBounds.width / 2) - (defaultWidth / 2),
+			y: displayBounds.y + (displayBounds.height / 2) - (defaultHeight / 2)
+		};
 
 		if (displayBounds.width > 0 && displayBounds.height > 0 /* Linux X11 sessions sometimes report wrong display bounds */) {
 			if (state.x < displayBounds.x) {
@@ -426,7 +448,7 @@ export class IssueMainService implements ICommonIssueService {
 
 	private async getPerformanceInfo(): Promise<PerformanceInfo> {
 		try {
-			const [info, remoteData] = await Promise.all([this.launchMainService.getMainProcessInfo(), this.diagnosticsMainService.getRemoteDiagnostics({ includeProcesses: true, includeWorkspaceMetadata: true })]);
+			const [info, remoteData] = await Promise.all([this.diagnosticsMainService.getMainDiagnostics(), this.diagnosticsMainService.getRemoteDiagnostics({ includeProcesses: true, includeWorkspaceMetadata: true })]);
 			return await this.diagnosticsService.getPerformanceInfo(info, remoteData);
 		} catch (error) {
 			this.logService.warn('issueService#getPerformanceInfo ', error.message);
@@ -434,4 +456,35 @@ export class IssueMainService implements ICommonIssueService {
 			throw error;
 		}
 	}
+
+	async stopTracing(): Promise<void> {
+		if (!this.environmentMainService.args.trace) {
+			return; // requires tracing to be on
+		}
+
+		const path = await contentTracing.stopRecording(`${randomPath(this.environmentMainService.userHome.fsPath, this.productService.applicationName)}.trace.txt`);
+
+		// Inform user to report an issue
+		await this.dialogMainService.showMessageBox({
+			type: 'info',
+			message: localize('trace.message', "Successfully created the trace file"),
+			detail: localize('trace.detail', "Please create an issue and manually attach the following file:\n{0}", path),
+			buttons: [localize({ key: 'trace.ok', comment: ['&& denotes a mnemonic'] }, "&&OK")],
+		}, withNullAsUndefined(BrowserWindow.getFocusedWindow()));
+
+		// Show item in explorer
+		this.nativeHostMainService.showItemInFolder(undefined, path);
+	}
+}
+
+function isStrictWindowState(obj: unknown): obj is IStrictWindowState {
+	if (typeof obj !== 'object' || obj === null) {
+		return false;
+	}
+	return (
+		'x' in obj &&
+		'y' in obj &&
+		'width' in obj &&
+		'height' in obj
+	);
 }

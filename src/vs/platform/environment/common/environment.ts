@@ -48,24 +48,24 @@ export interface IEnvironmentService {
 	// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
 	// --- user roaming data
+	stateResource: URI;
 	userRoamingDataHome: URI;
-	settingsResource: URI;
-	keybindingsResource: URI;
 	keyboardLayoutResource: URI;
 	argvResource: URI;
-	snippetsHome: URI;
 
 	// --- data paths
 	untitledWorkspacesHome: URI;
-	globalStorageHome: URI;
 	workspaceStorageHome: URI;
 	localHistoryHome: URI;
 	cacheHome: URI;
 
 	// --- settings sync
 	userDataSyncHome: URI;
-	userDataSyncLogResource: URI;
 	sync: 'on' | 'off' | undefined;
+
+	// --- continue edit session
+	continueOn?: string;
+	editSessionId?: string;
 
 	// --- extension development
 	debugExtensionHost: IExtensionHostDebugParams;
@@ -77,15 +77,18 @@ export interface IEnvironmentService {
 	extensionTestsLocationURI?: URI;
 
 	// --- logging
-	logsPath: string;
+	logsHome: URI;
 	logLevel?: string;
+	extensionLogLevel?: [string, string][];
 	verbose: boolean;
 	isBuilt: boolean;
 
 	// --- telemetry
 	disableTelemetry: boolean;
-	telemetryLogResource: URI;
 	serviceMachineIdResource: URI;
+
+	// --- Policy
+	policyFile?: URI;
 
 	// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 	//
@@ -119,6 +122,13 @@ export interface INativeEnvironmentService extends IEnvironmentService {
 	args: NativeParsedArgs;
 
 	// --- data paths
+	/**
+	 * Root path of the JavaScript sources.
+	 *
+	 * Note: This is NOT the installation root
+	 * directory itself but contained in it at
+	 * a level that is platform dependent.
+	 */
 	appRoot: string;
 	userHome: URI;
 	appSettingsHome: URI;
@@ -129,11 +139,14 @@ export interface INativeEnvironmentService extends IEnvironmentService {
 
 	// --- extensions
 	extensionsPath: string;
-	extensionsDownloadPath: string;
+	extensionsDownloadLocation: URI;
 	builtinExtensionsPath: string;
 
 	// --- use keytar for credentials
 	disableKeytar?: boolean;
+
+	crossOriginIsolated?: boolean;
+	isRemoteServer?: boolean;
 
 	// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 	//

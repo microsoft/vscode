@@ -16,9 +16,9 @@ import type * as vscode from 'vscode';
 import { ISplice } from 'vs/base/common/sequence';
 import { ILogService } from 'vs/platform/log/common/log';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
+import { ExtensionIdentifierMap, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { MarshalledId } from 'vs/base/common/marshallingIds';
-import { ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { ThemeIcon } from 'vs/base/common/themables';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { MarkdownString } from 'vs/workbench/api/common/extHostTypeConverters';
 import { checkProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
@@ -249,6 +249,23 @@ export class ExtHostSCMInputBox implements vscode.SourceControlInputBox {
 		this.#proxy.$setValidationProviderIsEnabled(this._sourceControlHandle, !!fn);
 	}
 
+	private _enabled: boolean = true;
+
+	get enabled(): boolean {
+		return this._enabled;
+	}
+
+	set enabled(enabled: boolean) {
+		enabled = !!enabled;
+
+		if (this._enabled === enabled) {
+			return;
+		}
+
+		this._enabled = enabled;
+		this.#proxy.$setInputBoxEnablement(this._sourceControlHandle, enabled);
+	}
+
 	private _visible: boolean = true;
 
 	get visible(): boolean {
@@ -471,7 +488,10 @@ class ExtHostSourceControl implements vscode.SourceControl {
 
 	set quickDiffProvider(quickDiffProvider: vscode.QuickDiffProvider | undefined) {
 		this._quickDiffProvider = quickDiffProvider;
-		this.#proxy.$updateSourceControl(this.handle, { hasQuickDiffProvider: !!quickDiffProvider });
+		if (quickDiffProvider?.label) {
+			checkProposedApiEnabled(this._extension, 'quickDiffProvider');
+		}
+		this.#proxy.$updateSourceControl(this.handle, { hasQuickDiffProvider: !!quickDiffProvider, quickDiffLabel: quickDiffProvider?.label });
 	}
 
 	private _commitTemplate: string | undefined = undefined;
@@ -520,7 +540,11 @@ class ExtHostSourceControl implements vscode.SourceControl {
 		const internal = actionButton !== undefined ?
 			{
 				command: this._commands.converter.toInternal(actionButton.command, this._actionButtonDisposables.value),
-				description: actionButton.description
+				secondaryCommands: actionButton.secondaryCommands?.map(commandGroup => {
+					return commandGroup.map(command => this._commands.converter.toInternal(command, this._actionButtonDisposables.value!));
+				}),
+				description: actionButton.description,
+				enabled: actionButton.enabled
 			} : undefined;
 		this.#proxy.$updateSourceControl(this.handle, { actionButton: internal ?? null });
 	}
@@ -664,7 +688,7 @@ export class ExtHostSCM implements ExtHostSCMShape {
 	private _proxy: MainThreadSCMShape;
 	private readonly _telemetry: MainThreadTelemetryShape;
 	private _sourceControls: Map<ProviderHandle, ExtHostSourceControl> = new Map<ProviderHandle, ExtHostSourceControl>();
-	private _sourceControlsByExtension: Map<string, ExtHostSourceControl[]> = new Map<string, ExtHostSourceControl[]>();
+	private _sourceControlsByExtension: ExtensionIdentifierMap<ExtHostSourceControl[]> = new ExtensionIdentifierMap<ExtHostSourceControl[]>();
 
 	private readonly _onDidChangeActiveProvider = new Emitter<vscode.SourceControl>();
 	get onDidChangeActiveProvider(): Event<vscode.SourceControl> { return this._onDidChangeActiveProvider.event; }
@@ -722,7 +746,11 @@ export class ExtHostSCM implements ExtHostSCMShape {
 		this.logService.trace('ExtHostSCM#createSourceControl', extension.identifier.value, id, label, rootUri);
 
 		type TEvent = { extensionId: string };
-		type TMeta = { extensionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' } };
+		type TMeta = {
+			owner: 'joaomoreno';
+			extensionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The ID of the extension contributing to the Source Control API.' };
+			comment: 'This is used to know what extensions contribute to the Source Control API.';
+		};
 		this._telemetry.$publicLog2<TEvent, TMeta>('api/scm/createSourceControl', {
 			extensionId: extension.identifier.value,
 		});
@@ -731,9 +759,9 @@ export class ExtHostSCM implements ExtHostSCMShape {
 		const sourceControl = new ExtHostSourceControl(extension, this._proxy, this._commands, id, label, rootUri);
 		this._sourceControls.set(handle, sourceControl);
 
-		const sourceControls = this._sourceControlsByExtension.get(ExtensionIdentifier.toKey(extension.identifier)) || [];
+		const sourceControls = this._sourceControlsByExtension.get(extension.identifier) || [];
 		sourceControls.push(sourceControl);
-		this._sourceControlsByExtension.set(ExtensionIdentifier.toKey(extension.identifier), sourceControls);
+		this._sourceControlsByExtension.set(extension.identifier, sourceControls);
 
 		return sourceControl;
 	}
@@ -742,7 +770,7 @@ export class ExtHostSCM implements ExtHostSCMShape {
 	getLastInputBox(extension: IExtensionDescription): ExtHostSCMInputBox | undefined {
 		this.logService.trace('ExtHostSCM#getLastInputBox', extension.identifier.value);
 
-		const sourceControls = this._sourceControlsByExtension.get(ExtensionIdentifier.toKey(extension.identifier));
+		const sourceControls = this._sourceControlsByExtension.get(extension.identifier);
 		const sourceControl = sourceControls && sourceControls[sourceControls.length - 1];
 		return sourceControl && sourceControl.inputBox;
 	}

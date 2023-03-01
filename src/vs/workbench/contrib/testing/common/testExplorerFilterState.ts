@@ -91,7 +91,7 @@ export class TestExplorerFilterState implements ITestExplorerFilterState {
 	/** @inheritdoc */
 	public readonly fuzzy = MutableObservableValue.stored(new StoredValue<boolean>({
 		key: 'testHistoryFuzzy',
-		scope: StorageScope.GLOBAL,
+		scope: StorageScope.PROFILE,
 		target: StorageTarget.USER,
 	}, this.storageService), false);
 
@@ -199,7 +199,7 @@ export const enum TestFilterTerm {
 	Hidden = '@hidden',
 }
 
-export const allTestFilterTerms: readonly TestFilterTerm[] = [
+const allTestFilterTerms: readonly TestFilterTerm[] = [
 	TestFilterTerm.Failed,
 	TestFilterTerm.Executed,
 	TestFilterTerm.CurrentDoc,

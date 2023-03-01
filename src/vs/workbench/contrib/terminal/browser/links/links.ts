@@ -6,6 +6,15 @@
 import { IBufferLine, IBufferRange, Terminal } from 'xterm';
 import { URI } from 'vs/base/common/uri';
 import { IHoverAction } from 'vs/workbench/services/hover/browser/hover';
+import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { ITerminalBackend, ITerminalProcessManager } from 'vs/workbench/contrib/terminal/common/terminal';
+import { IParsedLink } from 'vs/workbench/contrib/terminal/browser/links/terminalLinkParsing';
+
+export const ITerminalLinkResolverService = createDecorator<ITerminalLinkResolverService>('terminalLinkResolverService');
+export interface ITerminalLinkResolverService {
+	readonly _serviceBrand: undefined;
+	resolveLink(processManager: Pick<ITerminalProcessManager, 'initialCwd' | 'os' | 'remoteAuthority' | 'userHome'> & { backend?: Pick<ITerminalBackend, 'getWslPath'> }, link: string, uri?: URI): Promise<ResolvedLink>;
+}
 
 /**
  * A link detector can search for and return links within the xterm.js buffer. A single link
@@ -16,6 +25,12 @@ export interface ITerminalLinkDetector {
 	 * The xterm.js instance this detector belongs to.
 	 */
 	readonly xterm: Terminal;
+
+	/**
+	 * The maximum link length possible for this detector, this puts a cap on how much of a wrapped
+	 * line to consider to prevent performance problems.
+	 */
+	readonly maxLinkLength: number;
 
 	/**
 	 * Detects links within the _wrapped_ line range provided and returns them as an array.
@@ -34,6 +49,8 @@ export interface ITerminalSimpleLink {
 	 * The text of the link.
 	 */
 	text: string;
+
+	parsedLink?: IParsedLink;
 
 	/**
 	 * The buffer range of the link.
@@ -73,30 +90,30 @@ export const enum TerminalBuiltinLinkType {
 	/**
 	 * The link is validated to be a file on the file system and will open an editor.
 	 */
-	LocalFile,
+	LocalFile = 'LocalFile',
 
 	/**
 	 * The link is validated to be a folder on the file system and is outside the workspace. It will
 	 * reveal the folder within the explorer.
 	 */
-	LocalFolderOutsideWorkspace,
+	LocalFolderOutsideWorkspace = 'LocalFolderOutsideWorkspace',
 
 	/**
 	 * The link is validated to be a folder on the file system and is within the workspace and will
 	 * reveal the folder within the explorer.
 	 */
-	LocalFolderInWorkspace,
+	LocalFolderInWorkspace = 'LocalFolderInWorkspace',
 
 	/**
 	 * A low confidence link which will search for the file in the workspace. If there is a single
 	 * match, it will open the file; otherwise, it will present the matches in a quick pick.
 	 */
-	Search,
+	Search = 'Search',
 
 	/**
 	 * A link whose text is a valid URI.
 	 */
-	Url
+	Url = 'Url'
 }
 
 export interface ITerminalExternalLinkType {

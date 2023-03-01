@@ -34,7 +34,7 @@ export class ContributedExternalUriOpenersStore extends Disposable {
 		super();
 
 		this._memento = new Memento(ContributedExternalUriOpenersStore.STORAGE_ID, storageService);
-		this._mementoObject = this._memento.getMemento(StorageScope.GLOBAL, StorageTarget.MACHINE);
+		this._mementoObject = this._memento.getMemento(StorageScope.PROFILE, StorageTarget.MACHINE);
 		for (const [id, value] of Object.entries(this._mementoObject || {})) {
 			this.add(id, value.extensionId, { isCurrentlyRegistered: false });
 		}
@@ -80,7 +80,8 @@ export class ContributedExternalUriOpenersStore extends Disposable {
 	}
 
 	private async invalidateOpenersOnExtensionsChanged() {
-		const registeredExtensions = await this._extensionService.getExtensions();
+		await this._extensionService.whenInstalledExtensionsRegistered();
+		const registeredExtensions = this._extensionService.extensions;
 
 		for (const [id, entry] of this._openers) {
 			const extension = registeredExtensions.find(r => r.identifier.value === entry.extensionId);

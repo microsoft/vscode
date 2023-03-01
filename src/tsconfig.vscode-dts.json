@@ -14,6 +14,7 @@
 		"types": [],
 		"lib": [
 			"es5",
+			"ES2015.Iterable"
 		],
 	},
 	"include": [

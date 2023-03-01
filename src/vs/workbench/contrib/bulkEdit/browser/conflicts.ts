@@ -31,7 +31,7 @@ export class ConflictDetector {
 
 		const _workspaceEditResources = new ResourceMap<boolean>();
 
-		for (let edit of edits) {
+		for (const edit of edits) {
 			if (edit instanceof ResourceTextEdit) {
 				_workspaceEditResources.set(edit.resource, true);
 				if (typeof edit.versionId === 'number') {
@@ -81,7 +81,7 @@ export class ConflictDetector {
 				this._onDidConflict.fire(this);
 			}
 		};
-		for (let model of modelService.getModels()) {
+		for (const model of modelService.getModels()) {
 			this._disposables.add(model.onDidChangeContent(() => onDidChangeModel(model)));
 		}
 	}
