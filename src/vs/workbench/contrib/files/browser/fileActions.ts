@@ -906,9 +906,8 @@ async function openExplorerAndCreate(accessor: ServicesAccessor, isFolder: boole
 
 	const onSuccess = async (value: string): Promise<void> => {
 		try {
-			const autoCreateNewFolder = configService.getValue<IFilesConfiguration>().explorer.autoCreateNewFolder;
 			const resourceToCreate = resources.joinPath(folder.resource, value);
-			if (autoCreateNewFolder && value.endsWith('/')) {
+			if (value.endsWith('/')) {
 				isFolder = true;
 			}
 			await explorerService.applyBulkEdit([new ResourceFileEdit(undefined, resourceToCreate, { folder: isFolder })], {
