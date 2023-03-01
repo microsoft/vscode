@@ -357,6 +357,8 @@ export async function findInFilesCommand(accessor: ServicesAccessor, _args: IFin
 	const viewsService = accessor.get(IViewsService);
 	const args: IFindInFilesArgs = {};
 	if (Object.keys(_args).length !== 0) {
+		// resolve variables in the same way as in
+		// https://github.com/microsoft/vscode/blob/8b76efe9d317d50cb5b57a7658e09ce6ebffaf36/src/vs/workbench/contrib/searchEditor/browser/searchEditorActions.ts#L152-L158
 		const configurationResolverService = accessor.get(IConfigurationResolverService);
 		const historyService = accessor.get(IHistoryService);
 		const workspaceContextService = accessor.get(IWorkspaceContextService);
