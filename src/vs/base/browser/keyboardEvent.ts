@@ -33,9 +33,7 @@ function extractKeyCode(e: KeyboardEvent): KeyCode {
 			return KeyCode.Meta;
 		}
 	} else if (browser.isWebKit) {
-		if (keyCode === 91) {
-			return KeyCode.Meta;
-		} else if (platform.isMacintosh && keyCode === 93) {
+		if (platform.isMacintosh && keyCode === 93) {
 			// the two meta keys in the Mac have different key codes (91 and 93)
 			return KeyCode.Meta;
 		} else if (!platform.isMacintosh && keyCode === 92) {
