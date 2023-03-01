@@ -573,12 +573,6 @@ export interface ITerminalInstance {
 	 */
 	onExit: Event<number | ITerminalLaunchError | undefined>;
 
-	onDidChangeFindResults: Event<{ resultIndex: number; resultCount: number } | undefined>;
-
-	onDidAttachToElement: Event<HTMLElement>;
-
-	// onDidFocusFindWidget: Event<void>;
-
 	/**
 	 * The exit code or undefined when the terminal process hasn't yet exited or
 	 * the process exit code could not be determined. Use {@link exitReason} to see

@@ -360,15 +360,12 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	readonly onRequestAddInstanceToGroup = this._onRequestAddInstanceToGroup.event;
 	private readonly _onDidChangeHasChildProcesses = this._register(new Emitter<boolean>());
 	readonly onDidChangeHasChildProcesses = this._onDidChangeHasChildProcesses.event;
-	private readonly _onDidChangeFindResults = new Emitter<{ resultIndex: number; resultCount: number } | undefined>();
-	readonly onDidChangeFindResults = this._onDidChangeFindResults.event;
-	// private readonly _onDidFocusFindWidget = new Emitter<void>();
-	// readonly onDidFocusFindWidget = this._onDidFocusFindWidget.event;
-	private readonly _onDidAttachToElement = new Emitter<HTMLElement>();
-	readonly onDidAttachToElement = this._onDidAttachToElement.event;
-	private readonly _onDidLayout = new Emitter<dom.Dimension>();
-	readonly onDidLayout = this._onDidLayout.event;
 
+	// Internal events
+	private readonly _onDidAttachToElement = new Emitter<HTMLElement>();
+	private readonly _onDidAttachToElementEvent = this._onDidAttachToElement.event;
+	private readonly _onDidLayout = new Emitter<dom.Dimension>();
+	private readonly _onDidLayoutEvent = this._onDidLayout.event;
 
 	constructor(
 		private readonly _terminalShellTypeContextKey: IContextKey<string>,
@@ -930,7 +927,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 		const screenElement = xterm.attachToElement(xtermElement);
 
-		// this._register(xterm.onDidChangeFindResults(() => this.findWidget.value.updateResultCount()));
 		this._register(xterm.shellIntegration.onDidChangeStatus(() => {
 			if (this.hasFocus) {
 				this._setShellIntegrationContextKey();
@@ -2350,12 +2346,12 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		if (this._container) {
 			this._container.appendChild(child.element);
 		} else {
-			store.add(this.onDidAttachToElement(container => container.appendChild(child.element)));
+			store.add(this._onDidAttachToElementEvent(container => container.appendChild(child.element)));
 		}
 		if (this._lastLayoutDimensions) {
 			child.layout(this._lastLayoutDimensions);
 		}
-		store.add(this.onDidLayout(e => child.layout(e)));
+		store.add(this._onDidLayoutEvent(e => child.layout(e)));
 		return store;
 	}
 }
