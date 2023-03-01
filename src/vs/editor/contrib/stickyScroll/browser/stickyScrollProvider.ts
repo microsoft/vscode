@@ -37,7 +37,7 @@ export class StickyLineCandidate {
 
 enum DefaultModel {
 	OUTLINE_MODEL = 'Outline Model',
-	FOLDING_MODEL = 'Folding Provider Model',
+	FOLDING_PROVIDER_MODEL = 'Folding Provider Model',
 	INDENTATION_MODEL = 'Indentation Model'
 }
 
@@ -89,34 +89,28 @@ export class StickyLineCandidateProvider extends Disposable {
 			return;
 		} else {
 			this._foldingController = FoldingController.get(this._editor);
-			if (this._foldingController) {
-				if (this._options.defaultModel === DefaultModel.FOLDING_MODEL) {
+			if (this._foldingController &&
+				(this._options.defaultModel === DefaultModel.FOLDING_PROVIDER_MODEL
+					|| this._options.defaultModel === DefaultModel.INDENTATION_MODEL)) {
 
-					console.log('Inside of first if in scroll provider');
-					// register the fact that we are listening on the folding provider model
-					this._foldingController.registerFoldingProviderModelListener();
-				}
-				else if (this._options.defaultModel === DefaultModel.INDENTATION_MODEL) {
-
-					console.log('Inside of second if in scroll provider');
-					// Register the fact that we are listening on the indentation model
-					this._foldingController.registerIndentationModelListener();
-
-				}
+				// Register the fact that we are listening on the folding provider model
+				const foldingModelListenerTypeToRegister = this._options.defaultModel === DefaultModel.FOLDING_PROVIDER_MODEL ? DefaultModel.FOLDING_PROVIDER_MODEL : DefaultModel.INDENTATION_MODEL;
+				const foldingModelListenerTypeToUnregister = this._options.defaultModel === DefaultModel.FOLDING_PROVIDER_MODEL ? DefaultModel.INDENTATION_MODEL : DefaultModel.FOLDING_PROVIDER_MODEL;
+				this._foldingController.registerFoldingModelListenerOfType(foldingModelListenerTypeToRegister);
+				this._foldingController.unregisterFoldingModelListenerOfType(foldingModelListenerTypeToUnregister);
 			}
-
-			this._sessionStore.add(this._editor.onDidChangeModel(() => {
-				this.update();
-			}));
-			this._sessionStore.add(this._editor.onDidChangeHiddenAreas(() => this.update()));
-			this._sessionStore.add(this._editor.onDidChangeModelContent(() => this._updateSoon.schedule()));
-			this._sessionStore.add(this._languageFeaturesService.documentSymbolProvider.onDidChange(() => {
-				this.update();
-			}));
-			this.update();
 		}
-	}
 
+		this._sessionStore.add(this._editor.onDidChangeModel(() => {
+			this.update();
+		}));
+		this._sessionStore.add(this._editor.onDidChangeHiddenAreas(() => this.update()));
+		this._sessionStore.add(this._editor.onDidChangeModelContent(() => this._updateSoon.schedule()));
+		this._sessionStore.add(this._languageFeaturesService.documentSymbolProvider.onDidChange(() => {
+			this.update();
+		}));
+		this.update();
+	}
 
 	public getVersionId() {
 		return this._model?.version;
@@ -152,7 +146,7 @@ export class StickyLineCandidateProvider extends Disposable {
 		if (this._options!.defaultModel === DefaultModel.INDENTATION_MODEL) {
 			foldingModelFunctions.unshift(this.stickyModelFromIndentationFoldingModel.bind(this));
 		}
-		else if (this._options!.defaultModel === DefaultModel.OUTLINE_MODEL || this._options!.defaultModel === DefaultModel.FOLDING_MODEL) {
+		else if (this._options!.defaultModel === DefaultModel.OUTLINE_MODEL || this._options!.defaultModel === DefaultModel.FOLDING_PROVIDER_MODEL) {
 			foldingModelFunctions.unshift(this.stickyModelFromProviderFoldingModel.bind(this));
 
 			if (this._options!.defaultModel === DefaultModel.OUTLINE_MODEL) {

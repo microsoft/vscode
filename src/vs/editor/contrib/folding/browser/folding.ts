@@ -44,6 +44,11 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 
 const CONTEXT_FOLDING_ENABLED = new RawContextKey<boolean>('foldingEnabled', false);
 
+export enum DefaultModel {
+	FOLDING_PROVIDER_MODEL = 'Folding Provider Model',
+	INDENTATION_MODEL = 'Indentation Model'
+}
+
 export interface RangeProvider {
 	readonly id: string;
 	compute(cancelationToken: CancellationToken): Promise<FoldingRegions | null>;
@@ -100,9 +105,9 @@ export class FoldingController extends Disposable implements IEditorContribution
 	private rangeProvider: RangeProvider | null;
 	private foldingRegionPromise: CancelablePromise<FoldingRegions | null> | null;
 
-	private _storeProviderFoldingModel: boolean;
+	private _storeFoldingProviderModel: boolean;
 	private _storeIndentationFoldingModel: boolean;
-	private providerFoldingModelPromise: Promise<FoldingModel | null> | null;
+	private foldingProviderModelPromise: Promise<FoldingModel | null> | null;
 	private indentationFoldingModelPromise: Promise<FoldingModel | null> | null;
 
 	private foldingModelPromise: Promise<FoldingModel | null> | null;
@@ -145,9 +150,9 @@ export class FoldingController extends Disposable implements IEditorContribution
 		this.foldingRegionPromise = null;
 		this.foldingModelPromise = null;
 
-		this.providerFoldingModelPromise = null;
+		this.foldingProviderModelPromise = null;
 		this.indentationFoldingModelPromise = null;
-		this._storeProviderFoldingModel = false;
+		this._storeFoldingProviderModel = false;
 		this._storeIndentationFoldingModel = false;
 
 		this.updateScheduler = null;
@@ -195,33 +200,35 @@ export class FoldingController extends Disposable implements IEditorContribution
 		return this._foldingLimitReporter;
 	}
 
-	// TODO@Aiday: Find better names
-	public registerIndentationModelListener() {
-		// Register a lister on the indentation model, even when the folding functionality is disabled
-		// Suppose the folding functionality is enabled and the indentation model is used by default, then the indentation model is already under calculation/found
-		this._storeIndentationFoldingModel = true;
-		this._storeProviderFoldingModel = false;
-		if (this._isEnabled && !this._useFoldingProviders) {
-			this.indentationFoldingModelPromise = this.foldingModelPromise;
+	public registerFoldingModelListenerOfType(foldingModelType: any) {
+
+		if (!Object.values(DefaultModel).includes(foldingModelType)) {
+			throw new Error('Specify a valid folding model type');
 		}
-		// Else it needs to be found, so trigger the on model changed function
-		else {
-			this.onModelChanged();
+
+		this._storeFoldingProviderModel = foldingModelType === DefaultModel.FOLDING_PROVIDER_MODEL ? true : this._storeFoldingProviderModel;
+		this._storeIndentationFoldingModel = foldingModelType === DefaultModel.INDENTATION_MODEL ? true : this._storeIndentationFoldingModel;
+
+		if (this._isEnabled && foldingModelType === DefaultModel.FOLDING_PROVIDER_MODEL && this._useFoldingProviders) {
+			this.foldingProviderModelPromise = this.foldingModelPromise;
+		} else if (this._isEnabled && foldingModelType === DefaultModel.INDENTATION_MODEL && !this._useFoldingProviders) {
+			this.indentationFoldingModelPromise = this.foldingModelPromise;
+		} else {
+			const model = this.editor.getModel();
+			if (!this.updateScheduler && model) {
+				this.updateScheduler = new Delayer<FoldingModel>(this.updateDebounceInfo.get(model));
+			}
+			this.triggerFoldingModelChangedForListeners();
 		}
 	}
 
-	public registerFoldingProviderModelListener() {
-		// Register a listener on the folding provider model, even when the folding functionality is disabled
-		// Suppose the folding functionality is enabled and the folding provider model is used by default, then the folding provider model is already under calculation/found
-		this._storeProviderFoldingModel = true;
-		this._storeIndentationFoldingModel = false;
-		if (this._isEnabled && this._useFoldingProviders) {
-			this.providerFoldingModelPromise = this.foldingModelPromise;
-		}
-		// Else it needs to be found, so trigger the on model changed function
-		else {
-			this.onModelChanged();
-		}
+	public unregisterFoldingModelListenerOfType(foldingModelType: any) {
+
+		this._storeFoldingProviderModel = foldingModelType === DefaultModel.FOLDING_PROVIDER_MODEL ? false : this._storeFoldingProviderModel;
+		this._storeIndentationFoldingModel = foldingModelType === DefaultModel.INDENTATION_MODEL ? false : this._storeIndentationFoldingModel;
+
+		this.foldingProviderModelPromise = foldingModelType === DefaultModel.FOLDING_PROVIDER_MODEL ? null : this.foldingProviderModelPromise;
+		this.indentationFoldingModelPromise = foldingModelType === DefaultModel.INDENTATION_MODEL ? null : this.indentationFoldingModelPromise;
 	}
 
 	/**
@@ -268,16 +275,13 @@ export class FoldingController extends Disposable implements IEditorContribution
 		console.log('Inside of on model changed');
 
 		// Suppose folding is not enabled but we still want to store the indentation model or the folding provider model -> this is the case for sticky scroll
-		if (!this._isEnabled && (this._storeIndentationFoldingModel || this._storeProviderFoldingModel)) {
+		if (!this._isEnabled && (this._storeIndentationFoldingModel || this._storeFoldingProviderModel)) {
 			console.log('Inside of the first if condition of on model changed');
 			const model = this.editor.getModel();
 			if (!model) {
 				return;
 			}
-			if (!this.updateScheduler) {
-				this.updateScheduler = new Delayer<FoldingModel>(this.updateDebounceInfo.get(model));
-			}
-			this.triggerFoldingModelChangedForListeners();
+
 		} else {
 
 			console.log('Inside of the second if condition of on model changed');
@@ -326,7 +330,7 @@ export class FoldingController extends Disposable implements IEditorContribution
 			});
 			this.triggerFoldingModelChanged();
 
-			if (this._storeIndentationFoldingModel || this._storeProviderFoldingModel) {
+			if (this._storeIndentationFoldingModel || this._storeFoldingProviderModel) {
 				console.log('Inside of the third condition of on model changed');
 				this.triggerFoldingModelChangedForListeners();
 			}
@@ -362,7 +366,7 @@ export class FoldingController extends Disposable implements IEditorContribution
 
 	public getProviderFoldingModel(): Promise<FoldingModel | null> | null {
 		console.log('getProviderFoldingModel');
-		return this.providerFoldingModelPromise;
+		return this.foldingProviderModelPromise;
 	}
 
 	public getFoldingModel(): Promise<FoldingModel | null> | null {
@@ -435,12 +439,12 @@ export class FoldingController extends Disposable implements IEditorContribution
 		// We are interested in the provider folding model
 		const selectedProviders = FoldingController.getFoldingRangeProviders(this.languageFeaturesService, editorModel);
 
-		if (this._storeProviderFoldingModel) {
+		if (this._storeFoldingProviderModel) {
 			console.log('Entered into store provider folding model');
 
 			// If the folding function is enabled and the folding providers are used then the model of interest has already been found
 			if (this._isEnabled && this._useFoldingProviders) {
-				this.providerFoldingModelPromise = this.foldingModelPromise;
+				this.foldingProviderModelPromise = this.foldingModelPromise;
 				return;
 			}
 			// Either the folding functionality is not enabled or the folding provider has not been used to find the folding ranges
@@ -457,12 +461,12 @@ export class FoldingController extends Disposable implements IEditorContribution
 					}
 					// Else the folding functionality is already enabled and we can find the provider folding model promise
 					else {
-						this.providerFoldingModelPromise = this.foldingModelPromise;
+						this.foldingProviderModelPromise = this.foldingModelPromise;
 						return;
 					}
 
 				}
-				this.providerFoldingModelPromise = this._triggerFoldingModelChangedForListeners(provider);
+				this.foldingProviderModelPromise = this._triggerFoldingModelChangedForListeners(provider);
 			}
 		}
 		// We are interested in the indentation folding model
