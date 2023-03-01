@@ -160,16 +160,7 @@
 .search-view .messages {
 	margin-top: -5px;
 	cursor: default;
-}
-
-.monaco-workbench.vs-dark .search-view .messages {
-	color: var(--vscode-foreground);
-	opacity: 0.65;
-}
-
-.monaco-workbench.vs-dark .search-view .messages a.pointer {
-	opacity: 1 !important;
-	color: var(--vscode-textLink-foreground) !important;
+	color: var(--vscode-search-resultsInfoForeground);
 }
 
 .search-view .message {
