@@ -483,7 +483,9 @@ export class InlineCompletionsSession extends BaseGhostTextWidgetModel {
 				);
 
 				const endTime = new Date();
-				this.debounce.update(this.editor.getModel(), endTime.getTime() - startTime.getTime());
+				if (this.editor.hasModel()) {
+					this.debounce.update(this.editor.getModel(), endTime.getTime() - startTime.getTime());
+				}
 
 			} catch (e) {
 				onUnexpectedError(e);
