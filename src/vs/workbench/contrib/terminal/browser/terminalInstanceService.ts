@@ -16,7 +16,6 @@ import { URI } from 'vs/base/common/uri';
 import { Emitter, Event } from 'vs/base/common/event';
 import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/terminalContextKey';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { ILifecycleService, LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 
 export class TerminalInstanceService extends Disposable implements ITerminalInstanceService {
@@ -33,7 +32,6 @@ export class TerminalInstanceService extends Disposable implements ITerminalInst
 	constructor(
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
-		@ILifecycleService private readonly _lifecycleService: ILifecycleService,
 		@IWorkbenchEnvironmentService readonly _environmentService: IWorkbenchEnvironmentService,
 	) {
 		super();
@@ -46,7 +44,7 @@ export class TerminalInstanceService extends Disposable implements ITerminalInst
 		for (const remoteAuthority of [undefined, _environmentService.remoteAuthority]) {
 			let resolve: () => void;
 			const p = new Promise<void>(r => resolve = r);
-			this._backendRegistration.set(remoteAuthority, { promise: Promise.race([p, this._lifecycleService.when(LifecyclePhase.Eventually)]), resolve: resolve! });
+			this._backendRegistration.set(remoteAuthority, { promise: p, resolve: resolve! });
 		}
 	}
 
