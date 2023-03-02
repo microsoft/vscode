@@ -6,7 +6,7 @@
 import 'vs/css!./media/explorerviewlet';
 import { localize } from 'vs/nls';
 import { mark } from 'vs/base/common/performance';
-import { VIEWLET_ID, OpenEditorsVisibleContext, VIEW_ID, IFilesConfiguration } from 'vs/workbench/contrib/files/common/files';
+import { VIEWLET_ID, OpenEditorsVisibleContext, VIEW_ID, IFilesConfiguration, ExplorerViewletVisibleContext } from 'vs/workbench/contrib/files/common/files';
 import { IViewletViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
 import { IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
 import { ExplorerView } from 'vs/workbench/contrib/files/browser/views/explorerView';
@@ -170,6 +170,8 @@ export class ExplorerViewletViewsContribution extends Disposable implements IWor
 
 export class ExplorerViewPaneContainer extends ViewPaneContainer {
 
+	private viewletVisibleContextKey: IContextKey<boolean>;
+
 	constructor(
 		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
 		@ITelemetryService telemetryService: ITelemetryService,
@@ -186,6 +188,7 @@ export class ExplorerViewPaneContainer extends ViewPaneContainer {
 
 		super(VIEWLET_ID, { mergeViewWithContainerWhenSingleView: true }, instantiationService, configurationService, layoutService, contextMenuService, telemetryService, extensionService, themeService, storageService, contextService, viewDescriptorService);
 
+		this.viewletVisibleContextKey = ExplorerViewletVisibleContext.bindTo(contextKeyService);
 		this._register(this.contextService.onDidChangeWorkspaceName(e => this.updateTitleArea()));
 	}
 
@@ -241,6 +244,11 @@ export class ExplorerViewPaneContainer extends ViewPaneContainer {
 
 	getOpenEditorsView(): OpenEditorsView {
 		return <OpenEditorsView>this.getView(OpenEditorsView.ID);
+	}
+
+	override setVisible(visible: boolean): void {
+		this.viewletVisibleContextKey.set(visible);
+		super.setVisible(visible);
 	}
 
 	override focus(): void {
