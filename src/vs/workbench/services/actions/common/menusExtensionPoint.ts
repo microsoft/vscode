@@ -312,7 +312,7 @@ const apiMenus: IAPIMenu[] = [
 		key: 'editor/lineNumber/context',
 		id: MenuId.EditorLineNumberContext,
 		description: localize('editorLineNumberContext', "The contributed editor line number context menu"),
-		proposed: 'contribShareMenu'
+		proposed: 'contribEditorLineNumberMenu'
 	},
 	{
 		key: 'mergeEditor/result/title',
