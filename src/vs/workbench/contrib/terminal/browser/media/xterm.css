@@ -225,7 +225,7 @@
 	white-space: pre-wrap;
 }
 
-.xterm .xterm-accessible-buffer:focus-within {
+.xterm .xterm-accessible-buffer.active {
 	opacity: 1;
 	z-index: 33;
 	top: -5px;

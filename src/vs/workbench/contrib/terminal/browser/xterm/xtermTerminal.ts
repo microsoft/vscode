@@ -809,10 +809,7 @@ class AccessibleBuffer extends DisposableStore {
 		if (elt) {
 			elt.insertAdjacentElement('afterbegin', this._accessibleBuffer);
 		}
-		// Prevent the accessible buffer letting mouse events to propogate to xterm.js while it's
-		// visible.
-		this.add(addDisposableListener(this._accessibleBuffer, 'mousedown', e => e.stopImmediatePropagation()));
-		this._accessibleBuffer.tabIndex = -1;
+		this._accessibleBuffer.tabIndex = 0;
 		this._editorContainer = document.createElement('div');
 		this._bufferEditor = this._instantiationService.createInstance(CodeEditorWidget, this._editorContainer, editorOptions, codeEditorWidgetOptions);
 		this.add(configurationService.onDidChangeConfiguration(e => {
@@ -833,11 +830,21 @@ class AccessibleBuffer extends DisposableStore {
 		if (model) {
 			this._bufferEditor.setModel(model);
 		}
-
 		if (!this._registered) {
 			this._bufferEditor.layout({ width: this._accessibleBuffer.clientWidth, height: this._accessibleBuffer.clientHeight });
+			this.add(addDisposableListener(this._accessibleBuffer, 'focus', () => {
+				this._accessibleBuffer.classList.add('active');
+				this._bufferEditor.focus();
+			}));
+			this.add(addDisposableListener(this._accessibleBuffer, 'keypress', (e) => {
+				if (e.key === 'Escape' || e.key === 'Tab') {
+					this._accessibleBuffer.classList.remove('active');
+					this._terminal.raw.focus();
+				}
+			}));
 			this._registered = true;
 		}
+		this._accessibleBuffer.focus();
 
 		if (!this._commandFinishedDisposable && commandDetection) {
 			this._commandFinishedDisposable = commandDetection.onCommandFinished(() => this._refreshSelection = true);
@@ -854,13 +861,6 @@ class AccessibleBuffer extends DisposableStore {
 			this._bufferEditor.setScrollTop(this._bufferEditor.getScrollHeight());
 			this._refreshSelection = false;
 			this._lastContentLength = fragment.length;
-		}
-
-
-		if (this._accessibleBuffer) {
-			this.add(addDisposableListener(this._accessibleBuffer, 'focus', () => {
-				this._bufferEditor.focus();
-			}));
 		}
 	}
 
