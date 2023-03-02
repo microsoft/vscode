@@ -248,6 +248,14 @@ export class IconLabel extends Disposable {
 			disposable.dispose();
 		}
 		this.customHovers.clear();
+
+		if (this.nameNode instanceof LabelWithHighlights) {
+			this.nameNode.dispose();
+		}
+
+		if (this.descriptionNode instanceof HighlightedLabel) {
+			this.descriptionNode.dispose();
+		}
 	}
 
 	private getOrCreateSuffixNode() {
@@ -344,6 +352,11 @@ class LabelWithHighlights extends Disposable {
 
 	constructor(private container: HTMLElement, private supportIcons: boolean) {
 		super();
+	}
+
+	override dispose() {
+		super.dispose();
+		this.singleLabel?.dispose();
 	}
 
 	setLabel(label: string | string[], options?: IIconLabelValueOptions): void {

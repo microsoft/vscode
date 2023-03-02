@@ -172,6 +172,11 @@ class OneReferenceTemplate extends Disposable {
 		this.label = this._register(new HighlightedLabel(container));
 	}
 
+	overridedispose() {
+		super.dispose();
+		this.label.dispose();
+	}
+
 	set(element: OneReference, score?: FuzzyScore): void {
 		const preview = element.parent.getPreview(element)?.preview(element.range);
 		if (!preview || !preview.value) {

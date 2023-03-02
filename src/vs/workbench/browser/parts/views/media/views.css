@@ -18,11 +18,13 @@
 /* Misc */
 
 .file-icon-themable-tree .monaco-list-row .content .monaco-highlighted-label .highlight,
-.pane-body .monaco-tl-contents .monaco-highlighted-label .highlight {
+.monaco-tl-contents .monaco-highlighted-label .highlight,
+.file-icon-themable-tree .monaco-list-row .content .monaco-highlighted-label::highlight(label-highlight),
+.monaco-tl-contents .monaco-highlighted-label::highlight(label-highlight) {
 	color: unset !important;
-	background-color: var(--vscode-list-filterMatchBackground);
-	outline: 1px dotted var(--vscode-list-filterMatchBorder);
-	outline-offset: -1px;
+	background-color: var(--vscode-list-filterMatchBackground, red); /* TODO: var not being resolved? */
+	border: 1px dotted var(--vscode-list-filterMatchBorder); /* TODO: this causes the contents to shift around because of the added border */
+	box-sizing: border-box;
 }
 
 .monaco-workbench .tree-explorer-viewlet-tree-view {
