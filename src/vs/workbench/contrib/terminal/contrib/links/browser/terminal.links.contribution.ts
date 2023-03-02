@@ -62,8 +62,8 @@ class TerminalLinkContribution extends DisposableStore implements ITerminalContr
 		this.add(this._terminalLinkProviderService.onDidAddLinkProvider(e => {
 			linkManager.registerExternalLinkProvider(e.provideLinks.bind(e, this._instance));
 		}));
+		// TODO: Currently only a single link provider is supported; the one registered by the ext host
 		this.add(this._terminalLinkProviderService.onDidRemoveLinkProvider(e => {
-			// TODO: Currently it seems only a single link provider is supported
 			linkManager.dispose();
 			this.xtermReady(xterm);
 		}));

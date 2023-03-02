@@ -22,7 +22,7 @@ export interface ITerminalLinkProviderService {
 	readonly onDidAddLinkProvider: Event<ITerminalExternalLinkProvider>;
 	readonly onDidRemoveLinkProvider: Event<ITerminalExternalLinkProvider>;
 
-	// TODO: Currently it seems only a single link provider is supported
+	// TODO: Currently only a single link provider is supported; the one registered by the ext host
 	registerLinkProvider(provider: ITerminalExternalLinkProvider): IDisposable;
 }
 
