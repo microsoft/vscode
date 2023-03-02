@@ -183,7 +183,7 @@ where
 	T: Serialize + ?Sized,
 {
 	let dec = serde_json::to_string(value).expect("expected to serialize");
-	if std::env::var("VSCODE_CLI_DISABLE_ENCRYPT").is_ok() {
+	if std::env::var("VSCODE_CLI_DISABLE_KEYCHAIN_ENCRYPT").is_ok() {
 		return dec;
 	}
 	encrypt(&dec)
@@ -194,7 +194,7 @@ fn unseal<T>(value: &str) -> Option<T>
 where
 	T: DeserializeOwned,
 {
-	// small back-compat for old unencrypted values, or if VSCODE_CLI_DISABLE_ENCRYPT set
+	// small back-compat for old unencrypted values, or if VSCODE_CLI_DISABLE_KEYCHAIN_ENCRYPT set
 	if let Ok(v) = serde_json::from_str::<T>(value) {
 		return Some(v);
 	}
