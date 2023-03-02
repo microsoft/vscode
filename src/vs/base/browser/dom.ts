@@ -1040,6 +1040,14 @@ export function join(nodes: Node[], separator: Node | string): Node[] {
 	return result;
 }
 
+export function toggleVisibility(shouldShow: boolean, ...elements: HTMLElement[]): void {
+	if (shouldShow) {
+		show(...elements);
+	} else {
+		hide(...elements);
+	}
+}
+
 export function show(...elements: HTMLElement[]): void {
 	for (const element of elements) {
 		element.style.display = '';
