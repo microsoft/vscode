@@ -219,6 +219,7 @@
 	opacity: 0;
 	overflow: scroll;
 	overflow-x: hidden;
+	z-index: 10;
 }
 
 .xterm .xterm-accessible-buffer div {

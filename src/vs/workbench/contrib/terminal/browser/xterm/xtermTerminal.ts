@@ -807,7 +807,7 @@ class AccessibleBuffer extends DisposableStore {
 		this._accessibleBuffer.classList.add('xterm-accessible-buffer');
 		const elt = this._terminal.raw?.element;
 		if (elt) {
-			elt.insertAdjacentElement('afterbegin', this._accessibleBuffer);
+			elt.insertAdjacentElement('beforebegin', this._accessibleBuffer);
 		}
 		this._accessibleBuffer.tabIndex = 0;
 		this._editorContainer = document.createElement('div');
@@ -831,9 +831,13 @@ class AccessibleBuffer extends DisposableStore {
 			this._bufferEditor.setModel(model);
 		}
 		if (!this._registered) {
-			this._bufferEditor.layout({ width: this._accessibleBuffer.clientWidth, height: this._accessibleBuffer.clientHeight });
+			const elt = this._terminal.raw?.element;
+			if (elt) {
+				this._bufferEditor.layout({ width: elt.clientWidth, height: elt.clientHeight });
+			}
 			this.add(addDisposableListener(this._accessibleBuffer, 'focus', () => {
 				this._accessibleBuffer.classList.add('active');
+				this._accessibleBuffer.replaceChildren(this._editorContainer);
 				this._bufferEditor.focus();
 			}));
 			this.add(addDisposableListener(this._accessibleBuffer, 'keypress', (e) => {
