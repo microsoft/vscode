@@ -99,7 +99,7 @@ export class BlockDecorations extends ViewPart {
 				bottom = ctx.getVerticalOffsetAfterLineNumber(decoration.range.endLineNumber, true);
 			} else {
 				top = ctx.getVerticalOffsetForLineNumber(decoration.range.startLineNumber, true);
-				bottom = decoration.range.isEmpty()
+				bottom = decoration.range.isEmpty() && !decoration.options.blockDoesNotCollapse
 					? ctx.getVerticalOffsetForLineNumber(decoration.range.startLineNumber, false)
 					: ctx.getVerticalOffsetAfterLineNumber(decoration.range.endLineNumber, true);
 			}
