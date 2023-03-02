@@ -25,7 +25,7 @@ export class TerminalInstanceService extends Disposable implements ITerminalInst
 	private _terminalInRunCommandPicker: IContextKey<boolean>;
 	private _terminalSuggestWidgetVisibleContextKey: IContextKey<boolean>;
 	private _configHelper: TerminalConfigHelper;
-	private _backendRegistration = new Map<string | undefined, { promise: Promise<void>; resolve?: () => void }>();
+	private _backendRegistration = new Map<string | undefined, { promise: Promise<void>; resolve: () => void }>();
 
 	private readonly _onDidCreateInstance = new Emitter<ITerminalInstance>();
 	get onDidCreateInstance(): Event<ITerminalInstance> { return this._onDidCreateInstance.event; }
@@ -108,7 +108,7 @@ export class TerminalInstanceService extends Disposable implements ITerminalInst
 	}
 
 	didRegisterBackend(remoteAuthority?: string) {
-		this._backendRegistration.get(remoteAuthority)?.resolve?.();
+		this._backendRegistration.get(remoteAuthority)?.resolve();
 	}
 }
 
