@@ -7,7 +7,7 @@ import * as assert from 'assert';
 import * as vscode from 'vscode';
 import * as utils from '../utils';
 
-(vscode.env.uiKind === vscode.UIKind.Web ? suite.skip : suite)('Notebook Editor', function () {
+utils.suiteRepeat(50, 'Notebook Editor', function () {
 
 	const contentSerializer = new class implements vscode.NotebookSerializer {
 		deserializeNotebook() {

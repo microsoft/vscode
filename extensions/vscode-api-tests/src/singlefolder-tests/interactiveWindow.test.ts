@@ -6,7 +6,7 @@
 import * as assert from 'assert';
 import 'mocha';
 import * as vscode from 'vscode';
-import { asPromise, disposeAll } from '../utils';
+import { asPromise, disposeAll, testRepeat } from '../utils';
 import { Kernel, saveAllFilesAndCloseAll } from './notebook.api.test';
 
 export type INativeInteractiveWindow = { notebookUri: vscode.Uri; inputUri: vscode.Uri; notebookEditor: vscode.NotebookEditor };
@@ -89,7 +89,7 @@ async function addCellAndRun(code: string, notebook: vscode.NotebookDocument) {
 		assert.strictEqual(notebookEditor.notebook.cellAt(0).kind, vscode.NotebookCellKind.Code);
 	});
 
-	test('Interactive window scrolls after execute', async () => {
+	testRepeat(50, 'Interactive window scrolls after execute', async () => {
 		assert.ok(vscode.workspace.workspaceFolders);
 		const { notebookEditor } = await createInteractiveWindow(defaultKernel);
 
