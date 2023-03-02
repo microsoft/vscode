@@ -710,7 +710,7 @@ export class SynchronizedInlineCompletionsCache extends Disposable {
 		for (const c of this.completions) {
 			const newRange = model.getDecorationRange(c.decorationId);
 			if (!newRange) {
-				onUnexpectedError(new Error('Decoration has no range'));
+				// onUnexpectedError(new Error('Decoration has no range'));
 				continue;
 			}
 			if (!c.synchronizedRange.equalsRange(newRange)) {

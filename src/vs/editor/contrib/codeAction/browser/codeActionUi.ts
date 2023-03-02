@@ -17,13 +17,14 @@ import { CodeActionKeybindingResolver } from 'vs/editor/contrib/codeAction/brows
 import { toMenuItems } from 'vs/editor/contrib/codeAction/browser/codeActionMenu';
 import { MessageController } from 'vs/editor/contrib/message/browser/messageController';
 import { localize } from 'vs/nls';
-import { IActionWidgetService, IRenderDelegate } from 'vs/platform/actionWidget/browser/actionWidget';
+import { IActionWidgetService } from 'vs/platform/actionWidget/browser/actionWidget';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { CodeActionAutoApply, CodeActionItem, CodeActionSet, CodeActionTrigger } from '../common/types';
 import { CodeActionsState } from './codeActionModel';
 import { LightBulbWidget } from './lightBulbWidget';
+import { IActionListDelegate } from 'vs/platform/actionWidget/browser/actionList';
 
 export interface IActionShowOptions {
 	readonly includeDisabledActions?: boolean;
@@ -181,7 +182,7 @@ export class CodeActionUi extends Disposable {
 
 		const anchor = Position.isIPosition(at) ? this.toCoords(at) : at;
 
-		const delegate: IRenderDelegate<CodeActionItem> = {
+		const delegate: IActionListDelegate<CodeActionItem> = {
 			onSelect: async (action: CodeActionItem, preview?: boolean) => {
 				this.delegate.applyCodeAction(action, /* retrigger */ true, !!preview ? preview : false);
 				this._actionWidgetService.hide();
