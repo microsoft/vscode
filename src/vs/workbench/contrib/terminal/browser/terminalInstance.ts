@@ -595,6 +595,11 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 					contribution.xtermReady?.(xterm);
 				}
 			});
+			this.onDisposed(() => {
+				for (const contribution of this._contributions) {
+					contribution.dispose();
+				}
+			});
 		}
 	}
 

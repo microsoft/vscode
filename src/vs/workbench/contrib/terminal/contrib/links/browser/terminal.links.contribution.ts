@@ -15,7 +15,7 @@ import { TerminalCommandId } from 'vs/workbench/contrib/terminal/common/terminal
 import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/terminalContextKey';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { terminalStrings } from 'vs/workbench/contrib/terminal/common/terminalStrings';
-import { DisposableStore } from 'vs/base/common/lifecycle';
+import { DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
 import { registerTerminalContribution } from 'vs/workbench/contrib/terminal/browser/terminalCommon';
 
 registerSingleton(ITerminalLinkResolverService, TerminalLinkResolverService, InstantiationType.Delayed);
@@ -24,6 +24,7 @@ class TerminalLinkContribution extends DisposableStore implements ITerminalContr
 	constructor(instance: ITerminalInstance) {
 		super();
 		console.log('ctor');
+		this.add(toDisposable(() => console.log('dispose')));
 	}
 	xtermReady(xterm: IXtermTerminal): void {
 		console.log('xtermReady');
