@@ -701,18 +701,9 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 	}
 
 	private async _handleRemoteResolverEagerExtensions(): Promise<void> {
-		return Promise.all(
-			this._myRegistry.getAllExtensionDescriptions().map((desc) => {
-				if (this.isActivated(desc.identifier) || !isResolverExtension(desc, this._initData.remote.authority)) {
-					return;
-				}
-
-				return (
-					this._activateById(desc.identifier, { startup: true, extensionId: desc.identifier, activationEvent: `onResolveRemoteAuthority:${this._initData.remote.authority}` })
-						.then(undefined, err => this._logService.error(err))
-				);
-			})
-		).then(() => { });
+		if (this._initData.remote.authority) {
+			return this._activateByEvent(`onResolveRemoteAuthority:${this._initData.remote.authority}`, false);
+		}
 	}
 
 	public async $extensionTestsExecute(): Promise<number> {
