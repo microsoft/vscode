@@ -40,7 +40,6 @@ class TerminalContributionRegistry {
 	}
 
 	public registerTerminalContribution<Services extends BrandedService[]>(id: string, ctor: { new(instance: ITerminalInstance, processManager: ITerminalProcessManager, widgetManager: TerminalWidgetManager, ...services: Services): ITerminalContribution }): void {
-		// TODO: Use ID to prevent duplicate contributions?
 		this._terminalContributions.push({ id, ctor: ctor as TerminalContributionCtor });
 	}
 
