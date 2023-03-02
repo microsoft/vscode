@@ -526,7 +526,7 @@ export class InteractiveEditorController implements IEditorContribution {
 			options: { description: 'interactive-editor-marker' }
 		}]);
 
-		let placeholder = session.placeholder ?? localize('placeholder1', "Ask me anything...");
+		let placeholder = session.placeholder ?? '';
 		let value = '';
 
 		const listener = new DisposableStore();
@@ -620,7 +620,7 @@ export class InteractiveEditorController implements IEditorContribution {
 			if (!reply || isFalsyOrEmpty(reply.edits)) {
 				this._logService.trace('[IE] NO reply or edits', provider.debugName);
 				reply = { edits: [] };
-				placeholder = localize('placeholder3', "Oops... Try something else...");
+				placeholder = '';
 				continue;
 			}
 
@@ -676,7 +676,7 @@ export class InteractiveEditorController implements IEditorContribution {
 			if (!InteractiveEditorController._promptHistory.includes(input.value)) {
 				InteractiveEditorController._promptHistory.unshift(input.value);
 			}
-			placeholder = reply.placeholder ?? session.placeholder ?? localize('placeholder2', "You can ask me more...");
+			placeholder = reply.placeholder ?? session.placeholder ?? '';
 
 		} while (!this._ctsSession.token.isCancellationRequested);
 
