@@ -622,7 +622,6 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 
 	private async turnOff(): Promise<void> {
 		const result = await this.dialogService.confirm({
-			type: 'info',
 			message: localize('turn off sync confirmation', "Do you want to turn off sync?"),
 			detail: localize('turn off sync detail', "Your settings, keybindings, extensions, snippets and UI State will no longer be synced."),
 			primaryButton: localize({ key: 'turn off', comment: ['&& denotes a mnemonic'] }, "&&Turn off"),

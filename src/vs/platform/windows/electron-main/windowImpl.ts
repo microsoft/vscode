@@ -40,7 +40,7 @@ import { IWindowState, ICodeWindow, ILoadEvent, WindowMode, WindowError, LoadRea
 import { Color } from 'vs/base/common/color';
 import { IPolicyService } from 'vs/platform/policy/common/policy';
 import { IUserDataProfile } from 'vs/platform/userDataProfile/common/userDataProfile';
-import { IStateMainService } from 'vs/platform/state/electron-main/state';
+import { IStateService } from 'vs/platform/state/node/state';
 import { IUserDataProfilesMainService } from 'vs/platform/userDataProfile/electron-main/userDataProfile';
 import { INativeHostMainService } from 'vs/platform/native/electron-main/nativeHostMainService';
 import { OneDataSystemAppender } from 'vs/platform/telemetry/node/1dsAppender';
@@ -50,7 +50,6 @@ import { resolveCommonProperties } from 'vs/platform/telemetry/common/commonProp
 import { hostname, release } from 'os';
 import { resolveMachineId } from 'vs/platform/telemetry/electron-main/telemetryUtils';
 import { ILoggerMainService } from 'vs/platform/log/electron-main/loggerService';
-import { massageMessageBoxOptions } from 'vs/platform/dialogs/common/dialogs';
 
 export interface IWindowCreationOptions {
 	readonly state: IWindowState;
@@ -125,6 +124,9 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 
 	private _lastFocusTime = -1;
 	get lastFocusTime(): number { return this._lastFocusTime; }
+
+	private _isSandboxed = false;
+	get isSandboxed(): boolean { return this._isSandboxed; }
 
 	get backupPath(): string | undefined { return this._config?.backupPath; }
 
@@ -201,7 +203,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		@IProductService private readonly productService: IProductService,
 		@IProtocolMainService private readonly protocolMainService: IProtocolMainService,
 		@IWindowsMainService private readonly windowsMainService: IWindowsMainService,
-		@IStateMainService private readonly stateMainService: IStateMainService,
+		@IStateService private readonly stateService: IStateService,
 		@INativeHostMainService private readonly nativeHostMainService: INativeHostMainService
 	) {
 		super();
@@ -221,7 +223,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 			if (typeof CodeWindow.sandboxState === 'undefined') {
 				// we should only check this once so that we do not end up
 				// with some windows in sandbox mode and some not!
-				CodeWindow.sandboxState = this.stateMainService.getItem<boolean>('window.experimental.useSandbox', false);
+				CodeWindow.sandboxState = this.stateService.getItem<boolean>('window.experimental.useSandbox', false);
 			}
 
 			const windowSettings = this.configurationService.getValue<IWindowSettings | undefined>('window');
@@ -233,6 +235,8 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 			} else {
 				useSandbox = typeof this.productService.quality === 'string' && this.productService.quality !== 'stable';
 			}
+
+			this._isSandboxed = useSandbox;
 
 			const options: BrowserWindowConstructorOptions & { experimentalDarkMode: boolean } = {
 				width: this.windowState.width,
@@ -336,7 +340,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 
 			// Update the window controls immediately based on cached values
 			if (useCustomTitleStyle && ((isWindows && useWindowControlsOverlay(this.configurationService)) || isMacintosh)) {
-				const cachedWindowControlHeight = this.stateMainService.getItem<number>((CodeWindow.windowControlHeightStateStorageKey));
+				const cachedWindowControlHeight = this.stateService.getItem<number>((CodeWindow.windowControlHeightStateStorageKey));
 				if (cachedWindowControlHeight) {
 					this.updateWindowControls({ height: cachedWindowControlHeight });
 				}
@@ -722,7 +726,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 					}
 
 					// Show Dialog
-					const { options, buttonIndeces } = massageMessageBoxOptions({
+					const { response, checkboxChecked } = await this.dialogMainService.showMessageBox({
 						type: 'warning',
 						buttons: [
 							localize({ key: 'reopen', comment: ['&& denotes a mnemonic'] }, "&&Reopen"),
@@ -732,15 +736,12 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 						message: localize('appStalled', "The window is not responding"),
 						detail: localize('appStalledDetail', "You can reopen or close the window or keep waiting."),
 						checkboxLabel: this._config?.workspace ? localize('doNotRestoreEditors', "Don't restore editors") : undefined
-					}, this.productService);
-
-					const result = await this.dialogMainService.showMessageBox(options, this._win);
-					const buttonIndex = buttonIndeces[result.response];
+					}, this._win);
 
 					// Handle choice
-					if (buttonIndex !== 1 /* keep waiting */) {
-						const reopen = buttonIndex === 0;
-						await this.destroyWindow(reopen, result.checkboxChecked);
+					if (response !== 2 /* keep waiting */) {
+						const reopen = response === 0;
+						await this.destroyWindow(reopen, checkboxChecked);
 					}
 				}
 
@@ -765,7 +766,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 						}
 
 						// Show Dialog
-						const { options, buttonIndeces } = massageMessageBoxOptions({
+						const { response, checkboxChecked } = await this.dialogMainService.showMessageBox({
 							type: 'warning',
 							buttons: [
 								this._config?.workspace ? localize({ key: 'reopen', comment: ['&& denotes a mnemonic'] }, "&&Reopen") : localize({ key: 'newWindow', comment: ['&& denotes a mnemonic'] }, "&&New Window"),
@@ -776,13 +777,11 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 								localize('appGoneDetailWorkspace', "We are sorry for the inconvenience. You can reopen the window to continue where you left off.") :
 								localize('appGoneDetailEmptyWindow', "We are sorry for the inconvenience. You can open a new empty window to start again."),
 							checkboxLabel: this._config?.workspace ? localize('doNotRestoreEditors', "Don't restore editors") : undefined
-						}, this.productService);
-
-						const result = await this.dialogMainService.showMessageBox(options, this._win);
+						}, this._win);
 
 						// Handle choice
-						const reopen = buttonIndeces[result.response] === 0;
-						await this.destroyWindow(reopen, result.checkboxChecked);
+						const reopen = response === 0;
+						await this.destroyWindow(reopen, checkboxChecked);
 					}
 				}
 				break;
@@ -800,7 +799,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 			}
 
 			const { installSourcePath } = this.environmentMainService;
-			const machineId = await resolveMachineId(this.stateMainService);
+			const machineId = await resolveMachineId(this.stateService);
 
 			const config: ITelemetryServiceConfig = {
 				appenders,
@@ -825,7 +824,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		}
 
 		// Inform user
-		const { options, buttonIndeces } = massageMessageBoxOptions({
+		const { response } = await this.dialogMainService.showMessageBox({
 			type: 'error',
 			buttons: [
 				localize({ key: 'learnMore', comment: ['&& denotes a mnemonic'] }, "&&Learn More"),
@@ -833,10 +832,9 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 			],
 			message: localize('appGoneAdminMessage', "Running as administrator is not supported in your environment"),
 			detail: localize('appGoneAdminDetail', "We are sorry for the inconvenience. Please try again without administrator privileges.", this.productService.nameLong)
-		}, this.productService);
+		}, this._win);
 
-		const result = await this.dialogMainService.showMessageBox(options, this._win);
-		if (buttonIndeces[result.response] === 0) {
+		if (response === 0) {
 			await this.nativeHostMainService.openExternal(undefined, 'https://go.microsoft.com/fwlink/?linkid=2220179');
 		}
 
@@ -1089,7 +1087,8 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		configuration.continueOn = this.environmentMainService.continueOn;
 		configuration.profiles = {
 			all: this.userDataProfilesService.profiles,
-			profile: this.profile || this.userDataProfilesService.defaultProfile
+			profile: this.profile || this.userDataProfilesService.defaultProfile,
+			home: this.userDataProfilesService.profilesHome
 		};
 		configuration.logLevel = this.loggerMainService.getLogLevel();
 		configuration.loggers = {
@@ -1204,7 +1203,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 
 		// Cache the height for speeds lookups on startup
 		if (options.height) {
-			this.stateMainService.setItem((CodeWindow.windowControlHeightStateStorageKey), options.height);
+			this.stateService.setItem((CodeWindow.windowControlHeightStateStorageKey), options.height);
 		}
 
 		// Windows: window control overlay (WCO)

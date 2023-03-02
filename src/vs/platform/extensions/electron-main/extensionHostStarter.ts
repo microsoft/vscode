@@ -18,7 +18,7 @@ import { mixin } from 'vs/base/common/objects';
 import * as platform from 'vs/base/common/platform';
 import { cwd } from 'vs/base/common/process';
 import { canUseUtilityProcess } from 'vs/base/parts/sandbox/electron-main/electronTypes';
-import { UtilityProcess } from 'vs/platform/utilityProcess/electron-main/utilityProcess';
+import { WindowUtilityProcess } from 'vs/platform/utilityProcess/electron-main/utilityProcess';
 import { IWindowsMainService } from 'vs/platform/windows/electron-main/windows';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 
@@ -27,21 +27,21 @@ export class ExtensionHostStarter implements IDisposable, IExtensionHostStarter 
 
 	private static _lastId: number = 0;
 
-	protected readonly _extHosts: Map<string, ExtensionHostProcess | UtilityProcess>;
+	protected readonly _extHosts: Map<string, ExtensionHostProcess | WindowUtilityProcess>;
 	private _shutdown = false;
 
 	constructor(
 		@ILogService private readonly _logService: ILogService,
-		@ILifecycleMainService lifecycleMainService: ILifecycleMainService,
+		@ILifecycleMainService private readonly _lifecycleMainService: ILifecycleMainService,
 		@IWindowsMainService private readonly _windowsMainService: IWindowsMainService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 	) {
-		this._extHosts = new Map<string, ExtensionHostProcess | UtilityProcess>();
+		this._extHosts = new Map<string, ExtensionHostProcess | WindowUtilityProcess>();
 
 		// On shutdown: gracefully await extension host shutdowns
-		lifecycleMainService.onWillShutdown((e) => {
+		this._lifecycleMainService.onWillShutdown((e) => {
 			this._shutdown = true;
-			e.join(this._waitForAllExit(6000));
+			e.join('extHostStarter', this._waitForAllExit(6000));
 		});
 	}
 
@@ -49,7 +49,7 @@ export class ExtensionHostStarter implements IDisposable, IExtensionHostStarter 
 		// Intentionally not killing the extension host processes
 	}
 
-	private _getExtHost(id: string): ExtensionHostProcess | UtilityProcess {
+	private _getExtHost(id: string): ExtensionHostProcess | WindowUtilityProcess {
 		const extHostProcess = this._extHosts.get(id);
 		if (!extHostProcess) {
 			throw new Error(`Unknown extension host!`);
@@ -71,7 +71,7 @@ export class ExtensionHostStarter implements IDisposable, IExtensionHostStarter 
 
 	onDynamicError(id: string): Event<{ error: SerializedError }> {
 		const exthost = this._getExtHost(id);
-		if (exthost instanceof UtilityProcess) {
+		if (exthost instanceof WindowUtilityProcess) {
 			return Event.None;
 		}
 
@@ -91,12 +91,12 @@ export class ExtensionHostStarter implements IDisposable, IExtensionHostStarter 
 			throw canceled();
 		}
 		const id = String(++ExtensionHostStarter._lastId);
-		let extHost: UtilityProcess | ExtensionHostProcess;
+		let extHost: WindowUtilityProcess | ExtensionHostProcess;
 		if (useUtilityProcess) {
 			if (!canUseUtilityProcess) {
 				throw new Error(`Cannot use UtilityProcess!`);
 			}
-			extHost = new UtilityProcess(this._logService, this._windowsMainService, this._telemetryService);
+			extHost = new WindowUtilityProcess(this._logService, this._windowsMainService, this._telemetryService, this._lifecycleMainService);
 		} else {
 			extHost = new ExtensionHostProcess(id, this._logService);
 		}
@@ -115,11 +115,12 @@ export class ExtensionHostStarter implements IDisposable, IExtensionHostStarter 
 		if (this._shutdown) {
 			throw canceled();
 		}
-		return this._getExtHost(id).start({
+		this._getExtHost(id).start({
 			...opts,
 			type: 'extensionHost',
+			entryPoint: 'vs/workbench/api/node/extensionHostProcess',
 			args: ['--skipWorkspaceStorageLock'],
-			execArgv: opts.execArgv ?? [],
+			execArgv: opts.execArgv,
 			allowLoadingUnsignedLibraries: true,
 			correlationId: id
 		});

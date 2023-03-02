@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/jlelong/vscode-latex-basics/commit/fcf4cca5b18a4c71ace161cf6af87cf6a50d9abd",
+	"version": "https://github.com/jlelong/vscode-latex-basics/commit/eed5b817b757aab3695af437409fcbfdd37bbc59",
 	"name": "LaTeX",
 	"scopeName": "text.tex.latex",
 	"patterns": [
@@ -1064,7 +1064,7 @@
 			]
 		},
 		{
-			"begin": "((?:\\s*)\\\\begin\\{([a-z]*code(?:\\*)?)\\}(?:\\[.*\\])?(?:\\{.*\\})?)",
+			"begin": "((?:\\s*)\\\\begin\\{([a-zA-Z]*code(?:\\*)?)\\}(?:\\[.*\\])?(?:\\{.*\\})?)",
 			"captures": {
 				"1": {
 					"patterns": [
@@ -1074,7 +1074,9 @@
 					]
 				}
 			},
-			"end": "(\\\\end\\{\\2\\}(?:\\s*\\n)?)"
+			"end": "(\\\\end\\{\\2\\}(?:\\s*\\n)?)",
+			"contentName": "meta.function.embedded.latex",
+			"name": "meta.embedded.block.generic.latex"
 		},
 		{
 			"begin": "((\\\\)addplot)(?:\\+?)((?:\\[[^\\[]*\\]))*\\s*(gnuplot)\\s*((?:\\[[^\\[]*\\]))*\\s*(\\{)",
@@ -1684,7 +1686,7 @@
 			"name": "meta.scope.item.latex"
 		},
 		{
-			"begin": "((\\\\)(?:[aA]uto|foot|full|no|ref|short|[tT]ext|[pP]aren|[sS]mart)?[cC]ite(?:al)?(?:p|s|t|author|year(?:par)?|title)?[ANP]*\\*?)((?:(?:\\([^\\)]*\\)){0,2}(?:\\[[^\\]]*\\]){0,2}\\{[\\w:.]*\\})*)(?:([<\\[])[^\\]<>]*([>\\]]))?(?:(\\[)[^\\]]*(\\]))?(\\{)",
+			"begin": "((\\\\)(?:[aA]uto|foot|full|no|ref|short|[tT]ext|[pP]aren|[sS]mart)?[cC]ite(?:al)?(?:p|s|t|author|year(?:par)?|title)?[ANP]*\\*?)((?:(?:\\([^\\)]*\\)){0,2}(?:\\[[^\\]]*\\]){0,2}\\{[\\p{Alphabetic}:.]*\\})*)(?:([<\\[])[^\\]<>]*([>\\]]))?(?:(\\[)[^\\]]*(\\]))?(\\{)",
 			"captures": {
 				"1": {
 					"name": "keyword.control.cite.latex"
@@ -1735,7 +1737,7 @@
 					"match": "((%).*)$"
 				},
 				{
-					"match": "[\\w:.-]+",
+					"match": "[\\p{Alphabetic}:.-]+",
 					"name": "constant.other.reference.citation.latex"
 				}
 			]
@@ -1762,7 +1764,7 @@
 			"name": "meta.citation.latex",
 			"patterns": [
 				{
-					"match": "[\\w:.]+",
+					"match": "[\\p{Alphabetic}:.]+",
 					"name": "constant.other.reference.citation.latex"
 				}
 			]
@@ -1789,7 +1791,7 @@
 			"name": "meta.reference.label.latex",
 			"patterns": [
 				{
-					"match": "[a-zA-Z0-9\\.,:/*!^_-]",
+					"match": "[\\p{Alphabetic}\\p{Number}\\.,:/*!^_-]",
 					"name": "constant.other.reference.label.latex"
 				}
 			]
@@ -2248,7 +2250,7 @@
 							]
 						}
 					},
-					"match": "(?:(\\()[^\\)]*(\\))){0,2}(?:(\\[)[^\\]]*(\\])){0,2}(\\{)([\\w:.]+)(\\})(.*)"
+					"match": "(?:(\\()[^\\)]*(\\))){0,2}(?:(\\[)[^\\]]*(\\])){0,2}(\\{)([\\p{Alphabetic}:.]+)(\\})(.*)"
 				}
 			]
 		},

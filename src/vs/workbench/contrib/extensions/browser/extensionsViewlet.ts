@@ -664,7 +664,7 @@ export class ExtensionsViewPaneContainer extends ViewPaneContainer implements IE
 			: '';
 	}
 
-	override saveState(): void {
+	protected override saveState(): void {
 		const value = this.searchBox ? this.searchBox.getValue() : '';
 		if (ExtensionsListView.isLocalExtensionsQuery(value)) {
 			this.searchViewletState['query.value'] = value;
@@ -802,7 +802,7 @@ export class StatusUpdater extends Disposable implements IWorkbenchContribution 
 	) {
 		super();
 		this.onServiceChange();
-		this._register(Event.debounce(extensionsWorkbenchService.onChange, () => undefined, 100, undefined, undefined, this._store)(this.onServiceChange, this));
+		this._register(Event.debounce(extensionsWorkbenchService.onChange, () => undefined, 100, undefined, undefined, undefined, this._store)(this.onServiceChange, this));
 	}
 
 	private onServiceChange(): void {

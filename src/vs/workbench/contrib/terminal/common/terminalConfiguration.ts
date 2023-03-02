@@ -106,6 +106,11 @@ const terminalConfiguration: IConfigurationNode = {
 			default: 'right',
 			description: localize('terminal.integrated.tabs.location', "Controls the location of the terminal tabs, either to the left or right of the actual terminal(s).")
 		},
+		[TerminalSettingId.TabFocusMode]: {
+			markdownDescription: localize('tabFocusMode', "Controls whether the terminal receives tabs or defers them to the workbench for navigation."),
+			type: 'boolean',
+			default: false
+		},
 		[TerminalSettingId.DefaultLocation]: {
 			type: 'string',
 			enum: [TerminalLocationString.Editor, TerminalLocationString.TerminalView],
@@ -454,8 +459,8 @@ const terminalConfiguration: IConfigurationNode = {
 			enum: ['off', 'on', 'notRemote'],
 			enumDescriptions: [
 				localize('enableFileLinks.off', "Always off."),
-				localize('enableFileLinks.notRemote', "Enable only when not in a remote workspace."),
-				localize('enableFileLinks.on', "Always on.")
+				localize('enableFileLinks.on', "Always on."),
+				localize('enableFileLinks.notRemote', "Enable only when not in a remote workspace.")
 			],
 			default: 'on'
 		},
@@ -579,7 +584,7 @@ const terminalConfiguration: IConfigurationNode = {
 			markdownDescription: localize('terminal.integrated.smoothScrolling', "Controls whether the terminal will scroll using an animation."),
 			type: 'boolean',
 			default: false
-		},
+		}
 	}
 };
 

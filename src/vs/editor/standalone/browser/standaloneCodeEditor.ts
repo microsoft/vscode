@@ -470,7 +470,7 @@ export class StandaloneEditor extends StandaloneCodeEditor implements IStandalon
 		super.updateOptions(newOptions);
 	}
 
-	override _postDetachModelCleanup(detachedModel: ITextModel): void {
+	protected override _postDetachModelCleanup(detachedModel: ITextModel): void {
 		super._postDetachModelCleanup(detachedModel);
 		if (detachedModel && this._ownsModel) {
 			detachedModel.dispose();

@@ -838,8 +838,8 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 		let terminal: ITerminalInstance | undefined = undefined;
 		let error: TaskError | undefined = undefined;
 		let promise: Promise<ITaskSummary> | undefined = undefined;
-		if (task.configurationProperties.isBackground) {
-			const problemMatchers = await this._resolveMatchers(resolver, task.configurationProperties.problemMatchers);
+		const problemMatchers = await this._resolveMatchers(resolver, task.configurationProperties.problemMatchers);
+		if (task.configurationProperties.isBackground && problemMatchers.length) {
 			const watchingProblemMatcher = new WatchingProblemCollector(problemMatchers, this._markerService, this._modelService, this._fileService);
 			if ((problemMatchers.length > 0) && !watchingProblemMatcher.isWatching()) {
 				this._appendOutput(nls.localize('TerminalTaskSystem.nonWatchingMatcher', 'Task {0} is a background task but uses a problem matcher without a background pattern', task._label));

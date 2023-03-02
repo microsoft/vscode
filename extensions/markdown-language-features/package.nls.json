@@ -31,6 +31,10 @@
 	"configuration.markdown.links.openLocation.currentGroup": "Open links in the active editor group.",
 	"configuration.markdown.links.openLocation.beside": "Open links beside the active editor.",
 	"configuration.markdown.suggest.paths.enabled.description": "Enable path suggestions while writing links in Markdown files.",
+	"configuration.markdown.suggest.paths.includeWorkspaceHeaderCompletions": "Enable suggestions for headers in other Markdown files in the current workspace. Accepting one of these suggestions inserts the full path to header in that file, for example `[link text](/path/to/file.md#header)`.",
+	"configuration.markdown.suggest.paths.includeWorkspaceHeaderCompletions.never": "Disable workspace header suggestions.",
+	"configuration.markdown.suggest.paths.includeWorkspaceHeaderCompletions.onDoubleHash": "Enable workspace header suggestions after typing `##` in a path, for example `[link text](##`.",
+	"configuration.markdown.suggest.paths.includeWorkspaceHeaderCompletions.onSingleOrDoubleHash": "Enable workspace header suggestions after typing either `##` or `#` in a path, for example `[link text](#` or `[link text](##`.",
 	"configuration.markdown.editor.drop.enabled": "Enable dropping files into a Markdown editor while holding Shift. Requires enabling `#editor.dropIntoEditor.enabled#`.",
 	"configuration.markdown.editor.pasteLinks.enabled": "Enable pasting files into a Markdown editor inserts Markdown links. Requires enabling `#editor.experimental.pasteActions.enabled#`.",
 	"configuration.markdown.validate.enabled.description": "Enable all error reporting in Markdown files.",
@@ -50,5 +54,9 @@
 	"configuration.markdown.updateLinksOnFileMove.enableForDirectories": "Enable updating links when a directory is moved or renamed in the workspace.",
 	"configuration.markdown.occurrencesHighlight.enabled": "Enable highlighting link occurrences in the current document.",
 	"configuration.markdown.copyFiles.destination": "Defines where files copied into a Markdown document should be created. This is a map from globs that match on the Markdown document to destinations.\n\nThe destinations may use the following variables:\n\n- `${documentFileName}` — The full filename of the Markdown document, for example `readme.md`.\n- `${documentBaseName}` — The basename of Markdown document, for example `readme`.\n- `${documentExtName}` — The extension of the Markdown document, for example `md`.\n- `${documentDirName}` — The name of the Markdown document's parent directory.\n- `${documentWorkspaceFolder}` — The workspace folder for the Markdown document, for examples, `/Users/me/myProject`. This is the same as `${documentDirName}` if the file is not part of in a workspace.\n- `${fileName}` — The file name of the dropped file, for example `image.png`.",
+	"configuration.markdown.preferredMdPathExtensionStyle": "Controls if file extensions (e.g. `.md`) are added or not for links to Markdown files. This setting is used when file paths are added by tooling such as path completions or file renames.",
+	"configuration.markdown.preferredMdPathExtensionStyle.auto": "For existing paths, try to maintain the file extension style. For new paths, add file extensions.",
+	"configuration.markdown.preferredMdPathExtensionStyle.includeExtension": "Prefer including the file extension. For example, path completions to a file named `file.md` will insert `file.md`.",
+	"configuration.markdown.preferredMdPathExtensionStyle.removeExtension": "Prefer removing the file extension. For example, path completions to a file named `file.md` will insert `file` without the `.md`.",
 	"workspaceTrust": "Required for loading styles configured in the workspace."
 }

@@ -292,23 +292,21 @@ export class BreakpointEditorContribution implements IBreakpointEditorContributi
 							logPoint ? nls.localize('message', "message") : nls.localize('condition', "condition")
 						);
 
-						const { choice } = await this.dialogService.show(
-							severity.Info,
-							enabled ? enabledBreakpointDialogMessage : disabledBreakpointDialogMessage,
-							[
-								nls.localize('removeLogPoint', "Remove {0}", breakpointType),
-								nls.localize('disableLogPoint', "{0} {1}", enabled ? nls.localize('disable', "Disable") : nls.localize('enable', "Enable"), breakpointType),
-								nls.localize('cancel', "Cancel")
+						await this.dialogService.prompt({
+							type: severity.Info,
+							message: enabled ? enabledBreakpointDialogMessage : disabledBreakpointDialogMessage,
+							buttons: [
+								{
+									label: nls.localize({ key: 'removeLogPoint', comment: ['&& denotes a mnemonic'] }, "&&Remove {0}", breakpointType),
+									run: () => breakpoints.forEach(bp => this.debugService.removeBreakpoints(bp.getId()))
+								},
+								{
+									label: nls.localize('disableLogPoint', "{0} {1}", enabled ? nls.localize({ key: 'disable', comment: ['&& denotes a mnemonic'] }, "&&Disable") : nls.localize({ key: 'enable', comment: ['&& denotes a mnemonic'] }, "&&Enable"), breakpointType),
+									run: () => breakpoints.forEach(bp => this.debugService.enableOrDisableBreakpoints(!enabled, bp))
+								}
 							],
-							{ cancelId: 2 },
-						);
-
-						if (choice === 0) {
-							breakpoints.forEach(bp => this.debugService.removeBreakpoints(bp.getId()));
-						}
-						if (choice === 1) {
-							breakpoints.forEach(bp => this.debugService.enableOrDisableBreakpoints(!enabled, bp));
-						}
+							cancelButton: true
+						});
 					} else {
 						if (!enabled) {
 							breakpoints.forEach(bp => this.debugService.enableOrDisableBreakpoints(!enabled, bp));

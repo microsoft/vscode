@@ -33,6 +33,7 @@ export interface MarkedOptions extends marked.MarkedOptions {
 export interface MarkdownRenderOptions extends FormattedTextRenderOptions {
 	readonly codeBlockRenderer?: (languageId: string, value: string) => Promise<HTMLElement>;
 	readonly asyncRenderCallback?: () => void;
+	readonly fillInIncompleteTokens?: boolean;
 }
 
 const defaultMarkedRenderers = Object.freeze({
@@ -228,7 +229,19 @@ export function renderMarkdown(markdown: IMarkdownString, options: MarkdownRende
 		value = markdownEscapeEscapedIcons(value);
 	}
 
-	let renderedMarkdown = marked.parse(value, markedOptions);
+	let renderedMarkdown: string;
+	if (options.fillInIncompleteTokens) {
+		// The defaults are applied by parse but not lexer()/parser(), and they need to be present
+		const opts = {
+			...marked.defaults,
+			...markedOptions
+		};
+		const tokens = marked.lexer(value, opts);
+		const newTokens = fillInIncompleteTokens(tokens);
+		renderedMarkdown = marked.parser(newTokens, opts);
+	} else {
+		renderedMarkdown = marked.parse(value, markedOptions);
+	}
 
 	// Rewrite theme icons
 	if (markdown.supportThemeIcons) {
@@ -257,7 +270,7 @@ export function renderMarkdown(markdown: IMarkdownString, options: MarkdownRende
 	markdownHtmlDoc.body.querySelectorAll('a')
 		.forEach(a => {
 			const href = a.getAttribute('href'); // Get the raw 'href' attribute value as text, not the resolved 'href'
-			a.removeAttribute('href'); // Clear out href. We use the `data-href` for handling clicks instead
+			a.setAttribute('href', ''); // Clear out href. We use the `data-href` for handling clicks instead
 			if (
 				!href
 				|| /^data:|javascript:/i.test(href)
@@ -388,6 +401,7 @@ export const allowedMarkdownAttr = [
 	'target',
 	'title',
 	'width',
+	'start',
 ];
 
 function getSanitizerOptions(options: { readonly isTrusted?: boolean | MarkdownStringTrustedOptions }): { config: dompurify.Config; allowedSchemes: string[] } {
@@ -517,3 +531,85 @@ const plainTextRenderer = new Lazy<marked.Renderer>(() => {
 	};
 	return renderer;
 });
+
+function mergeRawTokenText(tokens: marked.Token[]): string {
+	let mergedTokenText = '';
+	tokens.forEach(token => {
+		mergedTokenText += token.raw;
+	});
+	return mergedTokenText;
+}
+
+export function fillInIncompleteTokens(tokens: marked.TokensList): marked.TokensList {
+	let i: number;
+	let newTokens: marked.Token[] | undefined;
+	for (i = 0; i < tokens.length; i++) {
+		const token = tokens[i];
+		if (token.type === 'paragraph' && token.raw.match(/(\n|^)```/)) {
+			// If the code block was complete, it would be in a type='code'
+			newTokens = completeCodeBlock(tokens.slice(i));
+			break;
+		}
+
+		if (token.type === 'paragraph' && token.raw.match(/(\n|^)\|/)) {
+			newTokens = completeTable(tokens.slice(i));
+			break;
+		}
+	}
+
+	if (newTokens) {
+		const newTokensList = [
+			...tokens.slice(0, i),
+			...newTokens,
+		];
+		(newTokensList as marked.TokensList).links = tokens.links;
+		return newTokensList as marked.TokensList;
+	}
+
+	return tokens;
+}
+
+function completeCodeBlock(tokens: marked.Token[]): marked.Token[] {
+	const mergedRawText = mergeRawTokenText(tokens);
+	return marked.lexer(mergedRawText + '\n```');
+}
+
+function completeTable(tokens: marked.Token[]): marked.Token[] {
+	const mergedRawText = mergeRawTokenText(tokens);
+	const lines = mergedRawText.split('\n');
+
+	let numCols: number | undefined; // The number of line1 col headers
+	let hasSeparatorRow = false;
+	for (let i = 0; i < lines.length; i++) {
+		const line = lines[i].trim();
+		if (typeof numCols === 'undefined' && line.match(/^\s*\|/)) {
+			const line1Matches = line.match(/(\|[^\|]+)(?=\||$)/g);
+			if (line1Matches) {
+				numCols = line1Matches.length;
+			}
+		} else if (typeof numCols === 'number') {
+			if (line.match(/^\s*\|/)) {
+				if (i !== lines.length - 1) {
+					// We got the line1 header row, and the line2 separator row, but there are more lines, and it wasn't parsed as a table!
+					// That's strange and means that the table is probably malformed in the source, so I won't try to patch it up.
+					return tokens;
+				}
+
+				// Got a line2 separator row- partial or complete, doesn't matter, we'll replace it with a correct one
+				hasSeparatorRow = true;
+			} else {
+				// The line after the header row isn't a valid separator row, so the table is malformed, don't fix it up
+				return tokens;
+			}
+		}
+	}
+
+	if (typeof numCols === 'number' && numCols > 0) {
+		const prefixText = hasSeparatorRow ? lines.slice(0, -1).join('\n') : mergedRawText;
+		const line1EndsInPipe = !!prefixText.match(/\|\s*$/);
+		const newRawText = prefixText + (line1EndsInPipe ? '' : '|') + `\n|${' --- |'.repeat(numCols)}`;
+		return marked.lexer(newRawText);
+	}
+
+	return tokens;
+}

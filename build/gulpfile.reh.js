@@ -16,7 +16,6 @@ const product = require('../product.json');
 const rename = require('gulp-rename');
 const replace = require('gulp-replace');
 const filter = require('gulp-filter');
-const _ = require('underscore');
 const { getProductionDependencies } = require('./lib/dependencies');
 const vfs = require('vinyl-fs');
 const packageJson = require('../package.json');
@@ -257,7 +256,7 @@ function packageTask(type, platform, arch, sourceFolderName, destinationFolderNa
 		const jsFilter = util.filter(data => !data.isDirectory() && /\.js$/.test(data.path));
 
 		const productionDependencies = getProductionDependencies(REMOTE_FOLDER);
-		const dependenciesSrc = _.flatten(productionDependencies.map(d => path.relative(REPO_ROOT, d.path)).map(d => [`${d}/**`, `!${d}/**/{test,tests}/**`, `!${d}/.bin/**`]));
+		const dependenciesSrc = productionDependencies.map(d => path.relative(REPO_ROOT, d.path)).map(d => [`${d}/**`, `!${d}/**/{test,tests}/**`, `!${d}/.bin/**`]).flat();
 		const deps = gulp.src(dependenciesSrc, { base: 'remote', dot: true })
 			// filter out unnecessary files, no source maps in server build
 			.pipe(filter(['**', '!**/package-lock.json', '!**/yarn.lock', '!**/*.js.map']))
@@ -358,7 +357,7 @@ function tweakProductForServerWeb(product) {
 				out: `out-vscode-${type}`,
 				amd: {
 					src: 'out-build',
-					entryPoints: _.flatten(type === 'reh' ? serverEntryPoints : serverWithWebEntryPoints),
+					entryPoints: (type === 'reh' ? serverEntryPoints : serverWithWebEntryPoints).flat(),
 					otherSources: [],
 					resources: type === 'reh' ? serverResources : serverWithWebResources,
 					loaderConfig: optimize.loaderConfig(),

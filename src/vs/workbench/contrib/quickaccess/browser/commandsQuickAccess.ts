@@ -212,10 +212,10 @@ export class ClearCommandHistoryAction extends Action2 {
 
 			// Ask for confirmation
 			const { confirmed } = await dialogService.confirm({
+				type: 'warning',
 				message: localize('confirmClearMessage', "Do you want to clear the history of recently used commands?"),
 				detail: localize('confirmClearDetail', "This action is irreversible!"),
-				primaryButton: localize({ key: 'clearButtonLabel', comment: ['&& denotes a mnemonic'] }, "&&Clear"),
-				type: 'warning'
+				primaryButton: localize({ key: 'clearButtonLabel', comment: ['&& denotes a mnemonic'] }, "&&Clear")
 			});
 
 			if (!confirmed) {

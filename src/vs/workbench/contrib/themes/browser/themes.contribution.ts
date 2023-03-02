@@ -231,8 +231,7 @@ class MarketplaceThemesPicker {
 		openExtensionViewlet(this.paneCompositeService, `@id:${galleryExtension.identifier.id}`);
 		const result = await this.dialogService.confirm({
 			message: localize('installExtension.confirm', "This will install extension '{0}' published by '{1}'. Do you want to continue?", galleryExtension.displayName, galleryExtension.publisherDisplayName),
-			primaryButton: localize('installExtension.button.ok', "OK"),
-			secondaryButton: localize('installExtension.button.cancel', "Cancel")
+			primaryButton: localize('installExtension.button.ok', "OK")
 		});
 		if (!result.confirmed) {
 			return false;

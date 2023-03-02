@@ -95,7 +95,7 @@ suite('EditorInput', () => {
 		assert.ok(!isEditorInput({}));
 
 		assert.ok(!isResourceEditorInput(input));
-		assert.ok(!isUntitledResourceEditorInput(input));
+		assert.ok(!isUntitledResourceEditorInput(input as any));
 		assert.ok(!isResourceDiffEditorInput(input));
 		assert.ok(!isResourceMergeEditorInput(input));
 		assert.ok(!isResourceSideBySideEditorInput(input));

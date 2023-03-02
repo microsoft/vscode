@@ -688,7 +688,7 @@ export class CellOutputContainer extends CellContentPart {
 		// if it's clearing all outputs, or outputs are all rendered synchronously
 		// shrink immediately as the final output height will be zero.
 		// if it's rerun, then the output clearing might be temporary, so we don't shrink immediately
-		this._validateFinalOutputHeight(false || (context === CellOutputUpdateContext.Other && this.viewCell.outputsViewModels.length === 0));
+		this._validateFinalOutputHeight(context === CellOutputUpdateContext.Other && this.viewCell.outputsViewModels.length === 0);
 	}
 
 	private _generateShowMoreElement(disposables: DisposableStore): HTMLElement {

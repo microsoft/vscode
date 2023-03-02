@@ -18,18 +18,20 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { IWorkbenchContribution, IWorkbenchContributionsRegistry, Extensions } from 'vs/workbench/common/contributions';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
+import { IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
 
 export class RemoteAgentService extends AbstractRemoteAgentService implements IRemoteAgentService {
 
 	constructor(
 		webSocketFactory: IWebSocketFactory | null | undefined,
+		@IUserDataProfileService userDataProfileService: IUserDataProfileService,
 		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
 		@IProductService productService: IProductService,
 		@IRemoteAuthorityResolverService remoteAuthorityResolverService: IRemoteAuthorityResolverService,
 		@ISignService signService: ISignService,
 		@ILogService logService: ILogService
 	) {
-		super(new BrowserSocketFactory(webSocketFactory), environmentService, productService, remoteAuthorityResolverService, signService, logService);
+		super(new BrowserSocketFactory(webSocketFactory), userDataProfileService, environmentService, productService, remoteAuthorityResolverService, signService, logService);
 	}
 }
 
@@ -50,20 +52,17 @@ class RemoteConnectionFailureNotificationContribution implements IWorkbenchContr
 	}
 
 	private async _presentConnectionError(err: any): Promise<void> {
-		const res = await this._dialogService.show(
-			Severity.Error,
-			nls.localize('connectionError', "An unexpected error occurred that requires a reload of this page."),
-			[
-				nls.localize('reload', "Reload")
-			],
-			{
-				detail: nls.localize('connectionErrorDetail', "The workbench failed to connect to the server (Error: {0})", err ? err.message : '')
-			}
-		);
-
-		if (res.choice === 0) {
-			this._hostService.reload();
-		}
+		await this._dialogService.prompt({
+			type: Severity.Error,
+			message: nls.localize('connectionError', "An unexpected error occurred that requires a reload of this page."),
+			detail: nls.localize('connectionErrorDetail', "The workbench failed to connect to the server (Error: {0})", err ? err.message : ''),
+			buttons: [
+				{
+					label: nls.localize({ key: 'reload', comment: ['&& denotes a mnemonic'] }, "&&Reload"),
+					run: () => this._hostService.reload()
+				}
+			]
+		});
 	}
 
 }

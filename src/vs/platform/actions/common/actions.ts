@@ -59,15 +59,19 @@ export class MenuId {
 	static readonly EditorContext = new MenuId('EditorContext');
 	static readonly SimpleEditorContext = new MenuId('SimpleEditorContext');
 	static readonly EditorContent = new MenuId('EditorContent');
+	static readonly EditorLineNumberContext = new MenuId('EditorLineNumberContext');
 	static readonly EditorContextCopy = new MenuId('EditorContextCopy');
 	static readonly EditorContextPeek = new MenuId('EditorContextPeek');
 	static readonly EditorContextShare = new MenuId('EditorContextShare');
 	static readonly EditorTitle = new MenuId('EditorTitle');
 	static readonly EditorTitleRun = new MenuId('EditorTitleRun');
 	static readonly EditorTitleContext = new MenuId('EditorTitleContext');
+	static readonly EditorTitleContextShare = new MenuId('EditorTitleContextShare');
 	static readonly EmptyEditorGroup = new MenuId('EmptyEditorGroup');
 	static readonly EmptyEditorGroupContext = new MenuId('EmptyEditorGroupContext');
+	static readonly EditorTabsBarContext = new MenuId('EditorTabsBarContext');
 	static readonly ExplorerContext = new MenuId('ExplorerContext');
+	static readonly ExplorerContextShare = new MenuId('ExplorerContextShare');
 	static readonly ExtensionContext = new MenuId('ExtensionContext');
 	static readonly GlobalActivity = new MenuId('GlobalActivity');
 	static readonly CommandCenter = new MenuId('CommandCenter');
@@ -436,6 +440,8 @@ export class MenuItemAction implements IAction {
 		this.enabled = !item.precondition || contextKeyService.contextMatchesRules(item.precondition);
 		this.checked = undefined;
 
+		let icon: ThemeIcon | undefined;
+
 		if (item.toggled) {
 			const toggled = ((item.toggled as { condition: ContextKeyExpression }).condition ? item.toggled : { condition: item.toggled }) as {
 				condition: ContextKeyExpression; icon?: Icon; tooltip?: string | ILocalizedString; title?: string | ILocalizedString;
@@ -445,17 +451,24 @@ export class MenuItemAction implements IAction {
 				this.tooltip = typeof toggled.tooltip === 'string' ? toggled.tooltip : toggled.tooltip.value;
 			}
 
+			if (this.checked && ThemeIcon.isThemeIcon(toggled.icon)) {
+				icon = toggled.icon;
+			}
+
 			if (toggled.title) {
 				this.label = typeof toggled.title === 'string' ? toggled.title : toggled.title.value;
 			}
 		}
 
+		if (!icon) {
+			icon = ThemeIcon.isThemeIcon(item.icon) ? item.icon : undefined;
+		}
+
 		this.item = item;
 		this.alt = alt ? new MenuItemAction(alt, undefined, options, hideActions, contextKeyService, _commandService) : undefined;
 		this._options = options;
-		if (ThemeIcon.isThemeIcon(item.icon)) {
-			this.class = ThemeIcon.asClassName(item.icon);
-		}
+		this.class = icon && ThemeIcon.asClassName(icon);
+
 	}
 
 	run(...args: any[]): Promise<void> {

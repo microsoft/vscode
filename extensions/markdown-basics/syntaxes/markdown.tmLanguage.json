@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/microsoft/vscode-markdown-tm-grammar/commit/443261e8f75b2eaa8b36a2613fe7c4354208260a",
+	"version": "https://github.com/microsoft/vscode-markdown-tm-grammar/commit/ca2caf2157d0674be3d641f71499b84d514e4e5e",
 	"name": "Markdown",
 	"scopeName": "text.html.markdown",
 	"patterns": [
@@ -1880,6 +1880,39 @@
 				}
 			]
 		},
+		"fenced_code_block_twig": {
+			"begin": "(^|\\G)(\\s*)(`{3,}|~{3,})\\s*(?i:(twig)((\\s+|:|,|\\{|\\?)[^`]*)?$)",
+			"name": "markup.fenced_code.block.markdown",
+			"end": "(^|\\G)(\\2|\\s{0,3})(\\3)\\s*$",
+			"beginCaptures": {
+				"3": {
+					"name": "punctuation.definition.markdown"
+				},
+				"4": {
+					"name": "fenced_code.block.language.markdown"
+				},
+				"5": {
+					"name": "fenced_code.block.language.attributes.markdown"
+				}
+			},
+			"endCaptures": {
+				"3": {
+					"name": "punctuation.definition.markdown"
+				}
+			},
+			"patterns": [
+				{
+					"begin": "(^|\\G)(\\s*)(.*)",
+					"while": "(^|\\G)(?!\\s*([`~]{3,})\\s*$)",
+					"contentName": "meta.embedded.block.twig",
+					"patterns": [
+						{
+							"include": "source.twig"
+						}
+					]
+				}
+			]
+		},
 		"fenced_code_block": {
 			"patterns": [
 				{
@@ -2046,6 +2079,9 @@
 				},
 				{
 					"include": "#fenced_code_block_bibtex"
+				},
+				{
+					"include": "#fenced_code_block_twig"
 				},
 				{
 					"include": "#fenced_code_block_unknown"
