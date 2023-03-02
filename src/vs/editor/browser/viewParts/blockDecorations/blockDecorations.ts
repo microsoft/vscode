@@ -107,7 +107,7 @@ export class BlockDecorations extends ViewPart {
 			const [paddingTop, paddingRight, paddingBottom, paddingLeft] = decoration.options.blockPadding ?? [0, 0, 0, 0];
 
 			block.setClassName('blockDecorations-block ' + decoration.options.blockClassName);
-			block.setLeft(ctx.scrollLeft + this.contentLeft - paddingLeft);
+			block.setLeft(this.contentLeft - paddingLeft);
 			block.setWidth(this.contentWidth + paddingLeft + paddingRight);
 			block.setTop(top - ctx.scrollTop - paddingTop);
 			block.setHeight(bottom - top + paddingTop + paddingBottom);
