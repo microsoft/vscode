@@ -29,6 +29,7 @@ import { CollapsedCodeCellExecutionIcon } from 'vs/workbench/contrib/notebook/br
 import { CodeCellRenderTemplate } from 'vs/workbench/contrib/notebook/browser/view/notebookRenderingCommon';
 import { CodeCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/codeCellViewModel';
 import { INotebookExecutionStateService } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
+import { WordHighlighterContribution } from 'vs/editor/contrib/wordHighlighter/browser/wordHighlighter';
 
 export class CodeCell extends Disposable {
 	private _outputContainerRenderer: CellOutputContainer;
@@ -268,6 +269,13 @@ export class CodeCell extends Disposable {
 				const lastSelection = selections[selections.length - 1];
 				this.notebookEditor.revealRangeInViewAsync(this.viewCell, lastSelection);
 			}
+		}));
+
+		this._register(this.templateData.editor.onDidBlurEditorWidget(() => {
+			WordHighlighterContribution.get(this.templateData.editor)?.stopHighlighting();
+		}));
+		this._register(this.templateData.editor.onDidFocusEditorWidget(() => {
+			WordHighlighterContribution.get(this.templateData.editor)?.restoreViewState(true);
 		}));
 	}
 

@@ -26,6 +26,7 @@ import * as languages from 'vs/editor/common/languages';
 import { CharacterPair, CommentRule, EnterAction } from 'vs/editor/common/languages/languageConfiguration';
 import { EndOfLineSequence } from 'vs/editor/common/model';
 import { IModelChangedEvent } from 'vs/editor/common/model/mirrorTextModel';
+import { IInteractiveEditorResponse, IInteractiveEditorSession, IInteractiveEditorRequest } from 'vs/editor/contrib/interactive/common/interactiveEditor';
 import { IAccessibilityInformation } from 'vs/platform/accessibility/common/accessibility';
 import { ConfigurationTarget, IConfigurationChange, IConfigurationData, IConfigurationOverrides } from 'vs/platform/configuration/common/configuration';
 import { ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
@@ -1066,6 +1067,17 @@ export interface MainThreadNotebookRenderersShape extends IDisposable {
 }
 
 export interface MainThreadInteractiveShape extends IDisposable {
+}
+
+export interface MainThreadInteractiveEditorShape extends IDisposable {
+	$registerInteractiveEditorProvider(handle: number, debugName: string): Promise<void>;
+	$unregisterInteractiveEditorProvider(handle: number): Promise<void>;
+}
+
+export interface ExtHostInteractiveEditorShape {
+	$prepareInteractiveSession(handle: number, uri: UriComponents, range: ISelection, token: CancellationToken): Promise<IInteractiveEditorSession | undefined>;
+	$provideResponse(handle: number, session: IInteractiveEditorSession, request: IInteractiveEditorRequest, token: CancellationToken): Promise<IInteractiveEditorResponse | undefined>;
+	$releaseSession(handle: number, sessionId: number): void;
 }
 
 export interface MainThreadUrlsShape extends IDisposable {
@@ -2411,6 +2423,7 @@ export const MainContext = {
 	MainThreadNotebookRenderers: createProxyIdentifier<MainThreadNotebookRenderersShape>('MainThreadNotebookRenderers'),
 	MainThreadInteractive: createProxyIdentifier<MainThreadInteractiveShape>('MainThreadInteractive'),
 	MainThreadInteractiveSession: createProxyIdentifier<MainThreadInteractiveSessionShape>('MainThreadInteractiveSession'),
+	MainThreadInteractiveEditor: createProxyIdentifier<MainThreadInteractiveEditorShape>('MainThreadInteractiveEditor'),
 	MainThreadTheming: createProxyIdentifier<MainThreadThemingShape>('MainThreadTheming'),
 	MainThreadTunnelService: createProxyIdentifier<MainThreadTunnelServiceShape>('MainThreadTunnelService'),
 	MainThreadTimeline: createProxyIdentifier<MainThreadTimelineShape>('MainThreadTimeline'),
@@ -2466,6 +2479,7 @@ export const ExtHostContext = {
 	ExtHostNotebookKernels: createProxyIdentifier<ExtHostNotebookKernelsShape>('ExtHostNotebookKernels'),
 	ExtHostNotebookRenderers: createProxyIdentifier<ExtHostNotebookRenderersShape>('ExtHostNotebookRenderers'),
 	ExtHostInteractive: createProxyIdentifier<ExtHostInteractiveShape>('ExtHostInteractive'),
+	ExtHostInteractiveEditor: createProxyIdentifier<ExtHostInteractiveEditorShape>('ExtHostInteractiveEditor'),
 	ExtHostInteractiveSession: createProxyIdentifier<ExtHostInteractiveSessionShape>('ExtHostInteractiveSession'),
 	ExtHostTheming: createProxyIdentifier<ExtHostThemingShape>('ExtHostTheming'),
 	ExtHostTunnelService: createProxyIdentifier<ExtHostTunnelServiceShape>('ExtHostTunnelService'),
