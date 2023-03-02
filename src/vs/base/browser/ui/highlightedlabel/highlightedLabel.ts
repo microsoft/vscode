@@ -13,13 +13,13 @@ import * as objects from 'vs/base/common/objects';
 export interface IHighlight {
 	start: number;
 	end: number;
-	extraClasses?: string[];
+	readonly extraClasses?: readonly string[];
 }
 
-export interface IOptions {
+export interface IHighlightedLabelOptions {
 
 	/**
-	 * Whether
+	 * Whether the label supports rendering icons.
 	 */
 	readonly supportIcons?: boolean;
 }
