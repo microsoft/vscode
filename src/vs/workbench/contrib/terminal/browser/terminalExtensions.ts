@@ -25,10 +25,6 @@ export namespace TerminalExtensionsRegistry {
 		return TerminalContributionRegistry.INSTANCE.getTerminalContributions();
 	}
 }
-// Editor extension points
-const Extensions = {
-	TerminalContributions: 'terminal.contributions'
-};
 
 class TerminalContributionRegistry {
 
@@ -46,6 +42,10 @@ class TerminalContributionRegistry {
 	public getTerminalContributions(): ITerminalContributionDescription[] {
 		return this._terminalContributions.slice(0);
 	}
+}
+
+const enum Extensions {
+	TerminalContributions = 'terminal.contributions'
 }
 
 Registry.add(Extensions.TerminalContributions, TerminalContributionRegistry.INSTANCE);

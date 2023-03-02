@@ -194,8 +194,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	private _icon: TerminalIcon | undefined;
 	private _messageTitleDisposable: IDisposable | undefined;
 	private _widgetManager: TerminalWidgetManager = new TerminalWidgetManager();
-	// TODO: Move this out of terminal instance
-	// private _linkManager: TerminalLinkManager | undefined;
 	private _environmentInfo: { widget: EnvironmentVariableInfoWidget; disposable: IDisposable } | undefined;
 	private _dndObserver: IDisposable | undefined;
 	private _lastLayoutDimensions: dom.Dimension | undefined;
@@ -883,40 +881,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		}
 	}
 
-	// async showLinkQuickpick(extended?: boolean): Promise<void> {
-	// 	if (!this._terminalLinkQuickpick) {
-	// 		this._terminalLinkQuickpick = this._scopedInstantiationService.createInstance(TerminalLinkQuickpick);
-	// 		this._terminalLinkQuickpick.onDidRequestMoreLinks(() => {
-	// 			this.showLinkQuickpick(true);
-	// 		});
-	// 	}
-	// 	const links = await this._getLinks(extended);
-	// 	if (!links) {
-	// 		return;
-	// 	}
-	// 	return await this._terminalLinkQuickpick.show(links);
-	// }
-
-	// private async _getLinks(extended?: boolean): Promise<IDetectedLinks | undefined> {
-	// 	if (!this.areLinksReady || !this._linkManager) {
-	// 		throw new Error('terminal links are not ready, cannot generate link quick pick');
-	// 	}
-	// 	if (!this.xterm) {
-	// 		throw new Error('no xterm');
-	// 	}
-	// 	return this._linkManager.getLinks(extended);
-	// }
-
-	// async openRecentLink(type: 'localFile' | 'url'): Promise<void> {
-	// 	if (!this.areLinksReady || !this._linkManager) {
-	// 		throw new Error('terminal links are not ready, cannot open a link');
-	// 	}
-	// 	if (!this.xterm) {
-	// 		throw new Error('no xterm');
-	// 	}
-	// 	this._linkManager.openRecentLink(type);
-	// }
-
 	async runRecent(type: 'command' | 'cwd', filterMode?: 'fuzzy' | 'contiguous', value?: string): Promise<void> {
 		return this._scopedInstantiationService.invokeFunction(
 			showRunRecentQuickPick, this, this._terminalInRunCommandPicker, type, filterMode, value
@@ -1091,9 +1055,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		this._initDragAndDrop(this._container);
 
 		this._widgetManager.attachToElement(screenElement);
-		// this._processManager.onProcessReady((e) => {
-		// 	this._linkManager?.setWidgetManager(this._widgetManager);
-		// });
 
 		if (this._lastLayoutDimensions) {
 			this.layout(this._lastLayoutDimensions);
