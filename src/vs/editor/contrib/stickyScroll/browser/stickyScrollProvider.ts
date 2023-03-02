@@ -490,3 +490,4 @@ class StickyOutlineModel {
 		readonly outlineProviderId: string | undefined
 	) { }
 }
+
