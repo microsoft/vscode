@@ -6,16 +6,17 @@
 import { BrandedService, IConstructorSignature } from 'vs/platform/instantiation/common/instantiation';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { ITerminalContribution, ITerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { TerminalWidgetManager } from 'vs/workbench/contrib/terminal/browser/widgets/widgetManager';
 import { ITerminalProcessManager } from 'vs/workbench/contrib/terminal/common/terminal';
 
-export type TerminalContributionCtor = IConstructorSignature<ITerminalContribution, [ITerminalInstance, ITerminalProcessManager]>;
+export type TerminalContributionCtor = IConstructorSignature<ITerminalContribution, [ITerminalInstance, ITerminalProcessManager, TerminalWidgetManager]>;
 
 export interface ITerminalContributionDescription {
 	readonly id: string;
 	readonly ctor: TerminalContributionCtor;
 }
 
-export function registerTerminalContribution<Services extends BrandedService[]>(id: string, ctor: { new(instance: ITerminalInstance, processManager: ITerminalProcessManager, ...services: Services): ITerminalContribution }): void {
+export function registerTerminalContribution<Services extends BrandedService[]>(id: string, ctor: { new(instance: ITerminalInstance, processManager: ITerminalProcessManager, widgetManager: TerminalWidgetManager, ...services: Services): ITerminalContribution }): void {
 	TerminalContributionRegistry.INSTANCE.registerTerminalContribution(id, ctor);
 }
 
@@ -38,7 +39,8 @@ class TerminalContributionRegistry {
 	constructor() {
 	}
 
-	public registerTerminalContribution<Services extends BrandedService[]>(id: string, ctor: { new(instance: ITerminalInstance, processManager: ITerminalProcessManager, ...services: Services): ITerminalContribution }): void {
+	public registerTerminalContribution<Services extends BrandedService[]>(id: string, ctor: { new(instance: ITerminalInstance, processManager: ITerminalProcessManager, widgetManager: TerminalWidgetManager, ...services: Services): ITerminalContribution }): void {
+		// TODO: Use ID to prevent duplicate contributions?
 		this._terminalContributions.push({ id, ctor: ctor as TerminalContributionCtor });
 	}
 

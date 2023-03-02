@@ -428,7 +428,8 @@
 							"vs/workbench/api/~",
 							"vs/workbench/~",
 							"vs/workbench/services/*/~",
-							"vs/workbench/contrib/*/~"
+							"vs/workbench/contrib/*/~",
+							"vs/workbench/contrib/terminal/contrib/*/~"
 						]
 					},
 					{

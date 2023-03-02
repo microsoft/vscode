@@ -9,6 +9,22 @@ import { IHoverAction } from 'vs/workbench/services/hover/browser/hover';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { ITerminalBackend, ITerminalProcessManager } from 'vs/workbench/contrib/terminal/common/terminal';
 import { IParsedLink } from 'vs/workbench/contrib/terminal/contrib/links/browser/terminalLinkParsing';
+import { IDisposable } from 'vs/base/common/lifecycle';
+import { ITerminalExternalLinkProvider } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { Event } from 'vs/base/common/event';
+
+export const ITerminalLinkProviderService = createDecorator<ITerminalLinkProviderService>('terminalLinkProviderService');
+export interface ITerminalLinkProviderService {
+	readonly _serviceBrand: undefined;
+
+	readonly linkProviders: ReadonlySet<ITerminalExternalLinkProvider>;
+
+	readonly onDidAddLinkProvider: Event<ITerminalExternalLinkProvider>;
+	readonly onDidRemoveLinkProvider: Event<ITerminalExternalLinkProvider>;
+
+	// TODO: Currently it seems only a single link provider is supported
+	registerLinkProvider(provider: ITerminalExternalLinkProvider): IDisposable;
+}
 
 export const ITerminalLinkResolverService = createDecorator<ITerminalLinkResolverService>('terminalLinkResolverService');
 export interface ITerminalLinkResolverService {
