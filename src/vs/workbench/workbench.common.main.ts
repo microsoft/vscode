@@ -168,6 +168,8 @@ import 'vs/workbench/contrib/contextmenu/browser/contextmenu.contribution';
 // Notebook
 import 'vs/workbench/contrib/notebook/browser/notebook.contribution';
 
+import 'vs/workbench/contrib/interactiveSession/browser/interactiveSession.contribution';
+
 // Interactive
 import 'vs/workbench/contrib/interactive/browser/interactive.contribution';
 
