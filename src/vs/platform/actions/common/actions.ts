@@ -440,6 +440,8 @@ export class MenuItemAction implements IAction {
 		this.enabled = !item.precondition || contextKeyService.contextMatchesRules(item.precondition);
 		this.checked = undefined;
 
+		let icon: ThemeIcon | undefined;
+
 		if (item.toggled) {
 			const toggled = ((item.toggled as { condition: ContextKeyExpression }).condition ? item.toggled : { condition: item.toggled }) as {
 				condition: ContextKeyExpression; icon?: Icon; tooltip?: string | ILocalizedString; title?: string | ILocalizedString;
@@ -449,17 +451,24 @@ export class MenuItemAction implements IAction {
 				this.tooltip = typeof toggled.tooltip === 'string' ? toggled.tooltip : toggled.tooltip.value;
 			}
 
+			if (this.checked && ThemeIcon.isThemeIcon(toggled.icon)) {
+				icon = toggled.icon;
+			}
+
 			if (toggled.title) {
 				this.label = typeof toggled.title === 'string' ? toggled.title : toggled.title.value;
 			}
 		}
 
+		if (!icon) {
+			icon = ThemeIcon.isThemeIcon(item.icon) ? item.icon : undefined;
+		}
+
 		this.item = item;
 		this.alt = alt ? new MenuItemAction(alt, undefined, options, hideActions, contextKeyService, _commandService) : undefined;
 		this._options = options;
-		if (ThemeIcon.isThemeIcon(item.icon)) {
-			this.class = ThemeIcon.asClassName(item.icon);
-		}
+		this.class = icon && ThemeIcon.asClassName(icon);
+
 	}
 
 	run(...args: any[]): Promise<void> {
