@@ -96,7 +96,7 @@ export class StickyLineCandidateProvider extends Disposable implements IStickyLi
 
 		this._foldingDecorationProvider = new FoldingDecorationProvider(editor);
 		this._foldingLimitReporter = new RangesLimitReporter(editor);
-		this._updateDebounceInfo = _languageFeatureDebounceService.for(_languageFeaturesService.foldingRangeProvider, 'Folding', { min: 200 });
+		this._updateDebounceInfo = _languageFeatureDebounceService.for(_languageFeaturesService.foldingRangeProvider, 'Sticky Scroll Folding', { min: 200 });
 
 		this._register(this._editor.onDidChangeConfiguration(e => {
 			if (e.hasChanged(EditorOption.stickyScroll)) {
