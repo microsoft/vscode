@@ -45,18 +45,16 @@ export class InputCodeEditorView extends CodeEditorView {
 		this.htmlElements.root.classList.add(`input`);
 
 		this._register(
-			autorunWithStore((reader, store) => {
-				if (this.checkboxesVisible.read(reader)) {
-					store.add(
-						new EditorGutter(this.editor, this.htmlElements.gutterDiv, {
-							getIntersectingGutterItems: (range, reader) => {
-								return this.modifiedBaseRangeGutterItemInfos.read(reader);
-							},
-							createView: (item, target) => new MergeConflictGutterItemView(item, target, contextMenuService),
-						})
-					);
-				}
-			}, 'update checkboxes')
+			new EditorGutter(this.editor, this.htmlElements.gutterDiv, {
+				getIntersectingGutterItems: (range, reader) => {
+					if (this.checkboxesVisible.read(reader)) {
+						return this.modifiedBaseRangeGutterItemInfos.read(reader);
+					} else {
+						return [];
+					}
+				},
+				createView: (item, target) => new MergeConflictGutterItemView(item, target, contextMenuService),
+			})
 		);
 
 		this._register(
