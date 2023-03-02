@@ -3,13 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { BrowserWindow, Details, MessageChannelMain, app, utilityProcess, UtilityProcess as ElectronUtilityProcess } from 'electron';
+import { BrowserWindow, Details, app, MessageChannelMain, MessagePortMain } from 'electron';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { Emitter, Event } from 'vs/base/common/event';
 import { ILogService } from 'vs/platform/log/common/log';
 import { StringDecoder } from 'string_decoder';
 import { timeout } from 'vs/base/common/async';
 import { FileAccess } from 'vs/base/common/network';
+import { UtilityProcess as ElectronUtilityProcess, UtilityProcessProposedApi, canUseUtilityProcess } from 'vs/base/parts/sandbox/electron-main/electronTypes';
 import { IWindowsMainService } from 'vs/platform/windows/electron-main/windows';
 import Severity from 'vs/base/common/severity';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -154,7 +155,7 @@ export class UtilityProcess extends Disposable {
 	private readonly _onCrash = this._register(new Emitter<IUtilityProcessCrashEvent>());
 	readonly onCrash = this._onCrash.event;
 
-	private process: ElectronUtilityProcess | undefined = undefined;
+	private process: UtilityProcessProposedApi.UtilityProcess | undefined = undefined;
 	private processPid: number | undefined = undefined;
 	private configuration: IUtilityProcessConfiguration | undefined = undefined;
 
@@ -188,6 +189,10 @@ export class UtilityProcess extends Disposable {
 	}
 
 	private validateCanStart(): boolean {
+		if (!canUseUtilityProcess) {
+			throw new Error('Cannot use UtilityProcess API from Electron!');
+		}
+
 		if (this.process) {
 			this.log('Cannot start utility process because it is already running...', Severity.Error);
 
@@ -225,7 +230,7 @@ export class UtilityProcess extends Disposable {
 		this.log('creating new...', Severity.Info);
 
 		// Fork utility process
-		this.process = utilityProcess.fork(modulePath, args, {
+		this.process = ElectronUtilityProcess.fork(modulePath, args, {
 			serviceName,
 			env,
 			execArgv,
@@ -263,7 +268,7 @@ export class UtilityProcess extends Disposable {
 		return env;
 	}
 
-	private registerListeners(process: ElectronUtilityProcess, configuration: IUtilityProcessConfiguration, serviceName: string, isWindowSandboxed: boolean): void {
+	private registerListeners(process: UtilityProcessProposedApi.UtilityProcess, configuration: IUtilityProcessConfiguration, serviceName: string, isWindowSandboxed: boolean): void {
 
 		// Stdout
 		if (process.stdout) {
@@ -356,7 +361,7 @@ export class UtilityProcess extends Disposable {
 		this.process.postMessage(message, transfer);
 	}
 
-	connect(payload?: unknown): Electron.MessagePortMain {
+	connect(payload?: unknown): MessagePortMain {
 		const { port1: outPort, port2: utilityProcessPort } = new MessageChannelMain();
 		this.postMessage(payload, [utilityProcessPort]);
 
