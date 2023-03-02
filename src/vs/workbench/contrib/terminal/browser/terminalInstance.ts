@@ -586,7 +586,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		const contributionDescs = TerminalExtensionsRegistry.getTerminalContributions();
 		for (const desc of contributionDescs) {
 			try {
-				this._contributions.push(this._scopedInstantiationService.createInstance(desc.ctor, this));
+				this._contributions.push(this._scopedInstantiationService.createInstance(desc.ctor, this, this._processManager));
 			} catch (err) {
 				onUnexpectedError(err);
 			}

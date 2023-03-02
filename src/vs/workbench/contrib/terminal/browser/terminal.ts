@@ -31,7 +31,9 @@ export const ITerminalGroupService = createDecorator<ITerminalGroupService>('ter
 export const ITerminalInstanceService = createDecorator<ITerminalInstanceService>('terminalInstanceService');
 
 /**
- * A terminal contribution that gets created whenever a terminal is created.
+ * A terminal contribution that gets created whenever a terminal is created. A contribution has
+ * access to the process manager through the constructor and provides a method for when xterm.js has
+ * been initialized.
  */
 export interface ITerminalContribution extends IDisposable {
 	xtermReady?(xterm: IXtermTerminal): void;

@@ -11,26 +11,36 @@ import { localize } from 'vs/nls';
 import { registerAction2, Action2 } from 'vs/platform/actions/common/actions';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { ITerminalContribution, ITerminalInstance, ITerminalService, IXtermTerminal } from 'vs/workbench/contrib/terminal/browser/terminal';
-import { TerminalCommandId } from 'vs/workbench/contrib/terminal/common/terminal';
+import { ITerminalProcessManager, TerminalCommandId } from 'vs/workbench/contrib/terminal/common/terminal';
 import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/terminalContextKey';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { terminalStrings } from 'vs/workbench/contrib/terminal/common/terminalStrings';
 import { DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
 import { registerTerminalContribution } from 'vs/workbench/contrib/terminal/browser/terminalCommon';
+import { TerminalLinkManager } from 'vs/workbench/contrib/terminal/contrib/links/browser/terminalLinkManager';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 
 registerSingleton(ITerminalLinkResolverService, TerminalLinkResolverService, InstantiationType.Delayed);
 
 class TerminalLinkContribution extends DisposableStore implements ITerminalContribution {
-	constructor(instance: ITerminalInstance) {
+	constructor(
+		private readonly _instance: ITerminalInstance,
+		private readonly _processManager: ITerminalProcessManager,
+		@IInstantiationService private readonly _instantiationService: IInstantiationService
+	) {
 		super();
 		console.log('ctor');
 		this.add(toDisposable(() => console.log('dispose')));
 	}
 	xtermReady(xterm: IXtermTerminal): void {
 		console.log('xtermReady');
+		// TODO: Fix cast
+		const linkManager = this._instantiationService.createInstance(TerminalLinkManager, (xterm as any).raw, this._processManager, this._instance.capabilities);
+		console.log('linkManager', linkManager);
 		// TODO: Init terminal link manager here
 	}
 }
+// TODO: Use ID to prevent duplicate contributions?
 registerTerminalContribution('link', TerminalLinkContribution);
 
 const category = terminalStrings.actionCategory;

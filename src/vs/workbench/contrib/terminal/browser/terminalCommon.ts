@@ -6,15 +6,16 @@
 import { BrandedService, IConstructorSignature } from 'vs/platform/instantiation/common/instantiation';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { ITerminalContribution, ITerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { ITerminalProcessManager } from 'vs/workbench/contrib/terminal/common/terminal';
 
-export type TerminalContributionCtor = IConstructorSignature<ITerminalContribution, [ITerminalInstance]>;
+export type TerminalContributionCtor = IConstructorSignature<ITerminalContribution, [ITerminalInstance, ITerminalProcessManager]>;
 
 export interface ITerminalContributionDescription {
 	readonly id: string;
 	readonly ctor: TerminalContributionCtor;
 }
 
-export function registerTerminalContribution<Services extends BrandedService[]>(id: string, ctor: { new(editor: ITerminalInstance, ...services: Services): ITerminalContribution }): void {
+export function registerTerminalContribution<Services extends BrandedService[]>(id: string, ctor: { new(instance: ITerminalInstance, processManager: ITerminalProcessManager, ...services: Services): ITerminalContribution }): void {
 	TerminalContributionRegistry.INSTANCE.registerTerminalContribution(id, ctor);
 }
 
@@ -37,7 +38,7 @@ class TerminalContributionRegistry {
 	constructor() {
 	}
 
-	public registerTerminalContribution<Services extends BrandedService[]>(id: string, ctor: { new(editor: ITerminalInstance, ...services: Services): ITerminalContribution }): void {
+	public registerTerminalContribution<Services extends BrandedService[]>(id: string, ctor: { new(instance: ITerminalInstance, processManager: ITerminalProcessManager, ...services: Services): ITerminalContribution }): void {
 		this._terminalContributions.push({ id, ctor: ctor as TerminalContributionCtor });
 	}
 
