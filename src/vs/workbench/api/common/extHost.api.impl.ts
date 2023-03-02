@@ -98,6 +98,7 @@ import { EditSessionIdentityMatch } from 'vs/platform/workspace/common/editSessi
 import { ExtHostProfileContentHandlers } from 'vs/workbench/api/common/extHostProfileContentHandler';
 import { ExtHostQuickDiff } from 'vs/workbench/api/common/extHostQuickDiff';
 import { ExtHostInteractiveSession } from 'vs/workbench/api/common/extHostInteractiveSession';
+import { ExtHostInteractiveEditor } from 'vs/workbench/api/common/extHostInteractiveEditor';
 
 export interface IExtensionRegistries {
 	mine: ExtensionDescriptionRegistry;
@@ -192,6 +193,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 	const extHostUriOpeners = rpcProtocol.set(ExtHostContext.ExtHostUriOpeners, new ExtHostUriOpeners(rpcProtocol));
 	const extHostProfileContentHandlers = rpcProtocol.set(ExtHostContext.ExtHostProfileContentHandlers, new ExtHostProfileContentHandlers(rpcProtocol));
 	rpcProtocol.set(ExtHostContext.ExtHostInteractive, new ExtHostInteractive(rpcProtocol, extHostNotebook, extHostDocumentsAndEditors, extHostCommands, extHostLogService));
+	const extHostInteractiveEditor = rpcProtocol.set(ExtHostContext.ExtHostInteractiveEditor, new ExtHostInteractiveEditor(rpcProtocol, extHostDocuments, extHostLogService));
 	const extHostInteractiveSession = rpcProtocol.set(ExtHostContext.ExtHostInteractiveSession, new ExtHostInteractiveSession(rpcProtocol, extHostLogService));
 
 	// Check that no named customers are missing
@@ -1216,6 +1218,10 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			// this needs to be updated whenever the API proposal changes
 			_version: 1,
 
+			registerInteractiveEditorSessionProvider(provider: vscode.InteractiveEditorSessionProvider) {
+				checkProposedApiEnabled(extension, 'interactive');
+				return extHostInteractiveEditor.registerProvider(extension, provider);
+			},
 			registerInteractiveSessionProvider(id: string, provider: vscode.InteractiveSessionProvider) {
 				checkProposedApiEnabled(extension, 'interactive');
 				return extHostInteractiveSession.registerInteractiveSessionProvider(extension, id, provider);

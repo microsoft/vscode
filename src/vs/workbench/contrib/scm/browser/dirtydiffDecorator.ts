@@ -63,7 +63,7 @@ import { IQuickDiffSelectItem, SwitchQuickDiffBaseAction, SwitchQuickDiffViewIte
 
 class DiffActionRunner extends ActionRunner {
 
-	override runAction(action: IAction, context: any): Promise<any> {
+	protected override runAction(action: IAction, context: any): Promise<any> {
 		if (action instanceof MenuItemAction) {
 			return action.run(...context);
 		}

@@ -31,11 +31,11 @@ declare module 'vscode' {
 		action?: string;
 	}
 
-	export interface InteractivEditorSessionProvider {
+	export interface InteractiveEditorSessionProvider {
 		// Create a session. The lifetime of this session is the duration of the editing session with the input mode widget.
 		prepareInteractiveEditorSession(context: TextDocumentContext, token: CancellationToken): ProviderResult<InteractiveEditorSession>;
 
-		provideInteractivEditorResponse(request: InteractiveEditorRequest, token: CancellationToken): ProviderResult<InteractiveEditorResponse>;
+		provideInteractiveEditorResponse(request: InteractiveEditorRequest, token: CancellationToken): ProviderResult<InteractiveEditorResponse>;
 
 		// eslint-disable-next-line local/vscode-dts-provider-naming
 		releaseInteractiveEditorSession?(session: InteractiveEditorSession): any;
@@ -85,5 +85,7 @@ declare module 'vscode' {
 
 		export function registerInteractiveSessionProvider(id: string, provider: InteractiveSessionProvider): Disposable;
 		export function addInteractiveRequest(context: InteractiveSessionRequestArgs): void;
+
+		export function registerInteractiveEditorSessionProvider(provider: InteractiveEditorSessionProvider): Disposable;
 	}
 }
