@@ -10,13 +10,27 @@ import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { localize } from 'vs/nls';
 import { registerAction2, Action2 } from 'vs/platform/actions/common/actions';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { ITerminalContribution, ITerminalInstance, ITerminalService, IXtermTerminal } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { TerminalCommandId } from 'vs/workbench/contrib/terminal/common/terminal';
 import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/terminalContextKey';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { terminalStrings } from 'vs/workbench/contrib/terminal/common/terminalStrings';
+import { DisposableStore } from 'vs/base/common/lifecycle';
+import { registerTerminalContribution } from 'vs/workbench/contrib/terminal/browser/terminalCommon';
 
 registerSingleton(ITerminalLinkResolverService, TerminalLinkResolverService, InstantiationType.Delayed);
+
+class TerminalLinkContribution extends DisposableStore implements ITerminalContribution {
+	constructor(instance: ITerminalInstance) {
+		super();
+		console.log('ctor');
+	}
+	xtermReady(xterm: IXtermTerminal): void {
+		console.log('xtermReady');
+		// TODO: Init terminal link manager here
+	}
+}
+registerTerminalContribution('link', TerminalLinkContribution);
 
 const category = terminalStrings.actionCategory;
 

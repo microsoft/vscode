@@ -31,6 +31,13 @@ export const ITerminalGroupService = createDecorator<ITerminalGroupService>('ter
 export const ITerminalInstanceService = createDecorator<ITerminalInstanceService>('terminalInstanceService');
 
 /**
+ * A terminal contribution that gets created whenever a terminal is created.
+ */
+export interface ITerminalContribution extends IDisposable {
+	xtermReady?(xterm: IXtermTerminal): void;
+}
+
+/**
  * A service used to create instances or fetch backends, this services allows services that
  * ITerminalService depends on to also create instances.
  *

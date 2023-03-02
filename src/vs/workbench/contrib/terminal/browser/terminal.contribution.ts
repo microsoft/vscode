@@ -289,4 +289,4 @@ registerColors();
 
 import '../contrib/accessibility/browser/terminal.accessibility.contribution';
 import '../contrib/find/browser/terminal.find.contribution';
-import '../contrib/link/browser/terminal.link.contribution';
+import '../contrib/links/browser/terminal.links.contribution';
