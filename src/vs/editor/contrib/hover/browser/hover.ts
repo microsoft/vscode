@@ -198,7 +198,11 @@ export class ModesHoverController implements IEditorContribution {
 	}
 
 	private _onKeyDown(e: IKeyboardEvent): void {
-		if (e.keyCode !== KeyCode.Ctrl && e.keyCode !== KeyCode.Alt && e.keyCode !== KeyCode.Meta && e.keyCode !== KeyCode.Shift) {
+		console.log('e : ', e);
+
+		// Since the hover disappears as soon as a key code is pressed, the keybindings chosen only has on keycode and several key mods
+		if (e.keyCode !== KeyCode.Ctrl && e.keyCode !== KeyCode.Alt && e.keyCode !== KeyCode.Meta && e.keyCode !== KeyCode.Shift
+			&& !(e.keyCode === KeyCode.KeyK && e.altKey === true && e.metaKey === true && e.shiftKey === true)) {
 			// Do not hide hover when a modifier key is pressed
 			this._hideWidgets();
 		}
@@ -334,7 +338,7 @@ class FocusHoverAction extends EditorAction {
 			precondition: EditorContextKeys.hoverVisible,
 			kbOpts: {
 				kbExpr: EditorContextKeys.hoverVisible,
-				primary: KeyMod.CtrlCmd | KeyCode.KeyK | KeyCode.KeyF, // Change the keybindings later
+				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyMod.Alt | KeyCode.KeyK, // Change the keybindings later
 				weight: KeybindingWeight.EditorContrib
 			}
 		});
