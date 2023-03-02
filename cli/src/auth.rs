@@ -186,7 +186,7 @@ where
 	if std::env::var("VSCODE_CLI_DISABLE_ENCRYPT").is_ok() {
 		return dec;
 	}
-	encrypt(&dec);
+	encrypt(&dec)
 }
 
 // unseal decrypts and deserializes the value
