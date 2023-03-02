@@ -255,15 +255,15 @@ or ::= and { '||' and }*
 and ::= term { '&&' term }*
 
 term ::=
-	| '!' (CONTEXT | 'true' | 'false') // we do not yet support negation of arbitrary expressions
+	| '!' (KEY | 'true' | 'false') // we do not yet support negation of arbitrary expressions
 	| primary
 
 primary ::=
 	| 'true'
 	| 'false'
 	| '(' expression ')'
-	| CONTEXT '=~' REGEX
-	| CONTEXT [ ('==' | '!=' | '<' | '<=' | '>' | '>=' | 'not' 'in' | 'in') value ]
+	| KEY '=~' REGEX
+	| KEY [ ('==' | '!=' | '<' | '<=' | '>' | '>=' | 'not' 'in' | 'in') value ]
 
 value ::=
 	| 'true'
