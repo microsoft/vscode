@@ -53,7 +53,6 @@ import { IWorkspaceContextService, IWorkspaceFolder } from 'vs/platform/workspac
 import { IWorkspaceTrustRequestService } from 'vs/platform/workspace/common/workspaceTrust';
 import { IViewDescriptorService, IViewsService, ViewContainerLocation } from 'vs/workbench/common/views';
 import { TaskSettingId } from 'vs/workbench/contrib/tasks/common/tasks';
-import * as strings from 'vs/base/common/strings';
 import { IDetectedLinks, TerminalLinkManager } from 'vs/workbench/contrib/terminal/browser/links/terminalLinkManager';
 import { TerminalLinkQuickpick } from 'vs/workbench/contrib/terminal/browser/links/terminalLinkQuickpick';
 import { IRequestAddInstanceToGroupEvent, ITerminalChildElement, ITerminalExternalLinkProvider, ITerminalInstance, TerminalDataTransfers } from 'vs/workbench/contrib/terminal/browser/terminal';
@@ -89,11 +88,7 @@ import { ITerminalQuickFixOptions } from 'vs/platform/terminal/common/xterm/term
 import { FileSystemProviderCapabilities, IFileService } from 'vs/platform/files/common/files';
 import { preparePathForShell } from 'vs/workbench/contrib/terminal/common/terminalEnvironment';
 import { IEnvironmentVariableCollection } from 'vs/platform/terminal/common/environmentVariable';
-import { ITerminalWidget } from 'vs/workbench/contrib/terminal/browser/widgets/widgets';
-import { Widget } from 'vs/base/browser/ui/widget';
-import { FastDomNode, createFastDomNode } from 'vs/base/browser/fastDomNode';
 import { ISimpleSelectedSuggestion } from 'vs/workbench/services/suggest/browser/simpleSuggestWidget';
-import { MarkdownRenderer } from 'vs/editor/contrib/markdownRenderer/browser/markdownRenderer';
 import { TERMINAL_BACKGROUND_COLOR } from 'vs/workbench/contrib/terminal/common/terminalColorRegistry';
 import { editorBackground } from 'vs/platform/theme/common/colorRegistry';
 import { PANEL_BACKGROUND, SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
@@ -1130,13 +1125,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 	hasSelection(): boolean {
 		return this.xterm ? this.xterm.raw.hasSelection() : false;
-	}
-
-	showAccessibilityHelp(): void {
-		if (!this.xterm?.raw.buffer || !this._container) {
-			return;
-		}
-		this._scopedInstantiationService.createInstance(AccessibilityHelpWidget, this).attach(this._wrapperElement);
 	}
 
 	async copySelection(asHtml?: boolean, command?: ITerminalCommand): Promise<void> {
@@ -2379,9 +2367,12 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			store.add(this._onDidAttachToElementEvent(container => container.appendChild(child.element)));
 		}
 		if (this._lastLayoutDimensions) {
-			child.layout(this._lastLayoutDimensions);
+			child.layout?.(this._lastLayoutDimensions);
 		}
-		store.add(this._onDidLayoutEvent(e => child.layout(e)));
+		store.add(this._onDidLayoutEvent(e => child.layout?.(e)));
+		if (child.xtermReady) {
+			this._xtermReadyPromise.then(xterm => child.xtermReady!(xterm));
+		}
 		return store;
 	}
 }
@@ -2684,120 +2675,4 @@ export function parseExitResult(
 	}
 
 	return { code, message };
-}
-
-class AccessibilityHelpWidget extends Widget implements ITerminalWidget {
-	readonly id = 'help';
-	private _container: HTMLElement | undefined;
-	private _domNode: FastDomNode<HTMLElement>;
-	private _contentDomNode: FastDomNode<HTMLElement>;
-	private readonly _hasShellIntegration: boolean;
-	private readonly _markdownRenderer: MarkdownRenderer;
-
-	constructor(
-		private readonly _instance: ITerminalInstance,
-		@IKeybindingService private readonly _keybindingService: IKeybindingService,
-		@IInstantiationService instantiationService: IInstantiationService,
-		@IOpenerService private readonly _openerService: IOpenerService,
-		@IContextKeyService private readonly _contextKeyService: IContextKeyService
-	) {
-		super();
-		this._hasShellIntegration = _instance.xterm?.shellIntegration.status === ShellIntegrationStatus.VSCode;
-		this._domNode = createFastDomNode(document.createElement('div'));
-		this._contentDomNode = createFastDomNode(document.createElement('div'));
-		this._contentDomNode.setClassName('terminal-accessibility-help');
-		this._contentDomNode.setAttribute('role', 'document');
-		this._domNode.setDisplay('none');
-		this._domNode.setAttribute('role', 'dialog');
-		this._domNode.setAttribute('aria-hidden', 'true');
-		this._domNode.appendChild(this._contentDomNode);
-		this._register(dom.addStandardDisposableListener(this._contentDomNode.domNode, 'keydown', (e) => {
-			if (e.keyCode === KeyCode.Escape) {
-				this.hide();
-				_instance.focus();
-			}
-		}));
-		this._register(_instance.onDidFocus(() => this.hide()));
-		this._markdownRenderer = this._register(instantiationService.createInstance(MarkdownRenderer, {}));
-	}
-
-	public hide(): void {
-		if (!this._container) {
-			return;
-		}
-		this._domNode.setDisplay('none');
-		this._contentDomNode.setDisplay('none');
-		this._domNode.setAttribute('aria-hidden', 'true');
-	}
-
-	attach(container: HTMLElement): void {
-		this._container = container;
-		this._domNode.setDisplay('block');
-		this._domNode.setAttribute('aria-hidden', 'false');
-		this._contentDomNode.domNode.tabIndex = 0;
-		this._buildContent();
-		container.appendChild(this._contentDomNode.domNode);
-		this._contentDomNode.domNode.focus();
-	}
-
-	private _descriptionForCommand(commandId: string, msg: string, noKbMsg: string): string {
-		const kb = this._keybindingService.lookupKeybinding(commandId, this._contextKeyService);
-		if (kb) {
-			return strings.format(msg, kb.getAriaLabel());
-		}
-		return strings.format(noKbMsg, commandId);
-	}
-
-	private _buildContent(): void {
-		const introMessage = nls.localize('introMsg', "Welcome to Terminal Accessibility Help");
-		const focusAccessibleBufferNls = nls.localize('focusAccessibleBuffer', 'The Focus Accessible Buffer ({0}) command enables screen readers to read terminal contents.');
-		const focusAccessibleBufferNoKb = nls.localize('focusAccessibleBufferNoKb', 'The Focus Accessible Buffer command enables screen readers to read terminal contents and is currently not triggerable by a keybinding.');
-		const shellIntegration = nls.localize('shellIntegration', "The terminal has a feature called shell integration that offers an enhanced experience and provides useful commands for screen readers such as:");
-		const runRecentCommand = nls.localize('runRecentCommand', 'Run Recent Command ({0})');
-		const runRecentCommandNoKb = nls.localize('runRecentCommandNoKb', 'Run Recent Command is currently not triggerable by a keybinding.');
-		const goToRecentNoShellIntegration = nls.localize('goToRecentDirectoryNoShellIntegration', 'The Go to Recent Directory command ({0}) enables screen readers to easily navigate to a directory that has been used in the terminal.');
-		const goToRecentNoKbNoShellIntegration = nls.localize('goToRecentDirectoryNoKbNoShellIntegration', 'The Go to Recent Directory command enables screen readers to easily navigate to a directory that has been used in the terminal and is currently not triggerable by a keybinding.');
-		const goToRecent = nls.localize('goToRecentDirectory', 'Go to Recent Directory ({0})');
-		const goToRecentNoKb = nls.localize('goToRecentDirectoryNoKb', 'Go to Recent Directory is currently not triggerable by a keybinding.');
-		const readMoreLink = nls.localize('readMore', '[Read more about terminal accessibility](https://code.visualstudio.com/docs/editor/accessibility#_terminal-accessibility)');
-		const dismiss = nls.localize('dismiss', "You can dismiss this dialog by pressing Escape or focusing elsewhere.");
-		const openDetectedLink = nls.localize('openDetectedLink', 'The Open Detected Link ({0}) command enables screen readers to easily open links found in the terminal.');
-		const openDetectedLinkNoKb = nls.localize('openDetectedLinkNoKb', 'The Open Detected Link command enables screen readers to easily open links found in the terminal and is currently not triggerable by a keybinding.');
-		const newWithProfile = nls.localize('newWithProfile', 'The Create New Terminal (With Profile) ({0}) command allows for easy terminal creation using a specific profile.');
-		const newWithProfileNoKb = nls.localize('newWithProfileNoKb', 'The Create New Terminal (With Profile) command allows for easy terminal creation using a specific profile and is currently not triggerable by a keybinding.');
-		const accessibilitySettings = nls.localize('accessibilitySettings', 'Access accessibility settings such as `terminal.integrated.tabFocusMode` via the Preferences: Open Accessibility Settings command.');
-		const commandPrompt = nls.localize('commandPromptMigration', "Consider using powershell instead of command prompt for an improved experience");
-
-		const content = [];
-		content.push(this._descriptionForCommand(TerminalCommandId.FocusAccessibleBuffer, focusAccessibleBufferNls, focusAccessibleBufferNoKb));
-		if (this._instance.shellType === WindowsShellType.CommandPrompt) {
-			content.push(commandPrompt);
-		}
-		if (this._hasShellIntegration) {
-			content.push(shellIntegration);
-			content.push('- ' + this._descriptionForCommand(TerminalCommandId.RunRecentCommand, runRecentCommand, runRecentCommandNoKb) + '\n- ' + this._descriptionForCommand(TerminalCommandId.GoToRecentDirectory, goToRecent, goToRecentNoKb));
-		} else {
-			content.push(this._descriptionForCommand(TerminalCommandId.GoToRecentDirectory, goToRecentNoShellIntegration, goToRecentNoKbNoShellIntegration));
-		}
-		content.push(this._descriptionForCommand(TerminalCommandId.OpenDetectedLink, openDetectedLink, openDetectedLinkNoKb));
-		content.push(this._descriptionForCommand(TerminalCommandId.NewWithProfile, newWithProfile, newWithProfileNoKb));
-		content.push(accessibilitySettings);
-		content.push(readMoreLink, dismiss);
-		const element = renderElementAsMarkdown(this._markdownRenderer, this._openerService, content.join('\n\n'), this._register(new DisposableStore()));
-		const anchorElements = element.querySelectorAll('a');
-		for (const a of anchorElements) {
-			a.tabIndex = 0;
-		}
-		this._contentDomNode.domNode.appendChild(element);
-		this._contentDomNode.domNode.setAttribute('aria-label', introMessage);
-	}
-}
-function renderElementAsMarkdown(markdownRenderer: MarkdownRenderer, openerSerivce: IOpenerService, text: string, disposables: DisposableStore): HTMLElement {
-	const result = markdownRenderer.render({ value: text, isTrusted: true }, {
-		actionHandler: {
-			callback: (content: string) => openerSerivce.open(content),
-			disposables
-		}
-	});
-	return result.element;
 }

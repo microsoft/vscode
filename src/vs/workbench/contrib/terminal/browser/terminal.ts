@@ -220,8 +220,6 @@ export interface ITerminalService extends ITerminalInstanceHost {
 
 	getEditingTerminal(): ITerminalInstance | undefined;
 	setEditingTerminal(instance: ITerminalInstance | undefined): void;
-
-	showTerminalAccessibilityHelp(): void;
 }
 export class TerminalLinkQuickPickEvent extends MouseEvent {
 
@@ -931,11 +929,6 @@ export interface ITerminalInstance {
 	freePortKillProcess(port: string, commandToRun: string): Promise<void>;
 
 	/**
-	 * Shows the accessibility help widget
-	 */
-	showAccessibilityHelp(): void;
-
-	/**
 	 * Selects the previous suggestion if the suggest widget is visible.
 	 */
 	selectPreviousSuggestion(): void;
@@ -986,8 +979,8 @@ export interface ITerminalInstance {
 // future these should probably be consolidated.
 export interface ITerminalChildElement {
 	element: HTMLElement;
-	layout(dimension: Dimension): void;
-	xtermReady(xterm: IXtermTerminal): void;
+	layout?(dimension: Dimension): void;
+	xtermReady?(xterm: IXtermTerminal): void;
 }
 
 export interface IXtermTerminal {
