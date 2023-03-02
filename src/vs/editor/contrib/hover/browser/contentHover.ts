@@ -340,6 +340,10 @@ export class ContentHoverController extends Disposable {
 			highlightRange
 		};
 	}
+
+	public focus(): void {
+		this._widget.focus();
+	}
 }
 
 class HoverResult {
@@ -579,6 +583,10 @@ export class ContentHoverWidget extends Disposable implements IContentWidget {
 
 	public clear(): void {
 		this._hover.contentsDomNode.textContent = '';
+	}
+
+	public focus(): void {
+		this._hover.containerDomNode.focus();
 	}
 }
 

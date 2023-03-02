@@ -30,7 +30,6 @@ import { MarkdownHoverParticipant } from 'vs/editor/contrib/hover/browser/markdo
 import { MarkerHoverParticipant } from 'vs/editor/contrib/hover/browser/markerHoverParticipant';
 import 'vs/css!./hover';
 import { InlineSuggestionHintsContentWidget } from 'vs/editor/contrib/inlineCompletions/browser/inlineSuggestionHintsWidget';
-
 export class ModesHoverController implements IEditorContribution {
 
 	public static readonly ID = 'editor.contrib.hover';
@@ -230,6 +229,10 @@ export class ModesHoverController implements IEditorContribution {
 		this._getOrCreateContentWidget().startShowingAtRange(range, mode, source, focus);
 	}
 
+	public focus(): void {
+		this._contentWidget?.focus();
+	}
+
 	public dispose(): void {
 		this._unhookEvents();
 		this._toUnhook.dispose();
@@ -316,9 +319,40 @@ class ShowDefinitionPreviewHoverAction extends EditorAction {
 	}
 }
 
+class FocusHoverAction extends EditorAction {
+
+	constructor() {
+		super({
+			id: 'editor.action.focusHover',
+			label: nls.localize({
+				key: 'focusHover',
+				comment: [
+					'Action that allows to focus on the hover widget, when there is a hover widget visible.'
+				]
+			}, "Focus Hover"),
+			alias: 'Focus Hover',
+			precondition: EditorContextKeys.hoverVisible,
+			kbOpts: {
+				kbExpr: EditorContextKeys.hoverVisible,
+				primary: KeyMod.CtrlCmd | KeyCode.KeyK | KeyCode.KeyF, // Change the keybindings later
+				weight: KeybindingWeight.EditorContrib
+			}
+		});
+	}
+
+	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
+		const controller = ModesHoverController.get(editor);
+		if (!controller) {
+			return;
+		}
+		controller.focus();
+	}
+}
+
 registerEditorContribution(ModesHoverController.ID, ModesHoverController, EditorContributionInstantiation.BeforeFirstInteraction);
 registerEditorAction(ShowHoverAction);
 registerEditorAction(ShowDefinitionPreviewHoverAction);
+registerEditorAction(FocusHoverAction);
 HoverParticipantRegistry.register(MarkdownHoverParticipant);
 HoverParticipantRegistry.register(MarkerHoverParticipant);
 
