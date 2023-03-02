@@ -216,10 +216,8 @@
 	bottom: 0;
 	right: 0;
 	padding: .5em;
-	opacity: 0;
 	overflow: scroll;
 	overflow-x: hidden;
-	z-index: 10;
 }
 
 .xterm .xterm-accessible-buffer div {
@@ -227,10 +225,18 @@
 }
 
 .xterm .xterm-accessible-buffer.active {
-	opacity: 1;
+	visibility: visible;
 	z-index: 33;
 	top: -5px;
 	left: 5px;
 	pointer-events: none;
 	background-color: var(--vscode-terminal-background, --vscode-panel-background);
+}
+
+.xterm-accessible-buffer.active .monaco-editor {
+	position: absolute !important;
+}
+
+.xterm.terminal.hide {
+	display: none;
 }

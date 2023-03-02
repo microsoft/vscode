@@ -46,6 +46,7 @@ import { IEditorConstructionOptions } from 'vs/editor/browser/config/editorConfi
 import { LinkDetector } from 'vs/editor/contrib/links/browser/links';
 import { SelectionClipboardContributionID } from 'vs/workbench/contrib/codeEditor/browser/selectionClipboard';
 import { addDisposableListener } from 'vs/base/browser/dom';
+import { KeyCode } from 'vs/base/common/keyCodes';
 
 const enum RenderConstants {
 	/**
@@ -811,6 +812,7 @@ class AccessibleBuffer extends DisposableStore {
 		}
 		this._accessibleBuffer.tabIndex = 0;
 		this._editorContainer = document.createElement('div');
+		this._editorContainer.style.position = 'absolute';
 		this._bufferEditor = this._instantiationService.createInstance(CodeEditorWidget, this._editorContainer, editorOptions, codeEditorWidgetOptions);
 		this.add(configurationService.onDidChangeConfiguration(e => {
 			if (e.affectedKeys.has(TerminalSettingId.FontFamily)) {
@@ -826,35 +828,45 @@ class AccessibleBuffer extends DisposableStore {
 	private async _updateBufferEditor(): Promise<void> {
 		const commandDetection = this._capabilities.get(TerminalCapability.CommandDetection);
 		const fragment = !!commandDetection ? this._getShellIntegrationContent() : this._getAllContent();
+		console.log(fragment);
 		const model = await this._getTextModel(URI.from({ scheme: AccessibleBufferConstants.Scheme, fragment }));
 		if (model) {
 			this._bufferEditor.setModel(model);
 		}
+		this._accessibleBuffer.style.visibility = 'visible';
+
 		if (!this._registered) {
-			const elt = this._terminal.raw?.element;
+			const elt = this._terminal.raw?.element?.parentElement;
 			if (elt) {
 				this._bufferEditor.layout({ width: elt.clientWidth, height: elt.clientHeight });
 			}
-			this.add(addDisposableListener(this._accessibleBuffer, 'focus', () => {
-				this._accessibleBuffer.classList.add('active');
-				this._accessibleBuffer.replaceChildren(this._editorContainer);
-				this._bufferEditor.focus();
-			}));
+			this._bufferEditor.onKeyDown((e) => {
+				if (e.keyCode === KeyCode.Escape || e.keyCode === KeyCode.Tab) {
+					this._accessibleBuffer.classList.remove('active');
+					this._terminal.raw.focus();
+					const e = this._terminal.raw?.element;
+					e?.classList.remove('hide');
+					this._accessibleBuffer.style.visibility = 'hidden';
+				}
+			});
 			this.add(addDisposableListener(this._accessibleBuffer, 'keypress', (e) => {
 				if (e.key === 'Escape' || e.key === 'Tab') {
 					this._accessibleBuffer.classList.remove('active');
 					this._terminal.raw.focus();
+					const e = this._terminal.raw?.element;
+					e?.classList.remove('hide');
 				}
 			}));
+			if (commandDetection) {
+				this._commandFinishedDisposable = commandDetection.onCommandFinished(() => this._refreshSelection = true);
+				this.add(this._commandFinishedDisposable);
+			}
 			this._registered = true;
 		}
-		this._accessibleBuffer.focus();
 
-		if (!this._commandFinishedDisposable && commandDetection) {
-			this._commandFinishedDisposable = commandDetection.onCommandFinished(() => this._refreshSelection = true);
-			this.add(this._commandFinishedDisposable);
-		}
-
+		this._accessibleBuffer.classList.add('active');
+		const e = this._terminal.raw?.element;
+		e?.classList.add('hide');
 		if (this._lastContentLength !== fragment.length || this._refreshSelection) {
 			let lineNumber = 1;
 			const lineCount = model?.getLineCount();
@@ -866,6 +878,14 @@ class AccessibleBuffer extends DisposableStore {
 			this._refreshSelection = false;
 			this._lastContentLength = fragment.length;
 		}
+		this._accessibleBuffer.replaceChildren(this._editorContainer);
+		console.log(this._editorContainer.children);
+		const elt = this._terminal.raw?.element?.parentElement;
+		if (elt) {
+			this._bufferEditor.layout({ width: elt.clientWidth, height: elt.clientHeight });
+		}
+		this._bufferEditor.focus();
+
 	}
 
 	private async _getTextModel(resource: URI): Promise<ITextModel | null> {
