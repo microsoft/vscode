@@ -8,8 +8,8 @@ import { URI } from 'vs/base/common/uri';
 import { ILinkComputerTarget, LinkComputer } from 'vs/editor/common/languages/linkComputer';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { ITerminalLinkDetector, ITerminalLinkResolverService, ITerminalSimpleLink, TerminalBuiltinLinkType } from 'vs/workbench/contrib/terminal/contrib/links/browser/links';
-import { convertLinkRangeToBuffer, getXtermLineContent } from 'vs/workbench/contrib/terminal/contrib/links/browser/terminalLinkHelpers';
+import { ITerminalLinkDetector, ITerminalLinkResolverService, ITerminalSimpleLink, TerminalBuiltinLinkType } from 'vs/workbench/contrib/terminalContrib/links/browser/links';
+import { convertLinkRangeToBuffer, getXtermLineContent } from 'vs/workbench/contrib/terminalContrib/links/browser/terminalLinkHelpers';
 import { ITerminalBackend, ITerminalProcessManager } from 'vs/workbench/contrib/terminal/common/terminal';
 import { IBufferLine, Terminal } from 'xterm';
 

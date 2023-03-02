@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { TerminalLinkResolverService } from 'vs/workbench/contrib/terminal/contrib/links/browser/terminalLinkResolverService';
-import { ITerminalLinkProviderService, ITerminalLinkResolverService } from 'vs/workbench/contrib/terminal/contrib/links/browser/links';
+import { TerminalLinkResolverService } from 'vs/workbench/contrib/terminalContrib/links/browser/terminalLinkResolverService';
+import { ITerminalLinkProviderService, ITerminalLinkResolverService } from 'vs/workbench/contrib/terminalContrib/links/browser/links';
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { localize } from 'vs/nls';
@@ -17,11 +17,11 @@ import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { terminalStrings } from 'vs/workbench/contrib/terminal/common/terminalStrings';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { registerTerminalContribution } from 'vs/workbench/contrib/terminal/browser/terminalExtensions';
-import { IDetectedLinks, TerminalLinkManager } from 'vs/workbench/contrib/terminal/contrib/links/browser/terminalLinkManager';
+import { IDetectedLinks, TerminalLinkManager } from 'vs/workbench/contrib/terminalContrib/links/browser/terminalLinkManager';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { TerminalLinkQuickpick } from 'vs/workbench/contrib/terminal/contrib/links/browser/terminalLinkQuickpick';
+import { TerminalLinkQuickpick } from 'vs/workbench/contrib/terminalContrib/links/browser/terminalLinkQuickpick';
 import { TerminalWidgetManager } from 'vs/workbench/contrib/terminal/browser/widgets/widgetManager';
-import { TerminalLinkProviderService } from 'vs/workbench/contrib/terminal/contrib/links/browser/terminalLinkProviderService';
+import { TerminalLinkProviderService } from 'vs/workbench/contrib/terminalContrib/links/browser/terminalLinkProviderService';
 
 registerSingleton(ITerminalLinkProviderService, TerminalLinkProviderService, InstantiationType.Delayed);
 registerSingleton(ITerminalLinkResolverService, TerminalLinkResolverService, InstantiationType.Delayed);

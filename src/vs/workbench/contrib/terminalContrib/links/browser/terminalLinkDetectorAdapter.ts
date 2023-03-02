@@ -7,9 +7,9 @@ import { Emitter } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { localize } from 'vs/nls';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ITerminalLinkDetector, ITerminalSimpleLink, TerminalBuiltinLinkType, TerminalLinkType } from 'vs/workbench/contrib/terminal/contrib/links/browser/links';
-import { TerminalLink } from 'vs/workbench/contrib/terminal/contrib/links/browser/terminalLink';
-import { XtermLinkMatcherHandler } from 'vs/workbench/contrib/terminal/contrib/links/browser/terminalLinkManager';
+import { ITerminalLinkDetector, ITerminalSimpleLink, TerminalBuiltinLinkType, TerminalLinkType } from 'vs/workbench/contrib/terminalContrib/links/browser/links';
+import { TerminalLink } from 'vs/workbench/contrib/terminalContrib/links/browser/terminalLink';
+import { XtermLinkMatcherHandler } from 'vs/workbench/contrib/terminalContrib/links/browser/terminalLinkManager';
 import { IBufferLine, ILink, ILinkProvider, IViewportRange } from 'xterm';
 
 export interface IActivateLinkEvent {

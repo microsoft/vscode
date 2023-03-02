@@ -27,7 +27,7 @@ import { ITerminalCommand } from 'vs/platform/terminal/common/capabilities/capab
 import { ITerminalOutputMatch, ITerminalOutputMatcher, ITerminalQuickFix, ITerminalQuickFixOptions } from 'vs/platform/terminal/common/xterm/terminalQuickFix';
 import { TerminalQuickFixType } from 'vs/workbench/api/common/extHostTypes';
 import { ISerializableEnvironmentVariableCollection } from 'vs/platform/terminal/common/environmentVariable';
-import { ITerminalLinkProviderService } from 'vs/workbench/contrib/terminal/contrib/links/browser/links';
+import { ITerminalLinkProviderService } from 'vs/workbench/contrib/terminalContrib/links/browser/links';
 
 
 @extHostNamedCustomer(MainContext.MainThreadTerminalService)

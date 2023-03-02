@@ -7,11 +7,11 @@ import type { IViewportRange, IBufferRange, ILink, ILinkDecorations, Terminal } 
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import * as dom from 'vs/base/browser/dom';
 import { RunOnceScheduler } from 'vs/base/common/async';
-import { convertBufferRangeToViewport } from 'vs/workbench/contrib/terminal/contrib/links/browser/terminalLinkHelpers';
+import { convertBufferRangeToViewport } from 'vs/workbench/contrib/terminalContrib/links/browser/terminalLinkHelpers';
 import { isMacintosh } from 'vs/base/common/platform';
 import { Emitter, Event } from 'vs/base/common/event';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { TerminalLinkType } from 'vs/workbench/contrib/terminal/contrib/links/browser/links';
+import { TerminalLinkType } from 'vs/workbench/contrib/terminalContrib/links/browser/links';
 import { IHoverAction } from 'vs/workbench/services/hover/browser/hover';
 
 export class TerminalLink extends DisposableStore implements ILink {

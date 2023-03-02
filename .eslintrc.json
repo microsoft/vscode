@@ -429,7 +429,7 @@
 							"vs/workbench/~",
 							"vs/workbench/services/*/~",
 							"vs/workbench/contrib/*/~",
-							"vs/workbench/contrib/terminal/contrib/*/~"
+							"vs/workbench/contrib/terminalContrib/*/~"
 						]
 					},
 					{
@@ -478,7 +478,7 @@
 						]
 					},
 					{
-						"target": "src/vs/workbench/contrib/terminal/contrib/*/~",
+						"target": "src/vs/workbench/contrib/terminalContrib/*/~",
 						"restrictions": [
 							"vs/base/~",
 							"vs/base/parts/*/~",
@@ -488,7 +488,9 @@
 							"vs/workbench/~",
 							"vs/workbench/services/*/~",
 							"vs/workbench/contrib/*/~",
-							"vs/workbench/contrib/terminal/contrib/*/~",
+							// Only allow terminalContrib to import from itself, this works because
+							// terminalContrib is one extra folder deep
+							"vs/workbench/contrib/terminalContrib/*/~",
 							"vscode-notebook-renderer", // Type only import
 							{
 								"when": "hasBrowser",
@@ -544,28 +546,7 @@
 						"target": "src/vs/workbench/contrib/terminal/terminal.all.ts",
 						"layer": "browser",
 						"restrictions": [
-							"vs/base/~",
-							"vs/base/parts/*/~",
-							"vs/platform/*/~",
-							"vs/editor/~",
-							"vs/editor/contrib/*/~",
-							"vs/workbench/~",
-							"vs/workbench/services/*/~",
-							"vs/workbench/contrib/*/~",
-							"vs/workbench/contrib/terminal/contrib/*/~",
-							"vscode-notebook-renderer", // Type only import
-							{
-								"when": "hasBrowser",
-								"pattern": "xterm"
-							}, // node module allowed even in /browser/
-							{
-								"when": "hasBrowser",
-								"pattern": "xterm-addon-*"
-							}, // node module allowed even in /browser/
-							{
-								"when": "hasBrowser",
-								"pattern": "vscode-textmate"
-							} // node module allowed even in /browser/
+							"vs/workbench/contrib/**"
 						]
 					},
 					{
