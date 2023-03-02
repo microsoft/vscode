@@ -800,7 +800,15 @@ class AccessibleBuffer extends DisposableStore {
 			cursorBlinking: configurationService.getValue('terminal.integrated.cursorBlinking'),
 			readOnly: true
 		};
-		this._accessibleBuffer = this._terminal.raw.element!.querySelector('.xterm-accessible-buffer') as HTMLElement;
+		this._accessibleBuffer = document.createElement('div');
+		this._accessibleBuffer.setAttribute('role', 'document');
+		this._accessibleBuffer.ariaRoleDescription = localize('terminal.integrated.accessibleBuffer', 'Terminal buffer');
+		this._accessibleBuffer.tabIndex = 0;
+		this._accessibleBuffer.classList.add('xterm-accessible-buffer');
+		const elt = this._terminal.raw?.element;
+		if (elt) {
+			elt.insertAdjacentElement('afterbegin', this._accessibleBuffer);
+		}
 		// Prevent the accessible buffer letting mouse events to propogate to xterm.js while it's
 		// visible.
 		this.add(addDisposableListener(this._accessibleBuffer, 'mousedown', e => e.stopImmediatePropagation()));
@@ -827,8 +835,6 @@ class AccessibleBuffer extends DisposableStore {
 		}
 
 		if (!this._registered) {
-			this.add(this._terminal.raw.registerBufferElementProvider({ provideBufferElements: () => this._editorContainer }));
-			// When this is created, the element isn't yet attached so the dimensions are tiny
 			this._bufferEditor.layout({ width: this._accessibleBuffer.clientWidth, height: this._accessibleBuffer.clientHeight });
 			this._registered = true;
 		}
@@ -850,11 +856,12 @@ class AccessibleBuffer extends DisposableStore {
 			this._lastContentLength = fragment.length;
 		}
 
-		// Updates xterm's accessibleBufferActive property
-		// such that mouse events do not cause the terminal buffer
-		// to steal the focus
-		this._accessibleBuffer.focus();
-		this._bufferEditor.focus();
+
+		if (this._accessibleBuffer) {
+			this.add(addDisposableListener(this._accessibleBuffer, 'focus', () => {
+				this._bufferEditor.focus();
+			}));
+		}
 	}
 
 	private async _getTextModel(resource: URI): Promise<ITextModel | null> {

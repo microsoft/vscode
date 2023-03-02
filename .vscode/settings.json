@@ -120,5 +120,8 @@
 	},
 	"githubPullRequests.assignCreated": "${user}",
 	"githubPullRequests.defaultMergeMethod": "squash",
-	"application.experimental.rendererProfiling": true
+	"application.experimental.rendererProfiling": true,
+	"githubPullRequests.ignoredPullRequestBranches": [
+		"main"
+	]
 }
