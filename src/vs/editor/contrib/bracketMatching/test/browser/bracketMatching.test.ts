@@ -214,7 +214,7 @@ suite('bracket matching', () => {
 		const editor = createCodeEditorWithBrackets('var x = (3 + (5-7)); y();');
 		const bracketMatchingController = disposables.add(editor.registerAndInstantiateContribution(BracketMatchingController.ID, BracketMatchingController));
 		function removeBrackets() {
-			bracketMatchingController.replaceBrackets('', '');
+			bracketMatchingController.removeBrackets();
 		}
 
 		// position before the bracket
