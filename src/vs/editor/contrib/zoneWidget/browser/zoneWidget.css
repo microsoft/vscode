@@ -4,7 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 .monaco-editor .zone-widget {
 	position: absolute;
-	z-index: 38;
+	/* lower than the findWidget z-index and  higher terminal canvas z-index*/
+	z-index: 33;
 }
 
 
