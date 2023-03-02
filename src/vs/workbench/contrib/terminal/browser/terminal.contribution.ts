@@ -289,3 +289,6 @@ setupTerminalCommands();
 setupTerminalMenus();
 
 registerColors();
+
+import './accessibility/terminal.accessibility.contribution';
+import './find/terminal.find.contribution';
