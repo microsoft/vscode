@@ -33,6 +33,7 @@ import { KeyChord, KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { ILogService } from 'vs/platform/log/common/log';
 import { Categories } from 'vs/platform/action/common/actionCommonCategories';
+import { ActiveEditorAvailableEditorIdsContext, ActiveEditorGroupEmptyContext } from 'vs/workbench/common/contextkeys';
 
 class ExecuteCommandAction extends Action2 {
 
@@ -1656,23 +1657,23 @@ export class ShowAllEditorsByMostRecentlyUsedAction extends Action2 {
 	}
 }
 
-abstract class AbstractQuickAccessEditorAction extends Action {
+abstract class AbstractQuickAccessEditorAction extends Action2 {
 
 	constructor(
-		id: string,
-		label: string,
+		desc: Readonly<IAction2Options>,
 		private readonly prefix: string,
 		private readonly itemActivation: ItemActivation | undefined,
-		@IQuickInputService private readonly quickInputService: IQuickInputService,
-		@IKeybindingService private readonly keybindingService: IKeybindingService
 	) {
-		super(id, label);
+		super(desc);
 	}
 
-	override async run(): Promise<void> {
-		const keybindings = this.keybindingService.lookupKeybindings(this.id);
+	override async run(accessor: ServicesAccessor): Promise<void> {
+		const keybindingService = accessor.get(IKeybindingService);
+		const quickInputService = accessor.get(IQuickInputService);
 
-		this.quickInputService.quickAccess.show(this.prefix, {
+		const keybindings = keybindingService.lookupKeybindings(this.desc.id);
+
+		quickInputService.quickAccess.show(this.prefix, {
 			quickNavigateConfiguration: { keybindings },
 			itemActivation: this.itemActivation
 		});
@@ -1681,90 +1682,95 @@ abstract class AbstractQuickAccessEditorAction extends Action {
 
 export class QuickAccessPreviousRecentlyUsedEditorAction extends AbstractQuickAccessEditorAction {
 
-	static readonly ID = 'workbench.action.quickOpenPreviousRecentlyUsedEditor';
-	static readonly LABEL = localize('quickOpenPreviousRecentlyUsedEditor', "Quick Open Previous Recently Used Editor");
-
-	constructor(
-		id: string,
-		label: string,
-		@IQuickInputService quickInputService: IQuickInputService,
-		@IKeybindingService keybindingService: IKeybindingService
-	) {
-		super(id, label, AllEditorsByMostRecentlyUsedQuickAccess.PREFIX, undefined, quickInputService, keybindingService);
+	constructor() {
+		super({
+			id: 'workbench.action.quickOpenPreviousRecentlyUsedEditor',
+			title: { value: localize('quickOpenPreviousRecentlyUsedEditor', "Quick Open Previous Recently Used Editor"), original: 'Quick Open Previous Recently Used Editor' },
+			f1: true,
+			category: Categories.View
+		}, AllEditorsByMostRecentlyUsedQuickAccess.PREFIX, undefined);
 	}
 }
 
 export class QuickAccessLeastRecentlyUsedEditorAction extends AbstractQuickAccessEditorAction {
 
-	static readonly ID = 'workbench.action.quickOpenLeastRecentlyUsedEditor';
-	static readonly LABEL = localize('quickOpenLeastRecentlyUsedEditor', "Quick Open Least Recently Used Editor");
-
-	constructor(
-		id: string,
-		label: string,
-		@IQuickInputService quickInputService: IQuickInputService,
-		@IKeybindingService keybindingService: IKeybindingService
-	) {
-		super(id, label, AllEditorsByMostRecentlyUsedQuickAccess.PREFIX, undefined, quickInputService, keybindingService);
+	constructor() {
+		super({
+			id: 'workbench.action.quickOpenLeastRecentlyUsedEditor',
+			title: { value: localize('quickOpenLeastRecentlyUsedEditor', "Quick Open Least Recently Used Editor"), original: 'Quick Open Least Recently Used Editor' },
+			f1: true,
+			category: Categories.View
+		}, AllEditorsByMostRecentlyUsedQuickAccess.PREFIX, undefined);
 	}
 }
 
 export class QuickAccessPreviousRecentlyUsedEditorInGroupAction extends AbstractQuickAccessEditorAction {
 
-	static readonly ID = 'workbench.action.quickOpenPreviousRecentlyUsedEditorInGroup';
-	static readonly LABEL = localize('quickOpenPreviousRecentlyUsedEditorInGroup', "Quick Open Previous Recently Used Editor in Group");
-
-	constructor(
-		id: string,
-		label: string,
-		@IQuickInputService quickInputService: IQuickInputService,
-		@IKeybindingService keybindingService: IKeybindingService
-	) {
-		super(id, label, ActiveGroupEditorsByMostRecentlyUsedQuickAccess.PREFIX, undefined, quickInputService, keybindingService);
+	constructor() {
+		super({
+			id: 'workbench.action.quickOpenPreviousRecentlyUsedEditorInGroup',
+			title: { value: localize('quickOpenPreviousRecentlyUsedEditorInGroup', "Quick Open Previous Recently Used Editor in Group"), original: 'Quick Open Previous Recently Used Editor in Group' },
+			f1: true,
+			keybinding: {
+				weight: KeybindingWeight.WorkbenchContrib,
+				primary: KeyMod.CtrlCmd | KeyCode.Tab,
+				mac: {
+					primary: KeyMod.WinCtrl | KeyCode.Tab
+				}
+			},
+			precondition: ActiveEditorGroupEmptyContext.toNegated(),
+			category: Categories.View
+		}, ActiveGroupEditorsByMostRecentlyUsedQuickAccess.PREFIX, undefined);
 	}
 }
 
 export class QuickAccessLeastRecentlyUsedEditorInGroupAction extends AbstractQuickAccessEditorAction {
 
-	static readonly ID = 'workbench.action.quickOpenLeastRecentlyUsedEditorInGroup';
-	static readonly LABEL = localize('quickOpenLeastRecentlyUsedEditorInGroup', "Quick Open Least Recently Used Editor in Group");
-
-	constructor(
-		id: string,
-		label: string,
-		@IQuickInputService quickInputService: IQuickInputService,
-		@IKeybindingService keybindingService: IKeybindingService
-	) {
-		super(id, label, ActiveGroupEditorsByMostRecentlyUsedQuickAccess.PREFIX, ItemActivation.LAST, quickInputService, keybindingService);
+	constructor() {
+		super({
+			id: 'workbench.action.quickOpenLeastRecentlyUsedEditorInGroup',
+			title: { value: localize('quickOpenLeastRecentlyUsedEditorInGroup', "Quick Open Least Recently Used Editor in Group"), original: 'Quick Open Least Recently Used Editor in Group' },
+			f1: true,
+			keybinding: {
+				weight: KeybindingWeight.WorkbenchContrib,
+				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Tab,
+				mac: {
+					primary: KeyMod.WinCtrl | KeyMod.Shift | KeyCode.Tab
+				}
+			},
+			precondition: ActiveEditorGroupEmptyContext.toNegated(),
+			category: Categories.View
+		}, ActiveGroupEditorsByMostRecentlyUsedQuickAccess.PREFIX, ItemActivation.LAST);
 	}
 }
 
-export class QuickAccessPreviousEditorFromHistoryAction extends Action {
+export class QuickAccessPreviousEditorFromHistoryAction extends Action2 {
 
-	static readonly ID = 'workbench.action.openPreviousEditorFromHistory';
-	static readonly LABEL = localize('navigateEditorHistoryByInput', "Quick Open Previous Editor from History");
+	private static readonly ID = 'workbench.action.openPreviousEditorFromHistory';
 
-	constructor(
-		id: string,
-		label: string,
-		@IQuickInputService private readonly quickInputService: IQuickInputService,
-		@IKeybindingService private readonly keybindingService: IKeybindingService,
-		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService
-	) {
-		super(id, label);
+	constructor() {
+		super({
+			id: QuickAccessPreviousEditorFromHistoryAction.ID,
+			title: { value: localize('navigateEditorHistoryByInput', "Quick Open Previous Editor from History"), original: 'Quick Open Previous Editor from History' },
+			f1: true
+		});
 	}
 
-	override async run(): Promise<void> {
-		const keybindings = this.keybindingService.lookupKeybindings(this.id);
+	override async run(accessor: ServicesAccessor): Promise<void> {
+		const keybindingService = accessor.get(IKeybindingService);
+		const quickInputService = accessor.get(IQuickInputService);
+		const editorGroupService = accessor.get(IEditorGroupsService);
+
+		const keybindings = keybindingService.lookupKeybindings(QuickAccessPreviousEditorFromHistoryAction.ID);
 
 		// Enforce to activate the first item in quick access if
 		// the currently active editor group has n editor opened
 		let itemActivation: ItemActivation | undefined = undefined;
-		if (this.editorGroupService.activeGroup.count === 0) {
+		if (editorGroupService.activeGroup.count === 0) {
 			itemActivation = ItemActivation.FIRST;
 		}
 
-		this.quickInputService.quickAccess.show('', { quickNavigateConfiguration: { keybindings }, itemActivation });
+		quickInputService.quickAccess.show('', { quickNavigateConfiguration: { keybindings }, itemActivation });
 	}
 }
 
@@ -2310,22 +2316,23 @@ export class NewEditorGroupBelowAction extends AbstractCreateEditorGroupAction {
 	}
 }
 
-export class ToggleEditorTypeAction extends Action {
+export class ToggleEditorTypeAction extends Action2 {
 
-	static readonly ID = 'workbench.action.toggleEditorType';
-	static readonly LABEL = localize('workbench.action.toggleEditorType', "Toggle Editor Type");
-
-	constructor(
-		id: string,
-		label: string,
-		@IEditorService private readonly editorService: IEditorService,
-		@IEditorResolverService private readonly editorResolverService: IEditorResolverService,
-	) {
-		super(id, label);
+	constructor() {
+		super({
+			id: 'workbench.action.toggleEditorType',
+			title: { value: localize('toggleEditorType', "Toggle Editor Type"), original: 'Toggle Editor Type' },
+			f1: true,
+			category: Categories.View,
+			precondition: ActiveEditorAvailableEditorIdsContext
+		});
 	}
 
-	override async run(): Promise<void> {
-		const activeEditorPane = this.editorService.activeEditorPane;
+	override async run(accessor: ServicesAccessor): Promise<void> {
+		const editorService = accessor.get(IEditorService);
+		const editorResolverService = accessor.get(IEditorResolverService);
+
+		const activeEditorPane = editorService.activeEditorPane;
 		if (!activeEditorPane) {
 			return;
 		}
@@ -2335,13 +2342,13 @@ export class ToggleEditorTypeAction extends Action {
 			return;
 		}
 
-		const editorIds = this.editorResolverService.getEditors(activeEditorResource).map(editor => editor.id).filter(id => id !== activeEditorPane.input.editorId);
+		const editorIds = editorResolverService.getEditors(activeEditorResource).map(editor => editor.id).filter(id => id !== activeEditorPane.input.editorId);
 		if (editorIds.length === 0) {
 			return;
 		}
 
 		// Replace the current editor with the next avaiable editor type
-		await this.editorService.replaceEditors([
+		await editorService.replaceEditors([
 			{
 				editor: activeEditorPane.input,
 				replacement: {
@@ -2355,21 +2362,22 @@ export class ToggleEditorTypeAction extends Action {
 	}
 }
 
-export class ReOpenInTextEditorAction extends Action {
+export class ReOpenInTextEditorAction extends Action2 {
 
-	static readonly ID = 'workbench.action.reopenTextEditor';
-	static readonly LABEL = localize('workbench.action.reopenTextEditor', "Reopen Editor With Text Editor");
-
-	constructor(
-		id: string,
-		label: string,
-		@IEditorService private readonly editorService: IEditorService
-	) {
-		super(id, label);
+	constructor() {
+		super({
+			id: 'workbench.action.reopenTextEditor',
+			title: { value: localize('reopenTextEditor', "Reopen Editor With Text Editor"), original: 'Reopen Editor With Text Editor' },
+			f1: true,
+			category: Categories.View,
+			precondition: ActiveEditorAvailableEditorIdsContext
+		});
 	}
 
-	override async run(): Promise<void> {
-		const activeEditorPane = this.editorService.activeEditorPane;
+	override async run(accessor: ServicesAccessor): Promise<void> {
+		const editorService = accessor.get(IEditorService);
+
+		const activeEditorPane = editorService.activeEditorPane;
 		if (!activeEditorPane) {
 			return;
 		}
@@ -2380,7 +2388,7 @@ export class ReOpenInTextEditorAction extends Action {
 		}
 
 		// Replace the current editor with the text editor
-		await this.editorService.replaceEditors([
+		await editorService.replaceEditors([
 			{
 				editor: activeEditorPane.input,
 				replacement: {
