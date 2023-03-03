@@ -19,9 +19,10 @@ import { TerminalCommandId } from 'vs/workbench/contrib/terminal/common/terminal
 import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/terminalContextKey';
 import { terminalStrings } from 'vs/workbench/contrib/terminal/common/terminalStrings';
 import { AccessibleBufferWidget } from 'vs/workbench/contrib/terminalContrib/accessibility/browser/terminalAccessibleBuffer';
+import { registerTerminalContribution } from 'vs/workbench/contrib/terminal/browser/terminalExtensions';
 
 const category = terminalStrings.actionCategory;
-
+registerTerminalContribution(AccessibleBufferWidget.ID, AccessibleBufferWidget);
 registerAction2(class extends Action2 {
 	constructor() {
 		super({
@@ -76,18 +77,16 @@ registerAction2(class extends Action2 {
 		});
 	}
 	async run(accessor: ServicesAccessor): Promise<void> {
-		const instantiationService = accessor.get(IInstantiationService);
 		const terminalService = accessor.get(ITerminalService);
 		const terminalGroupService = accessor.get(ITerminalGroupService);
 		const terminalEditorService = accessor.get(ITerminalEditorService);
 
 		const instance = await terminalService.getActiveOrCreateInstance();
 		await revealActiveTerminal(instance, terminalEditorService, terminalGroupService);
-		const terminal = instance.xterm;
-		if (!terminal) {
+		if (!instance) {
 			return;
 		}
-		instantiationService.createInstance(AccessibleBufferWidget, terminal, instance.capabilities).show();
+		(instance.getContribution(AccessibleBufferWidget.ID) as AccessibleBufferWidget).show();
 	}
 });
 

@@ -16,35 +16,45 @@ import { LinkDetector } from 'vs/editor/contrib/links/browser/links';
 import { localize } from 'vs/nls';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ITerminalCapabilityStore, TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
+import { TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
 import { TerminalSettingId } from 'vs/platform/terminal/common/terminal';
 import { SelectionClipboardContributionID } from 'vs/workbench/contrib/codeEditor/browser/selectionClipboard';
 import { getSimpleEditorOptions } from 'vs/workbench/contrib/codeEditor/browser/simpleEditorOptions';
+import { ITerminalContribution, ITerminalInstance, IXtermTerminal } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { TerminalWidgetManager } from 'vs/workbench/contrib/terminal/browser/widgets/widgetManager';
 import { XtermTerminal } from 'vs/workbench/contrib/terminal/browser/xterm/xtermTerminal';
-import { ITerminalFont } from 'vs/workbench/contrib/terminal/common/terminal';
+import { ITerminalFont, ITerminalProcessManager } from 'vs/workbench/contrib/terminal/common/terminal';
+import { Terminal } from 'xterm';
 
 const enum AccessibleBufferConstants {
 	Scheme = 'terminal-accessible-buffer'
 }
 
-export class AccessibleBufferWidget extends DisposableStore {
-	private _accessibleBuffer: HTMLElement;
-	private _bufferEditor: CodeEditorWidget;
-	private _editorContainer: HTMLElement;
+export class AccessibleBufferWidget extends DisposableStore implements ITerminalContribution {
+	public static ID: string = AccessibleBufferConstants.Scheme;
+	private _accessibleBuffer: HTMLElement | undefined;
+	private _bufferEditor: CodeEditorWidget | undefined;
+	private _editorContainer: HTMLElement | undefined;
 	private _commandFinishedDisposable: IDisposable | undefined;
 	private _refreshSelection: boolean = true;
 	private _registered: boolean = false;
 	private _lastContentLength: number = 0;
-	private _font: ITerminalFont;
+	private _font: ITerminalFont | undefined;
+	private _terminal: XtermTerminal | undefined;
 
 	constructor(
-		private readonly _terminal: XtermTerminal,
-		private readonly _capabilities: ITerminalCapabilityStore,
+		private readonly _instance: ITerminalInstance,
+		_processManager: ITerminalProcessManager,
+		_widgetManager: TerminalWidgetManager,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IModelService private readonly _modelService: IModelService,
-		@IConfigurationService configurationService: IConfigurationService
+		@IConfigurationService private readonly _configurationService: IConfigurationService
 	) {
 		super();
+	}
+
+	xtermReady(xterm: IXtermTerminal & { raw: Terminal }): void {
+		this._terminal = xterm as XtermTerminal;
 		const codeEditorWidgetOptions: ICodeEditorWidgetOptions = {
 			isSimpleWidget: true,
 			contributions: EditorExtensionsRegistry.getSomeEditorContributions([LinkDetector.ID, SelectionClipboardContributionID])
@@ -64,8 +74,8 @@ export class AccessibleBufferWidget extends DisposableStore {
 			quickSuggestions: false,
 			renderWhitespace: 'none',
 			dropIntoEditor: { enabled: true },
-			accessibilitySupport: configurationService.getValue<'auto' | 'off' | 'on'>('editor.accessibilitySupport'),
-			cursorBlinking: configurationService.getValue('terminal.integrated.cursorBlinking'),
+			accessibilitySupport: this._configurationService.getValue<'auto' | 'off' | 'on'>('editor.accessibilitySupport'),
+			cursorBlinking: this._configurationService.getValue('terminal.integrated.cursorBlinking'),
 			readOnly: true
 		};
 		this._accessibleBuffer = document.createElement('div');
@@ -80,29 +90,29 @@ export class AccessibleBufferWidget extends DisposableStore {
 		this._accessibleBuffer.tabIndex = 0;
 		this._editorContainer = document.createElement('div');
 		this._bufferEditor = this._instantiationService.createInstance(CodeEditorWidget, this._editorContainer, editorOptions, codeEditorWidgetOptions);
-		this.add(configurationService.onDidChangeConfiguration(e => {
+		this.add(this._configurationService.onDidChangeConfiguration(e => {
 			if (e.affectedKeys.has(TerminalSettingId.FontFamily)) {
-				this._font = this._terminal.getFont();
+				this._font = xterm.getFont();
 			}
 		}));
 	}
 
 	private _hide(): void {
-		const xtermElement = this._terminal.raw?.element;
-		if (!xtermElement) {
+		const xtermElement = this._terminal?.raw?.element;
+		if (!xtermElement || !this._accessibleBuffer) {
 			return;
 		}
 		this._accessibleBuffer.classList.remove('active');
 		xtermElement.classList.remove('hide');
-		this._terminal.raw.focus();
+		this._terminal?.raw.focus();
 	}
 
 	async show(): Promise<void> {
-		const xtermElement = this._terminal.raw?.element;
-		if (!xtermElement) {
+		const xtermElement = this._terminal?.raw?.element;
+		if (!xtermElement || !this._bufferEditor || !this._accessibleBuffer || !this._editorContainer) {
 			return;
 		}
-		const commandDetection = this._capabilities.get(TerminalCapability.CommandDetection);
+		const commandDetection = this._instance.capabilities.get(TerminalCapability.CommandDetection);
 		const fragment = !!commandDetection ? this._getShellIntegrationContent() : this._getAllContent();
 		const model = await this._getTextModel(URI.from({ scheme: AccessibleBufferConstants.Scheme, fragment }));
 		if (model) {
@@ -150,7 +160,7 @@ export class AccessibleBufferWidget extends DisposableStore {
 	}
 
 	private _getShellIntegrationContent(): string {
-		const commands = this._capabilities.get(TerminalCapability.CommandDetection)?.commands;
+		const commands = this._instance.capabilities.get(TerminalCapability.CommandDetection)?.commands;
 		const sb = new StringBuilder(10000);
 		if (!commands?.length) {
 			return this._getAllContent();
@@ -169,7 +179,10 @@ export class AccessibleBufferWidget extends DisposableStore {
 	private _getAllContent(): string {
 		const lines: string[] = [];
 		let currentLine: string = '';
-		const buffer = this._terminal.raw.buffer.active;
+		const buffer = this._terminal?.raw.buffer.active;
+		if (!buffer) {
+			return '';
+		}
 		const end = buffer.length;
 		for (let i = 0; i < end; i++) {
 			const line = buffer.getLine(i);
