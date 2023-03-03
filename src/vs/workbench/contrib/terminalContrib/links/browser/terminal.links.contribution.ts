@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { TerminalLinkResolverService } from 'vs/workbench/contrib/terminalContrib/links/browser/terminalLinkResolverService';
-import { ITerminalLinkProviderService, ITerminalLinkResolverService } from 'vs/workbench/contrib/terminalContrib/links/browser/links';
+import { TerminalLinkResolver } from 'vs/workbench/contrib/terminalContrib/links/browser/terminalLinkResolver';
+import { ITerminalLinkProviderService } from 'vs/workbench/contrib/terminalContrib/links/browser/links';
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { localize } from 'vs/nls';
@@ -22,9 +22,9 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { TerminalLinkQuickpick } from 'vs/workbench/contrib/terminalContrib/links/browser/terminalLinkQuickpick';
 import { TerminalWidgetManager } from 'vs/workbench/contrib/terminal/browser/widgets/widgetManager';
 import { TerminalLinkProviderService } from 'vs/workbench/contrib/terminalContrib/links/browser/terminalLinkProviderService';
+import { Terminal as RawXtermTerminal } from 'xterm';
 
 registerSingleton(ITerminalLinkProviderService, TerminalLinkProviderService, InstantiationType.Delayed);
-registerSingleton(ITerminalLinkResolverService, TerminalLinkResolverService, InstantiationType.Delayed);
 
 class TerminalLinkContribution extends DisposableStore implements ITerminalContribution {
 	static readonly ID = 'terminal.link';
@@ -37,6 +37,7 @@ class TerminalLinkContribution extends DisposableStore implements ITerminalContr
 	get linkManager(): TerminalLinkManager | undefined { return this._linkManager; }
 
 	private _terminalLinkQuickpick: TerminalLinkQuickpick | undefined;
+	private _linkResolver: TerminalLinkResolver;
 
 	constructor(
 		private readonly _instance: ITerminalInstance,
@@ -46,10 +47,11 @@ class TerminalLinkContribution extends DisposableStore implements ITerminalContr
 		@ITerminalLinkProviderService private readonly _terminalLinkProviderService: ITerminalLinkProviderService
 	) {
 		super();
+		this._linkResolver = this._instantiationService.createInstance(TerminalLinkResolver);
 	}
 
-	xtermReady(xterm: IXtermTerminal): void {
-		const linkManager = this._instantiationService.createInstance(TerminalLinkManager, (xterm as any).raw, this._processManager, this._instance.capabilities);
+	xtermReady(xterm: IXtermTerminal & { raw: RawXtermTerminal }): void {
+		const linkManager = this._instantiationService.createInstance(TerminalLinkManager, xterm.raw, this._processManager, this._instance.capabilities, this._linkResolver);
 		this._processManager.onProcessReady(() => {
 			linkManager.setWidgetManager(this._widgetManager);
 		});

@@ -23,7 +23,7 @@ import { ITerminalQuickFixAddon } from 'vs/workbench/contrib/terminal/browser/xt
 import { IRegisterContributedProfileArgs, IRemoteTerminalAttachTarget, IStartExtensionTerminalRequest, ITerminalBackend, ITerminalConfigHelper, ITerminalFont, ITerminalProcessExtHostProxy } from 'vs/workbench/contrib/terminal/common/terminal';
 import { EditorGroupColumn } from 'vs/workbench/services/editor/common/editorGroupColumn';
 import { ISimpleSelectedSuggestion } from 'vs/workbench/services/suggest/browser/simpleSuggestWidget';
-import { IMarker } from 'xterm';
+import { IMarker, Terminal as RawXtermTerminal } from 'xterm';
 
 export const ITerminalService = createDecorator<ITerminalService>('terminalService');
 export const ITerminalEditorService = createDecorator<ITerminalEditorService>('terminalEditorService');
@@ -36,7 +36,7 @@ export const ITerminalInstanceService = createDecorator<ITerminalInstanceService
  * been initialized.
  */
 export interface ITerminalContribution extends IDisposable {
-	xtermReady?(xterm: IXtermTerminal): void;
+	xtermReady?(xterm: IXtermTerminal & { raw: RawXtermTerminal }): void;
 }
 
 /**

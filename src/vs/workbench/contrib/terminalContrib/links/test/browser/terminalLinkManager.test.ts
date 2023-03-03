@@ -22,6 +22,7 @@ import { ITerminalConfiguration, ITerminalProcessManager } from 'vs/workbench/co
 import { TestViewDescriptorService } from 'vs/workbench/contrib/terminal/test/browser/xterm/xtermTerminal.test';
 import { TestStorageService } from 'vs/workbench/test/common/workbenchTestServices';
 import { ILink, Terminal } from 'xterm';
+import { TerminalLinkResolver } from 'vs/workbench/contrib/terminalContrib/links/browser/terminalLinkResolver';
 
 const defaultTerminalConfig: Partial<ITerminalConfiguration> = {
 	fontFamily: 'monospace',
@@ -90,7 +91,7 @@ suite('TerminalLinkManager', () => {
 			get<T extends TerminalCapability>(capability: T): ITerminalCapabilityImplMap[T] | undefined {
 				return undefined;
 			}
-		} as Partial<ITerminalCapabilityStore> as any);
+		} as Partial<ITerminalCapabilityStore> as any, instantiationService.createInstance(TerminalLinkResolver));
 	});
 
 	suite('getLinks and open recent link', () => {

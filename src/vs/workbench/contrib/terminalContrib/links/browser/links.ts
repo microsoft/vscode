@@ -26,9 +26,7 @@ export interface ITerminalLinkProviderService {
 	registerLinkProvider(provider: ITerminalExternalLinkProvider): IDisposable;
 }
 
-export const ITerminalLinkResolverService = createDecorator<ITerminalLinkResolverService>('terminalLinkResolverService');
-export interface ITerminalLinkResolverService {
-	readonly _serviceBrand: undefined;
+export interface ITerminalLinkResolver {
 	resolveLink(processManager: Pick<ITerminalProcessManager, 'initialCwd' | 'os' | 'remoteAuthority' | 'userHome'> & { backend?: Pick<ITerminalBackend, 'getWslPath'> }, link: string, uri?: URI): Promise<ResolvedLink>;
 }
 
