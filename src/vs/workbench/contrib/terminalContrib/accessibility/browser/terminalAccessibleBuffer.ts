@@ -16,12 +16,11 @@ import { LinkDetector } from 'vs/editor/contrib/links/browser/links';
 import { localize } from 'vs/nls';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
+import { ITerminalCapabilityStore, TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
 import { TerminalSettingId } from 'vs/platform/terminal/common/terminal';
 import { SelectionClipboardContributionID } from 'vs/workbench/contrib/codeEditor/browser/selectionClipboard';
 import { getSimpleEditorOptions } from 'vs/workbench/contrib/codeEditor/browser/simpleEditorOptions';
-import { TerminalWidgetManager } from 'vs/workbench/contrib/terminal/browser/widgets/widgetManager';
-import { ITerminalFont, ITerminalProcessManager } from 'vs/workbench/contrib/terminal/common/terminal';
+import { ITerminalFont } from 'vs/workbench/contrib/terminal/common/terminal';
 import { IXtermTerminal } from 'vs/workbench/contrib/terminal/browser/terminal';
 import type { Terminal } from 'xterm';
 
@@ -43,8 +42,7 @@ export class AccessibleBufferWidget extends DisposableStore {
 
 	constructor(
 		private readonly _xterm: IXtermTerminal & { raw: Terminal },
-		private readonly _processManager: ITerminalProcessManager,
-		widgetManager: TerminalWidgetManager,
+		private readonly _capabilities: ITerminalCapabilityStore,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IModelService private readonly _modelService: IModelService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService
@@ -98,8 +96,8 @@ export class AccessibleBufferWidget extends DisposableStore {
 	}
 
 	async show(): Promise<void> {
-		const commandDetection = this._processManager.capabilities.get(TerminalCapability.CommandDetection);
-		const fragment = commandDetection ? this._getShellIntegrationContent() : this._getAllContent();
+		const commandDetection = this._capabilities.get(TerminalCapability.CommandDetection);
+		const fragment = !!commandDetection ? this._getShellIntegrationContent() : this._getAllContent();
 		const model = await this._getTextModel(URI.from({ scheme: AccessibleBufferConstants.Scheme, fragment }));
 		if (model) {
 			this._bufferEditor.setModel(model);
@@ -145,7 +143,7 @@ export class AccessibleBufferWidget extends DisposableStore {
 	}
 
 	private _getShellIntegrationContent(): string {
-		const commands = this._processManager.capabilities.get(TerminalCapability.CommandDetection)?.commands;
+		const commands = this._capabilities.get(TerminalCapability.CommandDetection)?.commands;
 		const sb = new StringBuilder(10000);
 		if (!commands?.length) {
 			return this._getAllContent();
