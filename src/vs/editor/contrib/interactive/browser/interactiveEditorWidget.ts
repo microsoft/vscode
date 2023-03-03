@@ -5,11 +5,11 @@
 
 import 'vs/css!./interactiveEditor';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
-import { DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
+import { DisposableStore, dispose, toDisposable } from 'vs/base/common/lifecycle';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditorLayoutInfo, EditorOption } from 'vs/editor/common/config/editorOptions';
 import { IRange, Range } from 'vs/editor/common/core/range';
-import { IEditorContribution } from 'vs/editor/common/editorCommon';
+import { IEditorContribution, IEditorDecorationsCollection } from 'vs/editor/common/editorCommon';
 import { localize } from 'vs/nls';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -30,7 +30,7 @@ import { IModelService } from 'vs/editor/common/services/model';
 import { URI } from 'vs/base/common/uri';
 import { EmbeddedCodeEditorWidget } from 'vs/editor/browser/widget/embeddedCodeEditorWidget';
 import { GhostTextController } from 'vs/editor/contrib/inlineCompletions/browser/ghostTextController';
-import { MenuWorkbenchToolBar } from 'vs/platform/actions/browser/toolbar';
+import { MenuWorkbenchToolBar, WorkbenchToolBar } from 'vs/platform/actions/browser/toolbar';
 import { ProgressBar } from 'vs/base/browser/ui/progressbar/progressbar';
 import { SuggestController } from 'vs/editor/contrib/suggest/browser/suggestController';
 import { Position } from 'vs/editor/common/core/position';
@@ -41,6 +41,9 @@ import { IEditorWorkerService } from 'vs/editor/common/services/editorWorker';
 import { ILogService } from 'vs/platform/log/common/log';
 import { isFalsyOrEmpty } from 'vs/base/common/arrays';
 import { StopWatch } from 'vs/base/common/stopwatch';
+import { Action, IAction } from 'vs/base/common/actions';
+import { Codicon } from 'vs/base/common/codicons';
+import { ThemeIcon } from 'vs/base/common/themables';
 
 
 class InteractiveEditorWidget {
@@ -57,7 +60,7 @@ class InteractiveEditorWidget {
 						h('div.editor-placeholder@placeholder'),
 						h('div.editor-container@editor'),
 					]),
-					h('ol.history.hidden@history'),
+					h('div.history.hidden@history'),
 				]),
 				h('div.toolbar@rhsToolbar'),
 			]),
@@ -66,6 +69,7 @@ class InteractiveEditorWidget {
 	);
 
 	private readonly _store = new DisposableStore();
+	private readonly _historyStore = new DisposableStore();
 
 	private readonly _inputEditor: ICodeEditor;
 	private readonly _inputModel: ITextModel;
@@ -151,7 +155,6 @@ class InteractiveEditorWidget {
 		this._inputEditor.setModel(this._inputModel);
 
 
-
 		// show/hide placeholder depending on text model being empty
 		// content height
 
@@ -193,6 +196,7 @@ class InteractiveEditorWidget {
 
 	dispose(): void {
 		this._store.dispose();
+		this._historyStore.dispose();
 		this._ctxInputEmpty.reset();
 		this._ctxHistoryVisible.reset();
 	}
@@ -263,13 +267,6 @@ class InteractiveEditorWidget {
 				this.acceptInput = InteractiveEditorWidget._noop;
 				this._cancelInput = InteractiveEditorWidget._noop;
 				resolve({ value: newValue, preview });
-
-				const entry = document.createElement('li');
-				entry.classList.add('history-entry');
-				entry.innerText = newValue;
-
-				this._elements.history.insertBefore(entry, this._elements.history.firstChild);
-				this._onDidChangeHeight.fire();
 			};
 
 			disposeOnDone.add(token.onCancellationRequested(() => this._cancelInput()));
@@ -321,14 +318,47 @@ class InteractiveEditorWidget {
 		this._onDidChangeHeight.fire();
 	}
 
-	reset() {
-		this._ctxInputEmpty.reset();
+	createHistoryEntry(value: string) {
 
-		// empty history
+		const { root, label, actions } = h('div.history-entry@item', [
+			h('div.label@label'),
+			h('div.actions@actions'),
+		]);
+
+		label.innerText = value;
+
+		const toolbar = this._instantiationService.createInstance(WorkbenchToolBar, actions, {});
+		this._historyStore.add(toolbar);
+
+		this._elements.history.insertBefore(root, this._elements.history.firstChild);
+		if (this._isExpanded) {
+			this._onDidChangeHeight.fire();
+		}
+
+		return {
+			dispose: () => {
+				root.remove();
+				if (this._isExpanded) {
+					this._onDidChangeHeight.fire();
+				}
+			},
+			updateActions(actions: IAction[]) {
+				toolbar.setActions(actions);
+			}
+		};
+	}
+
+	clearHistory() {
+		this._historyStore.clear();
 		this._isExpanded = false;
 		this._elements.history.classList.toggle('hidden', true);
 		this._ctxHistoryVisible.reset();
 		reset(this._elements.history);
+	}
+
+	reset() {
+		this._ctxInputEmpty.reset();
+		this.clearHistory();
 	}
 
 	focus() {
@@ -457,6 +487,9 @@ export class InteractiveEditorController implements IEditorContribution {
 		blockPadding: [1, 0, 1, 4]
 	});
 
+	private static _decoEdits = ModelDecorationOptions.register({
+		description: 'interactive-editor-edits'
+	});
 
 	private static _promptHistory: string[] = [];
 	private _historyOffset: number = -1;
@@ -517,8 +550,10 @@ export class InteractiveEditorController implements IEditorContribution {
 
 		this._logService.trace('[IE] NEW session', provider.debugName);
 
-		const decoBackground = this._editor.createDecorationsCollection();
-		const decoPreview = this._editor.createDecorationsCollection();
+		const decoBorder = this._editor.createDecorationsCollection();
+		const decoInlineDiff = this._editor.createDecorationsCollection();
+
+		const decoEdits: [deco: IEditorDecorationsCollection, altId: number][] = [];
 
 		const decoWholeRange = this._editor.createDecorationsCollection();
 		decoWholeRange.set([{
@@ -531,6 +566,33 @@ export class InteractiveEditorController implements IEditorContribution {
 
 		const listener = new DisposableStore();
 		this._editor.onDidChangeModel(this._ctsSession.cancel, this._ctsSession, listener);
+
+		class UndoStepAction extends Action {
+
+			static all: UndoStepAction[] = [];
+
+			static updateUndoSteps() {
+				UndoStepAction.all.forEach(action => {
+					const isMyAltId = action.myAlternativeVersionId === action.model.getAlternativeVersionId();
+					action.enabled = isMyAltId;
+				});
+			}
+
+			readonly myAlternativeVersionId: number;
+
+			constructor(readonly model: ITextModel) {
+				super(`undo@${model.getAlternativeVersionId()}`, localize('undoStep', "Undo This Step"), ThemeIcon.asClassName(Codicon.discard), false);
+				this.myAlternativeVersionId = model.getAlternativeVersionId();
+				UndoStepAction.all.push(this);
+				UndoStepAction.updateUndoSteps();
+			}
+
+			override async run() {
+				this.model.undo();
+				UndoStepAction.updateUndoSteps();
+			}
+		}
+
 
 		// CANCEL if the document has changed outside the current range
 		this._editor.onDidChangeModelContent(e => {
@@ -551,11 +613,14 @@ export class InteractiveEditorController implements IEditorContribution {
 			if (cancel) {
 				this._ctsSession.cancel();
 				this._logService.trace('[IE] CANCEL because of model change OUTSIDE range');
+				return;
 			}
 
+			//
+			UndoStepAction.updateUndoSteps();
+
+
 		}, undefined, listener);
-
-
 
 		do {
 
@@ -570,7 +635,7 @@ export class InteractiveEditorController implements IEditorContribution {
 				options: InteractiveEditorController._decoBlock
 			}];
 
-			decoBackground.set(newDecorations);
+			decoBorder.set(newDecorations);
 
 			this._historyOffset = -1;
 			const input = await this._zone.getInput(wholeRange.collapseToEnd(), placeholder, value, this._ctsSession.token);
@@ -578,6 +643,12 @@ export class InteractiveEditorController implements IEditorContribution {
 			if (!input || !input.value) {
 				continue;
 			}
+
+			const historyEntry = this._zone.widget.createHistoryEntry(input.value);
+
+			historyEntry.updateActions([new Action('cancelRequest', localize('cancel', "Cancel Request"), ThemeIcon.asClassName(Codicon.debugStop), true, () => {
+				this._ctsRequest?.cancel();
+			})]);
 
 			this._ctsRequest?.dispose(true);
 			this._ctsRequest = new CancellationTokenSource(this._ctsSession.token);
@@ -628,8 +699,9 @@ export class InteractiveEditorController implements IEditorContribution {
 			const moreMinimalEdits = (await this._editorWorkerService.computeMoreMinimalEdits(this._editor.getModel().uri, reply.edits, true)) ?? reply.edits;
 
 			// clear old preview
-			decoPreview.clear();
+			decoInlineDiff.clear();
 
+			const altIdNow = this._editor.getModel().getAlternativeVersionId();
 			const undoEdits: IValidEditOperation[] = [];
 			this._editor.pushUndoStop();
 			this._editor.executeEdits(
@@ -670,8 +742,18 @@ export class InteractiveEditorController implements IEditorContribution {
 						}
 					});
 				}
-				decoPreview.set(decorations);
+				decoInlineDiff.set(decorations);
 			}
+
+			historyEntry.updateActions([new UndoStepAction(this._editor.getModel())]);
+
+			// keep edits
+			decoEdits.push([this._editor.createDecorationsCollection(undoEdits.map(edit => {
+				return {
+					range: edit.range,
+					options: InteractiveEditorController._decoEdits
+				};
+			})), altIdNow]);
 
 			if (!InteractiveEditorController._promptHistory.includes(input.value)) {
 				InteractiveEditorController._promptHistory.unshift(input.value);
@@ -682,11 +764,13 @@ export class InteractiveEditorController implements IEditorContribution {
 
 		// done, cleanup
 		decoWholeRange.clear();
-		decoBackground.clear();
-		decoPreview.clear();
+		decoBorder.clear();
+		decoInlineDiff.clear();
 
 		listener.dispose();
 		session.dispose?.();
+
+		dispose(UndoStepAction.all);
 
 		this._zone.hide();
 		this._editor.focus();
