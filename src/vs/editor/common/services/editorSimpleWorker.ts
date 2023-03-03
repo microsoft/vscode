@@ -461,7 +461,7 @@ export class EditorSimpleWorker implements IRequestHandler, IDisposable {
 
 	private static readonly _diffLimit = 100000;
 
-	public async computeMoreMinimalEdits(modelUrl: string, edits: TextEdit[]): Promise<TextEdit[]> {
+	public async computeMoreMinimalEdits(modelUrl: string, edits: TextEdit[], pretty: boolean): Promise<TextEdit[]> {
 		const model = this._getModel(modelUrl);
 		if (!model) {
 			return edits;
@@ -506,7 +506,7 @@ export class EditorSimpleWorker implements IRequestHandler, IDisposable {
 			}
 
 			// compute diff between original and edit.text
-			const changes = stringDiff(original, text, false);
+			const changes = stringDiff(original, text, pretty);
 			const editOffset = model.offsetAt(Range.lift(range).getStartPosition());
 
 			for (const change of changes) {
