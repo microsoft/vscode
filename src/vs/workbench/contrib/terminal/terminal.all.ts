@@ -14,5 +14,6 @@ import 'vs/workbench/contrib/terminal/browser/terminalView';
 // Terminal contributions - Standalone extensions to the terminal, these cannot be imported from the
 // primary workbench contribution)
 import 'vs/workbench/contrib/terminalContrib/accessibility/browser/terminal.accessibility.contribution';
+import 'vs/workbench/contrib/terminalContrib/developer/browser/terminal.developer.contribution';
 import 'vs/workbench/contrib/terminalContrib/find/browser/terminal.find.contribution';
 import 'vs/workbench/contrib/terminalContrib/links/browser/terminal.links.contribution';
