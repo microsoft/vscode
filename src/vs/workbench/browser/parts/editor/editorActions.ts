@@ -823,44 +823,44 @@ export class CloseEditorInAllGroupsAction extends Action2 {
 	}
 }
 
-abstract class AbstractMoveCopyGroupAction extends Action {
+abstract class AbstractMoveCopyGroupAction extends Action2 {
 
 	constructor(
-		id: string,
-		label: string,
+		desc: Readonly<IAction2Options>,
 		private direction: GroupDirection,
-		private isMove: boolean,
-		private editorGroupService: IEditorGroupsService
+		private isMove: boolean
 	) {
-		super(id, label);
+		super(desc);
 	}
 
-	override async run(context?: IEditorIdentifier): Promise<void> {
+	override async run(accessor: ServicesAccessor, context?: IEditorIdentifier): Promise<void> {
+		const editorGroupService = accessor.get(IEditorGroupsService);
+
 		let sourceGroup: IEditorGroup | undefined;
 		if (context && typeof context.groupId === 'number') {
-			sourceGroup = this.editorGroupService.getGroup(context.groupId);
+			sourceGroup = editorGroupService.getGroup(context.groupId);
 		} else {
-			sourceGroup = this.editorGroupService.activeGroup;
+			sourceGroup = editorGroupService.activeGroup;
 		}
 
 		if (sourceGroup) {
 			let resultGroup: IEditorGroup | undefined = undefined;
 			if (this.isMove) {
-				const targetGroup = this.findTargetGroup(sourceGroup);
+				const targetGroup = this.findTargetGroup(editorGroupService, sourceGroup);
 				if (targetGroup) {
-					resultGroup = this.editorGroupService.moveGroup(sourceGroup, targetGroup, this.direction);
+					resultGroup = editorGroupService.moveGroup(sourceGroup, targetGroup, this.direction);
 				}
 			} else {
-				resultGroup = this.editorGroupService.copyGroup(sourceGroup, sourceGroup, this.direction);
+				resultGroup = editorGroupService.copyGroup(sourceGroup, sourceGroup, this.direction);
 			}
 
 			if (resultGroup) {
-				this.editorGroupService.activateGroup(resultGroup);
+				editorGroupService.activateGroup(resultGroup);
 			}
 		}
 	}
 
-	private findTargetGroup(sourceGroup: IEditorGroup): IEditorGroup | undefined {
+	private findTargetGroup(editorGroupService: IEditorGroupsService, sourceGroup: IEditorGroup): IEditorGroup | undefined {
 		const targetNeighbours: GroupDirection[] = [this.direction];
 
 		// Allow the target group to be in alternative locations to support more
@@ -878,7 +878,7 @@ abstract class AbstractMoveCopyGroupAction extends Action {
 		}
 
 		for (const targetNeighbour of targetNeighbours) {
-			const targetNeighbourGroup = this.editorGroupService.findGroup({ direction: targetNeighbour }, sourceGroup);
+			const targetNeighbourGroup = editorGroupService.findGroup({ direction: targetNeighbour }, sourceGroup);
 			if (targetNeighbourGroup) {
 				return targetNeighbourGroup;
 			}
@@ -891,136 +891,132 @@ abstract class AbstractMoveCopyGroupAction extends Action {
 abstract class AbstractMoveGroupAction extends AbstractMoveCopyGroupAction {
 
 	constructor(
-		id: string,
-		label: string,
-		direction: GroupDirection,
-		editorGroupService: IEditorGroupsService
+		desc: Readonly<IAction2Options>,
+		direction: GroupDirection
 	) {
-		super(id, label, direction, true, editorGroupService);
+		super(desc, direction, true);
 	}
 }
 
 export class MoveGroupLeftAction extends AbstractMoveGroupAction {
 
-	static readonly ID = 'workbench.action.moveActiveEditorGroupLeft';
-	static readonly LABEL = localize('moveActiveGroupLeft', "Move Editor Group Left");
-
-	constructor(
-		id: string,
-		label: string,
-		@IEditorGroupsService editorGroupService: IEditorGroupsService
-	) {
-		super(id, label, GroupDirection.LEFT, editorGroupService);
+	constructor() {
+		super({
+			id: 'workbench.action.moveActiveEditorGroupLeft',
+			title: { value: localize('moveActiveGroupLeft', "Move Editor Group Left"), original: 'Move Editor Group Left' },
+			f1: true,
+			keybinding: {
+				weight: KeybindingWeight.WorkbenchContrib,
+				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyCode.LeftArrow)
+			},
+			category: Categories.View
+		}, GroupDirection.LEFT);
 	}
 }
 
 export class MoveGroupRightAction extends AbstractMoveGroupAction {
 
-	static readonly ID = 'workbench.action.moveActiveEditorGroupRight';
-	static readonly LABEL = localize('moveActiveGroupRight', "Move Editor Group Right");
-
-	constructor(
-		id: string,
-		label: string,
-		@IEditorGroupsService editorGroupService: IEditorGroupsService
-	) {
-		super(id, label, GroupDirection.RIGHT, editorGroupService);
+	constructor() {
+		super({
+			id: 'workbench.action.moveActiveEditorGroupRight',
+			title: { value: localize('moveActiveGroupRight', "Move Editor Group Right"), original: 'Move Editor Group Right' },
+			f1: true,
+			keybinding: {
+				weight: KeybindingWeight.WorkbenchContrib,
+				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyCode.RightArrow)
+			},
+			category: Categories.View
+		}, GroupDirection.RIGHT);
 	}
 }
 
 export class MoveGroupUpAction extends AbstractMoveGroupAction {
 
-	static readonly ID = 'workbench.action.moveActiveEditorGroupUp';
-	static readonly LABEL = localize('moveActiveGroupUp', "Move Editor Group Up");
-
-	constructor(
-		id: string,
-		label: string,
-		@IEditorGroupsService editorGroupService: IEditorGroupsService
-	) {
-		super(id, label, GroupDirection.UP, editorGroupService);
+	constructor() {
+		super({
+			id: 'workbench.action.moveActiveEditorGroupUp',
+			title: { value: localize('moveActiveGroupUp', "Move Editor Group Up"), original: 'Move Editor Group Up' },
+			f1: true,
+			keybinding: {
+				weight: KeybindingWeight.WorkbenchContrib,
+				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyCode.UpArrow)
+			},
+			category: Categories.View
+		}, GroupDirection.UP);
 	}
 }
 
 export class MoveGroupDownAction extends AbstractMoveGroupAction {
 
-	static readonly ID = 'workbench.action.moveActiveEditorGroupDown';
-	static readonly LABEL = localize('moveActiveGroupDown', "Move Editor Group Down");
-
-	constructor(
-		id: string,
-		label: string,
-		@IEditorGroupsService editorGroupService: IEditorGroupsService
-	) {
-		super(id, label, GroupDirection.DOWN, editorGroupService);
+	constructor() {
+		super({
+			id: 'workbench.action.moveActiveEditorGroupDown',
+			title: { value: localize('moveActiveGroupDown', "Move Editor Group Down"), original: 'Move Editor Group Down' },
+			f1: true,
+			keybinding: {
+				weight: KeybindingWeight.WorkbenchContrib,
+				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyCode.DownArrow)
+			},
+			category: Categories.View
+		}, GroupDirection.DOWN);
 	}
 }
 
 abstract class AbstractDuplicateGroupAction extends AbstractMoveCopyGroupAction {
 
 	constructor(
-		id: string,
-		label: string,
-		direction: GroupDirection,
-		editorGroupService: IEditorGroupsService
+		desc: Readonly<IAction2Options>,
+		direction: GroupDirection
 	) {
-		super(id, label, direction, false, editorGroupService);
+		super(desc, direction, false);
 	}
 }
 
 export class DuplicateGroupLeftAction extends AbstractDuplicateGroupAction {
 
-	static readonly ID = 'workbench.action.duplicateActiveEditorGroupLeft';
-	static readonly LABEL = localize('duplicateActiveGroupLeft', "Duplicate Editor Group Left");
-
-	constructor(
-		id: string,
-		label: string,
-		@IEditorGroupsService editorGroupService: IEditorGroupsService
-	) {
-		super(id, label, GroupDirection.LEFT, editorGroupService);
+	constructor() {
+		super({
+			id: 'workbench.action.duplicateActiveEditorGroupLeft',
+			title: { value: localize('duplicateActiveGroupLeft', "Duplicate Editor Group Left"), original: 'Duplicate Editor Group Left' },
+			f1: true,
+			category: Categories.View
+		}, GroupDirection.LEFT);
 	}
 }
 
 export class DuplicateGroupRightAction extends AbstractDuplicateGroupAction {
 
-	static readonly ID = 'workbench.action.duplicateActiveEditorGroupRight';
-	static readonly LABEL = localize('duplicateActiveGroupRight', "Duplicate Editor Group Right");
-
-	constructor(
-		id: string,
-		label: string,
-		@IEditorGroupsService editorGroupService: IEditorGroupsService
-	) {
-		super(id, label, GroupDirection.RIGHT, editorGroupService);
+	constructor() {
+		super({
+			id: 'workbench.action.duplicateActiveEditorGroupRight',
+			title: { value: localize('duplicateActiveGroupRight', "Duplicate Editor Group Right"), original: 'Duplicate Editor Group Right' },
+			f1: true,
+			category: Categories.View
+		}, GroupDirection.RIGHT);
 	}
 }
 
 export class DuplicateGroupUpAction extends AbstractDuplicateGroupAction {
 
-	static readonly ID = 'workbench.action.duplicateActiveEditorGroupUp';
-	static readonly LABEL = localize('duplicateActiveGroupUp', "Duplicate Editor Group Up");
-
-	constructor(
-		id: string,
-		label: string,
-		@IEditorGroupsService editorGroupService: IEditorGroupsService
-	) {
-		super(id, label, GroupDirection.UP, editorGroupService);
+	constructor() {
+		super({
+			id: 'workbench.action.duplicateActiveEditorGroupUp',
+			title: { value: localize('duplicateActiveGroupUp', "Duplicate Editor Group Up"), original: 'Duplicate Editor Group Up' },
+			f1: true,
+			category: Categories.View
+		}, GroupDirection.UP);
 	}
 }
 
 export class DuplicateGroupDownAction extends AbstractDuplicateGroupAction {
 
-	static readonly ID = 'workbench.action.duplicateActiveEditorGroupDown';
-	static readonly LABEL = localize('duplicateActiveGroupDown', "Duplicate Editor Group Down");
-
-	constructor(
-		id: string,
-		label: string,
-		@IEditorGroupsService editorGroupService: IEditorGroupsService
-	) {
-		super(id, label, GroupDirection.DOWN, editorGroupService);
+	constructor() {
+		super({
+			id: 'workbench.action.duplicateActiveEditorGroupDown',
+			title: { value: localize('duplicateActiveGroupDown', "Duplicate Editor Group Down"), original: 'Duplicate Editor Group Down' },
+			f1: true,
+			category: Categories.View
+		}, GroupDirection.DOWN);
 	}
 }
 
