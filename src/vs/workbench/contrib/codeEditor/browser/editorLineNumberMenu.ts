@@ -47,7 +47,7 @@ export class EditorLineNumberContextMenu extends Disposable implements IEditorCo
 			if (contribution) {
 				actions.push(...contribution.getContextMenuActionsAtPosition(lineNumber, model));
 			}
-			const menuActions = menu.getActions();
+			const menuActions = menu.getActions({ arg: { lineNumber, uri: model.uri }, shouldForwardArgs: true });
 			if (menuActions.length > 0) {
 				actions = Separator.join(...[actions], ...menuActions.map(a => a[1]));
 			}
