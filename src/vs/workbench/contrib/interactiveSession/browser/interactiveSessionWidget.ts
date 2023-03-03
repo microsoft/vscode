@@ -265,6 +265,7 @@ export class InteractiveSessionWidget extends Disposable {
 		options.lineHeight = 20;
 		options.padding = { top: 8, bottom: 7 };
 		options.cursorWidth = 1;
+		options.wrappingStrategy = 'advanced';
 
 		this.inputEditor = this._register(scopedInstantiationService.createInstance(CodeEditorWidget, inputContainer, options, getSimpleCodeEditorWidgetOptions()));
 
