@@ -99,7 +99,7 @@ export class AccessibleBufferWidget extends DisposableStore {
 
 	async show(): Promise<void> {
 		const commandDetection = this._processManager.capabilities.get(TerminalCapability.CommandDetection);
-		const fragment = !!commandDetection ? this._getShellIntegrationContent() : this._getAllContent();
+		const fragment = commandDetection ? this._getShellIntegrationContent() : this._getAllContent();
 		const model = await this._getTextModel(URI.from({ scheme: AccessibleBufferConstants.Scheme, fragment }));
 		if (model) {
 			this._bufferEditor.setModel(model);
