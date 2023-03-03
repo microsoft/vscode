@@ -205,7 +205,7 @@ class InteractiveEditorWidget {
 		this._ctxHistoryVisible.reset();
 	}
 
-	getDomNode(): HTMLElement {
+	get domNode(): HTMLElement {
 		return this._elements.root;
 	}
 
@@ -418,7 +418,7 @@ export class InteractiveEditorZoneWidget extends ZoneWidget {
 	}
 
 	protected override _fillContainer(container: HTMLElement): void {
-		container.appendChild(this.widget.getDomNode());
+		container.appendChild(this.widget.domNode);
 	}
 
 	protected override _getWidth(info: EditorLayoutInfo): number {
@@ -444,8 +444,8 @@ export class InteractiveEditorZoneWidget extends ZoneWidget {
 
 		const width = widthInPixel - (spaceLeft + spaceRight);
 		this._dimension = new Dimension(width, heightInPixel);
-		this.widget.getDomNode().style.marginLeft = `${spaceLeft}px`;
-		this.widget.getDomNode().style.marginRight = `${spaceRight}px`;
+		this.widget.domNode.style.marginLeft = `${spaceLeft}px`;
+		this.widget.domNode.style.marginRight = `${spaceRight}px`;
 		this.widget.layout(this._dimension);
 	}
 
