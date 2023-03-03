@@ -15,7 +15,7 @@ import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/c
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ZoneWidget } from 'vs/editor/contrib/zoneWidget/browser/zoneWidget';
 import { assertType } from 'vs/base/common/types';
-import { IInteractiveEditorResponse, IInteractiveEditorService, CTX_INTERACTIVE_EDITOR_FOCUSED, CTX_INTERACTIVE_EDITOR_HAS_ACTIVE_REQUEST, CTX_INTERACTIVE_EDITOR_INNER_CURSOR_FIRST, CTX_INTERACTIVE_EDITOR_INNER_CURSOR_LAST, CTX_INTERACTIVE_EDITOR_EMPTY, CTX_INTERACTIVE_EDITOR_OUTER_CURSOR_POSITION, CTX_INTERACTIVE_EDITOR_PREVIEW, CTX_INTERACTIVE_EDITOR_VISIBLE, MENU_INTERACTIVE_EDITOR_WIDGET, CTX_INTERACTIVE_EDITOR_HISTORY_VISIBLE, MENU_INTERACTIVE_EDITOR_WIDGET_LHS, IInteractiveEditorRequest } from 'vs/editor/contrib/interactive/common/interactiveEditor';
+import { IInteractiveEditorResponse, IInteractiveEditorService, CTX_INTERACTIVE_EDITOR_FOCUSED, CTX_INTERACTIVE_EDITOR_HAS_ACTIVE_REQUEST, CTX_INTERACTIVE_EDITOR_INNER_CURSOR_FIRST, CTX_INTERACTIVE_EDITOR_INNER_CURSOR_LAST, CTX_INTERACTIVE_EDITOR_EMPTY, CTX_INTERACTIVE_EDITOR_OUTER_CURSOR_POSITION, CTX_INTERACTIVE_EDITOR_PREVIEW, CTX_INTERACTIVE_EDITOR_VISIBLE, MENU_INTERACTIVE_EDITOR_WIDGET, CTX_INTERACTIVE_EDITOR_HISTORY_VISIBLE, MENU_INTERACTIVE_EDITOR_WIDGET_LHS, IInteractiveEditorRequest, IInteractiveEditorSession } from 'vs/editor/contrib/interactive/common/interactiveEditor';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { Iterable } from 'vs/base/common/iterator';
 import { ICursorStateComputer, IModelDeltaDecoration, ITextModel, IValidEditOperation } from 'vs/editor/common/model';
@@ -44,6 +44,8 @@ import { StopWatch } from 'vs/base/common/stopwatch';
 import { Action, IAction } from 'vs/base/common/actions';
 import { Codicon } from 'vs/base/common/codicons';
 import { ThemeIcon } from 'vs/base/common/themables';
+import { LRUCache } from 'vs/base/common/map';
+
 
 interface IHistoryEntry {
 	updateVisibility(visible: boolean): void;
@@ -507,6 +509,26 @@ class UndoStepAction extends Action {
 	}
 }
 
+type Exchange = { req: IInteractiveEditorRequest; res: IInteractiveEditorResponse };
+export type Recording = { when: Date; session: IInteractiveEditorSession; value: string; exchanges: Exchange[] };
+
+class SessionRecorder {
+
+	private readonly _data = new LRUCache<IInteractiveEditorSession, Recording>(3);
+
+	add(session: IInteractiveEditorSession, model: ITextModel) {
+		this._data.set(session, { when: new Date(), session, value: model.getValue(), exchanges: [] });
+	}
+
+	addExchange(session: IInteractiveEditorSession, req: IInteractiveEditorRequest, res: IInteractiveEditorResponse) {
+		this._data.get(session)?.exchanges.push({ req, res });
+	}
+
+	getAll(): Recording[] {
+		return [...this._data.values()];
+	}
+}
+
 export class InteractiveEditorController implements IEditorContribution {
 
 	static ID = 'interactiveEditor';
@@ -526,6 +548,7 @@ export class InteractiveEditorController implements IEditorContribution {
 	private _historyOffset: number = -1;
 
 	private readonly _store = new DisposableStore();
+	private readonly _recorder = new SessionRecorder();
 	private readonly _zone: InteractiveEditorZoneWidget;
 	private readonly _ctxShowPreview: IContextKey<boolean>;
 	private readonly _ctxHasActiveRequest: IContextKey<boolean>;
@@ -577,7 +600,7 @@ export class InteractiveEditorController implements IEditorContribution {
 			this._logService.trace('[IE] NO session', provider.debugName);
 			return;
 		}
-
+		this._recorder.add(session, textModel);
 		this._logService.trace('[IE] NEW session', provider.debugName);
 
 		const blockDecoration = this._editor.createDecorationsCollection();
@@ -708,6 +731,7 @@ export class InteractiveEditorController implements IEditorContribution {
 			// make edits more minimal
 			const moreMinimalEdits = (await this._editorWorkerService.computeMoreMinimalEdits(textModel.uri, reply.edits, true));
 			this._logService.trace('[IE] edits from PROVIDER and after making them MORE MINIMAL', provider.debugName, reply.edits, moreMinimalEdits);
+			this._recorder.addExchange(session, request, reply);
 
 			// inline diff
 			inlineDiffDecorations.clear();
@@ -839,5 +863,9 @@ export class InteractiveEditorController implements IEditorContribution {
 
 	toggleHistory(): void {
 		this._zone.widget.toggleHistory();
+	}
+
+	recordings() {
+		return this._recorder.getAll();
 	}
 }
