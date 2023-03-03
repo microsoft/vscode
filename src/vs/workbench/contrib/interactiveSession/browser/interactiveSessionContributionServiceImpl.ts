@@ -41,6 +41,10 @@ const interactiveSessionExtensionPoint = extensionsRegistry.ExtensionsRegistry.r
 					description: localize('vscode.extension.contributes.interactiveSession.icon', "An icon for this Interactive Session provider."),
 					type: 'string'
 				},
+				when: {
+					description: localize('vscode.extension.contributes.interactiveSession.when', "A condition which must be true to enable this Interactive Session provider."),
+					type: 'string'
+				},
 			}
 		}
 	}
@@ -115,7 +119,7 @@ export class InteractiveSessionContributionService implements IInteractiveSessio
 		});
 
 		// "Open Interactive Session Editor" Action
-		const openEditor = registerAction2(getOpenInteractiveSessionEditorAction(providerDescriptor.id, providerDescriptor.label));
+		const openEditor = registerAction2(getOpenInteractiveSessionEditorAction(providerDescriptor.id, providerDescriptor.label, providerDescriptor.when));
 
 		return {
 			dispose: () => {
