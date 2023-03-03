@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Action, IAction, SubmenuAction } from 'vs/base/common/actions';
+import { IAction, SubmenuAction } from 'vs/base/common/actions';
 import { ThemeIcon } from 'vs/base/common/themables';
 import { Event, MicrotaskEmitter } from 'vs/base/common/event';
 import { DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
@@ -12,9 +12,8 @@ import { ICommandAction, ICommandActionTitle, Icon, ILocalizedString } from 'vs/
 import { Categories } from 'vs/platform/action/common/actionCommonCategories';
 import { CommandsRegistry, ICommandHandlerDescription, ICommandService } from 'vs/platform/commands/common/commands';
 import { ContextKeyExpr, ContextKeyExpression, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { SyncDescriptor, SyncDescriptor0 } from 'vs/platform/instantiation/common/descriptors';
-import { BrandedService, createDecorator, IConstructorSignature, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { IKeybindingRule, IKeybindings, KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { createDecorator, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { IKeybindingRule, KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
 
 export interface IMenuItem {
 	command: ICommandAction;
@@ -483,72 +482,6 @@ export class MenuItemAction implements IAction {
 		}
 
 		return this._commandService.executeCommand(this.id, ...runArgs);
-	}
-}
-
-/**
- * @deprecated Use {@link registerAction2} instead.
- */
-export class SyncActionDescriptor {
-
-	private readonly _descriptor: SyncDescriptor0<Action>;
-
-	private readonly _id: string;
-	private readonly _label?: string;
-	private readonly _keybindings: IKeybindings | undefined;
-	private readonly _keybindingContext: ContextKeyExpression | undefined;
-	private readonly _keybindingWeight: number | undefined;
-
-	public static create<Services extends BrandedService[]>(ctor: { new(id: string, label: string, ...services: Services): Action },
-		id: string, label: string | undefined, keybindings?: IKeybindings, keybindingContext?: ContextKeyExpression, keybindingWeight?: number
-	): SyncActionDescriptor {
-		return new SyncActionDescriptor(ctor as IConstructorSignature<Action, [string, string | undefined]>, id, label, keybindings, keybindingContext, keybindingWeight);
-	}
-
-	public static from<Services extends BrandedService[]>(
-		ctor: {
-			new(id: string, label: string, ...services: Services): Action;
-			readonly ID: string;
-			readonly LABEL: string;
-		},
-		keybindings?: IKeybindings, keybindingContext?: ContextKeyExpression, keybindingWeight?: number
-	): SyncActionDescriptor {
-		return SyncActionDescriptor.create(ctor, ctor.ID, ctor.LABEL, keybindings, keybindingContext, keybindingWeight);
-	}
-
-	private constructor(ctor: IConstructorSignature<Action, [string, string | undefined]>,
-		id: string, label: string | undefined, keybindings?: IKeybindings, keybindingContext?: ContextKeyExpression, keybindingWeight?: number
-	) {
-		this._id = id;
-		this._label = label;
-		this._keybindings = keybindings;
-		this._keybindingContext = keybindingContext;
-		this._keybindingWeight = keybindingWeight;
-		this._descriptor = new SyncDescriptor(ctor, [this._id, this._label]);
-	}
-
-	public get syncDescriptor(): SyncDescriptor0<Action> {
-		return this._descriptor;
-	}
-
-	public get id(): string {
-		return this._id;
-	}
-
-	public get label(): string | undefined {
-		return this._label;
-	}
-
-	public get keybindings(): IKeybindings | undefined {
-		return this._keybindings;
-	}
-
-	public get keybindingContext(): ContextKeyExpression | undefined {
-		return this._keybindingContext;
-	}
-
-	public get keybindingWeight(): number | undefined {
-		return this._keybindingWeight;
 	}
 }
 
