@@ -381,9 +381,8 @@ export async function findInFilesCommand(accessor: ServicesAccessor, _args: IFin
 				const searchAndReplaceWidget = openedView.searchAndReplaceWidget;
 				searchAndReplaceWidget.toggleReplace(typeof args.replace === 'string');
 				let updatedText = false;
-				if (typeof args.query === 'string') {
-					openedView.setSearchParameters(args);
-				} else {
+				openedView.setSearchParameters(args);
+				if (typeof args.query !== 'string') {
 					updatedText = openedView.updateTextFromFindWidgetOrSelection({ allowUnselectedWord: typeof args.replace !== 'string' });
 				}
 				openedView.searchAndReplaceWidget.focus(undefined, updatedText, updatedText);
