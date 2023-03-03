@@ -8,7 +8,7 @@ import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cance
 import { DisposableStore, dispose, toDisposable } from 'vs/base/common/lifecycle';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditorLayoutInfo, EditorOption } from 'vs/editor/common/config/editorOptions';
-import { IRange, Range } from 'vs/editor/common/core/range';
+import { Range } from 'vs/editor/common/core/range';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { localize } from 'vs/nls';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
@@ -33,7 +33,7 @@ import { GhostTextController } from 'vs/editor/contrib/inlineCompletions/browser
 import { MenuWorkbenchToolBar, WorkbenchToolBar } from 'vs/platform/actions/browser/toolbar';
 import { ProgressBar } from 'vs/base/browser/ui/progressbar/progressbar';
 import { SuggestController } from 'vs/editor/contrib/suggest/browser/suggestController';
-import { Position } from 'vs/editor/common/core/position';
+import { IPosition, Position } from 'vs/editor/common/core/position';
 import { Selection } from 'vs/editor/common/core/selection';
 import { raceCancellationError } from 'vs/base/common/async';
 import { isCancellationError } from 'vs/base/common/errors';
@@ -46,7 +46,7 @@ import { Codicon } from 'vs/base/common/codicons';
 import { ThemeIcon } from 'vs/base/common/themables';
 
 interface IHistoryEntry {
-	dispose(): void;
+	updateVisibility(visible: boolean): void;
 	updateActions(actions: IAction[]): void;
 }
 
@@ -241,7 +241,9 @@ class InteractiveEditorWidget {
 		this._elements.placeholder.innerText = placeholder;
 		this._elements.placeholder.style.fontSize = `${this._inputEditor.getOption(EditorOption.fontSize)}px`;
 		this._elements.placeholder.style.lineHeight = `${this._inputEditor.getOption(EditorOption.lineHeight)}px`;
+
 		this._inputModel.setValue(value);
+		this._inputEditor.setSelection(this._inputModel.getFullModelRange());
 
 		const disposeOnDone = new DisposableStore();
 
@@ -340,8 +342,8 @@ class InteractiveEditorWidget {
 		}
 
 		return {
-			dispose: () => {
-				root.remove();
+			updateVisibility: (visible) => {
+				root.classList.toggle('hidden', !visible);
 				if (this._isExpanded) {
 					this._onDidChangeHeight.fire();
 				}
@@ -457,7 +459,7 @@ export class InteractiveEditorZoneWidget extends ZoneWidget {
 		super._relayout(this._computeHeightInLines());
 	}
 
-	async getInput(where: IRange, placeholder: string, value: string, token: CancellationToken): Promise<{ value: string; preview: boolean } | undefined> {
+	async getInput(where: IPosition, placeholder: string, value: string, token: CancellationToken): Promise<{ value: string; preview: boolean } | undefined> {
 		assertType(this.editor.hasModel());
 		super.show(where, this._computeHeightInLines());
 		this._ctxVisible.set(true);
@@ -465,6 +467,10 @@ export class InteractiveEditorZoneWidget extends ZoneWidget {
 		const task = this.widget.getInput(placeholder, value, token);
 		const result = await task;
 		return result;
+	}
+
+	updatePosition(where: IPosition) {
+		super.show(where, this._computeHeightInLines());
 	}
 
 	override hide(): void {
@@ -488,7 +494,7 @@ class UndoStepAction extends Action {
 
 	readonly myAlternativeVersionId: number;
 
-	constructor(readonly model: ITextModel, readonly entry: IHistoryEntry) {
+	constructor(readonly model: ITextModel) {
 		super(`undo@${model.getAlternativeVersionId()}`, localize('undoStep', "Undo This Step"), ThemeIcon.asClassName(Codicon.discard), false);
 		this.myAlternativeVersionId = model.getAlternativeVersionId();
 		UndoStepAction.all.push(this);
@@ -498,7 +504,6 @@ class UndoStepAction extends Action {
 	override async run() {
 		this.model.undo();
 		UndoStepAction.updateUndoSteps();
-		this.entry.dispose();
 	}
 }
 
@@ -591,11 +596,24 @@ export class InteractiveEditorController implements IEditorContribution {
 			options: { description: 'interactive-editor-marker' }
 		}]);
 
+
 		let placeholder = session.placeholder ?? '';
 		let value = '';
 
 		const listener = new DisposableStore();
+
+		// CANCEL when input changes
 		this._editor.onDidChangeModel(this._ctsSession.cancel, this._ctsSession, listener);
+
+		// REposition the zone widget whenever the block decoration changes
+		let lastPost: Position | undefined;
+		wholeRangeDecoration.onDidChange(e => {
+			const range = wholeRangeDecoration.getRange(0);
+			if (range && (!lastPost || !lastPost.equals(range.getEndPosition()))) {
+				lastPost = range.getEndPosition();
+				this._zone.updatePosition(lastPost);
+			}
+		}, undefined, listener);
 
 		let ignoreModelChanges = false;
 		this._editor.onDidChangeModelContent(e => {
@@ -637,7 +655,7 @@ export class InteractiveEditorController implements IEditorContribution {
 			}]);
 
 			this._historyOffset = -1;
-			const input = await this._zone.getInput(wholeRange.collapseToEnd(), placeholder, value, this._ctsSession.token);
+			const input = await this._zone.getInput(wholeRange.getEndPosition(), placeholder, value, this._ctsSession.token);
 
 			if (!input || !input.value) {
 				continue;
@@ -683,7 +701,6 @@ export class InteractiveEditorController implements IEditorContribution {
 
 			if (!reply || isFalsyOrEmpty(reply.edits)) {
 				this._logService.trace('[IE] NO reply or edits', provider.debugName);
-				placeholder = '';
 				value = input.value;
 				continue;
 			}
@@ -722,7 +739,16 @@ export class InteractiveEditorController implements IEditorContribution {
 
 			inlineDiffDecorations.set(input.preview ? newInlineDiffDecorationsData : []);
 
-			historyEntry.updateActions([new UndoStepAction(textModel, historyEntry)]);
+			historyEntry.updateActions([new class extends UndoStepAction {
+				constructor() {
+					super(textModel);
+				}
+				override async run() {
+					super.run();
+					historyEntry.updateVisibility(false);
+					value = input.value;
+				}
+			}]);
 
 
 			if (!InteractiveEditorController._promptHistory.includes(input.value)) {
