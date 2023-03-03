@@ -117,7 +117,7 @@ export class AccessibleBufferWidget extends DisposableStore {
 			}
 			this._registered = true;
 		}
-		this._xtermElement.tabIndex = 0;
+		this._accessibleBuffer.tabIndex = -1;
 		this._accessibleBuffer.classList.add('active');
 		this._xtermElement.classList.add('hide');
 		if (this._lastContentLength !== fragment.length || this._refreshSelection) {
