@@ -8,11 +8,25 @@ import { URI } from 'vs/base/common/uri';
 import { IHoverAction } from 'vs/workbench/services/hover/browser/hover';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { ITerminalBackend, ITerminalProcessManager } from 'vs/workbench/contrib/terminal/common/terminal';
-import { IParsedLink } from 'vs/workbench/contrib/terminal/browser/links/terminalLinkParsing';
+import { IParsedLink } from 'vs/workbench/contrib/terminalContrib/links/browser/terminalLinkParsing';
+import { IDisposable } from 'vs/base/common/lifecycle';
+import { ITerminalExternalLinkProvider } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { Event } from 'vs/base/common/event';
 
-export const ITerminalLinkResolverService = createDecorator<ITerminalLinkResolverService>('terminalLinkResolverService');
-export interface ITerminalLinkResolverService {
+export const ITerminalLinkProviderService = createDecorator<ITerminalLinkProviderService>('terminalLinkProviderService');
+export interface ITerminalLinkProviderService {
 	readonly _serviceBrand: undefined;
+
+	readonly linkProviders: ReadonlySet<ITerminalExternalLinkProvider>;
+
+	readonly onDidAddLinkProvider: Event<ITerminalExternalLinkProvider>;
+	readonly onDidRemoveLinkProvider: Event<ITerminalExternalLinkProvider>;
+
+	// TODO: Currently only a single link provider is supported; the one registered by the ext host
+	registerLinkProvider(provider: ITerminalExternalLinkProvider): IDisposable;
+}
+
+export interface ITerminalLinkResolver {
 	resolveLink(processManager: Pick<ITerminalProcessManager, 'initialCwd' | 'os' | 'remoteAuthority' | 'userHome'> & { backend?: Pick<ITerminalBackend, 'getWslPath'> }, link: string, uri?: URI): Promise<ResolvedLink>;
 }
 

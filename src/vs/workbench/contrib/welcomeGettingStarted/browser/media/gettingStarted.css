@@ -858,6 +858,7 @@
 	padding: 0 11px;
 	margin-bottom: 12px;
 	align-items: center;
+	min-width: max-content;
 }
 
 .monaco-workbench .part.editor>.content .gettingStartedContainer .hide-category-button {

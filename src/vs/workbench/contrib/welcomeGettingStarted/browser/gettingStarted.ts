@@ -667,8 +667,8 @@ export class GettingStartedPage extends EditorPane {
 			const layoutDelayer = new Delayer(50);
 
 			this.layoutMarkdown = () => {
-				layoutDelayer.trigger(() => {
-					webview.postMessage({ layoutMeNow: true });
+				layoutDelayer.trigger(async () => {
+					this.buildMediaComponent(stepId);
 				});
 			};
 

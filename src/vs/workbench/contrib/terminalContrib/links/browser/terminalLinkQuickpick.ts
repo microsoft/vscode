@@ -7,17 +7,21 @@ import { EventType } from 'vs/base/browser/dom';
 import { Emitter } from 'vs/base/common/event';
 import { localize } from 'vs/nls';
 import { QuickPickItem, IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
-import { IDetectedLinks } from 'vs/workbench/contrib/terminal/browser/links/terminalLinkManager';
+import { IDetectedLinks } from 'vs/workbench/contrib/terminalContrib/links/browser/terminalLinkManager';
 import { TerminalLinkQuickPickEvent } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { ILink } from 'xterm';
+import { DisposableStore } from 'vs/base/common/lifecycle';
 
-export class TerminalLinkQuickpick {
+export class TerminalLinkQuickpick extends DisposableStore {
 
-	private readonly _onDidRequestMoreLinks = new Emitter<void>();
+	private readonly _onDidRequestMoreLinks = this.add(new Emitter<void>());
 	readonly onDidRequestMoreLinks = this._onDidRequestMoreLinks.event;
+
 	constructor(
 		@IQuickInputService private readonly _quickInputService: IQuickInputService
-	) { }
+	) {
+		super();
+	}
 
 	async show(links: IDetectedLinks): Promise<void> {
 		const wordPicks = links.wordLinks ? await this._generatePicks(links.wordLinks) : undefined;

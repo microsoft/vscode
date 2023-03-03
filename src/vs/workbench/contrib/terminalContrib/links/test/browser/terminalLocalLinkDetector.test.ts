@@ -8,14 +8,14 @@ import { format } from 'vs/base/common/strings';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
-import { ITerminalLinkResolverService, TerminalBuiltinLinkType } from 'vs/workbench/contrib/terminal/browser/links/links';
-import { TerminalLocalLinkDetector } from 'vs/workbench/contrib/terminal/browser/links/terminalLocalLinkDetector';
+import { TerminalBuiltinLinkType } from 'vs/workbench/contrib/terminalContrib/links/browser/links';
+import { TerminalLocalLinkDetector } from 'vs/workbench/contrib/terminalContrib/links/browser/terminalLocalLinkDetector';
 import { TerminalCapabilityStore } from 'vs/platform/terminal/common/capabilities/terminalCapabilityStore';
-import { assertLinkHelper } from 'vs/workbench/contrib/terminal/test/browser/links/linkTestUtils';
+import { assertLinkHelper } from 'vs/workbench/contrib/terminalContrib/links/test/browser/linkTestUtils';
 import { Terminal } from 'xterm';
 import { timeout } from 'vs/base/common/async';
 import { strictEqual } from 'assert';
-import { TerminalLinkResolverService } from 'vs/workbench/contrib/terminal/browser/links/terminalLinkResolverService';
+import { TerminalLinkResolver } from 'vs/workbench/contrib/terminalContrib/links/browser/terminalLinkResolver';
 import { IFileService } from 'vs/platform/files/common/files';
 import { createFileStat } from 'vs/workbench/test/common/workbenchTestServices';
 import { URI } from 'vs/base/common/uri';
@@ -133,6 +133,7 @@ suite('Workbench - TerminalLocalLinkDetector', () => {
 	let instantiationService: TestInstantiationService;
 	let configurationService: TestConfigurationService;
 	let detector: TerminalLocalLinkDetector;
+	let resolver: TerminalLinkResolver;
 	let xterm: Terminal;
 	let validResources: URI[];
 
@@ -168,7 +169,7 @@ suite('Workbench - TerminalLocalLinkDetector', () => {
 				return createFileStat(resource);
 			}
 		});
-		instantiationService.set(ITerminalLinkResolverService, instantiationService.createInstance(TerminalLinkResolverService));
+		resolver = instantiationService.createInstance(TerminalLinkResolver);
 		validResources = [];
 
 		xterm = new Terminal({ allowProposedApi: true, cols: 80, rows: 30 });
@@ -182,7 +183,7 @@ suite('Workbench - TerminalLocalLinkDetector', () => {
 				remoteAuthority: undefined,
 				userHome: '/home',
 				backend: undefined
-			});
+			}, resolver);
 		});
 
 		test('should support multiple link results', async () => {
@@ -219,7 +220,7 @@ suite('Workbench - TerminalLocalLinkDetector', () => {
 				remoteAuthority: undefined,
 				userHome: '/home',
 				backend: undefined
-			});
+			}, resolver);
 		});
 
 		for (const l of unixLinks) {
@@ -268,7 +269,7 @@ suite('Workbench - TerminalLocalLinkDetector', () => {
 							return original;
 						},
 					}
-				});
+				}, resolver);
 				wslUnixToWindowsPathMap.clear();
 			});
 
