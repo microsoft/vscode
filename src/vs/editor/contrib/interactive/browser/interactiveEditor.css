@@ -24,19 +24,22 @@
 
 .monaco-editor .interactive-editor .body .history {
 	display: block;
-	margin: 0;
 	color: var(--vscode-descriptionForeground);
-	list-style-type: disc;
-	line-height: 20px;
-}
-
-.monaco-editor .interactive-editor .body .history:not(:empty) {
-	margin: 0;
-	padding: 4px 0 0 12px;
 }
 
 .monaco-editor .interactive-editor .body .history.hidden {
 	display: none;
+}
+
+.monaco-editor .interactive-editor .body .history .history-entry {
+	display: flex;
+	justify-content: space-between;
+	padding: 2px
+}
+
+.monaco-editor .interactive-editor .body .history .history-entry:hover {
+	background-color: var(--vscode-list-hoverBackground);
+	color: var(--vscode-list-hoverForeground);
 }
 
 .monaco-editor .interactive-editor .body.preview {
