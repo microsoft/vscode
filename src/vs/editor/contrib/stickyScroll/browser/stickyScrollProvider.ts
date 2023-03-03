@@ -14,7 +14,6 @@ import { Range } from 'vs/editor/common/core/range';
 import { binarySearch } from 'vs/base/common/arrays';
 import { Iterable } from 'vs/base/common/iterator';
 import { FoldingController, RangeProvider, RangesLimitReporter } from 'vs/editor/contrib/folding/browser/folding';
-import { FoldingModel } from 'vs/editor/contrib/folding/browser/foldingModel';
 import { URI } from 'vs/base/common/uri';
 import { isEqual } from 'vs/base/common/resources';
 import { Event, Emitter } from 'vs/base/common/event';
@@ -25,7 +24,6 @@ import { ILanguageConfigurationService } from 'vs/editor/common/languages/langua
 import { FoldingRegions } from 'vs/editor/contrib/folding/browser/foldingRanges';
 import { StopWatch } from 'vs/base/common/stopwatch';
 import { IFeatureDebounceInformation, ILanguageFeatureDebounceService } from 'vs/editor/common/services/languageFeatureDebounce';
-import { FoldingDecorationProvider } from 'vs/editor/contrib/folding/browser/foldingDecorations';
 import { onUnexpectedError } from 'vs/base/common/errors';
 
 enum ModelProvider {
