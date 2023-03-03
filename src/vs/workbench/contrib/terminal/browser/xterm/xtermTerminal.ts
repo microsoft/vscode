@@ -825,6 +825,11 @@ class AccessibleBuffer extends DisposableStore {
 	}
 
 	private async _updateBufferEditor(): Promise<void> {
+		const xtermElement = this._terminal.raw?.element;
+		if (!xtermElement) {
+			return;
+		}
+
 		const commandDetection = this._capabilities.get(TerminalCapability.CommandDetection);
 		const fragment = !!commandDetection ? this._getShellIntegrationContent() : this._getAllContent();
 		const model = await this._getTextModel(URI.from({ scheme: AccessibleBufferConstants.Scheme, fragment }));
@@ -832,16 +837,8 @@ class AccessibleBuffer extends DisposableStore {
 			this._bufferEditor.setModel(model);
 		}
 
-		const xtermElement = this._terminal.raw?.element;
-		if (!xtermElement) {
-			return;
-		}
-
 		if (!this._registered) {
-			const elt = xtermElement?.parentElement;
-			if (elt) {
-				this._bufferEditor.layout({ width: elt.clientWidth, height: elt.clientHeight });
-			}
+			this._bufferEditor.layout({ width: xtermElement.clientWidth, height: xtermElement.clientHeight });
 			this._bufferEditor.onKeyDown((e) => {
 				if (e.keyCode === KeyCode.Escape || e.keyCode === KeyCode.Tab) {
 					this._accessibleBuffer.classList.remove('active');
@@ -877,12 +874,7 @@ class AccessibleBuffer extends DisposableStore {
 			this._lastContentLength = fragment.length;
 		}
 		this._accessibleBuffer.replaceChildren(this._editorContainer);
-		const elt = xtermElement.parentElement;
-		if (elt) {
-			this._bufferEditor.layout({ width: elt.clientWidth, height: elt.clientHeight });
-		}
 		this._bufferEditor.focus();
-
 	}
 
 	private async _getTextModel(resource: URI): Promise<ITextModel | null> {
