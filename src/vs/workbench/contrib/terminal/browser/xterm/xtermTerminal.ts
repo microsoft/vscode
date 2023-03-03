@@ -805,7 +805,7 @@ class AccessibleBuffer extends DisposableStore {
 		this._accessibleBuffer.setAttribute('role', 'document');
 		this._accessibleBuffer.ariaRoleDescription = localize('terminal.integrated.accessibleBuffer', 'Terminal buffer');
 		this._accessibleBuffer.tabIndex = 0;
-		this._accessibleBuffer.classList.add('xterm-accessible-buffer');
+		this._accessibleBuffer.classList.add('accessible-buffer');
 		const elt = this._terminal.raw?.element;
 		if (elt) {
 			elt.insertAdjacentElement('beforebegin', this._accessibleBuffer);
