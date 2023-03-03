@@ -39,7 +39,7 @@ import { GutterActionsRegistry } from 'vs/workbench/contrib/codeEditor/browser/e
 import { getBreakpointMessageAndIcon } from 'vs/workbench/contrib/debug/browser/breakpointsView';
 import { BreakpointWidget } from 'vs/workbench/contrib/debug/browser/breakpointWidget';
 import * as icons from 'vs/workbench/contrib/debug/browser/debugIcons';
-import { BreakpointWidgetContext, CONTEXT_BREAKPOINT_WIDGET_VISIBLE, DebuggerString, IBreakpoint, IBreakpointEditorContribution, IBreakpointUpdateData, IDebugConfiguration, IDebugService, IDebugSession, State } from 'vs/workbench/contrib/debug/common/debug';
+import { BREAKPOINT_EDITOR_CONTRIBUTION_ID, BreakpointWidgetContext, CONTEXT_BREAKPOINT_WIDGET_VISIBLE, DebuggerString, IBreakpoint, IBreakpointEditorContribution, IBreakpointUpdateData, IDebugConfiguration, IDebugService, IDebugSession, State } from 'vs/workbench/contrib/debug/common/debug';
 
 const $ = dom.$;
 
@@ -237,22 +237,6 @@ export class BreakpointEditorContribution implements IBreakpointEditorContributi
 	}
 
 	private registerListeners(): void {
-		this.toDispose.push(
-			GutterActionsRegistry.registerGutterActionsGenerator(({ lineNumber, editor }, result) => {
-				const model = editor.getModel();
-				if (!model || !this.debugService.getAdapterManager().hasEnabledDebuggers() || !this.debugService.canSetBreakpointsIn(model)) {
-					return;
-				}
-
-				const breakpoints = this.debugService.getModel().getBreakpoints({ lineNumber, uri: model.uri });
-				const actions = this.getContextMenuActions(breakpoints, model.uri, lineNumber);
-
-				for (const action of actions) {
-					result.push(action);
-				}
-			})
-		);
-
 		this.toDispose.push(this.editor.onMouseDown(async (e: IEditorMouseEvent) => {
 			if (!this.debugService.getAdapterManager().hasEnabledDebuggers()) {
 				return;
@@ -636,6 +620,25 @@ export class BreakpointEditorContribution implements IBreakpointEditorContributi
 		dispose(this.toDispose);
 	}
 }
+
+GutterActionsRegistry.registerGutterActionsGenerator(({ lineNumber, editor, accessor }, result) => {
+	const model = editor.getModel();
+	const debugService = accessor.get(IDebugService);
+	if (!model || !debugService.getAdapterManager().hasEnabledDebuggers() || !debugService.canSetBreakpointsIn(model)) {
+		return;
+	}
+
+	const breakpointEditorContribution = editor.getContribution<IBreakpointEditorContribution>(BREAKPOINT_EDITOR_CONTRIBUTION_ID);
+	if (!breakpointEditorContribution) {
+		return;
+	}
+
+	const actions = breakpointEditorContribution.getContextMenuActionsAtPosition(lineNumber, model);
+
+	for (const action of actions) {
+		result.push(action);
+	}
+});
 
 class InlineBreakpointWidget implements IContentWidget, IDisposable {
 

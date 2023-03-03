@@ -11,15 +11,15 @@ import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { IMenuService, MenuId } from 'vs/platform/actions/common/actions';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
+import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { Registry } from 'vs/platform/registry/common/platform';
 
 export interface IGutterActionsGenerator {
-	(context: { lineNumber: number; editor: ICodeEditor }, result: { push(action: IAction): void }): void;
+	(context: { lineNumber: number; editor: ICodeEditor; accessor: ServicesAccessor }, result: { push(action: IAction): void }): void;
 }
 
 export class GutterActionsRegistryImpl {
-	private _handlePool = 0;
-	private _registeredGutterActionsGenerators: Map<number, IGutterActionsGenerator> = new Map();
+	private _registeredGutterActionsGenerators: Set<IGutterActionsGenerator> = new Set();
 
 	/**
 	 *
@@ -28,11 +28,10 @@ export class GutterActionsRegistryImpl {
 	 * If you want an action to show up in the gutter context menu, you should generally use MenuId.EditorLineNumberMenu instead.
 	 */
 	public registerGutterActionsGenerator(gutterActionsGenerator: IGutterActionsGenerator): IDisposable {
-		const handle = this._handlePool++;
-		this._registeredGutterActionsGenerators.set(handle, gutterActionsGenerator);
+		this._registeredGutterActionsGenerators.add(gutterActionsGenerator);
 		return {
 			dispose: () => {
-				this._registeredGutterActionsGenerators.delete(handle);
+				this._registeredGutterActionsGenerators.delete(gutterActionsGenerator);
 			}
 		};
 	}
@@ -53,6 +52,7 @@ export class EditorLineNumberContextMenu extends Disposable implements IEditorCo
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
 		@IMenuService private readonly menuService: IMenuService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
 	) {
 		super();
 
@@ -74,20 +74,23 @@ export class EditorLineNumberContextMenu extends Disposable implements IEditorCo
 
 			const actions: IAction[][] = [];
 
-			for (const generator of GutterActionsRegistry.getGutterActionsGenerators()) {
-				const collectedActions: IAction[] = [];
-				generator({ lineNumber, editor: this.editor }, { push: (action: IAction) => collectedActions.push(action) });
-				actions.push(collectedActions);
-			}
-			const menuActions = menu.getActions({ arg: { lineNumber, uri: model.uri }, shouldForwardArgs: true });
-			actions.push(...menuActions.map(a => a[1]));
+			this.instantiationService.invokeFunction(accessor => {
+				for (const generator of GutterActionsRegistry.getGutterActionsGenerators()) {
+					const collectedActions: IAction[] = [];
+					generator({ lineNumber, editor: this.editor, accessor }, { push: (action: IAction) => collectedActions.push(action) });
+					actions.push(collectedActions);
+				}
 
-			this.contextMenuService.showContextMenu({
-				getAnchor: () => anchor,
-				getActions: () => Separator.join(...actions),
-				menuActionOptions: { shouldForwardArgs: true },
-				getActionsContext: () => ({ lineNumber, uri: model.uri }),
-				onHide: () => menu.dispose(),
+				const menuActions = menu.getActions({ arg: { lineNumber, uri: model.uri }, shouldForwardArgs: true });
+				actions.push(...menuActions.map(a => a[1]));
+
+				this.contextMenuService.showContextMenu({
+					getAnchor: () => anchor,
+					getActions: () => Separator.join(...actions),
+					menuActionOptions: { shouldForwardArgs: true },
+					getActionsContext: () => ({ lineNumber, uri: model.uri }),
+					onHide: () => menu.dispose(),
+				});
 			});
 		}));
 	}

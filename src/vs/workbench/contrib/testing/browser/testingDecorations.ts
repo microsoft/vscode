@@ -21,7 +21,7 @@ import { ContentWidgetPositionPreference, ICodeEditor, IContentWidgetPosition, I
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { overviewRulerError, overviewRulerInfo } from 'vs/editor/common/core/editorColorRegistry';
-import { IRange } from 'vs/editor/common/core/range';
+import { IRange, Range } from 'vs/editor/common/core/range';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { IModelDeltaDecoration, ITextModel, OverviewRulerLane, TrackedRangeStickiness } from 'vs/editor/common/model';
 import { IModelService } from 'vs/editor/common/services/model';
@@ -419,6 +419,22 @@ export class TestingDecorations extends Disposable implements IEditorContributio
 			}
 		}));
 		this._register(this.editor.onDidChangeModel(e => this.attachModel(e.newModelUrl || undefined)));
+		this._register(this.editor.onMouseDown(e => {
+			if (e.target.position && this.currentUri) {
+				const modelDecorations = editor.getModel()?.getDecorationsInRange(Range.fromPositions(e.target.position)) ?? [];
+				if (!modelDecorations.length) {
+					return;
+				}
+
+				const cache = decorations.syncDecorations(this.currentUri);
+				for (const { id } of modelDecorations) {
+					if ((cache.getById(id) as ITestDecoration | undefined)?.click(e)) {
+						e.event.stopPropagation();
+						return;
+					}
+				}
+			}
+		}));
 		this._register(Event.accumulate(this.editor.onDidChangeModelContent, 0, this._store)(evts => {
 			const model = editor.getModel();
 			if (!this._currentUri || !model) {
