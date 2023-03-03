@@ -731,8 +731,8 @@ export class FindWidget extends Widget implements IOverlayWidget, IVerticalSashL
 			this._domNode.style.maxWidth = `${editorWidth - 28 - minimapWidth - 15}px`;
 		}
 
+		this._findInput.layout({ collapsedFindWidget, narrowFindWidget, reducedFindWidget });
 		if (this._resized) {
-			this._findInput.inputBox.layout();
 			const findInputWidth = this._findInput.inputBox.element.clientWidth;
 			if (findInputWidth > 0) {
 				this._replaceInput.width = findInputWidth;
