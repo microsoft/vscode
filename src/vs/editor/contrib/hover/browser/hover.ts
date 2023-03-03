@@ -377,7 +377,7 @@ class ScrollUpHoverAction extends EditorAction {
 			kbOpts: {
 				kbExpr: EditorContextKeys.hoverFocused,
 				primary: KeyCode.UpArrow,
-				weight: KeybindingWeight.EditorContrib + 10000
+				weight: KeybindingWeight.EditorContrib
 			}
 		});
 	}
@@ -408,7 +408,7 @@ class ScrollDownHoverAction extends EditorAction {
 			kbOpts: {
 				kbExpr: EditorContextKeys.hoverFocused,
 				primary: KeyCode.DownArrow,
-				weight: KeybindingWeight.EditorContrib + 10000
+				weight: KeybindingWeight.EditorContrib
 			}
 		});
 	}
