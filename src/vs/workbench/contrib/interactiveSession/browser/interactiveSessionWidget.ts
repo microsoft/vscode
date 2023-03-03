@@ -126,7 +126,6 @@ export class InteractiveSessionWidget extends Disposable {
 						},
 					}
 				});
-				revealLastElement(this.tree);
 			}
 		}
 	}
@@ -199,7 +198,7 @@ export class InteractiveSessionWidget extends Disposable {
 			[this.renderer],
 			{
 				identityProvider: { getId: (e: InteractiveTreeItem) => e.id },
-				supportDynamicHeights: false,
+				supportDynamicHeights: true,
 				hideTwistiesOfChildlessElements: true,
 				accessibilityProvider: new InteractiveSessionAccessibilityProvider(),
 				keyboardNavigationLabelProvider: { getKeyboardNavigationLabel: (e: InteractiveTreeItem) => isRequestVM(e) ? e.model.message : e.response.value },
@@ -226,7 +225,6 @@ export class InteractiveSessionWidget extends Disposable {
 		}));
 		this._register(this.renderer.onDidChangeItemHeight(e => {
 			this.tree.updateElementHeight(e.element, e.height);
-			this.onDidChangeTreeContentHeight();
 		}));
 		this._register(this.renderer.onDidSelectFollowup(followup => {
 			this.acceptInput(followup);
@@ -240,7 +238,7 @@ export class InteractiveSessionWidget extends Disposable {
 			// const lastElementWasVisible = this.list.scrollTop + this.list.renderHeight >= this.previousTreeScrollHeight - 2;
 			const lastElementWasVisible = this.tree.scrollTop + this.tree.renderHeight >= this.previousTreeScrollHeight;
 			if (lastElementWasVisible) {
-				setTimeout(() => {
+				dom.scheduleAtNextAnimationFrame(() => {
 					// Can't set scrollTop during this event listener, the list might overwrite the change
 					revealLastElement(this.tree);
 				}, 0);
@@ -308,6 +306,7 @@ export class InteractiveSessionWidget extends Disposable {
 			const input = query ?? this.inputEditor.getValue();
 			if (this.interactiveSessionService.sendRequest(this.viewModel.sessionId, input, CancellationToken.None)) {
 				this.inputEditor.setValue('');
+				revealLastElement(this.tree);
 			}
 		}
 	}

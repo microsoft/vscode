@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-.interactive-list .monaco-list-row:not(:first-of-type) {
+.interactive-list .monaco-list-row:not(:first-of-type) .interactive-item-container {
 	border-top: 1px solid var(--vscode-interactive-responseBorder);
 }
 
-.interactive-list .monaco-list-row:last-of-type {
+.interactive-list .monaco-list-row:last-of-type .interactive-item-container {
 	border-bottom: 1px solid var(--vscode-interactive-responseBorder);
 }
 
@@ -79,6 +79,9 @@
 }
 
 .interactive-list .monaco-list-row .interactive-response {
+	/* border-top: 1px solid var(--vscode-interactive-responseBorder);
+	border-bottom: 1px solid var(--vscode-interactive-responseBorder); */
+
 	background-color: var(--vscode-interactive-responseBackground);
 	padding: 16px 20px 0 20px
 }
