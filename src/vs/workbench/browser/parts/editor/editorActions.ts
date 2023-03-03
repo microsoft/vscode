@@ -2142,7 +2142,7 @@ export class SplitEditorToLastGroupAction extends ExecuteCommandAction {
 
 export class EditorLayoutSingleAction extends ExecuteCommandAction {
 
-	static readonly ID: 'workbench.action.editorLayoutSingle';
+	static readonly ID = 'workbench.action.editorLayoutSingle';
 
 	constructor() {
 		super({
@@ -2156,7 +2156,7 @@ export class EditorLayoutSingleAction extends ExecuteCommandAction {
 
 export class EditorLayoutTwoColumnsAction extends ExecuteCommandAction {
 
-	static readonly ID: 'workbench.action.editorLayoutTwoColumns';
+	static readonly ID = 'workbench.action.editorLayoutTwoColumns';
 
 	constructor() {
 		super({
@@ -2170,7 +2170,7 @@ export class EditorLayoutTwoColumnsAction extends ExecuteCommandAction {
 
 export class EditorLayoutThreeColumnsAction extends ExecuteCommandAction {
 
-	static readonly ID: 'workbench.action.editorLayoutThreeColumns';
+	static readonly ID = 'workbench.action.editorLayoutThreeColumns';
 
 	constructor() {
 		super({
@@ -2184,7 +2184,7 @@ export class EditorLayoutThreeColumnsAction extends ExecuteCommandAction {
 
 export class EditorLayoutTwoRowsAction extends ExecuteCommandAction {
 
-	static readonly ID: 'workbench.action.editorLayoutTwoRows';
+	static readonly ID = 'workbench.action.editorLayoutTwoRows';
 
 	constructor() {
 		super({
@@ -2198,7 +2198,7 @@ export class EditorLayoutTwoRowsAction extends ExecuteCommandAction {
 
 export class EditorLayoutThreeRowsAction extends ExecuteCommandAction {
 
-	static readonly ID: 'workbench.action.editorLayoutThreeRows';
+	static readonly ID = 'workbench.action.editorLayoutThreeRows';
 
 	constructor() {
 		super({
@@ -2212,7 +2212,7 @@ export class EditorLayoutThreeRowsAction extends ExecuteCommandAction {
 
 export class EditorLayoutTwoByTwoGridAction extends ExecuteCommandAction {
 
-	static readonly ID: 'workbench.action.editorLayoutTwoByTwoGrid';
+	static readonly ID = 'workbench.action.editorLayoutTwoByTwoGrid';
 
 	constructor() {
 		super({
@@ -2226,7 +2226,7 @@ export class EditorLayoutTwoByTwoGridAction extends ExecuteCommandAction {
 
 export class EditorLayoutTwoColumnsBottomAction extends ExecuteCommandAction {
 
-	static readonly ID: 'workbench.action.editorLayoutTwoColumnsBottom';
+	static readonly ID = 'workbench.action.editorLayoutTwoColumnsBottom';
 
 	constructor() {
 		super({
@@ -2240,7 +2240,7 @@ export class EditorLayoutTwoColumnsBottomAction extends ExecuteCommandAction {
 
 export class EditorLayoutTwoRowsRightAction extends ExecuteCommandAction {
 
-	static readonly ID: 'workbench.action.editorLayoutTwoRowsRight';
+	static readonly ID = 'workbench.action.editorLayoutTwoRowsRight';
 
 	constructor() {
 		super({
