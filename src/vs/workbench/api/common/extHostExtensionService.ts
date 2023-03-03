@@ -653,7 +653,8 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 		this._register(this._extHostWorkspace.onDidChangeWorkspace((e) => this._handleWorkspaceContainsEagerExtensions(e.added)));
 		const folders = this._extHostWorkspace.workspace ? this._extHostWorkspace.workspace.folders : [];
 		const workspaceContainsActivation = this._handleWorkspaceContainsEagerExtensions(folders);
-		const eagerExtensionsActivation = Promise.all([starActivation, workspaceContainsActivation]).then(() => { });
+		const remoteResolverActivation = this._handleRemoteResolverEagerExtensions();
+		const eagerExtensionsActivation = Promise.all([remoteResolverActivation, starActivation, workspaceContainsActivation]).then(() => { });
 
 		Promise.race([eagerExtensionsActivation, timeout(10000)]).then(() => {
 			this._activateAllStartupFinished();
@@ -697,6 +698,12 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 			this._activateById(desc.identifier, { startup: true, extensionId: desc.identifier, activationEvent: result.activationEvent })
 				.then(undefined, err => this._logService.error(err))
 		);
+	}
+
+	private async _handleRemoteResolverEagerExtensions(): Promise<void> {
+		if (this._initData.remote.authority) {
+			return this._activateByEvent(`onResolveRemoteAuthority:${this._initData.remote.authority}`, false);
+		}
 	}
 
 	public async $extensionTestsExecute(): Promise<number> {
