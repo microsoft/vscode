@@ -812,7 +812,6 @@ class AccessibleBuffer extends DisposableStore {
 		}
 		this._accessibleBuffer.tabIndex = 0;
 		this._editorContainer = document.createElement('div');
-		this._editorContainer.style.position = 'absolute';
 		this._bufferEditor = this._instantiationService.createInstance(CodeEditorWidget, this._editorContainer, editorOptions, codeEditorWidgetOptions);
 		this.add(configurationService.onDidChangeConfiguration(e => {
 			if (e.affectedKeys.has(TerminalSettingId.FontFamily)) {
@@ -833,8 +832,13 @@ class AccessibleBuffer extends DisposableStore {
 			this._bufferEditor.setModel(model);
 		}
 
+		const xtermElement = this._terminal.raw?.element;
+		if (!xtermElement) {
+			return;
+		}
+
 		if (!this._registered) {
-			const elt = this._terminal.raw?.element?.parentElement;
+			const elt = xtermElement?.parentElement;
 			if (elt) {
 				this._bufferEditor.layout({ width: elt.clientWidth, height: elt.clientHeight });
 			}
@@ -842,16 +846,14 @@ class AccessibleBuffer extends DisposableStore {
 				if (e.keyCode === KeyCode.Escape || e.keyCode === KeyCode.Tab) {
 					this._accessibleBuffer.classList.remove('active');
 					this._terminal.raw.focus();
-					const e = this._terminal.raw?.element;
-					e?.classList.remove('hide');
+					xtermElement.classList.remove('hide');
 				}
 			});
 			this.add(addDisposableListener(this._accessibleBuffer, 'keypress', (e) => {
 				if (e.key === 'Escape' || e.key === 'Tab') {
 					this._accessibleBuffer.classList.remove('active');
+					xtermElement.classList.remove('hide');
 					this._terminal.raw.focus();
-					const e = this._terminal.raw?.element;
-					e?.classList.remove('hide');
 				}
 			}));
 			if (commandDetection) {
@@ -862,8 +864,7 @@ class AccessibleBuffer extends DisposableStore {
 		}
 
 		this._accessibleBuffer.classList.add('active');
-		const e = this._terminal.raw?.element;
-		e?.classList.add('hide');
+		xtermElement.classList.add('hide');
 		if (this._lastContentLength !== fragment.length || this._refreshSelection) {
 			let lineNumber = 1;
 			const lineCount = model?.getLineCount();
@@ -876,7 +877,7 @@ class AccessibleBuffer extends DisposableStore {
 			this._lastContentLength = fragment.length;
 		}
 		this._accessibleBuffer.replaceChildren(this._editorContainer);
-		const elt = this._terminal.raw?.element?.parentElement;
+		const elt = xtermElement.parentElement;
 		if (elt) {
 			this._bufferEditor.layout({ width: elt.clientWidth, height: elt.clientHeight });
 		}
