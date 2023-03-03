@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ITerminalLinkResolverService, ResolvedLink } from 'vs/workbench/contrib/terminal/browser/links/links';
-import { removeLinkSuffix, winDrivePrefix } from 'vs/workbench/contrib/terminal/browser/links/terminalLinkParsing';
+import { ITerminalLinkResolverService, ResolvedLink } from 'vs/workbench/contrib/terminalContrib/links/browser/links';
+import { removeLinkSuffix, winDrivePrefix } from 'vs/workbench/contrib/terminalContrib/links/browser/terminalLinkParsing';
 import { URI } from 'vs/base/common/uri';
 import { ITerminalBackend, ITerminalProcessManager } from 'vs/workbench/contrib/terminal/common/terminal';
 import { Schemas } from 'vs/base/common/network';
