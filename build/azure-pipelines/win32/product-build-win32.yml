@@ -138,7 +138,9 @@ steps:
       . build/azure-pipelines/win32/exec.ps1
       . build/azure-pipelines/win32/retry.ps1
       $ErrorActionPreference = "Stop"
+      exec { mkdir -Force .build/node_gyp_cache }
       $env:npm_config_arch="$(VSCODE_ARCH)"
+      $env:npm_config_devdir=".build/node_gyp_cache"
       $env:CHILD_CONCURRENCY="1"
       retry { exec { yarn --frozen-lockfile --check-files } }
     env:

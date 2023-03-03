@@ -116,8 +116,9 @@ steps:
 
   - script: |
       set -e
+      mkdir -p .build/node_gyp_cache
       export npm_config_arch=$(VSCODE_ARCH)
-      export npm_config_node_gyp=$(which node-gyp)
+      export npm_config_devdir=".build/node_gyp_cache"
 
       for i in {1..5}; do # try 5 times
         yarn --frozen-lockfile --check-files && break

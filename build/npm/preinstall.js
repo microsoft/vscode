@@ -20,6 +20,7 @@ if (majorNodeVersion >= 17) {
 const path = require('path');
 const fs = require('fs');
 const cp = require('child_process');
+const product = require('../../product.json');
 const yarnVersion = cp.execSync('yarn -v', { encoding: 'utf8' }).trim();
 const parsedYarnVersion = /^(\d+)\.(\d+)\.(\d+)/.exec(yarnVersion);
 const majorYarnVersion = parseInt(parsedYarnVersion[1]);
@@ -50,6 +51,8 @@ if (process.platform === 'win32') {
 	if (!err) {
 		installHeaders();
 	}
+} else {
+	installHeaders();
 }
 
 if (err) {
@@ -96,7 +99,7 @@ function hasSupportedVisualStudioVersion() {
 }
 
 function installHeaders() {
-	const yarn = 'yarn.cmd';
+	const yarn = process.platform === 'win32' ? 'yarn.cmd' : 'yarn';
 	const yarnResult = cp.spawnSync(yarn, ['install'], {
 		env: process.env,
 		cwd: path.join(__dirname, 'gyp'),
@@ -111,7 +114,8 @@ function installHeaders() {
 	// The node gyp package got installed using the above yarn command using the gyp/package.json
 	// file checked into our repository. So from that point it is save to construct the path
 	// to that executable
-	const node_gyp = path.join(__dirname, 'gyp', 'node_modules', '.bin', 'node-gyp.cmd');
+	const node_gyp_cmd = process.platform === 'win32' ? 'node-gyp.cmd' : 'node-gyp';
+	const node_gyp = path.join(__dirname, 'gyp', 'node_modules', '.bin', node_gyp_cmd);
 	const result = cp.execFileSync(node_gyp, ['list'], { encoding: 'utf8' });
 	const versions = new Set(result.split(/\n/g).filter(line => !line.startsWith('gyp info')).map(value => value));
 
@@ -121,6 +125,35 @@ function installHeaders() {
 	if (local !== undefined && !versions.has(local.target)) {
 		// Both disturl and target come from a file checked into our repository
 		cp.execFileSync(node_gyp, ['install', '--dist-url', local.disturl, local.target]);
+		if (product.quality && process.env.npm_config_devdir) {
+			const configPath = path.join(process.env.npm_config_devdir, local.target, 'include', 'node', 'config.gypi');
+			const data = fs.readFileSync(configPath, 'utf8');
+			// Based on https://github.com/nodejs/node-gyp/blob/39ac2c135db8a9e62bf22f0c7a4469ae6c381325/lib/create-config-gypi.js#L7
+			function parseConfigGypi(config) {
+				// translated from tools/js2c.py of Node.js
+				// 1. string comments
+				config = config.replace(/#.*/g, '')
+				// 2. join multiline strings
+				config = config.replace(/'$\s+'/mg, '')
+				// 3. normalize string literals from ' into "
+				config = config.replace(/'/g, '"')
+				return JSON.parse(config)
+			}
+			// Based on https://github.com/nodejs/node-gyp/blob/39ac2c135db8a9e62bf22f0c7a4469ae6c381325/lib/create-config-gypi.js#L124
+			function boolsToString(k, v) {
+				if (typeof v === 'boolean') {
+					return String(v)
+				}
+				return v
+			}
+			const config = parseConfigGypi(data.toString());
+			// Disable v8 Sandbox in the headers for product builds
+			// since the runtime also disables it. Otherwise, it
+			// will lead to crashes for builtin native modules.
+			config.variables.v8_enable_sandbox = 0;
+			const json = JSON.stringify(config, boolsToString, 2);
+			fs.writeFileSync(configPath, [json, ''].join('\n'));
+		}
 	}
 
 	if (remote !== undefined && !versions.has(remote.target)) {
@@ -134,7 +167,7 @@ function installHeaders() {
  * @returns {{ disturl: string; target: string } | undefined}
  */
 function getHeaderInfo(rcFile) {
-	const lines = fs.readFileSync(rcFile, 'utf8').split(/\r\n?/g);
+	const lines = fs.readFileSync(rcFile, 'utf8').split(/\r\n|\n/);
 	let disturl, target;
 	for (const line of lines) {
 		let match = line.match(/\s*disturl\s*\"(.*)\"\s*$/);
