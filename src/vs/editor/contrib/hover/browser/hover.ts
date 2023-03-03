@@ -237,6 +237,14 @@ export class ModesHoverController implements IEditorContribution {
 		this._contentWidget?.focus();
 	}
 
+	public scrollUp(): void {
+		this._contentWidget?.scrollUp();
+	}
+
+	public scrollDown(): void {
+		this._contentWidget?.scrollDown();
+	}
+
 	public dispose(): void {
 		this._unhookEvents();
 		this._toUnhook.dispose();
@@ -353,10 +361,74 @@ class FocusHoverAction extends EditorAction {
 	}
 }
 
+class ScrollUpHoverAction extends EditorAction {
+
+	constructor() {
+		super({
+			id: 'editor.action.scrollUpHover',
+			label: nls.localize({
+				key: 'scrollUpHover',
+				comment: [
+					'Action that allows to scroll up in the hover widget with the up arrow when the hover widget is focused.'
+				]
+			}, "Scroll Up Hover"),
+			alias: 'Scroll Up Hover',
+			precondition: EditorContextKeys.hoverFocused,
+			kbOpts: {
+				kbExpr: EditorContextKeys.hoverFocused,
+				primary: KeyCode.UpArrow,
+				weight: KeybindingWeight.EditorContrib + 10000
+			}
+		});
+	}
+
+	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
+		console.log('Inside of scroll up');
+		const controller = ModesHoverController.get(editor);
+		if (!controller) {
+			return;
+		}
+		controller.scrollUp();
+	}
+}
+
+class ScrollDownHoverAction extends EditorAction {
+
+	constructor() {
+		super({
+			id: 'editor.action.scrollDownHover',
+			label: nls.localize({
+				key: 'scrollDownHover',
+				comment: [
+					'Action that allows to scroll down in the hover widget with the up arrow when the hover widget is focused.'
+				]
+			}, "Scroll Down Hover"),
+			alias: 'Scroll Down Hover',
+			precondition: EditorContextKeys.hoverFocused,
+			kbOpts: {
+				kbExpr: EditorContextKeys.hoverFocused,
+				primary: KeyCode.DownArrow,
+				weight: KeybindingWeight.EditorContrib + 10000
+			}
+		});
+	}
+
+	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
+		console.log('Inside of scroll down');
+		const controller = ModesHoverController.get(editor);
+		if (!controller) {
+			return;
+		}
+		controller.scrollDown();
+	}
+}
+
 registerEditorContribution(ModesHoverController.ID, ModesHoverController, EditorContributionInstantiation.BeforeFirstInteraction);
 registerEditorAction(ShowHoverAction);
 registerEditorAction(ShowDefinitionPreviewHoverAction);
 registerEditorAction(FocusHoverAction);
+registerEditorAction(ScrollUpHoverAction);
+registerEditorAction(ScrollDownHoverAction);
 HoverParticipantRegistry.register(MarkdownHoverParticipant);
 HoverParticipantRegistry.register(MarkerHoverParticipant);
 
