@@ -262,150 +262,154 @@ export class NavigateBetweenGroupsAction extends Action2 {
 	}
 }
 
-export class FocusActiveGroupAction extends Action {
+export class FocusActiveGroupAction extends Action2 {
 
-	static readonly ID = 'workbench.action.focusActiveEditorGroup';
-	static readonly LABEL = localize('focusActiveEditorGroup', "Focus Active Editor Group");
-
-	constructor(
-		id: string,
-		label: string,
-		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService
-	) {
-		super(id, label);
+	constructor() {
+		super({
+			id: 'workbench.action.focusActiveEditorGroup',
+			title: { value: localize('focusActiveEditorGroup', "Focus Active Editor Group"), original: 'Focus Active Editor Group' },
+			f1: true,
+			category: Categories.View
+		});
 	}
 
-	override async run(): Promise<void> {
-		this.editorGroupService.activeGroup.focus();
+	override async run(accessor: ServicesAccessor): Promise<void> {
+		const editorGroupService = accessor.get(IEditorGroupsService);
+
+		editorGroupService.activeGroup.focus();
 	}
 }
 
-abstract class AbstractFocusGroupAction extends Action {
+abstract class AbstractFocusGroupAction extends Action2 {
 
 	constructor(
-		id: string,
-		label: string,
-		private scope: IFindGroupScope,
-		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService
+		desc: Readonly<IAction2Options>,
+		private scope: IFindGroupScope
 	) {
-		super(id, label);
+		super(desc);
 	}
 
-	override async run(): Promise<void> {
-		const group = this.editorGroupService.findGroup(this.scope, this.editorGroupService.activeGroup, true);
+	override async run(accessor: ServicesAccessor): Promise<void> {
+		const editorGroupService = accessor.get(IEditorGroupsService);
+
+		const group = editorGroupService.findGroup(this.scope, editorGroupService.activeGroup, true);
 		group?.focus();
 	}
 }
 
 export class FocusFirstGroupAction extends AbstractFocusGroupAction {
 
-	static readonly ID = 'workbench.action.focusFirstEditorGroup';
-	static readonly LABEL = localize('focusFirstEditorGroup', "Focus First Editor Group");
-
-	constructor(
-		id: string,
-		label: string,
-		@IEditorGroupsService editorGroupService: IEditorGroupsService
-	) {
-		super(id, label, { location: GroupLocation.FIRST }, editorGroupService);
+	constructor() {
+		super({
+			id: 'workbench.action.focusFirstEditorGroup',
+			title: { value: localize('focusFirstEditorGroup', "Focus First Editor Group"), original: 'Focus First Editor Group' },
+			f1: true,
+			keybinding: {
+				weight: KeybindingWeight.WorkbenchContrib,
+				primary: KeyMod.CtrlCmd | KeyCode.Digit1
+			},
+			category: Categories.View
+		}, { location: GroupLocation.FIRST });
 	}
 }
 
 export class FocusLastGroupAction extends AbstractFocusGroupAction {
 
-	static readonly ID = 'workbench.action.focusLastEditorGroup';
-	static readonly LABEL = localize('focusLastEditorGroup', "Focus Last Editor Group");
-
-	constructor(
-		id: string,
-		label: string,
-		@IEditorGroupsService editorGroupService: IEditorGroupsService
-	) {
-		super(id, label, { location: GroupLocation.LAST }, editorGroupService);
+	constructor() {
+		super({
+			id: 'workbench.action.focusLastEditorGroup',
+			title: { value: localize('focusLastEditorGroup', "Focus Last Editor Group"), original: 'Focus Last Editor Group' },
+			f1: true,
+			category: Categories.View
+		}, { location: GroupLocation.LAST });
 	}
 }
 
 export class FocusNextGroup extends AbstractFocusGroupAction {
 
-	static readonly ID = 'workbench.action.focusNextGroup';
-	static readonly LABEL = localize('focusNextGroup', "Focus Next Editor Group");
-
-	constructor(
-		id: string,
-		label: string,
-		@IEditorGroupsService editorGroupService: IEditorGroupsService
-	) {
-		super(id, label, { location: GroupLocation.NEXT }, editorGroupService);
+	constructor() {
+		super({
+			id: 'workbench.action.focusNextGroup',
+			title: { value: localize('focusNextGroup', "Focus Next Editor Group"), original: 'Focus Next Editor Group' },
+			f1: true,
+			category: Categories.View
+		}, { location: GroupLocation.NEXT });
 	}
 }
 
 export class FocusPreviousGroup extends AbstractFocusGroupAction {
 
-	static readonly ID = 'workbench.action.focusPreviousGroup';
-	static readonly LABEL = localize('focusPreviousGroup', "Focus Previous Editor Group");
-
-	constructor(
-		id: string,
-		label: string,
-		@IEditorGroupsService editorGroupService: IEditorGroupsService
-	) {
-		super(id, label, { location: GroupLocation.PREVIOUS }, editorGroupService);
+	constructor() {
+		super({
+			id: 'workbench.action.focusPreviousGroup',
+			title: { value: localize('focusPreviousGroup', "Focus Previous Editor Group"), original: 'Focus Previous Editor Group' },
+			f1: true,
+			category: Categories.View
+		}, { location: GroupLocation.PREVIOUS });
 	}
 }
 
 export class FocusLeftGroup extends AbstractFocusGroupAction {
 
-	static readonly ID = 'workbench.action.focusLeftGroup';
-	static readonly LABEL = localize('focusLeftGroup', "Focus Left Editor Group");
-
-	constructor(
-		id: string,
-		label: string,
-		@IEditorGroupsService editorGroupService: IEditorGroupsService
-	) {
-		super(id, label, { direction: GroupDirection.LEFT }, editorGroupService);
+	constructor() {
+		super({
+			id: 'workbench.action.focusLeftGroup',
+			title: { value: localize('focusLeftGroup', "Focus Left Editor Group"), original: 'Focus Left Editor Group' },
+			f1: true,
+			keybinding: {
+				weight: KeybindingWeight.WorkbenchContrib,
+				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyMod.CtrlCmd | KeyCode.LeftArrow)
+			},
+			category: Categories.View
+		}, { direction: GroupDirection.LEFT });
 	}
 }
 
 export class FocusRightGroup extends AbstractFocusGroupAction {
 
-	static readonly ID = 'workbench.action.focusRightGroup';
-	static readonly LABEL = localize('focusRightGroup', "Focus Right Editor Group");
-
-	constructor(
-		id: string,
-		label: string,
-		@IEditorGroupsService editorGroupService: IEditorGroupsService
-	) {
-		super(id, label, { direction: GroupDirection.RIGHT }, editorGroupService);
+	constructor() {
+		super({
+			id: 'workbench.action.focusRightGroup',
+			title: { value: localize('focusRightGroup', "Focus Right Editor Group"), original: 'Focus Right Editor Group' },
+			f1: true,
+			keybinding: {
+				weight: KeybindingWeight.WorkbenchContrib,
+				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyMod.CtrlCmd | KeyCode.RightArrow)
+			},
+			category: Categories.View
+		}, { direction: GroupDirection.RIGHT });
 	}
 }
 
 export class FocusAboveGroup extends AbstractFocusGroupAction {
 
-	static readonly ID = 'workbench.action.focusAboveGroup';
-	static readonly LABEL = localize('focusAboveGroup', "Focus Editor Group Above");
-
-	constructor(
-		id: string,
-		label: string,
-		@IEditorGroupsService editorGroupService: IEditorGroupsService
-	) {
-		super(id, label, { direction: GroupDirection.UP }, editorGroupService);
+	constructor() {
+		super({
+			id: 'workbench.action.focusAboveGroup',
+			title: { value: localize('focusAboveGroup', "Focus Editor Group Above"), original: 'Focus Editor Group Above' },
+			f1: true,
+			keybinding: {
+				weight: KeybindingWeight.WorkbenchContrib,
+				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyMod.CtrlCmd | KeyCode.UpArrow)
+			},
+			category: Categories.View
+		}, { direction: GroupDirection.UP });
 	}
 }
 
 export class FocusBelowGroup extends AbstractFocusGroupAction {
 
-	static readonly ID = 'workbench.action.focusBelowGroup';
-	static readonly LABEL = localize('focusBelowGroup', "Focus Editor Group Below");
-
-	constructor(
-		id: string,
-		label: string,
-		@IEditorGroupsService editorGroupService: IEditorGroupsService
-	) {
-		super(id, label, { direction: GroupDirection.DOWN }, editorGroupService);
+	constructor() {
+		super({
+			id: 'workbench.action.focusBelowGroup',
+			title: { value: localize('focusBelowGroup', "Focus Editor Group Below"), original: 'Focus Editor Group Below' },
+			f1: true,
+			keybinding: {
+				weight: KeybindingWeight.WorkbenchContrib,
+				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyMod.CtrlCmd | KeyCode.DownArrow)
+			},
+			category: Categories.View
+		}, { direction: GroupDirection.DOWN });
 	}
 }
 

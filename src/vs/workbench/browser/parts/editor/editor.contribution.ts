@@ -252,18 +252,18 @@ registerAction2(SplitEditorToRightGroupAction);
 registerAction2(SplitEditorToAboveGroupAction);
 registerAction2(SplitEditorToBelowGroupAction);
 
+registerAction2(FocusActiveGroupAction);
+registerAction2(FocusFirstGroupAction);
+registerAction2(FocusLastGroupAction);
+registerAction2(FocusPreviousGroup);
+registerAction2(FocusNextGroup);
+registerAction2(FocusLeftGroup);
+registerAction2(FocusRightGroup);
+registerAction2(FocusAboveGroup);
+registerAction2(FocusBelowGroup);
+
 // Editor Management (deprecated old style)
 const registry = Registry.as<IWorkbenchActionRegistry>(ActionExtensions.WorkbenchActions);
-
-registry.registerWorkbenchAction(SyncActionDescriptor.from(FocusActiveGroupAction), 'View: Focus Active Editor Group', Categories.View.value);
-registry.registerWorkbenchAction(SyncActionDescriptor.from(FocusFirstGroupAction, { primary: KeyMod.CtrlCmd | KeyCode.Digit1 }), 'View: Focus First Editor Group', Categories.View.value);
-registry.registerWorkbenchAction(SyncActionDescriptor.from(FocusLastGroupAction), 'View: Focus Last Editor Group', Categories.View.value);
-registry.registerWorkbenchAction(SyncActionDescriptor.from(FocusPreviousGroup), 'View: Focus Previous Editor Group', Categories.View.value);
-registry.registerWorkbenchAction(SyncActionDescriptor.from(FocusNextGroup), 'View: Focus Next Editor Group', Categories.View.value);
-registry.registerWorkbenchAction(SyncActionDescriptor.from(FocusLeftGroup, { primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyMod.CtrlCmd | KeyCode.LeftArrow) }), 'View: Focus Left Editor Group', Categories.View.value);
-registry.registerWorkbenchAction(SyncActionDescriptor.from(FocusRightGroup, { primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyMod.CtrlCmd | KeyCode.RightArrow) }), 'View: Focus Right Editor Group', Categories.View.value);
-registry.registerWorkbenchAction(SyncActionDescriptor.from(FocusAboveGroup, { primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyMod.CtrlCmd | KeyCode.UpArrow) }), 'View: Focus Editor Group Above', Categories.View.value);
-registry.registerWorkbenchAction(SyncActionDescriptor.from(FocusBelowGroup, { primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyMod.CtrlCmd | KeyCode.DownArrow) }), 'View: Focus Editor Group Below', Categories.View.value);
 
 registry.registerWorkbenchAction(SyncActionDescriptor.from(NewEditorGroupLeftAction), 'View: New Editor Group to the Left', Categories.View.value);
 registry.registerWorkbenchAction(SyncActionDescriptor.from(NewEditorGroupRightAction), 'View: New Editor Group to the Right', Categories.View.value);
