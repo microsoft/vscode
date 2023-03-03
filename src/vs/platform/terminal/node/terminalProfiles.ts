@@ -258,13 +258,13 @@ async function initializeWindowsProfiles(testPwshSourcePaths?: string[]): Promis
 		return;
 	}
 
-	const [gitPaths, pwshPaths] = await Promise.all([getGitPaths(), testPwshSourcePaths || getPowershellPaths()]);
+	const [gitBashPaths, pwshPaths] = await Promise.all([getGitBashPaths(), testPwshSourcePaths || getPowershellPaths()]);
 
 	profileSources = new Map();
 	profileSources.set(
 		ProfileSource.GitBash, {
 		profileName: 'Git Bash',
-		paths: gitPaths,
+		paths: gitBashPaths,
 		args: ['--login', '-i']
 	});
 	profileSources.set(ProfileSource.Pwsh, {
@@ -274,7 +274,7 @@ async function initializeWindowsProfiles(testPwshSourcePaths?: string[]): Promis
 	});
 }
 
-async function getGitPaths(): Promise<string[]> {
+async function getGitBashPaths(): Promise<string[]> {
 	const gitDirs: Set<string> = new Set();
 
 	// Look for git.exe on the PATH and use that if found. git.exe is located at
@@ -298,18 +298,18 @@ async function getGitPaths(): Promise<string[]> {
 	addTruthy(gitDirs, process.env['ProgramFiles(X86)']);
 	addTruthy(gitDirs, `${process.env['LocalAppData']}\\Program`);
 
-	const gitPaths: string[] = [];
+	const gitBashPaths: string[] = [];
 	for (const gitDir of gitDirs) {
-		gitPaths.push(
+		gitBashPaths.push(
 			`${gitDir}\\Git\\bin\\bash.exe`,
 			`${gitDir}\\Git\\usr\\bin\\bash.exe`
 		);
 	}
 
 	// Add special installs that don't follow the standard directory structure
-	gitPaths.push(`${process.env['UserProfile']}\\scoop\\apps\\git-with-openssh\\current\\bin\\bash.exe`);
+	gitBashPaths.push(`${process.env['UserProfile']}\\scoop\\apps\\git-with-openssh\\current\\bin\\bash.exe`);
 
-	return gitPaths;
+	return gitBashPaths;
 }
 
 async function getPowershellPaths(): Promise<string[]> {
