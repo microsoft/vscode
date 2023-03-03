@@ -33,7 +33,7 @@
 	font-size: 24px;
 	font-weight: 600;
 	line-height: 32px;
-	padding: 10px 0px;
+	padding: 10px 0;
 	display: flex;
 }
 
@@ -84,7 +84,7 @@
 .workspace-trust-editor .workspace-trust-features .workspace-trust-limitations {
 	min-height: 315px;
 	border: 1px solid var(--workspace-trust-unselected-color);
-	margin: 4px 4px;
+	margin: 4px;
 	display: flex;
 	flex-direction: column;
 	padding: 10px 40px;
@@ -100,7 +100,7 @@
 
 .workspace-trust-editor .workspace-trust-features .workspace-trust-limitations ul {
 	list-style: none;
-	padding-inline-start: 0px;
+	padding-inline-start: 0;
 }
 
 .workspace-trust-editor .workspace-trust-features .workspace-trust-limitations li {
@@ -138,7 +138,7 @@
 	font-size: 16px;
 	font-weight: 600;
 	line-height: 24px;
-	padding: 10px 0px;
+	padding: 10px 0;
 	display: flex;
 }
 
@@ -164,7 +164,7 @@
 	display: flex;
 	align-items: center;
 	justify-content: center;
-	padding: 5px 0 10px 0;
+	padding: 5px 0 10px;
 	overflow: hidden; /* buttons row should never overflow */
 	white-space: nowrap;
 	margin-top: auto;

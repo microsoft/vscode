@@ -80,7 +80,7 @@
 
 .interactive-list .monaco-list-row .interactive-response {
 	background-color: var(--vscode-interactive-responseBackground);
-	padding: 16px 20px 0 20px
+	padding: 16px 20px 0
 }
 
 .interactive-list .monaco-list-row .interactive-response .value {

@@ -65,7 +65,7 @@
 
 .settings-tabs-widget > .monaco-action-bar .action-item .action-label {
 	display: block;
-	padding: 0px;
+	padding: 0;
 	border-radius: initial;
 	background: none !important;
 }
@@ -76,7 +76,7 @@
 
 .default-preferences-editor-container > .preferences-header-container > .default-preferences-header,
 .settings-tabs-widget > .monaco-action-bar .action-item {
-	padding: 3px 0px;
+	padding: 3px 0;
 }
 
 .settings-tabs-widget > .monaco-action-bar .action-item .action-title {
@@ -131,8 +131,8 @@
 }
 
 .settings-header-widget > .settings-search-controls > .settings-count-widget {
-	margin: 6px 0px;
-	padding: 0px 8px;
+	margin: 6px 0;
+	padding: 0 8px;
 	border-radius: 2px;
 	float: left;
 }

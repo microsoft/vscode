@@ -18,7 +18,7 @@
 }
 
 .fullscreen .menubar:not(.compact) {
-	margin: 0px;
+	margin: 0;
 	padding: 4px 5px;
 }
 
@@ -48,17 +48,17 @@
 .menubar.compact > .menubar-menu-button {
 	width: 100%;
 	height: 100%;
-	padding: 0px;
+	padding: 0;
 }
 
 .menubar-menu-title {
-	padding: 0px 8px;
+	padding: 0 8px;
 	border-radius: 5px;
 }
 
 .menubar .menubar-menu-items-holder {
 	position: fixed;
-	left: 0px;
+	left: 0;
 	opacity: 1;
 	z-index: 2000;
 }
@@ -88,8 +88,8 @@
 
 .menubar.compact .toolbar-toggle-more {
 	position: relative;
-	left: 0px;
-	top: 0px;
+	left: 0;
+	top: 0;
 	cursor: pointer;
 	width: 100%;
 	display: flex;

@@ -23,7 +23,7 @@
 }
 
 .monaco-editor .find-widget textarea {
-	margin: 0px;
+	margin: 0;
 }
 
 .monaco-editor .find-widget.hiddenEditor {

@@ -29,7 +29,7 @@
 
 .monaco-workbench .outline-pane .outline-message {
 	display: none;
-	padding: 10px 22px 0 22px;
+	padding: 10px 22px 0;
 	opacity: 0.5;
 	position: absolute;
 	pointer-events: none;

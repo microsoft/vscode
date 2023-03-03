@@ -13,7 +13,7 @@
 }
 
 .search-editor .query-container {
-	margin: 0px 12px 12px 19px;
+	margin: 0 12px 12px 19px;
 	padding-top: 6px;
 }
 
@@ -169,7 +169,7 @@
 .search-editor .message {
 	padding-left: 7px;
 	padding-right: 22px;
-	padding-top: 0px;
+	padding-top: 0;
 }
 
 .search-editor a.prominent {

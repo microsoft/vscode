@@ -12,7 +12,7 @@ body
 {
     background-color: #5c87b2;
     font-size: .75em;
-    font-family: Segoe UI, Verdana, Helvetica, Sans-Serif;
+    font-family: "Segoe UI", "Verdana", "Helvetica", Sans-Serif;
     margin: 8px;
     padding: 0;
     color: #696969;
@@ -22,12 +22,12 @@ h1, h2, h3, h4, h5, h6
 {
     color: #000;
     font-size: 40px;
-    margin: 0px;
+    margin: 0;
 }
 
 textarea 
 {
-   font-family: Consolas
+   font-family: "Consolas"
 }
 
 #results 

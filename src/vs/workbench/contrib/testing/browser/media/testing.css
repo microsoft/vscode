@@ -37,7 +37,7 @@
 
 .test-explorer > .test-explorer-tree {
 	flex-grow: 1;
-	height: 0px;
+	height: 0;
 	position: relative;
 }
 

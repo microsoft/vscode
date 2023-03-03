@@ -37,8 +37,8 @@
 }
 
 .monaco-workbench .tree-explorer-viewlet-tree-view .message p {
-	margin-top: 0px;
-	margin-bottom: 0px;
+	margin-top: 0;
+	margin-bottom: 0;
 	padding-bottom: 4px;
 }
 
@@ -74,7 +74,7 @@
 .monaco-workbench .pane > .pane-body .welcome-view-content {
 	display: flex;
 	flex-direction: column;
-	padding: 0 20px 1em 20px;
+	padding: 0 20px 1em;
 	box-sizing: border-box;
 	align-items: center;
 }
@@ -100,8 +100,8 @@
 .monaco-workbench .pane > .pane-body .welcome-view-content > * {
 	margin-block-start: 1em;
 	margin-block-end: 0;
-	margin-inline-start: 0px;
-	margin-inline-end: 0px;
+	margin-inline-start: 0;
+	margin-inline-end: 0;
 }
 
 .customview-tree .monaco-list-row .monaco-tl-contents.align-icon-with-twisty::before {
@@ -114,7 +114,7 @@
 
 .customview-tree .monaco-list .monaco-list-row {
 	padding-right: 12px;
-	padding-left: 0px;
+	padding-left: 0;
 }
 
 .customview-tree .monaco-list .monaco-list-row .custom-view-tree-node-item {
@@ -136,8 +136,8 @@
 .customview-tree .monaco-list .monaco-list-row .custom-view-tree-node-item .custom-view-tree-node-item-checkbox {
 	width: 16px;
 	height: 16px;
-	margin: 3px 6px 3px 0px;
-	padding: 0px;
+	margin: 3px 6px 3px 0;
+	padding: 0;
 	border: 1px solid var(--vscode-checkbox-border);
 	opacity: 1;
 	background-color: var(--vscode-checkbox-background);
@@ -196,7 +196,7 @@
 }
 
 .customview-tree .monaco-list .monaco-list-row .custom-view-tree-node-item .custom-view-tree-node-item-resourceLabel::after {
-	padding-right: 0px;
+	padding-right: 0;
 	margin-right: 4px;
 }
 
@@ -249,16 +249,16 @@
 
 .viewpane-filter-container > .viewpane-filter > .viewpane-filter-controls {
 	position: absolute;
-	top: 0px;
+	top: 0;
 	bottom: 0;
-	right: 0px;
+	right: 0;
 	display: flex;
 	align-items: center;
 }
 
 .viewpane-filter-container > .viewpane-filter > .viewpane-filter-controls > .viewpane-filter-badge {
-	margin: 4px 0px;
-	padding: 0px 8px;
+	margin: 4px 0;
+	padding: 0 8px;
 	border-radius: 2px;
 }
 

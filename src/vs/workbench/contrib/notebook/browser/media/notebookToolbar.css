@@ -24,25 +24,25 @@
 }
 
 .monaco-workbench .notebookOverlay .notebook-toolbar-container > .monaco-scrollable-element .notebook-toolbar-left {
-	padding: 0px 0px 0px 8px;
+	padding: 0 0 0 8px;
 }
 
 .monaco-workbench .notebookOverlay .notebook-toolbar-container .notebook-toolbar-right {
 	display: flex;
-	padding: 0px 0px 0px 0px;
+	padding: 0;
 }
 
 .monaco-workbench .notebookOverlay .notebook-toolbar-container .monaco-action-bar .action-item  .kernel-label {
 	background-size: 16px;
-	padding: 0px 5px 0px 3px;
+	padding: 0 5px 0 3px;
 	border-radius: 5px;
 	font-size: 13px;
 	height: 22px;
 }
 
 .monaco-workbench .notebookOverlay .notebook-toolbar-container .notebook-toolbar-left .monaco-action-bar .action-item .action-label.separator {
-	margin: 5px 0px !important;
-	padding: 0px !important;
+	margin: 5px 0 !important;
+	padding: 0 !important;
 }
 
 .monaco-workbench .notebookOverlay .notebook-toolbar-container .monaco-action-bar .action-item:not(.disabled):hover {
@@ -60,7 +60,7 @@
 
 .monaco-workbench .notebookOverlay .notebook-toolbar-container .monaco-action-bar .action-item .notebook-label {
 	background-size: 16px;
-	padding: 0px 5px 0px 2px;
+	padding: 0 5px 0 2px;
 	border-radius: 5px;
 	background-color: unset;
 }

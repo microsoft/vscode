@@ -37,7 +37,7 @@
 .monaco-workbench .notebookOverlay > .cell-list-container .notebook-folding-indicator .codicon {
 	visibility: visible;
 	height: 16px;
-	padding: 4px 4px 4px 4px;
+	padding: 4px;
 }
 
 .monaco-workbench .notebookOverlay>.cell-list-container .notebook-folded-hint {

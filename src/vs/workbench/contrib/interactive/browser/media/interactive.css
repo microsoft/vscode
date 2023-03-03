@@ -9,7 +9,7 @@
 
 .interactive-editor .input-cell-container .input-focus-indicator {
 	position: absolute;
-	left: 0px;
+	left: 0;
 	height: 19px;
 }
 
@@ -19,11 +19,11 @@
 	margin-left: 4px;
 	content: "";
 	position: absolute;
-	width: 0px;
+	width: 0;
 	height: 100%;
 	z-index: 10;
-	left: 0px;
-	top: 0px;
+	left: 0;
+	top: 0;
 	height: 100%;
 }
 

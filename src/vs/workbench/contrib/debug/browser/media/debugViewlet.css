@@ -49,7 +49,7 @@
 
 .monaco-workbench .monaco-action-bar .start-debug-action-item .configuration .monaco-select-box {
 	border: none;
-	margin-top: 0px;
+	margin-top: 0;
 	cursor: pointer;
 	line-height: inherit;
 	padding-top: 0;
@@ -61,7 +61,7 @@
 
 
 .monaco-workbench.safari .monaco-action-bar .start-debug-action-item .configuration .monaco-select-box {
-	margin-bottom: 0px;
+	margin-bottom: 0;
 }
 
 .monaco-workbench .monaco-action-bar .start-debug-action-item .configuration.disabled .monaco-select-box {
@@ -96,7 +96,7 @@
 	text-overflow: ellipsis;
 	overflow: hidden;
 	white-space: nowrap;
-	margin: 0px 10px;
+	margin: 0 10px;
 }
 
 .debug-pane .call-stack-state-message > .label {
@@ -257,7 +257,7 @@
 }
 
 .debug-pane .monaco-inputbox > .ibwrapper > .input {
-	padding: 0px;
+	padding: 0;
 	color: initial;
 }
 

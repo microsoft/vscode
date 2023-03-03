@@ -5,7 +5,7 @@
 
 .monaco-workbench .notebookOverlay .output {
 	position: absolute;
-	height: 0px;
+	height: 0;
 	user-select: text;
 	-webkit-user-select: text;
 	cursor: auto;
@@ -22,7 +22,7 @@
 .monaco-workbench .notebookOverlay .output p {
 	white-space: initial;
 	overflow-x: auto;
-	margin: 0px;
+	margin: 0;
 }
 
 .monaco-workbench .notebookOverlay .output > div.foreground {
@@ -38,7 +38,7 @@
 
 .monaco-workbench .notebookOverlay .output > div.foreground.output-inner-container .rendered-output {
 	display: inline;
-	transform: translate3d(0px, 0px, 0px);
+	transform: translate3d(0, 0, 0);
 }
 
 .monaco-workbench .notebookOverlay .output .cell-output-toolbar {
@@ -47,7 +47,7 @@
 	left: -32px;
 	height: 16px;
 	cursor: pointer;
-	padding: 6px 0px;
+	padding: 6px 0;
 }
 
 .monaco-workbench .notebookOverlay .output .cell-output-toolbar .actions-container {
@@ -83,12 +83,12 @@
 }
 
 .monaco-workbench .notebookOverlay .output-show-more-container p {
-	padding: 8px 8px 0 8px;
-	margin: 0px;
+	padding: 8px 8px 0;
+	margin: 0;
 }
 
 .output-show-more {
-	padding: 8px 0 0 0;
+	padding: 8px 0 0;
 	font-style: italic;
 }
 

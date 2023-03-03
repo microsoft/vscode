@@ -12,7 +12,7 @@
 }
 
 .monaco-workbench .notebookOverlay .monaco-list .monaco-list-row .cell-focus-indicator-bottom:before {
-	bottom: 0px;
+	bottom: 0;
 }
 
 .monaco-workbench .notebookOverlay .monaco-list .monaco-list-row .cell-focus-indicator-right:before {
@@ -21,13 +21,13 @@
 
 .monaco-workbench .notebookOverlay .monaco-list .monaco-list-row .cell-focus-indicator {
 	position: absolute;
-	top: 0px;
+	top: 0;
 }
 
 .monaco-workbench .notebookOverlay .monaco-list .monaco-list-row .cell-focus-indicator-side {
 	/** Overidden for code cells */
-	top: 0px;
-	bottom: 0px;
+	top: 0;
+	bottom: 0;
 }
 
 .monaco-workbench .notebookOverlay .monaco-list .webview-backed-markdown-cell .cell-focus-indicator-side {
@@ -46,7 +46,7 @@
 }
 
 .monaco-workbench .notebookOverlay .monaco-list .monaco-list-row .cell-focus-indicator-right {
-	right: 0px;
+	right: 0;
 }
 
 /** cell border colors */
@@ -78,7 +78,7 @@
 }
 
 .monaco-workbench .notebookOverlay .monaco-list .monaco-list-row .cell-focus-indicator-left .codeOutput-focus-indicator {
-	width: 0px;
+	width: 0;
 	height: 100%;
 }
 

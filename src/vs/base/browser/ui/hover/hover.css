@@ -63,8 +63,8 @@
 
 .monaco-hover hr {
 	box-sizing: border-box;
-	border-left: 0px;
-	border-right: 0px;
+	border-left: 0;
+	border-right: 0;
 	margin-top: 4px;
 	margin-bottom: -4px;
 	margin-left: -8px;
@@ -116,7 +116,7 @@
 
 .monaco-hover .hover-row.status-bar .actions {
 	display: flex;
-	padding: 0px 8px;
+	padding: 0 8px;
 }
 
 .monaco-hover .hover-row.status-bar .actions .action-container {

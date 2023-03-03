@@ -26,7 +26,7 @@
 }
 
 .remote-help-content .monaco-list .monaco-list-row .monaco-tl-twistie {
-	width: 0px !important;
+	width: 0 !important;
 }
 
 .remote-help-tree-node-item-icon .monaco-icon-label-container > .monaco-icon-name-container {
@@ -34,5 +34,5 @@
 }
 
 .remote-help-content .monaco-list .monaco-list-row .monaco-tl-twistie {
-	width: 0px !important;
+	width: 0 !important;
 }

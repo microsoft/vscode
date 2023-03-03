@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 .monaco-editor-pane-placeholder {
-	padding: 0 16px 0 16px;
+	padding: 0 16px;
 	box-sizing: border-box;
 	display: flex;
 	flex-direction: column;

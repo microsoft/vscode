@@ -78,7 +78,7 @@ textarea {
 select {
 	height: calc(2.25rem + 2px);
 	display: inline-block;
-	padding: 3px 3px;
+	padding: 3px;
 	font-size: 14px;
 	line-height: 1.5;
 	color: #495057;
@@ -204,7 +204,7 @@ select, input, textarea {
 #issue-reporter .validation-error {
 	font-size: 12px;
 	padding: 10px;
-	border-top: 0px !important;
+	border-top: 0 !important;
 }
 
 

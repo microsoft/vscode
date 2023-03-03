@@ -31,8 +31,8 @@
 
 .monaco-dropdown-with-default > .dropdown-action-container > .monaco-dropdown > .dropdown-label .codicon[class*='codicon-'] {
 	font-size: 12px;
-	padding-left: 0px;
-	padding-right: 0px;
+	padding-left: 0;
+	padding-right: 0;
 	line-height: 16px;
 	margin-left: -3px;
 }

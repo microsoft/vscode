@@ -116,7 +116,7 @@
 
 .monaco-select-box-dropdown-container > .select-box-dropdown-container-width-control > .width-control-div {
 	overflow: hidden;
-	max-height: 0px;
+	max-height: 0;
 }
 
 .monaco-select-box-dropdown-container > .select-box-dropdown-container-width-control > .width-control-div > .option-text-width-control {

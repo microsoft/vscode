@@ -57,7 +57,7 @@
 .editor-banner .message-actions-container a.monaco-button {
 	width: inherit;
 	margin: 2px 8px;
-	padding: 0px 12px;
+	padding: 0 12px;
 }
 
 .editor-banner .message-actions-container a {

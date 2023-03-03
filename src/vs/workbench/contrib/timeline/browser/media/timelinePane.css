@@ -9,7 +9,7 @@
 
 .monaco-workbench .timeline-tree-view .message.timeline-subtle {
 	opacity: 0.5;
-	padding: 10px 22px 0 22px;
+	padding: 10px 22px 0;
 	position: absolute;
 	pointer-events: none;
 	z-index: 1;

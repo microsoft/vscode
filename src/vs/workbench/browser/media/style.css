@@ -171,7 +171,7 @@ body.web {
 
 .monaco-workbench .select-container:after {
 	content: "\eab4";
-	font-family: codicon;
+	font-family: "codicon";
 	font-size: 16px;
 	width: 16px;
 	height: 16px;

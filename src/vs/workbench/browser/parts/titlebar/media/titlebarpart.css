@@ -82,7 +82,7 @@
 	order: 1;
 	width: 60%;
 	max-width: fit-content;
-	min-width: 0px;
+	min-width: 0;
 	margin: 0 10px;
 	/* flex-shrink: 10; */
 	justify-content: center;
@@ -276,7 +276,7 @@
 	text-align: center;
 	z-index: 3000;
 	-webkit-app-region: no-drag;
-	width: 0px;
+	width: 0;
 	height: 100%;
 }
 
@@ -287,7 +287,7 @@
 }
 
 .monaco-workbench.web .part.titlebar .titlebar-left .window-controls-container {
-	width: env(titlebar-area-x, 0px);
+	width: env(titlebar-area-x, 0);
 	height: env(titlebar-area-height, 35px);
 }
 

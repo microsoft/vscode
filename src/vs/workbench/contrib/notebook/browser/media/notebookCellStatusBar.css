@@ -42,8 +42,8 @@
 	white-space: pre;
 
 	height: 21px; /* Editor outline is -1px in, don't overlap */
-	margin: 0px 3px;
-	padding: 0px 3px;
+	margin: 0 3px;
+	padding: 0 3px;
 	overflow: hidden;
 	text-overflow: clip;
 }

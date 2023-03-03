@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 .keybindings-editor {
-	padding: 11px 0px 0px 27px;
+	padding: 11px 0 0 27px;
 }
 
 .keybindings-overflow-widgets-container {
@@ -20,7 +20,7 @@
 /* header styling */
 
 .keybindings-editor > .keybindings-header {
-	padding: 0px 10px 11px 0;
+	padding: 0 10px 11px 0;
 }
 
 .keybindings-editor > .keybindings-header > .search-container {

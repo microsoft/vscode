@@ -190,9 +190,9 @@
 	height: 18px;
 	width: 18px;
 	border-radius: 3px;
-	margin-right: 0px;
-	margin-left: 0px;
-	padding: 0px;
+	margin-right: 0;
+	margin-left: 0;
+	padding: 0;
 	opacity: 1;
 	background-size: 16px !important;
 	background-color: var(--vscode-checkbox-border);
@@ -238,7 +238,7 @@
 }
 
 .merge-editor-conflict-actions {
-	margin: 0px 3px;
+	margin: 0 3px;
 	overflow: hidden;
 	display: inline-block;
 	text-overflow: ellipsis;

@@ -43,8 +43,8 @@
 	border: 1px solid transparent;
 	border-radius: 3px;
 	margin-right: 9px;
-	margin-left: 0px;
-	padding: 0px;
+	margin-left: 0;
+	padding: 0;
 	opacity: 1;
 	background-size: 16px !important;
 }

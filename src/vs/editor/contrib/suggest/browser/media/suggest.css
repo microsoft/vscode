@@ -44,7 +44,7 @@
 	justify-content: space-between;
 	width: 100%;
 	font-size: 80%;
-	padding: 0 4px 0 4px;
+	padding: 0 4px;
 	border-top: 1px solid var(--vscode-editorSuggestWidget-border);
 	overflow: hidden;
 }

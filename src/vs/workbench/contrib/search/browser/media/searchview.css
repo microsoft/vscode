@@ -16,7 +16,7 @@
 }
 
 .search-view .search-widgets-container {
-	margin: 0px 12px 0 2px;
+	margin: 0 12px 0 2px;
 	padding-top: 6px;
 	padding-bottom: 6px;
 }
@@ -56,7 +56,7 @@
 
 .search-view .search-widget .monaco-inputbox > .ibwrapper > .mirror,
 .search-view .search-widget .monaco-inputbox > .ibwrapper > textarea.input {
-	padding: 3px 0px 3px 6px;
+	padding: 3px 0 3px 6px;
 }
 
 /* NOTE: height is also used in searchWidget.ts as a constant*/
@@ -169,8 +169,8 @@
 }
 
 .search-view .message p:first-child {
-	margin-top: 0px;
-	margin-bottom: 0px;
+	margin-top: 0;
+	margin-bottom: 0;
 	padding-bottom: 4px;
 	user-select: text;
 	-webkit-user-select: text;

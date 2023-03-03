@@ -38,7 +38,7 @@
 }
 
 .monaco-editor .debug-top-stack-frame-column {
-	font: normal normal normal 16px/1 codicon;
+	font: normal normal normal 16px/1 "codicon";
 	text-rendering: auto;
 	-webkit-font-smoothing: antialiased;
 	-moz-osx-font-smoothing: grayscale;
@@ -56,7 +56,7 @@
 	position: absolute;
 	top: 50%;
 	transform: translate(-17px, -50%);
-	margin-top: 0px; /* TODO @misolori: figure out a way to not use negative margin for alignment */
+	margin-top: 0; /* TODO @misolori: figure out a way to not use negative margin for alignment */
 }
 
 .monaco-editor .inline-breakpoint-widget {

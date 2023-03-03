@@ -1,0 +1,20 @@
+{
+	"ignoreFiles": [
+		"src/vs/workbench/services/textfile/test/**",
+		"src/vs/workbench/services/search/test/**",
+		"src/vs/platform/files/test/**",
+		"src/vs/workbench/workbench.desktop.main.css"
+	],
+	"rules": {
+		"block-no-empty": true,
+		"color-no-invalid-hex": true,
+		"comment-no-empty": true,
+		"custom-property-no-missing-var-function": true,
+		"font-family-name-quotes": "always-unless-keyword",
+		"font-family-no-duplicate-names": true,
+		"function-calc-no-unspaced-operator": true,
+		"length-zero-no-unit": true,
+		"no-irregular-whitespace": true,
+		"shorthand-property-no-redundant-values": true
+	}
+}

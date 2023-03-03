@@ -8,7 +8,7 @@
 	overflow: hidden;
 	display: flex;
 	flex-direction: column;
-	margin: 0px auto;
+	margin: 0 auto;
 	max-width: 80%;
 }
 
@@ -38,7 +38,7 @@
 
 .extension-editor > .header > .icon-container .extension-remote-badge {
 	position: absolute;
-	right: 0px;
+	right: 0;
 	top: 88px;
 	width: 38px;
 	height: 38px;
@@ -94,7 +94,7 @@
 
 .extension-editor > .header > .details > .title > .pre-release {
 	margin-left: 10px;
-	padding: 0px 4px;
+	padding: 0 4px;
 	border-radius: 4px;
 	background-color: var(--vscode-extensionIcon-preReleaseForeground);
 	color: #ffffff;
@@ -121,7 +121,7 @@
 	font-size: 10px;
 	font-style: italic;
 	margin-left: 10px;
-	padding: 0px 4px;
+	padding: 0 4px;
 	border-radius: 4px;
 	user-select: none;
 	-webkit-user-select: none;
@@ -299,8 +299,8 @@
 
 .extension-editor > .header > .details > .pre-release-text p,
 .extension-editor > .header > .details > .actions-status-container > .status p {
-	margin-top: 0px;
-	margin-bottom: 0px;
+	margin-top: 0;
+	margin-bottom: 0;
 }
 
 .extension-editor > .header > .details > .pre-release-text a,
@@ -369,7 +369,7 @@
 	color: var(--vscode-panelTitle-inactiveForeground);
 	text-transform: uppercase;
 	background: none !important;
-	border-radius: 0px !important;
+	border-radius: 0 !important;
 }
 
 .extension-editor > .body > .navbar > .monaco-action-bar > .actions-container > .action-item > .action-label.checked {
@@ -407,7 +407,7 @@
 }
 
 .extension-editor > .body > .content > .details > .readme-container {
-	margin: 0px auto;
+	margin: 0 auto;
 	max-width: 75%;
 	height: 100%;
 	flex: 1;
@@ -463,7 +463,7 @@
 	padding: 2px 4px;
 	border-radius: 2px;
 	font-size: 90%;
-	margin: 0px 6px 3px 0px;
+	margin: 0 6px 3px 0;
 	cursor: pointer;
 }
 
@@ -497,7 +497,7 @@
 
 .extension-editor > .body > .content > .details > .additional-details-container .more-info-container > .more-info  > .more-info-entry code {
 	background-color: transparent;
-	padding: 0px;
+	padding: 0;
 }
 
 .extension-editor > .body > .content  > .details > .readme-container > .extension-pack-readme {
@@ -618,8 +618,8 @@
 
 .extension-editor > .body > .content table td > div,
 .extension-editor > .body > .content table td > div > p {
-	padding: 0px;
-	margin: 0px;
+	padding: 0;
+	margin: 0;
 }
 
 .extension-editor code:not(:empty) {
@@ -638,7 +638,7 @@
 	border-width: 0.1em;
 	border-style: solid;
 	border-color: rgb(0, 0, 0);
-	margin: 0em 0.2em;
+	margin: 0 0.2em;
 	vertical-align: middle;
 }
 
@@ -703,7 +703,7 @@
 	opacity: 0.6;
 	margin-left: 10px;
 	background: rgba(173, 173, 173, 0.31);
-	padding: 0px 4px;
+	padding: 0 4px;
 	border-radius: 4px;
 }
 

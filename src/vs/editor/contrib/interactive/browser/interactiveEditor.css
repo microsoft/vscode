@@ -40,7 +40,7 @@
 }
 
 .monaco-editor .interactive-editor .body.preview {
-	padding: 4px 4px 0 4px;
+	padding: 4px 4px 0;
 }
 
 .monaco-editor .interactive-editor .body .content .input {

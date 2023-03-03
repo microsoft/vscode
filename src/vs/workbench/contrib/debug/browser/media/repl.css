@@ -87,7 +87,7 @@
 
 .monaco-workbench .repl .repl-tree .output.expression > .value,
 .monaco-workbench .repl .repl-tree .evaluation-result.expression > .value {
-	margin-left: 0px;
+	margin-left: 0;
 }
 
 .monaco-workbench .repl .repl-tree .output.expression .name:not(:empty) {

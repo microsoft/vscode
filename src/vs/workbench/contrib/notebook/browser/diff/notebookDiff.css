@@ -179,17 +179,17 @@
 .monaco-workbench .notebook-text-diff-editor .cell-body.left .output-view-container .output-inner-container,
 .monaco-workbench .notebook-text-diff-editor .cell-body.right .output-view-container .output-inner-container {
 	width: 100%;
-	padding: 0px 8px;
+	padding: 0 8px;
 	box-sizing: border-box;
 	overflow-x: hidden;
 }
 
 .monaco-workbench .notebook-text-diff-editor .cell-body.left .output-view-container .output-inner-container {
-	padding: 0px 8px 0px 32px;
+	padding: 0 8px 0 32px;
 }
 
 .monaco-workbench .notebook-text-diff-editor .cell-body.right .output-view-container .output-inner-container {
-	padding: 0px 8px 0px 32px;
+	padding: 0 8px 0 32px;
 }
 
 .monaco-workbench .notebook-text-diff-editor .cell-body.full .output-view-container .output-inner-container {
@@ -239,7 +239,7 @@
 .monaco-workbench .notebook-text-diff-editor .output-view-container .error pre.traceback {
 	box-sizing: border-box;
 	padding: 8px 0;
-	margin: 0px;
+	margin: 0;
 }
 
 .monaco-workbench .notebook-text-diff-editor .output-view-container .error .traceback > span {

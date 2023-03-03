@@ -22,8 +22,8 @@
 	display: flex;
 	align-items: center;
 	justify-content: center;
-	margin-left: 0px;
-	margin-right: 0px;
+	margin-left: 0;
+	margin-right: 0;
 	color: inherit !important;
 }
 
@@ -149,7 +149,7 @@
 }
 
 .monaco-workbench .part.basepanel > .composite.title> .panel-switcher-container > .monaco-action-bar .action-item.icon .badge {
-	margin-left: 0px;
+	margin-left: 0;
 }
 
 .monaco-workbench .part.basepanel > .composite.title> .panel-switcher-container > .monaco-action-bar .badge .badge-content {

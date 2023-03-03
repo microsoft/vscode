@@ -251,7 +251,7 @@
 
 .hc-black .extension-list-item .monaco-action-bar .action-label.icon,
 .hc-light .extension-list-item .monaco-action-bar .action-label.icon {
-	padding: 0px 2px;
+	padding: 0 2px;
 }
 
 .extension-list-item .monaco-action-bar > .actions-container > .action-item.action-dropdown-item,
