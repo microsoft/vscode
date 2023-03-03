@@ -278,17 +278,17 @@ registerAction2(NavigatePreviousInNavigationsAction);
 registerAction2(NavigateToLastNavigationLocationAction);
 registerAction2(ClearEditorHistoryAction);
 
+registerAction2(EditorLayoutSingleAction);
+registerAction2(EditorLayoutTwoColumnsAction);
+registerAction2(EditorLayoutThreeColumnsAction);
+registerAction2(EditorLayoutTwoRowsAction);
+registerAction2(EditorLayoutThreeRowsAction);
+registerAction2(EditorLayoutTwoByTwoGridAction);
+registerAction2(EditorLayoutTwoRowsRightAction);
+registerAction2(EditorLayoutTwoColumnsBottomAction);
+
 // Editor Management (deprecated old style)
 const registry = Registry.as<IWorkbenchActionRegistry>(ActionExtensions.WorkbenchActions);
-
-registry.registerWorkbenchAction(SyncActionDescriptor.from(EditorLayoutSingleAction), 'View: Single Column Editor Layout', Categories.View.value);
-registry.registerWorkbenchAction(SyncActionDescriptor.from(EditorLayoutTwoColumnsAction), 'View: Two Columns Editor Layout', Categories.View.value);
-registry.registerWorkbenchAction(SyncActionDescriptor.from(EditorLayoutThreeColumnsAction), 'View: Three Columns Editor Layout', Categories.View.value);
-registry.registerWorkbenchAction(SyncActionDescriptor.from(EditorLayoutTwoRowsAction), 'View: Two Rows Editor Layout', Categories.View.value);
-registry.registerWorkbenchAction(SyncActionDescriptor.from(EditorLayoutThreeRowsAction), 'View: Three Rows Editor Layout', Categories.View.value);
-registry.registerWorkbenchAction(SyncActionDescriptor.from(EditorLayoutTwoByTwoGridAction), 'View: Grid Editor Layout (2x2)', Categories.View.value);
-registry.registerWorkbenchAction(SyncActionDescriptor.from(EditorLayoutTwoRowsRightAction), 'View: Two Rows Right Editor Layout', Categories.View.value);
-registry.registerWorkbenchAction(SyncActionDescriptor.from(EditorLayoutTwoColumnsBottomAction), 'View: Two Columns Bottom Editor Layout', Categories.View.value);
 
 registry.registerWorkbenchAction(SyncActionDescriptor.from(ToggleEditorTypeAction), 'View: Toggle Editor Type', Categories.View.value, ActiveEditorAvailableEditorIdsContext);
 registry.registerWorkbenchAction(SyncActionDescriptor.from(ReOpenInTextEditorAction), 'View: Reopen Editor With Text Editor', Categories.View.value, ActiveEditorAvailableEditorIdsContext);

@@ -34,24 +34,7 @@ import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegis
 import { ILogService } from 'vs/platform/log/common/log';
 import { Categories } from 'vs/platform/action/common/actionCommonCategories';
 
-class ExecuteCommandAction extends Action {
-
-	constructor(
-		id: string,
-		label: string,
-		private readonly commandId: string,
-		private readonly commandService: ICommandService,
-		private readonly commandArgs?: unknown
-	) {
-		super(id, label);
-	}
-
-	override run(): Promise<void> {
-		return this.commandService.executeCommand(this.commandId, this.commandArgs);
-	}
-}
-
-class ExecuteCommandAction2 extends Action2 {
+class ExecuteCommandAction extends Action2 {
 
 	constructor(
 		desc: Readonly<IAction2Options>,
@@ -122,7 +105,7 @@ export class SplitEditorOrthogonalAction extends AbstractSplitEditorAction {
 	}
 }
 
-export class SplitEditorLeftAction extends ExecuteCommandAction2 {
+export class SplitEditorLeftAction extends ExecuteCommandAction {
 
 	constructor() {
 		super({
@@ -138,7 +121,7 @@ export class SplitEditorLeftAction extends ExecuteCommandAction2 {
 	}
 }
 
-export class SplitEditorRightAction extends ExecuteCommandAction2 {
+export class SplitEditorRightAction extends ExecuteCommandAction {
 
 	constructor() {
 		super({
@@ -154,7 +137,7 @@ export class SplitEditorRightAction extends ExecuteCommandAction2 {
 	}
 }
 
-export class SplitEditorUpAction extends ExecuteCommandAction2 {
+export class SplitEditorUpAction extends ExecuteCommandAction {
 
 	static readonly LABEL = localize('splitEditorGroupUp', "Split Editor Up");
 
@@ -172,7 +155,7 @@ export class SplitEditorUpAction extends ExecuteCommandAction2 {
 	}
 }
 
-export class SplitEditorDownAction extends ExecuteCommandAction2 {
+export class SplitEditorDownAction extends ExecuteCommandAction {
 
 	static readonly LABEL = localize('splitEditorGroupDown', "Split Editor Down");
 
@@ -1890,7 +1873,7 @@ export class ClearEditorHistoryAction extends Action2 {
 	}
 }
 
-export class MoveEditorLeftInGroupAction extends ExecuteCommandAction2 {
+export class MoveEditorLeftInGroupAction extends ExecuteCommandAction {
 
 	constructor() {
 		super({
@@ -1909,7 +1892,7 @@ export class MoveEditorLeftInGroupAction extends ExecuteCommandAction2 {
 	}
 }
 
-export class MoveEditorRightInGroupAction extends ExecuteCommandAction2 {
+export class MoveEditorRightInGroupAction extends ExecuteCommandAction {
 
 	constructor() {
 		super({
@@ -1928,7 +1911,7 @@ export class MoveEditorRightInGroupAction extends ExecuteCommandAction2 {
 	}
 }
 
-export class MoveEditorToPreviousGroupAction extends ExecuteCommandAction2 {
+export class MoveEditorToPreviousGroupAction extends ExecuteCommandAction {
 
 	constructor() {
 		super({
@@ -1947,7 +1930,7 @@ export class MoveEditorToPreviousGroupAction extends ExecuteCommandAction2 {
 	}
 }
 
-export class MoveEditorToNextGroupAction extends ExecuteCommandAction2 {
+export class MoveEditorToNextGroupAction extends ExecuteCommandAction {
 
 	constructor() {
 		super({
@@ -1966,7 +1949,7 @@ export class MoveEditorToNextGroupAction extends ExecuteCommandAction2 {
 	}
 }
 
-export class MoveEditorToAboveGroupAction extends ExecuteCommandAction2 {
+export class MoveEditorToAboveGroupAction extends ExecuteCommandAction {
 
 	constructor() {
 		super({
@@ -1978,7 +1961,7 @@ export class MoveEditorToAboveGroupAction extends ExecuteCommandAction2 {
 	}
 }
 
-export class MoveEditorToBelowGroupAction extends ExecuteCommandAction2 {
+export class MoveEditorToBelowGroupAction extends ExecuteCommandAction {
 
 	constructor() {
 		super({
@@ -1990,7 +1973,7 @@ export class MoveEditorToBelowGroupAction extends ExecuteCommandAction2 {
 	}
 }
 
-export class MoveEditorToLeftGroupAction extends ExecuteCommandAction2 {
+export class MoveEditorToLeftGroupAction extends ExecuteCommandAction {
 
 	constructor() {
 		super({
@@ -2002,7 +1985,7 @@ export class MoveEditorToLeftGroupAction extends ExecuteCommandAction2 {
 	}
 }
 
-export class MoveEditorToRightGroupAction extends ExecuteCommandAction2 {
+export class MoveEditorToRightGroupAction extends ExecuteCommandAction {
 
 	constructor() {
 		super({
@@ -2014,7 +1997,7 @@ export class MoveEditorToRightGroupAction extends ExecuteCommandAction2 {
 	}
 }
 
-export class MoveEditorToFirstGroupAction extends ExecuteCommandAction2 {
+export class MoveEditorToFirstGroupAction extends ExecuteCommandAction {
 
 	constructor() {
 		super({
@@ -2033,7 +2016,7 @@ export class MoveEditorToFirstGroupAction extends ExecuteCommandAction2 {
 	}
 }
 
-export class MoveEditorToLastGroupAction extends ExecuteCommandAction2 {
+export class MoveEditorToLastGroupAction extends ExecuteCommandAction {
 
 	constructor() {
 		super({
@@ -2052,7 +2035,7 @@ export class MoveEditorToLastGroupAction extends ExecuteCommandAction2 {
 	}
 }
 
-export class SplitEditorToPreviousGroupAction extends ExecuteCommandAction2 {
+export class SplitEditorToPreviousGroupAction extends ExecuteCommandAction {
 
 	constructor() {
 		super({
@@ -2064,7 +2047,7 @@ export class SplitEditorToPreviousGroupAction extends ExecuteCommandAction2 {
 	}
 }
 
-export class SplitEditorToNextGroupAction extends ExecuteCommandAction2 {
+export class SplitEditorToNextGroupAction extends ExecuteCommandAction {
 
 	constructor() {
 		super({
@@ -2076,7 +2059,7 @@ export class SplitEditorToNextGroupAction extends ExecuteCommandAction2 {
 	}
 }
 
-export class SplitEditorToAboveGroupAction extends ExecuteCommandAction2 {
+export class SplitEditorToAboveGroupAction extends ExecuteCommandAction {
 
 	constructor() {
 		super({
@@ -2088,7 +2071,7 @@ export class SplitEditorToAboveGroupAction extends ExecuteCommandAction2 {
 	}
 }
 
-export class SplitEditorToBelowGroupAction extends ExecuteCommandAction2 {
+export class SplitEditorToBelowGroupAction extends ExecuteCommandAction {
 
 	constructor() {
 		super({
@@ -2100,7 +2083,7 @@ export class SplitEditorToBelowGroupAction extends ExecuteCommandAction2 {
 	}
 }
 
-export class SplitEditorToLeftGroupAction extends ExecuteCommandAction2 {
+export class SplitEditorToLeftGroupAction extends ExecuteCommandAction {
 
 	static readonly ID = 'workbench.action.splitEditorToLeftGroup';
 	static readonly LABEL = localize('splitEditorToLeftGroup', "Split Editor into Left Group");
@@ -2115,7 +2098,7 @@ export class SplitEditorToLeftGroupAction extends ExecuteCommandAction2 {
 	}
 }
 
-export class SplitEditorToRightGroupAction extends ExecuteCommandAction2 {
+export class SplitEditorToRightGroupAction extends ExecuteCommandAction {
 
 	constructor() {
 		super({
@@ -2127,7 +2110,7 @@ export class SplitEditorToRightGroupAction extends ExecuteCommandAction2 {
 	}
 }
 
-export class SplitEditorToFirstGroupAction extends ExecuteCommandAction2 {
+export class SplitEditorToFirstGroupAction extends ExecuteCommandAction {
 
 	constructor() {
 		super({
@@ -2139,7 +2122,7 @@ export class SplitEditorToFirstGroupAction extends ExecuteCommandAction2 {
 	}
 }
 
-export class SplitEditorToLastGroupAction extends ExecuteCommandAction2 {
+export class SplitEditorToLastGroupAction extends ExecuteCommandAction {
 
 	constructor() {
 		super({
@@ -2153,113 +2136,113 @@ export class SplitEditorToLastGroupAction extends ExecuteCommandAction2 {
 
 export class EditorLayoutSingleAction extends ExecuteCommandAction {
 
-	static readonly ID = 'workbench.action.editorLayoutSingle';
-	static readonly LABEL = localize('editorLayoutSingle', "Single Column Editor Layout");
+	static readonly ID: 'workbench.action.editorLayoutSingle';
 
-	constructor(
-		id: string,
-		label: string,
-		@ICommandService commandService: ICommandService
-	) {
-		super(id, label, LAYOUT_EDITOR_GROUPS_COMMAND_ID, commandService, { groups: [{}] } as EditorGroupLayout);
+	constructor() {
+		super({
+			id: EditorLayoutSingleAction.ID,
+			title: { value: localize('editorLayoutSingle', "Single Column Editor Layout"), original: 'Single Column Editor Layout' },
+			f1: true,
+			category: Categories.View
+		}, LAYOUT_EDITOR_GROUPS_COMMAND_ID, { groups: [{}] } as EditorGroupLayout);
 	}
 }
 
 export class EditorLayoutTwoColumnsAction extends ExecuteCommandAction {
 
-	static readonly ID = 'workbench.action.editorLayoutTwoColumns';
-	static readonly LABEL = localize('editorLayoutTwoColumns', "Two Columns Editor Layout");
+	static readonly ID: 'workbench.action.editorLayoutTwoColumns';
 
-	constructor(
-		id: string,
-		label: string,
-		@ICommandService commandService: ICommandService
-	) {
-		super(id, label, LAYOUT_EDITOR_GROUPS_COMMAND_ID, commandService, { groups: [{}, {}], orientation: GroupOrientation.HORIZONTAL } as EditorGroupLayout);
+	constructor() {
+		super({
+			id: EditorLayoutTwoColumnsAction.ID,
+			title: { value: localize('editorLayoutTwoColumns', "Two Columns Editor Layout"), original: 'Two Columns Editor Layout' },
+			f1: true,
+			category: Categories.View
+		}, LAYOUT_EDITOR_GROUPS_COMMAND_ID, { groups: [{}, {}], orientation: GroupOrientation.HORIZONTAL } as EditorGroupLayout);
 	}
 }
 
 export class EditorLayoutThreeColumnsAction extends ExecuteCommandAction {
 
-	static readonly ID = 'workbench.action.editorLayoutThreeColumns';
-	static readonly LABEL = localize('editorLayoutThreeColumns', "Three Columns Editor Layout");
+	static readonly ID: 'workbench.action.editorLayoutThreeColumns';
 
-	constructor(
-		id: string,
-		label: string,
-		@ICommandService commandService: ICommandService
-	) {
-		super(id, label, LAYOUT_EDITOR_GROUPS_COMMAND_ID, commandService, { groups: [{}, {}, {}], orientation: GroupOrientation.HORIZONTAL } as EditorGroupLayout);
+	constructor() {
+		super({
+			id: EditorLayoutThreeColumnsAction.ID,
+			title: { value: localize('editorLayoutThreeColumns', "Three Columns Editor Layout"), original: 'Three Columns Editor Layout' },
+			f1: true,
+			category: Categories.View
+		}, LAYOUT_EDITOR_GROUPS_COMMAND_ID, { groups: [{}, {}, {}], orientation: GroupOrientation.HORIZONTAL } as EditorGroupLayout);
 	}
 }
 
 export class EditorLayoutTwoRowsAction extends ExecuteCommandAction {
 
-	static readonly ID = 'workbench.action.editorLayoutTwoRows';
-	static readonly LABEL = localize('editorLayoutTwoRows', "Two Rows Editor Layout");
+	static readonly ID: 'workbench.action.editorLayoutTwoRows';
 
-	constructor(
-		id: string,
-		label: string,
-		@ICommandService commandService: ICommandService
-	) {
-		super(id, label, LAYOUT_EDITOR_GROUPS_COMMAND_ID, commandService, { groups: [{}, {}], orientation: GroupOrientation.VERTICAL } as EditorGroupLayout);
+	constructor() {
+		super({
+			id: EditorLayoutTwoRowsAction.ID,
+			title: { value: localize('editorLayoutTwoRows', "Two Rows Editor Layout"), original: 'Two Rows Editor Layout' },
+			f1: true,
+			category: Categories.View
+		}, LAYOUT_EDITOR_GROUPS_COMMAND_ID, { groups: [{}, {}], orientation: GroupOrientation.VERTICAL } as EditorGroupLayout);
 	}
 }
 
 export class EditorLayoutThreeRowsAction extends ExecuteCommandAction {
 
-	static readonly ID = 'workbench.action.editorLayoutThreeRows';
-	static readonly LABEL = localize('editorLayoutThreeRows', "Three Rows Editor Layout");
+	static readonly ID: 'workbench.action.editorLayoutThreeRows';
 
-	constructor(
-		id: string,
-		label: string,
-		@ICommandService commandService: ICommandService
-	) {
-		super(id, label, LAYOUT_EDITOR_GROUPS_COMMAND_ID, commandService, { groups: [{}, {}, {}], orientation: GroupOrientation.VERTICAL } as EditorGroupLayout);
+	constructor() {
+		super({
+			id: EditorLayoutThreeRowsAction.ID,
+			title: { value: localize('editorLayoutThreeRows', "Three Rows Editor Layout"), original: 'Three Rows Editor Layout' },
+			f1: true,
+			category: Categories.View
+		}, LAYOUT_EDITOR_GROUPS_COMMAND_ID, { groups: [{}, {}, {}], orientation: GroupOrientation.VERTICAL } as EditorGroupLayout);
 	}
 }
 
 export class EditorLayoutTwoByTwoGridAction extends ExecuteCommandAction {
 
-	static readonly ID = 'workbench.action.editorLayoutTwoByTwoGrid';
-	static readonly LABEL = localize('editorLayoutTwoByTwoGrid', "Grid Editor Layout (2x2)");
+	static readonly ID: 'workbench.action.editorLayoutTwoByTwoGrid';
 
-	constructor(
-		id: string,
-		label: string,
-		@ICommandService commandService: ICommandService
-	) {
-		super(id, label, LAYOUT_EDITOR_GROUPS_COMMAND_ID, commandService, { groups: [{ groups: [{}, {}] }, { groups: [{}, {}] }] } as EditorGroupLayout);
+	constructor() {
+		super({
+			id: EditorLayoutTwoByTwoGridAction.ID,
+			title: { value: localize('editorLayoutTwoByTwoGrid', "Grid Editor Layout (2x2)"), original: 'Grid Editor Layout (2x2)' },
+			f1: true,
+			category: Categories.View
+		}, LAYOUT_EDITOR_GROUPS_COMMAND_ID, { groups: [{ groups: [{}, {}] }, { groups: [{}, {}] }] } as EditorGroupLayout);
 	}
 }
 
 export class EditorLayoutTwoColumnsBottomAction extends ExecuteCommandAction {
 
-	static readonly ID = 'workbench.action.editorLayoutTwoColumnsBottom';
-	static readonly LABEL = localize('editorLayoutTwoColumnsBottom', "Two Columns Bottom Editor Layout");
+	static readonly ID: 'workbench.action.editorLayoutTwoColumnsBottom';
 
-	constructor(
-		id: string,
-		label: string,
-		@ICommandService commandService: ICommandService
-	) {
-		super(id, label, LAYOUT_EDITOR_GROUPS_COMMAND_ID, commandService, { groups: [{}, { groups: [{}, {}] }], orientation: GroupOrientation.VERTICAL } as EditorGroupLayout);
+	constructor() {
+		super({
+			id: EditorLayoutTwoColumnsBottomAction.ID,
+			title: { value: localize('editorLayoutTwoColumnsBottom', "Two Columns Bottom Editor Layout"), original: 'Two Columns Bottom Editor Layout' },
+			f1: true,
+			category: Categories.View
+		}, LAYOUT_EDITOR_GROUPS_COMMAND_ID, { groups: [{}, { groups: [{}, {}] }], orientation: GroupOrientation.VERTICAL } as EditorGroupLayout);
 	}
 }
 
 export class EditorLayoutTwoRowsRightAction extends ExecuteCommandAction {
 
-	static readonly ID = 'workbench.action.editorLayoutTwoRowsRight';
-	static readonly LABEL = localize('editorLayoutTwoRowsRight', "Two Rows Right Editor Layout");
+	static readonly ID: 'workbench.action.editorLayoutTwoRowsRight';
 
-	constructor(
-		id: string,
-		label: string,
-		@ICommandService commandService: ICommandService
-	) {
-		super(id, label, LAYOUT_EDITOR_GROUPS_COMMAND_ID, commandService, { groups: [{}, { groups: [{}, {}] }], orientation: GroupOrientation.HORIZONTAL } as EditorGroupLayout);
+	constructor() {
+		super({
+			id: EditorLayoutTwoRowsRightAction.ID,
+			title: { value: localize('editorLayoutTwoRowsRight', "Two Rows Right Editor Layout"), original: 'Two Rows Right Editor Layout' },
+			f1: true,
+			category: Categories.View
+		}, LAYOUT_EDITOR_GROUPS_COMMAND_ID, { groups: [{}, { groups: [{}, {}] }], orientation: GroupOrientation.HORIZONTAL } as EditorGroupLayout);
 	}
 }
 
