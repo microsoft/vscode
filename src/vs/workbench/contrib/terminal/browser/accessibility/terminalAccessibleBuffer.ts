@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { addDisposableListener } from 'vs/base/browser/dom';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
@@ -88,16 +87,21 @@ export class AccessibleBufferWidget extends DisposableStore {
 		}));
 	}
 
-	async focus(): Promise<void> {
-		await this._updateBufferEditor();
-	}
-
-	private async _updateBufferEditor(): Promise<void> {
+	private _hide(): void {
 		const xtermElement = this._terminal.raw?.element;
 		if (!xtermElement) {
 			return;
 		}
+		this._accessibleBuffer.classList.remove('active');
+		xtermElement.classList.remove('hide');
+		this._terminal.raw.focus();
+	}
 
+	async show(): Promise<void> {
+		const xtermElement = this._terminal.raw?.element;
+		if (!xtermElement) {
+			return;
+		}
 		const commandDetection = this._capabilities.get(TerminalCapability.CommandDetection);
 		const fragment = !!commandDetection ? this._getShellIntegrationContent() : this._getAllContent();
 		const model = await this._getTextModel(URI.from({ scheme: AccessibleBufferConstants.Scheme, fragment }));
@@ -109,18 +113,9 @@ export class AccessibleBufferWidget extends DisposableStore {
 			this._bufferEditor.layout({ width: xtermElement.clientWidth, height: xtermElement.clientHeight });
 			this._bufferEditor.onKeyDown((e) => {
 				if (e.keyCode === KeyCode.Escape || e.keyCode === KeyCode.Tab) {
-					this._accessibleBuffer.classList.remove('active');
-					this._terminal.raw.focus();
-					xtermElement.classList.remove('hide');
+					this._hide();
 				}
 			});
-			this.add(addDisposableListener(this._accessibleBuffer, 'keypress', (e) => {
-				if (e.key === 'Escape' || e.key === 'Tab') {
-					this._accessibleBuffer.classList.remove('active');
-					xtermElement.classList.remove('hide');
-					this._terminal.raw.focus();
-				}
-			}));
 			if (commandDetection) {
 				this._commandFinishedDisposable = commandDetection.onCommandFinished(() => this._refreshSelection = true);
 				this.add(this._commandFinishedDisposable);

@@ -87,8 +87,7 @@ registerAction2(class extends Action2 {
 		if (!terminal) {
 			return;
 		}
-		const widget = instantiationService.createInstance(AccessibleBufferWidget, terminal, instance.capabilities);
-		widget.focus();
+		instantiationService.createInstance(AccessibleBufferWidget, terminal, instance.capabilities).show();
 	}
 });
 
