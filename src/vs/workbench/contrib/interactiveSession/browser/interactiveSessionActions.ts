@@ -164,14 +164,15 @@ export function registerInteractiveSessionActions() {
 	});
 }
 
-export function getOpenInteractiveSessionEditorAction(id: string, label: string) {
+export function getOpenInteractiveSessionEditorAction(id: string, label: string, when?: string) {
 	return class OpenInteractiveSessionEditor extends Action2 {
 		constructor() {
 			super({
 				id: `workbench.action.openInteractiveSession.${id}`,
 				title: { value: localize('interactiveSession.open', "Open Interactive Session Editor ({0})", label), original: `Open Interactive Session Editor (${label})` },
 				f1: true,
-				category
+				category,
+				precondition: ContextKeyExpr.deserialize(when)
 			});
 		}
 
