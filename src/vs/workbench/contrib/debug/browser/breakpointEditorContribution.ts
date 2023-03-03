@@ -35,6 +35,7 @@ import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiati
 import { ILabelService } from 'vs/platform/label/common/label';
 import { registerColor } from 'vs/platform/theme/common/colorRegistry';
 import { registerThemingParticipant, themeColorFromId } from 'vs/platform/theme/common/themeService';
+import { GutterActionsRegistry } from 'vs/workbench/contrib/codeEditor/browser/editorLineNumberMenu';
 import { getBreakpointMessageAndIcon } from 'vs/workbench/contrib/debug/browser/breakpointsView';
 import { BreakpointWidget } from 'vs/workbench/contrib/debug/browser/breakpointWidget';
 import * as icons from 'vs/workbench/contrib/debug/browser/debugIcons';
@@ -236,6 +237,22 @@ export class BreakpointEditorContribution implements IBreakpointEditorContributi
 	}
 
 	private registerListeners(): void {
+		this.toDispose.push(
+			GutterActionsRegistry.registerGutterActionsGenerator(({ lineNumber, editor }, result) => {
+				const model = editor.getModel();
+				if (!model || !this.debugService.getAdapterManager().hasEnabledDebuggers() || !this.debugService.canSetBreakpointsIn(model)) {
+					return;
+				}
+
+				const breakpoints = this.debugService.getModel().getBreakpoints({ lineNumber, uri: model.uri });
+				const actions = this.getContextMenuActions(breakpoints, model.uri, lineNumber);
+
+				for (const action of actions) {
+					result.push(action);
+				}
+			})
+		);
+
 		this.toDispose.push(this.editor.onMouseDown(async (e: IEditorMouseEvent) => {
 			if (!this.debugService.getAdapterManager().hasEnabledDebuggers()) {
 				return;
@@ -250,20 +267,7 @@ export class BreakpointEditorContribution implements IBreakpointEditorContributi
 			const uri = model.uri;
 
 			if (e.event.rightButton || (env.isMacintosh && e.event.leftButton && e.event.ctrlKey)) {
-				if (!canSetBreakpoints) {
-					return;
-				}
-
-				const anchor = { x: e.event.posx, y: e.event.posy };
-				const breakpoints = this.debugService.getModel().getBreakpoints({ lineNumber, uri });
-				const actions = this.getContextMenuActions(breakpoints, uri, lineNumber);
-
-				this.contextMenuService.showContextMenu({
-					getAnchor: () => anchor,
-					getActions: () => actions,
-					getActionsContext: () => breakpoints.length ? breakpoints[0] : undefined,
-					onHide: () => disposeIfDisposable(actions)
-				});
+				return;
 			} else {
 				const breakpoints = this.debugService.getModel().getBreakpoints({ uri, lineNumber });
 
