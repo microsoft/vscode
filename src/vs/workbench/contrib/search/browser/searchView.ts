@@ -1619,6 +1619,8 @@ export class SearchView extends ViewPane {
 
 		this._visibleMatches = 0;
 
+		let refreshAndUpdateCountRunning = false;
+
 		// Handle UI updates in an interval to show frequent progress and results
 		if (!this._uiRefreshHandle) {
 			this._uiRefreshHandle = setInterval(() => {
@@ -1632,7 +1634,11 @@ export class SearchView extends ViewPane {
 				const fileCount = this.viewModel.searchResult.fileCount();
 				if (this._visibleMatches !== fileCount) {
 					this._visibleMatches = fileCount;
-					this.refreshAndUpdateCount();
+					if (!refreshAndUpdateCountRunning) {
+						refreshAndUpdateCountRunning = true;
+						this.refreshAndUpdateCount();
+						refreshAndUpdateCountRunning = false;
+					}
 				}
 			}, 100);
 		}
