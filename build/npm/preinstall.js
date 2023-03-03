@@ -20,7 +20,6 @@ if (majorNodeVersion >= 17) {
 const path = require('path');
 const fs = require('fs');
 const cp = require('child_process');
-const product = require('../../product.json');
 const yarnVersion = cp.execSync('yarn -v', { encoding: 'utf8' }).trim();
 const parsedYarnVersion = /^(\d+)\.(\d+)\.(\d+)/.exec(yarnVersion);
 const majorYarnVersion = parseInt(parsedYarnVersion[1]);
@@ -122,10 +121,11 @@ function installHeaders() {
 	const local = getHeaderInfo(path.join(__dirname, '..', '..', '.yarnrc'));
 	const remote = getHeaderInfo(path.join(__dirname, '..', '..', 'remote', '.yarnrc'));
 
-	if (local !== undefined && !versions.has(local.target)) {
+	if (local !== undefined) {
 		// Both disturl and target come from a file checked into our repository
 		cp.execFileSync(node_gyp, ['install', '--dist-url', local.disturl, local.target]);
-		if (product.quality && process.env.npm_config_devdir) {
+		if (process.env.npm_config_devdir) {
+			console.log('Reweriting node headers for client....');
 			const configPath = path.join(process.env.npm_config_devdir, local.target, 'include', 'node', 'config.gypi');
 			const data = fs.readFileSync(configPath, 'utf8');
 			// Based on https://github.com/nodejs/node-gyp/blob/39ac2c135db8a9e62bf22f0c7a4469ae6c381325/lib/create-config-gypi.js#L7

@@ -47,13 +47,16 @@ for (let dir of dirs) {
 		continue;
 	}
 
+	let opts;
+
 	if (dir === 'build') {
 		setupBuildYarnrc();
-		yarnInstall('build');
+		const env = { ...process.env };
+		if (process.env['npm_config_devdir']) { delete env['npm_config_devdir']; }
+		opts = { env };
+		yarnInstall('build', opts);
 		continue;
 	}
-
-	let opts;
 
 	if (dir === 'remote') {
 		// node modules used by vscode server
@@ -64,6 +67,7 @@ for (let dir of dirs) {
 		if (process.env['CFLAGS']) { delete env['CFLAGS']; }
 		if (process.env['LDFLAGS']) { delete env['LDFLAGS']; }
 		if (process.env['VSCODE_REMOTE_NODE_GYP']) { env['npm_config_node_gyp'] = process.env['VSCODE_REMOTE_NODE_GYP']; }
+		if (process.env['npm_config_devdir']) { delete env['npm_config_devdir']; }
 
 		opts = { env };
 	} else if (/^extensions\//.test(dir)) {
