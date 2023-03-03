@@ -605,6 +605,7 @@
 	white-space: pre-wrap;
 }
 
+.monaco-workbench .accessible-buffer.focus-within,
 .monaco-workbench .accessible-buffer.active {
 	pointer-events: all;
 	opacity: 1;
