@@ -15,7 +15,7 @@ import * as errors from 'vs/base/common/errors';
 import { Event } from 'vs/base/common/event';
 import { Iterable } from 'vs/base/common/iterator';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import * as env from 'vs/base/common/platform';
 import * as strings from 'vs/base/common/strings';
 import { withNullAsUndefined } from 'vs/base/common/types';
@@ -158,6 +158,7 @@ export class SearchView extends ViewPane {
 
 	private _uiRefreshHandle: any;
 	private _visibleMatches: number = 0;
+	private _refreshTreeQueued: IDisposable | undefined;
 
 	constructor(
 		options: IViewPaneOptions,
@@ -551,7 +552,16 @@ export class SearchView extends ViewPane {
 		return this.refreshTree(event);
 	}
 
-	refreshTree(event?: IChangeEvent): void {
+
+	private refreshTree(event?: IChangeEvent): void {
+		if (!this._refreshTreeQueued) {
+			this._refreshTreeQueued = dom.runAtThisOrScheduleAtNextAnimationFrame(() => {
+				this._doRefreshTree(event);
+			});
+		}
+	}
+
+	private _doRefreshTree(event?: IChangeEvent): void {
 		const collapseResults = this.searchConfig.collapseResults;
 		if (!event || event.added || event.removed) {
 			// Refresh whole tree
