@@ -585,6 +585,7 @@ export class SearchView extends ViewPane {
 				});
 			}
 		}
+		this._refreshTreeQueued = undefined;
 	}
 
 	private createResultIterator(collapseResults: ISearchConfigurationProperties['collapseResults']): Iterable<ICompressedTreeElement<RenderableMatch>> {
