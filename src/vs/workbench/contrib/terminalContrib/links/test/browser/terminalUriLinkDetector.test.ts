@@ -7,8 +7,8 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { IFileService } from 'vs/platform/files/common/files';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
-import { ITerminalLinkResolverService, TerminalBuiltinLinkType } from 'vs/workbench/contrib/terminalContrib/links/browser/links';
-import { TerminalLinkResolverService } from 'vs/workbench/contrib/terminalContrib/links/browser/terminalLinkResolverService';
+import { TerminalBuiltinLinkType } from 'vs/workbench/contrib/terminalContrib/links/browser/links';
+import { TerminalLinkResolver } from 'vs/workbench/contrib/terminalContrib/links/browser/terminalLinkResolver';
 import { TerminalUriLinkDetector } from 'vs/workbench/contrib/terminalContrib/links/browser/terminalUriLinkDetector';
 import { assertLinkHelper } from 'vs/workbench/contrib/terminalContrib/links/test/browser/linkTestUtils';
 import { createFileStat } from 'vs/workbench/test/common/workbenchTestServices';
@@ -34,7 +34,6 @@ suite('Workbench - TerminalUriLinkDetector', () => {
 				return createFileStat(resource);
 			}
 		});
-		instantiationService.set(ITerminalLinkResolverService, instantiationService.createInstance(TerminalLinkResolverService));
 		validResources = [];
 
 		xterm = new Terminal({ allowProposedApi: true, cols: 80, rows: 30 });
@@ -44,7 +43,7 @@ suite('Workbench - TerminalUriLinkDetector', () => {
 			remoteAuthority: undefined,
 			userHome: '/home',
 			backend: undefined
-		});
+		}, instantiationService.createInstance(TerminalLinkResolver));
 	});
 
 	async function assertLink(

@@ -8,7 +8,7 @@ import { URI } from 'vs/base/common/uri';
 import { ILinkComputerTarget, LinkComputer } from 'vs/editor/common/languages/linkComputer';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { ITerminalLinkDetector, ITerminalLinkResolverService, ITerminalSimpleLink, TerminalBuiltinLinkType } from 'vs/workbench/contrib/terminalContrib/links/browser/links';
+import { ITerminalLinkDetector, ITerminalLinkResolver, ITerminalSimpleLink, TerminalBuiltinLinkType } from 'vs/workbench/contrib/terminalContrib/links/browser/links';
 import { convertLinkRangeToBuffer, getXtermLineContent } from 'vs/workbench/contrib/terminalContrib/links/browser/terminalLinkHelpers';
 import { ITerminalBackend, ITerminalProcessManager } from 'vs/workbench/contrib/terminal/common/terminal';
 import { IBufferLine, Terminal } from 'xterm';
@@ -30,7 +30,7 @@ export class TerminalUriLinkDetector implements ITerminalLinkDetector {
 	constructor(
 		readonly xterm: Terminal,
 		private readonly _processManager: Pick<ITerminalProcessManager, 'initialCwd' | 'os' | 'remoteAuthority' | 'userHome'> & { backend?: Pick<ITerminalBackend, 'getWslPath'> },
-		@ITerminalLinkResolverService private readonly _terminalLinkResolverService: ITerminalLinkResolverService,
+		private readonly _linkResolver: ITerminalLinkResolver,
 		@IUriIdentityService private readonly _uriIdentityService: IUriIdentityService,
 		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService
 	) {
@@ -88,7 +88,7 @@ export class TerminalUriLinkDetector implements ITerminalLinkDetector {
 
 			// Iterate over all candidates, pushing the candidate on the first that's verified
 			for (const uriCandidate of uriCandidates) {
-				const linkStat = await this._terminalLinkResolverService.resolveLink(this._processManager, text, uriCandidate);
+				const linkStat = await this._linkResolver.resolveLink(this._processManager, text, uriCandidate);
 
 				// Create the link if validated
 				if (linkStat) {
