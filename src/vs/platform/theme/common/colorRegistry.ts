@@ -71,6 +71,7 @@ export interface ColorDefaults {
 	hcLight: ColorValue | null;
 }
 
+
 /**
  * A Color Value is either a color literal, a reference to an other color or a derived color
  */
@@ -141,15 +142,15 @@ class ColorRegistry implements IColorRegistry {
 			propertySchema.deprecationMessage = deprecationMessage;
 		}
 		if (defaults) {
-			const validateColorValue = (c: ColorValue | null, id: string) => {
+			const validateColorValue = (c: ColorValue | null) => {
 				if (isString(c) && c.charCodeAt(0) !== CharCode.Hash && !Color.Format.CSS.parseHex(c)) {
 					console.log(`Invalid color value: ${c} for color ${id}`);
 				}
 			};
-			validateColorValue(defaults.dark, id);
-			validateColorValue(defaults.light, id);
-			validateColorValue(defaults.hcDark, id);
-			validateColorValue(defaults.hcLight, id);
+			validateColorValue(defaults.dark);
+			validateColorValue(defaults.light);
+			validateColorValue(defaults.hcDark);
+			validateColorValue(defaults.hcLight);
 		}
 		this.colorSchema.properties[id] = propertySchema;
 		this.colorReferenceSchema.enum.push(id);
