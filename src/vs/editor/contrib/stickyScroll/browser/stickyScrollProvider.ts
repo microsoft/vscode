@@ -54,7 +54,7 @@ export interface IStickyLineCandidateProvider {
 	dispose(): void;
 	getVersionId(): number | undefined;
 	update(): Promise<void>;
-	getCandidateStickyLinesIntersectingFromOutline(range: StickyRange, outlineModel: StickyOutlineElement, result: StickyLineCandidate[], depth: number, lastStartLineNumber: number): void;
+	getCandidateStickyLinesIntersectingFromOutline(range: StickyRange, outlineModel: StickyElement, result: StickyLineCandidate[], depth: number, lastStartLineNumber: number): void;
 	getCandidateStickyLinesIntersecting(range: StickyRange): StickyLineCandidate[];
 	onDidChangeStickyScroll: Event<void>;
 
@@ -71,7 +71,7 @@ export class StickyLineCandidateProvider extends Disposable implements IStickyLi
 	private readonly _updateSoon: RunOnceScheduler;
 	private readonly _sessionStore: DisposableStore = new DisposableStore();
 
-	private _model: StickyOutlineModel | undefined;
+	private _model: StickyModel | undefined;
 	private _modelProviders: ((textModel: ITextModel, modelVersionId: number, token: CancellationToken) => Promise<boolean | null | undefined>)[] = [];
 	private _options: Readonly<Required<IEditorStickyScrollOptions>> | undefined;
 	private _cts: CancellationTokenSource | undefined;
@@ -79,9 +79,7 @@ export class StickyLineCandidateProvider extends Disposable implements IStickyLi
 	private readonly _foldingStore: DisposableStore = new DisposableStore();
 	private readonly _updateDebounceInfo: IFeatureDebounceInformation;
 	private _foldingRegionPromise: CancelablePromise<FoldingRegions | null> | null = null;
-	private _foldingModelPromise: Promise<FoldingModel | null> | null = null;
-	private _updateScheduler: Delayer<FoldingModel | null> | null = null;
-	private _foldingDecorationProvider: FoldingDecorationProvider;
+	private _updateScheduler: Delayer<boolean | undefined> | null = null;
 	private _foldingLimitReporter: RangesLimitReporter;
 
 	constructor(
@@ -93,8 +91,6 @@ export class StickyLineCandidateProvider extends Disposable implements IStickyLi
 		super();
 		this._editor = editor;
 		this._updateSoon = this._register(new RunOnceScheduler(() => this.update(), 50));
-
-		this._foldingDecorationProvider = new FoldingDecorationProvider(editor);
 		this._foldingLimitReporter = new RangesLimitReporter(editor);
 		this._updateDebounceInfo = _languageFeatureDebounceService.for(_languageFeaturesService.foldingRangeProvider, 'Sticky Scroll Folding', { min: 200 });
 
@@ -170,13 +166,13 @@ export class StickyLineCandidateProvider extends Disposable implements IStickyLi
 		// Clear sticky scroll to not show stale data for too long
 		const resetHandle = isDifferentModel ? setTimeout(() => {
 			if (!token.isCancellationRequested) {
-				this._model = new StickyOutlineModel(textModel.uri, textModel.getVersionId(), undefined, undefined);
+				this._model = new StickyModel(textModel.uri, textModel.getVersionId(), undefined, undefined);
 				this._onDidChangeStickyScroll.fire();
 			}
 		}, 75) : undefined;
 
 		// New update scheduler for the update request
-		this._updateScheduler = new Delayer<FoldingModel>(this._updateDebounceInfo.get(textModel));
+		this._updateScheduler = new Delayer<boolean | undefined>(this._updateDebounceInfo.get(textModel));
 
 		// When the folding store is cleared, the folding region request and the update scheduler are cancelled
 		// The current folding model and folding regions promises are set to null
@@ -188,7 +184,6 @@ export class StickyLineCandidateProvider extends Disposable implements IStickyLi
 				}
 				this._updateScheduler?.cancel();
 				this._updateScheduler = null;
-				this._foldingModelPromise = null;
 				this._foldingRegionPromise = null;
 			}
 		});
@@ -216,8 +211,8 @@ export class StickyLineCandidateProvider extends Disposable implements IStickyLi
 			return;
 		}
 		if (outlineModel.children.size !== 0) {
-			const { stickyOutlineElement, providerID } = StickyOutlineElement.fromOutlineModel(outlineModel, this._model?.outlineProviderId);
-			this._model = new StickyOutlineModel(textModel.uri, modelVersionId, stickyOutlineElement, providerID);
+			const { stickyOutlineElement, providerID } = StickyElement.fromOutlineModel(outlineModel, this._model?.outlineProviderId);
+			this._model = new StickyModel(textModel.uri, modelVersionId, stickyOutlineElement, providerID);
 			return true;
 		} else {
 			this._model = undefined;
@@ -243,52 +238,48 @@ export class StickyLineCandidateProvider extends Disposable implements IStickyLi
 	}
 
 	private async stickyModelFromProvider(textModel: ITextModel, modelVersionId: number, token: CancellationToken, provider: RangeProvider): Promise<boolean | undefined> {
+
 		if (this._updateScheduler) {
 			if (this._foldingRegionPromise) {
 				this._foldingRegionPromise.cancel();
 				this._foldingRegionPromise = null;
 			}
-			this._foldingModelPromise = this._updateScheduler.trigger(() => {
-				const foldingModel = new FoldingModel(textModel, this._foldingDecorationProvider);
+			return this._updateScheduler.trigger(() => {
+				// It is possible to cancel the promise which calculates the folding
 				const foldingRegionPromise = this._foldingRegionPromise = createCancelablePromise(token => provider.compute(token));
 				const sw = new StopWatch(true);
-				return foldingRegionPromise.then(foldingRanges => {
-					if (foldingRanges && foldingRegionPromise === this._foldingRegionPromise) {
-						foldingModel.update(foldingRanges, []);
-						const newValue = this._updateDebounceInfo.update(foldingModel.textModel, sw.elapsed());
+				return foldingRegionPromise.then(foldingRegions => {
+					if (foldingRegions === null || foldingRegions.length === 0) {
+						this._model = undefined;
+						return false;
+					} else if (foldingRegions && foldingRegionPromise === this._foldingRegionPromise) {
+						const newValue = this._updateDebounceInfo.update(textModel, sw.elapsed());
 						if (this._updateScheduler) {
 							this._updateScheduler.defaultDelay = newValue;
 						}
 					}
-					return foldingModel;
+					return this.stickyModelFromFoldingRegions(textModel, modelVersionId, token, foldingRegions);
 				});
-			}).then(undefined, (err) => {
+			}).then((status) => {
+				return status;
+			}, (err) => {
 				onUnexpectedError(err);
-				return null;
-			});
-
-			return this._foldingModelPromise!.then((foldingModel) => {
-				return this.stickyModelFromFoldingModel(textModel, modelVersionId, token, foldingModel);
+				return undefined;
 			});
 		} else {
-			return;
+			return undefined;
 		}
 	}
 
-	private async stickyModelFromFoldingModel(textModel: ITextModel, modelVersionId: number, token: CancellationToken, foldingModel: FoldingModel | null): Promise<boolean | undefined> {
+	private async stickyModelFromFoldingRegions(textModel: ITextModel, modelVersionId: number, token: CancellationToken, foldingRegions: FoldingRegions): Promise<boolean | undefined> {
 		// Return undefined when the token is cancelled
 		if (token.isCancellationRequested) {
 			return;
 		}
 		// Suppose the folding model is null or it has no regions, then return false
-		if (foldingModel === null || foldingModel.regions.length === 0) {
-			this._model = undefined;
-			return false;
-		} else {
-			const foldingElement = StickyOutlineElement.fromFoldingModel(foldingModel);
-			this._model = new StickyOutlineModel(textModel.uri, modelVersionId, foldingElement, undefined);
-			return true;
-		}
+		const foldingElement = StickyElement.fromFoldingRegions(foldingRegions);
+		this._model = new StickyModel(textModel.uri, modelVersionId, foldingElement, undefined);
+		return true;
 	}
 
 	private updateIndex(index: number) {
@@ -300,7 +291,7 @@ export class StickyLineCandidateProvider extends Disposable implements IStickyLi
 		return index;
 	}
 
-	public getCandidateStickyLinesIntersectingFromOutline(range: StickyRange, outlineModel: StickyOutlineElement, result: StickyLineCandidate[], depth: number, lastStartLineNumber: number): void {
+	public getCandidateStickyLinesIntersectingFromOutline(range: StickyRange, outlineModel: StickyElement, result: StickyLineCandidate[], depth: number, lastStartLineNumber: number): void {
 		if (outlineModel.children.length === 0) {
 			return;
 		}
@@ -349,7 +340,7 @@ export class StickyLineCandidateProvider extends Disposable implements IStickyLi
 	}
 }
 
-class StickyOutlineElement {
+class StickyElement {
 
 	private static comparator(range1: StickyRange, range2: StickyRange): number {
 		if (range1.startLineNumber !== range2.startLineNumber) {
@@ -359,25 +350,25 @@ class StickyOutlineElement {
 		}
 	}
 
-	public static fromOutlineElement(outlineElement: OutlineElement, previousStartLine: number): StickyOutlineElement {
-		const children: StickyOutlineElement[] = [];
+	public static fromOutlineElement(outlineElement: OutlineElement, previousStartLine: number): StickyElement {
+		const children: StickyElement[] = [];
 		for (const child of outlineElement.children.values()) {
 			if (child.symbol.selectionRange.startLineNumber !== child.symbol.range.endLineNumber) {
 				if (child.symbol.selectionRange.startLineNumber !== previousStartLine) {
-					children.push(StickyOutlineElement.fromOutlineElement(child, child.symbol.selectionRange.startLineNumber));
+					children.push(StickyElement.fromOutlineElement(child, child.symbol.selectionRange.startLineNumber));
 				} else {
 					for (const subchild of child.children.values()) {
-						children.push(StickyOutlineElement.fromOutlineElement(subchild, child.symbol.selectionRange.startLineNumber));
+						children.push(StickyElement.fromOutlineElement(subchild, child.symbol.selectionRange.startLineNumber));
 					}
 				}
 			}
 		}
 		children.sort((child1, child2) => this.comparator(child1.range!, child2.range!));
 		const range = new StickyRange(outlineElement.symbol.selectionRange.startLineNumber, outlineElement.symbol.range.endLineNumber);
-		return new StickyOutlineElement(range, children, undefined);
+		return new StickyElement(range, children, undefined);
 	}
 
-	public static fromOutlineModel(outlineModel: OutlineModel, preferredProvider: string | undefined): { stickyOutlineElement: StickyOutlineElement; providerID: string | undefined } {
+	public static fromOutlineModel(outlineModel: OutlineModel, preferredProvider: string | undefined): { stickyOutlineElement: StickyElement; providerID: string | undefined } {
 
 		let outlineElements: Map<string, OutlineElement>;
 		// When several possible outline providers
@@ -390,7 +381,7 @@ class StickyOutlineElement {
 				let maxTotalSumOfRanges = -1;
 				let optimalOutlineGroup = undefined;
 				for (const [_key, outlineGroup] of outlineModel.children.entries()) {
-					const totalSumRanges = StickyOutlineElement.findSumOfRangesOfGroup(outlineGroup);
+					const totalSumRanges = StickyElement.findSumOfRangesOfGroup(outlineGroup);
 					if (totalSumRanges > maxTotalSumOfRanges) {
 						optimalOutlineGroup = outlineGroup;
 						maxTotalSumOfRanges = totalSumRanges;
@@ -403,16 +394,16 @@ class StickyOutlineElement {
 		} else {
 			outlineElements = outlineModel.children as Map<string, OutlineElement>;
 		}
-		const stickyChildren: StickyOutlineElement[] = [];
+		const stickyChildren: StickyElement[] = [];
 		const outlineElementsArray = Array.from(outlineElements.values()).sort((element1, element2) => {
 			const range1: StickyRange = new StickyRange(element1.symbol.range.startLineNumber, element1.symbol.range.endLineNumber);
 			const range2: StickyRange = new StickyRange(element2.symbol.range.startLineNumber, element2.symbol.range.endLineNumber);
 			return this.comparator(range1, range2);
 		});
 		for (const outlineElement of outlineElementsArray) {
-			stickyChildren.push(StickyOutlineElement.fromOutlineElement(outlineElement, outlineElement.symbol.selectionRange.startLineNumber));
+			stickyChildren.push(StickyElement.fromOutlineElement(outlineElement, outlineElement.symbol.selectionRange.startLineNumber));
 		}
-		const stickyOutlineElement = new StickyOutlineElement(undefined, stickyChildren, undefined);
+		const stickyOutlineElement = new StickyElement(undefined, stickyChildren, undefined);
 
 		return {
 			stickyOutlineElement: stickyOutlineElement,
@@ -432,13 +423,12 @@ class StickyOutlineElement {
 		}
 	}
 
-	public static fromFoldingModel(foldingModel: FoldingModel): StickyOutlineElement {
-		const regions = foldingModel.regions;
-		const length = regions.length;
+	public static fromFoldingRegions(foldingRegions: FoldingRegions): StickyElement {
+		const length = foldingRegions.length;
 		let range: StickyRange | undefined;
 		const stackOfParents: StickyRange[] = [];
 
-		const stickyOutlineElement = new StickyOutlineElement(
+		const stickyOutlineElement = new StickyElement(
 			undefined,
 			[],
 			undefined
@@ -446,14 +436,14 @@ class StickyOutlineElement {
 		let parentStickyOutlineElement = stickyOutlineElement;
 
 		for (let i = 0; i < length; i++) {
-			range = new StickyRange(regions.getStartLineNumber(i), regions.getEndLineNumber(i) + 1);
+			range = new StickyRange(foldingRegions.getStartLineNumber(i), foldingRegions.getEndLineNumber(i) + 1);
 			while (stackOfParents.length !== 0 && (range.startLineNumber < stackOfParents[stackOfParents.length - 1].startLineNumber || range.endLineNumber > stackOfParents[stackOfParents.length - 1].endLineNumber)) {
 				stackOfParents.pop();
 				if (parentStickyOutlineElement.parent !== undefined) {
 					parentStickyOutlineElement = parentStickyOutlineElement.parent;
 				}
 			}
-			const child = new StickyOutlineElement(
+			const child = new StickyElement(
 				range,
 				[],
 				parentStickyOutlineElement
@@ -473,20 +463,20 @@ class StickyOutlineElement {
 		/**
 		 * Must be sorted by start line number
 		*/
-		public readonly children: StickyOutlineElement[],
+		public readonly children: StickyElement[],
 		/**
 		 * Parent sticky outline element
 		 */
-		public readonly parent: StickyOutlineElement | undefined
+		public readonly parent: StickyElement | undefined
 	) {
 	}
 }
 
-class StickyOutlineModel {
+class StickyModel {
 	constructor(
 		readonly uri: URI,
 		readonly version: number,
-		readonly element: StickyOutlineElement | undefined,
+		readonly element: StickyElement | undefined,
 		readonly outlineProviderId: string | undefined
 	) { }
 }
