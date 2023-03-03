@@ -39,9 +39,9 @@ class ExecuteCommandAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		private commandId: string,
-		private commandService: ICommandService,
-		private commandArgs?: unknown
+		private readonly commandId: string,
+		private readonly commandService: ICommandService,
+		private readonly commandArgs?: unknown
 	) {
 		super(id, label);
 	}
@@ -55,8 +55,8 @@ class ExecuteCommandAction2 extends Action2 {
 
 	constructor(
 		desc: Readonly<IAction2Options>,
-		private commandId: string,
-		private commandArgs?: unknown
+		private readonly commandId: string,
+		private readonly commandArgs?: unknown
 	) {
 		super(desc);
 	}
@@ -284,7 +284,7 @@ abstract class AbstractFocusGroupAction extends Action2 {
 
 	constructor(
 		desc: Readonly<IAction2Options>,
-		private scope: IFindGroupScope
+		private readonly scope: IFindGroupScope
 	) {
 		super(desc);
 	}
@@ -831,8 +831,8 @@ abstract class AbstractMoveCopyGroupAction extends Action2 {
 
 	constructor(
 		desc: Readonly<IAction2Options>,
-		private direction: GroupDirection,
-		private isMove: boolean
+		private readonly direction: GroupDirection,
+		private readonly isMove: boolean
 	) {
 		super(desc);
 	}
@@ -1683,8 +1683,8 @@ abstract class AbstractQuickAccessEditorAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		private prefix: string,
-		private itemActivation: ItemActivation | undefined,
+		private readonly prefix: string,
+		private readonly itemActivation: ItemActivation | undefined,
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
 		@IKeybindingService private readonly keybindingService: IKeybindingService
 	) {
@@ -2270,75 +2270,67 @@ export class EditorLayoutTwoRowsRightAction extends ExecuteCommandAction {
 	}
 }
 
-abstract class AbstractCreateEditorGroupAction extends Action {
+abstract class AbstractCreateEditorGroupAction extends Action2 {
 
 	constructor(
-		id: string,
-		label: string,
-		private direction: GroupDirection,
-		private editorGroupService: IEditorGroupsService
+		desc: Readonly<IAction2Options>,
+		private readonly direction: GroupDirection
 	) {
-		super(id, label);
+		super(desc);
 	}
 
-	override async run(): Promise<void> {
-		this.editorGroupService.addGroup(this.editorGroupService.activeGroup, this.direction, { activate: true });
+	override async run(accessor: ServicesAccessor): Promise<void> {
+		const editorGroupService = accessor.get(IEditorGroupsService);
+
+		editorGroupService.addGroup(editorGroupService.activeGroup, this.direction, { activate: true });
 	}
 }
 
 export class NewEditorGroupLeftAction extends AbstractCreateEditorGroupAction {
 
-	static readonly ID = 'workbench.action.newGroupLeft';
-	static readonly LABEL = localize('newEditorLeft', "New Editor Group to the Left");
-
-	constructor(
-		id: string,
-		label: string,
-		@IEditorGroupsService editorGroupService: IEditorGroupsService
-	) {
-		super(id, label, GroupDirection.LEFT, editorGroupService);
+	constructor() {
+		super({
+			id: 'workbench.action.newGroupLeft',
+			title: { value: localize('newGroupLeft', "New Editor Group to the Left"), original: 'New Editor Group to the Left' },
+			f1: true,
+			category: Categories.View
+		}, GroupDirection.LEFT);
 	}
 }
 
 export class NewEditorGroupRightAction extends AbstractCreateEditorGroupAction {
 
-	static readonly ID = 'workbench.action.newGroupRight';
-	static readonly LABEL = localize('newEditorRight', "New Editor Group to the Right");
-
-	constructor(
-		id: string,
-		label: string,
-		@IEditorGroupsService editorGroupService: IEditorGroupsService
-	) {
-		super(id, label, GroupDirection.RIGHT, editorGroupService);
+	constructor() {
+		super({
+			id: 'workbench.action.newGroupRight',
+			title: { value: localize('newGroupRight', "New Editor Group to the Right"), original: 'New Editor Group to the Right' },
+			f1: true,
+			category: Categories.View
+		}, GroupDirection.RIGHT);
 	}
 }
 
 export class NewEditorGroupAboveAction extends AbstractCreateEditorGroupAction {
 
-	static readonly ID = 'workbench.action.newGroupAbove';
-	static readonly LABEL = localize('newEditorAbove', "New Editor Group Above");
-
-	constructor(
-		id: string,
-		label: string,
-		@IEditorGroupsService editorGroupService: IEditorGroupsService
-	) {
-		super(id, label, GroupDirection.UP, editorGroupService);
+	constructor() {
+		super({
+			id: 'workbench.action.newGroupAbove',
+			title: { value: localize('newGroupAbove', "New Editor Group Above"), original: 'New Editor Group Above' },
+			f1: true,
+			category: Categories.View
+		}, GroupDirection.UP);
 	}
 }
 
 export class NewEditorGroupBelowAction extends AbstractCreateEditorGroupAction {
 
-	static readonly ID = 'workbench.action.newGroupBelow';
-	static readonly LABEL = localize('newEditorBelow', "New Editor Group Below");
-
-	constructor(
-		id: string,
-		label: string,
-		@IEditorGroupsService editorGroupService: IEditorGroupsService
-	) {
-		super(id, label, GroupDirection.DOWN, editorGroupService);
+	constructor() {
+		super({
+			id: 'workbench.action.newGroupBelow',
+			title: { value: localize('newGroupBelow', "New Editor Group Below"), original: 'New Editor Group Below' },
+			f1: true,
+			category: Categories.View
+		}, GroupDirection.DOWN);
 	}
 }
 
