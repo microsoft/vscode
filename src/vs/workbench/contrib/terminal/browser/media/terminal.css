@@ -594,12 +594,11 @@
 	bottom: 0;
 	right: 0;
 	opacity: 0;
-	overflow: scroll;
 	/* Reset cursor style as monaco controls it here */
 	cursor: default;
-	padding: 0 !important;
-	overflow: initial !important;
-	overflow-x: initial !important;
+	padding: 0;
+	overflow: initial;
+	overflow-x: initial;
 }
 
 .accessible-buffer div {
@@ -607,9 +606,7 @@
 }
 
 .accessible-buffer.active {
-	top: 0 !important;
-	left: 0 !important;
-	pointer-events: all !important;
+	pointer-events: all;
 	opacity: 1;
 	z-index: 33;
 	background-color: var(--vscode-terminal-background, --vscode-panel-background);
