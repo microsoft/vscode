@@ -1636,8 +1636,11 @@ export class SearchView extends ViewPane {
 					this._visibleMatches = fileCount;
 					if (!refreshAndUpdateCountRunning) {
 						refreshAndUpdateCountRunning = true;
-						this.refreshAndUpdateCount();
-						refreshAndUpdateCountRunning = false;
+						try {
+							this.refreshAndUpdateCount();
+						} finally {
+							refreshAndUpdateCountRunning = false;
+						}
 					}
 				}
 			}, 100);
