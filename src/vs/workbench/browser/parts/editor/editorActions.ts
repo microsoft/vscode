@@ -1792,6 +1792,7 @@ export class OpenNextRecentlyUsedEditorAction extends Action2 {
 		super({
 			id: 'workbench.action.openNextRecentlyUsedEditor',
 			title: { value: localize('openNextRecentlyUsedEditor', "Open Next Recently Used Editor"), original: 'Open Next Recently Used Editor' },
+			f1: true,
 			category: Categories.View
 		});
 	}
@@ -1809,6 +1810,7 @@ export class OpenPreviousRecentlyUsedEditorAction extends Action2 {
 		super({
 			id: 'workbench.action.openPreviousRecentlyUsedEditor',
 			title: { value: localize('openPreviousRecentlyUsedEditor', "Open Previous Recently Used Editor"), original: 'Open Previous Recently Used Editor' },
+			f1: true,
 			category: Categories.View
 		});
 	}
@@ -1826,6 +1828,7 @@ export class OpenNextRecentlyUsedEditorInGroupAction extends Action2 {
 		super({
 			id: 'workbench.action.openNextRecentlyUsedEditorInGroup',
 			title: { value: localize('openNextRecentlyUsedEditorInGroup', "Open Next Recently Used Editor In Group"), original: 'Open Next Recently Used Editor In Group' },
+			f1: true,
 			category: Categories.View
 		});
 	}
@@ -1844,6 +1847,7 @@ export class OpenPreviousRecentlyUsedEditorInGroupAction extends Action2 {
 		super({
 			id: 'workbench.action.openPreviousRecentlyUsedEditorInGroup',
 			title: { value: localize('openPreviousRecentlyUsedEditorInGroup', "Open Previous Recently Used Editor In Group"), original: 'Open Previous Recently Used Editor In Group' },
+			f1: true,
 			category: Categories.View
 		});
 	}
@@ -1902,6 +1906,7 @@ export class MoveEditorLeftInGroupAction extends ExecuteCommandAction2 {
 					primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.LeftArrow)
 				}
 			},
+			f1: true,
 			category: Categories.View
 		}, MOVE_ACTIVE_EDITOR_COMMAND_ID, { to: 'left' } as ActiveEditorMoveCopyArguments);
 	}
@@ -1920,232 +1925,232 @@ export class MoveEditorRightInGroupAction extends ExecuteCommandAction2 {
 					primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.RightArrow)
 				}
 			},
+			f1: true,
 			category: Categories.View
 		}, MOVE_ACTIVE_EDITOR_COMMAND_ID, { to: 'right' } as ActiveEditorMoveCopyArguments);
 	}
 }
 
-export class MoveEditorToPreviousGroupAction extends ExecuteCommandAction {
+export class MoveEditorToPreviousGroupAction extends ExecuteCommandAction2 {
 
-	static readonly ID = 'workbench.action.moveEditorToPreviousGroup';
-	static readonly LABEL = localize('moveEditorToPreviousGroup', "Move Editor into Previous Group");
-
-	constructor(
-		id: string,
-		label: string,
-		@ICommandService commandService: ICommandService
-	) {
-		super(id, label, MOVE_ACTIVE_EDITOR_COMMAND_ID, commandService, { to: 'previous', by: 'group' } as ActiveEditorMoveCopyArguments);
+	constructor() {
+		super({
+			id: 'workbench.action.moveEditorToPreviousGroup',
+			title: { value: localize('moveEditorToPreviousGroup', "Move Editor into Previous Group"), original: 'Move Editor into Previous Group' },
+			keybinding: {
+				weight: KeybindingWeight.WorkbenchContrib,
+				primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.LeftArrow,
+				mac: {
+					primary: KeyMod.CtrlCmd | KeyMod.WinCtrl | KeyCode.LeftArrow
+				}
+			},
+			f1: true,
+			category: Categories.View,
+		}, MOVE_ACTIVE_EDITOR_COMMAND_ID, { to: 'previous', by: 'group' } as ActiveEditorMoveCopyArguments);
 	}
 }
 
-export class MoveEditorToNextGroupAction extends ExecuteCommandAction {
+export class MoveEditorToNextGroupAction extends ExecuteCommandAction2 {
 
-	static readonly ID = 'workbench.action.moveEditorToNextGroup';
-	static readonly LABEL = localize('moveEditorToNextGroup', "Move Editor into Next Group");
-
-	constructor(
-		id: string,
-		label: string,
-		@ICommandService commandService: ICommandService
-	) {
-		super(id, label, MOVE_ACTIVE_EDITOR_COMMAND_ID, commandService, { to: 'next', by: 'group' } as ActiveEditorMoveCopyArguments);
+	constructor() {
+		super({
+			id: 'workbench.action.moveEditorToNextGroup',
+			title: { value: localize('moveEditorToNextGroup', "Move Editor into Next Group"), original: 'Move Editor into Next Group' },
+			f1: true,
+			keybinding: {
+				weight: KeybindingWeight.WorkbenchContrib,
+				primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.RightArrow,
+				mac: {
+					primary: KeyMod.CtrlCmd | KeyMod.WinCtrl | KeyCode.RightArrow
+				}
+			},
+			category: Categories.View
+		}, MOVE_ACTIVE_EDITOR_COMMAND_ID, { to: 'next', by: 'group' } as ActiveEditorMoveCopyArguments);
 	}
 }
 
-export class MoveEditorToAboveGroupAction extends ExecuteCommandAction {
+export class MoveEditorToAboveGroupAction extends ExecuteCommandAction2 {
 
-	static readonly ID = 'workbench.action.moveEditorToAboveGroup';
-	static readonly LABEL = localize('moveEditorToAboveGroup', "Move Editor into Group Above");
-
-	constructor(
-		id: string,
-		label: string,
-		@ICommandService commandService: ICommandService
-	) {
-		super(id, label, MOVE_ACTIVE_EDITOR_COMMAND_ID, commandService, { to: 'up', by: 'group' } as ActiveEditorMoveCopyArguments);
+	constructor() {
+		super({
+			id: 'workbench.action.moveEditorToAboveGroup',
+			title: { value: localize('moveEditorToAboveGroup', "Move Editor into Group Above"), original: 'Move Editor into Group Above' },
+			f1: true,
+			category: Categories.View
+		}, MOVE_ACTIVE_EDITOR_COMMAND_ID, { to: 'up', by: 'group' } as ActiveEditorMoveCopyArguments);
 	}
 }
 
-export class MoveEditorToBelowGroupAction extends ExecuteCommandAction {
+export class MoveEditorToBelowGroupAction extends ExecuteCommandAction2 {
 
-	static readonly ID = 'workbench.action.moveEditorToBelowGroup';
-	static readonly LABEL = localize('moveEditorToBelowGroup', "Move Editor into Group Below");
-
-	constructor(
-		id: string,
-		label: string,
-		@ICommandService commandService: ICommandService
-	) {
-		super(id, label, MOVE_ACTIVE_EDITOR_COMMAND_ID, commandService, { to: 'down', by: 'group' } as ActiveEditorMoveCopyArguments);
+	constructor() {
+		super({
+			id: 'workbench.action.moveEditorToBelowGroup',
+			title: { value: localize('moveEditorToBelowGroup', "Move Editor into Group Below"), original: 'Move Editor into Group Below' },
+			f1: true,
+			category: Categories.View
+		}, MOVE_ACTIVE_EDITOR_COMMAND_ID, { to: 'down', by: 'group' } as ActiveEditorMoveCopyArguments);
 	}
 }
 
-export class MoveEditorToLeftGroupAction extends ExecuteCommandAction {
+export class MoveEditorToLeftGroupAction extends ExecuteCommandAction2 {
 
-	static readonly ID = 'workbench.action.moveEditorToLeftGroup';
-	static readonly LABEL = localize('moveEditorToLeftGroup', "Move Editor into Left Group");
-
-	constructor(
-		id: string,
-		label: string,
-		@ICommandService commandService: ICommandService
-	) {
-		super(id, label, MOVE_ACTIVE_EDITOR_COMMAND_ID, commandService, { to: 'left', by: 'group' } as ActiveEditorMoveCopyArguments);
+	constructor() {
+		super({
+			id: 'workbench.action.moveEditorToLeftGroup',
+			title: { value: localize('moveEditorToLeftGroup', "Move Editor into Left Group"), original: 'Move Editor into Left Group' },
+			f1: true,
+			category: Categories.View
+		}, MOVE_ACTIVE_EDITOR_COMMAND_ID, { to: 'left', by: 'group' } as ActiveEditorMoveCopyArguments);
 	}
 }
 
-export class MoveEditorToRightGroupAction extends ExecuteCommandAction {
+export class MoveEditorToRightGroupAction extends ExecuteCommandAction2 {
 
-	static readonly ID = 'workbench.action.moveEditorToRightGroup';
-	static readonly LABEL = localize('moveEditorToRightGroup', "Move Editor into Right Group");
-
-	constructor(
-		id: string,
-		label: string,
-		@ICommandService commandService: ICommandService
-	) {
-		super(id, label, MOVE_ACTIVE_EDITOR_COMMAND_ID, commandService, { to: 'right', by: 'group' } as ActiveEditorMoveCopyArguments);
+	constructor() {
+		super({
+			id: 'workbench.action.moveEditorToRightGroup',
+			title: { value: localize('moveEditorToRightGroup', "Move Editor into Right Group"), original: 'Move Editor into Right Group' },
+			f1: true,
+			category: Categories.View
+		}, MOVE_ACTIVE_EDITOR_COMMAND_ID, { to: 'right', by: 'group' } as ActiveEditorMoveCopyArguments);
 	}
 }
 
-export class MoveEditorToFirstGroupAction extends ExecuteCommandAction {
+export class MoveEditorToFirstGroupAction extends ExecuteCommandAction2 {
 
-	static readonly ID = 'workbench.action.moveEditorToFirstGroup';
-	static readonly LABEL = localize('moveEditorToFirstGroup', "Move Editor into First Group");
-
-	constructor(
-		id: string,
-		label: string,
-		@ICommandService commandService: ICommandService
-	) {
-		super(id, label, MOVE_ACTIVE_EDITOR_COMMAND_ID, commandService, { to: 'first', by: 'group' } as ActiveEditorMoveCopyArguments);
+	constructor() {
+		super({
+			id: 'workbench.action.moveEditorToFirstGroup',
+			title: { value: localize('moveEditorToFirstGroup', "Move Editor into First Group"), original: 'Move Editor into First Group' },
+			f1: true,
+			keybinding: {
+				weight: KeybindingWeight.WorkbenchContrib,
+				primary: KeyMod.Shift | KeyMod.Alt | KeyCode.Digit1,
+				mac: {
+					primary: KeyMod.CtrlCmd | KeyMod.WinCtrl | KeyCode.Digit1
+				}
+			},
+			category: Categories.View
+		}, MOVE_ACTIVE_EDITOR_COMMAND_ID, { to: 'first', by: 'group' } as ActiveEditorMoveCopyArguments);
 	}
 }
 
-export class MoveEditorToLastGroupAction extends ExecuteCommandAction {
+export class MoveEditorToLastGroupAction extends ExecuteCommandAction2 {
 
-	static readonly ID = 'workbench.action.moveEditorToLastGroup';
-	static readonly LABEL = localize('moveEditorToLastGroup', "Move Editor into Last Group");
-
-	constructor(
-		id: string,
-		label: string,
-		@ICommandService commandService: ICommandService
-	) {
-		super(id, label, MOVE_ACTIVE_EDITOR_COMMAND_ID, commandService, { to: 'last', by: 'group' } as ActiveEditorMoveCopyArguments);
+	constructor() {
+		super({
+			id: 'workbench.action.moveEditorToLastGroup',
+			title: { value: localize('moveEditorToLastGroup', "Move Editor into Last Group"), original: 'Move Editor into Last Group' },
+			f1: true,
+			keybinding: {
+				weight: KeybindingWeight.WorkbenchContrib,
+				primary: KeyMod.Shift | KeyMod.Alt | KeyCode.Digit9,
+				mac: {
+					primary: KeyMod.CtrlCmd | KeyMod.WinCtrl | KeyCode.Digit9
+				}
+			},
+			category: Categories.View
+		}, MOVE_ACTIVE_EDITOR_COMMAND_ID, { to: 'last', by: 'group' } as ActiveEditorMoveCopyArguments);
 	}
 }
 
-export class SplitEditorToPreviousGroupAction extends ExecuteCommandAction {
+export class SplitEditorToPreviousGroupAction extends ExecuteCommandAction2 {
 
-	static readonly ID = 'workbench.action.splitEditorToPreviousGroup';
-	static readonly LABEL = localize('splitEditorToPreviousGroup', "Split Editor into Previous Group");
-
-	constructor(
-		id: string,
-		label: string,
-		@ICommandService commandService: ICommandService
-	) {
-		super(id, label, COPY_ACTIVE_EDITOR_COMMAND_ID, commandService, { to: 'previous', by: 'group' } as ActiveEditorMoveCopyArguments);
+	constructor() {
+		super({
+			id: 'workbench.action.splitEditorToPreviousGroup',
+			title: { value: localize('splitEditorToPreviousGroup', "Split Editor into Previous Group"), original: 'Split Editor into Previous Group' },
+			f1: true,
+			category: Categories.View
+		}, COPY_ACTIVE_EDITOR_COMMAND_ID, { to: 'previous', by: 'group' } as ActiveEditorMoveCopyArguments);
 	}
 }
 
-export class SplitEditorToNextGroupAction extends ExecuteCommandAction {
+export class SplitEditorToNextGroupAction extends ExecuteCommandAction2 {
 
-	static readonly ID = 'workbench.action.splitEditorToNextGroup';
-	static readonly LABEL = localize('splitEditorToNextGroup', "Split Editor into Next Group");
-
-	constructor(
-		id: string,
-		label: string,
-		@ICommandService commandService: ICommandService
-	) {
-		super(id, label, COPY_ACTIVE_EDITOR_COMMAND_ID, commandService, { to: 'next', by: 'group' } as ActiveEditorMoveCopyArguments);
+	constructor() {
+		super({
+			id: 'workbench.action.splitEditorToNextGroup',
+			title: { value: localize('splitEditorToNextGroup', "Split Editor into Next Group"), original: 'Split Editor into Next Group' },
+			f1: true,
+			category: Categories.View
+		}, COPY_ACTIVE_EDITOR_COMMAND_ID, { to: 'next', by: 'group' } as ActiveEditorMoveCopyArguments);
 	}
 }
 
-export class SplitEditorToAboveGroupAction extends ExecuteCommandAction {
+export class SplitEditorToAboveGroupAction extends ExecuteCommandAction2 {
 
-	static readonly ID = 'workbench.action.splitEditorToAboveGroup';
-	static readonly LABEL = localize('splitEditorToAboveGroup', "Split Editor into Group Above");
-
-	constructor(
-		id: string,
-		label: string,
-		@ICommandService commandService: ICommandService
-	) {
-		super(id, label, COPY_ACTIVE_EDITOR_COMMAND_ID, commandService, { to: 'up', by: 'group' } as ActiveEditorMoveCopyArguments);
+	constructor() {
+		super({
+			id: 'workbench.action.splitEditorToAboveGroup',
+			title: { value: localize('splitEditorToAboveGroup', "Split Editor into Group Above"), original: 'Split Editor into Group Above' },
+			f1: true,
+			category: Categories.View
+		}, COPY_ACTIVE_EDITOR_COMMAND_ID, { to: 'up', by: 'group' } as ActiveEditorMoveCopyArguments);
 	}
 }
 
-export class SplitEditorToBelowGroupAction extends ExecuteCommandAction {
+export class SplitEditorToBelowGroupAction extends ExecuteCommandAction2 {
 
-	static readonly ID = 'workbench.action.splitEditorToBelowGroup';
-	static readonly LABEL = localize('splitEditorToBelowGroup', "Split Editor into Group Below");
-
-	constructor(
-		id: string,
-		label: string,
-		@ICommandService commandService: ICommandService
-	) {
-		super(id, label, COPY_ACTIVE_EDITOR_COMMAND_ID, commandService, { to: 'down', by: 'group' } as ActiveEditorMoveCopyArguments);
+	constructor() {
+		super({
+			id: 'workbench.action.splitEditorToBelowGroup',
+			title: { value: localize('splitEditorToBelowGroup', "Split Editor into Group Below"), original: 'Split Editor into Group Below' },
+			f1: true,
+			category: Categories.View
+		}, COPY_ACTIVE_EDITOR_COMMAND_ID, { to: 'down', by: 'group' } as ActiveEditorMoveCopyArguments);
 	}
 }
 
-export class SplitEditorToLeftGroupAction extends ExecuteCommandAction {
+export class SplitEditorToLeftGroupAction extends ExecuteCommandAction2 {
 
 	static readonly ID = 'workbench.action.splitEditorToLeftGroup';
 	static readonly LABEL = localize('splitEditorToLeftGroup', "Split Editor into Left Group");
 
-	constructor(
-		id: string,
-		label: string,
-		@ICommandService commandService: ICommandService
-	) {
-		super(id, label, COPY_ACTIVE_EDITOR_COMMAND_ID, commandService, { to: 'left', by: 'group' } as ActiveEditorMoveCopyArguments);
+	constructor() {
+		super({
+			id: 'workbench.action.splitEditorToLeftGroup',
+			title: { value: localize('splitEditorToLeftGroup', "Split Editor into Left Group"), original: 'Split Editor into Left Group' },
+			f1: true,
+			category: Categories.View
+		}, COPY_ACTIVE_EDITOR_COMMAND_ID, { to: 'left', by: 'group' } as ActiveEditorMoveCopyArguments);
 	}
 }
 
-export class SplitEditorToRightGroupAction extends ExecuteCommandAction {
+export class SplitEditorToRightGroupAction extends ExecuteCommandAction2 {
 
-	static readonly ID = 'workbench.action.splitEditorToRightGroup';
-	static readonly LABEL = localize('splitEditorToRightGroup', "Split Editor into Right Group");
-
-	constructor(
-		id: string,
-		label: string,
-		@ICommandService commandService: ICommandService
-	) {
-		super(id, label, COPY_ACTIVE_EDITOR_COMMAND_ID, commandService, { to: 'right', by: 'group' } as ActiveEditorMoveCopyArguments);
+	constructor() {
+		super({
+			id: 'workbench.action.splitEditorToRightGroup',
+			title: { value: localize('splitEditorToRightGroup', "Split Editor into Right Group"), original: 'Split Editor into Right Group' },
+			f1: true,
+			category: Categories.View
+		}, COPY_ACTIVE_EDITOR_COMMAND_ID, { to: 'right', by: 'group' } as ActiveEditorMoveCopyArguments);
 	}
 }
 
-export class SplitEditorToFirstGroupAction extends ExecuteCommandAction {
+export class SplitEditorToFirstGroupAction extends ExecuteCommandAction2 {
 
-	static readonly ID = 'workbench.action.splitEditorToFirstGroup';
-	static readonly LABEL = localize('splitEditorToFirstGroup', "Split Editor into First Group");
-
-	constructor(
-		id: string,
-		label: string,
-		@ICommandService commandService: ICommandService
-	) {
-		super(id, label, COPY_ACTIVE_EDITOR_COMMAND_ID, commandService, { to: 'first', by: 'group' } as ActiveEditorMoveCopyArguments);
+	constructor() {
+		super({
+			id: 'workbench.action.splitEditorToFirstGroup',
+			title: { value: localize('splitEditorToFirstGroup', "Split Editor into First Group"), original: 'Split Editor into First Group' },
+			f1: true,
+			category: Categories.View
+		}, COPY_ACTIVE_EDITOR_COMMAND_ID, { to: 'first', by: 'group' } as ActiveEditorMoveCopyArguments);
 	}
 }
 
-export class SplitEditorToLastGroupAction extends ExecuteCommandAction {
+export class SplitEditorToLastGroupAction extends ExecuteCommandAction2 {
 
-	static readonly ID = 'workbench.action.splitEditorToLastGroup';
-	static readonly LABEL = localize('splitEditorToLastGroup', "Split Editor into Last Group");
-
-	constructor(
-		id: string,
-		label: string,
-		@ICommandService commandService: ICommandService
-	) {
-		super(id, label, COPY_ACTIVE_EDITOR_COMMAND_ID, commandService, { to: 'last', by: 'group' } as ActiveEditorMoveCopyArguments);
+	constructor() {
+		super({
+			id: 'workbench.action.splitEditorToLastGroup',
+			title: { value: localize('splitEditorToLastGroup', "Split Editor into Last Group"), original: 'Split Editor into Last Group' },
+			f1: true,
+			category: Categories.View
+		}, COPY_ACTIVE_EDITOR_COMMAND_ID, { to: 'last', by: 'group' } as ActiveEditorMoveCopyArguments);
 	}
 }
 
