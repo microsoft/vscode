@@ -54,7 +54,6 @@ import { IUserDataProfile } from 'vs/platform/userDataProfile/common/userDataPro
 import { IPolicyService } from 'vs/platform/policy/common/policy';
 import { IUserDataProfilesMainService } from 'vs/platform/userDataProfile/electron-main/userDataProfile';
 import { ILoggerMainService } from 'vs/platform/log/electron-main/loggerService';
-import { canUseUtilityProcess } from 'vs/base/parts/sandbox/electron-main/electronTypes';
 
 //#region Helper Interfaces
 
@@ -1389,7 +1388,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 			policiesData: this.policyService.serialize(),
 			continueOn: this.environmentMainService.continueOn,
 
-			preferUtilityProcess: canUseUtilityProcess
+			preferUtilityProcess: true
 		};
 
 		// New window

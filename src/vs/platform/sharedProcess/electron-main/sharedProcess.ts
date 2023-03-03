@@ -8,7 +8,6 @@ import { validatedIpcMain } from 'vs/base/parts/ipc/electron-main/ipcMain';
 import { Barrier, DeferredPromise } from 'vs/base/common/async';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { FileAccess } from 'vs/base/common/network';
 import { IProcessEnvironment } from 'vs/base/common/platform';
 import { assertIsDefined } from 'vs/base/common/types';
 import { connect as connectMessagePort } from 'vs/base/parts/ipc/electron-main/ipc.mp';
@@ -16,10 +15,8 @@ import { IEnvironmentMainService } from 'vs/platform/environment/electron-main/e
 import { ILifecycleMainService } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
 import { ILogService } from 'vs/platform/log/common/log';
 import product from 'vs/platform/product/common/product';
-import { IProtocolMainService } from 'vs/platform/protocol/electron-main/protocol';
 import { ISharedProcess, ISharedProcessConfiguration } from 'vs/platform/sharedProcess/node/sharedProcess';
 import { IUtilityProcessWorkerConfiguration } from 'vs/platform/utilityProcess/common/utilityProcessWorkerService';
-import { IThemeMainService } from 'vs/platform/theme/electron-main/themeMainService';
 import { WindowError } from 'vs/platform/window/electron-main/window';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
@@ -27,7 +24,6 @@ import { IPolicyService } from 'vs/platform/policy/common/policy';
 import { ILoggerMainService } from 'vs/platform/log/electron-main/loggerService';
 import { UtilityProcess } from 'vs/platform/utilityProcess/electron-main/utilityProcess';
 import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
-import { canUseUtilityProcess } from 'vs/base/parts/sandbox/electron-main/electronTypes';
 import { parseSharedProcessDebugPort } from 'vs/platform/environment/node/environmentService';
 
 export class SharedProcess extends Disposable implements ISharedProcess {
@@ -41,7 +37,6 @@ export class SharedProcess extends Disposable implements ISharedProcess {
 	private windowCloseListener: ((event: ElectronEvent) => void) | undefined = undefined;
 
 	private utilityProcess: UtilityProcess | undefined = undefined;
-	private readonly useUtilityProcess = canUseUtilityProcess;
 
 	constructor(
 		private readonly machineId: string,
@@ -52,16 +47,12 @@ export class SharedProcess extends Disposable implements ISharedProcess {
 		@ILogService private readonly logService: ILogService,
 		@ILoggerMainService private readonly loggerMainService: ILoggerMainService,
 		@IPolicyService private readonly policyService: IPolicyService,
-		@IThemeMainService private readonly themeMainService: IThemeMainService,
-		@IProtocolMainService private readonly protocolMainService: IProtocolMainService
 	) {
 		super();
 
 		this.registerListeners();
 
-		if (this.useUtilityProcess) {
-			this.logService.info('[SharedProcess] using utility process');
-		}
+		this.logService.info('[SharedProcess] using utility process');
 	}
 
 	private registerListeners(): void {
@@ -253,11 +244,7 @@ export class SharedProcess extends Disposable implements ISharedProcess {
 	private spawn(): void {
 
 		// Spawn shared process
-		if (this.useUtilityProcess) {
-			this.createUtilityProcess();
-		} else {
-			this.createWindow();
-		}
+		this.createUtilityProcess();
 
 		// Listeners
 		this.registerSharedProcessListeners();
@@ -283,35 +270,6 @@ export class SharedProcess extends Disposable implements ISharedProcess {
 			payload: this.createSharedProcessConfiguration(),
 			execArgv
 		});
-	}
-
-	private createWindow(): void {
-		const configObjectUrl = this._register(this.protocolMainService.createIPCObjectUrl<ISharedProcessConfiguration>());
-
-		// shared process is a hidden window by default
-		this.window = new BrowserWindow({
-			show: false,
-			backgroundColor: this.themeMainService.getBackgroundColor(),
-			title: 'shared-process',
-			webPreferences: {
-				preload: FileAccess.asFileUri('vs/base/parts/sandbox/electron-sandbox/preload.js').fsPath,
-				additionalArguments: [`--vscode-window-config=${configObjectUrl.resource.toString()}`],
-				v8CacheOptions: this.environmentMainService.useCodeCache ? 'bypassHeatCheck' : 'none',
-				nodeIntegration: true,
-				nodeIntegrationInWorker: true,
-				contextIsolation: false,
-				enableWebSQL: false,
-				spellcheck: false,
-				images: false,
-				webgl: false
-			}
-		});
-
-		// Store into config object URL
-		configObjectUrl.update(this.createSharedProcessConfiguration());
-
-		// Load with config
-		this.window.loadURL(FileAccess.asBrowserUri(`vs/code/node/sharedProcess/sharedProcess${this.environmentMainService.isBuilt ? '' : '-dev'}.html`).toString(true));
 	}
 
 	private createSharedProcessConfiguration(): ISharedProcessConfiguration {
