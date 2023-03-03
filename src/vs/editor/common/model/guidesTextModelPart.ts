@@ -273,7 +273,7 @@ export class GuidesTextModelPart extends TextModelPart implements IGuidesTextMod
 	public getLinesBracketGuides(
 		startLineNumber: number,
 		endLineNumber: number,
-		activePosition: IPosition | null,
+		activePositions: IPosition[],
 		options: BracketGuideOptions
 	): IndentGuide[][] {
 		const result: IndentGuide[][] = [];
@@ -294,22 +294,31 @@ export class GuidesTextModelPart extends TextModelPart implements IGuidesTextMod
 				)
 			).toArray();
 
-		let activeBracketPairRange: Range | undefined = undefined;
-		if (activePosition && bracketPairs.length > 0) {
-			const bracketsContainingActivePosition = (
-				startLineNumber <= activePosition.lineNumber &&
-					activePosition.lineNumber <= endLineNumber
-					// We don't need to query the brackets again if the cursor is in the viewport
-					? bracketPairs
-					: this.textModel.bracketPairs.getBracketPairsInRange(
-						Range.fromPositions(activePosition)
-					).toArray()
-			).filter((bp) => Range.strictContainsPosition(bp.range, activePosition));
+		let activeBracketPairRanges: Range[] = [];
 
-			activeBracketPairRange = findLast(
-				bracketsContainingActivePosition,
-				(i) => includeSingleLinePairs || i.range.startLineNumber !== i.range.endLineNumber
-			)?.range;
+
+		if (bracketPairs.length > 0) {
+			activeBracketPairRanges = activePositions.reduce<Range[]>((acc, activePosition) => {
+				const bracketsContainingActivePosition = (
+					startLineNumber <= activePosition.lineNumber &&
+						activePosition.lineNumber <= endLineNumber
+						// We don't need to query the brackets again if the cursor is in the viewport
+						? bracketPairs
+						: this.textModel.bracketPairs.getBracketPairsInRange(
+							Range.fromPositions(activePosition)
+						).toArray()
+				).filter((bp) => Range.strictContainsPosition(bp.range, activePosition));
+
+				const activeBracketPairRange = findLast(
+					bracketsContainingActivePosition,
+					(i) => includeSingleLinePairs || i.range.startLineNumber !== i.range.endLineNumber
+				)?.range;
+
+				if (activeBracketPairRange) {
+					acc.push(activeBracketPairRange);
+				}
+				return acc;
+			}, []);
 		}
 
 		const independentColorPoolPerBracketType = this.textModel.getOptions().bracketPairColorizationOptions.independentColorPoolPerBracketType;
@@ -347,7 +356,7 @@ export class GuidesTextModelPart extends TextModelPart implements IGuidesTextMod
 				continue;
 			}
 
-			const isActive = activeBracketPairRange && pair.range.equalsRange(activeBracketPairRange);
+			const isActive = activeBracketPairRanges.some((activeBracketPairRange) => pair.range.equalsRange(activeBracketPairRange));
 
 			if (!isActive && !options.includeInactive) {
 				continue;

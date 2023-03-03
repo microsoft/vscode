@@ -69,9 +69,10 @@ export class IndentGuidesOverlay extends DynamicViewOverlay {
 	}
 	public override onCursorStateChanged(e: viewEvents.ViewCursorStateChangedEvent): boolean {
 		const newPositions = e.selections.map(s => s.getPosition());
+		const areEqual = this._cursorPositions.length === newPositions.length && this._cursorPositions.every((cp, i) => cp.equals(newPositions[i]));
 		this._cursorPositions = newPositions;
 
-		return !this._cursorPositions[0]?.equals(newPositions[0]);
+		return !areEqual;
 	}
 	public override onDecorationsChanged(e: viewEvents.ViewDecorationsChangedEvent): boolean {
 		// true for inline decorations
@@ -162,7 +163,7 @@ export class IndentGuidesOverlay extends DynamicViewOverlay {
 			? this._context.viewModel.getBracketGuidesInRangeByLine(
 				visibleStartLineNumber,
 				visibleEndLineNumber,
-				activeCursorPositions[0],
+				activeCursorPositions,
 				{
 					highlightActive: this._bracketPairGuideOptions.highlightActiveBracketPair,
 					horizontalGuides: this._bracketPairGuideOptions.bracketPairsHorizontal === true
