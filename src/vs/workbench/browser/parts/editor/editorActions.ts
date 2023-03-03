@@ -1387,165 +1387,160 @@ export class NavigateBackwardsAction extends Action2 {
 	}
 }
 
-export class NavigatePreviousAction extends Action {
+export class NavigatePreviousAction extends Action2 {
 
-	static readonly ID = 'workbench.action.navigateLast';
-	static readonly LABEL = localize('navigatePrevious', "Go Previous");
-
-	constructor(
-		id: string,
-		label: string,
-		@IHistoryService private readonly historyService: IHistoryService
-	) {
-		super(id, label);
+	constructor() {
+		super({
+			id: 'workbench.action.navigateLast',
+			title: { value: localize('navigatePrevious', "Go Previous"), original: 'Go Previous' },
+			f1: true
+		});
 	}
 
-	override async run(): Promise<void> {
-		await this.historyService.goPrevious(GoFilter.NONE);
-	}
-}
+	override async run(accessor: ServicesAccessor): Promise<void> {
+		const historyService = accessor.get(IHistoryService);
 
-export class NavigateForwardInEditsAction extends Action {
-
-	static readonly ID = 'workbench.action.navigateForwardInEditLocations';
-	static readonly LABEL = localize('navigateForwardInEdits', "Go Forward in Edit Locations");
-
-	constructor(
-		id: string,
-		label: string,
-		@IHistoryService private readonly historyService: IHistoryService
-	) {
-		super(id, label);
-	}
-
-	override async run(): Promise<void> {
-		await this.historyService.goForward(GoFilter.EDITS);
+		await historyService.goPrevious(GoFilter.NONE);
 	}
 }
 
-export class NavigateBackwardsInEditsAction extends Action {
+export class NavigateForwardInEditsAction extends Action2 {
 
-	static readonly ID = 'workbench.action.navigateBackInEditLocations';
-	static readonly LABEL = localize('navigateBackInEdits', "Go Back in Edit Locations");
-
-	constructor(
-		id: string,
-		label: string,
-		@IHistoryService private readonly historyService: IHistoryService
-	) {
-		super(id, label);
+	constructor() {
+		super({
+			id: 'workbench.action.navigateForwardInEditLocations',
+			title: { value: localize('navigateForwardInEdits', "Go Forward in Edit Locations"), original: 'Go Forward in Edit Locations' },
+			f1: true
+		});
 	}
 
-	override async run(): Promise<void> {
-		await this.historyService.goBack(GoFilter.EDITS);
-	}
-}
+	override async run(accessor: ServicesAccessor): Promise<void> {
+		const historyService = accessor.get(IHistoryService);
 
-export class NavigatePreviousInEditsAction extends Action {
-
-	static readonly ID = 'workbench.action.navigatePreviousInEditLocations';
-	static readonly LABEL = localize('navigatePreviousInEdits', "Go Previous in Edit Locations");
-
-	constructor(
-		id: string,
-		label: string,
-		@IHistoryService private readonly historyService: IHistoryService
-	) {
-		super(id, label);
-	}
-
-	override async run(): Promise<void> {
-		await this.historyService.goPrevious(GoFilter.EDITS);
+		await historyService.goForward(GoFilter.EDITS);
 	}
 }
 
-export class NavigateToLastEditLocationAction extends Action {
+export class NavigateBackwardsInEditsAction extends Action2 {
 
-	static readonly ID = 'workbench.action.navigateToLastEditLocation';
-	static readonly LABEL = localize('navigateToLastEditLocation', "Go to Last Edit Location");
-
-	constructor(
-		id: string,
-		label: string,
-		@IHistoryService private readonly historyService: IHistoryService
-	) {
-		super(id, label);
+	constructor() {
+		super({
+			id: 'workbench.action.navigateBackInEditLocations',
+			title: { value: localize('navigateBackInEdits', "Go Back in Edit Locations"), original: 'Go Back in Edit Locations' },
+			f1: true
+		});
 	}
 
-	override async run(): Promise<void> {
-		await this.historyService.goLast(GoFilter.EDITS);
-	}
-}
+	override async run(accessor: ServicesAccessor): Promise<void> {
+		const historyService = accessor.get(IHistoryService);
 
-export class NavigateForwardInNavigationsAction extends Action {
-
-	static readonly ID = 'workbench.action.navigateForwardInNavigationLocations';
-	static readonly LABEL = localize('navigateForwardInNavigations', "Go Forward in Navigation Locations");
-
-	constructor(
-		id: string,
-		label: string,
-		@IHistoryService private readonly historyService: IHistoryService
-	) {
-		super(id, label);
-	}
-
-	override async run(): Promise<void> {
-		await this.historyService.goForward(GoFilter.NAVIGATION);
+		await historyService.goBack(GoFilter.EDITS);
 	}
 }
 
-export class NavigateBackwardsInNavigationsAction extends Action {
+export class NavigatePreviousInEditsAction extends Action2 {
 
-	static readonly ID = 'workbench.action.navigateBackInNavigationLocations';
-	static readonly LABEL = localize('navigateBackInNavigations', "Go Back in Navigation Locations");
-
-	constructor(
-		id: string,
-		label: string,
-		@IHistoryService private readonly historyService: IHistoryService
-	) {
-		super(id, label);
+	constructor() {
+		super({
+			id: 'workbench.action.navigatePreviousInEditLocations',
+			title: { value: localize('navigatePreviousInEdits', "Go Previous in Edit Locations"), original: 'Go Previous in Edit Locations' },
+			f1: true
+		});
 	}
 
-	override async run(): Promise<void> {
-		await this.historyService.goBack(GoFilter.NAVIGATION);
-	}
-}
+	override async run(accessor: ServicesAccessor): Promise<void> {
+		const historyService = accessor.get(IHistoryService);
 
-export class NavigatePreviousInNavigationsAction extends Action {
-
-	static readonly ID = 'workbench.action.navigatePreviousInNavigationLocations';
-	static readonly LABEL = localize('navigatePreviousInNavigationLocations', "Go Previous in Navigation Locations");
-
-	constructor(
-		id: string,
-		label: string,
-		@IHistoryService private readonly historyService: IHistoryService
-	) {
-		super(id, label);
-	}
-
-	override async run(): Promise<void> {
-		await this.historyService.goPrevious(GoFilter.NAVIGATION);
+		await historyService.goPrevious(GoFilter.EDITS);
 	}
 }
 
-export class NavigateToLastNavigationLocationAction extends Action {
+export class NavigateToLastEditLocationAction extends Action2 {
 
-	static readonly ID = 'workbench.action.navigateToLastNavigationLocation';
-	static readonly LABEL = localize('navigateToLastNavigationLocation', "Go to Last Navigation Location");
-
-	constructor(
-		id: string,
-		label: string,
-		@IHistoryService private readonly historyService: IHistoryService
-	) {
-		super(id, label);
+	constructor() {
+		super({
+			id: 'workbench.action.navigateToLastEditLocation',
+			title: { value: localize('navigateToLastEditLocation', "Go to Last Edit Location"), original: 'Go to Last Edit Location' },
+			f1: true,
+			keybinding: {
+				weight: KeybindingWeight.WorkbenchContrib,
+				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyMod.CtrlCmd | KeyCode.KeyQ)
+			}
+		});
 	}
 
-	override async run(): Promise<void> {
-		await this.historyService.goLast(GoFilter.NAVIGATION);
+	override async run(accessor: ServicesAccessor): Promise<void> {
+		const historyService = accessor.get(IHistoryService);
+
+		await historyService.goLast(GoFilter.EDITS);
+	}
+}
+
+export class NavigateForwardInNavigationsAction extends Action2 {
+
+	constructor() {
+		super({
+			id: 'workbench.action.navigateForwardInNavigationLocations',
+			title: { value: localize('navigateForwardInNavigations', "Go Forward in Navigation Locations"), original: 'Go Forward in Navigation Locations' },
+			f1: true
+		});
+	}
+
+	override async run(accessor: ServicesAccessor): Promise<void> {
+		const historyService = accessor.get(IHistoryService);
+
+		await historyService.goForward(GoFilter.NAVIGATION);
+	}
+}
+
+export class NavigateBackwardsInNavigationsAction extends Action2 {
+
+	constructor() {
+		super({
+			id: 'workbench.action.navigateBackInNavigationLocations',
+			title: { value: localize('navigateBackInNavigations', "Go Back in Navigation Locations"), original: 'Go Back in Navigation Locations' },
+			f1: true
+		});
+	}
+
+	override async run(accessor: ServicesAccessor): Promise<void> {
+		const historyService = accessor.get(IHistoryService);
+
+		await historyService.goBack(GoFilter.NAVIGATION);
+	}
+}
+
+export class NavigatePreviousInNavigationsAction extends Action2 {
+
+	constructor() {
+		super({
+			id: 'workbench.action.navigatePreviousInNavigationLocations',
+			title: { value: localize('navigatePreviousInNavigationLocations', "Go Previous in Navigation Locations"), original: 'Go Previous in Navigation Locations' },
+			f1: true
+		});
+	}
+
+	override async run(accessor: ServicesAccessor): Promise<void> {
+		const historyService = accessor.get(IHistoryService);
+
+		await historyService.goPrevious(GoFilter.NAVIGATION);
+	}
+}
+
+export class NavigateToLastNavigationLocationAction extends Action2 {
+
+	constructor() {
+		super({
+			id: 'workbench.action.navigateToLastNavigationLocation',
+			title: { value: localize('navigateToLastNavigationLocation', "Go to Last Navigation Location"), original: 'Go to Last Navigation Location' },
+			f1: true
+		});
+	}
+
+	override async run(accessor: ServicesAccessor): Promise<void> {
+		const historyService = accessor.get(IHistoryService);
+
+		await historyService.goLast(GoFilter.NAVIGATION);
 	}
 }
 
@@ -1864,24 +1859,22 @@ export class OpenPreviousRecentlyUsedEditorInGroupAction extends Action2 {
 	}
 }
 
-export class ClearEditorHistoryAction extends Action {
+export class ClearEditorHistoryAction extends Action2 {
 
-	static readonly ID = 'workbench.action.clearEditorHistory';
-	static readonly LABEL = localize('clearEditorHistory', "Clear Editor History");
-
-	constructor(
-		id: string,
-		label: string,
-		@IHistoryService private readonly historyService: IHistoryService,
-		@IDialogService private readonly dialogService: IDialogService
-	) {
-		super(id, label);
+	constructor() {
+		super({
+			id: 'workbench.action.clearEditorHistory',
+			title: { value: localize('clearEditorHistory', "Clear Editor History"), original: 'Clear Editor History' },
+			f1: true
+		});
 	}
 
-	override async run(): Promise<void> {
+	override async run(accessor: ServicesAccessor): Promise<void> {
+		const dialogService = accessor.get(IDialogService);
+		const historyService = accessor.get(IHistoryService);
 
 		// Ask for confirmation
-		const { confirmed } = await this.dialogService.confirm({
+		const { confirmed } = await dialogService.confirm({
 			type: 'warning',
 			message: localize('confirmClearEditorHistoryMessage', "Do you want to clear the history of recently opened editors?"),
 			detail: localize('confirmClearDetail', "This action is irreversible!"),
@@ -1893,7 +1886,7 @@ export class ClearEditorHistoryAction extends Action {
 		}
 
 		// Clear editor history
-		this.historyService.clear();
+		historyService.clear();
 	}
 }
 
