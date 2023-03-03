@@ -115,7 +115,7 @@ export class InteractiveSessionContributionService implements IInteractiveSessio
 		});
 
 		// "Open Interactive Session Editor" Action
-		const openEditor = registerAction2(getOpenInteractiveSessionEditorAction(providerDescriptor.id, providerDescriptor.label));
+		const openEditor = registerAction2(getOpenInteractiveSessionEditorAction(providerDescriptor.id, providerDescriptor.label, providerDescriptor.when));
 
 		return {
 			dispose: () => {
