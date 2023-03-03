@@ -736,5 +736,3 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal, II
 		this.raw.write(data);
 	}
 }
-
-

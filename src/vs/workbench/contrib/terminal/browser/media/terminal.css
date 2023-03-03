@@ -587,7 +587,7 @@
 	outline-color: var(--vscode-focusBorder);
 }
 
-.accessible-buffer {
+.monaco-workbench .accessible-buffer {
 	position: absolute;
 	left: 0;
 	top: 0;
@@ -601,11 +601,11 @@
 	overflow-x: initial;
 }
 
-.accessible-buffer div {
+.monaco-workbench .accessible-buffer div {
 	white-space: pre-wrap;
 }
 
-.accessible-buffer.active {
+.monaco-workbench .accessible-buffer.active {
 	pointer-events: all;
 	opacity: 1;
 	z-index: 33;
