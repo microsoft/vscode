@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ITerminalLinkResolverService, ResolvedLink } from 'vs/workbench/contrib/terminal/browser/links/links';
-import { removeLinkSuffix, winDrivePrefix } from 'vs/workbench/contrib/terminal/browser/links/terminalLinkParsing';
+import { ITerminalLinkResolver, ResolvedLink } from 'vs/workbench/contrib/terminalContrib/links/browser/links';
+import { removeLinkSuffix, winDrivePrefix } from 'vs/workbench/contrib/terminalContrib/links/browser/terminalLinkParsing';
 import { URI } from 'vs/base/common/uri';
 import { ITerminalBackend, ITerminalProcessManager } from 'vs/workbench/contrib/terminal/common/terminal';
 import { Schemas } from 'vs/base/common/network';
@@ -12,7 +12,7 @@ import { isWindows, OperatingSystem, OS } from 'vs/base/common/platform';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IPath, posix, win32 } from 'vs/base/common/path';
 
-export class TerminalLinkResolverService implements ITerminalLinkResolverService {
+export class TerminalLinkResolver implements ITerminalLinkResolver {
 	declare _serviceBrand: undefined;
 
 	// Link cache could be shared across all terminals, but that could lead to weird results when

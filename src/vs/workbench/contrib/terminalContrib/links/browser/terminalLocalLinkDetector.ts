@@ -7,12 +7,12 @@ import { OperatingSystem, OS } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { ITerminalLinkDetector, ITerminalLinkResolverService, ITerminalSimpleLink, ResolvedLink, TerminalBuiltinLinkType } from 'vs/workbench/contrib/terminal/browser/links/links';
-import { convertLinkRangeToBuffer, getXtermLineContent, getXtermRangesByAttr, osPathModule, updateLinkWithRelativeCwd } from 'vs/workbench/contrib/terminal/browser/links/terminalLinkHelpers';
+import { ITerminalLinkDetector, ITerminalLinkResolver, ITerminalSimpleLink, ResolvedLink, TerminalBuiltinLinkType } from 'vs/workbench/contrib/terminalContrib/links/browser/links';
+import { convertLinkRangeToBuffer, getXtermLineContent, getXtermRangesByAttr, osPathModule, updateLinkWithRelativeCwd } from 'vs/workbench/contrib/terminalContrib/links/browser/terminalLinkHelpers';
 import { ITerminalCapabilityStore, TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
 import { IBufferLine, IBufferRange, Terminal } from 'xterm';
 import { ITerminalBackend, ITerminalProcessManager } from 'vs/workbench/contrib/terminal/common/terminal';
-import { detectLinks } from 'vs/workbench/contrib/terminal/browser/links/terminalLinkParsing';
+import { detectLinks } from 'vs/workbench/contrib/terminalContrib/links/browser/terminalLinkParsing';
 
 const enum Constants {
 	/**
@@ -57,7 +57,7 @@ export class TerminalLocalLinkDetector implements ITerminalLinkDetector {
 		readonly xterm: Terminal,
 		private readonly _capabilities: ITerminalCapabilityStore,
 		private readonly _processManager: Pick<ITerminalProcessManager, 'initialCwd' | 'os' | 'remoteAuthority' | 'userHome'> & { backend?: Pick<ITerminalBackend, 'getWslPath'> },
-		@ITerminalLinkResolverService private readonly _terminalLinkResolverService: ITerminalLinkResolverService,
+		private readonly _linkResolver: ITerminalLinkResolver,
 		@IUriIdentityService private readonly _uriIdentityService: IUriIdentityService,
 		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService
 	) {
@@ -246,7 +246,7 @@ export class TerminalLocalLinkDetector implements ITerminalLinkDetector {
 
 	private async _validateLinkCandidates(linkCandidates: string[]): Promise<ResolvedLink | undefined> {
 		for (const link of linkCandidates) {
-			const result = await this._terminalLinkResolverService.resolveLink(this._processManager, link);
+			const result = await this._linkResolver.resolveLink(this._processManager, link);
 			if (result) {
 				return result;
 			}

@@ -8,17 +8,17 @@ import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cance
 import { DisposableStore, dispose, toDisposable } from 'vs/base/common/lifecycle';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditorLayoutInfo, EditorOption } from 'vs/editor/common/config/editorOptions';
-import { IRange, Range } from 'vs/editor/common/core/range';
-import { IEditorContribution, IEditorDecorationsCollection } from 'vs/editor/common/editorCommon';
+import { Range } from 'vs/editor/common/core/range';
+import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { localize } from 'vs/nls';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ZoneWidget } from 'vs/editor/contrib/zoneWidget/browser/zoneWidget';
 import { assertType } from 'vs/base/common/types';
-import { IInteractiveEditorResponse, IInteractiveEditorService, CTX_INTERACTIVE_EDITOR_FOCUSED, CTX_INTERACTIVE_EDITOR_HAS_ACTIVE_REQUEST, CTX_INTERACTIVE_EDITOR_INNER_CURSOR_FIRST, CTX_INTERACTIVE_EDITOR_INNER_CURSOR_LAST, CTX_INTERACTIVE_EDITOR_EMPTY, CTX_INTERACTIVE_EDITOR_OUTER_CURSOR_POSITION, CTX_INTERACTIVE_EDITOR_PREVIEW, CTX_INTERACTIVE_EDITOR_VISIBLE, MENU_INTERACTIVE_EDITOR_WIDGET, CTX_INTERACTIVE_EDITOR_HISTORY_VISIBLE, MENU_INTERACTIVE_EDITOR_WIDGET_LHS } from 'vs/editor/contrib/interactive/common/interactiveEditor';
+import { IInteractiveEditorResponse, IInteractiveEditorService, CTX_INTERACTIVE_EDITOR_FOCUSED, CTX_INTERACTIVE_EDITOR_HAS_ACTIVE_REQUEST, CTX_INTERACTIVE_EDITOR_INNER_CURSOR_FIRST, CTX_INTERACTIVE_EDITOR_INNER_CURSOR_LAST, CTX_INTERACTIVE_EDITOR_EMPTY, CTX_INTERACTIVE_EDITOR_OUTER_CURSOR_POSITION, CTX_INTERACTIVE_EDITOR_PREVIEW, CTX_INTERACTIVE_EDITOR_VISIBLE, MENU_INTERACTIVE_EDITOR_WIDGET, CTX_INTERACTIVE_EDITOR_HISTORY_VISIBLE, MENU_INTERACTIVE_EDITOR_WIDGET_LHS, IInteractiveEditorRequest, IInteractiveEditorSession } from 'vs/editor/contrib/interactive/common/interactiveEditor';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { Iterable } from 'vs/base/common/iterator';
-import { IModelDeltaDecoration, ITextModel, IValidEditOperation } from 'vs/editor/common/model';
+import { ICursorStateComputer, IModelDeltaDecoration, ITextModel, IValidEditOperation } from 'vs/editor/common/model';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 import { Dimension, addDisposableListener, getTotalHeight, getTotalWidth, h, reset } from 'vs/base/browser/dom';
 import { Emitter, Event } from 'vs/base/common/event';
@@ -33,7 +33,7 @@ import { GhostTextController } from 'vs/editor/contrib/inlineCompletions/browser
 import { MenuWorkbenchToolBar, WorkbenchToolBar } from 'vs/platform/actions/browser/toolbar';
 import { ProgressBar } from 'vs/base/browser/ui/progressbar/progressbar';
 import { SuggestController } from 'vs/editor/contrib/suggest/browser/suggestController';
-import { Position } from 'vs/editor/common/core/position';
+import { IPosition, Position } from 'vs/editor/common/core/position';
 import { Selection } from 'vs/editor/common/core/selection';
 import { raceCancellationError } from 'vs/base/common/async';
 import { isCancellationError } from 'vs/base/common/errors';
@@ -44,7 +44,13 @@ import { StopWatch } from 'vs/base/common/stopwatch';
 import { Action, IAction } from 'vs/base/common/actions';
 import { Codicon } from 'vs/base/common/codicons';
 import { ThemeIcon } from 'vs/base/common/themables';
+import { LRUCache } from 'vs/base/common/map';
 
+
+interface IHistoryEntry {
+	updateVisibility(visible: boolean): void;
+	updateActions(actions: IAction[]): void;
+}
 
 class InteractiveEditorWidget {
 
@@ -201,7 +207,7 @@ class InteractiveEditorWidget {
 		this._ctxHistoryVisible.reset();
 	}
 
-	getDomNode(): HTMLElement {
+	get domNode(): HTMLElement {
 		return this._elements.root;
 	}
 
@@ -237,7 +243,9 @@ class InteractiveEditorWidget {
 		this._elements.placeholder.innerText = placeholder;
 		this._elements.placeholder.style.fontSize = `${this._inputEditor.getOption(EditorOption.fontSize)}px`;
 		this._elements.placeholder.style.lineHeight = `${this._inputEditor.getOption(EditorOption.lineHeight)}px`;
+
 		this._inputModel.setValue(value);
+		this._inputEditor.setSelection(this._inputModel.getFullModelRange());
 
 		const disposeOnDone = new DisposableStore();
 
@@ -318,7 +326,7 @@ class InteractiveEditorWidget {
 		this._onDidChangeHeight.fire();
 	}
 
-	createHistoryEntry(value: string) {
+	createHistoryEntry(value: string): IHistoryEntry {
 
 		const { root, label, actions } = h('div.history-entry@item', [
 			h('div.label@label'),
@@ -336,8 +344,8 @@ class InteractiveEditorWidget {
 		}
 
 		return {
-			dispose: () => {
-				root.remove();
+			updateVisibility: (visible) => {
+				root.classList.toggle('hidden', !visible);
 				if (this._isExpanded) {
 					this._onDidChangeHeight.fire();
 				}
@@ -412,7 +420,7 @@ export class InteractiveEditorZoneWidget extends ZoneWidget {
 	}
 
 	protected override _fillContainer(container: HTMLElement): void {
-		container.appendChild(this.widget.getDomNode());
+		container.appendChild(this.widget.domNode);
 	}
 
 	protected override _getWidth(info: EditorLayoutInfo): number {
@@ -438,8 +446,8 @@ export class InteractiveEditorZoneWidget extends ZoneWidget {
 
 		const width = widthInPixel - (spaceLeft + spaceRight);
 		this._dimension = new Dimension(width, heightInPixel);
-		this.widget.getDomNode().style.marginLeft = `${spaceLeft}px`;
-		this.widget.getDomNode().style.marginRight = `${spaceRight}px`;
+		this.widget.domNode.style.marginLeft = `${spaceLeft}px`;
+		this.widget.domNode.style.marginRight = `${spaceRight}px`;
 		this.widget.layout(this._dimension);
 	}
 
@@ -453,7 +461,7 @@ export class InteractiveEditorZoneWidget extends ZoneWidget {
 		super._relayout(this._computeHeightInLines());
 	}
 
-	async getInput(where: IRange, placeholder: string, value: string, token: CancellationToken): Promise<{ value: string; preview: boolean } | undefined> {
+	async getInput(where: IPosition, placeholder: string, value: string, token: CancellationToken): Promise<{ value: string; preview: boolean } | undefined> {
 		assertType(this.editor.hasModel());
 		super.show(where, this._computeHeightInLines());
 		this._ctxVisible.set(true);
@@ -463,13 +471,62 @@ export class InteractiveEditorZoneWidget extends ZoneWidget {
 		return result;
 	}
 
+	updatePosition(where: IPosition) {
+		super.show(where, this._computeHeightInLines());
+	}
+
 	override hide(): void {
 		this._ctxVisible.reset();
 		this._ctxCursorPosition.reset();
 		this.widget.reset();
 		super.hide();
 	}
+}
 
+class UndoStepAction extends Action {
+
+	static all: UndoStepAction[] = [];
+
+	static updateUndoSteps() {
+		UndoStepAction.all.forEach(action => {
+			const isMyAltId = action.myAlternativeVersionId === action.model.getAlternativeVersionId();
+			action.enabled = isMyAltId;
+		});
+	}
+
+	readonly myAlternativeVersionId: number;
+
+	constructor(readonly model: ITextModel) {
+		super(`undo@${model.getAlternativeVersionId()}`, localize('undoStep', "Undo This Step"), ThemeIcon.asClassName(Codicon.discard), false);
+		this.myAlternativeVersionId = model.getAlternativeVersionId();
+		UndoStepAction.all.push(this);
+		UndoStepAction.updateUndoSteps();
+	}
+
+	override async run() {
+		this.model.undo();
+		UndoStepAction.updateUndoSteps();
+	}
+}
+
+type Exchange = { req: IInteractiveEditorRequest; res: IInteractiveEditorResponse };
+export type Recording = { when: Date; session: IInteractiveEditorSession; value: string; exchanges: Exchange[] };
+
+class SessionRecorder {
+
+	private readonly _data = new LRUCache<IInteractiveEditorSession, Recording>(3);
+
+	add(session: IInteractiveEditorSession, model: ITextModel) {
+		this._data.set(session, { when: new Date(), session, value: model.getValue(), exchanges: [] });
+	}
+
+	addExchange(session: IInteractiveEditorSession, req: IInteractiveEditorRequest, res: IInteractiveEditorResponse) {
+		this._data.get(session)?.exchanges.push({ req, res });
+	}
+
+	getAll(): Recording[] {
+		return [...this._data.values()];
+	}
 }
 
 export class InteractiveEditorController implements IEditorContribution {
@@ -487,14 +544,11 @@ export class InteractiveEditorController implements IEditorContribution {
 		blockPadding: [1, 0, 1, 4]
 	});
 
-	private static _decoEdits = ModelDecorationOptions.register({
-		description: 'interactive-editor-edits'
-	});
-
 	private static _promptHistory: string[] = [];
 	private _historyOffset: number = -1;
 
 	private readonly _store = new DisposableStore();
+	private readonly _recorder = new SessionRecorder();
 	private readonly _zone: InteractiveEditorZoneWidget;
 	private readonly _ctxShowPreview: IContextKey<boolean>;
 	private readonly _ctxHasActiveRequest: IContextKey<boolean>;
@@ -539,131 +593,110 @@ export class InteractiveEditorController implements IEditorContribution {
 			return;
 		}
 
-
 		this._ctsSession = new CancellationTokenSource();
-
-		const session = await provider.prepareInteractiveEditorSession(this._editor.getModel(), this._editor.getSelection(), this._ctsSession.token);
+		const textModel = this._editor.getModel();
+		const session = await provider.prepareInteractiveEditorSession(textModel, this._editor.getSelection(), this._ctsSession.token);
 		if (!session) {
 			this._logService.trace('[IE] NO session', provider.debugName);
 			return;
 		}
-
+		this._recorder.add(session, textModel);
 		this._logService.trace('[IE] NEW session', provider.debugName);
 
-		const decoBorder = this._editor.createDecorationsCollection();
-		const decoInlineDiff = this._editor.createDecorationsCollection();
+		const blockDecoration = this._editor.createDecorationsCollection();
+		const inlineDiffDecorations = this._editor.createDecorationsCollection();
 
-		const decoEdits: [deco: IEditorDecorationsCollection, altId: number][] = [];
-
-		const decoWholeRange = this._editor.createDecorationsCollection();
-		decoWholeRange.set([{
-			range: this._editor.getSelection(),
+		const wholeRangeDecoration = this._editor.createDecorationsCollection();
+		let initialRange: Range = this._editor.getSelection();
+		if (initialRange.isEmpty()) {
+			initialRange = new Range(
+				initialRange.startLineNumber, 1,
+				initialRange.startLineNumber, textModel.getLineMaxColumn(initialRange.startLineNumber)
+			);
+		}
+		wholeRangeDecoration.set([{
+			range: initialRange,
 			options: { description: 'interactive-editor-marker' }
 		}]);
+
 
 		let placeholder = session.placeholder ?? '';
 		let value = '';
 
 		const listener = new DisposableStore();
+
+		// CANCEL when input changes
 		this._editor.onDidChangeModel(this._ctsSession.cancel, this._ctsSession, listener);
 
-		class UndoStepAction extends Action {
-
-			static all: UndoStepAction[] = [];
-
-			static updateUndoSteps() {
-				UndoStepAction.all.forEach(action => {
-					const isMyAltId = action.myAlternativeVersionId === action.model.getAlternativeVersionId();
-					action.enabled = isMyAltId;
-				});
+		// REposition the zone widget whenever the block decoration changes
+		let lastPost: Position | undefined;
+		wholeRangeDecoration.onDidChange(e => {
+			const range = wholeRangeDecoration.getRange(0);
+			if (range && (!lastPost || !lastPost.equals(range.getEndPosition()))) {
+				lastPost = range.getEndPosition();
+				this._zone.updatePosition(lastPost);
 			}
+		}, undefined, listener);
 
-			readonly myAlternativeVersionId: number;
-
-			constructor(readonly model: ITextModel) {
-				super(`undo@${model.getAlternativeVersionId()}`, localize('undoStep', "Undo This Step"), ThemeIcon.asClassName(Codicon.discard), false);
-				this.myAlternativeVersionId = model.getAlternativeVersionId();
-				UndoStepAction.all.push(this);
-				UndoStepAction.updateUndoSteps();
-			}
-
-			override async run() {
-				this.model.undo();
-				UndoStepAction.updateUndoSteps();
-			}
-		}
-
-
-		// CANCEL if the document has changed outside the current range
+		let ignoreModelChanges = false;
 		this._editor.onDidChangeModelContent(e => {
 
-			let cancel = false;
-			const wholeRange = decoWholeRange.getRange(0);
-			if (!wholeRange) {
-				cancel = true;
-			} else {
+			// UPDATE undo actions based on alternative version id
+			UndoStepAction.updateUndoSteps();
+
+			// CANCEL if the document has changed outside the current range
+			if (!ignoreModelChanges) {
+				const wholeRange = wholeRangeDecoration.getRange(0);
+				if (!wholeRange) {
+					this._ctsSession.cancel();
+					this._logService.trace('[IE] ABORT wholeRange seems gone/collapsed');
+					return;
+				}
 				for (const change of e.changes) {
 					if (!Range.areIntersectingOrTouching(wholeRange, change.range)) {
-						cancel = true;
+						this._ctsSession.cancel();
+						this._logService.trace('[IE] CANCEL because of model change OUTSIDE range');
 						break;
 					}
 				}
 			}
 
-			if (cancel) {
-				this._ctsSession.cancel();
-				this._logService.trace('[IE] CANCEL because of model change OUTSIDE range');
-				return;
-			}
-
-			//
-			UndoStepAction.updateUndoSteps();
-
-
 		}, undefined, listener);
 
 		do {
-
-			const wholeRange = decoWholeRange.getRange(0);
+			const wholeRange = wholeRangeDecoration.getRange(0);
 			if (!wholeRange) {
 				// nuked whole file contents?
+				this._logService.trace('[IE] ABORT wholeRange seems gone/collapsed');
 				break;
 			}
 
-			const newDecorations: IModelDeltaDecoration[] = [{
+			// visuals: add block decoration
+			blockDecoration.set([{
 				range: wholeRange,
 				options: InteractiveEditorController._decoBlock
-			}];
-
-			decoBorder.set(newDecorations);
+			}]);
 
 			this._historyOffset = -1;
-			const input = await this._zone.getInput(wholeRange.collapseToEnd(), placeholder, value, this._ctsSession.token);
+			const input = await this._zone.getInput(wholeRange.getEndPosition(), placeholder, value, this._ctsSession.token);
 
 			if (!input || !input.value) {
 				continue;
 			}
 
-			const historyEntry = this._zone.widget.createHistoryEntry(input.value);
-
-			historyEntry.updateActions([new Action('cancelRequest', localize('cancel', "Cancel Request"), ThemeIcon.asClassName(Codicon.debugStop), true, () => {
-				this._ctsRequest?.cancel();
-			})]);
-
 			this._ctsRequest?.dispose(true);
 			this._ctsRequest = new CancellationTokenSource(this._ctsSession.token);
 
+			const historyEntry = this._zone.widget.createHistoryEntry(input.value);
+
 			const sw = StopWatch.create();
-			const task = provider.provideResponse(
-				session,
-				{
-					session,
-					prompt: input.value,
-					selection: this._editor.getSelection(),
-					wholeRange: wholeRange
-				},
-				this._ctsRequest.token
-			);
+			const request: IInteractiveEditorRequest = {
+				prompt: input.value,
+				selection: this._editor.getSelection(),
+				wholeRange
+			};
+			const task = provider.provideResponse(session, request, this._ctsRequest.token);
+			this._logService.trace('[IE] request started', provider.debugName, session, request);
 
 			let reply: IInteractiveEditorResponse | null | undefined;
 			try {
@@ -684,76 +717,63 @@ export class InteractiveEditorController implements IEditorContribution {
 			this._logService.trace('[IE] request took', sw.elapsed(), provider.debugName);
 
 			if (this._ctsRequest.token.isCancellationRequested) {
+				this._logService.trace('[IE] request CANCELED', provider.debugName);
 				value = input.value;
 				continue;
 			}
 
 			if (!reply || isFalsyOrEmpty(reply.edits)) {
 				this._logService.trace('[IE] NO reply or edits', provider.debugName);
-				reply = { edits: [] };
-				placeholder = '';
+				value = input.value;
 				continue;
 			}
 
 			// make edits more minimal
-			const moreMinimalEdits = (await this._editorWorkerService.computeMoreMinimalEdits(this._editor.getModel().uri, reply.edits, true)) ?? reply.edits;
+			const moreMinimalEdits = (await this._editorWorkerService.computeMoreMinimalEdits(textModel.uri, reply.edits, true));
+			this._logService.trace('[IE] edits from PROVIDER and after making them MORE MINIMAL', provider.debugName, reply.edits, moreMinimalEdits);
+			this._recorder.addExchange(session, request, reply);
 
-			// clear old preview
-			decoInlineDiff.clear();
+			// inline diff
+			inlineDiffDecorations.clear();
+			const newInlineDiffDecorationsData: IModelDeltaDecoration[] = [];
 
-			const altIdNow = this._editor.getModel().getAlternativeVersionId();
-			const undoEdits: IValidEditOperation[] = [];
-			this._editor.pushUndoStop();
-			this._editor.executeEdits(
-				'interactive-editor',
-				moreMinimalEdits.map(edit => {
-					// return EditOperation.replaceMove(Range.lift(edit.range), edit.text); ???
-					return EditOperation.replace(Range.lift(edit.range), edit.text);
-				}),
-				_undoEdits => {
+			try {
+				ignoreModelChanges = true;
+
+				const cursorStateComputerAndInlineDiffCollection: ICursorStateComputer = (undoEdits) => {
 					let last: Position | null = null;
-					for (const undoEdit of _undoEdits) {
-						undoEdits.push(undoEdit);
-						last = !last || last.isBefore(undoEdit.range.getEndPosition()) ? undoEdit.range.getEndPosition() : last;
+					for (const edit of undoEdits) {
+						last = !last || last.isBefore(edit.range.getEndPosition()) ? edit.range.getEndPosition() : last;
+						newInlineDiffDecorationsData.push(InteractiveEditorController._asInlineDiffDecorationData(edit));
 					}
 					return last && [Selection.fromPositions(last)];
-				}
-			);
-			this._editor.pushUndoStop();
+				};
 
-			if (input.preview) {
-				const decorations: IModelDeltaDecoration[] = [];
-				for (const edit of undoEdits) {
+				this._editor.pushUndoStop();
+				this._editor.executeEdits(
+					'interactive-editor',
+					(moreMinimalEdits ?? reply.edits).map(edit => EditOperation.replace(Range.lift(edit.range), edit.text)),
+					cursorStateComputerAndInlineDiffCollection
+				);
+				this._editor.pushUndoStop();
 
-					let content = edit.text;
-					if (content.length > 12) {
-						content = content.substring(0, 12) + '…';
-					}
-					decorations.push({
-						range: edit.range,
-						options: {
-							description: 'interactive-editor-inline-diff',
-							className: 'interactive-editor-lines-inserted-range',
-							before: {
-								content,
-								inlineClassName: 'interactive-editor-lines-deleted-range-inline',
-								attachedData: edit
-							}
-						}
-					});
-				}
-				decoInlineDiff.set(decorations);
+			} finally {
+				ignoreModelChanges = false;
 			}
 
-			historyEntry.updateActions([new UndoStepAction(this._editor.getModel())]);
+			inlineDiffDecorations.set(input.preview ? newInlineDiffDecorationsData : []);
 
-			// keep edits
-			decoEdits.push([this._editor.createDecorationsCollection(undoEdits.map(edit => {
-				return {
-					range: edit.range,
-					options: InteractiveEditorController._decoEdits
-				};
-			})), altIdNow]);
+			historyEntry.updateActions([new class extends UndoStepAction {
+				constructor() {
+					super(textModel);
+				}
+				override async run() {
+					super.run();
+					historyEntry.updateVisibility(false);
+					value = input.value;
+				}
+			}]);
+
 
 			if (!InteractiveEditorController._promptHistory.includes(input.value)) {
 				InteractiveEditorController._promptHistory.unshift(input.value);
@@ -763,9 +783,9 @@ export class InteractiveEditorController implements IEditorContribution {
 		} while (!this._ctsSession.token.isCancellationRequested);
 
 		// done, cleanup
-		decoWholeRange.clear();
-		decoBorder.clear();
-		decoInlineDiff.clear();
+		wholeRangeDecoration.clear();
+		blockDecoration.clear();
+		inlineDiffDecorations.clear();
 
 		listener.dispose();
 		session.dispose?.();
@@ -776,6 +796,25 @@ export class InteractiveEditorController implements IEditorContribution {
 		this._editor.focus();
 
 		this._logService.trace('[IE] session DONE', provider.debugName);
+	}
+
+	private static _asInlineDiffDecorationData(edit: IValidEditOperation): IModelDeltaDecoration {
+		let content = edit.text;
+		if (content.length > 12) {
+			content = content.substring(0, 12) + '…';
+		}
+		return {
+			range: edit.range,
+			options: {
+				description: 'interactive-editor-inline-diff',
+				className: 'interactive-editor-lines-inserted-range',
+				before: {
+					content,
+					inlineClassName: 'interactive-editor-lines-deleted-range-inline',
+					attachedData: edit
+				}
+			}
+		};
 	}
 
 	accept(preview: boolean = this._preview): void {
@@ -824,5 +863,9 @@ export class InteractiveEditorController implements IEditorContribution {
 
 	toggleHistory(): void {
 		this._zone.widget.toggleHistory();
+	}
+
+	recordings() {
+		return this._recorder.getAll();
 	}
 }

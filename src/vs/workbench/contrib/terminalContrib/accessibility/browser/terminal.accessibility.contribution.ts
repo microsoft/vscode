@@ -13,12 +13,12 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { TerminalLocation, terminalTabFocusContextKey } from 'vs/platform/terminal/common/terminal';
 import { editorTabFocusContextKey } from 'vs/workbench/browser/parts/editor/tabFocus';
-import { AccessibilityHelpWidget } from 'vs/workbench/contrib/terminal/browser/accessibility/terminalAccessibilityHelp';
-import { AccessibleBufferWidget } from 'vs/workbench/contrib/terminal/browser/accessibility/terminalAccessibleBuffer';
+import { AccessibilityHelpWidget } from 'vs/workbench/contrib/terminalContrib/accessibility/browser/terminalAccessibilityHelp';
 import { ITerminalEditorService, ITerminalGroupService, ITerminalInstance, ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { TerminalCommandId } from 'vs/workbench/contrib/terminal/common/terminal';
 import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/terminalContextKey';
 import { terminalStrings } from 'vs/workbench/contrib/terminal/common/terminalStrings';
+import { AccessibleBufferWidget } from 'vs/workbench/contrib/terminalContrib/accessibility/browser/terminalAccessibleBuffer';
 
 const category = terminalStrings.actionCategory;
 
