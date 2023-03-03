@@ -116,7 +116,7 @@ suite('Sticky Scroll Tests', () => {
 			stickyScroll: {
 				enabled: true,
 				maxLineCount: 5,
-				defaultModel: 'Outline Model'
+				defaultModel: 'outlineModel'
 			}, serviceCollection: serviceCollection
 		}, async (editor, _viewModel, instantiationService) => {
 			const languageService = instantiationService.get(ILanguageFeaturesService);
@@ -141,7 +141,7 @@ suite('Sticky Scroll Tests', () => {
 			stickyScroll: {
 				enabled: true,
 				maxLineCount: 5,
-				defaultModel: 'Outline Model'
+				defaultModel: 'outlineModel'
 			}, serviceCollection
 		}, async (editor, _viewModel, instantiationService) => {
 
@@ -189,7 +189,7 @@ suite('Sticky Scroll Tests', () => {
 			stickyScroll: {
 				enabled: true,
 				maxLineCount: 5,
-				defaultModel: 'Outline Model'
+				defaultModel: 'outlineModel'
 			}, serviceCollection
 		}, async (editor, viewModel, instantiationService) => {
 
@@ -282,7 +282,7 @@ suite('Sticky Scroll Tests', () => {
 			stickyScroll: {
 				enabled: true,
 				maxLineCount: 5,
-				defaultModel: 'Outline Model'
+				defaultModel: 'outlineModel'
 			}, serviceCollection
 		}, async (editor, _viewModel, instantiationService) => {
 

@@ -29,9 +29,9 @@ import { FoldingDecorationProvider } from 'vs/editor/contrib/folding/browser/fol
 import { onUnexpectedError } from 'vs/base/common/errors';
 
 enum ModelProvider {
-	OUTLINE_MODEL = 'Outline Model',
-	FOLDING_PROVIDER_MODEL = 'Folding Provider Model',
-	INDENTATION_MODEL = 'Indentation Model'
+	OUTLINE_MODEL = 'outlineModel',
+	FOLDING_PROVIDER_MODEL = 'foldingProviderModel',
+	INDENTATION_MODEL = 'indentationModel'
 }
 
 export class StickyRange {
