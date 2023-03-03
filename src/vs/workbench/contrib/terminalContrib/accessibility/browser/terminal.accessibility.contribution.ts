@@ -14,15 +14,46 @@ import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegis
 import { TerminalLocation, terminalTabFocusContextKey } from 'vs/platform/terminal/common/terminal';
 import { editorTabFocusContextKey } from 'vs/workbench/browser/parts/editor/tabFocus';
 import { AccessibilityHelpWidget } from 'vs/workbench/contrib/terminalContrib/accessibility/browser/terminalAccessibilityHelp';
-import { ITerminalEditorService, ITerminalGroupService, ITerminalInstance, ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
-import { TerminalCommandId } from 'vs/workbench/contrib/terminal/common/terminal';
+import { ITerminalContribution, ITerminalEditorService, ITerminalGroupService, ITerminalInstance, ITerminalService, IXtermTerminal } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { ITerminalProcessManager, TerminalCommandId } from 'vs/workbench/contrib/terminal/common/terminal';
 import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/terminalContextKey';
 import { terminalStrings } from 'vs/workbench/contrib/terminal/common/terminalStrings';
 import { AccessibleBufferWidget } from 'vs/workbench/contrib/terminalContrib/accessibility/browser/terminalAccessibleBuffer';
 import { registerTerminalContribution } from 'vs/workbench/contrib/terminal/browser/terminalExtensions';
+import { DisposableStore } from 'vs/base/common/lifecycle';
+import { Terminal } from 'xterm';
+import { TerminalWidgetManager } from 'vs/workbench/contrib/terminal/browser/widgets/widgetManager';
 
 const category = terminalStrings.actionCategory;
-registerTerminalContribution(AccessibleBufferWidget.ID, AccessibleBufferWidget);
+
+class AccessibleBufferContribution extends DisposableStore implements ITerminalContribution {
+	static readonly ID: 'terminal.accessible-buffer';
+	static get(instance: ITerminalInstance): AccessibleBufferContribution | null {
+		return instance.getContribution<AccessibleBufferContribution>(AccessibleBufferContribution.ID);
+	}
+
+	private _accessibleBufferWidget: AccessibleBufferWidget | undefined;
+	get accessibleBufferWidget(): AccessibleBufferWidget | undefined { return this._accessibleBufferWidget; }
+
+	constructor(
+		instance: ITerminalInstance,
+		private readonly _processManager: ITerminalProcessManager,
+		private readonly _widgetManager: TerminalWidgetManager,
+		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+	) {
+		super();
+	}
+
+	xtermReady(xterm: IXtermTerminal & { raw: Terminal }): void {
+		this._accessibleBufferWidget = this._instantiationService.createInstance(AccessibleBufferWidget, xterm, this._processManager, this._widgetManager);
+	}
+	show(): void {
+		this._accessibleBufferWidget?.show();
+	}
+}
+registerTerminalContribution(AccessibleBufferContribution.ID, AccessibleBufferContribution);
+
+
 registerAction2(class extends Action2 {
 	constructor() {
 		super({
@@ -86,7 +117,7 @@ registerAction2(class extends Action2 {
 		if (!instance) {
 			return;
 		}
-		(instance.getContribution(AccessibleBufferWidget.ID) as AccessibleBufferWidget).show();
+		((instance.getContribution(AccessibleBufferContribution.ID) as AccessibleBufferContribution).show());
 	}
 });
 
