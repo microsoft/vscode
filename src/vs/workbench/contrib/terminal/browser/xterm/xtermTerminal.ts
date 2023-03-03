@@ -828,12 +828,10 @@ class AccessibleBuffer extends DisposableStore {
 	private async _updateBufferEditor(): Promise<void> {
 		const commandDetection = this._capabilities.get(TerminalCapability.CommandDetection);
 		const fragment = !!commandDetection ? this._getShellIntegrationContent() : this._getAllContent();
-		console.log(fragment);
 		const model = await this._getTextModel(URI.from({ scheme: AccessibleBufferConstants.Scheme, fragment }));
 		if (model) {
 			this._bufferEditor.setModel(model);
 		}
-		this._accessibleBuffer.style.visibility = 'visible';
 
 		if (!this._registered) {
 			const elt = this._terminal.raw?.element?.parentElement;
@@ -846,7 +844,6 @@ class AccessibleBuffer extends DisposableStore {
 					this._terminal.raw.focus();
 					const e = this._terminal.raw?.element;
 					e?.classList.remove('hide');
-					this._accessibleBuffer.style.visibility = 'hidden';
 				}
 			});
 			this.add(addDisposableListener(this._accessibleBuffer, 'keypress', (e) => {
@@ -879,7 +876,6 @@ class AccessibleBuffer extends DisposableStore {
 			this._lastContentLength = fragment.length;
 		}
 		this._accessibleBuffer.replaceChildren(this._editorContainer);
-		console.log(this._editorContainer.children);
 		const elt = this._terminal.raw?.element?.parentElement;
 		if (elt) {
 			this._bufferEditor.layout({ width: elt.clientWidth, height: elt.clientHeight });

@@ -209,7 +209,7 @@
 	position: relative;
 }
 
-.xterm .xterm-accessible-buffer {
+.xterm-accessible-buffer {
 	position: absolute;
 	left: 0;
 	top: 0;
@@ -218,18 +218,18 @@
 	padding: .5em;
 	overflow: scroll;
 	overflow-x: hidden;
+	opacity: 0;
 }
 
-.xterm .xterm-accessible-buffer div {
+.xterm-accessible-buffer div {
 	white-space: pre-wrap;
 }
 
-.xterm .xterm-accessible-buffer.active {
-	visibility: visible;
+.xterm-accessible-buffer.active {
 	z-index: 33;
 	top: -5px;
 	left: 5px;
-	pointer-events: none;
+	opacity: 1;
 	background-color: var(--vscode-terminal-background, --vscode-panel-background);
 }
 
