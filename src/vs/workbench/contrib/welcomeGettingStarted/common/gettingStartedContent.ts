@@ -470,7 +470,7 @@ export const walkthroughs: GettingStartedWalkthroughContent = [
 				{
 					id: 'installGit',
 					title: localize('gettingStarted.installGit.title', "Install Git"),
-					description: localize('gettingStarted.installGit.description.interpolated', "Install Git to track changes in your projects.\n{0}", Button(localize('installGit', "Install Git"), 'https://aka.ms/vscode-install-git')),
+					description: localize('gettingStarted.installGit.description.interpolated', "Install Git to track changes in your projects.\n{0}\n{1} after installation to complete Git setup.", Button(localize('installGit', "Install Git"), 'https://aka.ms/vscode-install-git'), '[Reload window](command:workbench.action.reloadWindow)'),
 					when: 'git.missing',
 					media: {
 						type: 'svg', altText: 'Install Git.', path: 'git.svg',
