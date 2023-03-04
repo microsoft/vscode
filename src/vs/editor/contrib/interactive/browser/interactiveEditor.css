@@ -37,10 +37,6 @@
 	padding: 2px
 }
 
-.monaco-editor .interactive-editor .body .history .history-entry.hidden {
-	display: none;
-}
-
 .monaco-editor .interactive-editor .body .history .history-entry:hover {
 	background-color: var(--vscode-list-hoverBackground);
 	color: var(--vscode-list-hoverForeground);
