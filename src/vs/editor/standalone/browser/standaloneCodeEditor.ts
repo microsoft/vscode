@@ -51,7 +51,7 @@ export interface IActionDescriptor {
 	 */
 	label: string;
 	/**
-	 * Precondition rule.
+	 * Precondition rule.the value should be a [IContextKey](#IContextKey).
 	 */
 	precondition?: string;
 	/**
