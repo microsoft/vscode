@@ -1,4 +1,5 @@
 "use strict";
+//Thank you for creating vs code for open source community
 /*---------------------------------------------------------------------------------------------
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
