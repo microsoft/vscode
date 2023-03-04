@@ -27,6 +27,7 @@ import { IInteractiveSessionService } from 'vs/workbench/contrib/interactiveSess
 import { InteractiveSessionViewModel, IInteractiveSessionViewModel, isRequestVM, isResponseVM } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionViewModel';
 import { getSimpleCodeEditorWidgetOptions, getSimpleEditorOptions } from 'vs/workbench/contrib/codeEditor/browser/simpleEditorOptions';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
+import { clamp } from 'vs/base/common/numbers';
 
 const $ = dom.$;
 
@@ -36,6 +37,8 @@ export const CONTEXT_IN_INTERACTIVE_SESSION = new RawContextKey<boolean>('inInte
 function revealLastElement(list: WorkbenchObjectTree<any>) {
 	list.scrollTop = list.scrollHeight - list.renderHeight;
 }
+
+const INPUT_EDITOR_MAX_HEIGHT = 275;
 
 export class InteractiveSessionWidget extends Disposable {
 	private static readonly widgetsByInputUri = new Map<string, InteractiveSessionWidget>();
@@ -48,6 +51,7 @@ export class InteractiveSessionWidget extends Disposable {
 
 	private tree!: WorkbenchObjectTree<InteractiveTreeItem>;
 	private renderer!: InteractiveListItemRenderer;
+	private inputEditorHeight = 0;
 	private inputEditor!: CodeEditorWidget;
 	private inputOptions!: InteractiveSessionInputOptions;
 	private inputModel: ITextModel | undefined;
@@ -268,7 +272,9 @@ export class InteractiveSessionWidget extends Disposable {
 		this.inputEditor = this._register(scopedInstantiationService.createInstance(CodeEditorWidget, inputContainer, options, getSimpleCodeEditorWidgetOptions()));
 
 		this._register(this.inputEditor.onDidChangeModelContent(() => {
-			if (this.bodyDimension) {
+			const currentHeight = Math.max(this.inputEditor.getContentHeight(), INPUT_EDITOR_MAX_HEIGHT);
+			if (this.bodyDimension && currentHeight !== this.inputEditorHeight) {
+				this.inputEditorHeight = currentHeight;
 				this.layout(this.bodyDimension.height, this.bodyDimension.width);
 			}
 		}));
@@ -336,7 +342,7 @@ export class InteractiveSessionWidget extends Disposable {
 
 	layout(height: number, width: number): void {
 		this.bodyDimension = new dom.Dimension(width, height);
-		const inputHeight = Math.min(this.inputEditor.getContentHeight(), height);
+		const inputHeight = clamp(this.inputEditor.getContentHeight(), height, INPUT_EDITOR_MAX_HEIGHT);
 		const inputWrapperPadding = 24;
 		const lastElementVisible = this.tree.scrollTop + this.tree.renderHeight >= this.tree.scrollHeight;
 		const listHeight = height - inputHeight - inputWrapperPadding;
