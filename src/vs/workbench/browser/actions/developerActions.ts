@@ -11,7 +11,7 @@ import { DomEmitter } from 'vs/base/browser/event';
 import { Color } from 'vs/base/common/color';
 import { Event } from 'vs/base/common/event';
 import { IDisposable, toDisposable, dispose, DisposableStore } from 'vs/base/common/lifecycle';
-import { getDomNodePagePosition, createStyleSheet, createCSSRule, append, $ } from 'vs/base/browser/dom';
+import { getDomNodePagePosition, createStyleSheet, createCSSRule, append, $, reset } from 'vs/base/browser/dom';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { Context } from 'vs/platform/contextkey/browser/contextKeyService';
@@ -199,11 +199,13 @@ class ToggleScreencastModeAction extends Action2 {
 		}));
 
 		const onKeyDown = disposables.add(new DomEmitter(window, 'keydown', true));
+		const onCompositionStart = disposables.add(new DomEmitter(window, 'compositionstart', true));
 		const onCompositionUpdate = disposables.add(new DomEmitter(window, 'compositionupdate', true));
 		const onCompositionEnd = disposables.add(new DomEmitter(window, 'compositionend', true));
 
 		let length = 0;
 		let composing: Element | undefined = undefined;
+		let imeBackSpace = false;
 
 		const clearKeyboardScheduler = new RunOnceScheduler(() => {
 			keyboardMarker.textContent = '';
@@ -211,12 +213,19 @@ class ToggleScreencastModeAction extends Action2 {
 			length = 0;
 		}, keyboardMarkerTimeout);
 
+		disposables.add(onCompositionStart.event(e => {
+			imeBackSpace = true;
+		}));
+
 		disposables.add(onCompositionUpdate.event(e => {
-			if (e.data) {
+			if (e.data && imeBackSpace) {
 				composing = composing ?? append(keyboardMarker, $('span.key'));
 				composing.textContent = e.data;
-			}
+			} else if (imeBackSpace) {
+				keyboardMarker.innerText = '';
 
+				append(keyboardMarker, $('span.key', {}, `Backspace`));
+			}
 			clearKeyboardScheduler.schedule();
 		}));
 
@@ -225,16 +234,19 @@ class ToggleScreencastModeAction extends Action2 {
 		}));
 
 		disposables.add(onKeyDown.event(e => {
-			if (e.key === 'Process') {
-				if (!e.code.includes('Key')) {
+			const event = new StandardKeyboardEvent(e);
+			if (event.code === 'Process') {
+				if (e.keyCode === KeyCode.Backspace) {
+					imeBackSpace = true;
+				} else if (!e.code.includes('Key')) {
 					composing = undefined;
-					clearKeyboardScheduler.cancel();
+					imeBackSpace = false;
+				} else {
+					imeBackSpace = true;
 				}
-
+				clearKeyboardScheduler.schedule();
 				return;
 			}
-
-			const event = new StandardKeyboardEvent(e);
 			const shortcut = keybindingService.softDispatch(event, event.target);
 
 			if (shortcut?.commandId || !configurationService.getValue('screencastMode.onlyKeyboardShortcuts')) {
