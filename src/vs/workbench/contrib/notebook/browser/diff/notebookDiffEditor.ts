@@ -1048,7 +1048,7 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 		}
 	}
 
-	layout(dimension: DOM.Dimension): void {
+	layout(dimension: DOM.Dimension, _position: DOM.IDomPosition): void {
 		this._rootElement.classList.toggle('mid-width', dimension.width < 1000 && dimension.width >= 600);
 		this._rootElement.classList.toggle('narrow-width', dimension.width < 600);
 		const overviewRulerEnabled = this.isOverviewRulerEnabled();

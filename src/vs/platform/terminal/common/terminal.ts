@@ -11,6 +11,9 @@ import { IPtyHostProcessReplayEvent, ISerializedCommandDetectionCapability, ITer
 import { IGetTerminalLayoutInfoArgs, IProcessDetails, ISetTerminalLayoutInfoArgs } from 'vs/platform/terminal/common/terminalProcess';
 import { ThemeIcon } from 'vs/base/common/themables';
 import { ISerializableEnvironmentVariableCollections } from 'vs/platform/terminal/common/environmentVariable';
+import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
+
+export const terminalTabFocusContextKey = new RawContextKey<boolean>('terminalTabFocusMode', false, true);
 
 export const enum TerminalSettingPrefix {
 	Shell = 'terminal.integrated.shell.',
@@ -114,10 +117,6 @@ export const enum TerminalSettingId {
 	ShellIntegrationCommandHistory = 'terminal.integrated.shellIntegration.history',
 	ShellIntegrationSuggestEnabled = 'terminal.integrated.shellIntegration.suggestEnabled',
 	SmoothScrolling = 'terminal.integrated.smoothScrolling'
-}
-
-export const enum TerminalLogConstants {
-	FileName = 'ptyhost'
 }
 
 export const enum PosixShellType {

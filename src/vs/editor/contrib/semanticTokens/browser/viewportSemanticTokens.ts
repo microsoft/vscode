@@ -22,7 +22,7 @@ import { DocumentRangeSemanticTokensProvider } from 'vs/editor/common/languages'
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import { ISemanticTokensStylingService } from 'vs/editor/common/services/semanticTokensStyling';
 
-class ViewportSemanticTokensContribution extends Disposable implements IEditorContribution {
+export class ViewportSemanticTokensContribution extends Disposable implements IEditorContribution {
 
 	public static readonly ID = 'editor.contrib.viewportSemanticTokens';
 

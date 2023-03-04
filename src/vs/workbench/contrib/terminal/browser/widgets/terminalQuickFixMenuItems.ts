@@ -8,12 +8,11 @@ import { ThemeIcon } from 'vs/base/common/themables';
 import { Schemas } from 'vs/base/common/network';
 import { CodeActionKind } from 'vs/editor/contrib/codeAction/common/types';
 import { localize } from 'vs/nls';
-import { ActionListItemKind, IListMenuItem } from 'vs/platform/actionWidget/browser/actionList';
-import { IActionItem } from 'vs/platform/actionWidget/common/actionWidget';
+import { ActionListItemKind, IActionListItem } from 'vs/platform/actionWidget/browser/actionList';
 import { TerminalQuickFixType } from 'vs/platform/terminal/common/xterm/terminalQuickFix';
 import { ITerminalAction } from 'vs/workbench/contrib/terminal/browser/xterm/quickFixAddon';
 
-export class TerminalQuickFix implements IActionItem {
+export class TerminalQuickFix {
 	action: ITerminalAction;
 	type: TerminalQuickFixType;
 	disabled?: boolean;
@@ -29,8 +28,8 @@ export class TerminalQuickFix implements IActionItem {
 }
 
 
-export function toMenuItems(inputQuickFixes: readonly TerminalQuickFix[], showHeaders: boolean): IListMenuItem<TerminalQuickFix>[] {
-	const menuItems: IListMenuItem<TerminalQuickFix>[] = [];
+export function toMenuItems(inputQuickFixes: readonly TerminalQuickFix[], showHeaders: boolean): IActionListItem<TerminalQuickFix>[] {
+	const menuItems: IActionListItem<TerminalQuickFix>[] = [];
 	menuItems.push({
 		kind: ActionListItemKind.Header,
 		group: {

@@ -12,6 +12,7 @@ import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import * as performance from 'vs/base/common/performance';
 import Severity from 'vs/base/common/severity';
+import { ThemeColor, ThemeIcon } from 'vs/base/common/themables';
 import { URI, UriComponents, UriDto } from 'vs/base/common/uri';
 import { RenderLineNumbersType, TextEditorCursorStyle } from 'vs/editor/common/config/editorOptions';
 import { ISingleEditOperation } from 'vs/editor/common/core/editOperation';
@@ -20,11 +21,12 @@ import { IRange } from 'vs/editor/common/core/range';
 import { ISelection, Selection } from 'vs/editor/common/core/selection';
 import { IChange } from 'vs/editor/common/diff/smartLinesDiffComputer';
 import * as editorCommon from 'vs/editor/common/editorCommon';
-import * as languages from 'vs/editor/common/languages';
 import { StandardTokenType } from 'vs/editor/common/encodedTokenAttributes';
+import * as languages from 'vs/editor/common/languages';
 import { CharacterPair, CommentRule, EnterAction } from 'vs/editor/common/languages/languageConfiguration';
 import { EndOfLineSequence } from 'vs/editor/common/model';
 import { IModelChangedEvent } from 'vs/editor/common/model/mirrorTextModel';
+import { IInteractiveEditorResponse, IInteractiveEditorSession, IInteractiveEditorRequest } from 'vs/editor/contrib/interactive/common/interactiveEditor';
 import { IAccessibilityInformation } from 'vs/platform/accessibility/common/accessibility';
 import { ConfigurationTarget, IConfigurationChange, IConfigurationData, IConfigurationOverrides } from 'vs/platform/configuration/common/configuration';
 import { ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
@@ -39,9 +41,10 @@ import * as quickInput from 'vs/platform/quickinput/common/quickInput';
 import { IRemoteConnectionData, TunnelDescription } from 'vs/platform/remote/common/remoteAuthorityResolver';
 import { ClassifiedEvent, IGDPRProperty, OmitMetadata, StrictPropertyCheck } from 'vs/platform/telemetry/common/gdprTypings';
 import { TelemetryLevel } from 'vs/platform/telemetry/common/telemetry';
+import { ISerializableEnvironmentVariableCollection } from 'vs/platform/terminal/common/environmentVariable';
 import { ICreateContributedTerminalProfileOptions, IProcessProperty, IShellLaunchConfigDto, ITerminalEnvironment, ITerminalLaunchError, ITerminalProfile, TerminalExitReason, TerminalLocation } from 'vs/platform/terminal/common/terminal';
-import { ThemeIcon, ThemeColor } from 'vs/base/common/themables';
 import { ProvidedPortAttributes, TunnelCreationOptions, TunnelOptions, TunnelPrivacyId, TunnelProviderFeatures } from 'vs/platform/tunnel/common/tunnel';
+import { EditSessionIdentityMatch } from 'vs/platform/workspace/common/editSessions';
 import { WorkspaceTrustRequestOptions } from 'vs/platform/workspace/common/workspaceTrust';
 import * as tasks from 'vs/workbench/api/common/shared/tasks';
 import { SaveReason } from 'vs/workbench/common/editor';
@@ -52,11 +55,9 @@ import * as notebookCommon from 'vs/workbench/contrib/notebook/common/notebookCo
 import { CellExecutionUpdateType } from 'vs/workbench/contrib/notebook/common/notebookExecutionService';
 import { ICellExecutionComplete, ICellExecutionStateUpdate } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
 import { ICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
-import { OutputChannelUpdateMode } from 'vs/workbench/services/output/common/output';
 import { InputValidationType } from 'vs/workbench/contrib/scm/common/scm';
 import { IWorkspaceSymbol } from 'vs/workbench/contrib/search/common/search';
-import { ISerializableEnvironmentVariableCollection } from 'vs/platform/terminal/common/environmentVariable';
-import { CoverageDetails, ExtensionRunTestsRequest, ICallProfileRunHandler, IFileCoverage, ISerializedTestResults, ITestItem, ITestMessage, ITestRunProfile, ITestRunTask, ResolvedTestRunRequest, IStartControllerTests, TestResultState, TestsDiffOp } from 'vs/workbench/contrib/testing/common/testTypes';
+import { CoverageDetails, ExtensionRunTestsRequest, ICallProfileRunHandler, IFileCoverage, ISerializedTestResults, IStartControllerTests, ITestItem, ITestMessage, ITestRunProfile, ITestRunTask, ResolvedTestRunRequest, TestResultState, TestsDiffOp } from 'vs/workbench/contrib/testing/common/testTypes';
 import { Timeline, TimelineChangeEvent, TimelineOptions, TimelineProviderDescriptor } from 'vs/workbench/contrib/timeline/common/timeline';
 import { TypeHierarchyItem } from 'vs/workbench/contrib/typeHierarchy/common/typeHierarchy';
 import { AuthenticationProviderInformation, AuthenticationSession, AuthenticationSessionsChangeEvent } from 'vs/workbench/services/authentication/common/authentication';
@@ -64,14 +65,14 @@ import { EditorGroupColumn } from 'vs/workbench/services/editor/common/editorGro
 import { IExtensionDescriptionDelta, IStaticWorkspaceData } from 'vs/workbench/services/extensions/common/extensionHostProtocol';
 import { IResolveAuthorityResult } from 'vs/workbench/services/extensions/common/extensionHostProxy';
 import { ActivationKind, ExtensionActivationReason, MissingExtensionDependency } from 'vs/workbench/services/extensions/common/extensions';
-import { createProxyIdentifier, Dto, IRPCProtocol, SerializableObjectWithBuffers } from 'vs/workbench/services/extensions/common/proxyIdentifier';
+import { Dto, IRPCProtocol, SerializableObjectWithBuffers, createProxyIdentifier } from 'vs/workbench/services/extensions/common/proxyIdentifier';
 import { ILanguageStatus } from 'vs/workbench/services/languageStatus/common/languageStatusService';
+import { OutputChannelUpdateMode } from 'vs/workbench/services/output/common/output';
 import { CandidatePort } from 'vs/workbench/services/remote/common/remoteExplorerService';
 import { ITextQueryBuilderOptions } from 'vs/workbench/services/search/common/queryBuilder';
 import * as search from 'vs/workbench/services/search/common/search';
-import { EditSessionIdentityMatch } from 'vs/platform/workspace/common/editSessions';
-import { TerminalCommandMatchResult, TerminalQuickFixCommand, TerminalQuickFixOpener } from 'vscode';
 import { ISaveProfileResult } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
+import { TerminalCommandMatchResult, TerminalQuickFixCommand, TerminalQuickFixOpener } from 'vscode';
 
 export type TerminalQuickFix = TerminalQuickFixCommand | TerminalQuickFixOpener;
 
@@ -1068,10 +1069,53 @@ export interface MainThreadNotebookRenderersShape extends IDisposable {
 export interface MainThreadInteractiveShape extends IDisposable {
 }
 
+export interface MainThreadInteractiveEditorShape extends IDisposable {
+	$registerInteractiveEditorProvider(handle: number, debugName: string): Promise<void>;
+	$unregisterInteractiveEditorProvider(handle: number): Promise<void>;
+}
+
+export interface ExtHostInteractiveEditorShape {
+	$prepareInteractiveSession(handle: number, uri: UriComponents, range: ISelection, token: CancellationToken): Promise<IInteractiveEditorSession | undefined>;
+	$provideResponse(handle: number, session: IInteractiveEditorSession, request: IInteractiveEditorRequest, token: CancellationToken): Promise<IInteractiveEditorResponse | undefined>;
+	$releaseSession(handle: number, sessionId: number): void;
+}
+
 export interface MainThreadUrlsShape extends IDisposable {
 	$registerUriHandler(handle: number, extensionId: ExtensionIdentifier): Promise<void>;
 	$unregisterUriHandler(handle: number): Promise<void>;
 	$createAppUri(uri: UriComponents): Promise<UriComponents>;
+}
+
+export interface IInteractiveSessionDto {
+	id: number;
+}
+
+export interface IInteractiveRequestDto {
+	message: string;
+}
+
+export interface IInteractiveResponseDto {
+	followups?: string[];
+}
+
+export interface IInteractiveResponseProgressDto {
+	responsePart: string;
+}
+
+export interface MainThreadInteractiveSessionShape extends IDisposable {
+	$registerInteractiveSessionProvider(handle: number, id: string): Promise<void>;
+	$acceptInteractiveSessionState(sessionId: number, state: any): Promise<void>;
+	$addInteractiveSessionRequest(context: any): void;
+	$unregisterInteractiveSessionProvider(handle: number): Promise<void>;
+	$acceptInteractiveResponseProgress(handle: number, sessionId: number, progress: IInteractiveResponseProgressDto): void;
+}
+
+export interface ExtHostInteractiveSessionShape {
+	$prepareInteractiveSession(handle: number, initialState: any, token: CancellationToken): Promise<IInteractiveSessionDto | undefined>;
+	$resolveInteractiveRequest(handle: number, sessionId: number, context: any, token: CancellationToken): Promise<IInteractiveRequestDto | undefined>;
+	$provideInitialSuggestions(handle: number, token: CancellationToken): Promise<string[] | undefined>;
+	$provideInteractiveReply(handle: number, sessionid: number, request: IInteractiveRequestDto, token: CancellationToken): Promise<IInteractiveResponseDto | undefined>;
+	$releaseSession(sessionId: number): void;
 }
 
 export interface ExtHostUrlsShape {
@@ -2378,6 +2422,8 @@ export const MainContext = {
 	MainThreadNotebookKernels: createProxyIdentifier<MainThreadNotebookKernelsShape>('MainThreadNotebookKernels'),
 	MainThreadNotebookRenderers: createProxyIdentifier<MainThreadNotebookRenderersShape>('MainThreadNotebookRenderers'),
 	MainThreadInteractive: createProxyIdentifier<MainThreadInteractiveShape>('MainThreadInteractive'),
+	MainThreadInteractiveSession: createProxyIdentifier<MainThreadInteractiveSessionShape>('MainThreadInteractiveSession'),
+	MainThreadInteractiveEditor: createProxyIdentifier<MainThreadInteractiveEditorShape>('MainThreadInteractiveEditor'),
 	MainThreadTheming: createProxyIdentifier<MainThreadThemingShape>('MainThreadTheming'),
 	MainThreadTunnelService: createProxyIdentifier<MainThreadTunnelServiceShape>('MainThreadTunnelService'),
 	MainThreadTimeline: createProxyIdentifier<MainThreadTimelineShape>('MainThreadTimeline'),
@@ -2433,6 +2479,8 @@ export const ExtHostContext = {
 	ExtHostNotebookKernels: createProxyIdentifier<ExtHostNotebookKernelsShape>('ExtHostNotebookKernels'),
 	ExtHostNotebookRenderers: createProxyIdentifier<ExtHostNotebookRenderersShape>('ExtHostNotebookRenderers'),
 	ExtHostInteractive: createProxyIdentifier<ExtHostInteractiveShape>('ExtHostInteractive'),
+	ExtHostInteractiveEditor: createProxyIdentifier<ExtHostInteractiveEditorShape>('ExtHostInteractiveEditor'),
+	ExtHostInteractiveSession: createProxyIdentifier<ExtHostInteractiveSessionShape>('ExtHostInteractiveSession'),
 	ExtHostTheming: createProxyIdentifier<ExtHostThemingShape>('ExtHostTheming'),
 	ExtHostTunnelService: createProxyIdentifier<ExtHostTunnelServiceShape>('ExtHostTunnelService'),
 	ExtHostAuthentication: createProxyIdentifier<ExtHostAuthenticationShape>('ExtHostAuthentication'),

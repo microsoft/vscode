@@ -20,6 +20,7 @@ async function createInteractiveWindow(kernel: Kernel) {
 		`vscode.vscode-api-tests/${kernel.controller.id}`,
 		undefined
 	)) as unknown as INativeInteractiveWindow;
+	assert.ok(notebookEditor, 'Interactive Window was not created successfully');
 
 	return { notebookEditor, inputUri };
 }
@@ -29,16 +30,25 @@ async function addCell(code: string, notebook: vscode.NotebookDocument) {
 	const edit = vscode.NotebookEdit.insertCells(notebook.cellCount, [cell]);
 	const workspaceEdit = new vscode.WorkspaceEdit();
 	workspaceEdit.set(notebook.uri, [edit]);
+	const event = asPromise(vscode.workspace.onDidChangeNotebookDocument);
 	await vscode.workspace.applyEdit(workspaceEdit);
+	await event;
 	return notebook.cellAt(notebook.cellCount - 1);
 }
 
-async function addCellAndRun(code: string, notebook: vscode.NotebookDocument, i: number) {
+async function addCellAndRun(code: string, notebook: vscode.NotebookDocument) {
+	const initialCellCount = notebook.cellCount;
 	const cell = await addCell(code, notebook);
+
 	const event = asPromise(vscode.workspace.onDidChangeNotebookDocument);
-	await vscode.commands.executeCommand('notebook.cell.execute', { start: i, end: i + 1 }, notebook.uri);
-	await event;
-	assert.strictEqual(cell.outputs.length, 1, 'execute failed');
+	await vscode.commands.executeCommand('notebook.cell.execute', { start: initialCellCount, end: initialCellCount + 1 }, notebook.uri);
+	try {
+		await event;
+	} catch (e) {
+		const result = notebook.cellAt(notebook.cellCount - 1);
+		assert.fail(`Notebook change event was not triggered after executing newly added cell. Initial Cell count: ${initialCellCount}. Current cell count: ${notebook.cellCount}. execution summary: ${JSON.stringify(result.executionSummary)}`);
+	}
+	assert.strictEqual(cell.outputs.length, 1, `Executed cell has no output. Initial Cell count: ${initialCellCount}. Current cell count: ${notebook.cellCount}. execution summary: ${JSON.stringify(cell.executionSummary)}`);
 	return cell;
 }
 
@@ -66,7 +76,6 @@ async function addCellAndRun(code: string, notebook: vscode.NotebookDocument, i:
 	test('Can open an interactive window and execute from input box', async () => {
 		assert.ok(vscode.workspace.workspaceFolders);
 		const { notebookEditor, inputUri } = await createInteractiveWindow(defaultKernel);
-		assert.ok(notebookEditor);
 
 		const inputBox = vscode.window.visibleTextEditors.find(
 			(e) => e.document.uri.path === inputUri.path
@@ -83,11 +92,10 @@ async function addCellAndRun(code: string, notebook: vscode.NotebookDocument, i:
 	test('Interactive window scrolls after execute', async () => {
 		assert.ok(vscode.workspace.workspaceFolders);
 		const { notebookEditor } = await createInteractiveWindow(defaultKernel);
-		assert.ok(notebookEditor);
 
 		// Run and add a bunch of cells
 		for (let i = 0; i < 10; i++) {
-			await addCellAndRun(`print ${i}`, notebookEditor.notebook, i);
+			await addCellAndRun(`print ${i}`, notebookEditor.notebook);
 		}
 
 		// Verify visible range has the last cell
@@ -97,19 +105,18 @@ async function addCellAndRun(code: string, notebook: vscode.NotebookDocument, i:
 
 	test('Interactive window has the correct kernel', async () => {
 		assert.ok(vscode.workspace.workspaceFolders);
-		const { notebookEditor } = await createInteractiveWindow(defaultKernel);
-		assert.ok(notebookEditor);
+		await createInteractiveWindow(defaultKernel);
 
 		await vscode.commands.executeCommand('workbench.action.closeActiveEditor');
 
 		// Create a new interactive window with a different kernel
-		const { notebookEditor: notebookEditor2 } = await createInteractiveWindow(secondKernel);
-		assert.ok(notebookEditor2);
+		const { notebookEditor } = await createInteractiveWindow(secondKernel);
+		assert.ok(notebookEditor);
 
 		// Verify the kernel is the secondary one
-		await addCellAndRun(`print`, notebookEditor2.notebook, 0);
+		await addCellAndRun(`print`, notebookEditor.notebook);
 
-		assert.strictEqual(secondKernel.associatedNotebooks.has(notebookEditor2.notebook.uri.toString()), true, `Secondary kernel was not set as the kernel for the interactive window`);
+		assert.strictEqual(secondKernel.associatedNotebooks.has(notebookEditor.notebook.uri.toString()), true, `Secondary kernel was not set as the kernel for the interactive window`);
 
 	});
 });

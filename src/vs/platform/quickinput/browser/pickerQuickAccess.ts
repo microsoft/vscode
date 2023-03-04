@@ -139,7 +139,8 @@ export abstract class PickerQuickAccessProvider<T extends IPickerQuickAccessItem
 						return false;
 					}
 
-					if (picksFilter.length > 0 && this.options?.noResultsPick) {
+					// We show the no results pick if we have no input to prevent completely empty pickers #172613
+					if ((picksFilter.length > 0 || picker.hideInput) && this.options?.noResultsPick) {
 						items = [this.options.noResultsPick];
 					}
 				}
