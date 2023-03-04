@@ -28,7 +28,7 @@ export class InteractiveSessionViewPane extends ViewPane {
 	private view: InteractiveSessionWidget;
 
 	constructor(
-		interactivSessionViewOptions: IInteractiveSessionViewOptions,
+		interactiveSessionViewOptions: IInteractiveSessionViewOptions,
 		options: IViewPaneOptions,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IContextMenuService contextMenuService: IContextMenuService,
@@ -43,7 +43,7 @@ export class InteractiveSessionViewPane extends ViewPane {
 		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService);
 		// TODO hacks
 		InteractiveSessionViewPane.instances.push(this);
-		this.view = this._register(this.instantiationService.createInstance(InteractiveSessionWidget, interactivSessionViewOptions.providerId, this.id, () => this.getBackgroundColor(), () => this.getBackgroundColor(), () => editorBackground));
+		this.view = this._register(this.instantiationService.createInstance(InteractiveSessionWidget, interactiveSessionViewOptions.providerId, this.id, () => this.getBackgroundColor(), () => this.getBackgroundColor(), () => editorBackground));
 
 		this._register(this.onDidChangeBodyVisibility(visible => {
 			this.view.setVisible(visible);

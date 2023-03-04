@@ -33,11 +33,11 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { ILogService } from 'vs/platform/log/common/log';
 import { defaultButtonStyles } from 'vs/platform/theme/browser/defaultStyles';
 import { FloatingClickMenu } from 'vs/workbench/browser/codeeditor';
-import { InteractiveSessionInputOptions } from 'vs/workbench/contrib/interactiveSession/browser/interactiveSessionOptions';
-import { IInteractiveRequestViewModel, IInteractiveResponseViewModel, isRequestVM, isResponseVM } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionViewModel';
 import { MenuPreventer } from 'vs/workbench/contrib/codeEditor/browser/menuPreventer';
 import { SelectionClipboardContributionID } from 'vs/workbench/contrib/codeEditor/browser/selectionClipboard';
 import { getSimpleEditorOptions } from 'vs/workbench/contrib/codeEditor/browser/simpleEditorOptions';
+import { InteractiveSessionInputOptions } from 'vs/workbench/contrib/interactiveSession/browser/interactiveSessionOptions';
+import { IInteractiveRequestViewModel, IInteractiveResponseViewModel, isRequestVM, isResponseVM } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionViewModel';
 
 const $ = dom.$;
 
@@ -96,6 +96,8 @@ export class InteractiveListItemRenderer extends Disposable implements ITreeRend
 	private traceLayout(method: string, message: string) {
 		if (enableVerboseLayoutTracing) {
 			this.logService.info(`${method}: ${message}`);
+		} else {
+			this.logService.trace(`${method}: ${message}`);
 		}
 	}
 
@@ -140,21 +142,8 @@ export class InteractiveListItemRenderer extends Disposable implements ITreeRend
 			const progressiveRenderingDisposables = templateData.elementDisposables.add(new DisposableStore());
 			const timer = templateData.elementDisposables.add(new IntervalTimer());
 			const runProgressiveRender = () => {
-				progressiveRenderingDisposables.clear();
-				const toRender = this.getProgressiveMarkdownToRender(element);
-				if (toRender) {
-					if (element.renderData?.isFullyRendered) {
-						this.traceLayout('runProgressiveRender', `end progressive render ${kind}, index=${index}`);
-						progressiveRenderingDisposables.clear();
-						this.basicRenderElement(element.response.value, element, index, templateData);
-						timer.cancel();
-					} else {
-						const plusCursor = toRender.match(/```.*$/) ? toRender + `\n${InteractiveListItemRenderer.cursorCharacter}` : toRender + ` ${InteractiveListItemRenderer.cursorCharacter}`;
-						const result = this.renderMarkdown(element, index, new MarkdownString(plusCursor), progressiveRenderingDisposables, templateData, true);
-						dom.clearNode(templateData.value);
-						templateData.value.appendChild(result.element);
-						progressiveRenderingDisposables.add(result);
-					}
+				if (this.doNextProgressiveRender(element, index, templateData, progressiveRenderingDisposables)) {
+					timer.cancel();
 				}
 			};
 			runProgressiveRender();
@@ -178,28 +167,45 @@ export class InteractiveListItemRenderer extends Disposable implements ITreeRend
 				const button = templateData.elementDisposables.add(new Button(followupsContainer, defaultButtonStyles));
 				button.label = `"${q}"`;
 				templateData.elementDisposables.add(button.onDidClick(() => this._onDidSelectFollowup.fire(q)));
-				return button;
 			});
 		}
 	}
 
-	private renderMarkdown(element: InteractiveTreeItem, index: number, markdown: IMarkdownString, disposables: DisposableStore, templateData: IInteractiveListItemTemplate, fillInIncompleteTokens = false): IMarkdownRenderResult {
-		const notifyHeightChange = () => {
-			const height = templateData.rowContainer.clientHeight;
-			if (height && (typeof element.currentRenderedHeight === 'undefined' || element.currentRenderedHeight !== height)) {
-				element.currentRenderedHeight = height;
-				this.traceLayout('notifyHeightChange', `index=${index}, height=${height}`);
-				this._onDidChangeItemHeight.fire({ element, height });
+	private doNextProgressiveRender(element: IInteractiveResponseViewModel, index: number, templateData: IInteractiveListItemTemplate, disposables: DisposableStore): boolean {
+		disposables.clear();
+		const toRender = this.getProgressiveMarkdownToRender(element);
+		if (toRender) {
+			const isFullyRendered = element.renderData?.isFullyRendered;
+			if (isFullyRendered) {
+				this.traceLayout('runProgressiveRender', `end progressive render, index=${index}`);
+				if (element.isComplete) {
+					this.traceLayout('runProgressiveRender', `and disposing renderData, response is complete, index=${index}`);
+					element.renderData = undefined;
+				}
+				disposables.clear();
+				this.basicRenderElement(element.response.value, element, index, templateData);
+			} else {
+				const plusCursor = toRender.match(/```.*$/) ? toRender + `\n${InteractiveListItemRenderer.cursorCharacter}` : toRender + ` ${InteractiveListItemRenderer.cursorCharacter}`;
+				const result = this.renderMarkdown(element, index, new MarkdownString(plusCursor), disposables, templateData, true);
+				dom.clearNode(templateData.value);
+				templateData.value.appendChild(result.element);
+				disposables.add(result);
 			}
-		};
 
-		let didRenderEditor = false;
+			const height = templateData.rowContainer.offsetHeight;
+			element.currentRenderedHeight = height;
+			this._onDidChangeItemHeight.fire({ element, height: templateData.rowContainer.offsetHeight });
+			return !!isFullyRendered;
+		}
+
+		return false;
+	}
+
+	private renderMarkdown(element: InteractiveTreeItem, index: number, markdown: IMarkdownString, disposables: DisposableStore, templateData: IInteractiveListItemTemplate, fillInIncompleteTokens = false): IMarkdownRenderResult {
 		const disposablesList: IDisposable[] = [];
 		const result = this.renderer.render(markdown, {
 			fillInIncompleteTokens,
-			codeBlockRenderer: async (languageId, value) => {
-				didRenderEditor = true;
-
+			codeBlockRendererSync: (languageId, value) => {
 				const editorInfo = this._editorPool.get();
 				disposablesList.push(editorInfo);
 				editorInfo.setText(value);
@@ -216,18 +222,8 @@ export class InteractiveListItemRenderer extends Disposable implements ITreeRend
 				}));
 
 				return editorInfo.element;
-			},
-			asyncRenderCallback: () => {
-				// do updateElementHeight when all editors have been rendered and layed out
-				notifyHeightChange();
 			}
 		});
-
-		if (!didRenderEditor) {
-			disposables.add(dom.scheduleAtNextAnimationFrame(() => {
-				notifyHeightChange();
-			}));
-		}
 
 		disposablesList.reverse().forEach(d => disposables.add(d));
 		return result;
@@ -299,6 +295,10 @@ export class InteractiveSessionListDelegate implements IListVirtualDelegate<Inte
 
 	getTemplateId(element: InteractiveTreeItem): string {
 		return InteractiveListItemRenderer.ID;
+	}
+
+	hasDynamicHeight(element: InteractiveTreeItem): boolean {
+		return true;
 	}
 }
 

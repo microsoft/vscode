@@ -27,6 +27,7 @@ import { IInteractiveSessionService } from 'vs/workbench/contrib/interactiveSess
 import { InteractiveSessionViewModel, IInteractiveSessionViewModel, isRequestVM, isResponseVM } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionViewModel';
 import { getSimpleCodeEditorWidgetOptions, getSimpleEditorOptions } from 'vs/workbench/contrib/codeEditor/browser/simpleEditorOptions';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
+import { clamp } from 'vs/base/common/numbers';
 
 const $ = dom.$;
 
@@ -36,6 +37,8 @@ export const CONTEXT_IN_INTERACTIVE_SESSION = new RawContextKey<boolean>('inInte
 function revealLastElement(list: WorkbenchObjectTree<any>) {
 	list.scrollTop = list.scrollHeight - list.renderHeight;
 }
+
+const INPUT_EDITOR_MAX_HEIGHT = 275;
 
 export class InteractiveSessionWidget extends Disposable {
 	private static readonly widgetsByInputUri = new Map<string, InteractiveSessionWidget>();
@@ -48,6 +51,7 @@ export class InteractiveSessionWidget extends Disposable {
 
 	private tree!: WorkbenchObjectTree<InteractiveTreeItem>;
 	private renderer!: InteractiveListItemRenderer;
+	private inputEditorHeight = 0;
 	private inputEditor!: CodeEditorWidget;
 	private inputOptions!: InteractiveSessionInputOptions;
 	private inputModel: ITextModel | undefined;
@@ -126,7 +130,6 @@ export class InteractiveSessionWidget extends Disposable {
 						},
 					}
 				});
-				revealLastElement(this.tree);
 			}
 		}
 	}
@@ -199,7 +202,7 @@ export class InteractiveSessionWidget extends Disposable {
 			[this.renderer],
 			{
 				identityProvider: { getId: (e: InteractiveTreeItem) => e.id },
-				supportDynamicHeights: false,
+				supportDynamicHeights: true,
 				hideTwistiesOfChildlessElements: true,
 				accessibilityProvider: new InteractiveSessionAccessibilityProvider(),
 				keyboardNavigationLabelProvider: { getKeyboardNavigationLabel: (e: InteractiveTreeItem) => isRequestVM(e) ? e.model.message : e.response.value },
@@ -226,7 +229,6 @@ export class InteractiveSessionWidget extends Disposable {
 		}));
 		this._register(this.renderer.onDidChangeItemHeight(e => {
 			this.tree.updateElementHeight(e.element, e.height);
-			this.onDidChangeTreeContentHeight();
 		}));
 		this._register(this.renderer.onDidSelectFollowup(followup => {
 			this.acceptInput(followup);
@@ -240,7 +242,7 @@ export class InteractiveSessionWidget extends Disposable {
 			// const lastElementWasVisible = this.list.scrollTop + this.list.renderHeight >= this.previousTreeScrollHeight - 2;
 			const lastElementWasVisible = this.tree.scrollTop + this.tree.renderHeight >= this.previousTreeScrollHeight;
 			if (lastElementWasVisible) {
-				setTimeout(() => {
+				dom.scheduleAtNextAnimationFrame(() => {
 					// Can't set scrollTop during this event listener, the list might overwrite the change
 					revealLastElement(this.tree);
 				}, 0);
@@ -270,7 +272,9 @@ export class InteractiveSessionWidget extends Disposable {
 		this.inputEditor = this._register(scopedInstantiationService.createInstance(CodeEditorWidget, inputContainer, options, getSimpleCodeEditorWidgetOptions()));
 
 		this._register(this.inputEditor.onDidChangeModelContent(() => {
-			if (this.bodyDimension) {
+			const currentHeight = Math.max(this.inputEditor.getContentHeight(), INPUT_EDITOR_MAX_HEIGHT);
+			if (this.bodyDimension && currentHeight !== this.inputEditorHeight) {
+				this.inputEditorHeight = currentHeight;
 				this.layout(this.bodyDimension.height, this.bodyDimension.width);
 			}
 		}));
@@ -308,6 +312,7 @@ export class InteractiveSessionWidget extends Disposable {
 			const input = query ?? this.inputEditor.getValue();
 			if (this.interactiveSessionService.sendRequest(this.viewModel.sessionId, input, CancellationToken.None)) {
 				this.inputEditor.setValue('');
+				revealLastElement(this.tree);
 			}
 		}
 	}
@@ -337,7 +342,7 @@ export class InteractiveSessionWidget extends Disposable {
 
 	layout(height: number, width: number): void {
 		this.bodyDimension = new dom.Dimension(width, height);
-		const inputHeight = Math.min(this.inputEditor.getContentHeight(), height);
+		const inputHeight = clamp(this.inputEditor.getContentHeight(), height, INPUT_EDITOR_MAX_HEIGHT);
 		const inputWrapperPadding = 24;
 		const lastElementVisible = this.tree.scrollTop + this.tree.renderHeight >= this.tree.scrollHeight;
 		const listHeight = height - inputHeight - inputWrapperPadding;
