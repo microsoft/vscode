@@ -169,7 +169,7 @@ export function getOpenInteractiveSessionEditorAction(id: string, label: string,
 		constructor() {
 			super({
 				id: `workbench.action.openInteractiveSession.${id}`,
-				title: { value: localize('interactiveSession.open', "Open Interactive Session Editor ({0})", label), original: `Open Interactive Session Editor (${label})` },
+				title: { value: localize('interactiveSession.open', "Open Editor ({0})", label), original: `Open Editor (${label})` },
 				f1: true,
 				category,
 				precondition: ContextKeyExpr.deserialize(when)
