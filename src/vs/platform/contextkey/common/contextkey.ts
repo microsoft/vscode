@@ -255,21 +255,24 @@ or ::= and { '||' and }*
 and ::= term { '&&' term }*
 
 term ::=
-	| '!' (CONTEXT | 'true' | 'false') // we do not yet support negation of arbitrary expressions
+	| '!' (KEY | true | false | parenthesized)
 	| primary
 
 primary ::=
 	| 'true'
 	| 'false'
+	| parenthesized
+	| KEY '=~' REGEX
+	| KEY [ ('==' | '!=' | '<' | '<=' | '>' | '>=' | 'not' 'in' | 'in') value ]
+
+parenthesized ::=
 	| '(' expression ')'
-	| CONTEXT '=~' REGEX
-	| CONTEXT [ ('==' | '!=' | '<' | '<=' | '>' | '>=' | 'not' 'in' | 'in') value ]
 
 value ::=
 	| 'true'
 	| 'false'
 	| 'in'      	// we support `in` as a value because there's an extension that uses it, ie "when": "languageId == in"
-	| VALUE 		// matched by the same regex as CONTEXT; consider putting the value in single quotes if it's a string (e.g., with spaces)
+	| VALUE 		// matched by the same regex as KEY; consider putting the value in single quotes if it's a string (e.g., with spaces)
 	| SINGLE_QUOTED_STR
 	| EMPTY_STR  	// this allows "when": "foo == " which's used by existing extensions
 
@@ -298,7 +301,6 @@ export type ParsingError = {
 
 const errorEmptyString = localize('contextkey.parser.error.emptyString', "Empty context key expression");
 const hintEmptyString = localize('contextkey.parser.error.emptyString.hint', "Did you forget to write an expression? You can also put 'false' or 'true' to always evaluate to false or true, respectively.");
-const errorDontSupportArbitraryNegation = localize('contextkey.parser.error.dontSupportArbitraryNegation', "Negation of arbitrary expressions is not supported.");
 const errorNoInAfterNot = localize('contextkey.parser.error.noInAfterNot', "'in' after 'not'.");
 const errorClosingParenthesis = localize('contextkey.parser.error.closingParenthesis', "closing parenthesis ')'");
 const errorUnexpectedToken = localize('contextkey.parser.error.unexpectedToken', "Unexpected token");
@@ -410,19 +412,25 @@ export class Parser {
 
 	private _term(): ContextKeyExpression | undefined {
 		if (this._matchOne(TokenType.Neg)) {
-			const expr = this._peek();
-			switch (expr.type) {
-				case TokenType.Str:
-					this._advance();
-					return ContextKeyExpr.not(expr.lexeme!);
+			const peek = this._peek();
+			switch (peek.type) {
 				case TokenType.True:
 					this._advance();
-					return ContextKeyExpr.false();
+					return ContextKeyFalseExpr.INSTANCE;
 				case TokenType.False:
 					this._advance();
-					return ContextKeyExpr.true();
+					return ContextKeyTrueExpr.INSTANCE;
+				case TokenType.LParen: {
+					this._advance();
+					const expr = this._expr();
+					this._consume(TokenType.RParen, errorClosingParenthesis);
+					return expr?.negate();
+				}
+				case TokenType.Str:
+					this._advance();
+					return ContextKeyNotExpr.create(peek.lexeme);
 				default:
-					throw this._errExpectedButGot('CONTEXT | true | false', expr, errorDontSupportArbitraryNegation);
+					throw this._errExpectedButGot(`KEY | true | false | '(' expression ')'`, peek);
 			}
 		}
 		return this._primary();
@@ -448,7 +456,7 @@ export class Parser {
 			}
 
 			case TokenType.Str: {
-				// CONTEXT
+				// KEY
 				const key = peek.lexeme;
 				this._advance();
 
@@ -638,7 +646,7 @@ export class Parser {
 				throw new ParseError();
 
 			default:
-				throw this._errExpectedButGot(`true | false | CONTEXT \n\t| CONTEXT '=~' REGEX \n\t| CONTEXT ('==' | '!=' | '<' | '<=' | '>' | '>=' | 'in' | 'not' 'in') value`, this._peek());
+				throw this._errExpectedButGot(`true | false | KEY \n\t| KEY '=~' REGEX \n\t| KEY ('==' | '!=' | '<' | '<=' | '>' | '>=' | 'in' | 'not' 'in') value`, this._peek());
 
 		}
 	}

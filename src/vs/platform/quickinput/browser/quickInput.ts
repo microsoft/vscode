@@ -492,7 +492,7 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 	private _sortByLabel = true;
 	private _autoFocusOnList = true;
 	private _keepScrollPosition = false;
-	private _itemActivation = this.ui.isScreenReaderOptimized() ? ItemActivation.NONE /* https://github.com/microsoft/vscode/issues/57501 */ : ItemActivation.FIRST;
+	private _itemActivation = ItemActivation.FIRST;
 	private _activeItems: T[] = [];
 	private activeItemsUpdated = false;
 	private activeItemsToConfirm: T[] | null = [];
@@ -1054,6 +1054,10 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 			this.ui.checkAll.checked = this.ui.list.getAllVisibleChecked();
 			this.ui.visibleCount.setCount(this.ui.list.getVisibleCount());
 			this.ui.count.setCount(this.ui.list.getCheckedCount());
+			// Ensure no item is focused when using a screenreader when items update (#57501 & #166920)
+			if (this.ui.isScreenReaderOptimized() && ariaLabel) {
+				this._itemActivation = ItemActivation.NONE;
+			}
 			switch (this._itemActivation) {
 				case ItemActivation.NONE:
 					this._itemActivation = ItemActivation.FIRST; // only valid once, then unset

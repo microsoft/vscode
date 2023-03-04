@@ -99,6 +99,7 @@ export interface IModelDecorationOptions {
 	 * In this case, the range must be empty and set to the last line.
 	 */
 	blockIsAfterEnd?: boolean | null;
+	blockDoesNotCollapse?: boolean | null;
 	blockPadding?: [top: number, right: number, bottom: number, left: number] | null;
 
 	/**
