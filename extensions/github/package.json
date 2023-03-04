@@ -27,6 +27,7 @@
   },
   "enabledApiProposals": [
     "contribShareMenu",
+    "contribEditorLineNumberMenu",
     "contribEditSessions"
   ],
   "contributes": {
@@ -41,6 +42,10 @@
       },
       {
         "command": "github.copyVscodeDevLinkFile",
+        "title": "Copy vscode.dev Link"
+      },
+      {
+        "command": "github.copyVscodeDevLinkWithoutRange",
         "title": "Copy vscode.dev Link"
       },
       {
@@ -73,6 +78,10 @@
           "when": "false"
         },
         {
+          "command": "github.copyVscodeDevLinkWithoutRange",
+          "when": "false"
+        },
+        {
           "command": "github.openOnVscodeDev",
           "when": "false"
         }
@@ -90,7 +99,29 @@
           "when": "github.hasGitHubRepo && resourceScheme != untitled",
           "group": "0_vscode@0"
         }
+      ],
+      "explorer/context/share": [
+        {
+          "command": "github.copyVscodeDevLinkWithoutRange",
+          "when": "github.hasGitHubRepo && resourceScheme != untitled",
+          "group": "0_vscode@0"
+        }
+      ],
+      "editor/lineNumber/context": [
+        {
+          "command": "github.copyVscodeDevLink",
+          "when": "github.hasGitHubRepo && resourceScheme != untitled",
+          "group": "1_cutcopypaste@2"
+        }
+      ],
+      "editor/title/context/share": [
+        {
+          "command": "github.copyVscodeDevLinkWithoutRange",
+          "when": "github.hasGitHubRepo && resourceScheme != untitled",
+          "group": "0_vscode@0"
+        }
       ]
+
     },
     "configuration": [
       {
