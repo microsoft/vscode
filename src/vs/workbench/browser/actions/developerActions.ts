@@ -219,11 +219,14 @@ class ToggleScreencastModeAction extends Action2 {
 
 		disposables.add(onCompositionUpdate.event(e => {
 			if (e.data && imeBackSpace) {
+				if (length > 20) {
+					keyboardMarker.innerText = '';
+					length = 0;
+				}
 				composing = composing ?? append(keyboardMarker, $('span.key'));
 				composing.textContent = e.data;
 			} else if (imeBackSpace) {
 				keyboardMarker.innerText = '';
-
 				append(keyboardMarker, $('span.key', {}, `Backspace`));
 			}
 			clearKeyboardScheduler.schedule();
@@ -231,12 +234,13 @@ class ToggleScreencastModeAction extends Action2 {
 
 		disposables.add(onCompositionEnd.event(e => {
 			composing = undefined;
+			length++;
 		}));
 
 		disposables.add(onKeyDown.event(e => {
-			const event = new StandardKeyboardEvent(e);
-			if (event.code === 'Process') {
-				if (e.keyCode === KeyCode.Backspace) {
+			// allow-any-unicode-next-line
+			if (e.key === 'Process' || /[가-힇ㄱ-ㅎㅏ-ㅣぁ-ゔァ-ヴー々〆〤一-龥]/.test(e.key)) {
+				if (e.code === 'Backspace') {
 					imeBackSpace = true;
 				} else if (!e.code.includes('Key')) {
 					composing = undefined;
@@ -247,6 +251,12 @@ class ToggleScreencastModeAction extends Action2 {
 				clearKeyboardScheduler.schedule();
 				return;
 			}
+
+			if (e.isComposing) {
+				return;
+			}
+
+			const event = new StandardKeyboardEvent(e);
 			const shortcut = keybindingService.softDispatch(event, event.target);
 
 			if (shortcut?.commandId || !configurationService.getValue('screencastMode.onlyKeyboardShortcuts')) {
