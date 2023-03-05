@@ -22,13 +22,12 @@ export interface IInteractiveSessionViewOptions {
 
 export const INTERACTIVE_SIDEBAR_PANEL_ID = 'workbench.panel.interactiveSessionSidebar';
 export class InteractiveSessionViewPane extends ViewPane {
-	static instances: InteractiveSessionViewPane[] = [];
 	static ID = 'workbench.panel.interactiveSession.view';
 
 	private view: InteractiveSessionWidget;
 
 	constructor(
-		interactiveSessionViewOptions: IInteractiveSessionViewOptions,
+		interactiveeSessionViewOptions: IInteractiveSessionViewOptions,
 		options: IViewPaneOptions,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IContextMenuService contextMenuService: IContextMenuService,
@@ -41,9 +40,7 @@ export class InteractiveSessionViewPane extends ViewPane {
 		@ITelemetryService telemetryService: ITelemetryService,
 	) {
 		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService);
-		// TODO hacks
-		InteractiveSessionViewPane.instances.push(this);
-		this.view = this._register(this.instantiationService.createInstance(InteractiveSessionWidget, interactiveSessionViewOptions.providerId, this.id, () => this.getBackgroundColor(), () => this.getBackgroundColor(), () => editorBackground));
+		this.view = this._register(this.instantiationService.createInstance(InteractiveSessionWidget, interactiveeSessionViewOptions.providerId, this.id, () => this.getBackgroundColor(), () => this.getBackgroundColor(), () => editorBackground));
 
 		this._register(this.onDidChangeBodyVisibility(visible => {
 			this.view.setVisible(visible);
