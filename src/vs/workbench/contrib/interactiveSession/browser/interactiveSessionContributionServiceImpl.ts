@@ -47,7 +47,12 @@ const interactiveSessionExtensionPoint = extensionsRegistry.ExtensionsRegistry.r
 				},
 			}
 		}
-	}
+	},
+	activationEventsGenerator: (contributions: IInteractiveSessionProviderContribution[], result: { push(item: string): void }) => {
+		for (const contrib of contributions) {
+			result.push(`onInteractiveSession:${contrib.id}`);
+		}
+	},
 });
 
 export class InteractiveSessionContributionService implements IInteractiveSessionContributionService {
