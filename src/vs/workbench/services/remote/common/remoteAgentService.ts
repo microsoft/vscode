@@ -11,8 +11,6 @@ import { Event } from 'vs/base/common/event';
 import { PersistentConnectionEvent, ISocketFactory } from 'vs/platform/remote/common/remoteAgentConnection';
 import { ITelemetryData, TelemetryLevel } from 'vs/platform/telemetry/common/telemetry';
 
-export const RemoteExtensionLogFileName = 'remoteagent';
-
 export const IRemoteAgentService = createDecorator<IRemoteAgentService>('remoteAgentService');
 
 export interface IRemoteAgentService {

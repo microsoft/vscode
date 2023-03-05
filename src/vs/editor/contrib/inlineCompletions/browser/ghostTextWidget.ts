@@ -22,7 +22,6 @@ import { RenderLineInput, renderViewLine } from 'vs/editor/common/viewLayout/vie
 import { InlineDecorationType } from 'vs/editor/common/viewModel';
 import { GhostTextReplacement, GhostTextWidgetModel } from 'vs/editor/contrib/inlineCompletions/browser/ghostText';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { AudioCue, IAudioCueService } from 'vs/platform/audioCues/browser/audioCueService';
 
 const ttPolicy = window.trustedTypes?.createPolicy('editorGhostText', { createHTML: value => value });
 
@@ -37,7 +36,6 @@ export class GhostTextWidget extends Disposable {
 		private readonly model: GhostTextWidgetModel,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@ILanguageService private readonly languageService: ILanguageService,
-		@IAudioCueService private readonly audioCueService: IAudioCueService
 	) {
 		super();
 
@@ -158,14 +156,6 @@ export class GhostTextWidget extends Disposable {
 		this.partsWidget.setParts(ghostText.lineNumber, inlineTexts,
 			hiddenTextStartColumn !== undefined ? { column: hiddenTextStartColumn, length: textBufferLine.length + 1 - hiddenTextStartColumn } : undefined);
 		this.additionalLinesWidget.updateLines(ghostText.lineNumber, additionalLines, ghostText.additionalReservedLineCount);
-
-
-		this.audioCueService.playAudioCue(AudioCue.inlineSuggestion).then(() => {
-			if (this.editor.getOption(EditorOption.screenReaderAnnounceInlineSuggestion)) {
-				const lineText = this.editor.getModel()!.getLineContent(ghostText.lineNumber);
-				alert(ghostText.renderForScreenReader(lineText));
-			}
-		});
 
 		if (0 < 0) {
 			// Not supported at the moment, condition is always false.

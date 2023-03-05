@@ -13,6 +13,7 @@ import { IMarkerService, MarkerSeverity } from 'vs/platform/markers/common/marke
 import { FoldingController } from 'vs/editor/contrib/folding/browser/folding';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ITextModel } from 'vs/editor/common/model';
+import { GhostTextController } from 'vs/editor/contrib/inlineCompletions/browser/ghostTextController';
 import { CursorChangeReason } from 'vs/editor/common/cursorEvents';
 import { autorun, autorunDelta, constObservable, debouncedObservable, derived, IObservable, observableFromEvent, observableFromPromise, wasEventTriggeredRecently } from 'vs/base/common/observable';
 import { AudioCue, IAudioCueService } from 'vs/platform/audioCues/browser/audioCueService';
@@ -30,6 +31,7 @@ export class AudioCueLineFeatureContribution
 		this.instantiationService.createInstance(MarkerLineFeature, AudioCue.warning, MarkerSeverity.Warning),
 		this.instantiationService.createInstance(FoldedAreaLineFeature),
 		this.instantiationService.createInstance(BreakpointLineFeature),
+		this.instantiationService.createInstance(InlineCompletionLineFeature),
 	];
 
 	private readonly isEnabledCache = new CachedFunction<AudioCue, IObservable<boolean>>((cue) => observableFromEvent(
@@ -178,7 +180,7 @@ interface LineFeatureState {
 
 class MarkerLineFeature implements LineFeature {
 	public readonly debounceWhileTyping = true;
-
+	private _previousLine: number = 0;
 	constructor(
 		public readonly audioCue: AudioCue,
 		private readonly severity: MarkerSeverity,
@@ -193,16 +195,15 @@ class MarkerLineFeature implements LineFeature {
 			),
 			() => /** @description this.markerService.onMarkerChanged */({
 				isPresent: (position) => {
+					const lineChanged = position.lineNumber !== this._previousLine;
+					this._previousLine = position.lineNumber;
 					const hasMarker = this.markerService
 						.read({ resource: model.uri })
 						.some(
-							(m) =>
-								m.severity === this.severity &&
-								m.startLineNumber <= position.lineNumber &&
-								position.lineNumber <= m.endLineNumber &&
-								m.startColumn <= position.column &&
-								position.column <= m.endColumn
-						);
+							(m) => {
+								const onLine = m.severity === this.severity && m.startLineNumber <= position.lineNumber && position.lineNumber <= m.endLineNumber;
+								return lineChanged ? onLine : onLine && (position.lineNumber <= m.endLineNumber && m.startColumn <= position.column && m.endColumn >= position.column);
+							});
 					return hasMarker;
 				},
 			})
@@ -255,5 +256,39 @@ class BreakpointLineFeature implements LineFeature {
 				},
 			})
 		);
+	}
+}
+
+class InlineCompletionLineFeature implements LineFeature {
+	public readonly audioCue = AudioCue.inlineSuggestion;
+
+	getObservableState(editor: ICodeEditor, _model: ITextModel): IObservable<LineFeatureState> {
+		const ghostTextController = GhostTextController.get(editor);
+		if (!ghostTextController) {
+			return constObservable<LineFeatureState>({
+				isPresent: () => false,
+			});
+		}
+
+		const activeGhostText = observableFromEvent(
+			ghostTextController.onActiveModelDidChange,
+			() => /** @description ghostTextController.onActiveModelDidChange */ ghostTextController.activeModel
+		).map((activeModel) => (
+			activeModel
+				? observableFromEvent(
+					activeModel.inlineCompletionsModel.onDidChange,
+					() => /** @description activeModel.inlineCompletionsModel.onDidChange */ activeModel.inlineCompletionsModel.ghostText
+				)
+				: undefined
+		));
+
+		return derived<LineFeatureState>('ghostText', reader => {
+			const ghostText = activeGhostText.read(reader)?.read(reader);
+			return {
+				isPresent(position) {
+					return ghostText?.lineNumber === position.lineNumber;
+				}
+			};
+		});
 	}
 }

@@ -39,10 +39,11 @@ export class RemoteExtensionsScannerService implements IRemoteExtensionsScannerS
 		private readonly _extensionGalleryService: IExtensionGalleryService,
 		private readonly _languagePackService: ILanguagePackService
 	) {
-		if (environmentService.args['install-builtin-extension']) {
+		const builtinExtensionsToInstall = environmentService.args['install-builtin-extension'];
+		if (builtinExtensionsToInstall) {
 			const installOptions: InstallOptions = { isMachineScoped: !!environmentService.args['do-not-sync'], installPreReleaseVersion: !!environmentService.args['pre-release'] };
 			performance.mark('code/server/willInstallBuiltinExtensions');
-			this._whenExtensionsReady = _extensionManagementCLI.installExtensions([], environmentService.args['install-builtin-extension'], installOptions, !!environmentService.args['force'])
+			this._whenExtensionsReady = _extensionManagementCLI.installExtensions([], this._asExtensionIdOrVSIX(builtinExtensionsToInstall), installOptions, !!environmentService.args['force'])
 				.then(() => performance.mark('code/server/didInstallBuiltinExtensions'), error => {
 					_logService.error(error);
 				});
@@ -52,13 +53,16 @@ export class RemoteExtensionsScannerService implements IRemoteExtensionsScannerS
 
 		const extensionsToInstall = environmentService.args['install-extension'];
 		if (extensionsToInstall) {
-			const idsOrVSIX = extensionsToInstall.map(input => /\.vsix$/i.test(input) ? URI.file(isAbsolute(input) ? input : join(cwd(), input)) : input);
 			this._whenExtensionsReady
-				.then(() => _extensionManagementCLI.installExtensions(idsOrVSIX, [], { isMachineScoped: !!environmentService.args['do-not-sync'], installPreReleaseVersion: !!environmentService.args['pre-release'] }, !!environmentService.args['force']))
+				.then(() => _extensionManagementCLI.installExtensions(this._asExtensionIdOrVSIX(extensionsToInstall), [], { isMachineScoped: !!environmentService.args['do-not-sync'], installPreReleaseVersion: !!environmentService.args['pre-release'] }, !!environmentService.args['force']))
 				.then(null, error => {
 					_logService.error(error);
 				});
 		}
+	}
+
+	private _asExtensionIdOrVSIX(inputs: string[]): (string | URI)[] {
+		return inputs.map(input => /\.vsix$/i.test(input) ? URI.file(isAbsolute(input) ? input : join(cwd(), input)) : input);
 	}
 
 	whenExtensionsReady(): Promise<void> {

@@ -531,7 +531,7 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 			const sourceLanguageId = sourceTextModel.getLanguageId();
 			const targetLanguageId = targetTextModel.getLanguageId();
 			if (sourceLanguageId !== PLAINTEXT_LANGUAGE_ID && targetLanguageId === PLAINTEXT_LANGUAGE_ID) {
-				targetTextModel.setMode(sourceLanguageId); // only use if more specific than plain/text
+				targetTextModel.setLanguage(sourceLanguageId); // only use if more specific than plain/text
 			}
 
 			// transient properties

@@ -88,9 +88,8 @@ async function webviewPreloads(ctx: PreloadContext) {
 
 	let currentOptions = ctx.options;
 	let isWorkspaceTrusted = ctx.isWorkspaceTrusted;
-	const lineLimit = ctx.renderOptions.lineLimit;
-	const outputScrolling = ctx.renderOptions.outputScrolling;
-	const outputWordWrap = ctx.renderOptions.outputWordWrap;
+	let currentRenderOptions = ctx.renderOptions;
+	const settingChange: EmitterLike<RenderOptions> = createEmitter<RenderOptions>();
 
 	const acquireVsCodeApi = globalThis.acquireVsCodeApi;
 	const vscode = acquireVsCodeApi();
@@ -185,6 +184,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 	document.body.addEventListener('click', handleInnerClick);
 
 	interface RendererContext extends rendererApi.RendererContext<unknown> {
+		readonly onDidChangeSettings: Event<RenderOptions>;
 		readonly settings: RenderOptions;
 	}
 
@@ -366,11 +366,26 @@ async function webviewPreloads(ctx: PreloadContext) {
 				return false;
 			}
 
+			// scroll up
 			if (event.deltaY < 0 && node.scrollTop > 0) {
+				// there is still some content to scroll
 				return true;
 			}
 
+			// scroll down
 			if (event.deltaY > 0 && node.scrollTop + node.clientHeight < node.scrollHeight) {
+				// per https://developer.mozilla.org/en-US/docs/Web/API/Element/scrollHeight
+				// scrollTop is not rounded but scrollHeight and clientHeight are
+				// so we need to check if the difference is less than some threshold
+				if (node.scrollHeight - node.scrollTop - node.clientHeight < 2) {
+					continue;
+				}
+
+				// if the node is not scrollable, we can continue. We don't check the computed style always as it's expensive
+				if (window.getComputedStyle(node).overflowY === 'hidden' || window.getComputedStyle(node).overflowY === 'visible') {
+					continue;
+				}
+
 				return true;
 			}
 		}
@@ -1235,6 +1250,8 @@ async function webviewPreloads(ctx: PreloadContext) {
 			case 'notebookOptions':
 				currentOptions = event.data.options;
 				viewModel.toggleDragDropEnabled(currentOptions.dragAndDropEnabled);
+				currentRenderOptions = event.data.renderOptions;
+				settingChange.fire(currentRenderOptions);
 				break;
 			case 'updateWorkspaceTrust': {
 				isWorkspaceTrusted = event.data.isTrusted;
@@ -1353,10 +1370,11 @@ async function webviewPreloads(ctx: PreloadContext) {
 					get isTrusted() { return isWorkspaceTrusted; }
 				},
 				settings: {
-					get lineLimit() { return lineLimit; },
-					get outputScrolling() { return outputScrolling; },
-					get outputWordWrap() { return outputWordWrap; },
-				}
+					get lineLimit() { return currentRenderOptions.lineLimit; },
+					get outputScrolling() { return currentRenderOptions.outputScrolling; },
+					get outputWordWrap() { return currentRenderOptions.outputWordWrap; },
+				},
+				get onDidChangeSettings() { return settingChange.event; }
 			};
 
 			if (messaging) {

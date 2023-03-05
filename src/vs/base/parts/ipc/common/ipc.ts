@@ -949,7 +949,7 @@ export class IPCServer<TContext = string> implements IChannelServer<TContext>, I
  * An `IPCClient` is both a channel client and a channel server.
  *
  * As the owner of a protocol, you should extend both this
- * and the `IPCClient` classes to get IPC implementations
+ * and the `IPCServer` classes to get IPC implementations
  * for your protocol.
  */
 export class IPCClient<TContext = string> implements IChannelClient, IChannelServer<TContext>, IDisposable {

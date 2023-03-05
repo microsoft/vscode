@@ -1383,12 +1383,14 @@ export class SplitView<TLayoutContext = undefined> extends Disposable {
 	}
 
 	override dispose(): void {
-		super.dispose();
+		this.sashDragState?.disposable.dispose();
 
 		dispose(this.viewItems);
 		this.viewItems = [];
 
 		this.sashItems.forEach(i => i.disposable.dispose());
 		this.sashItems = [];
+
+		super.dispose();
 	}
 }

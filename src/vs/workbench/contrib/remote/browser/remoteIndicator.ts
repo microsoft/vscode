@@ -21,7 +21,7 @@ import { IBrowserWorkbenchEnvironmentService } from 'vs/workbench/services/envir
 import { PersistentConnectionEventType } from 'vs/platform/remote/common/remoteAgentConnection';
 import { IRemoteAuthorityResolverService } from 'vs/platform/remote/common/remoteAuthorityResolver';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
-import { isWeb } from 'vs/base/common/platform';
+import { PlatformToString, isWeb, platform } from 'vs/base/common/platform';
 import { once } from 'vs/base/common/functional';
 import { truncate } from 'vs/base/common/strings';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
@@ -408,6 +408,12 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 					if (isCurrentRemote1 !== isCurrentRemote2) {
 						return isCurrentRemote1 ? -1 : 1;
 					}
+					// legacy indicator commands go last
+					if (g1[0] !== '' && g2[0] === '') {
+						return -1;
+					} else if (g1[0] === '' && g2[0] !== '') {
+						return 1;
+					}
 					return g1[0].localeCompare(g2[0]);
 				});
 			}
@@ -513,11 +519,14 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 
 	private hasAdditionalRemoteExtensions() {
 		const extensionTips = { ...this.productService.remoteExtensionTips, ...this.productService.virtualWorkspaceExtensionTips };
-		for (const [_, extension] of Object.entries(extensionTips)) {
-			const { extensionId: recommendedExtensionId } = extension;
-			// if this recommended extension isn't already installed, return early
-			if (!this.extensionService.extensions.some((extension) => extension.id?.toLowerCase() === recommendedExtensionId.toLowerCase())) {
-				return true;
+		const currentPlatform = PlatformToString(platform);
+		for (const extension of Object.values(extensionTips)) {
+			const { extensionId: recommendedExtensionId, supportedPlatforms } = extension;
+			if (!supportedPlatforms || supportedPlatforms.includes(currentPlatform)) {
+				// if this recommended extension isn't already installed, return early
+				if (!this.extensionService.extensions.some((extension) => extension.id?.toLowerCase() === recommendedExtensionId.toLowerCase())) {
+					return true;
+				}
 			}
 		}
 		return false;

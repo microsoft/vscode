@@ -126,6 +126,12 @@ export class ExtHostTelemetry extends Disposable implements ExtHostTelemetryShap
 		this._oldTelemetryEnablement = this.getTelemetryConfiguration();
 		this._level = level;
 		const telemetryDetails = this.getTelemetryDetails();
+		// Remove all disposed loggers
+		this._telemetryLoggers.forEach((logger, key) => {
+			if (logger.isDisposed) {
+				this._telemetryLoggers.delete(key);
+			}
+		});
 		// Loop through all loggers and update their level
 		this._telemetryLoggers.forEach(logger => {
 			logger.updateTelemetryEnablements(telemetryDetails.isUsageEnabled, telemetryDetails.isErrorsEnabled);
@@ -140,6 +146,10 @@ export class ExtHostTelemetry extends Disposable implements ExtHostTelemetryShap
 
 	onExtensionError(extension: ExtensionIdentifier, error: Error): boolean {
 		const logger = this._telemetryLoggers.get(extension.value);
+		if (logger && logger.isDisposed) {
+			this._telemetryLoggers.delete(extension.value);
+			return false;
+		}
 		if (!logger || logger.ignoreUnhandledExtHostErrors) {
 			return false;
 		}
@@ -279,11 +289,18 @@ export class ExtHostTelemetryLogger {
 		return this._apiObject;
 	}
 
+	get isDisposed(): boolean {
+		return !this._sender;
+	}
+
 	dispose(): void {
 		if (this._sender?.flush) {
-			// Disposed of so now we set it to undefined
-			Promise.resolve(this._sender.flush()).then(this._sender = undefined);
+			let tempSender: vscode.TelemetrySender | undefined = this._sender;
+			this._sender = undefined;
+			Promise.resolve(tempSender.flush!()).then(tempSender = undefined);
 			this._apiObject = undefined;
+		} else {
+			this._sender = undefined;
 		}
 	}
 }

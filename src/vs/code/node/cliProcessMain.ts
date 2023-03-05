@@ -39,8 +39,7 @@ import { InstantiationService } from 'vs/platform/instantiation/common/instantia
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { ILanguagePackService } from 'vs/platform/languagePacks/common/languagePacks';
 import { NativeLanguagePackService } from 'vs/platform/languagePacks/node/languagePacks';
-import { ConsoleLogger, getLogLevel, ILogger, ILogService, LogLevel } from 'vs/platform/log/common/log';
-import { SpdLogLogger } from 'vs/platform/log/node/spdlogLog';
+import { ConsoleLogger, getLogLevel, ILogger, ILoggerService, ILogService, LogLevel } from 'vs/platform/log/common/log';
 import { FilePolicyService } from 'vs/platform/policy/common/filePolicyService';
 import { IPolicyService, NullPolicyService } from 'vs/platform/policy/common/policy';
 import { NativePolicyService } from 'vs/platform/policy/node/nativePolicyService';
@@ -62,6 +61,8 @@ import { UserDataProfilesReadonlyService } from 'vs/platform/userDataProfile/nod
 import { resolveMachineId } from 'vs/platform/telemetry/node/telemetryUtils';
 import { ExtensionsProfileScannerService } from 'vs/platform/extensionManagement/node/extensionsProfileScannerService';
 import { LogService } from 'vs/platform/log/common/logService';
+import { LoggerService } from 'vs/platform/log/node/loggerService';
+import { localize } from 'vs/nls';
 
 class CliMain extends Disposable {
 
@@ -124,15 +125,18 @@ class CliMain extends Disposable {
 			environmentService.extensionsPath
 		].map(path => path ? Promises.mkdir(path, { recursive: true }) : undefined));
 
+		// Logger
+		const loggerService = new LoggerService(getLogLevel(environmentService), environmentService.logsHome);
+		services.set(ILoggerService, loggerService);
+
 		// Log
-		const logLevel = getLogLevel(environmentService);
-		const spdLogLogger = new SpdLogLogger('cli', join(environmentService.logsPath, 'cli.log'), true, false, logLevel);
+		const logger = this._register(loggerService.createLogger('cli', { name: localize('cli', "CLI") }));
 		const otherLoggers: ILogger[] = [];
-		if (logLevel === LogLevel.Trace) {
-			otherLoggers.push(new ConsoleLogger(logLevel));
+		if (loggerService.getLogLevel() === LogLevel.Trace) {
+			otherLoggers.push(new ConsoleLogger(loggerService.getLogLevel()));
 		}
 
-		const logService = this._register(new LogService(spdLogLogger, otherLoggers));
+		const logService = this._register(new LogService(logger, otherLoggers));
 		services.set(ILogService, logService);
 
 		// Files
@@ -141,8 +145,6 @@ class CliMain extends Disposable {
 
 		const diskFileSystemProvider = this._register(new DiskFileSystemProvider(logService));
 		fileService.registerProvider(Schemas.file, diskFileSystemProvider);
-
-		// State
 
 		// Uri Identity
 		const uriIdentityService = new UriIdentityService(fileService);
@@ -272,7 +274,7 @@ class CliMain extends Disposable {
 		// Install Extension
 		else if (this.argv['install-extension'] || this.argv['install-builtin-extension']) {
 			const installOptions: InstallOptions = { isMachineScoped: !!this.argv['do-not-sync'], installPreReleaseVersion: !!this.argv['pre-release'], profileLocation };
-			return instantiationService.createInstance(ExtensionManagementCLI).installExtensions(this.asExtensionIdOrVSIX(this.argv['install-extension'] || []), this.argv['install-builtin-extension'] || [], installOptions, !!this.argv['force']);
+			return instantiationService.createInstance(ExtensionManagementCLI).installExtensions(this.asExtensionIdOrVSIX(this.argv['install-extension'] || []), this.asExtensionIdOrVSIX(this.argv['install-builtin-extension'] || []), installOptions, !!this.argv['force']);
 		}
 
 		// Uninstall Extension
