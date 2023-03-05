@@ -110,7 +110,12 @@
       "editor/lineNumber/context": [
         {
           "command": "github.copyVscodeDevLink",
-          "when": "github.hasGitHubRepo && resourceScheme != untitled",
+          "when": "github.hasGitHubRepo && resourceScheme != untitled && activeEditor == workbench.editors.files.textFileEditor && config.editor.lineNumbers == on",
+          "group": "1_cutcopypaste@2"
+        },
+        {
+          "command": "github.copyVscodeDevLink",
+          "when": "github.hasGitHubRepo && resourceScheme != untitled && activeEditor == workbench.editor.notebook && notebookCellLineNumbers == on",
           "group": "1_cutcopypaste@2"
         }
       ],
