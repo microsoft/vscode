@@ -271,7 +271,7 @@ class ToggleScreencastModeAction extends Action2 {
 					}
 				}
 
-				if (format !== 'keys' && titleLabel) {
+				if (format !== 'keys' && titleLabel && !configurationService.getValue('screencastMode.onlyKeyboardShortcuts')) {
 					append(keyboardMarker, $('span.title', {}, `${titleLabel} `));
 				}
 
