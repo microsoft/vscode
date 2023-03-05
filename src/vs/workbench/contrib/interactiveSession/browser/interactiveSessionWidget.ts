@@ -133,7 +133,10 @@ export class InteractiveSessionWidget extends Disposable {
 				};
 			});
 
-			this.setWelcomeViewVisible(false);
+			if (treeItems.length > 0) {
+				this.setWelcomeViewVisible(false);
+			}
+
 			const lastItem = treeItems[treeItems.length - 1];
 			this.tree.setChildren(null, treeItems, {
 				diffIdentityProvider: {
@@ -284,7 +287,8 @@ export class InteractiveSessionWidget extends Disposable {
 		options.cursorWidth = 1;
 		options.wrappingStrategy = 'advanced';
 
-		this.inputEditor = this._register(scopedInstantiationService.createInstance(CodeEditorWidget, inputContainer, options, getSimpleCodeEditorWidgetOptions()));
+		const inputEditorElement = dom.append(inputContainer, $('.interactive-input-editor'));
+		this.inputEditor = this._register(scopedInstantiationService.createInstance(CodeEditorWidget, inputEditorElement, options, getSimpleCodeEditorWidgetOptions()));
 
 		this._register(this.inputEditor.onDidChangeModelContent(() => {
 			const currentHeight = Math.min(this.inputEditor.getContentHeight(), INPUT_EDITOR_MAX_HEIGHT);

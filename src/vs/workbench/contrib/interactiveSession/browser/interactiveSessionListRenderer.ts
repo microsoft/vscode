@@ -59,7 +59,7 @@ interface IItemHeightChangeParams {
 
 const wordRenderRate = 8; // words/sec
 
-const enableVerboseLayoutTracing = false;
+const forceVerboseLayoutTracing = false;
 
 export class InteractiveListItemRenderer extends Disposable implements ITreeRenderer<InteractiveTreeItem, FuzzyScore, IInteractiveListItemTemplate> {
 	static readonly cursorCharacter = '\u258c';
@@ -94,7 +94,7 @@ export class InteractiveListItemRenderer extends Disposable implements ITreeRend
 	}
 
 	private traceLayout(method: string, message: string) {
-		if (enableVerboseLayoutTracing) {
+		if (forceVerboseLayoutTracing) {
 			this.logService.info(`${method}: ${message}`);
 		} else {
 			this.logService.trace(`${method}: ${message}`);
@@ -281,8 +281,10 @@ export class InteractiveSessionListDelegate implements IListVirtualDelegate<Inte
 	) { }
 
 	private _traceLayout(method: string, message: string) {
-		if (enableVerboseLayoutTracing) {
+		if (forceVerboseLayoutTracing) {
 			this.logService.info(`InteractiveSessionListDelegate#${method}: ${message}`);
+		} else {
+			this.logService.trace(`InteractiveSessionListDelegate#${method}: ${message}`);
 		}
 	}
 
