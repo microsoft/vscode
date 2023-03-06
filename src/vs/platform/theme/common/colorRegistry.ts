@@ -12,6 +12,8 @@ import * as nls from 'vs/nls';
 import { Extensions as JSONExtensions, IJSONContributionRegistry } from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
 import * as platform from 'vs/platform/registry/common/platform';
 import { IColorTheme } from 'vs/platform/theme/common/themeService';
+import { isString } from 'vs/base/common/types';
+import { CharCode } from 'vs/base/common/charCode';
 
 //  ------ API types
 
@@ -68,6 +70,7 @@ export interface ColorDefaults {
 	hcDark: ColorValue | null;
 	hcLight: ColorValue | null;
 }
+
 
 /**
  * A Color Value is either a color literal, a reference to an other color or a derived color
@@ -138,6 +141,17 @@ class ColorRegistry implements IColorRegistry {
 		if (deprecationMessage) {
 			propertySchema.deprecationMessage = deprecationMessage;
 		}
+		if (defaults) {
+			const validateColorValue = (c: ColorValue | null) => {
+				if (isString(c) && c.charCodeAt(0) !== CharCode.Hash && !Color.Format.CSS.parseHex(c)) {
+					console.log(`Invalid color value: ${c} for color ${id}`);
+				}
+			};
+			validateColorValue(defaults.dark);
+			validateColorValue(defaults.light);
+			validateColorValue(defaults.hcDark);
+			validateColorValue(defaults.hcLight);
+		}
 		this.colorSchema.properties[id] = propertySchema;
 		this.colorReferenceSchema.enum.push(id);
 		this.colorReferenceSchema.enumDescriptions.push(description);
@@ -197,22 +211,9 @@ class ColorRegistry implements IColorRegistry {
 const colorRegistry = new ColorRegistry();
 platform.Registry.add(Extensions.ColorContribution, colorRegistry);
 
-function migrateColorDefaults(o: any): null | ColorDefaults {
-	if (o === null) {
-		return o;
-	}
-	if (typeof o.hcLight === 'undefined') {
-		if (o.hcDark === null || typeof o.hcDark === 'string') {
-			o.hcLight = o.hcDark;
-		} else {
-			o.hcLight = o.light;
-		}
-	}
-	return o as ColorDefaults;
-}
 
 export function registerColor(id: string, defaults: ColorDefaults | null, description: string, needsTransparency?: boolean, deprecationMessage?: string): ColorIdentifier {
-	return colorRegistry.registerColor(id, migrateColorDefaults(defaults), description, needsTransparency, deprecationMessage);
+	return colorRegistry.registerColor(id, defaults, description, needsTransparency, deprecationMessage);
 }
 
 export function getColorRegistry(): IColorRegistry {
@@ -298,7 +299,7 @@ export const editorErrorBorder = registerColor('editorError.border', { dark: nul
 
 export const editorWarningBackground = registerColor('editorWarning.background', { dark: null, light: null, hcDark: null, hcLight: null }, nls.localize('editorWarning.background', 'Background color of warning text in the editor. The color must not be opaque so as not to hide underlying decorations.'), true);
 export const editorWarningForeground = registerColor('editorWarning.foreground', { dark: '#CCA700', light: '#BF8803', hcDark: '#FFD370', hcLight: '#895503' }, nls.localize('editorWarning.foreground', 'Foreground color of warning squigglies in the editor.'));
-export const editorWarningBorder = registerColor('editorWarning.border', { dark: null, light: null, hcDark: Color.fromHex('#FFCC00').transparent(0.8), hcLight: '#' }, nls.localize('warningBorder', 'Border color of warning boxes in the editor.'));
+export const editorWarningBorder = registerColor('editorWarning.border', { dark: null, light: null, hcDark: Color.fromHex('#FFCC00').transparent(0.8), hcLight: Color.fromHex('#FFCC00').transparent(0.8) }, nls.localize('warningBorder', 'Border color of warning boxes in the editor.'));
 
 export const editorInfoBackground = registerColor('editorInfo.background', { dark: null, light: null, hcDark: null, hcLight: null }, nls.localize('editorInfo.background', 'Background color of info text in the editor. The color must not be opaque so as not to hide underlying decorations.'), true);
 export const editorInfoForeground = registerColor('editorInfo.foreground', { dark: '#3794FF', light: '#1a85ff', hcDark: '#3794FF', hcLight: '#1a85ff' }, nls.localize('editorInfo.foreground', 'Foreground color of info squigglies in the editor.'));
@@ -377,6 +378,11 @@ export const editorFindRangeHighlightBorder = registerColor('editor.findRangeHig
  */
 export const searchEditorFindMatch = registerColor('searchEditor.findMatchBackground', { light: transparent(editorFindMatchHighlight, 0.66), dark: transparent(editorFindMatchHighlight, 0.66), hcDark: editorFindMatchHighlight, hcLight: editorFindMatchHighlight }, nls.localize('searchEditor.queryMatch', "Color of the Search Editor query matches."));
 export const searchEditorFindMatchBorder = registerColor('searchEditor.findMatchBorder', { light: transparent(editorFindMatchHighlightBorder, 0.66), dark: transparent(editorFindMatchHighlightBorder, 0.66), hcDark: editorFindMatchHighlightBorder, hcLight: editorFindMatchHighlightBorder }, nls.localize('searchEditor.editorFindMatchBorder', "Border color of the Search Editor query matches."));
+
+/**
+ * Search Viewlet colors.
+ */
+export const searchResultsInfoForeground = registerColor('search.resultsInfoForeground', { light: foreground, dark: transparent(foreground, 0.65), hcDark: foreground, hcLight: foreground }, nls.localize('search.resultsInfoForeground', "Color of the text in the search viewlet's completion message."));
 
 /**
  * Editor hover

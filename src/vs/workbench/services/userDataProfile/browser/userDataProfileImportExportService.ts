@@ -10,7 +10,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { Emitter, Event } from 'vs/base/common/event';
 import * as DOM from 'vs/base/browser/dom';
-import { IUserDataProfileImportExportService, PROFILE_FILTER, PROFILE_EXTENSION, IUserDataProfileContentHandler, IS_PROFILE_IMPORT_IN_PROGRESS_CONTEXT, PROFILES_TTILE, defaultUserDataProfileIcon, IUserDataProfileService, IProfileResourceTreeItem, IProfileResourceChildTreeItem, PROFILES_CATEGORY, IUserDataProfileManagementService, ProfileResourceType, IS_PROFILE_EXPORT_IN_PROGRESS_CONTEXT, ISaveProfileResult, IProfileImportOptions, PROFILE_URL_AUTHORITY, toUserDataProfileUri } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
+import { IUserDataProfileImportExportService, PROFILE_FILTER, PROFILE_EXTENSION, IUserDataProfileContentHandler, IS_PROFILE_IMPORT_IN_PROGRESS_CONTEXT, PROFILES_TITLE, defaultUserDataProfileIcon, IUserDataProfileService, IProfileResourceTreeItem, IProfileResourceChildTreeItem, PROFILES_CATEGORY, IUserDataProfileManagementService, ProfileResourceType, IS_PROFILE_EXPORT_IN_PROGRESS_CONTEXT, ISaveProfileResult, IProfileImportOptions, PROFILE_URL_AUTHORITY, toUserDataProfileUri } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { IDialogService, IFileDialogService, IPromptButton } from 'vs/platform/dialogs/common/dialogs';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
@@ -140,7 +140,7 @@ export class UserDataProfileImportExportService extends Disposable implements IU
 		this.viewContainer = Registry.as<IViewContainersRegistry>(Extensions.ViewContainersRegistry).registerViewContainer(
 			{
 				id: 'userDataProfiles',
-				title: PROFILES_TTILE,
+				title: PROFILES_TITLE,
 				ctorDescriptor: new SyncDescriptor(
 					ViewPaneContainer,
 					['userDataProfiles', { mergeViewWithContainerWhenSingleView: true }]
