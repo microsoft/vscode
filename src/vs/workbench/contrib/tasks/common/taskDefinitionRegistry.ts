@@ -83,6 +83,13 @@ namespace Configuration {
 
 const taskDefinitionsExtPoint = ExtensionsRegistry.registerExtensionPoint<Configuration.ITaskDefinition[]>({
 	extensionPoint: 'taskDefinitions',
+	activationEventsGenerator: (contributions: Configuration.ITaskDefinition[], result: { push(item: string): void }) => {
+		for (const task of contributions) {
+			if (task.type) {
+				result.push(`onTaskType:${task.type}`);
+			}
+		}
+	},
 	jsonSchema: {
 		description: nls.localize('TaskDefinitionExtPoint', 'Contributes task kinds'),
 		type: 'array',
