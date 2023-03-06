@@ -577,7 +577,10 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		await this._extensionService.whenInstalledExtensionsRegistered();
 
 		await Promise.all(
-			this._getActivationEvents(type).map(activationEvent => Promise.race([this._extensionService.activateByEvent(activationEvent), timeout(2000)]))
+			this._getActivationEvents(type).map(activationEvent => Promise.race([this._extensionService.activateByEvent(activationEvent), timeout(2000).then(() => {
+				return undefined;
+			}
+			)]))
 		);
 	}
 
