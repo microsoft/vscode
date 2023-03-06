@@ -4926,7 +4926,7 @@ export const EditorOptions = {
 	screenReaderAnnounceInlineSuggestion: register(new EditorBooleanOption(
 		EditorOption.screenReaderAnnounceInlineSuggestion, 'screenReaderAnnounceInlineSuggestion', false,
 		{
-			description: nls.localize('ariaAssertiveInlineSuggestion', "Control whether inline suggestions are detected by a screen reader. Note that this does not work on MacOS with VoiceOver."),
+			description: nls.localize('screenReaderAnnounceInlineSuggestion', "Control whether inline suggestions are announced by a screen reader. Note that this does not work on MacOS with VoiceOver."),
 			tags: ['accessibility']
 		}
 	)),
