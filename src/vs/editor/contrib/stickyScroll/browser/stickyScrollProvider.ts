@@ -242,7 +242,7 @@ export class StickyLineCandidateProvider extends Disposable implements IStickyLi
 			const provider = new SyntaxRangeProvider(textModel, selectedProviders, () => this.stickyModelFromSyntaxFoldingProvider(textModel, modelVersionId, token), this._foldingLimitReporter, undefined);
 			return this.stickyModelFromFoldingProvider(textModel, modelVersionId, token, provider);
 		} else {
-			return undefined;
+			return false;
 		}
 
 	}
