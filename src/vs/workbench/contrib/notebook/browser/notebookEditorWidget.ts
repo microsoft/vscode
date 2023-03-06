@@ -2112,6 +2112,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 
 	async executeNotebookCells(cells?: Iterable<ICellViewModel>): Promise<void> {
 		if (!this.viewModel || !this.hasModel()) {
+			this.logService.info('notebookEditorWidget', 'No NotebookViewModel, cannot execute cells');
 			return;
 		}
 		if (!cells) {

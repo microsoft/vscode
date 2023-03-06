@@ -4,8 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { renderMarkdown, renderMarkdownAsPlaintext } from 'vs/base/browser/markdownRenderer';
+import { fillInIncompleteTokens, renderMarkdown, renderMarkdownAsPlaintext } from 'vs/base/browser/markdownRenderer';
 import { IMarkdownString, MarkdownString } from 'vs/base/common/htmlContent';
+import { marked } from 'vs/base/common/marked/marked';
 import { parse } from 'vs/base/common/marshalling';
 import { isWeb } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
@@ -323,6 +324,187 @@ suite('MarkdownRenderer', () => {
 
 			const result = renderMarkdown(mds).element;
 			assert.strictEqual(result.innerHTML, `<img src="vscode-file://vscode-app/images/cat.gif">`);
+		});
+	});
+
+	suite('fillInIncompleteTokens', () => {
+		function ignoreRaw(...tokenLists: marked.Token[][]): void {
+			tokenLists.forEach(tokens => {
+				tokens.forEach(t => t.raw = '');
+			});
+		}
+
+		const completeTable = '| a | b |\n| --- | --- |';
+
+		test('complete table', () => {
+			const tokens = marked.lexer(completeTable);
+			const newTokens = fillInIncompleteTokens(tokens);
+			assert.equal(newTokens, tokens);
+		});
+
+		test('full header only', () => {
+			const incompleteTable = '| a | b |';
+			const tokens = marked.lexer(incompleteTable);
+			const completeTableTokens = marked.lexer(completeTable);
+
+			const newTokens = fillInIncompleteTokens(tokens);
+			assert.deepStrictEqual(newTokens, completeTableTokens);
+		});
+
+		test('full header only with trailing space', () => {
+			const incompleteTable = '| a | b | ';
+			const tokens = marked.lexer(incompleteTable);
+			const completeTableTokens = marked.lexer(completeTable);
+
+			const newTokens = fillInIncompleteTokens(tokens);
+			ignoreRaw(newTokens, completeTableTokens);
+			assert.deepStrictEqual(newTokens, completeTableTokens);
+		});
+
+		test('incomplete header', () => {
+			const incompleteTable = '| a | b';
+			const tokens = marked.lexer(incompleteTable);
+			const completeTableTokens = marked.lexer(completeTable);
+
+			const newTokens = fillInIncompleteTokens(tokens);
+
+			ignoreRaw(newTokens, completeTableTokens);
+			assert.deepStrictEqual(newTokens, completeTableTokens);
+		});
+
+		test('incomplete header one column', () => {
+			const incompleteTable = '| a ';
+			const tokens = marked.lexer(incompleteTable);
+			const completeTableTokens = marked.lexer(incompleteTable + '|\n| --- |');
+
+			const newTokens = fillInIncompleteTokens(tokens);
+
+			ignoreRaw(newTokens, completeTableTokens);
+			assert.deepStrictEqual(newTokens, completeTableTokens);
+		});
+
+		test('full header with extras', () => {
+			const incompleteTable = '| a **bold** | b _italics_ |';
+			const tokens = marked.lexer(incompleteTable);
+			const completeTableTokens = marked.lexer(incompleteTable + '\n| --- | --- |');
+
+			const newTokens = fillInIncompleteTokens(tokens);
+			assert.deepStrictEqual(newTokens, completeTableTokens);
+		});
+
+		test('full header with leading text', () => {
+			// Parsing this gives one token and one 'text' subtoken
+			const incompleteTable = 'here is a table\n| a | b |';
+			const tokens = marked.lexer(incompleteTable);
+			const completeTableTokens = marked.lexer(incompleteTable + '\n| --- | --- |');
+
+			const newTokens = fillInIncompleteTokens(tokens);
+			assert.deepStrictEqual(newTokens, completeTableTokens);
+		});
+
+		test('full header with leading other stuff', () => {
+			// Parsing this gives one token and one 'text' subtoken
+			const incompleteTable = '```js\nconst xyz = 123;\n```\n| a | b |';
+			const tokens = marked.lexer(incompleteTable);
+			const completeTableTokens = marked.lexer(incompleteTable + '\n| --- | --- |');
+
+			const newTokens = fillInIncompleteTokens(tokens);
+			assert.deepStrictEqual(newTokens, completeTableTokens);
+		});
+
+		test('full header with incomplete separator', () => {
+			const incompleteTable = '| a | b |\n| ---';
+			const tokens = marked.lexer(incompleteTable);
+			const completeTableTokens = marked.lexer(completeTable);
+
+			const newTokens = fillInIncompleteTokens(tokens);
+			assert.deepStrictEqual(newTokens, completeTableTokens);
+		});
+
+		test('full header with incomplete separator 2', () => {
+			const incompleteTable = '| a | b |\n| --- |';
+			const tokens = marked.lexer(incompleteTable);
+			const completeTableTokens = marked.lexer(completeTable);
+
+			const newTokens = fillInIncompleteTokens(tokens);
+			assert.deepStrictEqual(newTokens, completeTableTokens);
+		});
+
+		test('full header with incomplete separator 3', () => {
+			const incompleteTable = '| a | b |\n|';
+			const tokens = marked.lexer(incompleteTable);
+			const completeTableTokens = marked.lexer(completeTable);
+
+			const newTokens = fillInIncompleteTokens(tokens);
+			assert.deepStrictEqual(newTokens, completeTableTokens);
+		});
+
+		test('not a table', () => {
+			const incompleteTable = '| a | b |\nsome text';
+			const tokens = marked.lexer(incompleteTable);
+
+			const newTokens = fillInIncompleteTokens(tokens);
+			assert.deepStrictEqual(newTokens, tokens);
+		});
+
+		test('not a table 2', () => {
+			const incompleteTable = '| a | b |\n| --- |\nsome text';
+			const tokens = marked.lexer(incompleteTable);
+
+			const newTokens = fillInIncompleteTokens(tokens);
+			assert.deepStrictEqual(newTokens, tokens);
+		});
+
+		test('complete code block', () => {
+			const completeCodeblock = '```js\nconst xyz = 123;\n```';
+			const tokens = marked.lexer(completeCodeblock);
+			const newTokens = fillInIncompleteTokens(tokens);
+			assert.equal(newTokens, tokens);
+		});
+
+		test('code block header only', () => {
+			const incompleteCodeblock = '```js';
+			const tokens = marked.lexer(incompleteCodeblock);
+			const newTokens = fillInIncompleteTokens(tokens);
+
+			const completeCodeblockTokens = marked.lexer(incompleteCodeblock + '\n```');
+			assert.deepStrictEqual(newTokens, completeCodeblockTokens);
+		});
+
+		test('code block header no lang', () => {
+			const incompleteCodeblock = '```';
+			const tokens = marked.lexer(incompleteCodeblock);
+			const newTokens = fillInIncompleteTokens(tokens);
+
+			const completeCodeblockTokens = marked.lexer(incompleteCodeblock + '\n```');
+			assert.deepStrictEqual(newTokens, completeCodeblockTokens);
+		});
+
+		test('code block header and some code', () => {
+			const incompleteCodeblock = '```js\nconst';
+			const tokens = marked.lexer(incompleteCodeblock);
+			const newTokens = fillInIncompleteTokens(tokens);
+
+			const completeCodeblockTokens = marked.lexer(incompleteCodeblock + '\n```');
+			assert.deepStrictEqual(newTokens, completeCodeblockTokens);
+		});
+
+		test('code block header with leading text', () => {
+			const incompleteCodeblock = 'some text\n```js';
+			const tokens = marked.lexer(incompleteCodeblock);
+			const newTokens = fillInIncompleteTokens(tokens);
+
+			const completeCodeblockTokens = marked.lexer(incompleteCodeblock + '\n```');
+			assert.deepStrictEqual(newTokens, completeCodeblockTokens);
+		});
+
+		test('code block header with leading text and some code', () => {
+			const incompleteCodeblock = 'some text\n```js\nconst';
+			const tokens = marked.lexer(incompleteCodeblock);
+			const newTokens = fillInIncompleteTokens(tokens);
+
+			const completeCodeblockTokens = marked.lexer(incompleteCodeblock + '\n```');
+			assert.deepStrictEqual(newTokens, completeCodeblockTokens);
 		});
 	});
 });
