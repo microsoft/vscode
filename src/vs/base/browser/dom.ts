@@ -1040,8 +1040,8 @@ export function join(nodes: Node[], separator: Node | string): Node[] {
 	return result;
 }
 
-export function toggleVisibility(shouldShow: boolean, ...elements: HTMLElement[]): void {
-	if (shouldShow) {
+export function setVisibility(visible: boolean, ...elements: HTMLElement[]): void {
+	if (visible) {
 		show(...elements);
 	} else {
 		hide(...elements);

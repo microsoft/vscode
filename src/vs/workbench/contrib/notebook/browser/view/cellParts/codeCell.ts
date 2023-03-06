@@ -210,7 +210,7 @@ export class CodeCell extends Disposable {
 	}
 
 	private updateForOutputs(): void {
-		DOM.toggleVisibility(this.viewCell.outputsViewModels.length > 0, this.templateData.focusSinkElement);
+		DOM.setVisibility(this.viewCell.outputsViewModels.length > 0, this.templateData.focusSinkElement);
 	}
 
 	private updateEditorOptions() {
@@ -456,7 +456,7 @@ export class CodeCell extends Disposable {
 		const children = this.templateData.outputContainer.domNode.children;
 		for (let i = 0; i < children.length; i++) {
 			if (children[i].classList.contains('output-inner-container')) {
-				DOM.toggleVisibility(!hide, children[i] as HTMLElement);
+				DOM.setVisibility(!hide, children[i] as HTMLElement);
 			}
 		}
 	}
