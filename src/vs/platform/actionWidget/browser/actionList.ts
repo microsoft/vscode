@@ -117,12 +117,8 @@ class ActionItemRenderer<T> implements IListRenderer<IActionListItem<T>, IAction
 
 		data.text.textContent = stripNewlines(element.label);
 
-		if (!element.keybinding) {
-			dom.hide(data.keybinding.element);
-		} else {
-			data.keybinding.set(element.keybinding);
-			dom.show(data.keybinding.element);
-		}
+		data.keybinding.set(element.keybinding);
+		dom.setVisibility(!!element.keybinding, data.keybinding.element);
 
 		const actionTitle = this._keybindingService.lookupKeybinding(acceptSelectedActionCommand)?.getLabel();
 		const previewTitle = this._keybindingService.lookupKeybinding(previewSelectedActionCommand)?.getLabel();
