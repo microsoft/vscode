@@ -25,6 +25,7 @@ import { CodeActionAutoApply, CodeActionItem, CodeActionSet, CodeActionTrigger }
 import { CodeActionsState } from './codeActionModel';
 import { LightBulbWidget } from './lightBulbWidget';
 import { IActionListDelegate } from 'vs/platform/actionWidget/browser/actionList';
+import { CancellationToken } from 'vs/base/common/cancellation';
 
 export interface IActionShowOptions {
 	readonly includeDisabledActions?: boolean;
@@ -189,6 +190,8 @@ export class CodeActionUi extends Disposable {
 				this._editor?.focus();
 			}
 		};
+
+		await Promise.all(actionsToShow.map(async (action) => action.resolve(CancellationToken.None)));
 
 		this._actionWidgetService.show(
 			'codeActionWidget',

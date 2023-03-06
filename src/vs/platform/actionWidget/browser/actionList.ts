@@ -32,6 +32,7 @@ export interface IActionListItem<T> {
 	readonly group?: { kind?: any; icon?: ThemeIcon; title: string };
 	readonly disabled?: boolean;
 	readonly label?: string;
+	readonly hasEdits?: boolean;
 
 	readonly keybinding?: ResolvedKeybinding;
 }
@@ -126,7 +127,7 @@ class ActionItemRenderer<T> implements IListRenderer<IActionListItem<T>, IAction
 		if (element.disabled) {
 			data.container.title = element.label;
 		} else if (actionTitle && previewTitle) {
-			if (this._supportsPreview) {
+			if (this._supportsPreview && element.hasEdits) {
 				data.container.title = localize({ key: 'label-preview', comment: ['placeholders are keybindings, e.g "F2 to apply, Shift+F2 to preview"'] }, "{0} to apply, {1} to preview", actionTitle, previewTitle);
 			} else {
 				data.container.title = localize({ key: 'label', comment: ['placeholder is a keybinding, e.g "F2 to apply"'] }, "{0} to apply", actionTitle);

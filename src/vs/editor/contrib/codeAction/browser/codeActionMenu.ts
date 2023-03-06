@@ -44,7 +44,8 @@ export function toMenuItems(
 				item: action,
 				group: uncategorizedCodeActionGroup,
 				disabled: !!action.action.disabled,
-				label: action.action.disabled || action.action.title
+				label: action.action.disabled || action.action.title,
+				hasEdits: action.action.edit?.edits.length ? true : false
 			};
 		});
 	}
@@ -74,6 +75,7 @@ export function toMenuItems(
 					label: action.action.title,
 					disabled: !!action.action.disabled,
 					keybinding: keybindingResolver(action.action),
+					hasEdits: action.action.edit?.edits.length ? true : false
 				});
 			}
 		}
