@@ -27,6 +27,7 @@ import { ITerminalCommand } from 'vs/platform/terminal/common/capabilities/capab
 import { ITerminalOutputMatch, ITerminalOutputMatcher, ITerminalQuickFix, ITerminalQuickFixOptions } from 'vs/platform/terminal/common/xterm/terminalQuickFix';
 import { TerminalQuickFixType } from 'vs/workbench/api/common/extHostTypes';
 import { ISerializableEnvironmentVariableCollection } from 'vs/platform/terminal/common/environmentVariable';
+import { ITerminalLinkProviderService } from 'vs/workbench/contrib/terminalContrib/links/browser/links';
 
 
 @extHostNamedCustomer(MainContext.MainThreadTerminalService)
@@ -57,6 +58,7 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 	constructor(
 		private readonly _extHostContext: IExtHostContext,
 		@ITerminalService private readonly _terminalService: ITerminalService,
+		@ITerminalLinkProviderService private readonly _terminalLinkProviderService: ITerminalLinkProviderService,
 		@ITerminalQuickFixService private readonly _terminalQuickFixService: ITerminalQuickFixService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IEnvironmentVariableService private readonly _environmentVariableService: IEnvironmentVariableService,
@@ -224,7 +226,7 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 
 	public $startLinkProvider(): void {
 		this._linkProvider?.dispose();
-		this._linkProvider = this._terminalService.registerLinkProvider(new ExtensionTerminalLinkProvider(this._proxy));
+		this._linkProvider = this._terminalLinkProviderService.registerLinkProvider(new ExtensionTerminalLinkProvider(this._proxy));
 	}
 
 	public $stopLinkProvider(): void {

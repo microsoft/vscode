@@ -31,6 +31,17 @@
 	color: var(--vscode-descriptionForeground);
 }
 
+.monaco-workbench .merge-editor .code-view.result > .header > .description {
+	display: inline;
+	flex-shrink: 1;
+}
+.monaco-workbench .merge-editor .code-view.result > .header > .detail {
+	flex-shrink: 0;
+}
+.monaco-workbench .merge-editor .code-view.result > .header > .toolbar {
+	flex-shrink: 0;
+}
+
 .monaco-workbench .merge-editor .code-view > .header > span.description .codicon {
 	font-size: 14px;
 	color: var(--vscode-descriptionForeground);

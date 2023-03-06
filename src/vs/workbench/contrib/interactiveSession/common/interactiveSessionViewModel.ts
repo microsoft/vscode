@@ -18,7 +18,7 @@ export function isResponseVM(item: unknown): item is IInteractiveResponseViewMod
 
 export interface IInteractiveSessionViewModel {
 	sessionId: number;
-	onDidDispose: Event<void>;
+	onDidDisposeModel: Event<void>;
 	onDidChange: Event<void>;
 	getItems(): (IInteractiveRequestViewModel | IInteractiveResponseViewModel)[];
 }
@@ -46,8 +46,8 @@ export interface IInteractiveResponseViewModel {
 }
 
 export class InteractiveSessionViewModel extends Disposable {
-	private readonly _onDidDispose = this._register(new Emitter<void>());
-	readonly onDidDispose = this._onDidDispose.event;
+	private readonly _onDidDisposeModel = this._register(new Emitter<void>());
+	readonly onDidDisposeModel = this._onDidDisposeModel.event;
 
 	private readonly _onDidChange = this._register(new Emitter<void>());
 	readonly onDidChange = this._onDidChange.event;
@@ -68,7 +68,7 @@ export class InteractiveSessionViewModel extends Disposable {
 			}
 		});
 
-		this._register(model.onDidDispose(() => this._onDidDispose.fire()));
+		this._register(model.onDidDispose(() => this._onDidDisposeModel.fire()));
 		this._register(model.onDidChange(e => {
 			if (e.kind === 'clear') {
 				this._items.length = 0;
