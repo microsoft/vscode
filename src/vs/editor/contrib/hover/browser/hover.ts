@@ -30,6 +30,7 @@ import { MarkdownHoverParticipant } from 'vs/editor/contrib/hover/browser/markdo
 import { MarkerHoverParticipant } from 'vs/editor/contrib/hover/browser/markerHoverParticipant';
 import 'vs/css!./hover';
 import { InlineSuggestionHintsContentWidget } from 'vs/editor/contrib/inlineCompletions/browser/inlineSuggestionHintsWidget';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 export class ModesHoverController implements IEditorContribution {
 
 	public static readonly ID = 'editor.contrib.hover';
@@ -53,7 +54,8 @@ export class ModesHoverController implements IEditorContribution {
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IOpenerService private readonly _openerService: IOpenerService,
 		@ILanguageService private readonly _languageService: ILanguageService,
-		@IContextKeyService _contextKeyService: IContextKeyService
+		@IContextKeyService _contextKeyService: IContextKeyService,
+		@IKeybindingService private readonly _keybindingService: IKeybindingService
 	) {
 		this._isMouseDown = false;
 		this._hoverClicked = false;
@@ -198,11 +200,15 @@ export class ModesHoverController implements IEditorContribution {
 	}
 
 	private _onKeyDown(e: IKeyboardEvent): void {
-		console.log('e : ', e);
 
-		// Since the hover disappears as soon as a key code is pressed, the keybindings chosen only has on keycode and several key mods
+		const kb = this._keybindingService.lookupKeybinding('editor.action.focusHover');
+		kb?.getDispatchChords();
+		const keys = kb?.getChords()[0];
+
+		// If there a mapping to the key names, how they are returned inside of the keyboard events
+		// The keybindings associated with focusing the hover widget should not be pressed
 		if (e.keyCode !== KeyCode.Ctrl && e.keyCode !== KeyCode.Alt && e.keyCode !== KeyCode.Meta && e.keyCode !== KeyCode.Shift
-			&& !(e.keyCode === KeyCode.KeyK && e.altKey === true && e.metaKey === true && e.shiftKey === true)) {
+			&& !(keys && e.keyCode === KeyCode.KeyK && e.ctrlKey === keys.ctrlKey && e.altKey === keys.altKey && e.metaKey === keys.metaKey && e.shiftKey === keys.shiftKey)) {
 			// Do not hide hover when a modifier key is pressed
 			this._hideWidgets();
 		}
@@ -243,6 +249,14 @@ export class ModesHoverController implements IEditorContribution {
 
 	public scrollDown(): void {
 		this._contentWidget?.scrollDown();
+	}
+
+	public pageUp(): void {
+		this._contentWidget?.pageUp();
+	}
+
+	public pageDown(): void {
+		this._contentWidget?.pageDown();
 	}
 
 	public dispose(): void {
@@ -383,7 +397,6 @@ class ScrollUpHoverAction extends EditorAction {
 	}
 
 	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
-		console.log('Inside of scroll up');
 		const controller = ModesHoverController.get(editor);
 		if (!controller) {
 			return;
@@ -414,12 +427,72 @@ class ScrollDownHoverAction extends EditorAction {
 	}
 
 	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
-		console.log('Inside of scroll down');
 		const controller = ModesHoverController.get(editor);
 		if (!controller) {
 			return;
 		}
 		controller.scrollDown();
+	}
+}
+
+class PageUpHoverAction extends EditorAction {
+
+	constructor() {
+		super({
+			id: 'editor.action.pageUpHover',
+			label: nls.localize({
+				key: 'pageUpHover',
+				comment: [
+					'Action that allows to page up in the hover widget with the page up command when the hover widget is focused.'
+				]
+			}, "Page Up Hover"),
+			alias: 'Page Up Hover',
+			precondition: EditorContextKeys.hoverFocused,
+			kbOpts: {
+				kbExpr: EditorContextKeys.hoverFocused,
+				primary: KeyCode.PageUp,
+				weight: KeybindingWeight.EditorContrib
+			}
+		});
+	}
+
+	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
+		const controller = ModesHoverController.get(editor);
+		if (!controller) {
+			return;
+		}
+		controller.pageUp();
+	}
+}
+
+
+class PageDownHoverAction extends EditorAction {
+
+	constructor() {
+		super({
+			id: 'editor.action.pageDownHover',
+			label: nls.localize({
+				key: 'pageDownHover',
+				comment: [
+					'Action that allows to page down in the hover widget with the page down command when the hover widget is focused.'
+				]
+			}, "Page Down Hover"),
+			alias: 'Page Down Hover',
+			precondition: EditorContextKeys.hoverFocused,
+			kbOpts: {
+				kbExpr: EditorContextKeys.hoverFocused,
+				primary: KeyCode.PageDown,
+				weight: KeybindingWeight.EditorContrib
+			}
+		});
+	}
+
+	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
+		const controller = ModesHoverController.get(editor);
+		if (!controller) {
+			return;
+		}
+		controller.pageDown();
 	}
 }
 
@@ -429,6 +502,8 @@ registerEditorAction(ShowDefinitionPreviewHoverAction);
 registerEditorAction(FocusHoverAction);
 registerEditorAction(ScrollUpHoverAction);
 registerEditorAction(ScrollDownHoverAction);
+registerEditorAction(PageUpHoverAction);
+registerEditorAction(PageDownHoverAction);
 HoverParticipantRegistry.register(MarkdownHoverParticipant);
 HoverParticipantRegistry.register(MarkerHoverParticipant);
 

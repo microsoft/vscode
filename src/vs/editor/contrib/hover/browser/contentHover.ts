@@ -352,6 +352,14 @@ export class ContentHoverController extends Disposable {
 	public scrollDown(): void {
 		this._widget.scrollDown();
 	}
+
+	public pageUp(): void {
+		this._widget.pageUp();
+	}
+
+	public pageDown(): void {
+		this._widget.pageDown();
+	}
 }
 
 class HoverResult {
@@ -616,6 +624,18 @@ export class ContentHoverWidget extends Disposable implements IContentWidget {
 		const scrollTop = this._hover.scrollbar.getScrollPosition().scrollTop;
 		const fontInfo = this._editor.getOption(EditorOption.fontInfo);
 		this._hover.scrollbar.setScrollPosition({ scrollTop: scrollTop + fontInfo.lineHeight });
+	}
+
+	public pageUp(): void {
+		const scrollTop = this._hover.scrollbar.getScrollPosition().scrollTop;
+		const scrollHeight = this._hover.scrollbar.getScrollDimensions().height;
+		this._hover.scrollbar.setScrollPosition({ scrollTop: scrollTop - scrollHeight });
+	}
+
+	public pageDown(): void {
+		const scrollTop = this._hover.scrollbar.getScrollPosition().scrollTop;
+		const scrollHeight = this._hover.scrollbar.getScrollDimensions().height;
+		this._hover.scrollbar.setScrollPosition({ scrollTop: scrollTop + scrollHeight });
 	}
 }
 
