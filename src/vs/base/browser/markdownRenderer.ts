@@ -32,6 +32,7 @@ export interface MarkedOptions extends marked.MarkedOptions {
 
 export interface MarkdownRenderOptions extends FormattedTextRenderOptions {
 	readonly codeBlockRenderer?: (languageId: string, value: string) => Promise<HTMLElement>;
+	readonly codeBlockRendererSync?: (languageId: string, value: string) => HTMLElement;
 	readonly asyncRenderCallback?: () => void;
 	readonly fillInIncompleteTokens?: boolean;
 }
@@ -150,8 +151,16 @@ export function renderMarkdown(markdown: IMarkdownString, options: MarkdownRende
 
 	// Will collect [id, renderedElement] tuples
 	const codeBlocks: Promise<[string, HTMLElement]>[] = [];
+	const syncCodeBlocks: [string, HTMLElement][] = [];
 
-	if (options.codeBlockRenderer) {
+	if (options.codeBlockRendererSync) {
+		renderer.code = (code, lang) => {
+			const id = defaultGenerator.nextId();
+			const value = options.codeBlockRendererSync!(postProcessCodeBlockLanguageId(lang), code);
+			syncCodeBlocks.push([id, value]);
+			return `<div class="code" data-code="${id}">${escape(code)}</div>`;
+		};
+	} else if (options.codeBlockRenderer) {
 		renderer.code = (code, lang) => {
 			const id = defaultGenerator.nextId();
 			const value = options.codeBlockRenderer!(postProcessCodeBlockLanguageId(lang), code);
@@ -305,6 +314,15 @@ export function renderMarkdown(markdown: IMarkdownString, options: MarkdownRende
 			}
 			options.asyncRenderCallback?.();
 		});
+	} else if (syncCodeBlocks.length > 0) {
+		const renderedElements = new Map(syncCodeBlocks);
+		const placeholderElements = element.querySelectorAll<HTMLDivElement>(`div[data-code]`);
+		for (const placeholderElement of placeholderElements) {
+			const renderedElement = renderedElements.get(placeholderElement.dataset['code'] ?? '');
+			if (renderedElement) {
+				DOM.reset(placeholderElement, renderedElement);
+			}
+		}
 	}
 
 	// signal size changes for image tags

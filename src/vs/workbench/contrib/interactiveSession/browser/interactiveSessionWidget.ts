@@ -7,7 +7,9 @@ import * as dom from 'vs/base/browser/dom';
 import { Button } from 'vs/base/browser/ui/button/button';
 import { ITreeElement } from 'vs/base/browser/ui/tree/tree';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
+import { Emitter } from 'vs/base/common/event';
+import { Disposable, DisposableStore, IDisposable, combinedDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { isEqual } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import 'vs/css!./media/interactiveSession';
 import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
@@ -15,18 +17,32 @@ import { ITextModel } from 'vs/editor/common/model';
 import { IModelService } from 'vs/editor/common/services/model';
 import { localize } from 'vs/nls';
 import { IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IInstantiationService, createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { WorkbenchObjectTree } from 'vs/platform/list/browser/listService';
 import { defaultButtonStyles } from 'vs/platform/theme/browser/defaultStyles';
 import { foreground } from 'vs/platform/theme/common/colorRegistry';
 import { DEFAULT_FONT_FAMILY } from 'vs/workbench/browser/style';
+import { getSimpleCodeEditorWidgetOptions, getSimpleEditorOptions } from 'vs/workbench/contrib/codeEditor/browser/simpleEditorOptions';
 import { InteractiveListItemRenderer, InteractiveSessionAccessibilityProvider, InteractiveSessionListDelegate, InteractiveTreeItem } from 'vs/workbench/contrib/interactiveSession/browser/interactiveSessionListRenderer';
 import { InteractiveSessionInputOptions } from 'vs/workbench/contrib/interactiveSession/browser/interactiveSessionOptions';
 import { IInteractiveSessionService } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionService';
-import { InteractiveSessionViewModel, IInteractiveSessionViewModel, isRequestVM, isResponseVM } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionViewModel';
-import { getSimpleCodeEditorWidgetOptions, getSimpleEditorOptions } from 'vs/workbench/contrib/codeEditor/browser/simpleEditorOptions';
+import { IInteractiveSessionViewModel, InteractiveSessionViewModel, isRequestVM, isResponseVM } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionViewModel';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
+
+export const IInteractiveSessionWidgetService = createDecorator<IInteractiveSessionWidgetService>('interactiveSessionWidgetService');
+
+export interface IInteractiveSessionWidgetService {
+
+	readonly _serviceBrand: undefined;
+
+	/**
+	 * Returns the currently focused widget if any.
+	 */
+	readonly lastFocusedWidget: InteractiveSessionWidget | undefined;
+
+	getWidgetByInputUri(uri: URI): InteractiveSessionWidget | undefined;
+}
 
 const $ = dom.$;
 
@@ -37,17 +53,18 @@ function revealLastElement(list: WorkbenchObjectTree<any>) {
 	list.scrollTop = list.scrollHeight - list.renderHeight;
 }
 
+const INPUT_EDITOR_MAX_HEIGHT = 275;
+
 export class InteractiveSessionWidget extends Disposable {
-	private static readonly widgetsByInputUri = new Map<string, InteractiveSessionWidget>();
-	static getViewByInputUri(inputUri: URI): InteractiveSessionWidget | undefined {
-		return InteractiveSessionWidget.widgetsByInputUri.get(inputUri.toString());
-	}
+	private _onDidFocus = this._register(new Emitter<void>());
+	readonly onDidFocus = this._onDidFocus.event;
 
 	private static _counter = 0;
-	private readonly inputUri = URI.parse(`interactiveSessionInput:input-${InteractiveSessionWidget._counter++}`);
+	public readonly inputUri = URI.parse(`interactiveSessionInput:input-${InteractiveSessionWidget._counter++}`);
 
 	private tree!: WorkbenchObjectTree<InteractiveTreeItem>;
 	private renderer!: InteractiveListItemRenderer;
+	private inputEditorHeight = 0;
 	private inputEditor!: CodeEditorWidget;
 	private inputOptions!: InteractiveSessionInputOptions;
 	private inputModel: ITextModel | undefined;
@@ -73,12 +90,13 @@ export class InteractiveSessionWidget extends Disposable {
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IModelService private readonly modelService: IModelService,
 		@IExtensionService private readonly extensionService: IExtensionService,
-		@IInteractiveSessionService private readonly interactiveSessionService: IInteractiveSessionService
+		@IInteractiveSessionService private readonly interactiveSessionService: IInteractiveSessionService,
+		@IInteractiveSessionWidgetService interactiveSessionWidgetService: IInteractiveSessionWidgetService
 	) {
 		super();
 		CONTEXT_IN_INTERACTIVE_SESSION.bindTo(contextKeyService).set(true);
 
-		InteractiveSessionWidget.widgetsByInputUri.set(this.inputUri.toString(), this);
+		this._register((interactiveSessionWidgetService as InteractiveSessionWidgetService).register(this));
 		this.initializeSessionModel(true);
 	}
 
@@ -105,8 +123,8 @@ export class InteractiveSessionWidget extends Disposable {
 	}
 
 	private onDidChangeItems() {
-		if (this.tree && this.visible && this.viewModel) {
-			const items = this.viewModel.getItems();
+		if (this.tree && this.visible) {
+			const items = this.viewModel?.getItems() ?? [];
 			const treeItems = items.map(item => {
 				return <ITreeElement<InteractiveTreeItem>>{
 					element: item,
@@ -115,19 +133,19 @@ export class InteractiveSessionWidget extends Disposable {
 				};
 			});
 
-			if (treeItems.length) {
+			if (treeItems.length > 0) {
 				this.setWelcomeViewVisible(false);
-				const lastItem = treeItems[treeItems.length - 1];
-				this.tree.setChildren(null, treeItems, {
-					diffIdentityProvider: {
-						getId(element) {
-							const isLastAndResponse = isResponseVM(element) && element === lastItem.element;
-							return element.id + (isLastAndResponse ? '_last' : '');
-						},
-					}
-				});
-				revealLastElement(this.tree);
 			}
+
+			const lastItem = treeItems[treeItems.length - 1];
+			this.tree.setChildren(null, treeItems, {
+				diffIdentityProvider: {
+					getId(element) {
+						const isLastAndResponse = isResponseVM(element) && element === lastItem.element;
+						return element.id + (isLastAndResponse ? '_last' : '');
+					},
+				}
+			});
 		}
 	}
 
@@ -199,7 +217,7 @@ export class InteractiveSessionWidget extends Disposable {
 			[this.renderer],
 			{
 				identityProvider: { getId: (e: InteractiveTreeItem) => e.id },
-				supportDynamicHeights: false,
+				supportDynamicHeights: true,
 				hideTwistiesOfChildlessElements: true,
 				accessibilityProvider: new InteractiveSessionAccessibilityProvider(),
 				keyboardNavigationLabelProvider: { getKeyboardNavigationLabel: (e: InteractiveTreeItem) => isRequestVM(e) ? e.model.message : e.response.value },
@@ -226,10 +244,12 @@ export class InteractiveSessionWidget extends Disposable {
 		}));
 		this._register(this.renderer.onDidChangeItemHeight(e => {
 			this.tree.updateElementHeight(e.element, e.height);
-			this.onDidChangeTreeContentHeight();
 		}));
 		this._register(this.renderer.onDidSelectFollowup(followup => {
 			this.acceptInput(followup);
+		}));
+		this._register(this.tree.onDidFocus(() => {
+			this._onDidFocus.fire();
 		}));
 	}
 
@@ -240,7 +260,7 @@ export class InteractiveSessionWidget extends Disposable {
 			// const lastElementWasVisible = this.list.scrollTop + this.list.renderHeight >= this.previousTreeScrollHeight - 2;
 			const lastElementWasVisible = this.tree.scrollTop + this.tree.renderHeight >= this.previousTreeScrollHeight;
 			if (lastElementWasVisible) {
-				setTimeout(() => {
+				dom.scheduleAtNextAnimationFrame(() => {
 					// Can't set scrollTop during this event listener, the list might overwrite the change
 					revealLastElement(this.tree);
 				}, 0);
@@ -265,14 +285,19 @@ export class InteractiveSessionWidget extends Disposable {
 		options.lineHeight = 20;
 		options.padding = { top: 8, bottom: 7 };
 		options.cursorWidth = 1;
+		options.wrappingStrategy = 'advanced';
 
-		this.inputEditor = this._register(scopedInstantiationService.createInstance(CodeEditorWidget, inputContainer, options, getSimpleCodeEditorWidgetOptions()));
+		const inputEditorElement = dom.append(inputContainer, $('.interactive-input-editor'));
+		this.inputEditor = this._register(scopedInstantiationService.createInstance(CodeEditorWidget, inputEditorElement, options, getSimpleCodeEditorWidgetOptions()));
 
 		this._register(this.inputEditor.onDidChangeModelContent(() => {
-			if (this.bodyDimension) {
+			const currentHeight = Math.min(this.inputEditor.getContentHeight(), INPUT_EDITOR_MAX_HEIGHT);
+			if (this.bodyDimension && currentHeight !== this.inputEditorHeight) {
+				this.inputEditorHeight = currentHeight;
 				this.layout(this.bodyDimension.height, this.bodyDimension.width);
 			}
 		}));
+		this._register(this.inputEditor.onDidFocusEditorText(() => this._onDidFocus.fire()));
 
 		this._register(dom.addStandardDisposableListener(inputContainer, dom.EventType.FOCUS, () => inputContainer.classList.add('synthetic-focus')));
 		this._register(dom.addStandardDisposableListener(inputContainer, dom.EventType.BLUR, () => inputContainer.classList.remove('synthetic-focus')));
@@ -285,9 +310,9 @@ export class InteractiveSessionWidget extends Disposable {
 			throw new Error('Failed to start session');
 		}
 
-		this.viewModel = new InteractiveSessionViewModel(model);
+		this.viewModel = this.viewModelDisposables.add(new InteractiveSessionViewModel(model));
 		this.viewModelDisposables.add(this.viewModel.onDidChange(() => this.onDidChangeItems()));
-		this.viewModelDisposables.add(this.viewModel.onDidDispose(() => {
+		this.viewModelDisposables.add(this.viewModel.onDidDisposeModel(() => {
 			this.viewModel = undefined;
 			this.viewModelDisposables.clear();
 			this.onDidChangeItems();
@@ -307,6 +332,7 @@ export class InteractiveSessionWidget extends Disposable {
 			const input = query ?? this.inputEditor.getValue();
 			if (this.interactiveSessionService.sendRequest(this.viewModel.sessionId, input, CancellationToken.None)) {
 				this.inputEditor.setValue('');
+				revealLastElement(this.tree);
 			}
 		}
 	}
@@ -336,7 +362,7 @@ export class InteractiveSessionWidget extends Disposable {
 
 	layout(height: number, width: number): void {
 		this.bodyDimension = new dom.Dimension(width, height);
-		const inputHeight = Math.min(this.inputEditor.getContentHeight(), height);
+		const inputHeight = Math.min(this.inputEditor.getContentHeight(), height, INPUT_EDITOR_MAX_HEIGHT);
 		const inputWrapperPadding = 24;
 		const lastElementVisible = this.tree.scrollTop + this.tree.renderHeight >= this.tree.scrollHeight;
 		const listHeight = height - inputHeight - inputWrapperPadding;
@@ -352,5 +378,44 @@ export class InteractiveSessionWidget extends Disposable {
 		this.listContainer.style.height = `${height - inputHeight - inputWrapperPadding}px`;
 
 		this.inputEditor.layout({ width: width - inputWrapperPadding, height: inputHeight });
+	}
+}
+
+export class InteractiveSessionWidgetService implements IInteractiveSessionWidgetService {
+
+	declare readonly _serviceBrand: undefined;
+
+	private _widgets: InteractiveSessionWidget[] = [];
+	private _lastFocusedWidget: InteractiveSessionWidget | undefined = undefined;
+
+	get lastFocusedWidget(): InteractiveSessionWidget | undefined {
+		return this._lastFocusedWidget;
+	}
+
+	constructor() { }
+
+	getWidgetByInputUri(uri: URI): InteractiveSessionWidget | undefined {
+		return this._widgets.find(w => isEqual(w.inputUri, uri));
+	}
+
+	private setLastFocusedWidget(widget: InteractiveSessionWidget | undefined): void {
+		if (widget === this._lastFocusedWidget) {
+			return;
+		}
+
+		this._lastFocusedWidget = widget;
+	}
+
+	register(newWidget: InteractiveSessionWidget): IDisposable {
+		if (this._widgets.some(widget => widget === newWidget)) {
+			throw new Error('Cannot register the same widget multiple times');
+		}
+
+		this._widgets.push(newWidget);
+
+		return combinedDisposable(
+			newWidget.onDidFocus(() => this.setLastFocusedWidget(newWidget)),
+			toDisposable(() => this._widgets.splice(this._widgets.indexOf(newWidget), 1))
+		);
 	}
 }

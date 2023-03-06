@@ -92,13 +92,19 @@ export interface IInteractiveSessionModel {
 	getRequests(): IInteractiveRequestModel[];
 }
 
-export interface IDeserializedInteractiveSessionData {
+export interface IDeserializedInteractiveSessionItem {
 	requests: InteractiveRequestModel[];
+	providerId: string;
 	providerState: any;
+}
+
+export interface IDeserializedInteractiveSessionsData {
+	[providerId: string]: IDeserializedInteractiveSessionItem[];
 }
 
 export interface ISerializableInteractiveSessionData {
 	requests: { message: string; response: string | undefined }[];
+	providerId: string;
 	providerState: any;
 }
 
@@ -128,7 +134,7 @@ export class InteractiveSessionModel extends Disposable implements IInteractiveS
 	private _requests: InteractiveRequestModel[];
 	private _providerState: any;
 
-	static deserialize(obj: ISerializableInteractiveSessionData): IDeserializedInteractiveSessionData {
+	static deserialize(obj: ISerializableInteractiveSessionData): IDeserializedInteractiveSessionItem {
 		const requests = obj.requests;
 		if (!Array.isArray(requests)) {
 			throw new Error(`Malformed session data: ${obj}`);
@@ -141,14 +147,14 @@ export class InteractiveSessionModel extends Disposable implements IInteractiveS
 			}
 			return request;
 		});
-		return { requests: requestModels, providerState: obj.providerState };
+		return { requests: requestModels, providerState: obj.providerState, providerId: obj.providerId };
 	}
 
 	get sessionId(): number {
 		return this.session.id;
 	}
 
-	constructor(public readonly session: IInteractiveSession, public readonly providerId: string, initialData?: IDeserializedInteractiveSessionData) {
+	constructor(public readonly session: IInteractiveSession, public readonly providerId: string, initialData?: IDeserializedInteractiveSessionItem) {
 		super();
 		this._requests = initialData ? initialData.requests : [];
 		this._providerState = initialData ? initialData.providerState : undefined;
@@ -202,6 +208,7 @@ export class InteractiveSessionModel extends Disposable implements IInteractiveS
 					response: r.response ? r.response.response.value : undefined,
 				};
 			}),
+			providerId: this.providerId,
 			providerState: this._providerState
 		};
 	}
