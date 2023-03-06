@@ -14,10 +14,12 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
+import { IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
 
 export class ExtensionsScannerService extends NativeExtensionsScannerService implements IExtensionsScannerService {
 
 	constructor(
+		@IUserDataProfileService userDataProfileService: IUserDataProfileService,
 		@IUserDataProfilesService userDataProfilesService: IUserDataProfilesService,
 		@IExtensionsProfileScannerService extensionsProfileScannerService: IExtensionsProfileScannerService,
 		@IFileService fileService: IFileService,
@@ -31,7 +33,7 @@ export class ExtensionsScannerService extends NativeExtensionsScannerService imp
 			URI.file(environmentService.builtinExtensionsPath),
 			URI.file(environmentService.extensionsPath),
 			environmentService.userHome,
-			URI.file(environmentService.userDataPath),
+			userDataProfileService.currentProfile,
 			userDataProfilesService, extensionsProfileScannerService, fileService, logService, environmentService, productService, uriIdentityService, instantiationService);
 	}
 
