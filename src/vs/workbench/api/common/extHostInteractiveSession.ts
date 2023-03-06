@@ -68,7 +68,13 @@ export class ExtHostInteractiveSession implements ExtHostInteractiveSessionShape
 		const id = ExtHostInteractiveSession._nextId++;
 		this._interactiveSessions.set(id, session);
 
-		return { id };
+		return {
+			id,
+			requesterUsername: session.requester?.name,
+			requesterAvatarIconPath: session.requester?.iconPath,
+			responderUsername: session.responder?.name,
+			responderAvatarIconPath: session.responder?.iconPath
+		};
 	}
 
 	async $resolveInteractiveRequest(handle: number, sessionId: number, context: any, token: CancellationToken): Promise<IInteractiveRequestDto | undefined> {

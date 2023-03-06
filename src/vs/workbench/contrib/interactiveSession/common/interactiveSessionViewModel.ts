@@ -6,14 +6,15 @@
 import { Emitter, Event } from 'vs/base/common/event';
 import { IMarkdownString, MarkdownString } from 'vs/base/common/htmlContent';
 import { Disposable } from 'vs/base/common/lifecycle';
+import { URI } from 'vs/base/common/uri';
 import { IInteractiveRequestModel, IInteractiveResponseModel, IInteractiveSessionModel } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionModel';
 
 export function isRequestVM(item: unknown): item is IInteractiveRequestViewModel {
-	return !!item && typeof (item as IInteractiveRequestViewModel).model !== 'undefined';
+	return !isResponseVM(item);
 }
 
 export function isResponseVM(item: unknown): item is IInteractiveResponseViewModel {
-	return !isRequestVM(item);
+	return !!item && typeof (item as IInteractiveResponseViewModel).onDidChange !== 'undefined';
 }
 
 export interface IInteractiveSessionViewModel {
@@ -25,7 +26,9 @@ export interface IInteractiveSessionViewModel {
 
 export interface IInteractiveRequestViewModel {
 	readonly id: string;
-	readonly model: IInteractiveRequestModel;
+	readonly username: string;
+	readonly avatarIconUri?: URI;
+	readonly message: string;
 	currentRenderedHeight: number | undefined;
 }
 
@@ -38,6 +41,8 @@ export interface IInteractiveResponseRenderData {
 export interface IInteractiveResponseViewModel {
 	readonly onDidChange: Event<void>;
 	readonly id: string;
+	readonly username: string;
+	readonly avatarIconUri?: URI;
 	readonly response: IMarkdownString;
 	readonly isComplete: boolean;
 	readonly followups?: string[];
@@ -55,21 +60,21 @@ export class InteractiveSessionViewModel extends Disposable {
 	private readonly _items: (IInteractiveRequestViewModel | IInteractiveResponseViewModel)[] = [];
 
 	get sessionId() {
-		return this.model.sessionId;
+		return this._model.sessionId;
 	}
 
-	constructor(private readonly model: IInteractiveSessionModel) {
+	constructor(private readonly _model: IInteractiveSessionModel) {
 		super();
 
-		model.getRequests().forEach((request, i) => {
+		_model.getRequests().forEach((request, i) => {
 			this._items.push(new InteractiveRequestViewModel(request));
 			if (request.response) {
 				this._items.push(new InteractiveResponseViewModel(request.response));
 			}
 		});
 
-		this._register(model.onDidDispose(() => this._onDidDisposeModel.fire()));
-		this._register(model.onDidChange(e => {
+		this._register(_model.onDidDispose(() => this._onDidDisposeModel.fire()));
+		this._register(_model.onDidChange(e => {
 			if (e.kind === 'clear') {
 				this._items.length = 0;
 				this._onDidChange.fire();
@@ -106,12 +111,24 @@ export class InteractiveSessionViewModel extends Disposable {
 
 export class InteractiveRequestViewModel implements IInteractiveRequestViewModel {
 	get id() {
-		return this.model.id;
+		return this._model.id;
+	}
+
+	get username() {
+		return this._model.username;
+	}
+
+	get avatarIconUri() {
+		return this._model.avatarIconUri;
+	}
+
+	get message() {
+		return this._model.message;
 	}
 
 	currentRenderedHeight: number | undefined;
 
-	constructor(readonly model: IInteractiveRequestModel) { }
+	constructor(readonly _model: IInteractiveRequestModel) { }
 }
 
 export class InteractiveResponseViewModel extends Disposable implements IInteractiveResponseViewModel {
@@ -124,6 +141,14 @@ export class InteractiveResponseViewModel extends Disposable implements IInterac
 
 	get id() {
 		return this._model.id + `_${this._changeCount}`;
+	}
+
+	get username() {
+		return this._model.username;
+	}
+
+	get avatarIconUri() {
+		return this._model.avatarIconUri;
 	}
 
 	get response(): IMarkdownString {
