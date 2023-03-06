@@ -194,7 +194,7 @@ export class StickyLineCandidateProvider extends Disposable implements IStickyLi
 			this._foldingRegionPromise.cancel();
 			this._foldingRegionPromise = null;
 		}
-		this._updateScheduler.trigger(async () => {
+		await this._updateScheduler.trigger(async () => {
 			// Create a new stop-watch which will find the time it takes to compute the model which will be used to compute the sticky scroll
 			this._sw = new StopWatch(true);
 
