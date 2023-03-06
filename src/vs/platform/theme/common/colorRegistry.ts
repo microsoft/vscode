@@ -12,8 +12,6 @@ import * as nls from 'vs/nls';
 import { Extensions as JSONExtensions, IJSONContributionRegistry } from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
 import * as platform from 'vs/platform/registry/common/platform';
 import { IColorTheme } from 'vs/platform/theme/common/themeService';
-import { isString } from 'vs/base/common/types';
-import { CharCode } from 'vs/base/common/charCode';
 
 //  ------ API types
 
