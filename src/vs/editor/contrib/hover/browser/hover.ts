@@ -208,7 +208,7 @@ export class ModesHoverController implements IEditorContribution {
 		// If there a mapping to the key names, how they are returned inside of the keyboard events
 		// The keybindings associated with focusing the hover widget should not be pressed
 		if (e.keyCode !== KeyCode.Ctrl && e.keyCode !== KeyCode.Alt && e.keyCode !== KeyCode.Meta && e.keyCode !== KeyCode.Shift
-			&& !(keys && e.keyCode === KeyCode.KeyK && e.ctrlKey === keys.ctrlKey && e.altKey === keys.altKey && e.metaKey === keys.metaKey && e.shiftKey === keys.shiftKey)) {
+			&& !(keys && e.code === ('Key' + keys.keyLabel) && e.ctrlKey === keys.ctrlKey && e.altKey === keys.altKey && e.metaKey === keys.metaKey && e.shiftKey === keys.shiftKey)) {
 			// Do not hide hover when a modifier key is pressed
 			this._hideWidgets();
 		}
