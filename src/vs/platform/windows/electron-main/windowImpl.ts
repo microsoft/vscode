@@ -50,6 +50,7 @@ import { resolveCommonProperties } from 'vs/platform/telemetry/common/commonProp
 import { hostname, release } from 'os';
 import { resolveMachineId } from 'vs/platform/telemetry/electron-main/telemetryUtils';
 import { ILoggerMainService } from 'vs/platform/log/electron-main/loggerService';
+import { firstOrDefault } from 'vs/base/common/arrays';
 
 export interface IWindowCreationOptions {
 	readonly state: IWindowState;
@@ -881,7 +882,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 			}
 
 			// Delegate to windows service
-			const [window] = await this.windowsMainService.open({
+			const window = firstOrDefault(await this.windowsMainService.open({
 				context: OpenContext.API,
 				userEnv: this._config.userEnv,
 				cli: {
@@ -892,8 +893,8 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 				forceEmpty,
 				forceNewWindow: true,
 				remoteAuthority: this.remoteAuthority
-			});
-			window.focus();
+			}));
+			window?.focus();
 		}
 	}
 

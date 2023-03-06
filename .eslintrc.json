@@ -428,7 +428,8 @@
 							"vs/workbench/api/~",
 							"vs/workbench/~",
 							"vs/workbench/services/*/~",
-							"vs/workbench/contrib/*/~"
+							"vs/workbench/contrib/*/~",
+							"vs/workbench/contrib/terminalContrib/*/~"
 						]
 					},
 					{
@@ -461,6 +462,35 @@
 							"vs/workbench/~",
 							"vs/workbench/services/*/~",
 							"vs/workbench/contrib/*/~",
+							"vscode-notebook-renderer", // Type only import
+							{
+								"when": "hasBrowser",
+								"pattern": "xterm"
+							}, // node module allowed even in /browser/
+							{
+								"when": "hasBrowser",
+								"pattern": "xterm-addon-*"
+							}, // node module allowed even in /browser/
+							{
+								"when": "hasBrowser",
+								"pattern": "vscode-textmate"
+							} // node module allowed even in /browser/
+						]
+					},
+					{
+						"target": "src/vs/workbench/contrib/terminalContrib/*/~",
+						"restrictions": [
+							"vs/base/~",
+							"vs/base/parts/*/~",
+							"vs/platform/*/~",
+							"vs/editor/~",
+							"vs/editor/contrib/*/~",
+							"vs/workbench/~",
+							"vs/workbench/services/*/~",
+							"vs/workbench/contrib/*/~",
+							// Only allow terminalContrib to import from itself, this works because
+							// terminalContrib is one extra folder deep
+							"vs/workbench/contrib/terminalContrib/*/~",
 							"vscode-notebook-renderer", // Type only import
 							{
 								"when": "hasBrowser",
@@ -513,6 +543,13 @@
 						]
 					},
 					{
+						"target": "src/vs/workbench/contrib/terminal/terminal.all.ts",
+						"layer": "browser",
+						"restrictions": [
+							"vs/workbench/contrib/**"
+						]
+					},
+					{
 						"target": "src/vs/workbench/workbench.common.main.ts",
 						"layer": "browser",
 						"restrictions": [
@@ -525,7 +562,8 @@
 							"vs/workbench/~",
 							"vs/workbench/api/~",
 							"vs/workbench/services/*/~",
-							"vs/workbench/contrib/*/~"
+							"vs/workbench/contrib/*/~",
+							"vs/workbench/contrib/terminal/terminal.all"
 						]
 					},
 					{
