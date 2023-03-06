@@ -44,7 +44,20 @@ declare module 'vscode' {
 
 	export interface InteractiveSessionState { }
 
+	export interface InteractiveSessionParticipantInformation {
+		name: string;
+
+		/**
+		 * Either a full URI or a relative path to the icon of the participant.
+		 */
+		iconPath?: Uri | string;
+	}
+
 	export interface InteractiveSession {
+		// TODO Will be required
+		requester?: InteractiveSessionParticipantInformation;
+		responder?: InteractiveSessionParticipantInformation;
+
 		saveState?(): InteractiveSessionState;
 	}
 

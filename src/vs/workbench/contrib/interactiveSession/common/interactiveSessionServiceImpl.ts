@@ -8,9 +8,10 @@ import { groupBy } from 'vs/base/common/collections';
 import { Iterable } from 'vs/base/common/iterator';
 import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { withNullAsUndefined } from 'vs/base/common/types';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { IDeserializedInteractiveSessionsData, InteractiveRequestModel, InteractiveSessionModel } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionModel';
+import { ISerializableInteractiveSessionsData, InteractiveSessionModel } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionModel';
 import { IInteractiveProgress, IInteractiveProvider, IInteractiveSessionService } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionService';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 
@@ -22,12 +23,13 @@ export class InteractiveSessionService extends Disposable implements IInteractiv
 	private readonly _providers = new Map<string, IInteractiveProvider>();
 	private readonly _sessionModels = new Map<number, InteractiveSessionModel>();
 	private readonly _pendingRequestSessions = new Set<number>();
-	private readonly _unprocessedPersistedSessions: IDeserializedInteractiveSessionsData;
+	private readonly _unprocessedPersistedSessions: ISerializableInteractiveSessionsData;
 
 	constructor(
 		@IStorageService storageService: IStorageService,
 		@ILogService private readonly logService: ILogService,
-		@IExtensionService private readonly extensionService: IExtensionService
+		@IExtensionService private readonly extensionService: IExtensionService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
 	) {
 		super();
 		const sessionData = storageService.get(serializedInteractiveSessionKey, StorageScope.WORKSPACE, '');
@@ -55,15 +57,14 @@ export class InteractiveSessionService extends Disposable implements IInteractiv
 		this.logService.error(`[InteractiveSessionService#${method}] ${message}`);
 	}
 
-	private deserializeInteractiveSessions(sessionData: string): IDeserializedInteractiveSessionsData {
+	private deserializeInteractiveSessions(sessionData: string): ISerializableInteractiveSessionsData {
 		try {
-			const obj = JSON.parse(sessionData);
-			if (!Array.isArray(obj)) {
+			const arrayOfSessions = JSON.parse(sessionData);
+			if (!Array.isArray(arrayOfSessions)) {
 				throw new Error('Expected array');
 			}
 
-			const items = obj.map(item => InteractiveSessionModel.deserialize(item));
-			return groupBy(items, item => item.providerId);
+			return groupBy(arrayOfSessions, item => item.providerId);
 		} catch (err) {
 			this.error('deserializeInteractiveSessions', `Malformed session data: ${err}. [${sessionData.substring(0, 20)}${sessionData.length > 20 ? '...' : ''}]`);
 			return {};
@@ -93,7 +94,7 @@ export class InteractiveSessionService extends Disposable implements IInteractiv
 		}
 
 		this.trace('startSession', `Provider returned session with id ${session.id}`);
-		const model = new InteractiveSessionModel(session, providerId, someSessionHistory);
+		const model = this.instantiationService.createInstance(InteractiveSessionModel, session, providerId, someSessionHistory);
 		this._sessionModels.set(model.sessionId, model);
 		return model;
 	}
@@ -124,8 +125,7 @@ export class InteractiveSessionService extends Disposable implements IInteractiv
 		const _sendRequest = async (): Promise<void> => {
 			try {
 				this._pendingRequestSessions.add(sessionId);
-				const request = new InteractiveRequestModel(message);
-				model.addRequest(request);
+				const request = model.addRequest(message);
 				const progressCallback = (progress: IInteractiveProgress) => {
 					this.trace('sendRequest', `Provider returned progress for session ${sessionId}, ${progress.responsePart.length} chars`);
 					model.mergeResponseContent(request, progress.responsePart);
@@ -198,6 +198,10 @@ export class InteractiveSessionService extends Disposable implements IInteractiv
 
 	registerProvider(provider: IInteractiveProvider): IDisposable {
 		this.trace('registerProvider', `Adding new interactive session provider`);
+
+		if (this._providers.has(provider.id)) {
+			throw new Error(`Provider ${provider.id} already registered`);
+		}
 
 		this._providers.set(provider.id, provider);
 

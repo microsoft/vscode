@@ -36,7 +36,7 @@ import { FloatingClickMenu } from 'vs/workbench/browser/codeeditor';
 import { MenuPreventer } from 'vs/workbench/contrib/codeEditor/browser/menuPreventer';
 import { SelectionClipboardContributionID } from 'vs/workbench/contrib/codeEditor/browser/selectionClipboard';
 import { getSimpleEditorOptions } from 'vs/workbench/contrib/codeEditor/browser/simpleEditorOptions';
-import { InteractiveSessionInputOptions } from 'vs/workbench/contrib/interactiveSession/browser/interactiveSessionOptions';
+import { InteractiveSessionEditorOptions } from 'vs/workbench/contrib/interactiveSession/browser/interactiveSessionOptions';
 import { IInteractiveRequestViewModel, IInteractiveResponseViewModel, isRequestVM, isResponseVM } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionViewModel';
 
 const $ = dom.$;
@@ -78,7 +78,7 @@ export class InteractiveListItemRenderer extends Disposable implements ITreeRend
 	private _currentLayoutWidth: number = 0;
 
 	constructor(
-		private readonly options: InteractiveSessionInputOptions,
+		private readonly editorOptions: InteractiveSessionEditorOptions,
 		private readonly delegate: { getListLength(): number },
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IConfigurationService private readonly configService: IConfigurationService,
@@ -86,7 +86,7 @@ export class InteractiveListItemRenderer extends Disposable implements ITreeRend
 	) {
 		super();
 		this.renderer = this.instantiationService.createInstance(MarkdownRenderer, {});
-		this._editorPool = this._register(this.instantiationService.createInstance(EditorPool, this.options));
+		this._editorPool = this._register(this.instantiationService.createInstance(EditorPool, this.editorOptions));
 	}
 
 	get templateId(): string {
@@ -132,10 +132,17 @@ export class InteractiveListItemRenderer extends Disposable implements ITreeRend
 
 		templateData.rowContainer.classList.toggle('interactive-request', isRequestVM(element));
 		templateData.rowContainer.classList.toggle('interactive-response', isResponseVM(element));
-		templateData.username.textContent = isRequestVM(element) ? localize('username', "Username") : localize('response', "Response");
+		templateData.username.textContent = element.username;
 
-		const avatarIcon = dom.$(ThemeIcon.asCSSSelector(isRequestVM(element) ? Codicon.account : Codicon.hubot));
-		templateData.avatar.replaceChildren(avatarIcon);
+		if (element.avatarIconUri) {
+			const avatarIcon = dom.$<HTMLImageElement>('img.icon');
+			avatarIcon.src = element.avatarIconUri.toString();
+			templateData.avatar.replaceChildren(avatarIcon);
+		} else {
+			const defaultIcon = isRequestVM(element) ? Codicon.account : Codicon.hubot;
+			const avatarIcon = dom.$(ThemeIcon.asCSSSelector(defaultIcon));
+			templateData.avatar.replaceChildren(avatarIcon);
+		}
 
 		if (isResponseVM(element) && index === this.delegate.getListLength() - 1 && (!element.isComplete || element.renderData) && this.shouldRenderProgressively()) {
 			this.traceLayout('renderElement', `start progressive render ${kind}, index=${index}`);
@@ -151,7 +158,7 @@ export class InteractiveListItemRenderer extends Disposable implements ITreeRend
 		} else if (isResponseVM(element)) {
 			this.basicRenderElement(element.response.value, element, index, templateData);
 		} else {
-			this.basicRenderElement(element.model.message, element, index, templateData);
+			this.basicRenderElement(element.message, element, index, templateData);
 		}
 	}
 
@@ -312,7 +319,7 @@ export class InteractiveSessionAccessibilityProvider implements IListAccessibili
 
 	getAriaLabel(element: InteractiveTreeItem): string {
 		if (isRequestVM(element)) {
-			return localize('interactiveRequest', "Request: {0}", element.model.message);
+			return localize('interactiveRequest', "Request: {0}", element.message);
 		}
 
 		if (isResponseVM(element)) {
@@ -340,7 +347,7 @@ class EditorPool extends Disposable {
 	}
 
 	constructor(
-		private readonly options: InteractiveSessionInputOptions,
+		private readonly options: InteractiveSessionEditorOptions,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@ILanguageService private readonly languageService: ILanguageService,
 		@IModelService private readonly modelService: IModelService,

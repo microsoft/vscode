@@ -1088,6 +1088,10 @@ export interface MainThreadUrlsShape extends IDisposable {
 
 export interface IInteractiveSessionDto {
 	id: number;
+	requesterUsername?: string;
+	requesterAvatarIconPath?: string | UriComponents;
+	responderUsername?: string;
+	responderAvatarIconPath?: string | UriComponents;
 }
 
 export interface IInteractiveRequestDto {
