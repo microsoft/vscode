@@ -77,8 +77,9 @@ export class StickyLineCandidateProvider extends Disposable implements IStickyLi
 	private readonly _foldingStore: DisposableStore = new DisposableStore();
 	private readonly _updateDebounceInfo: IFeatureDebounceInformation;
 	private _foldingRegionPromise: CancelablePromise<FoldingRegions | null> | null = null;
-	private _updateScheduler: Delayer<boolean | undefined> | null = null;
+	private _updateScheduler: Delayer<void | undefined> | null = null;
 	private _foldingLimitReporter: RangesLimitReporter;
+	private _sw: StopWatch | null = null;
 
 	constructor(
 		editor: ICodeEditor,
@@ -172,7 +173,7 @@ export class StickyLineCandidateProvider extends Disposable implements IStickyLi
 		}, 75) : undefined;
 
 		// New update scheduler for the update request
-		this._updateScheduler = new Delayer<boolean | undefined>(this._updateDebounceInfo.get(textModel));
+		this._updateScheduler = new Delayer<void | undefined>(this._updateDebounceInfo.get(textModel));
 
 		// When the folding store is cleared, the folding region request and the update scheduler are cancelled
 		// The current folding model and folding regions promises are set to null
@@ -189,20 +190,29 @@ export class StickyLineCandidateProvider extends Disposable implements IStickyLi
 		});
 
 		// Cycle through the array until one of the model providers provides a valid folding model
-		for (const modelProvider of this._modelProviders) {
-			const status = await modelProvider(textModel, modelVersionId, token);
-			// If status is undefined, then the cancellation token has been called, then cancel the update operation
-			if (status === undefined) {
-				return;
+		if (this._updateScheduler) {
+			if (this._foldingRegionPromise) {
+				this._foldingRegionPromise.cancel();
+				this._foldingRegionPromise = null;
 			}
-			// Suppose that the status is true, then the sticky model has been found, break the for loop
-			else if (status === true) {
-				break;
-			}
-			// If the status is false, then continue to the next model provider
-		}
+			this._updateScheduler.trigger(async () => {
+				this._sw = new StopWatch(true);
+				for (const modelProvider of this._modelProviders) {
+					const status = await modelProvider(textModel, modelVersionId, token);
+					// If status is undefined, then the cancellation token has been called, then cancel the update operation
+					if (status === undefined) {
+						return;
+					}
+					// Suppose that the status is true, then the sticky model has been found, break the for loop
+					else if (status === true) {
+						break;
+					}
+					// If the status is false, then continue to the next model provider
+				}
 
-		clearTimeout(resetHandle);
+				clearTimeout(resetHandle);
+			});
+		}
 	}
 
 	private async stickyModelFromOutlineProvider(textModel: ITextModel, modelVersionId: number, token: CancellationToken): Promise<boolean | undefined> {
@@ -211,6 +221,10 @@ export class StickyLineCandidateProvider extends Disposable implements IStickyLi
 			return;
 		}
 		if (outlineModel.children.size !== 0) {
+			const newValue = this._updateDebounceInfo.update(textModel, this._sw!.elapsed());
+			if (this._updateScheduler) {
+				this._updateScheduler.defaultDelay = newValue;
+			}
 			const { stickyOutlineElement, providerID } = StickyElement.fromOutlineModel(outlineModel, this._model?.outlineProviderId);
 			this._model = new StickyModel(textModel.uri, modelVersionId, stickyOutlineElement, providerID);
 			return true;
@@ -238,36 +252,26 @@ export class StickyLineCandidateProvider extends Disposable implements IStickyLi
 
 	private async stickyModelFromFoldingProvider(textModel: ITextModel, modelVersionId: number, token: CancellationToken, provider: RangeProvider): Promise<boolean | undefined> {
 
-		if (this._updateScheduler) {
-			if (this._foldingRegionPromise) {
-				this._foldingRegionPromise.cancel();
-				this._foldingRegionPromise = null;
+
+		// It is possible to cancel the promise which calculates the folding
+		const foldingRegionPromise = this._foldingRegionPromise = createCancelablePromise(token => provider.compute(token));
+		return foldingRegionPromise.then(foldingRegions => {
+			if (foldingRegions === null || foldingRegions.length === 0) {
+				this._model = undefined;
+				return false;
+			} else if (foldingRegions && foldingRegionPromise === this._foldingRegionPromise) {
+				const newValue = this._updateDebounceInfo.update(textModel, this._sw!.elapsed());
+				if (this._updateScheduler) {
+					this._updateScheduler.defaultDelay = newValue;
+				}
 			}
-			return this._updateScheduler.trigger(() => {
-				// It is possible to cancel the promise which calculates the folding
-				const foldingRegionPromise = this._foldingRegionPromise = createCancelablePromise(token => provider.compute(token));
-				const sw = new StopWatch(true);
-				return foldingRegionPromise.then(foldingRegions => {
-					if (foldingRegions === null || foldingRegions.length === 0) {
-						this._model = undefined;
-						return false;
-					} else if (foldingRegions && foldingRegionPromise === this._foldingRegionPromise) {
-						const newValue = this._updateDebounceInfo.update(textModel, sw.elapsed());
-						if (this._updateScheduler) {
-							this._updateScheduler.defaultDelay = newValue;
-						}
-					}
-					return this.stickyModelFromFoldingRegions(textModel, modelVersionId, token, foldingRegions);
-				});
-			}).then((status) => {
-				return status;
-			}, (err) => {
-				onUnexpectedError(err);
-				return undefined;
-			});
-		} else {
+			return this.stickyModelFromFoldingRegions(textModel, modelVersionId, token, foldingRegions);
+		}).then((status) => {
+			return status;
+		}, (err) => {
+			onUnexpectedError(err);
 			return undefined;
-		}
+		});
 	}
 
 	private async stickyModelFromFoldingRegions(textModel: ITextModel, modelVersionId: number, token: CancellationToken, foldingRegions: FoldingRegions): Promise<boolean | undefined> {
