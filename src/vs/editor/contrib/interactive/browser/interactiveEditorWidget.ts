@@ -50,6 +50,7 @@ import { LRUCache } from 'vs/base/common/map';
 interface IHistoryEntry {
 	updateVisibility(visible: boolean): void;
 	updateActions(actions: IAction[]): void;
+	remove(): void;
 }
 
 class InteractiveEditorWidget {
@@ -352,6 +353,12 @@ class InteractiveEditorWidget {
 			},
 			updateActions(actions: IAction[]) {
 				toolbar.setActions(actions);
+			},
+			remove: () => {
+				root.remove();
+				if (this._isExpanded) {
+					this._onDidChangeHeight.fire();
+				}
 			}
 		};
 	}
@@ -719,12 +726,14 @@ export class InteractiveEditorController implements IEditorContribution {
 			if (this._ctsRequest.token.isCancellationRequested) {
 				this._logService.trace('[IE] request CANCELED', provider.debugName);
 				value = input.value;
+				historyEntry.remove();
 				continue;
 			}
 
 			if (!reply || isFalsyOrEmpty(reply.edits)) {
 				this._logService.trace('[IE] NO reply or edits', provider.debugName);
 				value = input.value;
+				historyEntry.remove();
 				continue;
 			}
 
