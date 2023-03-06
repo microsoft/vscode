@@ -82,6 +82,7 @@ import { IPreferencesService } from 'vs/workbench/services/preferences/common/pr
 import { TerminalExitReason } from 'vs/platform/terminal/common/terminal';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { timeout } from 'vs/base/common/async';
 
 const QUICKOPEN_HISTORY_LIMIT_CONFIG = 'task.quickOpen.history';
 const PROBLEM_MATCHER_NEVER_CONFIG = 'task.problemMatchers.neverPrompt';
@@ -576,7 +577,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		await this._extensionService.whenInstalledExtensionsRegistered();
 
 		await Promise.all(
-			this._getActivationEvents(type).map(activationEvent => this._extensionService.activateByEvent(activationEvent))
+			this._getActivationEvents(type).map(activationEvent => Promise.race([this._extensionService.activateByEvent(activationEvent), timeout(2000)]))
 		);
 	}
 
