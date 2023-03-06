@@ -570,9 +570,9 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal, II
 		this._disposeOfWebglRenderer();
 		try {
 			this.raw.loadAddon(this._canvasAddon);
-			this._logService.trace('Canvas was loaded');
+			this._logService.trace('Canvas renderer was loaded');
 		} catch (e) {
-			this._logService.warn(`Canvas could not be loaded. Falling back to the dom renderer type.`, e);
+			this._logService.warn(`Canvas renderer could not be loaded, falling back to dom renderer`, e);
 			const neverMeasureRenderTime = this._storageService.getBoolean(TerminalStorageKeys.NeverMeasureRenderTime, StorageScope.APPLICATION, false);
 			// if it's already set to dom, no need to measure render time
 			if (!neverMeasureRenderTime && this._configHelper.config.gpuAcceleration !== 'off') {

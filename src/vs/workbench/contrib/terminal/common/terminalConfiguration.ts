@@ -533,7 +533,7 @@ const terminalConfiguration: IConfigurationNode = {
 			default: 'onExit'
 		},
 		[TerminalSettingId.CustomGlyphs]: {
-			description: localize('terminal.integrated.customGlyphs', "Whether to draw custom glyphs for block element and box drawing characters instead of using the font, which typically yields better rendering with continuous lines. Note that this doesn't work with the DOM renderer."),
+			description: localize('terminal.integrated.customGlyphs', "Whether to draw custom glyphs for block element and box drawing characters instead of using the font, which typically yields better rendering with continuous lines. Note that this doesn't work when {0} is disabled.", '`#terminal.integrated.gpuAcceleration#`'),
 			type: 'boolean',
 			default: true
 		},
