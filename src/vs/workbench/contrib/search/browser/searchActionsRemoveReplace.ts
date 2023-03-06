@@ -12,8 +12,8 @@ import { IViewsService } from 'vs/workbench/common/views';
 import { searchRemoveIcon, searchReplaceIcon } from 'vs/workbench/contrib/search/browser/searchIcons';
 import { SearchView } from 'vs/workbench/contrib/search/browser/searchView';
 import * as Constants from 'vs/workbench/contrib/search/common/constants';
-import { IReplaceService } from 'vs/workbench/contrib/search/common/replace';
-import { arrayContainsElementOrParent, FileMatch, FolderMatch, Match, RenderableMatch, SearchResult } from 'vs/workbench/contrib/search/common/searchModel';
+import { IReplaceService } from 'vs/workbench/contrib/search/browser/replace';
+import { arrayContainsElementOrParent, FileMatch, FolderMatch, Match, NotebookMatch, RenderableMatch, SearchResult } from 'vs/workbench/contrib/search/browser/searchModel';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { ISearchConfiguration, ISearchConfigurationProperties } from 'vs/workbench/services/search/common/search';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
@@ -22,6 +22,7 @@ import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/act
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { category, getElementsToOperateOn, getSearchView, shouldRefocus } from 'vs/workbench/contrib/search/browser/searchActionsBase';
+import { equals } from 'vs/base/common/arrays';
 
 
 //#region Interfaces
@@ -134,6 +135,8 @@ registerAction2(class RemoveAction extends Action2 {
 				viewer.setFocus([nextFocusElement], getSelectionKeyboardEvent());
 				viewer.setSelection([nextFocusElement], getSelectionKeyboardEvent());
 			}
+		} else if (!equals(viewer.getFocus(), viewer.getSelection())) {
+			viewer.setSelection(viewer.getFocus());
 		}
 
 		viewer.domFocus();
@@ -309,7 +312,7 @@ function performReplace(accessor: ServicesAccessor,
 
 			if (nextFocusElement instanceof Match) {
 				const useReplacePreview = configurationService.getValue<ISearchConfiguration>().search.useReplacePreview;
-				if (!useReplacePreview || hasToOpenFile(accessor, nextFocusElement)) {
+				if (!useReplacePreview || hasToOpenFile(accessor, nextFocusElement) || nextFocusElement instanceof NotebookMatch) {
 					viewlet?.open(nextFocusElement, true);
 				} else {
 					accessor.get(IReplaceService).openReplacePreview(nextFocusElement, true);

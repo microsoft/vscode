@@ -62,6 +62,7 @@ export interface IMicrosoftTokens {
 }
 
 interface IScopeData {
+	originalScopes?: string[];
 	scopes: string[];
 	scopeStr: string;
 	scopesToSend: string;
@@ -210,27 +211,28 @@ export class AzureActiveDirectoryService {
 			}
 		}
 
+		const clientId = this.getClientId(scopes);
+		const scopeData: IScopeData = {
+			clientId,
+			originalScopes: scopes,
+			scopes: modifiedScopes,
+			scopeStr: modifiedScopesStr,
+			// filter our special scopes
+			scopesToSend: modifiedScopes.filter(s => !s.startsWith('VSCODE_')).join(' '),
+			tenant: this.getTenantId(scopes),
+		};
+
 		// If we still don't have a matching token try to get a new token from an existing token by using
 		// the refreshToken. This is documented here:
 		// https://docs.microsoft.com/en-us/azure/active-directory/develop/v2-oauth2-auth-code-flow#refresh-the-access-token
 		// "Refresh tokens are valid for all permissions that your client has already received consent for."
 		if (!matchingTokens.length) {
-			const clientId = this.getClientId(modifiedScopes);
 			// Get a token with the correct client id.
 			const token = clientId === DEFAULT_CLIENT_ID
 				? this._tokens.find(t => t.refreshToken && !t.scope.includes('VSCODE_CLIENT_ID'))
 				: this._tokens.find(t => t.refreshToken && t.scope.includes(`VSCODE_CLIENT_ID:${clientId}`));
 
 			if (token) {
-				const scopeData: IScopeData = {
-					clientId,
-					scopes: modifiedScopes,
-					scopeStr: modifiedScopesStr,
-					// filter our special scopes
-					scopesToSend: modifiedScopes.filter(s => !s.startsWith('VSCODE_')).join(' '),
-					tenant: this.getTenantId(modifiedScopes),
-				};
-
 				try {
 					const itoken = await this.refreshToken(token.refreshToken, scopeData);
 					matchingTokens.push(itoken);
@@ -241,36 +243,35 @@ export class AzureActiveDirectoryService {
 		}
 
 		Logger.info(`Got ${matchingTokens.length} sessions for scopes: ${modifiedScopesStr}`);
-		return Promise.all(matchingTokens.map(token => this.convertToSession(token)));
+		return Promise.all(matchingTokens.map(token => this.convertToSession(token, scopeData)));
 	}
 
 	public createSession(scopes: string[]): Promise<vscode.AuthenticationSession> {
-		if (!scopes.includes('openid')) {
-			scopes.push('openid');
+		let modifiedScopes = [...scopes];
+		if (!modifiedScopes.includes('openid')) {
+			modifiedScopes.push('openid');
 		}
-		if (!scopes.includes('email')) {
-			scopes.push('email');
+		if (!modifiedScopes.includes('email')) {
+			modifiedScopes.push('email');
 		}
-		if (!scopes.includes('profile')) {
-			scopes.push('profile');
+		if (!modifiedScopes.includes('profile')) {
+			modifiedScopes.push('profile');
 		}
-		if (!scopes.includes('offline_access')) {
-			scopes.push('offline_access');
+		if (!modifiedScopes.includes('offline_access')) {
+			modifiedScopes.push('offline_access');
 		}
-		scopes = scopes.sort();
+		modifiedScopes = modifiedScopes.sort();
 		const scopeData: IScopeData = {
-			scopes,
-			scopeStr: scopes.join(' '),
+			originalScopes: scopes,
+			scopes: modifiedScopes,
+			scopeStr: modifiedScopes.join(' '),
 			// filter our special scopes
-			scopesToSend: scopes.filter(s => !s.startsWith('VSCODE_')).join(' '),
+			scopesToSend: modifiedScopes.filter(s => !s.startsWith('VSCODE_')).join(' '),
 			clientId: this.getClientId(scopes),
 			tenant: this.getTenantId(scopes),
 		};
 
 		Logger.info(`Logging in for the following scopes: ${scopeData.scopeStr}`);
-		if (!scopeData.scopes.includes('offline_access')) {
-			Logger.info('Warning: The \'offline_access\' scope was not included, so the generated token will not be able to be refreshed.');
-		}
 
 		const runsRemote = vscode.env.remoteName !== undefined;
 		const runsServerless = vscode.env.remoteName === undefined && vscode.env.uiKind === vscode.UIKind.Web;
@@ -511,7 +512,7 @@ export class AzureActiveDirectoryService {
 		};
 	}
 
-	private async convertToSession(token: IToken): Promise<vscode.AuthenticationSession> {
+	private async convertToSession(token: IToken, scopeData: IScopeData): Promise<vscode.AuthenticationSession> {
 		if (token.accessToken && (!token.expiresAt || token.expiresAt > Date.now())) {
 			token.expiresAt
 				? Logger.info(`Token available from cache (for scopes ${token.scope}), expires in ${token.expiresAt - Date.now()} milliseconds`)
@@ -521,21 +522,12 @@ export class AzureActiveDirectoryService {
 				accessToken: token.accessToken,
 				idToken: token.idToken,
 				account: token.account,
-				scopes: token.scope.split(' ')
+				scopes: scopeData.originalScopes ?? scopeData.scopes
 			};
 		}
 
 		try {
 			Logger.info(`Token expired or unavailable (for scopes ${token.scope}), trying refresh`);
-			const scopes = token.scope.split(' ');
-			const scopeData: IScopeData = {
-				scopes,
-				scopeStr: token.scope,
-				// filter our special scopes
-				scopesToSend: scopes.filter(s => !s.startsWith('VSCODE_')).join(' '),
-				clientId: this.getClientId(scopes),
-				tenant: this.getTenantId(scopes),
-			};
 			const refreshedToken = await this.refreshToken(token.refreshToken, scopeData, token.sessionId);
 			if (refreshedToken.accessToken) {
 				return {
@@ -543,7 +535,8 @@ export class AzureActiveDirectoryService {
 					accessToken: refreshedToken.accessToken,
 					idToken: refreshedToken.idToken,
 					account: token.account,
-					scopes: token.scope.split(' ')
+					// We always prefer the original scopes requested since that array is used as a key in the AuthService
+					scopes: scopeData.originalScopes ?? scopeData.scopes
 				};
 			} else {
 				throw new Error();
@@ -729,7 +722,7 @@ export class AzureActiveDirectoryService {
 		}
 		this.setToken(token, scopeData);
 		Logger.info(`Login successful for scopes: ${scopeData.scopeStr}`);
-		return await this.convertToSession(token);
+		return await this.convertToSession(token, scopeData);
 	}
 
 	private async fetchTokenResponse(endpoint: string, postData: string, scopeData: IScopeData): Promise<ITokenResponse> {

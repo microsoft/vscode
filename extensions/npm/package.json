@@ -40,10 +40,8 @@
   "browser": "./dist/browser/npmBrowserMain",
   "activationEvents": [
     "onTaskType:npm",
-    "onCommand:npm.runScriptFromFolder",
     "onLanguage:json",
-    "workspaceContains:package.json",
-    "onView:npm"
+    "workspaceContains:package.json"
   ],
   "capabilities": {
     "virtualWorkspaces": {
@@ -341,8 +339,7 @@
         "when": "shellExecutionSupported"
       }
     ],
-    "terminal": {
-      "quickFixes": [
+    "terminalQuickFixes": [
         {
           "id": "ms-vscode.npm-command",
           "commandLineMatcher": "npm",
@@ -355,7 +352,6 @@
           }
         }
       ]
-    }
   },
   "repository": {
     "type": "git",

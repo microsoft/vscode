@@ -24,7 +24,7 @@ import { localize } from 'vs/nls';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { Metadata } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { areSameExtensions, computeTargetPlatform, ExtensionKey, getExtensionId, getGalleryExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
-import { ExtensionType, ExtensionIdentifier, IExtensionManifest, TargetPlatform, IExtensionIdentifier, IRelaxedExtensionManifest, UNDEFINED_PUBLISHER, IExtensionDescription, BUILTIN_MANIFEST_CACHE_FILE, USER_MANIFEST_CACHE_FILE, MANIFEST_CACHE_FOLDER } from 'vs/platform/extensions/common/extensions';
+import { ExtensionType, ExtensionIdentifier, IExtensionManifest, TargetPlatform, IExtensionIdentifier, IRelaxedExtensionManifest, UNDEFINED_PUBLISHER, IExtensionDescription, BUILTIN_MANIFEST_CACHE_FILE, USER_MANIFEST_CACHE_FILE, ExtensionIdentifierMap } from 'vs/platform/extensions/common/extensions';
 import { validateExtensionManifest } from 'vs/platform/extensions/common/extensionValidator';
 import { FileOperationResult, IFileService, toFileOperationResult } from 'vs/platform/files/common/files';
 import { createDecorator, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -33,10 +33,9 @@ import { IProductService } from 'vs/platform/product/common/productService';
 import { Emitter, Event } from 'vs/base/common/event';
 import { revive } from 'vs/base/common/marshalling';
 import { ExtensionsProfileScanningError, ExtensionsProfileScanningErrorCode, IExtensionsProfileScannerService, IProfileExtensionsScanOptions, IScannedProfileExtension } from 'vs/platform/extensionManagement/common/extensionsProfileScannerService';
-import { IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
+import { IUserDataProfile, IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { localizeManifest } from 'vs/platform/extensionManagement/common/extensionNls';
-import { ImplicitActivationEvents } from 'vs/platform/extensionManagement/common/implicitActivationEvents';
 
 export type IScannedExtensionManifest = IRelaxedExtensionManifest & { __metadata?: Metadata };
 
@@ -143,15 +142,15 @@ export abstract class AbstractExtensionsScannerService extends Disposable implem
 	readonly onDidChangeCache = this._onDidChangeCache.event;
 
 	private readonly obsoleteFile = joinPath(this.userExtensionsLocation, '.obsolete');
-	private readonly systemExtensionsCachedScanner = this._register(this.instantiationService.createInstance(CachedExtensionsScanner, joinPath(this.cacheLocation, BUILTIN_MANIFEST_CACHE_FILE), this.obsoleteFile));
-	private readonly userExtensionsCachedScanner = this._register(this.instantiationService.createInstance(CachedExtensionsScanner, joinPath(this.cacheLocation, USER_MANIFEST_CACHE_FILE), this.obsoleteFile));
+	private readonly systemExtensionsCachedScanner = this._register(this.instantiationService.createInstance(CachedExtensionsScanner, this.currentProfile, this.obsoleteFile));
+	private readonly userExtensionsCachedScanner = this._register(this.instantiationService.createInstance(CachedExtensionsScanner, this.currentProfile, this.obsoleteFile));
 	private readonly extensionsScanner = this._register(this.instantiationService.createInstance(ExtensionsScanner, this.obsoleteFile));
 
 	constructor(
 		readonly systemExtensionsLocation: URI,
 		readonly userExtensionsLocation: URI,
 		private readonly extensionsControlLocation: URI,
-		private readonly cacheLocation: URI,
+		private readonly currentProfile: IUserDataProfile,
 		@IUserDataProfilesService private readonly userDataProfilesService: IUserDataProfilesService,
 		@IExtensionsProfileScannerService protected readonly extensionsProfileScannerService: IExtensionsProfileScannerService,
 		@IFileService protected readonly fileService: IFileService,
@@ -266,7 +265,6 @@ export abstract class AbstractExtensionsScannerService extends Disposable implem
 		// unset if false
 		metaData.isMachineScoped = metaData.isMachineScoped || undefined;
 		metaData.isBuiltin = metaData.isBuiltin || undefined;
-		metaData.installedTimestamp = metaData.installedTimestamp || undefined;
 		manifest.__metadata = { ...manifest.__metadata, ...metaData };
 
 		await this.fileService.writeFile(joinPath(extensionLocation, 'package.json'), VSBuffer.fromString(JSON.stringify(manifest, null, '\t')));
@@ -361,32 +359,29 @@ export abstract class AbstractExtensionsScannerService extends Disposable implem
 			}
 			return true;
 		};
-		const result = new Map<string, IScannedExtension>();
+		const result = new ExtensionIdentifierMap<IScannedExtension>();
 		system?.forEach((extension) => {
-			const extensionKey = ExtensionIdentifier.toKey(extension.identifier.id);
-			const existing = result.get(extensionKey);
+			const existing = result.get(extension.identifier.id);
 			if (!existing || pick(existing, extension, false)) {
-				result.set(extensionKey, extension);
+				result.set(extension.identifier.id, extension);
 			}
 		});
 		user?.forEach((extension) => {
-			const extensionKey = ExtensionIdentifier.toKey(extension.identifier.id);
-			const existing = result.get(extensionKey);
+			const existing = result.get(extension.identifier.id);
 			if (!existing && system && extension.type === ExtensionType.System) {
 				this.logService.debug(`Skipping obsolete system extension ${extension.location.path}.`);
 				return;
 			}
 			if (!existing || pick(existing, extension, false)) {
-				result.set(extensionKey, extension);
+				result.set(extension.identifier.id, extension);
 			}
 		});
 		development?.forEach(extension => {
-			const extensionKey = ExtensionIdentifier.toKey(extension.identifier.id);
-			const existing = result.get(extensionKey);
+			const existing = result.get(extension.identifier.id);
 			if (!existing || pick(existing, extension, true)) {
-				result.set(extensionKey, extension);
+				result.set(extension.identifier.id, extension);
 			}
-			result.set(extensionKey, extension);
+			result.set(extension.identifier.id, extension);
 		});
 		return [...result.values()];
 	}
@@ -634,7 +629,6 @@ class ExtensionsScanner extends Disposable {
 				const identifier = metadata?.id ? { id, uuid: metadata.id } : { id };
 				const type = metadata?.isSystem ? ExtensionType.System : input.type;
 				const isBuiltin = type === ExtensionType.System || !!metadata?.isBuiltin;
-				ImplicitActivationEvents.updateManifest(manifest);
 				manifest = await this.translateManifest(input.location, manifest, ExtensionScannerInput.createNlsConfiguration(input));
 				const extension = {
 					type,
@@ -854,8 +848,9 @@ class CachedExtensionsScanner extends ExtensionsScanner {
 	readonly onDidChangeCache = this._onDidChangeCache.event;
 
 	constructor(
-		private readonly cacheFile: URI,
+		private readonly currentProfile: IUserDataProfile,
 		obsoleteFile: URI,
+		@IUserDataProfilesService private readonly userDataProfilesService: IUserDataProfilesService,
 		@IExtensionsProfileScannerService extensionsProfileScannerService: IExtensionsProfileScannerService,
 		@IUriIdentityService uriIdentityService: IUriIdentityService,
 		@IFileService fileService: IFileService,
@@ -865,7 +860,8 @@ class CachedExtensionsScanner extends ExtensionsScanner {
 	}
 
 	override async scanExtensions(input: ExtensionScannerInput): Promise<IRelaxedScannedExtension[]> {
-		const cacheContents = await this.readExtensionCache();
+		const cacheFile = this.getCacheFile(input);
+		const cacheContents = await this.readExtensionCache(cacheFile);
 		this.input = input;
 		if (cacheContents && cacheContents.input && ExtensionScannerInput.equals(cacheContents.input, this.input)) {
 			this.logService.debug('Using cached extensions scan result', input.location.toString());
@@ -877,26 +873,26 @@ class CachedExtensionsScanner extends ExtensionsScanner {
 			});
 		}
 		const result = await super.scanExtensions(input);
-		await this.writeExtensionCache({ input, result });
+		await this.writeExtensionCache(cacheFile, { input, result });
 		return result;
 	}
 
-	private async readExtensionCache(): Promise<IExtensionCacheData | null> {
+	private async readExtensionCache(cacheFile: URI): Promise<IExtensionCacheData | null> {
 		try {
-			const cacheRawContents = await this.fileService.readFile(this.cacheFile);
+			const cacheRawContents = await this.fileService.readFile(cacheFile);
 			const extensionCacheData: IExtensionCacheData = JSON.parse(cacheRawContents.value.toString());
 			return { result: extensionCacheData.result, input: revive(extensionCacheData.input) };
 		} catch (error) {
-			this.logService.debug('Error while reading the extension cache file:', this.cacheFile.path, getErrorMessage(error));
+			this.logService.debug('Error while reading the extension cache file:', cacheFile.path, getErrorMessage(error));
 		}
 		return null;
 	}
 
-	private async writeExtensionCache(cacheContents: IExtensionCacheData): Promise<void> {
+	private async writeExtensionCache(cacheFile: URI, cacheContents: IExtensionCacheData): Promise<void> {
 		try {
-			await this.fileService.writeFile(this.cacheFile, VSBuffer.fromString(JSON.stringify(cacheContents)));
+			await this.fileService.writeFile(cacheFile, VSBuffer.fromString(JSON.stringify(cacheContents)));
 		} catch (error) {
-			this.logService.debug('Error while writing the extension cache file:', this.cacheFile.path, getErrorMessage(error));
+			this.logService.debug('Error while writing the extension cache file:', cacheFile.path, getErrorMessage(error));
 		}
 	}
 
@@ -906,7 +902,8 @@ class CachedExtensionsScanner extends ExtensionsScanner {
 			return;
 		}
 
-		const cacheContents = await this.readExtensionCache();
+		const cacheFile = this.getCacheFile(this.input);
+		const cacheContents = await this.readExtensionCache(cacheFile);
 		if (!cacheContents) {
 			// Cache has been deleted by someone else, which is perfectly fine...
 			return;
@@ -920,12 +917,31 @@ class CachedExtensionsScanner extends ExtensionsScanner {
 		}
 
 		try {
+			this.logService.info('Invalidating Cache', actual, expected);
 			// Cache is invalid, delete it
-			await this.fileService.del(this.cacheFile);
+			await this.fileService.del(cacheFile);
 			this._onDidChangeCache.fire();
 		} catch (error) {
 			this.logService.error(error);
 		}
+	}
+
+	private getCacheFile(input: ExtensionScannerInput): URI {
+		const profieLocaiton = this.getProfileLocationForCache(input);
+		return this.uriIdentityService.extUri.joinPath(profieLocaiton, input.type === ExtensionType.System ? BUILTIN_MANIFEST_CACHE_FILE : USER_MANIFEST_CACHE_FILE);
+	}
+
+	private getProfileLocationForCache(input: ExtensionScannerInput): URI {
+		if (input.type === ExtensionType.System) {
+			return this.userDataProfilesService.defaultProfile.location;
+		}
+		if (!input.profile) {
+			return this.userDataProfilesService.defaultProfile.location;
+		}
+		if (this.uriIdentityService.extUri.isEqual(input.location, this.currentProfile.extensionsResource)) {
+			return this.currentProfile.location;
+		}
+		return this.userDataProfilesService.profiles.find(p => this.uriIdentityService.extUri.isEqual(input.location, p.extensionsResource))?.location ?? this.currentProfile.location;
 	}
 
 }
@@ -953,7 +969,7 @@ export class NativeExtensionsScannerService extends AbstractExtensionsScannerSer
 		systemExtensionsLocation: URI,
 		userExtensionsLocation: URI,
 		userHome: URI,
-		userDataPath: URI,
+		currentProfile: IUserDataProfile,
 		userDataProfilesService: IUserDataProfilesService,
 		extensionsProfileScannerService: IExtensionsProfileScannerService,
 		fileService: IFileService,
@@ -967,7 +983,7 @@ export class NativeExtensionsScannerService extends AbstractExtensionsScannerSer
 			systemExtensionsLocation,
 			userExtensionsLocation,
 			joinPath(userHome, '.vscode-oss-dev', 'extensions', 'control.json'),
-			joinPath(userDataPath, MANIFEST_CACHE_FOLDER),
+			currentProfile,
 			userDataProfilesService, extensionsProfileScannerService, fileService, logService, environmentService, productService, uriIdentityService, instantiationService);
 		this.translationsPromise = (async () => {
 			if (platform.translationsConfigFile) {

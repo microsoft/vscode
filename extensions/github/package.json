@@ -27,6 +27,7 @@
   },
   "enabledApiProposals": [
     "contribShareMenu",
+    "contribEditorLineNumberMenu",
     "contribEditSessions"
   ],
   "contributes": {
@@ -44,6 +45,10 @@
         "title": "Copy vscode.dev Link"
       },
       {
+        "command": "github.copyVscodeDevLinkWithoutRange",
+        "title": "Copy vscode.dev Link"
+      },
+      {
         "command": "github.openOnVscodeDev",
         "title": "Open in vscode.dev",
         "icon": "$(globe)"
@@ -54,7 +59,8 @@
         "command": "github.openOnVscodeDev",
         "when": "github.hasGitHubRepo",
         "qualifiedName": "Continue Working in vscode.dev",
-        "remoteGroup": "virtualfs_43_file_0_web@0"
+        "category": "Remote Repositories",
+        "remoteGroup": "virtualfs_44_vscode-vfs_2_web@2"
       }
     ],
     "menus": {
@@ -72,6 +78,10 @@
           "when": "false"
         },
         {
+          "command": "github.copyVscodeDevLinkWithoutRange",
+          "when": "false"
+        },
+        {
           "command": "github.openOnVscodeDev",
           "when": "false"
         }
@@ -79,17 +89,44 @@
       "file/share": [
         {
           "command": "github.copyVscodeDevLinkFile",
-          "when": "github.hasGitHubRepo",
+          "when": "github.hasGitHubRepo && remoteName != 'codespaces'",
           "group": "0_vscode@0"
         }
       ],
       "editor/context/share": [
         {
           "command": "github.copyVscodeDevLink",
-          "when": "github.hasGitHubRepo && resourceScheme != untitled",
+          "when": "github.hasGitHubRepo && resourceScheme != untitled && remoteName != 'codespaces'",
+          "group": "0_vscode@0"
+        }
+      ],
+      "explorer/context/share": [
+        {
+          "command": "github.copyVscodeDevLinkWithoutRange",
+          "when": "github.hasGitHubRepo && resourceScheme != untitled && remoteName != 'codespaces'",
+          "group": "0_vscode@0"
+        }
+      ],
+      "editor/lineNumber/context": [
+        {
+          "command": "github.copyVscodeDevLink",
+          "when": "github.hasGitHubRepo && resourceScheme != untitled && activeEditor == workbench.editors.files.textFileEditor && config.editor.lineNumbers == on && remoteName != 'codespaces'",
+          "group": "1_cutcopypaste@2"
+        },
+        {
+          "command": "github.copyVscodeDevLink",
+          "when": "github.hasGitHubRepo && resourceScheme != untitled && activeEditor == workbench.editor.notebook && notebookCellLineNumbers == on && remoteName != 'codespaces'",
+          "group": "1_cutcopypaste@2"
+        }
+      ],
+      "editor/title/context/share": [
+        {
+          "command": "github.copyVscodeDevLinkWithoutRange",
+          "when": "github.hasGitHubRepo && resourceScheme != untitled && remoteName != 'codespaces'",
           "group": "0_vscode@0"
         }
       ]
+
     },
     "configuration": [
       {

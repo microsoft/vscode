@@ -742,6 +742,11 @@ export class ClearTestResultsAction extends Action2 {
 				order: ActionOrder.ClearResults,
 				group: 'displayAction',
 				when: ContextKeyExpr.equals('view', Testing.ExplorerViewId)
+			}, {
+				id: MenuId.ViewTitle,
+				order: ActionOrder.ClearResults,
+				group: 'navigation',
+				when: ContextKeyExpr.equals('view', Testing.ResultsViewId)
 			}],
 		});
 	}

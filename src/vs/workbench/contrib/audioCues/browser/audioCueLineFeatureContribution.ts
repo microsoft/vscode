@@ -18,6 +18,8 @@ import { CursorChangeReason } from 'vs/editor/common/cursorEvents';
 import { autorun, autorunDelta, constObservable, debouncedObservable, derived, IObservable, observableFromEvent, observableFromPromise, wasEventTriggeredRecently } from 'vs/base/common/observable';
 import { AudioCue, IAudioCueService } from 'vs/platform/audioCues/browser/audioCueService';
 import { CachedFunction } from 'vs/base/common/cache';
+import { Position } from 'vs/editor/common/core/position';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 export class AudioCueLineFeatureContribution
 	extends Disposable
@@ -40,7 +42,8 @@ export class AudioCueLineFeatureContribution
 	constructor(
 		@IEditorService private readonly editorService: IEditorService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IAudioCueService private readonly audioCueService: IAudioCueService
+		@IAudioCueService private readonly audioCueService: IAudioCueService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService
 	) {
 		super();
 
@@ -89,7 +92,7 @@ export class AudioCueLineFeatureContribution
 		editorModel: ITextModel,
 		store: DisposableStore
 	): void {
-		const curLineNumber = observableFromEvent(
+		const curPosition = observableFromEvent(
 			editor.onDidChangeCursorPosition,
 			(args) => {
 				/** @description editor.onDidChangeCursorPosition (caused by user) */
@@ -101,11 +104,10 @@ export class AudioCueLineFeatureContribution
 					// Ignore cursor changes caused by navigation (e.g. which happens when execution is paused).
 					return undefined;
 				}
-				return editor.getPosition()?.lineNumber;
+				return editor.getPosition();
 			}
 		);
-		const debouncedLineNumber = debouncedObservable(curLineNumber, 300, store);
-
+		const debouncedPosition = debouncedObservable(curPosition, this._configurationService.getValue('audioCues.debouncePositionChanges') ? 300 : 0, store);
 		const isTyping = wasEventTriggeredRecently(
 			editorModel.onDidChangeContent.bind(editorModel),
 			1000,
@@ -120,17 +122,18 @@ export class AudioCueLineFeatureContribution
 					if (!this.isEnabledCache.get(feature.audioCue).read(reader)) {
 						return false;
 					}
-					const lineNumber = debouncedLineNumber.read(reader);
-					return lineNumber === undefined
-						? false
-						: lineFeatureState.read(reader).isPresent(lineNumber);
+					const position = debouncedPosition.read(reader);
+					if (!position) {
+						return false;
+					}
+					return lineFeatureState.read(reader).isPresent(position);
 				}
 			);
 			return derived(
 				`typingDebouncedFeatureState:\n${feature.audioCue.name}`,
 				(reader) =>
 					feature.debounceWhileTyping && isTyping.read(reader)
-						? (debouncedLineNumber.read(reader), isFeaturePresent.get())
+						? (debouncedPosition.read(reader), isFeaturePresent.get())
 						: isFeaturePresent.read(reader)
 			);
 		});
@@ -138,7 +141,7 @@ export class AudioCueLineFeatureContribution
 		const state = derived(
 			'states',
 			(reader) => ({
-				lineNumber: debouncedLineNumber.read(reader),
+				lineNumber: debouncedPosition.read(reader),
 				featureStates: new Map(
 					this.features.map((feature, idx) => [
 						feature,
@@ -172,12 +175,12 @@ interface LineFeature {
 }
 
 interface LineFeatureState {
-	isPresent(lineNumber: number): boolean;
+	isPresent(position: Position): boolean;
 }
 
 class MarkerLineFeature implements LineFeature {
 	public readonly debounceWhileTyping = true;
-
+	private _previousLine: number = 0;
 	constructor(
 		public readonly audioCue: AudioCue,
 		private readonly severity: MarkerSeverity,
@@ -191,15 +194,16 @@ class MarkerLineFeature implements LineFeature {
 				changedUris.some((u) => u.toString() === model.uri.toString())
 			),
 			() => /** @description this.markerService.onMarkerChanged */({
-				isPresent: (lineNumber) => {
+				isPresent: (position) => {
+					const lineChanged = position.lineNumber !== this._previousLine;
+					this._previousLine = position.lineNumber;
 					const hasMarker = this.markerService
 						.read({ resource: model.uri })
 						.some(
-							(m) =>
-								m.severity === this.severity &&
-								m.startLineNumber <= lineNumber &&
-								lineNumber <= m.endLineNumber
-						);
+							(m) => {
+								const onLine = m.severity === this.severity && m.startLineNumber <= position.lineNumber && position.lineNumber <= m.endLineNumber;
+								return lineChanged ? onLine : onLine && (position.lineNumber <= m.endLineNumber && m.startColumn <= position.column && m.endColumn >= position.column);
+							});
 					return hasMarker;
 				},
 			})
@@ -222,12 +226,12 @@ class FoldedAreaLineFeature implements LineFeature {
 			foldingController.getFoldingModel() ?? Promise.resolve(undefined)
 		);
 		return foldingModel.map<LineFeatureState>((v) => ({
-			isPresent: (lineNumber) => {
-				const regionAtLine = v.value?.getRegionAtLine(lineNumber);
+			isPresent: (position) => {
+				const regionAtLine = v.value?.getRegionAtLine(position.lineNumber);
 				const hasFolding = !regionAtLine
 					? false
 					: regionAtLine.isCollapsed &&
-					regionAtLine.startLineNumber === lineNumber;
+					regionAtLine.startLineNumber === position.lineNumber;
 				return hasFolding;
 			},
 		}));
@@ -243,10 +247,10 @@ class BreakpointLineFeature implements LineFeature {
 		return observableFromEvent<LineFeatureState>(
 			this.debugService.getModel().onDidChangeBreakpoints,
 			() => /** @description debugService.getModel().onDidChangeBreakpoints */({
-				isPresent: (lineNumber) => {
+				isPresent: (position) => {
 					const breakpoints = this.debugService
 						.getModel()
-						.getBreakpoints({ uri: model.uri, lineNumber });
+						.getBreakpoints({ uri: model.uri, lineNumber: position.lineNumber });
 					const hasBreakpoints = breakpoints.length > 0;
 					return hasBreakpoints;
 				},
@@ -281,8 +285,8 @@ class InlineCompletionLineFeature implements LineFeature {
 		return derived<LineFeatureState>('ghostText', reader => {
 			const ghostText = activeGhostText.read(reader)?.read(reader);
 			return {
-				isPresent(lineNumber) {
-					return ghostText?.lineNumber === lineNumber;
+				isPresent(position) {
+					return ghostText?.lineNumber === position.lineNumber;
 				}
 			};
 		});

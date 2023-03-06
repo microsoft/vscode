@@ -228,10 +228,10 @@ to-regex-range@^5.0.1:
   dependencies:
     is-number "^7.0.0"
 
-typescript@^5.0.0-dev.20230130:
-  version "5.0.0-dev.20230130"
-  resolved "https://registry.yarnpkg.com/typescript/-/typescript-5.0.0-dev.20230130.tgz#6eb64e2ba0d565139e58d423bcd18f5b4e1a58fa"
-  integrity sha512-4zmbh58Vt3HDAD0AvHr1ccmAkKKODriYMNajcSzUylVgXCXrNGTJOReMp54GBs67KfQFaLOpVZlLrlD2FKn9Kg==
+typescript@^5.0.0-dev.20230224:
+  version "5.0.0-dev.20230224"
+  resolved "https://registry.yarnpkg.com/typescript/-/typescript-5.0.0-dev.20230224.tgz#801908424fafe3f5728320348ad0dc966960fd69"
+  integrity sha512-ntlbPkFF0PM1+lmvLenUGwo+3EJPq5QAvAsw+6HA6KTOHpF3IcmYE57rcgpL54NLXhqz84RNTtcmb4dttBuBsA==
 
 vscode-grammar-updater@^1.1.0:
   version "1.1.0"

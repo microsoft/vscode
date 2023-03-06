@@ -170,8 +170,7 @@ class ExtensionUrlHandler implements IExtensionUrlHandler, IURLHandler {
 					label: localize('rememberConfirmUrl', "Don't ask again for this extension."),
 				},
 				detail: `${extension.displayName || extension.name} (${extensionId}) wants to open a URI:\n\n${uriString}`,
-				primaryButton: localize('open', "&&Open"),
-				type: 'question'
+				primaryButton: localize({ key: 'open', comment: ['&& denotes a mnemonic'] }, "&&Open")
 			});
 
 			if (!result.confirmed) {
@@ -257,8 +256,7 @@ class ExtensionUrlHandler implements IExtensionUrlHandler, IURLHandler {
 			const result = await this.dialogService.confirm({
 				message: localize('installAndHandle', "Extension '{0}' is not installed. Would you like to install the extension and open this URL?", galleryExtension.displayName || galleryExtension.name),
 				detail: `${galleryExtension.displayName || galleryExtension.name} (${extensionIdentifier.id}) wants to open a URL:\n\n${uri.toString()}`,
-				primaryButton: localize('install and open', "&&Install and Open"),
-				type: 'question'
+				primaryButton: localize({ key: 'install and open', comment: ['&& denotes a mnemonic'] }, "&&Install and Open")
 			});
 
 			if (!result.confirmed) {
@@ -285,8 +283,7 @@ class ExtensionUrlHandler implements IExtensionUrlHandler, IURLHandler {
 			const result = await this.dialogService.confirm({
 				message: localize('enableAndHandle', "Extension '{0}' is disabled. Would you like to enable the extension and open the URL?", extension.manifest.displayName || extension.manifest.name),
 				detail: `${extension.manifest.displayName || extension.manifest.name} (${extensionIdentifier.id}) wants to open a URL:\n\n${uri.toString()}`,
-				primaryButton: localize('enableAndReload', "&&Enable and Open"),
-				type: 'question'
+				primaryButton: localize({ key: 'enableAndReload', comment: ['&& denotes a mnemonic'] }, "&&Enable and Open")
 			});
 
 			if (!result.confirmed) {
@@ -309,8 +306,7 @@ class ExtensionUrlHandler implements IExtensionUrlHandler, IURLHandler {
 			const result = await this.dialogService.confirm({
 				message: localize('reloadAndHandle', "Extension '{0}' is not loaded. Would you like to reload the window to load the extension and open the URL?", extension.manifest.displayName || extension.manifest.name),
 				detail: `${extension.manifest.displayName || extension.manifest.name} (${extensionIdentifier.id}) wants to open a URL:\n\n${uri.toString()}`,
-				primaryButton: localize('reloadAndOpen', "&&Reload Window and Open"),
-				type: 'question'
+				primaryButton: localize({ key: 'reloadAndOpen', comment: ['&& denotes a mnemonic'] }, "&&Reload Window and Open")
 			});
 
 			if (!result.confirmed) {

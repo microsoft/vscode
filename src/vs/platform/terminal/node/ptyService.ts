@@ -367,7 +367,7 @@ export class PtyService extends Disposable implements IPtyService {
 			}
 			return new Promise<string>(c => {
 				const proc = execFile(wslExecutable, ['-e', 'wslpath', original], {}, (error, stdout, stderr) => {
-					c(escapeNonWindowsPath(stdout.trim()));
+					c(error ? original : escapeNonWindowsPath(stdout.trim()));
 				});
 				proc.stdin!.end();
 			});
@@ -385,7 +385,7 @@ export class PtyService extends Disposable implements IPtyService {
 				}
 				return new Promise<string>(c => {
 					const proc = execFile(wslExecutable, ['-e', 'wslpath', '-w', original], {}, (error, stdout, stderr) => {
-						c(stdout.trim());
+						c(error ? original : stdout.trim());
 					});
 					proc.stdin!.end();
 				});

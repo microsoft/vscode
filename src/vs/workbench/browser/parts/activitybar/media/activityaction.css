@@ -128,10 +128,10 @@
 	outline: none;
 }
 
+.monaco-workbench .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .profile-badge,
 .monaco-workbench .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .active-item-indicator,
 .monaco-workbench .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .badge {
 	position: absolute;
-	z-index: 1;
 	top: 0;
 	bottom: 0;
 	margin: auto;
@@ -139,6 +139,15 @@
 	overflow: hidden;
 	width: 100%;
 	height: 100%;
+}
+
+.monaco-workbench .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .active-item-indicator,
+.monaco-workbench .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .badge {
+	z-index: 2;
+}
+
+.monaco-workbench .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .profile-badge {
+	z-index: 1;
 }
 
 .monaco-workbench .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .active-item-indicator {
@@ -163,6 +172,25 @@
 	text-align: center;
 }
 
+.monaco-workbench .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .profile-badge .profile-badge-content {
+	position: absolute;
+	font-weight: 600;
+	font-size: 9px;
+	line-height: 10px;
+	top: 24px;
+	right: 6px;
+	padding: 2px 3px;
+	border-radius: 7px;
+	background-color: var(--vscode-profileBadge-background);
+	color: var(--vscode-profileBadge-foreground);
+	border: 2px solid var(--vscode-activityBar-background);
+}
+
+.monaco-workbench .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-item:active .profile-badge-content,
+.monaco-workbench .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-item:focus .profile-badge-content,
+.monaco-workbench .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-item:hover .profile-badge-content {
+	color: var(--vscode-activityBar-foreground);
+}
 
 .monaco-workbench .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .badge .codicon.badge-content {
 	font-size: 12px;
@@ -178,6 +206,7 @@
 
 /* Right aligned */
 
+.monaco-workbench .activitybar.right>.content :not(.monaco-menu)>.monaco-action-bar .profile-badge,
 .monaco-workbench .activitybar.right > .content :not(.monaco-menu) > .monaco-action-bar .badge {
 	left: auto;
 	right: 0;

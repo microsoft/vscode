@@ -52,7 +52,8 @@
           "text.html.markdown"
         ],
         "embeddedLanguages": {
-          "meta.embedded.math.markdown": "latex"
+          "meta.embedded.math.markdown": "latex",
+          "punctuation.definition.math.end.markdown": "latex"
         }
       }
     ],

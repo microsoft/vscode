@@ -49,12 +49,30 @@ export function getEncodedLanguageId(languageId: string): number {
 }
 
 /**
- * An event emitted when a language is needed for the first time (e.g. a model has it set).
+ * An event emitted when a language is associated for the first time with a text model.
  * @event
  */
 export function onLanguage(languageId: string, callback: () => void): IDisposable {
 	const languageService = StandaloneServices.get(ILanguageService);
-	const disposable = languageService.onDidEncounterLanguage((encounteredLanguageId) => {
+	const disposable = languageService.onDidRequestRichLanguageFeatures((encounteredLanguageId) => {
+		if (encounteredLanguageId === languageId) {
+			// stop listening
+			disposable.dispose();
+			// invoke actual listener
+			callback();
+		}
+	});
+	return disposable;
+}
+
+/**
+ * An event emitted when a language is associated for the first time with a text model or
+ * whena language is encountered during the tokenization of another language.
+ * @event
+ */
+export function onLanguageEncountered(languageId: string, callback: () => void): IDisposable {
+	const languageService = StandaloneServices.get(ILanguageService);
+	const disposable = languageService.onDidRequestBasicLanguageFeatures((encounteredLanguageId) => {
 		if (encounteredLanguageId === languageId) {
 			// stop listening
 			disposable.dispose();
@@ -715,6 +733,7 @@ export function createMonacoLanguagesAPI(): typeof monaco.languages {
 		register: <any>register,
 		getLanguages: <any>getLanguages,
 		onLanguage: <any>onLanguage,
+		onLanguageEncountered: <any>onLanguageEncountered,
 		getEncodedLanguageId: <any>getEncodedLanguageId,
 
 		// provider methods

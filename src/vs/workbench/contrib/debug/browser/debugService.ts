@@ -879,10 +879,15 @@ export class DebugService implements IDebugService {
 		const actions = errorActions.filter((action) => action.id.endsWith('.command')).length > 0 ?
 			errorActions :
 			[...errorActions, ...(promptLaunchJson ? [configureAction] : [])];
-		const { choice } = await this.dialogService.show(severity.Error, message, actions.map(a => a.label).concat(nls.localize('cancel', "Cancel")), { cancelId: actions.length - 1 });
-		if (choice < actions.length) {
-			await actions[choice].run();
-		}
+		await this.dialogService.prompt({
+			type: severity.Error,
+			message,
+			buttons: actions.map(action => ({
+				label: action.label,
+				run: () => action.run()
+			})),
+			cancelButton: true
+		});
 	}
 
 	//---- focus management
@@ -954,7 +959,7 @@ export class DebugService implements IDebugService {
 			this.model.setEnablement(breakpoint, enable);
 			this.debugStorage.storeBreakpoints(this.model);
 			if (breakpoint instanceof Breakpoint) {
-				await this.sendBreakpoints(breakpoint.uri);
+				await this.sendBreakpoints(breakpoint.originalUri);
 			} else if (breakpoint instanceof FunctionBreakpoint) {
 				await this.sendFunctionBreakpoints();
 			} else if (breakpoint instanceof DataBreakpoint) {
@@ -999,8 +1004,9 @@ export class DebugService implements IDebugService {
 
 	async removeBreakpoints(id?: string): Promise<void> {
 		const toRemove = this.model.getBreakpoints().filter(bp => !id || bp.getId() === id);
+		// note: using the debugger-resolved uri for aria to reflect UI state
 		toRemove.forEach(bp => aria.status(nls.localize('breakpointRemoved', "Removed breakpoint, line {0}, file {1}", bp.lineNumber, bp.uri.fsPath)));
-		const urisToClear = distinct(toRemove, bp => bp.uri.toString()).map(bp => bp.uri);
+		const urisToClear = distinct(toRemove, bp => bp.originalUri.toString()).map(bp => bp.originalUri);
 
 		this.model.removeBreakpoints(toRemove);
 
@@ -1072,8 +1078,8 @@ export class DebugService implements IDebugService {
 	}
 
 	async sendAllBreakpoints(session?: IDebugSession): Promise<any> {
-		const setBreakpointsPromises = distinct(this.model.getBreakpoints(), bp => bp.uri.toString())
-			.map(bp => this.sendBreakpoints(bp.uri, false, session));
+		const setBreakpointsPromises = distinct(this.model.getBreakpoints(), bp => bp.originalUri.toString())
+			.map(bp => this.sendBreakpoints(bp.originalUri, false, session));
 
 		// If sending breakpoints to one session which we know supports the configurationDone request, can make all requests in parallel
 		if (session?.capabilities.supportsConfigurationDoneRequest) {
@@ -1096,7 +1102,7 @@ export class DebugService implements IDebugService {
 	}
 
 	private async sendBreakpoints(modelUri: uri, sourceModified = false, session?: IDebugSession): Promise<void> {
-		const breakpointsToSend = this.model.getBreakpoints({ uri: modelUri, enabledOnly: true });
+		const breakpointsToSend = this.model.getBreakpoints({ originalUri: modelUri, enabledOnly: true });
 		await sendToOneOrAllSessions(this.model, session, async s => {
 			if (!s.configuration.noDebug) {
 				await s.sendBreakpoints(modelUri, breakpointsToSend, sourceModified);
@@ -1149,7 +1155,7 @@ export class DebugService implements IDebugService {
 
 	private onFileChanges(fileChangesEvent: FileChangesEvent): void {
 		const toRemove = this.model.getBreakpoints().filter(bp =>
-			fileChangesEvent.contains(bp.uri, FileChangeType.DELETED));
+			fileChangesEvent.contains(bp.originalUri, FileChangeType.DELETED));
 		if (toRemove.length) {
 			this.model.removeBreakpoints(toRemove);
 		}

@@ -148,4 +148,7 @@ function Send-Completions {
 	Write-Host -NoNewLine $result
 }
 
-Set-MappedKeyHandlers
+# Register key handlers if PSReadLine is available
+if (Get-Module -Name PSReadLine) {
+	Set-MappedKeyHandlers
+}

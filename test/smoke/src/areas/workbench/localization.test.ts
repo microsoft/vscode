@@ -22,8 +22,11 @@ export function setup(logger: Logger) {
 			const result = await app.workbench.localization.getLocalizedStrings();
 			const localeInfo = await app.workbench.localization.getLocaleInfo();
 
-			if (localeInfo.locale === undefined || localeInfo.locale.toLowerCase() !== 'de') {
-				throw new Error(`The requested locale for VS Code was not German. The received value is: ${localeInfo.locale === undefined ? 'not set' : localeInfo.locale}`);
+			// The smoke tests will only work on a machine that uses English as the OS language.
+			// The build machine is configured to use English as the OS language so that is why
+			// we can hardcode the expected values here.
+			if (localeInfo.locale === undefined || !localeInfo.locale.toLowerCase().startsWith('en')) {
+				throw new Error(`The requested locale for VS Code was not English. The received value is: ${localeInfo.locale === undefined ? 'not set' : localeInfo.locale}`);
 			}
 
 			if (localeInfo.language.toLowerCase() !== 'de') {
