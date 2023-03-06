@@ -149,7 +149,7 @@ export interface IEditorOptions {
 	readOnly?: boolean;
 	/**
 	 * Should the textarea used for input use the DOM `readonly` attribute.
-	 * Defaults to false.
+	 * Defaults to true for mobile and false for others.
 	 */
 	domReadOnly?: boolean;
 	/**
@@ -5104,7 +5104,7 @@ export const EditorOptions = {
 		EditorOption.disableMonospaceOptimizations, 'disableMonospaceOptimizations', false
 	)),
 	domReadOnly: register(new EditorBooleanOption(
-		EditorOption.domReadOnly, 'domReadOnly', false,
+		EditorOption.domReadOnly, 'domReadOnly', platform.isMobile,
 	)),
 	dragAndDrop: register(new EditorBooleanOption(
 		EditorOption.dragAndDrop, 'dragAndDrop', true,

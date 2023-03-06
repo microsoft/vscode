@@ -3122,7 +3122,7 @@ declare namespace monaco.editor {
 		readOnly?: boolean;
 		/**
 		 * Should the textarea used for input use the DOM `readonly` attribute.
-		 * Defaults to false.
+		 * Defaults to true for mobile and false for others.
 		 */
 		domReadOnly?: boolean;
 		/**
