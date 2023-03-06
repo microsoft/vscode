@@ -159,10 +159,13 @@ export class GhostTextWidget extends Disposable {
 		this.partsWidget.setParts(ghostText.lineNumber, inlineTexts,
 			hiddenTextStartColumn !== undefined ? { column: hiddenTextStartColumn, length: textBufferLine.length + 1 - hiddenTextStartColumn } : undefined);
 		this.additionalLinesWidget.updateLines(ghostText.lineNumber, additionalLines, ghostText.additionalReservedLineCount);
-		const lineText = this.editor.getModel()!.getLineContent(ghostText.lineNumber);
+
 		this.audioCueService.playAudioCue(AudioCue.inlineSuggestion).then(() => {
 			if (this.editor.getOption(EditorOption.screenReaderAnnounceInlineSuggestion)) {
-				alert(ghostText.renderForScreenReader(lineText));
+				const lineText = this.editor.getModel()?.getLineContent(ghostText.lineNumber);
+				if (lineText) {
+					alert(ghostText.renderForScreenReader(lineText));
+				}
 			}
 		});
 		if (0 < 0) {
