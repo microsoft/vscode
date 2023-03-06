@@ -33,7 +33,7 @@ export interface IInteractiveProvider {
 	id: string;
 	prepareSession(initialState: IPersistedInteractiveState | undefined, token: CancellationToken): ProviderResult<IInteractiveSession | undefined>;
 	resolveRequest?(session: IInteractiveSession, context: any, token: CancellationToken): ProviderResult<IInteractiveRequest>;
-	provideSuggestions(token: CancellationToken): ProviderResult<string[] | undefined>;
+	provideSuggestions?(token: CancellationToken): ProviderResult<string[] | undefined>;
 	provideReply(request: IInteractiveRequest, progress: (progress: IInteractiveProgress) => void, token: CancellationToken): ProviderResult<IInteractiveResponse>;
 }
 

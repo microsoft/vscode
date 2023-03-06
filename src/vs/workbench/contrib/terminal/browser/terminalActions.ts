@@ -28,12 +28,12 @@ import { IListService } from 'vs/platform/list/browser/listService';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IPickOptions, IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
-import { ITerminalProfile, TerminalExitReason, TerminalLocation, TerminalSettingId, terminalTabFocusContextKey } from 'vs/platform/terminal/common/terminal';
+import { ITerminalProfile, TerminalExitReason, TerminalLocation, TerminalSettingId } from 'vs/platform/terminal/common/terminal';
 import { IWorkspaceContextService, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { PICK_WORKSPACE_FOLDER_COMMAND_ID } from 'vs/workbench/browser/actions/workspaceCommands';
 import { CLOSE_EDITOR_COMMAND_ID } from 'vs/workbench/browser/parts/editor/editorCommands';
 import { ResourceContextKey } from 'vs/workbench/common/contextkeys';
-import { Direction, ICreateTerminalOptions, IInternalXtermTerminal, ITerminalEditorService, ITerminalGroupService, ITerminalInstance, ITerminalInstanceService, ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { Direction, ICreateTerminalOptions, ITerminalEditorService, ITerminalGroupService, ITerminalInstance, ITerminalInstanceService, ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { TerminalQuickAccessProvider } from 'vs/workbench/contrib/terminal/browser/terminalQuickAccess';
 import { IRemoteTerminalAttachTarget, ITerminalConfigHelper, ITerminalProfileService, TerminalCommandId } from 'vs/workbench/contrib/terminal/common/terminal';
 import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/terminalContextKey';
@@ -56,13 +56,10 @@ import { ILanguageService } from 'vs/editor/common/languages/language';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { dirname } from 'vs/base/common/resources';
 import { getIconClasses } from 'vs/editor/common/services/getIconClasses';
-import { FileKind, IFileService } from 'vs/platform/files/common/files';
-import { Categories } from 'vs/platform/action/common/actionCommonCategories';
+import { FileKind } from 'vs/platform/files/common/files';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
-import { VSBuffer } from 'vs/base/common/buffer';
 import { killTerminalIcon, newTerminalIcon } from 'vs/workbench/contrib/terminal/browser/terminalIcons';
-import { editorTabFocusContextKey } from 'vs/workbench/browser/parts/editor/tabFocus';
 
 export const switchTerminalActionViewItemSeparator = '\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500';
 export const switchTerminalShowTabsTitle = localize('showTerminalTabs', "Show Tabs");
@@ -380,27 +377,6 @@ export function registerTerminalActions() {
 			if (output && typeof output === 'string') {
 				await accessor.get(IClipboardService).writeText(output);
 			}
-		}
-	});
-	registerAction2(class extends Action2 {
-		constructor() {
-			super({
-				id: TerminalCommandId.FocusAccessibleBuffer,
-				title: { value: localize('workbench.action.terminal.focusAccessibleBuffer', 'Focus Accessible Buffer'), original: 'Focus Accessible Buffer' },
-				f1: true,
-				category,
-				precondition: ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated),
-				keybinding: [
-					{
-						primary: KeyMod.Shift | KeyCode.Tab,
-						weight: KeybindingWeight.WorkbenchContrib,
-						when: ContextKeyExpr.or(terminalTabFocusContextKey, ContextKeyExpr.and(CONTEXT_ACCESSIBILITY_MODE_ENABLED, editorTabFocusContextKey))
-					}
-				],
-			});
-		}
-		async run(accessor: ServicesAccessor): Promise<void> {
-			await accessor.get(ITerminalService).activeInstance?.xterm?.focusAccessibleBuffer();
 		}
 	});
 	registerAction2(class extends Action2 {
@@ -1775,56 +1751,6 @@ export function registerTerminalActions() {
 	registerAction2(class extends Action2 {
 		constructor() {
 			super({
-				id: TerminalCommandId.OpenDetectedLink,
-				title: { value: localize('workbench.action.terminal.openDetectedLink', "Open Detected Link..."), original: 'Open Detected Link...' },
-				f1: true,
-				category,
-				precondition: TerminalContextKeys.terminalHasBeenCreated,
-				keybinding: {
-					primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyO,
-					weight: KeybindingWeight.WorkbenchContrib + 1,
-					when: TerminalContextKeys.focus,
-				}
-			});
-		}
-		run(accessor: ServicesAccessor) {
-			accessor.get(ITerminalService).doWithActiveInstance(t => t.showLinkQuickpick());
-		}
-	});
-
-	registerAction2(class extends Action2 {
-		constructor() {
-			super({
-				id: TerminalCommandId.OpenWebLink,
-				title: { value: localize('workbench.action.terminal.openLastUrlLink', "Open Last Url Link"), original: 'Open Last Url Link' },
-				f1: true,
-				category,
-				precondition: TerminalContextKeys.terminalHasBeenCreated,
-			});
-		}
-		run(accessor: ServicesAccessor) {
-			accessor.get(ITerminalService).doWithActiveInstance(t => t.openRecentLink('url'));
-		}
-	});
-
-	registerAction2(class extends Action2 {
-		constructor() {
-			super({
-				id: TerminalCommandId.OpenFileLink,
-				title: { value: localize('workbench.action.terminal.openLastLocalFileLink', "Open Last Local File Link"), original: 'Open Last Local File Link' },
-				f1: true,
-				category,
-				precondition: TerminalContextKeys.terminalHasBeenCreated,
-			});
-		}
-		run(accessor: ServicesAccessor) {
-			accessor.get(ITerminalService).doWithActiveInstance(t => t.openRecentLink('localFile'));
-		}
-	});
-
-	registerAction2(class extends Action2 {
-		constructor() {
-			super({
 				id: TerminalCommandId.SelectDefaultProfile,
 				title: { value: localize('workbench.action.terminal.selectDefaultShell', "Select Default Profile"), original: 'Select Default Profile' },
 				f1: true,
@@ -2060,85 +1986,6 @@ export function registerTerminalActions() {
 		}
 		run(accessor: ServicesAccessor) {
 			accessor.get(ITerminalService).activeInstance?.quickFix?.showMenu();
-		}
-	});
-	registerAction2(class extends Action2 {
-		constructor() {
-			super({
-				id: TerminalCommandId.ShowTextureAtlas,
-				title: { value: localize('workbench.action.terminal.showTextureAtlas', "Show Terminal Texture Atlas"), original: 'Show Terminal Texture Atlas' },
-				f1: true,
-				category: Categories.Developer,
-				precondition: ContextKeyExpr.or(TerminalContextKeys.isOpen)
-			});
-		}
-		async run(accessor: ServicesAccessor) {
-			const terminalService = accessor.get(ITerminalService);
-			const fileService = accessor.get(IFileService);
-			const openerService = accessor.get(IOpenerService);
-			const workspaceContextService = accessor.get(IWorkspaceContextService);
-			const bitmap = await terminalService.activeInstance?.xterm?.textureAtlas;
-			if (!bitmap) {
-				return;
-			}
-			const cwdUri = workspaceContextService.getWorkspace().folders[0].uri;
-			const fileUri = URI.joinPath(cwdUri, 'textureAtlas.png');
-			const canvas = document.createElement('canvas');
-			canvas.width = bitmap.width;
-			canvas.height = bitmap.height;
-			const ctx = canvas.getContext('bitmaprenderer');
-			if (!ctx) {
-				return;
-			}
-			ctx.transferFromImageBitmap(bitmap);
-			const blob = await new Promise<Blob | null>((res) => canvas.toBlob(res));
-			if (!blob) {
-				return;
-			}
-			await fileService.writeFile(fileUri, VSBuffer.wrap(new Uint8Array(await blob.arrayBuffer())));
-			openerService.open(fileUri);
-		}
-	});
-	registerAction2(class extends Action2 {
-		constructor() {
-			super({
-				id: TerminalCommandId.WriteDataToTerminal,
-				title: { value: localize('workbench.action.terminal.writeDataToTerminal', "Write Data to Terminal"), original: 'Write Data to Terminal' },
-				f1: true,
-				category: Categories.Developer
-			});
-		}
-		async run(accessor: ServicesAccessor) {
-			const terminalService = accessor.get(ITerminalService);
-			const terminalGroupService = accessor.get(ITerminalGroupService);
-			const quickInputService = accessor.get(IQuickInputService);
-
-			const instance = await terminalService.getActiveOrCreateInstance();
-			await terminalGroupService.showPanel();
-			await instance.processReady;
-			if (!instance.xterm) {
-				throw new Error('Cannot write data to terminal if xterm isn\'t initialized');
-			}
-			const data = await quickInputService.input({
-				value: '',
-				placeHolder: 'Enter data, use \\x to escape',
-				prompt: localize('workbench.action.terminal.writeDataToTerminal.prompt', "Enter data to write directly to the terminal, bypassing the pty"),
-			});
-			if (!data) {
-				return;
-			}
-			let escapedData = data
-				.replace(/\\n/g, '\n')
-				.replace(/\\r/g, '\r');
-			while (true) {
-				const match = escapedData.match(/\\x([0-9a-fA-F]{2})/);
-				if (match === null || match.index === undefined || match.length < 2) {
-					break;
-				}
-				escapedData = escapedData.slice(0, match.index) + String.fromCharCode(parseInt(match[1], 16)) + escapedData.slice(match.index + 4);
-			}
-			const xterm = instance.xterm as any as IInternalXtermTerminal;
-			xterm._writeText(escapedData);
 		}
 	});
 

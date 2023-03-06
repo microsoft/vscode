@@ -146,7 +146,6 @@ export interface CodeActionTrigger {
 		readonly notAvailableMessage: string;
 		readonly position: Position;
 	};
-	readonly preview?: boolean;
 }
 
 export class CodeActionCommandArgs {

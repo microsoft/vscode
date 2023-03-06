@@ -3,15 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import * as dom from 'vs/base/browser/dom';
-import { HighlightedLabel } from 'vs/base/browser/ui/highlightedlabel/highlightedLabel';
 import { KeybindingLabel } from 'vs/base/browser/ui/keybindingLabel/keybindingLabel';
 import { IListEvent, IListMouseEvent, IListRenderer, IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { List } from 'vs/base/browser/ui/list/listWidget';
 import { Codicon } from 'vs/base/common/codicons';
-import { ThemeIcon } from 'vs/base/common/themables';
 import { ResolvedKeybinding } from 'vs/base/common/keybindings';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { OS } from 'vs/base/common/platform';
+import { ThemeIcon } from 'vs/base/common/themables';
 import 'vs/css!./actionWidget';
 import { localize } from 'vs/nls';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
@@ -33,7 +32,6 @@ export interface IActionListItem<T> {
 	readonly group?: { kind?: any; icon?: ThemeIcon; title: string };
 	readonly disabled?: boolean;
 	readonly label?: string;
-	readonly description?: string;
 
 	readonly keybinding?: ResolvedKeybinding;
 }
@@ -139,12 +137,6 @@ class ActionItemRenderer<T> implements IListRenderer<IActionListItem<T>, IAction
 			}
 		} else {
 			data.container.title = '';
-		}
-
-		if (element.description) {
-			const label = new HighlightedLabel(dom.append(data.container, dom.$('span.label-description')));
-			label.element.classList.add('action-list-description');
-			label.set(element.description);
 		}
 	}
 

@@ -21,9 +21,7 @@ export interface IInteractiveEditorSession {
 }
 
 export interface IInteractiveEditorRequest {
-	session: IInteractiveEditorSession;
 	prompt: string;
-	// model: ITextModel;
 	selection: ISelection;
 	wholeRange: IRange;
 }

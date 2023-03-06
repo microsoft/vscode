@@ -79,168 +79,6 @@ export type ContextKeyExpression = (
 	| ContextKeySmallerExpr | ContextKeySmallerEqualsExpr
 );
 
-export abstract class ContextKeyExpr {
-
-	public static false(): ContextKeyExpression {
-		return ContextKeyFalseExpr.INSTANCE;
-	}
-	public static true(): ContextKeyExpression {
-		return ContextKeyTrueExpr.INSTANCE;
-	}
-	public static has(key: string): ContextKeyExpression {
-		return ContextKeyDefinedExpr.create(key);
-	}
-	public static equals(key: string, value: any): ContextKeyExpression {
-		return ContextKeyEqualsExpr.create(key, value);
-	}
-	public static notEquals(key: string, value: any): ContextKeyExpression {
-		return ContextKeyNotEqualsExpr.create(key, value);
-	}
-	public static regex(key: string, value: RegExp): ContextKeyExpression {
-		return ContextKeyRegexExpr.create(key, value);
-	}
-	public static in(key: string, value: string): ContextKeyExpression {
-		return ContextKeyInExpr.create(key, value);
-	}
-	public static notIn(key: string, value: string): ContextKeyExpression {
-		return ContextKeyNotInExpr.create(key, value);
-	}
-	public static not(key: string): ContextKeyExpression {
-		return ContextKeyNotExpr.create(key);
-	}
-	public static and(...expr: Array<ContextKeyExpression | undefined | null>): ContextKeyExpression | undefined {
-		return ContextKeyAndExpr.create(expr, null, true);
-	}
-	public static or(...expr: Array<ContextKeyExpression | undefined | null>): ContextKeyExpression | undefined {
-		return ContextKeyOrExpr.create(expr, null, true);
-	}
-	public static greater(key: string, value: number): ContextKeyExpression {
-		return ContextKeyGreaterExpr.create(key, value);
-	}
-	public static greaterEquals(key: string, value: number): ContextKeyExpression {
-		return ContextKeyGreaterEqualsExpr.create(key, value);
-	}
-	public static smaller(key: string, value: number): ContextKeyExpression {
-		return ContextKeySmallerExpr.create(key, value);
-	}
-	public static smallerEquals(key: string, value: number): ContextKeyExpression {
-		return ContextKeySmallerEqualsExpr.create(key, value);
-	}
-
-	public static deserialize(serialized: string | null | undefined): ContextKeyExpression | undefined {
-		if (!serialized) {
-			return undefined;
-		}
-
-		return this._deserializeOrExpression(serialized);
-	}
-
-	private static _deserializeOrExpression(serialized: string): ContextKeyExpression | undefined {
-		const pieces = serialized.split('||');
-		return ContextKeyOrExpr.create(pieces.map(p => this._deserializeAndExpression(p)), null, true);
-	}
-
-	private static _deserializeAndExpression(serialized: string): ContextKeyExpression | undefined {
-		const pieces = serialized.split('&&');
-		return ContextKeyAndExpr.create(pieces.map(p => this._deserializeOne(p)), null, true);
-	}
-
-	private static _deserializeOne(serializedOne: string): ContextKeyExpression {
-		serializedOne = serializedOne.trim();
-
-		if (serializedOne.indexOf('!=') >= 0) {
-			const pieces = serializedOne.split('!=');
-			return ContextKeyNotEqualsExpr.create(pieces[0].trim(), this._deserializeValue(pieces[1]));
-		}
-
-		if (serializedOne.indexOf('==') >= 0) {
-			const pieces = serializedOne.split('==');
-			return ContextKeyEqualsExpr.create(pieces[0].trim(), this._deserializeValue(pieces[1]));
-		}
-
-		if (serializedOne.indexOf('=~') >= 0) {
-			const pieces = serializedOne.split('=~');
-			return ContextKeyRegexExpr.create(pieces[0].trim(), this._deserializeRegexValue(pieces[1]));
-		}
-
-		if (serializedOne.indexOf(' not in ') >= 0) { // careful: this must come before `in`
-			const pieces = serializedOne.split(' not in ');
-			return ContextKeyNotInExpr.create(pieces[0].trim(), this._deserializeValue(pieces[1]));
-		}
-
-		if (serializedOne.indexOf(' in ') >= 0) {
-			const pieces = serializedOne.split(' in ');
-			return ContextKeyInExpr.create(pieces[0].trim(), this._deserializeValue(pieces[1]));
-		}
-
-		if (/^[^<=>]+>=[^<=>]+$/.test(serializedOne)) {
-			const pieces = serializedOne.split('>=');
-			return ContextKeyGreaterEqualsExpr.create(pieces[0].trim(), pieces[1].trim());
-		}
-
-		if (/^[^<=>]+>[^<=>]+$/.test(serializedOne)) {
-			const pieces = serializedOne.split('>');
-			return ContextKeyGreaterExpr.create(pieces[0].trim(), pieces[1].trim());
-		}
-
-		if (/^[^<=>]+<=[^<=>]+$/.test(serializedOne)) {
-			const pieces = serializedOne.split('<=');
-			return ContextKeySmallerEqualsExpr.create(pieces[0].trim(), pieces[1].trim());
-		}
-
-		if (/^[^<=>]+<[^<=>]+$/.test(serializedOne)) {
-			const pieces = serializedOne.split('<');
-			return ContextKeySmallerExpr.create(pieces[0].trim(), pieces[1].trim());
-		}
-
-		if (/^\!\s*/.test(serializedOne)) {
-			return ContextKeyNotExpr.create(serializedOne.substr(1).trim());
-		}
-
-		return ContextKeyDefinedExpr.create(serializedOne);
-	}
-
-	private static _deserializeValue(serializedValue: string): any {
-		serializedValue = serializedValue.trim();
-
-		if (serializedValue === 'true') {
-			return true;
-		}
-
-		if (serializedValue === 'false') {
-			return false;
-		}
-
-		const m = /^'([^']*)'$/.exec(serializedValue);
-		if (m) {
-			return m[1].trim();
-		}
-
-		return serializedValue;
-	}
-
-	private static _deserializeRegexValue(serializedValue: string): RegExp | null {
-
-		if (isFalsyOrWhitespace(serializedValue)) {
-			return null;
-		}
-
-		const start = serializedValue.indexOf('/');
-		const end = serializedValue.lastIndexOf('/');
-		if (start === end || start < 0) {
-			return null;
-		}
-
-		const value = serializedValue.slice(start + 1, end);
-		const caseIgnoreFlag = serializedValue[end + 1] === 'i' ? 'i' : '';
-		try {
-			return new RegExp(value, caseIgnoreFlag);
-		} catch (_e) {
-			return null;
-		}
-	}
-}
-
 
 /*
 
@@ -255,21 +93,24 @@ or ::= and { '||' and }*
 and ::= term { '&&' term }*
 
 term ::=
-	| '!' (CONTEXT | 'true' | 'false') // we do not yet support negation of arbitrary expressions
+	| '!' (KEY | true | false | parenthesized)
 	| primary
 
 primary ::=
 	| 'true'
 	| 'false'
+	| parenthesized
+	| KEY '=~' REGEX
+	| KEY [ ('==' | '!=' | '<' | '<=' | '>' | '>=' | 'not' 'in' | 'in') value ]
+
+parenthesized ::=
 	| '(' expression ')'
-	| CONTEXT '=~' REGEX
-	| CONTEXT [ ('==' | '!=' | '<' | '<=' | '>' | '>=' | 'not' 'in' | 'in') value ]
 
 value ::=
 	| 'true'
 	| 'false'
 	| 'in'      	// we support `in` as a value because there's an extension that uses it, ie "when": "languageId == in"
-	| VALUE 		// matched by the same regex as CONTEXT; consider putting the value in single quotes if it's a string (e.g., with spaces)
+	| VALUE 		// matched by the same regex as KEY; consider putting the value in single quotes if it's a string (e.g., with spaces)
 	| SINGLE_QUOTED_STR
 	| EMPTY_STR  	// this allows "when": "foo == " which's used by existing extensions
 
@@ -298,7 +139,6 @@ export type ParsingError = {
 
 const errorEmptyString = localize('contextkey.parser.error.emptyString', "Empty context key expression");
 const hintEmptyString = localize('contextkey.parser.error.emptyString.hint', "Did you forget to write an expression? You can also put 'false' or 'true' to always evaluate to false or true, respectively.");
-const errorDontSupportArbitraryNegation = localize('contextkey.parser.error.dontSupportArbitraryNegation', "Negation of arbitrary expressions is not supported.");
 const errorNoInAfterNot = localize('contextkey.parser.error.noInAfterNot', "'in' after 'not'.");
 const errorClosingParenthesis = localize('contextkey.parser.error.closingParenthesis', "closing parenthesis ')'");
 const errorUnexpectedToken = localize('contextkey.parser.error.unexpectedToken', "Unexpected token");
@@ -410,19 +250,25 @@ export class Parser {
 
 	private _term(): ContextKeyExpression | undefined {
 		if (this._matchOne(TokenType.Neg)) {
-			const expr = this._peek();
-			switch (expr.type) {
-				case TokenType.Str:
-					this._advance();
-					return ContextKeyExpr.not(expr.lexeme!);
+			const peek = this._peek();
+			switch (peek.type) {
 				case TokenType.True:
 					this._advance();
-					return ContextKeyExpr.false();
+					return ContextKeyFalseExpr.INSTANCE;
 				case TokenType.False:
 					this._advance();
-					return ContextKeyExpr.true();
+					return ContextKeyTrueExpr.INSTANCE;
+				case TokenType.LParen: {
+					this._advance();
+					const expr = this._expr();
+					this._consume(TokenType.RParen, errorClosingParenthesis);
+					return expr?.negate();
+				}
+				case TokenType.Str:
+					this._advance();
+					return ContextKeyNotExpr.create(peek.lexeme);
 				default:
-					throw this._errExpectedButGot('CONTEXT | true | false', expr, errorDontSupportArbitraryNegation);
+					throw this._errExpectedButGot(`KEY | true | false | '(' expression ')'`, peek);
 			}
 		}
 		return this._primary();
@@ -448,7 +294,7 @@ export class Parser {
 			}
 
 			case TokenType.Str: {
-				// CONTEXT
+				// KEY
 				const key = peek.lexeme;
 				this._advance();
 
@@ -638,7 +484,7 @@ export class Parser {
 				throw new ParseError();
 
 			default:
-				throw this._errExpectedButGot(`true | false | CONTEXT \n\t| CONTEXT '=~' REGEX \n\t| CONTEXT ('==' | '!=' | '<' | '<=' | '>' | '>=' | 'in' | 'not' 'in') value`, this._peek());
+				throw this._errExpectedButGot(`true | false | KEY \n\t| KEY '=~' REGEX \n\t| KEY ('==' | '!=' | '<' | '<=' | '>' | '>=' | 'in' | 'not' 'in') value`, this._peek());
 
 		}
 	}
@@ -715,6 +561,67 @@ export class Parser {
 		return this._peek().type === TokenType.EOF;
 	}
 }
+
+export abstract class ContextKeyExpr {
+
+	public static false(): ContextKeyExpression {
+		return ContextKeyFalseExpr.INSTANCE;
+	}
+	public static true(): ContextKeyExpression {
+		return ContextKeyTrueExpr.INSTANCE;
+	}
+	public static has(key: string): ContextKeyExpression {
+		return ContextKeyDefinedExpr.create(key);
+	}
+	public static equals(key: string, value: any): ContextKeyExpression {
+		return ContextKeyEqualsExpr.create(key, value);
+	}
+	public static notEquals(key: string, value: any): ContextKeyExpression {
+		return ContextKeyNotEqualsExpr.create(key, value);
+	}
+	public static regex(key: string, value: RegExp): ContextKeyExpression {
+		return ContextKeyRegexExpr.create(key, value);
+	}
+	public static in(key: string, value: string): ContextKeyExpression {
+		return ContextKeyInExpr.create(key, value);
+	}
+	public static notIn(key: string, value: string): ContextKeyExpression {
+		return ContextKeyNotInExpr.create(key, value);
+	}
+	public static not(key: string): ContextKeyExpression {
+		return ContextKeyNotExpr.create(key);
+	}
+	public static and(...expr: Array<ContextKeyExpression | undefined | null>): ContextKeyExpression | undefined {
+		return ContextKeyAndExpr.create(expr, null, true);
+	}
+	public static or(...expr: Array<ContextKeyExpression | undefined | null>): ContextKeyExpression | undefined {
+		return ContextKeyOrExpr.create(expr, null, true);
+	}
+	public static greater(key: string, value: number): ContextKeyExpression {
+		return ContextKeyGreaterExpr.create(key, value);
+	}
+	public static greaterEquals(key: string, value: number): ContextKeyExpression {
+		return ContextKeyGreaterEqualsExpr.create(key, value);
+	}
+	public static smaller(key: string, value: number): ContextKeyExpression {
+		return ContextKeySmallerExpr.create(key, value);
+	}
+	public static smallerEquals(key: string, value: number): ContextKeyExpression {
+		return ContextKeySmallerEqualsExpr.create(key, value);
+	}
+
+	private static _parser = new Parser({ regexParsingWithErrorRecovery: false });
+	public static deserialize(serialized: string | null | undefined): ContextKeyExpression | undefined {
+		if (serialized === undefined || serialized === null) { // an empty string needs to be handled by the parser to get a corresponding parsing error reported
+			return undefined;
+		}
+
+		const expr = this._parser.parse(serialized);
+		return expr;
+	}
+
+}
+
 
 export function validateWhenClauses(whenClauses: string[]): any {
 
