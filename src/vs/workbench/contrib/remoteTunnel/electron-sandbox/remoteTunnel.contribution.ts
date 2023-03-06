@@ -525,7 +525,7 @@ export class RemoteTunnelWorkbenchContribution extends Disposable implements IWo
 				if (connectionInfo) {
 					const linkToOpen = that.getLinkToOpen(connectionInfo);
 					const remoteExtension = that.serverConfiguration.extension;
-					const linkToOpenForMarkdown = linkToOpen.toString().replace(/\)/g, '%29');
+					const linkToOpenForMarkdown = linkToOpen.toString(false).replace(/\)/g, '%29');
 					await notificationService.notify({
 						severity: Severity.Info,
 						message:
@@ -539,7 +539,7 @@ export class RemoteTunnelWorkbenchContribution extends Disposable implements IWo
 							),
 						actions: {
 							primary: [
-								new Action('copyToClipboard', localize('action.copyToClipboard', "Copy Browser Link to Clipboard"), undefined, true, () => clipboardService.writeText(linkToOpen.toString())),
+								new Action('copyToClipboard', localize('action.copyToClipboard', "Copy Browser Link to Clipboard"), undefined, true, () => clipboardService.writeText(linkToOpen.toString(true))),
 								new Action('showExtension', localize('action.showExtension', "Show Extension"), undefined, true, () => {
 									return commandService.executeCommand('workbench.extensions.action.showExtensionsWithIds', [remoteExtension.extensionId]);
 								})
@@ -680,7 +680,7 @@ export class RemoteTunnelWorkbenchContribution extends Disposable implements IWo
 				const clipboardService = accessor.get(IClipboardService);
 				if (that.connectionInfo) {
 					const linkToOpen = that.getLinkToOpen(that.connectionInfo);
-					clipboardService.writeText(linkToOpen.toString());
+					clipboardService.writeText(linkToOpen.toString(true));
 				}
 
 			}
