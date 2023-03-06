@@ -52,7 +52,7 @@ export interface IStickyLineCandidateProvider {
 	dispose(): void;
 	getVersionId(): number | undefined;
 	update(): Promise<void>;
-	getCandidateStickyLinesIntersectingFromOutline(range: StickyRange, outlineModel: StickyElement, result: StickyLineCandidate[], depth: number, lastStartLineNumber: number): void;
+	getCandidateStickyLinesIntersectingFromStickyOutline(range: StickyRange, outlineModel: StickyElement, result: StickyLineCandidate[], depth: number, lastStartLineNumber: number): void;
 	getCandidateStickyLinesIntersecting(range: StickyRange): StickyLineCandidate[];
 	onDidChangeStickyScroll: Event<void>;
 
@@ -176,7 +176,7 @@ export class StickyLineCandidateProvider extends Disposable implements IStickyLi
 		this._updateScheduler = new Delayer<void | undefined>(this._updateDebounceInfo.get(textModel));
 
 		// When the folding store is cleared, the folding region request and the update scheduler are cancelled
-		// The current folding model and folding regions promises are set to null
+		// The current folding regions promise is set to null
 		this._foldingStore.add({
 			dispose: () => {
 				if (this._foldingRegionPromise) {
@@ -189,30 +189,31 @@ export class StickyLineCandidateProvider extends Disposable implements IStickyLi
 			}
 		});
 
-		// Cycle through the array until one of the model providers provides a valid folding model
-		if (this._updateScheduler) {
-			if (this._foldingRegionPromise) {
-				this._foldingRegionPromise.cancel();
-				this._foldingRegionPromise = null;
-			}
-			this._updateScheduler.trigger(async () => {
-				this._sw = new StopWatch(true);
-				for (const modelProvider of this._modelProviders) {
-					const status = await modelProvider(textModel, modelVersionId, token);
-					// If status is undefined, then the cancellation token has been called, then cancel the update operation
-					if (status === undefined) {
-						return;
-					}
-					// Suppose that the status is true, then the sticky model has been found, break the for loop
-					else if (status === true) {
-						break;
-					}
-					// If the status is false, then continue to the next model provider
-				}
-
-				clearTimeout(resetHandle);
-			});
+		// If the current folding region promise is not null, then cancel it before returning a new folding region promise
+		if (this._foldingRegionPromise) {
+			this._foldingRegionPromise.cancel();
+			this._foldingRegionPromise = null;
 		}
+		this._updateScheduler.trigger(async () => {
+			// Create a new stop-watch which will find the time it takes to compute the model which will be used to compute the sticky scroll
+			this._sw = new StopWatch(true);
+
+			// Cycle through the array of model providers, until one provides a valid model, which will be used to construct the sticky model
+			for (const modelProvider of this._modelProviders) {
+				const status = await modelProvider(textModel, modelVersionId, token);
+				// If status is undefined, then the cancellation token has been called, then cancel the update operation
+				if (status === undefined) {
+					return;
+				}
+				// Suppose that the status is true, then the sticky model has been found, break the for loop
+				else if (status === true) {
+					break;
+				}
+				// If the status is false, then continue to the next model provider
+			}
+
+			clearTimeout(resetHandle);
+		});
 	}
 
 	private async stickyModelFromOutlineProvider(textModel: ITextModel, modelVersionId: number, token: CancellationToken): Promise<boolean | undefined> {
@@ -221,6 +222,7 @@ export class StickyLineCandidateProvider extends Disposable implements IStickyLi
 			return;
 		}
 		if (outlineModel.children.size !== 0) {
+			// Update the time it took to find the outline model in the debounce information service
 			const newValue = this._updateDebounceInfo.update(textModel, this._sw!.elapsed());
 			if (this._updateScheduler) {
 				this._updateScheduler.defaultDelay = newValue;
@@ -252,7 +254,6 @@ export class StickyLineCandidateProvider extends Disposable implements IStickyLi
 
 	private async stickyModelFromFoldingProvider(textModel: ITextModel, modelVersionId: number, token: CancellationToken, provider: RangeProvider): Promise<boolean | undefined> {
 
-
 		// It is possible to cancel the promise which calculates the folding
 		const foldingRegionPromise = this._foldingRegionPromise = createCancelablePromise(token => provider.compute(token));
 		return foldingRegionPromise.then(foldingRegions => {
@@ -260,6 +261,7 @@ export class StickyLineCandidateProvider extends Disposable implements IStickyLi
 				this._model = undefined;
 				return false;
 			} else if (foldingRegions && foldingRegionPromise === this._foldingRegionPromise) {
+				// Update the time it took to find the folding model
 				const newValue = this._updateDebounceInfo.update(textModel, this._sw!.elapsed());
 				if (this._updateScheduler) {
 					this._updateScheduler.defaultDelay = newValue;
@@ -294,7 +296,7 @@ export class StickyLineCandidateProvider extends Disposable implements IStickyLi
 		return index;
 	}
 
-	public getCandidateStickyLinesIntersectingFromOutline(range: StickyRange, outlineModel: StickyElement, result: StickyLineCandidate[], depth: number, lastStartLineNumber: number): void {
+	public getCandidateStickyLinesIntersectingFromStickyOutline(range: StickyRange, outlineModel: StickyElement, result: StickyLineCandidate[], depth: number, lastStartLineNumber: number): void {
 		if (outlineModel.children.length === 0) {
 			return;
 		}
@@ -319,10 +321,10 @@ export class StickyLineCandidateProvider extends Disposable implements IStickyLi
 				if (range.startLineNumber <= childEndLine + 1 && childStartLine - 1 <= range.endLineNumber && childStartLine !== lastLine) {
 					lastLine = childStartLine;
 					result.push(new StickyLineCandidate(childStartLine, childEndLine - 1, depth + 1));
-					this.getCandidateStickyLinesIntersectingFromOutline(range, child, result, depth + 1, childStartLine);
+					this.getCandidateStickyLinesIntersectingFromStickyOutline(range, child, result, depth + 1, childStartLine);
 				}
 			} else {
-				this.getCandidateStickyLinesIntersectingFromOutline(range, child, result, depth, lastStartLineNumber);
+				this.getCandidateStickyLinesIntersectingFromStickyOutline(range, child, result, depth, lastStartLineNumber);
 			}
 		}
 	}
@@ -332,7 +334,7 @@ export class StickyLineCandidateProvider extends Disposable implements IStickyLi
 			return [];
 		}
 		let stickyLineCandidates: StickyLineCandidate[] = [];
-		this.getCandidateStickyLinesIntersectingFromOutline(range, this._model.element, stickyLineCandidates, 0, -1);
+		this.getCandidateStickyLinesIntersectingFromStickyOutline(range, this._model.element, stickyLineCandidates, 0, -1);
 		const hiddenRanges: Range[] | undefined = this._editor._getViewModel()?.getHiddenAreas();
 		if (hiddenRanges) {
 			for (const hiddenRange of hiddenRanges) {
@@ -428,32 +430,35 @@ class StickyElement {
 
 	public static fromFoldingRegions(foldingRegions: FoldingRegions): StickyElement {
 		const length = foldingRegions.length;
-		let range: StickyRange | undefined;
-		const stackOfParents: StickyRange[] = [];
+		const orderedStickyElements: StickyElement[] = [];
 
+		// The root sticky outline element
 		const stickyOutlineElement = new StickyElement(
 			undefined,
 			[],
 			undefined
 		);
-		let parentStickyOutlineElement = stickyOutlineElement;
 
 		for (let i = 0; i < length; i++) {
-			range = new StickyRange(foldingRegions.getStartLineNumber(i), foldingRegions.getEndLineNumber(i) + 1);
-			while (stackOfParents.length !== 0 && (range.startLineNumber < stackOfParents[stackOfParents.length - 1].startLineNumber || range.endLineNumber > stackOfParents[stackOfParents.length - 1].endLineNumber)) {
-				stackOfParents.pop();
-				if (parentStickyOutlineElement.parent !== undefined) {
-					parentStickyOutlineElement = parentStickyOutlineElement.parent;
-				}
+			// Finding the parent index of the current range
+			const parentIndex = foldingRegions.getParentIndex(i);
+
+			let parentNode;
+			if (parentIndex !== -1) {
+				// Access the reference of the parent node
+				parentNode = orderedStickyElements[parentIndex];
+			} else {
+				// In that case the parent node is the root node
+				parentNode = stickyOutlineElement;
 			}
+
 			const child = new StickyElement(
-				range,
+				new StickyRange(foldingRegions.getStartLineNumber(i), foldingRegions.getEndLineNumber(i) + 1),
 				[],
-				parentStickyOutlineElement
+				parentNode
 			);
-			parentStickyOutlineElement.children.push(child);
-			parentStickyOutlineElement = child;
-			stackOfParents.push(range);
+			parentNode.children.push(child);
+			orderedStickyElements.push(child);
 		}
 		return stickyOutlineElement;
 	}
