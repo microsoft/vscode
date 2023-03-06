@@ -199,7 +199,6 @@ export class View extends ViewEventHandler {
 
 		this._linesContent.appendChild(contentViewOverlays.getDomNode());
 		this._linesContent.appendChild(rulers.domNode);
-		this._linesContent.appendChild(blockOutline.domNode);
 		this._linesContent.appendChild(this._viewZones.domNode);
 		this._linesContent.appendChild(this._viewLines.getDomNode());
 		this._linesContent.appendChild(this._contentWidgets.domNode);
@@ -211,6 +210,7 @@ export class View extends ViewEventHandler {
 		this._overflowGuardContainer.appendChild(this._textAreaHandler.textAreaCover);
 		this._overflowGuardContainer.appendChild(this._overlayWidgets.getDomNode());
 		this._overflowGuardContainer.appendChild(minimap.getDomNode());
+		this._overflowGuardContainer.appendChild(blockOutline.domNode);
 		this.domNode.appendChild(this._overflowGuardContainer);
 
 		if (overflowWidgetsDomNode) {

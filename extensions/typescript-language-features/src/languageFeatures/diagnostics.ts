@@ -103,7 +103,7 @@ interface LanguageDiagnosticSettings {
 
 function areLanguageDiagnosticSettingsEqual(currentSettings: LanguageDiagnosticSettings, newSettings: LanguageDiagnosticSettings): boolean {
 	return currentSettings.validate === newSettings.validate
-		&& currentSettings.enableSuggestions && currentSettings.enableSuggestions;
+		&& currentSettings.enableSuggestions === newSettings.enableSuggestions;
 }
 
 class DiagnosticSettings {

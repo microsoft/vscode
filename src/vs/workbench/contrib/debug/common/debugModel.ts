@@ -880,6 +880,10 @@ export class Breakpoint extends BaseBreakpoint implements IBreakpoint {
 		super(enabled, hitCondition, condition, logMessage, id);
 	}
 
+	get originalUri() {
+		return this._uri;
+	}
+
 	get lineNumber(): number {
 		return this.verified && this.data && typeof this.data.line === 'number' ? this.data.line : this._lineNumber;
 	}
@@ -1079,8 +1083,10 @@ export class ExceptionBreakpoint extends BaseBreakpoint implements IExceptionBre
 		result.label = this.label;
 		result.enabled = this.enabled;
 		result.supportsCondition = this.supportsCondition;
+		result.conditionDescription = this.conditionDescription;
 		result.condition = this.condition;
 		result.fallback = this.fallback;
+		result.description = this.description;
 
 		return result;
 	}
@@ -1336,11 +1342,15 @@ export class DebugModel implements IDebugModel {
 		return { wholeCallStack, topCallStack: wholeCallStack };
 	}
 
-	getBreakpoints(filter?: { uri?: uri; lineNumber?: number; column?: number; enabledOnly?: boolean }): IBreakpoint[] {
+	getBreakpoints(filter?: { uri?: uri; originalUri?: uri; lineNumber?: number; column?: number; enabledOnly?: boolean }): IBreakpoint[] {
 		if (filter) {
-			const uriStr = filter.uri ? filter.uri.toString() : undefined;
+			const uriStr = filter.uri?.toString();
+			const originalUriStr = filter.originalUri?.toString();
 			return this.breakpoints.filter(bp => {
 				if (uriStr && bp.uri.toString() !== uriStr) {
+					return false;
+				}
+				if (originalUriStr && bp.originalUri.toString() !== originalUriStr) {
 					return false;
 				}
 				if (filter.lineNumber && bp.lineNumber !== filter.lineNumber) {

@@ -123,9 +123,8 @@ class RemoteInvalidWorkspaceDetector extends Disposable implements IWorkbenchCon
 		const res = await this.dialogService.confirm({
 			type: 'warning',
 			message: localize('invalidWorkspaceMessage', "Workspace does not exist"),
-			detail: localize('invalidWorkspaceDetail', "The workspace does not exist. Please select another workspace to open."),
-			primaryButton: localize('invalidWorkspacePrimary', "&&Open Workspace..."),
-			secondaryButton: localize('invalidWorkspaceCancel', "&&Cancel")
+			detail: localize('invalidWorkspaceDetail', "Please select another workspace to open."),
+			primaryButton: localize({ key: 'invalidWorkspacePrimary', comment: ['&& denotes a mnemonic'] }, "&&Open Workspace...")
 		});
 
 		if (res.confirmed) {

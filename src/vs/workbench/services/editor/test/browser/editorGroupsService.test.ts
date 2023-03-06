@@ -1309,6 +1309,29 @@ suite('EditorGroupsService', () => {
 		assert.strictEqual(part.groups.length, 4);
 	});
 
+	test('getLayout', async function () {
+		const [part] = await createPart();
+
+		// 2x2
+		part.applyLayout({ groups: [{ groups: [{}, {}] }, { groups: [{}, {}] }], orientation: GroupOrientation.HORIZONTAL });
+		let layout = part.getLayout();
+
+		assert.strictEqual(layout.orientation, GroupOrientation.HORIZONTAL);
+		assert.strictEqual(layout.groups.length, 2);
+		assert.strictEqual(layout.groups[0].groups!.length, 2);
+		assert.strictEqual(layout.groups[1].groups!.length, 2);
+
+		// 3 columns
+		part.applyLayout({ groups: [{}, {}, {}], orientation: GroupOrientation.VERTICAL });
+		layout = part.getLayout();
+
+		assert.strictEqual(layout.orientation, GroupOrientation.VERTICAL);
+		assert.strictEqual(layout.groups.length, 3);
+		assert.ok(typeof layout.groups[0].size === 'number');
+		assert.ok(typeof layout.groups[1].size === 'number');
+		assert.ok(typeof layout.groups[2].size === 'number');
+	});
+
 	test('centeredLayout', async function () {
 		const [part] = await createPart();
 

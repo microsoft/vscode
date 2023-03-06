@@ -5,7 +5,7 @@
 
 import { h } from 'vs/base/browser/dom';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
-import { KeybindingLabel } from 'vs/base/browser/ui/keybindingLabel/keybindingLabel';
+import { KeybindingLabel, unthemedKeybindingLabelOptions } from 'vs/base/browser/ui/keybindingLabel/keybindingLabel';
 import { Action, IAction, Separator } from 'vs/base/common/actions';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { Codicon } from 'vs/base/common/codicons';
@@ -36,6 +36,7 @@ export class InlineSuggestionHintsWidget extends Disposable {
 	private readonly widget = this._register(this.instantiationService.createInstance(InlineSuggestionHintsContentWidget, this.editor, true));
 
 	private sessionPosition: Position | undefined = undefined;
+	private isDisposed = false;
 
 	constructor(
 		private readonly editor: ICodeEditor,
@@ -51,7 +52,16 @@ export class InlineSuggestionHintsWidget extends Disposable {
 		this.update();
 	}
 
+	override dispose(): void {
+		this.isDisposed = true;
+		super.dispose();
+	}
+
 	private update(): void {
+		if (this.isDisposed) {
+			return;
+		}
+
 		const options = this.editor.getOption(EditorOption.inlineSuggest);
 		if (options.showToolbar !== 'always' || !this.model.ghostText) {
 			this.widget.update(null, 0, undefined, []);
@@ -244,7 +254,7 @@ class StatusBarViewItem extends MenuEntryActionViewItem {
 		if (this.label) {
 			const div = h('div.keybinding').root;
 
-			const k = new KeybindingLabel(div, OS, { disableTitle: true });
+			const k = new KeybindingLabel(div, OS, { disableTitle: true, ...unthemedKeybindingLabelOptions });
 			k.set(kb);
 			this.label.textContent = this._action.label;
 			this.label.appendChild(div);

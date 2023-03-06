@@ -83,7 +83,7 @@ import 'vs/workbench/contrib/notebook/browser/contrib/cellStatusBar/executionSta
 import 'vs/workbench/contrib/notebook/browser/contrib/editorStatusBar/editorStatusBar';
 import 'vs/workbench/contrib/notebook/browser/contrib/undoRedo/notebookUndoRedo';
 import 'vs/workbench/contrib/notebook/browser/contrib/cellCommands/cellCommands';
-import 'vs/workbench/contrib/notebook/browser/contrib/viewportCustomMarkdown/viewportCustomMarkdown';
+import 'vs/workbench/contrib/notebook/browser/contrib/viewportWarmup/viewportWarmup';
 import 'vs/workbench/contrib/notebook/browser/contrib/troubleshoot/layout';
 import 'vs/workbench/contrib/notebook/browser/contrib/debug/notebookBreakpoints';
 import 'vs/workbench/contrib/notebook/browser/contrib/debug/notebookCellPausing';
@@ -303,6 +303,10 @@ class CellContentProvider implements ITextModelContentProvider {
 		const ref = await this._notebookModelResolverService.resolve(data.notebook);
 		let result: ITextModel | null = null;
 
+		if (!ref.object.isResolved()) {
+			return null;
+		}
+
 		for (const cell of ref.object.notebook.cells) {
 			if (cell.uri.toString() === resource.toString()) {
 				const bufferFactory: ITextBufferFactory = {
@@ -502,7 +506,7 @@ class CellInfoContentProvider {
 			}
 
 			model.setValue(newResult.content);
-			model.setMode(newResult.mode.languageId);
+			model.setLanguage(newResult.mode.languageId);
 		});
 
 		const once = model.onWillDispose(() => {
@@ -892,7 +896,13 @@ configurationRegistry.registerConfiguration({
 			type: 'boolean',
 			tags: ['notebookLayout'],
 			default: false
-		}
+		},
+		[NotebookSetting.outputWordWrap]: {
+			markdownDescription: nls.localize('notebook.outputWordWrap', "Controls whether the lines in output should wrap."),
+			type: 'boolean',
+			tags: ['notebookLayout'],
+			default: false
+		},
 	}
 });
 

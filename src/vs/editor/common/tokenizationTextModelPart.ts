@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event } from 'vs/base/common/event';
 import { IPosition } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { StandardTokenType } from 'vs/editor/common/encodedTokenAttributes';
@@ -19,6 +18,8 @@ export interface ITokenizationTextModelPart {
 	 * @internal
 	 */
 	setTokens(tokens: ContiguousMultilineTokens[]): void;
+
+	readonly hasTokens: boolean;
 
 	/**
 	 * Replaces all semantic tokens with the provided `tokens`.
@@ -98,11 +99,9 @@ export interface ITokenizationTextModelPart {
 	setLanguageId(languageId: string, source?: string): void;
 
 	readonly backgroundTokenizationState: BackgroundTokenizationState;
-	readonly onBackgroundTokenizationStateChanged: Event<void>;
 }
 
 export const enum BackgroundTokenizationState {
-	Uninitialized = 0,
 	InProgress = 1,
 	Completed = 2,
 }

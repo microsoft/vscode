@@ -38,6 +38,7 @@ import { ServiceCollection } from 'vs/platform/instantiation/common/serviceColle
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import { IEditorConstructionOptions } from 'vs/editor/browser/config/editorConfiguration';
 import { ensureValidWordDefinition, getWordAtText } from 'vs/editor/common/core/wordHelper';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 export interface SuggestResultsProvider {
 	/**
@@ -145,6 +146,7 @@ export class SuggestEnabledInput extends Widget {
 		@IModelService modelService: IModelService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@ILanguageFeaturesService languageFeaturesService: ILanguageFeaturesService,
+		@IConfigurationService configurationService: IConfigurationService
 	) {
 		super();
 
@@ -156,6 +158,8 @@ export class SuggestEnabledInput extends Widget {
 			getSimpleEditorOptions(),
 			getSuggestEnabledInputOptions(ariaLabel));
 		editorOptions.overflowWidgetsDomNode = options.overflowWidgetsDomNode;
+		editorOptions.accessibilitySupport = configurationService.getValue<'auto' | 'off' | 'on'>('editor.accessibilitySupport');
+		editorOptions.cursorBlinking = configurationService.getValue<'blink' | 'smooth' | 'phase' | 'expand' | 'solid'>('editor.cursorBlinking');
 
 		const scopedContextKeyService = this.getScopedContextKeyService(contextKeyService);
 
@@ -175,6 +179,18 @@ export class SuggestEnabledInput extends Widget {
 				]),
 				isSimpleWidget: true,
 			}));
+
+		this._register(configurationService.onDidChangeConfiguration((e) => {
+			if (e.affectsConfiguration('editor.accessibilitySupport') ||
+				e.affectsConfiguration('editor.cursorBlinking')) {
+				const accessibilitySupport = configurationService.getValue<'auto' | 'off' | 'on'>('editor.accessibilitySupport');
+				const cursorBlinking = configurationService.getValue<'blink' | 'smooth' | 'phase' | 'expand' | 'solid'>('editor.cursorBlinking');
+				this.inputWidget.updateOptions({
+					accessibilitySupport,
+					cursorBlinking
+				});
+			}
+		}));
 
 		this._register(this.inputWidget.onDidFocusEditorText(() => this._onDidFocus.fire()));
 		this._register(this.inputWidget.onDidBlurEditorText(() => this._onDidBlur.fire()));
@@ -345,8 +361,9 @@ export class SuggestEnabledInputWithHistory extends SuggestEnabledInput implemen
 		@IModelService modelService: IModelService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@ILanguageFeaturesService languageFeaturesService: ILanguageFeaturesService,
+		@IConfigurationService configurationService: IConfigurationService
 	) {
-		super(id, parent, suggestionProvider, ariaLabel, resourceHandle, suggestOptions, instantiationService, modelService, contextKeyService, languageFeaturesService);
+		super(id, parent, suggestionProvider, ariaLabel, resourceHandle, suggestOptions, instantiationService, modelService, contextKeyService, languageFeaturesService, configurationService);
 		this.history = new HistoryNavigator<string>(history, 100);
 	}
 
@@ -423,8 +440,9 @@ export class ContextScopedSuggestEnabledInputWithHistory extends SuggestEnabledI
 		@IModelService modelService: IModelService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@ILanguageFeaturesService languageFeaturesService: ILanguageFeaturesService,
+		@IConfigurationService configurationService: IConfigurationService
 	) {
-		super(options, instantiationService, modelService, contextKeyService, languageFeaturesService);
+		super(options, instantiationService, modelService, contextKeyService, languageFeaturesService, configurationService);
 
 		const { historyNavigationBackwardsEnablement, historyNavigationForwardsEnablement } = this.historyContext;
 		this._register(this.inputWidget.onDidChangeCursorPosition(({ position }) => {

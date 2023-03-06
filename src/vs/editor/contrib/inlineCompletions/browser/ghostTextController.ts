@@ -368,8 +368,8 @@ export class HideInlineCompletion extends EditorAction {
 	constructor() {
 		super({
 			id: HideInlineCompletion.ID,
-			label: nls.localize('action.inlineSuggest.acceptNextWord', "Accept Next Word Of Inline Suggestion"),
-			alias: 'Accept Next Word Of Inline Suggestion',
+			label: nls.localize('action.inlineSuggest.hide', "Hide Inline Suggestion"),
+			alias: 'Hide Inline Suggestion',
 			precondition: GhostTextController.inlineSuggestionVisible,
 			kbOpts: {
 				weight: 100,

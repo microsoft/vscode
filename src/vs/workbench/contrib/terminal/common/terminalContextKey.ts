@@ -23,7 +23,6 @@ export const enum TerminalContextKeyStrings {
 	AltBufferActive = 'terminalAltBufferActive',
 	SuggestWidgetVisible = 'terminalSuggestWidgetVisible',
 	A11yTreeFocus = 'terminalA11yTreeFocus',
-	NavigationModeActive = 'terminalNavigationModeActive',
 	ViewShowing = 'terminalViewShowing',
 	TextSelected = 'terminalTextSelected',
 	FindVisible = 'terminalFindVisible',
@@ -87,14 +86,6 @@ export namespace TerminalContextKeys {
 
 	/** Whether the terminal view is showing. */
 	export const viewShowing = new RawContextKey<boolean>(TerminalContextKeyStrings.ViewShowing, false, localize('terminalViewShowing', "Whether the terminal view is showing"));
-
-	/** Whether the user is navigating a terminal's the accessibility tree. */
-	export const a11yTreeFocus = new RawContextKey<boolean>(TerminalContextKeyStrings.A11yTreeFocus, false, true);
-
-	/**
-	 * Whether the user is currently in navigation mode
-	 */
-	export const navigationModeActive = new RawContextKey<boolean>(TerminalContextKeyStrings.NavigationModeActive, false, true);
 
 	/** Whether text is selected in the active terminal. */
 	export const textSelected = new RawContextKey<boolean>(TerminalContextKeyStrings.TextSelected, false, localize('terminalTextSelectedContextKey', "Whether text is selected in the active terminal."));
