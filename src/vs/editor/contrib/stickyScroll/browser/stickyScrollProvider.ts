@@ -112,17 +112,19 @@ export class StickyLineCandidateProvider extends Disposable implements IStickyLi
 			this._sessionStore.clear();
 			return;
 		} else {
-			// Specifying the order in which the model providers should be called depending on the setting options
-			if (this._options.defaultModel === ModelProvider.INDENTATION_MODEL) {
-				this._modelProviders.unshift(this.stickyModelFromIndentationProvider.bind(this));
-			}
-			else if (this._options.defaultModel === ModelProvider.OUTLINE_MODEL || this._options.defaultModel === ModelProvider.FOLDING_PROVIDER_MODEL) {
-				// By construction the folding provider model already falls back on the indentation model, so don't need to include the indentation model as the last element in the priority list
-				this._modelProviders.unshift(this.stickyModelFromFoldingProvider.bind(this));
-
-				if (this._options.defaultModel === ModelProvider.OUTLINE_MODEL) {
-					this._modelProviders.unshift(this.stickyModelFromOutlineProvider.bind(this));
-				}
+			switch (this._options.defaultModel) {
+				case ModelProvider.OUTLINE_MODEL:
+					this._modelProviders.push(this.stickyModelFromOutlineProvider.bind(this));
+					this._modelProviders.push(this.stickyModelFromSyntaxFoldingProvider.bind(this));
+					this._modelProviders.push(this.stickyModelFromIndentationProvider.bind(this));
+					break;
+				case ModelProvider.FOLDING_PROVIDER_MODEL:
+					this._modelProviders.push(this.stickyModelFromSyntaxFoldingProvider.bind(this));
+					this._modelProviders.push(this.stickyModelFromIndentationProvider.bind(this));
+					break;
+				case ModelProvider.INDENTATION_MODEL:
+					this._modelProviders.push(this.stickyModelFromIndentationProvider.bind(this));
+					break;
 			}
 		}
 
@@ -218,24 +220,23 @@ export class StickyLineCandidateProvider extends Disposable implements IStickyLi
 		}
 	}
 
-	private async stickyModelFromFoldingProvider(textModel: ITextModel, modelVersionId: number, token: CancellationToken): Promise<boolean | undefined> {
-		const indentRangeProvider = new IndentRangeProvider(textModel, this._languageConfigurationService, this._foldingLimitReporter);
+	private async stickyModelFromSyntaxFoldingProvider(textModel: ITextModel, modelVersionId: number, token: CancellationToken): Promise<boolean | undefined> {
 		const selectedProviders = FoldingController.getFoldingRangeProviders(this._languageFeaturesService, textModel);
-		let provider: RangeProvider;
 		if (selectedProviders.length > 0) {
-			provider = new SyntaxRangeProvider(textModel, selectedProviders, () => this.stickyModelFromFoldingProvider(textModel, modelVersionId, token), this._foldingLimitReporter, indentRangeProvider);
+			const provider = new SyntaxRangeProvider(textModel, selectedProviders, () => this.stickyModelFromSyntaxFoldingProvider(textModel, modelVersionId, token), this._foldingLimitReporter, undefined);
+			return this.stickyModelFromFoldingProvider(textModel, modelVersionId, token, provider);
 		} else {
-			provider = indentRangeProvider;
+			return undefined;
 		}
-		return this.stickyModelFromProvider(textModel, modelVersionId, token, provider);
+
 	}
 
 	private async stickyModelFromIndentationProvider(textModel: ITextModel, modelVersionId: number, token: CancellationToken): Promise<boolean | undefined> {
 		const provider = new IndentRangeProvider(textModel, this._languageConfigurationService, this._foldingLimitReporter);
-		return this.stickyModelFromProvider(textModel, modelVersionId, token, provider);
+		return this.stickyModelFromFoldingProvider(textModel, modelVersionId, token, provider);
 	}
 
-	private async stickyModelFromProvider(textModel: ITextModel, modelVersionId: number, token: CancellationToken, provider: RangeProvider): Promise<boolean | undefined> {
+	private async stickyModelFromFoldingProvider(textModel: ITextModel, modelVersionId: number, token: CancellationToken, provider: RangeProvider): Promise<boolean | undefined> {
 
 		if (this._updateScheduler) {
 			if (this._foldingRegionPromise) {
