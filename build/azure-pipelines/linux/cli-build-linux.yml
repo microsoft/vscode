@@ -22,7 +22,7 @@ steps:
     displayName: Download openssl prebuilt
     inputs:
       command: custom
-      customCommand: pack @vscode-internal/openssl-prebuilt@0.0.3
+      customCommand: pack @vscode-internal/openssl-prebuilt@0.0.5
       customRegistry: useFeed
       customFeed: 'Monaco/openssl-prebuilt'
       workingDir: $(Build.ArtifactStagingDirectory)
@@ -30,7 +30,7 @@ steps:
   - script: |
       set -e
       mkdir $(Build.ArtifactStagingDirectory)/openssl
-      tar -xvzf $(Build.ArtifactStagingDirectory)/vscode-internal-openssl-prebuilt-0.0.3.tgz --strip-components=1 --directory=$(Build.ArtifactStagingDirectory)/openssl
+      tar -xvzf $(Build.ArtifactStagingDirectory)/vscode-internal-openssl-prebuilt-0.0.5.tgz --strip-components=1 --directory=$(Build.ArtifactStagingDirectory)/openssl
     displayName: Extract openssl prebuilt
 
   # inspired by: https://github.com/emk/rust-musl-builder/blob/main/Dockerfile
@@ -38,7 +38,7 @@ steps:
     - bash: |
         set -e
         sudo apt-get update
-        sudo apt-get install -yq build-essential musl-dev musl-tools linux-libc-dev pkgconf xutils-dev
+        sudo apt-get install -yq build-essential musl-dev musl-tools linux-libc-dev pkgconf xutils-dev lld
         sudo ln -s "/usr/bin/g++" "/usr/bin/musl-g++" || echo "link exists"
       displayName: Install musl build dependencies
 
@@ -91,8 +91,9 @@ steps:
         VSCODE_CLI_ENV:
           CXX_aarch64-unknown-linux-musl: musl-g++
           CC_aarch64-unknown-linux-musl: musl-gcc
-          OPENSSL_LIB_DIR: $(Build.ArtifactStagingDirectory)/openssl/arm64-linux/lib
-          OPENSSL_INCLUDE_DIR: $(Build.ArtifactStagingDirectory)/openssl/arm64-linux/include
+          OPENSSL_LIB_DIR: $(Build.ArtifactStagingDirectory)/openssl/arm64-linux-musl/lib
+          OPENSSL_INCLUDE_DIR: $(Build.ArtifactStagingDirectory)/openssl/arm64-linux-musl/include
+          OPENSSL_STATIC: '1'
 
   - ${{ if eq(parameters.VSCODE_BUILD_ALPINE, true) }}:
     - template: ../cli/cli-compile-and-publish.yml
@@ -102,8 +103,9 @@ steps:
         VSCODE_CLI_ENV:
           CXX_aarch64-unknown-linux-musl: musl-g++
           CC_aarch64-unknown-linux-musl: musl-gcc
-          OPENSSL_LIB_DIR: $(Build.ArtifactStagingDirectory)/openssl/x64-linux/lib
-          OPENSSL_INCLUDE_DIR: $(Build.ArtifactStagingDirectory)/openssl/x64-linux/include
+          OPENSSL_LIB_DIR: $(Build.ArtifactStagingDirectory)/openssl/x64-linux-musl/lib
+          OPENSSL_INCLUDE_DIR: $(Build.ArtifactStagingDirectory)/openssl/x64-linux-musl/include
+          OPENSSL_STATIC: '1'
 
   - ${{ if eq(parameters.VSCODE_BUILD_LINUX_ARM64, true) }}:
     - template: ../cli/cli-compile-and-publish.yml

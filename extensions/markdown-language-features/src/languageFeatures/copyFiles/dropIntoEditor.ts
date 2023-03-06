@@ -45,7 +45,7 @@ export async function tryGetUriListSnippet(document: vscode.TextDocument, dataTr
 	}
 
 	const uris: vscode.Uri[] = [];
-	for (const resource of urlList.split('\n')) {
+	for (const resource of urlList.split(/\r?\n/g)) {
 		try {
 			uris.push(vscode.Uri.parse(resource));
 		} catch {

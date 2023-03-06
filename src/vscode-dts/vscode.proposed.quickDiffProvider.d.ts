@@ -10,4 +10,8 @@ declare module 'vscode' {
 	export namespace window {
 		export function registerQuickDiffProvider(selector: DocumentSelector, quickDiffProvider: QuickDiffProvider, label: string, rootUri?: Uri): Disposable;
 	}
+
+	interface QuickDiffProvider {
+		label?: string;
+	}
 }

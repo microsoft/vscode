@@ -512,8 +512,12 @@
 	border-color: var(--vscode-contrastActiveBorder);
 }
 
-.monaco-workbench .editor-instance .find-focused .xterm .xterm-viewport,
-.monaco-workbench .pane-body.integrated-terminal .find-focused .xterm .xterm-viewport,
+.monaco-workbench .integrated-terminal .hoverHighlight {
+	background-color: var(--vscode-terminal-hoverHighlightBackground);
+}
+
+.monaco-workbench .editor-instance .force-scrollbar .xterm .xterm-viewport,
+.monaco-workbench .pane-body.integrated-terminal .force-scrollbar .xterm .xterm-viewport,
 .monaco-workbench .editor-instance .xterm.focus .xterm-viewport,
 .monaco-workbench .pane-body.integrated-terminal .xterm.focus .xterm-viewport,
 .monaco-workbench .editor-instance .xterm:focus .xterm-viewport,
@@ -581,4 +585,20 @@
 	outline-offset: -1px;
 	text-decoration: underline;
 	outline-color: var(--vscode-focusBorder);
+}
+
+/* Overrides for the a11y buffer as we're hosting monaco within it */
+.xterm .xterm-accessible-buffer {
+	padding: 0 !important;
+	overflow: initial !important;
+	overflow-x: initial !important;
+}
+.xterm .xterm-accessible-buffer:focus-within {
+	top: 0 !important;
+	left: 0 !important;
+	pointer-events: all !important;
+}
+.xterm > .xterm-accessible-buffer {
+	/* Reset cursor style as monaco controls it here */
+	cursor: default;
 }

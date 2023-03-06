@@ -11,7 +11,7 @@ import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecy
 import { IProductService } from 'vs/platform/product/common/productService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IUpdateService } from 'vs/platform/update/common/update';
-import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
+import { INativeHostService } from 'vs/platform/native/common/native';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { ITimerService } from 'vs/workbench/services/timer/browser/timerService';
 import { IFileService } from 'vs/platform/files/common/files';

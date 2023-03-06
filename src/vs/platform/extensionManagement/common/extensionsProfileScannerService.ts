@@ -248,7 +248,7 @@ export abstract class AbstractExtensionsProfileScannerService extends Disposable
 						this.reportAndThrowInvalidConentError(file);
 					}
 					let location: URI;
-					if (isString(e.relativeLocation)) {
+					if (isString(e.relativeLocation) && e.relativeLocation) {
 						// Extension in new format. No migration needed.
 						location = this.resolveExtensionLocation(e.relativeLocation);
 					} else if (isString(e.location)) {
@@ -309,8 +309,8 @@ export abstract class AbstractExtensionsProfileScannerService extends Disposable
 	}
 
 	private toRelativePath(extensionLocation: URI): string | undefined {
-		return this.uriIdentityService.extUri.isEqualOrParent(extensionLocation, this.extensionsLocation)
-			? this.uriIdentityService.extUri.relativePath(this.extensionsLocation, extensionLocation)
+		return this.uriIdentityService.extUri.isEqual(this.uriIdentityService.extUri.dirname(extensionLocation), this.extensionsLocation)
+			? this.uriIdentityService.extUri.basename(extensionLocation)
 			: undefined;
 	}
 
@@ -396,7 +396,7 @@ export abstract class AbstractExtensionsProfileScannerService extends Disposable
 function isStoredProfileExtension(candidate: any): candidate is IStoredProfileExtension {
 	return isObject(candidate)
 		&& isIExtensionIdentifier(candidate.identifier)
-		&& (isUriComponents(candidate.location) || isString(candidate.location))
+		&& (isUriComponents(candidate.location) || (isString(candidate.location) && candidate.location))
 		&& (isUndefined(candidate.relativeLocation) || isString(candidate.relativeLocation))
 		&& candidate.version && isString(candidate.version);
 }

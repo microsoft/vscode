@@ -3,14 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
-import { IProductService } from 'vs/platform/product/common/productService';
 import { Action } from 'vs/base/common/actions';
-import { ExtensionHostKind, IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
-import { IDebugService } from 'vs/workbench/contrib/debug/common/debug';
-import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { randomPort } from 'vs/base/common/ports';
+import * as nls from 'vs/nls';
+import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
+import { INativeHostService } from 'vs/platform/native/common/native';
+import { IProductService } from 'vs/platform/product/common/productService';
+import { IDebugService } from 'vs/workbench/contrib/debug/common/debug';
+import { ExtensionHostKind } from 'vs/workbench/services/extensions/common/extensionHostKind';
+import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 
 export class DebugExtensionHostAction extends Action {
 	static readonly ID = 'workbench.extensions.action.debugExtensionHost';

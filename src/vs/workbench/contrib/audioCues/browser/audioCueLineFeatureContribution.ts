@@ -180,7 +180,7 @@ interface LineFeatureState {
 
 class MarkerLineFeature implements LineFeature {
 	public readonly debounceWhileTyping = true;
-
+	private _previousLine: number = 0;
 	constructor(
 		public readonly audioCue: AudioCue,
 		private readonly severity: MarkerSeverity,
@@ -195,16 +195,15 @@ class MarkerLineFeature implements LineFeature {
 			),
 			() => /** @description this.markerService.onMarkerChanged */({
 				isPresent: (position) => {
+					const lineChanged = position.lineNumber !== this._previousLine;
+					this._previousLine = position.lineNumber;
 					const hasMarker = this.markerService
 						.read({ resource: model.uri })
 						.some(
-							(m) =>
-								m.severity === this.severity &&
-								m.startLineNumber <= position.lineNumber &&
-								position.lineNumber <= m.endLineNumber &&
-								m.startColumn <= position.column &&
-								position.column <= m.endColumn
-						);
+							(m) => {
+								const onLine = m.severity === this.severity && m.startLineNumber <= position.lineNumber && position.lineNumber <= m.endLineNumber;
+								return lineChanged ? onLine : onLine && (position.lineNumber <= m.endLineNumber && m.startColumn <= position.column && m.endColumn >= position.column);
+							});
 					return hasMarker;
 				},
 			})

@@ -54,7 +54,8 @@
         "command": "github.openOnVscodeDev",
         "when": "github.hasGitHubRepo",
         "qualifiedName": "Continue Working in vscode.dev",
-        "remoteGroup": "virtualfs_43_file_0_web@0"
+        "category": "Remote Repositories",
+        "remoteGroup": "virtualfs_44_vscode-vfs_2_web@2"
       }
     ],
     "menus": {

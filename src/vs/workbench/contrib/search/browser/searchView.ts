@@ -11,7 +11,6 @@ import { IIdentityProvider } from 'vs/base/browser/ui/list/list';
 import { ICompressedTreeElement } from 'vs/base/browser/ui/tree/compressedObjectTreeModel';
 import { ITreeContextMenuEvent } from 'vs/base/browser/ui/tree/tree';
 import { Delayer } from 'vs/base/common/async';
-import { Color, RGBA } from 'vs/base/common/color';
 import * as errors from 'vs/base/common/errors';
 import { Event } from 'vs/base/common/event';
 import { Iterable } from 'vs/base/common/iterator';
@@ -50,8 +49,7 @@ import { IProgress, IProgressService, IProgressStep } from 'vs/platform/progress
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { defaultInputBoxStyles, defaultToggleStyles } from 'vs/platform/theme/browser/defaultStyles';
-import { foreground } from 'vs/platform/theme/common/colorRegistry';
-import { IColorTheme, ICssStyleCollector, IFileIconTheme, IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
+import { IFileIconTheme, IThemeService } from 'vs/platform/theme/common/themeService';
 import { ThemeIcon } from 'vs/base/common/themables';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { OpenFileFolderAction, OpenFolderAction } from 'vs/workbench/browser/actions/workspaceActions';
@@ -82,6 +80,7 @@ import { IPatternInfo, ISearchComplete, ISearchConfiguration, ISearchConfigurati
 import { TextSearchCompleteMessage } from 'vs/workbench/services/search/common/searchExtTypes';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
+import { NotebookFindContrib } from 'vs/workbench/contrib/notebook/browser/contrib/find/notebookFindWidget';
 
 const $ = dom.$;
 
@@ -1653,6 +1652,7 @@ export class SearchView extends ViewPane {
 		this.searchWidget.setReplaceAllActionState(false);
 
 		this.tree.setSelection([]);
+		this.tree.setFocus([]);
 		return this.viewModel.search(query)
 			.then(onComplete, onError);
 	}
@@ -1826,30 +1826,37 @@ export class SearchView extends ViewPane {
 		}
 
 		if (editor instanceof NotebookEditor) {
-			if (element instanceof Match) {
-				if (element instanceof NotebookMatch) {
-					element.parent().showMatch(element);
-				} else {
-					const editorWidget = editor.getControl();
-					if (editorWidget) {
-						// Ensure that the editor widget is binded. If if is, then this should return immediately.
-						// Otherwise, it will bind the widget.
-						await element.parent().bindNotebookEditorWidget(editorWidget);
+			const experimentalNotebooksEnabled = this.configurationService.getValue<ISearchConfigurationProperties>('search').experimental.notebookSearch;
+			if (experimentalNotebooksEnabled) {
+				if (element instanceof Match) {
+					if (element instanceof NotebookMatch) {
+						element.parent().showMatch(element);
+					} else {
+						const editorWidget = editor.getControl();
+						if (editorWidget) {
+							// Ensure that the editor widget is binded. If if is, then this should return immediately.
+							// Otherwise, it will bind the widget.
+							await element.parent().bindNotebookEditorWidget(editorWidget);
 
-						const matchIndex = oldParentMatches.findIndex(e => e.id() === element.id());
-						const matches = element.parent().matches();
-						const match = matchIndex >= matches.length ? matches[matches.length - 1] : matches[matchIndex];
+							const matchIndex = oldParentMatches.findIndex(e => e.id() === element.id());
+							const matches = element.parent().matches();
+							const match = matchIndex >= matches.length ? matches[matches.length - 1] : matches[matchIndex];
 
-						if (match instanceof NotebookMatch) {
-							element.parent().showMatch(match);
+							if (match instanceof NotebookMatch) {
+								element.parent().showMatch(match);
+							}
+
+							if (!this.tree.getFocus().includes(match) || !this.tree.getSelection().includes(match)) {
+								this.tree.setSelection([match], getSelectionKeyboardEvent());
+							}
 						}
 
-						if (!this.tree.getFocus().includes(match) || !this.tree.getSelection().includes(match)) {
-							this.tree.setSelection([match], getSelectionKeyboardEvent());
-						}
 					}
-
 				}
+			} else {
+				const controller = editor.getControl()?.getContribution<NotebookFindContrib>(NotebookFindContrib.id);
+				const matchIndex = element instanceof Match ? element.parent().matches().findIndex(e => e.id() === element.id()) : undefined;
+				controller?.show(this.searchWidget.searchInput.getValue(), { matchIndex, focus: false });
 			}
 
 		}
@@ -2037,15 +2044,6 @@ export class SearchView extends ViewPane {
 	}
 }
 
-registerThemingParticipant((theme: IColorTheme, collector: ICssStyleCollector) => {
-	if (theme.type === 'dark') {
-		const foregroundColor = theme.getColor(foreground);
-		if (foregroundColor) {
-			const fgWithOpacity = new Color(new RGBA(foregroundColor.rgba.r, foregroundColor.rgba.g, foregroundColor.rgba.b, 0.65));
-			collector.addRule(`.search-view .message { color: ${fgWithOpacity}; }`);
-		}
-	}
-});
 
 class SearchLinkButton extends Disposable {
 	public readonly element: HTMLElement;

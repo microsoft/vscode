@@ -80,6 +80,7 @@
 	max-width: 200px;
 	z-index: 100;
 	margin: 0 6px;
+	border: 1px solid var(--vscode-widget-border);
 }
 
 .monaco-tree-type-filter.disabled {

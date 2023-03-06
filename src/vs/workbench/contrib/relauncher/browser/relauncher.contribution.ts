@@ -26,7 +26,7 @@ interface IConfiguration extends IWindowsConfiguration {
 	debug?: { console?: { wordWrap?: boolean } };
 	editor?: { accessibilitySupport?: 'on' | 'off' | 'auto' };
 	security?: { workspace?: { trust?: { enabled?: boolean } } };
-	window: IWindowSettings & { experimental?: { windowControlsOverlay?: { enabled?: boolean }; useSandbox?: boolean } };
+	window: IWindowSettings & { experimental?: { windowControlsOverlay?: { enabled?: boolean }; useSandbox?: boolean; sharedProcessUseUtilityProcess?: boolean } };
 	workbench?: { enableExperiments?: boolean };
 	_extensionsGallery?: { enablePPE?: boolean };
 }
@@ -37,6 +37,7 @@ export class SettingsChangeRelauncher extends Disposable implements IWorkbenchCo
 		'window.titleBarStyle',
 		'window.experimental.windowControlsOverlay.enabled',
 		'window.experimental.useSandbox',
+		'window.experimental.sharedProcessUseUtilityProcess',
 		'window.nativeTabs',
 		'window.nativeFullScreen',
 		'window.clickThroughInactive',
@@ -50,6 +51,7 @@ export class SettingsChangeRelauncher extends Disposable implements IWorkbenchCo
 	private readonly titleBarStyle = new ChangeObserver<'native' | 'custom'>('string');
 	private readonly windowControlsOverlayEnabled = new ChangeObserver('boolean');
 	private readonly windowSandboxEnabled = new ChangeObserver('boolean');
+	private readonly sharedProcessUtilityProcessEnabled = new ChangeObserver('boolean');
 	private readonly nativeTabs = new ChangeObserver('boolean');
 	private readonly nativeFullScreen = new ChangeObserver('boolean');
 	private readonly clickThroughInactive = new ChangeObserver('boolean');
@@ -94,6 +96,9 @@ export class SettingsChangeRelauncher extends Disposable implements IWorkbenchCo
 
 			// Windows: Sandbox
 			processChanged(this.windowSandboxEnabled.handleChange(config.window?.experimental?.useSandbox));
+
+			// Shared Process: Utility Process
+			processChanged(this.sharedProcessUtilityProcessEnabled.handleChange(config.window?.experimental?.sharedProcessUseUtilityProcess));
 
 			// macOS: Native tabs
 			processChanged(isMacintosh && this.nativeTabs.handleChange(config.window?.nativeTabs));
