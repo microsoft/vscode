@@ -677,15 +677,15 @@ export class InteractiveEditorController implements IEditorContribution {
 				options: InteractiveEditorController._decoBlock
 			}]);
 
+			this._ctsRequest?.dispose(true);
+			this._ctsRequest = new CancellationTokenSource(this._ctsSession.token);
+
 			this._historyOffset = -1;
-			const input = await this._zone.getInput(wholeRange.getEndPosition(), placeholder, value, this._ctsSession.token);
+			const input = await this._zone.getInput(wholeRange.getEndPosition(), placeholder, value, this._ctsRequest.token);
 
 			if (!input || !input.value) {
 				continue;
 			}
-
-			this._ctsRequest?.dispose(true);
-			this._ctsRequest = new CancellationTokenSource(this._ctsSession.token);
 
 			const historyEntry = this._zone.widget.createHistoryEntry(input.value);
 
@@ -763,6 +763,7 @@ export class InteractiveEditorController implements IEditorContribution {
 
 			inlineDiffDecorations.set(input.preview ? newInlineDiffDecorationsData : []);
 
+			const that = this;
 			historyEntry.updateActions([new class extends UndoStepAction {
 				constructor() {
 					super(textModel);
@@ -771,9 +772,9 @@ export class InteractiveEditorController implements IEditorContribution {
 					super.run();
 					historyEntry.updateVisibility(false);
 					value = input.value;
+					that._ctsRequest?.cancel();
 				}
 			}]);
-
 
 			if (!InteractiveEditorController._promptHistory.includes(input.value)) {
 				InteractiveEditorController._promptHistory.unshift(input.value);
