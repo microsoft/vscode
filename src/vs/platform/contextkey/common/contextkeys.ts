@@ -18,6 +18,7 @@ export const IsMobileContext = new RawContextKey<boolean>('isMobile', isMobile, 
 
 export const IsDevelopmentContext = new RawContextKey<boolean>('isDevelopment', false, true);
 export const ProductQualityContext = new RawContextKey<string>('productQualityType', '', localize('productQualityType', "Quality type of VS Code"));
+export const EmbedderIdentifierContext = new RawContextKey<string | undefined>('embedderIdentifier', undefined, localize('embedderIdentifier', 'The identifier of the embedder according to the product service, if one is defined'));
 
 export const InputFocusedContextKey = 'inputFocus';
 export const InputFocusedContext = new RawContextKey<boolean>(InputFocusedContextKey, false, localize('inputFocus', "Whether keyboard focus is inside an input box"));
