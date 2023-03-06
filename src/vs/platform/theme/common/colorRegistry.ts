@@ -141,17 +141,6 @@ class ColorRegistry implements IColorRegistry {
 		if (deprecationMessage) {
 			propertySchema.deprecationMessage = deprecationMessage;
 		}
-		if (defaults) {
-			const validateColorValue = (c: ColorValue | null) => {
-				if (isString(c) && c.charCodeAt(0) !== CharCode.Hash && !Color.Format.CSS.parseHex(c)) {
-					console.log(`Invalid color value: ${c} for color ${id}`);
-				}
-			};
-			validateColorValue(defaults.dark);
-			validateColorValue(defaults.light);
-			validateColorValue(defaults.hcDark);
-			validateColorValue(defaults.hcLight);
-		}
 		this.colorSchema.properties[id] = propertySchema;
 		this.colorReferenceSchema.enum.push(id);
 		this.colorReferenceSchema.enumDescriptions.push(description);
