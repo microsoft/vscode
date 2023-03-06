@@ -35,8 +35,9 @@ export interface IInteractiveProgress {
 
 export interface IPersistedInteractiveState { }
 export interface IInteractiveProvider {
-	id: string;
-	iconUrl?: string;
+	readonly id: string;
+	readonly progressiveRenderingEnabled?: boolean;
+	readonly iconUrl?: string;
 	prepareSession(initialState: IPersistedInteractiveState | undefined, token: CancellationToken): ProviderResult<IInteractiveSession | undefined>;
 	resolveRequest?(session: IInteractiveSession, context: any, token: CancellationToken): ProviderResult<IInteractiveRequest>;
 	provideSuggestions?(token: CancellationToken): ProviderResult<string[] | undefined>;
@@ -48,6 +49,7 @@ export const IInteractiveSessionService = createDecorator<IInteractiveSessionSer
 export interface IInteractiveSessionService {
 	_serviceBrand: undefined;
 	registerProvider(provider: IInteractiveProvider): IDisposable;
+	progressiveRenderingEnabled(providerId: string): boolean;
 	startSession(providerId: string, allowRestoringSession: boolean, token: CancellationToken): Promise<InteractiveSessionModel | undefined>;
 
 	/**

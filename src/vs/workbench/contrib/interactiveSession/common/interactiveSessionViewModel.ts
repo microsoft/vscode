@@ -8,6 +8,7 @@ import { IMarkdownString, MarkdownString } from 'vs/base/common/htmlContent';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { IInteractiveRequestModel, IInteractiveResponseModel, IInteractiveSessionModel } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionModel';
+import { IInteractiveSessionService } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionService';
 
 export function isRequestVM(item: unknown): item is IInteractiveRequestViewModel {
 	return !isResponseVM(item);
@@ -46,6 +47,7 @@ export interface IInteractiveResponseViewModel {
 	readonly response: IMarkdownString;
 	readonly isComplete: boolean;
 	readonly followups?: string[];
+	readonly progressiveResponseRenderingEnabled: boolean;
 	renderData?: IInteractiveResponseRenderData;
 	currentRenderedHeight: number | undefined;
 }
@@ -63,13 +65,23 @@ export class InteractiveSessionViewModel extends Disposable {
 		return this._model.sessionId;
 	}
 
-	constructor(private readonly _model: IInteractiveSessionModel) {
+	private readonly _progressiveResponseRenderingEnabled: boolean;
+	get progressiveResponseRenderingEnabled(): boolean {
+		return this._progressiveResponseRenderingEnabled;
+	}
+
+	constructor(
+		private readonly _model: IInteractiveSessionModel,
+		@IInteractiveSessionService private readonly interactiveSessionService: IInteractiveSessionService
+	) {
 		super();
+
+		this._progressiveResponseRenderingEnabled = this.interactiveSessionService.progressiveRenderingEnabled(this._model.providerId);
 
 		_model.getRequests().forEach((request, i) => {
 			this._items.push(new InteractiveRequestViewModel(request));
 			if (request.response) {
-				this._items.push(new InteractiveResponseViewModel(request.response));
+				this._items.push(new InteractiveResponseViewModel(request.response, this.progressiveResponseRenderingEnabled));
 			}
 		});
 
@@ -92,7 +104,7 @@ export class InteractiveSessionViewModel extends Disposable {
 	}
 
 	private onAddResponse(responseModel: IInteractiveResponseModel) {
-		const response = new InteractiveResponseViewModel(responseModel);
+		const response = new InteractiveResponseViewModel(responseModel, this.progressiveResponseRenderingEnabled);
 		this._register(response.onDidChange(() => this._onDidChange.fire()));
 		this._items.push(response);
 	}
@@ -171,7 +183,7 @@ export class InteractiveResponseViewModel extends Disposable implements IInterac
 
 	currentRenderedHeight: number | undefined;
 
-	constructor(private readonly _model: IInteractiveResponseModel) {
+	constructor(private readonly _model: IInteractiveResponseModel, public readonly progressiveResponseRenderingEnabled: boolean) {
 		super();
 
 		this._isPlaceholder = !_model.response.value && !_model.isComplete;

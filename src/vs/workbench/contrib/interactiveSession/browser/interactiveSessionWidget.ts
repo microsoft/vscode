@@ -310,7 +310,7 @@ export class InteractiveSessionWidget extends Disposable {
 			throw new Error('Failed to start session');
 		}
 
-		this.viewModel = this.viewModelDisposables.add(new InteractiveSessionViewModel(model));
+		this.viewModel = this.viewModelDisposables.add(this.instantiationService.createInstance(InteractiveSessionViewModel, model));
 		this.viewModelDisposables.add(this.viewModel.onDidChange(() => this.onDidChangeItems()));
 		this.viewModelDisposables.add(this.viewModel.onDidDisposeModel(() => {
 			this.viewModel = undefined;
