@@ -238,8 +238,7 @@ export class ModesHoverController implements IEditorContribution {
 	}
 
 	public showContentHover(range: Range, mode: HoverStartMode, source: HoverStartSource, focus: boolean): void {
-		const hoverContentWidget = this._getOrCreateContentWidget();
-		hoverContentWidget.startShowingAtRange(range, mode, source, focus);
+		this._getOrCreateContentWidget().startShowingAtRange(range, mode, source, focus);
 	}
 
 	public focus(): void {
@@ -283,7 +282,8 @@ class ShowOrFocusHoverAction extends EditorAction {
 			label: nls.localize({
 				key: 'showOrFocusHover',
 				comment: [
-					'Label for action that will trigger the showing of a hover in the editor.',
+					'Label for action that will trigger the showing/focusing of a hover in the editor.',
+					'If the hover is not visible, it will show the hover.',
 					'This allows for users to show the hover without using the mouse.',
 					'If the hover is already visible, it will take focus.'
 				]
@@ -329,7 +329,7 @@ class ShowOrFocusHoverAction extends EditorAction {
 		if (controller.isHoverVisible()) {
 			controller.focus();
 		} else {
-			controller.showHover(range, HoverStartMode.Immediate, HoverStartSource.Keyboard, focus);
+			controller.showContentHover(range, HoverStartMode.Immediate, HoverStartSource.Keyboard, focus);
 		}
 	}
 }
@@ -369,7 +369,7 @@ class ShowDefinitionPreviewHoverAction extends EditorAction {
 		}
 		const promise = goto.startFindDefinitionFromCursor(position);
 		promise.then(() => {
-			controller.showHover(range, HoverStartMode.Immediate, HoverStartSource.Keyboard, true);
+			controller.showContentHover(range, HoverStartMode.Immediate, HoverStartSource.Keyboard, true);
 		});
 	}
 }
