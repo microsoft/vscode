@@ -78,7 +78,7 @@ export class TerminalSearchLinkOpener implements ITerminalLinkOpener {
 		private readonly _initialCwd: string,
 		private readonly _localFileOpener: TerminalLocalFileLinkOpener,
 		private readonly _localFolderInWorkspaceOpener: TerminalLocalFolderInWorkspaceLinkOpener,
-		private readonly _os: OperatingSystem,
+		private readonly _getOS: () => OperatingSystem,
 		@IFileService private readonly _fileService: IFileService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IQuickInputService private readonly _quickInputService: IQuickInputService,
@@ -89,7 +89,7 @@ export class TerminalSearchLinkOpener implements ITerminalLinkOpener {
 	}
 
 	async open(link: ITerminalSimpleLink): Promise<void> {
-		const osPath = osPathModule(this._os);
+		const osPath = osPathModule(this._getOS());
 		const pathSeparator = osPath.sep;
 		// Remove file:/// and any leading ./ or ../ since quick access doesn't understand that format
 		let text = link.text.replace(/^file:\/\/\/?/, '');
@@ -135,7 +135,8 @@ export class TerminalSearchLinkOpener implements ITerminalLinkOpener {
 
 	private async _getExactMatch(sanitizedLink: string): Promise<IResourceMatch | undefined> {
 		// Make the link relative to the cwd if it isn't absolute
-		const pathModule = osPathModule(this._os);
+		const os = this._getOS();
+		const pathModule = osPathModule(os);
 		const isAbsolute = pathModule.isAbsolute(sanitizedLink);
 		let absolutePath: string | undefined = isAbsolute ? sanitizedLink : undefined;
 		if (!isAbsolute && this._initialCwd.length > 0) {
@@ -146,7 +147,7 @@ export class TerminalSearchLinkOpener implements ITerminalLinkOpener {
 		let resourceMatch: IResourceMatch | undefined;
 		if (absolutePath) {
 			let normalizedAbsolutePath: string = absolutePath;
-			if (this._os === OperatingSystem.Windows) {
+			if (os === OperatingSystem.Windows) {
 				normalizedAbsolutePath = absolutePath.replace(/\\/g, '/');
 				if (normalizedAbsolutePath.match(/[a-z]:/i)) {
 					normalizedAbsolutePath = `/${normalizedAbsolutePath}`;

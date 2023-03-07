@@ -1090,9 +1090,9 @@ export interface MainThreadUrlsShape extends IDisposable {
 export interface IInteractiveSessionDto {
 	id: number;
 	requesterUsername?: string;
-	requesterAvatarIconPath?: string | UriComponents;
+	requesterAvatarIconUri?: UriComponents;
 	responderUsername?: string;
-	responderAvatarIconPath?: string | UriComponents;
+	responderAvatarIconUri?: UriComponents;
 }
 
 export interface IInteractiveRequestDto {
