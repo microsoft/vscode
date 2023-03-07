@@ -183,7 +183,7 @@ export class InteractiveListItemRenderer extends Disposable implements ITreeRend
 	private renderFollowup(container: HTMLElement, templateData: IInteractiveListItemTemplate, followup: string | IInteractiveSessionResponseCommandFollowup): void {
 		const button = templateData.elementDisposables.add(new Button(container, { ...defaultButtonStyles, supportIcons: typeof followup !== 'string' }));
 		const label = typeof followup === 'string' ? `"${followup}"` : followup.title;
-		button.label = label; // todo icons
+		button.label = label;
 		if (typeof followup === 'string') {
 			// This should probably be a command as well?
 			templateData.elementDisposables.add(button.onDidClick(() => this._onDidSelectFollowup.fire(followup)));
