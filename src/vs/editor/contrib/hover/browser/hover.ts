@@ -19,7 +19,6 @@ import { ContentHoverWidget, ContentHoverController } from 'vs/editor/contrib/ho
 import { MarginHoverWidget } from 'vs/editor/contrib/hover/browser/marginHover';
 import * as nls from 'vs/nls';
 import { AccessibilitySupport } from 'vs/platform/accessibility/common/accessibility';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
