@@ -134,8 +134,8 @@ export interface ITreeRenderer<T, TFilterData = void, TTemplateData = void> exte
 }
 
 export interface ITreeEvent<T> {
-	elements: T[];
-	browserEvent?: UIEvent;
+	readonly elements: readonly T[];
+	readonly browserEvent?: UIEvent;
 }
 
 export enum TreeMouseEventTarget {
@@ -146,15 +146,15 @@ export enum TreeMouseEventTarget {
 }
 
 export interface ITreeMouseEvent<T> {
-	browserEvent: MouseEvent;
-	element: T | null;
-	target: TreeMouseEventTarget;
+	readonly browserEvent: MouseEvent;
+	readonly element: T | null;
+	readonly target: TreeMouseEventTarget;
 }
 
 export interface ITreeContextMenuEvent<T> {
-	browserEvent: UIEvent;
-	element: T | null;
-	anchor: HTMLElement | { x: number; y: number };
+	readonly browserEvent: UIEvent;
+	readonly element: T | null;
+	readonly anchor: HTMLElement | { readonly x: number; readonly y: number };
 }
 
 export interface ITreeNavigator<T> {
