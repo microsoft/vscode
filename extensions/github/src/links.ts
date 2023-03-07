@@ -70,7 +70,7 @@ function getFileAndPosition(context: LinkContext): IFilePosition | INotebookPosi
 			const cellIndex = cell?.index ?? vscode.window.activeNotebookEditor.selection.start;
 
 			let range;
-			if (lineNumber && (!vscode.window.activeTextEditor || vscode.window.activeTextEditor.selection.isEmpty || !vscode.window.activeTextEditor.selection.contains(new vscode.Position(lineNumber - 1, 0)))) {
+			if (lineNumber !== undefined && (!vscode.window.activeTextEditor || vscode.window.activeTextEditor.selection.isEmpty || !vscode.window.activeTextEditor.selection.contains(new vscode.Position(lineNumber - 1, 0)))) {
 				range = new vscode.Range(new vscode.Position(lineNumber - 1, 0), new vscode.Position(lineNumber - 1, 1));
 			} else if (cell !== undefined) {
 				range = vscode.window.activeTextEditor?.selection;
