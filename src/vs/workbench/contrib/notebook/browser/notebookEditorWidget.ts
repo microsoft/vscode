@@ -158,6 +158,8 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 	readonly onDidReceiveMessage: Event<INotebookWebviewMessage> = this._onDidReceiveMessage.event;
 	private readonly _onDidRenderOutput = this._register(new Emitter<ICellOutputViewModel>());
 	private readonly onDidRenderOutput = this._onDidRenderOutput.event;
+	private readonly _onDidRemoveOutput = this._register(new Emitter<ICellOutputViewModel>());
+	private readonly onDidRemoveOutput = this._onDidRemoveOutput.event;
 	private readonly _onDidResizeOutputEmitter = this._register(new Emitter<ICellViewModel>());
 	readonly onDidResizeOutput = this._onDidResizeOutputEmitter.event;
 
@@ -2372,11 +2374,11 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 			const result: IInsetRenderOutput = { type: RenderOutputType.Extension, renderer, source: output, mimeType: pickedMimeTypeRenderer.mimeType };
 			if (!this._webview?.insetMapping.has(result.source)) {
 				const p = new Promise<void>(resolve => {
-					this.onDidRenderOutput(e => {
+					this._register(Event.any(this.onDidRenderOutput, this.onDidRemoveOutput)(e => {
 						if (e.model === result.source.model) {
 							resolve();
 						}
-					});
+					}));
 				});
 				this.createOutput(viewCell, result, 0);
 				await p;
@@ -2430,6 +2432,8 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 				(match.cell.cellKind === CellKind.Markup && options.includeMarkupInput)
 			);
 		}
+
+		// search in webview enabled
 
 		const matchMap: { [key: string]: CellFindMatchWithIndex } = {};
 		findMatches.forEach(match => {
@@ -2713,6 +2717,8 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 			if (this._webview?.isResolved()) {
 				this._webview.removeInsets([output]);
 			}
+
+			this._onDidRemoveOutput.fire(output);
 		});
 	}
 
