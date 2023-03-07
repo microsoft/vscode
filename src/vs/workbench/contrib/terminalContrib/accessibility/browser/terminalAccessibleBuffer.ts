@@ -31,7 +31,6 @@ export class AccessibleBufferWidget extends DisposableStore {
 	private _accessibleBuffer: HTMLElement;
 	private _bufferEditor: CodeEditorWidget;
 	private _editorContainer: HTMLElement;
-	private _refreshSelection: boolean = true;
 	private _registered: boolean = false;
 	private _font: ITerminalFont;
 	private _xtermElement: HTMLElement;
@@ -107,11 +106,8 @@ export class AccessibleBufferWidget extends DisposableStore {
 	private async _refresh(): Promise<void> {
 		const model = await this._updateContent();
 		const lineNumber = model.getLineCount() - 1;
-		if (this._refreshSelection) {
-			this._bufferEditor.setSelection({ startLineNumber: lineNumber, startColumn: 1, endLineNumber: lineNumber, endColumn: 1 });
-			this._bufferEditor.setScrollTop(this._bufferEditor.getScrollHeight());
-			this._refreshSelection = false;
-		}
+		this._bufferEditor.setSelection({ startLineNumber: lineNumber, startColumn: 1, endLineNumber: lineNumber, endColumn: 1 });
+		this._bufferEditor.setScrollTop(this._bufferEditor.getScrollHeight());
 		this._accessibleBuffer.replaceChildren(this._editorContainer);
 		this._bufferEditor.focus();
 	}
