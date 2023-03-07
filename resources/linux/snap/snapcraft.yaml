@@ -54,6 +54,9 @@ parts:
       - -usr/share/icons
       - -usr/share/lintian
       - -usr/share/man
+    override-build: |
+      snapcraftctl build
+      patchelf --force-rpath --set-rpath '$ORIGIN/../../lib/x86_64-linux-gnu:$ORIGIN:/snap/core20/current/lib/x86_64-linux-gnu' $SNAPCRAFT_PART_INSTALL/usr/share/@@NAME@@/chrome_crashpad_handler
   cleanup:
     after:
       - code
@@ -65,8 +68,6 @@ parts:
       for snap in "core20"; do
         cd "/snap/$snap/current" && find . -type f,l -exec rm -f "$SNAPCRAFT_PRIME/{}" \;
       done
-      export BASE_EXE_RPATH=$(patchelf --print-rpath $SNAPCRAFT_PRIME/usr/share/@@NAME@@/@@NAME@@)
-      patchelf --force-rpath --set-rpath $BASE_EXE_RPATH $SNAPCRAFT_PRIME/usr/share/@@NAME@@/chrome_crashpad_handler
       patchelf --print-rpath $SNAPCRAFT_PRIME/usr/share/@@NAME@@/chrome_crashpad_handler
 
 
