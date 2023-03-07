@@ -36,11 +36,8 @@ export class AccessibleBufferWidget extends DisposableStore {
 	private _commandFinishedDisposable: IDisposable | undefined;
 	private _refreshSelection: boolean = true;
 	private _registered: boolean = false;
-	private _lastContentLength: number = 0;
-	private _lastBufferLine: number = 0;
 	private _font: ITerminalFont;
 	private _xtermElement: HTMLElement;
-	private _content: string = '';
 
 	constructor(
 		private readonly _xterm: IXtermTerminal & { raw: Terminal },
@@ -103,36 +100,23 @@ export class AccessibleBufferWidget extends DisposableStore {
 	}
 
 	private async _updateContent(refresh?: boolean): Promise<ITextModel> {
-		const sb = new StringBuilder(10000);
-		if (refresh) {
-			sb.appendString(this._content);
-			const additionalLines = this._getContent(this._lastBufferLine);
-			sb.appendString(additionalLines);
-		} else {
-			const commandDetection = this._capabilities.get(TerminalCapability.CommandDetection);
-			sb.appendString(!!commandDetection ? this._getShellIntegrationContent() : this._getContent());
-		}
-		this._content = sb.build();
-		let model = this._bufferEditor.getModel();
-		if (!model) {
-			model = await this._getTextModel(URI.from({ scheme: AccessibleBufferConstants.Scheme }));
-			this._bufferEditor.setModel(model);
-		}
+		const commandDetection = this._capabilities.get(TerminalCapability.CommandDetection);
+		const value = !!commandDetection && !refresh ? this._getShellIntegrationContent() : this._getContent();
+		const model = await this._getTextModel(URI.from({ scheme: AccessibleBufferConstants.Scheme, fragment: value }));
 		if (!model) {
 			throw new Error('Could not create accessible buffer editor model');
 		}
-		model.setValue(this._content);
+		this._bufferEditor.setModel(model);
 		return model;
 	}
 
 	private async _refresh(): Promise<void> {
 		const model = await this._updateContent(true);
 		const lineNumber = model.getLineCount() - 1;
-		if (this._lastContentLength !== this._content.length || this._refreshSelection) {
+		if (this._refreshSelection) {
 			this._bufferEditor.setSelection({ startLineNumber: lineNumber, startColumn: 1, endLineNumber: lineNumber, endColumn: 1 });
 			this._bufferEditor.setScrollTop(this._bufferEditor.getScrollHeight());
 			this._refreshSelection = false;
-			this._lastContentLength = this._content.length;
 		}
 		this._accessibleBuffer.replaceChildren(this._editorContainer);
 		this._bufferEditor.focus();
@@ -157,10 +141,7 @@ export class AccessibleBufferWidget extends DisposableStore {
 			}
 		});
 		if (commandDetection) {
-			this._commandFinishedDisposable = commandDetection.onCommandFinished(() => {
-				this._refreshSelection = true;
-				this._lastBufferLine = 0;
-			});
+			this._commandFinishedDisposable = commandDetection.onCommandFinished(() => this._refreshSelection = true);
 			this.add(this._commandFinishedDisposable);
 		}
 		this._registered = true;
@@ -212,7 +193,6 @@ export class AccessibleBufferWidget extends DisposableStore {
 				currentLine = '';
 			}
 		}
-		this._lastBufferLine = end;
 		return lines.join('\n');
 	}
 }
