@@ -286,20 +286,10 @@ class ToggleScreencastModeAction extends Action2 {
 
 				if (!configurationService.getValue('screencastMode.onlyKeyboardShortcuts') || !titleLabel || shortcut?.commandId && (format === 'keys' || format === 'commandAndKeys' || format === 'commandWithGroupAndKeys')) {
 					// Fix label for arrow keys
-					if (keyLabel) {
-						if (keyLabel.includes('UpArrow')) {
-							keyLabel = keyLabel.replace('UpArrow', '↑');
-						}
-						if (keyLabel.includes('DownArrow')) {
-							keyLabel = keyLabel.replace('DownArrow', '↓');
-						}
-						if (keyLabel.includes('LeftArrow')) {
-							keyLabel = keyLabel.replace('LeftArrow', '←');
-						}
-						if (keyLabel.includes('RightArrow')) {
-							keyLabel = keyLabel.replace('RightArrow', '→');
-						}
-					}
+					keyLabel = keyLabel?.replace('UpArrow', '↑')
+						?.replace('DownArrow', '↓')
+						?.replace('LeftArrow', '←')
+						?.replace('RightArrow', '→');
 					append(keyboardMarker, $('span.key', {}, keyLabel || ''));
 				}
 
