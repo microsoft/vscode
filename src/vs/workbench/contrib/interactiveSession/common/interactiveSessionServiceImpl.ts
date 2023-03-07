@@ -54,11 +54,11 @@ export class InteractiveSessionService extends Disposable implements IInteractiv
 	}
 
 	private trace(method: string, message: string): void {
-		this.logService.trace(`[InteractiveSessionService#${method}] ${message}`);
+		this.logService.trace(`InteractiveSessionService#${method}: ${message}`);
 	}
 
 	private error(method: string, message: string): void {
-		this.logService.error(`[InteractiveSessionService#${method}] ${message}`);
+		this.logService.error(`InteractiveSessionService#${method} ${message}`);
 	}
 
 	private deserializeInteractiveSessions(sessionData: string): ISerializableInteractiveSessionsData {

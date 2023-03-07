@@ -38,6 +38,7 @@ import { SelectionClipboardContributionID } from 'vs/workbench/contrib/codeEdito
 import { getSimpleEditorOptions } from 'vs/workbench/contrib/codeEditor/browser/simpleEditorOptions';
 import { InteractiveSessionEditorOptions } from 'vs/workbench/contrib/interactiveSession/browser/interactiveSessionOptions';
 import { IInteractiveRequestViewModel, IInteractiveResponseViewModel, isRequestVM, isResponseVM } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionViewModel';
+import { getNWords } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionWordCounter';
 
 const $ = dom.$;
 
@@ -57,7 +58,7 @@ interface IItemHeightChangeParams {
 	height: number;
 }
 
-const forceVerboseLayoutTracing = false;
+const forceVerboseLayoutTracing = true;
 
 export class InteractiveListItemRenderer extends Disposable implements ITreeRenderer<InteractiveTreeItem, FuzzyScore, IInteractiveListItemTemplate> {
 	static readonly cursorCharacter = '\u258c';
@@ -93,9 +94,9 @@ export class InteractiveListItemRenderer extends Disposable implements ITreeRend
 
 	private traceLayout(method: string, message: string) {
 		if (forceVerboseLayoutTracing) {
-			this.logService.info(`${method}: ${message}`);
+			this.logService.info(`InteractiveListItemRenderer#${method}: ${message}`);
 		} else {
-			this.logService.trace(`${method}: ${message}`);
+			this.logService.trace(`InteractiveListItemRenderer#${method}: ${message}`);
 		}
 	}
 
@@ -103,8 +104,25 @@ export class InteractiveListItemRenderer extends Disposable implements ITreeRend
 		return !this.configService.getValue('interactive.experimental.disableProgressiveRendering') && element.progressiveResponseRenderingEnabled;
 	}
 
-	private getProgressiveRenderRate(): number {
-		return this.configService.getValue('interactive.experimental.progressiveRenderingRate') ?? 8;
+	private getProgressiveRenderRate(element: IInteractiveResponseViewModel): number {
+		const configuredRate = this.configService.getValue('interactive.experimental.progressiveRenderingRate');
+		if (typeof configuredRate === 'number') {
+			return configuredRate;
+		}
+
+		if (element.isComplete) {
+			return 40;
+		}
+
+		if (element.contentUpdateTimings && element.contentUpdateTimings.impliedWordLoadRate) {
+			// This doesn't account for dead time after the last update. When the previous update is the final one and the model is only waiting for followupQuestions, that's good.
+			// When there was one quick update and then you are waiting longer for the next one, that's not good since the rate should be decreasing.
+			// If it's an issue, we can change this to be based on the total time from now to the beginning.
+			const rateBoost = 1.5;
+			return element.contentUpdateTimings.impliedWordLoadRate * rateBoost;
+		}
+
+		return 8;
 	}
 
 	layout(width: number): void {
@@ -146,6 +164,11 @@ export class InteractiveListItemRenderer extends Disposable implements ITreeRend
 			templateData.avatar.replaceChildren(avatarIcon);
 		}
 
+		// Do a progressive render if
+		// - This the last response in the list
+		// - And the response is not complete
+		//   - Or, we previously started a progressive rendering of this element (if the element is complete, we will finish progressive rendering with a very fast rate)
+		// - And, the feature is not disabled in configuration
 		if (isResponseVM(element) && index === this.delegate.getListLength() - 1 && (!element.isComplete || element.renderData) && this.shouldRenderProgressively(element)) {
 			this.traceLayout('renderElement', `start progressive render ${kind}, index=${index}`);
 			const progressiveRenderingDisposables = templateData.elementDisposables.add(new DisposableStore());
@@ -156,7 +179,7 @@ export class InteractiveListItemRenderer extends Disposable implements ITreeRend
 				}
 			};
 			runProgressiveRender();
-			timer.cancelAndSet(runProgressiveRender, 1000 / this.getProgressiveRenderRate());
+			timer.cancelAndSet(runProgressiveRender, 100);
 		} else if (isResponseVM(element)) {
 			this.basicRenderElement(element.response.value, element, index, templateData);
 		} else {
@@ -190,6 +213,8 @@ export class InteractiveListItemRenderer extends Disposable implements ITreeRend
 				if (element.isComplete) {
 					this.traceLayout('runProgressiveRender', `and disposing renderData, response is complete, index=${index}`);
 					element.renderData = undefined;
+				} else {
+					this.traceLayout('runProgressiveRender', `Rendered all available words, but model is not complete.`);
 				}
 				disposables.clear();
 				this.basicRenderElement(element.response.value, element, index, templateData);
@@ -239,41 +264,27 @@ export class InteractiveListItemRenderer extends Disposable implements ITreeRend
 	}
 
 	private getProgressiveMarkdownToRender(element: IInteractiveResponseViewModel): string | undefined {
-		const renderData = element.renderData ?? { renderPosition: 0, renderTime: 0 };
-		const numWordsToRender = renderData.renderTime === 0 ?
+		const renderData = element.renderData ?? { renderedWordCount: 0, lastRenderTime: 0 };
+		const rate = this.getProgressiveRenderRate(element);
+		const numWordsToRender = renderData.lastRenderTime === 0 ?
 			1 :
-			renderData.renderPosition + Math.floor((Date.now() - renderData.renderTime) / 1000 * this.getProgressiveRenderRate());
+			renderData.renderedWordCount +
+			// Additional words to render beyond what's already rendered
+			Math.floor((Date.now() - renderData.lastRenderTime) / 1000 * rate);
 
-		if (numWordsToRender === renderData.renderPosition) {
+		if (numWordsToRender === renderData.renderedWordCount) {
 			return undefined;
 		}
 
-		let wordCount = numWordsToRender;
-		let i = 0;
-		const wordSeparatorCharPattern = /[\s\|\-]/;
-		while (i < element.response.value.length && wordCount > 0) {
-			// Consume word separator chars
-			while (i < element.response.value.length && element.response.value[i].match(wordSeparatorCharPattern)) {
-				i++;
-			}
-
-			// Consume word chars
-			while (i < element.response.value.length && !element.response.value[i].match(wordSeparatorCharPattern)) {
-				i++;
-			}
-
-			wordCount--;
-		}
-
-		const value = element.response.value.substring(0, i);
+		const result = getNWords(element.response.value, numWordsToRender);
 
 		element.renderData = {
-			renderPosition: numWordsToRender - wordCount,
-			renderTime: Date.now(),
-			isFullyRendered: i >= element.response.value.length
+			renderedWordCount: result.actualWordCount,
+			lastRenderTime: Date.now(),
+			isFullyRendered: result.isFullString
 		};
 
-		return value;
+		return result.value;
 	}
 
 	disposeElement(node: ITreeNode<InteractiveTreeItem, FuzzyScore>, index: number, templateData: IInteractiveListItemTemplate): void {

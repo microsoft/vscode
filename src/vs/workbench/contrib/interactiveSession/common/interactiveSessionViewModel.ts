@@ -7,8 +7,11 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { IMarkdownString, MarkdownString } from 'vs/base/common/htmlContent';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { ILogService } from 'vs/platform/log/common/log';
 import { IInteractiveRequestModel, IInteractiveResponseModel, IInteractiveSessionModel } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionModel';
 import { IInteractiveSessionService } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionService';
+import { countWords } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionWordCounter';
 
 export function isRequestVM(item: unknown): item is IInteractiveRequestViewModel {
 	return !isResponseVM(item);
@@ -34,9 +37,16 @@ export interface IInteractiveRequestViewModel {
 }
 
 export interface IInteractiveResponseRenderData {
-	renderPosition: number;
-	renderTime: number;
+	renderedWordCount: number;
+	lastRenderTime: number;
 	isFullyRendered: boolean;
+}
+
+export interface IInteractiveSessionLiveUpdateData {
+	wordCountAfterLastUpdate: number;
+	loadingStartTime: number;
+	lastUpdateTime: number;
+	impliedWordLoadRate: number;
 }
 
 export interface IInteractiveResponseViewModel {
@@ -48,6 +58,7 @@ export interface IInteractiveResponseViewModel {
 	readonly isComplete: boolean;
 	readonly followups?: string[];
 	readonly progressiveResponseRenderingEnabled: boolean;
+	readonly contentUpdateTimings?: IInteractiveSessionLiveUpdateData;
 	renderData?: IInteractiveResponseRenderData;
 	currentRenderedHeight: number | undefined;
 }
@@ -72,7 +83,8 @@ export class InteractiveSessionViewModel extends Disposable {
 
 	constructor(
 		private readonly _model: IInteractiveSessionModel,
-		@IInteractiveSessionService private readonly interactiveSessionService: IInteractiveSessionService
+		@IInteractiveSessionService private readonly interactiveSessionService: IInteractiveSessionService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
 	) {
 		super();
 
@@ -81,7 +93,7 @@ export class InteractiveSessionViewModel extends Disposable {
 		_model.getRequests().forEach((request, i) => {
 			this._items.push(new InteractiveRequestViewModel(request));
 			if (request.response) {
-				this._items.push(new InteractiveResponseViewModel(request.response, this.progressiveResponseRenderingEnabled));
+				this._items.push(this.instantiationService.createInstance(InteractiveResponseViewModel, request.response, this.progressiveResponseRenderingEnabled));
 			}
 		});
 
@@ -104,7 +116,7 @@ export class InteractiveSessionViewModel extends Disposable {
 	}
 
 	private onAddResponse(responseModel: IInteractiveResponseModel) {
-		const response = new InteractiveResponseViewModel(responseModel, this.progressiveResponseRenderingEnabled);
+		const response = this.instantiationService.createInstance(InteractiveResponseViewModel, responseModel, this.progressiveResponseRenderingEnabled);
 		this._register(response.onDidChange(() => this._onDidChange.fire()));
 		this._items.push(response);
 	}
@@ -183,27 +195,72 @@ export class InteractiveResponseViewModel extends Disposable implements IInterac
 
 	currentRenderedHeight: number | undefined;
 
-	constructor(private readonly _model: IInteractiveResponseModel, public readonly progressiveResponseRenderingEnabled: boolean) {
+	private _contentUpdateTimings: IInteractiveSessionLiveUpdateData | undefined = undefined;
+	get contentUpdateTimings(): IInteractiveSessionLiveUpdateData | undefined {
+		return this._contentUpdateTimings;
+	}
+
+	constructor(
+		private readonly _model: IInteractiveResponseModel,
+		public readonly progressiveResponseRenderingEnabled: boolean,
+		@ILogService private readonly logService: ILogService
+	) {
 		super();
 
 		this._isPlaceholder = !_model.response.value && !_model.isComplete;
+
+		if (!_model.isComplete) {
+			this._contentUpdateTimings = {
+				loadingStartTime: Date.now(),
+				lastUpdateTime: Date.now(),
+				wordCountAfterLastUpdate: this._isPlaceholder ? 0 : countWords(_model.response.value), // don't count placeholder text
+				impliedWordLoadRate: 0
+			};
+		}
 
 		this._register(_model.onDidChange(() => {
 			if (this._isPlaceholder && _model.response.value) {
 				this._isPlaceholder = false;
 				if (this.renderData) {
-					this.renderData.renderPosition = 0;
+					this.renderData.renderedWordCount = 0;
 				}
+			}
+
+			if (this._contentUpdateTimings) {
+				// This should be true, if the model is changing
+				const now = Date.now();
+				const wordCount = countWords(_model.response.value);
+				const timeDiff = now - this._contentUpdateTimings!.loadingStartTime;
+				const impliedWordLoadRate = wordCount / (timeDiff / 1000);
+				if (!this.isComplete) {
+					this.trace('onDidChange', `Update- got ${wordCount} words over ${timeDiff}ms = ${impliedWordLoadRate} words/s. ${this.renderData?.renderedWordCount} words are rendered.`);
+					this._contentUpdateTimings = {
+						loadingStartTime: this._contentUpdateTimings!.loadingStartTime,
+						lastUpdateTime: now,
+						wordCountAfterLastUpdate: wordCount,
+						// lastUpdateNewWordCount: wordCount - this._contentUpdateTimings!.wordCountAfterLastUpdate,
+						// lastUpdateDuration: now - this._contentUpdateTimings!.lastUpdateTime, // none
+						impliedWordLoadRate
+					};
+				} else {
+					this.trace(`onDidChange`, `Done- got ${wordCount} words over ${timeDiff}ms = ${impliedWordLoadRate} words/s. ${this.renderData?.renderedWordCount} words are rendered.`);
+				}
+			} else {
+				this.logService.warn('InteractiveResponseViewModel#onDidChange: got model update but contentUpdateTimings is not initialized');
 			}
 
 			// new data -> new id, new content to render
 			this._changeCount++;
 			if (this.renderData) {
 				this.renderData.isFullyRendered = false;
-				this.renderData.renderTime = Date.now();
+				this.renderData.lastRenderTime = Date.now();
 			}
 
 			this._onDidChange.fire();
 		}));
+	}
+
+	private trace(tag: string, message: string) {
+		this.logService.trace(`InteractiveResponseViewModel#${tag}: ${message}`);
 	}
 }
