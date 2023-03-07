@@ -200,7 +200,9 @@ export abstract class BaseServiceConfigurationProvider implements ServiceConfigu
 	}
 
 	protected readWatchOptions(configuration: vscode.WorkspaceConfiguration): Proto.WatchOptions | undefined {
-		return configuration.get<Proto.WatchOptions>('typescript.tsserver.watchOptions');
+		const watchOptions = configuration.get<Proto.WatchOptions>('typescript.tsserver.watchOptions');
+		// Returned value may be a proxy. Clone it into a normal object
+		return { ...(watchOptions ?? {}) };
 	}
 
 	protected readIncludePackageJsonAutoImports(configuration: vscode.WorkspaceConfiguration): 'auto' | 'on' | 'off' | undefined {

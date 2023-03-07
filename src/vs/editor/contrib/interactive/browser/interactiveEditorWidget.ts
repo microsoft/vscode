@@ -50,6 +50,7 @@ import { LRUCache } from 'vs/base/common/map';
 interface IHistoryEntry {
 	updateVisibility(visible: boolean): void;
 	updateActions(actions: IAction[]): void;
+	remove(): void;
 }
 
 class InteractiveEditorWidget {
@@ -352,6 +353,12 @@ class InteractiveEditorWidget {
 			},
 			updateActions(actions: IAction[]) {
 				toolbar.setActions(actions);
+			},
+			remove: () => {
+				root.remove();
+				if (this._isExpanded) {
+					this._onDidChangeHeight.fire();
+				}
 			}
 		};
 	}
@@ -677,15 +684,15 @@ export class InteractiveEditorController implements IEditorContribution {
 				options: InteractiveEditorController._decoBlock
 			}]);
 
+			this._ctsRequest?.dispose(true);
+			this._ctsRequest = new CancellationTokenSource(this._ctsSession.token);
+
 			this._historyOffset = -1;
-			const input = await this._zone.getInput(wholeRange.getEndPosition(), placeholder, value, this._ctsSession.token);
+			const input = await this._zone.getInput(wholeRange.getEndPosition(), placeholder, value, this._ctsRequest.token);
 
 			if (!input || !input.value) {
 				continue;
 			}
-
-			this._ctsRequest?.dispose(true);
-			this._ctsRequest = new CancellationTokenSource(this._ctsSession.token);
 
 			const historyEntry = this._zone.widget.createHistoryEntry(input.value);
 
@@ -719,12 +726,14 @@ export class InteractiveEditorController implements IEditorContribution {
 			if (this._ctsRequest.token.isCancellationRequested) {
 				this._logService.trace('[IE] request CANCELED', provider.debugName);
 				value = input.value;
+				historyEntry.remove();
 				continue;
 			}
 
 			if (!reply || isFalsyOrEmpty(reply.edits)) {
 				this._logService.trace('[IE] NO reply or edits', provider.debugName);
 				value = input.value;
+				historyEntry.remove();
 				continue;
 			}
 
@@ -763,6 +772,7 @@ export class InteractiveEditorController implements IEditorContribution {
 
 			inlineDiffDecorations.set(input.preview ? newInlineDiffDecorationsData : []);
 
+			const that = this;
 			historyEntry.updateActions([new class extends UndoStepAction {
 				constructor() {
 					super(textModel);
@@ -771,9 +781,9 @@ export class InteractiveEditorController implements IEditorContribution {
 					super.run();
 					historyEntry.updateVisibility(false);
 					value = input.value;
+					that._ctsRequest?.cancel();
 				}
 			}]);
-
 
 			if (!InteractiveEditorController._promptHistory.includes(input.value)) {
 				InteractiveEditorController._promptHistory.unshift(input.value);

@@ -5,12 +5,17 @@
 
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IDisposable } from 'vs/base/common/lifecycle';
+import { URI } from 'vs/base/common/uri';
 import { ProviderResult } from 'vs/editor/common/languages';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { InteractiveSessionModel } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionModel';
 
 export interface IInteractiveSession {
 	id: number;
+	requesterUsername: string;
+	requesterAvatarIconUri?: URI;
+	responderUsername: string;
+	responderAvatarIconUri?: URI;
 	dispose?(): void;
 }
 
@@ -30,7 +35,9 @@ export interface IInteractiveProgress {
 
 export interface IPersistedInteractiveState { }
 export interface IInteractiveProvider {
-	id: string;
+	readonly id: string;
+	readonly progressiveRenderingEnabled?: boolean;
+	readonly iconUrl?: string;
 	prepareSession(initialState: IPersistedInteractiveState | undefined, token: CancellationToken): ProviderResult<IInteractiveSession | undefined>;
 	resolveRequest?(session: IInteractiveSession, context: any, token: CancellationToken): ProviderResult<IInteractiveRequest>;
 	provideSuggestions?(token: CancellationToken): ProviderResult<string[] | undefined>;
@@ -42,6 +49,7 @@ export const IInteractiveSessionService = createDecorator<IInteractiveSessionSer
 export interface IInteractiveSessionService {
 	_serviceBrand: undefined;
 	registerProvider(provider: IInteractiveProvider): IDisposable;
+	progressiveRenderingEnabled(providerId: string): boolean;
 	startSession(providerId: string, allowRestoringSession: boolean, token: CancellationToken): Promise<InteractiveSessionModel | undefined>;
 
 	/**

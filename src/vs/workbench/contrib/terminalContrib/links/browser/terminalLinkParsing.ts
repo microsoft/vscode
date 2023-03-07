@@ -70,7 +70,8 @@ const linkSuffixRegexEol = new Lazy<RegExp>(() => {
 		// "foo" on line 339
 		// "foo" on line 339, col 12
 		// "foo" on line 339, column 12
-		`['"]?(?:, |: ?| on )line ${l()}(, col(?:umn)? ${c()})?$`,
+		// "foo" line 339 column 12
+		`['"]?(?:,? |: ?| on )line ${l()}(,? col(?:umn)? ${c()})?$`,
 		// foo(339)
 		// foo(339,12)
 		// foo(339, 12)
@@ -121,7 +122,8 @@ const linkSuffixRegex = new Lazy<RegExp>(() => {
 		// "foo" on line 339
 		// "foo" on line 339, col 12
 		// "foo" on line 339, column 12
-		`['"]?(?:, |: ?| on )line ${l()}(, col(?:umn)? ${c()})?`,
+		// "foo" line 339 column 12
+		`['"]?(?:,? |: ?| on )line ${l()}(,? col(?:umn)? ${c()})?`,
 		// foo(339)
 		// foo(339,12)
 		// foo(339, 12)

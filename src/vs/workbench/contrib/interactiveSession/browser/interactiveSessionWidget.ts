@@ -25,7 +25,7 @@ import { foreground } from 'vs/platform/theme/common/colorRegistry';
 import { DEFAULT_FONT_FAMILY } from 'vs/workbench/browser/style';
 import { getSimpleCodeEditorWidgetOptions, getSimpleEditorOptions } from 'vs/workbench/contrib/codeEditor/browser/simpleEditorOptions';
 import { InteractiveListItemRenderer, InteractiveSessionAccessibilityProvider, InteractiveSessionListDelegate, InteractiveTreeItem } from 'vs/workbench/contrib/interactiveSession/browser/interactiveSessionListRenderer';
-import { InteractiveSessionInputOptions } from 'vs/workbench/contrib/interactiveSession/browser/interactiveSessionOptions';
+import { InteractiveSessionEditorOptions } from 'vs/workbench/contrib/interactiveSession/browser/interactiveSessionOptions';
 import { IInteractiveSessionService } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionService';
 import { IInteractiveSessionViewModel, InteractiveSessionViewModel, isRequestVM, isResponseVM } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionViewModel';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
@@ -66,7 +66,7 @@ export class InteractiveSessionWidget extends Disposable {
 	private renderer!: InteractiveListItemRenderer;
 	private inputEditorHeight = 0;
 	private inputEditor!: CodeEditorWidget;
-	private inputOptions!: InteractiveSessionInputOptions;
+	private inputOptions!: InteractiveSessionEditorOptions;
 	private inputModel: ITextModel | undefined;
 	private listContainer!: HTMLElement;
 	private container!: HTMLElement;
@@ -104,7 +104,7 @@ export class InteractiveSessionWidget extends Disposable {
 		this.container = dom.append(parent, $('.interactive-session'));
 		this.listContainer = dom.append(this.container, $(`.interactive-list`));
 
-		this.inputOptions = this._register(this.instantiationService.createInstance(InteractiveSessionInputOptions, this.viewId, this.inputEditorBackgroundColorDelegate, this.resultEditorBackgroundColorDelegate));
+		this.inputOptions = this._register(this.instantiationService.createInstance(InteractiveSessionEditorOptions, this.viewId, this.inputEditorBackgroundColorDelegate, this.resultEditorBackgroundColorDelegate));
 		this.renderWelcomeView(this.container);
 		this.createList(this.listContainer);
 		this.createInput(this.container);
@@ -220,7 +220,7 @@ export class InteractiveSessionWidget extends Disposable {
 				supportDynamicHeights: true,
 				hideTwistiesOfChildlessElements: true,
 				accessibilityProvider: new InteractiveSessionAccessibilityProvider(),
-				keyboardNavigationLabelProvider: { getKeyboardNavigationLabel: (e: InteractiveTreeItem) => isRequestVM(e) ? e.model.message : e.response.value },
+				keyboardNavigationLabelProvider: { getKeyboardNavigationLabel: (e: InteractiveTreeItem) => isRequestVM(e) ? e.message : e.response.value },
 				setRowLineHeight: false,
 				overrideStyles: {
 					listFocusBackground: this.listBackgroundColorDelegate(),
@@ -310,7 +310,7 @@ export class InteractiveSessionWidget extends Disposable {
 			throw new Error('Failed to start session');
 		}
 
-		this.viewModel = this.viewModelDisposables.add(new InteractiveSessionViewModel(model));
+		this.viewModel = this.viewModelDisposables.add(this.instantiationService.createInstance(InteractiveSessionViewModel, model));
 		this.viewModelDisposables.add(this.viewModel.onDidChange(() => this.onDidChangeItems()));
 		this.viewModelDisposables.add(this.viewModel.onDidDisposeModel(() => {
 			this.viewModel = undefined;

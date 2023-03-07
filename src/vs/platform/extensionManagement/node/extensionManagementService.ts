@@ -90,7 +90,7 @@ export class ExtensionManagementService extends AbstractExtensionManagementServi
 		super(galleryService, telemetryService, logService, productService, userDataProfilesService);
 		const extensionLifecycle = this._register(instantiationService.createInstance(ExtensionsLifecycle));
 		this.extensionsScanner = this._register(instantiationService.createInstance(ExtensionsScanner, extension => extensionLifecycle.postUninstall(extension)));
-		this.manifestCache = this._register(new ExtensionsManifestCache(environmentService, this));
+		this.manifestCache = this._register(new ExtensionsManifestCache(userDataProfilesService, fileService, uriIdentityService, this));
 		this.extensionsDownloader = this._register(instantiationService.createInstance(ExtensionsDownloader));
 
 		const extensionsWatcher = this._register(new ExtensionsWatcher(this, this.extensionsScannerService, userDataProfilesService, extensionsProfileScannerService, uriIdentityService, fileService, logService));
@@ -190,7 +190,7 @@ export class ExtensionManagementService extends AbstractExtensionManagementServi
 		metadata.isBuiltin = metadata.isBuiltin || undefined;
 		metadata.pinned = metadata.pinned || undefined;
 		local = await this.extensionsScanner.updateMetadata(local, metadata, profileLocation);
-		this.manifestCache.invalidate();
+		this.manifestCache.invalidate(profileLocation);
 		this._onDidUpdateExtensionMetadata.fire(local);
 		return local;
 	}
