@@ -10,6 +10,7 @@ import { getEditorLineNumberForPageOffset, scrollToRevealSourceLine, getLineElem
 import { SettingsManager, getData } from './settings';
 import throttle = require('lodash.throttle');
 import morphdom from 'morphdom';
+import type { ToWebviewMessage } from '../types/previewMessaging';
 
 let scrollDisabledCount = 0;
 
@@ -118,16 +119,17 @@ window.addEventListener('resize', () => {
 }, true);
 
 window.addEventListener('message', async event => {
-	switch (event.data.type) {
+	const data = event.data as ToWebviewMessage.Type;
+	switch (data.type) {
 		case 'onDidChangeTextEditorSelection':
-			if (event.data.source === documentResource) {
-				marker.onDidChangeTextEditorSelection(event.data.line, documentVersion);
+			if (data.source === documentResource) {
+				marker.onDidChangeTextEditorSelection(data.line, documentVersion);
 			}
 			return;
 
 		case 'updateView':
-			if (event.data.source === documentResource) {
-				onUpdateView(event.data.line);
+			if (data.source === documentResource) {
+				onUpdateView(data.line);
 			}
 			return;
 
@@ -135,7 +137,7 @@ window.addEventListener('message', async event => {
 			const root = document.querySelector('.markdown-body')!;
 
 			const parser = new DOMParser();
-			const newContent = parser.parseFromString(event.data.content, 'text/html');
+			const newContent = parser.parseFromString(data.content, 'text/html');
 
 			// Strip out meta http-equiv tags
 			for (const metaElement of Array.from(newContent.querySelectorAll('meta'))) {
@@ -144,9 +146,9 @@ window.addEventListener('message', async event => {
 				}
 			}
 
-			if (event.data.source !== documentResource) {
+			if (data.source !== documentResource) {
 				root.replaceWith(newContent.querySelector('.markdown-body')!);
-				documentResource = event.data.source;
+				documentResource = data.source;
 			} else {
 				const skippedAttrs = [
 					'open', // for details
