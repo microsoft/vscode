@@ -575,13 +575,14 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		// We need to first wait for extensions to be registered because we might read
 		// the `TaskDefinitionRegistry` in case `type` is `undefined`
 		await this._extensionService.whenInstalledExtensionsRegistered();
-
-		await Promise.all(
-			this._getActivationEvents(type).map(activationEvent => Promise.race([this._extensionService.activateByEvent(activationEvent), timeout(2000).then(() => {
-				return undefined;
-			}
-			)]))
-		);
+		// Wait for the first of either to resolve
+		await Promise.race([
+			// Create a promise that resolves when all activation promises resolve
+			Promise.all(
+				this._getActivationEvents(type).map(activationEvent => this._extensionService.activateByEvent(activationEvent))
+			),
+			timeout(5000).then(() => console.warn('Timed out activating extensions for task providers'))
+		]);
 	}
 
 	private _updateSetup(setup?: [IWorkspaceFolder[], IWorkspaceFolder[], ExecutionEngine, JsonSchemaVersion, IWorkspace | undefined]): void {
