@@ -31,11 +31,26 @@ export class LogFunctionLogger implements ILogger {
 		private readonly _logFn: typeof console.log
 	) { }
 
+	get level(): LogLevel {
+		return LogLevel.Debug; // TODO: remove hardcoding
+	}
 
-	public log(level: LogLevel, title: string, message: string, data?: any): void {
-		this.appendLine(`[${level} ${LogFunctionLogger.now()}] ${title}: ${message}`);
+	public log(level: LogLevel, message: string, data?: any): void {
+		if (level < this.level) {
+			return;
+		}
+
+		this.appendLine(`[${this.toLevelLabel(level)} ${LogFunctionLogger.now()}] ${message}`);
 		if (data) {
 			this.appendLine(LogFunctionLogger.data2String(data));
+		}
+	}
+
+	private toLevelLabel(level: LogLevel): string {
+		switch (level) {
+			case LogLevel.Off: return 'Off';
+			case LogLevel.Debug: return 'Debug';
+			case LogLevel.Trace: return 'Trace';
 		}
 	}
 
