@@ -7,19 +7,19 @@ import { Codicon } from 'vs/base/common/codicons';
 import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import * as resources from 'vs/base/common/resources';
 import { localize } from 'vs/nls';
-import { MenuId, MenuRegistry, registerAction2 } from 'vs/platform/actions/common/actions';
+import { registerAction2 } from 'vs/platform/actions/common/actions';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { IRelaxedExtensionDescription } from 'vs/platform/extensions/common/extensions';
+import { ExtensionIdentifier, IRelaxedExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { ViewPaneContainer } from 'vs/workbench/browser/parts/views/viewPaneContainer';
 import { IViewContainersRegistry, IViewDescriptor, IViewsRegistry, ViewContainer, ViewContainerLocation, Extensions as ViewExtensions } from 'vs/workbench/common/views';
-import { ClearInteractiveSessionActionDescriptor, getOpenInteractiveSessionEditorAction } from 'vs/workbench/contrib/interactiveSession/browser/interactiveSessionActions';
-import { INTERACTIVE_SIDEBAR_PANEL_ID, InteractiveSessionViewPane, IInteractiveSessionViewOptions } from 'vs/workbench/contrib/interactiveSession/browser/interactiveSessionSidebar';
-import { IInteractiveSessionContributionService, IInteractiveSessionProviderContribution } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionContributionService';
+import { getClearAction, getOpenInteractiveSessionEditorAction } from 'vs/workbench/contrib/interactiveSession/browser/interactiveSessionActions';
+import { IInteractiveSessionViewOptions, INTERACTIVE_SIDEBAR_PANEL_ID, InteractiveSessionViewPane } from 'vs/workbench/contrib/interactiveSession/browser/interactiveSessionSidebar';
+import { IInteractiveSessionContributionService, IInteractiveSessionProviderContribution, IRawInteractiveSessionProviderContribution } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionContributionService';
 import * as extensionsRegistry from 'vs/workbench/services/extensions/common/extensionsRegistry';
 
-const interactiveSessionExtensionPoint = extensionsRegistry.ExtensionsRegistry.registerExtensionPoint<IInteractiveSessionProviderContribution[]>({
+const interactiveSessionExtensionPoint = extensionsRegistry.ExtensionsRegistry.registerExtensionPoint<IRawInteractiveSessionProviderContribution[]>({
 	extensionPoint: 'interactiveSession',
 	jsonSchema: {
 		description: localize('vscode.extension.contributes.interactiveSession', 'Contributes an Interactive Session provider'),
@@ -47,7 +47,12 @@ const interactiveSessionExtensionPoint = extensionsRegistry.ExtensionsRegistry.r
 				},
 			}
 		}
-	}
+	},
+	activationEventsGenerator: (contributions: IRawInteractiveSessionProviderContribution[], result: { push(item: string): void }) => {
+		for (const contrib of contributions) {
+			result.push(`onInteractiveSession:${contrib.id}`);
+		}
+	},
 });
 
 export class InteractiveSessionContributionService implements IInteractiveSessionContributionService {
@@ -62,7 +67,10 @@ export class InteractiveSessionContributionService implements IInteractiveSessio
 				const extensionDisposable = new DisposableStore();
 				for (const providerDescriptor of extension.value) {
 					this.registerInteractiveSessionProvider(extension.description, providerDescriptor);
-					this._registeredProviders.set(providerDescriptor.id, providerDescriptor);
+					this._registeredProviders.set(providerDescriptor.id, {
+						...providerDescriptor,
+						extensionId: ExtensionIdentifier.toKey(extension.description.identifier)
+					});
 				}
 				this._registrationDisposables.set(extension.description.identifier.value, extensionDisposable);
 			}
@@ -85,7 +93,7 @@ export class InteractiveSessionContributionService implements IInteractiveSessio
 		return Array.from(this._registeredProviders.values());
 	}
 
-	private registerInteractiveSessionProvider(extension: Readonly<IRelaxedExtensionDescription>, providerDescriptor: IInteractiveSessionProviderContribution): IDisposable {
+	private registerInteractiveSessionProvider(extension: Readonly<IRelaxedExtensionDescription>, providerDescriptor: IRawInteractiveSessionProviderContribution): IDisposable {
 		// Register View Container
 		const viewContainerId = INTERACTIVE_SIDEBAR_PANEL_ID + '.' + providerDescriptor.id;
 		const viewContainer: ViewContainer = Registry.as<IViewContainersRegistry>(ViewExtensions.ViewContainersRegistry).registerViewContainer({
@@ -111,12 +119,7 @@ export class InteractiveSessionContributionService implements IInteractiveSessio
 		Registry.as<IViewsRegistry>(ViewExtensions.ViewsRegistry).registerViews(viewDescriptor, viewContainer);
 
 		// Clear action in view title
-		const menuItem = MenuRegistry.appendMenuItem(MenuId.ViewTitle, {
-			command: ClearInteractiveSessionActionDescriptor,
-			when: ContextKeyExpr.equals('view', viewId),
-			group: 'navigation',
-			order: 0
-		});
+		const clearAction = registerAction2(getClearAction(viewId, providerDescriptor.id));
 
 		// "Open Interactive Session Editor" Action
 		const openEditor = registerAction2(getOpenInteractiveSessionEditorAction(providerDescriptor.id, providerDescriptor.label, providerDescriptor.when));
@@ -125,7 +128,7 @@ export class InteractiveSessionContributionService implements IInteractiveSessio
 			dispose: () => {
 				Registry.as<IViewsRegistry>(ViewExtensions.ViewsRegistry).deregisterViews(viewDescriptor, viewContainer);
 				Registry.as<IViewContainersRegistry>(ViewExtensions.ViewContainersRegistry).deregisterViewContainer(viewContainer);
-				menuItem.dispose();
+				clearAction.dispose();
 				openEditor.dispose();
 			}
 		};

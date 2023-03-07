@@ -36,7 +36,7 @@ import { FloatingClickMenu } from 'vs/workbench/browser/codeeditor';
 import { MenuPreventer } from 'vs/workbench/contrib/codeEditor/browser/menuPreventer';
 import { SelectionClipboardContributionID } from 'vs/workbench/contrib/codeEditor/browser/selectionClipboard';
 import { getSimpleEditorOptions } from 'vs/workbench/contrib/codeEditor/browser/simpleEditorOptions';
-import { InteractiveSessionInputOptions } from 'vs/workbench/contrib/interactiveSession/browser/interactiveSessionOptions';
+import { InteractiveSessionEditorOptions } from 'vs/workbench/contrib/interactiveSession/browser/interactiveSessionOptions';
 import { IInteractiveRequestViewModel, IInteractiveResponseViewModel, isRequestVM, isResponseVM } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionViewModel';
 
 const $ = dom.$;
@@ -57,9 +57,7 @@ interface IItemHeightChangeParams {
 	height: number;
 }
 
-const wordRenderRate = 8; // words/sec
-
-const enableVerboseLayoutTracing = false;
+const forceVerboseLayoutTracing = false;
 
 export class InteractiveListItemRenderer extends Disposable implements ITreeRenderer<InteractiveTreeItem, FuzzyScore, IInteractiveListItemTemplate> {
 	static readonly cursorCharacter = '\u258c';
@@ -78,7 +76,7 @@ export class InteractiveListItemRenderer extends Disposable implements ITreeRend
 	private _currentLayoutWidth: number = 0;
 
 	constructor(
-		private readonly options: InteractiveSessionInputOptions,
+		private readonly editorOptions: InteractiveSessionEditorOptions,
 		private readonly delegate: { getListLength(): number },
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IConfigurationService private readonly configService: IConfigurationService,
@@ -86,7 +84,7 @@ export class InteractiveListItemRenderer extends Disposable implements ITreeRend
 	) {
 		super();
 		this.renderer = this.instantiationService.createInstance(MarkdownRenderer, {});
-		this._editorPool = this._register(this.instantiationService.createInstance(EditorPool, this.options));
+		this._editorPool = this._register(this.instantiationService.createInstance(EditorPool, this.editorOptions));
 	}
 
 	get templateId(): string {
@@ -94,15 +92,19 @@ export class InteractiveListItemRenderer extends Disposable implements ITreeRend
 	}
 
 	private traceLayout(method: string, message: string) {
-		if (enableVerboseLayoutTracing) {
+		if (forceVerboseLayoutTracing) {
 			this.logService.info(`${method}: ${message}`);
 		} else {
 			this.logService.trace(`${method}: ${message}`);
 		}
 	}
 
-	private shouldRenderProgressively(): boolean {
-		return this.configService.getValue('interactive.experimental.progressiveRendering');
+	private shouldRenderProgressively(element: IInteractiveResponseViewModel): boolean {
+		return !this.configService.getValue('interactive.experimental.disableProgressiveRendering') && element.progressiveResponseRenderingEnabled;
+	}
+
+	private getProgressiveRenderRate(): number {
+		return this.configService.getValue('interactive.experimental.progressiveRenderingRate') ?? 8;
 	}
 
 	layout(width: number): void {
@@ -132,12 +134,19 @@ export class InteractiveListItemRenderer extends Disposable implements ITreeRend
 
 		templateData.rowContainer.classList.toggle('interactive-request', isRequestVM(element));
 		templateData.rowContainer.classList.toggle('interactive-response', isResponseVM(element));
-		templateData.username.textContent = isRequestVM(element) ? localize('username', "Username") : localize('response', "Response");
+		templateData.username.textContent = element.username;
 
-		const avatarIcon = dom.$(ThemeIcon.asCSSSelector(isRequestVM(element) ? Codicon.account : Codicon.hubot));
-		templateData.avatar.replaceChildren(avatarIcon);
+		if (element.avatarIconUri) {
+			const avatarIcon = dom.$<HTMLImageElement>('img.icon');
+			avatarIcon.src = element.avatarIconUri.toString();
+			templateData.avatar.replaceChildren(avatarIcon);
+		} else {
+			const defaultIcon = isRequestVM(element) ? Codicon.account : Codicon.hubot;
+			const avatarIcon = dom.$(ThemeIcon.asCSSSelector(defaultIcon));
+			templateData.avatar.replaceChildren(avatarIcon);
+		}
 
-		if (isResponseVM(element) && index === this.delegate.getListLength() - 1 && (!element.isComplete || element.renderData) && this.shouldRenderProgressively()) {
+		if (isResponseVM(element) && index === this.delegate.getListLength() - 1 && (!element.isComplete || element.renderData) && this.shouldRenderProgressively(element)) {
 			this.traceLayout('renderElement', `start progressive render ${kind}, index=${index}`);
 			const progressiveRenderingDisposables = templateData.elementDisposables.add(new DisposableStore());
 			const timer = templateData.elementDisposables.add(new IntervalTimer());
@@ -147,11 +156,11 @@ export class InteractiveListItemRenderer extends Disposable implements ITreeRend
 				}
 			};
 			runProgressiveRender();
-			timer.cancelAndSet(runProgressiveRender, 1000 / wordRenderRate);
+			timer.cancelAndSet(runProgressiveRender, 1000 / this.getProgressiveRenderRate());
 		} else if (isResponseVM(element)) {
 			this.basicRenderElement(element.response.value, element, index, templateData);
 		} else {
-			this.basicRenderElement(element.model.message, element, index, templateData);
+			this.basicRenderElement(element.message, element, index, templateData);
 		}
 	}
 
@@ -233,7 +242,7 @@ export class InteractiveListItemRenderer extends Disposable implements ITreeRend
 		const renderData = element.renderData ?? { renderPosition: 0, renderTime: 0 };
 		const numWordsToRender = renderData.renderTime === 0 ?
 			1 :
-			renderData.renderPosition + Math.floor((Date.now() - renderData.renderTime) / 1000 * wordRenderRate);
+			renderData.renderPosition + Math.floor((Date.now() - renderData.renderTime) / 1000 * this.getProgressiveRenderRate());
 
 		if (numWordsToRender === renderData.renderPosition) {
 			return undefined;
@@ -281,8 +290,10 @@ export class InteractiveSessionListDelegate implements IListVirtualDelegate<Inte
 	) { }
 
 	private _traceLayout(method: string, message: string) {
-		if (enableVerboseLayoutTracing) {
+		if (forceVerboseLayoutTracing) {
 			this.logService.info(`InteractiveSessionListDelegate#${method}: ${message}`);
+		} else {
+			this.logService.trace(`InteractiveSessionListDelegate#${method}: ${message}`);
 		}
 	}
 
@@ -310,7 +321,7 @@ export class InteractiveSessionAccessibilityProvider implements IListAccessibili
 
 	getAriaLabel(element: InteractiveTreeItem): string {
 		if (isRequestVM(element)) {
-			return localize('interactiveRequest', "Request: {0}", element.model.message);
+			return localize('interactiveRequest', "Request: {0}", element.message);
 		}
 
 		if (isResponseVM(element)) {
@@ -338,7 +349,7 @@ class EditorPool extends Disposable {
 	}
 
 	constructor(
-		private readonly options: InteractiveSessionInputOptions,
+		private readonly options: InteractiveSessionEditorOptions,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@ILanguageService private readonly languageService: ILanguageService,
 		@IModelService private readonly modelService: IModelService,

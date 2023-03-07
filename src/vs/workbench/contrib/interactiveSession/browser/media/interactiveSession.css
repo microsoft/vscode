@@ -45,6 +45,12 @@
 	background: var(--vscode-badge-background);
 }
 
+.interactive-list .interactive-item-container .header .avatar .icon {
+	width: 24px;
+	height: 24px;
+	border-radius: 50%;
+}
+
 .interactive-list .interactive-item-container .header .avatar .codicon {
 	color: var(--vscode-badge-foreground);
 }

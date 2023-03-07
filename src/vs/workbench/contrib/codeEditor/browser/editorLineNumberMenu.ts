@@ -5,7 +5,7 @@
 
 import { IAction, Separator } from 'vs/base/common/actions';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
-import { ICodeEditor, MouseTargetType } from 'vs/editor/browser/editorBrowser';
+import { ICodeEditor, IEditorMouseEvent, MouseTargetType } from 'vs/editor/browser/editorBrowser';
 import { registerEditorContribution, EditorContributionInstantiation } from 'vs/editor/browser/editorExtensions';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { IMenuService, MenuId } from 'vs/platform/actions/common/actions';
@@ -56,43 +56,41 @@ export class EditorLineNumberContextMenu extends Disposable implements IEditorCo
 	) {
 		super();
 
-		this.registerListeners();
+		this._register(this.editor.onContextMenu((e: IEditorMouseEvent) => this.show(e)));
 
 	}
 
-	private registerListeners(): void {
-		this._register(this.editor.onContextMenu((e) => {
-			const menu = this.menuService.createMenu(MenuId.EditorLineNumberContext, this.contextKeyService);
+	public show(e: IEditorMouseEvent) {
+		const menu = this.menuService.createMenu(MenuId.EditorLineNumberContext, this.contextKeyService);
 
-			const model = this.editor.getModel();
-			if (!e.target.position || !model || e.target.type !== MouseTargetType.GUTTER_LINE_NUMBERS && e.target.type !== MouseTargetType.GUTTER_GLYPH_MARGIN) {
-				return;
+		const model = this.editor.getModel();
+		if (!e.target.position || !model || e.target.type !== MouseTargetType.GUTTER_LINE_NUMBERS && e.target.type !== MouseTargetType.GUTTER_GLYPH_MARGIN) {
+			return;
+		}
+
+		const anchor = { x: e.event.posx, y: e.event.posy };
+		const lineNumber = e.target.position.lineNumber;
+
+		const actions: IAction[][] = [];
+
+		this.instantiationService.invokeFunction(accessor => {
+			for (const generator of GutterActionsRegistry.getGutterActionsGenerators()) {
+				const collectedActions: IAction[] = [];
+				generator({ lineNumber, editor: this.editor, accessor }, { push: (action: IAction) => collectedActions.push(action) });
+				actions.push(collectedActions);
 			}
 
-			const anchor = { x: e.event.posx, y: e.event.posy };
-			const lineNumber = e.target.position.lineNumber;
+			const menuActions = menu.getActions({ arg: { lineNumber, uri: model.uri }, shouldForwardArgs: true });
+			actions.push(...menuActions.map(a => a[1]));
 
-			const actions: IAction[][] = [];
-
-			this.instantiationService.invokeFunction(accessor => {
-				for (const generator of GutterActionsRegistry.getGutterActionsGenerators()) {
-					const collectedActions: IAction[] = [];
-					generator({ lineNumber, editor: this.editor, accessor }, { push: (action: IAction) => collectedActions.push(action) });
-					actions.push(collectedActions);
-				}
-
-				const menuActions = menu.getActions({ arg: { lineNumber, uri: model.uri }, shouldForwardArgs: true });
-				actions.push(...menuActions.map(a => a[1]));
-
-				this.contextMenuService.showContextMenu({
-					getAnchor: () => anchor,
-					getActions: () => Separator.join(...actions),
-					menuActionOptions: { shouldForwardArgs: true },
-					getActionsContext: () => ({ lineNumber, uri: model.uri }),
-					onHide: () => menu.dispose(),
-				});
+			this.contextMenuService.showContextMenu({
+				getAnchor: () => anchor,
+				getActions: () => Separator.join(...actions),
+				menuActionOptions: { shouldForwardArgs: true },
+				getActionsContext: () => ({ lineNumber, uri: model.uri }),
+				onHide: () => menu.dispose(),
 			});
-		}));
+		});
 	}
 }
 

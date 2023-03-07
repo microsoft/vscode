@@ -1088,6 +1088,10 @@ export interface MainThreadUrlsShape extends IDisposable {
 
 export interface IInteractiveSessionDto {
 	id: number;
+	requesterUsername?: string;
+	requesterAvatarIconPath?: string | UriComponents;
+	responderUsername?: string;
+	responderAvatarIconPath?: string | UriComponents;
 }
 
 export interface IInteractiveRequestDto {
@@ -1103,7 +1107,7 @@ export interface IInteractiveResponseProgressDto {
 }
 
 export interface MainThreadInteractiveSessionShape extends IDisposable {
-	$registerInteractiveSessionProvider(handle: number, id: string): Promise<void>;
+	$registerInteractiveSessionProvider(handle: number, id: string, implementsProgress: boolean): Promise<void>;
 	$acceptInteractiveSessionState(sessionId: number, state: any): Promise<void>;
 	$addInteractiveSessionRequest(context: any): void;
 	$unregisterInteractiveSessionProvider(handle: number): Promise<void>;

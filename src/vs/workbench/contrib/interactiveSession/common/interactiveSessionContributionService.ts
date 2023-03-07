@@ -5,6 +5,13 @@
 
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 
+export interface IInteractiveSessionProviderContribution {
+	extensionId: string;
+	id: string;
+	label: string;
+	when?: string;
+}
+
 export const IInteractiveSessionContributionService = createDecorator<IInteractiveSessionContributionService>('IInteractiveSessionContributionService');
 export interface IInteractiveSessionContributionService {
 	_serviceBrand: undefined;
@@ -12,7 +19,7 @@ export interface IInteractiveSessionContributionService {
 	registeredProviders: IInteractiveSessionProviderContribution[];
 }
 
-export interface IInteractiveSessionProviderContribution {
+export interface IRawInteractiveSessionProviderContribution {
 	id: string;
 	label: string;
 	icon: string;
