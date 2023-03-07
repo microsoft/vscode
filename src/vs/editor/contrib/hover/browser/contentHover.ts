@@ -33,6 +33,7 @@ const $ = dom.$;
 export class ContentHoverController extends Disposable {
 
 	private readonly _participants: IEditorHoverParticipant[];
+	// Used to be a ContentHoverWidget, now became a ResizeableContentHoverWidget
 	private readonly _widget = this._register(this._instantiationService.createInstance(ResizeableContentHoverWidget, this._editor));
 	private readonly _computer: ContentHoverComputer;
 	private readonly _hoverOperation: HoverOperation<IHoverPart>;
@@ -466,6 +467,43 @@ export class ResizeableContentHoverWidget extends Disposable {
 
 		this._resizeableElement.layout(height, width);
 		this._hoverContentWidget.layout();
+	}
+
+	// Everything below has been added in order to remove the errors
+	public getDomNode(): HTMLElement {
+		return this._hoverContentWidget.getDomNode();
+	}
+
+	public clear(): void {
+		this._hoverContentWidget.clear();
+	}
+
+	public get position() {
+		return this._hoverContentWidget.position;
+	}
+
+	public isMouseGettingCloser(posx: number, posy: number) {
+		return this._hoverContentWidget.isMouseGettingCloser(posx, posy);
+	}
+
+	public hide() {
+		this._hoverContentWidget.hide();
+	}
+
+	public get isColorPickerVisible(): boolean {
+		return this._hoverContentWidget.isColorPickerVisible;
+	}
+
+	public get isVisibleFromKeyboard(): boolean {
+		return this._hoverContentWidget.isVisibleFromKeyboard;
+	}
+
+	public onContentsChanged() {
+		return this._hoverContentWidget.onContentsChanged();
+	}
+
+	public showAt(node: DocumentFragment, visibleData: ContentHoverVisibleData) {
+		return this._hoverContentWidget.showAt(node, visibleData);
 	}
 }
 
