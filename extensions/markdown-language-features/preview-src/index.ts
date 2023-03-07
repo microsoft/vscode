@@ -28,6 +28,10 @@ const state = {
 	...getData<any>('data-state')
 };
 
+if (originalState.resource !== state.resource) {
+	state.scrollProgress = undefined;
+}
+
 // Make sure to sync VS Code state here
 vscode.setState(state);
 
