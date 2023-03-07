@@ -90,6 +90,7 @@ export class AccessibleBufferWidget extends DisposableStore {
 		}));
 		this.add(this._xterm.raw.onData(() => {
 			if (this._accessibleBuffer.classList.contains('active')) {
+				this._refreshSelection = true;
 				this._refresh();
 			}
 		}));
@@ -101,57 +102,29 @@ export class AccessibleBufferWidget extends DisposableStore {
 		this._xterm.raw.focus();
 	}
 
-	private async _refresh(): Promise<void> {
+	private async _updateContent(refresh?: boolean): Promise<ITextModel> {
 		const sb = new StringBuilder(10000);
-		sb.appendString(this._content);
-		sb.appendString(this._getContent(this._lastContentLength));
+		if (refresh) {
+			sb.appendString(this._content);
+			sb.appendString(this._getContent(this._lastContentLength));
+		} else {
+			const commandDetection = this._capabilities.get(TerminalCapability.CommandDetection);
+			sb.appendString(!!commandDetection ? this._getShellIntegrationContent() : this._getContent());
+		}
 		this._content = sb.build();
 		const model = await this._getTextModel(URI.from({ scheme: AccessibleBufferConstants.Scheme, fragment: this._content }));
 		if (model) {
 			this._bufferEditor.setModel(model);
+		} else {
+			throw new Error('Could not create model');
 		}
-		let lineNumber = 1;
-		const lineCount = model?.getLineCount();
-		if (lineCount && model) {
-			lineNumber = lineCount > 2 ? lineCount - 2 : 1;
-		}
-		this._bufferEditor.setSelection({ startLineNumber: lineNumber, startColumn: 1, endLineNumber: lineNumber, endColumn: 1 });
-		this._bufferEditor.setScrollTop(this._bufferEditor.getScrollHeight());
-		this._refreshSelection = false;
-		this._lastContentLength = this._content.length;
-		this._accessibleBuffer.replaceChildren(this._editorContainer);
-		this._bufferEditor.focus();
+		return model;
 	}
 
-	async show(): Promise<void> {
-		const commandDetection = this._capabilities.get(TerminalCapability.CommandDetection);
-		this._content = !!commandDetection ? this._getShellIntegrationContent() : this._getContent();
-		const model = await this._getTextModel(URI.from({ scheme: AccessibleBufferConstants.Scheme, fragment: this._content }));
-		if (model) {
-			this._bufferEditor.setModel(model);
-		}
-		if (!this._registered) {
-			this._bufferEditor.layout({ width: this._xtermElement.clientWidth, height: this._xtermElement.clientHeight });
-			this._bufferEditor.onKeyDown((e) => {
-				if (e.keyCode === KeyCode.Escape || e.keyCode === KeyCode.Tab) {
-					this._hide();
-				}
-			});
-			if (commandDetection) {
-				this._commandFinishedDisposable = commandDetection.onCommandFinished(() => this._refreshSelection = true);
-				this.add(this._commandFinishedDisposable);
-			}
-			this._registered = true;
-		}
-		this._accessibleBuffer.tabIndex = -1;
-		this._accessibleBuffer.classList.add('active');
-		this._xtermElement.classList.add('hide');
+	private async _refresh(): Promise<void> {
+		const model = await this._updateContent();
+		const lineNumber = model.getLineCount() - 1;
 		if (this._lastContentLength !== this._content.length || this._refreshSelection) {
-			let lineNumber = 1;
-			const lineCount = model?.getLineCount();
-			if (lineCount && model) {
-				lineNumber = commandDetection ? lineCount - 1 : lineCount > 2 ? lineCount - 2 : 1;
-			}
 			this._bufferEditor.setSelection({ startLineNumber: lineNumber, startColumn: 1, endLineNumber: lineNumber, endColumn: 1 });
 			this._bufferEditor.setScrollTop(this._bufferEditor.getScrollHeight());
 			this._refreshSelection = false;
@@ -159,6 +132,31 @@ export class AccessibleBufferWidget extends DisposableStore {
 		}
 		this._accessibleBuffer.replaceChildren(this._editorContainer);
 		this._bufferEditor.focus();
+	}
+
+	async show(): Promise<void> {
+		if (!this._registered) {
+			this._registerListeners();
+		}
+		await this._refresh();
+		this._accessibleBuffer.tabIndex = -1;
+		this._accessibleBuffer.classList.add('active');
+		this._xtermElement.classList.add('hide');
+	}
+
+	private _registerListeners(): void {
+		const commandDetection = this._capabilities.get(TerminalCapability.CommandDetection);
+		this._bufferEditor.layout({ width: this._xtermElement.clientWidth, height: this._xtermElement.clientHeight });
+		this._bufferEditor.onKeyDown((e) => {
+			if (e.keyCode === KeyCode.Escape || e.keyCode === KeyCode.Tab) {
+				this._hide();
+			}
+		});
+		if (commandDetection) {
+			this._commandFinishedDisposable = commandDetection.onCommandFinished(() => this._refreshSelection = true);
+			this.add(this._commandFinishedDisposable);
+		}
+		this._registered = true;
 	}
 
 	private async _getTextModel(resource: URI): Promise<ITextModel | null> {
