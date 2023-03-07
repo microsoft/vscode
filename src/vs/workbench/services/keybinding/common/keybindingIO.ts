@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Keybinding } from 'vs/base/common/keybindings';
 import { KeybindingParser } from 'vs/base/common/keybindingParser';
+import { Keybinding } from 'vs/base/common/keybindings';
 import { ContextKeyExpr, ContextKeyExpression } from 'vs/platform/contextkey/common/contextkey';
-import { IUserFriendlyKeybinding, KeybindingFromJSON } from 'vs/platform/keybinding/common/keybinding';
+import { KeybindingFromJSON } from 'vs/platform/keybinding/common/keybinding';
 import { ResolvedKeybindingItem } from 'vs/platform/keybinding/common/resolvedKeybindingItem';
 
 export interface IUserKeybindingItem {
@@ -14,7 +14,7 @@ export interface IUserKeybindingItem {
 	command: string | null;
 	commandArgs?: any;
 	when: ContextKeyExpression | undefined;
-	_source: IUserFriendlyKeybinding;
+	_sourceKey: string | undefined; /** captures `key` field from `keybindings.json`; `this.keybinding !== null` implies `_sourceKey !== null` */
 }
 
 export class KeybindingIO {
@@ -53,7 +53,7 @@ export class KeybindingIO {
 			command,
 			commandArgs,
 			when,
-			_source: { key: input.key ?? 'KEYBINDING_MISSING_KEY', command: input.command ?? 'KEYBINDING_MISSING_COMMAND', when: input.when, args: input.args }
+			_sourceKey: input.key,
 		};
 	}
 }

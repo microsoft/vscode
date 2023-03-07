@@ -343,7 +343,7 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 			if (!item.keybinding) {
 				continue;
 			}
-			const input = item._source.key;
+			const input = item._sourceKey ?? 'Impossible: missing source key, but has keybinding';
 			if (seenBindings.has(input)) {
 				continue;
 			}
