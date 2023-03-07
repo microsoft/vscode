@@ -57,8 +57,6 @@ interface IItemHeightChangeParams {
 	height: number;
 }
 
-const wordRenderRate = 8; // words/sec
-
 const forceVerboseLayoutTracing = false;
 
 export class InteractiveListItemRenderer extends Disposable implements ITreeRenderer<InteractiveTreeItem, FuzzyScore, IInteractiveListItemTemplate> {
@@ -101,8 +99,12 @@ export class InteractiveListItemRenderer extends Disposable implements ITreeRend
 		}
 	}
 
-	private shouldRenderProgressively(): boolean {
-		return this.configService.getValue('interactive.experimental.progressiveRendering');
+	private shouldRenderProgressively(element: IInteractiveResponseViewModel): boolean {
+		return !this.configService.getValue('interactive.experimental.disableProgressiveRendering') && element.progressiveResponseRenderingEnabled;
+	}
+
+	private getProgressiveRenderRate(): number {
+		return this.configService.getValue('interactive.experimental.progressiveRenderingRate') ?? 8;
 	}
 
 	layout(width: number): void {
@@ -144,7 +146,7 @@ export class InteractiveListItemRenderer extends Disposable implements ITreeRend
 			templateData.avatar.replaceChildren(avatarIcon);
 		}
 
-		if (isResponseVM(element) && index === this.delegate.getListLength() - 1 && (!element.isComplete || element.renderData) && this.shouldRenderProgressively()) {
+		if (isResponseVM(element) && index === this.delegate.getListLength() - 1 && (!element.isComplete || element.renderData) && this.shouldRenderProgressively(element)) {
 			this.traceLayout('renderElement', `start progressive render ${kind}, index=${index}`);
 			const progressiveRenderingDisposables = templateData.elementDisposables.add(new DisposableStore());
 			const timer = templateData.elementDisposables.add(new IntervalTimer());
@@ -154,7 +156,7 @@ export class InteractiveListItemRenderer extends Disposable implements ITreeRend
 				}
 			};
 			runProgressiveRender();
-			timer.cancelAndSet(runProgressiveRender, 1000 / wordRenderRate);
+			timer.cancelAndSet(runProgressiveRender, 1000 / this.getProgressiveRenderRate());
 		} else if (isResponseVM(element)) {
 			this.basicRenderElement(element.response.value, element, index, templateData);
 		} else {
@@ -240,7 +242,7 @@ export class InteractiveListItemRenderer extends Disposable implements ITreeRend
 		const renderData = element.renderData ?? { renderPosition: 0, renderTime: 0 };
 		const numWordsToRender = renderData.renderTime === 0 ?
 			1 :
-			renderData.renderPosition + Math.floor((Date.now() - renderData.renderTime) / 1000 * wordRenderRate);
+			renderData.renderPosition + Math.floor((Date.now() - renderData.renderTime) / 1000 * this.getProgressiveRenderRate());
 
 		if (numWordsToRender === renderData.renderPosition) {
 			return undefined;

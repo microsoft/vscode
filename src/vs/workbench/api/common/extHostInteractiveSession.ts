@@ -43,7 +43,7 @@ export class ExtHostInteractiveSession implements ExtHostInteractiveSessionShape
 	registerInteractiveSessionProvider(extension: Readonly<IRelaxedExtensionDescription>, id: string, provider: vscode.InteractiveSessionProvider): vscode.Disposable {
 		const wrapper = new InteractiveSessionProviderWrapper(extension, provider);
 		this._interactiveSessionProvider.set(wrapper.handle, wrapper);
-		this._proxy.$registerInteractiveSessionProvider(wrapper.handle, id);
+		this._proxy.$registerInteractiveSessionProvider(wrapper.handle, id, !!provider.provideResponseWithProgress);
 		return toDisposable(() => {
 			this._proxy.$unregisterInteractiveSessionProvider(wrapper.handle);
 			this._interactiveSessionProvider.delete(wrapper.handle);
