@@ -144,7 +144,11 @@ window.addEventListener('message', async event => {
 				root.replaceWith(newContent.querySelector('.markdown-body')!);
 				documentResource = event.data.source;
 			} else {
-				// Compare two elements but skip `data-line`
+				const skippedAttrs = [
+					'open', // for details
+				];
+
+				// Compare two elements but some elements
 				const areEqual = (a: Element, b: Element): boolean => {
 					if (a.isEqualNode(b)) {
 						return true;
@@ -154,8 +158,8 @@ window.addEventListener('message', async event => {
 						return false;
 					}
 
-					const aAttrs = a.attributes;
-					const bAttrs = b.attributes;
+					const aAttrs = [...a.attributes].filter(attr => !skippedAttrs.includes(attr.name));
+					const bAttrs = [...b.attributes].filter(attr => !skippedAttrs.includes(attr.name));
 					if (aAttrs.length !== bAttrs.length) {
 						return false;
 					}
@@ -186,15 +190,13 @@ window.addEventListener('message', async event => {
 					style.remove();
 				}
 				newRoot.prepend(...styles);
-
 				morphdom(root, newRoot, {
 					childrenOnly: true,
 					onBeforeElUpdated: (fromEl, toEl) => {
 						if (areEqual(fromEl, toEl)) {
-							// areEqual doesn't look at `data-line` so copy those over
-
+							// areEqual doesn't look at `data-line` so copy those over manually
 							const fromLines = fromEl.querySelectorAll('[data-line]');
-							const toLines = fromEl.querySelectorAll('[data-line]');
+							const toLines = toEl.querySelectorAll('[data-line]');
 							if (fromLines.length !== toLines.length) {
 								console.log('unexpected line number change');
 							}
@@ -208,6 +210,12 @@ window.addEventListener('message', async event => {
 							}
 
 							return false;
+						}
+
+						if (fromEl.tagName === 'DETAILS' && toEl.tagName === 'DETAILS') {
+							if (fromEl.hasAttribute('open')) {
+								toEl.setAttribute('open', '');
+							}
 						}
 
 						return true;
