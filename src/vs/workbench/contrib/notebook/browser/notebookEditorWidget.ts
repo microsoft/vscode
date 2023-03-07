@@ -2347,7 +2347,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 
 	//#region Find
 
-	private async _renderCell(viewCell: CodeCellViewModel) {
+	private async _warmupCell(viewCell: CodeCellViewModel) {
 		if (viewCell.isOutputCollapsed) {
 			return;
 		}
@@ -2408,7 +2408,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 				const cell = this.cellAt(i);
 
 				if (cell?.cellKind === CellKind.Code) {
-					requests.push(this._renderCell((cell as CodeCellViewModel)));
+					requests.push(this._warmupCell((cell as CodeCellViewModel)));
 				}
 			}
 		}
