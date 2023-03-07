@@ -17,7 +17,7 @@ import { ICommandService, CommandsRegistry } from 'vs/platform/commands/common/c
 import { ContextKeyExpr, IContextKeyService, ContextKeyExpression, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { Extensions, IJSONContributionRegistry } from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
 import { AbstractKeybindingService } from 'vs/platform/keybinding/common/abstractKeybindingService';
-import { IKeyboardEvent, IKeybindingService, KeybindingsSchemaContribution, KeybindingFromJSON } from 'vs/platform/keybinding/common/keybinding';
+import { IKeyboardEvent, IKeybindingService, KeybindingsSchemaContribution } from 'vs/platform/keybinding/common/keybinding';
 import { KeybindingResolver } from 'vs/platform/keybinding/common/keybindingResolver';
 import { IKeybindingItem, IExtensionKeybindingRule, KeybindingWeight, KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { ResolvedKeybindingItem } from 'vs/platform/keybinding/common/resolvedKeybindingItem';
@@ -682,7 +682,7 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 
 class UserKeybindings extends Disposable {
 
-	private _rawKeybindings: KeybindingFromJSON[] = [];
+	private _rawKeybindings: Object[] = [];
 	private _keybindings: IUserKeybindingItem[] = [];
 	get keybindings(): IUserKeybindingItem[] { return this._keybindings; }
 
@@ -756,7 +756,7 @@ class UserKeybindings extends Disposable {
 		return true;
 	}
 
-	private async readUserKeybindings(): Promise<KeybindingFromJSON[]> {
+	private async readUserKeybindings(): Promise<Object[]> {
 		try {
 			const content = await this.fileService.readFile(this.userDataProfileService.currentProfile.keybindingsResource);
 			const value = parse(content.value.toString());
