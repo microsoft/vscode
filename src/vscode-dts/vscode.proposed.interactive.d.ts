@@ -50,7 +50,7 @@ declare module 'vscode' {
 		/**
 		 * Either a full URI or a relative path to the icon of the participant.
 		 */
-		iconPath?: Uri | string;
+		icon?: Uri;
 	}
 
 	export interface InteractiveSession {
