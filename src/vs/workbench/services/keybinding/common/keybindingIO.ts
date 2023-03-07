@@ -6,7 +6,7 @@
 import { Keybinding } from 'vs/base/common/keybindings';
 import { KeybindingParser } from 'vs/base/common/keybindingParser';
 import { ContextKeyExpr, ContextKeyExpression } from 'vs/platform/contextkey/common/contextkey';
-import { IUserFriendlyKeybinding } from 'vs/platform/keybinding/common/keybinding';
+import { IUserFriendlyKeybinding, KeybindingFromJSON } from 'vs/platform/keybinding/common/keybinding';
 import { ResolvedKeybindingItem } from 'vs/platform/keybinding/common/resolvedKeybindingItem';
 
 export interface IUserKeybindingItem {
@@ -43,7 +43,7 @@ export class KeybindingIO {
 		out.write(' }');
 	}
 
-	public static readUserKeybindingItem(input: IUserFriendlyKeybinding): IUserKeybindingItem {
+	public static readUserKeybindingItem(input: KeybindingFromJSON): IUserKeybindingItem {
 		const keybinding = (typeof input.key === 'string' ? KeybindingParser.parseKeybinding(input.key) : null);
 		const when = (typeof input.when === 'string' ? ContextKeyExpr.deserialize(input.when) : undefined);
 		const command = (typeof input.command === 'string' ? input.command : null);
@@ -53,7 +53,7 @@ export class KeybindingIO {
 			command,
 			commandArgs,
 			when,
-			_source: input
+			_source: { key: input.key ?? 'KEYBINDING_MISSING_KEY', command: input.command ?? 'KEYBINDING_MISSING_COMMAND', when: input.when, args: input.args }
 		};
 	}
 }
