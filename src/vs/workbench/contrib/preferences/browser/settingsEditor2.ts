@@ -286,6 +286,7 @@ export class SettingsEditor2 extends EditorPane {
 
 	override get minimumWidth(): number { return SettingsEditor2.EDITOR_MIN_WIDTH; }
 	override get maximumWidth(): number { return Number.POSITIVE_INFINITY; }
+	override get minimumHeight() { return 180; }
 
 	// these setters need to exist because this extends from EditorPane
 	override set minimumWidth(value: number) { /*noop*/ }
