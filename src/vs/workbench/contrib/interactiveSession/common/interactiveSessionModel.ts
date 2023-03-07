@@ -18,6 +18,12 @@ export interface IInteractiveRequestModel {
 	readonly response: IInteractiveResponseModel | undefined;
 }
 
+export interface IInteractiveSessionResponseCommandFollowup {
+	commandId: string;
+	args: any[];
+	title: string; // supports codicon strings
+}
+
 export interface IInteractiveResponseModel {
 	readonly onDidChange: Event<void>;
 	readonly id: string;
@@ -26,6 +32,7 @@ export interface IInteractiveResponseModel {
 	readonly response: IMarkdownString;
 	readonly isComplete: boolean;
 	readonly followups?: string[];
+	readonly commandFollowups?: IInteractiveSessionResponseCommandFollowup[];
 }
 
 export function isRequest(item: unknown): item is IInteractiveRequestModel {
@@ -72,6 +79,11 @@ export class InteractiveResponseModel extends Disposable implements IInteractive
 		return this._followups;
 	}
 
+	private _commandFollowups: IInteractiveSessionResponseCommandFollowup[] | undefined;
+	public get commandFollowups(): IInteractiveSessionResponseCommandFollowup[] | undefined {
+		return this._commandFollowups;
+	}
+
 	private _response: IMarkdownString;
 	public get response(): IMarkdownString {
 		return this._response;
@@ -90,9 +102,10 @@ export class InteractiveResponseModel extends Disposable implements IInteractive
 		this._onDidChange.fire();
 	}
 
-	complete(followups: string[] | undefined): void {
+	complete(followups: string[] | undefined, commandFollowups: IInteractiveSessionResponseCommandFollowup[] | undefined): void {
 		this._isComplete = true;
 		this._followups = followups;
+		this._commandFollowups = commandFollowups;
 		this._onDidChange.fire();
 	}
 }
@@ -211,8 +224,8 @@ export class InteractiveSessionModel extends Disposable implements IInteractiveS
 		}
 	}
 
-	completeResponse(request: InteractiveRequestModel, followups?: string[]): void {
-		request.response!.complete(followups);
+	completeResponse(request: InteractiveRequestModel, followups?: string[], commandFollowups?: IInteractiveSessionResponseCommandFollowup[]): void {
+		request.response!.complete(followups, commandFollowups);
 	}
 
 	setResponse(request: InteractiveRequestModel, response: InteractiveResponseModel): void {

@@ -157,7 +157,7 @@ export class ExtHostInteractiveSession implements ExtHostInteractiveSessionShape
 				return;
 			}
 
-			return { followups: res.followups };
+			return { followups: res.followups, commandFollowups: res.commands };
 		}
 
 		throw new Error('provider must implement either provideResponse or provideResponseWithProgress');

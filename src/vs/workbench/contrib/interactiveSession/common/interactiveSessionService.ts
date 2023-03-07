@@ -8,7 +8,7 @@ import { IDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { ProviderResult } from 'vs/editor/common/languages';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { InteractiveSessionModel } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionModel';
+import { IInteractiveSessionResponseCommandFollowup, InteractiveSessionModel } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionModel';
 
 export interface IInteractiveSession {
 	id: number;
@@ -27,6 +27,7 @@ export interface IInteractiveRequest {
 export interface IInteractiveResponse {
 	session: IInteractiveSession;
 	followups?: string[];
+	commandFollowups?: IInteractiveSessionResponseCommandFollowup[];
 }
 
 export interface IInteractiveProgress {
