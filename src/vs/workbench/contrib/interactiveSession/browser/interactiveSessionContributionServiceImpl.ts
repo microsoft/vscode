@@ -68,7 +68,7 @@ export class InteractiveSessionContributionService implements IInteractiveSessio
 				const extensionDisposable = new DisposableStore();
 				for (const providerDescriptor of extension.value) {
 					this.registerInteractiveSessionProvider(extension.description, providerDescriptor);
-					const extensionIcon =  extension.description.icon ?
+					const extensionIcon = extension.description.icon ?
 						FileAccess.uriToBrowserUri(resources.joinPath(extension.description.extensionLocation, extension.description.icon)) :
 						undefined;
 					this._registeredProviders.set(providerDescriptor.id, {
