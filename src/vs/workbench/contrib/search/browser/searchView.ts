@@ -10,7 +10,7 @@ import { MessageType } from 'vs/base/browser/ui/inputbox/inputBox';
 import { IIdentityProvider } from 'vs/base/browser/ui/list/list';
 import { ICompressedTreeElement } from 'vs/base/browser/ui/tree/compressedObjectTreeModel';
 import { ITreeContextMenuEvent } from 'vs/base/browser/ui/tree/tree';
-import { Delayer } from 'vs/base/common/async';
+import { Delayer, RunOnceScheduler } from 'vs/base/common/async';
 import * as errors from 'vs/base/common/errors';
 import { Event } from 'vs/base/common/event';
 import { Iterable } from 'vs/base/common/iterator';
@@ -1619,7 +1619,7 @@ export class SearchView extends ViewPane {
 
 		this._visibleMatches = 0;
 
-		let refreshAndUpdateCountRunning = false;
+		const refreshAndUpdateCountScheduler = new RunOnceScheduler(this.refreshAndUpdateCount.bind(this), 80);
 
 		// Handle UI updates in an interval to show frequent progress and results
 		if (!this._uiRefreshHandle) {
@@ -1634,14 +1634,8 @@ export class SearchView extends ViewPane {
 				const fileCount = this.viewModel.searchResult.fileCount();
 				if (this._visibleMatches !== fileCount) {
 					this._visibleMatches = fileCount;
-					if (!refreshAndUpdateCountRunning) {
-						refreshAndUpdateCountRunning = true;
-						try {
-							this.refreshAndUpdateCount();
-						} finally {
-							refreshAndUpdateCountRunning = false;
-						}
-					}
+					refreshAndUpdateCountScheduler.schedule();
+
 				}
 			}, 100);
 		}
