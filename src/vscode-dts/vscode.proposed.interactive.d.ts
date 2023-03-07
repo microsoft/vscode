@@ -78,10 +78,17 @@ declare module 'vscode' {
 
 	export interface InteractiveResponseForProgress {
 		followups?: string[];
+		commands?: InteractiveResponseCommand[];
 	}
 
 	export interface InteractiveProgress {
 		content: string;
+	}
+
+	export interface InteractiveResponseCommand {
+		commandId: string;
+		args: any[];
+		title: string; // supports codicon strings
 	}
 
 	export interface InteractiveSessionProvider {

@@ -140,7 +140,7 @@ export class InteractiveSessionService extends Disposable implements IInteractiv
 					return;
 				}
 
-				model.completeResponse(request, rawResponse.followups);
+				model.completeResponse(request, rawResponse.followups, rawResponse.commandFollowups);
 				this.trace('sendRequest', `Provider returned response for session ${sessionId} with ${rawResponse.followups} followups`);
 			} finally {
 				this._pendingRequestSessions.delete(sessionId);

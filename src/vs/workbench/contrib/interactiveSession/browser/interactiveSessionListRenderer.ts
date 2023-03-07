@@ -28,6 +28,7 @@ import { IMarkdownRenderResult, MarkdownRenderer } from 'vs/editor/contrib/markd
 import { ViewportSemanticTokensContribution } from 'vs/editor/contrib/semanticTokens/browser/viewportSemanticTokens';
 import { SmartSelectController } from 'vs/editor/contrib/smartSelect/browser/smartSelect';
 import { localize } from 'vs/nls';
+import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILogService } from 'vs/platform/log/common/log';
@@ -37,6 +38,7 @@ import { MenuPreventer } from 'vs/workbench/contrib/codeEditor/browser/menuPreve
 import { SelectionClipboardContributionID } from 'vs/workbench/contrib/codeEditor/browser/selectionClipboard';
 import { getSimpleEditorOptions } from 'vs/workbench/contrib/codeEditor/browser/simpleEditorOptions';
 import { InteractiveSessionEditorOptions } from 'vs/workbench/contrib/interactiveSession/browser/interactiveSessionOptions';
+import { IInteractiveSessionResponseCommandFollowup } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionModel';
 import { IInteractiveRequestViewModel, IInteractiveResponseViewModel, isRequestVM, isResponseVM } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionViewModel';
 
 const $ = dom.$;
@@ -81,6 +83,7 @@ export class InteractiveListItemRenderer extends Disposable implements ITreeRend
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IConfigurationService private readonly configService: IConfigurationService,
 		@ILogService private readonly logService: ILogService,
+		@ICommandService private readonly commandService: ICommandService,
 	) {
 		super();
 		this.renderer = this.instantiationService.createInstance(MarkdownRenderer, {});
@@ -170,13 +173,24 @@ export class InteractiveListItemRenderer extends Disposable implements ITreeRend
 		templateData.value.appendChild(result.element);
 		templateData.elementDisposables.add(result);
 
-		if (isResponseVM(element) && element.followups?.length && index === this.delegate.getListLength() - 1) {
+		if (isResponseVM(element) && index === this.delegate.getListLength() - 1) {
 			const followupsContainer = dom.append(templateData.value, $('.interactive-response-followups'));
-			element.followups.forEach(q => {
-				const button = templateData.elementDisposables.add(new Button(followupsContainer, defaultButtonStyles));
-				button.label = `"${q}"`;
-				templateData.elementDisposables.add(button.onDidClick(() => this._onDidSelectFollowup.fire(q)));
-			});
+			const followups = element.commandFollowups ?? element.followups ?? [];
+			followups.forEach(q => this.renderFollowup(followupsContainer, templateData, q));
+		}
+	}
+
+	private renderFollowup(container: HTMLElement, templateData: IInteractiveListItemTemplate, followup: string | IInteractiveSessionResponseCommandFollowup): void {
+		const button = templateData.elementDisposables.add(new Button(container, defaultButtonStyles));
+		const label = typeof followup === 'string' ? `"${followup}"` : followup.title;
+		button.label = label; // todo icons
+		if (typeof followup === 'string') {
+			// This should probably be a command as well?
+			templateData.elementDisposables.add(button.onDidClick(() => this._onDidSelectFollowup.fire(followup)));
+		} else {
+			templateData.elementDisposables.add(button.onDidClick(() => {
+				this.commandService.executeCommand(followup.commandId, ...(followup.args ?? []));
+			}));
 		}
 	}
 

@@ -7,7 +7,7 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { IMarkdownString, MarkdownString } from 'vs/base/common/htmlContent';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
-import { IInteractiveRequestModel, IInteractiveResponseModel, IInteractiveSessionModel } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionModel';
+import { IInteractiveRequestModel, IInteractiveResponseModel, IInteractiveSessionModel, IInteractiveSessionResponseCommandFollowup } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionModel';
 import { IInteractiveSessionService } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionService';
 
 export function isRequestVM(item: unknown): item is IInteractiveRequestViewModel {
@@ -47,6 +47,7 @@ export interface IInteractiveResponseViewModel {
 	readonly response: IMarkdownString;
 	readonly isComplete: boolean;
 	readonly followups?: string[];
+	readonly commandFollowups?: IInteractiveSessionResponseCommandFollowup[];
 	readonly progressiveResponseRenderingEnabled: boolean;
 	renderData?: IInteractiveResponseRenderData;
 	currentRenderedHeight: number | undefined;
@@ -177,6 +178,10 @@ export class InteractiveResponseViewModel extends Disposable implements IInterac
 
 	get followups() {
 		return this._model.followups;
+	}
+
+	get commandFollowups() {
+		return this._model.commandFollowups;
 	}
 
 	renderData: IInteractiveResponseRenderData | undefined = undefined;
