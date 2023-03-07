@@ -39,6 +39,7 @@ export class AccessibleBufferWidget extends DisposableStore {
 	private _lastContentLength: number = 0;
 	private _font: ITerminalFont;
 	private _xtermElement: HTMLElement;
+	private _content: string = '';
 
 	constructor(
 		private readonly _xterm: IXtermTerminal & { raw: Terminal },
@@ -87,6 +88,11 @@ export class AccessibleBufferWidget extends DisposableStore {
 				this._font = _xterm.getFont();
 			}
 		}));
+		this.add(this._xterm.raw.onData(() => {
+			if (this._accessibleBuffer.classList.contains('active')) {
+				this._refresh();
+			}
+		}));
 	}
 
 	private _hide(): void {
@@ -95,10 +101,32 @@ export class AccessibleBufferWidget extends DisposableStore {
 		this._xterm.raw.focus();
 	}
 
+	private async _refresh(): Promise<void> {
+		const sb = new StringBuilder(10000);
+		sb.appendString(this._content);
+		sb.appendString(this._getContent(this._lastContentLength));
+		this._content = sb.build();
+		const model = await this._getTextModel(URI.from({ scheme: AccessibleBufferConstants.Scheme, fragment: this._content }));
+		if (model) {
+			this._bufferEditor.setModel(model);
+		}
+		let lineNumber = 1;
+		const lineCount = model?.getLineCount();
+		if (lineCount && model) {
+			lineNumber = lineCount > 2 ? lineCount - 2 : 1;
+		}
+		this._bufferEditor.setSelection({ startLineNumber: lineNumber, startColumn: 1, endLineNumber: lineNumber, endColumn: 1 });
+		this._bufferEditor.setScrollTop(this._bufferEditor.getScrollHeight());
+		this._refreshSelection = false;
+		this._lastContentLength = this._content.length;
+		this._accessibleBuffer.replaceChildren(this._editorContainer);
+		this._bufferEditor.focus();
+	}
+
 	async show(): Promise<void> {
 		const commandDetection = this._capabilities.get(TerminalCapability.CommandDetection);
-		const fragment = !!commandDetection ? this._getShellIntegrationContent() : this._getAllContent();
-		const model = await this._getTextModel(URI.from({ scheme: AccessibleBufferConstants.Scheme, fragment }));
+		this._content = !!commandDetection ? this._getShellIntegrationContent() : this._getContent();
+		const model = await this._getTextModel(URI.from({ scheme: AccessibleBufferConstants.Scheme, fragment: this._content }));
 		if (model) {
 			this._bufferEditor.setModel(model);
 		}
@@ -118,7 +146,7 @@ export class AccessibleBufferWidget extends DisposableStore {
 		this._accessibleBuffer.tabIndex = -1;
 		this._accessibleBuffer.classList.add('active');
 		this._xtermElement.classList.add('hide');
-		if (this._lastContentLength !== fragment.length || this._refreshSelection) {
+		if (this._lastContentLength !== this._content.length || this._refreshSelection) {
 			let lineNumber = 1;
 			const lineCount = model?.getLineCount();
 			if (lineCount && model) {
@@ -127,7 +155,7 @@ export class AccessibleBufferWidget extends DisposableStore {
 			this._bufferEditor.setSelection({ startLineNumber: lineNumber, startColumn: 1, endLineNumber: lineNumber, endColumn: 1 });
 			this._bufferEditor.setScrollTop(this._bufferEditor.getScrollHeight());
 			this._refreshSelection = false;
-			this._lastContentLength = fragment.length;
+			this._lastContentLength = this._content.length;
 		}
 		this._accessibleBuffer.replaceChildren(this._editorContainer);
 		this._bufferEditor.focus();
@@ -146,7 +174,7 @@ export class AccessibleBufferWidget extends DisposableStore {
 		const commands = this._capabilities.get(TerminalCapability.CommandDetection)?.commands;
 		const sb = new StringBuilder(10000);
 		if (!commands?.length) {
-			return this._getAllContent();
+			return this._getContent();
 		}
 		for (const command of commands) {
 			sb.appendString(command.command.replace(new RegExp(' ', 'g'), '\xA0'));
@@ -159,7 +187,7 @@ export class AccessibleBufferWidget extends DisposableStore {
 		return sb.build();
 	}
 
-	private _getAllContent(): string {
+	private _getContent(startLine?: number): string {
 		const lines: string[] = [];
 		let currentLine: string = '';
 		const buffer = this._xterm?.raw.buffer.active;
@@ -167,7 +195,7 @@ export class AccessibleBufferWidget extends DisposableStore {
 			return '';
 		}
 		const end = buffer.length;
-		for (let i = 0; i < end; i++) {
+		for (let i = startLine ?? 0; i < end; i++) {
 			const line = buffer.getLine(i);
 			if (!line) {
 				continue;
