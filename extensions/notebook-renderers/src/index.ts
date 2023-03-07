@@ -241,6 +241,7 @@ function findScrolledHeight(outputContainer: HTMLElement): number | undefined {
 
 function renderStream(outputInfo: OutputItem, container: HTMLElement, error: boolean, ctx: IRichRenderContext): IDisposable {
 	const disposableStore = createDisposableStore();
+	const outputScrolling = ctx.settings.outputScrolling;
 
 	// If the previous output item for the same cell was also a stream, append this output to the previous
 	const outputElement = getPreviousOutputWithMatchingMimeType(container, outputInfo.mime);
@@ -259,7 +260,7 @@ function renderStream(outputInfo: OutputItem, container: HTMLElement, error: boo
 			element.classList.toggle('wordWrap', e.outputWordWrap);
 		}));
 		element.setAttribute('output-item-id', outputInfo.id);
-		insertOutput(outputInfo.id, [text], ctx.settings.lineLimit, ctx.settings.outputScrolling, element, false);
+		insertOutput(outputInfo.id, [text], ctx.settings.lineLimit, outputScrolling, element, false);
 		appendChildAndScroll(outputElement, element);
 		return disposableStore;
 	}
@@ -273,8 +274,8 @@ function renderStream(outputInfo: OutputItem, container: HTMLElement, error: boo
 	element.setAttribute('output-item-id', outputInfo.id);
 
 	const text = outputInfo.text();
-	insertOutput(outputInfo.id, [text], ctx.settings.lineLimit, ctx.settings.outputScrolling, element, false);
-	const scrollTop = findScrolledHeight(container);
+	insertOutput(outputInfo.id, [text], ctx.settings.lineLimit, outputScrolling, element, false);
+	const scrollTop = outputScrolling ? findScrolledHeight(container) : undefined;
 	while (container.firstChild) {
 		container.removeChild(container.firstChild);
 	}
