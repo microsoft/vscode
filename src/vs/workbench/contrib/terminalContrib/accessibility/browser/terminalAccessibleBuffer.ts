@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { KeyCode } from 'vs/base/common/keyCodes';
-import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
+import { DisposableStore } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { IEditorConstructionOptions } from 'vs/editor/browser/config/editorConfiguration';
 import { EditorExtensionsRegistry } from 'vs/editor/browser/editorExtensions';
@@ -15,7 +15,6 @@ import { LinkDetector } from 'vs/editor/contrib/links/browser/links';
 import { localize } from 'vs/nls';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ITerminalCapabilityStore, TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
 import { TerminalSettingId } from 'vs/platform/terminal/common/terminal';
 import { SelectionClipboardContributionID } from 'vs/workbench/contrib/codeEditor/browser/selectionClipboard';
 import { getSimpleEditorOptions } from 'vs/workbench/contrib/codeEditor/browser/simpleEditorOptions';
@@ -32,7 +31,6 @@ export class AccessibleBufferWidget extends DisposableStore {
 	private _accessibleBuffer: HTMLElement;
 	private _bufferEditor: CodeEditorWidget;
 	private _editorContainer: HTMLElement;
-	private _commandFinishedDisposable: IDisposable | undefined;
 	private _refreshSelection: boolean = true;
 	private _registered: boolean = false;
 	private _font: ITerminalFont;
@@ -40,7 +38,6 @@ export class AccessibleBufferWidget extends DisposableStore {
 
 	constructor(
 		private readonly _xterm: IXtermTerminal & { raw: Terminal },
-		private readonly _capabilities: ITerminalCapabilityStore,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IModelService private readonly _modelService: IModelService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService
@@ -130,17 +127,12 @@ export class AccessibleBufferWidget extends DisposableStore {
 	}
 
 	private _registerListeners(): void {
-		const commandDetection = this._capabilities.get(TerminalCapability.CommandDetection);
 		this._bufferEditor.layout({ width: this._xtermElement.clientWidth, height: this._xtermElement.clientHeight });
 		this._bufferEditor.onKeyDown((e) => {
 			if (e.keyCode === KeyCode.Escape || e.keyCode === KeyCode.Tab) {
 				this._hide();
 			}
 		});
-		if (commandDetection) {
-			this._commandFinishedDisposable = commandDetection.onCommandFinished(() => this._refreshSelection = true);
-			this.add(this._commandFinishedDisposable);
-		}
 		this._registered = true;
 	}
 
