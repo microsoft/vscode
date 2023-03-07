@@ -9,7 +9,6 @@ import { URI } from 'vs/base/common/uri';
 import { IEditorConstructionOptions } from 'vs/editor/browser/config/editorConfiguration';
 import { EditorExtensionsRegistry } from 'vs/editor/browser/editorExtensions';
 import { CodeEditorWidget, ICodeEditorWidgetOptions } from 'vs/editor/browser/widget/codeEditorWidget';
-import { StringBuilder } from 'vs/editor/common/core/stringBuilder';
 import { ITextModel } from 'vs/editor/common/model';
 import { IModelService } from 'vs/editor/common/services/model';
 import { LinkDetector } from 'vs/editor/contrib/links/browser/links';
@@ -100,9 +99,7 @@ export class AccessibleBufferWidget extends DisposableStore {
 	}
 
 	private async _updateContent(refresh?: boolean): Promise<ITextModel> {
-		const commandDetection = this._capabilities.get(TerminalCapability.CommandDetection);
-		const value = !!commandDetection && !refresh ? this._getShellIntegrationContent() : this._getContent();
-		const model = await this._getTextModel(URI.from({ scheme: AccessibleBufferConstants.Scheme, fragment: value }));
+		const model = await this._getTextModel(URI.from({ scheme: AccessibleBufferConstants.Scheme, fragment: this._getContent() }));
 		if (!model) {
 			throw new Error('Could not create accessible buffer editor model');
 		}
@@ -154,23 +151,6 @@ export class AccessibleBufferWidget extends DisposableStore {
 		}
 
 		return this._modelService.createModel(resource.fragment, null, resource, false);
-	}
-
-	private _getShellIntegrationContent(): string {
-		const commands = this._capabilities.get(TerminalCapability.CommandDetection)?.commands;
-		const sb = new StringBuilder(10000);
-		if (!commands?.length) {
-			return this._getContent();
-		}
-		for (const command of commands) {
-			sb.appendString(command.command.replace(new RegExp(' ', 'g'), '\xA0'));
-			if (command.exitCode !== 0) {
-				sb.appendString(` exited with code ${command.exitCode}`);
-			}
-			sb.appendString('\n');
-			sb.appendString(command.getOutput()?.replace(new RegExp(' ', 'g'), '\xA0') || '');
-		}
-		return sb.build();
 	}
 
 	private _getContent(startLine?: number): string {
