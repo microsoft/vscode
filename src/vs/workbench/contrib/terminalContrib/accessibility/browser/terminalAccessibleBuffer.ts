@@ -89,10 +89,9 @@ export class AccessibleBufferWidget extends DisposableStore {
 				this._font = _xterm.getFont();
 			}
 		}));
-		this.add(this._xterm.raw.onData(() => {
+		this.add(this._xterm.raw.onWriteParsed(async () => {
 			if (this._accessibleBuffer.classList.contains('active')) {
-				this._refreshSelection = true;
-				this._refresh();
+				await this._refresh();
 			}
 		}));
 	}
@@ -107,18 +106,22 @@ export class AccessibleBufferWidget extends DisposableStore {
 		const sb = new StringBuilder(10000);
 		if (refresh) {
 			sb.appendString(this._content);
-			sb.appendString(this._getContent(this._lastBufferLine));
+			const additionalLines = this._getContent(this._lastBufferLine);
+			sb.appendString(additionalLines);
 		} else {
 			const commandDetection = this._capabilities.get(TerminalCapability.CommandDetection);
 			sb.appendString(!!commandDetection ? this._getShellIntegrationContent() : this._getContent());
 		}
 		this._content = sb.build();
-		const model = await this._getTextModel(URI.from({ scheme: AccessibleBufferConstants.Scheme, fragment: this._content }));
-		if (model) {
+		let model = this._bufferEditor.getModel();
+		if (!model) {
+			model = await this._getTextModel(URI.from({ scheme: AccessibleBufferConstants.Scheme }));
 			this._bufferEditor.setModel(model);
-		} else {
-			throw new Error('Could not create model');
 		}
+		if (!model) {
+			throw new Error('Could not create accessible buffer editor model');
+		}
+		model.setValue(this._content);
 		return model;
 	}
 
@@ -197,7 +200,7 @@ export class AccessibleBufferWidget extends DisposableStore {
 			return '';
 		}
 		const end = buffer.length;
-		for (let i = startLine ?? 0; i < end; i++) {
+		for (let i = startLine ?? 0; i <= end; i++) {
 			const line = buffer.getLine(i);
 			if (!line) {
 				continue;
