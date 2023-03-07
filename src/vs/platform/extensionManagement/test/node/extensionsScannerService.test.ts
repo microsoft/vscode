@@ -74,6 +74,7 @@ suite('NativeExtensionsScanerService Test', () => {
 			userRoamingDataHome: ROOT,
 			builtinExtensionsPath: systemExtensionsLocation.fsPath,
 			extensionsPath: userExtensionsLocation.fsPath,
+			cacheHome: joinPath(ROOT, 'cache'),
 		});
 		instantiationService.stub(IProductService, { version: '1.66.0' });
 		const uriIdentityService = new UriIdentityService(fileService);
