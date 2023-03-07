@@ -24,13 +24,16 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { Context as SuggestContext } from 'vs/editor/contrib/suggest/browser/suggest';
 import { AsyncIterableObject } from 'vs/base/common/async';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
+import { ResizableHTMLElement } from 'vs/base/browser/ui/resizable/resizable';
+import { PersistedWidgetSize, ResizeState } from 'vs/editor/contrib/suggest/browser/suggestWidget';
+import { IStorageService } from 'vs/platform/storage/common/storage';
 
 const $ = dom.$;
 
 export class ContentHoverController extends Disposable {
 
 	private readonly _participants: IEditorHoverParticipant[];
-	private readonly _widget = this._register(this._instantiationService.createInstance(ContentHoverWidget, this._editor));
+	private readonly _widget = this._register(this._instantiationService.createInstance(ResizeableContentHoverWidget, this._editor));
 	private readonly _computer: ContentHoverComputer;
 	private readonly _hoverOperation: HoverOperation<IHoverPart>;
 
@@ -393,6 +396,79 @@ class ContentHoverVisibleData {
 	) { }
 }
 
+export class ResizeableContentHoverWidget extends Disposable {
+
+	// The resizeable element
+	readonly _resizeableElement: ResizableHTMLElement;
+	// The initial hover content widget
+	private readonly _hoverContentWidget: ContentHoverWidget;
+	private readonly _persistedSize: PersistedWidgetSize;
+	private readonly _disposables = new DisposableStore();
+
+	constructor(
+		private readonly _editor: ICodeEditor,
+		@IStorageService private readonly _storageService: IStorageService,
+		@IContextKeyService private readonly _contextKeyService: IContextKeyService
+	) {
+		super();
+		this._resizeableElement = new ResizableHTMLElement();
+		// TODO: Add the class names to the resizeable element?
+
+		this._hoverContentWidget = new ContentHoverWidget(this, _editor, this._contextKeyService);
+		this._persistedSize = new PersistedWidgetSize(this._storageService, _editor);
+
+		let state: ResizeState | undefined;
+		this._disposables.add(this._resizeableElement.onDidWillResize(() => {
+			this._hoverContentWidget.lockPreference();
+			state = new ResizeState(this._persistedSize.restore(), this._resizeableElement.size);
+		}));
+		this._disposables.add(this._resizeableElement.onDidResize(e => {
+
+			this._resize(e.dimension.width, e.dimension.height);
+
+			if (state) {
+				state.persistHeight = state.persistHeight || !!e.north || !!e.south;
+				state.persistWidth = state.persistWidth || !!e.east || !!e.west;
+			}
+
+			if (!e.done) {
+				return;
+			}
+
+			if (state) {
+				// only store width or height value that have changed and also
+				// only store changes that are above a certain threshold
+
+				const itemHeight = this._editor.getOption(EditorOption.fontInfo).lineHeight;
+				const defaultSize = new dom.Dimension(430, 12 * itemHeight);
+				const threshold = Math.round(itemHeight / 2);
+				let { width, height } = this._resizeableElement.size;
+				if (!state.persistHeight || Math.abs(state.currentSize.height - height) <= threshold) {
+					height = state.persistedSize?.height ?? defaultSize.height;
+				}
+				if (!state.persistWidth || Math.abs(state.currentSize.width - width) <= threshold) {
+					width = state.persistedSize?.width ?? defaultSize.width;
+				}
+				this._persistedSize.store(new dom.Dimension(width, height));
+			}
+
+			// reset working state
+			this._hoverContentWidget.unlockPreference();
+			state = undefined;
+		}));
+	}
+
+	private _resize(width: number, height: number): void {
+
+		const { width: maxWidth, height: maxHeight } = this._resizeableElement.maxSize;
+		width = Math.min(maxWidth, width);
+		height = Math.min(maxHeight, height);
+
+		this._resizeableElement.layout(height, width);
+		this._hoverContentWidget.layout();
+	}
+}
+
 export class ContentHoverWidget extends Disposable implements IContentWidget {
 
 	static readonly ID = 'editor.contrib.contentHoverWidget';
@@ -403,6 +479,7 @@ export class ContentHoverWidget extends Disposable implements IContentWidget {
 	private readonly _hover: HoverWidget = this._register(new HoverWidget());
 
 	private _visibleData: ContentHoverVisibleData | null = null;
+	private _preferenceLocked = false;
 
 	/**
 	 * Returns `null` if the hover is not visible.
@@ -420,6 +497,7 @@ export class ContentHoverWidget extends Disposable implements IContentWidget {
 	}
 
 	constructor(
+		private readonly _resizeableContentHoverWidget: ResizeableContentHoverWidget,
 		private readonly _editor: ICodeEditor,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 	) {
@@ -579,6 +657,20 @@ export class ContentHoverWidget extends Disposable implements IContentWidget {
 
 	public clear(): void {
 		this._hover.contentsDomNode.textContent = '';
+	}
+
+	// Locking the preference in terms of the size of the content hover widget
+	// Maybe don't need this part of the code which locks the preferences
+	lockPreference() {
+		this._preferenceLocked = true;
+	}
+
+	unlockPreference() {
+		this._preferenceLocked = false;
+	}
+
+	layout(): void {
+		this._editor.layoutContentWidget(this);
 	}
 }
 
