@@ -19,6 +19,22 @@ export interface IUserFriendlyKeybinding {
 	when?: string;
 }
 
+/**
+ * Type for values read from `keybindings.json` -- the file is simply JSON-parsed,
+ * so the parsed value can be of type `any`. But it's better to have this type
+ * than `any`.
+ *
+ * Keep in mind that the parsed value still needs to be validated for being an array
+ * of objects (excluding `null`)
+ */
+export type KeybindingFromJSON = {
+	key?: string;
+	command?: string;
+	args?: any;
+	when?: string;
+	[index: string]: any;
+};
+
 export interface IKeyboardEvent {
 	readonly _standardKeyboardEventBrand: true;
 
