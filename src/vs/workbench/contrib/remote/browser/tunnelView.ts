@@ -949,7 +949,7 @@ export class TunnelPanel extends ViewPane {
 
 	private onFocusChanged(event: ITableEvent<ITunnelItem>) {
 		if (event.indexes.length > 0 && event.elements.length > 0) {
-			this.lastFocus = event.indexes;
+			this.lastFocus = [...event.indexes];
 		}
 		const elements = event.elements;
 		const item = elements && elements.length ? elements[0] : undefined;

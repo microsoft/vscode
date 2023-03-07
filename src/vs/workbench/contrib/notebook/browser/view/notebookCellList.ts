@@ -88,7 +88,7 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 	get scrollableElement(): HTMLElement {
 		return this.view.scrollableElementDomNode;
 	}
-	private _previousFocusedElements: CellViewModel[] = [];
+	private _previousFocusedElements: readonly CellViewModel[] = [];
 	private readonly _localDisposableStore = new DisposableStore();
 	private readonly _viewModelStore = new DisposableStore();
 	private styleElement?: HTMLStyleElement;
