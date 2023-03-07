@@ -37,6 +37,7 @@ export class AccessibleBufferWidget extends DisposableStore {
 	private _refreshSelection: boolean = true;
 	private _registered: boolean = false;
 	private _lastContentLength: number = 0;
+	private _lastBufferLine: number = 0;
 	private _font: ITerminalFont;
 	private _xtermElement: HTMLElement;
 	private _content: string = '';
@@ -106,7 +107,7 @@ export class AccessibleBufferWidget extends DisposableStore {
 		const sb = new StringBuilder(10000);
 		if (refresh) {
 			sb.appendString(this._content);
-			sb.appendString(this._getContent(this._lastContentLength));
+			sb.appendString(this._getContent(this._lastBufferLine));
 		} else {
 			const commandDetection = this._capabilities.get(TerminalCapability.CommandDetection);
 			sb.appendString(!!commandDetection ? this._getShellIntegrationContent() : this._getContent());
@@ -122,7 +123,7 @@ export class AccessibleBufferWidget extends DisposableStore {
 	}
 
 	private async _refresh(): Promise<void> {
-		const model = await this._updateContent();
+		const model = await this._updateContent(true);
 		const lineNumber = model.getLineCount() - 1;
 		if (this._lastContentLength !== this._content.length || this._refreshSelection) {
 			this._bufferEditor.setSelection({ startLineNumber: lineNumber, startColumn: 1, endLineNumber: lineNumber, endColumn: 1 });
@@ -205,6 +206,7 @@ export class AccessibleBufferWidget extends DisposableStore {
 				currentLine = '';
 			}
 		}
+		this._lastBufferLine = end;
 		return lines.join('\n');
 	}
 }
