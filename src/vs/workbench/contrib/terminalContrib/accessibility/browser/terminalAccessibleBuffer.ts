@@ -154,7 +154,10 @@ export class AccessibleBufferWidget extends DisposableStore {
 			}
 		});
 		if (commandDetection) {
-			this._commandFinishedDisposable = commandDetection.onCommandFinished(() => this._refreshSelection = true);
+			this._commandFinishedDisposable = commandDetection.onCommandFinished(() => {
+				this._refreshSelection = true;
+				this._lastBufferLine = 0;
+			});
 			this.add(this._commandFinishedDisposable);
 		}
 		this._registered = true;
