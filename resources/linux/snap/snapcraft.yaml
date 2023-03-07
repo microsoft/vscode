@@ -26,12 +26,14 @@ parts:
       - libatk1.0-0
       - libatspi2.0-0
       - libcairo2
+      - libcanberra-gtk3-module
       - libcurl3-gnutls
       - libcurl3-nss
       - libcurl4
       - libdrm2
       - libgbm1
       - libgl1
+      - libglib2.0-0
       - libgtk-3-0
       - libnss3
       - libpango-1.0-0
@@ -43,6 +45,8 @@ parts:
       - libxkbfile1
       - libxrandr2
       - libxss1
+      - locales-all
+      - packagekit-gtk3-module
       - xdg-utils
     prime:
       - -usr/share/doc
@@ -50,18 +54,9 @@ parts:
       - -usr/share/icons
       - -usr/share/lintian
       - -usr/share/man
-  gnome-platform:
-    plugin: nil
-    build-packages:
-      - snapd
-    override-build: |
-      set -eu
-      snap download gnome-3-38-2004
-      unsquashfs -f -d $SNAPCRAFT_PART_INSTALL/gnome-platform gnome-*.snap
   cleanup:
     after:
       - code
-      - gnome-platform
     plugin: nil
     build-snaps:
       - core20
@@ -70,7 +65,10 @@ parts:
       for snap in "core20"; do
         cd "/snap/$snap/current" && find . -type f,l -exec rm -f "$SNAPCRAFT_PRIME/{}" \;
       done
-      patchelf --print-rpath $SNAPCRAFT_PRIME/usr/share/code-insiders/code-insiders
+      export BASE_EXE_RPATH=$(patchelf --print-rpath $SNAPCRAFT_PRIME/usr/share/@@NAME@@/@@NAME@@)
+      patchelf --force-rpath --set-rpath $BASE_EXE_RPATH $SNAPCRAFT_PRIME/usr/share/@@NAME@@/chrome_crashpad_handler
+      patchelf --print-rpath $SNAPCRAFT_PRIME/usr/share/@@NAME@@/chrome_crashpad_handler
+
 
 apps:
   @@NAME@@:
@@ -78,10 +76,8 @@ apps:
     common-id: @@NAME@@.desktop
     environment:
       GTK_USE_PORTAL: 1
-      SNAP_DESKTOP_RUNTIME: $SNAP/gnome-platform
 
   url-handler:
     command: electron-launch $SNAP/usr/share/@@NAME@@/bin/@@NAME@@ --open-url --no-sandbox
     environment:
       GTK_USE_PORTAL: 1
-      SNAP_DESKTOP_RUNTIME: $SNAP/gnome-platform

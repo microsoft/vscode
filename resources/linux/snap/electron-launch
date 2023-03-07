@@ -112,31 +112,10 @@ function update_xdg_dirs_values() {
   done
 }
 
-# Tell libGL and libva where to find the drivers
-export LIBGL_DRIVERS_PATH="$SNAP_DESKTOP_RUNTIME/usr/lib/$ARCH/dri"
-append_dir LIBVA_DRIVERS_PATH "$SNAP_DESKTOP_RUNTIME/usr/lib/$ARCH/dri"
-
-# Set where the VDPAU drivers are located
-export VDPAU_DRIVER_PATH="/usr/lib/$ARCH/vdpau/"
-if [ -e "/var/lib/snapd/lib/gl/vdpau/libvdpau_nvidia.so" ]; then
-  export VDPAU_DRIVER_PATH="/var/lib/snapd/lib/gl/vdpau"
-  if [ "$__NV_PRIME_RENDER_OFFLOAD" = 1 ]; then
-    # Prevent picking VA-API (Intel/AMD) over NVIDIA VDPAU
-    # https://download.nvidia.com/XFree86/Linux-x86_64/510.54/README/primerenderoffload.html#configureapplications
-    unset LIBVA_DRIVERS_PATH
-  fi
-fi
-
-# EGL vendor files on glvnd enabled systems
-prepend_dir __EGL_VENDOR_LIBRARY_DIRS "/var/lib/snapd/lib/glvnd/egl_vendor.d"
-append_dir __EGL_VENDOR_LIBRARY_DIRS "$SNAP_DESKTOP_RUNTIME/usr/share/glvnd/egl_vendor.d"
-
 # XDG Config
-prepend_dir XDG_CONFIG_DIRS "$SNAP_DESKTOP_RUNTIME/etc/xdg"
 prepend_dir XDG_CONFIG_DIRS "$SNAP/etc/xdg"
 
 # Define snaps' own data dir
-prepend_dir XDG_DATA_DIRS "$SNAP_DESKTOP_RUNTIME/usr/share"
 prepend_dir XDG_DATA_DIRS "$SNAP/usr/share"
 prepend_dir XDG_DATA_DIRS "$SNAP/share"
 prepend_dir XDG_DATA_DIRS "$SNAP/data-dir"
@@ -163,7 +142,7 @@ ensure_dir_exists "$XDG_CACHE_HOME"
 ensure_dir_exists "$XDG_RUNTIME_DIR" -m 700
 
 # Ensure the app finds locale definitions (requires locales-all to be installed)
-append_dir LOCPATH "$SNAP_DESKTOP_RUNTIME/usr/lib/locale"
+append_dir LOCPATH "$SNAP/usr/lib/locale"
 
 # If any, keep track of where XDG dirs were so we can potentially migrate the content later
 if [ "$needs_update" = true ]; then
@@ -200,17 +179,13 @@ fi
 # Keep an array of data dirs, for looping through them
 IFS=':' read -r -a data_dirs_array <<< "$XDG_DATA_DIRS"
 
-# Font Config and themes
-export FONTCONFIG_PATH="$SNAP_DESKTOP_RUNTIME/etc/fonts"
-export FONTCONFIG_FILE="$SNAP_DESKTOP_RUNTIME/etc/fonts/fonts.conf"
-
 # Build mime.cache
 # needed for gtk and qt icon
 if [ "$needs_update" = true ]; then
   rm -rf "$XDG_DATA_HOME/mime"
-  if [ ! -f "$SNAP_DESKTOP_RUNTIME/usr/share/mime/mime.cache" ]; then
+  if [ ! -f "$SNAP/usr/share/mime/mime.cache" ]; then
     if command -v update-mime-database >/dev/null; then
-      cp --preserve=timestamps -dR "$SNAP_DESKTOP_RUNTIME/usr/share/mime" "$XDG_DATA_HOME"
+      cp --preserve=timestamps -dR "$SNAP/usr/share/mime" "$XDG_DATA_HOME"
       async_exec update-mime-database "$XDG_DATA_HOME/mime"
     fi
   fi
@@ -227,7 +202,7 @@ function compile_giomodules {
   fi
 }
 if [ "$needs_update" = true ]; then
-  async_exec compile_giomodules "$SNAP_DESKTOP_RUNTIME/usr/lib/$ARCH"
+  async_exec compile_giomodules "$SNAP/usr/lib/$ARCH"
 fi
 
 # Setup compiled gsettings schema
@@ -256,16 +231,16 @@ function compile_schemas {
   fi
 }
 if [ "$needs_update" = true ]; then
-  async_exec compile_schemas "$SNAP_DESKTOP_RUNTIME/usr/lib/$ARCH/glib-2.0/glib-compile-schemas"
+  async_exec compile_schemas "$SNAP/usr/lib/$ARCH/glib-2.0/glib-compile-schemas"
 fi
 
 # Gdk-pixbuf loaders
 export GDK_PIXBUF_MODULE_FILE="$XDG_CACHE_HOME/gdk-pixbuf-loaders.cache"
-export GDK_PIXBUF_MODULEDIR="$SNAP_DESKTOP_RUNTIME/usr/lib/$ARCH/gdk-pixbuf-2.0/2.10.0/loaders"
+export GDK_PIXBUF_MODULEDIR="$SNAP/usr/lib/$ARCH/gdk-pixbuf-2.0/2.10.0/loaders"
 if [ "$needs_update" = true ] || [ ! -f "$GDK_PIXBUF_MODULE_FILE" ]; then
   rm -f "$GDK_PIXBUF_MODULE_FILE"
-  if [ -f "$SNAP_DESKTOP_RUNTIME/usr/lib/$ARCH/gdk-pixbuf-2.0/gdk-pixbuf-query-loaders" ]; then
-    async_exec "$SNAP_DESKTOP_RUNTIME/usr/lib/$ARCH/gdk-pixbuf-2.0/gdk-pixbuf-query-loaders" > "$GDK_PIXBUF_MODULE_FILE"
+  if [ -f "$SNAP/usr/lib/$ARCH/gdk-pixbuf-2.0/gdk-pixbuf-query-loaders" ]; then
+    async_exec "$SNAP/usr/lib/$ARCH/gdk-pixbuf-2.0/gdk-pixbuf-query-loaders" > "$GDK_PIXBUF_MODULE_FILE"
   fi
 fi
 
@@ -284,10 +259,8 @@ if [ "$wayland_available" = true ]; then
   export QT_QPA_PLATFORM=wayland-egl
 fi
 
-append_dir GTK_PATH "$SNAP_DESKTOP_RUNTIME/usr/lib/$ARCH/gtk-2.0"
-append_dir GTK_PATH "$SNAP_DESKTOP_RUNTIME/usr/lib/gtk-2.0"
-append_dir GTK_PATH "$SNAP_DESKTOP_RUNTIME/usr/lib/$ARCH/gtk-3.0"
-append_dir GTK_PATH "$SNAP_DESKTOP_RUNTIME/usr/lib/gtk-3.0"
+append_dir GTK_PATH "$SNAP/usr/lib/$ARCH/gtk-3.0"
+append_dir GTK_PATH "$SNAP/usr/lib/gtk-3.0"
 
 # ibus and fcitx integration
 GTK_IM_MODULE_DIR="$XDG_CACHE_HOME/immodules"
@@ -296,8 +269,8 @@ export GTK_IM_MODULE_FILE="$GTK_IM_MODULE_DIR/immodules.cache"
 if [ "$needs_update" = true ]; then
   rm -rf "$GTK_IM_MODULE_DIR"
   ensure_dir_exists "$GTK_IM_MODULE_DIR"
-  ln -s "$SNAP_DESKTOP_RUNTIME"/usr/lib/"$ARCH"/gtk-3.0/3.0.0/immodules/*.so "$GTK_IM_MODULE_DIR"
-  async_exec "$SNAP_DESKTOP_RUNTIME/usr/lib/$ARCH/libgtk-3-0/gtk-query-immodules-3.0" > "$GTK_IM_MODULE_FILE"
+  ln -s "$SNAP"/usr/lib/"$ARCH"/gtk-3.0/3.0.0/immodules/*.so "$GTK_IM_MODULE_DIR"
+  async_exec "$SNAP/usr/lib/$ARCH/libgtk-3-0/gtk-query-immodules-3.0" > "$GTK_IM_MODULE_FILE"
 fi
 
 # shellcheck disable=SC2154
