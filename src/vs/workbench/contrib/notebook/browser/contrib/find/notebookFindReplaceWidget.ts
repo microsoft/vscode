@@ -185,7 +185,12 @@ export class NotebookFindInput extends FindInput {
 			}
 		}));
 
+		this.filterVisible = options.filterStartVisibliity ?? true;
 		this.inputBox.paddingRight = (this.caseSensitive?.width() ?? 0) + (this.wholeWords?.width() ?? 0) + (this.regex?.width() ?? 0) + this.getFilterWidth();
+	}
+
+	set filterVisible(show: boolean) {
+		this._filterButtonContainer.style.display = show ? '' : 'none';
 	}
 
 	private getFilterWidth() {

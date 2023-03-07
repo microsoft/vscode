@@ -1306,10 +1306,10 @@ export class SearchResult extends Disposable {
 		this._rangeHighlightDecorations = this.instantiationService.createInstance(RangeHighlightDecorations);
 
 		this._register(this.modelService.onModelAdded(model => this.onModelAdded(model)));
-		this._register(this.notebookEditorService.onDidAddNotebookEditorWidget(widget => this.onDidAddNotebookEditorWidget(widget)));
 
 		const experimentalNotebooksEnabled = this.configurationService.getValue<ISearchConfigurationProperties>('search').experimental.notebookSearch;
 		if (experimentalNotebooksEnabled) {
+			// this._register(this.notebookEditorService.onDidAddNotebookEditorWidget(widget => this.onDidAddNotebookEditorWidget(widget)));
 			this._register(this.notebookEditorService.onDidAddNotebookEditor(widget => {
 				if (widget instanceof NotebookEditorWidget) {
 					this.onDidAddNotebookEditorWidget(<NotebookEditorWidget>widget);

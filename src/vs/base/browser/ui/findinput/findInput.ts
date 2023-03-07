@@ -36,6 +36,8 @@ export interface IFindInputOptions {
 	readonly showHistoryHint?: () => boolean;
 	readonly toggleStyles: IToggleStyles;
 	readonly inputBoxStyles: IInputBoxStyles;
+
+	readonly filterStartVisibliity?: boolean;
 }
 
 const NLS_DEFAULT_LABEL = nls.localize('defaultLabel', "input");

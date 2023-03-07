@@ -39,6 +39,9 @@ import { defaultInputBoxStyles, defaultToggleStyles } from 'vs/platform/theme/br
 import { NotebookFindInput } from 'vs/workbench/contrib/notebook/browser/contrib/find/notebookFindReplaceWidget';
 import { NotebookFindFilters } from 'vs/workbench/contrib/notebook/browser/contrib/find/findFilters';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { NotebookEditorInput } from 'vs/workbench/contrib/notebook/common/notebookEditorInput';
+import { GroupModelChangeKind } from 'vs/workbench/common/editor';
 
 /** Specified in searchview.css */
 const SingleLineInputHeight = 26;
@@ -157,6 +160,7 @@ export class SearchWidget extends Widget {
 	public contextLinesInput!: InputBox;
 
 	private _filters: NotebookFindFilters;
+
 	constructor(
 		container: HTMLElement,
 		options: ISearchWidgetOptions,
@@ -168,12 +172,21 @@ export class SearchWidget extends Widget {
 		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IEditorService private readonly editorService: IEditorService,
 	) {
 		super();
 		this.replaceActive = Constants.ReplaceActiveKey.bindTo(this.contextKeyService);
 		this.searchInputBoxFocused = Constants.SearchInputBoxFocusedKey.bindTo(this.contextKeyService);
 		this.replaceInputBoxFocused = Constants.ReplaceInputBoxFocusedKey.bindTo(this.contextKeyService);
 		this._filters = new NotebookFindFilters(true, false, true, true);
+
+		this.editorService.onDidEditorsChange((e) => {
+			if (this.searchInput instanceof NotebookFindInput &&
+				e.event.editor instanceof NotebookEditorInput &&
+				(e.event.kind === GroupModelChangeKind.EDITOR_OPEN || e.event.kind === GroupModelChangeKind.EDITOR_CLOSE)) {
+				this.searchInput.filterVisible = this._hasNotebookOpen();
+			}
+		});
 
 		this._replaceHistoryDelayer = new Delayer<void>(500);
 
@@ -184,8 +197,14 @@ export class SearchWidget extends Widget {
 				this.updateAccessibilitySupport();
 			}
 		});
+
 		this.accessibilityService.onDidChangeScreenReaderOptimized(() => this.updateAccessibilitySupport());
 		this.updateAccessibilitySupport();
+	}
+
+	private _hasNotebookOpen(): boolean {
+		const editors = this.editorService.editors;
+		return editors.some(editor => editor instanceof NotebookEditorInput);
 	}
 
 	getFilters() {
@@ -341,7 +360,7 @@ export class SearchWidget extends Widget {
 		const experimentalNotebooksEnabled = this.configurationService.getValue<ISearchConfigurationProperties>('search').experimental.notebookSearch;
 		if (experimentalNotebooksEnabled) {
 			const scopedContextKeyService = this._register(this.contextKeyService.createScoped(searchInputContainer));
-			this.searchInput = this._register(new NotebookFindInput(this._filters, scopedContextKeyService, this.contextMenuService, this.instantiationService, searchInputContainer, this.contextViewService, inputOptions,));
+			this.searchInput = this._register(new NotebookFindInput(this._filters, scopedContextKeyService, this.contextMenuService, this.instantiationService, searchInputContainer, this.contextViewService, { ...inputOptions, filterStartVisibliity: this._hasNotebookOpen() },));
 		} else {
 			this.searchInput = this._register(new ContextScopedFindInput(searchInputContainer, this.contextViewService, inputOptions, this.contextKeyService));
 		}
