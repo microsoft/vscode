@@ -60,8 +60,9 @@ export class QuickDiffService extends Disposable implements IQuickDiffService {
 
 	async getQuickDiffs(uri: URI, language: string = '', isSynchronized: boolean = false): Promise<QuickDiff[]> {
 		const sorted = Array.from(this.quickDiffProviders).sort(createProviderComparer(uri));
+		const withMatchingRootUri = sorted.filter(provider => !provider.rootUri || isEqualOrParent(uri, provider.rootUri));
 
-		const diffs = await Promise.all(Array.from(sorted.values()).map(async (provider) => {
+		const diffs = await Promise.all(Array.from(withMatchingRootUri.values()).map(async (provider) => {
 			const scoreValue = provider.selector ? score(provider.selector, uri, language, isSynchronized, undefined, undefined) : 10;
 			const diff: Partial<QuickDiff> = {
 				originalResource: scoreValue > 0 ? withNullAsUndefined(await provider.getOriginalResource(uri)) : undefined,
