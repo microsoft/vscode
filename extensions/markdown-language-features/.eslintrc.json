@@ -15,6 +15,5 @@
 				"leadingUnderscore": "forbid"
 			}
 		]
-	},
-	"ignorePatterns": ["server/"]
+	}
 }
