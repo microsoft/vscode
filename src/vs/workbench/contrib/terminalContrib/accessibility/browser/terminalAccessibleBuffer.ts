@@ -95,7 +95,7 @@ export class AccessibleBufferWidget extends DisposableStore {
 		this._xterm.raw.focus();
 	}
 
-	private async _updateContent(refresh?: boolean): Promise<ITextModel> {
+	private async _updateContent(): Promise<ITextModel> {
 		const model = await this._getTextModel(URI.from({ scheme: AccessibleBufferConstants.Scheme, fragment: this._getContent() }));
 		if (!model) {
 			throw new Error('Could not create accessible buffer editor model');
@@ -105,7 +105,7 @@ export class AccessibleBufferWidget extends DisposableStore {
 	}
 
 	private async _refresh(): Promise<void> {
-		const model = await this._updateContent(true);
+		const model = await this._updateContent();
 		const lineNumber = model.getLineCount() - 1;
 		if (this._refreshSelection) {
 			this._bufferEditor.setSelection({ startLineNumber: lineNumber, startColumn: 1, endLineNumber: lineNumber, endColumn: 1 });
