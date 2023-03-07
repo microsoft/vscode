@@ -39,7 +39,7 @@ export class MainThreadInteractiveSession implements MainThreadInteractiveSessio
 		this._registrations.dispose();
 	}
 
-	async $registerInteractiveSessionProvider(handle: number, id: string): Promise<void> {
+	async $registerInteractiveSessionProvider(handle: number, id: string, implementsProgress: boolean): Promise<void> {
 		const registration = this.interactiveSessionContribService.registeredProviders.find(staticProvider => staticProvider.id === id);
 		if (!registration) {
 			throw new Error(`Provider ${id} must be declared in the package.json.`);
@@ -52,6 +52,7 @@ export class MainThreadInteractiveSession implements MainThreadInteractiveSessio
 
 		const unreg = this._interactiveSessionService.registerProvider({
 			id,
+			progressiveRenderingEnabled: implementsProgress,
 			prepareSession: async (initialState, token) => {
 				const session = await this._proxy.$prepareInteractiveSession(handle, initialState, token);
 				if (!session) {

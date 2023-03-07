@@ -873,7 +873,7 @@ abstract class UserDataProfileImportExportState extends Disposable implements IT
 		}
 	}
 
-	onDidChangeCheckboxState(items: ITreeItem[]): ITreeItem[] {
+	onDidChangeCheckboxState(items: readonly ITreeItem[]): readonly ITreeItem[] {
 		const toRefresh: ITreeItem[] = [];
 		for (const item of items) {
 			if (item.children) {
@@ -1061,6 +1061,7 @@ class UserDataProfileExportState extends UserDataProfileImportExportState {
 			tasksResource: profile.tasksResource.with({ scheme: USER_DATA_PROFILE_EXPORT_SCHEME }),
 			snippetsHome: profile.snippetsHome.with({ scheme: USER_DATA_PROFILE_EXPORT_SCHEME }),
 			extensionsResource: profile.extensionsResource,
+			cacheHome: profile.cacheHome,
 			useDefaultFlags: profile.useDefaultFlags,
 			isTransient: profile.isTransient
 		};
@@ -1108,7 +1109,7 @@ class UserDataProfileImportState extends UserDataProfileImportExportState {
 		const inMemoryProvider = this._register(new InMemoryFileSystemProvider());
 		this.disposables.add(this.fileService.registerProvider(USER_DATA_PROFILE_IMPORT_PREVIEW_SCHEME, inMemoryProvider));
 		const roots: IProfileResourceTreeItem[] = [];
-		const importPreviewProfle = toUserDataProfile(generateUuid(), this.profile.name, URI.file('/root').with({ scheme: USER_DATA_PROFILE_IMPORT_PREVIEW_SCHEME }));
+		const importPreviewProfle = toUserDataProfile(generateUuid(), this.profile.name, URI.file('/root').with({ scheme: USER_DATA_PROFILE_IMPORT_PREVIEW_SCHEME }), URI.file('/cache').with({ scheme: USER_DATA_PROFILE_IMPORT_PREVIEW_SCHEME }));
 
 		if (this.profile.settings) {
 			const settingsResource = this.instantiationService.createInstance(SettingsResource);

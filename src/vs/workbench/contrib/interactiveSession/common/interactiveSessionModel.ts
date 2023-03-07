@@ -101,6 +101,7 @@ export interface IInteractiveSessionModel {
 	readonly onDidDispose: Event<void>;
 	readonly onDidChange: Event<IInteractiveSessionChangeEvent>;
 	readonly sessionId: number;
+	readonly providerId: string;
 	getRequests(): IInteractiveRequestModel[];
 }
 
