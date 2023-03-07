@@ -174,16 +174,14 @@ class FormatOnSaveParticipant implements IStoredFileWorkingCopySaveParticipant {
 					this.editorWorkerService,
 					this.languageFeaturesService,
 					model,
-					model.getOptions(), CancellationToken.None
+					model.getOptions(),
+					token
 				);
 
 				const edits: ResourceTextEdit[] = [];
 
 				if (formatEdits) {
-					for (const edit of formatEdits) {
-						edits.push(new ResourceTextEdit(model.uri, edit, model.getVersionId()));
-					}
-
+					edits.push(...formatEdits.map(edit => new ResourceTextEdit(model.uri, edit, model.getVersionId())));
 					return edits;
 				}
 
