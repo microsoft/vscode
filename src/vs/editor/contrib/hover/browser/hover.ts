@@ -296,7 +296,7 @@ class ShowOrFocusHoverAction extends EditorAction {
 						type: 'object',
 						properties: {
 							'focus': {
-								description: 'Controls if when shown, the hover should take focus immediately.',
+								description: 'Controls if when triggered with the keyboard, the hover should take focus immediately.',
 								type: 'boolean',
 								default: false
 							}
