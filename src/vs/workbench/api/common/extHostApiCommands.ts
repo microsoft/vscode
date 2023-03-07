@@ -5,14 +5,12 @@
 
 import { isFalsyOrEmpty } from 'vs/base/common/arrays';
 import { VSBuffer } from 'vs/base/common/buffer';
-import { IStringDictionary } from 'vs/base/common/collections';
 import { Schemas } from 'vs/base/common/network';
 import { URI } from 'vs/base/common/uri';
 import { IPosition } from 'vs/editor/common/core/position';
 import { IRange } from 'vs/editor/common/core/range';
 import * as languages from 'vs/editor/common/languages';
 import { decodeSemanticTokensDto } from 'vs/editor/common/services/semanticTokensDto';
-import { IRegisteredConfigurationPropertySchema } from 'vs/platform/configuration/common/configurationRegistry';
 import { validateWhenClauses } from 'vs/platform/contextkey/common/contextkey';
 import { ITextEditorOptions } from 'vs/platform/editor/common/editor';
 import { matchesSomeScheme } from 'vs/platform/opener/common/opener';
@@ -466,19 +464,7 @@ const newCommands: ApiCommand[] = [
 			new ApiCommandArgument('value', 'The context key value', () => true, v => v),
 		],
 		ApiCommandResult.Void
-	),
-
-	// --- Helpful developer commands
-	new ApiCommand(
-		'vscode.getAllCommands', '_getAllCommands', 'Returns all commands that are available in the current context.',
-		[],
-		new ApiCommandResult<{ command: string; title: string }[], { command: string; title: string }[]>('A promise that resolves to an array of command ids and titles', v => v)
-	),
-	new ApiCommand(
-		'vscode.getAllSettings', '_getAllSettings', 'Returns all settings that are available in the current context.',
-		[],
-		new ApiCommandResult<IStringDictionary<IRegisteredConfigurationPropertySchema>, IStringDictionary<IRegisteredConfigurationPropertySchema>>('A promise that resolves to an array of settings', v => v)
-	),
+	)
 ];
 
 //#endregion
