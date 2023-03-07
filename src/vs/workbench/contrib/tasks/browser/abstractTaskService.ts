@@ -581,7 +581,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			Promise.all(
 				this._getActivationEvents(type).map(activationEvent => this._extensionService.activateByEvent(activationEvent))
 			),
-			timeout(5000).then(() => console.warn('Timed out activating extensions for task providers'))
+			timeout(5000)
 		]);
 	}
 
