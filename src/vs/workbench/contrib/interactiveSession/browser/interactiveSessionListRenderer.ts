@@ -99,6 +99,10 @@ export class InteractiveListItemRenderer extends Disposable implements ITreeRend
 		}
 	}
 
+	private shouldRenderProgressively(element: IInteractiveResponseViewModel): boolean {
+		return !this.configService.getValue('interactive.experimental.disableProgressiveRendering') && element.progressiveResponseRenderingEnabled;
+	}
+
 	private getProgressiveRenderRate(): number {
 		return this.configService.getValue('interactive.experimental.progressiveRenderingRate') ?? 8;
 	}
@@ -142,7 +146,7 @@ export class InteractiveListItemRenderer extends Disposable implements ITreeRend
 			templateData.avatar.replaceChildren(avatarIcon);
 		}
 
-		if (isResponseVM(element) && index === this.delegate.getListLength() - 1 && (!element.isComplete || element.renderData) && element.progressiveResponseRenderingEnabled) {
+		if (isResponseVM(element) && index === this.delegate.getListLength() - 1 && (!element.isComplete || element.renderData) && this.shouldRenderProgressively(element)) {
 			this.traceLayout('renderElement', `start progressive render ${kind}, index=${index}`);
 			const progressiveRenderingDisposables = templateData.elementDisposables.add(new DisposableStore());
 			const timer = templateData.elementDisposables.add(new IntervalTimer());
