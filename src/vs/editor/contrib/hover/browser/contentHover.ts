@@ -208,6 +208,10 @@ export class ContentHoverController extends Disposable {
 		return this._widget.isVisibleFromKeyboard;
 	}
 
+	public isVisible(): boolean {
+		return this._widget.isVisible;
+	}
+
 	public containsNode(node: Node): boolean {
 		return this._widget.getDomNode().contains(node);
 	}
@@ -439,6 +443,10 @@ export class ContentHoverWidget extends Disposable implements IContentWidget {
 
 	public get isVisibleFromKeyboard(): boolean {
 		return (this._visibleData?.source === HoverStartSource.Keyboard);
+	}
+
+	public get isVisible(): boolean {
+		return this._hoverVisibleKey.get() ?? false;
 	}
 
 	constructor(

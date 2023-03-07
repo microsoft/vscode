@@ -31,6 +31,7 @@ import { MarkerHoverParticipant } from 'vs/editor/contrib/hover/browser/markerHo
 import 'vs/css!./hover';
 import { InlineSuggestionHintsContentWidget } from 'vs/editor/contrib/inlineCompletions/browser/inlineSuggestionHintsWidget';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+
 export class ModesHoverController implements IEditorContribution {
 
 	public static readonly ID = 'editor.contrib.hover';
@@ -200,15 +201,16 @@ export class ModesHoverController implements IEditorContribution {
 	}
 
 	private _onKeyDown(e: IKeyboardEvent): void {
+		if (!this._editor.hasModel()) {
+			return;
+		}
 
-		const kb = this._keybindingService.lookupKeybinding('editor.action.focusHover');
-		kb?.getDispatchChords();
-		const keys = kb?.getChords()[0];
+		const resolvedKeyboardEvent = this._keybindingService.softDispatch(e, this._editor.getDomNode());
+		// If the beginning of a multi-chord keybinding is pressed, or the command aims to focus the hover, set the variable to true, otherwise false
+		const mightTriggerFocus = (resolvedKeyboardEvent?.enterMultiChord || (resolvedKeyboardEvent?.commandId === 'editor.action.showOrFocusHover' && this._contentWidget?.isVisible()));
 
-		// If there a mapping to the key names, how they are returned inside of the keyboard events
-		// The keybindings associated with focusing the hover widget should not be pressed
 		if (e.keyCode !== KeyCode.Ctrl && e.keyCode !== KeyCode.Alt && e.keyCode !== KeyCode.Meta && e.keyCode !== KeyCode.Shift
-			&& !(keys && e.code === ('Key' + keys.keyLabel) && e.ctrlKey === keys.ctrlKey && e.altKey === keys.altKey && e.metaKey === keys.metaKey && e.shiftKey === keys.shiftKey)) {
+			&& !mightTriggerFocus) {
 			// Do not hide hover when a modifier key is pressed
 			this._hideWidgets();
 		}
@@ -236,7 +238,8 @@ export class ModesHoverController implements IEditorContribution {
 	}
 
 	public showContentHover(range: Range, mode: HoverStartMode, source: HoverStartSource, focus: boolean): void {
-		this._getOrCreateContentWidget().startShowingAtRange(range, mode, source, focus);
+		const hoverContentWidget = this._getOrCreateContentWidget();
+		hoverContentWidget.startShowingAtRange(range, mode, source, focus);
 	}
 
 	public focus(): void {
@@ -259,6 +262,10 @@ export class ModesHoverController implements IEditorContribution {
 		this._contentWidget?.pageDown();
 	}
 
+	public isHoverVisible(): boolean | undefined {
+		return this._contentWidget?.isVisible();
+	}
+
 	public dispose(): void {
 		this._unhookEvents();
 		this._toUnhook.dispose();
@@ -268,19 +275,36 @@ export class ModesHoverController implements IEditorContribution {
 	}
 }
 
-class ShowHoverAction extends EditorAction {
+class ShowOrFocusHoverAction extends EditorAction {
 
 	constructor() {
 		super({
-			id: 'editor.action.showHover',
+			id: 'editor.action.showOrFocusHover',
 			label: nls.localize({
-				key: 'showHover',
+				key: 'showOrFocusHover',
 				comment: [
 					'Label for action that will trigger the showing of a hover in the editor.',
-					'This allows for users to show the hover without using the mouse.'
+					'This allows for users to show the hover without using the mouse.',
+					'If the hover is already visible, it will take focus.'
 				]
-			}, "Show Hover"),
-			alias: 'Show Hover',
+			}, "Show or Focus Hover"),
+			description: {
+				description: `Show or Focus Hover`,
+				args: [{
+					name: 'args',
+					schema: {
+						type: 'object',
+						properties: {
+							'focus': {
+								description: 'Controls if when shown, the hover should take focus immediately.',
+								type: 'boolean',
+								default: false
+							}
+						},
+					}
+				}]
+			},
+			alias: 'Show or Focus Hover',
 			precondition: undefined,
 			kbOpts: {
 				kbExpr: EditorContextKeys.editorTextFocus,
@@ -290,7 +314,7 @@ class ShowHoverAction extends EditorAction {
 		});
 	}
 
-	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
+	public run(accessor: ServicesAccessor, editor: ICodeEditor, args: any): void {
 		if (!editor.hasModel()) {
 			return;
 		}
@@ -300,8 +324,13 @@ class ShowHoverAction extends EditorAction {
 		}
 		const position = editor.getPosition();
 		const range = new Range(position.lineNumber, position.column, position.lineNumber, position.column);
-		const focus = editor.getOption(EditorOption.accessibilitySupport) === AccessibilitySupport.Enabled;
-		controller.showContentHover(range, HoverStartMode.Immediate, HoverStartSource.Keyboard, focus);
+		const focus = editor.getOption(EditorOption.accessibilitySupport) === AccessibilitySupport.Enabled || !!args?.focus;
+
+		if (controller.isHoverVisible()) {
+			controller.focus();
+		} else {
+			controller.showHover(range, HoverStartMode.Immediate, HoverStartSource.Keyboard, focus);
+		}
 	}
 }
 
@@ -340,38 +369,8 @@ class ShowDefinitionPreviewHoverAction extends EditorAction {
 		}
 		const promise = goto.startFindDefinitionFromCursor(position);
 		promise.then(() => {
-			controller.showContentHover(range, HoverStartMode.Immediate, HoverStartSource.Keyboard, true);
+			controller.showHover(range, HoverStartMode.Immediate, HoverStartSource.Keyboard, true);
 		});
-	}
-}
-
-class FocusHoverAction extends EditorAction {
-
-	constructor() {
-		super({
-			id: 'editor.action.focusHover',
-			label: nls.localize({
-				key: 'focusHover',
-				comment: [
-					'Action that allows to focus on the hover widget, when there is a hover widget visible.'
-				]
-			}, "Focus Hover"),
-			alias: 'Focus Hover',
-			precondition: EditorContextKeys.hoverVisible,
-			kbOpts: {
-				kbExpr: EditorContextKeys.hoverVisible,
-				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyMod.Alt | KeyCode.KeyK, // Change the keybindings later
-				weight: KeybindingWeight.EditorContrib
-			}
-		});
-	}
-
-	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
-		const controller = ModesHoverController.get(editor);
-		if (!controller) {
-			return;
-		}
-		controller.focus();
 	}
 }
 
@@ -497,9 +496,8 @@ class PageDownHoverAction extends EditorAction {
 }
 
 registerEditorContribution(ModesHoverController.ID, ModesHoverController, EditorContributionInstantiation.BeforeFirstInteraction);
-registerEditorAction(ShowHoverAction);
+registerEditorAction(ShowOrFocusHoverAction);
 registerEditorAction(ShowDefinitionPreviewHoverAction);
-registerEditorAction(FocusHoverAction);
 registerEditorAction(ScrollUpHoverAction);
 registerEditorAction(ScrollDownHoverAction);
 registerEditorAction(PageUpHoverAction);
