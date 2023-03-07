@@ -71,9 +71,9 @@ export class ExtHostInteractiveSession implements ExtHostInteractiveSessionShape
 		return {
 			id,
 			requesterUsername: session.requester?.name,
-			requesterAvatarIconPath: session.requester?.iconPath,
+			requesterAvatarIconUri: session.requester?.icon,
 			responderUsername: session.responder?.name,
-			responderAvatarIconPath: session.responder?.iconPath
+			responderAvatarIconUri: session.responder?.icon
 		};
 	}
 
