@@ -364,6 +364,7 @@ export class FileMatch extends Disposable implements IFileMatch {
 
 		if (this._notebookEditorWidget === widget) {
 			// ensure that the matches are up to date, but everything else should be configured already.
+			// TODO: try to reduce calls that occur when the notebook hasn't loaded yet
 			await this.updateMatchesForEditorWidget();
 			return;
 		}
