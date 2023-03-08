@@ -29,6 +29,10 @@ export interface IInteractiveResponse {
 	followups?: string[];
 	commandFollowups?: IInteractiveSessionResponseCommandFollowup[];
 	errorDetails?: IInteractiveResponseErrorDetails;
+	timings?: {
+		firstProgress: number;
+		totalElapsed: number;
+	};
 }
 
 export interface IInteractiveProgress {
