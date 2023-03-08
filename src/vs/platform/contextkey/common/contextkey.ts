@@ -128,8 +128,6 @@ const defaultConfig: ParserConfig = {
 	regexParsingWithErrorRecovery: true
 };
 
-class ParseError extends Error { }
-
 export type ParsingError = {
 	message: string;
 	offset: number;
@@ -166,6 +164,8 @@ const hintUnexpectedEOF = localize('contextkey.parser.error.unexpectedEOF.hint',
 export class Parser {
 	// Note: this doesn't produce an exact syntax tree but a normalized one
 	// ContextKeyExpression's that we use as AST nodes do not expose constructors that do not normalize
+
+	private static _parseError = new Error();
 
 	// lifetime note: `_scanner` lives as long as the parser does, i.e., is not reset between calls to `parse`
 	private readonly _scanner = new Scanner();
@@ -211,11 +211,11 @@ export class Parser {
 				const peek = this._peek();
 				const additionalInfo = peek.type === TokenType.Str ? hintUnexpectedToken : undefined;
 				this._parsingErrors.push({ message: errorUnexpectedToken, offset: peek.offset, lexeme: Scanner.getLexeme(peek), additionalInfo });
-				throw new ParseError();
+				throw Parser._parseError;
 			}
 			return expr;
 		} catch (e) {
-			if (!(e instanceof ParseError)) {
+			if (!(e === Parser._parseError)) {
 				throw e;
 			}
 			return undefined;
@@ -481,7 +481,7 @@ export class Parser {
 
 			case TokenType.EOF:
 				this._parsingErrors.push({ message: errorUnexpectedEOF, offset: peek.offset, lexeme: '', additionalInfo: hintUnexpectedEOF });
-				throw new ParseError();
+				throw Parser._parseError;
 
 			default:
 				throw this._errExpectedButGot(`true | false | KEY \n\t| KEY '=~' REGEX \n\t| KEY ('==' | '!=' | '<' | '<=' | '>' | '>=' | 'in' | 'not' 'in') value`, this._peek());
@@ -551,7 +551,7 @@ export class Parser {
 		const offset = got.offset;
 		const lexeme = Scanner.getLexeme(got);
 		this._parsingErrors.push({ message, offset, lexeme, additionalInfo });
-		return new ParseError();
+		return Parser._parseError;
 	}
 
 	private _check(type: TokenType) {
