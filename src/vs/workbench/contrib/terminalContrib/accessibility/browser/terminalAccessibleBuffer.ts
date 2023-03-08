@@ -35,6 +35,7 @@ export class AccessibleBufferWidget extends DisposableStore {
 	private _editorContainer: HTMLElement;
 	private _font: ITerminalFont;
 	private _xtermElement: HTMLElement;
+	private _previousLines: number = 0;
 
 	constructor(
 		private readonly _xterm: IXtermTerminal & { raw: Terminal },
@@ -102,8 +103,17 @@ export class AccessibleBufferWidget extends DisposableStore {
 		this._xterm.raw.focus();
 	}
 
-	private async _updateContent(): Promise<ITextModel> {
-		const model = await this._getTextModel(URI.from({ scheme: AccessibleBufferConstants.Scheme, fragment: this._getContent() }));
+	private async _updateContent(refresh?: boolean): Promise<ITextModel> {
+		let model = this._bufferEditor.getModel();
+		if (model && this._previousLines === this._xterm.raw.buffer.active.length) {
+			return model;
+		}
+		if (refresh && model) {
+			const selection = this._bufferEditor.getSelection();
+			model.pushEditOperations(selection !== null ? [selection] : null, [{ range: model.getFullModelRange(), text: this._getContent(this._previousLines) }], () => []);
+			return model;
+		}
+		model = await this._getTextModel(URI.from({ scheme: AccessibleBufferConstants.Scheme, fragment: this._getContent() }));
 		if (!model) {
 			throw new Error('Could not create accessible buffer editor model');
 		}
@@ -156,6 +166,7 @@ export class AccessibleBufferWidget extends DisposableStore {
 				currentLine = '';
 			}
 		}
+		this._previousLines = lines.length;
 		return lines.join('\n');
 	}
 }
