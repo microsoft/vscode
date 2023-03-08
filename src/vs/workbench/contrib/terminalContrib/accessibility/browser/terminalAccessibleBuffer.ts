@@ -93,7 +93,7 @@ export class AccessibleBufferWidget extends DisposableStore {
 		}));
 		this.add(this._xterm.raw.onWriteParsed(async () => {
 			if (this._accessibleBuffer.classList.contains(AccessibleBufferConstants.Active)) {
-				await this._refresh(true);
+				await this._updateEditor(true);
 			}
 		}));
 	}
@@ -104,10 +104,10 @@ export class AccessibleBufferWidget extends DisposableStore {
 		this._xterm.raw.focus();
 	}
 
-	private async _updateContent(refresh?: boolean): Promise<void> {
+	private async _updateModel(insertion?: boolean): Promise<void> {
 		let model = this._bufferEditor.getModel();
 		const lineCount = model?.getLineCount() ?? 0;
-		if (refresh && model && lineCount > this._xterm.raw.rows) {
+		if (insertion && model && lineCount > this._xterm.raw.rows) {
 			const selection = this._bufferEditor.getSelection();
 			const lineNumber = lineCount + 1;
 			model.pushEditOperations(selection ? [selection] : null, [{ range: { startLineNumber: lineNumber, endLineNumber: lineNumber, startColumn: 1, endColumn: 1 }, text: await this._getContent(lineNumber - 1) }], () => []);
@@ -120,8 +120,8 @@ export class AccessibleBufferWidget extends DisposableStore {
 		this._bufferEditor.setModel(model);
 	}
 
-	private async _refresh(refresh?: boolean): Promise<void> {
-		await this._updateContent(refresh);
+	private async _updateEditor(insertion?: boolean): Promise<void> {
+		await this._updateModel(insertion);
 		const model = this._bufferEditor.getModel();
 		if (!model) {
 			return;
@@ -133,7 +133,7 @@ export class AccessibleBufferWidget extends DisposableStore {
 	}
 
 	async show(): Promise<void> {
-		await this._refresh();
+		await this._updateEditor();
 		this._accessibleBuffer.tabIndex = -1;
 		this._accessibleBuffer.classList.add(AccessibleBufferConstants.Active);
 		this._xtermElement.classList.add(AccessibleBufferConstants.Hide);
