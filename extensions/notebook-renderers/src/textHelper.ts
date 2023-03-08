@@ -54,6 +54,14 @@ function truncatedArrayOfString(id: string, buffer: string[], linesLimit: number
 function scrollableArrayOfString(id: string, buffer: string[], container: HTMLElement, trustHtml: boolean) {
 	const scrollableDiv = document.createElement('div');
 	scrollableDiv.classList.add(scrollableClass);
+	scrollableDiv.onscroll = (e) => {
+		const target = e.target as HTMLElement;
+		if (target.scrollTop === 0) {
+			target.classList.remove('more-above');
+		} else {
+			target.classList.add('more-above');
+		}
+	};
 
 	if (buffer.length > 5000) {
 		container.appendChild(generateViewMoreElement(id, false));

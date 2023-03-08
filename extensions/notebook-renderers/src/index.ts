@@ -216,17 +216,15 @@ function getPreviousOutputWithMatchingMimeType(container: HTMLElement, mimeType:
 // if there is a scrollable output, it will be scrolled to the given value if provided or the bottom of the element
 function appendChildAndScroll(container: HTMLElement, child: HTMLElement, scrollTop?: number) {
 	container.appendChild(child);
-	child.childNodes.forEach((node) => {
-		if (node instanceof HTMLElement && node.classList.contains(scrollableClass)) {
-			node.scrollTop = scrollTop !== undefined ? scrollTop : node.scrollHeight;
-		}
-	});
+	const scrollableElement = child.querySelector(`.${scrollableClass}`);
+	if (scrollableElement) {
+		scrollableElement.scrollTop = scrollTop !== undefined ? scrollTop : scrollableElement.scrollHeight;
+	}
 }
 
 // Find the scrollTop of the existing scrollable output, return undefined if at the bottom or element doesn't exist
 function findScrolledHeight(outputContainer: HTMLElement, outputId: string): number | undefined {
-	const output = outputContainer.querySelector(`[output-item-id="${outputId}"]`);
-	const scrollableElement = output?.querySelector('.scrollable');
+	const scrollableElement = outputContainer.querySelector(`[output-item-id="${outputId}"] .${scrollableClass}`);
 	if (scrollableElement && scrollableElement.scrollHeight - scrollableElement.scrollTop - scrollableElement.clientHeight > 2) {
 		// not scrolled to the bottom
 		return scrollableElement.scrollTop;
@@ -337,6 +335,9 @@ export const activate: ActivationFunction<void> = (ctx) => {
 		padding-left: 4px;
 		box-sizing: border-box;
 		border-width: 1px;
+	}
+	.output .scrollable.more-above {
+		box-shadow: var(--vscode-scrollbar-shadow) 0 6px 6px -6px inset
 	}
 	.output-plaintext .code-bold,
 	.output-stream .code-bold,
