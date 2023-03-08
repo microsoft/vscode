@@ -154,6 +154,8 @@ function createDisposableStore(): { push(...disposables: IDisposable[]): void; d
 	return disposable;
 }
 
+type DisposableStore = ReturnType<typeof createDisposableStore>;
+
 function renderError(
 	outputInfo: OutputItem,
 	container: HTMLElement,
@@ -186,7 +188,7 @@ function renderError(
 		}));
 
 		insertOutput(outputInfo.id, [err.stack ?? ''], ctx.settings.lineLimit, ctx.settings.outputScrolling, stack, true);
-		appendChildAndScroll(container, stack);
+		appendChildAndScroll(container, stack, disposableStore);
 	} else {
 		const header = document.createElement('div');
 		const headerMessage = err.name && err.message ? `${err.name}: ${err.message}` : err.name || err.message;
@@ -213,12 +215,23 @@ function getPreviousOutputWithMatchingMimeType(container: HTMLElement, mimeType:
 	return undefined;
 }
 
+function onScrollHandler(e: globalThis.Event) {
+	const target = e.target as HTMLElement;
+	if (target.scrollTop === 0) {
+		target.classList.remove('more-above');
+	} else {
+		target.classList.add('more-above');
+	}
+}
+
 // if there is a scrollable output, it will be scrolled to the given value if provided or the bottom of the element
-function appendChildAndScroll(container: HTMLElement, child: HTMLElement, scrollTop?: number) {
+function appendChildAndScroll(container: HTMLElement, child: HTMLElement, disposables: DisposableStore, scrollTop?: number) {
 	container.appendChild(child);
 	const scrollableElement = child.querySelector(`.${scrollableClass}`);
-	if (scrollableElement) {
+	if (scrollableElement instanceof HTMLElement) {
 		scrollableElement.scrollTop = scrollTop !== undefined ? scrollTop : scrollableElement.scrollHeight;
+		scrollableElement.addEventListener('scroll', onScrollHandler);
+		disposables.push({ dispose: () => scrollableElement.removeEventListener('scroll', onScrollHandler) });
 	}
 }
 
@@ -254,7 +267,7 @@ function renderStream(outputInfo: OutputItem, container: HTMLElement, error: boo
 		}));
 		element.setAttribute('output-item-id', outputInfo.id);
 		insertOutput(outputInfo.id, [text], ctx.settings.lineLimit, outputScrolling, element, false);
-		appendChildAndScroll(outputElement, element);
+		appendChildAndScroll(outputElement, element, disposableStore);
 		return disposableStore;
 	}
 
@@ -272,7 +285,7 @@ function renderStream(outputInfo: OutputItem, container: HTMLElement, error: boo
 	while (container.firstChild) {
 		container.removeChild(container.firstChild);
 	}
-	appendChildAndScroll(container, element, scrollTop);
+	appendChildAndScroll(container, element, disposableStore, scrollTop);
 	container.setAttribute('output-mime-type', outputInfo.mime);
 	if (error) {
 		container.classList.add('error');
@@ -292,7 +305,7 @@ function renderText(outputInfo: OutputItem, container: HTMLElement, ctx: IRichRe
 	}
 	const text = outputInfo.text();
 	insertOutput(outputInfo.id, [text], ctx.settings.lineLimit, ctx.settings.outputScrolling, contentNode, false);
-	appendChildAndScroll(container, contentNode);
+	appendChildAndScroll(container, contentNode, disposableStore);
 	return disposableStore;
 }
 
