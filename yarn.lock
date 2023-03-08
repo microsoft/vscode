@@ -1234,9 +1234,9 @@
     yargs "^17.5.1"
 
 "@vscode/policy-watcher@^1.1.4":
-  version "1.1.5"
-  resolved "https://registry.yarnpkg.com/@vscode/policy-watcher/-/policy-watcher-1.1.5.tgz#217aaba3ca0d33ccdaf3bff0281fa11b073ce303"
-  integrity sha512-1Jt6imBKnw9vYpP5TpXZ9Q+Af4NBlKH9Z4bAHdC026CBz/5l6p3PwTWf0xyznFNg0DdXJmwZMF83bzW7zyvElw==
+  version "1.1.6"
+  resolved "https://registry.yarnpkg.com/@vscode/policy-watcher/-/policy-watcher-1.1.6.tgz#5867ff8297507dc1cc7c6f826a67bb2536a5cafe"
+  integrity sha512-EoJizB6aq/mgsL42mcNLGZ5vOwdZs/EHcLQkdY6Rg4uzcRkCapQdNy20wnCsrBpv3QntgBibsS6m+JXm8efY/Q==
   dependencies:
     bindings "^1.5.0"
     node-addon-api "^6.0.0"
@@ -7702,15 +7702,15 @@ native-is-elevated@0.4.3:
   resolved "https://registry.yarnpkg.com/native-is-elevated/-/native-is-elevated-0.4.3.tgz#f1071c4a821acc71d43f36ff8051d3816d832e1c"
   integrity sha512-bHS3sCoh+raqFGIxmL/plER3eBQ+IEBy4RH/4uahhToZneTvqNKQrL0PgOTtnpL55XjBd3dy0pNtZMkCk0J48g==
 
-native-keymap@3.3.2:
-  version "3.3.2"
-  resolved "https://registry.yarnpkg.com/native-keymap/-/native-keymap-3.3.2.tgz#de3b3161b6041be80ac754bfed44a499aa8b3409"
-  integrity sha512-AKE9k0jVOPrpfSlmtNDVJaADW+Vo6dDHQf55Ystvc5Aj4REbmlMSqXIBU1LpMC2pEzxzg0O2zbtQYWmqETfhzg==
+native-keymap@^3.3.2:
+  version "3.3.3"
+  resolved "https://registry.yarnpkg.com/native-keymap/-/native-keymap-3.3.3.tgz#cdc92331721e289605f1fb55ca4609ce52888845"
+  integrity sha512-TKBPTNHWK+8be1htLFNy/fsDtxv5A2z4IwvQ/XeiDkNgAthqdlImxza/dDBu3eN2lqNnFSkJl0fZ8221hV92hg==
 
-native-watchdog@1.4.1:
-  version "1.4.1"
-  resolved "https://registry.yarnpkg.com/native-watchdog/-/native-watchdog-1.4.1.tgz#f5462cb878796c75f8a6c3c71aa0aa52d4992e05"
-  integrity sha512-RzGXNgoe54BmkkIFwegz7eeJm7xovTj/VG5qREfF+KeSqiVzHGnVwFoLzNLlYsqSSdIOIYoCOFlEhoS+asRVyQ==
+native-watchdog@^1.4.1:
+  version "1.4.2"
+  resolved "https://registry.yarnpkg.com/native-watchdog/-/native-watchdog-1.4.2.tgz#cf9f913157ee992723aa372b6137293c663be9b7"
+  integrity sha512-iT3Uj6FFdrW5vHbQ/ybiznLus9oiUoMJ8A8nyugXv9rV3EBhIodmGs+mztrwQyyBc+PB5/CrskAH/WxaUVRRSQ==
 
 natural-compare@^1.4.0:
   version "1.4.0"
