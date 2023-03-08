@@ -1,0 +1,26 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+ .monaco-dialog-box .dialog-message-row .dialog-message-container .dialog-message-body .modal-dialog-item .icon-widget{
+	padding-right: 8px;
+	max-width: 20px;
+	max-height: 20px;
+	position: relative;
+	top: auto;
+}
+
+.monaco-dialog-box .dialog-message-row .dialog-message-container .dialog-message-body .modal-dialog-item {
+	display: flex;
+	padding: 10px 0 20px 12px;
+	margin: 0;
+	min-height: auto;
+	border: 1px solid var(--vscode-welcomePage-tileBorder);
+	color: var(--vscode-descriptionForeground);
+}
+
+.monaco-dialog-box .dialog-message-row .dialog-message-container .dialog-message-body>.modal-dialog-item {
+	grid-area: title;
+	align-self: flex-end;
+}
