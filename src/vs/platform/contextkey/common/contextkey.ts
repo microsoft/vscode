@@ -311,7 +311,7 @@ export class Parser {
 						}
 						const regexLexeme = expr.lexeme;
 						const closingSlashIndex = regexLexeme.lastIndexOf('/');
-						const flags = closingSlashIndex === regexLexeme.length - 1 ? undefined : regexLexeme.substring(closingSlashIndex + 1);
+						const flags = closingSlashIndex === regexLexeme.length - 1 ? undefined : this._removeFlagsGY(regexLexeme.substring(closingSlashIndex + 1));
 						let regexp: RegExp | null;
 						try {
 							regexp = new RegExp(regexLexeme.substring(1, closingSlashIndex), flags);
@@ -365,7 +365,7 @@ export class Parser {
 
 							const regexLexeme = lexemeReconstruction.join('');
 							const closingSlashIndex = regexLexeme.lastIndexOf('/');
-							const flags = closingSlashIndex === regexLexeme.length - 1 ? undefined : regexLexeme.substring(closingSlashIndex + 1);
+							const flags = closingSlashIndex === regexLexeme.length - 1 ? undefined : this._removeFlagsGY(regexLexeme.substring(closingSlashIndex + 1));
 							let regexp: RegExp | null;
 							try {
 								regexp = new RegExp(regexLexeme.substring(1, closingSlashIndex), flags);
@@ -510,6 +510,11 @@ export class Parser {
 				// we do not call `_advance` on purpose - we don't want to eat unintended tokens
 				return '';
 		}
+	}
+
+	private _flagsGYRe = /g|y/g;
+	private _removeFlagsGY(flags: string): string {
+		return flags.replaceAll(this._flagsGYRe, '');
 	}
 
 	// careful: this can throw if current token is the initial one (ie index = 0)
