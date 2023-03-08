@@ -110,8 +110,7 @@ export class AccessibleBufferWidget extends DisposableStore {
 		if (refresh && model && lineCount > this._xterm.raw.rows) {
 			const selection = this._bufferEditor.getSelection();
 			const lineNumber = lineCount + 1;
-			const column = 1;
-			model.pushEditOperations(selection !== null ? [selection] : null, [{ range: { startLineNumber: lineNumber, endLineNumber: lineNumber, startColumn: column, endColumn: column }, text: await this._getContent(lineNumber - 1) }], () => []);
+			model.pushEditOperations(selection ? [selection] : null, [{ range: { startLineNumber: lineNumber, endLineNumber: lineNumber, startColumn: 1, endColumn: 1 }, text: await this._getContent(lineNumber - 1) }], () => []);
 			return;
 		}
 		model = await this._getTextModel(URI.from({ scheme: `${AccessibleBufferConstants.Scheme}-${this._instanceId}`, fragment: await this._getContent() }));
