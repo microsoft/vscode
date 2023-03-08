@@ -294,7 +294,7 @@ export class MatchRenderer extends Disposable implements ICompressibleTreeRender
 		MatchFocusKey.bindTo(contextKeyServiceMain).set(true);
 		FileFocusKey.bindTo(contextKeyServiceMain).set(false);
 		FolderFocusKey.bindTo(contextKeyServiceMain).set(false);
-		// const contextKeyServiceOverlay = contextKeyServiceMain.createOverlay([[MatchFocusKey.key, true], [FileFocusKey.key, false], [FolderFocusKey.key, false]]);
+
 		const instantiationService = this.instantiationService.createChild(new ServiceCollection([IContextKeyService, contextKeyServiceMain]));
 		const actions = disposables.add(instantiationService.createInstance(MenuWorkbenchToolBar, actionBarContainer, MenuId.SearchActionMenu, {
 			menuOptions: {
