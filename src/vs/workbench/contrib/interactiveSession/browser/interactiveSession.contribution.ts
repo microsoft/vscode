@@ -20,10 +20,11 @@ import { InteractiveSessionEditor } from 'vs/workbench/contrib/interactiveSessio
 import { InteractiveSessionEditorInput } from 'vs/workbench/contrib/interactiveSession/browser/interactiveSessionEditorInput';
 import { IInteractiveSessionContributionService } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionContributionService';
 import { IInteractiveSessionService } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionService';
+import { InteractiveSessionService } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionServiceImpl';
 import { IEditorResolverService, RegisteredEditorPriority } from 'vs/workbench/services/editor/common/editorResolverService';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import '../common/interactiveSessionColors';
-import { InteractiveSessionService } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionServiceImpl';
+import { IInteractiveSessionWidgetService, InteractiveSessionWidgetService } from 'vs/workbench/contrib/interactiveSession/browser/interactiveSessionWidget';
 
 
 // Register configuration
@@ -101,4 +102,5 @@ workbenchContributionsRegistry.registerWorkbenchContribution(InteractiveSessionR
 registerInteractiveSessionActions();
 
 registerSingleton(IInteractiveSessionService, InteractiveSessionService, InstantiationType.Delayed);
-registerSingleton(IInteractiveSessionContributionService, InteractiveSessionContributionService, InstantiationType.Eager);
+registerSingleton(IInteractiveSessionContributionService, InteractiveSessionContributionService, InstantiationType.Delayed);
+registerSingleton(IInteractiveSessionWidgetService, InteractiveSessionWidgetService, InstantiationType.Delayed);

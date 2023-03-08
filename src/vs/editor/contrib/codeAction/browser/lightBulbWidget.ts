@@ -6,15 +6,16 @@
 import * as dom from 'vs/base/browser/dom';
 import { Gesture } from 'vs/base/browser/touch';
 import { Codicon } from 'vs/base/common/codicons';
-import { ThemeIcon } from 'vs/base/common/themables';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
+import { ThemeIcon } from 'vs/base/common/themables';
 import { withNullAsUndefined } from 'vs/base/common/types';
 import 'vs/css!./lightBulbWidget';
 import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition } from 'vs/editor/browser/editorBrowser';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { IPosition } from 'vs/editor/common/core/position';
 import { computeIndentLevel } from 'vs/editor/common/model/utils';
+import { autoFixCommandId, quickFixCommandId } from 'vs/editor/contrib/codeAction/browser/codeAction';
 import type { CodeActionSet, CodeActionTrigger } from 'vs/editor/contrib/codeAction/common/types';
 import * as nls from 'vs/nls';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
@@ -59,8 +60,7 @@ export class LightBulbWidget extends Disposable implements IContentWidget {
 
 	constructor(
 		private readonly _editor: ICodeEditor,
-		quickFixActionId: string,
-		preferredFixActionId: string,
+
 		@IKeybindingService keybindingService: IKeybindingService
 	) {
 		super();
@@ -122,8 +122,8 @@ export class LightBulbWidget extends Disposable implements IContentWidget {
 		}));
 
 		this._register(Event.runAndSubscribe(keybindingService.onDidUpdateKeybindings, () => {
-			this._preferredKbLabel = withNullAsUndefined(keybindingService.lookupKeybinding(preferredFixActionId)?.getLabel());
-			this._quickFixKbLabel = withNullAsUndefined(keybindingService.lookupKeybinding(quickFixActionId)?.getLabel());
+			this._preferredKbLabel = withNullAsUndefined(keybindingService.lookupKeybinding(autoFixCommandId)?.getLabel());
+			this._quickFixKbLabel = withNullAsUndefined(keybindingService.lookupKeybinding(quickFixCommandId)?.getLabel());
 
 			this._updateLightBulbTitleAndIcon();
 		}));

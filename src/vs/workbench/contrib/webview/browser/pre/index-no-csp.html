@@ -598,7 +598,7 @@
 		/**
 		 * @param {KeyboardEvent} e
 		 */
-		const handleInnerUp = (e) => {
+		const handleInnerKeyup = (e) => {
 			hostMessaging.postMessage('did-keyup', {
 				key: e.key,
 				keyCode: e.keyCode,
@@ -827,6 +827,12 @@
 			return '<!DOCTYPE html>\n' + newDocument.documentElement.outerHTML;
 		}
 
+		// Also forward events before the contents of the webview have loaded
+		window.addEventListener('keydown', handleInnerKeydown);
+		window.addEventListener('keyup', handleInnerKeyup);
+		window.addEventListener('dragenter', handleInnerDragStartEvent);
+		window.addEventListener('dragover', handleInnerDragStartEvent);
+
 		onDomReady(() => {
 			if (!document.body) {
 				return;
@@ -957,6 +963,9 @@
 				newFrame.style.cssText = 'display: block; margin: 0; overflow: hidden; position: absolute; width: 100%; height: 100%; visibility: hidden';
 				document.body.appendChild(newFrame);
 
+				newFrame.contentWindow.addEventListener('keydown', handleInnerKeydown);
+				newFrame.contentWindow.addEventListener('keyup', handleInnerKeyup);
+
 				/**
 				 * @param {Document} contentDocument
 				 */
@@ -1064,7 +1073,7 @@
 					contentWindow.addEventListener('click', handleInnerClick);
 					contentWindow.addEventListener('auxclick', handleAuxClick);
 					contentWindow.addEventListener('keydown', handleInnerKeydown);
-					contentWindow.addEventListener('keyup', handleInnerUp);
+					contentWindow.addEventListener('keyup', handleInnerKeyup);
 					contentWindow.addEventListener('contextmenu', e => {
 						if (e.defaultPrevented) {
 							// Extension code has already handled this event
@@ -1204,11 +1213,6 @@
 						break;
 				}
 			};
-
-			// Also forward events before the contents of the webview have loaded
-			window.addEventListener('keydown', handleInnerKeydown);
-			window.addEventListener('dragenter', handleInnerDragStartEvent);
-			window.addEventListener('dragover', handleInnerDragStartEvent);
 
 			hostMessaging.signalReady();
 		});

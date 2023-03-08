@@ -44,7 +44,20 @@ declare module 'vscode' {
 
 	export interface InteractiveSessionState { }
 
+	export interface InteractiveSessionParticipantInformation {
+		name: string;
+
+		/**
+		 * Either a full URI or a relative path to the icon of the participant.
+		 */
+		icon?: Uri;
+	}
+
 	export interface InteractiveSession {
+		// TODO Will be required
+		requester?: InteractiveSessionParticipantInformation;
+		responder?: InteractiveSessionParticipantInformation;
+
 		saveState?(): InteractiveSessionState;
 	}
 
@@ -63,12 +76,25 @@ declare module 'vscode' {
 		followups?: string[];
 	}
 
+	export interface InteractiveResponseErrorDetails {
+		message: string;
+		responseIsIncomplete?: boolean;
+	}
+
 	export interface InteractiveResponseForProgress {
 		followups?: string[];
+		commands?: InteractiveResponseCommand[];
+		errorDetails?: InteractiveResponseErrorDetails;
 	}
 
 	export interface InteractiveProgress {
 		content: string;
+	}
+
+	export interface InteractiveResponseCommand {
+		commandId: string;
+		args: any[];
+		title: string; // supports codicon strings
 	}
 
 	export interface InteractiveSessionProvider {

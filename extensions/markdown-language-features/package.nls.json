@@ -19,6 +19,7 @@
 	"markdown.showPreviewSecuritySelector.title": "Change Preview Security Settings",
 	"markdown.trace.extension.desc": "Enable debug logging for the Markdown extension.",
 	"markdown.trace.server.desc": "Traces the communication between VS Code and the Markdown language server.",
+	"markdown.server.log.desc": "Controls the logging level of the Markdown language server.",
 	"markdown.preview.refresh.title": "Refresh Preview",
 	"markdown.preview.toggleLock.title": "Toggle Preview Locking",
 	"markdown.findAllFileReferences": "Find File References",

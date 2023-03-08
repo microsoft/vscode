@@ -28,7 +28,7 @@ import { IListService } from 'vs/platform/list/browser/listService';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IPickOptions, IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
-import { ITerminalProfile, TerminalExitReason, TerminalLocation, TerminalSettingId, terminalTabFocusContextKey } from 'vs/platform/terminal/common/terminal';
+import { ITerminalProfile, TerminalExitReason, TerminalLocation, TerminalSettingId } from 'vs/platform/terminal/common/terminal';
 import { IWorkspaceContextService, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { PICK_WORKSPACE_FOLDER_COMMAND_ID } from 'vs/workbench/browser/actions/workspaceCommands';
 import { CLOSE_EDITOR_COMMAND_ID } from 'vs/workbench/browser/parts/editor/editorCommands';
@@ -60,7 +60,6 @@ import { FileKind } from 'vs/platform/files/common/files';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
 import { killTerminalIcon, newTerminalIcon } from 'vs/workbench/contrib/terminal/browser/terminalIcons';
-import { editorTabFocusContextKey } from 'vs/workbench/browser/parts/editor/tabFocus';
 
 export const switchTerminalActionViewItemSeparator = '\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500';
 export const switchTerminalShowTabsTitle = localize('showTerminalTabs', "Show Tabs");
@@ -378,27 +377,6 @@ export function registerTerminalActions() {
 			if (output && typeof output === 'string') {
 				await accessor.get(IClipboardService).writeText(output);
 			}
-		}
-	});
-	registerAction2(class extends Action2 {
-		constructor() {
-			super({
-				id: TerminalCommandId.FocusAccessibleBuffer,
-				title: { value: localize('workbench.action.terminal.focusAccessibleBuffer', 'Focus Accessible Buffer'), original: 'Focus Accessible Buffer' },
-				f1: true,
-				category,
-				precondition: ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated),
-				keybinding: [
-					{
-						primary: KeyMod.Shift | KeyCode.Tab,
-						weight: KeybindingWeight.WorkbenchContrib,
-						when: ContextKeyExpr.or(terminalTabFocusContextKey, ContextKeyExpr.and(CONTEXT_ACCESSIBILITY_MODE_ENABLED, editorTabFocusContextKey))
-					}
-				],
-			});
-		}
-		async run(accessor: ServicesAccessor): Promise<void> {
-			await accessor.get(ITerminalService).activeInstance?.xterm?.focusAccessibleBuffer();
 		}
 	});
 	registerAction2(class extends Action2 {
