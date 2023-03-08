@@ -149,7 +149,7 @@ export class AccessibleBufferWidget extends DisposableStore {
 		return this._modelService.createModel(resource.fragment, null, resource, false);
 	}
 
-	private async _getContent(startLine?: number): Promise<string> {
+	private _getContent(startLine?: number): string {
 		const lines: string[] = [];
 		let currentLine: string = '';
 		const buffer = this._xterm?.raw.buffer.active;
