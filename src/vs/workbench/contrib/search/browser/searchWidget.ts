@@ -360,7 +360,7 @@ export class SearchWidget extends Widget {
 		const experimentalNotebooksEnabled = this.configurationService.getValue<ISearchConfigurationProperties>('search').experimental.notebookSearch;
 		if (experimentalNotebooksEnabled) {
 			const scopedContextKeyService = this._register(this.contextKeyService.createScoped(searchInputContainer));
-			this.searchInput = this._register(new NotebookFindInput(this._filters, scopedContextKeyService, this.contextMenuService, this.instantiationService, searchInputContainer, this.contextViewService, { ...inputOptions, filterStartVisibliity: this._hasNotebookOpen() },));
+			this.searchInput = this._register(new NotebookFindInput(this._filters, scopedContextKeyService, this.contextMenuService, this.instantiationService, searchInputContainer, this.contextViewService, inputOptions, this._hasNotebookOpen()));
 		} else {
 			this.searchInput = this._register(new ContextScopedFindInput(searchInputContainer, this.contextViewService, inputOptions, this.contextKeyService));
 		}

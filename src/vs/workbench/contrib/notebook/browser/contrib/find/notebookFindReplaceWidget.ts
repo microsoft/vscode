@@ -164,7 +164,8 @@ export class NotebookFindInput extends FindInput {
 		readonly instantiationService: IInstantiationService,
 		parent: HTMLElement | null,
 		contextViewProvider: IContextViewProvider,
-		options: IFindInputOptions
+		options: IFindInputOptions,
+		filterStartVisibliity = true // TODO: create notebook find options to define this
 	) {
 		super(parent, contextViewProvider, options);
 
@@ -185,7 +186,7 @@ export class NotebookFindInput extends FindInput {
 			}
 		}));
 
-		this.filterVisible = options.filterStartVisibliity ?? true;
+		this.filterVisible = filterStartVisibliity ?? true; // TODO: if filterStartVisibliity is false, don't initialize the filtering functionality yet
 		this.inputBox.paddingRight = (this.caseSensitive?.width() ?? 0) + (this.wholeWords?.width() ?? 0) + (this.regex?.width() ?? 0) + this.getFilterWidth();
 	}
 
