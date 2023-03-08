@@ -363,6 +363,8 @@ export class FileMatch extends Disposable implements IFileMatch {
 	async bindNotebookEditorWidget(widget: NotebookEditorWidget) {
 
 		if (this._notebookEditorWidget === widget) {
+			// ensure that the matches are up to date, but everything else should be configured already.
+			await this.updateMatchesForEditorWidget();
 			return;
 		}
 
@@ -637,7 +639,7 @@ export class FileMatch extends Disposable implements IFileMatch {
 		if (!this._notebookEditorWidget) {
 			return;
 		}
-		if (match.webviewIndex) {
+		if (match.webviewIndex !== undefined) {
 			const index = this._notebookEditorWidget.getCellIndex(match.cell);
 			if (index !== undefined) {
 				this._notebookEditorWidget.revealCellOffsetInCenterAsync(match.cell, outputOffset ?? 0);
