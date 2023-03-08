@@ -9,36 +9,17 @@ import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeat
 import { OutlineModel, OutlineElement, OutlineGroup } from 'vs/editor/contrib/documentSymbols/browser/outlineModel';
 import { CancellationToken, CancellationTokenSource, } from 'vs/base/common/cancellation';
 import { EditorOption, IEditorStickyScrollOptions } from 'vs/editor/common/config/editorOptions';
-import { CancelablePromise, createCancelablePromise, Delayer, RunOnceScheduler } from 'vs/base/common/async';
+import { RunOnceScheduler } from 'vs/base/common/async';
 import { Range } from 'vs/editor/common/core/range';
 import { binarySearch } from 'vs/base/common/arrays';
 import { Iterable } from 'vs/base/common/iterator';
-import { FoldingController, RangeProvider, RangesLimitReporter } from 'vs/editor/contrib/folding/browser/folding';
 import { URI } from 'vs/base/common/uri';
 import { isEqual } from 'vs/base/common/resources';
 import { Event, Emitter } from 'vs/base/common/event';
-import { ITextModel } from 'vs/editor/common/model';
-import { SyntaxRangeProvider } from 'vs/editor/contrib/folding/browser/syntaxRangeProvider';
-import { IndentRangeProvider } from 'vs/editor/contrib/folding/browser/indentRangeProvider';
 import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
 import { FoldingRegions } from 'vs/editor/contrib/folding/browser/foldingRanges';
-import { StopWatch } from 'vs/base/common/stopwatch';
-import { IFeatureDebounceInformation, ILanguageFeatureDebounceService } from 'vs/editor/common/services/languageFeatureDebounce';
-import { onUnexpectedError } from 'vs/base/common/errors';
-import { TextModel } from 'vs/editor/common/model/textModel';
+import { ILanguageFeatureDebounceService } from 'vs/editor/common/services/languageFeatureDebounce';
 import { StickyModelProvider, IStickyModelProvider } from 'vs/editor/contrib/stickyScroll/browser/stickyScrollModelProvider';
-
-enum ModelProvider {
-	OUTLINE_MODEL = 'outlineModel',
-	FOLDING_PROVIDER_MODEL = 'foldingProviderModel',
-	INDENTATION_MODEL = 'indentationModel'
-}
-
-enum Status {
-	VALID_MODEL,
-	NOT_VALID_MODEL,
-	CANCELLATION
-}
 
 export class StickyRange {
 	constructor(
