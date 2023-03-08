@@ -137,7 +137,7 @@ export async function setupServerServices(connectionToken: ServerConnectionToken
 	const [, , machineId] = await Promise.all([
 		configurationService.initialize(),
 		userDataProfilesService.init(),
-		getMachineId()
+		getMachineId(logService.error.bind(logService))
 	]);
 
 	const extensionHostStatusService = new ExtensionHostStatusService();
