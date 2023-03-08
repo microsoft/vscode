@@ -11,28 +11,22 @@ export namespace FromWebviewMessage {
 
 	export interface CacheImageSizes extends BaseMessage {
 		readonly type: 'cacheImageSizes';
-		readonly body: { id: string; width: number; height: number }[];
+		readonly imageData: ReadonlyArray<{ id: string; width: number; height: number }>;
 	}
 
 	export interface RevealLine extends BaseMessage {
 		readonly type: 'revealLine';
-		readonly body: {
-			readonly line: number;
-		};
+		readonly line: number;
 	}
 
 	export interface DidClick extends BaseMessage {
 		readonly type: 'didClick';
-		readonly body: {
-			readonly line: number;
-		};
+		readonly line: number;
 	}
 
 	export interface ClickLink extends BaseMessage {
 		readonly type: 'openLink';
-		readonly body: {
-			readonly href: string;
-		};
+		readonly href: string;
 	}
 
 	export interface ShowPreviewSecuritySelector extends BaseMessage {
@@ -41,9 +35,7 @@ export namespace FromWebviewMessage {
 
 	export interface PreviewStyleLoadError extends BaseMessage {
 		readonly type: 'previewStyleLoadError';
-		readonly body: {
-			readonly unloadedStyles: string[];
-		};
+		readonly unloadedStyles: readonly string[];
 	}
 
 	export type Type =

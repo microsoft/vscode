@@ -530,7 +530,7 @@ export class CodeApplication extends Disposable {
 
 		// Resolve unique machine ID
 		this.logService.trace('Resolving machine identifier...');
-		const machineId = await resolveMachineId(this.stateService);
+		const machineId = await resolveMachineId(this.stateService, this.logService);
 		this.logService.trace(`Resolved machine identifier: ${machineId}`);
 
 		// Shared process

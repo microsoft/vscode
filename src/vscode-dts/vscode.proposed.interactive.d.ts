@@ -76,12 +76,25 @@ declare module 'vscode' {
 		followups?: string[];
 	}
 
+	export interface InteractiveResponseErrorDetails {
+		message: string;
+		responseIsIncomplete?: boolean;
+	}
+
 	export interface InteractiveResponseForProgress {
 		followups?: string[];
+		commands?: InteractiveResponseCommand[];
+		errorDetails?: InteractiveResponseErrorDetails;
 	}
 
 	export interface InteractiveProgress {
 		content: string;
+	}
+
+	export interface InteractiveResponseCommand {
+		commandId: string;
+		args: any[];
+		title: string; // supports codicon strings
 	}
 
 	export interface InteractiveSessionProvider {

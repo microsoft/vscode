@@ -78,6 +78,28 @@ export interface ITreeElement<T> {
 	readonly collapsed?: boolean;
 }
 
+export enum ObjectTreeElementCollapseState {
+	Expanded,
+	Collapsed,
+
+	/**
+	 * If the element is already in the tree, preserve its current state. Else, expand it.
+	 */
+	PreserveOrExpanded,
+
+	/**
+	 * If the element is already in the tree, preserve its current state. Else, collapse it.
+	 */
+	PreserveOrCollapsed,
+}
+
+export interface IObjectTreeElement<T> {
+	readonly element: T;
+	readonly children?: Iterable<IObjectTreeElement<T>>;
+	readonly collapsible?: boolean;
+	readonly collapsed?: boolean | ObjectTreeElementCollapseState;
+}
+
 export interface ITreeNode<T, TFilterData = void> {
 	readonly element: T;
 	readonly children: ITreeNode<T, TFilterData>[];
