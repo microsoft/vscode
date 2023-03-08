@@ -23,7 +23,9 @@ import { IXtermTerminal } from 'vs/workbench/contrib/terminal/browser/terminal';
 import type { Terminal } from 'xterm';
 
 const enum AccessibleBufferConstants {
-	Scheme = 'terminal-accessible-buffer'
+	Scheme = 'terminal-accessible-buffer',
+	Active = 'active',
+	Hide = 'hide'
 }
 
 export class AccessibleBufferWidget extends DisposableStore {
@@ -31,7 +33,6 @@ export class AccessibleBufferWidget extends DisposableStore {
 	private _accessibleBuffer: HTMLElement;
 	private _bufferEditor: CodeEditorWidget;
 	private _editorContainer: HTMLElement;
-	private _registered: boolean = false;
 	private _font: ITerminalFont;
 	private _xtermElement: HTMLElement;
 
@@ -76,21 +77,28 @@ export class AccessibleBufferWidget extends DisposableStore {
 		}
 		this._editorContainer = document.createElement('div');
 		this._bufferEditor = this._instantiationService.createInstance(CodeEditorWidget, this._editorContainer, editorOptions, codeEditorWidgetOptions);
+		this._bufferEditor.layout({ width: this._xtermElement.clientWidth, height: this._xtermElement.clientHeight });
+		this.add(this._bufferEditor);
+		this.add(this._bufferEditor.onKeyDown((e) => {
+			if (e.keyCode === KeyCode.Escape || e.keyCode === KeyCode.Tab) {
+				this._hide();
+			}
+		}));
 		this.add(this._configurationService.onDidChangeConfiguration(e => {
 			if (e.affectedKeys.has(TerminalSettingId.FontFamily)) {
 				this._font = _xterm.getFont();
 			}
 		}));
 		this.add(this._xterm.raw.onWriteParsed(async () => {
-			if (this._accessibleBuffer.classList.contains('active')) {
+			if (this._accessibleBuffer.classList.contains(AccessibleBufferConstants.Active)) {
 				await this._refresh();
 			}
 		}));
 	}
 
 	private _hide(): void {
-		this._accessibleBuffer.classList.remove('active');
-		this._xtermElement.classList.remove('hide');
+		this._accessibleBuffer.classList.remove(AccessibleBufferConstants.Active);
+		this._xtermElement.classList.remove(AccessibleBufferConstants.Hide);
 		this._xterm.raw.focus();
 	}
 
@@ -113,23 +121,10 @@ export class AccessibleBufferWidget extends DisposableStore {
 	}
 
 	async show(): Promise<void> {
-		if (!this._registered) {
-			this._registerListeners();
-		}
 		await this._refresh();
 		this._accessibleBuffer.tabIndex = -1;
-		this._accessibleBuffer.classList.add('active');
-		this._xtermElement.classList.add('hide');
-	}
-
-	private _registerListeners(): void {
-		this._bufferEditor.layout({ width: this._xtermElement.clientWidth, height: this._xtermElement.clientHeight });
-		this._bufferEditor.onKeyDown((e) => {
-			if (e.keyCode === KeyCode.Escape || e.keyCode === KeyCode.Tab) {
-				this._hide();
-			}
-		});
-		this._registered = true;
+		this._accessibleBuffer.classList.add(AccessibleBufferConstants.Active);
+		this._xtermElement.classList.add(AccessibleBufferConstants.Hide);
 	}
 
 	private async _getTextModel(resource: URI): Promise<ITextModel | null> {
