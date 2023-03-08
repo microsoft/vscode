@@ -16,48 +16,7 @@ import { MdDocumentRenderer } from './documentRenderer';
 import { MarkdownPreviewConfigurationManager } from './previewConfig';
 import { scrollEditorToLine, StartingScrollFragment, StartingScrollLine, StartingScrollLocation } from './scrolling';
 import { getVisibleLine, LastScrollLocation, TopmostLineMonitor } from './topmostLineMonitor';
-
-
-interface WebviewMessage {
-	readonly source: string;
-}
-
-interface CacheImageSizesMessage extends WebviewMessage {
-	readonly type: 'cacheImageSizes';
-	readonly body: { id: string; width: number; height: number }[];
-}
-
-interface RevealLineMessage extends WebviewMessage {
-	readonly type: 'revealLine';
-	readonly body: {
-		readonly line: number;
-	};
-}
-
-interface DidClickMessage extends WebviewMessage {
-	readonly type: 'didClick';
-	readonly body: {
-		readonly line: number;
-	};
-}
-
-interface ClickLinkMessage extends WebviewMessage {
-	readonly type: 'openLink';
-	readonly body: {
-		readonly href: string;
-	};
-}
-
-interface ShowPreviewSecuritySelectorMessage extends WebviewMessage {
-	readonly type: 'showPreviewSecuritySelector';
-}
-
-interface PreviewStyleLoadErrorMessage extends WebviewMessage {
-	readonly type: 'previewStyleLoadError';
-	readonly body: {
-		readonly unloadedStyles: string[];
-	};
-}
+import type { FromWebviewMessage, ToWebviewMessage } from '../../types/previewMessaging';
 
 export class PreviewDocumentVersion {
 
@@ -162,7 +121,7 @@ class MarkdownPreview extends Disposable implements WebviewResourceProvider {
 			}
 		}));
 
-		this._register(this._webviewPanel.webview.onDidReceiveMessage((e: CacheImageSizesMessage | RevealLineMessage | DidClickMessage | ClickLinkMessage | ShowPreviewSecuritySelectorMessage | PreviewStyleLoadErrorMessage) => {
+		this._register(this._webviewPanel.webview.onDidReceiveMessage((e: FromWebviewMessage.Type) => {
 			if (e.source !== this._resource.toString()) {
 				return;
 			}
@@ -248,7 +207,7 @@ class MarkdownPreview extends Disposable implements WebviewResourceProvider {
 		return this._resource.fsPath === resource.fsPath;
 	}
 
-	public postMessage(msg: any) {
+	public postMessage(msg: ToWebviewMessage.Type) {
 		if (!this._disposed) {
 			this._webviewPanel.webview.postMessage(msg);
 		}
@@ -389,7 +348,7 @@ class MarkdownPreview extends Disposable implements WebviewResourceProvider {
 		if (reloadPage) {
 			this._webviewPanel.webview.html = html;
 		} else {
-			this._webviewPanel.webview.postMessage({
+			this.postMessage({
 				type: 'updateContent',
 				content: html,
 				source: this._resource.toString(),

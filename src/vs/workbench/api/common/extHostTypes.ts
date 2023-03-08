@@ -3766,20 +3766,13 @@ export class TestRunRequest implements vscode.TestRunRequest {
 		public readonly include: vscode.TestItem[] | undefined = undefined,
 		public readonly exclude: vscode.TestItem[] | undefined = undefined,
 		public readonly profile: vscode.TestRunProfile | undefined = undefined,
+		public readonly continuous = false,
 	) { }
 }
 
+/** Back-compat for proposed API users */
 @es5ClassCompat
-export class TestRunRequest2 extends TestRunRequest implements vscode.TestRunRequest2 {
-	constructor(
-		include: vscode.TestItem[] | undefined = undefined,
-		exclude: vscode.TestItem[] | undefined = undefined,
-		profile: vscode.TestRunProfile | undefined = undefined,
-		public readonly continuous = false,
-	) {
-		super(include, exclude, profile);
-	}
-}
+export class TestRunRequest2 extends TestRunRequest { }
 
 @es5ClassCompat
 export class TestMessage implements vscode.TestMessage {

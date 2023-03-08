@@ -9,7 +9,7 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILogService } from 'vs/platform/log/common/log';
-import { IInteractiveRequestModel, IInteractiveResponseModel, IInteractiveSessionModel } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionModel';
+import { IInteractiveRequestModel, IInteractiveResponseModel, IInteractiveSessionModel, IInteractiveSessionResponseCommandFollowup } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionModel';
 import { IInteractiveSessionService } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionService';
 import { countWords } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionWordCounter';
 
@@ -57,6 +57,7 @@ export interface IInteractiveResponseViewModel {
 	readonly response: IMarkdownString;
 	readonly isComplete: boolean;
 	readonly followups?: string[];
+	readonly commandFollowups?: IInteractiveSessionResponseCommandFollowup[];
 	readonly progressiveResponseRenderingEnabled: boolean;
 	readonly contentUpdateTimings?: IInteractiveSessionLiveUpdateData;
 	renderData?: IInteractiveResponseRenderData;
@@ -189,6 +190,10 @@ export class InteractiveResponseViewModel extends Disposable implements IInterac
 
 	get followups() {
 		return this._model.followups;
+	}
+
+	get commandFollowups() {
+		return this._model.commandFollowups;
 	}
 
 	renderData: IInteractiveResponseRenderData | undefined = undefined;

@@ -71,9 +71,9 @@ export class ExtHostInteractiveSession implements ExtHostInteractiveSessionShape
 		return {
 			id,
 			requesterUsername: session.requester?.name,
-			requesterAvatarIconPath: session.requester?.iconPath,
+			requesterAvatarIconUri: session.requester?.icon,
 			responderUsername: session.responder?.name,
-			responderAvatarIconPath: session.responder?.iconPath
+			responderAvatarIconUri: session.responder?.icon
 		};
 	}
 
@@ -157,7 +157,7 @@ export class ExtHostInteractiveSession implements ExtHostInteractiveSessionShape
 				return;
 			}
 
-			return { followups: res.followups };
+			return { followups: res.followups, commandFollowups: res.commands };
 		}
 
 		throw new Error('provider must implement either provideResponse or provideResponseWithProgress');
