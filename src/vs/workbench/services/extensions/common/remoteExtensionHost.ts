@@ -145,7 +145,7 @@ export class RemoteExtensionHost extends Disposable implements IExtensionHost {
 				return new Promise<IMessagePassingProtocol>((resolve, reject) => {
 
 					const handle = setTimeout(() => {
-						reject('The remote extenion host took longer than 60s to send its ready message.');
+						reject('The remote extension host took longer than 60s to send its ready message.');
 					}, 60 * 1000);
 
 					const disposable = protocol.onMessage(msg => {
