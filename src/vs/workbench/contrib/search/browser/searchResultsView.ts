@@ -28,7 +28,7 @@ import { HiddenItemStrategy, MenuWorkbenchToolBar } from 'vs/platform/actions/br
 import { ISearchActionContext } from 'vs/workbench/contrib/search/browser/searchActionsRemoveReplace';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { IsEditableItem, FileFocusKey, FolderFocusKey, MatchFocusKey } from 'vs/workbench/contrib/search/common/constants';
+import { IsEditableItemKey, FileFocusKey, FolderFocusKey, MatchFocusKey } from 'vs/workbench/contrib/search/common/constants';
 import { defaultCountBadgeStyles } from 'vs/platform/theme/browser/defaultStyles';
 
 interface IFolderMatchTemplate {
@@ -331,7 +331,7 @@ export class MatchRenderer extends Disposable implements ICompressibleTreeRender
 		templateData.after.textContent = preview.after;
 		templateData.parent.title = (preview.before + (replace ? match.replaceString : preview.inside) + preview.after).trim().substr(0, 999);
 
-		IsEditableItem.bindTo(templateData.contextKeyService).set(!(match instanceof NotebookMatch && match.isWebviewMatch()));
+		IsEditableItemKey.bindTo(templateData.contextKeyService).set(!(match instanceof NotebookMatch && match.isWebviewMatch()));
 
 		const numLines = match.range().endLineNumber - match.range().startLineNumber;
 		const extraLinesStr = numLines > 0 ? `+${numLines}` : '';

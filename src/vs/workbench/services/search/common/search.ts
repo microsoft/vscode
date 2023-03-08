@@ -145,6 +145,10 @@ export interface IPatternInfo {
 	isMultiline?: boolean;
 	isUnicode?: boolean;
 	isCaseSensitive?: boolean;
+	notebookInfo?: INotebookPatternInfo;
+}
+
+export interface INotebookPatternInfo {
 	isNotebookMarkdownInput?: boolean;
 	isNotebookCellInput?: boolean;
 	isNotebookCellOutput?: boolean;

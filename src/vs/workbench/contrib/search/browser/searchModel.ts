@@ -421,10 +421,10 @@ export class FileMatch extends Disposable implements IFileMatch {
 				wholeWord: this._query.isWordMatch,
 				caseSensitive: this._query.isCaseSensitive,
 				wordSeparators: wordSeparators ?? undefined,
-				includeMarkupInput: this._query.isNotebookMarkdownInput,
-				includeMarkupPreview: !this._query.isNotebookMarkdownInput,
-				includeCodeInput: this._query.isNotebookCellInput,
-				includeOutput: this._query.isNotebookCellOutput,
+				includeMarkupInput: this._query.notebookInfo?.isNotebookMarkdownInput,
+				includeMarkupPreview: !this._query.notebookInfo?.isNotebookMarkdownInput,
+				includeCodeInput: this._query.notebookInfo?.isNotebookCellInput,
+				includeOutput: this._query.notebookInfo?.isNotebookCellOutput,
 			}, CancellationToken.None, false, true);
 
 		this.updateNotebookMatches(allMatches, true);
@@ -1309,7 +1309,6 @@ export class SearchResult extends Disposable {
 
 		const experimentalNotebooksEnabled = this.configurationService.getValue<ISearchConfigurationProperties>('search').experimental.notebookSearch;
 		if (experimentalNotebooksEnabled) {
-			// this._register(this.notebookEditorService.onDidAddNotebookEditorWidget(widget => this.onDidAddNotebookEditorWidget(widget)));
 			this._register(this.notebookEditorService.onDidAddNotebookEditor(widget => {
 				if (widget instanceof NotebookEditorWidget) {
 					this.onDidAddNotebookEditorWidget(<NotebookEditorWidget>widget);
@@ -1744,10 +1743,10 @@ export class SearchModel extends Disposable {
 						regex: query.contentPattern.isRegExp,
 						wholeWord: query.contentPattern.isWordMatch,
 						caseSensitive: query.contentPattern.isCaseSensitive,
-						includeMarkupInput: query.contentPattern.isNotebookMarkdownInput,
-						includeMarkupPreview: !query.contentPattern.isNotebookMarkdownInput,
-						includeCodeInput: query.contentPattern.isNotebookCellInput,
-						includeOutput: query.contentPattern.isNotebookCellOutput,
+						includeMarkupInput: query.contentPattern.notebookInfo?.isNotebookMarkdownInput,
+						includeMarkupPreview: !query.contentPattern.notebookInfo?.isNotebookMarkdownInput,
+						includeCodeInput: query.contentPattern.notebookInfo?.isNotebookCellInput,
+						includeOutput: query.contentPattern.notebookInfo?.isNotebookCellOutput,
 					}, token, false, true);
 
 

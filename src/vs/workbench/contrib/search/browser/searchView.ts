@@ -203,7 +203,7 @@ export class SearchView extends ViewPane {
 		this.fileMatchFocused = Constants.FileFocusKey.bindTo(this.contextKeyService);
 		this.folderMatchFocused = Constants.FolderFocusKey.bindTo(this.contextKeyService);
 		this.folderMatchWithResourceFocused = Constants.ResourceFolderFocusKey.bindTo(this.contextKeyService);
-		this.isEditableItem = Constants.IsEditableItem.bindTo(this.contextKeyService);
+		this.isEditableItem = Constants.IsEditableItemKey.bindTo(this.contextKeyService);
 		this.hasSearchResultsKey = Constants.HasSearchResults.bindTo(this.contextKeyService);
 		this.matchFocused = Constants.MatchFocusKey.bindTo(this.contextKeyService);
 		this.searchStateKey = SearchStateKey.bindTo(this.contextKeyService);
@@ -822,6 +822,7 @@ export class SearchView extends ViewPane {
 			this.fileMatchFocused.set(focus instanceof FileMatch);
 			this.folderMatchFocused.set(focus instanceof FolderMatch);
 
+			// we don't need to check experimental flag here because NotebookMatches only exist when the flag is enabled
 			const editable = (!(focus instanceof NotebookMatch)) || !focus.isWebviewMatch();
 			this.isEditableItem.set(editable);
 			this.matchFocused.set(focus instanceof Match);
@@ -1407,9 +1408,11 @@ export class SearchView extends ViewPane {
 			isRegExp: isRegex,
 			isCaseSensitive: isCaseSensitive,
 			isWordMatch: isWholeWords,
-			isNotebookMarkdownInput,
-			isNotebookCellInput,
-			isNotebookCellOutput
+			notebookInfo: {
+				isNotebookMarkdownInput,
+				isNotebookCellInput,
+				isNotebookCellOutput
+			}
 		};
 
 		const excludePattern = this.inputPatternExcludes.getValue();
