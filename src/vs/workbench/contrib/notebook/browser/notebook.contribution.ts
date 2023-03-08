@@ -547,7 +547,6 @@ class RegisterSchemasContribution extends Disposable implements IWorkbenchContri
 class NotebookEditorManager implements IWorkbenchContribution {
 
 	private readonly _disposables = new DisposableStore();
-	private workbenchClosing = false;
 
 	constructor(
 		@IEditorService private readonly _editorService: IEditorService,
@@ -556,11 +555,6 @@ class NotebookEditorManager implements IWorkbenchContribution {
 		@IEditorGroupsService editorGroups: IEditorGroupsService,
 		@ILifecycleService lifecycleService: ILifecycleService,
 	) {
-
-		this._disposables.add(lifecycleService.onWillShutdown((e) => {
-			this.workbenchClosing = true;
-		}));
-
 		// OPEN notebook editor for models that have turned dirty without being visible in an editor
 		type E = IResolvedNotebookEditorModel;
 		this._disposables.add(Event.debounce<E, E[]>(
@@ -570,14 +564,18 @@ class NotebookEditorManager implements IWorkbenchContribution {
 		)(this._openMissingDirtyNotebookEditors, this));
 
 		// CLOSE notebook editor for models that have no more serializer
-		this._disposables.add(notebookService.onWillRemoveViewType(e => {
-			if (!this.workbenchClosing) {
-				for (const group of editorGroups.groups) {
-					const staleInputs = group.editors.filter(input => input instanceof NotebookEditorInput && input.viewType === e);
-					group.closeEditors(staleInputs);
-				}
+		const listener = notebookService.onWillRemoveViewType(e => {
+			for (const group of editorGroups.groups) {
+				const staleInputs = group.editors.filter(input => input instanceof NotebookEditorInput && input.viewType === e);
+				group.closeEditors(staleInputs);
 			}
-		}));
+		});
+
+		this._disposables.add(listener);
+		// don't react to view types disposing if the workbench is shutting down anyway
+		lifecycleService.onWillShutdown((e) => {
+			listener.dispose();
+		});
 
 		// CLOSE editors when we are about to open conflicting notebooks
 		this._disposables.add(_notebookEditorModelService.onWillFailWithConflict(e => {
