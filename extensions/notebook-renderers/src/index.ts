@@ -223,20 +223,15 @@ function appendChildAndScroll(container: HTMLElement, child: HTMLElement, scroll
 	});
 }
 
-// Find the scrollTop of the existing scrollable output, return undefined if at the bottom
-function findScrolledHeight(outputContainer: HTMLElement): number | undefined {
-	let result: number | undefined;
-	outputContainer.childNodes.forEach((output) => {
-		output.childNodes.forEach((node) => {
-			if (node instanceof HTMLElement && node.classList.contains(scrollableClass)) {
-				if (node.scrollHeight - node.scrollTop - node.clientHeight > 2) {
-					// not scrolled to the bottom
-					result = node.scrollTop;
-				}
-			}
-		});
-	});
-	return result;
+// Find the scrollTop of the existing scrollable output, return undefined if at the bottom or element doesn't exist
+function findScrolledHeight(outputContainer: HTMLElement, outputId: string): number | undefined {
+	const output = outputContainer.querySelector(`[output-item-id="${outputId}"]`);
+	const scrollableElement = output?.querySelector('.scrollable');
+	if (scrollableElement && scrollableElement.scrollHeight - scrollableElement.scrollTop - scrollableElement.clientHeight > 2) {
+		// not scrolled to the bottom
+		return scrollableElement.scrollTop;
+	}
+	return undefined;
 }
 
 function renderStream(outputInfo: OutputItem, container: HTMLElement, error: boolean, ctx: IRichRenderContext): IDisposable {
@@ -275,7 +270,7 @@ function renderStream(outputInfo: OutputItem, container: HTMLElement, error: boo
 
 	const text = outputInfo.text();
 	insertOutput(outputInfo.id, [text], ctx.settings.lineLimit, outputScrolling, element, false);
-	const scrollTop = outputScrolling ? findScrolledHeight(container) : undefined;
+	const scrollTop = outputScrolling ? findScrolledHeight(container, outputInfo.id) : undefined;
 	while (container.firstChild) {
 		container.removeChild(container.firstChild);
 	}
