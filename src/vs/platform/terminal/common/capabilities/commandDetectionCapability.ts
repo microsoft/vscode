@@ -674,7 +674,7 @@ function getOutputMatchForCommand(executedMarker: IMarker | undefined, endMarker
 			i = wrappedLineStart;
 			lines.unshift(getXtermLineContent(buffer, wrappedLineStart, wrappedLineEnd, cols));
 			if (!match) {
-				match = lines.join('\n').match(matcher);
+				match = lines[0].match(matcher);
 			}
 			if (lines.length >= linesToCheck) {
 				break;
