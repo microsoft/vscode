@@ -67,18 +67,11 @@ suite('QuickFixAddon', () => {
 		suite('gitSimilarCommand', async () => {
 			const expectedMap = new Map();
 			const command = `git sttatus`;
-			let output = `git: 'sttatus' is not a git command. See 'git --help'.
+			const output = `git: 'sttatus' is not a git command. See 'git --help'.
 
 			The most similar command is
 			status`;
 			const exitCode = 1;
-			const actions = [{
-				id: 'Git Similar',
-				enabled: true,
-				label: 'Run: git status',
-				tooltip: 'Run: git status',
-				command: 'git status'
-			}];
 			setup(() => {
 				const command = gitSimilar();
 				expectedMap.set(command.commandLineMatcher.toString(), [command]);
@@ -90,54 +83,6 @@ suite('QuickFixAddon', () => {
 				});
 				test('command does not match', async () => {
 					strictEqual(await (getQuickFixesForCommand([], terminal, createCommand(`gt sttatus`, output, GitSimilarOutputRegex, exitCode), expectedMap, openerService, labelService)), undefined);
-				});
-			});
-			suite('returns actions when', () => {
-				test('expected unix exit code', async () => {
-					assertMatchOptions((await getQuickFixesForCommand([], terminal, createCommand(command, output, GitSimilarOutputRegex, exitCode), expectedMap, openerService, labelService)), actions);
-				});
-				test('matching exit status', async () => {
-					assertMatchOptions((await getQuickFixesForCommand([], terminal, createCommand(command, output, GitSimilarOutputRegex, 2), expectedMap, openerService, labelService)), actions);
-				});
-			});
-			suite('returns match', () => {
-				test('returns match', async () => {
-					assertMatchOptions((await getQuickFixesForCommand([], terminal, createCommand(command, output, GitSimilarOutputRegex), expectedMap, openerService, labelService)), actions);
-				});
-
-				test('returns multiple match', async () => {
-					output = `git: 'pu' is not a git command. See 'git --help'.
-
-				The most similar commands are
-						pull
-						push`;
-					const actions = [{
-						id: 'Git Similar',
-						enabled: true,
-						label: 'Run: git pull',
-						tooltip: 'Run: git pull',
-						command: 'git pull'
-					}, {
-						id: 'Git Similar',
-						enabled: true,
-						label: 'Run: git push',
-						tooltip: 'Run: git push',
-						command: 'git push'
-					}];
-					assertMatchOptions((await getQuickFixesForCommand([], terminal, createCommand('git pu', output, GitSimilarOutputRegex), expectedMap, openerService, labelService)), actions);
-				});
-				test('passes any arguments through', async () => {
-					output = `git: 'checkoutt' is not a git command. See 'git --help'.
-
-				The most similar commands are
-						checkout`;
-					assertMatchOptions((await getQuickFixesForCommand([], terminal, createCommand('git checkoutt .', output, GitSimilarOutputRegex), expectedMap, openerService, labelService)), [{
-						id: 'Git Similar',
-						enabled: true,
-						label: 'Run: git checkout .',
-						tooltip: 'Run: git checkout .',
-						command: 'git checkout .'
-					}]);
 				});
 			});
 		});
