@@ -8,7 +8,7 @@ import { IMarkdownString, MarkdownString } from 'vs/base/common/htmlContent';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { ILogService } from 'vs/platform/log/common/log';
-import { IInteractiveSession } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionService';
+import { IInteractiveResponse, IInteractiveSession } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionService';
 
 export interface IInteractiveRequestModel {
 	readonly id: string;
@@ -16,6 +16,17 @@ export interface IInteractiveRequestModel {
 	readonly avatarIconUri?: URI;
 	readonly message: string;
 	readonly response: IInteractiveResponseModel | undefined;
+}
+
+export interface IInteractiveSessionResponseCommandFollowup {
+	commandId: string;
+	args: any[];
+	title: string; // supports codicon strings
+}
+
+export interface IInteractiveResponseErrorDetails {
+	message: string;
+	responseIsIncomplete?: boolean;
 }
 
 export interface IInteractiveResponseModel {
@@ -26,6 +37,8 @@ export interface IInteractiveResponseModel {
 	readonly response: IMarkdownString;
 	readonly isComplete: boolean;
 	readonly followups?: string[];
+	readonly commandFollowups?: IInteractiveSessionResponseCommandFollowup[];
+	readonly errorDetails?: IInteractiveResponseErrorDetails;
 }
 
 export function isRequest(item: unknown): item is IInteractiveRequestModel {
@@ -72,16 +85,27 @@ export class InteractiveResponseModel extends Disposable implements IInteractive
 		return this._followups;
 	}
 
+	private _commandFollowups: IInteractiveSessionResponseCommandFollowup[] | undefined;
+	public get commandFollowups(): IInteractiveSessionResponseCommandFollowup[] | undefined {
+		return this._commandFollowups;
+	}
+
 	private _response: IMarkdownString;
 	public get response(): IMarkdownString {
 		return this._response;
 	}
 
-	constructor(response: IMarkdownString, public readonly username: string, public readonly avatarIconUri?: URI, isComplete: boolean = false, followups?: string[]) {
+	private _errorDetails: IInteractiveResponseErrorDetails | undefined;
+	public get errorDetails(): IInteractiveResponseErrorDetails | undefined {
+		return this._errorDetails;
+	}
+
+	constructor(response: IMarkdownString, public readonly username: string, public readonly avatarIconUri?: URI, isComplete: boolean = false, errorDetails?: IInteractiveResponseErrorDetails, followups?: string[]) {
 		super();
 		this._response = response;
 		this._isComplete = isComplete;
 		this._followups = followups;
+		this._errorDetails = errorDetails;
 		this._id = 'response_' + InteractiveResponseModel.nextId++;
 	}
 
@@ -90,9 +114,11 @@ export class InteractiveResponseModel extends Disposable implements IInteractive
 		this._onDidChange.fire();
 	}
 
-	complete(followups: string[] | undefined): void {
+	complete(followups: string[] | undefined, commandFollowups: IInteractiveSessionResponseCommandFollowup[] | undefined, errorDetails?: IInteractiveResponseErrorDetails): void {
 		this._isComplete = true;
 		this._followups = followups;
+		this._commandFollowups = commandFollowups;
+		this._errorDetails = errorDetails;
 		this._onDidChange.fire();
 	}
 }
@@ -112,6 +138,7 @@ export interface ISerializableInteractiveSessionsData {
 export interface ISerializableInteractiveSessionRequestData {
 	message: string;
 	response: string | undefined;
+	responseErrorDetails: IInteractiveResponseErrorDetails | undefined;
 }
 
 export interface ISerializableInteractiveSessionData {
@@ -168,10 +195,10 @@ export class InteractiveSessionModel extends Disposable implements IInteractiveS
 			return [];
 		}
 
-		return requests.map((r: ISerializableInteractiveSessionRequestData) => {
-			const request = new InteractiveRequestModel(r.message, this.session.requesterUsername, this.session.requesterAvatarIconUri);
-			if (r.response) {
-				request.response = new InteractiveResponseModel(new MarkdownString(r.response), this.session.responderUsername, this.session.responderAvatarIconUri, true);
+		return requests.map((raw: ISerializableInteractiveSessionRequestData) => {
+			const request = new InteractiveRequestModel(raw.message, this.session.requesterUsername, this.session.requesterAvatarIconUri);
+			if (raw.response || raw.responseErrorDetails) {
+				request.response = new InteractiveResponseModel(new MarkdownString(raw.response), this.session.responderUsername, this.session.responderAvatarIconUri, true, raw.responseErrorDetails);
 			}
 			return request;
 		});
@@ -211,8 +238,8 @@ export class InteractiveSessionModel extends Disposable implements IInteractiveS
 		}
 	}
 
-	completeResponse(request: InteractiveRequestModel, followups?: string[]): void {
-		request.response!.complete(followups);
+	completeResponse(request: InteractiveRequestModel, response: IInteractiveResponse): void {
+		request.response!.complete(response.followups, response.commandFollowups, response.errorDetails);
 	}
 
 	setResponse(request: InteractiveRequestModel, response: InteractiveResponseModel): void {
@@ -226,6 +253,7 @@ export class InteractiveSessionModel extends Disposable implements IInteractiveS
 				return {
 					message: r.message,
 					response: r.response ? r.response.response.value : undefined,
+					responseErrorDetails: r.response?.errorDetails
 				};
 			}),
 			providerId: this.providerId,

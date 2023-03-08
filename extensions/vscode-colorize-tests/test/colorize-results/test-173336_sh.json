@@ -603,16 +603,16 @@
 	},
 	{
 		"c": "printf",
-		"t": "source.shell meta.scope.if-block.shell meta.statement.shell meta.command.shell meta.statement.command.name.shell entity.name.command.shell",
+		"t": "source.shell meta.scope.if-block.shell meta.statement.shell meta.command.shell meta.statement.command.name.shell entity.name.command.shell support.function.builtin.shell",
 		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
+			"dark_plus": "support.function: #DCDCAA",
+			"light_plus": "support.function: #795E26",
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF",
-			"dark_plus_experimental": "default: #CCCCCC",
-			"hc_light": "default: #292929",
-			"light_plus_experimental": "default: #3B3B3B"
+			"hc_black": "support.function: #DCDCAA",
+			"dark_plus_experimental": "support.function: #DCDCAA",
+			"hc_light": "support.function: #5E2CBC",
+			"light_plus_experimental": "support.function: #795E26"
 		}
 	},
 	{
