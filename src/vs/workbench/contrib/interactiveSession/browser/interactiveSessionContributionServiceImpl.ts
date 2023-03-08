@@ -5,11 +5,12 @@
 
 import { Codicon } from 'vs/base/common/codicons';
 import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
+import { FileAccess } from 'vs/base/common/network';
 import * as resources from 'vs/base/common/resources';
 import { localize } from 'vs/nls';
 import { registerAction2 } from 'vs/platform/actions/common/actions';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { ExtensionIdentifier, IRelaxedExtensionDescription } from 'vs/platform/extensions/common/extensions';
+import { IRelaxedExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { ViewPaneContainer } from 'vs/workbench/browser/parts/views/viewPaneContainer';
@@ -67,9 +68,12 @@ export class InteractiveSessionContributionService implements IInteractiveSessio
 				const extensionDisposable = new DisposableStore();
 				for (const providerDescriptor of extension.value) {
 					this.registerInteractiveSessionProvider(extension.description, providerDescriptor);
+					const extensionIcon = extension.description.icon ?
+						FileAccess.uriToBrowserUri(resources.joinPath(extension.description.extensionLocation, extension.description.icon)) :
+						undefined;
 					this._registeredProviders.set(providerDescriptor.id, {
 						...providerDescriptor,
-						extensionId: ExtensionIdentifier.toKey(extension.description.identifier)
+						extensionIcon
 					});
 				}
 				this._registrationDisposables.set(extension.description.identifier.value, extensionDisposable);

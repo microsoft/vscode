@@ -665,7 +665,7 @@ export interface ITreeView extends IDisposable {
 
 	readonly onDidCollapseItem: Event<ITreeItem>;
 
-	readonly onDidChangeSelection: Event<ITreeItem[]>;
+	readonly onDidChangeSelection: Event<readonly ITreeItem[]>;
 
 	readonly onDidChangeFocus: Event<ITreeItem>;
 
@@ -679,11 +679,11 @@ export interface ITreeView extends IDisposable {
 
 	readonly onDidChangeWelcomeState: Event<void>;
 
-	readonly onDidChangeCheckboxState: Event<ITreeItem[]>;
+	readonly onDidChangeCheckboxState: Event<readonly ITreeItem[]>;
 
 	readonly container: any | undefined;
 
-	refresh(treeItems?: ITreeItem[]): Promise<void>;
+	refresh(treeItems?: readonly ITreeItem[]): Promise<void>;
 
 	setVisibility(visible: boolean): void;
 
