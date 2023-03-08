@@ -148,9 +148,8 @@ interface IStickyModelCandidateProvider {
 
 abstract class StickyModelCandidateProvider implements IStickyModelCandidateProvider {
 
-	private _modelProviderPromise: CancelablePromise<any> | null = null;
+	private _providerModelPromise: CancelablePromise<any> | null = null;
 	protected _stickyModel: StickyModel | null = null;
-	protected _provider: string = null;
 	private _updateScheduler: Delayer<StickyModel | null> | null = null;
 	private _updateDebounceInfo: IFeatureDebounceInformation | null = null;
 	private _stopWatch: StopWatch | null = null;
@@ -186,13 +185,13 @@ abstract class StickyModelCandidateProvider implements IStickyModelCandidateProv
 
 		// Check that provider is valid
 		if (!this.isProviderValid(textModel)) {
-			return _notValid();
+			return this._notValid();
 		}
 		const providerModelPromise = this._providerModelPromise = createCancelablePromise(token => this.createModelFromProvider(textModel, modelVersionId, token));
 		return providerModelPromise.then(providerModel => {
 
 			if (!this.isModelValid(providerModel)) {
-				return _notValid();
+				return this._notValid();
 
 			} else if (providerModelPromise === this._providerModelPromise && this._updateDebounceInfo && this._stopWatch && this._updateScheduler) {
 				// Update the time it took to find the model from the provider
