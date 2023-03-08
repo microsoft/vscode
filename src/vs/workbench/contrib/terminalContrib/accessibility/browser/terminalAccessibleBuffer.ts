@@ -49,6 +49,7 @@ export class AccessibleBufferWidget extends DisposableStore {
 			contributions: EditorExtensionsRegistry.getSomeEditorContributions([LinkDetector.ID, SelectionClipboardContributionID])
 		};
 		this._font = _xterm.getFont();
+		// this will be defined because we await the container opening
 		this._xtermElement = _xterm.raw.element!;
 		const editorOptions: IEditorConstructionOptions = {
 			...getSimpleEditorOptions(),
@@ -72,13 +73,10 @@ export class AccessibleBufferWidget extends DisposableStore {
 		this._accessibleBuffer.setAttribute('role', 'document');
 		this._accessibleBuffer.ariaRoleDescription = localize('terminal.integrated.accessibleBuffer', 'Terminal buffer');
 		this._accessibleBuffer.classList.add('accessible-buffer');
-		const elt = _xterm.raw.element;
-		if (elt) {
-			elt.insertAdjacentElement('beforebegin', this._accessibleBuffer);
-		}
 		this._editorContainer = document.createElement('div');
 		this._bufferEditor = this._instantiationService.createInstance(CodeEditorWidget, this._editorContainer, editorOptions, codeEditorWidgetOptions);
 		this._accessibleBuffer.replaceChildren(this._editorContainer);
+		this._xtermElement.insertAdjacentElement('beforebegin', this._accessibleBuffer);
 		this._bufferEditor.layout({ width: this._xtermElement.clientWidth, height: this._xtermElement.clientHeight });
 		this.add(this._bufferEditor);
 		this.add(this._bufferEditor.onKeyDown((e) => {
