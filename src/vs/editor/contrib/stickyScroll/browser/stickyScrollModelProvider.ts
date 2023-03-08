@@ -19,7 +19,7 @@ import { StopWatch } from 'vs/base/common/stopwatch';
 import { IFeatureDebounceInformation, ILanguageFeatureDebounceService } from 'vs/editor/common/services/languageFeatureDebounce';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { TextModel } from 'vs/editor/common/model/textModel';
-import { StickyElement, StickyModel } from 'vs/editor/contrib/stickyScroll/browser/stickyScrollProvider';
+import { StickyElement, StickyModel } from 'vs/editor/contrib/stickyScroll/browser/stickyScrollElement';
 
 enum ModelProvider {
 	OUTLINE_MODEL = 'outlineModel',
