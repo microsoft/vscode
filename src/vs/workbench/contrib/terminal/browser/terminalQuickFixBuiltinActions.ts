@@ -11,7 +11,7 @@ import { ITerminalInstance } from 'vs/workbench/contrib/terminal/browser/termina
 export const GitCommandLineRegex = /git/;
 export const GitPushCommandLineRegex = /git\s+push/;
 export const GitTwoDashesRegex = /error: did you mean `--(.+)` \(with two dashes\)\?/;
-export const GitSimilarOutputRegex = /(?:(most similar (command|commands) (is|are)))(\n\s*[^\s]+)/;
+export const GitSimilarOutputRegex = /(?:(most similar (command|commands) (is|are)))/;
 export const FreePortOutputRegex = /(?:address already in use (?:0\.0\.0\.0|127\.0\.0\.1|localhost|::):|Unable to bind [^ ]*:|can't listen on port |listen EADDRINUSE [^ ]*:)(?<portNumber>\d{4,5})/;
 export const GitPushOutputRegex = /git push --set-upstream origin (?<branchName>[^\s]+)/;
 // The previous line starts with "Create a pull request for \'([^\s]+)\' on GitHub by visiting:\s*"
