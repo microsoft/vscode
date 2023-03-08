@@ -419,6 +419,7 @@ export class ExtensionManagementError extends Error {
 export type InstallOptions = {
 	isBuiltin?: boolean;
 	isMachineScoped?: boolean;
+	isApplicationScoped?: boolean;
 	donotIncludePackAndDependencies?: boolean;
 	installGivenVersion?: boolean;
 	installPreReleaseVersion?: boolean;

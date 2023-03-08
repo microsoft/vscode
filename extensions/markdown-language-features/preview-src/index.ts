@@ -22,14 +22,14 @@ let documentResource = settings.settings.source;
 
 const vscode = acquireVsCodeApi();
 
-const originalState = vscode.getState();
+const originalState = vscode.getState() ?? {} as any;
 
 const state = {
-	...(typeof originalState === 'object' ? originalState : {}),
+	originalState,
 	...getData<any>('data-state')
 };
 
-if (originalState.resource !== state.resource) {
+if (originalState?.resource !== state.resource) {
 	state.scrollProgress = undefined;
 }
 

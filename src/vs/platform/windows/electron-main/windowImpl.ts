@@ -800,7 +800,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 			}
 
 			const { installSourcePath } = this.environmentMainService;
-			const machineId = await resolveMachineId(this.stateService);
+			const machineId = await resolveMachineId(this.stateService, this.logService);
 
 			const config: ITelemetryServiceConfig = {
 				appenders,

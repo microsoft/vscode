@@ -5,6 +5,7 @@
 
 import * as dom from 'vs/base/browser/dom';
 import { Button } from 'vs/base/browser/ui/button/button';
+import { renderIcon } from 'vs/base/browser/ui/iconLabel/iconLabels';
 import { IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
 import { ITreeNode, ITreeRenderer } from 'vs/base/browser/ui/tree/tree';
@@ -60,7 +61,7 @@ interface IItemHeightChangeParams {
 	height: number;
 }
 
-const forceVerboseLayoutTracing = true;
+const forceVerboseLayoutTracing = false;
 
 export class InteractiveListItemRenderer extends Disposable implements ITreeRenderer<InteractiveTreeItem, FuzzyScore, IInteractiveListItemTemplate> {
 	static readonly cursorCharacter = '\u258c';
@@ -176,12 +177,12 @@ export class InteractiveListItemRenderer extends Disposable implements ITreeRend
 			this.traceLayout('renderElement', `start progressive render ${kind}, index=${index}`);
 			const progressiveRenderingDisposables = templateData.elementDisposables.add(new DisposableStore());
 			const timer = templateData.elementDisposables.add(new IntervalTimer());
-			const runProgressiveRender = () => {
-				if (this.doNextProgressiveRender(element, index, templateData, progressiveRenderingDisposables)) {
+			const runProgressiveRender = (initial?: boolean) => {
+				if (this.doNextProgressiveRender(element, index, templateData, !!initial, progressiveRenderingDisposables)) {
 					timer.cancel();
 				}
 			};
-			runProgressiveRender();
+			runProgressiveRender(true);
 			timer.cancelAndSet(runProgressiveRender, 100);
 		} else if (isResponseVM(element)) {
 			this.basicRenderElement(element.response.value, element, index, templateData);
@@ -195,6 +196,11 @@ export class InteractiveListItemRenderer extends Disposable implements ITreeRend
 		dom.clearNode(templateData.value);
 		templateData.value.appendChild(result.element);
 		templateData.elementDisposables.add(result);
+
+		if (isResponseVM(element) && element.errorDetails) {
+			const errorDetails = dom.append(templateData.value, $('.interactive-response-error-details', undefined, renderIcon(Codicon.error)));
+			errorDetails.appendChild($('span', undefined, element.errorDetails.message));
+		}
 
 		if (isResponseVM(element) && index === this.delegate.getListLength() - 1) {
 			const followupsContainer = dom.append(templateData.value, $('.interactive-response-followups'));
@@ -217,36 +223,43 @@ export class InteractiveListItemRenderer extends Disposable implements ITreeRend
 		}
 	}
 
-	private doNextProgressiveRender(element: IInteractiveResponseViewModel, index: number, templateData: IInteractiveListItemTemplate, disposables: DisposableStore): boolean {
+	private doNextProgressiveRender(element: IInteractiveResponseViewModel, index: number, templateData: IInteractiveListItemTemplate, isInRenderElement: boolean, disposables: DisposableStore): boolean {
 		disposables.clear();
-		const toRender = this.getProgressiveMarkdownToRender(element);
-		if (toRender) {
-			const isFullyRendered = element.renderData?.isFullyRendered;
-			if (isFullyRendered) {
-				this.traceLayout('runProgressiveRender', `end progressive render, index=${index}`);
-				if (element.isComplete) {
-					this.traceLayout('runProgressiveRender', `and disposing renderData, response is complete, index=${index}`);
-					element.renderData = undefined;
-				} else {
-					this.traceLayout('runProgressiveRender', `Rendered all available words, but model is not complete.`);
-				}
-				disposables.clear();
-				this.basicRenderElement(element.response.value, element, index, templateData);
-			} else {
-				const plusCursor = toRender.match(/```.*$/) ? toRender + `\n${InteractiveListItemRenderer.cursorCharacter}` : toRender + ` ${InteractiveListItemRenderer.cursorCharacter}`;
-				const result = this.renderMarkdown(element, index, new MarkdownString(plusCursor), disposables, templateData, true);
-				dom.clearNode(templateData.value);
-				templateData.value.appendChild(result.element);
-				disposables.add(result);
-			}
 
-			const height = templateData.rowContainer.offsetHeight;
-			element.currentRenderedHeight = height;
-			this._onDidChangeItemHeight.fire({ element, height: templateData.rowContainer.offsetHeight });
-			return !!isFullyRendered;
+		// TODO- this method has the side effect of updating element.renderData
+		const toRender = this.getProgressiveMarkdownToRender(element);
+		const isFullyRendered = element.renderData?.isFullyRendered;
+		if (isFullyRendered) {
+			// We've reached the end of the available content, so do a normal render
+			this.traceLayout('runProgressiveRender', `end progressive render, index=${index}`);
+			if (element.isComplete) {
+				this.traceLayout('runProgressiveRender', `and disposing renderData, response is complete, index=${index}`);
+				element.renderData = undefined;
+			} else {
+				this.traceLayout('runProgressiveRender', `Rendered all available words, but model is not complete.`);
+			}
+			disposables.clear();
+			this.basicRenderElement(element.response.value, element, index, templateData);
+		} else if (toRender) {
+			// Doing the progressive render
+			const plusCursor = toRender.match(/```.*$/) ? toRender + `\n${InteractiveListItemRenderer.cursorCharacter}` : toRender + ` ${InteractiveListItemRenderer.cursorCharacter}`;
+			const result = this.renderMarkdown(element, index, new MarkdownString(plusCursor), disposables, templateData, true);
+			dom.clearNode(templateData.value);
+			templateData.value.appendChild(result.element);
+			disposables.add(result);
+		} else {
+			// Nothing new to render, not done, keep waiting
+			return false;
 		}
 
-		return false;
+		// Some render happened - update the height
+		const height = templateData.rowContainer.offsetHeight;
+		element.currentRenderedHeight = height;
+		if (!isInRenderElement) {
+			this._onDidChangeItemHeight.fire({ element, height: templateData.rowContainer.offsetHeight });
+		}
+
+		return !!isFullyRendered;
 	}
 
 	private renderMarkdown(element: InteractiveTreeItem, index: number, markdown: IMarkdownString, disposables: DisposableStore, templateData: IInteractiveListItemTemplate, fillInIncompleteTokens = false): IMarkdownRenderResult {

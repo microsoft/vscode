@@ -25,7 +25,7 @@ export const createPosterForVsCode = (vscode: any, settingsManager: SettingsMana
 			vscode.postMessage({
 				type,
 				source: settingsManager.settings!.source,
-				body
+				...body
 			});
 		}
 	};
