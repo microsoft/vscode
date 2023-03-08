@@ -6,6 +6,7 @@
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { toDisposable } from 'vs/base/common/lifecycle';
 import { withNullAsUndefined } from 'vs/base/common/types';
+import { localize } from 'vs/nls';
 import { IRelaxedExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { ILogService } from 'vs/platform/log/common/log';
 import { ExtHostInteractiveSessionShape, IInteractiveRequestDto, IInteractiveResponseDto, IInteractiveSessionDto, IMainContext, MainContext, MainThreadInteractiveSessionShape } from 'vs/workbench/api/common/extHost.protocol';
@@ -33,7 +34,7 @@ export class ExtHostInteractiveSession implements ExtHostInteractiveSessionShape
 
 	constructor(
 		mainContext: IMainContext,
-		_logService: ILogService
+		private readonly logService: ILogService
 	) {
 		this._proxy = mainContext.getProxy(MainContext.MainThreadInteractiveSession);
 	}
@@ -147,20 +148,30 @@ export class ExtHostInteractiveSession implements ExtHostInteractiveSessionShape
 			const progressObj: vscode.Progress<vscode.InteractiveProgress> = {
 				report: (progress: vscode.InteractiveProgress) => this._proxy.$acceptInteractiveResponseProgress(handle, sessionId, { responsePart: progress.content })
 			};
-			const res = await entry.provider.provideResponseWithProgress(requestObj, progressObj, token);
-			if (realSession.saveState) {
-				const newState = realSession.saveState();
-				this._proxy.$acceptInteractiveSessionState(sessionId, newState);
+			let result: vscode.InteractiveResponseForProgress | undefined | null;
+			try {
+				result = await entry.provider.provideResponseWithProgress(requestObj, progressObj, token);
+				if (!result) {
+					result = { errorDetails: { message: localize('emptyResponse', "Provider returned null response") } };
+				}
+			} catch (err) {
+				result = { errorDetails: { message: localize('errorResponse', "Error from provider: {0}", err.message) } };
+				this.logService.error(err);
 			}
 
-			if (!res) {
-				return;
+			try {
+				if (realSession.saveState) {
+					const newState = realSession.saveState();
+					this._proxy.$acceptInteractiveSessionState(sessionId, newState);
+				}
+			} catch (err) {
+				this.logService.warn(err);
 			}
 
-			return { followups: res.followups, commandFollowups: res.commands };
+			return { followups: result.followups, commandFollowups: result.commands, errorDetails: result.errorDetails };
 		}
 
-		throw new Error('provider must implement either provideResponse or provideResponseWithProgress');
+		throw new Error('Provider must implement either provideResponse or provideResponseWithProgress');
 	}
 
 	$releaseSession(sessionId: number) {

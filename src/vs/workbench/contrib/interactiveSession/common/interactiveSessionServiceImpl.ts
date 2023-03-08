@@ -8,6 +8,7 @@ import { groupBy } from 'vs/base/common/collections';
 import { Iterable } from 'vs/base/common/iterator';
 import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { withNullAsUndefined } from 'vs/base/common/types';
+import { localize } from 'vs/nls';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
@@ -125,7 +126,6 @@ export class InteractiveSessionService extends Disposable implements IInteractiv
 			return false;
 		}
 
-		// TODO log failures, add dummy response with error message
 		const _sendRequest = async (): Promise<void> => {
 			try {
 				this._pendingRequestSessions.add(sessionId);
@@ -134,13 +134,13 @@ export class InteractiveSessionService extends Disposable implements IInteractiv
 					this.trace('sendRequest', `Provider returned progress for session ${sessionId}, ${progress.responsePart.length} chars`);
 					model.mergeResponseContent(request, progress.responsePart);
 				};
-				const rawResponse = await provider.provideReply({ session: model.session, message }, progressCallback, token);
+				let rawResponse = await provider.provideReply({ session: model.session, message }, progressCallback, token);
 				if (!rawResponse) {
 					this.trace('sendRequest', `Provider returned no response for session ${sessionId}`);
-					return;
+					rawResponse = { session: model.session, errorDetails: { message: localize('emptyResponse', "Provider returned null response") } };
 				}
 
-				model.completeResponse(request, rawResponse.followups, rawResponse.commandFollowups);
+				model.completeResponse(request, rawResponse);
 				this.trace('sendRequest', `Provider returned response for session ${sessionId} with ${rawResponse.followups} followups`);
 			} finally {
 				this._pendingRequestSessions.delete(sessionId);
