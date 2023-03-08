@@ -3,9 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ILogger, LogLevel } from 'vscode-markdown-languageservice';
+import * as md from 'vscode-markdown-languageservice';
+import { ConfigurationManager } from './configuration';
+import { Disposable } from './util/dispose';
 
-export class LogFunctionLogger implements ILogger {
+export class LogFunctionLogger extends Disposable implements md.ILogger {
 
 	private static now(): string {
 		const now = new Date();
@@ -27,16 +29,35 @@ export class LogFunctionLogger implements ILogger {
 		return JSON.stringify(data, undefined, 2);
 	}
 
-	constructor(
-		private readonly _logFn: typeof console.log
-	) { }
+	private _logLevel: md.LogLevel;
 
-	get level(): LogLevel {
-		return LogLevel.Debug; // TODO: remove hardcoding
+	constructor(
+		private readonly _logFn: typeof console.log,
+		private readonly _config: ConfigurationManager,
+	) {
+		super();
+
+		this._register(this._config.onDidChangeConfiguration(() => {
+			this._logLevel = LogFunctionLogger.readLogLevel(this._config);
+		}));
+
+		this._logLevel = LogFunctionLogger.readLogLevel(this._config);
 	}
 
-	public log(level: LogLevel, message: string, data?: any): void {
-		if (level < this.level) {
+	private static readLogLevel(config: ConfigurationManager): md.LogLevel {
+		switch (config.getSettings()?.markdown.server.log) {
+			case 'trace': return md.LogLevel.Trace;
+			case 'debug': return md.LogLevel.Debug;
+			case 'off':
+			default:
+				return md.LogLevel.Off;
+		}
+	}
+
+	get level(): md.LogLevel { return this._logLevel; }
+
+	public log(level: md.LogLevel, message: string, data?: any): void {
+		if (this.level < level) {
 			return;
 		}
 
@@ -46,11 +67,11 @@ export class LogFunctionLogger implements ILogger {
 		}
 	}
 
-	private toLevelLabel(level: LogLevel): string {
+	private toLevelLabel(level: md.LogLevel): string {
 		switch (level) {
-			case LogLevel.Off: return 'Off';
-			case LogLevel.Debug: return 'Debug';
-			case LogLevel.Trace: return 'Trace';
+			case md.LogLevel.Off: return 'Off';
+			case md.LogLevel.Debug: return 'Debug';
+			case md.LogLevel.Trace: return 'Trace';
 		}
 	}
 
@@ -58,5 +79,3 @@ export class LogFunctionLogger implements ILogger {
 		this._logFn(value);
 	}
 }
-
-export const consoleLogger = new LogFunctionLogger(console.log);
