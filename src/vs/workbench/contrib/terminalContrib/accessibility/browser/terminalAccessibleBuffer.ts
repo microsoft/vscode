@@ -35,9 +35,9 @@ export class AccessibleBufferWidget extends DisposableStore {
 	private _editorContainer: HTMLElement;
 	private _font: ITerminalFont;
 	private _xtermElement: HTMLElement;
-	private _previousLines: number = 0;
 
 	constructor(
+		private readonly _instanceId: number,
 		private readonly _xterm: IXtermTerminal & { raw: Terminal },
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IModelService private readonly _modelService: IModelService,
@@ -78,6 +78,7 @@ export class AccessibleBufferWidget extends DisposableStore {
 		}
 		this._editorContainer = document.createElement('div');
 		this._bufferEditor = this._instantiationService.createInstance(CodeEditorWidget, this._editorContainer, editorOptions, codeEditorWidgetOptions);
+		this._accessibleBuffer.replaceChildren(this._editorContainer);
 		this._bufferEditor.layout({ width: this._xtermElement.clientWidth, height: this._xtermElement.clientHeight });
 		this.add(this._bufferEditor);
 		this.add(this._bufferEditor.onKeyDown((e) => {
@@ -92,7 +93,7 @@ export class AccessibleBufferWidget extends DisposableStore {
 		}));
 		this.add(this._xterm.raw.onWriteParsed(async () => {
 			if (this._accessibleBuffer.classList.contains(AccessibleBufferConstants.Active)) {
-				await this._refresh();
+				await this._refresh(true);
 			}
 		}));
 	}
@@ -103,30 +104,32 @@ export class AccessibleBufferWidget extends DisposableStore {
 		this._xterm.raw.focus();
 	}
 
-	private async _updateContent(refresh?: boolean): Promise<ITextModel> {
+	private async _updateContent(refresh?: boolean): Promise<void> {
 		let model = this._bufferEditor.getModel();
-		if (model && this._previousLines === this._xterm.raw.buffer.active.length) {
-			return model;
-		}
-		if (refresh && model) {
+		const lineCount = model?.getLineCount() ?? 0;
+		if (refresh && model && lineCount > this._xterm.raw.rows) {
 			const selection = this._bufferEditor.getSelection();
-			model.pushEditOperations(selection !== null ? [selection] : null, [{ range: model.getFullModelRange(), text: this._getContent(this._previousLines) }], () => []);
-			return model;
+			const lineNumber = lineCount + 1;
+			const column = 1;
+			model.pushEditOperations(selection !== null ? [selection] : null, [{ range: { startLineNumber: lineNumber, endLineNumber: lineNumber, startColumn: column, endColumn: column }, text: await this._getContent(lineNumber - 1) }], () => []);
+			return;
 		}
-		model = await this._getTextModel(URI.from({ scheme: AccessibleBufferConstants.Scheme, fragment: this._getContent() }));
+		model = await this._getTextModel(URI.from({ scheme: `${AccessibleBufferConstants.Scheme}-${this._instanceId}`, fragment: await this._getContent() }));
 		if (!model) {
 			throw new Error('Could not create accessible buffer editor model');
 		}
 		this._bufferEditor.setModel(model);
-		return model;
 	}
 
-	private async _refresh(): Promise<void> {
-		const model = await this._updateContent();
+	private async _refresh(refresh?: boolean): Promise<void> {
+		await this._updateContent(refresh);
+		const model = this._bufferEditor.getModel();
+		if (!model) {
+			return;
+		}
 		const lineNumber = model.getLineCount() - 1;
 		this._bufferEditor.setSelection({ startLineNumber: lineNumber, startColumn: 1, endLineNumber: lineNumber, endColumn: 1 });
 		this._bufferEditor.setScrollTop(this._bufferEditor.getScrollHeight());
-		this._accessibleBuffer.replaceChildren(this._editorContainer);
 		this._bufferEditor.focus();
 	}
 
@@ -146,7 +149,7 @@ export class AccessibleBufferWidget extends DisposableStore {
 		return this._modelService.createModel(resource.fragment, null, resource, false);
 	}
 
-	private _getContent(startLine?: number): string {
+	private async _getContent(startLine?: number): Promise<string> {
 		const lines: string[] = [];
 		let currentLine: string = '';
 		const buffer = this._xterm?.raw.buffer.active;
@@ -166,7 +169,6 @@ export class AccessibleBufferWidget extends DisposableStore {
 				currentLine = '';
 			}
 		}
-		this._previousLines = lines.length;
 		return lines.join('\n');
 	}
 }

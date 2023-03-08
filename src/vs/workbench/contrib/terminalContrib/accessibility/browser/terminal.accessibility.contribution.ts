@@ -33,7 +33,7 @@ class AccessibleBufferContribution extends DisposableStore implements ITerminalC
 	private _accessibleBufferWidget: AccessibleBufferWidget | undefined;
 
 	constructor(
-		instance: ITerminalInstance,
+		private readonly _instance: ITerminalInstance,
 		processManager: ITerminalProcessManager,
 		widgetManager: TerminalWidgetManager,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService
@@ -42,7 +42,7 @@ class AccessibleBufferContribution extends DisposableStore implements ITerminalC
 	}
 
 	xtermReady(xterm: IXtermTerminal & { raw: Terminal }): void {
-		this._accessibleBufferWidget = this._instantiationService.createInstance(AccessibleBufferWidget, xterm);
+		this._accessibleBufferWidget = this._instantiationService.createInstance(AccessibleBufferWidget, this._instance.instanceId, xterm);
 	}
 	show(): void {
 		this._accessibleBufferWidget?.show();
