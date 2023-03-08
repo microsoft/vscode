@@ -45,6 +45,7 @@ import { Action, IAction } from 'vs/base/common/actions';
 import { Codicon } from 'vs/base/common/codicons';
 import { ThemeIcon } from 'vs/base/common/themables';
 import { LRUCache } from 'vs/base/common/map';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 
 
 interface IHistoryEntry {
@@ -54,6 +55,8 @@ interface IHistoryEntry {
 }
 
 class InteractiveEditorWidget {
+
+	private static _modelPool: number = 1;
 
 	private static _noop = () => { };
 
@@ -157,7 +160,7 @@ class InteractiveEditorWidget {
 			: this._instantiationService.createInstance(CodeEditorWidget, this._elements.editor, editorOptions, codeEditorWidgetOptions);
 		this._store.add(this._inputEditor);
 
-		const uri = URI.from({ scheme: 'vscode', authority: 'interactive-editor', path: `/interactive-editor/model.txt` });
+		const uri = URI.from({ scheme: 'vscode', authority: 'interactive-editor', path: `/interactive-editor/model${InteractiveEditorWidget._modelPool++}.txt` });
 		this._inputModel = this._modelService.getModel(uri) ?? this._modelService.createModel('', null, uri);
 		this._inputEditor.setModel(this._inputModel);
 
@@ -536,6 +539,28 @@ class SessionRecorder {
 	}
 }
 
+type TelemetryData = {
+	extension: string;
+	rounds: string;
+	undos: string;
+	edits: boolean;
+	terminalEdits: boolean;
+	startTime: string;
+	endTime: string;
+};
+
+type TelemetryDataClassification = {
+	owner: 'jrieken';
+	comment: 'Data about an interaction editor session';
+	extension: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The extension providing the data' };
+	rounds: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Number of request that were made' };
+	undos: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Requests that have been undone' };
+	edits: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Did edits happen while the session was active' };
+	terminalEdits: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Did edits terminal the session' };
+	startTime: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'When the session started' };
+	endTime: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'When the session ended' };
+};
+
 export class InteractiveEditorController implements IEditorContribution {
 
 	static ID = 'interactiveEditor';
@@ -570,6 +595,7 @@ export class InteractiveEditorController implements IEditorContribution {
 		@IInteractiveEditorService private readonly _interactiveEditorService: IInteractiveEditorService,
 		@IEditorWorkerService private readonly _editorWorkerService: IEditorWorkerService,
 		@ILogService private readonly _logService: ILogService,
+		@ITelemetryService private readonly _telemetryService: ITelemetryService
 	) {
 		this._zone = this._store.add(instaService.createInstance(InteractiveEditorZoneWidget, this._editor));
 		this._ctxShowPreview = CTX_INTERACTIVE_EDITOR_PREVIEW.bindTo(contextKeyService);
@@ -609,6 +635,16 @@ export class InteractiveEditorController implements IEditorContribution {
 		}
 		this._recorder.add(session, textModel);
 		this._logService.trace('[IE] NEW session', provider.debugName);
+
+		const data: TelemetryData = {
+			extension: provider.debugName,
+			startTime: new Date().toISOString(),
+			endTime: new Date().toISOString(),
+			edits: false,
+			terminalEdits: false,
+			rounds: '',
+			undos: ''
+		};
 
 		const blockDecoration = this._editor.createDecorationsCollection();
 		const inlineDiffDecorations = this._editor.createDecorationsCollection();
@@ -651,6 +687,8 @@ export class InteractiveEditorController implements IEditorContribution {
 			// UPDATE undo actions based on alternative version id
 			UndoStepAction.updateUndoSteps();
 
+			data.edits = true;
+
 			// CANCEL if the document has changed outside the current range
 			if (!ignoreModelChanges) {
 				const wholeRange = wholeRangeDecoration.getRange(0);
@@ -663,6 +701,7 @@ export class InteractiveEditorController implements IEditorContribution {
 					if (!Range.areIntersectingOrTouching(wholeRange, change.range)) {
 						this._ctsSession.cancel();
 						this._logService.trace('[IE] CANCEL because of model change OUTSIDE range');
+						data.terminalEdits = true;
 						break;
 					}
 				}
@@ -670,7 +709,12 @@ export class InteractiveEditorController implements IEditorContribution {
 
 		}, undefined, listener);
 
+		let round = 0;
+
 		do {
+
+			round += 1;
+
 			const wholeRange = wholeRangeDecoration.getRange(0);
 			if (!wholeRange) {
 				// nuked whole file contents?
@@ -782,6 +826,7 @@ export class InteractiveEditorController implements IEditorContribution {
 					historyEntry.updateVisibility(false);
 					value = input.value;
 					that._ctsRequest?.cancel();
+					data.undos += round + '|';
 				}
 			}]);
 
@@ -789,6 +834,8 @@ export class InteractiveEditorController implements IEditorContribution {
 				InteractiveEditorController._promptHistory.unshift(input.value);
 			}
 			placeholder = reply.placeholder ?? session.placeholder ?? '';
+
+			data.rounds += round + '|';
 
 		} while (!this._ctsSession.token.isCancellationRequested);
 
@@ -806,6 +853,9 @@ export class InteractiveEditorController implements IEditorContribution {
 		this._editor.focus();
 
 		this._logService.trace('[IE] session DONE', provider.debugName);
+		data.endTime = new Date().toISOString();
+
+		this._telemetryService.publicLog2<TelemetryData, TelemetryDataClassification>('interactiveEditor/session', data);
 	}
 
 	private static _asInlineDiffDecorationData(edit: IValidEditOperation): IModelDeltaDecoration {

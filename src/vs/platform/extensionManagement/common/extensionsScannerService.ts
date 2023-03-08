@@ -579,7 +579,7 @@ class ExtensionsScanner extends Disposable {
 		let profileExtensions = await this.scanExtensionsFromProfileResource(input.location, () => true, input);
 		if (input.applicationExtensionslocation && !this.uriIdentityService.extUri.isEqual(input.location, input.applicationExtensionslocation)) {
 			profileExtensions = profileExtensions.filter(e => !e.metadata?.isApplicationScoped);
-			const applicationExtensions = await this.scanExtensionsFromProfileResource(input.applicationExtensionslocation, (e) => !!e.metadata?.isApplicationScoped, input);
+			const applicationExtensions = await this.scanExtensionsFromProfileResource(input.applicationExtensionslocation, (e) => !!e.metadata?.isBuiltin || !!e.metadata?.isApplicationScoped, input);
 			profileExtensions.push(...applicationExtensions);
 		}
 		return profileExtensions;
