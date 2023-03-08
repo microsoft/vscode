@@ -9,7 +9,7 @@ import * as aria from 'vs/base/browser/ui/aria/aria';
 import { MessageType } from 'vs/base/browser/ui/inputbox/inputBox';
 import { IIdentityProvider } from 'vs/base/browser/ui/list/list';
 import { ICompressedTreeElement } from 'vs/base/browser/ui/tree/compressedObjectTreeModel';
-import { ITreeContextMenuEvent } from 'vs/base/browser/ui/tree/tree';
+import { ITreeContextMenuEvent, ObjectTreeElementCollapseState } from 'vs/base/browser/ui/tree/tree';
 import { Delayer, RunOnceScheduler } from 'vs/base/common/async';
 import * as errors from 'vs/base/common/errors';
 import { Event } from 'vs/base/common/event';
@@ -605,11 +605,8 @@ export class SearchView extends ViewPane {
 			} else {
 				children = this.createFolderIterator(match, collapseResults, false);
 			}
-			let nodeExists = true;
-			try { this.tree.getNode(match); } catch (e) { nodeExists = false; }
 
-			const collapsed = nodeExists ? undefined :
-				(collapseResults === 'alwaysCollapse' || (match.count() > 10 && collapseResults !== 'alwaysExpand'));
+			const collapsed = (collapseResults === 'alwaysCollapse' || (match.count() > 10 && collapseResults !== 'alwaysExpand')) ? ObjectTreeElementCollapseState.PreserveOrCollapsed : ObjectTreeElementCollapseState.PreserveOrExpanded;
 
 			return <ICompressedTreeElement<RenderableMatch>>{ element: match, children, collapsed, incompressible: (match instanceof FileMatch) ? true : childFolderIncompressible };
 		});
