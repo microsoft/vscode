@@ -9,7 +9,7 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILogService } from 'vs/platform/log/common/log';
-import { IInteractiveRequestModel, IInteractiveResponseModel, IInteractiveSessionModel, IInteractiveSessionResponseCommandFollowup } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionModel';
+import { IInteractiveRequestModel, IInteractiveResponseErrorDetails, IInteractiveResponseModel, IInteractiveSessionModel, IInteractiveSessionResponseCommandFollowup } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionModel';
 import { IInteractiveSessionService } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionService';
 import { countWords } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionWordCounter';
 
@@ -58,6 +58,7 @@ export interface IInteractiveResponseViewModel {
 	readonly isComplete: boolean;
 	readonly followups?: string[];
 	readonly commandFollowups?: IInteractiveSessionResponseCommandFollowup[];
+	readonly errorDetails?: IInteractiveResponseErrorDetails;
 	readonly progressiveResponseRenderingEnabled: boolean;
 	readonly contentUpdateTimings?: IInteractiveSessionLiveUpdateData;
 	renderData?: IInteractiveResponseRenderData;
@@ -196,6 +197,10 @@ export class InteractiveResponseViewModel extends Disposable implements IInterac
 		return this._model.commandFollowups;
 	}
 
+	get errorDetails() {
+		return this._model.errorDetails;
+	}
+
 	renderData: IInteractiveResponseRenderData | undefined = undefined;
 
 	currentRenderedHeight: number | undefined;
@@ -224,7 +229,7 @@ export class InteractiveResponseViewModel extends Disposable implements IInterac
 		}
 
 		this._register(_model.onDidChange(() => {
-			if (this._isPlaceholder && _model.response.value) {
+			if (this._isPlaceholder && (_model.response.value || this.isComplete)) {
 				this._isPlaceholder = false;
 				if (this.renderData) {
 					this.renderData.renderedWordCount = 0;

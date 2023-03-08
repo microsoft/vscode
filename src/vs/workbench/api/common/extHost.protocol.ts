@@ -52,6 +52,7 @@ import { IRevealOptions, ITreeItem, IViewBadge } from 'vs/workbench/common/views
 import { CallHierarchyItem } from 'vs/workbench/contrib/callHierarchy/common/callHierarchy';
 import { DebugConfigurationProviderTriggerKind, IAdapterDescriptor, IConfig, IDebugSessionReplMode } from 'vs/workbench/contrib/debug/common/debug';
 import { IInteractiveSessionResponseCommandFollowup } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionModel';
+import { IInteractiveResponseErrorDetails } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionModel';
 import * as notebookCommon from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { CellExecutionUpdateType } from 'vs/workbench/contrib/notebook/common/notebookExecutionService';
 import { ICellExecutionComplete, ICellExecutionStateUpdate } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
@@ -1102,6 +1103,7 @@ export interface IInteractiveRequestDto {
 export interface IInteractiveResponseDto {
 	followups?: string[];
 	commandFollowups?: IInteractiveSessionResponseCommandFollowup[];
+	errorDetails?: IInteractiveResponseErrorDetails;
 }
 
 export interface IInteractiveResponseProgressDto {
