@@ -1103,6 +1103,10 @@ export interface IInteractiveResponseDto {
 	followups?: string[];
 	commandFollowups?: IInteractiveSessionResponseCommandFollowup[];
 	errorDetails?: IInteractiveResponseErrorDetails;
+	timings: {
+		firstProgress: number;
+		totalElapsed: number;
+	};
 }
 
 export interface IInteractiveResponseProgressDto {
