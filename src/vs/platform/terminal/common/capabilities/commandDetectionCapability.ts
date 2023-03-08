@@ -690,7 +690,7 @@ function getOutputMatchForCommand(executedMarker: IMarker | undefined, endMarker
 			i = wrappedLineEnd;
 			lines.push(getXtermLineContent(buffer, wrappedLineStart, wrappedLineEnd, cols));
 			if (!match) {
-				match = lines.join('\n').match(matcher);
+				match = lines[lines.length - 1].match(matcher);
 			}
 			if (lines.length >= linesToCheck) {
 				break;
