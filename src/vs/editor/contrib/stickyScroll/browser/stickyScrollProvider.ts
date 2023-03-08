@@ -257,7 +257,7 @@ export class StickyLineCandidateProvider extends Disposable implements IStickyLi
 		// It is possible to cancel the promise which calculates the folding
 		const foldingRegionPromise = this._foldingRegionPromise = createCancelablePromise(token => provider.compute(token));
 		return foldingRegionPromise.then(foldingRegions => {
-			if (foldingRegions === null || foldingRegions.length === 0) {
+			if (foldingRegions === null) {
 				this._model = undefined;
 				return false;
 			} else if (foldingRegions && foldingRegionPromise === this._foldingRegionPromise) {
