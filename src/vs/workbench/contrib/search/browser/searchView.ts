@@ -1966,6 +1966,7 @@ export class SearchView extends ViewPane {
 	}
 
 	public override saveState(): void {
+		// TODO: save the state of notebook filter fields
 		const patternExcludes = this.inputPatternExcludes?.getValue().trim() ?? '';
 		const patternIncludes = this.inputPatternIncludes?.getValue().trim() ?? '';
 		const onlyOpenEditors = this.inputPatternIncludes?.onlySearchInOpenEditors() ?? false;
