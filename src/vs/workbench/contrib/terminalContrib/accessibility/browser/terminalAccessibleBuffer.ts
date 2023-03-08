@@ -127,7 +127,11 @@ export class AccessibleBufferWidget extends DisposableStore {
 			return;
 		}
 		const lineNumber = model.getLineCount() - 1;
-		this._bufferEditor.setSelection({ startLineNumber: lineNumber, startColumn: 1, endLineNumber: lineNumber, endColumn: 1 });
+		const selection = this._bufferEditor.getSelection();
+		// If the selection is at the top of the buffer, IE the default when not set, move it to the bottom
+		if (selection?.startColumn === 1 && selection.endColumn === 1 && selection.startLineNumber === 1 && selection.endLineNumber === 1) {
+			this._bufferEditor.setSelection({ startLineNumber: lineNumber, startColumn: 1, endLineNumber: lineNumber, endColumn: 1 });
+		}
 		this._bufferEditor.setScrollTop(this._bufferEditor.getScrollHeight());
 		this._bufferEditor.focus();
 	}
