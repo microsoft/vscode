@@ -21,7 +21,7 @@ import { MarshalledId } from 'vs/base/common/marshallingIds';
 import { ThemeIcon } from 'vs/base/common/themables';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { MarkdownString } from 'vs/workbench/api/common/extHostTypeConverters';
-import { checkProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
+import { checkProposedApiEnabled, isProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
 
 type ProviderHandle = number;
 type GroupHandle = number;
@@ -488,10 +488,11 @@ class ExtHostSourceControl implements vscode.SourceControl {
 
 	set quickDiffProvider(quickDiffProvider: vscode.QuickDiffProvider | undefined) {
 		this._quickDiffProvider = quickDiffProvider;
-		if (quickDiffProvider?.label) {
-			checkProposedApiEnabled(this._extension, 'quickDiffProvider');
+		let quickDiffLabel = undefined;
+		if (isProposedApiEnabled(this._extension, 'quickDiffProvider')) {
+			quickDiffLabel = quickDiffProvider?.label;
 		}
-		this.#proxy.$updateSourceControl(this.handle, { hasQuickDiffProvider: !!quickDiffProvider, quickDiffLabel: quickDiffProvider?.label });
+		this.#proxy.$updateSourceControl(this.handle, { hasQuickDiffProvider: !!quickDiffProvider, quickDiffLabel });
 	}
 
 	private _commitTemplate: string | undefined = undefined;
