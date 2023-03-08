@@ -209,7 +209,7 @@ class CliMain extends Disposable {
 				commonProperties: (async () => {
 					let machineId: string | undefined = undefined;
 					try {
-						machineId = await resolveMachineId(stateService);
+						machineId = await resolveMachineId(stateService, logService);
 					} catch (error) {
 						if (error.code !== 'ENOENT') {
 							logService.error(error);
