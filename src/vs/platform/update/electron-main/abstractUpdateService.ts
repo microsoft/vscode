@@ -53,10 +53,8 @@ export abstract class AbstractUpdateService implements IUpdateService {
 		@ILogService protected logService: ILogService,
 		@IProductService protected readonly productService: IProductService
 	) {
-		Promise.race([
-			lifecycleMainService.when(LifecycleMainPhase.AfterWindowOpen),
-			timeout(10000), // App can start without any windows on macOS, update service should still kick in.
-		]).finally(() => this.initialize());
+		lifecycleMainService.when(LifecycleMainPhase.AfterWindowOpen)
+			.finally(() => this.initialize());
 	}
 
 	/**
