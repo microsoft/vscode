@@ -15,7 +15,7 @@ interface ChunkedPassword {
 	hasNextChunk: boolean;
 }
 
-export type KeytarModule = typeof import('keytar');
+export type KeytarModule = typeof import('@napi-rs/keyring/keytar');
 
 export abstract class BaseCredentialsMainService extends Disposable implements ICredentialsMainService {
 

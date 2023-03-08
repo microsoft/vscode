@@ -199,7 +199,7 @@ interface IKeytarModule {
 }
 
 class KeytarNodeModuleFactory implements INodeModuleFactory {
-	public readonly nodeModuleName: string = 'keytar';
+	public readonly nodeModuleName: string = '@napi-rs/keyring/keytar';
 
 	private readonly _mainThreadTelemetry: MainThreadTelemetryShape;
 	private alternativeNames: Set<string> | undefined;
@@ -224,8 +224,8 @@ class KeytarNodeModuleFactory implements INodeModuleFactory {
 				appRoot = appRoot.substr(0, appRoot.length - 1);
 			}
 			this.alternativeNames = new Set();
-			this.alternativeNames.add(`${appRoot}/node_modules.asar/keytar`);
-			this.alternativeNames.add(`${appRoot}/node_modules/keytar`);
+			this.alternativeNames.add(`${appRoot}/node_modules.asar/@napi-rs/keyring/keytar`);
+			this.alternativeNames.add(`${appRoot}/node_modules/@napi-rs/keyring/keytar`);
 		}
 		this._impl = {
 			getPassword: (service: string, account: string): Promise<string | null> => {
@@ -268,7 +268,7 @@ class KeytarNodeModuleFactory implements INodeModuleFactory {
 		if ((name.charAt(sep) === '/' || name.charAt(sep) === '\\') && name.endsWith('keytar')) {
 			name = name.replace(/\\/g, '/');
 			if (this.alternativeNames.has(name)) {
-				return 'keytar';
+				return '@napi-rs/keyring/keytar';
 			}
 		}
 		return undefined;

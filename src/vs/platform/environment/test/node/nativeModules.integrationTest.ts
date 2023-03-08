@@ -88,7 +88,7 @@ flakySuite('Native Modules (all platforms)', () => {
 (isLinux ? suite.skip : suite)('Native Modules (Windows, macOS)', () => {
 
 	test('keytar', async () => {
-		const keytar = await import('keytar');
+		const keytar = await import('@napi-rs/keyring/keytar');
 		const name = `VSCode Test ${Math.floor(Math.random() * 1e9)}`;
 		try {
 			await keytar.setPassword(name, 'foo', 'bar');

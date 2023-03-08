@@ -38,7 +38,7 @@ export class CredentialsWebMainService extends BaseCredentialsMainService {
 		}
 
 		try {
-			this._keytarCache = await import('keytar');
+			this._keytarCache = await import('@napi-rs/keyring/keytar');
 			// Try using keytar to see if it throws or not.
 			await this._keytarCache.findCredentials('test-keytar-loads');
 		} catch (e) {

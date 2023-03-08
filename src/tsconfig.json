@@ -9,7 +9,6 @@
 		"outDir": "../out/vs",
 		"target": "es2021",
 		"types": [
-			"keytar",
 			"mocha",
 			"semver",
 			"sinon",

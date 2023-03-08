@@ -71,13 +71,6 @@ windows-process-tree/build/**
 windows-process-tree/src/**
 !windows-process-tree/**/*.node
 
-keytar/binding.gyp
-keytar/build/**
-keytar/src/**
-keytar/script/**
-keytar/node_modules/**
-!keytar/**/*.node
-
 node-pty/binding.gyp
 node-pty/build/**
 node-pty/src/**
