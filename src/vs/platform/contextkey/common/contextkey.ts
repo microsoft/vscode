@@ -1563,7 +1563,7 @@ function eliminateConstantsInArray(arr: ContextKeyExpression[]): (ContextKeyExpr
 	return newArr;
 }
 
-class ContextKeyAndExpr implements IContextKeyExpression {
+export class ContextKeyAndExpr implements IContextKeyExpression {
 
 	public static create(_expr: ReadonlyArray<ContextKeyExpression | null | undefined>, negated: ContextKeyExpression | null, extraRedundantCheck: boolean): ContextKeyExpression | undefined {
 		return ContextKeyAndExpr._normalizeArr(_expr, negated, extraRedundantCheck);
@@ -1762,7 +1762,7 @@ class ContextKeyAndExpr implements IContextKeyExpression {
 	}
 }
 
-class ContextKeyOrExpr implements IContextKeyExpression {
+export class ContextKeyOrExpr implements IContextKeyExpression {
 
 	public static create(_expr: ReadonlyArray<ContextKeyExpression | null | undefined>, negated: ContextKeyExpression | null, extraRedundantCheck: boolean): ContextKeyExpression | undefined {
 		return ContextKeyOrExpr._normalizeArr(_expr, negated, extraRedundantCheck);
