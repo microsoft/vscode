@@ -26,7 +26,7 @@ import { StopWatch } from 'vs/base/common/stopwatch';
 import { IFeatureDebounceInformation, ILanguageFeatureDebounceService } from 'vs/editor/common/services/languageFeatureDebounce';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { TextModel } from 'vs/editor/common/model/textModel';
-import { StickyModelProvider } from 'vs/editor/contrib/stickyScroll/browser/stickyScrollModelProvider';
+import { StickyModelProvider, IStickyModelProvider } from 'vs/editor/contrib/stickyScroll/browser/stickyScrollModelProvider';
 
 enum ModelProvider {
 	OUTLINE_MODEL = 'outlineModel',
@@ -74,13 +74,12 @@ export class StickyLineCandidateProvider extends Disposable implements IStickyLi
 
 	private readonly _editor: ICodeEditor;
 	private readonly _updateSoon: RunOnceScheduler;
-	private readonly _sessionStore: DisposableStore = new DisposableStore();
+	private readonly _sessionStore: DisposableStore;
 
-	private _options: Readonly<Required<IEditorStickyScrollOptions>> | undefined;
+	private _options: Readonly<Required<IEditorStickyScrollOptions>> | null = null;
 	private _model: StickyModel | null = null;
 	private _cts: CancellationTokenSource | null = null;
-
-	private _stickyModelProvider: StickyModelProvider | null = null;
+	private _stickyModelProvider: IStickyModelProvider | null = null;
 
 	constructor(
 		editor: ICodeEditor,
@@ -90,6 +89,7 @@ export class StickyLineCandidateProvider extends Disposable implements IStickyLi
 	) {
 		super();
 		this._editor = editor;
+		this._sessionStore = new DisposableStore();
 		this._updateSoon = this._register(new RunOnceScheduler(() => this.update(), 50));
 
 		this._register(this._editor.onDidChangeConfiguration(e => {
@@ -171,7 +171,14 @@ export class StickyLineCandidateProvider extends Disposable implements IStickyLi
 		return index;
 	}
 
-	public getCandidateStickyLinesIntersectingFromStickyModel(range: StickyRange, outlineModel: StickyElement, result: StickyLineCandidate[], depth: number, lastStartLineNumber: number): void {
+	public getCandidateStickyLinesIntersectingFromStickyModel(
+		range: StickyRange,
+		outlineModel: StickyElement,
+		result: StickyLineCandidate[],
+		depth: number,
+		lastStartLineNumber: number
+	): void {
+
 		if (outlineModel.children.length === 0) {
 			return;
 		}
