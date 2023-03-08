@@ -5,6 +5,7 @@
 
 import { IAction, Separator } from 'vs/base/common/actions';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
+import { isMacintosh } from 'vs/base/common/platform';
 import { ICodeEditor, IEditorMouseEvent, MouseTargetType } from 'vs/editor/browser/editorBrowser';
 import { registerEditorContribution, EditorContributionInstantiation } from 'vs/editor/browser/editorExtensions';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
@@ -56,11 +57,16 @@ export class EditorLineNumberContextMenu extends Disposable implements IEditorCo
 	) {
 		super();
 
-		this._register(this.editor.onContextMenu((e: IEditorMouseEvent) => this.show(e)));
+		this._register(this.editor.onMouseDown((e: IEditorMouseEvent) => this.show(e)));
 
 	}
 
 	public show(e: IEditorMouseEvent) {
+		// on macOS ctrl+click is interpreted as right click
+		if (!e.event.rightButton && !(isMacintosh && e.event.leftButton && e.event.ctrlKey)) {
+			return;
+		}
+
 		const menu = this.menuService.createMenu(MenuId.EditorLineNumberContext, this.contextKeyService);
 
 		const model = this.editor.getModel();
