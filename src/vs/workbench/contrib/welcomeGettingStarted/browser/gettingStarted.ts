@@ -101,13 +101,6 @@ const parsedStartEntries: IWelcomePageStartEntry[] = startEntries.map((e, i) => 
 	when: ContextKeyExpr.deserialize(e.when) ?? ContextKeyExpr.true()
 }));
 
-type GettingStartedLayoutEventClassification = {
-	owner: 'bhavyau';
-	comment: 'Information about the layout of the welcome page';
-	featuredExtensions: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'visible featured extensions' };
-	title: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'featured extension title' };
-};
-
 type GettingStartedActionClassification = {
 	command: { classification: 'PublicNonPersonalData'; purpose: 'FeatureInsight'; comment: 'The command being executed on the getting started page.' };
 	walkthroughId: { classification: 'PublicNonPersonalData'; purpose: 'FeatureInsight'; comment: 'The walkthrough which the command is in' };
@@ -1147,7 +1140,6 @@ export class GettingStartedPage extends EditorPane {
 			});
 
 		this.featuredExtensions?.then(extensions => {
-			this.telemetryService.publicLog2<{ featuredExtensions: string[]; title: string }, GettingStartedLayoutEventClassification>('gettingStarted.layout', { featuredExtensions: extensions.map(e => e.id), title: this.featuredExtensionService.title });
 			featuredExtensionsList.setEntries(extensions);
 		});
 
