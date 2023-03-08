@@ -11,6 +11,9 @@ import { ILanguageService } from 'vs/editor/common/languages/language';
 import * as nls from 'vs/nls';
 import { IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
+import { CommandsRegistry } from 'vs/platform/commands/common/commands';
+import { Registry } from 'vs/platform/registry/common/platform';
+import { Extensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
 
 export class ConfigureLanguageBasedSettingsAction extends Action {
 
@@ -63,3 +66,14 @@ export class ConfigureLanguageBasedSettingsAction extends Action {
 
 	}
 }
+
+// Register a command that gets all settings
+CommandsRegistry.registerCommand({
+	id: '_getAllSettings',
+	handler: () => {
+		const configRegistry = Registry.as<IConfigurationRegistry>(Extensions.Configuration);
+		const allSettings = configRegistry.getConfigurationProperties();
+		return allSettings;
+	}
+});
+

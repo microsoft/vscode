@@ -7,7 +7,7 @@ import { deepStrictEqual, strictEqual } from 'assert';
 import { IStringDictionary } from 'vs/base/common/collections';
 import { isWindows, OperatingSystem, Platform } from 'vs/base/common/platform';
 import { URI as Uri } from 'vs/base/common/uri';
-import { addTerminalEnvironmentKeys, getCwd, getDefaultShell, getLangEnvVariable, mergeEnvironments, preparePathForShell, shouldSetLangEnvVariable } from 'vs/workbench/contrib/terminal/common/terminalEnvironment';
+import { addTerminalEnvironmentKeys, createTerminalEnvironment, getCwd, getDefaultShell, getLangEnvVariable, mergeEnvironments, preparePathForShell, shouldSetLangEnvVariable } from 'vs/workbench/contrib/terminal/common/terminalEnvironment';
 import { PosixShellType, WindowsShellType } from 'vs/platform/terminal/common/terminal';
 
 suite('Workbench - TerminalEnvironment', () => {
@@ -319,6 +319,18 @@ suite('Workbench - TerminalEnvironment', () => {
 				strictEqual(await preparePathForShell('/foo/bar\'baz', 'bash', 'bash', PosixShellType.Bash, wslPathBackend, OperatingSystem.Linux, false), `'/foo/barbaz'`);
 				strictEqual(await preparePathForShell('/foo/bar$(echo evil)baz', 'bash', 'bash', PosixShellType.Bash, wslPathBackend, OperatingSystem.Linux, false), `'/foo/bar(echo evil)baz'`);
 			});
+		});
+	});
+	suite('createTerminalEnvironment', () => {
+		const commonVariables = {
+			COLORTERM: 'truecolor',
+			TERM_PROGRAM: 'vscode'
+		};
+		test('should retain variables equal to the empty string', async () => {
+			deepStrictEqual(
+				await createTerminalEnvironment({}, undefined, undefined, undefined, 'off', { foo: 'bar', empty: '' }),
+				{ foo: 'bar', empty: '', ...commonVariables }
+			);
 		});
 	});
 });

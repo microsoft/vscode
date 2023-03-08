@@ -145,7 +145,7 @@ class ClassData {
 			;
 	}
 
-	static makeImplicitPublicActuallyPublic(data: ClassData, reportViolation: (what: string, why: string) => void): void {
+	static makeImplicitPublicActuallyPublic(data: ClassData, reportViolation: (name: string, what: string, why: string) => void): void {
 		// TS-HACK
 		// A subtype can make an inherited protected field public. To prevent accidential
 		// mangling of public fields we mark the original (protected) fields as public...
@@ -158,7 +158,7 @@ class ClassData {
 				if (parent.fields.get(name)?.type === FieldType.Protected) {
 					const parentPos = parent.node.getSourceFile().getLineAndCharacterOfPosition(parent.fields.get(name)!.pos);
 					const infoPos = data.node.getSourceFile().getLineAndCharacterOfPosition(info.pos);
-					reportViolation(`'${name}' from ${parent.fileName}:${parentPos.line + 1}`, `${data.fileName}:${infoPos.line + 1}`);
+					reportViolation(name, `'${name}' from ${parent.fileName}:${parentPos.line + 1}`, `${data.fileName}:${infoPos.line + 1}`);
 
 					parent.fields.get(name)!.type = FieldType.Public;
 				}
@@ -346,7 +346,7 @@ export class Mangler {
 		this.service = ts.createLanguageService(new StaticLanguageServiceHost(projectPath));
 	}
 
-	computeNewFileContents(): Map<string, MangleOutput> {
+	computeNewFileContents(strictImplicitPublicHandling?: Set<string>): Map<string, MangleOutput> {
 
 		// STEP: find all classes and their field info
 
@@ -405,18 +405,28 @@ export class Mangler {
 
 		//  STEP: make implicit public (actually protected) field really public
 		const violations = new Map<string, string[]>();
+		let violationsCauseFailure = false;
 		for (const data of this.allClassDataByKey.values()) {
-			ClassData.makeImplicitPublicActuallyPublic(data, (what, why) => {
+			ClassData.makeImplicitPublicActuallyPublic(data, (name: string, what, why) => {
 				const arr = violations.get(what);
 				if (arr) {
 					arr.push(why);
 				} else {
 					violations.set(what, [why]);
 				}
+
+				if (strictImplicitPublicHandling && !strictImplicitPublicHandling.has(name)) {
+					violationsCauseFailure = true;
+				}
 			});
 		}
 		for (const [why, whys] of violations) {
 			this.log(`WARN: ${why} became PUBLIC because of: ${whys.join(' , ')}`);
+		}
+		if (violationsCauseFailure) {
+			const message = 'Protected fields have been made PUBLIC. This hurts minification and is therefore not allowed. Review the WARN messages further above';
+			this.log(`ERROR: ${message}`);
+			throw new Error(message);
 		}
 
 		// STEP: compute replacement names for each class
@@ -579,7 +589,7 @@ async function _run() {
 	const projectBase = path.dirname(projectPath);
 	const newProjectBase = path.join(path.dirname(projectBase), path.basename(projectBase) + '2');
 
-	for await (const [fileName, contents] of new Mangler(projectPath, console.log).computeNewFileContents()) {
+	for await (const [fileName, contents] of new Mangler(projectPath, console.log).computeNewFileContents(new Set(['saveState']))) {
 		const newFilePath = path.join(newProjectBase, path.relative(projectBase, fileName));
 		await fs.promises.mkdir(path.dirname(newFilePath), { recursive: true });
 		await fs.promises.writeFile(newFilePath, contents.out);
