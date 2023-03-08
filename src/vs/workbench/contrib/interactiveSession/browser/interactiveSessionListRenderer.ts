@@ -5,6 +5,7 @@
 
 import * as dom from 'vs/base/browser/dom';
 import { Button } from 'vs/base/browser/ui/button/button';
+import { renderIcon } from 'vs/base/browser/ui/iconLabel/iconLabels';
 import { IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
 import { ITreeNode, ITreeRenderer } from 'vs/base/browser/ui/tree/tree';
@@ -28,6 +29,7 @@ import { IMarkdownRenderResult, MarkdownRenderer } from 'vs/editor/contrib/markd
 import { ViewportSemanticTokensContribution } from 'vs/editor/contrib/semanticTokens/browser/viewportSemanticTokens';
 import { SmartSelectController } from 'vs/editor/contrib/smartSelect/browser/smartSelect';
 import { localize } from 'vs/nls';
+import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILogService } from 'vs/platform/log/common/log';
@@ -37,6 +39,7 @@ import { MenuPreventer } from 'vs/workbench/contrib/codeEditor/browser/menuPreve
 import { SelectionClipboardContributionID } from 'vs/workbench/contrib/codeEditor/browser/selectionClipboard';
 import { getSimpleEditorOptions } from 'vs/workbench/contrib/codeEditor/browser/simpleEditorOptions';
 import { InteractiveSessionEditorOptions } from 'vs/workbench/contrib/interactiveSession/browser/interactiveSessionOptions';
+import { IInteractiveSessionResponseCommandFollowup } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionModel';
 import { IInteractiveRequestViewModel, IInteractiveResponseViewModel, isRequestVM, isResponseVM } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionViewModel';
 import { getNWords } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionWordCounter';
 
@@ -58,7 +61,7 @@ interface IItemHeightChangeParams {
 	height: number;
 }
 
-const forceVerboseLayoutTracing = true;
+const forceVerboseLayoutTracing = false;
 
 export class InteractiveListItemRenderer extends Disposable implements ITreeRenderer<InteractiveTreeItem, FuzzyScore, IInteractiveListItemTemplate> {
 	static readonly cursorCharacter = '\u258c';
@@ -82,6 +85,7 @@ export class InteractiveListItemRenderer extends Disposable implements ITreeRend
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IConfigurationService private readonly configService: IConfigurationService,
 		@ILogService private readonly logService: ILogService,
+		@ICommandService private readonly commandService: ICommandService,
 	) {
 		super();
 		this.renderer = this.instantiationService.createInstance(MarkdownRenderer, {});
@@ -173,12 +177,12 @@ export class InteractiveListItemRenderer extends Disposable implements ITreeRend
 			this.traceLayout('renderElement', `start progressive render ${kind}, index=${index}`);
 			const progressiveRenderingDisposables = templateData.elementDisposables.add(new DisposableStore());
 			const timer = templateData.elementDisposables.add(new IntervalTimer());
-			const runProgressiveRender = () => {
-				if (this.doNextProgressiveRender(element, index, templateData, progressiveRenderingDisposables)) {
+			const runProgressiveRender = (initial?: boolean) => {
+				if (this.doNextProgressiveRender(element, index, templateData, !!initial, progressiveRenderingDisposables)) {
 					timer.cancel();
 				}
 			};
-			runProgressiveRender();
+			runProgressiveRender(true);
 			timer.cancelAndSet(runProgressiveRender, 100);
 		} else if (isResponseVM(element)) {
 			this.basicRenderElement(element.response.value, element, index, templateData);
@@ -193,46 +197,69 @@ export class InteractiveListItemRenderer extends Disposable implements ITreeRend
 		templateData.value.appendChild(result.element);
 		templateData.elementDisposables.add(result);
 
-		if (isResponseVM(element) && element.followups?.length && index === this.delegate.getListLength() - 1) {
+		if (isResponseVM(element) && element.errorDetails) {
+			const errorDetails = dom.append(templateData.value, $('.interactive-response-error-details', undefined, renderIcon(Codicon.error)));
+			errorDetails.appendChild($('span', undefined, element.errorDetails.message));
+		}
+
+		if (isResponseVM(element) && index === this.delegate.getListLength() - 1) {
 			const followupsContainer = dom.append(templateData.value, $('.interactive-response-followups'));
-			element.followups.forEach(q => {
-				const button = templateData.elementDisposables.add(new Button(followupsContainer, defaultButtonStyles));
-				button.label = `"${q}"`;
-				templateData.elementDisposables.add(button.onDidClick(() => this._onDidSelectFollowup.fire(q)));
-			});
+			const followups = element.commandFollowups ?? element.followups ?? [];
+			followups.forEach(q => this.renderFollowup(followupsContainer, templateData, q));
 		}
 	}
 
-	private doNextProgressiveRender(element: IInteractiveResponseViewModel, index: number, templateData: IInteractiveListItemTemplate, disposables: DisposableStore): boolean {
-		disposables.clear();
-		const toRender = this.getProgressiveMarkdownToRender(element);
-		if (toRender) {
-			const isFullyRendered = element.renderData?.isFullyRendered;
-			if (isFullyRendered) {
-				this.traceLayout('runProgressiveRender', `end progressive render, index=${index}`);
-				if (element.isComplete) {
-					this.traceLayout('runProgressiveRender', `and disposing renderData, response is complete, index=${index}`);
-					element.renderData = undefined;
-				} else {
-					this.traceLayout('runProgressiveRender', `Rendered all available words, but model is not complete.`);
-				}
-				disposables.clear();
-				this.basicRenderElement(element.response.value, element, index, templateData);
-			} else {
-				const plusCursor = toRender.match(/```.*$/) ? toRender + `\n${InteractiveListItemRenderer.cursorCharacter}` : toRender + ` ${InteractiveListItemRenderer.cursorCharacter}`;
-				const result = this.renderMarkdown(element, index, new MarkdownString(plusCursor), disposables, templateData, true);
-				dom.clearNode(templateData.value);
-				templateData.value.appendChild(result.element);
-				disposables.add(result);
-			}
+	private renderFollowup(container: HTMLElement, templateData: IInteractiveListItemTemplate, followup: string | IInteractiveSessionResponseCommandFollowup): void {
+		const button = templateData.elementDisposables.add(new Button(container, { ...defaultButtonStyles, supportIcons: typeof followup !== 'string' }));
+		const label = typeof followup === 'string' ? `"${followup}"` : followup.title;
+		button.label = label;
+		if (typeof followup === 'string') {
+			// This should probably be a command as well?
+			templateData.elementDisposables.add(button.onDidClick(() => this._onDidSelectFollowup.fire(followup)));
+		} else {
+			templateData.elementDisposables.add(button.onDidClick(() => {
+				this.commandService.executeCommand(followup.commandId, ...(followup.args ?? []));
+			}));
+		}
+	}
 
-			const height = templateData.rowContainer.offsetHeight;
-			element.currentRenderedHeight = height;
-			this._onDidChangeItemHeight.fire({ element, height: templateData.rowContainer.offsetHeight });
-			return !!isFullyRendered;
+	private doNextProgressiveRender(element: IInteractiveResponseViewModel, index: number, templateData: IInteractiveListItemTemplate, isInRenderElement: boolean, disposables: DisposableStore): boolean {
+		disposables.clear();
+
+		// TODO- this method has the side effect of updating element.renderData
+		const toRender = this.getProgressiveMarkdownToRender(element);
+		const isFullyRendered = element.renderData?.isFullyRendered;
+		if (isFullyRendered) {
+			// We've reached the end of the available content, so do a normal render
+			this.traceLayout('runProgressiveRender', `end progressive render, index=${index}`);
+			if (element.isComplete) {
+				this.traceLayout('runProgressiveRender', `and disposing renderData, response is complete, index=${index}`);
+				element.renderData = undefined;
+			} else {
+				this.traceLayout('runProgressiveRender', `Rendered all available words, but model is not complete.`);
+			}
+			disposables.clear();
+			this.basicRenderElement(element.response.value, element, index, templateData);
+		} else if (toRender) {
+			// Doing the progressive render
+			const plusCursor = toRender.match(/```.*$/) ? toRender + `\n${InteractiveListItemRenderer.cursorCharacter}` : toRender + ` ${InteractiveListItemRenderer.cursorCharacter}`;
+			const result = this.renderMarkdown(element, index, new MarkdownString(plusCursor), disposables, templateData, true);
+			dom.clearNode(templateData.value);
+			templateData.value.appendChild(result.element);
+			disposables.add(result);
+		} else {
+			// Nothing new to render, not done, keep waiting
+			return false;
 		}
 
-		return false;
+		// Some render happened - update the height
+		const height = templateData.rowContainer.offsetHeight;
+		element.currentRenderedHeight = height;
+		if (!isInRenderElement) {
+			this._onDidChangeItemHeight.fire({ element, height: templateData.rowContainer.offsetHeight });
+		}
+
+		return !!isFullyRendered;
 	}
 
 	private renderMarkdown(element: InteractiveTreeItem, index: number, markdown: IMarkdownString, disposables: DisposableStore, templateData: IInteractiveListItemTemplate, fillInIncompleteTokens = false): IMarkdownRenderResult {
