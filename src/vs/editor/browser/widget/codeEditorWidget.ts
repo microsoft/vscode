@@ -1083,7 +1083,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 
 		const action = this.getAction(handlerId);
 		if (action) {
-			Promise.resolve(action.run()).then(undefined, onUnexpectedError);
+			Promise.resolve(action.run(payload)).then(undefined, onUnexpectedError);
 			return;
 		}
 
