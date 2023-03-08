@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { ActivationFunction, OutputItem, RendererContext } from 'vscode-notebook-renderer';
-import { insertOutput } from './textHelper';
+import { insertOutput, scrollableClass } from './textHelper';
 
 interface IDisposable {
 	dispose(): void;
@@ -176,7 +176,7 @@ function renderError(
 	}
 
 	if (err.stack) {
-		const stack = document.createElement('pre');
+		const stack = document.createElement('span');
 		stack.classList.add('traceback');
 		if (ctx.settings.outputWordWrap) {
 			stack.classList.add('wordWrap');
@@ -185,11 +185,8 @@ function renderError(
 			stack.classList.toggle('wordWrap', e.outputWordWrap);
 		}));
 
-		stack.style.margin = '8px 0';
-		const element = document.createElement('span');
-		insertOutput(outputInfo.id, [err.stack ?? ''], ctx.settings.lineLimit, ctx.settings.outputScrolling, element, true);
-		stack.appendChild(element);
-		container.appendChild(stack);
+		insertOutput(outputInfo.id, [err.stack ?? ''], ctx.settings.lineLimit, ctx.settings.outputScrolling, stack, true);
+		appendChildAndScroll(container, stack);
 	} else {
 		const header = document.createElement('div');
 		const headerMessage = err.name && err.message ? `${err.name}: ${err.message}` : err.name || err.message;
@@ -203,41 +200,64 @@ function renderError(
 	return disposableStore;
 }
 
+function getPreviousOutputWithMatchingMimeType(container: HTMLElement, mimeType: string) {
+	const outputContainer = container.parentElement;
+
+	const previous = outputContainer?.previousSibling;
+	if (previous) {
+		const outputElement = (previous.firstChild as HTMLElement | null);
+		if (outputElement && outputElement.getAttribute('output-mime-type') === mimeType) {
+			return outputElement;
+		}
+	}
+	return undefined;
+}
+
+// if there is a scrollable output, it will be scrolled to the given value if provided or the bottom of the element
+function appendChildAndScroll(container: HTMLElement, child: HTMLElement, scrollTop?: number) {
+	container.appendChild(child);
+	child.childNodes.forEach((node) => {
+		if (node instanceof HTMLElement && node.classList.contains(scrollableClass)) {
+			node.scrollTop = scrollTop !== undefined ? scrollTop : node.scrollHeight;
+		}
+	});
+}
+
+// Find the scrollTop of the existing scrollable output, return undefined if at the bottom or element doesn't exist
+function findScrolledHeight(outputContainer: HTMLElement, outputId: string): number | undefined {
+	const output = outputContainer.querySelector(`[output-item-id="${outputId}"]`);
+	const scrollableElement = output?.querySelector('.scrollable');
+	if (scrollableElement && scrollableElement.scrollHeight - scrollableElement.scrollTop - scrollableElement.clientHeight > 2) {
+		// not scrolled to the bottom
+		return scrollableElement.scrollTop;
+	}
+	return undefined;
+}
+
 function renderStream(outputInfo: OutputItem, container: HTMLElement, error: boolean, ctx: IRichRenderContext): IDisposable {
 	const disposableStore = createDisposableStore();
+	const outputScrolling = ctx.settings.outputScrolling;
 
-	const outputContainer = container.parentElement;
-	if (!outputContainer) {
-		// should never happen
-		return disposableStore;
-	}
-
-	const prev = outputContainer.previousSibling;
-	if (prev) {
-		// OutputItem in the same cell
-		// check if the previous item is a stream
-		const outputElement = (prev.firstChild as HTMLElement | null);
-		if (outputElement && outputElement.getAttribute('output-mime-type') === outputInfo.mime) {
-			// same stream
-
-			// find child with same id
-			const existing = outputElement.querySelector(`[output-item-id="${outputInfo.id}"]`) as HTMLElement | null;
-			if (existing) {
-				clearContainer(existing);
-			}
-
-			const text = outputInfo.text();
-			const element = existing ?? document.createElement('span');
-			element.classList.add('output-stream');
-			element.classList.toggle('wordWrap', ctx.settings.outputWordWrap);
-			disposableStore.push(ctx.onDidChangeSettings(e => {
-				element.classList.toggle('wordWrap', e.outputWordWrap);
-			}));
-			element.setAttribute('output-item-id', outputInfo.id);
-			insertOutput(outputInfo.id, [text], ctx.settings.lineLimit, ctx.settings.outputScrolling, element, false);
-			outputElement.appendChild(element);
-			return disposableStore;
+	// If the previous output item for the same cell was also a stream, append this output to the previous
+	const outputElement = getPreviousOutputWithMatchingMimeType(container, outputInfo.mime);
+	if (outputElement) {
+		// find child with same id
+		const existing = outputElement.querySelector(`[output-item-id="${outputInfo.id}"]`) as HTMLElement | null;
+		if (existing) {
+			clearContainer(existing);
 		}
+
+		const text = outputInfo.text();
+		const element = existing ?? document.createElement('span');
+		element.classList.add('output-stream');
+		element.classList.toggle('wordWrap', ctx.settings.outputWordWrap);
+		disposableStore.push(ctx.onDidChangeSettings(e => {
+			element.classList.toggle('wordWrap', e.outputWordWrap);
+		}));
+		element.setAttribute('output-item-id', outputInfo.id);
+		insertOutput(outputInfo.id, [text], ctx.settings.lineLimit, outputScrolling, element, false);
+		appendChildAndScroll(outputElement, element);
+		return disposableStore;
 	}
 
 	const element = document.createElement('span');
@@ -249,11 +269,12 @@ function renderStream(outputInfo: OutputItem, container: HTMLElement, error: boo
 	element.setAttribute('output-item-id', outputInfo.id);
 
 	const text = outputInfo.text();
-	insertOutput(outputInfo.id, [text], ctx.settings.lineLimit, ctx.settings.outputScrolling, element, false);
+	insertOutput(outputInfo.id, [text], ctx.settings.lineLimit, outputScrolling, element, false);
+	const scrollTop = outputScrolling ? findScrolledHeight(container, outputInfo.id) : undefined;
 	while (container.firstChild) {
 		container.removeChild(container.firstChild);
 	}
-	container.appendChild(element);
+	appendChildAndScroll(container, element, scrollTop);
 	container.setAttribute('output-mime-type', outputInfo.mime);
 	if (error) {
 		container.classList.add('error');
@@ -273,7 +294,7 @@ function renderText(outputInfo: OutputItem, container: HTMLElement, ctx: IRichRe
 	}
 	const text = outputInfo.text();
 	insertOutput(outputInfo.id, [text], ctx.settings.lineLimit, ctx.settings.outputScrolling, contentNode, false);
-	container.appendChild(contentNode);
+	appendChildAndScroll(container, contentNode);
 	return disposableStore;
 }
 
