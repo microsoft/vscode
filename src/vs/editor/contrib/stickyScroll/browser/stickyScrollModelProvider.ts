@@ -305,7 +305,7 @@ class StickyModelFromCandidateSyntaxFoldingProvider extends StickyModelFromCandi
 
 	public createModelFromProvider(textModel: TextModel, modelVersionId: number, token: CancellationToken): Promise<FoldingRegions | null> {
 		const selectedProviders = FoldingController.getFoldingRangeProviders(this._languageFeaturesService, textModel);
-		const provider = new SyntaxRangeProvider(textModel, selectedProviders, () => this.createModel(textModel, modelVersionId, token), this._foldingLimitReporter, undefined);
+		const provider = new SyntaxRangeProvider(textModel, selectedProviders, () => this.createModelFromProvider(textModel, modelVersionId, token), this._foldingLimitReporter, undefined);
 		return provider.compute(token);
 	}
 }
