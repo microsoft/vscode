@@ -573,7 +573,7 @@ class NotebookEditorManager implements IWorkbenchContribution {
 
 		this._disposables.add(listener);
 		// don't react to view types disposing if the workbench is shutting down anyway
-		lifecycleService.onWillShutdown((e) => {
+		Event.once(lifecycleService.onWillShutdown)((e) => {
 			listener.dispose();
 		});
 
