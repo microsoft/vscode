@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Action, IAction, SubmenuAction } from 'vs/base/common/actions';
+import { IAction, SubmenuAction } from 'vs/base/common/actions';
 import { ThemeIcon } from 'vs/base/common/themables';
 import { Event, MicrotaskEmitter } from 'vs/base/common/event';
 import { DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
@@ -12,9 +12,8 @@ import { ICommandAction, ICommandActionTitle, Icon, ILocalizedString } from 'vs/
 import { Categories } from 'vs/platform/action/common/actionCommonCategories';
 import { CommandsRegistry, ICommandHandlerDescription, ICommandService } from 'vs/platform/commands/common/commands';
 import { ContextKeyExpr, ContextKeyExpression, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { SyncDescriptor, SyncDescriptor0 } from 'vs/platform/instantiation/common/descriptors';
-import { BrandedService, createDecorator, IConstructorSignature, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { IKeybindingRule, IKeybindings, KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { createDecorator, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { IKeybindingRule, KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
 
 export interface IMenuItem {
 	command: ICommandAction;
@@ -59,16 +58,19 @@ export class MenuId {
 	static readonly EditorContext = new MenuId('EditorContext');
 	static readonly SimpleEditorContext = new MenuId('SimpleEditorContext');
 	static readonly EditorContent = new MenuId('EditorContent');
+	static readonly EditorLineNumberContext = new MenuId('EditorLineNumberContext');
 	static readonly EditorContextCopy = new MenuId('EditorContextCopy');
 	static readonly EditorContextPeek = new MenuId('EditorContextPeek');
 	static readonly EditorContextShare = new MenuId('EditorContextShare');
 	static readonly EditorTitle = new MenuId('EditorTitle');
 	static readonly EditorTitleRun = new MenuId('EditorTitleRun');
 	static readonly EditorTitleContext = new MenuId('EditorTitleContext');
+	static readonly EditorTitleContextShare = new MenuId('EditorTitleContextShare');
 	static readonly EmptyEditorGroup = new MenuId('EmptyEditorGroup');
 	static readonly EmptyEditorGroupContext = new MenuId('EmptyEditorGroupContext');
 	static readonly EditorTabsBarContext = new MenuId('EditorTabsBarContext');
 	static readonly ExplorerContext = new MenuId('ExplorerContext');
+	static readonly ExplorerContextShare = new MenuId('ExplorerContextShare');
 	static readonly ExtensionContext = new MenuId('ExtensionContext');
 	static readonly GlobalActivity = new MenuId('GlobalActivity');
 	static readonly CommandCenter = new MenuId('CommandCenter');
@@ -437,6 +439,8 @@ export class MenuItemAction implements IAction {
 		this.enabled = !item.precondition || contextKeyService.contextMatchesRules(item.precondition);
 		this.checked = undefined;
 
+		let icon: ThemeIcon | undefined;
+
 		if (item.toggled) {
 			const toggled = ((item.toggled as { condition: ContextKeyExpression }).condition ? item.toggled : { condition: item.toggled }) as {
 				condition: ContextKeyExpression; icon?: Icon; tooltip?: string | ILocalizedString; title?: string | ILocalizedString;
@@ -446,17 +450,24 @@ export class MenuItemAction implements IAction {
 				this.tooltip = typeof toggled.tooltip === 'string' ? toggled.tooltip : toggled.tooltip.value;
 			}
 
+			if (this.checked && ThemeIcon.isThemeIcon(toggled.icon)) {
+				icon = toggled.icon;
+			}
+
 			if (toggled.title) {
 				this.label = typeof toggled.title === 'string' ? toggled.title : toggled.title.value;
 			}
 		}
 
+		if (!icon) {
+			icon = ThemeIcon.isThemeIcon(item.icon) ? item.icon : undefined;
+		}
+
 		this.item = item;
 		this.alt = alt ? new MenuItemAction(alt, undefined, options, hideActions, contextKeyService, _commandService) : undefined;
 		this._options = options;
-		if (ThemeIcon.isThemeIcon(item.icon)) {
-			this.class = ThemeIcon.asClassName(item.icon);
-		}
+		this.class = icon && ThemeIcon.asClassName(icon);
+
 	}
 
 	run(...args: any[]): Promise<void> {
@@ -471,72 +482,6 @@ export class MenuItemAction implements IAction {
 		}
 
 		return this._commandService.executeCommand(this.id, ...runArgs);
-	}
-}
-
-/**
- * @deprecated Use {@link registerAction2} instead.
- */
-export class SyncActionDescriptor {
-
-	private readonly _descriptor: SyncDescriptor0<Action>;
-
-	private readonly _id: string;
-	private readonly _label?: string;
-	private readonly _keybindings: IKeybindings | undefined;
-	private readonly _keybindingContext: ContextKeyExpression | undefined;
-	private readonly _keybindingWeight: number | undefined;
-
-	public static create<Services extends BrandedService[]>(ctor: { new(id: string, label: string, ...services: Services): Action },
-		id: string, label: string | undefined, keybindings?: IKeybindings, keybindingContext?: ContextKeyExpression, keybindingWeight?: number
-	): SyncActionDescriptor {
-		return new SyncActionDescriptor(ctor as IConstructorSignature<Action, [string, string | undefined]>, id, label, keybindings, keybindingContext, keybindingWeight);
-	}
-
-	public static from<Services extends BrandedService[]>(
-		ctor: {
-			new(id: string, label: string, ...services: Services): Action;
-			readonly ID: string;
-			readonly LABEL: string;
-		},
-		keybindings?: IKeybindings, keybindingContext?: ContextKeyExpression, keybindingWeight?: number
-	): SyncActionDescriptor {
-		return SyncActionDescriptor.create(ctor, ctor.ID, ctor.LABEL, keybindings, keybindingContext, keybindingWeight);
-	}
-
-	private constructor(ctor: IConstructorSignature<Action, [string, string | undefined]>,
-		id: string, label: string | undefined, keybindings?: IKeybindings, keybindingContext?: ContextKeyExpression, keybindingWeight?: number
-	) {
-		this._id = id;
-		this._label = label;
-		this._keybindings = keybindings;
-		this._keybindingContext = keybindingContext;
-		this._keybindingWeight = keybindingWeight;
-		this._descriptor = new SyncDescriptor(ctor, [this._id, this._label]);
-	}
-
-	public get syncDescriptor(): SyncDescriptor0<Action> {
-		return this._descriptor;
-	}
-
-	public get id(): string {
-		return this._id;
-	}
-
-	public get label(): string | undefined {
-		return this._label;
-	}
-
-	public get keybindings(): IKeybindings | undefined {
-		return this._keybindings;
-	}
-
-	public get keybindingContext(): ContextKeyExpression | undefined {
-		return this._keybindingContext;
-	}
-
-	public get keybindingWeight(): number | undefined {
-		return this._keybindingWeight;
 	}
 }
 
@@ -653,4 +598,17 @@ export function registerAction2(ctor: { new(): Action2 }): IDisposable {
 
 	return disposables;
 }
+//#endregion
+
+//#region --- Register a command to get all actions from the command palette
+CommandsRegistry.registerCommand('_getAllCommands', function () {
+	const commandPaletteActions = MenuRegistry.getMenuItems(MenuId.CommandPalette);
+	const returnedActions = [];
+	for (const action of commandPaletteActions) {
+		if (isIMenuItem(action)) {
+			returnedActions.push({ command: action.command.id, title: action.command.title });
+		}
+	}
+	return returnedActions;
+});
 //#endregion

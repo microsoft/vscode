@@ -187,7 +187,7 @@ function renderError(
 
 		stack.style.margin = '8px 0';
 		const element = document.createElement('span');
-		insertOutput(outputInfo.id, [err.stack ?? ''], ctx.settings.lineLimit, false, element, true);
+		insertOutput(outputInfo.id, [err.stack ?? ''], ctx.settings.lineLimit, ctx.settings.outputScrolling, element, true);
 		stack.appendChild(element);
 		container.appendChild(stack);
 	} else {

@@ -10,7 +10,7 @@ import { URI } from 'vs/base/common/uri';
 import { FontMeasurements } from 'vs/editor/browser/config/fontMeasurements';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { BareFontInfo } from 'vs/editor/common/config/fontInfo';
-import { IConfigurationChangeEvent, IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { ConfigurationTarget, IConfigurationChangeEvent, IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { InteractiveWindowCollapseCodeCells, NotebookCellDefaultCollapseConfig, NotebookCellInternalMetadata, NotebookSetting, ShowCellStatusBarType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { INotebookExecutionStateService } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
 
@@ -150,12 +150,39 @@ export class NotebookOptions extends Disposable {
 		const showFoldingControls = this._computeShowFoldingControlsOption();
 		// const { bottomToolbarGap, bottomToolbarHeight } = this._computeBottomToolbarDimensions(compactView, insertToolbarPosition, insertToolbarAlignment);
 		const fontSize = this.configurationService.getValue<number>('editor.fontSize');
-		const outputFontSize = this.configurationService.getValue<number>(NotebookSetting.outputFontSize) || fontSize;
-		const outputFontFamily = this.configurationService.getValue<string>(NotebookSetting.outputFontFamily);
 		const markupFontSize = this.configurationService.getValue<number>(NotebookSetting.markupFontSize);
 		const editorOptionsCustomizations = this.configurationService.getValue(NotebookSetting.cellEditorOptionsCustomizations);
 		const interactiveWindowCollapseCodeCells: InteractiveWindowCollapseCodeCells = this.configurationService.getValue(NotebookSetting.interactiveWindowCollapseCodeCells);
-		const outputLineHeight = this._computeOutputLineHeight();
+
+		// TOOD @rebornix remove after a few iterations of deprecated setting
+		let outputLineHeightSettingValue: number;
+		const deprecatedOutputLineHeightSetting = this.configurationService.getValue<number>(NotebookSetting.outputLineHeightDeprecated);
+		if (deprecatedOutputLineHeightSetting !== undefined) {
+			this._migrateDeprecatedSetting(NotebookSetting.outputLineHeightDeprecated, NotebookSetting.outputLineHeight);
+			outputLineHeightSettingValue = deprecatedOutputLineHeightSetting;
+		} else {
+			outputLineHeightSettingValue = this.configurationService.getValue<number>(NotebookSetting.outputLineHeight);
+		}
+
+		let outputFontSize: number;
+		const deprecatedOutputFontSizeSetting = this.configurationService.getValue<number>(NotebookSetting.outputFontSizeDeprecated);
+		if (deprecatedOutputFontSizeSetting !== undefined) {
+			this._migrateDeprecatedSetting(NotebookSetting.outputFontSizeDeprecated, NotebookSetting.outputFontSize);
+			outputFontSize = deprecatedOutputFontSizeSetting;
+		} else {
+			outputFontSize = this.configurationService.getValue<number>(NotebookSetting.outputFontSize) || fontSize;
+		}
+
+		let outputFontFamily: string;
+		const deprecatedOutputFontFamilySetting = this.configurationService.getValue<string>(NotebookSetting.outputFontFamilyDeprecated);
+		if (deprecatedOutputFontFamilySetting !== undefined) {
+			this._migrateDeprecatedSetting(NotebookSetting.outputFontFamilyDeprecated, NotebookSetting.outputFontFamily);
+			outputFontFamily = deprecatedOutputFontFamilySetting;
+		} else {
+			outputFontFamily = this.configurationService.getValue<string>(NotebookSetting.outputFontFamily);
+		}
+
+		const outputLineHeight = this._computeOutputLineHeight(outputLineHeightSettingValue, outputFontSize);
 		const outputScrolling = this.configurationService.getValue<boolean>(NotebookSetting.outputScrolling);
 		const outputWordWrap = this.configurationService.getValue<boolean>(NotebookSetting.outputWordWrap);
 		const outputLineLimit = this.configurationService.getValue<number>(NotebookSetting.textOutputLineLimit) ?? 30;
@@ -213,9 +240,42 @@ export class NotebookOptions extends Disposable {
 		}));
 	}
 
-	private _computeOutputLineHeight(): number {
+	private _migrateDeprecatedSetting(deprecatedKey: string, key: string): void {
+		const deprecatedSetting = this.configurationService.inspect(deprecatedKey);
+
+		if (deprecatedSetting.application !== undefined) {
+			this.configurationService.updateValue(deprecatedKey, undefined, ConfigurationTarget.APPLICATION);
+			this.configurationService.updateValue(key, deprecatedSetting.application.value, ConfigurationTarget.APPLICATION);
+		}
+
+		if (deprecatedSetting.user !== undefined) {
+			this.configurationService.updateValue(deprecatedKey, undefined, ConfigurationTarget.USER);
+			this.configurationService.updateValue(key, deprecatedSetting.user.value, ConfigurationTarget.USER);
+		}
+
+		if (deprecatedSetting.userLocal !== undefined) {
+			this.configurationService.updateValue(deprecatedKey, undefined, ConfigurationTarget.USER_LOCAL);
+			this.configurationService.updateValue(key, deprecatedSetting.userLocal.value, ConfigurationTarget.USER_LOCAL);
+		}
+
+		if (deprecatedSetting.userRemote !== undefined) {
+			this.configurationService.updateValue(deprecatedKey, undefined, ConfigurationTarget.USER_REMOTE);
+			this.configurationService.updateValue(key, deprecatedSetting.userRemote.value, ConfigurationTarget.USER_REMOTE);
+		}
+
+		if (deprecatedSetting.workspace !== undefined) {
+			this.configurationService.updateValue(deprecatedKey, undefined, ConfigurationTarget.WORKSPACE);
+			this.configurationService.updateValue(key, deprecatedSetting.workspace.value, ConfigurationTarget.WORKSPACE);
+		}
+
+		if (deprecatedSetting.workspaceFolder !== undefined) {
+			this.configurationService.updateValue(deprecatedKey, undefined, ConfigurationTarget.WORKSPACE_FOLDER);
+			this.configurationService.updateValue(key, deprecatedSetting.workspaceFolder.value, ConfigurationTarget.WORKSPACE_FOLDER);
+		}
+	}
+
+	private _computeOutputLineHeight(lineHeight: number, outputFontSize: number): number {
 		const minimumLineHeight = 8;
-		let lineHeight = this.configurationService.getValue<number>(NotebookSetting.outputLineHeight);
 
 		if (lineHeight === 0) {
 			// use editor line height
@@ -224,7 +284,7 @@ export class NotebookOptions extends Disposable {
 			lineHeight = fontInfo.lineHeight;
 		} else if (lineHeight < minimumLineHeight) {
 			// Values too small to be line heights in pixels are in ems.
-			let fontSize = this.configurationService.getValue<number>(NotebookSetting.outputFontSize);
+			let fontSize = outputFontSize;
 			if (fontSize === 0) {
 				fontSize = this.configurationService.getValue<number>('editor.fontSize');
 			}
@@ -370,7 +430,8 @@ export class NotebookOptions extends Disposable {
 		}
 
 		if (outputLineHeight || fontSize || outputFontSize) {
-			configuration.outputLineHeight = this._computeOutputLineHeight();
+			const lineHeight = this.configurationService.getValue<number>(NotebookSetting.outputLineHeight);
+			configuration.outputLineHeight = this._computeOutputLineHeight(lineHeight, configuration.outputFontSize);
 		}
 
 		if (outputWordWrap) {

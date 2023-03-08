@@ -13,6 +13,7 @@ import { ResourceMap } from 'vs/base/common/map';
 import { Mimes } from 'vs/base/common/mime';
 import { URI } from 'vs/base/common/uri';
 import { mock } from 'vs/base/test/common/mock';
+import { runWithFakedTimers } from 'vs/base/test/common/timeTravelScheduler';
 import { ILanguageService } from 'vs/editor/common/languages/language';
 import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
 import { LanguageService } from 'vs/editor/common/services/languageService';
@@ -339,19 +340,21 @@ export async function withTestNotebook<R = any>(cells: [source: string, lang: st
 	const instantiationService = accessor ?? setupInstantiationService(disposables);
 	const notebookEditor = _createTestNotebookEditor(instantiationService, cells);
 
-	const res = await callback(notebookEditor.editor, notebookEditor.viewModel, instantiationService);
-	if (res instanceof Promise) {
-		res.finally(() => {
+	return runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const res = await callback(notebookEditor.editor, notebookEditor.viewModel, instantiationService);
+		if (res instanceof Promise) {
+			res.finally(() => {
+				notebookEditor.editor.dispose();
+				notebookEditor.viewModel.dispose();
+				disposables.dispose();
+			});
+		} else {
 			notebookEditor.editor.dispose();
 			notebookEditor.viewModel.dispose();
 			disposables.dispose();
-		});
-	} else {
-		notebookEditor.editor.dispose();
-		notebookEditor.viewModel.dispose();
-		disposables.dispose();
-	}
-	return res;
+		}
+		return res;
+	});
 }
 
 export function createNotebookCellList(instantiationService: TestInstantiationService, viewContext?: ViewContext) {

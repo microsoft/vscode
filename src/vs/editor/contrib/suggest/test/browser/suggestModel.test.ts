@@ -706,7 +706,7 @@ suite('SuggestModel - TriggerAndCancelOracle', function () {
 
 		return withOracle(async (sugget, editor) => {
 			class TestCtrl extends SuggestController {
-				override _insertSuggestion(item: ISelectedSuggestion, flags: number = 0) {
+				_insertSuggestion_publicForTest(item: ISelectedSuggestion, flags: number = 0) {
 					super._insertSuggestion(item, flags);
 				}
 			}
@@ -722,7 +722,7 @@ suite('SuggestModel - TriggerAndCancelOracle', function () {
 				const [first] = event.completionModel.items;
 				assert.strictEqual(first.completion.label, 'bar');
 
-				ctrl._insertSuggestion({ item: first, index: 0, model: event.completionModel });
+				ctrl._insertSuggestion_publicForTest({ item: first, index: 0, model: event.completionModel });
 			});
 
 			assert.strictEqual(
