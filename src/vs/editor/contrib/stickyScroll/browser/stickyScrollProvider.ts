@@ -32,6 +32,12 @@ enum ModelProvider {
 	INDENTATION_MODEL = 'indentationModel'
 }
 
+enum Status {
+	VALID_MODEL,
+	NOT_VALID_MODEL,
+	CANCELLATION
+}
+
 export class StickyRange {
 	constructor(
 		public readonly startLineNumber: number,
@@ -52,7 +58,6 @@ export interface IStickyLineCandidateProvider {
 	dispose(): void;
 	getVersionId(): number | undefined;
 	update(): Promise<void>;
-	getCandidateStickyLinesIntersectingFromStickyOutline(range: StickyRange, outlineModel: StickyElement, result: StickyLineCandidate[], depth: number, lastStartLineNumber: number): void;
 	getCandidateStickyLinesIntersecting(range: StickyRange): StickyLineCandidate[];
 	onDidChangeStickyScroll: Event<void>;
 
@@ -69,10 +74,10 @@ export class StickyLineCandidateProvider extends Disposable implements IStickyLi
 	private readonly _updateSoon: RunOnceScheduler;
 	private readonly _sessionStore: DisposableStore = new DisposableStore();
 
-	private _model: StickyModel | undefined;
-	private _modelProviders: ((textModel: ITextModel, modelVersionId: number, token: CancellationToken) => Promise<boolean | null | undefined>)[] = [];
+	private _modelProviders: ((textModel: ITextModel, modelVersionId: number, token: CancellationToken) => Promise<Status>)[] = [];
 	private _options: Readonly<Required<IEditorStickyScrollOptions>> | undefined;
-	private _cts: CancellationTokenSource | undefined;
+	private _model: StickyModel | null = null;
+	private _cts: CancellationTokenSource | null = null;
 
 	private readonly _foldingStore: DisposableStore = new DisposableStore();
 	private readonly _updateDebounceInfo: IFeatureDebounceInformation;
@@ -130,14 +135,10 @@ export class StickyLineCandidateProvider extends Disposable implements IStickyLi
 			}
 		}
 
-		this._sessionStore.add(this._editor.onDidChangeModel(() => {
-			this.update();
-		}));
+		this._sessionStore.add(this._editor.onDidChangeModel(() => this.update()));
 		this._sessionStore.add(this._editor.onDidChangeHiddenAreas(() => this.update()));
 		this._sessionStore.add(this._editor.onDidChangeModelContent(() => this._updateSoon.schedule()));
-		this._sessionStore.add(this._languageFeaturesService.documentSymbolProvider.onDidChange(() => {
-			this.update();
-		}));
+		this._sessionStore.add(this._languageFeaturesService.documentSymbolProvider.onDidChange(() => this.update()));
 		this.update();
 	}
 
@@ -214,12 +215,11 @@ export class StickyLineCandidateProvider extends Disposable implements IStickyLi
 			for (const modelProvider of this._modelProviders) {
 				const status = await modelProvider(textModel, modelVersionId, token);
 				// If status is undefined, then the cancellation token has been called, then cancel the update operation
-				if (status === undefined) {
-					return;
-				}
-				// Suppose that the status is true, then the sticky model has been found, break the for loop
-				else if (status === true) {
-					break;
+				switch (status) {
+					case Status.CANCELLATION:
+						return;
+					case Status.VALID_MODEL:
+						break;
 				}
 				// If the status is false, then continue to the next model provider
 			}
@@ -228,12 +228,12 @@ export class StickyLineCandidateProvider extends Disposable implements IStickyLi
 		});
 	}
 
-	private async stickyModelFromOutlineProvider(textModel: ITextModel, modelVersionId: number, token: CancellationToken): Promise<boolean | undefined> {
+	private async stickyModelFromOutlineProvider(textModel: ITextModel, modelVersionId: number, token: CancellationToken): Promise<Status> {
 		const outlineModelPromise = this._outlineModelPromise = createCancelablePromise(token => OutlineModel.create(this._languageFeaturesService.documentSymbolProvider, textModel, token));
 		return outlineModelPromise.then(outlineModel => {
 			if (outlineModel.children.size === 0) {
-				this._model = undefined;
-				return false;
+				this._model = null;
+				return Status.NOT_VALID_MODEL;
 			} else if (outlineModel && outlineModelPromise === this._outlineModelPromise) {
 				// Update the time it took to find the folding model
 				this._updateDebounceInformation(textModel);
@@ -243,34 +243,34 @@ export class StickyLineCandidateProvider extends Disposable implements IStickyLi
 			return status;
 		}, (err) => {
 			onUnexpectedError(err);
-			return undefined;
+			return Status.CANCELLATION;
 		});
 	}
 
-	private async stickyModelFromSyntaxFoldingProvider(textModel: ITextModel, modelVersionId: number, token: CancellationToken): Promise<boolean | undefined> {
+	private async stickyModelFromSyntaxFoldingProvider(textModel: ITextModel, modelVersionId: number, token: CancellationToken): Promise<Status> {
 		const selectedProviders = FoldingController.getFoldingRangeProviders(this._languageFeaturesService, textModel);
 		if (selectedProviders.length > 0) {
 			const provider = new SyntaxRangeProvider(textModel, selectedProviders, () => this.stickyModelFromSyntaxFoldingProvider(textModel, modelVersionId, token), this._foldingLimitReporter, undefined);
 			return this.stickyModelFromFoldingProvider(textModel, modelVersionId, token, provider);
 		} else {
-			return false;
+			return Status.NOT_VALID_MODEL;
 		}
 
 	}
 
-	private async stickyModelFromIndentationProvider(textModel: ITextModel, modelVersionId: number, token: CancellationToken): Promise<boolean | undefined> {
+	private async stickyModelFromIndentationProvider(textModel: ITextModel, modelVersionId: number, token: CancellationToken): Promise<Status> {
 		const provider = new IndentRangeProvider(textModel, this._languageConfigurationService, this._foldingLimitReporter);
 		return this.stickyModelFromFoldingProvider(textModel, modelVersionId, token, provider);
 	}
 
-	private async stickyModelFromFoldingProvider(textModel: ITextModel, modelVersionId: number, token: CancellationToken, provider: RangeProvider): Promise<boolean | undefined> {
+	private async stickyModelFromFoldingProvider(textModel: ITextModel, modelVersionId: number, token: CancellationToken, provider: RangeProvider): Promise<Status> {
 
 		// It is possible to cancel the promise which calculates the folding
 		const foldingRegionPromise = this._foldingRegionPromise = createCancelablePromise(token => provider.compute(token));
 		return foldingRegionPromise.then(foldingRegions => {
 			if (foldingRegions === null) {
-				this._model = undefined;
-				return false;
+				this._model = null;
+				return Status.NOT_VALID_MODEL;
 			} else if (foldingRegions && foldingRegionPromise === this._foldingRegionPromise) {
 				// Update the time it took to find the folding model
 				this._updateDebounceInformation(textModel);
@@ -280,30 +280,30 @@ export class StickyLineCandidateProvider extends Disposable implements IStickyLi
 			return status;
 		}, (err) => {
 			onUnexpectedError(err);
-			return undefined;
+			return Status.CANCELLATION;
 		});
 	}
 
-	private stickyModelFromFoldingRegions(textModel: ITextModel, modelVersionId: number, token: CancellationToken, foldingRegions: FoldingRegions): boolean | undefined {
+	private stickyModelFromFoldingRegions(textModel: ITextModel, modelVersionId: number, token: CancellationToken, foldingRegions: FoldingRegions): Status {
 		// Return undefined when the token is cancelled
 		if (token.isCancellationRequested) {
-			return;
+			return Status.CANCELLATION;
 		}
 		// Suppose the folding model is null or it has no regions, then return false
 		const foldingElement = StickyElement.fromFoldingRegions(foldingRegions);
 		this._model = new StickyModel(textModel.uri, modelVersionId, foldingElement, undefined);
-		return true;
+		return Status.VALID_MODEL;
 	}
 
-	private stickyModelFromOutlineModel(textModel: ITextModel, modelVersionId: number, token: CancellationToken, outlineModel: OutlineModel): boolean | undefined {
+	private stickyModelFromOutlineModel(textModel: ITextModel, modelVersionId: number, token: CancellationToken, outlineModel: OutlineModel): Status {
 		// Return undefined when the token is cancelled
 		if (token.isCancellationRequested) {
-			return;
+			return Status.CANCELLATION;
 		}
 		// Suppose the folding model is null or it has no regions, then return false
 		const { stickyOutlineElement, providerID } = StickyElement.fromOutlineModel(outlineModel, this._model?.outlineProviderId);
 		this._model = new StickyModel(textModel.uri, modelVersionId, stickyOutlineElement, providerID);
-		return true;
+		return Status.VALID_MODEL;
 	}
 
 	private _updateDebounceInformation(textModel: ITextModel): void {
@@ -322,7 +322,7 @@ export class StickyLineCandidateProvider extends Disposable implements IStickyLi
 		return index;
 	}
 
-	public getCandidateStickyLinesIntersectingFromStickyOutline(range: StickyRange, outlineModel: StickyElement, result: StickyLineCandidate[], depth: number, lastStartLineNumber: number): void {
+	public getCandidateStickyLinesIntersectingFromStickyModel(range: StickyRange, outlineModel: StickyElement, result: StickyLineCandidate[], depth: number, lastStartLineNumber: number): void {
 		if (outlineModel.children.length === 0) {
 			return;
 		}
@@ -347,10 +347,10 @@ export class StickyLineCandidateProvider extends Disposable implements IStickyLi
 				if (range.startLineNumber <= childEndLine + 1 && childStartLine - 1 <= range.endLineNumber && childStartLine !== lastLine) {
 					lastLine = childStartLine;
 					result.push(new StickyLineCandidate(childStartLine, childEndLine - 1, depth + 1));
-					this.getCandidateStickyLinesIntersectingFromStickyOutline(range, child, result, depth + 1, childStartLine);
+					this.getCandidateStickyLinesIntersectingFromStickyModel(range, child, result, depth + 1, childStartLine);
 				}
 			} else {
-				this.getCandidateStickyLinesIntersectingFromStickyOutline(range, child, result, depth, lastStartLineNumber);
+				this.getCandidateStickyLinesIntersectingFromStickyModel(range, child, result, depth, lastStartLineNumber);
 			}
 		}
 	}
@@ -360,7 +360,7 @@ export class StickyLineCandidateProvider extends Disposable implements IStickyLi
 			return [];
 		}
 		let stickyLineCandidates: StickyLineCandidate[] = [];
-		this.getCandidateStickyLinesIntersectingFromStickyOutline(range, this._model.element, stickyLineCandidates, 0, -1);
+		this.getCandidateStickyLinesIntersectingFromStickyModel(range, this._model.element, stickyLineCandidates, 0, -1);
 		const hiddenRanges: Range[] | undefined = this._editor._getViewModel()?.getHiddenAreas();
 		if (hiddenRanges) {
 			for (const hiddenRange of hiddenRanges) {
