@@ -8,7 +8,6 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { IBrowserWorkbenchEnvironmentService } from 'vs/workbench/services/environment/browser/environmentService';
-import { ThemeIcon } from 'vs/base/common/themables';
 import { IModalDialogService } from 'vs/workbench/services/modalDialog/browser/modalDialogService';
 
 class WelcomeModalContribution {
@@ -32,8 +31,7 @@ class WelcomeModalContribution {
 		modalDialogService.show({
 			title: modalDialog.title,
 			buttonText: modalDialog.buttonText,
-			mainMessage: { message: modalDialog.mainMessage.message, icon: ThemeIcon.fromId(modalDialog.mainMessage.icon) },
-			secondaryMessage: { message: modalDialog.secondaryMessage.message, icon: ThemeIcon.fromId(modalDialog.secondaryMessage.icon) },
+			messages: modalDialog.messages,
 			action: modalDialog.action,
 			onClose: () => {
 				storageService.store(WelcomeModalContribution.WELCOME_MODAL_DIALOG_DISMISSED_KEY + '#' + modalDialog.routeId, true, StorageScope.PROFILE, StorageTarget.MACHINE);

@@ -601,15 +601,9 @@ export interface IWelcomeModalDialog {
 	buttonText: string;
 
 	/**
-	 * Main message text and icon for the modal dialog.
+	 * Message text and icon for the modal dialog.
 	 */
-	mainMessage: { message: string; icon: string };
-
-
-	/**
-	 * Secondary message text and icon for the modal dialog.
-	 */
-	secondaryMessage: { message: string; icon: string };
+	messages: { message: string; icon: string }[];
 
 	/**
 	 * Optional action to appear as links at the bottom of the modal dialog.

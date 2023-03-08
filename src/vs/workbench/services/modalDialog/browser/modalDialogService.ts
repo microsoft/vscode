@@ -17,8 +17,7 @@ import { ILinkDescriptor, Link } from 'vs/platform/opener/browser/link';
 
 export interface IModalDialogItem {
 	readonly title: string;
-	readonly mainMessage: { message: string; icon: ThemeIcon };
-	readonly secondaryMessage: { message: string; icon: ThemeIcon };
+	readonly messages: { message: string; icon: string }[];
 	readonly buttonText: string;
 	readonly action?: ILinkDescriptor;
 	readonly onClose?: () => void;
@@ -43,9 +42,10 @@ export class ModalDialogService implements IModalDialogService {
 		@IInstantiationService private readonly instantiationService: IInstantiationService,) {
 	}
 
-	private static iconWidgetFor(icon: ThemeIcon) {
-		if (icon) {
-			const widget = $(ThemeIcon.asCSSSelector(icon));
+	private static iconWidgetFor(icon: string) {
+		const themeIcon = ThemeIcon.fromId(icon);
+		if (themeIcon) {
+			const widget = $(ThemeIcon.asCSSSelector(themeIcon));
 			widget.classList.add('icon-widget');
 			return widget;
 		}
@@ -59,22 +59,17 @@ export class ModalDialogService implements IModalDialogService {
 		const renderBody = (parent: HTMLElement) => {
 
 			parent.classList.add(...('modal-dialog-items'));
-			const mainDescriptorComponent =
-				$('.modal-dialog-mainmessage',
-					{},
-					ModalDialogService.iconWidgetFor(modalDialogItem.mainMessage.icon),
-					$('.description-container', {},
-						$('.description.description.max-lines-3', { 'x-description-for': 'description' }, ...renderLabelWithIcons(modalDialogItem.mainMessage.message))));
-			parent.appendChild(mainDescriptorComponent);
+			parent.appendChild(document.createElement('hr'));
 
-			const secondaryDescriptorComponent =
-				$('.modal-dialog-secondaryMessage',
-					{},
-					ModalDialogService.iconWidgetFor(modalDialogItem.secondaryMessage.icon),
-					$('.description-container', {},
-						$('.description.description.max-lines-3', { 'x-description-for': 'description' }, ...renderLabelWithIcons(modalDialogItem.secondaryMessage.message))));
-
-			parent.appendChild(secondaryDescriptorComponent);
+			for (const message of modalDialogItem.messages) {
+				const descriptorComponent =
+					$('.modal-dialog-message',
+						{},
+						ModalDialogService.iconWidgetFor(message.icon),
+						$('.description-container', {},
+							$('.description.description.max-lines-3', { 'x-description-for': 'description' }, ...renderLabelWithIcons(message.message))));
+				parent.appendChild(descriptorComponent);
+			}
 
 			const actionsContainer = $('div.modal-dialog-action-container');
 			parent.appendChild(actionsContainer);
@@ -91,6 +86,7 @@ export class ModalDialogService implements IModalDialogService {
 				detail: '',
 				type: 'none',
 				renderBody: renderBody,
+				disableCloseAction: true,
 				buttonStyles: defaultButtonStyles,
 				checkboxStyles: defaultCheckboxStyles,
 				inputBoxStyles: defaultInputBoxStyles,

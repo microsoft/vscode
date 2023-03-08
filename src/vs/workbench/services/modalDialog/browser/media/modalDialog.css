@@ -2,25 +2,44 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
+ .monaco-dialog-box{
+	border-radius: 6px;
+}
 
- .monaco-dialog-box .dialog-message-row .dialog-message-container .dialog-message-body .modal-dialog-item .icon-widget{
+.monaco-dialog-box .dialog-message-row .dialog-message-container .dialog-message {
+	font-size: 20px ;
+}
+
+.monaco-dialog-box .dialog-message-row .dialog-message-container .dialog-message-body hr {
+	color: var(--vscode-descriptionForeground);
+	margin-bottom: 12px;
+	background: var(--vscode-welcomePage-tileHoverBackground);
+}
+
+.monaco-dialog-box .dialog-message-row .dialog-message-container .dialog-message-body .modal-dialog-message .icon-widget{
 	padding-right: 8px;
-	max-width: 20px;
-	max-height: 20px;
+	max-width: 30px;
+	max-height: 30px;
 	position: relative;
 	top: auto;
+	color:var(--vscode-textLink-foreground);
+	padding-right: 20px;
+	font-size: 25px;
 }
 
-.monaco-dialog-box .dialog-message-row .dialog-message-container .dialog-message-body .modal-dialog-item {
+.monaco-dialog-box .dialog-message-row .dialog-message-container .dialog-message-body .modal-dialog-message {
 	display: flex;
-	padding: 10px 0 20px 12px;
-	margin: 0;
+	padding: 20px;
 	min-height: auto;
-	border: 1px solid var(--vscode-welcomePage-tileBorder);
 	color: var(--vscode-descriptionForeground);
+	border-radius: 6px;
+	overflow: hidden;
+	margin-bottom: 12px;
+	background: var(--vscode-welcomePage-tileHoverBackground);
+	align-items: center;
 }
 
-.monaco-dialog-box .dialog-message-row .dialog-message-container .dialog-message-body>.modal-dialog-item {
+.monaco-dialog-box .dialog-message-row .dialog-message-container .dialog-message-body>.modal-dialog-message {
 	grid-area: title;
 	align-self: flex-end;
 }
