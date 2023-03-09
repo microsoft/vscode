@@ -197,9 +197,7 @@ abstract class StickyModelCandidateProvider implements IStickyModelCandidateProv
 				return Status.CANCELED;
 			}
 			return this.createStickyModel(textModel, modelVersionId, token, providerModel);
-		}).then((status) => {
-			return status;
-		}, (err) => {
+		}).then(undefined, (err) => {
 			onUnexpectedError(err);
 			return Status.CANCELED;
 		});
