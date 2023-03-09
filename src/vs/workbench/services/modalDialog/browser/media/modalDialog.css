@@ -11,9 +11,9 @@
 }
 
 .monaco-dialog-box .dialog-message-row .dialog-message-container .dialog-message-body hr {
-	color: var(--vscode-descriptionForeground);
+	border-color: var(--vscode-descriptionForeground);
 	margin-bottom: 12px;
-	background: var(--vscode-welcomePage-tileHoverBackground);
+	border-width: thin;
 }
 
 .monaco-dialog-box .dialog-message-row .dialog-message-container .dialog-message-body .modal-dialog-message .icon-widget{
