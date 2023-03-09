@@ -238,7 +238,7 @@ class ToggleScreencastModeAction extends Action2 {
 			const shortcut = keybindingService.softDispatch(event, event.target);
 
 			// Hide the single arrow key pressed
-			if (shortcut?.commandId && configurationService.getValue('screencastMode.hideSingleArrowKeys') && (
+			if (shortcut?.commandId && configurationService.getValue('screencastMode.hideSingleEditorCursorMoves') && (
 				['cursorLeft', 'cursorRight', 'cursorUp', 'cursorDown'].includes(shortcut.commandId))
 			) {
 				return;
@@ -261,7 +261,7 @@ class ToggleScreencastModeAction extends Action2 {
 				const command = shortcut?.commandId ? MenuRegistry.getCommand(shortcut.commandId) : null;
 
 				let titleLabel = '';
-				let keyLabel = keybinding.getLabel();
+				let keyLabel: string | undefined | null = keybinding.getLabel();
 
 				if (command) {
 					titleLabel = typeof command.title === 'string' ? command.title : command.title.value;
@@ -290,7 +290,8 @@ class ToggleScreencastModeAction extends Action2 {
 						?.replace('DownArrow', '↓')
 						?.replace('LeftArrow', '←')
 						?.replace('RightArrow', '→');
-					append(keyboardMarker, $('span.key', {}, keyLabel || ''));
+
+					append(keyboardMarker, $('span.key', {}, keyLabel ?? ''));
 				}
 
 				length++;
@@ -401,9 +402,9 @@ configurationRegistry.registerConfiguration({
 			description: localize('screencastMode.onlyKeyboardShortcuts', "Show only keyboard shortcuts in screencast mode (do not include action names)."),
 			default: false
 		},
-		'screencastMode.hideSingleArrowKeys': {
+		'screencastMode.hideSingleEditorCursorMoves': {
 			type: 'boolean',
-			description: localize('screencastMode.hideSingleArrowKeys', "Hide the single arrow key pressed in screencast mode."),
+			description: localize('screencastMode.hideSingleEditorCursorMoves', "Hide the single editor cursor move commands in screencast mode."),
 			default: false
 		},
 		'screencastMode.keyboardOverlayTimeout': {
