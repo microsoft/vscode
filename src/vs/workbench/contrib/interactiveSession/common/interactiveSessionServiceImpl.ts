@@ -12,11 +12,28 @@ import { localize } from 'vs/nls';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { ISerializableInteractiveSessionsData, InteractiveSessionModel } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionModel';
-import { IInteractiveProgress, IInteractiveProvider, IInteractiveSessionService } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionService';
+import { IInteractiveProgress, IInteractiveProvider, IInteractiveSessionService, IInteractiveSlashCommand } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionService';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 
 const serializedInteractiveSessionKey = 'interactive.sessions';
+
+type InteractiveSessionProviderInvokedEvent = {
+	providerId: string;
+	timeToFirstProgress: number;
+	totalTime: number;
+	result: 'success' | 'error' | 'errorWithOutput';
+};
+
+type InteractiveSessionProviderInvokedClassification = {
+	providerId: { classification: 'PublicNonPersonalData'; purpose: 'FeatureInsight'; comment: 'The identifier of the provider that was invoked.' };
+	timeToFirstProgress: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'The time in milliseconds from invoking the provider to getting the first data.' };
+	totalTime: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'The total time it took to run the provider\'s `provideResponseWithProgress`.' };
+	result: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether invoking the InteractiveSessionProvider resulted in an error.' };
+	owner: 'roblourens';
+	comment: 'Provides insight into the performance of InteractiveSession providers.';
+};
 
 export class InteractiveSessionService extends Disposable implements IInteractiveSessionService {
 	declare _serviceBrand: undefined;
@@ -31,6 +48,7 @@ export class InteractiveSessionService extends Disposable implements IInteractiv
 		@ILogService private readonly logService: ILogService,
 		@IExtensionService private readonly extensionService: IExtensionService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
 	) {
 		super();
 		const sessionData = storageService.get(serializedInteractiveSessionKey, StorageScope.WORKSPACE, '');
@@ -101,6 +119,7 @@ export class InteractiveSessionService extends Disposable implements IInteractiv
 		this.trace('startSession', `Provider returned session with id ${session.id}`);
 		const model = this.instantiationService.createInstance(InteractiveSessionModel, session, providerId, someSessionHistory);
 		this._sessionModels.set(model.sessionId, model);
+
 		return model;
 	}
 
@@ -126,30 +145,56 @@ export class InteractiveSessionService extends Disposable implements IInteractiv
 			return false;
 		}
 
-		const _sendRequest = async (): Promise<void> => {
-			try {
-				this._pendingRequestSessions.add(sessionId);
-				const request = model.addRequest(message);
-				const progressCallback = (progress: IInteractiveProgress) => {
-					this.trace('sendRequest', `Provider returned progress for session ${sessionId}, ${progress.responsePart.length} chars`);
-					model.mergeResponseContent(request, progress.responsePart);
-				};
-				let rawResponse = await provider.provideReply({ session: model.session, message }, progressCallback, token);
-				if (!rawResponse) {
-					this.trace('sendRequest', `Provider returned no response for session ${sessionId}`);
-					rawResponse = { session: model.session, errorDetails: { message: localize('emptyResponse', "Provider returned null response") } };
-				}
-
-				model.completeResponse(request, rawResponse);
-				this.trace('sendRequest', `Provider returned response for session ${sessionId} with ${rawResponse.followups} followups`);
-			} finally {
-				this._pendingRequestSessions.delete(sessionId);
-			}
-		};
-
 		// Return immediately that the request was accepted, don't wait
-		_sendRequest();
+		this._sendRequestAsync(model, provider, message, token);
 		return true;
+	}
+
+	private async _sendRequestAsync(model: InteractiveSessionModel, provider: IInteractiveProvider, message: string, token: CancellationToken): Promise<void> {
+		try {
+			this._pendingRequestSessions.add(model.sessionId);
+			const request = model.addRequest(message);
+			let gotProgress = false;
+			const progressCallback = (progress: IInteractiveProgress) => {
+				gotProgress = true;
+				this.trace('sendRequest', `Provider returned progress for session ${model.sessionId}, ${progress.responsePart.length} chars`);
+				model.mergeResponseContent(request, progress.responsePart);
+			};
+			let rawResponse = await provider.provideReply({ session: model.session, message }, progressCallback, token);
+			if (!rawResponse) {
+				this.trace('sendRequest', `Provider returned no response for session ${model.sessionId}`);
+				rawResponse = { session: model.session, errorDetails: { message: localize('emptyResponse', "Provider returned null response") } };
+			}
+
+			this.telemetryService.publicLog2<InteractiveSessionProviderInvokedEvent, InteractiveSessionProviderInvokedClassification>('interactiveSessionProviderInvoked', {
+				providerId: provider.id,
+				timeToFirstProgress: rawResponse.timings?.firstProgress ?? 0,
+				totalTime: rawResponse.timings?.totalElapsed ?? 0,
+				result: rawResponse.errorDetails && gotProgress ? 'errorWithOutput' : rawResponse.errorDetails ? 'error' : 'success'
+			});
+			model.completeResponse(request, rawResponse);
+			this.trace('sendRequest', `Provider returned response for session ${model.sessionId} with ${rawResponse.followups} followups`);
+		} finally {
+			this._pendingRequestSessions.delete(model.sessionId);
+		}
+	}
+
+	async getSlashCommands(sessionId: number, token: CancellationToken): Promise<IInteractiveSlashCommand[] | undefined> {
+		const model = this._sessionModels.get(sessionId);
+		if (!model) {
+			throw new Error(`Unknown session: ${sessionId}`);
+		}
+
+		const provider = this._providers.get(model.providerId);
+		if (!provider) {
+			throw new Error(`Unknown provider: ${model.providerId}`);
+		}
+
+		if (!provider.provideSlashCommands) {
+			return;
+		}
+
+		return withNullAsUndefined(await provider.provideSlashCommands(model.session, token));
 	}
 
 	acceptNewSessionState(sessionId: number, state: any): void {

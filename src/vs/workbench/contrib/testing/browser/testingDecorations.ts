@@ -51,6 +51,7 @@ import { ITestResultService } from 'vs/workbench/contrib/testing/common/testResu
 import { getContextForTestItem, ITestService, testsInFile } from 'vs/workbench/contrib/testing/common/testService';
 import { IncrementalTestCollectionItem, InternalTestItem, IRichLocation, ITestMessage, ITestRunProfile, TestDiffOpType, TestMessageType, TestResultItem, TestResultState, TestRunProfileBitset } from 'vs/workbench/contrib/testing/common/testTypes';
 import { EditorLineNumberContextMenu, GutterActionsRegistry } from 'vs/workbench/contrib/codeEditor/browser/editorLineNumberMenu';
+import { isMacintosh } from 'vs/base/common/platform';
 
 const MAX_INLINE_MESSAGE_LENGTH = 128;
 
@@ -727,7 +728,11 @@ abstract class RunTestDecoration {
 
 	/** @inheritdoc */
 	public click(e: IEditorMouseEvent): boolean {
-		if (e.target.type !== MouseTargetType.GUTTER_GLYPH_MARGIN || e.event.rightButton) {
+		if (e.target.type !== MouseTargetType.GUTTER_GLYPH_MARGIN
+			// handled by editor gutter context menu
+			|| e.event.rightButton
+			|| isMacintosh && e.event.leftButton && e.event.ctrlKey
+		) {
 			return false;
 		}
 

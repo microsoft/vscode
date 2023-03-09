@@ -115,7 +115,7 @@
         },
         {
           "command": "github.copyVscodeDevLink",
-          "when": "github.hasGitHubRepo && resourceScheme != untitled && activeEditor == workbench.editor.notebook && notebookCellLineNumbers == on && remoteName != 'codespaces'",
+          "when": "github.hasGitHubRepo && resourceScheme != untitled && activeEditor == workbench.editor.notebook && remoteName != 'codespaces'",
           "group": "1_cutcopypaste@2"
         }
       ],

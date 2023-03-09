@@ -97,8 +97,16 @@ declare module 'vscode' {
 		title: string; // supports codicon strings
 	}
 
+	export interface InteractiveSessionSlashCommand {
+		command: string;
+		kind: CompletionItemKind;
+		detail?: string;
+	}
+
 	export interface InteractiveSessionProvider {
 		provideInitialSuggestions?(token: CancellationToken): ProviderResult<string[]>;
+		provideSlashCommands?(session: InteractiveSession, token: CancellationToken): ProviderResult<InteractiveSessionSlashCommand[]>;
+
 		prepareSession(initialState: InteractiveSessionState | undefined, token: CancellationToken): ProviderResult<InteractiveSession>;
 		resolveRequest(session: InteractiveSession, context: InteractiveSessionRequestArgs | string, token: CancellationToken): ProviderResult<InteractiveRequest>;
 		provideResponse?(request: InteractiveRequest, token: CancellationToken): ProviderResult<InteractiveResponse>;
