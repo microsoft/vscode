@@ -159,6 +159,8 @@ export class SearchView extends ViewPane {
 	private _uiRefreshHandle: any;
 	private _visibleMatches: number = 0;
 
+	private _refreshResultsScheduler: RunOnceScheduler;
+
 	constructor(
 		options: IViewPaneOptions,
 		@IFileService private readonly fileService: IFileService,
@@ -251,6 +253,8 @@ export class SearchView extends ViewPane {
 
 		this.treeAccessibilityProvider = this.instantiationService.createInstance(SearchAccessibilityProvider, this.viewModel);
 		this.isTreeLayoutViewVisible = this.viewletState['view.treeLayout'] ?? (this.searchConfig.defaultViewMode === ViewMode.Tree);
+
+		this._refreshResultsScheduler = new RunOnceScheduler(this._updateResults.bind(this), 80);
 	}
 
 	get isTreeLayoutViewVisible(): boolean {
@@ -1481,6 +1485,27 @@ export class SearchView extends ViewPane {
 			.then(() => undefined, () => undefined);
 	}
 
+
+	private _updateResults() {
+		try {
+			if (this.state === SearchUIState.Idle) {
+				window.clearInterval(this._uiRefreshHandle);
+				this._uiRefreshHandle = undefined;
+				return;
+			}
+
+			// Search result tree update
+			const fileCount = this.viewModel.searchResult.fileCount();
+			if (this._visibleMatches !== fileCount) {
+				this._visibleMatches = fileCount;
+				this.refreshAndUpdateCount();
+			}
+		} finally {
+			// show frequent progress and results by scheduling updates 80 ms after the last one
+			this._refreshResultsScheduler.schedule();
+		}
+	}
+
 	private doSearch(query: ITextQuery, excludePatternText: string, includePatternText: string, triggeredOnType: boolean): Thenable<void> {
 		let progressComplete: () => void;
 		this.progressService.withProgress({ location: this.getProgressLocation(), delay: triggeredOnType ? 300 : 0 }, _progress => {
@@ -1616,28 +1641,7 @@ export class SearchView extends ViewPane {
 
 		this._visibleMatches = 0;
 
-		// Handle UI updates in an interval to show frequent progress and results
-		const refreshUI = () => {
-			try {
-				if (this.state === SearchUIState.Idle) {
-					window.clearInterval(this._uiRefreshHandle);
-					this._uiRefreshHandle = undefined;
-					return;
-				}
-
-				// Search result tree update
-				const fileCount = this.viewModel.searchResult.fileCount();
-				if (this._visibleMatches !== fileCount) {
-					this._visibleMatches = fileCount;
-					this.refreshAndUpdateCount();
-				}
-			} finally {
-				refreshUIScheduler.schedule();
-			}
-		};
-
-		const refreshUIScheduler = new RunOnceScheduler(refreshUI.bind(this), 80);
-		refreshUIScheduler.schedule();
+		this._refreshResultsScheduler.schedule();
 
 		this.searchWidget.setReplaceAllActionState(false);
 
@@ -2030,6 +2034,7 @@ export class SearchView extends ViewPane {
 	override dispose(): void {
 		this.isDisposed = true;
 		this.saveState();
+		this._refreshResultsScheduler.dispose();
 		super.dispose();
 	}
 }
