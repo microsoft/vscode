@@ -1618,19 +1618,22 @@ export class SearchView extends ViewPane {
 
 		// Handle UI updates in an interval to show frequent progress and results
 		const refreshUI = () => {
-			if (this.state === SearchUIState.Idle) {
-				window.clearInterval(this._uiRefreshHandle);
-				this._uiRefreshHandle = undefined;
-				return;
-			}
+			try {
+				if (this.state === SearchUIState.Idle) {
+					window.clearInterval(this._uiRefreshHandle);
+					this._uiRefreshHandle = undefined;
+					return;
+				}
 
-			// Search result tree update
-			const fileCount = this.viewModel.searchResult.fileCount();
-			if (this._visibleMatches !== fileCount) {
-				this._visibleMatches = fileCount;
-				this.refreshAndUpdateCount();
+				// Search result tree update
+				const fileCount = this.viewModel.searchResult.fileCount();
+				if (this._visibleMatches !== fileCount) {
+					this._visibleMatches = fileCount;
+					this.refreshAndUpdateCount();
+				}
+			} finally {
+				refreshUIScheduler.schedule();
 			}
-			refreshUIScheduler.schedule();
 		};
 
 		const refreshUIScheduler = new RunOnceScheduler(refreshUI.bind(this), 80);
