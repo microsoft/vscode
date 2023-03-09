@@ -586,9 +586,9 @@ export interface IInitialColorTheme {
 export interface IWelcomeDialog {
 
 	/**
-	 *  Unique identifier of the vscode.dev route constructing the welcome dialog.
+	 *  Unique identifier of the web route constructing the welcome dialog.
 	 */
-	routeId: string;
+	id: string;
 
 	/**
 	 * Title of the welcome dialog.

@@ -24,7 +24,7 @@ class WelcomeDialogContribution {
 			return;
 		}
 
-		if (storageService.getBoolean(WelcomeDialogContribution.WELCOME_DIALOG_DISMISSED_KEY + '#' + welcomeDialog.routeId, StorageScope.PROFILE, false)) {
+		if (storageService.getBoolean(WelcomeDialogContribution.WELCOME_DIALOG_DISMISSED_KEY + '#' + welcomeDialog.id, StorageScope.PROFILE, false)) {
 			return;
 		}
 
@@ -34,7 +34,7 @@ class WelcomeDialogContribution {
 			messages: welcomeDialog.messages,
 			action: welcomeDialog.action,
 			onClose: () => {
-				storageService.store(WelcomeDialogContribution.WELCOME_DIALOG_DISMISSED_KEY + '#' + welcomeDialog.routeId, true, StorageScope.PROFILE, StorageTarget.MACHINE);
+				storageService.store(WelcomeDialogContribution.WELCOME_DIALOG_DISMISSED_KEY + '#' + welcomeDialog.id, true, StorageScope.PROFILE, StorageTarget.MACHINE);
 			}
 		});
 	}
