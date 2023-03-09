@@ -39,8 +39,7 @@ import { InstantiationService } from 'vs/platform/instantiation/common/instantia
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { ILanguagePackService } from 'vs/platform/languagePacks/common/languagePacks';
 import { NativeLanguagePackService } from 'vs/platform/languagePacks/node/languagePacks';
-import { ConsoleLogger, getLogLevel, ILogger, ILogService, LogLevel } from 'vs/platform/log/common/log';
-import { SpdLogLogger } from 'vs/platform/log/node/spdlogLog';
+import { ConsoleLogger, getLogLevel, ILogger, ILoggerService, ILogService, LogLevel } from 'vs/platform/log/common/log';
 import { FilePolicyService } from 'vs/platform/policy/common/filePolicyService';
 import { IPolicyService, NullPolicyService } from 'vs/platform/policy/common/policy';
 import { NativePolicyService } from 'vs/platform/policy/node/nativePolicyService';
@@ -48,8 +47,7 @@ import product from 'vs/platform/product/common/product';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { IRequestService } from 'vs/platform/request/common/request';
 import { RequestService } from 'vs/platform/request/node/requestService';
-import { IStateService } from 'vs/platform/state/node/state';
-import { StateService } from 'vs/platform/state/node/stateService';
+import { SaveStrategy, StateReadonlyService } from 'vs/platform/state/node/stateService';
 import { resolveCommonProperties } from 'vs/platform/telemetry/common/commonProperties';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { ITelemetryServiceConfig, TelemetryService } from 'vs/platform/telemetry/common/telemetryService';
@@ -59,10 +57,12 @@ import { buildTelemetryMessage } from 'vs/platform/telemetry/node/telemetry';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { UriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentityService';
 import { IUserDataProfile, IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
-import { UserDataProfilesService } from 'vs/platform/userDataProfile/node/userDataProfile';
+import { UserDataProfilesReadonlyService } from 'vs/platform/userDataProfile/node/userDataProfile';
 import { resolveMachineId } from 'vs/platform/telemetry/node/telemetryUtils';
 import { ExtensionsProfileScannerService } from 'vs/platform/extensionManagement/node/extensionsProfileScannerService';
 import { LogService } from 'vs/platform/log/common/logService';
+import { LoggerService } from 'vs/platform/log/node/loggerService';
+import { localize } from 'vs/nls';
 
 class CliMain extends Disposable {
 
@@ -125,15 +125,18 @@ class CliMain extends Disposable {
 			environmentService.extensionsPath
 		].map(path => path ? Promises.mkdir(path, { recursive: true }) : undefined));
 
+		// Logger
+		const loggerService = new LoggerService(getLogLevel(environmentService), environmentService.logsHome);
+		services.set(ILoggerService, loggerService);
+
 		// Log
-		const logLevel = getLogLevel(environmentService);
-		const spdLogLogger = new SpdLogLogger('cli', join(environmentService.logsPath, 'cli.log'), true, false, logLevel);
+		const logger = this._register(loggerService.createLogger('cli', { name: localize('cli', "CLI") }));
 		const otherLoggers: ILogger[] = [];
-		if (logLevel === LogLevel.Trace) {
-			otherLoggers.push(new ConsoleLogger(logLevel));
+		if (loggerService.getLogLevel() === LogLevel.Trace) {
+			otherLoggers.push(new ConsoleLogger(loggerService.getLogLevel()));
 		}
 
-		const logService = this._register(new LogService(spdLogLogger, otherLoggers));
+		const logService = this._register(new LogService(logger, otherLoggers));
 		services.set(ILogService, logService);
 
 		// Files
@@ -143,16 +146,13 @@ class CliMain extends Disposable {
 		const diskFileSystemProvider = this._register(new DiskFileSystemProvider(logService));
 		fileService.registerProvider(Schemas.file, diskFileSystemProvider);
 
-		// State
-		const stateService = new StateService(environmentService, logService, fileService);
-		services.set(IStateService, stateService);
-
 		// Uri Identity
 		const uriIdentityService = new UriIdentityService(fileService);
 		services.set(IUriIdentityService, uriIdentityService);
 
 		// User Data Profiles
-		const userDataProfilesService = new UserDataProfilesService(stateService, uriIdentityService, environmentService, fileService, logService);
+		const stateService = new StateReadonlyService(SaveStrategy.DELAYED, environmentService, logService, fileService);
+		const userDataProfilesService = new UserDataProfilesReadonlyService(stateService, uriIdentityService, environmentService, fileService, logService);
 		services.set(IUserDataProfilesService, userDataProfilesService);
 
 		// Policy
@@ -209,7 +209,7 @@ class CliMain extends Disposable {
 				commonProperties: (async () => {
 					let machineId: string | undefined = undefined;
 					try {
-						machineId = await resolveMachineId(stateService);
+						machineId = await resolveMachineId(stateService, logService);
 					} catch (error) {
 						if (error.code !== 'ENOENT') {
 							logService.error(error);
@@ -274,7 +274,7 @@ class CliMain extends Disposable {
 		// Install Extension
 		else if (this.argv['install-extension'] || this.argv['install-builtin-extension']) {
 			const installOptions: InstallOptions = { isMachineScoped: !!this.argv['do-not-sync'], installPreReleaseVersion: !!this.argv['pre-release'], profileLocation };
-			return instantiationService.createInstance(ExtensionManagementCLI).installExtensions(this.asExtensionIdOrVSIX(this.argv['install-extension'] || []), this.argv['install-builtin-extension'] || [], installOptions, !!this.argv['force']);
+			return instantiationService.createInstance(ExtensionManagementCLI).installExtensions(this.asExtensionIdOrVSIX(this.argv['install-extension'] || []), this.asExtensionIdOrVSIX(this.argv['install-builtin-extension'] || []), installOptions, !!this.argv['force']);
 		}
 
 		// Uninstall Extension

@@ -1101,9 +1101,18 @@ export class ListView<T> implements IListView<T> {
 
 			const dragImage = $('.monaco-drag-image');
 			dragImage.textContent = label;
-			document.body.appendChild(dragImage);
+
+			const getDragImageContainer = (e: HTMLElement | null) => {
+				while (e && !e.classList.contains('monaco-workbench')) {
+					e = e.parentElement;
+				}
+				return e || document.body;
+			};
+
+			const container = getDragImageContainer(this.domNode);
+			container.appendChild(dragImage);
 			event.dataTransfer.setDragImage(dragImage, -10, -10);
-			setTimeout(() => document.body.removeChild(dragImage), 0);
+			setTimeout(() => container.removeChild(dragImage), 0);
 		}
 
 		this.domNode.classList.add('dragging');

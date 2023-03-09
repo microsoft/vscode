@@ -13,7 +13,7 @@ import { IExtHostInitDataService } from 'vs/workbench/api/common/extHostInitData
 import { ExtHostTelemetry, ExtHostTelemetryLogger } from 'vs/workbench/api/common/extHostTelemetry';
 import { IEnvironment } from 'vs/workbench/services/extensions/common/extensionHostProtocol';
 import { mock } from 'vs/workbench/test/common/workbenchTestServices';
-import type { TelemetrySender } from 'vscode';
+import type { TelemetryLoggerOptions, TelemetrySender } from 'vscode';
 
 interface TelemetryLoggerSpy {
 	dataArr: any[];
@@ -30,6 +30,7 @@ suite('ExtHostTelemetry', function () {
 		appRoot: undefined,
 		appName: 'test',
 		extensionTelemetryLogResource: URI.parse('fake'),
+		isExtensionTelemetryLoggingOnly: false,
 		appHost: 'test',
 		appLanguage: 'en',
 		globalStorageHome: URI.parse('fake'),
@@ -68,11 +69,11 @@ suite('ExtHostTelemetry', function () {
 			override telemetryInfo: ITelemetryInfo = mockTelemetryInfo;
 			override remote = mockRemote;
 		}, new TestTelemetryLoggerService(DEFAULT_LOG_LEVEL));
-		extensionTelemetry.$initializeTelemetryLevel(TelemetryLevel.USAGE, false, { usage: true, error: true });
+		extensionTelemetry.$initializeTelemetryLevel(TelemetryLevel.USAGE, true, { usage: true, error: true });
 		return extensionTelemetry;
 	};
 
-	const createLogger = (functionSpy: TelemetryLoggerSpy, extHostTelemetry?: ExtHostTelemetry) => {
+	const createLogger = (functionSpy: TelemetryLoggerSpy, extHostTelemetry?: ExtHostTelemetry, options?: TelemetryLoggerOptions) => {
 		const extensionTelemetry = extHostTelemetry ?? createExtHostTelemetry();
 		// This is the appender which the extension would contribute
 		const appender: TelemetrySender = {
@@ -87,7 +88,7 @@ suite('ExtHostTelemetry', function () {
 			}
 		};
 
-		const logger = extensionTelemetry.instantiateLogger(mockExtensionIdentifier, appender);
+		const logger = extensionTelemetry.instantiateLogger(mockExtensionIdentifier, appender, options);
 		return logger;
 	};
 
@@ -124,19 +125,19 @@ suite('ExtHostTelemetry', function () {
 		assert.strictEqual(config.isErrorsEnabled, true);
 
 		// Initialize would never be called twice, but this is just for testing
-		extensionTelemetry.$initializeTelemetryLevel(TelemetryLevel.ERROR, false, { usage: true, error: true });
+		extensionTelemetry.$initializeTelemetryLevel(TelemetryLevel.ERROR, true, { usage: true, error: true });
 		config = extensionTelemetry.getTelemetryDetails();
 		assert.strictEqual(config.isCrashEnabled, true);
 		assert.strictEqual(config.isUsageEnabled, false);
 		assert.strictEqual(config.isErrorsEnabled, true);
 
-		extensionTelemetry.$initializeTelemetryLevel(TelemetryLevel.CRASH, false, { usage: true, error: true });
+		extensionTelemetry.$initializeTelemetryLevel(TelemetryLevel.CRASH, true, { usage: true, error: true });
 		config = extensionTelemetry.getTelemetryDetails();
 		assert.strictEqual(config.isCrashEnabled, true);
 		assert.strictEqual(config.isUsageEnabled, false);
 		assert.strictEqual(config.isErrorsEnabled, false);
 
-		extensionTelemetry.$initializeTelemetryLevel(TelemetryLevel.USAGE, false, { usage: false, error: true });
+		extensionTelemetry.$initializeTelemetryLevel(TelemetryLevel.USAGE, true, { usage: false, error: true });
 		config = extensionTelemetry.getTelemetryDetails();
 		assert.strictEqual(config.isCrashEnabled, true);
 		assert.strictEqual(config.isUsageEnabled, false);
@@ -173,6 +174,38 @@ suite('ExtHostTelemetry', function () {
 
 	});
 
+	test('Simple log event to TelemetryLogger with options', function () {
+		const functionSpy: TelemetryLoggerSpy = { dataArr: [], exceptionArr: [], flushCalled: false };
+
+		const logger = createLogger(functionSpy, undefined, { additionalCommonProperties: { 'common.foo': 'bar' } });
+
+		logger.logUsage('test-event', { 'test-data': 'test-data' });
+		assert.strictEqual(functionSpy.dataArr.length, 1);
+		assert.strictEqual(functionSpy.dataArr[0].eventName, `${mockExtensionIdentifier.name}/test-event`);
+		assert.strictEqual(functionSpy.dataArr[0].data['test-data'], 'test-data');
+		assert.strictEqual(functionSpy.dataArr[0].data['common.foo'], 'bar');
+
+		logger.logUsage('test-event', { 'test-data': 'test-data' });
+		assert.strictEqual(functionSpy.dataArr.length, 2);
+
+		logger.logError('test-event', { 'test-data': 'test-data' });
+		assert.strictEqual(functionSpy.dataArr.length, 3);
+
+		logger.logError(new Error('test-error'), { 'test-data': 'test-data' });
+		assert.strictEqual(functionSpy.dataArr.length, 3);
+		assert.strictEqual(functionSpy.exceptionArr.length, 1);
+
+
+		// Assert not flushed
+		assert.strictEqual(functionSpy.flushCalled, false);
+
+		// Call flush and assert that flush occurs
+		logger.dispose();
+		assert.strictEqual(functionSpy.flushCalled, true);
+
+	});
+
+
 	test('Ensure logger properly cleans PII', function () {
 		const functionSpy: TelemetryLoggerSpy = { dataArr: [], exceptionArr: [], flushCalled: false };
 
@@ -205,7 +238,7 @@ suite('ExtHostTelemetry', function () {
 			override telemetryInfo: ITelemetryInfo = mockTelemetryInfo;
 			override remote = mockRemote;
 		}, loggerService);
-		extensionTelemetry.$initializeTelemetryLevel(TelemetryLevel.USAGE, false, { usage: true, error: true });
+		extensionTelemetry.$initializeTelemetryLevel(TelemetryLevel.USAGE, true, { usage: true, error: true });
 
 		const functionSpy: TelemetryLoggerSpy = { dataArr: [], exceptionArr: [], flushCalled: false };
 

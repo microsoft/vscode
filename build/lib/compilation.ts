@@ -125,9 +125,11 @@ export function compileTask(src: string, out: string, build: boolean): () => Nod
 		let mangleStream = es.through();
 		if (build) {
 			let ts2tsMangler = new Mangler(compile.projectPath, (...data) => fancyLog(ansiColors.blue('[mangler]'), ...data));
-			const newContentsByFileName = ts2tsMangler.computeNewFileContents();
+			const newContentsByFileName = ts2tsMangler.computeNewFileContents(new Set(['saveState']));
 			mangleStream = es.through(function write(data: File & { sourceMap?: RawSourceMap }) {
-				const newContents = newContentsByFileName.get(data.path);
+				type TypeScriptExt = typeof ts & { normalizePath(path: string): string };
+				const tsNormalPath = (<TypeScriptExt>ts).normalizePath(data.path);
+				const newContents = newContentsByFileName.get(tsNormalPath);
 				if (newContents !== undefined) {
 					data.contents = Buffer.from(newContents.out);
 					data.sourceMap = newContents.sourceMap && JSON.parse(newContents.sourceMap);

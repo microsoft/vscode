@@ -19,8 +19,7 @@ import { ScrollbarVisibility } from 'vs/base/common/scrollable';
 import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition } from 'vs/editor/browser/editorBrowser';
 import { ConfigurationChangedEvent, EditorOption } from 'vs/editor/common/config/editorOptions';
 import { Position } from 'vs/editor/common/core/position';
-import { IRange, Range } from 'vs/editor/common/core/range';
-import { ITextModel } from 'vs/editor/common/model';
+import { Range } from 'vs/editor/common/core/range';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import * as nls from 'vs/nls';
@@ -33,7 +32,7 @@ import { LinkDetector } from 'vs/workbench/contrib/debug/browser/linkDetector';
 import { VariablesRenderer } from 'vs/workbench/contrib/debug/browser/variablesView';
 import { IDebugService, IDebugSession, IExpression, IExpressionContainer, IStackFrame } from 'vs/workbench/contrib/debug/common/debug';
 import { Expression, Variable } from 'vs/workbench/contrib/debug/common/debugModel';
-import { getExactExpressionStartAndEnd } from 'vs/workbench/contrib/debug/common/debugUtils';
+import { getEvaluatableExpressionAtPosition } from 'vs/workbench/contrib/debug/common/debugUtils';
 
 const $ = dom.$;
 
@@ -363,7 +362,7 @@ class DebugHoverComputer {
 		}
 
 		const model = this.editor.getModel();
-		const result = await this.doCompute(model, position, token);
+		const result = await getEvaluatableExpressionAtPosition(this.languageFeaturesService, model, position, token);
 		if (!result) {
 			return { rangeChanged: false };
 		}
@@ -375,44 +374,6 @@ class DebugHoverComputer {
 		this._currentExpression = matchingExpression;
 		this._currentRange = Range.lift(range);
 		return { rangeChanged, range: this._currentRange };
-	}
-
-	private async doCompute(model: ITextModel, position: Position, token: CancellationToken): Promise<{ range: IRange; matchingExpression: string } | null> {
-		if (this.languageFeaturesService.evaluatableExpressionProvider.has(model)) {
-			const supports = this.languageFeaturesService.evaluatableExpressionProvider.ordered(model);
-
-			const results = coalesce(await Promise.all(supports.map(async support => {
-				try {
-					return await support.provideEvaluatableExpression(model, position, token);
-				} catch (err) {
-					return undefined;
-				}
-			})));
-
-			if (results.length > 0) {
-				let matchingExpression = results[0].expression;
-				const range = results[0].range;
-
-				if (!matchingExpression) {
-					const lineContent = model.getLineContent(position.lineNumber);
-					matchingExpression = lineContent.substring(range.startColumn - 1, range.endColumn - 1);
-				}
-
-				return { range, matchingExpression };
-			}
-		} else { // old one-size-fits-all strategy
-			const lineContent = model.getLineContent(position.lineNumber);
-			const { start, end } = getExactExpressionStartAndEnd(lineContent, position.column, position.column);
-
-			// use regex to extract the sub-expression #9821
-			const matchingExpression = lineContent.substring(start - 1, end);
-			return {
-				matchingExpression,
-				range: new Range(position.lineNumber, start, position.lineNumber, start + matchingExpression.length)
-			};
-		}
-
-		return null;
 	}
 
 	async evaluate(session: IDebugSession): Promise<IExpression | undefined> {

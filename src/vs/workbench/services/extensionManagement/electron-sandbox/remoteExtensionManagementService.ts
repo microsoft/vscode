@@ -4,8 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IChannel } from 'vs/base/parts/ipc/common/ipc';
-import { Event } from 'vs/base/common/event';
-import { ILocalExtension, IGalleryExtension, IExtensionGalleryService, InstallOperation, InstallOptions, InstallVSIXOptions, ExtensionManagementError, ExtensionManagementErrorCode, UninstallOptions, Metadata } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { ILocalExtension, IGalleryExtension, IExtensionGalleryService, InstallOperation, InstallOptions, InstallVSIXOptions, ExtensionManagementError, ExtensionManagementErrorCode } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { URI } from 'vs/base/common/uri';
 import { ExtensionType, IExtensionManifest } from 'vs/platform/extensions/common/extensions';
 import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
@@ -19,20 +18,22 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IExtensionManagementServer, IProfileAwareExtensionManagementService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { Promises } from 'vs/base/common/async';
 import { IExtensionManifestPropertiesService } from 'vs/workbench/services/extensions/common/extensionManifestPropertiesService';
-import { ExtensionManagementChannelClient } from 'vs/platform/extensionManagement/common/extensionManagementIpc';
 import { IFileService } from 'vs/platform/files/common/files';
+import { RemoteExtensionManagementService } from 'vs/workbench/services/extensionManagement/common/remoteExtensionManagementService';
+import { IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
+import { IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
+import { IRemoteUserDataProfilesService } from 'vs/workbench/services/userDataProfile/common/remoteUserDataProfiles';
+import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 
-export class NativeRemoteExtensionManagementService extends ExtensionManagementChannelClient implements IProfileAwareExtensionManagementService {
-
-	readonly onDidChangeProfile = Event.None;
-	get onProfileAwareInstallExtension() { return super.onInstallExtension; }
-	get onProfileAwareDidInstallExtensions() { return super.onDidInstallExtensions; }
-	get onProfileAwareUninstallExtension() { return super.onUninstallExtension; }
-	get onProfileAwareDidUninstallExtension() { return super.onDidUninstallExtension; }
+export class NativeRemoteExtensionManagementService extends RemoteExtensionManagementService implements IProfileAwareExtensionManagementService {
 
 	constructor(
 		channel: IChannel,
 		private readonly localExtensionManagementServer: IExtensionManagementServer,
+		@IUserDataProfileService userDataProfileService: IUserDataProfileService,
+		@IUserDataProfilesService userDataProfilesService: IUserDataProfilesService,
+		@IRemoteUserDataProfilesService remoteUserDataProfilesService: IRemoteUserDataProfilesService,
+		@IUriIdentityService uriIdentityService: IUriIdentityService,
 		@ILogService private readonly logService: ILogService,
 		@IExtensionGalleryService private readonly galleryService: IExtensionGalleryService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
@@ -40,50 +41,16 @@ export class NativeRemoteExtensionManagementService extends ExtensionManagementC
 		@IFileService private readonly fileService: IFileService,
 		@IExtensionManifestPropertiesService private readonly extensionManifestPropertiesService: IExtensionManifestPropertiesService,
 	) {
-		super(channel);
-	}
-
-	override getInstalled(type: ExtensionType | null = null, profileLocation?: URI): Promise<ILocalExtension[]> {
-		if (profileLocation) {
-			throw new Error('Installing extensions to a specific profile is not supported in remote scenario');
-		}
-		return super.getInstalled(type);
-	}
-
-	override uninstall(extension: ILocalExtension, options?: UninstallOptions): Promise<void> {
-		if (options?.profileLocation) {
-			throw new Error('Installing extensions to a specific profile is not supported in remote scenario');
-		}
-		return super.uninstall(extension, options);
+		super(channel, userDataProfileService, userDataProfilesService, remoteUserDataProfilesService, uriIdentityService);
 	}
 
 	override async install(vsix: URI, options?: InstallVSIXOptions): Promise<ILocalExtension> {
-		if (options?.profileLocation) {
-			throw new Error('Installing extensions to a specific profile is not supported in remote scenario');
-		}
 		const local = await super.install(vsix, options);
 		await this.installUIDependenciesAndPackedExtensions(local);
 		return local;
 	}
 
-	override getMetadata(local: ILocalExtension, profileLocation?: URI): Promise<Metadata | undefined> {
-		if (profileLocation) {
-			throw new Error('Getting metadata from a specific profile is not supported in remote scenario');
-		}
-		return super.getMetadata(local, profileLocation);
-	}
-
-	override updateMetadata(local: ILocalExtension, metadata: Partial<Metadata>, profileLocation?: URI): Promise<ILocalExtension> {
-		if (profileLocation) {
-			throw new Error('Getting metadata from a specific profile is not supported in remote scenario');
-		}
-		return super.updateMetadata(local, metadata, profileLocation);
-	}
-
 	override async installFromGallery(extension: IGalleryExtension, installOptions?: InstallOptions): Promise<ILocalExtension> {
-		if (installOptions?.profileLocation) {
-			throw new Error('Installing extensions to a specific profile is not supported in remote scenario');
-		}
 		const local = await this.doInstallFromGallery(extension, installOptions);
 		await this.installUIDependenciesAndPackedExtensions(local);
 		return local;

@@ -10,14 +10,17 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
-import { QuickInputController } from 'vs/base/parts/quickinput/browser/quickInput';
-import { QuickInputService as BaseQuickInputService } from 'vs/platform/quickinput/browser/quickInput';
+import { QuickInputController } from 'vs/platform/quickinput/browser/quickInput';
+import { QuickInputService as BaseQuickInputService } from 'vs/platform/quickinput/browser/quickInputService';
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { InQuickPickContextKey } from 'vs/workbench/browser/quickaccess';
+import { IHoverService } from 'vs/workbench/services/hover/browser/hover';
+import { IHoverDelegate, IHoverDelegateOptions, IHoverWidget } from 'vs/base/browser/ui/iconLabel/iconHoverDelegate';
 
 export class QuickInputService extends BaseQuickInputService {
 
+	private readonly hoverDelegate = new QuickInputHoverDelegate(this.configurationService, this.hoverService);
 	private readonly inQuickInputContext = InQuickPickContextKey.bindTo(this.contextKeyService);
 
 	constructor(
@@ -27,7 +30,8 @@ export class QuickInputService extends BaseQuickInputService {
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IThemeService themeService: IThemeService,
 		@IAccessibilityService accessibilityService: IAccessibilityService,
-		@ILayoutService layoutService: ILayoutService
+		@ILayoutService layoutService: ILayoutService,
+		@IHoverService private readonly hoverService: IHoverService
 	) {
 		super(instantiationService, contextKeyService, themeService, accessibilityService, layoutService);
 
@@ -42,8 +46,40 @@ export class QuickInputService extends BaseQuickInputService {
 	protected override createController(): QuickInputController {
 		return super.createController(this.layoutService, {
 			ignoreFocusOut: () => !this.configurationService.getValue('workbench.quickOpen.closeOnFocusLost'),
-			backKeybindingLabel: () => this.keybindingService.lookupKeybinding('workbench.action.quickInputBack')?.getLabel() || undefined
+			backKeybindingLabel: () => this.keybindingService.lookupKeybinding('workbench.action.quickInputBack')?.getLabel() || undefined,
+			hoverDelegate: this.hoverDelegate
 		});
+	}
+}
+
+class QuickInputHoverDelegate implements IHoverDelegate {
+	private lastHoverHideTime = 0;
+	readonly placement = 'element';
+
+	get delay() {
+		if (Date.now() - this.lastHoverHideTime < 200) {
+			return 0; // show instantly when a hover was recently shown
+		}
+
+		return this.configurationService.getValue<number>('workbench.hover.delay');
+	}
+
+	constructor(
+		private readonly configurationService: IConfigurationService,
+		private readonly hoverService: IHoverService
+	) { }
+
+	showHover(options: IHoverDelegateOptions, focus?: boolean): IHoverWidget | undefined {
+		return this.hoverService.showHover({
+			...options,
+			hideOnHover: false,
+			hideOnKeyDown: false,
+			skipFadeInAnimation: true,
+		}, focus);
+	}
+
+	onDidHideHover(): void {
+		this.lastHoverHideTime = Date.now();
 	}
 }
 

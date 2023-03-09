@@ -58,6 +58,10 @@ export interface IEditorOptions {
 	 */
 	ariaLabel?: string;
 	/**
+	 * Control whether a screen reader announces inline suggestion content immediately.
+	 */
+	screenReaderAnnounceInlineSuggestion?: boolean;
+	/**
 	 * The `tabindex` property of the editor's textarea
 	 */
 	tabIndex?: number;
@@ -698,6 +702,11 @@ export interface IEditorOptions {
 	 * When enabled, this shows a preview of the drop location and triggers an `onDropIntoEditor` event.
 	 */
 	dropIntoEditor?: IDropIntoEditorOptions;
+
+	/**
+	 * Controls whether the editor receives tabs or defers them to the workbench for navigation.
+	 */
+	tabFocusMode?: boolean;
 }
 
 /**
@@ -3785,8 +3794,7 @@ export interface IInlineSuggestOptions {
 	*/
 	mode?: 'prefix' | 'subword' | 'subwordSmart';
 
-	useExperimentalHints?: boolean;
-	hideHints?: boolean;
+	showToolbar?: 'always' | 'onHover';
 }
 
 /**
@@ -3802,8 +3810,7 @@ class InlineEditorSuggest extends BaseEditorOption<EditorOption.inlineSuggest, I
 		const defaults: InternalInlineSuggestOptions = {
 			enabled: true,
 			mode: 'subwordSmart',
-			useExperimentalHints: false,
-			hideHints: false,
+			showToolbar: 'onHover',
 		};
 
 		super(
@@ -3814,15 +3821,15 @@ class InlineEditorSuggest extends BaseEditorOption<EditorOption.inlineSuggest, I
 					default: defaults.enabled,
 					description: nls.localize('inlineSuggest.enabled', "Controls whether to automatically show inline suggestions in the editor.")
 				},
-				'editor.inlineSuggest.useExperimentalHints': {
-					type: 'boolean',
-					default: defaults.useExperimentalHints,
-					description: nls.localize('inlineSuggest.useExperimentalHints', "Controls whether to use experimental hints in the editor."),
-				},
-				'editor.inlineSuggest.hideHints': {
-					type: 'boolean',
-					default: defaults.hideHints,
-					description: nls.localize('inlineSuggest.hideHints', "Controls whether to hide hints in the editor."),
+				'editor.inlineSuggest.showToolbar': {
+					type: 'string',
+					default: defaults.showToolbar,
+					enum: ['always', 'onHover'],
+					enumDescriptions: [
+						nls.localize('inlineSuggest.showToolbar.always', "Show the inline suggestion toolbar whenever an inline suggestion is shown."),
+						nls.localize('inlineSuggest.showToolbar.onHover', "Show the inline suggestion toolbar when hovering over an inline suggestion."),
+					],
+					description: nls.localize('inlineSuggest.showToolbar', "Controls when to show the inline suggestion toolbar."),
 				},
 			}
 		);
@@ -3836,8 +3843,7 @@ class InlineEditorSuggest extends BaseEditorOption<EditorOption.inlineSuggest, I
 		return {
 			enabled: boolean(input.enabled, this.defaultValue.enabled),
 			mode: stringSet(input.mode, this.defaultValue.mode, ['prefix', 'subword', 'subwordSmart']),
-			useExperimentalHints: boolean(input.useExperimentalHints, this.defaultValue.useExperimentalHints),
-			hideHints: boolean(input.hideHints, this.defaultValue.hideHints),
+			showToolbar: stringSet(input.showToolbar, this.defaultValue.showToolbar, ['always', 'onHover']),
 		};
 	}
 }
@@ -4284,13 +4290,13 @@ class EditorSuggest extends BaseEditorOption<EditorOption.suggest, ISuggestOptio
 					type: 'string',
 					enum: ['always', 'never', 'whenTriggerCharacter', 'whenQuickSuggestion'],
 					enumDescriptions: [
-						nls.localize('suggest.insertMode.always', "Always activate the suggest widget when triggering IntelliSense automatically."),
-						nls.localize('suggest.insertMode.never', "Never activate the suggest when when triggering IntelliSense automatically."),
-						nls.localize('suggest.insertMode.whenTriggerCharacter', "Activate the suggest widget only when triggering IntelliSense from a trigger character."),
-						nls.localize('suggest.insertMode.whenQuickSuggestion', "Activate the suggest widget only when triggering IntelliSense as you type."),
+						nls.localize('suggest.insertMode.always', "Always select a suggestion when automatically triggering IntelliSense."),
+						nls.localize('suggest.insertMode.never', "Never select a suggestion when automatically triggering IntelliSense."),
+						nls.localize('suggest.insertMode.whenTriggerCharacter', "Select a suggestion only when triggering IntelliSense from a trigger character."),
+						nls.localize('suggest.insertMode.whenQuickSuggestion', "Select a suggestion only when triggering IntelliSense as you type."),
 					],
 					default: defaults.selectionMode,
-					markdownDescription: nls.localize('suggest.selectionMode', "Controls whether the suggest widget becomes active when triggered via quick suggest or trigger characters. Note that the widget is always active when explicitly invoked, e.g via `Ctrl+Space`.")
+					markdownDescription: nls.localize('suggest.selectionMode', "Controls whether a suggestion is selected when the widget shows. Note that this only applies to automatically triggered suggestions (`#editor.quickSuggestions#` and `#editor.suggestOnTriggerCharacters#`) and that a suggestion is always selected when explicitly invoked, e.g via `Ctrl+Space`.")
 				},
 				'editor.suggest.snippetsPreventQuickSuggestions': {
 					type: 'boolean',
@@ -4572,22 +4578,6 @@ class SmartSelect extends BaseEditorOption<EditorOption.smartSelect, ISmartSelec
 
 //#endregion
 
-//#region tabFocusMode
-
-class EditorTabFocusMode extends ComputedEditorOption<EditorOption.tabFocusMode, boolean> {
-
-	constructor() {
-		super(EditorOption.tabFocusMode);
-	}
-
-	public compute(env: IEnvironmentalOptions, options: IComputedEditorOptions, _: boolean): boolean {
-		const readOnly = options.get(EditorOption.readOnly);
-		return (readOnly ? true : env.tabFocusMode);
-	}
-}
-
-//#endregion
-
 //#region wrappingIndent
 
 /**
@@ -4768,6 +4758,7 @@ export const enum EditorOption {
 	accessibilityPageSize,
 	ariaLabel,
 	autoClosingBrackets,
+	screenReaderAnnounceInlineSuggestion,
 	autoClosingDelete,
 	autoClosingOvertype,
 	autoClosingQuotes,
@@ -4931,6 +4922,13 @@ export const EditorOptions = {
 		})),
 	ariaLabel: register(new EditorStringOption(
 		EditorOption.ariaLabel, 'ariaLabel', nls.localize('editorViewAccessibleLabel', "Editor content")
+	)),
+	screenReaderAnnounceInlineSuggestion: register(new EditorBooleanOption(
+		EditorOption.screenReaderAnnounceInlineSuggestion, 'screenReaderAnnounceInlineSuggestion', false,
+		{
+			description: nls.localize('screenReaderAnnounceInlineSuggestion', "Control whether inline suggestions are announced by a screen reader. Note that this does not work on macOS with VoiceOver."),
+			tags: ['accessibility']
+		}
 	)),
 	autoClosingBrackets: register(new EditorStringEnumOption(
 		EditorOption.autoClosingBrackets, 'autoClosingBrackets',
@@ -5622,7 +5620,9 @@ export const EditorOptions = {
 	// Leave these at the end (because they have dependencies!)
 	editorClassName: register(new EditorClassName()),
 	pixelRatio: register(new EditorPixelRatio()),
-	tabFocusMode: register(new EditorTabFocusMode()),
+	tabFocusMode: register(new EditorBooleanOption(EditorOption.tabFocusMode, 'tabFocusMode', false,
+		{ markdownDescription: nls.localize('tabFocusMode', "Controls whether the editor receives tabs or defers them to the workbench for navigation.") }
+	)),
 	layoutInfo: register(new EditorLayoutInfoComputer()),
 	wrappingInfo: register(new EditorWrappingInfoComputer()),
 	wrappingIndent: register(new WrappingIndentOption()),

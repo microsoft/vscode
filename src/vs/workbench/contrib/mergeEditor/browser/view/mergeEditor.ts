@@ -20,6 +20,7 @@ import { ICodeEditor, IViewZoneChangeAccessor } from 'vs/editor/browser/editorBr
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { IEditorOptions as ICodeEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { ICodeEditorViewState, ScrollType } from 'vs/editor/common/editorCommon';
+import { ITextModel } from 'vs/editor/common/model';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfiguration';
 import { localize } from 'vs/nls';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -173,7 +174,7 @@ export class MergeEditor extends AbstractTextEditor<IMergeEditorViewState> {
 
 		this.input1View.updateOptions(inputOptions);
 		this.input2View.updateOptions(inputOptions);
-		this.baseViewOptions.set(this.input2View.editor.getRawOptions(), undefined);
+		this.baseViewOptions.set({ ...this.input2View.editor.getRawOptions() }, undefined);
 		this.inputResultView.updateOptions(options);
 	}
 
@@ -302,17 +303,22 @@ export class MergeEditor extends AbstractTextEditor<IMergeEditorViewState> {
 		}
 
 		// word wrap special case - sync transient state from result model to input[1|2] models
-		const mirrorWordWrapTransientState = () => {
-			const state = readTransientState(model.resultTextModel, this._codeEditorService);
-			writeTransientState(model.input2.textModel, state, this._codeEditorService);
-			writeTransientState(model.input1.textModel, state, this._codeEditorService);
+		const mirrorWordWrapTransientState = (candidate: ITextModel) => {
+			const candidateState = readTransientState(candidate, this._codeEditorService);
+
+			writeTransientState(model.input2.textModel, candidateState, this._codeEditorService);
+			writeTransientState(model.input1.textModel, candidateState, this._codeEditorService);
+			writeTransientState(model.resultTextModel, candidateState, this._codeEditorService);
+
+			const baseTextModel = this.baseView.get()?.editor.getModel();
+			if (baseTextModel) {
+				writeTransientState(baseTextModel, candidateState, this._codeEditorService);
+			}
 		};
 		this._sessionDisposables.add(this._codeEditorService.onDidChangeTransientModelProperty(candidate => {
-			if (candidate === this.inputResultView.editor.getModel()) {
-				mirrorWordWrapTransientState();
-			}
+			mirrorWordWrapTransientState(candidate);
 		}));
-		mirrorWordWrapTransientState();
+		mirrorWordWrapTransientState(this.inputResultView.editor.getModel()!);
 
 		// detect when base, input1, and input2 become empty and replace THIS editor with its result editor
 		// TODO@jrieken@hediet this needs a better/cleaner solution

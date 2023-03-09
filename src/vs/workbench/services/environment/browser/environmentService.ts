@@ -45,9 +45,6 @@ export class BrowserWorkbenchEnvironmentService implements IBrowserWorkbenchEnvi
 	get isBuilt(): boolean { return !!this.productService.commit; }
 
 	@memoize
-	get logsPath(): string { return this.logsHome.path; }
-
-	@memoize
 	get logLevel(): string | undefined {
 		const logLevelFromPayload = this.payload?.get('logLevel');
 		if (logLevelFromPayload) {
@@ -121,12 +118,6 @@ export class BrowserWorkbenchEnvironmentService implements IBrowserWorkbenchEnvi
 	 */
 	@memoize
 	get userDataSyncHome(): URI { return joinPath(this.userRoamingDataHome, 'sync', this.workspaceId); }
-
-	@memoize
-	get userDataSyncLogResource(): URI { return joinPath(this.logsHome, 'userDataSync.log'); }
-
-	@memoize
-	get editSessionsLogResource(): URI { return joinPath(this.logsHome, 'editSessions.log'); }
 
 	@memoize
 	get sync(): 'on' | 'off' | undefined { return undefined; }
@@ -235,7 +226,6 @@ export class BrowserWorkbenchEnvironmentService implements IBrowserWorkbenchEnvi
 	}
 
 	@memoize
-	get telemetryLogResource(): URI { return joinPath(this.logsHome, 'telemetry.log'); }
 	get extensionTelemetryLogResource(): URI { return joinPath(this.logsHome, 'extensionTelemetry.log'); }
 
 	@memoize
@@ -265,7 +255,7 @@ export class BrowserWorkbenchEnvironmentService implements IBrowserWorkbenchEnvi
 
 	constructor(
 		private readonly workspaceId: string,
-		private readonly logsHome: URI,
+		readonly logsHome: URI,
 		readonly options: IWorkbenchConstructionOptions,
 		private readonly productService: IProductService
 	) {

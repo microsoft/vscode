@@ -155,6 +155,8 @@ export class NotebooKernelActionViewItem extends ActionViewItem {
 			{ label: false, icon: true }
 		);
 		this._register(_editor.onDidChangeModel(this._update, this));
+		this._register(_notebookKernelService.onDidAddKernel(this._update, this));
+		this._register(_notebookKernelService.onDidRemoveKernel(this._update, this));
 		this._register(_notebookKernelService.onDidChangeNotebookAffinity(this._update, this));
 		this._register(_notebookKernelService.onDidChangeSelectedNotebooks(this._update, this));
 		this._register(_notebookKernelService.onDidChangeSourceActions(this._update, this));

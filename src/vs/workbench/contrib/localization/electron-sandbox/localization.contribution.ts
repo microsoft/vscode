@@ -13,7 +13,6 @@ import * as platform from 'vs/base/common/platform';
 import { IExtensionManagementService, IExtensionGalleryService, InstallOperation, ILocalExtension, InstallExtensionResult, DidUninstallExtensionEvent } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { INotificationService, NeverShowAgainScope } from 'vs/platform/notification/common/notification';
 import Severity from 'vs/base/common/severity';
-import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { VIEWLET_ID as EXTENSIONS_VIEWLET_ID, IExtensionsViewPaneContainer } from 'vs/workbench/contrib/extensions/common/extensions';
 import { minimumTranslatedStrings } from 'vs/workbench/contrib/localization/electron-sandbox/minimalTranslations';
@@ -23,12 +22,8 @@ import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/b
 import { ViewContainerLocation } from 'vs/workbench/common/views';
 import { registerAction2 } from 'vs/platform/actions/common/actions';
 import { ClearDisplayLanguageAction, ConfigureDisplayLanguageAction } from 'vs/workbench/contrib/localization/browser/localizationsActions';
-import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { ILocaleService } from 'vs/workbench/contrib/localization/common/locale';
-import { NativeLocaleService } from 'vs/workbench/contrib/localization/electron-sandbox/localeService';
+import { ILocaleService } from 'vs/workbench/services/localization/common/locale';
 import { IProductService } from 'vs/platform/product/common/productService';
-
-registerSingleton(ILocaleService, NativeLocaleService, InstantiationType.Delayed);
 
 // Register action to configure locale and related settings
 registerAction2(ConfigureDisplayLanguageAction);
@@ -41,7 +36,6 @@ export class LocalizationWorkbenchContribution extends Disposable implements IWo
 		@INotificationService private readonly notificationService: INotificationService,
 		@ILocaleService private readonly localeService: ILocaleService,
 		@IProductService private readonly productService: IProductService,
-		@IHostService private readonly hostService: IHostService,
 		@IStorageService private readonly storageService: IStorageService,
 		@IExtensionManagementService private readonly extensionManagementService: IExtensionManagementService,
 		@IExtensionGalleryService private readonly galleryService: IExtensionGalleryService,
@@ -71,35 +65,26 @@ export class LocalizationWorkbenchContribution extends Disposable implements IWo
 		}
 		const { languageId, languageName } = localization;
 
-		if (fromSettingsSync) {
-			this.notificationService.prompt(
-				Severity.Info,
-				localize('updateLocale', "Would you like to change {0}'s display language to {1} and restart?", this.productService.nameLong, languageName || languageId),
-				[{
-					label: localize('changeAndRestart', "Change Language and Restart"),
-					run: async () => {
-						await this.localeService.setLocale({
-							id: languageId,
-							label: languageName ?? languageId,
-							extensionId: localExtension.identifier.id,
-							// If settings sync installs the language pack, then we would have just shown the notification so no
-							// need to show the dialog.
-						}, true);
-					}
-				}],
-				{
-					sticky: true,
-					neverShowAgain: { id: 'langugage.update.donotask', isSecondary: true, scope: NeverShowAgainScope.APPLICATION }
+		this.notificationService.prompt(
+			Severity.Info,
+			localize('updateLocale', "Would you like to change {0}'s display language to {1} and restart?", this.productService.nameLong, languageName || languageId),
+			[{
+				label: localize('changeAndRestart', "Change Language and Restart"),
+				run: async () => {
+					await this.localeService.setLocale({
+						id: languageId,
+						label: languageName ?? languageId,
+						extensionId: localExtension.identifier.id,
+						// If settings sync installs the language pack, then we would have just shown the notification so no
+						// need to show the dialog.
+					}, true);
 				}
-			);
-			return;
-		}
-
-		await this.localeService.setLocale({
-			id: languageId,
-			label: languageName ?? languageId,
-			extensionId: localExtension.identifier.id,
-		});
+			}],
+			{
+				sticky: true,
+				neverShowAgain: { id: 'langugage.update.donotask', isSecondary: true, scope: NeverShowAgainScope.APPLICATION }
+			}
+		);
 	}
 
 	private async onDidUninstallExtension(_event: DidUninstallExtensionEvent): Promise<void> {
@@ -200,9 +185,9 @@ export class LocalizationWorkbenchContribution extends Disposable implements IWo
 									id: locale,
 									label: languageName,
 									extensionId: extensionToInstall?.identifier.id,
+									galleryExtension: extensionToInstall
 									// The user will be prompted if they want to install the language pack before this.
 								}, true);
-								await this.hostService.restart();
 							}
 						};
 

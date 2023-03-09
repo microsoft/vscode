@@ -19,7 +19,7 @@ import { GhostTextModel } from 'vs/editor/contrib/inlineCompletions/browser/ghos
 import { GhostTextWidget } from 'vs/editor/contrib/inlineCompletions/browser/ghostTextWidget';
 import { InlineSuggestionHintsWidget } from 'vs/editor/contrib/inlineCompletions/browser/inlineSuggestionHintsWidget';
 import * as nls from 'vs/nls';
-import { MenuId } from 'vs/platform/actions/common/actions';
+import { Action2, MenuId } from 'vs/platform/actions/common/actions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ContextKeyExpr, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -33,6 +33,8 @@ export class GhostTextController extends Disposable {
 	 * Enables to use Ctrl+Left to undo partially accepted inline completions.
 	 */
 	public static readonly canUndoInlineSuggestion = new RawContextKey<boolean>('canUndoInlineSuggestion', false, nls.localize('canUndoInlineSuggestion', "Whether undo would undo an inline suggestion"));
+
+	public static readonly alwaysShowInlineSuggestionToolbar = new RawContextKey<boolean>('alwaysShowInlineSuggestionToolbar', false, nls.localize('alwaysShowInlineSuggestionToolbar', "Whether the inline suggestion toolbar should always be visible"));
 
 	static ID = 'editor.contrib.ghostTextController';
 
@@ -56,9 +58,12 @@ export class GhostTextController extends Disposable {
 	 */
 	private firstUndoableVersionId: number | undefined = undefined;
 
+	public readonly alwaysShowInlineSuggestionToolbar = GhostTextController.alwaysShowInlineSuggestionToolbar.bindTo(this.contextKeyService);
+
 	constructor(
 		public readonly editor: ICodeEditor,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 	) {
 		super();
 
@@ -77,31 +82,36 @@ export class GhostTextController extends Disposable {
 		}));
 
 		this._register(this.editor.onDidChangeModel(() => {
-			this.updateModelController();
+			this.update();
 		}));
 		this._register(this.editor.onDidChangeConfiguration((e) => {
 			if (e.hasChanged(EditorOption.suggest) || e.hasChanged(EditorOption.inlineSuggest)) {
-				this.updateModelController();
+				this.update();
 			}
 		}));
-		this.updateModelController();
+		this.update();
 	}
 
 	// Don't call this method when not necessary. It will recreate the activeController.
-	private updateModelController(): void {
+	private update(): void {
 		const suggestOptions = this.editor.getOption(EditorOption.suggest);
 		const inlineSuggestOptions = this.editor.getOption(EditorOption.inlineSuggest);
 
-		this.activeController.value = undefined;
-		// ActiveGhostTextController is only created if one of those settings is set or if the inline completions are triggered explicitly.
-		this.activeController.value =
-			this.editor.hasModel() && (suggestOptions.preview || inlineSuggestOptions.enabled || this.triggeredExplicitly)
-				? this.instantiationService.createInstance(
+		this.alwaysShowInlineSuggestionToolbar.set(inlineSuggestOptions.showToolbar === 'always');
+
+		const shouldCreate = this.editor.hasModel() && (suggestOptions.preview || inlineSuggestOptions.enabled || this.triggeredExplicitly);
+
+		if (shouldCreate !== !!this.activeController.value) {
+			this.activeController.value = undefined;
+			// ActiveGhostTextController is only created if one of those settings is set or if the inline completions are triggered explicitly.
+			this.activeController.value =
+				shouldCreate ? this.instantiationService.createInstance(
 					ActiveGhostTextController,
-					this.editor
+					this.editor as IActiveCodeEditor
 				)
-				: undefined;
-		this.activeModelDidChangeEmitter.fire();
+					: undefined;
+			this.activeModelDidChangeEmitter.fire();
+		}
 	}
 
 	public shouldShowHoverAt(hoverRange: Range): boolean {
@@ -115,7 +125,7 @@ export class GhostTextController extends Disposable {
 	public trigger(): void {
 		this.triggeredExplicitly = true;
 		if (!this.activeController.value) {
-			this.updateModelController();
+			this.update();
 		}
 		this.activeModel?.triggerInlineCompletion();
 	}
@@ -303,7 +313,7 @@ export class AcceptNextWordOfInlineCompletion extends EditorAction {
 			},
 			menuOpts: [{
 				menuId: MenuId.InlineSuggestionToolbar,
-				title: nls.localize('acceptPart', 'Accept Part'),
+				title: nls.localize('acceptWord', 'Accept Word'),
 				group: 'primary',
 				order: 2,
 			}],
@@ -322,8 +332,8 @@ export class AcceptInlineCompletion extends EditorAction {
 	constructor() {
 		super({
 			id: inlineSuggestCommitId,
-			label: nls.localize('action.inlineSuggest.acceptNextWord', "Accept Next Word Of Inline Suggestion"),
-			alias: 'Accept Next Word Of Inline Suggestion',
+			label: nls.localize('action.inlineSuggest.accept', "Accept Inline Suggestion"),
+			alias: 'Accept Inline Suggestion',
 			precondition: GhostTextController.inlineSuggestionVisible,
 			menuOpts: [{
 				menuId: MenuId.InlineSuggestionToolbar,
@@ -358,8 +368,8 @@ export class HideInlineCompletion extends EditorAction {
 	constructor() {
 		super({
 			id: HideInlineCompletion.ID,
-			label: nls.localize('action.inlineSuggest.acceptNextWord', "Accept Next Word Of Inline Suggestion"),
-			alias: 'Accept Next Word Of Inline Suggestion',
+			label: nls.localize('action.inlineSuggest.hide', "Hide Inline Suggestion"),
+			alias: 'Hide Inline Suggestion',
 			precondition: GhostTextController.inlineSuggestionVisible,
 			kbOpts: {
 				weight: 100,
@@ -376,27 +386,29 @@ export class HideInlineCompletion extends EditorAction {
 	}
 }
 
-export class DisableSuggestionHints extends EditorAction {
-	public static ID = 'editor.action.inlineSuggest.disableHints';
+export class ToggleAlwaysShowInlineSuggestionToolbar extends Action2 {
+	public static ID = 'editor.action.inlineSuggest.toggleAlwaysShowToolbar';
 
 	constructor() {
 		super({
-			id: DisableSuggestionHints.ID,
-			label: nls.localize('action.inlineSuggest.disableHints', "Disable suggestion hints"),
-			alias: 'Disable suggestion hints',
+			id: ToggleAlwaysShowInlineSuggestionToolbar.ID,
+			title: nls.localize('action.inlineSuggest.alwaysShowToolbar', "Always Show Toolbar"),
+			f1: false,
 			precondition: undefined,
-			menuOpts: [{
-				menuId: MenuId.InlineSuggestionToolbar,
-				title: nls.localize('action.inlineSuggest.disableHints', "Disable suggestion hints"),
+			menu: [{
+				id: MenuId.InlineSuggestionToolbar,
 				group: 'secondary',
 				order: 10,
 			}],
+			toggled: GhostTextController.alwaysShowInlineSuggestionToolbar,
 		});
 	}
 
 	public async run(accessor: ServicesAccessor, editor: ICodeEditor): Promise<void> {
 		const configService = accessor.get(IConfigurationService);
-		configService.updateValue('editor.inlineSuggest.hideHints', true);
+		const currentValue = configService.getValue<'always' | 'onHover'>('editor.inlineSuggest.showToolbar');
+		const newValue = currentValue === 'always' ? 'onHover' : 'always';
+		configService.updateValue('editor.inlineSuggest.showToolbar', newValue);
 	}
 }
 
@@ -404,8 +416,8 @@ export class UndoAcceptPart extends EditorAction {
 	constructor() {
 		super({
 			id: 'editor.action.inlineSuggest.undo',
-			label: nls.localize('action.inlineSuggest.undo', "Undo Accept Part"),
-			alias: 'Undo Accept Part',
+			label: nls.localize('action.inlineSuggest.undo', "Undo Accept Word"),
+			alias: 'Undo Accept Word',
 			precondition: ContextKeyExpr.and(EditorContextKeys.writable, GhostTextController.canUndoInlineSuggestion),
 			kbOpts: {
 				weight: KeybindingWeight.EditorContrib + 1,
@@ -414,7 +426,7 @@ export class UndoAcceptPart extends EditorAction {
 			},
 			menuOpts: [{
 				menuId: MenuId.InlineSuggestionToolbar,
-				title: 'Undo Accept Part',
+				title: nls.localize('undoAcceptWord', 'Undo Accept Word'),
 				group: 'secondary',
 				order: 3,
 			}],

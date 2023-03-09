@@ -36,6 +36,7 @@ export class AccessibilityStatus extends Disposable implements IWorkbenchContrib
 			}
 		}));
 		CommandsRegistry.registerCommand({ id: 'showEditorScreenReaderNotification', handler: () => this.showScreenReaderNotification() });
+		this.updateScreenReaderModeElement(this._accessibilityService.isScreenReaderOptimized());
 	}
 
 	private showScreenReaderNotification(): void {

@@ -322,7 +322,7 @@ suite('ViewDescriptorService', () => {
 		assert.deepStrictEqual(panelViews.allViewDescriptors.map(v => v.id), ['view3']);
 
 		const actual = JSON.parse(instantiationService.get(IStorageService).get('views.customizations', StorageScope.PROFILE)!);
-		assert.deepStrictEqual(actual, { viewContainerLocations: {}, viewLocations: {} });
+		assert.deepStrictEqual(actual, { viewContainerLocations: {}, viewLocations: {}, viewContainerBadgeEnablementStates: {} });
 
 		assert.deepStrictEqual(testObject.getViewContainerById(generatedPanel.id), null);
 		assert.deepStrictEqual(testObject.getViewContainerById(generatedSidebar.id), null);
@@ -519,7 +519,7 @@ suite('ViewDescriptorService', () => {
 		assert.deepStrictEqual(testObject.isViewContainerRemovedPermanently(generatedViewContainerId), true);
 
 		const actual = JSON.parse(storageService.get('views.customizations', StorageScope.PROFILE)!);
-		assert.deepStrictEqual(actual, { viewContainerLocations: {}, viewLocations: {} });
+		assert.deepStrictEqual(actual, { viewContainerLocations: {}, viewLocations: {}, viewContainerBadgeEnablementStates: {} });
 	});
 
 	test('custom locations take precedence when default view container of views change', async function () {

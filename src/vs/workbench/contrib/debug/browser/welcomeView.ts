@@ -107,22 +107,48 @@ export class WelcomeView extends ViewPane {
 
 const viewsRegistry = Registry.as<IViewsRegistry>(Extensions.ViewsRegistry);
 viewsRegistry.registerViewWelcomeContent(WelcomeView.ID, {
-	content: localize({ key: 'openAFileWhichCanBeDebugged', comment: ['Please do not translate the word "commmand", it is part of our internal syntax which must not change'] },
-		"[Open a file](command:{0}) which can be debugged or run.", (isMacintosh && !isWeb) ? OpenFileFolderAction.ID : OpenFileAction.ID),
+	content: localize(
+		{
+			key: 'openAFileWhichCanBeDebugged',
+			comment: [
+				'Please do not translate the word "command", it is part of our internal syntax which must not change',
+				'{Locked="](command:{0})"}'
+			]
+		},
+		"[Open a file](command:{0}) which can be debugged or run.", (isMacintosh && !isWeb) ? OpenFileFolderAction.ID : OpenFileAction.ID
+	),
 	when: ContextKeyExpr.and(CONTEXT_DEBUGGERS_AVAILABLE, CONTEXT_DEBUGGER_INTERESTED_IN_ACTIVE_EDITOR.toNegated()),
-	group: ViewContentGroups.Open
+	group: ViewContentGroups.Open,
 });
 
 let debugKeybindingLabel = '';
 viewsRegistry.registerViewWelcomeContent(WelcomeView.ID, {
-	content: localize({ key: 'runAndDebugAction', comment: ['Please do not translate the word "commmand", it is part of our internal syntax which must not change'] },
+	content: localize(
+		{
+			key: 'runAndDebugAction',
+			comment: [
+				'{0} will be replaced with a keybinding',
+				'Please do not translate the word "command", it is part of our internal syntax which must not change',
+				'{Locked="](command:{1})"}'
+			]
+		},
 		"[Run and Debug{0}](command:{1})", debugKeybindingLabel, DEBUG_START_COMMAND_ID),
 	when: CONTEXT_DEBUGGERS_AVAILABLE,
-	group: ViewContentGroups.Debug
+	group: ViewContentGroups.Debug,
+	// Allow inserting more buttons directly after this one (by setting order to 1).
+	order: 1
 });
 
 viewsRegistry.registerViewWelcomeContent(WelcomeView.ID, {
-	content: localize({ key: 'detectThenRunAndDebug', comment: ['Please do not translate the word "commmand", it is part of our internal syntax which must not change'] },
+	content: localize(
+		{
+			key: 'detectThenRunAndDebug',
+			comment: [
+				'Please do not translate the word "command", it is part of our internal syntax which must not change',
+				'{Locked="](command:{0})"}',
+
+			]
+		},
 		"[Show all automatic debug configurations](command:{0}).", SELECT_AND_START_ID),
 	when: CONTEXT_DEBUGGERS_AVAILABLE,
 	group: ViewContentGroups.Debug,
@@ -130,14 +156,28 @@ viewsRegistry.registerViewWelcomeContent(WelcomeView.ID, {
 });
 
 viewsRegistry.registerViewWelcomeContent(WelcomeView.ID, {
-	content: localize({ key: 'customizeRunAndDebug', comment: ['Please do not translate the word "commmand", it is part of our internal syntax which must not change'] },
+	content: localize(
+		{
+			key: 'customizeRunAndDebug',
+			comment: [
+				'Please do not translate the word "command", it is part of our internal syntax which must not change',
+				'{Locked="](command:{0})"}'
+			]
+		},
 		"To customize Run and Debug [create a launch.json file](command:{0}).", DEBUG_CONFIGURE_COMMAND_ID),
 	when: ContextKeyExpr.and(CONTEXT_DEBUGGERS_AVAILABLE, WorkbenchStateContext.notEqualsTo('empty')),
 	group: ViewContentGroups.Debug
 });
 
 viewsRegistry.registerViewWelcomeContent(WelcomeView.ID, {
-	content: localize({ key: 'customizeRunAndDebugOpenFolder', comment: ['Please do not translate the word "commmand", it is part of our internal syntax which must not change'] },
+	content: localize(
+		{
+			key: 'customizeRunAndDebugOpenFolder',
+			comment: [
+				'Please do not translate the word "commmand", it is part of our internal syntax which must not change',
+				'{Locked="](command:{0})"}'
+			]
+		},
 		"To customize Run and Debug, [open a folder](command:{0}) and create a launch.json file.", (isMacintosh && !isWeb) ? OpenFileFolderAction.ID : OpenFolderAction.ID),
 	when: ContextKeyExpr.and(CONTEXT_DEBUGGERS_AVAILABLE, WorkbenchStateContext.isEqualTo('empty')),
 	group: ViewContentGroups.Debug

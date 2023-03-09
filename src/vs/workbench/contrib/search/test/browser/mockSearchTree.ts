@@ -6,7 +6,7 @@
 import { ITreeNavigator } from 'vs/base/browser/ui/tree/tree';
 import { Emitter } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
-import { RenderableMatch } from 'vs/workbench/contrib/search/common/searchModel';
+import { RenderableMatch } from 'vs/workbench/contrib/search/browser/searchModel';
 
 const someEvent = new Emitter().event;
 
