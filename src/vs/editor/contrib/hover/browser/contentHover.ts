@@ -401,7 +401,7 @@ class ContentHoverVisibleData {
 export class ResizeableContentHoverWidget extends Disposable {
 
 	// The resizeable element
-	readonly _resizeableElement: ResizableHTMLElement;
+	readonly _resizableElement: ResizableHTMLElement;
 	// The initial hover content widget
 	private readonly _hoverContentWidget: ContentHoverWidget;
 	private readonly _persistedSize: PersistedWidgetSize;
@@ -413,20 +413,18 @@ export class ResizeableContentHoverWidget extends Disposable {
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService
 	) {
 		super();
-		this._resizeableElement = new ResizableHTMLElement();
-		// TODO: Add the class names to the resizeable element?
-		// The resizeable element is passed into the content hover widget
-		this._hoverContentWidget = new ContentHoverWidget(this._resizeableElement, _editor, this._contextKeyService);
+		this._resizableElement = new ResizableHTMLElement();
+		this._hoverContentWidget = new ContentHoverWidget(_editor, this._contextKeyService);
+		this._resizableElement.domNode.appendChild(this._hoverContentWidget.getDomNode());
 
 		this._persistedSize = new PersistedWidgetSize(this._storageService, _editor);
 		let state: ResizeState | undefined;
-		this._disposables.add(this._resizeableElement.onDidWillResize(() => {
+		this._disposables.add(this._resizableElement.onDidWillResize(() => {
 			console.log('Entered into onDidWillResize of ResizeableContentHoverWidget');
-			this._hoverContentWidget.lockPreference();
-			state = new ResizeState(this._persistedSize.restore(), this._resizeableElement.size);
+			state = new ResizeState(this._persistedSize.restore(), this._resizableElement.size);
 			console.log('state : ', state);
 		}));
-		this._disposables.add(this._resizeableElement.onDidResize(e => {
+		this._disposables.add(this._resizableElement.onDidResize(e => {
 			console.log('Inside of onDidResize of ResizeableContentHoverWidget');
 			console.log('e : ', e);
 			this._resize(e.dimension.width, e.dimension.height);
@@ -447,7 +445,7 @@ export class ResizeableContentHoverWidget extends Disposable {
 				const itemHeight = this._editor.getOption(EditorOption.fontInfo).lineHeight;
 				const defaultSize = new dom.Dimension(430, 12 * itemHeight);
 				const threshold = Math.round(itemHeight / 2);
-				let { width, height } = this._resizeableElement.size;
+				let { width, height } = this._resizableElement.size;
 				if (!state.persistHeight || Math.abs(state.currentSize.height - height) <= threshold) {
 					console.log('Entered into the first if loop');
 					height = state.persistedSize?.height ?? defaultSize.height;
@@ -458,9 +456,6 @@ export class ResizeableContentHoverWidget extends Disposable {
 				}
 				this._persistedSize.store(new dom.Dimension(width, height));
 			}
-
-			// reset working state
-			this._hoverContentWidget.unlockPreference();
 			state = undefined;
 		}));
 	}
@@ -515,29 +510,29 @@ export class ResizeableContentHoverWidget extends Disposable {
 		if (height > maxHeightBelow || (availableSpaceAbove > forceRenderingAboveRequiredSpace)) {
 			// this._hoverContentWidget.setPreference(ContentWidgetPositionPreference.ABOVE);
 			console.log('Entered into the first if loop for enabling sashes');
-			this._resizeableElement.enableSashes(true, true, false, false);
+			this._resizableElement.enableSashes(true, true, false, false);
 			maxHeight = maxHeightAbove;
 		} else {
 			// this._hoverContentWidget.setPreference(ContentWidgetPositionPreference.BELOW);
 			console.log('Entered into the second if loop for enabling sashes');
-			this._resizeableElement.enableSashes(false, true, true, false);
+			this._resizableElement.enableSashes(false, true, true, false);
 			maxHeight = maxHeightBelow;
 		}
-		this._resizeableElement.preferredSize = new dom.Dimension(preferredWidth, defaultSize.height);
-		this._resizeableElement.maxSize = new dom.Dimension(maxWidth, maxHeight);
-		this._resizeableElement.minSize = new dom.Dimension(220, minHeight);
+		this._resizableElement.preferredSize = new dom.Dimension(preferredWidth, defaultSize.height);
+		this._resizableElement.maxSize = new dom.Dimension(maxWidth, maxHeight);
+		this._resizableElement.minSize = new dom.Dimension(220, minHeight);
 
 		this._resize(width, height);
 	}
 
 	private _resize(width: number, height: number): void {
 		console.log('Inside of _resize');
-		const { width: maxWidth, height: maxHeight } = this._resizeableElement.maxSize;
+		const { width: maxWidth, height: maxHeight } = this._resizableElement.maxSize;
 		width = Math.min(maxWidth, width);
 		height = Math.min(maxHeight, height);
 		console.log('width : ', width);
 		console.log('height : ', height);
-		this._resizeableElement.layout(height, width);
+		this._resizableElement.layout(height, width);
 		this._hoverContentWidget.layout();
 	}
 
@@ -545,7 +540,7 @@ export class ResizeableContentHoverWidget extends Disposable {
 	public getDomNode(): HTMLElement {
 		console.log('Inside of getDomNode');
 		// return this._hoverContentWidget.getDomNode();
-		return this._resizeableElement.domNode;
+		return this._resizableElement.domNode;
 	}
 
 	public clear(): void {
@@ -561,7 +556,7 @@ export class ResizeableContentHoverWidget extends Disposable {
 	}
 
 	public hide() {
-		this._resizeableElement.clearSashHoverState();
+		this._resizableElement.clearSashHoverState();
 		this._hoverContentWidget.hide();
 	}
 
@@ -580,7 +575,7 @@ export class ResizeableContentHoverWidget extends Disposable {
 	public showAt(node: DocumentFragment, visibleData: ContentHoverVisibleData) {
 		console.log('Inside of showAt function of the ResizeableContentHoverWidget');
 		// this._layout(this._persistedSize.restore());
-		this._layout(this._resizeableElement.size);
+		this._layout(this._resizableElement.size);
 		return this._hoverContentWidget.showAt(node, visibleData);
 	}
 	_afterRender(position: ContentWidgetPositionPreference | null) {
@@ -600,7 +595,6 @@ export class ContentHoverWidget extends Disposable implements IContentWidget {
 
 	private _visibleData: ContentHoverVisibleData | null = null;
 	private readonly _hover: HoverWidget;
-	private _preferenceLocked = false;
 
 	/**
 	 * Returns `null` if the hover is not visible.
@@ -618,12 +612,14 @@ export class ContentHoverWidget extends Disposable implements IContentWidget {
 	}
 
 	constructor(
-		private readonly _resizeableElement: ResizableHTMLElement,
 		private readonly _editor: ICodeEditor,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 	) {
 		super();
-		this._hover = this._register(new HoverWidget(this._resizeableElement));
+		const hoverWidget = new HoverWidget();
+		console.log('Right before adding to the reizable element the hover widget container dom node');
+		// Adding into the resizeable element dom node the hover widget dom node
+		this._hover = this._register(hoverWidget);
 		this._register(this._editor.onDidLayoutChange(() => this._layout()));
 		this._register(this._editor.onDidChangeConfiguration((e: ConfigurationChangedEvent) => {
 			if (e.hasChanged(EditorOption.fontInfo)) {
@@ -650,8 +646,10 @@ export class ContentHoverWidget extends Disposable implements IContentWidget {
 
 	public getDomNode(): HTMLElement {
 		console.log('Inside of getDomNode for the ContentHoverWidget');
+		// Returning the dom node of the resizable element
+
 		return this._hover.containerDomNode;
-		// return this._resizeableContentHoverWidget._resizeableElement.domNode;
+		// return this._resizableElement.domNode;
 	}
 
 	public getPosition(): IContentWidgetPosition | null {
@@ -782,16 +780,6 @@ export class ContentHoverWidget extends Disposable implements IContentWidget {
 		this._hover.contentsDomNode.textContent = '';
 	}
 
-	// Locking the preference in terms of the size of the content hover widget
-	// Maybe don't need this part of the code which locks the preferences
-	lockPreference() {
-		this._preferenceLocked = true;
-	}
-
-	unlockPreference() {
-		this._preferenceLocked = false;
-	}
-
 	layout(): void {
 		console.log('Inside of layout of the ContentHoverWidget');
 		this._editor.layoutContentWidget(this);
@@ -799,7 +787,7 @@ export class ContentHoverWidget extends Disposable implements IContentWidget {
 
 	beforeRender() {
 		console.log('Inside of beforeRender of the ContentHoverWidget');
-		const { height, width } = this._resizeableElement.size;
+		const { height, width } = this._resizableElement.size;
 		return new dom.Dimension(width, height);
 	}
 

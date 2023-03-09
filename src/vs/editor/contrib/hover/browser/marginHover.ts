@@ -14,7 +14,6 @@ import { ILanguageService } from 'vs/editor/common/languages/language';
 import { HoverOperation, HoverStartMode, IHoverComputer } from 'vs/editor/contrib/hover/browser/hoverOperation';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { HoverWidget } from 'vs/base/browser/ui/hover/hoverWidget';
-import { ResizableHTMLElement } from 'vs/base/browser/ui/resizable/resizable';
 
 const $ = dom.$;
 
@@ -48,7 +47,7 @@ export class MarginHoverWidget extends Disposable implements IOverlayWidget {
 		this._isVisible = false;
 		this._messages = [];
 
-		this._hover = this._register(new HoverWidget(new ResizableHTMLElement()));
+		this._hover = this._register(new HoverWidget());
 		this._hover.containerDomNode.classList.toggle('hidden', !this._isVisible);
 
 		this._markdownRenderer = this._register(new MarkdownRenderer({ editor: this._editor }, languageService, openerService));
