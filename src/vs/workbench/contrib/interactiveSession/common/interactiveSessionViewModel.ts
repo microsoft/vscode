@@ -10,7 +10,7 @@ import { URI } from 'vs/base/common/uri';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IInteractiveRequestModel, IInteractiveResponseErrorDetails, IInteractiveResponseModel, IInteractiveSessionModel, IInteractiveSessionResponseCommandFollowup } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionModel';
-import { IInteractiveSessionService } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionService';
+import { IInteractiveSessionService, IInteractiveSlashCommand } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionService';
 import { countWords } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionWordCounter';
 
 export function isRequestVM(item: unknown): item is IInteractiveRequestViewModel {
@@ -23,6 +23,7 @@ export function isResponseVM(item: unknown): item is IInteractiveResponseViewMod
 
 export interface IInteractiveSessionViewModel {
 	sessionId: number;
+	readonly slashCommands: IInteractiveSlashCommand[] | undefined;
 	onDidDisposeModel: Event<void>;
 	onDidChange: Event<void>;
 	getItems(): (IInteractiveRequestViewModel | IInteractiveResponseViewModel)[];
@@ -65,7 +66,7 @@ export interface IInteractiveResponseViewModel {
 	currentRenderedHeight: number | undefined;
 }
 
-export class InteractiveSessionViewModel extends Disposable {
+export class InteractiveSessionViewModel extends Disposable implements IInteractiveSessionViewModel {
 	private readonly _onDidDisposeModel = this._register(new Emitter<void>());
 	readonly onDidDisposeModel = this._onDidDisposeModel.event;
 
@@ -76,6 +77,10 @@ export class InteractiveSessionViewModel extends Disposable {
 
 	get sessionId() {
 		return this._model.sessionId;
+	}
+
+	get slashCommands() {
+		return this._model.slashCommands;
 	}
 
 	private readonly _progressiveResponseRenderingEnabled: boolean;

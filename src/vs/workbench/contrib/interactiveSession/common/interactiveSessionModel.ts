@@ -8,7 +8,7 @@ import { IMarkdownString, MarkdownString } from 'vs/base/common/htmlContent';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { ILogService } from 'vs/platform/log/common/log';
-import { IInteractiveResponse, IInteractiveSession } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionService';
+import { IInteractiveResponse, IInteractiveSession, IInteractiveSlashCommand } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionService';
 
 export interface IInteractiveRequestModel {
 	readonly id: string;
@@ -128,6 +128,7 @@ export interface IInteractiveSessionModel {
 	readonly onDidChange: Event<IInteractiveSessionChangeEvent>;
 	readonly sessionId: number;
 	readonly providerId: string;
+	readonly slashCommands: IInteractiveSlashCommand[] | undefined;
 	getRequests(): IInteractiveRequestModel[];
 }
 
@@ -172,6 +173,8 @@ export class InteractiveSessionModel extends Disposable implements IInteractiveS
 
 	private _requests: InteractiveRequestModel[];
 	private _providerState: any;
+
+	public slashCommands: IInteractiveSlashCommand[] | undefined;
 
 	get sessionId(): number {
 		return this.session.id;
