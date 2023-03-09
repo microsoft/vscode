@@ -6,7 +6,7 @@
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
-import { OutlineModel } from 'vs/editor/contrib/documentSymbols/browser/outlineModel';
+import { OutlineElement, OutlineGroup, OutlineModel } from 'vs/editor/contrib/documentSymbols/browser/outlineModel';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { CancelablePromise, createCancelablePromise, Delayer } from 'vs/base/common/async';
 import { FoldingController, RangesLimitReporter } from 'vs/editor/contrib/folding/browser/folding';
@@ -19,7 +19,8 @@ import { StopWatch } from 'vs/base/common/stopwatch';
 import { IFeatureDebounceInformation, ILanguageFeatureDebounceService } from 'vs/editor/common/services/languageFeatureDebounce';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { TextModel } from 'vs/editor/common/model/textModel';
-import { StickyElement, StickyModel } from 'vs/editor/contrib/stickyScroll/browser/stickyScrollElement';
+import { StickyElement, StickyModel, StickyRange } from 'vs/editor/contrib/stickyScroll/browser/stickyScrollElement';
+import { Iterable } from 'vs/base/common/iterator';
 
 enum ModelProvider {
 	OUTLINE_MODEL = 'outlineModel',
@@ -256,13 +257,95 @@ class StickyModelFromCandidateOutlineProvider extends StickyModelCandidateProvid
 	}
 
 	protected createStickyModel(textModel: TextModel, modelVersionId: number, token: CancellationToken, model: OutlineModel): StickyModel {
-		const { stickyOutlineElement, providerID } = StickyElement.fromOutlineModel(model, this._stickyModel?.outlineProviderId);
+		const { stickyOutlineElement, providerID } = this._stickyModelFromOutlineModel(model, this._stickyModel?.outlineProviderId);
 		return new StickyModel(textModel.uri, modelVersionId, stickyOutlineElement, providerID);
 	}
 
 	protected override isModelValid(model: OutlineModel): boolean {
 		return model && model.children.size > 0;
 	}
+
+	public _stickyModelFromOutlineModel(outlineModel: OutlineModel, preferredProvider: string | undefined): { stickyOutlineElement: StickyElement; providerID: string | undefined } {
+
+		let outlineElements: Map<string, OutlineElement>;
+		// When several possible outline providers
+		if (Iterable.first(outlineModel.children.values()) instanceof OutlineGroup) {
+			const provider = Iterable.find(outlineModel.children.values(), outlineGroupOfModel => outlineGroupOfModel.id === preferredProvider);
+			if (provider) {
+				outlineElements = provider.children;
+			} else {
+				let tempID = '';
+				let maxTotalSumOfRanges = -1;
+				let optimalOutlineGroup = undefined;
+				for (const [_key, outlineGroup] of outlineModel.children.entries()) {
+					const totalSumRanges = this._findSumOfRangesOfGroup(outlineGroup);
+					if (totalSumRanges > maxTotalSumOfRanges) {
+						optimalOutlineGroup = outlineGroup;
+						maxTotalSumOfRanges = totalSumRanges;
+						tempID = outlineGroup.id;
+					}
+				}
+				preferredProvider = tempID;
+				outlineElements = optimalOutlineGroup!.children;
+			}
+		} else {
+			outlineElements = outlineModel.children as Map<string, OutlineElement>;
+		}
+		const stickyChildren: StickyElement[] = [];
+		const outlineElementsArray = Array.from(outlineElements.values()).sort((element1, element2) => {
+			const range1: StickyRange = new StickyRange(element1.symbol.range.startLineNumber, element1.symbol.range.endLineNumber);
+			const range2: StickyRange = new StickyRange(element2.symbol.range.startLineNumber, element2.symbol.range.endLineNumber);
+			return this._comparator(range1, range2);
+		});
+		for (const outlineElement of outlineElementsArray) {
+			stickyChildren.push(this._stickyModelFromOutlineElement(outlineElement, outlineElement.symbol.selectionRange.startLineNumber));
+		}
+		const stickyOutlineElement = new StickyElement(undefined, stickyChildren, undefined);
+
+		return {
+			stickyOutlineElement: stickyOutlineElement,
+			providerID: preferredProvider
+		};
+	}
+
+	private _stickyModelFromOutlineElement(outlineElement: OutlineElement, previousStartLine: number): StickyElement {
+		const children: StickyElement[] = [];
+		for (const child of outlineElement.children.values()) {
+			if (child.symbol.selectionRange.startLineNumber !== child.symbol.range.endLineNumber) {
+				if (child.symbol.selectionRange.startLineNumber !== previousStartLine) {
+					children.push(this._stickyModelFromOutlineElement(child, child.symbol.selectionRange.startLineNumber));
+				} else {
+					for (const subchild of child.children.values()) {
+						children.push(this._stickyModelFromOutlineElement(subchild, child.symbol.selectionRange.startLineNumber));
+					}
+				}
+			}
+		}
+		children.sort((child1, child2) => this._comparator(child1.range!, child2.range!));
+		const range = new StickyRange(outlineElement.symbol.selectionRange.startLineNumber, outlineElement.symbol.range.endLineNumber);
+		return new StickyElement(range, children, undefined);
+	}
+
+	private _comparator(range1: StickyRange, range2: StickyRange): number {
+		if (range1.startLineNumber !== range2.startLineNumber) {
+			return range1.startLineNumber - range2.startLineNumber;
+		} else {
+			return range2.endLineNumber - range1.endLineNumber;
+		}
+	}
+
+	private _findSumOfRangesOfGroup(outline: OutlineGroup | OutlineElement): number {
+		let res = 0;
+		for (const child of outline.children.values()) {
+			res += this._findSumOfRangesOfGroup(child);
+		}
+		if (outline instanceof OutlineElement) {
+			return res + outline.symbol.range.endLineNumber - outline.symbol.selectionRange.startLineNumber;
+		} else {
+			return res;
+		}
+	}
+
 }
 
 abstract class StickyModelFromCandidateFoldingProvider extends StickyModelCandidateProvider {
@@ -275,12 +358,48 @@ abstract class StickyModelFromCandidateFoldingProvider extends StickyModelCandid
 	}
 
 	protected createStickyModel(textModel: ITextModel, modelVersionId: number, token: CancellationToken, model: FoldingRegions): StickyModel {
-		const foldingElement = StickyElement.fromFoldingRegions(model);
+		const foldingElement = this._fromFoldingRegions(model);
 		return new StickyModel(textModel.uri, modelVersionId, foldingElement, undefined);
 	}
 
 	protected override isModelValid(model: FoldingRegions): boolean {
 		return model !== null;
+	}
+
+
+	private _fromFoldingRegions(foldingRegions: FoldingRegions): StickyElement {
+		const length = foldingRegions.length;
+		const orderedStickyElements: StickyElement[] = [];
+
+		// The root sticky outline element
+		const stickyOutlineElement = new StickyElement(
+			undefined,
+			[],
+			undefined
+		);
+
+		for (let i = 0; i < length; i++) {
+			// Finding the parent index of the current range
+			const parentIndex = foldingRegions.getParentIndex(i);
+
+			let parentNode;
+			if (parentIndex !== -1) {
+				// Access the reference of the parent node
+				parentNode = orderedStickyElements[parentIndex];
+			} else {
+				// In that case the parent node is the root node
+				parentNode = stickyOutlineElement;
+			}
+
+			const child = new StickyElement(
+				new StickyRange(foldingRegions.getStartLineNumber(i), foldingRegions.getEndLineNumber(i) + 1),
+				[],
+				parentNode
+			);
+			parentNode.children.push(child);
+			orderedStickyElements.push(child);
+		}
+		return stickyOutlineElement;
 	}
 }
 
