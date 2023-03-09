@@ -34,7 +34,7 @@ class WelcomeDialogContribution {
 			messages: welcomeDialog.messages,
 			action: welcomeDialog.action,
 			onClose: () => {
-				storageService.store(WelcomeDialogContribution.WELCOME_DIALOG_DISMISSED_KEY + '#' + welcomeDialog.id, true, StorageScope.PROFILE, StorageTarget.MACHINE);
+				storageService.store(WelcomeDialogContribution.WELCOME_DIALOG_DISMISSED_KEY + '#' + welcomeDialog.id, true, StorageScope.PROFILE, StorageTarget.USER);
 			}
 		});
 	}
