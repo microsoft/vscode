@@ -2,12 +2,12 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
- .monaco-dialog-box{
+.monaco-dialog-box {
 	border-radius: 6px;
 }
 
 .monaco-dialog-box .dialog-message-row .dialog-message-container .dialog-message {
-	font-size: 20px ;
+	font-size: 20px;
 }
 
 .monaco-dialog-box .dialog-message-row .dialog-message-container .dialog-message-body hr {
@@ -16,13 +16,13 @@
 	border-width: thin;
 }
 
-.monaco-dialog-box .dialog-message-row .dialog-message-container .dialog-message-body .modal-dialog-message .icon-widget{
+.monaco-dialog-box .dialog-message-row .dialog-message-container .dialog-message-body .modal-dialog-message .icon-widget {
 	padding-right: 8px;
 	max-width: 30px;
 	max-height: 30px;
 	position: relative;
 	top: auto;
-	color:var(--vscode-textLink-foreground);
+	color: var(--vscode-textLink-foreground);
 	padding-right: 20px;
 	font-size: 25px;
 }
