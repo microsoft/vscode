@@ -201,7 +201,7 @@ export abstract class AbstractCommandsQuickAccessProvider extends PickerQuickAcc
 	/**
 	 * Subclasses to provide the actual command entries.
 	 */
-	protected abstract getCommandPicks(token: CancellationToken): Promise<Array<ICommandQuickPick>>;
+	public abstract getCommandPicks(token: CancellationToken): Promise<Array<ICommandQuickPick>>;
 }
 
 interface ISerializedCommandHistory {
