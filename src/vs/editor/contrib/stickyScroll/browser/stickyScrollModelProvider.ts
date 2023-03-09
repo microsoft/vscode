@@ -108,7 +108,7 @@ export class StickyModelProvider implements IStickyModelProvider {
 				modelProvider.updateScheduler = this._updateScheduler;
 				modelProvider.updateDebounceInfo = this._updateDebounceInfo;
 
-				const status = await modelProvider.computeStickyModel(
+				const status: Status = await modelProvider.computeStickyModel(
 					textModel,
 					textModelVersionId,
 					token
