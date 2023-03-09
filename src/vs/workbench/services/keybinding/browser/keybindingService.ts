@@ -406,7 +406,7 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 				// This might be a removal keybinding item in user settings => accept it
 				result[resultLen++] = new ResolvedKeybindingItem(undefined, item.command, item.commandArgs, when, isDefault, item.extensionId, item.isBuiltinExtension);
 			} else {
-				if (this._assertBrowserConflicts(keybinding, item.command)) {
+				if (this._assertBrowserConflicts(keybinding)) {
 					continue;
 				}
 
@@ -440,7 +440,7 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 		return result;
 	}
 
-	private _assertBrowserConflicts(keybinding: Keybinding, commandId: string | null): boolean {
+	private _assertBrowserConflicts(keybinding: Keybinding): boolean {
 		if (BrowserFeatures.keyboard === KeyboardSupport.Always) {
 			return false;
 		}
