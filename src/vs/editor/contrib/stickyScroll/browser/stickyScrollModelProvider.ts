@@ -29,12 +29,19 @@ enum ModelProvider {
 
 enum Status {
 	VALID,
-	NOT_VALID,
-	CANCELLATION
+	INVALID,
+	CANCELED
 }
 
 export interface IStickyModelProvider {
-	update(textModel: ITextModel, modelVersionId: number, token: CancellationToken): Promise<StickyModel | null>;
+
+	/**
+	 * Method which updates the sticky model
+	 * @param textModel text-model of the editor
+	 * @param textModelVersionId text-model version ID
+	 * @param token cancellation token
+	 */
+	update(textModel: ITextModel, textModelVersionId: number, token: CancellationToken): Promise<StickyModel | null>;
 }
 
 export class StickyModelProvider implements IStickyModelProvider {
@@ -71,65 +78,50 @@ export class StickyModelProvider implements IStickyModelProvider {
 		this._store = new DisposableStore();
 	}
 
-	public async update(textModel: ITextModel, modelVersionId: number, token: CancellationToken): Promise<StickyModel | null> {
-
-		// Clear the store in all cases
-		this._store.clear();
-
-		// New update scheduler for the update request
-		this._updateScheduler = new Delayer<StickyModel | null>(this._updateDebounceInfo.get(textModel));
-
-		// When the store is cleared, the model request and the update scheduler are cancelled
-		this._store.add({
-			dispose: () => {
-				if (this._modelPromise) {
-					this._modelPromise.cancel();
-					this._modelPromise = null;
-				}
-				this._updateScheduler?.cancel();
-				this._updateScheduler = null;
-			}
-		});
-
-		// If the current model promise is not null, then cancel it before returning a new model promise
+	private _cancelModelPromise(): void {
 		if (this._modelPromise) {
 			this._modelPromise.cancel();
 			this._modelPromise = null;
 		}
+	}
+
+	public async update(textModel: ITextModel, textModelVersionId: number, token: CancellationToken): Promise<StickyModel | null> {
+
+		this._store.clear();
+		this._updateScheduler = new Delayer<StickyModel | null>(this._updateDebounceInfo.get(textModel));
+		this._store.add({
+			dispose: () => {
+				this._cancelModelPromise();
+				this._updateScheduler?.cancel();
+				this._updateScheduler = null;
+			}
+		});
+		this._cancelModelPromise();
 
 		return await this._updateScheduler.trigger(async () => {
-			// Create a new stop-watch which will find the time it takes to compute the model which will be used to compute the sticky scroll
 			const _stopWatch = new StopWatch(true);
 
-			// Cycle through the array of model providers, until one provides a valid model, which will be used to construct the sticky model
 			for (const modelProvider of this._modelProviders) {
-
-				// model promise will point to the model promise of the model provider
 				this._modelPromise = modelProvider.providerModelPromise;
-
-				// Store the stopwatch, updateScheduler and updateDebounceInfo in the model provider for the update of the debounce information
 				modelProvider.stopWatch = _stopWatch;
 				modelProvider.updateScheduler = this._updateScheduler;
 				modelProvider.updateDebounceInfo = this._updateDebounceInfo;
 
-				const status = await modelProvider.getModel(
+				const status = await modelProvider.computeModel(
 					textModel,
-					modelVersionId,
+					textModelVersionId,
 					token
 				);
 
-				// If status is cancellation, then cancel the update operation by doing an early return
 				switch (status) {
-					case Status.CANCELLATION:
+					case Status.CANCELED:
 						this._store.clear();
 						return null;
 					case Status.VALID:
 						return modelProvider.stickyModel;
 				}
-				// If the status is not valid, then continue to the next model provider
 			}
 
-			// If there is no valid model then return null
 			return null;
 		});
 	}
@@ -141,9 +133,15 @@ interface IStickyModelCandidateProvider {
 	set stopWatch(stopWatch: StopWatch | null);
 	set updateDebounceInfo(updateDebounceInfo: IFeatureDebounceInformation | null);
 	set updateScheduler(updateScheduler: Delayer<StickyModel | null> | null);
-	getModel(textmodel: ITextModel, modelVersionId: number, token: CancellationToken): Promise<Status> | Status;
-	createModelFromProvider(textModel: ITextModel, modelVersionId: number, token: CancellationToken): any;
-	createStickyModel(textModel: ITextModel, modelVersionId: number, token: CancellationToken, model: any): any;
+
+	/**
+	 * Method which computes the sticky model and returns a status to signal whether the sticky model has been successfully found
+	 * @param textmodel text-model of the editor
+	 * @param modelVersionId version ID of the text-model
+	 * @param token cancellation token
+	 * @returns a promise of a status indicating whether the sticky model has been successfully found
+	 */
+	computeModel(textmodel: ITextModel, modelVersionId: number, token: CancellationToken): Promise<Status> | Status;
 }
 
 abstract class StickyModelCandidateProvider implements IStickyModelCandidateProvider {
@@ -176,58 +174,72 @@ abstract class StickyModelCandidateProvider implements IStickyModelCandidateProv
 		this._stopWatch = stopWatch;
 	}
 
-	private _notValid(): Status {
+	private _invalid(): Status {
 		this._stickyModel = null;
-		return Status.NOT_VALID;
+		return Status.INVALID;
 	}
 
-	public getModel(textModel: ITextModel, modelVersionId: number, token: CancellationToken): Promise<Status> | Status {
-
-		// Check that provider is valid
+	public computeModel(textModel: ITextModel, modelVersionId: number, token: CancellationToken): Promise<Status> | Status {
 		if (!this.isProviderValid(textModel)) {
-			return this._notValid();
+			return this._invalid();
 		}
 		const providerModelPromise = this._providerModelPromise = createCancelablePromise(token => this.createModelFromProvider(textModel, modelVersionId, token));
-		return providerModelPromise.then(providerModel => {
 
+		return providerModelPromise.then(providerModel => {
 			if (!this.isModelValid(providerModel)) {
-				return this._notValid();
+				return this._invalid();
 
 			} else if (providerModelPromise === this._providerModelPromise && this._updateDebounceInfo && this._stopWatch && this._updateScheduler) {
-				// Update the time it took to find the model from the provider
 				const newValue = this._updateDebounceInfo.update(textModel, this._stopWatch.elapsed());
 				this._updateScheduler.defaultDelay = newValue;
 			}
-			// Return undefined when the token is cancelled
 			if (token.isCancellationRequested) {
-				return Status.CANCELLATION;
+				return Status.CANCELED;
 			}
-			// Create the sticky model from the model of the provider
 			return this.createStickyModel(textModel, modelVersionId, token, providerModel);
 		}).then((status) => {
 			return status;
 		}, (err) => {
 			onUnexpectedError(err);
-			return Status.CANCELLATION;
+			return Status.CANCELED;
 		});
 	}
 
-	// Function which checks that the model obtained is valid, and that it can be passed on to the createStickyModel function
-	// If the model is not valid, then getModel return Status.NOT_VALID
-	public isModelValid(model: any): boolean {
+	/**
+	 * Method which checks whether the model returned by the provider is valid and can be used to compute a sticky model.
+	 * This method by default return true.
+	 * @param model model returned by the provider
+	 * @returns boolean indicating whether the model is valid
+	 */
+	protected isModelValid(model: any): boolean {
 		return true;
 	}
 
-	// Preliminary check that the selected provider can be used
-	public isProviderValid(textModel: ITextModel): boolean {
+	/**
+	 * Method which checks whether the provider is valid before applying it to find the provider model
+	 * @param textModel text-model of the editor
+	 * @returns boolean indicating whether the provider is valid
+	 */
+	protected isProviderValid(textModel: ITextModel): boolean {
 		return true;
 	}
 
-	// Classes extending the StickyModelCandidateProvider should implement the following two methods
-	// createModelFromProvider creates a model from the provider which will be used to define the sticky model
-	// creatStickyModel creates the actual sticky model from the previous model returned by the provider
-	abstract createModelFromProvider(textModel: ITextModel, modelVersionId: number, token: CancellationToken): any;
-	abstract createStickyModel(textModel: ITextModel, modelVersionId: number, token: CancellationToken, model: any): Status;
+	/**
+	 * Abstract method which creates the model from the provider
+	 * @param textModel	text-model of the editor
+	 * @param textModelVersionId text-model version ID
+	 * @param token cancellation token
+	 */
+	protected abstract createModelFromProvider(textModel: ITextModel, textModelVersionId: number, token: CancellationToken): any;
+
+	/**
+	 * Abstract method which computes the sticky model from the model returned by the provider
+	 * @param textModel text-model of the editor
+	 * @param textModelVersionId text-model version ID
+	 * @param token cancellation token
+	 * @param model model returned by the provider
+	 */
+	protected abstract createStickyModel(textModel: ITextModel, textModelVersionId: number, token: CancellationToken, model: any): Status;
 }
 
 class StickyModelFromCandidateOutlineProvider extends StickyModelCandidateProvider {
@@ -236,13 +248,11 @@ class StickyModelFromCandidateOutlineProvider extends StickyModelCandidateProvid
 		super();
 	}
 
-	// Looks like not using the modelVersionId here
 	public createModelFromProvider(textModel: ITextModel, modelVersionId: number, token: CancellationToken): Promise<OutlineModel> {
 		return OutlineModel.create(this._languageFeaturesService.documentSymbolProvider, textModel, token);
 	}
 
 	public createStickyModel(textModel: TextModel, modelVersionId: number, token: CancellationToken, model: OutlineModel): Status {
-		// Suppose the folding model is null or it has no regions, then return false
 		const { stickyOutlineElement, providerID } = StickyElement.fromOutlineModel(model, this._stickyModel?.outlineProviderId);
 		this._stickyModel = new StickyModel(textModel.uri, modelVersionId, stickyOutlineElement, providerID);
 		return Status.VALID;
@@ -264,7 +274,6 @@ abstract class StickyModelFromCandidateFoldingProvider extends StickyModelCandid
 
 	public createStickyModel(textModel: ITextModel, modelVersionId: number, token: CancellationToken, model: FoldingRegions): Status {
 
-		// Suppose the folding model is null or it has no regions, then return false
 		const foldingElement = StickyElement.fromFoldingRegions(model);
 		this._stickyModel = new StickyModel(textModel.uri, modelVersionId, foldingElement, undefined);
 		return Status.VALID;
@@ -293,14 +302,8 @@ class StickyModelFromCandidateSyntaxFoldingProvider extends StickyModelFromCandi
 	}
 
 	public override isProviderValid(textModel: TextModel): boolean {
-		// Checking that a syntax folding provider exists
 		const selectedProviders = FoldingController.getFoldingRangeProviders(this._languageFeaturesService, textModel);
-		if (selectedProviders.length > 0) {
-			return true;
-		} else {
-			return false;
-		}
-
+		return selectedProviders.length > 0;
 	}
 
 	public createModelFromProvider(textModel: TextModel, modelVersionId: number, token: CancellationToken): Promise<FoldingRegions | null> {
