@@ -40,6 +40,7 @@ export interface IStickyModelProvider {
 	 * @param textModel text-model of the editor
 	 * @param textModelVersionId text-model version ID
 	 * @param token cancellation token
+	 * @returns the sticky model
 	 */
 	update(textModel: ITextModel, textModelVersionId: number, token: CancellationToken): Promise<StickyModel | null>;
 }
@@ -107,7 +108,7 @@ export class StickyModelProvider implements IStickyModelProvider {
 				modelProvider.updateScheduler = this._updateScheduler;
 				modelProvider.updateDebounceInfo = this._updateDebounceInfo;
 
-				const status = await modelProvider.computeModel(
+				const status = await modelProvider.computeStickyModel(
 					textModel,
 					textModelVersionId,
 					token
@@ -141,7 +142,7 @@ interface IStickyModelCandidateProvider {
 	 * @param token cancellation token
 	 * @returns a promise of a status indicating whether the sticky model has been successfully found
 	 */
-	computeModel(textmodel: ITextModel, modelVersionId: number, token: CancellationToken): Promise<Status> | Status;
+	computeStickyModel(textmodel: ITextModel, modelVersionId: number, token: CancellationToken): Promise<Status> | Status;
 }
 
 abstract class StickyModelCandidateProvider implements IStickyModelCandidateProvider {
@@ -179,7 +180,7 @@ abstract class StickyModelCandidateProvider implements IStickyModelCandidateProv
 		return Status.INVALID;
 	}
 
-	public computeModel(textModel: ITextModel, modelVersionId: number, token: CancellationToken): Promise<Status> | Status {
+	public computeStickyModel(textModel: ITextModel, modelVersionId: number, token: CancellationToken): Promise<Status> | Status {
 		if (!this.isProviderValid(textModel)) {
 			return this._invalid();
 		}
@@ -196,7 +197,8 @@ abstract class StickyModelCandidateProvider implements IStickyModelCandidateProv
 			if (token.isCancellationRequested) {
 				return Status.CANCELED;
 			}
-			return this.createStickyModel(textModel, modelVersionId, token, providerModel);
+			this._stickyModel = this.createStickyModel(textModel, modelVersionId, token, providerModel);
+			return Status.VALID;
 		}).then(undefined, (err) => {
 			onUnexpectedError(err);
 			return Status.CANCELED;
@@ -224,21 +226,23 @@ abstract class StickyModelCandidateProvider implements IStickyModelCandidateProv
 	}
 
 	/**
-	 * Abstract method which creates the model from the provider
+	 * Abstract method which creates the model from the provider and returns the provider model
 	 * @param textModel	text-model of the editor
 	 * @param textModelVersionId text-model version ID
 	 * @param token cancellation token
+	 * @returns the model returned by the provider
 	 */
 	protected abstract createModelFromProvider(textModel: ITextModel, textModelVersionId: number, token: CancellationToken): any;
 
 	/**
-	 * Abstract method which computes the sticky model from the model returned by the provider
+	 * Abstract method which computes the sticky model from the model returned by the provider and returns the sticky model
 	 * @param textModel text-model of the editor
 	 * @param textModelVersionId text-model version ID
 	 * @param token cancellation token
 	 * @param model model returned by the provider
+	 * @returns the sticky model
 	 */
-	protected abstract createStickyModel(textModel: ITextModel, textModelVersionId: number, token: CancellationToken, model: any): Status;
+	protected abstract createStickyModel(textModel: ITextModel, textModelVersionId: number, token: CancellationToken, model: any): StickyModel;
 }
 
 class StickyModelFromCandidateOutlineProvider extends StickyModelCandidateProvider {
@@ -251,10 +255,9 @@ class StickyModelFromCandidateOutlineProvider extends StickyModelCandidateProvid
 		return OutlineModel.create(this._languageFeaturesService.documentSymbolProvider, textModel, token);
 	}
 
-	protected createStickyModel(textModel: TextModel, modelVersionId: number, token: CancellationToken, model: OutlineModel): Status {
+	protected createStickyModel(textModel: TextModel, modelVersionId: number, token: CancellationToken, model: OutlineModel): StickyModel {
 		const { stickyOutlineElement, providerID } = StickyElement.fromOutlineModel(model, this._stickyModel?.outlineProviderId);
-		this._stickyModel = new StickyModel(textModel.uri, modelVersionId, stickyOutlineElement, providerID);
-		return Status.VALID;
+		return new StickyModel(textModel.uri, modelVersionId, stickyOutlineElement, providerID);
 	}
 
 	protected override isModelValid(model: OutlineModel): boolean {
@@ -271,11 +274,9 @@ abstract class StickyModelFromCandidateFoldingProvider extends StickyModelCandid
 		this._foldingLimitReporter = new RangesLimitReporter(editor);
 	}
 
-	protected createStickyModel(textModel: ITextModel, modelVersionId: number, token: CancellationToken, model: FoldingRegions): Status {
-
+	protected createStickyModel(textModel: ITextModel, modelVersionId: number, token: CancellationToken, model: FoldingRegions): StickyModel {
 		const foldingElement = StickyElement.fromFoldingRegions(model);
-		this._stickyModel = new StickyModel(textModel.uri, modelVersionId, foldingElement, undefined);
-		return Status.VALID;
+		return new StickyModel(textModel.uri, modelVersionId, foldingElement, undefined);
 	}
 
 	protected override isModelValid(model: FoldingRegions): boolean {
