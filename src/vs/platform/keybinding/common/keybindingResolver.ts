@@ -157,15 +157,18 @@ export class KeybindingResolver {
 				continue;
 			}
 
-			let diverges = false;
+			// Test if the shorter chord is a prefix of the onger one. If the shorter chord
+			// is a prefix it effectively will shadow the longer chord and is considered a
+			// conflict.
+			let shorterChordIsPrefix = true;
 			for (let i = 1; i < conflict.chords.length && i < item.chords.length; i++) {
 				if (conflict.chords[i] !== item.chords[i]) {
-					// The conflict diverges at the ith step
-					diverges = true;
-					continue;
+					// The ith step does not conflict
+					shorterChordIsPrefix = false;
+					break;
 				}
 			}
-			if (diverges) {
+			if (!shorterChordIsPrefix) {
 				continue;
 			}
 
