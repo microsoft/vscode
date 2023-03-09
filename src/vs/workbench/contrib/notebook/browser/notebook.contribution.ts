@@ -909,6 +909,12 @@ configurationRegistry.registerConfiguration({
 			tags: ['notebookLayout'],
 			default: false
 		},
+		[NotebookSetting.formatOnSave]: {
+			markdownDescription: nls.localize('notebook.formatOnSave', "Format a notebook on save. A formatter must be available, the file must not be saved after delay, and the editor must not be shutting down."),
+			type: 'boolean',
+			tags: ['notebookLayout'],
+			default: false
+		}
 	}
 });
 

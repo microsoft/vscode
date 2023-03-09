@@ -32,6 +32,7 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { IStoredFileWorkingCopy, IStoredFileWorkingCopyModel } from 'vs/workbench/services/workingCopy/common/storedFileWorkingCopy';
 import { IStoredFileWorkingCopySaveParticipant, IWorkingCopyFileService } from 'vs/workbench/services/workingCopy/common/workingCopyFileService';
+import { NotebookSetting } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 
 // format notebook
 registerAction2(class extends Action2 {
@@ -154,7 +155,7 @@ class FormatOnSaveParticipant implements IStoredFileWorkingCopySaveParticipant {
 			return undefined;
 		}
 
-		const enabled = this.configurationService.getValue<boolean>('notebook.formatOnSave.enabled');
+		const enabled = this.configurationService.getValue<boolean>(NotebookSetting.formatOnSave);
 		if (!enabled) {
 			return undefined;
 		}
