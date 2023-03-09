@@ -199,11 +199,13 @@ class ToggleScreencastModeAction extends Action2 {
 		}));
 
 		const onKeyDown = disposables.add(new DomEmitter(window, 'keydown', true));
+		const onCompositionStart = disposables.add(new DomEmitter(window, 'compositionstart', true));
 		const onCompositionUpdate = disposables.add(new DomEmitter(window, 'compositionupdate', true));
 		const onCompositionEnd = disposables.add(new DomEmitter(window, 'compositionend', true));
 
 		let length = 0;
 		let composing: Element | undefined = undefined;
+		let imeBackSpace = false;
 
 		const clearKeyboardScheduler = new RunOnceScheduler(() => {
 			keyboardMarker.textContent = '';
@@ -211,26 +213,46 @@ class ToggleScreencastModeAction extends Action2 {
 			length = 0;
 		}, keyboardMarkerTimeout);
 
+		disposables.add(onCompositionStart.event(e => {
+			imeBackSpace = true;
+		}));
+
 		disposables.add(onCompositionUpdate.event(e => {
-			if (e.data) {
+			if (e.data && imeBackSpace) {
+				if (length > 20) {
+					keyboardMarker.innerText = '';
+					length = 0;
+				}
 				composing = composing ?? append(keyboardMarker, $('span.key'));
 				composing.textContent = e.data;
+			} else if (imeBackSpace) {
+				keyboardMarker.innerText = '';
+				append(keyboardMarker, $('span.key', {}, `Backspace`));
 			}
-
 			clearKeyboardScheduler.schedule();
 		}));
 
 		disposables.add(onCompositionEnd.event(e => {
 			composing = undefined;
+			length++;
 		}));
 
 		disposables.add(onKeyDown.event(e => {
-			if (e.key === 'Process') {
-				if (!e.code.includes('Key')) {
+			// allow-any-unicode-next-line
+			if (e.key === 'Process' || /[가-힇ㄱ-ㅎㅏ-ㅣぁ-ゔァ-ヴー々〆〤一-龥]/.test(e.key)) {
+				if (e.code === 'Backspace') {
+					imeBackSpace = true;
+				} else if (!e.code.includes('Key')) {
 					composing = undefined;
-					clearKeyboardScheduler.cancel();
+					imeBackSpace = false;
+				} else {
+					imeBackSpace = true;
 				}
+				clearKeyboardScheduler.schedule();
+				return;
+			}
 
+			if (e.isComposing) {
 				return;
 			}
 
