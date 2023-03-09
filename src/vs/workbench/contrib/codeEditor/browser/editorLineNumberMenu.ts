@@ -93,16 +93,18 @@ export class EditorLineNumberContextMenu extends Disposable implements IEditorCo
 
 			// if the current editor selections do not contain the target line number,
 			// set the selection to the clicked line number
-			const currentSelections = this.editor.getSelections();
-			const containsSelection = currentSelections?.some(selection => selection.containsPosition({ lineNumber, column: 1 }));
-			if (!containsSelection) {
-				const selection = {
-					startLineNumber: lineNumber,
-					endLineNumber: lineNumber,
-					startColumn: 1,
-					endColumn: model.getLineLength(lineNumber) + 1
-				};
-				this.editor.setSelection(selection, TextEditorSelectionSource.PROGRAMMATIC);
+			if (e.target.type === MouseTargetType.GUTTER_LINE_NUMBERS) {
+				const currentSelections = this.editor.getSelections();
+				const containsSelection = currentSelections?.some(selection => selection.containsPosition({ lineNumber, column: 1 }));
+				if (!containsSelection) {
+					const selection = {
+						startLineNumber: lineNumber,
+						endLineNumber: lineNumber,
+						startColumn: 1,
+						endColumn: model.getLineLength(lineNumber) + 1
+					};
+					this.editor.setSelection(selection, TextEditorSelectionSource.PROGRAMMATIC);
+				}
 			}
 
 			this.contextMenuService.showContextMenu({
