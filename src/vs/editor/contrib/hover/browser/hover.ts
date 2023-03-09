@@ -272,22 +272,22 @@ export class ModesHoverController implements IEditorContribution {
 	}
 }
 
-class ShowHoverAction extends EditorAction {
+class ShowOrFocusHoverAction extends EditorAction {
 
 	constructor() {
 		super({
 			id: 'editor.action.showHover',
 			label: nls.localize({
-				key: 'showHover',
+				key: 'showOrFocusHover',
 				comment: [
 					'Label for action that will trigger the showing/focusing of a hover in the editor.',
 					'If the hover is not visible, it will show the hover.',
 					'This allows for users to show the hover without using the mouse.',
 					'If the hover is already visible, it will take focus.'
 				]
-			}, "Show Hover"),
+			}, "Show or Focus Hover"),
 			description: {
-				description: `Show Hover`,
+				description: `Show or Focus Hover`,
 				args: [{
 					name: 'args',
 					schema: {
@@ -302,7 +302,7 @@ class ShowHoverAction extends EditorAction {
 					}
 				}]
 			},
-			alias: 'Show Hover',
+			alias: 'Show or Focus Hover',
 			precondition: undefined,
 			kbOpts: {
 				kbExpr: EditorContextKeys.editorTextFocus,
@@ -494,7 +494,7 @@ class PageDownHoverAction extends EditorAction {
 }
 
 registerEditorContribution(ModesHoverController.ID, ModesHoverController, EditorContributionInstantiation.BeforeFirstInteraction);
-registerEditorAction(ShowHoverAction);
+registerEditorAction(ShowOrFocusHoverAction);
 registerEditorAction(ShowDefinitionPreviewHoverAction);
 registerEditorAction(ScrollUpHoverAction);
 registerEditorAction(ScrollDownHoverAction);
