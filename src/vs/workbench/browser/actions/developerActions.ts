@@ -259,11 +259,20 @@ class ToggleScreencastModeAction extends Action2 {
 			const event = new StandardKeyboardEvent(e);
 			const shortcut = keybindingService.softDispatch(event, event.target);
 
+			// Hide the single arrow key pressed
+			if (shortcut?.commandId && configurationService.getValue('screencastMode.hideSingleEditorCursorMoves') && (
+				['cursorLeft', 'cursorRight', 'cursorUp', 'cursorDown'].includes(shortcut.commandId))
+			) {
+				return;
+			}
+
 			if (shortcut?.commandId || !configurationService.getValue('screencastMode.onlyKeyboardShortcuts')) {
 				if (
 					event.ctrlKey || event.altKey || event.metaKey || event.shiftKey
 					|| length > 20
 					|| event.keyCode === KeyCode.Backspace || event.keyCode === KeyCode.Escape
+					|| event.keyCode === KeyCode.UpArrow || event.keyCode === KeyCode.DownArrow
+					|| event.keyCode === KeyCode.LeftArrow || event.keyCode === KeyCode.RightArrow
 				) {
 					keyboardMarker.innerText = '';
 					length = 0;
@@ -274,7 +283,7 @@ class ToggleScreencastModeAction extends Action2 {
 				const command = shortcut?.commandId ? MenuRegistry.getCommand(shortcut.commandId) : null;
 
 				let titleLabel = '';
-				let keyLabel = keybinding.getLabel();
+				let keyLabel: string | undefined | null = keybinding.getLabel();
 
 				if (command) {
 					titleLabel = typeof command.title === 'string' ? command.title : command.title.value;
@@ -298,7 +307,13 @@ class ToggleScreencastModeAction extends Action2 {
 				}
 
 				if (!configurationService.getValue('screencastMode.onlyKeyboardShortcuts') || !titleLabel || shortcut?.commandId && (format === 'keys' || format === 'commandAndKeys' || format === 'commandWithGroupAndKeys')) {
-					append(keyboardMarker, $('span.key', {}, keyLabel || ''));
+					// Fix label for arrow keys
+					keyLabel = keyLabel?.replace('UpArrow', '↑')
+						?.replace('DownArrow', '↓')
+						?.replace('LeftArrow', '←')
+						?.replace('RightArrow', '→');
+
+					append(keyboardMarker, $('span.key', {}, keyLabel ?? ''));
 				}
 
 				length++;
@@ -407,6 +422,11 @@ configurationRegistry.registerConfiguration({
 		'screencastMode.onlyKeyboardShortcuts': {
 			type: 'boolean',
 			description: localize('screencastMode.onlyKeyboardShortcuts', "Show only keyboard shortcuts in screencast mode (do not include action names)."),
+			default: false
+		},
+		'screencastMode.hideSingleEditorCursorMoves': {
+			type: 'boolean',
+			description: localize('screencastMode.hideSingleEditorCursorMoves', "Hide the single editor cursor move commands in screencast mode."),
 			default: false
 		},
 		'screencastMode.keyboardOverlayTimeout': {
