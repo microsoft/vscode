@@ -27,7 +27,8 @@ import { IEditorWorkerHost } from 'vs/editor/common/services/editorWorkerHost';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import { IChange } from 'vs/editor/common/diff/smartLinesDiffComputer';
 import { IDocumentDiff, IDocumentDiffProviderOptions } from 'vs/editor/common/diff/documentDiffProvider';
-import { LineRangeMapping, LineRange, RangeMapping } from 'vs/editor/common/diff/linesDiffComputer';
+import { LineRangeMapping, RangeMapping } from 'vs/editor/common/diff/linesDiffComputer';
+import { LineRange } from 'vs/editor/common/core/lineRange';
 
 /**
  * Stop syncing a model to the worker if it was not needed for 1 min.

@@ -45,6 +45,12 @@
 	background: var(--vscode-badge-background);
 }
 
+.interactive-list .interactive-item-container .header .avatar .icon {
+	width: 24px;
+	height: 24px;
+	border-radius: 50%;
+}
+
 .interactive-list .interactive-item-container .header .avatar .codicon {
 	color: var(--vscode-badge-foreground);
 }
@@ -164,7 +170,7 @@
 	margin: 0;
 }
 
-.interactive-session .interactive-response .interactive-session-response-followups {
+.interactive-session .interactive-response .interactive-response-followups {
 	display: flex;
 	flex-direction: column;
 	gap: 8px;
@@ -172,9 +178,19 @@
 	margin-bottom: 1em; /* This is matching the margin on rendered markdown */
 }
 
-.interactive-session .interactive-response .interactive-session-response-followups .monaco-button {
+.interactive-session .interactive-response .interactive-response-followups .monaco-button {
 	width: 100%;
 	padding: 2px 8px;
 	font-size: 11px;
 	font-weight: 600;
+}
+
+.interactive-session .interactive-response .interactive-response-error-details {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+}
+
+.interactive-session .interactive-response .interactive-response-error-details .codicon {
+	color: var(--vscode-errorForeground);
 }

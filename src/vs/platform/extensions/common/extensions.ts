@@ -11,9 +11,8 @@ import { ExtensionKind } from 'vs/platform/environment/common/environment';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { getRemoteName } from 'vs/platform/remote/common/remoteHosts';
 
-export const MANIFEST_CACHE_FOLDER = 'CachedExtensions';
-export const USER_MANIFEST_CACHE_FILE = 'user';
-export const BUILTIN_MANIFEST_CACHE_FILE = 'builtin';
+export const USER_MANIFEST_CACHE_FILE = 'extensions.user.cache';
+export const BUILTIN_MANIFEST_CACHE_FILE = 'extensions.builtin.cache';
 export const UNDEFINED_PUBLISHER = 'undefined_publisher';
 
 export interface ICommand {

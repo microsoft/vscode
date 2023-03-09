@@ -580,20 +580,18 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 				onUnexpectedError(new Error(`Cannot have two terminal contributions with the same id ${desc.id}`));
 				continue;
 			}
+			let contribution: ITerminalContribution;
 			try {
-				this._contributions.set(desc.id, this._scopedInstantiationService.createInstance(desc.ctor, this, this._processManager, this._widgetManager));
+				contribution = this._scopedInstantiationService.createInstance(desc.ctor, this, this._processManager, this._widgetManager);
+				this._contributions.set(desc.id, contribution);
 			} catch (err) {
 				onUnexpectedError(err);
 			}
 			this._xtermReadyPromise.then(xterm => {
-				for (const contribution of this._contributions.values()) {
-					contribution.xtermReady?.(xterm);
-				}
+				contribution.xtermReady?.(xterm);
 			});
 			this.onDisposed(() => {
-				for (const contribution of this._contributions.values()) {
-					contribution.dispose();
-				}
+				contribution.dispose();
 			});
 		}
 	}

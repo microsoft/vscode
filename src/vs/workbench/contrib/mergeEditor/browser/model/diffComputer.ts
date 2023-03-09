@@ -5,13 +5,14 @@
 
 import { assertFn, checkAdjacentItems } from 'vs/base/common/assert';
 import { IReader } from 'vs/base/common/observable';
-import { LineRange as DiffLineRange, RangeMapping as DiffRangeMapping } from 'vs/editor/common/diff/linesDiffComputer';
+import { RangeMapping as DiffRangeMapping } from 'vs/editor/common/diff/linesDiffComputer';
 import { ITextModel } from 'vs/editor/common/model';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorker';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { LineRange } from 'vs/workbench/contrib/mergeEditor/browser/model/lineRange';
 import { DetailedLineRangeMapping, RangeMapping } from 'vs/workbench/contrib/mergeEditor/browser/model/mapping';
 import { observableConfigValue } from 'vs/workbench/contrib/mergeEditor/browser/utils';
+import { LineRange as DiffLineRange } from 'vs/editor/common/core/lineRange';
 
 export interface IMergeDiffComputer {
 	computeDiff(textModel1: ITextModel, textModel2: ITextModel, reader: IReader): Promise<IMergeDiffComputerResult>;
