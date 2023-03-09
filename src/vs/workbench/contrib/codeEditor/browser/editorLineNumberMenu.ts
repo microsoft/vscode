@@ -62,20 +62,21 @@ export class EditorLineNumberContextMenu extends Disposable implements IEditorCo
 	}
 
 	public show(e: IEditorMouseEvent) {
-		// on macOS ctrl+click is interpreted as right click
-		if (!e.event.rightButton && !(isMacintosh && e.event.leftButton && e.event.ctrlKey)) {
-			return;
-		}
-
-		const menu = this.menuService.createMenu(MenuId.EditorLineNumberContext, this.contextKeyService);
-
 		const model = this.editor.getModel();
-		if (!e.target.position || !model || e.target.type !== MouseTargetType.GUTTER_LINE_NUMBERS && e.target.type !== MouseTargetType.GUTTER_GLYPH_MARGIN) {
+
+		// on macOS ctrl+click is interpreted as right click
+		if (!e.event.rightButton && !(isMacintosh && e.event.leftButton && e.event.ctrlKey)
+			|| e.target.type !== MouseTargetType.GUTTER_LINE_NUMBERS && e.target.type !== MouseTargetType.GUTTER_GLYPH_MARGIN
+			|| !e.target.position || !model
+		) {
 			return;
 		}
 
 		const anchor = { x: e.event.posx, y: e.event.posy };
 		const lineNumber = e.target.position.lineNumber;
+
+		const contextKeyService = this.contextKeyService.createOverlay([['editorLineNumber', lineNumber]]);
+		const menu = this.menuService.createMenu(MenuId.EditorLineNumberContext, contextKeyService);
 
 		const actions: IAction[][] = [];
 
