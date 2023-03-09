@@ -2031,6 +2031,8 @@ export interface IContextKeyChangeEvent {
 	allKeysContainedIn(keys: IReadableSet<string>): boolean;
 }
 
+export type IOverlayContextKeyService = Omit<IContextKeyService, 'dispose'>;
+
 export interface IContextKeyService {
 	readonly _serviceBrand: undefined;
 	dispose(): void;
@@ -2043,7 +2045,7 @@ export interface IContextKeyService {
 	getContextKeyValue<T>(key: string): T | undefined;
 
 	createScoped(target: IContextKeyServiceTarget): IContextKeyService;
-	createOverlay(overlay: Iterable<[string, any]>): IContextKeyService;
+	createOverlay(overlay: Iterable<[string, any]>): IOverlayContextKeyService;
 	getContext(target: IContextKeyServiceTarget | null): IContext;
 
 	updateParent(parentContextKeyService: IContextKeyService): void;

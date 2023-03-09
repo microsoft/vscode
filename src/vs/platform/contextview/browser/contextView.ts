@@ -9,7 +9,7 @@ import { IAction } from 'vs/base/common/actions';
 import { Event } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { IMenuActionOptions, MenuId } from 'vs/platform/actions/common/actions';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { IContextKeyService, IOverlayContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 
 export const IContextViewService = createDecorator<IContextViewService>('contextViewService');
@@ -62,7 +62,7 @@ export type IContextMenuMenuDelegate = {
 	/**
 	 * Optional context key service which drives the given menu
 	 */
-	contextKeyService?: IContextKeyService;
+	contextKeyService?: IContextKeyService | IOverlayContextKeyService;
 
 	/**
 	 * Optional getter for extra actions. They will be prepended to the menu actions.
