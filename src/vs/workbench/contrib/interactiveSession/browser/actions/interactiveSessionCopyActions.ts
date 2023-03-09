@@ -52,7 +52,7 @@ export function registerInteractiveSessionCopyActions() {
 					value: localize('interactive.copyItem.label', "Copy"),
 					original: 'Copy'
 				},
-				f1: true,
+				f1: false,
 				category: INTERACTIVE_SESSION_CATEGORY,
 				menu: {
 					id: MenuId.InteractiveSessionContext
