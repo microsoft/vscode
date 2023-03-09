@@ -10,6 +10,10 @@
 	font-size: 20px;
 }
 
+.monaco-dialog-box .dialog-message-row .dialog-message-container {
+	padding-left: 0px;
+}
+
 .monaco-dialog-box .dialog-message-row .dialog-message-container .dialog-message-body hr {
 	border-color: var(--vscode-descriptionForeground);
 	margin-bottom: 12px;

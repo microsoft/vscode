@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./media/modalDialog';
+import 'vs/css!./media/welcomeModalDialog';
 import { IInstantiationService, createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { ThemeIcon } from 'vs/base/common/themables';
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
@@ -15,7 +15,7 @@ import { $ } from 'vs/base/browser/dom';
 import { renderLabelWithIcons } from 'vs/base/browser/ui/iconLabel/iconLabels';
 import { ILinkDescriptor, Link } from 'vs/platform/opener/browser/link';
 
-export interface IModalDialogItem {
+interface IWelcomeModalDialogItem {
 	readonly title: string;
 	readonly messages: { message: string; icon: string }[];
 	readonly buttonText: string;
@@ -23,15 +23,15 @@ export interface IModalDialogItem {
 	readonly onClose?: () => void;
 }
 
-export const IModalDialogService = createDecorator<IModalDialogService>('modalDialogService');
+export const IWelcomeModalDialogService = createDecorator<IWelcomeModalDialogService>('modalDialogService');
 
-export interface IModalDialogService {
+export interface IWelcomeModalDialogService {
 	readonly _serviceBrand: undefined;
 
-	show(item: IModalDialogItem): void;
+	show(item: IWelcomeModalDialogItem): void;
 }
 
-export class ModalDialogService implements IModalDialogService {
+export class WelcomeModalDialogService implements IWelcomeModalDialogService {
 	declare readonly _serviceBrand: undefined;
 
 	private dialog: Dialog | undefined;
@@ -52,7 +52,7 @@ export class ModalDialogService implements IModalDialogService {
 		return '';
 	}
 
-	async show(modalDialogItem: IModalDialogItem): Promise<void> {
+	async show(modalDialogItem: IWelcomeModalDialogItem): Promise<void> {
 
 		this.disposableStore.clear();
 
@@ -65,7 +65,7 @@ export class ModalDialogService implements IModalDialogService {
 				const descriptorComponent =
 					$('.modal-dialog-message',
 						{},
-						ModalDialogService.iconWidgetFor(message.icon),
+						WelcomeModalDialogService.iconWidgetFor(message.icon),
 						$('.description-container', {},
 							$('.description.description.max-lines-3', { 'x-description-for': 'description' }, ...renderLabelWithIcons(message.message))));
 				parent.appendChild(descriptorComponent);
@@ -99,5 +99,5 @@ export class ModalDialogService implements IModalDialogService {
 	}
 }
 
-registerSingleton(IModalDialogService, ModalDialogService, InstantiationType.Eager);
+registerSingleton(IWelcomeModalDialogService, WelcomeModalDialogService, InstantiationType.Eager);
 
