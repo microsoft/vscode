@@ -102,7 +102,7 @@ export class CommandsQuickAccessProvider extends AbstractEditorCommandsQuickAcce
 		this.options.suggestedCommandIds = suggestedCommandIds;
 	}
 
-	public async getCommandPicks(token: CancellationToken): Promise<Array<ICommandQuickPick>> {
+	protected async getCommandPicks(token: CancellationToken): Promise<Array<ICommandQuickPick>> {
 
 		// wait for extensions registration or 800ms once
 		await this.extensionRegistrationRace;
@@ -111,10 +111,7 @@ export class CommandsQuickAccessProvider extends AbstractEditorCommandsQuickAcce
 			return [];
 		}
 
-		return [
-			...this.getCodeEditorCommandPicks(),
-			...this.getGlobalCommandPicks()
-		].map(c => ({
+		return this.getCommandInfo().map(c => ({
 			...c,
 			buttons: [{
 				iconClass: ThemeIcon.asClassName(Codicon.gear),
@@ -125,6 +122,13 @@ export class CommandsQuickAccessProvider extends AbstractEditorCommandsQuickAcce
 				return TriggerAction.CLOSE_PICKER;
 			},
 		}));
+	}
+
+	public getCommandInfo(): Array<ICommandQuickPick> {
+		return [
+			...this.getCodeEditorCommandPicks(),
+			...this.getGlobalCommandPicks()
+		];
 	}
 
 	private getGlobalCommandPicks(): ICommandQuickPick[] {
@@ -231,7 +235,7 @@ export class ClearCommandHistoryAction extends Action2 {
 CommandsRegistry.registerCommand('_getAllCommands', async function (accessor: ServicesAccessor) {
 	const instantiatonService = accessor.get(IInstantiationService);
 	const commandProvider = instantiatonService.createInstance(CommandsQuickAccessProvider);
-	const allCommands = await commandProvider.getCommandPicks(CancellationToken.None);
+	const allCommands = commandProvider.getCommandInfo();
 	return allCommands.map(c => {
 		return { command: c.commandId, label: c.label };
 	});
