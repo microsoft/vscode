@@ -15,7 +15,7 @@ import { IEditor } from 'vs/editor/common/editorCommon';
 import { Language } from 'vs/base/common/platform';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { ICommandService } from 'vs/platform/commands/common/commands';
+import { CommandsRegistry, ICommandService } from 'vs/platform/commands/common/commands';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { DefaultQuickAccessFilterValue } from 'vs/platform/quickinput/common/quickAccess';
@@ -102,7 +102,7 @@ export class CommandsQuickAccessProvider extends AbstractEditorCommandsQuickAcce
 		this.options.suggestedCommandIds = suggestedCommandIds;
 	}
 
-	protected async getCommandPicks(token: CancellationToken): Promise<Array<ICommandQuickPick>> {
+	public async getCommandPicks(token: CancellationToken): Promise<Array<ICommandQuickPick>> {
 
 		// wait for extensions registration or 800ms once
 		await this.extensionRegistrationRace;
@@ -226,5 +226,16 @@ export class ClearCommandHistoryAction extends Action2 {
 		}
 	}
 }
+
+//#region --- Register a command to get all actions from the command palette
+CommandsRegistry.registerCommand('_getAllCommands', async function (accessor: ServicesAccessor) {
+	const instantiatonService = accessor.get(IInstantiationService);
+	const commandProvider = instantiatonService.createInstance(CommandsQuickAccessProvider);
+	const allCommands = await commandProvider.getCommandPicks(CancellationToken.None);
+	return allCommands.map(c => {
+		return { command: c.commandId, label: c.label };
+	});
+});
+//#endregion
 
 //#endregion
