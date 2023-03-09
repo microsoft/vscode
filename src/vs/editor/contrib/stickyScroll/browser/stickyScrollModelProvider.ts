@@ -105,25 +105,23 @@ export class StickyModelProvider implements IStickyModelProvider {
 
 			for (const modelProvider of this._modelProviders) {
 				this._modelPromise = modelProvider.providerModelPromise;
-				modelProvider.stopWatch = _stopWatch;
-				modelProvider.updateScheduler = this._updateScheduler;
-				modelProvider.updateDebounceInfo = this._updateDebounceInfo;
 
 				const status: Status = await modelProvider.computeStickyModel(
 					textModel,
 					textModelVersionId,
 					token
 				);
-
 				switch (status) {
 					case Status.CANCELED:
 						this._store.clear();
 						return null;
 					case Status.VALID:
+						if (this._updateScheduler) {
+							this._updateScheduler.defaultDelay = this._updateDebounceInfo.update(textModel, _stopWatch.elapsed());
+						}
 						return modelProvider.stickyModel;
 				}
 			}
-
 			return null;
 		});
 	}
@@ -132,9 +130,6 @@ export class StickyModelProvider implements IStickyModelProvider {
 interface IStickyModelCandidateProvider {
 	get stickyModel(): StickyModel | null;
 	get providerModelPromise(): CancelablePromise<any> | null;
-	set stopWatch(stopWatch: StopWatch | null);
-	set updateDebounceInfo(updateDebounceInfo: IFeatureDebounceInformation | null);
-	set updateScheduler(updateScheduler: Delayer<StickyModel | null> | null);
 
 	/**
 	 * Method which computes the sticky model and returns a status to signal whether the sticky model has been successfully found
@@ -150,9 +145,6 @@ abstract class StickyModelCandidateProvider implements IStickyModelCandidateProv
 
 	private _providerModelPromise: CancelablePromise<any> | null = null;
 	protected _stickyModel: StickyModel | null = null;
-	private _updateScheduler: Delayer<StickyModel | null> | null = null;
-	private _updateDebounceInfo: IFeatureDebounceInformation | null = null;
-	private _stopWatch: StopWatch | null = null;
 
 	constructor() { }
 
@@ -162,18 +154,6 @@ abstract class StickyModelCandidateProvider implements IStickyModelCandidateProv
 
 	get providerModelPromise(): CancelablePromise<any> | null {
 		return this._providerModelPromise;
-	}
-
-	set updateScheduler(updateScheduler: Delayer<StickyModel | null> | null) {
-		this._updateScheduler = updateScheduler;
-	}
-
-	set updateDebounceInfo(updateDebounceInfo: IFeatureDebounceInformation | null) {
-		this._updateDebounceInfo = updateDebounceInfo;
-	}
-
-	set stopWatch(stopWatch: StopWatch | null) {
-		this._stopWatch = stopWatch;
 	}
 
 	private _invalid(): Status {
@@ -191,9 +171,6 @@ abstract class StickyModelCandidateProvider implements IStickyModelCandidateProv
 			if (!this.isModelValid(providerModel)) {
 				return this._invalid();
 
-			} else if (providerModelPromise === this._providerModelPromise && this._updateDebounceInfo && this._stopWatch && this._updateScheduler) {
-				const newValue = this._updateDebounceInfo.update(textModel, this._stopWatch.elapsed());
-				this._updateScheduler.defaultDelay = newValue;
 			}
 			if (token.isCancellationRequested) {
 				return Status.CANCELED;
