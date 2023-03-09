@@ -246,17 +246,17 @@ class StickyModelFromCandidateOutlineProvider extends StickyModelCandidateProvid
 		super();
 	}
 
-	public createModelFromProvider(textModel: ITextModel, modelVersionId: number, token: CancellationToken): Promise<OutlineModel> {
+	protected createModelFromProvider(textModel: ITextModel, modelVersionId: number, token: CancellationToken): Promise<OutlineModel> {
 		return OutlineModel.create(this._languageFeaturesService.documentSymbolProvider, textModel, token);
 	}
 
-	public createStickyModel(textModel: TextModel, modelVersionId: number, token: CancellationToken, model: OutlineModel): Status {
+	protected createStickyModel(textModel: TextModel, modelVersionId: number, token: CancellationToken, model: OutlineModel): Status {
 		const { stickyOutlineElement, providerID } = StickyElement.fromOutlineModel(model, this._stickyModel?.outlineProviderId);
 		this._stickyModel = new StickyModel(textModel.uri, modelVersionId, stickyOutlineElement, providerID);
 		return Status.VALID;
 	}
 
-	public override isModelValid(model: OutlineModel): boolean {
+	protected override isModelValid(model: OutlineModel): boolean {
 		return model && model.children.size > 0;
 	}
 }
@@ -270,14 +270,14 @@ abstract class StickyModelFromCandidateFoldingProvider extends StickyModelCandid
 		this._foldingLimitReporter = new RangesLimitReporter(editor);
 	}
 
-	public createStickyModel(textModel: ITextModel, modelVersionId: number, token: CancellationToken, model: FoldingRegions): Status {
+	protected createStickyModel(textModel: ITextModel, modelVersionId: number, token: CancellationToken, model: FoldingRegions): Status {
 
 		const foldingElement = StickyElement.fromFoldingRegions(model);
 		this._stickyModel = new StickyModel(textModel.uri, modelVersionId, foldingElement, undefined);
 		return Status.VALID;
 	}
 
-	public override isModelValid(model: FoldingRegions): boolean {
+	protected override isModelValid(model: FoldingRegions): boolean {
 		return model !== null;
 	}
 }
@@ -288,23 +288,24 @@ class StickyModelFromCandidateIndentationFoldingProvider extends StickyModelFrom
 		super(editor);
 	}
 
-	public createModelFromProvider(textModel: TextModel, modelVersionId: number, token: CancellationToken): Promise<FoldingRegions> {
+	protected createModelFromProvider(textModel: TextModel, modelVersionId: number, token: CancellationToken): Promise<FoldingRegions> {
 		const provider = new IndentRangeProvider(textModel, this._languageConfigurationService, this._foldingLimitReporter);
 		return provider.compute(token);
 	}
 }
 
 class StickyModelFromCandidateSyntaxFoldingProvider extends StickyModelFromCandidateFoldingProvider {
+
 	constructor(editor: ICodeEditor, @ILanguageFeaturesService private readonly _languageFeaturesService: ILanguageFeaturesService) {
 		super(editor);
 	}
 
-	public override isProviderValid(textModel: TextModel): boolean {
+	protected override isProviderValid(textModel: TextModel): boolean {
 		const selectedProviders = FoldingController.getFoldingRangeProviders(this._languageFeaturesService, textModel);
 		return selectedProviders.length > 0;
 	}
 
-	public createModelFromProvider(textModel: TextModel, modelVersionId: number, token: CancellationToken): Promise<FoldingRegions | null> {
+	protected createModelFromProvider(textModel: TextModel, modelVersionId: number, token: CancellationToken): Promise<FoldingRegions | null> {
 		const selectedProviders = FoldingController.getFoldingRangeProviders(this._languageFeaturesService, textModel);
 		const provider = new SyntaxRangeProvider(textModel, selectedProviders, () => this.createModelFromProvider(textModel, modelVersionId, token), this._foldingLimitReporter, undefined);
 		return provider.compute(token);
