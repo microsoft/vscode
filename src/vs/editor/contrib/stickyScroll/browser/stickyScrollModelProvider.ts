@@ -205,7 +205,7 @@ abstract class StickyModelCandidateProvider implements IStickyModelCandidateProv
 
 	/**
 	 * Method which checks whether the model returned by the provider is valid and can be used to compute a sticky model.
-	 * This method by default return true.
+	 * This method by default returns true.
 	 * @param model model returned by the provider
 	 * @returns boolean indicating whether the model is valid
 	 */
@@ -214,7 +214,8 @@ abstract class StickyModelCandidateProvider implements IStickyModelCandidateProv
 	}
 
 	/**
-	 * Method which checks whether the provider is valid before applying it to find the provider model
+	 * Method which checks whether the provider is valid before applying it to find the provider model.
+	 * This method by default returns true.
 	 * @param textModel text-model of the editor
 	 * @returns boolean indicating whether the provider is valid
 	 */
