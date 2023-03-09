@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./media/welcomeModalDialog';
+import 'vs/css!./media/welcomeDialog';
 import { IInstantiationService, createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { ThemeIcon } from 'vs/base/common/themables';
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
@@ -15,7 +15,7 @@ import { $ } from 'vs/base/browser/dom';
 import { renderLabelWithIcons } from 'vs/base/browser/ui/iconLabel/iconLabels';
 import { ILinkDescriptor, Link } from 'vs/platform/opener/browser/link';
 
-interface IWelcomeModalDialogItem {
+interface IWelcomeDialogItem {
 	readonly title: string;
 	readonly messages: { message: string; icon: string }[];
 	readonly buttonText: string;
@@ -23,15 +23,15 @@ interface IWelcomeModalDialogItem {
 	readonly onClose?: () => void;
 }
 
-export const IWelcomeModalDialogService = createDecorator<IWelcomeModalDialogService>('modalDialogService');
+export const IWelcomeDialogService = createDecorator<IWelcomeDialogService>('welcomeDialogService');
 
-export interface IWelcomeModalDialogService {
+export interface IWelcomeDialogService {
 	readonly _serviceBrand: undefined;
 
-	show(item: IWelcomeModalDialogItem): void;
+	show(item: IWelcomeDialogItem): void;
 }
 
-export class WelcomeModalDialogService implements IWelcomeModalDialogService {
+export class WelcomeDialogService implements IWelcomeDialogService {
 	declare readonly _serviceBrand: undefined;
 
 	private dialog: Dialog | undefined;
@@ -52,36 +52,36 @@ export class WelcomeModalDialogService implements IWelcomeModalDialogService {
 		return '';
 	}
 
-	async show(modalDialogItem: IWelcomeModalDialogItem): Promise<void> {
+	async show(welcomeDialogItem: IWelcomeDialogItem): Promise<void> {
 
 		this.disposableStore.clear();
 
 		const renderBody = (parent: HTMLElement) => {
 
-			parent.classList.add(...('modal-dialog-items'));
+			parent.classList.add(...('dialog-items'));
 			parent.appendChild(document.createElement('hr'));
 
-			for (const message of modalDialogItem.messages) {
+			for (const message of welcomeDialogItem.messages) {
 				const descriptorComponent =
-					$('.modal-dialog-message',
+					$('.dialog-message',
 						{},
-						WelcomeModalDialogService.iconWidgetFor(message.icon),
+						WelcomeDialogService.iconWidgetFor(message.icon),
 						$('.description-container', {},
 							$('.description.description.max-lines-3', { 'x-description-for': 'description' }, ...renderLabelWithIcons(message.message))));
 				parent.appendChild(descriptorComponent);
 			}
 
-			const actionsContainer = $('div.modal-dialog-action-container');
+			const actionsContainer = $('div.dialog-action-container');
 			parent.appendChild(actionsContainer);
-			if (modalDialogItem.action) {
-				this.disposableStore.add(this.instantiationService.createInstance(Link, actionsContainer, modalDialogItem.action, {}));
+			if (welcomeDialogItem.action) {
+				this.disposableStore.add(this.instantiationService.createInstance(Link, actionsContainer, welcomeDialogItem.action, {}));
 			}
 		};
 
 		this.dialog = new Dialog(
 			this.layoutService.container,
-			modalDialogItem.title,
-			[modalDialogItem.buttonText],
+			welcomeDialogItem.title,
+			[welcomeDialogItem.buttonText],
 			{
 				detail: '',
 				type: 'none',
@@ -99,5 +99,5 @@ export class WelcomeModalDialogService implements IWelcomeModalDialogService {
 	}
 }
 
-registerSingleton(IWelcomeModalDialogService, WelcomeModalDialogService, InstantiationType.Eager);
+registerSingleton(IWelcomeDialogService, WelcomeDialogService, InstantiationType.Eager);
 

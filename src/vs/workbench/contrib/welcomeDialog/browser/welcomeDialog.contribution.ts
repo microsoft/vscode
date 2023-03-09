@@ -8,37 +8,37 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { IBrowserWorkbenchEnvironmentService } from 'vs/workbench/services/environment/browser/environmentService';
-import { IWelcomeModalDialogService } from 'vs/workbench/contrib/welcomeModalDialog/browser/welcomeModalDialogService';
+import { IWelcomeDialogService as IWelcomeDialogService } from 'vs/workbench/contrib/welcomeDialog/browser/welcomeDialogService';
 
-class WelcomeModalContribution {
+class WelcomeDialogContribution {
 
-	private static readonly WELCOME_MODAL_DIALOG_DISMISSED_KEY = 'workbench.modal.dialog.welcome.dismissed';
+	private static readonly WELCOME_DIALOG_DISMISSED_KEY = 'workbench.dialog.welcome.dismissed';
 
 	constructor(
-		@IWelcomeModalDialogService welcomeModalDialogService: IWelcomeModalDialogService,
+		@IWelcomeDialogService welcomeDialogService: IWelcomeDialogService,
 		@IStorageService storageService: IStorageService,
 		@IBrowserWorkbenchEnvironmentService environmentService: IBrowserWorkbenchEnvironmentService
 	) {
-		const welcomeModalDialog = environmentService.options?.welcomeModalDialog;
-		if (!welcomeModalDialog) {
+		const welcomeDialog = environmentService.options?.welcomeDialog;
+		if (!welcomeDialog) {
 			return;
 		}
 
-		if (storageService.getBoolean(WelcomeModalContribution.WELCOME_MODAL_DIALOG_DISMISSED_KEY + '#' + welcomeModalDialog.routeId, StorageScope.PROFILE, false)) {
+		if (storageService.getBoolean(WelcomeDialogContribution.WELCOME_DIALOG_DISMISSED_KEY + '#' + welcomeDialog.routeId, StorageScope.PROFILE, false)) {
 			return;
 		}
 
-		welcomeModalDialogService.show({
-			title: welcomeModalDialog.title,
-			buttonText: welcomeModalDialog.buttonText,
-			messages: welcomeModalDialog.messages,
-			action: welcomeModalDialog.action,
+		welcomeDialogService.show({
+			title: welcomeDialog.title,
+			buttonText: welcomeDialog.buttonText,
+			messages: welcomeDialog.messages,
+			action: welcomeDialog.action,
 			onClose: () => {
-				storageService.store(WelcomeModalContribution.WELCOME_MODAL_DIALOG_DISMISSED_KEY + '#' + welcomeModalDialog.routeId, true, StorageScope.PROFILE, StorageTarget.MACHINE);
+				storageService.store(WelcomeDialogContribution.WELCOME_DIALOG_DISMISSED_KEY + '#' + welcomeDialog.routeId, true, StorageScope.PROFILE, StorageTarget.MACHINE);
 			}
 		});
 	}
 }
 
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench)
-	.registerWorkbenchContribution(WelcomeModalContribution, LifecyclePhase.Restored);
+	.registerWorkbenchContribution(WelcomeDialogContribution, LifecyclePhase.Restored);
