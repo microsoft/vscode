@@ -158,4 +158,3 @@ export class StickyModel {
 		readonly outlineProviderId: string | undefined
 	) { }
 }
-

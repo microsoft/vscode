@@ -262,7 +262,7 @@ abstract class StickyModelFromCandidateFoldingProvider extends StickyModelCandid
 		this._foldingLimitReporter = new RangesLimitReporter(editor);
 	}
 
-	public createStickyModel(textModel: ITextModel, modelVersionId: number, token: CancellationToken, model: FoldingRegions) {
+	public createStickyModel(textModel: ITextModel, modelVersionId: number, token: CancellationToken, model: FoldingRegions): Status {
 
 		// Suppose the folding model is null or it has no regions, then return false
 		const foldingElement = StickyElement.fromFoldingRegions(model);
@@ -281,7 +281,7 @@ class StickyModelFromCandidateIndentationFoldingProvider extends StickyModelFrom
 		super(editor);
 	}
 
-	public createModelFromProvider(textModel: TextModel, modelVersionId: number, token: CancellationToken): Promise<FoldingRegions | null> {
+	public createModelFromProvider(textModel: TextModel, modelVersionId: number, token: CancellationToken): Promise<FoldingRegions> {
 		const provider = new IndentRangeProvider(textModel, this._languageConfigurationService, this._foldingLimitReporter);
 		return provider.compute(token);
 	}
