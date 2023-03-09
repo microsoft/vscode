@@ -65,7 +65,7 @@ export interface IInteractiveResponseViewModel {
 	currentRenderedHeight: number | undefined;
 }
 
-export class InteractiveSessionViewModel extends Disposable {
+export class InteractiveSessionViewModel extends Disposable implements IInteractiveSessionViewModel {
 	private readonly _onDidDisposeModel = this._register(new Emitter<void>());
 	readonly onDidDisposeModel = this._onDidDisposeModel.event;
 
