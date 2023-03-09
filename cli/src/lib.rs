@@ -21,3 +21,5 @@ pub mod util;
 mod rpc;
 mod json_rpc;
 mod msgpack_rpc;
+mod singleton;
+mod async_pipe;

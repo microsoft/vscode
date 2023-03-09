@@ -3,10 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-use std::{fmt, time::Duration};
+use std::fmt;
+use sysinfo::Pid;
+use tokio::sync::mpsc;
 
-use sysinfo::{Pid, SystemExt};
-use tokio::{sync::mpsc, time::sleep};
+use crate::util::machine::wait_until_process_exits;
 
 /// Describes the signal to manully stop the server
 pub enum ShutdownSignal {
@@ -46,10 +47,7 @@ impl ShutdownSignal {
 					let pid = *pid;
 					let tx = tx.clone();
 					tokio::spawn(async move {
-						let mut s = sysinfo::System::new();
-						while s.refresh_process(pid) {
-							sleep(Duration::from_millis(2000)).await;
-						}
+						wait_until_process_exits(pid, 2000).await;
 						tx.send(ShutdownSignal::ParentProcessKilled(pid)).ok();
 					});
 				}

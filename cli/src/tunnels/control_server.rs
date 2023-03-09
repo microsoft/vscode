@@ -2,6 +2,7 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
+use crate::async_pipe::get_socket_rw_stream;
 use crate::constants::{CONTROL_PORT, EDITOR_WEB_URL, QUALITYLESS_SERVER_NAME};
 use crate::log;
 use crate::rpc::{MaybeSync, RpcBuilder, RpcDispatcher, Serialization};
@@ -45,7 +46,7 @@ use super::protocol::{
 	ServerMessageParams, ToClientRequest, UnforwardParams, UpdateParams, UpdateResult,
 	VersionParams,
 };
-use super::server_bridge::{get_socket_rw_stream, ServerBridge};
+use super::server_bridge::ServerBridge;
 use super::server_multiplexer::ServerMultiplexer;
 use super::shutdown_signal::ShutdownSignal;
 use super::socket_signal::{

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 use std::fmt::Display;
-
+use thiserror::Error;
 use crate::constants::{
 	APPLICATION_NAME, CONTROL_PORT, DOCUMENTATION_URL, QUALITYLESS_PRODUCT_NAME,
 };
@@ -475,6 +475,19 @@ macro_rules! makeAnyError {
     };
 }
 
+
+/// Internal errors in the VS Code CLI.
+/// Note: other error should be migrated to this type gradually
+#[derive(Error, Debug)]
+pub enum CodeError {
+	#[error("could not connect to socket/pipe")]
+	AsyncPipeFailed(std::io::Error),
+	#[error("could not listen on socket/pipe")]
+	AsyncListenerFailed(std::io::Error),
+	#[error("could not create singleton lock file")]
+	SingletonLockfileOpenFailed(std::io::Error),
+}
+
 makeAnyError!(
 	MissingLegalConsent,
 	MismatchConnectionToken,
@@ -505,7 +518,8 @@ makeAnyError!(
 	MissingHomeDirectory,
 	CommandFailed,
 	OAuthError,
-	InvalidRpcDataError
+	InvalidRpcDataError,
+	CodeError
 );
 
 impl From<reqwest::Error> for AnyError {
