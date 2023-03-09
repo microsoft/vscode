@@ -33,7 +33,7 @@ import { DEFAULT_FONT_FAMILY } from 'vs/workbench/browser/style';
 import { getSimpleCodeEditorWidgetOptions, getSimpleEditorOptions } from 'vs/workbench/contrib/codeEditor/browser/simpleEditorOptions';
 import { InteractiveListItemRenderer, InteractiveSessionAccessibilityProvider, InteractiveSessionListDelegate, InteractiveTreeItem } from 'vs/workbench/contrib/interactiveSession/browser/interactiveSessionListRenderer';
 import { InteractiveSessionEditorOptions } from 'vs/workbench/contrib/interactiveSession/browser/interactiveSessionOptions';
-import { IInteractiveSessionService } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionService';
+import { IInteractiveSessionService, IInteractiveSlashCommand } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionService';
 import { IInteractiveSessionViewModel, InteractiveSessionViewModel, isRequestVM, isResponseVM } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionViewModel';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 
@@ -61,6 +61,8 @@ function revealLastElement(list: WorkbenchObjectTree<any>) {
 }
 
 const INPUT_EDITOR_MAX_HEIGHT = 275;
+const SLASH_COMMAND_DETAIL_DECORATION_TYPE = 'interactive-session-detail';
+const SLASH_COMMAND_TEXT_DECORATION_TYPE = 'interactive-session-text';
 
 export class InteractiveSessionWidget extends Disposable {
 	private _onDidFocus = this._register(new Emitter<void>());
@@ -87,6 +89,8 @@ export class InteractiveSessionWidget extends Disposable {
 
 	private viewModel: IInteractiveSessionViewModel | undefined;
 	private viewModelDisposables = new DisposableStore();
+
+	private cachedSlashCommands: IInteractiveSlashCommand[] | undefined;
 
 	constructor(
 		private readonly providerId: string,
@@ -293,20 +297,19 @@ export class InteractiveSessionWidget extends Disposable {
 
 		const inputEditorElement = dom.append(inputContainer, $('.interactive-input-editor'));
 		this.inputEditor = this._register(scopedInstantiationService.createInstance(CodeEditorWidget, inputEditorElement, options, { ...getSimpleCodeEditorWidgetOptions(), isSimpleWidget: false }));
-		this.codeEditorService.registerDecorationType('interactive-session', 'interactive-session', {});
-		this.codeEditorService.registerDecorationType('interactive-session', 'interactive-session-text', {
+		this.codeEditorService.registerDecorationType('interactive-session', SLASH_COMMAND_DETAIL_DECORATION_TYPE, {});
+		this.codeEditorService.registerDecorationType('interactive-session', SLASH_COMMAND_TEXT_DECORATION_TYPE, {
 			textDecoration: 'underline'
 		});
 
 		this._register(this.languageFeaturesService.completionProvider.register({ scheme: InteractiveSessionWidget.INPUT_SCHEME, hasAccessToAllModels: true }, {
 			triggerCharacters: ['/'],
 			provideCompletionItems: async (model: ITextModel, position: Position, _context: CompletionContext) => {
-				// const slashCommands = this.viewModel?.slashCommands ?? [];
 				const slashCommands = await this.interactiveSessionService.getSlashCommands(this.viewModel!.sessionId, CancellationToken.None);
 				if (!slashCommands) {
 					return { suggestions: [] };
 				}
-				
+
 				return <CompletionList>{
 					suggestions: slashCommands.map(c => {
 						const withSlash = `/${c.command}`;
@@ -339,34 +342,35 @@ export class InteractiveSessionWidget extends Disposable {
 		this._register(dom.addStandardDisposableListener(inputContainer, dom.EventType.BLUR, () => inputContainer.classList.remove('synthetic-focus')));
 	}
 
-	private updateInputEditorDecorations() {
+	private async updateInputEditorDecorations() {
 		const theme = this.themeService.getColorTheme();
 		const value = this.inputModel?.getValue();
-		const command = value && this.viewModel?.slashCommands?.find(c => value.startsWith(`/${c.command} `));
-		if (command && command.detail) {
-			if (value === `/${command.command} `) {
-				const transparentForeground = theme.getColor(editorForeground)?.transparent(0.4);
-				const decoration: IDecorationOptions[] = [
-					{
-						range: {
-							startLineNumber: 1,
-							endLineNumber: 1,
-							startColumn: command.command.length + 2,
-							endColumn: 1000
-						},
-						renderOptions: {
-							after: {
-								contentText: command.detail,
-								color: transparentForeground ? transparentForeground.toString() : undefined
-							}
+		const slashCommands = this.cachedSlashCommands ?? await this.interactiveSessionService.getSlashCommands(this.viewModel!.sessionId, CancellationToken.None);
+		const command = value && slashCommands?.find(c => value.startsWith(`/${c.command} `));
+		if (command && command.detail && value === `/${command.command} `) {
+			const transparentForeground = theme.getColor(editorForeground)?.transparent(0.4);
+			const decoration: IDecorationOptions[] = [
+				{
+					range: {
+						startLineNumber: 1,
+						endLineNumber: 1,
+						startColumn: command.command.length + 2,
+						endColumn: 1000
+					},
+					renderOptions: {
+						after: {
+							contentText: command.detail,
+							color: transparentForeground ? transparentForeground.toString() : undefined
 						}
 					}
-				];
-				this.inputEditor.setDecorationsByType('interactive session', 'interactive-session', decoration);
-			} else {
-				this.inputEditor.setDecorationsByType('interactive session', 'interactive-session', []);
-			}
+				}
+			];
+			this.inputEditor.setDecorationsByType('interactive session', SLASH_COMMAND_DETAIL_DECORATION_TYPE, decoration);
+		} else {
+			this.inputEditor.setDecorationsByType('interactive session', SLASH_COMMAND_DETAIL_DECORATION_TYPE, []);
+		}
 
+		if (command && command.detail) {
 			const textDecoration: IDecorationOptions[] = [
 				{
 					range: {
@@ -377,10 +381,9 @@ export class InteractiveSessionWidget extends Disposable {
 					}
 				}
 			];
-			this.inputEditor.setDecorationsByType('interactive session', 'interactive-session-text', textDecoration);
+			this.inputEditor.setDecorationsByType('interactive session', SLASH_COMMAND_TEXT_DECORATION_TYPE, textDecoration);
 		} else {
-			this.inputEditor.setDecorationsByType('interactive session', 'interactive-session', []);
-			this.inputEditor.setDecorationsByType('interactive session', 'interactive-session-text', []);
+			this.inputEditor.setDecorationsByType('interactive session', SLASH_COMMAND_TEXT_DECORATION_TYPE, []);
 		}
 	}
 

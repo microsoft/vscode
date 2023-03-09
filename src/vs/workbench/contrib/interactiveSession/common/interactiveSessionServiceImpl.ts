@@ -119,7 +119,6 @@ export class InteractiveSessionService extends Disposable implements IInteractiv
 		this.trace('startSession', `Provider returned session with id ${session.id}`);
 		const model = this.instantiationService.createInstance(InteractiveSessionModel, session, providerId, someSessionHistory);
 		this._sessionModels.set(model.sessionId, model);
-		this._refreshSlashCommands(provider, model, CancellationToken.None); // don't wait
 
 		return model;
 	}
@@ -175,15 +174,9 @@ export class InteractiveSessionService extends Disposable implements IInteractiv
 			});
 			model.completeResponse(request, rawResponse);
 			this.trace('sendRequest', `Provider returned response for session ${model.sessionId} with ${rawResponse.followups} followups`);
-
-			this._refreshSlashCommands(provider, model, CancellationToken.None); // don't wait
 		} finally {
 			this._pendingRequestSessions.delete(model.sessionId);
 		}
-	}
-
-	private async _refreshSlashCommands(provider: IInteractiveProvider, model: InteractiveSessionModel, token: CancellationToken): Promise<void> {
-		model.slashCommands = withNullAsUndefined((await provider.provideSlashCommands?.(model.session, token)));
 	}
 
 	async getSlashCommands(sessionId: number, token: CancellationToken): Promise<IInteractiveSlashCommand[] | undefined> {
