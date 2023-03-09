@@ -99,9 +99,9 @@ function pushGlobIconClassesForName(name: string, classes: string[], segments: s
 			}
 			const glob = buffer.join('.');
 
-			// Globs with chained * filename segments coaelesced into **
+			// Globs with chained * filename segments coaelesced into *
 			if (glob.match(fileIconWildcardChainRegex)) {
-				const coaelescedGlob = glob.replace(fileIconWildcardChainRegex, '**');
+				const coaelescedGlob = glob.replace(fileIconWildcardChainRegex, '*');
 				classes.push(`${coaelescedGlob}-glob-${kind}-icon`);
 			}
 
@@ -117,7 +117,7 @@ function pushGlobIconClassesForName(name: string, classes: string[], segments: s
 		for (let i = 0; i < lastDotIndex; i++) {
 			// Prefix-matching coalescing globs
 			const suffixSegments = segments.slice(0, i + 1);
-			suffixSegments.push(i < lastDotIndex - 1 ? '**' : '*');
+			suffixSegments.push('*');
 			const suffixGlob = suffixSegments.join('.');
 			classes.push(`${suffixGlob}-glob-${kind}-icon`);
 
