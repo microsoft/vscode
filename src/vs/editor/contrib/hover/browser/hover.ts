@@ -276,7 +276,7 @@ class ShowOrFocusHoverAction extends EditorAction {
 
 	constructor() {
 		super({
-			id: 'editor.action.showOrFocusHover',
+			id: 'editor.action.showHover',
 			label: nls.localize({
 				key: 'showOrFocusHover',
 				comment: [
