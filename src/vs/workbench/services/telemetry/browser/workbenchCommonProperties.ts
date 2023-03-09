@@ -20,7 +20,7 @@ function cleanUserAgent(userAgent: string): string {
 	return userAgent.replace(/(\d+\.\d+)(\.\d+)+/g, '$1');
 }
 
-export async function resolveWorkbenchCommonProperties(
+export function resolveWorkbenchCommonProperties(
 	storageService: IStorageService,
 	commit: string | undefined,
 	version: string | undefined,
@@ -29,7 +29,7 @@ export async function resolveWorkbenchCommonProperties(
 	productIdentifier?: string,
 	removeMachineId?: boolean,
 	resolveAdditionalProperties?: () => { [key: string]: any }
-): Promise<{ [name: string]: string | boolean | undefined }> {
+): { [name: string]: string | boolean | undefined } {
 	const result: { [name: string]: string | boolean | undefined } = Object.create(null);
 	const firstSessionDate = storageService.get(firstSessionDateStorageKey, StorageScope.APPLICATION)!;
 	const lastSessionDate = storageService.get(lastSessionDateStorageKey, StorageScope.APPLICATION)!;
