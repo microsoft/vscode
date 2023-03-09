@@ -34,7 +34,6 @@ const $ = dom.$;
 export class ContentHoverController extends Disposable {
 
 	private readonly _participants: IEditorHoverParticipant[];
-	// Used to be a ContentHoverWidget, now became a ResizeableContentHoverWidget
 	private readonly _widget = this._register(this._instantiationService.createInstance(ResizeableContentHoverWidget, this._editor));
 	private readonly _computer: ContentHoverComputer;
 	private readonly _hoverOperation: HoverOperation<IHoverPart>;
@@ -533,7 +532,7 @@ export class ResizeableContentHoverWidget extends Disposable {
 		console.log('width : ', width);
 		console.log('height : ', height);
 		this._resizableElement.layout(height, width);
-		this._hoverContentWidget.layout();
+		this._editor.layoutContentWidget(this._hoverContentWidget);
 	}
 
 	// Everything below has been added in order to remove the errors
@@ -591,10 +590,9 @@ export class ContentHoverWidget extends Disposable implements IContentWidget {
 	public readonly allowEditorOverflow = true;
 
 	private readonly _hoverVisibleKey = EditorContextKeys.hoverVisible.bindTo(this._contextKeyService);
-
+	private readonly _hover: HoverWidget = this._register(new HoverWidget());
 
 	private _visibleData: ContentHoverVisibleData | null = null;
-	private readonly _hover: HoverWidget;
 
 	/**
 	 * Returns `null` if the hover is not visible.
@@ -616,10 +614,7 @@ export class ContentHoverWidget extends Disposable implements IContentWidget {
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 	) {
 		super();
-		const hoverWidget = new HoverWidget();
-		console.log('Right before adding to the reizable element the hover widget container dom node');
-		// Adding into the resizeable element dom node the hover widget dom node
-		this._hover = this._register(hoverWidget);
+
 		this._register(this._editor.onDidLayoutChange(() => this._layout()));
 		this._register(this._editor.onDidChangeConfiguration((e: ConfigurationChangedEvent) => {
 			if (e.hasChanged(EditorOption.fontInfo)) {
@@ -645,11 +640,7 @@ export class ContentHoverWidget extends Disposable implements IContentWidget {
 	}
 
 	public getDomNode(): HTMLElement {
-		console.log('Inside of getDomNode for the ContentHoverWidget');
-		// Returning the dom node of the resizable element
-
 		return this._hover.containerDomNode;
-		// return this._resizableElement.domNode;
 	}
 
 	public getPosition(): IContentWidgetPosition | null {
@@ -778,22 +769,6 @@ export class ContentHoverWidget extends Disposable implements IContentWidget {
 
 	public clear(): void {
 		this._hover.contentsDomNode.textContent = '';
-	}
-
-	layout(): void {
-		console.log('Inside of layout of the ContentHoverWidget');
-		this._editor.layoutContentWidget(this);
-	}
-
-	beforeRender() {
-		console.log('Inside of beforeRender of the ContentHoverWidget');
-		const { height, width } = this._resizableElement.size;
-		return new dom.Dimension(width, height);
-	}
-
-	afterRender(position: ContentWidgetPositionPreference | null) {
-		console.log('Inside of afterRender of the ContentHoverWidget');
-		// this._resizeableElement._afterRender(position);
 	}
 }
 

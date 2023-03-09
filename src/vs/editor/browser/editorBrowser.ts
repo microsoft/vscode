@@ -156,6 +156,7 @@ export interface IContentWidgetPosition {
 	*/
 	positionAffinity?: PositionAffinity;
 }
+
 /**
  * A content widget renders inline with the text and can be easily placed 'near' an editor position.
  */

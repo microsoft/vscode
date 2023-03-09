@@ -63,7 +63,7 @@ export interface ISelectedSuggestion {
 	model: CompletionModel;
 }
 
-// Export the persisted widget size in order to use it for the hover content widget
+// TODO@Aiday: Find where to place this class for better sharing
 export class PersistedWidgetSize {
 
 	private readonly _key: string;
@@ -97,7 +97,7 @@ export class PersistedWidgetSize {
 	}
 }
 
-// Exporting the resize state in order to use it for the content hover widget
+// TODO@Aiday: Find where to place this class for better sharing
 export class ResizeState {
 	constructor(
 		readonly persistedSize: dom.Dimension | undefined,
