@@ -177,7 +177,7 @@ export const startEntries: GettingStartedStartEntryContent = [
 	{
 		id: 'topLevelRemoteOpen',
 		title: localize('gettingStarted.topLevelRemoteOpen.title', "Connect to..."),
-		description: localize('gettingStarted.topLevelRemoteOpen.description', "Watch our series of short & practical video tutorials for VS Code's key features."),
+		description: localize('gettingStarted.topLevelRemoteOpen.description', "Connect to remote development workspaces."),
 		when: 'config.workbench.remote.experimental.showStartListEntry',
 		icon: Codicon.remote,
 		content: {
