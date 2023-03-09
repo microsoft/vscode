@@ -18,6 +18,7 @@ import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { MarkdownRenderer, openLinkFromMarkdown } from 'vs/editor/contrib/markdownRenderer/browser/markdownRenderer';
 import { isMarkdownString } from 'vs/base/common/htmlContent';
+import { ResizableHTMLElement } from 'vs/base/browser/ui/resizable/resizable';
 
 const $ = dom.$;
 type TargetRect = {
@@ -97,7 +98,7 @@ export class HoverWidget extends Widget {
 		this._target = 'targetElements' in options.target ? options.target : new ElementHoverTarget(options.target);
 
 		this._hoverPointer = options.showPointer ? $('div.workbench-hover-pointer') : undefined;
-		this._hover = this._register(new BaseHoverWidget());
+		this._hover = this._register(new BaseHoverWidget(new ResizableHTMLElement()));
 		this._hover.containerDomNode.classList.add('workbench-hover', 'fadeIn');
 		if (options.compact) {
 			this._hover.containerDomNode.classList.add('workbench-hover', 'compact');

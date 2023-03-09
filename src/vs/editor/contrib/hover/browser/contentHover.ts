@@ -27,6 +27,7 @@ import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { ResizableHTMLElement } from 'vs/base/browser/ui/resizable/resizable';
 import { PersistedWidgetSize, ResizeState } from 'vs/editor/contrib/suggest/browser/suggestWidget';
 import { IStorageService } from 'vs/platform/storage/common/storage';
+import { clamp } from 'vs/base/common/numbers';
 
 const $ = dom.$;
 
@@ -414,17 +415,20 @@ export class ResizeableContentHoverWidget extends Disposable {
 		super();
 		this._resizeableElement = new ResizableHTMLElement();
 		// TODO: Add the class names to the resizeable element?
+		// The resizeable element is passed into the content hover widget
+		this._hoverContentWidget = new ContentHoverWidget(this._resizeableElement, _editor, this._contextKeyService);
 
-		this._hoverContentWidget = new ContentHoverWidget(this, _editor, this._contextKeyService);
 		this._persistedSize = new PersistedWidgetSize(this._storageService, _editor);
-
 		let state: ResizeState | undefined;
 		this._disposables.add(this._resizeableElement.onDidWillResize(() => {
+			console.log('Entered into onDidWillResize of ResizeableContentHoverWidget');
 			this._hoverContentWidget.lockPreference();
 			state = new ResizeState(this._persistedSize.restore(), this._resizeableElement.size);
+			console.log('state : ', state);
 		}));
 		this._disposables.add(this._resizeableElement.onDidResize(e => {
-
+			console.log('Inside of onDidResize of ResizeableContentHoverWidget');
+			console.log('e : ', e);
 			this._resize(e.dimension.width, e.dimension.height);
 
 			if (state) {
@@ -445,9 +449,11 @@ export class ResizeableContentHoverWidget extends Disposable {
 				const threshold = Math.round(itemHeight / 2);
 				let { width, height } = this._resizeableElement.size;
 				if (!state.persistHeight || Math.abs(state.currentSize.height - height) <= threshold) {
+					console.log('Entered into the first if loop');
 					height = state.persistedSize?.height ?? defaultSize.height;
 				}
 				if (!state.persistWidth || Math.abs(state.currentSize.width - width) <= threshold) {
+					console.log('Entered into the second if loop');
 					width = state.persistedSize?.width ?? defaultSize.width;
 				}
 				this._persistedSize.store(new dom.Dimension(width, height));
@@ -459,19 +465,87 @@ export class ResizeableContentHoverWidget extends Disposable {
 		}));
 	}
 
-	private _resize(width: number, height: number): void {
+	private _layout(size: dom.Dimension | undefined): void {
+		console.log('Entered into _layout');
+		if (!this._editor.hasModel()) {
+			return;
+		}
+		if (!this._editor.getDomNode()) {
+			// happens when running tests
+			return;
+		}
 
+		const bodyBox = dom.getClientArea(document.body);
+		const fontInfo = this._editor.getOption(EditorOption.fontInfo);
+		const itemHeight = clamp(this._editor.getOption(EditorOption.suggestLineHeight) || fontInfo.lineHeight, 8, 1000);
+		const defaultSize = new dom.Dimension(430, 12 * itemHeight);
+
+		if (!size) {
+			size = defaultSize;
+		}
+
+		let height = size.height;
+		let width = size.width;
+
+		// width math
+		const maxWidth = bodyBox.width;
+		if (width > maxWidth) {
+			width = maxWidth;
+		}
+		const preferredWidth = width;
+
+		// height math
+		const minHeight = itemHeight;
+		const editorBox = dom.getDomNodePagePosition(this._editor.getDomNode());
+		const cursorBox = this._editor.getScrolledVisiblePosition(this._editor.getPosition());
+		const cursorBottom = editorBox.top + cursorBox.top + cursorBox.height;
+		const maxHeightBelow = bodyBox.height - cursorBottom;
+		const availableSpaceAbove = editorBox.top + cursorBox.top;
+		const maxHeightAbove = availableSpaceAbove;
+		let maxHeight = Math.max(maxHeightAbove, maxHeightBelow);
+
+		if (height < minHeight) {
+			height = minHeight;
+		}
+		if (height > maxHeight) {
+			height = maxHeight;
+		}
+
+		const forceRenderingAboveRequiredSpace = 150;
+		if (height > maxHeightBelow || (availableSpaceAbove > forceRenderingAboveRequiredSpace)) {
+			// this._hoverContentWidget.setPreference(ContentWidgetPositionPreference.ABOVE);
+			console.log('Entered into the first if loop for enabling sashes');
+			this._resizeableElement.enableSashes(true, true, false, false);
+			maxHeight = maxHeightAbove;
+		} else {
+			// this._hoverContentWidget.setPreference(ContentWidgetPositionPreference.BELOW);
+			console.log('Entered into the second if loop for enabling sashes');
+			this._resizeableElement.enableSashes(false, true, true, false);
+			maxHeight = maxHeightBelow;
+		}
+		this._resizeableElement.preferredSize = new dom.Dimension(preferredWidth, defaultSize.height);
+		this._resizeableElement.maxSize = new dom.Dimension(maxWidth, maxHeight);
+		this._resizeableElement.minSize = new dom.Dimension(220, minHeight);
+
+		this._resize(width, height);
+	}
+
+	private _resize(width: number, height: number): void {
+		console.log('Inside of _resize');
 		const { width: maxWidth, height: maxHeight } = this._resizeableElement.maxSize;
 		width = Math.min(maxWidth, width);
 		height = Math.min(maxHeight, height);
-
+		console.log('width : ', width);
+		console.log('height : ', height);
 		this._resizeableElement.layout(height, width);
 		this._hoverContentWidget.layout();
 	}
 
 	// Everything below has been added in order to remove the errors
 	public getDomNode(): HTMLElement {
-		return this._hoverContentWidget.getDomNode();
+		console.log('Inside of getDomNode');
+		// return this._hoverContentWidget.getDomNode();
+		return this._resizeableElement.domNode;
 	}
 
 	public clear(): void {
@@ -487,6 +561,7 @@ export class ResizeableContentHoverWidget extends Disposable {
 	}
 
 	public hide() {
+		this._resizeableElement.clearSashHoverState();
 		this._hoverContentWidget.hide();
 	}
 
@@ -503,7 +578,14 @@ export class ResizeableContentHoverWidget extends Disposable {
 	}
 
 	public showAt(node: DocumentFragment, visibleData: ContentHoverVisibleData) {
+		console.log('Inside of showAt function of the ResizeableContentHoverWidget');
+		// this._layout(this._persistedSize.restore());
+		this._layout(this._resizeableElement.size);
 		return this._hoverContentWidget.showAt(node, visibleData);
+	}
+	_afterRender(position: ContentWidgetPositionPreference | null) {
+		console.log('Inside of _afterRender');
+		// pass
 	}
 }
 
@@ -514,9 +596,10 @@ export class ContentHoverWidget extends Disposable implements IContentWidget {
 	public readonly allowEditorOverflow = true;
 
 	private readonly _hoverVisibleKey = EditorContextKeys.hoverVisible.bindTo(this._contextKeyService);
-	private readonly _hover: HoverWidget = this._register(new HoverWidget());
+
 
 	private _visibleData: ContentHoverVisibleData | null = null;
+	private readonly _hover: HoverWidget;
 	private _preferenceLocked = false;
 
 	/**
@@ -535,12 +618,12 @@ export class ContentHoverWidget extends Disposable implements IContentWidget {
 	}
 
 	constructor(
-		private readonly _resizeableContentHoverWidget: ResizeableContentHoverWidget,
+		private readonly _resizeableElement: ResizableHTMLElement,
 		private readonly _editor: ICodeEditor,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 	) {
 		super();
-
+		this._hover = this._register(new HoverWidget(this._resizeableElement));
 		this._register(this._editor.onDidLayoutChange(() => this._layout()));
 		this._register(this._editor.onDidChangeConfiguration((e: ConfigurationChangedEvent) => {
 			if (e.hasChanged(EditorOption.fontInfo)) {
@@ -566,7 +649,9 @@ export class ContentHoverWidget extends Disposable implements IContentWidget {
 	}
 
 	public getDomNode(): HTMLElement {
+		console.log('Inside of getDomNode for the ContentHoverWidget');
 		return this._hover.containerDomNode;
+		// return this._resizeableContentHoverWidget._resizeableElement.domNode;
 	}
 
 	public getPosition(): IContentWidgetPosition | null {
@@ -708,7 +793,19 @@ export class ContentHoverWidget extends Disposable implements IContentWidget {
 	}
 
 	layout(): void {
+		console.log('Inside of layout of the ContentHoverWidget');
 		this._editor.layoutContentWidget(this);
+	}
+
+	beforeRender() {
+		console.log('Inside of beforeRender of the ContentHoverWidget');
+		const { height, width } = this._resizeableElement.size;
+		return new dom.Dimension(width, height);
+	}
+
+	afterRender(position: ContentWidgetPositionPreference | null) {
+		console.log('Inside of afterRender of the ContentHoverWidget');
+		// this._resizeableElement._afterRender(position);
 	}
 }
 

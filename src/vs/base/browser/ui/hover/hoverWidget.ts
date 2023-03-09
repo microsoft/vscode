@@ -5,6 +5,7 @@
 
 import * as dom from 'vs/base/browser/dom';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
+import { ResizableHTMLElement } from 'vs/base/browser/ui/resizable/resizable';
 import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { Disposable } from 'vs/base/common/lifecycle';
@@ -22,7 +23,7 @@ export class HoverWidget extends Disposable {
 	public readonly contentsDomNode: HTMLElement;
 	public readonly scrollbar: DomScrollableElement;
 
-	constructor() {
+	constructor(resizeableElement: ResizableHTMLElement) {
 		super();
 
 		this.containerDomNode = document.createElement('div');
@@ -37,6 +38,8 @@ export class HoverWidget extends Disposable {
 			consumeMouseWheelIfScrollbarIsNeeded: true
 		}));
 		this.containerDomNode.appendChild(this.scrollbar.getDomNode());
+		resizeableElement.domNode.className = 'resizeable-element';
+		dom.append(resizeableElement.domNode, this.containerDomNode);
 	}
 
 	public onContentsChanged(): void {

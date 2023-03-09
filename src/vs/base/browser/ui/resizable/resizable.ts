@@ -20,20 +20,24 @@ export interface IResizeEvent {
 
 export class ResizableHTMLElement {
 
-	readonly domNode: HTMLElement;
+	public domNode: HTMLElement;
 
 	private readonly _onDidWillResize = new Emitter<void>();
+	// Event fires when the resize will happen
 	readonly onDidWillResize: Event<void> = this._onDidWillResize.event;
 
 	private readonly _onDidResize = new Emitter<IResizeEvent>();
+	// Event fires when the resize has happened
 	readonly onDidResize: Event<IResizeEvent> = this._onDidResize.event;
 
+	// There are sashes on all the sides of the rectangle
 	private readonly _northSash: Sash;
 	private readonly _eastSash: Sash;
 	private readonly _southSash: Sash;
 	private readonly _westSash: Sash;
 	private readonly _sashListener = new DisposableStore();
 
+	// Setting the default values
 	private _size = new Dimension(0, 0);
 	private _minSize = new Dimension(0, 0);
 	private _maxSize = new Dimension(Number.MAX_SAFE_INTEGER, Number.MAX_SAFE_INTEGER);
@@ -55,6 +59,7 @@ export class ResizableHTMLElement {
 		let deltaY = 0;
 		let deltaX = 0;
 
+		// Each sash has its own listeners
 		this._sashListener.add(Event.any(this._northSash.onDidStart, this._eastSash.onDidStart, this._southSash.onDidStart, this._westSash.onDidStart)(() => {
 			if (currentSize === undefined) {
 				this._onDidWillResize.fire();
@@ -127,6 +132,7 @@ export class ResizableHTMLElement {
 	}
 
 	enableSashes(north: boolean, east: boolean, south: boolean, west: boolean): void {
+		// enableSahes only changes the state of the sash, but what makes them appear?
 		this._northSash.state = north ? SashState.Enabled : SashState.Disabled;
 		this._eastSash.state = east ? SashState.Enabled : SashState.Disabled;
 		this._southSash.state = south ? SashState.Enabled : SashState.Disabled;
@@ -135,14 +141,21 @@ export class ResizableHTMLElement {
 
 	layout(height: number = this.size.height, width: number = this.size.width): void {
 
+		console.log('Entered into the layout function of the ResizeablHTMLElement');
+		// Retrieving the minimum and maximum sizes of the suggest hover
 		const { height: minHeight, width: minWidth } = this._minSize;
 		const { height: maxHeight, width: maxWidth } = this._maxSize;
 
+		// Defining the actual height and width given that they must be constrained within the maximum and the minimum sizes
 		height = Math.max(minHeight, Math.min(maxHeight, height));
 		width = Math.max(minWidth, Math.min(maxWidth, width));
 
 		const newSize = new Dimension(width, height);
+		console.log('newSize : ', newSize);
+		console.log('this._size : ', this._size);
+
 		if (!Dimension.equals(newSize, this._size)) {
+			// The domNode is the most important node of the resizeable element
 			this.domNode.style.height = height + 'px';
 			this.domNode.style.width = width + 'px';
 			this._size = newSize;
@@ -151,6 +164,11 @@ export class ResizableHTMLElement {
 			this._southSash.layout();
 			this._westSash.layout();
 		}
+	}
+
+	// Function added by me, technically should not set the dom node in this manner
+	public setDomNode(domNode: HTMLElement): void {
+		this.domNode = domNode;
 	}
 
 	clearSashHoverState(): void {
