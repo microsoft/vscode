@@ -494,7 +494,7 @@ class PageDownHoverAction extends EditorAction {
 }
 
 registerEditorContribution(ModesHoverController.ID, ModesHoverController, EditorContributionInstantiation.BeforeFirstInteraction);
-registerEditorAction(ShowOrFocusHoverAction);
+registerEditorAction(ShowHoverAction);
 registerEditorAction(ShowDefinitionPreviewHoverAction);
 registerEditorAction(ScrollUpHoverAction);
 registerEditorAction(ScrollDownHoverAction);
