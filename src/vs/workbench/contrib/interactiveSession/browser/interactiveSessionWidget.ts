@@ -5,7 +5,7 @@
 
 import * as dom from 'vs/base/browser/dom';
 import { Button } from 'vs/base/browser/ui/button/button';
-import { ITreeElement } from 'vs/base/browser/ui/tree/tree';
+import { ITreeContextMenuEvent, ITreeElement } from 'vs/base/browser/ui/tree/tree';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Emitter } from 'vs/base/common/event';
 import { Disposable, DisposableStore, IDisposable, combinedDisposable, toDisposable } from 'vs/base/common/lifecycle';
@@ -22,7 +22,9 @@ import { ITextModel } from 'vs/editor/common/model';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import { IModelService } from 'vs/editor/common/services/model';
 import { localize } from 'vs/nls';
+import { MenuId } from 'vs/platform/actions/common/actions';
 import { IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService, createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { WorkbenchObjectTree } from 'vs/platform/list/browser/listService';
@@ -104,6 +106,7 @@ export class InteractiveSessionWidget extends Disposable {
 		@IExtensionService private readonly extensionService: IExtensionService,
 		@IInteractiveSessionService private readonly interactiveSessionService: IInteractiveSessionService,
 		@IInteractiveSessionWidgetService interactiveSessionWidgetService: IInteractiveSessionWidgetService,
+		@IContextMenuService private readonly contextMenuService: IContextMenuService,
 		@ILanguageFeaturesService private readonly languageFeaturesService: ILanguageFeaturesService,
 		@IThemeService private readonly themeService: IThemeService,
 		@ICodeEditorService private readonly codeEditorService: ICodeEditorService,
@@ -246,6 +249,7 @@ export class InteractiveSessionWidget extends Disposable {
 					listFocusAndSelectionForeground: foreground,
 				}
 			});
+		this.tree.onContextMenu(e => this.onContextMenu(e));
 
 		this._register(this.tree.onDidChangeContentHeight(() => {
 			this.onDidChangeTreeContentHeight();
@@ -259,6 +263,19 @@ export class InteractiveSessionWidget extends Disposable {
 		this._register(this.tree.onDidFocus(() => {
 			this._onDidFocus.fire();
 		}));
+	}
+
+	private onContextMenu(e: ITreeContextMenuEvent<InteractiveTreeItem | null>): void {
+		e.browserEvent.preventDefault();
+		e.browserEvent.stopPropagation();
+
+		this.contextMenuService.showContextMenu({
+			menuId: MenuId.InteractiveSessionContext,
+			menuActionOptions: { shouldForwardArgs: true },
+			contextKeyService: this.contextKeyService,
+			getAnchor: () => e.anchor,
+			getActionsContext: () => e.element,
+		});
 	}
 
 	private onDidChangeTreeContentHeight(): void {
@@ -442,6 +459,10 @@ export class InteractiveSessionWidget extends Disposable {
 			this.focusInput();
 			this.renderWelcomeView(this.container);
 		}
+	}
+
+	getModel(): IInteractiveSessionViewModel | undefined {
+		return this.viewModel;
 	}
 
 	layout(height: number, width: number): void {
