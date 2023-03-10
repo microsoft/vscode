@@ -427,10 +427,13 @@ export class ContentHoverWidget extends Disposable implements IContentWidget {
 	private readonly _hoverVisibleKey = EditorContextKeys.hoverVisible.bindTo(this._contextKeyService);
 	private readonly _hoverFocusedKey = EditorContextKeys.hoverFocused.bindTo(this._contextKeyService);
 	private readonly _hover: HoverWidget = this._register(new HoverWidget());
-	private readonly _focusTracker = this._register(dom.trackFocus(this.getDomNode()));
+
 
 	// Adding a resizable element directly to the content hover widget
 	private readonly _element: ResizableHTMLElement = new ResizableHTMLElement();
+
+	// Placing the getDomNode() call after instantiating the element
+	private readonly _focusTracker = this._register(dom.trackFocus(this.getDomNode()));
 
 	private _visibleData: ContentHoverVisibleData | null = null;
 
@@ -478,6 +481,7 @@ export class ContentHoverWidget extends Disposable implements IContentWidget {
 		}));
 
 		// Resizable Elemenent contains as a child the hover container dom node
+		// TODO: Adding the line below makes the content hover disappear
 		this._element.domNode.appendChild(this._hover.containerDomNode);
 	}
 
@@ -494,7 +498,8 @@ export class ContentHoverWidget extends Disposable implements IContentWidget {
 	}
 
 	public getDomNode(): HTMLElement {
-		return this._hover.containerDomNode;
+		// return this._hover.containerDomNode;
+		return this._element.domNode;
 	}
 
 	public getPosition(): IContentWidgetPosition | null {
