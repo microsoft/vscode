@@ -251,6 +251,11 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 			'extensions.experimental.deferredStartupFinishedActivation': {
 				type: 'boolean',
 				description: localize('extensionsDeferredStartupFinishedActivation', "When enabled, extensions which declare the `onStartupFinished` activation event will be activated after a timeout."),
+				default: true
+			},
+			'extensions.experimental.prioritizeFileSystemActivation': {
+				type: 'boolean',
+				description: localize('extensionsPrioritizeFileSystemActivation', "When enabled, filesystem providers will be activated before all other events are handled."),
 				default: false
 			}
 		}
