@@ -24,12 +24,17 @@
 
 .interactive-list .interactive-item-container .header {
 	display: flex;
-	flex-direction: row;
+	align-items: center;
+	justify-content: space-between;
+}
+
+.interactive-list .interactive-item-container .header .user {
+	display: flex;
 	align-items: center;
 	gap: 6px;
 }
 
-.interactive-list .interactive-item-container .header h3 {
+.interactive-list .interactive-item-container .header .username {
 	margin: 0;
 	font-size: 12px;
 	font-weight: 600;
@@ -53,6 +58,14 @@
 
 .interactive-list .interactive-item-container .header .avatar .codicon {
 	color: var(--vscode-badge-foreground);
+}
+
+.interactive-list .interactive-item-container .header .monaco-toolbar {
+	display: none;
+}
+
+.interactive-list .interactive-item-container.interactive-response:hover .header .monaco-toolbar {
+	display: initial;
 }
 
 .interactive-list .interactive-item-container .value {
@@ -137,6 +150,25 @@
 
 .interactive-session .monaco-inputbox {
 	width: 100%;
+}
+
+.interactive-session .interactive-result-editor-wrapper {
+	position: relative;
+}
+
+.interactive-session .interactive-result-editor-wrapper .monaco-toolbar {
+	display: none;
+	position: absolute;
+	top: -13px;
+	right: 10px;
+	height: 26px;
+	background-color: var(--vscode-interactive-result-editor-background-color);
+	border: 1px solid var(--vscode-interactive-responseBorder);
+	z-index: 100;
+}
+
+.interactive-session .interactive-result-editor-wrapper:hover .monaco-toolbar {
+	display: initial;
 }
 
 .interactive-session .interactive-result-editor-wrapper .monaco-editor,
