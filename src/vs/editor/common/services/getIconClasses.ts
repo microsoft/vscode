@@ -86,7 +86,7 @@ export function getIconClassesForLanguageId(languageId: string): string[] {
 }
 
 function pushGlobIconClassesForName(name: string, classes: string[], segments: string[], kind: string) {
-	// Non-coalescing wildcard globs
+	// Non-coalescing wildcard globs, limited to <=4 dot segments (<=3 file extensions).
 	for (let i = 0; i < segments.length; i++) {
 		const baseSegments = segments.slice();
 		baseSegments[i] = '*';
@@ -98,7 +98,7 @@ function pushGlobIconClassesForName(name: string, classes: string[], segments: s
 		return;
 	}
 
-	// Globs for dashed file basenames (1 file extension)
+	// Globs for dashed file basenames, limited to 2 dot segments (1 file extension).
 	// Targets hyphenated prefix or suffix
 	// E.g. the tooling filename conventions `test_*.py` & `*_test.go`
 	const dotIndex = name.indexOf('.');
@@ -111,13 +111,13 @@ function pushGlobIconClassesForName(name: string, classes: string[], segments: s
 		return;
 	}
 
-	// Prefix basename glob e.g. `test_*.py`
+	// Prefix basename glob for 1 file extension, e.g. `test_*.py`.
 	const basenameDashIndex = basename.indexOf(separator);
 	const basenamePrefix = basename.substring(0, basenameDashIndex);
 	const basenamePrefixGlob = basenamePrefix + separator + '*' + extname;
 	classes.push(`${basenamePrefixGlob}-glob-${kind}-icon`);
 
-	// Suffix basename glob e.g. `*_test.go`
+	// Suffix basename glob for 1 file extension, e.g. `*_test.go`.
 	const basenameLastDashIndex = basename.lastIndexOf(separator);
 	const basenameSuffix = basename.substring(basenameLastDashIndex + 1);
 	const basenameSuffixGlob = '*' + separator + basenameSuffix + extname;
