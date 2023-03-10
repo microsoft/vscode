@@ -29,6 +29,8 @@ import { IMarkdownRenderResult, MarkdownRenderer } from 'vs/editor/contrib/markd
 import { ViewportSemanticTokensContribution } from 'vs/editor/contrib/semanticTokens/browser/viewportSemanticTokens';
 import { SmartSelectController } from 'vs/editor/contrib/smartSelect/browser/smartSelect';
 import { localize } from 'vs/nls';
+import { MenuWorkbenchToolBar } from 'vs/platform/actions/browser/toolbar';
+import { MenuId } from 'vs/platform/actions/common/actions';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -49,10 +51,11 @@ export type InteractiveTreeItem = IInteractiveRequestViewModel | IInteractiveRes
 
 interface IInteractiveListItemTemplate {
 	rowContainer: HTMLElement;
-	header: HTMLElement;
+	titleToolbar: MenuWorkbenchToolBar;
 	avatar: HTMLElement;
 	username: HTMLElement;
 	value: HTMLElement;
+	templateDisposables: IDisposable;
 	elementDisposables: DisposableStore;
 }
 
@@ -137,15 +140,22 @@ export class InteractiveListItemRenderer extends Disposable implements ITreeRend
 	}
 
 	renderTemplate(container: HTMLElement): IInteractiveListItemTemplate {
+		const templateDisposables = new DisposableStore();
 		const rowContainer = dom.append(container, $('.interactive-item-container'));
 		const header = dom.append(rowContainer, $('.header'));
-		const avatar = dom.append(header, $('.avatar'));
-		const username = document.createElement('h3');
-		header.appendChild(username);
+		const user = dom.append(header, $('.user'));
+		const avatar = dom.append(user, $('.avatar'));
+		const username = dom.append(user, $('h3.username'));
 		const value = dom.append(rowContainer, $('.value'));
 		const elementDisposables = new DisposableStore();
 
-		const template: IInteractiveListItemTemplate = { header, avatar, username, value, rowContainer, elementDisposables };
+		const titleToolbar = templateDisposables.add(this.instantiationService.createInstance(MenuWorkbenchToolBar, header, MenuId.InteractiveSessionTitle, {
+			menuOptions: {
+				shouldForwardArgs: true
+			}
+		}));
+
+		const template: IInteractiveListItemTemplate = { avatar, username, value, rowContainer, elementDisposables, titleToolbar, templateDisposables };
 		return template;
 	}
 
@@ -153,6 +163,8 @@ export class InteractiveListItemRenderer extends Disposable implements ITreeRend
 		const { element } = node;
 		const kind = isRequestVM(element) ? 'request' : 'response';
 		this.traceLayout('renderElement', `${kind}, index=${index}`);
+
+		templateData.titleToolbar.context = element;
 
 		templateData.rowContainer.classList.toggle('interactive-request', isRequestVM(element));
 		templateData.rowContainer.classList.toggle('interactive-response', isResponseVM(element));
@@ -192,7 +204,7 @@ export class InteractiveListItemRenderer extends Disposable implements ITreeRend
 	}
 
 	private basicRenderElement(markdownValue: string, element: InteractiveTreeItem, index: number, templateData: IInteractiveListItemTemplate) {
-		const result = this.renderMarkdown(element, index, new MarkdownString(markdownValue), templateData.elementDisposables, templateData);
+		const result = this.renderMarkdown(new MarkdownString(markdownValue), templateData.elementDisposables, templateData);
 		dom.clearNode(templateData.value);
 		templateData.value.appendChild(result.element);
 		templateData.elementDisposables.add(result);
@@ -243,7 +255,7 @@ export class InteractiveListItemRenderer extends Disposable implements ITreeRend
 		} else if (toRender) {
 			// Doing the progressive render
 			const plusCursor = toRender.match(/```.*$/) ? toRender + `\n${InteractiveListItemRenderer.cursorCharacter}` : toRender + ` ${InteractiveListItemRenderer.cursorCharacter}`;
-			const result = this.renderMarkdown(element, index, new MarkdownString(plusCursor), disposables, templateData, true);
+			const result = this.renderMarkdown(new MarkdownString(plusCursor), disposables, templateData, true);
 			dom.clearNode(templateData.value);
 			templateData.value.appendChild(result.element);
 			disposables.add(result);
@@ -262,32 +274,38 @@ export class InteractiveListItemRenderer extends Disposable implements ITreeRend
 		return !!isFullyRendered;
 	}
 
-	private renderMarkdown(element: InteractiveTreeItem, index: number, markdown: IMarkdownString, disposables: DisposableStore, templateData: IInteractiveListItemTemplate, fillInIncompleteTokens = false): IMarkdownRenderResult {
+	private renderMarkdown(markdown: IMarkdownString, disposables: DisposableStore, templateData: IInteractiveListItemTemplate, fillInIncompleteTokens = false): IMarkdownRenderResult {
 		const disposablesList: IDisposable[] = [];
 		const result = this.renderer.render(markdown, {
 			fillInIncompleteTokens,
 			codeBlockRendererSync: (languageId, value) => {
-				const editorInfo = this._editorPool.get();
-				disposablesList.push(editorInfo);
-				editorInfo.setText(value);
-				editorInfo.setLanguage(languageId);
-
-				const layoutEditor = (context: string) => {
-					editorInfo.layout(this._currentLayoutWidth);
-				};
-
-				layoutEditor('init');
-
-				disposables.add(editorInfo.textModel.onDidChangeContent(() => {
-					layoutEditor('textmodel');
-				}));
-
-				return editorInfo.element;
+				const ref = this.renderCodeBlock(languageId, value, disposables);
+				disposablesList.push(ref);
+				return ref.object.element;
 			}
 		});
 
 		disposablesList.reverse().forEach(d => disposables.add(d));
 		return result;
+	}
+
+	private renderCodeBlock(languageId: string, value: string, disposables: DisposableStore): IDisposableReference<IInteractiveResultEditorInfo> {
+		const ref = this._editorPool.get();
+		const editorInfo = ref.object;
+		editorInfo.setText(value);
+		editorInfo.setLanguage(languageId);
+
+		const layoutEditor = (context: string) => {
+			editorInfo.layout(this._currentLayoutWidth);
+		};
+
+		layoutEditor('init');
+
+		disposables.add(editorInfo.textModel.onDidChangeContent(() => {
+			layoutEditor('textmodel');
+		}));
+
+		return ref;
 	}
 
 	private getProgressiveMarkdownToRender(element: IInteractiveResponseViewModel): string | undefined {
@@ -319,6 +337,7 @@ export class InteractiveListItemRenderer extends Disposable implements ITreeRend
 	}
 
 	disposeTemplate(templateData: IInteractiveListItemTemplate): void {
+		templateData.templateDisposables.dispose();
 	}
 }
 
@@ -379,12 +398,12 @@ interface IInteractiveResultEditorInfo {
 	dispose(): void;
 }
 
-class EditorPool extends Disposable {
-	private _pool: ResourcePool<IInteractiveResultEditorInfo>;
+class CodeBlockPart extends Disposable implements IInteractiveResultEditorInfo {
+	private readonly editor: CodeEditorWidget;
+	private readonly toolbar: MenuWorkbenchToolBar;
 
-	public get inUse(): ReadonlySet<IInteractiveResultEditorInfo> {
-		return this._pool.inUse;
-	}
+	public readonly textModel: ITextModel;
+	public readonly element: HTMLElement;
 
 	constructor(
 		private readonly options: InteractiveSessionEditorOptions,
@@ -393,15 +412,17 @@ class EditorPool extends Disposable {
 		@IModelService private readonly modelService: IModelService,
 	) {
 		super();
-		this._pool = this._register(new ResourcePool(() => this.editorFactory()));
-
-		// TODO listen to changes on options
-	}
-
-	private editorFactory(): IInteractiveResultEditorInfo {
 		const disposables = new DisposableStore();
-		const wrapper = $('.interactive-result-editor-wrapper');
-		const editor = disposables.add(this.instantiationService.createInstance(CodeEditorWidget, wrapper, {
+		this.element = $('.interactive-result-editor-wrapper');
+
+		this.toolbar = disposables.add(this.instantiationService.createInstance(MenuWorkbenchToolBar, this.element, MenuId.InteractiveSessionCodeBlock, {
+			menuOptions: {
+				shouldForwardArgs: true
+			}
+		}));
+
+		const editorElement = dom.append(this.element, $('.interactive-result-editor'));
+		this.editor = disposables.add(this.instantiationService.createInstance(CodeEditorWidget, editorElement, {
 			...getSimpleEditorOptions(),
 			readOnly: true,
 			wordWrap: 'off',
@@ -435,64 +456,89 @@ class EditorPool extends Disposable {
 		}));
 
 		const vscodeLanguageId = this.languageService.getLanguageIdByLanguageName('javascript');
-		const textModel = disposables.add(this.modelService.createModel('', this.languageService.createById(vscodeLanguageId), undefined));
-		editor.setModel(textModel);
-
-		return {
-			element: wrapper,
-			textModel,
-			layout: (width: number) => {
-				const realContentHeight = editor.getContentHeight();
-				editor.layout({ width, height: realContentHeight });
-			},
-			setText: (newText: string) => {
-				let currentText = textModel.getLinesContent().join('\n');
-				if (newText === currentText) {
-					return;
-				}
-
-				let removedChars = 0;
-				if (currentText.endsWith(` ${InteractiveListItemRenderer.cursorCharacter}`)) {
-					removedChars = 2;
-				} else if (currentText.endsWith(InteractiveListItemRenderer.cursorCharacter)) {
-					removedChars = 1;
-				}
-
-				if (removedChars > 0) {
-					currentText = currentText.slice(0, currentText.length - removedChars);
-				}
-
-				if (newText.startsWith(currentText)) {
-					const text = newText.slice(currentText.length);
-					const lastLine = textModel.getLineCount();
-					const lastCol = textModel.getLineMaxColumn(lastLine);
-					const insertAtCol = lastCol - removedChars;
-					textModel.applyEdits([{ range: new Range(lastLine, insertAtCol, lastLine, lastCol), text }]);
-				} else {
-					// console.log(`Failed to optimize setText`);
-					textModel.setValue(newText);
-				}
-			},
-			setLanguage: (languageId: string) => {
-				const vscodeLanguageId = this.languageService.getLanguageIdByLanguageName(languageId);
-				if (vscodeLanguageId) {
-					textModel.setLanguage(vscodeLanguageId);
-				}
-			},
-			dispose: () => {
-				disposables.dispose();
-			}
-		};
+		this.textModel = disposables.add(this.modelService.createModel('', this.languageService.createById(vscodeLanguageId), undefined));
+		this.editor.setModel(this.textModel);
 	}
 
-	get(): IInteractiveResultEditorInfo {
+	layout(width: number): void {
+		const realContentHeight = this.editor.getContentHeight();
+		this.editor.layout({ width, height: realContentHeight });
+	}
+
+	setText(newText: string): void {
+		this.toolbar.context = newText;
+
+		let currentText = this.textModel.getLinesContent().join('\n');
+		if (newText === currentText) {
+			return;
+		}
+
+		let removedChars = 0;
+		if (currentText.endsWith(` ${InteractiveListItemRenderer.cursorCharacter}`)) {
+			removedChars = 2;
+		} else if (currentText.endsWith(InteractiveListItemRenderer.cursorCharacter)) {
+			removedChars = 1;
+		}
+
+		if (removedChars > 0) {
+			currentText = currentText.slice(0, currentText.length - removedChars);
+		}
+
+		if (newText.startsWith(currentText)) {
+			const text = newText.slice(currentText.length);
+			const lastLine = this.textModel.getLineCount();
+			const lastCol = this.textModel.getLineMaxColumn(lastLine);
+			const insertAtCol = lastCol - removedChars;
+			this.textModel.applyEdits([{ range: new Range(lastLine, insertAtCol, lastLine, lastCol), text }]);
+		} else {
+			// console.log(`Failed to optimize setText`);
+			this.textModel.setValue(newText);
+		}
+	}
+
+	setLanguage(languageId: string): void {
+		const vscodeLanguageId = this.languageService.getLanguageIdByLanguageName(languageId);
+		if (vscodeLanguageId) {
+			this.textModel.setLanguage(vscodeLanguageId);
+		}
+	}
+}
+
+interface IDisposableReference<T> extends IDisposable {
+	object: T;
+}
+
+class EditorPool extends Disposable {
+	private _pool: ResourcePool<IInteractiveResultEditorInfo>;
+
+	public get inUse(): ReadonlySet<IInteractiveResultEditorInfo> {
+		return this._pool.inUse;
+	}
+
+	constructor(
+		private readonly options: InteractiveSessionEditorOptions,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+	) {
+		super();
+		this._pool = this._register(new ResourcePool(() => this.editorFactory()));
+
+		// TODO listen to changes on options
+	}
+
+	private editorFactory(): IInteractiveResultEditorInfo {
+		return this.instantiationService.createInstance(CodeBlockPart, this.options);
+	}
+
+	get(): IDisposableReference<IInteractiveResultEditorInfo> {
 		const object = this._pool.get();
 		return {
-			...object,
+			object,
 			dispose: () => this._pool.release(object)
 		};
 	}
 }
+
+// TODO does something in lifecycle.ts cover this?
 
 class ResourcePool<T extends IDisposable> extends Disposable {
 	private readonly pool: T[] = [];
