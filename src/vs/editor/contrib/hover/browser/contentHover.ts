@@ -24,6 +24,7 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { Context as SuggestContext } from 'vs/editor/contrib/suggest/browser/suggest';
 import { AsyncIterableObject } from 'vs/base/common/async';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
+import { ResizableHTMLElement } from 'vs/base/browser/ui/resizable/resizable';
 
 const $ = dom.$;
 
@@ -428,6 +429,9 @@ export class ContentHoverWidget extends Disposable implements IContentWidget {
 	private readonly _hover: HoverWidget = this._register(new HoverWidget());
 	private readonly _focusTracker = this._register(dom.trackFocus(this.getDomNode()));
 
+	// Adding a resizable element directly to the content hover widget
+	private readonly _element: ResizableHTMLElement = new ResizableHTMLElement();
+
 	private _visibleData: ContentHoverVisibleData | null = null;
 
 	/**
@@ -472,6 +476,9 @@ export class ContentHoverWidget extends Disposable implements IContentWidget {
 		this._register(this._focusTracker.onDidBlur(() => {
 			this._hoverFocusedKey.set(false);
 		}));
+
+		// Resizable Elemenent contains as a child the hover container dom node
+		this._element.domNode.appendChild(this._hover.containerDomNode);
 	}
 
 	public override dispose(): void {
