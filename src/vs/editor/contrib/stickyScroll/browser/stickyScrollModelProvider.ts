@@ -48,7 +48,7 @@ export interface IStickyModelProvider {
 
 export class StickyModelProvider implements IStickyModelProvider {
 
-	private _modelProviders: IStickyModelCandidateProvider[] = [];
+	private _modelProviders: IStickyModelCandidateProvider<any>[] = [];
 	private _modelPromise: CancelablePromise<any | null> | null = null;
 	private _updateScheduler: Delayer<StickyModel | null> | null = null;
 	private readonly _updateDebounceInfo: IFeatureDebounceInformation;
@@ -104,13 +104,13 @@ export class StickyModelProvider implements IStickyModelProvider {
 			const _stopWatch = new StopWatch(true);
 
 			for (const modelProvider of this._modelProviders) {
-				this._modelPromise = modelProvider.providerModelPromise;
-
-				const status: Status = await modelProvider.computeStickyModel(
+				const { statusPromise, modelPromise } = modelProvider.computeStickyModel(
 					textModel,
 					textModelVersionId,
 					token
 				);
+				this._modelPromise = modelPromise;
+				const status = await statusPromise;
 				switch (status) {
 					case Status.CANCELED:
 						this._store.clear();
@@ -127,21 +127,20 @@ export class StickyModelProvider implements IStickyModelProvider {
 	}
 }
 
-interface IStickyModelCandidateProvider {
+interface IStickyModelCandidateProvider<T> {
 	get stickyModel(): StickyModel | null;
-	get providerModelPromise(): CancelablePromise<any> | null;
 
 	/**
 	 * Method which computes the sticky model and returns a status to signal whether the sticky model has been successfully found
 	 * @param textmodel text-model of the editor
 	 * @param modelVersionId version ID of the text-model
 	 * @param token cancellation token
-	 * @returns a promise of a status indicating whether the sticky model has been successfully found
+	 * @returns a promise of a status indicating whether the sticky model has been successfully found as well as the model promise
 	 */
-	computeStickyModel(textmodel: ITextModel, modelVersionId: number, token: CancellationToken): Promise<Status> | Status;
+	computeStickyModel(textmodel: ITextModel, modelVersionId: number, token: CancellationToken): { statusPromise: Promise<Status> | Status; modelPromise: CancelablePromise<T | null> | null };
 }
 
-abstract class StickyModelCandidateProvider<T> implements IStickyModelCandidateProvider {
+abstract class StickyModelCandidateProvider<T> implements IStickyModelCandidateProvider<T> {
 
 	private _providerModelPromise: CancelablePromise<T> | null = null;
 	protected _stickyModel: StickyModel | null = null;
@@ -152,35 +151,34 @@ abstract class StickyModelCandidateProvider<T> implements IStickyModelCandidateP
 		return this._stickyModel;
 	}
 
-	get providerModelPromise(): CancelablePromise<T> | null {
-		return this._providerModelPromise;
-	}
-
 	private _invalid(): Status {
 		this._stickyModel = null;
 		return Status.INVALID;
 	}
 
-	public computeStickyModel(textModel: ITextModel, modelVersionId: number, token: CancellationToken): Promise<Status> | Status {
+	public computeStickyModel(textModel: ITextModel, modelVersionId: number, token: CancellationToken): { statusPromise: Promise<Status> | Status; modelPromise: CancelablePromise<T | null> | null } {
 		if (!this.isProviderValid(textModel)) {
-			return this._invalid();
+			return { statusPromise: this._invalid(), modelPromise: null };
 		}
-		const providerModelPromise = this._providerModelPromise = createCancelablePromise(token => this.createModelFromProvider(textModel, modelVersionId, token));
+		this._providerModelPromise = createCancelablePromise(token => this.createModelFromProvider(textModel, modelVersionId, token));
 
-		return providerModelPromise.then(providerModel => {
-			if (!this.isModelValid(providerModel)) {
-				return this._invalid();
+		return {
+			statusPromise: this._providerModelPromise.then(providerModel => {
+				if (!this.isModelValid(providerModel)) {
+					return this._invalid();
 
-			}
-			if (token.isCancellationRequested) {
+				}
+				if (token.isCancellationRequested) {
+					return Status.CANCELED;
+				}
+				this._stickyModel = this.createStickyModel(textModel, modelVersionId, token, providerModel);
+				return Status.VALID;
+			}).then(undefined, (err) => {
+				onUnexpectedError(err);
 				return Status.CANCELED;
-			}
-			this._stickyModel = this.createStickyModel(textModel, modelVersionId, token, providerModel);
-			return Status.VALID;
-		}).then(undefined, (err) => {
-			onUnexpectedError(err);
-			return Status.CANCELED;
-		});
+			}),
+			modelPromise: this._providerModelPromise
+		};
 	}
 
 	/**
