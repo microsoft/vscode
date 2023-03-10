@@ -432,6 +432,8 @@ export class ContentHoverWidget extends Disposable implements IContentWidget {
 	private readonly _element: ResizableHTMLElement = new ResizableHTMLElement();
 	private _mousePosition: IPosition | null = null;
 	private readonly _focusTracker = this._register(dom.trackFocus(this.getDomNode()));
+	private _initialTop: number = -1;
+	private _initialHeight: number = -1;
 	private _visibleData: ContentHoverVisibleData | null = null;
 
 	/**
@@ -494,6 +496,9 @@ export class ContentHoverWidget extends Disposable implements IContentWidget {
 
 	private _setLayoutOfResizableElement(size: dom.Dimension): void {
 
+		// TODO: 1) Make resizing correct generally between the resizable element and the container dom node
+		// TODO: 2) Do correct calculations of maximum height above and below in order to decide which sashes to enable
+
 		// Setting the initial layout of the resizable element, before calling the resize function
 
 		console.log('* Entered into _resizableLayout of ContentHoverWidget');
@@ -538,12 +543,17 @@ export class ContentHoverWidget extends Disposable implements IContentWidget {
 		const mouseBox = this._editor.getScrolledVisiblePosition(this._mousePosition);
 		console.log('mouseBox : ', mouseBox);
 		const mouseBottom = editorBox.top + mouseBox.top + mouseBox.height;
-		const maxHeightBelow = Math.min(bodyBox.height - mouseBottom, fullHeight);
+		let maxHeightBelow = Math.min(bodyBox.height - mouseBottom, fullHeight);
 		console.log('maxHeightBelow : ', maxHeightBelow);
 		const availableSpaceAbove = editorBox.top + mouseBox.top;
-		const maxHeightAbove = Math.min(availableSpaceAbove, fullHeight);
+		let maxHeightAbove = Math.min(availableSpaceAbove, fullHeight);
 		console.log('maxHeightAbove : ', maxHeightAbove);
 		let maxHeight = Math.min(Math.max(maxHeightAbove, maxHeightBelow), fullHeight);
+
+		// TODO: CHANGE ONCE FIGURED OUT THE CORRECT MATH FOR MAXWIDTH AND MAXHEIGHT
+		maxHeightAbove = 1000;
+		maxHeightBelow = 1000;
+		// Change the above in order to correctly show the widget
 
 		if (height < minHeight) {
 			console.log('height capped at the min height');
@@ -582,11 +592,9 @@ export class ContentHoverWidget extends Disposable implements IContentWidget {
 		}
 
 		// TODO: Place the folloding line in order to use the calculated max width and max height
-		// TODO: this._element.maxSize = new dom.Dimension(maxWidth, maxHeight);
-		// TODO: When the following is used, there are less issues with the correct positioning
-		this._element.maxSize = new dom.Dimension(1000, 1000);
+		this._element.maxSize = new dom.Dimension(maxWidth, maxHeight);
 		// TODO: It would appear that if the minimum width is 0, it will disappear, set some value larger than 0
-		// TODO: this._element.minSize = new dom.Dimension(10, minHeight);
+		this._element.minSize = new dom.Dimension(10, minHeight);
 
 		this._resize(width, height);
 
@@ -603,6 +611,16 @@ export class ContentHoverWidget extends Disposable implements IContentWidget {
 	}
 
 	private _resize(width: number, height: number): void {
+
+		console.log('this._initialHeight : ', this._initialHeight);
+		console.log('this._initialTop : ', this._initialTop);
+
+		if (this._initialHeight !== -1) {
+			const diff = height - this._initialHeight;
+			// When difference positive, means that the widget grew, place it higher up
+			this._element.domNode.style.top = this._initialTop - diff + 'px';
+		}
+
 		console.log(' * Entered into the _resize function of ContentHoverWidget');
 		// Performs the actual resizing
 		const { width: maxWidth, height: maxHeight } = this._element.maxSize;
@@ -621,6 +639,20 @@ export class ContentHoverWidget extends Disposable implements IContentWidget {
 		// Forcing the container do node to have another size, but what we should do is make the resizable element have same dimension as container dom node
 		this._hover.containerDomNode.style.height = `${height - 4}px`;
 		this._hover.containerDomNode.style.width = `${width - 4}px`;
+
+		if (this._initialTop === -1 || this._initialTop === 0) {
+			console.log('Entered into update of initial top');
+			console.log('this._element.domNode.clientTop : ', this._element.domNode.clientTop);
+			console.log('this._element.domNode.style : ', this._element.domNode.style);
+			console.log('this._element.domNode.style.top : ', this._element.domNode.style.top);
+			console.log('this._element.domNode.style[0] : ', this._element.domNode.style[0]);
+			console.log('this._element.domNode.clientHeight : ', this._element.domNode.clientHeight);
+			console.log('this._element.domNode.offsetTop : ', this._element.domNode.offsetTop);
+			console.log('this._element.domNode.scrollTop : ', this._element.domNode.scrollTop);
+			this._initialTop = this._element.domNode.offsetTop + 4;
+			this._initialHeight = this._element.domNode.clientHeight;
+		}
+		console.log('this._element.domNode : ', this._element.domNode);
 	}
 
 	public override dispose(): void {
@@ -758,6 +790,10 @@ export class ContentHoverWidget extends Disposable implements IContentWidget {
 				this._editor.focus();
 			}
 		}
+
+		// resetting the distance to the top from the hover
+		this._initialTop = -1;
+		this._initialHeight = -1;
 	}
 
 	public onContentsChanged(): void {
