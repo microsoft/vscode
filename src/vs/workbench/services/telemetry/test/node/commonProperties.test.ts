@@ -32,14 +32,11 @@ suite('Telemetry - common properties', function () {
 		// assert.ok('common.version.renderer' in first.data);
 		assert.ok('common.platformVersion' in props, 'platformVersion');
 		assert.ok('version' in props);
-		assert.strictEqual(props['common.source'], 'my.install.source');
 		assert.ok('common.firstSessionDate' in props, 'firstSessionDate');
 		assert.ok('common.lastSessionDate' in props, 'lastSessionDate'); // conditional, see below, 'lastSessionDate'ow
 		assert.ok('common.isNewSession' in props, 'isNewSession');
 		// machine id et al
 		assert.ok('common.machineId' in props, 'machineId');
-		const props_1 = resolveWorkbenchCommonProperties(testStorageService, release(), hostname(), commit, version, 'someMachineId', false, process, process.sandboxed);
-		assert.ok(!('common.source' in props_1));
 	});
 
 	test('lastSessionDate when available', function () {
