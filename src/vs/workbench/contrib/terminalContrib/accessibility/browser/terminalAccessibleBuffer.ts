@@ -113,7 +113,6 @@ export class AccessibleBufferWidget extends DisposableStore {
 		if (insertion && model && lineCount > this._xterm.raw.rows) {
 			const lineNumber = lineCount + 1;
 			model.pushEditOperations(null, [{ range: { startLineNumber: lineNumber, endLineNumber: lineNumber, startColumn: 1, endColumn: 1 }, text: await this._getContent(lineNumber - 1) }], () => []);
-			return;
 		} else {
 			model = await this._getTextModel(URI.from({ scheme: `${AccessibleBufferConstants.Scheme}-${this._instanceId}`, fragment: await this._getContent() }));
 		}
@@ -142,6 +141,7 @@ export class AccessibleBufferWidget extends DisposableStore {
 	async show(): Promise<void> {
 		await this._updateEditor();
 		this._accessibleBuffer.tabIndex = -1;
+		this._bufferEditor.layout({ width: this._xtermElement.clientWidth, height: this._xtermElement.clientHeight });
 		this._accessibleBuffer.classList.add(AccessibleBufferConstants.Active);
 		this._xtermElement.classList.add(AccessibleBufferConstants.Hide);
 	}

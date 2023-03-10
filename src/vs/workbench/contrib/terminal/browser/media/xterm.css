@@ -210,5 +210,5 @@
 }
 
 .hide {
-	opacity: 0;
+	visibility: hidden;
 }
