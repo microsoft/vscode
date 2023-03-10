@@ -22,14 +22,14 @@ import { ITerminalFont } from 'vs/workbench/contrib/terminal/common/terminal';
 import { IXtermTerminal } from 'vs/workbench/contrib/terminal/browser/terminal';
 import type { Terminal } from 'xterm';
 
-const enum AccessibleBufferConstants {
+const enum Constants {
 	Scheme = 'terminal-accessible-buffer',
 	Active = 'active',
 	Hide = 'hide'
 }
 
 export class AccessibleBufferWidget extends DisposableStore {
-	public static ID: string = AccessibleBufferConstants.Scheme;
+	public static ID: string = Constants.Scheme;
 	private _accessibleBuffer: HTMLElement;
 	private _bufferEditor: CodeEditorWidget;
 	private _editorContainer: HTMLElement;
@@ -94,7 +94,7 @@ export class AccessibleBufferWidget extends DisposableStore {
 			}
 		}));
 		this.add(this._xterm.raw.onWriteParsed(async () => {
-			if (this._accessibleBuffer.classList.contains(AccessibleBufferConstants.Active)) {
+			if (this._accessibleBuffer.classList.contains(Constants.Active)) {
 				await this._updateEditor(true);
 			}
 		}));
@@ -102,8 +102,8 @@ export class AccessibleBufferWidget extends DisposableStore {
 	}
 
 	private _hide(): void {
-		this._accessibleBuffer.classList.remove(AccessibleBufferConstants.Active);
-		this._xtermElement.classList.remove(AccessibleBufferConstants.Hide);
+		this._accessibleBuffer.classList.remove(Constants.Active);
+		this._xtermElement.classList.remove(Constants.Hide);
 		this._xterm.raw.focus();
 	}
 
@@ -114,7 +114,7 @@ export class AccessibleBufferWidget extends DisposableStore {
 			const lineNumber = lineCount + 1;
 			model.pushEditOperations(null, [{ range: { startLineNumber: lineNumber, endLineNumber: lineNumber, startColumn: 1, endColumn: 1 }, text: await this._getContent(lineNumber - 1) }], () => []);
 		} else {
-			model = await this._getTextModel(URI.from({ scheme: `${AccessibleBufferConstants.Scheme}-${this._instanceId}`, fragment: await this._getContent() }));
+			model = await this._getTextModel(URI.from({ scheme: `${Constants.Scheme}-${this._instanceId}`, fragment: await this._getContent() }));
 		}
 		if (!model) {
 			throw new Error('Could not create accessible buffer editor model');
@@ -142,8 +142,8 @@ export class AccessibleBufferWidget extends DisposableStore {
 		await this._updateEditor();
 		this._accessibleBuffer.tabIndex = -1;
 		this._bufferEditor.layout({ width: this._xtermElement.clientWidth, height: this._xtermElement.clientHeight });
-		this._accessibleBuffer.classList.add(AccessibleBufferConstants.Active);
-		this._xtermElement.classList.add(AccessibleBufferConstants.Hide);
+		this._accessibleBuffer.classList.add(Constants.Active);
+		this._xtermElement.classList.add(Constants.Hide);
 	}
 
 	private async _getTextModel(resource: URI): Promise<ITextModel | null> {
