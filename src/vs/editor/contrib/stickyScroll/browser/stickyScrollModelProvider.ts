@@ -76,7 +76,7 @@ export class StickyModelProvider implements IStickyModelProvider {
 				break;
 		}
 
-		this._updateDebounceInfo = _languageFeatureDebounceService.for(_languageFeaturesService.foldingRangeProvider, 'Sticky Scroll Folding', { min: 200 });
+		this._updateDebounceInfo = _languageFeatureDebounceService.for(_languageFeaturesService.foldingRangeProvider, 'Sticky Scroll', { min: 200 });
 		this._store = new DisposableStore();
 	}
 
@@ -141,9 +141,9 @@ interface IStickyModelCandidateProvider {
 	computeStickyModel(textmodel: ITextModel, modelVersionId: number, token: CancellationToken): Promise<Status> | Status;
 }
 
-abstract class StickyModelCandidateProvider implements IStickyModelCandidateProvider {
+abstract class StickyModelCandidateProvider<T> implements IStickyModelCandidateProvider {
 
-	private _providerModelPromise: CancelablePromise<any> | null = null;
+	private _providerModelPromise: CancelablePromise<T> | null = null;
 	protected _stickyModel: StickyModel | null = null;
 
 	constructor() { }
@@ -152,7 +152,7 @@ abstract class StickyModelCandidateProvider implements IStickyModelCandidateProv
 		return this._stickyModel;
 	}
 
-	get providerModelPromise(): CancelablePromise<any> | null {
+	get providerModelPromise(): CancelablePromise<T> | null {
 		return this._providerModelPromise;
 	}
 
@@ -210,7 +210,7 @@ abstract class StickyModelCandidateProvider implements IStickyModelCandidateProv
 	 * @param token cancellation token
 	 * @returns the model returned by the provider
 	 */
-	protected abstract createModelFromProvider(textModel: ITextModel, textModelVersionId: number, token: CancellationToken): any;
+	protected abstract createModelFromProvider(textModel: ITextModel, textModelVersionId: number, token: CancellationToken): Promise<T>;
 
 	/**
 	 * Abstract method which computes the sticky model from the model returned by the provider and returns the sticky model
@@ -220,10 +220,10 @@ abstract class StickyModelCandidateProvider implements IStickyModelCandidateProv
 	 * @param model model returned by the provider
 	 * @returns the sticky model
 	 */
-	protected abstract createStickyModel(textModel: ITextModel, textModelVersionId: number, token: CancellationToken, model: any): StickyModel;
+	protected abstract createStickyModel(textModel: ITextModel, textModelVersionId: number, token: CancellationToken, model: T): StickyModel;
 }
 
-class StickyModelFromCandidateOutlineProvider extends StickyModelCandidateProvider {
+class StickyModelFromCandidateOutlineProvider extends StickyModelCandidateProvider<OutlineModel> {
 
 	constructor(@ILanguageFeaturesService private readonly _languageFeaturesService: ILanguageFeaturesService) {
 		super();
@@ -242,7 +242,7 @@ class StickyModelFromCandidateOutlineProvider extends StickyModelCandidateProvid
 		return model && model.children.size > 0;
 	}
 
-	public _stickyModelFromOutlineModel(outlineModel: OutlineModel, preferredProvider: string | undefined): { stickyOutlineElement: StickyElement; providerID: string | undefined } {
+	private _stickyModelFromOutlineModel(outlineModel: OutlineModel, preferredProvider: string | undefined): { stickyOutlineElement: StickyElement; providerID: string | undefined } {
 
 		let outlineElements: Map<string, OutlineElement>;
 		// When several possible outline providers
@@ -325,7 +325,7 @@ class StickyModelFromCandidateOutlineProvider extends StickyModelCandidateProvid
 
 }
 
-abstract class StickyModelFromCandidateFoldingProvider extends StickyModelCandidateProvider {
+abstract class StickyModelFromCandidateFoldingProvider extends StickyModelCandidateProvider<FoldingRegions | null> {
 
 	protected _foldingLimitReporter: RangesLimitReporter;
 
