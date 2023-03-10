@@ -142,7 +142,10 @@ export class ResizableHTMLElement {
 		width = Math.max(minWidth, Math.min(maxWidth, width));
 
 		const newSize = new Dimension(width, height);
+
+		// We layout of the resize element is changed only when it is different to the size before
 		if (!Dimension.equals(newSize, this._size)) {
+			console.log('Inside of the if statement of the layout function of ResizableHTMLElement');
 			this.domNode.style.height = height + 'px';
 			this.domNode.style.width = width + 'px';
 			this._size = newSize;

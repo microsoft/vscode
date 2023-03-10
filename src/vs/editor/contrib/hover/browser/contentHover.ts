@@ -435,7 +435,6 @@ export class ContentHoverWidget extends Disposable implements IContentWidget {
 	// Adding a resizable element directly to the content hover widget
 	private readonly _element: ResizableHTMLElement = new ResizableHTMLElement();
 	private _cappedHeight?: { wanted: number; capped: number };
-	private readonly _persistedSize: PersistedWidgetSize;
 	private readonly _disposables = new DisposableStore();
 
 	// Placing the getDomNode() call after instantiating the element
@@ -487,55 +486,15 @@ export class ContentHoverWidget extends Disposable implements IContentWidget {
 			this._hoverFocusedKey.set(false);
 		}));
 
-		this._persistedSize = new PersistedWidgetSize(_storageService, _editor);
-		let state: ResizeState | undefined;
-
-		// Resizable Elemenent contains as a child the hover container dom node
-		// TODO: Adding the line below makes the content hover disappear
 		this._element.domNode.appendChild(this._hover.containerDomNode);
-
 		this._disposables.add(this._element.onDidWillResize(() => {
 			console.log('* Inside of onDidWillResize of ContentHoverWidget');
-			const persistedSize = this._persistedSize.restore();
-			state = new ResizeState(persistedSize, this._element.size);
 		}));
 		this._disposables.add(this._element.onDidResize(e => {
 			console.log('* Inside of onDidResize of ContentHoverWidget');
 			console.log('e : ', e);
-
 			this._resize(e.dimension.width, e.dimension.height);
-			if (state) {
-				state.persistHeight = state.persistHeight || !!e.north || !!e.south;
-				state.persistWidth = state.persistWidth || !!e.east || !!e.west;
-			}
-
-			if (!e.done) {
-				return;
-			}
-
-			if (state) {
-				const { itemHeight, defaultSize } = this._getLayoutInfo();
-				const threshold = Math.round(itemHeight / 2);
-				let { width, height } = this._element.size;
-
-				if (!state.persistHeight || Math.abs(state.currentSize.height - height) <= threshold) {
-					height = state.persistedSize?.height ?? defaultSize.height;
-				}
-				if (!state.persistWidth || Math.abs(state.currentSize.width - width) <= threshold) {
-					width = state.persistedSize?.width ?? defaultSize.width;
-				}
-				// Store the new persisted sizes
-				this._persistedSize.store(new dom.Dimension(width, height));
-			}
-			state = undefined;
 		}));
-
-		// TODO: place in other function once figured out the code
-		// this._element.enableSashes(true, true, false, false);
-		// const height = 200;
-		// const width = 200;
-		// Actually makes the sashes appear on that given size
-		// this._element.layout(height, width);
 	}
 
 	private _resizableLayout(size: dom.Dimension | undefined): void {
@@ -642,9 +601,15 @@ export class ContentHoverWidget extends Disposable implements IContentWidget {
 		*/
 
 		console.log('* Entered into _resizableLayout of ContentHoverWidget');
+		// TODO: The content hover is not placed correctly, it is placed in the center but should be at the same position as before
+		// TODO: Enable sashes on different places depending on if hover shown on the top or on the bottom
+		// TODO: When the hover is extended too much, so that part of it disappears, it disappears completely
+		// TODO: Eastern sash disappears when the hover is too small? or after extending too much?
 		this._element.enableSashes(true, true, false, false);
 		const height = size ? size.height : 200;
 		const width = size ? size.width : 200;
+		// let height = 200;
+		// let width = 200;
 		this._resize(width, height);
 
 	}
@@ -655,6 +620,8 @@ export class ContentHoverWidget extends Disposable implements IContentWidget {
 		width = Math.min(maxWidth, width);
 		height = Math.min(maxHeight, height);
 		this._element.layout(height, width);
+		console.log('this._element.domNode.style.height : ', this._element.domNode.style.height);
+		console.log('this._element.domNode.style.width : ', this._element.domNode.style.width);
 	}
 
 	private _getLayoutInfo() {
@@ -692,6 +659,7 @@ export class ContentHoverWidget extends Disposable implements IContentWidget {
 	}
 
 	public getPosition(): IContentWidgetPosition | null {
+		console.log('Inside of getPosition of the ContentHoverWidget');
 		if (!this._visibleData) {
 			return null;
 		}
@@ -768,6 +736,8 @@ export class ContentHoverWidget extends Disposable implements IContentWidget {
 
 	public showAt(node: DocumentFragment, visibleData: ContentHoverVisibleData): void {
 		console.log(' * Entered into showAt of ContentHoverWidget');
+		console.log('visibleData : ', visibleData);
+
 		this._setVisibleData(visibleData);
 
 		this._hover.contentsDomNode.textContent = '';
@@ -790,13 +760,9 @@ export class ContentHoverWidget extends Disposable implements IContentWidget {
 		}
 		visibleData.colorPicker?.layout();
 
-		// TODO: added but may cause errors
-
-		// Either restore the persisted size or take the current element size
-		console.log('this._persistedSize.restore() : ', this._persistedSize.restore());
-		console.log('this._element.size : ', this._element.size);
-		const size = this._persistedSize.restore() ?? this._element.size;
-		this._resizableLayout(size);
+		// Resizable
+		const newSize = new dom.Dimension(this._hover.maxWidth, this._hover.maxHeight);
+		this._resizableLayout(newSize);
 	}
 
 	public hide(): void {
