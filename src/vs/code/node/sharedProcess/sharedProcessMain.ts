@@ -319,7 +319,6 @@ class SharedProcessMain extends Disposable {
 		if (supportsTelemetry(productService, environmentService)) {
 			const logAppender = new TelemetryLogAppender(logService, loggerService, environmentService, productService);
 			appenders.push(logAppender);
-			const { installSourcePath } = environmentService;
 			if (productService.aiConfig?.ariaKey) {
 				const collectorAppender = new OneDataSystemAppender(internalTelemetry, 'monacoworkbench', null, productService.aiConfig.ariaKey);
 				this._register(toDisposable(() => collectorAppender.flush())); // Ensure the 1DS appender is disposed so that it flushes remaining data
@@ -328,7 +327,7 @@ class SharedProcessMain extends Disposable {
 
 			telemetryService = new TelemetryService({
 				appenders,
-				commonProperties: resolveCommonProperties(fileService, release(), hostname(), process.arch, productService.commit, productService.version, this.configuration.machineId, internalTelemetry, installSourcePath),
+				commonProperties: resolveCommonProperties(release(), hostname(), process.arch, productService.commit, productService.version, this.configuration.machineId, internalTelemetry),
 				sendErrorTelemetry: true,
 				piiPaths: getPiiPathsFromEnvironment(environmentService),
 			}, configurationService, productService);

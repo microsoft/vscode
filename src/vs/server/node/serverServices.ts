@@ -157,7 +157,7 @@ export async function setupServerServices(connectionToken: ServerConnectionToken
 
 		const config: ITelemetryServiceConfig = {
 			appenders: [oneDsAppender],
-			commonProperties: resolveCommonProperties(fileService, release(), hostname(), process.arch, productService.commit, productService.version + '-remote', machineId, isInternal, environmentService.installSourcePath, 'remoteAgent'),
+			commonProperties: resolveCommonProperties(release(), hostname(), process.arch, productService.commit, productService.version + '-remote', machineId, isInternal, 'remoteAgent'),
 			piiPaths: getPiiPathsFromEnvironment(environmentService)
 		};
 		const initialTelemetryLevelArg = environmentService.args['telemetry-level'];
