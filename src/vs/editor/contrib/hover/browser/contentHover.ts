@@ -11,7 +11,7 @@ import { KeyCode } from 'vs/base/common/keyCodes';
 import { Disposable, DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
 import { ContentWidgetPositionPreference, IActiveCodeEditor, ICodeEditor, IContentWidget, IContentWidgetPosition, IEditorMouseEvent, MouseTargetType } from 'vs/editor/browser/editorBrowser';
 import { ConfigurationChangedEvent, EditorOption } from 'vs/editor/common/config/editorOptions';
-import { Position } from 'vs/editor/common/core/position';
+import { IPosition, Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { IModelDecoration, PositionAffinity } from 'vs/editor/common/model';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
@@ -25,9 +25,6 @@ import { Context as SuggestContext } from 'vs/editor/contrib/suggest/browser/sug
 import { AsyncIterableObject } from 'vs/base/common/async';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { ResizableHTMLElement } from 'vs/base/browser/ui/resizable/resizable';
-import { clamp } from 'vs/base/common/numbers';
-import { IStorageService } from 'vs/platform/storage/common/storage';
-import { PersistedWidgetSize, ResizeState } from 'vs/editor/contrib/suggest/browser/suggestWidget';
 
 const $ = dom.$;
 
@@ -431,15 +428,10 @@ export class ContentHoverWidget extends Disposable implements IContentWidget {
 	private readonly _hoverFocusedKey = EditorContextKeys.hoverFocused.bindTo(this._contextKeyService);
 	private readonly _hover: HoverWidget = this._register(new HoverWidget());
 
-
 	// Adding a resizable element directly to the content hover widget
 	private readonly _element: ResizableHTMLElement = new ResizableHTMLElement();
-	private _cappedHeight?: { wanted: number; capped: number };
-	private readonly _disposables = new DisposableStore();
-
-	// Placing the getDomNode() call after instantiating the element
+	private _mousePosition: IPosition | null = null;
 	private readonly _focusTracker = this._register(dom.trackFocus(this.getDomNode()));
-
 	private _visibleData: ContentHoverVisibleData | null = null;
 
 	/**
@@ -464,7 +456,6 @@ export class ContentHoverWidget extends Disposable implements IContentWidget {
 	constructor(
 		private readonly _editor: ICodeEditor,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
-		@IStorageService private readonly _storageService: IStorageService
 	) {
 		super();
 
@@ -486,21 +477,30 @@ export class ContentHoverWidget extends Disposable implements IContentWidget {
 			this._hoverFocusedKey.set(false);
 		}));
 
+		// Savin tha approximate position of the mouse
+		this._register(this._editor.onMouseMove(e => {
+			this._mousePosition = e.target.position;
+		}));
 		this._element.domNode.appendChild(this._hover.containerDomNode);
-		this._disposables.add(this._element.onDidWillResize(() => {
+		this._register(this._element.onDidWillResize(() => {
 			console.log('* Inside of onDidWillResize of ContentHoverWidget');
 		}));
-		this._disposables.add(this._element.onDidResize(e => {
+		this._register(this._element.onDidResize(e => {
 			console.log('* Inside of onDidResize of ContentHoverWidget');
 			console.log('e : ', e);
 			this._resize(e.dimension.width, e.dimension.height);
 		}));
 	}
 
-	private _resizableLayout(size: dom.Dimension | undefined): void {
+	private _setLayoutOfResizableElement(size: dom.Dimension): void {
 
-		/*
+		// Setting the initial layout of the resizable element, before calling the resize function
+
 		console.log('* Entered into _resizableLayout of ContentHoverWidget');
+		console.log('this._mousePosition : ', this._mousePosition);
+		console.log('this._hover.containerDomNode : ', this._hover.containerDomNode);
+		console.log('this._hover.contentsDomNode : ', this._hover.contentsDomNode);
+		// Mistake in the height calculations it appears
 
 		if (!this._editor.hasModel()) {
 			return;
@@ -508,137 +508,119 @@ export class ContentHoverWidget extends Disposable implements IContentWidget {
 		if (!this._editor.getDomNode()) {
 			return;
 		}
-
-		const bodyBox = dom.getClientArea(document.body);
-		// Should return the default size of the suggest widget too
-		const info = this._getLayoutInfo();
-
-		if (!size) {
-			size = info.defaultSize;
+		if (!this._mousePosition) {
+			return;
 		}
 
+		// The dimensions of the document in which we are displaying the hover
+		const bodyBox = dom.getClientArea(document.body);
+
+		// Should return the default size of the suggest widget too
+		// Hard-coded in the hover.css file as 1.5em or 24px
+		const minHeight = 24;
+
+		console.log('size : ', size);
 		let height = size.height;
 		let width = size.width;
 
-		// When there is no suggest content, or the content is still loading, specify some height and width parameters
-		// if (this._state === State.Empty || this._state === State.Loading) {
-		//	console.log('Inside of the first if loop');
-		// showing a message only
-		//	height = info.itemHeight + info.borderHeight;
-		//	width = info.defaultSize.width / 2;
-		// The sahes are nowhere enabled
-		//	this.element.enableSashes(false, false, false, false);
-		//	this.element.minSize = this.element.maxSize = new dom.Dimension(width, height);
-		// Setting the preference of where the content widget should be located
-		//	this._contentWidget.setPreference(ContentWidgetPositionPreference.BELOW);
-		// } else {
-		// In this case the suggest items are presumably showing
-		// Presumably the suggest widget width should never be bigger than some padded version fo the body box
-
-		const maxWidth = bodyBox.width - info.borderHeight - 2 * info.horizontalPadding;
+		// Hard-code the values for now!
+		// TODO: Where to find the border and padding values?
+		const maxWidth = bodyBox.width;
 		if (width > maxWidth) {
+			console.log('width capped at the maxWidth');
 			width = maxWidth;
 		}
-		const preferredWidth = width;
 
-		// The actual heigh is the sum of the status bar height, the content height (where the items are shown), and the border height
-		const fullHeight = this._hover.maxHeight + info.borderHeight;
-		// Min height requires only one suggest, hence why we have item height below, there is no border heigh however
-		const minHeight = info.itemHeight;
-		// The box of the editor
+		// The full height is already passed in as a parameter
+		const fullHeight = size.height;
 		const editorBox = dom.getDomNodePagePosition(this._editor.getDomNode());
-		// The possible places where the cursor can be
-		const cursorBox = this._editor.getScrolledVisiblePosition(this._editor.getPosition());
-		const cursorBottom = editorBox.top + cursorBox.top + cursorBox.height;
-		const maxHeightBelow = Math.min(bodyBox.height - cursorBottom - info.verticalPadding, fullHeight);
-		const availableSpaceAbove = editorBox.top + cursorBox.top - info.verticalPadding;
+		// We want not the cursor box but the mouse box
+		const mouseBox = this._editor.getScrolledVisiblePosition(this._mousePosition);
+		console.log('mouseBox : ', mouseBox);
+		const mouseBottom = editorBox.top + mouseBox.top + mouseBox.height;
+		const maxHeightBelow = Math.min(bodyBox.height - mouseBottom, fullHeight);
+		console.log('maxHeightBelow : ', maxHeightBelow);
+		const availableSpaceAbove = editorBox.top + mouseBox.top;
 		const maxHeightAbove = Math.min(availableSpaceAbove, fullHeight);
-		let maxHeight = Math.min(Math.max(maxHeightAbove, maxHeightBelow) + info.borderHeight, fullHeight);
-
-		if (height === this._cappedHeight?.capped) {
-			// Restore the old (wanted) height when the current
-			// height is capped to fit
-			height = this._cappedHeight.wanted;
-		}
+		console.log('maxHeightAbove : ', maxHeightAbove);
+		let maxHeight = Math.min(Math.max(maxHeightAbove, maxHeightBelow), fullHeight);
 
 		if (height < minHeight) {
+			console.log('height capped at the min height');
 			height = minHeight;
 		}
 		if (height > maxHeight) {
+			console.log('height capped at the maximum height');
 			height = maxHeight;
 		}
 
+		const preferRenderingAbove = this._editor.getOption(EditorOption.hover).above;
+		console.log('preferRenderingAbove : ', preferRenderingAbove);
+
 		// Suppose that the height of the suggest widget is bigger than some maximum height, or the rendering should be above, and there is enough space above the cursor
-		if (height > maxHeightBelow) {
-			// Set the suggest content widget so that it renders above
-			// this._contentWidget.setPreference(ContentWidgetPositionPreference.ABOVE);
-			// Enable the sashes on the north and the east
-			this._element.enableSashes(true, true, false, false);
-			// The max height that can be attained is determined by the max height above the line
-			maxHeight = maxHeightAbove;
+		console.log('Before enabling sashes');
+		if (preferRenderingAbove) {
+			console.log('first if condition');
+
+			const westSash = false;
+			const eastSash = true;
+			const northSash = height < maxHeightAbove;
+			const southSash = height >= maxHeightAbove;
+
+			maxHeight = height < maxHeightAbove ? maxHeightAbove : maxHeightBelow;
+			this._element.enableSashes(northSash, eastSash, southSash, westSash);
+
 		} else {
-			// Otherwise the suggest content widget is rendered below the line
-			// this._contentWidget.setPreference(ContentWidgetPositionPreference.BELOW);
-			// The sashes are enabled on the south and the east
-			this._element.enableSashes(false, true, true, false);
-			// The max height that can be attained is determined by the max height below the line
-			maxHeight = maxHeightBelow;
+			console.log('Second if condition');
+			const westSash = false;
+			const eastSash = true;
+			const northSash = height >= maxHeightBelow;
+			const southSash = height < maxHeightBelow;
+
+			maxHeight = height < maxHeightBelow ? maxHeightBelow : maxHeightAbove;
+			this._element.enableSashes(northSash, eastSash, southSash, westSash);
 		}
-		this._element.preferredSize = new dom.Dimension(preferredWidth, info.defaultSize.height);
-		this._element.maxSize = new dom.Dimension(maxWidth, maxHeight);
-		// Hard-coding the minimum width of the resizeable element
-		this._element.minSize = new dom.Dimension(220, minHeight);
 
-		// Know when the height was capped to fit and remember
-		// the wanted height for later. This is required when going
-		// left to widen suggestions.
-		this._cappedHeight = height === fullHeight
-			? { wanted: this._cappedHeight?.wanted ?? size.height, capped: height }
-			: undefined;
+		// TODO: Place the folloding line in order to use the calculated max width and max height
+		// TODO: this._element.maxSize = new dom.Dimension(maxWidth, maxHeight);
+		// TODO: When the following is used, there are less issues with the correct positioning
+		this._element.maxSize = new dom.Dimension(1000, 1000);
+		// TODO: It would appear that if the minimum width is 0, it will disappear, set some value larger than 0
+		// TODO: this._element.minSize = new dom.Dimension(10, minHeight);
 
-		// The _layout function also does the resizing
 		this._resize(width, height);
-		*/
 
-		console.log('* Entered into _resizableLayout of ContentHoverWidget');
-		// TODO: The content hover is not placed correctly, it is placed in the center but should be at the same position as before
 		// TODO: Enable sashes on different places depending on if hover shown on the top or on the bottom
 		// TODO: When the hover is extended too much, so that part of it disappears, it disappears completely
 		// TODO: Eastern sash disappears when the hover is too small? or after extending too much?
-		this._element.enableSashes(true, true, false, false);
-		const height = size ? size.height : 200;
-		const width = size ? size.width : 200;
-		// let height = 200;
-		// let width = 200;
-		this._resize(width, height);
+
+		// The below works!!
+		// this._element.enableSashes(true, true, false, false);
+		// const height = size ? size.height : 200;
+		// const width = size ? size.width : 200;
+		// this._resize(width, height);
 
 	}
 
 	private _resize(width: number, height: number): void {
 		console.log(' * Entered into the _resize function of ContentHoverWidget');
+		// Performs the actual resizing
 		const { width: maxWidth, height: maxHeight } = this._element.maxSize;
+		console.log('maxWidth : ', maxWidth, ' width : ', width);
 		width = Math.min(maxWidth, width);
+		console.log('maxHeight : ', maxHeight, ' height : ', height);
 		height = Math.min(maxHeight, height);
 		this._element.layout(height, width);
 		console.log('this._element.domNode.style.height : ', this._element.domNode.style.height);
 		console.log('this._element.domNode.style.width : ', this._element.domNode.style.width);
-	}
 
-	private _getLayoutInfo() {
-		const fontInfo = this._editor.getOption(EditorOption.fontInfo);
-		const itemHeight = clamp(fontInfo.lineHeight, 8, 1000);
-		const borderWidth = 1; // this._details.widget.borderWidth;
-		const borderHeight = 2 * borderWidth;
+		// Make the inner container also have that size?
+		// If you do the following, the sashes disappear, we do not want that
+		// Sashes are 4 px wide, do not hardcode later
 
-		return {
-			itemHeight,
-			borderWidth,
-			borderHeight,
-			typicalHalfwidthCharacterWidth: fontInfo.typicalHalfwidthCharacterWidth,
-			verticalPadding: 22,
-			horizontalPadding: 14,
-			defaultSize: new dom.Dimension(430, 12 * itemHeight + borderHeight)
-		};
+		// Forcing the container do node to have another size, but what we should do is make the resizable element have same dimension as container dom node
+		this._hover.containerDomNode.style.height = `${height - 4}px`;
+		this._hover.containerDomNode.style.width = `${width - 4}px`;
 	}
 
 	public override dispose(): void {
@@ -761,8 +743,10 @@ export class ContentHoverWidget extends Disposable implements IContentWidget {
 		visibleData.colorPicker?.layout();
 
 		// Resizable
-		const newSize = new dom.Dimension(this._hover.maxWidth, this._hover.maxHeight);
-		this._resizableLayout(newSize);
+		// Only called once, when the widget is first shown
+		const newSize = new dom.Dimension(this._hover.containerDomNode.clientWidth, this._hover.containerDomNode.clientHeight);
+		console.log('newSize : ', newSize);
+		this._setLayoutOfResizableElement(newSize);
 	}
 
 	public hide(): void {
