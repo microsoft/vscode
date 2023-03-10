@@ -20,7 +20,7 @@ export function registerInteractiveSessionCopyActions() {
 					value: localize('interactive.copyAll.label', "Copy All"),
 					original: 'Copy All'
 				},
-				f1: true,
+				f1: false,
 				category: INTERACTIVE_SESSION_CATEGORY,
 				menu: {
 					id: MenuId.InteractiveSessionContext
