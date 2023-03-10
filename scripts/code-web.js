@@ -59,7 +59,9 @@ async function main() {
 	if (args['port'] === undefined) {
 		serverArgs.push('--port', PORT);
 	}
-	if (args['playground'] === true || (args['_'].length === 0 && !args['folder-uri'])) {
+
+	// only use `./scripts/code-web.sh --playground` to add vscode-web-playground extension by default.
+	if (args['playground'] === true) {
 		serverArgs.push('--extensionPath', WEB_DEV_EXTENSIONS_ROOT);
 		serverArgs.push('--folder-uri', 'memfs:///sample-folder');
 		await ensureWebDevExtensions(args['verbose']);
@@ -73,8 +75,7 @@ async function main() {
 
 	serverArgs.push('--sourcesPath', APP_ROOT);
 
-	serverArgs.push(...process.argv.slice(2).filter(v => !v.startsWith('--playground') && v !== '--no-playground'));
-
+	serverArgs.push(...process.argv.slice(2).filter(v => !v.startsWith('--playground')));
 
 	startServer(serverArgs);
 	if (openSystemBrowser) {
@@ -144,6 +145,5 @@ async function ensureWebDevExtensions(verbose) {
 		}
 	}
 }
-
 
 main();
