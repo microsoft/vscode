@@ -24,7 +24,8 @@ import type { Terminal } from 'xterm';
 
 const enum AccessibleBufferConstants {
 	Scheme = 'terminal-accessible-buffer',
-	Active = 'active'
+	Active = 'active',
+	Hide = 'hide'
 }
 
 export class AccessibleBufferWidget extends DisposableStore {
@@ -102,6 +103,7 @@ export class AccessibleBufferWidget extends DisposableStore {
 
 	private _hide(): void {
 		this._accessibleBuffer.classList.remove(AccessibleBufferConstants.Active);
+		this._xtermElement.classList.remove(AccessibleBufferConstants.Hide);
 		this._xterm.raw.focus();
 	}
 
@@ -109,12 +111,12 @@ export class AccessibleBufferWidget extends DisposableStore {
 		let model = this._bufferEditor.getModel();
 		const lineCount = model?.getLineCount() ?? 0;
 		if (insertion && model && lineCount > this._xterm.raw.rows) {
-			const selection = this._bufferEditor.getSelection();
 			const lineNumber = lineCount + 1;
-			model.pushEditOperations(selection ? [selection] : null, [{ range: { startLineNumber: lineNumber, endLineNumber: lineNumber, startColumn: 1, endColumn: 1 }, text: await this._getContent(lineNumber - 1) }], () => []);
+			model.pushEditOperations(null, [{ range: { startLineNumber: lineNumber, endLineNumber: lineNumber, startColumn: 1, endColumn: 1 }, text: await this._getContent(lineNumber - 1) }], () => []);
 			return;
+		} else {
+			model = await this._getTextModel(URI.from({ scheme: `${AccessibleBufferConstants.Scheme}-${this._instanceId}`, fragment: await this._getContent() }));
 		}
-		model = await this._getTextModel(URI.from({ scheme: `${AccessibleBufferConstants.Scheme}-${this._instanceId}`, fragment: await this._getContent() }));
 		if (!model) {
 			throw new Error('Could not create accessible buffer editor model');
 		}
@@ -141,6 +143,7 @@ export class AccessibleBufferWidget extends DisposableStore {
 		await this._updateEditor();
 		this._accessibleBuffer.tabIndex = -1;
 		this._accessibleBuffer.classList.add(AccessibleBufferConstants.Active);
+		this._xtermElement.classList.add(AccessibleBufferConstants.Hide);
 	}
 
 	private async _getTextModel(resource: URI): Promise<ITextModel | null> {
