@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { ActivationFunction, OutputItem, RendererContext } from 'vscode-notebook-renderer';
-import { insertOutput, scrollableClass } from './textHelper';
+import { insertOutput as createOutputContent, scrollableClass } from './textHelper';
 
 interface IDisposable {
 	dispose(): void;
@@ -165,8 +165,6 @@ function renderError(
 
 	clearContainer(container);
 
-	const element = document.createElement('div');
-	container.appendChild(element);
 	type ErrorLike = Partial<Error>;
 
 	let err: ErrorLike;
@@ -178,17 +176,16 @@ function renderError(
 	}
 
 	if (err.stack) {
-		const stack = document.createElement('span');
-		stack.classList.add('traceback');
+		container.classList.add('traceback');
 		if (ctx.settings.outputWordWrap) {
-			stack.classList.add('wordWrap');
+			container.classList.add('wordWrap');
 		}
 		disposableStore.push(ctx.onDidChangeSettings(e => {
-			stack.classList.toggle('wordWrap', e.outputWordWrap);
+			container.classList.toggle('wordWrap', e.outputWordWrap);
 		}));
 
-		insertOutput(outputInfo.id, [err.stack ?? ''], ctx.settings.lineLimit, ctx.settings.outputScrolling, stack, true);
-		appendChildAndScroll(container, stack, disposableStore);
+		const content = createOutputContent(outputInfo.id, [err.stack ?? ''], ctx.settings.lineLimit, ctx.settings.outputScrolling, true);
+		appendChildAndScroll(container, content, disposableStore);
 	} else {
 		const header = document.createElement('div');
 		const headerMessage = err.name && err.message ? `${err.name}: ${err.message}` : err.name || err.message;
@@ -227,17 +224,16 @@ function onScrollHandler(e: globalThis.Event) {
 // if there is a scrollable output, it will be scrolled to the given value if provided or the bottom of the element
 function appendChildAndScroll(container: HTMLElement, child: HTMLElement, disposables: DisposableStore, scrollTop?: number) {
 	container.appendChild(child);
-	const scrollableElement = child.querySelector(`.${scrollableClass}`);
-	if (scrollableElement instanceof HTMLElement) {
-		scrollableElement.scrollTop = scrollTop !== undefined ? scrollTop : scrollableElement.scrollHeight;
-		scrollableElement.addEventListener('scroll', onScrollHandler);
-		disposables.push({ dispose: () => scrollableElement.removeEventListener('scroll', onScrollHandler) });
+	if (child.classList.contains(scrollableClass)) {
+		child.scrollTop = scrollTop !== undefined ? scrollTop : child.scrollHeight;
+		child.addEventListener('scroll', onScrollHandler);
+		disposables.push({ dispose: () => child.removeEventListener('scroll', onScrollHandler) });
 	}
 }
 
 // Find the scrollTop of the existing scrollable output, return undefined if at the bottom or element doesn't exist
 function findScrolledHeight(outputContainer: HTMLElement, outputId: string): number | undefined {
-	const scrollableElement = outputContainer.querySelector(`[output-item-id="${outputId}"] .${scrollableClass}`);
+	const scrollableElement = outputContainer.querySelector(`[output-item-id="${outputId}"].${scrollableClass}`);
 	if (scrollableElement && scrollableElement.scrollHeight - scrollableElement.scrollTop - scrollableElement.clientHeight > 2) {
 		// not scrolled to the bottom
 		return scrollableElement.scrollTop;
@@ -266,27 +262,27 @@ function renderStream(outputInfo: OutputItem, container: HTMLElement, error: boo
 			element.classList.toggle('wordWrap', e.outputWordWrap);
 		}));
 		element.setAttribute('output-item-id', outputInfo.id);
-		insertOutput(outputInfo.id, [text], ctx.settings.lineLimit, outputScrolling, element, false);
-		appendChildAndScroll(outputElement, element, disposableStore);
+		const content = createOutputContent(outputInfo.id, [text], ctx.settings.lineLimit, outputScrolling, false);
+		appendChildAndScroll(outputElement, content, disposableStore);
 		return disposableStore;
 	}
 
-	const element = document.createElement('span');
-	element.classList.add('output-stream');
-	element.classList.toggle('wordWrap', ctx.settings.outputWordWrap);
-	disposableStore.push(ctx.onDidChangeSettings(e => {
-		element.classList.toggle('wordWrap', e.outputWordWrap);
-	}));
-	element.setAttribute('output-item-id', outputInfo.id);
-
 	const text = outputInfo.text();
-	insertOutput(outputInfo.id, [text], ctx.settings.lineLimit, outputScrolling, element, false);
+	const content = createOutputContent(outputInfo.id, [text], ctx.settings.lineLimit, outputScrolling, false);
+
+	content.classList.add('output-stream');
+	content.classList.toggle('wordWrap', ctx.settings.outputWordWrap);
+	disposableStore.push(ctx.onDidChangeSettings(e => {
+		content.classList.toggle('wordWrap', e.outputWordWrap);
+	}));
+	content.setAttribute('output-item-id', outputInfo.id);
+
 	const scrollTop = outputScrolling ? findScrolledHeight(container, outputInfo.id) : undefined;
 	while (container.firstChild) {
 		container.removeChild(container.firstChild);
 	}
-	appendChildAndScroll(container, element, disposableStore, scrollTop);
-	container.setAttribute('output-mime-type', outputInfo.mime);
+	appendChildAndScroll(container, content, disposableStore, scrollTop);
+	content.setAttribute('output-mime-type', outputInfo.mime);
 	if (error) {
 		container.classList.add('error');
 	}
@@ -296,16 +292,16 @@ function renderStream(outputInfo: OutputItem, container: HTMLElement, error: boo
 
 function renderText(outputInfo: OutputItem, container: HTMLElement, ctx: IRichRenderContext): IDisposable {
 	const disposableStore = createDisposableStore();
-
 	clearContainer(container);
-	const contentNode = document.createElement('div');
-	contentNode.classList.add('output-plaintext');
-	if (ctx.settings.outputWordWrap) {
-		contentNode.classList.add('wordWrap');
-	}
+
 	const text = outputInfo.text();
-	insertOutput(outputInfo.id, [text], ctx.settings.lineLimit, ctx.settings.outputScrolling, contentNode, false);
-	appendChildAndScroll(container, contentNode, disposableStore);
+	const content = createOutputContent(outputInfo.id, [text], ctx.settings.lineLimit, ctx.settings.outputScrolling, false);
+	content.classList.add('output-plaintext');
+	if (ctx.settings.outputWordWrap) {
+		content.classList.add('wordWrap');
+	}
+
+	appendChildAndScroll(container, content, disposableStore);
 	return disposableStore;
 }
 
