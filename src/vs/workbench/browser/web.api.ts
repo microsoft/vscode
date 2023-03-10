@@ -586,7 +586,8 @@ export interface IInitialColorTheme {
 export interface IWelcomeDialog {
 
 	/**
-	 *  Unique identifier of the web route constructing the welcome dialog.
+	 * Unique identifier of the welcome dialog. The identifier will be used to determine
+	 * if the dialog has been previously displayed.
 	 */
 	id: string;
 
