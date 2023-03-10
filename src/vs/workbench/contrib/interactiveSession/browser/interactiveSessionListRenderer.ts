@@ -37,7 +37,6 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILogService } from 'vs/platform/log/common/log';
 import { defaultButtonStyles } from 'vs/platform/theme/browser/defaultStyles';
-import { FloatingClickMenu } from 'vs/workbench/browser/codeeditor';
 import { MenuPreventer } from 'vs/workbench/contrib/codeEditor/browser/menuPreventer';
 import { SelectionClipboardContributionID } from 'vs/workbench/contrib/codeEditor/browser/selectionClipboard';
 import { getSimpleEditorOptions } from 'vs/workbench/contrib/codeEditor/browser/simpleEditorOptions';
@@ -451,7 +450,6 @@ class CodeBlockPart extends Disposable implements IInteractiveResultEditorInfo {
 				WordHighlighterContribution.ID,
 				ViewportSemanticTokensContribution.ID,
 				BracketMatchingController.ID,
-				FloatingClickMenu.ID,
 				SmartSelectController.ID,
 			])
 		}));
