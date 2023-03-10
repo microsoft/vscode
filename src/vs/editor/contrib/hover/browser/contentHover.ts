@@ -499,8 +499,10 @@ export class ContentHoverWidget extends Disposable implements IContentWidget {
 	private _setLayoutOfResizableElement(defaultSize: dom.Dimension): void {
 
 		// TODO: 1) Polish code, annotate, make it cleaner. Understand what all the entites correspond to, if some are superfluous, not needed
-		// TODO: 2) Do correct calculations of maximum height above and below in order to decide which sashes to enable
-		// TODO: 3) Do not let infinite resizing, set a maximum resize size which depends on the current maximum size you can show
+		// TODO: 2) Find out why the scrollbars disappeared, make them appear again, so can be used to scroll the resized element, look at the scroll bar from the suggest widget
+		// TODO: 3) Do correct calculations of maximum height above and below in order to decide which sashes to enable
+		// TODO: 4) Do not let infinite resizing, set a maximum resize size which depends on the current maximum size you can show
+		// TODO: 5) Find out why even if smaller than default max size, the whole widget is not shown
 
 		// Setting the initial layout of the resizable element, before calling the resize function
 
@@ -649,10 +651,12 @@ export class ContentHoverWidget extends Disposable implements IContentWidget {
 		this._hover.containerDomNode.style.height = `${height - 4}px`;
 		this._hover.containerDomNode.style.width = `${width - 4}px`;
 
+		const containerOffsetHeight = this._hover.containerDomNode.offsetHeight;
+		const contentsOffsetHeight = this._hover.contentsDomNode.offsetHeight;
 		console.log('this._hover.containerDomNode.offsetWidth : ', this._hover.containerDomNode.offsetWidth);
-		console.log('this._hover.containerDomNode.offsetHeight : ', this._hover.containerDomNode.offsetHeight);
+		console.log('this._hover.containerDomNode.offsetHeight : ', containerOffsetHeight);
 		console.log('this._hover.contentsDomNode.offsetWidth : ', this._hover.contentsDomNode.offsetWidth);
-		console.log('this._hover.contentsDomNode.offsetHeight : ', this._hover.contentsDomNode.offsetHeight);
+		console.log('this._hover.contentsDomNode.offsetHeight : ', contentsOffsetHeight);
 
 		const maxResizableWidth = this._hover.contentsDomNode.offsetWidth;
 		const maxResizableHeight = this._hover.contentsDomNode.offsetHeight;
@@ -660,6 +664,11 @@ export class ContentHoverWidget extends Disposable implements IContentWidget {
 		const currentMaxSize = new dom.Dimension(maxResizableWidth, maxResizableHeight);
 		console.log('currentMaxSize : ', currentMaxSize);
 		// this._element.maxSize = currentMaxSize;
+
+		if (containerOffsetHeight < contentsOffsetHeight) {
+			// make scrollbar visible?
+			console.log('container height offset smaller than contents height offset');
+		}
 
 		console.log('this._element.domNode.style.maxWidth : ', this._element.domNode.style.maxWidth);
 		console.log('this._element.domNode.style.maxHeight : ', this._element.domNode.style.maxHeight);
