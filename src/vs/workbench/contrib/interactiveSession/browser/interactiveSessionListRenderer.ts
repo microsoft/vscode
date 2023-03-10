@@ -28,6 +28,7 @@ import { ContextMenuController } from 'vs/editor/contrib/contextmenu/browser/con
 import { IMarkdownRenderResult, MarkdownRenderer } from 'vs/editor/contrib/markdownRenderer/browser/markdownRenderer';
 import { ViewportSemanticTokensContribution } from 'vs/editor/contrib/semanticTokens/browser/viewportSemanticTokens';
 import { SmartSelectController } from 'vs/editor/contrib/smartSelect/browser/smartSelect';
+import { WordHighlighterContribution } from 'vs/editor/contrib/wordHighlighter/browser/wordHighlighter';
 import { localize } from 'vs/nls';
 import { MenuWorkbenchToolBar } from 'vs/platform/actions/browser/toolbar';
 import { MenuId } from 'vs/platform/actions/common/actions';
@@ -412,17 +413,16 @@ class CodeBlockPart extends Disposable implements IInteractiveResultEditorInfo {
 		@IModelService private readonly modelService: IModelService,
 	) {
 		super();
-		const disposables = new DisposableStore();
 		this.element = $('.interactive-result-editor-wrapper');
 
-		this.toolbar = disposables.add(this.instantiationService.createInstance(MenuWorkbenchToolBar, this.element, MenuId.InteractiveSessionCodeBlock, {
+		this.toolbar = this._register(this.instantiationService.createInstance(MenuWorkbenchToolBar, this.element, MenuId.InteractiveSessionCodeBlock, {
 			menuOptions: {
 				shouldForwardArgs: true
 			}
 		}));
 
 		const editorElement = dom.append(this.element, $('.interactive-result-editor'));
-		this.editor = disposables.add(this.instantiationService.createInstance(CodeEditorWidget, editorElement, {
+		this.editor = this._register(this.instantiationService.createInstance(CodeEditorWidget, editorElement, {
 			...getSimpleEditorOptions(),
 			readOnly: true,
 			wordWrap: 'off',
@@ -448,6 +448,7 @@ class CodeBlockPart extends Disposable implements IInteractiveResultEditorInfo {
 				SelectionClipboardContributionID,
 				ContextMenuController.ID,
 
+				WordHighlighterContribution.ID,
 				ViewportSemanticTokensContribution.ID,
 				BracketMatchingController.ID,
 				FloatingClickMenu.ID,
@@ -455,8 +456,15 @@ class CodeBlockPart extends Disposable implements IInteractiveResultEditorInfo {
 			])
 		}));
 
+		this._register(this.editor.onDidBlurEditorWidget(() => {
+			WordHighlighterContribution.get(this.editor)?.stopHighlighting();
+		}));
+		this._register(this.editor.onDidFocusEditorWidget(() => {
+			WordHighlighterContribution.get(this.editor)?.restoreViewState(true);
+		}));
+
 		const vscodeLanguageId = this.languageService.getLanguageIdByLanguageName('javascript');
-		this.textModel = disposables.add(this.modelService.createModel('', this.languageService.createById(vscodeLanguageId), undefined));
+		this.textModel = this._register(this.modelService.createModel('', this.languageService.createById(vscodeLanguageId), undefined));
 		this.editor.setModel(this.textModel);
 	}
 
