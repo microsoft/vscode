@@ -372,7 +372,7 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 			if (this._ptyProcess) {
 				await this._throttleKillSpawn();
 				this._logService.trace('IPty#kill');
-				this._ptyProcess.kill();
+				this._ptyProcess.kill(!isWindows ? 'SIGKILL' : undefined);
 			}
 		} catch (ex) {
 			// Swallow, the pty has already been killed
