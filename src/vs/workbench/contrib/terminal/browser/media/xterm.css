@@ -208,7 +208,3 @@
 	z-index: 2;
 	position: relative;
 }
-
-.xterm.terminal.hide {
-	display: none;
-}
