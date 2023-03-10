@@ -134,57 +134,39 @@ export class ExtHostInteractiveSession implements ExtHostInteractiveSessionShape
 			message: request.message,
 		};
 
-		if (entry.provider.provideResponse) {
-			const res = await entry.provider.provideResponse(requestObj, token);
+		const stopWatch = StopWatch.create(false);
+		let firstProgress: number | undefined;
+		const progressObj: vscode.Progress<vscode.InteractiveProgress> = {
+			report: (progress: vscode.InteractiveProgress) => {
+				if (typeof firstProgress === 'undefined') {
+					firstProgress = stopWatch.elapsed();
+				}
+
+				this._proxy.$acceptInteractiveResponseProgress(handle, sessionId, { responsePart: progress.content });
+			}
+		};
+		let result: vscode.InteractiveResponseForProgress | undefined | null;
+		try {
+			result = await entry.provider.provideResponseWithProgress(requestObj, progressObj, token);
+			if (!result) {
+				result = { errorDetails: { message: localize('emptyResponse', "Provider returned null response") } };
+			}
+		} catch (err) {
+			result = { errorDetails: { message: localize('errorResponse', "Error from provider: {0}", err.message), responseIsIncomplete: true } };
+			this.logService.error(err);
+		}
+
+		try {
 			if (realSession.saveState) {
 				const newState = realSession.saveState();
 				this._proxy.$acceptInteractiveSessionState(sessionId, newState);
 			}
-
-			if (!res) {
-				return;
-			}
-
-			// TODO clean up this API
-			this._proxy.$acceptInteractiveResponseProgress(handle, sessionId, { responsePart: res.content });
-			return { followups: res.followups, timings: { firstProgress: 0, totalElapsed: 0 } };
-		} else if (entry.provider.provideResponseWithProgress) {
-			const stopWatch = StopWatch.create(false);
-			let firstProgress: number | undefined;
-			const progressObj: vscode.Progress<vscode.InteractiveProgress> = {
-				report: (progress: vscode.InteractiveProgress) => {
-					if (typeof firstProgress === 'undefined') {
-						firstProgress = stopWatch.elapsed();
-					}
-
-					this._proxy.$acceptInteractiveResponseProgress(handle, sessionId, { responsePart: progress.content });
-				}
-			};
-			let result: vscode.InteractiveResponseForProgress | undefined | null;
-			try {
-				result = await entry.provider.provideResponseWithProgress(requestObj, progressObj, token);
-				if (!result) {
-					result = { errorDetails: { message: localize('emptyResponse', "Provider returned null response") } };
-				}
-			} catch (err) {
-				result = { errorDetails: { message: localize('errorResponse', "Error from provider: {0}", err.message), responseIsIncomplete: true } };
-				this.logService.error(err);
-			}
-
-			try {
-				if (realSession.saveState) {
-					const newState = realSession.saveState();
-					this._proxy.$acceptInteractiveSessionState(sessionId, newState);
-				}
-			} catch (err) {
-				this.logService.warn(err);
-			}
-
-			const timings = { firstProgress: firstProgress ?? 0, totalElapsed: stopWatch.elapsed() };
-			return { followups: result.followups, commandFollowups: result.commands, errorDetails: result.errorDetails, timings };
+		} catch (err) {
+			this.logService.warn(err);
 		}
 
-		throw new Error('Provider must implement either provideResponse or provideResponseWithProgress');
+		const timings = { firstProgress: firstProgress ?? 0, totalElapsed: stopWatch.elapsed() };
+		return { followups: result.followups, commandFollowups: result.commands, errorDetails: result.errorDetails, timings };
 	}
 
 	async $provideSlashCommands(handle: number, sessionId: number, token: CancellationToken): Promise<IInteractiveSlashCommand[] | undefined> {
