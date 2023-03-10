@@ -156,7 +156,6 @@ export class SearchView extends ViewPane {
 
 	private treeViewKey: IContextKey<boolean>;
 
-	private _uiRefreshHandle: any;
 	private _visibleMatches: number = 0;
 
 	private _refreshResultsScheduler: RunOnceScheduler;
@@ -1489,8 +1488,6 @@ export class SearchView extends ViewPane {
 	private _updateResults() {
 		try {
 			if (this.state === SearchUIState.Idle) {
-				window.clearInterval(this._uiRefreshHandle);
-				this._uiRefreshHandle = undefined;
 				return;
 			}
 
