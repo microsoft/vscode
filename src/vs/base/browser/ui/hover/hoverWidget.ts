@@ -18,6 +18,9 @@ export const enum HoverPosition {
 
 export class HoverWidget extends Disposable {
 
+	public maxHeight = 0;
+	public maxWidth = 0;
+
 	public readonly containerDomNode: HTMLElement;
 	public readonly contentsDomNode: HTMLElement;
 	public readonly scrollbar: DomScrollableElement;

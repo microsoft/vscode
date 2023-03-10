@@ -63,7 +63,7 @@ export interface ISelectedSuggestion {
 	model: CompletionModel;
 }
 
-class PersistedWidgetSize {
+export class PersistedWidgetSize {
 
 	private readonly _key: string;
 
@@ -94,6 +94,15 @@ class PersistedWidgetSize {
 	reset(): void {
 		this._service.remove(this._key, StorageScope.PROFILE);
 	}
+}
+
+export class ResizeState {
+	constructor(
+		readonly persistedSize: dom.Dimension | undefined,
+		readonly currentSize: dom.Dimension,
+		public persistHeight = false,
+		public persistWidth = false,
+	) { }
 }
 
 export class SuggestWidget implements IDisposable {
@@ -157,15 +166,6 @@ export class SuggestWidget implements IDisposable {
 
 		this._contentWidget = new SuggestContentWidget(this, editor);
 		this._persistedSize = new PersistedWidgetSize(_storageService, editor);
-
-		class ResizeState {
-			constructor(
-				readonly persistedSize: dom.Dimension | undefined,
-				readonly currentSize: dom.Dimension,
-				public persistHeight = false,
-				public persistWidth = false,
-			) { }
-		}
 
 		let state: ResizeState | undefined;
 		this._disposables.add(this.element.onDidWillResize(() => {
