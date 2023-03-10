@@ -209,6 +209,6 @@
 	position: relative;
 }
 
-.hide {
+.xterm.terminal.hide {
 	visibility: hidden;
 }
