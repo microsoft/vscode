@@ -1,0 +1,15 @@
+{
+	"$schema": "https://raw.githubusercontent.com/SchemaStore/schemastore/master/src/schemas/json/stylelintrc.json",
+	"ignoreFiles": [
+		"src/vs/workbench/services/textfile/test/**",
+		"src/vs/workbench/services/search/test/**",
+		"src/vs/platform/files/test/**",
+		"src/vs/workbench/workbench.desktop.main.css"
+	],
+	"plugins": [
+		"./build/lib/stylelint/validateVariableNamesPlugin.js"
+	],
+	"rules": {
+		"vscode/variables-validate-names": true
+	}
+}

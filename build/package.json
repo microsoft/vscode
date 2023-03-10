@@ -53,6 +53,7 @@
     "got": "11.8.5",
     "gulp-merge-json": "^2.1.1",
     "gulp-shell": "^0.8.0",
+    "gulp-stylelint": "^13.0.0",
     "jsonc-parser": "^2.3.0",
     "mime": "^1.4.1",
     "mkdirp": "^1.0.4",

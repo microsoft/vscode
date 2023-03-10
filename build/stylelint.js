@@ -10,20 +10,13 @@ const { getVariableNameValidator } = require('./lib/stylelint/validateVariableNa
 
 module.exports = gulpstylelint;
 
-/** use regex on lines */
+/** use a stylelint plugin */
 function gulpstylelint(reporter) {
-	const variableValidator = getVariableNameValidator();
-	return es.through(function (file) {
-		const lines = file.__lines || file.contents.toString('utf8').split(/\r\n|\r|\n/);
-		file.__lines = lines;
-
-		lines.forEach((line, i) => {
-			variableValidator(line, unknownVariable => {
-				reporter(file.relative + '(' + (i + 1) + ',1): Unknown variable: ' + unknownVariable);
-			});
-		});
-
-		this.emit('data', file);
+	const lint = require('gulp-stylelint');
+	return lint({
+		reporters: [
+			{ formatter: 'string', console: true }
+		]
 	});
 }
 
