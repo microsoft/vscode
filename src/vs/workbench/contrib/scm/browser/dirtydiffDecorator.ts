@@ -22,7 +22,7 @@ import { editorErrorForeground, registerColor, transparent } from 'vs/platform/t
 import { ICodeEditor, IEditorMouseEvent, isCodeEditor, MouseTargetType } from 'vs/editor/browser/editorBrowser';
 import { registerEditorAction, registerEditorContribution, ServicesAccessor, EditorAction, EditorContributionInstantiation } from 'vs/editor/browser/editorExtensions';
 import { PeekViewWidget, getOuterEditor, peekViewBorder, peekViewTitleBackground, peekViewTitleForeground, peekViewTitleInfoForeground } from 'vs/editor/contrib/peekView/browser/peekView';
-import { IContextKeyService, IContextKey, ContextKeyExpr, RawContextKey, IOverlayContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { IContextKeyService, IContextKey, ContextKeyExpr, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { Position } from 'vs/editor/common/core/position';
@@ -201,12 +201,11 @@ class DirtyDiffWidget extends PeekViewWidget {
 		this._disposables.add(themeService.onDidColorThemeChange(this._applyTheme, this));
 		this._applyTheme(themeService.getColorTheme());
 
-		let overlayContextKeyService: IOverlayContextKeyService | IContextKeyService = contextKeyService;
 		if (this.model.original.length > 0) {
-			overlayContextKeyService = contextKeyService.createOverlay([['originalResourceScheme', this.model.original[0].uri.scheme], ['originalResourceSchemes', this.model.original.map(original => original.uri.scheme)]]);
+			contextKeyService = contextKeyService.createOverlay([['originalResourceScheme', this.model.original[0].uri.scheme], ['originalResourceSchemes', this.model.original.map(original => original.uri.scheme)]]);
 		}
 
-		this.menu = menuService.createMenu(MenuId.SCMChangeContext, overlayContextKeyService);
+		this.menu = menuService.createMenu(MenuId.SCMChangeContext, contextKeyService);
 		this._disposables.add(this.menu);
 
 		this.create();

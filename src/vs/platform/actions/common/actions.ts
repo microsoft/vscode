@@ -11,7 +11,7 @@ import { LinkedList } from 'vs/base/common/linkedList';
 import { ICommandAction, ICommandActionTitle, Icon, ILocalizedString } from 'vs/platform/action/common/action';
 import { Categories } from 'vs/platform/action/common/actionCommonCategories';
 import { CommandsRegistry, ICommandHandlerDescription, ICommandService } from 'vs/platform/commands/common/commands';
-import { ContextKeyExpr, ContextKeyExpression, IContextKeyService, IOverlayContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { ContextKeyExpr, ContextKeyExpression, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { createDecorator, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingRule, KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
 
@@ -238,7 +238,7 @@ export interface IMenuService {
 	 * submenu entries. That is more expensive and must be explicitly enabled with the
 	 * `emitEventsForSubmenuChanges` flag.
 	 */
-	createMenu(id: MenuId, contextKeyService: IContextKeyService | IOverlayContextKeyService, options?: IMenuCreateOptions): IMenu;
+	createMenu(id: MenuId, contextKeyService: IContextKeyService, options?: IMenuCreateOptions): IMenu;
 
 	/**
 	 * Reset **all** menu item hidden states.

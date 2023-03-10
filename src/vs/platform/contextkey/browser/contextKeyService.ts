@@ -14,7 +14,7 @@ import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { ConfigurationTarget, IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ContextKeyExpression, ContextKeyInfo, ContextKeyValue, IContext, IContextKey, IContextKeyChangeEvent, IContextKeyService, IContextKeyServiceTarget, IOverlayContextKeyService, IReadableSet, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { ContextKeyExpression, ContextKeyInfo, ContextKeyValue, IContext, IContextKey, IContextKeyChangeEvent, IContextKeyService, IContextKeyServiceTarget, IReadableSet, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 
 const KEYBINDING_CONTEXT_ATTR = 'data-keybinding-context';
@@ -308,7 +308,7 @@ export abstract class AbstractContextKeyService implements IContextKeyService {
 		return new ScopedContextKeyService(this, domNode);
 	}
 
-	createOverlay(overlay: Iterable<[string, any]> = Iterable.empty()): IOverlayContextKeyService {
+	createOverlay(overlay: Iterable<[string, any]> = Iterable.empty()): IContextKeyService {
 		if (this._isDisposed) {
 			throw new Error(`AbstractContextKeyService has been disposed`);
 		}
@@ -527,7 +527,7 @@ class OverlayContext implements IContext {
 	}
 }
 
-class OverlayContextKeyService implements IOverlayContextKeyService {
+class OverlayContextKeyService implements IContextKeyService {
 
 	declare _serviceBrand: undefined;
 	private overlay: Map<string, any>;
@@ -575,12 +575,16 @@ class OverlayContextKeyService implements IOverlayContextKeyService {
 		throw new Error('Not supported.');
 	}
 
-	createOverlay(overlay: Iterable<[string, any]> = Iterable.empty()): IOverlayContextKeyService {
+	createOverlay(overlay: Iterable<[string, any]> = Iterable.empty()): IContextKeyService {
 		return new OverlayContextKeyService(this, overlay);
 	}
 
 	updateParent(): void {
 		throw new Error('Not supported.');
+	}
+
+	dispose(): void {
+		// noop
 	}
 }
 
