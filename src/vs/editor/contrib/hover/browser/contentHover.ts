@@ -493,6 +493,7 @@ export class ResizeableContentHoverWidget extends Disposable {
 	public showAt(node: DocumentFragment, visibleData: ContentHoverVisibleData) {
 		console.log('* Entered into showAt of the ResizeableContentHoverWidget');
 		this._layout(this._resizableElement.size);
+		console.log('this._hoverContentWidget : ', this._hoverContentWidget);
 		return this._hoverContentWidget.showAt(node, visibleData);
 	}
 
@@ -599,6 +600,30 @@ export class ResizeableContentHoverWidget extends Disposable {
 
 	public onContentsChanged() {
 		return this._hoverContentWidget.onContentsChanged();
+	}
+
+	public focus(): void {
+		this._hoverContentWidget.focus();
+	}
+
+	public scrollUp(): void {
+		this._hoverContentWidget.scrollUp();
+	}
+
+	public scrollDown(): void {
+		this._hoverContentWidget.scrollDown();
+	}
+
+	public pageUp(): void {
+		this._hoverContentWidget.pageUp();
+	}
+
+	public pageDown(): void {
+		this._hoverContentWidget.pageDown();
+	}
+
+	public get isVisible(): boolean {
+		return this._hoverContentWidget.isVisible;
 	}
 }
 
