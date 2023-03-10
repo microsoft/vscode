@@ -98,7 +98,7 @@ export class FindModel extends Disposable {
 		}));
 
 		this._register(this._notebookEditor.onDidChangeCellState(e => {
-			if (e.cell.cellKind === CellKind.Markup) {
+			if (e.cell.cellKind === CellKind.Markup && e.source.editStateChanged) {
 				// research when markdown cell is switching between markdown preview and editing mode.
 				this.research();
 			}

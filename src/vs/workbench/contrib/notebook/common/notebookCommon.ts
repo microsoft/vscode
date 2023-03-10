@@ -929,6 +929,7 @@ export const NotebookSetting = {
 	kernelPickerType: 'notebook.kernelPicker.type',
 	outputScrolling: 'notebook.experimental.outputScrolling',
 	textOutputLineLimit: 'notebook.output.textLineLimit',
+	formatOnSave: 'notebook.formatOnSave.enabled',
 	outputWordWrap: 'notebook.output.wordWrap',
 	outputLineHeightDeprecated: 'notebook.outputLineHeight',
 	outputLineHeight: 'notebook.output.lineHeight',

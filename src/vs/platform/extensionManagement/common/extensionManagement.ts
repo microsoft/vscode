@@ -516,8 +516,3 @@ export interface IExtensionTipsService {
 export const ExtensionsLabel = localize('extensions', "Extensions");
 export const ExtensionsLocalizedLabel = { value: ExtensionsLabel, original: 'Extensions' };
 export const PreferencesLocalizedLabel = { value: localize('preferences', "Preferences"), original: 'Preferences' };
-
-export interface CLIOutput {
-	log(s: string): void;
-	error(s: string): void;
-}

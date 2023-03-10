@@ -88,6 +88,9 @@ export class MainThreadInteractiveSession implements MainThreadInteractiveSessio
 			},
 			provideSuggestions: (token) => {
 				return this._proxy.$provideInitialSuggestions(handle, token);
+			},
+			provideSlashCommands: (session, token) => {
+				return this._proxy.$provideSlashCommands(handle, session.id, token);
 			}
 		});
 

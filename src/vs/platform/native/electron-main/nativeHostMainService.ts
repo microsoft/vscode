@@ -451,14 +451,23 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 		// Remove some environment variables before opening to avoid issues...
 		const gdkPixbufModuleFile = process.env['GDK_PIXBUF_MODULE_FILE'];
 		const gdkPixbufModuleDir = process.env['GDK_PIXBUF_MODULEDIR'];
+		const gtkIMModuleFile = process.env['GTK_IM_MODULE_FILE'];
+		const gdkBackend = process.env['GDK_BACKEND'];
+		const gioModuleDir = process.env['GIO_MODULE_DIR'];
 		delete process.env['GDK_PIXBUF_MODULE_FILE'];
 		delete process.env['GDK_PIXBUF_MODULEDIR'];
+		delete process.env['GTK_IM_MODULE_FILE'];
+		delete process.env['GDK_BACKEND'];
+		delete process.env['GIO_MODULE_DIR'];
 
 		shell.openExternal(url);
 
 		// ...but restore them after
 		process.env['GDK_PIXBUF_MODULE_FILE'] = gdkPixbufModuleFile;
 		process.env['GDK_PIXBUF_MODULEDIR'] = gdkPixbufModuleDir;
+		process.env['GTK_IM_MODULE_FILE'] = gtkIMModuleFile;
+		process.env['GDK_BACKEND'] = gdkBackend;
+		process.env['GIO_MODULE_DIR'] = gioModuleDir;
 	}
 
 	moveItemToTrash(windowId: number | undefined, fullPath: string): Promise<void> {
