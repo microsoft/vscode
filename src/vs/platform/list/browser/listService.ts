@@ -20,7 +20,7 @@ import { combinedDisposable, Disposable, DisposableStore, dispose, IDisposable, 
 import { localize } from 'vs/nls';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
-import { ContextKeyExpr, IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { ContextKeyExpr, IContextKey, IContextKeyService, IScopedContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { InputFocusedContextKey } from 'vs/platform/contextkey/common/contextkeys';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IEditorOptions } from 'vs/platform/editor/common/editor';
@@ -132,7 +132,7 @@ const WorkbenchListTypeNavigationModeKey = 'listTypeNavigationMode';
  */
 const WorkbenchListAutomaticKeyboardNavigationLegacyKey = 'listAutomaticKeyboardNavigation';
 
-function createScopedContextKeyService(contextKeyService: IContextKeyService, widget: ListWidget): IContextKeyService {
+function createScopedContextKeyService(contextKeyService: IContextKeyService, widget: ListWidget): IScopedContextKeyService {
 	const result = contextKeyService.createScoped(widget.getHTMLElement());
 	RawWorkbenchListFocusContextKey.bindTo(result);
 	return result;
@@ -222,7 +222,7 @@ export interface IWorkbenchListOptions<T> extends IWorkbenchListOptionsUpdate, I
 
 export class WorkbenchList<T> extends List<T> {
 
-	readonly contextKeyService: IContextKeyService;
+	readonly contextKeyService: IScopedContextKeyService;
 	private listSupportsMultiSelect: IContextKey<boolean>;
 	private listHasSelectionOrFocus: IContextKey<boolean>;
 	private listDoubleSelection: IContextKey<boolean>;
@@ -355,7 +355,7 @@ export interface IWorkbenchPagedListOptions<T> extends IWorkbenchListOptionsUpda
 
 export class WorkbenchPagedList<T> extends PagedList<T> {
 
-	readonly contextKeyService: IContextKeyService;
+	readonly contextKeyService: IScopedContextKeyService;
 	private readonly disposables: DisposableStore;
 	private listSupportsMultiSelect: IContextKey<boolean>;
 	private _useAltAsMultipleSelectionModifier: boolean;
@@ -476,7 +476,7 @@ export interface IWorkbenchTableOptions<T> extends IWorkbenchTableOptionsUpdate,
 
 export class WorkbenchTable<TRow> extends Table<TRow> {
 
-	readonly contextKeyService: IContextKeyService;
+	readonly contextKeyService: IScopedContextKeyService;
 	private listSupportsMultiSelect: IContextKey<boolean>;
 	private listHasSelectionOrFocus: IContextKey<boolean>;
 	private listDoubleSelection: IContextKey<boolean>;
@@ -1135,7 +1135,7 @@ interface IWorkbenchTreeInternalsOptionsUpdate {
 
 class WorkbenchTreeInternals<TInput, T, TFilterData> {
 
-	readonly contextKeyService: IContextKeyService;
+	readonly contextKeyService: IScopedContextKeyService;
 	private listSupportsMultiSelect: IContextKey<boolean>;
 	private listSupportFindWidget: IContextKey<boolean>;
 	private hasSelectionOrFocus: IContextKey<boolean>;
