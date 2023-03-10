@@ -48,7 +48,7 @@ declare module 'vscode' {
 		name: string;
 
 		/**
-		 * Either a full URI or a relative path to the icon of the participant.
+		 * A full URI for the icon of the participant.
 		 */
 		icon?: Uri;
 	}
@@ -69,11 +69,6 @@ declare module 'vscode' {
 	export interface InteractiveRequest {
 		session: InteractiveSession;
 		message: string;
-	}
-
-	export interface InteractiveResponse {
-		content: string;
-		followups?: string[];
 	}
 
 	export interface InteractiveResponseErrorDetails {
@@ -109,8 +104,7 @@ declare module 'vscode' {
 
 		prepareSession(initialState: InteractiveSessionState | undefined, token: CancellationToken): ProviderResult<InteractiveSession>;
 		resolveRequest(session: InteractiveSession, context: InteractiveSessionRequestArgs | string, token: CancellationToken): ProviderResult<InteractiveRequest>;
-		provideResponse?(request: InteractiveRequest, token: CancellationToken): ProviderResult<InteractiveResponse>;
-		provideResponseWithProgress?(request: InteractiveRequest, progress: Progress<InteractiveProgress>, token: CancellationToken): ProviderResult<InteractiveResponseForProgress>;
+		provideResponseWithProgress(request: InteractiveRequest, progress: Progress<InteractiveProgress>, token: CancellationToken): ProviderResult<InteractiveResponseForProgress>;
 	}
 
 	export namespace interactive {
