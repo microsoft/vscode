@@ -21,6 +21,7 @@ import { onUnexpectedError } from 'vs/base/common/errors';
 import { TextModel } from 'vs/editor/common/model/textModel';
 import { StickyElement, StickyModel, StickyRange } from 'vs/editor/contrib/stickyScroll/browser/stickyScrollElement';
 import { Iterable } from 'vs/base/common/iterator';
+import { LanguageFeatureRegistry } from 'vs/editor/common/languageFeatureRegistry';
 
 enum ModelProvider {
 	OUTLINE_MODEL = 'outlineModel',
@@ -51,14 +52,14 @@ export class StickyModelProvider implements IStickyModelProvider {
 	private _modelProviders: IStickyModelCandidateProvider<any>[] = [];
 	private _modelPromise: CancelablePromise<any | null> | null = null;
 	private _updateScheduler: Delayer<StickyModel | null> | null = null;
-	private readonly _updateDebounceInfo: IFeatureDebounceInformation;
+	private _updateDebounceInfo: IFeatureDebounceInformation | null = null;
 	private readonly _store: DisposableStore;
 
 	constructor(
-		private _editor: ICodeEditor,
-		@ILanguageFeaturesService _languageFeaturesService: ILanguageFeaturesService,
-		@ILanguageConfigurationService _languageConfigurationService: ILanguageConfigurationService,
-		@ILanguageFeatureDebounceService _languageFeatureDebounceService: ILanguageFeatureDebounceService,
+		private readonly _editor: ICodeEditor,
+		@ILanguageConfigurationService readonly _languageConfigurationService: ILanguageConfigurationService,
+		@ILanguageFeaturesService readonly _languageFeaturesService: ILanguageFeaturesService,
+		@ILanguageFeatureDebounceService private readonly _languageFeatureDebounceService: ILanguageFeatureDebounceService,
 		defaultModel: string) {
 
 		switch (defaultModel) {
@@ -76,7 +77,6 @@ export class StickyModelProvider implements IStickyModelProvider {
 				break;
 		}
 
-		this._updateDebounceInfo = _languageFeatureDebounceService.for(_languageFeaturesService.foldingRangeProvider, 'Sticky Scroll', { min: 200 });
 		this._store = new DisposableStore();
 	}
 
@@ -90,7 +90,7 @@ export class StickyModelProvider implements IStickyModelProvider {
 	public async update(textModel: ITextModel, textModelVersionId: number, token: CancellationToken): Promise<StickyModel | null> {
 
 		this._store.clear();
-		this._updateScheduler = new Delayer<StickyModel | null>(this._updateDebounceInfo.get(textModel));
+		this._updateScheduler = new Delayer<StickyModel | null>(300); // TODO: What values to use?
 		this._store.add({
 			dispose: () => {
 				this._cancelModelPromise();
@@ -101,9 +101,14 @@ export class StickyModelProvider implements IStickyModelProvider {
 		this._cancelModelPromise();
 
 		return await this._updateScheduler.trigger(async () => {
-			const _stopWatch = new StopWatch(true);
 
 			for (const modelProvider of this._modelProviders) {
+
+				const _stopWatch = new StopWatch(true);
+				if (modelProvider.provider) {
+					this._updateDebounceInfo = this._languageFeatureDebounceService.for(modelProvider.provider, 'Sticky Scroll', { min: 200 });
+				}
+
 				const { statusPromise, modelPromise } = modelProvider.computeStickyModel(
 					textModel,
 					textModelVersionId,
@@ -116,7 +121,7 @@ export class StickyModelProvider implements IStickyModelProvider {
 						this._store.clear();
 						return null;
 					case Status.VALID:
-						if (this._updateScheduler) {
+						if (this._updateScheduler && this._updateDebounceInfo) {
 							this._updateScheduler.defaultDelay = this._updateDebounceInfo.update(textModel, _stopWatch.elapsed());
 						}
 						return modelProvider.stickyModel;
@@ -129,6 +134,8 @@ export class StickyModelProvider implements IStickyModelProvider {
 
 interface IStickyModelCandidateProvider<T> {
 	get stickyModel(): StickyModel | null;
+
+	get provider(): LanguageFeatureRegistry<object> | null;
 
 	/**
 	 * Method which computes the sticky model and returns a status to signal whether the sticky model has been successfully found
@@ -155,6 +162,8 @@ abstract class StickyModelCandidateProvider<T> implements IStickyModelCandidateP
 		this._stickyModel = null;
 		return Status.INVALID;
 	}
+
+	public abstract get provider(): LanguageFeatureRegistry<object> | null;
 
 	public computeStickyModel(textModel: ITextModel, modelVersionId: number, token: CancellationToken): { statusPromise: Promise<Status> | Status; modelPromise: CancelablePromise<T | null> | null } {
 		if (!this.isProviderValid(textModel)) {
@@ -225,6 +234,10 @@ class StickyModelFromCandidateOutlineProvider extends StickyModelCandidateProvid
 
 	constructor(@ILanguageFeaturesService private readonly _languageFeaturesService: ILanguageFeaturesService) {
 		super();
+	}
+
+	public get provider(): LanguageFeatureRegistry<object> | null {
+		return this._languageFeaturesService.documentSymbolProvider;
 	}
 
 	protected createModelFromProvider(textModel: ITextModel, modelVersionId: number, token: CancellationToken): Promise<OutlineModel> {
@@ -380,8 +393,14 @@ abstract class StickyModelFromCandidateFoldingProvider extends StickyModelCandid
 
 class StickyModelFromCandidateIndentationFoldingProvider extends StickyModelFromCandidateFoldingProvider {
 
-	constructor(editor: ICodeEditor, @ILanguageConfigurationService private readonly _languageConfigurationService: ILanguageConfigurationService,) {
+	constructor(
+		editor: ICodeEditor,
+		@ILanguageConfigurationService private readonly _languageConfigurationService: ILanguageConfigurationService) {
 		super(editor);
+	}
+
+	public get provider(): LanguageFeatureRegistry<object> | null {
+		return null;
 	}
 
 	protected createModelFromProvider(textModel: TextModel, modelVersionId: number, token: CancellationToken): Promise<FoldingRegions> {
@@ -392,8 +411,13 @@ class StickyModelFromCandidateIndentationFoldingProvider extends StickyModelFrom
 
 class StickyModelFromCandidateSyntaxFoldingProvider extends StickyModelFromCandidateFoldingProvider {
 
-	constructor(editor: ICodeEditor, @ILanguageFeaturesService private readonly _languageFeaturesService: ILanguageFeaturesService) {
+	constructor(editor: ICodeEditor,
+		@ILanguageFeaturesService private readonly _languageFeaturesService: ILanguageFeaturesService) {
 		super(editor);
+	}
+
+	public get provider(): LanguageFeatureRegistry<object> | null {
+		return this._languageFeaturesService.foldingRangeProvider;
 	}
 
 	protected override isProviderValid(textModel: TextModel): boolean {
