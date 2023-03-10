@@ -949,7 +949,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 		xterm.raw.attachCustomKeyEventHandler((event: KeyboardEvent): boolean => {
 			// Disable all input if the terminal is exiting or is not focused
-			if (this._isExiting || !this.hasFocus) {
+			if (this._isExiting) {
 				return false;
 			}
 
@@ -1009,6 +1009,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 			// If tab focus mode is on, tab is not passed to the terminal
 			if (TabFocus.getTabFocusMode(TabFocusContext.Terminal) && event.keyCode === 9) {
+				console.log('returning');
 				return false;
 			}
 

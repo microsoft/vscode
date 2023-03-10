@@ -104,9 +104,13 @@ export class AccessibleBufferWidget extends DisposableStore {
 		this._bufferEditor.onDidFocusEditorText(() => this._accessibleBuffer.classList.add('active'));
 		if (!this._registered) {
 			this._bufferEditor.layout({ width: this._xtermElement.clientWidth, height: this._xtermElement.clientHeight });
-			this._bufferEditor.onKeyDown(async (e) => {
+			this._bufferEditor.onKeyDown((e) => {
+				// tab moves focus mode will prematurely move focus to the next element before
+				// xterm can be focused
 				if (e.keyCode === KeyCode.Escape || e.keyCode === KeyCode.Tab) {
-					await setTimeout(() => this._hide(), 100);
+					e.stopPropagation();
+					e.preventDefault();
+					this._hide();
 				}
 			});
 			if (commandDetection) {
