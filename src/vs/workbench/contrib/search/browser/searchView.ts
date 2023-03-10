@@ -254,7 +254,7 @@ export class SearchView extends ViewPane {
 		this.treeAccessibilityProvider = this.instantiationService.createInstance(SearchAccessibilityProvider, this.viewModel);
 		this.isTreeLayoutViewVisible = this.viewletState['view.treeLayout'] ?? (this.searchConfig.defaultViewMode === ViewMode.Tree);
 
-		this._refreshResultsScheduler = new RunOnceScheduler(this._updateResults.bind(this), 80);
+		this._refreshResultsScheduler = this._register(new RunOnceScheduler(this._updateResults.bind(this), 80));
 	}
 
 	get isTreeLayoutViewVisible(): boolean {
@@ -2034,7 +2034,6 @@ export class SearchView extends ViewPane {
 	override dispose(): void {
 		this.isDisposed = true;
 		this.saveState();
-		this._refreshResultsScheduler.dispose();
 		super.dispose();
 	}
 }
