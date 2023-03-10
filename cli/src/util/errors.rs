@@ -2,11 +2,11 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-use std::fmt::Display;
-use thiserror::Error;
 use crate::constants::{
 	APPLICATION_NAME, CONTROL_PORT, DOCUMENTATION_URL, QUALITYLESS_PRODUCT_NAME,
 };
+use std::fmt::Display;
+use thiserror::Error;
 
 // Wraps another error with additional info.
 #[derive(Debug, Clone)]
@@ -474,7 +474,6 @@ macro_rules! makeAnyError {
         })*
     };
 }
-
 
 /// Internal errors in the VS Code CLI.
 /// Note: other error should be migrated to this type gradually

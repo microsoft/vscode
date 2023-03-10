@@ -6,12 +6,12 @@
 use std::path::{Path, PathBuf};
 
 use async_trait::async_trait;
-use tokio::sync::mpsc;
 
 use crate::log;
 use crate::state::LauncherPaths;
 use crate::util::errors::{wrap, AnyError};
 use crate::util::io::{tailf, TailEvent};
+use crate::util::sync::Barrier;
 
 use super::shutdown_signal::ShutdownSignal;
 
@@ -23,7 +23,7 @@ pub trait ServiceContainer: Send {
 		&mut self,
 		log: log::Logger,
 		launcher_paths: LauncherPaths,
-		shutdown_rx: mpsc::UnboundedReceiver<ShutdownSignal>,
+		shutdown_rx: Barrier<ShutdownSignal>,
 	) -> Result<(), AnyError>;
 }
 

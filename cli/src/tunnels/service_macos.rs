@@ -9,7 +9,7 @@ use std::{
 	path::{Path, PathBuf},
 };
 
-use super::shutdown_signal::ShutdownSignal;
+use super::shutdown_signal::ShutdownRequest;
 use async_trait::async_trait;
 
 use crate::{
@@ -73,7 +73,7 @@ impl ServiceManager for LaunchdService {
 		launcher_paths: crate::state::LauncherPaths,
 		mut handle: impl 'static + super::ServiceContainer,
 	) -> Result<(), crate::util::errors::AnyError> {
-		let rx = ShutdownSignal::create_rx(&[ShutdownSignal::CtrlC]);
+		let rx = ShutdownRequest::create_rx([ShutdownRequest::CtrlC]);
 		handle.run_service(self.log, launcher_paths, rx).await
 	}
 

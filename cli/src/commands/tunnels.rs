@@ -7,7 +7,6 @@ use async_trait::async_trait;
 use sha2::{Digest, Sha256};
 use std::str::FromStr;
 use sysinfo::Pid;
-use tokio::sync::mpsc;
 
 use super::{
 	args::{
@@ -17,19 +16,22 @@ use super::{
 	CommandContext,
 };
 
-use crate::tunnels::shutdown_signal::ShutdownSignal;
 use crate::tunnels::{dev_tunnels::ActiveTunnel, SleepInhibitor};
 use crate::{
 	auth::Auth,
 	log::{self, Logger},
 	state::LauncherPaths,
 	tunnels::{
-		code_server::CodeServerArgs, create_service_manager, dev_tunnels, legal,
-		paths::get_all_servers, ServiceContainer, ServiceManager,
+		code_server::CodeServerArgs,
+		create_service_manager, dev_tunnels, legal,
+		paths::get_all_servers,
+		shutdown_signal::{ShutdownRequest, ShutdownSignal},
+		ServiceContainer, ServiceManager,
 	},
 	util::{
 		errors::{wrap, AnyError},
 		prereqs::PreReqChecker,
+		sync::Barrier,
 	},
 };
 
@@ -75,7 +77,7 @@ impl ServiceContainer for TunnelServiceContainer {
 		&mut self,
 		log: log::Logger,
 		launcher_paths: LauncherPaths,
-		shutdown_rx: mpsc::UnboundedReceiver<ShutdownSignal>,
+		shutdown_rx: Barrier<ShutdownSignal>,
 	) -> Result<(), AnyError> {
 		let csa = (&self.args).into();
 		serve_with_csa(
@@ -245,7 +247,7 @@ async fn serve_with_csa(
 	log: Logger,
 	gateway_args: TunnelServeArgs,
 	mut csa: CodeServerArgs,
-	shutdown_rx: Option<mpsc::UnboundedReceiver<ShutdownSignal>>,
+	shutdown_rx: Option<Barrier<ShutdownSignal>>,
 ) -> Result<i32, AnyError> {
 	// Intentionally read before starting the server. If the server updated and
 	// respawn is requested, the old binary will get renamed, and then
@@ -270,12 +272,12 @@ async fn serve_with_csa(
 		.parent_process_id
 		.and_then(|p| Pid::from_str(&p).ok())
 	{
-		ShutdownSignal::create_rx(&[
-			ShutdownSignal::CtrlC,
-			ShutdownSignal::ParentProcessKilled(pid),
+		ShutdownRequest::create_rx([
+			ShutdownRequest::CtrlC,
+			ShutdownRequest::ParentProcessKilled(pid),
 		])
 	} else {
-		ShutdownSignal::create_rx(&[ShutdownSignal::CtrlC])
+		ShutdownRequest::create_rx([ShutdownRequest::CtrlC])
 	};
 
 	let mut r = crate::tunnels::serve(&log, tunnel, &paths, &csa, platform, shutdown_tx).await?;

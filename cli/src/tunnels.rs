@@ -8,6 +8,8 @@ pub mod dev_tunnels;
 pub mod legal;
 pub mod paths;
 pub mod shutdown_signal;
+pub mod singleton_client;
+pub mod singleton_server;
 
 mod control_server;
 mod nosleep;

@@ -32,6 +32,10 @@ cfg_if::cfg_if! {
 				self.0.accept().await.map_err(CodeError::AsyncListenerFailed).map(|(s, _)| s)
 			}
 		}
+
+		pub fn socket_stream_split(pipe: AsyncPipe) -> (AsyncPipeReadHalf, AsyncPipeWriteHalf) {
+			pipe.into_split()
+		}
 	} else {
 		pub type AsyncPipe = tokio::net::windows::named_pipe::NamedPipeClient;
 		pub type AsyncPipeWriteHalf =
@@ -57,12 +61,10 @@ cfg_if::cfg_if! {
 		pub async fn listen_socket_rw_stream(path: &Path) -> Result<AsyncPipeListener, CodeError> {
 			// todo https://docs.rs/tokio/latest/tokio/net/windows/named_pipe/struct.NamedPipeServer.html
 		}
-	}
-}
 
-pub fn socket_stream_split(pipe: AsyncPipe) -> (AsyncPipeReadHalf, AsyncPipeWriteHalf) {
-	cfg_if::cfg_if! {
-		if #[cfg(unix)] { pipe.into_split() } else { tokio::io::split(pipe) }
+		pub fn socket_stream_split(pipe: AsyncPipe) -> (AsyncPipeReadHalf, AsyncPipeWriteHalf) {
+			tokio::io::split(pipe)
+		}
 	}
 }
 

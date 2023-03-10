@@ -20,10 +20,27 @@ use crate::{
 	util::{errors::CodeError, machine::wait_until_process_exits},
 };
 
+pub struct SingletonServer {
+	server: AsyncPipeListener,
+	lock_file: PathBuf,
+}
+
+impl SingletonServer {
+	pub async fn accept(&self) -> Result<AsyncPipe, CodeError> {
+		self.server.accept().await
+	}
+}
+
+impl Drop for SingletonServer {
+	fn drop(&mut self) {
+		let _ = std::fs::remove_file(&self.lock_file);
+	}
+}
+
 pub enum SingletonConnection {
 	/// This instance got the singleton lock. It started listening on a socket
-	/// and has the read/write pair.
-	Singleton(AsyncPipeListener),
+	/// and has the read/write pair. If this gets dropped, the lock is released.
+	Singleton(SingletonServer),
 	/// Another instance is a singleton, and this client connected to it.
 	Client(AsyncPipe),
 }
@@ -36,12 +53,12 @@ struct LockFileMatter {
 	pid: u32,
 }
 
-pub async fn acquire_singleton(lock_file_path: &Path) -> Result<SingletonConnection, CodeError> {
+pub async fn acquire_singleton(lock_file: PathBuf) -> Result<SingletonConnection, CodeError> {
 	let mut file = OpenOptions::new()
 		.read(true)
 		.write(true)
 		.create(true)
-		.open(lock_file_path)
+		.open(&lock_file)
 		.map_err(CodeError::SingletonLockfileOpenFailed)?;
 
 	if let Some(p) = try_getting_existing(&mut file).await {
@@ -61,7 +78,10 @@ pub async fn acquire_singleton(lock_file_path: &Path) -> Result<SingletonConnect
 	.map_err(CodeError::SingletonLockfileOpenFailed)?;
 
 	let server = listen_socket_rw_stream(&socket_path).await?;
-	Ok(SingletonConnection::Singleton(server))
+	Ok(SingletonConnection::Singleton(SingletonServer {
+		server,
+		lock_file,
+	}))
 }
 
 async fn try_getting_existing(mut file: &mut File) -> Option<AsyncPipe> {
@@ -105,7 +125,7 @@ mod tests {
 	#[tokio::test]
 	async fn test_acquires_singleton() {
 		let dir = tempfile::tempdir().expect("expected to make temp dir");
-		let s = acquire_singleton(&dir.path().join("lock"))
+		let s = acquire_singleton(dir.path().join("lock"))
 			.await
 			.expect("expected to acquire");
 
@@ -119,7 +139,7 @@ mod tests {
 	async fn test_acquires_client() {
 		let dir = tempfile::tempdir().expect("expected to make temp dir");
 		let lockfile = dir.path().join("lock");
-		let s1 = acquire_singleton(&lockfile)
+		let s1 = acquire_singleton(lockfile.clone())
 			.await
 			.expect("expected to acquire1");
 		match s1 {
@@ -129,7 +149,7 @@ mod tests {
 			_ => panic!("expected to be singleton"),
 		};
 
-		let s2 = acquire_singleton(&lockfile)
+		let s2 = acquire_singleton(lockfile)
 			.await
 			.expect("expected to acquire2");
 		match s2 {
