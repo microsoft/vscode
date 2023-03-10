@@ -32,7 +32,7 @@
 	border-left: 1px solid transparent;
 }
 
-.monaco-tl-indent > .indent-guide {
+.monaco-workbench:not(.reduce-motion) .monaco-tl-indent > .indent-guide {
 	transition: border-color 0.1s linear;
 }
 
