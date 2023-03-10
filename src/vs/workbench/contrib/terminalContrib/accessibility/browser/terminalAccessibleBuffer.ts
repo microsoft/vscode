@@ -91,7 +91,6 @@ export class AccessibleBufferWidget extends DisposableStore {
 
 	private _hide(): void {
 		this._accessibleBuffer.classList.remove('active');
-		this._xtermElement.classList.remove('hide');
 		this._xterm.raw.focus();
 	}
 
@@ -102,10 +101,15 @@ export class AccessibleBufferWidget extends DisposableStore {
 		if (model) {
 			this._bufferEditor.setModel(model);
 		}
+		this._bufferEditor.onDidFocusEditorText(() => this._accessibleBuffer.classList.add('active'));
 		if (!this._registered) {
 			this._bufferEditor.layout({ width: this._xtermElement.clientWidth, height: this._xtermElement.clientHeight });
 			this._bufferEditor.onKeyDown((e) => {
+				// tab moves focus mode will prematurely move focus to the next element before
+				// xterm can be focused
 				if (e.keyCode === KeyCode.Escape || e.keyCode === KeyCode.Tab) {
+					e.stopPropagation();
+					e.preventDefault();
 					this._hide();
 				}
 			});
@@ -117,7 +121,6 @@ export class AccessibleBufferWidget extends DisposableStore {
 		}
 		this._accessibleBuffer.tabIndex = -1;
 		this._accessibleBuffer.classList.add('active');
-		this._xtermElement.classList.add('hide');
 		if (this._lastContentLength !== fragment.length || this._refreshSelection) {
 			let lineNumber = 1;
 			const lineCount = model?.getLineCount();
