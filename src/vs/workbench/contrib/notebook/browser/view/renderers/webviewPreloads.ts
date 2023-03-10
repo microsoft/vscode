@@ -80,6 +80,9 @@ interface PreloadContext {
 	readonly isWorkspaceTrusted: boolean;
 }
 
+declare function requestIdleCallback(callback: (args: IdleDeadline) => void, options?: { timeout: number }): number;
+declare function cancelIdleCallback(handle: number): void;
+
 declare function __import(path: string): Promise<any>;
 
 async function webviewPreloads(ctx: PreloadContext) {
@@ -96,6 +99,43 @@ async function webviewPreloads(ctx: PreloadContext) {
 	delete (globalThis as any).acquireVsCodeApi;
 
 	const tokenizationStyleElement = document.querySelector('style#vscode-tokenization-styles');
+	const runWhenIdle: (callback: (idle: IdleDeadline) => void, timeout?: number) => IDisposable = (typeof requestIdleCallback !== 'function' || typeof cancelIdleCallback !== 'function')
+		? (runner) => {
+			setTimeout(() => {
+				if (disposed) {
+					return;
+				}
+				const end = Date.now() + 15; // one frame at 64fps
+				runner(Object.freeze({
+					didTimeout: true,
+					timeRemaining() {
+						return Math.max(0, end - Date.now());
+					}
+				}));
+			});
+			let disposed = false;
+			return {
+				dispose() {
+					if (disposed) {
+						return;
+					}
+					disposed = true;
+				}
+			};
+		}
+		: (runner, timeout?) => {
+			const handle: number = requestIdleCallback(runner, typeof timeout === 'number' ? { timeout } : undefined);
+			let disposed = false;
+			return {
+				dispose() {
+					if (disposed) {
+						return;
+					}
+					disposed = true;
+					cancelIdleCallback(handle);
+				}
+			};
+		};
 
 	const handleInnerClick = (event: MouseEvent) => {
 		if (!event || !event.view || !event.view.document) {
@@ -1145,9 +1185,17 @@ async function webviewPreloads(ctx: PreloadContext) {
 
 			case 'html': {
 				const data = event.data;
-				outputRunner.enqueue(data.outputId, signal => {
-					return viewModel.renderOutputCell(data, signal);
-				});
+				if (data.createOnIdle) {
+					outputRunner.enqueueIdle(data.outputId, signal => {
+						// cancel the idle callback if it exists
+						return viewModel.renderOutputCell(data, signal);
+					});
+				} else {
+					outputRunner.enqueue(data.outputId, signal => {
+						// cancel the idle callback if it exists
+						return viewModel.renderOutputCell(data, signal);
+					});
+				}
 				break;
 			}
 			case 'view-scroll':
@@ -1491,6 +1539,9 @@ async function webviewPreloads(ctx: PreloadContext) {
 		 * ensuring that it's run in-order.
 		 */
 		public enqueue(outputId: string, action: (cancelSignal: AbortSignal) => unknown) {
+			this.pendingOutputCreationRequest.get(outputId)?.dispose();
+			this.pendingOutputCreationRequest.delete(outputId);
+
 			const record = this.outputs.get(outputId);
 			if (!record) {
 				const controller = new AbortController();
@@ -1504,10 +1555,24 @@ async function webviewPreloads(ctx: PreloadContext) {
 			}
 		}
 
+		private pendingOutputCreationRequest: Map<string, IDisposable> = new Map();
+
+		public enqueueIdle(outputId: string, action: (cancelSignal: AbortSignal) => unknown) {
+			this.pendingOutputCreationRequest.get(outputId)?.dispose();
+			outputRunner.pendingOutputCreationRequest.set(outputId, runWhenIdle(() => {
+				outputRunner.enqueue(outputId, action);
+				outputRunner.pendingOutputCreationRequest.delete(outputId);
+			}));
+		}
+
 		/**
 		 * Cancels the rendering of all outputs.
 		 */
 		public cancelAll() {
+			// Delete all pending idle requests
+			this.pendingOutputCreationRequest.forEach(r => r.dispose());
+			this.pendingOutputCreationRequest.clear();
+
 			for (const { abort } of this.outputs.values()) {
 				abort.abort();
 			}
@@ -1518,6 +1583,10 @@ async function webviewPreloads(ctx: PreloadContext) {
 		 * Cancels any ongoing rendering out an output.
 		 */
 		public cancelOutput(outputId: string) {
+			// Delete the pending idle request if it exists
+			this.pendingOutputCreationRequest.get(outputId)?.dispose();
+			this.pendingOutputCreationRequest.delete(outputId);
+
 			const output = this.outputs.get(outputId);
 			if (output) {
 				output.abort.abort();

@@ -6,7 +6,7 @@
 import * as osPath from 'vs/base/common/path';
 import { IMouseWheelEvent } from 'vs/base/browser/mouseEvent';
 import { coalesce } from 'vs/base/common/arrays';
-import { DeferredPromise, runWhenIdle } from 'vs/base/common/async';
+import { DeferredPromise } from 'vs/base/common/async';
 import { decodeBase64 } from 'vs/base/common/buffer';
 import { Emitter, Event } from 'vs/base/common/event';
 import { getExtensionForMimeType } from 'vs/base/common/mime';
@@ -126,6 +126,7 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 	element: HTMLElement;
 	webview: IWebviewElement | undefined = undefined;
 	insetMapping: Map<IDisplayOutputViewModel, ICachedInset<T>> = new Map();
+	pendingWebviewIdelInsetCreationRequest: Map<IDisplayOutputViewModel, ICachedInset<T>> = new Map();
 	pendingInsetCreationRequest: Map<IDisplayOutputViewModel, IDisposable> = new Map();
 	readonly markupPreviewMapping = new Map<string, IMarkupCellInitialization>();
 	private hiddenInsetMapping: Set<IDisplayOutputViewModel> = new Set();
@@ -1279,12 +1280,33 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 		}
 	}
 
-	createOutput(cellInfo: T, content: IInsetRenderOutput, cellTop: number, offset: number, createWhenIdle: boolean): void {
+	requestCreateOutputWhenWebviewIdle(cellInfo: T, content: IInsetRenderOutput, cellTop: number, offset: number) {
+		if (this._disposed) {
+			return;
+		}
+
+		if (this.insetMapping.has(content.source)) {
+			return;
+		}
+
+		if (this.pendingWebviewIdelInsetCreationRequest.has(content.source)) {
+			return;
+		}
+
+		const { message, renderer } = this._createOutputCreationMessage(cellInfo, content, cellTop, offset, true);
+		this._sendMessageToWebview(message);
+		this.pendingWebviewIdelInsetCreationRequest.set(content.source, { outputId: message.outputId, cellInfo: cellInfo, renderer, cachedCreation: message });
+	}
+
+	createOutput(cellInfo: T, content: IInsetRenderOutput, cellTop: number, offset: number): void {
 		if (this._disposed) {
 			return;
 		}
 
 		const cachedInset = this.insetMapping.get(content.source);
+
+		// we now request to render the output immediately, so we can remove the pending request
+		this.pendingWebviewIdelInsetCreationRequest.delete(content.source);
 
 		if (cachedInset && this._cachedInsetEqual(cachedInset, content)) {
 			this.hiddenInsetMapping.delete(content.source);
@@ -1300,70 +1322,79 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 
 		// create new output
 		const createOutput = () => {
-			const messageBase = {
-				type: 'html',
-				executionId: cellInfo.executionId,
-				cellId: cellInfo.cellId,
-				cellTop: cellTop,
-				outputOffset: offset,
-				left: 0,
-				requiredPreloads: [],
-			} as const;
-
-			let message: ICreationRequestMessage;
-			let renderer: INotebookRendererInfo | undefined;
-			if (content.type === RenderOutputType.Extension) {
-				const output = content.source.model;
-				renderer = content.renderer;
-				const first = output.outputs.find(op => op.mime === content.mimeType)!;
-
-				// TODO@jrieken - the message can contain "bytes" and those are transferable
-				// which improves IPC performance and therefore should be used. However, it does
-				// means that the bytes cannot be used here anymore
-				message = {
-					...messageBase,
-					outputId: output.outputId,
-					rendererId: content.renderer.id,
-					content: {
-						type: RenderOutputType.Extension,
-						outputId: output.outputId,
-						metadata: output.metadata,
-						output: {
-							mime: first.mime,
-							valueBytes: first.data.buffer,
-						},
-						allOutputs: output.outputs.map(output => ({ mime: output.mime })),
-					},
-				};
-			} else {
-				message = {
-					...messageBase,
-					outputId: UUID.generateUuid(),
-					content: {
-						type: content.type,
-						htmlContent: content.htmlContent,
-					}
-				};
-			}
-
+			const { message, renderer } = this._createOutputCreationMessage(cellInfo, content, cellTop, offset, false);
 			this._sendMessageToWebview(message);
 			this.insetMapping.set(content.source, { outputId: message.outputId, cellInfo: cellInfo, renderer, cachedCreation: message });
 			this.hiddenInsetMapping.delete(content.source);
 			this.reversedInsetMapping.set(message.outputId, content.source);
 		};
 
-		if (createWhenIdle) {
-			this.pendingInsetCreationRequest.get(content.source)?.dispose();
-			this.pendingInsetCreationRequest.set(content.source, runWhenIdle(() => {
-				createOutput();
-				this.pendingInsetCreationRequest.delete(content.source);
-			}));
+		// if (createWhenIdle) {
+		// 	this.pendingInsetCreationRequest.get(content.source)?.dispose();
+		// 	this.pendingInsetCreationRequest.set(content.source, runWhenIdle(() => {
+		// 		createOutput();
+		// 		this.pendingInsetCreationRequest.delete(content.source);
+		// 	}));
+		// } else {
+		// }
+		this.pendingInsetCreationRequest.get(content.source)?.dispose();
+		this.pendingInsetCreationRequest.delete(content.source);
+		createOutput();
+
+	}
+
+	private _createOutputCreationMessage(cellInfo: T, content: IInsetRenderOutput, cellTop: number, offset: number, createOnIdle: boolean): { readonly message: ICreationRequestMessage; readonly renderer: INotebookRendererInfo | undefined } {
+		const messageBase = {
+			type: 'html',
+			executionId: cellInfo.executionId,
+			cellId: cellInfo.cellId,
+			cellTop: cellTop,
+			outputOffset: offset,
+			left: 0,
+			requiredPreloads: [],
+			createOnIdle: createOnIdle
+		} as const;
+
+		let message: ICreationRequestMessage;
+		let renderer: INotebookRendererInfo | undefined;
+		if (content.type === RenderOutputType.Extension) {
+			const output = content.source.model;
+			renderer = content.renderer;
+			const first = output.outputs.find(op => op.mime === content.mimeType)!;
+
+			// TODO@jrieken - the message can contain "bytes" and those are transferable
+			// which improves IPC performance and therefore should be used. However, it does
+			// means that the bytes cannot be used here anymore
+			message = {
+				...messageBase,
+				outputId: output.outputId,
+				rendererId: content.renderer.id,
+				content: {
+					type: RenderOutputType.Extension,
+					outputId: output.outputId,
+					metadata: output.metadata,
+					output: {
+						mime: first.mime,
+						valueBytes: first.data.buffer,
+					},
+					allOutputs: output.outputs.map(output => ({ mime: output.mime })),
+				},
+			};
 		} else {
-			this.pendingInsetCreationRequest.get(content.source)?.dispose();
-			this.pendingInsetCreationRequest.delete(content.source);
-			createOutput();
+			message = {
+				...messageBase,
+				outputId: UUID.generateUuid(),
+				content: {
+					type: content.type,
+					htmlContent: content.htmlContent,
+				}
+			};
 		}
 
+		return {
+			message,
+			renderer
+		};
 	}
 
 	updateOutput(cellInfo: T, content: IInsetRenderOutput, cellTop: number, offset: number): void {
@@ -1372,7 +1403,7 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 		}
 
 		if (!this.insetMapping.has(content.source)) {
-			this.createOutput(cellInfo, content, cellTop, offset, false);
+			this.createOutput(cellInfo, content, cellTop, offset);
 			return;
 		}
 
