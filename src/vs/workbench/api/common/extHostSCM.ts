@@ -22,6 +22,9 @@ import { ThemeIcon } from 'vs/base/common/themables';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { MarkdownString } from 'vs/workbench/api/common/extHostTypeConverters';
 import { checkProposedApiEnabled, isProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
+import { normalizeDriveLetter } from 'vs/base/common/labels';
+import { toPosixPath } from 'vs/base/common/extpath';
+import { normalizePath } from 'vs/base/common/resources';
 
 type ProviderHandle = number;
 type GroupHandle = number;
@@ -757,7 +760,7 @@ export class ExtHostSCM implements ExtHostSCMShape {
 		});
 
 		const handle = ExtHostSCM._handlePool++;
-		const sourceControl = new ExtHostSourceControl(extension, this._proxy, this._commands, id, label, rootUri);
+		const sourceControl = new ExtHostSourceControl(extension, this._proxy, this._commands, id, label, rootUri ? normalizePath(rootUri.with({ path: toPosixPath(normalizeDriveLetter(rootUri.fsPath)) })) : undefined);
 		this._sourceControls.set(handle, sourceControl);
 
 		const sourceControls = this._sourceControlsByExtension.get(extension.identifier) || [];
