@@ -498,8 +498,9 @@ export class ContentHoverWidget extends Disposable implements IContentWidget {
 	// Only called once, define here a default size
 	private _setLayoutOfResizableElement(defaultSize: dom.Dimension): void {
 
-		// TODO: 1) Make resizing correct generally between the resizable element and the container dom node
+		// TODO: 1) Polish code, annotate, make it cleaner. Understand what all the entites correspond to, if some are superfluous, not needed
 		// TODO: 2) Do correct calculations of maximum height above and below in order to decide which sashes to enable
+		// TODO: 3) Do not let infinite resizing, set a maximum resize size which depends on the current maximum size you can show
 
 		// Setting the initial layout of the resizable element, before calling the resize function
 
