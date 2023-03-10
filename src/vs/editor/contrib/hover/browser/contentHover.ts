@@ -431,6 +431,7 @@ export class ContentHoverWidget extends Disposable implements IContentWidget {
 
 	// Adding a resizable element directly to the content hover widget
 	private readonly _element: ResizableHTMLElement = new ResizableHTMLElement();
+	private readonly _disposables = new DisposableStore();
 
 	// Placing the getDomNode() call after instantiating the element
 	private readonly _focusTracker = this._register(dom.trackFocus(this.getDomNode()));
@@ -483,6 +484,21 @@ export class ContentHoverWidget extends Disposable implements IContentWidget {
 		// Resizable Elemenent contains as a child the hover container dom node
 		// TODO: Adding the line below makes the content hover disappear
 		this._element.domNode.appendChild(this._hover.containerDomNode);
+
+		this._disposables.add(this._element.onDidWillResize(() => {
+			console.log('Inside of onDidWillResize of ContentHoverWidget');
+			// TODO
+		}));
+		this._disposables.add(this._element.onDidResize(e => {
+			console.log('Inside of onDidResize of ContentHoverWidget');
+			// TODO
+		}));
+
+		// TODO: place in other function once figured out the code
+		this._element.enableSashes(true, true, false, false);
+		const height = 200;
+		const width = 200;
+		this._element.layout(height, width);
 	}
 
 	public override dispose(): void {
