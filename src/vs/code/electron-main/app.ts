@@ -530,7 +530,7 @@ export class CodeApplication extends Disposable {
 
 		// Resolve unique machine ID
 		this.logService.trace('Resolving machine identifier...');
-		const machineId = await resolveMachineId(this.stateService);
+		const machineId = await resolveMachineId(this.stateService, this.logService);
 		this.logService.trace(`Resolved machine identifier: ${machineId}`);
 
 		// Shared process
@@ -1196,7 +1196,6 @@ export class CodeApplication extends Disposable {
 
 	private afterWindowOpen(accessor: ServicesAccessor, sharedProcess: SharedProcess): void {
 		const telemetryService = accessor.get(ITelemetryService);
-		const updateService = accessor.get(IUpdateService);
 
 		// Observe shared process for errors
 		this.handleSharedProcessErrors(telemetryService, sharedProcess);
@@ -1211,11 +1210,6 @@ export class CodeApplication extends Disposable {
 				method: request.method
 			});
 		});
-
-		// Initialize update service
-		if (updateService instanceof Win32UpdateService || updateService instanceof LinuxUpdateService || updateService instanceof DarwinUpdateService) {
-			updateService.initialize();
-		}
 
 		// Start to fetch shell environment (if needed) after window has opened
 		// Since this operation can take a long time, we want to warm it up while

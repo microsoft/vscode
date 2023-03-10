@@ -27,7 +27,7 @@ export class StartSessionAction extends EditorAction2 {
 			title: { value: localize('run', 'Start Session'), original: 'Start Session' },
 			category: AbstractInteractiveEditorAction.category,
 			f1: true,
-			precondition: ContextKeyExpr.and(CTX_INTERACTIVE_EDITOR_HAS_PROVIDER, EditorContextKeys.writable, CTX_INTERACTIVE_EDITOR_VISIBLE.negate()),
+			precondition: ContextKeyExpr.and(CTX_INTERACTIVE_EDITOR_HAS_PROVIDER, EditorContextKeys.writable),
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
 				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyCode.KeyI)

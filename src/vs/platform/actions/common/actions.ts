@@ -179,6 +179,9 @@ export class MenuId {
 	static readonly MergeBaseToolbar = new MenuId('MergeBaseToolbar');
 	static readonly MergeInputResultToolbar = new MenuId('MergeToolbarResultToolbar');
 	static readonly InlineSuggestionToolbar = new MenuId('InlineSuggestionToolbar');
+	static readonly InteractiveSessionContext = new MenuId('InteractiveSessionContext');
+	static readonly InteractiveSessionCodeBlock = new MenuId('InteractiveSessionCodeblock');
+	static readonly InteractiveSessionTitle = new MenuId('InteractiveSessionTitle');
 
 	/**
 	 * Create or reuse a `MenuId` with the given identifier

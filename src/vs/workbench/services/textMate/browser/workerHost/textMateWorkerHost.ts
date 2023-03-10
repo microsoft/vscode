@@ -144,7 +144,7 @@ export class TextMateWorkerHost implements IDisposable {
 			}
 
 			store.add(keepAliveWhenAttached(textModel, () => {
-				const controller = new TextMateWorkerTokenizerController(textModel, workerProxy, this._languageService.languageIdCodec, tokenStore, INITIAL);
+				const controller = new TextMateWorkerTokenizerController(textModel, workerProxy, this._languageService.languageIdCodec, tokenStore, INITIAL, this._configurationService);
 				this._workerTokenizerControllers.set(textModel.uri.toString(), controller);
 
 				return toDisposable(() => {

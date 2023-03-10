@@ -266,7 +266,9 @@ export class ExtHostTunnelService extends Disposable implements IExtHostTunnelSe
 				oldPorts = newPorts;
 				await this._proxy.$onFoundNewCandidates(oldPorts);
 			}
-			await (new Promise<void>(resolve => setTimeout(() => resolve(), this.calculateDelay(movingAverage.value))));
+			const delay = this.calculateDelay(movingAverage.value);
+			this.logService.trace(`ForwardedPorts: (ExtHostTunnelService) next candidate port scan in ${delay} ms.`);
+			await (new Promise<void>(resolve => setTimeout(() => resolve(), delay)));
 		}
 	}
 

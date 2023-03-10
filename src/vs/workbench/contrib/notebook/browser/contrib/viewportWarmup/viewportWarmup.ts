@@ -31,18 +31,16 @@ class NotebookViewportContribution extends Disposable implements INotebookEditor
 			this._warmupViewport.schedule();
 		}));
 
-		if (accessibilityService.isScreenReaderOptimized()) {
-			this._warmupDocument = new RunOnceScheduler(() => this._warmupDocumentNow(), 200);
-			this._register(this._warmupDocument);
-			this._register(this._notebookEditor.onDidChangeModel(() => {
-				if (this._notebookEditor.hasModel()) {
-					this._warmupDocument?.schedule();
-				}
-			}));
-
+		this._warmupDocument = new RunOnceScheduler(() => this._warmupDocumentNow(), 200);
+		this._register(this._warmupDocument);
+		this._register(this._notebookEditor.onDidAttachViewModel(() => {
 			if (this._notebookEditor.hasModel()) {
 				this._warmupDocument?.schedule();
 			}
+		}));
+
+		if (this._notebookEditor.hasModel()) {
+			this._warmupDocument?.schedule();
 		}
 	}
 
@@ -55,7 +53,7 @@ class NotebookViewportContribution extends Disposable implements INotebookEditor
 					// TODO@rebornix currently we disable markdown cell rendering in webview for accessibility
 					// this._notebookEditor.createMarkupPreview(cell);
 				} else if (cell?.cellKind === CellKind.Code) {
-					this._renderCell((cell as CodeCellViewModel));
+					this._warmupCodeCell((cell as CodeCellViewModel));
 				}
 			}
 		}
@@ -77,12 +75,12 @@ class NotebookViewportContribution extends Disposable implements INotebookEditor
 			if (cell?.cellKind === CellKind.Markup && cell?.getEditState() === CellEditState.Preview && !cell.isInputCollapsed) {
 				(this._notebookEditor as INotebookEditorDelegate).createMarkupPreview(cell);
 			} else if (cell?.cellKind === CellKind.Code) {
-				this._renderCell((cell as CodeCellViewModel));
+				this._warmupCodeCell((cell as CodeCellViewModel));
 			}
 		});
 	}
 
-	private _renderCell(viewCell: CodeCellViewModel) {
+	private _warmupCodeCell(viewCell: CodeCellViewModel) {
 		if (viewCell.isOutputCollapsed) {
 			return;
 		}
@@ -111,7 +109,7 @@ class NotebookViewportContribution extends Disposable implements INotebookEditor
 			}
 
 			const result: IInsetRenderOutput = { type: RenderOutputType.Extension, renderer, source: output, mimeType: pickedMimeTypeRenderer.mimeType };
-			this._notebookEditor.createOutput(viewCell, result, 0);
+			this._notebookEditor.createOutput(viewCell, result, 0, true);
 		}
 
 	}

@@ -20,7 +20,7 @@ export interface IInteractiveSessionConfiguration {
 	};
 }
 
-export interface IInteractiveSessionEditorOptions {
+export interface IInteractiveSessionEditorConfiguration {
 	readonly inputEditor: IInteractiveSessionInputEditorOptions;
 	readonly resultEditor: IInteractiveSessionResultEditorOptions;
 }
@@ -44,14 +44,14 @@ export interface IInteractiveSessionResultEditorOptions {
 }
 
 
-export class InteractiveSessionInputOptions extends Disposable {
+export class InteractiveSessionEditorOptions extends Disposable {
 	private static readonly lineHeightEm = 1.4;
 
 	private readonly _onDidChange = this._register(new Emitter<void>());
 	readonly onDidChange = this._onDidChange.event;
 
-	private _config!: IInteractiveSessionEditorOptions;
-	public get configuration(): IInteractiveSessionEditorOptions {
+	private _config!: IInteractiveSessionEditorConfiguration;
+	public get configuration(): IInteractiveSessionEditorConfiguration {
 		return this._config;
 	}
 
@@ -83,7 +83,7 @@ export class InteractiveSessionInputOptions extends Disposable {
 			}
 		}));
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
-			if (InteractiveSessionInputOptions.relevantSettingIds.some(id => e.affectsConfiguration(id))) {
+			if (InteractiveSessionEditorOptions.relevantSettingIds.some(id => e.affectsConfiguration(id))) {
 				this.update();
 			}
 		}));
@@ -104,7 +104,7 @@ export class InteractiveSessionInputOptions extends Disposable {
 				fontSize: interactiveSessionSidebarEditor.fontSize,
 				fontFamily: interactiveSessionSidebarEditor.fontFamily === 'default' ? editorConfig.fontFamily : interactiveSessionSidebarEditor.fontFamily,
 				fontWeight: interactiveSessionSidebarEditor.fontWeight,
-				lineHeight: interactiveSessionSidebarEditor.lineHeight ? interactiveSessionSidebarEditor.lineHeight : InteractiveSessionInputOptions.lineHeightEm * interactiveSessionSidebarEditor.fontSize,
+				lineHeight: interactiveSessionSidebarEditor.lineHeight ? interactiveSessionSidebarEditor.lineHeight : InteractiveSessionEditorOptions.lineHeightEm * interactiveSessionSidebarEditor.fontSize,
 				bracketPairColorization: {
 					enabled: this.configurationService.getValue<boolean>('editor.bracketPairColorization.enabled'),
 					independentColorPoolPerBracketType: this.configurationService.getValue<boolean>('editor.bracketPairColorization.independentColorPoolPerBracketType'),

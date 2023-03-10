@@ -5,6 +5,7 @@
 
 import * as dom from 'vs/base/browser/dom';
 import { Button } from 'vs/base/browser/ui/button/button';
+import { renderIcon } from 'vs/base/browser/ui/iconLabel/iconLabels';
 import { IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
 import { ITreeNode, ITreeRenderer } from 'vs/base/browser/ui/tree/tree';
@@ -27,7 +28,11 @@ import { ContextMenuController } from 'vs/editor/contrib/contextmenu/browser/con
 import { IMarkdownRenderResult, MarkdownRenderer } from 'vs/editor/contrib/markdownRenderer/browser/markdownRenderer';
 import { ViewportSemanticTokensContribution } from 'vs/editor/contrib/semanticTokens/browser/viewportSemanticTokens';
 import { SmartSelectController } from 'vs/editor/contrib/smartSelect/browser/smartSelect';
+import { WordHighlighterContribution } from 'vs/editor/contrib/wordHighlighter/browser/wordHighlighter';
 import { localize } from 'vs/nls';
+import { MenuWorkbenchToolBar } from 'vs/platform/actions/browser/toolbar';
+import { MenuId } from 'vs/platform/actions/common/actions';
+import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILogService } from 'vs/platform/log/common/log';
@@ -36,8 +41,10 @@ import { FloatingClickMenu } from 'vs/workbench/browser/codeeditor';
 import { MenuPreventer } from 'vs/workbench/contrib/codeEditor/browser/menuPreventer';
 import { SelectionClipboardContributionID } from 'vs/workbench/contrib/codeEditor/browser/selectionClipboard';
 import { getSimpleEditorOptions } from 'vs/workbench/contrib/codeEditor/browser/simpleEditorOptions';
-import { InteractiveSessionInputOptions } from 'vs/workbench/contrib/interactiveSession/browser/interactiveSessionOptions';
+import { InteractiveSessionEditorOptions } from 'vs/workbench/contrib/interactiveSession/browser/interactiveSessionOptions';
+import { IInteractiveSessionResponseCommandFollowup } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionModel';
 import { IInteractiveRequestViewModel, IInteractiveResponseViewModel, isRequestVM, isResponseVM } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionViewModel';
+import { getNWords } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionWordCounter';
 
 const $ = dom.$;
 
@@ -45,10 +52,11 @@ export type InteractiveTreeItem = IInteractiveRequestViewModel | IInteractiveRes
 
 interface IInteractiveListItemTemplate {
 	rowContainer: HTMLElement;
-	header: HTMLElement;
+	titleToolbar: MenuWorkbenchToolBar;
 	avatar: HTMLElement;
 	username: HTMLElement;
 	value: HTMLElement;
+	templateDisposables: IDisposable;
 	elementDisposables: DisposableStore;
 }
 
@@ -56,8 +64,6 @@ interface IItemHeightChangeParams {
 	element: InteractiveTreeItem;
 	height: number;
 }
-
-const wordRenderRate = 8; // words/sec
 
 const forceVerboseLayoutTracing = false;
 
@@ -78,15 +84,16 @@ export class InteractiveListItemRenderer extends Disposable implements ITreeRend
 	private _currentLayoutWidth: number = 0;
 
 	constructor(
-		private readonly options: InteractiveSessionInputOptions,
+		private readonly editorOptions: InteractiveSessionEditorOptions,
 		private readonly delegate: { getListLength(): number },
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IConfigurationService private readonly configService: IConfigurationService,
 		@ILogService private readonly logService: ILogService,
+		@ICommandService private readonly commandService: ICommandService,
 	) {
 		super();
 		this.renderer = this.instantiationService.createInstance(MarkdownRenderer, {});
-		this._editorPool = this._register(this.instantiationService.createInstance(EditorPool, this.options));
+		this._editorPool = this._register(this.instantiationService.createInstance(EditorPool, this.editorOptions));
 	}
 
 	get templateId(): string {
@@ -95,14 +102,35 @@ export class InteractiveListItemRenderer extends Disposable implements ITreeRend
 
 	private traceLayout(method: string, message: string) {
 		if (forceVerboseLayoutTracing) {
-			this.logService.info(`${method}: ${message}`);
+			this.logService.info(`InteractiveListItemRenderer#${method}: ${message}`);
 		} else {
-			this.logService.trace(`${method}: ${message}`);
+			this.logService.trace(`InteractiveListItemRenderer#${method}: ${message}`);
 		}
 	}
 
-	private shouldRenderProgressively(): boolean {
-		return this.configService.getValue('interactive.experimental.progressiveRendering');
+	private shouldRenderProgressively(element: IInteractiveResponseViewModel): boolean {
+		return !this.configService.getValue('interactive.experimental.disableProgressiveRendering') && element.progressiveResponseRenderingEnabled;
+	}
+
+	private getProgressiveRenderRate(element: IInteractiveResponseViewModel): number {
+		const configuredRate = this.configService.getValue('interactive.experimental.progressiveRenderingRate');
+		if (typeof configuredRate === 'number') {
+			return configuredRate;
+		}
+
+		if (element.isComplete) {
+			return 40;
+		}
+
+		if (element.contentUpdateTimings && element.contentUpdateTimings.impliedWordLoadRate) {
+			// This doesn't account for dead time after the last update. When the previous update is the final one and the model is only waiting for followupQuestions, that's good.
+			// When there was one quick update and then you are waiting longer for the next one, that's not good since the rate should be decreasing.
+			// If it's an issue, we can change this to be based on the total time from now to the beginning.
+			const rateBoost = 1.5;
+			return element.contentUpdateTimings.impliedWordLoadRate * rateBoost;
+		}
+
+		return 8;
 	}
 
 	layout(width: number): void {
@@ -113,15 +141,22 @@ export class InteractiveListItemRenderer extends Disposable implements ITreeRend
 	}
 
 	renderTemplate(container: HTMLElement): IInteractiveListItemTemplate {
+		const templateDisposables = new DisposableStore();
 		const rowContainer = dom.append(container, $('.interactive-item-container'));
 		const header = dom.append(rowContainer, $('.header'));
-		const avatar = dom.append(header, $('.avatar'));
-		const username = document.createElement('h3');
-		header.appendChild(username);
+		const user = dom.append(header, $('.user'));
+		const avatar = dom.append(user, $('.avatar'));
+		const username = dom.append(user, $('h3.username'));
 		const value = dom.append(rowContainer, $('.value'));
 		const elementDisposables = new DisposableStore();
 
-		const template: IInteractiveListItemTemplate = { header, avatar, username, value, rowContainer, elementDisposables };
+		const titleToolbar = templateDisposables.add(this.instantiationService.createInstance(MenuWorkbenchToolBar, header, MenuId.InteractiveSessionTitle, {
+			menuOptions: {
+				shouldForwardArgs: true
+			}
+		}));
+
+		const template: IInteractiveListItemTemplate = { avatar, username, value, rowContainer, elementDisposables, titleToolbar, templateDisposables };
 		return template;
 	}
 
@@ -130,98 +165,124 @@ export class InteractiveListItemRenderer extends Disposable implements ITreeRend
 		const kind = isRequestVM(element) ? 'request' : 'response';
 		this.traceLayout('renderElement', `${kind}, index=${index}`);
 
+		templateData.titleToolbar.context = element;
+
 		templateData.rowContainer.classList.toggle('interactive-request', isRequestVM(element));
 		templateData.rowContainer.classList.toggle('interactive-response', isResponseVM(element));
-		templateData.username.textContent = isRequestVM(element) ? localize('username', "Username") : localize('response', "Response");
+		templateData.username.textContent = element.username;
 
-		const avatarIcon = dom.$(ThemeIcon.asCSSSelector(isRequestVM(element) ? Codicon.account : Codicon.hubot));
-		templateData.avatar.replaceChildren(avatarIcon);
+		if (element.avatarIconUri) {
+			const avatarIcon = dom.$<HTMLImageElement>('img.icon');
+			avatarIcon.src = element.avatarIconUri.toString();
+			templateData.avatar.replaceChildren(avatarIcon);
+		} else {
+			const defaultIcon = isRequestVM(element) ? Codicon.account : Codicon.hubot;
+			const avatarIcon = dom.$(ThemeIcon.asCSSSelector(defaultIcon));
+			templateData.avatar.replaceChildren(avatarIcon);
+		}
 
-		if (isResponseVM(element) && index === this.delegate.getListLength() - 1 && (!element.isComplete || element.renderData) && this.shouldRenderProgressively()) {
+		// Do a progressive render if
+		// - This the last response in the list
+		// - And the response is not complete
+		//   - Or, we previously started a progressive rendering of this element (if the element is complete, we will finish progressive rendering with a very fast rate)
+		// - And, the feature is not disabled in configuration
+		if (isResponseVM(element) && index === this.delegate.getListLength() - 1 && (!element.isComplete || element.renderData) && this.shouldRenderProgressively(element)) {
 			this.traceLayout('renderElement', `start progressive render ${kind}, index=${index}`);
 			const progressiveRenderingDisposables = templateData.elementDisposables.add(new DisposableStore());
 			const timer = templateData.elementDisposables.add(new IntervalTimer());
-			const runProgressiveRender = () => {
-				if (this.doNextProgressiveRender(element, index, templateData, progressiveRenderingDisposables)) {
+			const runProgressiveRender = (initial?: boolean) => {
+				if (this.doNextProgressiveRender(element, index, templateData, !!initial, progressiveRenderingDisposables)) {
 					timer.cancel();
 				}
 			};
-			runProgressiveRender();
-			timer.cancelAndSet(runProgressiveRender, 1000 / wordRenderRate);
+			runProgressiveRender(true);
+			timer.cancelAndSet(runProgressiveRender, 100);
 		} else if (isResponseVM(element)) {
 			this.basicRenderElement(element.response.value, element, index, templateData);
 		} else {
-			this.basicRenderElement(element.model.message, element, index, templateData);
+			this.basicRenderElement(element.message, element, index, templateData);
 		}
 	}
 
 	private basicRenderElement(markdownValue: string, element: InteractiveTreeItem, index: number, templateData: IInteractiveListItemTemplate) {
-		const result = this.renderMarkdown(element, index, new MarkdownString(markdownValue), templateData.elementDisposables, templateData);
+		const result = this.renderMarkdown(new MarkdownString(markdownValue), templateData.elementDisposables, templateData);
 		dom.clearNode(templateData.value);
 		templateData.value.appendChild(result.element);
 		templateData.elementDisposables.add(result);
 
-		if (isResponseVM(element) && element.followups?.length && index === this.delegate.getListLength() - 1) {
+		if (isResponseVM(element) && element.errorDetails) {
+			const errorDetails = dom.append(templateData.value, $('.interactive-response-error-details', undefined, renderIcon(Codicon.error)));
+			errorDetails.appendChild($('span', undefined, element.errorDetails.message));
+		}
+
+		if (isResponseVM(element) && index === this.delegate.getListLength() - 1) {
 			const followupsContainer = dom.append(templateData.value, $('.interactive-response-followups'));
-			element.followups.forEach(q => {
-				const button = templateData.elementDisposables.add(new Button(followupsContainer, defaultButtonStyles));
-				button.label = `"${q}"`;
-				templateData.elementDisposables.add(button.onDidClick(() => this._onDidSelectFollowup.fire(q)));
-			});
+			const followups = element.commandFollowups ?? element.followups ?? [];
+			followups.forEach(q => this.renderFollowup(followupsContainer, templateData, q));
 		}
 	}
 
-	private doNextProgressiveRender(element: IInteractiveResponseViewModel, index: number, templateData: IInteractiveListItemTemplate, disposables: DisposableStore): boolean {
+	private renderFollowup(container: HTMLElement, templateData: IInteractiveListItemTemplate, followup: string | IInteractiveSessionResponseCommandFollowup): void {
+		const button = templateData.elementDisposables.add(new Button(container, { ...defaultButtonStyles, supportIcons: typeof followup !== 'string' }));
+		const label = typeof followup === 'string' ? `"${followup}"` : followup.title;
+		button.label = label;
+		if (typeof followup === 'string') {
+			// This should probably be a command as well?
+			templateData.elementDisposables.add(button.onDidClick(() => this._onDidSelectFollowup.fire(followup)));
+		} else {
+			templateData.elementDisposables.add(button.onDidClick(() => {
+				this.commandService.executeCommand(followup.commandId, ...(followup.args ?? []));
+			}));
+		}
+	}
+
+	private doNextProgressiveRender(element: IInteractiveResponseViewModel, index: number, templateData: IInteractiveListItemTemplate, isInRenderElement: boolean, disposables: DisposableStore): boolean {
 		disposables.clear();
-		const toRender = this.getProgressiveMarkdownToRender(element);
-		if (toRender) {
-			const isFullyRendered = element.renderData?.isFullyRendered;
-			if (isFullyRendered) {
-				this.traceLayout('runProgressiveRender', `end progressive render, index=${index}`);
-				if (element.isComplete) {
-					this.traceLayout('runProgressiveRender', `and disposing renderData, response is complete, index=${index}`);
-					element.renderData = undefined;
-				}
-				disposables.clear();
-				this.basicRenderElement(element.response.value, element, index, templateData);
-			} else {
-				const plusCursor = toRender.match(/```.*$/) ? toRender + `\n${InteractiveListItemRenderer.cursorCharacter}` : toRender + ` ${InteractiveListItemRenderer.cursorCharacter}`;
-				const result = this.renderMarkdown(element, index, new MarkdownString(plusCursor), disposables, templateData, true);
-				dom.clearNode(templateData.value);
-				templateData.value.appendChild(result.element);
-				disposables.add(result);
-			}
 
-			const height = templateData.rowContainer.offsetHeight;
-			element.currentRenderedHeight = height;
-			this._onDidChangeItemHeight.fire({ element, height: templateData.rowContainer.offsetHeight });
-			return !!isFullyRendered;
+		// TODO- this method has the side effect of updating element.renderData
+		const toRender = this.getProgressiveMarkdownToRender(element);
+		const isFullyRendered = element.renderData?.isFullyRendered;
+		if (isFullyRendered) {
+			// We've reached the end of the available content, so do a normal render
+			this.traceLayout('runProgressiveRender', `end progressive render, index=${index}`);
+			if (element.isComplete) {
+				this.traceLayout('runProgressiveRender', `and disposing renderData, response is complete, index=${index}`);
+				element.renderData = undefined;
+			} else {
+				this.traceLayout('runProgressiveRender', `Rendered all available words, but model is not complete.`);
+			}
+			disposables.clear();
+			this.basicRenderElement(element.response.value, element, index, templateData);
+		} else if (toRender) {
+			// Doing the progressive render
+			const plusCursor = toRender.match(/```.*$/) ? toRender + `\n${InteractiveListItemRenderer.cursorCharacter}` : toRender + ` ${InteractiveListItemRenderer.cursorCharacter}`;
+			const result = this.renderMarkdown(new MarkdownString(plusCursor), disposables, templateData, true);
+			dom.clearNode(templateData.value);
+			templateData.value.appendChild(result.element);
+			disposables.add(result);
+		} else {
+			// Nothing new to render, not done, keep waiting
+			return false;
 		}
 
-		return false;
+		// Some render happened - update the height
+		const height = templateData.rowContainer.offsetHeight;
+		element.currentRenderedHeight = height;
+		if (!isInRenderElement) {
+			this._onDidChangeItemHeight.fire({ element, height: templateData.rowContainer.offsetHeight });
+		}
+
+		return !!isFullyRendered;
 	}
 
-	private renderMarkdown(element: InteractiveTreeItem, index: number, markdown: IMarkdownString, disposables: DisposableStore, templateData: IInteractiveListItemTemplate, fillInIncompleteTokens = false): IMarkdownRenderResult {
+	private renderMarkdown(markdown: IMarkdownString, disposables: DisposableStore, templateData: IInteractiveListItemTemplate, fillInIncompleteTokens = false): IMarkdownRenderResult {
 		const disposablesList: IDisposable[] = [];
 		const result = this.renderer.render(markdown, {
 			fillInIncompleteTokens,
 			codeBlockRendererSync: (languageId, value) => {
-				const editorInfo = this._editorPool.get();
-				disposablesList.push(editorInfo);
-				editorInfo.setText(value);
-				editorInfo.setLanguage(languageId);
-
-				const layoutEditor = (context: string) => {
-					editorInfo.layout(this._currentLayoutWidth);
-				};
-
-				layoutEditor('init');
-
-				disposables.add(editorInfo.textModel.onDidChangeContent(() => {
-					layoutEditor('textmodel');
-				}));
-
-				return editorInfo.element;
+				const ref = this.renderCodeBlock(languageId, value, disposables);
+				disposablesList.push(ref);
+				return ref.object.element;
 			}
 		});
 
@@ -229,42 +290,47 @@ export class InteractiveListItemRenderer extends Disposable implements ITreeRend
 		return result;
 	}
 
-	private getProgressiveMarkdownToRender(element: IInteractiveResponseViewModel): string | undefined {
-		const renderData = element.renderData ?? { renderPosition: 0, renderTime: 0 };
-		const numWordsToRender = renderData.renderTime === 0 ?
-			1 :
-			renderData.renderPosition + Math.floor((Date.now() - renderData.renderTime) / 1000 * wordRenderRate);
+	private renderCodeBlock(languageId: string, value: string, disposables: DisposableStore): IDisposableReference<IInteractiveResultEditorInfo> {
+		const ref = this._editorPool.get();
+		const editorInfo = ref.object;
+		editorInfo.setText(value);
+		editorInfo.setLanguage(languageId);
 
-		if (numWordsToRender === renderData.renderPosition) {
+		const layoutEditor = (context: string) => {
+			editorInfo.layout(this._currentLayoutWidth);
+		};
+
+		layoutEditor('init');
+
+		disposables.add(editorInfo.textModel.onDidChangeContent(() => {
+			layoutEditor('textmodel');
+		}));
+
+		return ref;
+	}
+
+	private getProgressiveMarkdownToRender(element: IInteractiveResponseViewModel): string | undefined {
+		const renderData = element.renderData ?? { renderedWordCount: 0, lastRenderTime: 0 };
+		const rate = this.getProgressiveRenderRate(element);
+		const numWordsToRender = renderData.lastRenderTime === 0 ?
+			1 :
+			renderData.renderedWordCount +
+			// Additional words to render beyond what's already rendered
+			Math.floor((Date.now() - renderData.lastRenderTime) / 1000 * rate);
+
+		if (numWordsToRender === renderData.renderedWordCount) {
 			return undefined;
 		}
 
-		let wordCount = numWordsToRender;
-		let i = 0;
-		const wordSeparatorCharPattern = /[\s\|\-]/;
-		while (i < element.response.value.length && wordCount > 0) {
-			// Consume word separator chars
-			while (i < element.response.value.length && element.response.value[i].match(wordSeparatorCharPattern)) {
-				i++;
-			}
-
-			// Consume word chars
-			while (i < element.response.value.length && !element.response.value[i].match(wordSeparatorCharPattern)) {
-				i++;
-			}
-
-			wordCount--;
-		}
-
-		const value = element.response.value.substring(0, i);
+		const result = getNWords(element.response.value, numWordsToRender);
 
 		element.renderData = {
-			renderPosition: numWordsToRender - wordCount,
-			renderTime: Date.now(),
-			isFullyRendered: i >= element.response.value.length
+			renderedWordCount: result.actualWordCount,
+			lastRenderTime: Date.now(),
+			isFullyRendered: result.isFullString
 		};
 
-		return value;
+		return result.value;
 	}
 
 	disposeElement(node: ITreeNode<InteractiveTreeItem, FuzzyScore>, index: number, templateData: IInteractiveListItemTemplate): void {
@@ -272,6 +338,7 @@ export class InteractiveListItemRenderer extends Disposable implements ITreeRend
 	}
 
 	disposeTemplate(templateData: IInteractiveListItemTemplate): void {
+		templateData.templateDisposables.dispose();
 	}
 }
 
@@ -312,7 +379,7 @@ export class InteractiveSessionAccessibilityProvider implements IListAccessibili
 
 	getAriaLabel(element: InteractiveTreeItem): string {
 		if (isRequestVM(element)) {
-			return localize('interactiveRequest', "Request: {0}", element.model.message);
+			return localize('interactiveRequest', "Request: {0}", element.message);
 		}
 
 		if (isResponseVM(element)) {
@@ -332,29 +399,30 @@ interface IInteractiveResultEditorInfo {
 	dispose(): void;
 }
 
-class EditorPool extends Disposable {
-	private _pool: ResourcePool<IInteractiveResultEditorInfo>;
+class CodeBlockPart extends Disposable implements IInteractiveResultEditorInfo {
+	private readonly editor: CodeEditorWidget;
+	private readonly toolbar: MenuWorkbenchToolBar;
 
-	public get inUse(): ReadonlySet<IInteractiveResultEditorInfo> {
-		return this._pool.inUse;
-	}
+	public readonly textModel: ITextModel;
+	public readonly element: HTMLElement;
 
 	constructor(
-		private readonly options: InteractiveSessionInputOptions,
+		private readonly options: InteractiveSessionEditorOptions,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@ILanguageService private readonly languageService: ILanguageService,
 		@IModelService private readonly modelService: IModelService,
 	) {
 		super();
-		this._pool = this._register(new ResourcePool(() => this.editorFactory()));
+		this.element = $('.interactive-result-editor-wrapper');
 
-		// TODO listen to changes on options
-	}
+		this.toolbar = this._register(this.instantiationService.createInstance(MenuWorkbenchToolBar, this.element, MenuId.InteractiveSessionCodeBlock, {
+			menuOptions: {
+				shouldForwardArgs: true
+			}
+		}));
 
-	private editorFactory(): IInteractiveResultEditorInfo {
-		const disposables = new DisposableStore();
-		const wrapper = $('.interactive-result-editor-wrapper');
-		const editor = disposables.add(this.instantiationService.createInstance(CodeEditorWidget, wrapper, {
+		const editorElement = dom.append(this.element, $('.interactive-result-editor'));
+		this.editor = this._register(this.instantiationService.createInstance(CodeEditorWidget, editorElement, {
 			...getSimpleEditorOptions(),
 			readOnly: true,
 			wordWrap: 'off',
@@ -380,6 +448,7 @@ class EditorPool extends Disposable {
 				SelectionClipboardContributionID,
 				ContextMenuController.ID,
 
+				WordHighlighterContribution.ID,
 				ViewportSemanticTokensContribution.ID,
 				BracketMatchingController.ID,
 				FloatingClickMenu.ID,
@@ -387,65 +456,97 @@ class EditorPool extends Disposable {
 			])
 		}));
 
+		this._register(this.editor.onDidBlurEditorWidget(() => {
+			WordHighlighterContribution.get(this.editor)?.stopHighlighting();
+		}));
+		this._register(this.editor.onDidFocusEditorWidget(() => {
+			WordHighlighterContribution.get(this.editor)?.restoreViewState(true);
+		}));
+
 		const vscodeLanguageId = this.languageService.getLanguageIdByLanguageName('javascript');
-		const textModel = disposables.add(this.modelService.createModel('', this.languageService.createById(vscodeLanguageId), undefined));
-		editor.setModel(textModel);
-
-		return {
-			element: wrapper,
-			textModel,
-			layout: (width: number) => {
-				const realContentHeight = editor.getContentHeight();
-				editor.layout({ width, height: realContentHeight });
-			},
-			setText: (newText: string) => {
-				let currentText = textModel.getLinesContent().join('\n');
-				if (newText === currentText) {
-					return;
-				}
-
-				let removedChars = 0;
-				if (currentText.endsWith(` ${InteractiveListItemRenderer.cursorCharacter}`)) {
-					removedChars = 2;
-				} else if (currentText.endsWith(InteractiveListItemRenderer.cursorCharacter)) {
-					removedChars = 1;
-				}
-
-				if (removedChars > 0) {
-					currentText = currentText.slice(0, currentText.length - removedChars);
-				}
-
-				if (newText.startsWith(currentText)) {
-					const text = newText.slice(currentText.length);
-					const lastLine = textModel.getLineCount();
-					const lastCol = textModel.getLineMaxColumn(lastLine);
-					const insertAtCol = lastCol - removedChars;
-					textModel.applyEdits([{ range: new Range(lastLine, insertAtCol, lastLine, lastCol), text }]);
-				} else {
-					// console.log(`Failed to optimize setText`);
-					textModel.setValue(newText);
-				}
-			},
-			setLanguage: (languageId: string) => {
-				const vscodeLanguageId = this.languageService.getLanguageIdByLanguageName(languageId);
-				if (vscodeLanguageId) {
-					textModel.setLanguage(vscodeLanguageId);
-				}
-			},
-			dispose: () => {
-				disposables.dispose();
-			}
-		};
+		this.textModel = this._register(this.modelService.createModel('', this.languageService.createById(vscodeLanguageId), undefined));
+		this.editor.setModel(this.textModel);
 	}
 
-	get(): IInteractiveResultEditorInfo {
+	layout(width: number): void {
+		const realContentHeight = this.editor.getContentHeight();
+		this.editor.layout({ width, height: realContentHeight });
+	}
+
+	setText(newText: string): void {
+		this.toolbar.context = newText;
+
+		let currentText = this.textModel.getLinesContent().join('\n');
+		if (newText === currentText) {
+			return;
+		}
+
+		let removedChars = 0;
+		if (currentText.endsWith(` ${InteractiveListItemRenderer.cursorCharacter}`)) {
+			removedChars = 2;
+		} else if (currentText.endsWith(InteractiveListItemRenderer.cursorCharacter)) {
+			removedChars = 1;
+		}
+
+		if (removedChars > 0) {
+			currentText = currentText.slice(0, currentText.length - removedChars);
+		}
+
+		if (newText.startsWith(currentText)) {
+			const text = newText.slice(currentText.length);
+			const lastLine = this.textModel.getLineCount();
+			const lastCol = this.textModel.getLineMaxColumn(lastLine);
+			const insertAtCol = lastCol - removedChars;
+			this.textModel.applyEdits([{ range: new Range(lastLine, insertAtCol, lastLine, lastCol), text }]);
+		} else {
+			// console.log(`Failed to optimize setText`);
+			this.textModel.setValue(newText);
+		}
+	}
+
+	setLanguage(languageId: string): void {
+		const vscodeLanguageId = this.languageService.getLanguageIdByLanguageName(languageId);
+		if (vscodeLanguageId) {
+			this.textModel.setLanguage(vscodeLanguageId);
+		}
+	}
+}
+
+interface IDisposableReference<T> extends IDisposable {
+	object: T;
+}
+
+class EditorPool extends Disposable {
+	private _pool: ResourcePool<IInteractiveResultEditorInfo>;
+
+	public get inUse(): ReadonlySet<IInteractiveResultEditorInfo> {
+		return this._pool.inUse;
+	}
+
+	constructor(
+		private readonly options: InteractiveSessionEditorOptions,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+	) {
+		super();
+		this._pool = this._register(new ResourcePool(() => this.editorFactory()));
+
+		// TODO listen to changes on options
+	}
+
+	private editorFactory(): IInteractiveResultEditorInfo {
+		return this.instantiationService.createInstance(CodeBlockPart, this.options);
+	}
+
+	get(): IDisposableReference<IInteractiveResultEditorInfo> {
 		const object = this._pool.get();
 		return {
-			...object,
+			object,
 			dispose: () => this._pool.release(object)
 		};
 	}
 }
+
+// TODO does something in lifecycle.ts cover this?
 
 class ResourcePool<T extends IDisposable> extends Disposable {
 	private readonly pool: T[] = [];
