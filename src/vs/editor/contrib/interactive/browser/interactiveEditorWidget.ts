@@ -612,7 +612,7 @@ export class InteractiveEditorController implements IEditorContribution {
 		return InteractiveEditorController.ID;
 	}
 
-	async run(): Promise<void> {
+	async run(initialRange?: Range): Promise<void> {
 
 		this._ctsSession.dispose(true);
 
@@ -626,7 +626,7 @@ export class InteractiveEditorController implements IEditorContribution {
 			return;
 		}
 
-		this._ctsSession = new CancellationTokenSource();
+		const thisSession = this._ctsSession = new CancellationTokenSource();
 		const textModel = this._editor.getModel();
 		const session = await provider.prepareInteractiveEditorSession(textModel, this._editor.getSelection(), this._ctsSession.token);
 		if (!session) {
@@ -650,7 +650,10 @@ export class InteractiveEditorController implements IEditorContribution {
 		const inlineDiffDecorations = this._editor.createDecorationsCollection();
 
 		const wholeRangeDecoration = this._editor.createDecorationsCollection();
-		let initialRange: Range = this._editor.getSelection();
+
+		if (!initialRange) {
+			initialRange = this._editor.getSelection();
+		}
 		if (initialRange.isEmpty()) {
 			initialRange = new Range(
 				initialRange.startLineNumber, 1,
@@ -837,7 +840,7 @@ export class InteractiveEditorController implements IEditorContribution {
 
 			data.rounds += round + '|';
 
-		} while (!this._ctsSession.token.isCancellationRequested);
+		} while (!thisSession.token.isCancellationRequested);
 
 		// done, cleanup
 		wholeRangeDecoration.clear();

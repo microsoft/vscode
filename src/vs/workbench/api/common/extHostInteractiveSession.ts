@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as typeConvert from 'vs/workbench/api/common/extHostTypeConverters';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { toDisposable } from 'vs/base/common/lifecycle';
 import { StopWatch } from 'vs/base/common/stopwatch';
@@ -11,6 +12,7 @@ import { localize } from 'vs/nls';
 import { IRelaxedExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { ILogService } from 'vs/platform/log/common/log';
 import { ExtHostInteractiveSessionShape, IInteractiveRequestDto, IInteractiveResponseDto, IInteractiveSessionDto, IMainContext, MainContext, MainThreadInteractiveSessionShape } from 'vs/workbench/api/common/extHost.protocol';
+import { IInteractiveSlashCommand } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionService';
 import type * as vscode from 'vscode';
 
 class InteractiveSessionProviderWrapper {
@@ -165,7 +167,7 @@ export class ExtHostInteractiveSession implements ExtHostInteractiveSessionShape
 					result = { errorDetails: { message: localize('emptyResponse', "Provider returned null response") } };
 				}
 			} catch (err) {
-				result = { errorDetails: { message: localize('errorResponse', "Error from provider: {0}", err.message) } };
+				result = { errorDetails: { message: localize('errorResponse', "Error from provider: {0}", err.message), responseIsIncomplete: true } };
 				this.logService.error(err);
 			}
 
@@ -183,6 +185,28 @@ export class ExtHostInteractiveSession implements ExtHostInteractiveSessionShape
 		}
 
 		throw new Error('Provider must implement either provideResponse or provideResponseWithProgress');
+	}
+
+	async $provideSlashCommands(handle: number, sessionId: number, token: CancellationToken): Promise<IInteractiveSlashCommand[] | undefined> {
+		const entry = this._interactiveSessionProvider.get(handle);
+		if (!entry) {
+			return undefined;
+		}
+
+		const realSession = this._interactiveSessions.get(sessionId);
+		if (!realSession) {
+			return undefined;
+		}
+
+		if (!entry.provider.provideSlashCommands) {
+			return undefined;
+		}
+
+		const slashCommands = await entry.provider.provideSlashCommands(realSession, token);
+		return slashCommands?.map(c => (<IInteractiveSlashCommand>{
+			...c,
+			kind: typeConvert.CompletionItemKind.from(c.kind)
+		}));
 	}
 
 	$releaseSession(sessionId: number) {

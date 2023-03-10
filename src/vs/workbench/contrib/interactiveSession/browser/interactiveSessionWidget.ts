@@ -5,28 +5,37 @@
 
 import * as dom from 'vs/base/browser/dom';
 import { Button } from 'vs/base/browser/ui/button/button';
-import { ITreeElement } from 'vs/base/browser/ui/tree/tree';
+import { ITreeContextMenuEvent, ITreeElement } from 'vs/base/browser/ui/tree/tree';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Emitter } from 'vs/base/common/event';
 import { Disposable, DisposableStore, IDisposable, combinedDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { isEqual } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import 'vs/css!./media/interactiveSession';
+import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
+import { Position } from 'vs/editor/common/core/position';
+import { Range } from 'vs/editor/common/core/range';
+import { IDecorationOptions } from 'vs/editor/common/editorCommon';
+import { CompletionContext, CompletionItem, CompletionList } from 'vs/editor/common/languages';
 import { ITextModel } from 'vs/editor/common/model';
+import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import { IModelService } from 'vs/editor/common/services/model';
 import { localize } from 'vs/nls';
+import { MenuId } from 'vs/platform/actions/common/actions';
 import { IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService, createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { WorkbenchObjectTree } from 'vs/platform/list/browser/listService';
 import { defaultButtonStyles } from 'vs/platform/theme/browser/defaultStyles';
-import { foreground } from 'vs/platform/theme/common/colorRegistry';
+import { editorForeground, foreground } from 'vs/platform/theme/common/colorRegistry';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { DEFAULT_FONT_FAMILY } from 'vs/workbench/browser/style';
 import { getSimpleCodeEditorWidgetOptions, getSimpleEditorOptions } from 'vs/workbench/contrib/codeEditor/browser/simpleEditorOptions';
 import { InteractiveListItemRenderer, InteractiveSessionAccessibilityProvider, InteractiveSessionListDelegate, InteractiveTreeItem } from 'vs/workbench/contrib/interactiveSession/browser/interactiveSessionListRenderer';
 import { InteractiveSessionEditorOptions } from 'vs/workbench/contrib/interactiveSession/browser/interactiveSessionOptions';
-import { IInteractiveSessionService } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionService';
+import { IInteractiveSessionService, IInteractiveSlashCommand } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionService';
 import { IInteractiveSessionViewModel, InteractiveSessionViewModel, isRequestVM, isResponseVM } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionViewModel';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 
@@ -54,13 +63,16 @@ function revealLastElement(list: WorkbenchObjectTree<any>) {
 }
 
 const INPUT_EDITOR_MAX_HEIGHT = 275;
+const SLASH_COMMAND_DETAIL_DECORATION_TYPE = 'interactive-session-detail';
+const SLASH_COMMAND_TEXT_DECORATION_TYPE = 'interactive-session-text';
 
 export class InteractiveSessionWidget extends Disposable {
 	private _onDidFocus = this._register(new Emitter<void>());
 	readonly onDidFocus = this._onDidFocus.event;
 
+	private static readonly INPUT_SCHEME = 'interactiveSessionInput';
 	private static _counter = 0;
-	public readonly inputUri = URI.parse(`interactiveSessionInput:input-${InteractiveSessionWidget._counter++}`);
+	public readonly inputUri = URI.parse(`${InteractiveSessionWidget.INPUT_SCHEME}:input-${InteractiveSessionWidget._counter++}`);
 
 	private tree!: WorkbenchObjectTree<InteractiveTreeItem>;
 	private renderer!: InteractiveListItemRenderer;
@@ -80,6 +92,8 @@ export class InteractiveSessionWidget extends Disposable {
 	private viewModel: IInteractiveSessionViewModel | undefined;
 	private viewModelDisposables = new DisposableStore();
 
+	private cachedSlashCommands: IInteractiveSlashCommand[] | undefined;
+
 	constructor(
 		private readonly providerId: string,
 		private readonly viewId: string | undefined,
@@ -91,7 +105,11 @@ export class InteractiveSessionWidget extends Disposable {
 		@IModelService private readonly modelService: IModelService,
 		@IExtensionService private readonly extensionService: IExtensionService,
 		@IInteractiveSessionService private readonly interactiveSessionService: IInteractiveSessionService,
-		@IInteractiveSessionWidgetService interactiveSessionWidgetService: IInteractiveSessionWidgetService
+		@IInteractiveSessionWidgetService interactiveSessionWidgetService: IInteractiveSessionWidgetService,
+		@IContextMenuService private readonly contextMenuService: IContextMenuService,
+		@ILanguageFeaturesService private readonly languageFeaturesService: ILanguageFeaturesService,
+		@IThemeService private readonly themeService: IThemeService,
+		@ICodeEditorService private readonly codeEditorService: ICodeEditorService,
 	) {
 		super();
 		CONTEXT_IN_INTERACTIVE_SESSION.bindTo(contextKeyService).set(true);
@@ -155,7 +173,6 @@ export class InteractiveSessionWidget extends Disposable {
 			if (!this.inputModel) {
 				this.inputModel = this.modelService.getModel(this.inputUri) || this.modelService.createModel('', null, this.inputUri, true);
 			}
-			this.setModeAsync();
 			this.inputEditor.setModel(this.inputModel);
 
 			// Not sure why this is needed- the view is being rendered before it's visible, and then the list content doesn't show up
@@ -165,12 +182,6 @@ export class InteractiveSessionWidget extends Disposable {
 
 	private onDidStyleChange(): void {
 		this.container.style.setProperty('--vscode-interactive-result-editor-background-color', this.inputOptions.configuration.resultEditor.backgroundColor?.toString() ?? '');
-	}
-
-	private setModeAsync(): void {
-		this.extensionService.whenInstalledExtensionsRegistered().then(() => {
-			this.inputModel!.setLanguage('markdown');
-		});
 	}
 
 	private async renderWelcomeView(container: HTMLElement): Promise<void> {
@@ -238,6 +249,7 @@ export class InteractiveSessionWidget extends Disposable {
 					listFocusAndSelectionForeground: foreground,
 				}
 			});
+		this.tree.onContextMenu(e => this.onContextMenu(e));
 
 		this._register(this.tree.onDidChangeContentHeight(() => {
 			this.onDidChangeTreeContentHeight();
@@ -251,6 +263,19 @@ export class InteractiveSessionWidget extends Disposable {
 		this._register(this.tree.onDidFocus(() => {
 			this._onDidFocus.fire();
 		}));
+	}
+
+	private onContextMenu(e: ITreeContextMenuEvent<InteractiveTreeItem | null>): void {
+		e.browserEvent.preventDefault();
+		e.browserEvent.stopPropagation();
+
+		this.contextMenuService.showContextMenu({
+			menuId: MenuId.InteractiveSessionContext,
+			menuActionOptions: { shouldForwardArgs: true },
+			contextKeyService: this.contextKeyService,
+			getAnchor: () => e.anchor,
+			getActionsContext: () => e.element,
+		});
 	}
 
 	private onDidChangeTreeContentHeight(): void {
@@ -288,7 +313,38 @@ export class InteractiveSessionWidget extends Disposable {
 		options.wrappingStrategy = 'advanced';
 
 		const inputEditorElement = dom.append(inputContainer, $('.interactive-input-editor'));
-		this.inputEditor = this._register(scopedInstantiationService.createInstance(CodeEditorWidget, inputEditorElement, options, getSimpleCodeEditorWidgetOptions()));
+		this.inputEditor = this._register(scopedInstantiationService.createInstance(CodeEditorWidget, inputEditorElement, options, { ...getSimpleCodeEditorWidgetOptions(), isSimpleWidget: false }));
+		this.codeEditorService.registerDecorationType('interactive-session', SLASH_COMMAND_DETAIL_DECORATION_TYPE, {});
+		this.codeEditorService.registerDecorationType('interactive-session', SLASH_COMMAND_TEXT_DECORATION_TYPE, {
+			textDecoration: 'underline'
+		});
+
+		this._register(this.languageFeaturesService.completionProvider.register({ scheme: InteractiveSessionWidget.INPUT_SCHEME, hasAccessToAllModels: true }, {
+			triggerCharacters: ['/'],
+			provideCompletionItems: async (model: ITextModel, position: Position, _context: CompletionContext) => {
+				const slashCommands = await this.interactiveSessionService.getSlashCommands(this.viewModel!.sessionId, CancellationToken.None);
+				if (!slashCommands) {
+					return { suggestions: [] };
+				}
+
+				return <CompletionList>{
+					suggestions: slashCommands.map(c => {
+						const withSlash = `/${c.command}`;
+						return <CompletionItem>{
+							label: withSlash,
+							insertText: `${withSlash} `,
+							detail: c.detail,
+							range: new Range(1, 1, 1, 1),
+							kind: c.kind,
+						};
+					})
+				};
+			}
+		}));
+
+		this._register(this.inputEditor.onDidChangeModelContent(e => {
+			this.updateInputEditorDecorations();
+		}));
 
 		this._register(this.inputEditor.onDidChangeModelContent(() => {
 			const currentHeight = Math.min(this.inputEditor.getContentHeight(), INPUT_EDITOR_MAX_HEIGHT);
@@ -301,6 +357,51 @@ export class InteractiveSessionWidget extends Disposable {
 
 		this._register(dom.addStandardDisposableListener(inputContainer, dom.EventType.FOCUS, () => inputContainer.classList.add('synthetic-focus')));
 		this._register(dom.addStandardDisposableListener(inputContainer, dom.EventType.BLUR, () => inputContainer.classList.remove('synthetic-focus')));
+	}
+
+	private async updateInputEditorDecorations() {
+		const theme = this.themeService.getColorTheme();
+		const value = this.inputModel?.getValue();
+		const slashCommands = this.cachedSlashCommands ?? await this.interactiveSessionService.getSlashCommands(this.viewModel!.sessionId, CancellationToken.None);
+		const command = value && slashCommands?.find(c => value.startsWith(`/${c.command} `));
+		if (command && command.detail && value === `/${command.command} `) {
+			const transparentForeground = theme.getColor(editorForeground)?.transparent(0.4);
+			const decoration: IDecorationOptions[] = [
+				{
+					range: {
+						startLineNumber: 1,
+						endLineNumber: 1,
+						startColumn: command.command.length + 2,
+						endColumn: 1000
+					},
+					renderOptions: {
+						after: {
+							contentText: command.detail,
+							color: transparentForeground ? transparentForeground.toString() : undefined
+						}
+					}
+				}
+			];
+			this.inputEditor.setDecorationsByType('interactive session', SLASH_COMMAND_DETAIL_DECORATION_TYPE, decoration);
+		} else {
+			this.inputEditor.setDecorationsByType('interactive session', SLASH_COMMAND_DETAIL_DECORATION_TYPE, []);
+		}
+
+		if (command && command.detail) {
+			const textDecoration: IDecorationOptions[] = [
+				{
+					range: {
+						startLineNumber: 1,
+						endLineNumber: 1,
+						startColumn: 1,
+						endColumn: command.command.length + 2
+					}
+				}
+			];
+			this.inputEditor.setDecorationsByType('interactive session', SLASH_COMMAND_TEXT_DECORATION_TYPE, textDecoration);
+		} else {
+			this.inputEditor.setDecorationsByType('interactive session', SLASH_COMMAND_TEXT_DECORATION_TYPE, []);
+		}
 	}
 
 	private async initializeSessionModel(initial = false) {
@@ -358,6 +459,10 @@ export class InteractiveSessionWidget extends Disposable {
 			this.focusInput();
 			this.renderWelcomeView(this.container);
 		}
+	}
+
+	getModel(): IInteractiveSessionViewModel | undefined {
+		return this.viewModel;
 	}
 
 	layout(height: number, width: number): void {

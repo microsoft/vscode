@@ -225,12 +225,14 @@ export interface IRemoteExtensionTip {
 	friendlyName: string;
 	extensionId: string;
 	supportedPlatforms?: PlatformName[];
+	showInStartEntry?: boolean;
 }
 
 export interface IVirtualWorkspaceExtensionTip {
 	friendlyName: string;
 	extensionId: string;
 	supportedPlatforms?: PlatformName[];
+	showInStartEntry?: boolean;
 }
 
 export interface ISurveyData {

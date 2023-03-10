@@ -14,7 +14,7 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { ISerializableInteractiveSessionsData, InteractiveSessionModel } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionModel';
-import { IInteractiveProgress, IInteractiveProvider, IInteractiveSessionService } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionService';
+import { IInteractiveProgress, IInteractiveProvider, IInteractiveSessionService, IInteractiveSlashCommand } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionService';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 
 const serializedInteractiveSessionKey = 'interactive.sessions';
@@ -119,6 +119,7 @@ export class InteractiveSessionService extends Disposable implements IInteractiv
 		this.trace('startSession', `Provider returned session with id ${session.id}`);
 		const model = this.instantiationService.createInstance(InteractiveSessionModel, session, providerId, someSessionHistory);
 		this._sessionModels.set(model.sessionId, model);
+
 		return model;
 	}
 
@@ -176,6 +177,24 @@ export class InteractiveSessionService extends Disposable implements IInteractiv
 		} finally {
 			this._pendingRequestSessions.delete(model.sessionId);
 		}
+	}
+
+	async getSlashCommands(sessionId: number, token: CancellationToken): Promise<IInteractiveSlashCommand[] | undefined> {
+		const model = this._sessionModels.get(sessionId);
+		if (!model) {
+			throw new Error(`Unknown session: ${sessionId}`);
+		}
+
+		const provider = this._providers.get(model.providerId);
+		if (!provider) {
+			throw new Error(`Unknown provider: ${model.providerId}`);
+		}
+
+		if (!provider.provideSlashCommands) {
+			return;
+		}
+
+		return withNullAsUndefined(await provider.provideSlashCommands(model.session, token));
 	}
 
 	acceptNewSessionState(sessionId: number, state: any): void {

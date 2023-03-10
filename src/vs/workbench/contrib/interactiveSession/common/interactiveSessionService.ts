@@ -6,7 +6,7 @@
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
-import { ProviderResult } from 'vs/editor/common/languages';
+import { CompletionItemKind, ProviderResult } from 'vs/editor/common/languages';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IInteractiveResponseErrorDetails, IInteractiveSessionResponseCommandFollowup, InteractiveSessionModel } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionModel';
 
@@ -48,6 +48,13 @@ export interface IInteractiveProvider {
 	resolveRequest?(session: IInteractiveSession, context: any, token: CancellationToken): ProviderResult<IInteractiveRequest>;
 	provideSuggestions?(token: CancellationToken): ProviderResult<string[] | undefined>;
 	provideReply(request: IInteractiveRequest, progress: (progress: IInteractiveProgress) => void, token: CancellationToken): ProviderResult<IInteractiveResponse>;
+	provideSlashCommands?(session: IInteractiveSession, token: CancellationToken): ProviderResult<IInteractiveSlashCommand[]>;
+}
+
+export interface IInteractiveSlashCommand {
+	command: string;
+	kind: CompletionItemKind;
+	detail?: string;
 }
 
 export const IInteractiveSessionService = createDecorator<IInteractiveSessionService>('IInteractiveSessionService');
@@ -62,6 +69,7 @@ export interface IInteractiveSessionService {
 	 * Returns whether the request was accepted.
 	 */
 	sendRequest(sessionId: number, message: string, token: CancellationToken): boolean;
+	getSlashCommands(sessionId: number, token: CancellationToken): Promise<IInteractiveSlashCommand[] | undefined>;
 	clearSession(sessionId: number): void;
 	acceptNewSessionState(sessionId: number, state: any): void;
 	addInteractiveRequest(context: any): void;

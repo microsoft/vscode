@@ -2478,7 +2478,7 @@ declare namespace monaco.editor {
 		readonly label: string;
 		readonly alias: string;
 		isSupported(): boolean;
-		run(): Promise<void>;
+		run(args?: unknown): Promise<void>;
 	}
 
 	export type IEditorModel = ITextModel | IDiffEditorModel;

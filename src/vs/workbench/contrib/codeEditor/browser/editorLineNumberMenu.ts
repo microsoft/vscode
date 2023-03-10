@@ -12,6 +12,7 @@ import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { IMenuService, MenuId } from 'vs/platform/actions/common/actions';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
+import { TextEditorSelectionSource } from 'vs/platform/editor/common/editor';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { Registry } from 'vs/platform/registry/common/platform';
 
@@ -62,20 +63,21 @@ export class EditorLineNumberContextMenu extends Disposable implements IEditorCo
 	}
 
 	public show(e: IEditorMouseEvent) {
-		// on macOS ctrl+click is interpreted as right click
-		if (!e.event.rightButton && !(isMacintosh && e.event.leftButton && e.event.ctrlKey)) {
-			return;
-		}
-
-		const menu = this.menuService.createMenu(MenuId.EditorLineNumberContext, this.contextKeyService);
-
 		const model = this.editor.getModel();
-		if (!e.target.position || !model || e.target.type !== MouseTargetType.GUTTER_LINE_NUMBERS && e.target.type !== MouseTargetType.GUTTER_GLYPH_MARGIN) {
+
+		// on macOS ctrl+click is interpreted as right click
+		if (!e.event.rightButton && !(isMacintosh && e.event.leftButton && e.event.ctrlKey)
+			|| e.target.type !== MouseTargetType.GUTTER_LINE_NUMBERS && e.target.type !== MouseTargetType.GUTTER_GLYPH_MARGIN
+			|| !e.target.position || !model
+		) {
 			return;
 		}
 
 		const anchor = { x: e.event.posx, y: e.event.posy };
 		const lineNumber = e.target.position.lineNumber;
+
+		const contextKeyService = this.contextKeyService.createOverlay([['editorLineNumber', lineNumber]]);
+		const menu = this.menuService.createMenu(MenuId.EditorLineNumberContext, contextKeyService);
 
 		const actions: IAction[][] = [];
 
@@ -88,6 +90,22 @@ export class EditorLineNumberContextMenu extends Disposable implements IEditorCo
 
 			const menuActions = menu.getActions({ arg: { lineNumber, uri: model.uri }, shouldForwardArgs: true });
 			actions.push(...menuActions.map(a => a[1]));
+
+			// if the current editor selections do not contain the target line number,
+			// set the selection to the clicked line number
+			if (e.target.type === MouseTargetType.GUTTER_LINE_NUMBERS) {
+				const currentSelections = this.editor.getSelections();
+				const containsSelection = currentSelections?.some(selection => selection.containsPosition({ lineNumber, column: 1 }));
+				if (!containsSelection) {
+					const selection = {
+						startLineNumber: lineNumber,
+						endLineNumber: lineNumber,
+						startColumn: 1,
+						endColumn: model.getLineLength(lineNumber) + 1
+					};
+					this.editor.setSelection(selection, TextEditorSelectionSource.PROGRAMMATIC);
+				}
+			}
 
 			this.contextMenuService.showContextMenu({
 				getAnchor: () => anchor,

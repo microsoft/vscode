@@ -6,7 +6,7 @@
 import * as osPath from 'vs/base/common/path';
 import { IMouseWheelEvent } from 'vs/base/browser/mouseEvent';
 import { coalesce } from 'vs/base/common/arrays';
-import { DeferredPromise } from 'vs/base/common/async';
+import { DeferredPromise, runWhenIdle } from 'vs/base/common/async';
 import { decodeBase64 } from 'vs/base/common/buffer';
 import { Emitter, Event } from 'vs/base/common/event';
 import { getExtensionForMimeType } from 'vs/base/common/mime';
@@ -52,6 +52,7 @@ import { IPathService } from 'vs/workbench/services/path/common/pathService';
 import { ITextEditorOptions } from 'vs/platform/editor/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { INotebookLoggingService } from 'vs/workbench/contrib/notebook/common/notebookLoggingService';
+import { IDisposable } from 'vs/base/common/lifecycle';
 
 const LINE_COLUMN_REGEX = /:([\d]+)(?::([\d]+))?$/;
 const LineQueryRegex = /line=(\d+)$/;
@@ -125,6 +126,7 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 	element: HTMLElement;
 	webview: IWebviewElement | undefined = undefined;
 	insetMapping: Map<IDisplayOutputViewModel, ICachedInset<T>> = new Map();
+	pendingInsetCreationRequest: Map<IDisplayOutputViewModel, IDisposable> = new Map();
 	readonly markupPreviewMapping = new Map<string, IMarkupCellInitialization>();
 	private hiddenInsetMapping: Set<IDisplayOutputViewModel> = new Set();
 	private reversedInsetMapping: Map<string, IDisplayOutputViewModel> = new Map();
@@ -1277,7 +1279,7 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 		}
 	}
 
-	createOutput(cellInfo: T, content: IInsetRenderOutput, cellTop: number, offset: number): void {
+	createOutput(cellInfo: T, content: IInsetRenderOutput, cellTop: number, offset: number, createWhenIdle: boolean): void {
 		if (this._disposed) {
 			return;
 		}
@@ -1296,56 +1298,72 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 			return;
 		}
 
-		const messageBase = {
-			type: 'html',
-			executionId: cellInfo.executionId,
-			cellId: cellInfo.cellId,
-			cellTop: cellTop,
-			outputOffset: offset,
-			left: 0,
-			requiredPreloads: [],
-		} as const;
+		// create new output
+		const createOutput = () => {
+			const messageBase = {
+				type: 'html',
+				executionId: cellInfo.executionId,
+				cellId: cellInfo.cellId,
+				cellTop: cellTop,
+				outputOffset: offset,
+				left: 0,
+				requiredPreloads: [],
+			} as const;
 
-		let message: ICreationRequestMessage;
-		let renderer: INotebookRendererInfo | undefined;
-		if (content.type === RenderOutputType.Extension) {
-			const output = content.source.model;
-			renderer = content.renderer;
-			const first = output.outputs.find(op => op.mime === content.mimeType)!;
+			let message: ICreationRequestMessage;
+			let renderer: INotebookRendererInfo | undefined;
+			if (content.type === RenderOutputType.Extension) {
+				const output = content.source.model;
+				renderer = content.renderer;
+				const first = output.outputs.find(op => op.mime === content.mimeType)!;
 
-			// TODO@jrieken - the message can contain "bytes" and those are transferable
-			// which improves IPC performance and therefore should be used. However, it does
-			// means that the bytes cannot be used here anymore
-			message = {
-				...messageBase,
-				outputId: output.outputId,
-				rendererId: content.renderer.id,
-				content: {
-					type: RenderOutputType.Extension,
+				// TODO@jrieken - the message can contain "bytes" and those are transferable
+				// which improves IPC performance and therefore should be used. However, it does
+				// means that the bytes cannot be used here anymore
+				message = {
+					...messageBase,
 					outputId: output.outputId,
-					metadata: output.metadata,
-					output: {
-						mime: first.mime,
-						valueBytes: first.data.buffer,
+					rendererId: content.renderer.id,
+					content: {
+						type: RenderOutputType.Extension,
+						outputId: output.outputId,
+						metadata: output.metadata,
+						output: {
+							mime: first.mime,
+							valueBytes: first.data.buffer,
+						},
+						allOutputs: output.outputs.map(output => ({ mime: output.mime })),
 					},
-					allOutputs: output.outputs.map(output => ({ mime: output.mime })),
-				},
-			};
+				};
+			} else {
+				message = {
+					...messageBase,
+					outputId: UUID.generateUuid(),
+					content: {
+						type: content.type,
+						htmlContent: content.htmlContent,
+					}
+				};
+			}
+
+			this._sendMessageToWebview(message);
+			this.insetMapping.set(content.source, { outputId: message.outputId, cellInfo: cellInfo, renderer, cachedCreation: message });
+			this.hiddenInsetMapping.delete(content.source);
+			this.reversedInsetMapping.set(message.outputId, content.source);
+		};
+
+		if (createWhenIdle) {
+			this.pendingInsetCreationRequest.get(content.source)?.dispose();
+			this.pendingInsetCreationRequest.set(content.source, runWhenIdle(() => {
+				createOutput();
+				this.pendingInsetCreationRequest.delete(content.source);
+			}));
 		} else {
-			message = {
-				...messageBase,
-				outputId: UUID.generateUuid(),
-				content: {
-					type: content.type,
-					htmlContent: content.htmlContent,
-				}
-			};
+			this.pendingInsetCreationRequest.get(content.source)?.dispose();
+			this.pendingInsetCreationRequest.delete(content.source);
+			createOutput();
 		}
 
-		this._sendMessageToWebview(message);
-		this.insetMapping.set(content.source, { outputId: message.outputId, cellInfo: cellInfo, renderer, cachedCreation: message });
-		this.hiddenInsetMapping.delete(content.source);
-		this.reversedInsetMapping.set(message.outputId, content.source);
 	}
 
 	updateOutput(cellInfo: T, content: IInsetRenderOutput, cellTop: number, offset: number): void {
@@ -1354,7 +1372,7 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 		}
 
 		if (!this.insetMapping.has(content.source)) {
-			this.createOutput(cellInfo, content, cellTop, offset);
+			this.createOutput(cellInfo, content, cellTop, offset, false);
 			return;
 		}
 
@@ -1408,6 +1426,8 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 				cellId: outputCache.cellInfo.cellId
 			});
 			this.insetMapping.delete(output);
+			this.pendingInsetCreationRequest.get(output)?.dispose();
+			this.pendingInsetCreationRequest.delete(output);
 			this.reversedInsetMapping.delete(id);
 		}
 	}
@@ -1606,6 +1626,7 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 		this.webview = undefined;
 		this.notebookEditor = null!;
 		this.insetMapping.clear();
+		this.pendingInsetCreationRequest.clear();
 		super.dispose();
 	}
 }

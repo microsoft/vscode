@@ -24,8 +24,7 @@ import type { Terminal } from 'xterm';
 
 const enum AccessibleBufferConstants {
 	Scheme = 'terminal-accessible-buffer',
-	Active = 'active',
-	Hide = 'hide'
+	Active = 'active'
 }
 
 export class AccessibleBufferWidget extends DisposableStore {
@@ -79,11 +78,15 @@ export class AccessibleBufferWidget extends DisposableStore {
 		this._xtermElement.insertAdjacentElement('beforebegin', this._accessibleBuffer);
 		this._bufferEditor.layout({ width: this._xtermElement.clientWidth, height: this._xtermElement.clientHeight });
 		this.add(this._bufferEditor);
-		this.add(this._bufferEditor.onKeyDown((e) => {
+		this._bufferEditor.onKeyDown((e) => {
+			// tab moves focus mode will prematurely move focus to the next element before
+			// xterm can be focused
 			if (e.keyCode === KeyCode.Escape || e.keyCode === KeyCode.Tab) {
+				e.stopPropagation();
+				e.preventDefault();
 				this._hide();
 			}
-		}));
+		});
 		this.add(this._configurationService.onDidChangeConfiguration(e => {
 			if (e.affectedKeys.has(TerminalSettingId.FontFamily)) {
 				this._font = _xterm.getFont();
@@ -94,11 +97,11 @@ export class AccessibleBufferWidget extends DisposableStore {
 				await this._updateEditor(true);
 			}
 		}));
+		this.add(this._bufferEditor.onDidFocusEditorText(() => this._accessibleBuffer.classList.add('active')));
 	}
 
 	private _hide(): void {
 		this._accessibleBuffer.classList.remove(AccessibleBufferConstants.Active);
-		this._xtermElement.classList.remove(AccessibleBufferConstants.Hide);
 		this._xterm.raw.focus();
 	}
 
@@ -138,7 +141,6 @@ export class AccessibleBufferWidget extends DisposableStore {
 		await this._updateEditor();
 		this._accessibleBuffer.tabIndex = -1;
 		this._accessibleBuffer.classList.add(AccessibleBufferConstants.Active);
-		this._xtermElement.classList.add(AccessibleBufferConstants.Hide);
 	}
 
 	private async _getTextModel(resource: URI): Promise<ITextModel | null> {

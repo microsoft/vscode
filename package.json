@@ -1,7 +1,7 @@
 {
   "name": "code-oss-dev",
   "version": "1.77.0",
-  "distro": "87f5dc260a1c22f39604fc9e5382dac71335cff5",
+  "distro": "dfb96d3a90c509442fdd956fb48843d70461ef0a",
   "author": {
     "name": "Microsoft Corporation"
   },
@@ -48,6 +48,7 @@
     "compile-web": "node --max_old_space_size=4095 ./node_modules/gulp/bin/gulp.js compile-web",
     "watch-web": "node --max_old_space_size=4095 ./node_modules/gulp/bin/gulp.js watch-web",
     "eslint": "node build/eslint",
+    "stylelint": "node build/stylelint",
     "playwright-install": "node build/azure-pipelines/common/installPlaywright.js",
     "compile-build": "node --max_old_space_size=4095 ./node_modules/gulp/bin/gulp.js compile-build",
     "compile-extensions-build": "node --max_old_space_size=4095 ./node_modules/gulp/bin/gulp.js compile-extensions-build",
