@@ -47,10 +47,10 @@ export function getIconClasses(modelService: IModelService, languageService: ILa
 		}
 
 		// Folders
-		if (fileKind === FileKind.FOLDER) {
+		if (name && fileKind === FileKind.FOLDER) {
 			classes.push(`${name}-name-folder-icon`);
 			classes.push(`name-folder-icon`); // extra segment to increase folder-name score
-			if (name && segments) {
+			if (name.length <= 255 && segments && segments.length <= 4) {
 				pushGlobIconClassesForName(name, classes, segments, 'folder'); // add globs targeting folder name
 			}
 		}
@@ -62,7 +62,7 @@ export function getIconClasses(modelService: IModelService, languageService: ILa
 			if (name) {
 				classes.push(`${name}-name-file-icon`);
 				classes.push(`name-file-icon`); // extra segment to increase file-name score
-				if (segments) {
+				if (name.length <= 255 && segments && segments.length <= 4) {
 					pushGlobIconClassesForName(name, classes, segments, 'file'); // add globs targeting file name
 					for (let i = 1; i < segments.length; i++) {
 						classes.push(`${segments.slice(i).join('.')}-ext-file-icon`); // add each combination of all found extensions if more than one
