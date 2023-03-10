@@ -12,6 +12,7 @@
 
 .monaco-dialog-box .dialog-message-row .dialog-message-container .dialog-message-text {
 	font-size: 25px;
+	width: max-content;
 }
 
 .monaco-dialog-box .dialog-message-row .dialog-message-container .dialog-message-body .dialog-message {
