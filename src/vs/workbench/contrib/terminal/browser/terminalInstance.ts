@@ -287,9 +287,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	get os(): OperatingSystem | undefined { return this._processManager.os; }
 	get isRemote(): boolean { return this._processManager.remoteAuthority !== undefined; }
 	get remoteAuthority(): string | undefined { return this._processManager.remoteAuthority; }
-	get hasFocus(): boolean {
-		return this.xterm?.raw.element?.contains(document.activeElement) ?? false;
-	}
+	get hasFocus(): boolean { return this._wrapperElement.contains(document.activeElement) ?? false; }
 	get title(): string { return this._title; }
 	get titleSource(): TitleEventSource { return this._titleSource; }
 	get icon(): TerminalIcon | undefined { return this._getIcon(); }
