@@ -8,7 +8,9 @@ import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { localize } from 'vs/nls';
 import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
 import { INTERACTIVE_SESSION_CATEGORY } from 'vs/workbench/contrib/interactiveSession/browser/actions/interactiveSessionActions';
-import { isRequestVM, isResponseVM } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionViewModel';
+import { interactiveSessionResponseHasProviderId } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionContextKeys';
+import { IInteractiveSessionService, IInteractiveSessionUserActionEvent, InteractiveSessionVoteDirection } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionService';
+import { isResponseVM } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionViewModel';
 
 export function registerInteractiveSessionTitleActions() {
 	registerAction2(class VoteUpAction extends Action2 {
@@ -24,6 +26,7 @@ export function registerInteractiveSessionTitleActions() {
 				icon: Codicon.thumbsup,
 				menu: {
 					id: MenuId.InteractiveSessionTitle,
+					when: interactiveSessionResponseHasProviderId,
 					group: 'navigation',
 				}
 			});
@@ -31,11 +34,19 @@ export function registerInteractiveSessionTitleActions() {
 
 		run(accessor: ServicesAccessor, ...args: any[]) {
 			const item = args[0];
-			if (!isRequestVM(item) && !isResponseVM(item)) {
+			if (!isResponseVM(item)) {
 				return;
 			}
 
-			// TODO call provider method
+			const interactiveSessionService = accessor.get(IInteractiveSessionService);
+			interactiveSessionService.notifyUserAction(<IInteractiveSessionUserActionEvent>{
+				providerId: item.providerId,
+				action: {
+					kind: 'vote',
+					direction: InteractiveSessionVoteDirection.Up,
+					responseId: item.providerResponseId
+				}
+			});
 		}
 	});
 
@@ -52,6 +63,7 @@ export function registerInteractiveSessionTitleActions() {
 				icon: Codicon.thumbsdown,
 				menu: {
 					id: MenuId.InteractiveSessionTitle,
+					when: interactiveSessionResponseHasProviderId,
 					group: 'navigation',
 				}
 			});
@@ -59,11 +71,19 @@ export function registerInteractiveSessionTitleActions() {
 
 		run(accessor: ServicesAccessor, ...args: any[]) {
 			const item = args[0];
-			if (!isRequestVM(item) && !isResponseVM(item)) {
+			if (!isResponseVM(item)) {
 				return;
 			}
 
-			// TODO call provider method
+			const interactiveSessionService = accessor.get(IInteractiveSessionService);
+			interactiveSessionService.notifyUserAction(<IInteractiveSessionUserActionEvent>{
+				providerId: item.providerId,
+				action: {
+					kind: 'vote',
+					direction: InteractiveSessionVoteDirection.Down,
+					responseId: item.providerResponseId
+				}
+			});
 		}
 	});
 }
