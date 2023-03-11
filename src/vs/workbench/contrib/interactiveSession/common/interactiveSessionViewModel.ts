@@ -58,6 +58,7 @@ export interface IInteractiveResponseViewModel {
 	readonly avatarIconUri?: URI;
 	readonly response: IMarkdownString;
 	readonly isComplete: boolean;
+	readonly isPlaceholder: boolean;
 	readonly followups?: string[];
 	readonly commandFollowups?: IInteractiveSessionResponseCommandFollowup[];
 	readonly errorDetails?: IInteractiveResponseErrorDetails;
@@ -166,6 +167,9 @@ export class InteractiveResponseViewModel extends Disposable implements IInterac
 	readonly onDidChange = this._onDidChange.event;
 
 	private _isPlaceholder = false;
+	get isPlaceholder() {
+		return this._isPlaceholder;
+	}
 
 	get id() {
 		return this._model.id + `_${this._changeCount}`;

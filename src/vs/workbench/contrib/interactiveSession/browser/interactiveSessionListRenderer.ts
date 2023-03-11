@@ -34,7 +34,9 @@ import { MenuWorkbenchToolBar } from 'vs/platform/actions/browser/toolbar';
 import { MenuId } from 'vs/platform/actions/common/actions';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { ILogService } from 'vs/platform/log/common/log';
 import { defaultButtonStyles } from 'vs/platform/theme/browser/defaultStyles';
 import { MenuPreventer } from 'vs/workbench/contrib/codeEditor/browser/menuPreventer';
@@ -42,6 +44,7 @@ import { SelectionClipboardContributionID } from 'vs/workbench/contrib/codeEdito
 import { getSimpleEditorOptions } from 'vs/workbench/contrib/codeEditor/browser/simpleEditorOptions';
 import { IInteractiveSessionCodeBlockActionContext } from 'vs/workbench/contrib/interactiveSession/browser/actions/interactiveSessionCodeblockActions';
 import { InteractiveSessionEditorOptions } from 'vs/workbench/contrib/interactiveSession/browser/interactiveSessionOptions';
+import { interactiveSessionResponseHasProviderId } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionContextKeys';
 import { IInteractiveSessionResponseCommandFollowup } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionModel';
 import { IInteractiveRequestViewModel, IInteractiveResponseViewModel, isRequestVM, isResponseVM } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionViewModel';
 import { getNWords } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionWordCounter';
@@ -56,6 +59,7 @@ interface IInteractiveListItemTemplate {
 	avatar: HTMLElement;
 	username: HTMLElement;
 	value: HTMLElement;
+	contextKeyService: IContextKeyService;
 	templateDisposables: IDisposable;
 	elementDisposables: DisposableStore;
 }
@@ -90,6 +94,7 @@ export class InteractiveListItemRenderer extends Disposable implements ITreeRend
 		@IConfigurationService private readonly configService: IConfigurationService,
 		@ILogService private readonly logService: ILogService,
 		@ICommandService private readonly commandService: ICommandService,
+		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 	) {
 		super();
 		this.renderer = this.instantiationService.createInstance(MarkdownRenderer, {});
@@ -150,13 +155,16 @@ export class InteractiveListItemRenderer extends Disposable implements ITreeRend
 		const value = dom.append(rowContainer, $('.value'));
 		const elementDisposables = new DisposableStore();
 
-		const titleToolbar = templateDisposables.add(this.instantiationService.createInstance(MenuWorkbenchToolBar, header, MenuId.InteractiveSessionTitle, {
+		const contextKeyService = templateDisposables.add(this.contextKeyService.createScoped(rowContainer));
+		const scopedInstantiationService = this.instantiationService.createChild(new ServiceCollection([IContextKeyService, contextKeyService]));
+		const titleToolbar = templateDisposables.add(scopedInstantiationService.createInstance(MenuWorkbenchToolBar, header, MenuId.InteractiveSessionTitle, {
 			menuOptions: {
 				shouldForwardArgs: true
 			}
 		}));
 
-		const template: IInteractiveListItemTemplate = { avatar, username, value, rowContainer, elementDisposables, titleToolbar, templateDisposables };
+
+		const template: IInteractiveListItemTemplate = { avatar, username, value, rowContainer, elementDisposables, titleToolbar, templateDisposables, contextKeyService };
 		return template;
 	}
 
@@ -164,6 +172,8 @@ export class InteractiveListItemRenderer extends Disposable implements ITreeRend
 		const { element } = node;
 		const kind = isRequestVM(element) ? 'request' : 'response';
 		this.traceLayout('renderElement', `${kind}, index=${index}`);
+
+		interactiveSessionResponseHasProviderId.bindTo(templateData.contextKeyService).set(isResponseVM(element) && !!element.providerResponseId && !element.isPlaceholder);
 
 		templateData.titleToolbar.context = element;
 
@@ -281,7 +291,7 @@ export class InteractiveListItemRenderer extends Disposable implements ITreeRend
 		const result = this.renderer.render(markdown, {
 			fillInIncompleteTokens,
 			codeBlockRendererSync: (languageId, text) => {
-				const ref = this.renderCodeBlock({ languageId, text, index: codeBlockIndex++, element }, disposables);
+				const ref = this.renderCodeBlock({ languageId, text, index: codeBlockIndex++, element, parentContextKeyService: templateData.contextKeyService }, disposables);
 				disposablesList.push(ref);
 				return ref.object.element;
 			}
@@ -291,7 +301,7 @@ export class InteractiveListItemRenderer extends Disposable implements ITreeRend
 		return result;
 	}
 
-	private renderCodeBlock(data: IInteractiveResultCodeBlockData, disposables: DisposableStore): IDisposableReference<IInteractiveResultEditorInfo> {
+	private renderCodeBlock(data: IInteractiveResultCodeBlockData, disposables: DisposableStore): IDisposableReference<IInteractiveResultCodeBlockPart> {
 		const ref = this._editorPool.get();
 		const editorInfo = ref.object;
 		editorInfo.render(data);
@@ -395,9 +405,10 @@ interface IInteractiveResultCodeBlockData {
 	languageId: string;
 	index: number;
 	element: InteractiveTreeItem;
+	parentContextKeyService: IContextKeyService;
 }
 
-interface IInteractiveResultEditorInfo {
+interface IInteractiveResultCodeBlockPart {
 	readonly element: HTMLElement;
 	readonly textModel: ITextModel;
 	layout(width: number): void;
@@ -405,30 +416,34 @@ interface IInteractiveResultEditorInfo {
 	dispose(): void;
 }
 
-class CodeBlockPart extends Disposable implements IInteractiveResultEditorInfo {
+class CodeBlockPart extends Disposable implements IInteractiveResultCodeBlockPart {
 	private readonly editor: CodeEditorWidget;
 	private readonly toolbar: MenuWorkbenchToolBar;
+	private readonly contextKeyService: IContextKeyService;
 
 	public readonly textModel: ITextModel;
 	public readonly element: HTMLElement;
 
 	constructor(
 		private readonly options: InteractiveSessionEditorOptions,
-		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IInstantiationService instantiationService: IInstantiationService,
+		@IContextKeyService contextKeyService: IContextKeyService,
 		@ILanguageService private readonly languageService: ILanguageService,
 		@IModelService private readonly modelService: IModelService,
 	) {
 		super();
 		this.element = $('.interactive-result-editor-wrapper');
 
-		this.toolbar = this._register(this.instantiationService.createInstance(MenuWorkbenchToolBar, this.element, MenuId.InteractiveSessionCodeBlock, {
+		this.contextKeyService = this._register(contextKeyService.createScoped(this.element));
+		const scopedInstantiationService = instantiationService.createChild(new ServiceCollection([IContextKeyService, this.contextKeyService]));
+		this.toolbar = this._register(scopedInstantiationService.createInstance(MenuWorkbenchToolBar, this.element, MenuId.InteractiveSessionCodeBlock, {
 			menuOptions: {
 				shouldForwardArgs: true
 			}
 		}));
 
 		const editorElement = dom.append(this.element, $('.interactive-result-editor'));
-		this.editor = this._register(this.instantiationService.createInstance(CodeEditorWidget, editorElement, {
+		this.editor = this._register(scopedInstantiationService.createInstance(CodeEditorWidget, editorElement, {
 			...getSimpleEditorOptions(),
 			readOnly: true,
 			wordWrap: 'off',
@@ -479,6 +494,7 @@ class CodeBlockPart extends Disposable implements IInteractiveResultEditorInfo {
 	}
 
 	render(data: IInteractiveResultCodeBlockData): void {
+		this.contextKeyService.updateParent(data.parentContextKeyService);
 		this.setText(data.text);
 		this.setLanguage(data.languageId);
 		this.toolbar.context = <IInteractiveSessionCodeBlockActionContext>{
@@ -530,9 +546,9 @@ interface IDisposableReference<T> extends IDisposable {
 }
 
 class EditorPool extends Disposable {
-	private _pool: ResourcePool<IInteractiveResultEditorInfo>;
+	private _pool: ResourcePool<IInteractiveResultCodeBlockPart>;
 
-	public get inUse(): ReadonlySet<IInteractiveResultEditorInfo> {
+	public get inUse(): ReadonlySet<IInteractiveResultCodeBlockPart> {
 		return this._pool.inUse;
 	}
 
@@ -546,11 +562,11 @@ class EditorPool extends Disposable {
 		// TODO listen to changes on options
 	}
 
-	private editorFactory(): IInteractiveResultEditorInfo {
+	private editorFactory(): IInteractiveResultCodeBlockPart {
 		return this.instantiationService.createInstance(CodeBlockPart, this.options);
 	}
 
-	get(): IDisposableReference<IInteractiveResultEditorInfo> {
+	get(): IDisposableReference<IInteractiveResultCodeBlockPart> {
 		const object = this._pool.get();
 		return {
 			object,

@@ -8,6 +8,7 @@ import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { localize } from 'vs/nls';
 import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
 import { INTERACTIVE_SESSION_CATEGORY } from 'vs/workbench/contrib/interactiveSession/browser/actions/interactiveSessionActions';
+import { interactiveSessionResponseHasProviderId } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionContextKeys';
 import { IInteractiveSessionService, IInteractiveSessionUserActionEvent, InteractiveSessionVoteDirection } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionService';
 import { isResponseVM } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionViewModel';
 
@@ -25,6 +26,7 @@ export function registerInteractiveSessionTitleActions() {
 				icon: Codicon.thumbsup,
 				menu: {
 					id: MenuId.InteractiveSessionTitle,
+					when: interactiveSessionResponseHasProviderId,
 					group: 'navigation',
 				}
 			});
@@ -61,6 +63,7 @@ export function registerInteractiveSessionTitleActions() {
 				icon: Codicon.thumbsdown,
 				menu: {
 					id: MenuId.InteractiveSessionTitle,
+					when: interactiveSessionResponseHasProviderId,
 					group: 'navigation',
 				}
 			});
