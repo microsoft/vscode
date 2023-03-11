@@ -36,12 +36,13 @@ import { searchReplaceAllIcon, searchHideReplaceIcon, searchShowContextIcon, sea
 import { ToggleSearchEditorContextLinesCommandId } from 'vs/workbench/contrib/searchEditor/browser/constants';
 import { showHistoryKeybindingHint } from 'vs/platform/history/browser/historyWidgetKeybindingHint';
 import { defaultInputBoxStyles, defaultToggleStyles } from 'vs/platform/theme/browser/defaultStyles';
-import { NotebookFindInput } from 'vs/workbench/contrib/notebook/browser/contrib/find/notebookFindReplaceWidget';
+import { NotebookFindInputFilter } from 'vs/workbench/contrib/notebook/browser/contrib/find/notebookFindReplaceWidget';
 import { NotebookFindFilters } from 'vs/workbench/contrib/notebook/browser/contrib/find/findFilters';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { NotebookEditorInput } from 'vs/workbench/contrib/notebook/common/notebookEditorInput';
 import { GroupModelChangeKind } from 'vs/workbench/common/editor';
+import { IContextViewProvider } from 'vs/base/browser/ui/contextview/contextview';
 
 /** Specified in searchview.css */
 const SingleLineInputHeight = 26;
@@ -96,6 +97,29 @@ function stopPropagationForMultiLineDownwards(event: IKeyboardEvent, value: stri
 	if (textarea && (isMultiline || textarea.clientHeight > SingleLineInputHeight) && textarea.selectionEnd < textarea.value.length) {
 		event.stopPropagation();
 		return;
+	}
+}
+
+class SearchFindInput extends ContextScopedFindInput {
+	private _findFilter: NotebookFindInputFilter;
+	constructor(
+		container: HTMLElement | null,
+		contextViewProvider: IContextViewProvider,
+		options: IFindInputOptions,
+		contextKeyService: IContextKeyService,
+		readonly contextMenuService: IContextMenuService,
+		readonly instantiationService: IInstantiationService,
+		readonly filters: NotebookFindFilters,
+		filterStartVisiblitity: boolean
+	) {
+		super(container, contextViewProvider, options, contextKeyService);
+		this._findFilter = this._register(new NotebookFindInputFilter(filters, contextMenuService, instantiationService, options, filterStartVisiblitity));
+		this.inputBox.paddingRight = (this.caseSensitive?.width() ?? 0) + (this.wholeWords?.width() ?? 0) + (this.regex?.width() ?? 0) + this._findFilter.width;
+		this.controls.appendChild(this._findFilter.container);
+	}
+
+	set filterVisible(show: boolean) {
+		this._findFilter.visible = show;
 	}
 }
 
@@ -181,7 +205,7 @@ export class SearchWidget extends Widget {
 		this._filters = new NotebookFindFilters(true, false, true, true);
 
 		this.editorService.onDidEditorsChange((e) => {
-			if (this.searchInput instanceof NotebookFindInput &&
+			if (this.searchInput instanceof SearchFindInput &&
 				e.event.editor instanceof NotebookEditorInput &&
 				(e.event.kind === GroupModelChangeKind.EDITOR_OPEN || e.event.kind === GroupModelChangeKind.EDITOR_CLOSE)) {
 				this.searchInput.filterVisible = this._hasNotebookOpen();
@@ -359,8 +383,7 @@ export class SearchWidget extends Widget {
 
 		const experimentalNotebooksEnabled = this.configurationService.getValue<ISearchConfigurationProperties>('search').experimental.notebookSearch;
 		if (experimentalNotebooksEnabled) {
-			const scopedContextKeyService = this._register(this.contextKeyService.createScoped(searchInputContainer));
-			this.searchInput = this._register(new NotebookFindInput(this._filters, scopedContextKeyService, this.contextMenuService, this.instantiationService, searchInputContainer, this.contextViewService, inputOptions, this._hasNotebookOpen()));
+			this.searchInput = this._register(new SearchFindInput(searchInputContainer, this.contextViewService, inputOptions, this.contextKeyService, this.contextMenuService, this.instantiationService, this._filters, this._hasNotebookOpen()));
 		} else {
 			this.searchInput = this._register(new ContextScopedFindInput(searchInputContainer, this.contextViewService, inputOptions, this.contextKeyService));
 		}

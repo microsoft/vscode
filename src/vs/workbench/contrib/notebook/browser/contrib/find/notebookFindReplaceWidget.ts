@@ -38,6 +38,7 @@ import { ISashEvent, Orientation, Sash } from 'vs/base/browser/ui/sash/sash';
 import { INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { defaultInputBoxStyles, defaultProgressBarStyles, defaultToggleStyles } from 'vs/platform/theme/browser/defaultStyles';
 import { IToggleStyles } from 'vs/base/browser/ui/toggle/toggle';
+import { Disposable } from 'vs/base/common/lifecycle';
 
 const NLS_FIND_INPUT_LABEL = nls.localize('label.find', "Find");
 const NLS_FIND_INPUT_PLACEHOLDER = nls.localize('placeholder.find', "Find");
@@ -150,32 +151,27 @@ class NotebookFindFilterActionViewItem extends DropdownMenuActionViewItem {
 	}
 }
 
-export class NotebookFindInput extends FindInput {
+export class NotebookFindInputFilter extends Disposable {
 	private _filterButtonContainer: HTMLElement;
-	private _actionbar: ActionBar | null = null;
 	private _filterChecked: boolean = false;
 	private _filtersAction: IAction;
 	private _toggleStyles: IToggleStyles;
+	private _actionbar: ActionBar | null = null;
 
 	constructor(
 		readonly filters: NotebookFindFilters,
-		contextKeyService: IContextKeyService,
 		readonly contextMenuService: IContextMenuService,
 		readonly instantiationService: IInstantiationService,
-		parent: HTMLElement | null,
-		contextViewProvider: IContextViewProvider,
 		options: IFindInputOptions,
-		filterStartVisibliity = true // TODO: create notebook find options to define this
+		filterStartVisiblitity = true // TODO: create notebook find options to define this
 	) {
-		super(parent, contextViewProvider, options);
 
+		super();
 		this._toggleStyles = options.toggleStyles;
 
-		this._register(registerAndCreateHistoryNavigationContext(contextKeyService, this.inputBox));
 		this._filtersAction = new Action('notebookFindFilterAction', NOTEBOOK_FIND_FILTERS, 'notebook-filters ' + ThemeIcon.asClassName(filterIcon));
 		this._filtersAction.checked = false;
 		this._filterButtonContainer = dom.$('.find-filter-button');
-		this.controls.appendChild(this._filterButtonContainer);
 		this.createFilters(this._filterButtonContainer);
 
 		this._register(this.filters.onDidChange(() => {
@@ -185,16 +181,35 @@ export class NotebookFindInput extends FindInput {
 				this._filtersAction.checked = false;
 			}
 		}));
+		this.visible = filterStartVisiblitity ?? true;
 
-		this.filterVisible = filterStartVisibliity ?? true; // TODO: if filterStartVisibliity is false, don't initialize the filtering functionality yet
-		this.inputBox.paddingRight = (this.caseSensitive?.width() ?? 0) + (this.wholeWords?.width() ?? 0) + (this.regex?.width() ?? 0) + this.getFilterWidth();
 	}
 
-	set filterVisible(show: boolean) {
+	set visible(show: boolean) {
 		this._filterButtonContainer.style.display = show ? '' : 'none';
 	}
 
-	private getFilterWidth() {
+	get container() {
+		return this._filterButtonContainer;
+	}
+
+	get filterChecked() {
+		return this._filterChecked;
+	}
+
+	set filterChecked(checked: boolean) {
+		this._filterChecked = checked;
+	}
+
+	applyStyles(): void {
+		const toggleStyles = this._toggleStyles;
+
+		this._filterButtonContainer.style.borderColor = (this._filterChecked && toggleStyles.inputActiveOptionBorder) || '';
+		this._filterButtonContainer.style.color = (this._filterChecked && toggleStyles.inputActiveOptionForeground) || 'inherit';
+		this._filterButtonContainer.style.backgroundColor = (this._filterChecked && toggleStyles.inputActiveOptionBackground) || '';
+	}
+
+	get width() {
 		return 2 /*margin left*/ + 2 /*border*/ + 2 /*padding*/ + 16 /* icon width */;
 	}
 
@@ -209,20 +224,46 @@ export class NotebookFindInput extends FindInput {
 		}));
 		this._actionbar.push(this._filtersAction, { icon: true, label: false });
 	}
+}
+
+export class NotebookFindInput extends FindInput {
+	private _findFilter: NotebookFindInputFilter;
+
+	constructor(
+		readonly filters: NotebookFindFilters,
+		contextKeyService: IContextKeyService,
+		readonly contextMenuService: IContextMenuService,
+		readonly instantiationService: IInstantiationService,
+		parent: HTMLElement | null,
+		contextViewProvider: IContextViewProvider,
+		options: IFindInputOptions,
+	) {
+		super(parent, contextViewProvider, options);
+
+		this._register(registerAndCreateHistoryNavigationContext(contextKeyService, this.inputBox));
+		this._findFilter = this._register(new NotebookFindInputFilter(filters, contextMenuService, instantiationService, options, true));
+
+		this.inputBox.paddingRight = (this.caseSensitive?.width() ?? 0) + (this.wholeWords?.width() ?? 0) + (this.regex?.width() ?? 0) + this._findFilter.width;
+		this.controls.appendChild(this._findFilter.container);
+	}
 
 	override setEnabled(enabled: boolean) {
 		super.setEnabled(enabled);
-		if (enabled && !this._filterChecked) {
+		if (enabled && !this._findFilter.filterChecked) {
 			this.regex?.enable();
 		} else {
 			this.regex?.disable();
 		}
 	}
 
+	set filterVisible(show: boolean) {
+		this._findFilter.visible = show;
+	}
+
 	updateFilterState(changed: boolean) {
-		this._filterChecked = changed;
+		this._findFilter.filterChecked = changed;
 		if (this.regex) {
-			if (this._filterChecked) {
+			if (this._findFilter.filterChecked) {
 				this.regex.disable();
 				this.regex.domNode.tabIndex = -1;
 				this.regex.domNode.classList.toggle('disabled', true);
@@ -232,15 +273,7 @@ export class NotebookFindInput extends FindInput {
 				this.regex.domNode.classList.toggle('disabled', false);
 			}
 		}
-		this.applyStyles();
-	}
-
-	private applyStyles(): void {
-		const toggleStyles = this._toggleStyles;
-
-		this._filterButtonContainer.style.borderColor = (this._filterChecked && toggleStyles.inputActiveOptionBorder) || '';
-		this._filterButtonContainer.style.color = (this._filterChecked && toggleStyles.inputActiveOptionForeground) || 'inherit';
-		this._filterButtonContainer.style.backgroundColor = (this._filterChecked && toggleStyles.inputActiveOptionBackground) || '';
+		this._findFilter.applyStyles();
 	}
 
 	getCellToolbarActions(menu: IMenu): { primary: IAction[]; secondary: IAction[] } {
