@@ -75,7 +75,7 @@ async function main() {
 
 	serverArgs.push('--sourcesPath', APP_ROOT);
 
-	serverArgs.push(...process.argv.slice(2).filter(v => !v.startsWith('--playground')));
+	serverArgs.push(...process.argv.slice(2).filter(v => !v.startsWith('--playground') && v !== '--no-playground'));
 
 	startServer(serverArgs);
 	if (openSystemBrowser) {
