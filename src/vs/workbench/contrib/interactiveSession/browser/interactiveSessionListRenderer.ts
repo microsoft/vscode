@@ -46,6 +46,7 @@ import { IInteractiveSessionCodeBlockActionContext } from 'vs/workbench/contrib/
 import { InteractiveSessionEditorOptions } from 'vs/workbench/contrib/interactiveSession/browser/interactiveSessionOptions';
 import { interactiveSessionResponseHasProviderId } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionContextKeys';
 import { IInteractiveSessionResponseCommandFollowup } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionModel';
+import { IInteractiveSlashCommand } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionService';
 import { IInteractiveRequestViewModel, IInteractiveResponseViewModel, isRequestVM, isResponseVM } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionViewModel';
 import { getNWords } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionWordCounter';
 
@@ -71,6 +72,11 @@ interface IItemHeightChangeParams {
 
 const forceVerboseLayoutTracing = false;
 
+export interface IInteractiveSessionRendererDelegate {
+	getListLength(): number;
+	getSlashCommands(): IInteractiveSlashCommand[];
+}
+
 export class InteractiveListItemRenderer extends Disposable implements ITreeRenderer<InteractiveTreeItem, FuzzyScore, IInteractiveListItemTemplate> {
 	static readonly cursorCharacter = '\u258c';
 	static readonly ID = 'item';
@@ -89,7 +95,7 @@ export class InteractiveListItemRenderer extends Disposable implements ITreeRend
 
 	constructor(
 		private readonly editorOptions: InteractiveSessionEditorOptions,
-		private readonly delegate: { getListLength(): number },
+		private readonly delegate: IInteractiveSessionRendererDelegate,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IConfigurationService private readonly configService: IConfigurationService,
 		@ILogService private readonly logService: ILogService,
@@ -288,6 +294,12 @@ export class InteractiveListItemRenderer extends Disposable implements ITreeRend
 	private renderMarkdown(markdown: IMarkdownString, element: InteractiveTreeItem, disposables: DisposableStore, templateData: IInteractiveListItemTemplate, fillInIncompleteTokens = false): IMarkdownRenderResult {
 		const disposablesList: IDisposable[] = [];
 		let codeBlockIndex = 0;
+
+		// TODO if the slash commands stay completely dynamic, this isn't quite right
+		const slashCommands = this.delegate.getSlashCommands();
+		const usedSlashCommand = slashCommands.find(s => markdown.value.startsWith(`/${s.command} `));
+		const toRender = usedSlashCommand ? markdown.value.slice(usedSlashCommand.command.length + 2) : markdown.value;
+		markdown = new MarkdownString(toRender);
 		const result = this.renderer.render(markdown, {
 			fillInIncompleteTokens,
 			codeBlockRendererSync: (languageId, text) => {
@@ -296,6 +308,15 @@ export class InteractiveListItemRenderer extends Disposable implements ITreeRend
 				return ref.object.element;
 			}
 		});
+
+		if (usedSlashCommand) {
+			const slashCommandElement = $('span.interactive-slash-command', { title: usedSlashCommand.detail }, `/${usedSlashCommand.command} `);
+			if (result.element.firstChild?.nodeName.toLowerCase() === 'p') {
+				result.element.firstChild.insertBefore(slashCommandElement, result.element.firstChild.firstChild);
+			} else {
+				result.element.insertBefore($('p', undefined, slashCommandElement), result.element.firstChild);
+			}
+		}
 
 		disposablesList.reverse().forEach(d => disposables.add(d));
 		return result;

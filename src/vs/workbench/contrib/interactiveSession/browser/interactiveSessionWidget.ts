@@ -27,7 +27,7 @@ import { foreground } from 'vs/platform/theme/common/colorRegistry';
 import { DEFAULT_FONT_FAMILY } from 'vs/workbench/browser/style';
 import { getSimpleCodeEditorWidgetOptions, getSimpleEditorOptions } from 'vs/workbench/contrib/codeEditor/browser/simpleEditorOptions';
 import { IInteractiveSessionWidget } from 'vs/workbench/contrib/interactiveSession/browser/interactiveSession';
-import { InteractiveListItemRenderer, InteractiveSessionAccessibilityProvider, InteractiveSessionListDelegate, InteractiveTreeItem } from 'vs/workbench/contrib/interactiveSession/browser/interactiveSessionListRenderer';
+import { IInteractiveSessionRendererDelegate, InteractiveListItemRenderer, InteractiveSessionAccessibilityProvider, InteractiveSessionListDelegate, InteractiveTreeItem } from 'vs/workbench/contrib/interactiveSession/browser/interactiveSessionListRenderer';
 import { InteractiveSessionEditorOptions } from 'vs/workbench/contrib/interactiveSession/browser/interactiveSessionOptions';
 import { IInteractiveSessionService, IInteractiveSlashCommand } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionService';
 import { IInteractiveSessionViewModel, InteractiveSessionViewModel, isRequestVM, isResponseVM } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionViewModel';
@@ -99,12 +99,16 @@ export class InteractiveSessionWidget extends Disposable implements IInteractive
 		}
 
 		this.viewModelDisposables.clear();
-		this.slashCommandsPromise = undefined;
 
 		this._viewModel = viewModel;
 		if (viewModel) {
 			this.viewModelDisposables.add(viewModel);
 		}
+
+		this.slashCommandsPromise = undefined;
+		this.lastSlashCommands = undefined;
+		this.getSlashCommands(); // start the refresh
+
 		this._onDidChangeViewModel.fire();
 	}
 
@@ -112,6 +116,7 @@ export class InteractiveSessionWidget extends Disposable implements IInteractive
 		return this._viewModel;
 	}
 
+	private lastSlashCommands: IInteractiveSlashCommand[] | undefined;
 	private slashCommandsPromise: Promise<IInteractiveSlashCommand[] | undefined> | undefined;
 
 	constructor(
@@ -160,7 +165,6 @@ export class InteractiveSessionWidget extends Disposable implements IInteractive
 	}
 
 	private onDidChangeItems() {
-		this.slashCommandsPromise = undefined;
 		if (this.tree && this.visible) {
 			const items = this.viewModel?.getItems() ?? [];
 			const treeItems = items.map(item => {
@@ -207,6 +211,7 @@ export class InteractiveSessionWidget extends Disposable implements IInteractive
 
 		if (!this.slashCommandsPromise) {
 			this.slashCommandsPromise = this.interactiveSessionService.getSlashCommands(this.viewModel.sessionId, CancellationToken.None);
+			this.slashCommandsPromise.then(commands => this.lastSlashCommands = commands);
 		}
 
 		return this.slashCommandsPromise;
@@ -251,7 +256,11 @@ export class InteractiveSessionWidget extends Disposable implements IInteractive
 	private createList(listContainer: HTMLElement): void {
 		const scopedInstantiationService = this.instantiationService.createChild(new ServiceCollection([IContextKeyService, this.contextKeyService]));
 		const delegate = scopedInstantiationService.createInstance(InteractiveSessionListDelegate);
-		this.renderer = scopedInstantiationService.createInstance(InteractiveListItemRenderer, this.inputOptions, { getListLength: () => this.tree.getNode(null).visibleChildrenCount });
+		const rendererDelegate: IInteractiveSessionRendererDelegate = {
+			getListLength: () => this.tree.getNode(null).visibleChildrenCount,
+			getSlashCommands: () => this.lastSlashCommands ?? [],
+		};
+		this.renderer = scopedInstantiationService.createInstance(InteractiveListItemRenderer, this.inputOptions, rendererDelegate);
 		this.tree = <WorkbenchObjectTree<InteractiveTreeItem>>scopedInstantiationService.createInstance(
 			WorkbenchObjectTree,
 			'InteractiveSession',
@@ -368,7 +377,10 @@ export class InteractiveSessionWidget extends Disposable implements IInteractive
 		}
 
 		this.viewModel = this.instantiationService.createInstance(InteractiveSessionViewModel, model);
-		this.viewModelDisposables.add(this.viewModel.onDidChange(() => this.onDidChangeItems()));
+		this.viewModelDisposables.add(this.viewModel.onDidChange(() => {
+			this.slashCommandsPromise = undefined;
+			this.onDidChangeItems();
+		}));
 		this.viewModelDisposables.add(this.viewModel.onDidDisposeModel(() => {
 			this.viewModel = undefined;
 			this.onDidChangeItems();
