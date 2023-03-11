@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as typeConvert from 'vs/workbench/api/common/extHostTypeConverters';
 import { CancellationToken } from 'vs/base/common/cancellation';
+import { Emitter } from 'vs/base/common/event';
 import { toDisposable } from 'vs/base/common/lifecycle';
 import { StopWatch } from 'vs/base/common/stopwatch';
 import { withNullAsUndefined } from 'vs/base/common/types';
@@ -12,7 +12,8 @@ import { localize } from 'vs/nls';
 import { IRelaxedExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { ILogService } from 'vs/platform/log/common/log';
 import { ExtHostInteractiveSessionShape, IInteractiveRequestDto, IInteractiveResponseDto, IInteractiveSessionDto, IMainContext, MainContext, MainThreadInteractiveSessionShape } from 'vs/workbench/api/common/extHost.protocol';
-import { IInteractiveSlashCommand } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionService';
+import * as typeConvert from 'vs/workbench/api/common/extHostTypeConverters';
+import { IInteractiveSessionUserActionEvent, IInteractiveSlashCommand } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionService';
 import type * as vscode from 'vscode';
 
 class InteractiveSessionProviderWrapper {
@@ -32,6 +33,10 @@ export class ExtHostInteractiveSession implements ExtHostInteractiveSessionShape
 
 	private readonly _interactiveSessionProvider = new Map<number, InteractiveSessionProviderWrapper>();
 	private readonly _interactiveSessions = new Map<number, vscode.InteractiveSession>();
+	// private readonly _providerResponsesByRequestId = new Map<number, { response: vscode.ProviderResult<vscode.InteractiveResponse | vscode.InteractiveResponseForProgress>; sessionId: number }>();
+
+	private readonly _onDidPerformUserAction = new Emitter<vscode.InteractiveSessionUserActionEvent>();
+	public readonly onDidPerformUserAction = this._onDidPerformUserAction.event;
 
 	private readonly _proxy: MainThreadInteractiveSessionShape;
 
@@ -81,7 +86,7 @@ export class ExtHostInteractiveSession implements ExtHostInteractiveSessionShape
 		};
 	}
 
-	async $resolveInteractiveRequest(handle: number, sessionId: number, context: any, token: CancellationToken): Promise<IInteractiveRequestDto | undefined> {
+	async $resolveInteractiveRequest(handle: number, sessionId: number, context: any, token: CancellationToken): Promise<Omit<IInteractiveRequestDto, 'id'> | undefined> {
 		const entry = this._interactiveSessionProvider.get(handle);
 		if (!entry) {
 			return undefined;
@@ -193,6 +198,10 @@ export class ExtHostInteractiveSession implements ExtHostInteractiveSessionShape
 
 	$releaseSession(sessionId: number) {
 		this._interactiveSessions.delete(sessionId);
+	}
+
+	async $onDidPerformUserAction(event: IInteractiveSessionUserActionEvent): Promise<void> {
+		this._onDidPerformUserAction.fire(event);
 	}
 
 	//#endregion

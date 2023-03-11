@@ -40,6 +40,7 @@ import { defaultButtonStyles } from 'vs/platform/theme/browser/defaultStyles';
 import { MenuPreventer } from 'vs/workbench/contrib/codeEditor/browser/menuPreventer';
 import { SelectionClipboardContributionID } from 'vs/workbench/contrib/codeEditor/browser/selectionClipboard';
 import { getSimpleEditorOptions } from 'vs/workbench/contrib/codeEditor/browser/simpleEditorOptions';
+import { IInteractiveSessionCodeBlockActionContext } from 'vs/workbench/contrib/interactiveSession/browser/actions/interactiveSessionCodeblockActions';
 import { InteractiveSessionEditorOptions } from 'vs/workbench/contrib/interactiveSession/browser/interactiveSessionOptions';
 import { IInteractiveSessionResponseCommandFollowup } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionModel';
 import { IInteractiveRequestViewModel, IInteractiveResponseViewModel, isRequestVM, isResponseVM } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionViewModel';
@@ -204,7 +205,7 @@ export class InteractiveListItemRenderer extends Disposable implements ITreeRend
 	}
 
 	private basicRenderElement(markdownValue: string, element: InteractiveTreeItem, index: number, templateData: IInteractiveListItemTemplate) {
-		const result = this.renderMarkdown(new MarkdownString(markdownValue), templateData.elementDisposables, templateData);
+		const result = this.renderMarkdown(new MarkdownString(markdownValue), element, templateData.elementDisposables, templateData);
 		dom.clearNode(templateData.value);
 		templateData.value.appendChild(result.element);
 		templateData.elementDisposables.add(result);
@@ -255,7 +256,7 @@ export class InteractiveListItemRenderer extends Disposable implements ITreeRend
 		} else if (toRender) {
 			// Doing the progressive render
 			const plusCursor = toRender.match(/```.*$/) ? toRender + `\n${InteractiveListItemRenderer.cursorCharacter}` : toRender + ` ${InteractiveListItemRenderer.cursorCharacter}`;
-			const result = this.renderMarkdown(new MarkdownString(plusCursor), disposables, templateData, true);
+			const result = this.renderMarkdown(new MarkdownString(plusCursor), element, disposables, templateData, true);
 			dom.clearNode(templateData.value);
 			templateData.value.appendChild(result.element);
 			disposables.add(result);
@@ -274,12 +275,13 @@ export class InteractiveListItemRenderer extends Disposable implements ITreeRend
 		return !!isFullyRendered;
 	}
 
-	private renderMarkdown(markdown: IMarkdownString, disposables: DisposableStore, templateData: IInteractiveListItemTemplate, fillInIncompleteTokens = false): IMarkdownRenderResult {
+	private renderMarkdown(markdown: IMarkdownString, element: InteractiveTreeItem, disposables: DisposableStore, templateData: IInteractiveListItemTemplate, fillInIncompleteTokens = false): IMarkdownRenderResult {
 		const disposablesList: IDisposable[] = [];
+		let codeBlockIndex = 0;
 		const result = this.renderer.render(markdown, {
 			fillInIncompleteTokens,
-			codeBlockRendererSync: (languageId, value) => {
-				const ref = this.renderCodeBlock(languageId, value, disposables);
+			codeBlockRendererSync: (languageId, text) => {
+				const ref = this.renderCodeBlock({ languageId, text, index: codeBlockIndex++, element }, disposables);
 				disposablesList.push(ref);
 				return ref.object.element;
 			}
@@ -289,11 +291,10 @@ export class InteractiveListItemRenderer extends Disposable implements ITreeRend
 		return result;
 	}
 
-	private renderCodeBlock(languageId: string, value: string, disposables: DisposableStore): IDisposableReference<IInteractiveResultEditorInfo> {
+	private renderCodeBlock(data: IInteractiveResultCodeBlockData, disposables: DisposableStore): IDisposableReference<IInteractiveResultEditorInfo> {
 		const ref = this._editorPool.get();
 		const editorInfo = ref.object;
-		editorInfo.setText(value);
-		editorInfo.setLanguage(languageId);
+		editorInfo.render(data);
 
 		const layoutEditor = (context: string) => {
 			editorInfo.layout(this._currentLayoutWidth);
@@ -389,12 +390,18 @@ export class InteractiveSessionAccessibilityProvider implements IListAccessibili
 	}
 }
 
+interface IInteractiveResultCodeBlockData {
+	text: string;
+	languageId: string;
+	index: number;
+	element: InteractiveTreeItem;
+}
+
 interface IInteractiveResultEditorInfo {
 	readonly element: HTMLElement;
 	readonly textModel: ITextModel;
 	layout(width: number): void;
-	setLanguage(langugeId: string): void;
-	setText(text: string): void;
+	render(data: IInteractiveResultCodeBlockData): void;
 	dispose(): void;
 }
 
@@ -471,9 +478,17 @@ class CodeBlockPart extends Disposable implements IInteractiveResultEditorInfo {
 		this.editor.layout({ width, height: realContentHeight });
 	}
 
-	setText(newText: string): void {
-		this.toolbar.context = newText;
+	render(data: IInteractiveResultCodeBlockData): void {
+		this.setText(data.text);
+		this.setLanguage(data.languageId);
+		this.toolbar.context = <IInteractiveSessionCodeBlockActionContext>{
+			code: data.text,
+			codeBlockIndex: data.index,
+			element: data.element
+		};
+	}
 
+	private setText(newText: string): void {
 		let currentText = this.textModel.getLinesContent().join('\n');
 		if (newText === currentText) {
 			return;
@@ -502,7 +517,7 @@ class CodeBlockPart extends Disposable implements IInteractiveResultEditorInfo {
 		}
 	}
 
-	setLanguage(languageId: string): void {
+	private setLanguage(languageId: string): void {
 		const vscodeLanguageId = this.languageService.getLanguageIdByLanguageName(languageId);
 		if (vscodeLanguageId) {
 			this.textModel.setLanguage(vscodeLanguageId);

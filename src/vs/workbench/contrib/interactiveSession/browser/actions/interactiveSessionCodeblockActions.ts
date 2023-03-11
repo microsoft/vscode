@@ -12,7 +12,19 @@ import { localize } from 'vs/nls';
 import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { INTERACTIVE_SESSION_CATEGORY } from 'vs/workbench/contrib/interactiveSession/browser/actions/interactiveSessionActions';
+import { IInteractiveSessionService, IInteractiveSessionUserActionEvent } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionService';
+import { IInteractiveResponseViewModel } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionViewModel';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+
+export interface IInteractiveSessionCodeBlockActionContext {
+	code: string;
+	codeBlockIndex: number;
+	element: IInteractiveResponseViewModel;
+}
+
+function isCodeBlockActionContext(thing: unknown): thing is IInteractiveSessionCodeBlockActionContext {
+	return typeof thing === 'object' && thing !== null && 'code' in thing && 'element' in thing;
+}
 
 export function registerInteractiveSessionCodeBlockActions() {
 	registerAction2(class CopyCodeBlockAction extends Action2 {
@@ -34,13 +46,23 @@ export function registerInteractiveSessionCodeBlockActions() {
 		}
 
 		run(accessor: ServicesAccessor, ...args: any[]) {
-			const code = args[0];
-			if (typeof code !== 'string') {
+			const context = args[0];
+			if (!isCodeBlockActionContext(context)) {
 				return;
 			}
 
 			const clipboardService = accessor.get(IClipboardService);
-			clipboardService.writeText(code);
+			clipboardService.writeText(context.code);
+
+			const interactiveSessionService = accessor.get(IInteractiveSessionService);
+			interactiveSessionService.notifyUserAction(<IInteractiveSessionUserActionEvent>{
+				providerId: context.element.providerId,
+				action: {
+					kind: 'copy',
+					responseId: context.element.providerResponseId,
+					codeBlockIndex: context.codeBlockIndex,
+				}
+			});
 		}
 	});
 
@@ -61,13 +83,14 @@ export function registerInteractiveSessionCodeBlockActions() {
 		}
 
 		async run(accessor: ServicesAccessor, ...args: any[]) {
-			const code = args[0];
-			if (typeof code !== 'string') {
+			const context = args[0];
+			if (!isCodeBlockActionContext(context)) {
 				return;
 			}
 
 			const editorService = accessor.get(IEditorService);
 			const bulkEditService = accessor.get(IBulkEditService);
+			const interactiveSessionService = accessor.get(IInteractiveSessionService);
 			const activeEditorControl = editorService.activeTextEditorControl;
 			if (isCodeEditor(activeEditorControl)) {
 				const activeModel = activeEditorControl.getModel();
@@ -78,9 +101,18 @@ export function registerInteractiveSessionCodeBlockActions() {
 				const activeSelection = activeEditorControl.getSelection() ?? new Range(activeModel.getLineCount(), 1, activeModel.getLineCount(), 1);
 				await bulkEditService.apply([new ResourceTextEdit(activeModel.uri, {
 					range: activeSelection,
-					text: code,
+					text: context.code,
 					insertAsSnippet: true,
 				})]);
+
+				interactiveSessionService.notifyUserAction(<IInteractiveSessionUserActionEvent>{
+					providerId: context.element.providerId,
+					action: {
+						kind: 'insert',
+						responseId: context.element.providerResponseId,
+						codeBlockIndex: context.codeBlockIndex,
+					}
+				});
 			}
 		}
 	});

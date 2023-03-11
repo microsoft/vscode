@@ -52,7 +52,8 @@ export interface IInteractiveSessionLiveUpdateData {
 export interface IInteractiveResponseViewModel {
 	readonly onDidChange: Event<void>;
 	readonly id: string;
-	readonly providerId: string | undefined;
+	readonly providerId: string;
+	readonly providerResponseId: string | undefined;
 	readonly username: string;
 	readonly avatarIconUri?: URI;
 	readonly response: IMarkdownString;
@@ -172,6 +173,10 @@ export class InteractiveResponseViewModel extends Disposable implements IInterac
 
 	get providerId() {
 		return this._model.providerId;
+	}
+
+	get providerResponseId() {
+		return this._model.providerResponseId;
 	}
 
 	get username() {

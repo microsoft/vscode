@@ -5,6 +5,7 @@
 
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { groupBy } from 'vs/base/common/collections';
+import { Emitter, Event } from 'vs/base/common/event';
 import { Iterable } from 'vs/base/common/iterator';
 import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { withNullAsUndefined } from 'vs/base/common/types';
@@ -13,8 +14,8 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { ILogService } from 'vs/platform/log/common/log';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { ISerializableInteractiveSessionsData, InteractiveSessionModel } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionModel';
-import { IInteractiveProgress, IInteractiveProvider, IInteractiveSessionService, IInteractiveSlashCommand } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionService';
+import { ISerializableInteractiveSessionData, ISerializableInteractiveSessionsData, InteractiveSessionModel } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionModel';
+import { IInteractiveProgress, IInteractiveProvider, IInteractiveSessionService, IInteractiveSessionUserActionEvent, IInteractiveSlashCommand } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionService';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 
 const serializedInteractiveSessionKey = 'interactive.sessions';
@@ -43,6 +44,9 @@ export class InteractiveSessionService extends Disposable implements IInteractiv
 	private readonly _pendingRequestSessions = new Set<number>();
 	private readonly _unprocessedPersistedSessions: ISerializableInteractiveSessionsData;
 
+	private readonly _onDidPerformUserAction = this._register(new Emitter<IInteractiveSessionUserActionEvent>());
+	public readonly onDidPerformUserAction: Event<IInteractiveSessionUserActionEvent> = this._onDidPerformUserAction.event;
+
 	constructor(
 		@IStorageService storageService: IStorageService,
 		@ILogService private readonly logService: ILogService,
@@ -68,6 +72,10 @@ export class InteractiveSessionService extends Disposable implements IInteractiv
 		}));
 	}
 
+	notifyUserAction(action: IInteractiveSessionUserActionEvent): void {
+		this._onDidPerformUserAction.fire(action);
+	}
+
 	progressiveRenderingEnabled(providerId: string): boolean {
 		return this._providers.get(providerId)?.progressiveRenderingEnabled ?? false;
 	}
@@ -82,7 +90,7 @@ export class InteractiveSessionService extends Disposable implements IInteractiv
 
 	private deserializeInteractiveSessions(sessionData: string): ISerializableInteractiveSessionsData {
 		try {
-			const arrayOfSessions = JSON.parse(sessionData);
+			const arrayOfSessions: ISerializableInteractiveSessionData[] = JSON.parse(sessionData);
 			if (!Array.isArray(arrayOfSessions)) {
 				throw new Error('Expected array');
 			}

@@ -32,7 +32,8 @@ export interface IInteractiveResponseErrorDetails {
 export interface IInteractiveResponseModel {
 	readonly onDidChange: Event<void>;
 	readonly id: string;
-	readonly providerId: string | undefined;
+	readonly providerId: string;
+	readonly providerResponseId: string | undefined;
 	readonly username: string;
 	readonly avatarIconUri?: URI;
 	readonly response: IMarkdownString;
@@ -76,9 +77,9 @@ export class InteractiveResponseModel extends Disposable implements IInteractive
 		return this._id;
 	}
 
-	private _providerId: string | undefined;
-	public get providerId(): string | undefined {
-		return this._providerId;
+	private _providerResponseId: string | undefined;
+	public get providerResponseId(): string | undefined {
+		return this._providerResponseId;
 	}
 
 	private _isComplete: boolean;
@@ -106,12 +107,12 @@ export class InteractiveResponseModel extends Disposable implements IInteractive
 		return this._errorDetails;
 	}
 
-	constructor(response: IMarkdownString, public readonly username: string, public readonly avatarIconUri?: URI, isComplete: boolean = false, providerId?: string, errorDetails?: IInteractiveResponseErrorDetails, followups?: string[]) {
+	constructor(response: IMarkdownString, public readonly username: string, public readonly providerId: string, public readonly avatarIconUri?: URI, isComplete: boolean = false, providerResponseId?: string, errorDetails?: IInteractiveResponseErrorDetails, followups?: string[]) {
 		super();
 		this._response = response;
 		this._isComplete = isComplete;
 		this._followups = followups;
-		this._providerId = providerId;
+		this._providerResponseId = providerResponseId;
 		this._errorDetails = errorDetails;
 		this._id = 'response_' + InteractiveResponseModel.nextId++;
 	}
@@ -121,8 +122,8 @@ export class InteractiveResponseModel extends Disposable implements IInteractive
 		this._onDidChange.fire();
 	}
 
-	setProviderId(providerId: string) {
-		this._providerId = providerId;
+	setProviderResponseId(providerResponseId: string) {
+		this._providerResponseId = providerResponseId;
 	}
 
 	complete(followups: string[] | undefined, commandFollowups: IInteractiveSessionResponseCommandFollowup[] | undefined, errorDetails?: IInteractiveResponseErrorDetails): void {
@@ -147,7 +148,7 @@ export interface ISerializableInteractiveSessionsData {
 }
 
 export interface ISerializableInteractiveSessionRequestData {
-	providerId: string | undefined;
+	providerResponseId: string | undefined;
 	message: string;
 	response: string | undefined;
 	responseErrorDetails: IInteractiveResponseErrorDetails | undefined;
@@ -210,7 +211,7 @@ export class InteractiveSessionModel extends Disposable implements IInteractiveS
 		return requests.map((raw: ISerializableInteractiveSessionRequestData) => {
 			const request = new InteractiveRequestModel(raw.message, this.session.requesterUsername, this.session.requesterAvatarIconUri);
 			if (raw.response || raw.responseErrorDetails) {
-				request.response = new InteractiveResponseModel(new MarkdownString(raw.response), this.session.responderUsername, this.session.responderAvatarIconUri, true, raw.providerId, raw.responseErrorDetails);
+				request.response = new InteractiveResponseModel(new MarkdownString(raw.response), this.session.responderUsername, this.providerId, this.session.responderAvatarIconUri, true, raw.providerResponseId, raw.responseErrorDetails);
 			}
 			return request;
 		});
@@ -235,7 +236,7 @@ export class InteractiveSessionModel extends Disposable implements IInteractiveS
 
 		// TODO this is suspicious, maybe the request should know that it is "in progress" instead of having a fake response model.
 		// But the response already knows that it is "in progress" and so does a map in the session service.
-		request.response = new InteractiveResponseModel(new MarkdownString(''), this.session.responderUsername, this.session.responderAvatarIconUri);
+		request.response = new InteractiveResponseModel(new MarkdownString(''), this.session.responderUsername, this.providerId, this.session.responderAvatarIconUri);
 
 		this._requests.push(request);
 		this._onDidChange.fire({ kind: 'addRequest', request });
@@ -244,13 +245,13 @@ export class InteractiveSessionModel extends Disposable implements IInteractiveS
 
 	acceptResponseProgress(request: InteractiveRequestModel, progress: IInteractiveProgress): void {
 		if (!request.response) {
-			request.response = new InteractiveResponseModel(new MarkdownString(''), this.session.responderUsername, this.session.responderAvatarIconUri);
+			request.response = new InteractiveResponseModel(new MarkdownString(''), this.session.responderUsername, this.providerId, this.session.responderAvatarIconUri);
 		}
 
 		if ('content' in progress) {
 			request.response.updateContent(progress.content);
 		} else {
-			request.response.setProviderId(progress.responseId);
+			request.response.setProviderResponseId(progress.responseId);
 		}
 	}
 
@@ -267,7 +268,7 @@ export class InteractiveSessionModel extends Disposable implements IInteractiveS
 		return {
 			requests: this._requests.map(r => {
 				return {
-					providerId: r.response?.providerId,
+					providerResponseId: r.response?.providerResponseId,
 					message: r.message,
 					response: r.response ? r.response.response.value : undefined,
 					responseErrorDetails: r.response?.errorDetails

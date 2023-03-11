@@ -26,8 +26,8 @@ import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle
 import '../common/interactiveSessionColors';
 import { IInteractiveSessionWidgetService, InteractiveSessionWidgetService } from 'vs/workbench/contrib/interactiveSession/browser/interactiveSessionWidget';
 import { registerInteractiveSessionCopyActions } from 'vs/workbench/contrib/interactiveSession/browser/actions/interactiveSessionCopyActions';
-import { registerInteractiveSessionCodeBlockActions } from 'vs/workbench/contrib/interactiveSession/browser/interactiveSessionCodeblockActions';
-import { registerInteractiveSessionTitleActions } from 'vs/workbench/contrib/interactiveSession/browser/interactiveSessionTitleActions';
+import { registerInteractiveSessionCodeBlockActions } from 'vs/workbench/contrib/interactiveSession/browser/actions/interactiveSessionCodeblockActions';
+import { registerInteractiveSessionTitleActions } from 'vs/workbench/contrib/interactiveSession/browser/actions/interactiveSessionTitleActions';
 
 
 // Register configuration

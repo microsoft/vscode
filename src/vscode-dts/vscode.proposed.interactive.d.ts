@@ -113,13 +113,45 @@ declare module 'vscode' {
 		provideResponseWithProgress(request: InteractiveRequest, progress: Progress<InteractiveProgress>, token: CancellationToken): ProviderResult<InteractiveResponseForProgress>;
 	}
 
+	export enum InteractiveSessionVoteDirection {
+		Up = 1,
+		Down = 2
+	}
+
+	export interface InteractiveSessionVoteAction {
+		kind: 'vote';
+		responseId: string;
+		direction: InteractiveSessionVoteDirection;
+	}
+
+	export interface InteractiveSessionCopyAction {
+		kind: 'copy';
+		responseId: string;
+		codeBlockIndex: number;
+	}
+
+	export interface InteractiveSessionInsertAction {
+		kind: 'insert';
+		responseId: string;
+		codeBlockIndex: number;
+	}
+
+	export type InteractiveSessionUserAction = InteractiveSessionVoteAction | InteractiveSessionCopyAction | InteractiveSessionInsertAction;
+
+	export interface InteractiveSessionUserActionEvent {
+		action: InteractiveSessionUserAction;
+		providerId: string;
+	}
+
 	export namespace interactive {
 		// current version of the proposal.
-		export const _version: 1 | number;
+		export const _version: 2 | number;
 
 		export function registerInteractiveSessionProvider(id: string, provider: InteractiveSessionProvider): Disposable;
 		export function addInteractiveRequest(context: InteractiveSessionRequestArgs): void;
 
 		export function registerInteractiveEditorSessionProvider(provider: InteractiveEditorSessionProvider): Disposable;
+
+		export const onDidPerformUserAction: Event<InteractiveSessionUserActionEvent>;
 	}
 }

@@ -9,6 +9,7 @@ import { URI } from 'vs/base/common/uri';
 import { CompletionItemKind, ProviderResult } from 'vs/editor/common/languages';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IInteractiveResponseErrorDetails, IInteractiveSessionResponseCommandFollowup, InteractiveSessionModel } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionModel';
+import { Event } from 'vs/base/common/event';
 
 export interface IInteractiveSession {
 	id: number;
@@ -44,7 +45,7 @@ export interface IInteractiveProvider {
 	readonly progressiveRenderingEnabled?: boolean;
 	readonly iconUrl?: string;
 	prepareSession(initialState: IPersistedInteractiveState | undefined, token: CancellationToken): ProviderResult<IInteractiveSession | undefined>;
-	resolveRequest?(session: IInteractiveSession, context: any, token: CancellationToken): ProviderResult<IInteractiveRequest>;
+	resolveRequest?(session: IInteractiveSession, context: any, token: CancellationToken): ProviderResult<Omit<IInteractiveRequest, 'id'>>;
 	provideSuggestions?(token: CancellationToken): ProviderResult<string[] | undefined>;
 	provideReply(request: IInteractiveRequest, progress: (progress: IInteractiveProgress) => void, token: CancellationToken): ProviderResult<IInteractiveResponse>;
 	provideSlashCommands?(session: IInteractiveSession, token: CancellationToken): ProviderResult<IInteractiveSlashCommand[]>;
@@ -54,6 +55,36 @@ export interface IInteractiveSlashCommand {
 	command: string;
 	kind: CompletionItemKind;
 	detail?: string;
+}
+
+export enum InteractiveSessionVoteDirection {
+	Up = 1,
+	Down = 2
+}
+
+export interface InteractiveSessionVoteAction {
+	kind: 'vote';
+	responseId: string;
+	direction: InteractiveSessionVoteDirection;
+}
+
+export interface InteractiveSessionCopyAction {
+	kind: 'copy';
+	responseId: string;
+	codeBlockIndex: number;
+}
+
+export interface InteractiveSessionInsertAction {
+	kind: 'insert';
+	responseId: string;
+	codeBlockIndex: number;
+}
+
+export type InteractiveSessionUserAction = InteractiveSessionVoteAction | InteractiveSessionCopyAction | InteractiveSessionInsertAction;
+
+export interface IInteractiveSessionUserActionEvent {
+	action: InteractiveSessionUserAction;
+	providerId: string;
 }
 
 export const IInteractiveSessionService = createDecorator<IInteractiveSessionService>('IInteractiveSessionService');
@@ -73,4 +104,7 @@ export interface IInteractiveSessionService {
 	acceptNewSessionState(sessionId: number, state: any): void;
 	addInteractiveRequest(context: any): void;
 	provideSuggestions(providerId: string, token: CancellationToken): Promise<string[] | undefined>;
+
+	onDidPerformUserAction: Event<IInteractiveSessionUserActionEvent>;
+	notifyUserAction(event: IInteractiveSessionUserActionEvent): void;
 }
