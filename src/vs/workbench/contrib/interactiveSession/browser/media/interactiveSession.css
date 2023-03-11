@@ -223,3 +223,7 @@
 .interactive-session .interactive-response .interactive-response-error-details .codicon {
 	color: var(--vscode-errorForeground);
 }
+
+.interactive-session .interactive-request .value .interactive-slash-command {
+	color: var(--vscode-textLink-foreground);
+}
