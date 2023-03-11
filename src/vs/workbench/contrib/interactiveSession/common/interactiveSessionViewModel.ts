@@ -52,6 +52,7 @@ export interface IInteractiveSessionLiveUpdateData {
 export interface IInteractiveResponseViewModel {
 	readonly onDidChange: Event<void>;
 	readonly id: string;
+	readonly providerId: string | undefined;
 	readonly username: string;
 	readonly avatarIconUri?: URI;
 	readonly response: IMarkdownString;
@@ -167,6 +168,10 @@ export class InteractiveResponseViewModel extends Disposable implements IInterac
 
 	get id() {
 		return this._model.id + `_${this._changeCount}`;
+	}
+
+	get providerId() {
+		return this._model.providerId;
 	}
 
 	get username() {

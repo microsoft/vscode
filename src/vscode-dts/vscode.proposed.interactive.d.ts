@@ -82,9 +82,15 @@ declare module 'vscode' {
 		errorDetails?: InteractiveResponseErrorDetails;
 	}
 
-	export interface InteractiveProgress {
+	export interface InteractiveProgressContent {
 		content: string;
 	}
+
+	export interface InteractiveProgressId {
+		responseId: string;
+	}
+
+	export type InteractiveProgress = InteractiveProgressContent | InteractiveProgressId;
 
 	export interface InteractiveResponseCommand {
 		commandId: string;

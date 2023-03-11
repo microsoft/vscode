@@ -142,7 +142,7 @@ export class ExtHostInteractiveSession implements ExtHostInteractiveSessionShape
 					firstProgress = stopWatch.elapsed();
 				}
 
-				this._proxy.$acceptInteractiveResponseProgress(handle, sessionId, { responsePart: progress.content });
+				this._proxy.$acceptInteractiveResponseProgress(handle, sessionId, progress);
 			}
 		};
 		let result: vscode.InteractiveResponseForProgress | undefined | null;

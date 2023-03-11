@@ -35,9 +35,8 @@ export interface IInteractiveResponse {
 	};
 }
 
-export interface IInteractiveProgress {
-	responsePart: string;
-}
+export type IInteractiveProgress =
+	{ content: string } | { responseId: string };
 
 export interface IPersistedInteractiveState { }
 export interface IInteractiveProvider {

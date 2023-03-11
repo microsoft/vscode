@@ -8,7 +8,7 @@ import { IMarkdownString, MarkdownString } from 'vs/base/common/htmlContent';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { ILogService } from 'vs/platform/log/common/log';
-import { IInteractiveResponse, IInteractiveSession } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionService';
+import { IInteractiveProgress, IInteractiveResponse, IInteractiveSession } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionService';
 
 export interface IInteractiveRequestModel {
 	readonly id: string;
@@ -32,6 +32,7 @@ export interface IInteractiveResponseErrorDetails {
 export interface IInteractiveResponseModel {
 	readonly onDidChange: Event<void>;
 	readonly id: string;
+	readonly providerId: string | undefined;
 	readonly username: string;
 	readonly avatarIconUri?: URI;
 	readonly response: IMarkdownString;
@@ -75,6 +76,11 @@ export class InteractiveResponseModel extends Disposable implements IInteractive
 		return this._id;
 	}
 
+	private _providerId: string | undefined;
+	public get providerId(): string | undefined {
+		return this._providerId;
+	}
+
 	private _isComplete: boolean;
 	public get isComplete(): boolean {
 		return this._isComplete;
@@ -100,11 +106,12 @@ export class InteractiveResponseModel extends Disposable implements IInteractive
 		return this._errorDetails;
 	}
 
-	constructor(response: IMarkdownString, public readonly username: string, public readonly avatarIconUri?: URI, isComplete: boolean = false, errorDetails?: IInteractiveResponseErrorDetails, followups?: string[]) {
+	constructor(response: IMarkdownString, public readonly username: string, public readonly avatarIconUri?: URI, isComplete: boolean = false, providerId?: string, errorDetails?: IInteractiveResponseErrorDetails, followups?: string[]) {
 		super();
 		this._response = response;
 		this._isComplete = isComplete;
 		this._followups = followups;
+		this._providerId = providerId;
 		this._errorDetails = errorDetails;
 		this._id = 'response_' + InteractiveResponseModel.nextId++;
 	}
@@ -112,6 +119,10 @@ export class InteractiveResponseModel extends Disposable implements IInteractive
 	updateContent(responsePart: string) {
 		this._response = new MarkdownString(this.response.value + responsePart);
 		this._onDidChange.fire();
+	}
+
+	setProviderId(providerId: string) {
+		this._providerId = providerId;
 	}
 
 	complete(followups: string[] | undefined, commandFollowups: IInteractiveSessionResponseCommandFollowup[] | undefined, errorDetails?: IInteractiveResponseErrorDetails): void {
@@ -136,6 +147,7 @@ export interface ISerializableInteractiveSessionsData {
 }
 
 export interface ISerializableInteractiveSessionRequestData {
+	providerId: string | undefined;
 	message: string;
 	response: string | undefined;
 	responseErrorDetails: IInteractiveResponseErrorDetails | undefined;
@@ -198,7 +210,7 @@ export class InteractiveSessionModel extends Disposable implements IInteractiveS
 		return requests.map((raw: ISerializableInteractiveSessionRequestData) => {
 			const request = new InteractiveRequestModel(raw.message, this.session.requesterUsername, this.session.requesterAvatarIconUri);
 			if (raw.response || raw.responseErrorDetails) {
-				request.response = new InteractiveResponseModel(new MarkdownString(raw.response), this.session.responderUsername, this.session.responderAvatarIconUri, true, raw.responseErrorDetails);
+				request.response = new InteractiveResponseModel(new MarkdownString(raw.response), this.session.responderUsername, this.session.responderAvatarIconUri, true, raw.providerId, raw.responseErrorDetails);
 			}
 			return request;
 		});
@@ -230,11 +242,15 @@ export class InteractiveSessionModel extends Disposable implements IInteractiveS
 		return request;
 	}
 
-	mergeResponseContent(request: InteractiveRequestModel, part: string): void {
-		if (request.response) {
-			request.response.updateContent(part);
+	acceptResponseProgress(request: InteractiveRequestModel, progress: IInteractiveProgress): void {
+		if (!request.response) {
+			request.response = new InteractiveResponseModel(new MarkdownString(''), this.session.responderUsername, this.session.responderAvatarIconUri);
+		}
+
+		if ('content' in progress) {
+			request.response.updateContent(progress.content);
 		} else {
-			request.response = new InteractiveResponseModel(new MarkdownString(part), this.session.responderUsername, this.session.responderAvatarIconUri);
+			request.response.setProviderId(progress.responseId);
 		}
 	}
 
@@ -251,6 +267,7 @@ export class InteractiveSessionModel extends Disposable implements IInteractiveS
 		return {
 			requests: this._requests.map(r => {
 				return {
+					providerId: r.response?.providerId,
 					message: r.message,
 					response: r.response ? r.response.response.value : undefined,
 					responseErrorDetails: r.response?.errorDetails

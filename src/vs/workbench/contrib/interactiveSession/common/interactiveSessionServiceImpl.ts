@@ -157,8 +157,13 @@ export class InteractiveSessionService extends Disposable implements IInteractiv
 			let gotProgress = false;
 			const progressCallback = (progress: IInteractiveProgress) => {
 				gotProgress = true;
-				this.trace('sendRequest', `Provider returned progress for session ${model.sessionId}, ${progress.responsePart.length} chars`);
-				model.mergeResponseContent(request, progress.responsePart);
+				if ('content' in progress) {
+					this.trace('sendRequest', `Provider returned progress for session ${model.sessionId}, ${progress.content.length} chars`);
+				} else {
+					this.trace('sendRequest', `Provider returned id for session ${model.sessionId}, ${progress.responseId}`);
+				}
+
+				model.acceptResponseProgress(request, progress);
 			};
 			let rawResponse = await provider.provideReply({ session: model.session, message }, progressCallback, token);
 			if (!rawResponse) {
