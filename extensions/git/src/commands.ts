@@ -2061,7 +2061,7 @@ export class CommandCenter {
 		const picks: QuickPickItem[] = [];
 
 		if (!opts?.detached) {
-			picks.push(createBranch, createBranchFrom, checkoutDetached);
+			picks.push(createBranch, createBranchFrom, checkoutDetached, { label: '', kind: QuickPickItemKind.Separator });
 		}
 
 		const quickpick = window.createQuickPick();
@@ -2460,7 +2460,20 @@ export class CommandCenter {
 		}
 
 		const remoteTagPicks = async (): Promise<TagItem[] | QuickPickItem[]> => {
-			const remoteTags = await repository.getRemoteRefs(remoteName, { tags: true });
+			const remoteTagsRaw = await repository.getRemoteRefs(remoteName, { tags: true });
+
+			// Deduplicate annotated and lightweight tags
+			const remoteTagNames = new Set<string>();
+			const remoteTags: Ref[] = [];
+
+			for (const tag of remoteTagsRaw) {
+				const tagName = (tag.name ?? '').replace(/\^{}$/, '');
+				if (!remoteTagNames.has(tagName)) {
+					remoteTags.push({ ...tag, name: tagName });
+					remoteTagNames.add(tagName);
+				}
+			}
+
 			return remoteTags.length === 0 ? [{ label: l10n.t('$(info) Remote "{0}" has no tags.', remoteName) }] : remoteTags.map(ref => new TagItem(ref));
 		};
 
@@ -3448,7 +3461,7 @@ export class CommandCenter {
 			*/
 			this.telemetryReporter.sendTelemetryEvent('git.command', { command: id });
 
-			return result.catch(async err => {
+			return result.catch(err => {
 				const options: MessageOptions = {
 					modal: true
 				};
@@ -3546,26 +3559,10 @@ export class CommandCenter {
 					return;
 				}
 
-				let result: string | undefined;
-				const allChoices = Array.from(choices.keys());
-
-				switch (type) {
-					case 'error':
-						result = await window.showErrorMessage(message, options, ...allChoices);
-						break;
-					case 'warning':
-						result = await window.showWarningMessage(message, options, ...allChoices);
-						break;
-					case 'information':
-						result = await window.showInformationMessage(message, options, ...allChoices);
-						break;
-				}
-
-				if (result) {
-					const resultFn = choices.get(result);
-
-					resultFn?.();
-				}
+				// We explicitly do not await this promise, because we do not
+				// want the command execution to be stuck waiting for the user
+				// to take action on the notification.
+				this.showErrorNotification(type, message, options, choices);
 			});
 		};
 
@@ -3573,6 +3570,29 @@ export class CommandCenter {
 		(this as any)[key] = result;
 
 		return result;
+	}
+
+	private async showErrorNotification(type: 'error' | 'warning' | 'information', message: string, options: MessageOptions, choices: Map<string, () => void>): Promise<void> {
+		let result: string | undefined;
+		const allChoices = Array.from(choices.keys());
+
+		switch (type) {
+			case 'error':
+				result = await window.showErrorMessage(message, options, ...allChoices);
+				break;
+			case 'warning':
+				result = await window.showWarningMessage(message, options, ...allChoices);
+				break;
+			case 'information':
+				result = await window.showInformationMessage(message, options, ...allChoices);
+				break;
+		}
+
+		if (result) {
+			const resultFn = choices.get(result);
+
+			resultFn?.();
+		}
 	}
 
 	private getSCMResource(uri?: Uri): Resource | undefined {

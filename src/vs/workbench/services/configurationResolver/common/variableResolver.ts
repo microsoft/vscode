@@ -85,7 +85,7 @@ export class AbstractVariableResolverService implements IConfigurationResolverSe
 
 	private async resolveAnyBase(workspaceFolder: IWorkspaceFolder | undefined, config: any, commandValueMapping?: IStringDictionary<string>, resolvedVariables?: Map<string, string>): Promise<any> {
 
-		const result = objects.deepClone(config) as any;
+		const result = objects.deepClone(config);
 
 		// hoist platform specific attributes to top level
 		if (isWindows && result.windows) {

@@ -25,6 +25,7 @@ Visual Studio Code is a new choice of tool that combines the simplicity of a cod
 mkdir -p %{buildroot}%{_bindir}
 mkdir -p %{buildroot}%{_datadir}/%{name}
 mkdir -p %{buildroot}%{_datadir}/applications
+mkdir -p %{buildroot}%{_datadir}/appdata
 mkdir -p %{buildroot}%{_datadir}/mime/packages
 mkdir -p %{buildroot}%{_datadir}/pixmaps
 mkdir -p %{buildroot}%{_datadir}/bash-completion/completions
@@ -35,6 +36,7 @@ ln -s %{_datadir}/%{name}/bin/%{name} %{buildroot}%{_bindir}/%{name}
 # Support files
 cp -r usr/share/applications/%{name}.desktop %{buildroot}%{_datadir}/applications
 cp -r usr/share/applications/%{name}-url-handler.desktop %{buildroot}%{_datadir}/applications
+cp -r usr/share/appdata/%{name}.appdata.xml %{buildroot}%{_datadir}/appdata
 cp -r usr/share/mime/packages/%{name}-workspace.xml %{buildroot}%{_datadir}/mime/packages/%{name}-workspace.xml
 cp -r usr/share/pixmaps/@@ICON@@.png %{buildroot}%{_datadir}/pixmaps
 # Shell completions
@@ -72,6 +74,7 @@ update-mime-database %{_datadir}/mime &> /dev/null || :
 %{_datadir}/%{name}/
 %{_datadir}/applications/%{name}.desktop
 %{_datadir}/applications/%{name}-url-handler.desktop
+%{_datadir}/appdata/%{name}.appdata.xml
 %{_datadir}/mime/packages/%{name}-workspace.xml
 %{_datadir}/pixmaps/@@ICON@@.png
 %{_datadir}/bash-completion/completions/%{name}

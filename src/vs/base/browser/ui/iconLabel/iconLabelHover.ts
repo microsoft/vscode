@@ -164,6 +164,7 @@ export function setupCustomHover(hoverDelegate: IHoverDelegate, htmlElement: HTM
 	let hoverWidget: UpdatableHoverWidget | undefined;
 
 	const hideHover = (disposeWidget: boolean, disposePreparation: boolean) => {
+		const hadHover = hoverWidget !== undefined;
 		if (disposeWidget) {
 			hoverWidget?.dispose();
 			hoverWidget = undefined;
@@ -172,7 +173,9 @@ export function setupCustomHover(hoverDelegate: IHoverDelegate, htmlElement: HTM
 			hoverPreparation?.dispose();
 			hoverPreparation = undefined;
 		}
-		hoverDelegate.onDidHideHover?.();
+		if (hadHover) {
+			hoverDelegate.onDidHideHover?.();
+		}
 	};
 
 	const triggerShowHover = (delay: number, focus?: boolean, target?: IHoverDelegateTarget) => {

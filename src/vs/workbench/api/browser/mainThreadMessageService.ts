@@ -8,7 +8,7 @@ import Severity from 'vs/base/common/severity';
 import { IAction, toAction } from 'vs/base/common/actions';
 import { MainThreadMessageServiceShape, MainContext, MainThreadMessageOptions } from '../common/extHost.protocol';
 import { extHostNamedCustomer, IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
-import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
+import { IDialogService, IPromptButton } from 'vs/platform/dialogs/common/dialogs';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { Event } from 'vs/base/common/event';
 import { ICommandService } from 'vs/platform/commands/common/commands';
@@ -90,27 +90,45 @@ export class MainThreadMessageService implements MainThreadMessageServiceShape {
 	}
 
 	private async _showModalMessage(severity: Severity, message: string, detail: string | undefined, commands: { title: string; isCloseAffordance: boolean; handle: number }[], useCustom?: boolean): Promise<number | undefined> {
-		let cancelId: number | undefined = undefined;
+		const buttons: IPromptButton<number>[] = [];
+		let cancelButton: IPromptButton<number | undefined> | undefined = undefined;
 
-		const buttons = commands.map((command, index) => {
-			if (command.isCloseAffordance === true) {
-				cancelId = index;
-			}
+		for (const command of commands) {
+			const button: IPromptButton<number> = {
+				label: command.title,
+				run: () => command.handle
+			};
 
-			return command.title;
-		});
-
-		if (cancelId === undefined) {
-			if (buttons.length > 0) {
-				buttons.push(nls.localize('cancel', "Cancel"));
+			if (command.isCloseAffordance) {
+				cancelButton = button;
 			} else {
-				buttons.push(nls.localize('ok', "OK"));
+				buttons.push(button);
 			}
-
-			cancelId = buttons.length - 1;
 		}
 
-		const { choice } = await this._dialogService.show(severity, message, buttons, { cancelId, custom: useCustom, detail });
-		return choice === commands.length ? undefined : commands[choice].handle;
+		if (!cancelButton) {
+			if (buttons.length > 0) {
+				cancelButton = {
+					label: nls.localize('cancel', "Cancel"),
+					run: () => undefined
+				};
+			} else {
+				cancelButton = {
+					label: nls.localize({ key: 'ok', comment: ['&& denotes a mnemonic'] }, "&&OK"),
+					run: () => undefined
+				};
+			}
+		}
+
+		const { result } = await this._dialogService.prompt({
+			type: severity,
+			message,
+			detail,
+			buttons,
+			cancelButton,
+			custom: useCustom
+		});
+
+		return result;
 	}
 }

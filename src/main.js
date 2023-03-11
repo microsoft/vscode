@@ -93,10 +93,29 @@ registerListeners();
 let nlsConfigurationPromise = undefined;
 
 const metaDataFile = path.join(__dirname, 'nls.metadata.json');
-const locale = getUserDefinedLocale(argvConfig);
-if (locale) {
+const language = getUserDefinedLocale(argvConfig);
+/**
+ * @type {string | undefined}
+ **/
+let osLocale = undefined;
+// This if statement can be simplified once
+// VS Code moves to Electron 22.
+// Ref https://github.com/microsoft/vscode/issues/159813
+// and https://github.com/electron/electron/pull/36035
+if ('getPreferredSystemLanguages' in app
+	&& typeof app.getPreferredSystemLanguages === 'function') {
+	// Use the most preferred OS language for language recommendation.
+	// The API might return an empty array on Linux, such as when
+	// the 'C' locale is the user's only configured locale.
+	// No matter the OS, if the array is empty, default back to 'en'.
+	osLocale = app.getPreferredSystemLanguages()?.[0] ?? 'en';
+	if (osLocale) {
+		osLocale = processZhLocale(osLocale.toLowerCase());
+	}
+}
+if (language && osLocale) {
 	const { getNLSConfiguration } = require('./vs/base/node/languagePacks');
-	nlsConfigurationPromise = getNLSConfiguration(product.commit, userDataPath, metaDataFile, locale);
+	nlsConfigurationPromise = getNLSConfiguration(product.commit, userDataPath, metaDataFile, osLocale, language);
 }
 
 // Pass in the locale to Electron so that the
@@ -107,8 +126,8 @@ if (locale) {
 // Pseudo Language Language Pack is being used.
 // In that case, use `en` as the Electron locale.
 
-if (process.platform === 'win32') {
-	const electronLocale = (!locale || locale === 'qps-ploc') ? 'en' : locale;
+if (process.platform === 'win32' || process.platform === 'linux') {
+	const electronLocale = (!language || language === 'qps-ploc') ? 'en' : language;
 	app.commandLine.appendSwitch('lang', electronLocale);
 }
 
@@ -227,6 +246,10 @@ function configureCommandlineSwitchesSync(cliArgs) {
 				case 'log-level':
 					if (typeof argvValue === 'string') {
 						process.argv.push('--log', argvValue);
+					} else if (Array.isArray(argvValue)) {
+						for (const value of argvValue) {
+							process.argv.push('--log', value);
+						}
 					}
 					break;
 			}
@@ -551,6 +574,30 @@ async function mkdirpIgnoreError(dir) {
 //#region NLS Support
 
 /**
+ * @param {string} appLocale
+ * @returns string
+ */
+function processZhLocale(appLocale) {
+	if (appLocale.startsWith('zh')) {
+		const region = appLocale.split('-')[1];
+		// On Windows and macOS, Chinese languages returned by
+		// app.getPreferredSystemLanguages() start with zh-hans
+		// for Simplified Chinese or zh-hant for Traditional Chinese,
+		// so we can easily determine whether to use Simplified or Traditional.
+		// However, on Linux, Chinese languages returned by that same API
+		// are of the form zh-XY, where XY is a country code.
+		// For China (CN), Singapore (SG), and Malaysia (MY)
+		// country codes, assume they use Simplified Chinese.
+		// For other cases, assume they use Traditional.
+		if (['hans', 'cn', 'sg', 'my'].includes(region)) {
+			return 'zh-cn';
+		}
+		return 'zh-tw';
+	}
+	return appLocale;
+}
+
+/**
  * Resolve the NLS configuration
  *
  * @return {Promise<NLSConfiguration>}
@@ -561,46 +608,15 @@ async function resolveNlsConfiguration() {
 	// If that fails we fall back to English.
 	let nlsConfiguration = nlsConfigurationPromise ? await nlsConfigurationPromise : undefined;
 	if (!nlsConfiguration) {
+		// fallback to using app.getLocale() so that we have something for the locale.
+		// This can be removed after the move to Electron 22. Please note that getLocale() is only
+		// valid after we have received the app ready event. This is why the code is here.
+		osLocale ??= processZhLocale(app.getLocale().toLowerCase());
 
-		// Try to use the app locale. Please note that the app locale is only
-		// valid after we have received the app ready event. This is why the
-		// code is here.
-
-		/**
-		 * @type string
-		 */
-		let appLocale = app.getLocale();
-
-		// This if statement can be simplified once
-		// VS Code moves to Electron 22.
-		// Ref https://github.com/microsoft/vscode/issues/159813
-		// and https://github.com/electron/electron/pull/36035
-		if (process.platform === 'win32'
-			&& 'getPreferredSystemLanguages' in app
-			&& typeof app.getPreferredSystemLanguages === 'function'
-			&& app.getPreferredSystemLanguages().length) {
-			// Use the most preferred OS language for language recommendation.
-			appLocale = app.getPreferredSystemLanguages()[0];
-		}
-
-		if (!appLocale) {
-			nlsConfiguration = { locale: 'en', availableLanguages: {} };
-		} else {
-
-			// See above the comment about the loader and case sensitiveness
-			appLocale = appLocale.toLowerCase();
-
-			if (appLocale.startsWith('zh-hans')) {
-				appLocale = 'zh-cn';
-			} else if (appLocale.startsWith('zh-hant')) {
-				appLocale = 'zh-tw';
-			}
-
-			const { getNLSConfiguration } = require('./vs/base/node/languagePacks');
-			nlsConfiguration = await getNLSConfiguration(product.commit, userDataPath, metaDataFile, appLocale);
-			if (!nlsConfiguration) {
-				nlsConfiguration = { locale: appLocale, availableLanguages: {} };
-			}
+		const { getNLSConfiguration } = require('./vs/base/node/languagePacks');
+		nlsConfiguration = await getNLSConfiguration(product.commit, userDataPath, metaDataFile, osLocale, language);
+		if (!nlsConfiguration) {
+			nlsConfiguration = { locale: osLocale, availableLanguages: {} };
 		}
 	} else {
 		// We received a valid nlsConfig from a user defined locale

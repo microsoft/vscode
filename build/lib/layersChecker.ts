@@ -68,7 +68,9 @@ const NATIVE_TYPES = [
 	'INativeEnvironmentService',
 	'AbstractNativeEnvironmentService',
 	'INativeWindowConfiguration',
-	'ICommonNativeHostService'
+	'ICommonNativeHostService',
+	'INativeHostService',
+	'IMainProcessService'
 ];
 
 const RULES: IRule[] = [

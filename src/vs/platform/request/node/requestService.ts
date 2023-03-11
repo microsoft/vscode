@@ -9,16 +9,15 @@ import { parse as parseUrl } from 'url';
 import { Promises } from 'vs/base/common/async';
 import { streamToBufferReadableStream } from 'vs/base/common/buffer';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { CancellationError } from 'vs/base/common/errors';
-import { Disposable } from 'vs/base/common/lifecycle';
+import { CancellationError, getErrorMessage } from 'vs/base/common/errors';
 import * as streams from 'vs/base/common/stream';
 import { isBoolean, isNumber } from 'vs/base/common/types';
 import { IRequestContext, IRequestOptions } from 'vs/base/parts/request/common/request';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { INativeEnvironmentService } from 'vs/platform/environment/common/environment';
 import { getResolvedShellEnv } from 'vs/platform/shell/node/shellEnv';
-import { ILogService } from 'vs/platform/log/common/log';
-import { IRequestService } from 'vs/platform/request/common/request';
+import { ILogService, ILoggerService } from 'vs/platform/log/common/log';
+import { AbstractRequestService, IRequestService } from 'vs/platform/request/common/request';
 import { Agent, getProxyAgent } from 'vs/platform/request/node/proxy';
 import { createGunzip } from 'zlib';
 
@@ -43,7 +42,7 @@ export interface NodeRequestOptions extends IRequestOptions {
  * This service exposes the `request` API, while using the global
  * or configured proxy settings.
  */
-export class RequestService extends Disposable implements IRequestService {
+export class RequestService extends AbstractRequestService implements IRequestService {
 
 	declare readonly _serviceBrand: undefined;
 
@@ -55,9 +54,10 @@ export class RequestService extends Disposable implements IRequestService {
 	constructor(
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@INativeEnvironmentService private readonly environmentService: INativeEnvironmentService,
-		@ILogService private readonly logService: ILogService
+		@ILogService private readonly logService: ILogService,
+		@ILoggerService loggerService: ILoggerService
 	) {
-		super();
+		super(!!environmentService.isRemoteServer, loggerService);
 		this.configure();
 		this._register(configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration('http')) {
@@ -68,14 +68,13 @@ export class RequestService extends Disposable implements IRequestService {
 
 	private configure() {
 		const config = this.configurationService.getValue<IHTTPConfiguration | undefined>('http');
+
 		this.proxyUrl = config?.proxy;
 		this.strictSSL = !!config?.proxyStrictSSL;
 		this.authorization = config?.proxyAuthorization;
 	}
 
 	async request(options: NodeRequestOptions, token: CancellationToken): Promise<IRequestContext> {
-		this.logService.trace('RequestService#request (node) - begin', options.url);
-
 		const { proxyUrl, strictSSL } = this;
 
 		let shellEnv: typeof process.env | undefined = undefined;
@@ -84,7 +83,7 @@ export class RequestService extends Disposable implements IRequestService {
 		} catch (error) {
 			if (!this.shellEnvErrorLogged) {
 				this.shellEnvErrorLogged = true;
-				this.logService.error('RequestService#request (node) resolving shell environment failed', error);
+				this.logService.error(`resolving shell environment failed`, getErrorMessage(error));
 			}
 		}
 
@@ -104,17 +103,7 @@ export class RequestService extends Disposable implements IRequestService {
 			};
 		}
 
-		try {
-			const res = await nodeRequest(options, token);
-
-			this.logService.trace('RequestService#request (node) - success', options.url);
-
-			return res;
-		} catch (error) {
-			this.logService.trace('RequestService#request (node) - error', options.url, error);
-
-			throw error;
-		}
+		return this.logAndRequest(options.isChromiumNetwork ? 'electron' : 'node', options, () => nodeRequest(options, token));
 	}
 
 	async resolveProxy(url: string): Promise<string | undefined> {
@@ -125,13 +114,12 @@ export class RequestService extends Disposable implements IRequestService {
 async function getNodeRequest(options: IRequestOptions): Promise<IRawRequestFunction> {
 	const endpoint = parseUrl(options.url!);
 	const module = endpoint.protocol === 'https:' ? await import('https') : await import('http');
+
 	return module.request;
 }
 
 export async function nodeRequest(options: NodeRequestOptions, token: CancellationToken): Promise<IRequestContext> {
-
-	return Promises.withAsyncBody<IRequestContext>(async (c, e) => {
-
+	return Promises.withAsyncBody<IRequestContext>(async (resolve, reject) => {
 		const endpoint = parseUrl(options.url!);
 		const rawRequest = options.getRawRequest
 			? options.getRawRequest(options)
@@ -159,7 +147,7 @@ export async function nodeRequest(options: NodeRequestOptions, token: Cancellati
 					...options,
 					url: res.headers['location'],
 					followRedirects: followRedirects - 1
-				}, token).then(c, e);
+				}, token).then(resolve, reject);
 			} else {
 				let stream: streams.ReadableStreamEvents<Uint8Array> = res;
 
@@ -172,11 +160,11 @@ export async function nodeRequest(options: NodeRequestOptions, token: Cancellati
 					stream = res.pipe(createGunzip());
 				}
 
-				c({ res, stream: streamToBufferReadableStream(stream) } as IRequestContext);
+				resolve({ res, stream: streamToBufferReadableStream(stream) } as IRequestContext);
 			}
 		});
 
-		req.on('error', e);
+		req.on('error', reject);
 
 		if (options.timeout) {
 			req.setTimeout(options.timeout);
@@ -199,7 +187,8 @@ export async function nodeRequest(options: NodeRequestOptions, token: Cancellati
 
 		token.onCancellationRequested(() => {
 			req.abort();
-			e(new CancellationError());
+
+			reject(new CancellationError());
 		});
 	});
 }

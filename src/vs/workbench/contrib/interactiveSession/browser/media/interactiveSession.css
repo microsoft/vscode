@@ -1,0 +1,225 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.interactive-list .monaco-list-row:not(:first-of-type) .interactive-item-container {
+	border-top: 1px solid var(--vscode-interactive-responseBorder);
+}
+
+.interactive-list .monaco-list-row:last-of-type .interactive-item-container {
+	border-bottom: 1px solid var(--vscode-interactive-responseBorder);
+}
+
+.interactive-list .monaco-list-row .monaco-tl-twistie {
+	/* Hide twisties */
+	display: none !important;
+}
+
+.interactive-list .interactive-item-container {
+	display: flex;
+	flex-direction: column;
+	gap: 6px;
+}
+
+.interactive-list .interactive-item-container .header {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+}
+
+.interactive-list .interactive-item-container .header .user {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+}
+
+.interactive-list .interactive-item-container .header .username {
+	margin: 0;
+	font-size: 12px;
+	font-weight: 600;
+}
+
+.interactive-list .interactive-item-container .header .avatar {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: 24px;
+	height: 24px;
+	border-radius: 50%;
+	background: var(--vscode-badge-background);
+}
+
+.interactive-list .interactive-item-container .header .avatar .icon {
+	width: 24px;
+	height: 24px;
+	border-radius: 50%;
+}
+
+.interactive-list .interactive-item-container .header .avatar .codicon {
+	color: var(--vscode-badge-foreground);
+}
+
+.interactive-list .interactive-item-container .header .monaco-toolbar {
+	display: none;
+}
+
+.interactive-list .interactive-item-container.interactive-response:hover .header .monaco-toolbar {
+	display: initial;
+}
+
+.interactive-list .interactive-item-container .value {
+	width: 100%;
+	overflow: hidden;
+}
+
+.interactive-list .interactive-item-container .value table {
+	width: 100%;
+	text-align: left;
+	margin-bottom: 16px;
+}
+
+.interactive-list .interactive-item-container .value table,
+.interactive-list .interactive-item-container .value table td,
+.interactive-list .interactive-item-container .value table th {
+	border: 1px solid var(--vscode-interactive-responseBorder);
+	border-collapse: collapse;
+	padding: 4px 6px;
+}
+
+.interactive-list {
+	overflow: hidden;
+}
+
+.interactive-list .monaco-list-row .interactive-request,
+.interactive-list .monaco-list-row .interactive-response {
+	user-select: text;
+	-webkit-user-select: text;
+}
+
+.interactive-list .monaco-list-row .interactive-response {
+	background-color: var(--vscode-interactive-responseBackground);
+	padding: 16px 20px 0 20px
+}
+
+.interactive-list .monaco-list-row .interactive-request {
+	padding: 16px 20px 0 20px;
+}
+
+.interactive-list .monaco-list-row .value {
+	white-space: normal;
+}
+
+.interactive-list .monaco-list-row .value p {
+	margin: 0 0 16px 0;
+	line-height: 1.6em;
+}
+
+.interactive-list .monaco-list-row .monaco-tokenized-source,
+.interactive-list .monaco-list-row code {
+	font-family: var(--monaco-monospace-font);
+}
+
+.interactive-session .interactive-input-wrapper {
+	display: flex;
+	border-radius: 2px;
+	box-sizing: border-box;
+	padding: 12px;
+	cursor: text;
+	border-top: 1px solid var(--vscode-interactive-responseBorder);
+}
+
+.interactive-session .interactive-input-wrapper .monaco-editor-background {
+	background-color: var(--vscode-input-background);
+	padding: 0 8px;
+}
+
+/* TODO @daviddossett only apply focus border on focus */
+.interactive-session .interactive-input-wrapper .monaco-editor {
+	border: 1px solid var(--vscode-focusBorder);
+}
+
+.interactive-session .interactive-input-wrapper .monaco-editor,
+.interactive-session .interactive-input-wrapper .monaco-editor .overflow-guard {
+	border-radius: 4px;
+}
+
+.interactive-session .interactive-input-wrapper .monaco-editor .cursors-layer {
+	padding-left: 4px;
+}
+
+.interactive-session .monaco-inputbox {
+	width: 100%;
+}
+
+.interactive-session .interactive-result-editor-wrapper {
+	position: relative;
+}
+
+.interactive-session .interactive-result-editor-wrapper .monaco-toolbar {
+	display: none;
+	position: absolute;
+	top: -13px;
+	right: 10px;
+	height: 26px;
+	background-color: var(--vscode-interactive-result-editor-background-color);
+	border: 1px solid var(--vscode-interactive-responseBorder);
+	z-index: 100;
+}
+
+.interactive-session .interactive-result-editor-wrapper:hover .monaco-toolbar {
+	display: initial;
+}
+
+.interactive-session .interactive-result-editor-wrapper .monaco-editor,
+.interactive-session .interactive-result-editor-wrapper .monaco-editor .overflow-guard {
+	border-radius: 4px;
+}
+
+.interactive-session .interactive-response .monaco-editor .margin,
+.interactive-session .interactive-response .monaco-editor .monaco-editor-background {
+	background-color: var(--vscode-interactive-result-editor-background-color);
+}
+
+.interactive-result-editor-wrapper {
+	margin: 16px 0;
+}
+
+.interactive-session .interactive-session-welcome-view {
+	box-sizing: border-box;
+	display: flex;
+	flex-direction: column;
+	justify-content: start;
+	padding: 20px;
+	gap: 16px;
+}
+
+.interactive-session .interactive-session-welcome-view .monaco-button {
+	max-width: 400px;
+	margin: 0;
+}
+
+.interactive-session .interactive-response .interactive-response-followups {
+	display: flex;
+	flex-direction: column;
+	gap: 8px;
+	align-items: start;
+	margin-bottom: 1em; /* This is matching the margin on rendered markdown */
+}
+
+.interactive-session .interactive-response .interactive-response-followups .monaco-button {
+	width: 100%;
+	padding: 2px 8px;
+	font-size: 11px;
+	font-weight: 600;
+}
+
+.interactive-session .interactive-response .interactive-response-error-details {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+}
+
+.interactive-session .interactive-response .interactive-response-error-details .codicon {
+	color: var(--vscode-errorForeground);
+}

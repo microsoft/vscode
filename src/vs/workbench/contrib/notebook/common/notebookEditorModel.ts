@@ -18,6 +18,7 @@ import { EditorModel } from 'vs/workbench/common/editor/editorModel';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
 import { ICellDto2, INotebookEditorModel, INotebookLoadOptions, IResolvedNotebookEditorModel, NotebookCellsChangeType, NotebookData } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { INotebookSerializer, INotebookService, SimpleNotebookProviderInfo } from 'vs/workbench/contrib/notebook/common/notebookService';
+import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { IFileWorkingCopyManager } from 'vs/workbench/services/workingCopy/common/fileWorkingCopyManager';
 import { IStoredFileWorkingCopy, IStoredFileWorkingCopyModel, IStoredFileWorkingCopyModelContentChangedEvent, IStoredFileWorkingCopyModelFactory, IStoredFileWorkingCopySaveEvent, StoredFileWorkingCopyState } from 'vs/workbench/services/workingCopy/common/storedFileWorkingCopy';
 import { IUntitledFileWorkingCopy, IUntitledFileWorkingCopyModel, IUntitledFileWorkingCopyModelContentChangedEvent, IUntitledFileWorkingCopyModelFactory } from 'vs/workbench/services/workingCopy/common/untitledFileWorkingCopy';
@@ -45,9 +46,21 @@ export class SimpleNotebookEditorModel extends EditorModel implements INotebookE
 		private readonly _hasAssociatedFilePath: boolean,
 		readonly viewType: string,
 		private readonly _workingCopyManager: IFileWorkingCopyManager<NotebookFileWorkingCopyModel, NotebookFileWorkingCopyModel>,
-		@IFileService private readonly _fileService: IFileService
+		@IFileService private readonly _fileService: IFileService,
+		@ILifecycleService lifecycleService: ILifecycleService
 	) {
 		super();
+
+		if (this.viewType === 'interactive') {
+			lifecycleService.onBeforeShutdown(async e => e.veto(this.onBeforeShutdown(), 'veto.InteractiveWindow'));
+		}
+	}
+
+	private async onBeforeShutdown() {
+		if (this._workingCopy?.isDirty()) {
+			await this._workingCopy.save();
+		}
+		return false;
 	}
 
 	override dispose(): void {
@@ -252,8 +265,14 @@ export class NotebookFileWorkingCopyModelFactory implements IStoredFileWorkingCo
 			throw new Error('CANNOT open file notebook with this provider');
 		}
 
-		const bytes = await streamToBuffer(stream);
-		const data = await info.serializer.dataToNotebook(bytes);
+		let data: NotebookData = {
+			metadata: {},
+			cells: []
+		};
+		if (resource.scheme !== Schemas.vscodeInteractive) {
+			const bytes = await streamToBuffer(stream);
+			data = await info.serializer.dataToNotebook(bytes);
+		}
 
 		if (token.isCancellationRequested) {
 			throw new CancellationError();

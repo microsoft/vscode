@@ -219,8 +219,8 @@ abstract class AbstractTreeView extends Disposable implements ITreeView {
 	private readonly _onDidCollapseItem: Emitter<ITreeItem> = this._register(new Emitter<ITreeItem>());
 	readonly onDidCollapseItem: Event<ITreeItem> = this._onDidCollapseItem.event;
 
-	private _onDidChangeSelection: Emitter<ITreeItem[]> = this._register(new Emitter<ITreeItem[]>());
-	readonly onDidChangeSelection: Event<ITreeItem[]> = this._onDidChangeSelection.event;
+	private _onDidChangeSelection: Emitter<readonly ITreeItem[]> = this._register(new Emitter<readonly ITreeItem[]>());
+	readonly onDidChangeSelection: Event<readonly ITreeItem[]> = this._onDidChangeSelection.event;
 
 	private _onDidChangeFocus: Emitter<ITreeItem> = this._register(new Emitter<ITreeItem>());
 	readonly onDidChangeFocus: Event<ITreeItem> = this._onDidChangeFocus.event;
@@ -240,8 +240,8 @@ abstract class AbstractTreeView extends Disposable implements ITreeView {
 	private readonly _onDidChangeDescription: Emitter<string | undefined> = this._register(new Emitter<string | undefined>());
 	readonly onDidChangeDescription: Event<string | undefined> = this._onDidChangeDescription.event;
 
-	private readonly _onDidChangeCheckboxState: Emitter<ITreeItem[]> = this._register(new Emitter<ITreeItem[]>());
-	readonly onDidChangeCheckboxState: Event<ITreeItem[]> = this._onDidChangeCheckboxState.event;
+	private readonly _onDidChangeCheckboxState: Emitter<readonly ITreeItem[]> = this._register(new Emitter<readonly ITreeItem[]>());
+	readonly onDidChangeCheckboxState: Event<readonly ITreeItem[]> = this._onDidChangeCheckboxState.event;
 
 	private readonly _onDidCompleteRefresh: Emitter<void> = this._register(new Emitter<void>());
 
@@ -732,7 +732,11 @@ abstract class AbstractTreeView extends Disposable implements ITreeView {
 					args = [...args, e];
 				}
 
-				this.commandService.executeCommand(command.id, ...args);
+				try {
+					await this.commandService.executeCommand(command.id, ...args);
+				} catch (err) {
+					this.notificationService.error(err);
+				}
 			}
 		}));
 
@@ -852,7 +856,7 @@ abstract class AbstractTreeView extends Disposable implements ITreeView {
 		return 0;
 	}
 
-	async refresh(elements?: ITreeItem[]): Promise<void> {
+	async refresh(elements?: readonly ITreeItem[]): Promise<void> {
 		if (this.dataProvider && this.tree) {
 			if (this.refreshing) {
 				await Event.toPromise(this._onDidCompleteRefresh.event);
@@ -900,6 +904,10 @@ abstract class AbstractTreeView extends Disposable implements ITreeView {
 		}
 	}
 
+	isCollapsed(item: ITreeItem): boolean {
+		return !!this.tree?.isCollapsed(item);
+	}
+
 	setSelection(items: ITreeItem[]): void {
 		this.tree?.setSelection(items);
 	}
@@ -922,7 +930,7 @@ abstract class AbstractTreeView extends Disposable implements ITreeView {
 	}
 
 	private refreshing: boolean = false;
-	private async doRefresh(elements: ITreeItem[]): Promise<void> {
+	private async doRefresh(elements: readonly ITreeItem[]): Promise<void> {
 		const tree = this.tree;
 		if (tree && this.visible) {
 			this.refreshing = true;

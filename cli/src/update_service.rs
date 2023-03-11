@@ -287,7 +287,7 @@ impl Platform {
 			Some(Platform::LinuxAlpineARM64)
 		} else if cfg!(all(target_os = "linux", target_arch = "x86_64")) {
 			Some(Platform::LinuxX64)
-		} else if cfg!(all(target_os = "linux", target_arch = "armhf")) {
+		} else if cfg!(all(target_os = "linux", target_arch = "arm")) {
 			Some(Platform::LinuxARM32)
 		} else if cfg!(all(target_os = "linux", target_arch = "aarch64")) {
 			Some(Platform::LinuxARM64)

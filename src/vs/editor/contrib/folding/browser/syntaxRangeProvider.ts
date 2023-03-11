@@ -122,7 +122,7 @@ class RangesCollector {
 	public toIndentRanges() {
 		const limit = this._foldingRangesLimit.limit;
 		if (this._length <= limit) {
-			this._foldingRangesLimit.report({ limited: false, computed: this._length });
+			this._foldingRangesLimit.update(this._length, false);
 
 			const startIndexes = new Uint32Array(this._length);
 			const endIndexes = new Uint32Array(this._length);
@@ -132,7 +132,7 @@ class RangesCollector {
 			}
 			return new FoldingRegions(startIndexes, endIndexes, this._types);
 		} else {
-			this._foldingRangesLimit.report({ limited: limit, computed: this._length });
+			this._foldingRangesLimit.update(this._length, limit);
 
 			let entries = 0;
 			let maxLevel = this._nestingLevelCounts.length;

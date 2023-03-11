@@ -25,7 +25,7 @@ export abstract class CodeEditorView extends Disposable {
 	readonly model = this.viewModel.map(m => /** @description model */ m?.model);
 
 	protected readonly htmlElements = h('div.code-view', [
-		h('div.title@header', [
+		h('div.header@header', [
 			h('span.title@title'),
 			h('span.description@description'),
 			h('span.detail@detail'),

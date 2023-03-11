@@ -240,7 +240,6 @@
 
 .monaco-editor .testing-run-glyph {
 	cursor: pointer;
-	color: var(--vscode-testingColorRunAction);
 }
 
 .testing-diff-title-widget {
