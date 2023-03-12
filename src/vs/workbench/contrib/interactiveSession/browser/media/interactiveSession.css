@@ -215,7 +215,6 @@
 	padding: 12px 0px;
 	display: flex;
 	flex-direction: column;
-	gap: 8px;
 }
 
 .interactive-session .interactive-session-followups {
@@ -248,4 +247,8 @@
 
 .interactive-session .interactive-input-part .interactive-input-followups {
 	padding: 0px 20px;
+}
+
+.interactive-session .interactive-input-part .interactive-input-followups .interactive-session-followups {
+	margin-bottom: 8px;
 }
