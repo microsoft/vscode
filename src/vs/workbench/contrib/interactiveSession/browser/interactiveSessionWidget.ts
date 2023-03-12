@@ -352,6 +352,7 @@ export class InteractiveSessionWidget extends Disposable implements IInteractive
 		options.padding = { top: 8, bottom: 7 };
 		options.cursorWidth = 1;
 		options.wrappingStrategy = 'advanced';
+		options.bracketPairColorization = { enabled: false };
 
 		const inputEditorElement = dom.append(inputContainer, $('.interactive-input-editor'));
 		this._inputEditor = this._register(scopedInstantiationService.createInstance(CodeEditorWidget, inputEditorElement, options, { ...getSimpleCodeEditorWidgetOptions(), isSimpleWidget: false }));
