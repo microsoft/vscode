@@ -13,7 +13,7 @@ import { IRelaxedExtensionDescription } from 'vs/platform/extensions/common/exte
 import { ILogService } from 'vs/platform/log/common/log';
 import { ExtHostInteractiveSessionShape, IInteractiveRequestDto, IInteractiveResponseDto, IInteractiveSessionDto, IMainContext, MainContext, MainThreadInteractiveSessionShape } from 'vs/workbench/api/common/extHost.protocol';
 import * as typeConvert from 'vs/workbench/api/common/extHostTypeConverters';
-import { IInteractiveSessionUserActionEvent, IInteractiveSlashCommand } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionService';
+import { IInteractiveSessionFollowup, IInteractiveSessionReplyFollowup, IInteractiveSessionResponseCommandFollowup, IInteractiveSessionUserActionEvent, IInteractiveSlashCommand } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionService';
 import type * as vscode from 'vscode';
 
 class InteractiveSessionProviderWrapper {
@@ -123,6 +123,42 @@ export class ExtHostInteractiveSession implements ExtHostInteractiveSessionShape
 		return withNullAsUndefined(await entry.provider.provideInitialSuggestions(token));
 	}
 
+	async $provideFollowups(handle: number, sessionId: number, token: CancellationToken): Promise<IInteractiveSessionFollowup[] | undefined> {
+		const entry = this._interactiveSessionProvider.get(handle);
+		if (!entry) {
+			return undefined;
+		}
+
+		const realSession = this._interactiveSessions.get(sessionId);
+		if (!realSession) {
+			return;
+		}
+
+		if (!entry.provider.provideFollowups) {
+			return undefined;
+		}
+
+		const rawFollowups = await entry.provider.provideFollowups(realSession, token);
+		return rawFollowups?.map(f => {
+			if (typeof f === 'string') {
+				return <IInteractiveSessionReplyFollowup>{ title: f, message: f, kind: 'reply' };
+			} else if ('commandId' in f) {
+				return <IInteractiveSessionResponseCommandFollowup>{
+					kind: 'command',
+					title: f.title,
+					commandId: f.commandId,
+					args: f.args
+				};
+			} else {
+				return <IInteractiveSessionReplyFollowup>{
+					kind: 'reply',
+					title: f.title,
+					message: f.message
+				};
+			}
+		});
+	}
+
 	async $provideInteractiveReply(handle: number, sessionId: number, request: IInteractiveRequestDto, token: CancellationToken): Promise<IInteractiveResponseDto | undefined> {
 		const entry = this._interactiveSessionProvider.get(handle);
 		if (!entry) {
@@ -171,7 +207,7 @@ export class ExtHostInteractiveSession implements ExtHostInteractiveSessionShape
 		}
 
 		const timings = { firstProgress: firstProgress ?? 0, totalElapsed: stopWatch.elapsed() };
-		return { followups: result.followups, commandFollowups: result.commands, errorDetails: result.errorDetails, timings };
+		return { errorDetails: result.errorDetails, timings };
 	}
 
 	async $provideSlashCommands(handle: number, sessionId: number, token: CancellationToken): Promise<IInteractiveSlashCommand[] | undefined> {

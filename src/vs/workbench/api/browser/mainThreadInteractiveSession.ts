@@ -88,6 +88,9 @@ export class MainThreadInteractiveSession extends Disposable implements MainThre
 			},
 			provideSlashCommands: (session, token) => {
 				return this._proxy.$provideSlashCommands(handle, session.id, token);
+			},
+			provideFollowups: (session, token) => {
+				return this._proxy.$provideFollowups(handle, session.id, token);
 			}
 		});
 

@@ -70,7 +70,6 @@
 
 .interactive-list .interactive-item-container .value {
 	width: 100%;
-	overflow: hidden;
 }
 
 .interactive-list .interactive-item-container .value table {
@@ -124,9 +123,8 @@
 	display: flex;
 	border-radius: 2px;
 	box-sizing: border-box;
-	padding: 12px;
 	cursor: text;
-	border-top: 1px solid var(--vscode-interactive-responseBorder);
+	padding: 0px 12px;
 }
 
 .interactive-session .interactive-input-wrapper .monaco-editor-background {
@@ -199,21 +197,6 @@
 	margin: 0;
 }
 
-.interactive-session .interactive-response .interactive-response-followups {
-	display: flex;
-	flex-direction: column;
-	gap: 8px;
-	align-items: start;
-	margin-bottom: 1em; /* This is matching the margin on rendered markdown */
-}
-
-.interactive-session .interactive-response .interactive-response-followups .monaco-button {
-	width: 100%;
-	padding: 2px 8px;
-	font-size: 11px;
-	font-weight: 600;
-}
-
 .interactive-session .interactive-response .interactive-response-error-details {
 	display: flex;
 	align-items: center;
@@ -226,4 +209,46 @@
 
 .interactive-session .interactive-request .value .interactive-slash-command {
 	color: var(--vscode-textLink-foreground);
+}
+
+.interactive-session .interactive-input-part {
+	padding: 12px 0px;
+	display: flex;
+	flex-direction: column;
+}
+
+.interactive-session .interactive-session-followups {
+	display: flex;
+	flex-direction: column;
+	gap: 5px;
+	align-items: start;
+}
+
+.interactive-session .interactive-response .interactive-response-followups .interactive-session-followups {
+	margin-bottom: 1em;
+	/* This is matching the margin on rendered markdown */
+}
+
+.interactive-session .interactive-session-followups .monaco-button {
+	width: initial;
+	padding: 0px;
+	font-size: 11px;
+	font-weight: 600;
+	border: none;
+
+	color: var(--vscode-textLink-foreground);
+	justify-content: left;
+	text-align: left;
+}
+
+.interactive-session .interactive-session-followups .monaco-button .codicon {
+	margin-left: 0;
+}
+
+.interactive-session .interactive-input-part .interactive-input-followups {
+	padding: 0px 20px;
+}
+
+.interactive-session .interactive-input-part .interactive-input-followups .interactive-session-followups {
+	margin-bottom: 8px;
 }

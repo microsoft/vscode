@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from 'vs/base/browser/dom';
-import { Button } from 'vs/base/browser/ui/button/button';
 import { renderIcon } from 'vs/base/browser/ui/iconLabel/iconLabels';
 import { IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
@@ -38,14 +37,13 @@ import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { ILogService } from 'vs/platform/log/common/log';
-import { defaultButtonStyles } from 'vs/platform/theme/browser/defaultStyles';
 import { MenuPreventer } from 'vs/workbench/contrib/codeEditor/browser/menuPreventer';
 import { SelectionClipboardContributionID } from 'vs/workbench/contrib/codeEditor/browser/selectionClipboard';
 import { getSimpleEditorOptions } from 'vs/workbench/contrib/codeEditor/browser/simpleEditorOptions';
 import { IInteractiveSessionCodeBlockActionContext } from 'vs/workbench/contrib/interactiveSession/browser/actions/interactiveSessionCodeblockActions';
+import { InteractiveSessionFollowups } from 'vs/workbench/contrib/interactiveSession/browser/interactiveSessionFollowups';
 import { InteractiveSessionEditorOptions } from 'vs/workbench/contrib/interactiveSession/browser/interactiveSessionOptions';
 import { interactiveSessionResponseHasProviderId } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionContextKeys';
-import { IInteractiveSessionResponseCommandFollowup } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionModel';
 import { IInteractiveSlashCommand } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionService';
 import { IInteractiveRequestViewModel, IInteractiveResponseViewModel, isRequestVM, isResponseVM } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionViewModel';
 import { getNWords } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionWordCounter';
@@ -85,9 +83,6 @@ export class InteractiveListItemRenderer extends Disposable implements ITreeRend
 
 	protected readonly _onDidChangeItemHeight = this._register(new Emitter<IItemHeightChangeParams>());
 	readonly onDidChangeItemHeight: Event<IItemHeightChangeParams> = this._onDidChangeItemHeight.event;
-
-	protected readonly _onDidSelectFollowup = this._register(new Emitter<string>());
-	readonly onDidSelectFollowup: Event<string> = this._onDidSelectFollowup.event;
 
 	private readonly _editorPool: EditorPool;
 
@@ -212,7 +207,7 @@ export class InteractiveListItemRenderer extends Disposable implements ITreeRend
 				}
 			};
 			runProgressiveRender(true);
-			timer.cancelAndSet(runProgressiveRender, 100);
+			timer.cancelAndSet(runProgressiveRender, 50);
 		} else if (isResponseVM(element)) {
 			this.basicRenderElement(element.response.value, element, index, templateData);
 		} else {
@@ -231,24 +226,12 @@ export class InteractiveListItemRenderer extends Disposable implements ITreeRend
 			errorDetails.appendChild($('span', undefined, element.errorDetails.message));
 		}
 
-		if (isResponseVM(element) && index === this.delegate.getListLength() - 1) {
+		if (isResponseVM(element) && element.commandFollowups) {
 			const followupsContainer = dom.append(templateData.value, $('.interactive-response-followups'));
-			const followups = element.commandFollowups ?? element.followups ?? [];
-			followups.forEach(q => this.renderFollowup(followupsContainer, templateData, q));
-		}
-	}
-
-	private renderFollowup(container: HTMLElement, templateData: IInteractiveListItemTemplate, followup: string | IInteractiveSessionResponseCommandFollowup): void {
-		const button = templateData.elementDisposables.add(new Button(container, { ...defaultButtonStyles, supportIcons: typeof followup !== 'string' }));
-		const label = typeof followup === 'string' ? `"${followup}"` : followup.title;
-		button.label = label;
-		if (typeof followup === 'string') {
-			// This should probably be a command as well?
-			templateData.elementDisposables.add(button.onDidClick(() => this._onDidSelectFollowup.fire(followup)));
-		} else {
-			templateData.elementDisposables.add(button.onDidClick(() => {
-				this.commandService.executeCommand(followup.commandId, ...(followup.args ?? []));
-			}));
+			templateData.elementDisposables.add(new InteractiveSessionFollowups(
+				followupsContainer,
+				element.commandFollowups,
+				followup => this.commandService.executeCommand(followup.commandId, ...(followup.args ?? []))));
 		}
 	}
 
