@@ -467,7 +467,7 @@ class CodeBlockPart extends Disposable implements IInteractiveResultCodeBlockPar
 				alwaysConsumeMouseWheel: false
 			}
 		}, {
-			isSimpleWidget: false,
+			isSimpleWidget: true,
 			contributions: EditorExtensionsRegistry.getSomeEditorContributions([
 				MenuPreventer.ID,
 				SelectionClipboardContributionID,
