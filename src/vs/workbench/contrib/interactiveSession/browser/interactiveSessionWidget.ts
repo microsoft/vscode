@@ -29,7 +29,7 @@ import { getSimpleCodeEditorWidgetOptions, getSimpleEditorOptions } from 'vs/wor
 import { IInteractiveSessionWidget } from 'vs/workbench/contrib/interactiveSession/browser/interactiveSession';
 import { IInteractiveSessionRendererDelegate, InteractiveListItemRenderer, InteractiveSessionAccessibilityProvider, InteractiveSessionListDelegate, InteractiveTreeItem } from 'vs/workbench/contrib/interactiveSession/browser/interactiveSessionListRenderer';
 import { InteractiveSessionEditorOptions } from 'vs/workbench/contrib/interactiveSession/browser/interactiveSessionOptions';
-import { IInteractiveSessionService, IInteractiveSlashCommand } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionService';
+import { IInteractiveSessionReplyFollowup, IInteractiveSessionService, IInteractiveSlashCommand } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionService';
 import { IInteractiveSessionViewModel, InteractiveSessionViewModel, isRequestVM, isResponseVM } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionViewModel';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 
@@ -56,7 +56,7 @@ function revealLastElement(list: WorkbenchObjectTree<any>) {
 	list.scrollTop = list.scrollHeight - list.renderHeight;
 }
 
-const INPUT_EDITOR_MAX_HEIGHT = 275;
+const INPUT_EDITOR_MAX_HEIGHT = 250;
 
 export class InteractiveSessionWidget extends Disposable implements IInteractiveSessionWidget {
 	public static readonly CONTRIBS: { new(...args: [IInteractiveSessionWidget, ...any]): any }[] = [];
@@ -85,6 +85,10 @@ export class InteractiveSessionWidget extends Disposable implements IInteractive
 	private listContainer!: HTMLElement;
 	private container!: HTMLElement;
 	private welcomeViewContainer!: HTMLElement;
+
+	private followupsContainer!: HTMLElement;
+	private followupsDisposables = this._register(new DisposableStore());
+
 	private welcomeViewDisposables = this._register(new DisposableStore());
 	private bodyDimension: dom.Dimension | undefined;
 	private visible = false;
@@ -179,16 +183,40 @@ export class InteractiveSessionWidget extends Disposable implements IInteractive
 				this.setWelcomeViewVisible(false);
 			}
 
-			const lastItem = treeItems[treeItems.length - 1];
 			this.tree.setChildren(null, treeItems, {
 				diffIdentityProvider: {
 					getId(element) {
-						const isLastAndResponse = isResponseVM(element) && element === lastItem.element;
-						return element.id + (isLastAndResponse ? '_last' : '');
+						return element.id;
 					},
 				}
 			});
+
+			const lastItem = items[items.length - 1];
+			if (lastItem && isResponseVM(lastItem) && lastItem.isComplete) {
+				this.renderFollowups(lastItem.replyFollowups);
+			} else {
+				this.renderFollowups(undefined);
+			}
 		}
+	}
+
+	private async renderFollowups(items?: IInteractiveSessionReplyFollowup[]): Promise<void> {
+		this.followupsDisposables.clear();
+		dom.clearNode(this.followupsContainer);
+
+		items?.forEach(followup => {
+			this.renderFollowup(this.followupsContainer, followup);
+		});
+
+		if (this.bodyDimension) {
+			this.layout(this.bodyDimension.height, this.bodyDimension.width);
+		}
+	}
+
+	private renderFollowup(container: HTMLElement, followup: IInteractiveSessionReplyFollowup): void {
+		const button = this.followupsDisposables.add(new Button(container, { ...defaultButtonStyles }));
+		button.label = followup.title || followup.message;
+		this.followupsDisposables.add(button.onDidClick(() => this.acceptInput(followup.message)));
 	}
 
 	setVisible(visible: boolean): void {
@@ -337,7 +365,10 @@ export class InteractiveSessionWidget extends Disposable implements IInteractive
 	}
 
 	private createInput(container: HTMLElement): void {
-		const inputContainer = dom.append(container, $('.interactive-input-wrapper'));
+		const inputPart = dom.append(container, $('.interactive-input-part'));
+		this.followupsContainer = dom.append(inputPart, $('.interactive-input-followups'));
+
+		const inputContainer = dom.append(inputPart, $('.interactive-input-wrapper'));
 
 		const inputScopedContextKeyService = this._register(this.contextKeyService.createScoped(inputContainer));
 		CONTEXT_IN_INTERACTIVE_INPUT.bindTo(inputScopedContextKeyService).set(true);
@@ -434,10 +465,12 @@ export class InteractiveSessionWidget extends Disposable implements IInteractive
 
 	layout(height: number, width: number): void {
 		this.bodyDimension = new dom.Dimension(width, height);
-		const inputHeight = Math.min(this._inputEditor.getContentHeight(), height, INPUT_EDITOR_MAX_HEIGHT);
+		const followupsHeight = this.followupsContainer.offsetHeight;
+		const inputEditorHeight = Math.min(this._inputEditor.getContentHeight(), height - followupsHeight, INPUT_EDITOR_MAX_HEIGHT);
 		const inputWrapperPadding = 24;
 		const lastElementVisible = this.tree.scrollTop + this.tree.renderHeight >= this.tree.scrollHeight;
-		const listHeight = height - inputHeight - inputWrapperPadding;
+		const inputPartHeight = followupsHeight + inputEditorHeight + inputWrapperPadding;
+		const listHeight = height - inputPartHeight;
 
 		this.tree.layout(listHeight, width);
 		this.tree.getHTMLElement().style.height = `${listHeight}px`;
@@ -446,10 +479,10 @@ export class InteractiveSessionWidget extends Disposable implements IInteractive
 			revealLastElement(this.tree);
 		}
 
-		this.welcomeViewContainer.style.height = `${height - inputHeight - inputWrapperPadding}px`;
-		this.listContainer.style.height = `${height - inputHeight - inputWrapperPadding}px`;
+		this.welcomeViewContainer.style.height = `${height - inputPartHeight}px`;
+		this.listContainer.style.height = `${height - inputPartHeight}px`;
 
-		this._inputEditor.layout({ width: width - inputWrapperPadding, height: inputHeight });
+		this._inputEditor.layout({ width: width - inputWrapperPadding, height: inputEditorHeight });
 	}
 }
 

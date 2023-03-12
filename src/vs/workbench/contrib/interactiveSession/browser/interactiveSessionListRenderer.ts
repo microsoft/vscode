@@ -45,8 +45,7 @@ import { getSimpleEditorOptions } from 'vs/workbench/contrib/codeEditor/browser/
 import { IInteractiveSessionCodeBlockActionContext } from 'vs/workbench/contrib/interactiveSession/browser/actions/interactiveSessionCodeblockActions';
 import { InteractiveSessionEditorOptions } from 'vs/workbench/contrib/interactiveSession/browser/interactiveSessionOptions';
 import { interactiveSessionResponseHasProviderId } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionContextKeys';
-import { IInteractiveSessionResponseCommandFollowup } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionModel';
-import { IInteractiveSlashCommand } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionService';
+import { IInteractiveSessionResponseCommandFollowup, IInteractiveSlashCommand } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionService';
 import { IInteractiveRequestViewModel, IInteractiveResponseViewModel, isRequestVM, isResponseVM } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionViewModel';
 import { getNWords } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionWordCounter';
 
@@ -212,7 +211,7 @@ export class InteractiveListItemRenderer extends Disposable implements ITreeRend
 				}
 			};
 			runProgressiveRender(true);
-			timer.cancelAndSet(runProgressiveRender, 100);
+			timer.cancelAndSet(runProgressiveRender, 50);
 		} else if (isResponseVM(element)) {
 			this.basicRenderElement(element.response.value, element, index, templateData);
 		} else {
@@ -231,9 +230,9 @@ export class InteractiveListItemRenderer extends Disposable implements ITreeRend
 			errorDetails.appendChild($('span', undefined, element.errorDetails.message));
 		}
 
-		if (isResponseVM(element) && index === this.delegate.getListLength() - 1) {
+		if (isResponseVM(element)) {
 			const followupsContainer = dom.append(templateData.value, $('.interactive-response-followups'));
-			const followups = element.commandFollowups ?? element.followups ?? [];
+			const followups = element.commandFollowups ?? [];
 			followups.forEach(q => this.renderFollowup(followupsContainer, templateData, q));
 		}
 	}

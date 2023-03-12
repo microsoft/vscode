@@ -15,7 +15,7 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { ISerializableInteractiveSessionData, ISerializableInteractiveSessionsData, InteractiveSessionModel } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionModel';
-import { IInteractiveProgress, IInteractiveProvider, IInteractiveSessionService, IInteractiveSessionUserActionEvent, IInteractiveSlashCommand } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionService';
+import { IInteractiveProgress, IInteractiveProvider, IInteractiveSessionFollowup, IInteractiveSessionService, IInteractiveSessionUserActionEvent, IInteractiveSlashCommand } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionService';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 
 const serializedInteractiveSessionKey = 'interactive.sessions';
@@ -70,6 +70,25 @@ export class InteractiveSessionService extends Disposable implements IInteractiv
 			this.trace('onWillSaveState', `Persisting ${this._sessionModels.size} sessions`);
 			storageService.store(serializedInteractiveSessionKey, serialized, StorageScope.WORKSPACE, StorageTarget.MACHINE);
 		}));
+	}
+
+	async provideFollowups(sessionId: number, token: CancellationToken): Promise<IInteractiveSessionFollowup[] | undefined> {
+		this.trace('provideFollowups', `sessionId: ${sessionId}`);
+		const model = this._sessionModels.get(sessionId);
+		if (!model) {
+			throw new Error(`Unknown session: ${sessionId}`);
+		}
+
+		const provider = this._providers.get(model.providerId);
+		if (!provider) {
+			throw new Error(`Unknown provider: ${model.providerId}`);
+		}
+
+		if (!provider.provideFollowups) {
+			return;
+		}
+
+		return withNullAsUndefined(await provider.provideFollowups(model.session, token));
 	}
 
 	notifyUserAction(action: IInteractiveSessionUserActionEvent): void {
@@ -186,7 +205,13 @@ export class InteractiveSessionService extends Disposable implements IInteractiv
 				result: rawResponse.errorDetails && gotProgress ? 'errorWithOutput' : rawResponse.errorDetails ? 'error' : 'success'
 			});
 			model.completeResponse(request, rawResponse);
-			this.trace('sendRequest', `Provider returned response for session ${model.sessionId} with ${rawResponse.followups} followups`);
+			this.trace('sendRequest', `Provider returned response for session ${model.sessionId}`);
+
+			if (provider.provideFollowups) {
+				Promise.resolve(provider.provideFollowups(model.session, CancellationToken.None)).then(followups => {
+					model.setFollowups(request, withNullAsUndefined(followups));
+				});
+			}
 		} finally {
 			this._pendingRequestSessions.delete(model.sessionId);
 		}

@@ -77,8 +77,6 @@ declare module 'vscode' {
 	}
 
 	export interface InteractiveResponseForProgress {
-		followups?: string[];
-		commands?: InteractiveResponseCommand[];
 		errorDetails?: InteractiveResponseErrorDetails;
 	}
 
@@ -104,8 +102,16 @@ declare module 'vscode' {
 		detail?: string;
 	}
 
+	export interface InteractiveSessionReplyFollowup {
+		message: string;
+		title?: string;
+	}
+
+	export type InteractiveSessionFollowup = InteractiveSessionReplyFollowup | InteractiveResponseCommand;
+
 	export interface InteractiveSessionProvider {
 		provideInitialSuggestions?(token: CancellationToken): ProviderResult<string[]>;
+		provideFollowups?(session: InteractiveSession, token: CancellationToken): ProviderResult<(string | InteractiveSessionFollowup)[]>;
 		provideSlashCommands?(session: InteractiveSession, token: CancellationToken): ProviderResult<InteractiveSessionSlashCommand[]>;
 
 		prepareSession(initialState: InteractiveSessionState | undefined, token: CancellationToken): ProviderResult<InteractiveSession>;
