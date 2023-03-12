@@ -204,7 +204,7 @@
 }
 
 .interactive-session .interactive-response .interactive-response-error-details .codicon {
-	color: var(--vscode-errorForeground);
+	color: var(--vscode-errorForeground) !important; /* Have to override default styles which apply to all lists */
 }
 
 .interactive-session .interactive-request .value .interactive-slash-command {
