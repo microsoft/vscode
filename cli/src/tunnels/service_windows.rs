@@ -90,7 +90,7 @@ impl CliServiceManager for WindowsService {
 		launcher_paths: LauncherPaths,
 		mut handle: impl 'static + ServiceContainer,
 	) -> Result<(), AnyError> {
-		let rx = ShutdownRequest::create_rx(&[ShutdownRequest::CtrlC]);
+		let rx = ShutdownRequest::create_rx([ShutdownRequest::CtrlC]);
 		handle.run_service(self.log, launcher_paths, rx).await
 	}
 

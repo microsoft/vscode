@@ -97,7 +97,7 @@ pub async fn start_singleton_server(args: SingletonServerArgs) -> i32 {
 
 async fn serve_singleton_rpc<C: Clone + Send + Sync + 'static>(
 	log_broadcast: BroadcastLogSink,
-	server: AsyncPipeListener,
+	mut server: AsyncPipeListener,
 	dispatcher: RpcDispatcher<JsonRpcSerializer, C>,
 	shutdown_rx: Barrier<ShutdownSignal>,
 ) -> Result<(), CodeError> {

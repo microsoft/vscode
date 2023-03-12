@@ -26,7 +26,7 @@ pub struct SingletonServer {
 }
 
 impl SingletonServer {
-	pub async fn accept(&self) -> Result<AsyncPipe, CodeError> {
+	pub async fn accept(&mut self) -> Result<AsyncPipe, CodeError> {
 		self.server.accept().await
 	}
 }
@@ -143,7 +143,7 @@ mod tests {
 			.await
 			.expect("expected to acquire1");
 		match s1 {
-			SingletonConnection::Singleton(l) => tokio::spawn(async move {
+			SingletonConnection::Singleton(mut l) => tokio::spawn(async move {
 				l.accept().await.expect("expected to accept");
 			}),
 			_ => panic!("expected to be singleton"),

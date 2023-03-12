@@ -28,18 +28,23 @@ impl<T> RingBuffer<T> {
 		self.data.len() == self.data.capacity()
 	}
 
+	pub fn is_empty(&self) -> bool {
+		self.data.len() == 0
+	}
+
 	pub fn push(&mut self, value: T) {
 		if self.data.len() == self.data.capacity() {
 			self.data[self.i] = value;
-			self.i = (self.i + 1) % self.data.capacity();
 		} else {
 			self.data.push(value);
 		}
+
+		self.i = (self.i + 1) % self.data.capacity();
 	}
 
 	pub fn iter<'a>(&'a self) -> RingBufferIter<'a, T> {
 		RingBufferIter {
-			index: (self.i + 1) % self.data.len(),
+			index: 0,
 			buffer: self,
 		}
 	}
@@ -49,7 +54,7 @@ impl<T> RingBuffer<T> {
 		T: Default,
 	{
 		OwnedRingBufferIter {
-			index: (self.i + 1) % self.data.len(),
+			index: 0,
 			buffer: self,
 		}
 	}
@@ -64,13 +69,14 @@ impl<T: Default> Iterator for OwnedRingBufferIter<T> {
 	type Item = T;
 
 	fn next(&mut self) -> Option<Self::Item> {
-		if self.index == self.buffer.i {
-			None
-		} else {
-			let item = std::mem::take(&mut self.buffer.data[self.index]);
-			self.index = (self.index + 1) % self.buffer.data.len();
-			Some(item)
+		if self.index == self.buffer.len() {
+			return None;
 		}
+
+		let ii = (self.index + self.buffer.i) % self.buffer.len();
+		let item = std::mem::take(&mut self.buffer.data[ii]);
+		self.index += 1;
+		Some(item)
 	}
 }
 
@@ -83,12 +89,47 @@ impl<'a, T> Iterator for RingBufferIter<'a, T> {
 	type Item = &'a T;
 
 	fn next(&mut self) -> Option<Self::Item> {
-		if self.index == self.buffer.i {
-			None
-		} else {
-			let item = &self.buffer.data[self.index];
-			self.index = (self.index + 1) % self.buffer.data.len();
-			Some(item)
+		if self.index == self.buffer.len() {
+			return None;
 		}
+
+		let ii = (self.index + self.buffer.i) % self.buffer.len();
+		let item = &self.buffer.data[ii];
+		self.index += 1;
+		Some(item)
+	}
+}
+
+#[cfg(test)]
+mod tests {
+	use super::*;
+
+	#[test]
+	fn test_inserts() {
+		let mut rb = RingBuffer::new(3);
+		assert_eq!(rb.capacity(), 3);
+		assert_eq!(rb.is_full(), false);
+		assert_eq!(rb.len(), 0);
+		assert_eq!(rb.iter().map(|i| *i).collect::<Vec<i32>>().len(), 0);
+
+		rb.push(1);
+		assert_eq!(rb.is_full(), false);
+		assert_eq!(rb.len(), 1);
+		assert_eq!(rb.iter().map(|i| *i).collect::<Vec<i32>>(), vec![1]);
+
+		rb.push(2);
+		assert_eq!(rb.is_full(), false);
+		assert_eq!(rb.len(), 2);
+		assert_eq!(rb.iter().map(|i| *i).collect::<Vec<i32>>(), vec![1, 2]);
+
+		rb.push(3);
+		assert_eq!(rb.is_full(), true);
+		assert_eq!(rb.len(), 3);
+		assert_eq!(rb.iter().map(|i| *i).collect::<Vec<i32>>(), vec![1, 2, 3]);
+
+		rb.push(4);
+		assert_eq!(rb.is_full(), true);
+		assert_eq!(rb.len(), 3);
+		assert_eq!(rb.iter().map(|i| *i).collect::<Vec<i32>>(), vec![2, 3, 4]);
 	}
 }

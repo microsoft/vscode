@@ -482,7 +482,7 @@ pub enum CodeError {
 	#[error("could not connect to socket/pipe")]
 	AsyncPipeFailed(std::io::Error),
 	#[error("could not listen on socket/pipe")]
-	AsyncListenerFailed(std::io::Error),
+	AsyncPipeListenerFailed(std::io::Error),
 	#[error("could not create singleton lock file")]
 	SingletonLockfileOpenFailed(std::io::Error),
 }
