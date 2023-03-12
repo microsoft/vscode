@@ -86,8 +86,8 @@ export class StickyLineCandidateProvider extends Disposable implements IStickyLi
 
 		this._stickyModelProvider = new StickyModelProvider(
 			this._editor,
-			this._languageFeaturesService,
 			this._languageConfigurationService,
+			this._languageFeaturesService,
 			this._languageFeatureDebounceService,
 			this._options.defaultModel
 		);
