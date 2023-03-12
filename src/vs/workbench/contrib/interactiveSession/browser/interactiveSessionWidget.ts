@@ -27,6 +27,7 @@ import { foreground } from 'vs/platform/theme/common/colorRegistry';
 import { DEFAULT_FONT_FAMILY } from 'vs/workbench/browser/style';
 import { getSimpleCodeEditorWidgetOptions, getSimpleEditorOptions } from 'vs/workbench/contrib/codeEditor/browser/simpleEditorOptions';
 import { IInteractiveSessionWidget } from 'vs/workbench/contrib/interactiveSession/browser/interactiveSession';
+import { InteractiveSessionFollowups } from 'vs/workbench/contrib/interactiveSession/browser/interactiveSessionFollowups';
 import { IInteractiveSessionRendererDelegate, InteractiveListItemRenderer, InteractiveSessionAccessibilityProvider, InteractiveSessionListDelegate, InteractiveTreeItem } from 'vs/workbench/contrib/interactiveSession/browser/interactiveSessionListRenderer';
 import { InteractiveSessionEditorOptions } from 'vs/workbench/contrib/interactiveSession/browser/interactiveSessionOptions';
 import { IInteractiveSessionReplyFollowup, IInteractiveSessionService, IInteractiveSlashCommand } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionService';
@@ -204,19 +205,13 @@ export class InteractiveSessionWidget extends Disposable implements IInteractive
 		this.followupsDisposables.clear();
 		dom.clearNode(this.followupsContainer);
 
-		items?.forEach(followup => {
-			this.renderFollowup(this.followupsContainer, followup);
-		});
+		if (items) {
+			this.followupsDisposables.add(new InteractiveSessionFollowups(this.followupsContainer, items, followup => this.acceptInput(followup.message)));
+		}
 
 		if (this.bodyDimension) {
 			this.layout(this.bodyDimension.height, this.bodyDimension.width);
 		}
-	}
-
-	private renderFollowup(container: HTMLElement, followup: IInteractiveSessionReplyFollowup): void {
-		const button = this.followupsDisposables.add(new Button(container, { supportIcons: true }));
-		button.label = '$(wand) ' + (followup.title || followup.message);
-		this.followupsDisposables.add(button.onDidClick(() => this.acceptInput(followup.message)));
 	}
 
 	setVisible(visible: boolean): void {
@@ -325,9 +320,6 @@ export class InteractiveSessionWidget extends Disposable implements IInteractive
 		}));
 		this._register(this.renderer.onDidChangeItemHeight(e => {
 			this.tree.updateElementHeight(e.element, e.height);
-		}));
-		this._register(this.renderer.onDidSelectFollowup(followup => {
-			this.acceptInput(followup);
 		}));
 		this._register(this.tree.onDidFocus(() => {
 			this._onDidFocus.fire();
