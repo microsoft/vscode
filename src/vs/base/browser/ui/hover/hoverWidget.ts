@@ -18,6 +18,7 @@ export const enum HoverPosition {
 
 export class HoverWidget extends Disposable {
 
+	// Do we need the maximum height and the maximum width
 	public maxHeight = 0;
 	public maxWidth = 0;
 

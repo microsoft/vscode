@@ -430,10 +430,13 @@ export class ContentHoverWidget extends Disposable implements IContentWidget {
 
 	// Adding a resizable element directly to the content hover widget
 	private readonly _element: ResizableHTMLElement = new ResizableHTMLElement();
+	// The mouse position in the editor is needed in order to calculate the space above and below it
 	private _mousePosition: IPosition | null = null;
 	private readonly _focusTracker = this._register(dom.trackFocus(this.getDomNode()));
+	// When the content hover is rendered, the following two variables store the initial position from the top and the initial height
 	private _initialTop: number = -1;
 	private _initialHeight: number = -1;
+	// Storing the preference of whether we want to render above or below
 	private _renderingAbove: boolean = this._editor.getOption(EditorOption.hover).above;
 	private _visibleData: ContentHoverVisibleData | null = null;
 
@@ -480,7 +483,7 @@ export class ContentHoverWidget extends Disposable implements IContentWidget {
 			this._hoverFocusedKey.set(false);
 		}));
 
-		// Savin tha approximate position of the mouse
+		// Saving the approximate position of the mouse
 		this._register(this._editor.onMouseMove(e => {
 			this._mousePosition = e.target.position;
 		}));
@@ -488,6 +491,7 @@ export class ContentHoverWidget extends Disposable implements IContentWidget {
 		this._register(this._element.onDidWillResize(() => {
 			console.log('* Inside of onDidWillResize of ContentHoverWidget');
 		}));
+		// The below is called when the resizable element is reized
 		this._register(this._element.onDidResize(e => {
 			console.log('* Inside of onDidResize of ContentHoverWidget');
 			console.log('e : ', e);
@@ -502,16 +506,13 @@ export class ContentHoverWidget extends Disposable implements IContentWidget {
 		// TODO: 2) Find out why the scrollbars disappeared, make them appear again, so can be used to scroll the resized element, look at the scroll bar from the suggest widget
 		// TODO: 3) Do correct calculations of maximum height above and below in order to decide which sashes to enable
 		// TODO: 4) Do not let infinite resizing, set a maximum resize size which depends on the current maximum size you can show
-		// TODO: 5) Find out why even if smaller than default max size, the whole widget is not shown
-
-		// Setting the initial layout of the resizable element, before calling the resize function
+		// TODO: 5) Find out why even if smaller than default max size, the whole widget is not shown, want the whole widget to be shown when smaller than default size
 
 		console.log('* Entered into _resizableLayout of ContentHoverWidget');
 		console.log('defaultSize : ', defaultSize);
 		console.log('this._mousePosition : ', this._mousePosition);
 		console.log('this._hover.containerDomNode : ', this._hover.containerDomNode);
 		console.log('this._hover.contentsDomNode : ', this._hover.contentsDomNode);
-		// Mistake in the height calculations it appears
 
 		if (!this._editor.hasModel()) {
 			return;
@@ -624,33 +625,30 @@ export class ContentHoverWidget extends Disposable implements IContentWidget {
 		console.log('this._initialHeight : ', this._initialHeight);
 		console.log('this._initialTop : ', this._initialTop);
 
+		// Suppose that this is not the first time the resize is called after the initial rendering and we are rendering above
+		// Then update the top position of the widget
 		if (this._initialHeight !== -1 && renderingAbove) {
-			// If it's not the initial rendering and rendering above
 			const diff = height - this._initialHeight;
 			// When difference positive, means that the widget grew, place it higher up
 			this._element.domNode.style.top = this._initialTop - diff + 'px';
 		}
 
 		console.log(' * Entered into the _resize function of ContentHoverWidget');
-		// Performs the actual resizing
 		const { width: maxWidth, height: maxHeight } = this._element.maxSize;
 		console.log('maxWidth : ', maxWidth, ' width : ', width);
 		width = Math.min(maxWidth, width);
 		console.log('maxHeight : ', maxHeight, ' height : ', height);
 		height = Math.min(maxHeight, height);
+		// Setting the size of the resizable element with the height and width given
 		this._element.layout(height, width);
 		console.log('this._element.domNode.style.height : ', this._element.domNode.style.height);
 		console.log('this._element.domNode.style.width : ', this._element.domNode.style.width);
 
-		// Make the inner container also have that size?
-		// If you do the following, the sashes disappear, we do not want that
-		// Sashes are 4 px wide, do not hardcode later
-
-		// Forcing the container do node to have another size, but what we should do is make the resizable element have same dimension as container dom node
-		// TODO: Maybe have to add this back
+		// Making the hover container dom node have height and width of the resizable element minus the pixels needed in order to show the sashes
 		this._hover.containerDomNode.style.height = `${height - 4}px`;
 		this._hover.containerDomNode.style.width = `${width - 4}px`;
 
+		// TODO Experimentation done for finding the maximum current size to give to the resizable element
 		const containerOffsetHeight = this._hover.containerDomNode.offsetHeight;
 		const contentsOffsetHeight = this._hover.contentsDomNode.offsetHeight;
 		console.log('this._hover.containerDomNode.offsetWidth : ', this._hover.containerDomNode.offsetWidth);
@@ -660,11 +658,11 @@ export class ContentHoverWidget extends Disposable implements IContentWidget {
 
 		const maxResizableWidth = this._hover.contentsDomNode.offsetWidth;
 		const maxResizableHeight = this._hover.contentsDomNode.offsetHeight;
-
 		const currentMaxSize = new dom.Dimension(maxResizableWidth, maxResizableHeight);
 		console.log('currentMaxSize : ', currentMaxSize);
 		// this._element.maxSize = currentMaxSize;
 
+		// Find when to make the scroll-bar visible
 		if (containerOffsetHeight < contentsOffsetHeight) {
 			// make scrollbar visible?
 			console.log('container height offset smaller than contents height offset');
@@ -673,19 +671,23 @@ export class ContentHoverWidget extends Disposable implements IContentWidget {
 		console.log('this._element.domNode.style.maxWidth : ', this._element.domNode.style.maxWidth);
 		console.log('this._element.domNode.style.maxHeight : ', this._element.domNode.style.maxHeight);
 
+		// If the initial top and height values have not been updated yet, update them the first time the content is rendered
 		if (this._initialTop === -1) {
-			console.log('Entered into update of initial top');
-			console.log('this._element.domNode.clientTop : ', this._element.domNode.clientTop);
-			console.log('this._element.domNode.style : ', this._element.domNode.style);
-			console.log('this._element.domNode.style.top : ', this._element.domNode.style.top);
-			console.log('this._element.domNode.style[0] : ', this._element.domNode.style[0]);
-			console.log('this._element.domNode.clientHeight : ', this._element.domNode.clientHeight);
-			console.log('this._element.domNode.offsetTop : ', this._element.domNode.offsetTop);
-			console.log('this._element.domNode.scrollTop : ', this._element.domNode.scrollTop);
+			// console.log('Entered into update of initial top');
+			// console.log('this._element.domNode.clientTop : ', this._element.domNode.clientTop);
+			// console.log('this._element.domNode.style : ', this._element.domNode.style);
+			// console.log('this._element.domNode.style.top : ', this._element.domNode.style.top);
+			// console.log('this._element.domNode.style[0] : ', this._element.domNode.style[0]);
+			// console.log('this._element.domNode.clientHeight : ', this._element.domNode.clientHeight);
+			// console.log('this._element.domNode.offsetTop : ', this._element.domNode.offsetTop);
+			// console.log('this._element.domNode.scrollTop : ', this._element.domNode.scrollTop);
 			this._initialTop = this._element.domNode.offsetTop + 4;
 			this._initialHeight = this._element.domNode.clientHeight;
 		}
+
+		this._hover.scrollbar.scanDomNode();
 		console.log('this._element.domNode : ', this._element.domNode);
+		console.log('this._hover.scrollbar : ', this._hover.scrollbar);
 	}
 
 	public override dispose(): void {
@@ -702,6 +704,7 @@ export class ContentHoverWidget extends Disposable implements IContentWidget {
 
 	public getDomNode(): HTMLElement {
 		// return this._hover.containerDomNode;
+		// Returning instead the resizable element
 		return this._element.domNode;
 	}
 
@@ -773,6 +776,7 @@ export class ContentHoverWidget extends Disposable implements IContentWidget {
 		// this._hover.contentsDomNode.style.maxHeight = `${height}px`;
 		// this._hover.contentsDomNode.style.maxWidth = `${Math.max(this._editor.getLayoutInfo().width * 0.66, 500)}px`;
 
+		// TODO: Do we need this?
 		this._hover.maxHeight = height;
 		this._hover.maxWidth = Math.max(this._editor.getLayoutInfo().width * 0.66, 500);
 	}
@@ -813,9 +817,7 @@ export class ContentHoverWidget extends Disposable implements IContentWidget {
 		}
 		visibleData.colorPicker?.layout();
 
-		// Resizable
 		// Only called once, when the widget is first shown
-		// Set a default size which can then be changed
 		// TODO: Set a better default, this is causing small initial sizes
 		console.log('this._hover.containerDomNode : ', this._hover.containerDomNode);
 		console.log('this._hover.contentsDomNode : ', this._hover.contentsDomNode);
