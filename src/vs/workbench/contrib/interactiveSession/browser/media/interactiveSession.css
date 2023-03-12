@@ -124,9 +124,7 @@
 	display: flex;
 	border-radius: 2px;
 	box-sizing: border-box;
-	padding: 12px;
 	cursor: text;
-	border-top: 1px solid var(--vscode-interactive-responseBorder);
 }
 
 .interactive-session .interactive-input-wrapper .monaco-editor-background {
@@ -209,7 +207,7 @@
 
 .interactive-session .interactive-response .interactive-response-followups .monaco-button {
 	width: 100%;
-	padding: 2px 8px;
+	padding: 0px;
 	font-size: 11px;
 	font-weight: 600;
 }
@@ -226,4 +224,23 @@
 
 .interactive-session .interactive-request .value .interactive-slash-command {
 	color: var(--vscode-textLink-foreground);
+}
+
+.interactive-session .interactive-input-part {
+	padding: 12px;
+}
+
+.interactive-session .interactive-input-part .interactive-input-followups {
+	margin-bottom: 6px;
+}
+
+.interactive-session .interactive-input-part .interactive-input-followups .monaco-button,
+.interactive-session .interactive-response .interactive-response-followups .monaco-button {
+	color: var(--vscode-textLink-foreground);
+	justify-content: left;
+	text-align: left;
+}
+
+.interactive-session .interactive-input-part .interactive-input-followups .monaco-button {
+	padding: 2px 5px;
 }

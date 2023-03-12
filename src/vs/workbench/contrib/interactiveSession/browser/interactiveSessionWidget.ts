@@ -214,8 +214,8 @@ export class InteractiveSessionWidget extends Disposable implements IInteractive
 	}
 
 	private renderFollowup(container: HTMLElement, followup: IInteractiveSessionReplyFollowup): void {
-		const button = this.followupsDisposables.add(new Button(container, { ...defaultButtonStyles }));
-		button.label = followup.title || followup.message;
+		const button = this.followupsDisposables.add(new Button(container, { supportIcons: true }));
+		button.label = '$(wand) ' + (followup.title || followup.message);
 		this.followupsDisposables.add(button.onDidClick(() => this.acceptInput(followup.message)));
 	}
 
@@ -467,9 +467,9 @@ export class InteractiveSessionWidget extends Disposable implements IInteractive
 		this.bodyDimension = new dom.Dimension(width, height);
 		const followupsHeight = this.followupsContainer.offsetHeight;
 		const inputEditorHeight = Math.min(this._inputEditor.getContentHeight(), height - followupsHeight, INPUT_EDITOR_MAX_HEIGHT);
-		const inputWrapperPadding = 24;
+		const inputPartPadding = 30;
 		const lastElementVisible = this.tree.scrollTop + this.tree.renderHeight >= this.tree.scrollHeight;
-		const inputPartHeight = followupsHeight + inputEditorHeight + inputWrapperPadding;
+		const inputPartHeight = followupsHeight + inputEditorHeight + inputPartPadding;
 		const listHeight = height - inputPartHeight;
 
 		this.tree.layout(listHeight, width);
@@ -482,7 +482,7 @@ export class InteractiveSessionWidget extends Disposable implements IInteractive
 		this.welcomeViewContainer.style.height = `${height - inputPartHeight}px`;
 		this.listContainer.style.height = `${height - inputPartHeight}px`;
 
-		this._inputEditor.layout({ width: width - inputWrapperPadding, height: inputEditorHeight });
+		this._inputEditor.layout({ width: width - inputPartPadding, height: inputEditorHeight });
 	}
 }
 
