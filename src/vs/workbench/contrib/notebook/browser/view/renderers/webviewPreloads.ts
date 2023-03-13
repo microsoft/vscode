@@ -2242,11 +2242,11 @@ async function webviewPreloads(ctx: PreloadContext) {
 
 		public async renderOutputElement(data: webviewMessages.ICreationRequestMessage, preloadErrors: ReadonlyArray<Error | undefined>, signal: AbortSignal) {
 			const startTime = Date.now();
-			const outputElement = this.createOutputElement(data);
+			const outputElement /** outputNode */ = this.createOutputElement(data);
 			await outputElement.render(data.content, data.rendererId, preloadErrors, signal);
 
 			// don't hide until after this step so that the height is right
-			outputElement.element.style.visibility = data.initiallyHidden ? 'hidden' : '';
+			outputElement/** outputNode */.element.style.visibility = data.initiallyHidden ? 'hidden' : '';
 
 			if (!!data.executionId && !!data.rendererId) {
 				postNotebookMessage<webviewMessages.IPerformanceMessage>('notebookPerformanceMessage', { cellId: data.cellId, executionId: data.executionId, duration: Date.now() - startTime, rendererId: data.rendererId });
@@ -2295,7 +2295,16 @@ async function webviewPreloads(ctx: PreloadContext) {
 		public updateScroll(request: webviewMessages.IContentWidgetTopRequest) {
 			this.element.style.top = `${request.cellTop}px`;
 
-			this.outputElements.get(request.outputId)?.updateScroll(request.outputOffset);
+			const outputElement = this.outputElements.get(request.outputId);
+			if (outputElement) {
+				outputElement.updateScroll(request.outputOffset);
+
+				if (request.forceDisplay && outputElement.outputNode) {
+					// TODO @rebornix @mjbvz, there is a misalignment here.
+					// We set output visibility on cell container, other than output container or output node itself.
+					outputElement.outputNode.element.style.visibility = '';
+				}
+			}
 
 			if (request.forceDisplay) {
 				this.element.style.visibility = '';
@@ -2308,6 +2317,10 @@ async function webviewPreloads(ctx: PreloadContext) {
 		public readonly element: HTMLElement;
 
 		private _outputNode?: OutputElement;
+
+		get outputNode() {
+			return this._outputNode;
+		}
 
 		constructor(
 			private readonly outputId: string,
