@@ -85,11 +85,12 @@ export function getIconClassesForLanguageId(languageId: string): string[] {
 	return ['file-icon', `${cssEscape(languageId)}-lang-file-icon`];
 }
 
-function pushGlobIconClassesForName(name: string, classes: string[], segments: string[], kind: string) {
+function pushGlobIconClassesForName(name: string, classes: string[], segments: string[], kind: string): void {
 	// Non-coalescing wildcard globs, limited to <=4 dot segments (<=3 file extensions).
-	for (let i = 0; i < segments.length; i++) {
+	// We start from the 2nd segment (index=1) to prevent overlap with extension.
+	for (let index = 1; index < segments.length; index++) {
 		const baseSegments = segments.slice();
-		baseSegments[i] = '*';
+		baseSegments[index] = '*';
 		const baseGlob = baseSegments.join('.');
 		classes.push(`${baseGlob}-glob-${kind}-icon`);
 	}
