@@ -10,8 +10,6 @@ import { isEqualOrParent } from 'vs/base/common/resources';
 import { score } from 'vs/editor/common/languageSelector';
 import { Emitter } from 'vs/base/common/event';
 import { withNullAsUndefined } from 'vs/base/common/types';
-import { normalizeDriveLetter } from 'vs/base/common/labels';
-import { toPosixPath } from 'vs/base/common/extpath';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 
 function createProviderComparer(uri: URI): (a: QuickDiffProvider, b: QuickDiffProvider) => number {
@@ -66,9 +64,8 @@ export class QuickDiffService extends Disposable implements IQuickDiffService {
 	}
 
 	async getQuickDiffs(uri: URI, language: string = '', isSynchronized: boolean = false): Promise<QuickDiff[]> {
-		uri = this.uriIdentityService.extUri.normalizePath(uri.with({ path: toPosixPath(normalizeDriveLetter(uri.fsPath)) }));
 		const providers = Array.from(this.quickDiffProviders)
-			.filter(provider => !provider.rootUri || isEqualOrParent(uri, provider.rootUri))
+			.filter(provider => !provider.rootUri || this.uriIdentityService.extUri.isEqualOrParent(uri, provider.rootUri))
 			.sort(createProviderComparer(uri));
 
 		const diffs = await Promise.all(providers.map(async provider => {
