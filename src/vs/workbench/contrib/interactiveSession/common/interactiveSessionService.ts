@@ -118,7 +118,6 @@ export interface IInteractiveSessionService {
 	acceptNewSessionState(sessionId: number, state: any): void;
 	addInteractiveRequest(context: any): void;
 	provideSuggestions(providerId: string, token: CancellationToken): Promise<string[] | undefined>;
-	// provideFollowups(sessionId: number, token: CancellationToken): Promise<IInteractiveSessionFollowup[] | undefined>;
 
 	onDidPerformUserAction: Event<IInteractiveSessionUserActionEvent>;
 	notifyUserAction(event: IInteractiveSessionUserActionEvent): void;
