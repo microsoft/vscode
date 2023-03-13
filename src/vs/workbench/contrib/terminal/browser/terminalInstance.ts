@@ -590,11 +590,11 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			this._xtermReadyPromise.then(xterm => {
 				contribution.xtermReady?.(xterm);
 			});
-			this._containerReadyBarrier.wait().then(() => {
+			this._containerReadyBarrier.wait().then(async () => {
 				if (!this.xterm) {
-					throw new Error('Container is ready but xterm is not');
+					await this._xtermReadyPromise;
 				}
-				contribution.layout?.(this.xterm);
+				contribution.layout?.(this.xterm!);
 			});
 			this.onDisposed(() => {
 				contribution.dispose();
