@@ -95,7 +95,7 @@ export class WelcomeDialogService implements IWelcomeDialogService {
 
 		this.disposableStore.add(this.dialog);
 		await this.dialog.show();
-		this.close(welcomeDialogItem);
+		welcomeDialogItem.onClose?.();
 		this.disposableStore.dispose();
 	}
 
