@@ -17,6 +17,7 @@
 }
 
 .interactive-list .interactive-item-container {
+	padding: 16px 20px 0px 20px;
 	display: flex;
 	flex-direction: column;
 	gap: 6px;
@@ -98,15 +99,14 @@
 
 .interactive-list .monaco-list-row .interactive-response {
 	background-color: var(--vscode-interactive-responseBackground);
-	padding: 16px 20px 0 20px
-}
-
-.interactive-list .monaco-list-row .interactive-request {
-	padding: 16px 20px 0 20px;
 }
 
 .interactive-list .monaco-list-row .value {
 	white-space: normal;
+}
+
+.interactive-list .monaco-list-row .value > :last-child:not(.rendered-markdown) {
+	margin-bottom: 16px;
 }
 
 .interactive-list .monaco-list-row .value p {
@@ -204,7 +204,7 @@
 }
 
 .interactive-session .interactive-response .interactive-response-error-details .codicon {
-	color: var(--vscode-errorForeground);
+	color: var(--vscode-errorForeground) !important; /* Have to override default styles which apply to all lists */
 }
 
 .interactive-session .interactive-request .value .interactive-slash-command {
@@ -222,11 +222,6 @@
 	flex-direction: column;
 	gap: 5px;
 	align-items: start;
-}
-
-.interactive-session .interactive-response .interactive-response-followups .interactive-session-followups {
-	margin-bottom: 1em;
-	/* This is matching the margin on rendered markdown */
 }
 
 .interactive-session .interactive-session-followups .monaco-button {

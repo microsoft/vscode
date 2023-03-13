@@ -151,7 +151,7 @@ declare module 'vscode' {
 
 	export namespace interactive {
 		// current version of the proposal.
-		export const _version: 2 | number;
+		export const _version: 1 | number;
 
 		export function registerInteractiveSessionProvider(id: string, provider: InteractiveSessionProvider): Disposable;
 		export function addInteractiveRequest(context: InteractiveSessionRequestArgs): void;

@@ -221,12 +221,12 @@ export class InteractiveListItemRenderer extends Disposable implements ITreeRend
 		templateData.value.appendChild(result.element);
 		templateData.elementDisposables.add(result);
 
-		if (isResponseVM(element) && element.errorDetails) {
+		if (isResponseVM(element) && element.errorDetails?.message) {
 			const errorDetails = dom.append(templateData.value, $('.interactive-response-error-details', undefined, renderIcon(Codicon.error)));
 			errorDetails.appendChild($('span', undefined, element.errorDetails.message));
 		}
 
-		if (isResponseVM(element) && element.commandFollowups) {
+		if (isResponseVM(element) && element.commandFollowups?.length) {
 			const followupsContainer = dom.append(templateData.value, $('.interactive-response-followups'));
 			templateData.elementDisposables.add(new InteractiveSessionFollowups(
 				followupsContainer,
