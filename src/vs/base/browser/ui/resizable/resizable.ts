@@ -137,7 +137,9 @@ export class ResizableHTMLElement {
 
 		const { height: minHeight, width: minWidth } = this._minSize;
 		const { height: maxHeight, width: maxWidth } = this._maxSize;
-
+		console.log('Inside of the layout function of ResizableHTMLElement');
+		console.log('minHeight: ' + minHeight + ' minWidth: ' + minWidth + ' maxHeight: ' + maxHeight + ' maxWidth: ' + maxWidth);
+		console.log('height: ' + height + ' width: ' + width);
 		height = Math.max(minHeight, Math.min(maxHeight, height));
 		width = Math.max(minWidth, Math.min(maxWidth, width));
 
