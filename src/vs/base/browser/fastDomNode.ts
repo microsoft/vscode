@@ -214,11 +214,11 @@ export class FastDomNode<T extends HTMLElement> {
 	}
 
 	public setClassName(className: string): void {
-		console.log('Inside of setClassName');
-		console.log('this._className : ', this._className);
-		console.log('className : ', className);
+		// console.log('Inside of setClassName');
+		// console.log('this._className : ', this._className);
+		// console.log('className : ', className);
 		if (this._className === className) {
-			console.log('Early return');
+			// console.log('Early return');
 			return;
 		}
 		this._className = className;

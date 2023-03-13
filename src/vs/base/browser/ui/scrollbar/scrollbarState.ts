@@ -125,11 +125,11 @@ export class ScrollbarState {
 	}
 
 	private static _computeValues(oppositeScrollbarSize: number, arrowSize: number, visibleSize: number, scrollSize: number, scrollPosition: number) {
-		console.log('Inside of _computeValues of ScrollbarState');
+		// console.log('Inside of _computeValues of ScrollbarState');
 		const computedAvailableSize = Math.max(0, visibleSize - oppositeScrollbarSize);
 		const computedRepresentableSize = Math.max(0, computedAvailableSize - 2 * arrowSize);
-		console.log('visibleSize : ', visibleSize);
-		console.log('scrollSize : ', scrollSize);
+		// console.log('visibleSize : ', visibleSize);
+		// console.log('scrollSize : ', scrollSize);
 		const computedIsNeeded = (scrollSize > 0 && scrollSize > visibleSize);
 
 		if (!computedIsNeeded) {
@@ -187,7 +187,7 @@ export class ScrollbarState {
 	}
 
 	public isNeeded(): boolean {
-		console.log('Inside of isNeeded of the ScrollbarState');
+		// console.log('Inside of isNeeded of the ScrollbarState');
 		return this._computedIsNeeded;
 	}
 

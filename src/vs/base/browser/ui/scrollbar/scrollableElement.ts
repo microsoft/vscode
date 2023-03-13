@@ -337,7 +337,7 @@ export abstract class AbstractScrollableElement extends Widget {
 		this._verticalScrollbar.updateOptions(this._options);
 
 		if (!this._options.lazyRender) {
-			console.log('Inside of updateOptions of AbstractScrollableElement');
+			// console.log('Inside of updateOptions of AbstractScrollableElement');
 			this._render();
 		}
 	}
@@ -466,11 +466,10 @@ export abstract class AbstractScrollableElement extends Widget {
 	}
 
 	private _onDidScroll(e: ScrollEvent): void {
-		console.log('Inside of _onDidScroll');
-
+		// console.log('Inside of _onDidScroll');
 		this._shouldRender = this._horizontalScrollbar.onDidScroll(e) || this._shouldRender;
 		this._shouldRender = this._verticalScrollbar.onDidScroll(e) || this._shouldRender;
-		console.log('this._shouldRender: ', this._shouldRender);
+		// console.log('this._shouldRender: ', this._shouldRender);
 
 		if (this._options.useShadows) {
 			this._shouldRender = true;
@@ -493,21 +492,21 @@ export abstract class AbstractScrollableElement extends Widget {
 		if (!this._options.lazyRender) {
 			throw new Error('Please use `lazyRender` together with `renderNow`!');
 		}
-		console.log('Inside of renderNow of AbstractScrollableElement');
+		// console.log('Inside of renderNow of AbstractScrollableElement');
 		this._render();
 	}
 
 	private _render(): void {
-		console.log('** Inside of _render of AbstractScrollableElement');
+		// console.log('** Inside of _render of AbstractScrollableElement');
 		if (!this._shouldRender) {
 			return;
 		}
 
 		this._shouldRender = false;
 
-		console.log('Before rendering of horizontal scroll bar');
+		// console.log('Before rendering of horizontal scroll bar');
 		this._horizontalScrollbar.render();
-		console.log('Before rendering of the vertical scroll bar');
+		// console.log('Before rendering of the vertical scroll bar');
 		this._verticalScrollbar.render();
 
 		if (this._options.useShadows) {
@@ -532,36 +531,38 @@ export abstract class AbstractScrollableElement extends Widget {
 	}
 
 	private _onDragEnd(): void {
-		console.log('Inside of _onDragEnd of AbstractScrollableElement');
+		// console.log('Inside of _onDragEnd of AbstractScrollableElement');
 		this._isDragging = false;
 		this._hide();
 	}
 
 	private _onMouseLeave(e: IMouseEvent): void {
-		console.log('** _onMouseLeave inside of AbstractScrollableElement');
+		// console.log('** _onMouseLeave inside of AbstractScrollableElement');
 		this._mouseIsOver = false;
 		this._hide();
 	}
 
 	private _onMouseOver(e: IMouseEvent): void {
-		console.log(' ** _onMouseOver inside of AbstractScrollableElement');
+		// console.log(' ** _onMouseOver inside of AbstractScrollableElement');
 		this._mouseIsOver = true;
 		this._reveal();
 	}
 
 	private _reveal(): void {
-		console.log('** Inside of _reveal of AbstractScrollableElement');
-		console.log('Begin reveal for vertical scroll-bar');
+		// console.log('** Inside of _reveal of AbstractScrollableElement');
+		// console.log('Begin reveal for vertical scroll-bar');
 		this._verticalScrollbar.beginReveal();
+		/*
 		console.log('this._verticalScrollBar.visibilityController.shouldBeVisible : ', this._verticalScrollbar.visibilityController.shouldBeVisible);
 		console.log('this._verticalScrollBar.visibilityController.isVisible ', this._verticalScrollbar.visibilityController.isVisible);
 		console.log('this._verticalScrollBar.visibilityController.visibility ', this._verticalScrollbar.visibilityController.visibility);
 		console.log('this._verticalScrollBar.visibilityController.visibileClassName ', this._verticalScrollbar.visibilityController.visibileClassName);
 		console.log('this._verticalScrollBar.visibilityController.invisibileClassName ', this._verticalScrollbar.visibilityController.invisibleClassName);
 		console.log('this._verticalScrollbar.domNode.domNode.className : ', this._verticalScrollbar.domNode.domNode.className);
-
 		console.log('Begin reveal for horizontal scroll-bar');
+		*/
 		this._horizontalScrollbar.beginReveal();
+		/*
 		console.log('this._horizontalScrollBar : ', this._horizontalScrollbar);
 		console.log('this._horizontalScrollbar.visibilityController.shouldBeVisible : ', this._horizontalScrollbar.visibilityController.shouldBeVisible);
 		console.log('this._horizontalScrollbar.visibilityController.isVisible ', this._horizontalScrollbar.visibilityController.isVisible);
@@ -569,11 +570,12 @@ export abstract class AbstractScrollableElement extends Widget {
 		console.log('this._horizontalScrollbar.visibilityController.visibileClassName ', this._horizontalScrollbar.visibilityController.visibileClassName);
 		console.log('this._horizontalScrollbar.visibilityController.invisibileClassName ', this._horizontalScrollbar.visibilityController.invisibleClassName);
 		console.log('this._verticalScrollbar.domNode.domNode.className ', this._verticalScrollbar.domNode.domNode.className);
+		*/
 		this._scheduleHide();
 	}
 
 	private _hide(): void {
-		console.log(' ** Inside of _hide of AbstractScrollableElement');
+		// console.log(' ** Inside of _hide of AbstractScrollableElement');
 		if (!this._mouseIsOver && !this._isDragging) {
 			this._verticalScrollbar.beginHide();
 			this._horizontalScrollbar.beginHide();
@@ -581,12 +583,12 @@ export abstract class AbstractScrollableElement extends Widget {
 	}
 
 	private _scheduleHide(): void {
-		console.log('Inside of _scheduleHide');
-		console.log('this._mouseIsOver : ', this._mouseIsOver);
-		console.log('this._isDragging : ', this._isDragging);
+		// console.log('Inside of _scheduleHide');
+		// console.log('this._mouseIsOver : ', this._mouseIsOver);
+		// console.log('this._isDragging : ', this._isDragging);
 		if (!this._mouseIsOver && !this._isDragging) {
 			this._hideTimeout.cancelAndSet(() => {
-				console.log('Hiding because of the timeout');
+				// console.log('Hiding because of the timeout');
 				this._hide();
 			}, HIDE_TIMEOUT);
 		}
@@ -673,9 +675,9 @@ export class DomScrollableElement extends AbstractScrollableElement {
 
 	public scanDomNode(): void {
 		// width, scrollLeft, scrollWidth, height, scrollTop, scrollHeight
-		console.log('Inside of scanDomNode');
-		console.log('this._element.clientHeight : ', this._element.clientHeight);
-		console.log('this._element.scrollHeight : ', this._element.scrollHeight);
+		// console.log('Inside of scanDomNode');
+		// console.log('this._element.clientHeight : ', this._element.clientHeight);
+		// console.log('this._element.scrollHeight : ', this._element.scrollHeight);
 		this.setScrollDimensions({
 			width: this._element.clientWidth,
 			scrollWidth: this._element.scrollWidth,
