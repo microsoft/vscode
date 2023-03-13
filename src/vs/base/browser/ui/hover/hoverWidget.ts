@@ -37,6 +37,7 @@ export class HoverWidget extends Disposable {
 		this.contentsDomNode = document.createElement('div');
 		this.contentsDomNode.className = 'monaco-hover-content';
 
+		// TODO: set the client height and scroll height appropriately
 		this.scrollbar = this._register(new DomScrollableElement(this.contentsDomNode, {
 			consumeMouseWheelIfScrollbarIsNeeded: true
 		}));

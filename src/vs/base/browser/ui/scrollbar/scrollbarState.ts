@@ -84,6 +84,7 @@ export class ScrollbarState {
 		return new ScrollbarState(this._arrowSize, this._scrollbarSize, this._oppositeScrollbarSize, this._visibleSize, this._scrollSize, this._scrollPosition);
 	}
 
+	// Here you can set the visible size of the scroll bar
 	public setVisibleSize(visibleSize: number): boolean {
 		const iVisibleSize = Math.round(visibleSize);
 		if (this._visibleSize !== iVisibleSize) {
@@ -94,6 +95,7 @@ export class ScrollbarState {
 		return false;
 	}
 
+	// You can also set the scroll size, or the possible height of the scrolling
 	public setScrollSize(scrollSize: number): boolean {
 		const iScrollSize = Math.round(scrollSize);
 		if (this._scrollSize !== iScrollSize) {
@@ -123,8 +125,11 @@ export class ScrollbarState {
 	}
 
 	private static _computeValues(oppositeScrollbarSize: number, arrowSize: number, visibleSize: number, scrollSize: number, scrollPosition: number) {
+		console.log('Inside of _computeValues of ScrollbarState');
 		const computedAvailableSize = Math.max(0, visibleSize - oppositeScrollbarSize);
 		const computedRepresentableSize = Math.max(0, computedAvailableSize - 2 * arrowSize);
+		console.log('visibleSize : ', visibleSize);
+		console.log('scrollSize : ', scrollSize);
 		const computedIsNeeded = (scrollSize > 0 && scrollSize > visibleSize);
 
 		if (!computedIsNeeded) {
@@ -156,6 +161,7 @@ export class ScrollbarState {
 	}
 
 	private _refreshComputedValues(): void {
+		// Updating the fact whether we need the scroll bar ot not
 		const r = ScrollbarState._computeValues(this._oppositeScrollbarSize, this._arrowSize, this._visibleSize, this._scrollSize, this._scrollPosition);
 		this._computedAvailableSize = r.computedAvailableSize;
 		this._computedIsNeeded = r.computedIsNeeded;
@@ -181,6 +187,7 @@ export class ScrollbarState {
 	}
 
 	public isNeeded(): boolean {
+		console.log('Inside of isNeeded of the ScrollbarState');
 		return this._computedIsNeeded;
 	}
 

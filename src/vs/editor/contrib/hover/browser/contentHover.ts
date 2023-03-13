@@ -427,6 +427,7 @@ export class ContentHoverWidget extends Disposable implements IContentWidget {
 	private readonly _hoverVisibleKey = EditorContextKeys.hoverVisible.bindTo(this._contextKeyService);
 	private readonly _hoverFocusedKey = EditorContextKeys.hoverFocused.bindTo(this._contextKeyService);
 	private readonly _hover: HoverWidget = this._register(new HoverWidget());
+	// private readonly _hoverCopy: HoverWidget = this._register(new HoverWidget());
 
 	// Adding a resizable element directly to the content hover widget
 	private readonly _element: ResizableHTMLElement = new ResizableHTMLElement();
@@ -487,7 +488,18 @@ export class ContentHoverWidget extends Disposable implements IContentWidget {
 		this._register(this._editor.onMouseMove(e => {
 			this._mousePosition = e.target.position;
 		}));
+
 		this._element.domNode.appendChild(this._hover.containerDomNode);
+
+		// Place also the hover container dom node on top of the resizable element
+		// const boundingBox = this._hover.containerDomNode.getBoundingClientRect();
+		// this._hoverCopy.containerDomNode.style.top = boundingBox.top + 'px';
+		// this._hoverCopy.containerDomNode.style.left = boundingBox.left + 'px';
+		// this._hoverCopy.containerDomNode.style.width = boundingBox.width + 'px';
+		// this._hoverCopy.containerDomNode.style.height = boundingBox.height + 'px';
+		// this._hoverCopy.containerDomNode.style.zIndex = '1000';
+		// console.log('this_hoverCopy.containerDomNode : ', this._hoverCopy.containerDomNode);
+
 		this._register(this._element.onDidWillResize(() => {
 			console.log('* Inside of onDidWillResize of ContentHoverWidget');
 		}));
@@ -685,9 +697,24 @@ export class ContentHoverWidget extends Disposable implements IContentWidget {
 			this._initialHeight = this._element.domNode.clientHeight;
 		}
 
+		// Client height and scroll height should not be the same so that the scroll bar is needed
+		this._hover.contentsDomNode.style.height = `${height - 4}px`;
+		this._hover.contentsDomNode.style.width = `${width - 4}px`;
+		console.log('this._hover.contentsDomNode.clientHeight : ', this._hover.contentsDomNode.clientHeight);
+		console.log('this._hover.contentsDomNode.scrollHeight : ', this._hover.contentsDomNode.scrollHeight);
+
 		this._hover.scrollbar.scanDomNode();
 		console.log('this._element.domNode : ', this._element.domNode);
-		console.log('this._hover.scrollbar : ', this._hover.scrollbar);
+
+		// this._hoverCopy.scrollbar.scanDomNode();
+		// console.log('this._hover.scrollbar : ', this._hover.scrollbar);
+		// Adding code for hover copy!!
+		// const boundingBox = this._hover.containerDomNode.getBoundingClientRect();
+		// this._hoverCopy.containerDomNode.style.top = boundingBox.top + 'px';
+		// this._hoverCopy.containerDomNode.style.left = boundingBox.left + 'px';
+		// this._hoverCopy.containerDomNode.style.width = boundingBox.width + 'px';
+		// this._hoverCopy.containerDomNode.style.height = boundingBox.height + 'px';
+		// console.log('this_hoverCopy.containerDomNode : ', this._hoverCopy.containerDomNode);
 	}
 
 	public override dispose(): void {

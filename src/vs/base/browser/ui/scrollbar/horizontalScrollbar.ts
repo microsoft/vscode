@@ -108,6 +108,7 @@ export class HorizontalScrollbar extends AbstractScrollbar {
 	}
 
 	public updateOptions(options: ScrollableElementResolvedOptions): void {
+		console.log('Inside of updateOptions of HorizontalScrollbar');
 		this.updateScrollbarSize(options.horizontal === ScrollbarVisibility.Hidden ? 0 : options.horizontalScrollbarSize);
 		this._scrollbarState.setOppositeScrollbarSize(options.vertical === ScrollbarVisibility.Hidden ? 0 : options.verticalScrollbarSize);
 		this._visibilityController.setVisibility(options.horizontal);
