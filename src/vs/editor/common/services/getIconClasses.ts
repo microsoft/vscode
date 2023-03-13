@@ -42,12 +42,12 @@ export function getIconClasses(modelService: IModelService, languageService: ILa
 		// (from a filename with lots of `.` characters; most file systems do not allow files > 255 length)
 		// https://github.com/microsoft/vscode/issues/116199
 		let segments: string[] | undefined;
-		if (name && name.length <= 255) {
+		if (typeof name === 'string' && name.length <= 255) {
 			segments = name.replace(/\.\.\.+/g, '').split('.');
 		}
 
 		// Folders
-		if (name && fileKind === FileKind.FOLDER) {
+		if (typeof name === 'string' && fileKind === FileKind.FOLDER) {
 			classes.push(`${name}-name-folder-icon`);
 			classes.push(`name-folder-icon`); // extra segment to increase folder-name score
 			if (name.length <= 255 && segments && segments.length <= 4) {
@@ -59,7 +59,7 @@ export function getIconClasses(modelService: IModelService, languageService: ILa
 		else {
 
 			// Name & Extension(s)
-			if (name) {
+			if (typeof name === 'string') {
 				classes.push(`${name}-name-file-icon`);
 				classes.push(`name-file-icon`); // extra segment to increase file-name score
 				if (name.length <= 255 && segments && segments.length <= 4) {
