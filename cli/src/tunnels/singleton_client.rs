@@ -12,8 +12,8 @@ use crate::{
 use super::{protocol, shutdown_signal::ShutdownRequest};
 
 pub struct SingletonClientArgs {
-	log: log::Logger,
-	stream: AsyncPipe,
+	pub log: log::Logger,
+	pub stream: AsyncPipe,
 }
 
 struct SingletonServerContext {

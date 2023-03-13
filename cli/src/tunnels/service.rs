@@ -11,9 +11,6 @@ use crate::log;
 use crate::state::LauncherPaths;
 use crate::util::errors::{wrap, AnyError};
 use crate::util::io::{tailf, TailEvent};
-use crate::util::sync::Barrier;
-
-use super::shutdown_signal::ShutdownSignal;
 
 pub const SERVICE_LOG_FILE_NAME: &str = "tunnel-service.log";
 
@@ -23,7 +20,6 @@ pub trait ServiceContainer: Send {
 		&mut self,
 		log: log::Logger,
 		launcher_paths: LauncherPaths,
-		shutdown_rx: Barrier<ShutdownSignal>,
 	) -> Result<(), AnyError>;
 }
 

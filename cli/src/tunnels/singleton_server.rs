@@ -7,35 +7,39 @@ use std::sync::{Arc, Mutex};
 
 use super::{
 	code_server::CodeServerArgs,
+	control_server::ServerTermination,
 	dev_tunnels::ActiveTunnel,
 	protocol,
 	shutdown_signal::{ShutdownRequest, ShutdownSignal},
 };
 use crate::{
-	async_pipe::{socket_stream_split, AsyncPipeListener},
+	async_pipe::socket_stream_split,
 	json_rpc::{new_json_rpc, start_json_rpc, JsonRpcSerializer},
 	log,
 	rpc::{RpcCaller, RpcDispatcher},
+	singleton::SingletonServer,
 	state::LauncherPaths,
 	update_service::Platform,
 	util::{
-		errors::CodeError,
+		errors::{AnyError, CodeError},
 		ring_buffer::RingBuffer,
 		sync::{new_barrier, Barrier, BarrierOpener, ConcatReceivable},
 	},
 };
+use sysinfo::Pid;
 use tokio::{
 	pin,
 	sync::{broadcast, mpsc},
 };
 
 pub struct SingletonServerArgs {
-	log: log::Logger,
-	tunnel: ActiveTunnel,
-	paths: LauncherPaths,
-	code_server_args: CodeServerArgs,
-	platform: Platform,
-	server: AsyncPipeListener,
+	pub log: log::Logger,
+	pub tunnel: ActiveTunnel,
+	pub paths: LauncherPaths,
+	pub code_server_args: CodeServerArgs,
+	pub platform: Platform,
+	pub server: SingletonServer,
+	pub parent_pid: Option<Pid>,
 }
 
 #[derive(Clone)]
@@ -43,15 +47,24 @@ struct SingletonServerContext {
 	shutdown: BarrierOpener<()>,
 }
 
-pub async fn start_singleton_server(args: SingletonServerArgs) -> i32 {
+pub async fn start_singleton_server(
+	mut args: SingletonServerArgs,
+) -> Result<ServerTermination, AnyError> {
 	let (event_tx, _) = broadcast::channel(64);
 	let log_broadcast = BroadcastLogSink::new(event_tx);
 	let log = args.log.tee(log_broadcast.clone());
 	let (shutdown_rx, shutdown_tx) = new_barrier();
-	let shutdown_rx = ShutdownRequest::create_rx([
-		ShutdownRequest::RpcShutdownRequested(shutdown_rx),
-		ShutdownRequest::CtrlC,
-	]);
+	let shutdown_rx = ShutdownRequest::create_rx(match args.parent_pid {
+		Some(pid) => vec![
+			ShutdownRequest::ParentProcessKilled(pid),
+			ShutdownRequest::RpcShutdownRequested(shutdown_rx),
+			ShutdownRequest::CtrlC,
+		],
+		None => vec![
+			ShutdownRequest::RpcShutdownRequested(shutdown_rx),
+			ShutdownRequest::CtrlC,
+		],
+	});
 
 	let rpc = new_json_rpc();
 
@@ -67,7 +80,7 @@ pub async fn start_singleton_server(args: SingletonServerArgs) -> i32 {
 	let (r1, r2) = tokio::join!(
 		serve_singleton_rpc(
 			log_broadcast,
-			args.server,
+			&mut args.server,
 			rpc.build(log.clone()),
 			shutdown_rx.clone(),
 		),
@@ -81,23 +94,13 @@ pub async fn start_singleton_server(args: SingletonServerArgs) -> i32 {
 		),
 	);
 
-	let mut code = 0;
-	if let Err(e) = r1 {
-		error!(log, "Singleton RPC server returned error: {}", e);
-		code = 1;
-	}
-
-	if let Err(e) = r2 {
-		error!(log, "Tunnel server returned error: {}", e);
-		code = 1;
-	}
-
-	code
+	r1?;
+	r2
 }
 
 async fn serve_singleton_rpc<C: Clone + Send + Sync + 'static>(
 	log_broadcast: BroadcastLogSink,
-	mut server: AsyncPipeListener,
+	server: &mut SingletonServer,
 	dispatcher: RpcDispatcher<JsonRpcSerializer, C>,
 	shutdown_rx: Barrier<ShutdownSignal>,
 ) -> Result<(), CodeError> {

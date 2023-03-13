@@ -10,7 +10,6 @@ use std::{
 	process::Command,
 };
 
-use super::shutdown_signal::ShutdownRequest;
 use async_trait::async_trait;
 use zbus::{dbus_proxy, zvariant, Connection};
 
@@ -119,8 +118,7 @@ impl ServiceManager for SystemdService {
 		launcher_paths: crate::state::LauncherPaths,
 		mut handle: impl 'static + super::ServiceContainer,
 	) -> Result<(), crate::util::errors::AnyError> {
-		let rx = ShutdownRequest::create_rx(&[ShutdownRequest::CtrlC]);
-		handle.run_service(self.log, launcher_paths, rx).await
+		handle.run_service(self.log, launcher_paths).await
 	}
 
 	async fn show_logs(&self) -> Result<(), AnyError> {

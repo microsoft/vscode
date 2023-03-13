@@ -5,7 +5,7 @@
 
 use async_trait::async_trait;
 use sha2::{Digest, Sha256};
-use std::str::FromStr;
+use std::{str::FromStr, time::Duration};
 use sysinfo::Pid;
 
 use super::{
@@ -16,7 +16,6 @@ use super::{
 	CommandContext,
 };
 
-use crate::tunnels::{dev_tunnels::ActiveTunnel, SleepInhibitor};
 use crate::{
 	auth::Auth,
 	log::{self, Logger},
@@ -25,13 +24,20 @@ use crate::{
 		code_server::CodeServerArgs,
 		create_service_manager, dev_tunnels, legal,
 		paths::get_all_servers,
-		shutdown_signal::{ShutdownRequest, ShutdownSignal},
+		singleton_server::{start_singleton_server, SingletonServerArgs},
 		ServiceContainer, ServiceManager,
 	},
 	util::{
 		errors::{wrap, AnyError},
 		prereqs::PreReqChecker,
-		sync::Barrier,
+	},
+};
+use crate::{
+	singleton::{acquire_singleton, SingletonConnection},
+	tunnels::{
+		dev_tunnels::ActiveTunnel,
+		singleton_client::{start_singleton_client, SingletonClientArgs},
+		SleepInhibitor,
 	},
 };
 
@@ -77,7 +83,6 @@ impl ServiceContainer for TunnelServiceContainer {
 		&mut self,
 		log: log::Logger,
 		launcher_paths: LauncherPaths,
-		shutdown_rx: Barrier<ShutdownSignal>,
 	) -> Result<(), AnyError> {
 		let csa = (&self.args).into();
 		serve_with_csa(
@@ -88,7 +93,6 @@ impl ServiceContainer for TunnelServiceContainer {
 				..Default::default()
 			},
 			csa,
-			Some(shutdown_rx),
 		)
 		.await?;
 		Ok(())
@@ -229,7 +233,7 @@ pub async fn serve(ctx: CommandContext, gateway_args: TunnelServeArgs) -> Result
 	legal::require_consent(&paths, gateway_args.accept_server_license_terms)?;
 
 	let csa = (&args).into();
-	let result = serve_with_csa(paths, log, gateway_args, csa, None).await;
+	let result = serve_with_csa(paths, log, gateway_args, csa).await;
 	drop(no_sleep);
 
 	result
@@ -247,12 +251,28 @@ async fn serve_with_csa(
 	log: Logger,
 	gateway_args: TunnelServeArgs,
 	mut csa: CodeServerArgs,
-	shutdown_rx: Option<Barrier<ShutdownSignal>>,
 ) -> Result<i32, AnyError> {
 	// Intentionally read before starting the server. If the server updated and
 	// respawn is requested, the old binary will get renamed, and then
 	// current_exe will point to the wrong path.
 	let current_exe = std::env::current_exe().unwrap();
+	let server = loop {
+		match acquire_singleton(paths.root().join("tunnel.lock")).await {
+			Ok(SingletonConnection::Client(stream)) => {
+				start_singleton_client(SingletonClientArgs {
+					log: log.clone(),
+					stream,
+				})
+				.await
+			}
+			Ok(SingletonConnection::Singleton(server)) => break server,
+			Err(e) => {
+				warning!(log, "error access singleton, retrying: {}", e);
+				tokio::time::sleep(Duration::from_secs(2)).await
+			}
+		}
+	};
+
 	let platform = spanf!(log, log.span("prereq"), PreReqChecker::new().verify())?;
 
 	let auth = Auth::new(&paths, log.clone());
@@ -266,21 +286,18 @@ async fn serve_with_csa(
 
 	csa.connection_token = Some(get_connection_token(&tunnel));
 
-	let shutdown_tx = if let Some(tx) = shutdown_rx {
-		tx
-	} else if let Some(pid) = gateway_args
-		.parent_process_id
-		.and_then(|p| Pid::from_str(&p).ok())
-	{
-		ShutdownRequest::create_rx([
-			ShutdownRequest::CtrlC,
-			ShutdownRequest::ParentProcessKilled(pid),
-		])
-	} else {
-		ShutdownRequest::create_rx([ShutdownRequest::CtrlC])
-	};
-
-	let mut r = crate::tunnels::serve(&log, tunnel, &paths, &csa, platform, shutdown_tx).await?;
+	let mut r = start_singleton_server(SingletonServerArgs {
+		log: log.clone(),
+		tunnel,
+		paths,
+		code_server_args: csa,
+		platform,
+		parent_pid: gateway_args
+			.parent_process_id
+			.and_then(|p| Pid::from_str(&p).ok()),
+		server,
+	})
+	.await?;
 	r.tunnel.close().await.ok();
 
 	if r.respawn {
@@ -298,5 +315,5 @@ async fn serve_with_csa(
 		return Ok(exit.code().unwrap_or(1));
 	}
 
-	Ok(0)
+	return Ok(0);
 }
