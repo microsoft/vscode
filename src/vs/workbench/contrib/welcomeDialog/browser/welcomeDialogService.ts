@@ -98,12 +98,6 @@ export class WelcomeDialogService implements IWelcomeDialogService {
 		welcomeDialogItem.onClose?.();
 		this.disposableStore.dispose();
 	}
-
-	private close(welcomeDialogItem: IWelcomeDialogItem) {
-		if (welcomeDialogItem.onClose) {
-			welcomeDialogItem.onClose();
-		}
-	}
 }
 
 registerSingleton(IWelcomeDialogService, WelcomeDialogService, InstantiationType.Eager);
