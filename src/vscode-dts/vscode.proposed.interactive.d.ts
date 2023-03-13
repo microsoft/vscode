@@ -21,7 +21,7 @@ declare module 'vscode' {
 
 	// todo@API make classes
 	export interface InteractiveEditorResponse {
-		edits: TextEdit[];
+		edits: TextEdit[] | WorkspaceEdit;
 		placeholder?: string;
 	}
 

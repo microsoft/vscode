@@ -39,13 +39,13 @@ import { raceCancellationError } from 'vs/base/common/async';
 import { isCancellationError } from 'vs/base/common/errors';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorker';
 import { ILogService } from 'vs/platform/log/common/log';
-import { isFalsyOrEmpty } from 'vs/base/common/arrays';
 import { StopWatch } from 'vs/base/common/stopwatch';
 import { Action, IAction } from 'vs/base/common/actions';
 import { Codicon } from 'vs/base/common/codicons';
 import { ThemeIcon } from 'vs/base/common/themables';
 import { LRUCache } from 'vs/base/common/map';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { IBulkEditService } from 'vs/editor/browser/services/bulkEditService';
 
 
 interface IHistoryEntry {
@@ -593,6 +593,7 @@ export class InteractiveEditorController implements IEditorContribution {
 		@IInstantiationService instaService: IInstantiationService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IInteractiveEditorService private readonly _interactiveEditorService: IInteractiveEditorService,
+		@IBulkEditService private readonly _bulkEditService: IBulkEditService,
 		@IEditorWorkerService private readonly _editorWorkerService: IEditorWorkerService,
 		@ILogService private readonly _logService: ILogService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService
@@ -777,11 +778,19 @@ export class InteractiveEditorController implements IEditorContribution {
 				continue;
 			}
 
-			if (!reply || isFalsyOrEmpty(reply.edits)) {
+			if (!reply) {
 				this._logService.trace('[IE] NO reply or edits', provider.debugName);
 				value = input.value;
 				historyEntry.remove();
 				continue;
+			}
+
+			if (reply.type === 'bulkEdit') {
+				this._logService.info('[IE] performance a BULK EDIT, exiting interactive editor', provider.debugName);
+				this._bulkEditService.apply(reply.edits, { editor: this._editor, label: localize('ie', "{0}", input.value) });
+				// todo@jrieken preview bulk edit?
+				// todo@jrieken keep interactive editor?
+				break;
 			}
 
 			// make edits more minimal

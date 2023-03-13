@@ -1076,9 +1076,11 @@ export interface MainThreadInteractiveEditorShape extends IDisposable {
 	$unregisterInteractiveEditorProvider(handle: number): Promise<void>;
 }
 
+export type IInteractiveEditorResponseDto = Dto<IInteractiveEditorResponse>;
+
 export interface ExtHostInteractiveEditorShape {
 	$prepareInteractiveSession(handle: number, uri: UriComponents, range: ISelection, token: CancellationToken): Promise<IInteractiveEditorSession | undefined>;
-	$provideResponse(handle: number, session: IInteractiveEditorSession, request: IInteractiveEditorRequest, token: CancellationToken): Promise<IInteractiveEditorResponse | undefined>;
+	$provideResponse(handle: number, session: IInteractiveEditorSession, request: IInteractiveEditorRequest, token: CancellationToken): Promise<IInteractiveEditorResponseDto | undefined>;
 	$releaseSession(handle: number, sessionId: number): void;
 }
 

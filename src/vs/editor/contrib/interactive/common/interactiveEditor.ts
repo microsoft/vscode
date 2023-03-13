@@ -7,7 +7,7 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { IRange } from 'vs/editor/common/core/range';
 import { ISelection } from 'vs/editor/common/core/selection';
-import { ProviderResult, TextEdit } from 'vs/editor/common/languages';
+import { ProviderResult, TextEdit, WorkspaceEdit } from 'vs/editor/common/languages';
 import { ITextModel } from 'vs/editor/common/model';
 import { localize } from 'vs/nls';
 import { MenuId } from 'vs/platform/actions/common/actions';
@@ -26,9 +26,17 @@ export interface IInteractiveEditorRequest {
 	wholeRange: IRange;
 }
 
-export interface IInteractiveEditorResponse {
-	// item: IInputModeSession;
-	edits: TextEdit[]; // WorkspaceEdit?
+export type IInteractiveEditorResponse = IInteractiveEditorEditResponse | IInteractiveEditorBulkEditResponse;
+
+export interface IInteractiveEditorEditResponse {
+	type: 'editorEdit';
+	edits: TextEdit[];
+	placeholder?: string;
+}
+
+export interface IInteractiveEditorBulkEditResponse {
+	type: 'bulkEdit';
+	edits: WorkspaceEdit;
 	placeholder?: string;
 }
 
@@ -38,7 +46,7 @@ export interface IInteractiveEditorSessionProvider {
 
 	prepareInteractiveEditorSession(model: ITextModel, range: ISelection, token: CancellationToken): ProviderResult<IInteractiveEditorSession>;
 
-	provideResponse(item: IInteractiveEditorSession, request: IInteractiveEditorRequest, token: CancellationToken): ProviderResult<IInteractiveEditorResponse>;
+	provideResponse(item: IInteractiveEditorSession, request: IInteractiveEditorRequest, token: CancellationToken): ProviderResult<IInteractiveEditorEditResponse | IInteractiveEditorBulkEditResponse>;
 }
 
 export const IInteractiveEditorService = createDecorator<IInteractiveEditorService>('IInteractiveEditorService');
