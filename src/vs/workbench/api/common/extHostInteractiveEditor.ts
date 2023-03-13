@@ -90,6 +90,13 @@ export class ExtHostInteractiveEditor implements ExtHostInteractiveEditorShape {
 			wholeRange: typeConvert.Range.to(request.wholeRange)
 		}, token);
 
+		if (ExtHostInteractiveEditor._isMessageResponse(res)) {
+			return {
+				type: 'message',
+				message: typeConvert.MarkdownString.from(res.contents)
+			};
+		}
+
 		if (res) {
 			const { edits, placeholder } = res;
 			if (edits instanceof WorkspaceEdit) {
@@ -120,4 +127,7 @@ export class ExtHostInteractiveEditor implements ExtHostInteractiveEditorShape {
 		this._inputSessions.delete(sessionId);
 	}
 
+	private static _isMessageResponse(thing: any): thing is vscode.InteractiveEditorMessageResponse {
+		return typeof thing === 'object' && thing.message;
+	}
 }

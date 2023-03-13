@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken } from 'vs/base/common/cancellation';
+import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { IRange } from 'vs/editor/common/core/range';
 import { ISelection } from 'vs/editor/common/core/selection';
@@ -26,7 +27,7 @@ export interface IInteractiveEditorRequest {
 	wholeRange: IRange;
 }
 
-export type IInteractiveEditorResponse = IInteractiveEditorEditResponse | IInteractiveEditorBulkEditResponse;
+export type IInteractiveEditorResponse = IInteractiveEditorEditResponse | IInteractiveEditorBulkEditResponse | IInteractiveEditorMessageResponse;
 
 export interface IInteractiveEditorEditResponse {
 	type: 'editorEdit';
@@ -40,13 +41,19 @@ export interface IInteractiveEditorBulkEditResponse {
 	placeholder?: string;
 }
 
+export interface IInteractiveEditorMessageResponse {
+	type: 'message';
+	message: IMarkdownString;
+	placeholder?: string;
+}
+
 export interface IInteractiveEditorSessionProvider {
 
 	debugName: string;
 
 	prepareInteractiveEditorSession(model: ITextModel, range: ISelection, token: CancellationToken): ProviderResult<IInteractiveEditorSession>;
 
-	provideResponse(item: IInteractiveEditorSession, request: IInteractiveEditorRequest, token: CancellationToken): ProviderResult<IInteractiveEditorEditResponse | IInteractiveEditorBulkEditResponse>;
+	provideResponse(item: IInteractiveEditorSession, request: IInteractiveEditorRequest, token: CancellationToken): ProviderResult<IInteractiveEditorResponse>;
 }
 
 export const IInteractiveEditorService = createDecorator<IInteractiveEditorService>('IInteractiveEditorService');

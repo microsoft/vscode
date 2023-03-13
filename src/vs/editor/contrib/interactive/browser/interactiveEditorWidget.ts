@@ -786,9 +786,16 @@ export class InteractiveEditorController implements IEditorContribution {
 			}
 
 			if (reply.type === 'bulkEdit') {
-				this._logService.info('[IE] performance a BULK EDIT, exiting interactive editor', provider.debugName);
+				this._logService.info('[IE] performaing a BULK EDIT, exiting interactive editor', provider.debugName);
 				this._bulkEditService.apply(reply.edits, { editor: this._editor, label: localize('ie', "{0}", input.value) });
 				// todo@jrieken preview bulk edit?
+				// todo@jrieken keep interactive editor?
+				break;
+			}
+
+			if (reply.type === 'message') {
+				this._logService.info('[IE] received a MESSAGE, exiting interactive editor', provider.debugName);
+				// todo@jrieken show message in context
 				// todo@jrieken keep interactive editor?
 				break;
 			}

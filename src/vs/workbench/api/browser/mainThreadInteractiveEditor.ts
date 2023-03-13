@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { DisposableMap } from 'vs/base/common/lifecycle';
-import { IInteractiveEditorBulkEditResponse, IInteractiveEditorEditResponse, IInteractiveEditorService } from 'vs/editor/contrib/interactive/common/interactiveEditor';
+import { IInteractiveEditorResponse, IInteractiveEditorService } from 'vs/editor/contrib/interactive/common/interactiveEditor';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { reviveWorkspaceEditDto } from 'vs/workbench/api/browser/mainThreadBulkEdits';
 import { ExtHostContext, ExtHostInteractiveEditorShape, MainContext, MainThreadInteractiveEditorShape } from 'vs/workbench/api/common/extHost.protocol';
@@ -48,7 +48,7 @@ export class MainThreadInteractiveEditor implements MainThreadInteractiveEditorS
 				if (result?.type === 'bulkEdit') {
 					result.edits = reviveWorkspaceEditDto(result.edits, this._uriIdentService);
 				}
-				return <IInteractiveEditorEditResponse | IInteractiveEditorBulkEditResponse | undefined>result;
+				return <IInteractiveEditorResponse | undefined>result;
 			}
 		});
 
