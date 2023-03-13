@@ -38,6 +38,7 @@ export const ITerminalInstanceService = createDecorator<ITerminalInstanceService
  * been initialized.
  */
 export interface ITerminalContribution extends IDisposable {
+	layout?(xterm: IXtermTerminal & { raw: RawXtermTerminal }): void;
 	xtermReady?(xterm: IXtermTerminal & { raw: RawXtermTerminal }): void;
 }
 
@@ -601,9 +602,6 @@ export interface ITerminalInstance {
 
 	/** A promise that resolves when the terminal's pty/process have been created. */
 	readonly processReady: Promise<void>;
-
-	/** A barrier that opens when the terminal's container is ready */
-	readonly containerReadyBarrier: AutoOpenBarrier;
 
 	/** Whether the terminal's process has child processes (ie. is dirty/busy). */
 	readonly hasChildProcesses: boolean;
