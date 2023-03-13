@@ -53,7 +53,7 @@ export class KeybindingIO {
 			out.writeLine(`"commands": [`);
 
 			for (const cmd of item.commands) {
-				if (cmd.args) {
+				if (cmd.args !== undefined) {
 					out.write(JSON.stringify(cmd));
 				} else {
 					out.write(JSON.stringify(cmd.command));
