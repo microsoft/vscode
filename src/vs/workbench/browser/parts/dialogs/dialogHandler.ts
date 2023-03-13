@@ -107,7 +107,7 @@ export class BrowserDialogHandler extends AbstractDialogHandler {
 	private async doShow(type: Severity | DialogType | undefined, message: string, buttons?: string[], detail?: string, cancelId?: number, checkbox?: ICheckbox, inputs?: IInputElement[], customOptions?: ICustomDialogOptions): Promise<IDialogResult> {
 		const dialogDisposables = new DisposableStore();
 
-		const renderBody = customOptions ? (parent: HTMLElement) => {
+		const renderBody = customOptions ? (customOptions.renderBody ? customOptions.renderBody : (parent: HTMLElement) => {
 			parent.classList.add(...(customOptions.classes || []));
 			customOptions.markdownDetails?.forEach(markdownDetail => {
 				const result = this.markdownRenderer.render(markdownDetail.markdown);
@@ -115,7 +115,7 @@ export class BrowserDialogHandler extends AbstractDialogHandler {
 				result.element.classList.add(...(markdownDetail.classes || []));
 				dialogDisposables.add(result);
 			});
-		} : undefined;
+		}) : undefined;
 
 		const dialog = new Dialog(
 			this.layoutService.container,

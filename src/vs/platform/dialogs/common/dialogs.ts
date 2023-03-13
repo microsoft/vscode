@@ -263,6 +263,7 @@ export const IDialogService = createDecorator<IDialogService>('dialogService');
 export interface ICustomDialogOptions {
 	readonly buttonDetails?: string[];
 	readonly markdownDetails?: ICustomDialogMarkdown[];
+	readonly renderBody?: (container: HTMLElement) => void;
 	readonly classes?: string[];
 	readonly icon?: ThemeIcon;
 	readonly disableCloseAction?: boolean;

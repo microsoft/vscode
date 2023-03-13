@@ -7,13 +7,11 @@ import 'vs/css!./media/welcomeDialog';
 import { IInstantiationService, createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { ThemeIcon } from 'vs/base/common/themables';
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
 import { DisposableStore } from 'vs/base/common/lifecycle';
-import { Dialog } from 'vs/base/browser/ui/dialog/dialog';
-import { defaultButtonStyles, defaultCheckboxStyles, defaultDialogStyles, defaultInputBoxStyles } from 'vs/platform/theme/browser/defaultStyles';
 import { $ } from 'vs/base/browser/dom';
 import { renderLabelWithIcons } from 'vs/base/browser/ui/iconLabel/iconLabels';
 import { ILinkDescriptor, Link } from 'vs/platform/opener/browser/link';
+import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 
 interface IWelcomeDialogItem {
 	readonly title: string;
@@ -34,12 +32,11 @@ export interface IWelcomeDialogService {
 export class WelcomeDialogService implements IWelcomeDialogService {
 	declare readonly _serviceBrand: undefined;
 
-	private dialog: Dialog | undefined;
 	private disposableStore: DisposableStore = new DisposableStore();
 
 	constructor(
-		@ILayoutService private readonly layoutService: ILayoutService,
-		@IInstantiationService private readonly instantiationService: IInstantiationService) {
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IDialogService private readonly dialogService: IDialogService) {
 	}
 
 	private static iconWidgetFor(icon: string) {
@@ -78,23 +75,16 @@ export class WelcomeDialogService implements IWelcomeDialogService {
 			}
 		};
 
-		this.dialog = new Dialog(
-			this.layoutService.container,
-			welcomeDialogItem.title,
-			[welcomeDialogItem.buttonText],
-			{
-				detail: '',
-				type: 'none',
-				renderBody: renderBody,
+		await this.dialogService.prompt({
+			type: 'none',
+			message: welcomeDialogItem.title,
+			cancelButton: welcomeDialogItem.buttonText,
+			custom: {
 				disableCloseAction: true,
-				buttonStyles: defaultButtonStyles,
-				checkboxStyles: defaultCheckboxStyles,
-				inputBoxStyles: defaultInputBoxStyles,
-				dialogStyles: defaultDialogStyles
-			});
+				renderBody: renderBody
+			}
+		});
 
-		this.disposableStore.add(this.dialog);
-		await this.dialog.show();
 		welcomeDialogItem.onClose?.();
 		this.disposableStore.dispose();
 	}
