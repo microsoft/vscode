@@ -74,6 +74,7 @@ export class AccessibleBufferWidget extends DisposableStore {
 		this._accessibleBuffer.ariaRoleDescription = localize('terminal.integrated.accessibleBuffer', 'Terminal buffer');
 		this._accessibleBuffer.classList.add('accessible-buffer');
 		this._editorContainer = document.createElement('div');
+		this._accessibleBuffer.tabIndex = -1;
 		this._bufferEditor = this._instantiationService.createInstance(CodeEditorWidget, this._editorContainer, editorOptions, codeEditorWidgetOptions);
 		this._accessibleBuffer.replaceChildren(this._editorContainer);
 		this._xtermElement.insertAdjacentElement('beforebegin', this._accessibleBuffer);
@@ -98,7 +99,14 @@ export class AccessibleBufferWidget extends DisposableStore {
 				await this._updateEditor(true);
 			}
 		}));
-		this.add(this._bufferEditor.onDidFocusEditorText(() => this._accessibleBuffer.classList.add('active')));
+		this._updateEditor();
+		this.add(this._bufferEditor.onDidFocusEditorText(async () => {
+			// if the editor is focused via tab, we need to update the model
+			// and show it
+			await this._updateEditor();
+			this._accessibleBuffer.classList.add(Constants.Active);
+			this._xtermElement.classList.add(Constants.Hide);
+		}));
 	}
 
 	private _hide(): void {
@@ -135,7 +143,6 @@ export class AccessibleBufferWidget extends DisposableStore {
 			this._bufferEditor.setSelection({ startLineNumber: lineNumber, startColumn: 1, endLineNumber: lineNumber, endColumn: 1 });
 		}
 		this._bufferEditor.setScrollTop(this._bufferEditor.getScrollHeight());
-		this._bufferEditor.focus();
 	}
 
 	async show(): Promise<void> {
@@ -144,6 +151,7 @@ export class AccessibleBufferWidget extends DisposableStore {
 		this._bufferEditor.layout({ width: this._xtermElement.clientWidth, height: this._xtermElement.clientHeight });
 		this._accessibleBuffer.classList.add(Constants.Active);
 		this._xtermElement.classList.add(Constants.Hide);
+		this._bufferEditor.focus();
 	}
 
 	private async _getTextModel(resource: URI): Promise<ITextModel | null> {

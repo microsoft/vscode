@@ -189,7 +189,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	private _areLinksReady: boolean = false;
 	private _initialDataEvents: string[] | undefined = [];
 	private _containerReadyBarrier: AutoOpenBarrier;
-	get containerReadyBarrier(): AutoOpenBarrier { return this._containerReadyBarrier; }
 	private _attachBarrier: AutoOpenBarrier;
 	private _icon: TerminalIcon | undefined;
 	private _messageTitleDisposable: IDisposable | undefined;
@@ -1859,6 +1858,13 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 		// Signal the container is ready
 		this._containerReadyBarrier.open();
+
+		for (const contribution of this._contributions) {
+			if (!this.xterm) {
+				this._xtermReadyPromise.then(() => contribution[1].layout?.(this.xterm!));
+			}
+			contribution[1].layout?.(this.xterm!);
+		}
 	}
 
 	@debounce(50)
