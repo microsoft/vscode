@@ -98,7 +98,10 @@ export class AccessibleBufferWidget extends DisposableStore {
 				await this._updateEditor(true);
 			}
 		}));
-		this.add(this._bufferEditor.onDidFocusEditorText(() => this._accessibleBuffer.classList.add('active')));
+		this.add(this._bufferEditor.onDidFocusEditorText(() => {
+			this._accessibleBuffer.classList.add(Constants.Active);
+			this._xtermElement.classList.add(Constants.Hide);
+		}));
 	}
 
 	private _hide(): void {
