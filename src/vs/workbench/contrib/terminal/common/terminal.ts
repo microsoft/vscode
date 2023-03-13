@@ -30,8 +30,6 @@ export const TerminalCursorStyle = {
 
 export const TERMINAL_CONFIG_SECTION = 'terminal.integrated';
 
-export const TERMINAL_ACTION_CATEGORY = nls.localize('terminalCategory', "Terminal");
-
 export const DEFAULT_LETTER_SPACING = 0;
 export const MINIMUM_LETTER_SPACING = -5;
 export const DEFAULT_LINE_HEIGHT = 1;

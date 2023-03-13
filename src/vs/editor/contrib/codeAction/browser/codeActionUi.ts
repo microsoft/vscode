@@ -44,10 +44,8 @@ export class CodeActionUi extends Disposable {
 
 	constructor(
 		private readonly _editor: ICodeEditor,
-		quickFixActionId: string,
-		preferredFixActionId: string,
 		private readonly delegate: {
-			applyCodeAction: (action: CodeActionItem, regtriggerAfterApply: boolean, preview: boolean) => Promise<void>;
+			applyCodeAction: (action: CodeActionItem, retriggerAfterApply: boolean, preview: boolean) => Promise<void>;
 		},
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
@@ -57,7 +55,7 @@ export class CodeActionUi extends Disposable {
 		super();
 
 		this._lightBulbWidget = new Lazy(() => {
-			const widget = this._register(instantiationService.createInstance(LightBulbWidget, this._editor, quickFixActionId, preferredFixActionId));
+			const widget = this._register(instantiationService.createInstance(LightBulbWidget, this._editor));
 			this._register(widget.onClick(e => this.showCodeActionList(e.actions, e, { includeDisabledActions: false, fromLightbulb: true })));
 			return widget;
 		});
@@ -184,7 +182,7 @@ export class CodeActionUi extends Disposable {
 
 		const delegate: IActionListDelegate<CodeActionItem> = {
 			onSelect: async (action: CodeActionItem, preview?: boolean) => {
-				this.delegate.applyCodeAction(action, /* retrigger */ true, !!preview ? preview : false);
+				this.delegate.applyCodeAction(action, /* retrigger */ true, !!preview);
 				this._actionWidgetService.hide();
 			},
 			onHide: () => {

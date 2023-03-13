@@ -155,6 +155,10 @@
 			"project": "vscode-workbench"
 		},
 		{
+			"name": "vs/workbench/contrib/interactiveSession",
+			"project": "vscode-workbench"
+		},
+		{
 			"name": "vs/workbench/contrib/quickaccess",
 			"project": "vscode-workbench"
 		},
@@ -212,6 +216,10 @@
 		},
 		{
 			"name": "vs/workbench/contrib/terminal",
+			"project": "vscode-workbench"
+		},
+		{
+			"name": "vs/workbench/contrib/terminalContrib",
 			"project": "vscode-workbench"
 		},
 		{

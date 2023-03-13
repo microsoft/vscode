@@ -7,7 +7,7 @@ import type * as vscode from 'vscode';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { Event, Emitter } from 'vs/base/common/event';
 import { ExtHostTelemetryShape } from 'vs/workbench/api/common/extHost.protocol';
-import { TelemetryLevel } from 'vs/platform/telemetry/common/telemetry';
+import { ICommonProperties, TelemetryLevel } from 'vs/platform/telemetry/common/telemetry';
 import { ILogger, ILoggerService, LogLevel, isLogLevel } from 'vs/platform/log/common/log';
 import { IExtHostInitDataService } from 'vs/workbench/api/common/extHostInitDataService';
 import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
@@ -94,8 +94,8 @@ export class ExtHostTelemetry extends Disposable implements ExtHostTelemetryShap
 		this.updateLoggerVisibility();
 	}
 
-	getBuiltInCommonProperties(extension: IExtensionDescription): Record<string, string | boolean | number | undefined> {
-		const commonProperties: Record<string, string | boolean | number | undefined> = {};
+	getBuiltInCommonProperties(extension: IExtensionDescription): ICommonProperties {
+		const commonProperties: ICommonProperties = Object.create(null);
 		// TODO @lramos15, does os info like node arch, platform version, etc exist here.
 		// Or will first party extensions just mix this in
 		commonProperties['common.extname'] = `${extension.publisher}.${extension.name}`;

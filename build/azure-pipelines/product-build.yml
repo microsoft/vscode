@@ -6,7 +6,6 @@ schedules:
     branches:
       include:
         - main
-        - joao/web
 
 trigger:
   branches:
@@ -153,11 +152,11 @@ resources:
       endpoint: VSCodeHub
       options: --user 0:0 --cap-add SYS_ADMIN
     - container: vscode-arm64
-      image: vscodehub.azurecr.io/vscode-linux-build-agent:buster-arm64
+      image: vscodehub.azurecr.io/vscode-linux-build-agent:stretch-arm64
       endpoint: VSCodeHub
       options: --user 0:0 --cap-add SYS_ADMIN
     - container: vscode-armhf
-      image: vscodehub.azurecr.io/vscode-linux-build-agent:buster-armhf
+      image: vscodehub.azurecr.io/vscode-linux-build-agent:stretch-armhf
       endpoint: VSCodeHub
       options: --user 0:0 --cap-add SYS_ADMIN
     - container: centos7-devtoolset8-x64
@@ -165,7 +164,8 @@ resources:
       endpoint: VSCodeHub
       options: --user 0:0 --cap-add SYS_ADMIN
     - container: snapcraft
-      image: snapcore/snapcraft:stable
+      image: vscodehub.azurecr.io/vscode-linux-build-agent:snapcraft-x64
+      endpoint: VSCodeHub
 
 stages:
   - stage: Compile

@@ -89,6 +89,7 @@ import { DropIntoEditorController } from 'vs/editor/contrib/dropIntoEditor/brows
 import { MessageController } from 'vs/editor/contrib/message/browser/messageController';
 import { contrastBorder, registerColor } from 'vs/platform/theme/common/colorRegistry';
 import { defaultButtonStyles, defaultCountBadgeStyles } from 'vs/platform/theme/browser/defaultStyles';
+import { GhostTextController } from 'vs/editor/contrib/inlineCompletions/browser/ghostTextController';
 
 type TreeElement = ISCMRepository | ISCMInput | ISCMActionButton | ISCMResourceGroup | IResourceNode<ISCMResource, ISCMResourceGroup> | ISCMResource;
 
@@ -370,7 +371,7 @@ class RepositoryPaneActionRunner extends ActionRunner {
 		super();
 	}
 
-	override async runAction(action: IAction, context: ISCMResource | IResourceNode<ISCMResource, ISCMResourceGroup>): Promise<any> {
+	protected override async runAction(action: IAction, context: ISCMResource | IResourceNode<ISCMResource, ISCMResourceGroup>): Promise<any> {
 		if (!(action instanceof MenuItemAction)) {
 			return super.runAction(action, context);
 		}
@@ -1961,6 +1962,7 @@ class SCMInputWidget {
 				SelectionClipboardContributionID,
 				SnippetController2.ID,
 				SuggestController.ID,
+				GhostTextController.ID,
 			])
 		};
 

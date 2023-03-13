@@ -14,7 +14,7 @@ import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { ConfigurationTarget, IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ContextKeyExpression, ContextKeyInfo, ContextKeyValue, IContext, IContextKey, IContextKeyChangeEvent, IContextKeyService, IContextKeyServiceTarget, IReadableSet, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { ContextKeyExpression, ContextKeyInfo, ContextKeyValue, IContext, IContextKey, IContextKeyChangeEvent, IContextKeyService, IContextKeyServiceTarget, IReadableSet, IScopedContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 
 const KEYBINDING_CONTEXT_ATTR = 'data-keybinding-context';
@@ -282,8 +282,6 @@ export abstract class AbstractContextKeyService implements IContextKeyService {
 		return this._myContextId;
 	}
 
-	abstract dispose(): void;
-
 	public createKey<T extends ContextKeyValue>(key: string, defaultValue: T | undefined): IContextKey<T> {
 		if (this._isDisposed) {
 			throw new Error(`AbstractContextKeyService has been disposed`);
@@ -301,7 +299,7 @@ export abstract class AbstractContextKeyService implements IContextKeyService {
 		}
 	}
 
-	public createScoped(domNode: IContextKeyServiceTarget): IContextKeyService {
+	public createScoped(domNode: IContextKeyServiceTarget): IScopedContextKeyService {
 		if (this._isDisposed) {
 			throw new Error(`AbstractContextKeyService has been disposed`);
 		}
@@ -571,7 +569,7 @@ class OverlayContextKeyService implements IContextKeyService {
 		return this.overlay.has(key) ? this.overlay.get(key) : this.parent.getContextKeyValue(key);
 	}
 
-	createScoped(): IContextKeyService {
+	createScoped(): IScopedContextKeyService {
 		throw new Error('Not supported.');
 	}
 
@@ -581,10 +579,6 @@ class OverlayContextKeyService implements IContextKeyService {
 
 	updateParent(): void {
 		throw new Error('Not supported.');
-	}
-
-	dispose(): void {
-		// noop
 	}
 }
 
