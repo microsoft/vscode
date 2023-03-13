@@ -912,10 +912,15 @@ async function webviewPreloads(ctx: PreloadContext) {
 					const outputOffset = document.getElementById(match.id)!.getBoundingClientRect().top;
 					const tempRange = document.createRange();
 					tempRange.selectNode(match.highlightResult.range.startContainer);
+
+					match.highlightResult.range.startContainer.parentElement?.scrollIntoView({ behavior: 'smooth', block: 'end', inline: 'nearest' });
+
 					const rangeOffset = tempRange.getBoundingClientRect().top;
 					tempRange.detach();
+
 					offset = rangeOffset - outputOffset;
 				} catch (e) {
+					console.error(e);
 				}
 
 				match.highlightResult?.update(currentMatchColor, match.isShadow ? undefined : 'current-find-match');
@@ -972,12 +977,14 @@ async function webviewPreloads(ctx: PreloadContext) {
 				let offset = 0;
 				try {
 					const outputOffset = document.getElementById(match.id)!.getBoundingClientRect().top;
+					match.originalRange.startContainer.parentElement?.scrollIntoView({ behavior: 'smooth', block: 'end', inline: 'nearest' });
 					const rangeOffset = match.originalRange.getBoundingClientRect().top;
 					offset = rangeOffset - outputOffset;
 					postNotebookMessage('didFindHighlight', {
 						offset
 					});
 				} catch (e) {
+					console.error(e);
 				}
 			}
 
