@@ -21,8 +21,13 @@ declare module 'vscode' {
 
 	// todo@API make classes
 	export interface InteractiveEditorResponse {
-		edits: TextEdit[];
+		edits: TextEdit[] | WorkspaceEdit;
 		placeholder?: string;
+	}
+
+	// todo@API make classes
+	export interface InteractiveEditorMessageResponse {
+		contents: MarkdownString;
 	}
 
 	export interface TextDocumentContext {
@@ -35,7 +40,7 @@ declare module 'vscode' {
 		// Create a session. The lifetime of this session is the duration of the editing session with the input mode widget.
 		prepareInteractiveEditorSession(context: TextDocumentContext, token: CancellationToken): ProviderResult<InteractiveEditorSession>;
 
-		provideInteractiveEditorResponse(request: InteractiveEditorRequest, token: CancellationToken): ProviderResult<InteractiveEditorResponse>;
+		provideInteractiveEditorResponse(request: InteractiveEditorRequest, token: CancellationToken): ProviderResult<InteractiveEditorResponse | InteractiveEditorMessageResponse>;
 
 		// eslint-disable-next-line local/vscode-dts-provider-naming
 		releaseInteractiveEditorSession?(session: InteractiveEditorSession): any;
