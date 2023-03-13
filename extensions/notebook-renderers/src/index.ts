@@ -201,15 +201,20 @@ function renderError(
 
 function getPreviousOutputWithMatchingMimeType(container: HTMLElement, mimeType: string) {
 	const outputContainer = container.parentElement;
+	let match: HTMLElement | undefined = undefined;
 
-	const previous = outputContainer?.previousSibling;
-	if (previous) {
+	let previous = outputContainer?.previousSibling;
+	while (previous) {
 		const outputElement = (previous.firstChild as HTMLElement | null);
-		if (outputElement && outputElement.getAttribute('output-mime-type') === mimeType) {
-			return outputElement;
+		if (!outputElement || outputElement.getAttribute('output-mime-type') !== mimeType) {
+			break;
 		}
+
+		match = outputElement;
+		previous = outputContainer?.previousSibling;
 	}
-	return undefined;
+
+	return match;
 }
 
 function onScrollHandler(e: globalThis.Event) {
@@ -224,16 +229,15 @@ function onScrollHandler(e: globalThis.Event) {
 // if there is a scrollable output, it will be scrolled to the given value if provided or the bottom of the element
 function appendChildAndScroll(container: HTMLElement, child: HTMLElement, disposables: DisposableStore, scrollTop?: number) {
 	container.appendChild(child);
-	if (child.classList.contains(scrollableClass)) {
-		child.scrollTop = scrollTop !== undefined ? scrollTop : child.scrollHeight;
-		child.addEventListener('scroll', onScrollHandler);
-		disposables.push({ dispose: () => child.removeEventListener('scroll', onScrollHandler) });
+	if (container.classList.contains(scrollableClass)) {
+		container.scrollTop = scrollTop !== undefined ? scrollTop : container.scrollHeight;
+		container.addEventListener('scroll', onScrollHandler);
+		disposables.push({ dispose: () => container.removeEventListener('scroll', onScrollHandler) });
 	}
 }
 
 // Find the scrollTop of the existing scrollable output, return undefined if at the bottom or element doesn't exist
-function findScrolledHeight(outputContainer: HTMLElement, outputId: string): number | undefined {
-	const scrollableElement = outputContainer.querySelector(`[output-item-id="${outputId}"].${scrollableClass}`);
+function findScrolledHeight(scrollableElement: HTMLElement): number | undefined {
 	if (scrollableElement && scrollableElement.scrollHeight - scrollableElement.scrollTop - scrollableElement.clientHeight > 2) {
 		// not scrolled to the bottom
 		return scrollableElement.scrollTop;
@@ -245,46 +249,37 @@ function renderStream(outputInfo: OutputItem, container: HTMLElement, error: boo
 	const disposableStore = createDisposableStore();
 	const outputScrolling = ctx.settings.outputScrolling;
 
-	// If the previous output item for the same cell was also a stream, append this output to the previous
-	const outputElement = getPreviousOutputWithMatchingMimeType(container, outputInfo.mime);
-	if (outputElement) {
-		// find child with same id
-		const existing = outputElement.querySelector(`[output-item-id="${outputInfo.id}"]`) as HTMLElement | null;
-		if (existing) {
-			clearContainer(existing);
-		}
-
-		const text = outputInfo.text();
-		const element = existing ?? document.createElement('span');
-		element.classList.add('output-stream');
-		element.classList.toggle('wordWrap', ctx.settings.outputWordWrap);
-		disposableStore.push(ctx.onDidChangeSettings(e => {
-			element.classList.toggle('wordWrap', e.outputWordWrap);
-		}));
-		element.setAttribute('output-item-id', outputInfo.id);
-		const content = createOutputContent(outputInfo.id, [text], ctx.settings.lineLimit, outputScrolling, false);
-		appendChildAndScroll(outputElement, content, disposableStore);
-		return disposableStore;
-	}
-
+	container.setAttribute('output-mime-type', outputInfo.mime);
 	const text = outputInfo.text();
 	const content = createOutputContent(outputInfo.id, [text], ctx.settings.lineLimit, outputScrolling, false);
-
-	content.classList.add('output-stream');
-	content.classList.toggle('wordWrap', ctx.settings.outputWordWrap);
-	disposableStore.push(ctx.onDidChangeSettings(e => {
-		content.classList.toggle('wordWrap', e.outputWordWrap);
-	}));
 	content.setAttribute('output-item-id', outputInfo.id);
-
-	const scrollTop = outputScrolling ? findScrolledHeight(container, outputInfo.id) : undefined;
-	while (container.firstChild) {
-		container.removeChild(container.firstChild);
-	}
-	appendChildAndScroll(container, content, disposableStore, scrollTop);
-	content.setAttribute('output-mime-type', outputInfo.mime);
 	if (error) {
-		container.classList.add('error');
+		content.classList.add('error');
+	}
+	const scrollTop = outputScrolling ? findScrolledHeight(container) : undefined;
+
+	// If the previous output item for the same cell was also a stream, append this output to the previous
+	const existingContainer = getPreviousOutputWithMatchingMimeType(container, outputInfo.mime);
+	if (existingContainer) {
+		const existing = existingContainer.querySelector(`[output-item-id="${outputInfo.id}"]`) as HTMLElement | null;
+		if (existing) {
+			existing.replaceWith(content);
+		} else {
+			existingContainer.appendChild(content);
+		}
+	} else {
+		container.classList.toggle('scrollable', outputScrolling);
+		container.classList.add('output-stream');
+		container.classList.toggle('wordWrap', ctx.settings.outputWordWrap);
+		disposableStore.push(ctx.onDidChangeSettings(e => {
+			container.classList.toggle('wordWrap', e.outputWordWrap);
+		}));
+
+
+		while (container.firstChild) {
+			container.removeChild(container.firstChild);
+		}
+		appendChildAndScroll(container, content, disposableStore, scrollTop);
 	}
 
 	return disposableStore;
@@ -336,7 +331,7 @@ export const activate: ActivationFunction<void> = (ctx) => {
 	.traceback.wordWrap span {
 		white-space: pre-wrap;
 	}
-	.output .scrollable {
+	.output.scrollable {
 		overflow-y: scroll;
 		max-height: var(--notebook-cell-output-max-height);
 		border: var(--vscode-editorWidget-border);
@@ -345,7 +340,7 @@ export const activate: ActivationFunction<void> = (ctx) => {
 		box-sizing: border-box;
 		border-width: 1px;
 	}
-	.output .scrollable.more-above {
+	.output.scrollable.more-above {
 		box-shadow: var(--vscode-scrollbar-shadow) 0 6px 6px -6px inset
 	}
 	.output-plaintext .code-bold,
