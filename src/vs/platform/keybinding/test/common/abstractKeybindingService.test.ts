@@ -193,8 +193,7 @@ suite('AbstractKeybindingService', () => {
 	function kbItem(keybinding: number, command: string, when?: ContextKeyExpression): ResolvedKeybindingItem {
 		return new ResolvedKeybindingItem(
 			createUSLayoutResolvedKeybinding(keybinding, OS),
-			command,
-			null,
+			[{ command, args: null }],
 			when,
 			true,
 			null,

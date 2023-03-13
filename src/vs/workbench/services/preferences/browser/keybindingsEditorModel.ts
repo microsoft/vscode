@@ -171,15 +171,15 @@ export class KeybindingsEditorModel extends EditorModel {
 		this._keybindingItemsSortedByPrecedence = [];
 		const boundCommands: Map<string, boolean> = new Map<string, boolean>();
 		for (const keybinding of this.keybindingsService.getKeybindings()) {
-			if (keybinding.command) { // Skip keybindings without commands
-				this._keybindingItemsSortedByPrecedence.push(KeybindingsEditorModel.toKeybindingEntry(keybinding.command, keybinding, actionLabels, extensions));
-				boundCommands.set(keybinding.command, true);
+			if (keybinding.commands.length === 1 && keybinding.commands[0].command) { // Skip keybindings without commands & multi-command keybindings
+				this._keybindingItemsSortedByPrecedence.push(KeybindingsEditorModel.toKeybindingEntry(keybinding.commands[0].command, keybinding, actionLabels, extensions));
+				boundCommands.set(keybinding.commands[0].command, true);
 			}
 		}
 
-		const commandsWithDefaultKeybindings = this.keybindingsService.getDefaultKeybindings().map(keybinding => keybinding.command);
+		const commandsWithDefaultKeybindings = this.keybindingsService.getDefaultKeybindings().map(keybinding => keybinding.commands[0]?.command ?? null); // TODO@ulugbekna: non-user-defined multi-command keybindings // TODO: could use a set here; also remove `null`s?
 		for (const command of getAllUnboundCommands(boundCommands)) {
-			const keybindingItem = new ResolvedKeybindingItem(undefined, command, null, undefined, commandsWithDefaultKeybindings.indexOf(command) === -1, null, false);
+			const keybindingItem = new ResolvedKeybindingItem(undefined, [{ command, args: null }], undefined, commandsWithDefaultKeybindings.indexOf(command) === -1, null, false);
 			this._keybindingItemsSortedByPrecedence.push(KeybindingsEditorModel.toKeybindingEntry(command, keybindingItem, actionLabels, extensions));
 		}
 		this._keybindingItemsSortedByPrecedence = distinct(this._keybindingItemsSortedByPrecedence, keybindingItem => KeybindingsEditorModel.getId(keybindingItem));

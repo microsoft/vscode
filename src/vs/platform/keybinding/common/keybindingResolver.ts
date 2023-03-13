@@ -3,7 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { implies, ContextKeyExpression, ContextKeyExprType, IContext, IContextKeyService, expressionsAreEqualWithConstantSubstitution } from 'vs/platform/contextkey/common/contextkey';
+import * as arrays from 'vs/base/common/arrays';
+import { KeyboundCommand } from 'vs/base/common/keybindings';
+import { ContextKeyExprType, ContextKeyExpression, IContext, IContextKeyService, expressionsAreEqualWithConstantSubstitution, implies } from 'vs/platform/contextkey/common/contextkey';
 import { ResolvedKeybindingItem } from 'vs/platform/keybinding/common/resolvedKeybindingItem';
 
 export interface IResolveResult {
@@ -11,8 +13,7 @@ export interface IResolveResult {
 	enterMultiChord: boolean;
 	/** Whether the resolved keybinding is leaving (and executing) a multi chord keybinding */
 	leaveMultiChord: boolean;
-	commandId: string | null;
-	commandArgs: any;
+	commands: KeyboundCommand[];
 	bubble: boolean;
 }
 
@@ -22,6 +23,10 @@ export class KeybindingResolver {
 	private readonly _keybindings: ResolvedKeybindingItem[];
 	private readonly _defaultBoundCommands: Map</* commandId */ string, boolean>;
 	private readonly _map: Map</* 1st chord's keypress */ string, ResolvedKeybindingItem[]>;
+	/** contains only single-command keybindings (ie doesn't contain no-command and multi-command keybindings).
+	 * for multi-command case: we don't want to associate a command with a keybinding,
+	 * e.g., we don't want to show it as a hint in command palette or context menu because that keybinding will trigger other commands as well
+	 */
 	private readonly _lookupMap: Map</* commandId */ string, ResolvedKeybindingItem[]>;
 
 	constructor(
@@ -36,9 +41,10 @@ export class KeybindingResolver {
 
 		this._defaultBoundCommands = new Map<string, boolean>();
 		for (const defaultKeybinding of defaultKeybindings) {
-			const command = defaultKeybinding.command;
-			if (command && command.charAt(0) !== '-') {
-				this._defaultBoundCommands.set(command, true);
+			for (const { command } of defaultKeybinding.commands) { // `defaultKeybinding.commands.length` must be 1 - search for "// TODO@ulugbekna: non-user-defined multi-command keybindings"
+				if (command && command.charAt(0) !== '-') {
+					this._defaultBoundCommands.set(command, true);
+				}
 			}
 		}
 
@@ -95,8 +101,8 @@ export class KeybindingResolver {
 		const removals = new Map</* commandId */ string, ResolvedKeybindingItem[]>();
 		for (let i = 0, len = rules.length; i < len; i++) {
 			const rule = rules[i];
-			if (rule.command && rule.command.charAt(0) === '-') {
-				const command = rule.command.substring(1);
+			if (rule.commands.length === 1 && rule.commands[0].command.charAt(0) === '-') { // no removals for multi-command keybindings
+				const command = rule.commands[0].command.substring(1);
 				if (!removals.has(command)) {
 					removals.set(command, [rule]);
 				} else {
@@ -115,14 +121,14 @@ export class KeybindingResolver {
 		for (let i = 0, len = rules.length; i < len; i++) {
 			const rule = rules[i];
 
-			if (!rule.command || rule.command.length === 0) {
-				result.push(rule);
+			if (rule.commands.length === 0 || rule.commands.length > 1 || rule.commands[0].command.length === 0) {
+				result.push(rule); // FIXME@ulugbekna: why do we push when there's no bound command?
 				continue;
 			}
-			if (rule.command.charAt(0) === '-') {
+			if (rule.commands[0].command.charAt(0) === '-') {
 				continue;
 			}
-			const commandRemovals = removals.get(rule.command);
+			const commandRemovals = removals.get(rule.commands[0].command);
 			if (!commandRemovals || !rule.isDefault) {
 				result.push(rule);
 				continue;
@@ -160,7 +166,7 @@ export class KeybindingResolver {
 		for (let i = conflicts.length - 1; i >= 0; i--) {
 			const conflict = conflicts[i];
 
-			if (conflict.command === item.command) {
+			if (arrays.equals(conflict.commands, item.commands, (a, b) => a.command === b.command)) { // TODO@ulugebkna: we don't compare command args, but should we?
 				continue;
 			}
 
@@ -185,31 +191,36 @@ export class KeybindingResolver {
 	}
 
 	private _addToLookupMap(item: ResolvedKeybindingItem): void {
-		if (!item.command) {
+		// ignore no-command and multi-command keybindings - we don't want to show keybinding hints for multi-command keybindings
+		if (item.commands.length !== 1) {
 			return;
 		}
-
-		let arr = this._lookupMap.get(item.command);
+		const command = item.commands[0].command;
+		let arr = this._lookupMap.get(command);
 		if (typeof arr === 'undefined') {
 			arr = [item];
-			this._lookupMap.set(item.command, arr);
+			this._lookupMap.set(command, arr);
 		} else {
 			arr.push(item);
 		}
 	}
 
 	private _removeFromLookupMap(item: ResolvedKeybindingItem): void {
-		if (!item.command) {
+		// ignore no-command and multi-command keybindings - we don't want to show keybinding hints for multi-command keybindings
+		if (item.commands.length !== 1) {
 			return;
 		}
-		const arr = this._lookupMap.get(item.command);
-		if (typeof arr === 'undefined') {
-			return;
-		}
-		for (let i = 0, len = arr.length; i < len; i++) {
-			if (arr[i] === item) {
-				arr.splice(i, 1);
+
+		for (const { command } of item.commands) {
+			const arr = this._lookupMap.get(command);
+			if (typeof arr === 'undefined') {
 				return;
+			}
+			for (let i = 0, len = arr.length; i < len; i++) {
+				if (arr[i] === item) {
+					arr.splice(i, 1);
+					return;
+				}
 			}
 		}
 	}
@@ -319,18 +330,16 @@ export class KeybindingResolver {
 			return {
 				enterMultiChord: true,
 				leaveMultiChord: false,
-				commandId: null,
-				commandArgs: null,
+				commands: [],
 				bubble: false
 			};
 		}
 
-		this._log(`\\ From ${lookupMap.length} keybinding entries, matched ${result.command}, when: ${printWhenExplanation(result.when)}, source: ${printSourceExplanation(result)}.`);
+		this._log(`\\ From ${lookupMap.length} keybinding entries, matched ${JSON.stringify(result.commands)}, when: ${printWhenExplanation(result.when)}, source: ${printSourceExplanation(result)}.`);
 		return {
 			enterMultiChord: false,
 			leaveMultiChord: result.chords.length > 1,
-			commandId: result.command,
-			commandArgs: result.commandArgs,
+			commands: result.commands,
 			bubble: result.bubble
 		};
 	}

@@ -8,7 +8,7 @@ import * as arrays from 'vs/base/common/arrays';
 import { IntervalTimer, TimeoutTimer } from 'vs/base/common/async';
 import { Emitter, Event } from 'vs/base/common/event';
 import { KeyCode } from 'vs/base/common/keyCodes';
-import { SingleModifierChord, ResolvedKeybinding, ResolvedChord, Keybinding } from 'vs/base/common/keybindings';
+import { SingleModifierChord, ResolvedKeybinding, ResolvedChord, Keybinding, KeyboundCommand } from 'vs/base/common/keybindings';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import * as nls from 'vs/nls';
 import { ICommandService } from 'vs/platform/commands/common/commands';
@@ -276,7 +276,7 @@ export abstract class AbstractKeybindingService extends Disposable implements IK
 		const keypressLabel = keybinding.getLabel();
 		const resolveResult = this._getResolver().resolve(contextValue, currentChord, firstChord);
 
-		this._logService.trace('KeybindingService#dispatch', keypressLabel, resolveResult?.commandId);
+		this._logService.trace('KeybindingService#dispatch', keypressLabel, resolveResult?.commands);
 
 		if (resolveResult && resolveResult.enterMultiChord) {
 			shouldPreventDefault = true;
@@ -286,7 +286,7 @@ export abstract class AbstractKeybindingService extends Disposable implements IK
 		}
 
 		if (this._currentChord) {
-			if (!resolveResult || !resolveResult.commandId) {
+			if (!resolveResult || resolveResult.commands.length === 0) { // note: we could check if command IDs are valid (at least non-empty) and show gracious notification in status bar than a notification message with "Command not found" ?
 				this._log(`+ Leaving chord mode: Nothing bound to "${this._currentChord.label} ${keypressLabel}".`);
 				this._notificationService.status(nls.localize('missing.chord', "The key combination ({0}, {1}) is not a command.", this._currentChord.label, keypressLabel), { hideAfter: 10 * 1000 /* 10s */ });
 				shouldPreventDefault = true;
@@ -295,18 +295,17 @@ export abstract class AbstractKeybindingService extends Disposable implements IK
 
 		this._leaveChordMode();
 
-		if (resolveResult && resolveResult.commandId) {
+		if (resolveResult && resolveResult.commands.length > 0) {
 			if (!resolveResult.bubble) {
 				shouldPreventDefault = true;
 			}
-			this._log(`+ Invoking command ${resolveResult.commandId}.`);
-			if (typeof resolveResult.commandArgs === 'undefined') {
-				this._commandService.executeCommand(resolveResult.commandId).then(undefined, err => this._notificationService.warn(err));
-			} else {
-				this._commandService.executeCommand(resolveResult.commandId, resolveResult.commandArgs).then(undefined, err => this._notificationService.warn(err));
-			}
-			if (!HIGH_FREQ_COMMANDS.test(resolveResult.commandId)) {
-				this._telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', { id: resolveResult.commandId, from: 'keybinding' });
+			this._log(`+ Invoking command(s) ${resolveResult.commands}.`);
+			this._runSequentially(resolveResult.commands);
+
+			for (const { command } of resolveResult.commands) {
+				if (!HIGH_FREQ_COMMANDS.test(command)) {
+					this._telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', { id: command, from: 'keybinding' });
+				}
 			}
 		}
 
@@ -325,6 +324,22 @@ export abstract class AbstractKeybindingService extends Disposable implements IK
 			return true;
 		}
 		return false;
+	}
+
+	// a keybinding that sequentially invokes several commands,
+	// stops invoking commands after the first failure
+	private async _runSequentially(cmds: KeyboundCommand[]) {
+		try {
+			for (const { command, args } of cmds) {
+				if (args === undefined) {
+					await this._commandService.executeCommand(command);
+				} else {
+					await this._commandService.executeCommand(command, args);
+				}
+			}
+		} catch (err) {
+			this._notificationService.warn(err);
+		}
 	}
 }
 

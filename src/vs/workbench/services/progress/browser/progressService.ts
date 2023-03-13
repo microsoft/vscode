@@ -556,10 +556,8 @@ export class ProgressService extends Disposable implements IProgressService {
 					disableDefaultAction: options.sticky,
 					keyEventProcessor: (event: StandardKeyboardEvent) => {
 						const resolved = this.keybindingService.softDispatch(event, this.layoutService.container);
-						if (resolved?.commandId) {
-							if (!allowableCommands.includes(resolved.commandId)) {
-								EventHelper.stop(event, true);
-							}
+						if (resolved?.commands.length && resolved.commands.some(({ command }) => !allowableCommands.includes(command))) { // TODO@ulugbekna: this could be speeded up using a set
+							EventHelper.stop(event, true);
 						}
 					},
 					buttonStyles: defaultButtonStyles,

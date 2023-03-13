@@ -32,14 +32,16 @@ export class CodeActionKeybindingResolver {
 	public getResolver(): (action: CodeAction) => ResolvedKeybinding | undefined {
 		// Lazy since we may not actually ever read the value
 		const allCodeActionBindings = new Lazy<readonly ResolveCodeActionKeybinding[]>(() => this.keybindingService.getKeybindings()
-			.filter(item => CodeActionKeybindingResolver.codeActionCommands.indexOf(item.command!) >= 0)
-			.filter(item => item.resolvedKeybinding)
+			.filter(item =>
+				item.commands.length === 1 &&
+				CodeActionKeybindingResolver.codeActionCommands.indexOf(item.commands[0].command) >= 0 &&
+				item.resolvedKeybinding)
 			.map((item): ResolveCodeActionKeybinding => {
 				// Special case these commands since they come built-in with VS Code and don't use 'commandArgs'
-				let commandArgs = item.commandArgs;
-				if (item.command === organizeImportsCommandId) {
+				let { command, args: commandArgs } = item.commands[0];
+				if (command === organizeImportsCommandId) {
 					commandArgs = { kind: CodeActionKind.SourceOrganizeImports.value };
-				} else if (item.command === fixAllCommandId) {
+				} else if (command === fixAllCommandId) {
 					commandArgs = { kind: CodeActionKind.SourceFixAll.value };
 				}
 

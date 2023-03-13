@@ -978,11 +978,11 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 			// for keyboard events that resolve to commands described
 			// within commandsToSkipShell, either alert or skip processing by xterm.js
-			if (resolveResult && resolveResult.commandId && this._skipTerminalCommands.some(k => k === resolveResult.commandId) && !this._configHelper.config.sendKeybindingsToShell) {
+			if (resolveResult && resolveResult.commands.length > 0 && this._skipTerminalCommands.some(k => resolveResult.commands.some(({ command }) => k === command)) && !this._configHelper.config.sendKeybindingsToShell) {
 				// don't alert when terminal is opened or closed
 				if (this._storageService.getBoolean(SHOW_TERMINAL_CONFIG_PROMPT_KEY, StorageScope.APPLICATION, true) &&
 					this._hasHadInput &&
-					!TERMINAL_CREATION_COMMANDS.includes(resolveResult.commandId)) {
+					resolveResult.commands.every(({ command }) => !TERMINAL_CREATION_COMMANDS.includes(command))) {
 					this._notificationService.prompt(
 						Severity.Info,
 						nls.localize('keybindingHandling', "Some keybindings don't go to the terminal by default and are handled by {0} instead.", this._productService.nameLong),

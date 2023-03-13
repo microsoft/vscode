@@ -404,7 +404,7 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 			const keybinding = item.keybinding;
 			if (!keybinding) {
 				// This might be a removal keybinding item in user settings => accept it
-				result[resultLen++] = new ResolvedKeybindingItem(undefined, item.command, item.commandArgs, when, isDefault, item.extensionId, item.isBuiltinExtension);
+				result[resultLen++] = new ResolvedKeybindingItem(undefined, item.commands, when, isDefault, item.extensionId, item.isBuiltinExtension);
 			} else {
 				if (this._assertBrowserConflicts(keybinding)) {
 					continue;
@@ -413,7 +413,7 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 				const resolvedKeybindings = this._keyboardMapper.resolveKeybinding(keybinding);
 				for (let i = resolvedKeybindings.length - 1; i >= 0; i--) {
 					const resolvedKeybinding = resolvedKeybindings[i];
-					result[resultLen++] = new ResolvedKeybindingItem(resolvedKeybinding, item.command, item.commandArgs, when, isDefault, item.extensionId, item.isBuiltinExtension);
+					result[resultLen++] = new ResolvedKeybindingItem(resolvedKeybinding, item.commands, when, isDefault, item.extensionId, item.isBuiltinExtension);
 				}
 			}
 		}
@@ -428,11 +428,11 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 			const when = item.when || undefined;
 			if (!item.keybinding) {
 				// This might be a removal keybinding item in user settings => accept it
-				result[resultLen++] = new ResolvedKeybindingItem(undefined, item.command, item.commandArgs, when, isDefault, null, false);
+				result[resultLen++] = new ResolvedKeybindingItem(undefined, item.commands, when, isDefault, null, false);
 			} else {
 				const resolvedKeybindings = this._keyboardMapper.resolveKeybinding(item.keybinding);
 				for (const resolvedKeybinding of resolvedKeybindings) {
-					result[resultLen++] = new ResolvedKeybindingItem(resolvedKeybinding, item.command, item.commandArgs, when, isDefault, null, false);
+					result[resultLen++] = new ResolvedKeybindingItem(resolvedKeybinding, item.commands, when, isDefault, null, false);
 				}
 			}
 		}

@@ -127,10 +127,9 @@ export class BrowserDialogHandler extends AbstractDialogHandler {
 				type: this.getDialogType(type),
 				keyEventProcessor: (event: StandardKeyboardEvent) => {
 					const resolved = this.keybindingService.softDispatch(event, this.layoutService.container);
-					if (resolved?.commandId) {
-						if (BrowserDialogHandler.ALLOWABLE_COMMANDS.indexOf(resolved.commandId) === -1) {
-							EventHelper.stop(event, true);
-						}
+
+					if (resolved && resolved.commands.some(({ command }) => BrowserDialogHandler.ALLOWABLE_COMMANDS.indexOf(command) === -1)) { // TODO@ulugbekna: could be speeded up using a set
+						EventHelper.stop(event, true);
 					}
 				},
 				renderBody,

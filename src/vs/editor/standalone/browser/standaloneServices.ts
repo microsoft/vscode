@@ -451,10 +451,10 @@ export class StandaloneKeybindingService extends AbstractKeybindingService {
 	public addDynamicKeybindings(rules: IKeybindingRule[]): IDisposable {
 		const entries: IKeybindingItem[] = rules.map((rule) => {
 			const keybinding = decodeKeybinding(rule.keybinding, OS);
+			const commands = typeof rule.command === 'string' ? [{ command: rule.command, args: rule.commandArgs }] : [];
 			return {
 				keybinding,
-				command: rule.command ?? null,
-				commandArgs: rule.commandArgs,
+				commands,
 				when: rule.when,
 				weight1: 1000,
 				weight2: 0,
@@ -505,11 +505,11 @@ export class StandaloneKeybindingService extends AbstractKeybindingService {
 
 			if (!keybinding) {
 				// This might be a removal keybinding item in user settings => accept it
-				result[resultLen++] = new ResolvedKeybindingItem(undefined, item.command, item.commandArgs, when, isDefault, null, false);
+				result[resultLen++] = new ResolvedKeybindingItem(undefined, item.commands, when, isDefault, null, false);
 			} else {
 				const resolvedKeybindings = USLayoutResolvedKeybinding.resolveKeybinding(keybinding, OS);
 				for (const resolvedKeybinding of resolvedKeybindings) {
-					result[resultLen++] = new ResolvedKeybindingItem(resolvedKeybinding, item.command, item.commandArgs, when, isDefault, null, false);
+					result[resultLen++] = new ResolvedKeybindingItem(resolvedKeybinding, item.commands, when, isDefault, null, false);
 				}
 			}
 		}

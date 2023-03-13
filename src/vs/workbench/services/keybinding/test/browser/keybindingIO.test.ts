@@ -4,11 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 import * as assert from 'assert';
 import { KeyChord, KeyCode, KeyMod, ScanCode } from 'vs/base/common/keyCodes';
-import { KeyCodeChord, decodeKeybinding, ScanCodeChord, Keybinding } from 'vs/base/common/keybindings';
 import { KeybindingParser } from 'vs/base/common/keybindingParser';
+import { KeyCodeChord, Keybinding, ResolvedKeybinding, ScanCodeChord, decodeKeybinding } from 'vs/base/common/keybindings';
 import { OperatingSystem } from 'vs/base/common/platform';
-import { KeybindingIO } from 'vs/workbench/services/keybinding/common/keybindingIO';
+import { ResolvedKeybindingItem } from 'vs/platform/keybinding/common/resolvedKeybindingItem';
+import { USLayoutResolvedKeybinding } from 'vs/platform/keybinding/common/usLayoutResolvedKeybinding';
 import { createUSLayoutResolvedKeybinding } from 'vs/platform/keybinding/test/common/keybindingsTestUtils';
+import { KeybindingIO, OutputBuilder } from 'vs/workbench/services/keybinding/common/keybindingIO';
 
 suite('keybindingIO', () => {
 
@@ -126,7 +128,7 @@ suite('keybindingIO', () => {
 		const strJSON = `[{ "key": "ctrl+k ctrl+f", "command": ["firstcommand", "seccondcommand"] }]`;
 		const userKeybinding = <Object>JSON.parse(strJSON)[0];
 		const keybindingItem = KeybindingIO.readUserKeybindingItem(userKeybinding);
-		assert.strictEqual(keybindingItem.command, null);
+		assert.deepStrictEqual(keybindingItem.commands, []);
 	});
 
 	test('issue #10452 - invalid when', () => {
@@ -154,6 +156,101 @@ suite('keybindingIO', () => {
 		const strJSON = `[{ "key": "ctrl+k ctrl+f", "command": "firstcommand", "when": [], "args": { "text": "theText" } }]`;
 		const userKeybinding = <Object>JSON.parse(strJSON)[0];
 		const keybindingItem = KeybindingIO.readUserKeybindingItem(userKeybinding);
-		assert.strictEqual(keybindingItem.commandArgs.text, 'theText');
+
+		assert.strictEqual(typeof keybindingItem.commands[0] !== 'string' && keybindingItem.commands[0].args.text, 'theText');
 	});
+
+
+	suite('multi-command keybindings', () => {
+
+		const toPrettyJson = (a: unknown) => JSON.stringify(a, null, '');
+
+		suite('deserialize', () => {
+
+			function deserialize(input: string) {
+				const userKeybinding = <Object>JSON.parse(input);
+				const keybindingItem = KeybindingIO.readUserKeybindingItem(userKeybinding);
+				return toPrettyJson(keybindingItem);
+			}
+
+			test('empty commands', () => {
+				const input = `{ "key": "ctrl+k ctrl+f", "commands": [] }`;
+				assert.deepStrictEqual(
+					deserialize(input),
+					"{\"keybinding\":{\"chords\":[{\"ctrlKey\":true,\"shiftKey\":false,\"altKey\":false,\"metaKey\":false,\"keyCode\":41},{\"ctrlKey\":true,\"shiftKey\":false,\"altKey\":false,\"metaKey\":false,\"keyCode\":36}]},\"commands\":[],\"_sourceKey\":\"ctrl+k ctrl+f\"}");
+			});
+
+			test('only commandIDs', () => {
+				const input = `{ "key": "ctrl+k ctrl+f", "commands": ["firstcommand", "seccondcommand"] }`;
+				assert.deepStrictEqual(
+					deserialize(input),
+					"{\"keybinding\":{\"chords\":[{\"ctrlKey\":true,\"shiftKey\":false,\"altKey\":false,\"metaKey\":false,\"keyCode\":41},{\"ctrlKey\":true,\"shiftKey\":false,\"altKey\":false,\"metaKey\":false,\"keyCode\":36}]},\"commands\":[{\"command\":\"firstcommand\"},{\"command\":\"seccondcommand\"}],\"_sourceKey\":\"ctrl+k ctrl+f\"}");
+			});
+
+			test('commands with args', () => {
+				const input = `{ "key": "ctrl+k", "commands": ["firstcommand", {"command" : "seccondcommand", "args" : {"foo": 1, "bar": null}}, "thirdCommand"] }`;
+				assert.deepStrictEqual(
+					deserialize(input),
+					"{\"keybinding\":{\"chords\":[{\"ctrlKey\":true,\"shiftKey\":false,\"altKey\":false,\"metaKey\":false,\"keyCode\":41}]},\"commands\":[{\"command\":\"firstcommand\"},{\"command\":\"seccondcommand\",\"args\":{\"foo\":1,\"bar\":null}},{\"command\":\"thirdCommand\"}],\"_sourceKey\":\"ctrl+k\"}");
+			});
+		});
+
+		suite('serialize', () => {
+
+			function serialize(input: string, OS: OperatingSystem) {
+				const userKeybinding = <Object>JSON.parse(input);
+				const keybindingItem = KeybindingIO.readUserKeybindingItem(userKeybinding);
+				const out = new OutputBuilder();
+				const resolvedKb = createUSLayoutResolvedKeybinding(KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KeyA, OS);
+				KeybindingIO.writeKeybindingItem(out, new ResolvedKeybindingItem(resolvedKb, keybindingItem.commands, undefined, false, null, true));
+				return out.toString();
+			}
+
+			test('empty commands', () => {
+				const input = `{ "key": "ctrl+k ctrl+f", "commands": [] }`;
+				assert.deepStrictEqual(
+					serialize(input, OperatingSystem.Macintosh),
+					"{ \"key\": \"alt+cmd+a\",             \"command\": null }");
+
+				assert.deepStrictEqual(
+					serialize(input, OperatingSystem.Linux),
+					"{ \"key\": \"ctrl+alt+a\",            \"command\": null }");
+
+				assert.deepStrictEqual(
+					serialize(input, OperatingSystem.Windows),
+					"{ \"key\": \"ctrl+alt+a\",            \"command\": null }");
+			});
+
+			test('only commandIDs', () => {
+				const input = `{ "key": "ctrl+k ctrl+f", "commands": ["firstcommand", "seccondcommand"] }`;
+				assert.deepStrictEqual(
+					serialize(input, OperatingSystem.Macintosh),
+					"{ \"key\": \"alt+cmd+a\",             \"commands\": [\n\"firstcommand\",\n\"seccondcommand\",\n                                    ] }");
+
+				assert.deepStrictEqual(
+					serialize(input, OperatingSystem.Linux),
+					"{ \"key\": \"ctrl+alt+a\",            \"commands\": [\n\"firstcommand\",\n\"seccondcommand\",\n                                    ] }");
+
+				assert.deepStrictEqual(
+					serialize(input, OperatingSystem.Windows),
+					"{ \"key\": \"ctrl+alt+a\",            \"commands\": [\n\"firstcommand\",\n\"seccondcommand\",\n                                    ] }");
+			});
+
+			test('commands with args', () => {
+				const input = `{ "key": "ctrl+k", "commands": ["firstcommand", {"command" : "seccondcommand", "args" : {"foo": 1, "bar": null}}, "thirdCommand"] }`;
+				assert.deepStrictEqual(
+					serialize(input, OperatingSystem.Macintosh),
+					"{ \"key\": \"alt+cmd+a\",             \"commands\": [\n\"firstcommand\",\n{\"command\":\"seccondcommand\",\"args\":{\"foo\":1,\"bar\":null}},\n\"thirdCommand\",\n                                    ] }");
+
+				assert.deepStrictEqual(
+					serialize(input, OperatingSystem.Linux),
+					"{ \"key\": \"ctrl+alt+a\",            \"commands\": [\n\"firstcommand\",\n{\"command\":\"seccondcommand\",\"args\":{\"foo\":1,\"bar\":null}},\n\"thirdCommand\",\n                                    ] }");
+
+				assert.deepStrictEqual(
+					serialize(input, OperatingSystem.Windows),
+					"{ \"key\": \"ctrl+alt+a\",            \"commands\": [\n\"firstcommand\",\n{\"command\":\"seccondcommand\",\"args\":{\"foo\":1,\"bar\":null}},\n\"thirdCommand\",\n                                    ] }");
+			});
+		});
+	});
+
 });

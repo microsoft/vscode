@@ -260,8 +260,8 @@ class ToggleScreencastModeAction extends Action2 {
 			const shortcut = keybindingService.softDispatch(event, event.target);
 
 			// Hide the single arrow key pressed
-			if (shortcut?.commandId && configurationService.getValue('screencastMode.hideSingleEditorCursorMoves') && (
-				['cursorLeft', 'cursorRight', 'cursorUp', 'cursorDown'].includes(shortcut.commandId))
+			if (shortcut && shortcut.commands.length === 1 && configurationService.getValue('screencastMode.hideSingleEditorCursorMoves') && (
+				['cursorLeft', 'cursorRight', 'cursorUp', 'cursorDown'].includes(shortcut.commands[0].command))
 			) {
 				return;
 			}
@@ -279,7 +279,8 @@ class ToggleScreencastModeAction extends Action2 {
 
 			const format = configurationService.getValue<'keys' | 'command' | 'commandWithGroup' | 'commandAndKeys' | 'commandWithGroupAndKeys'>('screencastMode.keyboardShortcutsFormat');
 			const keybinding = keybindingService.resolveKeyboardEvent(event);
-			const command = shortcut?.commandId ? MenuRegistry.getCommand(shortcut.commandId) : null;
+			const commandId = shortcut?.commands[0]?.command;
+			const command = commandId ? MenuRegistry.getCommand(commandId) : null;
 
 			let titleLabel = '';
 			let keyLabel: string | undefined | null = keybinding.getLabel();
@@ -291,8 +292,8 @@ class ToggleScreencastModeAction extends Action2 {
 					titleLabel = `${typeof command.category === 'string' ? command.category : command.category.value}: ${titleLabel} `;
 				}
 
-				if (shortcut?.commandId) {
-					const keybindings = keybindingService.lookupKeybindings(shortcut.commandId)
+				if (commandId) {
+					const keybindings = keybindingService.lookupKeybindings(commandId)
 						.filter(k => k.getLabel()?.endsWith(keyLabel ?? ''));
 
 					if (keybindings.length > 0) {
@@ -307,7 +308,7 @@ class ToggleScreencastModeAction extends Action2 {
 				append(keyboardMarker, $('span.title', {}, `${titleLabel} `));
 			}
 
-			if (onlyKeyboardShortcuts || !titleLabel || shortcut?.commandId && (format === 'keys' || format === 'commandAndKeys' || format === 'commandWithGroupAndKeys')) {
+			if (onlyKeyboardShortcuts || !titleLabel || commandId && (format === 'keys' || format === 'commandAndKeys' || format === 'commandWithGroupAndKeys')) {
 				// Fix label for arrow keys
 				keyLabel = keyLabel?.replace('UpArrow', '↑')
 					?.replace('DownArrow', '↓')

@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as objects from 'vs/base/common/objects';
 import { illegalArgument } from 'vs/base/common/errors';
 import { KeyCode, ScanCode } from 'vs/base/common/keyCodes';
 import { OperatingSystem } from 'vs/base/common/platform';
@@ -222,6 +223,11 @@ export class ResolvedChord {
 		public readonly keyLabel: string | null,
 		public readonly keyAriaLabel: string | null
 	) { }
+}
+
+export type KeyboundCommand = { command: string; args?: any };
+export function keyboundCommandEquals({ command, args }: KeyboundCommand, b: KeyboundCommand): boolean {
+	return command === b.command && objects.equals(args, b.args);
 }
 
 export type SingleModifierChord = 'ctrl' | 'shift' | 'alt' | 'meta';
