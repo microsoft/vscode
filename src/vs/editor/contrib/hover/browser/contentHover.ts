@@ -433,6 +433,7 @@ export class ContentHoverWidget extends Disposable implements IContentWidget {
 	private readonly _element: ResizableHTMLElement = this._register(new ResizableHTMLElement());
 	// The mouse position in the editor is needed in order to calculate the space above and below it
 	private _mousePosition: IPosition | null = null;
+	private _initialMousePosition: IPosition | null = null;
 	private readonly _focusTracker = this._register(dom.trackFocus(this.getDomNode()));
 	// When the content hover is rendered, the following two variables store the initial position from the top and the initial height
 	private _initialTop: number = -1;
@@ -623,6 +624,7 @@ export class ContentHoverWidget extends Disposable implements IContentWidget {
 		// TODO: It would appear that if the minimum width is 0, it will disappear, set some value larger than 0
 		this._element.minSize = new dom.Dimension(10, minHeight);
 		const maxRenderingHeight = this._findMaxRenderingHeight(this._renderingAbove);
+		console.log('maxRenderingHeight : ', maxRenderingHeight);
 		if (!maxRenderingHeight) {
 			return;
 		}
@@ -643,12 +645,13 @@ export class ContentHoverWidget extends Disposable implements IContentWidget {
 	}
 
 	private _findMaxRenderingHeight(renderingAbove: boolean): number | undefined {
-		if (!this._mousePosition || !this._editor || !this._editor.hasModel()) {
+		if (!this._initialMousePosition || !this._editor || !this._editor.hasModel()) {
 			return;
 		}
 		const preferRenderingAbove = this._editor.getOption(EditorOption.hover).above;
 		const editorBox = dom.getDomNodePagePosition(this._editor.getDomNode());
-		const mouseBox = this._editor.getScrolledVisiblePosition(this._mousePosition);
+		console.log('this._mousePosition : ', this._mousePosition);
+		const mouseBox = this._editor.getScrolledVisiblePosition(this._initialMousePosition);
 		const bodyBox = dom.getClientArea(document.body);
 		// Different to availableSpaceAbove because we want to remove the tabs and breadcrumbs, since the content hover disappears as soon as below the tabs or breadcrumbs
 		const availableSpaceAboveMinusTabsAndBreadcrumbs = mouseBox!.top;
@@ -661,11 +664,12 @@ export class ContentHoverWidget extends Disposable implements IContentWidget {
 		} else {
 			maxRenderingHeight = renderingAbove ? availableSpaceBelow : availableSpaceAboveMinusTabsAndBreadcrumbs;
 		}
-
+		console.log('maxRenderingHeight : ', maxRenderingHeight);
 		let actualMaxHeight = 0;
 		for (const childHtmlElement of this._hover.contentsDomNode.children) {
 			actualMaxHeight += childHtmlElement.clientHeight;
 		}
+		console.log('actualMaxHeight : ', actualMaxHeight);
 		maxRenderingHeight = Math.min(maxRenderingHeight, actualMaxHeight);
 		return maxRenderingHeight;
 	}
@@ -758,6 +762,7 @@ export class ContentHoverWidget extends Disposable implements IContentWidget {
 		this._hover.scrollbar.scanDomNode();
 
 		const maxRenderingHeight = this._findMaxRenderingHeight(this._renderingAbove);
+		console.log('maxRenderingHeight : ', maxRenderingHeight);
 		if (!maxRenderingHeight) {
 			return;
 		}
@@ -879,6 +884,11 @@ export class ContentHoverWidget extends Disposable implements IContentWidget {
 		// this._hover.containerDomNode.style.maxHeight = '150px';
 		// this._hover.containerDomNode.style.maxWidth = '300px';
 
+		// Setting the initial mouse position
+		if (!this._initialMousePosition) {
+			this._initialMousePosition = this._mousePosition;
+		}
+
 		console.log(' * Entered into showAt of ContentHoverWidget');
 		console.log('visibleData : ', visibleData);
 
@@ -940,6 +950,7 @@ export class ContentHoverWidget extends Disposable implements IContentWidget {
 		// resetting the distance to the top from the hover
 		this._initialTop = -1;
 		this._initialHeight = -1;
+		this._initialMousePosition = null;
 	}
 
 	public onContentsChanged(): void {
