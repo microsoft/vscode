@@ -87,7 +87,7 @@ export function getIconClassesForLanguageId(languageId: string): string[] {
 
 function pushGlobIconClassesForName(name: string, classes: string[], segments: string[], kind: string): void {
 	// Non-coalescing wildcard globs, limited to <=4 dot segments (<=3 file extensions).
-	// We start from the 2nd segment (index=1) to prevent overlap with extension.
+	// We start from the 2nd segment (index=1) to prevent overlap with Extension(s).
 	for (let index = 1; index < segments.length; index++) {
 		const baseSegments = segments.slice();
 		baseSegments[index] = '*';
@@ -95,13 +95,13 @@ function pushGlobIconClassesForName(name: string, classes: string[], segments: s
 		classes.push(`${baseGlob}-glob-${kind}-icon`);
 	}
 
+	// Globs for dashed file basenames, limited to 2 dot segments (1 file extension).
+	// Targets hyphenated prefix or suffix
+	// E.g. the tooling filename conventions `test_*.py` & `*_test.go`
 	if (segments.length !== 2) {
 		return;
 	}
 
-	// Globs for dashed file basenames, limited to 2 dot segments (1 file extension).
-	// Targets hyphenated prefix or suffix
-	// E.g. the tooling filename conventions `test_*.py` & `*_test.go`
 	const dotIndex = name.indexOf('.');
 	const extname = name.substring(dotIndex);
 	const basename = name.substring(0, dotIndex);
