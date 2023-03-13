@@ -111,6 +111,10 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 		return this._commentThread;
 	}
 
+	public get expanded(): boolean | undefined {
+		return this._isExpanded;
+	}
+
 	private _commentOptions: languages.CommentOptions | undefined;
 
 	constructor(
@@ -257,22 +261,12 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 		this.commentService.disposeCommentThread(this.owner, this._commentThread.threadId);
 	}
 
-	public collapse(): Promise<void> {
+	public collapse() {
 		this._commentThread.collapsibleState = languages.CommentThreadCollapsibleState.Collapsed;
-		if (this._commentThread.comments && this._commentThread.comments.length === 0) {
-			this.deleteCommentThread();
-			return Promise.resolve();
-		}
-
-		this.hide();
-		return Promise.resolve();
 	}
 
-	public expand(): Promise<void> {
+	public expand() {
 		this._commentThread.collapsibleState = languages.CommentThreadCollapsibleState.Expanded;
-
-		this.show(this.arrowPosition(this._commentThread.range), 2);
-		return Promise.resolve();
 	}
 
 	public getGlyphPosition(): number {
