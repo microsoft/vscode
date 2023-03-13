@@ -77,11 +77,10 @@ export class RemoteExtensionsScannerService implements IRemoteExtensionsScannerS
 	}
 
 	async scanExtensions(language?: string, profileLocation?: URI, extensionDevelopmentLocations?: URI[], languagePackId?: string): Promise<IExtensionDescription[]> {
-		await this.whenExtensionsReady();
-
 		performance.mark('code/server/willScanExtensions');
-
 		this._logService.trace(`Scanning extensions using UI language: ${language}`);
+
+		await this.whenExtensionsReady();
 
 		const extensionDevelopmentPaths = extensionDevelopmentLocations ? extensionDevelopmentLocations.filter(url => url.scheme === Schemas.file).map(url => url.fsPath) : undefined;
 		profileLocation = profileLocation ?? this._userDataProfilesService.defaultProfile.extensionsResource;
