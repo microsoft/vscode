@@ -106,7 +106,13 @@
 }
 
 .interactive-list .monaco-list-row .value > :last-child:not(.rendered-markdown) {
+	/* The container has padding on all sides except the bottom. The last element needs to provide this margin. rendered-markdown has its own margin.
+		TODO Another approach could be removing the margin on the very last element inside the markdown container? */
 	margin-bottom: 16px;
+}
+
+.interactive-list .monaco-list-row .value > .interactive-response-error-details:not(:last-child) {
+	margin-bottom: 8px;
 }
 
 .interactive-list .monaco-list-row .value p {
