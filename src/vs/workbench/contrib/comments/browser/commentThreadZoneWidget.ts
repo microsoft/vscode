@@ -111,6 +111,10 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 		return this._commentThread;
 	}
 
+	public get expanded(): boolean | undefined {
+		return this._isExpanded;
+	}
+
 	private _commentOptions: languages.CommentOptions | undefined;
 
 	constructor(
