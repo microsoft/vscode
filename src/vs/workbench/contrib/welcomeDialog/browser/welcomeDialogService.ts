@@ -39,7 +39,7 @@ export class WelcomeDialogService implements IWelcomeDialogService {
 
 	constructor(
 		@ILayoutService private readonly layoutService: ILayoutService,
-		@IInstantiationService private readonly instantiationService: IInstantiationService,) {
+		@IInstantiationService private readonly instantiationService: IInstantiationService) {
 	}
 
 	private static iconWidgetFor(icon: string) {
@@ -95,7 +95,14 @@ export class WelcomeDialogService implements IWelcomeDialogService {
 
 		this.disposableStore.add(this.dialog);
 		await this.dialog.show();
+		this.close(welcomeDialogItem);
 		this.disposableStore.dispose();
+	}
+
+	private close(welcomeDialogItem: IWelcomeDialogItem) {
+		if (welcomeDialogItem.onClose) {
+			welcomeDialogItem.onClose();
+		}
 	}
 }
 
