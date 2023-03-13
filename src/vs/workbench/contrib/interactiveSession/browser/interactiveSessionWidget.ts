@@ -207,8 +207,9 @@ export class InteractiveSessionWidget extends Disposable implements IInteractive
 		this.followupsDisposables.clear();
 		dom.clearNode(this.followupsContainer);
 
-		if (items) {
+		if (items && items.length > 0) {
 			this.followupsDisposables.add(new InteractiveSessionFollowups(this.followupsContainer, items, undefined, followup => this.acceptInput(followup.message)));
+		} else {
 		}
 
 		if (this.bodyDimension) {
