@@ -517,8 +517,6 @@ export class ContentHoverWidget extends Disposable implements IContentWidget {
 
 		// TODO: 1) Polish code, annotate, make it cleaner. Understand what all the entites correspond to, if some are superfluous, not needed
 		// TODO: 3) Find out why sometimes when resizing the element now jumps, should not jump!
-		// TODO: - What happens when the resizing is so large it disappears? ADD MAXIMUM SIZE ON THE CONTENT HOVER
-		// TODO: 4) Do not let infinite resizing, set a maximum resize size which depends on the current maximum size you can show
 		// TODO: 5) Find out why even if smaller than default max size, the whole widget is not shown, want the whole widget to be shown when smaller than default size
 		// TODO: 6) Find why the content hover widget changes as hover mouse is moved, ever so slight movement
 		// TODO: 7) find why sashes go over board with somewhat longer sashes than should be
@@ -670,7 +668,7 @@ export class ContentHoverWidget extends Disposable implements IContentWidget {
 			actualMaxHeight += childHtmlElement.clientHeight;
 		}
 		console.log('actualMaxHeight : ', actualMaxHeight);
-		maxRenderingHeight = Math.min(maxRenderingHeight, actualMaxHeight);
+		maxRenderingHeight = Math.min(maxRenderingHeight, actualMaxHeight + 2);
 		return maxRenderingHeight;
 	}
 
@@ -704,11 +702,11 @@ export class ContentHoverWidget extends Disposable implements IContentWidget {
 		// console.log('this._element.domNode.style.width : ', this._element.domNode.style.width);
 
 		// Making the hover container dom node have height and width of the resizable element minus the pixels needed in order to show the sashes
-		this._hover.containerDomNode.style.height = `${height - 4}px`;
-		this._hover.containerDomNode.style.width = `${width - 4}px`;
+		this._hover.containerDomNode.style.height = `${height - 2}px`;
+		this._hover.containerDomNode.style.width = `${width - 2}px`;
 		// Client height and scroll height should not be the same so that the scroll bar is needed
-		this._hover.contentsDomNode.style.height = `${height - 4}px`;
-		this._hover.contentsDomNode.style.width = `${width - 4}px`;
+		this._hover.contentsDomNode.style.height = `${height - 2}px`;
+		this._hover.contentsDomNode.style.width = `${width - 2}px`;
 		// console.log('this._hover.contentsDomNode.clientHeight : ', this._hover.contentsDomNode.clientHeight);
 		// console.log('this._hover.contentsDomNode.scrollHeight : ', this._hover.contentsDomNode.scrollHeight);
 
