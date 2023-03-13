@@ -87,7 +87,7 @@ impl FileLock {
 			return Ok(Lock::AlreadyLocked(file));
 		}
 
-		return Err(CodeError::SingletonLockfileOpenFailed(err));
+		Err(CodeError::SingletonLockfileOpenFailed(err))
 	}
 
 	pub fn file(&self) -> &File {
