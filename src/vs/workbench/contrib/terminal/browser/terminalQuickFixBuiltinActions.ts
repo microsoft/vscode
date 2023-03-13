@@ -43,7 +43,7 @@ export function gitSimilar(): IInternalOptions {
 			}
 			const actions: TerminalQuickFixActionInternal[] = [];
 			const startIndex = matchResult.outputMatch.outputLines.findIndex(l => l.includes(regexMatch)) + 1;
-			const results = matchResult.outputMatch.outputLines.map(r => r.replaceAll('\n', '').trim());
+			const results = matchResult.outputMatch.outputLines.map(r => r.trim());
 			for (let i = startIndex; i < results.length; i++) {
 				const fixedCommand = results[i];
 				if (fixedCommand) {
