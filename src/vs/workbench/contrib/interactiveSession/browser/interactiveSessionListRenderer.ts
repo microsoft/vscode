@@ -289,6 +289,14 @@ export class InteractiveListItemRenderer extends Disposable implements ITreeRend
 			fillInIncompleteTokens,
 			codeBlockRendererSync: (languageId, text) => {
 				const ref = this.renderCodeBlock({ languageId, text, index: codeBlockIndex++, element, parentContextKeyService: templateData.contextKeyService }, disposables);
+
+				// Attach this after updating text/layout of the editor, so it should only be fired when the size updates later (horizontal scrollbar, wrapping)
+				// not during a renderElement OR a progressive render (when we will be firing this event anyway at the end of the render)
+				disposables.add(ref.object.onDidChangeContentHeight(() => {
+					ref.object.layout(this._currentLayoutWidth);
+					this._onDidChangeItemHeight.fire({ element, height: templateData.rowContainer.offsetHeight });
+				}));
+
 				disposablesList.push(ref);
 				return ref.object.element;
 			}
@@ -415,6 +423,7 @@ interface IInteractiveResultCodeBlockData {
 }
 
 interface IInteractiveResultCodeBlockPart {
+	readonly onDidChangeContentHeight: Event<number>;
 	readonly element: HTMLElement;
 	readonly textModel: ITextModel;
 	layout(width: number): void;
@@ -423,6 +432,9 @@ interface IInteractiveResultCodeBlockPart {
 }
 
 class CodeBlockPart extends Disposable implements IInteractiveResultCodeBlockPart {
+	private readonly _onDidChangeContentHeight = this._register(new Emitter<number>());
+	public readonly onDidChangeContentHeight = this._onDidChangeContentHeight.event;
+
 	private readonly editor: CodeEditorWidget;
 	private readonly toolbar: MenuWorkbenchToolBar;
 	private readonly contextKeyService: IContextKeyService;
@@ -482,6 +494,11 @@ class CodeBlockPart extends Disposable implements IInteractiveResultCodeBlockPar
 			])
 		}));
 
+		this._register(this.editor.onDidContentSizeChange(e => {
+			if (e.contentHeightChanged) {
+				this._onDidChangeContentHeight.fire(e.contentHeight);
+			}
+		}));
 		this._register(this.editor.onDidBlurEditorWidget(() => {
 			WordHighlighterContribution.get(this.editor)?.stopHighlighting();
 		}));
