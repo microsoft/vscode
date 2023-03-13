@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken } from 'vs/base/common/cancellation';
+import { Emitter } from 'vs/base/common/event';
 import { toDisposable } from 'vs/base/common/lifecycle';
 import { StopWatch } from 'vs/base/common/stopwatch';
 import { withNullAsUndefined } from 'vs/base/common/types';
@@ -11,6 +12,8 @@ import { localize } from 'vs/nls';
 import { IRelaxedExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { ILogService } from 'vs/platform/log/common/log';
 import { ExtHostInteractiveSessionShape, IInteractiveRequestDto, IInteractiveResponseDto, IInteractiveSessionDto, IMainContext, MainContext, MainThreadInteractiveSessionShape } from 'vs/workbench/api/common/extHost.protocol';
+import * as typeConvert from 'vs/workbench/api/common/extHostTypeConverters';
+import { IInteractiveSessionFollowup, IInteractiveSessionReplyFollowup, IInteractiveSessionResponseCommandFollowup, IInteractiveSessionUserActionEvent, IInteractiveSlashCommand } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionService';
 import type * as vscode from 'vscode';
 
 class InteractiveSessionProviderWrapper {
@@ -30,6 +33,10 @@ export class ExtHostInteractiveSession implements ExtHostInteractiveSessionShape
 
 	private readonly _interactiveSessionProvider = new Map<number, InteractiveSessionProviderWrapper>();
 	private readonly _interactiveSessions = new Map<number, vscode.InteractiveSession>();
+	// private readonly _providerResponsesByRequestId = new Map<number, { response: vscode.ProviderResult<vscode.InteractiveResponse | vscode.InteractiveResponseForProgress>; sessionId: number }>();
+
+	private readonly _onDidPerformUserAction = new Emitter<vscode.InteractiveSessionUserActionEvent>();
+	public readonly onDidPerformUserAction = this._onDidPerformUserAction.event;
 
 	private readonly _proxy: MainThreadInteractiveSessionShape;
 
@@ -79,7 +86,7 @@ export class ExtHostInteractiveSession implements ExtHostInteractiveSessionShape
 		};
 	}
 
-	async $resolveInteractiveRequest(handle: number, sessionId: number, context: any, token: CancellationToken): Promise<IInteractiveRequestDto | undefined> {
+	async $resolveInteractiveRequest(handle: number, sessionId: number, context: any, token: CancellationToken): Promise<Omit<IInteractiveRequestDto, 'id'> | undefined> {
 		const entry = this._interactiveSessionProvider.get(handle);
 		if (!entry) {
 			return undefined;
@@ -116,6 +123,42 @@ export class ExtHostInteractiveSession implements ExtHostInteractiveSessionShape
 		return withNullAsUndefined(await entry.provider.provideInitialSuggestions(token));
 	}
 
+	async $provideFollowups(handle: number, sessionId: number, token: CancellationToken): Promise<IInteractiveSessionFollowup[] | undefined> {
+		const entry = this._interactiveSessionProvider.get(handle);
+		if (!entry) {
+			return undefined;
+		}
+
+		const realSession = this._interactiveSessions.get(sessionId);
+		if (!realSession) {
+			return;
+		}
+
+		if (!entry.provider.provideFollowups) {
+			return undefined;
+		}
+
+		const rawFollowups = await entry.provider.provideFollowups(realSession, token);
+		return rawFollowups?.map(f => {
+			if (typeof f === 'string') {
+				return <IInteractiveSessionReplyFollowup>{ title: f, message: f, kind: 'reply' };
+			} else if ('commandId' in f) {
+				return <IInteractiveSessionResponseCommandFollowup>{
+					kind: 'command',
+					title: f.title,
+					commandId: f.commandId,
+					args: f.args
+				};
+			} else {
+				return <IInteractiveSessionReplyFollowup>{
+					kind: 'reply',
+					title: f.title,
+					message: f.message
+				};
+			}
+		});
+	}
+
 	async $provideInteractiveReply(handle: number, sessionId: number, request: IInteractiveRequestDto, token: CancellationToken): Promise<IInteractiveResponseDto | undefined> {
 		const entry = this._interactiveSessionProvider.get(handle);
 		if (!entry) {
@@ -132,61 +175,69 @@ export class ExtHostInteractiveSession implements ExtHostInteractiveSessionShape
 			message: request.message,
 		};
 
-		if (entry.provider.provideResponse) {
-			const res = await entry.provider.provideResponse(requestObj, token);
+		const stopWatch = StopWatch.create(false);
+		let firstProgress: number | undefined;
+		const progressObj: vscode.Progress<vscode.InteractiveProgress> = {
+			report: (progress: vscode.InteractiveProgress) => {
+				if (typeof firstProgress === 'undefined') {
+					firstProgress = stopWatch.elapsed();
+				}
+
+				this._proxy.$acceptInteractiveResponseProgress(handle, sessionId, progress);
+			}
+		};
+		let result: vscode.InteractiveResponseForProgress | undefined | null;
+		try {
+			result = await entry.provider.provideResponseWithProgress(requestObj, progressObj, token);
+			if (!result) {
+				result = { errorDetails: { message: localize('emptyResponse', "Provider returned null response") } };
+			}
+		} catch (err) {
+			result = { errorDetails: { message: localize('errorResponse', "Error from provider: {0}", err.message), responseIsIncomplete: true } };
+			this.logService.error(err);
+		}
+
+		try {
 			if (realSession.saveState) {
 				const newState = realSession.saveState();
 				this._proxy.$acceptInteractiveSessionState(sessionId, newState);
 			}
-
-			if (!res) {
-				return;
-			}
-
-			// TODO clean up this API
-			this._proxy.$acceptInteractiveResponseProgress(handle, sessionId, { responsePart: res.content });
-			return { followups: res.followups, timings: { firstProgress: 0, totalElapsed: 0 } };
-		} else if (entry.provider.provideResponseWithProgress) {
-			const stopWatch = StopWatch.create(false);
-			let firstProgress: number | undefined;
-			const progressObj: vscode.Progress<vscode.InteractiveProgress> = {
-				report: (progress: vscode.InteractiveProgress) => {
-					if (typeof firstProgress === 'undefined') {
-						firstProgress = stopWatch.elapsed();
-					}
-
-					this._proxy.$acceptInteractiveResponseProgress(handle, sessionId, { responsePart: progress.content });
-				}
-			};
-			let result: vscode.InteractiveResponseForProgress | undefined | null;
-			try {
-				result = await entry.provider.provideResponseWithProgress(requestObj, progressObj, token);
-				if (!result) {
-					result = { errorDetails: { message: localize('emptyResponse', "Provider returned null response") } };
-				}
-			} catch (err) {
-				result = { errorDetails: { message: localize('errorResponse', "Error from provider: {0}", err.message) } };
-				this.logService.error(err);
-			}
-
-			try {
-				if (realSession.saveState) {
-					const newState = realSession.saveState();
-					this._proxy.$acceptInteractiveSessionState(sessionId, newState);
-				}
-			} catch (err) {
-				this.logService.warn(err);
-			}
-
-			const timings = { firstProgress: firstProgress ?? 0, totalElapsed: stopWatch.elapsed() };
-			return { followups: result.followups, commandFollowups: result.commands, errorDetails: result.errorDetails, timings };
+		} catch (err) {
+			this.logService.warn(err);
 		}
 
-		throw new Error('Provider must implement either provideResponse or provideResponseWithProgress');
+		const timings = { firstProgress: firstProgress ?? 0, totalElapsed: stopWatch.elapsed() };
+		return { errorDetails: result.errorDetails, timings };
+	}
+
+	async $provideSlashCommands(handle: number, sessionId: number, token: CancellationToken): Promise<IInteractiveSlashCommand[] | undefined> {
+		const entry = this._interactiveSessionProvider.get(handle);
+		if (!entry) {
+			return undefined;
+		}
+
+		const realSession = this._interactiveSessions.get(sessionId);
+		if (!realSession) {
+			return undefined;
+		}
+
+		if (!entry.provider.provideSlashCommands) {
+			return undefined;
+		}
+
+		const slashCommands = await entry.provider.provideSlashCommands(realSession, token);
+		return slashCommands?.map(c => (<IInteractiveSlashCommand>{
+			...c,
+			kind: typeConvert.CompletionItemKind.from(c.kind)
+		}));
 	}
 
 	$releaseSession(sessionId: number) {
 		this._interactiveSessions.delete(sessionId);
+	}
+
+	async $onDidPerformUserAction(event: IInteractiveSessionUserActionEvent): Promise<void> {
+		this._onDidPerformUserAction.fire(event);
 	}
 
 	//#endregion

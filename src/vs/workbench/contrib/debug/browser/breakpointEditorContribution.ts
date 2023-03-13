@@ -251,6 +251,7 @@ export class BreakpointEditorContribution implements IBreakpointEditorContributi
 			const uri = model.uri;
 
 			if (e.event.rightButton || (env.isMacintosh && e.event.leftButton && e.event.ctrlKey)) {
+				// handled by editor gutter context menu
 				return;
 			} else {
 				const breakpoints = this.debugService.getModel().getBreakpoints({ uri, lineNumber });

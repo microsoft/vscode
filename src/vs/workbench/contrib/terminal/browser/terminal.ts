@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 import { Dimension } from 'vs/base/browser/dom';
 import { Orientation } from 'vs/base/browser/ui/splitview/splitview';
+import { AutoOpenBarrier } from 'vs/base/common/async';
 import { Color } from 'vs/base/common/color';
 import { Event } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
@@ -600,6 +601,9 @@ export interface ITerminalInstance {
 
 	/** A promise that resolves when the terminal's pty/process have been created. */
 	readonly processReady: Promise<void>;
+
+	/** A barrier that opens when the terminal's container is ready */
+	readonly containerReadyBarrier: AutoOpenBarrier;
 
 	/** Whether the terminal's process has child processes (ie. is dirty/busy). */
 	readonly hasChildProcesses: boolean;

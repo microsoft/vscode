@@ -1,7 +1,7 @@
 {
   "name": "code-oss-dev",
   "version": "1.77.0",
-  "distro": "09b257ea79a2bfa5ff8531d8345fb7eb59213743",
+  "distro": "dfb96d3a90c509442fdd956fb48843d70461ef0a",
   "author": {
     "name": "Microsoft Corporation"
   },
@@ -48,6 +48,7 @@
     "compile-web": "node --max_old_space_size=4095 ./node_modules/gulp/bin/gulp.js compile-web",
     "watch-web": "node --max_old_space_size=4095 ./node_modules/gulp/bin/gulp.js watch-web",
     "eslint": "node build/eslint",
+    "stylelint": "node build/stylelint",
     "playwright-install": "node build/azure-pipelines/common/installPlaywright.js",
     "compile-build": "node --max_old_space_size=4095 ./node_modules/gulp/bin/gulp.js compile-build",
     "compile-extensions-build": "node --max_old_space_size=4095 ./node_modules/gulp/bin/gulp.js compile-extensions-build",
@@ -77,8 +78,8 @@
     "keytar": "7.9.0",
     "minimist": "^1.2.6",
     "native-is-elevated": "0.4.3",
-    "native-keymap": "3.3.2",
-    "native-watchdog": "1.4.1",
+    "native-keymap": "^3.3.2",
+    "native-watchdog": "^1.4.1",
     "node-pty": "0.11.0-beta29",
     "spdlog": "^0.13.0",
     "tas-client-umd": "0.1.6",

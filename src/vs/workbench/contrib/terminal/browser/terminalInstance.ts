@@ -189,6 +189,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	private _areLinksReady: boolean = false;
 	private _initialDataEvents: string[] | undefined = [];
 	private _containerReadyBarrier: AutoOpenBarrier;
+	get containerReadyBarrier(): AutoOpenBarrier { return this._containerReadyBarrier; }
 	private _attachBarrier: AutoOpenBarrier;
 	private _icon: TerminalIcon | undefined;
 	private _messageTitleDisposable: IDisposable | undefined;
@@ -580,20 +581,18 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 				onUnexpectedError(new Error(`Cannot have two terminal contributions with the same id ${desc.id}`));
 				continue;
 			}
+			let contribution: ITerminalContribution;
 			try {
-				this._contributions.set(desc.id, this._scopedInstantiationService.createInstance(desc.ctor, this, this._processManager, this._widgetManager));
+				contribution = this._scopedInstantiationService.createInstance(desc.ctor, this, this._processManager, this._widgetManager);
+				this._contributions.set(desc.id, contribution);
 			} catch (err) {
 				onUnexpectedError(err);
 			}
 			this._xtermReadyPromise.then(xterm => {
-				for (const contribution of this._contributions.values()) {
-					contribution.xtermReady?.(xterm);
-				}
+				contribution.xtermReady?.(xterm);
 			});
 			this.onDisposed(() => {
-				for (const contribution of this._contributions.values()) {
-					contribution.dispose();
-				}
+				contribution.dispose();
 			});
 		}
 	}
@@ -1008,7 +1007,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			}
 
 			// If tab focus mode is on, tab is not passed to the terminal
-			if (TabFocus.getTabFocusMode(TabFocusContext.Terminal) && event.keyCode === 9) {
+			if (TabFocus.getTabFocusMode(TabFocusContext.Terminal) && event.key === 'Tab') {
 				return false;
 			}
 

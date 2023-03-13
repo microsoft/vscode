@@ -285,10 +285,6 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 	toggleExpand() {
 		if (this._isExpanded) {
 			this._commentThread.collapsibleState = languages.CommentThreadCollapsibleState.Collapsed;
-			this.hide();
-			if (!this._commentThread.comments || !this._commentThread.comments.length) {
-				this.deleteCommentThread();
-			}
 		} else {
 			this._commentThread.collapsibleState = languages.CommentThreadCollapsibleState.Expanded;
 		}
@@ -467,6 +463,10 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 			// Focus the container so that the comment editor will be blurred before it is hidden
 			if (this.editor.hasWidgetFocus()) {
 				this.editor.focus();
+			}
+
+			if (!this._commentThread.comments || !this._commentThread.comments.length) {
+				this.deleteCommentThread();
 			}
 		}
 		super.hide();
