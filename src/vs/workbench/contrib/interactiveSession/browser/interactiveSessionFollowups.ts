@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable } from 'vs/base/common/lifecycle';
 import * as dom from 'vs/base/browser/dom';
+import { Button, IButtonStyles } from 'vs/base/browser/ui/button/button';
+import { Disposable } from 'vs/base/common/lifecycle';
 import { IInteractiveSessionFollowup } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionService';
-import { Button } from 'vs/base/browser/ui/button/button';
 
 const $ = dom.$;
 
@@ -14,6 +14,7 @@ export class InteractiveSessionFollowups<T extends IInteractiveSessionFollowup> 
 	constructor(
 		container: HTMLElement,
 		followups: T[],
+		private readonly options: IButtonStyles | undefined,
 		private readonly clickHandler: (followup: T) => void,
 	) {
 		super();
@@ -23,7 +24,7 @@ export class InteractiveSessionFollowups<T extends IInteractiveSessionFollowup> 
 	}
 
 	private renderFollowup(container: HTMLElement, followup: T): void {
-		const button = this._register(new Button(container, { supportIcons: typeof followup !== 'string' }));
+		const button = this._register(new Button(container, { ...this.options, supportIcons: true }));
 		const label = followup.kind === 'reply' ?
 			'$(wand) ' + (followup.title || followup.message) :
 			followup.title;

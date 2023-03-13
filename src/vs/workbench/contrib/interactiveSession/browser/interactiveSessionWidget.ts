@@ -112,7 +112,9 @@ export class InteractiveSessionWidget extends Disposable implements IInteractive
 
 		this.slashCommandsPromise = undefined;
 		this.lastSlashCommands = undefined;
-		this.getSlashCommands(); // start the refresh
+		this.getSlashCommands().then(() => {
+			this.onDidChangeItems();
+		});
 
 		this._onDidChangeViewModel.fire();
 	}
@@ -186,8 +188,8 @@ export class InteractiveSessionWidget extends Disposable implements IInteractive
 
 			this.tree.setChildren(null, treeItems, {
 				diffIdentityProvider: {
-					getId(element) {
-						return element.id;
+					getId: (element) => {
+						return element.id + `${isRequestVM(element) && !!this.lastSlashCommands ? '_scLoaded' : ''}`;
 					},
 				}
 			});
@@ -206,7 +208,7 @@ export class InteractiveSessionWidget extends Disposable implements IInteractive
 		dom.clearNode(this.followupsContainer);
 
 		if (items) {
-			this.followupsDisposables.add(new InteractiveSessionFollowups(this.followupsContainer, items, followup => this.acceptInput(followup.message)));
+			this.followupsDisposables.add(new InteractiveSessionFollowups(this.followupsContainer, items, undefined, followup => this.acceptInput(followup.message)));
 		}
 
 		if (this.bodyDimension) {
