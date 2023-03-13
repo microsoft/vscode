@@ -143,6 +143,7 @@ export interface ISerializableInteractiveSessionRequestData {
 	message: string;
 	response: string | undefined;
 	responseErrorDetails: IInteractiveResponseErrorDetails | undefined;
+	followups: IInteractiveSessionFollowup[] | undefined;
 }
 
 export interface ISerializableInteractiveSessionData {
@@ -202,7 +203,7 @@ export class InteractiveSessionModel extends Disposable implements IInteractiveS
 		return requests.map((raw: ISerializableInteractiveSessionRequestData) => {
 			const request = new InteractiveRequestModel(raw.message, this.session.requesterUsername, this.session.requesterAvatarIconUri);
 			if (raw.response || raw.responseErrorDetails) {
-				request.response = new InteractiveResponseModel(new MarkdownString(raw.response), this.session.responderUsername, this.providerId, this.session.responderAvatarIconUri, true, raw.providerResponseId, raw.responseErrorDetails);
+				request.response = new InteractiveResponseModel(new MarkdownString(raw.response), this.session.responderUsername, this.providerId, this.session.responderAvatarIconUri, true, raw.providerResponseId, raw.responseErrorDetails, raw.followups);
 			}
 			return request;
 		});
@@ -275,7 +276,8 @@ export class InteractiveSessionModel extends Disposable implements IInteractiveS
 					providerResponseId: r.response?.providerResponseId,
 					message: r.message,
 					response: r.response ? r.response.response.value : undefined,
-					responseErrorDetails: r.response?.errorDetails
+					responseErrorDetails: r.response?.errorDetails,
+					followups: r.response?.followups
 				};
 			}),
 			providerId: this.providerId,
