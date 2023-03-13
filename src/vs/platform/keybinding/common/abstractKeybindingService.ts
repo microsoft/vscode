@@ -299,7 +299,7 @@ export abstract class AbstractKeybindingService extends Disposable implements IK
 			if (!resolveResult.bubble) {
 				shouldPreventDefault = true;
 			}
-			this._log(`+ Invoking command(s) ${resolveResult.commands}.`);
+			this._log(`+ Invoking command(s) ${JSON.stringify(resolveResult.commands)}.`);
 			this._runSequentially(resolveResult.commands);
 
 			for (const { command } of resolveResult.commands) {
