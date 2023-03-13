@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from 'vs/base/browser/dom';
-import { Button, IButtonOptions } from 'vs/base/browser/ui/button/button';
+import { Button, IButtonStyles } from 'vs/base/browser/ui/button/button';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IInteractiveSessionFollowup } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionService';
 
@@ -14,7 +14,7 @@ export class InteractiveSessionFollowups<T extends IInteractiveSessionFollowup> 
 	constructor(
 		container: HTMLElement,
 		followups: T[],
-		private readonly options: IButtonOptions,
+		private readonly options: IButtonStyles | undefined,
 		private readonly clickHandler: (followup: T) => void,
 	) {
 		super();
@@ -24,7 +24,7 @@ export class InteractiveSessionFollowups<T extends IInteractiveSessionFollowup> 
 	}
 
 	private renderFollowup(container: HTMLElement, followup: T): void {
-		const button = this._register(new Button(container, this.options));
+		const button = this._register(new Button(container, { ...this.options, supportIcons: true }));
 		const label = followup.kind === 'reply' ?
 			'$(wand) ' + (followup.title || followup.message) :
 			followup.title;

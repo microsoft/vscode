@@ -236,6 +236,10 @@
 	margin-left: 0;
 }
 
+.interactive-session .interactive-response-followups .monaco-button {
+	padding: 4px 8px;
+}
+
 .interactive-session .interactive-input-part .interactive-input-followups {
 	padding: 0px 20px;
 }

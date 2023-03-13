@@ -232,7 +232,7 @@ export class InteractiveListItemRenderer extends Disposable implements ITreeRend
 			templateData.elementDisposables.add(new InteractiveSessionFollowups(
 				followupsContainer,
 				element.commandFollowups,
-				{ ...defaultButtonStyles, supportIcons: true },
+				defaultButtonStyles,
 				followup => this.commandService.executeCommand(followup.commandId, ...(followup.args ?? []))));
 		}
 	}
