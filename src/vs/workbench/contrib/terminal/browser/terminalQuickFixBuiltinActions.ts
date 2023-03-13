@@ -37,12 +37,14 @@ export function gitSimilar(): IInternalOptions {
 		},
 		commandExitResult: 'error',
 		getQuickFixes: (matchResult: ITerminalCommandMatchResult) => {
-			if (!matchResult?.outputMatch) {
+			const regexMatch = matchResult.outputMatch?.regexMatch[0];
+			if (!regexMatch || !matchResult.outputMatch) {
 				return;
 			}
 			const actions: TerminalQuickFixActionInternal[] = [];
+			const outputMatchIndex = matchResult.outputMatch.outputLines.findIndex(l => l.includes(regexMatch)) + 1;
 			const results = matchResult.outputMatch.outputLines.map(r => r.replaceAll('\n', '').trim());
-			for (let i = 3; i < results.length; i++) {
+			for (let i = outputMatchIndex; i < results.length; i++) {
 				const fixedCommand = results[i];
 				if (fixedCommand) {
 					actions.push({
