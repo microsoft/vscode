@@ -869,7 +869,7 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 
 			if (!activeWebview.insetMapping.has(output.source)) {
 				const cellTop = this._list.getAbsoluteTopOfElement(cellDiffViewModel);
-				await activeWebview.createOutput({ diffElement: cellDiffViewModel, cellHandle: cellViewModel.handle, cellId: cellViewModel.id, cellUri: cellViewModel.uri }, output, cellTop, getOffset(), false);
+				await activeWebview.createOutput({ diffElement: cellDiffViewModel, cellHandle: cellViewModel.handle, cellId: cellViewModel.id, cellUri: cellViewModel.uri }, output, cellTop, getOffset());
 			} else {
 				const cellTop = this._list.getAbsoluteTopOfElement(cellDiffViewModel);
 				const outputIndex = cellViewModel.outputsViewModels.indexOf(output.source);
