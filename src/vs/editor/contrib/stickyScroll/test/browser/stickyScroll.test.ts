@@ -121,9 +121,8 @@ suite('Sticky Scroll Tests', () => {
 		}, async (editor, _viewModel, instantiationService) => {
 			const languageService = instantiationService.get(ILanguageFeaturesService);
 			const languageConfigurationService = instantiationService.get(ILanguageConfigurationService);
-			const languageFeatureDebounceService = instantiationService.get(ILanguageFeatureDebounceService);
 			languageService.documentSymbolProvider.register('*', documentSymbolProviderForTestModel());
-			const provider: StickyLineCandidateProvider = new StickyLineCandidateProvider(editor, languageService, languageConfigurationService, languageFeatureDebounceService);
+			const provider: StickyLineCandidateProvider = new StickyLineCandidateProvider(editor, languageService, languageConfigurationService);
 			await provider.update();
 			assert.deepStrictEqual(provider.getCandidateStickyLinesIntersecting({ startLineNumber: 1, endLineNumber: 4 }), [new StickyLineCandidate(1, 2, 1)]);
 			assert.deepStrictEqual(provider.getCandidateStickyLinesIntersecting({ startLineNumber: 8, endLineNumber: 10 }), [new StickyLineCandidate(7, 11, 1), new StickyLineCandidate(9, 11, 2), new StickyLineCandidate(10, 10, 3)]);

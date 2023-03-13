@@ -14,7 +14,6 @@ import { binarySearch } from 'vs/base/common/arrays';
 import { isEqual } from 'vs/base/common/resources';
 import { Event, Emitter } from 'vs/base/common/event';
 import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
-import { ILanguageFeatureDebounceService } from 'vs/editor/common/services/languageFeatureDebounce';
 import { StickyModelProvider, IStickyModelProvider } from 'vs/editor/contrib/stickyScroll/browser/stickyScrollModelProvider';
 import { StickyElement, StickyModel, StickyRange } from 'vs/editor/contrib/stickyScroll/browser/stickyScrollElement';
 
@@ -56,7 +55,6 @@ export class StickyLineCandidateProvider extends Disposable implements IStickyLi
 		editor: ICodeEditor,
 		@ILanguageFeaturesService private readonly _languageFeaturesService: ILanguageFeaturesService,
 		@ILanguageConfigurationService private readonly _languageConfigurationService: ILanguageConfigurationService,
-		@ILanguageFeatureDebounceService private readonly _languageFeatureDebounceService: ILanguageFeatureDebounceService
 	) {
 		super();
 		this._editor = editor;
@@ -88,7 +86,6 @@ export class StickyLineCandidateProvider extends Disposable implements IStickyLi
 			this._editor,
 			this._languageConfigurationService,
 			this._languageFeaturesService,
-			this._languageFeatureDebounceService,
 			this._options.defaultModel
 		);
 

@@ -63,6 +63,7 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 	private _stickyElements: HTMLCollection | undefined;
 	private _focusDisposableStore: DisposableStore | undefined;
 	private _focusedStickyElementIndex: number = -1;
+	private _enabled = false;
 	private _focused = false;
 
 	constructor(
@@ -76,7 +77,7 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 	) {
 		super();
 		this._stickyScrollWidget = new StickyScrollWidget(this._editor);
-		this._stickyLineCandidateProvider = new StickyLineCandidateProvider(this._editor, _languageFeaturesService, _languageConfigurationService, _languageFeatureDebounceService);
+		this._stickyLineCandidateProvider = new StickyLineCandidateProvider(this._editor, _languageFeaturesService, _languageConfigurationService);
 		this._register(this._stickyScrollWidget);
 		this._register(this._stickyLineCandidateProvider);
 
@@ -267,16 +268,19 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 		if (options.enabled === false) {
 			this._editor.removeOverlayWidget(this._stickyScrollWidget);
 			this._sessionStore.clear();
+			this._enabled = false;
 			return;
+		} else if (options.enabled && !this._enabled) {
+			// When sticky scroll was just enabled, add the listeners on the sticky scroll
+			this._editor.addOverlayWidget(this._stickyScrollWidget);
+			this._sessionStore.add(this._editor.onDidScrollChange(() => this._renderStickyScroll()));
+			this._sessionStore.add(this._editor.onDidLayoutChange(() => this._onDidResize()));
+			this._sessionStore.add(this._editor.onDidChangeModelTokens((e) => this._onTokensChange(e)));
+			this._sessionStore.add(this._stickyLineCandidateProvider.onDidChangeStickyScroll(() => this._renderStickyScroll()));
+			this._enabled = true;
 		}
 
-		this._editor.addOverlayWidget(this._stickyScrollWidget);
-		this._sessionStore.add(this._editor.onDidScrollChange(() => this._renderStickyScroll()));
-		this._sessionStore.add(this._editor.onDidLayoutChange(() => this._onDidResize()));
-		this._sessionStore.add(this._editor.onDidChangeModelTokens((e) => this._onTokensChange(e)));
-		this._sessionStore.add(this._stickyLineCandidateProvider.onDidChangeStickyScroll(() => this._renderStickyScroll()));
 		const lineNumberOption = this._editor.getOption(EditorOption.lineNumbers);
-
 		if (lineNumberOption.renderType === RenderLineNumbersType.Relative) {
 			this._sessionStore.add(this._editor.onDidChangeCursorPosition(() => this._renderStickyScroll()));
 		}

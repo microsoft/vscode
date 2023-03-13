@@ -15,8 +15,6 @@ import { SyntaxRangeProvider } from 'vs/editor/contrib/folding/browser/syntaxRan
 import { IndentRangeProvider } from 'vs/editor/contrib/folding/browser/indentRangeProvider';
 import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
 import { FoldingRegions } from 'vs/editor/contrib/folding/browser/foldingRanges';
-import { StopWatch } from 'vs/base/common/stopwatch';
-import { IFeatureDebounceInformation, ILanguageFeatureDebounceService } from 'vs/editor/common/services/languageFeatureDebounce';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { TextModel } from 'vs/editor/common/model/textModel';
 import { StickyElement, StickyModel, StickyRange } from 'vs/editor/contrib/stickyScroll/browser/stickyScrollElement';
@@ -51,29 +49,31 @@ export class StickyModelProvider implements IStickyModelProvider {
 
 	private _modelProviders: IStickyModelCandidateProvider<any>[] = [];
 	private _modelPromise: CancelablePromise<any | null> | null = null;
-	private _updateScheduler: Delayer<StickyModel | null> | null = null;
-	private _updateDebounceInfo: IFeatureDebounceInformation | null = null;
+	private _updateScheduler: Delayer<StickyModel | null> = new Delayer<StickyModel | null>(300);
 	private readonly _store: DisposableStore;
 
 	constructor(
 		private readonly _editor: ICodeEditor,
 		@ILanguageConfigurationService readonly _languageConfigurationService: ILanguageConfigurationService,
 		@ILanguageFeaturesService readonly _languageFeaturesService: ILanguageFeaturesService,
-		@ILanguageFeatureDebounceService private readonly _languageFeatureDebounceService: ILanguageFeatureDebounceService,
 		defaultModel: string) {
+
+		const stickyModelFromCandidateOutlineProvider = new StickyModelFromCandidateOutlineProvider(_languageFeaturesService);
+		const stickyModelFromSyntaxFoldingProvider = new StickyModelFromCandidateSyntaxFoldingProvider(this._editor, _languageFeaturesService);
+		const stickyModelFromIndentationFoldingProvider = new StickyModelFromCandidateIndentationFoldingProvider(this._editor, _languageConfigurationService);
 
 		switch (defaultModel) {
 			case ModelProvider.OUTLINE_MODEL:
-				this._modelProviders.push(new StickyModelFromCandidateOutlineProvider(_languageFeaturesService));
-				this._modelProviders.push(new StickyModelFromCandidateSyntaxFoldingProvider(this._editor, _languageFeaturesService));
-				this._modelProviders.push(new StickyModelFromCandidateIndentationFoldingProvider(this._editor, _languageConfigurationService));
+				this._modelProviders.push(stickyModelFromCandidateOutlineProvider);
+				this._modelProviders.push(stickyModelFromSyntaxFoldingProvider);
+				this._modelProviders.push(stickyModelFromIndentationFoldingProvider);
 				break;
 			case ModelProvider.FOLDING_PROVIDER_MODEL:
-				this._modelProviders.push(new StickyModelFromCandidateSyntaxFoldingProvider(this._editor, _languageFeaturesService));
-				this._modelProviders.push(new StickyModelFromCandidateIndentationFoldingProvider(this._editor, _languageConfigurationService));
+				this._modelProviders.push(stickyModelFromSyntaxFoldingProvider);
+				this._modelProviders.push(stickyModelFromIndentationFoldingProvider);
 				break;
 			case ModelProvider.INDENTATION_MODEL:
-				this._modelProviders.push(new StickyModelFromCandidateIndentationFoldingProvider(this._editor, _languageConfigurationService));
+				this._modelProviders.push(stickyModelFromIndentationFoldingProvider);
 				break;
 		}
 
@@ -90,12 +90,10 @@ export class StickyModelProvider implements IStickyModelProvider {
 	public async update(textModel: ITextModel, textModelVersionId: number, token: CancellationToken): Promise<StickyModel | null> {
 
 		this._store.clear();
-		this._updateScheduler = new Delayer<StickyModel | null>(300); // TODO: What values to use?
 		this._store.add({
 			dispose: () => {
 				this._cancelModelPromise();
 				this._updateScheduler?.cancel();
-				this._updateScheduler = null;
 			}
 		});
 		this._cancelModelPromise();
@@ -103,12 +101,6 @@ export class StickyModelProvider implements IStickyModelProvider {
 		return await this._updateScheduler.trigger(async () => {
 
 			for (const modelProvider of this._modelProviders) {
-
-				const _stopWatch = new StopWatch(true);
-				if (modelProvider.provider) {
-					this._updateDebounceInfo = this._languageFeatureDebounceService.for(modelProvider.provider, 'Sticky Scroll', { min: 200 });
-				}
-
 				const { statusPromise, modelPromise } = modelProvider.computeStickyModel(
 					textModel,
 					textModelVersionId,
@@ -116,14 +108,14 @@ export class StickyModelProvider implements IStickyModelProvider {
 				);
 				this._modelPromise = modelPromise;
 				const status = await statusPromise;
+				if (this._modelPromise !== modelPromise) {
+					return null;
+				}
 				switch (status) {
 					case Status.CANCELED:
 						this._store.clear();
 						return null;
 					case Status.VALID:
-						if (this._updateScheduler && this._updateDebounceInfo) {
-							this._updateScheduler.defaultDelay = this._updateDebounceInfo.update(textModel, _stopWatch.elapsed());
-						}
 						return modelProvider.stickyModel;
 				}
 			}
@@ -149,7 +141,6 @@ interface IStickyModelCandidateProvider<T> {
 
 abstract class StickyModelCandidateProvider<T> implements IStickyModelCandidateProvider<T> {
 
-	private _providerModelPromise: CancelablePromise<T> | null = null;
 	protected _stickyModel: StickyModel | null = null;
 
 	constructor() { }
@@ -169,10 +160,10 @@ abstract class StickyModelCandidateProvider<T> implements IStickyModelCandidateP
 		if (!this.isProviderValid(textModel)) {
 			return { statusPromise: this._invalid(), modelPromise: null };
 		}
-		this._providerModelPromise = createCancelablePromise(token => this.createModelFromProvider(textModel, modelVersionId, token));
+		const providerModelPromise = createCancelablePromise(token => this.createModelFromProvider(textModel, modelVersionId, token));
 
 		return {
-			statusPromise: this._providerModelPromise.then(providerModel => {
+			statusPromise: providerModelPromise.then(providerModel => {
 				if (!this.isModelValid(providerModel)) {
 					return this._invalid();
 
@@ -186,7 +177,7 @@ abstract class StickyModelCandidateProvider<T> implements IStickyModelCandidateP
 				onUnexpectedError(err);
 				return Status.CANCELED;
 			}),
-			modelPromise: this._providerModelPromise
+			modelPromise: providerModelPromise
 		};
 	}
 
