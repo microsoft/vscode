@@ -141,9 +141,9 @@ export class InteractiveListItemRenderer extends Disposable implements ITreeRend
 	}
 
 	layout(width: number): void {
-		this._currentLayoutWidth = width;
+		this._currentLayoutWidth = width - 40; // TODO Padding
 		this._editorPool.inUse.forEach(editor => {
-			editor.layout(width);
+			editor.layout(this._currentLayoutWidth);
 		});
 	}
 
