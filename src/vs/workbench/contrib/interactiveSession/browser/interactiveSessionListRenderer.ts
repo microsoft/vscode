@@ -37,6 +37,7 @@ import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { ILogService } from 'vs/platform/log/common/log';
+import { defaultButtonStyles } from 'vs/platform/theme/browser/defaultStyles';
 import { MenuPreventer } from 'vs/workbench/contrib/codeEditor/browser/menuPreventer';
 import { SelectionClipboardContributionID } from 'vs/workbench/contrib/codeEditor/browser/selectionClipboard';
 import { getSimpleEditorOptions } from 'vs/workbench/contrib/codeEditor/browser/simpleEditorOptions';
@@ -231,6 +232,7 @@ export class InteractiveListItemRenderer extends Disposable implements ITreeRend
 			templateData.elementDisposables.add(new InteractiveSessionFollowups(
 				followupsContainer,
 				element.commandFollowups,
+				{ ...defaultButtonStyles, supportIcons: true },
 				followup => this.commandService.executeCommand(followup.commandId, ...(followup.args ?? []))));
 		}
 	}
