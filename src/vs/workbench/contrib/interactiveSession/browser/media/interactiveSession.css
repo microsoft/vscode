@@ -58,7 +58,7 @@
 }
 
 .interactive-list .interactive-item-container .header .avatar .codicon {
-	color: var(--vscode-badge-foreground);
+	color: var(--vscode-badge-foreground) !important;
 }
 
 .interactive-list .interactive-item-container .header .monaco-toolbar {
@@ -253,4 +253,9 @@
 	font-size: 11px;
 	font-weight: 600;
 	border: none;
+}
+
+.interactive-list .interactive-item-container .monaco-toolbar .codicon {
+	/* Very aggressive list styles try to apply focus colors to every codicon in a list row. */
+	color: var(--vscode-foreground) !important;
 }
