@@ -95,7 +95,7 @@ function pushGlobIconClassesForName(name: string, classes: string[], segments: s
 		classes.push(`${baseGlob}-glob-${kind}-icon`);
 	}
 
-	if (segments.length !== 1) {
+	if (segments.length !== 2) {
 		return;
 	}
 
