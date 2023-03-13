@@ -28,6 +28,11 @@ where
 			}
 		}
 	}
+
+	/// Gets whether the barrier is currently open
+	pub fn is_open(&self) -> bool {
+		self.0.borrow().is_some()
+	}
 }
 
 #[derive(Clone)]

@@ -7,13 +7,15 @@ use crate::{
 	async_pipe::{socket_stream_split, AsyncPipe},
 	json_rpc::{new_json_rpc, start_json_rpc},
 	log,
+	util::sync::Barrier,
 };
 
-use super::{protocol, shutdown_signal::ShutdownRequest};
+use super::{protocol, shutdown_signal::ShutdownSignal};
 
 pub struct SingletonClientArgs {
 	pub log: log::Logger,
 	pub stream: AsyncPipe,
+	pub shutdown: Barrier<ShutdownSignal>,
 }
 
 struct SingletonServerContext {
@@ -22,9 +24,8 @@ struct SingletonServerContext {
 
 pub async fn start_singleton_client(args: SingletonClientArgs) {
 	let rpc = new_json_rpc();
-	let shutdown_rx = ShutdownRequest::create_rx([ShutdownRequest::CtrlC]);
 
-	info!(
+	debug!(
 		args.log,
 		"An existing tunnel is running on this machine, connecting to it..."
 	);
@@ -40,5 +41,5 @@ pub async fn start_singleton_client(args: SingletonClientArgs) {
 	});
 
 	let (read, write) = socket_stream_split(args.stream);
-	let _ = start_json_rpc(rpc.build(args.log), read, write, (), shutdown_rx).await;
+	let _ = start_json_rpc(rpc.build(args.log), read, write, (), args.shutdown.clone()).await;
 }

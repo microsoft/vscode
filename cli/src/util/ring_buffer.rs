@@ -42,14 +42,19 @@ impl<T> RingBuffer<T> {
 		self.i = (self.i + 1) % self.data.capacity();
 	}
 
-	pub fn iter<'a>(&'a self) -> RingBufferIter<'a, T> {
+	pub fn iter(&self) -> RingBufferIter<'_, T> {
 		RingBufferIter {
 			index: 0,
 			buffer: self,
 		}
 	}
+}
 
-	pub fn into_iter(self) -> OwnedRingBufferIter<T>
+impl<T: Default> IntoIterator for RingBuffer<T> {
+	type Item = T;
+	type IntoIter = OwnedRingBufferIter<T>;
+
+	fn into_iter(self) -> OwnedRingBufferIter<T>
 	where
 		T: Default,
 	{
@@ -108,28 +113,30 @@ mod tests {
 	fn test_inserts() {
 		let mut rb = RingBuffer::new(3);
 		assert_eq!(rb.capacity(), 3);
-		assert_eq!(rb.is_full(), false);
+		assert!(!rb.is_full());
 		assert_eq!(rb.len(), 0);
-		assert_eq!(rb.iter().map(|i| *i).collect::<Vec<i32>>().len(), 0);
+		assert_eq!(rb.iter().copied().count(), 0);
 
 		rb.push(1);
-		assert_eq!(rb.is_full(), false);
+		assert!(!rb.is_full());
 		assert_eq!(rb.len(), 1);
-		assert_eq!(rb.iter().map(|i| *i).collect::<Vec<i32>>(), vec![1]);
+		assert_eq!(rb.iter().copied().collect::<Vec<i32>>(), vec![1]);
 
 		rb.push(2);
-		assert_eq!(rb.is_full(), false);
+		assert!(!rb.is_full());
 		assert_eq!(rb.len(), 2);
-		assert_eq!(rb.iter().map(|i| *i).collect::<Vec<i32>>(), vec![1, 2]);
+		assert_eq!(rb.iter().copied().collect::<Vec<i32>>(), vec![1, 2]);
 
 		rb.push(3);
-		assert_eq!(rb.is_full(), true);
+		assert!(rb.is_full());
 		assert_eq!(rb.len(), 3);
-		assert_eq!(rb.iter().map(|i| *i).collect::<Vec<i32>>(), vec![1, 2, 3]);
+		assert_eq!(rb.iter().copied().collect::<Vec<i32>>(), vec![1, 2, 3]);
 
 		rb.push(4);
-		assert_eq!(rb.is_full(), true);
+		assert!(rb.is_full());
 		assert_eq!(rb.len(), 3);
-		assert_eq!(rb.iter().map(|i| *i).collect::<Vec<i32>>(), vec![2, 3, 4]);
+		assert_eq!(rb.iter().copied().collect::<Vec<i32>>(), vec![2, 3, 4]);
+
+		assert_eq!(rb.into_iter().collect::<Vec<i32>>(), vec![2, 3, 4]);
 	}
 }

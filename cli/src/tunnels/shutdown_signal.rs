@@ -37,6 +37,7 @@ pub enum ShutdownRequest {
 	CtrlC,
 	ParentProcessKilled(Pid),
 	RpcShutdownRequested(Barrier<()>),
+	Derived(Barrier<ShutdownSignal>),
 }
 
 impl ShutdownRequest {
@@ -66,6 +67,13 @@ impl ShutdownRequest {
 					tokio::spawn(async move {
 						let _ = rx.wait().await;
 						opener.open(ShutdownSignal::RpcShutdownRequested)
+					});
+				}
+				ShutdownRequest::Derived(mut rx) => {
+					tokio::spawn(async move {
+						if let Ok(s) = rx.wait().await {
+							opener.open(s);
+						}
 					});
 				}
 			}

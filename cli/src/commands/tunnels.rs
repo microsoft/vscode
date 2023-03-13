@@ -24,7 +24,8 @@ use crate::{
 		code_server::CodeServerArgs,
 		create_service_manager, dev_tunnels, legal,
 		paths::get_all_servers,
-		singleton_server::{start_singleton_server, SingletonServerArgs},
+		shutdown_signal::ShutdownRequest,
+		singleton_server::{start_singleton_server, SingletonServerArgs, BroadcastLogSink},
 		ServiceContainer, ServiceManager,
 	},
 	util::{
@@ -248,19 +249,36 @@ fn get_connection_token(tunnel: &ActiveTunnel) -> String {
 
 async fn serve_with_csa(
 	paths: LauncherPaths,
-	log: Logger,
+	mut log: Logger,
 	gateway_args: TunnelServeArgs,
 	mut csa: CodeServerArgs,
 ) -> Result<i32, AnyError> {
+	let shutdown = match gateway_args
+		.parent_process_id
+		.and_then(|p| Pid::from_str(&p).ok())
+	{
+		Some(pid) => ShutdownRequest::create_rx([
+			ShutdownRequest::CtrlC,
+			ShutdownRequest::ParentProcessKilled(pid),
+		]),
+		None => ShutdownRequest::create_rx([ShutdownRequest::CtrlC]),
+	};
+
 	// Intentionally read before starting the server. If the server updated and
 	// respawn is requested, the old binary will get renamed, and then
 	// current_exe will point to the wrong path.
 	let current_exe = std::env::current_exe().unwrap();
 	let server = loop {
+		if shutdown.is_open() {
+			return Ok(0);
+		}
+
 		match acquire_singleton(paths.root().join("tunnel.lock")).await {
 			Ok(SingletonConnection::Client(stream)) => {
+				debug!(log, "starting as client to singleton");
 				start_singleton_client(SingletonClientArgs {
 					log: log.clone(),
+					shutdown: shutdown.clone(),
 					stream,
 				})
 				.await
@@ -273,6 +291,10 @@ async fn serve_with_csa(
 		}
 	};
 
+	debug!(log, "starting as new singleton");
+
+	let log_broadcast = BroadcastLogSink::new();
+	log = log.tee(log_broadcast.clone());
 	let platform = spanf!(log, log.span("prereq"), PreReqChecker::new().verify())?;
 
 	let auth = Auth::new(&paths, log.clone());
@@ -292,9 +314,8 @@ async fn serve_with_csa(
 		paths,
 		code_server_args: csa,
 		platform,
-		parent_pid: gateway_args
-			.parent_process_id
-			.and_then(|p| Pid::from_str(&p).ok()),
+		log_broadcast,
+		shutdown,
 		server,
 	})
 	.await?;
@@ -315,5 +336,5 @@ async fn serve_with_csa(
 		return Ok(exit.code().unwrap_or(1));
 	}
 
-	return Ok(0);
+	Ok(0)
 }

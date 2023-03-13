@@ -26,7 +26,6 @@ use crate::{
 		sync::{new_barrier, Barrier, BarrierOpener, ConcatReceivable},
 	},
 };
-use sysinfo::Pid;
 use tokio::{
 	pin,
 	sync::{broadcast, mpsc},
@@ -39,7 +38,8 @@ pub struct SingletonServerArgs {
 	pub code_server_args: CodeServerArgs,
 	pub platform: Platform,
 	pub server: SingletonServer,
-	pub parent_pid: Option<Pid>,
+	pub shutdown: Barrier<ShutdownSignal>,
+	pub log_broadcast: BroadcastLogSink,
 }
 
 #[derive(Clone)]
@@ -50,21 +50,11 @@ struct SingletonServerContext {
 pub async fn start_singleton_server(
 	mut args: SingletonServerArgs,
 ) -> Result<ServerTermination, AnyError> {
-	let (event_tx, _) = broadcast::channel(64);
-	let log_broadcast = BroadcastLogSink::new(event_tx);
-	let log = args.log.tee(log_broadcast.clone());
 	let (shutdown_rx, shutdown_tx) = new_barrier();
-	let shutdown_rx = ShutdownRequest::create_rx(match args.parent_pid {
-		Some(pid) => vec![
-			ShutdownRequest::ParentProcessKilled(pid),
-			ShutdownRequest::RpcShutdownRequested(shutdown_rx),
-			ShutdownRequest::CtrlC,
-		],
-		None => vec![
-			ShutdownRequest::RpcShutdownRequested(shutdown_rx),
-			ShutdownRequest::CtrlC,
-		],
-	});
+	let shutdown_rx = ShutdownRequest::create_rx([
+		ShutdownRequest::RpcShutdownRequested(shutdown_rx),
+		ShutdownRequest::Derived(args.shutdown),
+	]);
 
 	let rpc = new_json_rpc();
 
@@ -79,13 +69,13 @@ pub async fn start_singleton_server(
 
 	let (r1, r2) = tokio::join!(
 		serve_singleton_rpc(
-			log_broadcast,
+			args.log_broadcast,
 			&mut args.server,
-			rpc.build(log.clone()),
+			rpc.build(args.log.clone()),
 			shutdown_rx.clone(),
 		),
 		super::serve(
-			&log,
+			&args.log,
 			args.tunnel,
 			&args.paths,
 			&args.code_server_args,
@@ -124,27 +114,49 @@ async fn serve_singleton_rpc<C: Clone + Send + Sync + 'static>(
 	}
 }
 
+/// Log sink that can broadcast and replay log events. Used for transmitting
+/// logs from the singleton to all clients. This should be created and injected
+/// into other services, like the tunnel, before `start_singleton_server`
+/// is called.
 #[derive(Clone)]
 pub struct BroadcastLogSink {
 	recent: Arc<Mutex<RingBuffer<Vec<u8>>>>,
 	tx: broadcast::Sender<Vec<u8>>,
 }
 
+impl Default for BroadcastLogSink {
+	fn default() -> Self {
+		Self::new()
+	}
+}
+
 impl BroadcastLogSink {
-	pub fn new(tx: broadcast::Sender<Vec<u8>>) -> Self {
+	pub fn new() -> Self {
+		let (tx, _) = broadcast::channel(64);
 		Self {
 			tx,
 			recent: Arc::new(Mutex::new(RingBuffer::new(50))),
 		}
 	}
 
-	pub fn replay_and_subscribe(
+	fn replay_and_subscribe(
 		&self,
 	) -> ConcatReceivable<Vec<u8>, mpsc::UnboundedReceiver<Vec<u8>>, broadcast::Receiver<Vec<u8>>> {
 		let (log_replay_tx, log_replay_rx) = mpsc::unbounded_channel();
+
 		for log in self.recent.lock().unwrap().iter() {
 			let _ = log_replay_tx.send(log.clone());
 		}
+
+		let _ = log_replay_tx.send(RpcCaller::serialize_notify(
+			&JsonRpcSerializer {},
+			"log",
+			protocol::singleton::LogMessage {
+				level: log::Level::Info,
+				prefix: "",
+				message: "Connected to an existing tunnel process running on this machined.",
+			},
+		));
 
 		ConcatReceivable::new(log_replay_rx, self.tx.subscribe())
 	}
@@ -167,5 +179,7 @@ impl log::LogSink for BroadcastLogSink {
 		self.recent.lock().unwrap().push(serialized);
 	}
 
-	fn write_result(&self, _message: &str) {}
+	fn write_result(&self, message: &str) {
+		self.write_log(log::Level::Info, "", message);
+	}
 }

@@ -485,6 +485,10 @@ pub enum CodeError {
 	AsyncPipeListenerFailed(std::io::Error),
 	#[error("could not create singleton lock file")]
 	SingletonLockfileOpenFailed(std::io::Error),
+	#[error("could not read singleton lock file")]
+	SingletonLockfileReadFailed(rmp_serde::decode::Error),
+	#[error("the process holding the singleton lock file exited")]
+	SingletonLockedProcessExited(u32),
 }
 
 makeAnyError!(
