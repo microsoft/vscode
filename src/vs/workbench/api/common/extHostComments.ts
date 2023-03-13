@@ -346,10 +346,6 @@ export function createExtHostComments(mainContext: IMainContext, commands: ExtHo
 			this._onDidUpdateCommentThread.fire();
 		}
 
-		get hasDraftComments(): boolean {
-			return this._comments.some(comment => comment.visibility === types.CommentVisibility.Draft);
-		}
-
 		private _localDisposables: types.Disposable[];
 
 		private _isDiposed: boolean;
@@ -422,7 +418,6 @@ export function createExtHostComments(mainContext: IMainContext, commands: ExtHo
 				set canReply(state: boolean) { that.canReply = state; },
 				get contextValue() { return that.contextValue; },
 				set contextValue(value: string | undefined) { that.contextValue = value; },
-				get hasDraftComments() { return that.hasDraftComments; },
 				get label() { return that.label; },
 				set label(value: string | undefined) { that.label = value; },
 				get state() { return that.state; },

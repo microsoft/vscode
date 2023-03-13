@@ -15,8 +15,4 @@ declare module 'vscode' {
 	export interface Comment {
 		visibility?: CommentVisibility;
 	}
-
-	export interface CommentThread {
-		readonly hasDraftComments: boolean;
-	}
 }
