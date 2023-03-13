@@ -590,12 +590,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			this._xtermReadyPromise.then(xterm => {
 				contribution.xtermReady?.(xterm);
 			});
-			this._containerReadyBarrier.wait().then(async () => {
-				if (!this.xterm) {
-					await this._xtermReadyPromise;
-				}
-				contribution.layout?.(this.xterm!);
-			});
 			this.onDisposed(() => {
 				contribution.dispose();
 			});
@@ -1864,6 +1858,13 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 		// Signal the container is ready
 		this._containerReadyBarrier.open();
+
+		for (const contribution of this._contributions) {
+			if (!this.xterm) {
+				this._xtermReadyPromise.then(() => contribution[1].layout?.(this.xterm!));
+			}
+			contribution[1].layout?.(this.xterm!);
+		}
 	}
 
 	@debounce(50)
