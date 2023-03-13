@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/jeff-hykin/better-shell-syntax/commit/02e55c164ef9a5b1754ba1caa184b966e7a69a44",
+	"version": "https://github.com/jeff-hykin/better-shell-syntax/commit/adcc0fdac84e96e03a2cfb48a0f6f854a1da9053",
 	"name": "Shell Script",
 	"scopeName": "source.shell",
 	"patterns": [
@@ -2117,17 +2117,6 @@
 					}
 				},
 				{
-					"match": "(\\$)(\\{[0-9]+\\}(?!\\w))",
-					"captures": {
-						"1": {
-							"name": "punctuation.definition.variable.shell variable.parameter.positional.shell"
-						},
-						"2": {
-							"name": "variable.parameter.positional.shell"
-						}
-					}
-				},
-				{
 					"match": "(\\$)([-*#?$!0_](?!\\w))",
 					"captures": {
 						"1": {
@@ -2139,19 +2128,68 @@
 					}
 				},
 				{
-					"begin": "(\\$)(\\{)",
+					"begin": "(\\$)(\\{)[ \\t]*+(?=\\d)",
 					"end": "\\}",
 					"beginCaptures": {
 						"1": {
-							"name": "punctuation.definition.variable.shell punctuation.section.bracket.curly.variable.begin.shell"
+							"name": "punctuation.definition.variable.shell variable.parameter.positional.shell"
 						},
 						"2": {
-							"name": "punctuation.section.bracket.curly.variable.begin.shell"
+							"name": "punctuation.section.bracket.curly.variable.begin.shell punctuation.definition.variable.shell variable.parameter.positional.shell"
 						}
 					},
 					"endCaptures": {
 						"0": {
-							"name": "punctuation.section.bracket.curly.variable.end.shell"
+							"name": "punctuation.section.bracket.curly.variable.end.shell punctuation.definition.variable.shell variable.parameter.positional.shell"
+						}
+					},
+					"contentName": "meta.parameter-expansion",
+					"patterns": [
+						{
+							"match": "!|:[-=?]?|\\*|@|##|#|%%|%|\\/",
+							"name": "keyword.operator.expansion.shell"
+						},
+						{
+							"match": "(\\[)[^\\]]+(\\])",
+							"captures": {
+								"1": {
+									"name": "punctuation.section.array.shell"
+								},
+								"2": {
+									"name": "punctuation.section.array.shell"
+								}
+							}
+						},
+						{
+							"match": "[0-9]+",
+							"name": "variable.parameter.positional.shell"
+						},
+						{
+							"match": "(?<!\\w)[a-zA-Z_0-9-]+(?!\\w)",
+							"name": "variable.other.normal.shell"
+						},
+						{
+							"include": "#variable"
+						},
+						{
+							"include": "#string"
+						}
+					]
+				},
+				{
+					"begin": "(\\$)(\\{)",
+					"end": "\\}",
+					"beginCaptures": {
+						"1": {
+							"name": "punctuation.definition.variable.shell"
+						},
+						"2": {
+							"name": "punctuation.section.bracket.curly.variable.begin.shell punctuation.definition.variable.shell"
+						}
+					},
+					"endCaptures": {
+						"0": {
+							"name": "punctuation.section.bracket.curly.variable.end.shell punctuation.definition.variable.shell"
 						}
 					},
 					"contentName": "meta.parameter-expansion",

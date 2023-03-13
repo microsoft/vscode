@@ -813,35 +813,35 @@
 	},
 	{
 		"c": "$",
-		"t": "source.shell meta.scope.if-block.shell meta.function.shell meta.function.body.shell meta.statement.shell meta.command.shell meta.argument.shell string.quoted.double.shell punctuation.definition.variable.shell punctuation.section.bracket.curly.variable.begin.shell",
+		"t": "source.shell meta.scope.if-block.shell meta.function.shell meta.function.body.shell meta.statement.shell meta.command.shell meta.argument.shell string.quoted.double.shell punctuation.definition.variable.shell variable.parameter.positional.shell",
 		"r": {
-			"dark_plus": "string: #CE9178",
-			"light_plus": "string: #A31515",
+			"dark_plus": "variable: #9CDCFE",
+			"light_plus": "variable: #001080",
 			"dark_vs": "string: #CE9178",
 			"light_vs": "string: #A31515",
-			"hc_black": "string: #CE9178",
-			"dark_plus_experimental": "string: #CE9178",
-			"hc_light": "string: #0F4A85",
-			"light_plus_experimental": "string: #A31515"
+			"hc_black": "variable: #9CDCFE",
+			"dark_plus_experimental": "variable: #9CDCFE",
+			"hc_light": "variable: #001080",
+			"light_plus_experimental": "variable: #001080"
 		}
 	},
 	{
 		"c": "{",
-		"t": "source.shell meta.scope.if-block.shell meta.function.shell meta.function.body.shell meta.statement.shell meta.command.shell meta.argument.shell string.quoted.double.shell punctuation.section.bracket.curly.variable.begin.shell",
+		"t": "source.shell meta.scope.if-block.shell meta.function.shell meta.function.body.shell meta.statement.shell meta.command.shell meta.argument.shell string.quoted.double.shell punctuation.section.bracket.curly.variable.begin.shell punctuation.definition.variable.shell variable.parameter.positional.shell",
 		"r": {
-			"dark_plus": "string: #CE9178",
-			"light_plus": "string: #A31515",
+			"dark_plus": "variable: #9CDCFE",
+			"light_plus": "variable: #001080",
 			"dark_vs": "string: #CE9178",
 			"light_vs": "string: #A31515",
-			"hc_black": "string: #CE9178",
-			"dark_plus_experimental": "string: #CE9178",
-			"hc_light": "string: #0F4A85",
-			"light_plus_experimental": "string: #A31515"
+			"hc_black": "variable: #9CDCFE",
+			"dark_plus_experimental": "variable: #9CDCFE",
+			"hc_light": "variable: #001080",
+			"light_plus_experimental": "variable: #001080"
 		}
 	},
 	{
 		"c": "1",
-		"t": "source.shell meta.scope.if-block.shell meta.function.shell meta.function.body.shell meta.statement.shell meta.command.shell meta.argument.shell string.quoted.double.shell meta.parameter-expansion variable.other.normal.shell",
+		"t": "source.shell meta.scope.if-block.shell meta.function.shell meta.function.body.shell meta.statement.shell meta.command.shell meta.argument.shell string.quoted.double.shell meta.parameter-expansion variable.parameter.positional.shell",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -897,16 +897,16 @@
 	},
 	{
 		"c": "}",
-		"t": "source.shell meta.scope.if-block.shell meta.function.shell meta.function.body.shell meta.statement.shell meta.command.shell meta.argument.shell string.quoted.double.shell punctuation.section.bracket.curly.variable.end.shell",
+		"t": "source.shell meta.scope.if-block.shell meta.function.shell meta.function.body.shell meta.statement.shell meta.command.shell meta.argument.shell string.quoted.double.shell punctuation.section.bracket.curly.variable.end.shell punctuation.definition.variable.shell variable.parameter.positional.shell",
 		"r": {
-			"dark_plus": "string: #CE9178",
-			"light_plus": "string: #A31515",
+			"dark_plus": "variable: #9CDCFE",
+			"light_plus": "variable: #001080",
 			"dark_vs": "string: #CE9178",
 			"light_vs": "string: #A31515",
-			"hc_black": "string: #CE9178",
-			"dark_plus_experimental": "string: #CE9178",
-			"hc_light": "string: #0F4A85",
-			"light_plus_experimental": "string: #A31515"
+			"hc_black": "variable: #9CDCFE",
+			"dark_plus_experimental": "variable: #9CDCFE",
+			"hc_light": "variable: #001080",
+			"light_plus_experimental": "variable: #001080"
 		}
 	},
 	{
