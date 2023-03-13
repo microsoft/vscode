@@ -77,7 +77,7 @@ export abstract class GlobalStateResourceTreeItem implements IProfileResourceTre
 	readonly handle = ProfileResourceType.GlobalState;
 	readonly label = { label: localize('globalState', "UI State") };
 	readonly collapsibleState = TreeItemCollapsibleState.Collapsed;
-	checkbox: ITreeItemCheckboxState = { isChecked: true };
+	checkbox: ITreeItemCheckboxState | undefined;
 
 	constructor(private readonly resource: URI) { }
 

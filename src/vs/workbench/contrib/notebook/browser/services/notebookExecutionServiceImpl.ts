@@ -72,6 +72,10 @@ export class NotebookExecutionService implements INotebookExecutionService, IDis
 			return;
 		}
 
+		if (kernelPickerType === 'mru') {
+			this._notebookKernelHistoryService.addMostRecentKernel(kernel);
+		}
+
 		// filter cell executions based on selected kernel
 		const validCellExecutions: INotebookCellExecution[] = [];
 		for (const [cell, cellExecution] of cellExecutions) {

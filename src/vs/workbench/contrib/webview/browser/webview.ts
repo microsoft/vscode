@@ -71,6 +71,8 @@ export interface WebviewInitInfo {
 	readonly providedViewType?: string;
 	readonly origin?: string;
 
+	readonly title: string | undefined;
+
 	readonly options: WebviewOptions;
 	readonly contentOptions: WebviewContentOptions;
 
@@ -180,9 +182,14 @@ export interface IWebview extends IDisposable {
 	readonly origin: string;
 
 	/**
-	 * The html content of the webview.
+	 * Set html content of the webview.
 	 */
-	html: string;
+	setHtml(html: string): void;
+
+	/**
+	 * Set the title of the webview. This is set on the webview's iframe element.
+	 */
+	setTitle(title: string): void;
 
 	/**
 	 * Control what content is allowed/blocked inside the webview.

@@ -14,10 +14,10 @@ import { ConfigurationTarget, IConfigurationService } from 'vs/platform/configur
 import { TerminalConfigHelper } from 'vs/workbench/contrib/terminal/browser/terminalConfigHelper';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
-import { IShellIntegration, TerminalLocation, TerminalSettingId } from 'vs/platform/terminal/common/terminal';
-import { ITerminalFont, TERMINAL_VIEW_ID } from 'vs/workbench/contrib/terminal/common/terminal';
+import { IShellIntegration, TerminalSettingId } from 'vs/platform/terminal/common/terminal';
+import { ITerminalFont } from 'vs/workbench/contrib/terminal/common/terminal';
 import { isSafari } from 'vs/base/browser/browser';
-import { IMarkTracker, IInternalXtermTerminal, IXtermTerminal } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { IMarkTracker, IInternalXtermTerminal, IXtermTerminal, ISuggestController, IXtermColorProvider } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { TerminalStorageKeys } from 'vs/workbench/contrib/terminal/common/terminalStorageKeys';
@@ -25,17 +25,16 @@ import { INotificationService, IPromptChoice, Severity } from 'vs/platform/notif
 import { MarkNavigationAddon } from 'vs/workbench/contrib/terminal/browser/xterm/markNavigationAddon';
 import { localize } from 'vs/nls';
 import { IColorTheme, IThemeService } from 'vs/platform/theme/common/themeService';
-import { IViewDescriptorService, ViewContainerLocation } from 'vs/workbench/common/views';
-import { editorBackground } from 'vs/platform/theme/common/colorRegistry';
-import { PANEL_BACKGROUND, SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
+import { PANEL_BACKGROUND } from 'vs/workbench/common/theme';
 import { TERMINAL_FOREGROUND_COLOR, TERMINAL_BACKGROUND_COLOR, TERMINAL_CURSOR_FOREGROUND_COLOR, TERMINAL_CURSOR_BACKGROUND_COLOR, ansiColorIdentifiers, TERMINAL_SELECTION_BACKGROUND_COLOR, TERMINAL_FIND_MATCH_BACKGROUND_COLOR, TERMINAL_FIND_MATCH_HIGHLIGHT_BACKGROUND_COLOR, TERMINAL_FIND_MATCH_BORDER_COLOR, TERMINAL_OVERVIEW_RULER_FIND_MATCH_FOREGROUND_COLOR, TERMINAL_FIND_MATCH_HIGHLIGHT_BORDER_COLOR, TERMINAL_OVERVIEW_RULER_CURSOR_FOREGROUND_COLOR, TERMINAL_SELECTION_FOREGROUND_COLOR, TERMINAL_INACTIVE_SELECTION_BACKGROUND_COLOR } from 'vs/workbench/contrib/terminal/common/terminalColorRegistry';
-import { Color } from 'vs/base/common/color';
 import { ShellIntegrationAddon } from 'vs/platform/terminal/common/xterm/shellIntegrationAddon';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { DecorationAddon } from 'vs/workbench/contrib/terminal/browser/xterm/decorationAddon';
 import { ITerminalCapabilityStore, ITerminalCommand, TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
 import { Emitter } from 'vs/base/common/event';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { SuggestAddon } from 'vs/workbench/contrib/terminal/browser/xterm/suggestAddon';
+import { IContextKey } from 'vs/platform/contextkey/common/contextkey';
 
 const enum RenderConstants {
 	/**
@@ -129,6 +128,7 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal, II
 	private _shellIntegrationAddon: ShellIntegrationAddon;
 
 	private _decorationAddon: DecorationAddon;
+	private _suggestAddon: SuggestAddon;
 
 	// Optional addons
 	private _canvasAddon?: CanvasAddonType;
@@ -143,6 +143,10 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal, II
 
 	private readonly _onDidRequestRunCommand = new Emitter<{ command: ITerminalCommand; copyAsHtml?: boolean; noNewLine?: boolean }>();
 	readonly onDidRequestRunCommand = this._onDidRequestRunCommand.event;
+	private readonly _onDidRequestFocus = new Emitter<void>();
+	readonly onDidRequestFocus = this._onDidRequestFocus.event;
+	private readonly _onDidRequestSendText = new Emitter<string>();
+	readonly onDidRequestSendText = this._onDidRequestSendText.event;
 	private readonly _onDidRequestFreePort = new Emitter<string>();
 	readonly onDidRequestFreePort = this._onDidRequestFreePort.event;
 	private readonly _onDidChangeFindResults = new Emitter<{ resultIndex: number; resultCount: number } | undefined>();
@@ -152,12 +156,7 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal, II
 
 	get markTracker(): IMarkTracker { return this._markNavigationAddon; }
 	get shellIntegration(): IShellIntegration { return this._shellIntegrationAddon; }
-
-	private _target: TerminalLocation | undefined;
-	set target(location: TerminalLocation | undefined) {
-		this._target = location;
-	}
-	get target(): TerminalLocation | undefined { return this._target; }
+	get suggestController(): ISuggestController | undefined { return this._suggestAddon; }
 
 	get textureAtlas(): Promise<ImageBitmap> | undefined {
 		const canvas = this._webglAddon?.textureAtlas || this._canvasAddon?.textureAtlas;
@@ -176,8 +175,9 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal, II
 		private readonly _configHelper: TerminalConfigHelper,
 		cols: number,
 		rows: number,
-		location: TerminalLocation,
+		private readonly _backgroundColorProvider: IXtermColorProvider,
 		private readonly _capabilities: ITerminalCapabilityStore,
+		private readonly _terminalSuggestWidgetVisibleContextKey: IContextKey<boolean>,
 		disableShellIntegrationReporting: boolean,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
@@ -185,11 +185,9 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal, II
 		@INotificationService private readonly _notificationService: INotificationService,
 		@IStorageService private readonly _storageService: IStorageService,
 		@IThemeService private readonly _themeService: IThemeService,
-		@IViewDescriptorService private readonly _viewDescriptorService: IViewDescriptorService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService
 	) {
 		super();
-		this.target = location;
 		const font = this._configHelper.getFont(undefined, true);
 		const config = this._configHelper.config;
 		const editorOptions = this._configurationService.getValue<IEditorOptions>('editor');
@@ -238,12 +236,6 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal, II
 		}));
 
 		this.add(this._themeService.onDidColorThemeChange(theme => this._updateTheme(theme)));
-		this.add(this._viewDescriptorService.onDidChangeLocation(({ views }) => {
-			if (views.some(v => v.id === TERMINAL_VIEW_ID)) {
-				this._updateTheme();
-				this._decorationAddon.refreshLayouts();
-			}
-		}));
 
 		// Refire events
 		this.add(this.raw.onSelectionChange(() => this._onDidChangeSelection.fire()));
@@ -257,6 +249,15 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal, II
 		this.raw.loadAddon(this._decorationAddon);
 		this._shellIntegrationAddon = this._instantiationService.createInstance(ShellIntegrationAddon, disableShellIntegrationReporting, this._telemetryService);
 		this.raw.loadAddon(this._shellIntegrationAddon);
+
+		// Load the suggest addon, this should be loaded regardless of the setting as the sequences
+		// may still come in
+		this._suggestAddon = this._instantiationService.createInstance(SuggestAddon, this._terminalSuggestWidgetVisibleContextKey);
+		this.raw.loadAddon(this._suggestAddon);
+		this._suggestAddon.onAcceptedCompletion(async text => {
+			this._onDidRequestFocus.fire();
+			this._onDidRequestSendText.fire(text);
+		});
 	}
 
 	async getSelectionAsHtml(command?: ITerminalCommand): Promise<string> {
@@ -271,7 +272,7 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal, II
 			if (!length || !row) {
 				throw new Error(`No row ${row} or output length ${length} for command ${command}`);
 			}
-			await this.raw.select(0, row + 1, length - Math.floor(length / this.raw.cols));
+			this.raw.select(0, row + 1, length - Math.floor(length / this.raw.cols));
 		}
 		const result = this._serializeAddon.serializeAsHTML({ onlySelection: true });
 		if (command) {
@@ -292,6 +293,9 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal, II
 		} else if (this._shouldLoadCanvas()) {
 			this._enableCanvasRenderer();
 		}
+
+		this._suggestAddon.setContainer(container);
+
 		this._container = container;
 		// Screen must be created at this point as xterm.open is called
 		return this._container.querySelector('.xterm-screen')!;
@@ -548,9 +552,9 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal, II
 		this._disposeOfWebglRenderer();
 		try {
 			this.raw.loadAddon(this._canvasAddon);
-			this._logService.trace('Canvas was loaded');
+			this._logService.trace('Canvas renderer was loaded');
 		} catch (e) {
-			this._logService.warn(`Canvas could not be loaded. Falling back to the dom renderer type.`, e);
+			this._logService.warn(`Canvas renderer could not be loaded, falling back to dom renderer`, e);
 			const neverMeasureRenderTime = this._storageService.getBoolean(TerminalStorageKeys.NeverMeasureRenderTime, StorageScope.APPLICATION, false);
 			// if it's already set to dom, no need to measure render time
 			if (!neverMeasureRenderTime && this._configHelper.config.gpuAcceleration !== 'off') {
@@ -672,14 +676,8 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal, II
 			theme = this._themeService.getColorTheme();
 		}
 
-		const location = this._viewDescriptorService.getViewLocationById(TERMINAL_VIEW_ID)!;
 		const foregroundColor = theme.getColor(TERMINAL_FOREGROUND_COLOR);
-		let backgroundColor: Color | undefined;
-		if (this.target === TerminalLocation.Editor) {
-			backgroundColor = theme.getColor(TERMINAL_BACKGROUND_COLOR) || theme.getColor(editorBackground);
-		} else {
-			backgroundColor = theme.getColor(TERMINAL_BACKGROUND_COLOR) || (location === ViewContainerLocation.Panel ? theme.getColor(PANEL_BACKGROUND) : theme.getColor(SIDE_BAR_BACKGROUND));
-		}
+		const backgroundColor = this._backgroundColorProvider.getBackgroundColor(theme);
 		const cursorColor = theme.getColor(TERMINAL_CURSOR_FOREGROUND_COLOR) || foregroundColor;
 		const cursorAccentColor = theme.getColor(TERMINAL_CURSOR_BACKGROUND_COLOR) || backgroundColor;
 		const selectionBackgroundColor = theme.getColor(TERMINAL_SELECTION_BACKGROUND_COLOR);
@@ -715,6 +713,11 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal, II
 
 	private _updateTheme(theme?: IColorTheme): void {
 		this.raw.options.theme = this._getXtermTheme(theme);
+	}
+
+	refresh() {
+		this._updateTheme();
+		this._decorationAddon.refreshLayouts();
 	}
 
 	private async _updateUnicodeVersion(): Promise<void> {

@@ -17,6 +17,7 @@ import { dispose, disposeIfDisposable, IDisposable } from 'vs/base/common/lifecy
 import * as env from 'vs/base/common/platform';
 import severity from 'vs/base/common/severity';
 import { noBreakWhitespace } from 'vs/base/common/strings';
+import { ThemeIcon } from 'vs/base/common/themables';
 import { withNullAsUndefined } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { generateUuid } from 'vs/base/common/uuid';
@@ -34,11 +35,11 @@ import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiati
 import { ILabelService } from 'vs/platform/label/common/label';
 import { registerColor } from 'vs/platform/theme/common/colorRegistry';
 import { registerThemingParticipant, themeColorFromId } from 'vs/platform/theme/common/themeService';
-import { ThemeIcon } from 'vs/base/common/themables';
+import { GutterActionsRegistry } from 'vs/workbench/contrib/codeEditor/browser/editorLineNumberMenu';
 import { getBreakpointMessageAndIcon } from 'vs/workbench/contrib/debug/browser/breakpointsView';
 import { BreakpointWidget } from 'vs/workbench/contrib/debug/browser/breakpointWidget';
 import * as icons from 'vs/workbench/contrib/debug/browser/debugIcons';
-import { BreakpointWidgetContext, CONTEXT_BREAKPOINT_WIDGET_VISIBLE, DebuggerString, IBreakpoint, IBreakpointEditorContribution, IBreakpointUpdateData, IDebugConfiguration, IDebugService, IDebugSession, State } from 'vs/workbench/contrib/debug/common/debug';
+import { BREAKPOINT_EDITOR_CONTRIBUTION_ID, BreakpointWidgetContext, CONTEXT_BREAKPOINT_WIDGET_VISIBLE, DebuggerString, IBreakpoint, IBreakpointEditorContribution, IBreakpointUpdateData, IDebugConfiguration, IDebugService, IDebugSession, State } from 'vs/workbench/contrib/debug/common/debug';
 
 const $ = dom.$;
 
@@ -250,20 +251,8 @@ export class BreakpointEditorContribution implements IBreakpointEditorContributi
 			const uri = model.uri;
 
 			if (e.event.rightButton || (env.isMacintosh && e.event.leftButton && e.event.ctrlKey)) {
-				if (!canSetBreakpoints) {
-					return;
-				}
-
-				const anchor = { x: e.event.posx, y: e.event.posy };
-				const breakpoints = this.debugService.getModel().getBreakpoints({ lineNumber, uri });
-				const actions = this.getContextMenuActions(breakpoints, uri, lineNumber);
-
-				this.contextMenuService.showContextMenu({
-					getAnchor: () => anchor,
-					getActions: () => actions,
-					getActionsContext: () => breakpoints.length ? breakpoints[0] : undefined,
-					onHide: () => disposeIfDisposable(actions)
-				});
+				// handled by editor gutter context menu
+				return;
 			} else {
 				const breakpoints = this.debugService.getModel().getBreakpoints({ uri, lineNumber });
 
@@ -292,23 +281,21 @@ export class BreakpointEditorContribution implements IBreakpointEditorContributi
 							logPoint ? nls.localize('message', "message") : nls.localize('condition', "condition")
 						);
 
-						const { choice } = await this.dialogService.show(
-							severity.Info,
-							enabled ? enabledBreakpointDialogMessage : disabledBreakpointDialogMessage,
-							[
-								nls.localize('removeLogPoint', "Remove {0}", breakpointType),
-								nls.localize('disableLogPoint', "{0} {1}", enabled ? nls.localize('disable', "Disable") : nls.localize('enable', "Enable"), breakpointType),
-								nls.localize('cancel', "Cancel")
+						await this.dialogService.prompt({
+							type: severity.Info,
+							message: enabled ? enabledBreakpointDialogMessage : disabledBreakpointDialogMessage,
+							buttons: [
+								{
+									label: nls.localize({ key: 'removeLogPoint', comment: ['&& denotes a mnemonic'] }, "&&Remove {0}", breakpointType),
+									run: () => breakpoints.forEach(bp => this.debugService.removeBreakpoints(bp.getId()))
+								},
+								{
+									label: nls.localize('disableLogPoint', "{0} {1}", enabled ? nls.localize({ key: 'disable', comment: ['&& denotes a mnemonic'] }, "&&Disable") : nls.localize({ key: 'enable', comment: ['&& denotes a mnemonic'] }, "&&Enable"), breakpointType),
+									run: () => breakpoints.forEach(bp => this.debugService.enableOrDisableBreakpoints(!enabled, bp))
+								}
 							],
-							{ cancelId: 2 },
-						);
-
-						if (choice === 0) {
-							breakpoints.forEach(bp => this.debugService.removeBreakpoints(bp.getId()));
-						}
-						if (choice === 1) {
-							breakpoints.forEach(bp => this.debugService.enableOrDisableBreakpoints(!enabled, bp));
-						}
+							cancelButton: true
+						});
 					} else {
 						if (!enabled) {
 							breakpoints.forEach(bp => this.debugService.enableOrDisableBreakpoints(!enabled, bp));
@@ -635,6 +622,25 @@ export class BreakpointEditorContribution implements IBreakpointEditorContributi
 	}
 }
 
+GutterActionsRegistry.registerGutterActionsGenerator(({ lineNumber, editor, accessor }, result) => {
+	const model = editor.getModel();
+	const debugService = accessor.get(IDebugService);
+	if (!model || !debugService.getAdapterManager().hasEnabledDebuggers() || !debugService.canSetBreakpointsIn(model)) {
+		return;
+	}
+
+	const breakpointEditorContribution = editor.getContribution<IBreakpointEditorContribution>(BREAKPOINT_EDITOR_CONTRIBUTION_ID);
+	if (!breakpointEditorContribution) {
+		return;
+	}
+
+	const actions = breakpointEditorContribution.getContextMenuActionsAtPosition(lineNumber, model);
+
+	for (const action of actions) {
+		result.push(action);
+	}
+});
+
 class InlineBreakpointWidget implements IContentWidget, IDisposable {
 
 	// editor.IContentWidget.allowEditorOverflow
@@ -794,7 +800,7 @@ registerThemingParticipant((theme, collector) => {
 	}
 });
 
-const debugIconBreakpointForeground = registerColor('debugIcon.breakpointForeground', { dark: '#E51400', light: '#E51400', hcDark: '#E51400', hcLight: '#E51400' }, nls.localize('debugIcon.breakpointForeground', 'Icon color for breakpoints.'));
+export const debugIconBreakpointForeground = registerColor('debugIcon.breakpointForeground', { dark: '#E51400', light: '#E51400', hcDark: '#E51400', hcLight: '#E51400' }, nls.localize('debugIcon.breakpointForeground', 'Icon color for breakpoints.'));
 const debugIconBreakpointDisabledForeground = registerColor('debugIcon.breakpointDisabledForeground', { dark: '#848484', light: '#848484', hcDark: '#848484', hcLight: '#848484' }, nls.localize('debugIcon.breakpointDisabledForeground', 'Icon color for disabled breakpoints.'));
 const debugIconBreakpointUnverifiedForeground = registerColor('debugIcon.breakpointUnverifiedForeground', { dark: '#848484', light: '#848484', hcDark: '#848484', hcLight: '#848484' }, nls.localize('debugIcon.breakpointUnverifiedForeground', 'Icon color for unverified breakpoints.'));
 const debugIconBreakpointCurrentStackframeForeground = registerColor('debugIcon.breakpointCurrentStackframeForeground', { dark: '#FFCC00', light: '#BE8700', hcDark: '#FFCC00', hcLight: '#BE8700' }, nls.localize('debugIcon.breakpointCurrentStackframeForeground', 'Icon color for the current breakpoint stack frame.'));

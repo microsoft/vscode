@@ -56,6 +56,10 @@ export class MainThreadLoggerService implements MainThreadLoggerShape {
 		this.loggerService.deregisterLogger(URI.revive(resource));
 	}
 
+	async $setVisibility(resource: UriComponents, visible: boolean): Promise<void> {
+		this.loggerService.setVisibility(URI.revive(resource), visible);
+	}
+
 	dispose(): void {
 		this.disposables.dispose();
 	}

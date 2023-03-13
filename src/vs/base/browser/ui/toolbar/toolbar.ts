@@ -66,7 +66,7 @@ export class ToolBar extends Disposable {
 			ariaLabel: options.ariaLabel,
 			actionRunner: options.actionRunner,
 			allowContextMenu: options.allowContextMenu,
-			actionViewItemProvider: (action: IAction) => {
+			actionViewItemProvider: (action, viewItemOptions) => {
 				if (action.id === ToggleMenuAction.ID) {
 					this.toggleMenuActionViewItem = new DropdownMenuActionViewItem(
 						action,
@@ -88,7 +88,7 @@ export class ToolBar extends Disposable {
 				}
 
 				if (options.actionViewItemProvider) {
-					const result = options.actionViewItemProvider(action);
+					const result = options.actionViewItemProvider(action, viewItemOptions);
 
 					if (result) {
 						return result;

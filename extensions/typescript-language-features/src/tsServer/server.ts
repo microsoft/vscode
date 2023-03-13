@@ -30,12 +30,16 @@ export interface TypeScriptServerExitEvent {
 	readonly signal: string | null;
 }
 
+export type TsServerLog =
+	{ readonly type: 'file'; readonly uri: vscode.Uri } |
+	{ readonly type: 'output'; readonly output: vscode.OutputChannel };
+
 export interface ITypeScriptServer {
 	readonly onEvent: vscode.Event<Proto.Event>;
 	readonly onExit: vscode.Event<TypeScriptServerExitEvent>;
 	readonly onError: vscode.Event<any>;
 
-	readonly tsServerLogFile: string | undefined;
+	readonly tsServerLog: TsServerLog | undefined;
 
 	kill(): void;
 
@@ -66,7 +70,7 @@ export interface TsServerProcessFactory {
 		kind: TsServerProcessKind,
 		configuration: TypeScriptServiceConfiguration,
 		versionManager: TypeScriptVersionManager,
-		extensionUri: vscode.Uri,
+		tsServerLog: TsServerLog | undefined,
 	): TsServerProcess;
 }
 
@@ -80,7 +84,7 @@ export interface TsServerProcess {
 	kill(): void;
 }
 
-export class ProcessBasedTsServer extends Disposable implements ITypeScriptServer {
+export class SingleTsServer extends Disposable implements ITypeScriptServer {
 	private readonly _requestQueue = new RequestQueue();
 	private readonly _callbacks = new CallbackMap<Proto.Response>();
 	private readonly _pendingResponses = new Set<number>();
@@ -89,7 +93,7 @@ export class ProcessBasedTsServer extends Disposable implements ITypeScriptServe
 		private readonly _serverId: string,
 		private readonly _serverSource: ServerType,
 		private readonly _process: TsServerProcess,
-		private readonly _tsServerLogFile: string | undefined,
+		private readonly _tsServerLog: TsServerLog | undefined,
 		private readonly _requestCanceller: OngoingRequestCanceller,
 		private readonly _version: TypeScriptVersion,
 		private readonly _telemetryReporter: TelemetryReporter,
@@ -121,7 +125,7 @@ export class ProcessBasedTsServer extends Disposable implements ITypeScriptServe
 	private readonly _onError = this._register(new vscode.EventEmitter<any>());
 	public readonly onError = this._onError.event;
 
-	public get tsServerLogFile() { return this._tsServerLogFile; }
+	public get tsServerLog() { return this._tsServerLog; }
 
 	private write(serverRequest: Proto.Request) {
 		this._process.write(serverRequest);
@@ -215,7 +219,7 @@ export class ProcessBasedTsServer extends Disposable implements ITypeScriptServe
 			request,
 			expectsResponse: executeInfo.expectsResult,
 			isAsync: executeInfo.isAsync,
-			queueingType: ProcessBasedTsServer.getQueueingType(command, executeInfo.lowPriority)
+			queueingType: SingleTsServer.getQueueingType(command, executeInfo.lowPriority)
 		};
 		let result: Promise<ServerResponse.Response<Proto.Response>> | undefined;
 		if (executeInfo.expectsResult) {
@@ -304,7 +308,7 @@ export class ProcessBasedTsServer extends Disposable implements ITypeScriptServe
 		command: string,
 		lowPriority?: boolean
 	): RequestQueueingType {
-		if (ProcessBasedTsServer.fenceCommands.has(command)) {
+		if (SingleTsServer.fenceCommands.has(command)) {
 			return RequestQueueingType.Fence;
 		}
 		return lowPriority ? RequestQueueingType.LowPriority : RequestQueueingType.Normal;
@@ -465,7 +469,7 @@ export class GetErrRoutingTsServer extends Disposable implements ITypeScriptServ
 	private readonly _onError = this._register(new vscode.EventEmitter<any>());
 	public readonly onError = this._onError.event;
 
-	public get tsServerLogFile() { return this.mainServer.tsServerLogFile; }
+	public get tsServerLog() { return this.mainServer.tsServerLog; }
 
 	public kill(): void {
 		this.getErrServer.kill();
@@ -605,7 +609,7 @@ export class SyntaxRoutingTsServer extends Disposable implements ITypeScriptServ
 	private readonly _onError = this._register(new vscode.EventEmitter<any>());
 	public readonly onError = this._onError.event;
 
-	public get tsServerLogFile() { return this.semanticServer.tsServerLogFile; }
+	public get tsServerLog() { return this.semanticServer.tsServerLog; }
 
 	public kill(): void {
 		this.syntaxServer.kill();

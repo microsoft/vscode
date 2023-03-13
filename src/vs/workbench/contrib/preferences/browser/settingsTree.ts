@@ -22,7 +22,7 @@ import { onUnexpectedError } from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { Disposable, DisposableStore, dispose, isDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { isIOS, language } from 'vs/base/common/platform';
+import { isIOS } from 'vs/base/common/platform';
 import { escapeRegExpCharacters } from 'vs/base/common/strings';
 import { isDefined, isUndefinedOrNull } from 'vs/base/common/types';
 import { localize } from 'vs/nls';
@@ -63,6 +63,7 @@ import { ConfigurationScope } from 'vs/platform/configuration/common/configurati
 import { IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { defaultButtonStyles, getInputBoxStyle, getListStyles, getSelectBoxStyles } from 'vs/platform/theme/browser/defaultStyles';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
+import { RenderIndentGuides } from 'vs/base/browser/ui/tree/abstractTree';
 
 const $ = DOM.$;
 
@@ -1758,7 +1759,7 @@ export class SettingNumberRenderer extends AbstractSettingRenderer implements IT
 
 		template.onChange = undefined;
 		template.inputBox.value = typeof dataElement.value === 'number' ?
-			dataElement.value.toLocaleString(language) : '';
+			dataElement.value.toString() : '';
 		template.inputBox.step = dataElement.valueType.includes('integer') ? '1' : 'any';
 		template.inputBox.setAriaLabel(dataElement.setting.key);
 		template.onChange = value => {
@@ -2047,7 +2048,7 @@ function cleanRenderedMarkdown(element: Node): void {
 }
 
 function fixSettingLinks(text: string, linkify = true): string {
-	return text.replace(/`#([^#]*)#`|'#([^#]*)#'/g, (match, backticksGroup, quotesGroup) => {
+	return text.replace(/`#([^#\s`]+)#`|'#([^#\s']+)#'/g, (match, backticksGroup, quotesGroup) => {
 		const settingKey: string = backticksGroup ?? quotesGroup;
 		const targetDisplayFormat = settingKeyToDisplayFormat(settingKey);
 		const targetName = `${targetDisplayFormat.category}: ${targetDisplayFormat.label}`;
@@ -2271,7 +2272,8 @@ export class SettingsTree extends WorkbenchObjectTree<SettingsTreeElement> {
 				filter: instantiationService.createInstance(SettingsTreeFilter, viewState),
 				smoothScrolling: configurationService.getValue<boolean>('workbench.list.smoothScrolling'),
 				multipleSelectionSupport: false,
-				findWidgetEnabled: false
+				findWidgetEnabled: false,
+				renderIndentGuides: RenderIndentGuides.None
 			},
 			instantiationService,
 			contextKeyService,
@@ -2296,7 +2298,9 @@ export class SettingsTree extends WorkbenchObjectTree<SettingsTreeElement> {
 			listInactiveSelectionBackground: editorBackground,
 			listInactiveSelectionForeground: foreground,
 			listInactiveFocusBackground: editorBackground,
-			listInactiveFocusOutline: editorBackground
+			listInactiveFocusOutline: editorBackground,
+			treeIndentGuidesStroke: undefined,
+			treeInactiveIndentGuidesStroke: undefined,
 		}));
 
 		this.disposables.add(configurationService.onDidChangeConfiguration(e => {

@@ -100,6 +100,7 @@ export class SelectBoxList extends Disposable implements ISelectBoxDelegate, ILi
 	private _hasDetails: boolean = false;
 	private selectionDetailsPane!: HTMLElement;
 	private _skipLayout: boolean = false;
+	private _cachedMaxDetailsHeight?: number;
 
 	private _sticky: boolean = false; // for dev purposes only
 
@@ -269,6 +270,7 @@ export class SelectBoxList extends Disposable implements ISelectBoxDelegate, ILi
 			this.options = options;
 			this.selectElement.options.length = 0;
 			this._hasDetails = false;
+			this._cachedMaxDetailsHeight = undefined;
 
 			this.options.forEach((option, index) => {
 				this.selectElement.add(this.createOption(option.text, index, option.isDisabled));
@@ -409,10 +411,10 @@ export class SelectBoxList extends Disposable implements ISelectBoxDelegate, ILi
 	private styleList() {
 		const background = this.styles.selectBackground ?? '';
 
-		const listBackground = this.styles.selectListBackground ? this.styles.selectListBackground : background;
+		const listBackground = dom.asCssValueWithDefault(this.styles.selectListBackground, background);
 		this.selectDropDownListContainer.style.backgroundColor = listBackground;
 		this.selectionDetailsPane.style.backgroundColor = listBackground;
-		const optionsBorder = this.styles.focusBorder ? this.styles.focusBorder : '';
+		const optionsBorder = this.styles.focusBorder ?? '';
 		this.selectDropDownContainer.style.outlineColor = optionsBorder;
 		this.selectDropDownContainer.style.outlineOffset = '-1px';
 
@@ -561,7 +563,10 @@ export class SelectBoxList extends Disposable implements ISelectBoxDelegate, ILi
 			this.selectList.layout();
 			let listHeight = this.selectList.contentHeight;
 
-			const maxDetailsPaneHeight = this._hasDetails ? this.measureMaxDetailsHeight() : 0;
+			if (this._hasDetails && this._cachedMaxDetailsHeight === undefined) {
+				this._cachedMaxDetailsHeight = this.measureMaxDetailsHeight();
+			}
+			const maxDetailsPaneHeight = this._hasDetails ? this._cachedMaxDetailsHeight! : 0;
 
 			const minRequiredDropDownHeight = listHeight + verticalPadding + maxDetailsPaneHeight;
 			const maxVisibleOptionsBelow = ((Math.floor((maxSelectDropDownHeightBelow - verticalPadding - maxDetailsPaneHeight) / this.getHeight())));

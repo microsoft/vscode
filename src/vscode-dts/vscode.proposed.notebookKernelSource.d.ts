@@ -23,6 +23,10 @@ declare module 'vscode' {
 
 	export interface NotebookKernelSourceActionProvider {
 		/**
+		 * An optional event to signal that the kernel source actions have changed.
+		 */
+		onDidChangeNotebookKernelSourceActions?: Event<void>;
+		/**
 		 * Provide kernel source actions
 		 */
 		provideNotebookKernelSourceActions(token: CancellationToken): ProviderResult<NotebookKernelSourceAction[]>;

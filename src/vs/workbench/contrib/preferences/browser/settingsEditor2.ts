@@ -31,7 +31,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { ILogService } from 'vs/platform/log/common/log';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { asCssValue, badgeBackground, badgeForeground, contrastBorder, editorForeground } from 'vs/platform/theme/common/colorRegistry';
+import { asCssVariable, badgeBackground, badgeForeground, contrastBorder, editorForeground } from 'vs/platform/theme/common/colorRegistry';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { ThemeIcon } from 'vs/base/common/themables';
 import { IUserDataSyncEnablementService, IUserDataSyncService, SyncStatus } from 'vs/platform/userDataSync/common/userDataSync';
@@ -286,6 +286,7 @@ export class SettingsEditor2 extends EditorPane {
 
 	override get minimumWidth(): number { return SettingsEditor2.EDITOR_MIN_WIDTH; }
 	override get maximumWidth(): number { return Number.POSITIVE_INFINITY; }
+	override get minimumHeight() { return 180; }
 
 	// these setters need to exist because this extends from EditorPane
 	override set minimumWidth(value: number) { /*noop*/ }
@@ -584,9 +585,9 @@ export class SettingsEditor2 extends EditorPane {
 
 		this.countElement = DOM.append(searchContainer, DOM.$('.settings-count-widget.monaco-count-badge.long'));
 
-		this.countElement.style.backgroundColor = asCssValue(badgeBackground);
-		this.countElement.style.color = asCssValue(badgeForeground);
-		this.countElement.style.border = `1px solid ${asCssValue(contrastBorder)}`;
+		this.countElement.style.backgroundColor = asCssVariable(badgeBackground);
+		this.countElement.style.color = asCssVariable(badgeForeground);
+		this.countElement.style.border = `1px solid ${asCssVariable(contrastBorder)}`;
 
 		this._register(this.searchWidget.onInputDidChange(() => {
 			const searchVal = this.searchWidget.getValue();
@@ -595,7 +596,7 @@ export class SettingsEditor2 extends EditorPane {
 		}));
 
 		const headerControlsContainer = DOM.append(this.headerContainer, $('.settings-header-controls'));
-		headerControlsContainer.style.borderColor = asCssValue(settingsHeaderBorder);
+		headerControlsContainer.style.borderColor = asCssVariable(settingsHeaderBorder);
 
 		const targetWidgetContainer = DOM.append(headerControlsContainer, $('.settings-target-container'));
 		this.settingsTargetsWidget = this._register(this.instantiationService.createInstance(SettingsTargetsWidget, targetWidgetContainer, { enableRemoteSettings: true }));
@@ -753,7 +754,7 @@ export class SettingsEditor2 extends EditorPane {
 
 		DOM.append(this.noResultsMessage, this.clearFilterLinkContainer);
 
-		this.noResultsMessage.style.color = asCssValue(editorForeground);
+		this.noResultsMessage.style.color = asCssVariable(editorForeground);
 
 		this.tocTreeContainer = $('.settings-toc-container');
 		this.settingsTreeContainer = $('.settings-tree-container');

@@ -93,7 +93,7 @@ export class NotebookCellTextModel extends Disposable implements ICell {
 
 		if (this._textModel) {
 			const languageId = this._languageService.createById(newLanguageId);
-			this._textModel.setMode(languageId.languageId);
+			this._textModel.setLanguage(languageId.languageId);
 		}
 
 		if (this._language === newLanguage) {
@@ -435,7 +435,10 @@ export class NotebookCellTextModel extends Disposable implements ICell {
 			return false;
 		}
 
-		if (this._source !== b.source) {
+		// Once we attach the cell text buffer to an editor, the source of truth is the text buffer instead of the original source
+		if (this._textBuffer && this.getValue() !== b.source) {
+			return false;
+		} else if (this._source !== b.source) {
 			return false;
 		}
 

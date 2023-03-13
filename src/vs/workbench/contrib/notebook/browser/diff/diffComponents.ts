@@ -371,7 +371,9 @@ abstract class AbstractElementRenderer extends Disposable {
 				}
 			}
 
-			this.layout({ metadataHeight: metadataLayoutChange, outputTotalHeight: outputLayoutChange });
+			if (metadataLayoutChange || outputLayoutChange) {
+				this.layout({ metadataHeight: metadataLayoutChange, outputTotalHeight: outputLayoutChange });
+			}
 		}));
 	}
 
@@ -811,7 +813,9 @@ abstract class SingleSideDiffElement extends AbstractElementRenderer {
 				}
 			}
 
-			this.layout({ metadataHeight: metadataLayoutChange, outputTotalHeight: outputLayoutChange });
+			if (metadataLayoutChange || outputLayoutChange) {
+				this.layout({ metadataHeight: metadataLayoutChange, outputTotalHeight: outputLayoutChange });
+			}
 		}));
 	}
 
@@ -1497,10 +1501,6 @@ export class ModifiedElement extends AbstractElementRenderer {
 		this._editorContainer.style.height = `${editorHeight}px`;
 
 		this._register(this._editor.onDidContentSizeChange((e) => {
-			if (this._editorLayoutInProgress) {
-				return;
-			}
-
 			if (e.contentHeightChanged && this.cell.layoutInfo.editorHeight !== e.contentHeight) {
 				this.cell.editorHeight = e.contentHeight;
 			}
@@ -1588,11 +1588,8 @@ export class ModifiedElement extends AbstractElementRenderer {
 		this.cell.editorHeight = contentHeight;
 	}
 
-	private _editorLayoutInProgress = false;
-
 	layout(state: IDiffElementLayoutState) {
 		DOM.scheduleAtNextAnimationFrame(() => {
-			this._editorLayoutInProgress = true;
 			if (state.editorHeight) {
 				this._editorContainer.style.height = `${this.cell.layoutInfo.editorHeight}px`;
 				this._editor!.layout({
@@ -1626,8 +1623,6 @@ export class ModifiedElement extends AbstractElementRenderer {
 				}
 			}
 
-
-			this._editorLayoutInProgress = false;
 			this.layoutNotebookCell();
 		});
 	}

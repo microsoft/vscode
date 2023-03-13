@@ -13,7 +13,7 @@ import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiati
 import { IQuickInputButton, IQuickInputService, IQuickPickItem, IQuickPickSeparator } from 'vs/platform/quickinput/common/quickInput';
 import { ITerminalCommand, TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
 import { collapseTildePath } from 'vs/platform/terminal/common/terminalEnvironment';
-import { asCssValue, inputActiveOptionBackground, inputActiveOptionBorder, inputActiveOptionForeground } from 'vs/platform/theme/common/colorRegistry';
+import { asCssVariable, inputActiveOptionBackground, inputActiveOptionBorder, inputActiveOptionForeground } from 'vs/platform/theme/common/colorRegistry';
 import { ThemeIcon } from 'vs/base/common/themables';
 import { ITerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { commandHistoryFuzzySearchIcon, commandHistoryOutputIcon, commandHistoryRemoveIcon } from 'vs/workbench/contrib/terminal/browser/terminalIcons';
@@ -207,9 +207,9 @@ export async function showRunRecentQuickPick(
 		title: 'Fuzzy search',
 		icon: commandHistoryFuzzySearchIcon,
 		isChecked: filterMode === 'fuzzy',
-		inputActiveOptionBorder: asCssValue(inputActiveOptionBorder),
-		inputActiveOptionForeground: asCssValue(inputActiveOptionForeground),
-		inputActiveOptionBackground: asCssValue(inputActiveOptionBackground)
+		inputActiveOptionBorder: asCssVariable(inputActiveOptionBorder),
+		inputActiveOptionForeground: asCssVariable(inputActiveOptionForeground),
+		inputActiveOptionBackground: asCssVariable(inputActiveOptionBackground)
 	});
 	fuzzySearchToggle.onChange(() => {
 		instantiationService.invokeFunction(showRunRecentQuickPick, instance, terminalInRunCommandPicker, type, fuzzySearchToggle.checked ? 'fuzzy' : 'contiguous', quickPick.value);

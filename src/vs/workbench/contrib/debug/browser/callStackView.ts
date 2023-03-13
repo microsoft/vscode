@@ -35,7 +35,7 @@ import { WorkbenchCompressibleAsyncDataTree } from 'vs/platform/list/browser/lis
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { asCssValue, textLinkForeground } from 'vs/platform/theme/common/colorRegistry';
+import { asCssVariable, textLinkForeground } from 'vs/platform/theme/common/colorRegistry';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { ThemeIcon } from 'vs/base/common/themables';
 import { ViewAction, ViewPane } from 'vs/workbench/browser/parts/views/viewPane';
@@ -820,7 +820,7 @@ class LoadMoreRenderer implements ICompressibleTreeRenderer<ThreadAndSessionIds,
 
 	renderTemplate(container: HTMLElement): ILabelTemplateData {
 		const label = dom.append(container, $('.load-all'));
-		label.style.color = asCssValue(textLinkForeground);
+		label.style.color = asCssVariable(textLinkForeground);
 		return { label };
 	}
 
@@ -849,7 +849,7 @@ class ShowMoreRenderer implements ICompressibleTreeRenderer<IStackFrame[], Fuzzy
 
 	renderTemplate(container: HTMLElement): ILabelTemplateData {
 		const label = dom.append(container, $('.show-more'));
-		label.style.color = asCssValue(textLinkForeground);
+		label.style.color = asCssVariable(textLinkForeground);
 		return { label };
 	}
 

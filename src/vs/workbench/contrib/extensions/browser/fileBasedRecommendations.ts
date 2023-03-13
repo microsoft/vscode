@@ -197,7 +197,7 @@ export class FileBasedRecommendations extends ExtensionRecommendations {
 		this.processedFileExtensions.push(fileExtension);
 
 		// re-schedule this bit of the operation to be off the critical path - in case glob-match is slow
-		this._register(disposableTimeout(() => this.promptRecommendations(uri, language, fileExtension), 0));
+		this._register(disposableTimeout(() => this.promptRecommendations(uri, language, fileExtension).finally(/*do nothing*/), 0));
 	}
 
 	private async promptRecommendations(uri: URI, language: string, fileExtension: string): Promise<void> {
@@ -248,7 +248,7 @@ export class FileBasedRecommendations extends ExtensionRecommendations {
 			return;
 		}
 
-		this.promptRecommendedExtensionForFileExtension(uri, fileExtension, installed);
+		await this.promptRecommendedExtensionForFileExtension(uri, fileExtension, installed);
 	}
 
 	private async promptRecommendedExtensionForFileType(name: string, language: string, recommendations: string[], installed: IExtension[]): Promise<boolean> {

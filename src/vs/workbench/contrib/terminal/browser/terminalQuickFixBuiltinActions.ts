@@ -171,11 +171,26 @@ export function gitCreatePr(): IInternalOptions {
 		id: 'Git Create Pr',
 		type: 'internal',
 		commandLineMatcher: GitPushCommandLineRegex,
+		// Example output:
+		// ...
+		// 10: remote:
+		// 9:  remote: Create a pull request for 'my_branch' on GitHub by visiting:
+		// 8:  remote:      https://github.com/microsoft/vscode/pull/new/my_branch
+		// 7:  remote:
+		// 6:  remote: GitHub found x vulnerabilities on microsoft/vscode's default branch (...). To find out more, visit:
+		// 5:  remote:      https://github.com/microsoft/vscode/security/dependabot
+		// 4:  remote:
+		// 3:  To https://github.com/microsoft/vscode
+		// 2:  * [new branch]              my_branch -> my_branch
+		// 1:  Branch 'my_branch' set up to track remote branch 'my_branch' from 'origin'.
+		// 0:
 		outputMatcher: {
 			lineMatcher: GitCreatePrOutputRegex,
 			anchor: 'bottom',
-			offset: 0,
-			length: 5
+			offset: 4,
+			// ~6 should only be needed here for security alerts, but the git provider can customize
+			// the text, so use 12 to be safe.
+			length: 12
 		},
 		commandExitResult: 'success',
 		getQuickFixes: (matchResult: ITerminalCommandMatchResult) => {

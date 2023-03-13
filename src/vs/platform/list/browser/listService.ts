@@ -20,7 +20,7 @@ import { combinedDisposable, Disposable, DisposableStore, dispose, IDisposable, 
 import { localize } from 'vs/nls';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
-import { ContextKeyExpr, IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { ContextKeyExpr, IContextKey, IContextKeyService, IScopedContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { InputFocusedContextKey } from 'vs/platform/contextkey/common/contextkeys';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IEditorOptions } from 'vs/platform/editor/common/editor';
@@ -132,7 +132,7 @@ const WorkbenchListTypeNavigationModeKey = 'listTypeNavigationMode';
  */
 const WorkbenchListAutomaticKeyboardNavigationLegacyKey = 'listAutomaticKeyboardNavigation';
 
-function createScopedContextKeyService(contextKeyService: IContextKeyService, widget: ListWidget): IContextKeyService {
+function createScopedContextKeyService(contextKeyService: IContextKeyService, widget: ListWidget): IScopedContextKeyService {
 	const result = contextKeyService.createScoped(widget.getHTMLElement());
 	RawWorkbenchListFocusContextKey.bindTo(result);
 	return result;
@@ -222,7 +222,7 @@ export interface IWorkbenchListOptions<T> extends IWorkbenchListOptionsUpdate, I
 
 export class WorkbenchList<T> extends List<T> {
 
-	readonly contextKeyService: IContextKeyService;
+	readonly contextKeyService: IScopedContextKeyService;
 	private listSupportsMultiSelect: IContextKey<boolean>;
 	private listHasSelectionOrFocus: IContextKey<boolean>;
 	private listDoubleSelection: IContextKey<boolean>;
@@ -331,7 +331,9 @@ export class WorkbenchList<T> extends List<T> {
 	override updateOptions(options: IWorkbenchListOptionsUpdate): void {
 		super.updateOptions(options);
 
-		this.updateStyles(options.overrideStyles);
+		if (options.overrideStyles !== undefined) {
+			this.updateStyles(options.overrideStyles);
+		}
 
 		if (options.multipleSelectionSupport !== undefined) {
 			this.listSupportsMultiSelect.set(!!options.multipleSelectionSupport);
@@ -353,7 +355,7 @@ export interface IWorkbenchPagedListOptions<T> extends IWorkbenchListOptionsUpda
 
 export class WorkbenchPagedList<T> extends PagedList<T> {
 
-	readonly contextKeyService: IContextKeyService;
+	readonly contextKeyService: IScopedContextKeyService;
 	private readonly disposables: DisposableStore;
 	private listSupportsMultiSelect: IContextKey<boolean>;
 	private _useAltAsMultipleSelectionModifier: boolean;
@@ -441,7 +443,7 @@ export class WorkbenchPagedList<T> extends PagedList<T> {
 	override updateOptions(options: IWorkbenchListOptionsUpdate): void {
 		super.updateOptions(options);
 
-		if (options.overrideStyles) {
+		if (options.overrideStyles !== undefined) {
 			this.updateStyles(options.overrideStyles);
 		}
 
@@ -474,7 +476,7 @@ export interface IWorkbenchTableOptions<T> extends IWorkbenchTableOptionsUpdate,
 
 export class WorkbenchTable<TRow> extends Table<TRow> {
 
-	readonly contextKeyService: IContextKeyService;
+	readonly contextKeyService: IScopedContextKeyService;
 	private listSupportsMultiSelect: IContextKey<boolean>;
 	private listHasSelectionOrFocus: IContextKey<boolean>;
 	private listDoubleSelection: IContextKey<boolean>;
@@ -584,7 +586,9 @@ export class WorkbenchTable<TRow> extends Table<TRow> {
 	override updateOptions(options: IWorkbenchTableOptionsUpdate): void {
 		super.updateOptions(options);
 
-		this.updateStyles(options.overrideStyles);
+		if (options.overrideStyles !== undefined) {
+			this.updateStyles(options.overrideStyles);
+		}
 
 		if (options.multipleSelectionSupport !== undefined) {
 			this.listSupportsMultiSelect.set(!!options.multipleSelectionSupport);
@@ -935,7 +939,7 @@ export class WorkbenchDataTree<TInput, T, TFilterData = void> extends DataTree<T
 	override updateOptions(options: IWorkbenchDataTreeOptionsUpdate = {}): void {
 		super.updateOptions(options);
 
-		if (options.overrideStyles) {
+		if (options.overrideStyles !== undefined) {
 			this.internals.updateStyleOverrides(options.overrideStyles);
 		}
 
@@ -1100,6 +1104,7 @@ function workbenchTreeDataPreamble<T, TFilterData, TOptions extends IAbstractTre
 	const horizontalScrolling = options.horizontalScrolling !== undefined ? options.horizontalScrolling : Boolean(configurationService.getValue(horizontalScrollingKey));
 	const [workbenchListOptions, disposable] = instantiationService.invokeFunction(toWorkbenchListOptions, options);
 	const additionalScrollHeight = options.additionalScrollHeight;
+	const renderIndentGuides = options.renderIndentGuides !== undefined ? options.renderIndentGuides : configurationService.getValue<RenderIndentGuides>(treeRenderIndentGuidesKey);
 
 	return {
 		getTypeNavigationMode,
@@ -1109,7 +1114,7 @@ function workbenchTreeDataPreamble<T, TFilterData, TOptions extends IAbstractTre
 			keyboardSupport: false,
 			...workbenchListOptions,
 			indent: typeof configurationService.getValue(treeIndentKey) === 'number' ? configurationService.getValue(treeIndentKey) : undefined,
-			renderIndentGuides: configurationService.getValue<RenderIndentGuides>(treeRenderIndentGuidesKey),
+			renderIndentGuides,
 			smoothScrolling: Boolean(configurationService.getValue(listSmoothScrolling)),
 			defaultFindMode: getDefaultTreeFindMode(configurationService),
 			defaultFindMatchType: getDefaultTreeFindMatchType(configurationService),
@@ -1119,7 +1124,7 @@ function workbenchTreeDataPreamble<T, TFilterData, TOptions extends IAbstractTre
 			hideTwistiesOfChildlessElements: options.hideTwistiesOfChildlessElements,
 			expandOnlyOnTwistieClick: options.expandOnlyOnTwistieClick ?? (configurationService.getValue<'singleClick' | 'doubleClick'>(treeExpandMode) === 'doubleClick'),
 			contextViewProvider: contextViewService as IContextViewProvider,
-			findWidgetStyles: defaultFindWidgetStyles
+			findWidgetStyles: defaultFindWidgetStyles,
 		} as TOptions
 	};
 }
@@ -1130,7 +1135,7 @@ interface IWorkbenchTreeInternalsOptionsUpdate {
 
 class WorkbenchTreeInternals<TInput, T, TFilterData> {
 
-	readonly contextKeyService: IContextKeyService;
+	readonly contextKeyService: IScopedContextKeyService;
 	private listSupportsMultiSelect: IContextKey<boolean>;
 	private listSupportFindWidget: IContextKey<boolean>;
 	private hasSelectionOrFocus: IContextKey<boolean>;
@@ -1233,7 +1238,7 @@ class WorkbenchTreeInternals<TInput, T, TFilterData> {
 					const indent = configurationService.getValue<number>(treeIndentKey);
 					newOptions = { ...newOptions, indent };
 				}
-				if (e.affectsConfiguration(treeRenderIndentGuidesKey)) {
+				if (e.affectsConfiguration(treeRenderIndentGuidesKey) && options.renderIndentGuides === undefined) {
 					const renderIndentGuides = configurationService.getValue<RenderIndentGuides>(treeRenderIndentGuidesKey);
 					newOptions = { ...newOptions, renderIndentGuides };
 				}
@@ -1375,7 +1380,7 @@ configurationRegistry.registerConfiguration({
 		[fastScrollSensitivityKey]: {
 			type: 'number',
 			default: 5,
-			description: localize('Fast Scroll Sensitivity', "Scrolling speed multiplier when pressing `Alt`.")
+			markdownDescription: localize('Fast Scroll Sensitivity', "Scrolling speed multiplier when pressing `Alt`.")
 		},
 		[defaultFindModeSettingKey]: {
 			type: 'string',

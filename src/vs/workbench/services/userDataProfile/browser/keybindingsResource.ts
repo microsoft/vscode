@@ -68,7 +68,7 @@ export class KeybindingsResourceTreeItem implements IProfileResourceTreeItem {
 	readonly handle = ProfileResourceType.Keybindings;
 	readonly label = { label: localize('keybindings', "Keyboard Shortcuts") };
 	readonly collapsibleState = TreeItemCollapsibleState.Expanded;
-	checkbox: ITreeItemCheckboxState = { isChecked: true };
+	checkbox: ITreeItemCheckboxState | undefined;
 
 	constructor(
 		private readonly profile: IUserDataProfile,

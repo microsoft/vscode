@@ -20,7 +20,7 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ICodeEditor, IOverlayWidget, IOverlayWidgetPosition } from 'vs/editor/browser/editorBrowser';
-import { asCssValue, editorWidgetBackground, editorWidgetForeground, widgetShadow } from 'vs/platform/theme/common/colorRegistry';
+import { asCssVariable, editorWidgetBackground, editorWidgetForeground, widgetShadow } from 'vs/platform/theme/common/colorRegistry';
 import { ScrollType } from 'vs/editor/common/editorCommon';
 import { SearchWidget, SearchOptions } from 'vs/workbench/contrib/preferences/browser/preferencesWidgets';
 import { withNullAsUndefined } from 'vs/base/common/types';
@@ -180,9 +180,9 @@ export class DefineKeybindingWidget extends Widget {
 		const message = nls.localize('defineKeybinding.initial', "Press desired key combination and then press ENTER.");
 		dom.append(this._domNode.domNode, dom.$('.message', undefined, message));
 
-		this._domNode.domNode.style.backgroundColor = asCssValue(editorWidgetBackground);
-		this._domNode.domNode.style.color = asCssValue(editorWidgetForeground);
-		this._domNode.domNode.style.boxShadow = `0 2px 8px ${asCssValue(widgetShadow)}`;
+		this._domNode.domNode.style.backgroundColor = asCssVariable(editorWidgetBackground);
+		this._domNode.domNode.style.color = asCssVariable(editorWidgetForeground);
+		this._domNode.domNode.style.boxShadow = `0 2px 8px ${asCssVariable(widgetShadow)}`;
 
 		this._keybindingInputWidget = this._register(this.instantiationService.createInstance(KeybindingsSearchWidget, this._domNode.domNode, { ariaLabel: message, history: [], inputBoxStyles: defaultInputBoxStyles }));
 		this._keybindingInputWidget.startRecordingKeys();

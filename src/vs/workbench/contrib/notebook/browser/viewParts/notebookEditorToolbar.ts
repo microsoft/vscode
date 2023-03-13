@@ -24,7 +24,7 @@ import { NotebooKernelActionViewItem } from 'vs/workbench/contrib/notebook/brows
 import { ActionViewWithLabel } from 'vs/workbench/contrib/notebook/browser/view/cellParts/cellActionView';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IWorkbenchAssignmentService } from 'vs/workbench/services/assignment/common/assignmentService';
-import { NotebookOptions } from 'vs/workbench/contrib/notebook/common/notebookOptions';
+import { NotebookOptions } from 'vs/workbench/contrib/notebook/browser/notebookOptions';
 import { IActionViewItemProvider } from 'vs/base/browser/ui/actionbar/actionbar';
 import { disposableTimeout } from 'vs/base/common/async';
 import { ActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
@@ -382,8 +382,8 @@ export class NotebookEditorToolbar extends Disposable {
 
 		this._notebookLeftToolbar = new ToolBar(this._notebookTopLeftToolbarContainer, this.contextMenuService, {
 			getKeyBinding: action => this.keybindingService.lookupKeybinding(action.id),
-			actionViewItemProvider: (action) => {
-				return this._strategy.actionProvider(action);
+			actionViewItemProvider: (action, options) => {
+				return this._strategy.actionProvider(action, options);
 			},
 			renderDropdownAsChildElement: true
 		});
@@ -440,8 +440,8 @@ export class NotebookEditorToolbar extends Disposable {
 				this._notebookLeftToolbar.dispose();
 				this._notebookLeftToolbar = new ToolBar(this._notebookTopLeftToolbarContainer, this.contextMenuService, {
 					getKeyBinding: action => this.keybindingService.lookupKeybinding(action.id),
-					actionViewItemProvider: (action) => {
-						return this._strategy.actionProvider(action);
+					actionViewItemProvider: (action, options) => {
+						return this._strategy.actionProvider(action, options);
 					},
 					renderDropdownAsChildElement: true
 				});

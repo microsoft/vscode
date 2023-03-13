@@ -23,6 +23,7 @@ class TestEnvironmentService extends AbstractNativeEnvironmentService {
 		super(Object.create(null), Object.create(null), { _serviceBrand: undefined, ...product });
 	}
 	override get userRoamingDataHome() { return this._appSettingsHome.with({ scheme: Schemas.vscodeUserData }); }
+	override get cacheHome() { return this.userRoamingDataHome; }
 }
 
 suite('UserDataProfileService (Common)', () => {
@@ -40,7 +41,6 @@ suite('UserDataProfileService (Common)', () => {
 
 		environmentService = new TestEnvironmentService(joinPath(ROOT, 'User'));
 		testObject = new InMemoryUserDataProfilesService(environmentService, fileService, new UriIdentityService(fileService), logService);
-		testObject.setEnablement(true);
 	});
 
 	teardown(() => disposables.clear());

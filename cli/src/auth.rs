@@ -5,7 +5,7 @@
 
 use crate::{
 	constants::{get_default_user_agent, PRODUCT_NAME_LONG},
-	info, log,
+	debug, info, log,
 	state::{LauncherPaths, PersistedState},
 	trace,
 	util::{
@@ -112,7 +112,7 @@ pub struct StoredCredential {
 }
 
 impl StoredCredential {
-	pub async fn is_expired(&self, client: &reqwest::Client) -> bool {
+	pub async fn is_expired(&self, log: &log::Logger, client: &reqwest::Client) -> bool {
 		match self.provider {
 			AuthProvider::Microsoft => self
 				.expires_at
@@ -122,14 +122,29 @@ impl StoredCredential {
 			// Make an auth request to Github. Mark the credential as expired
 			// only on a verifiable 4xx code. We don't error on any failed
 			// request since then a drop in connection could "require" a refresh
-			AuthProvider::Github => client
-				.get("https://api.github.com/user")
-				.header("Authorization", format!("token {}", self.access_token))
-				.header("User-Agent", get_default_user_agent())
-				.send()
-				.await
-				.map(|r| r.status().is_client_error())
-				.unwrap_or(false),
+			AuthProvider::Github => {
+				let res = client
+					.get("https://api.github.com/user")
+					.header("Authorization", format!("token {}", self.access_token))
+					.header("User-Agent", get_default_user_agent())
+					.send()
+					.await;
+				let res = match res {
+					Ok(r) => r,
+					Err(e) => {
+						warning!(log, "failed to check Github token: {}", e);
+						return false;
+					}
+				};
+
+				if res.status().is_success() {
+					return false;
+				}
+
+				let err = StatusError::from_res(res).await;
+				debug!(log, "github token looks expired: {:?}", err);
+				true
+			}
 		}
 	}
 
@@ -168,6 +183,9 @@ where
 	T: Serialize + ?Sized,
 {
 	let dec = serde_json::to_string(value).expect("expected to serialize");
+	if std::env::var("VSCODE_CLI_DISABLE_KEYCHAIN_ENCRYPT").is_ok() {
+		return dec;
+	}
 	encrypt(&dec)
 }
 
@@ -176,7 +194,7 @@ fn unseal<T>(value: &str) -> Option<T>
 where
 	T: DeserializeOwned,
 {
-	// small back-compat for old unencrypted values
+	// small back-compat for old unencrypted values, or if VSCODE_CLI_DISABLE_KEYCHAIN_ENCRYPT set
 	if let Ok(v) = serde_json::from_str::<T>(value) {
 		return Some(v);
 	}
@@ -453,7 +471,7 @@ impl Auth {
 		&self,
 		creds: &StoredCredential,
 	) -> Result<Option<StoredCredential>, AnyError> {
-		if !creds.is_expired(&self.client).await {
+		if !creds.is_expired(&self.log, &self.client).await {
 			return Ok(None);
 		}
 

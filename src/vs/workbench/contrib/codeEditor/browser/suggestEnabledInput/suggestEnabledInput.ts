@@ -24,7 +24,7 @@ import { SnippetController2 } from 'vs/editor/contrib/snippet/browser/snippetCon
 import { SuggestController } from 'vs/editor/contrib/suggest/browser/suggestController';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ColorIdentifier, asCssValue, asCssValueWithDefault, editorSelectionBackground, inputBackground, inputBorder, inputForeground, inputPlaceholderForeground, selectionBackground } from 'vs/platform/theme/common/colorRegistry';
+import { ColorIdentifier, asCssVariable, asCssVariableWithDefault, editorSelectionBackground, inputBackground, inputBorder, inputForeground, inputPlaceholderForeground, selectionBackground } from 'vs/platform/theme/common/colorRegistry';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { MenuPreventer } from 'vs/workbench/contrib/codeEditor/browser/menuPreventer';
 import { getSimpleEditorOptions } from 'vs/workbench/contrib/codeEditor/browser/simpleEditorOptions';
@@ -37,6 +37,8 @@ import { IHistoryNavigationWidget } from 'vs/base/browser/history';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import { IEditorConstructionOptions } from 'vs/editor/browser/config/editorConfiguration';
+import { ensureValidWordDefinition, getWordAtText } from 'vs/editor/common/core/wordHelper';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 export interface SuggestResultsProvider {
 	/**
@@ -53,6 +55,20 @@ export interface SuggestResultsProvider {
 	 * Defaults to the empty array.
 	 */
 	triggerCharacters?: string[];
+
+	/**
+	 * Optional regular expression that describes what a word is
+	 *
+	 * Defaults to space separated words.
+	 */
+	wordDefinition?: RegExp;
+
+	/**
+	 * Show suggestions even if the trigger character is not present.
+	 *
+	 * Defaults to false.
+	 */
+	alwaysShowSuggestions?: boolean;
 
 	/**
 	 * Defines the sorting function used when showing results.
@@ -130,6 +146,7 @@ export class SuggestEnabledInput extends Widget {
 		@IModelService modelService: IModelService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@ILanguageFeaturesService languageFeaturesService: ILanguageFeaturesService,
+		@IConfigurationService configurationService: IConfigurationService
 	) {
 		super();
 
@@ -141,6 +158,8 @@ export class SuggestEnabledInput extends Widget {
 			getSimpleEditorOptions(),
 			getSuggestEnabledInputOptions(ariaLabel));
 		editorOptions.overflowWidgetsDomNode = options.overflowWidgetsDomNode;
+		editorOptions.accessibilitySupport = configurationService.getValue<'auto' | 'off' | 'on'>('editor.accessibilitySupport');
+		editorOptions.cursorBlinking = configurationService.getValue<'blink' | 'smooth' | 'phase' | 'expand' | 'solid'>('editor.cursorBlinking');
 
 		const scopedContextKeyService = this.getScopedContextKeyService(contextKeyService);
 
@@ -160,6 +179,18 @@ export class SuggestEnabledInput extends Widget {
 				]),
 				isSimpleWidget: true,
 			}));
+
+		this._register(configurationService.onDidChangeConfiguration((e) => {
+			if (e.affectsConfiguration('editor.accessibilitySupport') ||
+				e.affectsConfiguration('editor.cursorBlinking')) {
+				const accessibilitySupport = configurationService.getValue<'auto' | 'off' | 'on'>('editor.accessibilitySupport');
+				const cursorBlinking = configurationService.getValue<'blink' | 'smooth' | 'phase' | 'expand' | 'solid'>('editor.cursorBlinking');
+				this.inputWidget.updateOptions({
+					accessibilitySupport,
+					cursorBlinking
+				});
+			}
+		}));
 
 		this._register(this.inputWidget.onDidFocusEditorText(() => this._onDidFocus.fire()));
 		this._register(this.inputWidget.onDidBlurEditorText(() => this._onDidBlur.fire()));
@@ -199,7 +230,9 @@ export class SuggestEnabledInput extends Widget {
 		const validatedSuggestProvider = {
 			provideResults: suggestionProvider.provideResults,
 			sortKey: suggestionProvider.sortKey || (a => a),
-			triggerCharacters: suggestionProvider.triggerCharacters || []
+			triggerCharacters: suggestionProvider.triggerCharacters || [],
+			wordDefinition: suggestionProvider.wordDefinition ? ensureValidWordDefinition(suggestionProvider.wordDefinition) : undefined,
+			alwaysShowSuggestions: !!suggestionProvider.alwaysShowSuggestions,
 		};
 
 		this.setValue(options.value || '');
@@ -210,12 +243,19 @@ export class SuggestEnabledInput extends Widget {
 				const query = model.getValue();
 
 				const zeroIndexedColumn = position.column - 1;
+				let alreadyTypedCount = 0, zeroIndexedWordStart = 0;
 
-				const zeroIndexedWordStart = query.lastIndexOf(' ', zeroIndexedColumn - 1) + 1;
-				const alreadyTypedCount = zeroIndexedColumn - zeroIndexedWordStart;
+				if (validatedSuggestProvider.wordDefinition) {
+					const wordAtText = getWordAtText(position.column, validatedSuggestProvider.wordDefinition, query, 0);
+					alreadyTypedCount = wordAtText?.word.length ?? 0;
+					zeroIndexedWordStart = wordAtText ? wordAtText.startColumn - 1 : 0;
+				} else {
+					zeroIndexedWordStart = query.lastIndexOf(' ', zeroIndexedColumn - 1) + 1;
+					alreadyTypedCount = zeroIndexedColumn - zeroIndexedWordStart;
+				}
 
 				// dont show suggestions if the user has typed something, but hasn't used the trigger character
-				if (alreadyTypedCount > 0 && validatedSuggestProvider.triggerCharacters.indexOf(query[zeroIndexedWordStart]) === -1) {
+				if (!validatedSuggestProvider.alwaysShowSuggestions && alreadyTypedCount > 0 && validatedSuggestProvider.triggerCharacters?.indexOf(query[zeroIndexedWordStart]) === -1) {
 					return { suggestions: [] };
 				}
 
@@ -267,16 +307,16 @@ export class SuggestEnabledInput extends Widget {
 	}
 
 	private style(styleOverrides: ISuggestEnabledInputStyleOverrides): void {
-		this.stylingContainer.style.backgroundColor = asCssValue(styleOverrides.inputBackground ?? inputBackground);
-		this.stylingContainer.style.color = asCssValue(styleOverrides.inputForeground ?? inputForeground);
-		this.placeholderText.style.color = asCssValue(styleOverrides.inputPlaceholderForeground ?? inputPlaceholderForeground);
+		this.stylingContainer.style.backgroundColor = asCssVariable(styleOverrides.inputBackground ?? inputBackground);
+		this.stylingContainer.style.color = asCssVariable(styleOverrides.inputForeground ?? inputForeground);
+		this.placeholderText.style.color = asCssVariable(styleOverrides.inputPlaceholderForeground ?? inputPlaceholderForeground);
 		this.stylingContainer.style.borderWidth = '1px';
 		this.stylingContainer.style.borderStyle = 'solid';
-		this.stylingContainer.style.borderColor = asCssValueWithDefault(styleOverrides.inputBorder ?? inputBorder, 'transparent');
+		this.stylingContainer.style.borderColor = asCssVariableWithDefault(styleOverrides.inputBorder ?? inputBorder, 'transparent');
 
 		const cursor = this.stylingContainer.getElementsByClassName('cursor')[0] as HTMLDivElement;
 		if (cursor) {
-			cursor.style.backgroundColor = asCssValue(styleOverrides.inputForeground ?? inputForeground);
+			cursor.style.backgroundColor = asCssVariable(styleOverrides.inputForeground ?? inputForeground);
 		}
 	}
 
@@ -321,8 +361,9 @@ export class SuggestEnabledInputWithHistory extends SuggestEnabledInput implemen
 		@IModelService modelService: IModelService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@ILanguageFeaturesService languageFeaturesService: ILanguageFeaturesService,
+		@IConfigurationService configurationService: IConfigurationService
 	) {
-		super(id, parent, suggestionProvider, ariaLabel, resourceHandle, suggestOptions, instantiationService, modelService, contextKeyService, languageFeaturesService);
+		super(id, parent, suggestionProvider, ariaLabel, resourceHandle, suggestOptions, instantiationService, modelService, contextKeyService, languageFeaturesService, configurationService);
 		this.history = new HistoryNavigator<string>(history, 100);
 	}
 
@@ -399,8 +440,9 @@ export class ContextScopedSuggestEnabledInputWithHistory extends SuggestEnabledI
 		@IModelService modelService: IModelService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@ILanguageFeaturesService languageFeaturesService: ILanguageFeaturesService,
+		@IConfigurationService configurationService: IConfigurationService
 	) {
-		super(options, instantiationService, modelService, contextKeyService, languageFeaturesService);
+		super(options, instantiationService, modelService, contextKeyService, languageFeaturesService, configurationService);
 
 		const { historyNavigationBackwardsEnablement, historyNavigationForwardsEnablement } = this.historyContext;
 		this._register(this.inputWidget.onDidChangeCursorPosition(({ position }) => {

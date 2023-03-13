@@ -6,6 +6,7 @@
 import * as DOM from 'vs/base/browser/dom';
 import { IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { DefaultStyleController, IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
+import { RenderIndentGuides } from 'vs/base/browser/ui/tree/abstractTree';
 import { ITreeElement, ITreeNode, ITreeRenderer } from 'vs/base/browser/ui/tree/tree';
 import { Iterable } from 'vs/base/common/iterator';
 import { localize } from 'vs/nls';
@@ -216,7 +217,8 @@ export class TOCTree extends WorkbenchObjectTree<SettingsTreeGroupElement> {
 			accessibilityProvider: instantiationService.createInstance(SettingsAccessibilityProvider),
 			collapseByDefault: true,
 			horizontalScrolling: false,
-			hideTwistiesOfChildlessElements: true
+			hideTwistiesOfChildlessElements: true,
+			renderIndentGuides: RenderIndentGuides.None
 		};
 
 		super(
@@ -245,7 +247,9 @@ export class TOCTree extends WorkbenchObjectTree<SettingsTreeGroupElement> {
 			listInactiveSelectionBackground: editorBackground,
 			listInactiveSelectionForeground: settingsHeaderForeground,
 			listInactiveFocusBackground: editorBackground,
-			listInactiveFocusOutline: editorBackground
+			listInactiveFocusOutline: editorBackground,
+			treeIndentGuidesStroke: undefined,
+			treeInactiveIndentGuidesStroke: undefined
 		}));
 	}
 }

@@ -26,7 +26,7 @@ class ProfileAnalysisWorker implements IRequestHandler, IProfileAnalysisWorker {
 		}
 
 		const model = buildModel(profile);
-		const samples = bottomUp(model, 5, false)
+		const samples = bottomUp(model, 5)
 			.filter(s => !s.isSpecial);
 
 		if (samples.length === 0 || samples[0].percentage < 10) {
@@ -57,7 +57,7 @@ class ProfileAnalysisWorker implements IRequestHandler, IProfileAnalysisWorker {
 				// ignore
 			}
 			if (!category) {
-				category = printCallFrame(loc.callFrame, false);
+				category = printCallFrameShort(loc.callFrame);
 			}
 			const value = aggegrateByCategory.get(category) ?? 0;
 			const newValue = value + node.selfTime;
@@ -76,11 +76,11 @@ function isSpecial(call: CdpCallFrame): boolean {
 	return call.functionName.startsWith('(') && call.functionName.endsWith(')');
 }
 
-function printCallFrame(frame: CdpCallFrame, fullPaths: boolean): string {
+function printCallFrameShort(frame: CdpCallFrame): string {
 	let result = frame.functionName || '(anonymous)';
 	if (frame.url) {
 		result += '#';
-		result += fullPaths ? frame.url : basename(frame.url);
+		result += basename(frame.url);
 		if (frame.lineNumber >= 0) {
 			result += ':';
 			result += frame.lineNumber + 1;
@@ -89,6 +89,24 @@ function printCallFrame(frame: CdpCallFrame, fullPaths: boolean): string {
 			result += ':';
 			result += frame.columnNumber + 1;
 		}
+	}
+	return result;
+}
+
+function printCallFrameStackLike(frame: CdpCallFrame): string {
+	let result = frame.functionName || '(anonymous)';
+	if (frame.url) {
+		result += ' (';
+		result += frame.url;
+		if (frame.lineNumber >= 0) {
+			result += ':';
+			result += frame.lineNumber + 1;
+		}
+		if (frame.columnNumber >= 0) {
+			result += ':';
+			result += frame.columnNumber + 1;
+		}
+		result += ')';
 	}
 	return result;
 }
@@ -107,7 +125,7 @@ function getHeaviestLocationIds(model: IProfileModel, topN: number) {
 	return new Set(locationIds);
 }
 
-function bottomUp(model: IProfileModel, topN: number, fullPaths: boolean = false) {
+function bottomUp(model: IProfileModel, topN: number) {
 	const root = BottomUpNode.root();
 	const locationIds = getHeaviestLocationIds(model, topN);
 
@@ -129,7 +147,8 @@ function bottomUp(model: IProfileModel, topN: number, fullPaths: boolean = false
 		const sample: BottomUpSample = {
 			selfTime: Math.round(node.selfTime / 1000),
 			totalTime: Math.round(node.aggregateTime / 1000),
-			location: printCallFrame(node.callFrame, fullPaths),
+			location: printCallFrameShort(node.callFrame),
+			absLocation: printCallFrameStackLike(node.callFrame),
 			url: node.callFrame.url,
 			caller: [],
 			percentage: Math.round(node.selfTime / (model.duration / 100)),
@@ -148,7 +167,11 @@ function bottomUp(model: IProfileModel, topN: number, fullPaths: boolean = false
 			}
 			if (top) {
 				const percentage = Math.round(top.selfTime / (node.selfTime / 100));
-				sample.caller.push({ percentage, location: printCallFrame(top.callFrame, false) });
+				sample.caller.push({
+					percentage,
+					location: printCallFrameShort(top.callFrame),
+					absLocation: printCallFrameStackLike(top.callFrame),
+				});
 				stack.push(top);
 			}
 		}

@@ -9,7 +9,7 @@ import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { asCssValue } from 'vs/platform/theme/common/colorRegistry';
+import { asCssVariable } from 'vs/platform/theme/common/colorRegistry';
 import { ThemeColor } from 'vs/base/common/themables';
 
 /**
@@ -378,7 +378,7 @@ class RefCountedCssRule {
 			const value = (properties as any)[prop] as string | ThemeColor;
 			let cssValue;
 			if (typeof value === 'object') {
-				cssValue = asCssValue(value.id);
+				cssValue = asCssVariable(value.id);
 			} else {
 				cssValue = value;
 			}

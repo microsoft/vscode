@@ -95,7 +95,13 @@ if (Get-Module -Name PSReadLine) {
 # Set always on key handlers which map to default VS Code keybindings
 function Set-MappedKeyHandler {
 	param ([string[]] $Chord, [string[]]$Sequence)
-	$Handler = $(Get-PSReadLineKeyHandler -Chord $Chord | Select-Object -First 1)
+	try {
+		$Handler = Get-PSReadLineKeyHandler -Chord $Chord | Select-Object -First 1
+	} catch [System.Management.Automation.ParameterBindingException] {
+		# PowerShell 5.1 ships with PSReadLine 2.0.0 which does not have -Chord,
+		# so we check what's bound and filter it.
+		$Handler = Get-PSReadLineKeyHandler -Bound | Where-Object -FilterScript { $_.Key -eq $Chord } | Select-Object -First 1
+	}
 	if ($Handler) {
 		Set-PSReadLineKeyHandler -Chord $Sequence -Function $Handler.Function
 	}
@@ -106,6 +112,49 @@ function Set-MappedKeyHandlers {
 	Set-MappedKeyHandler -Chord Alt+Spacebar -Sequence 'F12,b'
 	Set-MappedKeyHandler -Chord Shift+Enter -Sequence 'F12,c'
 	Set-MappedKeyHandler -Chord Shift+End -Sequence 'F12,d'
+
+	# Conditionally enable suggestions
+	if ($env:VSCODE_SUGGEST -eq '1') {
+		Remove-Item Env:VSCODE_SUGGEST
+
+		# VS Code send completions request (may override Ctrl+Spacebar)
+		Set-PSReadLineKeyHandler -Chord 'F12,e' -ScriptBlock {
+			Send-Completions
+		}
+
+		# Suggest trigger characters
+		Set-PSReadLineKeyHandler -Chord "-" -ScriptBlock {
+			[Microsoft.PowerShell.PSConsoleReadLine]::Insert("-")
+			Send-Completions
+		}
+	}
 }
 
-Set-MappedKeyHandlers
+function Send-Completions {
+	$commandLine = ""
+	$cursorIndex = 0
+	# TODO: Since fuzzy matching exists, should completions be provided only for character after the
+	#       last space and then filter on the client side? That would let you trigger ctrl+space
+	#       anywhere on a word and have full completions available
+	[Microsoft.PowerShell.PSConsoleReadLine]::GetBufferState([ref]$commandLine, [ref]$cursorIndex)
+	$completionPrefix = $commandLine
+
+	# Get completions
+	$result = "`e]633;Completions"
+	if ($completionPrefix.Length -gt 0) {
+		# Get and send completions
+		$completions = TabExpansion2 -inputScript $completionPrefix -cursorColumn $cursorIndex
+		if ($null -ne $completions.CompletionMatches) {
+			$result += ";$($completions.ReplacementIndex);$($completions.ReplacementLength);$($cursorIndex);"
+			$result += $completions.CompletionMatches | ConvertTo-Json -Compress
+		}
+	}
+	$result += "`a"
+
+	Write-Host -NoNewLine $result
+}
+
+# Register key handlers if PSReadLine is available
+if (Get-Module -Name PSReadLine) {
+	Set-MappedKeyHandlers
+}

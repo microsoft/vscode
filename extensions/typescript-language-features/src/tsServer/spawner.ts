@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as path from 'path';
 import * as vscode from 'vscode';
 import { OngoingRequestCancellerFactory } from '../tsServer/cancellation';
 import { ClientCapabilities, ClientCapability, ServerType } from '../typescriptService';
@@ -16,9 +15,10 @@ import { PluginManager } from '../utils/plugins';
 import { TelemetryReporter } from '../utils/telemetry';
 import Tracer from '../utils/tracer';
 import { ILogDirectoryProvider } from './logDirectoryProvider';
-import { GetErrRoutingTsServer, ITypeScriptServer, ProcessBasedTsServer, SyntaxRoutingTsServer, TsServerDelegate, TsServerProcessFactory, TsServerProcessKind } from './server';
+import { GetErrRoutingTsServer, ITypeScriptServer, SingleTsServer, SyntaxRoutingTsServer, TsServerDelegate, TsServerLog, TsServerProcessFactory, TsServerProcessKind } from './server';
 import { TypeScriptVersionManager } from './versionManager';
 import { ITypeScriptVersionProvider, TypeScriptVersion } from './versionProvider';
+import { memoize } from '../utils/memoize';
 
 const enum CompositeServerType {
 	/** Run a single server that handles all commands  */
@@ -35,6 +35,12 @@ const enum CompositeServerType {
 }
 
 export class TypeScriptServerSpawner {
+
+	@memoize
+	public static get tsServerLogOutputChannel(): vscode.OutputChannel {
+		return vscode.window.createOutputChannel(vscode.l10n.t("TypeScript Server Log"));
+	}
+
 	public constructor(
 		private readonly _versionProvider: ITypeScriptVersionProvider,
 		private readonly _versionManager: TypeScriptVersionManager,
@@ -44,7 +50,6 @@ export class TypeScriptServerSpawner {
 		private readonly _telemetryReporter: TelemetryReporter,
 		private readonly _tracer: Tracer,
 		private readonly _factory: TsServerProcessFactory,
-		private readonly _extensionUri: vscode.Uri,
 	) { }
 
 	public spawn(
@@ -134,33 +139,35 @@ export class TypeScriptServerSpawner {
 		const apiVersion = version.apiVersion || API.defaultVersion;
 
 		const canceller = cancellerFactory.create(kind, this._tracer);
-		const { args, tsServerLogFile, tsServerTraceDirectory } = this.getTsServerArgs(kind, configuration, version, apiVersion, pluginManager, canceller.cancellationPipeName);
+		const { args, tsServerLog, tsServerTraceDirectory } = this.getTsServerArgs(kind, configuration, version, apiVersion, pluginManager, canceller.cancellationPipeName);
 
 		if (TypeScriptServerSpawner.isLoggingEnabled(configuration)) {
-			if (tsServerLogFile) {
-				this._logger.info(`<${kind}> Log file: ${tsServerLogFile}`);
+			if (tsServerLog?.type === 'file') {
+				this._logger.info(`<${kind}> Log file: ${tsServerLog.uri.fsPath}`);
+			} else if (tsServerLog?.type === 'output') {
+				this._logger.info(`<${kind}> Logging to output`);
 			} else {
-				this._logger.error(`<${kind}> Could not create log directory`);
+				this._logger.error(`<${kind}> Could not create TS Server log`);
 			}
 		}
 
 		if (configuration.enableTsServerTracing) {
 			if (tsServerTraceDirectory) {
-				this._logger.info(`<${kind}> Trace directory: ${tsServerTraceDirectory}`);
+				this._logger.info(`<${kind}> Trace directory: ${tsServerTraceDirectory.fsPath}`);
 			} else {
 				this._logger.error(`<${kind}> Could not create trace directory`);
 			}
 		}
 
 		this._logger.info(`<${kind}> Forking...`);
-		const process = this._factory.fork(version, args, kind, configuration, this._versionManager, this._extensionUri);
+		const process = this._factory.fork(version, args, kind, configuration, this._versionManager, tsServerLog);
 		this._logger.info(`<${kind}> Starting...`);
 
-		return new ProcessBasedTsServer(
+		return new SingleTsServer(
 			kind,
 			this.kindToServerType(kind),
 			process!,
-			tsServerLogFile,
+			tsServerLog,
 			canceller,
 			version,
 			this._telemetryReporter,
@@ -187,10 +194,10 @@ export class TypeScriptServerSpawner {
 		apiVersion: API,
 		pluginManager: PluginManager,
 		cancellationPipeName: string | undefined,
-	): { args: string[]; tsServerLogFile: string | undefined; tsServerTraceDirectory: string | undefined } {
+	): { args: string[]; tsServerLog: TsServerLog | undefined; tsServerTraceDirectory: vscode.Uri | undefined } {
 		const args: string[] = [];
-		let tsServerLogFile: string | undefined;
-		let tsServerTraceDirectory: string | undefined;
+		let tsServerLog: TsServerLog | undefined;
+		let tsServerTraceDirectory: vscode.Uri | undefined;
 
 		if (kind === TsServerProcessKind.Syntax) {
 			if (apiVersion.gte(API.v401)) {
@@ -217,12 +224,15 @@ export class TypeScriptServerSpawner {
 		if (TypeScriptServerSpawner.isLoggingEnabled(configuration)) {
 			if (isWeb()) {
 				args.push('--logVerbosity', TsServerLogLevel.toString(configuration.tsServerLogLevel));
+				tsServerLog = { type: 'output', output: TypeScriptServerSpawner.tsServerLogOutputChannel };
 			} else {
 				const logDir = this._logDirectoryProvider.getNewLogDirectory();
 				if (logDir) {
-					tsServerLogFile = path.join(logDir, `tsserver.log`);
+					const logFilePath = vscode.Uri.joinPath(logDir, `tsserver.log`);
+					tsServerLog = { type: 'file', uri: logFilePath };
+
 					args.push('--logVerbosity', TsServerLogLevel.toString(configuration.tsServerLogLevel));
-					args.push('--logFile', tsServerLogFile);
+					args.push('--logFile', logFilePath.fsPath);
 				}
 			}
 		}
@@ -230,7 +240,7 @@ export class TypeScriptServerSpawner {
 		if (configuration.enableTsServerTracing && !isWeb()) {
 			tsServerTraceDirectory = this._logDirectoryProvider.getNewLogDirectory();
 			if (tsServerTraceDirectory) {
-				args.push('--traceDirectory', tsServerTraceDirectory);
+				args.push('--traceDirectory', tsServerTraceDirectory.fsPath);
 			}
 		}
 
@@ -265,7 +275,7 @@ export class TypeScriptServerSpawner {
 			args.push('--enableProjectWideIntelliSenseOnWeb');
 		}
 
-		return { args, tsServerLogFile, tsServerTraceDirectory };
+		return { args, tsServerLog, tsServerTraceDirectory };
 	}
 
 	private static isLoggingEnabled(configuration: TypeScriptServiceConfiguration) {

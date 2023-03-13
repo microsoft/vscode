@@ -36,14 +36,6 @@ export interface INotebookRawData {
 	transientOptions: TransientOptions;
 }
 
-export class ComplexNotebookProviderInfo {
-	constructor(
-		readonly viewType: string,
-		readonly controller: INotebookContentProvider,
-		readonly extensionData: NotebookExtensionDescription
-	) { }
-}
-
 export class SimpleNotebookProviderInfo {
 	constructor(
 		readonly viewType: string,
@@ -64,9 +56,8 @@ export interface INotebookService {
 	readonly onWillRemoveNotebookDocument: Event<NotebookTextModel>;
 	readonly onDidRemoveNotebookDocument: Event<NotebookTextModel>;
 
-	registerNotebookController(viewType: string, extensionData: NotebookExtensionDescription, controller: INotebookContentProvider): IDisposable;
 	registerNotebookSerializer(viewType: string, extensionData: NotebookExtensionDescription, serializer: INotebookSerializer): IDisposable;
-	withNotebookDataProvider(viewType: string): Promise<ComplexNotebookProviderInfo | SimpleNotebookProviderInfo>;
+	withNotebookDataProvider(viewType: string): Promise<SimpleNotebookProviderInfo>;
 
 	getOutputMimeTypeInfo(textModel: NotebookTextModel, kernelProvides: readonly string[] | undefined, output: IOutputDto): readonly IOrderedMimeType[];
 

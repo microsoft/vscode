@@ -52,6 +52,7 @@ export async function startClient(factory: LanguageClientConstructor, parser: IM
 		},
 		initializationOptions: {
 			markdownFileExtensions,
+			i10lLocation: vscode.l10n.uri?.toJSON(),
 		},
 		diagnosticPullOptions: {
 			onChange: true,

@@ -66,7 +66,7 @@ export class TasksResourceTreeItem implements IProfileResourceTreeItem {
 	readonly handle = ProfileResourceType.Tasks;
 	readonly label = { label: localize('tasks', "User Tasks") };
 	readonly collapsibleState = TreeItemCollapsibleState.Expanded;
-	checkbox: ITreeItemCheckboxState = { isChecked: true };
+	checkbox: ITreeItemCheckboxState | undefined;
 
 	constructor(
 		private readonly profile: IUserDataProfile,

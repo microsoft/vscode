@@ -61,7 +61,7 @@ export class NotebookOverviewRuler extends Themable {
 
 				decorations.filter(decoration => decoration.overviewRuler).forEach(decoration => {
 					const overviewRuler = decoration.overviewRuler!;
-					const fillStyle = this.getColor(overviewRuler.color)?.toString() || '#000000';
+					const fillStyle = this.getColor(overviewRuler.color) ?? '#000000';
 					const lineHeight = Math.min(fontInfo.lineHeight, (viewCell.layoutInfo.editorHeight / scrollHeight / textBuffer.getLineCount()) * ratio * height);
 					const lineNumbers = overviewRuler.modelRanges.map(range => range.startLineNumber).reduce((previous: number[], current: number) => {
 						if (previous.length === 0) {

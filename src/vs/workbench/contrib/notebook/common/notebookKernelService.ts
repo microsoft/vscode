@@ -87,6 +87,7 @@ export interface INotebookSourceActionChangeEvent {
 
 export interface IKernelSourceActionProvider {
 	readonly viewType: string;
+	onDidChangeSourceActions?: Event<void>;
 	provideKernelSourceActions(): Promise<INotebookKernelSourceAction[]>;
 }
 

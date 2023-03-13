@@ -5,18 +5,17 @@
 
 use std::{
 	collections::HashMap,
+	future,
 	sync::{
 		atomic::{AtomicU32, Ordering},
 		Arc, Mutex,
 	},
 };
 
-use futures::{
-	future::{self, BoxFuture},
-	Future, FutureExt,
-};
+use crate::log;
+use futures::{future::BoxFuture, Future, FutureExt};
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
-use tokio::sync::oneshot;
+use tokio::sync::{mpsc, oneshot};
 
 use crate::util::errors::AnyError;
 
@@ -38,22 +37,51 @@ pub trait Serialization: Send + Sync + 'static {
 
 /// RPC is a basic, transport-agnostic builder for RPC methods. You can
 /// register methods to it, then call `.build()` to get a "dispatcher" type.
-pub struct RpcBuilder<S, C> {
-	context: Arc<C>,
+pub struct RpcBuilder<S> {
 	serializer: Arc<S>,
 	methods: HashMap<&'static str, Method>,
+	calls: Arc<Mutex<HashMap<u32, DispatchMethod>>>,
 }
 
-impl<S: Serialization, C: Send + Sync + 'static> RpcBuilder<S, C> {
+impl<S: Serialization> RpcBuilder<S> {
 	/// Creates a new empty RPC builder.
-	pub fn new(serializer: S, context: C) -> Self {
+	pub fn new(serializer: S) -> Self {
 		Self {
-			context: Arc::new(context),
 			serializer: Arc::new(serializer),
 			methods: HashMap::new(),
+			calls: Arc::new(std::sync::Mutex::new(HashMap::new())),
 		}
 	}
 
+	/// Creates a caller that will be connected to any eventual dispatchers,
+	/// and that sends data to the "tx" channel.
+	pub fn get_caller(&mut self, sender: mpsc::UnboundedSender<Vec<u8>>) -> RpcCaller<S> {
+		RpcCaller {
+			serializer: self.serializer.clone(),
+			calls: self.calls.clone(),
+			sender,
+		}
+	}
+
+	/// Gets a method builder.
+	pub fn methods<C: Send + Sync + 'static>(self, context: C) -> RpcMethodBuilder<S, C> {
+		RpcMethodBuilder {
+			context: Arc::new(context),
+			serializer: self.serializer,
+			methods: self.methods,
+			calls: self.calls,
+		}
+	}
+}
+
+pub struct RpcMethodBuilder<S, C> {
+	context: Arc<C>,
+	serializer: Arc<S>,
+	methods: HashMap<&'static str, Method>,
+	calls: Arc<Mutex<HashMap<u32, DispatchMethod>>>,
+}
+
+impl<S: Serialization, C: Send + Sync + 'static> RpcMethodBuilder<S, C> {
 	/// Registers a synchronous rpc call that returns its result directly.
 	pub fn register_sync<P, R, F>(&mut self, method_name: &'static str, callback: F)
 	where
@@ -152,10 +180,13 @@ impl<S: Serialization, C: Send + Sync + 'static> RpcBuilder<S, C> {
 	}
 
 	/// Builds into a usable, sync rpc dispatcher.
-	pub fn build(self) -> RpcDispatcher<S, C> {
+	pub fn build(self, log: log::Logger) -> RpcDispatcher<S, C> {
 		RpcDispatcher {
-			i: Arc::new(self),
-			calls: Arc::new(std::sync::Mutex::new(HashMap::new())),
+			log,
+			context: self.context,
+			calls: self.calls,
+			serializer: self.serializer,
+			methods: Arc::new(self.methods),
 		}
 	}
 }
@@ -163,37 +194,38 @@ impl<S: Serialization, C: Send + Sync + 'static> RpcBuilder<S, C> {
 type DispatchMethod = Box<dyn Send + Sync + FnOnce(Outcome)>;
 
 /// Dispatcher returned from a Builder that provides a transport-agnostic way to
-/// deserialize and handle RPC calls. This structure may get more advanced as
+/// deserialize and dispatch RPC calls. This structure may get more advanced as
 /// time goes on...
-pub struct RpcDispatcher<S, C> {
-	i: Arc<RpcBuilder<S, C>>,
+#[derive(Clone)]
+pub struct RpcCaller<S: Serialization> {
+	serializer: Arc<S>,
 	calls: Arc<Mutex<HashMap<u32, DispatchMethod>>>,
+	sender: mpsc::UnboundedSender<Vec<u8>>,
 }
 
-impl<S, C> Clone for RpcDispatcher<S, C> {
-	fn clone(&self) -> Self {
-		RpcDispatcher {
-			i: self.i.clone(),
-			calls: self.calls.clone(),
-		}
+impl<S: Serialization> RpcCaller<S> {
+	/// Enqueues an outbound call. Returns whether the message was enqueued.
+	pub fn notify<M, A>(&self, method: M, params: A) -> bool
+	where
+		M: Into<String>,
+		A: Serialize,
+	{
+		let body = self.serializer.serialize(&FullRequest {
+			id: None,
+			method: method.into(),
+			params,
+		});
+
+		self.sender.send(body).is_ok()
 	}
-}
 
-static MESSAGE_ID_COUNTER: AtomicU32 = AtomicU32::new(0);
-fn next_message_id() -> u32 {
-	MESSAGE_ID_COUNTER.fetch_add(1, Ordering::SeqCst)
-}
-trait AssertIsSync: Sync {}
-impl<S: Serialization, C: Send + Sync> AssertIsSync for RpcDispatcher<S, C> {}
-
-impl<S: Serialization, C: Send + Sync> RpcDispatcher<S, C> {
-	/// Enqueues an outbound call, returning the bytes that should be sent to make it run.
+	/// Enqueues an outbound call, returning its result.
 	#[allow(dead_code)]
 	pub async fn call<M, A, R>(
 		&self,
 		method: M,
 		params: A,
-	) -> (Vec<u8>, oneshot::Receiver<Result<R, ResponseError>>)
+	) -> oneshot::Receiver<Result<R, ResponseError>>
 	where
 		M: Into<String>,
 		A: Serialize,
@@ -201,13 +233,18 @@ impl<S: Serialization, C: Send + Sync> RpcDispatcher<S, C> {
 	{
 		let (tx, rx) = oneshot::channel();
 		let id = next_message_id();
-		let body = self.i.serializer.serialize(&FullRequest {
+		let body = self.serializer.serialize(&FullRequest {
 			id: Some(id),
 			method: method.into(),
 			params,
 		});
 
-		let serializer = self.i.serializer.clone();
+		if self.sender.send(body).is_err() {
+			drop(tx);
+			return rx;
+		}
+
+		let serializer = self.serializer.clone();
 		self.calls.lock().unwrap().insert(
 			id,
 			Box::new(move |body| {
@@ -226,9 +263,28 @@ impl<S: Serialization, C: Send + Sync> RpcDispatcher<S, C> {
 			}),
 		);
 
-		(body, rx)
+		rx
 	}
+}
 
+/// Dispatcher returned from a Builder that provides a transport-agnostic way to
+/// deserialize and handle RPC calls. This structure may get more advanced as
+/// time goes on...
+#[derive(Clone)]
+pub struct RpcDispatcher<S, C> {
+	log: log::Logger,
+	context: Arc<C>,
+	serializer: Arc<S>,
+	methods: Arc<HashMap<&'static str, Method>>,
+	calls: Arc<Mutex<HashMap<u32, DispatchMethod>>>,
+}
+
+static MESSAGE_ID_COUNTER: AtomicU32 = AtomicU32::new(0);
+fn next_message_id() -> u32 {
+	MESSAGE_ID_COUNTER.fetch_add(1, Ordering::SeqCst)
+}
+
+impl<S: Serialization, C: Send + Sync> RpcDispatcher<S, C> {
 	/// Runs the incoming request, returning the result of the call synchronously
 	/// or in a future. (The caller can then decide whether to run the future
 	/// sequentially in its receive loop, or not.)
@@ -236,19 +292,22 @@ impl<S: Serialization, C: Send + Sync> RpcDispatcher<S, C> {
 	/// The future or return result will be optional bytes that should be sent
 	/// back to the socket.
 	pub fn dispatch(&self, body: &[u8]) -> MaybeSync {
-		let partial = match self.i.serializer.deserialize::<PartialIncoming>(body) {
+		let partial = match self.serializer.deserialize::<PartialIncoming>(body) {
 			Ok(b) => b,
-			Err(_err) => return MaybeSync::Sync(None),
+			Err(_err) => {
+				warning!(self.log, "Failed to deserialize request, hex: {:X?}", body);
+				return MaybeSync::Sync(None);
+			}
 		};
 		let id = partial.id;
 
 		if let Some(method_name) = partial.method {
-			let method = self.i.methods.get(method_name.as_str());
+			let method = self.methods.get(method_name.as_str());
 			match method {
 				Some(Method::Sync(callback)) => MaybeSync::Sync(callback(id, body)),
 				Some(Method::Async(callback)) => MaybeSync::Future(callback(id, body)),
 				None => MaybeSync::Sync(id.map(|id| {
-					self.i.serializer.serialize(&ErrorResponse {
+					self.serializer.serialize(&ErrorResponse {
 						id,
 						error: ResponseError {
 							code: -1,
@@ -273,9 +332,12 @@ impl<S: Serialization, C: Send + Sync> RpcDispatcher<S, C> {
 	}
 
 	pub fn context(&self) -> Arc<C> {
-		self.i.context.clone()
+		self.context.clone()
 	}
 }
+
+trait AssertIsSync: Sync {}
+impl<S: Serialization, C: Send + Sync> AssertIsSync for RpcDispatcher<S, C> {}
 
 /// Approximate shape that is used to determine what kind of data is incoming.
 #[derive(Deserialize)]
@@ -287,7 +349,7 @@ struct PartialIncoming {
 }
 
 #[derive(Serialize)]
-struct FullRequest<P> {
+pub struct FullRequest<P> {
 	pub id: Option<u32>,
 	pub method: String,
 	pub params: P,

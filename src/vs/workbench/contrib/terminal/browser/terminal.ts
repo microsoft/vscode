@@ -2,9 +2,11 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
+import { Dimension } from 'vs/base/browser/dom';
 import { Orientation } from 'vs/base/browser/ui/splitview/splitview';
+import { AutoOpenBarrier } from 'vs/base/common/async';
+import { Color } from 'vs/base/common/color';
 import { Event } from 'vs/base/common/event';
-import { Lazy } from 'vs/base/common/lazy';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { OperatingSystem } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
@@ -12,21 +14,32 @@ import { createDecorator } from 'vs/platform/instantiation/common/instantiation'
 import { IKeyMods } from 'vs/platform/quickinput/common/quickInput';
 import { IMarkProperties, ITerminalCapabilityStore, ITerminalCommand } from 'vs/platform/terminal/common/capabilities/capabilities';
 import { IExtensionTerminalProfile, IReconnectionProperties, IShellIntegration, IShellLaunchConfig, ITerminalDimensions, ITerminalLaunchError, ITerminalProfile, ITerminalTabLayoutInfoById, TerminalExitReason, TerminalIcon, TerminalLocation, TerminalShellType, TerminalType, TitleEventSource, WaitOnExitValue } from 'vs/platform/terminal/common/terminal';
+import { IColorTheme } from 'vs/platform/theme/common/themeService';
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { IEditableData } from 'vs/workbench/common/views';
-import { TerminalFindWidget } from 'vs/workbench/contrib/terminal/browser/terminalFindWidget';
 import { ITerminalStatusList } from 'vs/workbench/contrib/terminal/browser/terminalStatusList';
 import { ScrollPosition } from 'vs/workbench/contrib/terminal/browser/xterm/markNavigationAddon';
 import { ITerminalQuickFixAddon } from 'vs/workbench/contrib/terminal/browser/xterm/quickFixAddon';
-import { INavigationMode, IRegisterContributedProfileArgs, IRemoteTerminalAttachTarget, IStartExtensionTerminalRequest, ITerminalBackend, ITerminalConfigHelper, ITerminalFont, ITerminalProcessExtHostProxy } from 'vs/workbench/contrib/terminal/common/terminal';
+import { XtermTerminal } from 'vs/workbench/contrib/terminal/browser/xterm/xtermTerminal';
+import { IRegisterContributedProfileArgs, IRemoteTerminalAttachTarget, IStartExtensionTerminalRequest, ITerminalBackend, ITerminalConfigHelper, ITerminalFont, ITerminalProcessExtHostProxy } from 'vs/workbench/contrib/terminal/common/terminal';
 import { EditorGroupColumn } from 'vs/workbench/services/editor/common/editorGroupColumn';
-import { IMarker } from 'xterm';
+import { ISimpleSelectedSuggestion } from 'vs/workbench/services/suggest/browser/simpleSuggestWidget';
+import { IMarker, Terminal as RawXtermTerminal } from 'xterm';
 
 export const ITerminalService = createDecorator<ITerminalService>('terminalService');
 export const ITerminalEditorService = createDecorator<ITerminalEditorService>('terminalEditorService');
 export const ITerminalGroupService = createDecorator<ITerminalGroupService>('terminalGroupService');
 export const ITerminalInstanceService = createDecorator<ITerminalInstanceService>('terminalInstanceService');
+
+/**
+ * A terminal contribution that gets created whenever a terminal is created. A contribution has
+ * access to the process manager through the constructor and provides a method for when xterm.js has
+ * been initialized.
+ */
+export interface ITerminalContribution extends IDisposable {
+	xtermReady?(xterm: IXtermTerminal & { raw: RawXtermTerminal }): void;
+}
 
 /**
  * A service used to create instances or fetch backends, this services allows services that
@@ -188,14 +201,6 @@ export interface ITerminalService extends ITerminalInstanceHost {
 	refreshActiveGroup(): void;
 
 	registerProcessSupport(isSupported: boolean): void;
-
-	/**
-	 * Registers a link provider that enables integrators to add links to the terminal.
-	 * @param linkProvider When registered, the link provider is asked whenever a cell is hovered
-	 * for links at that position. This lets the terminal know all links at a given area and also
-	 * labels for what these links are going to do.
-	 */
-	registerLinkProvider(linkProvider: ITerminalExternalLinkProvider): IDisposable;
 
 	showProfileQuickPick(type: 'setDefault' | 'createInstance', cwd?: string | URI): Promise<ITerminalInstance | undefined>;
 
@@ -437,6 +442,7 @@ export interface ITerminalInstance {
 	readonly maxRows: number;
 	readonly fixedCols?: number;
 	readonly fixedRows?: number;
+	readonly container?: HTMLElement;
 	readonly icon?: TerminalIcon;
 	readonly color?: string;
 	readonly reconnectionProperties?: IReconnectionProperties;
@@ -453,8 +459,6 @@ export interface ITerminalInstance {
 	readonly statusList: ITerminalStatusList;
 
 	quickFix: ITerminalQuickFixAddon | undefined;
-
-	readonly findWidget: Lazy<TerminalFindWidget>;
 
 	/**
 	 * The process ID of the shell process, this is undefined when there is no process associated
@@ -525,7 +529,6 @@ export interface ITerminalInstance {
 	onDisposed: Event<ITerminalInstance>;
 
 	onProcessIdReady: Event<ITerminalInstance>;
-	onLinksReady: Event<ITerminalInstance>;
 	onRequestExtHostProcess: Event<ITerminalInstance>;
 	onDimensionsChanged: Event<void>;
 	onMaximumDimensionsChanged: Event<void>;
@@ -570,10 +573,6 @@ export interface ITerminalInstance {
 	 */
 	onExit: Event<number | ITerminalLaunchError | undefined>;
 
-	onDidChangeFindResults: Event<{ resultIndex: number; resultCount: number } | undefined>;
-
-	onDidFocusFindWidget: Event<void>;
-
 	/**
 	 * The exit code or undefined when the terminal process hasn't yet exited or
 	 * the process exit code could not be determined. Use {@link exitReason} to see
@@ -588,15 +587,9 @@ export interface ITerminalInstance {
 	readonly exitReason: TerminalExitReason | undefined;
 
 	/**
-	 * Whether links in the terminal are ready, links aren't available until after the process is
-	 * ready.
-	 */
-	readonly areLinksReady: boolean;
-
-	/**
 	 * The xterm.js instance for this terminal.
 	 */
-	readonly xterm?: IXtermTerminal;
+	readonly xterm?: XtermTerminal;
 
 	/**
 	 * Returns an array of data events that have fired within the first 10 seconds. If this is
@@ -608,6 +601,9 @@ export interface ITerminalInstance {
 
 	/** A promise that resolves when the terminal's pty/process have been created. */
 	readonly processReady: Promise<void>;
+
+	/** A barrier that opens when the terminal's container is ready */
+	readonly containerReadyBarrier: AutoOpenBarrier;
 
 	/** Whether the terminal's process has child processes (ie. is dirty/busy). */
 	readonly hasChildProcesses: boolean;
@@ -650,11 +646,6 @@ export interface ITerminalInstance {
 	 * resize events.
 	 */
 	disableLayout: boolean;
-
-	/**
-	 * Access to the navigation mode accessibility feature.
-	 */
-	readonly navigationMode: INavigationMode | undefined;
 
 	/**
 	 * The description of the terminal, this is typically displayed next to {@link title}.
@@ -704,11 +695,6 @@ export interface ITerminalInstance {
 	 * @param reason The reason why the terminal is being disposed
 	 */
 	detachProcessAndDispose(reason: TerminalExitReason): Promise<void>;
-
-	/**
-	 * Focuses the terminal buffer accessibility element
-	 */
-	focusAccessibilityBuffer(): void;
 
 	/**
 	 * Check if anything is selected in terminal.
@@ -896,11 +882,6 @@ export interface ITerminalInstance {
 	getCwd(): Promise<string>;
 
 	/**
-	 * @throws when called before xterm.js is ready.
-	 */
-	registerLinkProvider(provider: ITerminalExternalLinkProvider): IDisposable;
-
-	/**
 	 * Sets the title of the terminal to the provided string. If no title is provided, it will reset
 	 * to the terminal's title if it was not explicitly set by the user or API.
 	 * @param title The new title.
@@ -918,30 +899,76 @@ export interface ITerminalInstance {
 	changeColor(): Promise<void>;
 
 	/**
-	 * Triggers a quick pick that displays links from the viewport of the active terminal.
-	 * Selecting a file or web link will open it. Selecting a word link will copy it to the
-	 * clipboard.
-	 */
-	showLinkQuickpick(): Promise<void>;
-
-	/**
 	 * Triggers a quick pick that displays recent commands or cwds. Selecting one will
 	 * rerun it in the active terminal.
 	 */
 	runRecent(type: 'command' | 'cwd'): Promise<void>;
 
 	/**
-	 * Activates the most recent link of the given type.
-	 */
-	openRecentLink(type: 'localFile' | 'url'): Promise<void>;
-
-	/**
 	 * Attempts to detect and kill the process listening on specified port.
 	 * If successful, places commandToRun on the command line
 	 */
 	freePortKillProcess(port: string, commandToRun: string): Promise<void>;
+
+	/**
+	 * Selects the previous suggestion if the suggest widget is visible.
+	 */
+	selectPreviousSuggestion(): void;
+
+	/**
+	 * Selects the previous page suggestion if the suggest widget is visible.
+	 */
+	selectPreviousPageSuggestion(): void;
+
+	/**
+	 * Selects the next suggestion if the suggest widget is visible.
+	 */
+	selectNextSuggestion(): void;
+
+	/**
+	 * Selects the next page suggestion if the suggest widget is visible.
+	 */
+	selectNextPageSuggestion(): void;
+
+	/**
+	 * Accepts the current suggestion if the suggest widget is visible.
+	 */
+	acceptSelectedSuggestion(): Promise<void>;
+
+	/**
+	 * Hides the suggest widget.
+	 */
+	hideSuggestWidget(): void;
+
+	/**
+	 * Force the scroll bar to be visible until {@link resetScrollbarVisibility} is called.
+	 */
+	forceScrollbarVisibility(): void;
+
+	/**
+	 * Resets the scroll bar to only be visible when needed, this does nothing unless
+	 * {@link forceScrollbarVisibility} was called.
+	 */
+	resetScrollbarVisibility(): void;
+
+	/**
+	 * Register a child element to the terminal instance's container.
+	 */
+	registerChildElement(element: ITerminalChildElement): IDisposable;
+
+	/**
+	 * Gets a terminal contribution by its ID.
+	 */
+	getContribution<T extends ITerminalContribution>(id: string): T | null;
 }
 
+// NOTE: This interface is very similar to the widget manager internal to TerminalInstance, in the
+// future these should probably be consolidated.
+export interface ITerminalChildElement {
+	element: HTMLElement;
+	layout?(dimension: Dimension): void;
+	xtermReady?(xterm: IXtermTerminal): void;
+}
 
 export interface IXtermTerminal {
 	/**
@@ -956,6 +983,7 @@ export interface IXtermTerminal {
 	readonly shellIntegration: IShellIntegration;
 
 	readonly onDidChangeSelection: Event<void>;
+	readonly onDidChangeFindResults: Event<{ resultIndex: number; resultCount: number } | undefined>;
 
 	/**
 	 * Gets a view of the current texture atlas used by the renderers.
@@ -966,11 +994,6 @@ export interface IXtermTerminal {
 	 * Whether the `disableStdin` option in xterm.js is set.
 	 */
 	readonly isStdinDisabled: boolean;
-
-	/**
-	 * The position of the terminal.
-	 */
-	target?: TerminalLocation;
 
 	findResult?: { resultIndex: number; resultCount: number };
 
@@ -1021,6 +1044,11 @@ export interface IXtermTerminal {
 	 * Returns a reverse iterator of buffer lines as strings
 	 */
 	getBufferReverseIterator(): IterableIterator<string>;
+
+	/**
+	 * Refreshes the terminal after it has been moved.
+	 */
+	refresh(): void;
 }
 
 export interface IInternalXtermTerminal {
@@ -1031,6 +1059,10 @@ export interface IInternalXtermTerminal {
 	 * developer purposed inside the terminal component.
 	 */
 	_writeText(data: string): void; // eslint-disable-line @typescript-eslint/naming-convention
+}
+
+export interface IXtermColorProvider {
+	getBackgroundColor(theme: IColorTheme): Color | undefined;
 }
 
 export interface IRequestAddInstanceToGroupEvent {
@@ -1046,4 +1078,18 @@ export const enum LinuxDistro {
 
 export const enum TerminalDataTransfers {
 	Terminals = 'Terminals'
+}
+
+export interface ISuggestController {
+	selectPreviousSuggestion(): void;
+	selectPreviousPageSuggestion(): void;
+	selectNextSuggestion(): void;
+	selectNextPageSuggestion(): void;
+	acceptSelectedSuggestion(suggestion?: Pick<ISimpleSelectedSuggestion, 'item' | 'model'>): void;
+	hideSuggestWidget(): void;
+	/**
+	 * Handle data written to the terminal outside of xterm.js which has no corresponding
+	 * `Terminal.onData` event.
+	 */
+	handleNonXtermData(data: string): void;
 }

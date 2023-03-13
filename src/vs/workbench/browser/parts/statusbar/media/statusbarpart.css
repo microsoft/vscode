@@ -11,7 +11,10 @@
 	font-size: 12px;
 	display: flex;
 	overflow: hidden;
-	transition: background-color 0.35s ease-out;
+}
+
+.monaco-workbench:not(.reduce-motion) .part.statusbar {
+	transition: background-color 0.15s ease-out;
 }
 
 .monaco-workbench .part.statusbar.status-border-top::after {

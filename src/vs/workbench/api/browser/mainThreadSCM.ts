@@ -136,6 +136,7 @@ class MainThreadSCMProvider implements ISCMProvider, QuickDiffProvider {
 	readonly onDidChange: Event<void> = this._onDidChange.event;
 
 	private _quickDiff: IDisposable | undefined;
+	public readonly isSCM: boolean = true;
 
 	constructor(
 		private readonly proxy: ExtHostSCMShape,
@@ -160,7 +161,12 @@ class MainThreadSCMProvider implements ISCMProvider, QuickDiffProvider {
 		}
 
 		if (features.hasQuickDiffProvider && !this._quickDiff) {
-			this._quickDiff = this._quickDiffService.addQuickDiffProvider(this);
+			this._quickDiff = this._quickDiffService.addQuickDiffProvider({
+				label: features.quickDiffLabel ?? this.label,
+				rootUri: this.rootUri,
+				isSCM: this.isSCM,
+				getOriginalResource: (uri: URI) => this.getOriginalResource(uri)
+			});
 		} else if (features.hasQuickDiffProvider === false && this._quickDiff) {
 			this._quickDiff.dispose();
 			this._quickDiff = undefined;
@@ -282,7 +288,7 @@ class MainThreadSCMProvider implements ISCMProvider, QuickDiffProvider {
 	}
 
 	dispose(): void {
-
+		this._quickDiff?.dispose();
 	}
 }
 

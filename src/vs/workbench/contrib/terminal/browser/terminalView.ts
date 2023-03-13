@@ -24,7 +24,7 @@ import { IMenu, IMenuService, MenuId, MenuItemAction } from 'vs/platform/actions
 import { ITerminalProfileResolverService, ITerminalProfileService, TerminalCommandId } from 'vs/workbench/contrib/terminal/common/terminal';
 import { TerminalSettingId, ITerminalProfile, TerminalLocation } from 'vs/platform/terminal/common/terminal';
 import { ActionViewItem, SelectActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
-import { asCssValue, selectBorder } from 'vs/platform/theme/common/colorRegistry';
+import { asCssVariable, selectBorder } from 'vs/platform/theme/common/colorRegistry';
 import { ISelectOptionItem } from 'vs/base/browser/ui/selectBox/selectBox';
 import { IActionViewItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { TerminalTabbedView } from 'vs/workbench/contrib/terminal/browser/terminalTabbedView';
@@ -309,7 +309,7 @@ class SwitchTerminalActionViewItem extends SelectActionViewItem {
 	override render(container: HTMLElement): void {
 		super.render(container);
 		container.classList.add('switch-terminal');
-		container.style.borderColor = asCssValue(selectBorder);
+		container.style.borderColor = asCssVariable(selectBorder);
 	}
 
 	private _updateItems(): void {
