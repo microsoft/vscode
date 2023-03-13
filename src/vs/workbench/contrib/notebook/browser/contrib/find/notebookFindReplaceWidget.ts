@@ -153,10 +153,10 @@ class NotebookFindFilterActionViewItem extends DropdownMenuActionViewItem {
 
 export class NotebookFindInputFilter extends Disposable {
 	private _filterButtonContainer: HTMLElement;
+	private _actionbar: ActionBar | null = null;
 	private _filterChecked: boolean = false;
 	private _filtersAction: IAction;
 	private _toggleStyles: IToggleStyles;
-	private _actionbar: ActionBar | null = null;
 
 	constructor(
 		readonly filters: NotebookFindFilters,
@@ -201,16 +201,16 @@ export class NotebookFindInputFilter extends Disposable {
 		this._filterChecked = checked;
 	}
 
+	get width() {
+		return 2 /*margin left*/ + 2 /*border*/ + 2 /*padding*/ + 16 /* icon width */;
+	}
+
 	applyStyles(): void {
 		const toggleStyles = this._toggleStyles;
 
 		this._filterButtonContainer.style.borderColor = (this._filterChecked && toggleStyles.inputActiveOptionBorder) || '';
 		this._filterButtonContainer.style.color = (this._filterChecked && toggleStyles.inputActiveOptionForeground) || 'inherit';
 		this._filterButtonContainer.style.backgroundColor = (this._filterChecked && toggleStyles.inputActiveOptionBackground) || '';
-	}
-
-	get width() {
-		return 2 /*margin left*/ + 2 /*border*/ + 2 /*padding*/ + 16 /* icon width */;
 	}
 
 	private createFilters(container: HTMLElement): void {
@@ -254,10 +254,6 @@ export class NotebookFindInput extends FindInput {
 		} else {
 			this.regex?.disable();
 		}
-	}
-
-	set filterVisible(show: boolean) {
-		this._findFilter.visible = show;
 	}
 
 	updateFilterState(changed: boolean) {
