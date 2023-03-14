@@ -22,14 +22,14 @@ import { defaultButtonStyles, defaultCheckboxStyles, defaultDialogStyles, defaul
 
 export class BrowserDialogHandler extends AbstractDialogHandler {
 
-	private static readonly ALLOWABLE_COMMANDS = [
+	private static readonly ALLOWABLE_COMMANDS = new Set([
 		'copy',
 		'cut',
 		'editor.action.selectAll',
 		'editor.action.clipboardCopyAction',
 		'editor.action.clipboardCutAction',
 		'editor.action.clipboardPasteAction'
-	];
+	]);
 
 	private readonly markdownRenderer = this.instantiationService.createInstance(MarkdownRenderer, {});
 
@@ -128,7 +128,7 @@ export class BrowserDialogHandler extends AbstractDialogHandler {
 				keyEventProcessor: (event: StandardKeyboardEvent) => {
 					const resolved = this.keybindingService.softDispatch(event, this.layoutService.container);
 
-					if (resolved && resolved.commands.some(({ command }) => BrowserDialogHandler.ALLOWABLE_COMMANDS.indexOf(command) === -1)) { // TODO@ulugbekna: could be speeded up using a set
+					if (resolved && resolved.commands.some(({ command }) => !BrowserDialogHandler.ALLOWABLE_COMMANDS.has(command))) {
 						EventHelper.stop(event, true);
 					}
 				},
