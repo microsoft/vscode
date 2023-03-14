@@ -658,8 +658,8 @@ export class GettingStartedPage extends EditorPane {
 			const layoutDelayer = new Delayer(50);
 
 			this.layoutMarkdown = () => {
-				layoutDelayer.trigger(async () => {
-					this.buildMediaComponent(stepId);
+				layoutDelayer.trigger(() => {
+					webview.postMessage({ layoutMeNow: true });
 				});
 			};
 
@@ -674,7 +674,10 @@ export class GettingStartedPage extends EditorPane {
 					this.openerService.open(message, { allowCommands: true });
 				} else if (message.startsWith('setTheme:')) {
 					this.configurationService.updateValue(ThemeSettings.COLOR_THEME, message.slice('setTheme:'.length), ConfigurationTarget.USER);
-				} else {
+				} else if (message === 'unloaded') {
+					this.buildMediaComponent(stepId);
+				}
+				else {
 					console.error('Unexpected message', message);
 				}
 			}));

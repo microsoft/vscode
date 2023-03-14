@@ -1054,8 +1054,8 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 			this.ui.checkAll.checked = this.ui.list.getAllVisibleChecked();
 			this.ui.visibleCount.setCount(this.ui.list.getVisibleCount());
 			this.ui.count.setCount(this.ui.list.getCheckedCount());
-			// Ensure no item is focused when using a screenreader when items update (#57501 & #166920)
-			if (this.ui.isScreenReaderOptimized() && ariaLabel) {
+			// Ensure no item is focused when using a screenreader when items update (#57501 & #166920 & #176848)
+			if (this.ui.isScreenReaderOptimized() && ariaLabel && visibilities.inputBox) {
 				this._itemActivation = ItemActivation.NONE;
 			}
 			switch (this._itemActivation) {

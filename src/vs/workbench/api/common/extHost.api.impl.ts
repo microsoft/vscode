@@ -1229,6 +1229,9 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			addInteractiveRequest(context: vscode.InteractiveSessionRequestArgs) {
 				checkProposedApiEnabled(extension, 'interactive');
 				return extHostInteractiveSession.addInteractiveSessionRequest(context);
+			},
+			get onDidPerformUserAction() {
+				return extHostInteractiveSession.onDidPerformUserAction;
 			}
 		};
 
@@ -1435,7 +1438,8 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			TabInputInteractiveWindow: extHostTypes.InteractiveWindowInput,
 			TelemetryTrustedValue: TelemetryTrustedValue,
 			LogLevel: LogLevel,
-			EditSessionIdentityMatch: EditSessionIdentityMatch
+			EditSessionIdentityMatch: EditSessionIdentityMatch,
+			InteractiveSessionVoteDirection: extHostTypes.InteractiveSessionVoteDirection
 		};
 	};
 }

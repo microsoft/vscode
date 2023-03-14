@@ -267,7 +267,7 @@
 	},
 	{
 		"c": "$",
-		"t": "source.shell meta.scope.if-block.shell meta.arithmetic.shell punctuation.definition.variable.shell punctuation.section.bracket.curly.variable.begin.shell",
+		"t": "source.shell meta.scope.if-block.shell meta.arithmetic.shell punctuation.definition.variable.shell",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -281,7 +281,7 @@
 	},
 	{
 		"c": "{",
-		"t": "source.shell meta.scope.if-block.shell meta.arithmetic.shell punctuation.section.bracket.curly.variable.begin.shell",
+		"t": "source.shell meta.scope.if-block.shell meta.arithmetic.shell punctuation.section.bracket.curly.variable.begin.shell punctuation.definition.variable.shell",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -365,7 +365,7 @@
 	},
 	{
 		"c": "}",
-		"t": "source.shell meta.scope.if-block.shell meta.arithmetic.shell punctuation.section.bracket.curly.variable.end.shell",
+		"t": "source.shell meta.scope.if-block.shell meta.arithmetic.shell punctuation.section.bracket.curly.variable.end.shell punctuation.definition.variable.shell",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -477,7 +477,7 @@
 	},
 	{
 		"c": "$",
-		"t": "source.shell meta.scope.if-block.shell meta.statement.shell meta.command.shell meta.statement.command.name.shell meta.statement.command.name.continuation string.quoted.double entity.name.command punctuation.definition.variable.shell punctuation.section.bracket.curly.variable.begin.shell",
+		"t": "source.shell meta.scope.if-block.shell meta.statement.shell meta.command.shell meta.statement.command.name.shell meta.statement.command.name.continuation string.quoted.double entity.name.command punctuation.definition.variable.shell",
 		"r": {
 			"dark_plus": "string: #CE9178",
 			"light_plus": "string: #A31515",
@@ -491,7 +491,7 @@
 	},
 	{
 		"c": "{",
-		"t": "source.shell meta.scope.if-block.shell meta.statement.shell meta.command.shell meta.statement.command.name.shell meta.statement.command.name.continuation string.quoted.double entity.name.command punctuation.section.bracket.curly.variable.begin.shell",
+		"t": "source.shell meta.scope.if-block.shell meta.statement.shell meta.command.shell meta.statement.command.name.shell meta.statement.command.name.continuation string.quoted.double entity.name.command punctuation.section.bracket.curly.variable.begin.shell punctuation.definition.variable.shell",
 		"r": {
 			"dark_plus": "string: #CE9178",
 			"light_plus": "string: #A31515",
@@ -561,7 +561,7 @@
 	},
 	{
 		"c": "}",
-		"t": "source.shell meta.scope.if-block.shell meta.statement.shell meta.command.shell meta.statement.command.name.shell meta.statement.command.name.continuation string.quoted.double entity.name.command punctuation.section.bracket.curly.variable.end.shell",
+		"t": "source.shell meta.scope.if-block.shell meta.statement.shell meta.command.shell meta.statement.command.name.shell meta.statement.command.name.continuation string.quoted.double entity.name.command punctuation.section.bracket.curly.variable.end.shell punctuation.definition.variable.shell",
 		"r": {
 			"dark_plus": "string: #CE9178",
 			"light_plus": "string: #A31515",
@@ -701,7 +701,7 @@
 	},
 	{
 		"c": "$",
-		"t": "source.shell meta.scope.if-block.shell meta.statement.shell meta.command.shell meta.argument.shell string.quoted.double.shell punctuation.definition.variable.shell punctuation.section.bracket.curly.variable.begin.shell",
+		"t": "source.shell meta.scope.if-block.shell meta.statement.shell meta.command.shell meta.argument.shell string.quoted.double.shell punctuation.definition.variable.shell",
 		"r": {
 			"dark_plus": "string: #CE9178",
 			"light_plus": "string: #A31515",
@@ -715,7 +715,7 @@
 	},
 	{
 		"c": "{",
-		"t": "source.shell meta.scope.if-block.shell meta.statement.shell meta.command.shell meta.argument.shell string.quoted.double.shell punctuation.section.bracket.curly.variable.begin.shell",
+		"t": "source.shell meta.scope.if-block.shell meta.statement.shell meta.command.shell meta.argument.shell string.quoted.double.shell punctuation.section.bracket.curly.variable.begin.shell punctuation.definition.variable.shell",
 		"r": {
 			"dark_plus": "string: #CE9178",
 			"light_plus": "string: #A31515",
@@ -785,7 +785,7 @@
 	},
 	{
 		"c": "}",
-		"t": "source.shell meta.scope.if-block.shell meta.statement.shell meta.command.shell meta.argument.shell string.quoted.double.shell punctuation.section.bracket.curly.variable.end.shell",
+		"t": "source.shell meta.scope.if-block.shell meta.statement.shell meta.command.shell meta.argument.shell string.quoted.double.shell punctuation.section.bracket.curly.variable.end.shell punctuation.definition.variable.shell",
 		"r": {
 			"dark_plus": "string: #CE9178",
 			"light_plus": "string: #A31515",

@@ -4052,6 +4052,10 @@ declare namespace monaco.editor {
 		 * Maximum number of sticky lines to show
 		 */
 		maxLineCount?: number;
+		/**
+		 * Model to choose for sticky scroll by default
+		 */
+		defaultModel?: 'outlineModel' | 'foldingProviderModel' | 'indentationModel';
 	}
 
 	/**

@@ -8,7 +8,7 @@ import { IMarkdownString, MarkdownString } from 'vs/base/common/htmlContent';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { ILogService } from 'vs/platform/log/common/log';
-import { IInteractiveResponse, IInteractiveSession } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionService';
+import { IInteractiveProgress, IInteractiveResponse, IInteractiveSession, IInteractiveSessionFollowup } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionService';
 
 export interface IInteractiveRequestModel {
 	readonly id: string;
@@ -16,12 +16,6 @@ export interface IInteractiveRequestModel {
 	readonly avatarIconUri?: URI;
 	readonly message: string;
 	readonly response: IInteractiveResponseModel | undefined;
-}
-
-export interface IInteractiveSessionResponseCommandFollowup {
-	commandId: string;
-	args: any[];
-	title: string; // supports codicon strings
 }
 
 export interface IInteractiveResponseErrorDetails {
@@ -32,12 +26,13 @@ export interface IInteractiveResponseErrorDetails {
 export interface IInteractiveResponseModel {
 	readonly onDidChange: Event<void>;
 	readonly id: string;
+	readonly providerId: string;
+	readonly providerResponseId: string | undefined;
 	readonly username: string;
 	readonly avatarIconUri?: URI;
 	readonly response: IMarkdownString;
 	readonly isComplete: boolean;
-	readonly followups?: string[];
-	readonly commandFollowups?: IInteractiveSessionResponseCommandFollowup[];
+	readonly followups?: IInteractiveSessionFollowup[] | undefined;
 	readonly errorDetails?: IInteractiveResponseErrorDetails;
 }
 
@@ -75,19 +70,19 @@ export class InteractiveResponseModel extends Disposable implements IInteractive
 		return this._id;
 	}
 
+	private _providerResponseId: string | undefined;
+	public get providerResponseId(): string | undefined {
+		return this._providerResponseId;
+	}
+
 	private _isComplete: boolean;
 	public get isComplete(): boolean {
 		return this._isComplete;
 	}
 
-	private _followups: string[] | undefined;
-	public get followups(): string[] | undefined {
+	private _followups: IInteractiveSessionFollowup[] | undefined;
+	public get followups(): IInteractiveSessionFollowup[] | undefined {
 		return this._followups;
-	}
-
-	private _commandFollowups: IInteractiveSessionResponseCommandFollowup[] | undefined;
-	public get commandFollowups(): IInteractiveSessionResponseCommandFollowup[] | undefined {
-		return this._commandFollowups;
 	}
 
 	private _response: IMarkdownString;
@@ -100,11 +95,12 @@ export class InteractiveResponseModel extends Disposable implements IInteractive
 		return this._errorDetails;
 	}
 
-	constructor(response: IMarkdownString, public readonly username: string, public readonly avatarIconUri?: URI, isComplete: boolean = false, errorDetails?: IInteractiveResponseErrorDetails, followups?: string[]) {
+	constructor(response: IMarkdownString, public readonly username: string, public readonly providerId: string, public readonly avatarIconUri?: URI, isComplete: boolean = false, providerResponseId?: string, errorDetails?: IInteractiveResponseErrorDetails, followups?: IInteractiveSessionFollowup[]) {
 		super();
 		this._response = response;
 		this._isComplete = isComplete;
 		this._followups = followups;
+		this._providerResponseId = providerResponseId;
 		this._errorDetails = errorDetails;
 		this._id = 'response_' + InteractiveResponseModel.nextId++;
 	}
@@ -114,12 +110,19 @@ export class InteractiveResponseModel extends Disposable implements IInteractive
 		this._onDidChange.fire();
 	}
 
-	complete(followups: string[] | undefined, commandFollowups: IInteractiveSessionResponseCommandFollowup[] | undefined, errorDetails?: IInteractiveResponseErrorDetails): void {
+	setProviderResponseId(providerResponseId: string) {
+		this._providerResponseId = providerResponseId;
+	}
+
+	complete(errorDetails?: IInteractiveResponseErrorDetails): void {
 		this._isComplete = true;
-		this._followups = followups;
-		this._commandFollowups = commandFollowups;
 		this._errorDetails = errorDetails;
 		this._onDidChange.fire();
+	}
+
+	setFollowups(followups: IInteractiveSessionFollowup[] | undefined): void {
+		this._followups = followups;
+		this._onDidChange.fire(); // Fire so that command followups get rendered on the row
 	}
 }
 
@@ -136,9 +139,11 @@ export interface ISerializableInteractiveSessionsData {
 }
 
 export interface ISerializableInteractiveSessionRequestData {
+	providerResponseId: string | undefined;
 	message: string;
 	response: string | undefined;
 	responseErrorDetails: IInteractiveResponseErrorDetails | undefined;
+	followups: IInteractiveSessionFollowup[] | undefined;
 }
 
 export interface ISerializableInteractiveSessionData {
@@ -198,7 +203,7 @@ export class InteractiveSessionModel extends Disposable implements IInteractiveS
 		return requests.map((raw: ISerializableInteractiveSessionRequestData) => {
 			const request = new InteractiveRequestModel(raw.message, this.session.requesterUsername, this.session.requesterAvatarIconUri);
 			if (raw.response || raw.responseErrorDetails) {
-				request.response = new InteractiveResponseModel(new MarkdownString(raw.response), this.session.responderUsername, this.session.responderAvatarIconUri, true, raw.responseErrorDetails);
+				request.response = new InteractiveResponseModel(new MarkdownString(raw.response), this.session.responderUsername, this.providerId, this.session.responderAvatarIconUri, true, raw.providerResponseId, raw.responseErrorDetails, raw.followups);
 			}
 			return request;
 		});
@@ -223,23 +228,40 @@ export class InteractiveSessionModel extends Disposable implements IInteractiveS
 
 		// TODO this is suspicious, maybe the request should know that it is "in progress" instead of having a fake response model.
 		// But the response already knows that it is "in progress" and so does a map in the session service.
-		request.response = new InteractiveResponseModel(new MarkdownString(''), this.session.responderUsername, this.session.responderAvatarIconUri);
+		request.response = new InteractiveResponseModel(new MarkdownString(''), this.session.responderUsername, this.providerId, this.session.responderAvatarIconUri);
 
 		this._requests.push(request);
 		this._onDidChange.fire({ kind: 'addRequest', request });
 		return request;
 	}
 
-	mergeResponseContent(request: InteractiveRequestModel, part: string): void {
-		if (request.response) {
-			request.response.updateContent(part);
+	acceptResponseProgress(request: InteractiveRequestModel, progress: IInteractiveProgress): void {
+		if (!request.response) {
+			request.response = new InteractiveResponseModel(new MarkdownString(''), this.session.responderUsername, this.providerId, this.session.responderAvatarIconUri);
+		}
+
+		if ('content' in progress) {
+			request.response.updateContent(progress.content);
 		} else {
-			request.response = new InteractiveResponseModel(new MarkdownString(part), this.session.responderUsername, this.session.responderAvatarIconUri);
+			request.response.setProviderResponseId(progress.responseId);
 		}
 	}
 
-	completeResponse(request: InteractiveRequestModel, response: IInteractiveResponse): void {
-		request.response!.complete(response.followups, response.commandFollowups, response.errorDetails);
+	completeResponse(request: InteractiveRequestModel, rawResponse: IInteractiveResponse): void {
+		if (!request.response) {
+			request.response = new InteractiveResponseModel(new MarkdownString(''), this.session.responderUsername, this.providerId, this.session.responderAvatarIconUri);
+		}
+
+		request.response.complete(rawResponse.errorDetails);
+	}
+
+	setFollowups(request: InteractiveRequestModel, followups: IInteractiveSessionFollowup[] | undefined): void {
+		if (!request.response) {
+			// Maybe something went wrong?
+			return;
+		}
+
+		request.response.setFollowups(followups);
 	}
 
 	setResponse(request: InteractiveRequestModel, response: InteractiveResponseModel): void {
@@ -251,9 +273,11 @@ export class InteractiveSessionModel extends Disposable implements IInteractiveS
 		return {
 			requests: this._requests.map(r => {
 				return {
+					providerResponseId: r.response?.providerResponseId,
 					message: r.message,
 					response: r.response ? r.response.response.value : undefined,
-					responseErrorDetails: r.response?.errorDetails
+					responseErrorDetails: r.response?.errorDetails,
+					followups: r.response?.followups
 				};
 			}),
 			providerId: this.providerId,

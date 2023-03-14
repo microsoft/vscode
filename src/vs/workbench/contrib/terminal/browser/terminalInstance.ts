@@ -1006,7 +1006,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			}
 
 			// If tab focus mode is on, tab is not passed to the terminal
-			if (TabFocus.getTabFocusMode(TabFocusContext.Terminal) && event.keyCode === 9) {
+			if (TabFocus.getTabFocusMode(TabFocusContext.Terminal) && event.key === 'Tab') {
 				return false;
 			}
 
@@ -1858,6 +1858,13 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 		// Signal the container is ready
 		this._containerReadyBarrier.open();
+
+		for (const contribution of this._contributions) {
+			if (!this.xterm) {
+				this._xtermReadyPromise.then(() => contribution[1].layout?.(this.xterm!));
+			}
+			contribution[1].layout?.(this.xterm!);
+		}
 	}
 
 	@debounce(50)

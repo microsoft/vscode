@@ -10,6 +10,7 @@ import { isFalsyOrWhitespace } from 'vs/base/common/strings';
 import { Scanner, LexingError, Token, TokenType } from 'vs/platform/contextkey/common/scanner';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { localize } from 'vs/nls';
+import { IDisposable } from 'vs/base/common/lifecycle';
 
 const CONSTANT_VALUES = new Map<string, boolean>();
 CONSTANT_VALUES.set('false', false);
@@ -2031,9 +2032,10 @@ export interface IContextKeyChangeEvent {
 	allKeysContainedIn(keys: IReadableSet<string>): boolean;
 }
 
+export type IScopedContextKeyService = IContextKeyService & IDisposable;
+
 export interface IContextKeyService {
 	readonly _serviceBrand: undefined;
-	dispose(): void;
 
 	onDidChangeContext: Event<IContextKeyChangeEvent>;
 	bufferChangeEvents(callback: Function): void;
@@ -2042,7 +2044,7 @@ export interface IContextKeyService {
 	contextMatchesRules(rules: ContextKeyExpression | undefined): boolean;
 	getContextKeyValue<T>(key: string): T | undefined;
 
-	createScoped(target: IContextKeyServiceTarget): IContextKeyService;
+	createScoped(target: IContextKeyServiceTarget): IScopedContextKeyService;
 	createOverlay(overlay: Iterable<[string, any]>): IContextKeyService;
 	getContext(target: IContextKeyServiceTarget | null): IContext;
 

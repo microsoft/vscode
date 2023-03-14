@@ -9,8 +9,8 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILogService } from 'vs/platform/log/common/log';
-import { IInteractiveRequestModel, IInteractiveResponseErrorDetails, IInteractiveResponseModel, IInteractiveSessionModel, IInteractiveSessionResponseCommandFollowup } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionModel';
-import { IInteractiveSessionService } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionService';
+import { IInteractiveRequestModel, IInteractiveResponseErrorDetails, IInteractiveResponseModel, IInteractiveSessionModel } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionModel';
+import { IInteractiveSessionReplyFollowup, IInteractiveSessionResponseCommandFollowup, IInteractiveSessionService } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionService';
 import { countWords } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionWordCounter';
 
 export function isRequestVM(item: unknown): item is IInteractiveRequestViewModel {
@@ -52,11 +52,14 @@ export interface IInteractiveSessionLiveUpdateData {
 export interface IInteractiveResponseViewModel {
 	readonly onDidChange: Event<void>;
 	readonly id: string;
+	readonly providerId: string;
+	readonly providerResponseId: string | undefined;
 	readonly username: string;
 	readonly avatarIconUri?: URI;
 	readonly response: IMarkdownString;
 	readonly isComplete: boolean;
-	readonly followups?: string[];
+	readonly isPlaceholder: boolean;
+	readonly replyFollowups?: IInteractiveSessionReplyFollowup[];
 	readonly commandFollowups?: IInteractiveSessionResponseCommandFollowup[];
 	readonly errorDetails?: IInteractiveResponseErrorDetails;
 	readonly progressiveResponseRenderingEnabled: boolean;
@@ -164,9 +167,20 @@ export class InteractiveResponseViewModel extends Disposable implements IInterac
 	readonly onDidChange = this._onDidChange.event;
 
 	private _isPlaceholder = false;
+	get isPlaceholder() {
+		return this._isPlaceholder;
+	}
 
 	get id() {
 		return this._model.id + `_${this._changeCount}`;
+	}
+
+	get providerId() {
+		return this._model.providerId;
+	}
+
+	get providerResponseId() {
+		return this._model.providerResponseId;
 	}
 
 	get username() {
@@ -189,12 +203,12 @@ export class InteractiveResponseViewModel extends Disposable implements IInterac
 		return this._model.isComplete;
 	}
 
-	get followups() {
-		return this._model.followups;
+	get replyFollowups() {
+		return this._model.followups?.filter((f): f is IInteractiveSessionReplyFollowup => f.kind === 'reply');
 	}
 
 	get commandFollowups() {
-		return this._model.commandFollowups;
+		return this._model.followups?.filter((f): f is IInteractiveSessionResponseCommandFollowup => f.kind === 'command');
 	}
 
 	get errorDetails() {
