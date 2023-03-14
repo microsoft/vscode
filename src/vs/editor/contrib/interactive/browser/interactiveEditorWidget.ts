@@ -778,8 +778,8 @@ export class InteractiveEditorController implements IEditorContribution {
 				if (!isCancellationError(e)) {
 					this._logService.error('[IE] ERROR during request', provider.debugName);
 					this._logService.error(e);
+					this._zone.widget.showMessage(toErrorMessage(e));
 				}
-				this._zone.widget.showMessage(toErrorMessage(e));
 			} finally {
 				this._ctxHasActiveRequest.set(false);
 				this._zone.widget.updateProgress(false);
@@ -797,6 +797,7 @@ export class InteractiveEditorController implements IEditorContribution {
 			if (!reply) {
 				this._logService.trace('[IE] NO reply or edits', provider.debugName);
 				value = input.value;
+				this._zone.widget.showMessage(localize('empty', "No results, tweak your input and try again."));
 				historyEntry.remove();
 				continue;
 			}
