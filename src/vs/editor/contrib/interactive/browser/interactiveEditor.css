@@ -112,6 +112,13 @@
 	top: 0;
 }
 
+/* message  */
+
+.monaco-editor .interactive-editor .message {
+	padding: 6px 8px;
+	color: var(--vscode-errorForeground);
+}
+
 /* decoration styles */
 
 
