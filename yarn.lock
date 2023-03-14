@@ -1241,10 +1241,10 @@
     bindings "^1.5.0"
     node-addon-api "^6.0.0"
 
-"@vscode/ripgrep@^1.14.2":
-  version "1.14.2"
-  resolved "https://registry.yarnpkg.com/@vscode/ripgrep/-/ripgrep-1.14.2.tgz#47c0eec2b64f53d8f7e1b5ffd22a62e229191c34"
-  integrity sha512-KDaehS8Jfdg1dqStaIPDKYh66jzKd5jy5aYEPzIv0JYFLADPsCSQPBUdsJVXnr0t72OlDcj96W05xt/rSnNFFQ==
+"@vscode/ripgrep@^1.15.0":
+  version "1.15.0"
+  resolved "https://registry.yarnpkg.com/@vscode/ripgrep/-/ripgrep-1.15.0.tgz#d6fec68d7c44d594967f21a6e6c97416cc7fb2bc"
+  integrity sha512-qbLYP3XPTfS5a80+WnGvDLhsD01LDrs03zjbbtWWnvwt8G9hP3j8mc3ckaIid7pj86MBSTyUb/ECaIWmJIGBYw==
   dependencies:
     https-proxy-agent "^5.0.0"
     proxy-from-env "^1.1.0"
@@ -1262,12 +1262,12 @@
   resolved "https://registry.yarnpkg.com/@vscode/sudo-prompt/-/sudo-prompt-9.3.1.tgz#c562334bc6647733649fd42afc96c0eea8de3b65"
   integrity sha512-9ORTwwS74VaTn38tNbQhsA5U44zkJfcb0BdTSyyG6frP4e8KMtHuTXYmwefe5dpL8XB1aGSIVTaLjD3BbWb5iA==
 
-"@vscode/telemetry-extractor@^1.9.8":
-  version "1.9.8"
-  resolved "https://registry.yarnpkg.com/@vscode/telemetry-extractor/-/telemetry-extractor-1.9.8.tgz#ffc000720ea2b9cd3421ba8a7bd172972c398b06"
-  integrity sha512-L27/fgC/gM7AY6AXriFGrznnX1M4Nc7VmHabYinDPoJDQYLjbSEDDVjjlSS6BiVkzc3OrFQStqXpHBhImis2eQ==
+"@vscode/telemetry-extractor@^1.9.9":
+  version "1.9.9"
+  resolved "https://registry.yarnpkg.com/@vscode/telemetry-extractor/-/telemetry-extractor-1.9.9.tgz#fe1029a58181287d6ab809aae26ee877f181536c"
+  integrity sha512-nWuXoyXvuS1VBM+U2UQUxUC9fjkquD5QBOv1FlpVkzY+n9hJQ/G4woJdSsOdNgEKnOMUFUSByg8Bl52E4YakKw==
   dependencies:
-    "@vscode/ripgrep" "^1.14.2"
+    "@vscode/ripgrep" "^1.15.0"
     command-line-args "^5.2.1"
     ts-morph "^15.1.0"
 
