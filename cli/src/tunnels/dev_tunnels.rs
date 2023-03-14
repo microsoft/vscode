@@ -378,14 +378,14 @@ impl DevTunnels {
 	/// this attempts to reuse or create a tunnel of a preferred name or of a generated friendly tunnel name.
 	pub async fn start_new_launcher_tunnel(
 		&mut self,
-		preferred_name: Option<String>,
+		preferred_name: Option<&str>,
 		use_random_name: bool,
 	) -> Result<ActiveTunnel, AnyError> {
 		let (mut tunnel, persisted) = match self.launcher_tunnel.load() {
 			Some(mut persisted) => {
 				if let Some(name) = preferred_name {
 					if persisted.name.ne(&name) {
-						(_, persisted) = self.update_tunnel_name(persisted, &name).await?;
+						(_, persisted) = self.update_tunnel_name(persisted, name).await?;
 					}
 				}
 
@@ -631,7 +631,7 @@ impl DevTunnels {
 
 	async fn get_name_for_tunnel(
 		&mut self,
-		preferred_name: Option<String>,
+		preferred_name: Option<&str>,
 		mut use_random_name: bool,
 	) -> Result<String, AnyError> {
 		let existing_tunnels = self.list_all_server_tunnels().await?;
@@ -646,12 +646,12 @@ impl DevTunnels {
 
 		if let Some(machine_name) = preferred_name {
 			let name = machine_name;
-			if let Err(e) = is_valid_name(&name) {
+			if let Err(e) = is_valid_name(name) {
 				info!(self.log, "{} is an invalid name", e);
 				return Err(AnyError::from(wrap(e, "invalid name")));
 			}
-			if is_name_free(&name) {
-				return Ok(name);
+			if is_name_free(name) {
+				return Ok(name.to_owned());
 			}
 			info!(
 				self.log,
