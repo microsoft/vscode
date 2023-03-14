@@ -554,9 +554,11 @@ export class ContentHoverWidget extends Disposable implements IContentWidget {
 	private _setLayoutOfResizableElement(defaultSize: dom.Dimension): void {
 
 		// TODO: 1) Polish code, annotate, make it cleaner. Understand what all the entites correspond to, if some are superfluous, not needed
-		// TODO: 3) Find out why sometimes when resizing the element now jumps, should not jump! The top offset should be correctly saved
 		// TODO: 5) Find out why even if smaller than default max size, the whole widget is not shown, want the whole widget to be shown when smaller than default size
 		// TODO: 6) Find why the content hover widget changes as hover mouse is moved, ever so slight movement
+		// TODO: Render the correct initial size
+		// TODO: Persist the maximum size, if bigger than this size then cap to this size, otherwise take the smaller size
+		// TODO: Find out why the content hover widget blinks once in the beginning when hovering above it
 
 		console.log('* Entered into _resizableLayout of ContentHoverWidget');
 		console.log('defaultSize : ', defaultSize);
@@ -695,7 +697,7 @@ export class ContentHoverWidget extends Disposable implements IContentWidget {
 		const mouseBox = this._editor.getScrolledVisiblePosition(this._initialMousePosition);
 		const bodyBox = dom.getClientArea(document.body);
 		// Different to availableSpaceAbove because we want to remove the tabs and breadcrumbs, since the content hover disappears as soon as below the tabs or breadcrumbs
-		const availableSpaceAboveMinusTabsAndBreadcrumbs = mouseBox!.top;
+		const availableSpaceAboveMinusTabsAndBreadcrumbs = mouseBox!.top - 4;
 		const mouseBottom = editorBox.top + mouseBox!.top + mouseBox!.height;
 		const availableSpaceBelow = bodyBox.height - mouseBottom;
 
@@ -934,7 +936,7 @@ export class ContentHoverWidget extends Disposable implements IContentWidget {
 	public showAt(node: DocumentFragment, visibleData: ContentHoverVisibleData): void {
 
 		// TODO: Maybe should not be here, should the content widget be added?
-		this._editor.addContentWidget(this);
+		// this._editor.addContentWidget(this);
 
 		// Setting maximum so that the hover initially made to respect these conditions
 		// this._hover.containerDomNode.style.maxHeight = '150px';
@@ -995,7 +997,7 @@ export class ContentHoverWidget extends Disposable implements IContentWidget {
 		console.log('calling hide');
 		this._element.enableSashes(false, false, false, false);
 		this._element.clearSashHoverState();
-		this._editor.removeContentWidget(this);
+		// this._editor.removeContentWidget(this);
 
 		if (this._visibleData) {
 			const stoleFocus = this._visibleData.stoleFocus;
