@@ -49,8 +49,8 @@ class AccessibleBufferContribution extends DisposableStore implements ITerminalC
 		this._accessibleBufferWidget?.show();
 	}
 
-	showSymbolQuickPick(): void {
-		this._accessibleBufferWidget?.showSymbolQuickPick();
+	showCommandQuickPick(): void {
+		this._accessibleBufferWidget?.showCommandQuickPick();
 	}
 }
 registerTerminalContribution(AccessibleBufferContribution.ID, AccessibleBufferContribution);
@@ -126,8 +126,8 @@ registerAction2(class extends Action2 {
 registerAction2(class extends Action2 {
 	constructor() {
 		super({
-			id: TerminalCommandId.GoToSymbol,
-			title: { value: localize('workbench.action.terminal.goToSymbol', 'Go to Symbol'), original: 'Go to Symbol' },
+			id: TerminalCommandId.GoToCommand,
+			title: { value: localize('workbench.action.terminal.goToCommand', 'Go to Command'), original: 'Go to Command' },
 			f1: true,
 			category,
 			precondition: ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated),
@@ -150,7 +150,7 @@ registerAction2(class extends Action2 {
 		if (!instance) {
 			return;
 		}
-		AccessibleBufferContribution.get(instance)?.showSymbolQuickPick();
+		AccessibleBufferContribution.get(instance)?.showCommandQuickPick();
 	}
 });
 

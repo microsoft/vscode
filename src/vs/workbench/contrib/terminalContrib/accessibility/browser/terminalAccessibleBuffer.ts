@@ -23,6 +23,7 @@ import { IXtermTerminal } from 'vs/workbench/contrib/terminal/browser/terminal';
 import type { Terminal } from 'xterm';
 import { ITerminalCapabilityStore, TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
 import { IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
+import { AudioCue, IAudioCueService } from 'vs/platform/audioCues/browser/audioCueService';
 
 const enum Constants {
 	Scheme = 'terminal-accessible-buffer',
@@ -46,7 +47,8 @@ export class AccessibleBufferWidget extends DisposableStore {
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IModelService private readonly _modelService: IModelService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
-		@IQuickInputService private readonly _quickInputService: IQuickInputService
+		@IQuickInputService private readonly _quickInputService: IQuickInputService,
+		@IAudioCueService private readonly _audioCueService: IAudioCueService
 	) {
 		super();
 		const codeEditorWidgetOptions: ICodeEditorWidgetOptions = {
@@ -153,7 +155,7 @@ export class AccessibleBufferWidget extends DisposableStore {
 		this._bufferEditor.setScrollTop(this._bufferEditor.getScrollHeight());
 	}
 
-	async showSymbolQuickPick(): Promise<void> {
+	showCommandQuickPick(): void {
 		const commands = this._capabilities.get(TerminalCapability.CommandDetection)?.commands;
 		const quickPick = this._quickInputService.createQuickPick<IQuickPickItem>();
 		const quickPickItems: IQuickPickItem[] = [];
@@ -167,8 +169,8 @@ export class AccessibleBufferWidget extends DisposableStore {
 			}
 			quickPickItems.push(
 				{
-					label: command.exitCode ? localize('terminal.integrated.symbolQuickPick.label', '{0} at {1} with code {2}', command.command, command.cwd, command.exitCode) : localize('terminal.integrated.symbolQuickPick.labelNoExitCode', '{0} at {1}', command.command, command.cwd),
-					meta: JSON.stringify(line + 1)
+					label: localize('terminal.integrated.symbolQuickPick.labelNoExitCode', '{0}', command.command),
+					meta: JSON.stringify({ line: line + 1, exitCode: command.exitCode })
 				});
 		}
 		quickPick.onDidAccept(() => {
@@ -179,12 +181,17 @@ export class AccessibleBufferWidget extends DisposableStore {
 				return;
 			}
 			quickPick.hide();
-			const lineNumber = JSON.parse(item.meta);
-			this._bufferEditor.setSelection({ startLineNumber: lineNumber, startColumn: 1, endLineNumber: lineNumber, endColumn: 1 });
-			this._bufferEditor.revealLine(lineNumber);
+			const data: { line: number; exitCode: number } = JSON.parse(item.meta);
+			this._bufferEditor.setSelection({ startLineNumber: data.line, startColumn: 1, endLineNumber: data.line, endColumn: 1 });
+			this._bufferEditor.revealLine(data.line);
 			this._bufferEditor.focus();
 			this._inQuickPick = false;
 			return;
+		});
+		quickPick.onDidChangeActive(() => {
+			if (JSON.parse(quickPick.activeItems[0].meta!).exitCode) {
+				this._audioCueService.playAudioCue(AudioCue.error, true);
+			}
 		});
 		quickPick.items = quickPickItems;
 		quickPick.show();
