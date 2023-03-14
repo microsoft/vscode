@@ -2177,25 +2177,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 		// Re-create statuses
 		// TODO: Move these into the info interface
-		if (info.requiresAction) {
-			this.statusList.add({
-				id: TerminalStatus.RelaunchNeeded,
-				severity: Severity.Warning,
-				icon: Codicon.warning,
-				tooltip: info.getInfo(),
-				hoverActions: info.getActions ? info.getActions() : undefined
-			});
-		} else {
-			this.statusList.add({
-				id: TerminalStatus.EnvironmentVariableInfoChangesActive,
-				severity: Severity.Info,
-				tooltip: info.getInfo(),
-				hoverActions: info.getActions ? info.getActions() : undefined
-			});
-		}
-		// if (disposable) {
-		// 	this._environmentInfo = { widget, disposable };
-		// }
+		this.statusList.add(info.getStatus());
 	}
 
 	async toggleEscapeSequenceLogging(): Promise<boolean> {

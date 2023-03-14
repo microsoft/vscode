@@ -17,6 +17,7 @@ import { IMarkProperties, ISerializedCommandDetectionCapability, ITerminalCapabi
 import { ThemeIcon } from 'vs/base/common/themables';
 import { IProcessDetails } from 'vs/platform/terminal/common/terminalProcess';
 import { ITerminalQuickFixProvider, ITerminalCommandSelector, ITerminalOutputMatch, ITerminalOutputMatcher } from 'vs/platform/terminal/common/xterm/terminalQuickFix';
+import Severity from 'vs/base/common/severity';
 
 export const TERMINAL_VIEW_ID = 'terminal';
 
@@ -468,6 +469,35 @@ export interface IStartExtensionTerminalRequest {
 	cols: number;
 	rows: number;
 	callback: (error: ITerminalLaunchError | undefined) => void;
+}
+
+export interface ITerminalStatus {
+	/** An internal string ID used to identify the status. */
+	id: string;
+	/**
+	 * The severity of the status, this defines both the color and how likely the status is to be
+	 * the "primary status".
+	 */
+	severity: Severity;
+	/**
+	 * An icon representing the status, if this is not specified it will not show up on the terminal
+	 * tab and will use the generic `info` icon when hovering.
+	 */
+	icon?: ThemeIcon;
+	/**
+	 * What to show for this status in the terminal's hover.
+	 */
+	tooltip?: string | undefined;
+	/**
+	 * Actions to expose on hover.
+	 */
+	hoverActions?: ITerminalStatusHoverAction[];
+}
+
+export interface ITerminalStatusHoverAction {
+	label: string;
+	commandId: string;
+	run: () => void;
 }
 
 export const QUICK_LAUNCH_PROFILE_CHOICE = 'workbench.action.terminal.profile.choice';

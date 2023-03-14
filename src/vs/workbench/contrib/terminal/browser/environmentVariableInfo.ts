@@ -4,13 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IEnvironmentVariableInfo } from 'vs/workbench/contrib/terminal/common/environmentVariable';
-import { TerminalCommandId } from 'vs/workbench/contrib/terminal/common/terminal';
+import { ITerminalStatus, ITerminalStatusHoverAction, TerminalCommandId } from 'vs/workbench/contrib/terminal/common/terminal';
 import { ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { localize } from 'vs/nls';
-import { ThemeIcon } from 'vs/base/common/themables';
 import { Codicon } from 'vs/base/common/codicons';
-import { IHoverAction } from 'vs/workbench/services/hover/browser/hover';
 import { EnvironmentVariableMutatorType, IMergedEnvironmentVariableCollection, IMergedEnvironmentVariableCollectionDiff } from 'vs/platform/terminal/common/environmentVariable';
+import { TerminalStatus } from 'vs/workbench/contrib/terminal/browser/terminalStatusList';
+import Severity from 'vs/base/common/severity';
 
 export class EnvironmentVariableInfoStale implements IEnvironmentVariableInfo {
 	readonly requiresAction = true;
@@ -22,7 +22,7 @@ export class EnvironmentVariableInfoStale implements IEnvironmentVariableInfo {
 	) {
 	}
 
-	getInfo(): string {
+	private _getInfo(): string {
 		const addsAndChanges: string[] = [];
 		const removals: string[] = [];
 		this._diff.added.forEach((mutators, variable) => {
@@ -57,16 +57,22 @@ export class EnvironmentVariableInfoStale implements IEnvironmentVariableInfo {
 		return info;
 	}
 
-	getIcon(): ThemeIcon {
-		return Codicon.warning;
-	}
-
-	getActions(): IHoverAction[] {
+	private _getActions(): ITerminalStatusHoverAction[] {
 		return [{
 			label: localize('relaunchTerminalLabel', "Relaunch terminal"),
 			run: () => this._terminalService.getInstanceFromId(this._terminalId)?.relaunch(),
 			commandId: TerminalCommandId.Relaunch
 		}];
+	}
+
+	getStatus(): ITerminalStatus {
+		return {
+			id: TerminalStatus.RelaunchNeeded,
+			severity: Severity.Warning,
+			icon: Codicon.warning,
+			tooltip: this._getInfo(),
+			hoverActions: this._getActions()
+		};
 	}
 }
 
@@ -78,7 +84,7 @@ export class EnvironmentVariableInfoChangesActive implements IEnvironmentVariabl
 	) {
 	}
 
-	getInfo(): string {
+	private _getInfo(): string {
 		const changes: string[] = [];
 		this._collection.map.forEach((mutators, variable) => {
 			mutators.forEach(mutator => changes.push(mutatorTypeLabel(mutator.type, mutator.value, variable)));
@@ -87,8 +93,13 @@ export class EnvironmentVariableInfoChangesActive implements IEnvironmentVariabl
 		return message + '\n\n```\n' + changes.join('\n') + '\n```';
 	}
 
-	getIcon(): ThemeIcon {
-		return Codicon.info;
+	// TODO: Expose an action to show all info in an editor
+	getStatus(): ITerminalStatus {
+		return {
+			id: TerminalStatus.EnvironmentVariableInfoChangesActive,
+			severity: Severity.Info,
+			tooltip: this._getInfo()
+		};
 	}
 }
 
