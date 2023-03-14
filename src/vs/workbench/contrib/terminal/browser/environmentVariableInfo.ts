@@ -66,6 +66,7 @@ export class EnvironmentVariableInfoChangesActive implements IEnvironmentVariabl
 	private _getInfo(): string {
 		const extSet: Set<string> = new Set();
 		addExtensionIdentifiers(extSet, this._collection.map.values());
+
 		let message = localize('extensionEnvironmentContributionInfoActive', "The following extensions have contributed to this terminal's environment:");
 		message += '\n';
 		for (const ext of extSet) {
@@ -74,7 +75,6 @@ export class EnvironmentVariableInfoChangesActive implements IEnvironmentVariabl
 		return message;
 	}
 
-	// TODO: Expose an action to show all info in an editor
 	getStatus(): ITerminalStatus {
 		return {
 			id: TerminalStatus.EnvironmentVariableInfoChangesActive,
