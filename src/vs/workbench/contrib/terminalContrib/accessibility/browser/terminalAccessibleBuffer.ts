@@ -6,6 +6,7 @@
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
+import * as dom from 'vs/base/browser/dom';
 import { IEditorConstructionOptions } from 'vs/editor/browser/config/editorConfiguration';
 import { EditorExtensionsRegistry } from 'vs/editor/browser/editorExtensions';
 import { CodeEditorWidget, ICodeEditorWidgetOptions } from 'vs/editor/browser/widget/codeEditorWidget';
@@ -24,6 +25,8 @@ import type { Terminal } from 'xterm';
 import { ITerminalCapabilityStore, TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
 import { IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
 import { AudioCue, IAudioCueService } from 'vs/platform/audioCues/browser/audioCueService';
+import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/terminalContextKey';
 
 const enum Constants {
 	Scheme = 'terminal-accessible-buffer',
@@ -39,6 +42,8 @@ export class AccessibleBufferWidget extends DisposableStore {
 	private _font: ITerminalFont;
 	private _inQuickPick = false;
 	private _xtermElement: HTMLElement;
+	private _focusedContextKey: IContextKey<boolean>;
+	private readonly _focusTracker: dom.IFocusTracker;
 
 	constructor(
 		private readonly _instanceId: number,
@@ -48,9 +53,12 @@ export class AccessibleBufferWidget extends DisposableStore {
 		@IModelService private readonly _modelService: IModelService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IQuickInputService private readonly _quickInputService: IQuickInputService,
-		@IAudioCueService private readonly _audioCueService: IAudioCueService
+		@IAudioCueService private readonly _audioCueService: IAudioCueService,
+		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
+
 	) {
 		super();
+		this._focusedContextKey = TerminalContextKeys.accessibleBufferFocus.bindTo(this._contextKeyService);
 		const codeEditorWidgetOptions: ICodeEditorWidgetOptions = {
 			isSimpleWidget: true,
 			contributions: EditorExtensionsRegistry.getSomeEditorContributions([LinkDetector.ID, SelectionClipboardContributionID])
@@ -83,6 +91,9 @@ export class AccessibleBufferWidget extends DisposableStore {
 		this._editorContainer = document.createElement('div');
 		this._accessibleBuffer.tabIndex = -1;
 		this._bufferEditor = this._instantiationService.createInstance(CodeEditorWidget, this._editorContainer, editorOptions, codeEditorWidgetOptions);
+		this._focusTracker = this.add(dom.trackFocus(this._editorContainer));
+		this.add(this._focusTracker.onDidFocus(() => this._focusedContextKey.set(true)));
+		this.add(this._focusTracker.onDidBlur(() => this._focusedContextKey.reset()));
 		this._accessibleBuffer.replaceChildren(this._editorContainer);
 		this._xtermElement.insertAdjacentElement('beforebegin', this._accessibleBuffer);
 		this._bufferEditor.layout({ width: this._xtermElement.clientWidth, height: this._xtermElement.clientHeight });
@@ -102,11 +113,10 @@ export class AccessibleBufferWidget extends DisposableStore {
 			}
 		}));
 		this.add(this._xterm.raw.onWriteParsed(async () => {
-			if (this._accessibleBuffer.classList.contains(Constants.Active)) {
+			if (this._focusedContextKey.get()) {
 				await this._updateEditor(true);
 			}
 		}));
-		this._updateEditor();
 		this.add(this._bufferEditor.onDidFocusEditorText(async () => {
 			if (this._inQuickPick) {
 				return;
@@ -117,6 +127,7 @@ export class AccessibleBufferWidget extends DisposableStore {
 			this._accessibleBuffer.classList.add(Constants.Active);
 			this._xtermElement.classList.add(Constants.Hide);
 		}));
+		this._updateEditor();
 	}
 
 	private _hide(): void {
@@ -155,7 +166,10 @@ export class AccessibleBufferWidget extends DisposableStore {
 		this._bufferEditor.setScrollTop(this._bufferEditor.getScrollHeight());
 	}
 
-	showCommandQuickPick(): void {
+	async showCommandQuickPick(): Promise<void> {
+		if (!this._focusedContextKey.get()) {
+			await this.show();
+		}
 		const commands = this._capabilities.get(TerminalCapability.CommandDetection)?.commands;
 		const quickPick = this._quickInputService.createQuickPick<IQuickPickItem>();
 		const quickPickItems: IQuickPickItem[] = [];
@@ -189,11 +203,12 @@ export class AccessibleBufferWidget extends DisposableStore {
 			return;
 		});
 		quickPick.onDidChangeActive(() => {
-			if (JSON.parse(quickPick.activeItems[0].meta!).exitCode) {
+			const data = quickPick.activeItems?.[0]?.meta;
+			if (data && JSON.parse(data).exitCode) {
 				this._audioCueService.playAudioCue(AudioCue.error, true);
 			}
 		});
-		quickPick.items = quickPickItems;
+		quickPick.items = quickPickItems.reverse();
 		quickPick.show();
 	}
 

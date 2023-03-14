@@ -45,12 +45,12 @@ class AccessibleBufferContribution extends DisposableStore implements ITerminalC
 			this._accessibleBufferWidget = this._instantiationService.createInstance(AccessibleBufferWidget, this._instance.instanceId, xterm, this._instance.capabilities);
 		}
 	}
-	show(): void {
-		this._accessibleBufferWidget?.show();
+	async show(): Promise<void> {
+		await this._accessibleBufferWidget?.show();
 	}
 
-	showCommandQuickPick(): void {
-		this._accessibleBufferWidget?.showCommandQuickPick();
+	async showCommandQuickPick(): Promise<void> {
+		await this._accessibleBufferWidget?.showCommandQuickPick();
 	}
 }
 registerTerminalContribution(AccessibleBufferContribution.ID, AccessibleBufferContribution);
@@ -119,7 +119,7 @@ registerAction2(class extends Action2 {
 		if (!instance) {
 			return;
 		}
-		AccessibleBufferContribution.get(instance)?.show();
+		await AccessibleBufferContribution.get(instance)?.show();
 	}
 });
 
@@ -135,7 +135,7 @@ registerAction2(class extends Action2 {
 				{
 					primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyO,
 					weight: KeybindingWeight.WorkbenchContrib + 2,
-					when: ContextKeyExpr.and(CONTEXT_ACCESSIBILITY_MODE_ENABLED, terminalTabFocusContextKey)
+					when: ContextKeyExpr.or(TerminalContextKeys.accessibleBufferFocus, ContextKeyExpr.and(CONTEXT_ACCESSIBILITY_MODE_ENABLED, TerminalContextKeys.focus))
 				}
 			],
 		});
