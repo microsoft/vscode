@@ -427,8 +427,8 @@ export class ContentHoverWidget extends Disposable implements IContentWidget {
 	private readonly _hoverVisibleKey = EditorContextKeys.hoverVisible.bindTo(this._contextKeyService);
 	private readonly _hoverFocusedKey = EditorContextKeys.hoverFocused.bindTo(this._contextKeyService);
 	private readonly _hover: HoverWidget = this._register(new HoverWidget());
-	private readonly _focusTracker = this._register(dom.trackFocus(this.getDomNode()));
 	private readonly _element: ResizableHTMLElement = this._register(new ResizableHTMLElement());
+	private readonly _focusTracker = this._register(dom.trackFocus(this.getDomNode()));
 	private _renderingAbove: boolean = this._editor.getOption(EditorOption.hover).above;
 	private _visibleData: ContentHoverVisibleData | null = null;
 	private _renderingType: ContentWidgetPositionPreference = ContentWidgetPositionPreference.ABOVE;
