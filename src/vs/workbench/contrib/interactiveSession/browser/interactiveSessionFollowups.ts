@@ -32,7 +32,7 @@ export class InteractiveSessionFollowups<T extends IInteractiveSessionFollowup> 
 		}
 
 		const label = followup.kind === 'reply' ?
-			'$(wand) ' + (followup.title || followup.message) :
+			'$(sparkle) ' + (followup.title || followup.message) :
 			followup.title;
 		button.label = label;
 
