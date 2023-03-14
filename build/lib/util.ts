@@ -440,16 +440,22 @@ export function acquireWebNodePaths() {
 	return nodePaths;
 }
 
-export function createExternalLoaderConfig(webEndpoint?: string, commit?: string, quality?: string) {
+export interface IExternalLoaderInfo {
+	baseUrl: string;
+	paths: { [moduleId: string]: string };
+	[key: string]: any;
+}
+
+export function createExternalLoaderConfig(webEndpoint?: string, commit?: string, quality?: string): IExternalLoaderInfo | undefined {
 	if (!webEndpoint || !commit || !quality) {
 		return undefined;
 	}
 	webEndpoint = webEndpoint + `/${quality}/${commit}`;
 	const nodePaths = acquireWebNodePaths();
 	Object.keys(nodePaths).map(function (key, _) {
-		nodePaths[key] = `${webEndpoint}/node_modules/${key}/${nodePaths[key]}`;
+		nodePaths[key] = `../node_modules/${key}/${nodePaths[key]}`;
 	});
-	const externalLoaderConfig = {
+	const externalLoaderConfig: IExternalLoaderInfo = {
 		baseUrl: `${webEndpoint}/out`,
 		recordStats: true,
 		paths: nodePaths

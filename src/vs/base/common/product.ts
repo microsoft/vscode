@@ -13,6 +13,29 @@ export interface IBuiltInExtension {
 	readonly metadata: any;
 }
 
+export interface IProductWalkthrough {
+	id: string;
+	steps: IProductWalkthroughStep[];
+}
+
+export interface IProductWalkthroughStep {
+	id: string;
+	title: string;
+	when: string;
+	description: string;
+	media:
+	| { type: 'image'; path: string | { hc: string; hcLight?: string; light: string; dark: string }; altText: string }
+	| { type: 'svg'; path: string; altText: string }
+	| { type: 'markdown'; path: string };
+}
+
+export interface IFeaturedExtension {
+	readonly id: string;
+	readonly title: string;
+	readonly description: string;
+	readonly imagePath: string;
+}
+
 export type ConfigurationSyncStore = {
 	url: string;
 	insidersUrl: string;
@@ -50,6 +73,8 @@ export interface IProductConfiguration {
 	readonly dataFolderName: string; // location for extensions (e.g. ~/.vscode-insiders)
 
 	readonly builtInExtensions?: IBuiltInExtension[];
+	readonly walkthroughMetadata?: IProductWalkthrough[];
+	readonly featuredExtensions?: IFeaturedExtension[];
 
 	readonly downloadUrl?: string;
 	readonly updateUrl?: string;
@@ -200,12 +225,14 @@ export interface IRemoteExtensionTip {
 	friendlyName: string;
 	extensionId: string;
 	supportedPlatforms?: PlatformName[];
+	showInStartEntry?: boolean;
 }
 
 export interface IVirtualWorkspaceExtensionTip {
 	friendlyName: string;
 	extensionId: string;
 	supportedPlatforms?: PlatformName[];
+	showInStartEntry?: boolean;
 }
 
 export interface ISurveyData {

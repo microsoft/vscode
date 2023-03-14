@@ -395,51 +395,6 @@ suite('Async', () => {
 	});
 
 	suite('Limiter', () => {
-		test('sync', function () {
-			const factoryFactory = (n: number) => () => {
-				return Promise.resolve(n);
-			};
-
-			let limiter = new async.Limiter(1);
-
-			let promises: Promise<any>[] = [];
-			[0, 1, 2, 3, 4, 5, 6, 7, 8, 9].forEach(n => promises.push(limiter.queue(factoryFactory(n))));
-
-			return Promise.all(promises).then((res) => {
-				assert.strictEqual(10, res.length);
-
-				limiter = new async.Limiter(100);
-
-				promises = [];
-				[0, 1, 2, 3, 4, 5, 6, 7, 8, 9].forEach(n => promises.push(limiter.queue(factoryFactory(n))));
-
-				return Promise.all(promises).then((res) => {
-					assert.strictEqual(10, res.length);
-				});
-			});
-		});
-
-		test('async', function () {
-			const factoryFactory = (n: number) => () => async.timeout(0).then(() => n);
-
-			let limiter = new async.Limiter(1);
-			let promises: Promise<any>[] = [];
-			[0, 1, 2, 3, 4, 5, 6, 7, 8, 9].forEach(n => promises.push(limiter.queue(factoryFactory(n))));
-
-			return Promise.all(promises).then((res) => {
-				assert.strictEqual(10, res.length);
-
-				limiter = new async.Limiter(100);
-
-				promises = [];
-				[0, 1, 2, 3, 4, 5, 6, 7, 8, 9].forEach(n => promises.push(limiter.queue(factoryFactory(n))));
-
-				return Promise.all(promises).then((res) => {
-					assert.strictEqual(10, res.length);
-				});
-			});
-		});
-
 		test('assert degree of paralellism', function () {
 			let activePromises = 0;
 			const factoryFactory = (n: number) => () => {

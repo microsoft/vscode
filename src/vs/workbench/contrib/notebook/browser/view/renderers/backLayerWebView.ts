@@ -52,6 +52,7 @@ import { IPathService } from 'vs/workbench/services/path/common/pathService';
 import { ITextEditorOptions } from 'vs/platform/editor/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { INotebookLoggingService } from 'vs/workbench/contrib/notebook/common/notebookLoggingService';
+import { IDisposable } from 'vs/base/common/lifecycle';
 
 const LINE_COLUMN_REGEX = /:([\d]+)(?::([\d]+))?$/;
 const LineQueryRegex = /line=(\d+)$/;
@@ -125,6 +126,10 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 	element: HTMLElement;
 	webview: IWebviewElement | undefined = undefined;
 	insetMapping: Map<IDisplayOutputViewModel, ICachedInset<T>> = new Map();
+	pendingWebviewIdleInsetCreationRequest: Map<IDisplayOutputViewModel, ICachedInset<T>> = new Map();
+	private reversedPendingWebviewIdleInsetMapping: Map<string, IDisplayOutputViewModel> = new Map();
+
+	pendingInsetCreationRequest: Map<IDisplayOutputViewModel, IDisposable> = new Map();
 	readonly markupPreviewMapping = new Map<string, IMarkupCellInitialization>();
 	private hiddenInsetMapping: Set<IDisplayOutputViewModel> = new Set();
 	private reversedInsetMapping: Map<string, IDisplayOutputViewModel> = new Map();
@@ -230,6 +235,11 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 			type: 'notebookOptions',
 			options: {
 				dragAndDropEnabled: this.options.dragAndDropEnabled
+			},
+			renderOptions: {
+				lineLimit: this.options.outputLineLimit,
+				outputScrolling: this.options.outputScrolling,
+				outputWordWrap: this.options.outputWordWrap
 			}
 		});
 	}
@@ -572,6 +582,17 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 								const { cellInfo, output } = resolvedResult;
 								this.notebookEditor.updateOutputHeight(cellInfo, output, height, !!update.init, 'webview#dimension');
 								this.notebookEditor.scheduleOutputHeightAck(cellInfo, update.id, height);
+							} else if (update.init) {
+								// might be idle render request's ack
+								const outputRequest = this.reversedPendingWebviewIdleInsetMapping.get(update.id);
+								if (outputRequest) {
+									const inset = this.pendingWebviewIdleInsetCreationRequest.get(outputRequest)!;
+									const cellInfo = inset.cellInfo;
+									this.reversedInsetMapping.set(update.id, outputRequest);
+									this.insetMapping.set(outputRequest, inset);
+									this.notebookEditor.updateOutputHeight(cellInfo, outputRequest, height, !!update.init, 'webview#dimension');
+									this.notebookEditor.scheduleOutputHeightAck(cellInfo, update.id, height);
+								}
 							}
 						} else {
 							this.notebookEditor.updateMarkupCellHeight(update.id, height, !!update.init);
@@ -1272,12 +1293,37 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 		}
 	}
 
+	requestCreateOutputWhenWebviewIdle(cellInfo: T, content: IInsetRenderOutput, cellTop: number, offset: number) {
+		if (this._disposed) {
+			return;
+		}
+
+		if (this.insetMapping.has(content.source)) {
+			return;
+		}
+
+		if (this.pendingWebviewIdleInsetCreationRequest.has(content.source)) {
+			return;
+		}
+
+		const { message, renderer } = this._createOutputCreationMessage(cellInfo, content, cellTop, offset, true, true);
+		this._sendMessageToWebview(message);
+		this.pendingWebviewIdleInsetCreationRequest.set(content.source, { outputId: message.outputId, cellInfo: cellInfo, renderer, cachedCreation: message });
+		this.reversedPendingWebviewIdleInsetMapping.set(message.outputId, content.source);
+	}
+
 	createOutput(cellInfo: T, content: IInsetRenderOutput, cellTop: number, offset: number): void {
 		if (this._disposed) {
 			return;
 		}
 
 		const cachedInset = this.insetMapping.get(content.source);
+
+		// we now request to render the output immediately, so we can remove the pending request
+		this.pendingWebviewIdleInsetCreationRequest.delete(content.source);
+		if (cachedInset) {
+			this.reversedPendingWebviewIdleInsetMapping.delete(cachedInset.outputId);
+		}
 
 		if (cachedInset && this._cachedInsetEqual(cachedInset, content)) {
 			this.hiddenInsetMapping.delete(content.source);
@@ -1291,6 +1337,19 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 			return;
 		}
 
+		// create new output
+		const createOutput = () => {
+			const { message, renderer } = this._createOutputCreationMessage(cellInfo, content, cellTop, offset, false, false);
+			this._sendMessageToWebview(message);
+			this.insetMapping.set(content.source, { outputId: message.outputId, cellInfo: cellInfo, renderer, cachedCreation: message });
+			this.hiddenInsetMapping.delete(content.source);
+			this.reversedInsetMapping.set(message.outputId, content.source);
+		};
+
+		createOutput();
+	}
+
+	private _createOutputCreationMessage(cellInfo: T, content: IInsetRenderOutput, cellTop: number, offset: number, createOnIdle: boolean, initiallyHidden: boolean): { readonly message: ICreationRequestMessage; readonly renderer: INotebookRendererInfo | undefined } {
 		const messageBase = {
 			type: 'html',
 			executionId: cellInfo.executionId,
@@ -1299,6 +1358,7 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 			outputOffset: offset,
 			left: 0,
 			requiredPreloads: [],
+			createOnIdle: createOnIdle
 		} as const;
 
 		let message: ICreationRequestMessage;
@@ -1325,6 +1385,7 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 					},
 					allOutputs: output.outputs.map(output => ({ mime: output.mime })),
 				},
+				initiallyHidden: initiallyHidden
 			};
 		} else {
 			message = {
@@ -1333,14 +1394,15 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 				content: {
 					type: content.type,
 					htmlContent: content.htmlContent,
-				}
+				},
+				initiallyHidden: initiallyHidden
 			};
 		}
 
-		this._sendMessageToWebview(message);
-		this.insetMapping.set(content.source, { outputId: message.outputId, cellInfo: cellInfo, renderer, cachedCreation: message });
-		this.hiddenInsetMapping.delete(content.source);
-		this.reversedInsetMapping.set(message.outputId, content.source);
+		return {
+			message,
+			renderer
+		};
 	}
 
 	updateOutput(cellInfo: T, content: IInsetRenderOutput, cellTop: number, offset: number): void {
@@ -1403,6 +1465,8 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 				cellId: outputCache.cellInfo.cellId
 			});
 			this.insetMapping.delete(output);
+			this.pendingInsetCreationRequest.get(output)?.dispose();
+			this.pendingInsetCreationRequest.delete(output);
 			this.reversedInsetMapping.delete(id);
 		}
 	}
@@ -1601,6 +1665,7 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 		this.webview = undefined;
 		this.notebookEditor = null!;
 		this.insetMapping.clear();
+		this.pendingInsetCreationRequest.clear();
 		super.dispose();
 	}
 }

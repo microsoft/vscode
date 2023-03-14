@@ -16,6 +16,7 @@ import { Widget } from 'vs/base/browser/ui/widget';
 import { IAction } from 'vs/base/common/actions';
 import { Emitter, Event } from 'vs/base/common/event';
 import { HistoryNavigator } from 'vs/base/common/history';
+import { equals } from 'vs/base/common/objects';
 import { ScrollbarVisibility } from 'vs/base/common/scrollable';
 import 'vs/css!./inputBox';
 import * as nls from 'vs/nls';
@@ -368,6 +369,11 @@ export class InputBox extends Widget {
 	}
 
 	public showMessage(message: IMessage, force?: boolean): void {
+		if (this.state === 'open' && equals(this.message, message)) {
+			// Already showing
+			return;
+		}
+
 		this.message = message;
 
 		this.element.classList.remove('idle');

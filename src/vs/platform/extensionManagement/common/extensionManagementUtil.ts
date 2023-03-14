@@ -5,7 +5,7 @@
 
 import { compareIgnoreCase } from 'vs/base/common/strings';
 import { IExtensionIdentifier, IGalleryExtension, ILocalExtension, getTargetPlatform } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { ExtensionIdentifier, IExtension, TargetPlatform } from 'vs/platform/extensions/common/extensions';
+import { ExtensionIdentifier, IExtension, TargetPlatform, UNDEFINED_PUBLISHER } from 'vs/platform/extensions/common/extensions';
 import { IFileService } from 'vs/platform/files/common/files';
 import { isLinux, platform } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
@@ -78,8 +78,8 @@ export function adoptToGalleryExtensionId(id: string): string {
 	return id.toLocaleLowerCase();
 }
 
-export function getGalleryExtensionId(publisher: string, name: string): string {
-	return adoptToGalleryExtensionId(getExtensionId(publisher, name));
+export function getGalleryExtensionId(publisher: string | undefined, name: string): string {
+	return adoptToGalleryExtensionId(getExtensionId(publisher ?? UNDEFINED_PUBLISHER, name));
 }
 
 export function groupByExtension<T>(extensions: T[], getExtensionIdentifier: (t: T) => IExtensionIdentifier): T[][] {

@@ -119,6 +119,21 @@ suite('Context Key Parser', () => {
 		assert.deepStrictEqual(parseToStr(input), "cmake:enableFullFeatureSet && !cmake:hideBuildCommand");
 	});
 
+	test('!(foo && bar)', () => {
+		const input = '!(foo && bar)';
+		assert.deepStrictEqual(parseToStr(input), "!bar || !foo");
+	});
+
+	test('!(foo && bar || boar) || deer', () => {
+		const input = '!(foo && bar || boar) || deer';
+		assert.deepStrictEqual(parseToStr(input), "deer || !bar && !boar || !boar && !foo");
+	});
+
+	test(`!(!foo)`, () => {
+		const input = `!(!foo)`;
+		assert.deepStrictEqual(parseToStr(input), "foo");
+	});
+
 	suite('controversial', () => {
 		/*
 			new parser KEEPS old one's behavior:
@@ -161,9 +176,9 @@ suite('Context Key Parser', () => {
 			assert.deepStrictEqual(parseToStr(input), "resource =~ /((\\/scratch\\/(?!update)(.*)\\/)|((\\/src\\/).*\\/)).*$/");
 		});
 
-		test(`resourcePath =~ /\.md(\.yml|\.txt)*$/gim`, () => {
-			const input = `resourcePath =~ /\.md(\.yml|\.txt)*$/gim`;
-			assert.deepStrictEqual(parseToStr(input), "resourcePath =~ /.md(.yml|.txt)*$/gim");
+		test(`resourcePath =~ /\.md(\.yml|\.txt)*$/giym`, () => {
+			const input = `resourcePath =~ /\.md(\.yml|\.txt)*$/giym`;
+			assert.deepStrictEqual(parseToStr(input), "resourcePath =~ /.md(.yml|.txt)*$/im");
 		});
 
 	});
@@ -195,19 +210,19 @@ suite('Context Key Parser', () => {
 			assert.deepStrictEqual(parseToStr(input), "Lexing errors:\n\nUnexpected token ''bar' at offset 7. Did you forget to open or close the quote?\n\n --- \nParsing errors:\n\nUnexpected ''bar' at offset 7.\n");
 		});
 
-		/*
-			We do not support negation of arbitrary expressions, only of keys.
-
-			TODO@ulugbekna: move after adding support for negation of arbitrary expressions
-		*/
-		test('!(foo && bar)', () => {
-			const input = '!(foo && bar)';
-			assert.deepStrictEqual(parseToStr(input), "Parsing errors:\n\nUnexpected '(' at offset 1.\n");
-		});
-
 		test(`config.foo &&  &&bar =~ /^foo$|^bar-foo$|^joo$|^jar$/ && !foo`, () => {
 			const input = `config.foo &&  &&bar =~ /^foo$|^bar-foo$|^joo$|^jar$/ && !foo`;
 			assert.deepStrictEqual(parseToStr(input), "Parsing errors:\n\nUnexpected '&&' at offset 15.\n");
+		});
+
+		test(`!foo == 'test'`, () => {
+			const input = `!foo == 'test'`;
+			assert.deepStrictEqual(parseToStr(input), "Parsing errors:\n\nUnexpected '==' at offset 5.\n");
+		});
+
+		test(`!!foo`, function () {
+			const input = `!!foo`;
+			assert.deepStrictEqual(parseToStr(input), "Parsing errors:\n\nUnexpected '!' at offset 1.\n");
 		});
 
 	});
