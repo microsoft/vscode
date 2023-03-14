@@ -1431,6 +1431,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 	}
 
 	public addContentWidget(widget: editorBrowser.IContentWidget): void {
+		// Data correspoding to the widget which is added
 		const widgetData: IContentWidgetData = {
 			widget: widget,
 			position: widget.getPosition()

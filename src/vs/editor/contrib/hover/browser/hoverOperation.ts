@@ -111,6 +111,7 @@ export class HoverOperation<T> extends Disposable {
 	}
 
 	private _triggerAsyncComputation(): void {
+		console.log('Inside of _triggerAsyncComputation()');
 		this._setState(HoverOperationState.SecondWait);
 		this._secondWaitScheduler.schedule(this._secondWaitTime);
 
@@ -127,6 +128,7 @@ export class HoverOperation<T> extends Disposable {
 						}
 					}
 					this._asyncIterableDone = true;
+					// Once everything is finished
 
 					if (this._state === HoverOperationState.WaitingForAsync || this._state === HoverOperationState.WaitingForAsyncShowingLoading) {
 						this._setState(HoverOperationState.Idle);
@@ -143,6 +145,7 @@ export class HoverOperation<T> extends Disposable {
 	}
 
 	private _triggerSyncComputation(): void {
+		console.log('Inside of _triggerSyncComputation()');
 		if (this._computer.computeSync) {
 			this._result = this._result.concat(this._computer.computeSync());
 		}
@@ -165,6 +168,7 @@ export class HoverOperation<T> extends Disposable {
 		this._onResult.fire(new HoverResult(this._result.slice(0), isComplete, hasLoadingMessage));
 	}
 
+	// Starting the hover operation
 	public start(mode: HoverStartMode): void {
 		if (mode === HoverStartMode.Delayed) {
 			if (this._state === HoverOperationState.Idle) {
