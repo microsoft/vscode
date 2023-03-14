@@ -203,14 +203,14 @@ function renderError(
 	return disposableStore;
 }
 
-function getPreviousMatchingContentGroup(outputElement: HTMLElement, mimeType: string) {
+function getPreviousMatchingContentGroup(outputElement: HTMLElement) {
 	const outputContainer = outputElement.parentElement;
 	let match: HTMLElement | undefined = undefined;
 
 	let previous = outputContainer?.previousSibling;
 	while (previous) {
 		const outputElement = (previous.firstChild as HTMLElement | null);
-		if (!outputElement || outputElement.getAttribute('output-mime-type') !== mimeType) {
+		if (!outputElement || !outputElement.classList.contains('output-stream')) {
 			break;
 		}
 
@@ -253,7 +253,6 @@ function renderStream(outputInfo: OutputItem, outputElement: HTMLElement, error:
 	const disposableStore = createDisposableStore();
 	const outputScrolling = ctx.settings.outputScrolling;
 
-	outputElement.setAttribute('output-mime-type', outputInfo.mime);
 	outputElement.classList.add('output-stream');
 	outputElement.classList.toggle('remove-padding', outputScrolling);
 
@@ -267,7 +266,7 @@ function renderStream(outputInfo: OutputItem, outputElement: HTMLElement, error:
 	const scrollTop = outputScrolling ? findScrolledHeight(outputElement) : undefined;
 
 	// If the previous output item for the same cell was also a stream, append this output to the previous
-	const existingContentParent = getPreviousMatchingContentGroup(outputElement, outputInfo.mime);
+	const existingContentParent = getPreviousMatchingContentGroup(outputElement);
 	if (existingContentParent) {
 		const existing = existingContentParent.querySelector(`[output-item-id="${outputInfo.id}"]`) as HTMLElement | null;
 		if (existing) {
@@ -298,9 +297,9 @@ function renderStream(outputInfo: OutputItem, outputElement: HTMLElement, error:
 	return disposableStore;
 }
 
-function renderText(outputInfo: OutputItem, container: HTMLElement, ctx: IRichRenderContext): IDisposable {
+function renderText(outputInfo: OutputItem, outputElement: HTMLElement, ctx: IRichRenderContext): IDisposable {
 	const disposableStore = createDisposableStore();
-	clearContainer(container);
+	clearContainer(outputElement);
 
 	const text = outputInfo.text();
 	const content = createOutputContent(outputInfo.id, [text], ctx.settings.lineLimit, ctx.settings.outputScrolling, false);
@@ -309,7 +308,12 @@ function renderText(outputInfo: OutputItem, container: HTMLElement, ctx: IRichRe
 		content.classList.add('wordWrap');
 	}
 
+	const outputScrolling = ctx.settings.outputScrolling;
+	content.classList.toggle('scrollable', outputScrolling);
+	outputElement.classList.toggle('remove-padding', outputScrolling);
+	outputElement.appendChild(content);
 	initializeScroll(content, disposableStore);
+
 	return disposableStore;
 }
 
