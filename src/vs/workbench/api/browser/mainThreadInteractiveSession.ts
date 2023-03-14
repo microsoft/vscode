@@ -86,6 +86,9 @@ export class MainThreadInteractiveSession extends Disposable implements MainThre
 			provideSuggestions: (token) => {
 				return this._proxy.$provideInitialSuggestions(handle, token);
 			},
+			provideWelcomeMessage: (token) => {
+				return this._proxy.$provideWelcomeMessage(handle, token);
+			},
 			provideSlashCommands: (session, token) => {
 				return this._proxy.$provideSlashCommands(handle, session.id, token);
 			},

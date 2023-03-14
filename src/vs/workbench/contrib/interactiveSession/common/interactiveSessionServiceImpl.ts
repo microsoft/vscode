@@ -6,6 +6,7 @@
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { groupBy } from 'vs/base/common/collections';
 import { Emitter, Event } from 'vs/base/common/event';
+import { MarkdownString } from 'vs/base/common/htmlContent';
 import { Iterable } from 'vs/base/common/iterator';
 import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { withNullAsUndefined } from 'vs/base/common/types';
@@ -14,8 +15,8 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { ILogService } from 'vs/platform/log/common/log';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { ISerializableInteractiveSessionData, ISerializableInteractiveSessionsData, InteractiveSessionModel } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionModel';
-import { IInteractiveProgress, IInteractiveProvider, IInteractiveSessionService, IInteractiveSessionUserActionEvent, IInteractiveSlashCommand } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionService';
+import { ISerializableInteractiveSessionData, ISerializableInteractiveSessionsData, InteractiveSessionModel, InteractiveWelcomeMessageModel } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionModel';
+import { IInteractiveProgress, IInteractiveProvider, IInteractiveSessionReplyFollowup, IInteractiveSessionService, IInteractiveSessionUserActionEvent, IInteractiveSlashCommand } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionService';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 
 const serializedInteractiveSessionKey = 'interactive.sessions';
@@ -66,7 +67,9 @@ export class InteractiveSessionService extends Disposable implements IInteractiv
 		}
 
 		this._register(storageService.onWillSaveState(e => {
-			const serialized = JSON.stringify(Array.from(this._sessionModels.values()));
+			const allSessions = Array.from(this._sessionModels.values())
+				.filter(session => session.getRequests().length > 0);
+			const serialized = JSON.stringify(allSessions);
 			this.trace('onWillSaveState', `Persisting ${this._sessionModels.size} sessions`);
 			storageService.store(serializedInteractiveSessionKey, serialized, StorageScope.WORKSPACE, StorageTarget.MACHINE);
 		}));
@@ -125,7 +128,11 @@ export class InteractiveSessionService extends Disposable implements IInteractiv
 		}
 
 		this.trace('startSession', `Provider returned session with id ${session.id}`);
-		const model = this.instantiationService.createInstance(InteractiveSessionModel, session, providerId, someSessionHistory);
+
+		const welcomeMessage = someSessionHistory ? undefined : await provider.provideWelcomeMessage?.(token);
+		const welcomeModel = welcomeMessage && new InteractiveWelcomeMessageModel(
+			welcomeMessage.map(item => typeof item === 'string' ? new MarkdownString(item) : item as IInteractiveSessionReplyFollowup[]), session.responderUsername, session.responderAvatarIconUri);
+		const model = this.instantiationService.createInstance(InteractiveSessionModel, session, providerId, withNullAsUndefined(welcomeModel), someSessionHistory);
 		this._sessionModels.set(model.sessionId, model);
 
 		return model;

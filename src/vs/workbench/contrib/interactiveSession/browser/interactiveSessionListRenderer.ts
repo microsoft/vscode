@@ -45,13 +45,13 @@ import { IInteractiveSessionCodeBlockActionContext } from 'vs/workbench/contrib/
 import { InteractiveSessionFollowups } from 'vs/workbench/contrib/interactiveSession/browser/interactiveSessionFollowups';
 import { InteractiveSessionEditorOptions } from 'vs/workbench/contrib/interactiveSession/browser/interactiveSessionOptions';
 import { interactiveSessionResponseHasProviderId } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionContextKeys';
-import { IInteractiveSlashCommand } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionService';
-import { IInteractiveRequestViewModel, IInteractiveResponseViewModel, isRequestVM, isResponseVM } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionViewModel';
+import { IInteractiveSessionReplyFollowup, IInteractiveSlashCommand } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionService';
+import { IInteractiveRequestViewModel, IInteractiveResponseViewModel, IInteractiveWelcomeMessageViewModel, isRequestVM, isResponseVM, isWelcomeVM } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionViewModel';
 import { getNWords } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionWordCounter';
 
 const $ = dom.$;
 
-export type InteractiveTreeItem = IInteractiveRequestViewModel | IInteractiveResponseViewModel;
+export type InteractiveTreeItem = IInteractiveRequestViewModel | IInteractiveResponseViewModel | IInteractiveWelcomeMessageViewModel;
 
 interface IInteractiveListItemTemplate {
 	rowContainer: HTMLElement;
@@ -81,6 +81,9 @@ export class InteractiveListItemRenderer extends Disposable implements ITreeRend
 	static readonly ID = 'item';
 
 	private readonly renderer: MarkdownRenderer;
+
+	protected readonly _onDidClickFollowup = this._register(new Emitter<IInteractiveSessionReplyFollowup>());
+	readonly onDidClickFollowup: Event<IInteractiveSessionReplyFollowup> = this._onDidClickFollowup.event;
 
 	protected readonly _onDidChangeItemHeight = this._register(new Emitter<IItemHeightChangeParams>());
 	readonly onDidChangeItemHeight: Event<IItemHeightChangeParams> = this._onDidChangeItemHeight.event;
@@ -172,7 +175,9 @@ export class InteractiveListItemRenderer extends Disposable implements ITreeRend
 
 	renderElement(node: ITreeNode<InteractiveTreeItem, FuzzyScore>, index: number, templateData: IInteractiveListItemTemplate): void {
 		const { element } = node;
-		const kind = isRequestVM(element) ? 'request' : 'response';
+		const kind = isRequestVM(element) ? 'request' :
+			isResponseVM(element) ? 'response' :
+				'welcome';
 		this.traceLayout('renderElement', `${kind}, index=${index}`);
 
 		interactiveSessionResponseHasProviderId.bindTo(templateData.contextKeyService).set(isResponseVM(element) && !!element.providerResponseId && !element.isPlaceholder);
@@ -181,6 +186,7 @@ export class InteractiveListItemRenderer extends Disposable implements ITreeRend
 
 		templateData.rowContainer.classList.toggle('interactive-request', isRequestVM(element));
 		templateData.rowContainer.classList.toggle('interactive-response', isResponseVM(element));
+		templateData.rowContainer.classList.toggle('interactive-welcome', isWelcomeVM(element));
 		templateData.username.textContent = element.username;
 
 		if (element.avatarIconUri) {
@@ -211,8 +217,10 @@ export class InteractiveListItemRenderer extends Disposable implements ITreeRend
 			timer.cancelAndSet(runProgressiveRender, 50);
 		} else if (isResponseVM(element)) {
 			this.basicRenderElement(element.response.value, element, index, templateData);
-		} else {
+		} else if (isRequestVM(element)) {
 			this.basicRenderElement(element.message, element, index, templateData);
+		} else {
+			this.renderWelcomeMessage(element, templateData);
 		}
 	}
 
@@ -234,6 +242,30 @@ export class InteractiveListItemRenderer extends Disposable implements ITreeRend
 				element.commandFollowups,
 				defaultButtonStyles,
 				followup => this.commandService.executeCommand(followup.commandId, ...(followup.args ?? []))));
+		}
+	}
+
+	private renderWelcomeMessage(element: IInteractiveWelcomeMessageViewModel, templateData: IInteractiveListItemTemplate) {
+		dom.clearNode(templateData.value);
+		const slashCommands = this.delegate.getSlashCommands();
+
+		for (const item of element.content) {
+			if (Array.isArray(item)) {
+				templateData.elementDisposables.add(new InteractiveSessionFollowups(
+					templateData.value,
+					item,
+					undefined,
+					followup => this._onDidClickFollowup.fire(followup)));
+			} else {
+				const result = this.renderMarkdown(item as IMarkdownString, element, templateData.elementDisposables, templateData);
+				for (const codeElement of result.element.querySelectorAll('code')) {
+					if (codeElement.textContent && slashCommands.find(command => codeElement.textContent === `/${command.command}`)) {
+						codeElement.classList.add('interactive-slash-command');
+					}
+				}
+				templateData.value.appendChild(result.element);
+				templateData.elementDisposables.add(result);
+			}
 		}
 	}
 
@@ -371,7 +403,7 @@ export class InteractiveSessionListDelegate implements IListVirtualDelegate<Inte
 
 	getHeight(element: InteractiveTreeItem): number {
 		const kind = isRequestVM(element) ? 'request' : 'response';
-		const height = element.currentRenderedHeight ?? 40;
+		const height = ('currentRenderedHeight' in element ? element.currentRenderedHeight : undefined) ?? 40;
 		this._traceLayout('getHeight', `${kind}, height=${height}`);
 		return height;
 	}

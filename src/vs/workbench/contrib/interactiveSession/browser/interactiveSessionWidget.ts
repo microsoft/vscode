@@ -31,7 +31,7 @@ import { InteractiveSessionFollowups } from 'vs/workbench/contrib/interactiveSes
 import { IInteractiveSessionRendererDelegate, InteractiveListItemRenderer, InteractiveSessionAccessibilityProvider, InteractiveSessionListDelegate, InteractiveTreeItem } from 'vs/workbench/contrib/interactiveSession/browser/interactiveSessionListRenderer';
 import { InteractiveSessionEditorOptions } from 'vs/workbench/contrib/interactiveSession/browser/interactiveSessionOptions';
 import { IInteractiveSessionReplyFollowup, IInteractiveSessionService, IInteractiveSlashCommand } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionService';
-import { IInteractiveSessionViewModel, InteractiveSessionViewModel, isRequestVM, isResponseVM } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionViewModel';
+import { IInteractiveSessionViewModel, InteractiveSessionViewModel, isRequestVM, isResponseVM, isWelcomeVM } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionViewModel';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 
 export const IInteractiveSessionWidgetService = createDecorator<IInteractiveSessionWidgetService>('interactiveSessionWidgetService');
@@ -173,7 +173,11 @@ export class InteractiveSessionWidget extends Disposable implements IInteractive
 
 	private onDidChangeItems() {
 		if (this.tree && this.visible) {
-			const items = this.viewModel?.getItems() ?? [];
+			const items: InteractiveTreeItem[] = this.viewModel?.getItems() ?? [];
+			if (this.viewModel?.welcomeMessage) {
+				items.unshift(this.viewModel.welcomeMessage);
+			}
+
 			const treeItems = items.map(item => {
 				return <ITreeElement<InteractiveTreeItem>>{
 					element: item,
@@ -189,7 +193,7 @@ export class InteractiveSessionWidget extends Disposable implements IInteractive
 			this.tree.setChildren(null, treeItems, {
 				diffIdentityProvider: {
 					getId: (element) => {
-						return element.id + `${isRequestVM(element) && !!this.lastSlashCommands ? '_scLoaded' : ''}`;
+						return element.id + `${(isRequestVM(element) || isWelcomeVM(element)) && !!this.lastSlashCommands ? '_scLoaded' : ''}`;
 					},
 				}
 			});
@@ -262,7 +266,7 @@ export class InteractiveSessionWidget extends Disposable implements IInteractive
 			return button;
 		});
 		if (suggElements && suggElements.length > 0) {
-			this.setWelcomeViewVisible(true);
+			this.setWelcomeViewVisible(false);
 		} else {
 			this.setWelcomeViewVisible(false);
 		}
@@ -286,6 +290,10 @@ export class InteractiveSessionWidget extends Disposable implements IInteractive
 			getSlashCommands: () => this.lastSlashCommands ?? [],
 		};
 		this.renderer = scopedInstantiationService.createInstance(InteractiveListItemRenderer, this.inputOptions, rendererDelegate);
+		this._register(this.renderer.onDidClickFollowup(item => {
+			this.acceptInput(item.message);
+		}));
+
 		this.tree = <WorkbenchObjectTree<InteractiveTreeItem>>scopedInstantiationService.createInstance(
 			WorkbenchObjectTree,
 			'InteractiveSession',
@@ -297,7 +305,7 @@ export class InteractiveSessionWidget extends Disposable implements IInteractive
 				supportDynamicHeights: true,
 				hideTwistiesOfChildlessElements: true,
 				accessibilityProvider: new InteractiveSessionAccessibilityProvider(),
-				keyboardNavigationLabelProvider: { getKeyboardNavigationLabel: (e: InteractiveTreeItem) => isRequestVM(e) ? e.message : e.response.value },
+				keyboardNavigationLabelProvider: { getKeyboardNavigationLabel: (e: InteractiveTreeItem) => isRequestVM(e) ? e.message : isResponseVM(e) ? e.response.value : '' }, // TODO
 				setRowLineHeight: false,
 				overrideStyles: {
 					listFocusBackground: this.listBackgroundColorDelegate(),
@@ -397,10 +405,19 @@ export class InteractiveSessionWidget extends Disposable implements IInteractive
 	}
 
 	private async initializeSessionModel(initial = false) {
+		if (this.viewModel) {
+			return;
+		}
+
 		await this.extensionService.whenInstalledExtensionsRegistered();
 		const model = await this.interactiveSessionService.startSession(this.providerId, initial, CancellationToken.None);
 		if (!model) {
 			throw new Error('Failed to start session');
+		}
+
+		if (this.viewModel) {
+			// Oops, created two. TODO this could be better
+			return;
 		}
 
 		this.viewModel = this.instantiationService.createInstance(InteractiveSessionViewModel, model);
@@ -420,6 +437,7 @@ export class InteractiveSessionWidget extends Disposable implements IInteractive
 
 	async acceptInput(query?: string): Promise<void> {
 		if (!this.viewModel) {
+			// This currently shouldn't happen anymore, but leaving this here to make sure we don't get stuck without a viewmodel
 			await this.initializeSessionModel();
 		}
 
@@ -447,9 +465,10 @@ export class InteractiveSessionWidget extends Disposable implements IInteractive
 		this.tree.domFocus();
 	}
 
-	clear(): void {
+	async clear(): Promise<void> {
 		if (this.viewModel) {
 			this.interactiveSessionService.clearSession(this.viewModel.sessionId);
+			await this.initializeSessionModel();
 			this.focusInput();
 			this.renderWelcomeView(this.container);
 		}

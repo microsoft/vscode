@@ -58,8 +58,8 @@ export class InteractiveSessionViewPane extends ViewPane {
 		this.view.acceptInput();
 	}
 
-	clear(): void {
-		this.view.clear();
+	async clear(): Promise<void> {
+		await this.view.clear();
 	}
 
 	focusInput(): void {

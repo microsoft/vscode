@@ -25,8 +25,14 @@ export class InteractiveSessionFollowups<T extends IInteractiveSessionFollowup> 
 
 	private renderFollowup(container: HTMLElement, followup: T): void {
 		const button = this._register(new Button(container, { ...this.options, supportIcons: true }));
+		if (followup.kind === 'reply') {
+			button.element.classList.add('interactive-followup-reply');
+		} else if (followup.kind === 'command') {
+			button.element.classList.add('interactive-followup-command');
+		}
+
 		const label = followup.kind === 'reply' ?
-			'$(wand) ' + (followup.title || followup.message) :
+			'$(sparkle) ' + (followup.title || followup.message) :
 			followup.title;
 		button.label = label;
 
