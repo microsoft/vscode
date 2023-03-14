@@ -731,37 +731,70 @@ export class ContentHoverWidget extends Disposable implements IContentWidget {
 
 
 		// TODO: When the following is added, it causes errors yet we want the initial hover widget to not inherit the size from before
-		/*
+
 		let maxWidth: number;
 		let maxHeight: number;
 		if (initialRedering) {
-			console.log('Entered into the initial rendering inside of the resize function');
-			this._hover.contentsDomNode.style.maxHeight = height + 'px';
+			console.log('* Entered into the initial rendering inside of the resize function');
+
+			this._hover.containerDomNode.style.height = 'auto';
+			this._hover.containerDomNode.style.width = 'auto';
+			this._hover.contentsDomNode.style.height = 'auto';
+			this._hover.contentsDomNode.style.width = 'auto';
+
+			this._hover.containerDomNode.style.maxHeight = height + 'px';
 			this._hover.containerDomNode.style.maxWidth = width + 'px';
 			this._hover.contentsDomNode.style.maxHeight = height + 'px';
 			this._hover.contentsDomNode.style.maxWidth = width + 'px';
 			const bodyBox = dom.getClientArea(document.body);
+			// Do the layout once
+			this._editor.layoutContentWidget(this);
+
+			const heightAfterRender = this._hover.containerDomNode.offsetHeight;
+			const widthAfterRender = this._hover.containerDomNode.offsetWidth;
+			console.log('heightAfterRender : ', heightAfterRender);
+			console.log('widthAfterRender : ', widthAfterRender);
+
+			this._hover.containerDomNode.style.height = heightAfterRender + 'px';
+			this._hover.containerDomNode.style.width = widthAfterRender + 'px';
+			this._hover.contentsDomNode.style.height = heightAfterRender + 'px';
+			this._hover.contentsDomNode.style.width = widthAfterRender + 'px';
+
+			this._hover.containerDomNode.style.maxHeight = 'none';
+			this._hover.containerDomNode.style.maxWidth = 'none';
+			this._hover.contentsDomNode.style.maxHeight = 'none';
+			this._hover.contentsDomNode.style.maxWidth = 'none';
+
+			this._element.layout(heightAfterRender + 2, widthAfterRender + 2);
+
 			maxWidth = bodyBox.width;
+
+			console.log('this._hover.containerDomNode from initial rendering : ', this._hover.containerDomNode);
 		} else {
-		*/
-		const maxWidth = this._element.maxSize.width;
-		const maxHeight = this._element.maxSize.height;
-		width = Math.min(maxWidth, width);
-		height = Math.min(maxHeight, height);
-		console.log('height : ', height);
-		console.log('this._maxRenderingHeight : ', this._maxRenderingHeight);
-		if (!this._maxRenderingHeight) {
-			return;
+			this._hover.containerDomNode.style.maxHeight = 'none';
+			this._hover.containerDomNode.style.maxWidth = 'none';
+			this._hover.contentsDomNode.style.maxHeight = 'none';
+			this._hover.contentsDomNode.style.maxWidth = 'none';
+
+			maxWidth = this._element.maxSize.width;
+			maxHeight = this._element.maxSize.height;
+			width = Math.min(maxWidth, width);
+			height = Math.min(maxHeight, height);
+			console.log('height : ', height);
+			console.log('this._maxRenderingHeight : ', this._maxRenderingHeight);
+			if (!this._maxRenderingHeight) {
+				return;
+			}
+			// TODO: the following should be tweaked so that the sashes are still there for making it smaller but, it should not be possible to resize when the maxRenderingHeight is the minimal value of 18 cm
+			if (height >= this._maxRenderingHeight) {
+				this._element.enableSashes(false, true, false, false);
+			}
+			this._element.layout(height, width);
+			this._hover.containerDomNode.style.height = `${height - 2}px`;
+			this._hover.containerDomNode.style.width = `${width - 2}px`;
+			this._hover.contentsDomNode.style.height = `${height - 2}px`;
+			this._hover.contentsDomNode.style.width = `${width - 2}px`;
 		}
-		if (height >= this._maxRenderingHeight) {
-			this._element.enableSashes(false, true, false, false);
-		}
-		this._element.layout(height, width);
-		this._hover.containerDomNode.style.height = `${height - 2}px`;
-		this._hover.containerDomNode.style.width = `${width - 2}px`;
-		this._hover.contentsDomNode.style.height = `${height - 2}px`;
-		this._hover.contentsDomNode.style.width = `${width - 2}px`;
-		// }
 
 		this._hover.scrollbar.scanDomNode();
 
@@ -772,8 +805,8 @@ export class ContentHoverWidget extends Disposable implements IContentWidget {
 		}
 		this._element.maxSize = new dom.Dimension(maxWidth, this._maxRenderingHeight);
 		this._editor.layoutContentWidget(this);
-		// console.log('this._element.domNode : ', this._element.domNode);
 
+		// console.log('this._element.domNode : ', this._element.domNode);
 		// this._hoverCopy.scrollbar.scanDomNode();
 		// console.log('this._hover.scrollbar : ', this._hover.scrollbar);
 		// Adding code for hover copy!!
