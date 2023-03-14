@@ -42,11 +42,15 @@ class AccessibleBufferContribution extends DisposableStore implements ITerminalC
 	}
 	layout(xterm: IXtermTerminal & { raw: Terminal }): void {
 		if (!this._accessibleBufferWidget) {
-			this._accessibleBufferWidget = this._instantiationService.createInstance(AccessibleBufferWidget, this._instance.instanceId, xterm);
+			this._accessibleBufferWidget = this._instantiationService.createInstance(AccessibleBufferWidget, this._instance.instanceId, xterm, this._instance.capabilities);
 		}
 	}
 	show(): void {
 		this._accessibleBufferWidget?.show();
+	}
+
+	showSymbolQuickPick(): void {
+		this._accessibleBufferWidget?.showSymbolQuickPick();
 	}
 }
 registerTerminalContribution(AccessibleBufferContribution.ID, AccessibleBufferContribution);
@@ -116,6 +120,37 @@ registerAction2(class extends Action2 {
 			return;
 		}
 		AccessibleBufferContribution.get(instance)?.show();
+	}
+});
+
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: TerminalCommandId.GoToSymbol,
+			title: { value: localize('workbench.action.terminal.goToSymbol', 'Go to Symbol'), original: 'Go to Symbol' },
+			f1: true,
+			category,
+			precondition: ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated),
+			keybinding: [
+				{
+					primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyO,
+					weight: KeybindingWeight.WorkbenchContrib + 2,
+					when: ContextKeyExpr.and(CONTEXT_ACCESSIBILITY_MODE_ENABLED, terminalTabFocusContextKey)
+				}
+			],
+		});
+	}
+	async run(accessor: ServicesAccessor): Promise<void> {
+		const terminalService = accessor.get(ITerminalService);
+		const terminalGroupService = accessor.get(ITerminalGroupService);
+		const terminalEditorService = accessor.get(ITerminalEditorService);
+
+		const instance = await terminalService.getActiveOrCreateInstance();
+		await revealActiveTerminal(instance, terminalEditorService, terminalGroupService);
+		if (!instance) {
+			return;
+		}
+		AccessibleBufferContribution.get(instance)?.showSymbolQuickPick();
 	}
 });
 

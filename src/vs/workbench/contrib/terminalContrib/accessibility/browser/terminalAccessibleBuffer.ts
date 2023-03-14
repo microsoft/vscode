@@ -21,6 +21,8 @@ import { getSimpleEditorOptions } from 'vs/workbench/contrib/codeEditor/browser/
 import { ITerminalFont } from 'vs/workbench/contrib/terminal/common/terminal';
 import { IXtermTerminal } from 'vs/workbench/contrib/terminal/browser/terminal';
 import type { Terminal } from 'xterm';
+import { ITerminalCapabilityStore, TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
+import { IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
 
 const enum Constants {
 	Scheme = 'terminal-accessible-buffer',
@@ -34,14 +36,17 @@ export class AccessibleBufferWidget extends DisposableStore {
 	private _bufferEditor: CodeEditorWidget;
 	private _editorContainer: HTMLElement;
 	private _font: ITerminalFont;
+	private _inQuickPick = false;
 	private _xtermElement: HTMLElement;
 
 	constructor(
 		private readonly _instanceId: number,
 		private readonly _xterm: IXtermTerminal & { raw: Terminal },
+		private readonly _capabilities: ITerminalCapabilityStore,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IModelService private readonly _modelService: IModelService,
-		@IConfigurationService private readonly _configurationService: IConfigurationService
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@IQuickInputService private readonly _quickInputService: IQuickInputService
 	) {
 		super();
 		const codeEditorWidgetOptions: ICodeEditorWidgetOptions = {
@@ -101,6 +106,9 @@ export class AccessibleBufferWidget extends DisposableStore {
 		}));
 		this._updateEditor();
 		this.add(this._bufferEditor.onDidFocusEditorText(async () => {
+			if (this._inQuickPick) {
+				return;
+			}
 			// if the editor is focused via tab, we need to update the model
 			// and show it
 			await this._updateEditor();
@@ -145,6 +153,43 @@ export class AccessibleBufferWidget extends DisposableStore {
 		this._bufferEditor.setScrollTop(this._bufferEditor.getScrollHeight());
 	}
 
+	async showSymbolQuickPick(): Promise<void> {
+		const commands = this._capabilities.get(TerminalCapability.CommandDetection)?.commands;
+		const quickPick = this._quickInputService.createQuickPick<IQuickPickItem>();
+		const quickPickItems: IQuickPickItem[] = [];
+		if (!commands?.length) {
+			return;
+		}
+		for (const command of commands) {
+			const line = command.marker?.line;
+			if (!line) {
+				continue;
+			}
+			quickPickItems.push(
+				{
+					label: command.exitCode ? localize('terminal.integrated.symbolQuickPick.label', '{0} at {1} with code {2}', command.command, command.cwd, command.exitCode) : localize('terminal.integrated.symbolQuickPick.labelNoExitCode', '{0} at {1}', command.command, command.cwd),
+					meta: JSON.stringify(line + 1)
+				});
+		}
+		quickPick.onDidAccept(() => {
+			this._inQuickPick = true;
+			const item = quickPick.activeItems[0];
+			const model = this._bufferEditor.getModel();
+			if (!model || !item.meta) {
+				return;
+			}
+			quickPick.hide();
+			const lineNumber = JSON.parse(item.meta);
+			this._bufferEditor.setSelection({ startLineNumber: lineNumber, startColumn: 1, endLineNumber: lineNumber, endColumn: 1 });
+			this._bufferEditor.revealLine(lineNumber);
+			this._bufferEditor.focus();
+			this._inQuickPick = false;
+			return;
+		});
+		quickPick.items = quickPickItems;
+		quickPick.show();
+	}
+
 	async show(): Promise<void> {
 		await this._updateEditor();
 		this._accessibleBuffer.tabIndex = -1;
@@ -159,7 +204,6 @@ export class AccessibleBufferWidget extends DisposableStore {
 		if (existing && !existing.isDisposed()) {
 			return existing;
 		}
-
 		return this._modelService.createModel(resource.fragment, null, resource, false);
 	}
 
