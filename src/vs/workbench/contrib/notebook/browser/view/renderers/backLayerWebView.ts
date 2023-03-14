@@ -502,10 +502,10 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 		return !!this.webview;
 	}
 
-	createWebview(): void {
+	createWebview(): Promise<void> {
 		const baseUrl = this.asWebviewUri(this.getNotebookBaseUri(), undefined);
 		const htmlContent = this.generateContent(baseUrl.toString());
-		this._initialize(htmlContent);
+		return this._initialize(htmlContent);
 	}
 
 	private getNotebookBaseUri() {
@@ -540,7 +540,7 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 		];
 	}
 
-	private _initialize(content: string) {
+	private _initialize(content: string): Promise<void> {
 		if (!document.body.contains(this.element)) {
 			throw new Error('Element is already detached from the DOM tree');
 		}
@@ -550,6 +550,12 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 		this._register(this.webview);
 
 		this._register(new WebviewWindowDragMonitor(() => this.webview));
+
+		const initializePromise = new DeferredPromise<void>();
+
+		this._register(this.webview.onFatalError(e => {
+			initializePromise.error(new Error(`Could not initialize webview: ${e.message}}`));
+		}));
 
 		this._register(this.webview.onMessage(async (message) => {
 			const data: FromWebviewMessage | { readonly __vscode_notebook_message: undefined } = message.message;
@@ -563,6 +569,7 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 
 			switch (data.type) {
 				case 'initialized': {
+					initializePromise.complete();
 					this.initializeWebViewState();
 					break;
 				}
@@ -844,6 +851,8 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 				}
 			}
 		}));
+
+		return initializePromise.p;
 	}
 
 	private _handleNotebookCellResource(uri: URI) {
