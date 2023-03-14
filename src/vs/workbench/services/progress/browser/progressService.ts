@@ -527,14 +527,14 @@ export class ProgressService extends Disposable implements IProgressService {
 	private withDialogProgress<P extends Promise<R>, R = unknown>(options: IProgressDialogOptions, task: (progress: IProgress<IProgressStep>) => P, onDidCancel?: (choice?: number) => void): P {
 		const disposables = new DisposableStore();
 
-		const allowableCommands = [
+		const allowableCommands = new Set([
 			'workbench.action.quit',
 			'workbench.action.reloadWindow',
 			'copy',
 			'cut',
 			'editor.action.clipboardCopyAction',
 			'editor.action.clipboardCutAction'
-		];
+		]);
 
 		let dialog: Dialog;
 
@@ -556,7 +556,7 @@ export class ProgressService extends Disposable implements IProgressService {
 					disableDefaultAction: options.sticky,
 					keyEventProcessor: (event: StandardKeyboardEvent) => {
 						const resolved = this.keybindingService.softDispatch(event, this.layoutService.container);
-						if (resolved?.commands.length && resolved.commands.some(({ command }) => !allowableCommands.includes(command))) { // TODO@ulugbekna: this could be speeded up using a set
+						if (resolved?.commands.length && resolved.commands.some(({ command }) => !allowableCommands.has(command))) {
 							EventHelper.stop(event, true);
 						}
 					},
