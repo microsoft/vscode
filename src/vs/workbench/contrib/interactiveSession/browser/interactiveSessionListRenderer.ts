@@ -318,17 +318,7 @@ export class InteractiveListItemRenderer extends Disposable implements ITreeRend
 	private renderCodeBlock(data: IInteractiveResultCodeBlockData, disposables: DisposableStore): IDisposableReference<IInteractiveResultCodeBlockPart> {
 		const ref = this._editorPool.get();
 		const editorInfo = ref.object;
-		editorInfo.render(data);
-
-		const layoutEditor = (context: string) => {
-			editorInfo.layout(this._currentLayoutWidth);
-		};
-
-		layoutEditor('init');
-
-		disposables.add(editorInfo.textModel.onDidChangeContent(() => {
-			layoutEditor('textmodel');
-		}));
+		editorInfo.render(data, this._currentLayoutWidth);
 
 		return ref;
 	}
@@ -427,7 +417,7 @@ interface IInteractiveResultCodeBlockPart {
 	readonly element: HTMLElement;
 	readonly textModel: ITextModel;
 	layout(width: number): void;
-	render(data: IInteractiveResultCodeBlockData): void;
+	render(data: IInteractiveResultCodeBlockData, width: number): void;
 	dispose(): void;
 }
 
@@ -529,10 +519,20 @@ class CodeBlockPart extends Disposable implements IInteractiveResultCodeBlockPar
 		this.editor.layout({ width, height: realContentHeight });
 	}
 
-	render(data: IInteractiveResultCodeBlockData): void {
+	render(data: IInteractiveResultCodeBlockData, width: number): void {
 		this.contextKeyService.updateParent(data.parentContextKeyService);
+
+		if (this.options.configuration.resultEditor.wordWrap === 'on') {
+			// Intialize the editor with the new proper width so that getContentHeight
+			// will be computed correctly in the next call to layout()
+			this.layout(width);
+		}
+
 		this.setText(data.text);
 		this.setLanguage(data.languageId);
+
+		this.layout(width);
+
 		this.toolbar.context = <IInteractiveSessionCodeBlockActionContext>{
 			code: data.text,
 			codeBlockIndex: data.index,
