@@ -284,7 +284,6 @@ async function getGitBashPaths(): Promise<string[]> {
 	if (gitExePath) {
 		const gitExeDir = dirname(gitExePath);
 		gitDirs.add(resolve(gitExeDir, '../..'));
-		console.log('gitDirs', gitDirs);
 	}
 	function addTruthy<T>(set: Set<T>, value: T | undefined): void {
 		if (value) {
