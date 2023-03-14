@@ -323,14 +323,11 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 						width: 100%;
 					}
 
-					#container > div > div > div.output:not(.scrollable) {
+					#container > div > div > div.output {
 						font-size: var(--notebook-cell-output-font-size);
 						width: var(--notebook-output-width);
 						margin-left: var(--notebook-output-left-margin);
 						background-color: var(--theme-notebook-output-background);
-					}
-
-					#container > div > div > div.output:not(.scrollable) {
 						padding-top: var(--notebook-output-node-padding);
 						padding-right: var(--notebook-output-node-padding);
 						padding-bottom: var(--notebook-output-node-padding);

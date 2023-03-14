@@ -31,61 +31,59 @@ function generateViewMoreElement(outputId: string) {
 }
 
 function generateNestedViewAllElement(outputId: string) {
-	const container = document.createElement('span');
-	const prefix = document.createElement('span');
-	prefix.innerText = '... (View full content in a ';
-	container.append(prefix);
+	const container = document.createElement('div');
 
 	const link = document.createElement('a');
-	link.textContent = 'text editor';
+	link.textContent = '...';
 	link.href = `command:workbench.action.openLargeOutput?${outputId}`;
-	container.append(link);
-
-	const postfix = document.createElement('span');
-	prefix.innerText = ')\n';
-	container.append(postfix);
+	link.title = 'Open full output in text editor';
+	link.style.setProperty('text-decoration', 'none');
+	container.appendChild(link);
 
 	return container;
 }
 
-function truncatedArrayOfString(id: string, buffer: string[], linesLimit: number, container: HTMLElement, trustHtml: boolean) {
-	const lineCount = buffer.length;
-	container.appendChild(generateViewMoreElement(id));
-
-	container.appendChild(handleANSIOutput(buffer.slice(0, linesLimit - 5).join('\n'), trustHtml));
-
-	// view more ...
-	const viewMoreSpan = document.createElement('span');
-	viewMoreSpan.innerText = '...';
-	container.appendChild(viewMoreSpan);
-
-	container.appendChild(handleANSIOutput(buffer.slice(lineCount - 5).join('\n'), trustHtml));
-}
-
-function scrollableArrayOfString(id: string, buffer: string[], container: HTMLElement, trustHtml: boolean) {
-	if (buffer.length > 5000) {
-		container.parentNode!.append(generateNestedViewAllElement(id));
-	}
-
-	container.appendChild(handleANSIOutput(buffer.slice(-5000).join('\n'), trustHtml));
-}
-
-export function insertOutput(id: string, outputs: string[], linesLimit: number, scrollable: boolean, trustHtml: boolean) {
-	const element = document.createElement('div');
-	const buffer = outputs.join('\n').split(/\r\n|\r|\n/g);
-
-	if (scrollable) {
-		scrollableArrayOfString(id, buffer, element, trustHtml);
-	}
-
+function truncatedArrayOfString(id: string, buffer: string[], linesLimit: number, trustHtml: boolean) {
+	const container = document.createElement('div');
 	const lineCount = buffer.length;
 
 	if (lineCount <= linesLimit) {
 		const spanElement = handleANSIOutput(buffer.join('\n'), trustHtml);
-		element.appendChild(spanElement);
-	} else {
-		truncatedArrayOfString(id, buffer, linesLimit, element, trustHtml);
+		container.appendChild(spanElement);
+		return container;
 	}
 
+	container.appendChild(generateViewMoreElement(id));
+	container.appendChild(handleANSIOutput(buffer.slice(0, linesLimit - 5).join('\n'), trustHtml));
+
+	// truncated piece
+	const elipses = document.createElement('span');
+	elipses.innerText = '...';
+	container.appendChild(elipses);
+
+	container.appendChild(handleANSIOutput(buffer.slice(lineCount - 5).join('\n'), trustHtml));
+
+	return container;
+}
+
+function scrollableArrayOfString(id: string, buffer: string[], trustHtml: boolean) {
+	const element = document.createElement('div');
+	if (buffer.length > 5000) {
+		element.appendChild(generateNestedViewAllElement(id));
+	}
+
+	element.appendChild(handleANSIOutput(buffer.slice(-5000).join('\n'), trustHtml));
+
 	return element;
+}
+
+export function insertOutput(id: string, outputs: string[], linesLimit: number, scrollable: boolean, trustHtml: boolean): HTMLElement {
+
+	const buffer = outputs.join('\n').split(/\r\n|\r|\n/g);
+
+	if (scrollable) {
+		return scrollableArrayOfString(id, buffer, trustHtml);
+	} else {
+		return truncatedArrayOfString(id, buffer, linesLimit, trustHtml);
+	}
 }
