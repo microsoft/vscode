@@ -465,6 +465,7 @@ export class ContentHoverWidget extends Disposable implements IContentWidget {
 	// Storing the preference of whether we want to render above or below
 	private _renderingAbove: boolean = this._editor.getOption(EditorOption.hover).above;
 	private _visibleData: ContentHoverVisibleData | null = null;
+	private _renderingType: ContentWidgetPositionPreference = ContentWidgetPositionPreference.ABOVE;
 
 	public get element(): ResizableHTMLElement {
 		return this._element;
@@ -527,6 +528,7 @@ export class ContentHoverWidget extends Disposable implements IContentWidget {
 		}));
 
 		this._element.domNode.appendChild(this._hover.containerDomNode);
+		this._element.domNode.className = 'resizable-hover';
 
 		// Place also the hover container dom node on top of the resizable element
 		// const boundingBox = this._hover.containerDomNode.getBoundingClientRect();
@@ -638,6 +640,9 @@ export class ContentHoverWidget extends Disposable implements IContentWidget {
 			const southSash = height > maxHeightAbove;
 			this._renderingAbove = height <= maxHeightAbove;
 			console.log('this._renderingAbove : ', this._renderingAbove);
+
+			this._renderingType = this._renderingAbove ? ContentWidgetPositionPreference.ABOVE : ContentWidgetPositionPreference.BELOW;
+			console.log('this._renderingType : ', this._renderingType);
 			this._element.enableSashes(northSash, eastSash, southSash, westSash);
 
 		} else {
@@ -649,6 +654,9 @@ export class ContentHoverWidget extends Disposable implements IContentWidget {
 
 			this._renderingAbove = height > maxHeightBelow;
 			console.log('this._renderingAbove : ', this._renderingAbove);
+
+			this._renderingType = this._renderingAbove ? ContentWidgetPositionPreference.ABOVE : ContentWidgetPositionPreference.BELOW;
+			console.log('this._renderingType : ', this._renderingType);
 			this._element.enableSashes(northSash, eastSash, southSash, westSash);
 		}
 
@@ -843,6 +851,7 @@ export class ContentHoverWidget extends Disposable implements IContentWidget {
 
 	public getPosition(): IContentWidgetPosition | null {
 		console.log('Inside of getPosition of the ContentHoverWidget');
+		console.log('this._renderingType : ', this._renderingType);
 		if (!this._visibleData) {
 			return null;
 		}
@@ -858,11 +867,12 @@ export class ContentHoverWidget extends Disposable implements IContentWidget {
 		return {
 			position: this._visibleData.showAtPosition,
 			secondaryPosition: this._visibleData.showAtSecondaryPosition,
-			preference: (
-				preferAbove
-					? [ContentWidgetPositionPreference.ABOVE, ContentWidgetPositionPreference.BELOW]
-					: [ContentWidgetPositionPreference.BELOW, ContentWidgetPositionPreference.ABOVE]
-			),
+			preference: [this._renderingType],
+			// (
+			//	preferAbove
+			//		? [ContentWidgetPositionPreference.ABOVE, ContentWidgetPositionPreference.BELOW]
+			//		: [ContentWidgetPositionPreference.BELOW, ContentWidgetPositionPreference.ABOVE]
+			// ),
 			positionAffinity: affinity
 		};
 	}

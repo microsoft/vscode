@@ -29,4 +29,6 @@
 	background-color: var(--vscode-textCodeBlock-background);
 }
 
-
+.monaco-editor .resizable-hover {
+	z-index: 10;
+}
