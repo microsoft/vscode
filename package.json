@@ -218,7 +218,7 @@
     "vinyl": "^2.0.0",
     "vinyl-fs": "^3.0.0",
     "vscode-nls-dev": "^3.3.1",
-    "webpack": "^5.42.0",
+    "webpack": "^5.76.0",
     "webpack-cli": "^4.7.2",
     "webpack-stream": "^6.1.2",
     "xml2js": "^0.4.17",
