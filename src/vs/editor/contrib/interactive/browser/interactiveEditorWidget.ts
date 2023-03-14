@@ -76,7 +76,7 @@ class InteractiveEditorWidget {
 				h('div.toolbar@rhsToolbar'),
 			]),
 			h('div.progress@progress'),
-			h('div.message@message'),
+			h('div.message.hidden@message'),
 		]
 	);
 
@@ -166,7 +166,6 @@ class InteractiveEditorWidget {
 		this._inputModel = this._modelService.getModel(uri) ?? this._modelService.createModel('', null, uri);
 		this._inputEditor.setModel(this._inputModel);
 
-
 		// show/hide placeholder depending on text model being empty
 		// content height
 
@@ -233,7 +232,9 @@ class InteractiveEditorWidget {
 	}
 
 	getHeight(): number {
-		return this._inputEditor.getContentHeight() + getTotalHeight(this._elements.message) + getTotalHeight(this._elements.history);
+		const base = getTotalHeight(this._elements.progress) + getTotalHeight(this._elements.message) + getTotalHeight(this._elements.history);
+		const editorHeight = this._inputEditor.getContentHeight() + 6 /* padding and border */;
+		return base + editorHeight + 12 /* padding */;
 	}
 
 	updateProgress(show: boolean) {
@@ -377,11 +378,13 @@ class InteractiveEditorWidget {
 	}
 
 	showMessage(value: string) {
+		this._elements.message.classList.remove('hidden');
 		this._elements.message.innerText = value;
 		this._onDidChangeHeight.fire();
 	}
 
 	clearMessage() {
+		this._elements.message.classList.add('hidden');
 		reset(this._elements.message);
 		this._onDidChangeHeight.fire();
 	}
@@ -476,8 +479,7 @@ export class InteractiveEditorZoneWidget extends ZoneWidget {
 
 	private _computeHeightInLines(): number {
 		const lineHeight = this.editor.getOption(EditorOption.lineHeight);
-		const contentHeightInLines = (this.widget.getHeight() / lineHeight);
-		return 2 + contentHeightInLines;
+		return this.widget.getHeight() / lineHeight;
 	}
 
 	protected override _relayout() {
