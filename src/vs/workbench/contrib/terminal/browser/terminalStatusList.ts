@@ -22,6 +22,7 @@ export const enum TerminalStatus {
 	Bell = 'bell',
 	Disconnected = 'disconnected',
 	RelaunchNeeded = 'relaunch-needed',
+	EnvironmentVariableInfoChangesActive = 'env-var-info-changes-active',
 	ShellIntegrationAttentionNeeded = 'shell-integration-attention-needed'
 }
 
