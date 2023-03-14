@@ -64,14 +64,14 @@ export interface IInteractiveEditorService {
 	getAll(): Iterable<IInteractiveEditorSessionProvider>;
 }
 
-export const MENU_INTERACTIVE_EDITOR_WIDGET_LHS = MenuId.for('interactiveEditorWidgetLhs');
-export const MENU_INTERACTIVE_EDITOR_WIDGET = MenuId.for('interactiveEditorWidgetRhs');
+export const MENU_INTERACTIVE_EDITOR_WIDGET = MenuId.for('interactiveEditorWidget');
 
 export const CTX_INTERACTIVE_EDITOR_HAS_PROVIDER = new RawContextKey<boolean>('interactiveEditorHasProvider', false, localize('interactiveEditorHasProvider', "Whether a provider for interactive editors exists"));
 export const CTX_INTERACTIVE_EDITOR_VISIBLE = new RawContextKey<boolean>('interactiveEditorVisible', false, localize('interactiveEditorVisible', "Whether the interactive editor input is visible"));
 export const CTX_INTERACTIVE_EDITOR_FOCUSED = new RawContextKey<boolean>('interactiveEditorFocused', false, localize('interactiveEditorFocused', "Whether the interactive editor input is focused"));
 export const CTX_INTERACTIVE_EDITOR_EMPTY = new RawContextKey<boolean>('interactiveEditorEmpty', false, localize('interactiveEditorEmpty', "Whether the interactive editor input is empty"));
 export const CTX_INTERACTIVE_EDITOR_PREVIEW = new RawContextKey<boolean>('interactiveEditorPreview', false, localize('interactiveEditorPreview', "Whether the interactive editor input shows inline previews"));
+export const CTX_INTERACTIVE_EDITOR_HISTORY_POSSIBLE = new RawContextKey<boolean>('interactiveEditorHistoryPossible', false, localize('interactiveEditorHistoryPossible', "Whether the interactive editor has history entries"));
 export const CTX_INTERACTIVE_EDITOR_HISTORY_VISIBLE = new RawContextKey<boolean>('interactiveEditorHistoryVisible', false, localize('interactiveEditorHistoryVisible', "Whether the interactive editor history is visible"));
 export const CTX_INTERACTIVE_EDITOR_INNER_CURSOR_FIRST = new RawContextKey<boolean>('interactiveEditorInnerCursorFirst', false, localize('interactiveEditorInnerCursorFirst', "Whether the cursor of the iteractive editor input is on the first line"));
 export const CTX_INTERACTIVE_EDITOR_INNER_CURSOR_LAST = new RawContextKey<boolean>('interactiveEditorInnerCursorLast', false, localize('interactiveEditorInnerCursorLast', "Whether the cursor of the iteractive editor input is on the last line"));
