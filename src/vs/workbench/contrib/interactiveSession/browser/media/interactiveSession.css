@@ -213,7 +213,7 @@
 	color: var(--vscode-errorForeground) !important; /* Have to override default styles which apply to all lists */
 }
 
-.interactive-session .interactive-request .value .interactive-slash-command {
+.interactive-session .interactive-item-container .value .interactive-slash-command {
 	color: var(--vscode-textLink-foreground);
 }
 
@@ -254,11 +254,15 @@
 	margin-bottom: 8px;
 }
 
-.interactive-session .interactive-input-part .interactive-input-followups .interactive-session-followups .monaco-button {
+.interactive-session .interactive-session-followups .monaco-button.interactive-followup-reply {
 	padding: 0px;
 	font-size: 11px;
 	font-weight: 600;
 	border: none;
+}
+
+.interactive-session .interactive-welcome .value .interactive-session-followups {
+	margin-bottom: 10px;
 }
 
 .interactive-list .interactive-item-container .monaco-toolbar .codicon {

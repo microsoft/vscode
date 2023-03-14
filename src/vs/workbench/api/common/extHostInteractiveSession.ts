@@ -123,6 +123,29 @@ export class ExtHostInteractiveSession implements ExtHostInteractiveSessionShape
 		return withNullAsUndefined(await entry.provider.provideInitialSuggestions(token));
 	}
 
+	async $provideWelcomeMessage(handle: number, token: CancellationToken): Promise<(string | IInteractiveSessionReplyFollowup[])[] | undefined> {
+		const entry = this._interactiveSessionProvider.get(handle);
+		if (!entry) {
+			return undefined;
+		}
+
+		if (!entry.provider.provideWelcomeMessage) {
+			return undefined;
+		}
+
+		const content = await entry.provider.provideWelcomeMessage(token);
+		if (!content) {
+			return undefined;
+		}
+		return content.map(item => {
+			if (typeof item === 'string') {
+				return item;
+			} else {
+				return item.map(f => (<IInteractiveSessionReplyFollowup>{ title: f.title, message: f.message, kind: 'reply' }));
+			}
+		});
+	}
+
 	async $provideFollowups(handle: number, sessionId: number, token: CancellationToken): Promise<IInteractiveSessionFollowup[] | undefined> {
 		const entry = this._interactiveSessionProvider.get(handle);
 		if (!entry) {

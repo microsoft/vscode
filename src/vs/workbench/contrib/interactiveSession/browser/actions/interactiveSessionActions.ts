@@ -88,10 +88,10 @@ export function registerInteractiveSessionActions() {
 				}]
 			});
 		}
-		run(accessor: ServicesAccessor, ...args: any[]) {
+		async run(accessor: ServicesAccessor, ...args: any[]) {
 			const editorService = accessor.get(IEditorService);
 			if (editorService.activeEditorPane instanceof InteractiveSessionEditor) {
-				editorService.activeEditorPane.clear();
+				await editorService.activeEditorPane.clear();
 			}
 		}
 	});
@@ -158,9 +158,9 @@ export function registerInteractiveSessionActions() {
 				f1: true
 			});
 		}
-		run(accessor: ServicesAccessor, ...args: any[]) {
+		async run(accessor: ServicesAccessor, ...args: any[]) {
 			const widgetService = accessor.get(IInteractiveSessionWidgetService);
-			widgetService.lastFocusedWidget?.clear();
+			await widgetService.lastFocusedWidget?.clear();
 		}
 	});
 }
@@ -208,8 +208,8 @@ export function getClearAction(viewId: string, providerId: string) {
 			super(getClearInteractiveSessionActionDescriptorForViewTitle(viewId, providerId));
 		}
 
-		runInView(accessor: ServicesAccessor, view: InteractiveSessionViewPane) {
-			view.clear();
+		async runInView(accessor: ServicesAccessor, view: InteractiveSessionViewPane) {
+			await view.clear();
 		}
 	};
 }
