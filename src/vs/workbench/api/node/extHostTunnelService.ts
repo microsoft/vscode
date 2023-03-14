@@ -256,12 +256,17 @@ export class ExtHostTunnelService extends Disposable implements IExtHostTunnelSe
 		// Regularly scan to see if the candidate ports have changed.
 		const movingAverage = new MovingAverage();
 		let oldPorts: { host: string; port: number; detail?: string }[] | undefined = undefined;
+		let scanCount = 0;
 		while (this._candidateFindingEnabled) {
 			const startTime = new Date().getTime();
 			const newPorts = (await this.findCandidatePorts()).filter(candidate => (isLocalhost(candidate.host) || isAllInterfaces(candidate.host)));
 			this.logService.trace(`ForwardedPorts: (ExtHostTunnelService) found candidate ports ${newPorts.map(port => port.port).join(', ')}`);
 			const timeTaken = new Date().getTime() - startTime;
-			movingAverage.update(timeTaken);
+			this.logService.trace(`ForwardedPorts: (ExtHostTunnelService) candidate port scan took ${timeTaken} ms.`);
+			// Do not count the first few scans towards the moving average as they are likely to be slower.
+			if (scanCount++ > 3) {
+				movingAverage.update(timeTaken);
+			}
 			if (!oldPorts || (JSON.stringify(oldPorts) !== JSON.stringify(newPorts))) {
 				oldPorts = newPorts;
 				await this._proxy.$onFoundNewCandidates(oldPorts);
