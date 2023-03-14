@@ -46,6 +46,7 @@ import { ThemeIcon } from 'vs/base/common/themables';
 import { LRUCache } from 'vs/base/common/map';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IBulkEditService } from 'vs/editor/browser/services/bulkEditService';
+import { toErrorMessage } from 'vs/base/common/errorMessage';
 
 
 interface IHistoryEntry {
@@ -74,7 +75,8 @@ class InteractiveEditorWidget {
 				]),
 				h('div.toolbar@rhsToolbar'),
 			]),
-			h('div.progress@progress')
+			h('div.progress@progress'),
+			h('div.message@message'),
 		]
 	);
 
@@ -231,7 +233,7 @@ class InteractiveEditorWidget {
 	}
 
 	getHeight(): number {
-		return this._inputEditor.getContentHeight() + getTotalHeight(this._elements.history);
+		return this._inputEditor.getContentHeight() + getTotalHeight(this._elements.message) + getTotalHeight(this._elements.history);
 	}
 
 	updateProgress(show: boolean) {
@@ -374,9 +376,20 @@ class InteractiveEditorWidget {
 		reset(this._elements.history);
 	}
 
+	showMessage(value: string) {
+		this._elements.message.innerText = value;
+		this._onDidChangeHeight.fire();
+	}
+
+	clearMessage() {
+		reset(this._elements.message);
+		this._onDidChangeHeight.fire();
+	}
+
 	reset() {
 		this._ctxInputEmpty.reset();
 		this.clearHistory();
+		this.clearMessage();
 	}
 
 	focus() {
@@ -738,6 +751,8 @@ export class InteractiveEditorController implements IEditorContribution {
 			this._historyOffset = -1;
 			const input = await this._zone.getInput(wholeRange.getEndPosition(), placeholder, value, this._ctsRequest.token);
 
+			this._zone.widget.clearMessage();
+
 			if (!input || !input.value) {
 				continue;
 			}
@@ -763,6 +778,7 @@ export class InteractiveEditorController implements IEditorContribution {
 				if (!isCancellationError(e)) {
 					this._logService.error('[IE] ERROR during request', provider.debugName);
 					this._logService.error(e);
+					this._zone.widget.showMessage(toErrorMessage(e));
 				}
 			} finally {
 				this._ctxHasActiveRequest.set(false);
@@ -781,6 +797,7 @@ export class InteractiveEditorController implements IEditorContribution {
 			if (!reply) {
 				this._logService.trace('[IE] NO reply or edits', provider.debugName);
 				value = input.value;
+				this._zone.widget.showMessage(localize('empty', "No results, tweak your input and try again."));
 				historyEntry.remove();
 				continue;
 			}
