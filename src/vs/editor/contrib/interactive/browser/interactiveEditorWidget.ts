@@ -588,7 +588,7 @@ export class InteractiveEditorController implements IEditorContribution {
 		description: 'interactive-editor',
 		blockClassName: 'interactive-editor-block',
 		blockDoesNotCollapse: true,
-		blockPadding: [1, 0, 1, 4]
+		blockPadding: [4, 0, 1, 4]
 	});
 
 	private static _promptHistory: string[] = [];
