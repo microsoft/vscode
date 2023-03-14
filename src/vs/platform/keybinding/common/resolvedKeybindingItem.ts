@@ -27,7 +27,7 @@ export class ResolvedKeybindingItem {
 			this.chords = toEmptyArrayIfContainsNull(resolvedKeybinding.getSingleModifierDispatchChords());
 		}
 		const processedCommands = [...commands]; // we have to copy because we possibly need to mutate the first command in the array
-		if (processedCommands.length === 1 && processedCommands[0].command.charCodeAt(0) === CharCode.Caret) { // to preserve old behavior // TODO@ulugbekna: should we remove support for `bubble`?
+		if (processedCommands.length === 1 && processedCommands[0].command.charCodeAt(0) === CharCode.Caret) { // preserves support for `bubble` - should we remove it?
 			this.bubble = true;
 			processedCommands[0].command = processedCommands[0].command.substring(1);
 		}
