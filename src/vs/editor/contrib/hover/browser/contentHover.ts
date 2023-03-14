@@ -483,6 +483,7 @@ export class ContentHoverWidget extends Disposable implements IContentWidget {
 
 		this._element.domNode.appendChild(this._hover.containerDomNode);
 		this._element.domNode.className = 'resizable-hover';
+		// this._element.domNode.className = 'monaco-hover';
 
 		this._register(this._element.onDidResize(e => {
 			console.log('* Inside of onDidResize of ContentHoverWidget');
@@ -496,6 +497,8 @@ export class ContentHoverWidget extends Disposable implements IContentWidget {
 	// TODO: Render the correct initial size
 	// TODO: Persist the maximum size, if bigger than this size then cap to this size, otherwise take the smaller size
 	// TODO: Do not enable the sashes when the hover should not be resizable anymore
+	// TODO: Add horizontal scroll-bar on the resizable element when part of the horizontal text is not visible
+	// TODO: Have the same hover size as by default, for that generate the initial rendering of the content hover widget
 
 	private _setLayoutOfResizableElement(): void { // maxSize: dom.Dimension
 
@@ -641,6 +644,12 @@ export class ContentHoverWidget extends Disposable implements IContentWidget {
 		this._hover.containerDomNode.style.width = `${width - 2}px`;
 		this._hover.contentsDomNode.style.height = `${height - 2}px`;
 		this._hover.contentsDomNode.style.width = `${width - 2}px`;
+
+		console.log('this._hover.contentsDomNode.clientHeight : ', this._hover.contentsDomNode.clientHeight);
+		console.log('this._hover.contentsDomNode.scrollHeight : ', this._hover.contentsDomNode.scrollHeight);
+		console.log('this._hover.contentsDomNode.clientWidth : ', this._hover.contentsDomNode.clientWidth);
+		console.log('this._hover.contentsDomNode.scrollWidth : ', this._hover.contentsDomNode.scrollWidth);
+
 		this._hover.scrollbar.scanDomNode();
 		console.log('Before layoutContentWidget');
 		this._editor.layoutContentWidget(this);
@@ -846,8 +855,10 @@ export class ContentHoverWidget extends Disposable implements IContentWidget {
 		this._hover.onContentsChanged();
 
 		const scrollDimensions = this._hover.scrollbar.getScrollDimensions();
+		console.log('scrollDimensions : ', scrollDimensions);
 		const hasHorizontalScrollbar = (scrollDimensions.scrollWidth > scrollDimensions.width);
 		if (hasHorizontalScrollbar) {
+			console.log('Entered into hasHorizontalScrollbar');
 			// There is just a horizontal scrollbar
 			const extraBottomPadding = `${this._hover.scrollbar.options.horizontalScrollbarSize}px`;
 			if (this._hover.contentsDomNode.style.paddingBottom !== extraBottomPadding) {
