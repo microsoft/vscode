@@ -6,7 +6,7 @@
 .monaco-editor .interactive-editor {
 	z-index: 100;
 	color: inherit;
-	padding: 6px 0 6px 6px;
+	padding: 6px 0 6px 3px;
 }
 
 /* body */
@@ -114,7 +114,7 @@
 /* message  */
 
 .monaco-editor .interactive-editor .message {
-	padding: 6px 8px;
+	padding: 6px 0;
 	color: var(--vscode-errorForeground);
 }
 

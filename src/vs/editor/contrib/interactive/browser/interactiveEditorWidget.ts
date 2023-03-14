@@ -15,7 +15,7 @@ import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/c
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ZoneWidget } from 'vs/editor/contrib/zoneWidget/browser/zoneWidget';
 import { assertType } from 'vs/base/common/types';
-import { IInteractiveEditorResponse, IInteractiveEditorService, CTX_INTERACTIVE_EDITOR_FOCUSED, CTX_INTERACTIVE_EDITOR_HAS_ACTIVE_REQUEST, CTX_INTERACTIVE_EDITOR_INNER_CURSOR_FIRST, CTX_INTERACTIVE_EDITOR_INNER_CURSOR_LAST, CTX_INTERACTIVE_EDITOR_EMPTY, CTX_INTERACTIVE_EDITOR_OUTER_CURSOR_POSITION, CTX_INTERACTIVE_EDITOR_PREVIEW, CTX_INTERACTIVE_EDITOR_VISIBLE, MENU_INTERACTIVE_EDITOR_WIDGET, CTX_INTERACTIVE_EDITOR_HISTORY_VISIBLE, MENU_INTERACTIVE_EDITOR_WIDGET_LHS, IInteractiveEditorRequest, IInteractiveEditorSession } from 'vs/editor/contrib/interactive/common/interactiveEditor';
+import { IInteractiveEditorResponse, IInteractiveEditorService, CTX_INTERACTIVE_EDITOR_FOCUSED, CTX_INTERACTIVE_EDITOR_HAS_ACTIVE_REQUEST, CTX_INTERACTIVE_EDITOR_INNER_CURSOR_FIRST, CTX_INTERACTIVE_EDITOR_INNER_CURSOR_LAST, CTX_INTERACTIVE_EDITOR_EMPTY, CTX_INTERACTIVE_EDITOR_OUTER_CURSOR_POSITION, CTX_INTERACTIVE_EDITOR_PREVIEW, CTX_INTERACTIVE_EDITOR_VISIBLE, MENU_INTERACTIVE_EDITOR_WIDGET, CTX_INTERACTIVE_EDITOR_HISTORY_VISIBLE, IInteractiveEditorRequest, IInteractiveEditorSession, CTX_INTERACTIVE_EDITOR_HISTORY_POSSIBLE } from 'vs/editor/contrib/interactive/common/interactiveEditor';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { Iterable } from 'vs/base/common/iterator';
 import { ICursorStateComputer, IModelDeltaDecoration, ITextModel, IValidEditOperation } from 'vs/editor/common/model';
@@ -65,7 +65,6 @@ class InteractiveEditorWidget {
 		'div.interactive-editor@root',
 		[
 			h('div.body', [
-				h('div.toolbar@lhsToolbar'),
 				h('div.content', [
 					h('div.input@input', [
 						h('div.editor-placeholder@placeholder'),
@@ -86,6 +85,7 @@ class InteractiveEditorWidget {
 	private readonly _inputEditor: ICodeEditor;
 	private readonly _inputModel: ITextModel;
 	private readonly _ctxInputEmpty: IContextKey<boolean>;
+	private readonly _ctxHistoryPossible: IContextKey<boolean>;
 	private readonly _ctxHistoryVisible: IContextKey<boolean>;
 
 	private readonly _progressBar: ProgressBar;
@@ -106,6 +106,7 @@ class InteractiveEditorWidget {
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 	) {
 
+		this._ctxHistoryPossible = CTX_INTERACTIVE_EDITOR_HISTORY_POSSIBLE.bindTo(this._contextKeyService);
 		this._ctxHistoryVisible = CTX_INTERACTIVE_EDITOR_HISTORY_VISIBLE.bindTo(this._contextKeyService);
 
 		// editor logic
@@ -189,17 +190,12 @@ class InteractiveEditorWidget {
 
 		this._store.add(addDisposableListener(this._elements.placeholder, 'click', () => this._inputEditor.focus()));
 
-		const lhsToolbar = this._instantiationService.createInstance(MenuWorkbenchToolBar, this._elements.lhsToolbar, MENU_INTERACTIVE_EDITOR_WIDGET_LHS, {
-			telemetrySource: 'interactiveEditorWidget-toolbar-lhs',
-			toolbarOptions: { primaryGroup: 'main' }
-		});
-		this._store.add(lhsToolbar);
 
-		const rhsToolbar = this._instantiationService.createInstance(MenuWorkbenchToolBar, this._elements.rhsToolbar, MENU_INTERACTIVE_EDITOR_WIDGET, {
-			telemetrySource: 'interactiveEditorWidget-toolbar-rhs',
+		const toolbar = this._instantiationService.createInstance(MenuWorkbenchToolBar, this._elements.rhsToolbar, MENU_INTERACTIVE_EDITOR_WIDGET, {
+			telemetrySource: 'interactiveEditorWidget-toolbar',
 			toolbarOptions: { primaryGroup: 'main' }
 		});
-		this._store.add(rhsToolbar);
+		this._store.add(toolbar);
 
 		this._progressBar = new ProgressBar(this._elements.progress);
 		this._store.add(this._progressBar);
@@ -220,7 +216,7 @@ class InteractiveEditorWidget {
 
 		const innerEditorWidth = Math.min(
 			Number.MAX_SAFE_INTEGER, //  TODO@jrieken define max width?
-			dim.width - (getTotalWidth(this._elements.lhsToolbar) + getTotalWidth(this._elements.rhsToolbar) + 12 /* L/R-padding */)
+			dim.width - (getTotalWidth(this._elements.rhsToolbar) + 12 /* L/R-padding */)
 		);
 		const newDim = new Dimension(innerEditorWidth, this._inputEditor.getContentHeight());
 		if (!this._editorDim || !Dimension.equals(this._editorDim, newDim)) {
@@ -350,6 +346,8 @@ class InteractiveEditorWidget {
 			this._onDidChangeHeight.fire();
 		}
 
+		this._ctxHistoryPossible.set(true);
+
 		return {
 			updateVisibility: (visible) => {
 				root.classList.toggle('hidden', !visible);
@@ -373,6 +371,7 @@ class InteractiveEditorWidget {
 		this._historyStore.clear();
 		this._isExpanded = false;
 		this._elements.history.classList.toggle('hidden', true);
+		this._ctxHistoryPossible.reset();
 		this._ctxHistoryVisible.reset();
 		reset(this._elements.history);
 	}
@@ -781,13 +780,14 @@ export class InteractiveEditorController implements IEditorContribution {
 					this._logService.error('[IE] ERROR during request', provider.debugName);
 					this._logService.error(e);
 					this._zone.widget.showMessage(toErrorMessage(e));
+					continue;
 				}
 			} finally {
 				this._ctxHasActiveRequest.set(false);
 				this._zone.widget.updateProgress(false);
+				this._logService.trace('[IE] request took', sw.elapsed(), provider.debugName);
 			}
 
-			this._logService.trace('[IE] request took', sw.elapsed(), provider.debugName);
 
 			if (this._ctsRequest.token.isCancellationRequested) {
 				this._logService.trace('[IE] request CANCELED', provider.debugName);
@@ -872,7 +872,7 @@ export class InteractiveEditorController implements IEditorContribution {
 				InteractiveEditorController._promptHistory.unshift(input.value);
 			}
 			placeholder = reply.placeholder ?? session.placeholder ?? '';
-
+			value = '';
 			data.rounds += round + '|';
 
 		} while (!thisSession.token.isCancellationRequested);
