@@ -61,7 +61,7 @@ export function loadListeningPorts(...stdouts: string[]): { socket: number; ip: 
 	];
 }
 
-function parseIpAddress(hex: string): string {
+export function parseIpAddress(hex: string): string {
 	let result = '';
 	if (hex.length === 8) {
 		for (let i = hex.length - 2; i >= 0; i -= 2) {
@@ -71,10 +71,21 @@ function parseIpAddress(hex: string): string {
 			}
 		}
 	} else {
-		for (let i = hex.length - 4; i >= 0; i -= 4) {
-			result += parseInt(hex.substr(i, 4), 16).toString(16);
-			if (i !== 0) {
-				result += ':';
+		// Nice explanation of host format in tcp6 file: https://serverfault.com/questions/592574/why-does-proc-net-tcp6-represents-1-as-1000
+		for (let i = 0; i < hex.length; i += 8) {
+			const word = hex.substring(i, i + 8);
+			let subWord = '';
+			for (let j = 8; j >= 2; j -= 2) {
+				subWord += word.substring(j - 2, j);
+				if ((j === 6) || (j === 2)) {
+					// Trim leading zeros
+					subWord = parseInt(subWord, 16).toString(16);
+					result += `${subWord}`;
+					subWord = '';
+					if (i + j !== hex.length - 6) {
+						result += ':';
+					}
+				}
 			}
 		}
 	}
