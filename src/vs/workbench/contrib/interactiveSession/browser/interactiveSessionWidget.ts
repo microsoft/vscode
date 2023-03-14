@@ -207,7 +207,7 @@ export class InteractiveSessionWidget extends Disposable implements IInteractive
 		this.followupsDisposables.clear();
 		dom.clearNode(this.followupsContainer);
 
-		if (items) {
+		if (items && items.length > 0) {
 			this.followupsDisposables.add(new InteractiveSessionFollowups(this.followupsContainer, items, undefined, followup => this.acceptInput(followup.message)));
 		}
 
@@ -378,6 +378,7 @@ export class InteractiveSessionWidget extends Disposable implements IInteractive
 		options.cursorWidth = 1;
 		options.wrappingStrategy = 'advanced';
 		options.bracketPairColorization = { enabled: false };
+		options.suggest = { showIcons: false };
 
 		const inputEditorElement = dom.append(inputContainer, $('.interactive-input-editor'));
 		this._inputEditor = this._register(scopedInstantiationService.createInstance(CodeEditorWidget, inputEditorElement, options, { ...getSimpleCodeEditorWidgetOptions(), isSimpleWidget: false }));

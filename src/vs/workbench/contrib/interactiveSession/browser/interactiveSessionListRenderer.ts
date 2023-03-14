@@ -17,7 +17,7 @@ import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecyc
 import { ThemeIcon } from 'vs/base/common/themables';
 import { EditorExtensionsRegistry } from 'vs/editor/browser/editorExtensions';
 import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
-import { EDITOR_FONT_DEFAULTS } from 'vs/editor/common/config/editorOptions';
+import { EDITOR_FONT_DEFAULTS, IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { Range } from 'vs/editor/common/core/range';
 import { ILanguageService } from 'vs/editor/common/languages/language';
 import { ITextModel } from 'vs/editor/common/model';
@@ -126,7 +126,7 @@ export class InteractiveListItemRenderer extends Disposable implements ITreeRend
 		}
 
 		if (element.isComplete) {
-			return 40;
+			return 60;
 		}
 
 		if (element.contentUpdateTimings && element.contentUpdateTimings.impliedWordLoadRate) {
@@ -289,6 +289,14 @@ export class InteractiveListItemRenderer extends Disposable implements ITreeRend
 			fillInIncompleteTokens,
 			codeBlockRendererSync: (languageId, text) => {
 				const ref = this.renderCodeBlock({ languageId, text, index: codeBlockIndex++, element, parentContextKeyService: templateData.contextKeyService }, disposables);
+
+				// Attach this after updating text/layout of the editor, so it should only be fired when the size updates later (horizontal scrollbar, wrapping)
+				// not during a renderElement OR a progressive render (when we will be firing this event anyway at the end of the render)
+				disposables.add(ref.object.onDidChangeContentHeight(() => {
+					ref.object.layout(this._currentLayoutWidth);
+					this._onDidChangeItemHeight.fire({ element, height: templateData.rowContainer.offsetHeight });
+				}));
+
 				disposablesList.push(ref);
 				return ref.object.element;
 			}
@@ -415,6 +423,7 @@ interface IInteractiveResultCodeBlockData {
 }
 
 interface IInteractiveResultCodeBlockPart {
+	readonly onDidChangeContentHeight: Event<number>;
 	readonly element: HTMLElement;
 	readonly textModel: ITextModel;
 	layout(width: number): void;
@@ -423,6 +432,9 @@ interface IInteractiveResultCodeBlockPart {
 }
 
 class CodeBlockPart extends Disposable implements IInteractiveResultCodeBlockPart {
+	private readonly _onDidChangeContentHeight = this._register(new Emitter<number>());
+	public readonly onDidChangeContentHeight = this._onDidChangeContentHeight.event;
+
 	private readonly editor: CodeEditorWidget;
 	private readonly toolbar: MenuWorkbenchToolBar;
 	private readonly contextKeyService: IContextKeyService;
@@ -452,22 +464,17 @@ class CodeBlockPart extends Disposable implements IInteractiveResultCodeBlockPar
 		this.editor = this._register(scopedInstantiationService.createInstance(CodeEditorWidget, editorElement, {
 			...getSimpleEditorOptions(),
 			readOnly: true,
-			wordWrap: 'off',
 			lineNumbers: 'off',
 			selectOnLineNumbers: true,
 			scrollBeyondLastLine: false,
 			lineDecorationsWidth: 8,
 			dragAndDrop: false,
-			bracketPairColorization: this.options.configuration.resultEditor.bracketPairColorization,
 			padding: { top: 2, bottom: 2 },
-			fontFamily: this.options.configuration.resultEditor.fontFamily === 'default' ? EDITOR_FONT_DEFAULTS.fontFamily : this.options.configuration.resultEditor.fontFamily,
-			fontSize: this.options.configuration.resultEditor.fontSize,
-			fontWeight: this.options.configuration.resultEditor.fontWeight,
-			lineHeight: this.options.configuration.resultEditor.lineHeight,
 			mouseWheelZoom: false,
 			scrollbar: {
 				alwaysConsumeMouseWheel: false
-			}
+			},
+			...this.getEditorOptionsFromConfig()
 		}, {
 			isSimpleWidget: true,
 			contributions: EditorExtensionsRegistry.getSomeEditorContributions([
@@ -482,6 +489,16 @@ class CodeBlockPart extends Disposable implements IInteractiveResultCodeBlockPar
 			])
 		}));
 
+
+		this._register(this.options.onDidChange(() => {
+			this.editor.updateOptions(this.getEditorOptionsFromConfig());
+		}));
+
+		this._register(this.editor.onDidContentSizeChange(e => {
+			if (e.contentHeightChanged) {
+				this._onDidChangeContentHeight.fire(e.contentHeight);
+			}
+		}));
 		this._register(this.editor.onDidBlurEditorWidget(() => {
 			WordHighlighterContribution.get(this.editor)?.stopHighlighting();
 		}));
@@ -492,6 +509,19 @@ class CodeBlockPart extends Disposable implements IInteractiveResultCodeBlockPar
 		const vscodeLanguageId = this.languageService.getLanguageIdByLanguageName('javascript');
 		this.textModel = this._register(this.modelService.createModel('', this.languageService.createById(vscodeLanguageId), undefined));
 		this.editor.setModel(this.textModel);
+	}
+
+	private getEditorOptionsFromConfig(): IEditorOptions {
+		return {
+			wordWrap: this.options.configuration.resultEditor.wordWrap,
+			bracketPairColorization: this.options.configuration.resultEditor.bracketPairColorization,
+			fontFamily: this.options.configuration.resultEditor.fontFamily === 'default' ?
+				EDITOR_FONT_DEFAULTS.fontFamily :
+				this.options.configuration.resultEditor.fontFamily,
+			fontSize: this.options.configuration.resultEditor.fontSize,
+			fontWeight: this.options.configuration.resultEditor.fontWeight,
+			lineHeight: this.options.configuration.resultEditor.lineHeight,
+		};
 	}
 
 	layout(width: number): void {

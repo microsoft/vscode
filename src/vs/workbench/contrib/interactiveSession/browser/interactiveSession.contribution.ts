@@ -39,22 +39,28 @@ configurationRegistry.registerConfiguration({
 	properties: {
 		'interactiveSession.editor.fontSize': {
 			type: 'number',
-			description: nls.localize('interactiveSession.editor.fontSize', "Controls the font size in pixels in the Interactive Session Sidebar."),
+			description: nls.localize('interactiveSession.editor.fontSize', "Controls the font size in pixels in Interactive Sessions."),
 			default: isMacintosh ? 12 : 14,
 		},
 		'interactiveSession.editor.fontFamily': {
 			type: 'string',
-			description: nls.localize('interactiveSession.editor.fontFamily', "Controls the font family in the Interactive Session Sidebar."),
+			description: nls.localize('interactiveSession.editor.fontFamily', "Controls the font family in Interactive Sessions."),
 			default: 'default'
 		},
 		'interactiveSession.editor.fontWeight': {
 			type: 'string',
-			description: nls.localize('interactiveSession.editor.fontWeight', "Controls the font weight in the Interactive Session Sidebar."),
+			description: nls.localize('interactiveSession.editor.fontWeight', "Controls the font weight in Interactive Sessions."),
 			default: 'default'
+		},
+		'interactiveSession.editor.wordWrap': {
+			type: 'string',
+			description: nls.localize('interactiveSession.editor.wordWrap', "Controls whether lines should wrap in Interactive Sessions."),
+			default: 'off',
+			enum: ['on', 'off']
 		},
 		'interactiveSession.editor.lineHeight': {
 			type: 'number',
-			description: nls.localize('interactiveSession.editor.lineHeight', "Controls the line height in pixels in the Interactive Session Sidebar. Use 0 to compute the line height from the font size."),
+			description: nls.localize('interactiveSession.editor.lineHeight', "Controls the line height in pixels in Interactive Sessions. Use 0 to compute the line height from the font size."),
 			default: 0
 		}
 	}
