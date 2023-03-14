@@ -73,7 +73,7 @@ export class MakeRequestAction extends AbstractInteractiveEditorAction {
 		super({
 			id: 'interactiveEditor.accept',
 			title: localize('accept', 'Make Request'),
-			icon: Codicon.arrowUp,
+			icon: Codicon.send,
 			precondition: ContextKeyExpr.and(CTX_INTERACTIVE_EDITOR_VISIBLE, CTX_INTERACTIVE_EDITOR_EMPTY.negate()),
 			keybinding: {
 				when: CTX_INTERACTIVE_EDITOR_FOCUSED,
