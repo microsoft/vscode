@@ -7,14 +7,14 @@ import * as dom from 'vs/base/browser/dom';
 import { equals as equalArray } from 'vs/base/common/arrays';
 import { Color } from 'vs/base/common/color';
 import { onUnexpectedError } from 'vs/base/common/errors';
-import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { FileAccess, nodeModulesAsarUnpackedPath, nodeModulesPath } from 'vs/base/common/network';
 import { isWeb } from 'vs/base/common/platform';
 import * as resources from 'vs/base/common/resources';
 import * as types from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { StandardTokenType } from 'vs/editor/common/encodedTokenAttributes';
-import { ITokenizationSupport, TokenizationRegistry } from 'vs/editor/common/languages';
+import { ITokenizationSupport, LazyTokenizationSupport, TokenizationRegistry } from 'vs/editor/common/languages';
 import { ILanguageService } from 'vs/editor/common/languages/language';
 import { generateTokensCSSForColorMap } from 'vs/editor/common/languages/supports/tokenization';
 import * as nls from 'vs/nls';
@@ -97,9 +97,9 @@ export class TextMateTokenizationFeature extends Disposable implements ITextMate
 				if (def) {
 					this._grammarDefinitions.push(def);
 					if (def.language) {
-						this._tokenizersRegistrations.add(TokenizationRegistry.registerFactory(def.language, {
-							createTokenizationSupport: async (): Promise<ITokenizationSupport | null> => this.createTokenizationSupport(def.language!)
-						}));
+						const lazyTokenizationSupport = new LazyTokenizationSupport(() => this.createTokenizationSupport(def.language!));
+						this._tokenizersRegistrations.add(lazyTokenizationSupport);
+						this._tokenizersRegistrations.add(TokenizationRegistry.registerFactory(def.language, lazyTokenizationSupport));
 					}
 				}
 			}
@@ -252,7 +252,7 @@ export class TextMateTokenizationFeature extends Disposable implements ITextMate
 		return this._grammarFactory;
 	}
 
-	private async createTokenizationSupport(languageId: string): Promise<ITokenizationSupport | null> {
+	private async createTokenizationSupport(languageId: string): Promise<ITokenizationSupport & IDisposable | null> {
 		if (!this._languageService.isRegisteredLanguageId(languageId)) {
 			return null;
 		}
@@ -283,7 +283,6 @@ export class TextMateTokenizationFeature extends Disposable implements ITextMate
 					this._languageService.requestBasicLanguageFeatures(languageId);
 				}
 			});
-
 			return new TokenizationSupportWithLineLimit(languageId, encodedLanguageId, tokenization, this._configurationService);
 		} catch (err) {
 			if (err.message && err.message === missingTMGrammarErrorMessage) {
