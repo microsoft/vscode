@@ -211,6 +211,7 @@ export class AccessibleBufferWidget extends DisposableStore {
 		if (existing && !existing.isDisposed()) {
 			return existing;
 		}
+
 		return this._modelService.createModel(resource.fragment, null, resource, false);
 	}
 
