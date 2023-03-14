@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable } from 'vs/base/common/lifecycle';
-import { IObservable, keepAlive, observableFromEvent } from 'vs/base/common/observable';
+import { IObservable, autorun, keepAlive, observableFromEvent } from 'vs/base/common/observable';
 import { countEOL } from 'vs/editor/common/core/eolCounter';
 import { LineRange } from 'vs/editor/common/core/lineRange';
 import { Range } from 'vs/editor/common/core/range';
@@ -37,6 +37,7 @@ export class TextMateWorkerTokenizerController extends Disposable {
 		private readonly _backgroundTokenizationStore: IBackgroundTokenizationStore,
 		private readonly _initialState: StateStack,
 		private readonly _configurationService: IConfigurationService,
+		private readonly _maxTokenizationLineLength: IObservable<number>,
 	) {
 		super();
 
@@ -73,7 +74,13 @@ export class TextMateWorkerTokenizerController extends Disposable {
 			EOL: this._model.getEOL(),
 			languageId,
 			encodedLanguageId,
+			maxTokenizationLineLength: this._maxTokenizationLineLength.get(),
 		});
+
+		this._register(autorun('update maxTokenizationLineLength', reader => {
+			const maxTokenizationLineLength = this._maxTokenizationLineLength.read(reader);
+			this._worker.acceptMaxTokenizationLineLength(this._model.uri.toString(), maxTokenizationLineLength);
+		}));
 	}
 
 	get shouldLog() {
