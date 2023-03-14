@@ -16,6 +16,7 @@ use crate::{
 			wrap, AnyError, InvalidRpcDataError, MismatchedLaunchModeError, NoAttachedServerError,
 		},
 		http::ReqwestSimpleHttp,
+		sync::Barrier,
 	},
 };
 
@@ -69,7 +70,7 @@ pub async fn serve_wsl(
 	code_server_args: CodeServerArgs,
 	platform: Platform,
 	http: reqwest::Client,
-	shutdown_rx: mpsc::UnboundedReceiver<ShutdownSignal>,
+	shutdown_rx: Barrier<ShutdownSignal>,
 ) -> Result<i32, AnyError> {
 	let (caller_tx, caller_rx) = mpsc::unbounded_channel();
 	let mut rpc = new_msgpack_rpc();

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { OperatingSystem, OS } from 'vs/base/common/platform';
+import { OS } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
@@ -51,8 +51,6 @@ export class TerminalLocalLinkDetector implements ITerminalLinkDetector {
 	// - Linux max length: 4096 ($PATH_MAX)
 	readonly maxLinkLength = 500;
 
-	private _os: OperatingSystem;
-
 	constructor(
 		readonly xterm: Terminal,
 		private readonly _capabilities: ITerminalCapabilityStore,
@@ -61,7 +59,6 @@ export class TerminalLocalLinkDetector implements ITerminalLinkDetector {
 		@IUriIdentityService private readonly _uriIdentityService: IUriIdentityService,
 		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService
 	) {
-		this._os = _processManager.os || OS;
 	}
 
 	async detect(lines: IBufferLine[], startLine: number, endLine: number): Promise<ITerminalSimpleLink[]> {
@@ -76,7 +73,8 @@ export class TerminalLocalLinkDetector implements ITerminalLinkDetector {
 		let stringIndex = -1;
 		let resolvedLinkCount = 0;
 
-		const parsedLinks = detectLinks(text, this._os);
+		const os = this._processManager.os || OS;
+		const parsedLinks = detectLinks(text, os);
 		for (const parsedLink of parsedLinks) {
 			// Don't try resolve any links of excessive length
 			if (parsedLink.path.text.length > Constants.MaxResolvedLinkLength) {
@@ -93,12 +91,12 @@ export class TerminalLocalLinkDetector implements ITerminalLinkDetector {
 
 			// Get a single link candidate if the cwd of the line is known
 			const linkCandidates: string[] = [];
-			if (osPathModule(this._os).isAbsolute(parsedLink.path.text) || parsedLink.path.text.startsWith('~')) {
+			const osPath = osPathModule(os);
+			if (osPath.isAbsolute(parsedLink.path.text) || parsedLink.path.text.startsWith('~')) {
 				linkCandidates.push(parsedLink.path.text);
 			} else {
 				if (this._capabilities.has(TerminalCapability.CommandDetection)) {
-					const osModule = osPathModule(this._os);
-					const absolutePath = updateLinkWithRelativeCwd(this._capabilities, bufferRange.start.y, parsedLink.path.text, osModule);
+					const absolutePath = updateLinkWithRelativeCwd(this._capabilities, bufferRange.start.y, parsedLink.path.text, osPath);
 					// Only add a single exact link candidate if the cwd is available, this may cause
 					// the link to not be resolved but that should only occur when the actual file does
 					// not exist. Doing otherwise could cause unexpected results where handling via the

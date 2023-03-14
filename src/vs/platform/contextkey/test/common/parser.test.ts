@@ -176,9 +176,9 @@ suite('Context Key Parser', () => {
 			assert.deepStrictEqual(parseToStr(input), "resource =~ /((\\/scratch\\/(?!update)(.*)\\/)|((\\/src\\/).*\\/)).*$/");
 		});
 
-		test(`resourcePath =~ /\.md(\.yml|\.txt)*$/gim`, () => {
-			const input = `resourcePath =~ /\.md(\.yml|\.txt)*$/gim`;
-			assert.deepStrictEqual(parseToStr(input), "resourcePath =~ /.md(.yml|.txt)*$/gim");
+		test(`resourcePath =~ /\.md(\.yml|\.txt)*$/giym`, () => {
+			const input = `resourcePath =~ /\.md(\.yml|\.txt)*$/giym`;
+			assert.deepStrictEqual(parseToStr(input), "resourcePath =~ /.md(.yml|.txt)*$/im");
 		});
 
 	});

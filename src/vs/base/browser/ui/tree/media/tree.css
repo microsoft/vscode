@@ -32,7 +32,7 @@
 	border-left: 1px solid transparent;
 }
 
-.monaco-tl-indent > .indent-guide {
+.monaco-workbench:not(.reduce-motion) .monaco-tl-indent > .indent-guide {
 	transition: border-color 0.1s linear;
 }
 
@@ -76,11 +76,14 @@
 	top: 0;
 	display: flex;
 	padding: 3px;
-	transition: top 0.3s;
 	max-width: 200px;
 	z-index: 100;
 	margin: 0 6px;
 	border: 1px solid var(--vscode-widget-border);
+}
+
+.monaco-workbench:not(.reduce-motion) .monaco-tree-type-filter  {
+	transition: top 0.3s;
 }
 
 .monaco-tree-type-filter.disabled {

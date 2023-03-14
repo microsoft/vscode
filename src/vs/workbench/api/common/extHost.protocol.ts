@@ -26,7 +26,7 @@ import * as languages from 'vs/editor/common/languages';
 import { CharacterPair, CommentRule, EnterAction } from 'vs/editor/common/languages/languageConfiguration';
 import { EndOfLineSequence } from 'vs/editor/common/model';
 import { IModelChangedEvent } from 'vs/editor/common/model/mirrorTextModel';
-import { IInteractiveEditorResponse, IInteractiveEditorSession, IInteractiveEditorRequest } from 'vs/editor/contrib/interactive/common/interactiveEditor';
+import { IInteractiveEditorRequest, IInteractiveEditorResponse, IInteractiveEditorSession } from 'vs/editor/contrib/interactive/common/interactiveEditor';
 import { IAccessibilityInformation } from 'vs/platform/accessibility/common/accessibility';
 import { ConfigurationTarget, IConfigurationChange, IConfigurationData, IConfigurationOverrides } from 'vs/platform/configuration/common/configuration';
 import { ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
@@ -51,6 +51,8 @@ import { SaveReason } from 'vs/workbench/common/editor';
 import { IRevealOptions, ITreeItem, IViewBadge } from 'vs/workbench/common/views';
 import { CallHierarchyItem } from 'vs/workbench/contrib/callHierarchy/common/callHierarchy';
 import { DebugConfigurationProviderTriggerKind, IAdapterDescriptor, IConfig, IDebugSessionReplMode } from 'vs/workbench/contrib/debug/common/debug';
+import { IInteractiveResponseErrorDetails } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionModel';
+import { IInteractiveProgress, IInteractiveSessionFollowup, IInteractiveSessionReplyFollowup, IInteractiveSessionUserActionEvent, IInteractiveSlashCommand } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionService';
 import * as notebookCommon from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { CellExecutionUpdateType } from 'vs/workbench/contrib/notebook/common/notebookExecutionService';
 import { ICellExecutionComplete, ICellExecutionStateUpdate } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
@@ -148,6 +150,7 @@ export interface MainThreadAuthenticationShape extends IDisposable {
 	$ensureProvider(id: string): Promise<void>;
 	$sendDidChangeSessions(providerId: string, event: AuthenticationSessionsChangeEvent): void;
 	$getSession(providerId: string, scopes: readonly string[], extensionId: string, extensionName: string, options: { createIfNone?: boolean; forceNewSession?: boolean | { detail: string }; clearSessionPreference?: boolean }): Promise<AuthenticationSession | undefined>;
+	$getSessions(providerId: string, scopes: readonly string[], extensionId: string, extensionName: string): Promise<AuthenticationSession[]>;
 	$removeSession(providerId: string, sessionId: string): Promise<void>;
 }
 
@@ -1074,9 +1077,11 @@ export interface MainThreadInteractiveEditorShape extends IDisposable {
 	$unregisterInteractiveEditorProvider(handle: number): Promise<void>;
 }
 
+export type IInteractiveEditorResponseDto = Dto<IInteractiveEditorResponse>;
+
 export interface ExtHostInteractiveEditorShape {
 	$prepareInteractiveSession(handle: number, uri: UriComponents, range: ISelection, token: CancellationToken): Promise<IInteractiveEditorSession | undefined>;
-	$provideResponse(handle: number, session: IInteractiveEditorSession, request: IInteractiveEditorRequest, token: CancellationToken): Promise<IInteractiveEditorResponse | undefined>;
+	$provideResponse(handle: number, session: IInteractiveEditorSession, request: IInteractiveEditorRequest, token: CancellationToken): Promise<IInteractiveEditorResponseDto | undefined>;
 	$releaseSession(handle: number, sessionId: number): void;
 }
 
@@ -1088,6 +1093,10 @@ export interface MainThreadUrlsShape extends IDisposable {
 
 export interface IInteractiveSessionDto {
 	id: number;
+	requesterUsername?: string;
+	requesterAvatarIconUri?: UriComponents;
+	responderUsername?: string;
+	responderAvatarIconUri?: UriComponents;
 }
 
 export interface IInteractiveRequestDto {
@@ -1095,27 +1104,31 @@ export interface IInteractiveRequestDto {
 }
 
 export interface IInteractiveResponseDto {
-	followups?: string[];
-}
-
-export interface IInteractiveResponseProgressDto {
-	responsePart: string;
+	errorDetails?: IInteractiveResponseErrorDetails;
+	timings: {
+		firstProgress: number;
+		totalElapsed: number;
+	};
 }
 
 export interface MainThreadInteractiveSessionShape extends IDisposable {
-	$registerInteractiveSessionProvider(handle: number, id: string): Promise<void>;
+	$registerInteractiveSessionProvider(handle: number, id: string, implementsProgress: boolean): Promise<void>;
 	$acceptInteractiveSessionState(sessionId: number, state: any): Promise<void>;
 	$addInteractiveSessionRequest(context: any): void;
 	$unregisterInteractiveSessionProvider(handle: number): Promise<void>;
-	$acceptInteractiveResponseProgress(handle: number, sessionId: number, progress: IInteractiveResponseProgressDto): void;
+	$acceptInteractiveResponseProgress(handle: number, sessionId: number, progress: IInteractiveProgress): void;
 }
 
 export interface ExtHostInteractiveSessionShape {
 	$prepareInteractiveSession(handle: number, initialState: any, token: CancellationToken): Promise<IInteractiveSessionDto | undefined>;
-	$resolveInteractiveRequest(handle: number, sessionId: number, context: any, token: CancellationToken): Promise<IInteractiveRequestDto | undefined>;
+	$resolveInteractiveRequest(handle: number, sessionId: number, context: any, token: CancellationToken): Promise<Omit<IInteractiveRequestDto, 'id'> | undefined>;
 	$provideInitialSuggestions(handle: number, token: CancellationToken): Promise<string[] | undefined>;
-	$provideInteractiveReply(handle: number, sessionid: number, request: IInteractiveRequestDto, token: CancellationToken): Promise<IInteractiveResponseDto | undefined>;
+	$provideWelcomeMessage(handle: number, token: CancellationToken): Promise<(string | IInteractiveSessionReplyFollowup[])[] | undefined>;
+	$provideFollowups(handle: number, sessionId: number, token: CancellationToken): Promise<IInteractiveSessionFollowup[] | undefined>;
+	$provideInteractiveReply(handle: number, sessionId: number, request: IInteractiveRequestDto, token: CancellationToken): Promise<IInteractiveResponseDto | undefined>;
+	$provideSlashCommands(handle: number, sessionId: number, token: CancellationToken): Promise<IInteractiveSlashCommand[] | undefined>;
 	$releaseSession(sessionId: number): void;
+	$onDidPerformUserAction(event: IInteractiveSessionUserActionEvent): Promise<void>;
 }
 
 export interface ExtHostUrlsShape {

@@ -580,20 +580,18 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 				onUnexpectedError(new Error(`Cannot have two terminal contributions with the same id ${desc.id}`));
 				continue;
 			}
+			let contribution: ITerminalContribution;
 			try {
-				this._contributions.set(desc.id, this._scopedInstantiationService.createInstance(desc.ctor, this, this._processManager, this._widgetManager));
+				contribution = this._scopedInstantiationService.createInstance(desc.ctor, this, this._processManager, this._widgetManager);
+				this._contributions.set(desc.id, contribution);
 			} catch (err) {
 				onUnexpectedError(err);
 			}
 			this._xtermReadyPromise.then(xterm => {
-				for (const contribution of this._contributions.values()) {
-					contribution.xtermReady?.(xterm);
-				}
+				contribution.xtermReady?.(xterm);
 			});
 			this.onDisposed(() => {
-				for (const contribution of this._contributions.values()) {
-					contribution.dispose();
-				}
+				contribution.dispose();
 			});
 		}
 	}
@@ -1008,7 +1006,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			}
 
 			// If tab focus mode is on, tab is not passed to the terminal
-			if (TabFocus.getTabFocusMode(TabFocusContext.Terminal) && event.keyCode === 9) {
+			if (TabFocus.getTabFocusMode(TabFocusContext.Terminal) && event.key === 'Tab') {
 				return false;
 			}
 
@@ -1860,6 +1858,15 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 		// Signal the container is ready
 		this._containerReadyBarrier.open();
+
+		// Layout all contributions
+		for (const contribution of this._contributions.values()) {
+			if (!this.xterm) {
+				this._xtermReadyPromise.then(xterm => contribution.layout?.(xterm));
+			} else {
+				contribution.layout?.(this.xterm);
+			}
+		}
 	}
 
 	@debounce(50)

@@ -69,10 +69,8 @@ export class CodeCell extends Disposable {
 		this.registerDecorations();
 		this.registerMouseListener();
 
-		this._register(notebookExecutionStateService.onDidChangeCellExecution(e => {
-			if (e.affectsCell(this.viewCell.uri)) {
-				this.cellParts.updateForExecutionState(this.viewCell, e);
-			}
+		this._register(Event.any(this.viewCell.onDidStartExecution, this.viewCell.onDidStopExecution)((e) => {
+			this.cellParts.updateForExecutionState(this.viewCell, e);
 		}));
 
 		this._register(this.viewCell.onDidChangeState(e => {

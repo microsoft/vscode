@@ -84,7 +84,8 @@ class TestInstallGalleryExtensionTask extends InstallGalleryExtensionTask {
 			userRoamingDataHome: ROOT,
 			builtinExtensionsPath: systemExtensionsLocation.fsPath,
 			extensionsPath: userExtensionsLocation.fsPath,
-			userDataPath: userExtensionsLocation.fsPath
+			userDataPath: userExtensionsLocation.fsPath,
+			cacheHome: ROOT,
 		});
 		instantiationService.stub(IProductService, {});
 		instantiationService.stub(ITelemetryService, NullTelemetryService);

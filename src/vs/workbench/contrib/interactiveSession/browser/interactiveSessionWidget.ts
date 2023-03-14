@@ -5,7 +5,7 @@
 
 import * as dom from 'vs/base/browser/dom';
 import { Button } from 'vs/base/browser/ui/button/button';
-import { ITreeElement } from 'vs/base/browser/ui/tree/tree';
+import { ITreeContextMenuEvent, ITreeElement } from 'vs/base/browser/ui/tree/tree';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Emitter } from 'vs/base/common/event';
 import { Disposable, DisposableStore, IDisposable, combinedDisposable, toDisposable } from 'vs/base/common/lifecycle';
@@ -16,7 +16,9 @@ import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
 import { ITextModel } from 'vs/editor/common/model';
 import { IModelService } from 'vs/editor/common/services/model';
 import { localize } from 'vs/nls';
+import { MenuId } from 'vs/platform/actions/common/actions';
 import { IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService, createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { WorkbenchObjectTree } from 'vs/platform/list/browser/listService';
@@ -24,10 +26,12 @@ import { defaultButtonStyles } from 'vs/platform/theme/browser/defaultStyles';
 import { foreground } from 'vs/platform/theme/common/colorRegistry';
 import { DEFAULT_FONT_FAMILY } from 'vs/workbench/browser/style';
 import { getSimpleCodeEditorWidgetOptions, getSimpleEditorOptions } from 'vs/workbench/contrib/codeEditor/browser/simpleEditorOptions';
-import { InteractiveListItemRenderer, InteractiveSessionAccessibilityProvider, InteractiveSessionListDelegate, InteractiveTreeItem } from 'vs/workbench/contrib/interactiveSession/browser/interactiveSessionListRenderer';
-import { InteractiveSessionInputOptions } from 'vs/workbench/contrib/interactiveSession/browser/interactiveSessionOptions';
-import { IInteractiveSessionService } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionService';
-import { IInteractiveSessionViewModel, InteractiveSessionViewModel, isRequestVM, isResponseVM } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionViewModel';
+import { IInteractiveSessionWidget } from 'vs/workbench/contrib/interactiveSession/browser/interactiveSession';
+import { InteractiveSessionFollowups } from 'vs/workbench/contrib/interactiveSession/browser/interactiveSessionFollowups';
+import { IInteractiveSessionRendererDelegate, InteractiveListItemRenderer, InteractiveSessionAccessibilityProvider, InteractiveSessionListDelegate, InteractiveTreeItem } from 'vs/workbench/contrib/interactiveSession/browser/interactiveSessionListRenderer';
+import { InteractiveSessionEditorOptions } from 'vs/workbench/contrib/interactiveSession/browser/interactiveSessionOptions';
+import { IInteractiveSessionReplyFollowup, IInteractiveSessionService, IInteractiveSlashCommand } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionService';
+import { IInteractiveSessionViewModel, InteractiveSessionViewModel, isRequestVM, isResponseVM, isWelcomeVM } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionViewModel';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 
 export const IInteractiveSessionWidgetService = createDecorator<IInteractiveSessionWidgetService>('interactiveSessionWidgetService');
@@ -53,32 +57,74 @@ function revealLastElement(list: WorkbenchObjectTree<any>) {
 	list.scrollTop = list.scrollHeight - list.renderHeight;
 }
 
-const INPUT_EDITOR_MAX_HEIGHT = 275;
+const INPUT_EDITOR_MAX_HEIGHT = 250;
 
-export class InteractiveSessionWidget extends Disposable {
+export class InteractiveSessionWidget extends Disposable implements IInteractiveSessionWidget {
+	public static readonly CONTRIBS: { new(...args: [IInteractiveSessionWidget, ...any]): any }[] = [];
+	public static readonly INPUT_SCHEME = 'interactiveSessionInput';
+
 	private _onDidFocus = this._register(new Emitter<void>());
 	readonly onDidFocus = this._onDidFocus.event;
 
+	private _onDidChangeViewModel = this._register(new Emitter<void>());
+	readonly onDidChangeViewModel = this._onDidChangeViewModel.event;
+
 	private static _counter = 0;
-	public readonly inputUri = URI.parse(`interactiveSessionInput:input-${InteractiveSessionWidget._counter++}`);
+	public readonly inputUri = URI.parse(`${InteractiveSessionWidget.INPUT_SCHEME}:input-${InteractiveSessionWidget._counter++}`);
 
 	private tree!: WorkbenchObjectTree<InteractiveTreeItem>;
 	private renderer!: InteractiveListItemRenderer;
 	private inputEditorHeight = 0;
-	private inputEditor!: CodeEditorWidget;
-	private inputOptions!: InteractiveSessionInputOptions;
+
+	private _inputEditor!: CodeEditorWidget;
+	public get inputEditor() {
+		return this._inputEditor;
+	}
+
+	private inputOptions!: InteractiveSessionEditorOptions;
 	private inputModel: ITextModel | undefined;
 	private listContainer!: HTMLElement;
 	private container!: HTMLElement;
 	private welcomeViewContainer!: HTMLElement;
+
+	private followupsContainer!: HTMLElement;
+	private followupsDisposables = this._register(new DisposableStore());
+
 	private welcomeViewDisposables = this._register(new DisposableStore());
 	private bodyDimension: dom.Dimension | undefined;
 	private visible = false;
 
 	private previousTreeScrollHeight: number = 0;
 
-	private viewModel: IInteractiveSessionViewModel | undefined;
 	private viewModelDisposables = new DisposableStore();
+	private _viewModel: InteractiveSessionViewModel | undefined;
+	private set viewModel(viewModel: InteractiveSessionViewModel | undefined) {
+		if (this._viewModel === viewModel) {
+			return;
+		}
+
+		this.viewModelDisposables.clear();
+
+		this._viewModel = viewModel;
+		if (viewModel) {
+			this.viewModelDisposables.add(viewModel);
+		}
+
+		this.slashCommandsPromise = undefined;
+		this.lastSlashCommands = undefined;
+		this.getSlashCommands().then(() => {
+			this.onDidChangeItems();
+		});
+
+		this._onDidChangeViewModel.fire();
+	}
+
+	get viewModel() {
+		return this._viewModel;
+	}
+
+	private lastSlashCommands: IInteractiveSlashCommand[] | undefined;
+	private slashCommandsPromise: Promise<IInteractiveSlashCommand[] | undefined> | undefined;
 
 	constructor(
 		private readonly providerId: string,
@@ -91,7 +137,8 @@ export class InteractiveSessionWidget extends Disposable {
 		@IModelService private readonly modelService: IModelService,
 		@IExtensionService private readonly extensionService: IExtensionService,
 		@IInteractiveSessionService private readonly interactiveSessionService: IInteractiveSessionService,
-		@IInteractiveSessionWidgetService interactiveSessionWidgetService: IInteractiveSessionWidgetService
+		@IInteractiveSessionWidgetService interactiveSessionWidgetService: IInteractiveSessionWidgetService,
+		@IContextMenuService private readonly contextMenuService: IContextMenuService,
 	) {
 		super();
 		CONTEXT_IN_INTERACTIVE_SESSION.bindTo(contextKeyService).set(true);
@@ -104,7 +151,7 @@ export class InteractiveSessionWidget extends Disposable {
 		this.container = dom.append(parent, $('.interactive-session'));
 		this.listContainer = dom.append(this.container, $(`.interactive-list`));
 
-		this.inputOptions = this._register(this.instantiationService.createInstance(InteractiveSessionInputOptions, this.viewId, this.inputEditorBackgroundColorDelegate, this.resultEditorBackgroundColorDelegate));
+		this.inputOptions = this._register(this.instantiationService.createInstance(InteractiveSessionEditorOptions, this.viewId, this.inputEditorBackgroundColorDelegate, this.resultEditorBackgroundColorDelegate));
 		this.renderWelcomeView(this.container);
 		this.createList(this.listContainer);
 		this.createInput(this.container);
@@ -116,15 +163,21 @@ export class InteractiveSessionWidget extends Disposable {
 		if (this.viewModel) {
 			this.onDidChangeItems();
 		}
+
+		InteractiveSessionWidget.CONTRIBS.forEach(contrib => this._register(this.instantiationService.createInstance(contrib, this)));
 	}
 
 	focusInput(): void {
-		this.inputEditor.focus();
+		this._inputEditor.focus();
 	}
 
 	private onDidChangeItems() {
 		if (this.tree && this.visible) {
-			const items = this.viewModel?.getItems() ?? [];
+			const items: InteractiveTreeItem[] = this.viewModel?.getItems() ?? [];
+			if (this.viewModel?.welcomeMessage) {
+				items.unshift(this.viewModel.welcomeMessage);
+			}
+
 			const treeItems = items.map(item => {
 				return <ITreeElement<InteractiveTreeItem>>{
 					element: item,
@@ -137,15 +190,33 @@ export class InteractiveSessionWidget extends Disposable {
 				this.setWelcomeViewVisible(false);
 			}
 
-			const lastItem = treeItems[treeItems.length - 1];
 			this.tree.setChildren(null, treeItems, {
 				diffIdentityProvider: {
-					getId(element) {
-						const isLastAndResponse = isResponseVM(element) && element === lastItem.element;
-						return element.id + (isLastAndResponse ? '_last' : '');
+					getId: (element) => {
+						return element.id + `${(isRequestVM(element) || isWelcomeVM(element)) && !!this.lastSlashCommands ? '_scLoaded' : ''}`;
 					},
 				}
 			});
+
+			const lastItem = items[items.length - 1];
+			if (lastItem && isResponseVM(lastItem) && lastItem.isComplete) {
+				this.renderFollowups(lastItem.replyFollowups);
+			} else {
+				this.renderFollowups(undefined);
+			}
+		}
+	}
+
+	private async renderFollowups(items?: IInteractiveSessionReplyFollowup[]): Promise<void> {
+		this.followupsDisposables.clear();
+		dom.clearNode(this.followupsContainer);
+
+		if (items && items.length > 0) {
+			this.followupsDisposables.add(new InteractiveSessionFollowups(this.followupsContainer, items, undefined, followup => this.acceptInput(followup.message)));
+		}
+
+		if (this.bodyDimension) {
+			this.layout(this.bodyDimension.height, this.bodyDimension.width);
 		}
 	}
 
@@ -155,22 +226,28 @@ export class InteractiveSessionWidget extends Disposable {
 			if (!this.inputModel) {
 				this.inputModel = this.modelService.getModel(this.inputUri) || this.modelService.createModel('', null, this.inputUri, true);
 			}
-			this.setModeAsync();
-			this.inputEditor.setModel(this.inputModel);
+			this._inputEditor.setModel(this.inputModel);
 
 			// Not sure why this is needed- the view is being rendered before it's visible, and then the list content doesn't show up
 			this.onDidChangeItems();
 		}
 	}
 
-	private onDidStyleChange(): void {
-		this.container.style.setProperty('--vscode-interactive-result-editor-background-color', this.inputOptions.configuration.resultEditor.backgroundColor?.toString() ?? '');
+	async getSlashCommands(): Promise<IInteractiveSlashCommand[] | undefined> {
+		if (!this.viewModel) {
+			return;
+		}
+
+		if (!this.slashCommandsPromise) {
+			this.slashCommandsPromise = this.interactiveSessionService.getSlashCommands(this.viewModel.sessionId, CancellationToken.None);
+			this.slashCommandsPromise.then(commands => this.lastSlashCommands = commands);
+		}
+
+		return this.slashCommandsPromise;
 	}
 
-	private setModeAsync(): void {
-		this.extensionService.whenInstalledExtensionsRegistered().then(() => {
-			this.inputModel!.setLanguage('markdown');
-		});
+	private onDidStyleChange(): void {
+		this.container.style.setProperty('--vscode-interactive-result-editor-background-color', this.inputOptions.configuration.resultEditor.backgroundColor?.toString() ?? '');
 	}
 
 	private async renderWelcomeView(container: HTMLElement): Promise<void> {
@@ -189,7 +266,7 @@ export class InteractiveSessionWidget extends Disposable {
 			return button;
 		});
 		if (suggElements && suggElements.length > 0) {
-			this.setWelcomeViewVisible(true);
+			this.setWelcomeViewVisible(false);
 		} else {
 			this.setWelcomeViewVisible(false);
 		}
@@ -208,7 +285,15 @@ export class InteractiveSessionWidget extends Disposable {
 	private createList(listContainer: HTMLElement): void {
 		const scopedInstantiationService = this.instantiationService.createChild(new ServiceCollection([IContextKeyService, this.contextKeyService]));
 		const delegate = scopedInstantiationService.createInstance(InteractiveSessionListDelegate);
-		this.renderer = scopedInstantiationService.createInstance(InteractiveListItemRenderer, this.inputOptions, { getListLength: () => this.tree.getNode(null).visibleChildrenCount });
+		const rendererDelegate: IInteractiveSessionRendererDelegate = {
+			getListLength: () => this.tree.getNode(null).visibleChildrenCount,
+			getSlashCommands: () => this.lastSlashCommands ?? [],
+		};
+		this.renderer = scopedInstantiationService.createInstance(InteractiveListItemRenderer, this.inputOptions, rendererDelegate);
+		this._register(this.renderer.onDidClickFollowup(item => {
+			this.acceptInput(item.message);
+		}));
+
 		this.tree = <WorkbenchObjectTree<InteractiveTreeItem>>scopedInstantiationService.createInstance(
 			WorkbenchObjectTree,
 			'InteractiveSession',
@@ -220,7 +305,7 @@ export class InteractiveSessionWidget extends Disposable {
 				supportDynamicHeights: true,
 				hideTwistiesOfChildlessElements: true,
 				accessibilityProvider: new InteractiveSessionAccessibilityProvider(),
-				keyboardNavigationLabelProvider: { getKeyboardNavigationLabel: (e: InteractiveTreeItem) => isRequestVM(e) ? e.model.message : e.response.value },
+				keyboardNavigationLabelProvider: { getKeyboardNavigationLabel: (e: InteractiveTreeItem) => isRequestVM(e) ? e.message : isResponseVM(e) ? e.response.value : '' }, // TODO
 				setRowLineHeight: false,
 				overrideStyles: {
 					listFocusBackground: this.listBackgroundColorDelegate(),
@@ -238,6 +323,7 @@ export class InteractiveSessionWidget extends Disposable {
 					listFocusAndSelectionForeground: foreground,
 				}
 			});
+		this.tree.onContextMenu(e => this.onContextMenu(e));
 
 		this._register(this.tree.onDidChangeContentHeight(() => {
 			this.onDidChangeTreeContentHeight();
@@ -245,12 +331,22 @@ export class InteractiveSessionWidget extends Disposable {
 		this._register(this.renderer.onDidChangeItemHeight(e => {
 			this.tree.updateElementHeight(e.element, e.height);
 		}));
-		this._register(this.renderer.onDidSelectFollowup(followup => {
-			this.acceptInput(followup);
-		}));
 		this._register(this.tree.onDidFocus(() => {
 			this._onDidFocus.fire();
 		}));
+	}
+
+	private onContextMenu(e: ITreeContextMenuEvent<InteractiveTreeItem | null>): void {
+		e.browserEvent.preventDefault();
+		e.browserEvent.stopPropagation();
+
+		this.contextMenuService.showContextMenu({
+			menuId: MenuId.InteractiveSessionContext,
+			menuActionOptions: { shouldForwardArgs: true },
+			contextKeyService: this.contextKeyService,
+			getAnchor: () => e.anchor,
+			getActionsContext: () => e.element,
+		});
 	}
 
 	private onDidChangeTreeContentHeight(): void {
@@ -271,7 +367,10 @@ export class InteractiveSessionWidget extends Disposable {
 	}
 
 	private createInput(container: HTMLElement): void {
-		const inputContainer = dom.append(container, $('.interactive-input-wrapper'));
+		const inputPart = dom.append(container, $('.interactive-input-part'));
+		this.followupsContainer = dom.append(inputPart, $('.interactive-input-followups'));
+
+		const inputContainer = dom.append(inputPart, $('.interactive-input-wrapper'));
 
 		const inputScopedContextKeyService = this._register(this.contextKeyService.createScoped(inputContainer));
 		CONTEXT_IN_INTERACTIVE_INPUT.bindTo(inputScopedContextKeyService).set(true);
@@ -286,35 +385,48 @@ export class InteractiveSessionWidget extends Disposable {
 		options.padding = { top: 8, bottom: 7 };
 		options.cursorWidth = 1;
 		options.wrappingStrategy = 'advanced';
+		options.bracketPairColorization = { enabled: false };
+		options.suggest = { showIcons: false };
 
 		const inputEditorElement = dom.append(inputContainer, $('.interactive-input-editor'));
-		this.inputEditor = this._register(scopedInstantiationService.createInstance(CodeEditorWidget, inputEditorElement, options, getSimpleCodeEditorWidgetOptions()));
+		this._inputEditor = this._register(scopedInstantiationService.createInstance(CodeEditorWidget, inputEditorElement, options, { ...getSimpleCodeEditorWidgetOptions(), isSimpleWidget: false }));
 
-		this._register(this.inputEditor.onDidChangeModelContent(() => {
-			const currentHeight = Math.min(this.inputEditor.getContentHeight(), INPUT_EDITOR_MAX_HEIGHT);
+		this._register(this._inputEditor.onDidChangeModelContent(() => {
+			const currentHeight = Math.min(this._inputEditor.getContentHeight(), INPUT_EDITOR_MAX_HEIGHT);
 			if (this.bodyDimension && currentHeight !== this.inputEditorHeight) {
 				this.inputEditorHeight = currentHeight;
 				this.layout(this.bodyDimension.height, this.bodyDimension.width);
 			}
 		}));
-		this._register(this.inputEditor.onDidFocusEditorText(() => this._onDidFocus.fire()));
+		this._register(this._inputEditor.onDidFocusEditorText(() => this._onDidFocus.fire()));
 
 		this._register(dom.addStandardDisposableListener(inputContainer, dom.EventType.FOCUS, () => inputContainer.classList.add('synthetic-focus')));
 		this._register(dom.addStandardDisposableListener(inputContainer, dom.EventType.BLUR, () => inputContainer.classList.remove('synthetic-focus')));
 	}
 
 	private async initializeSessionModel(initial = false) {
+		if (this.viewModel) {
+			return;
+		}
+
 		await this.extensionService.whenInstalledExtensionsRegistered();
 		const model = await this.interactiveSessionService.startSession(this.providerId, initial, CancellationToken.None);
 		if (!model) {
 			throw new Error('Failed to start session');
 		}
 
-		this.viewModel = this.viewModelDisposables.add(new InteractiveSessionViewModel(model));
-		this.viewModelDisposables.add(this.viewModel.onDidChange(() => this.onDidChangeItems()));
+		if (this.viewModel) {
+			// Oops, created two. TODO this could be better
+			return;
+		}
+
+		this.viewModel = this.instantiationService.createInstance(InteractiveSessionViewModel, model);
+		this.viewModelDisposables.add(this.viewModel.onDidChange(() => {
+			this.slashCommandsPromise = undefined;
+			this.onDidChangeItems();
+		}));
 		this.viewModelDisposables.add(this.viewModel.onDidDisposeModel(() => {
 			this.viewModel = undefined;
-			this.viewModelDisposables.clear();
 			this.onDidChangeItems();
 		}));
 
@@ -325,13 +437,14 @@ export class InteractiveSessionWidget extends Disposable {
 
 	async acceptInput(query?: string): Promise<void> {
 		if (!this.viewModel) {
+			// This currently shouldn't happen anymore, but leaving this here to make sure we don't get stuck without a viewmodel
 			await this.initializeSessionModel();
 		}
 
 		if (this.viewModel) {
-			const input = query ?? this.inputEditor.getValue();
+			const input = query ?? this._inputEditor.getValue();
 			if (this.interactiveSessionService.sendRequest(this.viewModel.sessionId, input, CancellationToken.None)) {
-				this.inputEditor.setValue('');
+				this._inputEditor.setValue('');
 				revealLastElement(this.tree);
 			}
 		}
@@ -352,20 +465,27 @@ export class InteractiveSessionWidget extends Disposable {
 		this.tree.domFocus();
 	}
 
-	clear(): void {
+	async clear(): Promise<void> {
 		if (this.viewModel) {
 			this.interactiveSessionService.clearSession(this.viewModel.sessionId);
+			await this.initializeSessionModel();
 			this.focusInput();
 			this.renderWelcomeView(this.container);
 		}
 	}
 
+	getModel(): IInteractiveSessionViewModel | undefined {
+		return this.viewModel;
+	}
+
 	layout(height: number, width: number): void {
 		this.bodyDimension = new dom.Dimension(width, height);
-		const inputHeight = Math.min(this.inputEditor.getContentHeight(), height, INPUT_EDITOR_MAX_HEIGHT);
-		const inputWrapperPadding = 24;
+		const followupsHeight = this.followupsContainer.offsetHeight;
+		const inputPartPadding = 24;
+		const inputEditorHeight = Math.min(this._inputEditor.getContentHeight(), height - followupsHeight - inputPartPadding, INPUT_EDITOR_MAX_HEIGHT);
 		const lastElementVisible = this.tree.scrollTop + this.tree.renderHeight >= this.tree.scrollHeight;
-		const listHeight = height - inputHeight - inputWrapperPadding;
+		const inputPartHeight = followupsHeight + inputEditorHeight + inputPartPadding;
+		const listHeight = height - inputPartHeight;
 
 		this.tree.layout(listHeight, width);
 		this.tree.getHTMLElement().style.height = `${listHeight}px`;
@@ -374,10 +494,10 @@ export class InteractiveSessionWidget extends Disposable {
 			revealLastElement(this.tree);
 		}
 
-		this.welcomeViewContainer.style.height = `${height - inputHeight - inputWrapperPadding}px`;
-		this.listContainer.style.height = `${height - inputHeight - inputWrapperPadding}px`;
+		this.welcomeViewContainer.style.height = `${height - inputPartHeight}px`;
+		this.listContainer.style.height = `${height - inputPartHeight}px`;
 
-		this.inputEditor.layout({ width: width - inputWrapperPadding, height: inputHeight });
+		this._inputEditor.layout({ width: width - inputPartPadding, height: inputEditorHeight });
 	}
 }
 

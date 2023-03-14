@@ -10,7 +10,7 @@ import { EditorAction2 } from 'vs/editor/browser/editorExtensions';
 import { EmbeddedCodeEditorWidget } from 'vs/editor/browser/widget/embeddedCodeEditorWidget';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { InteractiveEditorController, Recording } from 'vs/editor/contrib/interactive/browser/interactiveEditorWidget';
-import { CTX_INTERACTIVE_EDITOR_FOCUSED, CTX_INTERACTIVE_EDITOR_HAS_ACTIVE_REQUEST, CTX_INTERACTIVE_EDITOR_HAS_PROVIDER, CTX_INTERACTIVE_EDITOR_INNER_CURSOR_FIRST, CTX_INTERACTIVE_EDITOR_INNER_CURSOR_LAST, CTX_INTERACTIVE_EDITOR_EMPTY, CTX_INTERACTIVE_EDITOR_OUTER_CURSOR_POSITION, CTX_INTERACTIVE_EDITOR_PREVIEW, CTX_INTERACTIVE_EDITOR_VISIBLE, MENU_INTERACTIVE_EDITOR_WIDGET, MENU_INTERACTIVE_EDITOR_WIDGET_LHS, CTX_INTERACTIVE_EDITOR_HISTORY_VISIBLE } from 'vs/editor/contrib/interactive/common/interactiveEditor';
+import { CTX_INTERACTIVE_EDITOR_FOCUSED, CTX_INTERACTIVE_EDITOR_HAS_ACTIVE_REQUEST, CTX_INTERACTIVE_EDITOR_HAS_PROVIDER, CTX_INTERACTIVE_EDITOR_INNER_CURSOR_FIRST, CTX_INTERACTIVE_EDITOR_INNER_CURSOR_LAST, CTX_INTERACTIVE_EDITOR_EMPTY, CTX_INTERACTIVE_EDITOR_OUTER_CURSOR_POSITION, CTX_INTERACTIVE_EDITOR_PREVIEW, CTX_INTERACTIVE_EDITOR_VISIBLE, MENU_INTERACTIVE_EDITOR_WIDGET, CTX_INTERACTIVE_EDITOR_HISTORY_VISIBLE, CTX_INTERACTIVE_EDITOR_HISTORY_POSSIBLE } from 'vs/editor/contrib/interactive/common/interactiveEditor';
 import { localize } from 'vs/nls';
 import { IAction2Options } from 'vs/platform/actions/common/actions';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
@@ -27,7 +27,7 @@ export class StartSessionAction extends EditorAction2 {
 			title: { value: localize('run', 'Start Session'), original: 'Start Session' },
 			category: AbstractInteractiveEditorAction.category,
 			f1: true,
-			precondition: ContextKeyExpr.and(CTX_INTERACTIVE_EDITOR_HAS_PROVIDER, EditorContextKeys.writable, CTX_INTERACTIVE_EDITOR_VISIBLE.negate()),
+			precondition: ContextKeyExpr.and(CTX_INTERACTIVE_EDITOR_HAS_PROVIDER, EditorContextKeys.writable),
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
 				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyCode.KeyI)
@@ -73,7 +73,7 @@ export class MakeRequestAction extends AbstractInteractiveEditorAction {
 		super({
 			id: 'interactiveEditor.accept',
 			title: localize('accept', 'Make Request'),
-			icon: Codicon.arrowUp,
+			icon: Codicon.send,
 			precondition: ContextKeyExpr.and(CTX_INTERACTIVE_EDITOR_VISIBLE, CTX_INTERACTIVE_EDITOR_EMPTY.negate()),
 			keybinding: {
 				when: CTX_INTERACTIVE_EDITOR_FOCUSED,
@@ -310,16 +310,15 @@ export class ToggleHistory extends AbstractInteractiveEditorAction {
 		super({
 			id: 'interactiveEditor.toggleHistory',
 			title: localize('toggleHistory', 'Toggle History'),
-			icon: Codicon.chevronRight,
-			precondition: CTX_INTERACTIVE_EDITOR_VISIBLE,
+			icon: Codicon.history,
+			precondition: ContextKeyExpr.and(CTX_INTERACTIVE_EDITOR_VISIBLE, CTX_INTERACTIVE_EDITOR_HISTORY_POSSIBLE),
 			toggled: {
 				condition: CTX_INTERACTIVE_EDITOR_HISTORY_VISIBLE,
-				icon: Codicon.chevronDown,
 			},
 			menu: {
-				id: MENU_INTERACTIVE_EDITOR_WIDGET_LHS,
+				id: MENU_INTERACTIVE_EDITOR_WIDGET,
 				group: 'main',
-				order: 1
+				order: 2
 			}
 		});
 	}

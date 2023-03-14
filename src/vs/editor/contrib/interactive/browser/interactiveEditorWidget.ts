@@ -15,7 +15,7 @@ import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/c
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ZoneWidget } from 'vs/editor/contrib/zoneWidget/browser/zoneWidget';
 import { assertType } from 'vs/base/common/types';
-import { IInteractiveEditorResponse, IInteractiveEditorService, CTX_INTERACTIVE_EDITOR_FOCUSED, CTX_INTERACTIVE_EDITOR_HAS_ACTIVE_REQUEST, CTX_INTERACTIVE_EDITOR_INNER_CURSOR_FIRST, CTX_INTERACTIVE_EDITOR_INNER_CURSOR_LAST, CTX_INTERACTIVE_EDITOR_EMPTY, CTX_INTERACTIVE_EDITOR_OUTER_CURSOR_POSITION, CTX_INTERACTIVE_EDITOR_PREVIEW, CTX_INTERACTIVE_EDITOR_VISIBLE, MENU_INTERACTIVE_EDITOR_WIDGET, CTX_INTERACTIVE_EDITOR_HISTORY_VISIBLE, MENU_INTERACTIVE_EDITOR_WIDGET_LHS, IInteractiveEditorRequest, IInteractiveEditorSession } from 'vs/editor/contrib/interactive/common/interactiveEditor';
+import { IInteractiveEditorResponse, IInteractiveEditorService, CTX_INTERACTIVE_EDITOR_FOCUSED, CTX_INTERACTIVE_EDITOR_HAS_ACTIVE_REQUEST, CTX_INTERACTIVE_EDITOR_INNER_CURSOR_FIRST, CTX_INTERACTIVE_EDITOR_INNER_CURSOR_LAST, CTX_INTERACTIVE_EDITOR_EMPTY, CTX_INTERACTIVE_EDITOR_OUTER_CURSOR_POSITION, CTX_INTERACTIVE_EDITOR_PREVIEW, CTX_INTERACTIVE_EDITOR_VISIBLE, MENU_INTERACTIVE_EDITOR_WIDGET, CTX_INTERACTIVE_EDITOR_HISTORY_VISIBLE, IInteractiveEditorRequest, IInteractiveEditorSession, CTX_INTERACTIVE_EDITOR_HISTORY_POSSIBLE } from 'vs/editor/contrib/interactive/common/interactiveEditor';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { Iterable } from 'vs/base/common/iterator';
 import { ICursorStateComputer, IModelDeltaDecoration, ITextModel, IValidEditOperation } from 'vs/editor/common/model';
@@ -39,12 +39,14 @@ import { raceCancellationError } from 'vs/base/common/async';
 import { isCancellationError } from 'vs/base/common/errors';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorker';
 import { ILogService } from 'vs/platform/log/common/log';
-import { isFalsyOrEmpty } from 'vs/base/common/arrays';
 import { StopWatch } from 'vs/base/common/stopwatch';
 import { Action, IAction } from 'vs/base/common/actions';
 import { Codicon } from 'vs/base/common/codicons';
 import { ThemeIcon } from 'vs/base/common/themables';
 import { LRUCache } from 'vs/base/common/map';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { IBulkEditService } from 'vs/editor/browser/services/bulkEditService';
+import { toErrorMessage } from 'vs/base/common/errorMessage';
 
 
 interface IHistoryEntry {
@@ -55,13 +57,14 @@ interface IHistoryEntry {
 
 class InteractiveEditorWidget {
 
+	private static _modelPool: number = 1;
+
 	private static _noop = () => { };
 
 	private readonly _elements = h(
 		'div.interactive-editor@root',
 		[
 			h('div.body', [
-				h('div.toolbar@lhsToolbar'),
 				h('div.content', [
 					h('div.input@input', [
 						h('div.editor-placeholder@placeholder'),
@@ -71,7 +74,8 @@ class InteractiveEditorWidget {
 				]),
 				h('div.toolbar@rhsToolbar'),
 			]),
-			h('div.progress@progress')
+			h('div.progress@progress'),
+			h('div.message.hidden@message'),
 		]
 	);
 
@@ -81,6 +85,7 @@ class InteractiveEditorWidget {
 	private readonly _inputEditor: ICodeEditor;
 	private readonly _inputModel: ITextModel;
 	private readonly _ctxInputEmpty: IContextKey<boolean>;
+	private readonly _ctxHistoryPossible: IContextKey<boolean>;
 	private readonly _ctxHistoryVisible: IContextKey<boolean>;
 
 	private readonly _progressBar: ProgressBar;
@@ -101,6 +106,7 @@ class InteractiveEditorWidget {
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 	) {
 
+		this._ctxHistoryPossible = CTX_INTERACTIVE_EDITOR_HISTORY_POSSIBLE.bindTo(this._contextKeyService);
 		this._ctxHistoryVisible = CTX_INTERACTIVE_EDITOR_HISTORY_VISIBLE.bindTo(this._contextKeyService);
 
 		// editor logic
@@ -157,10 +163,9 @@ class InteractiveEditorWidget {
 			: this._instantiationService.createInstance(CodeEditorWidget, this._elements.editor, editorOptions, codeEditorWidgetOptions);
 		this._store.add(this._inputEditor);
 
-		const uri = URI.from({ scheme: 'vscode', authority: 'interactive-editor', path: `/interactive-editor/model.txt` });
+		const uri = URI.from({ scheme: 'vscode', authority: 'interactive-editor', path: `/interactive-editor/model${InteractiveEditorWidget._modelPool++}.txt` });
 		this._inputModel = this._modelService.getModel(uri) ?? this._modelService.createModel('', null, uri);
 		this._inputEditor.setModel(this._inputModel);
-
 
 		// show/hide placeholder depending on text model being empty
 		// content height
@@ -185,17 +190,12 @@ class InteractiveEditorWidget {
 
 		this._store.add(addDisposableListener(this._elements.placeholder, 'click', () => this._inputEditor.focus()));
 
-		const lhsToolbar = this._instantiationService.createInstance(MenuWorkbenchToolBar, this._elements.lhsToolbar, MENU_INTERACTIVE_EDITOR_WIDGET_LHS, {
-			telemetrySource: 'interactiveEditorWidget-toolbar-lhs',
-			toolbarOptions: { primaryGroup: 'main' }
-		});
-		this._store.add(lhsToolbar);
 
-		const rhsToolbar = this._instantiationService.createInstance(MenuWorkbenchToolBar, this._elements.rhsToolbar, MENU_INTERACTIVE_EDITOR_WIDGET, {
-			telemetrySource: 'interactiveEditorWidget-toolbar-rhs',
+		const toolbar = this._instantiationService.createInstance(MenuWorkbenchToolBar, this._elements.rhsToolbar, MENU_INTERACTIVE_EDITOR_WIDGET, {
+			telemetrySource: 'interactiveEditorWidget-toolbar',
 			toolbarOptions: { primaryGroup: 'main' }
 		});
-		this._store.add(rhsToolbar);
+		this._store.add(toolbar);
 
 		this._progressBar = new ProgressBar(this._elements.progress);
 		this._store.add(this._progressBar);
@@ -216,7 +216,7 @@ class InteractiveEditorWidget {
 
 		const innerEditorWidth = Math.min(
 			Number.MAX_SAFE_INTEGER, //  TODO@jrieken define max width?
-			dim.width - (getTotalWidth(this._elements.lhsToolbar) + getTotalWidth(this._elements.rhsToolbar) + 12 /* L/R-padding */)
+			dim.width - (getTotalWidth(this._elements.rhsToolbar) + 12 /* L/R-padding */)
 		);
 		const newDim = new Dimension(innerEditorWidth, this._inputEditor.getContentHeight());
 		if (!this._editorDim || !Dimension.equals(this._editorDim, newDim)) {
@@ -228,7 +228,9 @@ class InteractiveEditorWidget {
 	}
 
 	getHeight(): number {
-		return this._inputEditor.getContentHeight() + getTotalHeight(this._elements.history);
+		const base = getTotalHeight(this._elements.progress) + getTotalHeight(this._elements.message) + getTotalHeight(this._elements.history);
+		const editorHeight = this._inputEditor.getContentHeight() + 6 /* padding and border */;
+		return base + editorHeight + 12 /* padding */;
 	}
 
 	updateProgress(show: boolean) {
@@ -344,6 +346,8 @@ class InteractiveEditorWidget {
 			this._onDidChangeHeight.fire();
 		}
 
+		this._ctxHistoryPossible.set(true);
+
 		return {
 			updateVisibility: (visible) => {
 				root.classList.toggle('hidden', !visible);
@@ -367,13 +371,27 @@ class InteractiveEditorWidget {
 		this._historyStore.clear();
 		this._isExpanded = false;
 		this._elements.history.classList.toggle('hidden', true);
+		this._ctxHistoryPossible.reset();
 		this._ctxHistoryVisible.reset();
 		reset(this._elements.history);
+	}
+
+	showMessage(value: string) {
+		this._elements.message.classList.remove('hidden');
+		this._elements.message.innerText = value;
+		this._onDidChangeHeight.fire();
+	}
+
+	clearMessage() {
+		this._elements.message.classList.add('hidden');
+		reset(this._elements.message);
+		this._onDidChangeHeight.fire();
 	}
 
 	reset() {
 		this._ctxInputEmpty.reset();
 		this.clearHistory();
+		this.clearMessage();
 	}
 
 	focus() {
@@ -460,8 +478,7 @@ export class InteractiveEditorZoneWidget extends ZoneWidget {
 
 	private _computeHeightInLines(): number {
 		const lineHeight = this.editor.getOption(EditorOption.lineHeight);
-		const contentHeightInLines = (this.widget.getHeight() / lineHeight);
-		return 2 + contentHeightInLines;
+		return this.widget.getHeight() / lineHeight;
 	}
 
 	protected override _relayout() {
@@ -536,6 +553,28 @@ class SessionRecorder {
 	}
 }
 
+type TelemetryData = {
+	extension: string;
+	rounds: string;
+	undos: string;
+	edits: boolean;
+	terminalEdits: boolean;
+	startTime: string;
+	endTime: string;
+};
+
+type TelemetryDataClassification = {
+	owner: 'jrieken';
+	comment: 'Data about an interaction editor session';
+	extension: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The extension providing the data' };
+	rounds: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Number of request that were made' };
+	undos: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Requests that have been undone' };
+	edits: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Did edits happen while the session was active' };
+	terminalEdits: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Did edits terminal the session' };
+	startTime: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'When the session started' };
+	endTime: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'When the session ended' };
+};
+
 export class InteractiveEditorController implements IEditorContribution {
 
 	static ID = 'interactiveEditor';
@@ -548,7 +587,7 @@ export class InteractiveEditorController implements IEditorContribution {
 		description: 'interactive-editor',
 		blockClassName: 'interactive-editor-block',
 		blockDoesNotCollapse: true,
-		blockPadding: [1, 0, 1, 4]
+		blockPadding: [4, 0, 1, 4]
 	});
 
 	private static _promptHistory: string[] = [];
@@ -568,8 +607,10 @@ export class InteractiveEditorController implements IEditorContribution {
 		@IInstantiationService instaService: IInstantiationService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IInteractiveEditorService private readonly _interactiveEditorService: IInteractiveEditorService,
+		@IBulkEditService private readonly _bulkEditService: IBulkEditService,
 		@IEditorWorkerService private readonly _editorWorkerService: IEditorWorkerService,
 		@ILogService private readonly _logService: ILogService,
+		@ITelemetryService private readonly _telemetryService: ITelemetryService
 	) {
 		this._zone = this._store.add(instaService.createInstance(InteractiveEditorZoneWidget, this._editor));
 		this._ctxShowPreview = CTX_INTERACTIVE_EDITOR_PREVIEW.bindTo(contextKeyService);
@@ -586,7 +627,7 @@ export class InteractiveEditorController implements IEditorContribution {
 		return InteractiveEditorController.ID;
 	}
 
-	async run(): Promise<void> {
+	async run(initialRange?: Range): Promise<void> {
 
 		this._ctsSession.dispose(true);
 
@@ -600,7 +641,7 @@ export class InteractiveEditorController implements IEditorContribution {
 			return;
 		}
 
-		this._ctsSession = new CancellationTokenSource();
+		const thisSession = this._ctsSession = new CancellationTokenSource();
 		const textModel = this._editor.getModel();
 		const session = await provider.prepareInteractiveEditorSession(textModel, this._editor.getSelection(), this._ctsSession.token);
 		if (!session) {
@@ -610,11 +651,24 @@ export class InteractiveEditorController implements IEditorContribution {
 		this._recorder.add(session, textModel);
 		this._logService.trace('[IE] NEW session', provider.debugName);
 
+		const data: TelemetryData = {
+			extension: provider.debugName,
+			startTime: new Date().toISOString(),
+			endTime: new Date().toISOString(),
+			edits: false,
+			terminalEdits: false,
+			rounds: '',
+			undos: ''
+		};
+
 		const blockDecoration = this._editor.createDecorationsCollection();
 		const inlineDiffDecorations = this._editor.createDecorationsCollection();
 
 		const wholeRangeDecoration = this._editor.createDecorationsCollection();
-		let initialRange: Range = this._editor.getSelection();
+
+		if (!initialRange) {
+			initialRange = this._editor.getSelection();
+		}
 		if (initialRange.isEmpty()) {
 			initialRange = new Range(
 				initialRange.startLineNumber, 1,
@@ -651,6 +705,8 @@ export class InteractiveEditorController implements IEditorContribution {
 			// UPDATE undo actions based on alternative version id
 			UndoStepAction.updateUndoSteps();
 
+			data.edits = true;
+
 			// CANCEL if the document has changed outside the current range
 			if (!ignoreModelChanges) {
 				const wholeRange = wholeRangeDecoration.getRange(0);
@@ -663,6 +719,7 @@ export class InteractiveEditorController implements IEditorContribution {
 					if (!Range.areIntersectingOrTouching(wholeRange, change.range)) {
 						this._ctsSession.cancel();
 						this._logService.trace('[IE] CANCEL because of model change OUTSIDE range');
+						data.terminalEdits = true;
 						break;
 					}
 				}
@@ -670,7 +727,12 @@ export class InteractiveEditorController implements IEditorContribution {
 
 		}, undefined, listener);
 
+		let round = 0;
+
 		do {
+
+			round += 1;
+
 			const wholeRange = wholeRangeDecoration.getRange(0);
 			if (!wholeRange) {
 				// nuked whole file contents?
@@ -689,6 +751,8 @@ export class InteractiveEditorController implements IEditorContribution {
 
 			this._historyOffset = -1;
 			const input = await this._zone.getInput(wholeRange.getEndPosition(), placeholder, value, this._ctsRequest.token);
+
+			this._zone.widget.clearMessage();
 
 			if (!input || !input.value) {
 				continue;
@@ -715,13 +779,15 @@ export class InteractiveEditorController implements IEditorContribution {
 				if (!isCancellationError(e)) {
 					this._logService.error('[IE] ERROR during request', provider.debugName);
 					this._logService.error(e);
+					this._zone.widget.showMessage(toErrorMessage(e));
+					continue;
 				}
 			} finally {
 				this._ctxHasActiveRequest.set(false);
 				this._zone.widget.updateProgress(false);
+				this._logService.trace('[IE] request took', sw.elapsed(), provider.debugName);
 			}
 
-			this._logService.trace('[IE] request took', sw.elapsed(), provider.debugName);
 
 			if (this._ctsRequest.token.isCancellationRequested) {
 				this._logService.trace('[IE] request CANCELED', provider.debugName);
@@ -730,11 +796,27 @@ export class InteractiveEditorController implements IEditorContribution {
 				continue;
 			}
 
-			if (!reply || isFalsyOrEmpty(reply.edits)) {
+			if (!reply) {
 				this._logService.trace('[IE] NO reply or edits', provider.debugName);
 				value = input.value;
+				this._zone.widget.showMessage(localize('empty', "No results, tweak your input and try again."));
 				historyEntry.remove();
 				continue;
+			}
+
+			if (reply.type === 'bulkEdit') {
+				this._logService.info('[IE] performaing a BULK EDIT, exiting interactive editor', provider.debugName);
+				this._bulkEditService.apply(reply.edits, { editor: this._editor, label: localize('ie', "{0}", input.value) });
+				// todo@jrieken preview bulk edit?
+				// todo@jrieken keep interactive editor?
+				break;
+			}
+
+			if (reply.type === 'message') {
+				this._logService.info('[IE] received a MESSAGE, exiting interactive editor', provider.debugName);
+				// todo@jrieken show message in context
+				// todo@jrieken keep interactive editor?
+				break;
 			}
 
 			// make edits more minimal
@@ -782,6 +864,7 @@ export class InteractiveEditorController implements IEditorContribution {
 					historyEntry.updateVisibility(false);
 					value = input.value;
 					that._ctsRequest?.cancel();
+					data.undos += round + '|';
 				}
 			}]);
 
@@ -789,8 +872,10 @@ export class InteractiveEditorController implements IEditorContribution {
 				InteractiveEditorController._promptHistory.unshift(input.value);
 			}
 			placeholder = reply.placeholder ?? session.placeholder ?? '';
+			value = '';
+			data.rounds += round + '|';
 
-		} while (!this._ctsSession.token.isCancellationRequested);
+		} while (!thisSession.token.isCancellationRequested);
 
 		// done, cleanup
 		wholeRangeDecoration.clear();
@@ -806,6 +891,9 @@ export class InteractiveEditorController implements IEditorContribution {
 		this._editor.focus();
 
 		this._logService.trace('[IE] session DONE', provider.debugName);
+		data.endTime = new Date().toISOString();
+
+		this._telemetryService.publicLog2<TelemetryData, TelemetryDataClassification>('interactiveEditor/session', data);
 	}
 
 	private static _asInlineDiffDecorationData(edit: IValidEditOperation): IModelDeltaDecoration {

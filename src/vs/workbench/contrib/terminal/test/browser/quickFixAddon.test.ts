@@ -79,6 +79,7 @@ suite('QuickFixAddon', () => {
 				tooltip: 'Run: git status',
 				command: 'git status'
 			}];
+			const outputLines = output.split('\n');
 			setup(() => {
 				const command = gitSimilar();
 				expectedMap.set(command.commandLineMatcher.toString(), [command]);
@@ -86,28 +87,27 @@ suite('QuickFixAddon', () => {
 			});
 			suite('returns undefined when', () => {
 				test('output does not match', async () => {
-					strictEqual(await (getQuickFixesForCommand([], terminal, createCommand(command, `invalid output`, GitSimilarOutputRegex, exitCode), expectedMap, openerService, labelService)), undefined);
+					strictEqual(await (getQuickFixesForCommand([], terminal, createCommand(command, `invalid output`, GitSimilarOutputRegex, exitCode, [`invalid output`]), expectedMap, openerService, labelService)), undefined);
 				});
 				test('command does not match', async () => {
-					strictEqual(await (getQuickFixesForCommand([], terminal, createCommand(`gt sttatus`, output, GitSimilarOutputRegex, exitCode), expectedMap, openerService, labelService)), undefined);
+					strictEqual(await (getQuickFixesForCommand([], terminal, createCommand(`gt sttatus`, output, GitSimilarOutputRegex, exitCode, outputLines), expectedMap, openerService, labelService)), undefined);
 				});
 			});
 			suite('returns actions when', () => {
 				test('expected unix exit code', async () => {
-					assertMatchOptions((await getQuickFixesForCommand([], terminal, createCommand(command, output, GitSimilarOutputRegex, exitCode), expectedMap, openerService, labelService)), actions);
+					assertMatchOptions((await getQuickFixesForCommand([], terminal, createCommand(command, output, GitSimilarOutputRegex, exitCode, outputLines), expectedMap, openerService, labelService)), actions);
 				});
 				test('matching exit status', async () => {
-					assertMatchOptions((await getQuickFixesForCommand([], terminal, createCommand(command, output, GitSimilarOutputRegex, 2), expectedMap, openerService, labelService)), actions);
+					assertMatchOptions((await getQuickFixesForCommand([], terminal, createCommand(command, output, GitSimilarOutputRegex, 2, outputLines), expectedMap, openerService, labelService)), actions);
 				});
 			});
 			suite('returns match', () => {
 				test('returns match', async () => {
-					assertMatchOptions((await getQuickFixesForCommand([], terminal, createCommand(command, output, GitSimilarOutputRegex), expectedMap, openerService, labelService)), actions);
+					assertMatchOptions((await getQuickFixesForCommand([], terminal, createCommand(command, output, GitSimilarOutputRegex, exitCode, outputLines), expectedMap, openerService, labelService)), actions);
 				});
 
 				test('returns multiple match', async () => {
 					output = `git: 'pu' is not a git command. See 'git --help'.
-
 				The most similar commands are
 						pull
 						push`;
@@ -124,14 +124,13 @@ suite('QuickFixAddon', () => {
 						tooltip: 'Run: git push',
 						command: 'git push'
 					}];
-					assertMatchOptions((await getQuickFixesForCommand([], terminal, createCommand('git pu', output, GitSimilarOutputRegex), expectedMap, openerService, labelService)), actions);
+					assertMatchOptions((await getQuickFixesForCommand([], terminal, createCommand('git pu', output, GitSimilarOutputRegex, exitCode, output.split('\n')), expectedMap, openerService, labelService)), actions);
 				});
 				test('passes any arguments through', async () => {
 					output = `git: 'checkoutt' is not a git command. See 'git --help'.
-
 				The most similar commands are
 						checkout`;
-					assertMatchOptions((await getQuickFixesForCommand([], terminal, createCommand('git checkoutt .', output, GitSimilarOutputRegex), expectedMap, openerService, labelService)), [{
+					assertMatchOptions((await getQuickFixesForCommand([], terminal, createCommand('git checkoutt .', output, GitSimilarOutputRegex, exitCode, output.split('\n')), expectedMap, openerService, labelService)), [{
 						id: 'Git Similar',
 						enabled: true,
 						label: 'Run: git checkout .',
@@ -431,7 +430,7 @@ suite('QuickFixAddon', () => {
 	});
 });
 
-function createCommand(command: string, output: string, outputMatcher?: RegExp | string, exitCode?: number): ITerminalCommand {
+function createCommand(command: string, output: string, outputMatcher?: RegExp | string, exitCode?: number, outputLines?: string[]): ITerminalCommand {
 	return {
 		command,
 		exitCode,
@@ -440,7 +439,7 @@ function createCommand(command: string, output: string, outputMatcher?: RegExp |
 			if (outputMatcher) {
 				const regexMatch = output.match(outputMatcher) ?? undefined;
 				if (regexMatch) {
-					return { regexMatch, outputLines: [] };
+					return outputLines ? { regexMatch, outputLines } : { regexMatch, outputLines: [] };
 				}
 			}
 			return undefined;

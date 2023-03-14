@@ -579,7 +579,7 @@ class ExtensionsScanner extends Disposable {
 		let profileExtensions = await this.scanExtensionsFromProfileResource(input.location, () => true, input);
 		if (input.applicationExtensionslocation && !this.uriIdentityService.extUri.isEqual(input.location, input.applicationExtensionslocation)) {
 			profileExtensions = profileExtensions.filter(e => !e.metadata?.isApplicationScoped);
-			const applicationExtensions = await this.scanExtensionsFromProfileResource(input.applicationExtensionslocation, (e) => !!e.metadata?.isApplicationScoped, input);
+			const applicationExtensions = await this.scanExtensionsFromProfileResource(input.applicationExtensionslocation, (e) => !!e.metadata?.isBuiltin || !!e.metadata?.isApplicationScoped, input);
 			profileExtensions.push(...applicationExtensions);
 		}
 		return profileExtensions;
@@ -927,21 +927,21 @@ class CachedExtensionsScanner extends ExtensionsScanner {
 	}
 
 	private getCacheFile(input: ExtensionScannerInput): URI {
-		const profieLocaiton = this.getProfileLocationForCache(input);
-		return this.uriIdentityService.extUri.joinPath(profieLocaiton, input.type === ExtensionType.System ? BUILTIN_MANIFEST_CACHE_FILE : USER_MANIFEST_CACHE_FILE);
+		const profile = this.getProfile(input);
+		return this.uriIdentityService.extUri.joinPath(profile.cacheHome, input.type === ExtensionType.System ? BUILTIN_MANIFEST_CACHE_FILE : USER_MANIFEST_CACHE_FILE);
 	}
 
-	private getProfileLocationForCache(input: ExtensionScannerInput): URI {
+	private getProfile(input: ExtensionScannerInput): IUserDataProfile {
 		if (input.type === ExtensionType.System) {
-			return this.userDataProfilesService.defaultProfile.location;
+			return this.userDataProfilesService.defaultProfile;
 		}
 		if (!input.profile) {
-			return this.userDataProfilesService.defaultProfile.location;
+			return this.userDataProfilesService.defaultProfile;
 		}
 		if (this.uriIdentityService.extUri.isEqual(input.location, this.currentProfile.extensionsResource)) {
-			return this.currentProfile.location;
+			return this.currentProfile;
 		}
-		return this.userDataProfilesService.profiles.find(p => this.uriIdentityService.extUri.isEqual(input.location, p.extensionsResource))?.location ?? this.currentProfile.location;
+		return this.userDataProfilesService.profiles.find(p => this.uriIdentityService.extUri.isEqual(input.location, p.extensionsResource)) ?? this.currentProfile;
 	}
 
 }

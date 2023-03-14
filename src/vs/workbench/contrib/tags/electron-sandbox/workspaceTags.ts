@@ -74,16 +74,15 @@ export class WorkspaceTags implements IWorkbenchContribution {
 		const workspace = this.contextService.getWorkspace();
 		const state = this.contextService.getWorkbenchState();
 		const telemetryId = await this.workspaceTagsService.getTelemetryWorkspaceId(workspace, state);
-		return this.telemetryService.getTelemetryInfo().then(info => {
-			return {
-				id: workspace.id,
-				telemetryId,
-				rendererSessionId: info.sessionId,
-				folders: workspace.folders,
-				transient: workspace.transient,
-				configuration: workspace.configuration
-			};
-		});
+
+		return {
+			id: workspace.id,
+			telemetryId,
+			rendererSessionId: this.telemetryService.sessionId,
+			folders: workspace.folders,
+			transient: workspace.transient,
+			configuration: workspace.configuration
+		};
 	}
 
 	private reportWorkspaceTags(tags: Tags): void {

@@ -41,10 +41,14 @@ export class RemoteExtensionsScannerService implements IRemoteExtensionsScannerS
 	) {
 		const builtinExtensionsToInstall = environmentService.args['install-builtin-extension'];
 		if (builtinExtensionsToInstall) {
+			_logService.trace('Installing builtin extensions passed via args...');
 			const installOptions: InstallOptions = { isMachineScoped: !!environmentService.args['do-not-sync'], installPreReleaseVersion: !!environmentService.args['pre-release'] };
 			performance.mark('code/server/willInstallBuiltinExtensions');
 			this._whenExtensionsReady = _extensionManagementCLI.installExtensions([], this._asExtensionIdOrVSIX(builtinExtensionsToInstall), installOptions, !!environmentService.args['force'])
-				.then(() => performance.mark('code/server/didInstallBuiltinExtensions'), error => {
+				.then(() => {
+					performance.mark('code/server/didInstallBuiltinExtensions');
+					_logService.trace('Finished installing builtin extensions');
+				}, error => {
 					_logService.error(error);
 				});
 		} else {
@@ -53,9 +57,12 @@ export class RemoteExtensionsScannerService implements IRemoteExtensionsScannerS
 
 		const extensionsToInstall = environmentService.args['install-extension'];
 		if (extensionsToInstall) {
+			_logService.trace('Installing extensions passed via args...');
 			this._whenExtensionsReady
-				.then(() => _extensionManagementCLI.installExtensions(this._asExtensionIdOrVSIX(extensionsToInstall), [], { isMachineScoped: !!environmentService.args['do-not-sync'], installPreReleaseVersion: !!environmentService.args['pre-release'] }, !!environmentService.args['force']))
-				.then(null, error => {
+				.then(() => _extensionManagementCLI.installExtensions(this._asExtensionIdOrVSIX(extensionsToInstall), [], { isMachineScoped: !!environmentService.args['do-not-sync'], installPreReleaseVersion: !!environmentService.args['pre-release'], isApplicationScoped: environmentService.args['all-profiles'] }, !!environmentService.args['force']))
+				.then(() => {
+					_logService.trace('Finished installing extensions');
+				}, error => {
 					_logService.error(error);
 				});
 		}
@@ -70,11 +77,10 @@ export class RemoteExtensionsScannerService implements IRemoteExtensionsScannerS
 	}
 
 	async scanExtensions(language?: string, profileLocation?: URI, extensionDevelopmentLocations?: URI[], languagePackId?: string): Promise<IExtensionDescription[]> {
-		await this.whenExtensionsReady();
-
 		performance.mark('code/server/willScanExtensions');
-
 		this._logService.trace(`Scanning extensions using UI language: ${language}`);
+
+		await this.whenExtensionsReady();
 
 		const extensionDevelopmentPaths = extensionDevelopmentLocations ? extensionDevelopmentLocations.filter(url => url.scheme === Schemas.file).map(url => url.fsPath) : undefined;
 		profileLocation = profileLocation ?? this._userDataProfilesService.defaultProfile.extensionsResource;
@@ -174,10 +180,7 @@ export class RemoteExtensionsScannerService implements IRemoteExtensionsScannerS
 
 		this._logService.trace(`Language Pack ${languagePackId} for language ${language} is not installed. It will be installed now.`);
 		try {
-			await this._extensionManagementCLI.installExtensions([languagePackId], [], { isMachineScoped: true }, true, {
-				log: (s) => this._logService.info(s),
-				error: (s) => this._logService.error(s)
-			});
+			await this._extensionManagementCLI.installExtensions([languagePackId], [], { isMachineScoped: true }, true);
 		} catch (err) {
 			// We tried to install the language pack but failed. We can continue without it thus using the default language.
 			this._logService.error(err);

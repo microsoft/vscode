@@ -17,19 +17,25 @@
 }
 
 .interactive-list .interactive-item-container {
+	padding: 16px 20px 0px 20px;
 	display: flex;
 	flex-direction: column;
-	gap: 12px;
+	gap: 6px;
 }
 
 .interactive-list .interactive-item-container .header {
 	display: flex;
-	flex-direction: row;
 	align-items: center;
-	gap: 8px;
+	justify-content: space-between;
 }
 
-.interactive-list .interactive-item-container .header h3 {
+.interactive-list .interactive-item-container .header .user {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+}
+
+.interactive-list .interactive-item-container .header .username {
 	margin: 0;
 	font-size: 12px;
 	font-weight: 600;
@@ -45,13 +51,26 @@
 	background: var(--vscode-badge-background);
 }
 
+.interactive-list .interactive-item-container .header .avatar .icon {
+	width: 24px;
+	height: 24px;
+	border-radius: 50%;
+}
+
 .interactive-list .interactive-item-container .header .avatar .codicon {
-	color: var(--vscode-badge-foreground);
+	color: var(--vscode-badge-foreground) !important;
+}
+
+.interactive-list .interactive-item-container .header .monaco-toolbar {
+	display: none;
+}
+
+.interactive-list .interactive-item-container.interactive-response:hover .header .monaco-toolbar {
+	display: initial;
 }
 
 .interactive-list .interactive-item-container .value {
 	width: 100%;
-	overflow: hidden;
 }
 
 .interactive-list .interactive-item-container .value table {
@@ -80,23 +99,25 @@
 
 .interactive-list .monaco-list-row .interactive-response {
 	background-color: var(--vscode-interactive-responseBackground);
-	padding: 16px 20px 0 20px
-}
-
-.interactive-list .monaco-list-row .interactive-response .value {
-	padding-bottom: 12px;
-}
-
-.interactive-list .monaco-list-row .interactive-request {
-	padding: 16px 20px;
 }
 
 .interactive-list .monaco-list-row .value {
 	white-space: normal;
 }
 
+.interactive-list .monaco-list-row .value > :last-child:not(.rendered-markdown) {
+	/* The container has padding on all sides except the bottom. The last element needs to provide this margin. rendered-markdown has its own margin.
+		TODO Another approach could be removing the margin on the very last element inside the markdown container? */
+	margin-bottom: 16px;
+}
+
+.interactive-list .monaco-list-row .value > .interactive-response-error-details:not(:last-child) {
+	margin-bottom: 8px;
+}
+
 .interactive-list .monaco-list-row .value p {
-	margin: 0;
+	margin: 0 0 16px 0;
+	line-height: 1.6em;
 }
 
 .interactive-list .monaco-list-row .monaco-tokenized-source,
@@ -108,9 +129,8 @@
 	display: flex;
 	border-radius: 2px;
 	box-sizing: border-box;
-	padding: 12px;
 	cursor: text;
-	border-top: 1px solid var(--vscode-interactive-responseBorder);
+	padding: 0px 12px;
 }
 
 .interactive-session .interactive-input-wrapper .monaco-editor-background {
@@ -134,6 +154,25 @@
 
 .interactive-session .monaco-inputbox {
 	width: 100%;
+}
+
+.interactive-session .interactive-result-editor-wrapper {
+	position: relative;
+}
+
+.interactive-session .interactive-result-editor-wrapper .monaco-toolbar {
+	display: none;
+	position: absolute;
+	top: -13px;
+	right: 10px;
+	height: 26px;
+	background-color: var(--vscode-interactive-result-editor-background-color);
+	border: 1px solid var(--vscode-interactive-responseBorder);
+	z-index: 100;
+}
+
+.interactive-session .interactive-result-editor-wrapper:hover .monaco-toolbar {
+	display: initial;
 }
 
 .interactive-session .interactive-result-editor-wrapper .monaco-editor,
@@ -164,17 +203,69 @@
 	margin: 0;
 }
 
-.interactive-session .interactive-response .interactive-session-response-followups {
+.interactive-session .interactive-response .interactive-response-error-details {
 	display: flex;
-	flex-direction: column;
-	gap: 8px;
-	align-items: start;
-	margin-bottom: 1em; /* This is matching the margin on rendered markdown */
+	align-items: center;
+	gap: 6px;
 }
 
-.interactive-session .interactive-response .interactive-session-response-followups .monaco-button {
-	width: 100%;
-	padding: 2px 8px;
+.interactive-session .interactive-response .interactive-response-error-details .codicon {
+	color: var(--vscode-errorForeground) !important; /* Have to override default styles which apply to all lists */
+}
+
+.interactive-session .interactive-item-container .value .interactive-slash-command {
+	color: var(--vscode-textLink-foreground);
+}
+
+.interactive-session .interactive-input-part {
+	padding: 12px 0px;
+	display: flex;
+	flex-direction: column;
+}
+
+.interactive-session .interactive-session-followups {
+	display: flex;
+	flex-direction: column;
+	gap: 5px;
+	align-items: start;
+}
+
+.interactive-session .interactive-session-followups .monaco-button {
+	width: initial;
+
+	color: var(--vscode-textLink-foreground);
+	justify-content: left;
+	text-align: left;
+}
+
+.interactive-session .interactive-session-followups .monaco-button .codicon {
+	margin-left: 0;
+}
+
+.interactive-session .interactive-response-followups .monaco-button {
+	padding: 4px 8px;
+}
+
+.interactive-session .interactive-input-part .interactive-input-followups {
+	padding: 0px 20px;
+}
+
+.interactive-session .interactive-input-part .interactive-input-followups .interactive-session-followups {
+	margin-bottom: 8px;
+}
+
+.interactive-session .interactive-session-followups .monaco-button.interactive-followup-reply {
+	padding: 0px;
 	font-size: 11px;
 	font-weight: 600;
+	border: none;
+}
+
+.interactive-session .interactive-welcome .value .interactive-session-followups {
+	margin-bottom: 10px;
+}
+
+.interactive-list .interactive-item-container .monaco-toolbar .codicon {
+	/* Very aggressive list styles try to apply focus colors to every codicon in a list row. */
+	color: var(--vscode-foreground) !important;
 }

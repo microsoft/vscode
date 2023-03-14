@@ -329,6 +329,45 @@ suite('TerminalLinkParsing', () => {
 			);
 		});
 
+		test('should exclude pipe characters from link paths', () => {
+			deepStrictEqual(
+				detectLinks('|C:\\Github\\microsoft\\vscode|', OperatingSystem.Windows),
+				[
+					{
+						path: {
+							index: 1,
+							text: 'C:\\Github\\microsoft\\vscode'
+						},
+						prefix: undefined,
+						suffix: undefined
+					}
+				] as IParsedLink[]
+			);
+		});
+
+		test('should exclude pipe characters from link paths with suffixes', () => {
+			deepStrictEqual(
+				detectLinks('|C:\\Github\\microsoft\\vscode:400|', OperatingSystem.Windows),
+				[
+					{
+						path: {
+							index: 1,
+							text: 'C:\\Github\\microsoft\\vscode'
+						},
+						prefix: undefined,
+						suffix: {
+							col: undefined,
+							row: 400,
+							suffix: {
+								index: 27,
+								text: ':400'
+							}
+						}
+					}
+				] as IParsedLink[]
+			);
+		});
+
 		suite('should detect file names in git diffs', () => {
 			test('--- a/foo/bar', () => {
 				deepStrictEqual(

@@ -21,7 +21,7 @@ import { InteractiveSessionViewPane } from 'vs/workbench/contrib/interactiveSess
 import { CONTEXT_IN_INTERACTIVE_INPUT, CONTEXT_IN_INTERACTIVE_SESSION, IInteractiveSessionWidgetService } from 'vs/workbench/contrib/interactiveSession/browser/interactiveSessionWidget';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 
-const category = { value: localize('interactiveSession.category', "Interactive Session"), original: 'Interactive Session' };
+export const INTERACTIVE_SESSION_CATEGORY = { value: localize('interactiveSession.category', "Interactive Session"), original: 'Interactive Session' };
 
 export function registerInteractiveSessionActions() {
 	registerEditorAction(class InteractiveSessionAcceptInput extends EditorAction {
@@ -88,10 +88,10 @@ export function registerInteractiveSessionActions() {
 				}]
 			});
 		}
-		run(accessor: ServicesAccessor, ...args: any[]) {
+		async run(accessor: ServicesAccessor, ...args: any[]) {
 			const editorService = accessor.get(IEditorService);
 			if (editorService.activeEditorPane instanceof InteractiveSessionEditor) {
-				editorService.activeEditorPane.clear();
+				await editorService.activeEditorPane.clear();
 			}
 		}
 	});
@@ -153,14 +153,14 @@ export function registerInteractiveSessionActions() {
 					value: localize('interactiveSession.clear.label', "Clear"),
 					original: 'Clear'
 				},
-				category,
+				category: INTERACTIVE_SESSION_CATEGORY,
 				icon: Codicon.clearAll,
 				f1: true
 			});
 		}
-		run(accessor: ServicesAccessor, ...args: any[]) {
+		async run(accessor: ServicesAccessor, ...args: any[]) {
 			const widgetService = accessor.get(IInteractiveSessionWidgetService);
-			widgetService.lastFocusedWidget?.clear();
+			await widgetService.lastFocusedWidget?.clear();
 		}
 	});
 }
@@ -172,7 +172,7 @@ export function getOpenInteractiveSessionEditorAction(id: string, label: string,
 				id: `workbench.action.openInteractiveSession.${id}`,
 				title: { value: localize('interactiveSession.open', "Open Editor ({0})", label), original: `Open Editor (${label})` },
 				f1: true,
-				category,
+				category: INTERACTIVE_SESSION_CATEGORY,
 				precondition: ContextKeyExpr.deserialize(when)
 			});
 		}
@@ -197,7 +197,7 @@ const getClearInteractiveSessionActionDescriptorForViewTitle = (viewId: string, 
 		group: 'navigation',
 		order: 0
 	},
-	category,
+	category: INTERACTIVE_SESSION_CATEGORY,
 	icon: Codicon.clearAll,
 	f1: false
 });
@@ -208,8 +208,8 @@ export function getClearAction(viewId: string, providerId: string) {
 			super(getClearInteractiveSessionActionDescriptorForViewTitle(viewId, providerId));
 		}
 
-		runInView(accessor: ServicesAccessor, view: InteractiveSessionViewPane) {
-			view.clear();
+		async runInView(accessor: ServicesAccessor, view: InteractiveSessionViewPane) {
+			await view.clear();
 		}
 	};
 }
