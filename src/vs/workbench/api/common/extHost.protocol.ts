@@ -1100,7 +1100,7 @@ export interface IInteractiveSessionDto {
 }
 
 export interface IInteractiveRequestDto {
-	message: string;
+	message: string | IInteractiveSessionReplyFollowup;
 }
 
 export interface IInteractiveResponseDto {

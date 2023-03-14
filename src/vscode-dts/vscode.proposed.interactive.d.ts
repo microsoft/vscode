@@ -73,7 +73,7 @@ declare module 'vscode' {
 
 	export interface InteractiveRequest {
 		session: InteractiveSession;
-		message: string;
+		message: string | InteractiveSessionReplyFollowup;
 	}
 
 	export interface InteractiveResponseErrorDetails {
@@ -109,7 +109,11 @@ declare module 'vscode' {
 
 	export interface InteractiveSessionReplyFollowup {
 		message: string;
+		tooltip?: string;
 		title?: string;
+
+		// Extensions can put any serializable data here, such as an ID/version
+		metadata?: any;
 	}
 
 	export type InteractiveSessionFollowup = InteractiveSessionReplyFollowup | InteractiveResponseCommand;

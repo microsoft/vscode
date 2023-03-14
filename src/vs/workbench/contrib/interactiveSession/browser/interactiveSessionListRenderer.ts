@@ -218,7 +218,7 @@ export class InteractiveListItemRenderer extends Disposable implements ITreeRend
 		} else if (isResponseVM(element)) {
 			this.basicRenderElement(element.response.value, element, index, templateData);
 		} else if (isRequestVM(element)) {
-			this.basicRenderElement(element.message, element, index, templateData);
+			this.basicRenderElement(element.messageText, element, index, templateData);
 		} else {
 			this.renderWelcomeMessage(element, templateData);
 		}
@@ -425,7 +425,7 @@ export class InteractiveSessionAccessibilityProvider implements IListAccessibili
 
 	getAriaLabel(element: InteractiveTreeItem): string {
 		if (isRequestVM(element)) {
-			return localize('interactiveRequest', "Request: {0}", element.message);
+			return localize('interactiveRequest', "Request: {0}", element.messageText);
 		}
 
 		if (isResponseVM(element)) {

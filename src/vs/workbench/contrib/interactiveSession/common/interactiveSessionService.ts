@@ -22,7 +22,7 @@ export interface IInteractiveSession {
 
 export interface IInteractiveRequest {
 	session: IInteractiveSession;
-	message: string;
+	message: string | IInteractiveSessionReplyFollowup;
 }
 
 export interface IInteractiveResponse {
@@ -59,8 +59,10 @@ export interface IInteractiveSlashCommand {
 
 export interface IInteractiveSessionReplyFollowup {
 	kind: 'reply';
-	title?: string;
 	message: string;
+	title?: string;
+	tooltip?: string;
+	metadata?: any;
 }
 
 export interface IInteractiveSessionResponseCommandFollowup {
@@ -113,7 +115,7 @@ export interface IInteractiveSessionService {
 	/**
 	 * Returns whether the request was accepted.
 	 */
-	sendRequest(sessionId: number, message: string, token: CancellationToken): boolean;
+	sendRequest(sessionId: number, message: string | IInteractiveSessionReplyFollowup, token: CancellationToken): boolean;
 	getSlashCommands(sessionId: number, token: CancellationToken): Promise<IInteractiveSlashCommand[] | undefined>;
 	clearSession(sessionId: number): void;
 	acceptNewSessionState(sessionId: number, state: any): void;
