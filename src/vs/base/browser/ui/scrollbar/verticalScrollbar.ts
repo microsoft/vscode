@@ -108,7 +108,6 @@ export class VerticalScrollbar extends AbstractScrollbar {
 	}
 
 	public updateOptions(options: ScrollableElementResolvedOptions): void {
-		// console.log('Inside of update options of VerticalScrollBar');
 		this.updateScrollbarSize(options.vertical === ScrollbarVisibility.Hidden ? 0 : options.verticalScrollbarSize);
 		// give priority to vertical scroll bar over horizontal and let it scroll all the way to the bottom
 		this._scrollbarState.setOppositeScrollbarSize(0);
