@@ -32,7 +32,6 @@ suite('NotebookExecutionService', () => {
 	let instantiationService: TestInstantiationService;
 	let contextKeyService: IContextKeyService;
 	let kernelService: INotebookKernelService;
-	let kernelHistoryService: INotebookKernelHistoryService;
 	let disposables: DisposableStore;
 
 	setup(function () {
@@ -73,7 +72,6 @@ suite('NotebookExecutionService', () => {
 		kernelService = instantiationService.createInstance(NotebookKernelService);
 		instantiationService.set(INotebookKernelService, kernelService);
 		contextKeyService = instantiationService.get(IContextKeyService);
-		kernelHistoryService = instantiationService.get(INotebookKernelHistoryService);
 	});
 
 	teardown(() => {
