@@ -466,6 +466,7 @@ export class ContentHoverWidget extends Disposable implements IContentWidget {
 	private _renderingAbove: boolean = this._editor.getOption(EditorOption.hover).above;
 	private _visibleData: ContentHoverVisibleData | null = null;
 	private _renderingType: ContentWidgetPositionPreference = ContentWidgetPositionPreference.ABOVE;
+	private _maxRenderingHeight: number | undefined = -1;
 
 	public get element(): ResizableHTMLElement {
 		return this._element;
@@ -551,17 +552,16 @@ export class ContentHoverWidget extends Disposable implements IContentWidget {
 	}
 
 	// Only called once, define here a default size
-	private _setLayoutOfResizableElement(defaultSize: dom.Dimension): void {
+	private _setLayoutOfResizableElement(maxSize: dom.Dimension): void {
 
 		// TODO: 1) Polish code, annotate, make it cleaner. Understand what all the entites correspond to, if some are superfluous, not needed
 		// TODO: 5) Find out why even if smaller than default max size, the whole widget is not shown, want the whole widget to be shown when smaller than default size
-		// TODO: 6) Find why the content hover widget changes as hover mouse is moved, ever so slight movement
 		// TODO: Render the correct initial size
 		// TODO: Persist the maximum size, if bigger than this size then cap to this size, otherwise take the smaller size
-		// TODO: Find out why the content hover widget blinks once in the beginning when hovering above it
+		// TODO: Do not enable the sashes when the hover should not be resizable anymore
 
 		console.log('* Entered into _resizableLayout of ContentHoverWidget');
-		console.log('defaultSize : ', defaultSize);
+		console.log('maxSize : ', maxSize);
 		console.log('this._mousePosition : ', this._mousePosition);
 		console.log('this._hover.containerDomNode : ', this._hover.containerDomNode);
 		console.log('this._hover.contentsDomNode : ', this._hover.contentsDomNode);
@@ -583,9 +583,9 @@ export class ContentHoverWidget extends Disposable implements IContentWidget {
 		// Hard-coded in the hover.css file as 1.5em or 24px
 		const minHeight = 24;
 
-		console.log('defaultSize : ', defaultSize);
-		let height = defaultSize.height;
-		let width = defaultSize.width;
+		console.log('defaultSize : ', maxSize);
+		let height = maxSize.height;
+		let width = maxSize.width;
 
 		// Hard-code the values for now!
 		const maxWidth = bodyBox.width;
@@ -595,7 +595,7 @@ export class ContentHoverWidget extends Disposable implements IContentWidget {
 		}
 
 		// The full height is already passed in as a parameter
-		const fullHeight = defaultSize.height;
+		const fullHeight = maxSize.height;
 		const editorBox = dom.getDomNodePagePosition(this._editor.getDomNode());
 		console.log('editorBox : ', editorBox);
 		const mouseBox = this._editor.getScrolledVisiblePosition(this._mousePosition);
@@ -666,14 +666,15 @@ export class ContentHoverWidget extends Disposable implements IContentWidget {
 		// this._element.maxSize = new dom.Dimension(maxWidth, maxHeight);
 		// TODO: It would appear that if the minimum width is 0, it will disappear, set some value larger than 0
 		this._element.minSize = new dom.Dimension(10, minHeight);
-		const maxRenderingHeight = this._findMaxRenderingHeight(this._renderingAbove);
-		console.log('maxRenderingHeight : ', maxRenderingHeight);
-		if (!maxRenderingHeight) {
+		this._maxRenderingHeight = this._findMaxRenderingHeight(this._renderingAbove);
+		console.log('maxRenderingHeight : ', this._maxRenderingHeight);
+		if (!this._maxRenderingHeight) {
 			return;
 		}
-		this._element.maxSize = new dom.Dimension(maxWidth, maxRenderingHeight);
+		this._element.maxSize = new dom.Dimension(maxWidth, this._maxRenderingHeight);
 
-		this._resize(width, height, this._renderingAbove);
+		// The last variable is true because it is the initial rendering
+		this._resize(width, height, true);
 
 		// TODO: Enable sashes on different places depending on if hover shown on the top or on the bottom
 		// TODO: When the hover is extended too much, so that part of it disappears, it disappears completely
@@ -717,7 +718,8 @@ export class ContentHoverWidget extends Disposable implements IContentWidget {
 		return maxRenderingHeight;
 	}
 
-	private _resize(width: number, height: number, renderingAbove: boolean): void {
+	// Initiall height and width are the maximmum dimensions to give to the hover
+	private _resize(width: number, height: number, initialRedering: boolean = false): void {
 
 		console.log(' * Entered into the _resize function of ContentHoverWidget');
 
@@ -726,99 +728,49 @@ export class ContentHoverWidget extends Disposable implements IContentWidget {
 		console.log('this._initialHeight : ', this._initialHeight);
 		console.log('this._initialTop : ', this._initialTop);
 
-		// Suppose that this is not the first time the resize is called after the initial rendering and we are rendering above
-		// Then update the top position of the widget
-		if (this._initialHeight !== -1 && renderingAbove) {
-			console.log('Entered into case when initial height !== -1');
-			console.log('this._initialTop : ', this._initialTop);
-			const diff = height - this._initialHeight;
-			console.log('diff : ', diff);
-			// When difference positive, means that the widget grew, place it higher up
-			console.log('this._initialTop - diff : ', this._initialTop - diff);
-			// this._element.domNode.style.top = this._initialTop - diff + 'px';
-		}
 
-		const { width: maxWidth, height: maxHeight } = this._element.maxSize;
-		// console.log('maxWidth : ', maxWidth, ' width : ', width);
+
+		// TODO: When the following is added, it causes errors yet we want the initial hover widget to not inherit the size from before
+		/*
+		let maxWidth: number;
+		let maxHeight: number;
+		if (initialRedering) {
+			console.log('Entered into the initial rendering inside of the resize function');
+			this._hover.contentsDomNode.style.maxHeight = height + 'px';
+			this._hover.containerDomNode.style.maxWidth = width + 'px';
+			this._hover.contentsDomNode.style.maxHeight = height + 'px';
+			this._hover.contentsDomNode.style.maxWidth = width + 'px';
+			const bodyBox = dom.getClientArea(document.body);
+			maxWidth = bodyBox.width;
+		} else {
+		*/
+		const maxWidth = this._element.maxSize.width;
+		const maxHeight = this._element.maxSize.height;
 		width = Math.min(maxWidth, width);
-		// console.log('maxHeight : ', maxHeight, ' height : ', height);
 		height = Math.min(maxHeight, height);
-
-		// Setting the size of the resizable element with the height and width given
+		console.log('height : ', height);
+		console.log('this._maxRenderingHeight : ', this._maxRenderingHeight);
+		if (!this._maxRenderingHeight) {
+			return;
+		}
+		if (height >= this._maxRenderingHeight) {
+			this._element.enableSashes(false, true, false, false);
+		}
 		this._element.layout(height, width);
-		// console.log('this._element.domNode.style.height : ', this._element.domNode.style.height);
-		// console.log('this._element.domNode.style.width : ', this._element.domNode.style.width);
-
-		// Making the hover container dom node have height and width of the resizable element minus the pixels needed in order to show the sashes
 		this._hover.containerDomNode.style.height = `${height - 2}px`;
 		this._hover.containerDomNode.style.width = `${width - 2}px`;
-		// Client height and scroll height should not be the same so that the scroll bar is needed
 		this._hover.contentsDomNode.style.height = `${height - 2}px`;
 		this._hover.contentsDomNode.style.width = `${width - 2}px`;
-		// console.log('this._hover.contentsDomNode.clientHeight : ', this._hover.contentsDomNode.clientHeight);
-		// console.log('this._hover.contentsDomNode.scrollHeight : ', this._hover.contentsDomNode.scrollHeight);
-
-		// Also setting the size of the resizable element to that size?
-
-		// TODO Experimentation done for finding the maximum current size to give to the resizable element
-		const containerOffsetHeight = this._hover.containerDomNode.offsetHeight;
-		const contentsOffsetHeight = this._hover.contentsDomNode.offsetHeight;
-		// console.log('this._hover.containerDomNode.offsetWidth : ', this._hover.containerDomNode.offsetWidth);
-		// console.log('this._hover.containerDomNode.offsetHeight : ', containerOffsetHeight);
-		// console.log('this._hover.contentsDomNode.offsetWidth : ', this._hover.contentsDomNode.offsetWidth);
-		// console.log('this._hover.contentsDomNode.offsetHeight : ', contentsOffsetHeight);
-
-		const maxResizableWidth = this._hover.contentsDomNode.offsetWidth;
-		const maxResizableHeight = this._hover.contentsDomNode.offsetHeight;
-		const currentMaxSize = new dom.Dimension(maxResizableWidth, maxResizableHeight);
-		// console.log('currentMaxSize : ', currentMaxSize);
-		// this._element.maxSize = currentMaxSize;
-
-		// Find when to make the scroll-bar visible
-		if (containerOffsetHeight < contentsOffsetHeight) {
-			// make scrollbar visible?
-			// console.log('container height offset smaller than contents height offset');
-		}
-
-		// console.log('this._element.domNode.style.maxWidth : ', this._element.domNode.style.maxWidth);
-		// console.log('this._element.domNode.style.maxHeight : ', this._element.domNode.style.maxHeight);
-
-		// If the initial top and height values have not been updated yet, update them the first time the content is rendered
-		if (this._initialTop === -1) {
-			// console.log('Entered into update of initial top');
-			// console.log('this._element.domNode.clientTop : ', this._element.domNode.clientTop);
-			// console.log('this._element.domNode.style : ', this._element.domNode.style);
-			// console.log('this._element.domNode.style.top : ', this._element.domNode.style.top);
-			// console.log('this._element.domNode.style[0] : ', this._element.domNode.style[0]);
-			// console.log('this._element.domNode.clientHeight : ', this._element.domNode.clientHeight);
-			// console.log('this._element.domNode.offsetTop : ', this._element.domNode.offsetTop);
-			// console.log('this._element.domNode.scrollTop : ', this._element.domNode.scrollTop);
-			// TODO: This height initially found is NOT correct!
-
-			// TODO: Removed this._initialTop = this._element.domNode.offsetTop + 2;
-			// TODO: Removed this._initialHeight = this._element.domNode.clientHeight;
-
-			// TODO: The problem is that the offset top is not correctly set! Hence the jumping of the dom node
-			// console.log('this._element.domNode.getClientRects() : ', this._element.domNode.getClientRects()[0].top);
-			console.log('Entered into the case when this._initialTop === -1');
-			console.log('this._element.domNode.style.top : ', this._element.domNode.style.top);
-			console.log('this._element.domNode.offsetTop : ', this._element.domNode.offsetTop);
-			console.log('this._element.domNode.clientTop : ', this._element.domNode.clientTop);
-			console.log('this._element.domNode.scrollTop : ', this._element.domNode.scrollTop);
-			console.log('this._hover.containerDomNode.style.top : ', this._hover.containerDomNode.style.top);
-			console.log('this._hover.contentsDomNode.style.top : ', this._hover.contentsDomNode.style.top);
-			console.log('this._initialTop : ', this._initialTop);
-			console.log('this._initialHeight ; ', this._initialHeight);
-		}
+		// }
 
 		this._hover.scrollbar.scanDomNode();
 
-		const maxRenderingHeight = this._findMaxRenderingHeight(this._renderingAbove);
-		console.log('maxRenderingHeight : ', maxRenderingHeight);
-		if (!maxRenderingHeight) {
+		this._maxRenderingHeight = this._findMaxRenderingHeight(this._renderingAbove);
+		console.log('maxRenderingHeight : ', this._maxRenderingHeight);
+		if (!this._maxRenderingHeight) {
 			return;
 		}
-		this._element.maxSize = new dom.Dimension(maxWidth, maxRenderingHeight);
+		this._element.maxSize = new dom.Dimension(maxWidth, this._maxRenderingHeight);
 		this._editor.layoutContentWidget(this);
 		// console.log('this._element.domNode : ', this._element.domNode);
 
@@ -987,10 +939,16 @@ export class ContentHoverWidget extends Disposable implements IContentWidget {
 			height = this._hover.containerDomNode.offsetHeight + 2;
 			width = this._hover.containerDomNode.offsetWidth + 2; // not sure why adding only 2
 		}
-		const defaultMaxHeight = Math.min(150, height);
-		const defaultMaxWidth = Math.min(300, width);
-		const defaultSize = new dom.Dimension(defaultMaxWidth, defaultMaxHeight);
-		this._setLayoutOfResizableElement(defaultSize);
+		console.log('height : ', height);
+		console.log('width : ', width);
+
+		// const defaultMaxHeight = Math.min(150, height);
+		const maxHeight = 150;
+		// const defaultMaxWidth = Math.min(300, width);
+		const maxWidth = 300;
+		// const defaultSize = new dom.Dimension(defaultMaxWidth, defaultMaxHeight);
+		const maxSize = new dom.Dimension(maxWidth, maxHeight);
+		this._setLayoutOfResizableElement(maxSize);
 	}
 
 	public hide(): void {
