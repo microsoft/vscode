@@ -523,6 +523,9 @@ export class ContentHoverWidget extends Disposable implements IContentWidget {
 		// this._hover.contentsDomNode.style.maxWidth = width + 'px';
 		this._editor.layoutContentWidget(this);
 
+		// We want the following to be designed in a similar manner to the initial hover how it was in the main branch in order to give us the default size like initially
+		console.log('this._element.domNode : ', this._element.domNode);
+
 		let height = this._hover.containerDomNode.offsetHeight;
 		let width = this._hover.containerDomNode.offsetWidth;
 		console.log('height : ', height);
@@ -653,6 +656,7 @@ export class ContentHoverWidget extends Disposable implements IContentWidget {
 		this._hover.scrollbar.scanDomNode();
 		console.log('Before layoutContentWidget');
 		this._editor.layoutContentWidget(this);
+		console.log('this.getDomNode() : ', this.getDomNode());
 	}
 
 	private _findMaxRenderingHeight(): number | undefined {
