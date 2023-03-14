@@ -1859,11 +1859,13 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		// Signal the container is ready
 		this._containerReadyBarrier.open();
 
-		for (const contribution of this._contributions) {
+		// Layout all contributions
+		for (const contribution of this._contributions.values()) {
 			if (!this.xterm) {
-				this._xtermReadyPromise.then(() => contribution[1].layout?.(this.xterm!));
+				this._xtermReadyPromise.then(xterm => contribution.layout?.(xterm));
+			} else {
+				contribution.layout?.(this.xterm);
 			}
-			contribution[1].layout?.(this.xterm!);
 		}
 	}
 
