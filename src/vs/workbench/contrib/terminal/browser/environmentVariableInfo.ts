@@ -8,7 +8,7 @@ import { ITerminalStatus, ITerminalStatusHoverAction, TerminalCommandId } from '
 import { ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { localize } from 'vs/nls';
 import { Codicon } from 'vs/base/common/codicons';
-import { EnvironmentVariableMutatorType, IMergedEnvironmentVariableCollection, IMergedEnvironmentVariableCollectionDiff } from 'vs/platform/terminal/common/environmentVariable';
+import { IExtensionOwnedEnvironmentVariableMutator, IMergedEnvironmentVariableCollection, IMergedEnvironmentVariableCollectionDiff } from 'vs/platform/terminal/common/environmentVariable';
 import { TerminalStatus } from 'vs/workbench/contrib/terminal/browser/terminalStatusList';
 import Severity from 'vs/base/common/severity';
 
@@ -23,38 +23,17 @@ export class EnvironmentVariableInfoStale implements IEnvironmentVariableInfo {
 	}
 
 	private _getInfo(): string {
-		const addsAndChanges: string[] = [];
-		const removals: string[] = [];
-		this._diff.added.forEach((mutators, variable) => {
-			mutators.forEach(mutator => addsAndChanges.push(mutatorTypeLabel(mutator.type, mutator.value, variable)));
-		});
-		this._diff.changed.forEach((mutators, variable) => {
-			mutators.forEach(mutator => addsAndChanges.push(mutatorTypeLabel(mutator.type, mutator.value, variable)));
-		});
-		this._diff.removed.forEach((mutators, variable) => {
-			mutators.forEach(mutator => removals.push(mutatorTypeLabel(mutator.type, mutator.value, variable)));
-		});
+		const extSet: Set<string> = new Set();
+		addExtensionIdentifiers(extSet, this._diff.added.values());
+		addExtensionIdentifiers(extSet, this._diff.removed.values());
+		addExtensionIdentifiers(extSet, this._diff.changed.values());
 
-		let info: string = '';
-
-		if (addsAndChanges.length > 0) {
-			info = localize('extensionEnvironmentContributionChanges', "Extensions want to make the following changes to the terminal's environment:");
-			info += '\n\n';
-			info += '```\n';
-			info += addsAndChanges.join('\n');
-			info += '\n```';
+		let message = localize('extensionEnvironmentContributionInfoStale', "The following extensions want to relaunch the terminal to contribute to its environment:");
+		message += '\n';
+		for (const ext of extSet) {
+			message += `\n- \`${ext}\`: An optional description of what it does`;
 		}
-
-		if (removals.length > 0) {
-			info += info.length > 0 ? '\n\n' : '';
-			info += localize('extensionEnvironmentContributionRemoval', "Extensions want to remove these existing changes from the terminal's environment:");
-			info += '\n\n';
-			info += '```\n';
-			info += removals.join('\n');
-			info += '\n```';
-		}
-
-		return info;
+		return message;
 	}
 
 	private _getActions(): ITerminalStatusHoverAction[] {
@@ -80,17 +59,19 @@ export class EnvironmentVariableInfoChangesActive implements IEnvironmentVariabl
 	readonly requiresAction = false;
 
 	constructor(
-		private _collection: IMergedEnvironmentVariableCollection
+		private readonly _collection: IMergedEnvironmentVariableCollection
 	) {
 	}
 
 	private _getInfo(): string {
-		const changes: string[] = [];
-		this._collection.map.forEach((mutators, variable) => {
-			mutators.forEach(mutator => changes.push(mutatorTypeLabel(mutator.type, mutator.value, variable)));
-		});
-		const message = localize('extensionEnvironmentContributionInfo', "Extensions have made changes to this terminal's environment");
-		return message + '\n\n```\n' + changes.join('\n') + '\n```';
+		const extSet: Set<string> = new Set();
+		addExtensionIdentifiers(extSet, this._collection.map.values());
+		let message = localize('extensionEnvironmentContributionInfoActive', "The following extensions have contributed to this terminal's environment:");
+		message += '\n';
+		for (const ext of extSet) {
+			message += `\n- \`${ext}\`: An optional description of what it does`;
+		}
+		return message;
 	}
 
 	// TODO: Expose an action to show all info in an editor
@@ -103,10 +84,10 @@ export class EnvironmentVariableInfoChangesActive implements IEnvironmentVariabl
 	}
 }
 
-function mutatorTypeLabel(type: EnvironmentVariableMutatorType, value: string, variable: string): string {
-	switch (type) {
-		case EnvironmentVariableMutatorType.Prepend: return `${variable}=${value}\${env:${variable}}`;
-		case EnvironmentVariableMutatorType.Append: return `${variable}=\${env:${variable}}${value}`;
-		default: return `${variable}=${value}`;
+function addExtensionIdentifiers(extSet: Set<string>, diff: IterableIterator<IExtensionOwnedEnvironmentVariableMutator[]>): void {
+	for (const mutators of diff) {
+		for (const mutator of mutators) {
+			extSet.add(mutator.extensionIdentifier);
+		}
 	}
 }
