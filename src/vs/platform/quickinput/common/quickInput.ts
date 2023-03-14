@@ -166,6 +166,11 @@ export interface IInputOptions {
 	placeHolder?: string;
 
 	/**
+	 * Controls if multiline input is supported.
+	 */
+	multiline?: boolean;
+
+	/**
 	 * Controls if a password input is shown. Password input hides the typed text.
 	 */
 	password?: boolean;
@@ -384,6 +389,11 @@ export interface IInputBox extends IQuickInput {
 	 * Value shown as example for input.
 	 */
 	placeholder: string | undefined;
+
+	/**
+	 * Determines if the input supports multiple lines.
+	 */
+	multiline: boolean;
 
 	/**
 	 * Determines if the input value should be hidden while typing.

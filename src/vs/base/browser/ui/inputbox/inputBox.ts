@@ -223,6 +223,22 @@ export class InputBox extends Widget {
 		}
 	}
 
+
+	public get multiline(): boolean {
+		return this.input.type === 'textarea';
+	}
+
+	public get password(): boolean {
+		return this.input.type === 'password';
+	}
+
+	public set password(password: boolean) {
+		if (this.input.type === 'textarea') {
+			throw new Error('Cannot use password on a multiline input');
+		}
+		this.input.type = password ? 'password' : 'text';
+	}
+
 	public setPlaceHolder(placeHolder: string): void {
 		this.placeholder = placeHolder;
 		this.input.setAttribute('placeholder', placeHolder);

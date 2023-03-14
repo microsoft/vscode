@@ -96,6 +96,7 @@ export class MainThreadQuickOpen implements MainThreadQuickOpenShape {
 
 		if (options) {
 			inputOptions.title = options.title;
+			inputOptions.multiline = options.multiline;
 			inputOptions.password = options.password;
 			inputOptions.placeHolder = options.placeHolder;
 			inputOptions.valueSelection = options.valueSelection;

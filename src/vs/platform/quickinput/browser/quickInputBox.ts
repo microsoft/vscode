@@ -67,11 +67,11 @@ export class QuickInputBox extends Disposable {
 	}
 
 	get placeholder() {
-		return this.findInput.inputBox.inputElement.getAttribute('placeholder') || '';
+		return this.findInput.placeholder;
 	}
 
 	set placeholder(placeholder: string) {
-		this.findInput.inputBox.setPlaceHolder(placeholder);
+		this.findInput.placeholder = placeholder;
 	}
 
 	get ariaLabel() {
@@ -82,12 +82,20 @@ export class QuickInputBox extends Disposable {
 		this.findInput.inputBox.setAriaLabel(ariaLabel);
 	}
 
+	get multiline() {
+		return this.findInput.multiline;
+	}
+
+	set multiline(multiline: boolean) {
+		this.findInput.multiline = multiline;
+	}
+
 	get password() {
-		return this.findInput.inputBox.inputElement.type === 'password';
+		return this.findInput.password;
 	}
 
 	set password(password: boolean) {
-		this.findInput.inputBox.inputElement.type = password ? 'password' : 'text';
+		this.findInput.password = password;
 	}
 
 	set enabled(enabled: boolean) {

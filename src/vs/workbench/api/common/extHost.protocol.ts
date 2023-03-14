@@ -572,6 +572,8 @@ export interface TransferInputBox extends BaseTransferQuickInput {
 
 	placeholder?: string;
 
+	multiline?: boolean;
+
 	password?: boolean;
 
 	buttons?: TransferQuickInputButton[];
@@ -587,6 +589,7 @@ export interface IInputBoxOptions {
 	valueSelection?: Readonly<[number, number]>;
 	prompt?: string;
 	placeHolder?: string;
+	multiline?: boolean;
 	password?: boolean;
 	ignoreFocusOut?: boolean;
 }

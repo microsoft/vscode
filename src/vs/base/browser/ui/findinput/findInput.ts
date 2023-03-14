@@ -9,13 +9,13 @@ import { IMouseEvent } from 'vs/base/browser/mouseEvent';
 import { IToggleStyles, Toggle } from 'vs/base/browser/ui/toggle/toggle';
 import { IContextViewProvider } from 'vs/base/browser/ui/contextview/contextview';
 import { CaseSensitiveToggle, RegexToggle, WholeWordsToggle } from 'vs/base/browser/ui/findinput/findInputToggles';
-import { HistoryInputBox, IInputBoxStyles, IInputValidator, IMessage as InputBoxMessage } from 'vs/base/browser/ui/inputbox/inputBox';
+import { HistoryInputBox, IHistoryInputOptions, IInputBoxStyles, IInputValidator, IMessage as InputBoxMessage } from 'vs/base/browser/ui/inputbox/inputBox';
 import { Widget } from 'vs/base/browser/ui/widget';
 import { Emitter, Event } from 'vs/base/common/event';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import 'vs/css!./findInput';
 import * as nls from 'vs/nls';
-import { DisposableStore } from 'vs/base/common/lifecycle';
+import { DisposableStore, IDisposable, combinedDisposable } from 'vs/base/common/lifecycle';
 
 
 export interface IFindInputOptions {
@@ -44,7 +44,6 @@ export class FindInput extends Widget {
 
 	static readonly OPTION_CHANGE: string = 'optionChange';
 
-	private placeholder: string;
 	private validation?: IInputValidator;
 	private label: string;
 	private readonly showCommonFindToggles: boolean;
@@ -58,7 +57,14 @@ export class FindInput extends Widget {
 	protected readonly caseSensitive?: CaseSensitiveToggle;
 	protected additionalToggles: Toggle[] = [];
 	public readonly domNode: HTMLElement;
-	public readonly inputBox: HistoryInputBox;
+
+	private _inputBox: HistoryInputBox;
+	public get inputBox(): HistoryInputBox {
+		return this._inputBox;
+	}
+
+	private readonly _onDidChange = this._register(new Emitter<string>());
+	public readonly onDidChange: Event<string> = this._onDidChange.event;
 
 	private readonly _onDidOptionChange = this._register(new Emitter<boolean>());
 	public readonly onDidOptionChange: Event<boolean /* via keyboard */> = this._onDidOptionChange.event;
@@ -81,9 +87,12 @@ export class FindInput extends Widget {
 	private _onRegexKeyDown = this._register(new Emitter<IKeyboardEvent>());
 	public readonly onRegexKeyDown: Event<IKeyboardEvent> = this._onRegexKeyDown.event;
 
+	private _contextViewProvider: IContextViewProvider | undefined;
+	private _historyInputOptions: IHistoryInputOptions;
+	private _inputEventsDisposable: IDisposable;
+
 	constructor(parent: HTMLElement | null, contextViewProvider: IContextViewProvider | undefined, options: IFindInputOptions) {
 		super();
-		this.placeholder = options.placeholder || '';
 		this.validation = options.validation;
 		this.label = options.label || NLS_DEFAULT_LABEL;
 		this.showCommonFindToggles = !!options.showCommonFindToggles;
@@ -99,8 +108,9 @@ export class FindInput extends Widget {
 		this.domNode = document.createElement('div');
 		this.domNode.classList.add('monaco-findInput');
 
-		this.inputBox = this._register(new HistoryInputBox(this.domNode, contextViewProvider, {
-			placeholder: this.placeholder || '',
+		this._contextViewProvider = contextViewProvider;
+		this._historyInputOptions = {
+			placeholder: options.placeholder || '',
 			ariaLabel: this.label || '',
 			validationOptions: {
 				validation: this.validation
@@ -111,7 +121,8 @@ export class FindInput extends Widget {
 			flexibleWidth,
 			flexibleMaxHeight,
 			inputBoxStyles: options.inputBoxStyles,
-		}));
+		};
+		this._inputBox = this._register(new HistoryInputBox(this.domNode, contextViewProvider, this._historyInputOptions));
 
 		if (this.showCommonFindToggles) {
 			this.regex = this._register(new RegexToggle({
@@ -210,26 +221,78 @@ export class FindInput extends Widget {
 
 		parent?.appendChild(this.domNode);
 
-		this._register(dom.addDisposableListener(this.inputBox.inputElement, 'compositionstart', (e: CompositionEvent) => {
-			this.imeSessionInProgress = true;
-		}));
-		this._register(dom.addDisposableListener(this.inputBox.inputElement, 'compositionend', (e: CompositionEvent) => {
-			this.imeSessionInProgress = false;
-			this._onInput.fire();
-		}));
+		this._inputEventsDisposable = this.registerInputEvents();
+	}
 
-		this.onkeydown(this.inputBox.inputElement, (e) => this._onKeyDown.fire(e));
-		this.onkeyup(this.inputBox.inputElement, (e) => this._onKeyUp.fire(e));
-		this.oninput(this.inputBox.inputElement, (e) => this._onInput.fire());
-		this.onmousedown(this.inputBox.inputElement, (e) => this._onMouseDown.fire(e));
+	private registerInputEvents() {
+		return combinedDisposable(this._register(
+			dom.addDisposableListener(this.inputBox.inputElement, 'compositionstart', (e: CompositionEvent) => {
+				this.imeSessionInProgress = true;
+			})),
+			this._register(dom.addDisposableListener(this.inputBox.inputElement, 'compositionend', (e: CompositionEvent) => {
+				this.imeSessionInProgress = false;
+				this._onInput.fire();
+			})),
+			this.inputBox.onDidChange(v => this._onDidChange.fire(v)),
+			this.onkeydown(this.inputBox.inputElement, (e) => this._onKeyDown.fire(e)),
+			this.onkeyup(this.inputBox.inputElement, (e) => this._onKeyUp.fire(e)),
+			this.oninput(this.inputBox.inputElement, (e) => this._onInput.fire()),
+			this.onmousedown(this.inputBox.inputElement, (e) => this._onMouseDown.fire(e)),
+		);
+	}
+
+	public get multiline(): boolean {
+		return this.inputBox.multiline;
+	}
+
+	public set multiline(multiline: boolean) {
+		if (this.inputBox.password) {
+			throw new Error('Cannot use multiline on a password input');
+		}
+		if (this.inputBox.multiline === multiline) {
+			return;
+		}
+
+		const prevInput = this.inputBox;
+		const prevPlaceholder = this.placeholder;
+
+		this._historyInputOptions = {
+			...this._historyInputOptions,
+			placeholder: prevPlaceholder,
+			ariaLabel: this.label || '',
+			validationOptions: {
+				validation: this.validation
+			},
+			flexibleHeight: multiline
+		};
+		this._inputBox = this._register(new HistoryInputBox(this.domNode, this._contextViewProvider, this._historyInputOptions));
+		this._inputBox.focus();
+
+		this._inputEventsDisposable.dispose();
+		this._inputEventsDisposable = this.registerInputEvents();
+
+		prevInput.element.remove();
+		prevInput.dispose();
+	}
+
+	public get password(): boolean {
+		return this.inputBox.password;
+	}
+
+	public set password(password: boolean) {
+		this.inputBox.password = password;
+	}
+
+	public get placeholder(): string {
+		return this.inputBox.inputElement.getAttribute('placeholder') || '';
+	}
+
+	public set placeholder(placeholder: string) {
+		this.inputBox.setPlaceHolder(placeholder);
 	}
 
 	public get isImeSessionInProgress(): boolean {
 		return this.imeSessionInProgress;
-	}
-
-	public get onDidChange(): Event<string> {
-		return this.inputBox.onDidChange;
 	}
 
 	public layout(style: { collapsedFindWidget: boolean; narrowFindWidget: boolean; reducedFindWidget: boolean }) {

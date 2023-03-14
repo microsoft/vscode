@@ -17,7 +17,7 @@ import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensio
 import { coalesce } from 'vs/base/common/arrays';
 import Severity from 'vs/base/common/severity';
 import { ThemeIcon as ThemeIconUtils } from 'vs/base/common/themables';
-import { isProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
+import { /*checkProposedApiEnabled,*/ isProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
 import { MarkdownString } from 'vs/workbench/api/common/extHostTypeConverters';
 
 export type Item = string | QuickPickItem;
@@ -149,7 +149,6 @@ export function createExtHostQuickOpen(mainContext: IMainContext, workspace: IEx
 		// ---- input
 
 		showInput(options?: InputBoxOptions, token: CancellationToken = CancellationToken.None): Promise<string | undefined> {
-
 			// global validate fn used in callback below
 			this._validateInput = options?.validateInput;
 
@@ -697,6 +696,8 @@ export function createExtHostQuickOpen(mainContext: IMainContext, workspace: IEx
 
 	class ExtHostInputBox extends ExtHostQuickInput implements InputBox {
 
+		// private _extension: IExtensionDescription;
+		private _multiline = false;
 		private _password = false;
 		private _prompt: string | undefined;
 		private _valueSelection: readonly [number, number] | undefined;
@@ -704,14 +705,33 @@ export function createExtHostQuickOpen(mainContext: IMainContext, workspace: IEx
 
 		constructor(extension: IExtensionDescription, onDispose: () => void) {
 			super(extension.identifier, onDispose);
+			// this._extension = extension;
 			this.update({ type: 'inputBox' });
 		}
+
+		get multiline() {
+			return this._multiline;
+		}
+
+		set multiline(multiline: boolean) {
+			// checkProposedApiEnabled(this._extension, 'inputBoxMultiline');
+
+			if (this._password && multiline) {
+				throw new Error('Cannot use multiline on a password input');
+			}
+			this._multiline = multiline;
+			this.update({ multiline });
+		}
+
 
 		get password() {
 			return this._password;
 		}
 
 		set password(password: boolean) {
+			if (this._multiline && password) {
+				throw new Error('Cannot use password on a multiline input');
+			}
 			this._password = password;
 			this.update({ password });
 		}

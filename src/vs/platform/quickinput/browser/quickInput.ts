@@ -1128,6 +1128,7 @@ class InputBox extends QuickInput implements IInputBox {
 	private _valueSelection: Readonly<[number, number]> | undefined;
 	private valueSelectionUpdated = true;
 	private _placeholder: string | undefined;
+	private _multiline = false;
 	private _password = false;
 	private _prompt: string | undefined;
 	private readonly onDidValueChangeEmitter = this._register(new Emitter<string>());
@@ -1157,11 +1158,26 @@ class InputBox extends QuickInput implements IInputBox {
 		this.update();
 	}
 
+	get multiline() {
+		return this._multiline;
+	}
+
+	set multiline(multiline: boolean) {
+		if (this._password && multiline) {
+			throw new Error('Cannot set multiline to true when password is true');
+		}
+		this._multiline = multiline;
+		this.update();
+	}
+
 	get password() {
 		return this._password;
 	}
 
 	set password(password: boolean) {
+		if (this.multiline && password) {
+			throw new Error('Cannot use password on a multiline input');
+		}
 		this._password = password;
 		this.update();
 	}
@@ -1221,6 +1237,9 @@ class InputBox extends QuickInput implements IInputBox {
 		}
 		if (this.ui.inputBox.placeholder !== (this.placeholder || '')) {
 			this.ui.inputBox.placeholder = (this.placeholder || '');
+		}
+		if (this.ui.inputBox.multiline !== this.multiline) {
+			this.ui.inputBox.multiline = this.multiline;
 		}
 		if (this.ui.inputBox.password !== this.password) {
 			this.ui.inputBox.password = this.password;
@@ -1388,6 +1407,10 @@ export class QuickInputController extends Disposable {
 			const event = new StandardKeyboardEvent(e);
 			switch (event.keyCode) {
 				case KeyCode.Enter:
+					if ((event.ctrlKey || event.shiftKey) && this.getUI().inputBox.multiline) {
+						return;
+					}
+
 					dom.EventHelper.stop(e, true);
 					if (this.enabled) {
 						this.onDidAcceptEmitter.fire();
@@ -1648,6 +1671,7 @@ export class QuickInputController extends Disposable {
 			input.valueSelection = options.valueSelection;
 			input.prompt = options.prompt;
 			input.placeholder = options.placeHolder;
+			input.multiline = !!options.multiline;
 			input.password = !!options.password;
 			input.ignoreFocusOut = !!options.ignoreFocusLost;
 			input.show();
@@ -1682,6 +1706,7 @@ export class QuickInputController extends Disposable {
 		ui.checkAll.checked = false;
 		// ui.inputBox.value = ''; Avoid triggering an event.
 		ui.inputBox.placeholder = '';
+		ui.inputBox.multiline = false;
 		ui.inputBox.password = false;
 		ui.inputBox.showDecoration(Severity.Ignore);
 		ui.visibleCount.setCount(0);
