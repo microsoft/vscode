@@ -3,8 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IRange } from 'vs/editor/common/core/range';
-import { SymbolKind, ProviderResult, SymbolTag } from 'vs/editor/common/languages';
+import { CallHierarchyProvider, CallHierarchyItem, CallHierarchyIncomingCall, CallHierarchyOutgoingCall, SymbolKind, SymbolTag } from 'vs/editor/common/languages';
 import { ITextModel } from 'vs/editor/common/model';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { LanguageFeatureRegistry } from 'vs/editor/common/languageFeatureRegistry';
@@ -17,13 +16,16 @@ import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { assertType } from 'vs/base/common/types';
 import { IModelService } from 'vs/editor/common/services/model';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
+import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
+import { Range, IRange } from 'vs/editor/common/core/range';
 
 export const enum CallHierarchyDirection {
 	CallsTo = 'incomingCalls',
 	CallsFrom = 'outgoingCalls'
 }
 
-export interface CallHierarchyItem {
+// XXX is this even vaguely right?
+interface CallHierarchyItemDto {
 	_sessionId: string;
 	_itemId: string;
 	kind: SymbolKind;
@@ -35,37 +37,11 @@ export interface CallHierarchyItem {
 	tags?: SymbolTag[];
 }
 
-export interface IncomingCall {
-	from: CallHierarchyItem;
-	fromRanges: IRange[];
-}
-
-export interface OutgoingCall {
-	fromRanges: IRange[];
-	to: CallHierarchyItem;
-}
-
-export interface CallHierarchySession {
-	roots: CallHierarchyItem[];
-	dispose(): void;
-}
-
-export interface CallHierarchyProvider {
-
-	prepareCallHierarchy(document: ITextModel, position: IPosition, token: CancellationToken): ProviderResult<CallHierarchySession>;
-
-	provideIncomingCalls(item: CallHierarchyItem, token: CancellationToken): ProviderResult<IncomingCall[]>;
-
-	provideOutgoingCalls(item: CallHierarchyItem, token: CancellationToken): ProviderResult<OutgoingCall[]>;
-}
-
-export const CallHierarchyProviderRegistry = new LanguageFeatureRegistry<CallHierarchyProvider>();
-
 
 export class CallHierarchyModel {
 
-	static async create(model: ITextModel, position: IPosition, token: CancellationToken): Promise<CallHierarchyModel | undefined> {
-		const [provider] = CallHierarchyProviderRegistry.ordered(model);
+	static async create(callHierarchyProviderRegistry: LanguageFeatureRegistry<CallHierarchyProvider>, model: ITextModel, position: IPosition, token: CancellationToken): Promise<CallHierarchyModel | undefined> {
+		const [provider] = callHierarchyProviderRegistry.ordered(model);
 		if (!provider) {
 			return undefined;
 		}
@@ -100,9 +76,9 @@ export class CallHierarchyModel {
 		};
 	}
 
-	async resolveIncomingCalls(item: CallHierarchyItem, token: CancellationToken): Promise<IncomingCall[]> {
+	async resolveIncomingCalls(item: CallHierarchyItem, token: CancellationToken): Promise<CallHierarchyIncomingCall[]> {
 		try {
-			const result = await this.provider.provideIncomingCalls(item, token);
+			const result = await this.provider.provideCallHierarchyIncomingCalls(item, token);
 			if (isNonEmptyArray(result)) {
 				return result;
 			}
@@ -112,9 +88,9 @@ export class CallHierarchyModel {
 		return [];
 	}
 
-	async resolveOutgoingCalls(item: CallHierarchyItem, token: CancellationToken): Promise<OutgoingCall[]> {
+	async resolveOutgoingCalls(item: CallHierarchyItem, token: CancellationToken): Promise<CallHierarchyOutgoingCall[]> {
 		try {
-			const result = await this.provider.provideOutgoingCalls(item, token);
+			const result = await this.provider.provideCallHierarchyOutgoingCalls(item, token);
 			if (isNonEmptyArray(result)) {
 				return result;
 			}
@@ -145,7 +121,8 @@ CommandsRegistry.registerCommand('_executePrepareCallHierarchy', async (accessor
 	}
 
 	try {
-		const model = await CallHierarchyModel.create(textModel, position, CancellationToken.None);
+		const languageFeaturesService = accessor.get(ILanguageFeaturesService);
+		const model = await CallHierarchyModel.create(languageFeaturesService.callHierarchyProvider, textModel, position, CancellationToken.None);
 		if (!model) {
 			return [];
 		}
@@ -164,8 +141,14 @@ CommandsRegistry.registerCommand('_executePrepareCallHierarchy', async (accessor
 	}
 });
 
-function isCallHierarchyItemDto(obj: any): obj is CallHierarchyItem {
-	return true;
+function isCallHierarchyItemDto(obj: any): obj is CallHierarchyItemDto {
+	const item = obj as CallHierarchyItemDto;
+	return typeof obj === 'object'
+		&& typeof item.name === 'string'
+		&& typeof item.kind === 'number'
+		&& URI.isUri(item.uri)
+		&& Range.isIRange(item.range)
+		&& Range.isIRange(item.selectionRange);
 }
 
 CommandsRegistry.registerCommand('_executeProvideIncomingCalls', async (_accessor, ...args) => {

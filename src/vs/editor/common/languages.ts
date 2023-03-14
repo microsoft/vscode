@@ -1878,3 +1878,55 @@ export interface DocumentOnDropEdit {
 export interface DocumentOnDropEditProvider {
 	provideDocumentOnDropEdits(model: model.ITextModel, position: IPosition, dataTransfer: VSDataTransfer, token: CancellationToken): ProviderResult<DocumentOnDropEdit>;
 }
+
+export interface CallHierarchyItem {
+	name: string;
+	kind: SymbolKind;
+	tags?: readonly SymbolTag[];
+	detail?: string;
+	uri: URI;
+	range: IRange;
+	selectionRange: IRange;
+}
+
+export interface CallHierarchyItemList {
+	roots: CallHierarchyItem[];
+	dispose(): void;
+}
+
+export interface CallHierarchyIncomingCall {
+	from: CallHierarchyItem;
+	fromRanges: IRange[];
+}
+
+export interface CallHierarchyOutgoingCall {
+	to: CallHierarchyItem;
+	fromRanges: IRange[];
+}
+
+export interface CallHierarchyProvider {
+	prepareCallHierarchy(model: model.ITextModel, position: IPosition, token: CancellationToken): ProviderResult<CallHierarchyItemList>;
+	provideCallHierarchyIncomingCalls(item: CallHierarchyItem, token: CancellationToken): ProviderResult<CallHierarchyIncomingCall[]>;
+	provideCallHierarchyOutgoingCalls(item: CallHierarchyItem, token: CancellationToken): ProviderResult<CallHierarchyOutgoingCall[]>;
+}
+
+export interface TypeHierarchyItem {
+	name: string;
+	kind: SymbolKind;
+	tags?: ReadonlyArray<SymbolTag>;
+	detail?: string;
+	uri: URI;
+	range: IRange;
+	selectionRange: IRange;
+}
+
+export interface TypeHierarchyItemList {
+	roots: TypeHierarchyItem[];
+	dispose(): void;
+}
+
+export interface TypeHierarchyProvider {
+	prepareTypeHierarchy(model: model.ITextModel, position: IPosition, token: CancellationToken): ProviderResult<TypeHierarchyItemList>;
+	provideTypeHierarchySupertypes(item: TypeHierarchyItem, token: CancellationToken): ProviderResult<TypeHierarchyItem[]>;
+	provideTypeHierarchySubtypes(item: TypeHierarchyItem, token: CancellationToken): ProviderResult<TypeHierarchyItem[]>;
+}

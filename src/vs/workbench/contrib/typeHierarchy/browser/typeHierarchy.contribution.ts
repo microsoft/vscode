@@ -15,6 +15,7 @@ import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
+import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import { PeekContext } from 'vs/editor/contrib/peekView/browser/peekView';
 import { localize } from 'vs/nls';
 import { MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
@@ -23,7 +24,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { TypeHierarchyTreePeekWidget } from 'vs/workbench/contrib/typeHierarchy/browser/typeHierarchyPeek';
-import { TypeHierarchyDirection, TypeHierarchyModel, TypeHierarchyProviderRegistry } from 'vs/workbench/contrib/typeHierarchy/common/typeHierarchy';
+import { TypeHierarchyDirection, TypeHierarchyModel } from 'vs/workbench/contrib/typeHierarchy/common/typeHierarchy';
 
 
 const _ctxHasTypeHierarchyProvider = new RawContextKey<boolean>('editorHasTypeHierarchyProvider', false, localize('editorHasTypeHierarchyProvider', 'Whether a type hierarchy provider is available'));
@@ -59,12 +60,13 @@ class TypeHierarchyController implements IEditorContribution {
 		@IStorageService private readonly _storageService: IStorageService,
 		@ICodeEditorService private readonly _editorService: ICodeEditorService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@ILanguageFeaturesService private readonly languageFeaturesService: ILanguageFeaturesService,
 	) {
 		this._ctxHasProvider = _ctxHasTypeHierarchyProvider.bindTo(this._contextKeyService);
 		this._ctxIsVisible = _ctxTypeHierarchyVisible.bindTo(this._contextKeyService);
 		this._ctxDirection = _ctxTypeHierarchyDirection.bindTo(this._contextKeyService);
-		this._disposables.add(Event.any<any>(_editor.onDidChangeModel, _editor.onDidChangeModelLanguage, TypeHierarchyProviderRegistry.onDidChange)(() => {
-			this._ctxHasProvider.set(_editor.hasModel() && TypeHierarchyProviderRegistry.has(_editor.getModel()));
+		this._disposables.add(Event.any<any>(_editor.onDidChangeModel, _editor.onDidChangeModelLanguage, this.languageFeaturesService.typeHierarchyProvider.onDidChange)(() => {
+			this._ctxHasProvider.set(_editor.hasModel() && this.languageFeaturesService.typeHierarchyProvider.has(_editor.getModel()));
 		}));
 		this._disposables.add(this._sessionDisposables);
 	}
@@ -83,12 +85,12 @@ class TypeHierarchyController implements IEditorContribution {
 
 		const document = this._editor.getModel();
 		const position = this._editor.getPosition();
-		if (!TypeHierarchyProviderRegistry.has(document)) {
+		if (!this.languageFeaturesService.typeHierarchyProvider.has(document)) {
 			return;
 		}
 
 		const cts = new CancellationTokenSource();
-		const model = TypeHierarchyModel.create(document, position, cts.token);
+		const model = TypeHierarchyModel.create(this.languageFeaturesService.typeHierarchyProvider, document, position, cts.token);
 		const direction = sanitizedDirection(this._storageService.get(TypeHierarchyController._storageDirectionKey, StorageScope.PROFILE, TypeHierarchyDirection.Subtypes));
 
 		this._showTypeHierarchyWidget(position, direction, model, cts);

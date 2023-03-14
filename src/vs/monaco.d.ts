@@ -6157,6 +6157,16 @@ declare namespace monaco.languages {
 	export function registerInlayHintsProvider(languageSelector: LanguageSelector, provider: InlayHintsProvider): IDisposable;
 
 	/**
+	 * Register a call hierarchy provider.
+	 */
+	export function registerCallHierarchyProvider(languageSelector: LanguageSelector, provider: CallHierarchyProvider): IDisposable;
+
+	/**
+	 * Register a type hierarchy provider.
+	 */
+	export function registerTypeHierarchyProvider(languageSelector: LanguageSelector, provider: TypeHierarchyProvider): IDisposable;
+
+	/**
 	 * Contains additional diagnostic information about the context in which
 	 * a [code action](#CodeActionProvider.provideCodeActions) is run.
 	 */
@@ -7499,6 +7509,58 @@ declare namespace monaco.languages {
 	export interface DocumentRangeSemanticTokensProvider {
 		getLegend(): SemanticTokensLegend;
 		provideDocumentRangeSemanticTokens(model: editor.ITextModel, range: Range, token: CancellationToken): ProviderResult<SemanticTokens>;
+	}
+
+	export interface CallHierarchyItem {
+		name: string;
+		kind: SymbolKind;
+		tags?: readonly SymbolTag[];
+		detail?: string;
+		uri: Uri;
+		range: IRange;
+		selectionRange: IRange;
+	}
+
+	export interface CallHierarchyItemList {
+		roots: CallHierarchyItem[];
+		dispose(): void;
+	}
+
+	export interface CallHierarchyIncomingCall {
+		from: CallHierarchyItem;
+		fromRanges: IRange[];
+	}
+
+	export interface CallHierarchyOutgoingCall {
+		to: CallHierarchyItem;
+		fromRanges: IRange[];
+	}
+
+	export interface CallHierarchyProvider {
+		prepareCallHierarchy(model: editor.ITextModel, position: IPosition, token: CancellationToken): ProviderResult<CallHierarchyItemList>;
+		provideCallHierarchyIncomingCalls(item: CallHierarchyItem, token: CancellationToken): ProviderResult<CallHierarchyIncomingCall[]>;
+		provideCallHierarchyOutgoingCalls(item: CallHierarchyItem, token: CancellationToken): ProviderResult<CallHierarchyOutgoingCall[]>;
+	}
+
+	export interface TypeHierarchyItem {
+		name: string;
+		kind: SymbolKind;
+		tags?: ReadonlyArray<SymbolTag>;
+		detail?: string;
+		uri: Uri;
+		range: IRange;
+		selectionRange: IRange;
+	}
+
+	export interface TypeHierarchyItemList {
+		roots: TypeHierarchyItem[];
+		dispose(): void;
+	}
+
+	export interface TypeHierarchyProvider {
+		prepareTypeHierarchy(model: editor.ITextModel, position: IPosition, token: CancellationToken): ProviderResult<TypeHierarchyItemList>;
+		provideTypeHierarchySupertypes(item: TypeHierarchyItem, token: CancellationToken): ProviderResult<TypeHierarchyItem[]>;
+		provideTypeHierarchySubtypes(item: TypeHierarchyItem, token: CancellationToken): ProviderResult<TypeHierarchyItem[]>;
 	}
 
 	export interface ILanguageExtensionPoint {

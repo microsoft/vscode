@@ -669,6 +669,22 @@ export function registerInlayHintsProvider(languageSelector: LanguageSelector, p
 }
 
 /**
+ * Register a call hierarchy provider.
+ */
+export function registerCallHierarchyProvider(languageSelector: LanguageSelector, provider: languages.CallHierarchyProvider): IDisposable {
+	const languageFeaturesService = StandaloneServices.get(ILanguageFeaturesService);
+	return languageFeaturesService.callHierarchyProvider.register(languageSelector, provider);
+}
+
+/**
+ * Register a type hierarchy provider.
+ */
+export function registerTypeHierarchyProvider(languageSelector: LanguageSelector, provider: languages.TypeHierarchyProvider): IDisposable {
+	const languageFeaturesService = StandaloneServices.get(ILanguageFeaturesService);
+	return languageFeaturesService.typeHierarchyProvider.register(languageSelector, provider);
+}
+
+/**
  * Contains additional diagnostic information about the context in which
  * a [code action](#CodeActionProvider.provideCodeActions) is run.
  */
@@ -767,6 +783,8 @@ export function createMonacoLanguagesAPI(): typeof monaco.languages {
 		registerDocumentRangeSemanticTokensProvider: <any>registerDocumentRangeSemanticTokensProvider,
 		registerInlineCompletionsProvider: <any>registerInlineCompletionsProvider,
 		registerInlayHintsProvider: <any>registerInlayHintsProvider,
+		registerCallHierarchyProvider: <any>registerCallHierarchyProvider,
+		registerTypeHierarchyProvider: <any>registerTypeHierarchyProvider,
 
 		// enums
 		DocumentHighlightKind: standaloneEnums.DocumentHighlightKind,

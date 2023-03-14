@@ -49,7 +49,6 @@ import { WorkspaceTrustRequestOptions } from 'vs/platform/workspace/common/works
 import * as tasks from 'vs/workbench/api/common/shared/tasks';
 import { SaveReason } from 'vs/workbench/common/editor';
 import { IRevealOptions, ITreeItem, IViewBadge } from 'vs/workbench/common/views';
-import { CallHierarchyItem } from 'vs/workbench/contrib/callHierarchy/common/callHierarchy';
 import { DebugConfigurationProviderTriggerKind, IAdapterDescriptor, IConfig, IDebugSessionReplMode } from 'vs/workbench/contrib/debug/common/debug';
 import { IInteractiveResponseErrorDetails } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionModel';
 import { IInteractiveProgress, IInteractiveSessionFollowup, IInteractiveSessionReplyFollowup, IInteractiveSessionUserActionEvent, IInteractiveSlashCommand } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionService';
@@ -61,7 +60,6 @@ import { InputValidationType } from 'vs/workbench/contrib/scm/common/scm';
 import { IWorkspaceSymbol } from 'vs/workbench/contrib/search/common/search';
 import { CoverageDetails, ExtensionRunTestsRequest, ICallProfileRunHandler, IFileCoverage, ISerializedTestResults, IStartControllerTests, ITestItem, ITestMessage, ITestRunProfile, ITestRunTask, ResolvedTestRunRequest, TestResultState, TestsDiffOp } from 'vs/workbench/contrib/testing/common/testTypes';
 import { Timeline, TimelineChangeEvent, TimelineOptions, TimelineProviderDescriptor } from 'vs/workbench/contrib/timeline/common/timeline';
-import { TypeHierarchyItem } from 'vs/workbench/contrib/typeHierarchy/common/typeHierarchy';
 import { AuthenticationProviderInformation, AuthenticationSession, AuthenticationSessionsChangeEvent } from 'vs/workbench/services/authentication/common/authentication';
 import { EditorGroupColumn } from 'vs/workbench/services/editor/common/editorGroupColumn';
 import { IExtensionDescriptionDelta, IStaticWorkspaceData } from 'vs/workbench/services/extensions/common/extensionHostProtocol';
@@ -1766,7 +1764,7 @@ export type ILinkDto = CachedSessionItem<Dto<languages.ILink>>;
 export type ICodeLensListDto = CachedSession<{ lenses: ICodeLensDto[] }>;
 export type ICodeLensDto = CachedSessionItem<Dto<languages.CodeLens>>;
 
-export type ICallHierarchyItemDto = Dto<CallHierarchyItem>;
+export type ICallHierarchyItemDto = Dto<languages.CallHierarchyItem> & { _sessionId: string; _itemId: string };
 
 export interface IIncomingCallDto {
 	from: ICallHierarchyItemDto;
@@ -1794,7 +1792,7 @@ export interface IInlineValueContextDto {
 	stoppedLocation: IRange;
 }
 
-export type ITypeHierarchyItemDto = Dto<TypeHierarchyItem>;
+export type ITypeHierarchyItemDto = Dto<languages.TypeHierarchyItem> & { _sessionId: string; _itemId: string };
 
 export interface IPasteEditDto {
 	insertText: string | { snippet: string };

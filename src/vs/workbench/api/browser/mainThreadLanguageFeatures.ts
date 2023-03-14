@@ -28,11 +28,9 @@ import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity'
 import { reviveWorkspaceEditDto } from 'vs/workbench/api/browser/mainThreadBulkEdits';
 import * as typeConvert from 'vs/workbench/api/common/extHostTypeConverters';
 import { DataTransferCache } from 'vs/workbench/api/common/shared/dataTransferCache';
-import * as callh from 'vs/workbench/contrib/callHierarchy/common/callHierarchy';
 import * as search from 'vs/workbench/contrib/search/common/search';
-import * as typeh from 'vs/workbench/contrib/typeHierarchy/common/typeHierarchy';
 import { extHostNamedCustomer, IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
-import { ExtHostContext, ExtHostLanguageFeaturesShape, ICallHierarchyItemDto, ICodeActionDto, ICodeActionProviderMetadataDto, IdentifiableInlineCompletion, IdentifiableInlineCompletions, IDocumentFilterDto, IIndentationRuleDto, IInlayHintDto, ILanguageConfigurationDto, ILanguageWordDefinitionDto, ILinkDto, ILocationDto, ILocationLinkDto, IOnEnterRuleDto, IRegExpDto, ISignatureHelpProviderMetadataDto, ISuggestDataDto, ISuggestDataDtoField, ISuggestResultDtoField, ITypeHierarchyItemDto, IWorkspaceSymbolDto, MainContext, MainThreadLanguageFeaturesShape } from '../common/extHost.protocol';
+import { ExtHostContext, ExtHostLanguageFeaturesShape, ICallHierarchyItemDto, ICodeActionDto, ICodeActionProviderMetadataDto, IdentifiableInlineCompletion, IdentifiableInlineCompletions, IDocumentFilterDto, IIncomingCallDto, IIndentationRuleDto, IInlayHintDto, ILanguageConfigurationDto, ILanguageWordDefinitionDto, ILinkDto, ILocationDto, ILocationLinkDto, IOnEnterRuleDto, IOutgoingCallDto, IRegExpDto, ISignatureHelpProviderMetadataDto, ISuggestDataDto, ISuggestDataDtoField, ISuggestResultDtoField, ITypeHierarchyItemDto, IWorkspaceSymbolDto, MainContext, MainThreadLanguageFeaturesShape } from '../common/extHost.protocol';
 
 @extHostNamedCustomer(MainContext.MainThreadLanguageFeatures)
 export class MainThreadLanguageFeatures extends Disposable implements MainThreadLanguageFeaturesShape {
@@ -141,18 +139,18 @@ export class MainThreadLanguageFeatures extends Disposable implements MainThread
 		return <languages.ILink>data;
 	}
 
-	private static _reviveCallHierarchyItemDto(data: ICallHierarchyItemDto | undefined): callh.CallHierarchyItem {
+	private static _reviveCallHierarchyItemDto(data: ICallHierarchyItemDto | undefined): languages.CallHierarchyItem {
 		if (data) {
 			data.uri = URI.revive(data.uri);
 		}
-		return data as callh.CallHierarchyItem;
+		return data as ICallHierarchyItemDto & { uri: URI };
 	}
 
-	private static _reviveTypeHierarchyItemDto(data: ITypeHierarchyItemDto | undefined): typeh.TypeHierarchyItem {
+	private static _reviveTypeHierarchyItemDto(data: ITypeHierarchyItemDto | undefined): languages.TypeHierarchyItem {
 		if (data) {
 			data.uri = URI.revive(data.uri);
 		}
-		return data as typeh.TypeHierarchyItem;
+		return data as ITypeHierarchyItemDto & { uri: URI };
 	}
 
 	//#endregion
@@ -752,7 +750,7 @@ export class MainThreadLanguageFeatures extends Disposable implements MainThread
 	// --- call hierarchy
 
 	$registerCallHierarchyProvider(handle: number, selector: IDocumentFilterDto[]): void {
-		this._registrations.set(handle, callh.CallHierarchyProviderRegistry.register(selector, {
+		this._registrations.set(handle, this._languageFeaturesService.callHierarchyProvider.register(selector, {
 
 			prepareCallHierarchy: async (document, position, token) => {
 				const items = await this._proxy.$prepareCallHierarchy(handle, document.uri, position, token);
@@ -769,25 +767,19 @@ export class MainThreadLanguageFeatures extends Disposable implements MainThread
 				};
 			},
 
-			provideOutgoingCalls: async (item, token) => {
-				const outgoing = await this._proxy.$provideCallHierarchyOutgoingCalls(handle, item._sessionId, item._itemId, token);
+			provideCallHierarchyOutgoingCalls: async (item, token) => {
+				const outgoing: IOutgoingCallDto[] | undefined = await this._proxy.$provideCallHierarchyOutgoingCalls(handle, item._sessionId, item._itemId, token);
 				if (!outgoing) {
 					return outgoing;
 				}
-				outgoing.forEach(value => {
-					value.to = MainThreadLanguageFeatures._reviveCallHierarchyItemDto(value.to);
-				});
-				return <any>outgoing;
+				return outgoing.map<languages.CallHierarchyOutgoingCall>(({ to, ...rest }) => ({ to: MainThreadLanguageFeatures._reviveCallHierarchyItemDto(to), ...rest }));
 			},
-			provideIncomingCalls: async (item, token) => {
-				const incoming = await this._proxy.$provideCallHierarchyIncomingCalls(handle, item._sessionId, item._itemId, token);
+			provideCallHierarchyIncomingCalls: async (item, token) => {
+				const incoming: IIncomingCallDto[] | undefined = await this._proxy.$provideCallHierarchyIncomingCalls(handle, item._sessionId, item._itemId, token);
 				if (!incoming) {
 					return incoming;
 				}
-				incoming.forEach(value => {
-					value.from = MainThreadLanguageFeatures._reviveCallHierarchyItemDto(value.from);
-				});
-				return <any>incoming;
+				return incoming.map<languages.CallHierarchyIncomingCall>(({ from, ...rest }) => ({ from: MainThreadLanguageFeatures._reviveCallHierarchyItemDto(from), ...rest }));
 			}
 		}));
 	}
@@ -856,7 +848,7 @@ export class MainThreadLanguageFeatures extends Disposable implements MainThread
 	// --- type hierarchy
 
 	$registerTypeHierarchyProvider(handle: number, selector: IDocumentFilterDto[]): void {
-		this._registrations.set(handle, typeh.TypeHierarchyProviderRegistry.register(selector, {
+		this._registrations.set(handle, this._languageFeaturesService.typeHierarchyProvider.register(selector, {
 
 			prepareTypeHierarchy: async (document, position, token) => {
 				const items = await this._proxy.$prepareTypeHierarchy(handle, document.uri, position, token);
@@ -873,14 +865,14 @@ export class MainThreadLanguageFeatures extends Disposable implements MainThread
 				};
 			},
 
-			provideSupertypes: async (item, token) => {
+			provideTypeHierarchySupertypes: async (item, token) => {
 				const supertypes = await this._proxy.$provideTypeHierarchySupertypes(handle, item._sessionId, item._itemId, token);
 				if (!supertypes) {
 					return supertypes;
 				}
 				return supertypes.map(MainThreadLanguageFeatures._reviveTypeHierarchyItemDto);
 			},
-			provideSubtypes: async (item, token) => {
+			provideTypeHierarchySubtypes: async (item, token) => {
 				const subtypes = await this._proxy.$provideTypeHierarchySubtypes(handle, item._sessionId, item._itemId, token);
 				if (!subtypes) {
 					return subtypes;
