@@ -215,7 +215,7 @@ function getPreviousMatchingContentGroup(outputElement: HTMLElement) {
 		}
 
 		match = outputElement.firstChild as HTMLElement;
-		previous = outputContainer?.previousSibling;
+		previous = previous?.previousSibling;
 	}
 
 	return match;
@@ -326,7 +326,7 @@ export const activate: ActivationFunction<void> = (ctx) => {
 
 	const style = document.createElement('style');
 	style.textContent = `
-	#container > div > div > div.output.remove-padding {
+	#container div.output.remove-padding {
 		padding-left: 0;
 		padding-right: 0;
 	}
@@ -347,12 +347,10 @@ export const activate: ActivationFunction<void> = (ctx) => {
 		white-space: pre;
 	}
 	/* When wordwrap turned on, force it to pre-wrap */
-	.output-plaintext.wordWrap span,
-	.output-stream.wordWrap span,
-	.traceback.wordWrap span {
+	#container div.output_container .wordWrap span {
 		white-space: pre-wrap;
 	}
-	.output .scrollable {
+	#container div.output .scrollable {
 		padding-left: var(--notebook-output-node-left-padding);
 		padding-right: var(--notebook-output-node-padding);
 		overflow-y: scroll;
@@ -362,10 +360,10 @@ export const activate: ActivationFunction<void> = (ctx) => {
 		border-width: 1px;
 		border-color: transparent;
 	}
-	.output .scrollable.more-above {
+	#container div.output .scrollable.more-above {
 		box-shadow: var(--vscode-scrollbar-shadow) 0 6px 6px -6px inset
 	}
-	.output .scrollable.scrollbar-visible {
+	#container div.output .scrollable.scrollbar-visible {
 		border-color: var(--vscode-editorWidget-border);
 	}
 	.output-plaintext .code-bold,

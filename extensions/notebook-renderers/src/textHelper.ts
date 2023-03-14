@@ -8,7 +8,7 @@ import { handleANSIOutput } from './ansi';
 export const scrollableClass = 'scrollable';
 
 function generateViewMoreElement(outputId: string) {
-	const container = document.createElement('span');
+	const container = document.createElement('div');
 	const first = document.createElement('span');
 	first.textContent = 'Output exceeds the ';
 
@@ -57,7 +57,7 @@ function truncatedArrayOfString(id: string, buffer: string[], linesLimit: number
 	container.appendChild(handleANSIOutput(buffer.slice(0, linesLimit - 5).join('\n'), trustHtml));
 
 	// truncated piece
-	const elipses = document.createElement('span');
+	const elipses = document.createElement('div');
 	elipses.innerText = '...';
 	container.appendChild(elipses);
 
