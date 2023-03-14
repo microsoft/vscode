@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { ActivationFunction, OutputItem, RendererContext } from 'vscode-notebook-renderer';
-import { insertOutput as createOutputContent, scrollableClass } from './textHelper';
+import { createOutputContent, scrollableClass } from './textHelper';
 
 interface IDisposable {
 	dispose(): void;

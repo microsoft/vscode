@@ -77,7 +77,7 @@ function scrollableArrayOfString(id: string, buffer: string[], trustHtml: boolea
 	return element;
 }
 
-export function insertOutput(id: string, outputs: string[], linesLimit: number, scrollable: boolean, trustHtml: boolean): HTMLElement {
+export function createOutputContent(id: string, outputs: string[], linesLimit: number, scrollable: boolean, trustHtml: boolean): HTMLElement {
 
 	const buffer = outputs.join('\n').split(/\r\n|\r|\n/g);
 
