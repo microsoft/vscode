@@ -79,25 +79,30 @@ export enum InteractiveSessionVoteDirection {
 	Down = 2
 }
 
-export interface InteractiveSessionVoteAction {
+export interface IInteractiveSessionVoteAction {
 	kind: 'vote';
 	responseId: string;
 	direction: InteractiveSessionVoteDirection;
 }
 
-export interface InteractiveSessionCopyAction {
+export interface IInteractiveSessionCopyAction {
 	kind: 'copy';
 	responseId: string;
 	codeBlockIndex: number;
 }
 
-export interface InteractiveSessionInsertAction {
+export interface IInteractiveSessionInsertAction {
 	kind: 'insert';
 	responseId: string;
 	codeBlockIndex: number;
 }
 
-export type InteractiveSessionUserAction = InteractiveSessionVoteAction | InteractiveSessionCopyAction | InteractiveSessionInsertAction;
+export interface IInteractiveSessionCommandAction {
+	kind: 'command';
+	command: IInteractiveSessionResponseCommandFollowup;
+}
+
+export type InteractiveSessionUserAction = IInteractiveSessionVoteAction | IInteractiveSessionCopyAction | IInteractiveSessionInsertAction | IInteractiveSessionCommandAction;
 
 export interface IInteractiveSessionUserActionEvent {
 	action: InteractiveSessionUserAction;

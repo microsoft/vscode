@@ -45,7 +45,7 @@ import { IInteractiveSessionCodeBlockActionContext } from 'vs/workbench/contrib/
 import { InteractiveSessionFollowups } from 'vs/workbench/contrib/interactiveSession/browser/interactiveSessionFollowups';
 import { InteractiveSessionEditorOptions } from 'vs/workbench/contrib/interactiveSession/browser/interactiveSessionOptions';
 import { interactiveSessionResponseHasProviderId } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionContextKeys';
-import { IInteractiveSessionReplyFollowup, IInteractiveSlashCommand } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionService';
+import { IInteractiveSessionReplyFollowup, IInteractiveSessionService, IInteractiveSlashCommand } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionService';
 import { IInteractiveRequestViewModel, IInteractiveResponseViewModel, IInteractiveWelcomeMessageViewModel, isRequestVM, isResponseVM, isWelcomeVM } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionViewModel';
 import { getNWords } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionWordCounter';
 
@@ -100,6 +100,7 @@ export class InteractiveListItemRenderer extends Disposable implements ITreeRend
 		@ILogService private readonly logService: ILogService,
 		@ICommandService private readonly commandService: ICommandService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+		@IInteractiveSessionService private readonly interactiveSessionService: IInteractiveSessionService,
 	) {
 		super();
 		this.renderer = this.instantiationService.createInstance(MarkdownRenderer, {});
@@ -241,7 +242,16 @@ export class InteractiveListItemRenderer extends Disposable implements ITreeRend
 				followupsContainer,
 				element.commandFollowups,
 				defaultButtonStyles,
-				followup => this.commandService.executeCommand(followup.commandId, ...(followup.args ?? []))));
+				followup => {
+					this.interactiveSessionService.notifyUserAction({
+						providerId: element.providerId,
+						action: {
+							kind: 'command',
+							command: followup
+						}
+					});
+					return this.commandService.executeCommand(followup.commandId, ...(followup.args ?? []));
+				}));
 		}
 	}
 

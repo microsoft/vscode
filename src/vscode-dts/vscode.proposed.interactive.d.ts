@@ -154,7 +154,12 @@ declare module 'vscode' {
 		codeBlockIndex: number;
 	}
 
-	export type InteractiveSessionUserAction = InteractiveSessionVoteAction | InteractiveSessionCopyAction | InteractiveSessionInsertAction;
+	export interface InteractiveSessionCommandAction {
+		kind: 'command';
+		command: InteractiveResponseCommand;
+	}
+
+	export type InteractiveSessionUserAction = InteractiveSessionVoteAction | InteractiveSessionCopyAction | InteractiveSessionInsertAction | InteractiveSessionCommandAction;
 
 	export interface InteractiveSessionUserActionEvent {
 		action: InteractiveSessionUserAction;
