@@ -80,7 +80,7 @@
     "native-is-elevated": "0.4.3",
     "native-keymap": "^3.3.2",
     "native-watchdog": "^1.4.1",
-    "node-pty": "0.11.0-beta29",
+    "node-pty": "0.11.0-beta30",
     "spdlog": "^0.13.0",
     "tas-client-umd": "0.1.6",
     "v8-inspect-profiler": "^0.1.0",

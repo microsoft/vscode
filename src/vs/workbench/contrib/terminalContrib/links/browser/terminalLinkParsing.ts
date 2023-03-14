@@ -205,7 +205,7 @@ export function toLinkSuffix(match: RegExpExecArray | null): ILinkSuffix | null 
 }
 
 // Paths cannot start with opening brackets
-const linkWithSuffixPathCharacters = /(?<path>[^\s\[\({][^\s]*)$/;
+const linkWithSuffixPathCharacters = /(?<path>[^\s\|\[\({][^\s\|]*)$/;
 
 export function detectLinks(line: string, os: OperatingSystem) {
 	// 1: Detect all links on line via suffixes first
