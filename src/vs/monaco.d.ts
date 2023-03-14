@@ -1109,6 +1109,18 @@ declare namespace monaco.editor {
 	 */
 	export function registerLinkOpener(opener: ILinkOpener): IDisposable;
 
+	export interface ICodeEditorOpener {
+		openCodeEditor(source: ICodeEditor, resource: Uri, selectionOrPosition?: IRange | IPosition): boolean | Promise<boolean>;
+	}
+
+	/**
+	 * Registers a handler that is called when a resource other than the current model should be opened in the editor (e.g. "go to definition").
+	 * The handler callback should return `true` if the request was handled and `false` otherwise.
+	 *
+	 * Returns a disposable that can unregister the opener again.
+	 */
+	export function registerEditorOpener(opener: ICodeEditorOpener): IDisposable;
+
 	export type BuiltinTheme = 'vs' | 'vs-dark' | 'hc-black' | 'hc-light';
 
 	export interface IStandaloneThemeData {

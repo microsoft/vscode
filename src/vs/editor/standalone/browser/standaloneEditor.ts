@@ -38,6 +38,9 @@ import { LineRangeMapping, RangeMapping } from 'vs/editor/common/diff/linesDiffC
 import { LineRange } from 'vs/editor/common/core/lineRange';
 import { EditorZoom } from 'vs/editor/common/config/editorZoom';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
+import { IRange } from 'vs/editor/common/core/range';
+import { IPosition } from 'vs/editor/common/core/position';
+import { ITextResourceEditorInput } from 'vs/platform/editor/common/editor';
 
 /**
  * Create a new editor under `domElement`.
@@ -456,6 +459,36 @@ export function registerLinkOpener(opener: ILinkOpener): IDisposable {
 	});
 }
 
+export interface ICodeEditorOpener {
+	openCodeEditor(source: ICodeEditor, resource: URI, selectionOrPosition?: IRange | IPosition): boolean | Promise<boolean>;
+}
+
+/**
+ * Registers a handler that is called when a resource other than the current model should be opened in the editor (e.g. "go to definition").
+ * The handler callback should return `true` if the request was handled and `false` otherwise.
+ *
+ * Returns a disposable that can unregister the opener again.
+ */
+export function registerEditorOpener(opener: ICodeEditorOpener): IDisposable {
+	const codeEditorService = StandaloneServices.get(ICodeEditorService);
+	return codeEditorService.registerCodeEditorOpenHandler(async (input: ITextResourceEditorInput, source: ICodeEditor | null, sideBySide?: boolean) => {
+		if (!source) {
+			return null;
+		}
+		const selection = input.options?.selection;
+		let selectionOrPosition: IRange | IPosition | undefined;
+		if (selection && typeof selection.endLineNumber === 'number' && typeof selection.endColumn === 'number') {
+			selectionOrPosition = <IRange>selection;
+		} else if (selection) {
+			selectionOrPosition = { lineNumber: selection.startLineNumber, column: selection.startColumn };
+		}
+		if (await opener.openCodeEditor(source, input.resource, selectionOrPosition)) {
+			return source; // return source editor to indicate that this handler has successfully handled the opening
+		}
+		return null; // fallback to other registered handlers
+	});
+}
+
 /**
  * @internal
  */
@@ -499,6 +532,7 @@ export function createMonacoEditorAPI(): typeof monaco.editor {
 		registerCommand: registerCommand,
 
 		registerLinkOpener: registerLinkOpener,
+		registerEditorOpener: <any>registerEditorOpener,
 
 		// enums
 		AccessibilitySupport: standaloneEnums.AccessibilitySupport,
