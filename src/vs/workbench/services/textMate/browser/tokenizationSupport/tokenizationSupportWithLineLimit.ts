@@ -8,8 +8,9 @@ import { EncodedTokenizationResult, IBackgroundTokenizationStore, IBackgroundTok
 import { nullTokenizeEncoded } from 'vs/editor/common/languages/nullTokenize';
 import { ITextModel } from 'vs/editor/common/model';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { Disposable } from 'vs/base/common/lifecycle';
 
-export class TokenizationSupportWithLineLimit implements ITokenizationSupport {
+export class TokenizationSupportWithLineLimit extends Disposable implements ITokenizationSupport {
 	private _maxTokenizationLineLength: number;
 
 	constructor(
@@ -18,16 +19,19 @@ export class TokenizationSupportWithLineLimit implements ITokenizationSupport {
 		private readonly _actual: ITokenizationSupport,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 	) {
+		super();
+
 		this._maxTokenizationLineLength = this._configurationService.getValue<number>('editor.maxTokenizationLineLength', {
 			overrideIdentifier: this._languageId
 		});
-		this._configurationService.onDidChangeConfiguration(e => {
+
+		this._register(this._configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration('editor.maxTokenizationLineLength')) {
 				this._maxTokenizationLineLength = this._configurationService.getValue<number>('editor.maxTokenizationLineLength', {
 					overrideIdentifier: this._languageId
 				});
 			}
-		});
+		}));
 	}
 
 	getInitialState(): IState {
