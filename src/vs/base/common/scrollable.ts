@@ -239,7 +239,6 @@ export class Scrollable extends Disposable {
 
 		this._smoothScrollDuration = options.smoothScrollDuration;
 		this._scheduleAtNextAnimationFrame = options.scheduleAtNextAnimationFrame;
-		// Initially the scroll state height and scroll height are zero
 		this._state = new ScrollState(options.forceIntegerValues, 0, 0, 0, 0, 0, 0);
 		this._smoothScrolling = null;
 	}
@@ -264,7 +263,6 @@ export class Scrollable extends Disposable {
 		return this._state;
 	}
 
-	// Can set the scroll dimensions or the height and the scroll height
 	public setScrollDimensions(dimensions: INewScrollDimensions, useRawScrollPositions: boolean): void {
 		const newState = this._state.withScrollDimensions(dimensions, useRawScrollPositions);
 		this._setState(newState, Boolean(this._smoothScrolling));

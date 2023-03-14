@@ -18,7 +18,6 @@ export class VerticalScrollbar extends AbstractScrollbar {
 	constructor(scrollable: Scrollable, options: ScrollableElementResolvedOptions, host: ScrollbarHost) {
 		const scrollDimensions = scrollable.getScrollDimensions();
 		const scrollPosition = scrollable.getCurrentScrollPosition();
-		// TODO; It would appear that the scroll dimensions height and scroll height are the same while they should not be the same
 		super({
 			lazyRender: options.lazyRender,
 			host: host,

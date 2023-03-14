@@ -64,7 +64,6 @@ export abstract class AbstractScrollbar extends Widget {
 		this._scrollByPage = opts.scrollByPage;
 		this._scrollbarState = opts.scrollbarState;
 		this._visibilityController = this._register(new ScrollbarVisibilityController(opts.visibility, 'visible scrollbar ' + opts.extraScrollbarClassName, 'invisible scrollbar ' + opts.extraScrollbarClassName));
-		// console.log('In the constructor of AbstractScrollbar');
 		this._visibilityController.setIsNeeded(this._scrollbarState.isNeeded());
 		this._pointerMoveMonitor = this._register(new GlobalPointerMoveMonitor());
 		this._shouldRender = true;
@@ -79,9 +78,6 @@ export abstract class AbstractScrollbar extends Widget {
 	}
 
 	// ----------------- creation
-	get visibilityController() {
-		return this._visibilityController;
-	}
 
 	/**
 	 * Creates the dom node for an arrow & adds it to the container
@@ -133,7 +129,6 @@ export abstract class AbstractScrollbar extends Widget {
 	// ----------------- Update state
 
 	protected _onElementSize(visibleSize: number): boolean {
-		// console.log('Inside of _onElementSize');
 		if (this._scrollbarState.setVisibleSize(visibleSize)) {
 			this._visibilityController.setIsNeeded(this._scrollbarState.isNeeded());
 			this._shouldRender = true;
@@ -145,7 +140,6 @@ export abstract class AbstractScrollbar extends Widget {
 	}
 
 	protected _onElementScrollSize(elementScrollSize: number): boolean {
-		// console.log('Inside of _onElementScrollSize');
 		if (this._scrollbarState.setScrollSize(elementScrollSize)) {
 			this._visibilityController.setIsNeeded(this._scrollbarState.isNeeded());
 			this._shouldRender = true;
@@ -157,7 +151,6 @@ export abstract class AbstractScrollbar extends Widget {
 	}
 
 	protected _onElementScrollPosition(elementScrollPosition: number): boolean {
-		// console.log('Inside of _onElementScrollPosition');
 		if (this._scrollbarState.setScrollPosition(elementScrollPosition)) {
 			this._visibilityController.setIsNeeded(this._scrollbarState.isNeeded());
 			this._shouldRender = true;
