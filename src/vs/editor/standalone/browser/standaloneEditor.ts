@@ -37,6 +37,7 @@ import { PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/languages/modesRegistry'
 import { LineRangeMapping, RangeMapping } from 'vs/editor/common/diff/linesDiffComputer';
 import { LineRange } from 'vs/editor/common/core/lineRange';
 import { EditorZoom } from 'vs/editor/common/config/editorZoom';
+import { IOpenerService } from 'vs/platform/opener/common/opener';
 
 /**
  * Create a new editor under `domElement`.
@@ -433,6 +434,28 @@ export function registerCommand(id: string, handler: (accessor: any, ...args: an
 	return CommandsRegistry.registerCommand({ id, handler });
 }
 
+export interface ILinkOpener {
+	open(resource: URI): boolean | Promise<boolean>;
+}
+
+/**
+ * Registers a handler that is called when a link is opened in any editor. The handler callback should return `true` if the link was handled and `false` otherwise.
+ * The handler that was registered last will be called first when a link is opened.
+ *
+ * Returns a disposable that can unregister the opener again.
+ */
+export function registerLinkOpener(opener: ILinkOpener): IDisposable {
+	const openerService = StandaloneServices.get(IOpenerService);
+	return openerService.registerOpener({
+		async open(resource: string | URI) {
+			if (typeof resource === 'string') {
+				resource = URI.parse(resource);
+			}
+			return opener.open(resource);
+		}
+	});
+}
+
 /**
  * @internal
  */
@@ -474,6 +497,8 @@ export function createMonacoEditorAPI(): typeof monaco.editor {
 		setTheme: <any>setTheme,
 		remeasureFonts: remeasureFonts,
 		registerCommand: registerCommand,
+
+		registerLinkOpener: registerLinkOpener,
 
 		// enums
 		AccessibilitySupport: standaloneEnums.AccessibilitySupport,
