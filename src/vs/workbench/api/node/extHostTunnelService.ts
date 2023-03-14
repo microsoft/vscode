@@ -172,6 +172,7 @@ export class ExtHostTunnelService extends Disposable implements IExtHostTunnelSe
 	onDidChangeTunnels: vscode.Event<void> = this._onDidChangeTunnels.event;
 	private _candidateFindingEnabled: boolean = false;
 	private _foundRootPorts: Map<number, CandidatePort & { ppid: number }> = new Map();
+	private _initialCandidates: CandidatePort[] | undefined = undefined;
 
 	private _providerHandleCounter: number = 0;
 	private _portAttributesProviders: Map<number, { provider: vscode.PortAttributesProvider; selector: PortAttributesProviderSelector }> = new Map();
@@ -185,6 +186,7 @@ export class ExtHostTunnelService extends Disposable implements IExtHostTunnelSe
 		this._proxy = extHostRpc.getProxy(MainContext.MainThreadTunnelService);
 		if (isLinux && initData.remote.isRemote && initData.remote.authority) {
 			this._proxy.$setRemoteTunnelService(process.pid);
+			this.setInitialCandidates();
 		}
 	}
 
@@ -199,6 +201,11 @@ export class ExtHostTunnelService extends Disposable implements IExtHostTunnelSe
 			return disposableTunnel;
 		}
 		return undefined;
+	}
+
+	private async setInitialCandidates(): Promise<void> {
+		this._initialCandidates = await this.findCandidatePorts();
+		this.logService.trace(`ForwardedPorts: (ExtHostTunnelService) Initial candidates found: ${this._initialCandidates.map(c => c.port).join(', ')}`);
 	}
 
 	async getTunnels(): Promise<vscode.TunnelDescription[]> {
@@ -252,10 +259,18 @@ export class ExtHostTunnelService extends Disposable implements IExtHostTunnelSe
 			// already enabled
 			return;
 		}
+
 		this._candidateFindingEnabled = enable;
+		let oldPorts: { host: string; port: number; detail?: string }[] | undefined = undefined;
+
+		// If we already have found initial candidates send those immediately.
+		if (this._initialCandidates) {
+			oldPorts = this._initialCandidates;
+			await this._proxy.$onFoundNewCandidates(this._initialCandidates);
+		}
+
 		// Regularly scan to see if the candidate ports have changed.
 		const movingAverage = new MovingAverage();
-		let oldPorts: { host: string; port: number; detail?: string }[] | undefined = undefined;
 		let scanCount = 0;
 		while (this._candidateFindingEnabled) {
 			const startTime = new Date().getTime();
@@ -374,7 +389,7 @@ export class ExtHostTunnelService extends Disposable implements IExtHostTunnelSe
 		return result;
 	}
 
-	async findCandidatePorts(): Promise<CandidatePort[]> {
+	private async findCandidatePorts(): Promise<CandidatePort[]> {
 		let tcp: string = '';
 		let tcp6: string = '';
 		try {
