@@ -20,9 +20,9 @@ import { TerminalSettingId } from 'vs/platform/terminal/common/terminal';
 import { SelectionClipboardContributionID } from 'vs/workbench/contrib/codeEditor/browser/selectionClipboard';
 import { getSimpleEditorOptions } from 'vs/workbench/contrib/codeEditor/browser/simpleEditorOptions';
 import { ITerminalFont } from 'vs/workbench/contrib/terminal/common/terminal';
-import { IXtermTerminal } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { ITerminalInstance, IXtermTerminal } from 'vs/workbench/contrib/terminal/browser/terminal';
 import type { Terminal } from 'xterm';
-import { ITerminalCapabilityStore, TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
+import { TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
 import { IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
 import { AudioCue, IAudioCueService } from 'vs/platform/audioCues/browser/audioCueService';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
@@ -46,9 +46,8 @@ export class AccessibleBufferWidget extends DisposableStore {
 	private readonly _focusTracker: dom.IFocusTracker;
 
 	constructor(
-		private readonly _instanceId: number,
+		private readonly _instance: ITerminalInstance,
 		private readonly _xterm: IXtermTerminal & { raw: Terminal },
-		private readonly _capabilities: ITerminalCapabilityStore,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IModelService private readonly _modelService: IModelService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
@@ -143,7 +142,7 @@ export class AccessibleBufferWidget extends DisposableStore {
 			const lineNumber = lineCount + 1;
 			model.pushEditOperations(null, [{ range: { startLineNumber: lineNumber, endLineNumber: lineNumber, startColumn: 1, endColumn: 1 }, text: await this._getContent(lineNumber - 1) }], () => []);
 		} else {
-			model = await this._getTextModel(URI.from({ scheme: `${Constants.Scheme}-${this._instanceId}`, fragment: await this._getContent() }));
+			model = await this._getTextModel(URI.from({ scheme: `${Constants.Scheme}-${this._instance.instanceId}`, fragment: await this._getContent() }));
 		}
 		if (!model) {
 			throw new Error('Could not create accessible buffer editor model');
@@ -170,7 +169,8 @@ export class AccessibleBufferWidget extends DisposableStore {
 		if (!this._focusedContextKey.get()) {
 			await this.show();
 		}
-		const commands = this._capabilities.get(TerminalCapability.CommandDetection)?.commands;
+		this._inQuickPick = true;
+		const commands = this._instance.capabilities.get(TerminalCapability.CommandDetection)?.commands;
 		const quickPick = this._quickInputService.createQuickPick<IQuickPickItem>();
 		const quickPickItems: IQuickPickItem[] = [];
 		if (!commands?.length) {
@@ -188,7 +188,6 @@ export class AccessibleBufferWidget extends DisposableStore {
 				});
 		}
 		quickPick.onDidAccept(() => {
-			this._inQuickPick = true;
 			const item = quickPick.activeItems[0];
 			const model = this._bufferEditor.getModel();
 			if (!model || !item.meta) {
@@ -198,7 +197,6 @@ export class AccessibleBufferWidget extends DisposableStore {
 			const data: { line: number; exitCode: number } = JSON.parse(item.meta);
 			this._bufferEditor.setSelection({ startLineNumber: data.line, startColumn: 1, endLineNumber: data.line, endColumn: 1 });
 			this._bufferEditor.revealLine(data.line);
-			this._bufferEditor.focus();
 			this._inQuickPick = false;
 			return;
 		});

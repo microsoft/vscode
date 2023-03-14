@@ -42,7 +42,7 @@ class AccessibleBufferContribution extends DisposableStore implements ITerminalC
 	}
 	layout(xterm: IXtermTerminal & { raw: Terminal }): void {
 		if (!this._accessibleBufferWidget) {
-			this._accessibleBufferWidget = this._instantiationService.createInstance(AccessibleBufferWidget, this._instance.instanceId, xterm, this._instance.capabilities);
+			this._accessibleBufferWidget = this._instantiationService.createInstance(AccessibleBufferWidget, this._instance, xterm);
 		}
 	}
 	async show(): Promise<void> {
