@@ -75,6 +75,7 @@ export abstract class BreadcrumbsConfig<T> {
 	static readonly TitleScrollbarSizing = BreadcrumbsConfig._stub<IEditorPartOptions['titleScrollbarSizing']>('workbench.editor.titleScrollbarSizing');
 
 	static readonly FileExcludes = BreadcrumbsConfig._stub<glob.IExpression>('files.exclude');
+	static readonly Separator = BreadcrumbsConfig._stub<string>('breadcrumbs.separator');
 
 	private static _stub<T>(name: string): { bindTo(service: IConfigurationService): BreadcrumbsConfig<T> } {
 		return {
@@ -120,6 +121,11 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfigurat
 	order: 101,
 	type: 'object',
 	properties: {
+		'breadcrumbs.separator': {
+			description: localize('separator', "'Copy breadcrumbs separator symbol."),
+			type: 'string',
+			default: ' > '
+		},
 		'breadcrumbs.enabled': {
 			description: localize('enabled', "Enable/disable navigation breadcrumbs."),
 			type: 'boolean',
