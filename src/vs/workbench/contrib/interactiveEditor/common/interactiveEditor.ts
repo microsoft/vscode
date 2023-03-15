@@ -39,18 +39,21 @@ export interface IInteractiveEditorEditResponse {
 	type: 'editorEdit';
 	edits: TextEdit[];
 	placeholder?: string;
+	wholeRange?: IRange;
 }
 
 export interface IInteractiveEditorBulkEditResponse {
 	type: 'bulkEdit';
 	edits: WorkspaceEdit;
 	placeholder?: string;
+	wholeRange?: IRange;
 }
 
 export interface IInteractiveEditorMessageResponse {
 	type: 'message';
 	message: IMarkdownString;
 	placeholder?: string;
+	wholeRange?: IRange;
 }
 
 export interface IInteractiveEditorSessionProvider {
