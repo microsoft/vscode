@@ -70,7 +70,7 @@ export class ExtHostInteractiveEditor implements ExtHostInteractiveEditorShape {
 		const id = ExtHostInteractiveEditor._nextId++;
 		this._inputSessions.set(id, session);
 
-		return { id, placeholder: session.placeholder, slashCommands: session.slashCommands };
+		return { id, placeholder: session.placeholder };
 	}
 
 	async $provideResponse(handle: number, item: IInteractiveEditorSession, request: IInteractiveEditorRequest, token: CancellationToken): Promise<IInteractiveEditorResponseDto | undefined> {
@@ -93,7 +93,8 @@ export class ExtHostInteractiveEditor implements ExtHostInteractiveEditorShape {
 		if (ExtHostInteractiveEditor._isMessageResponse(res)) {
 			return {
 				type: 'message',
-				message: typeConvert.MarkdownString.from(res.contents)
+				message: typeConvert.MarkdownString.from(res.contents),
+				wholeRange: typeConvert.Range.from(res.wholeRange)
 			};
 		}
 
@@ -103,14 +104,16 @@ export class ExtHostInteractiveEditor implements ExtHostInteractiveEditorShape {
 				return {
 					type: 'bulkEdit',
 					placeholder,
-					edits: typeConvert.WorkspaceEdit.from(edits)
+					edits: typeConvert.WorkspaceEdit.from(edits),
+					wholeRange: typeConvert.Range.from(res.wholeRange)
 				};
 
 			} else if (Array.isArray(edits)) {
 				return {
 					type: 'editorEdit',
+					placeholder,
 					edits: edits.map(typeConvert.TextEdit.from),
-					placeholder
+					wholeRange: typeConvert.Range.from(res.wholeRange),
 				};
 			}
 		}

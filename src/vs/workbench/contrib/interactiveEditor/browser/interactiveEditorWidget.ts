@@ -600,6 +600,10 @@ export class InteractiveEditorController implements IEditorContribution {
 		blockPadding: [4, 0, 1, 4]
 	});
 
+	private static _decoWholeRange = ModelDecorationOptions.register({
+		description: 'interactive-editor-marker'
+	});
+
 	private static _promptHistory: string[] = [];
 	private _historyOffset: number = -1;
 
@@ -687,7 +691,7 @@ export class InteractiveEditorController implements IEditorContribution {
 		}
 		wholeRangeDecoration.set([{
 			range: initialRange,
-			options: { description: 'interactive-editor-marker' }
+			options: InteractiveEditorController._decoWholeRange
 		}]);
 
 
@@ -840,6 +844,14 @@ export class InteractiveEditorController implements IEditorContribution {
 			// inline diff
 			inlineDiffDecorations.clear();
 			const newInlineDiffDecorationsData: IModelDeltaDecoration[] = [];
+
+			// use whole range from reply
+			if (reply.wholeRange) {
+				wholeRangeDecoration.set([{
+					range: reply.wholeRange,
+					options: InteractiveEditorController._decoWholeRange
+				}]);
+			}
 
 			try {
 				ignoreModelChanges = true;
