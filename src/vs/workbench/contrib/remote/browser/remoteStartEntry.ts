@@ -58,7 +58,7 @@ export class RemoteStartEntry extends Disposable implements IWorkbenchContributi
 		@ITelemetryService private readonly telemetryService: ITelemetryService) {
 
 		super();
-
+		registerConfiguration(this.productService.quality !== 'stable');
 		const remoteExtensionTips = { ...this.productService.remoteExtensionTips, ...this.productService.virtualWorkspaceExtensionTips };
 		this.remoteExtensionMetadata = Object.values(remoteExtensionTips).filter(value => value.showInStartEntry === true).map(value => {
 			return { id: value.extensionId, installed: false, friendlyName: value.friendlyName };
@@ -79,7 +79,7 @@ export class RemoteStartEntry extends Disposable implements IWorkbenchContributi
 					id: RemoteStartEntry.REMOTE_START_ENTRY_ACTIONS_COMMAND_ID,
 					category,
 					title: { value: nls.localize('remote.showStartEntryActions', "Show Remote Start Entry Actions"), original: 'Show Remote Start Entry Actions' },
-					f1: true
+					f1: false
 				});
 			}
 
@@ -248,15 +248,17 @@ export class RemoteStartEntry extends Disposable implements IWorkbenchContributi
 	}
 }
 
-const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
-configurationRegistry.registerConfiguration({
-	...workbenchConfigurationNodeBase,
-	properties: {
-		'workbench.remote.experimental.showStartListEntry': {
-			scope: ConfigurationScope.MACHINE,
-			type: 'boolean',
-			default: true,
-			description: nls.localize('workbench.remote.showStartListEntry', "When enabled, a start list entry for getting started with remote experiences in shown on the welcome page.")
+function registerConfiguration(enabled: boolean): void {
+	const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
+	configurationRegistry.registerConfiguration({
+		...workbenchConfigurationNodeBase,
+		properties: {
+			'workbench.remote.experimental.showStartListEntry': {
+				scope: ConfigurationScope.MACHINE,
+				type: 'boolean',
+				default: enabled,
+				description: nls.localize('workbench.remote.showStartListEntry', "When enabled, a start list entry for getting started with remote experiences in shown on the welcome page.")
+			}
 		}
-	}
-});
+	});
+}
