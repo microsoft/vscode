@@ -97,6 +97,10 @@ export class InteractiveSessionContributionService implements IInteractiveSessio
 		return Array.from(this._registeredProviders.values());
 	}
 
+	public getViewIdForProvider(providerId: string): string {
+		return InteractiveSessionViewPane.ID + '.' + providerId;
+	}
+
 	private registerInteractiveSessionProvider(extension: Readonly<IRelaxedExtensionDescription>, providerDescriptor: IRawInteractiveSessionProviderContribution): IDisposable {
 		// Register View Container
 		const viewContainerId = INTERACTIVE_SIDEBAR_PANEL_ID + '.' + providerDescriptor.id;
@@ -111,7 +115,7 @@ export class InteractiveSessionContributionService implements IInteractiveSessio
 		}, ViewContainerLocation.Sidebar);
 
 		// Register View
-		const viewId = InteractiveSessionViewPane.ID + '.' + providerDescriptor.id;
+		const viewId = this.getViewIdForProvider(providerDescriptor.id);
 		const viewDescriptor: IViewDescriptor[] = [{
 			id: viewId,
 			name: providerDescriptor.label,

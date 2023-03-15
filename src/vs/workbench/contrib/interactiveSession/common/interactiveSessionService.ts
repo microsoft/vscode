@@ -102,6 +102,18 @@ export interface IInteractiveSessionUserActionEvent {
 	providerId: string;
 }
 
+export interface IInteractiveSessionDynamicRequest {
+	/**
+	 * The message that will be displayed in the UI
+	 */
+	message: string;
+
+	/**
+	 * Any extra metadata/context that will go to the provider.
+	 */
+	metadata?: any;
+}
+
 export const IInteractiveSessionService = createDecorator<IInteractiveSessionService>('IInteractiveSessionService');
 
 export interface IInteractiveSessionService {
@@ -118,6 +130,7 @@ export interface IInteractiveSessionService {
 	clearSession(sessionId: number): void;
 	acceptNewSessionState(sessionId: number, state: any): void;
 	addInteractiveRequest(context: any): void;
+	sendInteractiveRequestToProvider(providerId: string, message: IInteractiveSessionDynamicRequest): void;
 	provideSuggestions(providerId: string, token: CancellationToken): Promise<string[] | undefined>;
 
 	onDidPerformUserAction: Event<IInteractiveSessionUserActionEvent>;

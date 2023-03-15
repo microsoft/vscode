@@ -157,12 +157,27 @@ declare module 'vscode' {
 		providerId: string;
 	}
 
+	export interface InteractiveSessionDynamicRequest {
+		/**
+		 * The message that will be displayed in the UI
+		 */
+		message: string;
+
+		/**
+		 * Any extra metadata/context that will go to the provider.
+		 * NOTE not actually used yet.
+		 */
+		metadata?: any;
+	}
+
 	export namespace interactive {
 		// current version of the proposal.
 		export const _version: 1 | number;
 
 		export function registerInteractiveSessionProvider(id: string, provider: InteractiveSessionProvider): Disposable;
 		export function addInteractiveRequest(context: InteractiveSessionRequestArgs): void;
+
+		export function sendInteractiveRequestToProvider(providerId: string, message: InteractiveSessionDynamicRequest): void;
 
 		export function registerInteractiveEditorSessionProvider(provider: InteractiveEditorSessionProvider): Disposable;
 
