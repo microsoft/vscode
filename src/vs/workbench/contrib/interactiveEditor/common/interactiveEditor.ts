@@ -15,9 +15,15 @@ import { MenuId } from 'vs/platform/actions/common/actions';
 import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 
+export interface IInteractiveEditorSlashCommand {
+	command: string;
+	detail?: string;
+}
+
 export interface IInteractiveEditorSession {
 	id: number;
 	placeholder?: string;
+	slashCommands?: IInteractiveEditorSlashCommand[];
 	dispose?(): void;
 }
 

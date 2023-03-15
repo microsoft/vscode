@@ -72,7 +72,6 @@
 	z-index: 1;
 	padding: 3px 0 0 2px;
 	color: var(--vscode-input-placeholderForeground);
-	font-family: var(--monaco-monospace-font);
 	white-space: nowrap;
 	overflow: hidden;
 	text-overflow: ellipsis;
@@ -138,4 +137,12 @@
 	border-radius: 4px;
 	border: 1px solid var(--vscode-widget-border);
 	box-shadow: 0 0 8px 1px var(--vscode-widget-shadow);
+}
+
+.monaco-editor .interactive-editor-slash-command {
+	color: var(--vscode-textLink-foreground)
+}
+
+.monaco-editor .interactive-editor-slash-command-detail {
+	opacity: 0.5;
 }

@@ -70,7 +70,7 @@ export class ExtHostInteractiveEditor implements ExtHostInteractiveEditorShape {
 		const id = ExtHostInteractiveEditor._nextId++;
 		this._inputSessions.set(id, session);
 
-		return { id, placeholder: session.placeholder };
+		return { id, placeholder: session.placeholder, slashCommands: session.slashCommands };
 	}
 
 	async $provideResponse(handle: number, item: IInteractiveEditorSession, request: IInteractiveEditorRequest, token: CancellationToken): Promise<IInteractiveEditorResponseDto | undefined> {

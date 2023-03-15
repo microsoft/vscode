@@ -5,9 +5,16 @@
 
 declare module 'vscode' {
 
+	export interface InteractiveEditorSlashCommand {
+		command: string;
+		detail?: string;
+		// kind: CompletionItemKind;
+	}
+
 	// todo@API make classes
 	export interface InteractiveEditorSession {
 		placeholder?: string;
+		slashCommands?: InteractiveEditorSlashCommand[];
 	}
 
 	// todo@API make classes
