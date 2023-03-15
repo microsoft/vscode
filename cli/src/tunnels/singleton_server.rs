@@ -74,25 +74,31 @@ pub fn make_singleton_server(
 		broadcast_tx: log_broadcast.get_brocaster(),
 	});
 
-	rpc.register_sync("restart", |_: protocol::EmptyObject, ctx| {
-		info!(ctx.log, "restarting tunnel after client request");
-		let _ = ctx.shutdown_tx.send(ShutdownSignal::RpcRestartRequested);
-		Ok(())
-	});
+	rpc.register_sync(
+		protocol::singleton::METHOD_RESTART,
+		|_: protocol::EmptyObject, ctx| {
+			info!(ctx.log, "restarting tunnel after client request");
+			let _ = ctx.shutdown_tx.send(ShutdownSignal::RpcRestartRequested);
+			Ok(())
+		},
+	);
 
-	rpc.register_sync("shutdown", |_: protocol::EmptyObject, ctx| {
-		info!(
-			ctx.log,
-			"closing tunnel and all clients after a shutdown request"
-		);
-		let _ = ctx.broadcast_tx.send(RpcCaller::serialize_notify(
-			&JsonRpcSerializer {},
-			"shutdown",
-			protocol::EmptyObject {},
-		));
-		let _ = ctx.shutdown_tx.send(ShutdownSignal::RpcShutdownRequested);
-		Ok(())
-	});
+	rpc.register_sync(
+		protocol::singleton::METHOD_SHUTDOWN,
+		|_: protocol::EmptyObject, ctx| {
+			info!(
+				ctx.log,
+				"closing tunnel and all clients after a shutdown request"
+			);
+			let _ = ctx.broadcast_tx.send(RpcCaller::serialize_notify(
+				&JsonRpcSerializer {},
+				protocol::singleton::METHOD_SHUTDOWN,
+				protocol::EmptyObject {},
+			));
+			let _ = ctx.shutdown_tx.send(ShutdownSignal::RpcShutdownRequested);
+			Ok(())
+		},
+	);
 
 	// we tokio spawn instead of keeping a future, since we want it to progress
 	// even outside of the start_singleton_server loop (i.e. while the tunnel restarts)
@@ -209,7 +215,7 @@ impl BroadcastLogSink {
 
 		let _ = log_replay_tx.send(RpcCaller::serialize_notify(
 			&JsonRpcSerializer {},
-			"log",
+			protocol::singleton::METHOD_LOG,
 			protocol::singleton::LogMessage {
 				level: None,
 				prefix: "",
@@ -226,7 +232,7 @@ impl log::LogSink for BroadcastLogSink {
 		let s = JsonRpcSerializer {};
 		let serialized = RpcCaller::serialize_notify(
 			&s,
-			"log",
+			protocol::singleton::METHOD_LOG,
 			protocol::singleton::LogMessage {
 				level: Some(level),
 				prefix,

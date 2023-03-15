@@ -52,10 +52,10 @@ pub async fn start_singleton_client(args: SingletonClientArgs) -> bool {
 		loop {
 			match term.read_key() {
 				Ok(console::Key::Char('x')) => {
-					stdin_handle.notify("shutdown", EmptyObject {});
+					stdin_handle.notify(protocol::singleton::METHOD_SHUTDOWN, EmptyObject {});
 				}
 				Ok(console::Key::Char('r')) => {
-					stdin_handle.notify("restart", EmptyObject {});
+					stdin_handle.notify(protocol::singleton::METHOD_RESTART, EmptyObject {});
 				}
 				Err(_) => return, // EOF or not a tty
 				_ => {}
@@ -68,18 +68,21 @@ pub async fn start_singleton_client(args: SingletonClientArgs) -> bool {
 		exit_entirely: exit_entirely.clone(),
 	});
 
-	rpc.register_sync("shutdown", |_: EmptyObject, c| {
+	rpc.register_sync(protocol::singleton::METHOD_SHUTDOWN, |_: EmptyObject, c| {
 		c.exit_entirely.store(true, Ordering::SeqCst);
 		Ok(())
 	});
 
-	rpc.register_sync("log", |log: protocol::singleton::LogMessageOwned, c| {
-		match log.level {
-			Some(level) => c.log.emit(level, &format!("{}{}", log.prefix, log.message)),
-			None => c.log.result(format!("{}{}", log.prefix, log.message)),
-		}
-		Ok(())
-	});
+	rpc.register_sync(
+		protocol::singleton::METHOD_LOG,
+		|log: protocol::singleton::LogMessageOwned, c| {
+			match log.level {
+				Some(level) => c.log.emit(level, &format!("{}{}", log.prefix, log.message)),
+				None => c.log.result(format!("{}{}", log.prefix, log.message)),
+			}
+			Ok(())
+		},
+	);
 
 	let (read, write) = socket_stream_split(args.stream);
 	let _ = start_json_rpc(rpc.build(args.log), read, write, msg_rx, args.shutdown).await;
