@@ -180,7 +180,7 @@ export class InteractiveSessionService extends Disposable implements IInteractiv
 				if (token.isCancellationRequested) {
 					return;
 				}
-				
+
 				gotProgress = true;
 				if ('content' in progress) {
 					this.trace('sendRequest', `Provider returned progress for session ${model.sessionId}, ${progress.content.length} chars`);
