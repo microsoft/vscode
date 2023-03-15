@@ -46,32 +46,4 @@ export function registerInteractiveSessionExecuteActions() {
 			context.widget.acceptInput();
 		}
 	});
-
-	registerAction2(class StopAction extends Action2 {
-		constructor() {
-			super({
-				id: 'workbench.action.interactiveSession.stop',
-				title: {
-					value: localize('interactive.stop.label', "Stop"),
-					original: 'Stop'
-				},
-				f1: false,
-				category: INTERACTIVE_SESSION_CATEGORY,
-				icon: Codicon.stop,
-				// menu: {
-				// 	id: MenuId.InteractiveSessionExecute,
-				// 	group: 'navigation',
-				// }
-			});
-		}
-
-		run(accessor: ServicesAccessor, ...args: any[]) {
-			const context = args[0];
-			if (!isExecuteActionContext(context)) {
-				return;
-			}
-
-			context.widget.acceptInput();
-		}
-	});
 }
