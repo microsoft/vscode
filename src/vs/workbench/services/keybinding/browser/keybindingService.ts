@@ -873,6 +873,7 @@ function updateSchema(additionalContributions: readonly IJSONSchema[]) {
 		);
 		const addition = {
 			'if': {
+				'required': ['command'],
 				'properties': {
 					'command': { 'const': commandId }
 				}
