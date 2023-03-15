@@ -36,7 +36,6 @@ import { ViewContainerLocation } from 'vs/workbench/common/views';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { isEmptyObject } from 'vs/base/common/types';
-import { ResourceMap } from 'vs/base/common/map';
 import { PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/languages/modesRegistry';
 
 type FileExtensionSuggestionClassification = {
@@ -54,11 +53,10 @@ const milliSecondsInADay = 1000 * 60 * 60 * 24;
 
 export class FileBasedRecommendations extends ExtensionRecommendations {
 
-	private readonly recommendationConditions: IStringDictionary<IFileOpenCondition[]>;
+	private readonly fileOpenRecommendations: IStringDictionary<IFileOpenCondition[]>;
+	private readonly recommendationsByPattern = new Map<string, IStringDictionary<IFileOpenCondition[]>>();
 	private readonly fileBasedRecommendations = new Map<string, { recommendedTime: number }>();
 	private readonly fileBasedImportantRecommendations = new Set<string>();
-
-	private readonly unmatchedRecommendationConditions = new ResourceMap<IStringDictionary<IFileOpenCondition[]>>();
 
 	get recommendations(): ReadonlyArray<ExtensionRecommendation> {
 		const recommendations: ExtensionRecommendation[] = [];
@@ -111,18 +109,18 @@ export class FileBasedRecommendations extends ExtensionRecommendations {
 		@IExtensionManagementServerService private readonly extensionManagementServerService: IExtensionManagementServerService,
 	) {
 		super();
-		this.recommendationConditions = {};
+		this.fileOpenRecommendations = {};
 		if (productService.extensionRecommendations) {
 			for (const [extensionId, recommendation] of Object.entries(productService.extensionRecommendations)) {
 				if (recommendation.onFileOpen) {
-					this.recommendationConditions[extensionId.toLowerCase()] = recommendation.onFileOpen;
+					this.fileOpenRecommendations[extensionId.toLowerCase()] = recommendation.onFileOpen;
 				}
 			}
 		}
 	}
 
 	protected async doActivate(): Promise<void> {
-		if (isEmptyObject(this.recommendationConditions)) {
+		if (isEmptyObject(this.fileOpenRecommendations)) {
 			return;
 		}
 
@@ -133,7 +131,7 @@ export class FileBasedRecommendations extends ExtensionRecommendations {
 		// Retire existing recommendations if they are older than a week or are not part of this.productService.extensionTips anymore
 		Object.entries(cachedRecommendations).forEach(([key, value]) => {
 			const diff = (now - value) / milliSecondsInADay;
-			if (diff <= 7 && this.recommendationConditions[key]) {
+			if (diff <= 7 && this.fileOpenRecommendations[key]) {
 				this.fileBasedRecommendations.set(key.toLowerCase(), { recommendedTime: value });
 			}
 		});
@@ -153,51 +151,64 @@ export class FileBasedRecommendations extends ExtensionRecommendations {
 			return;
 		}
 
-		const unmatched = this.unmatchedRecommendationConditions.get(uri) ?? this.recommendationConditions;
-		if (isEmptyObject(unmatched)) {
-			return;
-		}
-
 		// re-schedule this bit of the operation to be off the critical path - in case glob-match is slow
-		this._register(disposableTimeout(() => this.promptRecommendations(uri, model, unmatched), 0));
+		this._register(disposableTimeout(() => this.promptRecommendations(uri, model), 0));
 	}
 
 	/**
 	 * Prompt the user to either install the recommended extension for the file type in the current editor model
 	 * or prompt to search the marketplace if it has extensions that can support the file type
 	 */
-	private promptRecommendations(uri: URI, model: ITextModel, extensionRecommendations: IStringDictionary<IFileOpenCondition[]>): void {
+	private promptRecommendations(uri: URI, model: ITextModel, extensionRecommendations?: IStringDictionary<IFileOpenCondition[]>): void {
+		const pattern = extname(uri).toLowerCase();
+		extensionRecommendations = extensionRecommendations ?? this.recommendationsByPattern.get(pattern) ?? this.fileOpenRecommendations;
+		const extensionRecommendationEntries = Object.entries(extensionRecommendations);
+		if (extensionRecommendationEntries.length === 0) {
+			return;
+		}
 
 		const processedPathGlobs = new Map<string, boolean>();
 		const installed = this.extensionsWorkbenchService.local;
+		const recommendationsByPattern: IStringDictionary<IFileOpenCondition[]> = {};
 		const matchedRecommendations: IStringDictionary<IFileOpenCondition[]> = {};
 		const unmatchedRecommendations: IStringDictionary<IFileOpenCondition[]> = {};
 		let listenOnLanguageChange = false;
 
-		for (const [extensionId, conditions] of Object.entries(extensionRecommendations)) {
+		for (const [extensionId, conditions] of extensionRecommendationEntries) {
+			const conditionsByPattern: IFileOpenCondition[] = [];
 			const matchedConditions: IFileOpenCondition[] = [];
 			const unmatchedConditions: IFileOpenCondition[] = [];
 			for (const condition of conditions) {
-				let matched = false;
+				let languageMatched = false;
+				let pathGlobMatched = false;
 
 				const isLanguageCondition = !!(<IFileLanguageCondition>condition).languages;
 				if (isLanguageCondition) {
 					if ((<IFileLanguageCondition>condition).languages.includes(model.getLanguageId())) {
-						matched = true;
+						languageMatched = true;
 					}
 				}
 
 				if ((<IFilePathCondition>condition).pathGlob) {
 					const pathGlob = (<IFilePathCondition>condition).pathGlob;
-					let pathGlobMatched = false;
 					if (processedPathGlobs.get(pathGlob) ?? match((<IFilePathCondition>condition).pathGlob, uri.with({ fragment: '' }).toString())) {
-						pathGlobMatched = matched = true;
+						pathGlobMatched = true;
 					}
 					processedPathGlobs.set(pathGlob, pathGlobMatched);
 				}
 
+				if (isLanguageCondition || pathGlobMatched) {
+					conditionsByPattern.push(condition);
+				}
+
+				if (!languageMatched && !pathGlobMatched) {
+					// If the language is not matched and the path glob is not matched, then we don't need to check the other conditions
+					continue;
+				}
+
+				let matched = true;
 				if (matched && condition.whenInstalled) {
-					if (!installed.some(local => !condition.whenInstalled?.some(id => areSameExtensions({ id }, local.identifier)))) {
+					if (!condition.whenInstalled.every(id => installed.some(local => areSameExtensions({ id }, local.identifier)))) {
 						matched = false;
 					}
 				}
@@ -233,13 +244,16 @@ export class FileBasedRecommendations extends ExtensionRecommendations {
 			if (unmatchedConditions.length) {
 				unmatchedRecommendations[extensionId] = unmatchedConditions;
 			}
+			if (conditionsByPattern.length) {
+				recommendationsByPattern[extensionId] = conditionsByPattern;
+			}
 		}
 
 		if (Object.keys(matchedRecommendations).length) {
 			this.promptFromRecommendations(uri, model, matchedRecommendations);
 		}
 
-		this.unmatchedRecommendationConditions.set(uri, unmatchedRecommendations);
+		this.recommendationsByPattern.set(pattern, recommendationsByPattern);
 		if (Object.keys(unmatchedRecommendations).length) {
 			if (listenOnLanguageChange) {
 				const disposables = new DisposableStore();
