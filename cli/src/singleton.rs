@@ -51,8 +51,6 @@ struct LockFileMatter {
 	pid: u32,
 }
 
-/// Tries to acquire the singleton homed at the given lock file, either starting
-/// a new singleton if it doesn't exist, or connecting otherwise.
 pub async fn acquire_singleton(lock_file: PathBuf) -> Result<SingletonConnection, CodeError> {
 	let file = OpenOptions::new()
 		.read(true)
@@ -62,27 +60,13 @@ pub async fn acquire_singleton(lock_file: PathBuf) -> Result<SingletonConnection
 		.map_err(CodeError::SingletonLockfileOpenFailed)?;
 
 	match FileLock::acquire(file) {
-		Ok(Lock::AlreadyLocked(mut file)) => connect_as_client_with_file(&mut file)
-			.await
-			.map(SingletonConnection::Client),
-		Ok(Lock::Acquired(lock)) => start_singleton_server(lock)
-			.await
-			.map(SingletonConnection::Singleton),
+		Ok(Lock::AlreadyLocked(mut file)) => connect_as_client(&mut file).await,
+		Ok(Lock::Acquired(lock)) => start_singleton_server(lock).await,
 		Err(e) => Err(e),
 	}
 }
 
-/// Tries to connect to the singleton homed at the given file as a client.
-pub async fn connect_as_client(lock_file: &Path) -> Result<AsyncPipe, CodeError> {
-	let mut file = OpenOptions::new()
-		.read(true)
-		.open(lock_file)
-		.map_err(CodeError::SingletonLockfileOpenFailed)?;
-
-	connect_as_client_with_file(&mut file).await
-}
-
-async fn start_singleton_server(mut lock: FileLock) -> Result<SingletonServer, CodeError> {
+async fn start_singleton_server(mut lock: FileLock) -> Result<SingletonConnection, CodeError> {
 	let socket_path = get_socket_name();
 
 	let mut vec = Vec::with_capacity(128);
@@ -100,15 +84,15 @@ async fn start_singleton_server(mut lock: FileLock) -> Result<SingletonServer, C
 		.map_err(CodeError::SingletonLockfileOpenFailed)?;
 
 	let server = listen_socket_rw_stream(&socket_path).await?;
-	Ok(SingletonServer {
+	Ok(SingletonConnection::Singleton(SingletonServer {
 		server,
 		_lock: lock,
-	})
+	}))
 }
 
 const MAX_CLIENT_ATTEMPTS: i32 = 10;
 
-async fn connect_as_client_with_file(mut file: &mut File) -> Result<AsyncPipe, CodeError> {
+async fn connect_as_client(mut file: &mut File) -> Result<SingletonConnection, CodeError> {
 	// retry, since someone else could get a lock and we could read it before
 	// the JSON info was finished writing out
 	let mut attempt = 0;
@@ -120,14 +104,14 @@ async fn connect_as_client_with_file(mut file: &mut File) -> Result<AsyncPipe, C
 
 				tokio::select! {
 					p = retry_get_socket_rw_stream(&socket_path, 5, Duration::from_millis(500)) => p,
-					_ = wait_until_process_exits(Pid::from_u32(prev.pid), 500) => return Err(CodeError::SingletonLockedProcessExited(prev.pid)),
+					_ = wait_until_process_exits(Pid::from_u32(prev.pid), 500) => Err(CodeError::SingletonLockedProcessExited(prev.pid)),
 				}
 			}
 			Err(e) => Err(CodeError::SingletonLockfileReadFailed(e)),
 		};
 
 		if r.is_ok() || attempt == MAX_CLIENT_ATTEMPTS {
-			return r;
+			return r.map(SingletonConnection::Client);
 		}
 
 		attempt += 1;

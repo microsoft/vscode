@@ -171,7 +171,7 @@ impl std::fmt::Display for SetupError {
 	fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
 		write!(
 			f,
-			"{}\n\nMore info at {}/remote/linux",
+			"{}\r\n\r\nMore info at {}/remote/linux",
 			DOCUMENTATION_URL.unwrap_or("<docs>"),
 			self.0
 		)
