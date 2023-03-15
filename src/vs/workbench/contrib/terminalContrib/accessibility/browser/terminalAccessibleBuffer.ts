@@ -40,7 +40,6 @@ export class AccessibleBufferWidget extends DisposableStore {
 	private _bufferEditor: CodeEditorWidget;
 	private _editorContainer: HTMLElement;
 	private _font: ITerminalFont;
-	private _inQuickPick = false;
 	private _xtermElement: HTMLElement;
 	private _focusedContextKey: IContextKey<boolean>;
 	private readonly _focusTracker: dom.IFocusTracker;
@@ -117,9 +116,6 @@ export class AccessibleBufferWidget extends DisposableStore {
 			}
 		}));
 		this.add(this._bufferEditor.onDidFocusEditorText(async () => {
-			if (this._inQuickPick) {
-				return;
-			}
 			// if the editor is focused via tab, we need to update the model
 			// and show it
 			await this._updateEditor();
@@ -169,7 +165,6 @@ export class AccessibleBufferWidget extends DisposableStore {
 		if (!this._focusedContextKey.get()) {
 			await this.show();
 		}
-		this._inQuickPick = true;
 		const commands = this._instance.capabilities.get(TerminalCapability.CommandDetection)?.commands;
 		if (!commands?.length) {
 			return;
@@ -197,7 +192,6 @@ export class AccessibleBufferWidget extends DisposableStore {
 			const data: { line: number; exitCode: number } = JSON.parse(item.meta);
 			this._bufferEditor.setSelection({ startLineNumber: data.line, startColumn: 1, endLineNumber: data.line, endColumn: 1 });
 			this._bufferEditor.revealLine(data.line);
-			this._inQuickPick = false;
 			return;
 		});
 		quickPick.onDidChangeActive(() => {
