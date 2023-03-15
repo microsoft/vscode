@@ -13,13 +13,12 @@ import { IProductService } from 'vs/platform/product/common/productService';
 import { Action2, MenuRegistry, registerAction2 } from 'vs/platform/actions/common/actions';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IExtensionGalleryService, IExtensionManagementService } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { timeout } from 'vs/base/common/async';
+import { retry } from 'vs/base/common/async';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
 import { workbenchConfigurationNodeBase } from 'vs/workbench/common/configuration';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IRelaxedExtensionDescription } from 'vs/platform/extensions/common/extensions';
 
 const STATUSBAR_REMOTEINDICATOR_CONTRIBUTION = 'statusBar/remoteIndicator';
 
@@ -94,31 +93,17 @@ export class RemoteStartEntry extends Disposable implements IWorkbenchContributi
 
 		this._register(this.extensionManagementService.onDidInstallExtensions(async (result) => {
 			for (const ext of result) {
-				const index = this.remoteExtensionMetadata.findIndex(value => value.id === ext.identifier.id && !value.installed);
-				if (index > -1) {
-					const command = await this.getRemoteCommand(ext.identifier.id);
-					if (command) {
-						this.remoteExtensionMetadata[index].remoteCommand = command;
-						this.remoteExtensionMetadata[index].installed = true;
-					}
-				}
+				await this.updateInstallStatus(ext.identifier.id, true);
 			}
 		}));
 
 		this._register(this.extensionManagementService.onDidUninstallExtension(async (result) => {
-			const index = this.remoteExtensionMetadata.findIndex(value => value.id === result.identifier.id && value.installed);
-			if (index > -1) {
-				this.remoteExtensionMetadata[index].installed = false;
-				if (this.remoteExtensionMetadata[index].dependenciesStr === undefined) {
-					const dependenciesStr = await this.getDependenciesStr(this.remoteExtensionMetadata[index].id);
-					this.remoteExtensionMetadata[index].dependenciesStr = dependenciesStr;
-				}
-			}
+			await this.updateInstallStatus(result.identifier.id, false);
 		}));
 	}
 
-	private async _init(): Promise<void> {
 
+	private async _init(): Promise<void> {
 		if (this._isInitialized) {
 			return;
 		}
@@ -126,30 +111,45 @@ export class RemoteStartEntry extends Disposable implements IWorkbenchContributi
 		for (let i = 0; i < this.remoteExtensionMetadata.length; i++) {
 			const installed = this.extensionService.extensions.some((e) => e.id?.toLowerCase() === this.remoteExtensionMetadata[i].id);
 			if (installed) {
-				const command = await this.getRemoteCommand(this.remoteExtensionMetadata[i].id);
-				if (command) {
-					this.remoteExtensionMetadata[i].remoteCommand = command;
-					this.remoteExtensionMetadata[i].installed = true;
-				}
+				await this.updateInstallStatus(this.remoteExtensionMetadata[i].id, true);
 			}
 			else {
-				const dependenciesStr = await this.getDependenciesStr(this.remoteExtensionMetadata[i].id);
-				this.remoteExtensionMetadata[i].dependenciesStr = dependenciesStr;
+				await this.updateInstallStatus(this.remoteExtensionMetadata[i].id, false);
 			}
 		}
-
 		this._isInitialized = true;
+	}
+
+	private async updateInstallStatus(extensionId: string, installed: boolean): Promise<RemoteExtensionMetadata | undefined> {
+		const index = this.remoteExtensionMetadata.findIndex(value => value.id === extensionId);
+		if (index > -1) {
+			if (installed && !this.remoteExtensionMetadata[index].installed) {
+				this.remoteExtensionMetadata[index].installed = true;
+				const command = await this.getRemoteCommand(extensionId);
+				if (command) {
+					this.remoteExtensionMetadata[index].remoteCommand = command;
+				}
+			} else if (!installed && this.remoteExtensionMetadata[index].installed) {
+				this.remoteExtensionMetadata[index].installed = false;
+				if (this.remoteExtensionMetadata[index].dependenciesStr === undefined) {
+					const dependenciesStr = await this.getDependenciesStr(this.remoteExtensionMetadata[index].id);
+					this.remoteExtensionMetadata[index].dependenciesStr = dependenciesStr;
+				}
+			}
+			return this.remoteExtensionMetadata[index];
+		}
+		return undefined;
 	}
 
 	private async getRemoteCommand(remoteExtensionId: string): Promise<string | undefined> {
 
-		// Remote extension is not registered immediately on install.
-		// Wait for it to appear before returning.
-		let extension: Readonly<IRelaxedExtensionDescription> | undefined;
-		while (!extension) {
-			extension = await this.extensionService.getExtension(remoteExtensionId);
-			await timeout(300);
-		}
+		const extension = await retry(async () => {
+			const ext = await this.extensionService.getExtension(remoteExtensionId);
+			if (!ext) {
+				throw Error('Failed to find installed remote extension');
+			}
+			return ext;
+		}, 300, 10);
 
 		const menus = extension?.contributes?.menus;
 		if (menus) {
@@ -165,7 +165,6 @@ export class RemoteStartEntry extends Disposable implements IWorkbenchContributi
 	}
 
 	private async showRemoteStartActions() {
-
 		await this._init();
 
 		const computeItems = async () => {
@@ -209,46 +208,29 @@ export class RemoteStartEntry extends Disposable implements IWorkbenchContributi
 
 			const selectedItems = quickPick.selectedItems;
 			if (selectedItems.length === 1) {
-
 				const selectedItem = selectedItems[0].id!;
 
-				const metadata = this.remoteExtensionMetadata.find(value => value.id === selectedItem)!;
-				if (!metadata.installed) {
-					this.executeCommand('workbench.extensions.installExtension', selectedItem);
-
-					quickPick.placeholder = nls.localize('remote.startActions.installingExtension', 'Installing extension... ');
+				let metadata = this.remoteExtensionMetadata.find(value => value.id === selectedItem);
+				if (!metadata?.installed) {
 					quickPick.busy = true;
+					quickPick.placeholder = nls.localize('remote.startActions.installingExtension', 'Installing extension... ');
 
-					// Remote extension is not registered immediately on install.
-					// Wait for it to appear before returning.
-					while (!(await this.extensionService.whenInstalledExtensionsRegistered())) {
-						await timeout(300);
-					}
+					this.commandService.executeCommand('workbench.extensions.installExtension', selectedItem);
+					this.telemetryService.publicLog2<RemoteStartActionEvent, RemoteStartActionClassification>('remoteStartList.ActionExecuted', { command: 'workbench.extensions.installExtension', remoteExtensionId: metadata?.id });
 
-					const command = await this.getRemoteCommand(selectedItem);
 					quickPick.busy = false;
+				}
 
-					if (command) {
-						this.executeCommand(command);
-					}
-					else {
-						throw Error('Could not find statusBar/remoteIndicator menu contributions for: ' + selectedItem);
-					}
-				}
-				else if (metadata.installed && metadata.remoteCommand) {
-					this.executeCommand(metadata.remoteCommand);
-				}
-				else {
-					throw Error('Could not find statusBar/remoteIndicator menu contributions for: ' + selectedItem);
+				metadata = await this.updateInstallStatus(selectedItem, true);
+				if (metadata?.remoteCommand) {
+					this.telemetryService.publicLog2<RemoteStartActionEvent, RemoteStartActionClassification>('remoteStartList.ActionExecuted', { command: metadata?.remoteCommand, remoteExtensionId: metadata?.id });
+					this.commandService.executeCommand(metadata?.remoteCommand);
+				} else {
+					throw Error('Could not find remote commands');
 				}
 			}
 		});
 		quickPick.show();
-	}
-
-	private executeCommand(command: string, remoteExtensionId?: string) {
-		this.telemetryService.publicLog2<RemoteStartActionEvent, RemoteStartActionClassification>('remoteStartList.ActionExecuted', { command: command, remoteExtensionId: remoteExtensionId });
-		this.commandService.executeCommand(command, remoteExtensionId);
 	}
 
 	private async getDependenciesStr(extensionId: string): Promise<string> {
