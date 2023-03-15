@@ -19,8 +19,10 @@ import { IUserDataProfileService } from 'vs/workbench/services/userDataProfile/c
 import { getErrorMessage } from 'vs/base/common/errors';
 
 export class CachedExtensionScanner {
-	private _isDirty = false;
-	private _scannedExtensions: Promise<IExtensionDescription[]> | null = null;
+
+	public readonly scannedExtensions: Promise<IExtensionDescription[]>;
+	private _scannedExtensionsResolve!: (result: IExtensionDescription[]) => void;
+	private _scannedExtensionsReject!: (err: any) => void;
 
 	constructor(
 		@INotificationService private readonly _notificationService: INotificationService,
@@ -28,23 +30,25 @@ export class CachedExtensionScanner {
 		@IExtensionsScannerService private readonly _extensionsScannerService: IExtensionsScannerService,
 		@IUserDataProfileService private readonly _userDataProfileService: IUserDataProfileService,
 		@ILogService private readonly _logService: ILogService,
-	) { }
-
-	public getExtensions(): Promise<IExtensionDescription[]> {
-		if (this._isDirty || !this._scannedExtensions) {
-			this._scannedExtensions = this._scanInstalledExtensions();
-			this._isDirty = false;
-		}
-		return this._scannedExtensions;
-	}
-
-	public onExtensionsChanged() {
-		this._isDirty = true;
+	) {
+		this.scannedExtensions = new Promise<IExtensionDescription[]>((resolve, reject) => {
+			this._scannedExtensionsResolve = resolve;
+			this._scannedExtensionsReject = reject;
+		});
 	}
 
 	public async scanSingleExtension(extensionPath: string, isBuiltin: boolean): Promise<IExtensionDescription | null> {
 		const scannedExtension = await this._extensionsScannerService.scanExistingExtension(URI.file(path.resolve(extensionPath)), isBuiltin ? ExtensionType.System : ExtensionType.User, { language: platform.language });
 		return scannedExtension ? toExtensionDescription(scannedExtension, false) : null;
+	}
+
+	public async startScanningExtensions(): Promise<void> {
+		try {
+			const extensions = await this._scanInstalledExtensions();
+			this._scannedExtensionsResolve(extensions);
+		} catch (err) {
+			this._scannedExtensionsReject(err);
+		}
 	}
 
 	private async _scanInstalledExtensions(): Promise<IExtensionDescription[]> {
@@ -106,4 +110,5 @@ export class CachedExtensionScanner {
 			return [];
 		}
 	}
+
 }

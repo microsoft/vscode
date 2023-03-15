@@ -45,7 +45,7 @@ import { IExtensionHostManager } from 'vs/workbench/services/extensions/common/e
 import { ExtensionHostExitCode } from 'vs/workbench/services/extensions/common/extensionHostProtocol';
 import { IResolveAuthorityErrorResult } from 'vs/workbench/services/extensions/common/extensionHostProxy';
 import { IExtensionManifestPropertiesService } from 'vs/workbench/services/extensions/common/extensionManifestPropertiesService';
-import { ExtensionRunningLocation } from 'vs/workbench/services/extensions/common/extensionRunningLocation';
+import { ExtensionRunningLocation, LocalProcessRunningLocation, LocalWebWorkerRunningLocation } from 'vs/workbench/services/extensions/common/extensionRunningLocation';
 import { ExtensionRunningLocationTracker, filterExtensionDescriptions } from 'vs/workbench/services/extensions/common/extensionRunningLocationTracker';
 import { ExtensionHostStartup, IExtensionHost, IExtensionService, WebWorkerExtHostConfigValue, toExtension, webWorkerExtHostConfig } from 'vs/workbench/services/extensions/common/extensions';
 import { ExtensionsProposedApi } from 'vs/workbench/services/extensions/common/extensionsProposedApi';
@@ -123,9 +123,6 @@ export class NativeExtensionService extends AbstractExtensionService implements 
 		);
 
 		this._extensionScanner = extensionScanner;
-		this.onDidChangeExtensions(e => {
-			this._extensionScanner.onExtensionsChanged();
-		});
 
 		// delay extension host creation and extension scanning
 		// until the workbench is running. we cannot defer the
@@ -150,7 +147,7 @@ export class NativeExtensionService extends AbstractExtensionService implements 
 	}
 
 	private async _scanAllLocalExtensions(): Promise<IExtensionDescription[]> {
-		return this._extensionScanner.getExtensions();
+		return this._extensionScanner.scannedExtensions;
 	}
 
 	protected override _onExtensionHostCrashed(extensionHost: IExtensionHostManager, code: number, signal: string | null): void {
@@ -393,7 +390,7 @@ export class NativeExtensionService extends AbstractExtensionService implements 
 	}
 
 	protected async _resolveExtensions(): Promise<ResolvedExtensions> {
-		this._extensionScanner.getExtensions(); // Don't wait for this, just start the scanning
+		this._extensionScanner.startScanningExtensions();
 
 		const remoteAuthority = this._environmentService.remoteAuthority;
 
@@ -605,9 +602,9 @@ class NativeExtensionHostFactory implements IExtensionHostFactory {
 				);
 				if (!process.sandboxed) {
 					// TODO@bpasero remove me once electron utility process has landed
-					return this._instantiationService.createInstance(LegacyNativeLocalProcessExtensionHost, runningLocation, startup, this._createLocalExtensionHostDataProvider(runningLocations, isInitialStart, runningLocation));
+					return this._instantiationService.createInstance(LegacyNativeLocalProcessExtensionHost, runningLocation, startup, this._createLocalProcessExtensionHostDataProvider(runningLocations, isInitialStart, runningLocation));
 				}
-				return this._instantiationService.createInstance(NativeLocalProcessExtensionHost, runningLocation, startup, this._createLocalExtensionHostDataProvider(runningLocations, isInitialStart, runningLocation));
+				return this._instantiationService.createInstance(NativeLocalProcessExtensionHost, runningLocation, startup, this._createLocalProcessExtensionHostDataProvider(runningLocations, isInitialStart, runningLocation));
 			}
 			case ExtensionHostKind.LocalWebWorker: {
 				if (this._webWorkerExtHostEnablement !== LocalWebWorkerExtHostEnablement.Disabled) {
@@ -616,7 +613,7 @@ class NativeExtensionHostFactory implements IExtensionHostFactory {
 							? (this._webWorkerExtHostEnablement === LocalWebWorkerExtHostEnablement.Lazy ? ExtensionHostStartup.Lazy : ExtensionHostStartup.EagerManualStart)
 							: ExtensionHostStartup.EagerAutoStart
 					);
-					return this._instantiationService.createInstance(WebWorkerExtensionHost, runningLocation, startup, this._createLocalExtensionHostDataProvider(runningLocations, isInitialStart, runningLocation));
+					return this._instantiationService.createInstance(WebWorkerExtensionHost, runningLocation, startup, this._createWebWorkerExtensionHostDataProvider(runningLocations, runningLocation));
 				}
 				return null;
 			}
@@ -630,12 +627,12 @@ class NativeExtensionHostFactory implements IExtensionHostFactory {
 		}
 	}
 
-	private _createLocalExtensionHostDataProvider(runningLocations: ExtensionRunningLocationTracker, isInitialStart: boolean, desiredRunningLocation: ExtensionRunningLocation): ILocalProcessExtensionHostDataProvider & IWebWorkerExtensionHostDataProvider {
+	private _createLocalProcessExtensionHostDataProvider(runningLocations: ExtensionRunningLocationTracker, isInitialStart: boolean, desiredRunningLocation: LocalProcessRunningLocation): ILocalProcessExtensionHostDataProvider {
 		return {
-			getInitData: async (): Promise<ILocalProcessExtensionHostInitData & IWebWorkerExtensionHostInitData> => {
+			getInitData: async (): Promise<ILocalProcessExtensionHostInitData> => {
 				if (isInitialStart) {
 					// Here we load even extensions that would be disabled by workspace trust
-					const localExtensions = checkEnabledAndProposedAPI(this._extensionEnablementService, this._extensionsProposedApi, await this._extensionScanner.getExtensions(), /* ignore workspace trust */true);
+					const localExtensions = checkEnabledAndProposedAPI(this._extensionEnablementService, this._extensionsProposedApi, await this._extensionScanner.scannedExtensions, /* ignore workspace trust */true);
 					const runningLocation = runningLocations.computeRunningLocation(localExtensions, [], false);
 					const myExtensions = filterExtensionDescriptions(localExtensions, runningLocation, extRunningLocation => desiredRunningLocation.equals(extRunningLocation));
 					return {
@@ -651,6 +648,19 @@ class NativeExtensionHostFactory implements IExtensionHostFactory {
 						myExtensions: myExtensions.map(extension => extension.identifier)
 					};
 				}
+			}
+		};
+	}
+
+	private _createWebWorkerExtensionHostDataProvider(runningLocations: ExtensionRunningLocationTracker, desiredRunningLocation: LocalWebWorkerRunningLocation): IWebWorkerExtensionHostDataProvider {
+		return {
+			getInitData: async (): Promise<IWebWorkerExtensionHostInitData> => {
+				const allExtensions = await this._getExtensions();
+				const myExtensions = runningLocations.filterByRunningLocation(allExtensions, desiredRunningLocation);
+				return {
+					allExtensions: allExtensions,
+					myExtensions: myExtensions.map(extension => extension.identifier)
+				};
 			}
 		};
 	}
