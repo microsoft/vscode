@@ -60,8 +60,9 @@ export const IInteractiveEditorService = createDecorator<IInteractiveEditorServi
 
 export interface IInteractiveEditorService {
 	_serviceBrand: undefined;
-	add(provider: IInteractiveEditorSessionProvider): IDisposable;
-	getAll(): Iterable<IInteractiveEditorSessionProvider>;
+
+	addProvider(provider: IInteractiveEditorSessionProvider): IDisposable;
+	getAllProvider(): Iterable<IInteractiveEditorSessionProvider>;
 }
 
 export const MENU_INTERACTIVE_EDITOR_WIDGET = MenuId.for('interactiveEditorWidget');

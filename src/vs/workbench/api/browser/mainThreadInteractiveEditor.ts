@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { DisposableMap } from 'vs/base/common/lifecycle';
-import { IInteractiveEditorResponse, IInteractiveEditorService } from 'vs/editor/contrib/interactive/common/interactiveEditor';
+import { IInteractiveEditorResponse, IInteractiveEditorService } from 'vs/workbench/contrib/interactiveEditor/common/interactiveEditor';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { reviveWorkspaceEditDto } from 'vs/workbench/api/browser/mainThreadBulkEdits';
 import { ExtHostContext, ExtHostInteractiveEditorShape, MainContext, MainThreadInteractiveEditorShape } from 'vs/workbench/api/common/extHost.protocol';
@@ -29,7 +29,7 @@ export class MainThreadInteractiveEditor implements MainThreadInteractiveEditorS
 	}
 
 	async $registerInteractiveEditorProvider(handle: number, debugName: string): Promise<void> {
-		const unreg = this._interactiveEditorService.add({
+		const unreg = this._interactiveEditorService.addProvider({
 			debugName,
 			prepareInteractiveEditorSession: async (model, range, token) => {
 				const session = await this._proxy.$prepareInteractiveSession(handle, model.uri, range, token);
