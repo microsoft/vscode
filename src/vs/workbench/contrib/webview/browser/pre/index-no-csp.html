@@ -267,7 +267,10 @@
 						navigator.serviceWorker.addEventListener('controllerchange', onControllerChange);
 					}
 				}).catch(error => {
-					reject(new Error(`Could not register service workers: ${error}.`));
+					if (!onElectron && error instanceof Error && error.message.includes('user denied permission')) {
+						return reject(new Error(`Could not register service worker. Please make sure third party cookies are enabled: ${error}`));
+					}
+					return reject(new Error(`Could not register service worker: ${error}.`));
 				});
 		});
 

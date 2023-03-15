@@ -6,7 +6,7 @@
 import * as osPath from 'vs/base/common/path';
 import { IMouseWheelEvent } from 'vs/base/browser/mouseEvent';
 import { coalesce } from 'vs/base/common/arrays';
-import { DeferredPromise, runWhenIdle } from 'vs/base/common/async';
+import { DeferredPromise } from 'vs/base/common/async';
 import { decodeBase64 } from 'vs/base/common/buffer';
 import { Emitter, Event } from 'vs/base/common/event';
 import { getExtensionForMimeType } from 'vs/base/common/mime';
@@ -126,6 +126,9 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 	element: HTMLElement;
 	webview: IWebviewElement | undefined = undefined;
 	insetMapping: Map<IDisplayOutputViewModel, ICachedInset<T>> = new Map();
+	pendingWebviewIdleInsetCreationRequest: Map<IDisplayOutputViewModel, ICachedInset<T>> = new Map();
+	private reversedPendingWebviewIdleInsetMapping: Map<string, IDisplayOutputViewModel> = new Map();
+
 	pendingInsetCreationRequest: Map<IDisplayOutputViewModel, IDisposable> = new Map();
 	readonly markupPreviewMapping = new Map<string, IMarkupCellInitialization>();
 	private hiddenInsetMapping: Set<IDisplayOutputViewModel> = new Set();
@@ -499,10 +502,10 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 		return !!this.webview;
 	}
 
-	createWebview(): void {
+	createWebview(): Promise<void> {
 		const baseUrl = this.asWebviewUri(this.getNotebookBaseUri(), undefined);
 		const htmlContent = this.generateContent(baseUrl.toString());
-		this._initialize(htmlContent);
+		return this._initialize(htmlContent);
 	}
 
 	private getNotebookBaseUri() {
@@ -537,7 +540,7 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 		];
 	}
 
-	private _initialize(content: string) {
+	private _initialize(content: string): Promise<void> {
 		if (!document.body.contains(this.element)) {
 			throw new Error('Element is already detached from the DOM tree');
 		}
@@ -547,6 +550,12 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 		this._register(this.webview);
 
 		this._register(new WebviewWindowDragMonitor(() => this.webview));
+
+		const initializePromise = new DeferredPromise<void>();
+
+		this._register(this.webview.onFatalError(e => {
+			initializePromise.error(new Error(`Could not initialize webview: ${e.message}}`));
+		}));
 
 		this._register(this.webview.onMessage(async (message) => {
 			const data: FromWebviewMessage | { readonly __vscode_notebook_message: undefined } = message.message;
@@ -560,6 +569,7 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 
 			switch (data.type) {
 				case 'initialized': {
+					initializePromise.complete();
 					this.initializeWebViewState();
 					break;
 				}
@@ -579,6 +589,17 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 								const { cellInfo, output } = resolvedResult;
 								this.notebookEditor.updateOutputHeight(cellInfo, output, height, !!update.init, 'webview#dimension');
 								this.notebookEditor.scheduleOutputHeightAck(cellInfo, update.id, height);
+							} else if (update.init) {
+								// might be idle render request's ack
+								const outputRequest = this.reversedPendingWebviewIdleInsetMapping.get(update.id);
+								if (outputRequest) {
+									const inset = this.pendingWebviewIdleInsetCreationRequest.get(outputRequest)!;
+									const cellInfo = inset.cellInfo;
+									this.reversedInsetMapping.set(update.id, outputRequest);
+									this.insetMapping.set(outputRequest, inset);
+									this.notebookEditor.updateOutputHeight(cellInfo, outputRequest, height, !!update.init, 'webview#dimension');
+									this.notebookEditor.scheduleOutputHeightAck(cellInfo, update.id, height);
+								}
 							}
 						} else {
 							this.notebookEditor.updateMarkupCellHeight(update.id, height, !!update.init);
@@ -830,6 +851,8 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 				}
 			}
 		}));
+
+		return initializePromise.p;
 	}
 
 	private _handleNotebookCellResource(uri: URI) {
@@ -1279,12 +1302,37 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 		}
 	}
 
-	createOutput(cellInfo: T, content: IInsetRenderOutput, cellTop: number, offset: number, createWhenIdle: boolean): void {
+	requestCreateOutputWhenWebviewIdle(cellInfo: T, content: IInsetRenderOutput, cellTop: number, offset: number) {
+		if (this._disposed) {
+			return;
+		}
+
+		if (this.insetMapping.has(content.source)) {
+			return;
+		}
+
+		if (this.pendingWebviewIdleInsetCreationRequest.has(content.source)) {
+			return;
+		}
+
+		const { message, renderer } = this._createOutputCreationMessage(cellInfo, content, cellTop, offset, true, true);
+		this._sendMessageToWebview(message);
+		this.pendingWebviewIdleInsetCreationRequest.set(content.source, { outputId: message.outputId, cellInfo: cellInfo, renderer, cachedCreation: message });
+		this.reversedPendingWebviewIdleInsetMapping.set(message.outputId, content.source);
+	}
+
+	createOutput(cellInfo: T, content: IInsetRenderOutput, cellTop: number, offset: number): void {
 		if (this._disposed) {
 			return;
 		}
 
 		const cachedInset = this.insetMapping.get(content.source);
+
+		// we now request to render the output immediately, so we can remove the pending request
+		this.pendingWebviewIdleInsetCreationRequest.delete(content.source);
+		if (cachedInset) {
+			this.reversedPendingWebviewIdleInsetMapping.delete(cachedInset.outputId);
+		}
 
 		if (cachedInset && this._cachedInsetEqual(cachedInset, content)) {
 			this.hiddenInsetMapping.delete(content.source);
@@ -1300,70 +1348,70 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 
 		// create new output
 		const createOutput = () => {
-			const messageBase = {
-				type: 'html',
-				executionId: cellInfo.executionId,
-				cellId: cellInfo.cellId,
-				cellTop: cellTop,
-				outputOffset: offset,
-				left: 0,
-				requiredPreloads: [],
-			} as const;
-
-			let message: ICreationRequestMessage;
-			let renderer: INotebookRendererInfo | undefined;
-			if (content.type === RenderOutputType.Extension) {
-				const output = content.source.model;
-				renderer = content.renderer;
-				const first = output.outputs.find(op => op.mime === content.mimeType)!;
-
-				// TODO@jrieken - the message can contain "bytes" and those are transferable
-				// which improves IPC performance and therefore should be used. However, it does
-				// means that the bytes cannot be used here anymore
-				message = {
-					...messageBase,
-					outputId: output.outputId,
-					rendererId: content.renderer.id,
-					content: {
-						type: RenderOutputType.Extension,
-						outputId: output.outputId,
-						metadata: output.metadata,
-						output: {
-							mime: first.mime,
-							valueBytes: first.data.buffer,
-						},
-						allOutputs: output.outputs.map(output => ({ mime: output.mime })),
-					},
-				};
-			} else {
-				message = {
-					...messageBase,
-					outputId: UUID.generateUuid(),
-					content: {
-						type: content.type,
-						htmlContent: content.htmlContent,
-					}
-				};
-			}
-
+			const { message, renderer } = this._createOutputCreationMessage(cellInfo, content, cellTop, offset, false, false);
 			this._sendMessageToWebview(message);
 			this.insetMapping.set(content.source, { outputId: message.outputId, cellInfo: cellInfo, renderer, cachedCreation: message });
 			this.hiddenInsetMapping.delete(content.source);
 			this.reversedInsetMapping.set(message.outputId, content.source);
 		};
 
-		if (createWhenIdle) {
-			this.pendingInsetCreationRequest.get(content.source)?.dispose();
-			this.pendingInsetCreationRequest.set(content.source, runWhenIdle(() => {
-				createOutput();
-				this.pendingInsetCreationRequest.delete(content.source);
-			}));
+		createOutput();
+	}
+
+	private _createOutputCreationMessage(cellInfo: T, content: IInsetRenderOutput, cellTop: number, offset: number, createOnIdle: boolean, initiallyHidden: boolean): { readonly message: ICreationRequestMessage; readonly renderer: INotebookRendererInfo | undefined } {
+		const messageBase = {
+			type: 'html',
+			executionId: cellInfo.executionId,
+			cellId: cellInfo.cellId,
+			cellTop: cellTop,
+			outputOffset: offset,
+			left: 0,
+			requiredPreloads: [],
+			createOnIdle: createOnIdle
+		} as const;
+
+		let message: ICreationRequestMessage;
+		let renderer: INotebookRendererInfo | undefined;
+		if (content.type === RenderOutputType.Extension) {
+			const output = content.source.model;
+			renderer = content.renderer;
+			const first = output.outputs.find(op => op.mime === content.mimeType)!;
+
+			// TODO@jrieken - the message can contain "bytes" and those are transferable
+			// which improves IPC performance and therefore should be used. However, it does
+			// means that the bytes cannot be used here anymore
+			message = {
+				...messageBase,
+				outputId: output.outputId,
+				rendererId: content.renderer.id,
+				content: {
+					type: RenderOutputType.Extension,
+					outputId: output.outputId,
+					metadata: output.metadata,
+					output: {
+						mime: first.mime,
+						valueBytes: first.data.buffer,
+					},
+					allOutputs: output.outputs.map(output => ({ mime: output.mime })),
+				},
+				initiallyHidden: initiallyHidden
+			};
 		} else {
-			this.pendingInsetCreationRequest.get(content.source)?.dispose();
-			this.pendingInsetCreationRequest.delete(content.source);
-			createOutput();
+			message = {
+				...messageBase,
+				outputId: UUID.generateUuid(),
+				content: {
+					type: content.type,
+					htmlContent: content.htmlContent,
+				},
+				initiallyHidden: initiallyHidden
+			};
 		}
 
+		return {
+			message,
+			renderer
+		};
 	}
 
 	updateOutput(cellInfo: T, content: IInsetRenderOutput, cellTop: number, offset: number): void {
@@ -1372,7 +1420,7 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 		}
 
 		if (!this.insetMapping.has(content.source)) {
-			this.createOutput(cellInfo, content, cellTop, offset, false);
+			this.createOutput(cellInfo, content, cellTop, offset);
 			return;
 		}
 

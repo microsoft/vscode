@@ -8,7 +8,7 @@ import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditorAction, ServicesAccessor, registerEditorAction } from 'vs/editor/browser/editorExtensions';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { CTX_INTERACTIVE_EDITOR_VISIBLE, MENU_INTERACTIVE_EDITOR_WIDGET } from 'vs/editor/contrib/interactive/common/interactiveEditor';
+import { CTX_INTERACTIVE_EDITOR_VISIBLE, MENU_INTERACTIVE_EDITOR_WIDGET } from 'vs/workbench/contrib/interactiveEditor/common/interactiveEditor';
 import { localize } from 'vs/nls';
 import { Action2, IAction2Options, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
@@ -18,10 +18,11 @@ import { ActiveEditorContext } from 'vs/workbench/common/contextkeys';
 import { IViewsService } from 'vs/workbench/common/views';
 import { IInteractiveSessionEditorOptions, InteractiveSessionEditor } from 'vs/workbench/contrib/interactiveSession/browser/interactiveSessionEditor';
 import { InteractiveSessionViewPane } from 'vs/workbench/contrib/interactiveSession/browser/interactiveSessionSidebar';
-import { CONTEXT_IN_INTERACTIVE_INPUT, CONTEXT_IN_INTERACTIVE_SESSION, IInteractiveSessionWidgetService } from 'vs/workbench/contrib/interactiveSession/browser/interactiveSessionWidget';
+import { IInteractiveSessionWidgetService } from 'vs/workbench/contrib/interactiveSession/browser/interactiveSessionWidget';
+import { CONTEXT_IN_INTERACTIVE_INPUT, CONTEXT_IN_INTERACTIVE_SESSION } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionContextKeys';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 
-const category = { value: localize('interactiveSession.category', "Interactive Session"), original: 'Interactive Session' };
+export const INTERACTIVE_SESSION_CATEGORY = { value: localize('interactiveSession.category', "Interactive Session"), original: 'Interactive Session' };
 
 export function registerInteractiveSessionActions() {
 	registerEditorAction(class InteractiveSessionAcceptInput extends EditorAction {
@@ -88,10 +89,10 @@ export function registerInteractiveSessionActions() {
 				}]
 			});
 		}
-		run(accessor: ServicesAccessor, ...args: any[]) {
+		async run(accessor: ServicesAccessor, ...args: any[]) {
 			const editorService = accessor.get(IEditorService);
 			if (editorService.activeEditorPane instanceof InteractiveSessionEditor) {
-				editorService.activeEditorPane.clear();
+				await editorService.activeEditorPane.clear();
 			}
 		}
 	});
@@ -153,14 +154,14 @@ export function registerInteractiveSessionActions() {
 					value: localize('interactiveSession.clear.label', "Clear"),
 					original: 'Clear'
 				},
-				category,
+				category: INTERACTIVE_SESSION_CATEGORY,
 				icon: Codicon.clearAll,
 				f1: true
 			});
 		}
-		run(accessor: ServicesAccessor, ...args: any[]) {
+		async run(accessor: ServicesAccessor, ...args: any[]) {
 			const widgetService = accessor.get(IInteractiveSessionWidgetService);
-			widgetService.lastFocusedWidget?.clear();
+			await widgetService.lastFocusedWidget?.clear();
 		}
 	});
 }
@@ -172,7 +173,7 @@ export function getOpenInteractiveSessionEditorAction(id: string, label: string,
 				id: `workbench.action.openInteractiveSession.${id}`,
 				title: { value: localize('interactiveSession.open', "Open Editor ({0})", label), original: `Open Editor (${label})` },
 				f1: true,
-				category,
+				category: INTERACTIVE_SESSION_CATEGORY,
 				precondition: ContextKeyExpr.deserialize(when)
 			});
 		}
@@ -197,7 +198,7 @@ const getClearInteractiveSessionActionDescriptorForViewTitle = (viewId: string, 
 		group: 'navigation',
 		order: 0
 	},
-	category,
+	category: INTERACTIVE_SESSION_CATEGORY,
 	icon: Codicon.clearAll,
 	f1: false
 });
@@ -208,8 +209,8 @@ export function getClearAction(viewId: string, providerId: string) {
 			super(getClearInteractiveSessionActionDescriptorForViewTitle(viewId, providerId));
 		}
 
-		runInView(accessor: ServicesAccessor, view: InteractiveSessionViewPane) {
-			view.clear();
+		async runInView(accessor: ServicesAccessor, view: InteractiveSessionViewPane) {
+			await view.clear();
 		}
 	};
 }

@@ -799,13 +799,12 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 				appenders.push(new OneDataSystemAppender(isInternal, 'monacoworkbench', null, this.productService.aiConfig.ariaKey));
 			}
 
-			const { installSourcePath } = this.environmentMainService;
 			const machineId = await resolveMachineId(this.stateService, this.logService);
 
 			const config: ITelemetryServiceConfig = {
 				appenders,
 				sendErrorTelemetry: false,
-				commonProperties: resolveCommonProperties(this.fileService, release(), hostname(), process.arch, this.productService.commit, this.productService.version, machineId, isInternal, installSourcePath),
+				commonProperties: resolveCommonProperties(release(), hostname(), process.arch, this.productService.commit, this.productService.version, machineId, isInternal),
 				piiPaths: getPiiPathsFromEnvironment(this.environmentMainService)
 			};
 
