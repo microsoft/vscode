@@ -35,14 +35,13 @@ export interface KeybindingsSearchOptions extends SearchOptions {
 
 export class KeybindingsSearchWidget extends SearchWidget {
 
-	private _firstChord: ResolvedKeybinding | null;
-	private _secondChord: ResolvedKeybinding | null;
+	private _chords: ResolvedKeybinding[] | null;
 	private _inputValue: string;
 
 	private readonly recordDisposables = this._register(new DisposableStore());
 
-	private _onKeybinding = this._register(new Emitter<[ResolvedKeybinding | null, ResolvedKeybinding | null]>());
-	readonly onKeybinding: Event<[ResolvedKeybinding | null, ResolvedKeybinding | null]> = this._onKeybinding.event;
+	private _onKeybinding = this._register(new Emitter<ResolvedKeybinding[] | null>());
+	readonly onKeybinding: Event<ResolvedKeybinding[] | null> = this._onKeybinding.event;
 
 	private _onEnter = this._register(new Emitter<void>());
 	readonly onEnter: Event<void> = this._onEnter.event;
@@ -61,8 +60,7 @@ export class KeybindingsSearchWidget extends SearchWidget {
 	) {
 		super(parent, options, contextViewService, instantiationService, contextKeyService, keybindingService);
 		this._register(toDisposable(() => this.stopRecordingKeys()));
-		this._firstChord = null;
-		this._secondChord = null;
+		this._chords = null;
 		this._inputValue = '';
 
 		this._reset();
@@ -93,8 +91,7 @@ export class KeybindingsSearchWidget extends SearchWidget {
 	}
 
 	private _reset() {
-		this._firstChord = null;
-		this._secondChord = null;
+		this._chords = null;
 	}
 
 	private _onKeyDown(keyboardEvent: IKeyboardEvent): void {
@@ -117,29 +114,21 @@ export class KeybindingsSearchWidget extends SearchWidget {
 		const info = `code: ${keyboardEvent.browserEvent.code}, keyCode: ${keyboardEvent.browserEvent.keyCode}, key: ${keyboardEvent.browserEvent.key} => UI: ${keybinding.getAriaLabel()}, user settings: ${keybinding.getUserSettingsLabel()}, dispatch: ${keybinding.getDispatchChords()[0]}`;
 		const options = this.options as KeybindingsSearchOptions;
 
-		const hasFirstChord = (this._firstChord && this._firstChord.getDispatchChords()[0] !== null);
-		const hasSecondChord = (this._secondChord && this._secondChord.getDispatchChords()[0] !== null);
-		if (hasFirstChord && hasSecondChord) {
-			// Reset
-			this._firstChord = keybinding;
-			this._secondChord = null;
-		} else if (!hasFirstChord) {
-			this._firstChord = keybinding;
+		if (!this._chords) {
+			this._chords = [];
+		}
+		const lastChordIsComplete = (this._chords.length === 0 || this._chords[this._chords.length - 1].getDispatchChords()[0] !== null);
+		if (lastChordIsComplete) {
+			this._chords.push(keybinding);
 		} else {
-			this._secondChord = keybinding;
+			this._chords[this._chords.length - 1] = keybinding;
 		}
 
-		let value = '';
-		if (this._firstChord) {
-			value = (this._firstChord.getUserSettingsLabel() || '');
-		}
-		if (this._secondChord) {
-			value = value + ' ' + this._secondChord.getUserSettingsLabel();
-		}
+		const value = this._chords.map((keybinding) => keybinding.getUserSettingsLabel() || '').join(' ');
 		this.setInputValue(options.quoteRecordedKeys ? `"${value}"` : value);
 
 		this.inputBox.inputElement.title = info;
-		this._onKeybinding.fire([this._firstChord, this._secondChord]);
+		this._onKeybinding.fire(this._chords);
 	}
 }
 
@@ -153,8 +142,7 @@ export class DefineKeybindingWidget extends Widget {
 	private _outputNode: HTMLElement;
 	private _showExistingKeybindingsNode: HTMLElement;
 
-	private _firstChord: ResolvedKeybinding | null = null;
-	private _secondChord: ResolvedKeybinding | null = null;
+	private _chords: ResolvedKeybinding[] | null = null;
 	private _isVisible: boolean = false;
 
 	private _onHide = this._register(new Emitter<void>());
@@ -210,8 +198,7 @@ export class DefineKeybindingWidget extends Widget {
 				this._isVisible = true;
 				this._domNode.setDisplay('block');
 
-				this._firstChord = null;
-				this._secondChord = null;
+				this._chords = null;
 				this._keybindingInputWidget.setInputValue('');
 				dom.clearNode(this._outputNode);
 				dom.clearNode(this._showExistingKeybindingsNode);
@@ -250,20 +237,24 @@ export class DefineKeybindingWidget extends Widget {
 		}
 	}
 
-	private onKeybinding(keybinding: [ResolvedKeybinding | null, ResolvedKeybinding | null]): void {
-		const [firstChord, secondChord] = keybinding;
-		this._firstChord = firstChord;
-		this._secondChord = secondChord;
+	private onKeybinding(keybinding: ResolvedKeybinding[] | null): void {
+		this._chords = keybinding;
 		dom.clearNode(this._outputNode);
 		dom.clearNode(this._showExistingKeybindingsNode);
 
-		const firstLabel = new KeybindingLabel(this._outputNode, OS, defaultKeybindingLabelStyles);
-		firstLabel.set(withNullAsUndefined(this._firstChord));
 
-		if (this._secondChord) {
-			this._outputNode.appendChild(document.createTextNode(nls.localize('defineKeybinding.chordsTo', "chord to")));
-			const chordLabel = new KeybindingLabel(this._outputNode, OS, defaultKeybindingLabelStyles);
-			chordLabel.set(this._secondChord);
+
+		const firstLabel = new KeybindingLabel(this._outputNode, OS, defaultKeybindingLabelStyles);
+		firstLabel.set(withNullAsUndefined(this._chords?.[0]));
+
+
+		if (this._chords) {
+			for (let i = 1; i < this._chords.length; i++) {
+				this._outputNode.appendChild(document.createTextNode(nls.localize('defineKeybinding.chordsTo', "chord to")));
+				const chordLabel = new KeybindingLabel(this._outputNode, OS, defaultKeybindingLabelStyles);
+				chordLabel.set(this._chords[i]);
+			}
+
 		}
 
 		const label = this.getUserSettingsLabel();
@@ -274,18 +265,14 @@ export class DefineKeybindingWidget extends Widget {
 
 	private getUserSettingsLabel(): string | null {
 		let label: string | null = null;
-		if (this._firstChord) {
-			label = this._firstChord.getUserSettingsLabel();
-			if (this._secondChord) {
-				label = label + ' ' + this._secondChord.getUserSettingsLabel();
-			}
+		if (this._chords) {
+			label = this._chords.map(keybinding => keybinding.getUserSettingsLabel()).join(' ');
 		}
 		return label;
 	}
 
 	private onCancel(): void {
-		this._firstChord = null;
-		this._secondChord = null;
+		this._chords = null;
 		this.hide();
 	}
 
