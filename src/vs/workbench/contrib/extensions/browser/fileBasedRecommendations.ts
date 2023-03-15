@@ -183,6 +183,11 @@ export class FileBasedRecommendations extends ExtensionRecommendations {
 				let pathGlobMatched = false;
 
 				const isLanguageCondition = !!(<IFileLanguageCondition>condition).languages;
+				const isFileContentCondition = !!(<IFileContentCondition>condition).contentPattern;
+				if (isLanguageCondition || isFileContentCondition) {
+					conditionsByPattern.push(condition);
+				}
+
 				if (isLanguageCondition) {
 					if ((<IFileLanguageCondition>condition).languages.includes(model.getLanguageId())) {
 						languageMatched = true;
@@ -195,10 +200,6 @@ export class FileBasedRecommendations extends ExtensionRecommendations {
 						pathGlobMatched = true;
 					}
 					processedPathGlobs.set(pathGlob, pathGlobMatched);
-				}
-
-				if (isLanguageCondition || pathGlobMatched) {
-					conditionsByPattern.push(condition);
 				}
 
 				if (!languageMatched && !pathGlobMatched) {
@@ -219,7 +220,6 @@ export class FileBasedRecommendations extends ExtensionRecommendations {
 					}
 				}
 
-				const isFileContentCondition = !!(<IFileContentCondition>condition).contentPattern;
 				if (matched && isFileContentCondition) {
 					if (!model.findMatches((<IFileContentCondition>condition).contentPattern, false, true, false, null, false).length) {
 						matched = false;
