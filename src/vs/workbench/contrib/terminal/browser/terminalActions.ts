@@ -1307,21 +1307,6 @@ export function registerTerminalActions() {
 			accessor.get(ITerminalService).activeInstance?.relaunch();
 		}
 	});
-	// TODO: Ensure this information is keyboard accessible
-	// registerAction2(class extends Action2 {
-	// 	constructor() {
-	// 		super({
-	// 			id: TerminalCommandId.ShowEnvironmentInformation,
-	// 			title: { value: localize('workbench.action.terminal.showEnvironmentInformation', "Show Environment Information"), original: 'Show Environment Information' },
-	// 			f1: true,
-	// 			category,
-	// 			precondition: TerminalContextKeys.processSupported
-	// 		});
-	// 	}
-	// 	run(accessor: ServicesAccessor) {
-	// 		accessor.get(ITerminalService).activeInstance?.showEnvironmentInfoHover();
-	// 	}
-	// });
 	registerAction2(class extends Action2 {
 		constructor() {
 			super({

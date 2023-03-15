@@ -31,7 +31,7 @@ export class EnvironmentVariableInfoStale implements IEnvironmentVariableInfo {
 		let message = localize('extensionEnvironmentContributionInfoStale', "The following extensions want to relaunch the terminal to contribute to its environment:");
 		message += '\n';
 		for (const ext of extSet) {
-			message += `\n- \`${ext}\`: An optional description of what it does`;
+			message += `\n- \`${ext}\``;
 		}
 		return message;
 	}
@@ -70,7 +70,7 @@ export class EnvironmentVariableInfoChangesActive implements IEnvironmentVariabl
 		let message = localize('extensionEnvironmentContributionInfoActive', "The following extensions have contributed to this terminal's environment:");
 		message += '\n';
 		for (const ext of extSet) {
-			message += `\n- \`${ext}\`: An optional description of what it does`;
+			message += `\n- \`${ext}\``;
 		}
 		return message;
 	}

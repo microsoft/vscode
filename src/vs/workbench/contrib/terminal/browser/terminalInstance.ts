@@ -2141,19 +2141,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	}
 
 	private _refreshEnvironmentVariableInfoWidgetState(info?: IEnvironmentVariableInfo): void {
-		// Check if the widget should not exist
-		// if (
-		// 	!info ||
-		// 	this._configHelper.config.environmentChangesIndicator === 'off' ||
-		// 	this._configHelper.config.environmentChangesIndicator === 'warnonly' && !info.requiresAction ||
-		// 	this._configHelper.config.environmentChangesIndicator === 'on' && !info.requiresAction
-		// ) {
-		// 	this.statusList.remove(TerminalStatus.RelaunchNeeded);
-		// 	this._environmentInfo?.disposable.dispose();
-		// 	this._environmentInfo = undefined;
-		// 	return;
-		// }
-
+		// Check if the status should exist
 		if (!info) {
 			this.statusList.remove(TerminalStatus.RelaunchNeeded);
 			this.statusList.remove(TerminalStatus.EnvironmentVariableInfoChangesActive);
@@ -2176,7 +2164,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		}
 
 		// Re-create statuses
-		// TODO: Move these into the info interface
 		this.statusList.add(info.getStatus());
 	}
 
