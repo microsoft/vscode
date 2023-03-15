@@ -64,7 +64,6 @@ import { showRunRecentQuickPick } from 'vs/workbench/contrib/terminal/browser/te
 import { ITerminalStatusList, TerminalStatus, TerminalStatusList } from 'vs/workbench/contrib/terminal/browser/terminalStatusList';
 import { TypeAheadAddon } from 'vs/workbench/contrib/terminal/browser/xterm/terminalTypeAheadAddon';
 import { getTerminalResourcesFromDragEvent, getTerminalUri } from 'vs/workbench/contrib/terminal/browser/terminalUri';
-import { EnvironmentVariableInfoWidget } from 'vs/workbench/contrib/terminal/browser/widgets/environmentVariableInfoWidget';
 import { TerminalWidgetManager } from 'vs/workbench/contrib/terminal/browser/widgets/widgetManager';
 import { ITerminalQuickFixAddon, TerminalQuickFixAddon } from 'vs/workbench/contrib/terminal/browser/xterm/quickFixAddon';
 import { LineDataEventAddon } from 'vs/workbench/contrib/terminal/browser/xterm/lineDataEventAddon';
@@ -193,7 +192,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	private _icon: TerminalIcon | undefined;
 	private _messageTitleDisposable: IDisposable | undefined;
 	private _widgetManager: TerminalWidgetManager = new TerminalWidgetManager();
-	private _environmentInfo: { widget: EnvironmentVariableInfoWidget; disposable: IDisposable } | undefined;
 	private _dndObserver: IDisposable | undefined;
 	private _lastLayoutDimensions: dom.Dimension | undefined;
 	private _hasHadInput: boolean;
@@ -1734,8 +1732,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 		// Dispose the environment info widget if it exists
 		this.statusList.remove(TerminalStatus.RelaunchNeeded);
-		this._environmentInfo?.disposable.dispose();
-		this._environmentInfo = undefined;
 
 		if (!reset) {
 			// HACK: Force initialText to be non-falsy for reused terminals such that the
@@ -2139,12 +2135,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		this._shellLaunchConfig.env = shellLaunchConfig.env;
 	}
 
-	showEnvironmentInfoHover(): void {
-		if (this._environmentInfo) {
-			this._environmentInfo.widget.focus();
-		}
-	}
-
 	private _onEnvironmentVariableInfoChanged(info: IEnvironmentVariableInfo): void {
 		if (info.requiresAction) {
 			this.xterm?.raw.textarea?.setAttribute('aria-label', nls.localize('terminalStaleTextBoxAriaLabel', "Terminal {0} environment is stale, run the 'Show Environment Information' command for more information", this._instanceId));
@@ -2153,16 +2143,10 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	}
 
 	private _refreshEnvironmentVariableInfoWidgetState(info?: IEnvironmentVariableInfo): void {
-		// Check if the widget should not exist
-		if (
-			!info ||
-			this._configHelper.config.environmentChangesIndicator === 'off' ||
-			this._configHelper.config.environmentChangesIndicator === 'warnonly' && !info.requiresAction ||
-			this._configHelper.config.environmentChangesIndicator === 'on' && !info.requiresAction
-		) {
+		// Check if the status should exist
+		if (!info) {
 			this.statusList.remove(TerminalStatus.RelaunchNeeded);
-			this._environmentInfo?.disposable.dispose();
-			this._environmentInfo = undefined;
+			this.statusList.remove(TerminalStatus.EnvironmentVariableInfoChangesActive);
 			return;
 		}
 
@@ -2181,22 +2165,8 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			return;
 		}
 
-		// (Re-)create the widget
-		this._environmentInfo?.disposable.dispose();
-		const widget = this._scopedInstantiationService.createInstance(EnvironmentVariableInfoWidget, info);
-		const disposable = this._widgetManager.attachWidget(widget);
-		if (info.requiresAction) {
-			this.statusList.add({
-				id: TerminalStatus.RelaunchNeeded,
-				severity: Severity.Warning,
-				icon: Codicon.warning,
-				tooltip: info.getInfo(),
-				hoverActions: info.getActions ? info.getActions() : undefined
-			});
-		}
-		if (disposable) {
-			this._environmentInfo = { widget, disposable };
-		}
+		// Re-create statuses
+		this.statusList.add(info.getStatus());
 	}
 
 	async toggleEscapeSequenceLogging(): Promise<boolean> {
