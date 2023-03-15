@@ -6,7 +6,7 @@
 import { BrowserFeatures } from 'vs/base/browser/canIUse';
 import { Action } from 'vs/base/common/actions';
 import { Codicon } from 'vs/base/common/codicons';
-import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
+import { KeyChord, KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { Schemas } from 'vs/base/common/network';
 import { isLinux, isWindows } from 'vs/base/common/platform';
 import { IDisposable } from 'vs/base/common/lifecycle';
@@ -1723,6 +1723,25 @@ export function registerTerminalActions() {
 				terminalGroupService.focusTabs();
 				listService.lastFocusedList?.focusNext();
 			}
+		}
+	});
+	registerAction2(class extends Action2 {
+		constructor() {
+			super({
+				id: TerminalCommandId.ShowOrFocusHover,
+				title: terminalStrings.showOrFocusHover,
+				f1: false,
+				category,
+				precondition: ContextKeyExpr.or(ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated), TerminalContextKeys.isOpen),
+				keybinding: {
+					primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyMod.CtrlCmd | KeyCode.KeyI),
+					weight: KeybindingWeight.WorkbenchContrib,
+					when: ContextKeyExpr.or(TerminalContextKeys.tabsFocus, TerminalContextKeys.focus)
+				}
+			});
+		}
+		async run(accessor: ServicesAccessor) {
+			accessor.get(ITerminalGroupService).focusHover();
 		}
 	});
 	registerAction2(class extends Action2 {

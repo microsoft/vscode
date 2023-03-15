@@ -80,6 +80,7 @@ export class TerminalTabList extends WorkbenchList<ITerminalInstance> {
 		@IDecorationsService decorationsService: IDecorationsService,
 		@IThemeService private readonly _themeService: IThemeService,
 		@ILifecycleService lifecycleService: ILifecycleService,
+		@IHoverService private readonly _hoverService: IHoverService,
 	) {
 		super('TerminalTabsList', container,
 			{
@@ -214,6 +215,18 @@ export class TerminalTabList extends WorkbenchList<ITerminalInstance> {
 		this.splice(0, this.length, this._terminalGroupService.instances.slice());
 	}
 
+	showHover(): void {
+		const instance = this.getSelectedElements()[0];
+		if (!instance) {
+			return;
+		}
+
+		this._hoverService.showHover({
+			...getInstanceHoverInfo(instance),
+			target: this.getHTMLElement()
+		}, true);
+	}
+
 	private _updateContextKey() {
 		this._terminalTabsSingleSelectedContextKey.set(this.getSelectedElements().length === 1);
 		const instance = this.getFocusedElements();
@@ -308,18 +321,9 @@ class TerminalTabsRenderer implements IListRenderer<ITerminalInstance, ITerminal
 			}
 		}
 
+		const hoverInfo = getInstanceHoverInfo(instance);
+		template.context.hoverActions = hoverInfo.actions;
 
-		let statusString = '';
-		const statuses = instance.statusList.statuses;
-		template.context.hoverActions = [];
-		for (const status of statuses) {
-			statusString += `\n\n---\n\n${status.icon ? `$(${status.icon?.id}) ` : ''}${status.tooltip || status.id}`;
-			if (status.hoverActions) {
-				template.context.hoverActions.push(...status.hoverActions);
-			}
-		}
-
-		const shellIntegrationString = getShellIntegrationTooltip(instance, true);
 		const iconId = this._instantiationService.invokeFunction(getIconId, instance);
 		const hasActionbar = !this.shouldHideActionBar();
 		let label: string = '';
@@ -373,7 +377,7 @@ class TerminalTabsRenderer implements IListRenderer<ITerminalInstance, ITerminal
 				badges: hasText
 			},
 			title: {
-				markdown: new MarkdownString(instance.title + shellIntegrationString + statusString, { supportThemeIcons: true }),
+				markdown: hoverInfo.content,
 				markdownNotSupportedFallback: undefined
 			},
 			extraClasses
@@ -772,4 +776,21 @@ class TabDecorationsProvider implements IDecorationsProvider {
 	dispose(): void {
 		this.dispose();
 	}
+}
+
+function getInstanceHoverInfo(instance: ITerminalInstance): { content: MarkdownString; actions: IHoverAction[] } {
+	let statusString = '';
+	const statuses = instance.statusList.statuses;
+	const actions = [];
+	for (const status of statuses) {
+		statusString += `\n\n---\n\n${status.icon ? `$(${status.icon?.id}) ` : ''}${status.tooltip || status.id}`;
+		if (status.hoverActions) {
+			actions.push(...status.hoverActions);
+		}
+	}
+
+	const shellIntegrationString = getShellIntegrationTooltip(instance, true);
+	const content = new MarkdownString(instance.title + shellIntegrationString + statusString, { supportThemeIcons: true });
+
+	return { content, actions };
 }
