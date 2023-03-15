@@ -557,7 +557,7 @@ class ProcAutomaticPortForwarding extends Disposable {
 		for (const value of startingCandidates) {
 			this.initialCandidates.add(makeAddress(value.host, value.port));
 		}
-		this.logService.debug(`ForwardedPorts: (ProcForwarding) Initial candidates set to ${startingCandidates.join(', ')}`);
+		this.logService.debug(`ForwardedPorts: (ProcForwarding) Initial candidates set to ${startingCandidates.map(candidate => candidate.port).join(', ')}`);
 	}
 
 	private async forwardCandidates(): Promise<RemoteTunnel[] | undefined> {

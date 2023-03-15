@@ -822,7 +822,7 @@ export const terminalQuickFixesContributionsDescriptor: IExtensionPointDescripto
 					type: 'string',
 				},
 				outputMatcher: {
-					markdownDescription: nls.localize('vscode.extension.contributes.terminalQuickFixes.outputMatcher', "A regular expression or string to test the output against, which provides groups to be referenced in terminalCommand and uri.\n\nFor example:\n\n `lineMatcher: /git push --set-upstream origin (?<branchName>[^\s]+)/;`\n\n`terminalCommand: 'git push --set-upstream origin ${group:branchName}';`\n"),
+					markdownDescription: nls.localize('vscode.extension.contributes.terminalQuickFixes.outputMatcher', "A regular expression or string to match a single line of the output against, which provides groups to be referenced in terminalCommand and uri.\n\nFor example:\n\n `lineMatcher: /git push --set-upstream origin (?<branchName>[^\s]+)/;`\n\n`terminalCommand: 'git push --set-upstream origin ${group:branchName}';`\n"),
 					type: 'object',
 					required: ['lineMatcher', 'anchor', 'offset', 'length'],
 					properties: {

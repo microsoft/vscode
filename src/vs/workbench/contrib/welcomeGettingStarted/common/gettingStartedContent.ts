@@ -174,6 +174,17 @@ export const startEntries: GettingStartedStartEntryContent = [
 			command: 'https://aka.ms/vscode-videos',
 		}
 	},
+	{
+		id: 'topLevelRemoteOpen',
+		title: localize('gettingStarted.topLevelRemoteOpen.title', "Connect to..."),
+		description: localize('gettingStarted.topLevelRemoteOpen.description', "Connect to remote development workspaces."),
+		when: 'config.workbench.remote.experimental.showStartListEntry',
+		icon: Codicon.remote,
+		content: {
+			type: 'startEntry',
+			command: 'command:workbench.action.remote.showStartEntryActions',
+		}
+	},
 ];
 
 const Button = (title: string, href: string) => `[${title}](${href})`;

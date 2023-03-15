@@ -2478,7 +2478,7 @@ declare namespace monaco.editor {
 		readonly label: string;
 		readonly alias: string;
 		isSupported(): boolean;
-		run(): Promise<void>;
+		run(args?: unknown): Promise<void>;
 	}
 
 	export type IEditorModel = ITextModel | IDiffEditorModel;
@@ -4052,6 +4052,10 @@ declare namespace monaco.editor {
 		 * Maximum number of sticky lines to show
 		 */
 		maxLineCount?: number;
+		/**
+		 * Model to choose for sticky scroll by default
+		 */
+		defaultModel?: 'outlineModel' | 'foldingProviderModel' | 'indentationModel';
 	}
 
 	/**

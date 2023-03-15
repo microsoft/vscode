@@ -80,6 +80,9 @@ interface PreloadContext {
 	readonly isWorkspaceTrusted: boolean;
 }
 
+declare function requestIdleCallback(callback: (args: IdleDeadline) => void, options?: { timeout: number }): number;
+declare function cancelIdleCallback(handle: number): void;
+
 declare function __import(path: string): Promise<any>;
 
 async function webviewPreloads(ctx: PreloadContext) {
@@ -96,6 +99,43 @@ async function webviewPreloads(ctx: PreloadContext) {
 	delete (globalThis as any).acquireVsCodeApi;
 
 	const tokenizationStyleElement = document.querySelector('style#vscode-tokenization-styles');
+	const runWhenIdle: (callback: (idle: IdleDeadline) => void, timeout?: number) => IDisposable = (typeof requestIdleCallback !== 'function' || typeof cancelIdleCallback !== 'function')
+		? (runner) => {
+			setTimeout(() => {
+				if (disposed) {
+					return;
+				}
+				const end = Date.now() + 15; // one frame at 64fps
+				runner(Object.freeze({
+					didTimeout: true,
+					timeRemaining() {
+						return Math.max(0, end - Date.now());
+					}
+				}));
+			});
+			let disposed = false;
+			return {
+				dispose() {
+					if (disposed) {
+						return;
+					}
+					disposed = true;
+				}
+			};
+		}
+		: (runner, timeout?) => {
+			const handle: number = requestIdleCallback(runner, typeof timeout === 'number' ? { timeout } : undefined);
+			let disposed = false;
+			return {
+				dispose() {
+					if (disposed) {
+						return;
+					}
+					disposed = true;
+					cancelIdleCallback(handle);
+				}
+			};
+		};
 
 	const handleInnerClick = (event: MouseEvent) => {
 		if (!event || !event.view || !event.view.document) {
@@ -872,10 +912,15 @@ async function webviewPreloads(ctx: PreloadContext) {
 					const outputOffset = document.getElementById(match.id)!.getBoundingClientRect().top;
 					const tempRange = document.createRange();
 					tempRange.selectNode(match.highlightResult.range.startContainer);
+
+					match.highlightResult.range.startContainer.parentElement?.scrollIntoView({ behavior: 'smooth', block: 'end', inline: 'nearest' });
+
 					const rangeOffset = tempRange.getBoundingClientRect().top;
 					tempRange.detach();
+
 					offset = rangeOffset - outputOffset;
 				} catch (e) {
+					console.error(e);
 				}
 
 				match.highlightResult?.update(currentMatchColor, match.isShadow ? undefined : 'current-find-match');
@@ -932,12 +977,14 @@ async function webviewPreloads(ctx: PreloadContext) {
 				let offset = 0;
 				try {
 					const outputOffset = document.getElementById(match.id)!.getBoundingClientRect().top;
+					match.originalRange.startContainer.parentElement?.scrollIntoView({ behavior: 'smooth', block: 'end', inline: 'nearest' });
 					const rangeOffset = match.originalRange.getBoundingClientRect().top;
 					offset = rangeOffset - outputOffset;
 					postNotebookMessage('didFindHighlight', {
 						offset
 					});
 				} catch (e) {
+					console.error(e);
 				}
 			}
 
@@ -1145,9 +1192,17 @@ async function webviewPreloads(ctx: PreloadContext) {
 
 			case 'html': {
 				const data = event.data;
-				outputRunner.enqueue(data.outputId, signal => {
-					return viewModel.renderOutputCell(data, signal);
-				});
+				if (data.createOnIdle) {
+					outputRunner.enqueueIdle(data.outputId, signal => {
+						// cancel the idle callback if it exists
+						return viewModel.renderOutputCell(data, signal);
+					});
+				} else {
+					outputRunner.enqueue(data.outputId, signal => {
+						// cancel the idle callback if it exists
+						return viewModel.renderOutputCell(data, signal);
+					});
+				}
 				break;
 			}
 			case 'view-scroll':
@@ -1491,6 +1546,9 @@ async function webviewPreloads(ctx: PreloadContext) {
 		 * ensuring that it's run in-order.
 		 */
 		public enqueue(outputId: string, action: (cancelSignal: AbortSignal) => unknown) {
+			this.pendingOutputCreationRequest.get(outputId)?.dispose();
+			this.pendingOutputCreationRequest.delete(outputId);
+
 			const record = this.outputs.get(outputId);
 			if (!record) {
 				const controller = new AbortController();
@@ -1504,10 +1562,24 @@ async function webviewPreloads(ctx: PreloadContext) {
 			}
 		}
 
+		private pendingOutputCreationRequest: Map<string, IDisposable> = new Map();
+
+		public enqueueIdle(outputId: string, action: (cancelSignal: AbortSignal) => unknown) {
+			this.pendingOutputCreationRequest.get(outputId)?.dispose();
+			outputRunner.pendingOutputCreationRequest.set(outputId, runWhenIdle(() => {
+				outputRunner.enqueue(outputId, action);
+				outputRunner.pendingOutputCreationRequest.delete(outputId);
+			}));
+		}
+
 		/**
 		 * Cancels the rendering of all outputs.
 		 */
 		public cancelAll() {
+			// Delete all pending idle requests
+			this.pendingOutputCreationRequest.forEach(r => r.dispose());
+			this.pendingOutputCreationRequest.clear();
+
 			for (const { abort } of this.outputs.values()) {
 				abort.abort();
 			}
@@ -1518,6 +1590,10 @@ async function webviewPreloads(ctx: PreloadContext) {
 		 * Cancels any ongoing rendering out an output.
 		 */
 		public cancelOutput(outputId: string) {
+			// Delete the pending idle request if it exists
+			this.pendingOutputCreationRequest.get(outputId)?.dispose();
+			this.pendingOutputCreationRequest.delete(outputId);
+
 			const output = this.outputs.get(outputId);
 			if (output) {
 				output.abort.abort();
@@ -2173,11 +2249,11 @@ async function webviewPreloads(ctx: PreloadContext) {
 
 		public async renderOutputElement(data: webviewMessages.ICreationRequestMessage, preloadErrors: ReadonlyArray<Error | undefined>, signal: AbortSignal) {
 			const startTime = Date.now();
-			const outputElement = this.createOutputElement(data);
+			const outputElement /** outputNode */ = this.createOutputElement(data);
 			await outputElement.render(data.content, data.rendererId, preloadErrors, signal);
 
 			// don't hide until after this step so that the height is right
-			outputElement.element.style.visibility = data.initiallyHidden ? 'hidden' : '';
+			outputElement/** outputNode */.element.style.visibility = data.initiallyHidden ? 'hidden' : '';
 
 			if (!!data.executionId && !!data.rendererId) {
 				postNotebookMessage<webviewMessages.IPerformanceMessage>('notebookPerformanceMessage', { cellId: data.cellId, executionId: data.executionId, duration: Date.now() - startTime, rendererId: data.rendererId });
@@ -2226,7 +2302,16 @@ async function webviewPreloads(ctx: PreloadContext) {
 		public updateScroll(request: webviewMessages.IContentWidgetTopRequest) {
 			this.element.style.top = `${request.cellTop}px`;
 
-			this.outputElements.get(request.outputId)?.updateScroll(request.outputOffset);
+			const outputElement = this.outputElements.get(request.outputId);
+			if (outputElement) {
+				outputElement.updateScroll(request.outputOffset);
+
+				if (request.forceDisplay && outputElement.outputNode) {
+					// TODO @rebornix @mjbvz, there is a misalignment here.
+					// We set output visibility on cell container, other than output container or output node itself.
+					outputElement.outputNode.element.style.visibility = '';
+				}
+			}
 
 			if (request.forceDisplay) {
 				this.element.style.visibility = '';
@@ -2239,6 +2324,10 @@ async function webviewPreloads(ctx: PreloadContext) {
 		public readonly element: HTMLElement;
 
 		private _outputNode?: OutputElement;
+
+		get outputNode() {
+			return this._outputNode;
+		}
 
 		constructor(
 			private readonly outputId: string,

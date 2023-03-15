@@ -134,6 +134,9 @@ import 'vs/workbench/contrib/debug/browser/extensionHostDebugService';
 // Welcome Banner
 import 'vs/workbench/contrib/welcomeBanner/browser/welcomeBanner.contribution';
 
+// Welcome Dialog
+import 'vs/workbench/contrib/welcomeDialog/browser/welcomeDialog.contribution';
+
 // Webview
 import 'vs/workbench/contrib/webview/browser/webview.web.contribution';
 

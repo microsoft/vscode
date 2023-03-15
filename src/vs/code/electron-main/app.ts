@@ -939,7 +939,7 @@ export class CodeApplication extends Disposable {
 			const isInternal = isInternalTelemetry(this.productService, this.configurationService);
 			const channel = getDelayedChannel(sharedProcessReady.then(client => client.getChannel('telemetryAppender')));
 			const appender = new TelemetryAppenderClient(channel);
-			const commonProperties = resolveCommonProperties(this.fileService, release(), hostname(), process.arch, this.productService.commit, this.productService.version, machineId, isInternal, this.environmentMainService.installSourcePath);
+			const commonProperties = resolveCommonProperties(release(), hostname(), process.arch, this.productService.commit, this.productService.version, machineId, isInternal);
 			const piiPaths = getPiiPathsFromEnvironment(this.environmentMainService);
 			const config: ITelemetryServiceConfig = { appenders: [appender], commonProperties, piiPaths, sendErrorTelemetry: true };
 
@@ -1196,7 +1196,6 @@ export class CodeApplication extends Disposable {
 
 	private afterWindowOpen(accessor: ServicesAccessor, sharedProcess: SharedProcess): void {
 		const telemetryService = accessor.get(ITelemetryService);
-		const updateService = accessor.get(IUpdateService);
 
 		// Observe shared process for errors
 		this.handleSharedProcessErrors(telemetryService, sharedProcess);
@@ -1211,11 +1210,6 @@ export class CodeApplication extends Disposable {
 				method: request.method
 			});
 		});
-
-		// Initialize update service
-		if (updateService instanceof Win32UpdateService || updateService instanceof LinuxUpdateService || updateService instanceof DarwinUpdateService) {
-			updateService.initialize();
-		}
 
 		// Start to fetch shell environment (if needed) after window has opened
 		// Since this operation can take a long time, we want to warm it up while

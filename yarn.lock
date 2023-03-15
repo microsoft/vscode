@@ -1234,17 +1234,17 @@
     yargs "^17.5.1"
 
 "@vscode/policy-watcher@^1.1.4":
-  version "1.1.5"
-  resolved "https://registry.yarnpkg.com/@vscode/policy-watcher/-/policy-watcher-1.1.5.tgz#217aaba3ca0d33ccdaf3bff0281fa11b073ce303"
-  integrity sha512-1Jt6imBKnw9vYpP5TpXZ9Q+Af4NBlKH9Z4bAHdC026CBz/5l6p3PwTWf0xyznFNg0DdXJmwZMF83bzW7zyvElw==
+  version "1.1.6"
+  resolved "https://registry.yarnpkg.com/@vscode/policy-watcher/-/policy-watcher-1.1.6.tgz#5867ff8297507dc1cc7c6f826a67bb2536a5cafe"
+  integrity sha512-EoJizB6aq/mgsL42mcNLGZ5vOwdZs/EHcLQkdY6Rg4uzcRkCapQdNy20wnCsrBpv3QntgBibsS6m+JXm8efY/Q==
   dependencies:
     bindings "^1.5.0"
     node-addon-api "^6.0.0"
 
-"@vscode/ripgrep@^1.14.2":
-  version "1.14.2"
-  resolved "https://registry.yarnpkg.com/@vscode/ripgrep/-/ripgrep-1.14.2.tgz#47c0eec2b64f53d8f7e1b5ffd22a62e229191c34"
-  integrity sha512-KDaehS8Jfdg1dqStaIPDKYh66jzKd5jy5aYEPzIv0JYFLADPsCSQPBUdsJVXnr0t72OlDcj96W05xt/rSnNFFQ==
+"@vscode/ripgrep@^1.15.0":
+  version "1.15.0"
+  resolved "https://registry.yarnpkg.com/@vscode/ripgrep/-/ripgrep-1.15.0.tgz#d6fec68d7c44d594967f21a6e6c97416cc7fb2bc"
+  integrity sha512-qbLYP3XPTfS5a80+WnGvDLhsD01LDrs03zjbbtWWnvwt8G9hP3j8mc3ckaIid7pj86MBSTyUb/ECaIWmJIGBYw==
   dependencies:
     https-proxy-agent "^5.0.0"
     proxy-from-env "^1.1.0"
@@ -1262,12 +1262,12 @@
   resolved "https://registry.yarnpkg.com/@vscode/sudo-prompt/-/sudo-prompt-9.3.1.tgz#c562334bc6647733649fd42afc96c0eea8de3b65"
   integrity sha512-9ORTwwS74VaTn38tNbQhsA5U44zkJfcb0BdTSyyG6frP4e8KMtHuTXYmwefe5dpL8XB1aGSIVTaLjD3BbWb5iA==
 
-"@vscode/telemetry-extractor@^1.9.8":
-  version "1.9.8"
-  resolved "https://registry.yarnpkg.com/@vscode/telemetry-extractor/-/telemetry-extractor-1.9.8.tgz#ffc000720ea2b9cd3421ba8a7bd172972c398b06"
-  integrity sha512-L27/fgC/gM7AY6AXriFGrznnX1M4Nc7VmHabYinDPoJDQYLjbSEDDVjjlSS6BiVkzc3OrFQStqXpHBhImis2eQ==
+"@vscode/telemetry-extractor@^1.9.9":
+  version "1.9.9"
+  resolved "https://registry.yarnpkg.com/@vscode/telemetry-extractor/-/telemetry-extractor-1.9.9.tgz#fe1029a58181287d6ab809aae26ee877f181536c"
+  integrity sha512-nWuXoyXvuS1VBM+U2UQUxUC9fjkquD5QBOv1FlpVkzY+n9hJQ/G4woJdSsOdNgEKnOMUFUSByg8Bl52E4YakKw==
   dependencies:
-    "@vscode/ripgrep" "^1.14.2"
+    "@vscode/ripgrep" "^1.15.0"
     command-line-args "^5.2.1"
     ts-morph "^15.1.0"
 
@@ -7702,15 +7702,15 @@ native-is-elevated@0.4.3:
   resolved "https://registry.yarnpkg.com/native-is-elevated/-/native-is-elevated-0.4.3.tgz#f1071c4a821acc71d43f36ff8051d3816d832e1c"
   integrity sha512-bHS3sCoh+raqFGIxmL/plER3eBQ+IEBy4RH/4uahhToZneTvqNKQrL0PgOTtnpL55XjBd3dy0pNtZMkCk0J48g==
 
-native-keymap@3.3.2:
-  version "3.3.2"
-  resolved "https://registry.yarnpkg.com/native-keymap/-/native-keymap-3.3.2.tgz#de3b3161b6041be80ac754bfed44a499aa8b3409"
-  integrity sha512-AKE9k0jVOPrpfSlmtNDVJaADW+Vo6dDHQf55Ystvc5Aj4REbmlMSqXIBU1LpMC2pEzxzg0O2zbtQYWmqETfhzg==
+native-keymap@^3.3.2:
+  version "3.3.3"
+  resolved "https://registry.yarnpkg.com/native-keymap/-/native-keymap-3.3.3.tgz#cdc92331721e289605f1fb55ca4609ce52888845"
+  integrity sha512-TKBPTNHWK+8be1htLFNy/fsDtxv5A2z4IwvQ/XeiDkNgAthqdlImxza/dDBu3eN2lqNnFSkJl0fZ8221hV92hg==
 
-native-watchdog@1.4.1:
-  version "1.4.1"
-  resolved "https://registry.yarnpkg.com/native-watchdog/-/native-watchdog-1.4.1.tgz#f5462cb878796c75f8a6c3c71aa0aa52d4992e05"
-  integrity sha512-RzGXNgoe54BmkkIFwegz7eeJm7xovTj/VG5qREfF+KeSqiVzHGnVwFoLzNLlYsqSSdIOIYoCOFlEhoS+asRVyQ==
+native-watchdog@^1.4.1:
+  version "1.4.2"
+  resolved "https://registry.yarnpkg.com/native-watchdog/-/native-watchdog-1.4.2.tgz#cf9f913157ee992723aa372b6137293c663be9b7"
+  integrity sha512-iT3Uj6FFdrW5vHbQ/ybiznLus9oiUoMJ8A8nyugXv9rV3EBhIodmGs+mztrwQyyBc+PB5/CrskAH/WxaUVRRSQ==
 
 natural-compare@^1.4.0:
   version "1.4.0"
@@ -7833,10 +7833,10 @@ node-libs-browser@^2.2.1:
     util "^0.11.0"
     vm-browserify "^1.0.1"
 
-node-pty@0.11.0-beta29:
-  version "0.11.0-beta29"
-  resolved "https://registry.yarnpkg.com/node-pty/-/node-pty-0.11.0-beta29.tgz#863bce79346b453ed199614686008d1a3220abe8"
-  integrity sha512-pkSldLXjjwFrGd3EJWI0Pu1jnxeQaW0P9i2EQtO2RaK/pZ22pf99lQ8OfptYTPK2oKZbkjwzqh05uJJ2krH9iA==
+node-pty@0.11.0-beta30:
+  version "0.11.0-beta30"
+  resolved "https://registry.yarnpkg.com/node-pty/-/node-pty-0.11.0-beta30.tgz#ea1ede12ada64115f83b8c6bbf519549b656dbac"
+  integrity sha512-4VqKeomvs5brx9Pf+3QdAAhsIcATREWSTCY8QPj5STp7jDpVbRt6SWhJz9EewJ9KiHbggXaQAzRiAVqARNiVvQ==
   dependencies:
     nan "^2.17.0"
 
@@ -11011,10 +11011,10 @@ typescript@^4.7.4:
   resolved "https://registry.yarnpkg.com/typescript/-/typescript-4.8.4.tgz#c464abca159669597be5f96b8943500b238e60e6"
   integrity sha512-QCh+85mCy+h0IGff8r5XWzOVSbBO+KfeYrMQh7NJ58QujwcE22u+NUSmUxqF+un70P9GXKxa2HCNiTTMJknyjQ==
 
-typescript@^5.1.0-dev.20230227:
-  version "5.1.0-dev.20230227"
-  resolved "https://registry.yarnpkg.com/typescript/-/typescript-5.1.0-dev.20230227.tgz#7e4b7b39e1b1a15bdb4935c82fc4ea9967d26c7c"
-  integrity sha512-nPxrgb/3C40X3eXsCPUpiVEgQltswKoAh3Zwm7tDIVE4ldDr3flXq63odqyWUuOZFc/+NCFdm80RpTB0nz2M8w==
+typescript@^5.1.0-dev.20230313:
+  version "5.1.0-dev.20230313"
+  resolved "https://registry.yarnpkg.com/typescript/-/typescript-5.1.0-dev.20230313.tgz#393282026171897a71398b9f4b2a7a527729fd5f"
+  integrity sha512-vveGdy/uNUyKJ/JbXsJTSP8Z8gfCRsiXdHBMbvJ2XzuzHsDQC3mR+ZPvIGrXoTWMn5XNbyJ8ufYuqGiCGTi6tg==
 
 typical@^4.0.0:
   version "4.0.0"

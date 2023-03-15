@@ -6,7 +6,7 @@
 .monaco-editor .interactive-editor {
 	z-index: 100;
 	color: inherit;
-	padding: 6px 0 6px 6px;
+	padding: 6px 0 6px 3px;
 }
 
 /* body */
@@ -72,7 +72,6 @@
 	z-index: 1;
 	padding: 3px 0 0 2px;
 	color: var(--vscode-input-placeholderForeground);
-	font-family: var(--monaco-monospace-font);
 	white-space: nowrap;
 	overflow: hidden;
 	text-overflow: ellipsis;
@@ -83,7 +82,6 @@
 }
 
 .monaco-editor .interactive-editor .body .content .input .editor-container {
-	/* height: 24px; */
 	vertical-align: middle;
 }
 .monaco-editor .interactive-editor .body .toolbar {
@@ -112,6 +110,17 @@
 	top: 0;
 }
 
+/* message  */
+
+.monaco-editor .interactive-editor .message {
+	padding: 6px 0;
+	color: var(--vscode-errorForeground);
+}
+
+.monaco-editor .interactive-editor .message.hidden {
+	display: none;
+}
+
 /* decoration styles */
 
 
@@ -128,4 +137,12 @@
 	border-radius: 4px;
 	border: 1px solid var(--vscode-widget-border);
 	box-shadow: 0 0 8px 1px var(--vscode-widget-shadow);
+}
+
+.monaco-editor .interactive-editor-slash-command {
+	color: var(--vscode-textLink-foreground)
+}
+
+.monaco-editor .interactive-editor-slash-command-detail {
+	opacity: 0.5;
 }

@@ -8,6 +8,8 @@ pub mod dev_tunnels;
 pub mod legal;
 pub mod paths;
 pub mod shutdown_signal;
+pub mod singleton_client;
+pub mod singleton_server;
 
 mod control_server;
 mod nosleep;
@@ -19,8 +21,6 @@ mod nosleep_macos;
 mod nosleep_windows;
 mod port_forwarder;
 mod protocol;
-#[cfg_attr(unix, path = "tunnels/server_bridge_unix.rs")]
-#[cfg_attr(windows, path = "tunnels/server_bridge_windows.rs")]
 mod server_bridge;
 mod server_multiplexer;
 mod service;
@@ -33,7 +33,7 @@ mod service_windows;
 mod socket_signal;
 mod wsl_server;
 
-pub use control_server::serve;
+pub use control_server::{serve, Next};
 pub use nosleep::SleepInhibitor;
 pub use service::{
 	create_service_manager, ServiceContainer, ServiceManager, SERVICE_LOG_FILE_NAME,
