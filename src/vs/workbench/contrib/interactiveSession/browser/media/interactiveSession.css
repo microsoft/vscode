@@ -103,6 +103,7 @@
 
 .interactive-list .monaco-list-row .value {
 	white-space: normal;
+	min-height: 36px;
 }
 
 .interactive-list .monaco-list-row .value > :last-child:not(.rendered-markdown) {
