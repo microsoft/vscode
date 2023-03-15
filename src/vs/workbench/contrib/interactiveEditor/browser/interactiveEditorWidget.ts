@@ -9,7 +9,7 @@ import { DisposableStore, dispose, toDisposable } from 'vs/base/common/lifecycle
 import { IActiveCodeEditor, ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditorLayoutInfo, EditorOption } from 'vs/editor/common/config/editorOptions';
 import { Range } from 'vs/editor/common/core/range';
-import { IEditorContribution } from 'vs/editor/common/editorCommon';
+import { IEditorContribution, IEditorDecorationsCollection } from 'vs/editor/common/editorCommon';
 import { localize } from 'vs/nls';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
@@ -18,7 +18,7 @@ import { assertType } from 'vs/base/common/types';
 import { IInteractiveEditorResponse, IInteractiveEditorService, CTX_INTERACTIVE_EDITOR_FOCUSED, CTX_INTERACTIVE_EDITOR_HAS_ACTIVE_REQUEST, CTX_INTERACTIVE_EDITOR_INNER_CURSOR_FIRST, CTX_INTERACTIVE_EDITOR_INNER_CURSOR_LAST, CTX_INTERACTIVE_EDITOR_EMPTY, CTX_INTERACTIVE_EDITOR_OUTER_CURSOR_POSITION, CTX_INTERACTIVE_EDITOR_PREVIEW, CTX_INTERACTIVE_EDITOR_VISIBLE, MENU_INTERACTIVE_EDITOR_WIDGET, CTX_INTERACTIVE_EDITOR_HISTORY_VISIBLE, IInteractiveEditorRequest, IInteractiveEditorSession, CTX_INTERACTIVE_EDITOR_HISTORY_POSSIBLE, IInteractiveEditorSlashCommand } from 'vs/workbench/contrib/interactiveEditor/common/interactiveEditor';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { Iterable } from 'vs/base/common/iterator';
-import { ICursorStateComputer, IModelDeltaDecoration, ITextModel, IValidEditOperation } from 'vs/editor/common/model';
+import { ICursorStateComputer, IModelDecorationOptions, IModelDeltaDecoration, ITextModel, IValidEditOperation } from 'vs/editor/common/model';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 import { Dimension, addDisposableListener, getTotalHeight, getTotalWidth, h, reset } from 'vs/base/browser/dom';
 import { Emitter, Event } from 'vs/base/common/event';
@@ -585,6 +585,72 @@ type TelemetryDataClassification = {
 	endTime: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'When the session ended' };
 };
 
+class InlineDiffDecorations {
+
+	private readonly _collection: IEditorDecorationsCollection;
+
+	private _data: { tracking: IModelDeltaDecoration; decorating: IModelDecorationOptions }[] = [];
+	private _visible: boolean = false;
+
+	constructor(editor: ICodeEditor) {
+		this._collection = editor.createDecorationsCollection();
+	}
+
+	clear() {
+		this._collection.clear();
+		this._data.length = 0;
+	}
+
+	collectEditOperation(op: IValidEditOperation) {
+		this._data.push(InlineDiffDecorations._asDecorationData(op));
+	}
+
+	private _update() {
+		this._collection.set(this._data.map(d => {
+			const res = { ...d.tracking };
+			if (this._visible) {
+				res.options = { ...res.options, ...d.decorating };
+			}
+			return res;
+		}));
+	}
+
+	updateVisible(value: boolean) {
+		this._visible = value;
+		this._update();
+	}
+
+	// toggleVisible() {
+	// 	this._visible = !this._visible;
+	// 	this._update();
+	// }
+
+	private static _asDecorationData(edit: IValidEditOperation): { tracking: IModelDeltaDecoration; decorating: IModelDecorationOptions } {
+		let content = edit.text;
+		if (content.length > 12) {
+			content = content.substring(0, 12) + '…';
+		}
+		const tracking: IModelDeltaDecoration = {
+			range: edit.range,
+			options: {
+				description: 'interactive-editor-inline-diff',
+			}
+		};
+
+		const decorating: IModelDecorationOptions = {
+			description: 'interactive-editor-inline-diff',
+			className: 'interactive-editor-lines-inserted-range',
+			before: {
+				content,
+				inlineClassName: 'interactive-editor-lines-deleted-range-inline',
+				attachedData: edit
+			}
+		};
+
+		return { tracking, decorating };
+	}
+}
+
 export class InteractiveEditorController implements IEditorContribution {
 
 	static ID = 'interactiveEditor';
@@ -675,9 +741,9 @@ export class InteractiveEditorController implements IEditorContribution {
 			undos: ''
 		};
 
-		const blockDecoration = this._editor.createDecorationsCollection();
-		const inlineDiffDecorations = this._editor.createDecorationsCollection();
+		const inlineDiffDecorations = new InlineDiffDecorations(this._editor);
 
+		const blockDecoration = this._editor.createDecorationsCollection();
 		const wholeRangeDecoration = this._editor.createDecorationsCollection();
 
 		if (!initialRange) {
@@ -843,7 +909,6 @@ export class InteractiveEditorController implements IEditorContribution {
 
 			// inline diff
 			inlineDiffDecorations.clear();
-			const newInlineDiffDecorationsData: IModelDeltaDecoration[] = [];
 
 			// use whole range from reply
 			if (reply.wholeRange) {
@@ -860,7 +925,7 @@ export class InteractiveEditorController implements IEditorContribution {
 					let last: Position | null = null;
 					for (const edit of undoEdits) {
 						last = !last || last.isBefore(edit.range.getEndPosition()) ? edit.range.getEndPosition() : last;
-						newInlineDiffDecorationsData.push(InteractiveEditorController._asInlineDiffDecorationData(edit));
+						inlineDiffDecorations.collectEditOperation(edit);
 					}
 					return last && [Selection.fromPositions(last)];
 				};
@@ -877,21 +942,30 @@ export class InteractiveEditorController implements IEditorContribution {
 				ignoreModelChanges = false;
 			}
 
-			inlineDiffDecorations.set(input.preview ? newInlineDiffDecorationsData : []);
+			inlineDiffDecorations.updateVisible(input.preview);
 
 			const that = this;
-			historyEntry.updateActions([new class extends UndoStepAction {
-				constructor() {
-					super(textModel);
-				}
-				override async run() {
-					super.run();
-					historyEntry.updateVisibility(false);
-					value = input.value;
-					that._ctsRequest?.cancel();
-					data.undos += round + '|';
-				}
-			}]);
+			historyEntry.updateActions([
+				// new class extends Action {
+				// 	constructor() {
+				// 		super(Math.random().toString(), localize('ie.inlineDiff', "Toggle Inline Diff"), ThemeIcon.asClassName(Codicon.diff), true);
+				// 	}
+				// 	override async run() {
+				// 		inlineDiffDecorations.toggleVisible();
+				// 	}
+				// },
+				new class extends UndoStepAction {
+					constructor() {
+						super(textModel);
+					}
+					override async run() {
+						super.run();
+						historyEntry.updateVisibility(false);
+						value = input.value;
+						that._ctsRequest?.cancel();
+						data.undos += round + '|';
+					}
+				}]);
 
 			if (!InteractiveEditorController._promptHistory.includes(input.value)) {
 				InteractiveEditorController._promptHistory.unshift(input.value);
@@ -919,25 +993,6 @@ export class InteractiveEditorController implements IEditorContribution {
 		data.endTime = new Date().toISOString();
 
 		this._telemetryService.publicLog2<TelemetryData, TelemetryDataClassification>('interactiveEditor/session', data);
-	}
-
-	private static _asInlineDiffDecorationData(edit: IValidEditOperation): IModelDeltaDecoration {
-		let content = edit.text;
-		if (content.length > 12) {
-			content = content.substring(0, 12) + '…';
-		}
-		return {
-			range: edit.range,
-			options: {
-				description: 'interactive-editor-inline-diff',
-				className: 'interactive-editor-lines-inserted-range',
-				before: {
-					content,
-					inlineClassName: 'interactive-editor-lines-deleted-range-inline',
-					attachedData: edit
-				}
-			}
-		};
 	}
 
 	accept(preview: boolean = this._preview): void {
