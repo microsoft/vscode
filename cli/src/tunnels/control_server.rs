@@ -150,7 +150,7 @@ fn print_listening(log: &log::Logger, tunnel_name: &str) {
 		}
 	}
 
-	let message = &format!("\r\nOpen this link in your browser {}\r\n", addr);
+	let message = &format!("\nOpen this link in your browser {}\n", addr);
 	log.result(message);
 }
 

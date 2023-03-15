@@ -10,6 +10,7 @@ pub mod paths;
 pub mod shutdown_signal;
 pub mod singleton_client;
 pub mod singleton_server;
+pub mod protocol;
 
 mod control_server;
 mod nosleep;
@@ -20,7 +21,6 @@ mod nosleep_macos;
 #[cfg(target_os = "windows")]
 mod nosleep_windows;
 mod port_forwarder;
-mod protocol;
 mod server_bridge;
 mod server_multiplexer;
 mod service;

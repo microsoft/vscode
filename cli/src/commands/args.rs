@@ -627,6 +627,12 @@ pub enum TunnelSubcommand {
 	/// Delete all servers which are currently not running.
 	Prune,
 
+	/// Stops any running tunnel on the system.
+	Kill,
+
+	/// Restarts any running tunnel on the system.
+	Restart,
+
 	/// Rename the name of this machine associated with port forwarding service.
 	Rename(TunnelRenameArgs),
 
