@@ -154,13 +154,11 @@
 
 .interactive-session .interactive-input-part .interactive-execute-toolbar {
 	position: absolute;
-	right: 1px;
+	right: 3px;
 }
 
-.interactive-session .interactive-input-part .interactive-execute-toolbar .codicon {
-	font-size: 20px;
-	height: 20px;
-	width: 20px;
+.interactive-session .interactive-input-part .interactive-execute-toolbar .codicon-debug-stop {
+	color: var(--vscode-icon-foreground) !important;
 }
 
 .interactive-session .monaco-inputbox {

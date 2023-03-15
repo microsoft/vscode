@@ -470,7 +470,7 @@ export class InteractiveSessionWidget extends Disposable implements IInteractive
 					this.requestInProgress.set(false);
 					this.currentRequest = undefined;
 				});
-				
+
 				this._inputEditor.setValue('');
 				revealLastElement(this.tree);
 			}
@@ -534,7 +534,7 @@ export class InteractiveSessionWidget extends Disposable implements IInteractive
 
 		const editorBorder = 2;
 		const editorPadding = 8;
-		const executeToolbarWidth = 27;
+		const executeToolbarWidth = 25;
 		this._inputEditor.layout({ width: width - inputPartPadding - editorBorder - editorPadding - executeToolbarWidth, height: inputEditorHeight });
 	}
 }
