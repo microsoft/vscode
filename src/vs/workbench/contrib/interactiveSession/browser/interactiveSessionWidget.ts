@@ -212,7 +212,7 @@ export class InteractiveSessionWidget extends Disposable implements IInteractive
 		dom.clearNode(this.followupsContainer);
 
 		if (items && items.length > 0) {
-			this.followupsDisposables.add(new InteractiveSessionFollowups(this.followupsContainer, items, undefined, followup => this.acceptInput(followup.message)));
+			this.followupsDisposables.add(new InteractiveSessionFollowups(this.followupsContainer, items, undefined, followup => this.acceptInput(followup)));
 		}
 
 		if (this.bodyDimension) {
@@ -291,7 +291,7 @@ export class InteractiveSessionWidget extends Disposable implements IInteractive
 		};
 		this.renderer = scopedInstantiationService.createInstance(InteractiveListItemRenderer, this.inputOptions, rendererDelegate);
 		this._register(this.renderer.onDidClickFollowup(item => {
-			this.acceptInput(item.message);
+			this.acceptInput(item);
 		}));
 
 		this.tree = <WorkbenchObjectTree<InteractiveTreeItem>>scopedInstantiationService.createInstance(
@@ -435,7 +435,7 @@ export class InteractiveSessionWidget extends Disposable implements IInteractive
 		}
 	}
 
-	async acceptInput(query?: string): Promise<void> {
+	async acceptInput(query?: string | IInteractiveSessionReplyFollowup): Promise<void> {
 		if (!this.viewModel) {
 			// This currently shouldn't happen anymore, but leaving this here to make sure we don't get stuck without a viewmodel
 			await this.initializeSessionModel();

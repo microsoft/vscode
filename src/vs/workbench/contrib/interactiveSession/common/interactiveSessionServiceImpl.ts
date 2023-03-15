@@ -138,9 +138,10 @@ export class InteractiveSessionService extends Disposable implements IInteractiv
 		return model;
 	}
 
-	sendRequest(sessionId: number, message: string, token: CancellationToken): boolean {
-		this.trace('sendRequest', `sessionId: ${sessionId}, message: ${message.substring(0, 20)}${message.length > 20 ? '[...]' : ''}}`);
-		if (!message.trim()) {
+	sendRequest(sessionId: number, request: string | IInteractiveSessionReplyFollowup, token: CancellationToken): boolean {
+		const messageText = typeof request === 'string' ? request : request.message;
+		this.trace('sendRequest', `sessionId: ${sessionId}, message: ${messageText.substring(0, 20)}${messageText.length > 20 ? '[...]' : ''}}`);
+		if (!messageText.trim()) {
 			this.trace('sendRequest', 'Rejected empty message');
 			return false;
 		}
@@ -161,11 +162,11 @@ export class InteractiveSessionService extends Disposable implements IInteractiv
 		}
 
 		// Return immediately that the request was accepted, don't wait
-		this._sendRequestAsync(model, provider, message, token);
+		this._sendRequestAsync(model, provider, request, token);
 		return true;
 	}
 
-	private async _sendRequestAsync(model: InteractiveSessionModel, provider: IInteractiveProvider, message: string, token: CancellationToken): Promise<void> {
+	private async _sendRequestAsync(model: InteractiveSessionModel, provider: IInteractiveProvider, message: string | IInteractiveSessionReplyFollowup, token: CancellationToken): Promise<void> {
 		try {
 			this._pendingRequestSessions.add(model.sessionId);
 			const request = model.addRequest(message);
@@ -180,7 +181,7 @@ export class InteractiveSessionService extends Disposable implements IInteractiv
 
 				model.acceptResponseProgress(request, progress);
 			};
-			let rawResponse = await provider.provideReply({ session: model.session, message }, progressCallback, token);
+			let rawResponse = await provider.provideReply({ session: model.session, message: request.message }, progressCallback, token);
 			if (!rawResponse) {
 				this.trace('sendRequest', `Provider returned no response for session ${model.sessionId}`);
 				rawResponse = { session: model.session, errorDetails: { message: localize('emptyResponse', "Provider returned null response") } };

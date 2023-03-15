@@ -73,7 +73,7 @@ declare module 'vscode' {
 
 	export interface InteractiveRequest {
 		session: InteractiveSession;
-		message: string;
+		message: string | InteractiveSessionReplyFollowup;
 	}
 
 	export interface InteractiveResponseErrorDetails {
@@ -109,7 +109,11 @@ declare module 'vscode' {
 
 	export interface InteractiveSessionReplyFollowup {
 		message: string;
+		tooltip?: string;
 		title?: string;
+
+		// Extensions can put any serializable data here, such as an ID/version
+		metadata?: any;
 	}
 
 	export type InteractiveSessionFollowup = InteractiveSessionReplyFollowup | InteractiveResponseCommand;
@@ -150,7 +154,12 @@ declare module 'vscode' {
 		codeBlockIndex: number;
 	}
 
-	export type InteractiveSessionUserAction = InteractiveSessionVoteAction | InteractiveSessionCopyAction | InteractiveSessionInsertAction;
+	export interface InteractiveSessionCommandAction {
+		kind: 'command';
+		command: InteractiveResponseCommand;
+	}
+
+	export type InteractiveSessionUserAction = InteractiveSessionVoteAction | InteractiveSessionCopyAction | InteractiveSessionInsertAction | InteractiveSessionCommandAction;
 
 	export interface InteractiveSessionUserActionEvent {
 		action: InteractiveSessionUserAction;

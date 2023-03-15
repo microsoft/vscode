@@ -37,7 +37,8 @@ export interface IInteractiveRequestViewModel {
 	readonly id: string;
 	readonly username: string;
 	readonly avatarIconUri?: URI;
-	readonly message: string;
+	readonly message: string | IInteractiveSessionReplyFollowup;
+	readonly messageText: string;
 	currentRenderedHeight: number | undefined;
 }
 
@@ -162,6 +163,10 @@ export class InteractiveRequestViewModel implements IInteractiveRequestViewModel
 
 	get message() {
 		return this._model.message;
+	}
+
+	get messageText() {
+		return typeof this.message === 'string' ? this.message : this.message.message;
 	}
 
 	currentRenderedHeight: number | undefined;
