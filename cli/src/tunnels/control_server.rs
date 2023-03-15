@@ -103,9 +103,17 @@ enum ServerSignal {
 	Respawn,
 }
 
-pub struct ServerTermination {
+pub enum Next {
 	/// Whether the server should be respawned in a new binary (see ServerSignal.Respawn).
-	pub respawn: bool,
+	Respawn,
+	/// Whether the tunnel should be restarted
+	Restart,
+	/// Whether the process should exit
+	Exit,
+}
+
+pub struct ServerTermination {
+	pub next: Next,
 	pub tunnel: ActiveTunnel,
 }
 
@@ -142,7 +150,7 @@ fn print_listening(log: &log::Logger, tunnel_name: &str) {
 		}
 	}
 
-	let message = &format!("\nOpen this link in your browser {}\n", addr);
+	let message = &format!("\r\nOpen this link in your browser {}\r\n", addr);
 	log.result(message);
 }
 
@@ -166,11 +174,14 @@ pub async fn serve(
 
 	loop {
 		tokio::select! {
-			Ok(r) = shutdown_rx.wait() => {
-				info!(log, "Shutting down: {}", r);
+			Ok(reason) = shutdown_rx.wait() => {
+				info!(log, "Shutting down: {}", reason);
 				drop(signal_exit);
 				return Ok(ServerTermination {
-					respawn: false,
+					next: match reason {
+						ShutdownSignal::RpcRestartRequested => Next::Restart,
+						_ => Next::Exit,
+					},
 					tunnel,
 				});
 			},
@@ -178,7 +189,7 @@ pub async fn serve(
 				if let Some(ServerSignal::Respawn) = c {
 					drop(signal_exit);
 					return Ok(ServerTermination {
-						respawn: true,
+						next: Next::Respawn,
 						tunnel,
 					});
 				}
@@ -192,7 +203,7 @@ pub async fn serve(
 					None => {
 						warning!(log, "ssh tunnel disposed, tearing down");
 						return Ok(ServerTermination {
-							respawn: false,
+							next: Next::Restart,
 							tunnel,
 						});
 					}
