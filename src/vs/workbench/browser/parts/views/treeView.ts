@@ -1398,7 +1398,7 @@ class MultipleSelectionActionRunner extends ActionRunner {
 			selectionHandleArgs = undefined;
 		}
 
-		await action.run(...[context, selectionHandleArgs]);
+		await action.run(context, selectionHandleArgs);
 	}
 }
 
