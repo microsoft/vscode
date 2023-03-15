@@ -26,31 +26,25 @@ import { AsyncIterableObject } from 'vs/base/common/async';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { ResizableHTMLElement } from 'vs/base/browser/ui/resizable/resizable';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { EmbeddedCodeEditorWidget } from 'vs/editor/browser/widget/embeddedCodeEditorWidget';
+import { URI } from 'vs/base/common/uri';
 
 const $ = dom.$;
 
+// TODO: Perhaps better to persist in map or array if does not save from session to session
 class PersistedHoverWidgetSizes {
 
-	private readonly _keyPrefix: string;
+	private readonly _prefix: string;
 
-	constructor(
-		// Storing the size of the suggest widget inside of the storage service
-		private readonly _service: IStorageService,
-		editor: ICodeEditor
-	) {
-		const textModelURI = editor.getModel()?.uri;
-		this._keyPrefix = `contentHover.size/${editor.getEditorType()}/${editor instanceof EmbeddedCodeEditorWidget}/${textModelURI}/`;
+	constructor(private readonly _service: IStorageService) {
+		this._prefix = 'contentHover.size';
 	}
 
-	restore(identifier: object): dom.Dimension | undefined {
+	restore(identifier: TokenIdentifier, uri: URI): dom.Dimension | undefined {
+		const keyPrefix = `${this._prefix}/${uri.toString()}/`;
 		const stringifiedIdentifier = JSON.stringify(identifier);
-		// Retrieving the key from the storage service
-		const raw = this._service.get(this._keyPrefix + stringifiedIdentifier, StorageScope.PROFILE) ?? '';
+		const raw = this._service.get(keyPrefix + stringifiedIdentifier, StorageScope.PROFILE) ?? '';
 		try {
-			// Parsing the associated value
 			const obj = JSON.parse(raw);
-			// Checking if the associated value is of type dimension
 			if (dom.Dimension.is(obj)) {
 				return dom.Dimension.lift(obj);
 			}
@@ -60,26 +54,44 @@ class PersistedHoverWidgetSizes {
 		return undefined;
 	}
 
-	// Storing the size so that it can be retrieved later when the suggest widget appears again
-	store(identifier: object, size: dom.Dimension) {
+	store(identifier: TokenIdentifier, size: dom.Dimension, uri: URI) {
+		const keyPrefix = `${this._prefix}/${uri.toString()}/`;
 		const stringifiedIdentifier = JSON.stringify(identifier);
-		this._service.store(this._keyPrefix + stringifiedIdentifier, JSON.stringify(size), StorageScope.PROFILE, StorageTarget.MACHINE);
+		this._service.store(keyPrefix + stringifiedIdentifier, JSON.stringify(size), StorageScope.PROFILE, StorageTarget.MACHINE);
 	}
 
-	resetAll() {
+	resetForUri(uri: URI) {
+		const keyPrefix = `${this._prefix}/${uri.toString()}/`;
 		const keys = this._service.keys(StorageScope.PROFILE, StorageTarget.MACHINE);
 		for (const key of keys) {
-			if (key.includes(this._keyPrefix)) {
+			if (key.includes(keyPrefix)) {
 				this._service.remove(key, StorageScope.PROFILE);
 			}
 		}
 	}
 }
 
+class TokenIdentifier {
+	constructor(
+		public readonly _line: number,
+		public readonly _startColumn: number,
+		public readonly _endColumn: number
+	) { }
+}
+
+class ResizeState {
+	constructor(
+		readonly persistedSize: dom.Dimension | undefined,
+		readonly currentSize: dom.Dimension,
+		public persistHeight = false,
+		public persistWidth = false,
+	) { }
+}
+
 export class ContentHoverController extends Disposable {
 
 	private readonly _participants: IEditorHoverParticipant[];
-	private readonly _widget;
+	private readonly _widget = this._register(this._instantiationService.createInstance(ContentHoverWidget, this._editor));
 	private readonly _computer: ContentHoverComputer;
 	private readonly _hoverOperation: HoverOperation<IHoverPart>;
 
@@ -91,7 +103,7 @@ export class ContentHoverController extends Disposable {
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
 	) {
 		super();
-		this._widget = this._register(this._instantiationService.createInstance(ContentHoverWidget, this._editor));
+
 		// Instantiate participants and sort them by `hoverOrdinal` which is relevant for rendering order.
 		this._participants = [];
 		for (const participant of HoverParticipantRegistry.getAll()) {
@@ -466,26 +478,26 @@ class ContentHoverVisibleData {
 	) { }
 }
 
+// TODO: Find the correct initial hover size
+
 export class ContentHoverWidget extends Disposable implements IContentWidget {
 
 	static readonly ID = 'editor.contrib.contentHoverWidget';
 
 	public readonly allowEditorOverflow = true;
 
-	private readonly _hoverVisibleKey = EditorContextKeys.hoverVisible.bindTo(this._contextKeyService);
-	private readonly _hoverFocusedKey = EditorContextKeys.hoverFocused.bindTo(this._contextKeyService);
+
 	private readonly _hover: HoverWidget = this._register(new HoverWidget());
 	private _visibleData: ContentHoverVisibleData | null = null;
-	private _element: ResizableHTMLElement = this._register(new ResizableHTMLElement());
-	private readonly _focusTracker = this._register(dom.trackFocus(this.getDomNode()));
-	private _renderingAbove: boolean = this._editor.getOption(EditorOption.hover).above;
-	private _renderingType: ContentWidgetPositionPreference = ContentWidgetPositionPreference.ABOVE;
+	private _resizableElement: ResizableHTMLElement = this._register(new ResizableHTMLElement());
+	private _renderingAboveOption: boolean = this._editor.getOption(EditorOption.hover).above;
+	private _renderingAbove = this._renderingAboveOption;
 	private _maxRenderingHeight: number | undefined = -1;
 	private readonly _persistedHoverWidgetSizes: PersistedHoverWidgetSizes;
+	private readonly _hoverVisibleKey = EditorContextKeys.hoverVisible.bindTo(this._contextKeyService);
+	private readonly _hoverFocusedKey = EditorContextKeys.hoverFocused.bindTo(this._contextKeyService);
+	private readonly _focusTracker = this._register(dom.trackFocus(this.getDomNode()));
 
-	public get element(): ResizableHTMLElement {
-		return this._element;
-	}
 
 	/**
 	 * Returns `null` if the hover is not visible.
@@ -511,15 +523,17 @@ export class ContentHoverWidget extends Disposable implements IContentWidget {
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 		@IStorageService private readonly _storageService: IStorageService,
 	) {
-
 		super();
 		console.log('Very beginning of constructor');
-		console.log('this._element.domNode : ', this._element.domNode);
+		console.log('this._element.domNode : ', this._resizableElement.domNode);
 
 		this._register(this._editor.onDidLayoutChange(() => this._layout()));
 		this._register(this._editor.onDidChangeConfiguration((e: ConfigurationChangedEvent) => {
 			if (e.hasChanged(EditorOption.fontInfo)) {
 				this._updateFont();
+			}
+			if (e.hasChanged(EditorOption.hover)) {
+				this._renderingAbove = this._editor.getOption(EditorOption.hover).above;
 			}
 		}));
 
@@ -533,103 +547,76 @@ export class ContentHoverWidget extends Disposable implements IContentWidget {
 			this._hoverFocusedKey.set(false);
 		}));
 
-		this._persistedHoverWidgetSizes = new PersistedHoverWidgetSizes(this._storageService, this._editor);
-		this._editor.onDidChangeModel(() => {
-			this._persistedHoverWidgetSizes.resetAll();
+		this._persistedHoverWidgetSizes = new PersistedHoverWidgetSizes(this._storageService);
+		this._editor.onDidChangeModel((model) => {
+			if (model.oldModelUrl) {
+				this._persistedHoverWidgetSizes.resetForUri(model.oldModelUrl);
+			}
 		});
-		this._element.domNode.appendChild(this._hover.containerDomNode);
-		this._element.domNode.className = 'resizable-hover';
-		this._element.domNode.tabIndex = 0;
-		this._element.domNode.role = 'tooltip';
-
-		class ResizeState {
-			constructor(
-				readonly persistedSize: dom.Dimension | undefined,
-				readonly currentSize: dom.Dimension,
-				public persistHeight = false,
-				public persistWidth = false,
-			) { }
-		}
+		this._resizableElement.domNode.appendChild(this._hover.containerDomNode);
+		this._resizableElement.domNode.className = 'resizable-hover';
+		this._resizableElement.domNode.tabIndex = 0;
+		this._resizableElement.domNode.role = 'tooltip';
 
 		let state: ResizeState | undefined;
 
-		this._register(this.element.onDidWillResize(() => {
+		this._register(this._resizableElement.onDidWillResize(() => {
 			const wordPosition = this._editor.getModel()?.getWordAtPosition(this._visibleData!.showAtPosition);
-			const tokenIdentifier = {
-				startColumn: wordPosition?.startColumn,
-				endColumn: wordPosition?.endColumn,
-				line: this._visibleData!.showAtPosition.lineNumber
-			};
-			const persistedSize = this._persistedHoverWidgetSizes.restore(tokenIdentifier);
-			state = new ResizeState(persistedSize, this.element.size);
+			if (wordPosition && this._editor.hasModel()) {
+				const tokenIdentifier = new TokenIdentifier(this._visibleData!.showAtPosition.lineNumber, wordPosition.startColumn, wordPosition.endColumn);
+				const persistedSize = this._persistedHoverWidgetSizes.restore(tokenIdentifier, this._editor.getModel().uri);
+				state = new ResizeState(persistedSize, this._resizableElement.size);
+			}
 		}));
-		this._register(this._element.onDidResize(e => {
+		this._register(this._resizableElement.onDidResize(e => {
 			console.log('* Inside of onDidResize of ContentHoverWidget');
 			console.log('e : ', e);
 			this._resize(e.dimension.width, e.dimension.height);
-
 			if (state) {
 				state.persistHeight = state.persistHeight || !!e.north || !!e.south;
 				state.persistWidth = state.persistWidth || !!e.east || !!e.west;
 			}
-
 			if (!e.done) {
 				return;
 			}
-
 			if (state) {
 				const wordPosition = this._editor.getModel()?.getWordAtPosition(this._visibleData!.showAtPosition);
-				const tokenIdentifier = {
-					startColumn: wordPosition?.startColumn,
-					endColumn: wordPosition?.endColumn,
-					line: this._visibleData!.showAtPosition.lineNumber
-				};
-				const { width, height } = this.element.size;
-				const persistedSize = new dom.Dimension(width, height);
-				this._persistedHoverWidgetSizes.store(tokenIdentifier, persistedSize);
+				if (wordPosition && this._editor.hasModel()) {
+					const tokenIdentifier = new TokenIdentifier(this._visibleData!.showAtPosition.lineNumber, wordPosition.startColumn, wordPosition.endColumn);
+					const { width, height } = this._resizableElement.size;
+					const persistedSize = new dom.Dimension(width, height);
+					this._persistedHoverWidgetSizes.store(tokenIdentifier, persistedSize, this._editor.getModel().uri);
+				}
 			}
 			state = undefined;
 		}));
 
 		console.log('Before adding the content widget');
-		console.log('this._element.domNode : ', this._element.domNode);
+		console.log('this._element.domNode : ', this._resizableElement.domNode);
 		this._editor.addContentWidget(this);
 		console.log('After adding the content widget');
-		console.log('this._element.domNode : ', this._element.domNode);
+		console.log('this._element.domNode : ', this._resizableElement.domNode);
 	}
-
-	// TODO: Polish code, annotate, make it cleaner. Understand what all the entites correspond to, if some are superfluous, not needed
-	// TODO: Find out why even if smaller than default max size, the whole widget is not shown, want the whole widget to be shown when smaller than default size
-	// TODO: Render the correct initial size
-	// TODO: Persist the maximum size, if bigger than this size then cap to this size, otherwise take the smaller size
-	// TODO: Do not enable the sashes when the hover should not be resizable anymore
-	// TODO: Add horizontal scroll-bar on the resizable element when part of the horizontal text is not visible
-	// TODO: Have the same hover size as by default, for that generate the initial rendering of the content hover widget
 
 	private _setLayoutOfResizableElement(): void {
 
 		console.log('* Entered into _setLayoutOfResizableElement of ContentHoverWidget');
-		console.log('this._element.domNode before layoutContentWidget : ', this._element.domNode);
+		console.log('this._element.domNode before layoutContentWidget : ', this._resizableElement.domNode);
 
-		if (!this._editor.hasModel()) {
+		if (!this._editor.hasModel() || !this._editor.getDomNode() || !this._visibleData?.showAtPosition) {
 			return;
 		}
-		if (!this._editor.getDomNode()) {
-			return;
-		}
-
-		// The hover container dom node height and width are initial automatically determined by the browser before being changed
 
 		let height;
 		let width;
+		let persistedSize;
 
 		const wordPosition = this._editor.getModel()?.getWordAtPosition(this._visibleData!.showAtPosition);
-		const tokenIdentifier = {
-			startColumn: wordPosition?.startColumn,
-			endColumn: wordPosition?.endColumn,
-			line: this._visibleData!.showAtPosition.lineNumber
-		};
-		const persistedSize = this._persistedHoverWidgetSizes.restore(tokenIdentifier);
+		if (wordPosition && this._editor.hasModel()) {
+			const tokenIdentifier = new TokenIdentifier(this._visibleData!.showAtPosition.lineNumber, wordPosition.startColumn, wordPosition.endColumn);
+			persistedSize = this._persistedHoverWidgetSizes.restore(tokenIdentifier, this._editor.getModel().uri);
+		}
+
 		console.log('persistedSize : ', persistedSize);
 
 		if (persistedSize) {
@@ -640,63 +627,23 @@ export class ContentHoverWidget extends Disposable implements IContentWidget {
 			console.log('When not using the persisted size');
 			const initialMaxHeight = Math.max(this._editor.getLayoutInfo().height / 4, 250);
 			const initialMaxWidth = Math.max(this._editor.getLayoutInfo().width * 0.66, 500);
-			// this._hover.contentsDomNode.style.maxHeight = `${initialMaxHeight}px`;
-			// this._hover.contentsDomNode.style.maxWidth = `${initialMaxWidth}px`;
 			this._hover.containerDomNode.style.maxHeight = `${initialMaxHeight}px`;
 			this._hover.containerDomNode.style.maxWidth = `${initialMaxWidth}px`;
 			this._hover.containerDomNode.style.minHeight = '24px';
-			// this._element.domNode.style.maxHeight = `${initialMaxHeight}px`;
-			// this._element.domNode.style.maxWidth = `${initialMaxWidth}px`;
-			// this._element.maxSize = new dom.Dimension(initialMaxWidth, initialMaxHeight);
 
 			this._hover.contentsDomNode.style.width = 'max-content';
 			this._hover.contentsDomNode.style.height = 'fit-content';
 			this._hover.containerDomNode.style.width = 'max-content';
 			this._hover.containerDomNode.style.height = 'fit-content';
 
-			/*
-			const contentsHover = this._hover.contentsDomNode;
-			let maxContentWidth = 0;
-			for (const childContent of contentsHover.children) {
-				maxContentWidth = Math.max(maxContentWidth, this._findClientWidthOf(childContent));
-				console.log('maxContentWidth : ', maxContentWidth);
-				maxContentWidth = Math.max(maxContentWidth, childContent.clientWidth);
-				console.log('maxContentWidth : ', maxContentWidth);
-			}
-			console.log('maxContentWidth : ', maxContentWidth);
-			if (maxContentWidth < initialMaxWidth) {
-				this._hover.contentsDomNode.style.width = `${maxContentWidth}px`;
-				this._hover.containerDomNode.style.width = `${maxContentWidth}px`;
-			}
-			*/
-
-			// this._element = this._register(new ResizableHTMLElement());
-			// this._element.domNode.appendChild(this._hover.containerDomNode);
-			// this._element.domNode.className = 'resizable-hover';
-			// this._element.domNode.style.position = 'fixed';
-			// this._element.domNode.style.display = 'block';
-			// this._element.domNode.style.visibility = 'inherit';
-
-			// this._hover.contentsDomNode.style.height = 'auto';
-			// this._hover.contentsDomNode.style.width = 'auto';
-			// If the following is set it causes errors
-			// this._element.domNode.style.height = 'auto';
-			// this._element.domNode.style.width = 'auto';
-
-			// this._hover.containerDomNode.style.maxHeight = height + 'px';
-			// this._hover.containerDomNode.style.maxWidth = width + 'px';
-			// this._hover.contentsDomNode.style.maxHeight = height + 'px';
-			// this._hover.contentsDomNode.style.maxWidth = width + 'px';
 			console.log('Before render');
-			console.log('this._element.domNode before layoutContentWidget : ', this._element.domNode);
+			console.log('this._element.domNode before layoutContentWidget : ', this._resizableElement.domNode);
 
-			// Maybe don't need this?
 			this._editor.layoutContentWidget(this);
 			this._editor.render();
 
-			// We want the following to be designed in a similar manner to the initial hover how it was in the main branch in order to give us the default size like initially
 			console.log('After render');
-			console.log('this._element.domNode after layoutContentWidget: ', this._element.domNode);
+			console.log('this._element.domNode after layoutContentWidget: ', this._resizableElement.domNode);
 
 			height = this._hover.containerDomNode.offsetHeight;
 			width = this._hover.containerDomNode.offsetWidth;
@@ -706,128 +653,70 @@ export class ContentHoverWidget extends Disposable implements IContentWidget {
 		console.log('height : ', height);
 		console.log('width : ', width);
 
-		const clientWidth = this._hover.containerDomNode.clientWidth;
-		const clientHeight = this._hover.containerDomNode.clientHeight;
-		console.log('clientWidth : ', clientWidth);
-		console.log('clientHeight : ', clientHeight);
-
-		// this._hover.containerDomNode.style.height = heightAfterRender + 'px';
-		// this._hover.containerDomNode.style.width = widthAfterRender + 'px';
-		// this._hover.contentsDomNode.style.height = heightAfterRender + 'px';
-		// this._hover.contentsDomNode.style.width = widthAfterRender + 'px';
-
-		// this._hover.containerDomNode.style.maxHeight = 'none';
-		// this._hover.containerDomNode.style.maxWidth = 'none';
-		// this._hover.contentsDomNode.style.maxHeight = 'none';
-		// this._hover.contentsDomNode.style.maxWidth = 'none';
-		// this._element.layout(heightAfterRender + 2, widthAfterRender + 2);
-
 		console.log('this._hover.containerDomNode from initial rendering : ', this._hover.containerDomNode);
 
 		// The dimensions of the document in which we are displaying the hover
 		const bodyBox = dom.getClientArea(document.body);
-		console.log('bodyBox : ', bodyBox);
-
-		// Hard-coded in the hover.css file as 1.5em or 24px
-		const minHeight = 24;
 
 		// Hard-code the values for now!
 		const maxWidth = bodyBox.width;
 		if (width > maxWidth) {
-			console.log('width capped at the maxWidth');
 			width = maxWidth;
 		}
 
+		// Hard-coded in the hover.css file as 1.5em or 24px
+		const minHeight = 24;
 		// The full height is already passed in as a parameter
 		const fullHeight = height;
 		const editorBox = dom.getDomNodePagePosition(this._editor.getDomNode());
-		console.log('editorBox : ', editorBox);
-		if (!this._visibleData?.showAtPosition) {
-			return;
-		}
 		const mouseBox = this._editor.getScrolledVisiblePosition(this._visibleData?.showAtPosition);
-		console.log('mouseBox : ', mouseBox);
 		// Position where the editor box starts + the top of the mouse box relatve to the editor + mouse box height
 		const mouseBottom = editorBox.top + mouseBox.top + mouseBox.height;
-		console.log('mouseBottom : ', mouseBottom);
 		// Total height of the box minus the position of the bottom of the mouse, this is the maximum height below the mouse position
 		const availableSpaceBelow = bodyBox.height - mouseBottom;
-		console.log('availableSpaceBelow : ', availableSpaceBelow);
 		// Max height below is the minimum of the available space below and the full height of the widget
 		const maxHeightBelow = Math.min(availableSpaceBelow, fullHeight);
-		console.log('maxHeightBelow : ', maxHeightBelow);
 		// The available space above the mouse position is the height of the top of the editor plus the top of the mouse box relative to the editor
 		const availableSpaceAbove = mouseBox.top; // + 35 + 22; // Removing 35 because that is the height of the tabs // editorBox.top // adding 22 because height of breadcrumbs
-		console.log('availableSpaceAbove : ', availableSpaceAbove);
 		// Max height above is the minimum of the available space above and the full height of the widget
 		const maxHeightAbove = Math.min(availableSpaceAbove, fullHeight);
-		console.log('maxHeightAbove : ', maxHeightAbove);
 		// We find the maximum height of the widget possible on the top or on the bottom
 		const maxHeight = Math.min(Math.max(maxHeightAbove, maxHeightBelow), fullHeight);
-		console.log('maxHeight : ', maxHeight);
 
 		if (height < minHeight) {
-			console.log('height capped at the min height');
 			height = minHeight;
 		}
 		if (height > maxHeight) {
-			console.log('height capped at the maximum height');
-			// The maximum height has been limited due to not enough
 			height = maxHeight;
 		}
 
-		const preferRenderingAbove = this._editor.getOption(EditorOption.hover).above;
-		console.log('preferRenderingAbove : ', preferRenderingAbove);
-
-		console.log('Before enabling sashes');
-		if (preferRenderingAbove) {
-			console.log('first if condition');
-
+		if (this._renderingAboveOption) {
 			const westSash = false;
 			const eastSash = true;
 			const northSash = height <= maxHeightAbove;
 			const southSash = height > maxHeightAbove;
 			this._renderingAbove = height <= maxHeightAbove;
-			console.log('this._renderingAbove : ', this._renderingAbove);
-
-			this._renderingType = this._renderingAbove ? ContentWidgetPositionPreference.ABOVE : ContentWidgetPositionPreference.BELOW;
-			console.log('this._renderingType : ', this._renderingType);
-			this._element.enableSashes(northSash, eastSash, southSash, westSash);
-
+			this._resizableElement.enableSashes(northSash, eastSash, southSash, westSash);
 		} else {
-			console.log('Second if condition');
 			const westSash = false;
 			const eastSash = true;
 			const northSash = height > maxHeightBelow;
 			const southSash = height <= maxHeightBelow;
-
 			this._renderingAbove = height > maxHeightBelow;
-			console.log('this._renderingAbove : ', this._renderingAbove);
-
-			this._renderingType = this._renderingAbove ? ContentWidgetPositionPreference.ABOVE : ContentWidgetPositionPreference.BELOW;
-			console.log('this._renderingType : ', this._renderingType);
-			this._element.enableSashes(northSash, eastSash, southSash, westSash);
-
-
-			// TODO: Place the following line in order to use the calculated max width and max height
-			// TODO: It would appear that if the minimum width is 0, it will disappear, set some value larger than 0
-
-			this._element.minSize = new dom.Dimension(10, minHeight);
+			this._resizableElement.enableSashes(northSash, eastSash, southSash, westSash);
+			this._resizableElement.minSize = new dom.Dimension(10, minHeight);
 			this._maxRenderingHeight = this._findMaxRenderingHeight();
-			console.log('maxRenderingHeight : ', this._maxRenderingHeight);
 			if (!this._maxRenderingHeight) {
 				return;
 			}
-			this._element.maxSize = new dom.Dimension(maxWidth, this._maxRenderingHeight);
-			console.log('height : ', height);
-			console.log('width : ', width);
+			this._resizableElement.maxSize = new dom.Dimension(maxWidth, this._maxRenderingHeight);
 		}
 
-		this._element.layout(height, width);
-		this._hover.containerDomNode.style.height = `${height - 2}px`; // height - 2
-		this._hover.containerDomNode.style.width = `${width - 2}px`; // width - 2
-		this._hover.contentsDomNode.style.height = `${height - 2}px`; // height - 2
-		this._hover.contentsDomNode.style.width = `${width - 2}px`; // width - 2
+		this._resizableElement.layout(height, width);
+		this._hover.containerDomNode.style.height = `${height - 2}px`;
+		this._hover.containerDomNode.style.width = `${width - 2}px`;
+		this._hover.contentsDomNode.style.height = `${height - 2}px`;
+		this._hover.contentsDomNode.style.width = `${width - 2}px`;
 
 		console.log('this._hover.contentsDomNode.clientHeight : ', this._hover.contentsDomNode.clientHeight);
 		console.log('this._hover.contentsDomNode.scrollHeight : ', this._hover.contentsDomNode.scrollHeight);
@@ -886,8 +775,8 @@ export class ContentHoverWidget extends Disposable implements IContentWidget {
 		this._hover.contentsDomNode.style.maxHeight = 'none';
 		this._hover.contentsDomNode.style.maxWidth = 'none';
 
-		const maxWidth = this._element.maxSize.width;
-		const maxHeight = this._element.maxSize.height;
+		const maxWidth = this._resizableElement.maxSize.width;
+		const maxHeight = this._resizableElement.maxSize.height;
 		width = Math.min(maxWidth, width);
 		height = Math.min(maxHeight, height);
 		console.log('height : ', height);
@@ -900,7 +789,7 @@ export class ContentHoverWidget extends Disposable implements IContentWidget {
 		//	this._element.enableSashes(false, true, false, false);
 		// }
 
-		this._element.layout(height, width);
+		this._resizableElement.layout(height, width);
 		this._hover.containerDomNode.style.height = `${height - 2}px`;
 		this._hover.containerDomNode.style.width = `${width - 2}px`;
 		this._hover.contentsDomNode.style.height = `${height - 2}px`;
@@ -912,7 +801,7 @@ export class ContentHoverWidget extends Disposable implements IContentWidget {
 		if (!this._maxRenderingHeight) {
 			return;
 		}
-		this._element.maxSize = new dom.Dimension(maxWidth, this._maxRenderingHeight);
+		this._resizableElement.maxSize = new dom.Dimension(maxWidth, this._maxRenderingHeight);
 		this._editor.layoutContentWidget(this);
 
 		console.log('this._hover.contentsDomNode.clientHeight : ', this._hover.contentsDomNode.clientHeight);
@@ -935,7 +824,7 @@ export class ContentHoverWidget extends Disposable implements IContentWidget {
 
 	public getDomNode(): HTMLElement {
 		console.log('Inside of getDomNode');
-		return this._element.domNode;
+		return this._resizableElement.domNode;
 	}
 
 	public getPosition(): IContentWidgetPosition | null {
@@ -951,11 +840,11 @@ export class ContentHoverWidget extends Disposable implements IContentWidget {
 
 		// :before content can align left of the text content
 		const affinity = this._visibleData.isBeforeContent ? PositionAffinity.LeftOfInjectedText : undefined;
-
+		const rendering = this._renderingAbove ? ContentWidgetPositionPreference.ABOVE : ContentWidgetPositionPreference.BELOW;
 		return {
 			position: this._visibleData.showAtPosition,
 			secondaryPosition: this._visibleData.showAtSecondaryPosition,
-			preference: [this._renderingType],
+			preference: [rendering],
 			positionAffinity: affinity
 		};
 	}
@@ -990,7 +879,7 @@ export class ContentHoverWidget extends Disposable implements IContentWidget {
 		this._visibleData = visibleData;
 		this._hoverVisibleKey.set(!!this._visibleData);
 		this._hover.containerDomNode.classList.toggle('hidden', !this._visibleData);
-		this._element.domNode.classList.toggle('hidden', !this._visibleData);
+		this._resizableElement.domNode.classList.toggle('hidden', !this._visibleData);
 	}
 
 	private _layout(): void {
@@ -1010,7 +899,7 @@ export class ContentHoverWidget extends Disposable implements IContentWidget {
 		console.log('visibleData : ', visibleData);
 		console.log('node : ', node);
 		console.log('node.baseURI ', node.baseURI);
-		console.log('this._element.domNode : ', this._element.domNode);
+		console.log('this._element.domNode : ', this._resizableElement.domNode);
 
 		this._setVisibleData(visibleData);
 
@@ -1024,16 +913,16 @@ export class ContentHoverWidget extends Disposable implements IContentWidget {
 		// Simply force a synchronous render on the editor
 		// such that the widget does not really render with left = '0px'
 		console.log('Before render');
-		console.log('this._element.domNode : ', this._element.domNode);
+		console.log('this._element.domNode : ', this._resizableElement.domNode);
 		this._editor.render();
 		console.log('After render');
-		console.log('this._element.domNode : ', this._element.domNode);
+		console.log('this._element.domNode : ', this._resizableElement.domNode);
 
 		// See https://github.com/microsoft/vscode/issues/140339
 		// TODO: Doing a second layout of the hover after force rendering the editor
 		this.onContentsChanged();
 		console.log('After onContentsChanged');
-		console.log('this._element.domNode : ', this._element.domNode);
+		console.log('this._element.domNode : ', this._resizableElement.domNode);
 
 		if (visibleData.stoleFocus) {
 			this._hover.containerDomNode.focus();
@@ -1043,7 +932,7 @@ export class ContentHoverWidget extends Disposable implements IContentWidget {
 	}
 
 	public hide(): void {
-		this._element.clearSashHoverState();
+		this._resizableElement.clearSashHoverState();
 		if (this._visibleData) {
 			const stoleFocus = this._visibleData.stoleFocus;
 			this._setVisibleData(null);
