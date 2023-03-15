@@ -63,6 +63,10 @@ export class ExtHostInteractiveSession implements ExtHostInteractiveSessionShape
 		this._proxy.$addInteractiveSessionRequest(context);
 	}
 
+	sendInteractiveRequestToProvider(providerId: string, message: vscode.InteractiveSessionDynamicRequest): void {
+		this._proxy.$sendInteractiveRequestToProvider(providerId, message);
+	}
+
 	async $prepareInteractiveSession(handle: number, initialState: any, token: CancellationToken): Promise<IInteractiveSessionDto | undefined> {
 		const entry = this._interactiveSessionProvider.get(handle);
 		if (!entry) {

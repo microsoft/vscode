@@ -18,6 +18,7 @@ export interface IInteractiveSessionContributionService {
 	_serviceBrand: undefined;
 
 	registeredProviders: IInteractiveSessionProviderContribution[];
+	getViewIdForProvider(providerId: string): string;
 }
 
 export interface IRawInteractiveSessionProviderContribution {

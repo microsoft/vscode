@@ -15,8 +15,10 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { ILogService } from 'vs/platform/log/common/log';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { IViewsService } from 'vs/workbench/common/views';
+import { IInteractiveSessionContributionService } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionContributionService';
 import { ISerializableInteractiveSessionData, ISerializableInteractiveSessionsData, InteractiveSessionModel, InteractiveWelcomeMessageModel } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionModel';
-import { IInteractiveProgress, IInteractiveProvider, IInteractiveSessionReplyFollowup, IInteractiveSessionService, IInteractiveSessionUserActionEvent, IInteractiveSlashCommand } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionService';
+import { IInteractiveProgress, IInteractiveProvider, IInteractiveSessionDynamicRequest, IInteractiveSessionReplyFollowup, IInteractiveSessionService, IInteractiveSessionUserActionEvent, IInteractiveSlashCommand } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionService';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 
 const serializedInteractiveSessionKey = 'interactive.sessions';
@@ -54,6 +56,8 @@ export class InteractiveSessionService extends Disposable implements IInteractiv
 		@IExtensionService private readonly extensionService: IExtensionService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
+		@IViewsService private readonly viewsService: IViewsService,
+		@IInteractiveSessionContributionService private readonly interactiveSessionContributionService: IInteractiveSessionContributionService,
 	) {
 		super();
 		const sessionData = storageService.get(serializedInteractiveSessionKey, StorageScope.WORKSPACE, '');
@@ -259,6 +263,22 @@ export class InteractiveSessionService extends Disposable implements IInteractiv
 		// Maybe this API should queue a request after the current one?
 		this.trace('addInteractiveRequest', `Sending resolved request for session ${model.sessionId}`);
 		this.sendRequest(model.sessionId, request.message, CancellationToken.None);
+	}
+
+	async sendInteractiveRequestToProvider(providerId: string, message: IInteractiveSessionDynamicRequest): Promise<void> {
+		this.trace('sendInteractiveRequestToProvider', `providerId: ${providerId}`);
+		const viewId = this.interactiveSessionContributionService.getViewIdForProvider(providerId);
+		const view = await this.viewsService.openView(viewId);
+		if (view) {
+			// TODO The ViewPane type is in /browser/, do this somewhere else
+			if ((view as any).acceptInput) {
+				this.trace('sendInteractiveRequestToProvider', `Sending request to view ${viewId}`);
+				(view as any).acceptInput(message.message); // TODO extend the request type to take metadata? Or call a resolve() method? Or something else.
+				return;
+			}
+		}
+
+		this.trace('sendInteractiveRequestToProvider', `Something went wrong, couldn't send request to view ${viewId}`);
 	}
 
 	clearSession(sessionId: number): void {

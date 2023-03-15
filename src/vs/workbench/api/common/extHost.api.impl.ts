@@ -1234,6 +1234,10 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				checkProposedApiEnabled(extension, 'interactive');
 				return extHostInteractiveSession.addInteractiveSessionRequest(context);
 			},
+			sendInteractiveRequestToProvider(providerId: string, message: vscode.InteractiveSessionDynamicRequest) {
+				checkProposedApiEnabled(extension, 'interactive');
+				return extHostInteractiveSession.sendInteractiveRequestToProvider(providerId, message);
+			},
 			get onDidPerformUserAction() {
 				return extHostInteractiveSession.onDidPerformUserAction;
 			}
