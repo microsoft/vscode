@@ -120,6 +120,11 @@ export class InteractiveResponseModel extends Disposable implements IInteractive
 		this._onDidChange.fire();
 	}
 
+	cancel(): void {
+		this._isComplete = true;
+		this._onDidChange.fire();
+	}
+
 	setFollowups(followups: IInteractiveSessionFollowup[] | undefined): void {
 		this._followups = followups;
 		this._onDidChange.fire(); // Fire so that command followups get rendered on the row
@@ -246,6 +251,12 @@ export class InteractiveSessionModel extends Disposable implements IInteractiveS
 			request.response.updateContent(progress.content);
 		} else {
 			request.response.setProviderResponseId(progress.responseId);
+		}
+	}
+
+	cancelRequest(request: InteractiveRequestModel): void {
+		if (request.response) {
+			request.response.cancel();
 		}
 	}
 

@@ -6,6 +6,7 @@
 import * as dom from 'vs/base/browser/dom';
 import { Button } from 'vs/base/browser/ui/button/button';
 import { ITreeContextMenuEvent, ITreeElement } from 'vs/base/browser/ui/tree/tree';
+import { CancelablePromise } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Emitter } from 'vs/base/common/event';
 import { Disposable, DisposableStore, IDisposable, combinedDisposable, toDisposable } from 'vs/base/common/lifecycle';
@@ -18,7 +19,7 @@ import { IModelService } from 'vs/editor/common/services/model';
 import { localize } from 'vs/nls';
 import { MenuWorkbenchToolBar } from 'vs/platform/actions/browser/toolbar';
 import { MenuId } from 'vs/platform/actions/common/actions';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService, createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
@@ -32,7 +33,7 @@ import { IInteractiveSessionWidget } from 'vs/workbench/contrib/interactiveSessi
 import { InteractiveSessionFollowups } from 'vs/workbench/contrib/interactiveSession/browser/interactiveSessionFollowups';
 import { IInteractiveSessionRendererDelegate, InteractiveListItemRenderer, InteractiveSessionAccessibilityProvider, InteractiveSessionListDelegate, InteractiveTreeItem } from 'vs/workbench/contrib/interactiveSession/browser/interactiveSessionListRenderer';
 import { InteractiveSessionEditorOptions } from 'vs/workbench/contrib/interactiveSession/browser/interactiveSessionOptions';
-import { CONTEXT_IN_INTERACTIVE_INPUT, CONTEXT_IN_INTERACTIVE_SESSION } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionContextKeys';
+import { CONTEXT_IN_INTERACTIVE_INPUT, CONTEXT_IN_INTERACTIVE_SESSION, CONTEXT_INTERACTIVE_REQUEST_IN_PROGRESS } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionContextKeys';
 import { IInteractiveSessionReplyFollowup, IInteractiveSessionService, IInteractiveSlashCommand } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionService';
 import { IInteractiveSessionViewModel, InteractiveSessionViewModel, isRequestVM, isResponseVM, isWelcomeVM } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionViewModel';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
@@ -93,6 +94,8 @@ export class InteractiveSessionWidget extends Disposable implements IInteractive
 	private welcomeViewDisposables = this._register(new DisposableStore());
 	private bodyDimension: dom.Dimension | undefined;
 	private visible = false;
+	private currentRequest: CancelablePromise<void> | undefined;
+	private requestInProgress: IContextKey<boolean>;
 
 	private previousTreeScrollHeight: number = 0;
 
@@ -142,6 +145,7 @@ export class InteractiveSessionWidget extends Disposable implements IInteractive
 	) {
 		super();
 		CONTEXT_IN_INTERACTIVE_SESSION.bindTo(contextKeyService).set(true);
+		this.requestInProgress = CONTEXT_INTERACTIVE_REQUEST_IN_PROGRESS.bindTo(contextKeyService);
 
 		this._register((interactiveSessionWidgetService as InteractiveSessionWidgetService).register(this));
 		this.initializeSessionModel(true);
@@ -446,6 +450,11 @@ export class InteractiveSessionWidget extends Disposable implements IInteractive
 	}
 
 	async acceptInput(query?: string | IInteractiveSessionReplyFollowup): Promise<void> {
+		if (this.currentRequest) {
+			// TODO this logic is duplicated in the service, figure out who is in control
+			return;
+		}
+
 		if (!this.viewModel) {
 			// This currently shouldn't happen anymore, but leaving this here to make sure we don't get stuck without a viewmodel
 			await this.initializeSessionModel();
@@ -453,10 +462,26 @@ export class InteractiveSessionWidget extends Disposable implements IInteractive
 
 		if (this.viewModel) {
 			const input = query ?? this._inputEditor.getValue();
-			if (this.interactiveSessionService.sendRequest(this.viewModel.sessionId, input, CancellationToken.None)) {
+			const result = this.interactiveSessionService.sendRequest(this.viewModel.sessionId, input);
+			if (result) {
+				this.requestInProgress.set(true);
+				this.currentRequest = result.completePromise;
+				this.currentRequest.then(() => {
+					this.requestInProgress.set(false);
+					this.currentRequest = undefined;
+				});
+				
 				this._inputEditor.setValue('');
 				revealLastElement(this.tree);
 			}
+		}
+	}
+
+	cancelCurrentRequest(): void {
+		if (this.currentRequest) {
+			this.currentRequest.cancel();
+			this.requestInProgress.set(false);
+			this.currentRequest = undefined;
 		}
 	}
 
