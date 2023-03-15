@@ -181,7 +181,6 @@ class TestNotebookKernel implements INotebookKernel {
 	constructor(opts?: { languages: string[] }) {
 		this.supportedLanguages = opts?.languages ?? [PLAINTEXT_LANGUAGE_ID];
 	}
-	kind?: string | undefined;
 	implementsInterrupt?: boolean | undefined;
 	implementsExecutionOrder?: boolean | undefined;
 }
