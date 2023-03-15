@@ -810,7 +810,7 @@ export class InteractiveEditorController implements IEditorContribution {
 
 			if (reply.type === 'bulkEdit') {
 				this._logService.info('[IE] performaing a BULK EDIT, exiting interactive editor', provider.debugName);
-				this._bulkEditService.apply(reply.edits, { editor: this._editor, label: localize('ie', "{0}", input.value) });
+				this._bulkEditService.apply(reply.edits, { editor: this._editor, label: localize('ie', "{0}", input.value), showPreview: true });
 				// todo@jrieken preview bulk edit?
 				// todo@jrieken keep interactive editor?
 				break;
