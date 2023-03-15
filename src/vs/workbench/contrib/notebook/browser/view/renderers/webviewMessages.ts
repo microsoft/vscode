@@ -201,6 +201,7 @@ export interface ICreationRequestMessage {
 	readonly initiallyHidden?: boolean;
 	readonly rendererId?: string | undefined;
 	readonly executionId?: string | undefined;
+	readonly createOnIdle: boolean;
 }
 
 export interface IContentWidgetTopRequest {

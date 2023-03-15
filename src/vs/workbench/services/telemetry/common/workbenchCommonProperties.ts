@@ -5,26 +5,23 @@
 
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { resolveCommonProperties } from 'vs/platform/telemetry/common/commonProperties';
-import { firstSessionDateStorageKey, lastSessionDateStorageKey } from 'vs/platform/telemetry/common/telemetry';
+import { ICommonProperties, firstSessionDateStorageKey, lastSessionDateStorageKey } from 'vs/platform/telemetry/common/telemetry';
 import { cleanRemoteAuthority } from 'vs/platform/telemetry/common/telemetryUtils';
 import { INodeProcess } from 'vs/base/common/platform';
-import { IFileService } from 'vs/platform/files/common/files';
 
-export async function resolveWorkbenchCommonProperties(
+export function resolveWorkbenchCommonProperties(
 	storageService: IStorageService,
-	fileService: IFileService,
 	release: string,
 	hostname: string,
 	commit: string | undefined,
 	version: string | undefined,
 	machineId: string,
 	isInternalTelemetry: boolean,
-	installSourcePath: string,
 	process: INodeProcess,
 	sandboxed: boolean,
 	remoteAuthority?: string
-): Promise<{ [name: string]: string | boolean | undefined }> {
-	const result = await resolveCommonProperties(fileService, release, hostname, process.arch, commit, version, machineId, isInternalTelemetry, installSourcePath);
+): ICommonProperties {
+	const result = resolveCommonProperties(release, hostname, process.arch, commit, version, machineId, isInternalTelemetry);
 	const firstSessionDate = storageService.get(firstSessionDateStorageKey, StorageScope.APPLICATION)!;
 	const lastSessionDate = storageService.get(lastSessionDateStorageKey, StorageScope.APPLICATION)!;
 

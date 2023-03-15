@@ -107,7 +107,7 @@ export class UserDataProfileImportExportService extends Disposable implements IU
 	private readonly isProfileImportInProgressContextKey: IContextKey<boolean>;
 
 	private readonly viewContainer: ViewContainer;
-	private readonly fileUserDataProfileContentHandler: IUserDataProfileContentHandler;
+	private readonly fileUserDataProfileContentHandler: FileUserDataProfileContentHandler;
 
 	constructor(
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
@@ -115,7 +115,6 @@ export class UserDataProfileImportExportService extends Disposable implements IU
 		@IViewsService private readonly viewsService: IViewsService,
 		@IEditorService private readonly editorService: IEditorService,
 		@IContextKeyService contextKeyService: IContextKeyService,
-		@IFileService private readonly fileService: IFileService,
 		@IUserDataProfileManagementService private readonly userDataProfileManagementService: IUserDataProfileManagementService,
 		@IUserDataProfilesService private readonly userDataProfilesService: IUserDataProfilesService,
 		@IExtensionService private readonly extensionService: IExtensionService,
@@ -482,7 +481,7 @@ export class UserDataProfileImportExportService extends Disposable implements IU
 	}
 
 	private async resolveProfileContent(resource: URI): Promise<string | null> {
-		if (await this.fileService.canHandleResource(resource)) {
+		if (await this.fileUserDataProfileContentHandler.canHandle(resource)) {
 			return this.fileUserDataProfileContentHandler.readProfile(resource, CancellationToken.None);
 		}
 
@@ -689,8 +688,12 @@ class FileUserDataProfileContentHandler implements IUserDataProfileContentHandle
 		return { link, id: link.toString() };
 	}
 
+	async canHandle(uri: URI): Promise<boolean> {
+		return uri.scheme !== Schemas.http && uri.scheme !== Schemas.https && await this.fileService.canHandleResource(uri);
+	}
+
 	async readProfile(uri: URI, token: CancellationToken): Promise<string | null> {
-		if (await this.fileService.canHandleResource(uri)) {
+		if (await this.canHandle(uri)) {
 			return (await this.fileService.readFile(uri, undefined, token)).value.toString();
 		}
 		return null;
@@ -873,7 +876,7 @@ abstract class UserDataProfileImportExportState extends Disposable implements IT
 		}
 	}
 
-	onDidChangeCheckboxState(items: ITreeItem[]): ITreeItem[] {
+	onDidChangeCheckboxState(items: readonly ITreeItem[]): readonly ITreeItem[] {
 		const toRefresh: ITreeItem[] = [];
 		for (const item of items) {
 			if (item.children) {
@@ -1061,6 +1064,7 @@ class UserDataProfileExportState extends UserDataProfileImportExportState {
 			tasksResource: profile.tasksResource.with({ scheme: USER_DATA_PROFILE_EXPORT_SCHEME }),
 			snippetsHome: profile.snippetsHome.with({ scheme: USER_DATA_PROFILE_EXPORT_SCHEME }),
 			extensionsResource: profile.extensionsResource,
+			cacheHome: profile.cacheHome,
 			useDefaultFlags: profile.useDefaultFlags,
 			isTransient: profile.isTransient
 		};
@@ -1108,7 +1112,7 @@ class UserDataProfileImportState extends UserDataProfileImportExportState {
 		const inMemoryProvider = this._register(new InMemoryFileSystemProvider());
 		this.disposables.add(this.fileService.registerProvider(USER_DATA_PROFILE_IMPORT_PREVIEW_SCHEME, inMemoryProvider));
 		const roots: IProfileResourceTreeItem[] = [];
-		const importPreviewProfle = toUserDataProfile(generateUuid(), this.profile.name, URI.file('/root').with({ scheme: USER_DATA_PROFILE_IMPORT_PREVIEW_SCHEME }));
+		const importPreviewProfle = toUserDataProfile(generateUuid(), this.profile.name, URI.file('/root').with({ scheme: USER_DATA_PROFILE_IMPORT_PREVIEW_SCHEME }), URI.file('/cache').with({ scheme: USER_DATA_PROFILE_IMPORT_PREVIEW_SCHEME }));
 
 		if (this.profile.settings) {
 			const settingsResource = this.instantiationService.createInstance(SettingsResource);

@@ -2,11 +2,11 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-use std::fmt::Display;
-
 use crate::constants::{
 	APPLICATION_NAME, CONTROL_PORT, DOCUMENTATION_URL, QUALITYLESS_PRODUCT_NAME,
 };
+use std::fmt::Display;
+use thiserror::Error;
 
 // Wraps another error with additional info.
 #[derive(Debug, Clone)]
@@ -171,7 +171,7 @@ impl std::fmt::Display for SetupError {
 	fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
 		write!(
 			f,
-			"{}\r\n\r\nMore info at {}/remote/linux",
+			"{}\n\nMore info at {}/remote/linux",
 			DOCUMENTATION_URL.unwrap_or("<docs>"),
 			self.0
 		)
@@ -475,6 +475,22 @@ macro_rules! makeAnyError {
     };
 }
 
+/// Internal errors in the VS Code CLI.
+/// Note: other error should be migrated to this type gradually
+#[derive(Error, Debug)]
+pub enum CodeError {
+	#[error("could not connect to socket/pipe")]
+	AsyncPipeFailed(std::io::Error),
+	#[error("could not listen on socket/pipe")]
+	AsyncPipeListenerFailed(std::io::Error),
+	#[error("could not create singleton lock file")]
+	SingletonLockfileOpenFailed(std::io::Error),
+	#[error("could not read singleton lock file")]
+	SingletonLockfileReadFailed(rmp_serde::decode::Error),
+	#[error("the process holding the singleton lock file exited")]
+	SingletonLockedProcessExited(u32),
+}
+
 makeAnyError!(
 	MissingLegalConsent,
 	MismatchConnectionToken,
@@ -505,7 +521,8 @@ makeAnyError!(
 	MissingHomeDirectory,
 	CommandFailed,
 	OAuthError,
-	InvalidRpcDataError
+	InvalidRpcDataError,
+	CodeError
 );
 
 impl From<reqwest::Error> for AnyError {

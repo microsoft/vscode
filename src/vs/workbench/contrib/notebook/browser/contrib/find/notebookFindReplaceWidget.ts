@@ -174,7 +174,7 @@ export class NotebookFindInputFilter extends Disposable {
 		this.createFilters(this._filterButtonContainer);
 
 		this._register(this.filters.onDidChange(() => {
-			if (this.filters.codeInput !== true || this.filters.codeOutput !== false || this.filters.markupInput !== true || this.filters.markupPreview !== false) {
+			if (this.filters.codeInput !== true || this.filters.codeOutput !== true || this.filters.markupInput !== true || this.filters.markupPreview !== false) {
 				this._filtersAction.checked = true;
 			} else {
 				this._filtersAction.checked = false;
@@ -310,7 +310,7 @@ export abstract class SimpleFindReplaceWidget extends Widget {
 	) {
 		super();
 
-		this._filters = new NotebookFindFilters(true, false, true, false);
+		this._filters = new NotebookFindFilters(true, false, true, true);
 		this._state.change({ filters: this._filters }, false);
 
 		this._filters.onDidChange(() => {
