@@ -3,12 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { CancelablePromise, createCancelablePromise } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { groupBy } from 'vs/base/common/collections';
 import { Emitter, Event } from 'vs/base/common/event';
 import { MarkdownString } from 'vs/base/common/htmlContent';
 import { Iterable } from 'vs/base/common/iterator';
 import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { StopWatch } from 'vs/base/common/stopwatch';
 import { withNullAsUndefined } from 'vs/base/common/types';
 import { localize } from 'vs/nls';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -27,7 +29,7 @@ type InteractiveSessionProviderInvokedEvent = {
 	providerId: string;
 	timeToFirstProgress: number;
 	totalTime: number;
-	result: 'success' | 'error' | 'errorWithOutput';
+	result: 'success' | 'error' | 'errorWithOutput' | 'cancelled';
 };
 
 type InteractiveSessionProviderInvokedClassification = {
@@ -142,12 +144,12 @@ export class InteractiveSessionService extends Disposable implements IInteractiv
 		return model;
 	}
 
-	sendRequest(sessionId: number, request: string | IInteractiveSessionReplyFollowup, token: CancellationToken): boolean {
+	sendRequest(sessionId: number, request: string | IInteractiveSessionReplyFollowup): { completePromise: CancelablePromise<void> } | undefined {
 		const messageText = typeof request === 'string' ? request : request.message;
 		this.trace('sendRequest', `sessionId: ${sessionId}, message: ${messageText.substring(0, 20)}${messageText.length > 20 ? '[...]' : ''}}`);
 		if (!messageText.trim()) {
 			this.trace('sendRequest', 'Rejected empty message');
-			return false;
+			return undefined;
 		}
 
 		const model = this._sessionModels.get(sessionId);
@@ -162,20 +164,23 @@ export class InteractiveSessionService extends Disposable implements IInteractiv
 
 		if (this._pendingRequestSessions.has(sessionId)) {
 			this.trace('sendRequest', `Session ${sessionId} already has a pending request`);
-			return false;
+			return undefined;
 		}
 
-		// Return immediately that the request was accepted, don't wait
-		this._sendRequestAsync(model, provider, request, token);
-		return true;
+		return { completePromise: this._sendRequestAsync(model, provider, request) };
 	}
 
-	private async _sendRequestAsync(model: InteractiveSessionModel, provider: IInteractiveProvider, message: string | IInteractiveSessionReplyFollowup, token: CancellationToken): Promise<void> {
-		try {
-			this._pendingRequestSessions.add(model.sessionId);
-			const request = model.addRequest(message);
-			let gotProgress = false;
+	private _sendRequestAsync(model: InteractiveSessionModel, provider: IInteractiveProvider, message: string | IInteractiveSessionReplyFollowup): CancelablePromise<void> {
+		this._pendingRequestSessions.add(model.sessionId);
+		const request = model.addRequest(message);
+		let gotProgress = false;
+
+		const rawResponsePromise = createCancelablePromise<void>(async token => {
 			const progressCallback = (progress: IInteractiveProgress) => {
+				if (token.isCancellationRequested) {
+					return;
+				}
+
 				gotProgress = true;
 				if ('content' in progress) {
 					this.trace('sendRequest', `Provider returned progress for session ${model.sessionId}, ${progress.content.length} chars`);
@@ -185,29 +190,49 @@ export class InteractiveSessionService extends Disposable implements IInteractiv
 
 				model.acceptResponseProgress(request, progress);
 			};
-			let rawResponse = await provider.provideReply({ session: model.session, message: request.message }, progressCallback, token);
-			if (!rawResponse) {
-				this.trace('sendRequest', `Provider returned no response for session ${model.sessionId}`);
-				rawResponse = { session: model.session, errorDetails: { message: localize('emptyResponse', "Provider returned null response") } };
-			}
 
-			this.telemetryService.publicLog2<InteractiveSessionProviderInvokedEvent, InteractiveSessionProviderInvokedClassification>('interactiveSessionProviderInvoked', {
-				providerId: provider.id,
-				timeToFirstProgress: rawResponse.timings?.firstProgress ?? 0,
-				totalTime: rawResponse.timings?.totalElapsed ?? 0,
-				result: rawResponse.errorDetails && gotProgress ? 'errorWithOutput' : rawResponse.errorDetails ? 'error' : 'success'
-			});
-			model.completeResponse(request, rawResponse);
-			this.trace('sendRequest', `Provider returned response for session ${model.sessionId}`);
-
-			if (provider.provideFollowups) {
-				Promise.resolve(provider.provideFollowups(model.session, CancellationToken.None)).then(followups => {
-					model.setFollowups(request, withNullAsUndefined(followups));
+			const stopWatch = new StopWatch(false);
+			token.onCancellationRequested(() => {
+				this.trace('sendRequest', `Request for session ${model.sessionId} was cancelled`);
+				this.telemetryService.publicLog2<InteractiveSessionProviderInvokedEvent, InteractiveSessionProviderInvokedClassification>('interactiveSessionProviderInvoked', {
+					providerId: provider.id,
+					timeToFirstProgress: -1,
+					// Normally timings happen inside the EH around the actual provider. For cancellation we can measure how long the user waited before cancelling
+					totalTime: stopWatch.elapsed(),
+					result: 'cancelled'
 				});
+
+				model.cancelRequest(request);
+			});
+			let rawResponse = await provider.provideReply({ session: model.session, message: request.message }, progressCallback, token);
+			if (token.isCancellationRequested) {
+				return;
+			} else {
+				if (!rawResponse) {
+					this.trace('sendRequest', `Provider returned no response for session ${model.sessionId}`);
+					rawResponse = { session: model.session, errorDetails: { message: localize('emptyResponse', "Provider returned null response") } };
+				}
+
+				this.telemetryService.publicLog2<InteractiveSessionProviderInvokedEvent, InteractiveSessionProviderInvokedClassification>('interactiveSessionProviderInvoked', {
+					providerId: provider.id,
+					timeToFirstProgress: rawResponse.timings?.firstProgress ?? 0,
+					totalTime: rawResponse.timings?.totalElapsed ?? 0,
+					result: rawResponse.errorDetails && gotProgress ? 'errorWithOutput' : rawResponse.errorDetails ? 'error' : 'success'
+				});
+				model.completeResponse(request, rawResponse);
+				this.trace('sendRequest', `Provider returned response for session ${model.sessionId}`);
+
+				if (provider.provideFollowups) {
+					Promise.resolve(provider.provideFollowups(model.session, CancellationToken.None)).then(followups => {
+						model.setFollowups(request, withNullAsUndefined(followups));
+					});
+				}
 			}
-		} finally {
+		});
+		rawResponsePromise.finally(() => {
 			this._pendingRequestSessions.delete(model.sessionId);
-		}
+		});
+		return rawResponsePromise;
 	}
 
 	async getSlashCommands(sessionId: number, token: CancellationToken): Promise<IInteractiveSlashCommand[] | undefined> {
@@ -262,7 +287,7 @@ export class InteractiveSessionService extends Disposable implements IInteractiv
 
 		// Maybe this API should queue a request after the current one?
 		this.trace('addInteractiveRequest', `Sending resolved request for session ${model.sessionId}`);
-		this.sendRequest(model.sessionId, request.message, CancellationToken.None);
+		this.sendRequest(model.sessionId, request.message);
 	}
 
 	async sendInteractiveRequestToProvider(providerId: string, message: IInteractiveSessionDynamicRequest): Promise<void> {
