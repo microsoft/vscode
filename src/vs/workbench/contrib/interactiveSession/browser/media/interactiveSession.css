@@ -132,10 +132,14 @@
 	margin: 0px 12px;
 
 	background-color: var(--vscode-input-background);
-	border: 1px solid var(--vscode-focusBorder);
+	border: 1px solid var(--vscode-input-border);
 	border-radius: 4px;
 	position: relative;
 	padding-left: 8px;
+}
+
+.interactive-session .interactive-input-and-toolbar.focused {
+	border-color: var(--vscode-focusBorder);
 }
 
 .interactive-session .interactive-input-and-toolbar .monaco-editor .cursors-layer {

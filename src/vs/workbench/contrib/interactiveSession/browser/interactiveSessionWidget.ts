@@ -399,10 +399,11 @@ export class InteractiveSessionWidget extends Disposable implements IInteractive
 				this.layout(this.bodyDimension.height, this.bodyDimension.width);
 			}
 		}));
-		this._register(this._inputEditor.onDidFocusEditorText(() => this._onDidFocus.fire()));
-
-		this._register(dom.addStandardDisposableListener(inputContainer, dom.EventType.FOCUS, () => inputContainer.classList.add('synthetic-focus')));
-		this._register(dom.addStandardDisposableListener(inputContainer, dom.EventType.BLUR, () => inputContainer.classList.remove('synthetic-focus')));
+		this._register(this._inputEditor.onDidFocusEditorText(() => {
+			this._onDidFocus.fire();
+			inputContainer.classList.toggle('focused', true);
+		}));
+		this._register(this._inputEditor.onDidBlurEditorText(() => inputContainer.classList.toggle('focused', false)));
 
 		const toolbar = this._register(this.instantiationService.createInstance(MenuWorkbenchToolBar, inputContainer, MenuId.InteractiveSessionExecute, {
 			menuOptions: {
