@@ -697,12 +697,7 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 		}
 
 		if (resource.scheme === fileSchemes.file && !isWeb()) {
-			if (!resource.fsPath) {
-				return undefined;
-			}
-
-			// Convert to posix style path
-			return path.posix.normalize(resource.fsPath.split(path.sep).join(path.posix.sep));
+			return resource.fsPath;
 		}
 
 		return (this.isProjectWideIntellisenseOnWebEnabled() ? '' : this.inMemoryResourcePrefix)

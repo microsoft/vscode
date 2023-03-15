@@ -69,10 +69,8 @@ export class CodeCell extends Disposable {
 		this.registerDecorations();
 		this.registerMouseListener();
 
-		this._register(notebookExecutionStateService.onDidChangeCellExecution(e => {
-			if (e.affectsCell(this.viewCell.uri)) {
-				this.cellParts.updateForExecutionState(this.viewCell, e);
-			}
+		this._register(Event.any(this.viewCell.onDidStartExecution, this.viewCell.onDidStopExecution)((e) => {
+			this.cellParts.updateForExecutionState(this.viewCell, e);
 		}));
 
 		this._register(this.viewCell.onDidChangeState(e => {
@@ -210,11 +208,7 @@ export class CodeCell extends Disposable {
 	}
 
 	private updateForOutputs(): void {
-		if (this.viewCell.outputsViewModels.length) {
-			DOM.show(this.templateData.focusSinkElement);
-		} else {
-			DOM.hide(this.templateData.focusSinkElement);
-		}
+		DOM.setVisibility(this.viewCell.outputsViewModels.length > 0, this.templateData.focusSinkElement);
 	}
 
 	private updateEditorOptions() {
@@ -460,11 +454,7 @@ export class CodeCell extends Disposable {
 		const children = this.templateData.outputContainer.domNode.children;
 		for (let i = 0; i < children.length; i++) {
 			if (children[i].classList.contains('output-inner-container')) {
-				if (hide) {
-					DOM.hide(children[i] as HTMLElement);
-				} else {
-					DOM.show(children[i] as HTMLElement);
-				}
+				DOM.setVisibility(!hide, children[i] as HTMLElement);
 			}
 		}
 	}

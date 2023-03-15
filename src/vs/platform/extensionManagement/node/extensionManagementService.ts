@@ -38,7 +38,7 @@ import { ExtensionsLifecycle } from 'vs/platform/extensionManagement/node/extens
 import { getManifest } from 'vs/platform/extensionManagement/node/extensionManagementUtil';
 import { ExtensionsManifestCache } from 'vs/platform/extensionManagement/node/extensionsManifestCache';
 import { DidChangeProfileExtensionsEvent, ExtensionsWatcher } from 'vs/platform/extensionManagement/node/extensionsWatcher';
-import { ExtensionType, IExtension, IExtensionManifest, isApplicationScopedExtension, TargetPlatform } from 'vs/platform/extensions/common/extensions';
+import { ExtensionType, IExtension, IExtensionManifest, TargetPlatform } from 'vs/platform/extensions/common/extensions';
 import { isEngineValid } from 'vs/platform/extensions/common/extensionValidator';
 import { FileChangesEvent, FileChangeType, FileOperationResult, IFileService, toFileOperationResult } from 'vs/platform/files/common/files';
 import { IInstantiationService, refineServiceDecorator } from 'vs/platform/instantiation/common/instantiation';
@@ -90,7 +90,7 @@ export class ExtensionManagementService extends AbstractExtensionManagementServi
 		super(galleryService, telemetryService, logService, productService, userDataProfilesService);
 		const extensionLifecycle = this._register(instantiationService.createInstance(ExtensionsLifecycle));
 		this.extensionsScanner = this._register(instantiationService.createInstance(ExtensionsScanner, extension => extensionLifecycle.postUninstall(extension)));
-		this.manifestCache = this._register(new ExtensionsManifestCache(userDataProfilesService, fileService, uriIdentityService, this));
+		this.manifestCache = this._register(new ExtensionsManifestCache(userDataProfilesService, fileService, uriIdentityService, this, this.logService));
 		this.extensionsDownloader = this._register(instantiationService.createInstance(ExtensionsDownloader));
 
 		const extensionsWatcher = this._register(new ExtensionsWatcher(this, this.extensionsScannerService, userDataProfilesService, extensionsProfileScannerService, uriIdentityService, fileService, logService));
@@ -430,7 +430,7 @@ export class ExtensionsScanner extends Disposable {
 		await this.cleanUpGeneratedFoldersPromise;
 	}
 
-	async scanExtensions(type: ExtensionType | null, profileLocation: URI | undefined): Promise<ILocalExtension[]> {
+	async scanExtensions(type: ExtensionType | null, profileLocation: URI): Promise<ILocalExtension[]> {
 		const userScanOptions: ScanOptions = { includeInvalid: true, profileLocation };
 		let scannedExtensions: IScannedExtension[] = [];
 		if (type === null || type === ExtensionType.System) {
@@ -662,6 +662,11 @@ export class ExtensionsScanner extends Disposable {
 
 	private async removeUninstalledExtensions(): Promise<void> {
 		const uninstalled = await this.getUninstalledExtensions();
+		if (Object.keys(uninstalled).length === 0) {
+			this.logService.debug(`No uninstalled extensions found.`);
+			return;
+		}
+
 		this.logService.debug(`Removing uninstalled extensions:`, Object.keys(uninstalled));
 
 		const extensions = await this.extensionsScannerService.scanUserExtensions({ includeAllVersions: true, includeUninstalled: true, includeInvalid: true }); // All user extensions
@@ -730,6 +735,9 @@ export class ExtensionsScanner extends Disposable {
 
 abstract class InstallExtensionTask extends AbstractExtensionTask<ILocalExtension> implements IInstallExtensionTask {
 
+	private _profileLocation = this.options.profileLocation;
+	get profileLocation() { return this._profileLocation; }
+
 	protected _verificationStatus = ExtensionVerificationStatus.Unverified;
 	get verificationStatus() { return this._verificationStatus; }
 
@@ -752,10 +760,11 @@ abstract class InstallExtensionTask extends AbstractExtensionTask<ILocalExtensio
 
 	protected override async doRun(token: CancellationToken): Promise<ILocalExtension> {
 		const [local, metadata] = await this.install(token);
-		if (this.uriIdentityService.extUri.isEqual(this.userDataProfilesService.defaultProfile.extensionsResource, this.options.profileLocation)) {
+		this._profileLocation = local.isBuiltin || local.isApplicationScoped ? this.userDataProfilesService.defaultProfile.extensionsResource : this.options.profileLocation;
+		if (this.uriIdentityService.extUri.isEqual(this.userDataProfilesService.defaultProfile.extensionsResource, this._profileLocation)) {
 			await this.extensionsScannerService.initializeDefaultProfileExtensions();
 		}
-		await this.extensionsProfileScannerService.addExtensionsToProfile([[local, metadata]], this.options.profileLocation);
+		await this.extensionsProfileScannerService.addExtensionsToProfile([[local, metadata]], this._profileLocation);
 		return local;
 	}
 
@@ -796,7 +805,7 @@ abstract class InstallExtensionTask extends AbstractExtensionTask<ILocalExtensio
 export class InstallGalleryExtensionTask extends InstallExtensionTask {
 
 	constructor(
-		private readonly manifest: IExtensionManifest,
+		manifest: IExtensionManifest,
 		private readonly gallery: IGalleryExtension,
 		options: InstallExtensionTaskOptions,
 		private readonly extensionsDownloader: ExtensionsDownloader,
@@ -823,7 +832,7 @@ export class InstallGalleryExtensionTask extends InstallExtensionTask {
 			publisherId: this.gallery.publisherId,
 			publisherDisplayName: this.gallery.publisherDisplayName,
 			targetPlatform: this.gallery.properties.targetPlatform,
-			isApplicationScoped: isApplicationScopedExtension(this.manifest),
+			isApplicationScoped: this.options.isApplicationScoped || existingExtension?.isApplicationScoped,
 			isMachineScoped: this.options.isMachineScoped || existingExtension?.isMachineScoped,
 			isBuiltin: this.options.isBuiltin || existingExtension?.isBuiltin,
 			isSystem: existingExtension?.type === ExtensionType.System ? true : undefined,
@@ -897,7 +906,7 @@ class InstallVSIXTask extends InstallExtensionTask {
 		const installedExtensions = await this.extensionsScanner.scanExtensions(ExtensionType.User, this.options.profileLocation);
 		const existing = installedExtensions.find(i => areSameExtensions(this.identifier, i.identifier));
 		const metadata: Metadata = {
-			isApplicationScoped: isApplicationScopedExtension(this.manifest),
+			isApplicationScoped: this.options.isApplicationScoped || existing?.isApplicationScoped,
 			isMachineScoped: this.options.isMachineScoped || existing?.isMachineScoped,
 			isBuiltin: this.options.isBuiltin || existing?.isBuiltin,
 			installedTimestamp: Date.now(),

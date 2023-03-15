@@ -17,10 +17,11 @@ export interface IInteractiveSessionConfiguration {
 		readonly fontFamily: string;
 		readonly lineHeight: number;
 		readonly fontWeight: string;
+		readonly wordWrap: 'off' | 'on';
 	};
 }
 
-export interface IInteractiveSessionEditorOptions {
+export interface IInteractiveSessionEditorConfiguration {
 	readonly inputEditor: IInteractiveSessionInputEditorOptions;
 	readonly resultEditor: IInteractiveSessionResultEditorOptions;
 }
@@ -37,6 +38,7 @@ export interface IInteractiveSessionResultEditorOptions {
 	readonly fontWeight: string;
 	readonly backgroundColor: Color | undefined;
 	readonly bracketPairColorization: IBracketPairColorizationOptions;
+	readonly wordWrap: 'off' | 'on';
 
 	// Bring these back if we make the editors editable
 	// readonly cursorBlinking: string;
@@ -44,14 +46,14 @@ export interface IInteractiveSessionResultEditorOptions {
 }
 
 
-export class InteractiveSessionInputOptions extends Disposable {
+export class InteractiveSessionEditorOptions extends Disposable {
 	private static readonly lineHeightEm = 1.4;
 
 	private readonly _onDidChange = this._register(new Emitter<void>());
 	readonly onDidChange = this._onDidChange.event;
 
-	private _config!: IInteractiveSessionEditorOptions;
-	public get configuration(): IInteractiveSessionEditorOptions {
+	private _config!: IInteractiveSessionEditorConfiguration;
+	public get configuration(): IInteractiveSessionEditorConfiguration {
 		return this._config;
 	}
 
@@ -60,6 +62,7 @@ export class InteractiveSessionInputOptions extends Disposable {
 		'interactiveSession.editor.fontSize',
 		'interactiveSession.editor.fontFamily',
 		'interactiveSession.editor.fontWeight',
+		'interactiveSession.editor.wordWrap',
 		'editor.cursorBlinking',
 		'editor.accessibilitySupport',
 		'editor.bracketPairColorization.enabled',
@@ -83,7 +86,7 @@ export class InteractiveSessionInputOptions extends Disposable {
 			}
 		}));
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
-			if (InteractiveSessionInputOptions.relevantSettingIds.some(id => e.affectsConfiguration(id))) {
+			if (InteractiveSessionEditorOptions.relevantSettingIds.some(id => e.affectsConfiguration(id))) {
 				this.update();
 			}
 		}));
@@ -92,7 +95,9 @@ export class InteractiveSessionInputOptions extends Disposable {
 
 	private update() {
 		const editorConfig = this.configurationService.getValue<any>('editor');
-		const interactiveSessionSidebarEditor = this.configurationService.getValue<IInteractiveSessionConfiguration>('interactiveSession').editor;
+
+		// TODO shouldn't the setting keys be more specific?
+		const interactiveSessionEditorConfig = this.configurationService.getValue<IInteractiveSessionConfiguration>('interactiveSession').editor;
 		const accessibilitySupport = this.configurationService.getValue<'auto' | 'off' | 'on'>('editor.accessibilitySupport');
 		this._config = {
 			inputEditor: {
@@ -101,14 +106,15 @@ export class InteractiveSessionInputOptions extends Disposable {
 			},
 			resultEditor: {
 				backgroundColor: this.themeService.getColorTheme().getColor(this.resultEditorBackgroundColorDelegate()),
-				fontSize: interactiveSessionSidebarEditor.fontSize,
-				fontFamily: interactiveSessionSidebarEditor.fontFamily === 'default' ? editorConfig.fontFamily : interactiveSessionSidebarEditor.fontFamily,
-				fontWeight: interactiveSessionSidebarEditor.fontWeight,
-				lineHeight: interactiveSessionSidebarEditor.lineHeight ? interactiveSessionSidebarEditor.lineHeight : InteractiveSessionInputOptions.lineHeightEm * interactiveSessionSidebarEditor.fontSize,
+				fontSize: interactiveSessionEditorConfig.fontSize,
+				fontFamily: interactiveSessionEditorConfig.fontFamily === 'default' ? editorConfig.fontFamily : interactiveSessionEditorConfig.fontFamily,
+				fontWeight: interactiveSessionEditorConfig.fontWeight,
+				lineHeight: interactiveSessionEditorConfig.lineHeight ? interactiveSessionEditorConfig.lineHeight : InteractiveSessionEditorOptions.lineHeightEm * interactiveSessionEditorConfig.fontSize,
 				bracketPairColorization: {
 					enabled: this.configurationService.getValue<boolean>('editor.bracketPairColorization.enabled'),
 					independentColorPoolPerBracketType: this.configurationService.getValue<boolean>('editor.bracketPairColorization.independentColorPoolPerBracketType'),
 				},
+				wordWrap: interactiveSessionEditorConfig.wordWrap
 			}
 
 		};

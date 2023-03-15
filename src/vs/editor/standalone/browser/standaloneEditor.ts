@@ -34,7 +34,9 @@ import { EditorCommand, ServicesAccessor } from 'vs/editor/browser/editorExtensi
 import { IMenuItem, MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/languages/modesRegistry';
-import { LineRange, LineRangeMapping, RangeMapping } from 'vs/editor/common/diff/linesDiffComputer';
+import { LineRangeMapping, RangeMapping } from 'vs/editor/common/diff/linesDiffComputer';
+import { LineRange } from 'vs/editor/common/core/lineRange';
+import { EditorZoom } from 'vs/editor/common/config/editorZoom';
 
 /**
  * Create a new editor under `domElement`.
@@ -507,6 +509,7 @@ export function createMonacoEditorAPI(): typeof monaco.editor {
 		LineRange: <any>LineRange,
 		LineRangeMapping: <any>LineRangeMapping,
 		RangeMapping: <any>RangeMapping,
+		EditorZoom: <any>EditorZoom,
 
 		// vars
 		EditorType: EditorType,

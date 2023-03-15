@@ -106,7 +106,7 @@ export function transpileTask(src: string, out: string, swc: boolean): () => Nod
 	};
 }
 
-export function compileTask(src: string, out: string, build: boolean): () => NodeJS.ReadWriteStream {
+export function compileTask(src: string, out: string, build: boolean, options: { disableMangle?: boolean } = {}): () => NodeJS.ReadWriteStream {
 
 	return function () {
 
@@ -123,7 +123,7 @@ export function compileTask(src: string, out: string, build: boolean): () => Nod
 
 		// mangle: TypeScript to TypeScript
 		let mangleStream = es.through();
-		if (build) {
+		if (build && !options.disableMangle) {
 			let ts2tsMangler = new Mangler(compile.projectPath, (...data) => fancyLog(ansiColors.blue('[mangler]'), ...data));
 			const newContentsByFileName = ts2tsMangler.computeNewFileContents(new Set(['saveState']));
 			mangleStream = es.through(function write(data: File & { sourceMap?: RawSourceMap }) {
