@@ -22,6 +22,7 @@ import { registerTerminalContribution } from 'vs/workbench/contrib/terminal/brow
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { Terminal } from 'xterm';
 import { TerminalWidgetManager } from 'vs/workbench/contrib/terminal/browser/widgets/widgetManager';
+import { IQuickPick, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
 
 const category = terminalStrings.actionCategory;
 
@@ -49,8 +50,8 @@ class AccessibleBufferContribution extends DisposableStore implements ITerminalC
 		await this._accessibleBufferWidget?.show();
 	}
 
-	async showCommandQuickPick(): Promise<void> {
-		await this._accessibleBufferWidget?.showCommandQuickPick();
+	async createCommandQuickPick(): Promise<IQuickPick<IQuickPickItem> | undefined> {
+		return this._accessibleBufferWidget?.createQuickPick();
 	}
 }
 registerTerminalContribution(AccessibleBufferContribution.ID, AccessibleBufferContribution);
@@ -150,7 +151,8 @@ registerAction2(class extends Action2 {
 		if (!instance) {
 			return;
 		}
-		AccessibleBufferContribution.get(instance)?.showCommandQuickPick();
+		const quickPick = await AccessibleBufferContribution.get(instance)?.createCommandQuickPick();
+		quickPick?.show();
 	}
 });
 

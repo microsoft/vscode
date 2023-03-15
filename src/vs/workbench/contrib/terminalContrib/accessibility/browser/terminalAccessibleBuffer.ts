@@ -23,7 +23,7 @@ import { ITerminalFont } from 'vs/workbench/contrib/terminal/common/terminal';
 import { ITerminalInstance, IXtermTerminal } from 'vs/workbench/contrib/terminal/browser/terminal';
 import type { Terminal } from 'xterm';
 import { TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
-import { IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
+import { IQuickInputService, IQuickPick, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
 import { AudioCue, IAudioCueService } from 'vs/platform/audioCues/browser/audioCueService';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/terminalContextKey';
@@ -165,7 +165,7 @@ export class AccessibleBufferWidget extends DisposableStore {
 		this._bufferEditor.setScrollTop(this._bufferEditor.getScrollHeight());
 	}
 
-	async showCommandQuickPick(): Promise<void> {
+	async createQuickPick(): Promise<IQuickPick<IQuickPickItem> | undefined> {
 		if (!this._focusedContextKey.get()) {
 			await this.show();
 		}
@@ -207,7 +207,7 @@ export class AccessibleBufferWidget extends DisposableStore {
 			}
 		});
 		quickPick.items = quickPickItems.reverse();
-		quickPick.show();
+		return quickPick;
 	}
 
 	async show(): Promise<void> {
