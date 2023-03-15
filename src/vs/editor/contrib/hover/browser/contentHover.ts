@@ -446,7 +446,15 @@ export class ContentHoverWidget extends Disposable implements IContentWidget {
 	private readonly _hoverVisibleKey = EditorContextKeys.hoverVisible.bindTo(this._contextKeyService);
 	private readonly _hoverFocusedKey = EditorContextKeys.hoverFocused.bindTo(this._contextKeyService);
 	private readonly _focusTracker = this._register(dom.trackFocus(this.getDomNode()));
-
+	private _resizeObserver: ResizeObserver = new ResizeObserver((entries) => {
+		console.log('inside of resize observer for element: ', entries);
+	});
+	private _resizeContentsObserver: ResizeObserver = new ResizeObserver((entries) => {
+		console.log('inside of resize observer for contents: ', entries);
+	});
+	private _resizeContainerObserver: ResizeObserver = new ResizeObserver((entries) => {
+		console.log('inside of resize observer for container: ', entries);
+	});
 
 	/**
 	 * Returns `null` if the hover is not visible.
@@ -474,6 +482,9 @@ export class ContentHoverWidget extends Disposable implements IContentWidget {
 		super();
 		console.log('Very beginning of constructor');
 		console.log('this._element.domNode : ', this._resizableElement.domNode);
+		this._resizeObserver.observe(this._resizableElement.domNode);
+		this._resizeContentsObserver.observe(this._hover.contentsDomNode);
+		this._resizeContainerObserver.observe(this._hover.containerDomNode);
 
 		this._register(this._editor.onDidLayoutChange(() => this._layout()));
 		this._register(this._editor.onDidChangeConfiguration((e: ConfigurationChangedEvent) => {
@@ -626,9 +637,9 @@ export class ContentHoverWidget extends Disposable implements IContentWidget {
 			this._hover.containerDomNode.style.minHeight = '24px';
 
 			this._hover.contentsDomNode.style.width = 'max-content';
-			this._hover.contentsDomNode.style.height = 'fit-content';
+			this._hover.contentsDomNode.style.height = 'auto';
 			this._hover.containerDomNode.style.width = 'max-content';
-			this._hover.containerDomNode.style.height = 'fit-content';
+			this._hover.containerDomNode.style.height = 'auto';
 
 			console.log('Before render');
 			console.log('this._element.domNode before layoutContentWidget : ', this._resizableElement.domNode);
@@ -706,17 +717,37 @@ export class ContentHoverWidget extends Disposable implements IContentWidget {
 			this._resizableElement.maxSize = new dom.Dimension(maxWidth, this._maxRenderingHeight);
 		}
 
+		console.log('height : ', height);
+		console.log('width : ', width);
+
 		this._resizableElement.layout(height, width);
 		this._hover.containerDomNode.style.height = `${height - 2}px`;
 		this._hover.containerDomNode.style.width = `${width - 2}px`;
+		this._hover.containerDomNode.style.overflow = 'hidden';
 		this._hover.contentsDomNode.style.height = `${height - 2}px`;
 		this._hover.contentsDomNode.style.width = `${width - 2}px`;
+		this._hover.contentsDomNode.style.overflow = 'hidden';
+
+		// TODO: Replaces the scanDomNode() call below
+		/*
+		this._hover.scrollbar.setScrollDimensions({
+			width: width - 2,
+			height: height - 2,
+			scrollWidth: this._hover.contentsDomNode.scrollWidth + 20,
+			scrollHeight: this._hover.contentsDomNode.scrollHeight + 20
+		});
+		this._hover.scrollbar.setScrollPosition({
+			scrollLeft: this._hover.contentsDomNode.scrollLeft,
+			scrollTop: this._hover.contentsDomNode.scrollTop,
+		});
+		*/
 
 		console.log('this._hover.contentsDomNode.clientHeight : ', this._hover.contentsDomNode.clientHeight);
 		console.log('this._hover.contentsDomNode.scrollHeight : ', this._hover.contentsDomNode.scrollHeight);
 		console.log('this._hover.contentsDomNode.clientWidth : ', this._hover.contentsDomNode.clientWidth);
 		console.log('this._hover.contentsDomNode.scrollWidth : ', this._hover.contentsDomNode.scrollWidth);
 
+		// TODO: place back
 		this._hover.scrollbar.scanDomNode();
 		console.log('Before layoutContentWidget');
 		this._editor.layoutContentWidget(this);
@@ -786,6 +817,8 @@ export class ContentHoverWidget extends Disposable implements IContentWidget {
 		this._resizableElement.layout(height, width);
 		this._hover.containerDomNode.style.height = `${height - 2}px`;
 		this._hover.containerDomNode.style.width = `${width - 2}px`;
+		// TODO: Find out why adding the following two lines changes the scroll dimensions to reflect reality
+		// Potentially remove
 		this._hover.contentsDomNode.style.height = `${height - 2}px`;
 		this._hover.contentsDomNode.style.width = `${width - 2}px`;
 
@@ -798,6 +831,7 @@ export class ContentHoverWidget extends Disposable implements IContentWidget {
 		this._resizableElement.maxSize = new dom.Dimension(maxWidth, this._maxRenderingHeight);
 		this._editor.layoutContentWidget(this);
 
+		console.log('this._hover.containerDomNode : ', this._hover.containerDomNode);
 		console.log('this._hover.contentsDomNode.clientHeight : ', this._hover.contentsDomNode.clientHeight);
 		console.log('this._hover.contentsDomNode.scrollHeight : ', this._hover.contentsDomNode.scrollHeight);
 		console.log('this._hover.contentsDomNode.clientWidth : ', this._hover.contentsDomNode.clientWidth);
