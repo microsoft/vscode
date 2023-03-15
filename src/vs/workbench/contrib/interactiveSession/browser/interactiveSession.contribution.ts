@@ -112,9 +112,11 @@ registerInteractiveSessionActions();
 registerInteractiveSessionCopyActions();
 registerInteractiveSessionCodeBlockActions();
 registerInteractiveSessionTitleActions();
+registerInteractiveSessionExecuteActions();
 
 registerSingleton(IInteractiveSessionService, InteractiveSessionService, InstantiationType.Delayed);
 registerSingleton(IInteractiveSessionContributionService, InteractiveSessionContributionService, InstantiationType.Delayed);
 registerSingleton(IInteractiveSessionWidgetService, InteractiveSessionWidgetService, InstantiationType.Delayed);
 
-import 'vs/workbench/contrib/interactiveSession/browser/contrib/interactiveSessionInputEditorDecorations';
+import 'vs/workbench/contrib/interactiveSession/browser/contrib/interactiveSessionInputEditorDecorations';import { registerInteractiveSessionExecuteActions } from 'vs/workbench/contrib/interactiveSession/browser/actions/interactiveSessionExecuteActions';
+
