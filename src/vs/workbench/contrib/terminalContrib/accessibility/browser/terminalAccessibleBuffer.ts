@@ -171,11 +171,10 @@ export class AccessibleBufferWidget extends DisposableStore {
 		}
 		this._inQuickPick = true;
 		const commands = this._instance.capabilities.get(TerminalCapability.CommandDetection)?.commands;
-		const quickPick = this._quickInputService.createQuickPick<IQuickPickItem>();
-		const quickPickItems: IQuickPickItem[] = [];
 		if (!commands?.length) {
 			return;
 		}
+		const quickPickItems: IQuickPickItem[] = [];
 		for (const command of commands) {
 			const line = command.marker?.line;
 			if (!line) {
@@ -187,6 +186,7 @@ export class AccessibleBufferWidget extends DisposableStore {
 					meta: JSON.stringify({ line: line + 1, exitCode: command.exitCode })
 				});
 		}
+		const quickPick = this._quickInputService.createQuickPick<IQuickPickItem>();
 		quickPick.onDidAccept(() => {
 			const item = quickPick.activeItems[0];
 			const model = this._bufferEditor.getModel();
