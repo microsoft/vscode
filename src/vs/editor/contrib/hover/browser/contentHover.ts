@@ -700,112 +700,114 @@ export class ContentHoverWidget extends Disposable implements IContentWidget {
 
 			height = this._hover.containerDomNode.offsetHeight;
 			width = this._hover.containerDomNode.offsetWidth;
-			console.log('height and width');
-			console.log('height : ', height);
-			console.log('width : ', width);
+		}
 
-			const clientWidth = this._hover.containerDomNode.clientWidth;
-			const clientHeight = this._hover.containerDomNode.clientHeight;
-			console.log('clientWidth : ', clientWidth);
-			console.log('clientHeight : ', clientHeight);
+		console.log('height and width');
+		console.log('height : ', height);
+		console.log('width : ', width);
 
-			// this._hover.containerDomNode.style.height = heightAfterRender + 'px';
-			// this._hover.containerDomNode.style.width = widthAfterRender + 'px';
-			// this._hover.contentsDomNode.style.height = heightAfterRender + 'px';
-			// this._hover.contentsDomNode.style.width = widthAfterRender + 'px';
+		const clientWidth = this._hover.containerDomNode.clientWidth;
+		const clientHeight = this._hover.containerDomNode.clientHeight;
+		console.log('clientWidth : ', clientWidth);
+		console.log('clientHeight : ', clientHeight);
 
-			// this._hover.containerDomNode.style.maxHeight = 'none';
-			// this._hover.containerDomNode.style.maxWidth = 'none';
-			// this._hover.contentsDomNode.style.maxHeight = 'none';
-			// this._hover.contentsDomNode.style.maxWidth = 'none';
-			// this._element.layout(heightAfterRender + 2, widthAfterRender + 2);
+		// this._hover.containerDomNode.style.height = heightAfterRender + 'px';
+		// this._hover.containerDomNode.style.width = widthAfterRender + 'px';
+		// this._hover.contentsDomNode.style.height = heightAfterRender + 'px';
+		// this._hover.contentsDomNode.style.width = widthAfterRender + 'px';
 
-			console.log('this._hover.containerDomNode from initial rendering : ', this._hover.containerDomNode);
+		// this._hover.containerDomNode.style.maxHeight = 'none';
+		// this._hover.containerDomNode.style.maxWidth = 'none';
+		// this._hover.contentsDomNode.style.maxHeight = 'none';
+		// this._hover.contentsDomNode.style.maxWidth = 'none';
+		// this._element.layout(heightAfterRender + 2, widthAfterRender + 2);
 
-			// The dimensions of the document in which we are displaying the hover
-			const bodyBox = dom.getClientArea(document.body);
-			console.log('bodyBox : ', bodyBox);
+		console.log('this._hover.containerDomNode from initial rendering : ', this._hover.containerDomNode);
 
-			// Hard-coded in the hover.css file as 1.5em or 24px
-			const minHeight = 24;
+		// The dimensions of the document in which we are displaying the hover
+		const bodyBox = dom.getClientArea(document.body);
+		console.log('bodyBox : ', bodyBox);
 
-			// Hard-code the values for now!
-			const maxWidth = bodyBox.width;
-			if (width > maxWidth) {
-				console.log('width capped at the maxWidth');
-				width = maxWidth;
-			}
+		// Hard-coded in the hover.css file as 1.5em or 24px
+		const minHeight = 24;
 
-			// The full height is already passed in as a parameter
-			const fullHeight = height;
-			const editorBox = dom.getDomNodePagePosition(this._editor.getDomNode());
-			console.log('editorBox : ', editorBox);
-			if (!this._visibleData?.showAtPosition) {
-				return;
-			}
-			const mouseBox = this._editor.getScrolledVisiblePosition(this._visibleData?.showAtPosition);
-			console.log('mouseBox : ', mouseBox);
-			// Position where the editor box starts + the top of the mouse box relatve to the editor + mouse box height
-			const mouseBottom = editorBox.top + mouseBox.top + mouseBox.height;
-			console.log('mouseBottom : ', mouseBottom);
-			// Total height of the box minus the position of the bottom of the mouse, this is the maximum height below the mouse position
-			const availableSpaceBelow = bodyBox.height - mouseBottom;
-			console.log('availableSpaceBelow : ', availableSpaceBelow);
-			// Max height below is the minimum of the available space below and the full height of the widget
-			const maxHeightBelow = Math.min(availableSpaceBelow, fullHeight);
-			console.log('maxHeightBelow : ', maxHeightBelow);
-			// The available space above the mouse position is the height of the top of the editor plus the top of the mouse box relative to the editor
-			const availableSpaceAbove = mouseBox.top; // + 35 + 22; // Removing 35 because that is the height of the tabs // editorBox.top // adding 22 because height of breadcrumbs
-			console.log('availableSpaceAbove : ', availableSpaceAbove);
-			// Max height above is the minimum of the available space above and the full height of the widget
-			const maxHeightAbove = Math.min(availableSpaceAbove, fullHeight);
-			console.log('maxHeightAbove : ', maxHeightAbove);
-			// We find the maximum height of the widget possible on the top or on the bottom
-			const maxHeight = Math.min(Math.max(maxHeightAbove, maxHeightBelow), fullHeight);
-			console.log('maxHeight : ', maxHeight);
+		// Hard-code the values for now!
+		const maxWidth = bodyBox.width;
+		if (width > maxWidth) {
+			console.log('width capped at the maxWidth');
+			width = maxWidth;
+		}
 
-			if (height < minHeight) {
-				console.log('height capped at the min height');
-				height = minHeight;
-			}
-			if (height > maxHeight) {
-				console.log('height capped at the maximum height');
-				// The maximum height has been limited due to not enough
-				height = maxHeight;
-			}
+		// The full height is already passed in as a parameter
+		const fullHeight = height;
+		const editorBox = dom.getDomNodePagePosition(this._editor.getDomNode());
+		console.log('editorBox : ', editorBox);
+		if (!this._visibleData?.showAtPosition) {
+			return;
+		}
+		const mouseBox = this._editor.getScrolledVisiblePosition(this._visibleData?.showAtPosition);
+		console.log('mouseBox : ', mouseBox);
+		// Position where the editor box starts + the top of the mouse box relatve to the editor + mouse box height
+		const mouseBottom = editorBox.top + mouseBox.top + mouseBox.height;
+		console.log('mouseBottom : ', mouseBottom);
+		// Total height of the box minus the position of the bottom of the mouse, this is the maximum height below the mouse position
+		const availableSpaceBelow = bodyBox.height - mouseBottom;
+		console.log('availableSpaceBelow : ', availableSpaceBelow);
+		// Max height below is the minimum of the available space below and the full height of the widget
+		const maxHeightBelow = Math.min(availableSpaceBelow, fullHeight);
+		console.log('maxHeightBelow : ', maxHeightBelow);
+		// The available space above the mouse position is the height of the top of the editor plus the top of the mouse box relative to the editor
+		const availableSpaceAbove = mouseBox.top; // + 35 + 22; // Removing 35 because that is the height of the tabs // editorBox.top // adding 22 because height of breadcrumbs
+		console.log('availableSpaceAbove : ', availableSpaceAbove);
+		// Max height above is the minimum of the available space above and the full height of the widget
+		const maxHeightAbove = Math.min(availableSpaceAbove, fullHeight);
+		console.log('maxHeightAbove : ', maxHeightAbove);
+		// We find the maximum height of the widget possible on the top or on the bottom
+		const maxHeight = Math.min(Math.max(maxHeightAbove, maxHeightBelow), fullHeight);
+		console.log('maxHeight : ', maxHeight);
 
-			const preferRenderingAbove = this._editor.getOption(EditorOption.hover).above;
-			console.log('preferRenderingAbove : ', preferRenderingAbove);
+		if (height < minHeight) {
+			console.log('height capped at the min height');
+			height = minHeight;
+		}
+		if (height > maxHeight) {
+			console.log('height capped at the maximum height');
+			// The maximum height has been limited due to not enough
+			height = maxHeight;
+		}
 
-			console.log('Before enabling sashes');
-			if (preferRenderingAbove) {
-				console.log('first if condition');
+		const preferRenderingAbove = this._editor.getOption(EditorOption.hover).above;
+		console.log('preferRenderingAbove : ', preferRenderingAbove);
 
-				const westSash = false;
-				const eastSash = true;
-				const northSash = height <= maxHeightAbove;
-				const southSash = height > maxHeightAbove;
-				this._renderingAbove = height <= maxHeightAbove;
-				console.log('this._renderingAbove : ', this._renderingAbove);
+		console.log('Before enabling sashes');
+		if (preferRenderingAbove) {
+			console.log('first if condition');
 
-				this._renderingType = this._renderingAbove ? ContentWidgetPositionPreference.ABOVE : ContentWidgetPositionPreference.BELOW;
-				console.log('this._renderingType : ', this._renderingType);
-				this._element.enableSashes(northSash, eastSash, southSash, westSash);
+			const westSash = false;
+			const eastSash = true;
+			const northSash = height <= maxHeightAbove;
+			const southSash = height > maxHeightAbove;
+			this._renderingAbove = height <= maxHeightAbove;
+			console.log('this._renderingAbove : ', this._renderingAbove);
 
-			} else {
-				console.log('Second if condition');
-				const westSash = false;
-				const eastSash = true;
-				const northSash = height > maxHeightBelow;
-				const southSash = height <= maxHeightBelow;
+			this._renderingType = this._renderingAbove ? ContentWidgetPositionPreference.ABOVE : ContentWidgetPositionPreference.BELOW;
+			console.log('this._renderingType : ', this._renderingType);
+			this._element.enableSashes(northSash, eastSash, southSash, westSash);
 
-				this._renderingAbove = height > maxHeightBelow;
-				console.log('this._renderingAbove : ', this._renderingAbove);
+		} else {
+			console.log('Second if condition');
+			const westSash = false;
+			const eastSash = true;
+			const northSash = height > maxHeightBelow;
+			const southSash = height <= maxHeightBelow;
 
-				this._renderingType = this._renderingAbove ? ContentWidgetPositionPreference.ABOVE : ContentWidgetPositionPreference.BELOW;
-				console.log('this._renderingType : ', this._renderingType);
-				this._element.enableSashes(northSash, eastSash, southSash, westSash);
-			}
+			this._renderingAbove = height > maxHeightBelow;
+			console.log('this._renderingAbove : ', this._renderingAbove);
+
+			this._renderingType = this._renderingAbove ? ContentWidgetPositionPreference.ABOVE : ContentWidgetPositionPreference.BELOW;
+			console.log('this._renderingType : ', this._renderingType);
+			this._element.enableSashes(northSash, eastSash, southSash, westSash);
+
 
 			// TODO: Place the following line in order to use the calculated max width and max height
 			// TODO: It would appear that if the minimum width is 0, it will disappear, set some value larger than 0
@@ -912,6 +914,11 @@ export class ContentHoverWidget extends Disposable implements IContentWidget {
 		}
 		this._element.maxSize = new dom.Dimension(maxWidth, this._maxRenderingHeight);
 		this._editor.layoutContentWidget(this);
+
+		console.log('this._hover.contentsDomNode.clientHeight : ', this._hover.contentsDomNode.clientHeight);
+		console.log('this._hover.contentsDomNode.scrollHeight : ', this._hover.contentsDomNode.scrollHeight);
+		console.log('this._hover.contentsDomNode.clientWidth : ', this._hover.contentsDomNode.clientWidth);
+		console.log('this._hover.contentsDomNode.scrollWidth : ', this._hover.contentsDomNode.scrollWidth);
 	}
 
 	public override dispose(): void {
