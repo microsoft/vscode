@@ -25,59 +25,8 @@ import { Context as SuggestContext } from 'vs/editor/contrib/suggest/browser/sug
 import { AsyncIterableObject } from 'vs/base/common/async';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { ResizableHTMLElement } from 'vs/base/browser/ui/resizable/resizable';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { URI } from 'vs/base/common/uri';
 
 const $ = dom.$;
-
-// TODO: Perhaps better to persist in map or array if does not save from session to session
-class PersistedHoverWidgetSizes {
-
-	private readonly _prefix: string;
-
-	constructor(private readonly _service: IStorageService) {
-		this._prefix = 'contentHover.size';
-	}
-
-	restore(identifier: TokenIdentifier, uri: URI): dom.Dimension | undefined {
-		const keyPrefix = `${this._prefix}/${uri.toString()}/`;
-		const stringifiedIdentifier = JSON.stringify(identifier);
-		const raw = this._service.get(keyPrefix + stringifiedIdentifier, StorageScope.PROFILE) ?? '';
-		try {
-			const obj = JSON.parse(raw);
-			if (dom.Dimension.is(obj)) {
-				return dom.Dimension.lift(obj);
-			}
-		} catch {
-			// ignore
-		}
-		return undefined;
-	}
-
-	store(identifier: TokenIdentifier, size: dom.Dimension, uri: URI) {
-		const keyPrefix = `${this._prefix}/${uri.toString()}/`;
-		const stringifiedIdentifier = JSON.stringify(identifier);
-		this._service.store(keyPrefix + stringifiedIdentifier, JSON.stringify(size), StorageScope.PROFILE, StorageTarget.MACHINE);
-	}
-
-	resetForUri(uri: URI) {
-		const keyPrefix = `${this._prefix}/${uri.toString()}/`;
-		const keys = this._service.keys(StorageScope.PROFILE, StorageTarget.MACHINE);
-		for (const key of keys) {
-			if (key.includes(keyPrefix)) {
-				this._service.remove(key, StorageScope.PROFILE);
-			}
-		}
-	}
-}
-
-class TokenIdentifier {
-	constructor(
-		public readonly _line: number,
-		public readonly _startColumn: number,
-		public readonly _endColumn: number
-	) { }
-}
 
 class ResizeState {
 	constructor(
@@ -493,7 +442,7 @@ export class ContentHoverWidget extends Disposable implements IContentWidget {
 	private _renderingAboveOption: boolean = this._editor.getOption(EditorOption.hover).above;
 	private _renderingAbove = this._renderingAboveOption;
 	private _maxRenderingHeight: number | undefined = -1;
-	private readonly _persistedHoverWidgetSizes: PersistedHoverWidgetSizes;
+	private readonly _persistedHoverWidgetSizes = new Map<string, Map<string, dom.Dimension>>();
 	private readonly _hoverVisibleKey = EditorContextKeys.hoverVisible.bindTo(this._contextKeyService);
 	private readonly _hoverFocusedKey = EditorContextKeys.hoverFocused.bindTo(this._contextKeyService);
 	private readonly _focusTracker = this._register(dom.trackFocus(this.getDomNode()));
@@ -520,8 +469,7 @@ export class ContentHoverWidget extends Disposable implements IContentWidget {
 
 	constructor(
 		private readonly _editor: ICodeEditor,
-		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
-		@IStorageService private readonly _storageService: IStorageService,
+		@IContextKeyService private readonly _contextKeyService: IContextKeyService
 	) {
 		super();
 		console.log('Very beginning of constructor');
@@ -547,10 +495,27 @@ export class ContentHoverWidget extends Disposable implements IContentWidget {
 			this._hoverFocusedKey.set(false);
 		}));
 
-		this._persistedHoverWidgetSizes = new PersistedHoverWidgetSizes(this._storageService);
-		this._editor.onDidChangeModel((model) => {
-			if (model.oldModelUrl) {
-				this._persistedHoverWidgetSizes.resetForUri(model.oldModelUrl);
+		this._editor.onDidChangeModelContent((e) => {
+			const uri = this._editor.getModel()?.uri.toString();
+			if (!uri || !(uri in this._persistedHoverWidgetSizes)) {
+				return;
+			}
+			const mapToUpdate = this._persistedHoverWidgetSizes.get(uri)!;
+			for (const change of e.changes) {
+				const changeOffset = change.rangeOffset;
+				const length = change.rangeLength;
+				const endOffset = changeOffset + length;
+				for (const stringifiedEntry of mapToUpdate.keys()) {
+					const entry = JSON.parse(stringifiedEntry);
+					if (endOffset < entry[0]) {
+						const oldSize = mapToUpdate.get(entry)!;
+						const newEntry: [number, number] = [entry[0] + length, entry[1]];
+						mapToUpdate.set(JSON.stringify(newEntry), oldSize);
+						mapToUpdate.delete(entry);
+					} else if (changeOffset < entry[0] + entry[1]) {
+						mapToUpdate.delete(entry);
+					}
+				}
 			}
 		});
 		this._resizableElement.domNode.appendChild(this._hover.containerDomNode);
@@ -561,12 +526,9 @@ export class ContentHoverWidget extends Disposable implements IContentWidget {
 		let state: ResizeState | undefined;
 
 		this._register(this._resizableElement.onDidWillResize(() => {
-			const wordPosition = this._editor.getModel()?.getWordAtPosition(this._visibleData!.showAtPosition);
-			if (wordPosition && this._editor.hasModel()) {
-				const tokenIdentifier = new TokenIdentifier(this._visibleData!.showAtPosition.lineNumber, wordPosition.startColumn, wordPosition.endColumn);
-				const persistedSize = this._persistedHoverWidgetSizes.restore(tokenIdentifier, this._editor.getModel().uri);
-				state = new ResizeState(persistedSize, this._resizableElement.size);
-			}
+			console.log('this._persistedHoverWidgetSizes ; ', this._persistedHoverWidgetSizes);
+			const persistedSize = this._findPersistedSize();
+			state = new ResizeState(persistedSize, this._resizableElement.size);
 		}));
 		this._register(this._resizableElement.onDidResize(e => {
 			console.log('* Inside of onDidResize of ContentHoverWidget');
@@ -580,15 +542,34 @@ export class ContentHoverWidget extends Disposable implements IContentWidget {
 				return;
 			}
 			if (state) {
+				if (!this._editor.hasModel()) {
+					return;
+				}
+				const uri = this._editor.getModel().uri.toString();
+				if (!uri) {
+					return;
+				}
+				const { width, height } = this._resizableElement.size;
+				const persistedSize = new dom.Dimension(width, height);
 				const wordPosition = this._editor.getModel()?.getWordAtPosition(this._visibleData!.showAtPosition);
-				if (wordPosition && this._editor.hasModel()) {
-					const tokenIdentifier = new TokenIdentifier(this._visibleData!.showAtPosition.lineNumber, wordPosition.startColumn, wordPosition.endColumn);
-					const { width, height } = this._resizableElement.size;
-					const persistedSize = new dom.Dimension(width, height);
-					this._persistedHoverWidgetSizes.store(tokenIdentifier, persistedSize, this._editor.getModel().uri);
+				if (!wordPosition || !this._editor.hasModel()) {
+					return;
+				}
+				const offset = this._editor.getModel().getOffsetAt({ lineNumber: this._visibleData!.showAtPosition.lineNumber, column: wordPosition.startColumn });
+				const length = wordPosition.word.length;
+
+				if (!this._persistedHoverWidgetSizes.get(uri)) {
+					const map = new Map<string, dom.Dimension>([]);
+					map.set(JSON.stringify([offset, length]), persistedSize);
+					this._persistedHoverWidgetSizes.set(uri, map);
+				} else {
+					const map = this._persistedHoverWidgetSizes.get(uri)!;
+					map.set(JSON.stringify([offset, length]), persistedSize);
 				}
 			}
 			state = undefined;
+
+			console.log('this._persistedHoverWidgetSizes ; ', this._persistedHoverWidgetSizes);
 		}));
 
 		console.log('Before adding the content widget');
@@ -596,6 +577,26 @@ export class ContentHoverWidget extends Disposable implements IContentWidget {
 		this._editor.addContentWidget(this);
 		console.log('After adding the content widget');
 		console.log('this._element.domNode : ', this._resizableElement.domNode);
+	}
+
+	private _findPersistedSize(): dom.Dimension | undefined {
+		console.log('Inside of _findPersistedSize');
+		const wordPosition = this._editor.getModel()?.getWordAtPosition(this._visibleData!.showAtPosition);
+		if (!wordPosition || !this._editor.hasModel()) {
+			return;
+		}
+		const offset = this._editor.getModel().getOffsetAt({ lineNumber: this._visibleData!.showAtPosition.lineNumber, column: wordPosition.startColumn });
+		const length = wordPosition.word.length;
+		const uri = this._editor.getModel().uri.toString();
+		console.log('offset : ', offset);
+		console.log('length : ', length);
+		const textModelMap = this._persistedHoverWidgetSizes.get(uri);
+		console.log('textModelMap : ', textModelMap);
+		if (!textModelMap) {
+			return;
+		}
+		console.log('textModelMap.value : ', textModelMap.entries().next().value);
+		return textModelMap.get(JSON.stringify([offset, length]));
 	}
 
 	private _setLayoutOfResizableElement(): void {
@@ -609,14 +610,7 @@ export class ContentHoverWidget extends Disposable implements IContentWidget {
 
 		let height;
 		let width;
-		let persistedSize;
-
-		const wordPosition = this._editor.getModel()?.getWordAtPosition(this._visibleData!.showAtPosition);
-		if (wordPosition && this._editor.hasModel()) {
-			const tokenIdentifier = new TokenIdentifier(this._visibleData!.showAtPosition.lineNumber, wordPosition.startColumn, wordPosition.endColumn);
-			persistedSize = this._persistedHoverWidgetSizes.restore(tokenIdentifier, this._editor.getModel().uri);
-		}
-
+		const persistedSize = this._findPersistedSize();
 		console.log('persistedSize : ', persistedSize);
 
 		if (persistedSize) {
