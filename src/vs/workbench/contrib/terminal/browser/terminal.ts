@@ -357,7 +357,7 @@ export interface ITerminalGroupService extends ITerminalInstanceHost {
 	showPanel(focus?: boolean): Promise<void>;
 	hidePanel(): void;
 	focusTabs(): void;
-	focusHover(): void;
+	showHover(focus: boolean): void;
 	showTabs(): void;
 	updateVisibility(): void;
 }

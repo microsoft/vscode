@@ -479,8 +479,8 @@ export class TerminalTabbedView extends Disposable {
 		this._focus();
 	}
 
-	showHover() {
-		this._tabList.showHover();
+	showHover(focus: boolean) {
+		this._tabList.showHover(focus);
 	}
 
 	private _focus() {

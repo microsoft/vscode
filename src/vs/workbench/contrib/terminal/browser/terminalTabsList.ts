@@ -215,7 +215,7 @@ export class TerminalTabList extends WorkbenchList<ITerminalInstance> {
 		this.splice(0, this.length, this._terminalGroupService.instances.slice());
 	}
 
-	showHover(): void {
+	showHover(focus: boolean): void {
 		const instance = this.getSelectedElements()[0];
 		if (!instance) {
 			return;
@@ -223,8 +223,9 @@ export class TerminalTabList extends WorkbenchList<ITerminalInstance> {
 
 		this._hoverService.showHover({
 			...getInstanceHoverInfo(instance),
-			target: this.getHTMLElement()
-		}, true);
+			target: this.getHTMLElement(),
+			trapFocus: focus
+		}, focus);
 	}
 
 	private _updateContextKey() {
