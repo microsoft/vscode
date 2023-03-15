@@ -180,6 +180,16 @@
 	z-index: 100;
 }
 
+.interactive-session .interactive-result-editor-wrapper .monaco-toolbar .action-item {
+	height: 24px;
+	width: 24px;
+	margin: 1px 2px;
+}
+
+.interactive-session .interactive-result-editor-wrapper .monaco-toolbar .action-item .codicon {
+	margin: 1px;
+}
+
 .interactive-session .interactive-result-editor-wrapper:hover .monaco-toolbar {
 	display: initial;
 }
