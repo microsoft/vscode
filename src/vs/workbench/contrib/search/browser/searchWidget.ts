@@ -36,13 +36,12 @@ import { searchReplaceAllIcon, searchHideReplaceIcon, searchShowContextIcon, sea
 import { ToggleSearchEditorContextLinesCommandId } from 'vs/workbench/contrib/searchEditor/browser/constants';
 import { showHistoryKeybindingHint } from 'vs/platform/history/browser/historyWidgetKeybindingHint';
 import { defaultInputBoxStyles, defaultToggleStyles } from 'vs/platform/theme/browser/defaultStyles';
-import { NotebookFindInputFilter } from 'vs/workbench/contrib/notebook/browser/contrib/find/notebookFindReplaceWidget';
 import { NotebookFindFilters } from 'vs/workbench/contrib/notebook/browser/contrib/find/findFilters';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { NotebookEditorInput } from 'vs/workbench/contrib/notebook/common/notebookEditorInput';
 import { GroupModelChangeKind } from 'vs/workbench/common/editor';
-import { IContextViewProvider } from 'vs/base/browser/ui/contextview/contextview';
+import { SearchFindInput } from 'vs/workbench/contrib/search/browser/searchFindInput';
 
 /** Specified in searchview.css */
 const SingleLineInputHeight = 26;
@@ -60,6 +59,11 @@ export interface ISearchWidgetOptions {
 	showContextToggle?: boolean;
 	inputBoxStyles: IInputBoxStyles;
 	toggleStyles: IToggleStyles;
+	notebookOptions?: {
+		isInNotebookMarkdownInput: boolean;
+		isInNotebookCellInput: boolean;
+		isInNotebookCellOutput: boolean;
+	};
 }
 
 class ReplaceAllAction extends Action {
@@ -100,28 +104,6 @@ function stopPropagationForMultiLineDownwards(event: IKeyboardEvent, value: stri
 	}
 }
 
-class SearchFindInput extends ContextScopedFindInput {
-	private _findFilter: NotebookFindInputFilter;
-	constructor(
-		container: HTMLElement | null,
-		contextViewProvider: IContextViewProvider,
-		options: IFindInputOptions,
-		contextKeyService: IContextKeyService,
-		readonly contextMenuService: IContextMenuService,
-		readonly instantiationService: IInstantiationService,
-		readonly filters: NotebookFindFilters,
-		filterStartVisiblitity: boolean
-	) {
-		super(container, contextViewProvider, options, contextKeyService);
-		this._findFilter = this._register(new NotebookFindInputFilter(filters, contextMenuService, instantiationService, options, filterStartVisiblitity));
-		this.inputBox.paddingRight = (this.caseSensitive?.width() ?? 0) + (this.wholeWords?.width() ?? 0) + (this.regex?.width() ?? 0) + this._findFilter.width;
-		this.controls.appendChild(this._findFilter.container);
-	}
-
-	set filterVisible(show: boolean) {
-		this._findFilter.visible = show;
-	}
-}
 
 export class SearchWidget extends Widget {
 	private static readonly INPUT_MAX_HEIGHT = 134;
@@ -183,7 +165,7 @@ export class SearchWidget extends Widget {
 	private showContextToggle!: Toggle;
 	public contextLinesInput!: InputBox;
 
-	private _filters: NotebookFindFilters;
+	private _notebookFilters: NotebookFindFilters;
 
 	constructor(
 		container: HTMLElement,
@@ -202,15 +184,28 @@ export class SearchWidget extends Widget {
 		this.replaceActive = Constants.ReplaceActiveKey.bindTo(this.contextKeyService);
 		this.searchInputBoxFocused = Constants.SearchInputBoxFocusedKey.bindTo(this.contextKeyService);
 		this.replaceInputBoxFocused = Constants.ReplaceInputBoxFocusedKey.bindTo(this.contextKeyService);
-		this._filters = new NotebookFindFilters(true, false, true, true);
 
-		this.editorService.onDidEditorsChange((e) => {
+		this._notebookFilters = this._register(
+			new NotebookFindFilters(
+				options.notebookOptions?.isInNotebookMarkdownInput ?? true,
+				!options.notebookOptions?.isInNotebookMarkdownInput ?? false,
+				options.notebookOptions?.isInNotebookCellInput ?? true,
+				options.notebookOptions?.isInNotebookCellOutput ?? false
+			));
+
+		this._register(
+			this._notebookFilters.onDidChange(() => {
+				if (this.searchInput instanceof SearchFindInput) {
+					this.searchInput.updateStyles();
+				}
+			}));
+		this._register(this.editorService.onDidEditorsChange((e) => {
 			if (this.searchInput instanceof SearchFindInput &&
 				e.event.editor instanceof NotebookEditorInput &&
 				(e.event.kind === GroupModelChangeKind.EDITOR_OPEN || e.event.kind === GroupModelChangeKind.EDITOR_CLOSE)) {
 				this.searchInput.filterVisible = this._hasNotebookOpen();
 			}
-		});
+		}));
 
 		this._replaceHistoryDelayer = new Delayer<void>(500);
 
@@ -232,7 +227,7 @@ export class SearchWidget extends Widget {
 	}
 
 	getFilters() {
-		return this._filters;
+		return this._notebookFilters;
 	}
 
 	focus(select: boolean = true, focusReplace: boolean = false, suppressGlobalSearchBuffer = false): void {
@@ -383,7 +378,7 @@ export class SearchWidget extends Widget {
 
 		const experimentalNotebooksEnabled = this.configurationService.getValue<ISearchConfigurationProperties>('search').experimental.notebookSearch;
 		if (experimentalNotebooksEnabled) {
-			this.searchInput = this._register(new SearchFindInput(searchInputContainer, this.contextViewService, inputOptions, this.contextKeyService, this.contextMenuService, this.instantiationService, this._filters, this._hasNotebookOpen()));
+			this.searchInput = this._register(new SearchFindInput(searchInputContainer, this.contextViewService, inputOptions, this.contextKeyService, this.contextMenuService, this.instantiationService, this._notebookFilters, this._hasNotebookOpen()));
 		} else {
 			this.searchInput = this._register(new ContextScopedFindInput(searchInputContainer, this.contextViewService, inputOptions, this.contextKeyService));
 		}

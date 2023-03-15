@@ -139,8 +139,7 @@
 	background-color: inherit !important;
 }
 
-.monaco-workbench .simple-fr-find-part-wrapper .find-filter-button,
-.monaco-workbench .search-container .find-filter-button {
+.monaco-workbench .simple-fr-find-part-wrapper .find-filter-button {
 	color: inherit;
 	margin-left: 2px;
 	float: left;

@@ -424,10 +424,10 @@ export class FileMatch extends Disposable implements IFileMatch {
 				wholeWord: this._query.isWordMatch,
 				caseSensitive: this._query.isCaseSensitive,
 				wordSeparators: wordSeparators ?? undefined,
-				includeMarkupInput: this._query.notebookInfo?.isNotebookMarkdownInput,
-				includeMarkupPreview: !this._query.notebookInfo?.isNotebookMarkdownInput,
-				includeCodeInput: this._query.notebookInfo?.isNotebookCellInput,
-				includeOutput: this._query.notebookInfo?.isNotebookCellOutput,
+				includeMarkupInput: this._query.notebookInfo?.isInNotebookMarkdownInput,
+				includeMarkupPreview: !this._query.notebookInfo?.isInNotebookMarkdownInput,
+				includeCodeInput: this._query.notebookInfo?.isInNotebookCellInput,
+				includeOutput: this._query.notebookInfo?.isInNotebookCellOutput,
 			}, CancellationToken.None, false, true);
 
 		this.updateNotebookMatches(allMatches, true);
@@ -1746,10 +1746,10 @@ export class SearchModel extends Disposable {
 						regex: query.contentPattern.isRegExp,
 						wholeWord: query.contentPattern.isWordMatch,
 						caseSensitive: query.contentPattern.isCaseSensitive,
-						includeMarkupInput: query.contentPattern.notebookInfo?.isNotebookMarkdownInput,
-						includeMarkupPreview: !query.contentPattern.notebookInfo?.isNotebookMarkdownInput,
-						includeCodeInput: query.contentPattern.notebookInfo?.isNotebookCellInput,
-						includeOutput: query.contentPattern.notebookInfo?.isNotebookCellOutput,
+						includeMarkupInput: query.contentPattern.notebookInfo?.isInNotebookMarkdownInput,
+						includeMarkupPreview: !query.contentPattern.notebookInfo?.isInNotebookMarkdownInput,
+						includeCodeInput: query.contentPattern.notebookInfo?.isInNotebookCellInput,
+						includeOutput: query.contentPattern.notebookInfo?.isInNotebookCellOutput,
 					}, token, false, true);
 
 

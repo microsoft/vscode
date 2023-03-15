@@ -154,7 +154,6 @@ class NotebookFindFilterActionViewItem extends DropdownMenuActionViewItem {
 export class NotebookFindInputFilter extends Disposable {
 	private _filterButtonContainer: HTMLElement;
 	private _actionbar: ActionBar | null = null;
-	private _filterChecked: boolean = false;
 	private _filtersAction: IAction;
 	private _toggleStyles: IToggleStyles;
 
@@ -163,13 +162,13 @@ export class NotebookFindInputFilter extends Disposable {
 		readonly contextMenuService: IContextMenuService,
 		readonly instantiationService: IInstantiationService,
 		options: IFindInputOptions,
-		filterStartVisiblitity = true // TODO: create notebook find options to define this
+		tooltip: string = NOTEBOOK_FIND_FILTERS,
 	) {
 
 		super();
 		this._toggleStyles = options.toggleStyles;
 
-		this._filtersAction = new Action('notebookFindFilterAction', NOTEBOOK_FIND_FILTERS, 'notebook-filters ' + ThemeIcon.asClassName(filterIcon));
+		this._filtersAction = new Action('notebookFindFilterAction', tooltip, 'notebook-filters ' + ThemeIcon.asClassName(filterIcon));
 		this._filtersAction.checked = false;
 		this._filterButtonContainer = dom.$('.find-filter-button');
 		this.createFilters(this._filterButtonContainer);
@@ -181,36 +180,22 @@ export class NotebookFindInputFilter extends Disposable {
 				this._filtersAction.checked = false;
 			}
 		}));
-		this.visible = filterStartVisiblitity ?? true;
-
-	}
-
-	set visible(show: boolean) {
-		this._filterButtonContainer.style.display = show ? '' : 'none';
 	}
 
 	get container() {
 		return this._filterButtonContainer;
 	}
 
-	get filterChecked() {
-		return this._filterChecked;
-	}
-
-	set filterChecked(checked: boolean) {
-		this._filterChecked = checked;
-	}
-
 	get width() {
 		return 2 /*margin left*/ + 2 /*border*/ + 2 /*padding*/ + 16 /* icon width */;
 	}
 
-	applyStyles(): void {
+	applyStyles(filterChecked: boolean): void {
 		const toggleStyles = this._toggleStyles;
 
-		this._filterButtonContainer.style.borderColor = (this._filterChecked && toggleStyles.inputActiveOptionBorder) || '';
-		this._filterButtonContainer.style.color = (this._filterChecked && toggleStyles.inputActiveOptionForeground) || 'inherit';
-		this._filterButtonContainer.style.backgroundColor = (this._filterChecked && toggleStyles.inputActiveOptionBackground) || '';
+		this._filterButtonContainer.style.borderColor = (filterChecked && toggleStyles.inputActiveOptionBorder) || '';
+		this._filterButtonContainer.style.color = (filterChecked && toggleStyles.inputActiveOptionForeground) || 'inherit';
+		this._filterButtonContainer.style.backgroundColor = (filterChecked && toggleStyles.inputActiveOptionBackground) || '';
 	}
 
 	private createFilters(container: HTMLElement): void {
@@ -228,6 +213,7 @@ export class NotebookFindInputFilter extends Disposable {
 
 export class NotebookFindInput extends FindInput {
 	private _findFilter: NotebookFindInputFilter;
+	private _filterChecked: boolean = false;
 
 	constructor(
 		readonly filters: NotebookFindFilters,
@@ -241,7 +227,7 @@ export class NotebookFindInput extends FindInput {
 		super(parent, contextViewProvider, options);
 
 		this._register(registerAndCreateHistoryNavigationContext(contextKeyService, this.inputBox));
-		this._findFilter = this._register(new NotebookFindInputFilter(filters, contextMenuService, instantiationService, options, true));
+		this._findFilter = this._register(new NotebookFindInputFilter(filters, contextMenuService, instantiationService, options));
 
 		this.inputBox.paddingRight = (this.caseSensitive?.width() ?? 0) + (this.wholeWords?.width() ?? 0) + (this.regex?.width() ?? 0) + this._findFilter.width;
 		this.controls.appendChild(this._findFilter.container);
@@ -249,7 +235,7 @@ export class NotebookFindInput extends FindInput {
 
 	override setEnabled(enabled: boolean) {
 		super.setEnabled(enabled);
-		if (enabled && !this._findFilter.filterChecked) {
+		if (enabled && !this._filterChecked) {
 			this.regex?.enable();
 		} else {
 			this.regex?.disable();
@@ -257,9 +243,9 @@ export class NotebookFindInput extends FindInput {
 	}
 
 	updateFilterState(changed: boolean) {
-		this._findFilter.filterChecked = changed;
+		this._filterChecked = changed;
 		if (this.regex) {
-			if (this._findFilter.filterChecked) {
+			if (this._filterChecked) {
 				this.regex.disable();
 				this.regex.domNode.tabIndex = -1;
 				this.regex.domNode.classList.toggle('disabled', true);
@@ -269,7 +255,7 @@ export class NotebookFindInput extends FindInput {
 				this.regex.domNode.classList.toggle('disabled', false);
 			}
 		}
-		this._findFilter.applyStyles();
+		this._findFilter.applyStyles(this._filterChecked);
 	}
 
 	getCellToolbarActions(menu: IMenu): { primary: IAction[]; secondary: IAction[] } {

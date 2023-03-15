@@ -149,9 +149,9 @@ export interface IPatternInfo {
 }
 
 export interface INotebookPatternInfo {
-	isNotebookMarkdownInput?: boolean;
-	isNotebookCellInput?: boolean;
-	isNotebookCellOutput?: boolean;
+	isInNotebookMarkdownInput?: boolean;
+	isInNotebookCellInput?: boolean;
+	isInNotebookCellOutput?: boolean;
 }
 
 export interface IExtendedExtensionSearchOptions {

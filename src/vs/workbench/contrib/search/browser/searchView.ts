@@ -460,6 +460,11 @@ export class SearchView extends ViewPane {
 		const showReplace = typeof this.viewletState['view.showReplace'] === 'boolean' ? this.viewletState['view.showReplace'] : true;
 		const preserveCase = this.viewletState['query.preserveCase'] === true;
 
+		const isInNotebookMarkdownInput = this.viewletState['query.isInNotebookMarkdownInput'];
+		const isInNotebookCellInput = this.viewletState['query.isInNotebookCellInput'];
+		const isInNotebookCellOutput = this.viewletState['query.isInNotebookCellOutput'];
+
+
 		this.searchWidget = this._register(this.instantiationService.createInstance(SearchWidget, container, {
 			value: contentPattern,
 			replaceValue: replaceText,
@@ -470,7 +475,12 @@ export class SearchView extends ViewPane {
 			replaceHistory: replaceHistory,
 			preserveCase: preserveCase,
 			inputBoxStyles: defaultInputBoxStyles,
-			toggleStyles: defaultToggleStyles
+			toggleStyles: defaultToggleStyles,
+			notebookOptions: {
+				isInNotebookMarkdownInput,
+				isInNotebookCellInput,
+				isInNotebookCellOutput,
+			}
 		}));
 
 		if (showReplace) {
@@ -1385,9 +1395,9 @@ export class SearchView extends ViewPane {
 		}
 
 		const isRegex = this.searchWidget.searchInput.getRegex();
-		const isNotebookMarkdownInput = this.searchWidget.getFilters().markupInput;
-		const isNotebookCellInput = this.searchWidget.getFilters().codeInput;
-		const isNotebookCellOutput = this.searchWidget.getFilters().codeOutput;
+		const isInNotebookMarkdownInput = this.searchWidget.getFilters().markupInput;
+		const isInNotebookCellInput = this.searchWidget.getFilters().codeInput;
+		const isInNotebookCellOutput = this.searchWidget.getFilters().codeOutput;
 
 		const isWholeWords = this.searchWidget.searchInput.getWholeWords();
 		const isCaseSensitive = this.searchWidget.searchInput.getCaseSensitive();
@@ -1409,9 +1419,9 @@ export class SearchView extends ViewPane {
 			isCaseSensitive: isCaseSensitive,
 			isWordMatch: isWholeWords,
 			notebookInfo: {
-				isNotebookMarkdownInput,
-				isNotebookCellInput,
-				isNotebookCellOutput
+				isInNotebookMarkdownInput,
+				isInNotebookCellInput,
+				isInNotebookCellOutput
 			}
 		};
 
@@ -1966,7 +1976,7 @@ export class SearchView extends ViewPane {
 	}
 
 	public override saveState(): void {
-		// TODO: save the state of notebook filter fields
+
 		const patternExcludes = this.inputPatternExcludes?.getValue().trim() ?? '';
 		const patternIncludes = this.inputPatternIncludes?.getValue().trim() ?? '';
 		const onlyOpenEditors = this.inputPatternIncludes?.onlySearchInOpenEditors() ?? false;
@@ -1979,10 +1989,18 @@ export class SearchView extends ViewPane {
 			const isCaseSensitive = this.searchWidget.searchInput.getCaseSensitive();
 			const contentPattern = this.searchWidget.searchInput.getValue();
 
+			const isInNotebookCellInput = this.searchWidget.getFilters().codeInput;
+			const isInNotebookCellOutput = this.searchWidget.getFilters().codeOutput;
+			const isInNotebookMarkdownInput = this.searchWidget.getFilters().markupInput;
+
 			this.viewletState['query.contentPattern'] = contentPattern;
 			this.viewletState['query.regex'] = isRegex;
 			this.viewletState['query.wholeWords'] = isWholeWords;
 			this.viewletState['query.caseSensitive'] = isCaseSensitive;
+
+			this.viewletState['query.isInNotebookMarkdownInput'] = isInNotebookMarkdownInput;
+			this.viewletState['query.isInNotebookCellInput'] = isInNotebookCellInput;
+			this.viewletState['query.isInNotebookCellOutput'] = isInNotebookCellOutput;
 		}
 
 		this.viewletState['query.folderExclusions'] = patternExcludes;
