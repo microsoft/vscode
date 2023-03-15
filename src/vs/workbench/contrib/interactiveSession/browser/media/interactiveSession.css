@@ -132,7 +132,7 @@
 	margin: 0px 12px;
 
 	background-color: var(--vscode-input-background);
-	border: 1px solid var(--vscode-input-border);
+	border: 1px solid var(--vscode-input-border, transparent);
 	border-radius: 4px;
 	position: relative;
 	padding-left: 8px;
@@ -140,6 +140,11 @@
 
 .interactive-session .interactive-input-and-toolbar.focused {
 	border-color: var(--vscode-focusBorder);
+}
+
+.interactive-session .interactive-input-and-toolbar .monaco-editor,
+.interactive-session .interactive-input-and-toolbar .monaco-editor .monaco-editor-background {
+	background-color: var(--vscode-input-background);
 }
 
 .interactive-session .interactive-input-and-toolbar .monaco-editor .cursors-layer {
