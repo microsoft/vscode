@@ -225,6 +225,7 @@ export class InteractiveSessionWidget extends Disposable implements IInteractive
 		if (visible) {
 			if (!this.inputModel) {
 				this.inputModel = this.modelService.getModel(this.inputUri) || this.modelService.createModel('', null, this.inputUri, true);
+				this.inputModel.updateOptions({ bracketColorizationOptions: { enabled: false, independentColorPoolPerBracketType: false } });
 			}
 			this._inputEditor.setModel(this.inputModel);
 
