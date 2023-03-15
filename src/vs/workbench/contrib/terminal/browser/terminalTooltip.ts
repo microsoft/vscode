@@ -45,11 +45,7 @@ export function getShellProcessTooltip(instance: ITerminalInstance, markdown: bo
 			commandLine += ` ${args}`;
 		}
 
-		lines.push(localize('shellProcessTooltip.commandLine', 'Command line:') + '\n');
-		lines.push(markdown
-			? `\`\`\`\n${commandLine}\n\`\`\``
-			: `${commandLine}`
-		);
+		lines.push(localize('shellProcessTooltip.commandLine', 'Command line: {0}', commandLine));
 	}
 
 	return lines.length ? `${markdown ? '\n\n---\n\n' : '\n\n'}${lines.join('\n')}` : '';
