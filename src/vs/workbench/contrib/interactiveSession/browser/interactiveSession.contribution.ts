@@ -15,20 +15,20 @@ import { EditorPaneDescriptor, IEditorPaneRegistry } from 'vs/workbench/browser/
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
 import { EditorExtensions } from 'vs/workbench/common/editor';
 import { registerInteractiveSessionActions } from 'vs/workbench/contrib/interactiveSession/browser/actions/interactiveSessionActions';
+import { registerInteractiveSessionCodeBlockActions } from 'vs/workbench/contrib/interactiveSession/browser/actions/interactiveSessionCodeblockActions';
+import { registerInteractiveSessionCopyActions } from 'vs/workbench/contrib/interactiveSession/browser/actions/interactiveSessionCopyActions';
+import { registerInteractiveSessionExecuteActions } from 'vs/workbench/contrib/interactiveSession/browser/actions/interactiveSessionExecuteActions';
+import { registerInteractiveSessionTitleActions } from 'vs/workbench/contrib/interactiveSession/browser/actions/interactiveSessionTitleActions';
 import { InteractiveSessionContributionService } from 'vs/workbench/contrib/interactiveSession/browser/interactiveSessionContributionServiceImpl';
 import { InteractiveSessionEditor } from 'vs/workbench/contrib/interactiveSession/browser/interactiveSessionEditor';
 import { InteractiveSessionEditorInput } from 'vs/workbench/contrib/interactiveSession/browser/interactiveSessionEditorInput';
+import { IInteractiveSessionWidgetService, InteractiveSessionWidgetService } from 'vs/workbench/contrib/interactiveSession/browser/interactiveSessionWidget';
 import { IInteractiveSessionContributionService } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionContributionService';
 import { IInteractiveSessionService } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionService';
 import { InteractiveSessionService } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionServiceImpl';
 import { IEditorResolverService, RegisteredEditorPriority } from 'vs/workbench/services/editor/common/editorResolverService';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import '../common/interactiveSessionColors';
-import { IInteractiveSessionWidgetService, InteractiveSessionWidgetService } from 'vs/workbench/contrib/interactiveSession/browser/interactiveSessionWidget';
-import { registerInteractiveSessionCopyActions } from 'vs/workbench/contrib/interactiveSession/browser/actions/interactiveSessionCopyActions';
-import { registerInteractiveSessionCodeBlockActions } from 'vs/workbench/contrib/interactiveSession/browser/actions/interactiveSessionCodeblockActions';
-import { registerInteractiveSessionTitleActions } from 'vs/workbench/contrib/interactiveSession/browser/actions/interactiveSessionTitleActions';
-
 
 // Register configuration
 const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
@@ -112,6 +112,7 @@ registerInteractiveSessionActions();
 registerInteractiveSessionCopyActions();
 registerInteractiveSessionCodeBlockActions();
 registerInteractiveSessionTitleActions();
+registerInteractiveSessionExecuteActions();
 
 registerSingleton(IInteractiveSessionService, InteractiveSessionService, InstantiationType.Delayed);
 registerSingleton(IInteractiveSessionContributionService, InteractiveSessionContributionService, InstantiationType.Delayed);

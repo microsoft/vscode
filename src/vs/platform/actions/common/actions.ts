@@ -182,6 +182,7 @@ export class MenuId {
 	static readonly InteractiveSessionContext = new MenuId('InteractiveSessionContext');
 	static readonly InteractiveSessionCodeBlock = new MenuId('InteractiveSessionCodeblock');
 	static readonly InteractiveSessionTitle = new MenuId('InteractiveSessionTitle');
+	static readonly InteractiveSessionExecute = new MenuId('InteractiveSessionExecute');
 
 	/**
 	 * Create or reuse a `MenuId` with the given identifier
