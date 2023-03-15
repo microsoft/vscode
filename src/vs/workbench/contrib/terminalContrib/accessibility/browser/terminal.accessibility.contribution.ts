@@ -126,8 +126,8 @@ registerAction2(class extends Action2 {
 registerAction2(class extends Action2 {
 	constructor() {
 		super({
-			id: TerminalCommandId.GoToCommand,
-			title: { value: localize('workbench.action.terminal.goToCommand', 'Go to Command'), original: 'Go to Command' },
+			id: TerminalCommandId.NavigateAccessibleBuffer,
+			title: { value: localize('workbench.action.terminal.navigateAccessibleBuffer', 'Navigate Accessible Buffer'), original: 'Navigate Accessible Buffer' },
 			f1: true,
 			category,
 			precondition: ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated),
