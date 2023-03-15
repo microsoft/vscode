@@ -419,6 +419,7 @@ export class ExtensionManagementError extends Error {
 export type InstallOptions = {
 	isBuiltin?: boolean;
 	isMachineScoped?: boolean;
+	isApplicationScoped?: boolean;
 	donotIncludePackAndDependencies?: boolean;
 	installGivenVersion?: boolean;
 	installPreReleaseVersion?: boolean;
@@ -515,8 +516,3 @@ export interface IExtensionTipsService {
 export const ExtensionsLabel = localize('extensions', "Extensions");
 export const ExtensionsLocalizedLabel = { value: ExtensionsLabel, original: 'Extensions' };
 export const PreferencesLocalizedLabel = { value: localize('preferences', "Preferences"), original: 'Preferences' };
-
-export interface CLIOutput {
-	log(s: string): void;
-	error(s: string): void;
-}

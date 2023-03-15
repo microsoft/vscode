@@ -4,7 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 use std::collections::HashMap;
 
-use crate::{constants::{VSCODE_CLI_VERSION, PROTOCOL_VERSION}, options::Quality};
+use crate::{
+	constants::{PROTOCOL_VERSION, VSCODE_CLI_VERSION},
+	options::Quality,
+};
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Debug)]
@@ -152,5 +155,24 @@ impl Default for VersionParams {
 			version: VSCODE_CLI_VERSION.unwrap_or("dev"),
 			protocol_version: PROTOCOL_VERSION,
 		}
+	}
+}
+
+pub mod singleton {
+	use crate::log;
+	use serde::{Deserialize, Serialize};
+
+	#[derive(Serialize)]
+	pub struct LogMessage<'a> {
+		pub level: Option<log::Level>,
+		pub prefix: &'a str,
+		pub message: &'a str,
+	}
+
+	#[derive(Deserialize)]
+	pub struct LogMessageOwned {
+		pub level: Option<log::Level>,
+		pub prefix: String,
+		pub message: String,
 	}
 }

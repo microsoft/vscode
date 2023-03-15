@@ -20,15 +20,26 @@ import { IEditableData } from 'vs/workbench/common/views';
 import { ITerminalStatusList } from 'vs/workbench/contrib/terminal/browser/terminalStatusList';
 import { ScrollPosition } from 'vs/workbench/contrib/terminal/browser/xterm/markNavigationAddon';
 import { ITerminalQuickFixAddon } from 'vs/workbench/contrib/terminal/browser/xterm/quickFixAddon';
+import { XtermTerminal } from 'vs/workbench/contrib/terminal/browser/xterm/xtermTerminal';
 import { IRegisterContributedProfileArgs, IRemoteTerminalAttachTarget, IStartExtensionTerminalRequest, ITerminalBackend, ITerminalConfigHelper, ITerminalFont, ITerminalProcessExtHostProxy } from 'vs/workbench/contrib/terminal/common/terminal';
 import { EditorGroupColumn } from 'vs/workbench/services/editor/common/editorGroupColumn';
 import { ISimpleSelectedSuggestion } from 'vs/workbench/services/suggest/browser/simpleSuggestWidget';
-import { IMarker } from 'xterm';
+import { IMarker, Terminal as RawXtermTerminal } from 'xterm';
 
 export const ITerminalService = createDecorator<ITerminalService>('terminalService');
 export const ITerminalEditorService = createDecorator<ITerminalEditorService>('terminalEditorService');
 export const ITerminalGroupService = createDecorator<ITerminalGroupService>('terminalGroupService');
 export const ITerminalInstanceService = createDecorator<ITerminalInstanceService>('terminalInstanceService');
+
+/**
+ * A terminal contribution that gets created whenever a terminal is created. A contribution has
+ * access to the process manager through the constructor and provides a method for when xterm.js has
+ * been initialized.
+ */
+export interface ITerminalContribution extends IDisposable {
+	layout?(xterm: IXtermTerminal & { raw: RawXtermTerminal }): void;
+	xtermReady?(xterm: IXtermTerminal & { raw: RawXtermTerminal }): void;
+}
 
 /**
  * A service used to create instances or fetch backends, this services allows services that
@@ -190,14 +201,6 @@ export interface ITerminalService extends ITerminalInstanceHost {
 	refreshActiveGroup(): void;
 
 	registerProcessSupport(isSupported: boolean): void;
-
-	/**
-	 * Registers a link provider that enables integrators to add links to the terminal.
-	 * @param linkProvider When registered, the link provider is asked whenever a cell is hovered
-	 * for links at that position. This lets the terminal know all links at a given area and also
-	 * labels for what these links are going to do.
-	 */
-	registerLinkProvider(linkProvider: ITerminalExternalLinkProvider): IDisposable;
 
 	showProfileQuickPick(type: 'setDefault' | 'createInstance', cwd?: string | URI): Promise<ITerminalInstance | undefined>;
 
@@ -526,7 +529,6 @@ export interface ITerminalInstance {
 	onDisposed: Event<ITerminalInstance>;
 
 	onProcessIdReady: Event<ITerminalInstance>;
-	onLinksReady: Event<ITerminalInstance>;
 	onRequestExtHostProcess: Event<ITerminalInstance>;
 	onDimensionsChanged: Event<void>;
 	onMaximumDimensionsChanged: Event<void>;
@@ -585,15 +587,9 @@ export interface ITerminalInstance {
 	readonly exitReason: TerminalExitReason | undefined;
 
 	/**
-	 * Whether links in the terminal are ready, links aren't available until after the process is
-	 * ready.
-	 */
-	readonly areLinksReady: boolean;
-
-	/**
 	 * The xterm.js instance for this terminal.
 	 */
-	readonly xterm?: IXtermTerminal;
+	readonly xterm?: XtermTerminal;
 
 	/**
 	 * Returns an array of data events that have fired within the first 10 seconds. If this is
@@ -883,11 +879,6 @@ export interface ITerminalInstance {
 	getCwd(): Promise<string>;
 
 	/**
-	 * @throws when called before xterm.js is ready.
-	 */
-	registerLinkProvider(provider: ITerminalExternalLinkProvider): IDisposable;
-
-	/**
 	 * Sets the title of the terminal to the provided string. If no title is provided, it will reset
 	 * to the terminal's title if it was not explicitly set by the user or API.
 	 * @param title The new title.
@@ -905,22 +896,10 @@ export interface ITerminalInstance {
 	changeColor(): Promise<void>;
 
 	/**
-	 * Triggers a quick pick that displays links from the viewport of the active terminal.
-	 * Selecting a file or web link will open it. Selecting a word link will copy it to the
-	 * clipboard.
-	 */
-	showLinkQuickpick(): Promise<void>;
-
-	/**
 	 * Triggers a quick pick that displays recent commands or cwds. Selecting one will
 	 * rerun it in the active terminal.
 	 */
 	runRecent(type: 'command' | 'cwd'): Promise<void>;
-
-	/**
-	 * Activates the most recent link of the given type.
-	 */
-	openRecentLink(type: 'localFile' | 'url'): Promise<void>;
 
 	/**
 	 * Attempts to detect and kill the process listening on specified port.
@@ -973,6 +952,11 @@ export interface ITerminalInstance {
 	 * Register a child element to the terminal instance's container.
 	 */
 	registerChildElement(element: ITerminalChildElement): IDisposable;
+
+	/**
+	 * Gets a terminal contribution by its ID.
+	 */
+	getContribution<T extends ITerminalContribution>(id: string): T | null;
 }
 
 // NOTE: This interface is very similar to the widget manager internal to TerminalInstance, in the
@@ -1057,11 +1041,6 @@ export interface IXtermTerminal {
 	 * Returns a reverse iterator of buffer lines as strings
 	 */
 	getBufferReverseIterator(): IterableIterator<string>;
-
-	/**
-	 * Focuses the accessible buffer, updating its contents
-	 */
-	focusAccessibleBuffer(): Promise<void>;
 
 	/**
 	 * Refreshes the terminal after it has been moved.

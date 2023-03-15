@@ -80,7 +80,6 @@ const configurationKey = 'workbench.startupEditor';
 
 export const allWalkthroughsHiddenContext = new RawContextKey<boolean>('allWalkthroughsHidden', false);
 export const inWelcomeContext = new RawContextKey<boolean>('inWelcome', false);
-export const embedderIdentifierContext = new RawContextKey<string | undefined>('embedderIdentifier', undefined);
 
 export interface IWelcomePageStartEntry {
 	id: string;
@@ -101,13 +100,6 @@ const parsedStartEntries: IWelcomePageStartEntry[] = startEntries.map((e, i) => 
 	title: e.title,
 	when: ContextKeyExpr.deserialize(e.when) ?? ContextKeyExpr.true()
 }));
-
-type GettingStartedLayoutEventClassification = {
-	owner: 'bhavyau';
-	comment: 'Information about the layout of the welcome page';
-	featuredExtensions: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'visible featured extensions' };
-	title: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'featured extension title' };
-};
 
 type GettingStartedActionClassification = {
 	command: { classification: 'PublicNonPersonalData'; purpose: 'FeatureInsight'; comment: 'The command being executed on the getting started page.' };
@@ -216,7 +208,6 @@ export class GettingStartedPage extends EditorPane {
 
 		this.contextService = this._register(contextService.createScoped(this.container));
 		inWelcomeContext.bindTo(this.contextService).set(true);
-		embedderIdentifierContext.bindTo(this.contextService).set(productService.embedderIdentifier);
 
 		this.gettingStartedCategories = this.gettingStartedService.getWalkthroughs();
 		this.featuredExtensions = this.featuredExtensionService.getExtensions();
@@ -683,7 +674,10 @@ export class GettingStartedPage extends EditorPane {
 					this.openerService.open(message, { allowCommands: true });
 				} else if (message.startsWith('setTheme:')) {
 					this.configurationService.updateValue(ThemeSettings.COLOR_THEME, message.slice('setTheme:'.length), ConfigurationTarget.USER);
-				} else {
+				} else if (message === 'unloaded') {
+					this.buildMediaComponent(stepId);
+				}
+				else {
 					console.error('Unexpected message', message);
 				}
 			}));
@@ -1149,7 +1143,6 @@ export class GettingStartedPage extends EditorPane {
 			});
 
 		this.featuredExtensions?.then(extensions => {
-			this.telemetryService.publicLog2<{ featuredExtensions: string[]; title: string }, GettingStartedLayoutEventClassification>('gettingStarted.layout', { featuredExtensions: extensions.map(e => e.id), title: this.featuredExtensionService.title });
 			featuredExtensionsList.setEntries(extensions);
 		});
 

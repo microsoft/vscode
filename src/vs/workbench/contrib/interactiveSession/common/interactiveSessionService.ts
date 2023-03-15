@@ -4,37 +4,121 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken } from 'vs/base/common/cancellation';
+import { Event } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
-import { ProviderResult } from 'vs/editor/common/languages';
+import { URI } from 'vs/base/common/uri';
+import { CompletionItemKind, ProviderResult } from 'vs/editor/common/languages';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { InteractiveSessionModel } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionModel';
+import { IInteractiveResponseErrorDetails, InteractiveSessionModel } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionModel';
 
 export interface IInteractiveSession {
 	id: number;
+	requesterUsername: string;
+	requesterAvatarIconUri?: URI;
+	responderUsername: string;
+	responderAvatarIconUri?: URI;
 	dispose?(): void;
 }
 
 export interface IInteractiveRequest {
 	session: IInteractiveSession;
-	message: string;
+	message: string | IInteractiveSessionReplyFollowup;
 }
 
 export interface IInteractiveResponse {
 	session: IInteractiveSession;
-	followups?: string[];
+	errorDetails?: IInteractiveResponseErrorDetails;
+	timings?: {
+		firstProgress: number;
+		totalElapsed: number;
+	};
 }
 
-export interface IInteractiveProgress {
-	responsePart: string;
-}
+export type IInteractiveProgress =
+	{ content: string } | { responseId: string };
 
 export interface IPersistedInteractiveState { }
 export interface IInteractiveProvider {
-	id: string;
+	readonly id: string;
+	readonly progressiveRenderingEnabled?: boolean;
+	readonly iconUrl?: string;
 	prepareSession(initialState: IPersistedInteractiveState | undefined, token: CancellationToken): ProviderResult<IInteractiveSession | undefined>;
 	resolveRequest?(session: IInteractiveSession, context: any, token: CancellationToken): ProviderResult<IInteractiveRequest>;
-	provideSuggestions(token: CancellationToken): ProviderResult<string[] | undefined>;
+	provideWelcomeMessage?(token: CancellationToken): ProviderResult<(string | IInteractiveSessionReplyFollowup[])[] | undefined>;
+	provideSuggestions?(token: CancellationToken): ProviderResult<string[] | undefined>;
+	provideFollowups?(session: IInteractiveSession, token: CancellationToken): ProviderResult<IInteractiveSessionFollowup[] | undefined>;
 	provideReply(request: IInteractiveRequest, progress: (progress: IInteractiveProgress) => void, token: CancellationToken): ProviderResult<IInteractiveResponse>;
+	provideSlashCommands?(session: IInteractiveSession, token: CancellationToken): ProviderResult<IInteractiveSlashCommand[]>;
+}
+
+export interface IInteractiveSlashCommand {
+	command: string;
+	kind: CompletionItemKind;
+	detail?: string;
+}
+
+export interface IInteractiveSessionReplyFollowup {
+	kind: 'reply';
+	message: string;
+	title?: string;
+	tooltip?: string;
+	metadata?: any;
+}
+
+export interface IInteractiveSessionResponseCommandFollowup {
+	kind: 'command';
+	commandId: string;
+	args: any[];
+	title: string; // supports codicon strings
+}
+
+export type IInteractiveSessionFollowup = IInteractiveSessionReplyFollowup | IInteractiveSessionResponseCommandFollowup;
+
+export enum InteractiveSessionVoteDirection {
+	Up = 1,
+	Down = 2
+}
+
+export interface IInteractiveSessionVoteAction {
+	kind: 'vote';
+	responseId: string;
+	direction: InteractiveSessionVoteDirection;
+}
+
+export interface IInteractiveSessionCopyAction {
+	kind: 'copy';
+	responseId: string;
+	codeBlockIndex: number;
+}
+
+export interface IInteractiveSessionInsertAction {
+	kind: 'insert';
+	responseId: string;
+	codeBlockIndex: number;
+}
+
+export interface IInteractiveSessionCommandAction {
+	kind: 'command';
+	command: IInteractiveSessionResponseCommandFollowup;
+}
+
+export type InteractiveSessionUserAction = IInteractiveSessionVoteAction | IInteractiveSessionCopyAction | IInteractiveSessionInsertAction | IInteractiveSessionCommandAction;
+
+export interface IInteractiveSessionUserActionEvent {
+	action: InteractiveSessionUserAction;
+	providerId: string;
+}
+
+export interface IInteractiveSessionDynamicRequest {
+	/**
+	 * The message that will be displayed in the UI
+	 */
+	message: string;
+
+	/**
+	 * Any extra metadata/context that will go to the provider.
+	 */
+	metadata?: any;
 }
 
 export const IInteractiveSessionService = createDecorator<IInteractiveSessionService>('IInteractiveSessionService');
@@ -42,14 +126,20 @@ export const IInteractiveSessionService = createDecorator<IInteractiveSessionSer
 export interface IInteractiveSessionService {
 	_serviceBrand: undefined;
 	registerProvider(provider: IInteractiveProvider): IDisposable;
+	progressiveRenderingEnabled(providerId: string): boolean;
 	startSession(providerId: string, allowRestoringSession: boolean, token: CancellationToken): Promise<InteractiveSessionModel | undefined>;
 
 	/**
 	 * Returns whether the request was accepted.
 	 */
-	sendRequest(sessionId: number, message: string, token: CancellationToken): boolean;
+	sendRequest(sessionId: number, message: string | IInteractiveSessionReplyFollowup, token: CancellationToken): boolean;
+	getSlashCommands(sessionId: number, token: CancellationToken): Promise<IInteractiveSlashCommand[] | undefined>;
 	clearSession(sessionId: number): void;
 	acceptNewSessionState(sessionId: number, state: any): void;
 	addInteractiveRequest(context: any): void;
+	sendInteractiveRequestToProvider(providerId: string, message: IInteractiveSessionDynamicRequest): void;
 	provideSuggestions(providerId: string, token: CancellationToken): Promise<string[] | undefined>;
+
+	onDidPerformUserAction: Event<IInteractiveSessionUserActionEvent>;
+	notifyUserAction(event: IInteractiveSessionUserActionEvent): void;
 }

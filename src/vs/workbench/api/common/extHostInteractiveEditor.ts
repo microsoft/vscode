@@ -7,12 +7,13 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { toDisposable } from 'vs/base/common/lifecycle';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { ISelection } from 'vs/editor/common/core/selection';
-import { IInteractiveEditorResponse, IInteractiveEditorSession, IInteractiveEditorRequest } from 'vs/editor/contrib/interactive/common/interactiveEditor';
+import { IInteractiveEditorSession, IInteractiveEditorRequest } from 'vs/workbench/contrib/interactiveEditor/common/interactiveEditor';
 import { IRelaxedExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { ILogService } from 'vs/platform/log/common/log';
-import { ExtHostInteractiveEditorShape, IMainContext, MainContext, MainThreadInteractiveEditorShape } from 'vs/workbench/api/common/extHost.protocol';
+import { ExtHostInteractiveEditorShape, IInteractiveEditorResponseDto, IMainContext, MainContext, MainThreadInteractiveEditorShape } from 'vs/workbench/api/common/extHost.protocol';
 import { ExtHostDocuments } from 'vs/workbench/api/common/extHostDocuments';
 import * as typeConvert from 'vs/workbench/api/common/extHostTypeConverters';
+import { WorkspaceEdit } from 'vs/workbench/api/common/extHostTypes';
 import type * as vscode from 'vscode';
 
 class ProviderWrapper {
@@ -69,10 +70,10 @@ export class ExtHostInteractiveEditor implements ExtHostInteractiveEditorShape {
 		const id = ExtHostInteractiveEditor._nextId++;
 		this._inputSessions.set(id, session);
 
-		return { id, placeholder: session.placeholder };
+		return { id, placeholder: session.placeholder, slashCommands: session.slashCommands };
 	}
 
-	async $provideResponse(handle: number, item: IInteractiveEditorSession, request: IInteractiveEditorRequest, token: CancellationToken): Promise<IInteractiveEditorResponse | undefined> {
+	async $provideResponse(handle: number, item: IInteractiveEditorSession, request: IInteractiveEditorRequest, token: CancellationToken): Promise<IInteractiveEditorResponseDto | undefined> {
 		const entry = this._inputProvider.get(handle);
 		if (!entry) {
 			return undefined;
@@ -89,14 +90,32 @@ export class ExtHostInteractiveEditor implements ExtHostInteractiveEditorShape {
 			wholeRange: typeConvert.Range.to(request.wholeRange)
 		}, token);
 
-		if (!res) {
-			return;
+		if (ExtHostInteractiveEditor._isMessageResponse(res)) {
+			return {
+				type: 'message',
+				message: typeConvert.MarkdownString.from(res.contents)
+			};
 		}
 
-		return {
-			edits: res.edits.map(typeConvert.TextEdit.from),
-			placeholder: res.placeholder
-		};
+		if (res) {
+			const { edits, placeholder } = res;
+			if (edits instanceof WorkspaceEdit) {
+				return {
+					type: 'bulkEdit',
+					placeholder,
+					edits: typeConvert.WorkspaceEdit.from(edits)
+				};
+
+			} else if (Array.isArray(edits)) {
+				return {
+					type: 'editorEdit',
+					edits: edits.map(typeConvert.TextEdit.from),
+					placeholder
+				};
+			}
+		}
+
+		return undefined;
 	}
 
 	$releaseSession(handle: number, sessionId: number) {
@@ -108,4 +127,7 @@ export class ExtHostInteractiveEditor implements ExtHostInteractiveEditorShape {
 		this._inputSessions.delete(sessionId);
 	}
 
+	private static _isMessageResponse(thing: any): thing is vscode.InteractiveEditorMessageResponse {
+		return typeof thing === 'object' && typeof (<vscode.InteractiveEditorMessageResponse>thing).contents === 'object';
+	}
 }

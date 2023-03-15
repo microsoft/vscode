@@ -464,7 +464,7 @@ const newCommands: ApiCommand[] = [
 			new ApiCommandArgument('value', 'The context key value', () => true, v => v),
 		],
 		ApiCommandResult.Void
-	),
+	)
 ];
 
 //#endregion

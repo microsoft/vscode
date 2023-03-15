@@ -4,7 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { DisposableMap } from 'vs/base/common/lifecycle';
-import { IInteractiveEditorService } from 'vs/editor/contrib/interactive/common/interactiveEditor';
+import { IInteractiveEditorResponse, IInteractiveEditorService } from 'vs/workbench/contrib/interactiveEditor/common/interactiveEditor';
+import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
+import { reviveWorkspaceEditDto } from 'vs/workbench/api/browser/mainThreadBulkEdits';
 import { ExtHostContext, ExtHostInteractiveEditorShape, MainContext, MainThreadInteractiveEditorShape } from 'vs/workbench/api/common/extHost.protocol';
 import { IExtHostContext, extHostNamedCustomer } from 'vs/workbench/services/extensions/common/extHostCustomers';
 
@@ -17,6 +19,7 @@ export class MainThreadInteractiveEditor implements MainThreadInteractiveEditorS
 	constructor(
 		extHostContext: IExtHostContext,
 		@IInteractiveEditorService private readonly _interactiveEditorService: IInteractiveEditorService,
+		@IUriIdentityService private readonly _uriIdentService: IUriIdentityService,
 	) {
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostInteractiveEditor);
 	}
@@ -26,7 +29,7 @@ export class MainThreadInteractiveEditor implements MainThreadInteractiveEditorS
 	}
 
 	async $registerInteractiveEditorProvider(handle: number, debugName: string): Promise<void> {
-		const unreg = this._interactiveEditorService.add({
+		const unreg = this._interactiveEditorService.addProvider({
 			debugName,
 			prepareInteractiveEditorSession: async (model, range, token) => {
 				const session = await this._proxy.$prepareInteractiveSession(handle, model.uri, range, token);
@@ -40,8 +43,12 @@ export class MainThreadInteractiveEditor implements MainThreadInteractiveEditorS
 					}
 				};
 			},
-			provideResponse: (item, request, token) => {
-				return this._proxy.$provideResponse(handle, item, request, token);
+			provideResponse: async (item, request, token) => {
+				const result = await this._proxy.$provideResponse(handle, item, request, token);
+				if (result?.type === 'bulkEdit') {
+					result.edits = reviveWorkspaceEditDto(result.edits, this._uriIdentService);
+				}
+				return <IInteractiveEditorResponse | undefined>result;
 			}
 		});
 
