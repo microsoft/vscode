@@ -603,16 +603,3 @@ export function registerAction2(ctor: { new(): Action2 }): IDisposable {
 	return disposables;
 }
 //#endregion
-
-//#region --- Register a command to get all actions from the command palette
-CommandsRegistry.registerCommand('_getAllCommands', function () {
-	const commandPaletteActions = MenuRegistry.getMenuItems(MenuId.CommandPalette);
-	const returnedActions = [];
-	for (const action of commandPaletteActions) {
-		if (isIMenuItem(action)) {
-			returnedActions.push({ command: action.command.id, title: action.command.title });
-		}
-	}
-	return returnedActions;
-});
-//#endregion
