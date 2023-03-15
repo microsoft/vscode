@@ -430,7 +430,7 @@ export class ExtensionsScanner extends Disposable {
 		await this.cleanUpGeneratedFoldersPromise;
 	}
 
-	async scanExtensions(type: ExtensionType | null, profileLocation: URI | undefined): Promise<ILocalExtension[]> {
+	async scanExtensions(type: ExtensionType | null, profileLocation: URI): Promise<ILocalExtension[]> {
 		const userScanOptions: ScanOptions = { includeInvalid: true, profileLocation };
 		let scannedExtensions: IScannedExtension[] = [];
 		if (type === null || type === ExtensionType.System) {
