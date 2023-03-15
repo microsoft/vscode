@@ -232,7 +232,7 @@ export interface IConfigBasedExtensionTip {
 	configScheme?: string;
 	recommendations: IStringDictionary<{
 		name: string;
-		remotes?: string[];
+		contentPattern?: string;
 		important?: boolean;
 		isExtensionPack?: boolean;
 		whenNotInstalled?: string[];
