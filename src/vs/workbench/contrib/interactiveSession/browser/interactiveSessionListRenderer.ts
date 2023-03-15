@@ -224,8 +224,8 @@ export class InteractiveListItemRenderer extends Disposable implements ITreeRend
 		}
 	}
 
-	private basicRenderElement(markdownValue: string, element: InteractiveTreeItem, index: number, templateData: IInteractiveListItemTemplate) {
-		const result = this.renderMarkdown(new MarkdownString(markdownValue), element, templateData.elementDisposables, templateData);
+	private basicRenderElement(markdownValue: string, element: InteractiveTreeItem, index: number, templateData: IInteractiveListItemTemplate, fillInIncompleteTokens = false) {
+		const result = this.renderMarkdown(new MarkdownString(markdownValue), element, templateData.elementDisposables, templateData, fillInIncompleteTokens);
 		dom.clearNode(templateData.value);
 		templateData.value.appendChild(result.element);
 		templateData.elementDisposables.add(result);
@@ -285,7 +285,7 @@ export class InteractiveListItemRenderer extends Disposable implements ITreeRend
 				this.traceLayout('runProgressiveRender', `Rendered all available words, but model is not complete.`);
 			}
 			disposables.clear();
-			this.basicRenderElement(element.response.value, element, index, templateData);
+			this.basicRenderElement(element.response.value, element, index, templateData, !element.isComplete);
 		} else if (toRender) {
 			// Doing the progressive render
 			const plusCursor = toRender.match(/```.*$/) ? toRender + `\n${InteractiveListItemRenderer.cursorCharacter}` : toRender + ` ${InteractiveListItemRenderer.cursorCharacter}`;
