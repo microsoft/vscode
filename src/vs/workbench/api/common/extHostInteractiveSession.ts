@@ -192,7 +192,7 @@ export class ExtHostInteractiveSession implements ExtHostInteractiveSessionShape
 				if (token.isCancellationRequested) {
 					return;
 				}
-				
+
 				if (typeof firstProgress === 'undefined') {
 					firstProgress = stopWatch.elapsed();
 				}
