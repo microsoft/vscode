@@ -125,6 +125,11 @@ export class GettingStartedDetailsRenderer {
 			</body>
 			<script nonce="${nonce}">
 				const vscode = acquireVsCodeApi();
+
+				window.addEventListener('unload', event => {
+					vscode.postMessage('unloaded');
+				});
+
 				document.querySelectorAll('[when-checked]').forEach(el => {
 					el.addEventListener('click', () => {
 						vscode.postMessage(el.getAttribute('when-checked'));

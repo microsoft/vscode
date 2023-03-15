@@ -30,8 +30,6 @@ export const TerminalCursorStyle = {
 
 export const TERMINAL_CONFIG_SECTION = 'terminal.integrated';
 
-export const TERMINAL_ACTION_CATEGORY = nls.localize('terminalCategory', "Terminal");
-
 export const DEFAULT_LETTER_SPACING = 0;
 export const MINIMUM_LETTER_SPACING = -5;
 export const DEFAULT_LINE_HEIGHT = 1;
@@ -253,7 +251,6 @@ export interface ITerminalConfiguration {
 	};
 	useWslProfiles: boolean;
 	altClickMovesCursor: boolean;
-	accessibleBufferContentEditable: 'auto' | 'on' | 'off';
 	macOptionIsMeta: boolean;
 	macOptionClickForcesSelection: boolean;
 	gpuAcceleration: 'auto' | 'on' | 'canvas' | 'off';
@@ -825,7 +822,7 @@ export const terminalQuickFixesContributionsDescriptor: IExtensionPointDescripto
 					type: 'string',
 				},
 				outputMatcher: {
-					markdownDescription: nls.localize('vscode.extension.contributes.terminalQuickFixes.outputMatcher', "A regular expression or string to test the output against, which provides groups to be referenced in terminalCommand and uri.\n\nFor example:\n\n `lineMatcher: /git push --set-upstream origin (?<branchName>[^\s]+)/;`\n\n`terminalCommand: 'git push --set-upstream origin ${group:branchName}';`\n"),
+					markdownDescription: nls.localize('vscode.extension.contributes.terminalQuickFixes.outputMatcher', "A regular expression or string to match a single line of the output against, which provides groups to be referenced in terminalCommand and uri.\n\nFor example:\n\n `lineMatcher: /git push --set-upstream origin (?<branchName>[^\s]+)/;`\n\n`terminalCommand: 'git push --set-upstream origin ${group:branchName}';`\n"),
 					type: 'object',
 					required: ['lineMatcher', 'anchor', 'offset', 'length'],
 					properties: {

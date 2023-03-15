@@ -423,6 +423,10 @@ export interface IUserDataSyncResourceError extends IUserDataSyncResource {
 	readonly error: UserDataSyncError;
 }
 
+export interface IUserDataInitializer {
+	initialize(userData: IUserData): Promise<void>;
+}
+
 export interface IUserDataSynchroniser {
 
 	readonly resource: SyncResource;
@@ -569,6 +573,6 @@ export interface IConflictSetting {
 
 //#endregion
 
-export const USER_DATA_SYNC_LOG_ID = 'userDataSyncLog';
+export const USER_DATA_SYNC_LOG_ID = 'userDataSync';
 export const USER_DATA_SYNC_SCHEME = 'vscode-userdata-sync';
 export const PREVIEW_DIR_NAME = 'preview';

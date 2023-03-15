@@ -38,11 +38,14 @@ export class UniversalWatcherClient extends AbstractUniversalWatcherClient {
 			});
 
 			// React on unexpected termination of the watcher process
-			// We never expect the watcher to terminate by its own,
-			// so if that happens we want to restart the watcher.
+			// by listening to the `onDidTerminate` event. We do not
+			// consider an exit code of `0` as abnormal termination.
+
 			onDidTerminate.then(({ reason }) => {
-				if (reason) {
-					this.onError(`terminated by itself with code ${reason.code}, signal: ${reason.signal}`);
+				if (reason?.code === 0) {
+					this.trace(`terminated by itself with code ${reason.code}, signal: ${reason.signal}`);
+				} else {
+					this.onError(`terminated by itself unexpectedly with code ${reason?.code}, signal: ${reason?.signal}`);
 				}
 			});
 

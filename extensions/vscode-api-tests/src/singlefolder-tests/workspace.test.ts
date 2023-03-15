@@ -939,7 +939,7 @@ suite('vscode API - workspace', () => {
 		}
 	}
 
-	test('The api workspace.applyEdit failed for some case of mixing resourceChange and textEdit #80688', async function () {
+	test('The api workspace.applyEdit failed for some case of mixing resourceChange and textEdit #80688, 1/2', async function () {
 		const file1 = await createRandomFile();
 		const file2 = await createRandomFile();
 		const we = new vscode.WorkspaceEdit();
@@ -958,7 +958,7 @@ suite('vscode API - workspace', () => {
 		assert.strictEqual(document.getText(), expected2);
 	});
 
-	test('The api workspace.applyEdit failed for some case of mixing resourceChange and textEdit #80688', async function () {
+	test('The api workspace.applyEdit failed for some case of mixing resourceChange and textEdit #80688, 2/2', async function () {
 		const file1 = await createRandomFile();
 		const file2 = await createRandomFile();
 		const we = new vscode.WorkspaceEdit();

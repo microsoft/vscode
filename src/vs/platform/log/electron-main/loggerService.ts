@@ -22,6 +22,8 @@ export interface ILoggerMainService extends ILoggerService {
 
 	createLogger(resource: URI, options?: ILoggerOptions, windowId?: number): ILogger;
 
+	createLogger(id: string, options?: Omit<ILoggerOptions, 'id'>, windowId?: number): ILogger;
+
 	registerLogger(resource: ILoggerResource, windowId?: number): void;
 
 	getRegisteredLoggers(windowId?: number): ILoggerResource[];
@@ -34,14 +36,14 @@ export class LoggerMainService extends LoggerService implements ILoggerMainServi
 
 	private readonly loggerResourcesByWindow = new ResourceMap<number>();
 
-	override createLogger(resource: URI, options?: ILoggerOptions, windowId?: number): ILogger {
+	override createLogger(idOrResource: URI | string, options?: ILoggerOptions, windowId?: number): ILogger {
 		if (windowId !== undefined) {
-			this.loggerResourcesByWindow.set(resource, windowId);
+			this.loggerResourcesByWindow.set(this.toResource(idOrResource), windowId);
 		}
 		try {
-			return super.createLogger(resource, options);
+			return super.createLogger(idOrResource, options);
 		} catch (error) {
-			this.loggerResourcesByWindow.delete(resource);
+			this.loggerResourcesByWindow.delete(this.toResource(idOrResource));
 			throw error;
 		}
 	}

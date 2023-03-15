@@ -100,7 +100,7 @@ export class InteractiveEditor extends EditorPane {
 	#notebookExecutionStateService: INotebookExecutionStateService;
 	#extensionService: IExtensionService;
 	#widgetDisposableStore: DisposableStore = this._register(new DisposableStore());
-	#dimension?: DOM.Dimension;
+	#lastLayoutDimensions?: { readonly dimension: DOM.Dimension; readonly position: DOM.IDomPosition };
 	#notebookOptions: NotebookOptions;
 	#editorMemento: IEditorMemento<InteractiveEditorViewState>;
 	#groupListener = this._register(new DisposableStore());
@@ -377,19 +377,19 @@ export class InteractiveEditor extends EditorPane {
 			}
 		});
 
-		if (this.#dimension) {
-			this.#notebookEditorContainer.style.height = `${this.#dimension.height - this.#inputCellContainerHeight}px`;
-			this.#notebookWidget.value!.layout(this.#dimension.with(this.#dimension.width, this.#dimension.height - this.#inputCellContainerHeight), this.#notebookEditorContainer);
+		if (this.#lastLayoutDimensions) {
+			this.#notebookEditorContainer.style.height = `${this.#lastLayoutDimensions.dimension.height - this.#inputCellContainerHeight}px`;
+			this.#notebookWidget.value!.layout(new DOM.Dimension(this.#lastLayoutDimensions.dimension.width, this.#lastLayoutDimensions.dimension.height - this.#inputCellContainerHeight), this.#notebookEditorContainer);
 			const {
 				codeCellLeftMargin,
 				cellRunGutter
 			} = this.#notebookOptions.getLayoutConfiguration();
 			const leftMargin = codeCellLeftMargin + cellRunGutter;
-			const maxHeight = Math.min(this.#dimension.height / 2, this.#inputCellEditorHeight);
-			this.#codeEditorWidget.layout(this.#validateDimension(this.#dimension.width - leftMargin - INPUT_CELL_HORIZONTAL_PADDING_RIGHT, maxHeight));
+			const maxHeight = Math.min(this.#lastLayoutDimensions.dimension.height / 2, this.#inputCellEditorHeight);
+			this.#codeEditorWidget.layout(this.#validateDimension(this.#lastLayoutDimensions.dimension.width - leftMargin - INPUT_CELL_HORIZONTAL_PADDING_RIGHT, maxHeight));
 			this.#inputFocusIndicator.style.height = `${this.#inputCellEditorHeight}px`;
-			this.#inputCellContainer.style.top = `${this.#dimension.height - this.#inputCellContainerHeight}px`;
-			this.#inputCellContainer.style.width = `${this.#dimension.width}px`;
+			this.#inputCellContainer.style.top = `${this.#lastLayoutDimensions.dimension.height - this.#inputCellContainerHeight}px`;
+			this.#inputCellContainer.style.width = `${this.#lastLayoutDimensions.dimension.width}px`;
 		}
 
 		await super.setInput(input, options, context, token);
@@ -422,8 +422,8 @@ export class InteractiveEditor extends EditorPane {
 				this.#createLayoutStyles();
 			}
 
-			if (this.#dimension && this.isVisible()) {
-				this.layout(this.#dimension);
+			if (this.#lastLayoutDimensions && this.isVisible()) {
+				this.layout(this.#lastLayoutDimensions.dimension, this.#lastLayoutDimensions.position);
 			}
 
 			if (e.interactiveWindowCollapseCodeCells) {
@@ -443,8 +443,8 @@ export class InteractiveEditor extends EditorPane {
 				return;
 			}
 
-			if (this.#dimension) {
-				this.#layoutWidgets(this.#dimension);
+			if (this.#lastLayoutDimensions) {
+				this.#layoutWidgets(this.#lastLayoutDimensions.dimension, this.#lastLayoutDimensions.position);
 			}
 		}));
 
@@ -554,7 +554,7 @@ export class InteractiveEditor extends EditorPane {
 			if (selectedOrSuggested) {
 				const language = selectedOrSuggested.supportedLanguages[0];
 				const newMode = language ? this.#languageService.createById(language).languageId : PLAINTEXT_LANGUAGE_ID;
-				textModel.setMode(newMode);
+				textModel.setLanguage(newMode);
 
 				NOTEBOOK_KERNEL.bindTo(this.#contextKeyService).set(selectedOrSuggested.id);
 			}
@@ -563,11 +563,11 @@ export class InteractiveEditor extends EditorPane {
 		this.#updateInputDecoration();
 	}
 
-	layout(dimension: DOM.Dimension): void {
+	layout(dimension: DOM.Dimension, position: DOM.IDomPosition): void {
 		this.#rootElement.classList.toggle('mid-width', dimension.width < 1000 && dimension.width >= 600);
 		this.#rootElement.classList.toggle('narrow-width', dimension.width < 600);
-		const editorHeightChanged = dimension.height !== this.#dimension?.height;
-		this.#dimension = dimension;
+		const editorHeightChanged = dimension.height !== this.#lastLayoutDimensions?.dimension.height;
+		this.#lastLayoutDimensions = { dimension, position };
 
 		if (!this.#notebookWidget.value) {
 			return;
@@ -577,11 +577,11 @@ export class InteractiveEditor extends EditorPane {
 			SuggestController.get(this.#codeEditorWidget)?.cancelSuggestWidget();
 		}
 
-		this.#notebookEditorContainer.style.height = `${this.#dimension.height - this.#inputCellContainerHeight}px`;
-		this.#layoutWidgets(dimension);
+		this.#notebookEditorContainer.style.height = `${this.#lastLayoutDimensions.dimension.height - this.#inputCellContainerHeight}px`;
+		this.#layoutWidgets(dimension, position);
 	}
 
-	#layoutWidgets(dimension: DOM.Dimension) {
+	#layoutWidgets(dimension: DOM.Dimension, position: DOM.IDomPosition) {
 		const contentHeight = this.#codeEditorWidget.hasModel() ? this.#codeEditorWidget.getContentHeight() : this.#inputCellEditorHeight;
 		const maxHeight = Math.min(dimension.height / 2, contentHeight);
 		const {
@@ -593,7 +593,7 @@ export class InteractiveEditor extends EditorPane {
 		const inputCellContainerHeight = maxHeight + INPUT_CELL_VERTICAL_PADDING * 2;
 		this.#notebookEditorContainer.style.height = `${dimension.height - inputCellContainerHeight}px`;
 
-		this.#notebookWidget.value!.layout(dimension.with(dimension.width, dimension.height - inputCellContainerHeight), this.#notebookEditorContainer);
+		this.#notebookWidget.value!.layout(dimension.with(dimension.width, dimension.height - inputCellContainerHeight), this.#notebookEditorContainer, position);
 		this.#codeEditorWidget.layout(this.#validateDimension(dimension.width - leftMargin - INPUT_CELL_HORIZONTAL_PADDING_RIGHT, maxHeight));
 		this.#inputFocusIndicator.style.height = `${contentHeight}px`;
 		this.#inputCellContainer.style.top = `${dimension.height - inputCellContainerHeight}px`;

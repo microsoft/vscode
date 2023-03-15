@@ -183,6 +183,9 @@ export class TerminalQuickFixAddon extends Disposable implements ITerminalAddon,
 			this._disposeQuickFix(this._lastQuickFixId, false);
 		}
 		const resolver = async (selector: ITerminalQuickFixOptions, lines?: string[]) => {
+			if (lines === undefined) {
+				return undefined;
+			}
 			const id = selector.id;
 			await this._extensionService.activateByEvent(`onTerminalQuickFixRequest:${id}`);
 			return this._quickFixService.providers.get(id)?.provideTerminalQuickFixes(command, lines, { type: 'resolved', commandLineMatcher: selector.commandLineMatcher, outputMatcher: selector.outputMatcher, commandExitResult: selector.commandExitResult, id: selector.id }, new CancellationTokenSource().token);

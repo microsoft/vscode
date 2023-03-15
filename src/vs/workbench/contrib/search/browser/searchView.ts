@@ -9,9 +9,8 @@ import * as aria from 'vs/base/browser/ui/aria/aria';
 import { MessageType } from 'vs/base/browser/ui/inputbox/inputBox';
 import { IIdentityProvider } from 'vs/base/browser/ui/list/list';
 import { ICompressedTreeElement } from 'vs/base/browser/ui/tree/compressedObjectTreeModel';
-import { ITreeContextMenuEvent } from 'vs/base/browser/ui/tree/tree';
-import { Delayer } from 'vs/base/common/async';
-import { Color, RGBA } from 'vs/base/common/color';
+import { ITreeContextMenuEvent, ObjectTreeElementCollapseState } from 'vs/base/browser/ui/tree/tree';
+import { Delayer, RunOnceScheduler } from 'vs/base/common/async';
 import * as errors from 'vs/base/common/errors';
 import { Event } from 'vs/base/common/event';
 import { Iterable } from 'vs/base/common/iterator';
@@ -50,8 +49,7 @@ import { IProgress, IProgressService, IProgressStep } from 'vs/platform/progress
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { defaultInputBoxStyles, defaultToggleStyles } from 'vs/platform/theme/browser/defaultStyles';
-import { foreground } from 'vs/platform/theme/common/colorRegistry';
-import { IColorTheme, ICssStyleCollector, IFileIconTheme, IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
+import { IFileIconTheme, IThemeService } from 'vs/platform/theme/common/themeService';
 import { ThemeIcon } from 'vs/base/common/themables';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { OpenFileFolderAction, OpenFolderAction } from 'vs/workbench/browser/actions/workspaceActions';
@@ -158,8 +156,9 @@ export class SearchView extends ViewPane {
 
 	private treeViewKey: IContextKey<boolean>;
 
-	private _uiRefreshHandle: any;
 	private _visibleMatches: number = 0;
+
+	private _refreshResultsScheduler: RunOnceScheduler;
 
 	constructor(
 		options: IViewPaneOptions,
@@ -253,6 +252,8 @@ export class SearchView extends ViewPane {
 
 		this.treeAccessibilityProvider = this.instantiationService.createInstance(SearchAccessibilityProvider, this.viewModel);
 		this.isTreeLayoutViewVisible = this.viewletState['view.treeLayout'] ?? (this.searchConfig.defaultViewMode === ViewMode.Tree);
+
+		this._refreshResultsScheduler = this._register(new RunOnceScheduler(this._updateResults.bind(this), 80));
 	}
 
 	get isTreeLayoutViewVisible(): boolean {
@@ -607,11 +608,8 @@ export class SearchView extends ViewPane {
 			} else {
 				children = this.createFolderIterator(match, collapseResults, false);
 			}
-			let nodeExists = true;
-			try { this.tree.getNode(match); } catch (e) { nodeExists = false; }
 
-			const collapsed = nodeExists ? undefined :
-				(collapseResults === 'alwaysCollapse' || (match.count() > 10 && collapseResults !== 'alwaysExpand'));
+			const collapsed = (collapseResults === 'alwaysCollapse' || (match.count() > 10 && collapseResults !== 'alwaysExpand')) ? ObjectTreeElementCollapseState.PreserveOrCollapsed : ObjectTreeElementCollapseState.PreserveOrExpanded;
 
 			return <ICompressedTreeElement<RenderableMatch>>{ element: match, children, collapsed, incompressible: (match instanceof FileMatch) ? true : childFolderIncompressible };
 		});
@@ -1486,6 +1484,25 @@ export class SearchView extends ViewPane {
 			.then(() => undefined, () => undefined);
 	}
 
+
+	private _updateResults() {
+		try {
+			if (this.state === SearchUIState.Idle) {
+				return;
+			}
+
+			// Search result tree update
+			const fileCount = this.viewModel.searchResult.fileCount();
+			if (this._visibleMatches !== fileCount) {
+				this._visibleMatches = fileCount;
+				this.refreshAndUpdateCount();
+			}
+		} finally {
+			// show frequent progress and results by scheduling updates 80 ms after the last one
+			this._refreshResultsScheduler.schedule();
+		}
+	}
+
 	private doSearch(query: ITextQuery, excludePatternText: string, includePatternText: string, triggeredOnType: boolean): Thenable<void> {
 		let progressComplete: () => void;
 		this.progressService.withProgress({ location: this.getProgressLocation(), delay: triggeredOnType ? 300 : 0 }, _progress => {
@@ -1621,27 +1638,12 @@ export class SearchView extends ViewPane {
 
 		this._visibleMatches = 0;
 
-		// Handle UI updates in an interval to show frequent progress and results
-		if (!this._uiRefreshHandle) {
-			this._uiRefreshHandle = setInterval(() => {
-				if (this.state === SearchUIState.Idle) {
-					window.clearInterval(this._uiRefreshHandle);
-					this._uiRefreshHandle = undefined;
-					return;
-				}
-
-				// Search result tree update
-				const fileCount = this.viewModel.searchResult.fileCount();
-				if (this._visibleMatches !== fileCount) {
-					this._visibleMatches = fileCount;
-					this.refreshAndUpdateCount();
-				}
-			}, 100);
-		}
+		this._refreshResultsScheduler.schedule();
 
 		this.searchWidget.setReplaceAllActionState(false);
 
 		this.tree.setSelection([]);
+		this.tree.setFocus([]);
 		return this.viewModel.search(query)
 			.then(onComplete, onError);
 	}
@@ -2033,15 +2035,6 @@ export class SearchView extends ViewPane {
 	}
 }
 
-registerThemingParticipant((theme: IColorTheme, collector: ICssStyleCollector) => {
-	if (theme.type === 'dark') {
-		const foregroundColor = theme.getColor(foreground);
-		if (foregroundColor) {
-			const fgWithOpacity = new Color(new RGBA(foregroundColor.rgba.r, foregroundColor.rgba.g, foregroundColor.rgba.b, 0.65));
-			collector.addRule(`.search-view .message { color: ${fgWithOpacity}; }`);
-		}
-	}
-});
 
 class SearchLinkButton extends Disposable {
 	public readonly element: HTMLElement;
