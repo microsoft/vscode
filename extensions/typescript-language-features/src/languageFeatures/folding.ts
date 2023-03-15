@@ -21,7 +21,7 @@ class TypeScriptFoldingProvider implements vscode.FoldingRangeProvider {
 		_context: vscode.FoldingContext,
 		token: vscode.CancellationToken
 	): Promise<vscode.FoldingRange[] | undefined> {
-		const file = this.client.toOpenedFilePath(document);
+		const file = this.client.toOpenTsFilePath(document);
 		if (!file) {
 			return;
 		}

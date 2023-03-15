@@ -9,7 +9,7 @@ import { Color } from 'vs/base/common/color';
 import { illegalArgument, onUnexpectedError } from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
-import { combinedDisposable, Disposable, IDisposable } from 'vs/base/common/lifecycle';
+import { combinedDisposable, Disposable, IDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import { listenStream } from 'vs/base/common/stream';
 import * as strings from 'vs/base/common/strings';
 import { Constants } from 'vs/base/common/uint';
@@ -24,7 +24,7 @@ import { TextChange } from 'vs/editor/common/core/textChange';
 import { EDITOR_MODEL_DEFAULTS } from 'vs/editor/common/core/textModelDefaults';
 import { IWordAtPosition } from 'vs/editor/common/core/wordHelper';
 import { FormattingOptions } from 'vs/editor/common/languages';
-import { ILanguageService } from 'vs/editor/common/languages/language';
+import { ILanguageSelection, ILanguageService } from 'vs/editor/common/languages/language';
 import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
 import * as model from 'vs/editor/common/model';
 import { BracketPairsTextModelPart } from 'vs/editor/common/model/bracketPairsTextModelPart/bracketPairsImpl';
@@ -243,6 +243,7 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 	private _buffer: model.ITextBuffer;
 	private _bufferDisposable: IDisposable;
 	private _options: model.TextModelResolvedOptions;
+	private _languageSelectionListener = this._register(new MutableDisposable<IDisposable>());
 
 	private _isDisposed: boolean;
 	private __isDisposing: boolean;
@@ -287,7 +288,7 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 
 	constructor(
 		source: string | model.ITextBufferFactory,
-		languageId: string,
+		languageIdOrSelection: string | ILanguageSelection,
 		creationOptions: model.ITextModelCreationOptions,
 		associatedResource: URI | null = null,
 		@IUndoRedoService private readonly _undoRedoService: IUndoRedoService,
@@ -312,6 +313,11 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 		this._bufferDisposable = disposable;
 
 		this._options = TextModel.resolveOptions(this._buffer, creationOptions);
+
+		const languageId = (typeof languageIdOrSelection === 'string' ? languageIdOrSelection : languageIdOrSelection.languageId);
+		if (typeof languageIdOrSelection !== 'string') {
+			this._languageSelectionListener.value = languageIdOrSelection.onDidChange(() => this._setLanguage(languageIdOrSelection.languageId));
+		}
 
 		this._bracketPairs = this._register(new BracketPairsTextModelPart(this, this._languageConfigurationService));
 		this._guidesTextModelPart = this._register(new GuidesTextModelPart(this, this._languageConfigurationService));
@@ -364,6 +370,8 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 			this._onDidChangeDecorations.fire();
 			this._onDidChangeDecorations.endDeferredEmit();
 		}));
+
+		this._languageService.requestRichLanguageFeatures(languageId);
 	}
 
 	public override dispose(): void {
@@ -1905,8 +1913,19 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 		return this.tokenization.getLanguageId();
 	}
 
-	public setMode(languageId: string, source?: string): void {
+	public setLanguage(languageIdOrSelection: string | ILanguageSelection, source?: string): void {
+		if (typeof languageIdOrSelection === 'string') {
+			this._languageSelectionListener.clear();
+			this._setLanguage(languageIdOrSelection, source);
+		} else {
+			this._languageSelectionListener.value = languageIdOrSelection.onDidChange(() => this._setLanguage(languageIdOrSelection.languageId, source));
+			this._setLanguage(languageIdOrSelection.languageId, source);
+		}
+	}
+
+	private _setLanguage(languageId: string, source?: string): void {
 		this.tokenization.setLanguageId(languageId, source);
+		this._languageService.requestRichLanguageFeatures(languageId);
 	}
 
 	public getLanguageIdAtPosition(lineNumber: number, column: number): string {
@@ -2226,10 +2245,11 @@ export class ModelDecorationOptions implements model.IModelDecorationOptions {
 	public static createDynamic(options: model.IModelDecorationOptions): ModelDecorationOptions {
 		return new ModelDecorationOptions(options);
 	}
-
 	readonly description: string;
 	readonly blockClassName: string | null;
 	readonly blockIsAfterEnd: boolean | null;
+	readonly blockDoesNotCollapse?: boolean | null;
+	readonly blockPadding: [top: number, right: number, bottom: number, left: number] | null;
 	readonly stickiness: model.TrackedRangeStickiness;
 	readonly zIndex: number;
 	readonly className: string | null;
@@ -2253,11 +2273,12 @@ export class ModelDecorationOptions implements model.IModelDecorationOptions {
 	readonly hideInCommentTokens: boolean | null;
 	readonly hideInStringTokens: boolean | null;
 
-
 	private constructor(options: model.IModelDecorationOptions) {
 		this.description = options.description;
 		this.blockClassName = options.blockClassName ? cleanClassName(options.blockClassName) : null;
+		this.blockDoesNotCollapse = options.blockDoesNotCollapse ?? null;
 		this.blockIsAfterEnd = options.blockIsAfterEnd ?? null;
+		this.blockPadding = options.blockPadding ?? null;
 		this.stickiness = options.stickiness || model.TrackedRangeStickiness.AlwaysGrowsWhenTypingAtEdges;
 		this.zIndex = options.zIndex || 0;
 		this.className = options.className ? cleanClassName(options.className) : null;

@@ -41,7 +41,7 @@ class SourceDefinitionCommand implements Command {
 			return;
 		}
 
-		const openedFiledPath = this.client.toOpenedFilePath(document);
+		const openedFiledPath = this.client.toOpenTsFilePath(document);
 		if (!openedFiledPath) {
 			vscode.window.showErrorMessage(vscode.l10n.t("Go to Source Definition failed. Unknown file type."));
 			return;

@@ -19,7 +19,7 @@ import { Extensions, IConfigurationPropertySchema, IConfigurationRegistry } from
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
+import { ILifecycleService, LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { EditorPaneDescriptor, IEditorPaneRegistry } from 'vs/workbench/browser/editor';
 import { Extensions as WorkbenchExtensions, IWorkbenchContribution, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
@@ -71,6 +71,7 @@ import 'vs/workbench/contrib/notebook/browser/controller/foldingController';
 import 'vs/workbench/contrib/notebook/browser/contrib/clipboard/notebookClipboard';
 import 'vs/workbench/contrib/notebook/browser/contrib/find/notebookFind';
 import 'vs/workbench/contrib/notebook/browser/contrib/format/formatting';
+import 'vs/workbench/contrib/notebook/browser/contrib/saveParticipants/saveParticipants';
 import 'vs/workbench/contrib/notebook/browser/contrib/gettingStarted/notebookGettingStarted';
 import 'vs/workbench/contrib/notebook/browser/contrib/layout/layoutActions';
 import 'vs/workbench/contrib/notebook/browser/contrib/marker/markerProvider';
@@ -83,7 +84,7 @@ import 'vs/workbench/contrib/notebook/browser/contrib/cellStatusBar/executionSta
 import 'vs/workbench/contrib/notebook/browser/contrib/editorStatusBar/editorStatusBar';
 import 'vs/workbench/contrib/notebook/browser/contrib/undoRedo/notebookUndoRedo';
 import 'vs/workbench/contrib/notebook/browser/contrib/cellCommands/cellCommands';
-import 'vs/workbench/contrib/notebook/browser/contrib/viewportCustomMarkdown/viewportCustomMarkdown';
+import 'vs/workbench/contrib/notebook/browser/contrib/viewportWarmup/viewportWarmup';
 import 'vs/workbench/contrib/notebook/browser/contrib/troubleshoot/layout';
 import 'vs/workbench/contrib/notebook/browser/contrib/debug/notebookBreakpoints';
 import 'vs/workbench/contrib/notebook/browser/contrib/debug/notebookCellPausing';
@@ -303,6 +304,10 @@ class CellContentProvider implements ITextModelContentProvider {
 		const ref = await this._notebookModelResolverService.resolve(data.notebook);
 		let result: ITextModel | null = null;
 
+		if (!ref.object.isResolved()) {
+			return null;
+		}
+
 		for (const cell of ref.object.notebook.cells) {
 			if (cell.uri.toString() === resource.toString()) {
 				const bufferFactory: ITextBufferFactory = {
@@ -502,7 +507,7 @@ class CellInfoContentProvider {
 			}
 
 			model.setValue(newResult.content);
-			model.setMode(newResult.mode.languageId);
+			model.setLanguage(newResult.mode.languageId);
 		});
 
 		const once = model.onWillDispose(() => {
@@ -549,8 +554,8 @@ class NotebookEditorManager implements IWorkbenchContribution {
 		@INotebookEditorModelResolverService private readonly _notebookEditorModelService: INotebookEditorModelResolverService,
 		@INotebookService notebookService: INotebookService,
 		@IEditorGroupsService editorGroups: IEditorGroupsService,
+		@ILifecycleService lifecycleService: ILifecycleService,
 	) {
-
 		// OPEN notebook editor for models that have turned dirty without being visible in an editor
 		type E = IResolvedNotebookEditorModel;
 		this._disposables.add(Event.debounce<E, E[]>(
@@ -560,12 +565,18 @@ class NotebookEditorManager implements IWorkbenchContribution {
 		)(this._openMissingDirtyNotebookEditors, this));
 
 		// CLOSE notebook editor for models that have no more serializer
-		this._disposables.add(notebookService.onWillRemoveViewType(e => {
+		const listener = notebookService.onWillRemoveViewType(e => {
 			for (const group of editorGroups.groups) {
 				const staleInputs = group.editors.filter(input => input instanceof NotebookEditorInput && input.viewType === e);
 				group.closeEditors(staleInputs);
 			}
-		}));
+		});
+
+		this._disposables.add(listener);
+		// don't react to view types disposing if the workbench is shutting down anyway
+		Event.once(lifecycleService.onWillShutdown)((e) => {
+			listener.dispose();
+		});
 
 		// CLOSE editors when we are about to open conflicting notebooks
 		this._disposables.add(_notebookEditorModelService.onWillFailWithConflict(e => {
@@ -889,6 +900,18 @@ configurationRegistry.registerConfiguration({
 		},
 		[NotebookSetting.outputScrolling]: {
 			markdownDescription: nls.localize('notebook.outputScrolling', "Use a scrollable region for notebook output when longer than the limit"),
+			type: 'boolean',
+			tags: ['notebookLayout'],
+			default: false
+		},
+		[NotebookSetting.outputWordWrap]: {
+			markdownDescription: nls.localize('notebook.outputWordWrap', "Controls whether the lines in output should wrap."),
+			type: 'boolean',
+			tags: ['notebookLayout'],
+			default: false
+		},
+		[NotebookSetting.formatOnSave]: {
+			markdownDescription: nls.localize('notebook.formatOnSave', "Format a notebook on save. A formatter must be available, the file must not be saved after delay, and the editor must not be shutting down."),
 			type: 'boolean',
 			tags: ['notebookLayout'],
 			default: false

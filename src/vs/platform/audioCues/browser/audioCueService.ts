@@ -48,7 +48,7 @@ export class AudioCueService extends Disposable implements IAudioCueService {
 	public async playAudioCues(cues: AudioCue[]): Promise<void> {
 		// Some audio cues might reuse sounds. Don't play the same sound twice.
 		const sounds = new Set(cues.filter(cue => this.isEnabled(cue)).map(cue => cue.sound));
-		await Promise.all(Array.from(sounds).map(sound => this.playSound(sound)));
+		await Promise.all(Array.from(sounds).map(sound => this.playSound(sound, true)));
 	}
 
 	private getVolumeInPercent(): number {
@@ -292,6 +292,12 @@ export class AudioCue {
 		name: localize('audioCues.taskFailed', 'Task Failed'),
 		sound: Sound.taskFailed,
 		settingsKey: 'audioCues.taskFailed'
+	});
+
+	public static readonly terminalCommandFailed = AudioCue.register({
+		name: localize('audioCues.terminalCommandFailed', 'Terminal Command Failed'),
+		sound: Sound.error,
+		settingsKey: 'audioCues.terminalCommandFailed'
 	});
 
 	public static readonly terminalBell = AudioCue.register({

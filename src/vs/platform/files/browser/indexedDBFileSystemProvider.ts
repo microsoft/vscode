@@ -304,10 +304,10 @@ export class IndexedDBFileSystemProvider extends Disposable implements IFileSyst
 		const toEntry = fileTree.read(to.path);
 		if (toEntry) {
 			if (!opts.overwrite) {
-				throw new FileSystemProviderError('file exists already', FileSystemProviderErrorCode.FileExists);
+				throw createFileSystemProviderError('file exists already', FileSystemProviderErrorCode.FileExists);
 			}
 			if (toEntry.type !== fromEntry.type) {
-				throw new FileSystemProviderError('Cannot rename files with different types', FileSystemProviderErrorCode.Unknown);
+				throw createFileSystemProviderError('Cannot rename files with different types', FileSystemProviderErrorCode.Unknown);
 			}
 			// delete the target file if exists
 			await this.delete(to, { recursive: true, useTrash: false });

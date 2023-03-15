@@ -51,7 +51,7 @@ import { IExtHostWorkspace } from 'vs/workbench/api/common/extHostWorkspace';
 import { ProxyIdentifier } from 'vs/workbench/services/extensions/common/proxyIdentifier';
 import { ExtensionDescriptionRegistry } from 'vs/workbench/services/extensions/common/extensionDescriptionRegistry';
 import type * as vscode from 'vscode';
-import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
+import { ExtensionIdentifierSet, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { ExtHostEditorInsets } from 'vs/workbench/api/common/extHostCodeInsets';
 import { ExtHostLabelService } from 'vs/workbench/api/common/extHostLabelService';
 import { getRemoteName } from 'vs/platform/remote/common/remoteHosts';
@@ -91,12 +91,14 @@ import { ExtHostNotebookEditors } from 'vs/workbench/api/common/extHostNotebookE
 import { ExtHostNotebookDocuments } from 'vs/workbench/api/common/extHostNotebookDocuments';
 import { ExtHostInteractive } from 'vs/workbench/api/common/extHostInteractive';
 import { combinedDisposable } from 'vs/base/common/lifecycle';
-import { checkProposedApiEnabled, ExtensionIdentifierSet, isProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
+import { checkProposedApiEnabled, isProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
 import { DebugConfigurationProviderTriggerKind } from 'vs/workbench/contrib/debug/common/debug';
 import { IExtHostLocalizationService } from 'vs/workbench/api/common/extHostLocalizationService';
 import { EditSessionIdentityMatch } from 'vs/platform/workspace/common/editSessions';
 import { ExtHostProfileContentHandlers } from 'vs/workbench/api/common/extHostProfileContentHandler';
 import { ExtHostQuickDiff } from 'vs/workbench/api/common/extHostQuickDiff';
+import { ExtHostInteractiveSession } from 'vs/workbench/api/common/extHostInteractiveSession';
+import { ExtHostInteractiveEditor } from 'vs/workbench/api/common/extHostInteractiveEditor';
 
 export interface IExtensionRegistries {
 	mine: ExtensionDescriptionRegistry;
@@ -191,6 +193,8 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 	const extHostUriOpeners = rpcProtocol.set(ExtHostContext.ExtHostUriOpeners, new ExtHostUriOpeners(rpcProtocol));
 	const extHostProfileContentHandlers = rpcProtocol.set(ExtHostContext.ExtHostProfileContentHandlers, new ExtHostProfileContentHandlers(rpcProtocol));
 	rpcProtocol.set(ExtHostContext.ExtHostInteractive, new ExtHostInteractive(rpcProtocol, extHostNotebook, extHostDocumentsAndEditors, extHostCommands, extHostLogService));
+	const extHostInteractiveEditor = rpcProtocol.set(ExtHostContext.ExtHostInteractiveEditor, new ExtHostInteractiveEditor(rpcProtocol, extHostDocuments, extHostLogService));
+	const extHostInteractiveSession = rpcProtocol.set(ExtHostContext.ExtHostInteractiveSession, new ExtHostInteractiveSession(rpcProtocol, extHostLogService));
 
 	// Check that no named customers are missing
 	const expected = Object.values<ProxyIdentifier<any>>(ExtHostContext);
@@ -242,6 +246,10 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 		const authentication: typeof vscode.authentication = {
 			getSession(providerId: string, scopes: readonly string[], options?: vscode.AuthenticationGetSessionOptions) {
 				return extHostAuthentication.getSession(extension, providerId, scopes, options as any);
+			},
+			getSessions(providerId: string, scopes: readonly string[]) {
+				checkProposedApiEnabled(extension, 'getSessions');
+				return extHostAuthentication.getSessions(extension, providerId, scopes);
 			},
 			// TODO: remove this after GHPR and Codespaces move off of it
 			async hasSession(providerId: string, scopes: readonly string[]) {
@@ -336,9 +344,9 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			get isNewAppInstall() {
 				return isNewAppInstall(initData.telemetryInfo.firstSessionDate);
 			},
-			createTelemetryLogger(sender: vscode.TelemetrySender): vscode.TelemetryLogger {
+			createTelemetryLogger(sender: vscode.TelemetrySender, options?: vscode.TelemetryLoggerOptions): vscode.TelemetryLogger {
 				ExtHostTelemetryLogger.validateSender(sender);
-				return extHostTelemetry.instantiateLogger(extension, sender);
+				return extHostTelemetry.instantiateLogger(extension, sender, options);
 			},
 			openExternal(uri: URI, options?: { allowContributedOpeners?: boolean | string }) {
 				return extHostWindow.openUri(uri, {
@@ -670,7 +678,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				return <Thenable<any>>extHostMessageService.showMessage(extension, Severity.Error, message, rest[0], <Array<string | vscode.MessageItem>>rest.slice(1));
 			},
 			showQuickPick(items: any, options?: vscode.QuickPickOptions, token?: vscode.CancellationToken): any {
-				return extHostQuickOpen.showQuickPick(items, options, token);
+				return extHostQuickOpen.showQuickPick(extension, items, options, token);
 			},
 			showWorkspaceFolderPick(options?: vscode.WorkspaceFolderPickOptions) {
 				return extHostQuickOpen.showWorkspaceFolderPick(options);
@@ -679,7 +687,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				return extHostQuickOpen.showInput(options, token);
 			},
 			showOpenDialog(options) {
-				return extHostDialogs.showOpenDialog(options);
+				return extHostDialogs.showOpenDialog(extension, options);
 			},
 			showSaveDialog(options) {
 				return extHostDialogs.showSaveDialog(options);
@@ -1208,6 +1216,33 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			}
 		};
 
+		// namespace: interactive
+		const interactive: typeof vscode.interactive = {
+			// IMPORTANT
+			// this needs to be updated whenever the API proposal changes
+			_version: 1,
+
+			registerInteractiveEditorSessionProvider(provider: vscode.InteractiveEditorSessionProvider) {
+				checkProposedApiEnabled(extension, 'interactive');
+				return extHostInteractiveEditor.registerProvider(extension, provider);
+			},
+			registerInteractiveSessionProvider(id: string, provider: vscode.InteractiveSessionProvider) {
+				checkProposedApiEnabled(extension, 'interactive');
+				return extHostInteractiveSession.registerInteractiveSessionProvider(extension, id, provider);
+			},
+			addInteractiveRequest(context: vscode.InteractiveSessionRequestArgs) {
+				checkProposedApiEnabled(extension, 'interactive');
+				return extHostInteractiveSession.addInteractiveSessionRequest(context);
+			},
+			sendInteractiveRequestToProvider(providerId: string, message: vscode.InteractiveSessionDynamicRequest) {
+				checkProposedApiEnabled(extension, 'interactive');
+				return extHostInteractiveSession.sendInteractiveRequestToProvider(providerId, message);
+			},
+			get onDidPerformUserAction() {
+				return extHostInteractiveSession.onDidPerformUserAction;
+			}
+		};
+
 		return <typeof vscode>{
 			version: initData.version,
 			// namespaces
@@ -1217,6 +1252,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			debug,
 			env,
 			extensions,
+			interactive,
 			l10n,
 			languages,
 			notebooks,
@@ -1410,7 +1446,8 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			TabInputInteractiveWindow: extHostTypes.InteractiveWindowInput,
 			TelemetryTrustedValue: TelemetryTrustedValue,
 			LogLevel: LogLevel,
-			EditSessionIdentityMatch: EditSessionIdentityMatch
+			EditSessionIdentityMatch: EditSessionIdentityMatch,
+			InteractiveSessionVoteDirection: extHostTypes.InteractiveSessionVoteDirection
 		};
 	};
 }

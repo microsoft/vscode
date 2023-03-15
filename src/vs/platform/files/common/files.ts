@@ -625,16 +625,20 @@ export interface IFileSystemProviderError extends Error {
 
 export class FileSystemProviderError extends Error implements IFileSystemProviderError {
 
-	constructor(message: string, readonly code: FileSystemProviderErrorCode) {
+	static create(error: Error | string, code: FileSystemProviderErrorCode): FileSystemProviderError {
+		const providerError = new FileSystemProviderError(error.toString(), code);
+		markAsFileSystemProviderError(providerError, code);
+
+		return providerError;
+	}
+
+	private constructor(message: string, readonly code: FileSystemProviderErrorCode) {
 		super(message);
 	}
 }
 
 export function createFileSystemProviderError(error: Error | string, code: FileSystemProviderErrorCode): FileSystemProviderError {
-	const providerError = new FileSystemProviderError(error.toString(), code);
-	markAsFileSystemProviderError(providerError, code);
-
-	return providerError;
+	return FileSystemProviderError.create(error, code);
 }
 
 export function ensureFileSystemProviderError(error?: Error): Error {

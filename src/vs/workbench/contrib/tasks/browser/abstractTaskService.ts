@@ -82,6 +82,7 @@ import { IPreferencesService } from 'vs/workbench/services/preferences/common/pr
 import { TerminalExitReason } from 'vs/platform/terminal/common/terminal';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { raceTimeout } from 'vs/base/common/async';
 
 const QUICKOPEN_HISTORY_LIMIT_CONFIG = 'task.quickOpen.history';
 const PROBLEM_MATCHER_NEVER_CONFIG = 'task.problemMatchers.neverPrompt';
@@ -574,9 +575,10 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		// We need to first wait for extensions to be registered because we might read
 		// the `TaskDefinitionRegistry` in case `type` is `undefined`
 		await this._extensionService.whenInstalledExtensionsRegistered();
-
-		await Promise.all(
-			this._getActivationEvents(type).map(activationEvent => this._extensionService.activateByEvent(activationEvent))
+		await raceTimeout(
+			Promise.all(this._getActivationEvents(type).map(activationEvent => this._extensionService.activateByEvent(activationEvent))),
+			5000,
+			() => console.warn('Timed out activating extensions for task providers')
 		);
 	}
 
@@ -1812,17 +1814,14 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		if (saveBeforeRunTaskConfig === SaveBeforeRunConfigOptions.Never) {
 			return false;
 		} else if (saveBeforeRunTaskConfig === SaveBeforeRunConfigOptions.Prompt && this._editorService.editors.some(e => e.isDirty())) {
-			const dialogOptions = await this._dialogService.show(
-				Severity.Info,
-				nls.localize('TaskSystem.saveBeforeRun.prompt.title', 'Save all editors?'),
-				[nls.localize('saveBeforeRun.save', 'Save'), nls.localize('saveBeforeRun.dontSave', 'Don\'t save')],
-				{
-					detail: nls.localize('detail', "Do you want to save all editors before running the task?"),
-					cancelId: 1
-				}
-			);
+			const { confirmed } = await this._dialogService.confirm({
+				message: nls.localize('TaskSystem.saveBeforeRun.prompt.title', "Save all editors?"),
+				detail: nls.localize('detail', "Do you want to save all editors before running the task?"),
+				primaryButton: nls.localize({ key: 'saveBeforeRun.save', comment: ['&& denotes a mnemonic'] }, '&&Save'),
+				cancelButton: nls.localize('saveBeforeRun.dontSave', 'Don\'t save'),
+			});
 
-			if (dialogOptions.choice !== 0) {
+			if (!confirmed) {
 				return false;
 			}
 		}

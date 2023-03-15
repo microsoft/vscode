@@ -22,7 +22,7 @@ import { VIEWLET_ID } from 'vs/workbench/contrib/remote/browser/remoteExplorer';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IViewDescriptor, IViewsRegistry, Extensions, ViewContainerLocation, IViewContainersRegistry, IViewDescriptorService } from 'vs/workbench/common/views';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
+import { IExtensionDescription, IRelaxedExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { ICommandService } from 'vs/platform/commands/common/commands';
@@ -314,6 +314,20 @@ abstract class HelpItemBase implements IHelpItem {
 		this.iconClasses.push('remote-help-tree-node-item-icon');
 	}
 
+	protected async getActions(): Promise<{
+		label: string;
+		description: string;
+		extensionDescription: Readonly<IRelaxedExtensionDescription>;
+	}[]> {
+		return (await Promise.all(this.values.map(async (value) => {
+			return {
+				label: value.extensionDescription.displayName || value.extensionDescription.identifier.value,
+				description: await value.url,
+				extensionDescription: value.extensionDescription
+			};
+		}))).filter(item => item.description);
+	}
+
 	async handleClick() {
 		const remoteAuthority = this.environmentService.remoteAuthority;
 		if (remoteAuthority) {
@@ -351,13 +365,7 @@ abstract class HelpItemBase implements IHelpItem {
 		}
 
 		if (this.values.length > 1) {
-			const actions = (await Promise.all(this.values.map(async (value) => {
-				return {
-					label: value.extensionDescription.displayName || value.extensionDescription.identifier.value,
-					description: await value.url,
-					extensionDescription: value.extensionDescription
-				};
-			}))).filter(item => item.description);
+			const actions = await this.getActions();
 
 			if (actions.length) {
 				const action = await this.quickInputService.pick(actions, { placeHolder: nls.localize('pickRemoteExtension', "Select url to open") });
@@ -405,6 +413,20 @@ class IssueReporterItem extends HelpItemBase {
 		workspaceContextService: IWorkspaceContextService
 	) {
 		super(icon, label, values, quickInputService, environmentService, remoteExplorerService, workspaceContextService);
+	}
+
+	protected override async getActions(): Promise<{
+		label: string;
+		description: string;
+		extensionDescription: Readonly<IRelaxedExtensionDescription>;
+	}[]> {
+		return Promise.all(this.values.map(async (value) => {
+			return {
+				label: value.extensionDescription.displayName || value.extensionDescription.identifier.value,
+				description: '',
+				extensionDescription: value.extensionDescription
+			};
+		}));
 	}
 
 	protected async takeAction(extensionDescription: IExtensionDescription): Promise<void> {
@@ -960,9 +982,12 @@ export class RemoteAgentConnectionStatusListener extends Disposable implements I
 							console.log(`Error handled: Not showing a notification for the error.`);
 						} else if (!this._reloadWindowShown) {
 							this._reloadWindowShown = true;
-							dialogService.show(Severity.Error, nls.localize('reconnectionPermanentFailure', "Cannot reconnect. Please reload the window."), [nls.localize('reloadWindow', "Reload Window"), nls.localize('cancel', "Cancel")], { cancelId: 1, custom: true }).then(result => {
-								// Reload the window
-								if (result.choice === 0) {
+							dialogService.confirm({
+								type: Severity.Error,
+								message: nls.localize('reconnectionPermanentFailure', "Cannot reconnect. Please reload the window."),
+								primaryButton: nls.localize({ key: 'reloadWindow.dialog', comment: ['&& denotes a mnemonic'] }, "&&Reload Window")
+							}).then(result => {
+								if (result.confirmed) {
 									commandService.executeCommand(ReloadWindowAction.ID);
 								}
 							});

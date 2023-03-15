@@ -26,6 +26,7 @@ import { IContextMenuService, IContextViewService } from 'vs/platform/contextvie
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IWorkspaceContextService, isStandaloneEditorWorkspace } from 'vs/platform/workspace/common/workspace';
 
 export class ContextMenuController implements IEditorContribution {
 
@@ -47,6 +48,7 @@ export class ContextMenuController implements IEditorContribution {
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
 		@IMenuService private readonly _menuService: IMenuService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
 	) {
 		this._editor = editor;
 
@@ -259,6 +261,11 @@ export class ContextMenuController implements IEditorContribution {
 
 	private _showScrollbarContextMenu(anchor: IAnchor): void {
 		if (!this._editor.hasModel()) {
+			return;
+		}
+
+		if (isStandaloneEditorWorkspace(this._workspaceContextService.getWorkspace())) {
+			// can't update the configuration properly in the standalone editor
 			return;
 		}
 

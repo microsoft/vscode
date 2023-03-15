@@ -21,7 +21,6 @@ import { hash } from 'vs/base/common/hash';
 import { ILogService } from 'vs/platform/log/common/log';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { flatten } from 'vs/base/common/arrays';
-import Severity from 'vs/base/common/severity';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { URI } from 'vs/base/common/uri';
 import { deepClone } from 'vs/base/common/objects';
@@ -520,9 +519,13 @@ export class TunnelModel extends Disposable {
 		return URI.parse(`${protocol}://${localAddress}`);
 	}
 
-	private async getStorageKey(): Promise<string> {
+	private async getStorageKey(): Promise<string | undefined> {
 		const workspace = this.workspaceContextService.getWorkspace();
 		const workspaceHash = workspace.configuration ? hash(workspace.configuration.path) : (workspace.folders.length > 0 ? hash(workspace.folders[0].uri.path) : undefined);
+		if (workspaceHash === undefined) {
+			this.logService.debug('Could not get workspace hash for forwarded ports storage key.');
+			return undefined;
+		}
 		return `${TUNNELS_TO_RESTORE}.${this.environmentService.remoteAuthority}.${workspaceHash}`;
 	}
 
@@ -533,8 +536,11 @@ export class TunnelModel extends Disposable {
 			await this.storeForwarded();
 			return deprecatedValue;
 		}
-
-		return this.storageService.get(await this.getStorageKey(), StorageScope.PROFILE);
+		const storageKey = await this.getStorageKey();
+		if (!storageKey) {
+			return undefined;
+		}
+		return this.storageService.get(storageKey, StorageScope.PROFILE);
 	}
 
 	async restoreForwarded() {
@@ -562,8 +568,9 @@ export class TunnelModel extends Disposable {
 			const key = await this.getStorageKey();
 			this.restoreListener = this._register(this.storageService.onDidChangeValue(async (e) => {
 				if (e.key === key) {
-					this.tunnelRestoreValue = Promise.resolve(this.storageService.get(await this.getStorageKey(), StorageScope.PROFILE));
+					this.tunnelRestoreValue = Promise.resolve(this.storageService.get(key, StorageScope.PROFILE));
 					await this.restoreForwarded();
+
 				}
 			}));
 		}
@@ -575,7 +582,10 @@ export class TunnelModel extends Disposable {
 			const valueToStore = JSON.stringify(Array.from(this.forwarded.values()).filter(value => value.source.source === TunnelSource.User));
 			if (valueToStore !== this.knownPortsRestoreValue) {
 				this.knownPortsRestoreValue = valueToStore;
-				this.storageService.store(await this.getStorageKey(), this.knownPortsRestoreValue, StorageScope.PROFILE, StorageTarget.USER);
+				const key = await this.getStorageKey();
+				if (key) {
+					this.storageService.store(key, this.knownPortsRestoreValue, StorageScope.PROFILE, StorageTarget.USER);
+				}
 			}
 		}
 	}
@@ -596,7 +606,7 @@ export class TunnelModel extends Disposable {
 		this.mismatchCooldown = newCooldown;
 		const mismatchString = nls.localize('remote.localPortMismatch.single', "Local port {0} could not be used for forwarding to remote port {1}.\n\nThis usually happens when there is already another process using local port {0}.\n\nPort number {2} has been used instead.",
 			expectedLocal, tunnel.tunnelRemotePort, tunnel.tunnelLocalPort);
-		return this.dialogService.show(Severity.Info, mismatchString);
+		return this.dialogService.info(mismatchString);
 	}
 
 	async forward(tunnelProperties: TunnelProperties, attributes?: Attributes | null): Promise<RemoteTunnel | undefined> {

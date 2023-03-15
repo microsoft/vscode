@@ -52,9 +52,10 @@ import { IPathService } from 'vs/workbench/services/path/common/pathService';
 import { ITextEditorOptions } from 'vs/platform/editor/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { INotebookLoggingService } from 'vs/workbench/contrib/notebook/common/notebookLoggingService';
+import { IDisposable } from 'vs/base/common/lifecycle';
 
 const LINE_COLUMN_REGEX = /:([\d]+)(?::([\d]+))?$/;
-const LineQueryRegex = /line=(\d+)/;
+const LineQueryRegex = /line=(\d+)$/;
 
 
 export interface ICachedInset<K extends ICommonCellInfo> {
@@ -89,6 +90,7 @@ export interface INotebookDelegateForWebview {
 	didResizeOutput(cellId: string): void;
 	setScrollTop(scrollTop: number): void;
 	triggerScroll(event: IMouseWheelEvent): void;
+	updatePerformanceMetadata(cellId: string, executionId: string, duration: number, rendererId: string): void;
 }
 
 interface BacklayerWebviewOptions {
@@ -107,6 +109,7 @@ interface BacklayerWebviewOptions {
 	readonly markupFontSize: number;
 	readonly outputLineHeight: number;
 	readonly outputScrolling: boolean;
+	readonly outputWordWrap: boolean;
 	readonly outputLineLimit: number;
 }
 
@@ -123,6 +126,10 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 	element: HTMLElement;
 	webview: IWebviewElement | undefined = undefined;
 	insetMapping: Map<IDisplayOutputViewModel, ICachedInset<T>> = new Map();
+	pendingWebviewIdleInsetCreationRequest: Map<IDisplayOutputViewModel, ICachedInset<T>> = new Map();
+	private reversedPendingWebviewIdleInsetMapping: Map<string, IDisplayOutputViewModel> = new Map();
+
+	pendingInsetCreationRequest: Map<IDisplayOutputViewModel, IDisposable> = new Map();
 	readonly markupPreviewMapping = new Map<string, IMarkupCellInitialization>();
 	private hiddenInsetMapping: Set<IDisplayOutputViewModel> = new Set();
 	private reversedInsetMapping: Map<string, IDisplayOutputViewModel> = new Map();
@@ -133,8 +140,6 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 	private _disposed = false;
 	private _currentKernel?: INotebookKernel;
 
-	private _initialized?: DeferredPromise<void>;
-	private _webviewPreloadInitialized?: DeferredPromise<void>;
 	private firstInit = true;
 	private initializeMarkupPromise?: { readonly requestId: string; readonly p: DeferredPromise<void>; readonly isFirstInit: boolean };
 
@@ -230,6 +235,11 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 			type: 'notebookOptions',
 			options: {
 				dragAndDropEnabled: this.options.dragAndDropEnabled
+			},
+			renderOptions: {
+				lineLimit: this.options.outputLineLimit,
+				outputScrolling: this.options.outputScrolling,
+				outputWordWrap: this.options.outputWordWrap
 			}
 		});
 	}
@@ -261,12 +271,13 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 		};
 	}
 
-	private generateContent(coreDependencies: string, baseUrl: string) {
+	private generateContent(baseUrl: string) {
 		const renderersData = this.getRendererData();
 		const preloadsData = this.getStaticPreloadsData();
 		const renderOptions = {
 			lineLimit: this.options.outputLineLimit,
-			outputScrolling: this.options.outputScrolling
+			outputScrolling: this.options.outputScrolling,
+			outputWordWrap: this.options.outputWordWrap
 		};
 		const preloadScript = preloadsScriptStr(
 			this.options,
@@ -435,10 +446,6 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 				<style id="vscode-tokenization-styles" nonce="${this.nonce}">${getTokenizationCss()}</style>
 			</head>
 			<body style="overflow: hidden;">
-				<script>
-					self.require = {};
-				</script>
-				${coreDependencies}
 				<div id='findStart' tabIndex=-1></div>
 				<div id='container' class="widgetarea" style="position: absolute;width:100%;top: 0px"></div>
 				<div id="_defaultColorPalatte"></div>
@@ -495,67 +502,10 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 		return !!this.webview;
 	}
 
-	async createWebview(): Promise<void> {
+	createWebview(): Promise<void> {
 		const baseUrl = this.asWebviewUri(this.getNotebookBaseUri(), undefined);
-
-		// Python notebooks assume that requirejs is a global.
-		// For all other notebooks, they need to provide their own loader.
-		if (!this.documentUri.path.toLowerCase().endsWith('.ipynb')) {
-			const htmlContent = this.generateContent('', baseUrl.toString());
-			this._initialize(htmlContent);
-			return;
-		}
-
-		let coreDependencies = '';
-
-		this._initialized = new DeferredPromise();
-		this._webviewPreloadInitialized = new DeferredPromise();
-
-		if (!isWeb) {
-			const loaderUri = FileAccess.asFileUri('vs/loader.js');
-			const loader = this.asWebviewUri(loaderUri, undefined);
-
-			coreDependencies = `<script src="${loader}"></script><script>
-			var requirejs = (function() {
-				return require;
-			}());
-			</script>`;
-			const htmlContent = this.generateContent(coreDependencies, baseUrl.toString());
-			this._initialize(htmlContent);
-			this._initialized.complete();
-		} else {
-			const loaderUri = FileAccess.asBrowserUri('vs/loader.js');
-
-			fetch(loaderUri.toString(true)).then(async response => {
-				if (response.status !== 200) {
-					throw new Error(response.statusText);
-				}
-
-				const loaderJs = await response.text();
-
-				coreDependencies = `
-<script>
-${loaderJs}
-</script>
-<script>
-var requirejs = (function() {
-	return require;
-}());
-</script>
-`;
-
-				const htmlContent = this.generateContent(coreDependencies, baseUrl.toString());
-				this._initialize(htmlContent);
-				this._initialized!.complete();
-			}, error => {
-				// the fetch request is rejected
-				const htmlContent = this.generateContent(coreDependencies, baseUrl.toString());
-				this._initialize(htmlContent);
-				this._initialized!.complete();
-			});
-		}
-
-		await this._initialized.p;
+		const htmlContent = this.generateContent(baseUrl.toString());
+		return this._initialize(htmlContent);
 	}
 
 	private getNotebookBaseUri() {
@@ -590,7 +540,7 @@ var requirejs = (function() {
 		];
 	}
 
-	private _initialize(content: string) {
+	private _initialize(content: string): Promise<void> {
 		if (!document.body.contains(this.element)) {
 			throw new Error('Element is already detached from the DOM tree');
 		}
@@ -600,6 +550,12 @@ var requirejs = (function() {
 		this._register(this.webview);
 
 		this._register(new WebviewWindowDragMonitor(() => this.webview));
+
+		const initializePromise = new DeferredPromise<void>();
+
+		this._register(this.webview.onFatalError(e => {
+			initializePromise.error(new Error(`Could not initialize webview: ${e.message}}`));
+		}));
 
 		this._register(this.webview.onMessage(async (message) => {
 			const data: FromWebviewMessage | { readonly __vscode_notebook_message: undefined } = message.message;
@@ -613,7 +569,7 @@ var requirejs = (function() {
 
 			switch (data.type) {
 				case 'initialized': {
-					this._webviewPreloadInitialized?.complete();
+					initializePromise.complete();
 					this.initializeWebViewState();
 					break;
 				}
@@ -633,6 +589,17 @@ var requirejs = (function() {
 								const { cellInfo, output } = resolvedResult;
 								this.notebookEditor.updateOutputHeight(cellInfo, output, height, !!update.init, 'webview#dimension');
 								this.notebookEditor.scheduleOutputHeightAck(cellInfo, update.id, height);
+							} else if (update.init) {
+								// might be idle render request's ack
+								const outputRequest = this.reversedPendingWebviewIdleInsetMapping.get(update.id);
+								if (outputRequest) {
+									const inset = this.pendingWebviewIdleInsetCreationRequest.get(outputRequest)!;
+									const cellInfo = inset.cellInfo;
+									this.reversedInsetMapping.set(update.id, outputRequest);
+									this.insetMapping.set(outputRequest, inset);
+									this.notebookEditor.updateOutputHeight(cellInfo, outputRequest, height, !!update.init, 'webview#dimension');
+									this.notebookEditor.scheduleOutputHeightAck(cellInfo, update.id, height);
+								}
 							}
 						} else {
 							this.notebookEditor.updateMarkupCellHeight(update.id, height, !!update.init);
@@ -739,18 +706,28 @@ var requirejs = (function() {
 								'github-issues.authNow',
 								'workbench.extensions.search',
 								'workbench.action.openSettings',
+								'_notebook.selectKernel',
+								// TODO@rebornix explore open output channel with name command
+								'jupyter.viewOutput'
 							],
 						});
 						return;
 					}
 
-					if (matchesSomeScheme(data.href, Schemas.http, Schemas.https, Schemas.mailto, Schemas.vscodeNotebookCell)) {
+					if (matchesSomeScheme(data.href, Schemas.http, Schemas.https, Schemas.mailto)) {
 						this.openerService.open(data.href, { fromUserGesture: true, fromWorkspace: true });
+					} else if (matchesScheme(data.href, Schemas.vscodeNotebookCell)) {
+						const uri = URI.parse(data.href);
+						this._handleNotebookCellResource(uri);
 					} else if (!/^[\w\-]+:/.test(data.href)) {
 						this._handleResourceOpening(data.href);
 					} else {
 						// uri with scheme
-						this._openUri(URI.parse(data.href));
+						if (osPath.isAbsolute(data.href)) {
+							this._openUri(URI.file(data.href));
+						} else {
+							this._openUri(URI.parse(data.href));
+						}
 					}
 					break;
 				}
@@ -868,8 +845,39 @@ var requirejs = (function() {
 					this._logRendererDebugMessage(`${data.message}${data.data ? ' ' + JSON.stringify(data.data, null, 4) : ''}`);
 					break;
 				}
+				case 'notebookPerformanceMessage': {
+					this.notebookEditor.updatePerformanceMetadata(data.cellId, data.executionId, data.duration, data.rendererId);
+					break;
+				}
 			}
 		}));
+
+		return initializePromise.p;
+	}
+
+	private _handleNotebookCellResource(uri: URI) {
+		const lineMatch = /\?line=(\d+)$/.exec(uri.fragment);
+		if (lineMatch) {
+			const parsedLineNumber = parseInt(lineMatch[1], 10);
+			if (!isNaN(parsedLineNumber)) {
+				const lineNumber = parsedLineNumber + 1;
+				const fragment = uri.fragment.substring(0, lineMatch.index);
+
+				// open the uri with selection
+				const editorOptions: ITextEditorOptions = {
+					selection: { startLineNumber: lineNumber, startColumn: 1, endLineNumber: lineNumber, endColumn: 1 }
+				};
+				this.openerService.open(uri.with({ fragment }), {
+					fromUserGesture: true,
+					fromWorkspace: true,
+					editorOptions: editorOptions
+				});
+				return;
+			}
+		}
+
+		this.openerService.open(uri, { fromUserGesture: true, fromWorkspace: true });
+		return uri;
 	}
 
 	private _handleResourceOpening(href: string) {
@@ -1265,11 +1273,6 @@ var requirejs = (function() {
 		const requestId = UUID.generateUuid();
 		this.initializeMarkupPromise = { p: new DeferredPromise(), requestId, isFirstInit: this.firstInit };
 
-		if (this._webviewPreloadInitialized) {
-			// wait for webview preload script module to be loaded
-			await this._webviewPreloadInitialized.p;
-		}
-
 		this.firstInit = false;
 
 		for (const cell of cells) {
@@ -1299,12 +1302,37 @@ var requirejs = (function() {
 		}
 	}
 
+	requestCreateOutputWhenWebviewIdle(cellInfo: T, content: IInsetRenderOutput, cellTop: number, offset: number) {
+		if (this._disposed) {
+			return;
+		}
+
+		if (this.insetMapping.has(content.source)) {
+			return;
+		}
+
+		if (this.pendingWebviewIdleInsetCreationRequest.has(content.source)) {
+			return;
+		}
+
+		const { message, renderer } = this._createOutputCreationMessage(cellInfo, content, cellTop, offset, true, true);
+		this._sendMessageToWebview(message);
+		this.pendingWebviewIdleInsetCreationRequest.set(content.source, { outputId: message.outputId, cellInfo: cellInfo, renderer, cachedCreation: message });
+		this.reversedPendingWebviewIdleInsetMapping.set(message.outputId, content.source);
+	}
+
 	createOutput(cellInfo: T, content: IInsetRenderOutput, cellTop: number, offset: number): void {
 		if (this._disposed) {
 			return;
 		}
 
 		const cachedInset = this.insetMapping.get(content.source);
+
+		// we now request to render the output immediately, so we can remove the pending request
+		this.pendingWebviewIdleInsetCreationRequest.delete(content.source);
+		if (cachedInset) {
+			this.reversedPendingWebviewIdleInsetMapping.delete(cachedInset.outputId);
+		}
 
 		if (cachedInset && this._cachedInsetEqual(cachedInset, content)) {
 			this.hiddenInsetMapping.delete(content.source);
@@ -1318,13 +1346,28 @@ var requirejs = (function() {
 			return;
 		}
 
+		// create new output
+		const createOutput = () => {
+			const { message, renderer } = this._createOutputCreationMessage(cellInfo, content, cellTop, offset, false, false);
+			this._sendMessageToWebview(message);
+			this.insetMapping.set(content.source, { outputId: message.outputId, cellInfo: cellInfo, renderer, cachedCreation: message });
+			this.hiddenInsetMapping.delete(content.source);
+			this.reversedInsetMapping.set(message.outputId, content.source);
+		};
+
+		createOutput();
+	}
+
+	private _createOutputCreationMessage(cellInfo: T, content: IInsetRenderOutput, cellTop: number, offset: number, createOnIdle: boolean, initiallyHidden: boolean): { readonly message: ICreationRequestMessage; readonly renderer: INotebookRendererInfo | undefined } {
 		const messageBase = {
 			type: 'html',
+			executionId: cellInfo.executionId,
 			cellId: cellInfo.cellId,
 			cellTop: cellTop,
 			outputOffset: offset,
 			left: 0,
 			requiredPreloads: [],
+			createOnIdle: createOnIdle
 		} as const;
 
 		let message: ICreationRequestMessage;
@@ -1351,6 +1394,7 @@ var requirejs = (function() {
 					},
 					allOutputs: output.outputs.map(output => ({ mime: output.mime })),
 				},
+				initiallyHidden: initiallyHidden
 			};
 		} else {
 			message = {
@@ -1359,14 +1403,15 @@ var requirejs = (function() {
 				content: {
 					type: content.type,
 					htmlContent: content.htmlContent,
-				}
+				},
+				initiallyHidden: initiallyHidden
 			};
 		}
 
-		this._sendMessageToWebview(message);
-		this.insetMapping.set(content.source, { outputId: message.outputId, cellInfo: cellInfo, renderer, cachedCreation: message });
-		this.hiddenInsetMapping.delete(content.source);
-		this.reversedInsetMapping.set(message.outputId, content.source);
+		return {
+			message,
+			renderer
+		};
 	}
 
 	updateOutput(cellInfo: T, content: IInsetRenderOutput, cellTop: number, offset: number): void {
@@ -1429,6 +1474,8 @@ var requirejs = (function() {
 				cellId: outputCache.cellInfo.cellId
 			});
 			this.insetMapping.delete(output);
+			this.pendingInsetCreationRequest.get(output)?.dispose();
+			this.pendingInsetCreationRequest.delete(output);
 			this.reversedInsetMapping.delete(id);
 		}
 	}
@@ -1627,6 +1674,7 @@ var requirejs = (function() {
 		this.webview = undefined;
 		this.notebookEditor = null!;
 		this.insetMapping.clear();
+		this.pendingInsetCreationRequest.clear();
 		super.dispose();
 	}
 }

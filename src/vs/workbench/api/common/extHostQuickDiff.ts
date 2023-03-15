@@ -41,7 +41,10 @@ export class ExtHostQuickDiff implements ExtHostQuickDiffShape {
 		this.providers.set(handle, quickDiffProvider);
 		this.proxy.$registerQuickDiffProvider(handle, DocumentSelector.from(selector, this.uriTransformer), label, rootUri);
 		return {
-			dispose: () => this.providers.delete(handle)
+			dispose: () => {
+				this.proxy.$unregisterQuickDiffProvider(handle);
+				this.providers.delete(handle);
+			}
 		};
 	}
 }
