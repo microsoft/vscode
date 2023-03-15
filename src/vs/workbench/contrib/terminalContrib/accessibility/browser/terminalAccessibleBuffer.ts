@@ -41,7 +41,7 @@ export class AccessibleBufferWidget extends DisposableStore {
 	private _editorContainer: HTMLElement;
 	private _font: ITerminalFont;
 	private _xtermElement: HTMLElement;
-	private _focusedContextKey: IContextKey<boolean>;
+	private readonly _focusedContextKey: IContextKey<boolean>;
 	private readonly _focusTracker: dom.IFocusTracker;
 
 	constructor(
