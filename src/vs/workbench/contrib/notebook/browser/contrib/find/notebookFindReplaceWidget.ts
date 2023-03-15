@@ -151,7 +151,7 @@ class NotebookFindFilterActionViewItem extends DropdownMenuActionViewItem {
 	}
 }
 
-export class NotebookFindInputFilter extends Disposable {
+export class NotebookFindInputFilterButton extends Disposable {
 	private _filterButtonContainer: HTMLElement;
 	private _actionbar: ActionBar | null = null;
 	private _filtersAction: IAction;
@@ -212,7 +212,7 @@ export class NotebookFindInputFilter extends Disposable {
 }
 
 export class NotebookFindInput extends FindInput {
-	private _findFilter: NotebookFindInputFilter;
+	private _findFilter: NotebookFindInputFilterButton;
 	private _filterChecked: boolean = false;
 
 	constructor(
@@ -227,7 +227,7 @@ export class NotebookFindInput extends FindInput {
 		super(parent, contextViewProvider, options);
 
 		this._register(registerAndCreateHistoryNavigationContext(contextKeyService, this.inputBox));
-		this._findFilter = this._register(new NotebookFindInputFilter(filters, contextMenuService, instantiationService, options));
+		this._findFilter = this._register(new NotebookFindInputFilterButton(filters, contextMenuService, instantiationService, options));
 
 		this.inputBox.paddingRight = (this.caseSensitive?.width() ?? 0) + (this.wholeWords?.width() ?? 0) + (this.regex?.width() ?? 0) + this._findFilter.width;
 		this.controls.appendChild(this._findFilter.container);

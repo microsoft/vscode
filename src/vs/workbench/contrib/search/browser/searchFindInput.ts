@@ -10,11 +10,11 @@ import { IContextMenuService } from 'vs/platform/contextview/browser/contextView
 import { ContextScopedFindInput } from 'vs/platform/history/browser/contextScopedHistoryWidget';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { NotebookFindFilters } from 'vs/workbench/contrib/notebook/browser/contrib/find/findFilters';
-import { NotebookFindInputFilter } from 'vs/workbench/contrib/notebook/browser/contrib/find/notebookFindReplaceWidget';
+import { NotebookFindInputFilterButton } from 'vs/workbench/contrib/notebook/browser/contrib/find/notebookFindReplaceWidget';
 import * as nls from 'vs/nls';
 
 export class SearchFindInput extends ContextScopedFindInput {
-	private _findFilter: NotebookFindInputFilter;
+	private _findFilter: NotebookFindInputFilterButton;
 	private _filterChecked: boolean = false;
 	private _visible: boolean = false;
 
@@ -30,7 +30,7 @@ export class SearchFindInput extends ContextScopedFindInput {
 	) {
 		super(container, contextViewProvider, options, contextKeyService);
 		this._findFilter = this._register(
-			new NotebookFindInputFilter(
+			new NotebookFindInputFilterButton(
 				filters,
 				contextMenuService,
 				instantiationService,
