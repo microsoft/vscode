@@ -18,7 +18,7 @@ import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { localize } from 'vs/nls';
 import 'vs/css!./button';
 
-export interface IButtonOptions extends IButtonStyles {
+export interface IButtonOptions extends Partial<IButtonStyles> {
 	readonly title?: boolean | string;
 	readonly supportIcons?: boolean;
 	readonly supportShortLabel?: boolean;

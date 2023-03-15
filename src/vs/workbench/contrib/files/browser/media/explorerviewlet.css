@@ -14,7 +14,8 @@
 	cursor: pointer !important;
 	padding-left: 6px;
 	height: 22px;
-	font-size: 13px;
+	font-size: 13px !important;
+	user-select: none !important;
 }
 
 .explorer-folders-view .monaco-list-row {

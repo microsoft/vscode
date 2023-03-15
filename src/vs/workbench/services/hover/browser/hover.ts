@@ -63,7 +63,7 @@ export interface IHoverOptions {
 	 * {@link IHoverService.showHover} the options object itself is used to determine if the hover
 	 * is the same one that is already showing, when this is set, the ID will be used instead.
 	 */
-	id?: number;
+	id?: number | string;
 
 	/**
 	 * A set of actions for the hover's "status bar".
@@ -133,11 +133,6 @@ export interface IHoverOptions {
 	 * - If there are elements in the hover to focus, focus stays inside of the hover when tabbing
 	 */
 	trapFocus?: boolean;
-
-	/**
-	 * A callback which will be executed when the hover is clicked
-	 */
-	onClick?(e: MouseEvent): void;
 
 	/*
 	 * The container to pass to {@link IContextViewProvider.showContextView} which renders the hover

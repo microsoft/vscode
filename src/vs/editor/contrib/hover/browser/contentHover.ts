@@ -208,6 +208,10 @@ export class ContentHoverController extends Disposable {
 		return this._widget.isVisibleFromKeyboard;
 	}
 
+	public isVisible(): boolean {
+		return this._widget.isVisible;
+	}
+
 	public containsNode(node: Node): boolean {
 		return this._widget.getDomNode().contains(node);
 	}
@@ -340,6 +344,26 @@ export class ContentHoverController extends Disposable {
 			highlightRange
 		};
 	}
+
+	public focus(): void {
+		this._widget.focus();
+	}
+
+	public scrollUp(): void {
+		this._widget.scrollUp();
+	}
+
+	public scrollDown(): void {
+		this._widget.scrollDown();
+	}
+
+	public pageUp(): void {
+		this._widget.pageUp();
+	}
+
+	public pageDown(): void {
+		this._widget.pageDown();
+	}
 }
 
 class HoverResult {
@@ -400,7 +424,9 @@ export class ContentHoverWidget extends Disposable implements IContentWidget {
 	public readonly allowEditorOverflow = true;
 
 	private readonly _hoverVisibleKey = EditorContextKeys.hoverVisible.bindTo(this._contextKeyService);
+	private readonly _hoverFocusedKey = EditorContextKeys.hoverFocused.bindTo(this._contextKeyService);
 	private readonly _hover: HoverWidget = this._register(new HoverWidget());
+	private readonly _focusTracker = this._register(dom.trackFocus(this.getDomNode()));
 
 	private _visibleData: ContentHoverVisibleData | null = null;
 
@@ -419,6 +445,10 @@ export class ContentHoverWidget extends Disposable implements IContentWidget {
 		return (this._visibleData?.source === HoverStartSource.Keyboard);
 	}
 
+	public get isVisible(): boolean {
+		return this._hoverVisibleKey.get() ?? false;
+	}
+
 	constructor(
 		private readonly _editor: ICodeEditor,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
@@ -435,6 +465,13 @@ export class ContentHoverWidget extends Disposable implements IContentWidget {
 		this._setVisibleData(null);
 		this._layout();
 		this._editor.addContentWidget(this);
+
+		this._register(this._focusTracker.onDidFocus(() => {
+			this._hoverFocusedKey.set(true);
+		}));
+		this._register(this._focusTracker.onDidBlur(() => {
+			this._hoverFocusedKey.set(false);
+		}));
 	}
 
 	public override dispose(): void {
@@ -579,6 +616,34 @@ export class ContentHoverWidget extends Disposable implements IContentWidget {
 
 	public clear(): void {
 		this._hover.contentsDomNode.textContent = '';
+	}
+
+	public focus(): void {
+		this._hover.containerDomNode.focus();
+	}
+
+	public scrollUp(): void {
+		const scrollTop = this._hover.scrollbar.getScrollPosition().scrollTop;
+		const fontInfo = this._editor.getOption(EditorOption.fontInfo);
+		this._hover.scrollbar.setScrollPosition({ scrollTop: scrollTop - fontInfo.lineHeight });
+	}
+
+	public scrollDown(): void {
+		const scrollTop = this._hover.scrollbar.getScrollPosition().scrollTop;
+		const fontInfo = this._editor.getOption(EditorOption.fontInfo);
+		this._hover.scrollbar.setScrollPosition({ scrollTop: scrollTop + fontInfo.lineHeight });
+	}
+
+	public pageUp(): void {
+		const scrollTop = this._hover.scrollbar.getScrollPosition().scrollTop;
+		const scrollHeight = this._hover.scrollbar.getScrollDimensions().height;
+		this._hover.scrollbar.setScrollPosition({ scrollTop: scrollTop - scrollHeight });
+	}
+
+	public pageDown(): void {
+		const scrollTop = this._hover.scrollbar.getScrollPosition().scrollTop;
+		const scrollHeight = this._hover.scrollbar.getScrollDimensions().height;
+		this._hover.scrollbar.setScrollPosition({ scrollTop: scrollTop + scrollHeight });
 	}
 }
 

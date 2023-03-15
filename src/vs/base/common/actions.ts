@@ -32,7 +32,7 @@ export interface IAction {
 	class: string | undefined;
 	enabled: boolean;
 	checked?: boolean;
-	run(event?: unknown): unknown;
+	run(...args: unknown[]): unknown;
 }
 
 export interface IActionRunner extends IDisposable {

@@ -65,6 +65,7 @@ export const serverOptions: OptionDescriptions<Required<ServerParsedArgs>> = {
 	'force': OPTIONS['force'],
 	'do-not-sync': OPTIONS['do-not-sync'],
 	'pre-release': OPTIONS['pre-release'],
+	'all-profiles': { type: 'boolean' },
 	'start-server': { type: 'boolean', cat: 'e', description: nls.localize('start-server', "Start the server when installing or uninstalling extensions. To be used in combination with 'install-extension', 'install-builtin-extension' and 'uninstall-extension'.") },
 
 
@@ -181,6 +182,7 @@ export interface ServerParsedArgs {
 	force?: boolean; // used by install-extension
 	'do-not-sync'?: boolean; // used by install-extension
 	'pre-release'?: boolean; // used by install-extension
+	'all-profiles'?: boolean; // used by install-extension
 
 	'start-server'?: boolean;
 
@@ -209,5 +211,6 @@ export interface IServerEnvironmentService extends INativeEnvironmentService {
 }
 
 export class ServerEnvironmentService extends NativeEnvironmentService implements IServerEnvironmentService {
+	get isRemoteServer(): boolean { return true; }
 	override get args(): ServerParsedArgs { return super.args as ServerParsedArgs; }
 }

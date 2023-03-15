@@ -5,6 +5,8 @@
 
 import { handleANSIOutput } from './ansi';
 
+export const scrollableClass = 'scrollable';
+
 function generateViewMoreElement(outputId: string, adjustableSize: boolean) {
 	const container = document.createElement('span');
 	const first = document.createElement('span');
@@ -50,14 +52,14 @@ function truncatedArrayOfString(id: string, buffer: string[], linesLimit: number
 }
 
 function scrollableArrayOfString(id: string, buffer: string[], container: HTMLElement, trustHtml: boolean) {
-	container.classList.add('scrollable');
+	const scrollableDiv = document.createElement('div');
+	scrollableDiv.classList.add(scrollableClass);
 
 	if (buffer.length > 5000) {
 		container.appendChild(generateViewMoreElement(id, false));
 	}
-	const div = document.createElement('div');
-	container.appendChild(div);
-	div.appendChild(handleANSIOutput(buffer.slice(0, 5000).join('\n'), trustHtml));
+	container.appendChild(scrollableDiv);
+	scrollableDiv.appendChild(handleANSIOutput(buffer.slice(0, 5000).join('\n'), trustHtml));
 }
 
 export function insertOutput(id: string, outputs: string[], linesLimit: number, scrollable: boolean, container: HTMLElement, trustHtml: boolean) {

@@ -57,7 +57,7 @@ import { IEditorService, ISaveEditorsOptions, IRevertAllEditorsOptions, Preferre
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { IEditorPaneRegistry, EditorPaneDescriptor } from 'vs/workbench/browser/editor';
 import { Dimension, IDimension } from 'vs/base/browser/dom';
-import { ILoggerService, ILogService, NullLoggerService, NullLogService } from 'vs/platform/log/common/log';
+import { ILoggerService, ILogService, NullLogService } from 'vs/platform/log/common/log';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { timeout } from 'vs/base/common/async';
 import { PaneComposite, PaneCompositeDescriptor } from 'vs/workbench/browser/panecomposite';
@@ -99,7 +99,7 @@ import { IInputBox, IInputOptions, IPickOptions, IQuickInputButton, IQuickInputS
 import { QuickInputService } from 'vs/workbench/services/quickinput/browser/quickInputService';
 import { IListService } from 'vs/platform/list/browser/listService';
 import { win32, posix } from 'vs/base/common/path';
-import { TestContextService, TestStorageService, TestTextResourcePropertiesService, TestExtensionService, TestProductService, createFileStat } from 'vs/workbench/test/common/workbenchTestServices';
+import { TestContextService, TestStorageService, TestTextResourcePropertiesService, TestExtensionService, TestProductService, createFileStat, TestLoggerService } from 'vs/workbench/test/common/workbenchTestServices';
 import { IViewsService, IView, ViewContainer, ViewContainerLocation } from 'vs/workbench/common/views';
 import { IPaneComposite } from 'vs/workbench/common/panecomposite';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
@@ -165,6 +165,7 @@ import { IUserDataProfileService } from 'vs/workbench/services/userDataProfile/c
 import { EnablementState, IExtensionManagementServer, IScannedExtension, IWebExtensionsScannerService, IWorkbenchExtensionEnablementService, IWorkbenchExtensionManagementService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { InstallVSIXOptions, ILocalExtension, IGalleryExtension, InstallOptions, IExtensionIdentifier, UninstallOptions, IExtensionsControlManifest, IGalleryMetadata, IExtensionManagementParticipant, Metadata } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { Codicon } from 'vs/base/common/codicons';
+import { IHoverOptions, IHoverService, IHoverWidget } from 'vs/workbench/services/hover/browser/hover';
 import { IRemoteExtensionsScannerService } from 'vs/platform/remote/common/remoteExtensionsScanner';
 
 export function createFileEditorInput(instantiationService: IInstantiationService, resource: URI): FileEditorInput {
@@ -303,7 +304,7 @@ export function workbenchInstantiationService(
 	instantiationService.stub(ITextFileService, overrides?.textFileService ? overrides.textFileService(instantiationService) : disposables.add(<ITextFileService>instantiationService.createInstance(TestTextFileService)));
 	instantiationService.stub(IHostService, <IHostService>instantiationService.createInstance(TestHostService));
 	instantiationService.stub(ITextModelService, <ITextModelService>disposables.add(instantiationService.createInstance(TextModelResolverService)));
-	instantiationService.stub(ILoggerService, new NullLoggerService());
+	instantiationService.stub(ILoggerService, new TestLoggerService(TestEnvironmentService.logsHome));
 	instantiationService.stub(ILogService, new NullLogService());
 	const editorGroupService = new TestEditorGroupsService([new TestEditorGroupView(0)]);
 	instantiationService.stub(IEditorGroupsService, editorGroupService);
@@ -317,7 +318,8 @@ export function workbenchInstantiationService(
 	instantiationService.stub(ICodeEditorService, disposables.add(new CodeEditorService(editorService, themeService, configService)));
 	instantiationService.stub(IPaneCompositePartService, new TestPaneCompositeService());
 	instantiationService.stub(IListService, new TestListService());
-	instantiationService.stub(IQuickInputService, disposables.add(new QuickInputService(configService, instantiationService, keybindingService, contextKeyService, themeService, accessibilityService, layoutService)));
+	const hoverService = instantiationService.stub(IHoverService, instantiationService.createInstance(TestHoverService));
+	instantiationService.stub(IQuickInputService, disposables.add(new QuickInputService(configService, instantiationService, keybindingService, contextKeyService, themeService, accessibilityService, layoutService, hoverService)));
 	instantiationService.stub(IWorkspacesService, new TestWorkspacesService());
 	instantiationService.stub(IWorkspaceTrustManagementService, new TestWorkspaceTrustManagementService());
 	instantiationService.stub(ITerminalInstanceService, new TestTerminalInstanceService());
@@ -730,6 +732,24 @@ export class TestSideBarPart implements IPaneCompositePart {
 	layout(width: number, height: number, top: number, left: number): void { }
 }
 
+class TestHoverService implements IHoverService {
+	private currentHover: IHoverWidget | undefined;
+	_serviceBrand: undefined;
+	showHover(options: IHoverOptions, focus?: boolean | undefined): IHoverWidget | undefined {
+		this.currentHover = new class implements IHoverWidget {
+			private _isDisposed = false;
+			get isDisposed(): boolean { return this._isDisposed; }
+			dispose(): void {
+				this._isDisposed = true;
+			}
+		};
+		return this.currentHover;
+	}
+	hideHover(): void {
+		this.currentHover?.dispose();
+	}
+}
+
 export class TestPanelPart implements IPaneCompositePart, IPaneCompositeSelectorPart {
 	declare readonly _serviceBrand: undefined;
 
@@ -817,6 +837,7 @@ export class TestEditorGroupsService implements IEditorGroupsService {
 	setSize(_group: number | IEditorGroup, _size: { width: number; height: number }): void { }
 	arrangeGroups(_arrangement: GroupsArrangement): void { }
 	applyLayout(_layout: EditorGroupLayout): void { }
+	getLayout(): EditorGroupLayout { throw new Error('not implemented'); }
 	setGroupOrientation(_orientation: GroupOrientation): void { }
 	addGroup(_location: number | IEditorGroup, _direction: GroupDirection, _options?: IAddGroupOptions): IEditorGroup { throw new Error('not implemented'); }
 	removeGroup(_group: number | IEditorGroup): void { }
@@ -2017,7 +2038,7 @@ export class TestUserDataProfileService implements IUserDataProfileService {
 	readonly _serviceBrand: undefined;
 	readonly onDidUpdateCurrentProfile = Event.None;
 	readonly onDidChangeCurrentProfile = Event.None;
-	readonly currentProfile = toUserDataProfile('test', 'test', URI.file('tests').with({ scheme: 'vscode-tests' }));
+	readonly currentProfile = toUserDataProfile('test', 'test', URI.file('tests').with({ scheme: 'vscode-tests' }), URI.file('tests').with({ scheme: 'vscode-tests' }));
 	async updateCurrentProfile(): Promise<void> { }
 	getShortName(profile: IUserDataProfile): string { return profile.shortName ?? profile.name; }
 }

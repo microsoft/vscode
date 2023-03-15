@@ -65,6 +65,7 @@ export class UserDataSyncClient extends Disposable {
 		const environmentService = this.instantiationService.stub(IEnvironmentService, <Partial<IEnvironmentService>>{
 			userDataSyncHome,
 			userRoamingDataHome,
+			cacheHome: joinPath(userRoamingDataHome, 'cache'),
 			argvResource: joinPath(userRoamingDataHome, 'argv.json'),
 			sync: 'on',
 		});

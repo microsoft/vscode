@@ -30,7 +30,7 @@ const enum Constants {
  * An array that avoids being sparse by always
  * filling up unused indices with a default value.
  */
-class ContiguousGrowingArray<T> {
+export class ContiguousGrowingArray<T> {
 
 	private _store: T[] = [];
 

@@ -8,6 +8,7 @@ use opentelemetry::{
 	sdk::trace::{Tracer, TracerProvider},
 	trace::{SpanBuilder, Tracer as TraitTracer, TracerProvider as TracerProviderTrait},
 };
+use serde::{Deserialize, Serialize};
 use std::fmt;
 use std::{env, path::Path, sync::Arc};
 use std::{
@@ -25,7 +26,7 @@ pub fn next_counter() -> u32 {
 }
 
 // Log level
-#[derive(clap::ArgEnum, PartialEq, Eq, PartialOrd, Clone, Copy, Debug)]
+#[derive(clap::ArgEnum, PartialEq, Eq, PartialOrd, Clone, Copy, Debug, Serialize, Deserialize)]
 pub enum Level {
 	Trace = 0,
 	Debug,
@@ -302,11 +303,11 @@ pub fn format(level: Level, prefix: &str, message: &str) -> String {
 
 	if let Some(c) = level.color_code() {
 		format!(
-			"\x1b[2m[{}]\x1b[0m {}{}\x1b[0m {}{}\n",
+			"\x1b[2m[{}]\x1b[0m {}{}\x1b[0m {}{}\r\n",
 			timestamp, c, name, prefix, message
 		)
 	} else {
-		format!("[{}] {} {}{}\n", timestamp, name, prefix, message)
+		format!("[{}] {} {}{}\r\n", timestamp, name, prefix, message)
 	}
 }
 

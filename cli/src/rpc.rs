@@ -204,19 +204,28 @@ pub struct RpcCaller<S: Serialization> {
 }
 
 impl<S: Serialization> RpcCaller<S> {
+	pub fn serialize_notify<M, A>(serializer: &S, method: M, params: A) -> Vec<u8>
+	where
+		S: Serialization,
+		M: AsRef<str> + serde::Serialize,
+		A: Serialize,
+	{
+		serializer.serialize(&FullRequest {
+			id: None,
+			method,
+			params,
+		})
+	}
+
 	/// Enqueues an outbound call. Returns whether the message was enqueued.
 	pub fn notify<M, A>(&self, method: M, params: A) -> bool
 	where
-		M: Into<String>,
+		M: AsRef<str> + serde::Serialize,
 		A: Serialize,
 	{
-		let body = self.serializer.serialize(&FullRequest {
-			id: None,
-			method: method.into(),
-			params,
-		});
-
-		self.sender.send(body).is_ok()
+		self.sender
+			.send(Self::serialize_notify(&self.serializer, method, params))
+			.is_ok()
 	}
 
 	/// Enqueues an outbound call, returning its result.
@@ -227,7 +236,7 @@ impl<S: Serialization> RpcCaller<S> {
 		params: A,
 	) -> oneshot::Receiver<Result<R, ResponseError>>
 	where
-		M: Into<String>,
+		M: AsRef<str> + serde::Serialize,
 		A: Serialize,
 		R: DeserializeOwned + Send + 'static,
 	{
@@ -235,7 +244,7 @@ impl<S: Serialization> RpcCaller<S> {
 		let id = next_message_id();
 		let body = self.serializer.serialize(&FullRequest {
 			id: Some(id),
-			method: method.into(),
+			method,
 			params,
 		});
 
@@ -349,9 +358,9 @@ struct PartialIncoming {
 }
 
 #[derive(Serialize)]
-pub struct FullRequest<P> {
+pub struct FullRequest<M: AsRef<str>, P> {
 	pub id: Option<u32>,
-	pub method: String,
+	pub method: M,
 	pub params: P,
 }
 

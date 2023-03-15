@@ -36,6 +36,7 @@ export class InlineSuggestionHintsWidget extends Disposable {
 	private readonly widget = this._register(this.instantiationService.createInstance(InlineSuggestionHintsContentWidget, this.editor, true));
 
 	private sessionPosition: Position | undefined = undefined;
+	private isDisposed = false;
 
 	constructor(
 		private readonly editor: ICodeEditor,
@@ -51,7 +52,16 @@ export class InlineSuggestionHintsWidget extends Disposable {
 		this.update();
 	}
 
+	override dispose(): void {
+		this.isDisposed = true;
+		super.dispose();
+	}
+
 	private update(): void {
+		if (this.isDisposed) {
+			return;
+		}
+
 		const options = this.editor.getOption(EditorOption.inlineSuggest);
 		if (options.showToolbar !== 'always' || !this.model.ghostText) {
 			this.widget.update(null, 0, undefined, []);

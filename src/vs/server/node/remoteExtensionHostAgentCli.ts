@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { getLogLevel, ILogService } from 'vs/platform/log/common/log';
+import { ConsoleLogger, getLogLevel, ILoggerService, ILogService } from 'vs/platform/log/common/log';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { ConfigurationService } from 'vs/platform/configuration/common/configurationService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -25,8 +25,6 @@ import { DiskFileSystemProvider } from 'vs/platform/files/node/diskFileSystemPro
 import { Schemas } from 'vs/base/common/network';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IProductService } from 'vs/platform/product/common/productService';
-import { SpdLogLogger } from 'vs/platform/log/node/spdlogLog';
-import { RemoteExtensionLogFileName } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { IServerEnvironmentService, ServerEnvironmentService, ServerParsedArgs } from 'vs/server/node/serverEnvironmentService';
 import { ExtensionManagementCLI } from 'vs/platform/extensionManagement/common/extensionManagementCLI';
 import { ILanguagePackService } from 'vs/platform/languagePacks/common/languagePacks';
@@ -49,6 +47,8 @@ import { NullPolicyService } from 'vs/platform/policy/common/policy';
 import { ServerUserDataProfilesService } from 'vs/platform/userDataProfile/node/userDataProfile';
 import { ExtensionsProfileScannerService } from 'vs/platform/extensionManagement/node/extensionsProfileScannerService';
 import { LogService } from 'vs/platform/log/common/logService';
+import { LoggerService } from 'vs/platform/log/node/loggerService';
+import { localize } from 'vs/nls';
 
 class CliMain extends Disposable {
 
@@ -68,7 +68,7 @@ class CliMain extends Disposable {
 		await instantiationService.invokeFunction(async accessor => {
 			const logService = accessor.get(ILogService);
 			try {
-				await this.doRun(instantiationService.createInstance(ExtensionManagementCLI));
+				await this.doRun(instantiationService.createInstance(ExtensionManagementCLI, new ConsoleLogger(logService.getLevel(), false)));
 			} catch (error) {
 				logService.error(error);
 				console.error(getErrorMessage(error));
@@ -85,11 +85,14 @@ class CliMain extends Disposable {
 
 		const environmentService = new ServerEnvironmentService(this.args, productService);
 		services.set(IServerEnvironmentService, environmentService);
-		const logService = new LogService(new SpdLogLogger(RemoteExtensionLogFileName, join(environmentService.logsPath, `${RemoteExtensionLogFileName}.log`), true, false, getLogLevel(environmentService)));
+
+		const loggerService = new LoggerService(getLogLevel(environmentService), environmentService.logsHome);
+		services.set(ILoggerService, loggerService);
+
+		const logService = new LogService(this._register(loggerService.createLogger('remoteCLI', { name: localize('remotecli', "Remote CLI") })));
 		services.set(ILogService, logService);
 		logService.trace(`Remote configuration data at ${this.remoteDataFolder}`);
 		logService.trace('process arguments:', this.args);
-
 
 		// Files
 		const fileService = this._register(new FileService(logService));
@@ -136,7 +139,7 @@ class CliMain extends Disposable {
 		// Install Extension
 		else if (this.args['install-extension'] || this.args['install-builtin-extension']) {
 			const installOptions: InstallOptions = { isMachineScoped: !!this.args['do-not-sync'], installPreReleaseVersion: !!this.args['pre-release'] };
-			return extensionManagementCLI.installExtensions(this.asExtensionIdOrVSIX(this.args['install-extension'] || []), this.args['install-builtin-extension'] || [], installOptions, !!this.args['force']);
+			return extensionManagementCLI.installExtensions(this.asExtensionIdOrVSIX(this.args['install-extension'] || []), this.asExtensionIdOrVSIX(this.args['install-builtin-extension'] || []), installOptions, !!this.args['force']);
 		}
 
 		// Uninstall Extension

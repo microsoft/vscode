@@ -47,6 +47,7 @@ export class CommentThreadBody<T extends IRange | ICellRange = IRange> extends D
 		readonly container: HTMLElement,
 		private _options: IMarkdownRendererOptions,
 		private _commentThread: languages.CommentThread<T>,
+		private _pendingEdits: { [key: number]: string } | undefined,
 		private _scopedInstatiationService: IInstantiationService,
 		private _parentCommentThreadWidget: ICommentThreadWidget,
 		@ICommentService private commentService: ICommentService,
@@ -123,6 +124,20 @@ export class CommentThreadBody<T extends IRange | ICellRange = IRange> extends D
 		this._commentElements.forEach(element => {
 			element.layout();
 		});
+	}
+
+	getPendingEdits(): { [key: number]: string } {
+		const pendingEdits: { [key: number]: string } = {};
+		this._commentElements.forEach(element => {
+			if (element.isEditing) {
+				const pendingEdit = element.getPendingEdit();
+				if (pendingEdit) {
+					pendingEdits[element.comment.uniqueIdInThread] = pendingEdit;
+				}
+			}
+		});
+
+		return pendingEdits;
 	}
 
 	getCommentCoords(commentUniqueId: number): { thread: dom.IDomNodePagePosition; comment: dom.IDomNodePagePosition } | undefined {
@@ -236,6 +251,7 @@ export class CommentThreadBody<T extends IRange | ICellRange = IRange> extends D
 		const newCommentNode = this._scopedInstatiationService.createInstance(CommentNode,
 			this._commentThread,
 			comment,
+			this._pendingEdits ? this._pendingEdits[comment.uniqueIdInThread!] : undefined,
 			this.owner,
 			this.parentResourceUri,
 			this._parentCommentThreadWidget,

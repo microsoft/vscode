@@ -294,7 +294,7 @@ function registerActiveEditorMoveCopyCommand(): void {
 	}
 }
 
-function registerEditorGroupsLayoutCommand(): void {
+function registerEditorGroupsLayoutCommands(): void {
 
 	function applyEditorLayout(accessor: ServicesAccessor, layout: EditorGroupLayout): void {
 		if (!layout || typeof layout !== 'object') {
@@ -309,7 +309,7 @@ function registerEditorGroupsLayoutCommand(): void {
 		applyEditorLayout(accessor, args);
 	});
 
-	// API Command
+	// API Commands
 	CommandsRegistry.registerCommand({
 		id: 'vscode.setEditorLayout',
 		handler: (accessor: ServicesAccessor, args: EditorGroupLayout) => applyEditorLayout(accessor, args),
@@ -333,6 +333,20 @@ function registerEditorGroupsLayoutCommand(): void {
 					}
 				}
 			}]
+		}
+	});
+
+	CommandsRegistry.registerCommand({
+		id: 'vscode.getEditorLayout',
+		handler: (accessor: ServicesAccessor) => {
+			const editorGroupService = accessor.get(IEditorGroupsService);
+
+			return editorGroupService.getLayout();
+		},
+		description: {
+			description: 'Get Editor Layout',
+			args: [],
+			returns: 'An editor layout object, in the same format as vscode.setEditorLayout'
 		}
 	});
 }
@@ -1506,7 +1520,7 @@ export function getMultiSelectedEditorContexts(editorContext: IEditorCommandsCon
 
 export function setup(): void {
 	registerActiveEditorMoveCopyCommand();
-	registerEditorGroupsLayoutCommand();
+	registerEditorGroupsLayoutCommands();
 	registerDiffEditorCommands();
 	registerOpenEditorAPICommands();
 	registerOpenEditorAtIndexCommands();

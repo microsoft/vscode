@@ -8,10 +8,8 @@ import { createDecorator } from 'vs/platform/instantiation/common/instantiation'
 import { ILogService } from 'vs/platform/log/common/log';
 import { IUtilityProcessWorkerCreateConfiguration, IOnDidTerminateUtilityrocessWorkerProcess, IUtilityProcessWorkerConfiguration, IUtilityProcessWorkerProcessExit, IUtilityProcessWorkerService } from 'vs/platform/utilityProcess/common/utilityProcessWorkerService';
 import { IWindowsMainService } from 'vs/platform/windows/electron-main/windows';
-import { UtilityProcess } from 'vs/platform/utilityProcess/electron-main/utilityProcess';
+import { WindowUtilityProcess } from 'vs/platform/utilityProcess/electron-main/utilityProcess';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { deepClone } from 'vs/base/common/objects';
-import { removeDangerousEnvVariables } from 'vs/base/common/processes';
 import { hash } from 'vs/base/common/hash';
 import { Event, Emitter } from 'vs/base/common/event';
 import { DeferredPromise } from 'vs/base/common/async';
@@ -60,9 +58,15 @@ export class UtilityProcessWorkerMainService extends Disposable implements IUtil
 		this.workers.set(workerId, worker);
 
 		const onDidTerminate = new DeferredPromise<IOnDidTerminateUtilityrocessWorkerProcess>();
-		Event.once(worker.onDidTerminate)(e => {
+		Event.once(worker.onDidTerminate)(reason => {
+			if (reason.code === 0) {
+				this.logService.trace(`[UtilityProcessWorker]: terminated normally with code ${reason.code}, signal: ${reason.signal}`);
+			} else {
+				this.logService.error(`[UtilityProcessWorker]: terminated unexpectedly with code ${reason.code}, signal: ${reason.signal}`);
+			}
+
 			this.workers.delete(workerId);
-			onDidTerminate.complete({ reason: e });
+			onDidTerminate.complete({ reason });
 		});
 
 		return onDidTerminate.p;
@@ -94,7 +98,7 @@ class UtilityProcessWorker extends Disposable {
 	private readonly _onDidTerminate = this._register(new Emitter<IUtilityProcessWorkerProcessExit>());
 	readonly onDidTerminate = this._onDidTerminate.event;
 
-	private readonly utilityProcess = new UtilityProcess(this.logService, this.windowsMainService, this.telemetryService, this.lifecycleMainService);
+	private readonly utilityProcess = new WindowUtilityProcess(this.logService, this.windowsMainService, this.telemetryService, this.lifecycleMainService);
 
 	constructor(
 		@ILogService private readonly logService: ILogService,
@@ -114,30 +118,19 @@ class UtilityProcessWorker extends Disposable {
 	}
 
 	spawn(): boolean {
+		const window = this.windowsMainService.getWindowById(this.configuration.reply.windowId);
+		const windowPid = window?.win?.webContents.getOSProcessId();
+
 		return this.utilityProcess.start({
+			type: this.configuration.process.type,
+			entryPoint: this.configuration.process.moduleId,
+			parentLifecycleBound: windowPid,
 			windowLifecycleBound: true,
 			correlationId: `${this.configuration.reply.windowId}`,
 			responseWindowId: this.configuration.reply.windowId,
 			responseChannel: this.configuration.reply.channel,
-			responseNonce: this.configuration.reply.nonce,
-			type: this.configuration.process.type,
-			env: this.getEnv()
+			responseNonce: this.configuration.reply.nonce
 		});
-	}
-
-	private getEnv(): NodeJS.ProcessEnv {
-		const env: NodeJS.ProcessEnv = {
-			...deepClone(process.env),
-			VSCODE_AMD_ENTRYPOINT: this.configuration.process.moduleId,
-			VSCODE_PIPE_LOGGING: 'true',
-			VSCODE_VERBOSE_LOGGING: 'true',
-			VSCODE_PARENT_PID: String(process.pid)
-		};
-
-		// Sanitize environment
-		removeDangerousEnvVariables(env);
-
-		return env;
 	}
 
 	kill() {

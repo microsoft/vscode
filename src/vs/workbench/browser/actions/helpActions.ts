@@ -168,14 +168,11 @@ class OpenNewsletterSignupUrlAction extends Action2 {
 		});
 	}
 
-	async run(accessor: ServicesAccessor): Promise<void> {
+	run(accessor: ServicesAccessor) {
 		const productService = accessor.get(IProductService);
 		const openerService = accessor.get(IOpenerService);
 		const telemetryService = accessor.get(ITelemetryService);
-
-		const info = await telemetryService.getTelemetryInfo();
-
-		openerService.open(URI.parse(`${productService.newsletterSignupUrl}?machineId=${encodeURIComponent(info.machineId)}`));
+		openerService.open(URI.parse(`${productService.newsletterSignupUrl}?machineId=${encodeURIComponent(telemetryService.machineId)}`));
 	}
 }
 
