@@ -12,10 +12,10 @@ import { Range } from 'vs/editor/common/core/range';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { localize } from 'vs/nls';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { ZoneWidget } from 'vs/editor/contrib/zoneWidget/browser/zoneWidget';
 import { assertType } from 'vs/base/common/types';
-import { IInteractiveEditorResponse, IInteractiveEditorService, CTX_INTERACTIVE_EDITOR_FOCUSED, CTX_INTERACTIVE_EDITOR_HAS_ACTIVE_REQUEST, CTX_INTERACTIVE_EDITOR_INNER_CURSOR_FIRST, CTX_INTERACTIVE_EDITOR_INNER_CURSOR_LAST, CTX_INTERACTIVE_EDITOR_EMPTY, CTX_INTERACTIVE_EDITOR_OUTER_CURSOR_POSITION, CTX_INTERACTIVE_EDITOR_PREVIEW, CTX_INTERACTIVE_EDITOR_VISIBLE, MENU_INTERACTIVE_EDITOR_WIDGET, CTX_INTERACTIVE_EDITOR_HISTORY_VISIBLE, IInteractiveEditorRequest, IInteractiveEditorSession, CTX_INTERACTIVE_EDITOR_HISTORY_POSSIBLE } from 'vs/editor/contrib/interactive/common/interactiveEditor';
+import { IInteractiveEditorResponse, IInteractiveEditorService, CTX_INTERACTIVE_EDITOR_FOCUSED, CTX_INTERACTIVE_EDITOR_HAS_ACTIVE_REQUEST, CTX_INTERACTIVE_EDITOR_INNER_CURSOR_FIRST, CTX_INTERACTIVE_EDITOR_INNER_CURSOR_LAST, CTX_INTERACTIVE_EDITOR_EMPTY, CTX_INTERACTIVE_EDITOR_OUTER_CURSOR_POSITION, CTX_INTERACTIVE_EDITOR_PREVIEW, CTX_INTERACTIVE_EDITOR_VISIBLE, MENU_INTERACTIVE_EDITOR_WIDGET, CTX_INTERACTIVE_EDITOR_HISTORY_VISIBLE, IInteractiveEditorRequest, IInteractiveEditorSession, CTX_INTERACTIVE_EDITOR_HISTORY_POSSIBLE } from 'vs/workbench/contrib/interactiveEditor/common/interactiveEditor';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { Iterable } from 'vs/base/common/iterator';
 import { ICursorStateComputer, IModelDeltaDecoration, ITextModel, IValidEditOperation } from 'vs/editor/common/model';
@@ -47,6 +47,10 @@ import { LRUCache } from 'vs/base/common/map';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IBulkEditService } from 'vs/editor/browser/services/bulkEditService';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
+import { IInteractiveSessionWidgetService } from 'vs/workbench/contrib/interactiveSession/browser/interactiveSessionWidget';
+import { IViewsService } from 'vs/workbench/common/views';
+import { IInteractiveSessionContributionService } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionContributionService';
+import { InteractiveSessionViewPane } from 'vs/workbench/contrib/interactiveSession/browser/interactiveSessionSidebar';
 
 
 interface IHistoryEntry {
@@ -604,7 +608,7 @@ export class InteractiveEditorController implements IEditorContribution {
 
 	constructor(
 		private readonly _editor: ICodeEditor,
-		@IInstantiationService instaService: IInstantiationService,
+		@IInstantiationService private readonly _instaService: IInstantiationService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IInteractiveEditorService private readonly _interactiveEditorService: IInteractiveEditorService,
 		@IBulkEditService private readonly _bulkEditService: IBulkEditService,
@@ -612,7 +616,7 @@ export class InteractiveEditorController implements IEditorContribution {
 		@ILogService private readonly _logService: ILogService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService
 	) {
-		this._zone = this._store.add(instaService.createInstance(InteractiveEditorZoneWidget, this._editor));
+		this._zone = this._store.add(_instaService.createInstance(InteractiveEditorZoneWidget, this._editor));
 		this._ctxShowPreview = CTX_INTERACTIVE_EDITOR_PREVIEW.bindTo(contextKeyService);
 		this._ctxHasActiveRequest = CTX_INTERACTIVE_EDITOR_HAS_ACTIVE_REQUEST.bindTo(contextKeyService);
 	}
@@ -635,7 +639,7 @@ export class InteractiveEditorController implements IEditorContribution {
 			return;
 		}
 
-		const provider = Iterable.first(this._interactiveEditorService.getAll());
+		const provider = Iterable.first(this._interactiveEditorService.getAllProvider());
 		if (!provider) {
 			this._logService.trace('[IE] NO provider found');
 			return;
@@ -814,9 +818,8 @@ export class InteractiveEditorController implements IEditorContribution {
 
 			if (reply.type === 'message') {
 				this._logService.info('[IE] received a MESSAGE, exiting interactive editor', provider.debugName);
-				// todo@jrieken show message in context
-				// todo@jrieken keep interactive editor?
-				break;
+				this._instaService.invokeFunction(showMessageResponse, request.prompt);
+				continue;
 			}
 
 			// make edits more minimal
@@ -965,5 +968,31 @@ export class InteractiveEditorController implements IEditorContribution {
 
 	recordings() {
 		return this._recorder.getAll();
+	}
+}
+
+
+async function showMessageResponse(accessor: ServicesAccessor, query: string) {
+
+
+	const widgetService = accessor.get(IInteractiveSessionWidgetService);
+	const viewsService = accessor.get(IViewsService);
+	const interactiveSessionContributionService = accessor.get(IInteractiveSessionContributionService);
+
+	if (widgetService.lastFocusedWidget && widgetService.lastFocusedWidget.viewId) {
+		// option 1 - take the most recent view
+		viewsService.openView(widgetService.lastFocusedWidget.viewId, true);
+		widgetService.lastFocusedWidget.acceptInput(query);
+
+	} else {
+		// fallback - take the first view that's openable
+		for (const { id } of interactiveSessionContributionService.registeredProviders) {
+			const viewId = interactiveSessionContributionService.getViewIdForProvider(id);
+			const view = await viewsService.openView<InteractiveSessionViewPane>(viewId, true);
+			if (view) {
+				view.acceptInput(query);
+				break;
+			}
+		}
 	}
 }

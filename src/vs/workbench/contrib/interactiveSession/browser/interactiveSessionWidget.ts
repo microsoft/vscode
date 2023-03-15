@@ -128,7 +128,7 @@ export class InteractiveSessionWidget extends Disposable implements IInteractive
 
 	constructor(
 		private readonly providerId: string,
-		private readonly viewId: string | undefined,
+		readonly viewId: string | undefined,
 		private readonly listBackgroundColorDelegate: () => string,
 		private readonly inputEditorBackgroundColorDelegate: () => string,
 		private readonly resultEditorBackgroundColorDelegate: () => string,
