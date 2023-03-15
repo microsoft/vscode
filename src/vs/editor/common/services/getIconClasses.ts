@@ -89,10 +89,10 @@ function pushGlobIconClassesForName(name: string, classes: string[], segments: s
 	// Non-coalescing wildcard globs, limited to <=4 dot segments (<=3 file extensions).
 	// We start from the 2nd segment (index=1) to prevent overlap with Extension(s).
 	for (let index = 1; index < segments.length; index++) {
-		const baseSegments = segments.slice();
-		baseSegments[index] = '*';
-		const baseGlob = baseSegments.join('.');
-		classes.push(`${baseGlob}-glob-${kind}-icon`);
+		const wildcardSegments = segments.slice();
+		wildcardSegments[index] = '*';
+		const wildcardGlob = wildcardSegments.join('.');
+		classes.push(`${wildcardGlob}-glob-${kind}-icon`);
 	}
 
 	// Globs for dashed file basenames, limited to 2 dot segments (1 file extension).
