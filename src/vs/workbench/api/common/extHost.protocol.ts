@@ -26,7 +26,7 @@ import * as languages from 'vs/editor/common/languages';
 import { CharacterPair, CommentRule, EnterAction } from 'vs/editor/common/languages/languageConfiguration';
 import { EndOfLineSequence } from 'vs/editor/common/model';
 import { IModelChangedEvent } from 'vs/editor/common/model/mirrorTextModel';
-import { IInteractiveEditorRequest, IInteractiveEditorResponse, IInteractiveEditorSession } from 'vs/editor/contrib/interactive/common/interactiveEditor';
+import { IInteractiveEditorRequest, IInteractiveEditorResponse, IInteractiveEditorSession } from 'vs/workbench/contrib/interactiveEditor/common/interactiveEditor';
 import { IAccessibilityInformation } from 'vs/platform/accessibility/common/accessibility';
 import { ConfigurationTarget, IConfigurationChange, IConfigurationData, IConfigurationOverrides } from 'vs/platform/configuration/common/configuration';
 import { ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
@@ -52,7 +52,7 @@ import { IRevealOptions, ITreeItem, IViewBadge } from 'vs/workbench/common/views
 import { CallHierarchyItem } from 'vs/workbench/contrib/callHierarchy/common/callHierarchy';
 import { DebugConfigurationProviderTriggerKind, IAdapterDescriptor, IConfig, IDebugSessionReplMode } from 'vs/workbench/contrib/debug/common/debug';
 import { IInteractiveResponseErrorDetails } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionModel';
-import { IInteractiveProgress, IInteractiveSessionFollowup, IInteractiveSessionReplyFollowup, IInteractiveSessionUserActionEvent, IInteractiveSlashCommand } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionService';
+import { IInteractiveProgress, IInteractiveSessionDynamicRequest, IInteractiveSessionFollowup, IInteractiveSessionReplyFollowup, IInteractiveSessionUserActionEvent, IInteractiveSlashCommand } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionService';
 import * as notebookCommon from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { CellExecutionUpdateType } from 'vs/workbench/contrib/notebook/common/notebookExecutionService';
 import { ICellExecutionComplete, ICellExecutionStateUpdate } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
@@ -1100,7 +1100,7 @@ export interface IInteractiveSessionDto {
 }
 
 export interface IInteractiveRequestDto {
-	message: string;
+	message: string | IInteractiveSessionReplyFollowup;
 }
 
 export interface IInteractiveResponseDto {
@@ -1115,6 +1115,7 @@ export interface MainThreadInteractiveSessionShape extends IDisposable {
 	$registerInteractiveSessionProvider(handle: number, id: string, implementsProgress: boolean): Promise<void>;
 	$acceptInteractiveSessionState(sessionId: number, state: any): Promise<void>;
 	$addInteractiveSessionRequest(context: any): void;
+	$sendInteractiveRequestToProvider(providerId: string, message: IInteractiveSessionDynamicRequest): void;
 	$unregisterInteractiveSessionProvider(handle: number): Promise<void>;
 	$acceptInteractiveResponseProgress(handle: number, sessionId: number, progress: IInteractiveProgress): void;
 }

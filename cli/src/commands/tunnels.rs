@@ -25,8 +25,10 @@ use crate::{
 		create_service_manager, dev_tunnels, legal,
 		paths::get_all_servers,
 		shutdown_signal::ShutdownRequest,
-		singleton_server::{start_singleton_server, SingletonServerArgs, BroadcastLogSink},
-		ServiceContainer, ServiceManager,
+		singleton_server::{
+			make_singleton_server, start_singleton_server, BroadcastLogSink, SingletonServerArgs,
+		},
+		Next, ServiceContainer, ServiceManager,
 	},
 	util::{
 		errors::{wrap, AnyError},
@@ -276,12 +278,15 @@ async fn serve_with_csa(
 		match acquire_singleton(paths.root().join("tunnel.lock")).await {
 			Ok(SingletonConnection::Client(stream)) => {
 				debug!(log, "starting as client to singleton");
-				start_singleton_client(SingletonClientArgs {
+				let should_exit = start_singleton_client(SingletonClientArgs {
 					log: log.clone(),
 					shutdown: shutdown.clone(),
 					stream,
 				})
-				.await
+				.await;
+				if should_exit {
+					return Ok(0);
+				}
 			}
 			Ok(SingletonConnection::Singleton(server)) => break server,
 			Err(e) => {
@@ -295,46 +300,55 @@ async fn serve_with_csa(
 
 	let log_broadcast = BroadcastLogSink::new();
 	log = log.tee(log_broadcast.clone());
+	let mut server =
+		make_singleton_server(log_broadcast.clone(), log.clone(), server, shutdown.clone());
 	let platform = spanf!(log, log.span("prereq"), PreReqChecker::new().verify())?;
 
 	let auth = Auth::new(&paths, log.clone());
 	let mut dt = dev_tunnels::DevTunnels::new(&log, auth, &paths);
-	let tunnel = if let Some(d) = gateway_args.tunnel.clone().into() {
-		dt.start_existing_tunnel(d).await
-	} else {
-		dt.start_new_launcher_tunnel(gateway_args.name, gateway_args.random_name)
+	loop {
+		let tunnel = if let Some(d) = gateway_args.tunnel.clone().into() {
+			dt.start_existing_tunnel(d).await
+		} else {
+			dt.start_new_launcher_tunnel(
+				gateway_args.name.as_deref(),
+				gateway_args.random_name,
+			)
 			.await
-	}?;
+		}?;
 
-	csa.connection_token = Some(get_connection_token(&tunnel));
+		csa.connection_token = Some(get_connection_token(&tunnel));
 
-	let mut r = start_singleton_server(SingletonServerArgs {
-		log: log.clone(),
-		tunnel,
-		paths,
-		code_server_args: csa,
-		platform,
-		log_broadcast,
-		shutdown,
-		server,
-	})
-	.await?;
-	r.tunnel.close().await.ok();
+		let mut r = start_singleton_server(SingletonServerArgs {
+			log: log.clone(),
+			tunnel,
+			paths: &paths,
+			code_server_args: &csa,
+			platform,
+			log_broadcast: &log_broadcast,
+			shutdown: shutdown.clone(),
+			server: &mut server,
+		})
+		.await?;
+		r.tunnel.close().await.ok();
 
-	if r.respawn {
-		warning!(log, "respawn requested, starting new server");
-		// reuse current args, but specify no-forward since tunnels will
-		// already be running in this process, and we cannot do a login
-		let args = std::env::args().skip(1).collect::<Vec<String>>();
-		let exit = std::process::Command::new(current_exe)
-			.args(args)
-			.spawn()
-			.map_err(|e| wrap(e, "error respawning after update"))?
-			.wait()
-			.map_err(|e| wrap(e, "error waiting for child"))?;
+		match r.next {
+			Next::Respawn => {
+				warning!(log, "respawn requested, starting new server");
+				// reuse current args, but specify no-forward since tunnels will
+				// already be running in this process, and we cannot do a login
+				let args = std::env::args().skip(1).collect::<Vec<String>>();
+				let exit = std::process::Command::new(current_exe)
+					.args(args)
+					.spawn()
+					.map_err(|e| wrap(e, "error respawning after update"))?
+					.wait()
+					.map_err(|e| wrap(e, "error waiting for child"))?;
 
-		return Ok(exit.code().unwrap_or(1));
+				return Ok(exit.code().unwrap_or(1));
+			}
+			Next::Exit => return Ok(0),
+			Next::Restart => continue,
+		}
 	}
-
-	Ok(0)
 }

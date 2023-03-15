@@ -45,7 +45,7 @@ import { IInteractiveSessionCodeBlockActionContext } from 'vs/workbench/contrib/
 import { InteractiveSessionFollowups } from 'vs/workbench/contrib/interactiveSession/browser/interactiveSessionFollowups';
 import { InteractiveSessionEditorOptions } from 'vs/workbench/contrib/interactiveSession/browser/interactiveSessionOptions';
 import { interactiveSessionResponseHasProviderId } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionContextKeys';
-import { IInteractiveSessionReplyFollowup, IInteractiveSlashCommand } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionService';
+import { IInteractiveSessionReplyFollowup, IInteractiveSessionService, IInteractiveSlashCommand } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionService';
 import { IInteractiveRequestViewModel, IInteractiveResponseViewModel, IInteractiveWelcomeMessageViewModel, isRequestVM, isResponseVM, isWelcomeVM } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionViewModel';
 import { getNWords } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionWordCounter';
 
@@ -100,6 +100,7 @@ export class InteractiveListItemRenderer extends Disposable implements ITreeRend
 		@ILogService private readonly logService: ILogService,
 		@ICommandService private readonly commandService: ICommandService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+		@IInteractiveSessionService private readonly interactiveSessionService: IInteractiveSessionService,
 	) {
 		super();
 		this.renderer = this.instantiationService.createInstance(MarkdownRenderer, {});
@@ -218,14 +219,14 @@ export class InteractiveListItemRenderer extends Disposable implements ITreeRend
 		} else if (isResponseVM(element)) {
 			this.basicRenderElement(element.response.value, element, index, templateData);
 		} else if (isRequestVM(element)) {
-			this.basicRenderElement(element.message, element, index, templateData);
+			this.basicRenderElement(element.messageText, element, index, templateData);
 		} else {
 			this.renderWelcomeMessage(element, templateData);
 		}
 	}
 
-	private basicRenderElement(markdownValue: string, element: InteractiveTreeItem, index: number, templateData: IInteractiveListItemTemplate) {
-		const result = this.renderMarkdown(new MarkdownString(markdownValue), element, templateData.elementDisposables, templateData);
+	private basicRenderElement(markdownValue: string, element: InteractiveTreeItem, index: number, templateData: IInteractiveListItemTemplate, fillInIncompleteTokens = false) {
+		const result = this.renderMarkdown(new MarkdownString(markdownValue), element, templateData.elementDisposables, templateData, fillInIncompleteTokens);
 		dom.clearNode(templateData.value);
 		templateData.value.appendChild(result.element);
 		templateData.elementDisposables.add(result);
@@ -241,7 +242,16 @@ export class InteractiveListItemRenderer extends Disposable implements ITreeRend
 				followupsContainer,
 				element.commandFollowups,
 				defaultButtonStyles,
-				followup => this.commandService.executeCommand(followup.commandId, ...(followup.args ?? []))));
+				followup => {
+					this.interactiveSessionService.notifyUserAction({
+						providerId: element.providerId,
+						action: {
+							kind: 'command',
+							command: followup
+						}
+					});
+					return this.commandService.executeCommand(followup.commandId, ...(followup.args ?? []));
+				}));
 		}
 	}
 
@@ -285,7 +295,7 @@ export class InteractiveListItemRenderer extends Disposable implements ITreeRend
 				this.traceLayout('runProgressiveRender', `Rendered all available words, but model is not complete.`);
 			}
 			disposables.clear();
-			this.basicRenderElement(element.response.value, element, index, templateData);
+			this.basicRenderElement(element.response.value, element, index, templateData, !element.isComplete);
 		} else if (toRender) {
 			// Doing the progressive render
 			const plusCursor = toRender.match(/```.*$/) ? toRender + `\n${InteractiveListItemRenderer.cursorCharacter}` : toRender + ` ${InteractiveListItemRenderer.cursorCharacter}`;
@@ -425,7 +435,7 @@ export class InteractiveSessionAccessibilityProvider implements IListAccessibili
 
 	getAriaLabel(element: InteractiveTreeItem): string {
 		if (isRequestVM(element)) {
-			return localize('interactiveRequest', "Request: {0}", element.message);
+			return localize('interactiveRequest', "Request: {0}", element.messageText);
 		}
 
 		if (isResponseVM(element)) {

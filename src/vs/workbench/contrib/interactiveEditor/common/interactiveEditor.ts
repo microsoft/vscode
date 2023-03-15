@@ -15,9 +15,15 @@ import { MenuId } from 'vs/platform/actions/common/actions';
 import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 
+export interface IInteractiveEditorSlashCommand {
+	command: string;
+	detail?: string;
+}
+
 export interface IInteractiveEditorSession {
 	id: number;
 	placeholder?: string;
+	slashCommands?: IInteractiveEditorSlashCommand[];
 	dispose?(): void;
 }
 
@@ -33,18 +39,21 @@ export interface IInteractiveEditorEditResponse {
 	type: 'editorEdit';
 	edits: TextEdit[];
 	placeholder?: string;
+	wholeRange?: IRange;
 }
 
 export interface IInteractiveEditorBulkEditResponse {
 	type: 'bulkEdit';
 	edits: WorkspaceEdit;
 	placeholder?: string;
+	wholeRange?: IRange;
 }
 
 export interface IInteractiveEditorMessageResponse {
 	type: 'message';
 	message: IMarkdownString;
 	placeholder?: string;
+	wholeRange?: IRange;
 }
 
 export interface IInteractiveEditorSessionProvider {
@@ -60,8 +69,9 @@ export const IInteractiveEditorService = createDecorator<IInteractiveEditorServi
 
 export interface IInteractiveEditorService {
 	_serviceBrand: undefined;
-	add(provider: IInteractiveEditorSessionProvider): IDisposable;
-	getAll(): Iterable<IInteractiveEditorSessionProvider>;
+
+	addProvider(provider: IInteractiveEditorSessionProvider): IDisposable;
+	getAllProvider(): Iterable<IInteractiveEditorSessionProvider>;
 }
 
 export const MENU_INTERACTIVE_EDITOR_WIDGET = MenuId.for('interactiveEditorWidget');

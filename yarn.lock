@@ -7750,10 +7750,10 @@ node-libs-browser@^2.2.1:
     util "^0.11.0"
     vm-browserify "^1.0.1"
 
-node-pty@0.11.0-beta29:
-  version "0.11.0-beta29"
-  resolved "https://registry.yarnpkg.com/node-pty/-/node-pty-0.11.0-beta29.tgz#863bce79346b453ed199614686008d1a3220abe8"
-  integrity sha512-pkSldLXjjwFrGd3EJWI0Pu1jnxeQaW0P9i2EQtO2RaK/pZ22pf99lQ8OfptYTPK2oKZbkjwzqh05uJJ2krH9iA==
+node-pty@0.11.0-beta30:
+  version "0.11.0-beta30"
+  resolved "https://registry.yarnpkg.com/node-pty/-/node-pty-0.11.0-beta30.tgz#ea1ede12ada64115f83b8c6bbf519549b656dbac"
+  integrity sha512-4VqKeomvs5brx9Pf+3QdAAhsIcATREWSTCY8QPj5STp7jDpVbRt6SWhJz9EewJ9KiHbggXaQAzRiAVqARNiVvQ==
   dependencies:
     nan "^2.17.0"
 
@@ -10918,10 +10918,10 @@ typescript@^4.7.4:
   resolved "https://registry.yarnpkg.com/typescript/-/typescript-4.8.4.tgz#c464abca159669597be5f96b8943500b238e60e6"
   integrity sha512-QCh+85mCy+h0IGff8r5XWzOVSbBO+KfeYrMQh7NJ58QujwcE22u+NUSmUxqF+un70P9GXKxa2HCNiTTMJknyjQ==
 
-typescript@^5.1.0-dev.20230227:
-  version "5.1.0-dev.20230227"
-  resolved "https://registry.yarnpkg.com/typescript/-/typescript-5.1.0-dev.20230227.tgz#7e4b7b39e1b1a15bdb4935c82fc4ea9967d26c7c"
-  integrity sha512-nPxrgb/3C40X3eXsCPUpiVEgQltswKoAh3Zwm7tDIVE4ldDr3flXq63odqyWUuOZFc/+NCFdm80RpTB0nz2M8w==
+typescript@^5.1.0-dev.20230313:
+  version "5.1.0-dev.20230313"
+  resolved "https://registry.yarnpkg.com/typescript/-/typescript-5.1.0-dev.20230313.tgz#393282026171897a71398b9f4b2a7a527729fd5f"
+  integrity sha512-vveGdy/uNUyKJ/JbXsJTSP8Z8gfCRsiXdHBMbvJ2XzuzHsDQC3mR+ZPvIGrXoTWMn5XNbyJ8ufYuqGiCGTi6tg==
 
 typical@^4.0.0:
   version "4.0.0"

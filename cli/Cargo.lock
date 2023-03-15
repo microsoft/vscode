@@ -234,6 +234,7 @@ dependencies = [
  "chrono",
  "clap",
  "clap_lex",
+ "console",
  "const_format",
  "core-foundation",
  "dialoguer",

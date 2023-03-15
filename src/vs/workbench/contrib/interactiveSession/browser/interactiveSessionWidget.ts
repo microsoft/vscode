@@ -16,8 +16,9 @@ import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
 import { ITextModel } from 'vs/editor/common/model';
 import { IModelService } from 'vs/editor/common/services/model';
 import { localize } from 'vs/nls';
+import { MenuWorkbenchToolBar } from 'vs/platform/actions/browser/toolbar';
 import { MenuId } from 'vs/platform/actions/common/actions';
-import { IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService, createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
@@ -26,10 +27,12 @@ import { defaultButtonStyles } from 'vs/platform/theme/browser/defaultStyles';
 import { foreground } from 'vs/platform/theme/common/colorRegistry';
 import { DEFAULT_FONT_FAMILY } from 'vs/workbench/browser/style';
 import { getSimpleCodeEditorWidgetOptions, getSimpleEditorOptions } from 'vs/workbench/contrib/codeEditor/browser/simpleEditorOptions';
+import { IInteractiveSessionExecuteActionContext } from 'vs/workbench/contrib/interactiveSession/browser/actions/interactiveSessionExecuteActions';
 import { IInteractiveSessionWidget } from 'vs/workbench/contrib/interactiveSession/browser/interactiveSession';
 import { InteractiveSessionFollowups } from 'vs/workbench/contrib/interactiveSession/browser/interactiveSessionFollowups';
 import { IInteractiveSessionRendererDelegate, InteractiveListItemRenderer, InteractiveSessionAccessibilityProvider, InteractiveSessionListDelegate, InteractiveTreeItem } from 'vs/workbench/contrib/interactiveSession/browser/interactiveSessionListRenderer';
 import { InteractiveSessionEditorOptions } from 'vs/workbench/contrib/interactiveSession/browser/interactiveSessionOptions';
+import { CONTEXT_IN_INTERACTIVE_INPUT, CONTEXT_IN_INTERACTIVE_SESSION } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionContextKeys';
 import { IInteractiveSessionReplyFollowup, IInteractiveSessionService, IInteractiveSlashCommand } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionService';
 import { IInteractiveSessionViewModel, InteractiveSessionViewModel, isRequestVM, isResponseVM, isWelcomeVM } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionViewModel';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
@@ -49,9 +52,6 @@ export interface IInteractiveSessionWidgetService {
 }
 
 const $ = dom.$;
-
-export const CONTEXT_IN_INTERACTIVE_INPUT = new RawContextKey<boolean>('inInteractiveInput', false, { type: 'boolean', description: localize('inInteractiveInput', "True when focus is in the interactive input, false otherwise.") });
-export const CONTEXT_IN_INTERACTIVE_SESSION = new RawContextKey<boolean>('inInteractiveSession', false, { type: 'boolean', description: localize('inInteractiveSession', "True when focus is in the interactive session widget, false otherwise.") });
 
 function revealLastElement(list: WorkbenchObjectTree<any>) {
 	list.scrollTop = list.scrollHeight - list.renderHeight;
@@ -128,7 +128,7 @@ export class InteractiveSessionWidget extends Disposable implements IInteractive
 
 	constructor(
 		private readonly providerId: string,
-		private readonly viewId: string | undefined,
+		readonly viewId: string | undefined,
 		private readonly listBackgroundColorDelegate: () => string,
 		private readonly inputEditorBackgroundColorDelegate: () => string,
 		private readonly resultEditorBackgroundColorDelegate: () => string,
@@ -212,7 +212,7 @@ export class InteractiveSessionWidget extends Disposable implements IInteractive
 		dom.clearNode(this.followupsContainer);
 
 		if (items && items.length > 0) {
-			this.followupsDisposables.add(new InteractiveSessionFollowups(this.followupsContainer, items, undefined, followup => this.acceptInput(followup.message)));
+			this.followupsDisposables.add(new InteractiveSessionFollowups(this.followupsContainer, items, undefined, followup => this.acceptInput(followup)));
 		}
 
 		if (this.bodyDimension) {
@@ -225,6 +225,7 @@ export class InteractiveSessionWidget extends Disposable implements IInteractive
 		if (visible) {
 			if (!this.inputModel) {
 				this.inputModel = this.modelService.getModel(this.inputUri) || this.modelService.createModel('', null, this.inputUri, true);
+				this.inputModel.updateOptions({ bracketColorizationOptions: { enabled: false, independentColorPoolPerBracketType: false } });
 			}
 			this._inputEditor.setModel(this.inputModel);
 
@@ -291,7 +292,7 @@ export class InteractiveSessionWidget extends Disposable implements IInteractive
 		};
 		this.renderer = scopedInstantiationService.createInstance(InteractiveListItemRenderer, this.inputOptions, rendererDelegate);
 		this._register(this.renderer.onDidClickFollowup(item => {
-			this.acceptInput(item.message);
+			this.acceptInput(item);
 		}));
 
 		this.tree = <WorkbenchObjectTree<InteractiveTreeItem>>scopedInstantiationService.createInstance(
@@ -370,7 +371,7 @@ export class InteractiveSessionWidget extends Disposable implements IInteractive
 		const inputPart = dom.append(container, $('.interactive-input-part'));
 		this.followupsContainer = dom.append(inputPart, $('.interactive-input-followups'));
 
-		const inputContainer = dom.append(inputPart, $('.interactive-input-wrapper'));
+		const inputContainer = dom.append(inputPart, $('.interactive-input-and-toolbar'));
 
 		const inputScopedContextKeyService = this._register(this.contextKeyService.createScoped(inputContainer));
 		CONTEXT_IN_INTERACTIVE_INPUT.bindTo(inputScopedContextKeyService).set(true);
@@ -398,10 +399,19 @@ export class InteractiveSessionWidget extends Disposable implements IInteractive
 				this.layout(this.bodyDimension.height, this.bodyDimension.width);
 			}
 		}));
-		this._register(this._inputEditor.onDidFocusEditorText(() => this._onDidFocus.fire()));
+		this._register(this._inputEditor.onDidFocusEditorText(() => {
+			this._onDidFocus.fire();
+			inputContainer.classList.toggle('focused', true);
+		}));
+		this._register(this._inputEditor.onDidBlurEditorText(() => inputContainer.classList.toggle('focused', false)));
 
-		this._register(dom.addStandardDisposableListener(inputContainer, dom.EventType.FOCUS, () => inputContainer.classList.add('synthetic-focus')));
-		this._register(dom.addStandardDisposableListener(inputContainer, dom.EventType.BLUR, () => inputContainer.classList.remove('synthetic-focus')));
+		const toolbar = this._register(this.instantiationService.createInstance(MenuWorkbenchToolBar, inputContainer, MenuId.InteractiveSessionExecute, {
+			menuOptions: {
+				shouldForwardArgs: true
+			}
+		}));
+		toolbar.getElement().classList.add('interactive-execute-toolbar');
+		toolbar.context = <IInteractiveSessionExecuteActionContext>{ widget: this };
 	}
 
 	private async initializeSessionModel(initial = false) {
@@ -435,7 +445,7 @@ export class InteractiveSessionWidget extends Disposable implements IInteractive
 		}
 	}
 
-	async acceptInput(query?: string): Promise<void> {
+	async acceptInput(query?: string | IInteractiveSessionReplyFollowup): Promise<void> {
 		if (!this.viewModel) {
 			// This currently shouldn't happen anymore, but leaving this here to make sure we don't get stuck without a viewmodel
 			await this.initializeSessionModel();
@@ -497,7 +507,10 @@ export class InteractiveSessionWidget extends Disposable implements IInteractive
 		this.welcomeViewContainer.style.height = `${height - inputPartHeight}px`;
 		this.listContainer.style.height = `${height - inputPartHeight}px`;
 
-		this._inputEditor.layout({ width: width - inputPartPadding, height: inputEditorHeight });
+		const editorBorder = 2;
+		const editorPadding = 8;
+		const executeToolbarWidth = 27;
+		this._inputEditor.layout({ width: width - inputPartPadding - editorBorder - editorPadding - executeToolbarWidth, height: inputEditorHeight });
 	}
 }
 

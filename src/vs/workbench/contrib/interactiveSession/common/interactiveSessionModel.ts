@@ -14,7 +14,7 @@ export interface IInteractiveRequestModel {
 	readonly id: string;
 	readonly username: string;
 	readonly avatarIconUri?: URI;
-	readonly message: string;
+	readonly message: string | IInteractiveSessionReplyFollowup;
 	readonly response: IInteractiveResponseModel | undefined;
 }
 
@@ -54,7 +54,7 @@ export class InteractiveRequestModel implements IInteractiveRequestModel {
 		return this._id;
 	}
 
-	constructor(public readonly message: string, public readonly username: string, public readonly avatarIconUri?: URI) {
+	constructor(public readonly message: string | IInteractiveSessionReplyFollowup, public readonly username: string, public readonly avatarIconUri?: URI) {
 		this._id = 'request_' + InteractiveRequestModel.nextId++;
 	}
 }
@@ -225,7 +225,7 @@ export class InteractiveSessionModel extends Disposable implements IInteractiveS
 		return this._requests;
 	}
 
-	addRequest(message: string): InteractiveRequestModel {
+	addRequest(message: string | IInteractiveSessionReplyFollowup): InteractiveRequestModel {
 		const request = new InteractiveRequestModel(message, this.session.requesterUsername, this.session.requesterAvatarIconUri);
 
 		// TODO this is suspicious, maybe the request should know that it is "in progress" instead of having a fake response model.
@@ -276,7 +276,7 @@ export class InteractiveSessionModel extends Disposable implements IInteractiveS
 			requests: this._requests.map(r => {
 				return {
 					providerResponseId: r.response?.providerResponseId,
-					message: r.message,
+					message: typeof r.message === 'string' ? r.message : r.message.message,
 					response: r.response ? r.response.response.value : undefined,
 					responseErrorDetails: r.response?.errorDetails,
 					followups: r.response?.followups

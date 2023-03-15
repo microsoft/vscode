@@ -164,14 +164,14 @@ pub mod singleton {
 
 	#[derive(Serialize)]
 	pub struct LogMessage<'a> {
-		pub level: log::Level,
+		pub level: Option<log::Level>,
 		pub prefix: &'a str,
 		pub message: &'a str,
 	}
 
 	#[derive(Deserialize)]
 	pub struct LogMessageOwned {
-		pub level: log::Level,
+		pub level: Option<log::Level>,
 		pub prefix: String,
 		pub message: String,
 	}

@@ -13,7 +13,7 @@ import { IRelaxedExtensionDescription } from 'vs/platform/extensions/common/exte
 import { ILogService } from 'vs/platform/log/common/log';
 import { ExtHostInteractiveSessionShape, IInteractiveRequestDto, IInteractiveResponseDto, IInteractiveSessionDto, IMainContext, MainContext, MainThreadInteractiveSessionShape } from 'vs/workbench/api/common/extHost.protocol';
 import * as typeConvert from 'vs/workbench/api/common/extHostTypeConverters';
-import { IInteractiveSessionFollowup, IInteractiveSessionReplyFollowup, IInteractiveSessionResponseCommandFollowup, IInteractiveSessionUserActionEvent, IInteractiveSlashCommand } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionService';
+import { IInteractiveSessionFollowup, IInteractiveSessionReplyFollowup, IInteractiveSessionUserActionEvent, IInteractiveSlashCommand } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionService';
 import type * as vscode from 'vscode';
 
 class InteractiveSessionProviderWrapper {
@@ -63,6 +63,10 @@ export class ExtHostInteractiveSession implements ExtHostInteractiveSessionShape
 		this._proxy.$addInteractiveSessionRequest(context);
 	}
 
+	sendInteractiveRequestToProvider(providerId: string, message: vscode.InteractiveSessionDynamicRequest): void {
+		this._proxy.$sendInteractiveRequestToProvider(providerId, message);
+	}
+
 	async $prepareInteractiveSession(handle: number, initialState: any, token: CancellationToken): Promise<IInteractiveSessionDto | undefined> {
 		const entry = this._interactiveSessionProvider.get(handle);
 		if (!entry) {
@@ -103,7 +107,7 @@ export class ExtHostInteractiveSession implements ExtHostInteractiveSessionShape
 		const request = await entry.provider.resolveRequest(realSession, context, token);
 		if (request) {
 			return {
-				message: request.message,
+				message: typeof request.message === 'string' ? request.message : typeConvert.InteractiveSessionReplyFollowup.from(request.message),
 			};
 		}
 
@@ -141,7 +145,7 @@ export class ExtHostInteractiveSession implements ExtHostInteractiveSessionShape
 			if (typeof item === 'string') {
 				return item;
 			} else {
-				return item.map(f => (<IInteractiveSessionReplyFollowup>{ title: f.title, message: f.message, kind: 'reply' }));
+				return item.map(f => typeConvert.InteractiveSessionReplyFollowup.from(f));
 			}
 		});
 	}
@@ -162,24 +166,7 @@ export class ExtHostInteractiveSession implements ExtHostInteractiveSessionShape
 		}
 
 		const rawFollowups = await entry.provider.provideFollowups(realSession, token);
-		return rawFollowups?.map(f => {
-			if (typeof f === 'string') {
-				return <IInteractiveSessionReplyFollowup>{ title: f, message: f, kind: 'reply' };
-			} else if ('commandId' in f) {
-				return <IInteractiveSessionResponseCommandFollowup>{
-					kind: 'command',
-					title: f.title,
-					commandId: f.commandId,
-					args: f.args
-				};
-			} else {
-				return <IInteractiveSessionReplyFollowup>{
-					kind: 'reply',
-					title: f.title,
-					message: f.message
-				};
-			}
-		});
+		return rawFollowups?.map(f => typeConvert.InteractiveSessionFollowup.from(f));
 	}
 
 	async $provideInteractiveReply(handle: number, sessionId: number, request: IInteractiveRequestDto, token: CancellationToken): Promise<IInteractiveResponseDto | undefined> {
@@ -195,7 +182,7 @@ export class ExtHostInteractiveSession implements ExtHostInteractiveSessionShape
 
 		const requestObj: vscode.InteractiveRequest = {
 			session: realSession,
-			message: request.message,
+			message: typeof request.message === 'string' ? request.message : typeConvert.InteractiveSessionReplyFollowup.to(request.message),
 		};
 
 		const stopWatch = StopWatch.create(false);
