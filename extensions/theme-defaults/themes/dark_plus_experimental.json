@@ -2,6 +2,26 @@
 	"$schema": "vscode://schemas/color-theme",
 	"name": "Dark+ (Experimental)",
 	"include": "./dark_plus.json",
+	"tokenColors": [
+		{
+			"scope" : "keyword.operator.address",
+			"settings": {
+			  "foreground": "#B4B4B4"
+			}
+		  },
+		  {
+			"scope" : "keyword.operator.comparison",
+			"settings": {
+			  "foreground": "#B4B4B4"
+			}
+		  },
+		  {
+			"scope" : "keyword.operator.assignment",
+			"settings": {
+			  "foreground": "#B4B4B4"
+			}
+		  }
+	],
 	"colors": {
 		"activityBar.activeBorder": "#0078d4",
 		"activityBar.background": "#181818",
