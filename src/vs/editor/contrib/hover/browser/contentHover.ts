@@ -427,7 +427,7 @@ export class ContentHoverWidget extends Disposable implements IContentWidget {
 	private readonly _hoverVisibleKey = EditorContextKeys.hoverVisible.bindTo(this._contextKeyService);
 	private readonly _hoverFocusedKey = EditorContextKeys.hoverFocused.bindTo(this._contextKeyService);
 	private readonly _hover: HoverWidget = this._register(new HoverWidget());
-	private readonly _element: ResizableHTMLElement = this._register(new ResizableHTMLElement());
+	private _element: ResizableHTMLElement = this._register(new ResizableHTMLElement());
 	private readonly _focusTracker = this._register(dom.trackFocus(this.getDomNode()));
 	private _renderingAbove: boolean = this._editor.getOption(EditorOption.hover).above;
 	private _visibleData: ContentHoverVisibleData | null = null;
@@ -512,19 +512,47 @@ export class ContentHoverWidget extends Disposable implements IContentWidget {
 		}
 
 		// The hover container dom node height and width are initial automatically determined by the browser before being changed
-		this._hover.containerDomNode.style.height = 'auto';
-		this._hover.containerDomNode.style.width = 'auto';
+
+		const initialMaxHeight = Math.max(this._editor.getLayoutInfo().height / 4, 250);
+		const initialMaxWidth = Math.max(this._editor.getLayoutInfo().width * 0.66, 500);
+		this._hover.contentsDomNode.style.maxHeight = `${initialMaxHeight}px`;
+		this._hover.contentsDomNode.style.maxWidth = `${initialMaxWidth}px`;
+		this._hover.containerDomNode.style.maxHeight = `${initialMaxHeight}px`;
+		this._hover.containerDomNode.style.maxWidth = `${initialMaxWidth}px`;
+		// this._element.domNode.style.maxHeight = `${initialMaxHeight}px`;
+		// this._element.domNode.style.maxWidth = `${initialMaxWidth}px`;
+		// this._element.maxSize = new dom.Dimension(initialMaxWidth, initialMaxHeight);
+
 		this._hover.contentsDomNode.style.height = 'auto';
-		this._hover.contentsDomNode.style.width = 'auto';
+		this._hover.contentsDomNode.style.width = 'max-content';
+		this._hover.containerDomNode.style.height = 'auto';
+		this._hover.containerDomNode.style.width = 'max-content';
+
+		// this._element = this._register(new ResizableHTMLElement());
+		// this._element.domNode.appendChild(this._hover.containerDomNode);
+		// this._element.domNode.className = 'resizable-hover';
+		// this._element.domNode.style.position = 'fixed';
+		// this._element.domNode.style.display = 'block';
+		// this._element.domNode.style.visibility = 'inherit';
+
+		// this._hover.contentsDomNode.style.height = 'auto';
+		// this._hover.contentsDomNode.style.width = 'auto';
+		// If the following is set it causes errors
+		// this._element.domNode.style.height = 'auto';
+		// this._element.domNode.style.width = 'auto';
 
 		// this._hover.containerDomNode.style.maxHeight = height + 'px';
 		// this._hover.containerDomNode.style.maxWidth = width + 'px';
 		// this._hover.contentsDomNode.style.maxHeight = height + 'px';
 		// this._hover.contentsDomNode.style.maxWidth = width + 'px';
+		console.log('this._element.domNode before layoutContentWidget : ', this._element.domNode);
+
+		// Maybe don't need this?
 		this._editor.layoutContentWidget(this);
+		this._editor.render();
 
 		// We want the following to be designed in a similar manner to the initial hover how it was in the main branch in order to give us the default size like initially
-		console.log('this._element.domNode : ', this._element.domNode);
+		console.log('this._element.domNode after layoutContentWidget: ', this._element.domNode);
 
 		let height = this._hover.containerDomNode.offsetHeight;
 		let width = this._hover.containerDomNode.offsetWidth;
@@ -859,6 +887,7 @@ export class ContentHoverWidget extends Disposable implements IContentWidget {
 		this._hover.onContentsChanged();
 
 		const scrollDimensions = this._hover.scrollbar.getScrollDimensions();
+		console.log('Inside of onContentsChanged');
 		console.log('scrollDimensions : ', scrollDimensions);
 		const hasHorizontalScrollbar = (scrollDimensions.scrollWidth > scrollDimensions.width);
 		if (hasHorizontalScrollbar) {
