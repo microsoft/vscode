@@ -31,7 +31,8 @@ import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/termin
 const enum Constants {
 	Scheme = 'terminal-accessible-buffer',
 	Active = 'active',
-	Hide = 'hide'
+	Hide = 'hide',
+	MaxBufferSize = 1024
 }
 
 export class AccessibleBufferWidget extends DisposableStore {
@@ -229,7 +230,7 @@ export class AccessibleBufferWidget extends DisposableStore {
 		if (!buffer) {
 			return '';
 		}
-		const end = Math.min(1024, buffer.length);
+		const end = Math.min(Constants.MaxBufferSize, buffer.length);
 		for (let i = startLine ?? 0; i <= end; i++) {
 			const line = buffer.getLine(i);
 			if (!line) {
