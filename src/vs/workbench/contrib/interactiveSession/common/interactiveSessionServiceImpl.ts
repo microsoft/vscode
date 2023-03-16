@@ -30,6 +30,7 @@ type InteractiveSessionProviderInvokedEvent = {
 	timeToFirstProgress: number;
 	totalTime: number;
 	result: 'success' | 'error' | 'errorWithOutput' | 'cancelled';
+	requestType: 'string' | 'followup' | 'slashCommand';
 };
 
 type InteractiveSessionProviderInvokedClassification = {
@@ -37,6 +38,7 @@ type InteractiveSessionProviderInvokedClassification = {
 	timeToFirstProgress: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'The time in milliseconds from invoking the provider to getting the first data.' };
 	totalTime: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'The total time it took to run the provider\'s `provideResponseWithProgress`.' };
 	result: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether invoking the InteractiveSessionProvider resulted in an error.' };
+	requestType: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The type of request that the user made.' };
 	owner: 'roblourens';
 	comment: 'Provides insight into the performance of InteractiveSession providers.';
 };
@@ -174,6 +176,9 @@ export class InteractiveSessionService extends Disposable implements IInteractiv
 		this._pendingRequestSessions.add(model.sessionId);
 		const request = model.addRequest(message);
 		let gotProgress = false;
+		const requestType = typeof message === 'string' ?
+			(message.startsWith('/') ? 'slashCommand' : 'string') :
+			'followup';
 
 		const rawResponsePromise = createCancelablePromise<void>(async token => {
 			const progressCallback = (progress: IInteractiveProgress) => {
@@ -199,7 +204,8 @@ export class InteractiveSessionService extends Disposable implements IInteractiv
 					timeToFirstProgress: -1,
 					// Normally timings happen inside the EH around the actual provider. For cancellation we can measure how long the user waited before cancelling
 					totalTime: stopWatch.elapsed(),
-					result: 'cancelled'
+					result: 'cancelled',
+					requestType
 				});
 
 				model.cancelRequest(request);
@@ -217,7 +223,8 @@ export class InteractiveSessionService extends Disposable implements IInteractiv
 					providerId: provider.id,
 					timeToFirstProgress: rawResponse.timings?.firstProgress ?? 0,
 					totalTime: rawResponse.timings?.totalElapsed ?? 0,
-					result: rawResponse.errorDetails && gotProgress ? 'errorWithOutput' : rawResponse.errorDetails ? 'error' : 'success'
+					result: rawResponse.errorDetails && gotProgress ? 'errorWithOutput' : rawResponse.errorDetails ? 'error' : 'success',
+					requestType
 				});
 				model.completeResponse(request, rawResponse);
 				this.trace('sendRequest', `Provider returned response for session ${model.sessionId}`);
