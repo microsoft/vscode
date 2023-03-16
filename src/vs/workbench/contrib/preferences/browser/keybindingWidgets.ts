@@ -117,11 +117,16 @@ export class KeybindingsSearchWidget extends SearchWidget {
 		if (!this._chords) {
 			this._chords = [];
 		}
-		const lastChordIsComplete = (this._chords.length === 0 || this._chords[this._chords.length - 1].getDispatchChords()[0] !== null);
-		if (lastChordIsComplete) {
-			this._chords.push(keybinding);
-		} else {
+
+		// TODO: note that we allow a keybinding "shift shift", but this widget doesn't allow input "shift shift" because the first "shift" will be incomplete - this is _not_ a regression
+		const hasIncompleteChord = this._chords.length > 0 && this._chords[this._chords.length - 1].getDispatchChords()[0] === null;
+		if (hasIncompleteChord) {
 			this._chords[this._chords.length - 1] = keybinding;
+		} else {
+			if (this._chords.length === 2) { // TODO: limit chords # to 2 for now
+				this._chords = [];
+			}
+			this._chords.push(keybinding);
 		}
 
 		const value = this._chords.map((keybinding) => keybinding.getUserSettingsLabel() || '').join(' ');
