@@ -15,7 +15,7 @@ import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { ILanguageService } from 'vs/editor/common/languages/language';
 import { GotoDefinitionAtPositionEditorContribution } from 'vs/editor/contrib/gotoSymbol/browser/link/goToDefinitionAtPosition';
 import { HoverStartMode, HoverStartSource } from 'vs/editor/contrib/hover/browser/hoverOperation';
-import { ContentHoverWidget, ContentHoverController } from 'vs/editor/contrib/hover/browser/contentHover';
+import { ContentHoverWidget, ContentHoverController, ResizableHoverOverlay } from 'vs/editor/contrib/hover/browser/contentHover';
 import { MarginHoverWidget } from 'vs/editor/contrib/hover/browser/marginHover';
 import * as nls from 'vs/nls';
 import { AccessibilitySupport } from 'vs/platform/accessibility/common/accessibility';
@@ -118,10 +118,14 @@ export class ModesHoverController implements IEditorContribution {
 			return;
 		}
 
+		if (target.type === MouseTargetType.OVERLAY_WIDGET && target.detail === ResizableHoverOverlay.ID) {
+			return;
+		}
+
 		if (target.type !== MouseTargetType.OVERLAY_WIDGET) {
 			this._hoverClicked = false;
 		}
-
+		console.log('mouseEvent : ', mouseEvent);
 		this._hideWidgets();
 	}
 
@@ -210,6 +214,7 @@ export class ModesHoverController implements IEditorContribution {
 		if (e.keyCode !== KeyCode.Ctrl && e.keyCode !== KeyCode.Alt && e.keyCode !== KeyCode.Meta && e.keyCode !== KeyCode.Shift
 			&& !mightTriggerFocus) {
 			// Do not hide hover when a modifier key is pressed
+
 			this._hideWidgets();
 		}
 	}
@@ -219,9 +224,14 @@ export class ModesHoverController implements IEditorContribution {
 			return;
 		}
 
+		console.log('Inside of _hideWidgets');
 		this._hoverClicked = false;
 		this._glyphWidget?.hide();
-		this._contentWidget?.hide();
+		console.log('this._contentWidget?.resizableWidget.isResizing() : ', this._contentWidget?.resizableWidget.isResizing());
+		if (!this._contentWidget?.resizableWidget.isResizing()) {
+			console.log('Hiding the content widget');
+			this._contentWidget?.hide();
+		}
 	}
 
 	private _getOrCreateContentWidget(): ContentHoverController {
