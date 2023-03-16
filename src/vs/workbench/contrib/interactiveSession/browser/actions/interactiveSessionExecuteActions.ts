@@ -9,6 +9,7 @@ import { localize } from 'vs/nls';
 import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
 import { INTERACTIVE_SESSION_CATEGORY } from 'vs/workbench/contrib/interactiveSession/browser/actions/interactiveSessionActions';
 import { IInteractiveSessionWidget } from 'vs/workbench/contrib/interactiveSession/browser/interactiveSession';
+import { CONTEXT_INTERACTIVE_REQUEST_IN_PROGRESS } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionContextKeys';
 
 export interface IInteractiveSessionExecuteActionContext {
 	widget: IInteractiveSessionWidget;
@@ -32,6 +33,7 @@ export function registerInteractiveSessionExecuteActions() {
 				icon: Codicon.send,
 				menu: {
 					id: MenuId.InteractiveSessionExecute,
+					when: CONTEXT_INTERACTIVE_REQUEST_IN_PROGRESS.negate(),
 					group: 'navigation',
 				}
 			});
@@ -44,6 +46,35 @@ export function registerInteractiveSessionExecuteActions() {
 			}
 
 			context.widget.acceptInput();
+		}
+	});
+
+	registerAction2(class SubmitAction extends Action2 {
+		constructor() {
+			super({
+				id: 'workbench.action.interactiveSession.cancel',
+				title: {
+					value: localize('interactive.cancel.label', "Cancel"),
+					original: 'Cancel'
+				},
+				f1: false,
+				category: INTERACTIVE_SESSION_CATEGORY,
+				icon: Codicon.debugStop,
+				menu: {
+					id: MenuId.InteractiveSessionExecute,
+					when: CONTEXT_INTERACTIVE_REQUEST_IN_PROGRESS,
+					group: 'navigation',
+				}
+			});
+		}
+
+		run(accessor: ServicesAccessor, ...args: any[]) {
+			const context = args[0];
+			if (!isExecuteActionContext(context)) {
+				return;
+			}
+
+			context.widget.cancelCurrentRequest();
 		}
 	});
 }

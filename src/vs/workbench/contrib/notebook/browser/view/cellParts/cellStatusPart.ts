@@ -138,7 +138,6 @@ export class CellEditorStatusBar extends CellContentPart {
 					const currentMode = element.focusMode;
 					if (currentMode === CellFocusMode.Output && this._notebookEditor.hasWebviewFocus()) {
 						element.focusMode = CellFocusMode.Output;
-						// (this._notebookEditor as any).focusWebview();
 					} else {
 						element.focusMode = CellFocusMode.Container;
 					}
