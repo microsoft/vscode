@@ -264,12 +264,12 @@ export class Scrollable extends Disposable {
 	}
 
 	public setScrollDimensions(dimensions: INewScrollDimensions, useRawScrollPositions: boolean): void {
-		console.log('dimensions : ', dimensions);
+		// console.log('dimensions : ', dimensions);
 		const newState = this._state.withScrollDimensions(dimensions, useRawScrollPositions);
 		this._setState(newState, Boolean(this._smoothScrolling));
 
 		// Validate outstanding animated scroll position target
-		console.log('this._state inside setScrollDimension : ', this._state);
+		// console.log('this._state inside setScrollDimension : ', this._state);
 		this._smoothScrolling?.acceptScrollDimensions(this._state);
 	}
 

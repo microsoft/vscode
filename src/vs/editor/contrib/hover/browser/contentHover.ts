@@ -9,9 +9,9 @@ import { coalesce } from 'vs/base/common/arrays';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { Disposable, DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
-import { ContentWidgetPositionPreference, IActiveCodeEditor, ICodeEditor, IContentWidget, IContentWidgetPosition, IEditorMouseEvent, MouseTargetType } from 'vs/editor/browser/editorBrowser';
+import { ContentWidgetPositionPreference, IActiveCodeEditor, ICodeEditor, IContentWidget, IContentWidgetPosition, IEditorMouseEvent, IOverlayWidget, IOverlayWidgetPosition, MouseTargetType } from 'vs/editor/browser/editorBrowser';
 import { ConfigurationChangedEvent, EditorOption } from 'vs/editor/common/config/editorOptions';
-import { Position } from 'vs/editor/common/core/position';
+import { IPosition, Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { IModelDecoration, PositionAffinity } from 'vs/editor/common/model';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
@@ -40,7 +40,9 @@ class ResizeState {
 export class ContentHoverController extends Disposable {
 
 	private readonly _participants: IEditorHoverParticipant[];
-	private readonly _widget = this._register(this._instantiationService.createInstance(ContentHoverWidget, this._editor));
+	private readonly _resizableWidget = this._register(this._instantiationService.createInstance(ResizableHoverOverlay, this._editor));
+	private readonly _widget = this._register(this._instantiationService.createInstance(ContentHoverWidget, this._editor, this._contextKeyService, this._resizableWidget));
+
 	private readonly _computer: ContentHoverComputer;
 	private readonly _hoverOperation: HoverOperation<IHoverPart>;
 
@@ -50,8 +52,13 @@ export class ContentHoverController extends Disposable {
 		private readonly _editor: ICodeEditor,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
+		@IContextKeyService private readonly _contextKeyService: IContextKeyService
 	) {
 		super();
+
+		// const widgetPosition = this._widget.getPosition();
+		// console.log('widgetPosition : ', widgetPosition);
+		// this._resizableWidget.setPosition(widgetPosition);
 
 		// Instantiate participants and sort them by `hoverOrdinal` which is relevant for rendering order.
 		this._participants = [];
@@ -68,6 +75,7 @@ export class ContentHoverController extends Disposable {
 				// invalid state, ignore result
 				return;
 			}
+			console.log('this result of the hover operation is attained');
 			const messages = (result.hasLoadingMessage ? this._addLoadingMessage(result.value) : result.value);
 			this._withResult(new HoverResult(this._computer.anchor, messages, result.isComplete));
 		}));
@@ -81,6 +89,9 @@ export class ContentHoverController extends Disposable {
 				this._widget.clear();
 				this._setCurrentResult(this._currentResult); // render again
 			}
+		}));
+		this._register(this._editor.onDidChangeModel(() => {
+			this._resizableWidget.hide();
 		}));
 	}
 
@@ -201,6 +212,7 @@ export class ContentHoverController extends Disposable {
 			this._renderMessages(this._currentResult.anchor, this._currentResult.messages);
 		} else {
 			this._widget.hide();
+			this._resizableWidget.hide();
 		}
 	}
 
@@ -259,6 +271,7 @@ export class ContentHoverController extends Disposable {
 	}
 
 	private _renderMessages(anchor: HoverAnchor, messages: IHoverPart[]): void {
+		console.log('Inside of _renderMessage');
 		const { showAtPosition, showAtSecondaryPosition, highlightRange } = ContentHoverController.computeHoverRanges(this._editor, anchor.range, messages);
 
 		const disposables = new DisposableStore();
@@ -270,7 +283,14 @@ export class ContentHoverController extends Disposable {
 			fragment,
 			statusBar,
 			setColorPicker: (widget) => colorPicker = widget,
-			onContentsChanged: () => this._widget.onContentsChanged(),
+			onContentsChanged: () => {
+				this._widget.onContentsChanged();
+				const clientWidth = this._widget.getDomNode().clientWidth;
+				const clientHeight = this._widget.getDomNode().clientHeight;
+				this._resizableWidget.resizableElement().layout(clientHeight, clientWidth);
+				this._editor.layoutOverlayWidget(this._resizableWidget);
+				this._editor.render();
+			},
 			hide: () => this.hide()
 		};
 
@@ -298,12 +318,13 @@ export class ContentHoverController extends Disposable {
 					highlightDecoration.clear();
 				}));
 			}
-
+			const preferAbove = this._editor.getOption(EditorOption.hover).above;
+			console.log('Before this._widget.showAt');
 			this._widget.showAt(fragment, new ContentHoverVisibleData(
 				colorPicker,
 				showAtPosition,
 				showAtSecondaryPosition,
-				this._editor.getOption(EditorOption.hover).above,
+				preferAbove,
 				this._computer.shouldFocus,
 				this._computer.source,
 				isBeforeContent,
@@ -311,6 +332,42 @@ export class ContentHoverController extends Disposable {
 				anchor.initialMousePosY,
 				disposables
 			));
+			this._editor.layoutContentWidget(this._widget);
+			this._editor.render();
+
+			// showAtPosition.lineNumber = showAtPosition.lineNumber + 10;
+			const containerDomNode = this._widget.getDomNode();
+			const offsetWidth = containerDomNode.offsetWidth;
+			const clientWidth = containerDomNode.clientWidth;
+			const scrollWidth = containerDomNode.scrollWidth;
+			const width = containerDomNode.style.width;
+			console.log('offsetWidth : ', offsetWidth);
+			console.log('clientWidth : ', clientWidth);
+			console.log('scrollWidth : ', scrollWidth);
+			console.log('width : ', width);
+
+			const contentsDomNode = this._widget.getContentsDomNode();
+			const contentsOffsetWidth = contentsDomNode.offsetWidth;
+			const contentsClientWidth = contentsDomNode.clientWidth;
+			const contentsScrollWidth = contentsDomNode.scrollWidth;
+			const contentsWidth = contentsDomNode.style.width;
+			console.log('contentsOffsetWidth : ', contentsOffsetWidth);
+			console.log('contentsClientWidth : ', contentsClientWidth);
+			console.log('contentsScrollWidth : ', contentsScrollWidth);
+			console.log('contentsWidth : ', contentsWidth);
+
+			console.log('this._widget.getDomNode() : ', this._widget.getDomNode());
+
+			const size = new dom.Dimension(this._widget.getDomNode().clientWidth, this._widget.getDomNode().clientHeight);
+			console.log('this._widget.size() : ', this._widget.getSize());
+			console.log('Before this._resizableWidget.showAt');
+			console.log('clientTop: this._widget.getDomNode().clientTop : ', this._widget.getDomNode().clientTop);
+			console.log('clientTop: this._widget.getDomNode().offsetTop : ', this._widget.getDomNode().offsetTop);
+			console.log('clientTop: this._widget.getDomNode().style.top : ', this._widget.getDomNode().style.top);
+			const position = { clientTop: this._widget.getDomNode().offsetTop, clientLeft: this._widget.getDomNode().offsetLeft };
+			this._resizableWidget.showAt(position, size);
+			this._editor.layoutOverlayWidget(this._resizableWidget);
+			this._editor.render();
 		} else {
 			disposables.dispose();
 		}
@@ -427,6 +484,77 @@ class ContentHoverVisibleData {
 	) { }
 }
 
+export class ResizableHoverOverlay extends Disposable implements IOverlayWidget {
+
+	static readonly ID = 'editor.contrib.resizableHoverOverlay';
+	private _resizableElement: ResizableHTMLElement = this._register(new ResizableHTMLElement());
+	private _position: IContentWidgetPosition | null = null;
+
+	constructor(private readonly _editor: ICodeEditor) {
+		super();
+		console.log('Inside of constructor of ResizableHoverOverlay');
+		// TODO: When the following is added the initial content hover appears to disappear
+		this._editor.addOverlayWidget(this);
+		this._resizableElement.domNode.style.zIndex = '100';
+		this._resizableElement.domNode.style.position = 'fixed';
+	}
+
+	public hide(): void {
+		console.log('hiding the resizable hover overlay');
+		this._resizableElement.clearSashHoverState();
+		this._resizableElement.layout(0, 0);
+	}
+
+	public resizableElement(): ResizableHTMLElement {
+		return this._resizableElement;
+	}
+
+	public getId(): string {
+		return ResizableHoverOverlay.ID;
+	}
+
+	public getDomNode(): HTMLElement {
+		console.log('Inside of getDomNode() of ResizableHoverOverlay');
+		return this._resizableElement.domNode;
+	}
+
+	public setPosition(position: any): void {
+		console.log('Inside of setPosition of ResizableHOverOverlay');
+		console.log('this._position : ', this._position);
+		this._position = position;
+		if (!position || !position.position) {
+			return;
+		}
+		this._resizableElement.domNode.style.top = position.clientTop + 'px';
+		this._resizableElement.domNode.style.left = position.clientLeft + 'px';
+	}
+
+	public getPosition(): IOverlayWidgetPosition | null {
+		console.log('Inside of getPosition of ResizableHoverOverlay');
+		console.log('this._position : ', this._position);
+		return null;
+	}
+
+	public showAt(position: any, size: dom.Dimension): void {
+		console.log('Inside of showAt of ResizableHoverOverlay');
+		// this._position = widgetPosition;
+		console.log('position : ', position);
+		console.log('size : ', size);
+
+		this._resizableElement.enableSashes(true, true, true, true);
+		this._resizableElement.domNode.style.top = position.clientTop + 'px';
+		this._resizableElement.domNode.style.left = position.clientLeft + 'px';
+		this._resizableElement.layout(size.height + 4, size.width + 4);
+		this._editor.layoutOverlayWidget(this);
+		this._editor.render();
+		const resizableDomNode = this._resizableElement.domNode;
+		console.log('this._resizableElement.domNode : ', resizableDomNode);
+		console.log('resizableDomNode.clientWidth : ', resizableDomNode.clientWidth);
+		console.log('resizableDomNode.clientHeight : ', resizableDomNode.clientHeight);
+		console.log('this._resizableElement.size : ', this._resizableElement.size);
+	}
+
+}
 // TODO: Find the correct initial hover size
 
 export class ContentHoverWidget extends Disposable implements IContentWidget {
@@ -447,13 +575,13 @@ export class ContentHoverWidget extends Disposable implements IContentWidget {
 	private readonly _hoverFocusedKey = EditorContextKeys.hoverFocused.bindTo(this._contextKeyService);
 	private readonly _focusTracker = this._register(dom.trackFocus(this.getDomNode()));
 	private _resizeObserver: ResizeObserver = new ResizeObserver((entries) => {
-		console.log('inside of resize observer for element: ', entries);
+		// console.log('inside of resize observer for element: ', entries);
 	});
 	private _resizeContentsObserver: ResizeObserver = new ResizeObserver((entries) => {
-		console.log('inside of resize observer for contents: ', entries);
+		// console.log('inside of resize observer for contents: ', entries);
 	});
 	private _resizeContainerObserver: ResizeObserver = new ResizeObserver((entries) => {
-		console.log('inside of resize observer for container: ', entries);
+		// console.log('inside of resize observer for container: ', entries);
 	});
 
 	/**
@@ -477,11 +605,12 @@ export class ContentHoverWidget extends Disposable implements IContentWidget {
 
 	constructor(
 		private readonly _editor: ICodeEditor,
-		@IContextKeyService private readonly _contextKeyService: IContextKeyService
+		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
+		private readonly _resizableWidget: ResizableHoverOverlay
 	) {
 		super();
-		console.log('Very beginning of constructor');
-		console.log('this._element.domNode : ', this._resizableElement.domNode);
+		// console.log('Very beginning of constructor');
+		// console.log('this._element.domNode : ', this._resizableElement.domNode);
 		this._resizeObserver.observe(this._resizableElement.domNode);
 		this._resizeContentsObserver.observe(this._hover.contentsDomNode);
 		this._resizeContainerObserver.observe(this._hover.containerDomNode);
@@ -498,6 +627,7 @@ export class ContentHoverWidget extends Disposable implements IContentWidget {
 
 		this._setVisibleData(null);
 		this._layout();
+		this._editor.addContentWidget(this);
 
 		this._register(this._focusTracker.onDidFocus(() => {
 			this._hoverFocusedKey.set(true);
@@ -505,7 +635,7 @@ export class ContentHoverWidget extends Disposable implements IContentWidget {
 		this._register(this._focusTracker.onDidBlur(() => {
 			this._hoverFocusedKey.set(false);
 		}));
-
+		/*
 		this._editor.onDidChangeModelContent((e) => {
 			const uri = this._editor.getModel()?.uri.toString();
 			if (!uri || !(uri in this._persistedHoverWidgetSizes)) {
@@ -588,10 +718,15 @@ export class ContentHoverWidget extends Disposable implements IContentWidget {
 		this._editor.addContentWidget(this);
 		console.log('After adding the content widget');
 		console.log('this._element.domNode : ', this._resizableElement.domNode);
+		*/
+	}
+
+	public getSize() {
+		return new dom.Dimension(this._hover.containerDomNode.clientWidth, this._hover.containerDomNode.clientHeight);
 	}
 
 	private _findPersistedSize(): dom.Dimension | undefined {
-		console.log('Inside of _findPersistedSize');
+		// console.log('Inside of _findPersistedSize');
 		const wordPosition = this._editor.getModel()?.getWordAtPosition(this._visibleData!.showAtPosition);
 		if (!wordPosition || !this._editor.hasModel()) {
 			return;
@@ -599,21 +734,21 @@ export class ContentHoverWidget extends Disposable implements IContentWidget {
 		const offset = this._editor.getModel().getOffsetAt({ lineNumber: this._visibleData!.showAtPosition.lineNumber, column: wordPosition.startColumn });
 		const length = wordPosition.word.length;
 		const uri = this._editor.getModel().uri.toString();
-		console.log('offset : ', offset);
-		console.log('length : ', length);
+		// console.log('offset : ', offset);
+		// console.log('length : ', length);
 		const textModelMap = this._persistedHoverWidgetSizes.get(uri);
-		console.log('textModelMap : ', textModelMap);
+		// console.log('textModelMap : ', textModelMap);
 		if (!textModelMap) {
 			return;
 		}
-		console.log('textModelMap.value : ', textModelMap.entries().next().value);
+		// console.log('textModelMap.value : ', textModelMap.entries().next().value);
 		return textModelMap.get(JSON.stringify([offset, length]));
 	}
 
 	private _setLayoutOfResizableElement(): void {
 
-		console.log('* Entered into _setLayoutOfResizableElement of ContentHoverWidget');
-		console.log('this._element.domNode before layoutContentWidget : ', this._resizableElement.domNode);
+		// console.log('* Entered into _setLayoutOfResizableElement of ContentHoverWidget');
+		// console.log('this._element.domNode before layoutContentWidget : ', this._resizableElement.domNode);
 
 		if (!this._editor.hasModel() || !this._editor.getDomNode() || !this._visibleData?.showAtPosition) {
 			return;
@@ -622,14 +757,14 @@ export class ContentHoverWidget extends Disposable implements IContentWidget {
 		let height;
 		let width;
 		const persistedSize = this._findPersistedSize();
-		console.log('persistedSize : ', persistedSize);
+		// console.log('persistedSize : ', persistedSize);
 
 		if (persistedSize) {
-			console.log('When using the persisted size');
+			// console.log('When using the persisted size');
 			height = persistedSize.height;
 			width = persistedSize.width;
 		} else {
-			console.log('When not using the persisted size');
+			// console.log('When not using the persisted size');
 			const initialMaxHeight = Math.max(this._editor.getLayoutInfo().height / 4, 250);
 			const initialMaxWidth = Math.max(this._editor.getLayoutInfo().width * 0.66, 500);
 			this._hover.containerDomNode.style.maxHeight = `${initialMaxHeight}px`;
@@ -641,24 +776,24 @@ export class ContentHoverWidget extends Disposable implements IContentWidget {
 			this._hover.containerDomNode.style.width = 'max-content';
 			this._hover.containerDomNode.style.height = 'auto';
 
-			console.log('Before render');
-			console.log('this._element.domNode before layoutContentWidget : ', this._resizableElement.domNode);
+			// console.log('Before render');
+			// console.log('this._element.domNode before layoutContentWidget : ', this._resizableElement.domNode);
 
 			this._editor.layoutContentWidget(this);
 			this._editor.render();
 
-			console.log('After render');
-			console.log('this._element.domNode after layoutContentWidget: ', this._resizableElement.domNode);
+			// console.log('After render');
+			// console.log('this._element.domNode after layoutContentWidget: ', this._resizableElement.domNode);
 
 			height = this._hover.containerDomNode.offsetHeight;
 			width = this._hover.containerDomNode.offsetWidth;
 		}
 
-		console.log('height and width');
-		console.log('height : ', height);
-		console.log('width : ', width);
+		// console.log('height and width');
+		// console.log('height : ', height);
+		// console.log('width : ', width);
 
-		console.log('this._hover.containerDomNode from initial rendering : ', this._hover.containerDomNode);
+		// console.log('this._hover.containerDomNode from initial rendering : ', this._hover.containerDomNode);
 
 		// The dimensions of the document in which we are displaying the hover
 		const bodyBox = dom.getClientArea(document.body);
@@ -717,8 +852,8 @@ export class ContentHoverWidget extends Disposable implements IContentWidget {
 			this._resizableElement.maxSize = new dom.Dimension(maxWidth, this._maxRenderingHeight);
 		}
 
-		console.log('height : ', height);
-		console.log('width : ', width);
+		// console.log('height : ', height);
+		// console.log('width : ', width);
 
 		this._resizableElement.layout(height, width);
 		this._hover.containerDomNode.style.height = `${height - 2}px`;
@@ -742,17 +877,17 @@ export class ContentHoverWidget extends Disposable implements IContentWidget {
 		});
 		*/
 
-		console.log('this._hover.contentsDomNode.clientHeight : ', this._hover.contentsDomNode.clientHeight);
-		console.log('this._hover.contentsDomNode.scrollHeight : ', this._hover.contentsDomNode.scrollHeight);
-		console.log('this._hover.contentsDomNode.clientWidth : ', this._hover.contentsDomNode.clientWidth);
-		console.log('this._hover.contentsDomNode.scrollWidth : ', this._hover.contentsDomNode.scrollWidth);
+		// console.log('this._hover.contentsDomNode.clientHeight : ', this._hover.contentsDomNode.clientHeight);
+		// console.log('this._hover.contentsDomNode.scrollHeight : ', this._hover.contentsDomNode.scrollHeight);
+		// console.log('this._hover.contentsDomNode.clientWidth : ', this._hover.contentsDomNode.clientWidth);
+		// console.log('this._hover.contentsDomNode.scrollWidth : ', this._hover.contentsDomNode.scrollWidth);
 
 		// TODO: place back
 		this._hover.scrollbar.scanDomNode();
-		console.log('Before layoutContentWidget');
+		// console.log('Before layoutContentWidget');
 		this._editor.layoutContentWidget(this);
 		this._editor.render();
-		console.log('this.getDomNode() : ', this.getDomNode());
+		// console.log('this.getDomNode() : ', this.getDomNode());
 	}
 
 	private _findMaxRenderingHeight(): number | undefined {
@@ -766,7 +901,6 @@ export class ContentHoverWidget extends Disposable implements IContentWidget {
 		}
 		const mouseBox = this._editor.getScrolledVisiblePosition(this._visibleData?.showAtPosition);
 		const bodyBox = dom.getClientArea(document.body);
-		// Different to availableSpaceAbove because we want to remove the tabs and breadcrumbs, since the content hover disappears as soon as below the tabs or breadcrumbs
 		const availableSpaceAboveMinusTabsAndBreadcrumbs = mouseBox!.top - 4;
 		const mouseBottom = editorBox.top + mouseBox!.top + mouseBox!.height;
 		const availableSpaceBelow = bodyBox.height - mouseBottom;
@@ -777,12 +911,10 @@ export class ContentHoverWidget extends Disposable implements IContentWidget {
 		} else {
 			maxRenderingHeight = this._renderingAbove ? availableSpaceBelow : availableSpaceAboveMinusTabsAndBreadcrumbs;
 		}
-		console.log('maxRenderingHeight : ', maxRenderingHeight);
 		let actualMaxHeight = 0;
 		for (const childHtmlElement of this._hover.contentsDomNode.children) {
 			actualMaxHeight += childHtmlElement.clientHeight;
 		}
-		console.log('actualMaxHeight : ', actualMaxHeight);
 		maxRenderingHeight = Math.min(maxRenderingHeight, actualMaxHeight + 2);
 		return maxRenderingHeight;
 	}
@@ -851,13 +983,21 @@ export class ContentHoverWidget extends Disposable implements IContentWidget {
 	}
 
 	public getDomNode(): HTMLElement {
-		console.log('Inside of getDomNode');
-		return this._resizableElement.domNode;
+		// return this._resizableElement.domNode;
+		// Forcing the visiblity:
+		// this._hover.containerDomNode.style.display = 'block';
+		// this._hover.containerDomNode.style.visibility = 'visible';
+		return this._hover.containerDomNode;
+	}
+
+	public getContentsDomNode(): HTMLElement {
+		return this._hover.contentsDomNode;
 	}
 
 	public getPosition(): IContentWidgetPosition | null {
-		console.log('Inside of getPosition');
+		console.log('Inside of getPosition of ContentHoverWidget');
 		if (!this._visibleData) {
+			console.log('Early return');
 			return null;
 		}
 		let preferAbove = this._visibleData.preferAbove;
@@ -869,10 +1009,26 @@ export class ContentHoverWidget extends Disposable implements IContentWidget {
 		// :before content can align left of the text content
 		const affinity = this._visibleData.isBeforeContent ? PositionAffinity.LeftOfInjectedText : undefined;
 		const rendering = this._renderingAbove ? ContentWidgetPositionPreference.ABOVE : ContentWidgetPositionPreference.BELOW;
+		console.log('position inside of ContentHoverWidget : ', {
+			position: this._visibleData.showAtPosition,
+			secondaryPosition: this._visibleData.showAtSecondaryPosition,
+			// TODO: place back, preference: [rendering],
+			preference: (
+				preferAbove
+					? [ContentWidgetPositionPreference.ABOVE, ContentWidgetPositionPreference.BELOW]
+					: [ContentWidgetPositionPreference.BELOW, ContentWidgetPositionPreference.ABOVE]
+			),
+			positionAffinity: affinity
+		});
 		return {
 			position: this._visibleData.showAtPosition,
 			secondaryPosition: this._visibleData.showAtSecondaryPosition,
-			preference: [rendering],
+			// TODO: place back, preference: [rendering],
+			preference: (
+				preferAbove
+					? [ContentWidgetPositionPreference.ABOVE, ContentWidgetPositionPreference.BELOW]
+					: [ContentWidgetPositionPreference.BELOW, ContentWidgetPositionPreference.ABOVE]
+			),
 			positionAffinity: affinity
 		};
 	}
@@ -911,9 +1067,17 @@ export class ContentHoverWidget extends Disposable implements IContentWidget {
 	}
 
 	private _layout(): void {
+		// TODO: place back
+		// const { fontSize, lineHeight } = this._editor.getOption(EditorOption.fontInfo);
+		// this._hover.contentsDomNode.style.fontSize = `${fontSize}px`;
+		// this._hover.contentsDomNode.style.lineHeight = `${lineHeight / fontSize}`;
+		const height = Math.max(this._editor.getLayoutInfo().height / 4, 250);
 		const { fontSize, lineHeight } = this._editor.getOption(EditorOption.fontInfo);
+
 		this._hover.contentsDomNode.style.fontSize = `${fontSize}px`;
 		this._hover.contentsDomNode.style.lineHeight = `${lineHeight / fontSize}`;
+		this._hover.contentsDomNode.style.maxHeight = `${height}px`;
+		this._hover.contentsDomNode.style.maxWidth = `${Math.max(this._editor.getLayoutInfo().width * 0.66, 500)}px`;
 	}
 
 	private _updateFont(): void {
@@ -924,10 +1088,12 @@ export class ContentHoverWidget extends Disposable implements IContentWidget {
 	public showAt(node: DocumentFragment, visibleData: ContentHoverVisibleData): void {
 
 		console.log(' * Entered into showAt of ContentHoverWidget');
-		console.log('visibleData : ', visibleData);
-		console.log('node : ', node);
-		console.log('node.baseURI ', node.baseURI);
-		console.log('this._element.domNode : ', this._resizableElement.domNode);
+		// console.log('visibleData : ', visibleData);
+		// console.log('node : ', node);
+		// console.log('node.baseURI ', node.baseURI);
+		// console.log('this._element.domNode : ', this._resizableElement.domNode);
+
+		this._hover.contentsDomNode.style.visibility = 'visibility';
 
 		this._setVisibleData(visibleData);
 
@@ -940,27 +1106,31 @@ export class ContentHoverWidget extends Disposable implements IContentWidget {
 
 		// Simply force a synchronous render on the editor
 		// such that the widget does not really render with left = '0px'
-		console.log('Before render');
-		console.log('this._element.domNode : ', this._resizableElement.domNode);
+		// console.log('Before render');
+		// console.log('this._element.domNode : ', this._resizableElement.domNode);
 		this._editor.render();
-		console.log('After render');
-		console.log('this._element.domNode : ', this._resizableElement.domNode);
+		// console.log('After render');
+		// console.log('this._element.domNode : ', this._resizableElement.domNode);
 
 		// See https://github.com/microsoft/vscode/issues/140339
 		// TODO: Doing a second layout of the hover after force rendering the editor
 		this.onContentsChanged();
-		console.log('After onContentsChanged');
-		console.log('this._element.domNode : ', this._resizableElement.domNode);
+		// console.log('After onContentsChanged');
+		// console.log('this._element.domNode : ', this._resizableElement.domNode);
 
 		if (visibleData.stoleFocus) {
 			this._hover.containerDomNode.focus();
 		}
 		visibleData.colorPicker?.layout();
-		this._setLayoutOfResizableElement();
+		// TODO: Place back
+		// this._setLayoutOfResizableElement();
+		console.log('this._hover.containerDomNode : ', this._hover.containerDomNode);
 	}
 
 	public hide(): void {
+		console.log('Inside of hide');
 		this._resizableElement.clearSashHoverState();
+		this._resizableElement.layout(0, 0);
 		if (this._visibleData) {
 			const stoleFocus = this._visibleData.stoleFocus;
 			this._setVisibleData(null);
@@ -972,15 +1142,37 @@ export class ContentHoverWidget extends Disposable implements IContentWidget {
 	}
 
 	public onContentsChanged(): void {
+		console.log('Inside of contents changed');
+		let containerDomNode = this.getDomNode();
+		let offsetWidth = containerDomNode.offsetWidth;
+		let clientWidth = containerDomNode.clientWidth;
+		let clientHeight = containerDomNode.clientHeight;
+		let scrollWidth = containerDomNode.scrollWidth;
+		let width = containerDomNode.style.width;
+		console.log('offsetWidth : ', offsetWidth);
+		console.log('clientWidth : ', clientWidth);
+		console.log('scrollWidth : ', scrollWidth);
+		console.log('width : ', width);
+
+		let contentsDomNode = this.getContentsDomNode();
+		let contentsOffsetWidth = contentsDomNode.offsetWidth;
+		let contentsClientWidth = contentsDomNode.clientWidth;
+		let contentsScrollWidth = contentsDomNode.scrollWidth;
+		let contentsWidth = contentsDomNode.style.width;
+		console.log('contentsOffsetWidth : ', contentsOffsetWidth);
+		console.log('contentsClientWidth : ', contentsClientWidth);
+		console.log('contentsScrollWidth : ', contentsScrollWidth);
+		console.log('contentsWidth : ', contentsWidth);
+
 		this._editor.layoutContentWidget(this);
 		this._hover.onContentsChanged();
 
 		const scrollDimensions = this._hover.scrollbar.getScrollDimensions();
-		console.log('Inside of onContentsChanged');
-		console.log('scrollDimensions : ', scrollDimensions);
+		// console.log('Inside of onContentsChanged');
+		// console.log('scrollDimensions : ', scrollDimensions);
 		const hasHorizontalScrollbar = (scrollDimensions.scrollWidth > scrollDimensions.width);
 		if (hasHorizontalScrollbar) {
-			console.log('Entered into hasHorizontalScrollbar');
+			// console.log('Entered into hasHorizontalScrollbar');
 			// There is just a horizontal scrollbar
 			const extraBottomPadding = `${this._hover.scrollbar.options.horizontalScrollbarSize}px`;
 			if (this._hover.contentsDomNode.style.paddingBottom !== extraBottomPadding) {
@@ -989,6 +1181,38 @@ export class ContentHoverWidget extends Disposable implements IContentWidget {
 				this._hover.onContentsChanged();
 			}
 		}
+
+		containerDomNode = this.getDomNode();
+		offsetWidth = containerDomNode.offsetWidth;
+		clientWidth = containerDomNode.clientWidth;
+		clientHeight = containerDomNode.clientHeight;
+		scrollWidth = containerDomNode.scrollWidth;
+		width = containerDomNode.style.width;
+		console.log('offsetWidth : ', offsetWidth);
+		console.log('clientWidth : ', clientWidth);
+		console.log('scrollWidth : ', scrollWidth);
+		console.log('width : ', width);
+
+		contentsDomNode = this.getContentsDomNode();
+		contentsOffsetWidth = contentsDomNode.offsetWidth;
+		contentsClientWidth = contentsDomNode.clientWidth;
+		contentsScrollWidth = contentsDomNode.scrollWidth;
+		contentsWidth = contentsDomNode.style.width;
+		console.log('contentsOffsetWidth : ', contentsOffsetWidth);
+		console.log('contentsClientWidth : ', contentsClientWidth);
+		console.log('contentsScrollWidth : ', contentsScrollWidth);
+		console.log('contentsWidth : ', contentsWidth);
+
+
+		console.log('this._resizableWidget : ', this._resizableWidget);
+		if (!this._resizableWidget) {
+			console.log('early returns');
+			return;
+		}
+		console.log('setting the layout of the resizable element');
+		this._resizableWidget.resizableElement().layout(clientHeight, clientWidth);
+		this._editor.layoutOverlayWidget(this._resizableWidget);
+		this._editor.render();
 	}
 
 	public clear(): void {

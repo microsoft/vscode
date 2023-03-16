@@ -502,11 +502,11 @@ declare namespace monaco {
 		/**
 		 * line number (starts at 1)
 		 */
-		readonly lineNumber: number;
+		lineNumber: number;
 		/**
 		 * column (the first character in a line is between column 1 and column 2)
 		 */
-		readonly column: number;
+		column: number;
 		constructor(lineNumber: number, column: number);
 		/**
 		 * Create a new position from this position.
