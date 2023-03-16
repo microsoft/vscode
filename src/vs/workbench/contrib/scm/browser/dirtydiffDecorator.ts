@@ -748,7 +748,7 @@ export class DirtyDiffController extends Disposable implements DirtyDiffContribu
 	}
 
 	canNavigate(): boolean {
-		return this.widget?.index === -1 || (!!this.model && this.model.changes.length > 1);
+		return !this.widget || (this.widget?.index === -1) || (!!this.model && this.model.changes.length > 1);
 	}
 
 	refresh(): void {
