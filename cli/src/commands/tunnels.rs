@@ -203,17 +203,19 @@ pub async fn unregister(ctx: CommandContext) -> Result<i32, AnyError> {
 	Ok(0)
 }
 
-async fn do_single_rpc_call(
-	ctx: CommandContext,
+async fn do_single_rpc_call<
+	P: serde::Serialize,
+	R: serde::de::DeserializeOwned + Send + 'static,
+>(
+	ctx: &CommandContext,
 	method: &'static str,
-	params: impl serde::Serialize,
-) -> Result<i32, AnyError> {
+	params: P,
+) -> Result<R, AnyError> {
 	let client = match connect_as_client(&ctx.paths.tunnel_lockfile()).await {
 		Ok(p) => p,
 		Err(CodeError::SingletonLockfileOpenFailed(_))
 		| Err(CodeError::SingletonLockedProcessExited(_)) => {
-			error!(ctx.log, "No tunnel is running");
-			return Ok(1);
+			return Err(CodeError::NoRunningTunnel.into());
 		}
 		Err(e) => return Err(e.into()),
 	};
@@ -236,33 +238,42 @@ async fn do_single_rpc_call(
 		.unwrap();
 	});
 
-	let r = caller.call::<_, _, ()>(method, params).await.unwrap();
+	let r = caller.call(method, params).await.unwrap();
 	rpc.abort();
-
-	if let Err(r) = r {
-		error!(ctx.log, "RPC call failed: {:?}", r);
-		return Ok(1);
-	}
-
-	Ok(0)
+	r.map_err(|err| CodeError::TunnelRpcCallFailed(err).into())
 }
 
 pub async fn restart(ctx: CommandContext) -> Result<i32, AnyError> {
-	do_single_rpc_call(
-		ctx,
+	do_single_rpc_call::<_, ()>(
+		&ctx,
 		protocol::singleton::METHOD_RESTART,
 		protocol::EmptyObject {},
 	)
 	.await
+	.map(|_| 0)
 }
 
 pub async fn kill(ctx: CommandContext) -> Result<i32, AnyError> {
-	do_single_rpc_call(
-		ctx,
+	do_single_rpc_call::<_, ()>(
+		&ctx,
 		protocol::singleton::METHOD_SHUTDOWN,
 		protocol::EmptyObject {},
 	)
 	.await
+	.map(|_| 0)
+}
+
+pub async fn status(ctx: CommandContext) -> Result<i32, AnyError> {
+	let status: protocol::singleton::Status = do_single_rpc_call(
+		&ctx,
+		protocol::singleton::METHOD_STATUS,
+		protocol::EmptyObject {},
+	)
+	.await?;
+
+	ctx.log.result(serde_json::to_string(&status).unwrap());
+
+	Ok(0)
 }
 
 /// Removes unused servers.
