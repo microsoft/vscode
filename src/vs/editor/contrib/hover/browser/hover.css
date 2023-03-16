@@ -31,4 +31,5 @@
 
 .monaco-editor .resizable-hover {
 	z-index: 5;
+	pointer-events: none;
 }

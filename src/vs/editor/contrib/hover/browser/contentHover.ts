@@ -61,9 +61,7 @@ export class ContentHoverController extends Disposable {
 
 		this._register(this._focusTracker.onDidFocus(() => {
 			console.log('On did focus on resizable widget');
-		}));
-		this._register(this._focusTracker.onDidBlur(() => {
-			console.log('on did blur on resizable widget');
+			this._widget.focus();
 		}));
 
 		// Instantiate participants and sort them by `hoverOrdinal` which is relevant for rendering order.
@@ -359,7 +357,7 @@ export class ContentHoverController extends Disposable {
 			console.log('scrollTop : ', this._widget.getDomNode().scrollTop);
 
 			// TODO: Unclear why we need to add these values which appear to be consistent
-			const position = { clientTop: this._widget.getDomNode().offsetTop - 84, clientLeft: this._widget.getDomNode().offsetLeft - 218 };
+			const position = { clientTop: this._widget.getDomNode().offsetTop, clientLeft: this._widget.getDomNode().offsetLeft };
 			console.log('position used when showing the overlay widget, position : ', position);
 			this._resizableWidget.showAt(position, size);
 			// this._editor.layoutOverlayWidget(this._resizableWidget);
@@ -502,6 +500,7 @@ export class ResizableHoverOverlay extends Disposable implements IOverlayWidget 
 		// TODO: When the following is added the initial content hover appears to disappear
 		this._editor.addOverlayWidget(this);
 		this._resizableElement.domNode.style.zIndex = '100';
+		this._resizableElement.domNode.tabIndex = 0;
 		this._resizableElement.domNode.style.position = 'fixed';
 
 		let state: ResizeState | undefined;
@@ -668,6 +667,10 @@ export class ResizableHoverOverlay extends Disposable implements IOverlayWidget 
 		this._resizableElement.domNode.style.top = position.clientTop + 'px';
 		this._resizableElement.domNode.style.left = position.clientLeft + 'px';
 		this._resizableElement.layout(size.height + 4, size.width + 4);
+		this._resizableElement.domNode.style.zIndex = '100';
+		this._resizableElement.domNode.tabIndex = 0;
+		this._resizableElement.domNode.style.position = 'fixed';
+		this._resizableElement.domNode.style.pointerEvents = 'none';
 		this._editor.layoutOverlayWidget(this);
 		this._editor.render();
 		const resizableDomNode = this._resizableElement.domNode;
