@@ -3,10 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { $ } from 'vs/base/browser/dom';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import 'vs/css!./media/review';
-import { IActiveCodeEditor, ICodeEditor, isCodeEditor, isDiffEditor, IViewZone } from 'vs/editor/browser/editorBrowser';
+import { IActiveCodeEditor, ICodeEditor, isCodeEditor, isDiffEditor } from 'vs/editor/browser/editorBrowser';
 import { EditorAction, EditorContributionInstantiation, registerEditorAction, registerEditorContribution } from 'vs/editor/browser/editorExtensions';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import * as nls from 'vs/nls';
@@ -19,24 +18,6 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { MenuId, MenuRegistry } from 'vs/platform/actions/common/actions';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { ActiveCursorHasCommentingRange, CommentController, ID } from 'vs/workbench/contrib/comments/browser/commentsController';
-
-export class ReviewViewZone implements IViewZone {
-	public readonly afterLineNumber: number;
-	public readonly domNode: HTMLElement;
-	private callback: (top: number) => void;
-
-	constructor(afterLineNumber: number, onDomNodeTop: (top: number) => void) {
-		this.afterLineNumber = afterLineNumber;
-		this.callback = onDomNodeTop;
-
-		this.domNode = $('.review-viewzone');
-	}
-
-	onDomNodeTop(top: number): void {
-		this.callback(top);
-	}
-}
-
 
 export class NextCommentThreadAction extends EditorAction {
 	constructor() {
