@@ -117,10 +117,6 @@ export class KeybindingsSearchWidget extends SearchWidget {
 		if (!this._chords) {
 			this._chords = [];
 		}
-		if (this._chords.length === 2) {
-			// TODO: keep the limit at 2 for now
-			this._chords = [];
-		}
 		const lastChordIsComplete = (this._chords.length === 0 || this._chords[this._chords.length - 1].getDispatchChords()[0] !== null);
 		if (lastChordIsComplete) {
 			this._chords.push(keybinding);
@@ -246,8 +242,11 @@ export class DefineKeybindingWidget extends Widget {
 		dom.clearNode(this._outputNode);
 		dom.clearNode(this._showExistingKeybindingsNode);
 
+
+
 		const firstLabel = new KeybindingLabel(this._outputNode, OS, defaultKeybindingLabelStyles);
 		firstLabel.set(withNullAsUndefined(this._chords?.[0]));
+
 
 		if (this._chords) {
 			for (let i = 1; i < this._chords.length; i++) {
