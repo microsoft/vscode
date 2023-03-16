@@ -542,7 +542,14 @@ export class InteractiveEditorZoneWidget extends ZoneWidget {
 	}
 
 	updatePosition(where: IPosition) {
+		// todo@jrieken
+		// UGYLY: we need to restore focus because showing the zone removes and adds it and that
+		// means we loose focus for a bit
+		const hasFocusNow = this.widget.inputEditor.hasWidgetFocus();
 		super.show(where, this._computeHeightInLines());
+		if (hasFocusNow) {
+			this.widget.inputEditor.focus();
+		}
 	}
 
 	override hide(): void {

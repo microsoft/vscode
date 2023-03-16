@@ -270,11 +270,11 @@ export class UndoCommand extends AbstractInteractiveEditorAction {
 				weight: KeybindingWeight.EditorContrib + 10,
 				primary: KeyMod.CtrlCmd | KeyCode.KeyZ,
 			},
-			menu: {
-				id: MENU_INTERACTIVE_EDITOR_WIDGET,
-				group: 'B',
-				order: 1
-			}
+			// menu: {
+			// 	id: MENU_INTERACTIVE_EDITOR_WIDGET,
+			// 	group: 'B',
+			// 	order: 1
+			// }
 		});
 	}
 
