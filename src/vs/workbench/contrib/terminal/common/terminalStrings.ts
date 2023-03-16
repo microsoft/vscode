@@ -60,8 +60,8 @@ export const terminalStrings = {
 		value: localize('workbench.action.terminal.sizeToContentWidthInstance', "Toggle Size to Content Width"),
 		original: 'Toggle Size to Content Width'
 	},
-	showOrFocusHover: {
-		value: localize('workbench.action.terminal.showOrFocusHover', "Show or Focus Hover"),
-		original: 'Show or Focus Hover'
+	focusHover: {
+		value: localize('workbench.action.terminal.focusHover', "Focus Hover"),
+		original: 'Focus Hover'
 	},
 };

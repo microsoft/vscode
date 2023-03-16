@@ -1714,9 +1714,9 @@ export function registerTerminalActions() {
 	registerAction2(class extends Action2 {
 		constructor() {
 			super({
-				id: TerminalCommandId.ShowOrFocusHover,
-				title: terminalStrings.showOrFocusHover,
-				f1: false,
+				id: TerminalCommandId.FocusHover,
+				title: terminalStrings.focusHover,
+				f1: true,
 				category,
 				precondition: ContextKeyExpr.or(ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated), TerminalContextKeys.isOpen),
 				keybinding: {
