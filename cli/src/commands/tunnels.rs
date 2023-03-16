@@ -113,14 +113,14 @@ pub async fn service(
 ) -> Result<i32, AnyError> {
 	let manager = create_service_manager(ctx.log.clone(), &ctx.paths);
 	match service_args {
-		TunnelServiceSubCommands::Install => {
+		TunnelServiceSubCommands::Install(args) => {
 			// ensure logged in, otherwise subsequent serving will fail
 			Auth::new(&ctx.paths, ctx.log.clone())
 				.get_credential()
 				.await?;
 
 			// likewise for license consent
-			legal::require_consent(&ctx.paths, false)?;
+			legal::require_consent(&ctx.paths, args.accept_server_license_terms)?;
 
 			let current_exe =
 				std::env::current_exe().map_err(|e| wrap(e, "could not get current exe"))?;
@@ -377,11 +377,8 @@ async fn serve_with_csa(
 		let tunnel = if let Some(d) = gateway_args.tunnel.clone().into() {
 			dt.start_existing_tunnel(d).await
 		} else {
-			dt.start_new_launcher_tunnel(
-				gateway_args.name.as_deref(),
-				gateway_args.random_name,
-			)
-			.await
+			dt.start_new_launcher_tunnel(gateway_args.name.as_deref(), gateway_args.random_name)
+				.await
 		}?;
 
 		csa.connection_token = Some(get_connection_token(&tunnel));
