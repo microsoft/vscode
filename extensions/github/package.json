@@ -38,11 +38,14 @@
       },
       {
         "command": "github.copyVscodeDevLink",
-        "enablement": "github.hasGitHubRepo && resourceScheme != untitled && remoteName != 'codespaces'",
         "title": "Copy vscode.dev Link"
       },
       {
         "command": "github.copyVscodeDevLinkFile",
+        "title": "Copy vscode.dev Link"
+      },
+      {
+        "command": "github.copyVscodeDevLinkWithoutRange",
         "title": "Copy vscode.dev Link"
       },
       {
@@ -75,14 +78,12 @@
           "when": "false"
         },
         {
+          "command": "github.copyVscodeDevLinkWithoutRange",
+          "when": "false"
+        },
+        {
           "command": "github.openOnVscodeDev",
           "when": "false"
-        }
-      ],
-      "share": [
-        {
-          "command": "github.copyVscodeDevLink",
-          "title": "Copy vscode.dev Link"
         }
       ],
       "file/share": [
@@ -91,7 +92,41 @@
           "when": "github.hasGitHubRepo && remoteName != 'codespaces'",
           "group": "0_vscode@0"
         }
+      ],
+      "editor/context/share": [
+        {
+          "command": "github.copyVscodeDevLink",
+          "when": "github.hasGitHubRepo && resourceScheme != untitled && remoteName != 'codespaces'",
+          "group": "0_vscode@0"
+        }
+      ],
+      "explorer/context/share": [
+        {
+          "command": "github.copyVscodeDevLinkWithoutRange",
+          "when": "github.hasGitHubRepo && resourceScheme != untitled && remoteName != 'codespaces'",
+          "group": "0_vscode@0"
+        }
+      ],
+      "editor/lineNumber/context": [
+        {
+          "command": "github.copyVscodeDevLink",
+          "when": "github.hasGitHubRepo && resourceScheme != untitled && activeEditor == workbench.editors.files.textFileEditor && config.editor.lineNumbers == on && remoteName != 'codespaces'",
+          "group": "1_cutcopypaste@2"
+        },
+        {
+          "command": "github.copyVscodeDevLink",
+          "when": "github.hasGitHubRepo && resourceScheme != untitled && activeEditor == workbench.editor.notebook && remoteName != 'codespaces'",
+          "group": "1_cutcopypaste@2"
+        }
+      ],
+      "editor/title/context/share": [
+        {
+          "command": "github.copyVscodeDevLinkWithoutRange",
+          "when": "github.hasGitHubRepo && resourceScheme != untitled && remoteName != 'codespaces'",
+          "group": "0_vscode@0"
+        }
       ]
+
     },
     "configuration": [
       {
