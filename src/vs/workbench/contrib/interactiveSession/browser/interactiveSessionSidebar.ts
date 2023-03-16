@@ -75,6 +75,11 @@ export class InteractiveSessionViewPane extends ViewPane {
 		super.layoutBody(height, width);
 		this.view.layout(height, width);
 	}
+
+	override saveState(): void {
+		this.view.saveState();
+		super.saveState();
+	}
 }
 
 
