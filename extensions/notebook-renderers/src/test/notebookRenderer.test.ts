@@ -204,7 +204,7 @@ suite('Notebook builtin output renderer', () => {
 		assert.ok(inserted.innerHTML.indexOf('>replaced content</') !== -1, `Content was not added to output element:\n ${outputElement.innerHTML}`);
 	});
 
-	test(`Multiple adjacent = streaming outputs should be consolidated one element`, async () => {
+	test(`Multiple adjacent streaming outputs should be consolidated one element`, async () => {
 		const context = createContext();
 		const renderer = await activate(context);
 		assert.ok(renderer, 'Renderer not created');
