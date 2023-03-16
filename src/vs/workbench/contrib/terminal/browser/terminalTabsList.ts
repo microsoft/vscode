@@ -21,7 +21,6 @@ import { ITerminalBackend, TerminalCommandId } from 'vs/workbench/contrib/termin
 import { TerminalLocation, TerminalSettingId } from 'vs/platform/terminal/common/terminal';
 import { Codicon } from 'vs/base/common/codicons';
 import { Action } from 'vs/base/common/actions';
-import { MarkdownString } from 'vs/base/common/htmlContent';
 import { DEFAULT_LABELS_CONTAINER, IResourceLabel, ResourceLabels } from 'vs/workbench/browser/labels';
 import { IDecorationData, IDecorationsProvider, IDecorationsService } from 'vs/workbench/services/decorations/common/decorations';
 import { IHoverAction, IHoverService } from 'vs/workbench/services/hover/browser/hover';
@@ -45,7 +44,7 @@ import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecy
 import { IProcessDetails } from 'vs/platform/terminal/common/terminalProcess';
 import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/terminalContextKey';
 import { getTerminalResourcesFromDragEvent, parseTerminalUri } from 'vs/workbench/contrib/terminal/browser/terminalUri';
-import { getShellIntegrationTooltip } from 'vs/workbench/contrib/terminal/browser/terminalTooltip';
+import { getInstanceHoverInfo } from 'vs/workbench/contrib/terminal/browser/terminalTooltip';
 import { defaultInputBoxStyles } from 'vs/platform/theme/browser/defaultStyles';
 import { Event, Emitter } from 'vs/base/common/event';
 import { Schemas } from 'vs/base/common/network';
@@ -777,21 +776,4 @@ class TabDecorationsProvider implements IDecorationsProvider {
 	dispose(): void {
 		this.dispose();
 	}
-}
-
-function getInstanceHoverInfo(instance: ITerminalInstance): { content: MarkdownString; actions: IHoverAction[] } {
-	let statusString = '';
-	const statuses = instance.statusList.statuses;
-	const actions = [];
-	for (const status of statuses) {
-		statusString += `\n\n---\n\n${status.icon ? `$(${status.icon?.id}) ` : ''}${status.tooltip || status.id}`;
-		if (status.hoverActions) {
-			actions.push(...status.hoverActions);
-		}
-	}
-
-	const shellIntegrationString = getShellIntegrationTooltip(instance, true);
-	const content = new MarkdownString(instance.title + shellIntegrationString + statusString, { supportThemeIcons: true });
-
-	return { content, actions };
 }

@@ -136,9 +136,9 @@ export class TerminalGroupService extends Disposable implements ITerminalGroupSe
 		if (this.instances.length === 0) {
 			return;
 		}
+
 		const pane = this._viewsService.getActiveViewWithId<TerminalViewPane>(TERMINAL_VIEW_ID);
 		pane?.terminalTabbedView?.showHover(focus);
-
 	}
 
 	async focusActiveInstance(): Promise<void> {
