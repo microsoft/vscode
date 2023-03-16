@@ -20,6 +20,7 @@ use super::{
 use crate::{
 	async_pipe::socket_stream_split,
 	auth::Auth,
+	constants::APPLICATION_NAME,
 	json_rpc::{new_json_rpc, start_json_rpc},
 	log::{self, Logger},
 	singleton::connect_as_client,
@@ -138,7 +139,7 @@ pub async fn service(
 					],
 				)
 				.await?;
-			ctx.log.result("Service successfully installed! You can use `code tunnel service log` to monitor it, and `code tunnel service uninstall` to remove it.");
+			ctx.log.result(format!("Service successfully installed! You can use `{} tunnel service log` to monitor it, and `code tunnel service uninstall` to remove it.", APPLICATION_NAME));
 		}
 		TunnelServiceSubCommands::Uninstall => {
 			manager.unregister().await?;
