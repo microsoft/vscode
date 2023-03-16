@@ -200,10 +200,7 @@ pub struct ExtensionArgs {
 
 impl ExtensionArgs {
 	pub fn add_code_args(&self, target: &mut Vec<String>) {
-		if let Some(ed) = &self.desktop_code_options.extensions_dir {
-			target.push(ed.to_string());
-		}
-
+		self.desktop_code_options.add_code_args(target);
 		self.subcommand.add_code_args(target);
 	}
 }

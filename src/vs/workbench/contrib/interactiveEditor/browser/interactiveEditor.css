@@ -6,65 +6,35 @@
 .monaco-editor .interactive-editor {
 	z-index: 100;
 	color: inherit;
-	padding: 6px 0 6px 3px;
+	padding: 6px 0 6px 1px;
 }
 
 /* body */
 
 .monaco-editor .interactive-editor .body {
 	display: flex;
+	padding-right: 4px;
 }
 
-.monaco-editor .interactive-editor .body .expando {
-	flex-grow: 0;
-	padding-top: 6px;
-	padding-right: 2px;
-	cursor: pointer;
-}
-
-.monaco-editor .interactive-editor .body .history {
-	display: block;
-	color: var(--vscode-descriptionForeground);
-}
-
-.monaco-editor .interactive-editor .body .history.hidden {
-	display: none;
-}
-
-.monaco-editor .interactive-editor .body .history .history-entry {
+.monaco-editor .interactive-editor .body .content {
 	display: flex;
-	justify-content: space-between;
-	padding: 2px
+	box-sizing: border-box;
+	border-radius: 2px;
+	border: 1px solid var(--vscode-settings-textInputBorder);
 }
 
-.monaco-editor .interactive-editor .body .history .history-entry.hidden {
-	display: none;
-}
-
-.monaco-editor .interactive-editor .body .history .history-entry:hover {
-	background-color: var(--vscode-list-hoverBackground);
-	color: var(--vscode-list-hoverForeground);
-}
-
-.monaco-editor .interactive-editor .body.preview {
-	padding: 4px 4px 0 4px;
+.monaco-editor .interactive-editor .body .content.synthetic-focus {
+	outline: 1px solid var(--vscode-focusBorder);
 }
 
 .monaco-editor .interactive-editor .body .content .input {
-	border-radius: 2px;
-	box-sizing: border-box;
 	padding: 2px;
 	background-color: var(--vscode-input-background);
-	border: 1px solid var(--vscode-settings-textInputBorder);
 	cursor: text;
 }
 
 .monaco-editor .interactive-editor .monaco-editor-background {
 	background-color: var(--vscode-input-background);
-}
-
-.monaco-editor .interactive-editor .body .content .input.synthetic-focus {
-	outline: 1px solid var(--vscode-focusBorder);
 }
 
 .monaco-editor .interactive-editor .body .content .input .editor-placeholder {
@@ -110,19 +80,65 @@
 	top: 0;
 }
 
-/* message  */
+/* status */
 
-.monaco-editor .interactive-editor .message {
-	padding: 6px 0;
-	color: var(--vscode-errorForeground);
+.monaco-editor .interactive-editor .status {
+	padding: 6px 10px 2px 2px;
 }
 
-.monaco-editor .interactive-editor .message.hidden {
+.monaco-editor .interactive-editor .status.hidden {
 	display: none;
 }
 
-/* decoration styles */
+.monaco-editor .interactive-editor .status .status-item {
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+}
 
+.monaco-editor .interactive-editor .status .status-item.error .label {
+	color: var(--vscode-errorForeground);
+}
+
+.monaco-editor .interactive-editor .status .status-item.warn .label {
+	color: var(--vscode-editorWarning-foreground);
+}
+
+.monaco-editor .interactive-editor .status .monaco-toolbar .action-label.checked {
+	color: var(--vscode-checkbox-foreground);
+	background-color: var(--vscode-checkbox-background);
+	outline: 1px solid var(--vscode-checkbox-border);
+}
+
+/* history */
+
+.monaco-editor .interactive-editor .history {
+	border-top: 1px solid var(--vscode-widget-border);
+	padding: 0 10px 2px 2px;
+	display: block;
+	color: var(--vscode-descriptionForeground);
+}
+
+.monaco-editor .interactive-editor .history.hidden {
+	display: none;
+}
+
+.monaco-editor .interactive-editor .history .history-entry {
+	display: flex;
+	justify-content: space-between;
+	padding: 2px
+}
+
+.monaco-editor .interactive-editor .history .history-entry.hidden {
+	display: none;
+}
+
+.monaco-editor .interactive-editor .history .history-entry:hover {
+	background-color: var(--vscode-list-hoverBackground);
+	color: var(--vscode-list-hoverForeground);
+}
+
+/* decoration styles */
 
 .monaco-editor .interactive-editor-lines-deleted-range-inline {
 	text-decoration: line-through;
