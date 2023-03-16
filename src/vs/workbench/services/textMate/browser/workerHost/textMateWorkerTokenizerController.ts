@@ -183,8 +183,13 @@ export class TextMateWorkerTokenizerController extends Disposable {
 			let prevState = d.startLineNumber <= 1 ? this._initialState : this._states.get(d.startLineNumber - 1 - 1);
 			for (let i = 0; i < d.stateDeltas.length; i++) {
 				const delta = d.stateDeltas[i];
-				const state = applyStateStackDiff(prevState, delta)!;
-				this._states.set(d.startLineNumber + i - 1, state);
+				let state: StateStack;
+				if (delta) {
+					state = applyStateStackDiff(prevState, delta)!;
+					this._states.set(d.startLineNumber + i - 1, state);
+				} else {
+					state = this._states.get(d.startLineNumber + i - 1)!;
+				}
 
 				const offset = curToFutureTransformerStates.transform(d.startLineNumber + i - 1);
 				if (offset !== undefined) {
