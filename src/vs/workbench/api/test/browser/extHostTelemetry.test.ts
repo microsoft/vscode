@@ -7,7 +7,7 @@ import * as assert from 'assert';
 import { URI } from 'vs/base/common/uri';
 import { ExtensionIdentifier, IExtensionDescription, TargetPlatform } from 'vs/platform/extensions/common/extensions';
 import { DEFAULT_LOG_LEVEL, LogLevel } from 'vs/platform/log/common/log';
-import { ITelemetryInfo, TelemetryLevel } from 'vs/platform/telemetry/common/telemetry';
+import { TelemetryLevel } from 'vs/platform/telemetry/common/telemetry';
 import { TestTelemetryLoggerService } from 'vs/platform/telemetry/test/common/telemetryLogAppender.test';
 import { IExtHostInitDataService } from 'vs/workbench/api/common/extHostInitDataService';
 import { ExtHostTelemetry, ExtHostTelemetryLogger } from 'vs/workbench/api/common/extHostTelemetry';
@@ -38,7 +38,7 @@ suite('ExtHostTelemetry', function () {
 		appUriScheme: 'test',
 	};
 
-	const mockTelemetryInfo: ITelemetryInfo = {
+	const mockTelemetryInfo = {
 		firstSessionDate: '2020-01-01T00:00:00.000Z',
 		sessionId: 'test',
 		machineId: 'test',
@@ -66,7 +66,7 @@ suite('ExtHostTelemetry', function () {
 	const createExtHostTelemetry = () => {
 		const extensionTelemetry = new ExtHostTelemetry(new class extends mock<IExtHostInitDataService>() {
 			override environment: IEnvironment = mockEnvironment;
-			override telemetryInfo: ITelemetryInfo = mockTelemetryInfo;
+			override telemetryInfo = mockTelemetryInfo;
 			override remote = mockRemote;
 		}, new TestTelemetryLoggerService(DEFAULT_LOG_LEVEL));
 		extensionTelemetry.$initializeTelemetryLevel(TelemetryLevel.USAGE, true, { usage: true, error: true });
@@ -235,7 +235,7 @@ suite('ExtHostTelemetry', function () {
 		const loggerService = new TestTelemetryLoggerService(LogLevel.Trace);
 		const extensionTelemetry = new ExtHostTelemetry(new class extends mock<IExtHostInitDataService>() {
 			override environment: IEnvironment = mockEnvironment;
-			override telemetryInfo: ITelemetryInfo = mockTelemetryInfo;
+			override telemetryInfo = mockTelemetryInfo;
 			override remote = mockRemote;
 		}, loggerService);
 		extensionTelemetry.$initializeTelemetryLevel(TelemetryLevel.USAGE, true, { usage: true, error: true });

@@ -255,7 +255,6 @@ export class ShowNextInlineSuggestionAction extends EditorAction {
 		const controller = GhostTextController.get(editor);
 		if (controller) {
 			controller.showNextInlineCompletion();
-			editor.focus();
 		}
 	}
 }
@@ -279,7 +278,6 @@ export class ShowPreviousInlineSuggestionAction extends EditorAction {
 		const controller = GhostTextController.get(editor);
 		if (controller) {
 			controller.showPreviousInlineCompletion();
-			editor.focus();
 		}
 	}
 }

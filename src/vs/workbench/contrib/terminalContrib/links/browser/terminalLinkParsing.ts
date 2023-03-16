@@ -204,8 +204,11 @@ export function toLinkSuffix(match: RegExpExecArray | null): ILinkSuffix | null 
 	};
 }
 
-// Paths cannot start with opening brackets
-const linkWithSuffixPathCharacters = /(?<path>[^\s\[\({][^\s]*)$/;
+// This defines valid path characters for a link with a suffix, the first `[]` of the regex includes
+// characters the path is not allowed to _start_ with, the second `[]` includes characters not
+// allowed at all in the path. If the characters show up in both regexes the link will stop at that
+// character, otherwise it will stop at a space character.
+const linkWithSuffixPathCharacters = /(?<path>[^\s\|<>\[\({][^\s\|<>]*)$/;
 
 export function detectLinks(line: string, os: OperatingSystem) {
 	// 1: Detect all links on line via suffixes first

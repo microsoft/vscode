@@ -37,6 +37,7 @@ export const ITerminalInstanceService = createDecorator<ITerminalInstanceService
  * been initialized.
  */
 export interface ITerminalContribution extends IDisposable {
+	layout?(xterm: IXtermTerminal & { raw: RawXtermTerminal }): void;
 	xtermReady?(xterm: IXtermTerminal & { raw: RawXtermTerminal }): void;
 }
 
@@ -652,11 +653,6 @@ export interface ITerminalInstance {
 	 * The remote-aware $HOME directory (or Windows equivalent) of the terminal.
 	 */
 	userHome: string | undefined;
-
-	/**
-	 * Shows the environment information hover if the widget exists.
-	 */
-	showEnvironmentInfoHover(): void;
 
 	/**
 	 * Registers and returns a marker

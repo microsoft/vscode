@@ -219,7 +219,6 @@
 
 			const swPath = `service-worker.js?v=${expectedWorkerVersion}&vscode-resource-base-authority=${searchParams.get('vscode-resource-base-authority')}&remoteAuthority=${searchParams.get('remoteAuthority') ?? ''}`;
 			navigator.serviceWorker.register(swPath)
-				.then(() => navigator.serviceWorker.ready)
 				.then(async registration => {
 					/**
 					 * @param {MessageEvent} event
@@ -241,7 +240,6 @@
 							// `unregister` and `register` here.
 							return registration.unregister()
 								.then(() => navigator.serviceWorker.register(swPath))
-								.then(() => navigator.serviceWorker.ready)
 								.finally(() => { resolve(); });
 						}
 					};
@@ -269,7 +267,10 @@
 						navigator.serviceWorker.addEventListener('controllerchange', onControllerChange);
 					}
 				}).catch(error => {
-					reject(new Error(`Could not register service workers: ${error}.`));
+					if (!onElectron && error instanceof Error && error.message.includes('user denied permission')) {
+						return reject(new Error(`Could not register service worker. Please make sure third party cookies are enabled: ${error}`));
+					}
+					return reject(new Error(`Could not register service worker: ${error}.`));
 				});
 		});
 
@@ -434,13 +435,13 @@
 		};
 
 		hostMessaging.onMessage('did-load-resource', (_event, data) => {
-			navigator.serviceWorker.ready.then(registration => {
+			navigator.serviceWorker.getRegistration().then(registration => {
 				assertIsDefined(registration.active).postMessage({ channel: 'did-load-resource', data }, data.data?.buffer ? [data.data.buffer] : []);
 			});
 		});
 
 		hostMessaging.onMessage('did-load-localhost', (_event, data) => {
-			navigator.serviceWorker.ready.then(registration => {
+			navigator.serviceWorker.getRegistration().then(registration => {
 				assertIsDefined(registration.active).postMessage({ channel: 'did-load-localhost', data });
 			});
 		});

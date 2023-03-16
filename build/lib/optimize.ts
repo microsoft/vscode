@@ -54,7 +54,7 @@ function loaderPlugin(src: string, base: string, amdModuleId: string | undefined
 	);
 }
 
-function loader(src: string, bundledFileHeader: string, bundleLoader: boolean, externalLoaderInfo?: any): NodeJS.ReadWriteStream {
+function loader(src: string, bundledFileHeader: string, bundleLoader: boolean, externalLoaderInfo?: util.IExternalLoaderInfo): NodeJS.ReadWriteStream {
 	let loaderStream = gulp.src(`${src}/vs/loader.js`, { base: `${src}` });
 	if (bundleLoader) {
 		loaderStream = es.merge(
@@ -95,7 +95,7 @@ function loader(src: string, bundledFileHeader: string, bundleLoader: boolean, e
 					files.push(new VinylFile({
 						path: 'fake2',
 						base: '.',
-						contents: Buffer.from(`require.config(${JSON.stringify(externalLoaderInfo, undefined, 2)});`)
+						contents: Buffer.from(emitExternalLoaderInfo(externalLoaderInfo))
 					}));
 				}
 				for (const file of files) {
@@ -105,6 +105,19 @@ function loader(src: string, bundledFileHeader: string, bundleLoader: boolean, e
 			}))
 			.pipe(concat('vs/loader.js'))
 	);
+}
+
+function emitExternalLoaderInfo(externalLoaderInfo: util.IExternalLoaderInfo): string {
+	const externalBaseUrl = externalLoaderInfo.baseUrl;
+	externalLoaderInfo.baseUrl = '$BASE_URL';
+
+	// If defined, use the runtime configured baseUrl.
+	const code = `
+(function() {
+	const baseUrl = require.getConfig().baseUrl || ${JSON.stringify(externalBaseUrl)};
+	require.config(${JSON.stringify(externalLoaderInfo, undefined, 2)});
+})();`;
+	return code.replace('"$BASE_URL"', 'baseUrl');
 }
 
 function toConcatStream(src: string, bundledFileHeader: string, sources: bundle.IFile[], dest: string, fileContentMapper: (contents: string, path: string) => string): NodeJS.ReadWriteStream {
@@ -170,7 +183,7 @@ export interface IOptimizeAMDTaskOpts {
 	/**
 	 * Additional info we append to the end of the loader
 	 */
-	externalLoaderInfo?: any;
+	externalLoaderInfo?: util.IExternalLoaderInfo;
 	/**
 	 * (true by default - append css and nls to loader)
 	 */
@@ -189,7 +202,7 @@ export interface IOptimizeAMDTaskOpts {
 	languages?: Language[];
 	/**
 	 * File contents interceptor
-	 * @param contents The contens of the file
+	 * @param contents The contents of the file
 	 * @param path The absolute file path, always using `/`, even on Windows
 	 */
 	fileContentMapper?: (contents: string, path: string) => string;
@@ -324,7 +337,7 @@ function optimizeManualTask(options: IOptimizeManualTaskOpts[]): NodeJS.ReadWrit
 	return es.merge(...concatenations);
 }
 
-export function optimizeLoaderTask(src: string, out: string, bundleLoader: boolean, bundledFileHeader = '', externalLoaderInfo?: any): () => NodeJS.ReadWriteStream {
+export function optimizeLoaderTask(src: string, out: string, bundleLoader: boolean, bundledFileHeader = '', externalLoaderInfo?: util.IExternalLoaderInfo): () => NodeJS.ReadWriteStream {
 	return () => loader(src, bundledFileHeader, bundleLoader, externalLoaderInfo).pipe(gulp.dest(out));
 }
 

@@ -314,6 +314,11 @@ export interface IWorkbenchConstructionOptions {
 	 */
 	readonly initialColorTheme?: IInitialColorTheme;
 
+	/**
+	 *  Welcome view dialog on first launch. Can be dismissed by the user.
+	 */
+	readonly welcomeDialog?: IWelcomeDialog;
+
 	//#endregion
 
 
@@ -510,10 +515,10 @@ export interface IWelcomeBanner {
 	/**
 	 * Optional actions to appear as links after the welcome banner message.
 	 */
-	actions?: IWelcomeBannerAction[];
+	actions?: IWelcomeLinkAction[];
 }
 
-export interface IWelcomeBannerAction {
+export interface IWelcomeLinkAction {
 
 	/**
 	 * The link to open when clicking. Supports command invocation when
@@ -576,6 +581,35 @@ export interface IInitialColorTheme {
 	 * A list of workbench colors to apply initially.
 	 */
 	readonly colors?: { [colorId: string]: string };
+}
+
+export interface IWelcomeDialog {
+
+	/**
+	 * Unique identifier of the welcome dialog. The identifier will be used to determine
+	 * if the dialog has been previously displayed.
+	 */
+	id: string;
+
+	/**
+	 * Title of the welcome dialog.
+	 */
+	title: string;
+
+	/**
+	 * Button text of the welcome dialog.
+	 */
+	buttonText: string;
+
+	/**
+	 * Message text and icon for the welcome dialog.
+	 */
+	messages: { message: string; icon: string }[];
+
+	/**
+	 * Optional action to appear as links at the bottom of the welcome dialog.
+	 */
+	action?: IWelcomeLinkAction;
 }
 
 export interface IDefaultView {

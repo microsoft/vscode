@@ -2,34 +2,17 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-use std::path::Path;
-
-use tokio::{
-	io::{AsyncReadExt, AsyncWriteExt},
-	net::{unix::OwnedWriteHalf, UnixStream},
-};
-
-use crate::util::errors::{wrap, AnyError};
-
 use super::socket_signal::{ClientMessageDecoder, ServerMessageSink};
+use crate::{
+	async_pipe::{get_socket_rw_stream, socket_stream_split, AsyncPipeWriteHalf},
+	util::errors::AnyError,
+};
+use std::path::Path;
+use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
 pub struct ServerBridge {
-	write: OwnedWriteHalf,
+	write: AsyncPipeWriteHalf,
 	decoder: ClientMessageDecoder,
-}
-
-pub async fn get_socket_rw_stream(path: &Path) -> Result<UnixStream, AnyError> {
-	let s = UnixStream::connect(path).await.map_err(|e| {
-		wrap(
-			e,
-			format!(
-				"error connecting to vscode server socket in {}",
-				path.display()
-			),
-		)
-	})?;
-
-	Ok(s)
 }
 
 const BUFFER_SIZE: usize = 65536;
@@ -41,7 +24,7 @@ impl ServerBridge {
 		decoder: ClientMessageDecoder,
 	) -> Result<Self, AnyError> {
 		let stream = get_socket_rw_stream(path).await?;
-		let (mut read, write) = stream.into_split();
+		let (mut read, write) = socket_stream_split(stream);
 
 		tokio::spawn(async move {
 			let mut read_buf = vec![0; BUFFER_SIZE];

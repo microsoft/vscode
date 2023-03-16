@@ -53,7 +53,7 @@ class FileDiagnostics {
 		}
 
 		const existing = this._diagnostics.get(kind);
-		if (arrays.equals(existing || arrays.empty, diagnostics, diagnosticsEquals)) {
+		if (existing?.length === 0 && diagnostics.length === 0) {
 			// No need to update
 			return false;
 		}

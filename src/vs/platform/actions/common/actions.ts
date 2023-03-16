@@ -179,6 +179,10 @@ export class MenuId {
 	static readonly MergeBaseToolbar = new MenuId('MergeBaseToolbar');
 	static readonly MergeInputResultToolbar = new MenuId('MergeToolbarResultToolbar');
 	static readonly InlineSuggestionToolbar = new MenuId('InlineSuggestionToolbar');
+	static readonly InteractiveSessionContext = new MenuId('InteractiveSessionContext');
+	static readonly InteractiveSessionCodeBlock = new MenuId('InteractiveSessionCodeblock');
+	static readonly InteractiveSessionTitle = new MenuId('InteractiveSessionTitle');
+	static readonly InteractiveSessionExecute = new MenuId('InteractiveSessionExecute');
 
 	/**
 	 * Create or reuse a `MenuId` with the given identifier
@@ -598,17 +602,4 @@ export function registerAction2(ctor: { new(): Action2 }): IDisposable {
 
 	return disposables;
 }
-//#endregion
-
-//#region --- Register a command to get all actions from the command palette
-CommandsRegistry.registerCommand('_getAllCommands', function () {
-	const commandPaletteActions = MenuRegistry.getMenuItems(MenuId.CommandPalette);
-	const returnedActions = [];
-	for (const action of commandPaletteActions) {
-		if (isIMenuItem(action)) {
-			returnedActions.push({ command: action.command.id, title: action.command.title });
-		}
-	}
-	return returnedActions;
-});
 //#endregion
