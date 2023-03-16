@@ -98,15 +98,18 @@ export class MenuId {
 	static readonly MenubarViewMenu = new MenuId('MenubarViewMenu');
 	static readonly MenubarHomeMenu = new MenuId('MenubarHomeMenu');
 	static readonly OpenEditorsContext = new MenuId('OpenEditorsContext');
+	static readonly OpenEditorsContextShare = new MenuId('OpenEditorsContextShare');
 	static readonly ProblemsPanelContext = new MenuId('ProblemsPanelContext');
 	static readonly SCMChangeContext = new MenuId('SCMChangeContext');
 	static readonly SCMResourceContext = new MenuId('SCMResourceContext');
+	static readonly SCMResourceContextShare = new MenuId('SCMResourceContextShare');
 	static readonly SCMResourceFolderContext = new MenuId('SCMResourceFolderContext');
 	static readonly SCMResourceGroupContext = new MenuId('SCMResourceGroupContext');
 	static readonly SCMSourceControl = new MenuId('SCMSourceControl');
 	static readonly SCMTitle = new MenuId('SCMTitle');
 	static readonly SearchContext = new MenuId('SearchContext');
 	static readonly SearchActionMenu = new MenuId('SearchActionContext');
+	static readonly Share = new MenuId('Share');
 	static readonly StatusBarWindowIndicatorMenu = new MenuId('StatusBarWindowIndicatorMenu');
 	static readonly StatusBarRemoteIndicatorMenu = new MenuId('StatusBarRemoteIndicatorMenu');
 	static readonly StickyScrollContext = new MenuId('StickyScrollContext');
@@ -477,7 +480,9 @@ export class MenuItemAction implements IAction {
 	run(...args: any[]): Promise<void> {
 		let runArgs: any[] = [];
 
-		if (this._options?.arg) {
+		if (this._options?.arg && Array.isArray(this._options.arg)) {
+			runArgs = [...runArgs, ...this._options.arg];
+		} else if (this._options?.arg) {
 			runArgs = [...runArgs, this._options.arg];
 		}
 
