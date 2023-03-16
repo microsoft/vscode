@@ -18,7 +18,37 @@ class RunCommands extends Action2 {
 		super({
 			id: 'runCommands',
 			title: { value: nls.localize('runCommands', "Run Commands"), original: 'Run Commands' },
-			f1: false
+			f1: false,
+			description: {
+				description: nls.localize('runCommands.description', "Run several commands"),
+				args: [
+					{
+						name: 'args',
+						schema: {
+							type: 'object',
+							required: ['commands'],
+							properties: {
+								commands: {
+									type: 'array',
+									description: nls.localize('runCommands.commands', "Commands to run"),
+									items: {
+										type: ['string', 'object'],
+										required: ['command'],
+										properties: {
+											command: {
+												type: 'string'
+											},
+											args: { // type: any
+											}
+										}
+									}
+								}
+							}
+
+						}
+					}
+				]
+			}
 		});
 	}
 
