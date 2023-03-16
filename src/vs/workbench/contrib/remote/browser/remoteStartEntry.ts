@@ -268,6 +268,7 @@ function registerConfiguration(enabled: boolean): void {
 				scope: ConfigurationScope.MACHINE,
 				type: 'boolean',
 				default: enabled,
+				tags: ['experimental'],
 				description: nls.localize('workbench.remote.showStartListEntry', "When enabled, a start list entry for getting started with remote experiences in shown on the welcome page.")
 			}
 		}
