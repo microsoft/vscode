@@ -2166,6 +2166,10 @@ export interface ExtHostNotebookShape extends ExtHostNotebookDocumentsAndEditors
 	$notebookToData(handle: number, data: SerializableObjectWithBuffers<NotebookDataDto>, token: CancellationToken): Promise<VSBuffer>;
 }
 
+export interface ExtHostNotebookDocumentSaveParticipantShape {
+	$participateInSave(resource: UriComponents, reason: SaveReason): Promise<boolean[]>;
+}
+
 export interface ExtHostNotebookRenderersShape {
 	$postRendererMessage(editorId: string, rendererId: string, message: unknown): void;
 }
@@ -2492,6 +2496,7 @@ export const ExtHostContext = {
 	ExtHostNotebookEditors: createProxyIdentifier<ExtHostNotebookEditorsShape>('ExtHostNotebookEditors'),
 	ExtHostNotebookKernels: createProxyIdentifier<ExtHostNotebookKernelsShape>('ExtHostNotebookKernels'),
 	ExtHostNotebookRenderers: createProxyIdentifier<ExtHostNotebookRenderersShape>('ExtHostNotebookRenderers'),
+	ExtHostNotebookDocumentSaveParticipant: createProxyIdentifier<ExtHostNotebookDocumentSaveParticipantShape>('ExtHostNotebookDocumentSaveParticipant'),
 	ExtHostInteractive: createProxyIdentifier<ExtHostInteractiveShape>('ExtHostInteractive'),
 	ExtHostInteractiveEditor: createProxyIdentifier<ExtHostInteractiveEditorShape>('ExtHostInteractiveEditor'),
 	ExtHostInteractiveSession: createProxyIdentifier<ExtHostInteractiveSessionShape>('ExtHostInteractiveSession'),
