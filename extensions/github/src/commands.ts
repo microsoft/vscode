@@ -45,15 +45,16 @@ export function registerCommands(gitAPI: GitAPI): vscode.Disposable {
 		}
 	}));
 
-	disposables.add(vscode.commands.registerCommand('github.copyVscodeDevLink', async (context: LinkContext, ranges?: vscode.Range[]) => {
-		if (Array.isArray(ranges) && ranges.every((range) => 'start' in range && 'end' in range) && context instanceof vscode.Uri) {
-			context = { uri: context, ranges };
-		}
+	disposables.add(vscode.commands.registerCommand('github.copyVscodeDevLink', async (context: LinkContext) => {
 		return copyVscodeDevLink(gitAPI, true, context);
 	}));
 
 	disposables.add(vscode.commands.registerCommand('github.copyVscodeDevLinkFile', async (context: LinkContext) => {
 		return copyVscodeDevLink(gitAPI, false, context);
+	}));
+
+	disposables.add(vscode.commands.registerCommand('github.copyVscodeDevLinkWithoutRange', async (context: LinkContext) => {
+		return copyVscodeDevLink(gitAPI, true, context, false);
 	}));
 
 	disposables.add(vscode.commands.registerCommand('github.openOnVscodeDev', async () => {

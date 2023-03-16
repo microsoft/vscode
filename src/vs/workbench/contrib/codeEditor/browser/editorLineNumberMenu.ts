@@ -88,6 +88,9 @@ export class EditorLineNumberContextMenu extends Disposable implements IEditorCo
 				actions.push(collectedActions);
 			}
 
+			const menuActions = menu.getActions({ arg: { lineNumber, uri: model.uri }, shouldForwardArgs: true });
+			actions.push(...menuActions.map(a => a[1]));
+
 			// if the current editor selections do not contain the target line number,
 			// set the selection to the clicked line number
 			if (e.target.type === MouseTargetType.GUTTER_LINE_NUMBERS) {
@@ -104,24 +107,11 @@ export class EditorLineNumberContextMenu extends Disposable implements IEditorCo
 				}
 			}
 
-			const ranges = this.editor.getSelections()?.map((selection) => ({
-				start: {
-					line: selection.getStartPosition().lineNumber - 1,
-					character: selection.getStartPosition().column
-				},
-				end: {
-					line: selection.getEndPosition().lineNumber - 1,
-					character: selection.getEndPosition().column
-				}
-			}));
-			const menuActions = menu.getActions({ arg: { lineNumber, uri: model.uri, ranges } });
-			actions.push(...menuActions.map(a => a[1]));
-
 			this.contextMenuService.showContextMenu({
 				getAnchor: () => anchor,
 				getActions: () => Separator.join(...actions),
 				menuActionOptions: { shouldForwardArgs: true },
-				getActionsContext: () => ({ lineNumber, uri: model.uri, ranges }),
+				getActionsContext: () => ({ lineNumber, uri: model.uri }),
 				onHide: () => menu.dispose(),
 			});
 		});
