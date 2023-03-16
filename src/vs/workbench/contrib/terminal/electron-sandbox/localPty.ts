@@ -49,7 +49,7 @@ export class LocalPty extends Disposable implements ITerminalChildProcess {
 		super();
 	}
 
-	start(): Promise<ITerminalLaunchError | undefined> {
+	start(): Promise<ITerminalLaunchError | { injectedArgs: string[] } | undefined> {
 		return this._localPtyService.start(this.id);
 	}
 	detach(forcePersist?: boolean): Promise<void> {
