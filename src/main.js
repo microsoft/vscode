@@ -93,27 +93,10 @@ registerListeners();
 let nlsConfigurationPromise = undefined;
 
 const metaDataFile = path.join(__dirname, 'nls.metadata.json');
-const language = getUserDefinedLocale(argvConfig);
-/**
- * @type {string | undefined}
- **/
-let osLocale = undefined;
-// This if statement can be simplified once
-// VS Code moves to Electron 22.
-// Ref https://github.com/microsoft/vscode/issues/159813
-// and https://github.com/electron/electron/pull/36035
-if ('getPreferredSystemLanguages' in app
-	&& typeof app.getPreferredSystemLanguages === 'function'
-	&& app.getPreferredSystemLanguages().length) {
-	// Use the most preferred OS language for language recommendation.
-	osLocale = app.getPreferredSystemLanguages()[0];
-	if (osLocale) {
-		osLocale = processZhLocale(osLocale.toLowerCase());
-	}
-}
-if (language && osLocale) {
+const locale = getUserDefinedLocale(argvConfig);
+if (locale) {
 	const { getNLSConfiguration } = require('./vs/base/node/languagePacks');
-	nlsConfigurationPromise = getNLSConfiguration(product.commit, userDataPath, metaDataFile, osLocale, language);
+	nlsConfigurationPromise = getNLSConfiguration(product.commit, userDataPath, metaDataFile, locale);
 }
 
 // Pass in the locale to Electron so that the
@@ -125,7 +108,7 @@ if (language && osLocale) {
 // In that case, use `en` as the Electron locale.
 
 if (process.platform === 'win32' || process.platform === 'linux') {
-	const electronLocale = (!language || language === 'qps-ploc') ? 'en' : language;
+	const electronLocale = (!locale || locale === 'qps-ploc') ? 'en' : locale;
 	app.commandLine.appendSwitch('lang', electronLocale);
 }
 
@@ -571,10 +554,6 @@ async function mkdirpIgnoreError(dir) {
 
 //#region NLS Support
 
-/**
- * @param {string} appLocale
- * @returns string
- */
 function processZhLocale(appLocale) {
 	if (appLocale.startsWith('zh')) {
 		const region = appLocale.split('-')[1];
@@ -606,15 +585,39 @@ async function resolveNlsConfiguration() {
 	// If that fails we fall back to English.
 	let nlsConfiguration = nlsConfigurationPromise ? await nlsConfigurationPromise : undefined;
 	if (!nlsConfiguration) {
-		// fallback to using app.getLocale() so that we have something for the locale.
-		// This can be removed after the move to Electron 22. Please note that getLocale() is only
-		// valid after we have received the app ready event. This is why the code is here.
-		osLocale ??= processZhLocale(app.getLocale().toLowerCase());
 
-		const { getNLSConfiguration } = require('./vs/base/node/languagePacks');
-		nlsConfiguration = await getNLSConfiguration(product.commit, userDataPath, metaDataFile, osLocale, language);
-		if (!nlsConfiguration) {
-			nlsConfiguration = { locale: osLocale, availableLanguages: {} };
+		// Try to use the app locale. Please note that the app locale is only
+		// valid after we have received the app ready event. This is why the
+		// code is here.
+
+		/**
+		 * @type string
+		 */
+		let appLocale = app.getLocale();
+
+		// This if statement can be simplified once
+		// VS Code moves to Electron 22.
+		// Ref https://github.com/microsoft/vscode/issues/159813
+		// and https://github.com/electron/electron/pull/36035
+		if ((process.platform === 'win32' || process.platform === 'linux')
+			&& 'getPreferredSystemLanguages' in app
+			&& typeof app.getPreferredSystemLanguages === 'function'
+			&& app.getPreferredSystemLanguages().length) {
+			// Use the most preferred OS language for language recommendation.
+			appLocale = app.getPreferredSystemLanguages()[0];
+		}
+
+		if (!appLocale) {
+			nlsConfiguration = { locale: 'en', availableLanguages: {} };
+		} else {
+			// See above the comment about the loader and case sensitiveness
+			appLocale = processZhLocale(appLocale.toLowerCase());
+
+			const { getNLSConfiguration } = require('./vs/base/node/languagePacks');
+			nlsConfiguration = await getNLSConfiguration(product.commit, userDataPath, metaDataFile, appLocale);
+			if (!nlsConfiguration) {
+				nlsConfiguration = { locale: appLocale, availableLanguages: {} };
+			}
 		}
 	} else {
 		// We received a valid nlsConfig from a user defined locale

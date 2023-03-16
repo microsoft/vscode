@@ -26,9 +26,7 @@ export function getNLSConfiguration(language: string, userDataPath: string): Pro
 		const key = `${language}||${userDataPath}`;
 		let result = _cache.get(key);
 		if (!result) {
-			// For remote, we just use language for both locale and language since we don't have any use case for the locale
-			// on the server side.
-			result = lp.getNLSConfiguration(product.commit, userDataPath, metaData, language, language).then(value => {
+			result = lp.getNLSConfiguration(product.commit, userDataPath, metaData, language).then(value => {
 				if (InternalNLSConfiguration.is(value)) {
 					value._languagePackSupport = true;
 				}

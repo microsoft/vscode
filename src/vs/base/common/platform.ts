@@ -175,8 +175,8 @@ export const platform = _platform;
 export const userAgent = _userAgent;
 
 /**
- * The language used for the user interface. or the locale specified by --locale
- * The format of the string is all lower case (e.g. zh-tw for Traditional
+ * The language used for the user interface. The format of
+ * the string is all lower case (e.g. zh-tw for Traditional
  * Chinese)
  */
 export const language = _language;
@@ -203,7 +203,8 @@ export namespace Language {
 }
 
 /**
- * The OS locale. The format of the string is all lower case (e.g. zh-tw for Traditional
+ * The OS locale or the locale specified by --locale. The format of
+ * the string is all lower case (e.g. zh-tw for Traditional
  * Chinese). The UI is not necessarily shown in the provided locale.
  */
 export const locale = _locale;
