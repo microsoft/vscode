@@ -809,18 +809,17 @@ export class GettingStartedPage extends EditorPane {
 				showOnStartupLabel,
 			));
 
+		recentList.setLimit(5);
 		const layoutLists = () => {
 			if (gettingStartedList.itemCount) {
 				this.container.classList.remove('noWalkthroughs');
 				reset(leftColumn, startList.getDomElement(), recentList.getDomElement());
 				reset(rightColumn, featuredExtensionList.getDomElement(), gettingStartedList.getDomElement());
-				recentList.setLimit(5);
 			}
 			else {
 				this.container.classList.add('noWalkthroughs');
-				reset(leftColumn, startList.getDomElement());
-				reset(rightColumn, recentList.getDomElement(), featuredExtensionList.getDomElement());
-				recentList.setLimit(10);
+				reset(leftColumn, startList.getDomElement(), recentList.getDomElement());
+				reset(rightColumn, featuredExtensionList.getDomElement());
 			}
 			setTimeout(() => this.categoriesPageScrollbar?.scanDomNode(), 50);
 		};
@@ -830,13 +829,11 @@ export class GettingStartedPage extends EditorPane {
 				this.container.classList.remove('noExtensions');
 				reset(leftColumn, startList.getDomElement(), recentList.getDomElement());
 				reset(rightColumn, featuredExtensionList.getDomElement(), gettingStartedList.getDomElement());
-				recentList.setLimit(5);
 			}
 			else {
 				this.container.classList.add('noExtensions');
 				reset(leftColumn, startList.getDomElement(), recentList.getDomElement());
 				reset(rightColumn, gettingStartedList.getDomElement());
-				recentList.setLimit(10);
 			}
 			setTimeout(() => this.categoriesPageScrollbar?.scanDomNode(), 50);
 		};
