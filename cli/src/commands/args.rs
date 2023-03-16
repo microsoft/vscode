@@ -630,6 +630,9 @@ pub enum TunnelSubcommand {
 	/// Restarts any running tunnel on the system.
 	Restart,
 
+	/// Gets whether there is a tunnel running on the current machineiou.
+	Status,
+
 	/// Rename the name of this machine associated with port forwarding service.
 	Rename(TunnelRenameArgs),
 
