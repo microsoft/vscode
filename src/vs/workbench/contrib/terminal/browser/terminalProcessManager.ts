@@ -220,7 +220,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 		cols: number,
 		rows: number,
 		reset: boolean = true
-	): Promise<ITerminalLaunchError | undefined> {
+	): Promise<ITerminalLaunchError | { injectedArgs: string[] } | undefined> {
 		this._shellLaunchConfig = shellLaunchConfig;
 		this._dimensions.cols = cols;
 		this._dimensions.rows = rows;
@@ -389,7 +389,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 		return undefined;
 	}
 
-	async relaunch(shellLaunchConfig: IShellLaunchConfig, cols: number, rows: number, reset: boolean): Promise<ITerminalLaunchError | undefined> {
+	async relaunch(shellLaunchConfig: IShellLaunchConfig, cols: number, rows: number, reset: boolean): Promise<ITerminalLaunchError | { injectedArgs: string[] } | undefined> {
 		this.ptyProcessReady = this._createPtyProcessReadyPromise();
 		this._logService.trace(`Relaunching terminal instance ${this._instanceId}`);
 
