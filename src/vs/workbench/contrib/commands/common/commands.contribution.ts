@@ -56,7 +56,10 @@ class RunCommands extends Action2 {
 	// - this command takes a single argument-object because
 	//	- keybinding definitions don't allow running commands with several arguments
 	//  - and we want to be able to take on different other arguments in future, e.g., `runMode : 'serial' | 'concurrent'`
-	async run(accessor: ServicesAccessor, args: { commands: RunnableCommand[] }) {
+	async run(accessor: ServicesAccessor, args: any) {
+		if (!this._validateInput(args)) {
+			throw new Error('runCommands: invalid arguments');
+		}
 		const commandService = accessor.get(ICommandService);
 		try {
 			for (const cmd of args.commands) {
@@ -65,6 +68,25 @@ class RunCommands extends Action2 {
 		} catch (err) {
 			accessor.get(INotificationService).warn(err);
 		}
+	}
+
+	private _validateInput(args: any): args is { commands: RunnableCommand[] } {
+		if (!args || typeof args !== 'object') {
+			return false;
+		}
+		if (!Array.isArray(args.commands)) {
+			return false;
+		}
+		for (const cmd of args.commands) {
+			if (typeof cmd === 'string') {
+				continue;
+			}
+			if (typeof cmd === 'object' && typeof cmd.id === 'string') {
+				continue;
+			}
+			return false;
+		}
+		return true;
 	}
 
 	private _runCommand(commandService: ICommandService, cmd: RunnableCommand) {
