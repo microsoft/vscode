@@ -93,6 +93,7 @@ async fn main() -> Result<(), std::convert::Infallible> {
 				Some(args::TunnelSubcommand::Unregister) => tunnels::unregister(context).await,
 				Some(args::TunnelSubcommand::Kill) => tunnels::kill(context).await,
 				Some(args::TunnelSubcommand::Restart) => tunnels::restart(context).await,
+				Some(args::TunnelSubcommand::Status) => tunnels::status(context).await,
 				Some(args::TunnelSubcommand::Rename(rename_args)) => {
 					tunnels::rename(context, rename_args).await
 				}
