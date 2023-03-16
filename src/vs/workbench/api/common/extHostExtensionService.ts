@@ -636,19 +636,6 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 		});
 	}
 
-	private _handleFileSystemExtensions(): Promise<void> {
-		const folders = this._extHostWorkspace.workspace ? this._extHostWorkspace.workspace.folders : [];
-		const fileSystemActivation = this._activateFileSystemExtensions(folders).then(undefined, (err) => {
-			this._logService.error(err);
-		});
-		this._register(this._extHostWorkspace.onDidChangeWorkspace((e) => this._activateFileSystemExtensions(e.added)));
-		return Promise.race([fileSystemActivation, timeout(5000)]);
-	}
-
-	private _activateFileSystemExtensions(folders: ReadonlyArray<vscode.WorkspaceFolder>) {
-		return Promise.all(folders.map((folder) => this._activateByEvent(`onFileSystem:${folder.uri.scheme}`, true))).then(() => { });
-	}
-
 	// Handle "eager" activation extensions
 	private _handleEagerExtensions(): Promise<void> {
 		const starActivation = this._activateByEvent('*', true).then(undefined, (err) => {
@@ -767,26 +754,13 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 		}
 		this._started = true;
 
-		return this._extHostConfiguration.getConfigProvider().then((configProvider) => {
-			const prioritizeFileSystemActivation = configProvider.getConfiguration('extensions.experimental').get<boolean>('prioritizeFileSystemActivation');
-			if (prioritizeFileSystemActivation) {
-				return this._readyToStartExtensionHost.wait()
-					.then(() => this._readyToRunExtensions.open())
-					.then(() => this._handleFileSystemExtensions())
-					.then(() => this._handleEagerExtensions())
-					.then(() => {
-						this._eagerExtensionsActivated.open();
-						this._logService.info(`Eager extensions activated`);
-					});
-			}
-			return this._readyToStartExtensionHost.wait()
-				.then(() => this._readyToRunExtensions.open())
-				.then(() => this._handleEagerExtensions())
-				.then(() => {
-					this._eagerExtensionsActivated.open();
-					this._logService.info(`Eager extensions activated`);
-				});
-		});
+		return this._readyToStartExtensionHost.wait()
+			.then(() => this._readyToRunExtensions.open())
+			.then(() => this._handleEagerExtensions())
+			.then(() => {
+				this._eagerExtensionsActivated.open();
+				this._logService.info(`Eager extensions activated`);
+			});
 	}
 
 	// -- called by extensions
