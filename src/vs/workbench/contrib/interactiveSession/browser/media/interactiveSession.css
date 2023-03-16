@@ -103,6 +103,7 @@
 
 .interactive-list .monaco-list-row .value {
 	white-space: normal;
+	min-height: 36px;
 }
 
 .interactive-list .monaco-list-row .value > :last-child:not(.rendered-markdown) {
@@ -153,13 +154,11 @@
 
 .interactive-session .interactive-input-part .interactive-execute-toolbar {
 	position: absolute;
-	right: 1px;
+	right: 3px;
 }
 
-.interactive-session .interactive-input-part .interactive-execute-toolbar .codicon {
-	font-size: 20px;
-	height: 20px;
-	width: 20px;
+.interactive-session .interactive-input-part .interactive-execute-toolbar .codicon-debug-stop {
+	color: var(--vscode-icon-foreground) !important;
 }
 
 .interactive-session .monaco-inputbox {
@@ -179,6 +178,16 @@
 	background-color: var(--vscode-interactive-result-editor-background-color);
 	border: 1px solid var(--vscode-interactive-responseBorder);
 	z-index: 100;
+}
+
+.interactive-session .interactive-result-editor-wrapper .monaco-toolbar .action-item {
+	height: 24px;
+	width: 24px;
+	margin: 1px 2px;
+}
+
+.interactive-session .interactive-result-editor-wrapper .monaco-toolbar .action-item .codicon {
+	margin: 1px;
 }
 
 .interactive-session .interactive-result-editor-wrapper:hover .monaco-toolbar {
