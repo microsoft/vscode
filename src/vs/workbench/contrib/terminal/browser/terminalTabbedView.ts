@@ -482,9 +482,9 @@ export class TerminalTabbedView extends Disposable {
 		this._focus();
 	}
 
-	showHover(focus: boolean) {
+	focusHover() {
 		if (this._shouldShowTabs()) {
-			this._tabList.showHover(focus);
+			this._tabList.focusHover();
 			return;
 		}
 		const instance = this._terminalGroupService.activeInstance;
@@ -494,8 +494,8 @@ export class TerminalTabbedView extends Disposable {
 		this._hoverService.showHover({
 			...getInstanceHoverInfo(instance),
 			target: this._terminalContainer,
-			trapFocus: focus
-		}, focus);
+			trapFocus: true
+		}, true);
 	}
 
 	private _focus() {

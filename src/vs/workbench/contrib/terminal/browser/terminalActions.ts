@@ -15,7 +15,7 @@ import { URI } from 'vs/base/common/uri';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { EndOfLinePreference } from 'vs/editor/common/model';
 import { localize } from 'vs/nls';
-import { CONTEXT_ACCESSIBILITY_MODE_ENABLED, IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
+import { CONTEXT_ACCESSIBILITY_MODE_ENABLED } from 'vs/platform/accessibility/common/accessibility';
 import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
 import { ICommandActionTitle } from 'vs/platform/action/common/action';
 import { ICommandService } from 'vs/platform/commands/common/commands';
@@ -1727,8 +1727,7 @@ export function registerTerminalActions() {
 			});
 		}
 		async run(accessor: ServicesAccessor) {
-			const accessibilityService = accessor.get(IAccessibilityService);
-			accessor.get(ITerminalGroupService).showHover(accessibilityService.isScreenReaderOptimized());
+			accessor.get(ITerminalGroupService).focusHover();
 		}
 	});
 	registerAction2(class extends Action2 {
