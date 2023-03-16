@@ -103,12 +103,10 @@ let osLocale = undefined;
 // Ref https://github.com/microsoft/vscode/issues/159813
 // and https://github.com/electron/electron/pull/36035
 if ('getPreferredSystemLanguages' in app
-	&& typeof app.getPreferredSystemLanguages === 'function') {
+	&& typeof app.getPreferredSystemLanguages === 'function'
+	&& app.getPreferredSystemLanguages().length) {
 	// Use the most preferred OS language for language recommendation.
-	// The API might return an empty array on Linux, such as when
-	// the 'C' locale is the user's only configured locale.
-	// No matter the OS, if the array is empty, default back to 'en'.
-	osLocale = app.getPreferredSystemLanguages()?.[0] ?? 'en';
+	osLocale = app.getPreferredSystemLanguages()[0];
 	if (osLocale) {
 		osLocale = processZhLocale(osLocale.toLowerCase());
 	}
