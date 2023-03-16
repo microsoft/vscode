@@ -125,7 +125,7 @@ suite('Notebook builtin output renderer', () => {
 
 			const outputElement = new OutputHtml().getFirstOuputElement();
 			const outputItem = createOutputItem('content', mimeType);
-			renderer!.renderOutputItem(outputItem, outputElement);
+			await renderer!.renderOutputItem(outputItem, outputElement);
 
 			const inserted = outputElement.firstChild as HTMLElement;
 			assert.ok(inserted, `nothing appended to output element: ${outputElement.innerHTML}`);
@@ -142,7 +142,7 @@ suite('Notebook builtin output renderer', () => {
 
 			const outputElement = new OutputHtml().getFirstOuputElement();
 			const outputItem = createOutputItem('content', mimeType);
-			renderer!.renderOutputItem(outputItem, outputElement);
+			await renderer!.renderOutputItem(outputItem, outputElement);
 
 			const inserted = outputElement.firstChild as HTMLElement;
 			assert.ok(inserted, `nothing appended to output element: ${outputElement.innerHTML}`);
@@ -159,9 +159,9 @@ suite('Notebook builtin output renderer', () => {
 
 			const outputElement = new OutputHtml().getFirstOuputElement();
 			const outputItem = createOutputItem('content', 'text/plain');
-			renderer!.renderOutputItem(outputItem, outputElement);
+			await renderer!.renderOutputItem(outputItem, outputElement);
 			const outputItem2 = createOutputItem('replaced content', 'text/plain');
-			renderer!.renderOutputItem(outputItem2, outputElement);
+			await renderer!.renderOutputItem(outputItem2, outputElement);
 
 			const inserted = outputElement.firstChild as HTMLElement;
 			assert.ok(inserted.innerHTML.indexOf('>content</') === -1, `Old content was not removed to output element: ${outputElement.innerHTML}`);
@@ -177,7 +177,7 @@ suite('Notebook builtin output renderer', () => {
 
 		const outputElement = new OutputHtml().getFirstOuputElement();
 		const outputItem = createOutputItem(JSON.stringify(error), errorMimeType);
-		renderer!.renderOutputItem(outputItem, outputElement);
+		await renderer!.renderOutputItem(outputItem, outputElement);
 
 		const inserted = outputElement.firstChild as HTMLElement;
 		assert.ok(inserted, `nothing appended to output element: ${outputElement.innerHTML}`);
@@ -214,9 +214,9 @@ suite('Notebook builtin output renderer', () => {
 		const outputItem1 = createOutputItem('first stream content', stdoutMimeType, '1');
 		const outputItem2 = createOutputItem('second stream content', stdoutMimeType, '2');
 		const outputItem3 = createOutputItem('third stream content', stderrMimeType, '3');
-		renderer!.renderOutputItem(outputItem1, outputElement);
-		renderer!.renderOutputItem(outputItem2, outputHtml.appendOutputElement());
-		renderer!.renderOutputItem(outputItem3, outputHtml.appendOutputElement());
+		await renderer!.renderOutputItem(outputItem1, outputElement);
+		await renderer!.renderOutputItem(outputItem2, outputHtml.appendOutputElement());
+		await renderer!.renderOutputItem(outputItem3, outputHtml.appendOutputElement());
 
 
 		const inserted = outputElement.firstChild as HTMLElement;
