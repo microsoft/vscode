@@ -656,11 +656,6 @@ export interface ITerminalInstance {
 	userHome: string | undefined;
 
 	/**
-	 * Shows the environment information hover if the widget exists.
-	 */
-	showEnvironmentInfoHover(): void;
-
-	/**
 	 * Registers and returns a marker
 	 */
 	registerMarker(): IMarker | undefined;

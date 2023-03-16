@@ -229,12 +229,7 @@ impl<S: Serialization> RpcCaller<S> {
 	}
 
 	/// Enqueues an outbound call, returning its result.
-	#[allow(dead_code)]
-	pub async fn call<M, A, R>(
-		&self,
-		method: M,
-		params: A,
-	) -> oneshot::Receiver<Result<R, ResponseError>>
+	pub fn call<M, A, R>(&self, method: M, params: A) -> oneshot::Receiver<Result<R, ResponseError>>
 	where
 		M: AsRef<str> + serde::Serialize,
 		A: Serialize,
@@ -330,12 +325,10 @@ impl<S: Serialization, C: Send + Sync> RpcDispatcher<S, C> {
 				cb(Outcome::Error(err));
 			}
 			MaybeSync::Sync(None)
-		} else if partial.result.is_some() {
+		} else {
 			if let Some(cb) = self.calls.lock().unwrap().remove(&id.unwrap()) {
 				cb(Outcome::Success(body.to_vec()));
 			}
-			MaybeSync::Sync(None)
-		} else {
 			MaybeSync::Sync(None)
 		}
 	}
@@ -354,7 +347,6 @@ struct PartialIncoming {
 	pub id: Option<u32>,
 	pub method: Option<String>,
 	pub error: Option<ResponseError>,
-	pub result: Option<()>,
 }
 
 #[derive(Serialize)]
@@ -381,7 +373,7 @@ struct ErrorResponse {
 	pub error: ResponseError,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Debug)]
 pub struct ResponseError {
 	pub code: i32,
 	pub message: String,

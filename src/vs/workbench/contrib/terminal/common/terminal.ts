@@ -17,6 +17,7 @@ import { IMarkProperties, ISerializedCommandDetectionCapability, ITerminalCapabi
 import { ThemeIcon } from 'vs/base/common/themables';
 import { IProcessDetails } from 'vs/platform/terminal/common/terminalProcess';
 import { ITerminalQuickFixProvider, ITerminalCommandSelector, ITerminalOutputMatch, ITerminalOutputMatcher } from 'vs/platform/terminal/common/xterm/terminalQuickFix';
+import Severity from 'vs/base/common/severity';
 
 export const TERMINAL_VIEW_ID = 'terminal';
 
@@ -470,6 +471,35 @@ export interface IStartExtensionTerminalRequest {
 	callback: (error: ITerminalLaunchError | undefined) => void;
 }
 
+export interface ITerminalStatus {
+	/** An internal string ID used to identify the status. */
+	id: string;
+	/**
+	 * The severity of the status, this defines both the color and how likely the status is to be
+	 * the "primary status".
+	 */
+	severity: Severity;
+	/**
+	 * An icon representing the status, if this is not specified it will not show up on the terminal
+	 * tab and will use the generic `info` icon when hovering.
+	 */
+	icon?: ThemeIcon;
+	/**
+	 * What to show for this status in the terminal's hover.
+	 */
+	tooltip?: string | undefined;
+	/**
+	 * Actions to expose on hover.
+	 */
+	hoverActions?: ITerminalStatusHoverAction[];
+}
+
+export interface ITerminalStatusHoverAction {
+	label: string;
+	commandId: string;
+	run: () => void;
+}
+
 export const QUICK_LAUNCH_PROFILE_CHOICE = 'workbench.action.terminal.profile.choice';
 
 export const enum TerminalCommandId {
@@ -489,6 +519,7 @@ export const enum TerminalCommandId {
 	OpenWebLink = 'workbench.action.terminal.openUrlLink',
 	RunRecentCommand = 'workbench.action.terminal.runRecentCommand',
 	FocusAccessibleBuffer = 'workbench.action.terminal.focusAccessibleBuffer',
+	NavigateAccessibleBuffer = 'workbench.action.terminal.navigateAccessibleBuffer',
 	CopyLastCommandOutput = 'workbench.action.terminal.copyLastCommandOutput',
 	GoToRecentDirectory = 'workbench.action.terminal.goToRecentDirectory',
 	CopyAndClearSelection = 'workbench.action.terminal.copyAndClearSelection',
@@ -569,7 +600,6 @@ export const enum TerminalCommandId {
 	ToggleFindRegex = 'workbench.action.terminal.toggleFindRegex',
 	ToggleFindWholeWord = 'workbench.action.terminal.toggleFindWholeWord',
 	ToggleFindCaseSensitive = 'workbench.action.terminal.toggleFindCaseSensitive',
-	ShowEnvironmentInformation = 'workbench.action.terminal.showEnvironmentInformation',
 	SearchWorkspace = 'workbench.action.terminal.searchWorkspace',
 	AttachToSession = 'workbench.action.terminal.attachToSession',
 	DetachSession = 'workbench.action.terminal.detachSession',

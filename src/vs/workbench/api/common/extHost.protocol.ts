@@ -1006,7 +1006,6 @@ export interface INotebookKernelDto2 {
 	label: string;
 	detail?: string;
 	description?: string;
-	kind?: string;
 	supportedLanguages?: string[];
 	supportsInterrupt?: boolean;
 	supportsExecutionOrder?: boolean;
@@ -2055,6 +2054,7 @@ export interface ExtHostLogLevelServiceShape {
 
 export interface MainThreadLoggerShape {
 	$log(file: UriComponents, messages: [LogLevel, string][]): void;
+	$flush(file: UriComponents): void;
 	$createLogger(file: UriComponents, options?: ILoggerOptions): Promise<void>;
 	$registerLogger(logger: UriDto<ILoggerResource>): Promise<void>;
 	$deregisterLogger(resource: UriComponents): Promise<void>;

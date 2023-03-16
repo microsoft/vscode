@@ -15,7 +15,7 @@ import { IEditor } from 'vs/editor/common/editorCommon';
 import { Language } from 'vs/base/common/platform';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { CommandsRegistry, ICommandService } from 'vs/platform/commands/common/commands';
+import { ICommandService } from 'vs/platform/commands/common/commands';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { DefaultQuickAccessFilterValue } from 'vs/platform/quickinput/common/quickAccess';
@@ -111,7 +111,10 @@ export class CommandsQuickAccessProvider extends AbstractEditorCommandsQuickAcce
 			return [];
 		}
 
-		return this.getCommandInfo().map(c => ({
+		return [
+			...this.getCodeEditorCommandPicks(),
+			...this.getGlobalCommandPicks()
+		].map(c => ({
 			...c,
 			buttons: [{
 				iconClass: ThemeIcon.asClassName(Codicon.gear),
@@ -122,13 +125,6 @@ export class CommandsQuickAccessProvider extends AbstractEditorCommandsQuickAcce
 				return TriggerAction.CLOSE_PICKER;
 			},
 		}));
-	}
-
-	public getCommandInfo(): Array<ICommandQuickPick> {
-		return [
-			...this.getCodeEditorCommandPicks(),
-			...this.getGlobalCommandPicks()
-		];
 	}
 
 	private getGlobalCommandPicks(): ICommandQuickPick[] {
@@ -230,16 +226,5 @@ export class ClearCommandHistoryAction extends Action2 {
 		}
 	}
 }
-
-//#region --- Register a command to get all actions from the command palette
-CommandsRegistry.registerCommand('_getAllCommands', async function (accessor: ServicesAccessor) {
-	const instantiatonService = accessor.get(IInstantiationService);
-	const commandProvider = instantiatonService.createInstance(CommandsQuickAccessProvider);
-	const allCommands = commandProvider.getCommandInfo();
-	return allCommands.map(c => {
-		return { command: c.commandId, label: c.label };
-	});
-});
-//#endregion
 
 //#endregion

@@ -1310,20 +1310,6 @@ export function registerTerminalActions() {
 	registerAction2(class extends Action2 {
 		constructor() {
 			super({
-				id: TerminalCommandId.ShowEnvironmentInformation,
-				title: { value: localize('workbench.action.terminal.showEnvironmentInformation', "Show Environment Information"), original: 'Show Environment Information' },
-				f1: true,
-				category,
-				precondition: TerminalContextKeys.processSupported
-			});
-		}
-		run(accessor: ServicesAccessor) {
-			accessor.get(ITerminalService).activeInstance?.showEnvironmentInfoHover();
-		}
-	});
-	registerAction2(class extends Action2 {
-		constructor() {
-			super({
 				id: TerminalCommandId.Split,
 				title: terminalStrings.split,
 				f1: true,

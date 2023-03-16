@@ -217,7 +217,7 @@ export class InteractiveListItemRenderer extends Disposable implements ITreeRend
 			runProgressiveRender(true);
 			timer.cancelAndSet(runProgressiveRender, 50);
 		} else if (isResponseVM(element)) {
-			this.basicRenderElement(element.response.value, element, index, templateData);
+			this.basicRenderElement(element.response.value, element, index, templateData, element.isCanceled);
 		} else if (isRequestVM(element)) {
 			this.basicRenderElement(element.messageText, element, index, templateData);
 		} else {
@@ -282,30 +282,38 @@ export class InteractiveListItemRenderer extends Disposable implements ITreeRend
 	private doNextProgressiveRender(element: IInteractiveResponseViewModel, index: number, templateData: IInteractiveListItemTemplate, isInRenderElement: boolean, disposables: DisposableStore): boolean {
 		disposables.clear();
 
-		// TODO- this method has the side effect of updating element.renderData
-		const toRender = this.getProgressiveMarkdownToRender(element);
-		const isFullyRendered = element.renderData?.isFullyRendered;
-		if (isFullyRendered) {
-			// We've reached the end of the available content, so do a normal render
-			this.traceLayout('runProgressiveRender', `end progressive render, index=${index}`);
-			if (element.isComplete) {
-				this.traceLayout('runProgressiveRender', `and disposing renderData, response is complete, index=${index}`);
-				element.renderData = undefined;
-			} else {
-				this.traceLayout('runProgressiveRender', `Rendered all available words, but model is not complete.`);
-			}
-			disposables.clear();
-			this.basicRenderElement(element.response.value, element, index, templateData, !element.isComplete);
-		} else if (toRender) {
-			// Doing the progressive render
-			const plusCursor = toRender.match(/```.*$/) ? toRender + `\n${InteractiveListItemRenderer.cursorCharacter}` : toRender + ` ${InteractiveListItemRenderer.cursorCharacter}`;
-			const result = this.renderMarkdown(new MarkdownString(plusCursor), element, disposables, templateData, true);
-			dom.clearNode(templateData.value);
-			templateData.value.appendChild(result.element);
-			disposables.add(result);
+		let isFullyRendered = false;
+		if (element.isCanceled) {
+			this.traceLayout('runProgressiveRender', `canceled, index=${index}`);
+			element.renderData = undefined;
+			this.basicRenderElement(element.response.value, element, index, templateData, true);
+			isFullyRendered = true;
 		} else {
-			// Nothing new to render, not done, keep waiting
-			return false;
+			// TODO- this method has the side effect of updating element.renderData
+			const toRender = this.getProgressiveMarkdownToRender(element);
+			isFullyRendered = !!element.renderData?.isFullyRendered;
+			if (isFullyRendered) {
+				// We've reached the end of the available content, so do a normal render
+				this.traceLayout('runProgressiveRender', `end progressive render, index=${index}`);
+				if (element.isComplete) {
+					this.traceLayout('runProgressiveRender', `and disposing renderData, response is complete, index=${index}`);
+					element.renderData = undefined;
+				} else {
+					this.traceLayout('runProgressiveRender', `Rendered all available words, but model is not complete.`);
+				}
+				disposables.clear();
+				this.basicRenderElement(element.response.value, element, index, templateData, !element.isComplete);
+			} else if (toRender) {
+				// Doing the progressive render
+				const plusCursor = toRender.match(/```.*$/) ? toRender + `\n${InteractiveListItemRenderer.cursorCharacter}` : toRender + ` ${InteractiveListItemRenderer.cursorCharacter}`;
+				const result = this.renderMarkdown(new MarkdownString(plusCursor), element, disposables, templateData, true);
+				dom.clearNode(templateData.value);
+				templateData.value.appendChild(result.element);
+				disposables.add(result);
+			} else {
+				// Nothing new to render, not done, keep waiting
+				return false;
+			}
 		}
 
 		// Some render happened - update the height

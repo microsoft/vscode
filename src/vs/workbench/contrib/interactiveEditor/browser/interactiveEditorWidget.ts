@@ -9,16 +9,16 @@ import { DisposableStore, dispose, toDisposable } from 'vs/base/common/lifecycle
 import { IActiveCodeEditor, ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditorLayoutInfo, EditorOption } from 'vs/editor/common/config/editorOptions';
 import { Range } from 'vs/editor/common/core/range';
-import { IEditorContribution } from 'vs/editor/common/editorCommon';
+import { IEditorContribution, IEditorDecorationsCollection } from 'vs/editor/common/editorCommon';
 import { localize } from 'vs/nls';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { ZoneWidget } from 'vs/editor/contrib/zoneWidget/browser/zoneWidget';
 import { assertType } from 'vs/base/common/types';
-import { IInteractiveEditorResponse, IInteractiveEditorService, CTX_INTERACTIVE_EDITOR_FOCUSED, CTX_INTERACTIVE_EDITOR_HAS_ACTIVE_REQUEST, CTX_INTERACTIVE_EDITOR_INNER_CURSOR_FIRST, CTX_INTERACTIVE_EDITOR_INNER_CURSOR_LAST, CTX_INTERACTIVE_EDITOR_EMPTY, CTX_INTERACTIVE_EDITOR_OUTER_CURSOR_POSITION, CTX_INTERACTIVE_EDITOR_PREVIEW, CTX_INTERACTIVE_EDITOR_VISIBLE, MENU_INTERACTIVE_EDITOR_WIDGET, CTX_INTERACTIVE_EDITOR_HISTORY_VISIBLE, IInteractiveEditorRequest, IInteractiveEditorSession, CTX_INTERACTIVE_EDITOR_HISTORY_POSSIBLE, IInteractiveEditorSlashCommand } from 'vs/workbench/contrib/interactiveEditor/common/interactiveEditor';
+import { IInteractiveEditorResponse, IInteractiveEditorService, CTX_INTERACTIVE_EDITOR_FOCUSED, CTX_INTERACTIVE_EDITOR_HAS_ACTIVE_REQUEST, CTX_INTERACTIVE_EDITOR_INNER_CURSOR_FIRST, CTX_INTERACTIVE_EDITOR_INNER_CURSOR_LAST, CTX_INTERACTIVE_EDITOR_EMPTY, CTX_INTERACTIVE_EDITOR_OUTER_CURSOR_POSITION, CTX_INTERACTIVE_EDITOR_VISIBLE, MENU_INTERACTIVE_EDITOR_WIDGET, CTX_INTERACTIVE_EDITOR_HISTORY_VISIBLE, IInteractiveEditorRequest, IInteractiveEditorSession, CTX_INTERACTIVE_EDITOR_HISTORY_POSSIBLE, IInteractiveEditorSlashCommand } from 'vs/workbench/contrib/interactiveEditor/common/interactiveEditor';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { Iterable } from 'vs/base/common/iterator';
-import { ICursorStateComputer, IModelDeltaDecoration, ITextModel, IValidEditOperation } from 'vs/editor/common/model';
+import { ICursorStateComputer, IModelDecorationOptions, IModelDeltaDecoration, ITextModel, IValidEditOperation } from 'vs/editor/common/model';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 import { Dimension, addDisposableListener, getTotalHeight, getTotalWidth, h, reset } from 'vs/base/browser/dom';
 import { Emitter, Event } from 'vs/base/common/event';
@@ -40,7 +40,7 @@ import { isCancellationError } from 'vs/base/common/errors';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorker';
 import { ILogService } from 'vs/platform/log/common/log';
 import { StopWatch } from 'vs/base/common/stopwatch';
-import { Action, IAction } from 'vs/base/common/actions';
+import { Action, IAction, Separator } from 'vs/base/common/actions';
 import { Codicon } from 'vs/base/common/codicons';
 import { ThemeIcon } from 'vs/base/common/themables';
 import { LRUCache } from 'vs/base/common/map';
@@ -52,9 +52,10 @@ import { IViewsService } from 'vs/workbench/common/views';
 import { IInteractiveSessionContributionService } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionContributionService';
 import { InteractiveSessionViewPane } from 'vs/workbench/contrib/interactiveSession/browser/interactiveSessionSidebar';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
-import { CompletionContext, CompletionItem, CompletionItemInsertTextRule, CompletionItemKind, CompletionItemProvider, CompletionList, ProviderResult } from 'vs/editor/common/languages';
+import { Command, CompletionContext, CompletionItem, CompletionItemInsertTextRule, CompletionItemKind, CompletionItemProvider, CompletionList, ProviderResult } from 'vs/editor/common/languages';
 import { LanguageSelector } from 'vs/editor/common/languageSelector';
 import { DEFAULT_FONT_FAMILY } from 'vs/workbench/browser/style';
+import { ICommandService } from 'vs/platform/commands/common/commands';
 
 interface IHistoryEntry {
 	updateVisibility(visible: boolean): void;
@@ -72,17 +73,17 @@ class InteractiveEditorWidget {
 		'div.interactive-editor@root',
 		[
 			h('div.body', [
-				h('div.content', [
+				h('div.content@content', [
 					h('div.input@input', [
 						h('div.editor-placeholder@placeholder'),
 						h('div.editor-container@editor'),
 					]),
-					h('div.history.hidden@history'),
+					h('div.toolbar@rhsToolbar'),
 				]),
-				h('div.toolbar@rhsToolbar'),
 			]),
 			h('div.progress@progress'),
-			h('div.message.hidden@message'),
+			h('div.status.hidden@status'),
+			h('div.history.hidden@history'),
 		]
 	);
 
@@ -238,7 +239,7 @@ class InteractiveEditorWidget {
 	}
 
 	getHeight(): number {
-		const base = getTotalHeight(this._elements.progress) + getTotalHeight(this._elements.message) + getTotalHeight(this._elements.history);
+		const base = getTotalHeight(this._elements.progress) + getTotalHeight(this._elements.status) + getTotalHeight(this._elements.history);
 		const editorHeight = this.inputEditor.getContentHeight() + 6 /* padding and border */;
 		return base + editorHeight + 12 /* padding */;
 	}
@@ -310,7 +311,7 @@ class InteractiveEditorWidget {
 			const updateFocused = () => {
 				const hasFocus = this.inputEditor.hasWidgetFocus();
 				ctxInputEditorFocused.set(hasFocus);
-				this._elements.input.classList.toggle('synthetic-focus', hasFocus);
+				this._elements.content.classList.toggle('synthetic-focus', hasFocus);
 			};
 			disposeOnDone.add(this.inputEditor.onDidFocusEditorWidget(updateFocused));
 			disposeOnDone.add(this.inputEditor.onDidBlurEditorWidget(updateFocused));
@@ -337,6 +338,52 @@ class InteractiveEditorWidget {
 		this._elements.history.classList.toggle('hidden', !this._isExpanded);
 		this._ctxHistoryVisible.set(this._isExpanded);
 		this._onDidChangeHeight.fire();
+	}
+
+	createStatusEntry() {
+		const { root, label, actions } = h('div.status-item@item', [
+			h('div.label@label'),
+			h('div.actions@actions'),
+		]);
+
+		const toolbar = this._instantiationService.createInstance(WorkbenchToolBar, actions, {});
+		this._historyStore.add(toolbar);
+
+		reset(this._elements.status, root);
+		this._onDidChangeHeight.fire();
+
+		let oldClasses: string[] = [];
+
+		return {
+			update: (update: { message?: string; actions?: IAction[]; classes?: string[] }) => {
+				if (update.message) {
+					label.innerText = update.message;
+					this._elements.status.classList.remove('hidden');
+				}
+				if (update.actions) {
+					toolbar.setActions(update.actions);
+				}
+				if (update.classes) {
+					oldClasses.forEach(value => root.classList.remove(value));
+					oldClasses = update.classes.slice();
+					root.classList.add(...update.classes);
+				}
+			},
+			updateMessage(message: string) {
+				label.innerText = message;
+			},
+			updateActions(actions: IAction[]) {
+				toolbar.setActions(actions);
+			},
+			updateClasses: (classes: string[]) => {
+				root.classList.add(...classes);
+			},
+			remove: () => {
+				root.remove();
+				this._elements.status.classList.add('hidden');
+				this._onDidChangeHeight.fire();
+			}
+		};
 	}
 
 	createHistoryEntry(value: string): IHistoryEntry {
@@ -386,22 +433,11 @@ class InteractiveEditorWidget {
 		reset(this._elements.history);
 	}
 
-	showMessage(value: string) {
-		this._elements.message.classList.remove('hidden');
-		this._elements.message.innerText = value;
-		this._onDidChangeHeight.fire();
-	}
-
-	clearMessage() {
-		this._elements.message.classList.add('hidden');
-		reset(this._elements.message);
-		this._onDidChangeHeight.fire();
-	}
-
 	reset() {
 		this._ctxInputEmpty.reset();
 		this.clearHistory();
-		this.clearMessage();
+		// this.clearMessage();
+		reset(this._elements.status);
 	}
 
 	focus() {
@@ -517,6 +553,14 @@ export class InteractiveEditorZoneWidget extends ZoneWidget {
 	}
 }
 
+class CommandAction extends Action {
+
+	constructor(command: Command, @ICommandService commandService: ICommandService) {
+		const icon = ThemeIcon.fromString(command.title);
+		super(command.id, icon ? command.tooltip : command.title, icon ? ThemeIcon.asClassName(icon) : undefined, true, () => commandService.executeCommand(command.id));
+	}
+}
+
 class UndoStepAction extends Action {
 
 	static all: UndoStepAction[] = [];
@@ -585,6 +629,72 @@ type TelemetryDataClassification = {
 	endTime: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'When the session ended' };
 };
 
+class InlineDiffDecorations {
+
+	private readonly _collection: IEditorDecorationsCollection;
+
+	private _data: { tracking: IModelDeltaDecoration; decorating: IModelDecorationOptions }[] = [];
+	private _visible: boolean = false;
+
+	constructor(editor: ICodeEditor, visible: boolean = false) {
+		this._collection = editor.createDecorationsCollection();
+		this._visible = visible;
+	}
+
+	get visible() {
+		return this._visible;
+	}
+
+	set visible(value: boolean) {
+		this._visible = value;
+		this.update();
+	}
+
+	clear() {
+		this._collection.clear();
+		this._data.length = 0;
+	}
+
+	collectEditOperation(op: IValidEditOperation) {
+		this._data.push(InlineDiffDecorations._asDecorationData(op));
+	}
+
+	update() {
+		this._collection.set(this._data.map(d => {
+			const res = { ...d.tracking };
+			if (this._visible) {
+				res.options = { ...res.options, ...d.decorating };
+			}
+			return res;
+		}));
+	}
+
+	private static _asDecorationData(edit: IValidEditOperation): { tracking: IModelDeltaDecoration; decorating: IModelDecorationOptions } {
+		let content = edit.text;
+		if (content.length > 12) {
+			content = content.substring(0, 12) + '…';
+		}
+		const tracking: IModelDeltaDecoration = {
+			range: edit.range,
+			options: {
+				description: 'interactive-editor-inline-diff',
+			}
+		};
+
+		const decorating: IModelDecorationOptions = {
+			description: 'interactive-editor-inline-diff',
+			className: 'interactive-editor-lines-inserted-range',
+			before: {
+				content,
+				inlineClassName: 'interactive-editor-lines-deleted-range-inline',
+				attachedData: edit
+			}
+		};
+
+		return { tracking, decorating };
+	}
+}
+
 export class InteractiveEditorController implements IEditorContribution {
 
 	static ID = 'interactiveEditor';
@@ -600,14 +710,18 @@ export class InteractiveEditorController implements IEditorContribution {
 		blockPadding: [4, 0, 1, 4]
 	});
 
+	private static _decoWholeRange = ModelDecorationOptions.register({
+		description: 'interactive-editor-marker'
+	});
+
 	private static _promptHistory: string[] = [];
 	private _historyOffset: number = -1;
 
 	private readonly _store = new DisposableStore();
 	private readonly _recorder = new SessionRecorder();
 	private readonly _zone: InteractiveEditorZoneWidget;
-	private readonly _ctxShowPreview: IContextKey<boolean>;
 	private readonly _ctxHasActiveRequest: IContextKey<boolean>;
+	private _inlineDiffEnabled: boolean = false;
 
 	private _ctsSession: CancellationTokenSource = new CancellationTokenSource();
 	private _ctsRequest?: CancellationTokenSource;
@@ -623,7 +737,6 @@ export class InteractiveEditorController implements IEditorContribution {
 		@ITelemetryService private readonly _telemetryService: ITelemetryService
 	) {
 		this._zone = this._store.add(_instaService.createInstance(InteractiveEditorZoneWidget, this._editor));
-		this._ctxShowPreview = CTX_INTERACTIVE_EDITOR_PREVIEW.bindTo(contextKeyService);
 		this._ctxHasActiveRequest = CTX_INTERACTIVE_EDITOR_HAS_ACTIVE_REQUEST.bindTo(contextKeyService);
 	}
 
@@ -671,9 +784,10 @@ export class InteractiveEditorController implements IEditorContribution {
 			undos: ''
 		};
 
-		const blockDecoration = this._editor.createDecorationsCollection();
-		const inlineDiffDecorations = this._editor.createDecorationsCollection();
+		const statusWidget = this._zone.widget.createStatusEntry();
+		const inlineDiffDecorations = new InlineDiffDecorations(this._editor, this._inlineDiffEnabled);
 
+		const blockDecoration = this._editor.createDecorationsCollection();
 		const wholeRangeDecoration = this._editor.createDecorationsCollection();
 
 		if (!initialRange) {
@@ -687,7 +801,7 @@ export class InteractiveEditorController implements IEditorContribution {
 		}
 		wholeRangeDecoration.set([{
 			range: initialRange,
-			options: { description: 'interactive-editor-marker' }
+			options: InteractiveEditorController._decoWholeRange
 		}]);
 
 
@@ -743,6 +857,7 @@ export class InteractiveEditorController implements IEditorContribution {
 
 		let round = 0;
 
+
 		do {
 
 			round += 1;
@@ -765,8 +880,6 @@ export class InteractiveEditorController implements IEditorContribution {
 
 			this._historyOffset = -1;
 			const input = await this._zone.getInput(wholeRange.getEndPosition(), placeholder, value, this._ctsRequest.token);
-
-			this._zone.widget.clearMessage();
 
 			if (!input || !input.value) {
 				continue;
@@ -793,7 +906,9 @@ export class InteractiveEditorController implements IEditorContribution {
 				if (!isCancellationError(e)) {
 					this._logService.error('[IE] ERROR during request', provider.debugName);
 					this._logService.error(e);
-					this._zone.widget.showMessage(toErrorMessage(e));
+					// this._zone.widget.showMessage(toErrorMessage(e));
+					statusWidget.update({ message: toErrorMessage(e), classes: ['error'], actions: [] });
+					// statusWidget
 					continue;
 				}
 			} finally {
@@ -801,7 +916,6 @@ export class InteractiveEditorController implements IEditorContribution {
 				this._zone.widget.updateProgress(false);
 				this._logService.trace('[IE] request took', sw.elapsed(), provider.debugName);
 			}
-
 
 			if (this._ctsRequest.token.isCancellationRequested) {
 				this._logService.trace('[IE] request CANCELED', provider.debugName);
@@ -813,7 +927,7 @@ export class InteractiveEditorController implements IEditorContribution {
 			if (!reply) {
 				this._logService.trace('[IE] NO reply or edits', provider.debugName);
 				value = input.value;
-				this._zone.widget.showMessage(localize('empty', "No results, tweak your input and try again."));
+				statusWidget.update({ message: localize('empty', "No results, tweak your input and try again."), classes: ['warn'], actions: [] });
 				historyEntry.remove();
 				continue;
 			}
@@ -839,7 +953,14 @@ export class InteractiveEditorController implements IEditorContribution {
 
 			// inline diff
 			inlineDiffDecorations.clear();
-			const newInlineDiffDecorationsData: IModelDeltaDecoration[] = [];
+
+			// use whole range from reply
+			if (reply.wholeRange) {
+				wholeRangeDecoration.set([{
+					range: reply.wholeRange,
+					options: InteractiveEditorController._decoWholeRange
+				}]);
+			}
 
 			try {
 				ignoreModelChanges = true;
@@ -848,7 +969,7 @@ export class InteractiveEditorController implements IEditorContribution {
 					let last: Position | null = null;
 					for (const edit of undoEdits) {
 						last = !last || last.isBefore(edit.range.getEndPosition()) ? edit.range.getEndPosition() : last;
-						newInlineDiffDecorationsData.push(InteractiveEditorController._asInlineDiffDecorationData(edit));
+						inlineDiffDecorations.collectEditOperation(edit);
 					}
 					return last && [Selection.fromPositions(last)];
 				};
@@ -865,21 +986,57 @@ export class InteractiveEditorController implements IEditorContribution {
 				ignoreModelChanges = false;
 			}
 
-			inlineDiffDecorations.set(input.preview ? newInlineDiffDecorationsData : []);
+			inlineDiffDecorations.update();
 
 			const that = this;
-			historyEntry.updateActions([new class extends UndoStepAction {
+			historyEntry.updateActions([
+				new class extends UndoStepAction {
+					constructor() {
+						super(textModel);
+					}
+					override async run() {
+						super.run();
+						historyEntry.updateVisibility(false);
+						value = input.value;
+						that._ctsRequest?.cancel();
+						data.undos += round + '|';
+					}
+				}]);
+
+
+			const replyActions = reply.commands?.map(command => this._instaService.createInstance(CommandAction, command)) ?? [];
+			const fixedActions = [new class extends Action {
+
 				constructor() {
-					super(textModel);
+					super(Math.random().toString(), localize('ie.inlineDiff', "Toggle Inline Diff"), ThemeIcon.asClassName(Codicon.diff), true);
+					this._setChecked(inlineDiffDecorations.visible);
 				}
 				override async run() {
-					super.run();
-					historyEntry.updateVisibility(false);
-					value = input.value;
-					that._ctsRequest?.cancel();
-					data.undos += round + '|';
+
+					inlineDiffDecorations.visible = !inlineDiffDecorations.visible;
+					this._setChecked(inlineDiffDecorations.visible);
 				}
-			}]);
+				// }, new class extends UndoStepAction {
+				// 	constructor() {
+				// 		super(textModel);
+				// 	}
+				// 	override async run() {
+				// 		super.run();
+				// 		historyEntry.updateVisibility(false);
+				// 		value = input.value;
+				// 		that._ctsRequest?.cancel();
+				// 		data.undos += round + '|';
+				// 	}
+			}];
+
+			const actions = Separator.join(replyActions, fixedActions);
+			const editsCount = (moreMinimalEdits ?? reply.edits).length;
+
+			statusWidget.update({
+				message: editsCount === 1 ? localize('edit.1', "Done, made 1 change") : localize('edit.N', "Done, made {0} changes", editsCount),
+				classes: [],
+				actions,
+			});
 
 			if (!InteractiveEditorController._promptHistory.includes(input.value)) {
 				InteractiveEditorController._promptHistory.unshift(input.value);
@@ -889,6 +1046,8 @@ export class InteractiveEditorController implements IEditorContribution {
 			data.rounds += round + '|';
 
 		} while (!thisSession.token.isCancellationRequested);
+
+		this._inlineDiffEnabled = inlineDiffDecorations.visible;
 
 		// done, cleanup
 		wholeRangeDecoration.clear();
@@ -909,34 +1068,8 @@ export class InteractiveEditorController implements IEditorContribution {
 		this._telemetryService.publicLog2<TelemetryData, TelemetryDataClassification>('interactiveEditor/session', data);
 	}
 
-	private static _asInlineDiffDecorationData(edit: IValidEditOperation): IModelDeltaDecoration {
-		let content = edit.text;
-		if (content.length > 12) {
-			content = content.substring(0, 12) + '…';
-		}
-		return {
-			range: edit.range,
-			options: {
-				description: 'interactive-editor-inline-diff',
-				className: 'interactive-editor-lines-inserted-range',
-				before: {
-					content,
-					inlineClassName: 'interactive-editor-lines-deleted-range-inline',
-					attachedData: edit
-				}
-			}
-		};
-	}
-
-	accept(preview: boolean = this._preview): void {
+	accept(preview: boolean): void {
 		this._zone.widget.acceptInput(preview);
-	}
-
-	private _preview: boolean = false; // TODO@jrieken persist this
-
-	togglePreview(): void {
-		this._preview = !this._preview;
-		this._ctxShowPreview.set(this._preview);
 	}
 
 	cancelCurrentRequest(): void {
