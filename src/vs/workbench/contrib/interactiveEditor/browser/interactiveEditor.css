@@ -6,16 +6,15 @@
 .monaco-editor .interactive-editor {
 	z-index: 100;
 	color: inherit;
-	padding: 6px 0 6px 3px;
+	padding: 6px 0 6px 1px;
 }
 
 /* body */
 
 .monaco-editor .interactive-editor .body {
 	display: flex;
+	padding-right: 4px;
 }
-
-
 
 .monaco-editor .interactive-editor .body .content {
 	display: flex;
