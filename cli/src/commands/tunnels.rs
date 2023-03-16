@@ -21,7 +21,7 @@ use crate::{
 	async_pipe::socket_stream_split,
 	auth::Auth,
 	json_rpc::{new_json_rpc, start_json_rpc},
-	log::{self, Logger},
+	log,
 	singleton::connect_as_client,
 	state::LauncherPaths,
 	tunnels::{
@@ -318,10 +318,14 @@ fn get_connection_token(tunnel: &ActiveTunnel) -> String {
 
 async fn serve_with_csa(
 	paths: LauncherPaths,
-	mut log: Logger,
+	mut log: log::Logger,
 	gateway_args: TunnelServeArgs,
 	mut csa: CodeServerArgs,
 ) -> Result<i32, AnyError> {
+	let log_broadcast = BroadcastLogSink::new();
+	log = log.tee(log_broadcast.clone());
+	log::install_global_logger(log.clone()); // re-install so that library logs are captured
+
 	let shutdown = match gateway_args
 		.parent_process_id
 		.and_then(|p| Pid::from_str(&p).ok())
@@ -365,8 +369,6 @@ async fn serve_with_csa(
 
 	debug!(log, "starting as new singleton");
 
-	let log_broadcast = BroadcastLogSink::new();
-	log = log.tee(log_broadcast.clone());
 	let mut server =
 		make_singleton_server(log_broadcast.clone(), log.clone(), server, shutdown.clone());
 	let platform = spanf!(log, log.span("prereq"), PreReqChecker::new().verify())?;
@@ -377,11 +379,8 @@ async fn serve_with_csa(
 		let tunnel = if let Some(d) = gateway_args.tunnel.clone().into() {
 			dt.start_existing_tunnel(d).await
 		} else {
-			dt.start_new_launcher_tunnel(
-				gateway_args.name.as_deref(),
-				gateway_args.random_name,
-			)
-			.await
+			dt.start_new_launcher_tunnel(gateway_args.name.as_deref(), gateway_args.random_name)
+				.await
 		}?;
 
 		csa.connection_token = Some(get_connection_token(&tunnel));
