@@ -695,7 +695,7 @@ class PersistentTerminalProcess extends Disposable {
 		this._logService.trace('persistentTerminalProcess#start', this._persistentProcessId, this._isStarted);
 		if (!this._isStarted) {
 			const result = await this._terminalProcess.start();
-			if (result) {
+			if (result && 'message' in result) {
 				// it's a terminal launch error
 				return result;
 			}
@@ -711,12 +711,13 @@ class PersistentTerminalProcess extends Disposable {
 			} else {
 				this._onPersistentProcessReady.fire();
 			}
-		} else {
-			this._onProcessReady.fire({ pid: this._pid, cwd: this._cwd, requiresWindowsMode: isWindows && getWindowsBuildNumber() < 21376 });
-			this._onDidChangeProperty.fire({ type: ProcessPropertyType.Title, value: this._terminalProcess.currentTitle });
-			this._onDidChangeProperty.fire({ type: ProcessPropertyType.ShellType, value: this._terminalProcess.shellType });
-			this.triggerReplay();
+			return result;
 		}
+
+		this._onProcessReady.fire({ pid: this._pid, cwd: this._cwd, requiresWindowsMode: isWindows && getWindowsBuildNumber() < 21376 });
+		this._onDidChangeProperty.fire({ type: ProcessPropertyType.Title, value: this._terminalProcess.currentTitle });
+		this._onDidChangeProperty.fire({ type: ProcessPropertyType.ShellType, value: this._terminalProcess.shellType });
+		this.triggerReplay();
 		return undefined;
 	}
 	shutdown(immediate: boolean): void {
