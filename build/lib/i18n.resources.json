@@ -195,6 +195,10 @@
 			"project": "vscode-workbench"
 		},
 		{
+			"name": "vs/workbench/contrib/share",
+			"project": "vscode-workbench"
+		},
+		{
 			"name": "vs/workbench/contrib/snippets",
 			"project": "vscode-workbench"
 		},

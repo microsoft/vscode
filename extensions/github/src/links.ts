@@ -40,27 +40,41 @@ interface INotebookPosition {
 	range: vscode.Range | undefined;
 }
 
+interface EditorContext {
+	uri: vscode.Uri;
+	ranges: vscode.Range[];
+}
+
 interface EditorLineNumberContext {
 	uri: vscode.Uri;
 	lineNumber: number;
 }
-export type LinkContext = vscode.Uri | EditorLineNumberContext | undefined;
 
-function extractContext(context: LinkContext): { fileUri: vscode.Uri | undefined; lineNumber: number | undefined } {
+interface ScmResourceContext {
+	resourceUri: vscode.Uri;
+}
+
+export type LinkContext = vscode.Uri | EditorContext | EditorLineNumberContext | undefined | ScmResourceContext;
+
+function extractContext(context: LinkContext): { fileUri: vscode.Uri | undefined; ranges: vscode.Range[] | undefined } {
 	if (context instanceof vscode.Uri) {
-		return { fileUri: context, lineNumber: undefined };
+		return { fileUri: context, ranges: undefined };
+	} else if (context !== undefined && 'ranges' in context && 'uri' in context) {
+		return { fileUri: context.uri, ranges: context.ranges };
 	} else if (context !== undefined && 'lineNumber' in context && 'uri' in context) {
-		return { fileUri: context.uri, lineNumber: context.lineNumber };
+		return { fileUri: context.uri, ranges: [new vscode.Range(context.lineNumber - 1, 0, context.lineNumber - 1, 1)] };
+	} else if (context !== undefined && 'resourceUri' in context) {
+		return { fileUri: context.resourceUri, ranges: undefined };
 	} else {
-		return { fileUri: undefined, lineNumber: undefined };
+		return { fileUri: undefined, ranges: undefined };
 	}
 }
 
 function getFileAndPosition(context: LinkContext): IFilePosition | INotebookPosition | undefined {
 	let range: vscode.Range | undefined;
 
-	const { fileUri, lineNumber } = extractContext(context);
-	const uri = fileUri ?? vscode.window.activeTextEditor?.document.uri;
+	const { fileUri, ranges: selections } = extractContext(context);
+	const uri = fileUri;
 
 	if (uri) {
 		if (uri.scheme === 'vscode-notebook-cell' && vscode.window.activeNotebookEditor?.notebook.uri.fsPath === uri.fsPath) {
@@ -69,11 +83,11 @@ function getFileAndPosition(context: LinkContext): IFilePosition | INotebookPosi
 			const cell = vscode.window.activeNotebookEditor.notebook.getCells().find(cell => cell.document.uri.fragment === uri?.fragment);
 			const cellIndex = cell?.index ?? vscode.window.activeNotebookEditor.selection.start;
 
-			const range = getRangeOrSelection(lineNumber);
+			const range = selections?.[0];
 			return { type: LinkType.Notebook, uri, cellIndex, range };
 		} else {
 			// the active editor is a text editor
-			range = getRangeOrSelection(lineNumber);
+			range = selections?.[0];
 			return { type: LinkType.File, uri, range };
 		}
 	}
@@ -84,12 +98,6 @@ function getFileAndPosition(context: LinkContext): IFilePosition | INotebookPosi
 	}
 
 	return undefined;
-}
-
-function getRangeOrSelection(lineNumber: number | undefined) {
-	return lineNumber !== undefined && (!vscode.window.activeTextEditor || vscode.window.activeTextEditor.selection.isEmpty || !vscode.window.activeTextEditor.selection.contains(new vscode.Position(lineNumber - 1, 0)))
-		? new vscode.Range(lineNumber - 1, 0, lineNumber - 1, 1)
-		: vscode.window.activeTextEditor?.selection;
 }
 
 function rangeString(range: vscode.Range | undefined) {
@@ -122,10 +130,7 @@ export function notebookCellRangeString(index: number | undefined, range: vscode
 export function getLink(gitAPI: GitAPI, useSelection: boolean, hostPrefix?: string, linkType: 'permalink' | 'headlink' = 'permalink', context?: LinkContext, useRange?: boolean): string | undefined {
 	hostPrefix = hostPrefix ?? 'https://github.com';
 	const fileAndPosition = getFileAndPosition(context);
-	if (!fileAndPosition) {
-		return;
-	}
-	const uri = fileAndPosition.uri;
+	const uri = fileAndPosition?.uri;
 
 	// Use the first repo if we cannot determine a repo from the uri.
 	const gitRepo = (uri ? getRepositoryForFile(gitAPI, uri) : gitAPI.repositories[0]) ?? gitAPI.repositories[0];
@@ -150,9 +155,10 @@ export function getLink(gitAPI: GitAPI, useSelection: boolean, hostPrefix?: stri
 	}
 
 	const blobSegment = (gitRepo.state.HEAD?.ahead === 0) ? `/blob/${linkType === 'headlink' ? gitRepo.state.HEAD.name : gitRepo.state.HEAD?.commit}` : '';
-	const fileSegments = fileAndPosition.type === LinkType.File
+	const fileSegments = fileAndPosition && uri ? (fileAndPosition.type === LinkType.File
 		? (useSelection ? `${uri.path.substring(gitRepo.rootUri.path.length)}${useRange ? rangeString(fileAndPosition.range) : ''}` : '')
-		: (useSelection ? `${uri.path.substring(gitRepo.rootUri.path.length)}${useRange ? notebookCellRangeString(fileAndPosition.cellIndex, fileAndPosition.range) : ''}` : '');
+		: (useSelection ? `${uri.path.substring(gitRepo.rootUri.path.length)}${useRange ? notebookCellRangeString(fileAndPosition.cellIndex, fileAndPosition.range) : ''}` : ''))
+		: '';
 
 	return `${hostPrefix}/${repo.owner}/${repo.repo}${blobSegment
 		}${fileSegments}`;

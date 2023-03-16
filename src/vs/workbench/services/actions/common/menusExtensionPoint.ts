@@ -130,6 +130,11 @@ const apiMenus: IAPIMenu[] = [
 		description: localize('menus.resourceStateContext', "The Source Control resource state context menu")
 	},
 	{
+		key: 'scm/resourceState/context/share',
+		id: MenuId.SCMResourceContextShare,
+		description: localize('menus.resourceStateContextShare', "The Share submenu in the Source Control resource state context menu")
+	},
+	{
 		key: 'scm/resourceFolder/context',
 		id: MenuId.SCMResourceFolderContext,
 		description: localize('menus.resourceFolderContext', "The Source Control resource folder context menu")
@@ -293,6 +298,13 @@ const apiMenus: IAPIMenu[] = [
 		key: 'file/share',
 		id: MenuId.MenubarShare,
 		description: localize('menus.share', "Share submenu shown in the top level File menu."),
+		proposed: 'contribShareMenu'
+	},
+	{
+		key: 'share',
+		id: MenuId.Share,
+		description: localize('share', "Share submenus in all relevant context menus."),
+		supportsSubmenus: false,
 		proposed: 'contribShareMenu'
 	},
 	{
