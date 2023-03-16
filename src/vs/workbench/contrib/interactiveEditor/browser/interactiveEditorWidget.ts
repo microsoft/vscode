@@ -9,7 +9,7 @@ import { DisposableStore, dispose, toDisposable } from 'vs/base/common/lifecycle
 import { IActiveCodeEditor, ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditorLayoutInfo, EditorOption } from 'vs/editor/common/config/editorOptions';
 import { Range } from 'vs/editor/common/core/range';
-import { IEditorContribution, IEditorDecorationsCollection } from 'vs/editor/common/editorCommon';
+import { IEditorContribution, IEditorDecorationsCollection, ScrollType } from 'vs/editor/common/editorCommon';
 import { localize } from 'vs/nls';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
@@ -552,6 +552,10 @@ export class InteractiveEditorZoneWidget extends ZoneWidget {
 		}
 	}
 
+	protected override revealRange(_range: Range, _isLastLine: boolean) {
+		// disabled
+	}
+
 	override hide(): void {
 		this._ctxVisible.reset();
 		this._ctxCursorPosition.reset();
@@ -886,6 +890,7 @@ export class InteractiveEditorController implements IEditorContribution {
 			this._ctsRequest = new CancellationTokenSource(this._ctsSession.token);
 
 			this._historyOffset = -1;
+			this._editor.revealRange(wholeRange, ScrollType.Smooth);
 			const input = await this._zone.getInput(wholeRange.getEndPosition(), placeholder, value, this._ctsRequest.token);
 
 			if (!input || !input.value) {
