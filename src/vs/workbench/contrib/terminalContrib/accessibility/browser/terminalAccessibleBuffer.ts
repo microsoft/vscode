@@ -229,7 +229,7 @@ export class AccessibleBufferWidget extends DisposableStore {
 		if (!buffer) {
 			return '';
 		}
-		const end = buffer.length;
+		const end = Math.min(1024, buffer.length);
 		for (let i = startLine ?? 0; i <= end; i++) {
 			const line = buffer.getLine(i);
 			if (!line) {
