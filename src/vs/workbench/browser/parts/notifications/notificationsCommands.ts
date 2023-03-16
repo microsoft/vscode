@@ -15,6 +15,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { NotificationMetrics, NotificationMetricsClassification, notificationToMetrics } from 'vs/workbench/browser/parts/notifications/notificationsTelemetry';
 import { NotificationFocusedContext, NotificationsCenterVisibleContext, NotificationsToastsVisibleContext } from 'vs/workbench/common/contextkeys';
 import { INotificationService } from 'vs/platform/notification/common/notification';
+import { CONTEXT_ACCESSIBILITY_MODE_ENABLED } from 'vs/platform/accessibility/common/accessibility';
 
 // Center
 export const SHOW_NOTIFICATIONS_CENTER = 'notifications.showList';
@@ -32,6 +33,7 @@ const FOCUS_LAST_NOTIFICATION_TOAST = 'notifications.focusLastToast';
 // Notification
 export const COLLAPSE_NOTIFICATION = 'notification.collapse';
 export const EXPAND_NOTIFICATION = 'notification.expand';
+export const ACCEPT_PRIMARY_ACTION_NOTIFICATION = 'notification.acceptPrimaryAction';
 const TOGGLE_NOTIFICATION = 'notification.toggle';
 export const CLEAR_NOTIFICATION = 'notification.clear';
 export const CLEAR_ALL_NOTIFICATIONS = 'notifications.clearAll';
@@ -134,6 +136,23 @@ export function registerNotificationCommands(center: INotificationsCenterControl
 		handler: (accessor, args?) => {
 			const notification = getNotificationFromContext(accessor.get(IListService), args);
 			notification?.expand();
+		}
+	});
+
+	// Accept Primary Action
+	KeybindingsRegistry.registerCommandAndKeybindingRule({
+		id: ACCEPT_PRIMARY_ACTION_NOTIFICATION,
+		weight: KeybindingWeight.WorkbenchContrib,
+		when: ContextKeyExpr.and(NotificationsToastsVisibleContext, CONTEXT_ACCESSIBILITY_MODE_ENABLED),
+		primary: KeyMod.CtrlCmd | KeyCode.Enter,
+		handler: () => {
+			const notification = model.notifications[0];
+			const primaryAction = notification?.actions?.primary;
+			if (!primaryAction?.length) {
+				return;
+			}
+			primaryAction[0].run();
+			notification.close();
 		}
 	});
 
