@@ -14,6 +14,7 @@ import { process } from 'vs/base/parts/sandbox/electron-sandbox/globals';
 import * as nls from 'vs/nls';
 import { Categories } from 'vs/platform/action/common/actionCommonCategories';
 import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
+import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
 import { ExtensionKind } from 'vs/platform/environment/common/environment';
@@ -194,11 +195,11 @@ export class NativeExtensionService extends AbstractExtensionService implements 
 				const choices: IPromptChoice[] = [];
 				if (this._environmentService.isBuilt) {
 					choices.push({
-						label: nls.localize('reportIssue', "Report Issue"),
+						label: nls.localize('startBisect', "Start Extension Bisect"),
 						run: () => {
 							this._instantiationService.invokeFunction(accessor => {
-								const issueService = accessor.get(IWorkbenchIssueService);
-								issueService.openReporter();
+								const commandService = accessor.get(ICommandService);
+								commandService.executeCommand('extension.bisect.start');
 							});
 						}
 					});
