@@ -40,10 +40,12 @@ interface IMainCli {
 }
 
 export async function main(argv: string[]): Promise<any> {
+	console.log('cli ' + JSON.stringify(argv));
 	let args: NativeParsedArgs;
 
 	try {
 		args = parseCLIProcessArgv(argv);
+		console.log('args ' + JSON.stringify(args));
 	} catch (err) {
 		console.error(err.message);
 		return;
@@ -65,6 +67,8 @@ export async function main(argv: string[]): Promise<any> {
 					: dirname(process.execPath);
 				const tunnelCommand = join(appPath, 'bin', `${product.tunnelApplicationName}${isWindows ? '.exe' : ''}`);
 				const tunnelArgs = argv.slice(3);
+				console.log('tunnelCommand ' + tunnelCommand);
+				console.log('tunnelArgs ' + JSON.stringify(tunnelArgs));
 				tunnelProcess = spawn(tunnelCommand, ['tunnel', ...tunnelArgs]);
 			}
 
