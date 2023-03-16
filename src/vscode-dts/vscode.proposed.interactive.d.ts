@@ -31,12 +31,15 @@ declare module 'vscode' {
 		edits: TextEdit[] | WorkspaceEdit;
 		placeholder?: string;
 		wholeRange?: Range;
+		commands?: Command[];
 	}
 
 	// todo@API make classes
 	export interface InteractiveEditorMessageResponse {
 		contents: MarkdownString;
+		placeholder?: string;
 		wholeRange?: Range;
+		commands?: Command[];
 	}
 
 	export interface TextDocumentContext {
