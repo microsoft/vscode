@@ -120,14 +120,12 @@ export class TokenizationStateStore {
 		return this._lineBeginState.get(lineIndex);
 	}
 
+	/**
+	 * Returns `false` if the end state equals the previous end state.
+	 */
 	public setEndState(linesLength: number, lineIndex: number, endState: IState): boolean {
 		this._lineNeedsTokenization.set(lineIndex, false);
 		this._firstLineNeedsTokenization = lineIndex + 1;
-
-		// Check if this was the last line
-		if (lineIndex === linesLength - 1) {
-			return false;
-		}
 
 		// Check if the end state has changed
 		const previousEndState = this._lineBeginState.get(lineIndex + 1);
