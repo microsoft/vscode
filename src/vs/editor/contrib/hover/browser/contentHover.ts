@@ -308,7 +308,23 @@ export class ContentHoverController extends Disposable {
 				console.log('resizableWidgetDomNode client height : ', resizableWidgetDomNode.clientHeight);
 				console.log('resizableWidgetDomNode offset top : ', resizableWidgetDomNode.offsetTop);
 				console.log('resizableWidgetDomNode offset left : ', resizableWidgetDomNode.offsetLeft);
-				this._widget.onContentsChanged();
+
+				const persistedSize = this._resizableWidget.findPersistedSize();
+				console.log('persistedSize : ', persistedSize);
+				this._widget.onContentsChanged(persistedSize);
+				this._editor.render();
+
+				console.log('After onContentsChanged');
+				console.log('this._widget.getDomNode().offsetTop : ', this._widget.getDomNode().offsetTop);
+				console.log('this._resizableWidget.getDomNode().offsetTop : ', this._resizableWidget.getDomNode().offsetTop);
+
+				const top = this._widget.getDomNode().offsetTop;
+				const left = this._widget.getDomNode().offsetLeft;
+				this._resizableWidget.resizableElement().domNode.style.top = top - 2 + 'px';
+				this._resizableWidget.resizableElement().domNode.style.left = left - 2 + 'px';
+				this._resizableWidget.resizableElement().domNode.style.zIndex = '5';
+				this._resizableWidget.resizableElement().domNode.tabIndex = 0;
+				this._resizableWidget.resizableElement().domNode.style.position = 'fixed';
 				const clientWidth = this._widget.getDomNode().clientWidth;
 				const clientHeight = this._widget.getDomNode().clientHeight;
 				this._resizableWidget.resizableElement().layout(clientHeight + 7, clientWidth + 7);
@@ -316,12 +332,27 @@ export class ContentHoverController extends Disposable {
 				this._editor.render();
 
 				resizableWidgetDomNode = this._resizableWidget.getDomNode();
-				console.log('After onContentsChanged');
+
 				console.log('resizableWidgetDomNode : ', resizableWidgetDomNode);
 				console.log('resizableWidgetDomNode client width : ', resizableWidgetDomNode.clientWidth);
 				console.log('resizableWidgetDomNode client height : ', resizableWidgetDomNode.clientHeight);
 				console.log('resizableWidgetDomNode offset top : ', resizableWidgetDomNode.offsetTop);
 				console.log('resizableWidgetDomNode offset left : ', resizableWidgetDomNode.offsetLeft);
+
+				const containerDomNode = this._widget.getDomNode();
+				console.log('containerDomNode : ', containerDomNode);
+				console.log('containerDomNode client width : ', containerDomNode.clientWidth);
+				console.log('containerDomNode client height : ', containerDomNode.clientHeight);
+				console.log('containerDomNode offset top : ', containerDomNode.offsetTop);
+				console.log('containerDomNode offset left : ', containerDomNode.offsetLeft);
+				const contentsDomNode = this._widget.getContentsDomNode();
+				console.log('contentsDomNode : ', contentsDomNode);
+				console.log('contentsDomNode client width : ', contentsDomNode.clientWidth);
+				console.log('contentsDomNode client height : ', contentsDomNode.clientHeight);
+				console.log('contentsDomNode offset top : ', contentsDomNode.offsetTop);
+				console.log('contentsDomNode offset left : ', contentsDomNode.offsetLeft);
+
+				console.log('At the end of onContentsChanged of _renderMessages');
 			},
 			hide: () => this.hide()
 		};
@@ -351,6 +382,22 @@ export class ContentHoverController extends Disposable {
 				}));
 			}
 			const preferAbove = this._editor.getOption(EditorOption.hover).above;
+
+			const tooltipPosition: IPosition = { lineNumber: showAtPosition.lineNumber, column: showAtPosition.column };
+			this._resizableWidget.setToooltipPosition(tooltipPosition);
+			const persistedSize = this._resizableWidget.findPersistedSize();
+
+			console.log('persisted size : ', persistedSize);
+
+			// Added here but does not seem to have an effect
+			if (persistedSize) {
+				this._widget.getDomNode().style.width = persistedSize.width + 'px';
+				this._widget.getDomNode().style.height = persistedSize.height + 'px';
+				this._editor.addContentWidget(this._widget);
+				this._editor.layoutContentWidget(this._widget);
+				this._editor.render();
+			}
+
 			console.log('* Before this._widget.showAt');
 			let resizableWidgetDomNode = this._resizableWidget.getDomNode();
 			console.log('resizableWidgetDomNode : ', resizableWidgetDomNode);
@@ -567,11 +614,35 @@ export class ResizableHoverOverlay extends Disposable implements IOverlayWidget 
 		// TODO: Calculate correctly the container dom node size and resizable container dom node size
 		// TODO: When hovering over the scroll dom, show the scrollbar
 
+		this._editor.onDidChangeModelContent((e) => {
+			const uri = this._editor.getModel()?.uri.toString();
+			if (!uri || !(uri in this._persistedHoverWidgetSizes)) {
+				return;
+			}
+			const mapToUpdate = this._persistedHoverWidgetSizes.get(uri)!;
+			for (const change of e.changes) {
+				const changeOffset = change.rangeOffset;
+				const length = change.rangeLength;
+				const endOffset = changeOffset + length;
+				for (const stringifiedEntry of mapToUpdate.keys()) {
+					const entry = JSON.parse(stringifiedEntry);
+					if (endOffset < entry[0]) {
+						const oldSize = mapToUpdate.get(entry)!;
+						const newEntry: [number, number] = [entry[0] + length, entry[1]];
+						mapToUpdate.set(JSON.stringify(newEntry), oldSize);
+						mapToUpdate.delete(entry);
+					} else if (changeOffset < entry[0] + entry[1]) {
+						mapToUpdate.delete(entry);
+					}
+				}
+			}
+		});
+
 		let state: ResizeState | undefined;
 
 		this._register(this._resizableElement.onDidWillResize(() => {
 			console.log('this._persistedHoverWidgetSizes ; ', this._persistedHoverWidgetSizes);
-			const persistedSize = this._findPersistedSize();
+			const persistedSize = this.findPersistedSize();
 			state = new ResizeState(persistedSize, this._resizableElement.size);
 			this._resizing = true;
 			this._initialHeight = this._resizableElement.domNode.clientHeight;
@@ -662,7 +733,7 @@ export class ResizableHoverOverlay extends Disposable implements IOverlayWidget 
 		return this._initialTop;
 	}
 
-	private _findPersistedSize(): dom.Dimension | undefined {
+	public findPersistedSize(): dom.Dimension | undefined {
 		// console.log('Inside of _findPersistedSize');
 		if (!this._tooltipPosition) {
 			return;
@@ -852,90 +923,6 @@ export class ContentHoverWidget extends Disposable implements IContentWidget {
 		this._register(this._focusTracker.onDidBlur(() => {
 			this._hoverFocusedKey.set(false);
 		}));
-		/*
-		this._editor.onDidChangeModelContent((e) => {
-			const uri = this._editor.getModel()?.uri.toString();
-			if (!uri || !(uri in this._persistedHoverWidgetSizes)) {
-				return;
-			}
-			const mapToUpdate = this._persistedHoverWidgetSizes.get(uri)!;
-			for (const change of e.changes) {
-				const changeOffset = change.rangeOffset;
-				const length = change.rangeLength;
-				const endOffset = changeOffset + length;
-				for (const stringifiedEntry of mapToUpdate.keys()) {
-					const entry = JSON.parse(stringifiedEntry);
-					if (endOffset < entry[0]) {
-						const oldSize = mapToUpdate.get(entry)!;
-						const newEntry: [number, number] = [entry[0] + length, entry[1]];
-						mapToUpdate.set(JSON.stringify(newEntry), oldSize);
-						mapToUpdate.delete(entry);
-					} else if (changeOffset < entry[0] + entry[1]) {
-						mapToUpdate.delete(entry);
-					}
-				}
-			}
-		});
-		this._resizableElement.domNode.appendChild(this._hover.containerDomNode);
-		this._resizableElement.domNode.className = 'resizable-hover';
-		this._resizableElement.domNode.tabIndex = 0;
-		this._resizableElement.domNode.role = 'tooltip';
-
-		let state: ResizeState | undefined;
-
-		this._register(this._resizableElement.onDidWillResize(() => {
-			console.log('this._persistedHoverWidgetSizes ; ', this._persistedHoverWidgetSizes);
-			const persistedSize = this._findPersistedSize();
-			state = new ResizeState(persistedSize, this._resizableElement.size);
-		}));
-		this._register(this._resizableElement.onDidResize(e => {
-			console.log('* Inside of onDidResize of ContentHoverWidget');
-			console.log('e : ', e);
-			this._resize(e.dimension.width, e.dimension.height);
-			if (state) {
-				state.persistHeight = state.persistHeight || !!e.north || !!e.south;
-				state.persistWidth = state.persistWidth || !!e.east || !!e.west;
-			}
-			if (!e.done) {
-				return;
-			}
-			if (state) {
-				if (!this._editor.hasModel()) {
-					return;
-				}
-				const uri = this._editor.getModel().uri.toString();
-				if (!uri) {
-					return;
-				}
-				const { width, height } = this._resizableElement.size;
-				const persistedSize = new dom.Dimension(width, height);
-				const wordPosition = this._editor.getModel()?.getWordAtPosition(this._visibleData!.showAtPosition);
-				if (!wordPosition || !this._editor.hasModel()) {
-					return;
-				}
-				const offset = this._editor.getModel().getOffsetAt({ lineNumber: this._visibleData!.showAtPosition.lineNumber, column: wordPosition.startColumn });
-				const length = wordPosition.word.length;
-
-				if (!this._persistedHoverWidgetSizes.get(uri)) {
-					const map = new Map<string, dom.Dimension>([]);
-					map.set(JSON.stringify([offset, length]), persistedSize);
-					this._persistedHoverWidgetSizes.set(uri, map);
-				} else {
-					const map = this._persistedHoverWidgetSizes.get(uri)!;
-					map.set(JSON.stringify([offset, length]), persistedSize);
-				}
-			}
-			state = undefined;
-
-			console.log('this._persistedHoverWidgetSizes ; ', this._persistedHoverWidgetSizes);
-		}));
-
-		console.log('Before adding the content widget');
-		console.log('this._element.domNode : ', this._resizableElement.domNode);
-		this._editor.addContentWidget(this);
-		console.log('After adding the content widget');
-		console.log('this._element.domNode : ', this._resizableElement.domNode);
-		*/
 	}
 
 	public setResizableHoverOverlay(resizablHoverOverlay: ResizableHoverOverlay): void {
@@ -944,34 +931,17 @@ export class ContentHoverWidget extends Disposable implements IContentWidget {
 
 	public resize(size: dom.Dimension | null) {
 		console.log('Inside of the resize of the content hover widget');
-		this._hover.containerDomNode.style.width = size?.width + 'px';
-		this._hover.containerDomNode.style.height = size?.height + 'px';
+		if (!size) {
+			return;
+		}
+		this._hover.containerDomNode.style.width = size.width - 6 + 'px';
+		this._hover.containerDomNode.style.height = size.height - 6 + 'px';
 		this._editor.layoutContentWidget(this);
 		this._editor.render();
 	}
 
 	public getSize() {
 		return new dom.Dimension(this._hover.containerDomNode.clientWidth, this._hover.containerDomNode.clientHeight);
-	}
-
-	private _findPersistedSize(): dom.Dimension | undefined {
-		// console.log('Inside of _findPersistedSize');
-		const wordPosition = this._editor.getModel()?.getWordAtPosition(this._visibleData!.showAtPosition);
-		if (!wordPosition || !this._editor.hasModel()) {
-			return;
-		}
-		const offset = this._editor.getModel().getOffsetAt({ lineNumber: this._visibleData!.showAtPosition.lineNumber, column: wordPosition.startColumn });
-		const length = wordPosition.word.length;
-		const uri = this._editor.getModel().uri.toString();
-		// console.log('offset : ', offset);
-		// console.log('length : ', length);
-		const textModelMap = this._persistedHoverWidgetSizes.get(uri);
-		// console.log('textModelMap : ', textModelMap);
-		if (!textModelMap) {
-			return;
-		}
-		// console.log('textModelMap.value : ', textModelMap.entries().next().value);
-		return textModelMap.get(JSON.stringify([offset, length]));
 	}
 
 	/*
@@ -1345,7 +1315,8 @@ export class ContentHoverWidget extends Disposable implements IContentWidget {
 		}
 	}
 
-	public onContentsChanged(): void {
+	public onContentsChanged(persistedSize?: dom.Dimension | undefined): void {
+
 		console.log('* Inside of contents changed');
 		console.log('* Before changes');
 		let containerDomNode = this.getDomNode();
@@ -1361,8 +1332,51 @@ export class ContentHoverWidget extends Disposable implements IContentWidget {
 		console.log('contentsDomNode offset top : ', contentsDomNode.offsetTop);
 		console.log('contentsDomNode offset left : ', contentsDomNode.offsetLeft);
 
+		console.log('persisted size : ', persistedSize);
+
+		// Added here but does not seem to have an effect
+		if (persistedSize) {
+			containerDomNode.style.width = persistedSize.width - 8 + 'px';
+			containerDomNode.style.height = persistedSize.height - 8 + 'px';
+			// this._editor.addContentWidget(this._widget);
+			// this._editor.layoutContentWidget(this._widget);
+			// this._editor.render();
+		} else {
+			containerDomNode.style.width = 'auto';
+			containerDomNode.style.height = 'auto';
+		}
+
 		this._editor.layoutContentWidget(this);
+
+		console.log('* After layout content widget');
+		containerDomNode = this.getDomNode();
+		console.log('containerDomNode : ', containerDomNode);
+		console.log('containerDomNode client width : ', containerDomNode.clientWidth);
+		console.log('containerDomNode client height : ', containerDomNode.clientHeight);
+		console.log('containerDomNode offset top : ', containerDomNode.offsetTop);
+		console.log('containerDomNode offset left : ', containerDomNode.offsetLeft);
+		contentsDomNode = this.getContentsDomNode();
+		console.log('contentsDomNode : ', contentsDomNode);
+		console.log('contentsDomNode client width : ', contentsDomNode.clientWidth);
+		console.log('contentsDomNode client height : ', contentsDomNode.clientHeight);
+		console.log('contentsDomNode offset top : ', contentsDomNode.offsetTop);
+		console.log('contentsDomNode offset left : ', contentsDomNode.offsetLeft);
+
 		this._hover.onContentsChanged();
+
+		console.log('* After hover on contents changed');
+		containerDomNode = this.getDomNode();
+		console.log('containerDomNode : ', containerDomNode);
+		console.log('containerDomNode client width : ', containerDomNode.clientWidth);
+		console.log('containerDomNode client height : ', containerDomNode.clientHeight);
+		console.log('containerDomNode offset top : ', containerDomNode.offsetTop);
+		console.log('containerDomNode offset left : ', containerDomNode.offsetLeft);
+		contentsDomNode = this.getContentsDomNode();
+		console.log('contentsDomNode : ', contentsDomNode);
+		console.log('contentsDomNode client width : ', contentsDomNode.clientWidth);
+		console.log('contentsDomNode client height : ', contentsDomNode.clientHeight);
+		console.log('contentsDomNode offset top : ', contentsDomNode.offsetTop);
+		console.log('contentsDomNode offset left : ', contentsDomNode.offsetLeft);
 
 		const scrollDimensions = this._hover.scrollbar.getScrollDimensions();
 		// console.log('Inside of onContentsChanged');
