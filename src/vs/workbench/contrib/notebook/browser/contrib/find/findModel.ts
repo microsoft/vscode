@@ -414,8 +414,12 @@ export class FindModel extends Disposable {
 		}
 
 		this._state.change({ isSearching: false }, false);
-		return ret;
 
+		if (token.isCancellationRequested) {
+			return null;
+		}
+
+		return ret;
 	}
 
 	private _updateCurrentMatch(findMatches: CellFindMatchWithIndex[], currentMatchesPosition: number) {
