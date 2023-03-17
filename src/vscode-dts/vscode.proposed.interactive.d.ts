@@ -8,6 +8,7 @@ declare module 'vscode' {
 	export interface InteractiveEditorSlashCommand {
 		command: string;
 		detail?: string;
+		refer?: boolean;
 		// kind: CompletionItemKind;
 	}
 

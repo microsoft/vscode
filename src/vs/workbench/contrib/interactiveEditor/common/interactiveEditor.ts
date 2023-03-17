@@ -18,6 +18,7 @@ import { createDecorator } from 'vs/platform/instantiation/common/instantiation'
 export interface IInteractiveEditorSlashCommand {
 	command: string;
 	detail?: string;
+	refer?: boolean;
 }
 
 export interface IInteractiveEditorSession {

@@ -886,6 +886,13 @@ export class InteractiveEditorController implements IEditorContribution {
 				continue;
 			}
 
+			const refer = session.slashCommands?.some(value => value.refer && input.value.startsWith(`/${value.command}`));
+			if (refer) {
+				this._logService.info('[IE] seeing refer command, continuing outside editor', provider.debugName);
+				this._instaService.invokeFunction(showMessageResponse, input.value);
+				continue;
+			}
+
 			const historyEntry = this._zone.widget.createHistoryEntry(input.value);
 
 			const sw = StopWatch.create();
@@ -942,7 +949,7 @@ export class InteractiveEditorController implements IEditorContribution {
 			}
 
 			if (reply.type === 'message') {
-				this._logService.info('[IE] received a MESSAGE, exiting interactive editor', provider.debugName);
+				this._logService.info('[IE] received a MESSAGE, continuing outside editor', provider.debugName);
 				this._instaService.invokeFunction(showMessageResponse, request.prompt);
 				continue;
 			}
