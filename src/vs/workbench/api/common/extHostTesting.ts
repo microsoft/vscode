@@ -22,11 +22,10 @@ import { ExtHostDocumentsAndEditors } from 'vs/workbench/api/common/extHostDocum
 import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
 import { ExtHostTestItemCollection, TestItemImpl, TestItemRootImpl, toItemFromContext } from 'vs/workbench/api/common/extHostTestItem';
 import * as Convert from 'vs/workbench/api/common/extHostTypeConverters';
-import { TestRunProfileKind, TestRunRequest2 } from 'vs/workbench/api/common/extHostTypes';
+import { TestRunProfileKind, TestRunRequest } from 'vs/workbench/api/common/extHostTypes';
 import { TestId, TestIdPathParts, TestPosition } from 'vs/workbench/contrib/testing/common/testId';
 import { InvalidTestItemError } from 'vs/workbench/contrib/testing/common/testItemCollection';
 import { AbstractIncrementalTestCollection, CoverageDetails, ICallProfileRunHandler, IFileCoverage, ISerializedTestResults, IStartControllerTests, IStartControllerTestsResult, ITestItem, ITestItemContext, IncrementalChangeCollector, IncrementalTestCollectionItem, InternalTestItem, TestResultState, TestRunProfileBitset, TestsDiff, TestsDiffOp, isStartControllerTests } from 'vs/workbench/contrib/testing/common/testTypes';
-import { checkProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
 import type * as vscode from 'vscode';
 
 interface ControllerInfo {
@@ -109,10 +108,6 @@ export class ExtHostTesting implements ExtHostTestingShape {
 				let profileId = hash(label);
 				while (profiles.has(profileId)) {
 					profileId++;
-				}
-
-				if (supportsContinuousRun !== undefined) {
-					checkProposedApiEnabled(extension, 'testContinuousRun');
 				}
 
 				return new TestRunProfileImpl(this.proxy, profiles, controllerId, profileId, label, group, runHandler, isDefault, tag, supportsContinuousRun);
@@ -307,7 +302,7 @@ export class ExtHostTesting implements ExtHostTestingShape {
 			return {};
 		}
 
-		const publicReq = new TestRunRequest2(
+		const publicReq = new TestRunRequest(
 			includeTests.some(i => i.actual instanceof TestItemRootImpl) ? undefined : includeTests.map(t => t.actual),
 			excludeTests.map(t => t.actual),
 			profile,
@@ -611,7 +606,7 @@ export class TestRunCoordinator {
 	/**
 	 * Implements the public `createTestRun` API.
 	 */
-	public createTestRun(controllerId: string, collection: ExtHostTestItemCollection, request: vscode.TestRunRequest2, name: string | undefined, persist: boolean): vscode.TestRun {
+	public createTestRun(controllerId: string, collection: ExtHostTestItemCollection, request: vscode.TestRunRequest, name: string | undefined, persist: boolean): vscode.TestRun {
 		const existing = this.tracked.get(request);
 		if (existing) {
 			return existing.createRun(name);

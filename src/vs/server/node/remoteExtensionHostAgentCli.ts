@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { getLogLevel, ILoggerService, ILogService } from 'vs/platform/log/common/log';
+import { ConsoleLogger, getLogLevel, ILoggerService, ILogService } from 'vs/platform/log/common/log';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { ConfigurationService } from 'vs/platform/configuration/common/configurationService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -68,7 +68,7 @@ class CliMain extends Disposable {
 		await instantiationService.invokeFunction(async accessor => {
 			const logService = accessor.get(ILogService);
 			try {
-				await this.doRun(instantiationService.createInstance(ExtensionManagementCLI));
+				await this.doRun(instantiationService.createInstance(ExtensionManagementCLI, new ConsoleLogger(logService.getLevel(), false)));
 			} catch (error) {
 				logService.error(error);
 				console.error(getErrorMessage(error));

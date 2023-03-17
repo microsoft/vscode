@@ -1090,14 +1090,14 @@ export class TimelineIdentityProvider implements IIdentityProvider<TreeElement> 
 
 class TimelineActionRunner extends ActionRunner {
 
-	override async runAction(action: IAction, { uri, item }: TimelineActionContext): Promise<void> {
+	protected override async runAction(action: IAction, { uri, item }: TimelineActionContext): Promise<void> {
 		if (!isTimelineItem(item)) {
 			// TODO@eamodio do we need to do anything else?
 			await action.run();
 			return;
 		}
 
-		await action.run(...[
+		await action.run(
 			{
 				$mid: MarshalledId.TimelineActionContext,
 				handle: item.handle,
@@ -1106,7 +1106,7 @@ class TimelineActionRunner extends ActionRunner {
 			},
 			uri,
 			item.source,
-		]);
+		);
 	}
 }
 

@@ -55,6 +55,10 @@
 			"project": "vscode-workbench"
 		},
 		{
+			"name": "vs/workbench/contrib/commands",
+			"project": "vscode-workbench"
+		},
+		{
 			"name": "vs/workbench/contrib/comments",
 			"project": "vscode-workbench"
 		},
@@ -155,6 +159,10 @@
 			"project": "vscode-workbench"
 		},
 		{
+			"name": "vs/workbench/contrib/interactiveEditor",
+			"project": "vscode-workbench"
+		},
+		{
 			"name": "vs/workbench/contrib/interactiveSession",
 			"project": "vscode-workbench"
 		},
@@ -216,6 +224,10 @@
 		},
 		{
 			"name": "vs/workbench/contrib/terminal",
+			"project": "vscode-workbench"
+		},
+		{
+			"name": "vs/workbench/contrib/terminalContrib",
 			"project": "vscode-workbench"
 		},
 		{

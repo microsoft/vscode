@@ -40,22 +40,40 @@ interface INotebookPosition {
 	range: vscode.Range | undefined;
 }
 
-function getFileAndPosition(): IFilePosition | INotebookPosition | undefined {
-	let uri: vscode.Uri | undefined;
-	let range: vscode.Range | undefined;
-	if (vscode.window.activeTextEditor) {
-		uri = vscode.window.activeTextEditor.document.uri;
+interface EditorLineNumberContext {
+	uri: vscode.Uri;
+	lineNumber: number;
+}
+export type LinkContext = vscode.Uri | EditorLineNumberContext | undefined;
 
+function extractContext(context: LinkContext): { fileUri: vscode.Uri | undefined; lineNumber: number | undefined } {
+	if (context instanceof vscode.Uri) {
+		return { fileUri: context, lineNumber: undefined };
+	} else if (context !== undefined && 'lineNumber' in context && 'uri' in context) {
+		return { fileUri: context.uri, lineNumber: context.lineNumber };
+	} else {
+		return { fileUri: undefined, lineNumber: undefined };
+	}
+}
+
+function getFileAndPosition(context: LinkContext): IFilePosition | INotebookPosition | undefined {
+	let range: vscode.Range | undefined;
+
+	const { fileUri, lineNumber } = extractContext(context);
+	const uri = fileUri ?? vscode.window.activeTextEditor?.document.uri;
+
+	if (uri) {
 		if (uri.scheme === 'vscode-notebook-cell' && vscode.window.activeNotebookEditor?.notebook.uri.fsPath === uri.fsPath) {
 			// if the active editor is a notebook editor and the focus is inside any a cell text editor
 			// generate deep link for text selection for the notebook cell.
 			const cell = vscode.window.activeNotebookEditor.notebook.getCells().find(cell => cell.document.uri.fragment === uri?.fragment);
 			const cellIndex = cell?.index ?? vscode.window.activeNotebookEditor.selection.start;
-			const range = cell !== undefined ? vscode.window.activeTextEditor.selection : undefined;
+
+			const range = getRangeOrSelection(lineNumber);
 			return { type: LinkType.Notebook, uri, cellIndex, range };
 		} else {
 			// the active editor is a text editor
-			range = vscode.window.activeTextEditor.selection;
+			range = getRangeOrSelection(lineNumber);
 			return { type: LinkType.File, uri, range };
 		}
 	}
@@ -66,6 +84,12 @@ function getFileAndPosition(): IFilePosition | INotebookPosition | undefined {
 	}
 
 	return undefined;
+}
+
+function getRangeOrSelection(lineNumber: number | undefined) {
+	return lineNumber !== undefined && (!vscode.window.activeTextEditor || vscode.window.activeTextEditor.selection.isEmpty || !vscode.window.activeTextEditor.selection.contains(new vscode.Position(lineNumber - 1, 0)))
+		? new vscode.Range(lineNumber - 1, 0, lineNumber - 1, 1)
+		: vscode.window.activeTextEditor?.selection;
 }
 
 function rangeString(range: vscode.Range | undefined) {
@@ -95,9 +119,9 @@ export function notebookCellRangeString(index: number | undefined, range: vscode
 	return hash;
 }
 
-export function getLink(gitAPI: GitAPI, useSelection: boolean, hostPrefix?: string, linkType: 'permalink' | 'headlink' = 'permalink'): string | undefined {
+export function getLink(gitAPI: GitAPI, useSelection: boolean, hostPrefix?: string, linkType: 'permalink' | 'headlink' = 'permalink', context?: LinkContext, useRange?: boolean): string | undefined {
 	hostPrefix = hostPrefix ?? 'https://github.com';
-	const fileAndPosition = getFileAndPosition();
+	const fileAndPosition = getFileAndPosition(context);
 	if (!fileAndPosition) {
 		return;
 	}
@@ -127,8 +151,8 @@ export function getLink(gitAPI: GitAPI, useSelection: boolean, hostPrefix?: stri
 
 	const blobSegment = (gitRepo.state.HEAD?.ahead === 0) ? `/blob/${linkType === 'headlink' ? gitRepo.state.HEAD.name : gitRepo.state.HEAD?.commit}` : '';
 	const fileSegments = fileAndPosition.type === LinkType.File
-		? (useSelection ? `${uri.path.substring(gitRepo.rootUri.path.length)}${rangeString(fileAndPosition.range)}` : '')
-		: (useSelection ? `${uri.path.substring(gitRepo.rootUri.path.length)}${notebookCellRangeString(fileAndPosition.cellIndex, fileAndPosition.range)}` : '');
+		? (useSelection ? `${uri.path.substring(gitRepo.rootUri.path.length)}${useRange ? rangeString(fileAndPosition.range) : ''}` : '')
+		: (useSelection ? `${uri.path.substring(gitRepo.rootUri.path.length)}${useRange ? notebookCellRangeString(fileAndPosition.cellIndex, fileAndPosition.range) : ''}` : '');
 
 	return `${hostPrefix}/${repo.owner}/${repo.repo}${blobSegment
 		}${fileSegments}`;

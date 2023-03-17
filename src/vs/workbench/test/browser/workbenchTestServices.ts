@@ -2039,7 +2039,7 @@ export class TestUserDataProfileService implements IUserDataProfileService {
 	readonly _serviceBrand: undefined;
 	readonly onDidUpdateCurrentProfile = Event.None;
 	readonly onDidChangeCurrentProfile = Event.None;
-	readonly currentProfile = toUserDataProfile('test', 'test', URI.file('tests').with({ scheme: 'vscode-tests' }));
+	readonly currentProfile = toUserDataProfile('test', 'test', URI.file('tests').with({ scheme: 'vscode-tests' }), URI.file('tests').with({ scheme: 'vscode-tests' }));
 	async updateCurrentProfile(): Promise<void> { }
 	getShortName(profile: IUserDataProfile): string { return profile.shortName ?? profile.name; }
 }

@@ -115,6 +115,7 @@ import { IInitialProtocolUrls, IProtocolUrl } from 'vs/platform/url/electron-mai
 import { massageMessageBoxOptions } from 'vs/platform/dialogs/common/dialogs';
 import { IUtilityProcessWorkerMainService, UtilityProcessWorkerMainService } from 'vs/platform/utilityProcess/electron-main/utilityProcessWorkerMainService';
 import { ipcUtilityProcessWorkerChannelName } from 'vs/platform/utilityProcess/common/utilityProcessWorkerService';
+import { firstOrDefault } from 'vs/base/common/arrays';
 
 /**
  * The main VS Code application. There will only ever be one instance,
@@ -529,7 +530,7 @@ export class CodeApplication extends Disposable {
 
 		// Resolve unique machine ID
 		this.logService.trace('Resolving machine identifier...');
-		const machineId = await resolveMachineId(this.stateService);
+		const machineId = await resolveMachineId(this.stateService, this.logService);
 		this.logService.trace(`Resolved machine identifier: ${machineId}`);
 
 		// Shared process
@@ -785,16 +786,16 @@ export class CodeApplication extends Disposable {
 		if (windowOpenableFromProtocolUrl) {
 			this.logService.trace('app#handleProtocolUrl() opening protocol url as window:', windowOpenableFromProtocolUrl, uri.toString(true));
 
-			const [window] = await windowsMainService.open({
+			const window = firstOrDefault(await windowsMainService.open({
 				context: OpenContext.API,
 				cli: { ...this.environmentMainService.args },
 				urisToOpen: [windowOpenableFromProtocolUrl],
 				forceNewWindow: shouldOpenInNewWindow,
 				gotoLineMode: true
 				// remoteAuthority: will be determined based on windowOpenableFromProtocolUrl
-			});
+			}));
 
-			window.focus(); // this should help ensuring that the right window gets focus when multiple are opened
+			window?.focus(); // this should help ensuring that the right window gets focus when multiple are opened
 
 			return true;
 		}
@@ -803,16 +804,16 @@ export class CodeApplication extends Disposable {
 		if (shouldOpenInNewWindow) {
 			this.logService.trace('app#handleProtocolUrl() opening empty window and passing in protocol url:', uri.toString(true));
 
-			const [window] = await windowsMainService.open({
+			const window = firstOrDefault(await windowsMainService.open({
 				context: OpenContext.API,
 				cli: { ...this.environmentMainService.args },
 				forceNewWindow: true,
 				forceEmpty: true,
 				gotoLineMode: true,
 				remoteAuthority: getRemoteAuthority(uri)
-			});
+			}));
 
-			await window.ready();
+			await window?.ready();
 
 			return urlService.open(uri, options);
 		}
@@ -938,7 +939,7 @@ export class CodeApplication extends Disposable {
 			const isInternal = isInternalTelemetry(this.productService, this.configurationService);
 			const channel = getDelayedChannel(sharedProcessReady.then(client => client.getChannel('telemetryAppender')));
 			const appender = new TelemetryAppenderClient(channel);
-			const commonProperties = resolveCommonProperties(this.fileService, release(), hostname(), process.arch, this.productService.commit, this.productService.version, machineId, isInternal, this.environmentMainService.installSourcePath);
+			const commonProperties = resolveCommonProperties(release(), hostname(), process.arch, this.productService.commit, this.productService.version, machineId, isInternal);
 			const piiPaths = getPiiPathsFromEnvironment(this.environmentMainService);
 			const config: ITelemetryServiceConfig = { appenders: [appender], commonProperties, piiPaths, sendErrorTelemetry: true };
 
@@ -1195,7 +1196,6 @@ export class CodeApplication extends Disposable {
 
 	private afterWindowOpen(accessor: ServicesAccessor, sharedProcess: SharedProcess): void {
 		const telemetryService = accessor.get(ITelemetryService);
-		const updateService = accessor.get(IUpdateService);
 
 		// Observe shared process for errors
 		this.handleSharedProcessErrors(telemetryService, sharedProcess);
@@ -1211,11 +1211,6 @@ export class CodeApplication extends Disposable {
 			});
 		});
 
-		// Initialize update service
-		if (updateService instanceof Win32UpdateService || updateService instanceof LinuxUpdateService || updateService instanceof DarwinUpdateService) {
-			updateService.initialize();
-		}
-
 		// Start to fetch shell environment (if needed) after window has opened
 		// Since this operation can take a long time, we want to warm it up while
 		// the window is opening.
@@ -1230,7 +1225,7 @@ export class CodeApplication extends Disposable {
 		const win32MutexName = this.productService.win32MutexName;
 		if (isWindows && win32MutexName) {
 			try {
-				const WindowsMutex = await import('windows-mutex');
+				const WindowsMutex = await import('@vscode/windows-mutex');
 				const mutex = new WindowsMutex.Mutex(win32MutexName);
 				once(this.lifecycleMainService.onWillShutdown)(() => mutex.release());
 			} catch (error) {
