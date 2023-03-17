@@ -145,7 +145,7 @@
 
 .interactive-session .interactive-input-and-toolbar .monaco-editor,
 .interactive-session .interactive-input-and-toolbar .monaco-editor .monaco-editor-background {
-	background-color: var(--vscode-input-background);
+	background-color: transparent;
 }
 
 .interactive-session .interactive-input-and-toolbar .monaco-editor .cursors-layer {
