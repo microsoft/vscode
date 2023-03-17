@@ -600,6 +600,7 @@ export class ResizableHoverOverlay extends Disposable implements IOverlayWidget 
 	private _maxRenderingHeight: number | undefined = 10000;
 	private _tooltipPosition: IPosition | null = null;
 	private _renderingPosition: IOverlayWidgetPosition | null = null;
+	private _visible: boolean = false;
 	private _renderingAbove: ContentWidgetPositionPreference = ContentWidgetPositionPreference.ABOVE;
 
 	private readonly _onDidResize = new Emitter<IResizeEvent>();
@@ -651,6 +652,13 @@ export class ResizableHoverOverlay extends Disposable implements IOverlayWidget 
 		this._register(this._resizableElement.onDidResize(e => {
 			console.log('* Inside of onDidResize of ContentHoverWidget');
 			console.log('e : ', e);
+			console.log('this._visible : ', this._visible);
+
+			if (!this._visible) {
+				this._resizing = false;
+				return;
+			}
+
 			let height = e.dimension.height;
 			let width = e.dimension.width;
 			const maxWidth = this._resizableElement.maxSize.width;
@@ -678,9 +686,6 @@ export class ResizableHoverOverlay extends Disposable implements IOverlayWidget 
 				state.persistHeight = state.persistHeight || !!e.north || !!e.south;
 				state.persistWidth = state.persistWidth || !!e.east || !!e.west;
 			}
-			if (!e.done) {
-				return;
-			}
 			if (state) {
 				if (!this._editor.hasModel()) {
 					return;
@@ -705,6 +710,7 @@ export class ResizableHoverOverlay extends Disposable implements IOverlayWidget 
 					map.set(JSON.stringify([offset, length]), persistedSize);
 					this._persistedHoverWidgetSizes.set(uri, map);
 				} else {
+					console.log('saving the new persist size');
 					const map = this._persistedHoverWidgetSizes.get(uri)!;
 					map.set(JSON.stringify([offset, length]), persistedSize);
 				}
@@ -764,6 +770,7 @@ export class ResizableHoverOverlay extends Disposable implements IOverlayWidget 
 		console.log('hiding the resizable hover overlay');
 		this._resizableElement.enableSashes(false, false, false, false);
 		this._resizableElement.clearSashHoverState();
+		this._visible = false;
 		// this._resizableElement.layout(0, 0);
 		// this._editor.layoutOverlayWidget(this);
 		this._editor.removeOverlayWidget(this);
@@ -812,6 +819,7 @@ export class ResizableHoverOverlay extends Disposable implements IOverlayWidget 
 		console.log('resizableWidgetDomNode offset top : ', resizableWidgetDomNode.offsetTop);
 		console.log('resizableWidgetDomNode offset left : ', resizableWidgetDomNode.offsetLeft);
 
+		this._visible = true;
 		this._editor.addOverlayWidget(this);
 		console.log('After adding overlay widget');
 		resizableWidgetDomNode = this.getDomNode();
