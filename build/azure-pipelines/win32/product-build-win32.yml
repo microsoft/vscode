@@ -28,6 +28,8 @@ steps:
       addToPath: true
 
   - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
+      - template: ../distro/download-distro.yml
+
       - task: AzureKeyVault@1
         displayName: "Azure Key Vault: Get Secrets"
         inputs:
@@ -35,87 +37,48 @@ steps:
           KeyVaultName: vscode-build-secrets
           SecretsFilter: "github-distro-mixin-password,ESRP-PKI,esrp-aad-username,esrp-aad-password"
 
-  - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
       - task: DownloadPipelineArtifact@2
         inputs:
           artifact: Compilation
           path: $(Build.ArtifactStagingDirectory)
         displayName: Download compilation output
 
-  - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
       - task: ExtractFiles@1
         displayName: Extract compilation output
         inputs:
           archiveFilePatterns: "$(Build.ArtifactStagingDirectory)/compilation.tar.gz"
           cleanDestinationFolder: false
 
-  - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
-      - powershell: |
-          . build/azure-pipelines/win32/exec.ps1
-          $ErrorActionPreference = "Stop"
-          "machine github.com`nlogin vscode`npassword $(github-distro-mixin-password)" | Out-File "$env:USERPROFILE\_netrc" -Encoding ASCII
-
-          exec { git config user.email "vscode@microsoft.com" }
-          exec { git config user.name "VSCode" }
-        displayName: Prepare tooling
-
-  - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
-      - powershell: |
-          . build/azure-pipelines/win32/exec.ps1
-          $ErrorActionPreference = "Stop"
-
-          exec { git fetch https://github.com/$(VSCODE_MIXIN_REPO).git $(VSCODE_DISTRO_REF) }
-          Write-Host "##vso[task.setvariable variable=VSCODE_DISTRO_COMMIT;]$(git rev-parse FETCH_HEAD)"
-          exec { git checkout FETCH_HEAD }
-        condition: and(succeeded(), ne(variables.VSCODE_DISTRO_REF, ' '))
-        displayName: Checkout override commit
-
-  - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
-      - powershell: |
-          . build/azure-pipelines/win32/exec.ps1
-          $ErrorActionPreference = "Stop"
-          exec { git pull --no-rebase https://github.com/$(VSCODE_MIXIN_REPO).git $(node -p "require('./package.json').distro") }
-        displayName: Merge distro
-
-  - powershell: |
-      . build/azure-pipelines/win32/exec.ps1
-      $ErrorActionPreference = "Stop"
-      exec { node build/setup-npm-registry.js $env:NPM_REGISTRY }
+  - powershell: node build/setup-npm-registry.js $env:NPM_REGISTRY
     condition: and(succeeded(), ne(variables['NPM_REGISTRY'], 'none'))
     displayName: Setup NPM Registry
 
   - powershell: |
+      . build/azure-pipelines/win32/exec.ps1
+      $ErrorActionPreference = "Stop"
       if (!(Test-Path ".build")) { New-Item -Path ".build" -ItemType Directory }
       node build/azure-pipelines/common/computeNodeModulesCacheKey.js $(VSCODE_ARCH) > .build/yarnlockhash
       node build/azure-pipelines/common/computeBuiltInDepsCacheKey.js > .build/builtindepshash
-    displayName: Prepare yarn cache flags
+    displayName: Prepare cache inputs
 
-  - ${{ if eq(parameters.VSCODE_QUALITY, 'oss') }}:
-      - task: Cache@2
-        inputs:
-          key: "genericNodeModules | $(Agent.OS) | .build/yarnlockhash"
-          path: .build/node_modules_cache
-          cacheHitVar: NODE_MODULES_RESTORED
-        displayName: Restore node_modules cache
+  - task: Cache@2
+    inputs:
+      ${{ if eq(parameters.VSCODE_QUALITY, 'oss') }}:
+        key: "oss | $(Agent.OS) | .build/yarnlockhash"
+      ${{ else }}:
+        key: "distro | $(Agent.OS) | .build/yarnlockhash"
+      path: .build/node_modules_cache
+      cacheHitVar: NODE_MODULES_RESTORED
+    displayName: Restore node_modules cache
 
   - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
       - task: Cache@2
         inputs:
-          key: "nodeModules | $(Agent.OS) | .build/yarnlockhash"
-          path: .build/node_modules_cache
-          cacheHitVar: NODE_MODULES_RESTORED
-        displayName: Restore node_modules cache
+          key: '"builtInDeps" | .build/builtindepshash'
+          path: .build/builtInExtensions
+        displayName: Restore built-in extensions
 
-  - task: Cache@2
-    inputs:
-      key: '"builtInDeps" | .build/builtindepshash'
-      path: .build/builtInExtensions
-    displayName: Restore built-in extensions
-
-  - powershell: |
-      . build/azure-pipelines/win32/exec.ps1
-      $ErrorActionPreference = "Stop"
-      exec { 7z.exe x .build/node_modules_cache/cache.7z -aos }
+  - powershell: 7z.exe x .build/node_modules_cache/cache.7z -aoa -bb
     condition: and(succeeded(), eq(variables.NODE_MODULES_RESTORED, 'true'))
     displayName: Extract node_modules cache
 
@@ -148,54 +111,42 @@ steps:
     displayName: Install dependencies
     condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
 
-  - powershell: |
-      . build/azure-pipelines/win32/exec.ps1
-      $ErrorActionPreference = "Stop"
-      exec { node build/lib/builtInExtensions.js }
-    env:
-      GITHUB_TOKEN: "$(github-distro-mixin-password)"
-    displayName: Download missing built-in extensions
+  - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
+      - powershell: node build/azure-pipelines/distro/mixin-npm
+        condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
+        displayName: Mixin distro node modules
 
   - powershell: |
       . build/azure-pipelines/win32/exec.ps1
       $ErrorActionPreference = "Stop"
       exec { node build/azure-pipelines/common/listNodeModules.js .build/node_modules_list.txt }
       exec { mkdir -Force .build/node_modules_cache }
-      exec { 7z.exe a .build/node_modules_cache/cache.7z -mx3 `@.build/node_modules_list.txt }
+      exec { 7z.exe a .build/node_modules_cache/cache.7z -mx3 -bb `@.build/node_modules_list.txt }
     condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
     displayName: Create node_modules archive
 
   - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
-      - powershell: |
-          . build/azure-pipelines/win32/exec.ps1
-          $ErrorActionPreference = "Stop"
-          exec { node build/azure-pipelines/mixin }
-        displayName: Mix in quality
+      - powershell: node build/azure-pipelines/distro/mixin-quality
+        displayName: Mixin distro quality
+
+      - powershell: node build/lib/builtInExtensions.js
+        env:
+          GITHUB_TOKEN: "$(github-distro-mixin-password)"
+        displayName: Download built-in extensions
 
   - ${{ if eq(parameters.VSCODE_PUBLISH, true) }}:
-      - powershell: |
-          . build/azure-pipelines/win32/exec.ps1
-          $ErrorActionPreference = "Stop"
-          exec { node build\lib\policies }
+      - powershell: node build\lib\policies
         displayName: Generate Group Policy definitions
         retryCountOnTaskFailure: 3
 
   - ${{ if eq(parameters.VSCODE_QUALITY, 'oss') }}:
-      - powershell: |
-          . build/azure-pipelines/win32/exec.ps1
-          $ErrorActionPreference = "Stop"
-          $env:VSCODE_MIXIN_PASSWORD="$(github-distro-mixin-password)"
-          exec { yarn gulp "transpile-client-swc" "transpile-extensions" }
+      - powershell: yarn gulp "transpile-client-swc" "transpile-extensions"
+        env:
+          GITHUB_TOKEN: "$(github-distro-mixin-password)"
         displayName: Transpile
 
   - ${{ if eq(parameters.VSCODE_QUALITY, 'insider') }}:
-      - powershell: |
-          . build/azure-pipelines/win32/exec.ps1
-          $ErrorActionPreference = "Stop"
-          $env:VSCODE_EXPLORER_APPX_DIR=$(Join-Path $pwd.Path ".build/win32/appx")
-          exec { node build/win32/explorer-appx-fetcher }
-        env:
-          VSCODE_ARCH: "$(VSCODE_ARCH)"
+      - powershell: node build/win32/explorer-appx-fetcher .build/win32/appx
         displayName: Download Explorer Sparse Package
         condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'))
 
@@ -203,35 +154,19 @@ steps:
       - powershell: |
           . build/azure-pipelines/win32/exec.ps1
           $ErrorActionPreference = "Stop"
-          $env:VSCODE_MIXIN_PASSWORD="$(github-distro-mixin-password)"
           exec { yarn gulp "vscode-win32-$(VSCODE_ARCH)-min-ci" }
           echo "##vso[task.setvariable variable=CodeSigningFolderPath]$(agent.builddirectory)/VSCode-win32-$(VSCODE_ARCH)"
+        env:
+          GITHUB_TOKEN: "$(github-distro-mixin-password)"
         displayName: Build
 
   - ${{ if eq(parameters.VSCODE_BUILD_TUNNEL_CLI, true) }}:
       - task: DownloadPipelineArtifact@2
         inputs:
-          artifact: unsigned_vscode_cli_win32_arm64_cli
+          artifact: unsigned_vscode_cli_win32_$(VSCODE_ARCH)_cli
           patterns: "**"
           path: $(Build.ArtifactStagingDirectory)/cli
         displayName: Download VS Code CLI
-        condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'arm64'))
-
-      - task: DownloadPipelineArtifact@2
-        inputs:
-          artifact: unsigned_vscode_cli_win32_x64_cli
-          patterns: "**"
-          path: $(Build.ArtifactStagingDirectory)/cli
-        displayName: Download VS Code CLI
-        condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'x64'))
-
-      - task: DownloadPipelineArtifact@2
-        inputs:
-          artifact: unsigned_vscode_cli_win32_ia32_cli
-          patterns: "**"
-          path: $(Build.ArtifactStagingDirectory)/cli
-        displayName: Download VS Code CLI
-        condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'ia32'))
 
       - powershell: |
           . build/azure-pipelines/win32/exec.ps1
@@ -245,29 +180,20 @@ steps:
         displayName: Move VS Code CLI
 
   - ${{ if eq(parameters.VSCODE_PUBLISH, true) }}:
-      - powershell: |
-          . build/azure-pipelines/win32/exec.ps1
-          $ErrorActionPreference = "Stop"
-          $env:VSCODE_MIXIN_PASSWORD="$(github-distro-mixin-password)"
-          exec { yarn gulp "vscode-win32-$(VSCODE_ARCH)-inno-updater" }
+      - powershell: yarn gulp "vscode-win32-$(VSCODE_ARCH)-inno-updater"
+        env:
+          GITHUB_TOKEN: "$(github-distro-mixin-password)"
         displayName: Prepare Package
 
   - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
       - powershell: |
           . build/azure-pipelines/win32/exec.ps1
           $ErrorActionPreference = "Stop"
-          exec { node build/azure-pipelines/mixin --server }
-        displayName: Mix in quality
-        condition: and(succeeded(), ne(variables['VSCODE_ARCH'], 'arm64'))
-
-  - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
-      - powershell: |
-          . build/azure-pipelines/win32/exec.ps1
-          $ErrorActionPreference = "Stop"
-          $env:VSCODE_MIXIN_PASSWORD="$(github-distro-mixin-password)"
           exec { yarn gulp "vscode-reh-win32-$(VSCODE_ARCH)-min-ci" }
           exec { yarn gulp "vscode-reh-web-win32-$(VSCODE_ARCH)-min-ci" }
           echo "##vso[task.setvariable variable=CodeSigningFolderPath]$(CodeSigningFolderPath),$(agent.builddirectory)/vscode-reh-win32-$(VSCODE_ARCH)"
+        env:
+          GITHUB_TOKEN: "$(github-distro-mixin-password)"
         displayName: Build Server
         condition: and(succeeded(), ne(variables['VSCODE_ARCH'], 'arm64'))
 
@@ -302,24 +228,15 @@ steps:
         displayName: Find ESRP CLI
 
   - ${{ if eq(parameters.VSCODE_PUBLISH, true) }}:
-      - powershell: |
-          . build/azure-pipelines/win32/exec.ps1
-          $ErrorActionPreference = "Stop"
-          exec { node build\azure-pipelines\common\sign $env:EsrpCliDllPath windows $(ESRP-PKI) $(esrp-aad-username) $(esrp-aad-password) $(CodeSigningFolderPath) '*.dll,*.exe,*.node' }
+      - powershell: node build\azure-pipelines\common\sign $env:EsrpCliDllPath windows $(ESRP-PKI) $(esrp-aad-username) $(esrp-aad-password) $(CodeSigningFolderPath) '*.dll,*.exe,*.node'
         displayName: Codesign
 
   - ${{ if and(eq(parameters.VSCODE_QUALITY, 'insider'), eq(parameters.VSCODE_PUBLISH, true)) }}:
-      - powershell: |
-          . build/azure-pipelines/win32/exec.ps1
-          $ErrorActionPreference = "Stop"
-          exec { node build\azure-pipelines\common\sign $env:EsrpCliDllPath windows-appx $(ESRP-PKI) $(esrp-aad-username) $(esrp-aad-password) $(CodeSigningFolderPath) '*.appx' }
+      - powershell: node build\azure-pipelines\common\sign $env:EsrpCliDllPath windows-appx $(ESRP-PKI) $(esrp-aad-username) $(esrp-aad-password) $(CodeSigningFolderPath) '*.appx'
         displayName: Codesign context menu appx package
 
   - ${{ if eq(parameters.VSCODE_PUBLISH, true) }}:
-      - powershell: |
-          . build/azure-pipelines/win32/exec.ps1
-          $ErrorActionPreference = "Stop"
-          exec { yarn gulp "vscode-win32-$(VSCODE_ARCH)-archive" }
+      - powershell: yarn gulp "vscode-win32-$(VSCODE_ARCH)-archive"
         displayName: Package archive
 
   - ${{ if eq(parameters.VSCODE_PUBLISH, true) }}:
@@ -334,10 +251,7 @@ steps:
         displayName: Package setups
 
   - ${{ if eq(parameters.VSCODE_PUBLISH, true) }}:
-      - powershell: |
-          . build/azure-pipelines/win32/exec.ps1
-          $ErrorActionPreference = "Stop"
-          .\build\azure-pipelines\win32\prepare-publish.ps1
+      - powershell: .\build\azure-pipelines\win32\prepare-publish.ps1
         displayName: Publish
 
   - ${{ if eq(parameters.VSCODE_PUBLISH, true) }}:

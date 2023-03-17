@@ -12,7 +12,7 @@ const util = require('./lib/util');
 const { getVersion } = require('./lib/getVersion');
 const task = require('./lib/task');
 const optimize = require('./lib/optimize');
-const product = require('../product.json');
+const product = require('../product.server.json');
 const rename = require('gulp-rename');
 const replace = require('gulp-replace');
 const filter = require('gulp-filter');
@@ -223,7 +223,7 @@ function packageTask(type, platform, arch, sourceFolderName, destinationFolderNa
 				return !isUIExtension(manifest);
 			}).map((extensionPath) => path.basename(path.dirname(extensionPath)))
 			.filter(name => name !== 'vscode-api-tests' && name !== 'vscode-test-resolver'); // Do not ship the test extensions
-		const marketplaceExtensions = JSON.parse(fs.readFileSync(path.join(REPO_ROOT, 'product.json'), 'utf8')).builtInExtensions
+		const marketplaceExtensions = JSON.parse(fs.readFileSync(path.join(REPO_ROOT, 'product.server.json'), 'utf8')).builtInExtensions
 			.filter(entry => !entry.platforms || new Set(entry.platforms).has(platform))
 			.filter(entry => !entry.clientOnly)
 			.map(entry => entry.name);
@@ -248,8 +248,9 @@ function packageTask(type, platform, arch, sourceFolderName, destinationFolderNa
 
 		const date = new Date().toISOString();
 
-		const productJsonStream = gulp.src(['product.json'], { base: '.' })
-			.pipe(json({ commit, date, version }));
+		const productJsonStream = gulp.src(['product.server.json'], { base: '.' })
+			.pipe(json({ commit, date, version }))
+			.pipe(rename('product.json'));
 
 		const license = gulp.src(['remote/LICENSE'], { base: 'remote', allowEmpty: true });
 

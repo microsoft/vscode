@@ -23,6 +23,8 @@ steps:
       versionSpec: "16.x"
 
   - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
+      - template: ../distro/download-distro.yml
+
       - task: AzureKeyVault@1
         displayName: "Azure Key Vault: Get Secrets"
         inputs:
@@ -30,46 +32,14 @@ steps:
           KeyVaultName: vscode-build-secrets
           SecretsFilter: "github-distro-mixin-password,macos-developer-certificate,macos-developer-certificate-key"
 
-  - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
       - task: DownloadPipelineArtifact@2
         inputs:
           artifact: Compilation
           path: $(Build.ArtifactStagingDirectory)
         displayName: Download compilation output
 
-  - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
-      - script: |
-          set -e
-          tar -xzf $(Build.ArtifactStagingDirectory)/compilation.tar.gz
+      - script: tar -xzf $(Build.ArtifactStagingDirectory)/compilation.tar.gz
         displayName: Extract compilation output
-
-  - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
-      - script: |
-          set -e
-          cat << EOF > ~/.netrc
-          machine github.com
-          login vscode
-          password $(github-distro-mixin-password)
-          EOF
-
-          git config user.email "vscode@microsoft.com"
-          git config user.name "VSCode"
-        displayName: Prepare tooling
-
-  - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
-      - script: |
-          set -e
-          git fetch https://github.com/$(VSCODE_MIXIN_REPO).git $VSCODE_DISTRO_REF
-          echo "##vso[task.setvariable variable=VSCODE_DISTRO_COMMIT;]$(git rev-parse FETCH_HEAD)"
-          git checkout FETCH_HEAD
-        condition: and(succeeded(), ne(variables.VSCODE_DISTRO_REF, ' '))
-        displayName: Checkout override commit
-
-  - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
-      - script: |
-          set -e
-          git pull --no-rebase https://github.com/$(VSCODE_MIXIN_REPO).git $(node -p "require('./package.json').distro")
-        displayName: Merge distro
 
   - script: node build/setup-npm-registry.js $NPM_REGISTRY
     condition: and(succeeded(), ne(variables['NPM_REGISTRY'], 'none'))
@@ -79,24 +49,26 @@ steps:
       mkdir -p .build
       node build/azure-pipelines/common/computeNodeModulesCacheKey.js $VSCODE_ARCH > .build/yarnlockhash
       node build/azure-pipelines/common/computeBuiltInDepsCacheKey.js > .build/builtindepshash
-    displayName: Prepare yarn cache flags
+    displayName: Prepare cache inputs
 
   - task: Cache@2
     inputs:
-      key: "nodeModules | $(Agent.OS) | .build/yarnlockhash"
+      ${{ if eq(parameters.VSCODE_QUALITY, 'oss') }}:
+        key: "oss | $(Agent.OS) | .build/yarnlockhash"
+      ${{ else }}:
+        key: "distro | $(Agent.OS) | .build/yarnlockhash"
       path: .build/node_modules_cache
       cacheHitVar: NODE_MODULES_RESTORED
     displayName: Restore node_modules cache
 
-  - task: Cache@2
-    inputs:
-      key: '"builtInDeps" | .build/builtindepshash'
-      path: .build/builtInExtensions
-    displayName: Restore built-in extensions
+  - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
+      - task: Cache@2
+        inputs:
+          key: '"builtInDeps" | .build/builtindepshash'
+          path: .build/builtInExtensions
+        displayName: Restore built-in extensions
 
-  - script: |
-      set -e
-      tar -xzf .build/node_modules_cache/cache.tgz
+  - script: tar -xvzf .build/node_modules_cache/cache.tgz
     condition: and(succeeded(), eq(variables.NODE_MODULES_RESTORED, 'true'))
     displayName: Extract node_modules cache
 
@@ -134,89 +106,66 @@ steps:
     displayName: Install dependencies
     condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
 
-  - script: |
-      set -e
-      node build/lib/builtInExtensions.js
-    env:
-      GITHUB_TOKEN: "$(github-distro-mixin-password)"
-    displayName: Download missing built-in extensions
+  - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
+      - script: node build/azure-pipelines/distro/mixin-npm
+        condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
+        displayName: Mixin distro node modules
 
   - script: |
       set -e
       node build/azure-pipelines/common/listNodeModules.js .build/node_modules_list.txt
       mkdir -p .build/node_modules_cache
-      tar -czf .build/node_modules_cache/cache.tgz --files-from .build/node_modules_list.txt
+      tar -cvzf .build/node_modules_cache/cache.tgz --files-from .build/node_modules_list.txt
     condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
     displayName: Create node_modules archive
 
   - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
-      # This script brings in the right resources (images, icons, etc) based on the quality (insiders, stable, exploration)
-      - script: |
-          set -e
-          node build/azure-pipelines/mixin
-        displayName: Mix in quality
+      - script: node build/azure-pipelines/distro/mixin-quality
+        displayName: Mixin distro quality
 
-  - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
-      - script: |
-          set -e
-          VSCODE_MIXIN_PASSWORD="$(github-distro-mixin-password)" \
-            yarn gulp vscode-darwin-$(VSCODE_ARCH)-min-ci
+      - script: node build/lib/builtInExtensions.js
+        env:
+          GITHUB_TOKEN: "$(github-distro-mixin-password)"
+        displayName: Download built-in extensions
+
+      - script: yarn gulp vscode-darwin-$(VSCODE_ARCH)-min-ci
+        env:
+          GITHUB_TOKEN: "$(github-distro-mixin-password)"
         displayName: Build client
 
-  - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
       - script: |
           set -e
-          node build/azure-pipelines/mixin --server
-        displayName: Mix in server quality
-
-  - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
-      - script: |
-          set -e
-          VSCODE_MIXIN_PASSWORD="$(github-distro-mixin-password)" \
-            yarn gulp vscode-reh-darwin-$(VSCODE_ARCH)-min-ci
-          VSCODE_MIXIN_PASSWORD="$(github-distro-mixin-password)" \
-            yarn gulp vscode-reh-web-darwin-$(VSCODE_ARCH)-min-ci
+          yarn gulp vscode-reh-darwin-$(VSCODE_ARCH)-min-ci
+          yarn gulp vscode-reh-web-darwin-$(VSCODE_ARCH)-min-ci
+        env:
+          GITHUB_TOKEN: "$(github-distro-mixin-password)"
         displayName: Build Server
 
-  - ${{ if eq(parameters.VSCODE_QUALITY, 'oss') }}:
-      - script: |
-          set -e
-          VSCODE_MIXIN_PASSWORD="$(github-distro-mixin-password)" \
-            yarn gulp "transpile-client-swc" "transpile-extensions"
+  - ${{ else }}:
+      - script: yarn gulp transpile-client-swc transpile-extensions
+        env:
+          GITHUB_TOKEN: "$(github-distro-mixin-password)"
         displayName: Transpile
-
-  - script: |
-      set -e
-      APP_ROOT="$(Agent.BuildDirectory)/VSCode-darwin-$(VSCODE_ARCH)"
-      APP_NAME="`ls $APP_ROOT | head -n 1`"
-      echo "##vso[task.setvariable variable=APP_PATH]$APP_ROOT/$APP_NAME"
-    displayName: Find application path
 
   - ${{ if eq(parameters.VSCODE_BUILD_TUNNEL_CLI, true) }}:
       - task: DownloadPipelineArtifact@2
         inputs:
-          artifact: unsigned_vscode_cli_darwin_arm64_cli
+          artifact: unsigned_vscode_cli_darwin_$(VSCODE_ARCH)_cli
           patterns: "**"
           path: $(Build.ArtifactStagingDirectory)/cli
         displayName: Download VS Code CLI
-        condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'arm64'))
-
-      - task: DownloadPipelineArtifact@2
-        inputs:
-          artifact: unsigned_vscode_cli_darwin_x64_cli
-          patterns: "**"
-          path: $(Build.ArtifactStagingDirectory)/cli
-        displayName: Download VS Code CLI
-        condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'x64'))
 
       - script: |
           set -e
+          APP_ROOT="$(Agent.BuildDirectory)/VSCode-darwin-$(VSCODE_ARCH)"
+          APP_NAME="`ls $APP_ROOT | head -n 1`"
+          APP_PATH="$APP_ROOT/$APP_NAME"
           ARCHIVE_NAME=$(ls "$(Build.ArtifactStagingDirectory)/cli" | head -n 1)
           unzip "$(Build.ArtifactStagingDirectory)/cli/$ARCHIVE_NAME" -d "$(Build.ArtifactStagingDirectory)/cli"
-          CLI_APP_NAME=$(node -p "require(\"$(APP_PATH)/Contents/Resources/app/product.json\").tunnelApplicationName")
-          APP_NAME=$(node -p "require(\"$(APP_PATH)/Contents/Resources/app/product.json\").applicationName")
-          mv "$(Build.ArtifactStagingDirectory)/cli/$APP_NAME" "$(APP_PATH)/Contents/Resources/app/bin/$CLI_APP_NAME"
-          chmod +x "$(APP_PATH)/Contents/Resources/app/bin/$CLI_APP_NAME"
+          CLI_APP_NAME=$(node -p "require(\"$APP_PATH/Contents/Resources/app/product.json\").tunnelApplicationName")
+          APP_NAME=$(node -p "require(\"$APP_PATH/Contents/Resources/app/product.json\").applicationName")
+          mv "$(Build.ArtifactStagingDirectory)/cli/$APP_NAME" "$APP_PATH/Contents/Resources/app/bin/$CLI_APP_NAME"
+          chmod +x "$APP_PATH/Contents/Resources/app/bin/$CLI_APP_NAME"
         displayName: Make CLI executable
 
   - ${{ if or(eq(parameters.VSCODE_RUN_UNIT_TESTS, true), eq(parameters.VSCODE_RUN_INTEGRATION_TESTS, true), eq(parameters.VSCODE_RUN_SMOKE_TESTS, true)) }}:
@@ -240,13 +189,11 @@ steps:
           security import $(agent.tempdirectory)/cert.p12 -k $(agent.tempdirectory)/buildagent.keychain -P "$(macos-developer-certificate-key)" -T /usr/bin/codesign
           export CODESIGN_IDENTITY=$(security find-identity -v -p codesigning $(agent.tempdirectory)/buildagent.keychain | grep -oEi "([0-9A-F]{40})" | head -n 1)
           security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k pwd $(agent.tempdirectory)/buildagent.keychain
-          VSCODE_ARCH=$(VSCODE_ARCH) DEBUG=electron-osx-sign* node build/darwin/sign.js
+          DEBUG=electron-osx-sign* node build/darwin/sign.js $(agent.builddirectory)
         displayName: Set Hardened Entitlements
 
   - ${{ if and(eq(parameters.VSCODE_PUBLISH, true), eq(parameters.VSCODE_RUN_UNIT_TESTS, false), eq(parameters.VSCODE_RUN_INTEGRATION_TESTS, false), eq(parameters.VSCODE_RUN_SMOKE_TESTS, false)) }}:
-      - script: |
-          set -e
-          pushd $(agent.builddirectory)/VSCode-darwin-$(VSCODE_ARCH) && zip -r -X -y $(agent.builddirectory)/VSCode-darwin-$(VSCODE_ARCH).zip * && popd
+      - script: cd $(agent.builddirectory)/VSCode-darwin-$(VSCODE_ARCH) && zip -r -X -y $(agent.builddirectory)/VSCode-darwin-$(VSCODE_ARCH).zip *
         displayName: Archive build
 
   - ${{ if and(eq(parameters.VSCODE_PUBLISH, true), eq(parameters.VSCODE_RUN_UNIT_TESTS, false), eq(parameters.VSCODE_RUN_INTEGRATION_TESTS, false), eq(parameters.VSCODE_RUN_SMOKE_TESTS, false)) }}:

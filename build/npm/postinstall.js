@@ -3,6 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+const fs = require('fs');
+const path = require('path');
 const cp = require('child_process');
 const { dirs } = require('./dirs');
 const { setupBuildYarnrc } = require('./setupBuildYarnrc');
@@ -42,7 +44,16 @@ for (let dir of dirs) {
 		continue;
 	}
 
-	if (/^remote/.test(dir) && process.platform === 'win32' && (process.arch === 'arm64' || process.env['npm_config_arch'] === 'arm64')) {
+	if (/^.build\/distro\/npm(\/?)/.test(dir)) {
+		const ossPath = path.relative('.build/distro/npm', dir);
+		const ossYarnRc = path.join(ossPath, '.yarnrc');
+
+		if (fs.existsSync(ossYarnRc)) {
+			fs.cpSync(ossYarnRc, path.join(dir, '.yarnrc'));
+		}
+	}
+
+	if (/^(.build\/distro\/npm\/)?remote/.test(dir) && process.platform === 'win32' && (process.arch === 'arm64' || process.env['npm_config_arch'] === 'arm64')) {
 		// windows arm: do not execute `yarn` on remote folder
 		continue;
 	}
@@ -55,7 +66,7 @@ for (let dir of dirs) {
 
 	let opts;
 
-	if (dir === 'remote') {
+	if (/^(.build\/distro\/npm\/)?remote$/.test(dir)) {
 		// node modules used by vscode server
 		const env = { ...process.env };
 		if (process.env['VSCODE_REMOTE_CC']) { env['CC'] = process.env['VSCODE_REMOTE_CC']; }
