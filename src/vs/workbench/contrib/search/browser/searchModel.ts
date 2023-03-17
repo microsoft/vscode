@@ -1772,17 +1772,16 @@ export class SearchModel extends Disposable {
 		};
 	}
 
-	async notebookSearch(query: ITextQuery, token: CancellationToken, onProgress?: (result: ISearchProgressItem) => void): Promise<ISearchComplete> {
+	async notebookSearch(query: ITextQuery, token: CancellationToken): Promise<{ completeData: ISearchComplete; scannedFiles: ResourceSet }> {
 		const localResults = await this.getLocalNotebookResults(query, token);
 
-		if (onProgress) {
-			arrays.coalesce([...localResults.results.values()]).forEach(onProgress);
-		}
-
 		return {
-			messages: [],
-			limitHit: localResults.limitHit,
-			results: arrays.coalesce([...localResults.results.values()])
+			completeData: {
+				messages: [],
+				limitHit: localResults.limitHit,
+				results: arrays.coalesce([...localResults.results.values()]),
+			},
+			scannedFiles: new ResourceSet([...localResults.results.keys()], uri => this.uriIdentityService.extUri.getComparisonKey(uri))
 		};
 	}
 
@@ -1796,14 +1795,14 @@ export class SearchModel extends Disposable {
 		};
 		const experimentalNotebooksEnabled = this.configurationService.getValue<ISearchConfigurationProperties>('search').experimental.notebookSearch;
 
-		const notebookResult = experimentalNotebooksEnabled ? await this.notebookSearch(query, this.currentCancelTokenSource.token, onProgressCall) : <ISearchComplete>{ messages: [], results: [] };
+		const notebookResult = experimentalNotebooksEnabled ? await this.notebookSearch(query, this.currentCancelTokenSource.token) : undefined;
 		const currentResult = await this.searchService.textSearch(
 			searchQuery,
 			this.currentCancelTokenSource.token, onProgressCall,
-			new ResourceSet(notebookResult.results.map(r => r.resource, this.uriIdentityService.extUri.ignorePathCasing), uri => this.uriIdentityService.extUri.getComparisonKey(uri))
+			notebookResult?.scannedFiles
 		);
 		tokenSource.dispose();
-		return { ...currentResult, ...notebookResult };
+		return notebookResult ? { ...currentResult, ...notebookResult.completeData } : currentResult;
 	}
 
 	async search(query: ITextQuery, onProgress?: (result: ISearchProgressItem) => void): Promise<ISearchComplete> {
