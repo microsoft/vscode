@@ -187,6 +187,10 @@ function renderError(
 		const outputScrolling = ctx.settings.outputScrolling;
 		const content = createOutputContent(outputInfo.id, [err.stack ?? ''], ctx.settings.lineLimit, outputScrolling, true);
 		content.classList.toggle('scrollable', outputScrolling);
+		outputElement.classList.toggle('hide-refresh', !outputScrolling);
+		disposableStore.push(ctx.onDidChangeSettings(e => {
+			outputElement.classList.toggle('hide-refresh', !e.outputScrolling);
+		}));
 		outputElement.classList.toggle('remove-padding', outputScrolling);
 		outputElement.appendChild(content);
 		initializeScroll(content, disposableStore);
@@ -280,6 +284,10 @@ function renderStream(outputInfo: OutputItem, outputElement: HTMLElement, error:
 		const contentParent = document.createElement('div');
 		contentParent.appendChild(content);
 		contentParent.classList.toggle('scrollable', outputScrolling);
+		outputElement.classList.toggle('hide-refresh', !outputScrolling);
+		disposableStore.push(ctx.onDidChangeSettings(e => {
+			outputElement.classList.toggle('hide-refresh', !e.outputScrolling);
+		}));
 
 		contentParent.classList.toggle('wordWrap', ctx.settings.outputWordWrap);
 		disposableStore.push(ctx.onDidChangeSettings(e => {
@@ -310,6 +318,10 @@ function renderText(outputInfo: OutputItem, outputElement: HTMLElement, ctx: IRi
 
 	const outputScrolling = ctx.settings.outputScrolling;
 	content.classList.toggle('scrollable', outputScrolling);
+	outputElement.classList.toggle('hide-refresh', !outputScrolling);
+	disposableStore.push(ctx.onDidChangeSettings(e => {
+		outputElement.classList.toggle('hide-refresh', !e.outputScrolling);
+	}));
 	outputElement.classList.toggle('remove-padding', outputScrolling);
 	outputElement.appendChild(content);
 	initializeScroll(content, disposableStore);
@@ -365,6 +377,9 @@ export const activate: ActivationFunction<void> = (ctx) => {
 	}
 	#container div.output .scrollable.scrollbar-visible {
 		border-color: var(--vscode-editorWidget-border);
+	}
+	#container div.output.hide-refresh .scroll-refresh {
+		display: none;
 	}
 	.output-plaintext .code-bold,
 	.output-stream .code-bold,
