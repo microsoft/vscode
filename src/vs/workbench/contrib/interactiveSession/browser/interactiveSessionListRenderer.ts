@@ -193,7 +193,7 @@ export class InteractiveListItemRenderer extends Disposable implements ITreeRend
 
 		if (element.avatarIconUri) {
 			const avatarIcon = dom.$<HTMLImageElement>('img.icon');
-			avatarIcon.src = element.avatarIconUri.toString();
+			avatarIcon.src = element.avatarIconUri.toString(true);
 			templateData.avatar.replaceChildren(avatarIcon);
 		} else {
 			const defaultIcon = isRequestVM(element) ? Codicon.account : Codicon.hubot;
