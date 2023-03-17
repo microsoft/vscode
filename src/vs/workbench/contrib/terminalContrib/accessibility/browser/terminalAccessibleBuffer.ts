@@ -6,6 +6,7 @@
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
+import * as dom from 'vs/base/browser/dom';
 import { IEditorConstructionOptions } from 'vs/editor/browser/config/editorConfiguration';
 import { EditorExtensionsRegistry } from 'vs/editor/browser/editorExtensions';
 import { CodeEditorWidget, ICodeEditorWidgetOptions } from 'vs/editor/browser/widget/codeEditorWidget';
@@ -19,8 +20,13 @@ import { TerminalSettingId } from 'vs/platform/terminal/common/terminal';
 import { SelectionClipboardContributionID } from 'vs/workbench/contrib/codeEditor/browser/selectionClipboard';
 import { getSimpleEditorOptions } from 'vs/workbench/contrib/codeEditor/browser/simpleEditorOptions';
 import { ITerminalFont } from 'vs/workbench/contrib/terminal/common/terminal';
-import { IXtermTerminal } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { ITerminalInstance, IXtermTerminal } from 'vs/workbench/contrib/terminal/browser/terminal';
 import type { Terminal } from 'xterm';
+import { TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
+import { IQuickInputService, IQuickPick, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
+import { AudioCue, IAudioCueService } from 'vs/platform/audioCues/browser/audioCueService';
+import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/terminalContextKey';
 
 const enum Constants {
 	Scheme = 'terminal-accessible-buffer',
@@ -35,15 +41,22 @@ export class AccessibleBufferWidget extends DisposableStore {
 	private _editorContainer: HTMLElement;
 	private _font: ITerminalFont;
 	private _xtermElement: HTMLElement;
+	private readonly _focusedContextKey: IContextKey<boolean>;
+	private readonly _focusTracker: dom.IFocusTracker;
 
 	constructor(
-		private readonly _instanceId: number,
+		private readonly _instance: ITerminalInstance,
 		private readonly _xterm: IXtermTerminal & { raw: Terminal },
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IModelService private readonly _modelService: IModelService,
-		@IConfigurationService private readonly _configurationService: IConfigurationService
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@IQuickInputService private readonly _quickInputService: IQuickInputService,
+		@IAudioCueService private readonly _audioCueService: IAudioCueService,
+		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
+
 	) {
 		super();
+		this._focusedContextKey = TerminalContextKeys.accessibleBufferFocus.bindTo(this._contextKeyService);
 		const codeEditorWidgetOptions: ICodeEditorWidgetOptions = {
 			isSimpleWidget: true,
 			contributions: EditorExtensionsRegistry.getSomeEditorContributions([LinkDetector.ID, SelectionClipboardContributionID])
@@ -76,6 +89,9 @@ export class AccessibleBufferWidget extends DisposableStore {
 		this._editorContainer = document.createElement('div');
 		this._accessibleBuffer.tabIndex = -1;
 		this._bufferEditor = this._instantiationService.createInstance(CodeEditorWidget, this._editorContainer, editorOptions, codeEditorWidgetOptions);
+		this._focusTracker = this.add(dom.trackFocus(this._editorContainer));
+		this.add(this._focusTracker.onDidFocus(() => this._focusedContextKey.set(true)));
+		this.add(this._focusTracker.onDidBlur(() => this._focusedContextKey.reset()));
 		this._accessibleBuffer.replaceChildren(this._editorContainer);
 		this._xtermElement.insertAdjacentElement('beforebegin', this._accessibleBuffer);
 		this._bufferEditor.layout({ width: this._xtermElement.clientWidth, height: this._xtermElement.clientHeight });
@@ -95,11 +111,10 @@ export class AccessibleBufferWidget extends DisposableStore {
 			}
 		}));
 		this.add(this._xterm.raw.onWriteParsed(async () => {
-			if (this._accessibleBuffer.classList.contains(Constants.Active)) {
+			if (this._focusedContextKey.get()) {
 				await this._updateEditor(true);
 			}
 		}));
-		this._updateEditor();
 		this.add(this._bufferEditor.onDidFocusEditorText(async () => {
 			// if the editor is focused via tab, we need to update the model
 			// and show it
@@ -107,6 +122,7 @@ export class AccessibleBufferWidget extends DisposableStore {
 			this._accessibleBuffer.classList.add(Constants.Active);
 			this._xtermElement.classList.add(Constants.Hide);
 		}));
+		this._updateEditor();
 	}
 
 	private _hide(): void {
@@ -122,7 +138,7 @@ export class AccessibleBufferWidget extends DisposableStore {
 			const lineNumber = lineCount + 1;
 			model.pushEditOperations(null, [{ range: { startLineNumber: lineNumber, endLineNumber: lineNumber, startColumn: 1, endColumn: 1 }, text: await this._getContent(lineNumber - 1) }], () => []);
 		} else {
-			model = await this._getTextModel(URI.from({ scheme: `${Constants.Scheme}-${this._instanceId}`, fragment: await this._getContent() }));
+			model = await this._getTextModel(URI.from({ scheme: `${Constants.Scheme}-${this._instance.instanceId}`, fragment: await this._getContent() }));
 		}
 		if (!model) {
 			throw new Error('Could not create accessible buffer editor model');
@@ -143,6 +159,49 @@ export class AccessibleBufferWidget extends DisposableStore {
 			this._bufferEditor.setSelection({ startLineNumber: lineNumber, startColumn: 1, endLineNumber: lineNumber, endColumn: 1 });
 		}
 		this._bufferEditor.setScrollTop(this._bufferEditor.getScrollHeight());
+	}
+
+	async createQuickPick(): Promise<IQuickPick<IQuickPickItem> | undefined> {
+		if (!this._focusedContextKey.get()) {
+			await this.show();
+		}
+		const commands = this._instance.capabilities.get(TerminalCapability.CommandDetection)?.commands;
+		if (!commands?.length) {
+			return;
+		}
+		const quickPickItems: IQuickPickItem[] = [];
+		for (const command of commands) {
+			const line = command.marker?.line;
+			if (!line) {
+				continue;
+			}
+			quickPickItems.push(
+				{
+					label: localize('terminal.integrated.symbolQuickPick.labelNoExitCode', '{0}', command.command),
+					meta: JSON.stringify({ line: line + 1, exitCode: command.exitCode })
+				});
+		}
+		const quickPick = this._quickInputService.createQuickPick<IQuickPickItem>();
+		quickPick.onDidAccept(() => {
+			const item = quickPick.activeItems[0];
+			const model = this._bufferEditor.getModel();
+			if (!model || !item.meta) {
+				return;
+			}
+			quickPick.hide();
+			const data: { line: number; exitCode: number } = JSON.parse(item.meta);
+			this._bufferEditor.setSelection({ startLineNumber: data.line, startColumn: 1, endLineNumber: data.line, endColumn: 1 });
+			this._bufferEditor.revealLine(data.line);
+			return;
+		});
+		quickPick.onDidChangeActive(() => {
+			const data = quickPick.activeItems?.[0]?.meta;
+			if (data && JSON.parse(data).exitCode) {
+				this._audioCueService.playAudioCue(AudioCue.error, true);
+			}
+		});
+		quickPick.items = quickPickItems.reverse();
+		return quickPick;
 	}
 
 	async show(): Promise<void> {

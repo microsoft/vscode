@@ -5,9 +5,16 @@
 
 declare module 'vscode' {
 
+	export interface InteractiveEditorSlashCommand {
+		command: string;
+		detail?: string;
+		// kind: CompletionItemKind;
+	}
+
 	// todo@API make classes
 	export interface InteractiveEditorSession {
 		placeholder?: string;
+		slashCommands?: InteractiveEditorSlashCommand[];
 	}
 
 	// todo@API make classes
@@ -23,11 +30,16 @@ declare module 'vscode' {
 	export interface InteractiveEditorResponse {
 		edits: TextEdit[] | WorkspaceEdit;
 		placeholder?: string;
+		wholeRange?: Range;
+		commands?: Command[];
 	}
 
 	// todo@API make classes
 	export interface InteractiveEditorMessageResponse {
 		contents: MarkdownString;
+		placeholder?: string;
+		wholeRange?: Range;
+		commands?: Command[];
 	}
 
 	export interface TextDocumentContext {

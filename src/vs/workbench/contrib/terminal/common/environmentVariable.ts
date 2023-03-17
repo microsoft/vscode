@@ -5,8 +5,8 @@
 
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { Event } from 'vs/base/common/event';
-import { ThemeIcon } from 'vs/base/common/themables';
 import { IEnvironmentVariableCollection, IMergedEnvironmentVariableCollection } from 'vs/platform/terminal/common/environmentVariable';
+import { ITerminalStatus } from 'vs/workbench/contrib/terminal/common/terminal';
 
 export const IEnvironmentVariableService = createDecorator<IEnvironmentVariableService>('environmentVariableService');
 
@@ -51,12 +51,5 @@ export interface IEnvironmentVariableCollectionWithPersistence extends IEnvironm
 
 export interface IEnvironmentVariableInfo {
 	readonly requiresAction: boolean;
-	getInfo(): string;
-	getIcon(): ThemeIcon;
-	getActions?(): {
-		label: string;
-		commandId: string;
-		iconClass?: string;
-		run(target: any): void;
-	}[];
+	getStatus(): ITerminalStatus;
 }

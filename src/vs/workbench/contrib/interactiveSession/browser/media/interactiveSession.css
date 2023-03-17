@@ -103,6 +103,7 @@
 
 .interactive-list .monaco-list-row .value {
 	white-space: normal;
+	min-height: 36px;
 }
 
 .interactive-list .monaco-list-row .value > :last-child:not(.rendered-markdown) {
@@ -132,7 +133,7 @@
 	margin: 0px 12px;
 
 	background-color: var(--vscode-input-background);
-	border: 1px solid var(--vscode-input-border);
+	border: 1px solid var(--vscode-input-border, transparent);
 	border-radius: 4px;
 	position: relative;
 	padding-left: 8px;
@@ -142,19 +143,22 @@
 	border-color: var(--vscode-focusBorder);
 }
 
+.interactive-session .interactive-input-and-toolbar .monaco-editor,
+.interactive-session .interactive-input-and-toolbar .monaco-editor .monaco-editor-background {
+	background-color: var(--vscode-input-background);
+}
+
 .interactive-session .interactive-input-and-toolbar .monaco-editor .cursors-layer {
 	padding-left: 4px;
 }
 
 .interactive-session .interactive-input-part .interactive-execute-toolbar {
 	position: absolute;
-	right: 1px;
+	right: 3px;
 }
 
-.interactive-session .interactive-input-part .interactive-execute-toolbar .codicon {
-	font-size: 20px;
-	height: 20px;
-	width: 20px;
+.interactive-session .interactive-input-part .interactive-execute-toolbar .codicon-debug-stop {
+	color: var(--vscode-icon-foreground) !important;
 }
 
 .interactive-session .monaco-inputbox {
@@ -174,6 +178,16 @@
 	background-color: var(--vscode-interactive-result-editor-background-color);
 	border: 1px solid var(--vscode-interactive-responseBorder);
 	z-index: 100;
+}
+
+.interactive-session .interactive-result-editor-wrapper .monaco-toolbar .action-item {
+	height: 24px;
+	width: 24px;
+	margin: 1px 2px;
+}
+
+.interactive-session .interactive-result-editor-wrapper .monaco-toolbar .action-item .codicon {
+	margin: 1px;
 }
 
 .interactive-session .interactive-result-editor-wrapper:hover .monaco-toolbar {

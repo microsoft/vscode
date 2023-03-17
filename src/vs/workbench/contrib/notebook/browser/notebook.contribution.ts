@@ -887,17 +887,6 @@ configurationRegistry.registerConfiguration({
 			type: 'string',
 			tags: ['notebookLayout']
 		},
-		[NotebookSetting.kernelPickerType]: {
-			markdownDescription: nls.localize('notebook.kernelPickerType', "Controls the type of kernel picker to use."),
-			type: 'string',
-			enum: ['all', 'mru'],
-			enumDescriptions: [
-				nls.localize('notebook.kernelPickerType.all', "Show all kernels."),
-				nls.localize('notebook.kernelPickerType.mru', "Experiment: show recently used kernels."),
-			],
-			tags: ['notebookLayout'],
-			default: 'mru'
-		},
 		[NotebookSetting.outputScrolling]: {
 			markdownDescription: nls.localize('notebook.outputScrolling', "Use a scrollable region for notebook output when longer than the limit"),
 			type: 'boolean',

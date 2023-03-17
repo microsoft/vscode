@@ -171,7 +171,7 @@ export class PlaywrightDriver {
 	}
 
 	async getTitle() {
-		return this.evaluateWithDriver(([driver]) => driver.getTitle());
+		return this.page.title();
 	}
 
 	async isActiveElement(selector: string) {

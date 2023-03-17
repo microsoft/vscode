@@ -108,10 +108,12 @@ export class ExtensionManagementCLI {
 			}
 		}
 
+		const installed = await this.extensionManagementService.getInstalled(ExtensionType.User, installOptions.profileLocation);
+
 		if (installVSIXInfos.length) {
 			await Promise.all(installVSIXInfos.map(async ({ vsix, installOptions }) => {
 				try {
-					const manifest = await this.installVSIX(vsix, installOptions, force);
+					const manifest = await this.installVSIX(vsix, installOptions, force, installed);
 					if (manifest) {
 						installedExtensionsManifests.push(manifest);
 					}
@@ -123,7 +125,6 @@ export class ExtensionManagementCLI {
 		}
 
 		if (installExtensionInfos.length) {
-			const installed = await this.extensionManagementService.getInstalled(ExtensionType.User, installOptions.profileLocation);
 			installExtensionInfos = installExtensionInfos.filter(({ id, version }) => {
 				const installedExtension = installed.find(i => areSameExtensions(i.identifier, { id }));
 				if (installedExtension) {
@@ -165,14 +166,14 @@ export class ExtensionManagementCLI {
 		}
 	}
 
-	private async installVSIX(vsix: URI, installOptions: InstallOptions, force: boolean): Promise<IExtensionManifest | null> {
+	private async installVSIX(vsix: URI, installOptions: InstallOptions, force: boolean, installedExtensions: ILocalExtension[]): Promise<IExtensionManifest | null> {
 
 		const manifest = await this.extensionManagementService.getManifest(vsix);
 		if (!manifest) {
 			throw new Error('Invalid vsix');
 		}
 
-		const valid = await this.validateVSIX(manifest, force, installOptions.profileLocation);
+		const valid = await this.validateVSIX(manifest, force, installOptions.profileLocation, installedExtensions);
 		if (valid) {
 			try {
 				await this.extensionManagementService.install(vsix, installOptions);
@@ -240,14 +241,14 @@ export class ExtensionManagementCLI {
 		return true;
 	}
 
-	private async validateVSIX(manifest: IExtensionManifest, force: boolean, profileLocation: URI | undefined): Promise<boolean> {
-		const extensionIdentifier = { id: getGalleryExtensionId(manifest.publisher, manifest.name) };
-		const installedExtensions = await this.extensionManagementService.getInstalled(ExtensionType.User, profileLocation);
-		const newer = installedExtensions.find(local => areSameExtensions(extensionIdentifier, local.identifier) && gt(local.manifest.version, manifest.version));
-
-		if (newer && !force) {
-			this.logger.info(localize('forceDowngrade', "A newer version of extension '{0}' v{1} is already installed. Use '--force' option to downgrade to older version.", newer.identifier.id, newer.manifest.version, manifest.version));
-			return false;
+	private async validateVSIX(manifest: IExtensionManifest, force: boolean, profileLocation: URI | undefined, installedExtensions: ILocalExtension[]): Promise<boolean> {
+		if (!force) {
+			const extensionIdentifier = { id: getGalleryExtensionId(manifest.publisher, manifest.name) };
+			const newer = installedExtensions.find(local => areSameExtensions(extensionIdentifier, local.identifier) && gt(local.manifest.version, manifest.version));
+			if (newer) {
+				this.logger.info(localize('forceDowngrade', "A newer version of extension '{0}' v{1} is already installed. Use '--force' option to downgrade to older version.", newer.identifier.id, newer.manifest.version, manifest.version));
+				return false;
+			}
 		}
 
 		return this.validateExtensionKind(manifest);
