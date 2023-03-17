@@ -16,7 +16,6 @@ import { IDimension } from 'vs/editor/common/core/dimension';
 import { PositionAffinity } from 'vs/editor/common/model';
 import { IPosition, Position } from 'vs/editor/common/core/position';
 import { IViewModel } from 'vs/editor/common/viewModel';
-import { ContentViewOverlays } from 'vs/editor/browser/view/viewOverlays';
 
 export class ViewContentWidgets extends ViewPart {
 

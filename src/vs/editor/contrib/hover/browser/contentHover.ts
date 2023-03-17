@@ -628,29 +628,50 @@ export class ResizableHoverOverlay extends Disposable implements IOverlayWidget 
 		console.log('Inside of constructor of ResizableHoverOverlay');
 		// TODO: persist sizes during the session instead of persisting on reload
 		// TODO: Upon resizing the, the persisted size is used everywhere, even if previously was not used everywhere
+		// TODO: continue persisting the size on model content changed
 
 		this._editor.onDidChangeModelContent((e) => {
+			console.log('onDidChangeModelContent');
+			console.log('e : ', e);
 			const uri = this._editor.getModel()?.uri.toString();
-			if (!uri || !(uri in this._persistedHoverWidgetSizes)) {
+			console.log('uri : ', uri);
+			console.log('this._persistedHoverWidgetSizes : ', this._persistedHoverWidgetSizes);
+			if (!uri) {
+				return;
+			}
+			if (!uri || !this._persistedHoverWidgetSizes.has(uri)) {
 				return;
 			}
 			const mapToUpdate = this._persistedHoverWidgetSizes.get(uri)!;
+			const newMap = new Map<string, dom.Dimension>();
+			console.log('mapToUpdate : ', mapToUpdate);
 			for (const change of e.changes) {
 				const changeOffset = change.rangeOffset;
-				const length = change.rangeLength;
-				const endOffset = changeOffset + length;
+				const rangeLength = change.rangeLength;
+				const endOffset = changeOffset + rangeLength;
+				const textLength = change.text.length;
+				console.log('changeOffset : ', changeOffset);
+				console.log('rangeLength : ', rangeLength);
+				console.log('endOffset : ', endOffset);
+				console.log('textLength : ', textLength);
 				for (const stringifiedEntry of mapToUpdate.keys()) {
 					const entry = JSON.parse(stringifiedEntry);
+					console.log('entry : ', entry);
 					if (endOffset < entry[0]) {
-						const oldSize = mapToUpdate.get(entry)!;
-						const newEntry: [number, number] = [entry[0] + length, entry[1]];
-						mapToUpdate.set(JSON.stringify(newEntry), oldSize);
-						mapToUpdate.delete(entry);
-					} else if (changeOffset < entry[0] + entry[1]) {
-						mapToUpdate.delete(entry);
+						console.log('first if statement');
+						const oldSize = mapToUpdate.get(stringifiedEntry)!;
+						console.log('oldSize : ', oldSize);
+						console.log('entry[0] - rangeLength + textLength : ', entry[0] - rangeLength + textLength);
+						const newEntry: [number, number] = [entry[0] - rangeLength + textLength, entry[1]];
+						console.log('newEntry : ', newEntry);
+						newMap.set(JSON.stringify(newEntry), oldSize);
+					} else if (changeOffset >= entry[0] + entry[1]) {
+						console.log('second if statement');
+						newMap.set(entry[0], entry[1]);
 					}
 				}
 			}
+			this._persistedHoverWidgetSizes.set(uri, newMap);
 		});
 
 		let state: ResizeState | undefined;
@@ -783,6 +804,8 @@ export class ResizableHoverOverlay extends Disposable implements IOverlayWidget 
 		if (!textModelMap) {
 			return;
 		}
+		console.log('Inside of findPersistedSize');
+		console.log('[offset, length] : ', [offset, length]);
 		return textModelMap.get(JSON.stringify([offset, length]));
 	}
 
