@@ -56,8 +56,6 @@ import { Command, CompletionContext, CompletionItem, CompletionItemInsertTextRul
 import { LanguageSelector } from 'vs/editor/common/languageSelector';
 import { DEFAULT_FONT_FAMILY } from 'vs/workbench/browser/style';
 import { ICommandService } from 'vs/platform/commands/common/commands';
-import { isFalsyOrEmpty } from 'vs/base/common/arrays';
-
 
 class InteractiveEditorWidget {
 
@@ -829,8 +827,7 @@ export class InteractiveEditorController implements IEditorContribution {
 			this._ctsRequest = new CancellationTokenSource(this._ctsSession.token);
 
 			this._historyOffset = -1;
-			const fullPlaceholder = isFalsyOrEmpty(session.slashCommands) ? placeholder : localize('placeholder', "{0}, type '/' for topics", placeholder);
-			const input = await this._zone.getInput(wholeRange.getEndPosition(), fullPlaceholder, value, this._ctsRequest.token);
+			const input = await this._zone.getInput(wholeRange.getEndPosition(), placeholder, value, this._ctsRequest.token);
 			roundStore.clear();
 
 			if (!input || !input.value) {
