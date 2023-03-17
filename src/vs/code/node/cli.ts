@@ -54,17 +54,17 @@ export async function main(argv: string[]): Promise<any> {
 			console.error(`'tunnel' command not supported in ${product.applicationName}`);
 			return;
 		}
+		const tunnelArgs = argv.slice(argv.indexOf('tunnel') + 1); // all arguments behind `tunnel`
 		return new Promise((resolve, reject) => {
 			let tunnelProcess: ChildProcessWithoutNullStreams;
 			if (process.env['VSCODE_DEV']) {
-				tunnelProcess = spawn('cargo', ['run', '--', 'tunnel', ...argv.slice(5)], { cwd: join(getAppRoot(), 'cli') });
+				tunnelProcess = spawn('cargo', ['run', '--', 'tunnel', ...tunnelArgs], { cwd: join(getAppRoot(), 'cli') });
 			} else {
 				const appPath = process.platform === 'darwin'
 					// ./Contents/MacOS/Electron => ./Contents/Resources/app/bin/code-tunnel-insiders
 					? join(dirname(dirname(process.execPath)), 'Resources', 'app')
 					: dirname(process.execPath);
 				const tunnelCommand = join(appPath, 'bin', `${product.tunnelApplicationName}${isWindows ? '.exe' : ''}`);
-				const tunnelArgs = argv.slice(3);
 				tunnelProcess = spawn(tunnelCommand, ['tunnel', ...tunnelArgs]);
 			}
 
