@@ -148,7 +148,7 @@ export function registerNotificationCommands(center: INotificationsCenterControl
 		id: ACCEPT_PRIMARY_ACTION_NOTIFICATION,
 		weight: KeybindingWeight.WorkbenchContrib,
 		when: ContextKeyExpr.and(NotificationsToastsVisibleContext, CONTEXT_ACCESSIBILITY_MODE_ENABLED),
-		primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyMod.CtrlCmd | KeyCode.KeyS),
+		primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyA,
 		handler: (accessor) => {
 			const actionRunner = accessor.get(IInstantiationService).createInstance(NotificationActionRunner);
 			const notification = firstOrDefault(model.notifications);
