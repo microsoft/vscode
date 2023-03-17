@@ -64,6 +64,7 @@ export interface IInteractiveResponseViewModel {
 	readonly avatarIconUri?: URI;
 	readonly response: IMarkdownString;
 	readonly isComplete: boolean;
+	readonly isCanceled: boolean;
 	readonly isPlaceholder: boolean;
 	readonly replyFollowups?: IInteractiveSessionReplyFollowup[];
 	readonly commandFollowups?: IInteractiveSessionResponseCommandFollowup[];
@@ -215,6 +216,10 @@ export class InteractiveResponseViewModel extends Disposable implements IInterac
 
 	get isComplete() {
 		return this._model.isComplete;
+	}
+
+	get isCanceled() {
+		return this._model.isCanceled;
 	}
 
 	get replyFollowups() {

@@ -913,7 +913,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 					const tempRange = document.createRange();
 					tempRange.selectNode(match.highlightResult.range.startContainer);
 
-					match.highlightResult.range.startContainer.parentElement?.scrollIntoView({ behavior: 'smooth', block: 'end', inline: 'nearest' });
+					match.highlightResult.range.startContainer.parentElement?.scrollIntoView({ behavior: 'auto', block: 'end', inline: 'nearest' });
 
 					const rangeOffset = tempRange.getBoundingClientRect().top;
 					tempRange.detach();

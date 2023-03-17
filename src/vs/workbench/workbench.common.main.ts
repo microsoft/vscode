@@ -169,6 +169,7 @@ import 'vs/workbench/contrib/contextmenu/browser/contextmenu.contribution';
 import 'vs/workbench/contrib/notebook/browser/notebook.contribution';
 
 import 'vs/workbench/contrib/interactiveSession/browser/interactiveSession.contribution';
+import 'vs/workbench/contrib/interactiveEditor/browser/interactiveEditor.contribution';
 
 // Interactive
 import 'vs/workbench/contrib/interactive/browser/interactive.contribution';
@@ -217,6 +218,9 @@ import 'vs/workbench/contrib/markers/browser/markers.contribution';
 
 // Merge Editor
 import 'vs/workbench/contrib/mergeEditor/browser/mergeEditor.contribution';
+
+// Commands
+import 'vs/workbench/contrib/commands/common/commands.contribution';
 
 // Comments
 import 'vs/workbench/contrib/comments/browser/comments.contribution';

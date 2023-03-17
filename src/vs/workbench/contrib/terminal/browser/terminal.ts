@@ -455,6 +455,7 @@ export interface ITerminalInstance {
 	readonly os?: OperatingSystem;
 	readonly capabilities: ITerminalCapabilityStore;
 	readonly usedShellIntegrationInjection: boolean;
+	readonly injectedArgs: string[] | undefined;
 
 	readonly statusList: ITerminalStatusList;
 
@@ -653,11 +654,6 @@ export interface ITerminalInstance {
 	 * The remote-aware $HOME directory (or Windows equivalent) of the terminal.
 	 */
 	userHome: string | undefined;
-
-	/**
-	 * Shows the environment information hover if the widget exists.
-	 */
-	showEnvironmentInfoHover(): void;
 
 	/**
 	 * Registers and returns a marker

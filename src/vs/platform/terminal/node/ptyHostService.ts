@@ -238,7 +238,7 @@ export class PtyHostService extends Disposable implements IPtyService {
 	reduceConnectionGraceTime(): Promise<void> {
 		return this._proxy.reduceConnectionGraceTime();
 	}
-	start(id: number): Promise<ITerminalLaunchError | undefined> {
+	start(id: number): Promise<ITerminalLaunchError | { injectedArgs: string[] } | undefined> {
 		return this._proxy.start(id);
 	}
 	shutdown(id: number, immediate: boolean): Promise<void> {

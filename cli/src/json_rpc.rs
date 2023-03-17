@@ -77,7 +77,7 @@ pub async fn start_json_rpc<C: Send + Sync + 'static, S: Clone>(
 
 				match r {
 					MaybeSync::Sync(Some(v)) => {
-						write_tx.send(v).ok();
+						write.write_all(&v).await?;
 					},
 					MaybeSync::Sync(None) => continue,
 					MaybeSync::Future(fut) => {

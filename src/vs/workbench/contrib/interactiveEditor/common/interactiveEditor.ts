@@ -8,16 +8,22 @@ import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { IRange } from 'vs/editor/common/core/range';
 import { ISelection } from 'vs/editor/common/core/selection';
-import { ProviderResult, TextEdit, WorkspaceEdit } from 'vs/editor/common/languages';
+import { Command, ProviderResult, TextEdit, WorkspaceEdit } from 'vs/editor/common/languages';
 import { ITextModel } from 'vs/editor/common/model';
 import { localize } from 'vs/nls';
 import { MenuId } from 'vs/platform/actions/common/actions';
 import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 
+export interface IInteractiveEditorSlashCommand {
+	command: string;
+	detail?: string;
+}
+
 export interface IInteractiveEditorSession {
 	id: number;
 	placeholder?: string;
+	slashCommands?: IInteractiveEditorSlashCommand[];
 	dispose?(): void;
 }
 
@@ -33,18 +39,24 @@ export interface IInteractiveEditorEditResponse {
 	type: 'editorEdit';
 	edits: TextEdit[];
 	placeholder?: string;
+	wholeRange?: IRange;
+	commands?: Command[];
 }
 
 export interface IInteractiveEditorBulkEditResponse {
 	type: 'bulkEdit';
 	edits: WorkspaceEdit;
 	placeholder?: string;
+	wholeRange?: IRange;
+	commands?: Command[];
 }
 
 export interface IInteractiveEditorMessageResponse {
 	type: 'message';
 	message: IMarkdownString;
 	placeholder?: string;
+	wholeRange?: IRange;
+	commands?: Command[];
 }
 
 export interface IInteractiveEditorSessionProvider {
@@ -60,8 +72,9 @@ export const IInteractiveEditorService = createDecorator<IInteractiveEditorServi
 
 export interface IInteractiveEditorService {
 	_serviceBrand: undefined;
-	add(provider: IInteractiveEditorSessionProvider): IDisposable;
-	getAll(): Iterable<IInteractiveEditorSessionProvider>;
+
+	addProvider(provider: IInteractiveEditorSessionProvider): IDisposable;
+	getAllProvider(): Iterable<IInteractiveEditorSessionProvider>;
 }
 
 export const MENU_INTERACTIVE_EDITOR_WIDGET = MenuId.for('interactiveEditorWidget');
@@ -70,7 +83,6 @@ export const CTX_INTERACTIVE_EDITOR_HAS_PROVIDER = new RawContextKey<boolean>('i
 export const CTX_INTERACTIVE_EDITOR_VISIBLE = new RawContextKey<boolean>('interactiveEditorVisible', false, localize('interactiveEditorVisible', "Whether the interactive editor input is visible"));
 export const CTX_INTERACTIVE_EDITOR_FOCUSED = new RawContextKey<boolean>('interactiveEditorFocused', false, localize('interactiveEditorFocused', "Whether the interactive editor input is focused"));
 export const CTX_INTERACTIVE_EDITOR_EMPTY = new RawContextKey<boolean>('interactiveEditorEmpty', false, localize('interactiveEditorEmpty', "Whether the interactive editor input is empty"));
-export const CTX_INTERACTIVE_EDITOR_PREVIEW = new RawContextKey<boolean>('interactiveEditorPreview', false, localize('interactiveEditorPreview', "Whether the interactive editor input shows inline previews"));
 export const CTX_INTERACTIVE_EDITOR_HISTORY_POSSIBLE = new RawContextKey<boolean>('interactiveEditorHistoryPossible', false, localize('interactiveEditorHistoryPossible', "Whether the interactive editor has history entries"));
 export const CTX_INTERACTIVE_EDITOR_HISTORY_VISIBLE = new RawContextKey<boolean>('interactiveEditorHistoryVisible', false, localize('interactiveEditorHistoryVisible', "Whether the interactive editor history is visible"));
 export const CTX_INTERACTIVE_EDITOR_INNER_CURSOR_FIRST = new RawContextKey<boolean>('interactiveEditorInnerCursorFirst', false, localize('interactiveEditorInnerCursorFirst', "Whether the cursor of the iteractive editor input is on the first line"));

@@ -189,6 +189,10 @@ export class ExtHostInteractiveSession implements ExtHostInteractiveSessionShape
 		let firstProgress: number | undefined;
 		const progressObj: vscode.Progress<vscode.InteractiveProgress> = {
 			report: (progress: vscode.InteractiveProgress) => {
+				if (token.isCancellationRequested) {
+					return;
+				}
+
 				if (typeof firstProgress === 'undefined') {
 					firstProgress = stopWatch.elapsed();
 				}

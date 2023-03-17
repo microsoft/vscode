@@ -32,6 +32,7 @@ export interface IInteractiveResponseModel {
 	readonly avatarIconUri?: URI;
 	readonly response: IMarkdownString;
 	readonly isComplete: boolean;
+	readonly isCanceled: boolean;
 	readonly followups?: IInteractiveSessionFollowup[] | undefined;
 	readonly errorDetails?: IInteractiveResponseErrorDetails;
 }
@@ -80,6 +81,11 @@ export class InteractiveResponseModel extends Disposable implements IInteractive
 		return this._isComplete;
 	}
 
+	private _isCanceled: boolean;
+	public get isCanceled(): boolean {
+		return this._isCanceled;
+	}
+
 	private _followups: IInteractiveSessionFollowup[] | undefined;
 	public get followups(): IInteractiveSessionFollowup[] | undefined {
 		return this._followups;
@@ -95,13 +101,14 @@ export class InteractiveResponseModel extends Disposable implements IInteractive
 		return this._errorDetails;
 	}
 
-	constructor(response: IMarkdownString, public readonly username: string, public readonly providerId: string, public readonly avatarIconUri?: URI, isComplete: boolean = false, providerResponseId?: string, errorDetails?: IInteractiveResponseErrorDetails, followups?: IInteractiveSessionFollowup[]) {
+	constructor(response: IMarkdownString, public readonly username: string, public readonly providerId: string, public readonly avatarIconUri?: URI, isComplete: boolean = false, isCanceled = false, providerResponseId?: string, errorDetails?: IInteractiveResponseErrorDetails, followups?: IInteractiveSessionFollowup[]) {
 		super();
 		this._response = response;
 		this._isComplete = isComplete;
 		this._followups = followups;
 		this._providerResponseId = providerResponseId;
 		this._errorDetails = errorDetails;
+		this._isCanceled = isCanceled;
 		this._id = 'response_' + InteractiveResponseModel.nextId++;
 	}
 
@@ -117,6 +124,12 @@ export class InteractiveResponseModel extends Disposable implements IInteractive
 	complete(errorDetails?: IInteractiveResponseErrorDetails): void {
 		this._isComplete = true;
 		this._errorDetails = errorDetails;
+		this._onDidChange.fire();
+	}
+
+	cancel(): void {
+		this._isComplete = true;
+		this._isCanceled = true;
 		this._onDidChange.fire();
 	}
 
@@ -145,6 +158,7 @@ export interface ISerializableInteractiveSessionRequestData {
 	response: string | undefined;
 	responseErrorDetails: IInteractiveResponseErrorDetails | undefined;
 	followups: IInteractiveSessionFollowup[] | undefined;
+	isCanceled: boolean | undefined;
 }
 
 export interface ISerializableInteractiveSessionData {
@@ -205,7 +219,7 @@ export class InteractiveSessionModel extends Disposable implements IInteractiveS
 		return requests.map((raw: ISerializableInteractiveSessionRequestData) => {
 			const request = new InteractiveRequestModel(raw.message, this.session.requesterUsername, this.session.requesterAvatarIconUri);
 			if (raw.response || raw.responseErrorDetails) {
-				request.response = new InteractiveResponseModel(new MarkdownString(raw.response), this.session.responderUsername, this.providerId, this.session.responderAvatarIconUri, true, raw.providerResponseId, raw.responseErrorDetails, raw.followups);
+				request.response = new InteractiveResponseModel(new MarkdownString(raw.response), this.session.responderUsername, this.providerId, this.session.responderAvatarIconUri, true, raw.isCanceled, raw.providerResponseId, raw.responseErrorDetails, raw.followups);
 			}
 			return request;
 		});
@@ -249,6 +263,12 @@ export class InteractiveSessionModel extends Disposable implements IInteractiveS
 		}
 	}
 
+	cancelRequest(request: InteractiveRequestModel): void {
+		if (request.response) {
+			request.response.cancel();
+		}
+	}
+
 	completeResponse(request: InteractiveRequestModel, rawResponse: IInteractiveResponse): void {
 		if (!request.response) {
 			request.response = new InteractiveResponseModel(new MarkdownString(''), this.session.responderUsername, this.providerId, this.session.responderAvatarIconUri);
@@ -274,12 +294,13 @@ export class InteractiveSessionModel extends Disposable implements IInteractiveS
 	toJSON(): ISerializableInteractiveSessionData {
 		return {
 			requests: this._requests.map(r => {
-				return {
+				return <ISerializableInteractiveSessionRequestData>{
 					providerResponseId: r.response?.providerResponseId,
 					message: typeof r.message === 'string' ? r.message : r.message.message,
 					response: r.response ? r.response.response.value : undefined,
 					responseErrorDetails: r.response?.errorDetails,
-					followups: r.response?.followups
+					followups: r.response?.followups,
+					isCanceled: r.response?.isCanceled
 				};
 			}),
 			providerId: this.providerId,
