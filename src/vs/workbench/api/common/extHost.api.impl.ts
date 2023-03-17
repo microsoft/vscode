@@ -957,6 +957,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				return extHostNotebookDocuments.onDidChangeNotebookDocument(listener, thisArg, disposables);
 			},
 			onWillSaveNotebookDocument(listener, thisArg, disposables) {
+				checkProposedApiEnabled(extension, 'notebokDocumentWillSave');
 				return extHostNotebookDocumentSaveParticipant.getOnWillSaveNotebookDocumentEvent(extension)(listener, thisArg, disposables);
 			},
 			get onDidOpenNotebookDocument(): Event<vscode.NotebookDocument> {
