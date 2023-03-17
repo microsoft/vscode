@@ -261,6 +261,7 @@ export class WebviewElement extends Disposable implements IWebview, WebviewFindD
 
 		this._register(this.on('fatal-error', (e) => {
 			notificationService.error(localize('fatalErrorMessage', "Error loading webview: {0}", e.message));
+			this._onFatalError.fire({ message: e.message });
 		}));
 
 		this._register(this.on('did-keydown', (data) => {
@@ -402,6 +403,9 @@ export class WebviewElement extends Disposable implements IWebview, WebviewFindD
 
 	private readonly _onDidBlur = this._register(new Emitter<void>());
 	public readonly onDidBlur = this._onDidBlur.event;
+
+	private readonly _onFatalError = this._register(new Emitter<{ readonly message: string }>());
+	public readonly onFatalError = this._onFatalError.event;
 
 	private readonly _onDidDispose = this._register(new Emitter<void>());
 	public readonly onDidDispose = this._onDidDispose.event;
@@ -594,10 +598,7 @@ export class WebviewElement extends Disposable implements IWebview, WebviewFindD
 	}
 
 	public setTitle(title: string) {
-		this.doUpdateContent({
-			...this._content,
-			title,
-		});
+		this._content = { ...this._content, title };
 		this._send('set-title', title);
 	}
 

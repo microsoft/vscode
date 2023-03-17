@@ -191,6 +191,10 @@ export class TestItemCollection<T extends ITestItemLike> extends Disposable {
 		}
 	}
 
+	public get resolveHandler() {
+		return this._resolveHandler;
+	}
+
 	/**
 	 * Fires when an operation happens that should result in a diff.
 	 */

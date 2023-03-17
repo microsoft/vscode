@@ -42,6 +42,7 @@ import { EditorGroupColumn } from 'vs/workbench/services/editor/common/editorGro
 import { ACTIVE_GROUP, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import type * as vscode from 'vscode';
 import * as types from './extHostTypes';
+import { IInteractiveSessionFollowup, IInteractiveSessionReplyFollowup, IInteractiveSessionResponseCommandFollowup } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionService';
 
 export namespace Command {
 
@@ -1382,6 +1383,13 @@ export namespace FoldingRange {
 		}
 		return range;
 	}
+	export function to(r: languages.FoldingRange): vscode.FoldingRange {
+		const range: vscode.FoldingRange = { start: r.start - 1, end: r.end - 1 };
+		if (r.kind) {
+			range.kind = FoldingRangeKind.to(r.kind);
+		}
+		return range;
+	}
 }
 
 export namespace FoldingRangeKind {
@@ -1394,6 +1402,19 @@ export namespace FoldingRangeKind {
 					return languages.FoldingRangeKind.Imports;
 				case types.FoldingRangeKind.Region:
 					return languages.FoldingRangeKind.Region;
+			}
+		}
+		return undefined;
+	}
+	export function to(kind: languages.FoldingRangeKind | undefined): vscode.FoldingRangeKind | undefined {
+		if (kind) {
+			switch (kind.value) {
+				case languages.FoldingRangeKind.Comment.value:
+					return types.FoldingRangeKind.Comment;
+				case languages.FoldingRangeKind.Imports.value:
+					return types.FoldingRangeKind.Imports;
+				case languages.FoldingRangeKind.Region.value:
+					return types.FoldingRangeKind.Region;
 			}
 		}
 		return undefined;
@@ -1503,6 +1524,21 @@ export namespace LanguageSelector {
 				exclusive: filter.exclusive,
 				notebookType: filter.notebookType
 			};
+		}
+	}
+}
+
+export namespace NotebookDocumentSaveReason {
+
+	export function to(reason: SaveReason): vscode.NotebookDocumentSaveReason {
+		switch (reason) {
+			case SaveReason.AUTO:
+				return types.NotebookDocumentSaveReason.AfterDelay;
+			case SaveReason.EXPLICIT:
+				return types.NotebookDocumentSaveReason.Manual;
+			case SaveReason.FOCUS_CHANGE:
+			case SaveReason.WINDOW_CHANGE:
+				return types.NotebookDocumentSaveReason.FocusOut;
 		}
 	}
 }
@@ -2008,7 +2044,7 @@ export namespace DataTransferItem {
 		if (mime === Mimes.uriList) {
 			return {
 				id: (item as IDataTransferItem | types.DataTransferItem).id,
-				asString: '',
+				asString: stringValue,
 				fileData: undefined,
 				uriListData: serializeUriList(stringValue),
 			};
@@ -2067,5 +2103,43 @@ export namespace DataTransfer {
 		await Promise.all(promises);
 
 		return newDTO;
+	}
+}
+
+export namespace InteractiveSessionReplyFollowup {
+	export function to(followup: IInteractiveSessionReplyFollowup): vscode.InteractiveSessionReplyFollowup {
+		return {
+			message: followup.message,
+			metadata: followup.metadata,
+			title: followup.title,
+			tooltip: followup.tooltip,
+		};
+	}
+
+	export function from(followup: vscode.InteractiveSessionReplyFollowup): IInteractiveSessionReplyFollowup {
+		return {
+			kind: 'reply',
+			message: followup.message,
+			metadata: followup.metadata,
+			title: followup.title,
+			tooltip: followup.tooltip,
+		};
+	}
+}
+
+export namespace InteractiveSessionFollowup {
+	export function from(followup: string | vscode.InteractiveSessionFollowup): IInteractiveSessionFollowup {
+		if (typeof followup === 'string') {
+			return <IInteractiveSessionReplyFollowup>{ title: followup, message: followup, kind: 'reply' };
+		} else if ('commandId' in followup) {
+			return <IInteractiveSessionResponseCommandFollowup>{
+				kind: 'command',
+				title: followup.title,
+				commandId: followup.commandId,
+				args: followup.args
+			};
+		} else {
+			return InteractiveSessionReplyFollowup.from(followup);
+		}
 	}
 }

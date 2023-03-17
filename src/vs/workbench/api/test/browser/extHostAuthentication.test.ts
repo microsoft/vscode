@@ -100,7 +100,7 @@ suite('ExtHostAuthentication', () => {
 
 	suiteSetup(async () => {
 		instantiationService = new TestInstantiationService();
-		instantiationService.stub(IDialogService, new TestDialogService());
+		instantiationService.stub(IDialogService, new TestDialogService({ confirmed: true }));
 		instantiationService.stub(IStorageService, new TestStorageService());
 		instantiationService.stub(IQuickInputService, new AuthTestQuickInputService());
 		instantiationService.stub(IExtensionService, new TestExtensionService());

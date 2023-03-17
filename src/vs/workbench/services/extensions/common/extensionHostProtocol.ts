@@ -8,11 +8,11 @@ import { URI, UriComponents, UriDto } from 'vs/base/common/uri';
 import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { ILoggerResource, LogLevel } from 'vs/platform/log/common/log';
 import { IRemoteConnectionData } from 'vs/platform/remote/common/remoteAuthorityResolver';
-import { ITelemetryInfo } from 'vs/platform/telemetry/common/telemetry';
 
 export interface IExtensionDescriptionDelta {
 	readonly toRemove: ExtensionIdentifier[];
 	readonly toAdd: IExtensionDescription[];
+	readonly addActivationEvents: { [extensionId: string]: string[] };
 	readonly myToRemove: ExtensionIdentifier[];
 	readonly myToAdd: ExtensionIdentifier[];
 }
@@ -26,15 +26,19 @@ export interface IExtensionHostInitData {
 	parentPid: number | 0;
 	environment: IEnvironment;
 	workspace?: IStaticWorkspaceData | null;
+	activationEvents: { [extensionId: string]: string[] };
 	allExtensions: IExtensionDescription[];
 	myExtensions: ExtensionIdentifier[];
 	nlsBaseUrl?: URI;
-	telemetryInfo: ITelemetryInfo;
+	telemetryInfo: {
+		readonly sessionId: string;
+		readonly machineId: string;
+		readonly firstSessionDate: string;
+		readonly msftInternal?: boolean;
+	};
 	logLevel: LogLevel;
 	loggers: UriDto<ILoggerResource>[];
 	logsLocation: URI;
-	logFile: URI;
-	logName: string;
 	autoStart: boolean;
 	remote: { isRemote: boolean; authority: string | undefined; connectionData: IRemoteConnectionData | null };
 	consoleForward: { includeStack: boolean; logNative: boolean };
@@ -49,6 +53,7 @@ export interface IEnvironment {
 	appRoot?: URI;
 	appLanguage: string;
 	extensionTelemetryLogResource: URI;
+	isExtensionTelemetryLoggingOnly: boolean;
 	appUriScheme: string;
 	extensionDevelopmentLocationURI?: URI[];
 	extensionTestsLocationURI?: URI;

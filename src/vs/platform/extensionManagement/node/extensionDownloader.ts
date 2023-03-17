@@ -14,15 +14,15 @@ import { isBoolean } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { generateUuid } from 'vs/base/common/uuid';
 import { Promises as FSPromises } from 'vs/base/node/pfs';
+import { CorruptZipMessage } from 'vs/base/node/zip';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { INativeEnvironmentService } from 'vs/platform/environment/common/environment';
 import { ExtensionVerificationStatus } from 'vs/platform/extensionManagement/common/abstractExtensionManagementService';
-import { ExtensionManagementError, ExtensionManagementErrorCode, IExtensionGalleryService, IGalleryExtension, InstallOperation } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { ExtensionManagementError, ExtensionManagementErrorCode, ExtensionSignaturetErrorCode, IExtensionGalleryService, IGalleryExtension, InstallOperation } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { ExtensionKey, groupByExtension } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { ExtensionSignatureVerificationError, IExtensionSignatureVerificationService } from 'vs/platform/extensionManagement/node/extensionSignatureVerificationService';
 import { IFileService, IFileStatWithMetadata } from 'vs/platform/files/common/files';
-import { ILogService } from 'vs/platform/log/common/log';
-import { IProductService } from 'vs/platform/product/common/productService';
+import { ILogService, LogLevel } from 'vs/platform/log/common/log';
 
 export class ExtensionsDownloader extends Disposable {
 
@@ -37,7 +37,6 @@ export class ExtensionsDownloader extends Disposable {
 		@IFileService private readonly fileService: IFileService,
 		@IExtensionGalleryService private readonly extensionGalleryService: IExtensionGalleryService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IProductService private readonly productService: IProductService,
 		@IExtensionSignatureVerificationService private readonly extensionSignatureVerificationService: IExtensionSignatureVerificationService,
 		@ILogService private readonly logService: ILogService,
 	) {
@@ -47,7 +46,7 @@ export class ExtensionsDownloader extends Disposable {
 		this.cleanUpPromise = this.cleanUp();
 	}
 
-	async download(extension: IGalleryExtension, operation: InstallOperation): Promise<{ readonly location: URI; readonly verificationStatus: ExtensionVerificationStatus }> {
+	async download(extension: IGalleryExtension, operation: InstallOperation, verifySignature: boolean): Promise<{ readonly location: URI; readonly verificationStatus: ExtensionVerificationStatus }> {
 		await this.cleanUpPromise;
 
 		const location = joinPath(this.extensionsDownloadDir, this.getName(extension));
@@ -59,25 +58,39 @@ export class ExtensionsDownloader extends Disposable {
 
 		let verificationStatus: ExtensionVerificationStatus = ExtensionVerificationStatus.Unverified;
 
-		if (await this.shouldVerifySignature(extension)) {
+		if (verifySignature && this.shouldVerifySignature(extension)) {
 			const signatureArchiveLocation = await this.downloadSignatureArchive(extension);
 			try {
-				const verified = await this.extensionSignatureVerificationService.verify(location.fsPath, signatureArchiveLocation.fsPath);
+				const verified = await this.extensionSignatureVerificationService.verify(location.fsPath, signatureArchiveLocation.fsPath, this.logService.getLevel() === LogLevel.Trace);
 				if (verified) {
 					verificationStatus = ExtensionVerificationStatus.Verified;
 				}
 				this.logService.info(`Extension signature verification: ${extension.identifier.id}. Verification status: ${verificationStatus}.`);
 			} catch (error) {
-				const code: string = (error as ExtensionSignatureVerificationError).code;
+				const sigError = error as ExtensionSignatureVerificationError;
+				const code: string = sigError.code;
+				if (sigError.output) {
+					this.logService.trace(`Extension signature verification details for ${extension.identifier.id} ${extension.version}:\n${sigError.output}`);
+				}
 
-				if (code === 'UnknownError') {
+				if (code === ExtensionSignaturetErrorCode.UnknownError) {
 					verificationStatus = ExtensionVerificationStatus.UnknownError;
 					this.logService.warn(`Extension signature verification: ${extension.identifier.id}. Verification status: ${verificationStatus}.`);
+				} else if (code === ExtensionSignaturetErrorCode.PackageIsInvalidZip || code === ExtensionSignaturetErrorCode.SignatureArchiveIsInvalidZip) {
+					throw new ExtensionManagementError(CorruptZipMessage, ExtensionManagementErrorCode.CorruptZip);
+				} else if (!sigError.didExecute) {
+					this.logService.warn(`Extension signature verification: ${extension.identifier.id}. Verification status: ${verificationStatus} (${code})`);
 				} else {
-					await this.delete(signatureArchiveLocation);
 					await this.delete(location);
 
 					throw new ExtensionManagementError(code, ExtensionManagementErrorCode.Signature);
+				}
+			} finally {
+				try {
+					// Delete signature archive always
+					await this.delete(signatureArchiveLocation);
+				} catch (error) {
+					this.logService.error(error);
 				}
 			}
 		}
@@ -85,16 +98,13 @@ export class ExtensionsDownloader extends Disposable {
 		return { location, verificationStatus };
 	}
 
-	private async shouldVerifySignature(extension: IGalleryExtension): Promise<boolean> {
+	private shouldVerifySignature(extension: IGalleryExtension): boolean {
 		if (!extension.isSigned) {
 			return false;
 		}
 
 		const value = this.configurationService.getValue('extensions.verifySignature');
-		if (isBoolean(value)) {
-			return value;
-		}
-		return this.productService.quality !== 'stable';
+		return isBoolean(value) ? value : true;
 	}
 
 	private async downloadSignatureArchive(extension: IGalleryExtension): Promise<URI> {

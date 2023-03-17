@@ -6,9 +6,9 @@
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { URI } from 'vs/base/common/uri';
 import { CellUri, IResolvedNotebookEditorModel, NotebookWorkingCopyTypeIdentifier } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { ComplexNotebookEditorModel, NotebookFileWorkingCopyModel, NotebookFileWorkingCopyModelFactory, SimpleNotebookEditorModel } from 'vs/workbench/contrib/notebook/common/notebookEditorModel';
+import { NotebookFileWorkingCopyModel, NotebookFileWorkingCopyModelFactory, SimpleNotebookEditorModel } from 'vs/workbench/contrib/notebook/common/notebookEditorModel';
 import { combinedDisposable, DisposableStore, dispose, IDisposable, IReference, ReferenceCollection, toDisposable } from 'vs/base/common/lifecycle';
-import { ComplexNotebookProviderInfo, INotebookService, SimpleNotebookProviderInfo } from 'vs/workbench/contrib/notebook/common/notebookService';
+import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { ILogService } from 'vs/platform/log/common/log';
 import { AsyncEmitter, Emitter, Event } from 'vs/base/common/event';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
@@ -62,33 +62,22 @@ class NotebookModelReferenceCollection extends ReferenceCollection<Promise<IReso
 
 	protected async createReferencedObject(key: string, viewType: string, hasAssociatedFilePath: boolean): Promise<IResolvedNotebookEditorModel> {
 		const uri = URI.parse(key);
-		const info = await this._notebookService.withNotebookDataProvider(viewType);
 
-		let result: IResolvedNotebookEditorModel;
-
-		if (info instanceof ComplexNotebookProviderInfo) {
-			const model = this._instantiationService.createInstance(ComplexNotebookEditorModel, uri, viewType, info.controller);
-			result = await model.load();
-
-		} else if (info instanceof SimpleNotebookProviderInfo) {
-			const workingCopyTypeId = NotebookWorkingCopyTypeIdentifier.create(viewType);
-			let workingCopyManager = this._workingCopyManagers.get(workingCopyTypeId);
-			if (!workingCopyManager) {
-				const factory = new NotebookFileWorkingCopyModelFactory(viewType, this._notebookService);
-				workingCopyManager = <IFileWorkingCopyManager<NotebookFileWorkingCopyModel, NotebookFileWorkingCopyModel>><any>this._instantiationService.createInstance(
-					FileWorkingCopyManager,
-					workingCopyTypeId,
-					factory,
-					factory,
-				);
-				this._workingCopyManagers.set(workingCopyTypeId, workingCopyManager);
-			}
-			const model = this._instantiationService.createInstance(SimpleNotebookEditorModel, uri, hasAssociatedFilePath, viewType, workingCopyManager);
-			result = await model.load();
-
-		} else {
-			throw new Error(`CANNOT open ${key}, no provider found`);
+		const workingCopyTypeId = NotebookWorkingCopyTypeIdentifier.create(viewType);
+		let workingCopyManager = this._workingCopyManagers.get(workingCopyTypeId);
+		if (!workingCopyManager) {
+			const factory = new NotebookFileWorkingCopyModelFactory(viewType, this._notebookService);
+			workingCopyManager = <IFileWorkingCopyManager<NotebookFileWorkingCopyModel, NotebookFileWorkingCopyModel>><any>this._instantiationService.createInstance(
+				FileWorkingCopyManager,
+				workingCopyTypeId,
+				factory,
+				factory,
+			);
+			this._workingCopyManagers.set(workingCopyTypeId, workingCopyManager);
 		}
+		const model = this._instantiationService.createInstance(SimpleNotebookEditorModel, uri, hasAssociatedFilePath, viewType, workingCopyManager);
+		const result = await model.load();
+
 
 		// Whenever a notebook model is dirty we automatically reference it so that
 		// we can ensure that at least one reference exists. That guarantees that

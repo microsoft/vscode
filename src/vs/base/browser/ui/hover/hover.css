@@ -19,7 +19,7 @@
 	display: none;
 }
 
-.monaco-hover a:hover {
+.monaco-hover a:hover:not(.disabled) {
 	cursor: pointer;
 }
 

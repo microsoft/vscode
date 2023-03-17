@@ -86,6 +86,11 @@ export interface ITestResult {
 	 * in the workspace.
 	 */
 	toJSON(): ISerializedTestResults | undefined;
+
+	/**
+	 * Serializes the test result, includes messages. Used to send the test states to the extension host.
+	 */
+	toJSONWithMessages(): ISerializedTestResults | undefined;
 }
 
 export const resultItemParents = function* (results: ITestResult, item: TestResultItem) {
@@ -151,24 +156,24 @@ export class LiveOutputController {
 	/**
 	 * Appends data to the output.
 	 */
-	public append(data: VSBuffer, marker?: number): Promise<void> | void {
+	public append(data: VSBuffer, marker?: number): { offset: number; done: Promise<void> | void } {
 		if (this.closed) {
-			return this.closed;
+			return { offset: this._offset, done: this.closed };
 		}
 
+		let startOffset = this._offset;
 		if (marker !== undefined) {
-			data = VSBuffer.concat([
-				VSBuffer.fromString(getMarkCode(marker, true)),
-				data,
-				VSBuffer.fromString(getMarkCode(marker, false)),
-			]);
+			const start = VSBuffer.fromString(getMarkCode(marker, true));
+			const end = VSBuffer.fromString(getMarkCode(marker, false));
+			startOffset += start.byteLength;
+			data = VSBuffer.concat([start, data, end]);
 		}
 
 		this.previouslyWritten?.push(data);
 		this.dataEmitter.fire(data);
 		this._offset += data.byteLength;
 
-		return this.writer.value[0].write(data);
+		return { offset: startOffset, done: this.writer.value[0].write(data) };
 	}
 
 	/**
@@ -354,16 +359,16 @@ export class LiveTestResult implements ITestResult {
 			marker = this.testMarkerCounter++;
 		}
 
+		const { offset } = this.output.append(output, marker);
 		const message: ITestOutputMessage = {
 			location,
 			message: removeAnsiEscapeCodes(preview),
-			offset: this.output.offset,
+			offset,
 			length: output.byteLength,
 			marker: marker,
 			type: TestMessageType.Output,
 		};
 
-		this.output.append(output, marker);
 
 		const index = this.mustGetTaskIndex(taskId);
 		if (testId) {
@@ -501,6 +506,10 @@ export class LiveTestResult implements ITestResult {
 		return this.completedAt && this.persist ? this.doSerialize.value : undefined;
 	}
 
+	public toJSONWithMessages(): ISerializedTestResults | undefined {
+		return this.completedAt && this.persist ? this.doSerializeWithMessages.value : undefined;
+	}
+
 	/**
 	 * Updates all tests in the collection to the given state.
 	 */
@@ -584,6 +593,15 @@ export class LiveTestResult implements ITestResult {
 		name: this.name,
 		request: this.request,
 		items: [...this.testById.values()].map(TestResultItem.serializeWithoutMessages),
+	}));
+
+	private readonly doSerializeWithMessages = new Lazy((): ISerializedTestResults => ({
+		id: this.id,
+		completedAt: this.completedAt!,
+		tasks: this.tasks.map(t => ({ id: t.id, name: t.name })),
+		name: this.name,
+		request: this.request,
+		items: [...this.testById.values()].map(TestResultItem.serialize),
 	}));
 }
 
@@ -681,5 +699,12 @@ export class HydratedTestResult implements ITestResult {
 	 */
 	public toJSON(): ISerializedTestResults | undefined {
 		return this.persist ? this.serialized : undefined;
+	}
+
+	/**
+	 * @inheritdoc
+	 */
+	public toJSONWithMessages(): ISerializedTestResults | undefined {
+		return this.toJSON();
 	}
 }

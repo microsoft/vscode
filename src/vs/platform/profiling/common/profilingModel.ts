@@ -331,8 +331,9 @@ export interface BottomUpSample {
 	selfTime: number;
 	totalTime: number;
 	location: string;
+	absLocation: string;
 	url: string;
-	caller: { percentage: number; location: string }[];
+	caller: { percentage: number; absLocation: string; location: string }[];
 	percentage: number;
 	isSpecial: boolean;
 }

@@ -4,7 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 use std::collections::HashMap;
 
-use crate::options::Quality;
+use crate::{
+	constants::{PROTOCOL_VERSION, VSCODE_CLI_VERSION},
+	options::Quality,
+};
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Debug)]
@@ -54,12 +57,23 @@ pub struct ForwardResult {
 	pub uri: String,
 }
 
+/// The `install_local` method in the wsl control server
+#[derive(Deserialize, Debug)]
+pub struct InstallFromLocalFolderParams {
+	pub archive_path: String,
+	#[serde(flatten)]
+	pub inner: ServeParams,
+}
+
 #[derive(Deserialize, Debug)]
 pub struct ServeParams {
 	pub socket_id: u16,
 	pub commit_id: Option<String>,
 	pub quality: Quality,
 	pub extensions: Vec<String>,
+	/// Optional preferred connection token.
+	#[serde(default)]
+	pub connection_token: Option<String>,
 	#[serde(default)]
 	pub use_local_download: bool,
 	/// If true, the client and server should gzip servermsg's sent in either direction.
@@ -133,4 +147,42 @@ pub struct CallServerHttpResult {
 pub struct VersionParams {
 	pub version: &'static str,
 	pub protocol_version: u32,
+}
+
+impl Default for VersionParams {
+	fn default() -> Self {
+		Self {
+			version: VSCODE_CLI_VERSION.unwrap_or("dev"),
+			protocol_version: PROTOCOL_VERSION,
+		}
+	}
+}
+
+pub mod singleton {
+	use crate::log;
+	use serde::{Deserialize, Serialize};
+
+	pub const METHOD_RESTART: &str = "restart";
+	pub const METHOD_SHUTDOWN: &str = "shutdown";
+	pub const METHOD_STATUS: &str = "status";
+	pub const METHOD_LOG: &str = "log";
+
+	#[derive(Serialize)]
+	pub struct LogMessage<'a> {
+		pub level: Option<log::Level>,
+		pub prefix: &'a str,
+		pub message: &'a str,
+	}
+
+	#[derive(Deserialize)]
+	pub struct LogMessageOwned {
+		pub level: Option<log::Level>,
+		pub prefix: String,
+		pub message: String,
+	}
+
+	#[derive(Serialize, Deserialize)]
+	pub struct Status {
+		pub ok: bool,
+	}
 }
