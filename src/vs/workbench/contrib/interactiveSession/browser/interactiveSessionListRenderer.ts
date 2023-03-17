@@ -210,8 +210,14 @@ export class InteractiveListItemRenderer extends Disposable implements ITreeRend
 			const progressiveRenderingDisposables = templateData.elementDisposables.add(new DisposableStore());
 			const timer = templateData.elementDisposables.add(new IntervalTimer());
 			const runProgressiveRender = (initial?: boolean) => {
-				if (this.doNextProgressiveRender(element, index, templateData, !!initial, progressiveRenderingDisposables)) {
+				try {
+					if (this.doNextProgressiveRender(element, index, templateData, !!initial, progressiveRenderingDisposables)) {
+						timer.cancel();
+					}
+				} catch (err) {
+					// Kill the timer if anything went wrong, avoid getting stuck in a nasty rendering loop.
 					timer.cancel();
+					throw err;
 				}
 			};
 			runProgressiveRender(true);
