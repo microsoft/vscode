@@ -766,7 +766,8 @@ export class InteractiveEditorController implements IEditorContribution {
 
 		const thisSession = this._ctsSession = new CancellationTokenSource();
 		const textModel = this._editor.getModel();
-		const session = await provider.prepareInteractiveEditorSession(textModel, this._editor.getSelection(), this._ctsSession.token);
+		const selection = this._editor.getSelection();
+		const session = await provider.prepareInteractiveEditorSession(textModel, selection, this._ctsSession.token);
 		if (!session) {
 			this._logService.trace('[IE] NO session', provider.debugName);
 			return;
@@ -791,7 +792,7 @@ export class InteractiveEditorController implements IEditorContribution {
 		const wholeRangeDecoration = this._editor.createDecorationsCollection();
 
 		if (!initialRange) {
-			initialRange = this._editor.getSelection();
+			initialRange = session.wholeRange ? Range.lift(session.wholeRange) : selection;
 		}
 		if (initialRange.isEmpty()) {
 			initialRange = new Range(

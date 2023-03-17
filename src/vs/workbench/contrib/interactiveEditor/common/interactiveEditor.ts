@@ -24,6 +24,7 @@ export interface IInteractiveEditorSession {
 	id: number;
 	placeholder?: string;
 	slashCommands?: IInteractiveEditorSlashCommand[];
+	wholeRange?: IRange;
 	dispose?(): void;
 }
 
