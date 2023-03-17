@@ -19,6 +19,7 @@ import { INotificationService, NotificationPriority } from 'vs/platform/notifica
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ActionRunner, IAction, WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification } from 'vs/base/common/actions';
 import { hash } from 'vs/base/common/hash';
+import { firstOrDefault } from 'vs/base/common/arrays';
 
 // Center
 export const SHOW_NOTIFICATIONS_CENTER = 'notifications.showList';
@@ -150,12 +151,15 @@ export function registerNotificationCommands(center: INotificationsCenterControl
 		primary: KeyMod.CtrlCmd | KeyCode.Enter,
 		handler: (accessor) => {
 			const actionRunner = accessor.get(IInstantiationService).createInstance(NotificationActionRunner);
-			const notification = model.notifications[0];
-			const primaryAction = notification?.actions?.primary;
-			if (!primaryAction?.length) {
+			const notification = firstOrDefault(model.notifications);
+			if (!notification) {
 				return;
 			}
-			actionRunner.run(primaryAction[0], notification);
+			const primaryAction = notification.actions?.primary ? firstOrDefault(notification.actions.primary) : undefined;
+			if (!primaryAction) {
+				return;
+			}
+			actionRunner.run(primaryAction, notification);
 			notification.close();
 		}
 	});
