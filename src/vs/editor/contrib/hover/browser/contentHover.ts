@@ -944,6 +944,8 @@ export class ContentHoverWidget extends Disposable implements IContentWidget {
 	}
 
 	public resize(size: dom.Dimension | null) {
+		this._hover.contentsDomNode.style.maxHeight = 'none';
+		this._hover.contentsDomNode.style.maxWidth = 'none';
 		console.log('Inside of the resize of the content hover widget');
 		if (!size) {
 			return;
@@ -1280,12 +1282,14 @@ export class ContentHoverWidget extends Disposable implements IContentWidget {
 	public showAt(node: DocumentFragment, visibleData: ContentHoverVisibleData): void {
 
 		console.log(' * Entered into showAt of ContentHoverWidget');
+
 		// this._hover.contentsDomNode.style.visibility = 'visibility';
 		this._setVisibleData(visibleData);
 
 		this._hover.contentsDomNode.textContent = '';
 		this._hover.contentsDomNode.appendChild(node);
 		this._hover.contentsDomNode.style.paddingBottom = '';
+
 		this._updateFont();
 
 		console.log('* Before the first onContentsChanged of showAt of ContentHoverWidget');
