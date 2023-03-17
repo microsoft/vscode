@@ -113,6 +113,12 @@ export class ContentHoverController extends Disposable {
 	 * Returns true if the hover shows now or will show.
 	 */
 	public maybeShowAt(mouseEvent: IEditorMouseEvent): boolean {
+
+		// if resizing should not do anything, until resizing done
+		if (this._resizableWidget.isResizing()) {
+			return true;
+		}
+
 		const anchorCandidates: HoverAnchor[] = [];
 
 		for (const participant of this._participants) {
@@ -232,7 +238,7 @@ export class ContentHoverController extends Disposable {
 	}
 
 	public hide(): void {
-		// console.log('Inside of hide of content hover controller');
+		console.log('Inside of hide of content hover controller');
 		this._computer.anchor = null;
 		this._hoverOperation.cancel();
 		this._setCurrentResult(null);
