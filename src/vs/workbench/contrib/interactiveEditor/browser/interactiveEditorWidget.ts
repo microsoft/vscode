@@ -5,7 +5,7 @@
 
 import 'vs/css!./interactiveEditor';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
-import { DisposableStore, dispose, toDisposable } from 'vs/base/common/lifecycle';
+import { DisposableStore, combinedDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { IActiveCodeEditor, ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditorLayoutInfo, EditorOption } from 'vs/editor/common/config/editorOptions';
 import { Range } from 'vs/editor/common/core/range';
@@ -15,7 +15,7 @@ import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/c
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { ZoneWidget } from 'vs/editor/contrib/zoneWidget/browser/zoneWidget';
 import { assertType } from 'vs/base/common/types';
-import { IInteractiveEditorResponse, IInteractiveEditorService, CTX_INTERACTIVE_EDITOR_FOCUSED, CTX_INTERACTIVE_EDITOR_HAS_ACTIVE_REQUEST, CTX_INTERACTIVE_EDITOR_INNER_CURSOR_FIRST, CTX_INTERACTIVE_EDITOR_INNER_CURSOR_LAST, CTX_INTERACTIVE_EDITOR_EMPTY, CTX_INTERACTIVE_EDITOR_OUTER_CURSOR_POSITION, CTX_INTERACTIVE_EDITOR_VISIBLE, MENU_INTERACTIVE_EDITOR_WIDGET, CTX_INTERACTIVE_EDITOR_HISTORY_VISIBLE, IInteractiveEditorRequest, IInteractiveEditorSession, CTX_INTERACTIVE_EDITOR_HISTORY_POSSIBLE, IInteractiveEditorSlashCommand } from 'vs/workbench/contrib/interactiveEditor/common/interactiveEditor';
+import { IInteractiveEditorResponse, IInteractiveEditorService, CTX_INTERACTIVE_EDITOR_FOCUSED, CTX_INTERACTIVE_EDITOR_HAS_ACTIVE_REQUEST, CTX_INTERACTIVE_EDITOR_INNER_CURSOR_FIRST, CTX_INTERACTIVE_EDITOR_INNER_CURSOR_LAST, CTX_INTERACTIVE_EDITOR_EMPTY, CTX_INTERACTIVE_EDITOR_OUTER_CURSOR_POSITION, CTX_INTERACTIVE_EDITOR_VISIBLE, MENU_INTERACTIVE_EDITOR_WIDGET, IInteractiveEditorRequest, IInteractiveEditorSession, IInteractiveEditorSlashCommand } from 'vs/workbench/contrib/interactiveEditor/common/interactiveEditor';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { Iterable } from 'vs/base/common/iterator';
 import { ICursorStateComputer, IModelDecorationOptions, IModelDeltaDecoration, ITextModel, IValidEditOperation } from 'vs/editor/common/model';
@@ -57,11 +57,6 @@ import { LanguageSelector } from 'vs/editor/common/languageSelector';
 import { DEFAULT_FONT_FAMILY } from 'vs/workbench/browser/style';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 
-interface IHistoryEntry {
-	updateVisibility(visible: boolean): void;
-	updateActions(actions: IAction[]): void;
-	remove(): void;
-}
 
 class InteractiveEditorWidget {
 
@@ -83,7 +78,6 @@ class InteractiveEditorWidget {
 			]),
 			h('div.progress@progress'),
 			h('div.status.hidden@status'),
-			h('div.history.hidden@history'),
 		]
 	);
 
@@ -93,15 +87,12 @@ class InteractiveEditorWidget {
 	readonly inputEditor: ICodeEditor;
 	private readonly _inputModel: ITextModel;
 	private readonly _ctxInputEmpty: IContextKey<boolean>;
-	private readonly _ctxHistoryPossible: IContextKey<boolean>;
-	private readonly _ctxHistoryVisible: IContextKey<boolean>;
 
 	private readonly _progressBar: ProgressBar;
 
 	private readonly _onDidChangeHeight = new Emitter<void>();
 	readonly onDidChangeHeight: Event<void> = this._onDidChangeHeight.event;
 
-	private _isExpanded = false;
 	private _editorDim: Dimension | undefined;
 
 	public acceptInput: (preview: boolean) => void = InteractiveEditorWidget._noop;
@@ -113,9 +104,6 @@ class InteractiveEditorWidget {
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 	) {
-
-		this._ctxHistoryPossible = CTX_INTERACTIVE_EDITOR_HISTORY_POSSIBLE.bindTo(this._contextKeyService);
-		this._ctxHistoryVisible = CTX_INTERACTIVE_EDITOR_HISTORY_VISIBLE.bindTo(this._contextKeyService);
 
 		// editor logic
 		const editorOptions: IEditorConstructionOptions = {
@@ -216,7 +204,6 @@ class InteractiveEditorWidget {
 		this._store.dispose();
 		this._historyStore.dispose();
 		this._ctxInputEmpty.reset();
-		this._ctxHistoryVisible.reset();
 	}
 
 	get domNode(): HTMLElement {
@@ -239,7 +226,7 @@ class InteractiveEditorWidget {
 	}
 
 	getHeight(): number {
-		const base = getTotalHeight(this._elements.progress) + getTotalHeight(this._elements.status) + getTotalHeight(this._elements.history);
+		const base = getTotalHeight(this._elements.progress) + getTotalHeight(this._elements.status);
 		const editorHeight = this.inputEditor.getContentHeight() + 6 /* padding and border */;
 		return base + editorHeight + 12 /* padding */;
 	}
@@ -333,13 +320,6 @@ class InteractiveEditorWidget {
 		this.inputEditor.setSelection(this._inputModel.getFullModelRange());
 	}
 
-	toggleHistory(): void {
-		this._isExpanded = !this._isExpanded;
-		this._elements.history.classList.toggle('hidden', !this._isExpanded);
-		this._ctxHistoryVisible.set(this._isExpanded);
-		this._onDidChangeHeight.fire();
-	}
-
 	createStatusEntry() {
 		const { root, label, actions } = h('div.status-item@item', [
 			h('div.label@label'),
@@ -380,63 +360,15 @@ class InteractiveEditorWidget {
 			},
 			remove: () => {
 				root.remove();
+				toolbar.dispose();
 				this._elements.status.classList.add('hidden');
 				this._onDidChangeHeight.fire();
 			}
 		};
 	}
 
-	createHistoryEntry(value: string): IHistoryEntry {
-
-		const { root, label, actions } = h('div.history-entry@item', [
-			h('div.label@label'),
-			h('div.actions@actions'),
-		]);
-
-		label.innerText = value;
-
-		const toolbar = this._instantiationService.createInstance(WorkbenchToolBar, actions, {});
-		this._historyStore.add(toolbar);
-
-		this._elements.history.insertBefore(root, this._elements.history.firstChild);
-		if (this._isExpanded) {
-			this._onDidChangeHeight.fire();
-		}
-
-		this._ctxHistoryPossible.set(true);
-
-		return {
-			updateVisibility: (visible) => {
-				root.classList.toggle('hidden', !visible);
-				if (this._isExpanded) {
-					this._onDidChangeHeight.fire();
-				}
-			},
-			updateActions(actions: IAction[]) {
-				toolbar.setActions(actions);
-			},
-			remove: () => {
-				root.remove();
-				if (this._isExpanded) {
-					this._onDidChangeHeight.fire();
-				}
-			}
-		};
-	}
-
-	clearHistory() {
-		this._historyStore.clear();
-		this._isExpanded = false;
-		this._elements.history.classList.toggle('hidden', true);
-		this._ctxHistoryPossible.reset();
-		this._ctxHistoryVisible.reset();
-		reset(this._elements.history);
-	}
-
 	reset() {
 		this._ctxInputEmpty.reset();
-		this.clearHistory();
-		// this.clearMessage();
 		reset(this._elements.status);
 	}
 
@@ -561,29 +493,38 @@ class CommandAction extends Action {
 	}
 }
 
-class UndoStepAction extends Action {
+class ToggleInlineDiff extends Action {
 
-	static all: UndoStepAction[] = [];
-
-	static updateUndoSteps() {
-		UndoStepAction.all.forEach(action => {
-			const isMyAltId = action.myAlternativeVersionId === action.model.getAlternativeVersionId();
-			action.enabled = isMyAltId;
-		});
+	constructor(private readonly _inlineDiff: InlineDiffDecorations) {
+		super('diff', localize('toggleInlineDiff', "Toggle Inline Diff"), ThemeIcon.asClassName(Codicon.diff), true);
+		this.checked = _inlineDiff.visible;
 	}
 
-	readonly myAlternativeVersionId: number;
+	override async run(): Promise<void> {
+		this._inlineDiff.visible = !this._inlineDiff.visible;
+		this.checked = this._inlineDiff.visible;
+	}
+}
 
-	constructor(readonly model: ITextModel) {
-		super(`undo@${model.getAlternativeVersionId()}`, localize('undoStep', "Undo This Step"), ThemeIcon.asClassName(Codicon.discard), false);
-		this.myAlternativeVersionId = model.getAlternativeVersionId();
-		UndoStepAction.all.push(this);
-		UndoStepAction.updateUndoSteps();
+class UndoAction extends Action {
+
+	private readonly _myAlternativeVersionId: number;
+
+	constructor(private readonly _model: ITextModel) {
+		super('undo', localize('undo', "Undo"), ThemeIcon.asClassName(Codicon.discard), false);
+		this._myAlternativeVersionId = _model.getAlternativeVersionId();
+
+		const update = () => {
+			this.enabled = this._myAlternativeVersionId === this._model.getAlternativeVersionId();
+		};
+		this._store.add(_model.onDidChangeContent(() => update()));
+		update();
 	}
 
-	override async run() {
-		this.model.undo();
-		UndoStepAction.updateUndoSteps();
+	override async run(): Promise<void> {
+		if (this._myAlternativeVersionId === this._model.getAlternativeVersionId()) {
+			this._model.undo();
+		}
 	}
 }
 
@@ -830,14 +771,15 @@ export class InteractiveEditorController implements IEditorContribution {
 
 		let ignoreModelChanges = false;
 		this._editor.onDidChangeModelContent(e => {
-
-			// UPDATE undo actions based on alternative version id
-			UndoStepAction.updateUndoSteps();
-
-			data.edits = true;
-
-			// CANCEL if the document has changed outside the current range
 			if (!ignoreModelChanges) {
+
+				// remove inline diff when the model changes
+				inlineDiffDecorations.clear();
+
+				// note when "other" edits happen
+				data.edits = true;
+
+				// CANCEL if the document has changed outside the current range
 				const wholeRange = wholeRangeDecoration.getRange(0);
 				if (!wholeRange) {
 					this._ctsSession.cancel();
@@ -857,7 +799,8 @@ export class InteractiveEditorController implements IEditorContribution {
 		}, undefined, store);
 
 		let round = 0;
-
+		const roundStore = new DisposableStore();
+		store.add(roundStore);
 
 		do {
 
@@ -881,6 +824,7 @@ export class InteractiveEditorController implements IEditorContribution {
 
 			this._historyOffset = -1;
 			const input = await this._zone.getInput(wholeRange.getEndPosition(), placeholder, value, this._ctsRequest.token);
+			roundStore.clear();
 
 			if (!input || !input.value) {
 				continue;
@@ -892,8 +836,6 @@ export class InteractiveEditorController implements IEditorContribution {
 				this._instaService.invokeFunction(showMessageResponse, input.value);
 				continue;
 			}
-
-			const historyEntry = this._zone.widget.createHistoryEntry(input.value);
 
 			const sw = StopWatch.create();
 			const request: IInteractiveEditorRequest = {
@@ -928,7 +870,6 @@ export class InteractiveEditorController implements IEditorContribution {
 			if (this._ctsRequest.token.isCancellationRequested) {
 				this._logService.trace('[IE] request CANCELED', provider.debugName);
 				value = input.value;
-				historyEntry.remove();
 				continue;
 			}
 
@@ -936,7 +877,6 @@ export class InteractiveEditorController implements IEditorContribution {
 				this._logService.trace('[IE] NO reply or edits', provider.debugName);
 				value = input.value;
 				statusWidget.update({ message: localize('empty', "No results, tweak your input and try again."), classes: ['warn'], actions: [] });
-				historyEntry.remove();
 				continue;
 			}
 
@@ -996,54 +936,17 @@ export class InteractiveEditorController implements IEditorContribution {
 
 			inlineDiffDecorations.update();
 
-			const that = this;
-			historyEntry.updateActions([
-				new class extends UndoStepAction {
-					constructor() {
-						super(textModel);
-					}
-					override async run() {
-						super.run();
-						historyEntry.updateVisibility(false);
-						value = input.value;
-						that._ctsRequest?.cancel();
-						data.undos += round + '|';
-					}
-				}]);
 
+			const replyActions: Action[] = reply.commands?.map(command => this._instaService.createInstance(CommandAction, command)) ?? [];
+			const fixedActions: Action[] = [new UndoAction(textModel), new ToggleInlineDiff(inlineDiffDecorations)];
+			roundStore.add(combinedDisposable(...replyActions, ...fixedActions));
 
-			const replyActions = reply.commands?.map(command => this._instaService.createInstance(CommandAction, command)) ?? [];
-			const fixedActions = [new class extends Action {
-
-				constructor() {
-					super(Math.random().toString(), localize('ie.inlineDiff', "Toggle Inline Diff"), ThemeIcon.asClassName(Codicon.diff), true);
-					this._setChecked(inlineDiffDecorations.visible);
-				}
-				override async run() {
-
-					inlineDiffDecorations.visible = !inlineDiffDecorations.visible;
-					this._setChecked(inlineDiffDecorations.visible);
-				}
-				// }, new class extends UndoStepAction {
-				// 	constructor() {
-				// 		super(textModel);
-				// 	}
-				// 	override async run() {
-				// 		super.run();
-				// 		historyEntry.updateVisibility(false);
-				// 		value = input.value;
-				// 		that._ctsRequest?.cancel();
-				// 		data.undos += round + '|';
-				// 	}
-			}];
-
-			const actions = Separator.join(replyActions, fixedActions);
 			const editsCount = (moreMinimalEdits ?? reply.edits).length;
 
 			statusWidget.update({
 				message: editsCount === 1 ? localize('edit.1', "Done, made 1 change") : localize('edit.N', "Done, made {0} changes", editsCount),
 				classes: [],
-				actions,
+				actions: Separator.join(replyActions, fixedActions),
 			});
 
 			if (!InteractiveEditorController._promptHistory.includes(input.value)) {
@@ -1065,7 +968,6 @@ export class InteractiveEditorController implements IEditorContribution {
 		store.dispose();
 		session.dispose?.();
 
-		dispose(UndoStepAction.all);
 
 		this._zone.hide();
 		this._editor.focus();
@@ -1111,10 +1013,6 @@ export class InteractiveEditorController implements IEditorContribution {
 		const entry = InteractiveEditorController._promptHistory[pos];
 		this._zone.widget.populateInputField(entry);
 		this._historyOffset = pos;
-	}
-
-	toggleHistory(): void {
-		this._zone.widget.toggleHistory();
 	}
 
 	recordings() {
