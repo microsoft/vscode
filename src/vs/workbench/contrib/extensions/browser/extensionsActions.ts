@@ -402,12 +402,13 @@ export abstract class AbstractInstallAction extends ExtensionAction {
 		/* __GDPR__
 			"extensions:action:install" : {
 				"owner": "sandy081",
+				"actionId" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
 				"${include}": [
 					"${GalleryExtensionTelemetryData}"
 				]
 			}
 		*/
-		this.telemetryService.publicLog('extensions:action:install', this.extension.telemetryData);
+		this.telemetryService.publicLog('extensions:action:install', { ...this.extension.telemetryData, actionId: this.id });
 
 		const extension = await this.install(this.extension);
 
