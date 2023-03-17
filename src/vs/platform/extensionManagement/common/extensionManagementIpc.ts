@@ -149,7 +149,7 @@ export class ExtensionManagementChannel implements IServerChannel {
 				return this.service.getExtensionsControlManifest();
 			}
 			case 'download': {
-				return this.service.download(args[0], args[1]);
+				return this.service.download(args[0], args[1], args[2]);
 			}
 			case 'cleanUp': {
 				return this.service.cleanUp();
@@ -276,8 +276,8 @@ export class ExtensionManagementChannelClient extends Disposable implements IExt
 		return Promise.resolve(this.channel.call<IExtensionsControlManifest>('getExtensionsControlManifest'));
 	}
 
-	async download(extension: IGalleryExtension, operation: InstallOperation): Promise<URI> {
-		const result = await this.channel.call<UriComponents>('download', [extension, operation]);
+	async download(extension: IGalleryExtension, operation: InstallOperation, donotVerifySignature: boolean): Promise<URI> {
+		const result = await this.channel.call<UriComponents>('download', [extension, operation, donotVerifySignature]);
 		return URI.revive(result);
 	}
 
