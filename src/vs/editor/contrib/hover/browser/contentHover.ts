@@ -950,8 +950,11 @@ export class ContentHoverWidget extends Disposable implements IContentWidget {
 		}
 		this._hover.containerDomNode.style.width = size.width - 6 + 'px';
 		this._hover.containerDomNode.style.height = size.height - 6 + 'px';
+		this._hover.contentsDomNode.style.width = size.width - 6 + 'px';
+		this._hover.contentsDomNode.style.height = size.height - 6 + 'px';
 		this._editor.layoutContentWidget(this);
 		this._editor.render();
+		this._hover.scrollbar.scanDomNode();
 	}
 
 	public getSize() {
