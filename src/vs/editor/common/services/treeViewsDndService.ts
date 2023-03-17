@@ -5,9 +5,9 @@
 
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { ITreeItem } from 'vs/workbench/common/views';
-import { ITreeViewsService as ITreeViewsServiceCommon, TreeviewsService } from 'vs/workbench/services/views/common/treeViewsService';
+import { VSDataTransfer } from 'vs/base/common/dataTransfer';
+import { ITreeViewsDnDService as ITreeViewsDnDServiceCommon, TreeViewsDnDService } from 'vs/editor/common/services/treeViewsDnd';
 
-export interface ITreeViewsService extends ITreeViewsServiceCommon<ITreeItem, HTMLElement> { }
-export const ITreeViewsService = createDecorator<ITreeViewsService>('treeViewsService');
-registerSingleton(ITreeViewsService, TreeviewsService, InstantiationType.Delayed);
+export interface ITreeViewsDnDService extends ITreeViewsDnDServiceCommon<VSDataTransfer> { }
+export const ITreeViewsDnDService = createDecorator<ITreeViewsDnDService>('treeViewsDndService');
+registerSingleton(ITreeViewsDnDService, TreeViewsDnDService, InstantiationType.Delayed);
