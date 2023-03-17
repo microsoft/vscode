@@ -1117,7 +1117,7 @@ export class ContentHoverWidget extends Disposable implements IContentWidget {
 		let availableSpace: number;
 
 		if (rendering === ContentWidgetPositionPreference.ABOVE) {
-			availableSpace = editorBox.top + mouseBox.top;
+			availableSpace = editorBox.top + mouseBox.top - 30;
 		} else {
 			const mouseBottom = editorBox.top + mouseBox!.top + mouseBox!.height;
 			availableSpace = bodyBox.height - mouseBottom;
