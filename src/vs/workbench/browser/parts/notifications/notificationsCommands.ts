@@ -16,6 +16,8 @@ import { NotificationMetrics, NotificationMetricsClassification, notificationToM
 import { NotificationFocusedContext, NotificationsCenterVisibleContext, NotificationsToastsVisibleContext } from 'vs/workbench/common/contextkeys';
 import { CONTEXT_ACCESSIBILITY_MODE_ENABLED } from 'vs/platform/accessibility/common/accessibility';
 import { INotificationService, NotificationPriority } from 'vs/platform/notification/common/notification';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { NotificationActionRunner } from 'vs/workbench/browser/parts/notifications/notificationsActions';
 
 // Center
 export const SHOW_NOTIFICATIONS_CENTER = 'notifications.showList';
@@ -145,14 +147,14 @@ export function registerNotificationCommands(center: INotificationsCenterControl
 		weight: KeybindingWeight.WorkbenchContrib,
 		when: ContextKeyExpr.and(NotificationsToastsVisibleContext, CONTEXT_ACCESSIBILITY_MODE_ENABLED),
 		primary: KeyMod.CtrlCmd | KeyCode.Enter,
-		handler: () => {
+		handler: (accessor) => {
+			const actionRunner = accessor.get(IInstantiationService).createInstance(NotificationActionRunner);
 			const notification = model.notifications[0];
 			const primaryAction = notification?.actions?.primary;
 			if (!primaryAction?.length) {
 				return;
 			}
-			primaryAction[0].run();
-			notification.close();
+			actionRunner.run(primaryAction[0], notification);
 		}
 	});
 
