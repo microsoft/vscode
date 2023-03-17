@@ -132,10 +132,16 @@ export class CellEditorStatusBar extends CellContentPart {
 		if (this._editor) {
 			// Focus Mode
 			const updateFocusModeForEditorEvent = () => {
-				element.focusMode =
-					this._editor && (this._editor.hasWidgetFocus() || (document.activeElement && this.statusBarContainer.contains(document.activeElement)))
-						? CellFocusMode.Editor
-						: CellFocusMode.Container;
+				if (this._editor && (this._editor.hasWidgetFocus() || (document.activeElement && this.statusBarContainer.contains(document.activeElement)))) {
+					element.focusMode = CellFocusMode.Editor;
+				} else {
+					const currentMode = element.focusMode;
+					if (currentMode === CellFocusMode.Output && this._notebookEditor.hasWebviewFocus()) {
+						element.focusMode = CellFocusMode.Output;
+					} else {
+						element.focusMode = CellFocusMode.Container;
+					}
+				}
 			};
 
 			this.cellDisposables.add(this._editor.onDidFocusEditorWidget(() => {

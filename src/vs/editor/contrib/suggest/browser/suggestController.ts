@@ -339,6 +339,10 @@ export class SuggestController implements IEditorContribution {
 
 
 		if (Array.isArray(item.completion.additionalTextEdits)) {
+
+			// cancel -> stops all listening and closes widget
+			this.model.cancel();
+
 			// sync additional edits
 			const scrollState = StableEditorScrollState.capture(this.editor);
 			this.editor.executeEdits(

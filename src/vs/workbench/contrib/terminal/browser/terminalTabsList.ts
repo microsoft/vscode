@@ -45,7 +45,7 @@ import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecy
 import { IProcessDetails } from 'vs/platform/terminal/common/terminalProcess';
 import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/terminalContextKey';
 import { getTerminalResourcesFromDragEvent, parseTerminalUri } from 'vs/workbench/contrib/terminal/browser/terminalUri';
-import { getShellIntegrationTooltip } from 'vs/workbench/contrib/terminal/browser/terminalTooltip';
+import { getShellIntegrationTooltip, getShellProcessTooltip } from 'vs/workbench/contrib/terminal/browser/terminalTooltip';
 import { defaultInputBoxStyles } from 'vs/platform/theme/browser/defaultStyles';
 import { Event, Emitter } from 'vs/base/common/event';
 import { Schemas } from 'vs/base/common/network';
@@ -320,6 +320,7 @@ class TerminalTabsRenderer implements IListRenderer<ITerminalInstance, ITerminal
 		}
 
 		const shellIntegrationString = getShellIntegrationTooltip(instance, true);
+		const shellProcessString = getShellProcessTooltip(instance, true);
 		const iconId = this._instantiationService.invokeFunction(getIconId, instance);
 		const hasActionbar = !this.shouldHideActionBar();
 		let label: string = '';
@@ -373,7 +374,7 @@ class TerminalTabsRenderer implements IListRenderer<ITerminalInstance, ITerminal
 				badges: hasText
 			},
 			title: {
-				markdown: new MarkdownString(instance.title + shellIntegrationString + statusString, { supportThemeIcons: true }),
+				markdown: new MarkdownString(instance.title + shellProcessString + shellIntegrationString + statusString, { supportThemeIcons: true }),
 				markdownNotSupportedFallback: undefined
 			},
 			extraClasses

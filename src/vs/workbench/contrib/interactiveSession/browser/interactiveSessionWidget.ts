@@ -3,11 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as aria from 'vs/base/browser/ui/aria/aria';
 import * as dom from 'vs/base/browser/dom';
+import { IHistoryNavigationWidget } from 'vs/base/browser/history';
 import { Button } from 'vs/base/browser/ui/button/button';
 import { ITreeContextMenuEvent, ITreeElement } from 'vs/base/browser/ui/tree/tree';
+import { CancelablePromise } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Emitter } from 'vs/base/common/event';
+import { HistoryNavigator } from 'vs/base/common/history';
 import { Disposable, DisposableStore, IDisposable, combinedDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { isEqual } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
@@ -18,11 +22,13 @@ import { IModelService } from 'vs/editor/common/services/model';
 import { localize } from 'vs/nls';
 import { MenuWorkbenchToolBar } from 'vs/platform/actions/browser/toolbar';
 import { MenuId } from 'vs/platform/actions/common/actions';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
+import { registerAndCreateHistoryNavigationContext } from 'vs/platform/history/browser/contextScopedHistoryWidget';
 import { IInstantiationService, createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { WorkbenchObjectTree } from 'vs/platform/list/browser/listService';
+import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { defaultButtonStyles } from 'vs/platform/theme/browser/defaultStyles';
 import { foreground } from 'vs/platform/theme/common/colorRegistry';
 import { DEFAULT_FONT_FAMILY } from 'vs/workbench/browser/style';
@@ -32,7 +38,7 @@ import { IInteractiveSessionWidget } from 'vs/workbench/contrib/interactiveSessi
 import { InteractiveSessionFollowups } from 'vs/workbench/contrib/interactiveSession/browser/interactiveSessionFollowups';
 import { IInteractiveSessionRendererDelegate, InteractiveListItemRenderer, InteractiveSessionAccessibilityProvider, InteractiveSessionListDelegate, InteractiveTreeItem } from 'vs/workbench/contrib/interactiveSession/browser/interactiveSessionListRenderer';
 import { InteractiveSessionEditorOptions } from 'vs/workbench/contrib/interactiveSession/browser/interactiveSessionOptions';
-import { CONTEXT_IN_INTERACTIVE_INPUT, CONTEXT_IN_INTERACTIVE_SESSION } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionContextKeys';
+import { CONTEXT_IN_INTERACTIVE_INPUT, CONTEXT_IN_INTERACTIVE_SESSION, CONTEXT_INTERACTIVE_REQUEST_IN_PROGRESS } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionContextKeys';
 import { IInteractiveSessionReplyFollowup, IInteractiveSessionService, IInteractiveSlashCommand } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionService';
 import { IInteractiveSessionViewModel, InteractiveSessionViewModel, isRequestVM, isResponseVM, isWelcomeVM } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionViewModel';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
@@ -57,14 +63,18 @@ function revealLastElement(list: WorkbenchObjectTree<any>) {
 	list.scrollTop = list.scrollHeight - list.renderHeight;
 }
 
+const HISTORY_STORAGE_KEY = 'interactiveSession.history';
 const INPUT_EDITOR_MAX_HEIGHT = 250;
 
-export class InteractiveSessionWidget extends Disposable implements IInteractiveSessionWidget {
+export class InteractiveSessionWidget extends Disposable implements IInteractiveSessionWidget, IHistoryNavigationWidget {
 	public static readonly CONTRIBS: { new(...args: [IInteractiveSessionWidget, ...any]): any }[] = [];
 	public static readonly INPUT_SCHEME = 'interactiveSessionInput';
 
 	private _onDidFocus = this._register(new Emitter<void>());
 	readonly onDidFocus = this._onDidFocus.event;
+
+	private _onDidBlur = this._register(new Emitter<void>());
+	readonly onDidBlur = this._onDidBlur.event;
 
 	private _onDidChangeViewModel = this._register(new Emitter<void>());
 	readonly onDidChangeViewModel = this._onDidChangeViewModel.event;
@@ -81,6 +91,8 @@ export class InteractiveSessionWidget extends Disposable implements IInteractive
 		return this._inputEditor;
 	}
 
+	private history: HistoryNavigator<string>;
+	private setHistoryNavigationEnablement!: (enabled: boolean) => void;
 	private inputOptions!: InteractiveSessionEditorOptions;
 	private inputModel: ITextModel | undefined;
 	private listContainer!: HTMLElement;
@@ -93,6 +105,8 @@ export class InteractiveSessionWidget extends Disposable implements IInteractive
 	private welcomeViewDisposables = this._register(new DisposableStore());
 	private bodyDimension: dom.Dimension | undefined;
 	private visible = false;
+	private currentRequest: CancelablePromise<void> | undefined;
+	private requestInProgress: IContextKey<boolean>;
 
 	private previousTreeScrollHeight: number = 0;
 
@@ -132,6 +146,7 @@ export class InteractiveSessionWidget extends Disposable implements IInteractive
 		private readonly listBackgroundColorDelegate: () => string,
 		private readonly inputEditorBackgroundColorDelegate: () => string,
 		private readonly resultEditorBackgroundColorDelegate: () => string,
+		@IStorageService private readonly storageService: IStorageService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IModelService private readonly modelService: IModelService,
@@ -142,9 +157,17 @@ export class InteractiveSessionWidget extends Disposable implements IInteractive
 	) {
 		super();
 		CONTEXT_IN_INTERACTIVE_SESSION.bindTo(contextKeyService).set(true);
+		this.requestInProgress = CONTEXT_INTERACTIVE_REQUEST_IN_PROGRESS.bindTo(contextKeyService);
 
 		this._register((interactiveSessionWidgetService as InteractiveSessionWidgetService).register(this));
 		this.initializeSessionModel(true);
+
+		this.history = new HistoryNavigator(JSON.parse(this.storageService.get(this.getHistoryStorageKey(), StorageScope.WORKSPACE, '[]')), 50);
+	}
+
+	get element(): HTMLElement {
+		// TODO this too is only used for IHistoryNavigationWidget and isn't really correct, put the input editor in its own class
+		return this.container;
 	}
 
 	render(parent: HTMLElement): void {
@@ -377,6 +400,12 @@ export class InteractiveSessionWidget extends Disposable implements IInteractive
 		CONTEXT_IN_INTERACTIVE_INPUT.bindTo(inputScopedContextKeyService).set(true);
 		const scopedInstantiationService = this.instantiationService.createChild(new ServiceCollection([IContextKeyService, inputScopedContextKeyService]));
 
+		const { historyNavigationBackwardsEnablement, historyNavigationForwardsEnablement } = this._register(registerAndCreateHistoryNavigationContext(inputScopedContextKeyService, this));
+		this.setHistoryNavigationEnablement = enabled => {
+			historyNavigationBackwardsEnablement.set(enabled);
+			historyNavigationForwardsEnablement.set(enabled);
+		};
+
 		const options = getSimpleEditorOptions();
 		options.readOnly = false;
 		options.ariaLabel = localize('interactiveSessionInput', "Interactive Session Input");
@@ -398,12 +427,23 @@ export class InteractiveSessionWidget extends Disposable implements IInteractive
 				this.inputEditorHeight = currentHeight;
 				this.layout(this.bodyDimension.height, this.bodyDimension.width);
 			}
+
+			// Only allow history navigation when the input is empty.
+			// (If this model change happened as a result of a history navigation, this is canceled out by a call in this.navigateHistory)
+			const model = this._inputEditor.getModel();
+			this.setHistoryNavigationEnablement(!!model && model.getValue() === '');
 		}));
 		this._register(this._inputEditor.onDidFocusEditorText(() => {
 			this._onDidFocus.fire();
 			inputContainer.classList.toggle('focused', true);
 		}));
-		this._register(this._inputEditor.onDidBlurEditorText(() => inputContainer.classList.toggle('focused', false)));
+		this._register(this._inputEditor.onDidBlurEditorText(() => {
+			inputContainer.classList.toggle('focused', false);
+
+			// TODO this is just needed for the IHistoryNavigationWidget, which is really the input, not the whole Widget.
+			// Break the input editor into its own class to make this make sense
+			this._onDidBlur.fire();
+		}));
 
 		const toolbar = this._register(this.instantiationService.createInstance(MenuWorkbenchToolBar, inputContainer, MenuId.InteractiveSessionExecute, {
 			menuOptions: {
@@ -412,6 +452,28 @@ export class InteractiveSessionWidget extends Disposable implements IInteractive
 		}));
 		toolbar.getElement().classList.add('interactive-execute-toolbar');
 		toolbar.context = <IInteractiveSessionExecuteActionContext>{ widget: this };
+	}
+
+	showPreviousValue(): void {
+		this.navigateHistory(true);
+	}
+
+	showNextValue(): void {
+		this.navigateHistory(false);
+	}
+
+	private navigateHistory(previous: boolean): void {
+		const historyInput = previous ? this.history.previous() : this.history.next();
+
+		if (historyInput) {
+			this.inputEditor.setValue(historyInput);
+			aria.status(historyInput);
+			if (historyInput) {
+				// always leave cursor at the end.
+				this.inputEditor.setPosition({ lineNumber: 1, column: historyInput.length + 1 });
+			}
+			this.setHistoryNavigationEnablement(true);
+		}
 	}
 
 	private async initializeSessionModel(initial = false) {
@@ -446,17 +508,43 @@ export class InteractiveSessionWidget extends Disposable implements IInteractive
 	}
 
 	async acceptInput(query?: string | IInteractiveSessionReplyFollowup): Promise<void> {
+		if (this.currentRequest) {
+			// TODO this logic is duplicated in the service, figure out who is in control
+			return;
+		}
+
 		if (!this.viewModel) {
 			// This currently shouldn't happen anymore, but leaving this here to make sure we don't get stuck without a viewmodel
 			await this.initializeSessionModel();
 		}
 
 		if (this.viewModel) {
+			if (!query && this._inputEditor.getValue()) {
+				// Followups and programmatic messages don't go to history
+				this.history.add(this._inputEditor.getValue());
+			}
+
 			const input = query ?? this._inputEditor.getValue();
-			if (this.interactiveSessionService.sendRequest(this.viewModel.sessionId, input, CancellationToken.None)) {
+			const result = this.interactiveSessionService.sendRequest(this.viewModel.sessionId, input);
+			if (result) {
+				this.requestInProgress.set(true);
+				this.currentRequest = result.completePromise;
+				this.currentRequest.then(() => {
+					this.requestInProgress.set(false);
+					this.currentRequest = undefined;
+				});
+
 				this._inputEditor.setValue('');
 				revealLastElement(this.tree);
 			}
+		}
+	}
+
+	cancelCurrentRequest(): void {
+		if (this.currentRequest) {
+			this.currentRequest.cancel();
+			this.requestInProgress.set(false);
+			this.currentRequest = undefined;
 		}
 	}
 
@@ -509,8 +597,21 @@ export class InteractiveSessionWidget extends Disposable implements IInteractive
 
 		const editorBorder = 2;
 		const editorPadding = 8;
-		const executeToolbarWidth = 27;
+		const executeToolbarWidth = 25;
 		this._inputEditor.layout({ width: width - inputPartPadding - editorBorder - editorPadding - executeToolbarWidth, height: inputEditorHeight });
+	}
+
+	private getHistoryStorageKey(): string {
+		return HISTORY_STORAGE_KEY + this.providerId;
+	}
+
+	saveState(): void {
+		const inputHistory = this.history.getHistory();
+		if (inputHistory.length) {
+			this.storageService.store(this.getHistoryStorageKey(), JSON.stringify(inputHistory), StorageScope.WORKSPACE, StorageTarget.USER);
+		} else {
+			this.storageService.remove(this.getHistoryStorageKey(), StorageScope.WORKSPACE);
+		}
 	}
 }
 

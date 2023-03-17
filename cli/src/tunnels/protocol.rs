@@ -162,6 +162,11 @@ pub mod singleton {
 	use crate::log;
 	use serde::{Deserialize, Serialize};
 
+	pub const METHOD_RESTART: &str = "restart";
+	pub const METHOD_SHUTDOWN: &str = "shutdown";
+	pub const METHOD_STATUS: &str = "status";
+	pub const METHOD_LOG: &str = "log";
+
 	#[derive(Serialize)]
 	pub struct LogMessage<'a> {
 		pub level: Option<log::Level>,
@@ -174,5 +179,10 @@ pub mod singleton {
 		pub level: Option<log::Level>,
 		pub prefix: String,
 		pub message: String,
+	}
+
+	#[derive(Serialize, Deserialize)]
+	pub struct Status {
+		pub ok: bool,
 	}
 }

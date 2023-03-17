@@ -303,11 +303,11 @@ pub fn format(level: Level, prefix: &str, message: &str) -> String {
 
 	if let Some(c) = level.color_code() {
 		format!(
-			"\x1b[2m[{}]\x1b[0m {}{}\x1b[0m {}{}\r\n",
+			"\x1b[2m[{}]\x1b[0m {}{}\x1b[0m {}{}\n",
 			timestamp, c, name, prefix, message
 		)
 	} else {
-		format!("[{}] {} {}{}\r\n", timestamp, name, prefix, message)
+		format!("[{}] {} {}{}\n", timestamp, name, prefix, message)
 	}
 }
 
