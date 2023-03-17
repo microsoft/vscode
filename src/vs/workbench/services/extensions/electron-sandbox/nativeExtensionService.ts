@@ -25,7 +25,7 @@ import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { ILogService } from 'vs/platform/log/common/log';
 import { INativeHostService } from 'vs/platform/native/common/native';
-import { INotificationService, IPromptChoice, Severity } from 'vs/platform/notification/common/notification';
+import { INotificationService, IPromptChoice, NotificationPriority, Severity } from 'vs/platform/notification/common/notification';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { PersistentConnectionEventType } from 'vs/platform/remote/common/remoteAgentConnection';
 import { IRemoteAgentEnvironment } from 'vs/platform/remote/common/remoteAgentEnvironment';
@@ -542,7 +542,10 @@ export class NativeExtensionService extends AbstractExtensionService implements 
 							await this._hostService.reload();
 						}
 					}],
-					{ sticky: true }
+					{
+						sticky: true,
+						priority: NotificationPriority.URGENT
+					}
 				);
 			}
 		} else {
@@ -565,6 +568,7 @@ export class NativeExtensionService extends AbstractExtensionService implements 
 				}],
 				{
 					sticky: true,
+					priority: NotificationPriority.URGENT,
 					onCancel: () => sendTelemetry('cancel')
 				}
 			);
