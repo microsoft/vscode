@@ -155,6 +155,7 @@ export function registerNotificationCommands(center: INotificationsCenterControl
 				return;
 			}
 			actionRunner.run(primaryAction[0], notification);
+			notification.close();
 		}
 	});
 
