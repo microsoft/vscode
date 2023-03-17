@@ -18,8 +18,11 @@ export type NotificationMessage = string | Error;
 export interface INotificationProperties {
 
 	/**
-	 * Sticky notifications are not automatically removed after a certain timeout. By
-	 * default, notifications with primary actions and severity error are always sticky.
+	 * Sticky notifications are not automatically removed after a certain timeout.
+	 *
+	 * Currently, only 2 kinds of notifications are sticky:
+	 * - Error notifications with primary actions
+	 * - Notifications that show progress
 	 */
 	readonly sticky?: boolean;
 

@@ -185,11 +185,11 @@ class ExtensionBisectUi {
 	private _showBisectPrompt(): void {
 
 		const goodPrompt: IPromptChoice = {
-			label: 'Good now',
+			label: 'Good Now',
 			run: () => this._commandService.executeCommand('extension.bisect.next', false)
 		};
 		const badPrompt: IPromptChoice = {
-			label: 'This is bad',
+			label: 'This is Bad',
 			run: () => this._commandService.executeCommand('extension.bisect.next', true)
 		};
 		const stop: IPromptChoice = {
