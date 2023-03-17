@@ -755,7 +755,8 @@ export const DEFAULT_COMMANDS_TO_SKIP_SHELL: string[] = [
 	'workbench.action.navigateLeft',
 	'workbench.action.togglePanel',
 	'workbench.action.quickOpenView',
-	'workbench.action.toggleMaximizedPanel'
+	'workbench.action.toggleMaximizedPanel',
+	'notification.acceptPrimaryAction'
 ];
 
 export const terminalContributionsDescriptor: IExtensionPointDescriptor<ITerminalContributions> = {
