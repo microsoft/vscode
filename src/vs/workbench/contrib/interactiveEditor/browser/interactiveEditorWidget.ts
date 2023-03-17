@@ -137,7 +137,7 @@ class InteractiveEditorWidget {
 			revealHorizontalRightPadding: 5,
 			minimap: { enabled: false },
 			guides: { indentation: false },
-			cursorWidth: 2,
+			cursorWidth: 1,
 			wrappingStrategy: 'advanced',
 			wrappingIndent: 'none',
 			renderWhitespace: 'none',
@@ -452,11 +452,13 @@ export class InteractiveEditorZoneWidget extends ZoneWidget {
 		const info = this.editor.getLayoutInfo();
 		const spaceLeft = info.lineNumbersWidth + info.glyphMarginWidth + info.decorationsWidth;
 		const spaceRight = info.minimap.minimapWidth + info.verticalScrollbarWidth;
+		const inputLeftPadding = 4;
+		const inputRightPadding = 4;
 
-		const width = widthInPixel - (spaceLeft + spaceRight);
+		const width = widthInPixel - (spaceLeft + spaceRight + inputLeftPadding + inputRightPadding);
 		this._dimension = new Dimension(width, heightInPixel);
-		this.widget.domNode.style.marginLeft = `${spaceLeft}px`;
-		this.widget.domNode.style.marginRight = `${spaceRight}px`;
+		this.widget.domNode.style.marginLeft = `${spaceLeft + inputLeftPadding}px`;
+		this.widget.domNode.style.marginRight = `${spaceRight + inputRightPadding}px`;
 		this.widget.layout(this._dimension);
 	}
 
