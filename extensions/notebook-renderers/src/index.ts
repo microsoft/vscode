@@ -324,6 +324,10 @@ export const activate: ActivationFunction<void> = (ctx) => {
 		box-sizing: border-box;
 		border-width: 1px;
 		border-color: transparent;
+		cursor: text;
+	}
+	#container div.output .scrollable a {
+		cursor: pointer;
 	}
 	#container div.output .scrollable.more-above {
 		box-shadow: var(--vscode-scrollbar-shadow) 0 6px 6px -6px inset
