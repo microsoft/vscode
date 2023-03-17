@@ -19,7 +19,7 @@ import { ExtensionIdentifier, ExtensionIdentifierSet, IExtensionDescription } fr
 import { IFileService } from 'vs/platform/files/common/files';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILogService } from 'vs/platform/log/common/log';
-import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
+import { INotificationService, NotificationPriority, Severity } from 'vs/platform/notification/common/notification';
 import { IProfileAnalysisWorkerService } from 'vs/platform/profiling/electron-sandbox/profileAnalysisWorkerService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
@@ -237,7 +237,7 @@ export class ExtensionsAutoProfiler implements IWorkbenchContribution {
 			},
 				action
 			],
-			{ silent: true }
+			{ priority: NotificationPriority.SILENT }
 		);
 	}
 }

@@ -8,7 +8,7 @@ import { INotificationViewItem, isNotificationViewItem } from 'vs/workbench/comm
 import { localize } from 'vs/nls';
 import { Action, IAction, ActionRunner, WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification } from 'vs/base/common/actions';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { INotificationService } from 'vs/platform/notification/common/notification';
+import { INotificationService, NotificationPriority } from 'vs/platform/notification/common/notification';
 import { CLEAR_NOTIFICATION, EXPAND_NOTIFICATION, COLLAPSE_NOTIFICATION, CLEAR_ALL_NOTIFICATIONS, HIDE_NOTIFICATIONS_CENTER, TOGGLE_DO_NOT_DISTURB_MODE } from 'vs/workbench/browser/parts/notifications/notificationsCommands';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
@@ -166,10 +166,10 @@ export class CopyNotificationMessageAction extends Action {
 }
 
 interface NotificationActionMetrics {
-	id: string;
-	actionLabel: string;
-	source: string;
-	silent: boolean;
+	readonly id: string;
+	readonly actionLabel: string;
+	readonly source: string;
+	readonly silent: boolean;
 }
 
 type NotificationActionMetricsClassification = {
@@ -200,7 +200,7 @@ export class NotificationActionRunner extends ActionRunner {
 				id: hash(context.message.original.toString()).toString(),
 				actionLabel: action.label,
 				source: context.sourceId || 'core',
-				silent: context.silent
+				silent: context.priority === NotificationPriority.SILENT
 			});
 		}
 

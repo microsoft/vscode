@@ -14,6 +14,7 @@ import { process } from 'vs/base/parts/sandbox/electron-sandbox/globals';
 import * as nls from 'vs/nls';
 import { Categories } from 'vs/platform/action/common/actionCommonCategories';
 import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
+import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
 import { ExtensionKind } from 'vs/platform/environment/common/environment';
@@ -24,7 +25,8 @@ import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { ILogService } from 'vs/platform/log/common/log';
 import { INativeHostService } from 'vs/platform/native/common/native';
-import { INotificationService, IPromptChoice, Severity } from 'vs/platform/notification/common/notification';
+import { INotificationService, IPromptChoice, NotificationPriority, Severity } from 'vs/platform/notification/common/notification';
+import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { PersistentConnectionEventType } from 'vs/platform/remote/common/remoteAgentConnection';
 import { IRemoteAgentEnvironment } from 'vs/platform/remote/common/remoteAgentEnvironment';
@@ -54,7 +56,6 @@ import { CachedExtensionScanner } from 'vs/workbench/services/extensions/electro
 import { ILocalProcessExtensionHostDataProvider, ILocalProcessExtensionHostInitData, NativeLocalProcessExtensionHost } from 'vs/workbench/services/extensions/electron-sandbox/localProcessExtensionHost';
 import { LegacyNativeLocalProcessExtensionHost } from 'vs/workbench/services/extensions/electron-sandbox/nativeLocalProcessExtensionHost';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
-import { IWorkbenchIssueService } from 'vs/workbench/services/issue/common/issue';
 import { ILifecycleService, LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { IRemoteExplorerService } from 'vs/workbench/services/remote/common/remoteExplorerService';
@@ -194,11 +195,11 @@ export class NativeExtensionService extends AbstractExtensionService implements 
 				const choices: IPromptChoice[] = [];
 				if (this._environmentService.isBuilt) {
 					choices.push({
-						label: nls.localize('reportIssue', "Report Issue"),
+						label: nls.localize('startBisect', "Start Extension Bisect"),
 						run: () => {
 							this._instantiationService.invokeFunction(accessor => {
-								const issueService = accessor.get(IWorkbenchIssueService);
-								issueService.openReporter();
+								const commandService = accessor.get(ICommandService);
+								commandService.executeCommand('extension.bisect.start');
 							});
 						}
 					});
@@ -213,6 +214,18 @@ export class NativeExtensionService extends AbstractExtensionService implements 
 					label: nls.localize('restart', "Restart Extension Host"),
 					run: () => this.startExtensionHosts()
 				});
+
+				if (this._environmentService.isBuilt) {
+					choices.push({
+						label: nls.localize('learnMore', "Learn More"),
+						run: () => {
+							this._instantiationService.invokeFunction(accessor => {
+								const openerService = accessor.get(IOpenerService);
+								openerService.open('https://aka.ms/vscode-extension-bisect');
+							});
+						}
+					});
+				}
 
 				this._notificationService.prompt(Severity.Error, nls.localize('extensionService.crash', "Extension host terminated unexpectedly 3 times within the last 5 minutes."), choices);
 			}
@@ -542,7 +555,10 @@ export class NativeExtensionService extends AbstractExtensionService implements 
 							await this._hostService.reload();
 						}
 					}],
-					{ sticky: true }
+					{
+						sticky: true,
+						priority: NotificationPriority.URGENT
+					}
 				);
 			}
 		} else {
@@ -565,6 +581,7 @@ export class NativeExtensionService extends AbstractExtensionService implements 
 				}],
 				{
 					sticky: true,
+					priority: NotificationPriority.URGENT,
 					onCancel: () => sendTelemetry('cancel')
 				}
 			);
