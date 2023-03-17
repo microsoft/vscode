@@ -110,34 +110,6 @@
 	outline: 1px solid var(--vscode-checkbox-border);
 }
 
-/* history */
-
-.monaco-editor .interactive-editor .history {
-	border-top: 1px solid var(--vscode-widget-border);
-	padding: 0 10px 2px 2px;
-	display: block;
-	color: var(--vscode-descriptionForeground);
-}
-
-.monaco-editor .interactive-editor .history.hidden {
-	display: none;
-}
-
-.monaco-editor .interactive-editor .history .history-entry {
-	display: flex;
-	justify-content: space-between;
-	padding: 2px
-}
-
-.monaco-editor .interactive-editor .history .history-entry.hidden {
-	display: none;
-}
-
-.monaco-editor .interactive-editor .history .history-entry:hover {
-	background-color: var(--vscode-list-hoverBackground);
-	color: var(--vscode-list-hoverForeground);
-}
-
 /* decoration styles */
 
 .monaco-editor .interactive-editor-lines-deleted-range-inline {

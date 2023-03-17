@@ -5,6 +5,7 @@
 
 export interface NLSConfiguration {
 	locale: string;
+	osLocale: string;
 	availableLanguages: {
 		[key: string]: string;
 	};
@@ -21,4 +22,4 @@ export interface InternalNLSConfiguration extends NLSConfiguration {
 	_languagePackSupport?: boolean;
 }
 
-export function getNLSConfiguration(commit: string | undefined, userDataPath: string, metaDataFile: string, locale: string, language: string | undefined): Promise<NLSConfiguration>;
+export function getNLSConfiguration(commit: string | undefined, userDataPath: string, metaDataFile: string, locale: string, osLocale: string): Promise<NLSConfiguration>;
