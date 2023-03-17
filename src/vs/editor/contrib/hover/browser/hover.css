@@ -4,12 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 .monaco-editor .hoverHighlight {
-	background-color: var(--vscode-editor-hoverHighlightBackground);
+	background-color: transparent;
 }
 
 .monaco-editor .monaco-hover {
 	color: var(--vscode-editorHoverWidget-foreground);
-	background-color: var(--vscode-editorHoverWidget-background);
+	background-color: transparent;
 	border: 1px solid var(--vscode-editorHoverWidget-border);
 }
 
@@ -22,14 +22,13 @@
 }
 
 .monaco-editor .monaco-hover .hover-row .actions {
-	background-color: var(--vscode-editorHoverWidget-statusBarBackground);
+	background-color: transparent;
 }
 
 .monaco-editor .monaco-hover code {
-	background-color: var(--vscode-textCodeBlock-background);
+	background-color: transparent;
 }
 
 .monaco-editor .resizable-hover {
 	z-index: 5;
-	pointer-events: none;
 }

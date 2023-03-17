@@ -224,12 +224,12 @@ export class ModesHoverController implements IEditorContribution {
 			return;
 		}
 
-		console.log('Inside of _hideWidgets');
+		// console.log('Inside of _hideWidgets');
 		this._hoverClicked = false;
 		this._glyphWidget?.hide();
-		console.log('this._contentWidget?.resizableWidget.isResizing() : ', this._contentWidget?.resizableWidget.isResizing());
+		// console.log('this._contentWidget?.resizableWidget.isResizing() : ', this._contentWidget?.resizableWidget.isResizing());
 		if (!this._contentWidget?.resizableWidget.isResizing()) {
-			console.log('Hiding the content widget');
+			// console.log('Hiding the content widget');
 			this._contentWidget?.hide();
 		}
 	}
