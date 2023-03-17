@@ -2,9 +2,11 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
+use crate::{constants::{
+	APPLICATION_NAME, CONTROL_PORT, DOCUMENTATION_URL, QUALITYLESS_PRODUCT_NAME,
+}, rpc::ResponseError};
 use std::fmt::Display;
-
-use crate::constants::CONTROL_PORT;
+use thiserror::Error;
 
 // Wraps another error with additional info.
 #[derive(Debug, Clone)]
@@ -169,7 +171,8 @@ impl std::fmt::Display for SetupError {
 	fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
 		write!(
 			f,
-			"{}\r\n\r\nMore info at https://code.visualstudio.com/docs/remote/linux",
+			"{}\n\nMore info at {}/remote/linux",
+			DOCUMENTATION_URL.unwrap_or("<docs>"),
 			self.0
 		)
 	}
@@ -246,15 +249,6 @@ impl std::fmt::Display for NoAttachedServerError {
 }
 
 #[derive(Debug)]
-pub struct ServerWriteError();
-
-impl std::fmt::Display for ServerWriteError {
-	fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-		write!(f, "Error writing to the server, it should be restarted")
-	}
-}
-
-#[derive(Debug)]
 pub struct RefreshTokenNotAvailableError();
 
 impl std::fmt::Display for RefreshTokenNotAvailableError {
@@ -282,8 +276,11 @@ impl std::fmt::Display for NoInstallInUserProvidedPath {
 	fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
 		write!(
             f,
-            "No VS Code installation could be found in {}. You can run `code --use-quality=stable` to switch to the latest stable version of VS Code.",
-            self.0
+            "No {} installation could be found in {}. You can run `{} --use-quality=stable` to switch to the latest stable version of {}.",
+						QUALITYLESS_PRODUCT_NAME,
+            self.0,
+						APPLICATION_NAME,
+						QUALITYLESS_PRODUCT_NAME
         )
 	}
 }
@@ -374,11 +371,24 @@ impl std::fmt::Display for WindowsNeedsElevation {
 }
 
 #[derive(Debug)]
+pub struct InvalidRpcDataError(pub String);
+
+impl std::fmt::Display for InvalidRpcDataError {
+	fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+		write!(f, "parse error: {}", self.0)
+	}
+}
+
+#[derive(Debug)]
 pub struct CorruptDownload(pub String);
 
 impl std::fmt::Display for CorruptDownload {
 	fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-		write!(f, "Error updating the VS Code CLI: {}", self.0)
+		write!(
+			f,
+			"Error updating the {} CLI: {}",
+			QUALITYLESS_PRODUCT_NAME, self.0
+		)
 	}
 }
 
@@ -388,6 +398,23 @@ pub struct MissingHomeDirectory();
 impl std::fmt::Display for MissingHomeDirectory {
 	fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
 		write!(f, "Could not find your home directory. Please ensure this command is running in the context of an normal user.")
+	}
+}
+
+#[derive(Debug)]
+pub struct OAuthError {
+	pub error: String,
+	pub error_description: Option<String>,
+}
+
+impl std::fmt::Display for OAuthError {
+	fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+		write!(
+			f,
+			"Error getting authorization: {} {}",
+			self.error,
+			self.error_description.as_deref().unwrap_or("")
+		)
 	}
 }
 
@@ -448,6 +475,26 @@ macro_rules! makeAnyError {
     };
 }
 
+/// Internal errors in the VS Code CLI.
+/// Note: other error should be migrated to this type gradually
+#[derive(Error, Debug)]
+pub enum CodeError {
+	#[error("could not connect to socket/pipe: {0:?}")]
+	AsyncPipeFailed(std::io::Error),
+	#[error("could not listen on socket/pipe: {0:?}")]
+	AsyncPipeListenerFailed(std::io::Error),
+	#[error("could not create singleton lock file: {0:?}")]
+	SingletonLockfileOpenFailed(std::io::Error),
+	#[error("could not read singleton lock file: {0:?}")]
+	SingletonLockfileReadFailed(rmp_serde::decode::Error),
+	#[error("the process holding the singleton lock file (pid={0}) exited")]
+	SingletonLockedProcessExited(u32),
+	#[error("no tunnel process is currently running")]
+	NoRunningTunnel,
+	#[error("rpc call failed: {0:?}")]
+	TunnelRpcCallFailed(ResponseError),
+}
+
 makeAnyError!(
 	MissingLegalConsent,
 	MismatchConnectionToken,
@@ -464,7 +511,6 @@ makeAnyError!(
 	ExtensionInstallFailed,
 	MismatchedLaunchModeError,
 	NoAttachedServerError,
-	ServerWriteError,
 	UnsupportedPlatformError,
 	RefreshTokenNotAvailableError,
 	NoInstallInUserProvidedPath,
@@ -477,7 +523,10 @@ makeAnyError!(
 	UpdatesNotConfigured,
 	CorruptDownload,
 	MissingHomeDirectory,
-	CommandFailed
+	CommandFailed,
+	OAuthError,
+	InvalidRpcDataError,
+	CodeError
 );
 
 impl From<reqwest::Error> for AnyError {

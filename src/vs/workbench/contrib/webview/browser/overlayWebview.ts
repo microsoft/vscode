@@ -10,7 +10,7 @@ import { Emitter } from 'vs/base/common/event';
 import { Disposable, DisposableStore, MutableDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { generateUuid } from 'vs/base/common/uuid';
-import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { IContextKey, IContextKeyService, IScopedContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
 import { IOverlayWebview, IWebview, IWebviewElement, IWebviewService, KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_ENABLED, KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_VISIBLE, WebviewContentOptions, WebviewExtensionDescription, WebviewInitInfo, WebviewMessageReceivedEvent, WebviewOptions } from 'vs/workbench/contrib/webview/browser/webview';
@@ -25,7 +25,8 @@ export class OverlayWebview extends Disposable implements IOverlayWebview {
 	private readonly _webview = this._register(new MutableDisposable<IWebviewElement>());
 	private readonly _webviewEvents = this._register(new DisposableStore());
 
-	private _html: string = '';
+	private _html = '';
+	private _title: string | undefined;
 	private _initialScrollProgress: number = 0;
 	private _state: string | undefined = undefined;
 
@@ -35,14 +36,14 @@ export class OverlayWebview extends Disposable implements IOverlayWebview {
 
 	private _owner: any = undefined;
 
-	private readonly _scopedContextKeyService = this._register(new MutableDisposable<IContextKeyService>());
+	private readonly _scopedContextKeyService = this._register(new MutableDisposable<IScopedContextKeyService>());
 	private _findWidgetVisible: IContextKey<boolean> | undefined;
 	private _findWidgetEnabled: IContextKey<boolean> | undefined;
 	private _shouldShowFindWidgetOnRestore = false;
 
-	public readonly id: string;
 	public readonly providedViewType?: string;
-	public readonly origin: string;
+
+	public origin: string;
 
 	private _container: FastDomNode<HTMLDivElement> | undefined;
 
@@ -54,10 +55,10 @@ export class OverlayWebview extends Disposable implements IOverlayWebview {
 	) {
 		super();
 
-		this.id = initInfo.id;
 		this.providedViewType = initInfo.providedViewType;
 		this.origin = initInfo.origin ?? generateUuid();
 
+		this._title = initInfo.title;
 		this._extension = initInfo.extension;
 		this._options = initInfo.options;
 		this._contentOptions = initInfo.contentOptions;
@@ -95,7 +96,6 @@ export class OverlayWebview extends Disposable implements IOverlayWebview {
 
 		if (!this._container) {
 			const node = document.createElement('div');
-			node.id = `webview-${this.id}`;
 			node.style.position = 'absolute';
 			node.style.overflow = 'hidden';
 			this._container = new FastDomNode(node);
@@ -187,9 +187,9 @@ export class OverlayWebview extends Disposable implements IOverlayWebview {
 
 		if (!this._webview.value) {
 			const webview = this._webviewService.createWebviewElement({
-				id: this.id,
 				providedViewType: this.providedViewType,
 				origin: this.origin,
+				title: this._title,
 				options: this._options,
 				contentOptions: this._contentOptions,
 				extension: this.extension,
@@ -202,7 +202,7 @@ export class OverlayWebview extends Disposable implements IOverlayWebview {
 			}
 
 			if (this._html) {
-				webview.html = this._html;
+				webview.setHtml(this._html);
 			}
 
 			if (this._options.tryRestoreScrollPosition) {
@@ -222,6 +222,7 @@ export class OverlayWebview extends Disposable implements IOverlayWebview {
 			this._webviewEvents.add(webview.onMissingCsp(x => { this._onMissingCsp.fire(x); }));
 			this._webviewEvents.add(webview.onDidWheel(x => { this._onDidWheel.fire(x); }));
 			this._webviewEvents.add(webview.onDidReload(() => { this._onDidReload.fire(); }));
+			this._webviewEvents.add(webview.onFatalError(x => { this._onFatalError.fire(x); }));
 
 			this._webviewEvents.add(webview.onDidScroll(x => {
 				this._initialScrollProgress = x.scrollYPercentage;
@@ -252,10 +253,14 @@ export class OverlayWebview extends Disposable implements IOverlayWebview {
 		this._container?.setVisibility('visible');
 	}
 
-	public get html(): string { return this._html; }
-	public set html(value: string) {
-		this._html = value;
-		this._withWebview(webview => webview.html = value);
+	public setHtml(html: string) {
+		this._html = html;
+		this._withWebview(webview => webview.setHtml(html));
+	}
+
+	public setTitle(title: string) {
+		this._title = title;
+		this._withWebview(webview => webview.setTitle(title));
 	}
 
 	public get initialScrollProgress(): number { return this._initialScrollProgress; }
@@ -315,6 +320,9 @@ export class OverlayWebview extends Disposable implements IOverlayWebview {
 
 	private readonly _onDidWheel = this._register(new Emitter<IMouseWheelEvent>());
 	public readonly onDidWheel = this._onDidWheel.event;
+
+	private readonly _onFatalError = this._register(new Emitter<{ readonly message: string }>());
+	public onFatalError = this._onFatalError.event;
 
 	public async postMessage(message: any, transfer?: readonly ArrayBuffer[]): Promise<boolean> {
 		if (this._webview.value) {

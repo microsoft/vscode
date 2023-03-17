@@ -26,8 +26,10 @@ export class MainThreadSecretState extends Disposable implements MainThreadSecre
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostSecretState);
 
 		this._register(this.credentialsService.onDidChangePassword(async e => {
-			const extensionId = e.service.substring((await this.secretStoragePrefix).length);
-			this._proxy.$onDidChangePassword({ extensionId, key: e.account });
+			const extensionId = e.service?.substring((await this.secretStoragePrefix).length);
+			if (extensionId) {
+				this._proxy.$onDidChangePassword({ extensionId, key: e.account });
+			}
 		}));
 	}
 
@@ -71,15 +73,9 @@ export class MainThreadSecretState extends Disposable implements MainThreadSecre
 					return value.content;
 				}
 			} catch (parseError) {
+				// We may not be able to parse it, but we keep the secret in the keychain anyway just in case
+				// it decrypts correctly in the future.
 				this.logService.error(parseError);
-
-				// If we can't parse the decrypted value, then it's not a valid secret so we should try to delete it
-				try {
-					await this.credentialsService.deletePassword(fullKey, key);
-				} catch (e) {
-					this.logService.error(e);
-				}
-
 				throw new Error('Unable to parse decrypted password');
 			}
 		}

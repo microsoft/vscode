@@ -14,7 +14,7 @@ import { IListService, WorkbenchList } from 'vs/platform/list/browser/listServic
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { NotificationMetrics, NotificationMetricsClassification, notificationToMetrics } from 'vs/workbench/browser/parts/notifications/notificationsTelemetry';
 import { NotificationFocusedContext, NotificationsCenterVisibleContext, NotificationsToastsVisibleContext } from 'vs/workbench/common/contextkeys';
-import { INotificationService } from 'vs/platform/notification/common/notification';
+import { INotificationService, NotificationPriority } from 'vs/platform/notification/common/notification';
 
 // Center
 export const SHOW_NOTIFICATIONS_CENTER = 'notifications.showList';
@@ -90,7 +90,7 @@ export function registerNotificationCommands(center: INotificationsCenterControl
 			const telemetryService = accessor.get(ITelemetryService);
 			for (const notification of model.notifications) {
 				if (notification.visible) {
-					telemetryService.publicLog2<NotificationMetrics, NotificationMetricsClassification>('notification:hide', notificationToMetrics(notification.message.original, notification.sourceId, notification.silent));
+					telemetryService.publicLog2<NotificationMetrics, NotificationMetricsClassification>('notification:hide', notificationToMetrics(notification.message.original, notification.sourceId, notification.priority === NotificationPriority.SILENT));
 				}
 			}
 
@@ -167,7 +167,7 @@ export function registerNotificationCommands(center: INotificationsCenterControl
 		const telemetryService = accessor.get(ITelemetryService);
 		for (const notification of model.notifications) {
 			if (notification.visible) {
-				telemetryService.publicLog2<NotificationMetrics, NotificationMetricsClassification>('notification:hide', notificationToMetrics(notification.message.original, notification.sourceId, notification.silent));
+				telemetryService.publicLog2<NotificationMetrics, NotificationMetricsClassification>('notification:hide', notificationToMetrics(notification.message.original, notification.sourceId, notification.priority === NotificationPriority.SILENT));
 			}
 		}
 		toasts.hide();
@@ -196,7 +196,7 @@ export function registerNotificationCommands(center: INotificationsCenterControl
 		weight: KeybindingWeight.WorkbenchContrib,
 		when: ContextKeyExpr.and(NotificationFocusedContext, NotificationsToastsVisibleContext),
 		primary: KeyCode.DownArrow,
-		handler: (accessor) => {
+		handler: () => {
 			toasts.focusNext();
 		}
 	});
@@ -207,7 +207,7 @@ export function registerNotificationCommands(center: INotificationsCenterControl
 		weight: KeybindingWeight.WorkbenchContrib,
 		when: ContextKeyExpr.and(NotificationFocusedContext, NotificationsToastsVisibleContext),
 		primary: KeyCode.UpArrow,
-		handler: (accessor) => {
+		handler: () => {
 			toasts.focusPrevious();
 		}
 	});
@@ -219,7 +219,7 @@ export function registerNotificationCommands(center: INotificationsCenterControl
 		when: ContextKeyExpr.and(NotificationFocusedContext, NotificationsToastsVisibleContext),
 		primary: KeyCode.PageUp,
 		secondary: [KeyCode.Home],
-		handler: (accessor) => {
+		handler: () => {
 			toasts.focusFirst();
 		}
 	});
@@ -231,7 +231,7 @@ export function registerNotificationCommands(center: INotificationsCenterControl
 		when: ContextKeyExpr.and(NotificationFocusedContext, NotificationsToastsVisibleContext),
 		primary: KeyCode.PageDown,
 		secondary: [KeyCode.End],
-		handler: (accessor) => {
+		handler: () => {
 			toasts.focusLast();
 		}
 	});

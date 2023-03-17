@@ -11,7 +11,7 @@ import { IMessagePassingProtocol } from 'vs/base/parts/ipc/common/ipc';
 import { MainContext, MainThreadConsoleShape } from 'vs/workbench/api/common/extHost.protocol';
 import { IExtensionHostInitData } from 'vs/workbench/services/extensions/common/extensionHostProtocol';
 import { RPCProtocol } from 'vs/workbench/services/extensions/common/rpcProtocol';
-import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
+import { ExtensionIdentifier, IExtensionDescription, IRelaxedExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { ILogService } from 'vs/platform/log/common/log';
 import { getSingletonServiceDescriptors } from 'vs/platform/instantiation/common/extensions';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
@@ -22,6 +22,7 @@ import { IExtHostRpcService, ExtHostRpcService } from 'vs/workbench/api/common/e
 import { IURITransformerService, URITransformerService } from 'vs/workbench/api/common/extHostUriTransformerService';
 import { IExtHostExtensionService, IHostUtils } from 'vs/workbench/api/common/extHostExtensionService';
 import { IExtHostTelemetry } from 'vs/workbench/api/common/extHostTelemetry';
+import { Mutable } from 'vs/base/common/types';
 
 export interface IExitFn {
 	(code?: number): any;
@@ -66,9 +67,10 @@ abstract class ErrorHandler {
 		const map = await extensionService.getExtensionPathIndex();
 		const extensionErrors = new WeakMap<Error, ExtensionIdentifier | undefined>();
 
+		// PART 1
 		// set the prepareStackTrace-handle and use it as a side-effect to associate errors
 		// with extensions - this works by looking up callsites in the extension path index
-		(<any>Error).prepareStackTrace = (error: Error, stackTrace: errors.V8CallSite[]) => {
+		function prepareStackTraceAndFindExtension(error: Error, stackTrace: errors.V8CallSite[]) {
 			let stackTraceMessage = '';
 			let extension: IExtensionDescription | undefined;
 			let fileName: string | null;
@@ -81,8 +83,26 @@ abstract class ErrorHandler {
 			}
 			extensionErrors.set(error, extension?.identifier);
 			return `${error.name || 'Error'}: ${error.message || ''}${stackTraceMessage}`;
-		};
+		}
 
+		let _prepareStackTrace = prepareStackTraceAndFindExtension;
+		Object.defineProperty(Error, 'prepareStackTrace', {
+			configurable: false,
+			get() {
+				return _prepareStackTrace;
+			},
+			set(v) {
+				_prepareStackTrace = function (error, stackTrace) {
+					prepareStackTraceAndFindExtension(error, stackTrace);
+					return v.call(Error, error, stackTrace);
+				};
+			},
+		});
+
+		// PART 2
+		// set the unexpectedErrorHandler and check for extensions that have been identified as
+		// having caused the error. Note that the runtime order is actually reversed, the code
+		// below accesses the stack-property which triggers the code above
 		errors.setUnexpectedErrorHandler(err => {
 			logService.error(err);
 
@@ -163,12 +183,7 @@ export class ExtensionHostMain {
 
 	private static _transform(initData: IExtensionHostInitData, rpcProtocol: RPCProtocol): IExtensionHostInitData {
 		initData.allExtensions.forEach((ext) => {
-			(<any>ext).extensionLocation = URI.revive(rpcProtocol.transformIncomingURIs(ext.extensionLocation));
-			const browserNlsBundleUris: { [language: string]: URI } = {};
-			if (ext.browserNlsBundleUris) {
-				Object.keys(ext.browserNlsBundleUris).forEach(lang => browserNlsBundleUris[lang] = URI.revive(rpcProtocol.transformIncomingURIs(ext.browserNlsBundleUris![lang])));
-				(<any>ext).browserNlsBundleUris = browserNlsBundleUris;
-			}
+			(<Mutable<IRelaxedExtensionDescription>>ext).extensionLocation = URI.revive(rpcProtocol.transformIncomingURIs(ext.extensionLocation));
 		});
 		initData.environment.appRoot = URI.revive(rpcProtocol.transformIncomingURIs(initData.environment.appRoot));
 		const extDevLocs = initData.environment.extensionDevelopmentLocationURI;
@@ -181,7 +196,6 @@ export class ExtensionHostMain {
 		initData.environment.extensionTelemetryLogResource = URI.revive(rpcProtocol.transformIncomingURIs(initData.environment.extensionTelemetryLogResource));
 		initData.nlsBaseUrl = URI.revive(rpcProtocol.transformIncomingURIs(initData.nlsBaseUrl));
 		initData.logsLocation = URI.revive(rpcProtocol.transformIncomingURIs(initData.logsLocation));
-		initData.logFile = URI.revive(rpcProtocol.transformIncomingURIs(initData.logFile));
 		initData.workspace = rpcProtocol.transformIncomingURIs(initData.workspace);
 		return initData;
 	}

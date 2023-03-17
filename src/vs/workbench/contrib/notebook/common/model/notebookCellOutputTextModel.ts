@@ -25,13 +25,13 @@ export class NotebookCellOutputTextModel extends Disposable implements ICellOutp
 	}
 
 	constructor(
-		readonly _rawOutput: IOutputDto
+		private _rawOutput: IOutputDto
 	) {
 		super();
 	}
 
-	replaceData(items: IOutputItemDto[]) {
-		this._rawOutput.outputs = items;
+	replaceData(rawData: IOutputDto) {
+		this._rawOutput = rawData;
 		this._onDidChangeData.fire();
 	}
 

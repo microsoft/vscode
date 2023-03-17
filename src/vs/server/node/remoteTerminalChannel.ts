@@ -20,9 +20,9 @@ import { IGetTerminalLayoutInfoArgs, ISetTerminalLayoutInfoArgs } from 'vs/platf
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { createURITransformer } from 'vs/workbench/api/node/uriTransformer';
 import { CLIServerBase, ICommandsExecuter } from 'vs/workbench/api/node/extHostCLIServer';
-import { IEnvironmentVariableCollection } from 'vs/workbench/contrib/terminal/common/environmentVariable';
-import { MergedEnvironmentVariableCollection } from 'vs/workbench/contrib/terminal/common/environmentVariableCollection';
-import { deserializeEnvironmentVariableCollection } from 'vs/workbench/contrib/terminal/common/environmentVariableShared';
+import { IEnvironmentVariableCollection } from 'vs/platform/terminal/common/environmentVariable';
+import { MergedEnvironmentVariableCollection } from 'vs/platform/terminal/common/environmentVariableCollection';
+import { deserializeEnvironmentVariableCollection } from 'vs/platform/terminal/common/environmentVariableShared';
 import { ICreateTerminalProcessArguments, ICreateTerminalProcessResult, IWorkspaceFolderData } from 'vs/workbench/contrib/terminal/common/remoteTerminalChannel';
 import * as terminalEnvironment from 'vs/workbench/contrib/terminal/common/terminalEnvironment';
 import { AbstractVariableResolverService } from 'vs/workbench/services/configurationResolver/common/variableResolver';
@@ -30,6 +30,7 @@ import { buildUserEnvironment } from 'vs/server/node/extensionHostConnection';
 import { IServerEnvironmentService } from 'vs/server/node/serverEnvironmentService';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { IExtensionManagementService } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 class CustomVariableResolver extends AbstractVariableResolverService {
 	constructor(
@@ -98,6 +99,7 @@ export class RemoteTerminalChannel extends Disposable implements IServerChannel<
 		private readonly _ptyService: IPtyService,
 		private readonly _productService: IProductService,
 		private readonly _extensionManagementService: IExtensionManagementService,
+		private readonly _configurationService: IConfigurationService
 	) {
 		super();
 	}
@@ -133,7 +135,7 @@ export class RemoteTerminalChannel extends Disposable implements IServerChannel<
 			case '$getDefaultSystemShell': return this._getDefaultSystemShell.apply(this, args);
 			case '$getProfiles': return this._getProfiles.apply(this, args);
 			case '$getEnvironment': return this._getEnvironment();
-			case '$getWslPath': return this._getWslPath(args[0]);
+			case '$getWslPath': return this._getWslPath(args[0], args[1]);
 			case '$getTerminalLayoutInfo': return this._ptyService.getTerminalLayoutInfo(<IGetTerminalLayoutInfoArgs>args);
 			case '$setTerminalLayoutInfo': return this._ptyService.setTerminalLayoutInfo(<ISetTerminalLayoutInfoArgs>args);
 			case '$serializeTerminalState': return this._ptyService.serializeTerminalState.apply(this._ptyService, args);
@@ -193,7 +195,7 @@ export class RemoteTerminalChannel extends Disposable implements IServerChannel<
 		};
 
 
-		const baseEnv = await buildUserEnvironment(args.resolverEnv, !!args.shellLaunchConfig.useShellEnvironment, platform.language, this._environmentService, this._logService);
+		const baseEnv = await buildUserEnvironment(args.resolverEnv, !!args.shellLaunchConfig.useShellEnvironment, platform.language, this._environmentService, this._logService, this._configurationService);
 		this._logService.trace('baseEnv', baseEnv);
 
 		const reviveWorkspaceFolder = (workspaceData: IWorkspaceFolderData): IWorkspaceFolder => {
@@ -321,8 +323,8 @@ export class RemoteTerminalChannel extends Disposable implements IServerChannel<
 		return { ...process.env };
 	}
 
-	private _getWslPath(original: string): Promise<string> {
-		return this._ptyService.getWslPath(original);
+	private _getWslPath(original: string, direction: 'unix-to-win' | 'win-to-unix'): Promise<string> {
+		return this._ptyService.getWslPath(original, direction);
 	}
 
 

@@ -10,10 +10,8 @@ import { HistoryInputBox } from 'vs/base/browser/ui/inputbox/inputBox';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
-import { IThemeService, registerThemingParticipant, ICssStyleCollector, IColorTheme } from 'vs/platform/theme/common/themeService';
-import { attachInputBoxStyler, attachStylerCallback } from 'vs/platform/theme/common/styler';
 import { toDisposable } from 'vs/base/common/lifecycle';
-import { badgeBackground, badgeForeground, contrastBorder, inputActiveOptionBorder, inputActiveOptionBackground, inputActiveOptionForeground } from 'vs/platform/theme/common/colorRegistry';
+import { badgeBackground, badgeForeground, contrastBorder, asCssVariable } from 'vs/platform/theme/common/colorRegistry';
 import { localize } from 'vs/nls';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ContextScopedHistoryInputBox } from 'vs/platform/history/browser/contextScopedHistoryWidget';
@@ -26,6 +24,7 @@ import { HiddenItemStrategy, MenuWorkbenchToolBar } from 'vs/platform/actions/br
 import { SubmenuEntryActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { Widget } from 'vs/base/browser/ui/widget';
 import { Emitter } from 'vs/base/common/event';
+import { defaultInputBoxStyles } from 'vs/platform/theme/browser/defaultStyles';
 
 const viewFilterMenu = new MenuId('menu.view.filter');
 export const viewFilterSubmenu = new MenuId('submenu.view.filter');
@@ -86,7 +85,6 @@ export class FilterWidget extends Widget {
 		private readonly options: IFilterWidgetOptions,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IContextViewService private readonly contextViewService: IContextViewService,
-		@IThemeService private readonly themeService: IThemeService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IKeybindingService private readonly keybindingService: IKeybindingService
 	) {
@@ -152,9 +150,9 @@ export class FilterWidget extends Widget {
 			placeholder: this.options.placeholder,
 			ariaLabel: this.options.ariaLabel,
 			history: this.options.history || [],
-			showHistoryHint: () => showHistoryKeybindingHint(this.keybindingService)
+			showHistoryHint: () => showHistoryKeybindingHint(this.keybindingService),
+			inputBoxStyles: defaultInputBoxStyles
 		}));
-		this._register(attachInputBoxStyler(inputBox, this.themeService));
 		if (this.options.text) {
 			inputBox.value = this.options.text;
 		}
@@ -178,18 +176,9 @@ export class FilterWidget extends Widget {
 
 	private createBadge(container: HTMLElement): HTMLElement {
 		const filterBadge = DOM.append(container, DOM.$('.viewpane-filter-badge.hidden'));
-		this._register(attachStylerCallback(this.themeService, { badgeBackground, badgeForeground, contrastBorder }, colors => {
-			const background = colors.badgeBackground ? colors.badgeBackground.toString() : '';
-			const foreground = colors.badgeForeground ? colors.badgeForeground.toString() : '';
-			const border = colors.contrastBorder ? colors.contrastBorder.toString() : '';
-
-			filterBadge.style.backgroundColor = background;
-
-			filterBadge.style.borderWidth = border ? '1px' : '';
-			filterBadge.style.borderStyle = border ? 'solid' : '';
-			filterBadge.style.borderColor = border;
-			filterBadge.style.color = foreground;
-		}));
+		filterBadge.style.backgroundColor = asCssVariable(badgeBackground);
+		filterBadge.style.color = asCssVariable(badgeForeground);
+		filterBadge.style.border = `1px solid ${asCssVariable(contrastBorder)}`;
 		return filterBadge;
 	}
 
@@ -229,7 +218,7 @@ export class FilterWidget extends Widget {
 
 	private onInputKeyDown(event: StandardKeyboardEvent, filterInputBox: HistoryInputBox) {
 		let handled = false;
-		if (event.equals(KeyCode.Tab)) {
+		if (event.equals(KeyCode.Tab) && !this.toolbar.isEmpty()) {
 			this.toolbar.focus();
 			handled = true;
 		}
@@ -240,18 +229,3 @@ export class FilterWidget extends Widget {
 	}
 
 }
-
-registerThemingParticipant((theme: IColorTheme, collector: ICssStyleCollector) => {
-	const inputActiveOptionBorderColor = theme.getColor(inputActiveOptionBorder);
-	if (inputActiveOptionBorderColor) {
-		collector.addRule(`.viewpane-filter > .viewpane-filter-controls .monaco-action-bar .action-label.codicon.codicon-filter.checked { border-color: ${inputActiveOptionBorderColor}; }`);
-	}
-	const inputActiveOptionForegroundColor = theme.getColor(inputActiveOptionForeground);
-	if (inputActiveOptionForegroundColor) {
-		collector.addRule(`.viewpane-filter > .viewpane-filter-controls .monaco-action-bar .action-label.codicon.codicon-filter.checked { color: ${inputActiveOptionForegroundColor}; }`);
-	}
-	const inputActiveOptionBackgroundColor = theme.getColor(inputActiveOptionBackground);
-	if (inputActiveOptionBackgroundColor) {
-		collector.addRule(`.viewpane-filter > .viewpane-filter-controls .monaco-action-bar .action-label.codicon.codicon-filter.checked { background-color: ${inputActiveOptionBackgroundColor}; }`);
-	}
-});

@@ -15,7 +15,7 @@ export class CellDecorations extends CellContentPart {
 		super();
 	}
 
-	protected override didRenderCell(element: ICellViewModel): void {
+	override didRenderCell(element: ICellViewModel): void {
 		const removedClassNames: string[] = [];
 		this.rootContainer.classList.forEach(className => {
 			if (/^nb\-.*$/.test(className)) {

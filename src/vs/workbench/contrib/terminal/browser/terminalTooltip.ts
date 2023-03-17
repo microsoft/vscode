@@ -6,6 +6,7 @@
 import { localize } from 'vs/nls';
 import { ITerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
+import { asArray } from 'vs/base/common/arrays';
 
 export function getShellIntegrationTooltip(instance: ITerminalInstance, markdown: boolean): string {
 	const shellIntegrationCapabilities: TerminalCapability[] = [];
@@ -17,15 +18,35 @@ export function getShellIntegrationTooltip(instance: ITerminalInstance, markdown
 	}
 	let shellIntegrationString = '';
 	if (shellIntegrationCapabilities.length > 0) {
-		shellIntegrationString += `${markdown ? '\n\n---\n\n' : '\n\n'} ${localize('shellIntegration.enabled', "Shell integration activated")}`;
+		shellIntegrationString += `${markdown ? '\n\n---\n\n' : '\n\n'}${localize('shellIntegration.enabled', "Shell integration activated")}`;
 	} else {
 		if (instance.shellLaunchConfig.ignoreShellIntegration) {
-			shellIntegrationString += `${markdown ? '\n\n---\n\n' : '\n\n'} ${localize('launchFailed.exitCodeOnlyShellIntegration', "The terminal process failed to launch. Disabling shell integration with terminal.integrated.shellIntegration.enabled might help.")}`;
+			shellIntegrationString += `${markdown ? '\n\n---\n\n' : '\n\n'}${localize('launchFailed.exitCodeOnlyShellIntegration', "The terminal process failed to launch. Disabling shell integration with terminal.integrated.shellIntegration.enabled might help.")}`;
 		} else {
 			if (instance.usedShellIntegrationInjection) {
-				shellIntegrationString += `${markdown ? '\n\n---\n\n' : '\n\n'} ${localize('shellIntegration.activationFailed', "Shell integration failed to activate")}`;
+				shellIntegrationString += `${markdown ? '\n\n---\n\n' : '\n\n'}${localize('shellIntegration.activationFailed', "Shell integration failed to activate")}`;
 			}
 		}
 	}
 	return shellIntegrationString;
+}
+
+export function getShellProcessTooltip(instance: ITerminalInstance, markdown: boolean): string {
+	const lines: string[] = [];
+
+	if (instance.processId) {
+		lines.push(localize({ key: 'shellProcessTooltip.processId', comment: ['The first arg is "PID" which shouldn\'t be translated'] }, "Process ID ({0}): {1}", 'PID', instance.processId) + '\n');
+	}
+
+	if (instance.shellLaunchConfig.executable) {
+		let commandLine = instance.shellLaunchConfig.executable;
+		const args = asArray(instance.injectedArgs || instance.shellLaunchConfig.args || []).map(x => `'${x}'`).join(' ');
+		if (args) {
+			commandLine += ` ${args}`;
+		}
+
+		lines.push(localize('shellProcessTooltip.commandLine', 'Command line: {0}', commandLine));
+	}
+
+	return lines.length ? `${markdown ? '\n\n---\n\n' : '\n\n'}${lines.join('\n')}` : '';
 }

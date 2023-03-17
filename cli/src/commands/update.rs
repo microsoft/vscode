@@ -6,6 +6,7 @@
 use indicatif::ProgressBar;
 
 use crate::{
+	constants::PRODUCT_NAME_LONG,
 	self_update::SelfUpdate,
 	update_service::UpdateService,
 	util::{errors::AnyError, http::ReqwestSimpleHttp, input::ProgressBarReporter},
@@ -23,8 +24,8 @@ pub async fn update(ctx: CommandContext, args: StandaloneUpdateArgs) -> Result<i
 	let current_version = update_service.get_current_release().await?;
 	if update_service.is_up_to_date_with(&current_version) {
 		ctx.log.result(format!(
-			"VS Code is already to to date ({})",
-			current_version.commit
+			"{} is already to to date ({})",
+			PRODUCT_NAME_LONG, current_version.commit
 		));
 		return Ok(1);
 	}

@@ -16,14 +16,14 @@ export interface ICommentThreadChangedEvent extends CommentThreadChangedEvent<IR
 export class CommentNode {
 	owner: string;
 	threadId: string;
-	range: IRange;
+	range: IRange | undefined;
 	comment: Comment;
 	replies: CommentNode[] = [];
 	resource: URI;
 	isRoot: boolean;
 	threadState?: CommentThreadState;
 
-	constructor(owner: string, threadId: string, resource: URI, comment: Comment, range: IRange, threadState: CommentThreadState | undefined) {
+	constructor(owner: string, threadId: string, resource: URI, comment: Comment, range: IRange | undefined, threadState: CommentThreadState | undefined) {
 		this.owner = owner;
 		this.threadId = threadId;
 		this.comment = comment;

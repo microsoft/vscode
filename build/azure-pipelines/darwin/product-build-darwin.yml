@@ -119,7 +119,7 @@ steps:
       export npm_config_arch=$(VSCODE_ARCH)
       export npm_config_node_gyp=$(which node-gyp)
 
-      for i in {1..3}; do # try 3 times
+      for i in {1..5}; do # try 5 times
         yarn --frozen-lockfile --check-files && break
         if [ $i -eq 3 ]; then
           echo "Yarn failed too many times" >&2
@@ -214,7 +214,8 @@ steps:
           ARCHIVE_NAME=$(ls "$(Build.ArtifactStagingDirectory)/cli" | head -n 1)
           unzip "$(Build.ArtifactStagingDirectory)/cli/$ARCHIVE_NAME" -d "$(Build.ArtifactStagingDirectory)/cli"
           CLI_APP_NAME=$(node -p "require(\"$(APP_PATH)/Contents/Resources/app/product.json\").tunnelApplicationName")
-          mv "$(Build.ArtifactStagingDirectory)/cli/code" "$(APP_PATH)/Contents/Resources/app/bin/$CLI_APP_NAME"
+          APP_NAME=$(node -p "require(\"$(APP_PATH)/Contents/Resources/app/product.json\").applicationName")
+          mv "$(Build.ArtifactStagingDirectory)/cli/$APP_NAME" "$(APP_PATH)/Contents/Resources/app/bin/$CLI_APP_NAME"
           chmod +x "$(APP_PATH)/Contents/Resources/app/bin/$CLI_APP_NAME"
         displayName: Make CLI executable
 
@@ -237,6 +238,7 @@ steps:
           security unlock-keychain -p pwd $(agent.tempdirectory)/buildagent.keychain
           echo "$(macos-developer-certificate)" | base64 -D > $(agent.tempdirectory)/cert.p12
           security import $(agent.tempdirectory)/cert.p12 -k $(agent.tempdirectory)/buildagent.keychain -P "$(macos-developer-certificate-key)" -T /usr/bin/codesign
+          export CODESIGN_IDENTITY=$(security find-identity -v -p codesigning $(agent.tempdirectory)/buildagent.keychain | grep -oEi "([0-9A-F]{40})" | head -n 1)
           security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k pwd $(agent.tempdirectory)/buildagent.keychain
           VSCODE_ARCH=$(VSCODE_ARCH) DEBUG=electron-osx-sign* node build/darwin/sign.js
         displayName: Set Hardened Entitlements

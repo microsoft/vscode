@@ -152,6 +152,7 @@ export interface ICompositeBarOptions {
 
 	readonly getActivityAction: (compositeId: string) => ActivityAction;
 	readonly getCompositePinnedAction: (compositeId: string) => IAction;
+	readonly getCompositeBadgeAction: (compositeId: string) => IAction;
 	readonly getOnCompositeClickAction: (compositeId: string) => IAction;
 	readonly fillExtraContextMenuActions: (actions: IAction[], e?: MouseEvent | GestureEvent) => void;
 	readonly getContextMenuActionsForComposite: (compositeId: string) => IAction[];
@@ -181,7 +182,8 @@ export class CompositeBar extends Widget implements ICompositeBar {
 		items: ICompositeBarItem[],
 		private readonly options: ICompositeBarOptions,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IContextMenuService private readonly contextMenuService: IContextMenuService
+		@IContextMenuService private readonly contextMenuService: IContextMenuService,
+		@IViewDescriptorService private readonly viewDescriptorService: IViewDescriptorService,
 	) {
 		super();
 
@@ -222,6 +224,7 @@ export class CompositeBar extends Widget implements ICompositeBar {
 					{ draggable: true, colors: this.options.colors, icon: this.options.icon, hoverOptions: this.options.activityHoverOptions },
 					action as ActivityAction,
 					item.pinnedAction,
+					item.toggleBadgeAction,
 					compositeId => this.options.getContextMenuActionsForComposite(compositeId),
 					() => this.getContextMenuActions(),
 					this.options.dndHandler,
@@ -407,6 +410,21 @@ export class CompositeBar extends Widget implements ICompositeBar {
 			this.updateCompositeSwitcher();
 
 			this.resetActiveComposite(compositeId);
+		}
+	}
+
+	areBadgesEnabled(compositeId: string): boolean {
+		return this.viewDescriptorService.getViewContainerBadgeEnablementState(compositeId);
+	}
+
+	toggleBadgeEnablement(compositeId: string): void {
+		this.viewDescriptorService.setViewContainerBadgeEnablementState(compositeId, !this.areBadgesEnabled(compositeId));
+		this.updateCompositeSwitcher();
+		const item = this.model.findItem(compositeId);
+		if (item) {
+			// TODO @lramos15 how do we tell the activity to re-render the badge? This triggers an onDidChange but isn't the right way to do it.
+			// I could add another specific function like `activity.updateBadgeEnablement` would then the activity store the sate?
+			item.activityAction.setBadge(item.activityAction.getBadge(), item.activityAction.getClass());
 		}
 	}
 
@@ -668,6 +686,7 @@ export class CompositeBar extends Widget implements ICompositeBar {
 interface ICompositeBarModelItem extends ICompositeBarItem {
 	readonly activityAction: ActivityAction;
 	readonly pinnedAction: IAction;
+	readonly toggleBadgeAction: IAction;
 	readonly activity: ICompositeActivity[];
 }
 
@@ -739,6 +758,9 @@ class CompositeBarModel {
 			},
 			get pinnedAction() {
 				return options.getCompositePinnedAction(id);
+			},
+			get toggleBadgeAction() {
+				return options.getCompositeBadgeAction(id);
 			}
 		};
 	}

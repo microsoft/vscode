@@ -10,10 +10,8 @@ use std::{
 };
 
 use async_trait::async_trait;
-use tokio::sync::mpsc;
 
 use crate::{
-	commands::tunnels::ShutdownSignal,
 	constants::APPLICATION_NAME,
 	log,
 	state::LauncherPaths,
@@ -23,7 +21,7 @@ use crate::{
 	},
 };
 
-use super::{ServiceManager, service::tail_log_file};
+use super::{service::tail_log_file, ServiceManager};
 
 pub struct LaunchdService {
 	log: log::Logger,
@@ -74,13 +72,7 @@ impl ServiceManager for LaunchdService {
 		launcher_paths: crate::state::LauncherPaths,
 		mut handle: impl 'static + super::ServiceContainer,
 	) -> Result<(), crate::util::errors::AnyError> {
-		let (tx, rx) = mpsc::unbounded_channel::<ShutdownSignal>();
-		tokio::spawn(async move {
-			tokio::signal::ctrl_c().await.ok();
-			tx.send(ShutdownSignal::CtrlC).ok();
-		});
-
-		handle.run_service(self.log, launcher_paths, rx).await
+		handle.run_service(self.log, launcher_paths).await
 	}
 
 	async fn unregister(&self) -> Result<(), crate::util::errors::AnyError> {
@@ -115,7 +107,7 @@ impl ServiceManager for LaunchdService {
 }
 
 fn get_service_label() -> String {
-	format!("com.visualstudio.{}.tunnel", &*APPLICATION_NAME)
+	format!("com.visualstudio.{}.tunnel", APPLICATION_NAME)
 }
 
 fn get_service_file_path() -> Result<PathBuf, MissingHomeDirectory> {

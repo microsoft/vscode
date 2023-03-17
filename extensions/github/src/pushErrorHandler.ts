@@ -7,7 +7,7 @@ import { TextDecoder } from 'util';
 import { commands, env, ProgressLocation, Uri, window, workspace, QuickPickOptions, FileType, l10n } from 'vscode';
 import { getOctokit } from './auth';
 import { GitErrorCodes, PushErrorHandler, Remote, Repository } from './typings/git';
-import path = require('path');
+import * as path from 'path';
 
 type Awaited<T> = T extends PromiseLike<infer U> ? Awaited<U> : T;
 
@@ -18,9 +18,9 @@ export function isInCodespaces(): boolean {
 async function handlePushError(repository: Repository, remote: Remote, refspec: string, owner: string, repo: string): Promise<void> {
 	const yes = l10n.t('Create Fork');
 	const no = l10n.t('No');
-	const askFork = l10n.t('You don\'t have permissions to push to "{0}/{1}" on GitHub.Would you like to create a fork and push to it instead?', owner, repo);
+	const askFork = l10n.t('You don\'t have permissions to push to "{0}/{1}" on GitHub. Would you like to create a fork and push to it instead?', owner, repo);
 
-	const answer = await window.showInformationMessage(askFork, yes, no);
+	const answer = await window.showWarningMessage(askFork, { modal: true }, yes, no);
 	if (answer !== yes) {
 		return;
 	}

@@ -31,6 +31,7 @@ import * as errorCodes from './utils/errorCodes';
 import { DiagnosticLanguage, LanguageDescription } from './utils/languageDescription';
 import * as LargeProjectStatus from './utils/largeProjectStatus';
 import { LogLevelMonitor } from './utils/logLevelMonitor';
+import { Logger } from './utils/logger';
 import { PluginManager } from './utils/plugins';
 import * as typeConverters from './utils/typeConverters';
 import TypingsStatus, { AtaProgressReporter } from './utils/typingsStatus';
@@ -74,6 +75,7 @@ export default class TypeScriptServiceClientHost extends Disposable {
 			activeJsTsEditorTracker: ActiveJsTsEditorTracker;
 			serviceConfigurationProvider: ServiceConfigurationProvider;
 			experimentTelemetryReporter: IExperimentationTelemetryReporter | undefined;
+			logger: Logger;
 		},
 		onCompletionAccepted: (item: vscode.CompletionItem) => void,
 	) {

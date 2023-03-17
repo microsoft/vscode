@@ -126,7 +126,9 @@ export class ReferencesModel implements SymbolItemNavigation<FileItem | Referenc
 	}
 
 	location(item: FileItem | ReferenceItem) {
-		return item instanceof ReferenceItem ? item.location : undefined;
+		return item instanceof ReferenceItem
+			? item.location
+			: new vscode.Location(item.uri, item.references[0]?.location.range ?? new vscode.Position(0, 0));
 	}
 
 	nearest(uri: vscode.Uri, position: vscode.Position): FileItem | ReferenceItem | undefined {

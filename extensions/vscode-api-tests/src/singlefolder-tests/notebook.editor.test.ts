@@ -66,16 +66,18 @@ import * as utils from '../utils';
 	});
 
 	// #138683
-	test('Opening a notebook should fire activeNotebook event changed only once', async function () {
+	// TODO@rebornix https://github.com/microsoft/vscode/issues/170072
+	test.skip('Opening a notebook should fire activeNotebook event changed only once', utils.withVerboseLogs(async function () {
 		const openedEditor = onDidOpenNotebookEditor();
 		const resource = await utils.createRandomFile(undefined, undefined, '.nbdtest');
 		const document = await vscode.workspace.openNotebookDocument(resource);
 		const editor = await vscode.window.showNotebookDocument(document);
 		assert.ok(await openedEditor);
 		assert.strictEqual(editor.notebook.uri.toString(), resource.toString());
-	});
+	}));
 
-	test('Active/Visible Editor', async function () {
+	// TODO@rebornix https://github.com/microsoft/vscode/issues/173125
+	test.skip('Active/Visible Editor', async function () {
 		const firstEditorOpen = onDidOpenNotebookEditor();
 		const resource = await utils.createRandomFile(undefined, undefined, '.nbdtest');
 		const document = await vscode.workspace.openNotebookDocument(resource);

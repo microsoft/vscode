@@ -4,8 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { onUnexpectedError } from 'vs/base/common/errors';
+import { Event } from 'vs/base/common/event';
 import { Disposable, DisposableMap } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
+import { generateUuid } from 'vs/base/common/uuid';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -105,11 +107,13 @@ export class MainThreadWebviewPanels extends Disposable implements extHostProtoc
 
 		this._proxy = context.getProxy(extHostProtocol.ExtHostContext.ExtHostWebviewPanels);
 
-		this._register(_editorService.onDidActiveEditorChange(() => {
-			this.updateWebviewViewStates(this._editorService.activeEditor);
-		}));
-
-		this._register(_editorService.onDidVisibleEditorsChange(() => {
+		this._register(Event.any(
+			_editorService.onDidActiveEditorChange,
+			_editorService.onDidVisibleEditorsChange,
+			_editorGroupService.onDidAddGroup,
+			_editorGroupService.onDidRemoveGroup,
+			_editorGroupService.onDidMoveGroup,
+		)(() => {
 			this.updateWebviewViewStates(this._editorService.activeEditor);
 		}));
 
@@ -161,9 +165,9 @@ export class MainThreadWebviewPanels extends Disposable implements extHostProtoc
 		const origin = this.webviewOriginStore.getOrigin(viewType, extension.id);
 
 		const webview = this._webviewWorkbenchService.openWebview({
-			id: handle,
 			origin,
 			providedViewType: viewType,
+			title: initData.title,
 			options: reviveWebviewOptions(initData.panelOptions),
 			contentOptions: reviveWebviewContentOptions(initData.webviewOptions),
 			extension
@@ -257,11 +261,11 @@ export class MainThreadWebviewPanels extends Disposable implements extHostProtoc
 			resolveWebview: async (webviewInput): Promise<void> => {
 				const viewType = this.webviewPanelViewType.toExternal(webviewInput.viewType);
 				if (!viewType) {
-					webviewInput.webview.html = this._mainThreadWebviews.getWebviewResolvedFailedContent(webviewInput.viewType);
+					webviewInput.webview.setHtml(this._mainThreadWebviews.getWebviewResolvedFailedContent(webviewInput.viewType));
 					return;
 				}
 
-				const handle = webviewInput.id;
+				const handle = generateUuid();
 
 				this.addWebviewInput(handle, webviewInput, options);
 
@@ -284,7 +288,7 @@ export class MainThreadWebviewPanels extends Disposable implements extHostProtoc
 					}, editorGroupToColumn(this._editorGroupService, webviewInput.group || 0));
 				} catch (error) {
 					onUnexpectedError(error);
-					webviewInput.webview.html = this._mainThreadWebviews.getWebviewResolvedFailedContent(viewType);
+					webviewInput.webview.setHtml(this._mainThreadWebviews.getWebviewResolvedFailedContent(viewType));
 				}
 			}
 		}));

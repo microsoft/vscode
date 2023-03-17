@@ -8,7 +8,6 @@ import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { Emitter } from 'vs/base/common/event';
 import { DisposableStore, IDisposable, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { withNullAsUndefined } from 'vs/base/common/types';
-import { generateUuid } from 'vs/base/common/uuid';
 import { MenuId } from 'vs/platform/actions/common/actions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
@@ -123,7 +122,7 @@ export class WebviewViewPane extends ViewPane {
 		this._webview.value?.focus();
 	}
 
-	override renderBody(container: HTMLElement): void {
+	protected override renderBody(container: HTMLElement): void {
 		super.renderBody(container);
 
 		this._container = container;
@@ -174,12 +173,11 @@ export class WebviewViewPane extends ViewPane {
 
 		this._activated = true;
 
-		const webviewId = generateUuid();
 		const origin = this.extensionId ? WebviewViewPane.getOriginStore(this.storageService).getOrigin(this.id, this.extensionId) : undefined;
 		const webview = this.webviewService.createWebviewOverlay({
-			id: webviewId,
 			origin,
 			providedViewType: this.id,
+			title: this.title,
 			options: { purpose: WebviewContentPurpose.WebviewView },
 			contentOptions: {},
 			extension: this.extensionId ? { id: this.extensionId } : undefined
@@ -188,7 +186,7 @@ export class WebviewViewPane extends ViewPane {
 		this._webview.value = webview;
 
 		if (this._container) {
-			this._webview.value?.layoutWebviewOverElement(this._container);
+			this.layoutWebview();
 		}
 
 		this._webviewDisposables.add(toDisposable(() => {
@@ -281,7 +279,7 @@ export class WebviewViewPane extends ViewPane {
 		this.layoutWebview();
 	}
 
-	private layoutWebview(dimension?: Dimension) {
+	private doLayoutWebview(dimension?: Dimension) {
 		const webviewEntry = this._webview.value;
 		if (!this._container || !webviewEntry) {
 			return;
@@ -292,11 +290,14 @@ export class WebviewViewPane extends ViewPane {
 		}
 
 		webviewEntry.layoutWebviewOverElement(this._container, dimension, this._rootContainer);
+	}
 
+	private layoutWebview(dimension?: Dimension) {
+		this.doLayoutWebview(dimension);
 		// Temporary fix for https://github.com/microsoft/vscode/issues/110450
 		// There is an animation that lasts about 200ms, update the webview positioning once this animation is complete.
 		clearTimeout(this._repositionTimeout);
-		this._repositionTimeout = setTimeout(() => this.layoutWebview(), 200);
+		this._repositionTimeout = setTimeout(() => this.doLayoutWebview(dimension), 200);
 	}
 
 	private findRootContainer(container: HTMLElement): HTMLElement | undefined {

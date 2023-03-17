@@ -11,14 +11,14 @@ import { URI } from 'vs/base/common/uri';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ILifecycleMainService } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
 import { ILogService } from 'vs/platform/log/common/log';
-import { IStateMainService } from 'vs/platform/state/electron-main/state';
+import { IStateService } from 'vs/platform/state/node/state';
 import { INativeWindowConfiguration, IWindowSettings } from 'vs/platform/window/common/window';
 import { IWindowsMainService } from 'vs/platform/windows/electron-main/windows';
 import { defaultWindowState, ICodeWindow, IWindowState as IWindowUIState, WindowMode } from 'vs/platform/window/electron-main/window';
 import { isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier, IWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
 
 export interface IWindowState {
-	windowId?: number;
+	readonly windowId?: number;
 	workspace?: IWorkspaceIdentifier;
 	folderUri?: URI;
 	backupPath?: string;
@@ -55,7 +55,7 @@ export class WindowsStateHandler extends Disposable {
 	private static readonly windowsStateStorageKey = 'windowsState';
 
 	get state() { return this._state; }
-	private readonly _state = restoreWindowsState(this.stateMainService.getItem<ISerializedWindowsState>(WindowsStateHandler.windowsStateStorageKey));
+	private readonly _state = restoreWindowsState(this.stateService.getItem<ISerializedWindowsState>(WindowsStateHandler.windowsStateStorageKey));
 
 	private lastClosedState: IWindowState | undefined = undefined;
 
@@ -63,7 +63,7 @@ export class WindowsStateHandler extends Disposable {
 
 	constructor(
 		@IWindowsMainService private readonly windowsMainService: IWindowsMainService,
-		@IStateMainService private readonly stateMainService: IStateMainService,
+		@IStateService private readonly stateService: IStateService,
 		@ILifecycleMainService private readonly lifecycleMainService: ILifecycleMainService,
 		@ILogService private readonly logService: ILogService,
 		@IConfigurationService private readonly configurationService: IConfigurationService
@@ -214,7 +214,7 @@ export class WindowsStateHandler extends Disposable {
 
 		// Persist
 		const state = getWindowsStateStoreData(currentWindowsState);
-		this.stateMainService.setItem(WindowsStateHandler.windowsStateStorageKey, state);
+		this.stateService.setItem(WindowsStateHandler.windowsStateStorageKey, state);
 
 		if (this.shuttingDown) {
 			this.logService.trace('[WindowsStateHandler] onBeforeShutdown', state);

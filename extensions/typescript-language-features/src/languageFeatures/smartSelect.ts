@@ -23,7 +23,7 @@ class SmartSelection implements vscode.SelectionRangeProvider {
 		positions: vscode.Position[],
 		token: vscode.CancellationToken,
 	): Promise<vscode.SelectionRange[] | undefined> {
-		const file = this.client.toOpenedFilePath(document);
+		const file = this.client.toOpenTsFilePath(document);
 		if (!file) {
 			return undefined;
 		}

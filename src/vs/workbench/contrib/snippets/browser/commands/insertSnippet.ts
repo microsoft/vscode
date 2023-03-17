@@ -79,7 +79,7 @@ export class InsertSnippetAction extends SnippetEditorAction {
 		});
 	}
 
-	async runEditorCommand(accessor: ServicesAccessor, editor: ICodeEditor, args: any[]) {
+	async runEditorCommand(accessor: ServicesAccessor, editor: ICodeEditor, arg: any) {
 
 		const languageService = accessor.get(ILanguageService);
 		const snippetService = accessor.get(ISnippetsService);
@@ -94,7 +94,7 @@ export class InsertSnippetAction extends SnippetEditorAction {
 		const snippet = await new Promise<Snippet | undefined>((resolve, reject) => {
 
 			const { lineNumber, column } = editor.getPosition();
-			const { snippet, name, langId } = Args.fromUser(args[0]);
+			const { snippet, name, langId } = Args.fromUser(arg);
 
 			if (snippet) {
 				return resolve(new Snippet(

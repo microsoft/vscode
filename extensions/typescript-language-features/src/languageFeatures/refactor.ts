@@ -10,7 +10,7 @@ import type * as Proto from '../protocol';
 import { ClientCapability, ITypeScriptServiceClient } from '../typescriptService';
 import API from '../utils/api';
 import { nulToken } from '../utils/cancellation';
-import { conditionalRegistration, requireMinVersion, requireSomeCapability } from '../utils/dependentRegistration';
+import { conditionalRegistration, requireSomeCapability } from '../utils/dependentRegistration';
 import { DocumentSelector } from '../utils/documentSelector';
 import * as fileSchemes from '../utils/fileSchemes';
 import { TelemetryReporter } from '../utils/telemetry';
@@ -80,7 +80,7 @@ class SelectRefactorCommand implements Command {
 	) { }
 
 	public async execute(args: SelectRefactorCommand_Args): Promise<void> {
-		const file = this.client.toOpenedFilePath(args.document);
+		const file = this.client.toOpenTsFilePath(args.document);
 		if (!file) {
 			return;
 		}
@@ -192,7 +192,7 @@ class InlinedCodeAction extends vscode.CodeAction {
 	public renameLocation?: Proto.Location;
 
 	public async resolve(token: vscode.CancellationToken): Promise<undefined> {
-		const file = this.client.toOpenedFilePath(this.document);
+		const file = this.client.toOpenTsFilePath(this.document);
 		if (!file) {
 			return;
 		}
@@ -249,7 +249,6 @@ class SelectCodeAction extends vscode.CodeAction {
 type TsCodeAction = InlinedCodeAction | SelectCodeAction;
 
 class TypeScriptRefactorProvider implements vscode.CodeActionProvider<TsCodeAction> {
-	public static readonly minVersion = API.v240;
 
 	constructor(
 		private readonly client: ITypeScriptServiceClient,
@@ -286,12 +285,12 @@ class TypeScriptRefactorProvider implements vscode.CodeActionProvider<TsCodeActi
 		if (!this.shouldTrigger(context, rangeOrSelection)) {
 			return undefined;
 		}
-		if (!this.client.toOpenedFilePath(document)) {
+		if (!this.client.toOpenTsFilePath(document)) {
 			return undefined;
 		}
 
 		const response = await this.client.interruptGetErr(() => {
-			const file = this.client.toOpenedFilePath(document);
+			const file = this.client.toOpenTsFilePath(document);
 			if (!file) {
 				return undefined;
 			}
@@ -505,7 +504,6 @@ export function register(
 	telemetryReporter: TelemetryReporter,
 ) {
 	return conditionalRegistration([
-		requireMinVersion(client, TypeScriptRefactorProvider.minVersion),
 		requireSomeCapability(client, ClientCapability.Semantic),
 	], () => {
 		return vscode.languages.registerCodeActionsProvider(selector.semantic,

@@ -43,6 +43,7 @@ export const CONTEXT_DEBUG_CONFIGURATION_TYPE = new RawContextKey<string>('debug
 export const CONTEXT_DEBUG_STATE = new RawContextKey<string>('debugState', 'inactive', { type: 'string', description: nls.localize('debugState', "State that the focused debug session is in. One of the following: 'inactive', 'initializing', 'stopped' or 'running'.") });
 export const CONTEXT_DEBUG_UX_KEY = 'debugUx';
 export const CONTEXT_DEBUG_UX = new RawContextKey<string>(CONTEXT_DEBUG_UX_KEY, 'default', { type: 'string', description: nls.localize('debugUX', "Debug UX state. When there are no debug configurations it is 'simple', otherwise 'default'. Used to decide when to show welcome views in the debug viewlet.") });
+export const CONTEXT_HAS_DEBUGGED = new RawContextKey<boolean>('hasDebugged', false, { type: 'boolean', description: nls.localize('hasDebugged', "True when a debug session has been started at least once, false otherwise.") });
 export const CONTEXT_IN_DEBUG_MODE = new RawContextKey<boolean>('inDebugMode', false, { type: 'boolean', description: nls.localize('inDebugMode', "True when debugging, false otherwise.") });
 export const CONTEXT_IN_DEBUG_REPL = new RawContextKey<boolean>('inDebugRepl', false, { type: 'boolean', description: nls.localize('inDebugRepl', "True when focus is in the debug console, false otherwise.") });
 export const CONTEXT_BREAKPOINT_WIDGET_VISIBLE = new RawContextKey<boolean>('breakpointWidgetVisible', false, { type: 'boolean', description: nls.localize('breakpointWidgetVisibile', "True when breakpoint editor zone widget is visible, false otherwise.") });
@@ -131,6 +132,11 @@ export interface IReplElement extends ITreeElement {
 	readonly sourceData?: IReplElementSource;
 }
 
+export interface INestingReplElement extends IReplElement {
+	readonly hasChildren: boolean;
+	getChildren(): Promise<IReplElement[]> | IReplElement[];
+}
+
 export interface IReplElementSource {
 	readonly source: Source;
 	readonly lineNumber: number;
@@ -142,6 +148,7 @@ export interface IExpressionContainer extends ITreeElement {
 	evaluateLazy(): Promise<void>;
 	getChildren(): Promise<IExpression[]>;
 	readonly reference?: number;
+	readonly memoryReference?: string;
 	readonly value: string;
 	readonly type?: string;
 	valueChanged?: boolean;
@@ -158,6 +165,7 @@ export interface IDebugger {
 	runInTerminal(args: DebugProtocol.RunInTerminalRequestArguments, sessionId: string): Promise<number | undefined>;
 	startDebugging(args: IConfig, parentSessionId: string): Promise<boolean>;
 	getCustomTelemetryEndpoint(): ITelemetryEndpoint | undefined;
+	getInitialConfigurationContent(initialConfigs?: IConfig[]): Promise<string>;
 }
 
 export interface IDebuggerMetadata {
@@ -288,6 +296,31 @@ export interface IMemoryRegion extends IDisposable {
 	write(offset: number, data: VSBuffer): Promise<number>;
 }
 
+/** Data that can be inserted in {@link IDebugSession.appendToRepl} */
+export interface INewReplElementData {
+	/**
+	 * Output string to display
+	 */
+	output: string;
+
+	/**
+	 * Expression data to display. Will result in the item being expandable in
+	 * the REPL. Its value will be used if {@link output} is not provided.
+	 */
+	expression?: IExpression;
+
+	/**
+	 * Output severity.
+	 */
+	sev: severity;
+
+	/**
+	 * Originating location.
+	 */
+	source?: IReplElementSource;
+}
+
+
 export interface IDebugSession extends ITreeElement {
 
 	readonly configuration: IConfig;
@@ -304,6 +337,7 @@ export interface IDebugSession extends ITreeElement {
 	readonly suppressDebugToolbar: boolean;
 	readonly suppressDebugStatusbar: boolean;
 	readonly suppressDebugView: boolean;
+	readonly lifecycleManagedByParent: boolean;
 
 	setSubId(subId: string | undefined): void;
 
@@ -328,7 +362,7 @@ export interface IDebugSession extends ITreeElement {
 	hasSeparateRepl(): boolean;
 	removeReplExpressions(): void;
 	addReplExpression(stackFrame: IStackFrame | undefined, name: string): Promise<void>;
-	appendToRepl(data: string | IExpression, severity: severity, isImportant?: boolean, source?: IReplElementSource): void;
+	appendToRepl(data: INewReplElementData): void;
 
 	// session events
 	readonly onDidEndAdapter: Event<AdapterEndEvent | undefined>;
@@ -517,6 +551,9 @@ export interface IBaseBreakpoint extends IEnablement {
 }
 
 export interface IBreakpoint extends IBaseBreakpoint {
+	/** URI where the breakpoint was first set by the user. */
+	readonly originalUri: uri;
+	/** URI where the breakpoint is currently shown; may be moved by debugger */
 	readonly uri: uri;
 	readonly lineNumber: number;
 	readonly endLineNumber?: number;
@@ -596,11 +633,22 @@ export interface IEvaluate {
 export interface IDebugModel extends ITreeElement {
 	getSession(sessionId: string | undefined, includeInactive?: boolean): IDebugSession | undefined;
 	getSessions(includeInactive?: boolean): IDebugSession[];
-	getBreakpoints(filter?: { uri?: uri; lineNumber?: number; column?: number; enabledOnly?: boolean }): ReadonlyArray<IBreakpoint>;
+	getBreakpoints(filter?: { uri?: uri; originalUri?: uri; lineNumber?: number; column?: number; enabledOnly?: boolean }): ReadonlyArray<IBreakpoint>;
 	areBreakpointsActivated(): boolean;
 	getFunctionBreakpoints(): ReadonlyArray<IFunctionBreakpoint>;
 	getDataBreakpoints(): ReadonlyArray<IDataBreakpoint>;
+
+	/**
+	 * Returns list of all exception breakpoints.
+	 */
 	getExceptionBreakpoints(): ReadonlyArray<IExceptionBreakpoint>;
+
+	/**
+	 * Returns list of exception breakpoints for the given session
+	 * @param sessionId Session id. If falsy, returns the breakpoints from the last set fallback session.
+	 */
+	getExceptionBreakpointsForSession(sessionId?: string): ReadonlyArray<IExceptionBreakpoint>;
+
 	getInstructionBreakpoints(): ReadonlyArray<IInstructionBreakpoint>;
 	getWatchExpressions(): ReadonlyArray<IExpression & IEvaluate>;
 
@@ -654,6 +702,7 @@ export interface IDebugConfiguration {
 		showSourceCode: boolean;
 	};
 	autoExpandLazyVariables: boolean;
+	enableStatusBarColor: boolean;
 }
 
 export interface IGlobalConfig {
@@ -882,6 +931,10 @@ export interface IAdapterManager {
 
 	substituteVariables(debugType: string, folder: IWorkspaceFolder | undefined, config: IConfig): Promise<IConfig>;
 	runInTerminal(debugType: string, args: DebugProtocol.RunInTerminalRequestArguments, sessionId: string): Promise<number | undefined>;
+	getEnabledDebugger(type: string): (IDebugger & IDebuggerMetadata) | undefined;
+	guessDebugger(gettingConfigurations: boolean): Promise<(IDebugger & IDebuggerMetadata) | undefined>;
+
+	get onDidDebuggersExtPointRead(): Event<void>;
 }
 
 export interface ILaunch {
@@ -992,7 +1045,7 @@ export interface IDebugService {
 	/**
 	 * Updates the breakpoints.
 	 */
-	updateBreakpoints(uri: uri, data: Map<string, IBreakpointUpdateData>, sendOnResourceSaved: boolean): Promise<void>;
+	updateBreakpoints(originalUri: uri, data: Map<string, IBreakpointUpdateData>, sendOnResourceSaved: boolean): Promise<void>;
 
 	/**
 	 * Enables or disables all breakpoints. If breakpoint is passed only enables or disables the passed breakpoint.
@@ -1054,7 +1107,7 @@ export interface IDebugService {
 
 	setExceptionBreakpointCondition(breakpoint: IExceptionBreakpoint, condition: string | undefined): Promise<void>;
 
-	setExceptionBreakpoints(data: DebugProtocol.ExceptionBreakpointsFilter[]): void;
+	setExceptionBreakpointsForSession(session: IDebugSession, data: DebugProtocol.ExceptionBreakpointsFilter[]): void;
 
 	/**
 	 * Sends all breakpoints to the passed session.

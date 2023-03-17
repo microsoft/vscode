@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { compareBy, numberComparator, tieBreakComparators } from 'vs/base/common/arrays';
+import { compareBy, equals, numberComparator, tieBreakComparators } from 'vs/base/common/arrays';
 import { BugIndicatingError } from 'vs/base/common/errors';
 import { splitLines } from 'vs/base/common/strings';
 import { Constants } from 'vs/base/common/uint';
@@ -47,6 +47,7 @@ export class ModifiedBaseRange {
 
 	public readonly input1CombinedDiff = DetailedLineRangeMapping.join(this.input1Diffs);
 	public readonly input2CombinedDiff = DetailedLineRangeMapping.join(this.input2Diffs);
+	public readonly isEqualChange = equals(this.input1Diffs, this.input2Diffs, (a, b) => a.getLineEdit().equals(b.getLineEdit()));
 
 	constructor(
 		public readonly baseRange: LineRange,

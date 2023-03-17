@@ -3,10 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { BrowserWindow, MessageBoxOptions } from 'electron';
+import { BrowserWindow } from 'electron';
 import { Emitter, Event } from 'vs/base/common/event';
 import { parse } from 'vs/base/common/json';
-import { mnemonicButtonLabel } from 'vs/base/common/labels';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
 import { dirname, join } from 'vs/base/common/path';
@@ -20,7 +19,6 @@ import { IDialogMainService } from 'vs/platform/dialogs/electron-main/dialogMain
 import { IEnvironmentMainService } from 'vs/platform/environment/electron-main/environmentMainService';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { ILogService } from 'vs/platform/log/common/log';
-import { IProductService } from 'vs/platform/product/common/productService';
 import { IUserDataProfilesMainService } from 'vs/platform/userDataProfile/electron-main/userDataProfile';
 import { ICodeWindow } from 'vs/platform/window/electron-main/window';
 import { findWindowOnWorkspaceOrFolder } from 'vs/platform/windows/electron-main/windowsFinder';
@@ -31,8 +29,8 @@ import { getWorkspaceIdentifier } from 'vs/platform/workspaces/node/workspaces';
 export const IWorkspacesManagementMainService = createDecorator<IWorkspacesManagementMainService>('workspacesManagementMainService');
 
 export interface IWorkspaceEnteredEvent {
-	window: ICodeWindow;
-	workspace: IWorkspaceIdentifier;
+	readonly window: ICodeWindow;
+	readonly workspace: IWorkspaceIdentifier;
 }
 
 export interface IWorkspacesManagementMainService {
@@ -75,8 +73,7 @@ export class WorkspacesManagementMainService extends Disposable implements IWork
 		@ILogService private readonly logService: ILogService,
 		@IUserDataProfilesMainService private readonly userDataProfilesMainService: IUserDataProfilesMainService,
 		@IBackupMainService private readonly backupMainService: IBackupMainService,
-		@IDialogMainService private readonly dialogMainService: IDialogMainService,
-		@IProductService private readonly productService: IProductService
+		@IDialogMainService private readonly dialogMainService: IDialogMainService
 	) {
 		super();
 	}
@@ -279,17 +276,12 @@ export class WorkspacesManagementMainService extends Disposable implements IWork
 
 		// Prevent overwriting a workspace that is currently opened in another window
 		if (findWindowOnWorkspaceOrFolder(windows, workspacePath)) {
-			const options: MessageBoxOptions = {
-				title: this.productService.nameLong,
+			await this.dialogMainService.showMessageBox({
 				type: 'info',
-				buttons: [mnemonicButtonLabel(localize({ key: 'ok', comment: ['&& denotes a mnemonic'] }, "&&OK"))],
+				buttons: [localize({ key: 'ok', comment: ['&& denotes a mnemonic'] }, "&&OK")],
 				message: localize('workspaceOpenedMessage', "Unable to save workspace '{0}'", basename(workspacePath)),
-				detail: localize('workspaceOpenedDetail', "The workspace is already opened in another window. Please close that window first and then try again."),
-				noLink: true,
-				defaultId: 0
-			};
-
-			await this.dialogMainService.showMessageBox(options, withNullAsUndefined(BrowserWindow.getFocusedWindow()));
+				detail: localize('workspaceOpenedDetail', "The workspace is already opened in another window. Please close that window first and then try again.")
+			}, withNullAsUndefined(BrowserWindow.getFocusedWindow()));
 
 			return false;
 		}

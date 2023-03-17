@@ -21,6 +21,7 @@ export class FastDomNode<T extends HTMLElement> {
 	private _fontSize: string = '';
 	private _fontStyle: string = '';
 	private _fontFeatureSettings: string = '';
+	private _fontVariationSettings: string = '';
 	private _textDecoration: string = '';
 	private _lineHeight: string = '';
 	private _letterSpacing: string = '';
@@ -176,6 +177,14 @@ export class FastDomNode<T extends HTMLElement> {
 		}
 		this._fontFeatureSettings = fontFeatureSettings;
 		this.domNode.style.fontFeatureSettings = this._fontFeatureSettings;
+	}
+
+	public setFontVariationSettings(fontVariationSettings: string): void {
+		if (this._fontVariationSettings === fontVariationSettings) {
+			return;
+		}
+		this._fontVariationSettings = fontVariationSettings;
+		this.domNode.style.fontVariationSettings = this._fontVariationSettings;
 	}
 
 	public setTextDecoration(textDecoration: string): void {

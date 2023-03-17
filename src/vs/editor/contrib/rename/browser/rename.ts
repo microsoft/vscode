@@ -319,7 +319,7 @@ export class RenameAction extends EditorAction {
 	}
 }
 
-registerEditorContribution(RenameController.ID, RenameController, EditorContributionInstantiation.Idle);
+registerEditorContribution(RenameController.ID, RenameController, EditorContributionInstantiation.Lazy);
 registerEditorAction(RenameAction);
 
 const RenameCommand = EditorCommand.bindToContribution<RenameController>(RenameController.get);
@@ -330,7 +330,7 @@ registerEditorCommand(new RenameCommand({
 	handler: x => x.acceptRenameInput(false),
 	kbOpts: {
 		weight: KeybindingWeight.EditorContrib + 99,
-		kbExpr: EditorContextKeys.focus,
+		kbExpr: ContextKeyExpr.and(EditorContextKeys.focus, ContextKeyExpr.not('isComposing')),
 		primary: KeyCode.Enter
 	}
 }));
@@ -341,7 +341,7 @@ registerEditorCommand(new RenameCommand({
 	handler: x => x.acceptRenameInput(true),
 	kbOpts: {
 		weight: KeybindingWeight.EditorContrib + 99,
-		kbExpr: EditorContextKeys.focus,
+		kbExpr: ContextKeyExpr.and(EditorContextKeys.focus, ContextKeyExpr.not('isComposing')),
 		primary: KeyMod.Shift + KeyCode.Enter
 	}
 }));

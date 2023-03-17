@@ -5,10 +5,11 @@
 
 import { CharCode } from 'vs/base/common/charCode';
 import { IDiffChange, ISequence, LcsDiff, IDiffResult } from 'vs/base/common/diff/diff';
-import { ILinesDiffComputer, ILinesDiff, ILinesDiffComputerOptions, LineRange, RangeMapping, LineRangeMapping } from 'vs/editor/common/diff/linesDiffComputer';
+import { ILinesDiffComputer, ILinesDiff, ILinesDiffComputerOptions, RangeMapping, LineRangeMapping } from 'vs/editor/common/diff/linesDiffComputer';
 import * as strings from 'vs/base/common/strings';
 import { Range } from 'vs/editor/common/core/range';
 import { assertFn, checkAdjacentItems } from 'vs/base/common/assert';
+import { LineRange } from 'vs/editor/common/core/lineRange';
 
 const MINIMUM_MATCHING_CHARACTER_LENGTH = 3;
 
@@ -626,6 +627,16 @@ export class DiffComputer {
 		if (prevChange.originalEndLineNumber === 0 || prevChange.modifiedEndLineNumber === 0) {
 			// Don't merge with inserts/deletes
 			return false;
+		}
+
+		if (prevChange.originalEndLineNumber === originalLineNumber && prevChange.modifiedEndLineNumber === modifiedLineNumber) {
+			if (this.shouldComputeCharChanges && prevChange.charChanges) {
+				prevChange.charChanges.push(new CharChange(
+					originalLineNumber, originalStartColumn, originalLineNumber, originalEndColumn,
+					modifiedLineNumber, modifiedStartColumn, modifiedLineNumber, modifiedEndColumn
+				));
+			}
+			return true;
 		}
 
 		if (prevChange.originalEndLineNumber + 1 === originalLineNumber && prevChange.modifiedEndLineNumber + 1 === modifiedLineNumber) {

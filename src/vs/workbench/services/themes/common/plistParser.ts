@@ -326,9 +326,9 @@ function _parse(content: string, filename: string | null, locationKeyName: strin
 
 	function escapeVal(str: string): string {
 		return str.replace(/&#([0-9]+);/g, function (_: string, m0: string) {
-			return (<any>String).fromCodePoint(parseInt(m0, 10));
+			return String.fromCodePoint(parseInt(m0, 10));
 		}).replace(/&#x([0-9a-f]+);/g, function (_: string, m0: string) {
-			return (<any>String).fromCodePoint(parseInt(m0, 16));
+			return String.fromCodePoint(parseInt(m0, 16));
 		}).replace(/&amp;|&lt;|&gt;|&quot;|&apos;/g, function (_: string) {
 			switch (_) {
 				case '&amp;': return '&';

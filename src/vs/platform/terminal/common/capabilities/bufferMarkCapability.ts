@@ -18,7 +18,7 @@ export class BufferMarkCapability implements IBufferMarkCapability {
 	readonly type = TerminalCapability.BufferMarkDetection;
 
 	private _idToMarkerMap: Map<string, IMarker> = new Map();
-	private _anonymousMarkers: IMarker[] = [];
+	private _anonymousMarkers: Map<number, IMarker> = new Map();
 
 	private readonly _onMarkAdded = new Emitter<IMarkProperties>();
 	readonly onMarkAdded = this._onMarkAdded.event;
@@ -32,7 +32,7 @@ export class BufferMarkCapability implements IBufferMarkCapability {
 		for (const m of this._idToMarkerMap.values()) {
 			yield m;
 		}
-		for (const m of this._anonymousMarkers) {
+		for (const m of this._anonymousMarkers.values()) {
 			yield m;
 		}
 	}
@@ -47,8 +47,8 @@ export class BufferMarkCapability implements IBufferMarkCapability {
 			this._idToMarkerMap.set(id, marker);
 			marker.onDispose(() => this._idToMarkerMap.delete(id));
 		} else {
-			this._anonymousMarkers.push(marker);
-			marker.onDispose(() => this._anonymousMarkers.filter(m => m !== marker));
+			this._anonymousMarkers.set(marker.id, marker);
+			marker.onDispose(() => this._anonymousMarkers.delete(marker.id));
 		}
 		this._onMarkAdded.fire({ marker, id, hidden: properties?.hidden, hoverMessage: properties?.hoverMessage });
 	}

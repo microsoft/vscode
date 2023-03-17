@@ -19,21 +19,21 @@ export const IEnvironmentMainService = refineServiceDecorator<IEnvironmentServic
 export interface IEnvironmentMainService extends INativeEnvironmentService {
 
 	// --- NLS cache path
-	cachedLanguagesPath: string;
+	readonly cachedLanguagesPath: string;
 
 	// --- backup paths
-	backupHome: string;
+	readonly backupHome: string;
 
 	// --- V8 code caching
-	codeCachePath: string | undefined;
-	useCodeCache: boolean;
+	readonly codeCachePath: string | undefined;
+	readonly useCodeCache: boolean;
 
 	// --- IPC
-	mainIPCHandle: string;
-	mainLockfile: string;
+	readonly mainIPCHandle: string;
+	readonly mainLockfile: string;
 
 	// --- config
-	disableUpdates: boolean;
+	readonly disableUpdates: boolean;
 }
 
 export class EnvironmentMainService extends NativeEnvironmentService implements IEnvironmentMainService {

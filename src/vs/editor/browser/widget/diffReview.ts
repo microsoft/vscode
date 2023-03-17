@@ -26,7 +26,7 @@ import { RenderLineInput, renderViewLine2 as renderViewLine } from 'vs/editor/co
 import { ViewLineRenderingData } from 'vs/editor/common/viewModel';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { ThemeIcon } from 'vs/base/common/themables';
 import { Constants } from 'vs/base/common/uint';
 import { Codicon } from 'vs/base/common/codicons';
 import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
@@ -173,13 +173,7 @@ export class DiffReview extends Disposable {
 				|| e.equals(KeyMod.CtrlCmd | KeyCode.Escape)
 				|| e.equals(KeyMod.Alt | KeyCode.Escape)
 				|| e.equals(KeyMod.Shift | KeyCode.Escape)
-			) {
-				e.preventDefault();
-				this.hide();
-			}
-
-			if (
-				e.equals(KeyCode.Space)
+				|| e.equals(KeyCode.Space)
 				|| e.equals(KeyCode.Enter)
 			) {
 				e.preventDefault();

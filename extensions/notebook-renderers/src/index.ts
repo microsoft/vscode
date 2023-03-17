@@ -4,29 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { ActivationFunction, OutputItem, RendererContext } from 'vscode-notebook-renderer';
-import { truncatedArrayOfString } from './textHelper';
-
-interface IDisposable {
-	dispose(): void;
-}
-
-interface HtmlRenderingHook {
-	/**
-	 * Invoked after the output item has been rendered but before it has been appended to the document.
-	 *
-	 * @return A new `HTMLElement` or `undefined` to continue using the provided element.
-	 */
-	postRender(outputItem: OutputItem, element: HTMLElement, signal: AbortSignal): HTMLElement | undefined | Promise<HTMLElement | undefined>;
-}
-
-interface JavaScriptRenderingHook {
-	/**
-	 * Invoked before the script is evaluated.
-	 *
-	 * @return A new string of JavaScript or `undefined` to continue using the provided string.
-	 */
-	preEvaluate(outputItem: OutputItem, element: HTMLElement, script: string, signal: AbortSignal): string | undefined | Promise<string | undefined>;
-}
+import { createOutputContent, scrollableClass } from './textHelper';
+import { HtmlRenderingHook, IDisposable, IRichRenderContext, JavaScriptRenderingHook, RenderOptions } from './rendererTypes';
+import { ttPolicy } from './htmlHelper';
 
 function clearContainer(container: HTMLElement) {
 	while (container.firstChild) {
@@ -43,6 +23,14 @@ function renderImage(outputInfo: OutputItem, element: HTMLElement): IDisposable 
 		}
 	};
 
+	if (element.firstChild) {
+		const display = element.firstChild as HTMLElement;
+		if (display.firstChild && display.firstChild.nodeName === 'IMG' && display.firstChild instanceof HTMLImageElement) {
+			display.firstChild.src = src;
+			return disposable;
+		}
+	}
+
 	const image = document.createElement('img');
 	image.src = src;
 	const display = document.createElement('div');
@@ -52,11 +40,6 @@ function renderImage(outputInfo: OutputItem, element: HTMLElement): IDisposable 
 
 	return disposable;
 }
-
-const ttPolicy = window.trustedTypes?.createPolicy('notebookRenderer', {
-	createHTML: value => value,
-	createScript: value => value,
-});
 
 const preservedScriptAttributes: (keyof HTMLScriptElement)[] = [
 	'type', 'src', 'nonce', 'noModule', 'async',
@@ -120,9 +103,35 @@ async function renderJavascript(outputInfo: OutputItem, container: HTMLElement, 
 	domEval(element);
 }
 
-function renderError(outputInfo: OutputItem, container: HTMLElement, ctx: RendererContext<void> & { readonly settings: { readonly lineLimit: number } }): void {
-	const element = document.createElement('div');
-	container.appendChild(element);
+interface Event<T> {
+	(listener: (e: T) => any, thisArgs?: any, disposables?: IDisposable[]): IDisposable;
+}
+
+function createDisposableStore(): { push(...disposables: IDisposable[]): void; dispose(): void } {
+	const localDisposables: IDisposable[] = [];
+	const disposable = {
+		push: (...disposables: IDisposable[]) => {
+			localDisposables.push(...disposables);
+		},
+		dispose: () => {
+			localDisposables.forEach(d => d.dispose());
+		}
+	};
+
+	return disposable;
+}
+
+type DisposableStore = ReturnType<typeof createDisposableStore>;
+
+function renderError(
+	outputInfo: OutputItem,
+	outputElement: HTMLElement,
+	ctx: IRichRenderContext
+): IDisposable {
+	const disposableStore = createDisposableStore();
+
+	clearContainer(outputElement);
+
 	type ErrorLike = Partial<Error>;
 
 	let err: ErrorLike;
@@ -130,74 +139,147 @@ function renderError(outputInfo: OutputItem, container: HTMLElement, ctx: Render
 		err = <ErrorLike>JSON.parse(outputInfo.text());
 	} catch (e) {
 		console.log(e);
-		return;
+		return disposableStore;
 	}
 
 	if (err.stack) {
-		const stack = document.createElement('pre');
-		stack.classList.add('traceback');
-		stack.style.margin = '8px 0';
-		const element = document.createElement('span');
-		truncatedArrayOfString(outputInfo.id, [err.stack ?? ''], ctx.settings.lineLimit, element);
-		stack.appendChild(element);
-		container.appendChild(stack);
+		outputElement.classList.add('traceback');
+
+		const outputScrolling = ctx.settings.outputScrolling;
+		const content = createOutputContent(outputInfo.id, [err.stack ?? ''], ctx.settings.lineLimit, outputScrolling, true);
+		content.classList.toggle('word-wrap', ctx.settings.outputWordWrap);
+		disposableStore.push(ctx.onDidChangeSettings(e => {
+			content.classList.toggle('word-wrap', e.outputWordWrap);
+		}));
+		content.classList.toggle('scrollable', outputScrolling);
+		outputElement.classList.toggle('remove-padding', outputScrolling);
+		outputElement.appendChild(content);
+		initializeScroll(content, disposableStore);
 	} else {
 		const header = document.createElement('div');
 		const headerMessage = err.name && err.message ? `${err.name}: ${err.message}` : err.name || err.message;
 		if (headerMessage) {
 			header.innerText = headerMessage;
-			container.appendChild(header);
+			outputElement.appendChild(header);
 		}
 	}
 
-	container.classList.add('error');
+	outputElement.classList.add('error');
+	return disposableStore;
 }
 
-function renderStream(outputInfo: OutputItem, container: HTMLElement, error: boolean, ctx: RendererContext<void> & { readonly settings: { readonly lineLimit: number } }): void {
-	const outputContainer = container.parentElement;
-	if (!outputContainer) {
-		// should never happen
-		return;
-	}
+function getPreviousMatchingContentGroup(outputElement: HTMLElement) {
+	const outputContainer = outputElement.parentElement;
+	let match: HTMLElement | undefined = undefined;
 
-	const prev = outputContainer.previousSibling;
-	if (prev) {
-		// OutputItem in the same cell
-		// check if the previous item is a stream
-		const outputElement = (prev.firstChild as HTMLElement | null);
-		if (outputElement && outputElement.getAttribute('output-mime-type') === outputInfo.mime) {
-			// same stream
-			const text = outputInfo.text();
-
-			const element = document.createElement('span');
-			truncatedArrayOfString(outputInfo.id, [text], ctx.settings.lineLimit, element);
-			outputElement.appendChild(element);
-			return;
+	let previous = outputContainer?.previousSibling;
+	while (previous) {
+		const outputElement = (previous.firstChild as HTMLElement | null);
+		if (!outputElement || !outputElement.classList.contains('output-stream')) {
+			break;
 		}
+
+		match = outputElement.firstChild as HTMLElement;
+		previous = previous?.previousSibling;
 	}
 
-	const element = document.createElement('span');
-	element.classList.add('output-stream');
+	return match;
+}
+
+function onScrollHandler(e: globalThis.Event) {
+	const target = e.target as HTMLElement;
+	if (target.scrollTop === 0) {
+		target.classList.remove('more-above');
+	} else {
+		target.classList.add('more-above');
+	}
+}
+
+// if there is a scrollable output, it will be scrolled to the given value if provided or the bottom of the element
+function initializeScroll(scrollableElement: HTMLElement, disposables: DisposableStore, scrollTop?: number) {
+	if (scrollableElement.classList.contains(scrollableClass)) {
+		scrollableElement.classList.toggle('scrollbar-visible', scrollableElement.scrollHeight > scrollableElement.clientHeight);
+		scrollableElement.scrollTop = scrollTop !== undefined ? scrollTop : scrollableElement.scrollHeight;
+		scrollableElement.addEventListener('scroll', onScrollHandler);
+		disposables.push({ dispose: () => scrollableElement.removeEventListener('scroll', onScrollHandler) });
+	}
+}
+
+// Find the scrollTop of the existing scrollable output, return undefined if at the bottom or element doesn't exist
+function findScrolledHeight(scrollableElement: HTMLElement): number | undefined {
+	if (scrollableElement && scrollableElement.scrollHeight - scrollableElement.scrollTop - scrollableElement.clientHeight > 2) {
+		// not scrolled to the bottom
+		return scrollableElement.scrollTop;
+	}
+	return undefined;
+}
+
+function renderStream(outputInfo: OutputItem, outputElement: HTMLElement, error: boolean, ctx: IRichRenderContext): IDisposable {
+	const disposableStore = createDisposableStore();
+	const outputScrolling = ctx.settings.outputScrolling;
+
+	outputElement.classList.add('output-stream');
+	outputElement.classList.toggle('remove-padding', outputScrolling);
 
 	const text = outputInfo.text();
-	truncatedArrayOfString(outputInfo.id, [text], ctx.settings.lineLimit, element);
-	while (container.firstChild) {
-		container.removeChild(container.firstChild);
-	}
-	container.appendChild(element);
-	container.setAttribute('output-mime-type', outputInfo.mime);
+	const content = createOutputContent(outputInfo.id, [text], ctx.settings.lineLimit, outputScrolling, false);
+	content.setAttribute('output-item-id', outputInfo.id);
 	if (error) {
-		container.classList.add('error');
+		content.classList.add('error');
 	}
+
+	const scrollTop = outputScrolling ? findScrolledHeight(outputElement) : undefined;
+
+	// If the previous output item for the same cell was also a stream, append this output to the previous
+	const existingContentParent = getPreviousMatchingContentGroup(outputElement);
+	if (existingContentParent) {
+		const existing = existingContentParent.querySelector(`[output-item-id="${outputInfo.id}"]`) as HTMLElement | null;
+		if (existing) {
+			existing.replaceWith(content);
+		} else {
+			existingContentParent.appendChild(content);
+		}
+		existingContentParent.classList.toggle('scrollbar-visible', existingContentParent.scrollHeight > existingContentParent.clientHeight);
+		existingContentParent.scrollTop = scrollTop !== undefined ? scrollTop : existingContentParent.scrollHeight;
+	} else {
+		const contentParent = document.createElement('div');
+		contentParent.appendChild(content);
+		contentParent.classList.toggle('scrollable', outputScrolling);
+
+		contentParent.classList.toggle('word-wrap', ctx.settings.outputWordWrap);
+		disposableStore.push(ctx.onDidChangeSettings(e => {
+			contentParent.classList.toggle('word-wrap', e.outputWordWrap);
+		}));
+
+
+		while (outputElement.firstChild) {
+			outputElement.removeChild(outputElement.firstChild);
+		}
+		outputElement.appendChild(contentParent);
+		initializeScroll(contentParent, disposableStore, scrollTop);
+	}
+
+	return disposableStore;
 }
 
-function renderText(outputInfo: OutputItem, container: HTMLElement, ctx: RendererContext<void> & { readonly settings: { readonly lineLimit: number } }): void {
-	clearContainer(container);
-	const contentNode = document.createElement('div');
-	contentNode.classList.add('output-plaintext');
+function renderText(outputInfo: OutputItem, outputElement: HTMLElement, ctx: IRichRenderContext): IDisposable {
+	const disposableStore = createDisposableStore();
+	clearContainer(outputElement);
+
 	const text = outputInfo.text();
-	truncatedArrayOfString(outputInfo.id, [text], ctx.settings.lineLimit, contentNode);
-	container.appendChild(contentNode);
+	const content = createOutputContent(outputInfo.id, [text], ctx.settings.lineLimit, ctx.settings.outputScrolling, false);
+	content.classList.add('output-plaintext');
+	if (ctx.settings.outputWordWrap) {
+		content.classList.add('word-wrap');
+	}
+
+	const outputScrolling = ctx.settings.outputScrolling;
+	content.classList.toggle('scrollable', outputScrolling);
+	outputElement.classList.toggle('remove-padding', outputScrolling);
+	outputElement.appendChild(content);
+	initializeScroll(content, disposableStore);
+
+	return disposableStore;
 }
 
 export const activate: ActivationFunction<void> = (ctx) => {
@@ -205,26 +287,49 @@ export const activate: ActivationFunction<void> = (ctx) => {
 	const htmlHooks = new Set<HtmlRenderingHook>();
 	const jsHooks = new Set<JavaScriptRenderingHook>();
 
-	const latestContext = ctx as (RendererContext<void> & { readonly settings: { readonly lineLimit: number } });
+	const latestContext = ctx as (RendererContext<void> & { readonly settings: RenderOptions; readonly onDidChangeSettings: Event<RenderOptions> });
 
 	const style = document.createElement('style');
 	style.textContent = `
+	#container div.output.remove-padding {
+		padding-left: 0;
+		padding-right: 0;
+	}
 	.output-plaintext,
 	.output-stream,
 	.traceback {
+		display: inline-block;
+		width: 100%;
 		line-height: var(--notebook-cell-output-line-height);
 		font-family: var(--notebook-cell-output-font-family);
-		white-space: pre-wrap;
-		word-wrap: break-word;
-
 		font-size: var(--notebook-cell-output-font-size);
 		user-select: text;
 		-webkit-user-select: text;
 		-ms-user-select: text;
 		cursor: auto;
+		word-wrap: break-word;
+		/* text/stream output container should scroll but preserve newline character */
+		white-space: pre;
 	}
-	span.output-stream {
-		display: inline-block;
+	/* When wordwrap turned on, force it to pre-wrap */
+	#container div.output_container .word-wrap span {
+		white-space: pre-wrap;
+	}
+	#container div.output .scrollable {
+		padding-left: var(--notebook-output-node-left-padding);
+		padding-right: var(--notebook-output-node-padding);
+		overflow-y: scroll;
+		max-height: var(--notebook-cell-output-max-height);
+		border-style: solid;
+		box-sizing: border-box;
+		border-width: 1px;
+		border-color: transparent;
+	}
+	#container div.output .scrollable.more-above {
+		box-shadow: var(--vscode-scrollbar-shadow) 0 6px 6px -6px inset
+	}
+	#container div.output .scrollable.scrollbar-visible {
+		border-color: var(--vscode-editorWidget-border);
 	}
 	.output-plaintext .code-bold,
 	.output-stream .code-bold,
@@ -274,31 +379,40 @@ export const activate: ActivationFunction<void> = (ctx) => {
 				case 'image/jpeg':
 				case 'image/git':
 					{
+						disposables.get(outputInfo.id)?.dispose();
 						const disposable = renderImage(outputInfo, element);
 						disposables.set(outputInfo.id, disposable);
 					}
 					break;
 				case 'application/vnd.code.notebook.error':
 					{
-						renderError(outputInfo, element, latestContext);
+						disposables.get(outputInfo.id)?.dispose();
+						const disposable = renderError(outputInfo, element, latestContext);
+						disposables.set(outputInfo.id, disposable);
 					}
 					break;
 				case 'application/vnd.code.notebook.stdout':
 				case 'application/x.notebook.stdout':
 				case 'application/x.notebook.stream':
 					{
-						renderStream(outputInfo, element, false, latestContext);
+						disposables.get(outputInfo.id)?.dispose();
+						const disposable = renderStream(outputInfo, element, false, latestContext);
+						disposables.set(outputInfo.id, disposable);
 					}
 					break;
 				case 'application/vnd.code.notebook.stderr':
 				case 'application/x.notebook.stderr':
 					{
-						renderStream(outputInfo, element, true, latestContext);
+						disposables.get(outputInfo.id)?.dispose();
+						const disposable = renderStream(outputInfo, element, true, latestContext);
+						disposables.set(outputInfo.id, disposable);
 					}
 					break;
 				case 'text/plain':
 					{
-						renderText(outputInfo, element, latestContext);
+						disposables.get(outputInfo.id)?.dispose();
+						const disposable = renderText(outputInfo, element, latestContext);
+						disposables.set(outputInfo.id, disposable);
 					}
 					break;
 				default:

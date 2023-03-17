@@ -58,8 +58,6 @@ export const maxPriority = (...states: TestResultState[]) => {
 
 export const statesInOrder = Object.keys(statePriority).map(s => Number(s) as TestResultState).sort(cmpPriority);
 
-export const isRunningState = (s: TestResultState) => s === TestResultState.Queued || s === TestResultState.Running;
-
 /**
  * Some states are considered terminal; once these are set for a given test run, they
  * are not reset back to a non-terminal state, or to a terminal state with lower

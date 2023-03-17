@@ -12,6 +12,13 @@ import { ConfigurationTarget, IConfigurationOverrides, IConfigurationService, IC
 import { Disposable } from 'vs/base/common/lifecycle';
 import { Emitter } from 'vs/base/common/event';
 
+export const applicationConfigurationNodeBase = Object.freeze<IConfigurationNode>({
+	'id': 'application',
+	'order': 100,
+	'title': localize('applicationConfigurationTitle', "Application"),
+	'type': 'object'
+});
+
 export const workbenchConfigurationNodeBase = Object.freeze<IConfigurationNode>({
 	'id': 'workbench',
 	'order': 7,

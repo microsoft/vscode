@@ -12,7 +12,7 @@ import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { MenuId, MenuRegistry, IMenuItem, ISubmenuItem } from 'vs/platform/actions/common/actions';
 import { URI } from 'vs/base/common/uri';
 import { DisposableStore } from 'vs/base/common/lifecycle';
-import { ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { ThemeIcon } from 'vs/base/common/themables';
 import { index } from 'vs/base/common/arrays';
 import { isProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
 import { ApiProposalName } from 'vs/workbench/services/extensions/common/extensionsApiProposals';
@@ -71,9 +71,21 @@ const apiMenus: IAPIMenu[] = [
 		description: localize('menus.explorerContext', "The file explorer context menu")
 	},
 	{
+		key: 'explorer/context/share',
+		id: MenuId.ExplorerContextShare,
+		description: localize('menus.explorerContextShare', "'Share' submenu in the file explorer context menu"),
+		proposed: 'contribShareMenu'
+	},
+	{
 		key: 'editor/title/context',
 		id: MenuId.EditorTitleContext,
 		description: localize('menus.editorTabContext', "The editor tabs context menu")
+	},
+	{
+		key: 'editor/title/context/share',
+		id: MenuId.EditorTitleContextShare,
+		description: localize('menus.editorTitleContextShare', "'Share' submenu inside the editor title context menu"),
+		proposed: 'contribShareMenu'
 	},
 	{
 		key: 'debug/callstack/context',
@@ -149,6 +161,12 @@ const apiMenus: IAPIMenu[] = [
 		description: localize('view.itemContext', "The contributed view item context menu")
 	},
 	{
+		key: 'comments/comment/editorActions',
+		id: MenuId.CommentEditorActions,
+		description: localize('commentThread.editorActions', "The contributed comment editor actions"),
+		proposed: 'contribCommentEditorActionsMenu'
+	},
+	{
 		key: 'comments/commentThread/title',
 		id: MenuId.CommentThreadTitle,
 		description: localize('commentThread.title', "The contributed comment thread title menu")
@@ -158,6 +176,13 @@ const apiMenus: IAPIMenu[] = [
 		id: MenuId.CommentThreadActions,
 		description: localize('commentThread.actions', "The contributed comment thread context menu, rendered as buttons below the comment editor"),
 		supportsSubmenus: false
+	},
+	{
+		key: 'comments/commentThread/additionalActions',
+		id: MenuId.CommentThreadAdditionalActions,
+		description: localize('commentThread.actions', "The contributed comment thread context menu, rendered as buttons below the comment editor"),
+		supportsSubmenus: false,
+		proposed: 'contribCommentThreadAdditionalMenu'
 	},
 	{
 		key: 'comments/commentThread/title/context',
@@ -282,6 +307,12 @@ const apiMenus: IAPIMenu[] = [
 		id: MenuId.EditorContent,
 		description: localize('merge.toolbar', "The prominent button in an editor, overlays its content"),
 		proposed: 'contribEditorContentMenu'
+	},
+	{
+		key: 'editor/lineNumber/context',
+		id: MenuId.EditorLineNumberContext,
+		description: localize('editorLineNumberContext', "The contributed editor line number context menu"),
+		proposed: 'contribEditorLineNumberMenu'
 	},
 	{
 		key: 'mergeEditor/result/title',
@@ -662,7 +693,7 @@ commandsExtensionPoint.setHandler(extensions => {
 		_commandRegistrations.add(MenuRegistry.addCommand({
 			id: command,
 			title,
-			source: extension.description.displayName ?? extension.description.name,
+			source: { id: extension.description.identifier.value, title: extension.description.displayName ?? extension.description.name },
 			shortTitle,
 			tooltip: title,
 			category,

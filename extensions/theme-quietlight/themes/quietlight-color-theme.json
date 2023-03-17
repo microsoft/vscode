@@ -476,7 +476,7 @@
       	}
 	],
 	"colors": {
-		"focusBorder": "#A6B39B",
+		"focusBorder": "#9769dc",
 		"pickerGroup.foreground": "#A6B39B",
 		"pickerGroup.border": "#749351",
 		"list.activeSelectionForeground": "#6c6c6c",
@@ -500,7 +500,7 @@
 		"inputOption.activeBorder": "#adafb7",
 		"dropdown.background": "#F5F5F5",
 		"editor.findMatchBackground": "#BF9CAC",
-		"editor.findMatchHighlightBackground": "#edc9d8",
+		"editor.findMatchHighlightBackground": "#edc9d899",
 		"peekViewEditor.matchHighlightBackground": "#C2DFE3",
 		"peekViewTitle.background": "#F2F8FC",
 		"peekViewEditor.background": "#F2F8FC",

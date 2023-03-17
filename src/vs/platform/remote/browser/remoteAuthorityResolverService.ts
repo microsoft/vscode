@@ -6,9 +6,12 @@
 import { Emitter } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { RemoteAuthorities } from 'vs/base/common/network';
+import * as performance from 'vs/base/common/performance';
+import { StopWatch } from 'vs/base/common/stopwatch';
 import { URI } from 'vs/base/common/uri';
+import { ILogService } from 'vs/platform/log/common/log';
 import { IProductService } from 'vs/platform/product/common/productService';
-import { IRemoteAuthorityResolverService, IRemoteConnectionData, ResolvedAuthority, ResolverResult } from 'vs/platform/remote/common/remoteAuthorityResolver';
+import { IRemoteAuthorityResolverService, IRemoteConnectionData, ResolvedAuthority, ResolverResult, getRemoteAuthorityPrefix } from 'vs/platform/remote/common/remoteAuthorityResolver';
 import { getRemoteServerRootPath, parseAuthorityWithOptionalPort } from 'vs/platform/remote/common/remoteHosts';
 
 export class RemoteAuthorityResolverService extends Disposable implements IRemoteAuthorityResolverService {
@@ -23,7 +26,12 @@ export class RemoteAuthorityResolverService extends Disposable implements IRemot
 	private readonly _connectionToken: Promise<string> | string | undefined;
 	private readonly _connectionTokens: Map<string, string>;
 
-	constructor(@IProductService productService: IProductService, connectionToken: Promise<string> | string | undefined, resourceUriProvider: ((uri: URI) => URI) | undefined) {
+	constructor(
+		connectionToken: Promise<string> | string | undefined,
+		resourceUriProvider: ((uri: URI) => URI) | undefined,
+		@IProductService productService: IProductService,
+		@ILogService private readonly _logService: ILogService,
+	) {
 		super();
 		this._connectionToken = connectionToken;
 		this._connectionTokens = new Map<string, string>();
@@ -60,7 +68,13 @@ export class RemoteAuthorityResolverService extends Disposable implements IRemot
 	}
 
 	private async _doResolveAuthority(authority: string): Promise<ResolverResult> {
+		const authorityPrefix = getRemoteAuthorityPrefix(authority);
+		const sw = StopWatch.create(false);
+		this._logService.info(`Resolving connection token (${authorityPrefix})...`);
+		performance.mark(`code/willResolveConnectionToken/${authorityPrefix}`);
 		const connectionToken = await Promise.resolve(this._connectionTokens.get(authority) || this._connectionToken);
+		performance.mark(`code/didResolveConnectionToken/${authorityPrefix}`);
+		this._logService.info(`Resolved connection token (${authorityPrefix}) after ${sw.elapsed()} ms`);
 		const defaultPort = (/^https:/.test(window.location.href) ? 443 : 80);
 		const { host, port } = parseAuthorityWithOptionalPort(authority, defaultPort);
 		const result: ResolverResult = { authority: { authority, host: host, port: port, connectionToken } };

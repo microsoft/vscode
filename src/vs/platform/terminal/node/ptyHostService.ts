@@ -11,16 +11,16 @@ import { ProxyChannel } from 'vs/base/parts/ipc/common/ipc';
 import { Client, IIPCOptions } from 'vs/base/parts/ipc/node/ipc.cp';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IEnvironmentService, INativeEnvironmentService } from 'vs/platform/environment/common/environment';
-import { parsePtyHostPort } from 'vs/platform/environment/common/environmentService';
+import { parsePtyHostDebugPort } from 'vs/platform/environment/node/environmentService';
 import { getResolvedShellEnv } from 'vs/platform/shell/node/shellEnv';
-import { ILogService } from 'vs/platform/log/common/log';
-import { LogLevelChannelClient } from 'vs/platform/log/common/logIpc';
+import { ILogService, ILoggerService } from 'vs/platform/log/common/log';
 import { RequestStore } from 'vs/platform/terminal/common/requestStore';
 import { HeartbeatConstants, IHeartbeatService, IProcessDataEvent, IPtyService, IReconnectConstants, IRequestResolveVariablesEvent, IShellLaunchConfig, ITerminalLaunchError, ITerminalProfile, ITerminalsLayoutInfo, TerminalIcon, TerminalIpcChannels, IProcessProperty, TitleEventSource, ProcessPropertyType, IProcessPropertyMap, TerminalSettingId, ISerializedTerminalState, ITerminalProcessOptions } from 'vs/platform/terminal/common/terminal';
 import { registerTerminalPlatformConfiguration } from 'vs/platform/terminal/common/terminalPlatformConfiguration';
 import { IGetTerminalLayoutInfoArgs, IProcessDetails, ISetTerminalLayoutInfoArgs } from 'vs/platform/terminal/common/terminalProcess';
 import { detectAvailableProfiles } from 'vs/platform/terminal/node/terminalProfiles';
 import { IPtyHostProcessReplayEvent } from 'vs/platform/terminal/common/capabilities/capabilities';
+import { RemoteLoggerChannelClient } from 'vs/platform/log/common/logIpc';
 
 enum Constants {
 	MaxRestarts = 5
@@ -79,9 +79,11 @@ export class PtyHostService extends Disposable implements IPtyService {
 
 	constructor(
 		private readonly _reconnectConstants: IReconnectConstants,
+		private readonly isRemote: boolean,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IEnvironmentService private readonly _environmentService: INativeEnvironmentService,
 		@ILogService private readonly _logService: ILogService,
+		@ILoggerService private readonly _loggerService: ILoggerService,
 	) {
 		super();
 
@@ -123,7 +125,7 @@ export class PtyHostService extends Disposable implements IPtyService {
 		}
 
 		try {
-			return await getResolvedShellEnv(this._logService, { _: [] }, process.env);
+			return await getResolvedShellEnv(this._configurationService, this._logService, { _: [] }, process.env);
 		} catch (error) {
 			this._logService.error('ptyHost was unable to resolve shell environment', error);
 
@@ -134,9 +136,10 @@ export class PtyHostService extends Disposable implements IPtyService {
 	private _startPtyHost(): [Client, IPtyService] {
 		const opts: IIPCOptions = {
 			serverName: 'Pty Host',
-			args: ['--type=ptyHost', '--logsPath', this._environmentService.logsPath],
+			args: ['--type=ptyHost', '--logsPath', this._environmentService.logsHome.fsPath],
 			env: {
 				VSCODE_LAST_PTY_ID: lastPtyId,
+				VSCODE_PTY_REMOTE: this.isRemote,
 				VSCODE_AMD_ENTRYPOINT: 'vs/platform/terminal/node/ptyHostMain',
 				VSCODE_PIPE_LOGGING: 'true',
 				VSCODE_VERBOSE_LOGGING: 'true', // transmit console logs from server to client,
@@ -146,7 +149,7 @@ export class PtyHostService extends Disposable implements IPtyService {
 			}
 		};
 
-		const ptyHostDebug = parsePtyHostPort(this._environmentService.args, this._environmentService.isBuilt);
+		const ptyHostDebug = parsePtyHostDebugPort(this._environmentService.args, this._environmentService.isBuilt);
 		if (ptyHostDebug) {
 			if (ptyHostDebug.break && ptyHostDebug.port) {
 				opts.debugBrk = ptyHostDebug.port;
@@ -178,11 +181,7 @@ export class PtyHostService extends Disposable implements IPtyService {
 		}));
 
 		// Setup logging
-		const logChannel = client.getChannel(TerminalIpcChannels.Log);
-		LogLevelChannelClient.setLevel(logChannel, this._logService.getLevel());
-		this._register(this._logService.onDidChangeLogLevel(() => {
-			LogLevelChannelClient.setLevel(logChannel, this._logService.getLevel());
-		}));
+		this._register(new RemoteLoggerChannelClient(this._loggerService, client.getChannel(TerminalIpcChannels.Logger)));
 
 		// Create proxy and forward events
 		const proxy = ProxyChannel.toService<IPtyService>(client.getChannel(TerminalIpcChannels.PtyHost));
@@ -239,7 +238,7 @@ export class PtyHostService extends Disposable implements IPtyService {
 	reduceConnectionGraceTime(): Promise<void> {
 		return this._proxy.reduceConnectionGraceTime();
 	}
-	start(id: number): Promise<ITerminalLaunchError | undefined> {
+	start(id: number): Promise<ITerminalLaunchError | { injectedArgs: string[] } | undefined> {
 		return this._proxy.start(id);
 	}
 	shutdown(id: number, immediate: boolean): Promise<void> {
@@ -293,8 +292,8 @@ export class PtyHostService extends Disposable implements IPtyService {
 	getEnvironment(): Promise<IProcessEnvironment> {
 		return this._proxy.getEnvironment();
 	}
-	getWslPath(original: string): Promise<string> {
-		return this._proxy.getWslPath(original);
+	getWslPath(original: string, direction: 'unix-to-win' | 'win-to-unix'): Promise<string> {
+		return this._proxy.getWslPath(original, direction);
 	}
 
 	getRevivedPtyNewId(id: number): Promise<number | undefined> {

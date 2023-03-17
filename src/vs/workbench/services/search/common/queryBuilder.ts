@@ -26,7 +26,7 @@ import { getExcludes, ICommonQueryProps, IFileQuery, IFolderQuery, IPatternInfo,
 /**
  * One folder to search and a glob expression that should be applied.
  */
-export interface IOneSearchPathPattern {
+interface IOneSearchPathPattern {
 	searchPath: uri;
 	pattern?: string;
 }
@@ -47,7 +47,7 @@ export interface ISearchPathsInfo {
 	pattern?: glob.IExpression;
 }
 
-export interface ICommonQueryBuilderOptions {
+interface ICommonQueryBuilderOptions {
 	_reason?: string;
 	excludePattern?: string | string[];
 	includePattern?: string | string[];
@@ -345,22 +345,20 @@ export class QueryBuilder {
 			return [];
 		}
 
-		const expandedSearchPaths = arrays.flatten(
-			searchPaths.map(searchPath => {
-				// 1 open folder => just resolve the search paths to absolute paths
-				let { pathPortion, globPortion } = splitGlobFromPath(searchPath);
+		const expandedSearchPaths = searchPaths.flatMap(searchPath => {
+			// 1 open folder => just resolve the search paths to absolute paths
+			let { pathPortion, globPortion } = splitGlobFromPath(searchPath);
 
-				if (globPortion) {
-					globPortion = normalizeGlobPattern(globPortion);
-				}
+			if (globPortion) {
+				globPortion = normalizeGlobPattern(globPortion);
+			}
 
-				// One pathPortion to multiple expanded search paths (e.g. duplicate matching workspace folders)
-				const oneExpanded = this.expandOneSearchPath(pathPortion);
+			// One pathPortion to multiple expanded search paths (e.g. duplicate matching workspace folders)
+			const oneExpanded = this.expandOneSearchPath(pathPortion);
 
-				// Expanded search paths to multiple resolved patterns (with ** and without)
-				return arrays.flatten(
-					oneExpanded.map(oneExpandedResult => this.resolveOneSearchPathPattern(oneExpandedResult, globPortion)));
-			}));
+			// Expanded search paths to multiple resolved patterns (with ** and without)
+			return oneExpanded.flatMap(oneExpandedResult => this.resolveOneSearchPathPattern(oneExpandedResult, globPortion));
+		});
 
 		const searchPathPatternMap = new Map<string, ISearchPathPattern>();
 		expandedSearchPaths.forEach(oneSearchPathPattern => {
@@ -581,6 +579,18 @@ function normalizeGlobPattern(pattern: string): string {
 }
 
 /**
+ * Escapes a path for use as a glob pattern that would match the input precisely.
+ * Characters '?', '*', '[', and ']' are escaped into character range glob syntax
+ * (for example, '?' becomes '[?]').
+ * NOTE: This implementation makes no special cases for UNC paths. For example,
+ * given the input "//?/C:/A?.txt", this would produce output '//[?]/C:/A[?].txt',
+ * which may not be desirable in some cases. Use with caution if UNC paths could be expected.
+ */
+function escapeGlobPattern(path: string): string {
+	return path.replace(/([?*[\]])/g, '[$1]');
+}
+
+/**
  * Construct an include pattern from a list of folders uris to search in.
  */
 export function resolveResourcesForSearchIncludes(resources: URI[], contextService: IWorkspaceContextService): string[] {
@@ -618,7 +628,7 @@ export function resolveResourcesForSearchIncludes(resources: URI[], contextServi
 			}
 
 			if (folderPath) {
-				folderPaths.push(folderPath);
+				folderPaths.push(escapeGlobPattern(folderPath));
 			}
 		});
 	}

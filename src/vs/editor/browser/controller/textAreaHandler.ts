@@ -34,7 +34,7 @@ import { MOUSE_CURSOR_TEXT_CSS_CLASS_NAME } from 'vs/base/browser/ui/mouseCursor
 import { TokenizationRegistry } from 'vs/editor/common/languages';
 import { ColorId, ITokenPresentation } from 'vs/editor/common/encodedTokenAttributes';
 import { Color } from 'vs/base/common/color';
-import { TimeoutTimer } from 'vs/base/common/async';
+import { IME } from 'vs/base/common/ime';
 
 export interface IVisibleRangeProvider {
 	visibleRangeForPosition(position: Position): HorizontalPosition | null;
@@ -113,7 +113,6 @@ export class TextAreaHandler extends ViewPart {
 
 	private _accessibilitySupport!: AccessibilitySupport;
 	private _accessibilityPageSize!: number;
-	private _accessibilityWriteTimer: TimeoutTimer;
 	private _textAreaWrapping!: boolean;
 	private _textAreaWidth!: number;
 	private _contentLeft: number;
@@ -153,7 +152,6 @@ export class TextAreaHandler extends ViewPart {
 		const layoutInfo = options.get(EditorOption.layoutInfo);
 
 		this._setAccessibilityOptions(options);
-		this._accessibilityWriteTimer = this._register(new TimeoutTimer());
 		this._contentLeft = layoutInfo.contentLeft;
 		this._contentWidth = layoutInfo.contentWidth;
 		this._contentHeight = layoutInfo.height;
@@ -186,9 +184,7 @@ export class TextAreaHandler extends ViewPart {
 		this.textArea.setAttribute('aria-haspopup', 'false');
 		this.textArea.setAttribute('aria-autocomplete', 'both');
 
-		if (options.get(EditorOption.domReadOnly) && options.get(EditorOption.readOnly)) {
-			this.textArea.setAttribute('readonly', 'true');
-		}
+		this._ensureReadOnlyAttribute();
 
 		this.textAreaCover = createFastDomNode(document.createElement('div'));
 		this.textAreaCover.setPosition('absolute');
@@ -464,6 +460,14 @@ export class TextAreaHandler extends ViewPart {
 		this._register(this._textAreaInput.onBlur(() => {
 			this._context.viewModel.setHasFocus(false);
 		}));
+
+		this._register(IME.onDidChange(() => {
+			this._ensureReadOnlyAttribute();
+		}));
+	}
+
+	public writeScreenReaderContent(reason: string): void {
+		this._textAreaInput.writeScreenReaderContent(reason);
 	}
 
 	public override dispose(): void {
@@ -595,11 +599,7 @@ export class TextAreaHandler extends ViewPart {
 		this.textArea.setAttribute('tabindex', String(options.get(EditorOption.tabIndex)));
 
 		if (e.hasChanged(EditorOption.domReadOnly) || e.hasChanged(EditorOption.readOnly)) {
-			if (options.get(EditorOption.domReadOnly) && options.get(EditorOption.readOnly)) {
-				this.textArea.setAttribute('readonly', 'true');
-			} else {
-				this.textArea.removeAttribute('readonly');
-			}
+			this._ensureReadOnlyAttribute();
 		}
 
 		if (e.hasChanged(EditorOption.accessibilitySupport)) {
@@ -611,11 +611,9 @@ export class TextAreaHandler extends ViewPart {
 	public override onCursorStateChanged(e: viewEvents.ViewCursorStateChangedEvent): boolean {
 		this._selections = e.selections.slice(0);
 		this._modelSelections = e.modelSelections.slice(0);
-		if (this._accessibilitySupport === AccessibilitySupport.Disabled) {
-			this._accessibilityWriteTimer.cancelAndSet(() => this._textAreaInput.writeScreenReaderContent('selection changed'), 0);
-		} else {
-			this._textAreaInput.writeScreenReaderContent('selection changed');
-		}
+		// We must update the <textarea> synchronously, otherwise long press IME on macos breaks.
+		// See https://github.com/microsoft/vscode/issues/165821
+		this._textAreaInput.writeScreenReaderContent('selection changed');
 		return true;
 	}
 	public override onDecorationsChanged(e: viewEvents.ViewDecorationsChangedEvent): boolean {
@@ -679,6 +677,18 @@ export class TextAreaHandler extends ViewPart {
 	}
 
 	// --- end view API
+
+	private _ensureReadOnlyAttribute(): void {
+		const options = this._context.configuration.options;
+		// When someone requests to disable IME, we set the "readonly" attribute on the <textarea>.
+		// This will prevent composition.
+		const useReadOnly = !IME.enabled || (options.get(EditorOption.domReadOnly) && options.get(EditorOption.readOnly));
+		if (useReadOnly) {
+			this.textArea.setAttribute('readonly', 'true');
+		} else {
+			this.textArea.removeAttribute('readonly');
+		}
+	}
 
 	private _primaryCursorPosition: Position = new Position(1, 1);
 	private _primaryCursorVisibleRange: HorizontalPosition | null = null;

@@ -9,6 +9,8 @@ import { ResourceMap } from 'vs/base/common/map';
 import { isEqual } from 'vs/base/common/resources';
 import { withNullAsUndefined } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
+import { generateUuid } from 'vs/base/common/uuid';
+import { AudioCue, IAudioCueService } from 'vs/platform/audioCues/browser/audioCueService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILogService } from 'vs/platform/log/common/log';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
@@ -36,6 +38,7 @@ export class NotebookExecutionStateService extends Disposable implements INotebo
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@ILogService private readonly _logService: ILogService,
 		@INotebookService private readonly _notebookService: INotebookService,
+		@IAudioCueService private readonly _audioCueService: IAudioCueService
 	) {
 		super();
 	}
@@ -104,8 +107,12 @@ export class NotebookExecutionStateService extends Disposable implements INotebo
 
 		if (lastRunSuccess !== undefined) {
 			if (lastRunSuccess) {
+				if (this._executions.size === 0) {
+					this._audioCueService.playAudioCue(AudioCue.notebookCellCompleted);
+				}
 				this._clearLastFailedCell(notebookUri);
 			} else {
+				this._audioCueService.playAudioCue(AudioCue.notebookCellFailed);
 				this._setLastFailedCell(notebookUri, cellHandle);
 			}
 		}
@@ -388,10 +395,12 @@ class CellExecution extends Disposable implements INotebookCellExecution {
 			editType: CellEditType.PartialInternalMetadata,
 			handle: this.cellHandle,
 			internalMetadata: {
+				executionId: generateUuid(),
 				runStartTime: null,
 				runEndTime: null,
 				lastRunSuccess: null,
 				executionOrder: null,
+				renderDuration: null,
 			}
 		};
 		this._applyExecutionEdits([startExecuteEdit]);
