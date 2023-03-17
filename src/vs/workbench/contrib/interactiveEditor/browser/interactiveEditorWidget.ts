@@ -91,9 +91,10 @@ class InteractiveEditorWidget {
 	private readonly _progressBar: ProgressBar;
 
 	private readonly _onDidChangeHeight = new Emitter<void>();
-	readonly onDidChangeHeight: Event<void> = this._onDidChangeHeight.event;
+	readonly onDidChangeHeight: Event<void> = Event.filter(this._onDidChangeHeight.event, _ => !this._isLayouting);
 
 	private _editorDim: Dimension | undefined;
+	private _isLayouting: boolean = false;
 
 	public acceptInput: (preview: boolean) => void = InteractiveEditorWidget._noop;
 	private _cancelInput: () => void = InteractiveEditorWidget._noop;
@@ -211,17 +212,21 @@ class InteractiveEditorWidget {
 	}
 
 	layout(dim: Dimension) {
+		this._isLayouting = true;
+		try {
+			const innerEditorWidth = Math.min(
+				Number.MAX_SAFE_INTEGER, //  TODO@jrieken define max width?
+				dim.width - (getTotalWidth(this._elements.rhsToolbar) + 12 /* L/R-padding */)
+			);
+			const newDim = new Dimension(innerEditorWidth, this.inputEditor.getContentHeight());
+			if (!this._editorDim || !Dimension.equals(this._editorDim, newDim)) {
+				this._editorDim = newDim;
+				this.inputEditor.layout(this._editorDim);
 
-		const innerEditorWidth = Math.min(
-			Number.MAX_SAFE_INTEGER, //  TODO@jrieken define max width?
-			dim.width - (getTotalWidth(this._elements.rhsToolbar) + 12 /* L/R-padding */)
-		);
-		const newDim = new Dimension(innerEditorWidth, this.inputEditor.getContentHeight());
-		if (!this._editorDim || !Dimension.equals(this._editorDim, newDim)) {
-			this._editorDim = newDim;
-			this.inputEditor.layout(this._editorDim);
-
-			this._elements.placeholder.style.width = `${innerEditorWidth - 4 /* input-padding*/}px`;
+				this._elements.placeholder.style.width = `${innerEditorWidth - 4 /* input-padding*/}px`;
+			}
+		} finally {
+			this._isLayouting = false;
 		}
 	}
 
