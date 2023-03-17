@@ -42,7 +42,6 @@ export class ContentHoverController extends Disposable {
 
 	private readonly _participants: IEditorHoverParticipant[];
 	private readonly _resizableWidget = this._register(this._instantiationService.createInstance(ResizableHoverOverlay, this._editor));
-	private readonly _focusTracker = this._register(dom.trackFocus(this._resizableWidget.getDomNode()));
 	private readonly _widget = this._register(this._instantiationService.createInstance(ContentHoverWidget, this._editor));
 
 	private readonly _computer: ContentHoverComputer;
@@ -57,10 +56,7 @@ export class ContentHoverController extends Disposable {
 	) {
 		super();
 
-		this._register(this._focusTracker.onDidFocus(() => {
-			console.log('On did focus on resizable widget');
-			this._widget.focus();
-		}));
+		this._resizableWidget.containingWidget = this._widget;
 
 		// Instantiate participants and sort them by `hoverOrdinal` which is relevant for rendering order.
 		this._participants = [];
@@ -95,13 +91,8 @@ export class ContentHoverController extends Disposable {
 		this._register(this._editor.onDidChangeModel(() => {
 			this._resizableWidget.hide();
 		}));
-
 		this._register(this._resizableWidget.onDidResize((e) => {
 			this._widget.resize(e.dimension);
-		}));
-
-		this._register(this._editor.onDidScrollChange(() => {
-
 		}));
 	}
 
@@ -429,6 +420,7 @@ export class ContentHoverController extends Disposable {
 			// Before there wasn't any of this below
 			this._editor.layoutContentWidget(this._widget);
 			this._editor.render();
+
 			console.log('* After layoutContentWidget and render');
 			const containerDomNode = this._widget.getDomNode();
 			console.log('containerDomNode : ', containerDomNode);
@@ -469,7 +461,25 @@ export class ContentHoverController extends Disposable {
 			console.log('resizableWidgetDomNode offset top : ', resizableWidgetDomNode.offsetTop);
 			console.log('resizableWidgetDomNode offset left : ', resizableWidgetDomNode.offsetLeft);
 
-			this._resizableWidget.showAt(position, size);
+			// Find if rendered above or below
+
+			const topLineNumber = anchor.initialMousePosY;
+			console.log('topLineNumber : ', topLineNumber);
+			console.log('position.clientTop : ', position.clientTop);
+
+			let renderingAbove: boolean = true;
+
+			if (topLineNumber) {
+				if (position.clientTop <= topLineNumber) {
+					renderingAbove = true;
+				} else {
+					renderingAbove = false;
+				}
+			}
+
+			console.log('Rendering above : ', renderingAbove);
+
+			this._resizableWidget.showAt(position, size, renderingAbove);
 
 			console.log('* After showAt of resizableWidget');
 			resizableWidgetDomNode = this._resizableWidget.getDomNode();
@@ -608,6 +618,7 @@ export class ResizableHoverOverlay extends Disposable implements IOverlayWidget 
 	private _renderingPosition: IOverlayWidgetPosition | null = null;
 	private _visible: boolean = false;
 	private _renderingAbove: ContentWidgetPositionPreference = ContentWidgetPositionPreference.ABOVE;
+	private _containingWidget: ContentHoverWidget | null = null;
 
 	private readonly _onDidResize = new Emitter<IResizeEvent>();
 	readonly onDidResize: Event<IResizeEvent> = this._onDidResize.event;
@@ -616,10 +627,7 @@ export class ResizableHoverOverlay extends Disposable implements IOverlayWidget 
 		super();
 		console.log('Inside of constructor of ResizableHoverOverlay');
 		// TODO: persist sizes during the session instead of persisting on reload
-		// TODO: The resizable element size does not align with the container dom size when there is not enouhg space for normal rendering
 		// TODO: Upon resizing the, the persisted size is used everywhere, even if previously was not used everywhere
-		// TODO: Calculate correctly the container dom node size and resizable container dom node size
-		// TODO: When hovering over the scroll dom, show the scrollbar
 
 		this._editor.onDidChangeModelContent((e) => {
 			const uri = this._editor.getModel()?.uri.toString();
@@ -675,24 +683,35 @@ export class ResizableHoverOverlay extends Disposable implements IOverlayWidget 
 				return;
 			}
 			this._size = new dom.Dimension(width, height);
+			this._resizableElement.layout(height, width);
 			console.log('this._initialTop : ', this._initialTop);
 			console.log('this._intiialHeight : ', this._initialHeight);
 			console.log('height : ', height);
 			console.log('this._initialTop - (height - this._initialHeight) : ', this._initialTop - (height - this._initialHeight));
-			this._resizableElement.domNode.style.top = this._initialTop - (height - this._initialHeight) + 'px';
+
+			if (this._renderingAbove === ContentWidgetPositionPreference.ABOVE) {
+				this._resizableElement.domNode.style.top = this._initialTop - (height - this._initialHeight) + 'px';
+			}
+
 			this._onDidResize.fire({ dimension: this._size, done: false });
-			this._resizableElement.layout(height, width);
-			// this._maxRenderingHeight = this._findMaxRenderingHeight();
+
+			console.log('this._containingWidget : ', this._containingWidget);
+
+			if (!this._containingWidget) {
+				return;
+			}
+			this._maxRenderingHeight = this._containingWidget.findMaxRenderingHeight(this._renderingAbove);
+			console.log('this._maxRenderingHeight : ', this._maxRenderingHeight);
 			if (!this._maxRenderingHeight) {
 				return;
 			}
+			this._resizableElement.minSize = new dom.Dimension(10, 24);
 			this._resizableElement.maxSize = new dom.Dimension(maxWidth, this._maxRenderingHeight);
+
 
 			if (state) {
 				state.persistHeight = state.persistHeight || !!e.north || !!e.south;
 				state.persistWidth = state.persistWidth || !!e.east || !!e.west;
-			}
-			if (state) {
 				if (!this._editor.hasModel()) {
 					return;
 				}
@@ -704,8 +723,8 @@ export class ResizableHoverOverlay extends Disposable implements IOverlayWidget 
 				if (!this._tooltipPosition) {
 					return;
 				}
-				const wordPosition = this._editor.getModel()?.getWordAtPosition(this._tooltipPosition);
-				if (!wordPosition || !this._editor.hasModel()) {
+				const wordPosition = this._editor.getModel().getWordAtPosition(this._tooltipPosition);
+				if (!wordPosition) {
 					return;
 				}
 				const offset = this._editor.getModel().getOffsetAt({ lineNumber: this._tooltipPosition.lineNumber, column: wordPosition.startColumn });
@@ -725,7 +744,7 @@ export class ResizableHoverOverlay extends Disposable implements IOverlayWidget 
 				console.log('Inside of the case when done');
 				this._resizing = false;
 			}
-
+			console.log('Before layout overlay widget of the onDidResize listener');
 			this._editor.layoutOverlayWidget(this);
 			this._editor.render();
 
@@ -745,8 +764,12 @@ export class ResizableHoverOverlay extends Disposable implements IOverlayWidget 
 		return this._initialTop;
 	}
 
+	public set containingWidget(containingWidget: ContentHoverWidget) {
+		console.log('setting the containing widget');
+		this._containingWidget = containingWidget;
+	}
+
 	public findPersistedSize(): dom.Dimension | undefined {
-		// console.log('Inside of _findPersistedSize');
 		if (!this._tooltipPosition) {
 			return;
 		}
@@ -757,14 +780,10 @@ export class ResizableHoverOverlay extends Disposable implements IOverlayWidget 
 		const offset = this._editor.getModel().getOffsetAt({ lineNumber: this._tooltipPosition.lineNumber, column: wordPosition.startColumn });
 		const length = wordPosition.word.length;
 		const uri = this._editor.getModel().uri.toString();
-		// console.log('offset : ', offset);
-		// console.log('length : ', length);
 		const textModelMap = this._persistedHoverWidgetSizes.get(uri);
-		// console.log('textModelMap : ', textModelMap);
 		if (!textModelMap) {
 			return;
 		}
-		// console.log('textModelMap.value : ', textModelMap.entries().next().value);
 		return textModelMap.get(JSON.stringify([offset, length]));
 	}
 
@@ -777,8 +796,7 @@ export class ResizableHoverOverlay extends Disposable implements IOverlayWidget 
 		this._resizableElement.enableSashes(false, false, false, false);
 		this._resizableElement.clearSashHoverState();
 		this._visible = false;
-		// this._resizableElement.layout(0, 0);
-		// this._editor.layoutOverlayWidget(this);
+		this._resizing = false;
 		this._editor.removeOverlayWidget(this);
 		this._editor.render();
 	}
@@ -812,9 +830,8 @@ export class ResizableHoverOverlay extends Disposable implements IOverlayWidget 
 		return this._renderingPosition;
 	}
 
-
 	// TODO; The problem with not being able to change the height is most probably linked to the persisting of the height too
-	public showAt(position: any, size: dom.Dimension): void {
+	public showAt(position: any, size: dom.Dimension, renderingAbove: boolean): void {
 		console.log('Inside of showAt of ResizableHoverOverlay');
 		console.log('Before adding overlay widget');
 
@@ -835,7 +852,14 @@ export class ResizableHoverOverlay extends Disposable implements IOverlayWidget 
 		console.log('resizableWidgetDomNode offset top : ', resizableWidgetDomNode.offsetTop);
 		console.log('resizableWidgetDomNode offset left : ', resizableWidgetDomNode.offsetLeft);
 
-		this._resizableElement.enableSashes(true, true, false, false);
+		this._renderingAbove = renderingAbove ? ContentWidgetPositionPreference.ABOVE : ContentWidgetPositionPreference.BELOW;
+
+		if (renderingAbove) {
+			this._resizableElement.enableSashes(true, true, false, false);
+		} else {
+			this._resizableElement.enableSashes(false, true, true, false);
+		}
+
 		this._resizableElement.domNode.style.top = position.clientTop - 2 + 'px';
 		this._resizableElement.domNode.style.left = position.clientLeft - 2 + 'px';
 		this._resizableElement.domNode.style.zIndex = '5';
@@ -883,11 +907,6 @@ export class ContentHoverWidget extends Disposable implements IContentWidget {
 
 	private readonly _hover: HoverWidget = this._register(new HoverWidget());
 	private _visibleData: ContentHoverVisibleData | null = null;
-	private _resizableHoverOverlay: ResizableHoverOverlay | null = null;
-	private _renderingAboveOption: boolean = this._editor.getOption(EditorOption.hover).above;
-	private _renderingAbove = this._renderingAboveOption;
-	private _maxRenderingHeight: number | undefined = -1;
-	private readonly _persistedHoverWidgetSizes = new Map<string, Map<string, dom.Dimension>>();
 	private readonly _hoverVisibleKey = EditorContextKeys.hoverVisible.bindTo(this._contextKeyService);
 	private readonly _hoverFocusedKey = EditorContextKeys.hoverFocused.bindTo(this._contextKeyService);
 	private readonly _focusTracker = this._register(dom.trackFocus(this.getDomNode()));
@@ -922,9 +941,6 @@ export class ContentHoverWidget extends Disposable implements IContentWidget {
 			if (e.hasChanged(EditorOption.fontInfo)) {
 				this._updateFont();
 			}
-			if (e.hasChanged(EditorOption.hover)) {
-				this._renderingAbove = this._editor.getOption(EditorOption.hover).above;
-			}
 		}));
 
 		this._setVisibleData(null);
@@ -939,9 +955,6 @@ export class ContentHoverWidget extends Disposable implements IContentWidget {
 		}));
 	}
 
-	public setResizableHoverOverlay(resizablHoverOverlay: ResizableHoverOverlay): void {
-		this._resizableHoverOverlay = resizablHoverOverlay;
-	}
 
 	public resize(size: dom.Dimension | null) {
 		this._hover.contentsDomNode.style.maxHeight = 'none';
@@ -1090,32 +1103,33 @@ export class ContentHoverWidget extends Disposable implements IContentWidget {
 	}
 	*/
 
-	private _findMaxRenderingHeight(): number | undefined {
+	public findMaxRenderingHeight(rendering: ContentWidgetPositionPreference): number | undefined {
+		console.log('rendering : ', rendering);
 		if (!this._editor || !this._editor.hasModel()) {
 			return;
 		}
-		const preferRenderingAbove = this._editor.getOption(EditorOption.hover).above;
 		const editorBox = dom.getDomNodePagePosition(this._editor.getDomNode());
 		if (!this._visibleData?.showAtPosition) {
 			return;
 		}
 		const mouseBox = this._editor.getScrolledVisiblePosition(this._visibleData?.showAtPosition);
 		const bodyBox = dom.getClientArea(document.body);
-		const availableSpaceAboveMinusTabsAndBreadcrumbs = mouseBox!.top - 4;
-		const mouseBottom = editorBox.top + mouseBox!.top + mouseBox!.height;
-		const availableSpaceBelow = bodyBox.height - mouseBottom;
+		let availableSpace: number;
 
-		let maxRenderingHeight;
-		if (preferRenderingAbove) {
-			maxRenderingHeight = this._renderingAbove ? availableSpaceAboveMinusTabsAndBreadcrumbs : availableSpaceBelow;
+		if (rendering === ContentWidgetPositionPreference.ABOVE) {
+			availableSpace = editorBox.top + mouseBox.top;
 		} else {
-			maxRenderingHeight = this._renderingAbove ? availableSpaceBelow : availableSpaceAboveMinusTabsAndBreadcrumbs;
+			const mouseBottom = editorBox.top + mouseBox!.top + mouseBox!.height;
+			availableSpace = bodyBox.height - mouseBottom;
 		}
+		console.log('availableSpace : ', availableSpace);
 		let actualMaxHeight = 0;
 		for (const childHtmlElement of this._hover.contentsDomNode.children) {
 			actualMaxHeight += childHtmlElement.clientHeight;
 		}
-		maxRenderingHeight = Math.min(maxRenderingHeight, actualMaxHeight + 2);
+		console.log('actual max height : ', actualMaxHeight);
+		const maxRenderingHeight = Math.min(availableSpace, actualMaxHeight + 7);
+		console.log('maxRenderingHeight : ', maxRenderingHeight);
 		return maxRenderingHeight;
 	}
 
@@ -1207,22 +1221,10 @@ export class ContentHoverWidget extends Disposable implements IContentWidget {
 
 		// :before content can align left of the text content
 		const affinity = this._visibleData.isBeforeContent ? PositionAffinity.LeftOfInjectedText : undefined;
-		const rendering = this._renderingAbove ? ContentWidgetPositionPreference.ABOVE : ContentWidgetPositionPreference.BELOW;
-		console.log('position inside of ContentHoverWidget : ', {
-			position: this._visibleData.showAtPosition,
-			secondaryPosition: this._visibleData.showAtSecondaryPosition,
-			// TODO: place back, preference: [rendering],
-			preference: (
-				preferAbove
-					? [ContentWidgetPositionPreference.ABOVE, ContentWidgetPositionPreference.BELOW]
-					: [ContentWidgetPositionPreference.BELOW, ContentWidgetPositionPreference.ABOVE]
-			),
-			positionAffinity: affinity
-		});
+
 		return {
 			position: this._visibleData.showAtPosition,
 			secondaryPosition: this._visibleData.showAtSecondaryPosition,
-			// TODO: place back, preference: [rendering],
 			preference: (
 				preferAbove
 					? [ContentWidgetPositionPreference.ABOVE, ContentWidgetPositionPreference.BELOW]
