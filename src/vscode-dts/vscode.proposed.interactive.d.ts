@@ -111,7 +111,7 @@ declare module 'vscode' {
 
 	export interface InteractiveResponseCommand {
 		commandId: string;
-		args: any[];
+		args?: any[];
 		title: string; // supports codicon strings
 	}
 

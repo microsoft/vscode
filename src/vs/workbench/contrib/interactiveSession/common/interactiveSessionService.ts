@@ -69,7 +69,7 @@ export interface IInteractiveSessionReplyFollowup {
 export interface IInteractiveSessionResponseCommandFollowup {
 	kind: 'command';
 	commandId: string;
-	args: any[];
+	args?: any[];
 	title: string; // supports codicon strings
 }
 
