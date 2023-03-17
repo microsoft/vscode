@@ -772,6 +772,7 @@ class UserKeybindings extends Disposable {
 const schemaId = 'vscode://schemas/keybindings';
 const commandsSchemas: IJSONSchema[] = [];
 const commandsEnum: string[] = [];
+const removalCommandsEnum: string[] = [];
 const commandsEnumDescriptions: (string | undefined)[] = [];
 const schema: IJSONSchema = {
 	id: schemaId,
@@ -815,6 +816,12 @@ const schema: IJSONSchema = {
 						'description': nls.localize('keybindings.json.command', "Name of the command to execute"),
 					},
 					{
+						'type': 'string',
+						'enum': removalCommandsEnum,
+						'enumDescriptions': <any>commandsEnumDescriptions,
+						'description': nls.localize('keybindings.json.removalCommand', "Name of the command to remove keyboard shortcut for"),
+					},
+					{
 						'type': 'string'
 					}
 				]
@@ -837,6 +844,7 @@ schemaRegistry.registerSchema(schemaId, schema);
 function updateSchema(additionalContributions: readonly IJSONSchema[]) {
 	commandsSchemas.length = 0;
 	commandsEnum.length = 0;
+	removalCommandsEnum.length = 0;
 	commandsEnumDescriptions.length = 0;
 
 	const knownCommands = new Set<string>();
@@ -849,8 +857,7 @@ function updateSchema(additionalContributions: readonly IJSONSchema[]) {
 				commandsEnumDescriptions.push(description);
 
 				// Also add the negative form for keybinding removal
-				commandsEnum.push(`-${commandId}`);
-				commandsEnumDescriptions.push(description);
+				removalCommandsEnum.push(`-${commandId}`);
 			}
 		}
 	};
