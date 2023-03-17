@@ -302,7 +302,8 @@ async function getGitBashPaths(): Promise<string[]> {
 	for (const gitDir of gitDirs) {
 		gitBashPaths.push(
 			`${gitDir}\\Git\\bin\\bash.exe`,
-			`${gitDir}\\Git\\usr\\bin\\bash.exe`
+			`${gitDir}\\Git\\usr\\bin\\bash.exe`,
+			`${gitDir}\\usr\\bin\\bash.exe` // using Git for Windows SDK
 		);
 	}
 
