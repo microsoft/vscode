@@ -156,10 +156,17 @@ declare module 'vscode' {
 		direction: InteractiveSessionVoteDirection;
 	}
 
+	export enum InteractiveSessionCopyKind {
+		// Keyboard shortcut or context menu
+		Action = 1,
+		Toolbar = 2
+	}
+
 	export interface InteractiveSessionCopyAction {
 		kind: 'copy';
 		responseId: string;
 		codeBlockIndex: number;
+		copyType: InteractiveSessionCopyKind;
 	}
 
 	export interface InteractiveSessionInsertAction {
