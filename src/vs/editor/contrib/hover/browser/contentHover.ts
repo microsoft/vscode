@@ -311,7 +311,7 @@ export class ContentHoverController extends Disposable {
 				this._widget.onContentsChanged();
 				const clientWidth = this._widget.getDomNode().clientWidth;
 				const clientHeight = this._widget.getDomNode().clientHeight;
-				this._resizableWidget.resizableElement().layout(clientHeight + 4, clientWidth + 4);
+				this._resizableWidget.resizableElement().layout(clientHeight + 7, clientWidth + 7);
 				this._editor.layoutOverlayWidget(this._resizableWidget);
 				this._editor.render();
 
@@ -741,8 +741,6 @@ export class ResizableHoverOverlay extends Disposable implements IOverlayWidget 
 		console.log('resizableWidgetDomNode offset top : ', resizableWidgetDomNode.offsetTop);
 		console.log('resizableWidgetDomNode offset left : ', resizableWidgetDomNode.offsetLeft);
 
-
-
 		this._editor.addOverlayWidget(this);
 		console.log('After adding overlay widget');
 		resizableWidgetDomNode = this.getDomNode();
@@ -753,15 +751,14 @@ export class ResizableHoverOverlay extends Disposable implements IOverlayWidget 
 		console.log('resizableWidgetDomNode offset left : ', resizableWidgetDomNode.offsetLeft);
 
 		this._resizableElement.enableSashes(true, true, false, false);
-		this._resizableElement.domNode.style.top = position.clientTop - 1 + 'px';
-		this._resizableElement.domNode.style.left = position.clientLeft - 1 + 'px';
+		this._resizableElement.domNode.style.top = position.clientTop - 2 + 'px';
+		this._resizableElement.domNode.style.left = position.clientLeft - 2 + 'px';
 		this._resizableElement.domNode.style.zIndex = '5';
 		this._resizableElement.domNode.tabIndex = 0;
 		this._resizableElement.domNode.style.position = 'fixed';
-		this._resizableElement.domNode.style.height = size.height + 'px';
-		this._resizableElement.domNode.style.width = size.width + 'px';
+		this._resizableElement.domNode.style.height = size.height + 7 + 'px';
+		this._resizableElement.domNode.style.width = size.width + 7 + 'px';
 		this._resizableElement.layout(size.height, size.width);
-
 
 		console.log('After style chamge of overlay widget');
 		resizableWidgetDomNode = this.getDomNode();
@@ -798,7 +795,6 @@ export class ContentHoverWidget extends Disposable implements IContentWidget {
 	static readonly ID = 'editor.contrib.contentHoverWidget';
 
 	public readonly allowEditorOverflow = true;
-
 
 	private readonly _hover: HoverWidget = this._register(new HoverWidget());
 	private _visibleData: ContentHoverVisibleData | null = null;
