@@ -13,7 +13,7 @@ import * as languages from 'vs/editor/common/languages';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { extHostNamedCustomer, IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
-import { ICommentInfo, ICommentService, INotebookCommentInfo } from 'vs/workbench/contrib/comments/browser/commentService';
+import { ICommentController, ICommentInfo, ICommentService, INotebookCommentInfo } from 'vs/workbench/contrib/comments/browser/commentService';
 import { CommentsPanel } from 'vs/workbench/contrib/comments/browser/commentsView';
 import { CommentProviderFeatures, ExtHostCommentsShape, ExtHostContext, MainContext, MainThreadCommentsShape, CommentThreadChanges } from '../common/extHost.protocol';
 import { COMMENTS_VIEW_ID, COMMENTS_VIEW_STORAGE_ID, COMMENTS_VIEW_TITLE } from 'vs/workbench/contrib/comments/browser/commentsTreeViewer';
@@ -80,12 +80,12 @@ export class MainThreadCommentThread<T> implements languages.CommentThread<T> {
 	private readonly _onDidChangeComments = new Emitter<readonly languages.Comment[] | undefined>();
 	get onDidChangeComments(): Event<readonly languages.Comment[] | undefined> { return this._onDidChangeComments.event; }
 
-	set range(range: T) {
+	set range(range: T | undefined) {
 		this._range = range;
 		this._onDidChangeRange.fire(this._range);
 	}
 
-	get range(): T {
+	get range(): T | undefined {
 		return this._range;
 	}
 
@@ -100,7 +100,7 @@ export class MainThreadCommentThread<T> implements languages.CommentThread<T> {
 		return this._canReply;
 	}
 
-	private readonly _onDidChangeRange = new Emitter<T>();
+	private readonly _onDidChangeRange = new Emitter<T | undefined>();
 	public onDidChangeRange = this._onDidChangeRange.event;
 
 	private _collapsibleState: languages.CommentThreadCollapsibleState | undefined;
@@ -138,7 +138,7 @@ export class MainThreadCommentThread<T> implements languages.CommentThread<T> {
 	}
 
 	isDocumentCommentThread(): this is languages.CommentThread<IRange> {
-		return Range.isIRange(this._range);
+		return this._range === undefined || Range.isIRange(this._range);
 	}
 
 	private _state: languages.CommentThreadState | undefined;
@@ -164,7 +164,7 @@ export class MainThreadCommentThread<T> implements languages.CommentThread<T> {
 		public extensionId: string,
 		public threadId: string,
 		public resource: string,
-		private _range: T,
+		private _range: T | undefined,
 		private _canReply: boolean,
 		private _isTemplate: boolean
 	) {
@@ -207,7 +207,7 @@ export class MainThreadCommentThread<T> implements languages.CommentThread<T> {
 	}
 }
 
-export class MainThreadCommentController {
+export class MainThreadCommentController implements ICommentController {
 	get handle(): number {
 		return this._handle;
 	}
@@ -267,7 +267,7 @@ export class MainThreadCommentController {
 		commentThreadHandle: number,
 		threadId: string,
 		resource: UriComponents,
-		range: IRange | ICellRange,
+		range: IRange | ICellRange | undefined,
 		isTemplate: boolean
 	): languages.CommentThread<IRange | ICellRange> {
 		const thread = new MainThreadCommentThread(
@@ -547,7 +547,7 @@ export class MainThreadComments extends Disposable implements MainThreadComments
 		commentThreadHandle: number,
 		threadId: string,
 		resource: UriComponents,
-		range: IRange | ICellRange,
+		range: IRange | ICellRange | undefined,
 		extensionId: ExtensionIdentifier,
 		isTemplate: boolean
 	): languages.CommentThread<IRange | ICellRange> | undefined {

@@ -307,7 +307,7 @@ export interface IPtyService extends IPtyHostController {
 	 */
 	listProcesses(): Promise<IProcessDetails[]>;
 
-	start(id: number): Promise<ITerminalLaunchError | undefined>;
+	start(id: number): Promise<ITerminalLaunchError | { injectedArgs: string[] } | undefined>;
 	shutdown(id: number, immediate: boolean): Promise<void>;
 	input(id: number, data: string): Promise<void>;
 	resize(id: number, cols: number, rows: number): Promise<void>;
@@ -646,7 +646,7 @@ export interface ITerminalChildProcess {
 	 * @returns undefined when the process was successfully started, otherwise an object containing
 	 * information on what went wrong.
 	 */
-	start(): Promise<ITerminalLaunchError | undefined>;
+	start(): Promise<ITerminalLaunchError | { injectedArgs: string[] } | undefined>;
 
 	/**
 	 * Detach the process from the UI and await reconnect.

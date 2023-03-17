@@ -84,6 +84,13 @@ pub fn make_singleton_server(
 	);
 
 	rpc.register_sync(
+		protocol::singleton::METHOD_STATUS,
+		|_: protocol::EmptyObject, _| {
+			Ok(protocol::singleton::Status { ok: true }) // mostly placeholder
+		},
+	);
+
+	rpc.register_sync(
 		protocol::singleton::METHOD_SHUTDOWN,
 		|_: protocol::EmptyObject, ctx| {
 			info!(

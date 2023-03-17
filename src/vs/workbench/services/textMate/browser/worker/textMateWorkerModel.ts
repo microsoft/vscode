@@ -177,6 +177,8 @@ export class TextMateWorkerModel extends MirrorTextModel {
 						tokenizeResult.endState as StateStack
 					);
 					stateDeltaBuilder.setState(lineIndex + 1, delta);
+				} else {
+					stateDeltaBuilder.setState(lineIndex + 1, null);
 				}
 
 				LineTokens.convertToEndOffset(tokenizeResult.tokens, text.length);
@@ -215,7 +217,7 @@ class StateDeltaBuilder {
 	private _lastStartLineNumber: number = -1;
 	private _stateDeltas: StateDeltas[] = [];
 
-	public setState(lineNumber: number, stackDiff: StackDiff): void {
+	public setState(lineNumber: number, stackDiff: StackDiff | null): void {
 		if (lineNumber === this._lastStartLineNumber + 1) {
 			this._stateDeltas[this._stateDeltas.length - 1].stateDeltas.push(stackDiff);
 		} else {
