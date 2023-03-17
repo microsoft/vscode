@@ -708,7 +708,6 @@ export class ResizableHoverOverlay extends Disposable implements IOverlayWidget 
 			this._resizableElement.minSize = new dom.Dimension(10, 24);
 			this._resizableElement.maxSize = new dom.Dimension(maxWidth, this._maxRenderingHeight);
 
-
 			if (state) {
 				state.persistHeight = state.persistHeight || !!e.north || !!e.south;
 				state.persistWidth = state.persistWidth || !!e.east || !!e.west;
@@ -795,6 +794,7 @@ export class ResizableHoverOverlay extends Disposable implements IOverlayWidget 
 		console.log('hiding the resizable hover overlay');
 		this._resizableElement.enableSashes(false, false, false, false);
 		this._resizableElement.clearSashHoverState();
+		this._resizableElement.maxSize = new dom.Dimension(Number.MAX_SAFE_INTEGER, Number.MAX_SAFE_INTEGER);
 		this._visible = false;
 		this._resizing = false;
 		this._editor.removeOverlayWidget(this);
@@ -1367,6 +1367,8 @@ export class ContentHoverWidget extends Disposable implements IContentWidget {
 		} else {
 			containerDomNode.style.width = 'auto';
 			containerDomNode.style.height = 'auto';
+			contentsDomNode.style.width = 'auto';
+			contentsDomNode.style.height = 'auto';
 		}
 
 		this._editor.layoutContentWidget(this);
