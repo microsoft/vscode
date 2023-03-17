@@ -1744,7 +1744,9 @@ export function registerTerminalActions() {
 					// Weight is higher than work workbench contributions so the keybinding remains
 					// highest priority when chords are registered afterwards
 					weight: KeybindingWeight.WorkbenchContrib + 1,
-					when: TerminalContextKeys.focus
+					// Disable the keybinding when accessibility mode is enabled as chords include
+					// important screen reader keybindings such as cmd+k, cmd+i to show the hover
+					when: ContextKeyExpr.and(TerminalContextKeys.focus, CONTEXT_ACCESSIBILITY_MODE_ENABLED.negate()),
 				}]
 			});
 		}
