@@ -1528,6 +1528,21 @@ export namespace LanguageSelector {
 	}
 }
 
+export namespace NotebookDocumentSaveReason {
+
+	export function to(reason: SaveReason): vscode.NotebookDocumentSaveReason {
+		switch (reason) {
+			case SaveReason.AUTO:
+				return types.NotebookDocumentSaveReason.AfterDelay;
+			case SaveReason.EXPLICIT:
+				return types.NotebookDocumentSaveReason.Manual;
+			case SaveReason.FOCUS_CHANGE:
+			case SaveReason.WINDOW_CHANGE:
+				return types.NotebookDocumentSaveReason.FocusOut;
+		}
+	}
+}
+
 export namespace NotebookRange {
 
 	export function from(range: vscode.NotebookRange): ICellRange {
