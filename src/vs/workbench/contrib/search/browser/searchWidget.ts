@@ -187,6 +187,7 @@ export class SearchWidget extends Widget {
 
 		this._notebookFilters = this._register(
 			new NotebookFindFilters(
+				false,
 				options.notebookOptions?.isInNotebookMarkdownInput ?? true,
 				!options.notebookOptions?.isInNotebookMarkdownInput ?? false,
 				options.notebookOptions?.isInNotebookCellInput ?? true,

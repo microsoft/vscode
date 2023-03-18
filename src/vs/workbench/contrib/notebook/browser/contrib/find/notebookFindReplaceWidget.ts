@@ -310,7 +310,7 @@ export abstract class SimpleFindReplaceWidget extends Widget {
 	) {
 		super();
 
-		this._filters = new NotebookFindFilters(true, false, true, true);
+		this._filters = new NotebookFindFilters(true, false, false, true, true);
 		this._state.change({ filters: this._filters }, false);
 
 		this._filters.onDidChange(() => {

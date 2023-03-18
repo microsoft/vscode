@@ -400,6 +400,7 @@ export class FindModel extends Disposable {
 			wholeWord: this._state.wholeWord,
 			caseSensitive: this._state.matchCase,
 			wordSeparators: wordSeparators,
+			markupHybrid: true,
 			includeMarkupInput: this._state.filters?.markupInput ?? true,
 			includeCodeInput: this._state.filters?.codeInput ?? true,
 			includeMarkupPreview: !!this._state.filters?.markupPreview,
