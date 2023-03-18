@@ -1772,9 +1772,11 @@ export class SearchModel extends Disposable {
 		};
 	}
 
-	async notebookSearch(query: ITextQuery, token: CancellationToken): Promise<{ completeData: ISearchComplete; scannedFiles: ResourceSet }> {
+	async notebookSearch(query: ITextQuery, token: CancellationToken, onProgress?: (result: ISearchProgressItem) => void): Promise<{ completeData: ISearchComplete; scannedFiles: ResourceSet }> {
 		const localResults = await this.getLocalNotebookResults(query, token);
-
+		if (onProgress) {
+			arrays.coalesce([...localResults.results.values()]).forEach(onProgress);
+		}
 		return {
 			completeData: {
 				messages: [],
@@ -1795,7 +1797,7 @@ export class SearchModel extends Disposable {
 		};
 		const experimentalNotebooksEnabled = this.configurationService.getValue<ISearchConfigurationProperties>('search').experimental.notebookSearch;
 
-		const notebookResult = experimentalNotebooksEnabled ? await this.notebookSearch(query, this.currentCancelTokenSource.token) : undefined;
+		const notebookResult = experimentalNotebooksEnabled ? await this.notebookSearch(query, this.currentCancelTokenSource.token, onProgressCall) : undefined;
 		const currentResult = await this.searchService.textSearch(
 			searchQuery,
 			this.currentCancelTokenSource.token, onProgressCall,
