@@ -77,8 +77,10 @@ export function registerInteractiveSessionCodeBlockActions() {
 				},
 				f1: false,
 				category: INTERACTIVE_SESSION_CATEGORY,
+				icon: Codicon.insert,
 				menu: {
 					id: MenuId.InteractiveSessionCodeBlock,
+					group: 'navigation',
 				}
 			});
 		}
