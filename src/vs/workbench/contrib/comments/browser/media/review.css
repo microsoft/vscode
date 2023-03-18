@@ -509,7 +509,7 @@ div.preview.inline .monaco-editor .comment-range-glyph {
 	width: 9px;
 	left: -6px;
 	z-index: 10;
-	color: var(--vscode-editorGutter-commentGlyphForground);
+	color: var(--vscode-editorGutter-commentGlyphForeground);
 	text-align: center;
 	display: flex;
 	flex-direction: row;

@@ -618,7 +618,7 @@
         "--vscode-keybindingTable-headerBackground",
         "--vscode-keybindingTable-rowsBackground",
         "--vscode-editorGutter-commentRangeForeground",
-        "--vscode-editorGutter-commentGlyphForground",
+        "--vscode-editorGutter-commentGlyphForeground",
         "--vscode-notebook-cellBorderColor",
         "--vscode-notebook-focusedEditorBorder",
         "--vscode-notebookStatusSuccessIcon-foreground",
