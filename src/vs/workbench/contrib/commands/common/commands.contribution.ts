@@ -9,7 +9,7 @@ import { ICommandService } from 'vs/platform/commands/common/commands';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 
-type RunnableCommand = string | { id: string; args: any[] };
+type RunnableCommand = string | { command: string; args: any[] };
 
 type CommandArgs = {
 	commands: RunnableCommand[];
@@ -85,7 +85,7 @@ class RunCommands extends Action2 {
 			if (typeof cmd === 'string') {
 				continue;
 			}
-			if (typeof cmd === 'object' && typeof cmd.id === 'string') {
+			if (typeof cmd === 'object' && typeof cmd.command === 'string') {
 				continue;
 			}
 			return false;
@@ -99,7 +99,7 @@ class RunCommands extends Action2 {
 		if (typeof cmd === 'string') {
 			commandID = cmd;
 		} else {
-			commandID = cmd.id;
+			commandID = cmd.command;
 			commandArgs = cmd.args;
 		}
 
