@@ -741,6 +741,7 @@ export class ResizableHoverOverlay extends Disposable implements IOverlayWidget 
 			if (!this._maxRenderingHeight || !this._maxRenderingWidth) {
 				return;
 			}
+
 			this._resizableElement.minSize = new dom.Dimension(10, 24);
 			this._resizableElement.maxSize = new dom.Dimension(this._maxRenderingWidth, this._maxRenderingHeight);
 
@@ -1014,10 +1015,23 @@ export class ContentHoverWidget extends Disposable implements IContentWidget {
 		// TODO: Place back?
 		// Need this in order for the vertical scroll bar to appear
 		this._hover.contentsDomNode.style.width = size.width - 6 + 'px';
-		this._hover.contentsDomNode.style.height = size.height - 16 + 'px';
+		this._hover.contentsDomNode.style.height = size.height - 6 + 'px';
+		this._hover.scrollbar.scanDomNode();
 		this._editor.layoutContentWidget(this);
 		this._editor.render();
-		this._hover.scrollbar.scanDomNode();
+
+		console.log('Before horizontal scorllbar check');
+		console.log('this._hover.contentsDomNode.clientHeight : ', this._hover.contentsDomNode.clientHeight);
+
+		if (this._hover.contentsDomNode.clientWidth < this._hover.contentsDomNode.scrollWidth) {
+			console.log('In the case when the horizontal scroll bar should be visible');
+			this._hover.contentsDomNode.style.height = size.height - 16 + 'px';
+			this._hover.scrollbar.scanDomNode();
+			this._editor.layoutContentWidget(this);
+			this._editor.render();
+
+			console.log('this._hover.contentsDomNode.clientHeight : ', this._hover.contentsDomNode.clientHeight);
+		}
 	}
 
 	public getSize() {
@@ -1050,7 +1064,14 @@ export class ContentHoverWidget extends Disposable implements IContentWidget {
 		}
 		console.log('actual max height : ', actualMaxHeight);
 		// Adding 10 also in order to allow some space for the horizontal scrollbar
-		const maxRenderingHeight = Math.min(availableSpace, actualMaxHeight + 16);
+		let maxRenderingHeight;
+		if (this._hover.contentsDomNode.clientWidth < this._hover.contentsDomNode.scrollWidth) {
+			// Scrollbar is visible, hence make the max rendering height bigger
+			maxRenderingHeight = Math.min(availableSpace, actualMaxHeight + 16);
+		} else {
+			maxRenderingHeight = Math.min(availableSpace, actualMaxHeight + 6);
+		}
+
 		console.log('maxRenderingHeight : ', maxRenderingHeight);
 		return maxRenderingHeight;
 	}
@@ -1303,8 +1324,9 @@ export class ContentHoverWidget extends Disposable implements IContentWidget {
 			let containerDomNodeWidth = persistedSize.width - 8;
 			let containerDomNodeHeight = persistedSize.height - 8;
 			let contentsDomNodeWidth = persistedSize.width - 8;
-			let contentsDomNodeHeight = persistedSize.height - 18;
+			let contentsDomNodeHeight = persistedSize.height - 8; // - 18 when scrollbar
 
+			// Already takes into account the horizontal scroll bar calculation
 			const maxRenderingHeight = this.findMaxRenderingHeight(renderingType);
 			const maxRenderingWidth = this.findMaxRenderingWidth();
 			console.log('maxRenderingHeight : ', maxRenderingHeight);
@@ -1317,7 +1339,7 @@ export class ContentHoverWidget extends Disposable implements IContentWidget {
 			if (maxRenderingHeight && maxRenderingWidth) {
 
 				value = Math.min(maxRenderingHeight, persistedSize.height - 8);
-				valueMinusTen = Math.min(maxRenderingHeight - 10, persistedSize.height - 18);
+				valueMinusTen = Math.min(maxRenderingHeight, persistedSize.height - 18);
 
 				containerDomNodeWidth = Math.min(maxRenderingWidth, containerDomNodeWidth);
 				containerDomNodeHeight = Math.min(maxRenderingHeight, containerDomNodeHeight);
@@ -1346,8 +1368,11 @@ export class ContentHoverWidget extends Disposable implements IContentWidget {
 
 			if (contentsDomNode.clientWidth < contentsDomNode.scrollWidth && valueMinusTen) {
 				console.log('In the case when the horizontal scroll bar should be visible');
+				console.log('valueMinusTen : ', valueMinusTen);
+				console.log('value : ', value);
 				// In that case the scrollbar is not visible, make the contents dom node height bigger
 				contentsDomNode.style.height = valueMinusTen + 'px';
+				this._hover.scrollbar.scanDomNode();
 				this._editor.layoutContentWidget(this);
 				this._editor.render();
 			}
