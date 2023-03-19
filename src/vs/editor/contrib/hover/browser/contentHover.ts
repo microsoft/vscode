@@ -953,6 +953,7 @@ export class ContentHoverWidget extends Disposable implements IContentWidget {
 	private readonly _hoverFocusedKey = EditorContextKeys.hoverFocused.bindTo(this._contextKeyService);
 	private readonly _focusTracker = this._register(dom.trackFocus(this.getDomNode()));
 	private _renderingType: ContentWidgetPositionPreference = this._editor.getOption(EditorOption.hover).above ? ContentWidgetPositionPreference.ABOVE : ContentWidgetPositionPreference.BELOW;
+	private _appearedWithHorizontalScrollbar: boolean | undefined = undefined;
 
 	/**
 	 * Returns `null` if the hover is not visible.
@@ -1025,11 +1026,18 @@ export class ContentHoverWidget extends Disposable implements IContentWidget {
 
 		if (this._hover.contentsDomNode.clientWidth < this._hover.contentsDomNode.scrollWidth) {
 			console.log('In the case when the horizontal scroll bar should be visible');
-			this._hover.contentsDomNode.style.height = size.height - 16 + 'px';
-			this._hover.scrollbar.scanDomNode();
-			this._editor.layoutContentWidget(this);
-			this._editor.render();
-
+			console.log('appearedWithHorizontalScrollBar : ', this._appearedWithHorizontalScrollbar);
+			if (this._appearedWithHorizontalScrollbar) {
+				this._hover.contentsDomNode.style.height = size.height - 16 + 'px';
+				this._hover.scrollbar.scanDomNode();
+				this._editor.layoutContentWidget(this);
+				this._editor.render();
+			} else {
+				this._hover.contentsDomNode.style.height = size.height - 6 + 'px';
+				this._hover.scrollbar.scanDomNode();
+				this._editor.layoutContentWidget(this);
+				this._editor.render();
+			}
 			console.log('this._hover.contentsDomNode.clientHeight : ', this._hover.contentsDomNode.clientHeight);
 		}
 	}
@@ -1286,6 +1294,7 @@ export class ContentHoverWidget extends Disposable implements IContentWidget {
 
 	public hide(): void {
 		console.log('Inside of hide of the content hover widget');
+		this._appearedWithHorizontalScrollbar = undefined;
 		if (this._visibleData) {
 			const stoleFocus = this._visibleData.stoleFocus;
 			this._setVisibleData(null);
@@ -1296,7 +1305,9 @@ export class ContentHoverWidget extends Disposable implements IContentWidget {
 		}
 	}
 
-	public onContentsChanged(persistedSize?: dom.Dimension | undefined, renderingType?: ContentWidgetPositionPreference | undefined): void {
+	public onContentsChanged(
+		persistedSize?: dom.Dimension | undefined,
+		renderingType?: ContentWidgetPositionPreference | undefined): void {
 
 		console.log('* Inside of contents changed');
 		console.log('* Before changes');
@@ -1370,11 +1381,18 @@ export class ContentHoverWidget extends Disposable implements IContentWidget {
 				console.log('In the case when the horizontal scroll bar should be visible');
 				console.log('valueMinusTen : ', valueMinusTen);
 				console.log('value : ', value);
+				if (this._appearedWithHorizontalScrollbar === undefined) {
+					this._appearedWithHorizontalScrollbar = true;
+				}
 				// In that case the scrollbar is not visible, make the contents dom node height bigger
 				contentsDomNode.style.height = valueMinusTen + 'px';
 				this._hover.scrollbar.scanDomNode();
 				this._editor.layoutContentWidget(this);
 				this._editor.render();
+			} else {
+				if (this._appearedWithHorizontalScrollbar === undefined) {
+					this._appearedWithHorizontalScrollbar = false;
+				}
 			}
 
 		} else {
