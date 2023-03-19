@@ -39,7 +39,6 @@ class ResizeState {
 }
 
 // TODO: For some reason, when resizing the function name hover, the function hover becomes oversizes
-// TODO: Set the maximum width
 
 export class ContentHoverController extends Disposable {
 
