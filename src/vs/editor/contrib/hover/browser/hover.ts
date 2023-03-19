@@ -143,18 +143,22 @@ export class ModesHoverController implements IEditorContribution {
 	}
 
 	private _onEditorMouseMove(mouseEvent: IEditorMouseEvent): void {
+		// console.log('Inside of _onEditorMouseMove');
 		const target = mouseEvent.target;
 
 		if (this._isMouseDown && this._hoverClicked) {
+			// console.log('If mouse down and hover clicked');
 			return;
 		}
 
 		if (this._isHoverSticky && target.type === MouseTargetType.CONTENT_WIDGET && target.detail === ContentHoverWidget.ID) {
+			// console.log('second if statement');
 			// mouse moved on top of content hover widget
 			return;
 		}
 
 		if (this._isHoverSticky && !mouseEvent.event.browserEvent.view?.getSelection()?.isCollapsed) {
+			// console.log('third if statement');
 			// selected text within content hover widget
 			return;
 		}
@@ -163,22 +167,26 @@ export class ModesHoverController implements IEditorContribution {
 			!this._isHoverSticky && target.type === MouseTargetType.CONTENT_WIDGET && target.detail === ContentHoverWidget.ID
 			&& this._contentWidget?.isColorPickerVisible()
 		) {
+			// console.log('4th if statement');
 			// though the hover is not sticky, the color picker needs to.
 			return;
 		}
 
 		if (this._isHoverSticky && target.type === MouseTargetType.OVERLAY_WIDGET && target.detail === MarginHoverWidget.ID) {
+			// console.log('5th if statement');
 			// mouse moved on top of overlay hover widget
 			return;
 		}
 
 		if (this._isHoverSticky && this._contentWidget?.isVisibleFromKeyboard()) {
+			// console.log('6th if statement');
 			// Sticky mode is on and the hover has been shown via keyboard
 			// so moving the mouse has no effect
 			return;
 		}
 
 		if (!this._isHoverEnabled) {
+			// console.log('7th if statement');
 			this._hideWidgets();
 			return;
 		}
@@ -186,11 +194,13 @@ export class ModesHoverController implements IEditorContribution {
 		const contentWidget = this._getOrCreateContentWidget();
 
 		if (contentWidget.maybeShowAt(mouseEvent)) {
+			// console.log('Inside of 8th if statement');
 			this._glyphWidget?.hide();
 			return;
 		}
 
 		if (target.type === MouseTargetType.GUTTER_GLYPH_MARGIN && target.position) {
+			// console.log('Inside of 9th if statement');
 			this._contentWidget?.hide();
 			if (!this._glyphWidget) {
 				this._glyphWidget = new MarginHoverWidget(this._editor, this._languageService, this._openerService);
@@ -219,12 +229,14 @@ export class ModesHoverController implements IEditorContribution {
 	}
 
 	private _hideWidgets(): void {
+		// console.log('Inside of _hideWidget');
 		if ((this._isMouseDown && this._hoverClicked && this._contentWidget?.isColorPickerVisible()) || InlineSuggestionHintsContentWidget.dropDownVisible) {
 			return;
 		}
 
 		this._hoverClicked = false;
 		this._glyphWidget?.hide();
+		// console.log('this._contentWidget?.resizableWidget.isResizing() : ', this._contentWidget?.resizableWidget.isResizing());
 		if (!this._contentWidget?.resizableWidget.isResizing()) {
 			this._contentWidget?.hide();
 		}

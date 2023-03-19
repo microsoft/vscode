@@ -116,6 +116,7 @@ export class ContentHoverController extends Disposable {
 		if (this._resizableWidget.isResizing()) {
 			return true;
 		}
+
 		const anchorCandidates: HoverAnchor[] = [];
 
 		for (const participant of this._participants) {
@@ -357,6 +358,7 @@ export class ContentHoverController extends Disposable {
 				console.log('contentsDomNode offset left : ', contentsDomNode.offsetLeft);
 
 				console.log('At the end of onContentsChanged of _renderMessages');
+				this._widget._hover.scrollbar.scanDomNode();
 			},
 			hide: () => this.hide()
 		};
@@ -495,6 +497,8 @@ export class ContentHoverController extends Disposable {
 			console.log('resizableWidgetDomNode client height : ', resizableWidgetDomNode.clientHeight);
 			console.log('resizableWidgetDomNode offset top : ', resizableWidgetDomNode.offsetTop);
 			console.log('resizableWidgetDomNode offset left : ', resizableWidgetDomNode.offsetLeft);
+
+			this._widget._hover.scrollbar.scanDomNode();
 		} else {
 			disposables.dispose();
 		}
@@ -724,38 +728,43 @@ export class ResizableHoverOverlay extends Disposable implements IOverlayWidget 
 
 			this._onDidResize.fire({ dimension: this._size, done: false });
 
-			console.log('this._containingWidget : ', this._containingWidget);
+			// console.log('this._containingWidget : ', this._containingWidget);
 
 			if (!this._containingWidget) {
 				return;
 			}
 
-			// this._maxRenderingWidth = this._containingWidget.findMaxRenderingWidth();
+			this._maxRenderingWidth = this._containingWidget.findMaxRenderingWidth();
 			this._maxRenderingHeight = this._containingWidget.findMaxRenderingHeight(this._renderingAbove);
 
-			console.log('this._maxRenderingHeight : ', this._maxRenderingHeight);
-			if (!this._maxRenderingHeight || !this._maxRenderingWidth) {
+			// console.log('this._maxRenderingHeight : ', this._maxRenderingHeight);
+			if (!this._maxRenderingHeight) {
 				return;
 			}
 			this._resizableElement.minSize = new dom.Dimension(10, 24);
 			this._resizableElement.maxSize = new dom.Dimension(maxWidth, this._maxRenderingHeight);
 
 			if (state) {
+				// console.log('Inside of the case when state defined : ', state);
 				state.persistHeight = state.persistHeight || !!e.north || !!e.south;
 				state.persistWidth = state.persistWidth || !!e.east || !!e.west;
 				if (!this._editor.hasModel()) {
+					// console.log('first if statement');
 					return;
 				}
 				const uri = this._editor.getModel().uri.toString();
 				if (!uri) {
+					// console.log('second if statement');
 					return;
 				}
 				const persistedSize = new dom.Dimension(width, height);
 				if (!this._tooltipPosition) {
+					// console.log('third if statement');
 					return;
 				}
 				const wordPosition = this._editor.getModel().getWordAtPosition(this._tooltipPosition);
 				if (!wordPosition) {
+					// console.log('third if statement');
 					return;
 				}
 				const offset = this._editor.getModel().getOffsetAt({ lineNumber: this._tooltipPosition.lineNumber, column: wordPosition.startColumn });
@@ -766,16 +775,16 @@ export class ResizableHoverOverlay extends Disposable implements IOverlayWidget 
 					map.set(JSON.stringify([offset, length]), persistedSize);
 					this._persistedHoverWidgetSizes.set(uri, map);
 				} else {
-					console.log('saving the new persist size');
+					// console.log('saving the new persist size');
 					const map = this._persistedHoverWidgetSizes.get(uri)!;
 					map.set(JSON.stringify([offset, length]), persistedSize);
 				}
 			}
 			if (e.done) {
-				console.log('Inside of the case when done');
+				// console.log('Inside of the case when done');
 				this._resizing = false;
 			}
-			console.log('Before layout overlay widget of the onDidResize listener');
+			// console.log('Before layout overlay widget of the onDidResize listener');
 			this._editor.layoutOverlayWidget(this);
 			this._editor.render();
 
@@ -992,13 +1001,16 @@ export class ContentHoverWidget extends Disposable implements IContentWidget {
 		this._hover.contentsDomNode.style.maxHeight = 'none';
 		this._hover.contentsDomNode.style.maxWidth = 'none';
 		console.log('Inside of the resize of the content hover widget');
+		console.log('size : ', size);
 		if (!size) {
 			return;
 		}
 		this._hover.containerDomNode.style.width = size.width - 6 + 'px';
 		this._hover.containerDomNode.style.height = size.height - 6 + 'px';
+		// TODO: Place back?
+		// Need this in order for the vertical scroll bar to appear
 		this._hover.contentsDomNode.style.width = size.width - 6 + 'px';
-		this._hover.contentsDomNode.style.height = size.height - 6 + 'px';
+		this._hover.contentsDomNode.style.height = size.height - 16 + 'px';
 		this._editor.layoutContentWidget(this);
 		this._editor.render();
 		this._hover.scrollbar.scanDomNode();
@@ -1347,6 +1359,8 @@ export class ContentHoverWidget extends Disposable implements IContentWidget {
 		console.log('contentsDomNode client height : ', contentsDomNode.clientHeight);
 		console.log('contentsDomNode offset top : ', contentsDomNode.offsetTop);
 		console.log('contentsDomNode offset left : ', contentsDomNode.offsetLeft);
+
+		this._hover.scrollbar.scanDomNode();
 	}
 
 	public clear(): void {
