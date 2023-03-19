@@ -1045,7 +1045,8 @@ export class ContentHoverWidget extends Disposable implements IContentWidget {
 			actualMaxHeight += childHtmlElement.clientHeight;
 		}
 		console.log('actual max height : ', actualMaxHeight);
-		const maxRenderingHeight = Math.min(availableSpace, actualMaxHeight + 7);
+		// Adding 10 also in order to allow some space for the horizontal scrollbar
+		const maxRenderingHeight = Math.min(availableSpace, actualMaxHeight + 16);
 		console.log('maxRenderingHeight : ', maxRenderingHeight);
 		return maxRenderingHeight;
 	}
@@ -1290,8 +1291,11 @@ export class ContentHoverWidget extends Disposable implements IContentWidget {
 
 		// Added here but does not seem to have an effect
 		if (persistedSize) {
-			containerDomNode.style.width = persistedSize.width - 8 + 'px';
-			containerDomNode.style.height = persistedSize.height - 8 + 'px';
+			containerDomNode.style.width = persistedSize.width - 8 + 'px'; // - 8
+			containerDomNode.style.height = persistedSize.height - 8 + 'px'; // - 8
+			contentsDomNode.style.width = persistedSize.width - 8 + 'px'; // - 8
+			contentsDomNode.style.height = persistedSize.height - 18 + 'px';
+
 			// this._editor.addContentWidget(this._widget);
 			// this._editor.layoutContentWidget(this._widget);
 			// this._editor.render();
