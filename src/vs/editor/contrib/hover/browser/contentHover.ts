@@ -38,8 +38,6 @@ class ResizeState {
 	) { }
 }
 
-// TODO: For some reason, when resizing the function name hover, the function hover becomes oversizes
-
 export class ContentHoverController extends Disposable {
 
 	private readonly _participants: IEditorHoverParticipant[];
@@ -663,7 +661,7 @@ export class ResizableHoverOverlay extends Disposable implements IOverlayWidget 
 						newMap.set(JSON.stringify(newEntry), oldSize);
 					} else if (changeOffset >= entry[0] + entry[1]) {
 						console.log('second if statement');
-						newMap.set(entry[0], entry[1]);
+						newMap.set(stringifiedEntry, mapToUpdate.get(stringifiedEntry)!);
 					}
 				}
 			}
@@ -684,7 +682,6 @@ export class ResizableHoverOverlay extends Disposable implements IOverlayWidget 
 
 			console.log('* Inside of onDidResize of ContentHoverWidget');
 			console.log('e : ', e);
-			console.log('this._visible : ', this._visible);
 
 			if (!this._visible) {
 				this._resizing = false;
