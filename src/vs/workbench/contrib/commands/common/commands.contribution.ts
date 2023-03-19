@@ -11,6 +11,10 @@ import { INotificationService } from 'vs/platform/notification/common/notificati
 
 type RunnableCommand = string | { id: string; args: any[] };
 
+type CommandArgs = {
+	commands: RunnableCommand[];
+};
+
 /** Runs several commands passed to it as an argument */
 class RunCommands extends Action2 {
 
@@ -56,8 +60,8 @@ class RunCommands extends Action2 {
 	// - this command takes a single argument-object because
 	//	- keybinding definitions don't allow running commands with several arguments
 	//  - and we want to be able to take on different other arguments in future, e.g., `runMode : 'serial' | 'concurrent'`
-	async run(accessor: ServicesAccessor, args: any) {
-		if (!this._validateInput(args)) {
+	async run(accessor: ServicesAccessor, args: unknown) {
+		if (!this._isCommandArgs(args)) {
 			throw new Error('runCommands: invalid arguments');
 		}
 		const commandService = accessor.get(ICommandService);
@@ -70,11 +74,11 @@ class RunCommands extends Action2 {
 		}
 	}
 
-	private _validateInput(args: any): args is { commands: RunnableCommand[] } {
+	private _isCommandArgs(args: unknown): args is CommandArgs {
 		if (!args || typeof args !== 'object') {
 			return false;
 		}
-		if (!Array.isArray(args.commands)) {
+		if (!('commands' in args) || !Array.isArray(args.commands)) {
 			return false;
 		}
 		for (const cmd of args.commands) {
