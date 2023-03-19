@@ -57,6 +57,7 @@ export class ContentHoverController extends Disposable {
 		super();
 
 		this._resizableWidget.containingWidget = this._widget;
+		this._widget._hover.scrollbar.scanDomNode();
 
 		// Instantiate participants and sort them by `hoverOrdinal` which is relevant for rendering order.
 		this._participants = [];
@@ -928,7 +929,7 @@ export class ContentHoverWidget extends Disposable implements IContentWidget {
 
 	public readonly allowEditorOverflow = true;
 
-	private readonly _hover: HoverWidget = this._register(new HoverWidget());
+	public readonly _hover: HoverWidget = this._register(new HoverWidget());
 	private _visibleData: ContentHoverVisibleData | null = null;
 	private readonly _hoverVisibleKey = EditorContextKeys.hoverVisible.bindTo(this._contextKeyService);
 	private readonly _hoverFocusedKey = EditorContextKeys.hoverFocused.bindTo(this._contextKeyService);
