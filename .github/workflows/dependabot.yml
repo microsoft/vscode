@@ -1,0 +1,21 @@
+version: 2
+updates:
+  - package-ecosystem: npm
+    labels:
+      - 📦 dependencies
+    directory: /
+    schedule:
+      interval: weekly
+    pull-request-branch-name:
+      separator: "-"
+    reviewers:
+      - lowlighter
+    commit-message:
+      prefix: "chore(deps)"
+    ignore:
+      - dependency-name: "*"
+        update-types:
+          - version-update:semver-patch
+      - dependency-name: vue-prism-component
+        versions:
+          - 2.0.0
