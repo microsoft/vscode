@@ -38,6 +38,9 @@ class ResizeState {
 	) { }
 }
 
+// TODO: For some reason, when resizing the function name hover, the function hover becomes oversizes
+// TODO: Set the maximum width
+
 export class ContentHoverController extends Disposable {
 
 	private readonly _participants: IEditorHoverParticipant[];
@@ -721,6 +724,8 @@ export class ResizableHoverOverlay extends Disposable implements IOverlayWidget 
 			if (!this._containingWidget) {
 				return;
 			}
+
+
 			this._maxRenderingHeight = this._containingWidget.findMaxRenderingHeight(this._renderingAbove);
 			console.log('this._maxRenderingHeight : ', this._maxRenderingHeight);
 			if (!this._maxRenderingHeight) {
@@ -1146,8 +1151,9 @@ export class ContentHoverWidget extends Disposable implements IContentWidget {
 		if (persistedSize) {
 			height = persistedSize.height;
 		} else {
-
 			height = containerDomNode.clientHeight;
+			this._hover.contentsDomNode.style.maxHeight = `${Math.max(this._editor.getLayoutInfo().height / 4, 250)}px`;
+			this._hover.contentsDomNode.style.maxWidth = `${Math.max(this._editor.getLayoutInfo().width * 0.66, 500)}px`;
 		}
 
 		console.log('containerDomNode : ', containerDomNode);
@@ -1178,7 +1184,7 @@ export class ContentHoverWidget extends Disposable implements IContentWidget {
 		// Max height below is the minimum of the available space below and the full height of the widget
 		const maxHeightBelow = Math.min(availableSpaceBelow, fullHeight);
 		// The available space above the mouse position is the height of the top of the editor plus the top of the mouse box relative to the editor
-		const availableSpaceAbove = editorBox.top + mouseBox.top;
+		const availableSpaceAbove = editorBox.top + mouseBox.top - 30;
 
 		const maxHeightAbove = Math.min(availableSpaceAbove, fullHeight);
 		// We find the maximum height of the widget possible on the top or on the bottom
