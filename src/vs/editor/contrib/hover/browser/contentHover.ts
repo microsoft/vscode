@@ -32,7 +32,6 @@ const $ = dom.$;
 // TODO: set maximum width
 // TODO: remove the double flickering that happens on double rendering, but is it possible to remove it really?
 // TODO: correct potential errors on sticky hover
-// TODO: update the left position on the resize
 
 class ResizeState {
 	constructor(
