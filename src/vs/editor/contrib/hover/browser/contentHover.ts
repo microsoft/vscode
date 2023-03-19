@@ -31,6 +31,8 @@ const $ = dom.$;
 
 // TODO: remove the double flickering that happens on double rendering, but is it possible to remove it really?
 // TODO: correct potential errors on sticky hover
+// TODO: test the case when there is a hover which without a persist size, has a horizontal scrollbar
+// TODO: when hover appears with a horizontal scroll-bar, not persisted, and resized, make sure the scroll-bar is there
 
 class ResizeState {
 	constructor(
@@ -1013,8 +1015,6 @@ export class ContentHoverWidget extends Disposable implements IContentWidget {
 		}
 		this._hover.containerDomNode.style.width = size.width - 6 + 'px';
 		this._hover.containerDomNode.style.height = size.height - 6 + 'px';
-		// TODO: Place back?
-		// Need this in order for the vertical scroll bar to appear
 		this._hover.contentsDomNode.style.width = size.width - 6 + 'px';
 		this._hover.contentsDomNode.style.height = size.height - 6 + 'px';
 		this._hover.scrollbar.scanDomNode();
@@ -1027,13 +1027,18 @@ export class ContentHoverWidget extends Disposable implements IContentWidget {
 		if (this._hover.contentsDomNode.clientWidth < this._hover.contentsDomNode.scrollWidth) {
 			console.log('In the case when the horizontal scroll bar should be visible');
 			console.log('appearedWithHorizontalScrollBar : ', this._appearedWithHorizontalScrollbar);
-			if (this._appearedWithHorizontalScrollbar) {
+			// undefined meaning that not using persisted size
+			if (this._appearedWithHorizontalScrollbar === true || this._appearedWithHorizontalScrollbar === undefined) {
 				this._hover.contentsDomNode.style.height = size.height - 16 + 'px';
 				this._hover.scrollbar.scanDomNode();
 				this._editor.layoutContentWidget(this);
 				this._editor.render();
 			} else {
 				this._hover.contentsDomNode.style.height = size.height - 6 + 'px';
+				// const extraBottomPadding = `${this._hover.scrollbar.options.horizontalScrollbarSize}px`;
+				// if (this._hover.contentsDomNode.style.paddingBottom !== extraBottomPadding) {
+				//	this._hover.contentsDomNode.style.paddingBottom = extraBottomPadding;
+				// }
 				this._hover.scrollbar.scanDomNode();
 				this._editor.layoutContentWidget(this);
 				this._editor.render();
@@ -1218,6 +1223,7 @@ export class ContentHoverWidget extends Disposable implements IContentWidget {
 			height = persistedSize.height;
 			this._hover.contentsDomNode.style.maxHeight = 'none';
 			this._hover.contentsDomNode.style.maxWidth = 'none';
+
 		} else {
 			height = containerDomNode.clientHeight;
 			this._hover.contentsDomNode.style.maxHeight = `${Math.max(this._editor.getLayoutInfo().height / 4, 250)}px`;
@@ -1368,9 +1374,6 @@ export class ContentHoverWidget extends Disposable implements IContentWidget {
 			contentsDomNode.style.width = contentsDomNodeWidth + 'px';
 			contentsDomNode.style.height = contentsDomNodeHeight + 'px';
 
-			// this._editor.addContentWidget(this._widget);
-			// this._editor.layoutContentWidget(this._widget);
-			// this._editor.render();
 			this._editor.layoutContentWidget(this);
 			this._editor.render();
 
@@ -1396,6 +1399,7 @@ export class ContentHoverWidget extends Disposable implements IContentWidget {
 			}
 
 		} else {
+
 			containerDomNode.style.width = 'auto';
 			containerDomNode.style.height = 'auto';
 			contentsDomNode.style.width = 'auto';
