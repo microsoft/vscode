@@ -5,7 +5,7 @@
 
 import { WorkbenchActionExecutedClassification, WorkbenchActionExecutedEvent } from 'vs/base/common/actions';
 import * as arrays from 'vs/base/common/arrays';
-import { IntervalTimer, TimeoutTimer } from 'vs/base/common/async';
+import { first, IntervalTimer, TimeoutTimer } from 'vs/base/common/async';
 import { Emitter, Event } from 'vs/base/common/event';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { SingleModifierChord, ResolvedKeybinding, ResolvedChord, Keybinding } from 'vs/base/common/keybindings';
@@ -273,9 +273,12 @@ export abstract class AbstractKeybindingService extends Disposable implements IK
 		let currentChord: string[] | null = null;// the "second" keybinding i.e. Ctrl+K "Ctrl+D"
 
 		if (isSingleModiferChord) {
+			// The keybinding is the second keypress of a single modifier chord, e.g. "shift shift".
+			// A single modifier can only occur when the same modifier is pressed in short sequence,
+			// hence we disregard `_currentChord` and use the same modifier instead.
 			const [dispatchKeyname,] = keybinding.getSingleModifierDispatchChords();
 			firstChord = dispatchKeyname;
-			currentChord = null;
+			currentChord = dispatchKeyname ? [dispatchKeyname] : [];
 		} else {
 			[firstChord,] = keybinding.getDispatchChords();
 			currentChord = this._currentChord ? this._currentChord.map(({ keypress }) => keypress) : null;
