@@ -315,7 +315,8 @@ export class ContentHoverController extends Disposable {
 
 				const persistedSize = this._resizableWidget.findPersistedSize();
 				console.log('persistedSize : ', persistedSize);
-				this._widget.onContentsChanged(persistedSize, this._widget.renderingType);
+				const firstRendering = true;
+				this._widget.onContentsChanged(firstRendering, persistedSize, this._widget.renderingType);
 				this._editor.render();
 
 				console.log('After onContentsChanged');
@@ -943,6 +944,13 @@ export class ResizableHoverOverlay extends Disposable implements IOverlayWidget 
 
 }
 
+enum States {
+	PERSIST_SIZE_HORIZONTALL_VISIBLE = 1,
+	PERSIST_SIZE_HORZONTAL_NOT_VISIBLE = 2,
+	NOT_PERSIST_SIZE_HORIZONTAL_VISIBLE = 3,
+	NOT_PERSIST_SIZE_HORIZONTAL_NOT_VISIBLE = 4
+}
+
 export class ContentHoverWidget extends Disposable implements IContentWidget {
 
 	static readonly ID = 'editor.contrib.contentHoverWidget';
@@ -955,7 +963,7 @@ export class ContentHoverWidget extends Disposable implements IContentWidget {
 	private readonly _hoverFocusedKey = EditorContextKeys.hoverFocused.bindTo(this._contextKeyService);
 	private readonly _focusTracker = this._register(dom.trackFocus(this.getDomNode()));
 	private _renderingType: ContentWidgetPositionPreference = this._editor.getOption(EditorOption.hover).above ? ContentWidgetPositionPreference.ABOVE : ContentWidgetPositionPreference.BELOW;
-	private _appearedWithHorizontalScrollbar: boolean | undefined = undefined;
+	private _appearedWithHorizontalScrollbar: States | undefined = undefined;
 
 	/**
 	 * Returns `null` if the hover is not visible.
@@ -1028,12 +1036,14 @@ export class ContentHoverWidget extends Disposable implements IContentWidget {
 			console.log('In the case when the horizontal scroll bar should be visible');
 			console.log('appearedWithHorizontalScrollBar : ', this._appearedWithHorizontalScrollbar);
 			// undefined meaning that not using persisted size
-			if (this._appearedWithHorizontalScrollbar === true || this._appearedWithHorizontalScrollbar === undefined) {
+			if (this._appearedWithHorizontalScrollbar === States.PERSIST_SIZE_HORIZONTALL_VISIBLE || this._appearedWithHorizontalScrollbar === States.NOT_PERSIST_SIZE_HORIZONTAL_VISIBLE) {
+				console.log('first if statement');
 				this._hover.contentsDomNode.style.height = size.height - 16 + 'px';
 				this._hover.scrollbar.scanDomNode();
 				this._editor.layoutContentWidget(this);
 				this._editor.render();
-			} else {
+			} else if (this._appearedWithHorizontalScrollbar === States.PERSIST_SIZE_HORZONTAL_NOT_VISIBLE || this._appearedWithHorizontalScrollbar === States.NOT_PERSIST_SIZE_HORIZONTAL_NOT_VISIBLE) {
+				console.log('second if statement');
 				this._hover.contentsDomNode.style.height = size.height - 6 + 'px';
 				// const extraBottomPadding = `${this._hover.scrollbar.options.horizontalScrollbarSize}px`;
 				// if (this._hover.contentsDomNode.style.paddingBottom !== extraBottomPadding) {
@@ -1312,6 +1322,7 @@ export class ContentHoverWidget extends Disposable implements IContentWidget {
 	}
 
 	public onContentsChanged(
+		firstRendering: boolean = false,
 		persistedSize?: dom.Dimension | undefined,
 		renderingType?: ContentWidgetPositionPreference | undefined): void {
 
@@ -1385,7 +1396,7 @@ export class ContentHoverWidget extends Disposable implements IContentWidget {
 				console.log('valueMinusTen : ', valueMinusTen);
 				console.log('value : ', value);
 				if (this._appearedWithHorizontalScrollbar === undefined) {
-					this._appearedWithHorizontalScrollbar = true;
+					this._appearedWithHorizontalScrollbar = States.PERSIST_SIZE_HORIZONTALL_VISIBLE;
 				}
 				// In that case the scrollbar is not visible, make the contents dom node height bigger
 				contentsDomNode.style.height = valueMinusTen + 'px';
@@ -1394,7 +1405,7 @@ export class ContentHoverWidget extends Disposable implements IContentWidget {
 				this._editor.render();
 			} else {
 				if (this._appearedWithHorizontalScrollbar === undefined) {
-					this._appearedWithHorizontalScrollbar = false;
+					this._appearedWithHorizontalScrollbar = States.PERSIST_SIZE_HORZONTAL_NOT_VISIBLE;
 				}
 			}
 
@@ -1466,6 +1477,22 @@ export class ContentHoverWidget extends Disposable implements IContentWidget {
 		console.log('contentsDomNode offset left : ', contentsDomNode.offsetLeft);
 
 		this._hover.scrollbar.scanDomNode();
+
+		if (firstRendering && !persistedSize) {
+			console.log('When this._appearedWithHorizontalScrollbar set : ', this._appearedWithHorizontalScrollbar);
+			console.log('contentsDomNode.clientWidth : ', contentsDomNode.clientWidth);
+			console.log('contentsDomNode.scrollWidth : ', contentsDomNode.scrollWidth);
+
+			if (contentsDomNode.clientWidth < contentsDomNode.scrollWidth) {
+				if (this._appearedWithHorizontalScrollbar === undefined) {
+					this._appearedWithHorizontalScrollbar = States.NOT_PERSIST_SIZE_HORIZONTAL_VISIBLE;
+				}
+			} else {
+				if (this._appearedWithHorizontalScrollbar === undefined) {
+					this._appearedWithHorizontalScrollbar = States.NOT_PERSIST_SIZE_HORIZONTAL_NOT_VISIBLE;
+				}
+			}
+		}
 	}
 
 	public clear(): void {
