@@ -214,7 +214,6 @@ export class ModesHoverController implements IEditorContribution {
 		if (e.keyCode !== KeyCode.Ctrl && e.keyCode !== KeyCode.Alt && e.keyCode !== KeyCode.Meta && e.keyCode !== KeyCode.Shift
 			&& !mightTriggerFocus) {
 			// Do not hide hover when a modifier key is pressed
-
 			this._hideWidgets();
 		}
 	}
@@ -224,12 +223,9 @@ export class ModesHoverController implements IEditorContribution {
 			return;
 		}
 
-		// console.log('Inside of _hideWidgets');
 		this._hoverClicked = false;
 		this._glyphWidget?.hide();
-		// console.log('this._contentWidget?.resizableWidget.isResizing() : ', this._contentWidget?.resizableWidget.isResizing());
 		if (!this._contentWidget?.resizableWidget.isResizing()) {
-			// console.log('Hiding the content widget');
 			this._contentWidget?.hide();
 		}
 	}

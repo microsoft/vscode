@@ -1489,7 +1489,6 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 	public layoutOverlayWidget(widget: editorBrowser.IOverlayWidget): void {
 		const widgetId = widget.getId();
 		if (this._overlayWidgets.hasOwnProperty(widgetId)) {
-			console.log('Entered into the if statement of layoutOverlayWidget');
 			const widgetData = this._overlayWidgets[widgetId];
 			widgetData.position = widget.getPosition();
 			if (this._modelData && this._modelData.hasRealView) {
