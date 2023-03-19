@@ -797,12 +797,6 @@ const schema: IJSONSchema = {
 				}
 			}
 		},
-		'commandNameSchema': {
-			'type': 'string',
-			'enum': commandsEnum,
-			'enumDescriptions': <any>commandsEnumDescriptions,
-			'description': nls.localize('keybindings.json.command', "Name of the command to execute"),
-		},
 		'commandsSchemas': {
 			'allOf': commandsSchemas
 		}
@@ -819,7 +813,11 @@ const schema: IJSONSchema = {
 			'command': {
 				'anyOf': [
 					{
-						'$ref': '#/definitions/commandNameSchema'
+						'$anchor': 'commandNames', // https://json-schema.org/understanding-json-schema/structuring.html#anchor
+						'type': 'string',
+						'enum': commandsEnum,
+						'enumDescriptions': <any>commandsEnumDescriptions,
+						'description': nls.localize('keybindings.json.command', "Name of the command to execute"),
 					},
 					{
 						'type': 'string',
