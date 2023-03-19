@@ -97,6 +97,10 @@ export class ContentHoverController extends Disposable {
 		}));
 		this._register(this._resizableWidget.onDidResize((e) => {
 			this._widget.resize(e.dimension);
+			const offsetLeft = this._widget.getDomNode().offsetLeft;
+			if (offsetLeft) {
+				this._resizableWidget.getDomNode().style.left = offsetLeft - 1 + 'px';
+			}
 		}));
 	}
 
@@ -617,6 +621,7 @@ export class ResizableHoverOverlay extends Disposable implements IOverlayWidget 
 	private _initialHeight: number = -1;
 	private _initialTop: number = -1;
 	private _maxRenderingHeight: number | undefined;
+	private _maxRenderingWidth: number | undefined;
 	private _tooltipPosition: IPosition | null = null;
 	private _renderingPosition: IOverlayWidgetPosition | null = null;
 	private _visible: boolean = false;
@@ -687,12 +692,6 @@ export class ResizableHoverOverlay extends Disposable implements IOverlayWidget 
 			console.log('* Inside of onDidResize of ContentHoverWidget');
 			console.log('e : ', e);
 
-			// update the left position of the resizable overlay on resize
-			const offsetLeft = this._containingWidget?.getDomNode().offsetLeft;
-			if (offsetLeft) {
-				this._resizableElement.domNode.style.left = offsetLeft - 1 + 'px';
-			}
-
 			if (!this._visible) {
 				this._resizing = false;
 				return;
@@ -731,10 +730,11 @@ export class ResizableHoverOverlay extends Disposable implements IOverlayWidget 
 				return;
 			}
 
-
+			// this._maxRenderingWidth = this._containingWidget.findMaxRenderingWidth();
 			this._maxRenderingHeight = this._containingWidget.findMaxRenderingHeight(this._renderingAbove);
+
 			console.log('this._maxRenderingHeight : ', this._maxRenderingHeight);
-			if (!this._maxRenderingHeight) {
+			if (!this._maxRenderingHeight || !this._maxRenderingWidth) {
 				return;
 			}
 			this._resizableElement.minSize = new dom.Dimension(10, 24);
@@ -1036,6 +1036,21 @@ export class ContentHoverWidget extends Disposable implements IContentWidget {
 		const maxRenderingHeight = Math.min(availableSpace, actualMaxHeight + 7);
 		console.log('maxRenderingHeight : ', maxRenderingHeight);
 		return maxRenderingHeight;
+	}
+
+	public findMaxRenderingWidth(): number | undefined {
+		console.log('Inside of findMaxRenderingWidth');
+		if (!this._editor || !this._editor.hasModel()) {
+			return;
+		}
+		const editorBox = dom.getDomNodePagePosition(this._editor.getDomNode());
+		const widthOfEditor = editorBox.width;
+		const leftOfEditor = editorBox.left;
+
+		const leftOfContainer = this._hover.containerDomNode.offsetLeft;
+		const margin = 20;
+
+		return widthOfEditor + leftOfEditor - leftOfContainer;
 	}
 
 	public override dispose(): void {
