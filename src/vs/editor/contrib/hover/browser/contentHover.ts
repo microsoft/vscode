@@ -1295,8 +1295,9 @@ export class ContentHoverWidget extends Disposable implements IContentWidget {
 		console.log('persisted size : ', persistedSize);
 
 		// Added here but does not seem to have an effect
-		if (persistedSize) {
+		if (persistedSize && renderingType) {
 
+			console.log('When there is a persisted size');
 			// If persisted size does not fit in the editor for example on editor resize, use a different size, smaller one
 
 			let containerDomNodeWidth = persistedSize.width - 8;
@@ -1304,24 +1305,30 @@ export class ContentHoverWidget extends Disposable implements IContentWidget {
 			let contentsDomNodeWidth = persistedSize.width - 8;
 			let contentsDomNodeHeight = persistedSize.height - 18;
 
-			if (renderingType) {
-				const maxRenderingHeight = this.findMaxRenderingHeight(renderingType);
-				const maxRenderingWidth = this.findMaxRenderingWidth();
-				console.log('maxRenderingHeight : ', maxRenderingHeight);
-				console.log('maxRenderingWidth : ', maxRenderingWidth);
+			const maxRenderingHeight = this.findMaxRenderingHeight(renderingType);
+			const maxRenderingWidth = this.findMaxRenderingWidth();
+			console.log('maxRenderingHeight : ', maxRenderingHeight);
+			console.log('maxRenderingWidth : ', maxRenderingWidth);
 
-				if (maxRenderingHeight && maxRenderingWidth) {
-					containerDomNodeWidth = Math.min(maxRenderingWidth, containerDomNodeWidth);
-					containerDomNodeHeight = Math.min(maxRenderingHeight, containerDomNodeHeight);
-					contentsDomNodeWidth = Math.min(maxRenderingWidth, contentsDomNodeWidth);
-					contentsDomNodeHeight = Math.min(maxRenderingHeight - 10, contentsDomNodeHeight);
-				}
 
-				console.log('containerDomNodeWidth : ', containerDomNodeWidth);
-				console.log('containerDomNodeHeight : ', containerDomNodeHeight);
-				console.log('contentsDomNodeWidth : ', contentsDomNodeWidth);
-				console.log('contentsDomNodeHeight : ', contentsDomNodeHeight);
+			let value;
+			let valueMinusTen;
+
+			if (maxRenderingHeight && maxRenderingWidth) {
+
+				value = Math.min(maxRenderingHeight, persistedSize.height - 8);
+				valueMinusTen = Math.min(maxRenderingHeight - 10, persistedSize.height - 18);
+
+				containerDomNodeWidth = Math.min(maxRenderingWidth, containerDomNodeWidth);
+				containerDomNodeHeight = Math.min(maxRenderingHeight, containerDomNodeHeight);
+				contentsDomNodeWidth = Math.min(maxRenderingWidth, contentsDomNodeWidth);
+				contentsDomNodeHeight = value;
 			}
+
+			console.log('containerDomNodeWidth : ', containerDomNodeWidth);
+			console.log('containerDomNodeHeight : ', containerDomNodeHeight);
+			console.log('contentsDomNodeWidth : ', contentsDomNodeWidth);
+			console.log('contentsDomNodeHeight : ', contentsDomNodeHeight);
 
 			containerDomNode.style.width = containerDomNodeWidth + 'px';
 			containerDomNode.style.height = containerDomNodeHeight + 'px';
@@ -1331,15 +1338,29 @@ export class ContentHoverWidget extends Disposable implements IContentWidget {
 			// this._editor.addContentWidget(this._widget);
 			// this._editor.layoutContentWidget(this._widget);
 			// this._editor.render();
+			this._editor.layoutContentWidget(this);
+			this._editor.render();
+
+			console.log('contentsDomNode.clientWidth ; ', contentsDomNode.clientWidth);
+			console.log('contentsDomNode.scrollWidth : ', contentsDomNode.scrollWidth);
+
+			if (contentsDomNode.clientWidth < contentsDomNode.scrollWidth && valueMinusTen) {
+				console.log('In the case when the horizontal scroll bar should be visible');
+				// In that case the scrollbar is not visible, make the contents dom node height bigger
+				contentsDomNode.style.height = valueMinusTen + 'px';
+				this._editor.layoutContentWidget(this);
+				this._editor.render();
+			}
+
 		} else {
 			containerDomNode.style.width = 'auto';
 			containerDomNode.style.height = 'auto';
 			contentsDomNode.style.width = 'auto';
 			contentsDomNode.style.height = 'auto';
-		}
 
-		this._editor.layoutContentWidget(this);
-		this._editor.render();
+			this._editor.layoutContentWidget(this);
+			this._editor.render();
+		}
 
 		console.log('* After layout content widget');
 		containerDomNode = this.getDomNode();
