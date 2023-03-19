@@ -413,7 +413,7 @@ export class ContentHoverController extends Disposable {
 				anchor.initialMousePosX,
 				anchor.initialMousePosY,
 				disposables
-			));
+			), persistedSize);
 			console.log('* After this._widget.showAt');
 			console.log('* Before layoutContentWidget and render');
 			// Before there wasn't any of this below
@@ -679,6 +679,7 @@ export class ResizableHoverOverlay extends Disposable implements IOverlayWidget 
 			this._initialTop = this._resizableElement.domNode.offsetTop;
 		}));
 		this._register(this._resizableElement.onDidResize(e => {
+
 			console.log('* Inside of onDidResize of ContentHoverWidget');
 			console.log('e : ', e);
 			console.log('this._visible : ', this._visible);
@@ -703,6 +704,11 @@ export class ResizableHoverOverlay extends Disposable implements IOverlayWidget 
 			console.log('this._intiialHeight : ', this._initialHeight);
 			console.log('height : ', height);
 			console.log('this._initialTop - (height - this._initialHeight) : ', this._initialTop - (height - this._initialHeight));
+
+			// When resizing and then the size is smaller so that can be displayed above, display above
+			// if (height <= maxHeightAbove && this._renderingAbove === ContentWidgetPositionPreference.BELOW) {
+			//	this._renderingAbove = ContentWidgetPositionPreference.ABOVE;
+			// }
 
 			if (this._renderingAbove === ContentWidgetPositionPreference.ABOVE) {
 				this._resizableElement.domNode.style.top = this._initialTop - (height - this._initialHeight) + 'px';
@@ -885,7 +891,7 @@ export class ResizableHoverOverlay extends Disposable implements IOverlayWidget 
 		this._resizableElement.domNode.style.width = size.width + 7 + 'px';
 		this._resizableElement.layout(size.height, size.width);
 
-		console.log('After style chamge of overlay widget');
+		console.log('After style change of overlay widget');
 		resizableWidgetDomNode = this.getDomNode();
 		console.log('resizableWidgetDomNode : ', resizableWidgetDomNode);
 		console.log('resizableWidgetDomNode client width : ', resizableWidgetDomNode.clientWidth);
@@ -925,6 +931,7 @@ export class ContentHoverWidget extends Disposable implements IContentWidget {
 	private readonly _hoverVisibleKey = EditorContextKeys.hoverVisible.bindTo(this._contextKeyService);
 	private readonly _hoverFocusedKey = EditorContextKeys.hoverFocused.bindTo(this._contextKeyService);
 	private readonly _focusTracker = this._register(dom.trackFocus(this.getDomNode()));
+	private _renderingType: ContentWidgetPositionPreference = this._editor.getOption(EditorOption.hover).above ? ContentWidgetPositionPreference.ABOVE : ContentWidgetPositionPreference.BELOW;
 
 	/**
 	 * Returns `null` if the hover is not visible.
@@ -1056,14 +1063,11 @@ export class ContentHoverWidget extends Disposable implements IContentWidget {
 		// :before content can align left of the text content
 		const affinity = this._visibleData.isBeforeContent ? PositionAffinity.LeftOfInjectedText : undefined;
 
+		// Instead use a specfic preference as to the rendering and do not have it dynamically change
 		return {
 			position: this._visibleData.showAtPosition,
 			secondaryPosition: this._visibleData.showAtSecondaryPosition,
-			preference: (
-				preferAbove
-					? [ContentWidgetPositionPreference.ABOVE, ContentWidgetPositionPreference.BELOW]
-					: [ContentWidgetPositionPreference.BELOW, ContentWidgetPositionPreference.ABOVE]
-			),
+			preference: ([this._renderingType]),
 			positionAffinity: affinity
 		};
 	}
@@ -1115,7 +1119,11 @@ export class ContentHoverWidget extends Disposable implements IContentWidget {
 		codeClasses.forEach(node => this._editor.applyFontInfo(node));
 	}
 
-	public showAt(node: DocumentFragment, visibleData: ContentHoverVisibleData): void {
+	public showAt(node: DocumentFragment, visibleData: ContentHoverVisibleData, persistedSize: dom.Dimension | undefined): void {
+
+		if (!this._editor || !this._editor.hasModel()) {
+			return;
+		}
 
 		console.log(' * Entered into showAt of ContentHoverWidget');
 		this._setVisibleData(visibleData);
@@ -1131,13 +1139,66 @@ export class ContentHoverWidget extends Disposable implements IContentWidget {
 		// Simply force a synchronous render on the editor
 		// such that the widget does not really render with left = '0px'
 		this._editor.render();
-		console.log('* After render inside of showAt of ContentHoverWidget');
+
 		const containerDomNode = this.getDomNode();
+		let height;
+
+		if (persistedSize) {
+			height = persistedSize.height;
+		} else {
+
+			height = containerDomNode.clientHeight;
+		}
+
 		console.log('containerDomNode : ', containerDomNode);
 		console.log('containerDomNode client width : ', containerDomNode.clientWidth);
 		console.log('containerDomNode client height : ', containerDomNode.clientHeight);
 		console.log('containerDomNode offset top : ', containerDomNode.offsetTop);
 		console.log('containerDomNode offset left : ', containerDomNode.offsetLeft);
+
+		console.log('* After render inside of showAt of ContentHoverWidget');
+
+		// TODO: Should be added in the final rendering after the persisted size is used, because that is the one that should be applied
+		/** Specifying the side on which to render the content hover **/
+		// Initial height is not used without persisting
+
+		// The dimensions of the document in which we are displaying the hover
+		const bodyBox = dom.getClientArea(document.body);
+
+		// Hard-coded in the hover.css file as 1.5em or 24px
+		const minHeight = 24;
+		// The full height is already passed in as a parameter
+		const fullHeight = height;
+		const editorBox = dom.getDomNodePagePosition(this._editor.getDomNode());
+		const mouseBox = this._editor.getScrolledVisiblePosition(visibleData.showAtPosition);
+		// Position where the editor box starts + the top of the mouse box relatve to the editor + mouse box height
+		const mouseBottom = editorBox.top + mouseBox.top + mouseBox.height;
+		// Total height of the box minus the position of the bottom of the mouse, this is the maximum height below the mouse position
+		const availableSpaceBelow = bodyBox.height - mouseBottom;
+		// Max height below is the minimum of the available space below and the full height of the widget
+		const maxHeightBelow = Math.min(availableSpaceBelow, fullHeight);
+		// The available space above the mouse position is the height of the top of the editor plus the top of the mouse box relative to the editor
+		const availableSpaceAbove = editorBox.top + mouseBox.top;
+
+		const maxHeightAbove = Math.min(availableSpaceAbove, fullHeight);
+		// We find the maximum height of the widget possible on the top or on the bottom
+		const maxHeight = Math.min(Math.max(maxHeightAbove, maxHeightBelow), fullHeight);
+
+		if (height < minHeight) {
+			height = minHeight;
+		}
+		if (height > maxHeight) {
+			height = maxHeight;
+		}
+		if (this._editor.getOption(EditorOption.hover).above) {
+			this._renderingType = height <= maxHeightAbove ? ContentWidgetPositionPreference.ABOVE : ContentWidgetPositionPreference.BELOW;
+		} else {
+			this._renderingType = height <= maxHeightBelow ? ContentWidgetPositionPreference.BELOW : ContentWidgetPositionPreference.ABOVE;
+		}
+
+		/** End of specifying the side on which to render **/
+		// specify the rendering position here
+
 		const contentsDomNode = this.getContentsDomNode();
 		console.log('contentsDomNode : ', contentsDomNode);
 		console.log('contentsDomNode client width : ', contentsDomNode.clientWidth);
