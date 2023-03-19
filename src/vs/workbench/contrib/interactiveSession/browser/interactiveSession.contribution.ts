@@ -119,3 +119,4 @@ registerSingleton(IInteractiveSessionContributionService, InteractiveSessionCont
 registerSingleton(IInteractiveSessionWidgetService, InteractiveSessionWidgetService, InstantiationType.Delayed);
 
 import 'vs/workbench/contrib/interactiveSession/browser/contrib/interactiveSessionInputEditorDecorations';
+import 'vs/workbench/contrib/interactiveSession/browser/contrib/interactiveSessionCodeBlockCopy';

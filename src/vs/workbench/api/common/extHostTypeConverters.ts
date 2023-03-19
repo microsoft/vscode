@@ -1528,6 +1528,21 @@ export namespace LanguageSelector {
 	}
 }
 
+export namespace NotebookDocumentSaveReason {
+
+	export function to(reason: SaveReason): vscode.NotebookDocumentSaveReason {
+		switch (reason) {
+			case SaveReason.AUTO:
+				return types.NotebookDocumentSaveReason.AfterDelay;
+			case SaveReason.EXPLICIT:
+				return types.NotebookDocumentSaveReason.Manual;
+			case SaveReason.FOCUS_CHANGE:
+			case SaveReason.WINDOW_CHANGE:
+				return types.NotebookDocumentSaveReason.FocusOut;
+		}
+	}
+}
+
 export namespace NotebookRange {
 
 	export function from(range: vscode.NotebookRange): ICellRange {
@@ -2119,8 +2134,8 @@ export namespace InteractiveSessionFollowup {
 		} else if ('commandId' in followup) {
 			return <IInteractiveSessionResponseCommandFollowup>{
 				kind: 'command',
-				title: followup.title,
-				commandId: followup.commandId,
+				title: followup.title ?? '',
+				commandId: followup.commandId ?? '',
 				args: followup.args
 			};
 		} else {

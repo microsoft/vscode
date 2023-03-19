@@ -8,6 +8,7 @@ declare module 'vscode' {
 	export interface InteractiveEditorSlashCommand {
 		command: string;
 		detail?: string;
+		refer?: boolean;
 		// kind: CompletionItemKind;
 	}
 
@@ -15,6 +16,7 @@ declare module 'vscode' {
 	export interface InteractiveEditorSession {
 		placeholder?: string;
 		slashCommands?: InteractiveEditorSlashCommand[];
+		wholeRange?: Range;
 	}
 
 	// todo@API make classes
@@ -109,7 +111,7 @@ declare module 'vscode' {
 
 	export interface InteractiveResponseCommand {
 		commandId: string;
-		args: any[];
+		args?: any[];
 		title: string; // supports codicon strings
 	}
 
@@ -154,10 +156,17 @@ declare module 'vscode' {
 		direction: InteractiveSessionVoteDirection;
 	}
 
+	export enum InteractiveSessionCopyKind {
+		// Keyboard shortcut or context menu
+		Action = 1,
+		Toolbar = 2
+	}
+
 	export interface InteractiveSessionCopyAction {
 		kind: 'copy';
 		responseId: string;
 		codeBlockIndex: number;
+		copyType: InteractiveSessionCopyKind;
 	}
 
 	export interface InteractiveSessionInsertAction {
