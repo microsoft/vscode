@@ -34,7 +34,7 @@ class RunCommands extends Action2 {
 									items: {
 										anyOf: [  // Note: we don't allow arbitrary strings as command names as does `keybindingService.ts` - such behavior would be useful if the commands registry doesn't know about all existing commands - needs investigation
 											{
-												$ref: 'vscode://schemas/keybindings#/definitions/commandNameSchema'
+												$ref: 'vscode://schemas/keybindings#commandNames'
 											},
 											{
 												type: 'object',
