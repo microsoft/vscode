@@ -29,7 +29,6 @@ import { Emitter, Event } from 'vs/base/common/event';
 
 const $ = dom.$;
 
-// TODO: set maximum width
 // TODO: remove the double flickering that happens on double rendering, but is it possible to remove it really?
 // TODO: correct potential errors on sticky hover
 
@@ -738,11 +737,11 @@ export class ResizableHoverOverlay extends Disposable implements IOverlayWidget 
 			this._maxRenderingHeight = this._containingWidget.findMaxRenderingHeight(this._renderingAbove);
 
 			// console.log('this._maxRenderingHeight : ', this._maxRenderingHeight);
-			if (!this._maxRenderingHeight) {
+			if (!this._maxRenderingHeight || !this._maxRenderingWidth) {
 				return;
 			}
 			this._resizableElement.minSize = new dom.Dimension(10, 24);
-			this._resizableElement.maxSize = new dom.Dimension(maxWidth, this._maxRenderingHeight);
+			this._resizableElement.maxSize = new dom.Dimension(this._maxRenderingWidth, this._maxRenderingHeight);
 
 			if (state) {
 				// console.log('Inside of the case when state defined : ', state);
@@ -1059,11 +1058,10 @@ export class ContentHoverWidget extends Disposable implements IContentWidget {
 		const editorBox = dom.getDomNodePagePosition(this._editor.getDomNode());
 		const widthOfEditor = editorBox.width;
 		const leftOfEditor = editorBox.left;
-
+		const glyphMarginWidth = this._editor.getLayoutInfo().glyphMarginWidth;
 		const leftOfContainer = this._hover.containerDomNode.offsetLeft;
-		const margin = 20;
 
-		return widthOfEditor + leftOfEditor - leftOfContainer;
+		return widthOfEditor + leftOfEditor - leftOfContainer - glyphMarginWidth;
 	}
 
 	public override dispose(): void {
