@@ -32,19 +32,19 @@ class RunCommands extends Action2 {
 									type: 'array',
 									description: nls.localize('runCommands.commands', "Commands to run"),
 									items: {
-										type: ['string', 'object'],
-										required: ['command'],
-										properties: {
-											command: {
-												type: 'string'
+										anyOf: [  // Note: we don't allow arbitrary strings as command names as does `keybindingService.ts` - such behavior would be useful if the commands registry doesn't know about all existing commands - needs investigation
+											{
+												$ref: 'vscode://schemas/keybindings#/definitions/commandNameSchema'
 											},
-											args: { // type: any
+											{
+												type: 'object',
+												required: ['command'],
+												$ref: 'vscode://schemas/keybindings#/definitions/commandsSchemas'
 											}
-										}
+										]
 									}
 								}
 							}
-
 						}
 					}
 				]

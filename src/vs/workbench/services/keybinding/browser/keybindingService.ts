@@ -796,6 +796,15 @@ const schema: IJSONSchema = {
 					}
 				}
 			}
+		},
+		'commandNameSchema': {
+			'type': 'string',
+			'enum': commandsEnum,
+			'enumDescriptions': <any>commandsEnumDescriptions,
+			'description': nls.localize('keybindings.json.command', "Name of the command to execute"),
+		},
+		'commandsSchemas': {
+			'allOf': commandsSchemas
 		}
 	},
 	items: {
@@ -810,10 +819,7 @@ const schema: IJSONSchema = {
 			'command': {
 				'anyOf': [
 					{
-						'type': 'string',
-						'enum': commandsEnum,
-						'enumDescriptions': <any>commandsEnumDescriptions,
-						'description': nls.localize('keybindings.json.command', "Name of the command to execute"),
+						'$ref': '#/definitions/commandNameSchema'
 					},
 					{
 						'type': 'string',
@@ -834,7 +840,7 @@ const schema: IJSONSchema = {
 				'description': nls.localize('keybindings.json.args', "Arguments to pass to the command to execute.")
 			}
 		},
-		'allOf': commandsSchemas
+		'$ref': '#/definitions/commandsSchemas'
 	}
 };
 
