@@ -581,7 +581,8 @@ class CodeBlockPart extends Disposable implements IInteractiveResultCodeBlockPar
 
 	layout(width: number): void {
 		const realContentHeight = this.editor.getContentHeight();
-		this.editor.layout({ width, height: realContentHeight });
+		const editorBorder = 2;
+		this.editor.layout({ width: width - editorBorder, height: realContentHeight });
 	}
 
 	render(data: IInteractiveResultCodeBlockData, width: number): void {
