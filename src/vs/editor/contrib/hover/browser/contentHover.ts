@@ -313,7 +313,7 @@ export class ContentHoverController extends Disposable {
 
 				const persistedSize = this._resizableWidget.findPersistedSize();
 				console.log('persistedSize : ', persistedSize);
-				this._widget.onContentsChanged(persistedSize);
+				this._widget.onContentsChanged(persistedSize, this._widget.renderingType);
 				this._editor.render();
 
 				console.log('After onContentsChanged');
@@ -423,6 +423,7 @@ export class ContentHoverController extends Disposable {
 				anchor.initialMousePosY,
 				disposables
 			), persistedSize);
+
 			console.log('* After this._widget.showAt');
 			console.log('* Before layoutContentWidget and render');
 			// Before there wasn't any of this below
@@ -971,6 +972,10 @@ export class ContentHoverWidget extends Disposable implements IContentWidget {
 		return this._hoverVisibleKey.get() ?? false;
 	}
 
+	public get renderingType(): ContentWidgetPositionPreference {
+		return this._renderingType;
+	}
+
 	constructor(
 		private readonly _editor: ICodeEditor,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService
@@ -1182,6 +1187,8 @@ export class ContentHoverWidget extends Disposable implements IContentWidget {
 
 		if (persistedSize) {
 			height = persistedSize.height;
+			this._hover.contentsDomNode.style.maxHeight = 'none';
+			this._hover.contentsDomNode.style.maxWidth = 'none';
 		} else {
 			height = containerDomNode.clientHeight;
 			this._hover.contentsDomNode.style.maxHeight = `${Math.max(this._editor.getLayoutInfo().height / 4, 250)}px`;
@@ -1268,7 +1275,7 @@ export class ContentHoverWidget extends Disposable implements IContentWidget {
 		}
 	}
 
-	public onContentsChanged(persistedSize?: dom.Dimension | undefined): void {
+	public onContentsChanged(persistedSize?: dom.Dimension | undefined, renderingType?: ContentWidgetPositionPreference | undefined): void {
 
 		console.log('* Inside of contents changed');
 		console.log('* Before changes');
@@ -1289,10 +1296,37 @@ export class ContentHoverWidget extends Disposable implements IContentWidget {
 
 		// Added here but does not seem to have an effect
 		if (persistedSize) {
-			containerDomNode.style.width = persistedSize.width - 8 + 'px'; // - 8
-			containerDomNode.style.height = persistedSize.height - 8 + 'px'; // - 8
-			contentsDomNode.style.width = persistedSize.width - 8 + 'px'; // - 8
-			contentsDomNode.style.height = persistedSize.height - 18 + 'px';
+
+			// If persisted size does not fit in the editor for example on editor resize, use a different size, smaller one
+
+			let containerDomNodeWidth = persistedSize.width - 8;
+			let containerDomNodeHeight = persistedSize.height - 8;
+			let contentsDomNodeWidth = persistedSize.width - 8;
+			let contentsDomNodeHeight = persistedSize.height - 18;
+
+			if (renderingType) {
+				const maxRenderingHeight = this.findMaxRenderingHeight(renderingType);
+				const maxRenderingWidth = this.findMaxRenderingWidth();
+				console.log('maxRenderingHeight : ', maxRenderingHeight);
+				console.log('maxRenderingWidth : ', maxRenderingWidth);
+
+				if (maxRenderingHeight && maxRenderingWidth) {
+					containerDomNodeWidth = Math.min(maxRenderingWidth, containerDomNodeWidth);
+					containerDomNodeHeight = Math.min(maxRenderingHeight, containerDomNodeHeight);
+					contentsDomNodeWidth = Math.min(maxRenderingWidth, contentsDomNodeWidth);
+					contentsDomNodeHeight = Math.min(maxRenderingHeight - 10, contentsDomNodeHeight);
+				}
+
+				console.log('containerDomNodeWidth : ', containerDomNodeWidth);
+				console.log('containerDomNodeHeight : ', containerDomNodeHeight);
+				console.log('contentsDomNodeWidth : ', contentsDomNodeWidth);
+				console.log('contentsDomNodeHeight : ', contentsDomNodeHeight);
+			}
+
+			containerDomNode.style.width = containerDomNodeWidth + 'px';
+			containerDomNode.style.height = containerDomNodeHeight + 'px';
+			contentsDomNode.style.width = contentsDomNodeWidth + 'px';
+			contentsDomNode.style.height = contentsDomNodeHeight + 'px';
 
 			// this._editor.addContentWidget(this._widget);
 			// this._editor.layoutContentWidget(this._widget);
@@ -1305,6 +1339,7 @@ export class ContentHoverWidget extends Disposable implements IContentWidget {
 		}
 
 		this._editor.layoutContentWidget(this);
+		this._editor.render();
 
 		console.log('* After layout content widget');
 		containerDomNode = this.getDomNode();
