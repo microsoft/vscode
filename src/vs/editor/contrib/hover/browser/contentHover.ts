@@ -29,6 +29,11 @@ import { Emitter, Event } from 'vs/base/common/event';
 
 const $ = dom.$;
 
+// TODO: set maximum width
+// TODO: remove the double flickering that happens on double rendering, but is it possible to remove it really?
+// TODO: correct potential errors on sticky hover
+// TODO: update the left position on the resize
+
 class ResizeState {
 	constructor(
 		readonly persistedSize: dom.Dimension | undefined,
@@ -682,6 +687,12 @@ export class ResizableHoverOverlay extends Disposable implements IOverlayWidget 
 
 			console.log('* Inside of onDidResize of ContentHoverWidget');
 			console.log('e : ', e);
+
+			// update the left position of the resizable overlay on resize
+			const offsetLeft = this._containingWidget?.getDomNode().offsetLeft;
+			if (offsetLeft) {
+				this._resizableElement.domNode.style.left = offsetLeft - 1 + 'px';
+			}
 
 			if (!this._visible) {
 				this._resizing = false;
