@@ -16,14 +16,14 @@ steps:
     displayName: Download openssl prebuilt
     inputs:
       command: custom
-      customCommand: pack @vscode-internal/openssl-prebuilt@0.0.3
+      customCommand: pack @vscode-internal/openssl-prebuilt@0.0.5
       customRegistry: useFeed
       customFeed: 'Monaco/openssl-prebuilt'
       workingDir: $(Build.ArtifactStagingDirectory)
 
   - powershell: |
       mkdir $(Build.ArtifactStagingDirectory)/openssl
-      tar -xvzf $(Build.ArtifactStagingDirectory)/vscode-internal-openssl-prebuilt-0.0.3.tgz --strip-components=1 --directory=$(Build.ArtifactStagingDirectory)/openssl
+      tar -xvzf $(Build.ArtifactStagingDirectory)/vscode-internal-openssl-prebuilt-0.0.5.tgz --strip-components=1 --directory=$(Build.ArtifactStagingDirectory)/openssl
     displayName: Extract openssl prebuilt
 
   - task: NodeTool@0
@@ -60,6 +60,7 @@ steps:
         VSCODE_CLI_ENV:
           OPENSSL_LIB_DIR: $(Build.ArtifactStagingDirectory)/openssl/x64-windows-static-md/lib
           OPENSSL_INCLUDE_DIR: $(Build.ArtifactStagingDirectory)/openssl/x64-windows-static-md/include
+          RUSTFLAGS: '-C target-feature=+crt-static'
 
   - ${{ if eq(parameters.VSCODE_BUILD_WIN32_ARM64, true) }}:
     - template: ../cli/cli-compile-and-publish.yml
@@ -69,6 +70,7 @@ steps:
         VSCODE_CLI_ENV:
           OPENSSL_LIB_DIR: $(Build.ArtifactStagingDirectory)/openssl/arm64-windows-static-md/lib
           OPENSSL_INCLUDE_DIR: $(Build.ArtifactStagingDirectory)/openssl/arm64-windows-static-md/include
+          RUSTFLAGS: '-C target-feature=+crt-static'
 
   - ${{ if eq(parameters.VSCODE_BUILD_WIN32_32BIT, true) }}:
     - template: ../cli/cli-compile-and-publish.yml
@@ -78,3 +80,4 @@ steps:
         VSCODE_CLI_ENV:
           OPENSSL_LIB_DIR: $(Build.ArtifactStagingDirectory)/openssl/x86-windows-static-md/lib
           OPENSSL_INCLUDE_DIR: $(Build.ArtifactStagingDirectory)/openssl/x86-windows-static-md/include
+          RUSTFLAGS: '-C target-feature=+crt-static'

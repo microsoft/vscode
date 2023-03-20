@@ -26,7 +26,7 @@ import { ILogService, NullLogService } from 'vs/platform/log/common/log';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { TestNotificationService } from 'vs/platform/notification/test/common/testNotificationService';
 import { ClassifiedEvent, IGDPRProperty, OmitMetadata, StrictPropertyCheck } from 'vs/platform/telemetry/common/gdprTypings';
-import { ITelemetryInfo, ITelemetryService, TelemetryLevel } from 'vs/platform/telemetry/common/telemetry';
+import { ITelemetryService, TelemetryLevel } from 'vs/platform/telemetry/common/telemetry';
 import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
 import { UndoRedoService } from 'vs/platform/undoRedo/common/undoRedoService';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
@@ -177,6 +177,9 @@ class TestTelemetryService implements ITelemetryService {
 	public _serviceBrand: undefined;
 	public telemetryLevel = TelemetryLevel.USAGE;
 	public sendErrorTelemetry = true;
+	readonly sessionId = 'someValue.sessionId';
+	readonly machineId = 'someValue.machineId';
+	readonly firstSessionDate = 'someValue.firstSessionDate';
 
 	public events: any[] = [];
 
@@ -192,31 +195,21 @@ class TestTelemetryService implements ITelemetryService {
 	public setExperimentProperty(name: string, value: string): void {
 	}
 
-	public publicLog(eventName: string, data?: any): Promise<void> {
+	public publicLog(eventName: string, data?: any) {
 		const event = { name: eventName, data: data };
 		this.events.push(event);
 		this.emitter.fire(event);
-		return Promise.resolve();
 	}
 
 	public publicLog2<E extends ClassifiedEvent<OmitMetadata<T>> = never, T extends IGDPRProperty = never>(eventName: string, data?: StrictPropertyCheck<T, E>) {
 		return this.publicLog(eventName, data as any);
 	}
 
-	public publicLogError(eventName: string, data?: any): Promise<void> {
+	public publicLogError(eventName: string, data?: any) {
 		return this.publicLog(eventName, data);
 	}
 
 	public publicLogError2<E extends ClassifiedEvent<OmitMetadata<T>> = never, T extends IGDPRProperty = never>(eventName: string, data?: StrictPropertyCheck<T, E>) {
 		return this.publicLogError(eventName, data as any);
-	}
-
-	public getTelemetryInfo(): Promise<ITelemetryInfo> {
-		return Promise.resolve({
-			instanceId: 'someValue.instanceId',
-			sessionId: 'someValue.sessionId',
-			machineId: 'someValue.machineId',
-			firstSessionDate: 'someValue.firstSessionDate'
-		});
 	}
 }

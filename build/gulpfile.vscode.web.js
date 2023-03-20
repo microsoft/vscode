@@ -83,7 +83,7 @@ const buildDate = new Date().toISOString();
  */
 const createVSCodeWebProductConfigurationPatcher = (product) => {
 	/**
-	 * @param content {string} The contens of the file
+	 * @param content {string} The contents of the file
 	 * @param path {string} The absolute file path, always using `/`, even on Windows
 	 */
 	const result = (content, path) => {
@@ -108,7 +108,7 @@ const createVSCodeWebProductConfigurationPatcher = (product) => {
  */
 const createVSCodeWebBuiltinExtensionsPatcher = (extensionsRoot) => {
 	/**
-	 * @param content {string} The contens of the file
+	 * @param content {string} The contents of the file
 	 * @param path {string} The absolute file path, always using `/`, even on Windows
 	 */
 	const result = (content, path) => {
@@ -128,7 +128,7 @@ const createVSCodeWebBuiltinExtensionsPatcher = (extensionsRoot) => {
  */
 const combineContentPatchers = (...patchers) => {
 	/**
-	 * @param content {string} The contens of the file
+	 * @param content {string} The contents of the file
 	 * @param path {string} The absolute file path, always using `/`, even on Windows
 	 */
 	const result = (content, path) => {

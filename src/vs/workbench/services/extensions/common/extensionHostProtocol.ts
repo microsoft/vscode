@@ -8,7 +8,6 @@ import { URI, UriComponents, UriDto } from 'vs/base/common/uri';
 import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { ILoggerResource, LogLevel } from 'vs/platform/log/common/log';
 import { IRemoteConnectionData } from 'vs/platform/remote/common/remoteAuthorityResolver';
-import { ITelemetryInfo } from 'vs/platform/telemetry/common/telemetry';
 
 export interface IExtensionDescriptionDelta {
 	readonly toRemove: ExtensionIdentifier[];
@@ -31,12 +30,15 @@ export interface IExtensionHostInitData {
 	allExtensions: IExtensionDescription[];
 	myExtensions: ExtensionIdentifier[];
 	nlsBaseUrl?: URI;
-	telemetryInfo: ITelemetryInfo;
+	telemetryInfo: {
+		readonly sessionId: string;
+		readonly machineId: string;
+		readonly firstSessionDate: string;
+		readonly msftInternal?: boolean;
+	};
 	logLevel: LogLevel;
 	loggers: UriDto<ILoggerResource>[];
 	logsLocation: URI;
-	logFile: URI;
-	logName: string;
 	autoStart: boolean;
 	remote: { isRemote: boolean; authority: string | undefined; connectionData: IRemoteConnectionData | null };
 	consoleForward: { includeStack: boolean; logNative: boolean };

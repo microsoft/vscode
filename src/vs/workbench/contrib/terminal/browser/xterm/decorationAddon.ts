@@ -5,7 +5,6 @@
 
 import * as dom from 'vs/base/browser/dom';
 import { IAction, Separator } from 'vs/base/common/actions';
-import { Color } from 'vs/base/common/color';
 import { Emitter } from 'vs/base/common/event';
 import { Disposable, dispose, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { localize } from 'vs/nls';
@@ -18,7 +17,7 @@ import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
 import { CommandInvalidationReason, ICommandDetectionCapability, IMarkProperties, ITerminalCapabilityStore, TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
 import { TerminalSettingId } from 'vs/platform/terminal/common/terminal';
-import { IColorTheme, IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { ThemeIcon } from 'vs/base/common/themables';
 import { terminalDecorationError, terminalDecorationIncomplete, terminalDecorationMark, terminalDecorationSuccess } from 'vs/workbench/contrib/terminal/browser/terminalIcons';
 import { DecorationSelector, TerminalDecorationHoverManager, updateLayout } from 'vs/workbench/contrib/terminal/browser/xterm/decorationStyles';
@@ -158,12 +157,7 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 	private _refreshStyles(refreshOverviewRulerColors?: boolean): void {
 		if (refreshOverviewRulerColors) {
 			for (const decoration of this._decorations.values()) {
-				let color = decoration.exitCode === undefined ? defaultColor : decoration.exitCode ? errorColor : successColor;
-				if (color && typeof color !== 'string') {
-					color = color.toString();
-				} else {
-					color = '';
-				}
+				const color = this._getDecorationCssColor(decoration)?.toString() ?? '';
 				if (decoration.decoration.options?.overviewRulerOptions) {
 					decoration.decoration.options.overviewRulerOptions.color = color;
 				} else if (decoration.decoration.options) {
@@ -264,12 +258,7 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 			throw new Error(`cannot add a decoration for a command ${JSON.stringify(command)} with no marker`);
 		}
 		this._clearPlaceholder();
-		let color = command?.exitCode === undefined ? defaultColor : command.exitCode ? errorColor : successColor;
-		if (color && typeof color !== 'string') {
-			color = color.toString();
-		} else {
-			color = '';
-		}
+		const color = this._getDecorationCssColor(command)?.toString() ?? '';
 		const decoration = this._terminal.registerDecoration({
 			marker,
 			overviewRulerOptions: this._showOverviewRulerDecorations ? (beforeCommandExecution
@@ -475,12 +464,14 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 		quickPick.ok = false;
 		quickPick.show();
 	}
+
+	private _getDecorationCssColor(decorationOrCommand?: IDisposableDecoration | ITerminalCommand): string | undefined {
+		let colorId: string;
+		if (decorationOrCommand?.exitCode === undefined) {
+			colorId = TERMINAL_COMMAND_DECORATION_DEFAULT_BACKGROUND_COLOR;
+		} else {
+			colorId = decorationOrCommand.exitCode ? TERMINAL_COMMAND_DECORATION_ERROR_BACKGROUND_COLOR : TERMINAL_COMMAND_DECORATION_SUCCESS_BACKGROUND_COLOR;
+		}
+		return this._themeService.getColorTheme().getColor(colorId)?.toString();
+	}
 }
-let successColor: string | Color | undefined;
-let errorColor: string | Color | undefined;
-let defaultColor: string | Color | undefined;
-registerThemingParticipant((theme: IColorTheme) => {
-	successColor = theme.getColor(TERMINAL_COMMAND_DECORATION_SUCCESS_BACKGROUND_COLOR);
-	errorColor = theme.getColor(TERMINAL_COMMAND_DECORATION_ERROR_BACKGROUND_COLOR);
-	defaultColor = theme.getColor(TERMINAL_COMMAND_DECORATION_DEFAULT_BACKGROUND_COLOR);
-});

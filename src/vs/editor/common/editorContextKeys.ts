@@ -39,6 +39,10 @@ export namespace EditorContextKeys {
 	export const canRedo = new RawContextKey<boolean>('canRedo', false, true);
 
 	export const hoverVisible = new RawContextKey<boolean>('editorHoverVisible', false, nls.localize('editorHoverVisible', "Whether the editor hover is visible"));
+	export const hoverFocused = new RawContextKey<boolean>('editorHoverFocused', false, nls.localize('editorHoverFocused', "Whether the editor hover is focused"));
+
+	export const stickyScrollFocused = new RawContextKey<boolean>('stickyScrollFocused', false, nls.localize('stickyScrollFocused', "Whether the sticky scroll is focused"));
+	export const stickyScrollVisible = new RawContextKey<boolean>('stickyScrollVisible', false, nls.localize('stickyScrollVisible', "Whether the sticky scroll is visible"));
 
 	/**
 	 * A context key that is set when an editor is part of a larger editor, like notebooks or

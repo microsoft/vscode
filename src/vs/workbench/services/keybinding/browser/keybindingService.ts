@@ -17,7 +17,7 @@ import { ICommandService, CommandsRegistry } from 'vs/platform/commands/common/c
 import { ContextKeyExpr, IContextKeyService, ContextKeyExpression, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { Extensions, IJSONContributionRegistry } from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
 import { AbstractKeybindingService } from 'vs/platform/keybinding/common/abstractKeybindingService';
-import { IKeyboardEvent, IUserFriendlyKeybinding, IKeybindingService, KeybindingsSchemaContribution } from 'vs/platform/keybinding/common/keybinding';
+import { IKeyboardEvent, IKeybindingService, KeybindingsSchemaContribution } from 'vs/platform/keybinding/common/keybinding';
 import { KeybindingResolver } from 'vs/platform/keybinding/common/keybindingResolver';
 import { IKeybindingItem, IExtensionKeybindingRule, KeybindingWeight, KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { ResolvedKeybindingItem } from 'vs/platform/keybinding/common/resolvedKeybindingItem';
@@ -343,7 +343,7 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 			if (!item.keybinding) {
 				continue;
 			}
-			const input = item._source.key;
+			const input = item._sourceKey ?? 'Impossible: missing source key, but has keybinding';
 			if (seenBindings.has(input)) {
 				continue;
 			}
@@ -406,7 +406,7 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 				// This might be a removal keybinding item in user settings => accept it
 				result[resultLen++] = new ResolvedKeybindingItem(undefined, item.command, item.commandArgs, when, isDefault, item.extensionId, item.isBuiltinExtension);
 			} else {
-				if (this._assertBrowserConflicts(keybinding, item.command)) {
+				if (this._assertBrowserConflicts(keybinding)) {
 					continue;
 				}
 
@@ -440,7 +440,7 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 		return result;
 	}
 
-	private _assertBrowserConflicts(keybinding: Keybinding, commandId: string | null): boolean {
+	private _assertBrowserConflicts(keybinding: Keybinding): boolean {
 		if (BrowserFeatures.keyboard === KeyboardSupport.Always) {
 			return false;
 		}
@@ -682,7 +682,7 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 
 class UserKeybindings extends Disposable {
 
-	private _rawKeybindings: IUserFriendlyKeybinding[] = [];
+	private _rawKeybindings: Object[] = [];
 	private _keybindings: IUserKeybindingItem[] = [];
 	get keybindings(): IUserKeybindingItem[] { return this._keybindings; }
 
@@ -756,11 +756,13 @@ class UserKeybindings extends Disposable {
 		return true;
 	}
 
-	private async readUserKeybindings(): Promise<IUserFriendlyKeybinding[]> {
+	private async readUserKeybindings(): Promise<Object[]> {
 		try {
 			const content = await this.fileService.readFile(this.userDataProfileService.currentProfile.keybindingsResource);
 			const value = parse(content.value.toString());
-			return Array.isArray(value) ? value : [];
+			return Array.isArray(value)
+				? value.filter(v => v && typeof v === 'object' /* just typeof === object doesn't catch `null` */)
+				: [];
 		} catch (e) {
 			return [];
 		}
@@ -871,6 +873,7 @@ function updateSchema(additionalContributions: readonly IJSONSchema[]) {
 		);
 		const addition = {
 			'if': {
+				'required': ['command'],
 				'properties': {
 					'command': { 'const': commandId }
 				}

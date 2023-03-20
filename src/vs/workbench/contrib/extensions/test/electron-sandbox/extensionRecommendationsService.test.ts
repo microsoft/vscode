@@ -242,16 +242,45 @@ suite('ExtensionRecommendationsService Test', () => {
 				'msjsdiag.debugger-for-chrome': '{**/*.ts,**/*.tsx,**/*.js,**/*.jsx,**/*.es6,**/*.mjs,**/*.cjs,**/.babelrc}',
 				'lukehoban.Go': '**/*.go'
 			},
-			extensionImportantTips: {
+			extensionRecommendations: {
 				'ms-python.python': {
-					'name': 'Python',
-					'pattern': '{**/*.py}'
+					onFileOpen: [
+						{
+							'pathGlob': '{**/*.py}',
+							important: true
+						}
+					]
 				},
 				'ms-vscode.PowerShell': {
-					'name': 'PowerShell',
-					'pattern': '{**/*.ps,**/*.ps1}'
+					onFileOpen: [
+						{
+							'pathGlob': '{**/*.ps,**/*.ps1}',
+							important: true
+						}
+					]
+				},
+				'ms-dotnettools.csharp': {
+					onFileOpen: [
+						{
+							'pathGlob': '{**/*.cs,**/project.json,**/global.json,**/*.csproj,**/*.sln,**/appsettings.json}',
+						}
+					]
+				},
+				'msjsdiag.debugger-for-chrome': {
+					onFileOpen: [
+						{
+							'pathGlob': '{**/*.ts,**/*.tsx,**/*.js,**/*.jsx,**/*.es6,**/*.mjs,**/*.cjs,**/.babelrc}',
+						}
+					]
+				},
+				'lukehoban.Go': {
+					onFileOpen: [
+						{
+							'pathGlob': '**/*.go',
+						}
+					]
 				}
-			}
+			},
 		});
 
 		experimentService = instantiationService.createInstance(TestExperimentService);

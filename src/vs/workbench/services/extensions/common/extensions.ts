@@ -304,8 +304,6 @@ export class ExtensionPointContribution<T> {
 	}
 }
 
-export const ExtensionHostLogFileName = 'exthost';
-
 export interface IWillActivateEvent {
 	readonly event: string;
 	readonly activation: Promise<void>;
@@ -482,8 +480,7 @@ export function toExtensionDescription(extension: IExtension, isUnderDevelopment
 		extensionLocation: extension.location,
 		...extension.manifest,
 		uuid: extension.identifier.uuid,
-		targetPlatform: extension.targetPlatform,
-		browserNlsBundleUris: extension.browserNlsBundleUris
+		targetPlatform: extension.targetPlatform
 	};
 }
 

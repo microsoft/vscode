@@ -95,7 +95,13 @@ if (Get-Module -Name PSReadLine) {
 # Set always on key handlers which map to default VS Code keybindings
 function Set-MappedKeyHandler {
 	param ([string[]] $Chord, [string[]]$Sequence)
-	$Handler = $(Get-PSReadLineKeyHandler -Chord $Chord | Select-Object -First 1)
+	try {
+		$Handler = Get-PSReadLineKeyHandler -Chord $Chord | Select-Object -First 1
+	} catch [System.Management.Automation.ParameterBindingException] {
+		# PowerShell 5.1 ships with PSReadLine 2.0.0 which does not have -Chord,
+		# so we check what's bound and filter it.
+		$Handler = Get-PSReadLineKeyHandler -Bound | Where-Object -FilterScript { $_.Key -eq $Chord } | Select-Object -First 1
+	}
 	if ($Handler) {
 		Set-PSReadLineKeyHandler -Chord $Sequence -Function $Handler.Function
 	}

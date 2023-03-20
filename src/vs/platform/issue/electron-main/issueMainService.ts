@@ -27,6 +27,7 @@ import { IWindowState } from 'vs/platform/window/electron-main/window';
 import { randomPath } from 'vs/base/common/extpath';
 import { withNullAsUndefined } from 'vs/base/common/types';
 import { IStateService } from 'vs/platform/state/node/state';
+import { UtilityProcess } from 'vs/platform/utilityProcess/electron-main/utilityProcess';
 
 export const IIssueMainService = createDecorator<IIssueMainService>('issueMainService');
 const processExplorerWindowState = 'issue.processExplorerWindowState';
@@ -178,9 +179,19 @@ export class IssueMainService implements IIssueMainService {
 			this.processExplorerWindow?.close();
 		});
 
-		validatedIpcMain.on('vscode:windowsInfoRequest', async event => {
+		validatedIpcMain.on('vscode:pidToNameRequest', async event => {
 			const mainProcessInfo = await this.diagnosticsMainService.getMainDiagnostics();
-			this.safeSend(event, 'vscode:windowsInfoResponse', mainProcessInfo.windows);
+
+			const pidToNames: [number, string][] = [];
+			for (const window of mainProcessInfo.windows) {
+				pidToNames.push([window.pid, `window [${window.id}] (${window.title})`]);
+			}
+
+			for (const { pid, name } of UtilityProcess.getAll()) {
+				pidToNames.push([pid, name]);
+			}
+
+			this.safeSend(event, 'vscode:pidToNameResponse', pidToNames);
 		});
 	}
 
@@ -343,7 +354,7 @@ export class IssueMainService implements IIssueMainService {
 			backgroundColor: options.backgroundColor || IssueMainService.DEFAULT_BACKGROUND_COLOR,
 			webPreferences: {
 				preload: FileAccess.asFileUri('vs/base/parts/sandbox/electron-browser/preload.js').fsPath,
-				additionalArguments: [`--vscode-window-config=${ipcObjectUrl.resource.toString()}`, `--vscode-window-kind=${windowKind}`],
+				additionalArguments: [`--vscode-window-config=${ipcObjectUrl.resource.toString()}`],
 				v8CacheOptions: this.environmentMainService.useCodeCache ? 'bypassHeatCheck' : 'none',
 				enableWebSQL: false,
 				spellcheck: false,

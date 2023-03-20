@@ -12,6 +12,8 @@
 	user-select: initial;
 	-webkit-user-select: initial;
 	position: relative;
+	/* Create stacking context before to terminal canvases. */
+	z-index: 0;
 }
 
 .terminal-command-decoration.hide {
@@ -512,8 +514,12 @@
 	border-color: var(--vscode-contrastActiveBorder);
 }
 
-.monaco-workbench .editor-instance .find-focused .xterm .xterm-viewport,
-.monaco-workbench .pane-body.integrated-terminal .find-focused .xterm .xterm-viewport,
+.monaco-workbench .integrated-terminal .hoverHighlight {
+	background-color: var(--vscode-terminal-hoverHighlightBackground);
+}
+
+.monaco-workbench .editor-instance .force-scrollbar .xterm .xterm-viewport,
+.monaco-workbench .pane-body.integrated-terminal .force-scrollbar .xterm .xterm-viewport,
 .monaco-workbench .editor-instance .xterm.focus .xterm-viewport,
 .monaco-workbench .pane-body.integrated-terminal .xterm.focus .xterm-viewport,
 .monaco-workbench .editor-instance .xterm:focus .xterm-viewport,
@@ -581,4 +587,30 @@
 	outline-offset: -1px;
 	text-decoration: underline;
 	outline-color: var(--vscode-focusBorder);
+}
+
+.monaco-workbench .accessible-buffer {
+	position: absolute;
+	left: 0;
+	top: 0;
+	bottom: 0;
+	right: 0;
+	opacity: 0;
+	/* Reset cursor style as monaco controls it here */
+	cursor: default;
+	padding: 0;
+	overflow: initial;
+	overflow-x: initial;
+}
+
+.monaco-workbench .accessible-buffer div {
+	white-space: pre-wrap;
+}
+
+.monaco-workbench .accessible-buffer.focus-within,
+.monaco-workbench .accessible-buffer.active {
+	pointer-events: all;
+	opacity: 1;
+	z-index: 33;
+	background-color: var(--vscode-terminal-background, --vscode-panel-background);
 }

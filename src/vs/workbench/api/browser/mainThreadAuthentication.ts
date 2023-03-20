@@ -281,17 +281,32 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 		const session = await this.doGetSession(providerId, scopes, extensionId, extensionName, options);
 
 		if (session) {
-			type AuthProviderUsageClassification = {
-				owner: 'TylerLeonhardt';
-				comment: 'Used to see which extensions are using which providers';
-				extensionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The extension id.' };
-				providerId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The provider id.' };
-			};
-			this.telemetryService.publicLog2<{ extensionId: string; providerId: string }, AuthProviderUsageClassification>('authentication.providerUsage', { providerId, extensionId });
-
+			this.sendProviderUsageTelemetry(extensionId, providerId);
 			addAccountUsage(this.storageService, providerId, session.account.label, extensionId, extensionName);
 		}
 
 		return session;
+	}
+
+	async $getSessions(providerId: string, scopes: readonly string[], extensionId: string, extensionName: string): Promise<AuthenticationSession[]> {
+		const sessions = await this.authenticationService.getSessions(providerId, [...scopes], true);
+		const accessibleSessions = sessions.filter(s => this.authenticationService.isAccessAllowed(providerId, s.account.label, extensionId));
+		if (accessibleSessions.length) {
+			this.sendProviderUsageTelemetry(extensionId, providerId);
+			for (const session of accessibleSessions) {
+				addAccountUsage(this.storageService, providerId, session.account.label, extensionId, extensionName);
+			}
+		}
+		return accessibleSessions;
+	}
+
+	private sendProviderUsageTelemetry(extensionId: string, providerId: string): void {
+		type AuthProviderUsageClassification = {
+			owner: 'TylerLeonhardt';
+			comment: 'Used to see which extensions are using which providers';
+			extensionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The extension id.' };
+			providerId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The provider id.' };
+		};
+		this.telemetryService.publicLog2<{ extensionId: string; providerId: string }, AuthProviderUsageClassification>('authentication.providerUsage', { providerId, extensionId });
 	}
 }
