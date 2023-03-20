@@ -797,6 +797,12 @@ const schema: IJSONSchema = {
 				}
 			}
 		},
+		'commandNames': {
+			'type': 'string',
+			'enum': commandsEnum,
+			'enumDescriptions': <any>commandsEnumDescriptions,
+			'description': nls.localize('keybindings.json.command', "Name of the command to execute"),
+		},
 		'commandsSchemas': {
 			'allOf': commandsSchemas
 		}
@@ -811,35 +817,20 @@ const schema: IJSONSchema = {
 				'description': nls.localize('keybindings.json.key', "Key or key sequence (separated by space)"),
 			},
 			'command': {
-				'if': {
-					'type': 'array'
-				},
-				'then': {
-					'not': {
-						'type': 'array',
+				'anyOf': [
+					{
+						$ref: '#/definitions/commandNames'
 					},
-					'errorMessage': nls.localize('keybindings.commandsIsArray', "Incorrect type. Expected \"{0}\". The field 'command' does not support running multiple commands. Use command 'runCommands' to pass it multiple commands to run.", 'string')
-				},
-				'else': {
-					'anyOf': [
-						{
-							'$anchor': 'commandNames', // https://json-schema.org/understanding-json-schema/structuring.html#anchor
-							'type': 'string',
-							'enum': commandsEnum,
-							'enumDescriptions': <any>commandsEnumDescriptions,
-							'description': nls.localize('keybindings.json.command', "Name of the command to execute"),
-						},
-						{
-							'type': 'string',
-							'enum': removalCommandsEnum,
-							'enumDescriptions': <any>commandsEnumDescriptions,
-							'description': nls.localize('keybindings.json.removalCommand', "Name of the command to remove keyboard shortcut for"),
-						},
-						{
-							'type': 'string'
-						}
-					],
-				}
+					{
+						'type': 'string',
+						'enum': removalCommandsEnum,
+						'enumDescriptions': <any>commandsEnumDescriptions,
+						'description': nls.localize('keybindings.json.removalCommand', "Name of the command to remove keyboard shortcut for"),
+					},
+					{
+						'type': 'string'
+					},
+				],
 			},
 			'when': {
 				'type': 'string',
