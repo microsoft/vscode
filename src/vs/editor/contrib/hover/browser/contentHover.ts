@@ -339,6 +339,19 @@ export class ContentHoverController extends Disposable {
 				console.log('this._widget.getDomNode().offsetTop : ', this._widget.getDomNode().offsetTop);
 				console.log('this._resizableWidget.getDomNode().offsetTop : ', this._resizableOverlay.getDomNode().offsetTop); */
 
+				this._editor.render();
+				console.log('containerDomNode : ', containerDomNode);
+				console.log('containerDomNode client width : ', containerDomNode.clientWidth);
+				console.log('containerDomNode client height : ', containerDomNode.clientHeight);
+				console.log('containerDomNode offset top : ', containerDomNode.offsetTop);
+				console.log('containerDomNode offset left : ', containerDomNode.offsetLeft);
+
+				console.log('contentsDomNode : ', contentsDomNode);
+				console.log('contentsDomNode client width : ', contentsDomNode.clientWidth);
+				console.log('contentsDomNode client height : ', contentsDomNode.clientHeight);
+				console.log('contentsDomNode offset top : ', contentsDomNode.offsetTop);
+				console.log('contentsDomNode offset left : ', contentsDomNode.offsetLeft);
+
 				// After the final rendering of the widget, retrieve its top and left offsets
 				const widgetDomNode = this._widget.getDomNode();
 				const offsetTop = widgetDomNode.offsetTop;
@@ -365,6 +378,8 @@ export class ContentHoverController extends Disposable {
 				// this._widget._hover.scrollbar.scanDomNode();
 
 				/** The following are for logging purposes can be removed */
+				console.log('After render');
+
 				console.log('resizableWidgetDomNode : ', resizableOverlayDomNode);
 				console.log('resizableWidgetDomNode client width : ', resizableOverlayDomNode.clientWidth);
 				console.log('resizableWidgetDomNode client height : ', resizableOverlayDomNode.clientHeight);
@@ -904,8 +919,11 @@ export class ResizableHoverOverlay extends Disposable implements IOverlayWidget 
 			this._resizableElement.enableSashes(false, true, true, false);
 		}
 
+		// this._editor.layoutOverlayWidget(this);
 		this._resizableElement.domNode.style.zIndex = '10';
 		this._resizableElement.domNode.style.position = 'fixed';
+
+		/*
 		this._resizableElement.domNode.style.top = position.clientTop - 2 + 'px';
 		this._resizableElement.domNode.style.left = position.clientLeft - 2 + 'px';
 		// this._resizableElement.domNode.style.height = size.height + 7 + 'px';
@@ -921,9 +939,10 @@ export class ResizableHoverOverlay extends Disposable implements IOverlayWidget 
 		console.log('resizableWidgetDomNode offset top : ', resizableWidgetDomNode.offsetTop);
 		console.log('resizableWidgetDomNode offset left : ', resizableWidgetDomNode.offsetLeft);
 		// --- end of logging
+		*/
 
 		this._editor.layoutOverlayWidget(this);
-
+		/*
 		// --- beginning of logging
 		console.log('After layout overlay widget');
 		resizableWidgetDomNode = this.getDomNode();
@@ -946,6 +965,7 @@ export class ResizableHoverOverlay extends Disposable implements IOverlayWidget 
 		console.log('resizableWidgetDomNode offset top : ', resizableWidgetDomNode.offsetTop);
 		console.log('resizableWidgetDomNode offset left : ', resizableWidgetDomNode.offsetLeft);
 		// --- end of logging
+		*/
 	}
 
 }
