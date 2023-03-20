@@ -9,7 +9,7 @@ import { DisposableStore, combinedDisposable, toDisposable } from 'vs/base/commo
 import { IActiveCodeEditor, ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditorLayoutInfo, EditorOption } from 'vs/editor/common/config/editorOptions';
 import { Range } from 'vs/editor/common/core/range';
-import { IEditorContribution, IEditorDecorationsCollection } from 'vs/editor/common/editorCommon';
+import { IEditorContribution, IEditorDecorationsCollection, ScrollType } from 'vs/editor/common/editorCommon';
 import { localize } from 'vs/nls';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
@@ -480,7 +480,18 @@ export class InteractiveEditorZoneWidget extends ZoneWidget {
 	}
 
 	updatePosition(where: IPosition) {
+		// todo@jrieken
+		// UGYLY: we need to restore focus because showing the zone removes and adds it and that
+		// means we loose focus for a bit
+		const hasFocusNow = this.widget.inputEditor.hasWidgetFocus();
 		super.show(where, this._computeHeightInLines());
+		if (hasFocusNow) {
+			this.widget.inputEditor.focus();
+		}
+	}
+
+	protected override revealRange(_range: Range, _isLastLine: boolean) {
+		// disabled
 	}
 
 	override hide(): void {
@@ -829,6 +840,7 @@ export class InteractiveEditorController implements IEditorContribution {
 			this._ctsRequest = new CancellationTokenSource(this._ctsSession.token);
 
 			this._historyOffset = -1;
+			this._editor.revealRange(wholeRange, ScrollType.Smooth);
 			const input = await this._zone.getInput(wholeRange.getEndPosition(), placeholder, value, this._ctsRequest.token);
 			roundStore.clear();
 
