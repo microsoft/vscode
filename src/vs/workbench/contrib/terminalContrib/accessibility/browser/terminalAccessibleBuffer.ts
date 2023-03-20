@@ -27,6 +27,7 @@ import { IQuickInputService, IQuickPick, IQuickPickItem } from 'vs/platform/quic
 import { AudioCue, IAudioCueService } from 'vs/platform/audioCues/browser/audioCueService';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/terminalContextKey';
+import { isWindows } from 'vs/base/common/platform';
 
 const enum Constants {
 	Scheme = 'terminal-accessible-buffer',
@@ -177,13 +178,14 @@ export class AccessibleBufferWidget extends DisposableStore {
 		const quickPickItems: IQuickPickItem[] = [];
 		for (const command of commands) {
 			const line = command.marker?.line;
+			const wrappedCount = command.command.split('\n').length;
 			if (!line || !command.command.length) {
 				continue;
 			}
 			quickPickItems.push(
 				{
 					label: localize('terminal.integrated.symbolQuickPick.labelNoExitCode', '{0}', command.command),
-					meta: JSON.stringify({ line: line + 1, exitCode: command.exitCode })
+					meta: JSON.stringify({ line: isWindows ? line - wrappedCount : line + 1, exitCode: command.exitCode })
 				});
 		}
 		const quickPick = this._quickInputService.createQuickPick<IQuickPickItem>();
