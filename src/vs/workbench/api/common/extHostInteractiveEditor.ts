@@ -73,15 +73,25 @@ export class ExtHostInteractiveEditor implements ExtHostInteractiveEditorShape {
 		}
 
 		const document = this._documents.getDocument(URI.revive(uri));
-		const session = await entry.provider.prepareInteractiveEditorSession({ document, selection: typeConvert.Selection.to(range) }, token);
+		const selection = typeConvert.Selection.to(range);
+		const session = await entry.provider.prepareInteractiveEditorSession({ document, selection }, token);
 		if (!session) {
 			return undefined;
+		}
+
+		if (session.wholeRange && !session.wholeRange.contains(selection)) {
+			throw new Error(`InteractiveEditorSessionProvider returned a wholeRange that does not contain the selection.`);
 		}
 
 		const id = ExtHostInteractiveEditor._nextId++;
 		this._inputSessions.set(id, new SessionWrapper(session));
 
-		return { id, placeholder: session.placeholder, slashCommands: session.slashCommands };
+		return {
+			id,
+			placeholder: session.placeholder,
+			slashCommands: session.slashCommands,
+			wholeRange: typeConvert.Range.from(session.wholeRange),
+		};
 	}
 
 	async $provideResponse(handle: number, item: IInteractiveEditorSession, request: IInteractiveEditorRequest, token: CancellationToken): Promise<IInteractiveEditorResponseDto | undefined> {

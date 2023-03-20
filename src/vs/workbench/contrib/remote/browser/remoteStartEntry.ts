@@ -12,7 +12,7 @@ import { once } from 'vs/base/common/functional';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { Action2, MenuRegistry, registerAction2 } from 'vs/platform/actions/common/actions';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { IExtensionGalleryService, IExtensionManagementService } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { EXTENSION_INSTALL_SKIP_WALKTHROUGH_CONTEXT, IExtensionGalleryService, IExtensionManagementService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { retry } from 'vs/base/common/async';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
@@ -126,17 +126,17 @@ export class RemoteStartEntry extends Disposable implements IWorkbenchContributi
 		const index = this.remoteExtensionMetadata.findIndex(value => value.id === extensionId);
 		if (index > -1) {
 			if (installed && !this.remoteExtensionMetadata[index].installed) {
-				this.remoteExtensionMetadata[index].installed = true;
 				const commands = await this.getRemoteCommands(extensionId);
 				if (commands) {
 					this.remoteExtensionMetadata[index].remoteCommands = commands;
 				}
+				this.remoteExtensionMetadata[index].installed = true;
 			} else if (!installed && this.remoteExtensionMetadata[index].installed) {
-				this.remoteExtensionMetadata[index].installed = false;
 				if (this.remoteExtensionMetadata[index].dependenciesStr === undefined) {
 					const dependenciesStr = await this.getDependenciesStr(this.remoteExtensionMetadata[index].id);
 					this.remoteExtensionMetadata[index].dependenciesStr = dependenciesStr;
 				}
+				this.remoteExtensionMetadata[index].installed = false;
 			}
 			return this.remoteExtensionMetadata[index];
 		}
@@ -224,7 +224,13 @@ export class RemoteStartEntry extends Disposable implements IWorkbenchContributi
 					quickPick.busy = true;
 					quickPick.placeholder = nls.localize('remote.startActions.installingExtension', 'Installing extension... ');
 
-					this.commandService.executeCommand('workbench.extensions.installExtension', selectedItem);
+					const galleryExtension = (await this.extensionGalleryService.getExtensions([{ id: selectedItem }], CancellationToken.None))[0];
+					await this.extensionManagementService.installFromGallery(galleryExtension, {
+						isMachineScoped: false,
+						donotIncludePackAndDependencies: false,
+						context: { [EXTENSION_INSTALL_SKIP_WALKTHROUGH_CONTEXT]: true }
+					});
+
 					this.telemetryService.publicLog2<RemoteStartActionEvent, RemoteStartActionClassification>('remoteStartList.ActionExecuted', { command: 'workbench.extensions.installExtension', remoteExtensionId: selectedItem });
 
 					quickPick.busy = false;
@@ -268,6 +274,7 @@ function registerConfiguration(enabled: boolean): void {
 				scope: ConfigurationScope.MACHINE,
 				type: 'boolean',
 				default: enabled,
+				tags: ['experimental'],
 				description: nls.localize('workbench.remote.showStartListEntry', "When enabled, a start list entry for getting started with remote experiences in shown on the welcome page.")
 			}
 		}

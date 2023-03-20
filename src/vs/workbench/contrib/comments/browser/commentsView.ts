@@ -41,6 +41,7 @@ import { IDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import { ITreeElement } from 'vs/base/browser/ui/tree/tree';
 import { Iterable } from 'vs/base/common/iterator';
 import { CommentController } from 'vs/workbench/contrib/comments/browser/commentsController';
+import { Range } from 'vs/editor/common/core/range';
 
 const CONTEXT_KEY_HAS_COMMENTS = new RawContextKey<boolean>('commentsView.hasComments', false);
 const CONTEXT_KEY_SOME_COMMENTS_EXPANDED = new RawContextKey<boolean>('commentsView.someCommentsExpanded', false);
@@ -312,14 +313,23 @@ export class CommentsPanel extends FilterViewPane implements ICommentsView {
 						return nls.localize('resourceWithCommentThreadsLabel', "Comments in {0}, full path {1}", basename(element.resource), element.resource.fsPath);
 					}
 					if (element instanceof CommentNode) {
-						return nls.localize('resourceWithCommentLabel',
-							"Comment from ${0} at line {1} column {2} in {3}, source: {4}",
-							element.comment.userName,
-							element.range.startLineNumber,
-							element.range.startColumn,
-							basename(element.resource),
-							(typeof element.comment.body === 'string') ? element.comment.body : element.comment.body.value
-						);
+						if (element.range) {
+							return nls.localize('resourceWithCommentLabel',
+								"Comment from ${0} at line {1} column {2} in {3}, source: {4}",
+								element.comment.userName,
+								element.range.startLineNumber,
+								element.range.startColumn,
+								basename(element.resource),
+								(typeof element.comment.body === 'string') ? element.comment.body : element.comment.body.value
+							);
+						} else {
+							return nls.localize('resourceWithCommentLabelFile',
+								"Comment from ${0} in {1}, source: {2}",
+								element.comment.userName,
+								basename(element.resource),
+								(typeof element.comment.body === 'string') ? element.comment.body : element.comment.body.value
+							);
+						}
 					}
 					return '';
 				},
@@ -385,7 +395,7 @@ export class CommentsPanel extends FilterViewPane implements ICommentsView {
 			options: {
 				pinned: pinned,
 				preserveFocus: preserveFocus,
-				selection: range
+				selection: range ?? new Range(1, 1, 1, 1)
 			}
 		}, sideBySide ? SIDE_GROUP : ACTIVE_GROUP).then(editor => {
 			if (editor) {

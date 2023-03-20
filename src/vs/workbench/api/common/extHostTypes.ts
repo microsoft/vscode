@@ -623,6 +623,12 @@ export class TextEdit {
 	}
 }
 
+export enum NotebookDocumentSaveReason {
+	Manual = 1,
+	AfterDelay = 2,
+	FocusOut = 3
+}
+
 @es5ClassCompat
 export class NotebookEdit implements vscode.NotebookEdit {
 
@@ -3960,6 +3966,11 @@ export class InteractiveWindowInput {
 export enum InteractiveSessionVoteDirection {
 	Up = 1,
 	Down = 2
+}
+
+export enum InteractiveSessionCopyKind {
+	Action = 1,
+	Toolbar = 2
 }
 
 //#endregion

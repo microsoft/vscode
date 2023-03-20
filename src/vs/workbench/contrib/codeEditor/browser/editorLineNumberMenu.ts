@@ -58,15 +58,19 @@ export class EditorLineNumberContextMenu extends Disposable implements IEditorCo
 	) {
 		super();
 
-		this._register(this.editor.onMouseDown((e: IEditorMouseEvent) => this.show(e)));
+		this._register(this.editor.onMouseDown((e: IEditorMouseEvent) => this.doShow(e, false)));
 
 	}
 
 	public show(e: IEditorMouseEvent) {
+		this.doShow(e, true);
+	}
+
+	private doShow(e: IEditorMouseEvent, force: boolean) {
 		const model = this.editor.getModel();
 
 		// on macOS ctrl+click is interpreted as right click
-		if (!e.event.rightButton && !(isMacintosh && e.event.leftButton && e.event.ctrlKey)
+		if (!e.event.rightButton && !(isMacintosh && e.event.leftButton && e.event.ctrlKey) && !force
 			|| e.target.type !== MouseTargetType.GUTTER_LINE_NUMBERS && e.target.type !== MouseTargetType.GUTTER_GLYPH_MARGIN
 			|| !e.target.position || !model
 		) {

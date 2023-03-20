@@ -189,7 +189,8 @@ export class TextMateWorkerHost implements IDisposable {
 
 export interface StateDeltas {
 	startLineNumber: number;
-	stateDeltas: StackDiff[];
+	// null means the state for that line did not change
+	stateDeltas: (StackDiff | null)[];
 }
 
 function keepAliveWhenAttached(textModel: ITextModel, factory: () => IDisposable): IDisposable {
