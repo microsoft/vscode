@@ -15,6 +15,7 @@ import { FuzzyScore } from 'vs/base/common/filters';
 import { IMarkdownString, MarkdownString } from 'vs/base/common/htmlContent';
 import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { ResourceMap } from 'vs/base/common/map';
+import { FileAccess } from 'vs/base/common/network';
 import { ThemeIcon } from 'vs/base/common/themables';
 import { EditorExtensionsRegistry } from 'vs/editor/browser/editorExtensions';
 import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
@@ -193,7 +194,7 @@ export class InteractiveListItemRenderer extends Disposable implements ITreeRend
 
 		if (element.avatarIconUri) {
 			const avatarIcon = dom.$<HTMLImageElement>('img.icon');
-			avatarIcon.src = element.avatarIconUri.toString(true);
+			avatarIcon.src = FileAccess.uriToBrowserUri(element.avatarIconUri).toString(true);
 			templateData.avatar.replaceChildren(avatarIcon);
 		} else {
 			const defaultIcon = isRequestVM(element) ? Codicon.account : Codicon.hubot;

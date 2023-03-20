@@ -5,7 +5,6 @@
 
 import { Codicon } from 'vs/base/common/codicons';
 import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
-import { FileAccess } from 'vs/base/common/network';
 import * as resources from 'vs/base/common/resources';
 import { localize } from 'vs/nls';
 import { registerAction2 } from 'vs/platform/actions/common/actions';
@@ -69,7 +68,7 @@ export class InteractiveSessionContributionService implements IInteractiveSessio
 				for (const providerDescriptor of extension.value) {
 					this.registerInteractiveSessionProvider(extension.description, providerDescriptor);
 					const extensionIcon = extension.description.icon ?
-						FileAccess.uriToBrowserUri(resources.joinPath(extension.description.extensionLocation, extension.description.icon)) :
+						resources.joinPath(extension.description.extensionLocation, extension.description.icon) :
 						undefined;
 					this._registeredProviders.set(providerDescriptor.id, {
 						...providerDescriptor,
