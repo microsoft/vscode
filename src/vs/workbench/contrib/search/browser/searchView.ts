@@ -463,9 +463,9 @@ export class SearchView extends ViewPane {
 		const showReplace = typeof this.viewletState['view.showReplace'] === 'boolean' ? this.viewletState['view.showReplace'] : true;
 		const preserveCase = this.viewletState['query.preserveCase'] === true;
 
-		const isInNotebookMarkdownInput = this.viewletState['query.isInNotebookMarkdownInput'];
-		const isInNotebookCellInput = this.viewletState['query.isInNotebookCellInput'];
-		const isInNotebookCellOutput = this.viewletState['query.isInNotebookCellOutput'];
+		const isInNotebookMarkdownInput = this.viewletState['query.isInNotebookMarkdownInput'] ?? true;
+		const isInNotebookCellInput = this.viewletState['query.isInNotebookCellInput'] ?? true;
+		const isInNotebookCellOutput = this.viewletState['query.isInNotebookCellOutput'] ?? true;
 
 
 		this.searchWidget = this._register(this.instantiationService.createInstance(SearchWidget, container, {
