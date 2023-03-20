@@ -637,7 +637,6 @@ export class DomScrollableElement extends AbstractScrollableElement {
 	}
 
 	public scanDomNode(): void {
-		console.log('Inside of scanDomNode()');
 		// width, scrollLeft, scrollWidth, height, scrollTop, scrollHeight
 		this.setScrollDimensions({
 			width: this._element.clientWidth,

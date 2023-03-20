@@ -29,11 +29,6 @@ import { Emitter, Event } from 'vs/base/common/event';
 
 const $ = dom.$;
 
-// TODO: remove the double flickering that happens on double rendering, but is it possible to remove it really?
-// TODO: correct potential errors on sticky hover
-// TODO: test the case when there is a hover which without a persist size, has a horizontal scrollbar
-// TODO: when hover appears with a horizontal scroll-bar, not persisted, and resized, make sure the scroll-bar is there
-
 class ResizeState {
 	constructor(
 		readonly persistedSize: dom.Dimension | undefined,
@@ -46,7 +41,7 @@ class ResizeState {
 export class ContentHoverController extends Disposable {
 
 	private readonly _participants: IEditorHoverParticipant[];
-	private readonly _resizableWidget = this._register(this._instantiationService.createInstance(ResizableHoverOverlay, this._editor));
+	private readonly _resizableOverlay = this._register(this._instantiationService.createInstance(ResizableHoverOverlay, this._editor));
 	private readonly _widget = this._register(this._instantiationService.createInstance(ContentHoverWidget, this._editor));
 	private readonly _computer: ContentHoverComputer;
 	private readonly _hoverOperation: HoverOperation<IHoverPart>;
@@ -60,9 +55,7 @@ export class ContentHoverController extends Disposable {
 	) {
 		super();
 
-		this._resizableWidget.containingWidget = this._widget;
-		this._widget._hover.scrollbar.scanDomNode();
-
+		this._resizableOverlay.containingWidget = this._widget;
 		// Instantiate participants and sort them by `hoverOrdinal` which is relevant for rendering order.
 		this._participants = [];
 		for (const participant of HoverParticipantRegistry.getAll()) {
@@ -78,7 +71,6 @@ export class ContentHoverController extends Disposable {
 				// invalid state, ignore result
 				return;
 			}
-			console.log('* Result of the hover operation is attained');
 			const messages = (result.hasLoadingMessage ? this._addLoadingMessage(result.value) : result.value);
 			this._withResult(new HoverResult(this._computer.anchor, messages, result.isComplete));
 		}));
@@ -93,20 +85,18 @@ export class ContentHoverController extends Disposable {
 				this._setCurrentResult(this._currentResult); // render again
 			}
 		}));
-		this._register(this._editor.onDidChangeModel(() => {
-			this._resizableWidget.hide();
-		}));
-		this._register(this._resizableWidget.onDidResize((e) => {
+		this._register(this._resizableOverlay.onDidResize((e) => {
 			this._widget.resize(e.dimension);
+			// Update the left offset of the resizable element when the widget has been resized
 			const offsetLeft = this._widget.getDomNode().offsetLeft;
 			if (offsetLeft) {
-				this._resizableWidget.getDomNode().style.left = offsetLeft - 1 + 'px';
+				this._resizableOverlay.getDomNode().style.left = offsetLeft - 1 + 'px';
 			}
 		}));
 	}
 
-	get resizableWidget() {
-		return this._resizableWidget;
+	get resizableOverlay() {
+		return this._resizableOverlay;
 	}
 
 	/**
@@ -114,7 +104,8 @@ export class ContentHoverController extends Disposable {
 	 */
 	public maybeShowAt(mouseEvent: IEditorMouseEvent): boolean {
 
-		if (this._resizableWidget.isResizing()) {
+		// While the hover overlay is resizing, the hover is showing
+		if (this._resizableOverlay.isResizing()) {
 			return true;
 		}
 
@@ -231,12 +222,11 @@ export class ContentHoverController extends Disposable {
 			this._renderMessages(this._currentResult.anchor, this._currentResult.messages);
 		} else {
 			this._widget.hide();
-			this._resizableWidget.hide();
+			this._resizableOverlay.hide();
 		}
 	}
 
 	public hide(): void {
-		console.log('Inside of hide of content hover controller');
 		this._computer.anchor = null;
 		this._hoverOperation.cancel();
 		this._setCurrentResult(null);
@@ -304,47 +294,64 @@ export class ContentHoverController extends Disposable {
 			statusBar,
 			setColorPicker: (widget) => colorPicker = widget,
 			onContentsChanged: () => {
+
 				console.log('Inside of onContentsChanged of the context inside of _renderMessage');
 				console.log('Before onContentsChanged');
-				let resizableWidgetDomNode = this._resizableWidget.getDomNode();
-				console.log('resizableWidgetDomNode : ', resizableWidgetDomNode);
-				console.log('resizableWidgetDomNode client width : ', resizableWidgetDomNode.clientWidth);
-				console.log('resizableWidgetDomNode client height : ', resizableWidgetDomNode.clientHeight);
-				console.log('resizableWidgetDomNode offset top : ', resizableWidgetDomNode.offsetTop);
-				console.log('resizableWidgetDomNode offset left : ', resizableWidgetDomNode.offsetLeft);
 
-				const persistedSize = this._resizableWidget.findPersistedSize();
+				// The dom node of the resizable overlay
+				// TODO: Remove after
+				const resizableOverlayDomNode = this._resizableOverlay.getDomNode();
+
+				console.log('resizableWidgetDomNode : ', resizableOverlayDomNode);
+				console.log('resizableWidgetDomNode client width : ', resizableOverlayDomNode.clientWidth);
+				console.log('resizableWidgetDomNode client height : ', resizableOverlayDomNode.clientHeight);
+				console.log('resizableWidgetDomNode offset top : ', resizableOverlayDomNode.offsetTop);
+				console.log('resizableWidgetDomNode offset left : ', resizableOverlayDomNode.offsetLeft);
+
+				// Finding the resizable overlay should be outside of the on contents changed since it is a function which pertains to the resizable hover
+				const persistedSize = this._resizableOverlay.findPersistedSize();
+
 				console.log('persistedSize : ', persistedSize);
+
+				// Same goes for the boolean first rendering, since it should be defined outside of the function
 				const firstRendering = true;
-				this._widget.onContentsChanged(firstRendering, persistedSize, this._widget.renderingType);
+
+				// Do some actions when the contents of the hover changes, which appears to happen every single time after the showAt function is called
+				this._widget.onContentsChanged(firstRendering, persistedSize);
+				// TODO: do we need this forced render here?
 				this._editor.render();
 
 				console.log('After onContentsChanged');
 				console.log('this._widget.getDomNode().offsetTop : ', this._widget.getDomNode().offsetTop);
-				console.log('this._resizableWidget.getDomNode().offsetTop : ', this._resizableWidget.getDomNode().offsetTop);
+				console.log('this._resizableWidget.getDomNode().offsetTop : ', this._resizableOverlay.getDomNode().offsetTop);
 
+				// After the final rendering of the widget, retrieve its top and left offsets
 				const widgetDomNode = this._widget.getDomNode();
-				const top = widgetDomNode.offsetTop;
-				const left = widgetDomNode.offsetLeft;
+				const offsetTop = widgetDomNode.offsetTop;
+				const offsetLeft = widgetDomNode.offsetLeft;
+				const clientWidth = widgetDomNode.clientWidth;
+				const clientHeight = widgetDomNode.clientHeight;
 
-				this._resizableWidget.resizableElement().domNode.style.top = top - 2 + 'px';
-				this._resizableWidget.resizableElement().domNode.style.left = left - 2 + 'px';
-				this._resizableWidget.resizableElement().domNode.style.zIndex = '5';
-				this._resizableWidget.resizableElement().domNode.tabIndex = 0;
-				this._resizableWidget.resizableElement().domNode.style.position = 'fixed';
-				const clientWidth = this._widget.getDomNode().clientWidth;
-				const clientHeight = this._widget.getDomNode().clientHeight;
-				this._resizableWidget.resizableElement().layout(clientHeight + 7, clientWidth + 7);
-				this._editor.layoutOverlayWidget(this._resizableWidget);
+				// Values found by trial and error
+				// Update the left and top offset to match the widget dom node
+				const resizableElement = this._resizableOverlay.resizableElement();
+				resizableElement.domNode.style.top = offsetTop - 2 + 'px';
+				resizableElement.domNode.style.left = offsetLeft - 2 + 'px';
+				// Set a different width and height to the resizable element
+				resizableElement.layout(clientHeight + 7, clientWidth + 7);
+				this._editor.layoutOverlayWidget(this._resizableOverlay);
+				// TODO: Do we need this forced rendering?
 				this._editor.render();
 
-				resizableWidgetDomNode = this._resizableWidget.getDomNode();
+				// TODO: Do we need this scan dom node?
+				// this._widget._hover.scrollbar.scanDomNode();
 
-				console.log('resizableWidgetDomNode : ', resizableWidgetDomNode);
-				console.log('resizableWidgetDomNode client width : ', resizableWidgetDomNode.clientWidth);
-				console.log('resizableWidgetDomNode client height : ', resizableWidgetDomNode.clientHeight);
-				console.log('resizableWidgetDomNode offset top : ', resizableWidgetDomNode.offsetTop);
-				console.log('resizableWidgetDomNode offset left : ', resizableWidgetDomNode.offsetLeft);
+				/** The following are for logging purposes can be removed */
+				console.log('resizableWidgetDomNode : ', resizableOverlayDomNode);
+				console.log('resizableWidgetDomNode client width : ', resizableOverlayDomNode.clientWidth);
+				console.log('resizableWidgetDomNode client height : ', resizableOverlayDomNode.clientHeight);
+				console.log('resizableWidgetDomNode offset top : ', resizableOverlayDomNode.offsetTop);
+				console.log('resizableWidgetDomNode offset left : ', resizableOverlayDomNode.offsetLeft);
 
 				const containerDomNode = this._widget.getDomNode();
 				console.log('containerDomNode : ', containerDomNode);
@@ -352,15 +359,14 @@ export class ContentHoverController extends Disposable {
 				console.log('containerDomNode client height : ', containerDomNode.clientHeight);
 				console.log('containerDomNode offset top : ', containerDomNode.offsetTop);
 				console.log('containerDomNode offset left : ', containerDomNode.offsetLeft);
+
 				const contentsDomNode = this._widget.getContentsDomNode();
 				console.log('contentsDomNode : ', contentsDomNode);
 				console.log('contentsDomNode client width : ', contentsDomNode.clientWidth);
 				console.log('contentsDomNode client height : ', contentsDomNode.clientHeight);
 				console.log('contentsDomNode offset top : ', contentsDomNode.offsetTop);
 				console.log('contentsDomNode offset left : ', contentsDomNode.offsetLeft);
-
 				console.log('At the end of onContentsChanged of _renderMessages');
-				this._widget._hover.scrollbar.scanDomNode();
 			},
 			hide: () => this.hide()
 		};
@@ -389,15 +395,16 @@ export class ContentHoverController extends Disposable {
 					highlightDecoration.clear();
 				}));
 			}
-			const preferAbove = this._editor.getOption(EditorOption.hover).above;
 
+			// Save the position of the tooltip, where the content hover should appear
 			const tooltipPosition: IPosition = { lineNumber: showAtPosition.lineNumber, column: showAtPosition.column };
-			this._resizableWidget.setToooltipPosition(tooltipPosition);
-			const persistedSize = this._resizableWidget.findPersistedSize();
+			this._resizableOverlay.setToooltipPosition(tooltipPosition);
+			const persistedSize = this._resizableOverlay.findPersistedSize();
 
 			console.log('persisted size : ', persistedSize);
 
-			// Added here but does not seem to have an effect
+			// TODO: Added here but does not seem to have an effect
+			/*
 			if (persistedSize) {
 				this._widget.getDomNode().style.width = persistedSize.width + 'px';
 				this._widget.getDomNode().style.height = persistedSize.height + 'px';
@@ -405,9 +412,11 @@ export class ContentHoverController extends Disposable {
 				this._editor.layoutContentWidget(this._widget);
 				this._editor.render();
 			}
+			*/
 
+			// The following is added for logginh purposes
 			console.log('* Before this._widget.showAt');
-			let resizableWidgetDomNode = this._resizableWidget.getDomNode();
+			let resizableWidgetDomNode = this._resizableOverlay.getDomNode();
 			console.log('resizableWidgetDomNode : ', resizableWidgetDomNode);
 			console.log('resizableWidgetDomNode client width : ', resizableWidgetDomNode.clientWidth);
 			console.log('resizableWidgetDomNode client height : ', resizableWidgetDomNode.clientHeight);
@@ -418,7 +427,7 @@ export class ContentHoverController extends Disposable {
 				colorPicker,
 				showAtPosition,
 				showAtSecondaryPosition,
-				preferAbove,
+				this._editor.getOption(EditorOption.hover).above,
 				this._computer.shouldFocus,
 				this._computer.source,
 				isBeforeContent,
@@ -429,18 +438,20 @@ export class ContentHoverController extends Disposable {
 
 			console.log('* After this._widget.showAt');
 			console.log('* Before layoutContentWidget and render');
-			// Before there wasn't any of this below
+
+			// TODO: Do we actually need to layout the content widget here?
 			this._editor.layoutContentWidget(this._widget);
 			this._editor.render();
 
-			console.log('* After layoutContentWidget and render');
 			const containerDomNode = this._widget.getDomNode();
+
+			console.log('* After layoutContentWidget and render');
 			console.log('containerDomNode : ', containerDomNode);
 			console.log('containerDomNode client width : ', containerDomNode.clientWidth);
 			console.log('containerDomNode client height : ', containerDomNode.clientHeight);
 			console.log('containerDomNode offset top : ', containerDomNode.offsetTop);
 			console.log('containerDomNode offset left : ', containerDomNode.offsetLeft);
-			resizableWidgetDomNode = this._resizableWidget.getDomNode();
+			resizableWidgetDomNode = this._resizableOverlay.getDomNode();
 			console.log('resizableWidgetDomNode : ', resizableWidgetDomNode);
 			console.log('resizableWidgetDomNode client width : ', resizableWidgetDomNode.clientWidth);
 			console.log('resizableWidgetDomNode client height : ', resizableWidgetDomNode.clientHeight);
@@ -453,28 +464,28 @@ export class ContentHoverController extends Disposable {
 			console.log('contentsDomNode client height : ', contentsDomNode.clientHeight);
 			console.log('contentsDomNode offset top : ', contentsDomNode.offsetTop);
 			console.log('contentsDomNode offset left : ', contentsDomNode.offsetLeft);
-			resizableWidgetDomNode = this._resizableWidget.getDomNode();
+			resizableWidgetDomNode = this._resizableOverlay.getDomNode();
 			console.log('resizableWidgetDomNode : ', resizableWidgetDomNode);
 			console.log('resizableWidgetDomNode client width : ', resizableWidgetDomNode.clientWidth);
 			console.log('resizableWidgetDomNode client height : ', resizableWidgetDomNode.clientHeight);
 			console.log('resizableWidgetDomNode offset top : ', resizableWidgetDomNode.offsetTop);
 			console.log('resizableWidgetDomNode offset left : ', resizableWidgetDomNode.offsetLeft);
 
-			const size = new dom.Dimension(this._widget.getDomNode().clientWidth, this._widget.getDomNode().clientHeight);
+			// Saving the top, left offsets and the client widths and heights
+			const size = new dom.Dimension(containerDomNode.clientWidth, containerDomNode.clientHeight);
+			const position = { clientTop: containerDomNode.offsetTop, clientLeft: containerDomNode.offsetLeft };
 			console.log('size : ', size);
-			const position = { clientTop: this._widget.getDomNode().offsetTop, clientLeft: this._widget.getDomNode().offsetLeft };
 			console.log('position : ', position);
 
+			resizableWidgetDomNode = this._resizableOverlay.getDomNode();
 			console.log('* Before showAt of resizableWidget');
-			resizableWidgetDomNode = this._resizableWidget.getDomNode();
 			console.log('resizableWidgetDomNode : ', resizableWidgetDomNode);
 			console.log('resizableWidgetDomNode client width : ', resizableWidgetDomNode.clientWidth);
 			console.log('resizableWidgetDomNode client height : ', resizableWidgetDomNode.clientHeight);
 			console.log('resizableWidgetDomNode offset top : ', resizableWidgetDomNode.offsetTop);
 			console.log('resizableWidgetDomNode offset left : ', resizableWidgetDomNode.offsetLeft);
 
-			// Find if rendered above or below
-
+			// Find if rendered above or below in the container dom node
 			const topLineNumber = anchor.initialMousePosY;
 			console.log('topLineNumber : ', topLineNumber);
 			console.log('position.clientTop : ', position.clientTop);
@@ -491,17 +502,19 @@ export class ContentHoverController extends Disposable {
 
 			console.log('Rendering above : ', renderingAbove);
 
-			this._resizableWidget.showAt(position, size, renderingAbove);
+			// Calling show at with the position, size and rendering above option
+			this._resizableOverlay.showAt(position, size, renderingAbove);
 
 			console.log('* After showAt of resizableWidget');
-			resizableWidgetDomNode = this._resizableWidget.getDomNode();
+			resizableWidgetDomNode = this._resizableOverlay.getDomNode();
 			console.log('resizableWidgetDomNode : ', resizableWidgetDomNode);
 			console.log('resizableWidgetDomNode client width : ', resizableWidgetDomNode.clientWidth);
 			console.log('resizableWidgetDomNode client height : ', resizableWidgetDomNode.clientHeight);
 			console.log('resizableWidgetDomNode offset top : ', resizableWidgetDomNode.offsetTop);
 			console.log('resizableWidgetDomNode offset left : ', resizableWidgetDomNode.offsetLeft);
 
-			this._widget._hover.scrollbar.scanDomNode();
+			// TODO: do we need to force scan the dom node?
+			// this._widget._hover.scrollbar.scanDomNode();
 		} else {
 			disposables.dispose();
 		}
@@ -621,25 +634,40 @@ class ContentHoverVisibleData {
 export class ResizableHoverOverlay extends Disposable implements IOverlayWidget {
 
 	static readonly ID = 'editor.contrib.resizableHoverOverlay';
-	private _resizableElement: ResizableHTMLElement = this._register(new ResizableHTMLElement());
-	private _resizing: boolean = false;
+	// Creating a new resizable HTML element
+	private readonly _resizableElement: ResizableHTMLElement = this._register(new ResizableHTMLElement());
+	// Map which maps from a text model URI, to a map from the stringified version of [offset, left] to the dom dimension
 	private readonly _persistedHoverWidgetSizes = new Map<string, Map<string, dom.Dimension>>();
+	// Boolean which is indicating whether we are currently resizing or not
+	private _resizing: boolean = false;
+	// The current size of the resizable element
 	private _size: dom.Dimension | null = null;
+	// The initial height of the content hover when it first appears
 	private _initialHeight: number = -1;
+	// The initial top of the content hover widget when it first appears
 	private _initialTop: number = -1;
-	private _maxRenderingHeight: number | undefined;
-	private _maxRenderingWidth: number | undefined;
+	// The maximum rendering height
+	private _maxRenderingHeight: number | undefined = undefined;
+	// The maximum rendering width
+	private _maxRenderingWidth: number | undefined = undefined;
+	// The position where to render the hover
 	private _tooltipPosition: IPosition | null = null;
-	private _renderingPosition: IOverlayWidgetPosition | null = null;
+	// Boolean indicating whether the hover is visible
 	private _visible: boolean = false;
+
 	private _renderingAbove: ContentWidgetPositionPreference = ContentWidgetPositionPreference.ABOVE;
-	private _containingWidget: ContentHoverWidget | null = null;
+	// The hover widget which appears above the resizable overlay
+	private _hoverWidget: ContentHoverWidget | null = null;
 
 	private readonly _onDidResize = new Emitter<IResizeEvent>();
 	readonly onDidResize: Event<IResizeEvent> = this._onDidResize.event;
 
 	constructor(private readonly _editor: ICodeEditor) {
 		super();
+		this._resizableElement.domNode.style.zIndex = '5';
+		this._resizableElement.domNode.tabIndex = 0;
+		this._resizableElement.domNode.style.position = 'fixed';
+
 		this._maxRenderingHeight = this._editor.getLayoutInfo().height;
 		console.log('Inside of constructor of ResizableHoverOverlay');
 
@@ -733,12 +761,12 @@ export class ResizableHoverOverlay extends Disposable implements IOverlayWidget 
 
 			// console.log('this._containingWidget : ', this._containingWidget);
 
-			if (!this._containingWidget) {
+			if (!this._hoverWidget) {
 				return;
 			}
 
-			this._maxRenderingWidth = this._containingWidget.findMaxRenderingWidth();
-			this._maxRenderingHeight = this._containingWidget.findMaxRenderingHeight(this._renderingAbove);
+			this._maxRenderingWidth = this._hoverWidget.findMaxRenderingWidth();
+			this._maxRenderingHeight = this._hoverWidget.findMaxRenderingHeight(this._renderingAbove);
 
 			// console.log('this._maxRenderingHeight : ', this._maxRenderingHeight);
 			if (!this._maxRenderingHeight || !this._maxRenderingWidth) {
@@ -810,7 +838,7 @@ export class ResizableHoverOverlay extends Disposable implements IOverlayWidget 
 
 	public set containingWidget(containingWidget: ContentHoverWidget) {
 		console.log('setting the containing widget');
-		this._containingWidget = containingWidget;
+		this._hoverWidget = containingWidget;
 	}
 
 	public findPersistedSize(): dom.Dimension | undefined {
@@ -867,14 +895,9 @@ export class ResizableHoverOverlay extends Disposable implements IOverlayWidget 
 		this._tooltipPosition = position;
 	}
 
-	public setPosition(renderingPosition: IOverlayWidgetPosition): void {
-		this._renderingPosition = renderingPosition;
-	}
-
 	public getPosition(): IOverlayWidgetPosition | null {
 		console.log('Inside of getPosition of ResizableHoverOverlay');
-		console.log('this._renderingPosition : ', this._renderingPosition);
-		return this._renderingPosition;
+		return null;
 	}
 
 	public showAt(position: any, size: dom.Dimension, renderingAbove: boolean): void {
@@ -1323,8 +1346,8 @@ export class ContentHoverWidget extends Disposable implements IContentWidget {
 
 	public onContentsChanged(
 		firstRendering: boolean = false,
-		persistedSize?: dom.Dimension | undefined,
-		renderingType?: ContentWidgetPositionPreference | undefined): void {
+		persistedSize?: dom.Dimension | undefined
+	): void {
 
 		console.log('* Inside of contents changed');
 		console.log('* Before changes');
@@ -1342,6 +1365,8 @@ export class ContentHoverWidget extends Disposable implements IContentWidget {
 		console.log('contentsDomNode offset left : ', contentsDomNode.offsetLeft);
 
 		console.log('persisted size : ', persistedSize);
+
+		const renderingType = this._renderingType;
 
 		// Added here but does not seem to have an effect
 		if (persistedSize && renderingType) {
