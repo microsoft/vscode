@@ -227,11 +227,16 @@ export class UserDataProfileImportExportService extends Disposable implements IU
 		try {
 			const userDataProfilesExportState = disposables.add(this.instantiationService.createInstance(UserDataProfileExportState, this.userDataProfileService.currentProfile));
 			const barrier = new Barrier();
-			const exportAction = new BarrierAction(barrier, new Action('export', localize('export', "Export"), undefined, true, () => {
+			const exportAction = new BarrierAction(barrier, new Action('export', localize('export', "Export"), undefined, true, async () => {
 				exportAction.enabled = false;
-				return this.doExportProfile(userDataProfilesExportState);
-			}));
-			const closeAction = new BarrierAction(barrier, new Action('close', localize('close', "Close")));
+				try {
+					await this.doExportProfile(userDataProfilesExportState);
+				} catch (error) {
+					this.notificationService.error(error);
+					throw error;
+				}
+			}), this.notificationService);
+			const closeAction = new BarrierAction(barrier, new Action('close', localize('close', "Close")), this.notificationService);
 			await this.showProfilePreviewView(EXPORT_PROFILE_PREVIEW_VIEW, userDataProfilesExportState.profile.name, exportAction, closeAction, true, userDataProfilesExportState);
 			disposables.add(this.userDataProfileService.onDidChangeCurrentProfile(e => barrier.open()));
 			await barrier.wait();
@@ -264,7 +269,7 @@ export class UserDataProfileImportExportService extends Disposable implements IU
 				if (!profileContentHandler) {
 					return;
 				}
-				const saveResult = await profileContentHandler.saveProfile(profile.name, JSON.stringify(profile), CancellationToken.None);
+				const saveResult = await profileContentHandler.saveProfile(profile.name.replace('/', '-'), JSON.stringify(profile), CancellationToken.None);
 				if (!saveResult) {
 					return;
 				}
@@ -340,7 +345,7 @@ export class UserDataProfileImportExportService extends Disposable implements IU
 				: importAction;
 			const secondaryAction = isWeb
 				? importAction
-				: new BarrierAction(barrier, new Action('close', localize('close', "Close")));
+				: new BarrierAction(barrier, new Action('close', localize('close', "Close")), this.notificationService);
 
 			const view = await this.showProfilePreviewView(IMPORT_PROFILE_PREVIEW_VIEW, importedProfile.name, primaryAction, secondaryAction, false, userDataProfileImportState);
 			const message = new MarkdownString();
@@ -403,7 +408,7 @@ export class UserDataProfileImportExportService extends Disposable implements IU
 			if (userDataProfileImportState.isEmpty()) {
 				await importAction.run();
 			} else {
-				await this.showProfilePreviewView(IMPORT_PROFILE_PREVIEW_VIEW, profileTemplate.name, importAction, new BarrierAction(barrier, new Action('cancel', localize('cancel', "Cancel"))), false, userDataProfileImportState);
+				await this.showProfilePreviewView(IMPORT_PROFILE_PREVIEW_VIEW, profileTemplate.name, importAction, new BarrierAction(barrier, new Action('cancel', localize('cancel', "Cancel")), this.notificationService), false, userDataProfileImportState);
 			}
 			await barrier.wait();
 			await this.hideProfilePreviewView(IMPORT_PROFILE_PREVIEW_VIEW);
@@ -437,7 +442,7 @@ export class UserDataProfileImportExportService extends Disposable implements IU
 					location: IMPORT_PROFILE_PREVIEW_VIEW,
 				}, () => importProfileFn());
 			}
-		}));
+		}), this.notificationService);
 		return importAction;
 	}
 
@@ -1186,9 +1191,15 @@ class UserDataProfileImportState extends UserDataProfileImportExportState {
 }
 
 class BarrierAction extends Action {
-	constructor(barrier: Barrier, action: Action) {
+	constructor(barrier: Barrier, action: Action,
+		notificationService: INotificationService) {
 		super(action.id, action.label, action.class, action.enabled, async () => {
-			await action.run();
+			try {
+				await action.run();
+			} catch (error) {
+				notificationService.error(error);
+				throw error;
+			}
 			barrier.open();
 		});
 	}
