@@ -27,6 +27,7 @@ export function registerInteractiveSessionTitleActions() {
 					id: MenuId.InteractiveSessionTitle,
 					// when: interactiveSessionResponseHasProviderId, // re-add when the provider id has been adopted
 					group: 'navigation',
+					order: 1
 				}
 			});
 		}
@@ -64,6 +65,7 @@ export function registerInteractiveSessionTitleActions() {
 					id: MenuId.InteractiveSessionTitle,
 					// when: interactiveSessionResponseHasProviderId, // re-add when the provider id has been adopted
 					group: 'navigation',
+					order: 2
 				}
 			});
 		}
