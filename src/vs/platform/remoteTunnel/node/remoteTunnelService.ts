@@ -18,6 +18,7 @@ import { ISharedProcessLifecycleService } from 'vs/platform/lifecycle/node/share
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { localize } from 'vs/nls';
 import { hostname, homedir } from 'os';
+import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 
 type RemoteTunnelEnablementClassification = {
 	owner: 'aeschli';
@@ -33,6 +34,15 @@ const restartTunnelOnConfigurationChanges: readonly string[] = [
 	CONFIGURATION_KEY_HOST_NAME,
 	CONFIGURATION_KEY_PREVENT_SLEEP,
 ];
+
+// Legacy key used to store the session id in the storage service.
+const SESSION_ID_STORAGE_KEY = 'remoteTunnelAccountPreference';
+
+
+// This is the key used to store the session id in the storage service.
+// if set, the remote tunnel access is currently enabled.
+// if not set, the remote tunnel access is currently disabled.
+const TUNNEL_ACCESS_SESSION_KEY = 'remoteTunnelSession';
 
 /**
  * This service runs on the shared service. It is running the `code-tunnel` command
@@ -68,7 +78,8 @@ export class RemoteTunnelService extends Disposable implements IRemoteTunnelServ
 		@INativeEnvironmentService private readonly environmentService: INativeEnvironmentService,
 		@ILoggerService loggerService: ILoggerService,
 		@ISharedProcessLifecycleService sharedProcessLifecycleService: ISharedProcessLifecycleService,
-		@IConfigurationService private readonly configurationService: IConfigurationService
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IStorageService private readonly storageService: IStorageService
 	) {
 		super();
 		this._logger = this._register(loggerService.createLogger(LOG_ID, { name: LOGGER_NAME }));
@@ -87,7 +98,28 @@ export class RemoteTunnelService extends Disposable implements IRemoteTunnelServ
 				this._startTunnelProcessDelayer.trigger(() => this.updateTunnelProcess());
 			}
 		}));
+		this.migrateLegacyStorage();
+		this.initialize();
+
 	}
+
+	private migrateLegacyStorage(): void {
+		const tunnelAccessEnabled = this.storageService.get(SESSION_ID_STORAGE_KEY, StorageScope.APPLICATION);
+		if (tunnelAccessEnabled) {
+			this.storageService.store(TUNNEL_ACCESS_SESSION_KEY, tunnelAccessEnabled, StorageScope.APPLICATION, StorageTarget.MACHINE);
+			this.storageService.remove(SESSION_ID_STORAGE_KEY, StorageScope.APPLICATION);
+		}
+	}
+
+	/* starts the tunnel access, if needed */
+	private async initialize(): Promise<void> {
+		const tunnelAccessEnabled = this.storageService.get(TUNNEL_ACCESS_SESSION_KEY, StorageScope.APPLICATION);
+		if (!tunnelAccessEnabled) {
+			const loginProcess = this.runCodeTunneCommand('login', ['user', 'login', '--provider', providerId, '--access-token', token, '--log', LogLevelToString(this._logger.getLevel())], onOutput);
+
+		}
+	}
+
 
 	async getAccount(): Promise<IRemoteTunnelAccount | undefined> {
 		return this._account;
