@@ -41,6 +41,9 @@ class RunCommands extends Action2 {
 												$ref: 'vscode://schemas/keybindings#commandNames'
 											},
 											{
+												type: 'string', // we support "arbitrary" strings because extension-contributed command names aren't in 'vscode://schemas/keybindings#commandNames'
+											},
+											{
 												type: 'object',
 												required: ['command'],
 												$ref: 'vscode://schemas/keybindings#/definitions/commandsSchemas'
