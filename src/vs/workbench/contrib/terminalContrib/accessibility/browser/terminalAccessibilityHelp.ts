@@ -105,7 +105,9 @@ export class AccessibilityHelpWidget extends Widget {
 		}
 		if (this._hasShellIntegration) {
 			content.push(shellIntegration);
-			content.push('- ' + this._descriptionForCommand(TerminalCommandId.NavigateAccessibleBuffer, navigateAccessibleBuffer, navigateAccessibleBufferNoKb) + '\n- ' + this._descriptionForCommand(TerminalCommandId.RunRecentCommand, runRecentCommand, runRecentCommandNoKb) + '\n- ' + this._descriptionForCommand(TerminalCommandId.GoToRecentDirectory, goToRecent, goToRecentNoKb));
+			content.push('- ' + this._descriptionForCommand(TerminalCommandId.NavigateAccessibleBuffer, navigateAccessibleBuffer, navigateAccessibleBufferNoKb));
+			content.push('- ' + this._descriptionForCommand(TerminalCommandId.RunRecentCommand, runRecentCommand, runRecentCommandNoKb));
+			content.push('- ' + this._descriptionForCommand(TerminalCommandId.GoToRecentDirectory, goToRecent, goToRecentNoKb));
 		} else {
 			content.push(this._descriptionForCommand(TerminalCommandId.GoToRecentDirectory, goToRecentNoShellIntegration, goToRecentNoKbNoShellIntegration));
 		}
