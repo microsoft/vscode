@@ -335,11 +335,14 @@ export class UserDataProfileImportExportService extends Disposable implements IU
 
 			const barrier = new Barrier();
 			const importAction = this.getImportAction(barrier, userDataProfileImportState);
-			const secondaryAction = isWeb
+			const primaryAction = isWeb
 				? new Action('importInDesktop', localize('import in desktop', "Import Profile in {1}", importedProfile.name, this.productService.nameLong), undefined, true, async () => this.openerService.open(uri, { openExternal: true }))
+				: importAction;
+			const secondaryAction = isWeb
+				? importAction
 				: new BarrierAction(barrier, new Action('close', localize('close', "Close")));
 
-			const view = await this.showProfilePreviewView(IMPORT_PROFILE_PREVIEW_VIEW, importedProfile.name, importAction, secondaryAction, false, userDataProfileImportState);
+			const view = await this.showProfilePreviewView(IMPORT_PROFILE_PREVIEW_VIEW, importedProfile.name, primaryAction, secondaryAction, false, userDataProfileImportState);
 			const message = new MarkdownString();
 			message.appendMarkdown(localize('preview profile message', "By default, extensions aren't installed when previewing a profile on the web. You can still install them manually before importing the profile. "));
 			message.appendMarkdown(`[${localize('learn more', "Learn more")}](https://aka.ms/vscode-extension-marketplace#_can-i-trust-extensions-from-the-marketplace).`);
