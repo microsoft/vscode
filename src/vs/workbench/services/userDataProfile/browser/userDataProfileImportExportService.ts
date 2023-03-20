@@ -536,10 +536,11 @@ export class UserDataProfileImportExportService extends Disposable implements IU
 	}
 
 	private async getProfileToImport(profileTemplate: IUserDataProfileTemplate, temp?: boolean): Promise<IUserDataProfile | undefined> {
-		const profile = this.userDataProfilesService.profiles.find(p => p.name === profileTemplate.name);
+		const profileName = temp ? `${profileTemplate.name} (${localize('preview', "Preview")})` : profileTemplate.name;
+		const profile = this.userDataProfilesService.profiles.find(p => p.name === profileName);
 		if (profile) {
 			if (temp) {
-				return this.userDataProfilesService.createNamedProfile(`${profileTemplate.name} ${this.getProfileNameIndex(profileTemplate.name)}`, { shortName: profileTemplate.shortName, transient: temp });
+				return this.userDataProfilesService.createNamedProfile(`${profileName} ${this.getProfileNameIndex(profileName)}`, { shortName: profileTemplate.shortName, transient: temp });
 			}
 
 			enum ImportProfileChoice {
@@ -549,7 +550,7 @@ export class UserDataProfileImportExportService extends Disposable implements IU
 			}
 			const { result } = await this.dialogService.prompt<ImportProfileChoice>({
 				type: Severity.Info,
-				message: localize('profile already exists', "Profile with name '{0}' already exists. Do you want to overwrite it?", profileTemplate.name),
+				message: localize('profile already exists', "Profile with name '{0}' already exists. Do you want to overwrite it?", profileName),
 				buttons: [
 					{
 						label: localize({ key: 'overwrite', comment: ['&& denotes a mnemonic'] }, "&&Overwrite"),
@@ -577,7 +578,7 @@ export class UserDataProfileImportExportService extends Disposable implements IU
 			const name = await this.quickInputService.input({
 				placeHolder: localize('name', "Profile name"),
 				title: localize('create new title', "Create New Profile"),
-				value: `${profileTemplate.name} ${this.getProfileNameIndex(profileTemplate.name)}`,
+				value: `${profileName} ${this.getProfileNameIndex(profileName)}`,
 				validateInput: async (value: string) => {
 					if (this.userDataProfilesService.profiles.some(p => p.name === value)) {
 						return localize('profileExists', "Profile with name {0} already exists.", value);
@@ -590,7 +591,7 @@ export class UserDataProfileImportExportService extends Disposable implements IU
 			}
 			return this.userDataProfilesService.createNamedProfile(name);
 		} else {
-			return this.userDataProfilesService.createNamedProfile(profileTemplate.name, { shortName: profileTemplate.shortName, transient: temp });
+			return this.userDataProfilesService.createNamedProfile(profileName, { shortName: profileTemplate.shortName, transient: temp });
 		}
 	}
 
