@@ -163,7 +163,10 @@
 
 .interactive-session .interactive-input-part .interactive-execute-toolbar {
 	position: absolute;
+	height: 22px;
+	
 	right: 3px;
+	bottom: 6px;
 }
 
 .interactive-session .interactive-input-part .interactive-execute-toolbar .codicon-debug-stop {
