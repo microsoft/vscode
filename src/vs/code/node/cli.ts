@@ -25,6 +25,7 @@ import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { randomPath } from 'vs/base/common/extpath';
 import { Utils } from 'vs/platform/profiling/common/profiling';
 import { FileAccess } from 'vs/base/common/network';
+import { cwd } from 'vs/base/common/process';
 
 function shouldSpawnCliProcess(argv: NativeParsedArgs): boolean {
 	return !!argv['install-source']
@@ -65,7 +66,7 @@ export async function main(argv: string[]): Promise<any> {
 					: dirname(process.execPath);
 				const tunnelCommand = join(appPath, 'bin', `${product.tunnelApplicationName}${isWindows ? '.exe' : ''}`);
 				const tunnelArgs = argv.slice(3);
-				tunnelProcess = spawn(tunnelCommand, ['tunnel', ...tunnelArgs]);
+				tunnelProcess = spawn(tunnelCommand, ['tunnel', ...tunnelArgs], { cwd: cwd() });
 			}
 
 			tunnelProcess.stdout.pipe(process.stdout);

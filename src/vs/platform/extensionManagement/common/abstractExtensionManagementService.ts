@@ -659,7 +659,7 @@ export abstract class AbstractExtensionManagementService extends Disposable impl
 	abstract installExtensionsFromProfile(extensions: IExtensionIdentifier[], fromProfileLocation: URI, toProfileLocation: URI): Promise<ILocalExtension[]>;
 	abstract getInstalled(type?: ExtensionType, profileLocation?: URI): Promise<ILocalExtension[]>;
 	abstract copyExtensions(fromProfileLocation: URI, toProfileLocation: URI): Promise<void>;
-	abstract download(extension: IGalleryExtension, operation: InstallOperation): Promise<URI>;
+	abstract download(extension: IGalleryExtension, operation: InstallOperation, donotVerifySignature: boolean): Promise<URI>;
 	abstract reinstallFromGallery(extension: ILocalExtension): Promise<ILocalExtension>;
 	abstract cleanUp(): Promise<void>;
 
@@ -697,7 +697,6 @@ function reportTelemetry(telemetryService: ITelemetryService, eventName: string,
 	if (error) {
 		if (error instanceof ExtensionManagementError) {
 			errorcode = error.code;
-
 			if (error.code === ExtensionManagementErrorCode.Signature) {
 				errorcodeDetail = error.message;
 			}

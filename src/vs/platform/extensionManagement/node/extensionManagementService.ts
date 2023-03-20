@@ -233,8 +233,8 @@ export class ExtensionManagementService extends AbstractExtensionManagementServi
 		}
 	}
 
-	async download(extension: IGalleryExtension, operation: InstallOperation): Promise<URI> {
-		const { location } = await this.extensionsDownloader.download(extension, operation);
+	async download(extension: IGalleryExtension, operation: InstallOperation, donotVerifySignature: boolean): Promise<URI> {
+		const { location } = await this.extensionsDownloader.download(extension, operation, !donotVerifySignature);
 		return location;
 	}
 
@@ -269,7 +269,7 @@ export class ExtensionManagementService extends AbstractExtensionManagementServi
 		let installExtensionTask = this.installGalleryExtensionsTasks.get(key);
 		if (!installExtensionTask) {
 			this.installGalleryExtensionsTasks.set(key, installExtensionTask = new InstallGalleryExtensionTask(manifest, extension, options, this.extensionsDownloader, this.extensionsScanner, this.uriIdentityService, this.userDataProfilesService, this.extensionsScannerService, this.extensionsProfileScannerService, this.logService));
-			installExtensionTask.waitUntilTaskIsFinished().then(() => this.installGalleryExtensionsTasks.delete(key));
+			installExtensionTask.waitUntilTaskIsFinished().finally(() => this.installGalleryExtensionsTasks.delete(key));
 		}
 		return installExtensionTask;
 	}
@@ -851,7 +851,7 @@ export class InstallGalleryExtensionTask extends InstallExtensionTask {
 			return [local, metadata];
 		}
 
-		const { location, verificationStatus } = await this.extensionsDownloader.download(this.gallery, this._operation);
+		const { location, verificationStatus } = await this.extensionsDownloader.download(this.gallery, this._operation, !this.options.donotVerifySignature);
 		try {
 			this._verificationStatus = verificationStatus;
 			this.validateManifest(location.fsPath);

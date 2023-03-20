@@ -23,7 +23,7 @@ function createContext(ctx: any) {
 
 suite('KeybindingResolver', () => {
 
-	function kbItem(keybinding: number, command: string, commandArgs: any, when: ContextKeyExpression | undefined, isDefault: boolean): ResolvedKeybindingItem {
+	function kbItem(keybinding: number | number[], command: string, commandArgs: any, when: ContextKeyExpression | undefined, isDefault: boolean): ResolvedKeybindingItem {
 		const resolvedKeybinding = createUSLayoutResolvedKeybinding(keybinding, OS);
 		return new ResolvedKeybindingItem(
 			resolvedKeybinding,
@@ -304,7 +304,7 @@ suite('KeybindingResolver', () => {
 
 	test('resolve command', () => {
 
-		function _kbItem(keybinding: number, command: string, when: ContextKeyExpression | undefined): ResolvedKeybindingItem {
+		function _kbItem(keybinding: number | number[], command: string, when: ContextKeyExpression | undefined): ResolvedKeybindingItem {
 			return kbItem(keybinding, command, null, when, true);
 		}
 
@@ -383,12 +383,17 @@ suite('KeybindingResolver', () => {
 				KeyMod.CtrlCmd | KeyCode.KeyG,
 				'eleven',
 				undefined
-			)
+			),
+			_kbItem(
+				[KeyMod.CtrlCmd | KeyCode.KeyK, KeyCode.KeyA, KeyCode.KeyB],
+				'long multi chord',
+				undefined
+			),
 		];
 
 		const resolver = new KeybindingResolver(items, [], () => { });
 
-		const testKey = (commandId: string, expectedKeys: number[]) => {
+		const testKey = (commandId: string, expectedKeys: number[] | number[][]) => {
 			// Test lookup
 			const lookupResult = resolver.lookupKeybindings(commandId);
 			assert.strictEqual(lookupResult.length, expectedKeys.length, 'Length mismatch @ commandId ' + commandId);
@@ -399,10 +404,10 @@ suite('KeybindingResolver', () => {
 			}
 		};
 
-		const testResolve = (ctx: IContext, _expectedKey: number, commandId: string) => {
+		const testResolve = (ctx: IContext, _expectedKey: number | number[], commandId: string) => {
 			const expectedKeybinding = decodeKeybinding(_expectedKey, OS)!;
 
-			let previousChord: (string | null) = null;
+			let previousChord: string[] | null = null;
 			for (let i = 0, len = expectedKeybinding.chords.length; i < len; i++) {
 				const chord = getDispatchStr(<KeyCodeChord>expectedKeybinding.chords[i]);
 				const result = resolver.resolve(ctx, previousChord, chord);
@@ -412,14 +417,24 @@ suite('KeybindingResolver', () => {
 					assert.ok(result !== null, `Enters multi chord for ${commandId} at chord ${i}`);
 					assert.strictEqual(result!.commandId, commandId, `Enters multi chord for ${commandId} at chord ${i}`);
 					assert.strictEqual(result!.enterMultiChord, false, `Enters multi chord for ${commandId} at chord ${i}`);
+				} else if (i > 0) {
+					// if this is an intermediate chord, we should not find a valid command,
+					// and there should be an open chord we continue.
+					assert.ok(result !== null, `Continues multi chord for ${commandId} at chord ${i}`);
+					assert.strictEqual(result!.commandId, null, `Continues multi chord for ${commandId} at chord ${i}`);
+					assert.strictEqual(result!.enterMultiChord, false, `Is already in multi chord for ${commandId} at chord ${i}`);
+					assert.strictEqual(result!.leaveMultiChord, false, `Does not leave multi chord for ${commandId} at chord ${i}`);
 				} else {
-					// if it's not the final chord, then we should not find a valid command,
-					// and there should be a chord.
+					// if it's not the final chord and not an intermediate, then we should not
+					// find a valid command, and we should enter a chord.
 					assert.ok(result !== null, `Enters multi chord for ${commandId} at chord ${i}`);
 					assert.strictEqual(result!.commandId, null, `Enters multi chord for ${commandId} at chord ${i}`);
 					assert.strictEqual(result!.enterMultiChord, true, `Enters multi chord for ${commandId} at chord ${i}`);
 				}
-				previousChord = chord;
+				if (previousChord === null) {
+					previousChord = [];
+				}
+				previousChord.push(chord);
 			}
 		};
 
@@ -452,5 +467,8 @@ suite('KeybindingResolver', () => {
 		testResolve(createContext({}), KeyMod.CtrlCmd | KeyCode.KeyG, 'eleven');
 
 		testKey('sixth', []);
+
+		testKey('long multi chord', [[KeyMod.CtrlCmd | KeyCode.KeyK, KeyCode.KeyA, KeyCode.KeyB]]);
+		testResolve(createContext({}), [KeyMod.CtrlCmd | KeyCode.KeyK, KeyCode.KeyA, KeyCode.KeyB], 'long multi chord');
 	});
 });

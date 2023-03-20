@@ -6,21 +6,20 @@
 .monaco-editor .interactive-editor {
 	z-index: 100;
 	color: inherit;
-	padding: 6px 0 6px 1px;
+	padding-top: 6px;
 }
 
 /* body */
 
 .monaco-editor .interactive-editor .body {
 	display: flex;
-	padding-right: 4px;
 }
 
 .monaco-editor .interactive-editor .body .content {
 	display: flex;
 	box-sizing: border-box;
 	border-radius: 2px;
-	border: 1px solid var(--vscode-settings-textInputBorder);
+	border: 1px solid var(--vscode-input-border);
 }
 
 .monaco-editor .interactive-editor .body .content.synthetic-focus {
@@ -28,7 +27,9 @@
 }
 
 .monaco-editor .interactive-editor .body .content .input {
-	padding: 2px;
+	padding: 2px 2px 2px 4px;
+	border-top-left-radius: 2px;
+	border-bottom-left-radius: 2px;
 	background-color: var(--vscode-input-background);
 	cursor: text;
 }
@@ -40,7 +41,7 @@
 .monaco-editor .interactive-editor .body .content .input .editor-placeholder {
 	position: absolute;
 	z-index: 1;
-	padding: 3px 0 0 2px;
+	padding: 3px 0 0 0;
 	color: var(--vscode-input-placeholderForeground);
 	white-space: nowrap;
 	overflow: hidden;
@@ -57,8 +58,11 @@
 .monaco-editor .interactive-editor .body .toolbar {
 	display: flex;
 	flex-direction: column;
-	align-self: start;
-	padding: 4px 8px 0 2px;
+	align-self: stretch;
+	padding-right: 4px;
+	border-top-right-radius: 2px;
+	border-bottom-right-radius: 2px;
+	background: var(--vscode-input-background);
 }
 
 .monaco-editor .interactive-editor .body .toolbar .actions-container {
@@ -110,34 +114,6 @@
 	outline: 1px solid var(--vscode-checkbox-border);
 }
 
-/* history */
-
-.monaco-editor .interactive-editor .history {
-	border-top: 1px solid var(--vscode-widget-border);
-	padding: 0 10px 2px 2px;
-	display: block;
-	color: var(--vscode-descriptionForeground);
-}
-
-.monaco-editor .interactive-editor .history.hidden {
-	display: none;
-}
-
-.monaco-editor .interactive-editor .history .history-entry {
-	display: flex;
-	justify-content: space-between;
-	padding: 2px
-}
-
-.monaco-editor .interactive-editor .history .history-entry.hidden {
-	display: none;
-}
-
-.monaco-editor .interactive-editor .history .history-entry:hover {
-	background-color: var(--vscode-list-hoverBackground);
-	color: var(--vscode-list-hoverForeground);
-}
-
 /* decoration styles */
 
 .monaco-editor .interactive-editor-lines-deleted-range-inline {
@@ -150,9 +126,9 @@
 }
 
 .monaco-editor .interactive-editor-block {
-	border-radius: 4px;
+	border-radius: 6px;
 	border: 1px solid var(--vscode-widget-border);
-	box-shadow: 0 0 8px 1px var(--vscode-widget-shadow);
+	box-shadow: 0 4px 8px var(--vscode-widget-shadow);
 }
 
 .monaco-editor .interactive-editor-slash-command {

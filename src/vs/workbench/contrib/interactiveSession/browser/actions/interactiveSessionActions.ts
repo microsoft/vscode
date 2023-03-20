@@ -15,7 +15,6 @@ import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { ViewAction } from 'vs/workbench/browser/parts/views/viewPane';
 import { ActiveEditorContext } from 'vs/workbench/common/contextkeys';
-import { IViewsService } from 'vs/workbench/common/views';
 import { IInteractiveSessionEditorOptions, InteractiveSessionEditor } from 'vs/workbench/contrib/interactiveSession/browser/interactiveSessionEditor';
 import { InteractiveSessionViewPane } from 'vs/workbench/contrib/interactiveSession/browser/interactiveSessionSidebar';
 import { IInteractiveSessionWidgetService } from 'vs/workbench/contrib/interactiveSession/browser/interactiveSessionWidget';
@@ -116,7 +115,7 @@ export function registerInteractiveSessionActions() {
 			const editorUri = editor.getModel()?.uri;
 			if (editorUri) {
 				const widgetService = accessor.get(IInteractiveSessionWidgetService);
-				widgetService.getWidgetByInputUri(editorUri)?.acceptInput();
+				widgetService.getWidgetByInputUri(editorUri)?.focusLastMessage();
 			}
 		}
 	});
@@ -138,11 +137,8 @@ export function registerInteractiveSessionActions() {
 			});
 		}
 		run(accessor: ServicesAccessor, ...args: any[]) {
-			const viewsService = accessor.get(IViewsService);
-			const interactiveSessionView = viewsService.getActiveViewWithId(InteractiveSessionViewPane.ID) as InteractiveSessionViewPane;
-			if (interactiveSessionView) {
-				interactiveSessionView.focus();
-			}
+			const widgetService = accessor.get(IInteractiveSessionWidgetService);
+			widgetService.lastFocusedWidget?.focusInput();
 		}
 	});
 
