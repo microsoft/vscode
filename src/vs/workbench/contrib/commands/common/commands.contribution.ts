@@ -107,7 +107,11 @@ class RunCommands extends Action2 {
 		if (commandArgs === undefined) {
 			return commandService.executeCommand(commandID);
 		} else {
-			return commandService.executeCommand(commandID, ...commandArgs);
+			if (Array.isArray(commandArgs)) { // TODO@ulugbekna: this needs discussion - do we allow passing several arguments to command run, which isn't by the regular `keybindings.json`
+				return commandService.executeCommand(commandID, ...commandArgs);
+			} else {
+				return commandService.executeCommand(commandID, commandArgs);
+			}
 		}
 	}
 }
