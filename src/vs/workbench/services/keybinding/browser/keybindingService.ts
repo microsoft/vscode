@@ -817,7 +817,7 @@ const schema: IJSONSchema = {
 				'description': nls.localize('keybindings.json.key', "Key or key sequence (separated by space)"),
 			},
 			'command': {
-				'allOf': [
+				'anyOf': [
 					{
 						'if': {
 							'type': 'array'
@@ -827,25 +827,36 @@ const schema: IJSONSchema = {
 								'type': 'array'
 							},
 							'errorMessage': nls.localize('keybindings.commandsIsArray', "Incorrect type. Expected \"{0}\". The field 'command' does not support running multiple commands. Use command 'runCommands' to pass it multiple commands to run.", 'string')
+						},
+						'else': {
+							'anyOf': [ // repetition of this clause here and below is intentional: one is for nice diagnostics & one is for code completion
+								{
+									$ref: '#/definitions/commandNames'
+								},
+								{
+									'type': 'string',
+									'enum': removalCommandsEnum,
+									'enumDescriptions': <any>commandsEnumDescriptions,
+									'description': nls.localize('keybindings.json.removalCommand', "Name of the command to remove keyboard shortcut for"),
+								},
+								{
+									'type': 'string'
+								},
+							]
 						}
 					},
 					{
-						'anyOf': [
-							{
-								$ref: '#/definitions/commandNames'
-							},
-							{
-								'type': 'string',
-								'enum': removalCommandsEnum,
-								'enumDescriptions': <any>commandsEnumDescriptions,
-								'description': nls.localize('keybindings.json.removalCommand', "Name of the command to remove keyboard shortcut for"),
-							},
-							{
-								'type': 'string'
-							},
-						]
+						$ref: '#/definitions/commandNames'
 					},
-
+					{
+						'type': 'string',
+						'enum': removalCommandsEnum,
+						'enumDescriptions': <any>commandsEnumDescriptions,
+						'description': nls.localize('keybindings.json.removalCommand', "Name of the command to remove keyboard shortcut for"),
+					},
+					{
+						'type': 'string'
+					},
 				]
 			},
 			'when': {
