@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 use super::paths::{InstalledServer, LastUsedServers, ServerPaths};
+use crate::async_pipe::get_socket_name;
 use crate::constants::{APPLICATION_NAME, QUALITYLESS_PRODUCT_NAME, QUALITYLESS_SERVER_NAME};
 use crate::options::{Quality, TelemetryLevel};
 use crate::state::LauncherPaths;
@@ -32,7 +33,6 @@ use tokio::io::{AsyncBufReadExt, BufReader};
 use tokio::process::{Child, Command};
 use tokio::sync::oneshot::Receiver;
 use tokio::time::{interval, timeout};
-use uuid::Uuid;
 
 lazy_static! {
 	static ref LISTENING_PORT_RE: Regex =
@@ -539,12 +539,7 @@ impl<'a, Http: SimpleHttp + Send + Sync + Clone + 'static> ServerBuilder<'a, Htt
 	}
 
 	pub async fn listen_on_default_socket(&self) -> Result<SocketCodeServer, AnyError> {
-		let requested_file = if cfg!(target_os = "windows") {
-			PathBuf::from(format!(r"\\.\pipe\vscode-server-{}", Uuid::new_v4()))
-		} else {
-			std::env::temp_dir().join(format!("vscode-server-{}", Uuid::new_v4()))
-		};
-
+		let requested_file = get_socket_name();
 		self.listen_on_socket(&requested_file).await
 	}
 

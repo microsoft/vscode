@@ -197,7 +197,7 @@ export interface ISCMViewService {
 	repositories: ISCMRepository[];
 	readonly onDidChangeRepositories: Event<ISCMViewVisibleRepositoryChangeEvent>;
 
-	visibleRepositories: ISCMRepository[];
+	visibleRepositories: readonly ISCMRepository[];
 	readonly onDidChangeVisibleRepositories: Event<ISCMViewVisibleRepositoryChangeEvent>;
 
 	isVisible(repository: ISCMRepository): boolean;

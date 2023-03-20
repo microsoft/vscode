@@ -63,7 +63,7 @@ import { IQuickDiffSelectItem, SwitchQuickDiffBaseAction, SwitchQuickDiffViewIte
 
 class DiffActionRunner extends ActionRunner {
 
-	override runAction(action: IAction, context: any): Promise<any> {
+	protected override runAction(action: IAction, context: any): Promise<any> {
 		if (action instanceof MenuItemAction) {
 			return action.run(...context);
 		}
@@ -180,7 +180,7 @@ class DirtyDiffWidget extends PeekViewWidget {
 
 	private diffEditor!: EmbeddedDiffEditorWidget;
 	private title: string;
-	private menu: IMenu;
+	private menu: IMenu | undefined;
 	private _index: number = 0;
 	private _provider: string = '';
 	private change: IChange | undefined;
@@ -193,8 +193,8 @@ class DirtyDiffWidget extends PeekViewWidget {
 		private model: DirtyDiffModel,
 		@IThemeService private readonly themeService: IThemeService,
 		@IInstantiationService instantiationService: IInstantiationService,
-		@IMenuService menuService: IMenuService,
-		@IContextKeyService contextKeyService: IContextKeyService
+		@IMenuService private readonly menuService: IMenuService,
+		@IContextKeyService private contextKeyService: IContextKeyService
 	) {
 		super(editor, { isResizeable: true, frameWidth: 1, keepEditorSelection: true, className: 'dirty-diff' }, instantiationService);
 
@@ -204,9 +204,6 @@ class DirtyDiffWidget extends PeekViewWidget {
 		if (this.model.original.length > 0) {
 			contextKeyService = contextKeyService.createOverlay([['originalResourceScheme', this.model.original[0].uri.scheme], ['originalResourceSchemes', this.model.original.map(original => original.uri.scheme)]]);
 		}
-
-		this.menu = menuService.createMenu(MenuId.SCMChangeContext, contextKeyService);
-		this._disposables.add(this.menu);
 
 		this.create();
 		if (editor.hasModel()) {
@@ -234,6 +231,9 @@ class DirtyDiffWidget extends PeekViewWidget {
 		const labeledChange = this.model.changes[index];
 		const change = labeledChange.change;
 		this._index = index;
+		this.contextKeyService.createKey('originalResourceScheme', this.model.changes[index].uri.scheme);
+		this.updateActions();
+
 		this._provider = labeledChange.label;
 		this.change = change;
 
@@ -270,12 +270,16 @@ class DirtyDiffWidget extends PeekViewWidget {
 		this.style({ frameColor: changeTypeColor, arrowColor: changeTypeColor });
 
 		const providerSpecificChanges: IChange[] = [];
+		let contextIndex = index;
 		for (const change of this.model.changes) {
 			if (change.label === this.model.changes[this._index].label) {
 				providerSpecificChanges.push(change.change);
+				if (labeledChange === change) {
+					contextIndex = providerSpecificChanges.length - 1;
+				}
 			}
 		}
-		this._actionbarWidget!.context = [diffEditorModel.modified.uri, providerSpecificChanges, index];
+		this._actionbarWidget!.context = [diffEditorModel.modified.uri, providerSpecificChanges, contextIndex];
 		if (usePosition) {
 			this.show(position, height);
 		}
@@ -340,14 +344,10 @@ class DirtyDiffWidget extends PeekViewWidget {
 		return providersWithChangesCount >= 2;
 	}
 
-	protected override _fillHead(container: HTMLElement): void {
-		super._fillHead(container, true);
-
-		this.dropdownContainer = dom.prepend(this._titleElement!, dom.$('.dropdown'));
-		this.dropdown = this.instantiationService.createInstance(SwitchQuickDiffViewItem, new SwitchQuickDiffBaseAction((event?: IQuickDiffSelectItem) => this.switchQuickDiff(event)),
-			this.model.quickDiffs.map(quickDiffer => quickDiffer.label), this.model.changes[this._index].label);
-		this.dropdown.render(this.dropdownContainer);
-
+	private updateActions(): void {
+		if (!this._actionbarWidget) {
+			return;
+		}
 		const previous = this.instantiationService.createInstance(UIEditorAction, this.editor, new ShowPreviousChangeAction(this.editor), ThemeIcon.asClassName(gotoPreviousLocation));
 		const next = this.instantiationService.createInstance(UIEditorAction, this.editor, new ShowNextChangeAction(this.editor), ThemeIcon.asClassName(gotoNextLocation));
 
@@ -355,10 +355,25 @@ class DirtyDiffWidget extends PeekViewWidget {
 		this._disposables.add(next);
 
 		const actions: IAction[] = [];
+		if (this.menu) {
+			this.menu.dispose();
+		}
+		this.menu = this.menuService.createMenu(MenuId.SCMChangeContext, this.contextKeyService);
 		createAndFillInActionBarActions(this.menu, { shouldForwardArgs: true }, actions);
-		this._actionbarWidget!.push(actions.reverse(), { label: false, icon: true });
-		this._actionbarWidget!.push([next, previous], { label: false, icon: true });
-		this._actionbarWidget!.push(new Action('peekview.close', nls.localize('label.close', "Close"), ThemeIcon.asClassName(Codicon.close), true, () => this.dispose()), { label: false, icon: true });
+		this._actionbarWidget.clear();
+		this._actionbarWidget.push(actions.reverse(), { label: false, icon: true });
+		this._actionbarWidget.push([next, previous], { label: false, icon: true });
+		this._actionbarWidget.push(new Action('peekview.close', nls.localize('label.close', "Close"), ThemeIcon.asClassName(Codicon.close), true, () => this.dispose()), { label: false, icon: true });
+	}
+
+	protected override _fillHead(container: HTMLElement): void {
+		super._fillHead(container, true);
+
+		this.dropdownContainer = dom.prepend(this._titleElement!, dom.$('.dropdown'));
+		this.dropdown = this.instantiationService.createInstance(SwitchQuickDiffViewItem, new SwitchQuickDiffBaseAction((event?: IQuickDiffSelectItem) => this.switchQuickDiff(event)),
+			this.model.quickDiffs.map(quickDiffer => quickDiffer.label), this.model.changes[this._index].label);
+		this.dropdown.render(this.dropdownContainer);
+		this.updateActions();
 	}
 
 	protected override _getActionBarOptions(): IActionBarOptions {
@@ -453,6 +468,11 @@ class DirtyDiffWidget extends PeekViewWidget {
 
 	hasFocus(): boolean {
 		return this.diffEditor.hasTextFocus();
+	}
+
+	override dispose() {
+		super.dispose();
+		this.menu?.dispose();
 	}
 }
 
@@ -748,7 +768,7 @@ export class DirtyDiffController extends Disposable implements DirtyDiffContribu
 	}
 
 	canNavigate(): boolean {
-		return this.widget?.index === -1 || (!!this.model && this.model.changes.length > 1);
+		return !this.widget || (this.widget?.index === -1) || (!!this.model && this.model.changes.length > 1);
 	}
 
 	refresh(): void {

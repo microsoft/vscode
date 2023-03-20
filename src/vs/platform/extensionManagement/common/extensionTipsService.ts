@@ -8,7 +8,6 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { IConfigBasedExtensionTip as IRawConfigBasedExtensionTip } from 'vs/base/common/product';
 import { joinPath } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
-import { getDomainsOfRemotes } from 'vs/platform/extensionManagement/common/configRemotes';
 import { IConfigBasedExtensionTip, IExecutableBasedExtensionTip, IExtensionManagementService, IExtensionTipsService, ILocalExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IProductService } from 'vs/platform/product/common/productService';
@@ -62,21 +61,9 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 				continue;
 			}
 			try {
-				const content = await this.fileService.readFile(joinPath(folder, configPath));
-				const recommendationByRemote: Map<string, IConfigBasedExtensionTip> = new Map<string, IConfigBasedExtensionTip>();
-				Object.entries(tip.recommendations).forEach(([key, value]) => {
-					if (isNonEmptyArray(value.remotes)) {
-						for (const remote of value.remotes) {
-							recommendationByRemote.set(remote, {
-								extensionId: key,
-								extensionName: value.name,
-								configName: tip.configName,
-								important: !!value.important,
-								isExtensionPack: !!value.isExtensionPack,
-								whenNotInstalled: value.whenNotInstalled
-							});
-						}
-					} else {
+				const content = (await this.fileService.readFile(joinPath(folder, configPath))).value.toString();
+				for (const [key, value] of Object.entries(tip.recommendations)) {
+					if (!value.contentPattern || new RegExp(value.contentPattern, 'mig').test(content)) {
 						result.push({
 							extensionId: key,
 							extensionName: value.name,
@@ -85,13 +72,6 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 							isExtensionPack: !!value.isExtensionPack,
 							whenNotInstalled: value.whenNotInstalled
 						});
-					}
-				});
-				const domains = getDomainsOfRemotes(content.value.toString(), [...recommendationByRemote.keys()]);
-				for (const domain of domains) {
-					const remote = recommendationByRemote.get(domain);
-					if (remote) {
-						result.push(remote);
 					}
 				}
 			} catch (error) { /* Ignore */ }

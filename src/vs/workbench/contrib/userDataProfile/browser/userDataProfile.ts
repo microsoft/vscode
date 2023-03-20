@@ -15,7 +15,7 @@ import { IUserDataProfile, IUserDataProfilesService } from 'vs/platform/userData
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { RenameProfileAction } from 'vs/workbench/contrib/userDataProfile/browser/userDataProfileActions';
 import { ILifecycleService, LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { CURRENT_PROFILE_CONTEXT, HAS_PROFILES_CONTEXT, IS_CURRENT_PROFILE_TRANSIENT_CONTEXT, IS_PROFILE_IMPORT_IN_PROGRESS_CONTEXT, IUserDataProfileImportExportService, IUserDataProfileManagementService, IUserDataProfileService, PROFILES_CATEGORY, PROFILE_FILTER, IS_PROFILE_EXPORT_IN_PROGRESS_CONTEXT, ProfilesMenu, PROFILES_ENABLEMENT_CONTEXT } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
+import { CURRENT_PROFILE_CONTEXT, HAS_PROFILES_CONTEXT, IS_CURRENT_PROFILE_TRANSIENT_CONTEXT, IS_PROFILE_IMPORT_IN_PROGRESS_CONTEXT, IUserDataProfileImportExportService, IUserDataProfileManagementService, IUserDataProfileService, PROFILES_CATEGORY, PROFILE_FILTER, IS_PROFILE_EXPORT_IN_PROGRESS_CONTEXT, ProfilesMenu, PROFILES_ENABLEMENT_CONTEXT, PROFILES_TITLE } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
 import { IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
@@ -24,6 +24,8 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IWorkspaceTagsService } from 'vs/workbench/contrib/tags/common/workspaceTags';
 import { getErrorMessage } from 'vs/base/common/errors';
+import { Categories } from 'vs/platform/action/common/actionCommonCategories';
+import { IOpenerService } from 'vs/platform/opener/common/opener';
 
 const CREATE_EMPTY_PROFILE_ACTION_ID = 'workbench.profiles.actions.createEmptyProfile';
 const CREATE_EMPTY_PROFILE_ACTION_TITLE = {
@@ -95,6 +97,8 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 		this.registerCreateFromCurrentProfileAction();
 		this.registerCreateProfileAction();
 		this.registerDeleteProfileAction();
+
+		this.registerHelpAction();
 	}
 
 	private registerProfileSubMenu(): void {
@@ -533,6 +537,24 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 				}
 			}
 		});
+	}
+
+	private registerHelpAction(): void {
+		this._register(registerAction2(class HelpAction extends Action2 {
+			constructor() {
+				super({
+					id: 'workbench.profiles.actions.help',
+					title: PROFILES_TITLE,
+					category: Categories.Help,
+					menu: [{
+						id: MenuId.CommandPalette,
+					}],
+				});
+			}
+			run(accessor: ServicesAccessor): any {
+				return accessor.get(IOpenerService).open(URI.parse('https://aka.ms/vscode-profiles-help'));
+			}
+		}));
 	}
 
 	private async reportWorkspaceProfileInfo(): Promise<void> {
