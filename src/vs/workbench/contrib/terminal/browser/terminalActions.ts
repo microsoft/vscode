@@ -6,7 +6,7 @@
 import { BrowserFeatures } from 'vs/base/browser/canIUse';
 import { Action } from 'vs/base/common/actions';
 import { Codicon } from 'vs/base/common/codicons';
-import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
+import { KeyChord, KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { Schemas } from 'vs/base/common/network';
 import { isLinux, isWindows } from 'vs/base/common/platform';
 import { IDisposable } from 'vs/base/common/lifecycle';
@@ -1714,6 +1714,25 @@ export function registerTerminalActions() {
 	registerAction2(class extends Action2 {
 		constructor() {
 			super({
+				id: TerminalCommandId.FocusHover,
+				title: terminalStrings.focusHover,
+				f1: true,
+				category,
+				precondition: ContextKeyExpr.or(ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated), TerminalContextKeys.isOpen),
+				keybinding: {
+					primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyMod.CtrlCmd | KeyCode.KeyI),
+					weight: KeybindingWeight.WorkbenchContrib,
+					when: ContextKeyExpr.or(TerminalContextKeys.tabsFocus, TerminalContextKeys.focus)
+				}
+			});
+		}
+		async run(accessor: ServicesAccessor) {
+			accessor.get(ITerminalGroupService).focusHover();
+		}
+	});
+	registerAction2(class extends Action2 {
+		constructor() {
+			super({
 				id: TerminalCommandId.Clear,
 				title: { value: localize('workbench.action.terminal.clear', "Clear"), original: 'Clear' },
 				f1: true,
@@ -1725,7 +1744,9 @@ export function registerTerminalActions() {
 					// Weight is higher than work workbench contributions so the keybinding remains
 					// highest priority when chords are registered afterwards
 					weight: KeybindingWeight.WorkbenchContrib + 1,
-					when: TerminalContextKeys.focus
+					// Disable the keybinding when accessibility mode is enabled as chords include
+					// important screen reader keybindings such as cmd+k, cmd+i to show the hover
+					when: ContextKeyExpr.and(TerminalContextKeys.focus, CONTEXT_ACCESSIBILITY_MODE_ENABLED.negate()),
 				}]
 			});
 		}

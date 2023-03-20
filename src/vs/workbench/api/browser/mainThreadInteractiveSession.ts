@@ -51,10 +51,11 @@ export class MainThreadInteractiveSession extends Disposable implements MainThre
 					registration.extensionIcon;
 				return <IInteractiveSession>{
 					id: session.id,
-					requesterUsername: session.requesterUsername ?? 'Username',
+					requesterUsername: session.requesterUsername,
 					requesterAvatarIconUri: URI.revive(session.requesterAvatarIconUri),
-					responderUsername: session.responderUsername ?? 'Response',
+					responderUsername: session.responderUsername,
 					responderAvatarIconUri,
+					inputPlaceholder: session.inputPlaceholder,
 					dispose: () => {
 						this._proxy.$releaseSession(session.id);
 					}

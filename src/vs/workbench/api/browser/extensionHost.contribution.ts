@@ -69,6 +69,7 @@ import './mainThreadNotebook';
 import './mainThreadNotebookKernels';
 import './mainThreadNotebookDocumentsAndEditors';
 import './mainThreadNotebookRenderers';
+import './mainThreadNotebookSaveParticipant';
 import './mainThreadInteractive';
 import './mainThreadInteractiveEditor';
 import './mainThreadInteractiveSession';

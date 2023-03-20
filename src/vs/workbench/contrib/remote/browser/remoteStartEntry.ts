@@ -12,13 +12,15 @@ import { once } from 'vs/base/common/functional';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { Action2, MenuRegistry, registerAction2 } from 'vs/platform/actions/common/actions';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { IExtensionGalleryService, IExtensionManagementService } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { EXTENSION_INSTALL_SKIP_WALKTHROUGH_CONTEXT, IExtensionGalleryService, IExtensionManagementService, isTargetPlatformCompatible } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { retry } from 'vs/base/common/async';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
 import { workbenchConfigurationNodeBase } from 'vs/workbench/common/configuration';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { TargetPlatform } from 'vs/platform/extensions/common/extensions';
 
 const STATUSBAR_REMOTEINDICATOR_CONTRIBUTION = 'statusBar/remoteIndicator';
 
@@ -37,9 +39,10 @@ type RemoteStartActionEvent = {
 interface RemoteExtensionMetadata {
 	id: string;
 	friendlyName: string;
-	remoteCommand?: string;
+	remoteCommands: string[];
 	installed: boolean;
-	dependenciesStr?: string;
+	dependenciesStr: string;
+	isPlatformCompatible: boolean | undefined;
 }
 
 export class RemoteStartEntry extends Disposable implements IWorkbenchContribution {
@@ -47,6 +50,7 @@ export class RemoteStartEntry extends Disposable implements IWorkbenchContributi
 	private static readonly REMOTE_START_ENTRY_ACTIONS_COMMAND_ID = 'workbench.action.remote.showStartEntryActions';
 	private readonly remoteExtensionMetadata: RemoteExtensionMetadata[];
 	private _isInitialized: boolean = false;
+	private targetPlaform: TargetPlatform = TargetPlatform.UNKNOWN;
 
 	constructor(
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
@@ -55,13 +59,14 @@ export class RemoteStartEntry extends Disposable implements IWorkbenchContributi
 		@IExtensionService private readonly extensionService: IExtensionService,
 		@IExtensionManagementService private readonly extensionManagementService: IExtensionManagementService,
 		@IExtensionGalleryService private readonly extensionGalleryService: IExtensionGalleryService,
-		@ITelemetryService private readonly telemetryService: ITelemetryService) {
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
+		@IContextKeyService private readonly contextKeyService: IContextKeyService) {
 
 		super();
-
+		registerConfiguration(this.productService.quality !== 'stable');
 		const remoteExtensionTips = { ...this.productService.remoteExtensionTips, ...this.productService.virtualWorkspaceExtensionTips };
 		this.remoteExtensionMetadata = Object.values(remoteExtensionTips).filter(value => value.showInStartEntry === true).map(value => {
-			return { id: value.extensionId, installed: false, friendlyName: value.friendlyName };
+			return { id: value.extensionId, installed: false, friendlyName: value.friendlyName, remoteCommands: [], isPlatformCompatible: undefined, dependenciesStr: '' };
 		});
 
 		this.registerActions();
@@ -79,7 +84,7 @@ export class RemoteStartEntry extends Disposable implements IWorkbenchContributi
 					id: RemoteStartEntry.REMOTE_START_ENTRY_ACTIONS_COMMAND_ID,
 					category,
 					title: { value: nls.localize('remote.showStartEntryActions', "Show Remote Start Entry Actions"), original: 'Show Remote Start Entry Actions' },
-					f1: true
+					f1: false
 				});
 			}
 
@@ -108,6 +113,7 @@ export class RemoteStartEntry extends Disposable implements IWorkbenchContributi
 			return;
 		}
 
+		this.targetPlaform = await this.extensionManagementService.getTargetPlatform();
 		for (let i = 0; i < this.remoteExtensionMetadata.length; i++) {
 			const installed = this.extensionService.extensions.some((e) => e.id?.toLowerCase() === this.remoteExtensionMetadata[i].id);
 			if (installed) {
@@ -123,25 +129,32 @@ export class RemoteStartEntry extends Disposable implements IWorkbenchContributi
 	private async updateInstallStatus(extensionId: string, installed: boolean): Promise<RemoteExtensionMetadata | undefined> {
 		const index = this.remoteExtensionMetadata.findIndex(value => value.id === extensionId);
 		if (index > -1) {
-			if (installed && !this.remoteExtensionMetadata[index].installed) {
+			if (installed) {
+				const commands = await this.getRemoteCommands(extensionId);
+				if (commands) {
+					this.remoteExtensionMetadata[index].remoteCommands = commands;
+					this.remoteExtensionMetadata[index].isPlatformCompatible = true;
+				} else {
+					this.remoteExtensionMetadata[index].isPlatformCompatible = false;
+				}
 				this.remoteExtensionMetadata[index].installed = true;
-				const command = await this.getRemoteCommand(extensionId);
-				if (command) {
-					this.remoteExtensionMetadata[index].remoteCommand = command;
-				}
-			} else if (!installed && this.remoteExtensionMetadata[index].installed) {
-				this.remoteExtensionMetadata[index].installed = false;
-				if (this.remoteExtensionMetadata[index].dependenciesStr === undefined) {
-					const dependenciesStr = await this.getDependenciesStr(this.remoteExtensionMetadata[index].id);
+			} else if (!installed) {
+				const dependenciesStr = await this.getDependenciesFromGallery(this.remoteExtensionMetadata[index].id);
+				if (dependenciesStr !== undefined) {
 					this.remoteExtensionMetadata[index].dependenciesStr = dependenciesStr;
+					this.remoteExtensionMetadata[index].isPlatformCompatible = true;
 				}
+				else {
+					this.remoteExtensionMetadata[index].isPlatformCompatible = false;
+				}
+				this.remoteExtensionMetadata[index].installed = false;
 			}
 			return this.remoteExtensionMetadata[index];
 		}
 		return undefined;
 	}
 
-	private async getRemoteCommand(remoteExtensionId: string): Promise<string | undefined> {
+	private async getRemoteCommands(remoteExtensionId: string): Promise<string[] | undefined> {
 
 		const extension = await retry(async () => {
 			const ext = await this.extensionService.getExtension(remoteExtensionId);
@@ -153,13 +166,19 @@ export class RemoteStartEntry extends Disposable implements IWorkbenchContributi
 
 		const menus = extension?.contributes?.menus;
 		if (menus) {
+			const commands: string[] = [];
 			for (const contextMenu in menus) {
 				// The remote start entry pulls the first command from the statusBar/remoteIndicator menu contribution
 				if (contextMenu === STATUSBAR_REMOTEINDICATOR_CONTRIBUTION) {
-					const command = menus[contextMenu][0];
-					return command.command;
+					for (const command of menus[contextMenu]) {
+						const expression = ContextKeyExpr.deserialize(command.when);
+						if (this.contextKeyService.contextMatchesRules(expression)) {
+							commands.push(command.command);
+						}
+					}
 				}
 			}
+			return commands;
 		}
 		return undefined;
 	}
@@ -171,20 +190,21 @@ export class RemoteStartEntry extends Disposable implements IWorkbenchContributi
 			const installedItems: QuickPickItem[] = [];
 			const notInstalledItems: QuickPickItem[] = [];
 			for (const metadata of this.remoteExtensionMetadata) {
-
-				if (metadata.installed && metadata.remoteCommand) {
-					const commandAction = MenuRegistry.getCommand(metadata.remoteCommand);
-					const label = typeof commandAction?.title === 'string' ? commandAction.title : commandAction?.title?.value;
-					if (label) {
-						installedItems.push({ type: 'separator', label: metadata.friendlyName });
-						installedItems.push({
-							type: 'item',
-							label: label,
-							id: metadata.id
-						});
+				if (metadata.installed && metadata.remoteCommands) {
+					installedItems.push({ type: 'separator', label: metadata.friendlyName });
+					for (const command of metadata.remoteCommands) {
+						const commandAction = MenuRegistry.getCommand(command);
+						const label = typeof commandAction?.title === 'string' ? commandAction.title : commandAction?.title?.value;
+						if (label) {
+							installedItems.push({
+								type: 'item',
+								label: label,
+								id: command
+							});
+						}
 					}
 				}
-				else if (!metadata.installed) {
+				else if (!metadata.installed && metadata.isPlatformCompatible) {
 					const label = nls.localize('remote.startActions.connectTo', 'Connect to {0}... ', metadata.friendlyName);
 					const tooltip = metadata.dependenciesStr ? nls.localize('remote.startActions.tooltip', 'Also installs dependencies - {0} ', metadata.dependenciesStr) : '';
 					notInstalledItems.push({ type: 'item', id: metadata.id, label: label, tooltip: tooltip });
@@ -210,32 +230,45 @@ export class RemoteStartEntry extends Disposable implements IWorkbenchContributi
 			if (selectedItems.length === 1) {
 				const selectedItem = selectedItems[0].id!;
 
-				let metadata = this.remoteExtensionMetadata.find(value => value.id === selectedItem);
-				if (!metadata?.installed) {
+				const remoteExtension = this.remoteExtensionMetadata.find(value => value.id === selectedItem);
+				if (remoteExtension) {
 					quickPick.busy = true;
 					quickPick.placeholder = nls.localize('remote.startActions.installingExtension', 'Installing extension... ');
 
-					this.commandService.executeCommand('workbench.extensions.installExtension', selectedItem);
-					this.telemetryService.publicLog2<RemoteStartActionEvent, RemoteStartActionClassification>('remoteStartList.ActionExecuted', { command: 'workbench.extensions.installExtension', remoteExtensionId: metadata?.id });
+					const galleryExtension = (await this.extensionGalleryService.getExtensions([{ id: selectedItem }], CancellationToken.None))[0];
+					await this.extensionManagementService.installFromGallery(galleryExtension, {
+						isMachineScoped: false,
+						donotIncludePackAndDependencies: false,
+						context: { [EXTENSION_INSTALL_SKIP_WALKTHROUGH_CONTEXT]: true }
+					});
+
+					this.telemetryService.publicLog2<RemoteStartActionEvent, RemoteStartActionClassification>('remoteStartList.ActionExecuted', { command: 'workbench.extensions.installExtension', remoteExtensionId: selectedItem });
 
 					quickPick.busy = false;
-				}
 
-				metadata = await this.updateInstallStatus(selectedItem, true);
-				if (metadata?.remoteCommand) {
-					this.telemetryService.publicLog2<RemoteStartActionEvent, RemoteStartActionClassification>('remoteStartList.ActionExecuted', { command: metadata?.remoteCommand, remoteExtensionId: metadata?.id });
-					this.commandService.executeCommand(metadata?.remoteCommand);
-				} else {
-					throw Error('Could not find remote commands');
+					const metadata = await this.updateInstallStatus(selectedItem, true);
+					if (metadata) {
+						this.telemetryService.publicLog2<RemoteStartActionEvent, RemoteStartActionClassification>('remoteStartList.ActionExecuted', { command: metadata?.remoteCommands[0], remoteExtensionId: metadata?.id });
+						this.commandService.executeCommand(metadata?.remoteCommands[0]);
+					}
+				}
+				else {
+					this.commandService.executeCommand(selectedItem);
+					this.telemetryService.publicLog2<RemoteStartActionEvent, RemoteStartActionClassification>('remoteStartList.ActionExecuted', { command: selectedItem });
 				}
 			}
 		});
 		quickPick.show();
 	}
 
-	private async getDependenciesStr(extensionId: string): Promise<string> {
+	private async getDependenciesFromGallery(extensionId: string): Promise<string | undefined> {
 
 		const galleryExtension = (await this.extensionGalleryService.getExtensions([{ id: extensionId }], CancellationToken.None))[0];
+		const canInstall = galleryExtension.allTargetPlatforms.some(targetPlatform => isTargetPlatformCompatible(targetPlatform, galleryExtension.allTargetPlatforms, this.targetPlaform));
+		if (!canInstall) {
+			return undefined;
+		}
+
 		const friendlyNames: string[] = [];
 		if (galleryExtension.properties.extensionPack) {
 			for (const extensionPackItem of galleryExtension.properties.extensionPack) {
@@ -248,15 +281,18 @@ export class RemoteStartEntry extends Disposable implements IWorkbenchContributi
 	}
 }
 
-const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
-configurationRegistry.registerConfiguration({
-	...workbenchConfigurationNodeBase,
-	properties: {
-		'workbench.remote.experimental.showStartListEntry': {
-			scope: ConfigurationScope.MACHINE,
-			type: 'boolean',
-			default: true,
-			description: nls.localize('workbench.remote.showStartListEntry', "When enabled, a start list entry for getting started with remote experiences in shown on the welcome page.")
+function registerConfiguration(enabled: boolean): void {
+	const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
+	configurationRegistry.registerConfiguration({
+		...workbenchConfigurationNodeBase,
+		properties: {
+			'workbench.remote.experimental.showStartListEntry': {
+				scope: ConfigurationScope.MACHINE,
+				type: 'boolean',
+				default: enabled,
+				tags: ['experimental'],
+				description: nls.localize('workbench.remote.showStartListEntry', "When enabled, a start list entry for getting started with remote experiences in shown on the welcome page.")
+			}
 		}
-	}
-});
+	});
+}

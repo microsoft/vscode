@@ -7,6 +7,7 @@ use async_trait::async_trait;
 use sha2::{Digest, Sha256};
 use std::{str::FromStr, time::Duration};
 use sysinfo::Pid;
+use tokio::sync::mpsc;
 
 use super::{
 	args::{
@@ -17,13 +18,18 @@ use super::{
 };
 
 use crate::{
+	async_pipe::socket_stream_split,
 	auth::Auth,
-	log::{self, Logger},
+	constants::APPLICATION_NAME,
+	json_rpc::{new_json_rpc, start_json_rpc},
+	log,
+	singleton::connect_as_client,
 	state::LauncherPaths,
 	tunnels::{
 		code_server::CodeServerArgs,
 		create_service_manager, dev_tunnels, legal,
 		paths::get_all_servers,
+		protocol,
 		shutdown_signal::ShutdownRequest,
 		singleton_server::{
 			make_singleton_server, start_singleton_server, BroadcastLogSink, SingletonServerArgs,
@@ -31,7 +37,7 @@ use crate::{
 		Next, ServiceContainer, ServiceManager,
 	},
 	util::{
-		errors::{wrap, AnyError},
+		errors::{wrap, AnyError, CodeError},
 		prereqs::PreReqChecker,
 	},
 };
@@ -108,14 +114,14 @@ pub async fn service(
 ) -> Result<i32, AnyError> {
 	let manager = create_service_manager(ctx.log.clone(), &ctx.paths);
 	match service_args {
-		TunnelServiceSubCommands::Install => {
+		TunnelServiceSubCommands::Install(args) => {
 			// ensure logged in, otherwise subsequent serving will fail
 			Auth::new(&ctx.paths, ctx.log.clone())
 				.get_credential()
 				.await?;
 
 			// likewise for license consent
-			legal::require_consent(&ctx.paths, false)?;
+			legal::require_consent(&ctx.paths, args.accept_server_license_terms)?;
 
 			let current_exe =
 				std::env::current_exe().map_err(|e| wrap(e, "could not get current exe"))?;
@@ -133,7 +139,7 @@ pub async fn service(
 					],
 				)
 				.await?;
-			ctx.log.result("Service successfully installed! You can use `code tunnel service log` to monitor it, and `code tunnel service uninstall` to remove it.");
+			ctx.log.result(format!("Service successfully installed! You can use `{} tunnel service log` to monitor it, and `code tunnel service uninstall` to remove it.", APPLICATION_NAME));
 		}
 		TunnelServiceSubCommands::Uninstall => {
 			manager.unregister().await?;
@@ -198,6 +204,79 @@ pub async fn unregister(ctx: CommandContext) -> Result<i32, AnyError> {
 	Ok(0)
 }
 
+async fn do_single_rpc_call<
+	P: serde::Serialize,
+	R: serde::de::DeserializeOwned + Send + 'static,
+>(
+	ctx: &CommandContext,
+	method: &'static str,
+	params: P,
+) -> Result<R, AnyError> {
+	let client = match connect_as_client(&ctx.paths.tunnel_lockfile()).await {
+		Ok(p) => p,
+		Err(CodeError::SingletonLockfileOpenFailed(_))
+		| Err(CodeError::SingletonLockedProcessExited(_)) => {
+			return Err(CodeError::NoRunningTunnel.into());
+		}
+		Err(e) => return Err(e.into()),
+	};
+
+	let (msg_tx, msg_rx) = mpsc::unbounded_channel();
+	let mut rpc = new_json_rpc();
+	let caller = rpc.get_caller(msg_tx);
+	let (read, write) = socket_stream_split(client);
+	let log = ctx.log.clone();
+
+	let rpc = tokio::spawn(async move {
+		start_json_rpc(
+			rpc.methods(()).build(log),
+			read,
+			write,
+			msg_rx,
+			ShutdownRequest::create_rx([ShutdownRequest::CtrlC]),
+		)
+		.await
+		.unwrap();
+	});
+
+	let r = caller.call(method, params).await.unwrap();
+	rpc.abort();
+	r.map_err(|err| CodeError::TunnelRpcCallFailed(err).into())
+}
+
+pub async fn restart(ctx: CommandContext) -> Result<i32, AnyError> {
+	do_single_rpc_call::<_, ()>(
+		&ctx,
+		protocol::singleton::METHOD_RESTART,
+		protocol::EmptyObject {},
+	)
+	.await
+	.map(|_| 0)
+}
+
+pub async fn kill(ctx: CommandContext) -> Result<i32, AnyError> {
+	do_single_rpc_call::<_, ()>(
+		&ctx,
+		protocol::singleton::METHOD_SHUTDOWN,
+		protocol::EmptyObject {},
+	)
+	.await
+	.map(|_| 0)
+}
+
+pub async fn status(ctx: CommandContext) -> Result<i32, AnyError> {
+	let status: protocol::singleton::Status = do_single_rpc_call(
+		&ctx,
+		protocol::singleton::METHOD_STATUS,
+		protocol::EmptyObject {},
+	)
+	.await?;
+
+	ctx.log.result(serde_json::to_string(&status).unwrap());
+
+	Ok(0)
+}
+
 /// Removes unused servers.
 pub async fn prune(ctx: CommandContext) -> Result<i32, AnyError> {
 	get_all_servers(&ctx.paths)
@@ -251,10 +330,14 @@ fn get_connection_token(tunnel: &ActiveTunnel) -> String {
 
 async fn serve_with_csa(
 	paths: LauncherPaths,
-	mut log: Logger,
+	mut log: log::Logger,
 	gateway_args: TunnelServeArgs,
 	mut csa: CodeServerArgs,
 ) -> Result<i32, AnyError> {
+	let log_broadcast = BroadcastLogSink::new();
+	log = log.tee(log_broadcast.clone());
+	log::install_global_logger(log.clone()); // re-install so that library logs are captured
+
 	let shutdown = match gateway_args
 		.parent_process_id
 		.and_then(|p| Pid::from_str(&p).ok())
@@ -275,7 +358,7 @@ async fn serve_with_csa(
 			return Ok(0);
 		}
 
-		match acquire_singleton(paths.root().join("tunnel.lock")).await {
+		match acquire_singleton(paths.tunnel_lockfile()).await {
 			Ok(SingletonConnection::Client(stream)) => {
 				debug!(log, "starting as client to singleton");
 				let should_exit = start_singleton_client(SingletonClientArgs {
@@ -298,8 +381,6 @@ async fn serve_with_csa(
 
 	debug!(log, "starting as new singleton");
 
-	let log_broadcast = BroadcastLogSink::new();
-	log = log.tee(log_broadcast.clone());
 	let mut server =
 		make_singleton_server(log_broadcast.clone(), log.clone(), server, shutdown.clone());
 	let platform = spanf!(log, log.span("prereq"), PreReqChecker::new().verify())?;
@@ -310,11 +391,8 @@ async fn serve_with_csa(
 		let tunnel = if let Some(d) = gateway_args.tunnel.clone().into() {
 			dt.start_existing_tunnel(d).await
 		} else {
-			dt.start_new_launcher_tunnel(
-				gateway_args.name.as_deref(),
-				gateway_args.random_name,
-			)
-			.await
+			dt.start_new_launcher_tunnel(gateway_args.name.as_deref(), gateway_args.random_name)
+				.await
 		}?;
 
 		csa.connection_token = Some(get_connection_token(&tunnel));

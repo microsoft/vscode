@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { CancelablePromise } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Event } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
@@ -17,6 +18,7 @@ export interface IInteractiveSession {
 	requesterAvatarIconUri?: URI;
 	responderUsername: string;
 	responderAvatarIconUri?: URI;
+	inputPlaceholder?: string;
 	dispose?(): void;
 }
 
@@ -68,7 +70,7 @@ export interface IInteractiveSessionReplyFollowup {
 export interface IInteractiveSessionResponseCommandFollowup {
 	kind: 'command';
 	commandId: string;
-	args: any[];
+	args?: any[];
 	title: string; // supports codicon strings
 }
 
@@ -85,10 +87,17 @@ export interface IInteractiveSessionVoteAction {
 	direction: InteractiveSessionVoteDirection;
 }
 
+export enum InteractiveSessionCopyKind {
+	// Keyboard shortcut or context menu
+	Action = 1,
+	Toolbar = 2
+}
+
 export interface IInteractiveSessionCopyAction {
 	kind: 'copy';
 	responseId: string;
 	codeBlockIndex: number;
+	copyType: InteractiveSessionCopyKind;
 }
 
 export interface IInteractiveSessionInsertAction {
@@ -132,7 +141,7 @@ export interface IInteractiveSessionService {
 	/**
 	 * Returns whether the request was accepted.
 	 */
-	sendRequest(sessionId: number, message: string | IInteractiveSessionReplyFollowup, token: CancellationToken): boolean;
+	sendRequest(sessionId: number, message: string | IInteractiveSessionReplyFollowup): { completePromise: CancelablePromise<void> } | undefined;
 	getSlashCommands(sessionId: number, token: CancellationToken): Promise<IInteractiveSlashCommand[] | undefined>;
 	clearSession(sessionId: number): void;
 	acceptNewSessionState(sessionId: number, state: any): void;

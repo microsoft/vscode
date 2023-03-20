@@ -14,6 +14,7 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { FuzzyScore } from 'vs/base/common/filters';
 import { IMarkdownString, MarkdownString } from 'vs/base/common/htmlContent';
 import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
+import { ResourceMap } from 'vs/base/common/map';
 import { ThemeIcon } from 'vs/base/common/themables';
 import { EditorExtensionsRegistry } from 'vs/editor/browser/editorExtensions';
 import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
@@ -192,7 +193,7 @@ export class InteractiveListItemRenderer extends Disposable implements ITreeRend
 
 		if (element.avatarIconUri) {
 			const avatarIcon = dom.$<HTMLImageElement>('img.icon');
-			avatarIcon.src = element.avatarIconUri.toString();
+			avatarIcon.src = element.avatarIconUri.toString(true);
 			templateData.avatar.replaceChildren(avatarIcon);
 		} else {
 			const defaultIcon = isRequestVM(element) ? Codicon.account : Codicon.hubot;
@@ -210,14 +211,20 @@ export class InteractiveListItemRenderer extends Disposable implements ITreeRend
 			const progressiveRenderingDisposables = templateData.elementDisposables.add(new DisposableStore());
 			const timer = templateData.elementDisposables.add(new IntervalTimer());
 			const runProgressiveRender = (initial?: boolean) => {
-				if (this.doNextProgressiveRender(element, index, templateData, !!initial, progressiveRenderingDisposables)) {
+				try {
+					if (this.doNextProgressiveRender(element, index, templateData, !!initial, progressiveRenderingDisposables)) {
+						timer.cancel();
+					}
+				} catch (err) {
+					// Kill the timer if anything went wrong, avoid getting stuck in a nasty rendering loop.
 					timer.cancel();
+					throw err;
 				}
 			};
 			runProgressiveRender(true);
 			timer.cancelAndSet(runProgressiveRender, 50);
 		} else if (isResponseVM(element)) {
-			this.basicRenderElement(element.response.value, element, index, templateData);
+			this.basicRenderElement(element.response.value, element, index, templateData, element.isCanceled);
 		} else if (isRequestVM(element)) {
 			this.basicRenderElement(element.messageText, element, index, templateData);
 		} else {
@@ -282,30 +289,38 @@ export class InteractiveListItemRenderer extends Disposable implements ITreeRend
 	private doNextProgressiveRender(element: IInteractiveResponseViewModel, index: number, templateData: IInteractiveListItemTemplate, isInRenderElement: boolean, disposables: DisposableStore): boolean {
 		disposables.clear();
 
-		// TODO- this method has the side effect of updating element.renderData
-		const toRender = this.getProgressiveMarkdownToRender(element);
-		const isFullyRendered = element.renderData?.isFullyRendered;
-		if (isFullyRendered) {
-			// We've reached the end of the available content, so do a normal render
-			this.traceLayout('runProgressiveRender', `end progressive render, index=${index}`);
-			if (element.isComplete) {
-				this.traceLayout('runProgressiveRender', `and disposing renderData, response is complete, index=${index}`);
-				element.renderData = undefined;
-			} else {
-				this.traceLayout('runProgressiveRender', `Rendered all available words, but model is not complete.`);
-			}
-			disposables.clear();
-			this.basicRenderElement(element.response.value, element, index, templateData, !element.isComplete);
-		} else if (toRender) {
-			// Doing the progressive render
-			const plusCursor = toRender.match(/```.*$/) ? toRender + `\n${InteractiveListItemRenderer.cursorCharacter}` : toRender + ` ${InteractiveListItemRenderer.cursorCharacter}`;
-			const result = this.renderMarkdown(new MarkdownString(plusCursor), element, disposables, templateData, true);
-			dom.clearNode(templateData.value);
-			templateData.value.appendChild(result.element);
-			disposables.add(result);
+		let isFullyRendered = false;
+		if (element.isCanceled) {
+			this.traceLayout('runProgressiveRender', `canceled, index=${index}`);
+			element.renderData = undefined;
+			this.basicRenderElement(element.response.value, element, index, templateData, true);
+			isFullyRendered = true;
 		} else {
-			// Nothing new to render, not done, keep waiting
-			return false;
+			// TODO- this method has the side effect of updating element.renderData
+			const toRender = this.getProgressiveMarkdownToRender(element);
+			isFullyRendered = !!element.renderData?.isFullyRendered;
+			if (isFullyRendered) {
+				// We've reached the end of the available content, so do a normal render
+				this.traceLayout('runProgressiveRender', `end progressive render, index=${index}`);
+				if (element.isComplete) {
+					this.traceLayout('runProgressiveRender', `and disposing renderData, response is complete, index=${index}`);
+					element.renderData = undefined;
+				} else {
+					this.traceLayout('runProgressiveRender', `Rendered all available words, but model is not complete.`);
+				}
+				disposables.clear();
+				this.basicRenderElement(element.response.value, element, index, templateData, !element.isComplete);
+			} else if (toRender) {
+				// Doing the progressive render
+				const plusCursor = toRender.match(/```.*$/) ? toRender + `\n${InteractiveListItemRenderer.cursorCharacter}` : toRender + ` ${InteractiveListItemRenderer.cursorCharacter}`;
+				const result = this.renderMarkdown(new MarkdownString(plusCursor), element, disposables, templateData, true);
+				dom.clearNode(templateData.value);
+				templateData.value.appendChild(result.element);
+				disposables.add(result);
+			} else {
+				// Nothing new to render, not done, keep waiting
+				return false;
+			}
 		}
 
 		// Some render happened - update the height
@@ -330,7 +345,7 @@ export class InteractiveListItemRenderer extends Disposable implements ITreeRend
 		const result = this.renderer.render(markdown, {
 			fillInIncompleteTokens,
 			codeBlockRendererSync: (languageId, text) => {
-				const ref = this.renderCodeBlock({ languageId, text, index: codeBlockIndex++, element, parentContextKeyService: templateData.contextKeyService }, disposables);
+				const ref = this.renderCodeBlock({ languageId, text, codeBlockIndex: codeBlockIndex++, element, parentContextKeyService: templateData.contextKeyService }, disposables);
 
 				// Attach this after updating text/layout of the editor, so it should only be fired when the size updates later (horizontal scrollbar, wrapping)
 				// not during a renderElement OR a progressive render (when we will be firing this event anyway at the end of the render)
@@ -413,7 +428,7 @@ export class InteractiveSessionListDelegate implements IListVirtualDelegate<Inte
 
 	getHeight(element: InteractiveTreeItem): number {
 		const kind = isRequestVM(element) ? 'request' : 'response';
-		const height = ('currentRenderedHeight' in element ? element.currentRenderedHeight : undefined) ?? 40;
+		const height = ('currentRenderedHeight' in element ? element.currentRenderedHeight : undefined) ?? 200;
 		this._traceLayout('getHeight', `${kind}, height=${height}`);
 		return height;
 	}
@@ -449,7 +464,7 @@ export class InteractiveSessionAccessibilityProvider implements IListAccessibili
 interface IInteractiveResultCodeBlockData {
 	text: string;
 	languageId: string;
-	index: number;
+	codeBlockIndex: number;
 	element: InteractiveTreeItem;
 	parentContextKeyService: IContextKeyService;
 }
@@ -462,6 +477,14 @@ interface IInteractiveResultCodeBlockPart {
 	render(data: IInteractiveResultCodeBlockData, width: number): void;
 	dispose(): void;
 }
+
+export interface IInteractiveResultCodeBlockInfo {
+	providerId: string;
+	responseId: string;
+	codeBlockIndex: number;
+}
+
+export const codeBlockInfosByModelUri = new ResourceMap<IInteractiveResultCodeBlockInfo>();
 
 class CodeBlockPart extends Disposable implements IInteractiveResultCodeBlockPart {
 	private readonly _onDidChangeContentHeight = this._register(new Emitter<number>());
@@ -558,7 +581,8 @@ class CodeBlockPart extends Disposable implements IInteractiveResultCodeBlockPar
 
 	layout(width: number): void {
 		const realContentHeight = this.editor.getContentHeight();
-		this.editor.layout({ width, height: realContentHeight });
+		const editorBorder = 2;
+		this.editor.layout({ width: width - editorBorder, height: realContentHeight });
 	}
 
 	render(data: IInteractiveResultCodeBlockData, width: number): void {
@@ -575,9 +599,20 @@ class CodeBlockPart extends Disposable implements IInteractiveResultCodeBlockPar
 
 		this.layout(width);
 
+		if (isResponseVM(data.element) && data.element.providerResponseId) {
+			// For telemetry reporting
+			codeBlockInfosByModelUri.set(this.textModel.uri, {
+				providerId: data.element.providerId,
+				responseId: data.element.providerResponseId,
+				codeBlockIndex: data.codeBlockIndex
+			});
+		} else {
+			codeBlockInfosByModelUri.delete(this.textModel.uri);
+		}
+
 		this.toolbar.context = <IInteractiveSessionCodeBlockActionContext>{
 			code: data.text,
-			codeBlockIndex: data.index,
+			codeBlockIndex: data.codeBlockIndex,
 			element: data.element
 		};
 	}

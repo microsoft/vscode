@@ -357,6 +357,7 @@ export interface ITerminalGroupService extends ITerminalInstanceHost {
 	showPanel(focus?: boolean): Promise<void>;
 	hidePanel(): void;
 	focusTabs(): void;
+	focusHover(): void;
 	showTabs(): void;
 	updateVisibility(): void;
 }
@@ -455,6 +456,7 @@ export interface ITerminalInstance {
 	readonly os?: OperatingSystem;
 	readonly capabilities: ITerminalCapabilityStore;
 	readonly usedShellIntegrationInjection: boolean;
+	readonly injectedArgs: string[] | undefined;
 
 	readonly statusList: ITerminalStatusList;
 

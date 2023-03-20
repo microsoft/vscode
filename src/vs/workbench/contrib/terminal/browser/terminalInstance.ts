@@ -90,6 +90,7 @@ import { TERMINAL_BACKGROUND_COLOR } from 'vs/workbench/contrib/terminal/common/
 import { editorBackground } from 'vs/platform/theme/common/colorRegistry';
 import { PANEL_BACKGROUND, SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
 import { TerminalExtensionsRegistry } from 'vs/workbench/contrib/terminal/browser/terminalExtensions';
+import { ResolvedKeybinding } from 'vs/base/common/keybindings';
 
 const enum Constants {
 	/**
@@ -106,7 +107,7 @@ const enum Constants {
 }
 
 let xtermConstructor: Promise<typeof XTermTerminal> | undefined;
-function getXtermConstructor(): Promise<typeof XTermTerminal> {
+function getXtermConstructor(keybinding?: ResolvedKeybinding): Promise<typeof XTermTerminal> {
 	if (xtermConstructor) {
 		return xtermConstructor;
 	}
@@ -114,7 +115,7 @@ function getXtermConstructor(): Promise<typeof XTermTerminal> {
 		const Terminal = (await import('xterm')).Terminal;
 		// Localize strings
 		Terminal.strings.promptLabel = nls.localize('terminal.integrated.a11yPromptLabel', 'Terminal input');
-		Terminal.strings.tooMuchOutput = nls.localize('terminal.integrated.a11yTooMuchOutput', 'Too much output to announce, navigate to rows manually to read');
+		Terminal.strings.tooMuchOutput = keybinding ? nls.localize('terminal.integrated.useAccessibleBuffer', 'Use the accessible buffer {0} to manually review output', keybinding.getLabel()) : nls.localize('terminal.integrated.useAccessibleBufferNoKb', 'Use the Terminal: Focus Accessible Buffer command to manually review output');
 		resolve(Terminal);
 	});
 	return xtermConstructor;
@@ -183,6 +184,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	private _fixedRows: number | undefined;
 	private _cwd: string | undefined = undefined;
 	private _initialCwd: string | undefined = undefined;
+	private _injectedArgs: string[] | undefined = undefined;
 	private _layoutSettingsChanged: boolean = true;
 	private _dimensionsOverride: ITerminalDimensionsOverride | undefined;
 	private _areLinksReady: boolean = false;
@@ -310,6 +312,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		return undefined;
 	}
 	get userHome(): string | undefined { return this._userHome; }
+	get injectedArgs(): string[] | undefined { return this._injectedArgs; }
 
 	// The onExit event is special in that it fires and is disposed after the terminal instance
 	// itself is disposed
@@ -361,7 +364,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		private readonly _configHelper: TerminalConfigHelper,
 		private _shellLaunchConfig: IShellLaunchConfig,
 		resource: URI | undefined,
-		@IContextKeyService contextKeyService: IContextKeyService,
+		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@ITerminalProfileResolverService private readonly _terminalProfileResolverService: ITerminalProfileResolverService,
 		@IPathService private readonly _pathService: IPathService,
@@ -433,7 +436,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			this._workspaceFolder = activeWorkspaceRootUri ? withNullAsUndefined(this._workspaceContextService.getWorkspaceFolder(activeWorkspaceRootUri)) : undefined;
 		}
 
-		const scopedContextKeyService = this._register(contextKeyService.createScoped(this._wrapperElement));
+		const scopedContextKeyService = this._register(_contextKeyService.createScoped(this._wrapperElement));
 		this._scopedInstantiationService = instantiationService.createChild(new ServiceCollection(
 			[IContextKeyService, scopedContextKeyService]
 		));
@@ -728,7 +731,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	 * Create xterm.js instance and attach data listeners.
 	 */
 	protected async _createXterm(): Promise<XtermTerminal> {
-		const Terminal = await getXtermConstructor();
+		const Terminal = await getXtermConstructor(this._keybindingService.lookupKeybinding(TerminalCommandId.FocusAccessibleBuffer, this._contextKeyService));
 		if (this._isDisposed) {
 			throw new ErrorNoTelemetry('Terminal disposed of during xterm.js creation');
 		}
@@ -1497,9 +1500,13 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			this.xterm?.raw.resize(this._cols || Constants.DefaultCols, this._rows || Constants.DefaultRows);
 		}
 		const originalIcon = this.shellLaunchConfig.icon;
-		await this._processManager.createProcess(this._shellLaunchConfig, this._cols || Constants.DefaultCols, this._rows || Constants.DefaultRows).then(error => {
-			if (error) {
-				this._onProcessExit(error);
+		await this._processManager.createProcess(this._shellLaunchConfig, this._cols || Constants.DefaultCols, this._rows || Constants.DefaultRows).then(result => {
+			if (result) {
+				if ('message' in result) {
+					this._onProcessExit(result);
+				} else if ('injectedArgs' in result) {
+					this._injectedArgs = result.injectedArgs;
+				}
 			}
 		});
 		if (this.xterm?.shellIntegration) {
@@ -1743,9 +1750,13 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 		// Set the new shell launch config
 		this._shellLaunchConfig = shell; // Must be done before calling _createProcess()
-		await this._processManager.relaunch(this._shellLaunchConfig, this._cols || Constants.DefaultCols, this._rows || Constants.DefaultRows, reset).then(error => {
-			if (error) {
-				this._onProcessExit(error);
+		await this._processManager.relaunch(this._shellLaunchConfig, this._cols || Constants.DefaultCols, this._rows || Constants.DefaultRows, reset).then(result => {
+			if (result) {
+				if ('message' in result) {
+					this._onProcessExit(result);
+				} else if ('injectedArgs' in result) {
+					this._injectedArgs = result.injectedArgs;
+				}
 			}
 		});
 

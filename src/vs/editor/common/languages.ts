@@ -1593,7 +1593,7 @@ export interface CommentThread<T = IRange> {
 	extensionId?: string;
 	threadId: string;
 	resource: string | null;
-	range: T;
+	range: T | undefined;
 	label: string | undefined;
 	contextValue: string | undefined;
 	comments: Comment[] | undefined;
@@ -1605,7 +1605,7 @@ export interface CommentThread<T = IRange> {
 	canReply: boolean;
 	input?: CommentInput;
 	onDidChangeInput: Event<CommentInput | undefined>;
-	onDidChangeRange: Event<T>;
+	onDidChangeRange: Event<T | undefined>;
 	onDidChangeLabel: Event<string | undefined>;
 	onDidChangeCollapsibleState: Event<CommentThreadCollapsibleState | undefined>;
 	onDidChangeState: Event<CommentThreadState | undefined>;
@@ -1664,7 +1664,7 @@ export interface Comment {
 	readonly uniqueIdInThread: number;
 	readonly body: string | IMarkdownString;
 	readonly userName: string;
-	readonly userIconPath?: string;
+	readonly userIconPath?: UriComponents;
 	readonly contextValue?: string;
 	readonly commentReactions?: CommentReaction[];
 	readonly label?: string;

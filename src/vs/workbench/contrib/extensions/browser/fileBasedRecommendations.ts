@@ -22,7 +22,6 @@ import { match } from 'vs/base/common/glob';
 import { URI } from 'vs/base/common/uri';
 import { Mimes } from 'vs/base/common/mime';
 import { getMimeTypes } from 'vs/editor/common/services/languagesAssociations';
-import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IModelService } from 'vs/editor/common/services/model';
 import { ILanguageService } from 'vs/editor/common/languages/language';
 import { IExtensionRecommendationNotificationService, RecommendationsNotificationResult, RecommendationSource } from 'vs/platform/extensionRecommendations/common/extensionRecommendations';
@@ -94,7 +93,6 @@ export class FileBasedRecommendations extends ExtensionRecommendations {
 
 	constructor(
 		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService,
-		@IExtensionService private readonly extensionService: IExtensionService,
 		@IPaneCompositePartService private readonly paneCompositeService: IPaneCompositePartService,
 		@IModelService private readonly modelService: IModelService,
 		@ILanguageService private readonly languageService: ILanguageService,
@@ -124,7 +122,7 @@ export class FileBasedRecommendations extends ExtensionRecommendations {
 			return;
 		}
 
-		await this.extensionService.whenInstalledExtensionsRegistered();
+		await this.extensionsWorkbenchService.whenInitialized;
 
 		const cachedRecommendations = this.getCachedRecommendations();
 		const now = Date.now();

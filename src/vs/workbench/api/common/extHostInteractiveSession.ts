@@ -86,7 +86,8 @@ export class ExtHostInteractiveSession implements ExtHostInteractiveSessionShape
 			requesterUsername: session.requester?.name,
 			requesterAvatarIconUri: session.requester?.icon,
 			responderUsername: session.responder?.name,
-			responderAvatarIconUri: session.responder?.icon
+			responderAvatarIconUri: session.responder?.icon,
+			inputPlaceholder: session.inputPlaceholder,
 		};
 	}
 
@@ -189,6 +190,10 @@ export class ExtHostInteractiveSession implements ExtHostInteractiveSessionShape
 		let firstProgress: number | undefined;
 		const progressObj: vscode.Progress<vscode.InteractiveProgress> = {
 			report: (progress: vscode.InteractiveProgress) => {
+				if (token.isCancellationRequested) {
+					return;
+				}
+
 				if (typeof firstProgress === 'undefined') {
 					firstProgress = stopWatch.elapsed();
 				}

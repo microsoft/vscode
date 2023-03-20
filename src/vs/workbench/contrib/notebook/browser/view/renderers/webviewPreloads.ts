@@ -869,7 +869,16 @@ async function webviewPreloads(ctx: PreloadContext) {
 		container: Node;
 		originalRange: Range;
 		isShadow: boolean;
+		searchPreviewInfo?: ISearchPreviewInfo;
 		highlightResult?: IHighlightResult;
+	}
+
+	interface ISearchPreviewInfo {
+		line: string;
+		range: {
+			start: number;
+			end: number;
+		};
 	}
 
 	interface IHighlighter {
@@ -913,7 +922,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 					const tempRange = document.createRange();
 					tempRange.selectNode(match.highlightResult.range.startContainer);
 
-					match.highlightResult.range.startContainer.parentElement?.scrollIntoView({ behavior: 'smooth', block: 'end', inline: 'nearest' });
+					match.highlightResult.range.startContainer.parentElement?.scrollIntoView({ behavior: 'auto', block: 'end', inline: 'nearest' });
 
 					const rangeOffset = tempRange.getBoundingClientRect().top;
 					tempRange.detach();
@@ -977,7 +986,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 				let offset = 0;
 				try {
 					const outputOffset = document.getElementById(match.id)!.getBoundingClientRect().top;
-					match.originalRange.startContainer.parentElement?.scrollIntoView({ behavior: 'smooth', block: 'end', inline: 'nearest' });
+					match.originalRange.startContainer.parentElement?.scrollIntoView({ behavior: 'auto', block: 'end', inline: 'nearest' });
 					const rangeOffset = match.originalRange.getBoundingClientRect().top;
 					offset = rangeOffset - outputOffset;
 					postNotebookMessage('didFindHighlight', {
@@ -1003,7 +1012,82 @@ async function webviewPreloads(ctx: PreloadContext) {
 		}
 	}
 
-	const find = (query: string, options: { wholeWord?: boolean; caseSensitive?: boolean; includeMarkup: boolean; includeOutput: boolean }) => {
+	function extractSelectionLine(selection: Selection): ISearchPreviewInfo {
+		const range = selection.getRangeAt(0);
+
+		// we need to keep a reference to the old selection range to re-apply later
+		const oldRange = range.cloneRange();
+		const captureLength = selection.toString().length;
+
+		// use selection API to modify selection to get entire line (the first line if multi-select)
+
+		// collapse selection to start so that the cursor position is at beginning of match
+		selection.collapseToStart();
+
+		// extend selection in both directions to select the line
+		selection.modify('move', 'backward', 'lineboundary');
+		selection.modify('extend', 'forward', 'lineboundary');
+
+		const line = selection.toString();
+
+		// using the original range and the new range, we can find the offset of the match from the line start.
+		const rangeStart = getStartOffset(selection.getRangeAt(0), oldRange);
+
+		// line range for match
+		const lineRange = {
+			start: rangeStart,
+			end: rangeStart + captureLength,
+		};
+
+		// re-add the old range so that the selection is restored
+		selection.removeAllRanges();
+		selection.addRange(oldRange);
+
+		return { line, range: lineRange };
+	}
+
+	function getStartOffset(lineRange: Range, originalRange: Range) {
+		// sometimes, the old and new range are in different DOM elements (ie: when the match is inside of <b></b>)
+		// so we need to find the first common ancestor DOM element and find the positions of the old and new range relative to that.
+		const firstCommonAncestor = findFirstCommonAncestor(lineRange.startContainer, originalRange.startContainer);
+
+		const selectionOffset = getSelectionOffsetRelativeTo(firstCommonAncestor, lineRange.startContainer) + lineRange.startOffset;
+		const textOffset = getSelectionOffsetRelativeTo(firstCommonAncestor, originalRange.startContainer) + originalRange.startOffset;
+		return textOffset - selectionOffset;
+	}
+
+	// modified from https://stackoverflow.com/a/68583466/16253823
+	function findFirstCommonAncestor(nodeA: Node, nodeB: Node) {
+		const range = new Range();
+		range.setStart(nodeA, 0);
+		range.setEnd(nodeB, 0);
+		return range.commonAncestorContainer;
+	}
+
+	// modified from https://stackoverflow.com/a/48812529/16253823
+	function getSelectionOffsetRelativeTo(parentElement: Node, currentNode: Node | null): number {
+		if (!currentNode) {
+			return 0;
+		}
+		let offset = 0;
+
+		if (currentNode === parentElement || !parentElement.contains(currentNode)) {
+			return offset;
+		}
+
+
+		// count the number of chars before the current dom elem and the start of the dom
+		let prevSibling = currentNode.previousSibling;
+		while (prevSibling) {
+			const nodeContent = prevSibling.nodeValue || '';
+			offset += nodeContent.length;
+			prevSibling = prevSibling.previousSibling;
+		}
+
+		return offset + getSelectionOffsetRelativeTo(parentElement, currentNode.parentNode);
+	}
+
+	const find = (query: string, options: { wholeWord?: boolean; caseSensitive?: boolean; includeMarkup: boolean; includeOutput: boolean; shouldGetSearchPreviewInfo: boolean }) => {
 		let find = true;
 		const matches: IFindMatch[] = [];
 
@@ -1048,7 +1132,8 @@ async function webviewPreloads(ctx: PreloadContext) {
 								cellId: preview.id,
 								container: preview,
 								isShadow: true,
-								originalRange: shadowSelection.getRangeAt(0)
+								originalRange: shadowSelection.getRangeAt(0),
+								searchPreviewInfo: options.shouldGetSearchPreviewInfo ? extractSelectionLine(shadowSelection) : undefined,
 							});
 						}
 					}
@@ -1068,7 +1153,8 @@ async function webviewPreloads(ctx: PreloadContext) {
 								cellId: cellId,
 								container: outputNode,
 								isShadow: true,
-								originalRange: shadowSelection.getRangeAt(0)
+								originalRange: shadowSelection.getRangeAt(0),
+								searchPreviewInfo: options.shouldGetSearchPreviewInfo ? extractSelectionLine(shadowSelection) : undefined,
 							});
 						}
 					}
@@ -1086,7 +1172,8 @@ async function webviewPreloads(ctx: PreloadContext) {
 								cellId: lastEl.cellId,
 								container: lastEl.container,
 								isShadow: false,
-								originalRange: selection.getRangeAt(0)
+								originalRange: selection.getRangeAt(0),
+								searchPreviewInfo: options.shouldGetSearchPreviewInfo ? extractSelectionLine(selection) : undefined,
 							});
 
 						} else {
@@ -1106,7 +1193,8 @@ async function webviewPreloads(ctx: PreloadContext) {
 											cellId: cellId,
 											container: node,
 											isShadow: false,
-											originalRange: selection.getRangeAt(0)
+											originalRange: selection.getRangeAt(0),
+											searchPreviewInfo: options.shouldGetSearchPreviewInfo ? extractSelectionLine(selection) : undefined,
 										});
 									}
 									break;
@@ -1142,7 +1230,8 @@ async function webviewPreloads(ctx: PreloadContext) {
 				type: match.type,
 				id: match.id,
 				cellId: match.cellId,
-				index
+				index,
+				searchPreviewInfo: match.searchPreviewInfo,
 			}))
 		});
 	};

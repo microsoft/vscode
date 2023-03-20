@@ -30,6 +30,7 @@ export interface IInteractiveSessionViewModel {
 	readonly onDidDisposeModel: Event<void>;
 	readonly onDidChange: Event<void>;
 	readonly welcomeMessage: IInteractiveWelcomeMessageViewModel | undefined;
+	readonly inputPlaceholder?: string;
 	getItems(): (IInteractiveRequestViewModel | IInteractiveResponseViewModel)[];
 }
 
@@ -64,6 +65,7 @@ export interface IInteractiveResponseViewModel {
 	readonly avatarIconUri?: URI;
 	readonly response: IMarkdownString;
 	readonly isComplete: boolean;
+	readonly isCanceled: boolean;
 	readonly isPlaceholder: boolean;
 	readonly replyFollowups?: IInteractiveSessionReplyFollowup[];
 	readonly commandFollowups?: IInteractiveSessionResponseCommandFollowup[];
@@ -82,6 +84,10 @@ export class InteractiveSessionViewModel extends Disposable implements IInteract
 	readonly onDidChange = this._onDidChange.event;
 
 	private readonly _items: (IInteractiveRequestViewModel | IInteractiveResponseViewModel)[] = [];
+
+	get inputPlaceholder(): string | undefined {
+		return this._model.inputPlaceholder;
+	}
 
 	get welcomeMessage() {
 		return this._model.welcomeMessage;
@@ -215,6 +221,10 @@ export class InteractiveResponseViewModel extends Disposable implements IInterac
 
 	get isComplete() {
 		return this._model.isComplete;
+	}
+
+	get isCanceled() {
+		return this._model.isCanceled;
 	}
 
 	get replyFollowups() {

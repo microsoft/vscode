@@ -2,9 +2,9 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-use crate::constants::{
+use crate::{constants::{
 	APPLICATION_NAME, CONTROL_PORT, DOCUMENTATION_URL, QUALITYLESS_PRODUCT_NAME,
-};
+}, rpc::ResponseError};
 use std::fmt::Display;
 use thiserror::Error;
 
@@ -171,7 +171,7 @@ impl std::fmt::Display for SetupError {
 	fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
 		write!(
 			f,
-			"{}\r\n\r\nMore info at {}/remote/linux",
+			"{}\n\nMore info at {}/remote/linux",
 			DOCUMENTATION_URL.unwrap_or("<docs>"),
 			self.0
 		)
@@ -479,16 +479,20 @@ macro_rules! makeAnyError {
 /// Note: other error should be migrated to this type gradually
 #[derive(Error, Debug)]
 pub enum CodeError {
-	#[error("could not connect to socket/pipe")]
+	#[error("could not connect to socket/pipe: {0:?}")]
 	AsyncPipeFailed(std::io::Error),
-	#[error("could not listen on socket/pipe")]
+	#[error("could not listen on socket/pipe: {0:?}")]
 	AsyncPipeListenerFailed(std::io::Error),
-	#[error("could not create singleton lock file")]
+	#[error("could not create singleton lock file: {0:?}")]
 	SingletonLockfileOpenFailed(std::io::Error),
-	#[error("could not read singleton lock file")]
+	#[error("could not read singleton lock file: {0:?}")]
 	SingletonLockfileReadFailed(rmp_serde::decode::Error),
-	#[error("the process holding the singleton lock file exited")]
+	#[error("the process holding the singleton lock file (pid={0}) exited")]
 	SingletonLockedProcessExited(u32),
+	#[error("no tunnel process is currently running")]
+	NoRunningTunnel,
+	#[error("rpc call failed: {0:?}")]
+	TunnelRpcCallFailed(ResponseError),
 }
 
 makeAnyError!(

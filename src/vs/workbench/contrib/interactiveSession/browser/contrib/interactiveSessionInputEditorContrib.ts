@@ -64,9 +64,11 @@ class InputEditorDecorations extends Disposable {
 		const slashCommands = await this.widget.getSlashCommands();
 
 		if (!value) {
-			const emptyPlaceholder = slashCommands?.length ?
+			const extensionPlaceholder = this.widget.viewModel?.inputPlaceholder;
+			const defaultPlaceholder = slashCommands?.length ?
 				localize('interactive.input.placeholderWithCommands', "Ask a question or type '/' for topics") :
 				localize('interactive.input.placeholderNoCommands', "Ask a question");
+			const placeholder = extensionPlaceholder ?? defaultPlaceholder;
 			const decoration: IDecorationOptions[] = [
 				{
 					range: {
@@ -77,7 +79,7 @@ class InputEditorDecorations extends Disposable {
 					},
 					renderOptions: {
 						after: {
-							contentText: emptyPlaceholder,
+							contentText: placeholder,
 							color: this.getPlaceholderColor()
 						}
 					}
@@ -147,6 +149,10 @@ class SlashCommandCompletions extends Disposable {
 
 				const slashCommands = await widget.getSlashCommands();
 				if (!slashCommands) {
+					return null;
+				}
+
+				if (model.getValueInRange(new Range(1, 1, 1, 2)) !== '/') {
 					return null;
 				}
 

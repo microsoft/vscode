@@ -772,6 +772,7 @@ class UserKeybindings extends Disposable {
 const schemaId = 'vscode://schemas/keybindings';
 const commandsSchemas: IJSONSchema[] = [];
 const commandsEnum: string[] = [];
+const removalCommandsEnum: string[] = [];
 const commandsEnumDescriptions: (string | undefined)[] = [];
 const schema: IJSONSchema = {
 	id: schemaId,
@@ -795,6 +796,31 @@ const schema: IJSONSchema = {
 					}
 				}
 			}
+		},
+		'commandNames': {
+			'type': 'string',
+			'enum': commandsEnum,
+			'enumDescriptions': <any>commandsEnumDescriptions,
+			'description': nls.localize('keybindings.json.command', "Name of the command to execute"),
+		},
+		'commandType': {
+			'anyOf': [ // repetition of this clause here and below is intentional: one is for nice diagnostics & one is for code completion
+				{
+					$ref: '#/definitions/commandNames'
+				},
+				{
+					'type': 'string',
+					'enum': removalCommandsEnum,
+					'enumDescriptions': <any>commandsEnumDescriptions,
+					'description': nls.localize('keybindings.json.removalCommand', "Name of the command to remove keyboard shortcut for"),
+				},
+				{
+					'type': 'string'
+				},
+			]
+		},
+		'commandsSchemas': {
+			'allOf': commandsSchemas
 		}
 	},
 	items: {
@@ -809,13 +835,21 @@ const schema: IJSONSchema = {
 			'command': {
 				'anyOf': [
 					{
-						'type': 'string',
-						'enum': commandsEnum,
-						'enumDescriptions': <any>commandsEnumDescriptions,
-						'description': nls.localize('keybindings.json.command', "Name of the command to execute"),
+						'if': {
+							'type': 'array'
+						},
+						'then': {
+							'not': {
+								'type': 'array'
+							},
+							'errorMessage': nls.localize('keybindings.commandsIsArray', "Incorrect type. Expected \"{0}\". The field 'command' does not support running multiple commands. Use command 'runCommands' to pass it multiple commands to run.", 'string')
+						},
+						'else': {
+							'$ref': '#/definitions/commandType'
+						}
 					},
 					{
-						'type': 'string'
+						'$ref': '#/definitions/commandType'
 					}
 				]
 			},
@@ -827,7 +861,7 @@ const schema: IJSONSchema = {
 				'description': nls.localize('keybindings.json.args', "Arguments to pass to the command to execute.")
 			}
 		},
-		'allOf': commandsSchemas
+		'$ref': '#/definitions/commandsSchemas'
 	}
 };
 
@@ -837,6 +871,7 @@ schemaRegistry.registerSchema(schemaId, schema);
 function updateSchema(additionalContributions: readonly IJSONSchema[]) {
 	commandsSchemas.length = 0;
 	commandsEnum.length = 0;
+	removalCommandsEnum.length = 0;
 	commandsEnumDescriptions.length = 0;
 
 	const knownCommands = new Set<string>();
@@ -849,8 +884,7 @@ function updateSchema(additionalContributions: readonly IJSONSchema[]) {
 				commandsEnumDescriptions.push(description);
 
 				// Also add the negative form for keybinding removal
-				commandsEnum.push(`-${commandId}`);
-				commandsEnumDescriptions.push(description);
+				removalCommandsEnum.push(`-${commandId}`);
 			}
 		}
 	};

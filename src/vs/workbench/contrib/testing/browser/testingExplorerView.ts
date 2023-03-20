@@ -525,7 +525,9 @@ class TestingExplorerViewModel extends Disposable {
 
 		this._register(this.tree.onDidChangeCollapseState(evt => {
 			if (evt.node.element instanceof TestItemTreeElement) {
-				this.projection.value?.expandElement(evt.node.element, evt.deep ? Infinity : 0);
+				if (!evt.node.collapsed) {
+					this.projection.value?.expandElement(evt.node.element, evt.deep ? Infinity : 0);
+				}
 				collapseStateSaver.schedule();
 			}
 		}));

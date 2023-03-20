@@ -10,7 +10,7 @@ import { EditorAction2 } from 'vs/editor/browser/editorExtensions';
 import { EmbeddedCodeEditorWidget } from 'vs/editor/browser/widget/embeddedCodeEditorWidget';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { InteractiveEditorController, Recording } from 'vs/workbench/contrib/interactiveEditor/browser/interactiveEditorWidget';
-import { CTX_INTERACTIVE_EDITOR_FOCUSED, CTX_INTERACTIVE_EDITOR_HAS_ACTIVE_REQUEST, CTX_INTERACTIVE_EDITOR_HAS_PROVIDER, CTX_INTERACTIVE_EDITOR_INNER_CURSOR_FIRST, CTX_INTERACTIVE_EDITOR_INNER_CURSOR_LAST, CTX_INTERACTIVE_EDITOR_EMPTY, CTX_INTERACTIVE_EDITOR_OUTER_CURSOR_POSITION, CTX_INTERACTIVE_EDITOR_PREVIEW, CTX_INTERACTIVE_EDITOR_VISIBLE, MENU_INTERACTIVE_EDITOR_WIDGET, CTX_INTERACTIVE_EDITOR_HISTORY_VISIBLE, CTX_INTERACTIVE_EDITOR_HISTORY_POSSIBLE } from 'vs/workbench/contrib/interactiveEditor/common/interactiveEditor';
+import { CTX_INTERACTIVE_EDITOR_FOCUSED, CTX_INTERACTIVE_EDITOR_HAS_ACTIVE_REQUEST, CTX_INTERACTIVE_EDITOR_HAS_PROVIDER, CTX_INTERACTIVE_EDITOR_INNER_CURSOR_FIRST, CTX_INTERACTIVE_EDITOR_INNER_CURSOR_LAST, CTX_INTERACTIVE_EDITOR_EMPTY, CTX_INTERACTIVE_EDITOR_OUTER_CURSOR_POSITION, CTX_INTERACTIVE_EDITOR_VISIBLE, MENU_INTERACTIVE_EDITOR_WIDGET } from 'vs/workbench/contrib/interactiveEditor/common/interactiveEditor';
 import { localize } from 'vs/nls';
 import { IAction2Options } from 'vs/platform/actions/common/actions';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
@@ -90,7 +90,7 @@ export class MakeRequestAction extends AbstractInteractiveEditorAction {
 	}
 
 	runInteractiveEditorCommand(_accessor: ServicesAccessor, ctrl: InteractiveEditorController, _editor: ICodeEditor, ..._args: any[]): void {
-		ctrl.accept();
+		ctrl.accept(false);
 	}
 }
 
@@ -137,27 +137,6 @@ export class AcceptWithPreviewInteractiveEditorAction extends AbstractInteractiv
 
 	runInteractiveEditorCommand(_accessor: ServicesAccessor, ctrl: InteractiveEditorController, _editor: ICodeEditor, ..._args: any[]): void {
 		ctrl.accept(true);
-	}
-}
-
-export class TogglePreviewMode extends AbstractInteractiveEditorAction {
-
-	constructor() {
-		super({
-			id: 'interactiveEditor.togglePreview',
-			title: localize('togglePreview', 'Inline Preview'),
-			precondition: ContextKeyExpr.and(CTX_INTERACTIVE_EDITOR_VISIBLE),
-			toggled: CTX_INTERACTIVE_EDITOR_PREVIEW,
-			menu: {
-				id: MENU_INTERACTIVE_EDITOR_WIDGET,
-				group: 'C',
-				order: 1
-			}
-		});
-	}
-
-	runInteractiveEditorCommand(_accessor: ServicesAccessor, ctrl: InteractiveEditorController, _editor: ICodeEditor, ..._args: any[]): void {
-		ctrl.togglePreview();
 	}
 }
 
@@ -290,41 +269,12 @@ export class UndoCommand extends AbstractInteractiveEditorAction {
 			keybinding: {
 				weight: KeybindingWeight.EditorContrib + 10,
 				primary: KeyMod.CtrlCmd | KeyCode.KeyZ,
-			},
-			menu: {
-				id: MENU_INTERACTIVE_EDITOR_WIDGET,
-				group: 'B',
-				order: 1
 			}
 		});
 	}
 
 	override runInteractiveEditorCommand(_accessor: ServicesAccessor, _ctrl: InteractiveEditorController, editor: ICodeEditor, ..._args: any[]): void {
 		editor.getModel()?.undo();
-	}
-}
-
-export class ToggleHistory extends AbstractInteractiveEditorAction {
-
-	constructor() {
-		super({
-			id: 'interactiveEditor.toggleHistory',
-			title: localize('toggleHistory', 'Toggle History'),
-			icon: Codicon.history,
-			precondition: ContextKeyExpr.and(CTX_INTERACTIVE_EDITOR_VISIBLE, CTX_INTERACTIVE_EDITOR_HISTORY_POSSIBLE),
-			toggled: {
-				condition: CTX_INTERACTIVE_EDITOR_HISTORY_VISIBLE,
-			},
-			menu: {
-				id: MENU_INTERACTIVE_EDITOR_WIDGET,
-				group: 'main',
-				order: 2
-			}
-		});
-	}
-
-	override runInteractiveEditorCommand(_accessor: ServicesAccessor, ctrl: InteractiveEditorController, _editor: ICodeEditor, ..._args: any[]): void {
-		ctrl.toggleHistory();
 	}
 }
 

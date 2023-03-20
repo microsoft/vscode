@@ -8,14 +8,13 @@ import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditorAction, ServicesAccessor, registerEditorAction } from 'vs/editor/browser/editorExtensions';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { CTX_INTERACTIVE_EDITOR_VISIBLE, MENU_INTERACTIVE_EDITOR_WIDGET } from 'vs/workbench/contrib/interactiveEditor/common/interactiveEditor';
+// import { CTX_INTERACTIVE_EDITOR_VISIBLE, MENU_INTERACTIVE_EDITOR_WIDGET } from 'vs/workbench/contrib/interactiveEditor/common/interactiveEditor';
 import { localize } from 'vs/nls';
 import { Action2, IAction2Options, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { ViewAction } from 'vs/workbench/browser/parts/views/viewPane';
 import { ActiveEditorContext } from 'vs/workbench/common/contextkeys';
-import { IViewsService } from 'vs/workbench/common/views';
 import { IInteractiveSessionEditorOptions, InteractiveSessionEditor } from 'vs/workbench/contrib/interactiveSession/browser/interactiveSessionEditor';
 import { InteractiveSessionViewPane } from 'vs/workbench/contrib/interactiveSession/browser/interactiveSessionSidebar';
 import { IInteractiveSessionWidgetService } from 'vs/workbench/contrib/interactiveSession/browser/interactiveSessionWidget';
@@ -49,27 +48,27 @@ export function registerInteractiveSessionActions() {
 		}
 	});
 
-	registerAction2(class OpenInteractiveSessionWindow extends Action2 {
-		constructor() {
-			super({
-				id: 'workbench.action.interactiveSession.start',
-				title: localize('interactiveSession', 'Open Interactive Session...'),
-				icon: Codicon.commentDiscussion,
-				precondition: ContextKeyExpr.and(CTX_INTERACTIVE_EDITOR_VISIBLE),
-				f1: false,
-				menu: {
-					id: MENU_INTERACTIVE_EDITOR_WIDGET,
-					group: 'Z',
-					order: 1
-				}
-			});
-		}
+	// registerAction2(class OpenInteractiveSessionWindow extends Action2 {
+	// 	constructor() {
+	// 		super({
+	// 			id: 'workbench.action.interactiveSession.start',
+	// 			title: localize('interactiveSession', 'Open Interactive Session...'),
+	// 			icon: Codicon.commentDiscussion,
+	// 			precondition: ContextKeyExpr.and(CTX_INTERACTIVE_EDITOR_VISIBLE),
+	// 			f1: false,
+	// 			menu: {
+	// 				id: MENU_INTERACTIVE_EDITOR_WIDGET,
+	// 				group: 'Z',
+	// 				order: 1
+	// 			}
+	// 		});
+	// 	}
 
-		override run(accessor: ServicesAccessor, ...args: any[]): void {
-			const viewsService = accessor.get(IViewsService);
-			viewsService.openView(InteractiveSessionViewPane.ID, true);
-		}
-	});
+	// 	override run(accessor: ServicesAccessor, ...args: any[]): void {
+	// 		const viewsService = accessor.get(IViewsService);
+	// 		viewsService.openView(InteractiveSessionViewPane.ID, true);
+	// 	}
+	// });
 
 	registerAction2(class ClearEditorAction extends Action2 {
 		constructor() {
@@ -116,7 +115,7 @@ export function registerInteractiveSessionActions() {
 			const editorUri = editor.getModel()?.uri;
 			if (editorUri) {
 				const widgetService = accessor.get(IInteractiveSessionWidgetService);
-				widgetService.getWidgetByInputUri(editorUri)?.acceptInput();
+				widgetService.getWidgetByInputUri(editorUri)?.focusLastMessage();
 			}
 		}
 	});
@@ -138,11 +137,8 @@ export function registerInteractiveSessionActions() {
 			});
 		}
 		run(accessor: ServicesAccessor, ...args: any[]) {
-			const viewsService = accessor.get(IViewsService);
-			const interactiveSessionView = viewsService.getActiveViewWithId(InteractiveSessionViewPane.ID) as InteractiveSessionViewPane;
-			if (interactiveSessionView) {
-				interactiveSessionView.focus();
-			}
+			const widgetService = accessor.get(IInteractiveSessionWidgetService);
+			widgetService.lastFocusedWidget?.focusInput();
 		}
 	});
 

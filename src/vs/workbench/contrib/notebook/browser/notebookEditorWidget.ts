@@ -2385,6 +2385,9 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 				});
 				this.createOutput(viewCell, result, 0, false);
 				await p;
+			} else {
+				// request to update its visibility
+				this.createOutput(viewCell, result, 0, false);
 			}
 
 			return;
@@ -2420,7 +2423,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		return Promise.all(requests);
 	}
 
-	async find(query: string, options: INotebookSearchOptions, token: CancellationToken, skipWarmup: boolean = false): Promise<CellFindMatchWithIndex[]> {
+	async find(query: string, options: INotebookSearchOptions, token: CancellationToken, skipWarmup: boolean = false, shouldGetSearchPreviewInfo = false): Promise<CellFindMatchWithIndex[]> {
 		if (!this._notebookViewModel) {
 			return [];
 		}
@@ -2456,7 +2459,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 			await this._warmupAll(!!options.includeOutput);
 			const end = Date.now();
 			this.logService.debug('Find', `Warmup time: ${end - start}ms`);
-			const webviewMatches = await this._webview.find(query, { caseSensitive: options.caseSensitive, wholeWord: options.wholeWord, includeMarkup: !!options.includeMarkupPreview, includeOutput: !!options.includeOutput });
+			const webviewMatches = await this._webview.find(query, { caseSensitive: options.caseSensitive, wholeWord: options.wholeWord, includeMarkup: !!options.includeMarkupPreview, includeOutput: !!options.includeOutput, shouldGetSearchPreviewInfo });
 			// attach webview matches to model find matches
 			webviewMatches.forEach(match => {
 				if (!options.includeMarkupPreview && match.type === 'preview') {
