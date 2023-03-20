@@ -28,6 +28,7 @@ const interactiveSessionExtensionPoint = extensionsRegistry.ExtensionsRegistry.r
 			additionalProperties: false,
 			type: 'object',
 			defaultSnippets: [{ body: { id: '', program: '', runtime: '' } }],
+			required: ['id', 'label'],
 			properties: {
 				id: {
 					description: localize('vscode.extension.contributes.interactiveSession.id', "Unique identifier for this Interactive Session provider."),
@@ -106,7 +107,7 @@ export class InteractiveSessionContributionService implements IInteractiveSessio
 		const viewContainer: ViewContainer = Registry.as<IViewContainersRegistry>(ViewExtensions.ViewContainersRegistry).registerViewContainer({
 			id: viewContainerId,
 			title: providerDescriptor.label,
-			icon: providerDescriptor.icon !== '' ? resources.joinPath(extension.extensionLocation, providerDescriptor.icon) : Codicon.commentDiscussion,
+			icon: providerDescriptor.icon ? resources.joinPath(extension.extensionLocation, providerDescriptor.icon) : Codicon.commentDiscussion,
 			ctorDescriptor: new SyncDescriptor(ViewPaneContainer, [viewContainerId, { mergeViewWithContainerWhenSingleView: true }]),
 			storageId: viewContainerId,
 			hideIfEmpty: true,
