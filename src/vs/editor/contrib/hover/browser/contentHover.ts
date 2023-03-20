@@ -82,10 +82,10 @@ export class ContentHoverController extends Disposable {
 			// Update the left offset of the resizable element when the widget has been resized
 			const offsetLeft = this._widget.getDomNode().offsetLeft;
 			if (offsetLeft) {
-				this._resizableOverlay.getDomNode().style.left = offsetLeft - 2 + 'px';
+				this._resizableOverlay.getDomNode().style.left = offsetLeft + 'px';
 			}
 			const offsetTop = this._widget.getDomNode().offsetTop;
-			if (offsetTop) {
+			if (offsetTop && this._renderingAbove) {
 				this._resizableOverlay.getDomNode().style.top = offsetTop - 2 + 'px';
 			}
 		}));
@@ -1001,10 +1001,10 @@ export class ContentHoverWidget extends Disposable implements IContentWidget {
 		console.log('size : ', size);
 
 		// Normal resizing but also possible to add space on the bottom when the horizontal scrollbar is visible
-		this._hover.containerDomNode.style.width = size.width - 6 + 'px';
-		this._hover.containerDomNode.style.height = size.height - 6 + 'px';
-		this._hover.contentsDomNode.style.width = size.width - 6 + 'px';
-		this._hover.contentsDomNode.style.height = size.height - 6 + 'px';
+		this._hover.containerDomNode.style.width = size.width - 4 + 'px';
+		this._hover.containerDomNode.style.height = size.height - 4 + 'px';
+		this._hover.contentsDomNode.style.width = size.width - 4 + 'px';
+		this._hover.contentsDomNode.style.height = size.height - 4 + 'px';
 		this._hover.scrollbar.scanDomNode();
 		this._editor.layoutContentWidget(this);
 		this._editor.render();
@@ -1019,7 +1019,7 @@ export class ContentHoverWidget extends Disposable implements IContentWidget {
 			console.log('appearedWithHorizontalScrollBar : ', this._appearedWithHorizontalScrollbar);
 
 			if (this._appearedWithHorizontalScrollbar === true) {
-				this._hover.contentsDomNode.style.height = size.height - 16 + 'px';
+				this._hover.contentsDomNode.style.height = size.height - 14 + 'px';
 				this._hover.scrollbar.scanDomNode();
 				this._editor.layoutContentWidget(this);
 				this._editor.render();
