@@ -311,11 +311,8 @@ export class ContentHoverController extends Disposable {
 
 				console.log('persistedSize : ', persistedSize);
 
-				// Same goes for the boolean first rendering, since it should be defined outside of the function
-				const firstRendering = true;
-
 				// Do some actions when the contents of the hover changes, which appears to happen every single time after the showAt function is called
-				this._widget.onContentsChanged(firstRendering, persistedSize);
+				this._widget.onContentsChanged(persistedSize);
 				// TODO: do we need this forced render here?
 				this._editor.render();
 
@@ -947,7 +944,6 @@ export class ContentHoverWidget extends Disposable implements IContentWidget {
 	private readonly _hoverFocusedKey = EditorContextKeys.hoverFocused.bindTo(this._contextKeyService);
 	private readonly _focusTracker = this._register(dom.trackFocus(this.getDomNode()));
 	private _renderingAbove: ContentWidgetPositionPreference = this._editor.getOption(EditorOption.hover).above ? ContentWidgetPositionPreference.ABOVE : ContentWidgetPositionPreference.BELOW;
-	private _appearedWithHorizontalScrollbar: boolean | undefined = undefined;
 
 	/**
 	 * Returns `null` if the hover is not visible.
@@ -1009,26 +1005,20 @@ export class ContentHoverWidget extends Disposable implements IContentWidget {
 		this._hover.containerDomNode.style.height = size.height - 4 + 'px';
 		this._hover.contentsDomNode.style.width = size.width - 4 + 'px';
 		this._hover.contentsDomNode.style.height = size.height - 4 + 'px';
+
+		const scrollDimensions = this._hover.scrollbar.getScrollDimensions();
+		const hasHorizontalScrollbar = (scrollDimensions.scrollWidth > scrollDimensions.width);
+		if (hasHorizontalScrollbar) {
+			const extraBottomPadding = `${this._hover.scrollbar.options.horizontalScrollbarSize}px`;
+			if (this._hover.contentsDomNode.style.paddingBottom !== extraBottomPadding) {
+				this._hover.contentsDomNode.style.paddingBottom = extraBottomPadding;
+			}
+			this._hover.contentsDomNode.style.height = size.height - 14 + 'px';
+		}
+
 		this._hover.scrollbar.scanDomNode();
 		this._editor.layoutContentWidget(this);
 		this._editor.render();
-
-		console.log('Before horizontal scorllbar check');
-		console.log('this._hover.contentsDomNode.clientHeight : ', this._hover.contentsDomNode.clientHeight);
-
-		// The case when the horizontal scrollbar is visible
-		if (this._hover.contentsDomNode.clientWidth < this._hover.contentsDomNode.scrollWidth) {
-
-			console.log('In the case when the horizontal scroll bar should be visible');
-			console.log('appearedWithHorizontalScrollBar : ', this._appearedWithHorizontalScrollbar);
-
-			if (this._appearedWithHorizontalScrollbar === true) {
-				this._hover.contentsDomNode.style.height = size.height - 14 + 'px';
-				this._hover.scrollbar.scanDomNode();
-				this._editor.layoutContentWidget(this);
-				this._editor.render();
-			}
-		}
 	}
 
 	public findMaxRenderingHeight(rendering: ContentWidgetPositionPreference): number | undefined {
@@ -1268,7 +1258,6 @@ export class ContentHoverWidget extends Disposable implements IContentWidget {
 	}
 
 	public hide(): void {
-		this._appearedWithHorizontalScrollbar = undefined;
 		if (this._visibleData) {
 			const stoleFocus = this._visibleData.stoleFocus;
 			this._setVisibleData(null);
@@ -1280,7 +1269,6 @@ export class ContentHoverWidget extends Disposable implements IContentWidget {
 	}
 
 	public onContentsChanged(
-		firstRendering: boolean = false,
 		persistedSize?: dom.Dimension | undefined
 	): void {
 
@@ -1343,23 +1331,6 @@ export class ContentHoverWidget extends Disposable implements IContentWidget {
 			console.log('contentsDomNode.clientWidth ; ', contentsDomNode.clientWidth);
 			console.log('contentsDomNode.scrollWidth : ', contentsDomNode.scrollWidth);
 
-			if (contentsDomNode.clientWidth < contentsDomNode.scrollWidth && maxRenderingHeight) {
-
-				console.log('In the case when the horizontal scroll bar should be visible');
-
-				if (this._appearedWithHorizontalScrollbar === undefined) {
-					this._appearedWithHorizontalScrollbar = true;
-				}
-				// In that case the scrollbar is not visible, make the contents dom node height bigger
-				contentsDomNode.style.height = Math.min(maxRenderingHeight, persistedSize.height - 18) + 'px';
-				this._hover.scrollbar.scanDomNode();
-				this._editor.layoutContentWidget(this);
-				this._editor.render();
-			} else {
-				if (this._appearedWithHorizontalScrollbar === undefined) {
-					this._appearedWithHorizontalScrollbar = false;
-				}
-			}
 
 		} else {
 
@@ -1415,32 +1386,30 @@ export class ContentHoverWidget extends Disposable implements IContentWidget {
 		if (hasHorizontalScrollbar) {
 			// There is just a horizontal scrollbar
 			const extraBottomPadding = `${this._hover.scrollbar.options.horizontalScrollbarSize}px`;
+			let rerender = false;
+
 			if (this._hover.contentsDomNode.style.paddingBottom !== extraBottomPadding) {
+				console.log('Changing the bottom padding');
 				this._hover.contentsDomNode.style.paddingBottom = extraBottomPadding;
+				rerender = true;
+			}
+			const maxRenderingHeight = this.findMaxRenderingHeight(this._renderingAbove);
+			if (persistedSize && maxRenderingHeight) {
+				console.log('In the case when the horizontal scroll bar should be visible');
+				// In that case the scrollbar is not visible, make the contents dom node height bigger
+				contentsDomNode.style.height = Math.min(maxRenderingHeight, persistedSize.height - 18) + 'px';
+				rerender = true;
+			}
+			if (rerender) {
 				this._editor.layoutContentWidget(this);
 				this._hover.onContentsChanged();
+				this._editor.render();
 			}
 		}
+
 		// TODO: Should this be here?
 		this._hover.scrollbar.scanDomNode();
 
-		// Suppose it is the first rendering and the size was not previous persisted, then the horizontal scrollbar should be showed
-		// TODO: Added after the initial rendering, probably can be placed into another part
-		if (firstRendering && !persistedSize) {
-			console.log('When this._appearedWithHorizontalScrollbar set : ', this._appearedWithHorizontalScrollbar);
-			console.log('contentsDomNode.clientWidth : ', contentsDomNode.clientWidth);
-			console.log('contentsDomNode.scrollWidth : ', contentsDomNode.scrollWidth);
-
-			if (contentsDomNode.clientWidth < contentsDomNode.scrollWidth) {
-				if (this._appearedWithHorizontalScrollbar === undefined) {
-					this._appearedWithHorizontalScrollbar = true;
-				}
-			} else {
-				if (this._appearedWithHorizontalScrollbar === undefined) {
-					this._appearedWithHorizontalScrollbar = false;
-				}
-			}
-		}
 	}
 
 	public clear(): void {
