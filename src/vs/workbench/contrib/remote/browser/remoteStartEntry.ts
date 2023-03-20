@@ -12,7 +12,7 @@ import { once } from 'vs/base/common/functional';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { Action2, MenuRegistry, registerAction2 } from 'vs/platform/actions/common/actions';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { EXTENSION_INSTALL_SKIP_WALKTHROUGH_CONTEXT, IExtensionGalleryService, IExtensionManagementService } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { EXTENSION_INSTALL_SKIP_WALKTHROUGH_CONTEXT, IExtensionGalleryService, IExtensionManagementService, isTargetPlatformCompatible } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { retry } from 'vs/base/common/async';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
@@ -20,6 +20,7 @@ import { workbenchConfigurationNodeBase } from 'vs/workbench/common/configuratio
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { TargetPlatform } from 'vs/platform/extensions/common/extensions';
 
 const STATUSBAR_REMOTEINDICATOR_CONTRIBUTION = 'statusBar/remoteIndicator';
 
@@ -40,7 +41,8 @@ interface RemoteExtensionMetadata {
 	friendlyName: string;
 	remoteCommands: string[];
 	installed: boolean;
-	dependenciesStr?: string;
+	dependenciesStr: string;
+	isPlatformCompatible: boolean | undefined;
 }
 
 export class RemoteStartEntry extends Disposable implements IWorkbenchContribution {
@@ -48,6 +50,7 @@ export class RemoteStartEntry extends Disposable implements IWorkbenchContributi
 	private static readonly REMOTE_START_ENTRY_ACTIONS_COMMAND_ID = 'workbench.action.remote.showStartEntryActions';
 	private readonly remoteExtensionMetadata: RemoteExtensionMetadata[];
 	private _isInitialized: boolean = false;
+	private targetPlaform: TargetPlatform = TargetPlatform.UNKNOWN;
 
 	constructor(
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
@@ -63,7 +66,7 @@ export class RemoteStartEntry extends Disposable implements IWorkbenchContributi
 		registerConfiguration(this.productService.quality !== 'stable');
 		const remoteExtensionTips = { ...this.productService.remoteExtensionTips, ...this.productService.virtualWorkspaceExtensionTips };
 		this.remoteExtensionMetadata = Object.values(remoteExtensionTips).filter(value => value.showInStartEntry === true).map(value => {
-			return { id: value.extensionId, installed: false, friendlyName: value.friendlyName, remoteCommands: [] };
+			return { id: value.extensionId, installed: false, friendlyName: value.friendlyName, remoteCommands: [], isPlatformCompatible: undefined, dependenciesStr: '' };
 		});
 
 		this.registerActions();
@@ -110,6 +113,7 @@ export class RemoteStartEntry extends Disposable implements IWorkbenchContributi
 			return;
 		}
 
+		this.targetPlaform = await this.extensionManagementService.getTargetPlatform();
 		for (let i = 0; i < this.remoteExtensionMetadata.length; i++) {
 			const installed = this.extensionService.extensions.some((e) => e.id?.toLowerCase() === this.remoteExtensionMetadata[i].id);
 			if (installed) {
@@ -125,16 +129,23 @@ export class RemoteStartEntry extends Disposable implements IWorkbenchContributi
 	private async updateInstallStatus(extensionId: string, installed: boolean): Promise<RemoteExtensionMetadata | undefined> {
 		const index = this.remoteExtensionMetadata.findIndex(value => value.id === extensionId);
 		if (index > -1) {
-			if (installed && !this.remoteExtensionMetadata[index].installed) {
+			if (installed) {
 				const commands = await this.getRemoteCommands(extensionId);
 				if (commands) {
 					this.remoteExtensionMetadata[index].remoteCommands = commands;
+					this.remoteExtensionMetadata[index].isPlatformCompatible = true;
+				} else {
+					this.remoteExtensionMetadata[index].isPlatformCompatible = false;
 				}
 				this.remoteExtensionMetadata[index].installed = true;
-			} else if (!installed && this.remoteExtensionMetadata[index].installed) {
-				if (this.remoteExtensionMetadata[index].dependenciesStr === undefined) {
-					const dependenciesStr = await this.getDependenciesStr(this.remoteExtensionMetadata[index].id);
+			} else if (!installed) {
+				const dependenciesStr = await this.getDependenciesFromGallery(this.remoteExtensionMetadata[index].id);
+				if (dependenciesStr !== undefined) {
 					this.remoteExtensionMetadata[index].dependenciesStr = dependenciesStr;
+					this.remoteExtensionMetadata[index].isPlatformCompatible = true;
+				}
+				else {
+					this.remoteExtensionMetadata[index].isPlatformCompatible = false;
 				}
 				this.remoteExtensionMetadata[index].installed = false;
 			}
@@ -193,7 +204,7 @@ export class RemoteStartEntry extends Disposable implements IWorkbenchContributi
 						}
 					}
 				}
-				else if (!metadata.installed) {
+				else if (!metadata.installed && metadata.isPlatformCompatible) {
 					const label = nls.localize('remote.startActions.connectTo', 'Connect to {0}... ', metadata.friendlyName);
 					const tooltip = metadata.dependenciesStr ? nls.localize('remote.startActions.tooltip', 'Also installs dependencies - {0} ', metadata.dependenciesStr) : '';
 					notInstalledItems.push({ type: 'item', id: metadata.id, label: label, tooltip: tooltip });
@@ -250,9 +261,14 @@ export class RemoteStartEntry extends Disposable implements IWorkbenchContributi
 		quickPick.show();
 	}
 
-	private async getDependenciesStr(extensionId: string): Promise<string> {
+	private async getDependenciesFromGallery(extensionId: string): Promise<string | undefined> {
 
 		const galleryExtension = (await this.extensionGalleryService.getExtensions([{ id: extensionId }], CancellationToken.None))[0];
+		const canInstall = galleryExtension.allTargetPlatforms.some(targetPlatform => isTargetPlatformCompatible(targetPlatform, galleryExtension.allTargetPlatforms, this.targetPlaform));
+		if (!canInstall) {
+			return undefined;
+		}
+
 		const friendlyNames: string[] = [];
 		if (galleryExtension.properties.extensionPack) {
 			for (const extensionPackItem of galleryExtension.properties.extensionPack) {
