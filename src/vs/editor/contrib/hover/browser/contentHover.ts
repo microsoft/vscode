@@ -1273,8 +1273,8 @@ export class ContentHoverWidget extends Disposable implements IContentWidget {
 			console.log('* When there is a persisted size');
 			// If persisted size does not fit in the editor for example on editor resize, use a different size, smaller one
 
-			let widthMinusSashes = persistedSize.width - 8;
-			let heightMinusSashes = persistedSize.height - 8;
+			let widthMinusSashes = persistedSize.width - 4;
+			let heightMinusSashes = persistedSize.height - 4;
 
 			// Already takes into account the horizontal scroll bar calculation
 			const maxRenderingHeight = this.findMaxRenderingHeight(this._renderingAbove);
@@ -1345,8 +1345,8 @@ export class ContentHoverWidget extends Disposable implements IContentWidget {
 			const maxRenderingHeight = this.findMaxRenderingHeight(this._renderingAbove);
 			// Need the following code in the case when using a persisted size, and setting explicitly a size, need to set a smaller height so that the horizontal scrollbar can show
 			if (persistedSize && maxRenderingHeight) {
-				containerDomNode.style.height = Math.min(maxRenderingHeight, persistedSize.height - 8) + 'px';
-				contentsDomNode.style.height = Math.min(maxRenderingHeight, persistedSize.height - 18) + 'px';
+				containerDomNode.style.height = Math.min(maxRenderingHeight, persistedSize.height - 4) + 'px';
+				contentsDomNode.style.height = Math.min(maxRenderingHeight, persistedSize.height - 14) + 'px';
 				rerender = true;
 			}
 			if (rerender) {
