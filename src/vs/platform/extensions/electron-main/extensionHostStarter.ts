@@ -114,6 +114,7 @@ export class ExtensionHostStarter implements IDisposable, IExtensionHostStarter 
 			args: ['--skipWorkspaceStorageLock'],
 			execArgv: opts.execArgv,
 			allowLoadingUnsignedLibraries: true,
+			forceAllocationsToV8Sandbox: true,
 			correlationId: id
 		});
 	}
