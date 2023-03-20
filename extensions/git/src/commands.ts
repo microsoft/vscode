@@ -3108,18 +3108,21 @@ export class CommandCenter {
 	}
 
 	@command('git.stash', { repository: true })
-	async stash(repository: Repository): Promise<void> {
-		await this._stash(repository);
+	async stash(repository: Repository): Promise<boolean> {
+		const result = await this._stash(repository);
+		return result;
 	}
 
 	@command('git.stashStaged', { repository: true })
-	async stashStaged(repository: Repository): Promise<void> {
-		await this._stash(repository, false, true);
+	async stashStaged(repository: Repository): Promise<boolean> {
+		const result = await this._stash(repository, false, true);
+		return result;
 	}
 
 	@command('git.stashIncludeUntracked', { repository: true })
-	async stashIncludeUntracked(repository: Repository): Promise<void> {
-		await this._stash(repository, true);
+	async stashIncludeUntracked(repository: Repository): Promise<boolean> {
+		const result = await this._stash(repository, true);
+		return result;
 	}
 
 	@command('git.stashPop', { repository: true })
