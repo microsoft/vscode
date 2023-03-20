@@ -87,6 +87,15 @@
 	padding: 4px 6px;
 }
 
+.interactive-list .interactive-item-container .value a {
+	color: var(--vscode-textLink-foreground);
+}
+
+.interactive-list .interactive-item-container .value a:hover,
+.interactive-list .interactive-item-container .value a:active {
+	color: var(--vscode-textLink-activeForeground);
+}
+
 .interactive-list {
 	overflow: hidden;
 }
