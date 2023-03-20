@@ -145,7 +145,7 @@
 
 .interactive-session .interactive-input-and-toolbar .monaco-editor,
 .interactive-session .interactive-input-and-toolbar .monaco-editor .monaco-editor-background {
-	background-color: transparent;
+	background-color: transparent !important;
 }
 
 .interactive-session .interactive-input-and-toolbar .monaco-editor .cursors-layer {
@@ -194,9 +194,8 @@
 	display: initial;
 }
 
-.interactive-session .interactive-result-editor-wrapper .monaco-editor,
-.interactive-session .interactive-result-editor-wrapper .monaco-editor .overflow-guard {
-	border-radius: 4px;
+.interactive-session .interactive-result-editor-wrapper .interactive-result-editor {
+	border: 1px solid var(--vscode-input-border, transparent);
 }
 
 .interactive-session .interactive-response .monaco-editor .margin,

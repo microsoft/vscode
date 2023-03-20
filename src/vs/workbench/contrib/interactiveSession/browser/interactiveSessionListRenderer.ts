@@ -428,7 +428,7 @@ export class InteractiveSessionListDelegate implements IListVirtualDelegate<Inte
 
 	getHeight(element: InteractiveTreeItem): number {
 		const kind = isRequestVM(element) ? 'request' : 'response';
-		const height = ('currentRenderedHeight' in element ? element.currentRenderedHeight : undefined) ?? 40;
+		const height = ('currentRenderedHeight' in element ? element.currentRenderedHeight : undefined) ?? 200;
 		this._traceLayout('getHeight', `${kind}, height=${height}`);
 		return height;
 	}
@@ -581,7 +581,8 @@ class CodeBlockPart extends Disposable implements IInteractiveResultCodeBlockPar
 
 	layout(width: number): void {
 		const realContentHeight = this.editor.getContentHeight();
-		this.editor.layout({ width, height: realContentHeight });
+		const editorBorder = 2;
+		this.editor.layout({ width: width - editorBorder, height: realContentHeight });
 	}
 
 	render(data: IInteractiveResultCodeBlockData, width: number): void {

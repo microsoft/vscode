@@ -56,8 +56,6 @@ import { Command, CompletionContext, CompletionItem, CompletionItemInsertTextRul
 import { LanguageSelector } from 'vs/editor/common/languageSelector';
 import { DEFAULT_FONT_FAMILY } from 'vs/workbench/browser/style';
 import { ICommandService } from 'vs/platform/commands/common/commands';
-import { isFalsyOrEmpty } from 'vs/base/common/arrays';
-
 
 class InteractiveEditorWidget {
 
@@ -497,7 +495,7 @@ class CommandAction extends Action {
 
 	constructor(command: Command, @ICommandService commandService: ICommandService) {
 		const icon = ThemeIcon.fromString(command.title);
-		super(command.id, icon ? command.tooltip : command.title, icon ? ThemeIcon.asClassName(icon) : undefined, true, () => commandService.executeCommand(command.id));
+		super(command.id, icon ? command.tooltip : command.title, icon ? ThemeIcon.asClassName(icon) : undefined, true, () => commandService.executeCommand(command.id, ...(command.arguments ?? [])));
 	}
 }
 
@@ -831,8 +829,7 @@ export class InteractiveEditorController implements IEditorContribution {
 			this._ctsRequest = new CancellationTokenSource(this._ctsSession.token);
 
 			this._historyOffset = -1;
-			const fullPlaceholder = isFalsyOrEmpty(session.slashCommands) ? placeholder : localize('placeholder', "{0}, type '/' for topics", placeholder);
-			const input = await this._zone.getInput(wholeRange.getEndPosition(), fullPlaceholder, value, this._ctsRequest.token);
+			const input = await this._zone.getInput(wholeRange.getEndPosition(), placeholder, value, this._ctsRequest.token);
 			roundStore.clear();
 
 			if (!input || !input.value) {

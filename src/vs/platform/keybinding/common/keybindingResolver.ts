@@ -53,7 +53,10 @@ export class KeybindingResolver {
 				continue;
 			}
 
-			if (k.when && k.when.type === ContextKeyExprType.False) {
+			// substitute with constants that are registered after startup - https://github.com/microsoft/vscode/issues/174218#issuecomment-1437972127
+			const when = k.when?.substituteConstants();
+
+			if (when && when.type === ContextKeyExprType.False) {
 				// when condition is false
 				continue;
 			}
