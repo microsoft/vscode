@@ -617,6 +617,7 @@ export const enum TerminalCommandId {
 	SelectNextPageSuggestion = 'workbench.action.terminal.selectNextPageSuggestion',
 	AcceptSelectedSuggestion = 'workbench.action.terminal.acceptSelectedSuggestion',
 	HideSuggestWidget = 'workbench.action.terminal.hideSuggestWidget',
+	FocusHover = 'workbench.action.terminal.focusHover',
 }
 
 export const DEFAULT_COMMANDS_TO_SKIP_SHELL: string[] = [
@@ -685,6 +686,7 @@ export const DEFAULT_COMMANDS_TO_SKIP_SHELL: string[] = [
 	TerminalCommandId.AcceptSelectedSuggestion,
 	TerminalCommandId.HideSuggestWidget,
 	TerminalCommandId.ShowTerminalAccessibilityHelp,
+	TerminalCommandId.FocusHover,
 	'editor.action.toggleTabFocusMode',
 	'notifications.hideList',
 	'notifications.hideToasts',
