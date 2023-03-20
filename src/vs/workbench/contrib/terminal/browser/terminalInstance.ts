@@ -84,7 +84,7 @@ import { IAudioCueService, AudioCue } from 'vs/platform/audioCues/browser/audioC
 import { ITerminalQuickFixOptions } from 'vs/platform/terminal/common/xterm/terminalQuickFix';
 import { FileSystemProviderCapabilities, IFileService } from 'vs/platform/files/common/files';
 import { preparePathForShell } from 'vs/workbench/contrib/terminal/common/terminalEnvironment';
-import { IEnvironmentVariableCollection } from 'vs/platform/terminal/common/environmentVariable';
+import { IEnvironmentVariableCollection, IMergedEnvironmentVariableCollection } from 'vs/platform/terminal/common/environmentVariable';
 import { ISimpleSelectedSuggestion } from 'vs/workbench/services/suggest/browser/simpleSuggestWidget';
 import { TERMINAL_BACKGROUND_COLOR } from 'vs/workbench/contrib/terminal/common/terminalColorRegistry';
 import { editorBackground } from 'vs/platform/theme/common/colorRegistry';
@@ -220,6 +220,8 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	 * and registering of command finished listeners
 	 */
 	get quickFix(): ITerminalQuickFixAddon | undefined { return this._quickFixAddon; }
+
+	get extEnvironmentVariableCollection(): IMergedEnvironmentVariableCollection | undefined { return this._processManager.extEnvironmentVariableCollection; }
 
 	xterm?: XtermTerminal;
 	disableLayout: boolean = false;
