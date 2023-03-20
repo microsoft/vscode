@@ -318,6 +318,7 @@ export class ContentHoverController extends Disposable {
 				// TODO: do we need this forced render here?
 
 				this._editor.render();
+
 				console.log('containerDomNode : ', containerDomNode);
 				console.log('containerDomNode client width : ', containerDomNode.clientWidth);
 				console.log('containerDomNode client height : ', containerDomNode.clientHeight);
@@ -348,6 +349,41 @@ export class ContentHoverController extends Disposable {
 				resizableElement.domNode.style.left = offsetLeft + 'px';
 				// Set a different width and height to the resizable element
 				resizableElement.layout(clientHeight + 4, clientWidth + 4); // Used to be 7 and 6
+
+				// Find if rendered above or below in the container dom node
+				const topLineNumber = anchor.initialMousePosY;
+				let renderingAbove: boolean = true;
+
+				if (topLineNumber) {
+					if (offsetTop <= topLineNumber) {
+						renderingAbove = true;
+					} else {
+						renderingAbove = false;
+					}
+				}
+
+				this._renderingAbove = renderingAbove;
+				this._widget.renderingAbove = renderingAbove ? ContentWidgetPositionPreference.ABOVE : ContentWidgetPositionPreference.BELOW;
+				this._resizableOverlay.renderingAbove = renderingAbove ? ContentWidgetPositionPreference.ABOVE : ContentWidgetPositionPreference.BELOW;
+
+				// Enable sashes depending on what side the rendering is on
+				if (renderingAbove) {
+					this._resizableOverlay.resizableElement().enableSashes(true, true, false, false);
+				} else {
+					this._resizableOverlay.resizableElement().enableSashes(false, true, true, false);
+				}
+
+				const maxRenderingWidth = this._widget.findMaxRenderingWidth();
+				const maxRenderingHeight = this._widget.findMaxRenderingHeight(this._widget.renderingAbove);
+
+				if (!maxRenderingWidth || !maxRenderingHeight) {
+					return;
+				}
+
+				this._resizableOverlay.resizableElement().maxSize = new dom.Dimension(maxRenderingWidth, maxRenderingHeight);
+
+				console.log('rendering above : ', renderingAbove);
+
 				this._editor.layoutOverlayWidget(this._resizableOverlay);
 				// TODO: Do we need this forced rendering?
 				this._editor.render();
@@ -481,34 +517,8 @@ export class ContentHoverController extends Disposable {
 			console.log('resizableWidgetDomNode offset top : ', resizableWidgetDomNode.offsetTop);
 			console.log('resizableWidgetDomNode offset left : ', resizableWidgetDomNode.offsetLeft);
 
-			// Saving the top, left offsets and the client widths and heights
-			const size = new dom.Dimension(containerDomNode.clientWidth, containerDomNode.clientHeight);
-			const position = { clientTop: containerDomNode.offsetTop, clientLeft: containerDomNode.offsetLeft };
-
-			console.log('size : ', size);
-			console.log('position : ', position);
-
-			// Find if rendered above or below in the container dom node
-			const topLineNumber = anchor.initialMousePosY;
-			console.log('topLineNumber : ', topLineNumber);
-			console.log('position.clientTop : ', position.clientTop);
-
-			let renderingAbove: boolean = true;
-
-			if (topLineNumber) {
-				if (position.clientTop <= topLineNumber) {
-					renderingAbove = true;
-				} else {
-					renderingAbove = false;
-				}
-			}
-
-			this._renderingAbove = renderingAbove;
-
-			console.log('rendering above : ', renderingAbove);
-
 			// Calling show at with the position, size and rendering above option
-			this._resizableOverlay.showAt(position, size, this._renderingAbove);
+			this._resizableOverlay.showAt(this._renderingAbove);
 
 			// Added for logging purposes
 			resizableWidgetDomNode = this._resizableOverlay.getDomNode();
@@ -761,6 +771,7 @@ export class ResizableHoverOverlay extends Disposable implements IOverlayWidget 
 			// After the content hover widget has been resized, we find the new max rendering height and width
 			// Maybe should be waiting for the content hover widget to resize, it appears not though
 			this._maxRenderingWidth = this._hoverWidget.findMaxRenderingWidth();
+			console.log('this._renderingAbove inside of on did resize : ', this._renderingAbove);
 			this._maxRenderingHeight = this._hoverWidget.findMaxRenderingHeight(this._renderingAbove);
 
 			if (!this._maxRenderingHeight || !this._maxRenderingWidth) {
@@ -801,6 +812,14 @@ export class ResizableHoverOverlay extends Disposable implements IOverlayWidget 
 			this._editor.render();
 
 		}));
+	}
+
+	public get renderingAbove(): ContentWidgetPositionPreference {
+		return this._renderingAbove;
+	}
+
+	public set renderingAbove(renderingAbove: ContentWidgetPositionPreference) {
+		this._renderingAbove = renderingAbove;
 	}
 
 	public set hoverWidget(hoverWidget: ContentHoverWidget) {
@@ -852,9 +871,6 @@ export class ResizableHoverOverlay extends Disposable implements IOverlayWidget 
 	}
 
 	public setToooltipPosition(tooltipPosition: IPosition): void {
-		console.log('Inside of setTooltipPosition of ResizableHOverOverlay');
-		console.log('this._position : ', this._tooltipPosition);
-
 		this._tooltipPosition = tooltipPosition;
 	}
 
@@ -863,7 +879,7 @@ export class ResizableHoverOverlay extends Disposable implements IOverlayWidget 
 		return null;
 	}
 
-	public showAt(position: any, size: dom.Dimension, renderingAbove: boolean): void {
+	public showAt(renderingAbove: boolean): void {
 		console.log('Inside of showAt of ResizableHoverOverlay');
 		console.log('Before adding overlay widget');
 
@@ -888,6 +904,7 @@ export class ResizableHoverOverlay extends Disposable implements IOverlayWidget 
 		console.log('resizableWidgetDomNode offset left : ', resizableWidgetDomNode.offsetLeft);
 		// --- end of logging
 
+		/*
 		this._renderingAbove = renderingAbove ? ContentWidgetPositionPreference.ABOVE : ContentWidgetPositionPreference.BELOW;
 
 		// Enable sashes depending on what side the rendering is on
@@ -896,6 +913,7 @@ export class ResizableHoverOverlay extends Disposable implements IOverlayWidget 
 		} else {
 			this._resizableElement.enableSashes(false, true, true, false);
 		}
+		*/
 
 		this._resizableElement.domNode.style.zIndex = '10';
 		this._resizableElement.domNode.style.position = 'fixed';
@@ -939,6 +957,10 @@ export class ContentHoverWidget extends Disposable implements IContentWidget {
 
 	public get renderingAbove(): ContentWidgetPositionPreference {
 		return this._renderingAbove;
+	}
+
+	public set renderingAbove(renderingAbove: ContentWidgetPositionPreference) {
+		this._renderingAbove = renderingAbove;
 	}
 
 	constructor(

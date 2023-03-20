@@ -112,15 +112,15 @@ export const enum ContentWidgetPositionPreference {
 	/**
 	 * Place the content widget exactly at a position
 	 */
-	EXACT,
+	EXACT = 0,
 	/**
 	 * Place the content widget above a position
 	 */
-	ABOVE,
+	ABOVE = 1,
 	/**
 	 * Place the content widget below a position
 	 */
-	BELOW
+	BELOW = 2
 }
 /**
  * A position for rendering content widgets.
