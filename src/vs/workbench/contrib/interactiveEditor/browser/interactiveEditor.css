@@ -19,7 +19,7 @@
 	display: flex;
 	box-sizing: border-box;
 	border-radius: 2px;
-	border: 1px solid var(--vscode-settings-textInputBorder);
+	border: 1px solid var(--vscode-input-border);
 }
 
 .monaco-editor .interactive-editor .body .content.synthetic-focus {
