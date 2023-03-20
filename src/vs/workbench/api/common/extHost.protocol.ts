@@ -2167,7 +2167,7 @@ export interface ExtHostNotebookShape extends ExtHostNotebookDocumentsAndEditors
 }
 
 export interface ExtHostNotebookDocumentSaveParticipantShape {
-	$participateInSave(resource: UriComponents, reason: SaveReason): Promise<boolean[]>;
+	$participateInSave(resource: UriComponents, reason: SaveReason, token: CancellationToken): Promise<boolean>;
 }
 
 export interface ExtHostNotebookRenderersShape {
