@@ -1621,6 +1621,7 @@ export interface CommentThread<T = IRange> {
 export interface CommentingRanges {
 	readonly resource: URI;
 	ranges: IRange[];
+	fileComments: boolean;
 }
 
 /**

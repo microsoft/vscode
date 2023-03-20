@@ -20,6 +20,7 @@ import type * as vscode from 'vscode';
 import { ExtHostCommentsShape, IMainContext, MainContext, CommentThreadChanges, CommentChanges } from './extHost.protocol';
 import { ExtHostCommands } from './extHostCommands';
 import { checkProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
+import { withNullAsUndefined } from 'vs/base/common/types';
 
 type ProviderHandle = number;
 
@@ -158,7 +159,7 @@ export function createExtHostComments(mainContext: IMainContext, commands: ExtHo
 			return commentController.value;
 		}
 
-		$createCommentThreadTemplate(commentControllerHandle: number, uriComponents: UriComponents, range: IRange): void {
+		$createCommentThreadTemplate(commentControllerHandle: number, uriComponents: UriComponents, range: IRange | undefined): void {
 			const commentController = this._commentControllers.get(commentControllerHandle);
 
 			if (!commentController) {
@@ -184,7 +185,7 @@ export function createExtHostComments(mainContext: IMainContext, commands: ExtHo
 			commentController?.$deleteCommentThread(commentThreadHandle);
 		}
 
-		$provideCommentingRanges(commentControllerHandle: number, uriComponents: UriComponents, token: CancellationToken): Promise<IRange[] | undefined> {
+		$provideCommentingRanges(commentControllerHandle: number, uriComponents: UriComponents, token: CancellationToken): Promise<{ ranges: IRange[]; fileComments: boolean } | undefined> {
 			const commentController = this._commentControllers.get(commentControllerHandle);
 
 			if (!commentController || !commentController.commentingRangeProvider) {
@@ -192,9 +193,33 @@ export function createExtHostComments(mainContext: IMainContext, commands: ExtHo
 			}
 
 			const document = documents.getDocument(URI.revive(uriComponents));
-			return asPromise(() => {
-				return commentController.commentingRangeProvider!.provideCommentingRanges(document, token);
-			}).then(ranges => ranges ? ranges.map(x => extHostTypeConverter.Range.from(x)) : undefined);
+			return asPromise(async () => {
+				const rangesResult = await (commentController.commentingRangeProvider as vscode.CommentingRangeProvider2).provideCommentingRanges(document, token);
+				let ranges: { ranges: vscode.Range[]; fileComments: boolean } | undefined;
+				if (Array.isArray(rangesResult)) {
+					ranges = {
+						ranges: rangesResult,
+						fileComments: false
+					};
+				} else if (rangesResult) {
+					ranges = {
+						ranges: rangesResult.ranges || [],
+						fileComments: rangesResult.fileComments || false
+					};
+				} else {
+					ranges = withNullAsUndefined(rangesResult);
+				}
+				return ranges;
+			}).then(ranges => {
+				let convertedResult: { ranges: IRange[]; fileComments: boolean } | undefined = undefined;
+				if (ranges) {
+					convertedResult = {
+						ranges: ranges.ranges.map(x => extHostTypeConverter.Range.from(x)),
+						fileComments: ranges.fileComments
+					};
+				}
+				return convertedResult;
+			});
 		}
 
 		$toggleReaction(commentControllerHandle: number, threadHandle: number, uri: UriComponents, comment: languages.Comment, reaction: languages.CommentReaction): Promise<void> {
@@ -606,7 +631,7 @@ export function createExtHostComments(mainContext: IMainContext, commands: ExtHo
 			return commentThread;
 		}
 
-		$createCommentThreadTemplate(uriComponents: UriComponents, range: IRange): ExtHostCommentThread {
+		$createCommentThreadTemplate(uriComponents: UriComponents, range: IRange | undefined): ExtHostCommentThread {
 			const commentThread = new ExtHostCommentThread(this.id, this.handle, undefined, URI.revive(uriComponents), extHostTypeConverter.Range.to(range), [], this._extension, true);
 			commentThread.collapsibleState = languages.CommentThreadCollapsibleState.Expanded;
 			this._threads.set(commentThread.handle, commentThread);

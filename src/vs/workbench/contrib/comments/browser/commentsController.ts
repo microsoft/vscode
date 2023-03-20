@@ -240,7 +240,22 @@ class CommentingRangeDecorator {
 		}
 	}
 
-	public getMatchedCommentAction(commentRange: Range): CommentRangeAction[] {
+	public getMatchedCommentAction(commentRange: Range | undefined): CommentRangeAction[] {
+		if (commentRange === undefined) {
+			const foundInfos = this._infos?.filter(info => info.commentingRanges.fileComments);
+			if (foundInfos) {
+				return foundInfos.map(foundInfo => {
+					return {
+						ownerId: foundInfo.owner,
+						extensionId: foundInfo.extensionId,
+						label: foundInfo.label,
+						commentingRangesInfo: foundInfo.commentingRanges
+					};
+				});
+			}
+			return [];
+		}
+
 		// keys is ownerId
 		const foundHoverActions = new Map<string, { range: Range; action: CommentRangeAction }>();
 		for (const decoration of this.commentingRangeDecorations) {
@@ -293,7 +308,7 @@ export class CommentController implements IEditorContribution {
 	private _commentingRangeSpaceReserved = false;
 	private _computePromise: CancelablePromise<Array<ICommentInfo | null>> | null;
 	private _addInProgress!: boolean;
-	private _emptyThreadsToAddQueue: [Range, IEditorMouseEvent | undefined][] = [];
+	private _emptyThreadsToAddQueue: [Range | undefined, IEditorMouseEvent | undefined][] = [];
 	private _computeCommentingRangePromise!: CancelablePromise<ICommentInfo[]> | null;
 	private _computeCommentingRangeScheduler!: Delayer<Array<ICommentInfo | null>> | null;
 	private _pendingNewCommentCache: { [key: string]: { [key: string]: string } };
@@ -764,13 +779,13 @@ export class CommentController implements IEditorContribution {
 		}
 	}
 
-	public async addOrToggleCommentAtLine(commentRange: Range, e: IEditorMouseEvent | undefined): Promise<void> {
+	public async addOrToggleCommentAtLine(commentRange: Range | undefined, e: IEditorMouseEvent | undefined): Promise<void> {
 		// If an add is already in progress, queue the next add and process it after the current one finishes to
 		// prevent empty comment threads from being added to the same line.
 		if (!this._addInProgress) {
 			this._addInProgress = true;
 			// The widget's position is undefined until the widget has been displayed, so rely on the glyph position instead
-			const existingCommentsAtLine = this._commentWidgets.filter(widget => widget.getGlyphPosition() === commentRange.endLineNumber);
+			const existingCommentsAtLine = this._commentWidgets.filter(widget => widget.getGlyphPosition() === (commentRange ? commentRange.endLineNumber : 0));
 			if (existingCommentsAtLine.length) {
 				const allExpanded = existingCommentsAtLine.every(widget => widget.expanded);
 				existingCommentsAtLine.forEach(allExpanded ? widget => widget.collapse() : widget => widget.expand());
@@ -792,14 +807,14 @@ export class CommentController implements IEditorContribution {
 		}
 	}
 
-	public addCommentAtLine(range: Range, e: IEditorMouseEvent | undefined): Promise<void> {
+	public addCommentAtLine(range: Range | undefined, e: IEditorMouseEvent | undefined): Promise<void> {
 		const newCommentInfos = this._commentingRangeDecorator.getMatchedCommentAction(range);
 		if (!newCommentInfos.length || !this.editor?.hasModel()) {
 			return Promise.resolve();
 		}
 
 		if (newCommentInfos.length > 1) {
-			if (e) {
+			if (e && range) {
 				const anchor = { x: e.event.posx, y: e.event.posy };
 
 				this.contextMenuService.showContextMenu({
@@ -868,7 +883,7 @@ export class CommentController implements IEditorContribution {
 		return actions;
 	}
 
-	public addCommentAtLine2(range: Range, ownerId: string) {
+	public addCommentAtLine2(range: Range | undefined, ownerId: string) {
 		if (!this.editor) {
 			return;
 		}
