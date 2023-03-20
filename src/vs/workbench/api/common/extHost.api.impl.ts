@@ -1454,7 +1454,8 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			TelemetryTrustedValue: TelemetryTrustedValue,
 			LogLevel: LogLevel,
 			EditSessionIdentityMatch: EditSessionIdentityMatch,
-			InteractiveSessionVoteDirection: extHostTypes.InteractiveSessionVoteDirection
+			InteractiveSessionVoteDirection: extHostTypes.InteractiveSessionVoteDirection,
+			InteractiveSessionCopyKind: extHostTypes.InteractiveSessionCopyKind,
 		};
 	};
 }

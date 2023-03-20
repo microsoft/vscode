@@ -61,15 +61,9 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 				continue;
 			}
 			try {
-				let content: string | undefined;
-				const getContent = async () => {
-					if (content === undefined) {
-						content = (await this.fileService.readFile(joinPath(folder, configPath))).value.toString();
-					}
-					return content;
-				};
+				const content = (await this.fileService.readFile(joinPath(folder, configPath))).value.toString();
 				for (const [key, value] of Object.entries(tip.recommendations)) {
-					if (!value.contentPattern || new RegExp(value.contentPattern, 'mig').test(await getContent())) {
+					if (!value.contentPattern || new RegExp(value.contentPattern, 'mig').test(content)) {
 						result.push({
 							extensionId: key,
 							extensionName: value.name,

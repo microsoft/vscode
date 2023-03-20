@@ -14,6 +14,7 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { FuzzyScore } from 'vs/base/common/filters';
 import { IMarkdownString, MarkdownString } from 'vs/base/common/htmlContent';
 import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
+import { ResourceMap } from 'vs/base/common/map';
 import { ThemeIcon } from 'vs/base/common/themables';
 import { EditorExtensionsRegistry } from 'vs/editor/browser/editorExtensions';
 import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
@@ -192,7 +193,7 @@ export class InteractiveListItemRenderer extends Disposable implements ITreeRend
 
 		if (element.avatarIconUri) {
 			const avatarIcon = dom.$<HTMLImageElement>('img.icon');
-			avatarIcon.src = element.avatarIconUri.toString();
+			avatarIcon.src = element.avatarIconUri.toString(true);
 			templateData.avatar.replaceChildren(avatarIcon);
 		} else {
 			const defaultIcon = isRequestVM(element) ? Codicon.account : Codicon.hubot;
@@ -210,8 +211,14 @@ export class InteractiveListItemRenderer extends Disposable implements ITreeRend
 			const progressiveRenderingDisposables = templateData.elementDisposables.add(new DisposableStore());
 			const timer = templateData.elementDisposables.add(new IntervalTimer());
 			const runProgressiveRender = (initial?: boolean) => {
-				if (this.doNextProgressiveRender(element, index, templateData, !!initial, progressiveRenderingDisposables)) {
+				try {
+					if (this.doNextProgressiveRender(element, index, templateData, !!initial, progressiveRenderingDisposables)) {
+						timer.cancel();
+					}
+				} catch (err) {
+					// Kill the timer if anything went wrong, avoid getting stuck in a nasty rendering loop.
 					timer.cancel();
+					throw err;
 				}
 			};
 			runProgressiveRender(true);
@@ -338,7 +345,7 @@ export class InteractiveListItemRenderer extends Disposable implements ITreeRend
 		const result = this.renderer.render(markdown, {
 			fillInIncompleteTokens,
 			codeBlockRendererSync: (languageId, text) => {
-				const ref = this.renderCodeBlock({ languageId, text, index: codeBlockIndex++, element, parentContextKeyService: templateData.contextKeyService }, disposables);
+				const ref = this.renderCodeBlock({ languageId, text, codeBlockIndex: codeBlockIndex++, element, parentContextKeyService: templateData.contextKeyService }, disposables);
 
 				// Attach this after updating text/layout of the editor, so it should only be fired when the size updates later (horizontal scrollbar, wrapping)
 				// not during a renderElement OR a progressive render (when we will be firing this event anyway at the end of the render)
@@ -457,7 +464,7 @@ export class InteractiveSessionAccessibilityProvider implements IListAccessibili
 interface IInteractiveResultCodeBlockData {
 	text: string;
 	languageId: string;
-	index: number;
+	codeBlockIndex: number;
 	element: InteractiveTreeItem;
 	parentContextKeyService: IContextKeyService;
 }
@@ -470,6 +477,14 @@ interface IInteractiveResultCodeBlockPart {
 	render(data: IInteractiveResultCodeBlockData, width: number): void;
 	dispose(): void;
 }
+
+export interface IInteractiveResultCodeBlockInfo {
+	providerId: string;
+	responseId: string;
+	codeBlockIndex: number;
+}
+
+export const codeBlockInfosByModelUri = new ResourceMap<IInteractiveResultCodeBlockInfo>();
 
 class CodeBlockPart extends Disposable implements IInteractiveResultCodeBlockPart {
 	private readonly _onDidChangeContentHeight = this._register(new Emitter<number>());
@@ -583,9 +598,20 @@ class CodeBlockPart extends Disposable implements IInteractiveResultCodeBlockPar
 
 		this.layout(width);
 
+		if (isResponseVM(data.element) && data.element.providerResponseId) {
+			// For telemetry reporting
+			codeBlockInfosByModelUri.set(this.textModel.uri, {
+				providerId: data.element.providerId,
+				responseId: data.element.providerResponseId,
+				codeBlockIndex: data.codeBlockIndex
+			});
+		} else {
+			codeBlockInfosByModelUri.delete(this.textModel.uri);
+		}
+
 		this.toolbar.context = <IInteractiveSessionCodeBlockActionContext>{
 			code: data.text,
-			codeBlockIndex: data.index,
+			codeBlockIndex: data.codeBlockIndex,
 			element: data.element
 		};
 	}
