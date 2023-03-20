@@ -65,12 +65,13 @@ class RunCommands extends Action2 {
 			throw new Error('runCommands: invalid arguments');
 		}
 		const commandService = accessor.get(ICommandService);
+		const notificationService = accessor.get(INotificationService);
 		try {
 			for (const cmd of args.commands) {
 				await this._runCommand(commandService, cmd);
 			}
 		} catch (err) {
-			accessor.get(INotificationService).warn(err);
+			notificationService.warn(err);
 		}
 	}
 
