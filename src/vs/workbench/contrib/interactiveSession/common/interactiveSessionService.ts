@@ -18,6 +18,7 @@ export interface IInteractiveSession {
 	requesterAvatarIconUri?: URI;
 	responderUsername: string;
 	responderAvatarIconUri?: URI;
+	inputPlaceholder?: string;
 	dispose?(): void;
 }
 

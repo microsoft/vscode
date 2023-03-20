@@ -145,6 +145,7 @@ export interface IInteractiveSessionModel {
 	readonly sessionId: number;
 	readonly providerId: string;
 	readonly welcomeMessage: IInteractiveSessionWelcomeMessageModel | undefined;
+	readonly inputPlaceholder?: string;
 	getRequests(): IInteractiveRequestModel[];
 }
 
@@ -195,6 +196,10 @@ export class InteractiveSessionModel extends Disposable implements IInteractiveS
 
 	get sessionId(): number {
 		return this.session.id;
+	}
+
+	get inputPlaceholder(): string | undefined {
+		return this.session.inputPlaceholder;
 	}
 
 	constructor(
