@@ -293,6 +293,9 @@ export class ContentHoverController extends Disposable {
 			setColorPicker: (widget) => colorPicker = widget,
 			onContentsChanged: () => {
 
+				const containerDomNode = this._widget.getDomNode();
+				const contentsDomNode = this._widget.getContentsDomNode();
+
 				console.log('Inside of onContentsChanged of the context inside of _renderMessage');
 				console.log('Before onContentsChanged');
 
@@ -313,12 +316,28 @@ export class ContentHoverController extends Disposable {
 
 				// Do some actions when the contents of the hover changes, which appears to happen every single time after the showAt function is called
 				this._widget.onContentsChanged(persistedSize);
+				console.log('After onContentsChanged');
 				// TODO: do we need this forced render here?
-				this._editor.render();
+
+				/* this._editor.render();
 
 				console.log('After onContentsChanged');
+				console.log('* After render');
+
+				console.log('containerDomNode : ', containerDomNode);
+				console.log('containerDomNode client width : ', containerDomNode.clientWidth);
+				console.log('containerDomNode client height : ', containerDomNode.clientHeight);
+				console.log('containerDomNode offset top : ', containerDomNode.offsetTop);
+				console.log('containerDomNode offset left : ', containerDomNode.offsetLeft);
+				console.log('contentsDomNode : ', contentsDomNode);
+				console.log('contentsDomNode client width : ', contentsDomNode.clientWidth);
+				console.log('contentsDomNode client height : ', contentsDomNode.clientHeight);
+				console.log('contentsDomNode offset top : ', contentsDomNode.offsetTop);
+				console.log('contentsDomNode offset left : ', contentsDomNode.offsetLeft);
+
+
 				console.log('this._widget.getDomNode().offsetTop : ', this._widget.getDomNode().offsetTop);
-				console.log('this._resizableWidget.getDomNode().offsetTop : ', this._resizableOverlay.getDomNode().offsetTop);
+				console.log('this._resizableWidget.getDomNode().offsetTop : ', this._resizableOverlay.getDomNode().offsetTop); */
 
 				// After the final rendering of the widget, retrieve its top and left offsets
 				const widgetDomNode = this._widget.getDomNode();
@@ -352,14 +371,13 @@ export class ContentHoverController extends Disposable {
 				console.log('resizableWidgetDomNode offset top : ', resizableOverlayDomNode.offsetTop);
 				console.log('resizableWidgetDomNode offset left : ', resizableOverlayDomNode.offsetLeft);
 
-				const containerDomNode = this._widget.getDomNode();
+
 				console.log('containerDomNode : ', containerDomNode);
 				console.log('containerDomNode client width : ', containerDomNode.clientWidth);
 				console.log('containerDomNode client height : ', containerDomNode.clientHeight);
 				console.log('containerDomNode offset top : ', containerDomNode.offsetTop);
 				console.log('containerDomNode offset left : ', containerDomNode.offsetLeft);
 
-				const contentsDomNode = this._widget.getContentsDomNode();
 				console.log('contentsDomNode : ', contentsDomNode);
 				console.log('contentsDomNode client width : ', contentsDomNode.clientWidth);
 				console.log('contentsDomNode client height : ', contentsDomNode.clientHeight);
@@ -448,7 +466,7 @@ export class ContentHoverController extends Disposable {
 
 			// TODO: Do we actually need to layout the content widget here?
 			this._editor.layoutContentWidget(this._widget);
-			this._editor.render();
+			// this._editor.render();
 
 			console.log('* After layoutContentWidget and render');
 			console.log('containerDomNode : ', containerDomNode);
@@ -1197,11 +1215,6 @@ export class ContentHoverWidget extends Disposable implements IContentWidget {
 			this._hover.contentsDomNode.style.maxWidth = `${Math.max(this._editor.getLayoutInfo().width * 0.66, 500)}px`;
 		}
 
-		console.log('containerDomNode : ', containerDomNode);
-		console.log('containerDomNode client width : ', containerDomNode.clientWidth);
-		console.log('containerDomNode client height : ', containerDomNode.clientHeight);
-		console.log('containerDomNode offset top : ', containerDomNode.offsetTop);
-		console.log('containerDomNode offset left : ', containerDomNode.offsetLeft);
 		console.log('* After render inside of showAt of ContentHoverWidget');
 
 		// Deciding where th content should be displayed
@@ -1239,16 +1252,21 @@ export class ContentHoverWidget extends Disposable implements IContentWidget {
 		}
 
 		const contentsDomNode = this.getContentsDomNode();
+		console.log('containerDomNode : ', containerDomNode);
+		console.log('containerDomNode client width : ', containerDomNode.clientWidth);
+		console.log('containerDomNode client height : ', containerDomNode.clientHeight);
+		console.log('containerDomNode offset top : ', containerDomNode.offsetTop);
+		console.log('containerDomNode offset left : ', containerDomNode.offsetLeft);
 		console.log('contentsDomNode : ', contentsDomNode);
 		console.log('contentsDomNode client width : ', contentsDomNode.clientWidth);
 		console.log('contentsDomNode client height : ', contentsDomNode.clientHeight);
 		console.log('contentsDomNode offset top : ', contentsDomNode.offsetTop);
 		console.log('contentsDomNode offset left : ', contentsDomNode.offsetLeft);
 
-
 		// See https://github.com/microsoft/vscode/issues/140339
 		// TODO: Doing a second layout of the hover after force rendering the editor
 		console.log('* Before the second onContentsChanged of showAt of ContentHoverWidget');
+
 		this.onContentsChanged();
 
 		if (visibleData.stoleFocus) {
@@ -1273,6 +1291,8 @@ export class ContentHoverWidget extends Disposable implements IContentWidget {
 	): void {
 
 		console.log('* Inside of contents changed');
+		console.log('persistedSize : ', persistedSize);
+
 		console.log('* Before changes');
 
 		// On the very first time, the hover is shown, all these values are zero below
@@ -1374,21 +1394,41 @@ export class ContentHoverWidget extends Disposable implements IContentWidget {
 			const extraBottomPadding = `${this._hover.scrollbar.options.horizontalScrollbarSize}px`;
 			let rerender = false;
 			if (this._hover.contentsDomNode.style.paddingBottom !== extraBottomPadding) {
-				console.log('Changing the bottom padding');
 				this._hover.contentsDomNode.style.paddingBottom = extraBottomPadding;
 				rerender = true;
 			}
 			const maxRenderingHeight = this.findMaxRenderingHeight(this._renderingAbove);
+			// Need the following code in the case when using a persisted size, and setting explicitly a size, need to set a smaller height so that the horizontal scrollbar can show
 			if (persistedSize && maxRenderingHeight) {
-				console.log('There is a persisted size so remove pixels from height');
-				// In that case the scrollbar is not visible, make the contents dom node height bigger
 				contentsDomNode.style.height = Math.min(maxRenderingHeight, persistedSize.height - 18) + 'px';
 				rerender = true;
 			}
 			if (rerender) {
+				console.log('rerender : ', rerender);
 				this._editor.layoutContentWidget(this);
 				this._hover.onContentsChanged();
-				this._editor.render();
+				console.log('containerDomNode : ', containerDomNode);
+				console.log('containerDomNode client width : ', containerDomNode.clientWidth);
+				console.log('containerDomNode client height : ', containerDomNode.clientHeight);
+				console.log('containerDomNode offset top : ', containerDomNode.offsetTop);
+				console.log('containerDomNode offset left : ', containerDomNode.offsetLeft);
+				console.log('contentsDomNode : ', contentsDomNode);
+				console.log('contentsDomNode client width : ', contentsDomNode.clientWidth);
+				console.log('contentsDomNode client height : ', contentsDomNode.clientHeight);
+				console.log('contentsDomNode offset top : ', contentsDomNode.offsetTop);
+				console.log('contentsDomNode offset left : ', contentsDomNode.offsetLeft);
+
+				/* this._editor.render();
+				console.log('containerDomNode : ', containerDomNode);
+				console.log('containerDomNode client width : ', containerDomNode.clientWidth);
+				console.log('containerDomNode client height : ', containerDomNode.clientHeight);
+				console.log('containerDomNode offset top : ', containerDomNode.offsetTop);
+				console.log('containerDomNode offset left : ', containerDomNode.offsetLeft);
+				console.log('contentsDomNode : ', contentsDomNode);
+				console.log('contentsDomNode client width : ', contentsDomNode.clientWidth);
+				console.log('contentsDomNode client height : ', contentsDomNode.clientHeight);
+				console.log('contentsDomNode offset top : ', contentsDomNode.offsetTop);
+				console.log('contentsDomNode offset left : ', contentsDomNode.offsetLeft); */
 			}
 		}
 	}
