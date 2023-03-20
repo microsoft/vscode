@@ -119,12 +119,14 @@ export class ModesHoverController implements IEditorContribution {
 		}
 
 		if (target.type === MouseTargetType.OVERLAY_WIDGET && target.detail === ResizableHoverOverlay.ID) {
+			// mouse down on top of the overlap hover widget
 			return;
 		}
 
 		if (target.type !== MouseTargetType.OVERLAY_WIDGET) {
 			this._hoverClicked = false;
 		}
+
 		this._hideWidgets();
 	}
 
