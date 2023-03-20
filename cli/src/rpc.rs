@@ -204,30 +204,34 @@ pub struct RpcCaller<S: Serialization> {
 }
 
 impl<S: Serialization> RpcCaller<S> {
+	pub fn serialize_notify<M, A>(serializer: &S, method: M, params: A) -> Vec<u8>
+	where
+		S: Serialization,
+		M: AsRef<str> + serde::Serialize,
+		A: Serialize,
+	{
+		serializer.serialize(&FullRequest {
+			id: None,
+			method,
+			params,
+		})
+	}
+
 	/// Enqueues an outbound call. Returns whether the message was enqueued.
 	pub fn notify<M, A>(&self, method: M, params: A) -> bool
 	where
-		M: Into<String>,
+		M: AsRef<str> + serde::Serialize,
 		A: Serialize,
 	{
-		let body = self.serializer.serialize(&FullRequest {
-			id: None,
-			method: method.into(),
-			params,
-		});
-
-		self.sender.send(body).is_ok()
+		self.sender
+			.send(Self::serialize_notify(&self.serializer, method, params))
+			.is_ok()
 	}
 
 	/// Enqueues an outbound call, returning its result.
-	#[allow(dead_code)]
-	pub async fn call<M, A, R>(
-		&self,
-		method: M,
-		params: A,
-	) -> oneshot::Receiver<Result<R, ResponseError>>
+	pub fn call<M, A, R>(&self, method: M, params: A) -> oneshot::Receiver<Result<R, ResponseError>>
 	where
-		M: Into<String>,
+		M: AsRef<str> + serde::Serialize,
 		A: Serialize,
 		R: DeserializeOwned + Send + 'static,
 	{
@@ -235,7 +239,7 @@ impl<S: Serialization> RpcCaller<S> {
 		let id = next_message_id();
 		let body = self.serializer.serialize(&FullRequest {
 			id: Some(id),
-			method: method.into(),
+			method,
 			params,
 		});
 
@@ -321,12 +325,10 @@ impl<S: Serialization, C: Send + Sync> RpcDispatcher<S, C> {
 				cb(Outcome::Error(err));
 			}
 			MaybeSync::Sync(None)
-		} else if partial.result.is_some() {
+		} else {
 			if let Some(cb) = self.calls.lock().unwrap().remove(&id.unwrap()) {
 				cb(Outcome::Success(body.to_vec()));
 			}
-			MaybeSync::Sync(None)
-		} else {
 			MaybeSync::Sync(None)
 		}
 	}
@@ -345,13 +347,12 @@ struct PartialIncoming {
 	pub id: Option<u32>,
 	pub method: Option<String>,
 	pub error: Option<ResponseError>,
-	pub result: Option<()>,
 }
 
 #[derive(Serialize)]
-pub struct FullRequest<P> {
+pub struct FullRequest<M: AsRef<str>, P> {
 	pub id: Option<u32>,
-	pub method: String,
+	pub method: M,
 	pub params: P,
 }
 
@@ -372,7 +373,7 @@ struct ErrorResponse {
 	pub error: ResponseError,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Debug)]
 pub struct ResponseError {
 	pub code: i32,
 	pub message: String,

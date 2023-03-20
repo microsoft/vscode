@@ -296,7 +296,8 @@ export class CommentController implements IEditorContribution {
 	private _emptyThreadsToAddQueue: [Range, IEditorMouseEvent | undefined][] = [];
 	private _computeCommentingRangePromise!: CancelablePromise<ICommentInfo[]> | null;
 	private _computeCommentingRangeScheduler!: Delayer<Array<ICommentInfo | null>> | null;
-	private _pendingCommentCache: { [key: string]: { [key: string]: string } };
+	private _pendingNewCommentCache: { [key: string]: { [key: string]: string } };
+	private _pendingEditsCache: { [key: string]: { [key: string]: { [key: number]: string } } }; // owner -> threadId -> uniqueIdInThread -> pending comment
 	private _editorDisposables: IDisposable[] = [];
 	private _activeCursorHasCommentingRange: IContextKey<boolean>;
 
@@ -314,7 +315,8 @@ export class CommentController implements IEditorContribution {
 	) {
 		this._commentInfos = [];
 		this._commentWidgets = [];
-		this._pendingCommentCache = {};
+		this._pendingNewCommentCache = {};
+		this._pendingEditsCache = {};
 		this._computePromise = null;
 		this._activeCursorHasCommentingRange = ActiveCursorHasCommentingRange.bindTo(contextKeyService);
 
@@ -336,7 +338,8 @@ export class CommentController implements IEditorContribution {
 		this.globalToDispose.add(this._commentThreadRangeDecorator = new CommentThreadRangeDecorator(this.commentService));
 
 		this.globalToDispose.add(this.commentService.onDidDeleteDataProvider(ownerId => {
-			delete this._pendingCommentCache[ownerId];
+			delete this._pendingNewCommentCache[ownerId];
+			delete this._pendingEditsCache[ownerId];
 			this.beginCompute();
 		}));
 		this.globalToDispose.add(this.commentService.onDidSetDataProvider(_ => this.beginCompute()));
@@ -533,6 +536,12 @@ export class CommentController implements IEditorContribution {
 				a = b;
 				b = temp;
 			}
+			if (a.commentThread.range === undefined) {
+				return -1;
+			}
+			if (b.commentThread.range === undefined) {
+				return 1;
+			}
 			if (a.commentThread.range.startLineNumber < b.commentThread.range.startLineNumber) {
 				return -1;
 			}
@@ -553,10 +562,10 @@ export class CommentController implements IEditorContribution {
 		});
 
 		const idx = findFirstInSorted(sortedWidgets, widget => {
-			const lineValueOne = reverse ? after.lineNumber : widget.commentThread.range.startLineNumber;
-			const lineValueTwo = reverse ? widget.commentThread.range.startLineNumber : after.lineNumber;
-			const columnValueOne = reverse ? after.column : widget.commentThread.range.startColumn;
-			const columnValueTwo = reverse ? widget.commentThread.range.startColumn : after.column;
+			const lineValueOne = reverse ? after.lineNumber : (widget.commentThread.range?.startLineNumber ?? 0);
+			const lineValueTwo = reverse ? (widget.commentThread.range?.startLineNumber ?? 0) : after.lineNumber;
+			const columnValueOne = reverse ? after.column : (widget.commentThread.range?.startColumn ?? 0);
+			const columnValueTwo = reverse ? (widget.commentThread.range?.startColumn ?? 0) : after.column;
 			if (lineValueOne > lineValueTwo) {
 				return true;
 			}
@@ -577,7 +586,7 @@ export class CommentController implements IEditorContribution {
 		} else {
 			nextWidget = sortedWidgets[idx];
 		}
-		this.editor.setSelection(nextWidget.commentThread.range);
+		this.editor.setSelection(nextWidget.commentThread.range ?? new Range(1, 1, 1, 1));
 		nextWidget.reveal(undefined, true);
 	}
 
@@ -676,8 +685,9 @@ export class CommentController implements IEditorContribution {
 					return;
 				}
 
-				const pendingCommentText = this._pendingCommentCache[e.owner] && this._pendingCommentCache[e.owner][thread.threadId!];
-				this.displayCommentThread(e.owner, thread, pendingCommentText);
+				const pendingCommentText = this._pendingNewCommentCache[e.owner] && this._pendingNewCommentCache[e.owner][thread.threadId!];
+				const pendingEdits = this._pendingEditsCache[e.owner] && this._pendingEditsCache[e.owner][thread.threadId!];
+				this.displayCommentThread(e.owner, thread, pendingCommentText, pendingEdits);
 				this._commentInfos.filter(info => info.owner === e.owner)[0].threads.push(thread);
 				this.tryUpdateReservedSpace();
 			});
@@ -701,15 +711,15 @@ export class CommentController implements IEditorContribution {
 		return undefined;
 	}
 
-	private displayCommentThread(owner: string, thread: languages.CommentThread, pendingComment: string | null): void {
+	private displayCommentThread(owner: string, thread: languages.CommentThread, pendingComment: string | undefined, pendingEdits: { [key: number]: string } | undefined): void {
 		if (!this.editor) {
 			return;
 		}
 		if (this.isEditorInlineOriginal(this.editor)) {
 			return;
 		}
-		const zoneWidget = this.instantiationService.createInstance(ReviewZoneWidget, this.editor, owner, thread, pendingComment);
-		zoneWidget.display(thread.range.endLineNumber);
+		const zoneWidget = this.instantiationService.createInstance(ReviewZoneWidget, this.editor, owner, thread, pendingComment, pendingEdits);
+		zoneWidget.display(thread.range);
 		this._commentWidgets.push(zoneWidget);
 		this.openCommentsView(thread);
 	}
@@ -762,7 +772,8 @@ export class CommentController implements IEditorContribution {
 			// The widget's position is undefined until the widget has been displayed, so rely on the glyph position instead
 			const existingCommentsAtLine = this._commentWidgets.filter(widget => widget.getGlyphPosition() === commentRange.endLineNumber);
 			if (existingCommentsAtLine.length) {
-				existingCommentsAtLine.forEach(widget => widget.toggleExpand(commentRange.endLineNumber));
+				const allExpanded = existingCommentsAtLine.every(widget => widget.expanded);
+				existingCommentsAtLine.forEach(allExpanded ? widget => widget.collapse() : widget => widget.expand());
 				this.processNextThreadToAdd();
 				return;
 			} else {
@@ -943,19 +954,25 @@ export class CommentController implements IEditorContribution {
 		this.removeCommentWidgetsAndStoreCache();
 
 		this._commentInfos.forEach(info => {
-			const providerCacheStore = this._pendingCommentCache[info.owner];
+			const providerCacheStore = this._pendingNewCommentCache[info.owner];
+			const providerEditsCacheStore = this._pendingEditsCache[info.owner];
 			info.threads = info.threads.filter(thread => !thread.isDisposed);
 			info.threads.forEach(thread => {
-				let pendingComment: string | null = null;
+				let pendingComment: string | undefined = undefined;
 				if (providerCacheStore) {
 					pendingComment = providerCacheStore[thread.threadId!];
 				}
 
-				if (pendingComment) {
+				let pendingEdits: { [key: number]: string } | undefined = undefined;
+				if (providerEditsCacheStore) {
+					pendingEdits = providerEditsCacheStore[thread.threadId!];
+				}
+
+				if (pendingComment || pendingEdits) {
 					thread.collapsibleState = languages.CommentThreadCollapsibleState.Expanded;
 				}
 
-				this.displayCommentThread(info.owner, thread, pendingComment);
+				this.displayCommentThread(info.owner, thread, pendingComment, pendingEdits);
 			});
 		});
 
@@ -974,8 +991,9 @@ export class CommentController implements IEditorContribution {
 	private removeCommentWidgetsAndStoreCache() {
 		if (this._commentWidgets) {
 			this._commentWidgets.forEach(zone => {
-				const pendingComment = zone.getPendingComment();
-				const providerCacheStore = this._pendingCommentCache[zone.owner];
+				const pendingComments = zone.getPendingComments();
+				const pendingNewComment = pendingComments.newComment;
+				const providerNewCommentCacheStore = this._pendingNewCommentCache[zone.owner];
 
 				let lastCommentBody;
 				if (zone.commentThread.comments && zone.commentThread.comments.length) {
@@ -986,16 +1004,27 @@ export class CommentController implements IEditorContribution {
 						lastCommentBody = lastComment.body.value;
 					}
 				}
-				if (pendingComment && (pendingComment !== lastCommentBody)) {
-					if (!providerCacheStore) {
-						this._pendingCommentCache[zone.owner] = {};
+				if (pendingNewComment && (pendingNewComment !== lastCommentBody)) {
+					if (!providerNewCommentCacheStore) {
+						this._pendingNewCommentCache[zone.owner] = {};
 					}
 
-					this._pendingCommentCache[zone.owner][zone.commentThread.threadId!] = pendingComment;
+					this._pendingNewCommentCache[zone.owner][zone.commentThread.threadId!] = pendingNewComment;
 				} else {
-					if (providerCacheStore) {
-						delete providerCacheStore[zone.commentThread.threadId!];
+					if (providerNewCommentCacheStore) {
+						delete providerNewCommentCacheStore[zone.commentThread.threadId!];
 					}
+				}
+
+				const pendingEdits = pendingComments.edits;
+				const providerEditsCacheStore = this._pendingEditsCache[zone.owner];
+				if (Object.keys(pendingEdits).length > 0) {
+					if (!providerEditsCacheStore) {
+						this._pendingEditsCache[zone.owner] = {};
+					}
+					this._pendingEditsCache[zone.owner][zone.commentThread.threadId!] = pendingEdits;
+				} else if (providerEditsCacheStore) {
+					delete providerEditsCacheStore[zone.commentThread.threadId!];
 				}
 
 				zone.dispose();

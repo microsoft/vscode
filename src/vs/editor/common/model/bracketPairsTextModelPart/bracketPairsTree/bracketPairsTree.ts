@@ -56,8 +56,7 @@ export class BracketPairsTree extends Disposable {
 	) {
 		super();
 
-		if (textModel.tokenization.backgroundTokenizationState === BackgroundTokenizationState.Uninitialized) {
-			// There are no token information yet
+		if (!textModel.tokenization.hasTokens) {
 			const brackets = this.brackets.getSingleLanguageBracketTokens(this.textModel.getLanguageId());
 			const tokenizer = new FastTokenizer(this.textModel.getValue(), brackets);
 			this.initialAstWithoutTokens = parseDocument(tokenizer, [], undefined, true);
@@ -67,7 +66,8 @@ export class BracketPairsTree extends Disposable {
 			// Directly create the tree with token information.
 			this.initialAstWithoutTokens = undefined;
 			this.astWithTokens = this.parseDocumentFromTextBuffer([], undefined, false);
-		} else if (textModel.tokenization.backgroundTokenizationState === BackgroundTokenizationState.InProgress) {
+		} else {
+			// We missed some token changes already, so we cannot use the fast tokenizer + delta increments
 			this.initialAstWithoutTokens = this.parseDocumentFromTextBuffer([], undefined, true);
 			this.astWithTokens = this.initialAstWithoutTokens;
 		}
@@ -103,6 +103,7 @@ export class BracketPairsTree extends Disposable {
 	}
 
 	public handleContentChanged(change: IModelContentChangedEvent) {
+		// Must be sorted in ascending order
 		const edits = change.changes.map(c => {
 			const range = Range.lift(c.range);
 			return new TextEditInfo(

@@ -11,7 +11,7 @@ import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecy
 import { IProductService } from 'vs/platform/product/common/productService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IUpdateService } from 'vs/platform/update/common/update';
-import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
+import { INativeHostService } from 'vs/platform/native/common/native';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { ITimerService } from 'vs/workbench/services/timer/browser/timerService';
 import { IFileService } from 'vs/platform/files/common/files';
@@ -64,8 +64,7 @@ export class NativeStartupTimings extends StartupTimings implements IWorkbenchCo
 			const perfBaseline = await this._timerService.perfBaseline;
 
 			if (appendTo) {
-				const { sessionId } = await this._telemetryService.getTelemetryInfo();
-				const content = `${this._timerService.startupMetrics.ellapsed}\t${this._productService.nameShort}\t${(this._productService.commit || '').slice(0, 10) || '0000000000'}\t${sessionId}\t${standardStartupError === undefined ? 'standard_start' : 'NO_standard_start : ' + standardStartupError}\t${String(perfBaseline).padStart(4, '0')}ms\n`;
+				const content = `${this._timerService.startupMetrics.ellapsed}\t${this._productService.nameShort}\t${(this._productService.commit || '').slice(0, 10) || '0000000000'}\t${this._telemetryService.sessionId}\t${standardStartupError === undefined ? 'standard_start' : 'NO_standard_start : ' + standardStartupError}\t${String(perfBaseline).padStart(4, '0')}ms\n`;
 				await this.appendContent(URI.file(appendTo), content);
 			}
 

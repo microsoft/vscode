@@ -531,6 +531,10 @@ export class NotebookCellOutline implements IOutline<OutlineEntry> {
 		const markerServiceListener = new MutableDisposable();
 		this._entriesDisposables.add(markerServiceListener);
 		const updateMarkerUpdater = () => {
+			if (notebookEditorWidget.isDisposed) {
+				return;
+			}
+
 			const doUpdateMarker = (clear: boolean) => {
 				for (const entry of this._entries) {
 					if (clear) {

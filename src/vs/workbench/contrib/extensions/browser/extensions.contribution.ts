@@ -222,11 +222,6 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 					}
 				}]
 			},
-			'extensions.experimental.useUtilityProcess': { // TODO@bpasero remove me once sandbox is enabled by default
-				type: 'boolean',
-				description: localize('extensionsUseUtilityProcess', "When enabled, the extension host will be launched using the new UtilityProcess Electron API."),
-				default: true
-			},
 			[WORKSPACE_TRUST_EXTENSION_SUPPORT]: {
 				type: 'object',
 				scope: ConfigurationScope.APPLICATION,

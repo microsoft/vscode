@@ -34,7 +34,10 @@ import { EditorCommand, ServicesAccessor } from 'vs/editor/browser/editorExtensi
 import { IMenuItem, MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/languages/modesRegistry';
-import { LineRange, LineRangeMapping, RangeMapping } from 'vs/editor/common/diff/linesDiffComputer';
+import { LineRangeMapping, RangeMapping } from 'vs/editor/common/diff/linesDiffComputer';
+import { LineRange } from 'vs/editor/common/core/lineRange';
+import { EditorZoom } from 'vs/editor/common/config/editorZoom';
+import { IOpenerService } from 'vs/platform/opener/common/opener';
 
 /**
  * Create a new editor under `domElement`.
@@ -240,9 +243,8 @@ export function createModel(value: string, language?: string, uri?: URI): ITextM
  */
 export function setModelLanguage(model: ITextModel, mimeTypeOrLanguageId: string): void {
 	const languageService = StandaloneServices.get(ILanguageService);
-	const modelService = StandaloneServices.get(IModelService);
 	const languageId = languageService.getLanguageIdByMimeType(mimeTypeOrLanguageId) || mimeTypeOrLanguageId || PLAINTEXT_LANGUAGE_ID;
-	modelService.setMode(model, languageService.createById(languageId));
+	model.setLanguage(languageService.createById(languageId));
 }
 
 /**
@@ -432,6 +434,28 @@ export function registerCommand(id: string, handler: (accessor: any, ...args: an
 	return CommandsRegistry.registerCommand({ id, handler });
 }
 
+export interface ILinkOpener {
+	open(resource: URI): boolean | Promise<boolean>;
+}
+
+/**
+ * Registers a handler that is called when a link is opened in any editor. The handler callback should return `true` if the link was handled and `false` otherwise.
+ * The handler that was registered last will be called first when a link is opened.
+ *
+ * Returns a disposable that can unregister the opener again.
+ */
+export function registerLinkOpener(opener: ILinkOpener): IDisposable {
+	const openerService = StandaloneServices.get(IOpenerService);
+	return openerService.registerOpener({
+		async open(resource: string | URI) {
+			if (typeof resource === 'string') {
+				resource = URI.parse(resource);
+			}
+			return opener.open(resource);
+		}
+	});
+}
+
 /**
  * @internal
  */
@@ -474,6 +498,8 @@ export function createMonacoEditorAPI(): typeof monaco.editor {
 		remeasureFonts: remeasureFonts,
 		registerCommand: registerCommand,
 
+		registerLinkOpener: registerLinkOpener,
+
 		// enums
 		AccessibilitySupport: standaloneEnums.AccessibilitySupport,
 		ContentWidgetPositionPreference: standaloneEnums.ContentWidgetPositionPreference,
@@ -508,6 +534,7 @@ export function createMonacoEditorAPI(): typeof monaco.editor {
 		LineRange: <any>LineRange,
 		LineRangeMapping: <any>LineRangeMapping,
 		RangeMapping: <any>RangeMapping,
+		EditorZoom: <any>EditorZoom,
 
 		// vars
 		EditorType: EditorType,

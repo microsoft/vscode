@@ -5,13 +5,15 @@
 import { Event } from 'vs/base/common/event';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 
+export interface AuthenticationSessionAccount {
+	label: string;
+	id: string;
+}
+
 export interface AuthenticationSession {
 	id: string;
 	accessToken: string;
-	account: {
-		label: string;
-		id: string;
-	};
+	account: AuthenticationSessionAccount;
 	scopes: ReadonlyArray<string>;
 	idToken?: string;
 }

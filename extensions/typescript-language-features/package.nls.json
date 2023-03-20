@@ -47,7 +47,7 @@
 	"typescript.referencesCodeLens.showOnAllFunctions": "Enable/disable references CodeLens on all functions in TypeScript files.",
 	"typescript.implementationsCodeLens.enabled": "Enable/disable implementations CodeLens. This CodeLens shows the implementers of an interface.",
 	"typescript.openTsServerLog.title": "Open TS Server log",
-	"typescript.restartTsServer": "Restart TS server",
+	"typescript.restartTsServer": "Restart TS Server",
 	"typescript.selectTypeScriptVersion.title": "Select TypeScript Version...",
 	"typescript.reportStyleChecksAsWarnings": "Report style checks as warnings.",
 	"typescript.npm": "Specifies the path to the npm executable used for [Automatic Type Acquisition](https://code.visualstudio.com/docs/nodejs/working-with-javascript#_typings-and-automatic-type-acquisition).",

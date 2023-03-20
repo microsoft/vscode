@@ -44,7 +44,7 @@
         "priority": "builtin",
         "selector": [
           {
-            "filenamePattern": "*.{mp3,wav,ogg}"
+            "filenamePattern": "*.{mp3,wav,ogg,oga}"
           }
         ]
       },

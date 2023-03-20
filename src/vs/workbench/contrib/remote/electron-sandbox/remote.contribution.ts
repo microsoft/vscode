@@ -28,7 +28,7 @@ import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/
 import { TELEMETRY_SETTING_ID } from 'vs/platform/telemetry/common/telemetry';
 import { getTelemetryLevel } from 'vs/platform/telemetry/common/telemetryUtils';
 import { IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
+import { INativeHostService } from 'vs/platform/native/common/native';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 
 class RemoteAgentDiagnosticListener implements IWorkbenchContribution {

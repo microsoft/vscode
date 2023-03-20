@@ -20,12 +20,14 @@ export class KeybindingResolver {
 	private readonly _log: (str: string) => void;
 	private readonly _defaultKeybindings: ResolvedKeybindingItem[];
 	private readonly _keybindings: ResolvedKeybindingItem[];
-	private readonly _defaultBoundCommands: Map<string, boolean>;
-	private readonly _map: Map<string, ResolvedKeybindingItem[]>;
-	private readonly _lookupMap: Map<string, ResolvedKeybindingItem[]>;
+	private readonly _defaultBoundCommands: Map</* commandId */ string, boolean>;
+	private readonly _map: Map</* 1st chord's keypress */ string, ResolvedKeybindingItem[]>;
+	private readonly _lookupMap: Map</* commandId */ string, ResolvedKeybindingItem[]>;
 
 	constructor(
+		/** built-in and extension-provided keybindings */
 		defaultKeybindings: ResolvedKeybindingItem[],
+		/** user's keybindings */
 		overrides: ResolvedKeybindingItem[],
 		log: (str: string) => void
 	) {
@@ -51,7 +53,10 @@ export class KeybindingResolver {
 				continue;
 			}
 
-			if (k.when && k.when.type === ContextKeyExprType.False) {
+			// substitute with constants that are registered after startup - https://github.com/microsoft/vscode/issues/174218#issuecomment-1437972127
+			const when = k.when?.substituteConstants();
+
+			if (when && when.type === ContextKeyExprType.False) {
 				// when condition is false
 				continue;
 			}
@@ -90,7 +95,7 @@ export class KeybindingResolver {
 	 */
 	public static handleRemovals(rules: ResolvedKeybindingItem[]): ResolvedKeybindingItem[] {
 		// Do a first pass and construct a hash-map for removals
-		const removals = new Map<string, ResolvedKeybindingItem[]>();
+		const removals = new Map</* commandId */ string, ResolvedKeybindingItem[]>();
 		for (let i = 0, len = rules.length; i < len; i++) {
 			const rule = rules[i];
 			if (rule.command && rule.command.charAt(0) === '-') {

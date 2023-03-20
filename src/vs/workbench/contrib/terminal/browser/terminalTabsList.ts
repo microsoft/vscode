@@ -22,9 +22,8 @@ import { TerminalLocation, TerminalSettingId } from 'vs/platform/terminal/common
 import { Codicon } from 'vs/base/common/codicons';
 import { Action } from 'vs/base/common/actions';
 import { MarkdownString } from 'vs/base/common/htmlContent';
-import { TerminalDecorationsProvider } from 'vs/workbench/contrib/terminal/browser/terminalDecorationsProvider';
 import { DEFAULT_LABELS_CONTAINER, IResourceLabel, ResourceLabels } from 'vs/workbench/browser/labels';
-import { IDecorationsService } from 'vs/workbench/services/decorations/common/decorations';
+import { IDecorationData, IDecorationsProvider, IDecorationsService } from 'vs/workbench/services/decorations/common/decorations';
 import { IHoverAction, IHoverService } from 'vs/workbench/services/hover/browser/hover';
 import Severity from 'vs/base/common/severity';
 import { Disposable, DisposableStore, dispose, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
@@ -46,8 +45,11 @@ import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecy
 import { IProcessDetails } from 'vs/platform/terminal/common/terminalProcess';
 import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/terminalContextKey';
 import { getTerminalResourcesFromDragEvent, parseTerminalUri } from 'vs/workbench/contrib/terminal/browser/terminalUri';
-import { getShellIntegrationTooltip } from 'vs/workbench/contrib/terminal/browser/terminalTooltip';
+import { getShellIntegrationTooltip, getShellProcessTooltip } from 'vs/workbench/contrib/terminal/browser/terminalTooltip';
 import { defaultInputBoxStyles } from 'vs/platform/theme/browser/defaultStyles';
+import { Event, Emitter } from 'vs/base/common/event';
+import { Schemas } from 'vs/base/common/network';
+import { getColorForSeverity } from 'vs/workbench/contrib/terminal/browser/terminalStatusList';
 
 const $ = DOM.$;
 
@@ -62,7 +64,7 @@ export const enum TerminalTabsListSizes {
 }
 
 export class TerminalTabList extends WorkbenchList<ITerminalInstance> {
-	private _decorationsProvider: TerminalDecorationsProvider | undefined;
+	private _decorationsProvider: TabDecorationsProvider | undefined;
 	private _terminalTabsSingleSelectedContextKey: IContextKey<boolean>;
 	private _isSplitContextKey: IContextKey<boolean>;
 
@@ -194,7 +196,7 @@ export class TerminalTabList extends WorkbenchList<ITerminalInstance> {
 			}
 		});
 		if (!this._decorationsProvider) {
-			this._decorationsProvider = instantiationService.createInstance(TerminalDecorationsProvider);
+			this._decorationsProvider = instantiationService.createInstance(TabDecorationsProvider);
 			decorationsService.registerDecorationsProvider(this._decorationsProvider);
 		}
 		this.refresh();
@@ -318,6 +320,7 @@ class TerminalTabsRenderer implements IListRenderer<ITerminalInstance, ITerminal
 		}
 
 		const shellIntegrationString = getShellIntegrationTooltip(instance, true);
+		const shellProcessString = getShellProcessTooltip(instance, true);
 		const iconId = this._instantiationService.invokeFunction(getIconId, instance);
 		const hasActionbar = !this.shouldHideActionBar();
 		let label: string = '';
@@ -371,7 +374,7 @@ class TerminalTabsRenderer implements IListRenderer<ITerminalInstance, ITerminal
 				badges: hasText
 			},
 			title: {
-				markdown: new MarkdownString(instance.title + shellIntegrationString + statusString, { supportThemeIcons: true }),
+				markdown: new MarkdownString(instance.title + shellProcessString + shellIntegrationString + statusString, { supportThemeIcons: true }),
 				markdownNotSupportedFallback: undefined
 			},
 			extraClasses
@@ -728,5 +731,46 @@ class TerminalTabsDragAndDrop implements IListDragAndDrop<ITerminalInstance> {
 
 		instance.focus();
 		await instance.sendPath(resource, false);
+	}
+}
+
+class TabDecorationsProvider implements IDecorationsProvider {
+	readonly label: string = localize('label', "Terminal");
+	private readonly _onDidChange = new Emitter<URI[]>();
+
+	constructor(
+		@ITerminalService private readonly _terminalService: ITerminalService
+	) {
+		this._terminalService.onDidChangeInstancePrimaryStatus(e => this._onDidChange.fire([e.resource]));
+	}
+
+	get onDidChange(): Event<URI[]> {
+		return this._onDidChange.event;
+	}
+
+	provideDecorations(resource: URI): IDecorationData | undefined {
+		if (resource.scheme !== Schemas.vscodeTerminal) {
+			return undefined;
+		}
+
+		const instance = this._terminalService.getInstanceFromResource(resource);
+		if (!instance) {
+			return undefined;
+		}
+
+		const primaryStatus = instance?.statusList?.primary;
+		if (!primaryStatus?.icon) {
+			return undefined;
+		}
+
+		return {
+			color: getColorForSeverity(primaryStatus.severity),
+			letter: primaryStatus.icon,
+			tooltip: primaryStatus.tooltip
+		};
+	}
+
+	dispose(): void {
+		this.dispose();
 	}
 }

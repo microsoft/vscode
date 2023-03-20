@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { INotification, INotificationHandle, INotificationActions, INotificationProgress, NoOpNotification, Severity, NotificationMessage, IPromptChoice, IStatusMessageOptions, NotificationsFilter, INotificationProgressProperties, IPromptChoiceWithMenu } from 'vs/platform/notification/common/notification';
+import { INotification, INotificationHandle, INotificationActions, INotificationProgress, NoOpNotification, Severity, NotificationMessage, IPromptChoice, IStatusMessageOptions, NotificationsFilter, INotificationProgressProperties, IPromptChoiceWithMenu, NotificationPriority } from 'vs/platform/notification/common/notification';
 import { toErrorMessage, isErrorWithActions } from 'vs/base/common/errorMessage';
 import { Event, Emitter } from 'vs/base/common/event';
 import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
@@ -276,7 +276,7 @@ export interface INotificationViewItem {
 	readonly id: string | undefined;
 	readonly severity: Severity;
 	readonly sticky: boolean;
-	readonly silent: boolean;
+	readonly priority: NotificationPriority;
 	readonly message: INotificationMessage;
 	readonly source: string | undefined;
 	readonly sourceId: string | undefined;
@@ -467,7 +467,12 @@ export class NotificationViewItem extends Disposable implements INotificationVie
 			actions = { primary: notification.message.actions };
 		}
 
-		return new NotificationViewItem(notification.id, severity, notification.sticky, notification.silent || filter === NotificationsFilter.SILENT || (filter === NotificationsFilter.ERROR && notification.severity !== Severity.Error), message, notification.source, notification.progress, actions);
+		let priority = notification.priority ?? NotificationPriority.DEFAULT;
+		if (priority === NotificationPriority.DEFAULT && (filter === NotificationsFilter.SILENT || (filter === NotificationsFilter.ERROR && notification.severity !== Severity.Error))) {
+			priority = NotificationPriority.SILENT;
+		}
+
+		return new NotificationViewItem(notification.id, severity, notification.sticky, priority, message, notification.source, notification.progress, actions);
 	}
 
 	private static parseNotificationMessage(input: NotificationMessage): INotificationMessage | undefined {
@@ -502,7 +507,7 @@ export class NotificationViewItem extends Disposable implements INotificationVie
 		readonly id: string | undefined,
 		private _severity: Severity,
 		private _sticky: boolean | undefined,
-		private _silent: boolean | undefined,
+		private _priority: NotificationPriority,
 		private _message: INotificationMessage,
 		private _source: string | { label: string; id: string } | undefined,
 		progress: INotificationProgressProperties | undefined,
@@ -567,8 +572,8 @@ export class NotificationViewItem extends Disposable implements INotificationVie
 		return false; // not sticky
 	}
 
-	get silent(): boolean {
-		return !!this._silent;
+	get priority(): NotificationPriority {
+		return this._priority;
 	}
 
 	private get hasActions(): boolean {
