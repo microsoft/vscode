@@ -18,6 +18,8 @@ import { ISharedProcessLifecycleService } from 'vs/platform/lifecycle/node/share
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { localize } from 'vs/nls';
 import { hostname, homedir } from 'os';
+import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
+import { isString } from 'vs/base/common/types';
 
 type RemoteTunnelEnablementClassification = {
 	owner: 'aeschli';
@@ -33,6 +35,11 @@ const restartTunnelOnConfigurationChanges: readonly string[] = [
 	CONFIGURATION_KEY_HOST_NAME,
 	CONFIGURATION_KEY_PREVENT_SLEEP,
 ];
+
+// This is the account used run the tunnel access.
+// if set, the remote tunnel access is currently enabled.
+// if not set, the remote tunnel access is currently disabled.
+const TUNNEL_ACCESS_ACCOUNT = 'remoteTunnelAccount';
 
 /**
  * This service runs on the shared service. It is running the `code-tunnel` command
@@ -54,13 +61,14 @@ export class RemoteTunnelService extends Disposable implements IRemoteTunnelServ
 	private readonly _logger: ILogger;
 
 	private _account: IRemoteTunnelAccount | undefined;
-	private _tunnelProcess: CancelablePromise<void> | undefined;
+	private _tunnelProcess: CancelablePromise<any> | undefined;
 
 	private _tunnelStatus: TunnelStatus = TunnelStates.disconnected;
 	private _startTunnelProcessDelayer: Delayer<void>;
 
 	private _tunnelCommand: string | undefined;
 
+	private _isInitialized = false;
 
 	constructor(
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
@@ -68,7 +76,8 @@ export class RemoteTunnelService extends Disposable implements IRemoteTunnelServ
 		@INativeEnvironmentService private readonly environmentService: INativeEnvironmentService,
 		@ILoggerService loggerService: ILoggerService,
 		@ISharedProcessLifecycleService sharedProcessLifecycleService: ISharedProcessLifecycleService,
-		@IConfigurationService private readonly configurationService: IConfigurationService
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IStorageService private readonly storageService: IStorageService
 	) {
 		super();
 		this._logger = this._register(loggerService.createLogger(LOG_ID, { name: LOGGER_NAME }));
@@ -89,6 +98,22 @@ export class RemoteTunnelService extends Disposable implements IRemoteTunnelServ
 		}));
 	}
 
+	public async getTunnelStatus(): Promise<TunnelStatus> {
+		if (!this._isInitialized) {
+			this._logger.info('Initializing tunnel status');
+			this._isInitialized = true;
+			const tunnelAccessAccount = this._restoreAccount();
+			await this.updateAccount(tunnelAccessAccount);
+			this._logger.info('Initializing tunnel status completed: ' + this._tunnelStatus.type);
+		}
+		return this._tunnelStatus;
+	}
+
+	private setTunnelStatus(tunnelStatus: TunnelStatus) {
+		this._tunnelStatus = tunnelStatus;
+		this._onDidChangeTunnelStatusEmitter.fire(tunnelStatus);
+	}
+
 	async getAccount(): Promise<IRemoteTunnelAccount | undefined> {
 		return this._account;
 	}
@@ -97,6 +122,8 @@ export class RemoteTunnelService extends Disposable implements IRemoteTunnelServ
 		if (account && this._account ? account.token !== this._account.token || account.providerId !== this._account.providerId : account !== this._account) {
 			this._account = account;
 			this._onDidChangeAccountEmitter.fire(account);
+
+			this._storeAccount(account);
 
 			if (account) {
 				this._logger.info(`Account updated: ${account.accountLabel} (${account.providerId})`);
@@ -139,37 +166,71 @@ export class RemoteTunnelService extends Disposable implements IRemoteTunnelServ
 			this._tunnelProcess.cancel();
 			this._tunnelProcess = undefined;
 		}
-		if (!this._account) {
-			this.setTunnelStatus(TunnelStates.disconnected);
-			return;
-		}
-		const { token, providerId, accountLabel: accountName } = this._account;
 
-		this.setTunnelStatus(TunnelStates.connecting(localize({ key: 'remoteTunnelService.authorizing', comment: ['{0} is a user account name, {1} a provider name (e.g. Github)'] }, 'Connecting as {0} ({1})', accountName, providerId)));
-		const onOutput = (a: string, isErr: boolean) => {
-			a = a.replaceAll(token, '*'.repeat(4));
-			if (isErr) {
-				this._logger.error(a);
-			} else {
-				this._logger.info(a);
-			}
-			if (!this.environmentService.isBuilt && a.startsWith('   Compiling')) {
-				this.setTunnelStatus(TunnelStates.connecting(localize('remoteTunnelService.building', 'Building CLI from sources')));
-			}
-		};
-		const loginProcess = this.runCodeTunneCommand('login', ['user', 'login', '--provider', providerId, '--access-token', token, '--log', LogLevelToString(this._logger.getLevel())], onOutput);
-		this._tunnelProcess = loginProcess;
-		try {
-			await loginProcess;
-			if (this._tunnelProcess !== loginProcess) {
+		if (!this._account) {
+			// check if there is another tunnel running in the background
+
+			const onOutput = (a: string, isErr: boolean) => {
+				if (isErr) {
+					this._logger.error(a);
+				} else {
+					this._logger.info(a);
+				}
+				if (!this.environmentService.isBuilt && a.startsWith('   Compiling')) {
+					this.setTunnelStatus(TunnelStates.connecting(localize('remoteTunnelService.building', 'Building CLI from sources')));
+				}
+			};
+
+			const statusProcess = this.runCodeTunneCommand('status', ['status'], onOutput);
+			this._tunnelProcess = statusProcess;
+			try {
+				const status = await statusProcess;
+				if (this._tunnelProcess !== statusProcess) {
+					return;
+				}
+				if (status !== 0) {
+					this._logger.info('No other tunnel running');
+					this.setTunnelStatus(TunnelStates.disconnected);
+					return;
+				}
+				this._logger.info('Other tunnel running, tracking...');
+			} catch (e) {
+				this._logger.error(e);
+				this._tunnelProcess = undefined;
+				this._onDidTokenFailedEmitter.fire(true);
+				this.setTunnelStatus(TunnelStates.disconnected);
 				return;
 			}
-		} catch (e) {
-			this._logger.error(e);
-			this._tunnelProcess = undefined;
-			this._onDidTokenFailedEmitter.fire(true);
-			this.setTunnelStatus(TunnelStates.disconnected);
 			return;
+		} else {
+			const { token, providerId, accountLabel: accountName } = this._account;
+
+			this.setTunnelStatus(TunnelStates.connecting(localize({ key: 'remoteTunnelService.authorizing', comment: ['{0} is a user account name, {1} a provider name (e.g. Github)'] }, 'Connecting as {0} ({1})', accountName, providerId)));
+			const onOutput = (a: string, isErr: boolean) => {
+				a = a.replaceAll(token, '*'.repeat(4));
+				if (isErr) {
+					this._logger.error(a);
+				} else {
+					this._logger.info(a);
+				}
+				if (!this.environmentService.isBuilt && a.startsWith('   Compiling')) {
+					this.setTunnelStatus(TunnelStates.connecting(localize('remoteTunnelService.building', 'Building CLI from sources')));
+				}
+			};
+			const loginProcess = this.runCodeTunneCommand('login', ['user', 'login', '--provider', providerId, '--access-token', token, '--log', LogLevelToString(this._logger.getLevel())], onOutput);
+			this._tunnelProcess = loginProcess;
+			try {
+				await loginProcess;
+				if (this._tunnelProcess !== loginProcess) {
+					return;
+				}
+			} catch (e) {
+				this._logger.error(e);
+				this._tunnelProcess = undefined;
+				this._onDidTokenFailedEmitter.fire(true);
+				this.setTunnelStatus(TunnelStates.disconnected);
+				return;
+			}
 		}
 
 		const hostName = this._getHostName();
@@ -193,7 +254,7 @@ export class RemoteTunnelService extends Disposable implements IRemoteTunnelServ
 			} else {
 				this._logger.info(message);
 			}
-			const m = message.match(/^\s*Open this link in your browser (https:\/\/([^\/\s]+)\/([^\/\s]+)\/([^\/\s]+))/);
+			const m = message.match(/Open this link in your browser (https:\/\/([^\/\s]+)\/([^\/\s]+)\/([^\/\s]+))/);
 			if (m) {
 				const info: ConnectionInfo = { link: m[1], domain: m[2], hostName: m[4] };
 				this.setTunnelStatus(TunnelStates.connected(info));
@@ -216,20 +277,11 @@ export class RemoteTunnelService extends Disposable implements IRemoteTunnelServ
 		});
 	}
 
-	public async getTunnelStatus(): Promise<TunnelStatus> {
-		return this._tunnelStatus;
-	}
-
-	private setTunnelStatus(tunnelStatus: TunnelStatus) {
-		this._tunnelStatus = tunnelStatus;
-		this._onDidChangeTunnelStatusEmitter.fire(tunnelStatus);
-	}
-
-	private runCodeTunneCommand(logLabel: string, commandArgs: string[], onOutput: (message: string, isError: boolean) => void = () => { }): CancelablePromise<void> {
-		return createCancelablePromise<void>(token => {
+	private runCodeTunneCommand(logLabel: string, commandArgs: string[], onOutput: (message: string, isError: boolean) => void = () => { }): CancelablePromise<number> {
+		return createCancelablePromise<number>(token => {
 			return new Promise((resolve, reject) => {
 				if (token.isCancellationRequested) {
-					resolve();
+					resolve(-1);
 				}
 				let tunnelProcess: ChildProcess | undefined;
 				token.onCancellationRequested(() => {
@@ -265,11 +317,7 @@ export class RemoteTunnelService extends Disposable implements IRemoteTunnelServ
 					if (tunnelProcess) {
 						onOutput(`${logLabel} exit(${tunnelProcess.pid}): + ${e} `, false);
 						tunnelProcess = undefined;
-						if (e === 0) {
-							resolve();
-						} else {
-							reject();
-						}
+						resolve(e || 0);
 					}
 				});
 				tunnelProcess.on('error', e => {
@@ -297,4 +345,30 @@ export class RemoteTunnelService extends Disposable implements IRemoteTunnelServ
 		return name || undefined;
 	}
 
+	private _restoreAccount(): IRemoteTunnelAccount | undefined {
+		try {
+			const tunnelAccessAccount = this.storageService.get(TUNNEL_ACCESS_ACCOUNT, StorageScope.APPLICATION);
+			if (tunnelAccessAccount) {
+				const account = JSON.parse(tunnelAccessAccount) as IRemoteTunnelAccount;
+				if (account && isString(account.accountLabel) && isString(account.providerId) && isString(account.token)) {
+					return account;
+				}
+				this._logger.error('Problems restoring account from storage, invalid format', account);
+			}
+		} catch (e) {
+			this._logger.error('Problems restoring account from storage', e);
+		}
+		return undefined;
+	}
+
+	private _storeAccount(account: IRemoteTunnelAccount | undefined): void {
+		if (account) {
+			this.storageService.store(TUNNEL_ACCESS_ACCOUNT, JSON.stringify(account), StorageScope.APPLICATION, StorageTarget.MACHINE);
+		} else {
+			this.storageService.remove(TUNNEL_ACCESS_ACCOUNT, StorageScope.APPLICATION);
+		}
+	}
+
+
 }
+

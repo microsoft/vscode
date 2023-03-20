@@ -171,6 +171,8 @@ export class RemoteTunnelWorkbenchContribution extends Disposable implements IWo
 	}
 
 	private async recommendRemoteExtensionIfNeeded() {
+		await this.extensionService.whenInstalledExtensionsRegistered();
+
 		const remoteExtension = this.serverConfiguration.extension;
 		const shouldRecommend = async () => {
 			if (this.storageService.getBoolean(REMOTE_TUNNEL_EXTENSION_RECOMMENDED_KEY, StorageScope.APPLICATION)) {
@@ -248,31 +250,47 @@ export class RemoteTunnelWorkbenchContribution extends Disposable implements IWo
 
 
 	private async initialize(): Promise<void> {
-		const status = await this.remoteTunnelService.getTunnelStatus();
-		if (status.type === 'connected') {
-			this.connectionInfo = status.info;
-			this.connectionStateContext.set('connected');
-			return;
-		}
-		await this.extensionService.whenInstalledExtensionsRegistered();
+		return await this.progressService.withProgress(
+			{
+				location: ProgressLocation.Window,
+				title: localize({ key: 'initialize.progress.title', comment: ['Only translate \'Looking for remote tunnel\', do not change the format of the rest (markdown link format)'] }, "[Looking for remote tunnel](command:{0})", RemoteTunnelCommandIds.showLog),
+			},
+			async (progress: IProgress<IProgressStep>) => {
+				const listener = this.remoteTunnelService.onDidChangeTunnelStatus(status => {
+					switch (status.type) {
+						case 'connecting':
+							if (status.progress) {
+								progress.report({ message: status.progress });
+							}
+							break;
+					}
+				});
+				const status = await this.remoteTunnelService.getTunnelStatus();
+				listener.dispose();
 
-		await this.startTunnel(true);
+				if (status.type === 'connected') {
+					this.connectionInfo = status.info;
+					this.connectionStateContext.set('connected');
+					return;
+				}
+			}
+		);
 	}
 
-	private async startTunnel(silent: boolean): Promise<ConnectionInfo | undefined> {
-		if (this.#authenticationSessionId !== undefined && this.connectionInfo) {
+	private async startTunnel(): Promise<ConnectionInfo | undefined> {
+		if (this.connectionInfo) {
 			return this.connectionInfo;
 		}
 
-		const authenticationSession = await this.getAuthenticationSession(silent);
+		const authenticationSession = await this.getAuthenticationSession(false);
 		if (authenticationSession === undefined) {
 			return undefined;
 		}
 
 		return await this.progressService.withProgress(
 			{
-				location: silent ? ProgressLocation.Window : ProgressLocation.Notification,
-				title: localize({ key: 'progress.title', comment: ['Only translate \'Starting remote tunnel\', do not change the format of the rest (markdown link format)'] }, "[Starting remote tunnel](command:{0})", RemoteTunnelCommandIds.showLog),
+				location: ProgressLocation.Notification,
+				title: localize({ key: 'startTunnel.progress.title', comment: ['Only translate \'Starting remote tunnel\', do not change the format of the rest (markdown link format)'] }, "[Starting remote tunnel](command:{0})", RemoteTunnelCommandIds.showLog),
 			},
 			(progress: IProgress<IProgressStep>) => {
 				return new Promise<ConnectionInfo | undefined>((s, e) => {
@@ -518,7 +536,7 @@ export class RemoteTunnelWorkbenchContribution extends Disposable implements IWo
 					storageService.store(REMOTE_TUNNEL_PROMPTED_PREVIEW_STORAGE_KEY, true, StorageScope.APPLICATION, StorageTarget.USER);
 				}
 
-				const connectionInfo = await that.startTunnel(false);
+				const connectionInfo = await that.startTunnel();
 				if (connectionInfo) {
 					const linkToOpen = that.getLinkToOpen(connectionInfo);
 					const remoteExtension = that.serverConfiguration.extension;
