@@ -73,9 +73,9 @@ declare module 'vscode' {
 	}
 
 	export interface InteractiveSession {
-		// TODO Will be required
-		requester?: InteractiveSessionParticipantInformation;
-		responder?: InteractiveSessionParticipantInformation;
+		requester: InteractiveSessionParticipantInformation;
+		responder: InteractiveSessionParticipantInformation;
+		inputPlaceholder?: string;
 
 		saveState?(): InteractiveSessionState;
 	}

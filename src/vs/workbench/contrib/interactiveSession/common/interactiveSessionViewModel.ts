@@ -30,6 +30,7 @@ export interface IInteractiveSessionViewModel {
 	readonly onDidDisposeModel: Event<void>;
 	readonly onDidChange: Event<void>;
 	readonly welcomeMessage: IInteractiveWelcomeMessageViewModel | undefined;
+	readonly inputPlaceholder?: string;
 	getItems(): (IInteractiveRequestViewModel | IInteractiveResponseViewModel)[];
 }
 
@@ -83,6 +84,10 @@ export class InteractiveSessionViewModel extends Disposable implements IInteract
 	readonly onDidChange = this._onDidChange.event;
 
 	private readonly _items: (IInteractiveRequestViewModel | IInteractiveResponseViewModel)[] = [];
+
+	get inputPlaceholder(): string | undefined {
+		return this._model.inputPlaceholder;
+	}
 
 	get welcomeMessage() {
 		return this._model.welcomeMessage;
