@@ -178,13 +178,13 @@ export class AccessibleBufferWidget extends DisposableStore {
 		const quickPickItems: IQuickPickItem[] = [];
 		for (const command of commands) {
 			const line = command.marker?.line;
+			if (!line || !command.command.length) {
+				continue;
+			}
 			// We want to put the cursor where the command started, but on Windows, the
 			// command will be wrapped so we need to subtract the number of wrapped lines
 			// to get the correct editor line number.
 			const wrappedCount = command.command.split('\n').length;
-			if (!line || !command.command.length) {
-				continue;
-			}
 			quickPickItems.push(
 				{
 					label: localize('terminal.integrated.symbolQuickPick.labelNoExitCode', '{0}', command.command),
