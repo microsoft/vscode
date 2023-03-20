@@ -103,7 +103,7 @@ export class RemoteTunnelService extends Disposable implements IRemoteTunnelServ
 			this._logger.info('Initializing tunnel status');
 			this._isInitialized = true;
 			const tunnelAccessAccount = this._restoreAccount();
-			await this.updateAccount(tunnelAccessAccount);
+			await this.updateAccount(tunnelAccessAccount, true);
 			this._logger.info('Initializing tunnel status completed: ' + this._tunnelStatus.type);
 		}
 		return this._tunnelStatus;
@@ -118,8 +118,8 @@ export class RemoteTunnelService extends Disposable implements IRemoteTunnelServ
 		return this._account;
 	}
 
-	async updateAccount(account: IRemoteTunnelAccount | undefined): Promise<TunnelStatus> {
-		if (account && this._account ? account.token !== this._account.token || account.providerId !== this._account.providerId : account !== this._account) {
+	async updateAccount(account: IRemoteTunnelAccount | undefined, force: boolean = false): Promise<TunnelStatus> {
+		if (isDifferentAccount(account, this._account) || force) {
 			this._account = account;
 			this._onDidChangeAccountEmitter.fire(account);
 
@@ -161,63 +161,77 @@ export class RemoteTunnelService extends Disposable implements IRemoteTunnelServ
 		return this._tunnelCommand;
 	}
 
+	async stopTunnel(): Promise<void> {
+		this._account = undefined;
+		this._storeAccount(undefined);
+
+
+		if (this._tunnelProcess) {
+			this._tunnelProcess.cancel();
+			this._tunnelProcess = undefined;
+		}
+
+		const onOutput = (a: string, isErr: boolean) => {
+			if (isErr) {
+				this._logger.error(a);
+			} else {
+				this._logger.info(a);
+			}
+		};
+		try {
+			await this.runCodeTunneCommand('stop', ['kill'], onOutput);
+		} catch (e) {
+			this._logger.error(e);
+		}
+		this.setTunnelStatus(TunnelStates.disconnected);
+
+	}
+
 	private async updateTunnelProcess(): Promise<void> {
 		if (this._tunnelProcess) {
 			this._tunnelProcess.cancel();
 			this._tunnelProcess = undefined;
 		}
 
-		if (!this._account) {
-			// check if there is another tunnel running in the background
+		let isAttached = false;
 
-			const onOutput = (a: string, isErr: boolean) => {
-				if (isErr) {
-					this._logger.error(a);
-				} else {
-					this._logger.info(a);
-				}
-				if (!this.environmentService.isBuilt && a.startsWith('   Compiling')) {
-					this.setTunnelStatus(TunnelStates.connecting(localize('remoteTunnelService.building', 'Building CLI from sources')));
-				}
-			};
+		const onOutput = (a: string, isErr: boolean) => {
+			if (isErr) {
+				this._logger.error(a);
+			} else {
+				this._logger.info(a);
+			}
+			if (!this.environmentService.isBuilt && a.startsWith('   Compiling')) {
+				this.setTunnelStatus(TunnelStates.connecting(localize('remoteTunnelService.building', 'Building CLI from sources')));
+			}
+		};
 
-			const statusProcess = this.runCodeTunneCommand('status', ['status'], onOutput);
-			this._tunnelProcess = statusProcess;
-			try {
-				const status = await statusProcess;
-				if (this._tunnelProcess !== statusProcess) {
-					return;
-				}
-				if (status !== 0) {
-					this._logger.info('No other tunnel running');
-					this.setTunnelStatus(TunnelStates.disconnected);
-					return;
-				}
-				this._logger.info('Other tunnel running, tracking...');
-			} catch (e) {
-				this._logger.error(e);
-				this._tunnelProcess = undefined;
-				this._onDidTokenFailedEmitter.fire(true);
-				this.setTunnelStatus(TunnelStates.disconnected);
+		const statusProcess = this.runCodeTunneCommand('status', ['status'], onOutput);
+		this._tunnelProcess = statusProcess;
+		try {
+			const status = await statusProcess;
+			if (this._tunnelProcess !== statusProcess) {
 				return;
 			}
+			isAttached = status === 0;
+			this._logger.info(isAttached ? 'Other tunnel running, attaching...' : 'No other tunnel running');
+		} catch (e) {
+			this._logger.error(e);
+			this._tunnelProcess = undefined;
+			this._onDidTokenFailedEmitter.fire(true);
+			this.setTunnelStatus(TunnelStates.disconnected);
 			return;
-		} else {
+		}
+
+		if (this._account) {
 			const { token, providerId, accountLabel: accountName } = this._account;
 
 			this.setTunnelStatus(TunnelStates.connecting(localize({ key: 'remoteTunnelService.authorizing', comment: ['{0} is a user account name, {1} a provider name (e.g. Github)'] }, 'Connecting as {0} ({1})', accountName, providerId)));
-			const onOutput = (a: string, isErr: boolean) => {
+			const onLoginOutput = (a: string, isErr: boolean) => {
 				a = a.replaceAll(token, '*'.repeat(4));
-				if (isErr) {
-					this._logger.error(a);
-				} else {
-					this._logger.info(a);
-				}
-				if (!this.environmentService.isBuilt && a.startsWith('   Compiling')) {
-					this.setTunnelStatus(TunnelStates.connecting(localize('remoteTunnelService.building', 'Building CLI from sources')));
-				}
+				onOutput(a, isErr);
 			};
-			const loginProcess = this.runCodeTunneCommand('login', ['user', 'login', '--provider', providerId, '--access-token', token, '--log', LogLevelToString(this._logger.getLevel())], onOutput);
+			const loginProcess = this.runCodeTunneCommand('login', ['user', 'login', '--provider', providerId, '--access-token', token, '--log', LogLevelToString(this._logger.getLevel())], onLoginOutput);
 			this._tunnelProcess = loginProcess;
 			try {
 				await loginProcess;
@@ -256,7 +270,7 @@ export class RemoteTunnelService extends Disposable implements IRemoteTunnelServ
 			}
 			const m = message.match(/Open this link in your browser (https:\/\/([^\/\s]+)\/([^\/\s]+)\/([^\/\s]+))/);
 			if (m) {
-				const info: ConnectionInfo = { link: m[1], domain: m[2], hostName: m[4] };
+				const info: ConnectionInfo = { link: m[1], domain: m[2], hostName: m[4], isAttached };
 				this.setTunnelStatus(TunnelStates.connected(info));
 			} else if (message.match(/error refreshing token/)) {
 				serveCommand.cancel();
@@ -370,5 +384,12 @@ export class RemoteTunnelService extends Disposable implements IRemoteTunnelServ
 	}
 
 
+}
+
+function isDifferentAccount(a1: IRemoteTunnelAccount | undefined, a2: IRemoteTunnelAccount | undefined): boolean {
+	if (a1 && a2) {
+		return a1.token !== a2.token || a1.providerId !== a2.providerId;
+	}
+	return a1 !== a2;
 }
 

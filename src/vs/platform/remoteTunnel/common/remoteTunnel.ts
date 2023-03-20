@@ -59,6 +59,7 @@ export interface ConnectionInfo {
 	link: string;
 	domain: string;
 	hostName: string;
+	isAttached: boolean;
 }
 
 export const CONFIGURATION_KEY_PREFIX = 'remote.tunnels.access';
