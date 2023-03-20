@@ -839,6 +839,7 @@ export class InteractiveEditorController implements IEditorContribution {
 			const refer = session.slashCommands?.some(value => value.refer && input.value.startsWith(`/${value.command}`));
 			if (refer) {
 				this._logService.info('[IE] seeing refer command, continuing outside editor', provider.debugName);
+				this._editor.setSelection(wholeRange);
 				this._instaService.invokeFunction(showMessageResponse, input.value);
 				continue;
 			}
