@@ -26,7 +26,7 @@ import * as languages from 'vs/editor/common/languages';
 import { CharacterPair, CommentRule, EnterAction } from 'vs/editor/common/languages/languageConfiguration';
 import { EndOfLineSequence } from 'vs/editor/common/model';
 import { IModelChangedEvent } from 'vs/editor/common/model/mirrorTextModel';
-import { IInteractiveEditorRequest, IInteractiveEditorResponse, IInteractiveEditorSession } from 'vs/editor/contrib/interactive/common/interactiveEditor';
+import { IInteractiveEditorRequest, IInteractiveEditorResponse, IInteractiveEditorSession } from 'vs/workbench/contrib/interactiveEditor/common/interactiveEditor';
 import { IAccessibilityInformation } from 'vs/platform/accessibility/common/accessibility';
 import { ConfigurationTarget, IConfigurationChange, IConfigurationData, IConfigurationOverrides } from 'vs/platform/configuration/common/configuration';
 import { ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
@@ -52,7 +52,7 @@ import { IRevealOptions, ITreeItem, IViewBadge } from 'vs/workbench/common/views
 import { CallHierarchyItem } from 'vs/workbench/contrib/callHierarchy/common/callHierarchy';
 import { DebugConfigurationProviderTriggerKind, IAdapterDescriptor, IConfig, IDebugSessionReplMode } from 'vs/workbench/contrib/debug/common/debug';
 import { IInteractiveResponseErrorDetails } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionModel';
-import { IInteractiveProgress, IInteractiveSessionFollowup, IInteractiveSessionUserActionEvent, IInteractiveSlashCommand } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionService';
+import { IInteractiveProgress, IInteractiveSessionDynamicRequest, IInteractiveSessionFollowup, IInteractiveSessionReplyFollowup, IInteractiveSessionUserActionEvent, IInteractiveSlashCommand } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionService';
 import * as notebookCommon from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { CellExecutionUpdateType } from 'vs/workbench/contrib/notebook/common/notebookExecutionService';
 import { ICellExecutionComplete, ICellExecutionStateUpdate } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
@@ -115,7 +115,7 @@ export interface CommentChanges {
 	readonly uniqueIdInThread: number;
 	readonly body: string | IMarkdownString;
 	readonly userName: string;
-	readonly userIconPath?: string;
+	readonly userIconPath?: UriComponents;
 	readonly contextValue?: string;
 	readonly commentReactions?: languages.CommentReaction[];
 	readonly label?: string;
@@ -124,7 +124,7 @@ export interface CommentChanges {
 }
 
 export type CommentThreadChanges<T = IRange> = Partial<{
-	range: T;
+	range: T | undefined;
 	label: string;
 	contextValue: string | null;
 	comments: CommentChanges[];
@@ -138,7 +138,7 @@ export interface MainThreadCommentsShape extends IDisposable {
 	$registerCommentController(handle: number, id: string, label: string): void;
 	$unregisterCommentController(handle: number): void;
 	$updateCommentControllerFeatures(handle: number, features: CommentProviderFeatures): void;
-	$createCommentThread(handle: number, commentThreadHandle: number, threadId: string, resource: UriComponents, range: IRange | ICellRange, extensionId: ExtensionIdentifier, isTemplate: boolean): languages.CommentThread<IRange | ICellRange> | undefined;
+	$createCommentThread(handle: number, commentThreadHandle: number, threadId: string, resource: UriComponents, range: IRange | ICellRange | undefined, extensionId: ExtensionIdentifier, isTemplate: boolean): languages.CommentThread<IRange | ICellRange> | undefined;
 	$updateCommentThread(handle: number, commentThreadHandle: number, threadId: string, resource: UriComponents, changes: CommentThreadChanges): void;
 	$deleteCommentThread(handle: number, commentThreadHandle: number): void;
 	$updateCommentingRanges(handle: number): void;
@@ -150,6 +150,7 @@ export interface MainThreadAuthenticationShape extends IDisposable {
 	$ensureProvider(id: string): Promise<void>;
 	$sendDidChangeSessions(providerId: string, event: AuthenticationSessionsChangeEvent): void;
 	$getSession(providerId: string, scopes: readonly string[], extensionId: string, extensionName: string, options: { createIfNone?: boolean; forceNewSession?: boolean | { detail: string }; clearSessionPreference?: boolean }): Promise<AuthenticationSession | undefined>;
+	$getSessions(providerId: string, scopes: readonly string[], extensionId: string, extensionName: string): Promise<AuthenticationSession[]>;
 	$removeSession(providerId: string, sessionId: string): Promise<void>;
 }
 
@@ -1005,7 +1006,6 @@ export interface INotebookKernelDto2 {
 	label: string;
 	detail?: string;
 	description?: string;
-	kind?: string;
 	supportedLanguages?: string[];
 	supportsInterrupt?: boolean;
 	supportsExecutionOrder?: boolean;
@@ -1076,9 +1076,11 @@ export interface MainThreadInteractiveEditorShape extends IDisposable {
 	$unregisterInteractiveEditorProvider(handle: number): Promise<void>;
 }
 
+export type IInteractiveEditorResponseDto = Dto<IInteractiveEditorResponse>;
+
 export interface ExtHostInteractiveEditorShape {
 	$prepareInteractiveSession(handle: number, uri: UriComponents, range: ISelection, token: CancellationToken): Promise<IInteractiveEditorSession | undefined>;
-	$provideResponse(handle: number, session: IInteractiveEditorSession, request: IInteractiveEditorRequest, token: CancellationToken): Promise<IInteractiveEditorResponse | undefined>;
+	$provideResponse(handle: number, session: IInteractiveEditorSession, request: IInteractiveEditorRequest, token: CancellationToken): Promise<IInteractiveEditorResponseDto | undefined>;
 	$releaseSession(handle: number, sessionId: number): void;
 }
 
@@ -1097,7 +1099,7 @@ export interface IInteractiveSessionDto {
 }
 
 export interface IInteractiveRequestDto {
-	message: string;
+	message: string | IInteractiveSessionReplyFollowup;
 }
 
 export interface IInteractiveResponseDto {
@@ -1112,6 +1114,7 @@ export interface MainThreadInteractiveSessionShape extends IDisposable {
 	$registerInteractiveSessionProvider(handle: number, id: string, implementsProgress: boolean): Promise<void>;
 	$acceptInteractiveSessionState(sessionId: number, state: any): Promise<void>;
 	$addInteractiveSessionRequest(context: any): void;
+	$sendInteractiveRequestToProvider(providerId: string, message: IInteractiveSessionDynamicRequest): void;
 	$unregisterInteractiveSessionProvider(handle: number): Promise<void>;
 	$acceptInteractiveResponseProgress(handle: number, sessionId: number, progress: IInteractiveProgress): void;
 }
@@ -1120,6 +1123,7 @@ export interface ExtHostInteractiveSessionShape {
 	$prepareInteractiveSession(handle: number, initialState: any, token: CancellationToken): Promise<IInteractiveSessionDto | undefined>;
 	$resolveInteractiveRequest(handle: number, sessionId: number, context: any, token: CancellationToken): Promise<Omit<IInteractiveRequestDto, 'id'> | undefined>;
 	$provideInitialSuggestions(handle: number, token: CancellationToken): Promise<string[] | undefined>;
+	$provideWelcomeMessage(handle: number, token: CancellationToken): Promise<(string | IInteractiveSessionReplyFollowup[])[] | undefined>;
 	$provideFollowups(handle: number, sessionId: number, token: CancellationToken): Promise<IInteractiveSessionFollowup[] | undefined>;
 	$provideInteractiveReply(handle: number, sessionId: number, request: IInteractiveRequestDto, token: CancellationToken): Promise<IInteractiveResponseDto | undefined>;
 	$provideSlashCommands(handle: number, sessionId: number, token: CancellationToken): Promise<IInteractiveSlashCommand[] | undefined>;
@@ -2050,6 +2054,7 @@ export interface ExtHostLogLevelServiceShape {
 
 export interface MainThreadLoggerShape {
 	$log(file: UriComponents, messages: [LogLevel, string][]): void;
+	$flush(file: UriComponents): void;
 	$createLogger(file: UriComponents, options?: ILoggerOptions): Promise<void>;
 	$registerLogger(logger: UriDto<ILoggerResource>): Promise<void>;
 	$deregisterLogger(resource: UriComponents): Promise<void>;
@@ -2159,6 +2164,10 @@ export interface ExtHostNotebookShape extends ExtHostNotebookDocumentsAndEditors
 
 	$dataToNotebook(handle: number, data: VSBuffer, token: CancellationToken): Promise<SerializableObjectWithBuffers<NotebookDataDto>>;
 	$notebookToData(handle: number, data: SerializableObjectWithBuffers<NotebookDataDto>, token: CancellationToken): Promise<VSBuffer>;
+}
+
+export interface ExtHostNotebookDocumentSaveParticipantShape {
+	$participateInSave(resource: UriComponents, reason: SaveReason, token: CancellationToken): Promise<boolean>;
 }
 
 export interface ExtHostNotebookRenderersShape {
@@ -2487,6 +2496,7 @@ export const ExtHostContext = {
 	ExtHostNotebookEditors: createProxyIdentifier<ExtHostNotebookEditorsShape>('ExtHostNotebookEditors'),
 	ExtHostNotebookKernels: createProxyIdentifier<ExtHostNotebookKernelsShape>('ExtHostNotebookKernels'),
 	ExtHostNotebookRenderers: createProxyIdentifier<ExtHostNotebookRenderersShape>('ExtHostNotebookRenderers'),
+	ExtHostNotebookDocumentSaveParticipant: createProxyIdentifier<ExtHostNotebookDocumentSaveParticipantShape>('ExtHostNotebookDocumentSaveParticipant'),
 	ExtHostInteractive: createProxyIdentifier<ExtHostInteractiveShape>('ExtHostInteractive'),
 	ExtHostInteractiveEditor: createProxyIdentifier<ExtHostInteractiveEditorShape>('ExtHostInteractiveEditor'),
 	ExtHostInteractiveSession: createProxyIdentifier<ExtHostInteractiveSessionShape>('ExtHostInteractiveSession'),

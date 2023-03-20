@@ -20,8 +20,8 @@ import { IExtensionService } from 'vs/workbench/services/extensions/common/exten
 
 
 export class GettingStartedDetailsRenderer {
-	private mdCache = new ResourceMap<Promise<string>>();
-	private svgCache = new ResourceMap<Promise<string>>();
+	private mdCache = new ResourceMap<string>();
+	private svgCache = new ResourceMap<string>();
 
 	constructor(
 		@IFileService private readonly fileService: IFileService,
@@ -125,6 +125,11 @@ export class GettingStartedDetailsRenderer {
 			</body>
 			<script nonce="${nonce}">
 				const vscode = acquireVsCodeApi();
+
+				window.addEventListener('unload', event => {
+					vscode.postMessage('unloaded');
+				});
+
 				document.querySelectorAll('[when-checked]').forEach(el => {
 					el.addEventListener('click', () => {
 						vscode.postMessage(el.getAttribute('when-checked'));
@@ -199,18 +204,19 @@ export class GettingStartedDetailsRenderer {
 		</html>`;
 	}
 
-	private readAndCacheSVGFile(path: URI): Promise<string> {
+	private async readAndCacheSVGFile(path: URI): Promise<string> {
 		if (!this.svgCache.has(path)) {
-			this.svgCache.set(path, this.readContentsOfPath(path, false));
+			const contents = await this.readContentsOfPath(path, false);
+			this.svgCache.set(path, contents);
 		}
 		return assertIsDefined(this.svgCache.get(path));
 	}
 
-	private readAndCacheStepMarkdown(path: URI, base: URI): Promise<string> {
+	private async readAndCacheStepMarkdown(path: URI, base: URI): Promise<string> {
 		if (!this.mdCache.has(path)) {
-			this.mdCache.set(path,
-				this.readContentsOfPath(path).then(rawContents =>
-					renderMarkdownDocument(transformUris(rawContents, base), this.extensionService, this.languageService, true, true)));
+			const contents = await this.readContentsOfPath(path);
+			const markdownContents = await renderMarkdownDocument(transformUris(contents, base), this.extensionService, this.languageService, true, true);
+			this.mdCache.set(path, markdownContents);
 		}
 		return assertIsDefined(this.mdCache.get(path));
 	}

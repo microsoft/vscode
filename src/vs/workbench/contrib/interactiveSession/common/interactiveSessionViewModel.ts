@@ -9,22 +9,27 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILogService } from 'vs/platform/log/common/log';
-import { IInteractiveRequestModel, IInteractiveResponseErrorDetails, IInteractiveResponseModel, IInteractiveSessionModel } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionModel';
+import { IInteractiveRequestModel, IInteractiveResponseErrorDetails, IInteractiveResponseModel, IInteractiveSessionModel, IInteractiveSessionWelcomeMessageModel, IInteractiveWelcomeMessageContent } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionModel';
 import { IInteractiveSessionReplyFollowup, IInteractiveSessionResponseCommandFollowup, IInteractiveSessionService } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionService';
 import { countWords } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionWordCounter';
 
 export function isRequestVM(item: unknown): item is IInteractiveRequestViewModel {
-	return !isResponseVM(item);
+	return !!item && typeof item === 'object' && 'message' in item;
 }
 
 export function isResponseVM(item: unknown): item is IInteractiveResponseViewModel {
 	return !!item && typeof (item as IInteractiveResponseViewModel).onDidChange !== 'undefined';
 }
 
+export function isWelcomeVM(item: unknown): item is IInteractiveWelcomeMessageViewModel {
+	return !!item && typeof item === 'object' && 'content' in item;
+}
+
 export interface IInteractiveSessionViewModel {
-	sessionId: number;
-	onDidDisposeModel: Event<void>;
-	onDidChange: Event<void>;
+	readonly sessionId: number;
+	readonly onDidDisposeModel: Event<void>;
+	readonly onDidChange: Event<void>;
+	readonly welcomeMessage: IInteractiveWelcomeMessageViewModel | undefined;
 	getItems(): (IInteractiveRequestViewModel | IInteractiveResponseViewModel)[];
 }
 
@@ -32,7 +37,8 @@ export interface IInteractiveRequestViewModel {
 	readonly id: string;
 	readonly username: string;
 	readonly avatarIconUri?: URI;
-	readonly message: string;
+	readonly message: string | IInteractiveSessionReplyFollowup;
+	readonly messageText: string;
 	currentRenderedHeight: number | undefined;
 }
 
@@ -58,6 +64,7 @@ export interface IInteractiveResponseViewModel {
 	readonly avatarIconUri?: URI;
 	readonly response: IMarkdownString;
 	readonly isComplete: boolean;
+	readonly isCanceled: boolean;
 	readonly isPlaceholder: boolean;
 	readonly replyFollowups?: IInteractiveSessionReplyFollowup[];
 	readonly commandFollowups?: IInteractiveSessionResponseCommandFollowup[];
@@ -76,6 +83,10 @@ export class InteractiveSessionViewModel extends Disposable implements IInteract
 	readonly onDidChange = this._onDidChange.event;
 
 	private readonly _items: (IInteractiveRequestViewModel | IInteractiveResponseViewModel)[] = [];
+
+	get welcomeMessage() {
+		return this._model.welcomeMessage;
+	}
 
 	get sessionId() {
 		return this._model.sessionId;
@@ -127,7 +138,7 @@ export class InteractiveSessionViewModel extends Disposable implements IInteract
 	}
 
 	getItems() {
-		return this._items;
+		return [...this._items];
 	}
 
 	override dispose() {
@@ -153,6 +164,10 @@ export class InteractiveRequestViewModel implements IInteractiveRequestViewModel
 
 	get message() {
 		return this._model.message;
+	}
+
+	get messageText() {
+		return typeof this.message === 'string' ? this.message : this.message.message;
 	}
 
 	currentRenderedHeight: number | undefined;
@@ -201,6 +216,10 @@ export class InteractiveResponseViewModel extends Disposable implements IInterac
 
 	get isComplete() {
 		return this._model.isComplete;
+	}
+
+	get isCanceled() {
+		return this._model.isCanceled;
 	}
 
 	get replyFollowups() {
@@ -287,4 +306,31 @@ export class InteractiveResponseViewModel extends Disposable implements IInterac
 	private trace(tag: string, message: string) {
 		this.logService.trace(`InteractiveResponseViewModel#${tag}: ${message}`);
 	}
+}
+
+export interface IInteractiveWelcomeMessageViewModel {
+	readonly id: string;
+	readonly username: string;
+	readonly avatarIconUri?: URI;
+	readonly content: IInteractiveWelcomeMessageContent[];
+}
+
+export class InteractiveWelcomeMessageViewModel implements IInteractiveWelcomeMessageViewModel {
+	get id() {
+		return this._model.id;
+	}
+
+	get username() {
+		return this._model.username;
+	}
+
+	get avatarIconUri() {
+		return this._model.avatarIconUri;
+	}
+
+	get content() {
+		return this._model.content;
+	}
+
+	constructor(readonly _model: IInteractiveSessionWelcomeMessageModel) { }
 }

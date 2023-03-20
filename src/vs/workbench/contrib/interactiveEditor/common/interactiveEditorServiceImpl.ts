@@ -20,7 +20,7 @@ export class InteractiveEditorServiceImpl implements IInteractiveEditorService {
 		this._ctxHasProvider = CTX_INTERACTIVE_EDITOR_HAS_PROVIDER.bindTo(contextKeyService);
 	}
 
-	add(provider: IInteractiveEditorSessionProvider): IDisposable {
+	addProvider(provider: IInteractiveEditorSessionProvider): IDisposable {
 
 		const rm = this._entries.push(provider);
 		this._ctxHasProvider.set(true);
@@ -31,7 +31,7 @@ export class InteractiveEditorServiceImpl implements IInteractiveEditorService {
 		});
 	}
 
-	getAll() {
+	getAllProvider() {
 		return [...this._entries];
 	}
 }

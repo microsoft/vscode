@@ -70,6 +70,7 @@ import { CheckboxStateHandler, TreeItemCheckbox } from 'vs/workbench/browser/par
 import { setTimeout0 } from 'vs/base/common/platform';
 import { AriaRole } from 'vs/base/browser/ui/aria/aria';
 import { TelemetryTrustedValue } from 'vs/platform/telemetry/common/telemetryUtils';
+import { ITreeViewsDnDService } from 'vs/editor/common/services/treeViewsDndService';
 
 export class TreeViewPane extends ViewPane {
 
@@ -1398,7 +1399,7 @@ class MultipleSelectionActionRunner extends ActionRunner {
 			selectionHandleArgs = undefined;
 		}
 
-		await action.run(...[context, selectionHandleArgs]);
+		await action.run(context, selectionHandleArgs);
 	}
 }
 
@@ -1539,7 +1540,7 @@ export class CustomTreeViewDragAndDrop implements ITreeDragAndDrop<ITreeItem> {
 		private readonly treeId: string,
 		@ILabelService private readonly labelService: ILabelService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@ITreeViewsService private readonly treeViewsDragAndDropService: ITreeViewsService,
+		@ITreeViewsDnDService private readonly treeViewsDragAndDropService: ITreeViewsDnDService,
 		@ILogService private readonly logService: ILogService) {
 		this.treeMimeType = `application/vnd.code.tree.${treeId.toLowerCase()}`;
 	}

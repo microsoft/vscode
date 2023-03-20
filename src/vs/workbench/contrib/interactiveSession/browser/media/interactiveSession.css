@@ -58,7 +58,7 @@
 }
 
 .interactive-list .interactive-item-container .header .avatar .codicon {
-	color: var(--vscode-badge-foreground);
+	color: var(--vscode-badge-foreground) !important;
 }
 
 .interactive-list .interactive-item-container .header .monaco-toolbar {
@@ -103,10 +103,17 @@
 
 .interactive-list .monaco-list-row .value {
 	white-space: normal;
+	min-height: 36px;
 }
 
 .interactive-list .monaco-list-row .value > :last-child:not(.rendered-markdown) {
+	/* The container has padding on all sides except the bottom. The last element needs to provide this margin. rendered-markdown has its own margin.
+		TODO Another approach could be removing the margin on the very last element inside the markdown container? */
 	margin-bottom: 16px;
+}
+
+.interactive-list .monaco-list-row .value > .interactive-response-error-details:not(:last-child) {
+	margin-bottom: 8px;
 }
 
 .interactive-list .monaco-list-row .value p {
@@ -119,31 +126,39 @@
 	font-family: var(--monaco-monospace-font);
 }
 
-.interactive-session .interactive-input-wrapper {
+.interactive-session .interactive-input-and-toolbar {
 	display: flex;
-	border-radius: 2px;
 	box-sizing: border-box;
 	cursor: text;
-	padding: 0px 12px;
-}
+	margin: 0px 12px;
 
-.interactive-session .interactive-input-wrapper .monaco-editor-background {
 	background-color: var(--vscode-input-background);
-	padding: 0 8px;
-}
-
-/* TODO @daviddossett only apply focus border on focus */
-.interactive-session .interactive-input-wrapper .monaco-editor {
-	border: 1px solid var(--vscode-focusBorder);
-}
-
-.interactive-session .interactive-input-wrapper .monaco-editor,
-.interactive-session .interactive-input-wrapper .monaco-editor .overflow-guard {
+	border: 1px solid var(--vscode-input-border, transparent);
 	border-radius: 4px;
+	position: relative;
+	padding-left: 8px;
 }
 
-.interactive-session .interactive-input-wrapper .monaco-editor .cursors-layer {
+.interactive-session .interactive-input-and-toolbar.focused {
+	border-color: var(--vscode-focusBorder);
+}
+
+.interactive-session .interactive-input-and-toolbar .monaco-editor,
+.interactive-session .interactive-input-and-toolbar .monaco-editor .monaco-editor-background {
+	background-color: transparent !important;
+}
+
+.interactive-session .interactive-input-and-toolbar .monaco-editor .cursors-layer {
 	padding-left: 4px;
+}
+
+.interactive-session .interactive-input-part .interactive-execute-toolbar {
+	position: absolute;
+	right: 3px;
+}
+
+.interactive-session .interactive-input-part .interactive-execute-toolbar .codicon-debug-stop {
+	color: var(--vscode-icon-foreground) !important;
 }
 
 .interactive-session .monaco-inputbox {
@@ -165,13 +180,22 @@
 	z-index: 100;
 }
 
+.interactive-session .interactive-result-editor-wrapper .monaco-toolbar .action-item {
+	height: 24px;
+	width: 24px;
+	margin: 1px 2px;
+}
+
+.interactive-session .interactive-result-editor-wrapper .monaco-toolbar .action-item .codicon {
+	margin: 1px;
+}
+
 .interactive-session .interactive-result-editor-wrapper:hover .monaco-toolbar {
 	display: initial;
 }
 
-.interactive-session .interactive-result-editor-wrapper .monaco-editor,
-.interactive-session .interactive-result-editor-wrapper .monaco-editor .overflow-guard {
-	border-radius: 4px;
+.interactive-session .interactive-result-editor-wrapper .interactive-result-editor {
+	border: 1px solid var(--vscode-input-border, transparent);
 }
 
 .interactive-session .interactive-response .monaco-editor .margin,
@@ -207,7 +231,7 @@
 	color: var(--vscode-errorForeground) !important; /* Have to override default styles which apply to all lists */
 }
 
-.interactive-session .interactive-request .value .interactive-slash-command {
+.interactive-session .interactive-item-container .value .interactive-slash-command {
 	color: var(--vscode-textLink-foreground);
 }
 
@@ -226,10 +250,6 @@
 
 .interactive-session .interactive-session-followups .monaco-button {
 	width: initial;
-	padding: 0px;
-	font-size: 11px;
-	font-weight: 600;
-	border: none;
 
 	color: var(--vscode-textLink-foreground);
 	justify-content: left;
@@ -240,10 +260,30 @@
 	margin-left: 0;
 }
 
+.interactive-session .interactive-response-followups .monaco-button {
+	padding: 4px 8px;
+}
+
 .interactive-session .interactive-input-part .interactive-input-followups {
-	padding: 0px 20px;
+	margin: 0px 20px;
 }
 
 .interactive-session .interactive-input-part .interactive-input-followups .interactive-session-followups {
 	margin-bottom: 8px;
+}
+
+.interactive-session .interactive-session-followups .monaco-button.interactive-followup-reply {
+	padding: 0px;
+	font-size: 11px;
+	font-weight: 600;
+	border: none;
+}
+
+.interactive-session .interactive-welcome .value .interactive-session-followups {
+	margin-bottom: 10px;
+}
+
+.interactive-list .interactive-item-container .monaco-toolbar .codicon {
+	/* Very aggressive list styles try to apply focus colors to every codicon in a list row. */
+	color: var(--vscode-foreground) !important;
 }

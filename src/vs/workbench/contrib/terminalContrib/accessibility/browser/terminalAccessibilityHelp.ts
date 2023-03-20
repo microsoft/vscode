@@ -81,6 +81,8 @@ export class AccessibilityHelpWidget extends Widget {
 		const focusAccessibleBufferNls = localize('focusAccessibleBuffer', 'The Focus Accessible Buffer ({0}) command enables screen readers to read terminal contents.');
 		const focusAccessibleBufferNoKb = localize('focusAccessibleBufferNoKb', 'The Focus Accessible Buffer command enables screen readers to read terminal contents and is currently not triggerable by a keybinding.');
 		const shellIntegration = localize('shellIntegration', "The terminal has a feature called shell integration that offers an enhanced experience and provides useful commands for screen readers such as:");
+		const navigateAccessibleBuffer = localize('navigateAccessibleBuffer', 'Navigate Accessible Buffer ({0})');
+		const navigateAccessibleBufferNoKb = localize('navigateAccessibleBufferNoKb', 'Navigate Accessible Buffer is currently not triggerable by a keybinding.');
 		const runRecentCommand = localize('runRecentCommand', 'Run Recent Command ({0})');
 		const runRecentCommandNoKb = localize('runRecentCommandNoKb', 'Run Recent Command is currently not triggerable by a keybinding.');
 		const goToRecentNoShellIntegration = localize('goToRecentDirectoryNoShellIntegration', 'The Go to Recent Directory command ({0}) enables screen readers to easily navigate to a directory that has been used in the terminal.');
@@ -103,7 +105,9 @@ export class AccessibilityHelpWidget extends Widget {
 		}
 		if (this._hasShellIntegration) {
 			content.push(shellIntegration);
-			content.push('- ' + this._descriptionForCommand(TerminalCommandId.RunRecentCommand, runRecentCommand, runRecentCommandNoKb) + '\n- ' + this._descriptionForCommand(TerminalCommandId.GoToRecentDirectory, goToRecent, goToRecentNoKb));
+			content.push('- ' + this._descriptionForCommand(TerminalCommandId.NavigateAccessibleBuffer, navigateAccessibleBuffer, navigateAccessibleBufferNoKb));
+			content.push('- ' + this._descriptionForCommand(TerminalCommandId.RunRecentCommand, runRecentCommand, runRecentCommandNoKb));
+			content.push('- ' + this._descriptionForCommand(TerminalCommandId.GoToRecentDirectory, goToRecent, goToRecentNoKb));
 		} else {
 			content.push(this._descriptionForCommand(TerminalCommandId.GoToRecentDirectory, goToRecentNoShellIntegration, goToRecentNoKbNoShellIntegration));
 		}

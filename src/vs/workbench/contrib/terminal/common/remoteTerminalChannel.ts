@@ -208,7 +208,7 @@ export class RemoteTerminalChannelClient implements IPtyHostController {
 	processBinary(id: number, data: string): Promise<void> {
 		return this._channel.call('$processBinary', [id, data]);
 	}
-	start(id: number): Promise<ITerminalLaunchError | void> {
+	start(id: number): Promise<ITerminalLaunchError | { injectedArgs: string[] } | undefined> {
 		return this._channel.call('$start', [id]);
 	}
 	input(id: number, data: string): Promise<void> {

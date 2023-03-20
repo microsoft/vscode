@@ -22,6 +22,7 @@ import { registerTerminalContribution } from 'vs/workbench/contrib/terminal/brow
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { Terminal } from 'xterm';
 import { TerminalWidgetManager } from 'vs/workbench/contrib/terminal/browser/widgets/widgetManager';
+import { IQuickPick, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
 
 const category = terminalStrings.actionCategory;
 
@@ -40,14 +41,17 @@ class AccessibleBufferContribution extends DisposableStore implements ITerminalC
 	) {
 		super();
 	}
-
-	xtermReady(xterm: IXtermTerminal & { raw: Terminal }): void {
-		this._instance.containerReadyBarrier.wait().then(() => {
-			this._accessibleBufferWidget = this._instantiationService.createInstance(AccessibleBufferWidget, this._instance.instanceId, xterm);
-		});
+	layout(xterm: IXtermTerminal & { raw: Terminal }): void {
+		if (!this._accessibleBufferWidget) {
+			this._accessibleBufferWidget = this._instantiationService.createInstance(AccessibleBufferWidget, this._instance, xterm);
+		}
 	}
-	show(): void {
-		this._accessibleBufferWidget?.show();
+	async show(): Promise<void> {
+		await this._accessibleBufferWidget?.show();
+	}
+
+	async createCommandQuickPick(): Promise<IQuickPick<IQuickPickItem> | undefined> {
+		return this._accessibleBufferWidget?.createQuickPick();
 	}
 }
 registerTerminalContribution(AccessibleBufferContribution.ID, AccessibleBufferContribution);
@@ -116,7 +120,39 @@ registerAction2(class extends Action2 {
 		if (!instance) {
 			return;
 		}
-		AccessibleBufferContribution.get(instance)?.show();
+		await AccessibleBufferContribution.get(instance)?.show();
+	}
+});
+
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: TerminalCommandId.NavigateAccessibleBuffer,
+			title: { value: localize('workbench.action.terminal.navigateAccessibleBuffer', 'Navigate Accessible Buffer'), original: 'Navigate Accessible Buffer' },
+			f1: true,
+			category,
+			precondition: ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated),
+			keybinding: [
+				{
+					primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyO,
+					weight: KeybindingWeight.WorkbenchContrib + 2,
+					when: ContextKeyExpr.or(TerminalContextKeys.accessibleBufferFocus, ContextKeyExpr.and(CONTEXT_ACCESSIBILITY_MODE_ENABLED, TerminalContextKeys.focus))
+				}
+			],
+		});
+	}
+	async run(accessor: ServicesAccessor): Promise<void> {
+		const terminalService = accessor.get(ITerminalService);
+		const terminalGroupService = accessor.get(ITerminalGroupService);
+		const terminalEditorService = accessor.get(ITerminalEditorService);
+
+		const instance = await terminalService.getActiveOrCreateInstance();
+		await revealActiveTerminal(instance, terminalEditorService, terminalGroupService);
+		if (!instance) {
+			return;
+		}
+		const quickPick = await AccessibleBufferContribution.get(instance)?.createCommandQuickPick();
+		quickPick?.show();
 	}
 });
 

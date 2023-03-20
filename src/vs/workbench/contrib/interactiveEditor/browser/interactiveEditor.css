@@ -6,7 +6,7 @@
 .monaco-editor .interactive-editor {
 	z-index: 100;
 	color: inherit;
-	padding: 6px 0 6px 6px;
+	padding-top: 6px;
 }
 
 /* body */
@@ -15,47 +15,22 @@
 	display: flex;
 }
 
-.monaco-editor .interactive-editor .body .expando {
-	flex-grow: 0;
-	padding-top: 6px;
-	padding-right: 2px;
-	cursor: pointer;
-}
-
-.monaco-editor .interactive-editor .body .history {
-	display: block;
-	color: var(--vscode-descriptionForeground);
-}
-
-.monaco-editor .interactive-editor .body .history.hidden {
-	display: none;
-}
-
-.monaco-editor .interactive-editor .body .history .history-entry {
+.monaco-editor .interactive-editor .body .content {
 	display: flex;
-	justify-content: space-between;
-	padding: 2px
+	box-sizing: border-box;
+	border-radius: 2px;
+	border: 1px solid var(--vscode-input-border);
 }
 
-.monaco-editor .interactive-editor .body .history .history-entry.hidden {
-	display: none;
-}
-
-.monaco-editor .interactive-editor .body .history .history-entry:hover {
-	background-color: var(--vscode-list-hoverBackground);
-	color: var(--vscode-list-hoverForeground);
-}
-
-.monaco-editor .interactive-editor .body.preview {
-	padding: 4px 4px 0 4px;
+.monaco-editor .interactive-editor .body .content.synthetic-focus {
+	outline: 1px solid var(--vscode-focusBorder);
 }
 
 .monaco-editor .interactive-editor .body .content .input {
-	border-radius: 2px;
-	box-sizing: border-box;
-	padding: 2px;
+	padding: 2px 2px 2px 4px;
+	border-top-left-radius: 2px;
+	border-bottom-left-radius: 2px;
 	background-color: var(--vscode-input-background);
-	border: 1px solid var(--vscode-settings-textInputBorder);
 	cursor: text;
 }
 
@@ -63,16 +38,11 @@
 	background-color: var(--vscode-input-background);
 }
 
-.monaco-editor .interactive-editor .body .content .input.synthetic-focus {
-	outline: 1px solid var(--vscode-focusBorder);
-}
-
 .monaco-editor .interactive-editor .body .content .input .editor-placeholder {
 	position: absolute;
 	z-index: 1;
-	padding: 3px 0 0 2px;
+	padding: 3px 0 0 0;
 	color: var(--vscode-input-placeholderForeground);
-	font-family: var(--monaco-monospace-font);
 	white-space: nowrap;
 	overflow: hidden;
 	text-overflow: ellipsis;
@@ -83,14 +53,16 @@
 }
 
 .monaco-editor .interactive-editor .body .content .input .editor-container {
-	/* height: 24px; */
 	vertical-align: middle;
 }
 .monaco-editor .interactive-editor .body .toolbar {
 	display: flex;
 	flex-direction: column;
-	align-self: start;
-	padding: 4px 8px 0 2px;
+	align-self: stretch;
+	padding-right: 4px;
+	border-top-right-radius: 2px;
+	border-bottom-right-radius: 2px;
+	background: var(--vscode-input-background);
 }
 
 .monaco-editor .interactive-editor .body .toolbar .actions-container {
@@ -112,8 +84,37 @@
 	top: 0;
 }
 
-/* decoration styles */
+/* status */
 
+.monaco-editor .interactive-editor .status {
+	padding: 6px 10px 2px 2px;
+}
+
+.monaco-editor .interactive-editor .status.hidden {
+	display: none;
+}
+
+.monaco-editor .interactive-editor .status .status-item {
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+}
+
+.monaco-editor .interactive-editor .status .status-item.error .label {
+	color: var(--vscode-errorForeground);
+}
+
+.monaco-editor .interactive-editor .status .status-item.warn .label {
+	color: var(--vscode-editorWarning-foreground);
+}
+
+.monaco-editor .interactive-editor .status .monaco-toolbar .action-label.checked {
+	color: var(--vscode-checkbox-foreground);
+	background-color: var(--vscode-checkbox-background);
+	outline: 1px solid var(--vscode-checkbox-border);
+}
+
+/* decoration styles */
 
 .monaco-editor .interactive-editor-lines-deleted-range-inline {
 	text-decoration: line-through;
@@ -125,7 +126,15 @@
 }
 
 .monaco-editor .interactive-editor-block {
-	border-radius: 4px;
+	border-radius: 6px;
 	border: 1px solid var(--vscode-widget-border);
-	box-shadow: 0 0 8px 1px var(--vscode-widget-shadow);
+	box-shadow: 0 4px 8px var(--vscode-widget-shadow);
+}
+
+.monaco-editor .interactive-editor-slash-command {
+	color: var(--vscode-textLink-foreground)
+}
+
+.monaco-editor .interactive-editor-slash-command-detail {
+	opacity: 0.5;
 }

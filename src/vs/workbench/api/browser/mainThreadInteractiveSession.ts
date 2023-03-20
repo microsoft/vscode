@@ -7,7 +7,7 @@ import { Disposable, DisposableMap } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { ExtHostContext, ExtHostInteractiveSessionShape, IInteractiveRequestDto, MainContext, MainThreadInteractiveSessionShape } from 'vs/workbench/api/common/extHost.protocol';
 import { IInteractiveSessionContributionService } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionContributionService';
-import { IInteractiveProgress, IInteractiveRequest, IInteractiveResponse, IInteractiveSession, IInteractiveSessionService } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionService';
+import { IInteractiveProgress, IInteractiveRequest, IInteractiveResponse, IInteractiveSession, IInteractiveSessionDynamicRequest, IInteractiveSessionService } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionService';
 import { IExtHostContext, extHostNamedCustomer } from 'vs/workbench/services/extensions/common/extHostCustomers';
 
 @extHostNamedCustomer(MainContext.MainThreadInteractiveSession)
@@ -86,6 +86,9 @@ export class MainThreadInteractiveSession extends Disposable implements MainThre
 			provideSuggestions: (token) => {
 				return this._proxy.$provideInitialSuggestions(handle, token);
 			},
+			provideWelcomeMessage: (token) => {
+				return this._proxy.$provideWelcomeMessage(handle, token);
+			},
 			provideSlashCommands: (session, token) => {
 				return this._proxy.$provideSlashCommands(handle, session.id, token);
 			},
@@ -108,6 +111,10 @@ export class MainThreadInteractiveSession extends Disposable implements MainThre
 
 	$addInteractiveSessionRequest(context: any): void {
 		this._interactiveSessionService.addInteractiveRequest(context);
+	}
+
+	$sendInteractiveRequestToProvider(providerId: string, message: IInteractiveSessionDynamicRequest): void {
+		return this._interactiveSessionService.sendInteractiveRequestToProvider(providerId, message);
 	}
 
 	async $unregisterInteractiveSessionProvider(handle: number): Promise<void> {

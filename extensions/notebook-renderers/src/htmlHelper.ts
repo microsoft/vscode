@@ -3,14 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-declare module 'vscode' {
-
-	// https://github.com/microsoft/vscode-jupyter/issues/7373
-
-	export interface NotebookController {
-		/**
-		 * The human-readable label used to categorise controllers.
-		 */
-		kind?: string;
-	}
-}
+export const ttPolicy = (typeof window !== 'undefined') ?
+	window.trustedTypes?.createPolicy('notebookRenderer', {
+		createHTML: value => value,
+		createScript: value => value,
+	}) : undefined;

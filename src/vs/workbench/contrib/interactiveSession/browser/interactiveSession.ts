@@ -13,5 +13,7 @@ export interface IInteractiveSessionWidget {
 	readonly viewModel: IInteractiveSessionViewModel | undefined;
 	readonly inputEditor: ICodeEditor;
 
+	cancelCurrentRequest(): void;
+	acceptInput(): void;
 	getSlashCommands(): Promise<IInteractiveSlashCommand[] | undefined>;
 }
