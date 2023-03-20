@@ -18,6 +18,7 @@ import { ThemeIcon } from 'vs/base/common/themables';
 import { IProcessDetails } from 'vs/platform/terminal/common/terminalProcess';
 import { ITerminalQuickFixProvider, ITerminalCommandSelector, ITerminalOutputMatch, ITerminalOutputMatcher } from 'vs/platform/terminal/common/xterm/terminalQuickFix';
 import Severity from 'vs/base/common/severity';
+import { IMergedEnvironmentVariableCollection } from 'vs/platform/terminal/common/environmentVariable';
 
 export const TERMINAL_VIEW_ID = 'terminal';
 
@@ -395,6 +396,7 @@ export interface ITerminalProcessManager extends IDisposable {
 	readonly hasChildProcesses: boolean;
 	readonly backend: ITerminalBackend | undefined;
 	readonly capabilities: ITerminalCapabilityStore;
+	readonly extEnvironmentVariableCollection: IMergedEnvironmentVariableCollection | undefined;
 
 	readonly onPtyDisconnect: Event<void>;
 	readonly onPtyReconnect: Event<void>;
@@ -618,6 +620,7 @@ export const enum TerminalCommandId {
 	AcceptSelectedSuggestion = 'workbench.action.terminal.acceptSelectedSuggestion',
 	HideSuggestWidget = 'workbench.action.terminal.hideSuggestWidget',
 	FocusHover = 'workbench.action.terminal.focusHover',
+	ShowEnvironmentContributions = 'workbench.action.terminal.showEnvironmentContributions',
 }
 
 export const DEFAULT_COMMANDS_TO_SKIP_SHELL: string[] = [

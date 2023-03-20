@@ -12,6 +12,7 @@ import { URI } from 'vs/base/common/uri';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IKeyMods } from 'vs/platform/quickinput/common/quickInput';
 import { IMarkProperties, ITerminalCapabilityStore, ITerminalCommand } from 'vs/platform/terminal/common/capabilities/capabilities';
+import { IMergedEnvironmentVariableCollection } from 'vs/platform/terminal/common/environmentVariable';
 import { IExtensionTerminalProfile, IReconnectionProperties, IShellIntegration, IShellLaunchConfig, ITerminalDimensions, ITerminalLaunchError, ITerminalProfile, ITerminalTabLayoutInfoById, TerminalExitReason, TerminalIcon, TerminalLocation, TerminalShellType, TerminalType, TitleEventSource, WaitOnExitValue } from 'vs/platform/terminal/common/terminal';
 import { IColorTheme } from 'vs/platform/theme/common/themeService';
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
@@ -457,6 +458,7 @@ export interface ITerminalInstance {
 	readonly capabilities: ITerminalCapabilityStore;
 	readonly usedShellIntegrationInjection: boolean;
 	readonly injectedArgs: string[] | undefined;
+	readonly extEnvironmentVariableCollection: IMergedEnvironmentVariableCollection | undefined;
 
 	readonly statusList: ITerminalStatusList;
 

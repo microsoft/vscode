@@ -11,6 +11,7 @@ import { Codicon } from 'vs/base/common/codicons';
 import { IExtensionOwnedEnvironmentVariableMutator, IMergedEnvironmentVariableCollection, IMergedEnvironmentVariableCollectionDiff } from 'vs/platform/terminal/common/environmentVariable';
 import { TerminalStatus } from 'vs/workbench/contrib/terminal/browser/terminalStatusList';
 import Severity from 'vs/base/common/severity';
+import { ICommandService } from 'vs/platform/commands/common/commands';
 
 export class EnvironmentVariableInfoStale implements IEnvironmentVariableInfo {
 	readonly requiresAction = true;
@@ -59,7 +60,8 @@ export class EnvironmentVariableInfoChangesActive implements IEnvironmentVariabl
 	readonly requiresAction = false;
 
 	constructor(
-		private readonly _collection: IMergedEnvironmentVariableCollection
+		private readonly _collection: IMergedEnvironmentVariableCollection,
+		@ICommandService private readonly _commandService: ICommandService
 	) {
 	}
 
@@ -75,11 +77,20 @@ export class EnvironmentVariableInfoChangesActive implements IEnvironmentVariabl
 		return message;
 	}
 
+	private _getActions(): ITerminalStatusHoverAction[] {
+		return [{
+			label: localize('showEnvironmentContributions', "Show environment contributions"),
+			run: () => this._commandService.executeCommand(TerminalCommandId.ShowEnvironmentContributions),
+			commandId: TerminalCommandId.ShowEnvironmentContributions
+		}];
+	}
+
 	getStatus(): ITerminalStatus {
 		return {
 			id: TerminalStatus.EnvironmentVariableInfoChangesActive,
 			severity: Severity.Info,
-			tooltip: this._getInfo()
+			tooltip: this._getInfo(),
+			hoverActions: this._getActions()
 		};
 	}
 }
