@@ -64,9 +64,19 @@ export class QuickDiffService extends Disposable implements IQuickDiffService {
 	}
 
 	async getQuickDiffs(uri: URI, language: string = '', isSynchronized: boolean = false): Promise<QuickDiff[]> {
+		const seenProvider = new Set<string>();
 		const providers = Array.from(this.quickDiffProviders)
 			.filter(provider => !provider.rootUri || this.uriIdentityService.extUri.isEqualOrParent(uri, provider.rootUri))
-			.sort(createProviderComparer(uri));
+			.sort(createProviderComparer(uri))
+			.filter(provider => {
+				// SCM providers only expect to know about the first matching provider
+				if (provider.isSCM && seenProvider.has(provider.label)) {
+					return false;
+				}
+
+				seenProvider.add(provider.label);
+				return true;
+			});
 
 		const diffs = await Promise.all(providers.map(async provider => {
 			const scoreValue = provider.selector ? score(provider.selector, uri, language, isSynchronized, undefined, undefined) : 10;
@@ -77,6 +87,8 @@ export class QuickDiffService extends Disposable implements IQuickDiffService {
 			};
 			return diff;
 		}));
+
+
 		return diffs.filter<QuickDiff>(this.isQuickDiff);
 	}
 }
