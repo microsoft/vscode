@@ -5,7 +5,6 @@
 
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { AsyncEmitter, Event } from 'vs/base/common/event';
-import { LinkedList } from 'vs/base/common/linkedList';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { ILogService } from 'vs/platform/log/common/log';
@@ -21,9 +20,7 @@ interface IExtensionListener<E> {
 	(e: E): any;
 }
 
-type Listener = [Function, any, IExtensionDescription];
 export class ExtHostNotebookDocumentSaveParticipant implements ExtHostNotebookDocumentSaveParticipantShape {
-	private readonly _callbacks = new LinkedList<Listener>();
 
 	private readonly _onWillSaveNotebookDocumentEvent = new AsyncEmitter<NotebookDocumentWillSaveEvent>();
 
@@ -36,7 +33,6 @@ export class ExtHostNotebookDocumentSaveParticipant implements ExtHostNotebookDo
 	}
 
 	dispose(): void {
-		this._callbacks.clear();
 	}
 
 	getOnWillSaveNotebookDocumentEvent(extension: IExtensionDescription): Event<NotebookDocumentWillSaveEvent> {

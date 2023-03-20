@@ -986,7 +986,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 				let offset = 0;
 				try {
 					const outputOffset = document.getElementById(match.id)!.getBoundingClientRect().top;
-					match.originalRange.startContainer.parentElement?.scrollIntoView({ behavior: 'smooth', block: 'end', inline: 'nearest' });
+					match.originalRange.startContainer.parentElement?.scrollIntoView({ behavior: 'auto', block: 'end', inline: 'nearest' });
 					const rangeOffset = match.originalRange.getBoundingClientRect().top;
 					offset = rangeOffset - outputOffset;
 					postNotebookMessage('didFindHighlight', {
