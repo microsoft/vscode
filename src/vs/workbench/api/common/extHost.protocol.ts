@@ -115,7 +115,7 @@ export interface CommentChanges {
 	readonly uniqueIdInThread: number;
 	readonly body: string | IMarkdownString;
 	readonly userName: string;
-	readonly userIconPath?: string;
+	readonly userIconPath?: UriComponents;
 	readonly contextValue?: string;
 	readonly commentReactions?: languages.CommentReaction[];
 	readonly label?: string;
