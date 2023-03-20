@@ -817,20 +817,36 @@ const schema: IJSONSchema = {
 				'description': nls.localize('keybindings.json.key', "Key or key sequence (separated by space)"),
 			},
 			'command': {
-				'anyOf': [
+				'allOf': [
 					{
-						$ref: '#/definitions/commandNames'
+						'if': {
+							'type': 'array'
+						},
+						'then': {
+							'not': {
+								'type': 'array'
+							},
+							'errorMessage': nls.localize('keybindings.commandsIsArray', "Incorrect type. Expected \"{0}\". The field 'command' does not support running multiple commands. Use command 'runCommands' to pass it multiple commands to run.", 'string')
+						}
 					},
 					{
-						'type': 'string',
-						'enum': removalCommandsEnum,
-						'enumDescriptions': <any>commandsEnumDescriptions,
-						'description': nls.localize('keybindings.json.removalCommand', "Name of the command to remove keyboard shortcut for"),
+						'anyOf': [
+							{
+								$ref: '#/definitions/commandNames'
+							},
+							{
+								'type': 'string',
+								'enum': removalCommandsEnum,
+								'enumDescriptions': <any>commandsEnumDescriptions,
+								'description': nls.localize('keybindings.json.removalCommand', "Name of the command to remove keyboard shortcut for"),
+							},
+							{
+								'type': 'string'
+							},
+						]
 					},
-					{
-						'type': 'string'
-					},
-				],
+
+				]
 			},
 			'when': {
 				'type': 'string',
