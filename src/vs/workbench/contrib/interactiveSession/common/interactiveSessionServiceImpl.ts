@@ -48,6 +48,7 @@ export class InteractiveSessionService extends Disposable implements IInteractiv
 
 	private readonly _providers = new Map<string, IInteractiveProvider>();
 	private readonly _sessionModels = new Map<number, InteractiveSessionModel>();
+	private readonly _releasedSessions = new Set<number>();
 	private readonly _pendingRequestSessions = new Set<number>();
 	private readonly _unprocessedPersistedSessions: ISerializableInteractiveSessionsData;
 
@@ -122,13 +123,19 @@ export class InteractiveSessionService extends Disposable implements IInteractiv
 			throw new Error(`Unknown provider: ${providerId}`);
 		}
 
-		const providerData = this._unprocessedPersistedSessions[providerId] ?? [];
-		const someSessionHistory = allowRestoringSession ? providerData.shift() : undefined;
+		const restored = allowRestoringSession ? this.getNextRestoredSession(providerId) : undefined;
+		if (restored instanceof InteractiveSessionModel) {
+			this.trace('startSession', `Restored live session with id ${restored.sessionId}`);
+			return restored;
+		}
+
+		const someSessionHistory = restored;
 		this.trace('startSession', `Has history: ${!!someSessionHistory}. Including provider state: ${!!someSessionHistory?.providerState}`);
 		const session = await provider.prepareSession(someSessionHistory?.providerState, token);
 		if (!session) {
 			if (someSessionHistory) {
-				providerData.unshift(someSessionHistory);
+				const providerData = this._unprocessedPersistedSessions[providerId];
+				providerData?.unshift(someSessionHistory);
 			}
 
 			this.trace('startSession', 'Provider returned no session');
@@ -142,8 +149,23 @@ export class InteractiveSessionService extends Disposable implements IInteractiv
 			welcomeMessage.map(item => typeof item === 'string' ? new MarkdownString(item) : item as IInteractiveSessionReplyFollowup[]), session.responderUsername, session.responderAvatarIconUri);
 		const model = this.instantiationService.createInstance(InteractiveSessionModel, session, providerId, withNullAsUndefined(welcomeModel), someSessionHistory);
 		this._sessionModels.set(model.sessionId, model);
-
 		return model;
+	}
+
+	private getNextRestoredSession(providerId: string): InteractiveSessionModel | ISerializableInteractiveSessionData | undefined {
+		const releasedSessionId = Iterable.find(this._releasedSessions.values(), sessionId => this._sessionModels.get(sessionId)?.providerId === providerId);
+		if (typeof releasedSessionId === 'number') {
+			this._releasedSessions.delete(releasedSessionId);
+			return this._sessionModels.get(releasedSessionId);
+		}
+
+		const providerData = this._unprocessedPersistedSessions[providerId] ?? [];
+		return providerData.shift();
+	}
+
+	releaseSession(sessionId: number): void {
+		this.trace('releaseSession', `sessionId=${sessionId}`);
+		this._releasedSessions.add(sessionId);
 	}
 
 	sendRequest(sessionId: number, request: string | IInteractiveSessionReplyFollowup): { completePromise: CancelablePromise<void> } | undefined {

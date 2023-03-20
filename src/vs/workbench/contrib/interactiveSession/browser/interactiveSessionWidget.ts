@@ -614,6 +614,14 @@ export class InteractiveSessionWidget extends Disposable implements IInteractive
 			this.storageService.remove(this.getHistoryStorageKey(), StorageScope.WORKSPACE);
 		}
 	}
+
+	public override dispose(): void {
+		super.dispose();
+
+		if (this.viewModel) {
+			this.interactiveSessionService.releaseSession(this.viewModel.sessionId);
+		}
+	}
 }
 
 export class InteractiveSessionWidgetService implements IInteractiveSessionWidgetService {

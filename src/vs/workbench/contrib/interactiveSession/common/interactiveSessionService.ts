@@ -148,6 +148,7 @@ export interface IInteractiveSessionService {
 	addInteractiveRequest(context: any): void;
 	sendInteractiveRequestToProvider(providerId: string, message: IInteractiveSessionDynamicRequest): void;
 	provideSuggestions(providerId: string, token: CancellationToken): Promise<string[] | undefined>;
+	releaseSession(sessionId: number): void;
 
 	onDidPerformUserAction: Event<IInteractiveSessionUserActionEvent>;
 	notifyUserAction(event: IInteractiveSessionUserActionEvent): void;
