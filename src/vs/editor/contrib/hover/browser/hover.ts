@@ -114,12 +114,12 @@ export class ModesHoverController implements IEditorContribution {
 		}
 
 		if (target.type === MouseTargetType.OVERLAY_WIDGET && target.detail === MarginHoverWidget.ID) {
-			// mouse down on top of overlay hover widget
+			// mouse down on top of overlay margin hover widget
 			return;
 		}
 
 		if (target.type === MouseTargetType.OVERLAY_WIDGET && target.detail === ResizableHoverOverlay.ID) {
-			// mouse down on top of the overlap hover widget
+			// mouse down on top of the overlay hover widget
 			return;
 		}
 

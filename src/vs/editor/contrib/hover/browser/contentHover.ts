@@ -920,13 +920,6 @@ export class ResizableHoverOverlay extends Disposable implements IOverlayWidget 
 
 }
 
-enum States {
-	PERSIST_SIZE_HORIZONTALL_VISIBLE = 1,
-	PERSIST_SIZE_HORZONTAL_NOT_VISIBLE = 2,
-	NOT_PERSIST_SIZE_HORIZONTAL_VISIBLE = 3,
-	NOT_PERSIST_SIZE_HORIZONTAL_NOT_VISIBLE = 4
-}
-
 export class ContentHoverWidget extends Disposable implements IContentWidget {
 
 	static readonly ID = 'editor.contrib.contentHoverWidget';
