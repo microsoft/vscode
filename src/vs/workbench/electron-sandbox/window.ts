@@ -32,7 +32,7 @@ import { IWorkspaceFolderCreationData } from 'vs/platform/workspaces/common/work
 import { IIntegrityService } from 'vs/workbench/services/integrity/common/integrity';
 import { isWindows, isMacintosh, isCI } from 'vs/base/common/platform';
 import { IProductService } from 'vs/platform/product/common/productService';
-import { INotificationService, NeverShowAgainScope, Severity } from 'vs/platform/notification/common/notification';
+import { INotificationService, NeverShowAgainScope, NotificationPriority, Severity } from 'vs/platform/notification/common/notification';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
 import { IAccessibilityService, AccessibilitySupport } from 'vs/platform/accessibility/common/accessibility';
@@ -43,7 +43,7 @@ import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storag
 import { assertIsDefined } from 'vs/base/common/types';
 import { IOpenerService, OpenOptions } from 'vs/platform/opener/common/opener';
 import { Schemas } from 'vs/base/common/network';
-import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
+import { INativeHostService } from 'vs/platform/native/common/native';
 import { posix } from 'vs/base/common/path';
 import { ITunnelService, extractLocalHostUriMetaDataForPortMapping } from 'vs/platform/tunnel/common/tunnel';
 import { IWorkbenchLayoutService, Parts, positionFromString, Position } from 'vs/workbench/services/layout/browser/layoutService';
@@ -713,7 +713,9 @@ export class NativeWindow extends Disposable {
 						run: () => this.openerService.open(URI.parse('https://aka.ms/vscode-faq-win7'))
 					}],
 					{
-						neverShowAgain: { id: 'windows7eol', isSecondary: true, scope: NeverShowAgainScope.APPLICATION }
+						neverShowAgain: { id: 'windows7eol', isSecondary: true, scope: NeverShowAgainScope.APPLICATION },
+						priority: NotificationPriority.URGENT,
+						sticky: true
 					}
 				);
 			}
@@ -750,7 +752,9 @@ export class NativeWindow extends Disposable {
 						run: () => this.openerService.open(URI.parse('https://aka.ms/vscode-faq-old-macOS'))
 					}],
 					{
-						neverShowAgain: { id: 'macoseol', isSecondary: true, scope: NeverShowAgainScope.APPLICATION }
+						neverShowAgain: { id: 'macoseol', isSecondary: true, scope: NeverShowAgainScope.APPLICATION },
+						priority: NotificationPriority.URGENT,
+						sticky: true
 					}
 				);
 			}

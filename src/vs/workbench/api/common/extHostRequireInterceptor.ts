@@ -9,7 +9,7 @@ import { MainThreadTelemetryShape, MainContext } from 'vs/workbench/api/common/e
 import { ExtHostConfigProvider, IExtHostConfiguration } from 'vs/workbench/api/common/extHostConfiguration';
 import { nullExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
 import * as vscode from 'vscode';
-import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
+import { ExtensionIdentifierMap } from 'vs/platform/extensions/common/extensions';
 import { IExtensionApiFactory, IExtensionRegistries } from 'vs/workbench/api/common/extHost.api.impl';
 import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
 import { IExtHostInitDataService } from 'vs/workbench/api/common/extHostInitDataService';
@@ -149,7 +149,7 @@ class NodeModuleAliasingModuleFactory implements IAlternativeModuleProvider {
 class VSCodeNodeModuleFactory implements INodeModuleFactory {
 	public readonly nodeModuleName = 'vscode';
 
-	private readonly _extApiImpl = new Map<string, typeof vscode>();
+	private readonly _extApiImpl = new ExtensionIdentifierMap<typeof vscode>();
 	private _defaultApiImpl?: typeof vscode;
 
 	constructor(
@@ -166,10 +166,10 @@ class VSCodeNodeModuleFactory implements INodeModuleFactory {
 		// get extension id from filename and api for extension
 		const ext = this._extensionPaths.findSubstr(parent);
 		if (ext) {
-			let apiImpl = this._extApiImpl.get(ExtensionIdentifier.toKey(ext.identifier));
+			let apiImpl = this._extApiImpl.get(ext.identifier);
 			if (!apiImpl) {
 				apiImpl = this._apiFactory(ext, this._extensionRegistry, this._configProvider);
-				this._extApiImpl.set(ExtensionIdentifier.toKey(ext.identifier), apiImpl);
+				this._extApiImpl.set(ext.identifier, apiImpl);
 			}
 			return apiImpl;
 		}

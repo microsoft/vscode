@@ -395,6 +395,7 @@ const preferredFixes = new Map<string, { readonly priority: number; readonly the
 	[fixNames.spelling, { priority: 0 }],
 	[fixNames.addMissingAwait, { priority: 2 }],
 	[fixNames.addMissingOverride, { priority: 2 }],
+	[fixNames.addMissingNewOperator, { priority: 2 }],
 	[fixNames.fixImport, { priority: 1, thereCanOnlyBeOne: true }],
 ]);
 

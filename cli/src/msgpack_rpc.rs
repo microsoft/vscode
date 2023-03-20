@@ -5,12 +5,16 @@
 
 use tokio::{
 	io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt, BufReader},
+	pin,
 	sync::mpsc,
 };
 
 use crate::{
 	rpc::{self, MaybeSync, Serialization},
-	util::errors::{AnyError, InvalidRpcDataError},
+	util::{
+		errors::{AnyError, InvalidRpcDataError},
+		sync::{Barrier, Receivable},
+	},
 };
 use std::io;
 
@@ -35,16 +39,19 @@ pub fn new_msgpack_rpc() -> rpc::RpcBuilder<MsgPackSerializer> {
 }
 
 #[allow(clippy::read_zero_byte_vec)] // false positive
-pub async fn start_msgpack_rpc<C: Send + Sync + 'static, S>(
+pub async fn start_msgpack_rpc<C: Send + Sync + 'static, S: Clone>(
 	dispatcher: rpc::RpcDispatcher<MsgPackSerializer, C>,
 	read: impl AsyncRead + Unpin,
 	mut write: impl AsyncWrite + Unpin,
-	mut msg_rx: mpsc::UnboundedReceiver<Vec<u8>>,
-	mut shutdown_rx: mpsc::UnboundedReceiver<S>,
+	mut msg_rx: impl Receivable<Vec<u8>>,
+	mut shutdown_rx: Barrier<S>,
 ) -> io::Result<Option<S>> {
 	let (write_tx, mut write_rx) = mpsc::unbounded_channel::<Vec<u8>>();
 	let mut read = BufReader::new(read);
 	let mut decode_buf = vec![];
+
+	let shutdown_fut = shutdown_rx.wait();
+	pin!(shutdown_fut);
 
 	loop {
 		tokio::select! {
@@ -66,16 +73,16 @@ pub async fn start_msgpack_rpc<C: Send + Sync + 'static, S>(
 							});
 						}
 					},
-					r = shutdown_rx.recv() => return Ok(r),
+					r = &mut shutdown_fut => return Ok(r.ok()),
 				};
 			},
 			Some(m) = write_rx.recv() => {
 				write.write_all(&m).await?;
 			},
-			Some(m) = msg_rx.recv() => {
+			Some(m) = msg_rx.recv_msg() => {
 				write.write_all(&m).await?;
 			},
-			r = shutdown_rx.recv() => return Ok(r),
+			r = &mut shutdown_fut => return Ok(r.ok()),
 		}
 
 		write.flush().await?;

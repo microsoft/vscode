@@ -6,7 +6,7 @@
 import { Event } from 'vs/base/common/event';
 import { ResolvedKeybinding, KeyCodeChord, Keybinding } from 'vs/base/common/keybindings';
 import { OS } from 'vs/base/common/platform';
-import { ContextKeyExpression, ContextKeyValue, IContextKey, IContextKeyChangeEvent, IContextKeyService, IContextKeyServiceTarget } from 'vs/platform/contextkey/common/contextkey';
+import { ContextKeyExpression, ContextKeyValue, IContextKey, IContextKeyChangeEvent, IContextKeyService, IContextKeyServiceTarget, IScopedContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IKeybindingService, IKeyboardEvent } from 'vs/platform/keybinding/common/keybinding';
 import { IResolveResult } from 'vs/platform/keybinding/common/keybindingResolver';
 import { ResolvedKeybindingItem } from 'vs/platform/keybinding/common/resolvedKeybindingItem';
@@ -63,7 +63,7 @@ export class MockContextKeyService implements IContextKeyService {
 	public getContext(domNode: HTMLElement): any {
 		return null;
 	}
-	public createScoped(domNode: HTMLElement): IContextKeyService {
+	public createScoped(domNode: HTMLElement): IScopedContextKeyService {
 		return this;
 	}
 	public createOverlay(): IContextKeyService {
@@ -78,7 +78,7 @@ export class MockScopableContextKeyService extends MockContextKeyService {
 	/**
 	 * Don't implement this for all tests since we rarely depend on this behavior and it isn't implemented fully
 	 */
-	public override createScoped(domNote: HTMLElement): IContextKeyService {
+	public override createScoped(domNote: HTMLElement): IScopedContextKeyService {
 		return new MockContextKeyService();
 	}
 }

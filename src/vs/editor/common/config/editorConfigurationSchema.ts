@@ -101,6 +101,11 @@ const editorConfiguration: IConfigurationNode = {
 			description: nls.localize('editor.experimental.asyncTokenization', "Controls whether the tokenization should happen asynchronously on a web worker."),
 			tags: ['experimental'],
 		},
+		'editor.experimental.asyncTokenizationLogging': {
+			type: 'boolean',
+			default: false,
+			description: nls.localize('editor.experimental.asyncTokenizationLogging', "Controls whether async tokenization should be logged. For debugging only."),
+		},
 		'editor.language.brackets': {
 			type: ['array', 'null'],
 			default: null, // We want to distinguish the empty array from not configured.

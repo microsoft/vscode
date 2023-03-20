@@ -137,6 +137,11 @@ impl LauncherPaths {
 		&self.root
 	}
 
+	/// Lockfile for the running tunnel
+	pub fn tunnel_lockfile(&self) -> PathBuf {
+		self.root.join("tunnel.lock")
+	}
+
 	/// Suggested path for tunnel service logs, when using file logs
 	pub fn service_log_file(&self) -> PathBuf {
 		self.root.join("tunnel-service.log")

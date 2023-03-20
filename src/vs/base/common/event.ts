@@ -574,6 +574,11 @@ export interface EmitterOptions {
 	 */
 	onWillRemoveListener?: Function;
 	/**
+	 * Optional function that's called when a listener throws an error. Defaults to
+	 * {@link onUnexpectedError}
+	 */
+	onListenerError?: (e: any) => void;
+	/**
 	 * Number of listeners that are allowed before assuming a leak. Default to
 	 * a globally configured value
 	 *
@@ -874,7 +879,7 @@ export class Emitter<T> {
 			// the driver of this
 
 			if (!this._deliveryQueue) {
-				this._deliveryQueue = new PrivateEventDeliveryQueue();
+				this._deliveryQueue = new PrivateEventDeliveryQueue(this._options?.onListenerError);
 			}
 
 			for (const listener of this._listeners) {
@@ -899,7 +904,12 @@ export class Emitter<T> {
 }
 
 export class EventDeliveryQueue {
+
 	protected _queue = new LinkedList<EventDeliveryQueueElement>();
+
+	constructor(
+		private readonly _onListenerError: (e: any) => void = onUnexpectedError
+	) { }
 
 	get size(): number {
 		return this._queue.size;
@@ -925,7 +935,7 @@ export class EventDeliveryQueue {
 			try {
 				element.listener.invoke(element.event);
 			} catch (e) {
-				onUnexpectedError(e);
+				this._onListenerError(e);
 			}
 		}
 	}

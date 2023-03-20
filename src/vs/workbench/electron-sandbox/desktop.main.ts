@@ -21,7 +21,8 @@ import { IWorkspaceContextService, isSingleFolderWorkspaceIdentifier, isWorkspac
 import { IWorkbenchConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { IMainProcessService, ISharedProcessService } from 'vs/platform/ipc/electron-sandbox/services';
+import { ISharedProcessService } from 'vs/platform/ipc/electron-sandbox/services';
+import { IMainProcessService } from 'vs/platform/ipc/common/mainProcessService';
 import { SharedProcessService } from 'vs/workbench/services/sharedProcess/electron-sandbox/sharedProcessService';
 import { RemoteAuthorityResolverService } from 'vs/platform/remote/electron-sandbox/remoteAuthorityResolverService';
 import { IRemoteAuthorityResolverService } from 'vs/platform/remote/common/remoteAuthorityResolver';
@@ -174,7 +175,7 @@ export class DesktopMain extends Disposable {
 			...this.configuration.loggers.global.map(loggerResource => ({ ...loggerResource, resource: URI.revive(loggerResource.resource) })),
 			...this.configuration.loggers.window.map(loggerResource => ({ ...loggerResource, resource: URI.revive(loggerResource.resource), hidden: true })),
 		];
-		const loggerService = new LoggerChannelClient(this.configuration.windowId, this.configuration.logLevel, loggers, mainProcessService.getChannel('logger'));
+		const loggerService = new LoggerChannelClient(this.configuration.windowId, this.configuration.logLevel, environmentService.logsHome, loggers, mainProcessService.getChannel('logger'));
 		serviceCollection.set(ILoggerService, loggerService);
 
 		// Log

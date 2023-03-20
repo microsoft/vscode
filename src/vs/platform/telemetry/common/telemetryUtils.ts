@@ -13,8 +13,7 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { IProductService } from 'vs/platform/product/common/productService';
 import { getRemoteName } from 'vs/platform/remote/common/remoteHosts';
 import { verifyMicrosoftInternalDomain } from 'vs/platform/telemetry/common/commonProperties';
-import { ClassifiedEvent, IGDPRProperty, OmitMetadata, StrictPropertyCheck } from 'vs/platform/telemetry/common/gdprTypings';
-import { ICustomEndpointTelemetryService, ITelemetryData, ITelemetryEndpoint, ITelemetryInfo, ITelemetryService, TelemetryConfiguration, TelemetryLevel, TELEMETRY_CRASH_REPORTER_SETTING_ID, TELEMETRY_OLD_SETTING_ID, TELEMETRY_SETTING_ID } from 'vs/platform/telemetry/common/telemetry';
+import { ICustomEndpointTelemetryService, ITelemetryData, ITelemetryEndpoint, ITelemetryService, TelemetryConfiguration, TelemetryLevel, TELEMETRY_CRASH_REPORTER_SETTING_ID, TELEMETRY_OLD_SETTING_ID, TELEMETRY_SETTING_ID } from 'vs/platform/telemetry/common/telemetry';
 
 /**
  * A special class used to denoting a telemetry value which should not be clean.
@@ -27,31 +26,16 @@ export class TelemetryTrustedValue<T> {
 
 export class NullTelemetryServiceShape implements ITelemetryService {
 	declare readonly _serviceBrand: undefined;
+	readonly telemetryLevel = TelemetryLevel.NONE;
+	readonly sessionId = 'someValue.sessionId';
+	readonly machineId = 'someValue.machineId';
+	readonly firstSessionDate = 'someValue.firstSessionDate';
 	readonly sendErrorTelemetry = false;
-
-	publicLog(eventName: string, data?: ITelemetryData) {
-		return Promise.resolve(undefined);
-	}
-	publicLog2<E extends ClassifiedEvent<OmitMetadata<T>> = never, T extends IGDPRProperty = never>(eventName: string, data?: StrictPropertyCheck<T, E>) {
-		return this.publicLog(eventName, data as ITelemetryData);
-	}
-	publicLogError(eventName: string, data?: ITelemetryData) {
-		return Promise.resolve(undefined);
-	}
-	publicLogError2<E extends ClassifiedEvent<OmitMetadata<T>> = never, T extends IGDPRProperty = never>(eventName: string, data?: StrictPropertyCheck<T, E>) {
-		return this.publicLogError(eventName, data as ITelemetryData);
-	}
-
+	publicLog() { }
+	publicLog2() { }
+	publicLogError() { }
+	publicLogError2() { }
 	setExperimentProperty() { }
-	telemetryLevel = TelemetryLevel.NONE;
-	getTelemetryInfo(): Promise<ITelemetryInfo> {
-		return Promise.resolve({
-			instanceId: 'someValue.instanceId',
-			sessionId: 'someValue.sessionId',
-			machineId: 'someValue.machineId',
-			firstSessionDate: 'someValue.firstSessionDate'
-		});
-	}
 }
 
 export const NullTelemetryService = new NullTelemetryServiceShape();
@@ -68,7 +52,7 @@ export class NullEndpointTelemetryService implements ICustomEndpointTelemetrySer
 	}
 }
 
-export const telemetryLogChannelId = 'telemetryLog';
+export const telemetryLogId = 'telemetry';
 export const extensionTelemetryLogChannelId = 'extensionTelemetryLog';
 
 export interface ITelemetryAppender {
@@ -115,7 +99,7 @@ export function configurationTelemetry(telemetryService: ITelemetryService, conf
 			};
 			telemetryService.publicLog2<UpdateConfigurationEvent, UpdateConfigurationClassification>('updateConfiguration', {
 				configurationSource: ConfigurationTargetToString(event.source),
-				configurationKeys: flattenKeys(event.affectedKeys)
+				configurationKeys: Array.from(event.affectedKeys)
 			});
 		}
 	});
@@ -273,24 +257,6 @@ function flatten(obj: any, result: { [key: string]: any }, order: number = 0, pr
 		} else {
 			result[index] = value;
 		}
-	}
-}
-
-function flattenKeys(value: Object | undefined): string[] {
-	if (!value) {
-		return [];
-	}
-	const result: string[] = [];
-	flatKeys(result, '', value);
-	return result;
-}
-
-function flatKeys(result: string[], prefix: string, value: { [key: string]: any } | undefined): void {
-	if (value && typeof value === 'object' && !Array.isArray(value)) {
-		Object.keys(value)
-			.forEach(key => flatKeys(result, prefix ? `${prefix}.${key}` : key, value[key]));
-	} else {
-		result.push(prefix);
 	}
 }
 

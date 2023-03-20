@@ -3,40 +3,41 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { $, Dimension, addDisposableListener, append, clearNode } from 'vs/base/browser/dom';
+import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
+import { renderLabelWithIcons } from 'vs/base/browser/ui/iconLabel/iconLabels';
+import { IListRenderer, IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
+import { IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
+import { Action, IAction, Separator } from 'vs/base/common/actions';
+import { isNonEmptyArray } from 'vs/base/common/arrays';
+import { RunOnceScheduler } from 'vs/base/common/async';
+import { memoize } from 'vs/base/common/decorators';
+import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { Schemas } from 'vs/base/common/network';
 import 'vs/css!./media/runtimeExtensionsEditor';
 import * as nls from 'vs/nls';
-import { Action, IAction, Separator } from 'vs/base/common/actions';
-import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { IExtensionsWorkbenchService, IExtension } from 'vs/workbench/contrib/extensions/common/extensions';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { IExtensionService, IExtensionsStatus, IExtensionHostProfile, LocalWebWorkerRunningLocation } from 'vs/workbench/services/extensions/common/extensions';
-import { IListVirtualDelegate, IListRenderer } from 'vs/base/browser/ui/list/list';
-import { WorkbenchList } from 'vs/platform/list/browser/listService';
-import { append, $, Dimension, clearNode, addDisposableListener } from 'vs/base/browser/dom';
-import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
-import { dispose, IDisposable } from 'vs/base/common/lifecycle';
-import { RunOnceScheduler } from 'vs/base/common/async';
-import { DefaultIconPath, EnablementState } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
-import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { memoize } from 'vs/base/common/decorators';
-import { isNonEmptyArray } from 'vs/base/common/arrays';
-import { INotificationService } from 'vs/platform/notification/common/notification';
-import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IStorageService } from 'vs/platform/storage/common/storage';
-import { ILabelService } from 'vs/platform/label/common/label';
-import { renderLabelWithIcons } from 'vs/base/browser/ui/iconLabel/iconLabels';
-import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
-import { Schemas } from 'vs/base/common/network';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { editorBackground } from 'vs/platform/theme/common/colorRegistry';
-import { IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { RuntimeExtensionsInput } from 'vs/workbench/contrib/extensions/common/runtimeExtensionsInput';
-import { Action2, MenuId } from 'vs/platform/actions/common/actions';
 import { Categories } from 'vs/platform/action/common/actionCommonCategories';
+import { Action2, MenuId } from 'vs/platform/actions/common/actions';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
+import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
+import { ExtensionIdentifier, ExtensionIdentifierMap, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
+import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { ILabelService } from 'vs/platform/label/common/label';
+import { WorkbenchList } from 'vs/platform/list/browser/listService';
+import { INotificationService } from 'vs/platform/notification/common/notification';
+import { IStorageService } from 'vs/platform/storage/common/storage';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { editorBackground } from 'vs/platform/theme/common/colorRegistry';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
+import { IExtension, IExtensionsWorkbenchService } from 'vs/workbench/contrib/extensions/common/extensions';
+import { RuntimeExtensionsInput } from 'vs/workbench/contrib/extensions/common/runtimeExtensionsInput';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
+import { DefaultIconPath, EnablementState } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
+import { LocalWebWorkerRunningLocation } from 'vs/workbench/services/extensions/common/extensionRunningLocation';
+import { IExtensionHostProfile, IExtensionService, IExtensionsStatus } from 'vs/workbench/services/extensions/common/extensions';
 
 interface IExtensionProfileInformation {
 	/**
@@ -104,16 +105,16 @@ export abstract class AbstractRuntimeExtensionsEditor extends EditorPane {
 		const extensionsDescriptions = this._extensionService.extensions.filter((extension) => {
 			return Boolean(extension.main) || Boolean(extension.browser);
 		});
-		const marketplaceMap: { [id: string]: IExtension } = Object.create(null);
+		const marketplaceMap = new ExtensionIdentifierMap<IExtension>();
 		const marketPlaceExtensions = await this._extensionsWorkbenchService.queryLocal();
 		for (const extension of marketPlaceExtensions) {
-			marketplaceMap[ExtensionIdentifier.toKey(extension.identifier.id)] = extension;
+			marketplaceMap.set(extension.identifier.id, extension);
 		}
 
 		const statusMap = this._extensionService.getExtensionsStatus();
 
 		// group profile segments by extension
-		const segments: { [id: string]: number[] } = Object.create(null);
+		const segments = new ExtensionIdentifierMap<number[]>();
 
 		const profileInfo = this._getProfileInfo();
 		if (profileInfo) {
@@ -122,10 +123,10 @@ export abstract class AbstractRuntimeExtensionsEditor extends EditorPane {
 				const id = profileInfo.ids[i];
 				const delta = profileInfo.deltas[i];
 
-				let extensionSegments = segments[ExtensionIdentifier.toKey(id)];
+				let extensionSegments = segments.get(id);
 				if (!extensionSegments) {
 					extensionSegments = [];
-					segments[ExtensionIdentifier.toKey(id)] = extensionSegments;
+					segments.set(id, extensionSegments);
 				}
 
 				extensionSegments.push(currentStartTime);
@@ -140,7 +141,7 @@ export abstract class AbstractRuntimeExtensionsEditor extends EditorPane {
 
 			let extProfileInfo: IExtensionProfileInformation | null = null;
 			if (profileInfo) {
-				const extensionSegments = segments[ExtensionIdentifier.toKey(extensionDescription.identifier)] || [];
+				const extensionSegments = segments.get(extensionDescription.identifier) || [];
 				let extensionTotalTime = 0;
 				for (let j = 0, lenJ = extensionSegments.length / 2; j < lenJ; j++) {
 					const startTime = extensionSegments[2 * j];
@@ -156,14 +157,14 @@ export abstract class AbstractRuntimeExtensionsEditor extends EditorPane {
 			result[i] = {
 				originalIndex: i,
 				description: extensionDescription,
-				marketplaceInfo: marketplaceMap[ExtensionIdentifier.toKey(extensionDescription.identifier)],
+				marketplaceInfo: marketplaceMap.get(extensionDescription.identifier),
 				status: statusMap[extensionDescription.identifier.value],
 				profileInfo: extProfileInfo || undefined,
 				unresponsiveProfile: this._getUnresponsiveProfile(extensionDescription.identifier)
 			};
 		}
 
-		result = result.filter(element => element.status.activationTimes);
+		result = result.filter(element => element.status.activationStarted);
 
 		// bubble up extensions that have caused slowness
 
@@ -198,7 +199,7 @@ export abstract class AbstractRuntimeExtensionsEditor extends EditorPane {
 
 		const delegate = new class implements IListVirtualDelegate<IRuntimeExtension>{
 			getHeight(element: IRuntimeExtension): number {
-				return 62;
+				return 70;
 			}
 			getTemplateId(element: IRuntimeExtension): string {
 				return TEMPLATE_ID;
@@ -277,9 +278,13 @@ export abstract class AbstractRuntimeExtensionsEditor extends EditorPane {
 				data.name.textContent = (element.marketplaceInfo?.displayName || element.description.identifier.value).substr(0, 50);
 				data.version.textContent = element.description.version;
 
-				const activationTimes = element.status.activationTimes!;
-				const syncTime = activationTimes.codeLoadingTime + activationTimes.activateCallTime;
-				data.activationTime.textContent = activationTimes.activationReason.startup ? `Startup Activation: ${syncTime}ms` : `Activation: ${syncTime}ms`;
+				const activationTimes = element.status.activationTimes;
+				if (activationTimes) {
+					const syncTime = activationTimes.codeLoadingTime + activationTimes.activateCallTime;
+					data.activationTime.textContent = activationTimes.activationReason.startup ? `Startup Activation: ${syncTime}ms` : `Activation: ${syncTime}ms`;
+				} else {
+					data.activationTime.textContent = `Activating...`;
+				}
 
 				data.actionbar.clear();
 				const slowExtensionAction = this._createSlowExtensionAction(element);
@@ -294,61 +299,65 @@ export abstract class AbstractRuntimeExtensionsEditor extends EditorPane {
 				}
 
 				let title: string;
-				const activationId = activationTimes.activationReason.extensionId.value;
-				const activationEvent = activationTimes.activationReason.activationEvent;
-				if (activationEvent === '*') {
-					title = nls.localize({
-						key: 'starActivation',
-						comment: [
-							'{0} will be an extension identifier'
-						]
-					}, "Activated by {0} on start-up", activationId);
-				} else if (/^workspaceContains:/.test(activationEvent)) {
-					const fileNameOrGlob = activationEvent.substr('workspaceContains:'.length);
-					if (fileNameOrGlob.indexOf('*') >= 0 || fileNameOrGlob.indexOf('?') >= 0) {
+				if (activationTimes) {
+					const activationId = activationTimes.activationReason.extensionId.value;
+					const activationEvent = activationTimes.activationReason.activationEvent;
+					if (activationEvent === '*') {
 						title = nls.localize({
-							key: 'workspaceContainsGlobActivation',
+							key: 'starActivation',
+							comment: [
+								'{0} will be an extension identifier'
+							]
+						}, "Activated by {0} on start-up", activationId);
+					} else if (/^workspaceContains:/.test(activationEvent)) {
+						const fileNameOrGlob = activationEvent.substr('workspaceContains:'.length);
+						if (fileNameOrGlob.indexOf('*') >= 0 || fileNameOrGlob.indexOf('?') >= 0) {
+							title = nls.localize({
+								key: 'workspaceContainsGlobActivation',
+								comment: [
+									'{0} will be a glob pattern',
+									'{1} will be an extension identifier'
+								]
+							}, "Activated by {1} because a file matching {0} exists in your workspace", fileNameOrGlob, activationId);
+						} else {
+							title = nls.localize({
+								key: 'workspaceContainsFileActivation',
+								comment: [
+									'{0} will be a file name',
+									'{1} will be an extension identifier'
+								]
+							}, "Activated by {1} because file {0} exists in your workspace", fileNameOrGlob, activationId);
+						}
+					} else if (/^workspaceContainsTimeout:/.test(activationEvent)) {
+						const glob = activationEvent.substr('workspaceContainsTimeout:'.length);
+						title = nls.localize({
+							key: 'workspaceContainsTimeout',
 							comment: [
 								'{0} will be a glob pattern',
 								'{1} will be an extension identifier'
 							]
-						}, "Activated by {1} because a file matching {0} exists in your workspace", fileNameOrGlob, activationId);
+						}, "Activated by {1} because searching for {0} took too long", glob, activationId);
+					} else if (activationEvent === 'onStartupFinished') {
+						title = nls.localize({
+							key: 'startupFinishedActivation',
+							comment: [
+								'This refers to an extension. {0} will be an activation event.'
+							]
+						}, "Activated by {0} after start-up finished", activationId);
+					} else if (/^onLanguage:/.test(activationEvent)) {
+						const language = activationEvent.substr('onLanguage:'.length);
+						title = nls.localize('languageActivation', "Activated by {1} because you opened a {0} file", language, activationId);
 					} else {
 						title = nls.localize({
-							key: 'workspaceContainsFileActivation',
+							key: 'workspaceGenericActivation',
 							comment: [
-								'{0} will be a file name',
+								'{0} will be an activation event, like e.g. \'language:typescript\', \'debug\', etc.',
 								'{1} will be an extension identifier'
 							]
-						}, "Activated by {1} because file {0} exists in your workspace", fileNameOrGlob, activationId);
+						}, "Activated by {1} on {0}", activationEvent, activationId);
 					}
-				} else if (/^workspaceContainsTimeout:/.test(activationEvent)) {
-					const glob = activationEvent.substr('workspaceContainsTimeout:'.length);
-					title = nls.localize({
-						key: 'workspaceContainsTimeout',
-						comment: [
-							'{0} will be a glob pattern',
-							'{1} will be an extension identifier'
-						]
-					}, "Activated by {1} because searching for {0} took too long", glob, activationId);
-				} else if (activationEvent === 'onStartupFinished') {
-					title = nls.localize({
-						key: 'startupFinishedActivation',
-						comment: [
-							'This refers to an extension. {0} will be an activation event.'
-						]
-					}, "Activated by {0} after start-up finished", activationId);
-				} else if (/^onLanguage:/.test(activationEvent)) {
-					const language = activationEvent.substr('onLanguage:'.length);
-					title = nls.localize('languageActivation', "Activated by {1} because you opened a {0} file", language, activationId);
 				} else {
-					title = nls.localize({
-						key: 'workspaceGenericActivation',
-						comment: [
-							'{0} will be an activation event, like e.g. \'language:typescript\', \'debug\', etc.',
-							'{1} will be an extension identifier'
-						]
-					}, "Activated by {1} on {0}", activationEvent, activationId);
+					title = nls.localize('extensionActivating', "Extension is activating...");
 				}
 				data.activationTime.title = title;
 

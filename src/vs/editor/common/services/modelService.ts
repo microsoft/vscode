@@ -40,46 +40,22 @@ function computeModelSha1(model: ITextModel): string {
 	return shaComputer.digest();
 }
 
-
 class ModelData implements IDisposable {
-	public readonly model: TextModel;
-
-	private _languageSelection: ILanguageSelection | null;
-	private _languageSelectionListener: IDisposable | null;
 
 	private readonly _modelEventListeners = new DisposableStore();
 
 	constructor(
-		model: TextModel,
+		public readonly model: TextModel,
 		onWillDispose: (model: ITextModel) => void,
 		onDidChangeLanguage: (model: ITextModel, e: IModelLanguageChangedEvent) => void
 	) {
 		this.model = model;
-
-		this._languageSelection = null;
-		this._languageSelectionListener = null;
-
 		this._modelEventListeners.add(model.onWillDispose(() => onWillDispose(model)));
 		this._modelEventListeners.add(model.onDidChangeLanguage((e) => onDidChangeLanguage(model, e)));
 	}
 
-	private _disposeLanguageSelection(): void {
-		if (this._languageSelectionListener) {
-			this._languageSelectionListener.dispose();
-			this._languageSelectionListener = null;
-		}
-	}
-
 	public dispose(): void {
 		this._modelEventListeners.dispose();
-		this._disposeLanguageSelection();
-	}
-
-	public setLanguage(languageSelection: ILanguageSelection, source?: string): void {
-		this._disposeLanguageSelection();
-		this._languageSelection = languageSelection;
-		this._languageSelectionListener = this._languageSelection.onDidChange(() => this.model.setMode(languageSelection.languageId, source));
-		this.model.setMode(languageSelection.languageId, source);
 	}
 }
 
@@ -242,7 +218,8 @@ export class ModelService extends Disposable implements IModelService {
 		return true;
 	}
 
-	public getCreationOptions(language: string, resource: URI | undefined, isForSimpleWidget: boolean): ITextModelCreationOptions {
+	public getCreationOptions(languageIdOrSelection: string | ILanguageSelection, resource: URI | undefined, isForSimpleWidget: boolean): ITextModelCreationOptions {
+		const language = (typeof languageIdOrSelection === 'string' ? languageIdOrSelection : languageIdOrSelection.languageId);
 		let creationOptions = this._modelCreationOptionsByLanguageAndResource[language + resource];
 		if (!creationOptions) {
 			const editor = this._configurationService.getValue<IRawEditorConfig>('editor', { overrideIdentifier: language, resource });
@@ -345,12 +322,12 @@ export class ModelService extends Disposable implements IModelService {
 		}
 	}
 
-	private _createModelData(value: string | ITextBufferFactory, languageId: string, resource: URI | undefined, isForSimpleWidget: boolean): ModelData {
+	private _createModelData(value: string | ITextBufferFactory, languageIdOrSelection: string | ILanguageSelection, resource: URI | undefined, isForSimpleWidget: boolean): ModelData {
 		// create & save the model
-		const options = this.getCreationOptions(languageId, resource, isForSimpleWidget);
+		const options = this.getCreationOptions(languageIdOrSelection, resource, isForSimpleWidget);
 		const model: TextModel = new TextModel(
 			value,
-			languageId,
+			languageIdOrSelection,
 			options,
 			resource,
 			this._undoRedoService,
@@ -478,8 +455,7 @@ export class ModelService extends Disposable implements IModelService {
 		let modelData: ModelData;
 
 		if (languageSelection) {
-			modelData = this._createModelData(value, languageSelection.languageId, resource, isForSimpleWidget);
-			this.setMode(modelData.model, languageSelection);
+			modelData = this._createModelData(value, languageSelection, resource, isForSimpleWidget);
 		} else {
 			modelData = this._createModelData(value, PLAINTEXT_LANGUAGE_ID, resource, isForSimpleWidget);
 		}
@@ -487,17 +463,6 @@ export class ModelService extends Disposable implements IModelService {
 		this._onModelAdded.fire(modelData.model);
 
 		return modelData.model;
-	}
-
-	public setMode(model: ITextModel, languageSelection: ILanguageSelection, source?: string): void {
-		if (!languageSelection) {
-			return;
-		}
-		const modelData = this._models[MODEL_ID(model.uri)];
-		if (!modelData) {
-			return;
-		}
-		modelData.setLanguage(languageSelection, source);
 	}
 
 	public destroyModel(resource: URI): void {

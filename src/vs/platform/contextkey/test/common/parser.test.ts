@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 import * as assert from 'assert';
 import { Parser } from 'vs/platform/contextkey/common/contextkey';
-import { Scanner } from 'vs/platform/contextkey/common/scanner';
 
 function parseToStr(input: string): string {
 	const parser = new Parser();
@@ -17,13 +16,13 @@ function parseToStr(input: string): string {
 	if (expr === undefined) {
 		if (parser.lexingErrors.length > 0) {
 			print('Lexing errors:', '\n\n');
-			parser.lexingErrors.forEach(token => print(Scanner.reportError(token), '\n'));
+			parser.lexingErrors.forEach(lexingError => print(`Unexpected token '${lexingError.lexeme}' at offset ${lexingError.offset}. ${lexingError.additionalInfo}`, '\n'));
 		}
 
 		if (parser.parsingErrors.length > 0) {
 			if (parser.lexingErrors.length > 0) { print('\n --- \n'); }
 			print('Parsing errors:', '\n\n');
-			parser.parsingErrors.forEach(message => print(`${message}`, '\n'));
+			parser.parsingErrors.forEach(parsingError => print(`Unexpected '${parsingError.lexeme}' at offset ${parsingError.offset}.`, '\n'));
 		}
 
 	} else {
@@ -120,6 +119,21 @@ suite('Context Key Parser', () => {
 		assert.deepStrictEqual(parseToStr(input), "cmake:enableFullFeatureSet && !cmake:hideBuildCommand");
 	});
 
+	test('!(foo && bar)', () => {
+		const input = '!(foo && bar)';
+		assert.deepStrictEqual(parseToStr(input), "!bar || !foo");
+	});
+
+	test('!(foo && bar || boar) || deer', () => {
+		const input = '!(foo && bar || boar) || deer';
+		assert.deepStrictEqual(parseToStr(input), "deer || !bar && !boar || !boar && !foo");
+	});
+
+	test(`!(!foo)`, () => {
+		const input = `!(!foo)`;
+		assert.deepStrictEqual(parseToStr(input), "foo");
+	});
+
 	suite('controversial', () => {
 		/*
 			new parser KEEPS old one's behavior:
@@ -162,9 +176,9 @@ suite('Context Key Parser', () => {
 			assert.deepStrictEqual(parseToStr(input), "resource =~ /((\\/scratch\\/(?!update)(.*)\\/)|((\\/src\\/).*\\/)).*$/");
 		});
 
-		test(`resourcePath =~ /\.md(\.yml|\.txt)*$/gim`, () => {
-			const input = `resourcePath =~ /\.md(\.yml|\.txt)*$/gim`;
-			assert.deepStrictEqual(parseToStr(input), "resourcePath =~ /.md(.yml|.txt)*$/gim");
+		test(`resourcePath =~ /\.md(\.yml|\.txt)*$/giym`, () => {
+			const input = `resourcePath =~ /\.md(\.yml|\.txt)*$/giym`;
+			assert.deepStrictEqual(parseToStr(input), "resourcePath =~ /.md(.yml|.txt)*$/im");
 		});
 
 	});
@@ -173,7 +187,7 @@ suite('Context Key Parser', () => {
 
 		test(`/foo`, () => {
 			const input = `/foo`;
-			assert.deepStrictEqual(parseToStr(input), "Lexing errors:\n\nUnexpected token '/foo' at offset 0\n\n --- \nParsing errors:\n\nExpected 'true', 'false', '(', KEY, KEY '=~' regex, KEY [ ('==' | '!=' | '<' | '<=' | '>' | '>=' | 'in' | 'not' 'in') value ] but got '/foo' at offset 0.\n");
+			assert.deepStrictEqual(parseToStr(input), "Lexing errors:\n\nUnexpected token '/foo' at offset 0. Did you forget to escape the '/' (slash) character? Put two backslashes before it to escape, e.g., '\\\\/'.\n\n --- \nParsing errors:\n\nUnexpected '/foo' at offset 0.\n");
 		});
 
 		test(`!b == 'true'`, () => {
@@ -183,32 +197,32 @@ suite('Context Key Parser', () => {
 
 		test('!foo &&  in bar', () => {
 			const input = '!foo &&  in bar';
-			assert.deepStrictEqual(parseToStr(input), "Parsing errors:\n\nExpected 'true', 'false', '(', KEY, KEY '=~' regex, KEY [ ('==' | '!=' | '<' | '<=' | '>' | '>=' | 'in' | 'not' 'in') value ] but got 'in' at offset 9.\n");
+			assert.deepStrictEqual(parseToStr(input), "Parsing errors:\n\nUnexpected 'in' at offset 9.\n");
 		});
 
 		test('vim<c-r> == 1 && vim<2<=3', () => {
 			const input = 'vim<c-r> == 1 && vim<2<=3';
-			assert.deepStrictEqual(parseToStr(input), "Lexing errors:\n\nUnexpected token '=' at offset 23. Did you mean '==' or '=~'?\n\n --- \nParsing errors:\n\nUnexpected '=' at offset 23.\n"); // FIXME
+			assert.deepStrictEqual(parseToStr(input), "Lexing errors:\n\nUnexpected token '=' at offset 23. Did you mean == or =~?\n\n --- \nParsing errors:\n\nUnexpected '=' at offset 23.\n"); // FIXME
 		});
 
 		test(`foo && 'bar`, () => {
 			const input = `foo && 'bar`;
-			assert.deepStrictEqual(parseToStr(input), "Lexing errors:\n\nUnexpected token ''bar' at offset 7. Did you forget to close the string?\n\n --- \nParsing errors:\n\nExpected 'true', 'false', '(', KEY, KEY '=~' regex, KEY [ ('==' | '!=' | '<' | '<=' | '>' | '>=' | 'in' | 'not' 'in') value ] but got ''bar' at offset 7.\n");
-		});
-
-		/*
-			We do not support negation of arbitrary expressions, only of keys.
-
-			TODO@ulugbekna: move after adding support for negation of arbitrary expressions
-		*/
-		test('!(foo && bar)', () => {
-			const input = '!(foo && bar)';
-			assert.deepStrictEqual(parseToStr(input), "Parsing errors:\n\nExpected KEY, 'true', or 'false' but got '(' at offset 1.\n");
+			assert.deepStrictEqual(parseToStr(input), "Lexing errors:\n\nUnexpected token ''bar' at offset 7. Did you forget to open or close the quote?\n\n --- \nParsing errors:\n\nUnexpected ''bar' at offset 7.\n");
 		});
 
 		test(`config.foo &&  &&bar =~ /^foo$|^bar-foo$|^joo$|^jar$/ && !foo`, () => {
 			const input = `config.foo &&  &&bar =~ /^foo$|^bar-foo$|^joo$|^jar$/ && !foo`;
-			assert.deepStrictEqual(parseToStr(input), "Parsing errors:\n\nExpected 'true', 'false', '(', KEY, KEY '=~' regex, KEY [ ('==' | '!=' | '<' | '<=' | '>' | '>=' | 'in' | 'not' 'in') value ] but got '&&' at offset 15.\n");
+			assert.deepStrictEqual(parseToStr(input), "Parsing errors:\n\nUnexpected '&&' at offset 15.\n");
+		});
+
+		test(`!foo == 'test'`, () => {
+			const input = `!foo == 'test'`;
+			assert.deepStrictEqual(parseToStr(input), "Parsing errors:\n\nUnexpected '==' at offset 5.\n");
+		});
+
+		test(`!!foo`, function () {
+			const input = `!!foo`;
+			assert.deepStrictEqual(parseToStr(input), "Parsing errors:\n\nUnexpected '!' at offset 1.\n");
 		});
 
 	});

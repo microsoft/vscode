@@ -8,7 +8,7 @@ import { URI } from 'vs/base/common/uri';
 import * as perf from 'vs/base/common/performance';
 import { WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification } from 'vs/base/common/actions';
 import { memoize } from 'vs/base/common/decorators';
-import { IFilesConfiguration, ExplorerFolderContext, FilesExplorerFocusedContext, ExplorerFocusedContext, ExplorerRootContext, ExplorerResourceReadonlyContext, ExplorerResourceCut, ExplorerResourceMoveableToTrash, ExplorerCompressedFocusContext, ExplorerCompressedFirstFocusContext, ExplorerCompressedLastFocusContext, ExplorerResourceAvailableEditorIdsContext, VIEW_ID, VIEWLET_ID, ExplorerResourceNotReadonlyContext, ViewHasSomeCollapsibleRootItemContext } from 'vs/workbench/contrib/files/common/files';
+import { IFilesConfiguration, ExplorerFolderContext, FilesExplorerFocusedContext, ExplorerFocusedContext, ExplorerRootContext, ExplorerResourceReadonlyContext, ExplorerResourceCut, ExplorerResourceMoveableToTrash, ExplorerCompressedFocusContext, ExplorerCompressedFirstFocusContext, ExplorerCompressedLastFocusContext, ExplorerResourceAvailableEditorIdsContext, VIEW_ID, VIEWLET_ID, ExplorerResourceNotReadonlyContext, ViewHasSomeCollapsibleRootItemContext, FoldersViewVisibleContext } from 'vs/workbench/contrib/files/common/files';
 import { FileCopiedContext, NEW_FILE_COMMAND_ID, NEW_FOLDER_COMMAND_ID } from 'vs/workbench/contrib/files/browser/fileActions';
 import * as DOM from 'vs/base/browser/dom';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
@@ -171,6 +171,8 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 	private compressedFocusLastContext: IContextKey<boolean>;
 
 	private viewHasSomeCollapsibleRootItem: IContextKey<boolean>;
+	private viewVisibleContextKey: IContextKey<boolean>;
+
 
 	private horizontalScrolling: boolean | undefined;
 
@@ -219,6 +221,8 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 		this.compressedFocusFirstContext = ExplorerCompressedFirstFocusContext.bindTo(contextKeyService);
 		this.compressedFocusLastContext = ExplorerCompressedLastFocusContext.bindTo(contextKeyService);
 		this.viewHasSomeCollapsibleRootItem = ViewHasSomeCollapsibleRootItemContext.bindTo(contextKeyService);
+		this.viewVisibleContextKey = FoldersViewVisibleContext.bindTo(contextKeyService);
+
 
 		this.explorerService.registerView(this);
 	}
@@ -233,6 +237,11 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 
 	override set title(_: string) {
 		// noop
+	}
+
+	override setVisible(visible: boolean): void {
+		this.viewVisibleContextKey.set(visible);
+		super.setVisible(visible);
 	}
 
 	@memoize private get fileCopiedContextKey(): IContextKey<boolean> {
@@ -600,7 +609,7 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 		});
 	}
 
-	private onFocusChanged(elements: ExplorerItem[]): void {
+	private onFocusChanged(elements: readonly ExplorerItem[]): void {
 		const stat = elements && elements.length ? elements[0] : undefined;
 		this.setContextKeys(stat);
 

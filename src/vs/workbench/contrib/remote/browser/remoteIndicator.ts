@@ -408,6 +408,12 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 					if (isCurrentRemote1 !== isCurrentRemote2) {
 						return isCurrentRemote1 ? -1 : 1;
 					}
+					// legacy indicator commands go last
+					if (g1[0] !== '' && g2[0] === '') {
+						return -1;
+					} else if (g1[0] === '' && g2[0] !== '') {
+						return 1;
+					}
 					return g1[0].localeCompare(g2[0]);
 				});
 			}

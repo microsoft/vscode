@@ -2,6 +2,7 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
+use crate::async_pipe::get_socket_rw_stream;
 use crate::constants::{CONTROL_PORT, EDITOR_WEB_URL, QUALITYLESS_SERVER_NAME};
 use crate::log;
 use crate::rpc::{MaybeSync, RpcBuilder, RpcDispatcher, Serialization};
@@ -30,7 +31,6 @@ use std::sync::atomic::{AtomicBool, AtomicU32, AtomicUsize, Ordering};
 use std::sync::Arc;
 use std::time::Instant;
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt, BufReader};
-use tokio::pin;
 use tokio::sync::{mpsc, Mutex};
 
 use super::code_server::{
@@ -45,7 +45,7 @@ use super::protocol::{
 	ServerMessageParams, ToClientRequest, UnforwardParams, UpdateParams, UpdateResult,
 	VersionParams,
 };
-use super::server_bridge::{get_socket_rw_stream, ServerBridge};
+use super::server_bridge::ServerBridge;
 use super::server_multiplexer::ServerMultiplexer;
 use super::shutdown_signal::ShutdownSignal;
 use super::socket_signal::{
@@ -103,9 +103,17 @@ enum ServerSignal {
 	Respawn,
 }
 
-pub struct ServerTermination {
+pub enum Next {
 	/// Whether the server should be respawned in a new binary (see ServerSignal.Respawn).
-	pub respawn: bool,
+	Respawn,
+	/// Whether the tunnel should be restarted
+	Restart,
+	/// Whether the process should exit
+	Exit,
+}
+
+pub struct ServerTermination {
+	pub next: Next,
 	pub tunnel: ActiveTunnel,
 }
 
@@ -155,7 +163,7 @@ pub async fn serve(
 	launcher_paths: &LauncherPaths,
 	code_server_args: &CodeServerArgs,
 	platform: Platform,
-	shutdown_rx: mpsc::UnboundedReceiver<ShutdownSignal>,
+	mut shutdown_rx: Barrier<ShutdownSignal>,
 ) -> Result<ServerTermination, AnyError> {
 	let mut port = tunnel.add_port_direct(CONTROL_PORT).await?;
 	print_listening(log, &tunnel.name);
@@ -164,15 +172,16 @@ pub async fn serve(
 	let (tx, mut rx) = mpsc::channel::<ServerSignal>(4);
 	let (exit_barrier, signal_exit) = new_barrier();
 
-	pin!(shutdown_rx);
-
 	loop {
 		tokio::select! {
-			Some(r) = shutdown_rx.recv() => {
-				info!(log, "Shutting down: {}", r );
+			Ok(reason) = shutdown_rx.wait() => {
+				info!(log, "Shutting down: {}", reason);
 				drop(signal_exit);
 				return Ok(ServerTermination {
-					respawn: false,
+					next: match reason {
+						ShutdownSignal::RpcRestartRequested => Next::Restart,
+						_ => Next::Exit,
+					},
 					tunnel,
 				});
 			},
@@ -180,7 +189,7 @@ pub async fn serve(
 				if let Some(ServerSignal::Respawn) = c {
 					drop(signal_exit);
 					return Ok(ServerTermination {
-						respawn: true,
+						next: Next::Respawn,
 						tunnel,
 					});
 				}
@@ -194,7 +203,7 @@ pub async fn serve(
 					None => {
 						warning!(log, "ssh tunnel disposed, tearing down");
 						return Ok(ServerTermination {
-							respawn: false,
+							next: Next::Restart,
 							tunnel,
 						});
 					}

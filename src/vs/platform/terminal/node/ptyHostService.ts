@@ -79,7 +79,7 @@ export class PtyHostService extends Disposable implements IPtyService {
 
 	constructor(
 		private readonly _reconnectConstants: IReconnectConstants,
-		private readonly loggerName: string,
+		private readonly isRemote: boolean,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IEnvironmentService private readonly _environmentService: INativeEnvironmentService,
 		@ILogService private readonly _logService: ILogService,
@@ -136,10 +136,10 @@ export class PtyHostService extends Disposable implements IPtyService {
 	private _startPtyHost(): [Client, IPtyService] {
 		const opts: IIPCOptions = {
 			serverName: 'Pty Host',
-			args: ['--type=ptyHost', '--logsPath', this._environmentService.logsPath],
+			args: ['--type=ptyHost', '--logsPath', this._environmentService.logsHome.fsPath],
 			env: {
 				VSCODE_LAST_PTY_ID: lastPtyId,
-				VSCODE_PTY_LOG_NAME: this.loggerName,
+				VSCODE_PTY_REMOTE: this.isRemote,
 				VSCODE_AMD_ENTRYPOINT: 'vs/platform/terminal/node/ptyHostMain',
 				VSCODE_PIPE_LOGGING: 'true',
 				VSCODE_VERBOSE_LOGGING: 'true', // transmit console logs from server to client,
@@ -238,7 +238,7 @@ export class PtyHostService extends Disposable implements IPtyService {
 	reduceConnectionGraceTime(): Promise<void> {
 		return this._proxy.reduceConnectionGraceTime();
 	}
-	start(id: number): Promise<ITerminalLaunchError | undefined> {
+	start(id: number): Promise<ITerminalLaunchError | { injectedArgs: string[] } | undefined> {
 		return this._proxy.start(id);
 	}
 	shutdown(id: number, immediate: boolean): Promise<void> {
