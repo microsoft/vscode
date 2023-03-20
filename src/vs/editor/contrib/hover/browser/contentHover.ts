@@ -36,6 +36,7 @@ export class ContentHoverController extends Disposable {
 	private readonly _widget = this._register(this._instantiationService.createInstance(ContentHoverWidget, this._editor));
 	private readonly _computer: ContentHoverComputer;
 	private readonly _hoverOperation: HoverOperation<IHoverPart>;
+	private _renderingAbove: boolean = this._editor.getOption(EditorOption.hover).above;
 
 	private _currentResult: HoverResult | null = null;
 
@@ -81,7 +82,11 @@ export class ContentHoverController extends Disposable {
 			// Update the left offset of the resizable element when the widget has been resized
 			const offsetLeft = this._widget.getDomNode().offsetLeft;
 			if (offsetLeft) {
-				this._resizableOverlay.getDomNode().style.left = offsetLeft - 1 + 'px';
+				this._resizableOverlay.getDomNode().style.left = offsetLeft - 2 + 'px';
+			}
+			const offsetTop = this._widget.getDomNode().offsetTop;
+			if (offsetTop) {
+				this._resizableOverlay.getDomNode().style.top = offsetTop - 2 + 'px';
 			}
 		}));
 	}
@@ -326,10 +331,14 @@ export class ContentHoverController extends Disposable {
 				// Values found by trial and error
 				// Update the left and top offset to match the widget dom node
 				const resizableElement = this._resizableOverlay.resizableElement();
-				resizableElement.domNode.style.top = offsetTop - 2 + 'px';
-				resizableElement.domNode.style.left = offsetLeft - 2 + 'px';
+				if (this._renderingAbove) {
+					resizableElement.domNode.style.top = offsetTop - 2 + 'px';
+				} else {
+					resizableElement.domNode.style.top = offsetTop + 'px';
+				}
+				resizableElement.domNode.style.left = offsetLeft + 'px';
 				// Set a different width and height to the resizable element
-				resizableElement.layout(clientHeight + 7, clientWidth + 7);
+				resizableElement.layout(clientHeight + 4, clientWidth + 4); // Used to be 7 and 6
 				this._editor.layoutOverlayWidget(this._resizableOverlay);
 				// TODO: Do we need this forced rendering?
 				this._editor.render();
@@ -495,10 +504,12 @@ export class ContentHoverController extends Disposable {
 				}
 			}
 
+			this._renderingAbove = renderingAbove;
+
 			console.log('rendering above : ', renderingAbove);
 
 			// Calling show at with the position, size and rendering above option
-			this._resizableOverlay.showAt(position, size, renderingAbove);
+			this._resizableOverlay.showAt(position, size, this._renderingAbove);
 
 			// Added for logging purposes
 			resizableWidgetDomNode = this._resizableOverlay.getDomNode();
