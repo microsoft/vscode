@@ -34,6 +34,10 @@ declare module 'vscode' {
 	 * that resolves to an array of {@link TextEdit text edits}.
 	 */
 	export interface NotebookDocumentWillSaveEvent {
+		/**
+		 * A cancellation token.
+		 */
+		readonly token: CancellationToken;
 
 		/**
 		 * The document that will be saved.

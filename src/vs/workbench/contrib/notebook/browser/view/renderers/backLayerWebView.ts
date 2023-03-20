@@ -705,6 +705,17 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 							this.openerService.open(CellUri.generateCellOutputUri(this.documentUri, outputId));
 							return;
 						}
+						if (uri.path === 'cellOutput.enableScrolling') {
+							const outputId = uri.query;
+							const cell = this.reversedInsetMapping.get(outputId);
+
+							if (cell) {
+								cell.resetRenderer();
+							}
+
+							console.log(outputId);
+							return;
+						}
 
 						// We allow a very limited set of commands
 						this.openerService.open(data.href, {
@@ -1545,7 +1556,7 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 		});
 	}
 
-	async find(query: string, options: { wholeWord?: boolean; caseSensitive?: boolean; includeMarkup: boolean; includeOutput: boolean }): Promise<IFindMatch[]> {
+	async find(query: string, options: { wholeWord?: boolean; caseSensitive?: boolean; includeMarkup: boolean; includeOutput: boolean; shouldGetSearchPreviewInfo: boolean }): Promise<IFindMatch[]> {
 		if (query === '') {
 			return [];
 		}

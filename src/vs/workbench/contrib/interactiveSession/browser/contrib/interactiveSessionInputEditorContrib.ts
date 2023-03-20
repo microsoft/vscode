@@ -150,6 +150,10 @@ class SlashCommandCompletions extends Disposable {
 					return null;
 				}
 
+				if (model.getValueInRange(new Range(1, 1, 1, 2)) !== '/') {
+					return null;
+				}
+
 				return <CompletionList>{
 					suggestions: slashCommands.map(c => {
 						const withSlash = `/${c.command}`;

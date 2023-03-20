@@ -9,7 +9,11 @@ import { ICommandService } from 'vs/platform/commands/common/commands';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 
-type RunnableCommand = string | { id: string; args: any[] };
+type RunnableCommand = string | { command: string; args: any[] };
+
+type CommandArgs = {
+	commands: RunnableCommand[];
+};
 
 /** Runs several commands passed to it as an argument */
 class RunCommands extends Action2 {
@@ -32,19 +36,34 @@ class RunCommands extends Action2 {
 									type: 'array',
 									description: nls.localize('runCommands.commands', "Commands to run"),
 									items: {
-										type: ['string', 'object'],
-										required: ['command'],
-										properties: {
-											command: {
-												type: 'string'
+										anyOf: [  // Note: we don't allow arbitrary strings as command names as does `keybindingService.ts` - such behavior would be useful if the commands registry doesn't know about all existing commands - needs investigation
+											{
+												$ref: 'vscode://schemas/keybindings#/definitions/commandNames'
 											},
-											args: { // type: any
+											{
+												type: 'string', // we support "arbitrary" strings because extension-contributed command names aren't in 'vscode://schemas/keybindings#commandNames'
+											},
+											{
+												type: 'object',
+												required: ['command'],
+												properties: {
+													command: {
+														'anyOf': [
+															{
+																$ref: 'vscode://schemas/keybindings#/definitions/commandNames'
+															},
+															{
+																type: 'string'
+															},
+														]
+													}
+												},
+												$ref: 'vscode://schemas/keybindings#/definitions/commandsSchemas'
 											}
-										}
+										]
 									}
 								}
 							}
-
 						}
 					}
 				]
@@ -56,32 +75,33 @@ class RunCommands extends Action2 {
 	// - this command takes a single argument-object because
 	//	- keybinding definitions don't allow running commands with several arguments
 	//  - and we want to be able to take on different other arguments in future, e.g., `runMode : 'serial' | 'concurrent'`
-	async run(accessor: ServicesAccessor, args: any) {
-		if (!this._validateInput(args)) {
+	async run(accessor: ServicesAccessor, args: unknown) {
+		if (!this._isCommandArgs(args)) {
 			throw new Error('runCommands: invalid arguments');
 		}
 		const commandService = accessor.get(ICommandService);
+		const notificationService = accessor.get(INotificationService);
 		try {
 			for (const cmd of args.commands) {
 				await this._runCommand(commandService, cmd);
 			}
 		} catch (err) {
-			accessor.get(INotificationService).warn(err);
+			notificationService.warn(err);
 		}
 	}
 
-	private _validateInput(args: any): args is { commands: RunnableCommand[] } {
+	private _isCommandArgs(args: unknown): args is CommandArgs {
 		if (!args || typeof args !== 'object') {
 			return false;
 		}
-		if (!Array.isArray(args.commands)) {
+		if (!('commands' in args) || !Array.isArray(args.commands)) {
 			return false;
 		}
 		for (const cmd of args.commands) {
 			if (typeof cmd === 'string') {
 				continue;
 			}
-			if (typeof cmd === 'object' && typeof cmd.id === 'string') {
+			if (typeof cmd === 'object' && typeof cmd.command === 'string') {
 				continue;
 			}
 			return false;
@@ -95,14 +115,18 @@ class RunCommands extends Action2 {
 		if (typeof cmd === 'string') {
 			commandID = cmd;
 		} else {
-			commandID = cmd.id;
+			commandID = cmd.command;
 			commandArgs = cmd.args;
 		}
 
 		if (commandArgs === undefined) {
 			return commandService.executeCommand(commandID);
 		} else {
-			return commandService.executeCommand(commandID, ...commandArgs);
+			if (Array.isArray(commandArgs)) { // TODO@ulugbekna: this needs discussion - do we allow passing several arguments to command run, which isn't by the regular `keybindings.json`
+				return commandService.executeCommand(commandID, ...commandArgs);
+			} else {
+				return commandService.executeCommand(commandID, commandArgs);
+			}
 		}
 	}
 }

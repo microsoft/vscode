@@ -27,4 +27,5 @@ registerAction2(interactiveEditorActions.PreviousFromHistory);
 registerAction2(interactiveEditorActions.NextFromHistory);
 registerAction2(interactiveEditorActions.UndoCommand);
 
+
 registerAction2(interactiveEditorActions.CopyRecordings);

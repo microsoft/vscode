@@ -1,49 +1,6 @@
 # cleanup rules for node modules, .gitignore style
 
-@parcel/watcher/binding.gyp
-@parcel/watcher/build/**
-@parcel/watcher/prebuilds/**
-@parcel/watcher/src/**
-!@parcel/watcher/build/Release/*.node
-
-@vscode/policy-watcher/build/**
-@vscode/policy-watcher/.husky/**
-@vscode/policy-watcher/src/**
-@vscode/policy-watcher/binding.gyp
-@vscode/policy-watcher/README.md
-@vscode/policy-watcher/index.d.ts
-!@vscode/policy-watcher/build/Release/vscode-policy-watcher.node
-
-@vscode/spdlog/binding.gyp
-@vscode/spdlog/build/**
-@vscode/spdlog/deps/**
-@vscode/spdlog/src/**
-@vscode/spdlog/test/**
-@vscode/spdlog/*.yml
-!@vscode/spdlog/build/Release/*.node
-
-@vscode/sqlite3/binding.gyp
-@vscode/sqlite3/benchmark/**
-@vscode/sqlite3/cloudformation/**
-@vscode/sqlite3/deps/**
-@vscode/sqlite3/test/**
-@vscode/sqlite3/build/**
-@vscode/sqlite3/src/**
-!@vscode/sqlite3/build/Release/*.node
-
-@vscode/windows-ca-certs/**/*
-!@vscode/windows-ca-certs/package.json
-!@vscode/windows-ca-certs/**/*.node
-
-@vscode/windows-mutex/binding.gyp
-@vscode/windows-mutex/build/**
-@vscode/windows-mutex/src/**
-!@vscode/windows-mutex/**/*.node
-
-@vscode/windows-registry/binding.gyp
-@vscode/windows-registry/src/**
-@vscode/windows-registry/build/**
-!@vscode/windows-registry/build/Release/*.node
+# native node modules
 
 nan/**
 */node_modules/nan/**
@@ -54,6 +11,25 @@ fsevents/build/**
 fsevents/src/**
 fsevents/test/**
 !fsevents/**/*.node
+
+@vscode/sqlite3/binding.gyp
+@vscode/sqlite3/benchmark/**
+@vscode/sqlite3/cloudformation/**
+@vscode/sqlite3/deps/**
+@vscode/sqlite3/test/**
+@vscode/sqlite3/build/**
+@vscode/sqlite3/src/**
+!@vscode/sqlite3/build/Release/*.node
+
+@vscode/windows-registry/binding.gyp
+@vscode/windows-registry/src/**
+@vscode/windows-registry/build/**
+!@vscode/windows-registry/build/Release/*.node
+
+windows-mutex/binding.gyp
+windows-mutex/build/**
+windows-mutex/src/**
+!windows-mutex/**/*.node
 
 native-keymap/binding.gyp
 native-keymap/build/**
@@ -76,6 +52,14 @@ node-vsce-sign/**
 !node-vsce-sign/src/main.js
 !node-vsce-sign/package.json
 !node-vsce-sign/bin/**
+
+spdlog/binding.gyp
+spdlog/build/**
+spdlog/deps/**
+spdlog/src/**
+spdlog/test/**
+spdlog/*.yml
+!spdlog/build/Release/*.node
 
 windows-foreground-love/binding.gyp
 windows-foreground-love/build/**
@@ -106,6 +90,12 @@ node-pty/scripts/**
 !node-pty/build/Release/*.dll
 !node-pty/build/Release/*.node
 
+@parcel/watcher/binding.gyp
+@parcel/watcher/build/**
+@parcel/watcher/prebuilds/**
+@parcel/watcher/src/**
+!@parcel/watcher/build/Release/*.node
+
 vsda/build/**
 vsda/ci/**
 vsda/src/**
@@ -122,6 +112,18 @@ vscode-encrypt/.gitignore
 vscode-encrypt/binding.gyp
 vscode-encrypt/README.md
 !vscode-encrypt/build/Release/vscode-encrypt-native.node
+
+@vscode/policy-watcher/build/**
+@vscode/policy-watcher/.husky/**
+@vscode/policy-watcher/src/**
+@vscode/policy-watcher/binding.gyp
+@vscode/policy-watcher/README.md
+@vscode/policy-watcher/index.d.ts
+!@vscode/policy-watcher/build/Release/vscode-policy-watcher.node
+
+vscode-windows-ca-certs/**/*
+!vscode-windows-ca-certs/package.json
+!vscode-windows-ca-certs/**/*.node
 
 node-addon-api/**/*
 prebuild-install/**/*

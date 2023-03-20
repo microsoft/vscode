@@ -3968,4 +3968,9 @@ export enum InteractiveSessionVoteDirection {
 	Down = 2
 }
 
+export enum InteractiveSessionCopyKind {
+	Action = 1,
+	Toolbar = 2
+}
+
 //#endregion
