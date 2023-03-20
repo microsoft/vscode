@@ -22,7 +22,6 @@ use crate::{
 	rpc::{RpcCaller, RpcDispatcher},
 	singleton::SingletonServer,
 	state::LauncherPaths,
-	update_service::Platform,
 	util::{
 		errors::{AnyError, CodeError},
 		ring_buffer::RingBuffer,
@@ -42,7 +41,6 @@ pub struct SingletonServerArgs<'a> {
 	pub tunnel: ActiveTunnel,
 	pub paths: &'a LauncherPaths,
 	pub code_server_args: &'a CodeServerArgs,
-	pub platform: Platform,
 	pub shutdown: Barrier<ShutdownSignal>,
 	pub log_broadcast: &'a BroadcastLogSink,
 }
@@ -131,7 +129,6 @@ pub async fn start_singleton_server<'a>(
 		args.tunnel,
 		args.paths,
 		args.code_server_args,
-		args.platform,
 		shutdown_rx,
 	);
 

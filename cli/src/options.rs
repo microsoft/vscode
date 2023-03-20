@@ -57,7 +57,7 @@ impl Quality {
 	}
 
 	/// Server application name
-	pub fn server_entrypoint(&self) -> String {
+	pub fn server_entrypoint(&self, is_windows: bool) -> String {
 		let mut server_name = SERVER_NAME_MAP
 			.as_ref()
 			.and_then(|m| m.get(self))
@@ -65,7 +65,7 @@ impl Quality {
 			.unwrap_or("code-server-oss")
 			.to_string();
 
-		if cfg!(windows) {
+		if is_windows {
 			server_name.push_str(".cmd");
 		}
 

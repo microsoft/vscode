@@ -2,33 +2,25 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-use super::paths::{InstalledServer, LastUsedServers, ServerPaths};
+use super::capability::{get_scheme_interactor, BoxedFileWriter};
+use super::paths::ServerPaths;
 use crate::async_pipe::get_socket_name;
-use crate::constants::{APPLICATION_NAME, QUALITYLESS_PRODUCT_NAME, QUALITYLESS_SERVER_NAME};
 use crate::options::{Quality, TelemetryLevel};
-use crate::state::LauncherPaths;
-use crate::update_service::{
-	unzip_downloaded_release, Platform, Release, TargetKind, UpdateService,
-};
-use crate::util::command::{capture_command, kill_tree};
-use crate::util::errors::{
-	wrap, AnyError, ExtensionInstallFailed, MissingEntrypointError, WrappedError,
-};
-use crate::util::http::{self, SimpleHttp};
-use crate::util::io::SilentCopyProgress;
+use crate::update_service::{Platform, Release, TargetKind, UpdateService};
+use crate::util::command::{capture_command_and_check_status, kill_tree};
+use crate::util::errors::{wrap, AnyError, WrappedError};
+use crate::util::http::BoxedHttp;
 use crate::util::machine::process_exists;
-use crate::{debug, info, log, span, spanf, trace, warning};
+use crate::{debug, info, log, spanf, trace};
 use lazy_static::lazy_static;
 use opentelemetry::KeyValue;
 use regex::Regex;
 use serde::Deserialize;
-use std::fs;
-use std::fs::File;
-use std::io::{ErrorKind, Write};
-use std::path::{Path, PathBuf};
+use std::ffi::OsStr;
+use std::io::Write;
+use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Duration;
-use tokio::fs::remove_file;
 use tokio::io::{AsyncBufReadExt, BufReader};
 use tokio::process::{Child, Command};
 use tokio::sync::oneshot::Receiver;
@@ -40,9 +32,7 @@ lazy_static! {
 	static ref WEB_UI_RE: Regex = Regex::new(r"Web UI available at (.+)").unwrap();
 }
 
-const MAX_RETAINED_SERVERS: usize = 5;
-
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, Eq, PartialEq)]
 pub struct CodeServerArgs {
 	pub host: Option<String>,
 	pub port: Option<u16>,
@@ -155,26 +145,17 @@ pub struct ServerParamsRaw {
 }
 
 /// Server params that can be used to start a VS Code server.
+#[derive(Eq, PartialEq)]
 pub struct ResolvedServerParams {
 	pub release: Release,
 	pub code_server_args: CodeServerArgs,
-}
-
-impl ResolvedServerParams {
-	fn as_installed_server(&self) -> InstalledServer {
-		InstalledServer {
-			commit: self.release.commit.clone(),
-			quality: self.release.quality,
-			headless: self.release.target == TargetKind::Server,
-		}
-	}
 }
 
 impl ServerParamsRaw {
 	pub async fn resolve(
 		self,
 		log: &log::Logger,
-		http: impl SimpleHttp + Send + Sync + 'static,
+		http: BoxedHttp,
 	) -> Result<ResolvedServerParams, AnyError> {
 		Ok(ResolvedServerParams {
 			release: self.get_or_fetch_commit_id(log, http).await?,
@@ -185,7 +166,7 @@ impl ServerParamsRaw {
 	async fn get_or_fetch_commit_id(
 		&self,
 		log: &log::Logger,
-		http: impl SimpleHttp + Send + Sync + 'static,
+		http: BoxedHttp,
 	) -> Result<Release, AnyError> {
 		let target = match self.headless {
 			true => TargetKind::Server,
@@ -235,6 +216,7 @@ pub struct PortCodeServer {
 }
 
 /// A server listening on any address/location.
+#[derive(Clone)]
 pub enum AnyCodeServer {
 	Socket(SocketCodeServer),
 	Port(PortCodeServer),
@@ -274,300 +256,66 @@ impl CodeServerOrigin {
 	}
 }
 
-async fn check_and_create_dir(path: &Path) -> Result<(), WrappedError> {
-	tokio::fs::create_dir_all(path)
-		.await
-		.map_err(|e| wrap(e, "error creating server directory"))?;
-	Ok(())
-}
-
-async fn install_server_if_needed(
-	log: &log::Logger,
-	paths: &ServerPaths,
-	release: &Release,
-	http: impl SimpleHttp + Send + Sync + 'static,
-	existing_archive_path: Option<PathBuf>,
-) -> Result<(), AnyError> {
-	if paths.executable.exists() {
-		info!(
-			log,
-			"Found existing installation at {}",
-			paths.server_dir.display()
-		);
-		return Ok(());
-	}
-
-	let tar_file_path = match existing_archive_path {
-		Some(p) => p,
-		None => spanf!(
-			log,
-			log.span("server.download"),
-			download_server(&paths.server_dir, release, log, http)
-		)?,
-	};
-
-	span!(
-		log,
-		log.span("server.extract"),
-		install_server(&tar_file_path, paths, log)
-	)?;
-
-	Ok(())
-}
-
-async fn download_server(
-	path: &Path,
-	release: &Release,
-	log: &log::Logger,
-	http: impl SimpleHttp + Send + Sync + 'static,
-) -> Result<PathBuf, AnyError> {
-	let response = UpdateService::new(log.clone(), http)
-		.get_download_stream(release)
-		.await?;
-
-	let mut save_path = path.to_owned();
-	save_path.push("archive");
-
-	info!(
-		log,
-		"Downloading {} server -> {}",
-		QUALITYLESS_PRODUCT_NAME,
-		save_path.display()
-	);
-
-	http::download_into_file(
-		&save_path,
-		log.get_download_logger("server download progress:"),
-		response,
-	)
-	.await?;
-
-	Ok(save_path)
-}
-
-fn install_server(
-	compressed_file: &Path,
-	paths: &ServerPaths,
-	log: &log::Logger,
-) -> Result<(), AnyError> {
-	info!(log, "Setting up server...");
-
-	unzip_downloaded_release(compressed_file, &paths.server_dir, SilentCopyProgress())?;
-
-	match fs::remove_file(compressed_file) {
-		Ok(()) => {}
-		Err(e) => {
-			if e.kind() != ErrorKind::NotFound {
-				return Err(AnyError::from(wrap(e, "error removing downloaded file")));
-			}
-		}
-	}
-
-	if !paths.executable.exists() {
-		return Err(AnyError::from(MissingEntrypointError()));
-	}
-
-	Ok(())
-}
-
-/// Ensures the given list of extensions are installed on the running server.
-async fn do_extension_install_on_running_server(
-	start_script_path: &Path,
-	extensions: &[String],
-	log: &log::Logger,
-) -> Result<(), AnyError> {
-	if extensions.is_empty() {
-		return Ok(());
-	}
-
-	debug!(log, "Installing extensions...");
-	let command = format!(
-		"{} {}",
-		start_script_path.display(),
-		extensions
-			.iter()
-			.map(|s| get_extensions_flag(s))
-			.collect::<Vec<String>>()
-			.join(" ")
-	);
-
-	let result = capture_command("bash", &["-c", &command]).await?;
-	if !result.status.success() {
-		Err(AnyError::from(ExtensionInstallFailed(
-			String::from_utf8_lossy(&result.stderr).to_string(),
-		)))
-	} else {
-		Ok(())
-	}
-}
-
-pub struct ServerBuilder<'a, Http: SimpleHttp + Send + Sync + Clone> {
+pub struct ServerBuilder<'a> {
 	logger: &'a log::Logger,
 	server_params: &'a ResolvedServerParams,
-	last_used: LastUsedServers<'a>,
-	server_paths: ServerPaths,
-	http: Http,
+	server_paths: &'a ServerPaths,
 }
 
-impl<'a, Http: SimpleHttp + Send + Sync + Clone + 'static> ServerBuilder<'a, Http> {
+impl<'a> ServerBuilder<'a> {
 	pub fn new(
 		logger: &'a log::Logger,
 		server_params: &'a ResolvedServerParams,
-		launcher_paths: &'a LauncherPaths,
-		http: Http,
+		server_paths: &'a ServerPaths,
 	) -> Self {
 		Self {
 			logger,
 			server_params,
-			last_used: LastUsedServers::new(launcher_paths),
-			server_paths: server_params
-				.as_installed_server()
-				.server_paths(launcher_paths),
-			http,
+			server_paths,
 		}
-	}
-
-	/// Gets any already-running server from this directory.
-	pub async fn get_running(&self) -> Result<Option<AnyCodeServer>, AnyError> {
-		info!(
-			self.logger,
-			"Checking {} and {} for a running server...",
-			self.server_paths.logfile.display(),
-			self.server_paths.pidfile.display()
-		);
-
-		let pid = match self.server_paths.get_running_pid() {
-			Some(pid) => pid,
-			None => return Ok(None),
-		};
-		info!(self.logger, "Found running server (pid={})", pid);
-		if !Path::new(&self.server_paths.logfile).exists() {
-			warning!(self.logger, "{} Server is running but its logfile is missing. Don't delete the {} Server manually, run the command '{} prune'.", QUALITYLESS_PRODUCT_NAME, QUALITYLESS_PRODUCT_NAME, APPLICATION_NAME);
-			return Ok(None);
-		}
-
-		do_extension_install_on_running_server(
-			&self.server_paths.executable,
-			&self.server_params.code_server_args.install_extensions,
-			self.logger,
-		)
-		.await?;
-
-		let origin = Arc::new(CodeServerOrigin::Existing(pid));
-		let contents = fs::read_to_string(&self.server_paths.logfile)
-			.expect("Something went wrong reading log file");
-
-		if let Some(port) = parse_port_from(&contents) {
-			Ok(Some(AnyCodeServer::Port(PortCodeServer {
-				commit_id: self.server_params.release.commit.to_owned(),
-				port,
-				origin,
-			})))
-		} else if let Some(socket) = parse_socket_from(&contents) {
-			Ok(Some(AnyCodeServer::Socket(SocketCodeServer {
-				commit_id: self.server_params.release.commit.to_owned(),
-				socket,
-				origin,
-			})))
-		} else {
-			Ok(None)
-		}
-	}
-
-	/// Ensures the server is set up in the configured directory.
-	pub async fn setup(&self, existing_archive_path: Option<PathBuf>) -> Result<(), AnyError> {
-		debug!(
-			self.logger,
-			"Installing and setting up {}...", QUALITYLESS_SERVER_NAME
-		);
-		check_and_create_dir(&self.server_paths.server_dir).await?;
-		install_server_if_needed(
-			self.logger,
-			&self.server_paths,
-			&self.server_params.release,
-			self.http.clone(),
-			existing_archive_path,
-		)
-		.await?;
-		debug!(self.logger, "Server setup complete");
-
-		match self.last_used.add(self.server_params.as_installed_server()) {
-			Err(e) => warning!(self.logger, "Error adding server to last used: {}", e),
-			Ok(count) if count > MAX_RETAINED_SERVERS => {
-				if let Err(e) = self.last_used.trim(self.logger, MAX_RETAINED_SERVERS) {
-					warning!(self.logger, "Error trimming old servers: {}", e);
-				}
-			}
-			Ok(_) => {}
-		}
-
-		Ok(())
-	}
-
-	pub async fn listen_on_port(&self, port: u16) -> Result<PortCodeServer, AnyError> {
-		let mut cmd = self.get_base_command();
-		cmd.arg("--start-server")
-			.arg("--enable-remote-auto-shutdown")
-			.arg(format!("--port={}", port));
-
-		let child = self.spawn_server_process(cmd)?;
-		let log_file = self.get_logfile()?;
-		let plog = self.logger.prefixed(&log::new_code_server_prefix());
-
-		let (mut origin, listen_rx) =
-			monitor_server::<PortMatcher, u16>(child, Some(log_file), plog, false);
-
-		let port = match timeout(Duration::from_secs(8), listen_rx).await {
-			Err(e) => {
-				origin.kill().await;
-				Err(wrap(e, "timed out looking for port"))
-			}
-			Ok(Err(e)) => {
-				origin.kill().await;
-				Err(wrap(e, "server exited without writing port"))
-			}
-			Ok(Ok(p)) => Ok(p),
-		}?;
-
-		info!(self.logger, "Server started");
-
-		Ok(PortCodeServer {
-			commit_id: self.server_params.release.commit.to_owned(),
-			port,
-			origin: Arc::new(origin),
-		})
 	}
 
 	pub async fn listen_on_default_socket(&self) -> Result<SocketCodeServer, AnyError> {
 		let requested_file = get_socket_name();
-		self.listen_on_socket(&requested_file).await
+		let (origin, socket) = self.listen_on_socket(&requested_file).await?;
+
+		Ok(SocketCodeServer {
+			commit_id: self.server_params.release.commit.to_owned(),
+			socket: PathBuf::from(socket),
+			origin: Arc::new(origin),
+		})
 	}
 
-	pub async fn listen_on_socket(&self, socket: &Path) -> Result<SocketCodeServer, AnyError> {
-		Ok(spanf!(
+	pub async fn listen_on_socket(
+		&self,
+		socket: impl AsRef<OsStr>,
+	) -> Result<(CodeServerOrigin, String), AnyError> {
+		spanf!(
 			self.logger,
 			self.logger.span("server.start").with_attributes(vec! {
 				KeyValue::new("commit_id", self.server_params.release.commit.to_string()),
 				KeyValue::new("quality", format!("{}", self.server_params.release.quality)),
 			}),
 			self._listen_on_socket(socket)
-		)?)
+		)
 	}
 
-	async fn _listen_on_socket(&self, socket: &Path) -> Result<SocketCodeServer, AnyError> {
-		remove_file(&socket).await.ok(); // ignore any error if it doesn't exist
-
+	async fn _listen_on_socket(
+		&self,
+		socket: impl AsRef<OsStr>,
+	) -> Result<(CodeServerOrigin, String), AnyError> {
 		let mut cmd = self.get_base_command();
 		cmd.arg("--start-server")
 			.arg("--enable-remote-auto-shutdown")
-			.arg(format!("--socket-path={}", socket.display()));
+			.arg("--socket-path")
+			.arg(socket.as_ref());
 
 		let child = self.spawn_server_process(cmd)?;
 		let log_file = self.get_logfile()?;
 		let plog = self.logger.prefixed(&log::new_code_server_prefix());
 
 		let (mut origin, listen_rx) =
-			monitor_server::<SocketMatcher, PathBuf>(child, Some(log_file), plog, false);
+			monitor_server::<SocketMatcher, String>(child, Some(log_file), plog, false);
 
 		let socket = match timeout(Duration::from_secs(8), listen_rx).await {
 			Err(e) => {
@@ -583,30 +331,7 @@ impl<'a, Http: SimpleHttp + Send + Sync + Clone + 'static> ServerBuilder<'a, Htt
 
 		info!(self.logger, "Server started");
 
-		Ok(SocketCodeServer {
-			commit_id: self.server_params.release.commit.to_owned(),
-			socket,
-			origin: Arc::new(origin),
-		})
-	}
-
-	/// Starts with a given opaque set of args. Does not set up any port or
-	/// socket, but does return one if present, in the form of a channel.
-	pub async fn start_opaque_with_args<M, R>(
-		&self,
-		args: &[String],
-	) -> Result<(CodeServerOrigin, Receiver<R>), AnyError>
-	where
-		M: ServerOutputMatcher<R>,
-		R: 'static + Send + std::fmt::Debug,
-	{
-		let mut cmd = self.get_base_command();
-		cmd.args(args);
-
-		let child = self.spawn_server_process(cmd)?;
-		let plog = self.logger.prefixed(&log::new_code_server_prefix());
-
-		Ok(monitor_server::<M, R>(child, None, plog, true))
+		Ok((origin, socket))
 	}
 
 	fn spawn_server_process(&self, mut cmd: Command) -> Result<Child, AnyError> {
@@ -626,29 +351,34 @@ impl<'a, Http: SimpleHttp + Send + Sync + Clone + 'static> ServerBuilder<'a, Htt
 		Ok(child)
 	}
 
-	fn get_logfile(&self) -> Result<File, WrappedError> {
-		File::create(&self.server_paths.logfile).map_err(|e| {
-			wrap(
-				e,
-				format!(
-					"error creating log file {}",
-					self.server_paths.logfile.display()
-				),
-			)
-		})
+	fn get_logfile(&self) -> Result<BoxedFileWriter, WrappedError> {
+		get_scheme_interactor(self.server_paths.logfile.scheme())
+			.fs_open_write(&self.server_paths.logfile)
+			.map_err(|e| {
+				wrap(
+					e,
+					format!(
+						"error creating log file {}",
+						self.server_paths.logfile.path()
+					),
+				)
+			})
 	}
 
 	fn get_base_command(&self) -> Command {
-		let mut cmd = Command::new(&self.server_paths.executable);
-		cmd.stdin(std::process::Stdio::null())
-			.args(self.server_params.code_server_args.command_arguments());
-		cmd
+		let mut args = self.server_params.code_server_args.command_arguments();
+		let exe = &self.server_paths.executable;
+		let command = get_scheme_interactor(exe.scheme()).format_command(exe, &mut args);
+
+		let mut command = Command::new(command);
+		command.args(args);
+		command
 	}
 }
 
 fn monitor_server<M, R>(
 	mut child: Child,
-	log_file: Option<File>,
+	mut log_file: Option<BoxedFileWriter>,
 	plog: log::Logger,
 	write_directly: bool,
 ) -> (CodeServerOrigin, Receiver<R>)
@@ -673,8 +403,8 @@ where
 	tokio::spawn(async move {
 		let mut stdout_reader = BufReader::new(stdout).lines();
 		let mut stderr_reader = BufReader::new(stderr).lines();
-		let write_line = |line: &str| -> std::io::Result<()> {
-			if let Some(mut f) = log_file.as_ref() {
+		let mut write_line = |line: &str| -> std::io::Result<()> {
+			if let Some(f) = &mut log_file {
 				f.write_all(line.as_bytes())?;
 				f.write_all(&[b'\n'])?;
 			}
@@ -733,10 +463,6 @@ where
 	(origin, listen_rx)
 }
 
-fn get_extensions_flag(extension_id: &str) -> String {
-	format!("--install-extension={}", extension_id)
-}
-
 /// A type that can be used to scan stdout from the VS Code server. Returns
 /// some other type that, in turn, is returned from starting the server.
 pub trait ServerOutputMatcher<R>
@@ -749,8 +475,8 @@ where
 /// Parses a line like "Extension host agent listening on /tmp/foo.sock"
 struct SocketMatcher();
 
-impl ServerOutputMatcher<PathBuf> for SocketMatcher {
-	fn match_line(line: &str) -> Option<PathBuf> {
+impl ServerOutputMatcher<String> for SocketMatcher {
+	fn match_line(line: &str) -> Option<String> {
 		parse_socket_from(line)
 	}
 }
@@ -785,15 +511,39 @@ impl ServerOutputMatcher<()> for NoOpMatcher {
 	}
 }
 
-fn parse_socket_from(text: &str) -> Option<PathBuf> {
+pub fn parse_socket_from(text: &str) -> Option<String> {
 	LISTENING_PORT_RE
 		.captures(text)
-		.and_then(|cap| cap.get(1).map(|path| PathBuf::from(path.as_str())))
+		.and_then(|cap| cap.get(1).map(|path| path.as_str().to_string()))
 }
 
-fn parse_port_from(text: &str) -> Option<u16> {
+pub fn parse_port_from(text: &str) -> Option<u16> {
 	LISTENING_PORT_RE.captures(text).and_then(|cap| {
 		cap.get(1)
 			.and_then(|path| path.as_str().parse::<u16>().ok())
 	})
+}
+
+/// Ensures the given list of extensions are installed on the running server.
+pub async fn do_extension_install_on_running_server(
+	bin_path: &url::Url,
+	extensions: &[String],
+	log: &log::Logger,
+) -> Result<(), AnyError> {
+	if extensions.is_empty() {
+		return Ok(());
+	}
+
+	debug!(log, "Installing extensions...");
+
+	let mut args = extensions
+		.iter()
+		.flat_map(|s| ["--install-extension", s])
+		.map(|s| s.to_string())
+		.collect::<Vec<_>>();
+
+	let cmd = get_scheme_interactor(bin_path.path()).format_command(&bin_path, &mut args);
+	capture_command_and_check_status(cmd, &args).await?;
+
+	Ok(())
 }

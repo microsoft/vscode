@@ -281,11 +281,10 @@ pub async fn status(ctx: CommandContext) -> Result<i32, AnyError> {
 pub async fn prune(ctx: CommandContext) -> Result<i32, AnyError> {
 	get_all_servers(&ctx.paths)
 		.into_iter()
-		.map(|s| s.server_paths(&ctx.paths))
+		.map(|s| s.server_paths())
 		.filter(|s| s.get_running_pid().is_none())
 		.try_for_each(|s| {
-			ctx.log
-				.result(&format!("Deleted {}", s.server_dir.display()));
+			ctx.log.result(&format!("Deleted {}", s.server_dir.path()));
 			s.delete()
 		})
 		.map_err(AnyError::from)?;
@@ -383,7 +382,7 @@ async fn serve_with_csa(
 
 	let mut server =
 		make_singleton_server(log_broadcast.clone(), log.clone(), server, shutdown.clone());
-	let platform = spanf!(log, log.span("prereq"), PreReqChecker::new().verify())?;
+	spanf!(log, log.span("prereq"), PreReqChecker::new().verify())?;
 
 	let auth = Auth::new(&paths, log.clone());
 	let mut dt = dev_tunnels::DevTunnels::new(&log, auth, &paths);
@@ -402,7 +401,6 @@ async fn serve_with_csa(
 			tunnel,
 			paths: &paths,
 			code_server_args: &csa,
-			platform,
 			log_broadcast: &log_broadcast,
 			shutdown: shutdown.clone(),
 			server: &mut server,

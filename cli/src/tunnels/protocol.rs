@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 use std::collections::HashMap;
 
+use super::capability::CapabilityParams;
 use crate::{
 	constants::{PROTOCOL_VERSION, VSCODE_CLI_VERSION},
 	options::Quality,
@@ -71,6 +72,8 @@ pub struct ServeParams {
 	pub commit_id: Option<String>,
 	pub quality: Quality,
 	pub extensions: Vec<String>,
+	#[serde(default)]
+	pub capability: CapabilityParams,
 	/// Optional preferred connection token.
 	#[serde(default)]
 	pub connection_token: Option<String>,

@@ -10,10 +10,8 @@ use crate::self_update::SelfUpdate;
 use crate::state::LauncherPaths;
 use crate::tunnels::protocol::HttpRequestParams;
 use crate::tunnels::socket_signal::CloseReason;
-use crate::update_service::{Platform, UpdateService};
-use crate::util::errors::{
-	wrap, AnyError, InvalidRpcDataError, MismatchedLaunchModeError, NoAttachedServerError,
-};
+use crate::update_service::UpdateService;
+use crate::util::errors::{wrap, AnyError, InvalidRpcDataError, NoAttachedServerError};
 use crate::util::http::{
 	DelegatedHttpRequest, DelegatedSimpleHttp, FallbackSimpleHttp, ReqwestSimpleHttp,
 };
@@ -33,11 +31,8 @@ use std::time::Instant;
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt, BufReader};
 use tokio::sync::{mpsc, Mutex};
 
-use super::code_server::{
-	AnyCodeServer, CodeServerArgs, ServerBuilder, ServerParamsRaw, SocketCodeServer,
-};
+use super::code_server::{CodeServerArgs, ServerParamsRaw, SocketCodeServer};
 use super::dev_tunnels::ActiveTunnel;
-use super::paths::prune_stopped_servers;
 use super::port_forwarder::{PortForwarding, PortForwardingProcessor};
 use super::protocol::{
 	CallServerHttpParams, CallServerHttpResult, ClientRequestMethod, EmptyObject, ForwardParams,
@@ -72,10 +67,8 @@ struct HandlerContext {
 	code_server_args: CodeServerArgs,
 	/// port forwarding functionality
 	port_forwarding: PortForwarding,
-	/// install platform for the VS Code server
-	platform: Platform,
 	/// http client to make download/update requests
-	http: FallbackSimpleHttp,
+	http: Arc<FallbackSimpleHttp>,
 	/// requests being served by the client
 	http_requests: HttpRequestsMap,
 }
@@ -162,7 +155,6 @@ pub async fn serve(
 	mut tunnel: ActiveTunnel,
 	launcher_paths: &LauncherPaths,
 	code_server_args: &CodeServerArgs,
-	platform: Platform,
 	mut shutdown_rx: Barrier<ShutdownSignal>,
 ) -> Result<ServerTermination, AnyError> {
 	let mut port = tunnel.add_port_direct(CONTROL_PORT).await?;
@@ -226,7 +218,7 @@ pub async fn serve(
 					debug!(own_log, "Serving new connection");
 
 					let (writehalf, readhalf) = socket.into_split();
-					let stats = process_socket(own_exit, readhalf, writehalf, own_log, own_tx, own_paths, own_code_server_args, own_forwarding, platform).with_context(cx.clone()).await;
+					let stats = process_socket(own_exit, readhalf, writehalf, own_log, own_tx, own_paths, own_code_server_args, own_forwarding).with_context(cx.clone()).await;
 
 					cx.span().add_event(
 						"socket.bandwidth",
@@ -271,7 +263,6 @@ async fn process_socket(
 	launcher_paths: LauncherPaths,
 	code_server_args: CodeServerArgs,
 	port_forwarding: PortForwarding,
-	platform: Platform,
 ) -> SocketStats {
 	let (socket_tx, mut socket_rx) = mpsc::channel(4);
 	let rx_counter = Arc::new(AtomicUsize::new(0));
@@ -287,8 +278,10 @@ async fn process_socket(
 		code_server: Arc::new(Mutex::new(None)),
 		server_bridges: server_bridges.clone(),
 		port_forwarding,
-		platform,
-		http: FallbackSimpleHttp::new(ReqwestSimpleHttp::new(), http_delegated),
+		http: Arc::new(FallbackSimpleHttp::new(
+			ReqwestSimpleHttp::new(),
+			http_delegated,
+		)),
 		http_requests: http_requests.clone(),
 	});
 
@@ -306,7 +299,6 @@ async fn process_socket(
 		}
 		Ok(EmptyObject {})
 	});
-	rpc.register_sync("prune", |_: EmptyObject, c| handle_prune(&c.launcher_paths));
 	rpc.register_async("callserverhttp", |p: CallServerHttpParams, c| async move {
 		let code_server = c.code_server.lock().await.clone();
 		handle_call_server_http(code_server, p).await
@@ -518,17 +510,27 @@ async fn handle_serve(
 	// fill params.extensions into code_server_args.install_extensions
 	let mut csa = c.code_server_args.clone();
 	csa.install_extensions.extend(params.extensions.into_iter());
+	let install_log = c.log.tee(ServerOutputSink {
+		tx: c.socket_tx.clone(),
+	});
+
+	let capability =
+		params
+			.capability
+			.into_capability(install_log, c.launcher_paths.clone(), c.http.clone());
 
 	let params_raw = ServerParamsRaw {
 		commit_id: params.commit_id,
 		quality: params.quality,
 		code_server_args: csa,
 		headless: true,
-		platform: c.platform,
+		platform: capability.platform().await?,
 	};
 
 	let resolved = if params.use_local_download {
-		params_raw.resolve(&c.log, c.http.delegated()).await
+		params_raw
+			.resolve(&c.log, Arc::new(c.http.delegated()))
+			.await
 	} else {
 		params_raw.resolve(&c.log, c.http.clone()).await
 	}?;
@@ -537,35 +539,9 @@ async fn handle_serve(
 	let server = match &*server_ref {
 		Some(o) => o.clone(),
 		None => {
-			let install_log = c.log.tee(ServerOutputSink {
-				tx: c.socket_tx.clone(),
-			});
-
-			macro_rules! do_setup {
-				($sb:expr) => {
-					match $sb.get_running().await? {
-						Some(AnyCodeServer::Socket(s)) => s,
-						Some(_) => return Err(AnyError::from(MismatchedLaunchModeError())),
-						None => {
-							$sb.setup(None).await?;
-							$sb.listen_on_default_socket().await?
-						}
-					}
-				};
-			}
-
-			let server = if params.use_local_download {
-				let sb = ServerBuilder::new(
-					&install_log,
-					&resolved,
-					&c.launcher_paths,
-					c.http.delegated(),
-				);
-				do_setup!(sb)
-			} else {
-				let sb =
-					ServerBuilder::new(&install_log, &resolved, &c.launcher_paths, c.http.clone());
-				do_setup!(sb)
+			let server = match capability.try_get_running(&resolved).await {
+				Ok(Some(b)) => b,
+				_ => capability.start_server(resolved).await?,
 			};
 
 			server_ref.replace(server.clone());
@@ -638,16 +614,8 @@ fn handle_server_message(
 	}
 }
 
-fn handle_prune(paths: &LauncherPaths) -> Result<Vec<String>, AnyError> {
-	prune_stopped_servers(paths).map(|v| {
-		v.iter()
-			.map(|p| p.server_dir.display().to_string())
-			.collect()
-	})
-}
-
 async fn handle_update(
-	http: &FallbackSimpleHttp,
+	http: &Arc<FallbackSimpleHttp>,
 	log: &log::Logger,
 	did_update: &AtomicBool,
 	params: &UpdateParams,
