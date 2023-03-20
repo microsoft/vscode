@@ -114,7 +114,7 @@ function getXtermConstructor(): Promise<typeof XTermTerminal> {
 		const Terminal = (await import('xterm')).Terminal;
 		// Localize strings
 		Terminal.strings.promptLabel = nls.localize('terminal.integrated.a11yPromptLabel', 'Terminal input');
-		Terminal.strings.tooMuchOutput = nls.localize('terminal.integrated.a11yTooMuchOutput', 'Too much output to announce, navigate to rows manually to read');
+		Terminal.strings.tooMuchOutput = nls.localize('terminal.integrated.useAccessibleBuffer', 'Use the accessible buffer to hear output');
 		resolve(Terminal);
 	});
 	return xtermConstructor;
