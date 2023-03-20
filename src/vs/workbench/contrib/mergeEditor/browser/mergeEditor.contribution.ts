@@ -15,7 +15,7 @@ import {
 	AcceptAllInput1, AcceptAllInput2, AcceptMerge, CompareInput1WithBaseCommand,
 	CompareInput2WithBaseCommand, GoToNextUnhandledConflict, GoToPreviousUnhandledConflict, OpenBaseFile, OpenMergeEditor,
 	OpenResultResource, ResetToBaseAndAutoMergeCommand, SetColumnLayout, SetMixedLayout, ShowHideTopBase, ShowHideCenterBase, ShowHideBase,
-	ShowNonConflictingChanges, ToggleActiveConflictInput1, ToggleActiveConflictInput2
+	ShowNonConflictingChanges, ToggleActiveConflictInput1, ToggleActiveConflictInput2, ResetCloseWithConflictsChoice
 } from 'vs/workbench/contrib/mergeEditor/browser/commands/commands';
 import { MergeEditorCopyContentsToJSON, MergeEditorLoadContentsFromFolder, MergeEditorSaveContentsToFolder } from 'vs/workbench/contrib/mergeEditor/browser/commands/devCommands';
 import { MergeEditorInput } from 'vs/workbench/contrib/mergeEditor/browser/mergeEditorInput';
@@ -83,6 +83,7 @@ registerAction2(AcceptAllInput2);
 registerAction2(ResetToBaseAndAutoMergeCommand);
 
 registerAction2(AcceptMerge);
+registerAction2(ResetCloseWithConflictsChoice);
 
 // Dev Commands
 registerAction2(MergeEditorCopyContentsToJSON);

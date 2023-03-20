@@ -37,11 +37,11 @@ export class SimpleCommentEditor extends CodeEditorWidget {
 	constructor(
 		domElement: HTMLElement,
 		options: IEditorOptions,
+		scopedContextKeyService: IContextKeyService,
 		parentThread: ICommentThreadWidget,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@ICodeEditorService codeEditorService: ICodeEditorService,
 		@ICommandService commandService: ICommandService,
-		@IContextKeyService contextKeyService: IContextKeyService,
 		@IThemeService themeService: IThemeService,
 		@INotificationService notificationService: INotificationService,
 		@IAccessibilityService accessibilityService: IAccessibilityService,
@@ -49,20 +49,19 @@ export class SimpleCommentEditor extends CodeEditorWidget {
 		@ILanguageFeaturesService languageFeaturesService: ILanguageFeaturesService,
 	) {
 		const codeEditorWidgetOptions: ICodeEditorWidgetOptions = {
-			isSimpleWidget: true,
 			contributions: <IEditorContributionDescription[]>[
-				{ id: MenuPreventer.ID, ctor: MenuPreventer, instantiation: EditorContributionInstantiation.Eager },
-				{ id: ContextMenuController.ID, ctor: ContextMenuController, instantiation: EditorContributionInstantiation.Eager },
+				{ id: MenuPreventer.ID, ctor: MenuPreventer, instantiation: EditorContributionInstantiation.BeforeFirstInteraction },
+				{ id: ContextMenuController.ID, ctor: ContextMenuController, instantiation: EditorContributionInstantiation.BeforeFirstInteraction },
 				{ id: SuggestController.ID, ctor: SuggestController, instantiation: EditorContributionInstantiation.Eager },
-				{ id: SnippetController2.ID, ctor: SnippetController2, instantiation: EditorContributionInstantiation.Eager },
-				{ id: TabCompletionController.ID, ctor: TabCompletionController, instantiation: EditorContributionInstantiation.Eager },
+				{ id: SnippetController2.ID, ctor: SnippetController2, instantiation: EditorContributionInstantiation.Lazy },
+				{ id: TabCompletionController.ID, ctor: TabCompletionController, instantiation: EditorContributionInstantiation.Eager }, // eager because it needs to define a context key
 			]
 		};
 
-		super(domElement, options, codeEditorWidgetOptions, instantiationService, codeEditorService, commandService, contextKeyService, themeService, notificationService, accessibilityService, languageConfigurationService, languageFeaturesService);
+		super(domElement, options, codeEditorWidgetOptions, instantiationService, codeEditorService, commandService, scopedContextKeyService, themeService, notificationService, accessibilityService, languageConfigurationService, languageFeaturesService);
 
-		this._commentEditorFocused = ctxCommentEditorFocused.bindTo(contextKeyService);
-		this._commentEditorEmpty = CommentContextKeys.commentIsEmpty.bindTo(contextKeyService);
+		this._commentEditorFocused = ctxCommentEditorFocused.bindTo(scopedContextKeyService);
+		this._commentEditorEmpty = CommentContextKeys.commentIsEmpty.bindTo(scopedContextKeyService);
 		this._commentEditorEmpty.set(!this.getValue());
 		this._parentThread = parentThread;
 

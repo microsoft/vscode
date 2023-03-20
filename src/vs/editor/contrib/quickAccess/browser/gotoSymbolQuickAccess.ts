@@ -6,6 +6,7 @@
 import { DeferredPromise } from 'vs/base/common/async';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { Codicon } from 'vs/base/common/codicons';
+import { ThemeIcon } from 'vs/base/common/themables';
 import { IMatch } from 'vs/base/common/filters';
 import { IPreparedQuery, pieceToQuery, prepareQuery, scoreFuzzy2 } from 'vs/base/common/fuzzyScorer';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
@@ -202,16 +203,9 @@ export abstract class AbstractGotoSymbolQuickAccessProvider extends AbstractEdit
 
 
 		// Reveal and decorate when active item changes
-		// However, ignore the very first two events so that
-		// opening the picker is not immediately revealing
-		// and decorating the first entry.
-		let ignoreFirstActiveEvent = 2;
 		disposables.add(picker.onDidChangeActive(() => {
 			const [item] = picker.activeItems;
 			if (item && item.range) {
-				if (ignoreFirstActiveEvent-- > 0) {
-					return;
-				}
 
 				// Reveal
 				editor.revealRangeInCenter(item.range.selection, ScrollType.Smooth);
@@ -249,7 +243,7 @@ export abstract class AbstractGotoSymbolQuickAccessProvider extends AbstractEdit
 		const openSideBySideDirection = this.options?.openSideBySideDirection?.();
 		if (openSideBySideDirection) {
 			buttons = [{
-				iconClass: openSideBySideDirection === 'right' ? Codicon.splitHorizontal.classNames : Codicon.splitVertical.classNames,
+				iconClass: openSideBySideDirection === 'right' ? ThemeIcon.asClassName(Codicon.splitHorizontal) : ThemeIcon.asClassName(Codicon.splitVertical),
 				tooltip: openSideBySideDirection === 'right' ? localize('openToSide', "Open to the Side") : localize('openToBottom', "Open to the Bottom")
 			}];
 		}

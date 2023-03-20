@@ -45,8 +45,8 @@ class ParameterHintsController extends Disposable implements IEditorContribution
 
 		this._register(this.model.onChangedHints(newParameterHints => {
 			if (newParameterHints) {
-				this.widget.getValue().show();
-				this.widget.getValue().render(newParameterHints);
+				this.widget.value.show();
+				this.widget.value.render(newParameterHints);
 			} else {
 				this.widget.rawValue?.hide();
 			}
@@ -96,7 +96,7 @@ export class TriggerParameterHintsAction extends EditorAction {
 	}
 }
 
-registerEditorContribution(ParameterHintsController.ID, ParameterHintsController, EditorContributionInstantiation.Idle);
+registerEditorContribution(ParameterHintsController.ID, ParameterHintsController, EditorContributionInstantiation.BeforeFirstInteraction);
 registerEditorAction(TriggerParameterHintsAction);
 
 const weight = KeybindingWeight.EditorContrib + 75;

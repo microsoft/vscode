@@ -17,12 +17,8 @@
 			"modifiedRange": "[5,6)",
 			"innerChanges": [
 				{
-					"originalRange": "[5,2 -> 5,2]",
-					"modifiedRange": "[5,2 -> 5,56]"
-				},
-				{
-					"originalRange": "[5,4 -> 5,4]",
-					"modifiedRange": "[5,58 -> 5,61]"
+					"originalRange": "[5,2 -> 5,4]",
+					"modifiedRange": "[5,2 -> 5,61]"
 				}
 			]
 		}

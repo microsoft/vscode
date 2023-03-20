@@ -13,6 +13,7 @@ async function main(): Promise<void> {
 	const buildDir = process.env['AGENT_BUILDDIRECTORY'];
 	const tempDir = process.env['AGENT_TEMPDIRECTORY'];
 	const arch = process.env['VSCODE_ARCH'];
+	const identity = process.env['CODESIGN_IDENTITY'];
 
 	if (!buildDir) {
 		throw new Error('$AGENT_BUILDDIRECTORY not set');
@@ -42,7 +43,7 @@ async function main(): Promise<void> {
 		'pre-embed-provisioning-profile': false,
 		keychain: path.join(tempDir, 'buildagent.keychain'),
 		version: util.getElectronVersion(),
-		identity: '99FM488X57',
+		identity,
 		'gatekeeper-assess': false
 	};
 

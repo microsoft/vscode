@@ -10,7 +10,7 @@ import { ExtensionRecommendationReason } from 'vs/workbench/services/extensionRe
 import { IWorkspaceContextService, IWorkspaceFoldersChangeEvent } from 'vs/platform/workspace/common/workspace';
 import { Emitter } from 'vs/base/common/event';
 
-export type ConfigBasedExtensionRecommendation = ExtensionRecommendation & { whenNotInstalled: string[] | undefined };
+type ConfigBasedExtensionRecommendation = ExtensionRecommendation & { whenNotInstalled: string[] | undefined };
 
 export class ConfigBasedRecommendations extends ExtensionRecommendations {
 

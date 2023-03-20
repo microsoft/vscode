@@ -33,6 +33,7 @@ import { CellKind, ICell, INotebookSearchOptions, ISelectionState, NotebookCells
 import { cellIndexesToRanges, cellRangesToIndexes, ICellRange, reduceCellRanges } from 'vs/workbench/contrib/notebook/common/notebookRange';
 import { NotebookLayoutInfo, NotebookMetadataChangedEvent } from 'vs/workbench/contrib/notebook/browser/notebookViewEvents';
 import { CellFindMatchModel } from 'vs/workbench/contrib/notebook/browser/contrib/find/findModel';
+import { INotebookExecutionStateService } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
 
 const invalidFunc = () => { throw new Error(`Invalid change accessor`); };
 
@@ -196,6 +197,7 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 		@IBulkEditService private readonly _bulkEditService: IBulkEditService,
 		@IUndoRedoService private readonly _undoService: IUndoRedoService,
 		@ITextModelService private readonly _textModelService: ITextModelService,
+		@INotebookExecutionStateService notebookExecutionStateService: INotebookExecutionStateService,
 	) {
 		super();
 
@@ -318,6 +320,13 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 			}
 		}));
 
+		this._register(notebookExecutionStateService.onDidChangeCellExecution(e => {
+			const cell = this.getCellByHandle(e.cellHandle);
+
+			if (cell instanceof CodeCellViewModel) {
+				cell.updateExecutionState(e);
+			}
+		}));
 
 		this._register(this._selectionCollection.onDidChangeSelection(e => {
 			this._onDidChangeSelection.fire(e);
@@ -765,6 +774,7 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 		const editingCells: { [key: number]: boolean } = {};
 		const collapsedInputCells: { [key: number]: boolean } = {};
 		const collapsedOutputCells: { [key: number]: boolean } = {};
+		const cellLineNumberStates: { [key: number]: 'on' | 'off' } = {};
 
 		this._viewCells.forEach((cell, i) => {
 			if (cell.getEditState() === CellEditState.Editing) {
@@ -778,6 +788,10 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 			if (cell instanceof CodeCellViewModel && cell.isOutputCollapsed) {
 				collapsedOutputCells[i] = true;
 			}
+
+			if (cell.lineNumbers !== 'inherit') {
+				cellLineNumberStates[i] = cell.lineNumbers;
+			}
 		});
 		const editorViewStates: { [key: number]: editorCommon.ICodeEditorViewState } = {};
 		this._viewCells.map(cell => ({ handle: cell.model.handle, state: cell.saveEditorViewState() })).forEach((viewState, i) => {
@@ -789,6 +803,7 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 		return {
 			editingCells,
 			editorViewStates,
+			cellLineNumberStates,
 			collapsedInputCells,
 			collapsedOutputCells
 		};
@@ -811,6 +826,9 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 			}
 			if (viewState.collapsedOutputCells && viewState.collapsedOutputCells[index] && cell instanceof CodeCellViewModel) {
 				cell.isOutputCollapsed = true;
+			}
+			if (viewState.cellLineNumberStates && viewState.cellLineNumberStates[index]) {
+				cell.lineNumbers = viewState.cellLineNumberStates[index];
 			}
 		});
 	}

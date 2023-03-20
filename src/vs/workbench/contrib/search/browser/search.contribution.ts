@@ -26,7 +26,7 @@ import { SearchView } from 'vs/workbench/contrib/search/browser/searchView';
 import { registerContributions as searchWidgetContributions } from 'vs/workbench/contrib/search/browser/searchWidget';
 import { SymbolsQuickAccessProvider } from 'vs/workbench/contrib/search/browser/symbolsQuickAccess';
 import { ISearchHistoryService, SearchHistoryService } from 'vs/workbench/contrib/search/common/searchHistoryService';
-import { ISearchWorkbenchService, SearchWorkbenchService } from 'vs/workbench/contrib/search/common/searchModel';
+import { ISearchWorkbenchService, SearchWorkbenchService } from 'vs/workbench/contrib/search/browser/searchModel';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { SearchSortOrder, SEARCH_EXCLUDE_CONFIG, VIEWLET_ID, ViewMode, VIEW_ID } from 'vs/workbench/services/search/common/search';
 import { Extensions, IConfigurationMigrationRegistry } from 'vs/workbench/common/configuration';
@@ -41,6 +41,7 @@ import 'vs/workbench/contrib/search/browser/searchActionsNav';
 import 'vs/workbench/contrib/search/browser/searchActionsRemoveReplace';
 import 'vs/workbench/contrib/search/browser/searchActionsSymbol';
 import 'vs/workbench/contrib/search/browser/searchActionsTopBar';
+import product from 'vs/platform/product/common/product';
 
 registerSingleton(ISearchWorkbenchService, SearchWorkbenchService, InstantiationType.Delayed);
 registerSingleton(ISearchHistoryService, SearchHistoryService, InstantiationType.Delayed);
@@ -180,7 +181,7 @@ configurationRegistry.registerConfiguration({
 		},
 		'search.useGlobalIgnoreFiles': {
 			type: 'boolean',
-			markdownDescription: nls.localize('useGlobalIgnoreFiles', "Controls whether to use global `.gitignore` and `.ignore` files when searching for files. Requires `#search.useIgnoreFiles#` to be enabled."),
+			markdownDescription: nls.localize('useGlobalIgnoreFiles', "Controls whether to use your global gitignore file (e.g., from `$HOME/.config/git/ignore`) when searching for files. Requires `#search.useIgnoreFiles#` to be enabled."),
 			default: false,
 			scope: ConfigurationScope.RESOURCE
 		},
@@ -300,11 +301,11 @@ configurationRegistry.registerConfiguration({
 			enum: ['selectWord', 'goToLocation', 'openLocationToSide'],
 			default: 'goToLocation',
 			enumDescriptions: [
-				nls.localize('search.searchEditor.doubleClickBehaviour.selectWord', "Double clicking selects the word under the cursor."),
-				nls.localize('search.searchEditor.doubleClickBehaviour.goToLocation', "Double clicking opens the result in the active editor group."),
-				nls.localize('search.searchEditor.doubleClickBehaviour.openLocationToSide', "Double clicking opens the result in the editor group to the side, creating one if it does not yet exist."),
+				nls.localize('search.searchEditor.doubleClickBehaviour.selectWord', "Double-clicking selects the word under the cursor."),
+				nls.localize('search.searchEditor.doubleClickBehaviour.goToLocation', "Double-clicking opens the result in the active editor group."),
+				nls.localize('search.searchEditor.doubleClickBehaviour.openLocationToSide', "Double-clicking opens the result in the editor group to the side, creating one if it does not yet exist."),
 			],
-			markdownDescription: nls.localize('search.searchEditor.doubleClickBehaviour', "Configure effect of double clicking a result in a search editor.")
+			markdownDescription: nls.localize('search.searchEditor.doubleClickBehaviour', "Configure effect of double-clicking a result in a search editor.")
 		},
 		'search.searchEditor.reusePriorSearchConfiguration': {
 			type: 'boolean',
@@ -349,6 +350,11 @@ configurationRegistry.registerConfiguration({
 				nls.localize('scm.defaultViewMode.list', "Shows search results as a list.")
 			],
 			'description': nls.localize('search.defaultViewMode', "Controls the default search result view mode.")
+		},
+		'search.experimental.notebookSearch': {
+			type: 'boolean',
+			description: nls.localize('search.experimental.notebookSearch', "Controls whether to use the experimental notebook search in the global search. Please reload your VS Code instance for changes to this setting to take effect."),
+			default: typeof product.quality !== 'string' ? product.quality !== 'stable' : false, // only enable as default in insiders
 		},
 	}
 });

@@ -120,7 +120,7 @@ export class IndentGuidesOverlay extends DynamicViewOverlay {
 
 		const indents = this.getGuidesByLine(
 			visibleStartLineNumber,
-			visibleEndLineNumber,
+			Math.min(visibleEndLineNumber + 1, this._context.viewModel.getLineCount()),
 			activeCursorPosition
 		);
 
@@ -207,7 +207,7 @@ export class IndentGuidesOverlay extends DynamicViewOverlay {
 			const bracketGuidesInLine = bracketGuides ? bracketGuides[lineNumber - visibleStartLineNumber] : [];
 			const bracketGuidesInLineQueue = new ArrayQueue(bracketGuidesInLine);
 
-			const indentGuidesInLine = indentGuides ? indentGuides[lineNumber - visibleStartLineNumber] : [];
+			const indentGuidesInLine = indentGuides ? indentGuides[lineNumber - visibleStartLineNumber] : 0;
 
 			for (let indentLvl = 1; indentLvl <= indentGuidesInLine; indentLvl++) {
 				const indentGuide = (indentLvl - 1) * indentSize + 1;

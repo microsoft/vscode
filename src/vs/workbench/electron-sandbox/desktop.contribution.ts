@@ -9,14 +9,14 @@ import { MenuRegistry, MenuId, registerAction2 } from 'vs/platform/actions/commo
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import { isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
-import { ConfigureRuntimeArgumentsAction, ToggleDevToolsAction, ToggleSharedProcessAction, ReloadWindowWithExtensionsDisabledAction } from 'vs/workbench/electron-sandbox/actions/developerActions';
+import { ConfigureRuntimeArgumentsAction, ToggleDevToolsAction, ToggleSharedProcessAction, ReloadWindowWithExtensionsDisabledAction, OpenUserDataFolderAction } from 'vs/workbench/electron-sandbox/actions/developerActions';
 import { ZoomResetAction, ZoomOutAction, ZoomInAction, CloseWindowAction, SwitchWindowAction, QuickSwitchWindowAction, NewWindowTabHandler, ShowPreviousWindowTabHandler, ShowNextWindowTabHandler, MoveWindowTabToNewWindowHandler, MergeWindowTabsHandlerHandler, ToggleWindowTabsBarHandler } from 'vs/workbench/electron-sandbox/actions/windowActions';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IsMacContext } from 'vs/platform/contextkey/common/contextkeys';
-import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
+import { INativeHostService } from 'vs/platform/native/common/native';
 import { IJSONContributionRegistry, Extensions as JSONExtensions } from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import { InstallShellScriptAction, UninstallShellScriptAction } from 'vs/workbench/electron-sandbox/actions/installActions';
@@ -27,6 +27,7 @@ import { ShutdownReason } from 'vs/workbench/services/lifecycle/common/lifecycle
 import { NativeWindow } from 'vs/workbench/electron-sandbox/window';
 import { ModifierKeyEmitter } from 'vs/base/browser/dom';
 import product from 'vs/platform/product/common/product';
+import { applicationConfigurationNodeBase } from 'vs/workbench/common/configuration';
 
 // Actions
 (function registerActions(): void {
@@ -107,6 +108,7 @@ import product from 'vs/platform/product/common/product';
 	registerAction2(ConfigureRuntimeArgumentsAction);
 	registerAction2(ToggleSharedProcessAction);
 	registerAction2(ToggleDevToolsAction);
+	registerAction2(OpenUserDataFolderAction);
 })();
 
 // Menu
@@ -127,6 +129,22 @@ import product from 'vs/platform/product/common/product';
 // Configuration
 (function registerConfiguration(): void {
 	const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
+
+	// Application
+	registry.registerConfiguration({
+		...applicationConfigurationNodeBase,
+		'properties': {
+			'application.shellEnvironmentResolutionTimeout': {
+				'type': 'number',
+				'default': 10,
+				'minimum': 1,
+				'maximum': 120,
+				'included': !isWindows,
+				'scope': ConfigurationScope.APPLICATION,
+				'markdownDescription': localize('application.shellEnvironmentResolutionTimeout', "Controls the timeout in seconds before giving up resolving the shell environment when the application is not already launched from a terminal. See our [documentation](https://go.microsoft.com/fwlink/?linkid=2149667) for more information.")
+			}
+		}
+	});
 
 	// Window
 	registry.registerConfiguration({
@@ -169,6 +187,7 @@ import product from 'vs/platform/product/common/product';
 			'window.zoomLevel': {
 				'type': 'number',
 				'default': 0,
+				'minimum': -5,
 				'description': localize('zoomLevel', "Adjust the zoom level of the window. The original size is 0 and each increment above (e.g. 1) or below (e.g. -1) represents zooming 20% larger or smaller. You can also enter decimals to adjust the zoom level with a finer granularity."),
 				ignoreSync: true,
 				tags: ['accessibility']
@@ -196,7 +215,7 @@ import product from 'vs/platform/product/common/product';
 				'type': 'boolean',
 				'default': false,
 				'scope': ConfigurationScope.APPLICATION,
-				'markdownDescription': localize('window.doubleClickIconToClose', "If enabled, double clicking the application icon in the title bar will close the window and the window cannot be dragged by the icon. This setting only has an effect when `#window.titleBarStyle#` is set to `custom`.")
+				'markdownDescription': localize('window.doubleClickIconToClose', "If enabled, this setting will close the window when the application icon in the title bar is double-clicked. The window will not be able to be dragged by the icon. This setting is effective only if `#window.titleBarStyle#` is set to `custom`.")
 			},
 			'window.titleBarStyle': {
 				'type': 'string',
@@ -207,7 +226,7 @@ import product from 'vs/platform/product/common/product';
 			},
 			'window.experimental.windowControlsOverlay.enabled': {
 				'type': 'boolean',
-				'default': product.quality === 'insider' || product.quality === 'exploration', // switch back to true when app.getLocale() isn't used anymore.
+				'default': true,
 				'scope': ConfigurationScope.APPLICATION,
 				'description': localize('windowControlsOverlay', "Use window controls provided by the platform instead of our HTML-based window controls. Changes require a full restart to apply."),
 				'included': isWindows
@@ -248,6 +267,13 @@ import product from 'vs/platform/product/common/product';
 				'scope': ConfigurationScope.APPLICATION,
 				ignoreSync: true
 			},
+			'window.experimental.sharedProcessUseUtilityProcess': { // TODO@bpasero remove me once sandbox is final
+				type: 'boolean',
+				description: localize('experimentalUseSharedProcessUseUtilityProcess', "Experimental: When enabled, the window will have sandbox mode enabled via Electron API."),
+				default: typeof product.quality === 'string' && product.quality !== 'stable', // disabled by default in stable for now
+				'scope': ConfigurationScope.APPLICATION,
+				ignoreSync: true
+			}
 		}
 	});
 
@@ -334,8 +360,8 @@ import product from 'vs/platform/product/common/product';
 				}
 			},
 			'log-level': {
-				type: 'string',
-				description: localize('argv.logLevel', "Log level to use. Default is 'info'. Allowed values are 'critical', 'error', 'warn', 'info', 'debug', 'trace', 'off'.")
+				type: ['string', 'array'],
+				description: localize('argv.logLevel', "Log level to use. Default is 'info'. Allowed values are 'error', 'warn', 'info', 'debug', 'trace', 'off'.")
 			}
 		}
 	};

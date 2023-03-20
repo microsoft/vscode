@@ -74,10 +74,18 @@ export const DataTransfers = {
 	TEXT: Mimes.text
 };
 
-export function applyDragImage(event: DragEvent, label: string | null, clazz: string): void {
+export function applyDragImage(event: DragEvent, label: string | null, clazz: string, backgroundColor?: string | null, foregroundColor?: string | null): void {
 	const dragImage = document.createElement('div');
 	dragImage.className = clazz;
 	dragImage.textContent = label;
+
+	if (foregroundColor) {
+		dragImage.style.color = foregroundColor;
+	}
+
+	if (backgroundColor) {
+		dragImage.style.background = backgroundColor;
+	}
 
 	if (event.dataTransfer) {
 		document.body.appendChild(dragImage);

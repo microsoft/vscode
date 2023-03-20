@@ -6,7 +6,7 @@
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { Event, Emitter } from 'vs/base/common/event';
 import { EventType, addDisposableListener, getClientArea, Dimension, position, size, IDimension, isAncestorUsingFlowTo, computeScreenAwareSize } from 'vs/base/browser/dom';
-import { onDidChangeFullscreen, isFullscreen, isWCOVisible } from 'vs/base/browser/browser';
+import { onDidChangeFullscreen, isFullscreen, isWCOEnabled } from 'vs/base/browser/browser';
 import { IWorkingCopyBackupService } from 'vs/workbench/services/workingCopy/common/workingCopyBackup';
 import { isWindows, isLinux, isMacintosh, isWeb, isNative, isIOS } from 'vs/base/common/platform';
 import { EditorInputCapabilities, GroupIdentifier, isResourceEditorInput, IUntypedEditorInput, pathsToEditors } from 'vs/workbench/common/editor';
@@ -31,7 +31,7 @@ import { IStatusbarService } from 'vs/workbench/services/statusbar/browser/statu
 import { IFileService } from 'vs/platform/files/common/files';
 import { isCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { coalesce } from 'vs/base/common/arrays';
-import { assertIsDefined, isNumber } from 'vs/base/common/types';
+import { assertIsDefined } from 'vs/base/common/types';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { WINDOW_ACTIVE_BORDER, WINDOW_INACTIVE_BORDER } from 'vs/workbench/common/theme';
@@ -171,7 +171,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		}
 		// If the command center is visible then the quickinput should go over the title bar and the banner
 		if (this.titleService.isCommandCenterVisible) {
-			quickPickTop = 0;
+			quickPickTop = 6;
 		}
 		return { top, quickPickTop };
 	}
@@ -274,7 +274,17 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		});
 
 		// Configuration changes
-		this._register(this.configurationService.onDidChangeConfiguration(() => this.doUpdateLayoutConfiguration()));
+		this._register(this.configurationService.onDidChangeConfiguration((e) => {
+			if ([
+				LegacyWorkbenchLayoutSettings.ACTIVITYBAR_VISIBLE,
+				LegacyWorkbenchLayoutSettings.SIDEBAR_POSITION,
+				LegacyWorkbenchLayoutSettings.STATUSBAR_VISIBLE,
+				'window.menuBarVisibility',
+				'window.titleBarStyle',
+			].some(setting => e.affectsConfiguration(setting))) {
+				this.doUpdateLayoutConfiguration();
+			}
+		}));
 
 		// Fullscreen changes
 		this._register(onDidChangeFullscreen(() => this.onFullscreenChanged()));
@@ -683,23 +693,11 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			return {
 				layout: defaultLayout.layout?.editors,
 				filesToOpenOrCreate: defaultLayout?.editors?.map(editor => {
-					// TODO@bpasero remove me eventually
-					const editor2 = editor as any;
-					const legacySelection = editor2.selection && editor2.selection.start && isNumber(editor2.selection.start.line) ? {
-						startLineNumber: editor2.selection.start.line,
-						startColumn: isNumber(editor2.selection.start.column) ? editor2.selection.start.column : 1,
-						endLineNumber: isNumber(editor2.selection.end.line) ? editor2.selection.end.line : undefined,
-						endColumn: isNumber(editor2.selection.end.line) ? (isNumber(editor2.selection.end.column) ? editor2.selection.end.column : 1) : undefined,
-					} : undefined;
-
 					return {
 						viewColumn: editor.viewColumn,
 						fileUri: URI.revive(editor.uri),
 						openOnlyIfExists: editor.openOnlyIfExists,
-						options: {
-							selection: legacySelection,
-							...editor.options // keep at the end to override legacy selection/override that may be `undefined`
-						}
+						options: editor.options
 					};
 				})
 			};
@@ -739,6 +737,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 			// first ensure the editor part is ready
 			await this.editorGroupService.whenReady;
+			mark('code/restoreEditors/editorGroupsReady');
 
 			// apply editor layout if any
 			if (this.state.initialization.layout?.editors) {
@@ -755,6 +754,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			// fully loaded.
 
 			const editors = await this.state.initialization.editor.editorsToOpen;
+			mark('code/restoreEditors/editorsToOpenResolved');
 
 			let openEditorsPromise: Promise<unknown> | undefined = undefined;
 			if (editors.length) {
@@ -791,8 +791,8 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			// slow editors to resolve on startup
 			layoutRestoredPromises.push(
 				Promise.all([
-					openEditorsPromise,
-					this.editorGroupService.whenRestored
+					openEditorsPromise?.finally(() => mark('code/restoreEditors/editorsOpened')),
+					this.editorGroupService.whenRestored.finally(() => mark('code/restoreEditors/editorGroupsRestored'))
 				]).finally(() => {
 					// the `code/didRestoreEditors` perf mark is specifically
 					// for when visible editors have resolved, so we only mark
@@ -1073,6 +1073,11 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			return false;
 		}
 
+		// with the command center enabled, we should always show
+		if (this.configurationService.getValue<boolean>('window.commandCenter')) {
+			return true;
+		}
+
 		// macOS desktop does not need a title bar when full screen
 		if (isMacintosh && isNative) {
 			return !this.state.runtime.fullscreen;
@@ -1083,13 +1088,8 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			return true;
 		}
 
-		// with the command center enabled, we should always show
-		if (this.configurationService.getValue<boolean>('window.commandCenter')) {
-			return true;
-		}
-
 		// if WCO is visible, we have to show the title bar
-		if (isWCOVisible()) {
+		if (isWCOEnabled() && !this.state.runtime.fullscreen) {
 			return true;
 		}
 
@@ -1110,7 +1110,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 	}
 
 	private shouldShowBannerFirst(): boolean {
-		return isWeb && !isWCOVisible();
+		return isWeb && !isWCOEnabled();
 	}
 
 	focus(): void {

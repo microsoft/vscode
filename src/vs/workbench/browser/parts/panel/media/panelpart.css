@@ -38,7 +38,7 @@
 .monaco-workbench .part.panel > .content .monaco-editor,
 .monaco-workbench .part.panel > .content .monaco-editor .margin,
 .monaco-workbench .part.panel > .content .monaco-editor .monaco-editor-background {
-	background-color: var(--vscode-panel-background) !important;
+	background-color: var(--vscode-panel-background);
 }
 
 .monaco-workbench .part.panel > .title > .panel-switcher-container > .monaco-action-bar .action-item:focus .action-label,

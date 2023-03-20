@@ -9,7 +9,7 @@ import { $, addDisposableListener, append, clearNode, EventHelper, EventType, tr
 import { DomEmitter } from 'vs/base/browser/event';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { Gesture, EventType as TouchEventType } from 'vs/base/browser/touch';
-import { Orientation } from 'vs/base/browser/ui/sash/sash';
+import { IBoundarySashes, Orientation } from 'vs/base/browser/ui/sash/sash';
 import { Color, RGBA } from 'vs/base/common/color';
 import { Emitter, Event } from 'vs/base/common/event';
 import { KeyCode } from 'vs/base/common/keyCodes';
@@ -29,11 +29,11 @@ export interface IPaneOptions {
 }
 
 export interface IPaneStyles {
-	dropBackground?: Color;
-	headerForeground?: Color;
-	headerBackground?: Color;
-	headerBorder?: Color;
-	leftBorder?: Color;
+	readonly dropBackground: string | undefined;
+	readonly headerForeground: string | undefined;
+	readonly headerBackground: string | undefined;
+	readonly headerBorder: string | undefined;
+	readonly leftBorder: string | undefined;
 }
 
 /**
@@ -62,7 +62,13 @@ export abstract class Pane extends Disposable implements IView {
 	private _minimumBodySize: number;
 	private _maximumBodySize: number;
 	private _ariaHeaderLabel: string;
-	private styles: IPaneStyles = {};
+	private styles: IPaneStyles = {
+		dropBackground: undefined,
+		headerBackground: undefined,
+		headerBorder: undefined,
+		headerForeground: undefined,
+		leftBorder: undefined
+	};
 	private animationTimer: number | undefined = undefined;
 
 	private readonly _onDidChange = this._register(new Emitter<number | undefined>());
@@ -88,9 +94,8 @@ export abstract class Pane extends Disposable implements IView {
 		return this.element;
 	}
 
-	private _dropBackground: Color | undefined;
-	get dropBackground(): Color | undefined {
-		return this._dropBackground;
+	get dropBackground(): string | undefined {
+		return this.styles.dropBackground;
 	}
 
 	get minimumBodySize(): number {
@@ -299,10 +304,9 @@ export abstract class Pane extends Disposable implements IView {
 		this.header.classList.toggle('expanded', expanded);
 		this.header.setAttribute('aria-expanded', String(expanded));
 
-		this.header.style.color = this.styles.headerForeground ? this.styles.headerForeground.toString() : '';
-		this.header.style.backgroundColor = this.styles.headerBackground ? this.styles.headerBackground.toString() : '';
+		this.header.style.color = this.styles.headerForeground ?? '';
+		this.header.style.backgroundColor = this.styles.headerBackground ?? '';
 		this.header.style.borderTop = this.styles.headerBorder && this.orientation === Orientation.VERTICAL ? `1px solid ${this.styles.headerBorder}` : '';
-		this._dropBackground = this.styles.dropBackground;
 		this.element.style.borderLeft = this.styles.leftBorder && this.orientation === Orientation.HORIZONTAL ? `1px solid ${this.styles.leftBorder}` : '';
 	}
 
@@ -416,7 +420,7 @@ class PaneDraggable extends Disposable {
 		let backgroundColor: string | null = null;
 
 		if (this.dragOverCounter > 0) {
-			backgroundColor = (this.pane.dropBackground || PaneDraggable.DefaultDragOverBackgroundColor).toString();
+			backgroundColor = this.pane.dropBackground ?? PaneDraggable.DefaultDragOverBackgroundColor.toString();
 		}
 
 		this.pane.dropTargetElement.style.backgroundColor = backgroundColor || '';
@@ -464,6 +468,7 @@ export class PaneView extends Disposable {
 	readonly onDidDrop: Event<{ from: Pane; to: Pane }> = this._onDidDrop.event;
 
 	orientation: Orientation;
+	private boundarySashes: IBoundarySashes | undefined;
 	readonly onDidSashChange: Event<number>;
 	readonly onDidSashReset: Event<number>;
 	readonly onDidScroll: Event<ScrollEvent>;
@@ -561,6 +566,20 @@ export class PaneView extends Disposable {
 		this.splitview.layout(this.size);
 	}
 
+	setBoundarySashes(sashes: IBoundarySashes) {
+		this.boundarySashes = sashes;
+		this.updateSplitviewOrthogonalSashes(sashes);
+	}
+
+	private updateSplitviewOrthogonalSashes(sashes: IBoundarySashes | undefined) {
+		if (this.orientation === Orientation.VERTICAL) {
+			this.splitview.orthogonalStartSash = sashes?.left;
+			this.splitview.orthogonalEndSash = sashes?.right;
+		} else {
+			this.splitview.orthogonalEndSash = sashes?.bottom;
+		}
+	}
+
 	flipOrientation(height: number, width: number): void {
 		this.orientation = this.orientation === Orientation.VERTICAL ? Orientation.HORIZONTAL : Orientation.VERTICAL;
 		const paneSizes = this.paneItems.map(pane => this.getPaneSize(pane.pane));
@@ -569,6 +588,7 @@ export class PaneView extends Disposable {
 		clearNode(this.element);
 
 		this.splitview = this._register(new SplitView(this.element, { orientation: this.orientation }));
+		this.updateSplitviewOrthogonalSashes(this.boundarySashes);
 
 		const newOrthogonalSize = this.orientation === Orientation.VERTICAL ? width : height;
 		const newSize = this.orientation === Orientation.HORIZONTAL ? width : height;

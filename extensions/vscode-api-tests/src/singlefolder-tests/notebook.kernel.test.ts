@@ -178,7 +178,8 @@ const apiTestSerializer: vscode.NotebookSerializer = {
 		});
 
 		const secondResource = await createRandomNotebookFile();
-		await vscode.commands.executeCommand('vscode.openWith', secondResource, 'notebookCoreTest');
+		const secondDocument = await vscode.workspace.openNotebookDocument(secondResource);
+		await vscode.window.showNotebookDocument(secondDocument);
 
 		await withEvent<vscode.NotebookDocumentChangeEvent>(vscode.workspace.onDidChangeNotebookDocument, async event => {
 			await vscode.commands.executeCommand('notebook.cell.execute', { start: 0, end: 1 }, notebook.uri);

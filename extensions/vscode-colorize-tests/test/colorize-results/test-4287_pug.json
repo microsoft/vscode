@@ -8,7 +8,9 @@
 			"dark_vs": "entity.other.attribute-name: #9CDCFE",
 			"light_vs": "entity.other.attribute-name: #E50000",
 			"hc_black": "entity.other.attribute-name: #9CDCFE",
-			"hc_light": "entity.other.attribute-name: #264F78"
+			"dark_plus_experimental": "entity.other.attribute-name: #9CDCFE",
+			"hc_light": "entity.other.attribute-name: #264F78",
+			"light_plus_experimental": "entity.other.attribute-name: #E50000"
 		}
 	},
 	{
@@ -20,7 +22,9 @@
 			"dark_vs": "string: #CE9178",
 			"light_vs": "string.comment.buffered.block.pug: #0000FF",
 			"hc_black": "string: #CE9178",
-			"hc_light": "string.comment.buffered.block.pug: #0F4A85"
+			"dark_plus_experimental": "string: #CE9178",
+			"hc_light": "string.comment.buffered.block.pug: #0F4A85",
+			"light_plus_experimental": "string.comment.buffered.block.pug: #0000FF"
 		}
 	}
 ]

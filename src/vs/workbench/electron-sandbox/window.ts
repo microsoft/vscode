@@ -7,7 +7,7 @@ import { localize } from 'vs/nls';
 import { URI } from 'vs/base/common/uri';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { equals } from 'vs/base/common/objects';
-import { EventType, EventHelper, addDisposableListener, scheduleAtNextAnimationFrame, ModifierKeyEmitter } from 'vs/base/browser/dom';
+import { EventType, EventHelper, addDisposableListener, ModifierKeyEmitter } from 'vs/base/browser/dom';
 import { Separator, WorkbenchActionExecutedClassification, WorkbenchActionExecutedEvent } from 'vs/base/common/actions';
 import { IFileService } from 'vs/platform/files/common/files';
 import { EditorResourceAccessor, IUntitledTextResourceEditorInput, SideBySideEditor, pathsToEditors, IResourceDiffEditorInput, IUntypedEditorInput, IEditorPane, isResourceEditorInput, IResourceMergeEditorInput } from 'vs/workbench/common/editor';
@@ -20,7 +20,7 @@ import { applyZoom } from 'vs/platform/window/electron-sandbox/window';
 import { setFullscreen, getZoomLevel } from 'vs/base/browser/browser';
 import { ICommandService, CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { IResourceEditorInput } from 'vs/platform/editor/common/editor';
-import { ipcRenderer } from 'vs/base/parts/sandbox/electron-sandbox/globals';
+import { ipcRenderer, process } from 'vs/base/parts/sandbox/electron-sandbox/globals';
 import { IWorkspaceEditingService } from 'vs/workbench/services/workspaces/common/workspaceEditing';
 import { IMenuService, MenuId, IMenu, MenuItemAction, MenuRegistry } from 'vs/platform/actions/common/actions';
 import { ICommandAction } from 'vs/platform/action/common/action';
@@ -32,7 +32,7 @@ import { IWorkspaceFolderCreationData } from 'vs/platform/workspaces/common/work
 import { IIntegrityService } from 'vs/workbench/services/integrity/common/integrity';
 import { isWindows, isMacintosh, isCI } from 'vs/base/common/platform';
 import { IProductService } from 'vs/platform/product/common/productService';
-import { INotificationService, NeverShowAgainScope, Severity } from 'vs/platform/notification/common/notification';
+import { INotificationService, NeverShowAgainScope, NotificationPriority, Severity } from 'vs/platform/notification/common/notification';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
 import { IAccessibilityService, AccessibilitySupport } from 'vs/platform/accessibility/common/accessibility';
@@ -43,7 +43,7 @@ import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storag
 import { assertIsDefined } from 'vs/base/common/types';
 import { IOpenerService, OpenOptions } from 'vs/platform/opener/common/opener';
 import { Schemas } from 'vs/base/common/network';
-import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
+import { INativeHostService } from 'vs/platform/native/common/native';
 import { posix } from 'vs/base/common/path';
 import { ITunnelService, extractLocalHostUriMetaDataForPortMapping } from 'vs/platform/tunnel/common/tunnel';
 import { IWorkbenchLayoutService, Parts, positionFromString, Position } from 'vs/workbench/services/layout/browser/layoutService';
@@ -68,6 +68,8 @@ import { dirname } from 'vs/base/common/resources';
 import { IBannerService } from 'vs/workbench/services/banner/browser/bannerService';
 import { Codicon } from 'vs/base/common/codicons';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
+import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
+import { IUtilityProcessWorkerWorkbenchService } from 'vs/workbench/services/utilityProcess/electron-sandbox/utilityProcessWorkerWorkbenchService';
 
 export class NativeWindow extends Disposable {
 
@@ -120,7 +122,9 @@ export class NativeWindow extends Disposable {
 		@IProgressService private readonly progressService: IProgressService,
 		@ILabelService private readonly labelService: ILabelService,
 		@IBannerService private readonly bannerService: IBannerService,
-		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService
+		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
+		@IPreferencesService private readonly preferencesService: IPreferencesService,
+		@IUtilityProcessWorkerWorkbenchService private readonly utilityProcessWorkerWorkbenchService: IUtilityProcessWorkerWorkbenchService
 	) {
 		super();
 
@@ -131,7 +135,7 @@ export class NativeWindow extends Disposable {
 	private registerListeners(): void {
 
 		// Layout
-		this._register(addDisposableListener(window, EventType.RESIZE, e => this.onWindowResize(e, true)));
+		this._register(addDisposableListener(window, EventType.RESIZE, e => this.onWindowResize(e)));
 
 		// React to editor input changes
 		this._register(this.editorService.onDidActiveEditorChange(() => this.updateTouchbarMenu()));
@@ -199,6 +203,14 @@ export class NativeWindow extends Disposable {
 				Severity.Error,
 				message,
 				[{
+					label: localize('restart', "Restart"),
+					run: () => this.nativeHostService.relaunch()
+				},
+				{
+					label: localize('configure', "Configure"),
+					run: () => this.preferencesService.openUserSettings({ query: 'application.shellEnvironmentResolutionTimeout' })
+				},
+				{
 					label: localize('learnMore', "Learn More"),
 					run: () => this.openerService.open('https://go.microsoft.com/fwlink/?linkid=2149667')
 				}]
@@ -224,27 +236,25 @@ export class NativeWindow extends Disposable {
 		ipcRenderer.on('vscode:openProxyAuthenticationDialog', async (event: unknown, payload: { authInfo: AuthInfo; username?: string; password?: string; replyChannel: string }) => {
 			const rememberCredentialsKey = 'window.rememberProxyCredentials';
 			const rememberCredentials = this.storageService.getBoolean(rememberCredentialsKey, StorageScope.APPLICATION);
-			const result = await this.dialogService.input(Severity.Warning, localize('proxyAuthRequired', "Proxy Authentication Required"),
-				[
-					localize({ key: 'loginButton', comment: ['&& denotes a mnemonic'] }, "&&Log In"),
-					localize({ key: 'cancelButton', comment: ['&& denotes a mnemonic'] }, "&&Cancel")
-				],
-				[
-					{ placeholder: localize('username', "Username"), value: payload.username },
-					{ placeholder: localize('password', "Password"), type: 'password', value: payload.password }
-				],
-				{
-					cancelId: 1,
-					detail: localize('proxyDetail', "The proxy {0} requires a username and password.", `${payload.authInfo.host}:${payload.authInfo.port}`),
-					checkbox: {
-						label: localize('rememberCredentials', "Remember my credentials"),
-						checked: rememberCredentials
-					}
-				});
+			const result = await this.dialogService.input({
+				type: 'warning',
+				message: localize('proxyAuthRequired', "Proxy Authentication Required"),
+				primaryButton: localize({ key: 'loginButton', comment: ['&& denotes a mnemonic'] }, "&&Log In"),
+				inputs:
+					[
+						{ placeholder: localize('username', "Username"), value: payload.username },
+						{ placeholder: localize('password', "Password"), type: 'password', value: payload.password }
+					],
+				detail: localize('proxyDetail', "The proxy {0} requires a username and password.", `${payload.authInfo.host}:${payload.authInfo.port}`),
+				checkbox: {
+					label: localize('rememberCredentials', "Remember my credentials"),
+					checked: rememberCredentials
+				}
+			});
 
 			// Reply back to the channel without result to indicate
 			// that the login dialog was cancelled
-			if (result.choice !== 0 || !result.values) {
+			if (!result.confirmed || !result.values) {
 				ipcRenderer.send(payload.replyChannel);
 			}
 
@@ -407,7 +417,6 @@ export class NativeWindow extends Disposable {
 			localize({ key: 'closeWindowButtonLabel', comment: ['&& denotes a mnemonic'] }, "&&Close Window");
 
 		const res = await dialogService.confirm({
-			type: 'question',
 			message,
 			primaryButton,
 			checkbox: {
@@ -424,9 +433,7 @@ export class NativeWindow extends Disposable {
 	}
 
 	private onBeforeShutdownError({ error, reason }: BeforeShutdownErrorEvent): void {
-		this.dialogService.show(Severity.Error, this.toShutdownLabel(reason, true), undefined, {
-			detail: localize('shutdownErrorDetail', "Error: {0}", toErrorMessage(error))
-		});
+		this.dialogService.error(this.toShutdownLabel(reason, true), localize('shutdownErrorDetail', "Error: {0}", toErrorMessage(error)));
 	}
 
 	private onWillShutdown({ reason, force, joiners }: WillShutdownEvent): void {
@@ -493,20 +500,8 @@ export class NativeWindow extends Disposable {
 		}
 	}
 
-	private onWindowResize(e: UIEvent, retry: boolean): void {
+	private onWindowResize(e: UIEvent): void {
 		if (e.target === window) {
-			if (window.document && window.document.body && window.document.body.clientWidth === 0) {
-				// TODO@electron this is an electron issue on macOS when simple fullscreen is enabled
-				// where for some reason the window clientWidth is reported as 0 when switching
-				// between simple fullscreen and normal screen. In that case we schedule the layout
-				// call at the next animation frame once, in the hope that the dimensions are
-				// proper then.
-				if (retry) {
-					scheduleAtNextAnimationFrame(() => this.onWindowResize(e, false));
-				}
-				return;
-			}
-
 			this.layoutService.layout();
 		}
 	}
@@ -630,7 +625,10 @@ export class NativeWindow extends Disposable {
 
 		// Notify some services about lifecycle phases
 		this.lifecycleService.when(LifecyclePhase.Ready).then(() => this.nativeHostService.notifyReady());
-		this.lifecycleService.when(LifecyclePhase.Restored).then(() => this.sharedProcessService.notifyRestored());
+		this.lifecycleService.when(LifecyclePhase.Restored).then(() => {
+			this.sharedProcessService.notifyRestored();
+			this.utilityProcessWorkerWorkbenchService.notifyRestored();
+		});
 
 		// Check for situations that are worth warning the user about
 		this.handleWarnings();
@@ -652,7 +650,7 @@ export class NativeWindow extends Disposable {
 				this.logService.error('Error: There is a dependency cycle in the AMD modules that needs to be resolved!');
 				this.nativeHostService.exit(37); // running on a build machine, just exit without showing a dialog
 			} else {
-				this.dialogService.show(Severity.Error, localize('loaderCycle', "There is a dependency cycle in the AMD modules that needs to be resolved!"));
+				this.dialogService.error(localize('loaderCycle', "There is a dependency cycle in the AMD modules that needs to be resolved!"));
 				this.nativeHostService.openDevTools();
 			}
 		}
@@ -715,11 +713,61 @@ export class NativeWindow extends Disposable {
 						run: () => this.openerService.open(URI.parse('https://aka.ms/vscode-faq-win7'))
 					}],
 					{
-						neverShowAgain: { id: 'windows7eol', isSecondary: true, scope: NeverShowAgainScope.APPLICATION }
+						neverShowAgain: { id: 'windows7eol', isSecondary: true, scope: NeverShowAgainScope.APPLICATION },
+						priority: NotificationPriority.URGENT,
+						sticky: true
 					}
 				);
 			}
 		}
+
+		// MacOS 10.11 and 10.12 warning
+		if (isMacintosh) {
+			const majorVersion = this.environmentService.os.release.split('.')[0];
+			const eolReleases = new Map<string, string>([
+				['15', 'OS X El Capitan'],
+				['16', 'macOS Sierra'],
+			]);
+			// Refs https://en.wikipedia.org/wiki/Darwin_%28operating_system%29#Release_history
+			if (eolReleases.has(majorVersion)) {
+				const message = localize('macoseolmessage', "{0} on {1} will soon stop receiving updates. Consider upgrading your macOS version.", this.productService.nameLong, eolReleases.get(majorVersion));
+				const actions = [{
+					label: localize('macoseolBannerLearnMore', "Learn More"),
+					href: 'https://aka.ms/vscode-faq-old-macOS'
+				}];
+
+				this.bannerService.show({
+					id: 'macoseol.banner',
+					message,
+					ariaLabel: localize('macoseolarialabel', "{0}. Use navigation keys to access banner actions.", message),
+					actions,
+					icon: Codicon.warning
+				});
+
+				this.notificationService.prompt(
+					Severity.Warning,
+					message,
+					[{
+						label: localize('learnMore', "Learn More"),
+						run: () => this.openerService.open(URI.parse('https://aka.ms/vscode-faq-old-macOS'))
+					}],
+					{
+						neverShowAgain: { id: 'macoseol', isSecondary: true, scope: NeverShowAgainScope.APPLICATION },
+						priority: NotificationPriority.URGENT,
+						sticky: true
+					}
+				);
+			}
+		}
+
+		// Slow shell environment progress indicator
+		const shellEnv = process.shellEnv();
+		this.progressService.withProgress({
+			title: localize('resolveShellEnvironment', "Resolving shell environment..."),
+			location: ProgressLocation.Window,
+			delay: 1600,
+			buttons: [localize('learnMore', "Learn More")]
+		}, () => shellEnv, () => this.openerService.open('https://go.microsoft.com/fwlink/?linkid=2149667'));
 	}
 
 	private setupDriver(): void {

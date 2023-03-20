@@ -4,13 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { assertFn, checkAdjacentItems } from 'vs/base/common/assert';
-import { IReader, observableFromEvent } from 'vs/base/common/observable';
-import { LineRange as DiffLineRange, RangeMapping as DiffRangeMapping } from 'vs/editor/common/diff/linesDiffComputer';
+import { IReader } from 'vs/base/common/observable';
+import { RangeMapping as DiffRangeMapping } from 'vs/editor/common/diff/linesDiffComputer';
 import { ITextModel } from 'vs/editor/common/model';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorker';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { LineRange } from 'vs/workbench/contrib/mergeEditor/browser/model/lineRange';
 import { DetailedLineRangeMapping, RangeMapping } from 'vs/workbench/contrib/mergeEditor/browser/model/mapping';
+import { observableConfigValue } from 'vs/workbench/contrib/mergeEditor/browser/utils';
+import { LineRange as DiffLineRange } from 'vs/editor/common/core/lineRange';
 
 export interface IMergeDiffComputer {
 	computeDiff(textModel1: ITextModel, textModel2: ITextModel, reader: IReader): Promise<IMergeDiffComputerResult>;
@@ -21,10 +23,7 @@ export interface IMergeDiffComputerResult {
 }
 
 export class MergeDiffComputer implements IMergeDiffComputer {
-	private readonly mergeAlgorithm = observableFromEvent(
-		this.configurationService.onDidChangeConfiguration,
-		() => /** @description config: mergeAlgorithm.diffAlgorithm */ this.configurationService.getValue<'smart' | 'experimental'>('mergeEditor.diffAlgorithm')
-	);
+	private readonly mergeAlgorithm = observableConfigValue<'smart' | 'experimental'>('mergeEditor.diffAlgorithm', 'experimental', this.configurationService);
 
 	constructor(
 		@IEditorWorkerService private readonly editorWorkerService: IEditorWorkerService,
@@ -63,13 +62,13 @@ export class MergeDiffComputer implements IMergeDiffComputer {
 		);
 
 		assertFn(() => {
-			return changes[0].inputRange.startLineNumber === changes[0].outputRange.startLineNumber &&
+			return changes.length === 0 || (changes[0].inputRange.startLineNumber === changes[0].outputRange.startLineNumber &&
 				checkAdjacentItems(changes,
 					(m1, m2) => m2.inputRange.startLineNumber - m1.inputRange.endLineNumberExclusive === m2.outputRange.startLineNumber - m1.outputRange.endLineNumberExclusive &&
 						// There has to be an unchanged line in between (otherwise both diffs should have been joined)
 						m1.inputRange.endLineNumberExclusive < m2.inputRange.startLineNumber &&
 						m1.outputRange.endLineNumberExclusive < m2.outputRange.startLineNumber,
-				);
+				));
 		});
 
 		return {

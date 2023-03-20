@@ -8,7 +8,7 @@ import { FuzzyScore } from 'vs/base/common/filters';
 import { Iterable } from 'vs/base/common/iterator';
 import { IDisposable, RefCountedDisposable } from 'vs/base/common/lifecycle';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { registerEditorContribution } from 'vs/editor/browser/editorExtensions';
+import { EditorContributionInstantiation, registerEditorContribution } from 'vs/editor/browser/editorExtensions';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { EditorOption, FindComputedEditorOptionValueById } from 'vs/editor/common/config/editorOptions';
 import { ISingleEditOperation } from 'vs/editor/common/core/editOperation';
@@ -16,10 +16,9 @@ import { IPosition, Position } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { IWordAtPosition } from 'vs/editor/common/core/wordHelper';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
-import { Command, CompletionItemProvider, CompletionTriggerKind, InlineCompletion, InlineCompletionContext, InlineCompletions, InlineCompletionsProvider } from 'vs/editor/common/languages';
+import { Command, CompletionItemInsertTextRule, CompletionItemProvider, CompletionTriggerKind, InlineCompletion, InlineCompletionContext, InlineCompletions, InlineCompletionsProvider } from 'vs/editor/common/languages';
 import { ITextModel } from 'vs/editor/common/model';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
-import { CompletionItemInsertTextRule } from 'vs/editor/common/standalone/standaloneEnums';
 import { CompletionModel, LineContext } from 'vs/editor/contrib/suggest/browser/completionModel';
 import { CompletionItem, CompletionItemModel, CompletionOptions, provideSuggestionItems, QuickSuggestionsOptions } from 'vs/editor/contrib/suggest/browser/suggest';
 import { ISuggestMemoryService } from 'vs/editor/contrib/suggest/browser/suggestMemory';
@@ -57,7 +56,7 @@ class InlineCompletionResults extends RefCountedDisposable implements InlineComp
 			&& this.line === line
 			&& this.word.word.length > 0
 			&& this.word.startColumn === word.startColumn && this.word.endColumn < word.endColumn // same word
-			&& this.completionModel.incomplete.size === 0; // no incomplete results
+			&& this.completionModel.getIncompleteProvider().size === 0; // no incomplete results
 	}
 
 	get items(): SuggestInlineCompletion[] {
@@ -259,4 +258,4 @@ class EditorContribution implements IEditorContribution {
 	}
 }
 
-registerEditorContribution('suggest.inlineCompletionsProvider', EditorContribution);
+registerEditorContribution('suggest.inlineCompletionsProvider', EditorContribution, EditorContributionInstantiation.Eager); // eager because the contribution is used as a way to ONCE access a service to which a provider is registered

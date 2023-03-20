@@ -66,10 +66,10 @@ export function delay(ms: number) {
 	return new Promise(resolve => setTimeout(resolve, ms));
 }
 
-export function withLogDisabled(runnable: () => Promise<any>): () => Promise<void> {
+function withLogLevel(level: string, runnable: () => Promise<any>): () => Promise<void> {
 	return async (): Promise<void> => {
 		const logLevel = await vscode.commands.executeCommand('_extensionTests.getLogLevel');
-		await vscode.commands.executeCommand('_extensionTests.setLogLevel', 'off');
+		await vscode.commands.executeCommand('_extensionTests.setLogLevel', level);
 
 		try {
 			await runnable();
@@ -77,6 +77,14 @@ export function withLogDisabled(runnable: () => Promise<any>): () => Promise<voi
 			await vscode.commands.executeCommand('_extensionTests.setLogLevel', logLevel);
 		}
 	};
+}
+
+export function withLogDisabled(runnable: () => Promise<any>): () => Promise<void> {
+	return withLogLevel('off', runnable);
+}
+
+export function withVerboseLogs(runnable: () => Promise<any>): () => Promise<void> {
+	return withLogLevel('trace', runnable);
 }
 
 export function assertNoRpc() {

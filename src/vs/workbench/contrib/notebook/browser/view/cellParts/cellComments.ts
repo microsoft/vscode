@@ -5,7 +5,7 @@
 
 import { coalesce } from 'vs/base/common/arrays';
 import { DisposableStore } from 'vs/base/common/lifecycle';
-import { EditorOptions, IEditorOptions } from 'vs/editor/common/config/editorOptions';
+import { EDITOR_FONT_DEFAULTS, IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import * as languages from 'vs/editor/common/languages';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
@@ -68,9 +68,10 @@ export class CellComments extends CellContentPart {
 			this.contextKeyService,
 			this.instantiationService,
 			commentThread,
-			null,
+			undefined,
+			undefined,
 			{
-				codeBlockFontFamily: EditorOptions.fontFamily.validate(this.configurationService.getValue<IEditorOptions>('editor').fontFamily)
+				codeBlockFontFamily: this.configurationService.getValue<IEditorOptions>('editor').fontFamily || EDITOR_FONT_DEFAULTS.fontFamily
 			},
 			undefined,
 			{
@@ -152,7 +153,7 @@ export class CellComments extends CellContentPart {
 		this._commentThreadWidget?.applyTheme(theme, fontInfo);
 	}
 
-	protected override didRenderCell(element: ICellViewModel): void {
+	override didRenderCell(element: ICellViewModel): void {
 		if (element.cellKind === CellKind.Code) {
 			this.currentElement = element as CodeCellViewModel;
 			this.initialize(element);

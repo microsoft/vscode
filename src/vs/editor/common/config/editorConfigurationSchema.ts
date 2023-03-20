@@ -38,7 +38,7 @@ const editorConfiguration: IConfigurationNode = {
 				}
 			],
 			default: 'tabSize',
-			markdownDescription: nls.localize('indentSize', "The number of spaces used for indentation or 'tabSize' to use the value from `#editor.tabSize#`. This setting is overridden based on the file contents when `#editor.detectIndentation#` is on.")
+			markdownDescription: nls.localize('indentSize', "The number of spaces used for indentation or `\"tabSize\"` to use the value from `#editor.tabSize#`. This setting is overridden based on the file contents when `#editor.detectIndentation#` is on.")
 		},
 		'editor.insertSpaces': {
 			type: 'boolean',
@@ -88,12 +88,23 @@ const editorConfiguration: IConfigurationNode = {
 		'editor.stablePeek': {
 			type: 'boolean',
 			default: false,
-			markdownDescription: nls.localize('stablePeek', "Keep peek editors open even when double clicking their content or when hitting `Escape`.")
+			markdownDescription: nls.localize('stablePeek', "Keep peek editors open even when double-clicking their content or when hitting `Escape`.")
 		},
 		'editor.maxTokenizationLineLength': {
 			type: 'integer',
 			default: 20_000,
 			description: nls.localize('maxTokenizationLineLength', "Lines above this length will not be tokenized for performance reasons")
+		},
+		'editor.experimental.asyncTokenization': {
+			type: 'boolean',
+			default: false,
+			description: nls.localize('editor.experimental.asyncTokenization', "Controls whether the tokenization should happen asynchronously on a web worker."),
+			tags: ['experimental'],
+		},
+		'editor.experimental.asyncTokenizationLogging': {
+			type: 'boolean',
+			default: false,
+			description: nls.localize('editor.experimental.asyncTokenizationLogging', "Controls whether async tokenization should be logged. For debugging only."),
 		},
 		'editor.language.brackets': {
 			type: ['array', 'null'],

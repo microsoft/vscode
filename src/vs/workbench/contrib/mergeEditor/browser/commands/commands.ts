@@ -14,12 +14,13 @@ import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { ITextEditorOptions } from 'vs/platform/editor/common/editor';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
+import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { IEditorIdentifier, IResourceMergeEditorInput } from 'vs/workbench/common/editor';
 import { MergeEditorInput, MergeEditorInputData } from 'vs/workbench/contrib/mergeEditor/browser/mergeEditorInput';
 import { IMergeEditorInputModel } from 'vs/workbench/contrib/mergeEditor/browser/mergeEditorInputModel';
 import { MergeEditor } from 'vs/workbench/contrib/mergeEditor/browser/view/mergeEditor';
 import { MergeEditorViewModel } from 'vs/workbench/contrib/mergeEditor/browser/view/viewModel';
-import { ctxIsMergeEditor, ctxMergeEditorLayout, ctxMergeEditorShowBase, ctxMergeEditorShowBaseAtTop, ctxMergeEditorShowNonConflictingChanges } from 'vs/workbench/contrib/mergeEditor/common/mergeEditor';
+import { ctxIsMergeEditor, ctxMergeEditorLayout, ctxMergeEditorShowBase, ctxMergeEditorShowBaseAtTop, ctxMergeEditorShowNonConflictingChanges, StorageCloseWithConflicts } from 'vs/workbench/contrib/mergeEditor/common/mergeEditor';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 
 abstract class MergeEditorAction extends Action2 {
@@ -636,6 +637,26 @@ export class ResetToBaseAndAutoMergeCommand extends MergeEditorAction {
 	}
 }
 
+export class ResetCloseWithConflictsChoice extends Action2 {
+	constructor() {
+		super({
+			id: 'mergeEditor.resetCloseWithConflictsChoice',
+			category: mergeEditorCategory,
+			title: {
+				value: localize(
+					'mergeEditor.resetChoice',
+					'Reset Choice for \'Close with Conflicts\''
+				),
+				original: 'Reset Choice for \'Close with Conflicts\'',
+			},
+			f1: true,
+		});
+	}
+	run(accessor: ServicesAccessor): void {
+		accessor.get(IStorageService).remove(StorageCloseWithConflicts, StorageScope.PROFILE);
+	}
+}
+
 // this is an API command
 export class AcceptMerge extends MergeEditorAction2 {
 	constructor() {
@@ -659,15 +680,13 @@ export class AcceptMerge extends MergeEditorAction2 {
 		const editorService = accessor.get(IEditorService);
 
 		if (viewModel.model.unhandledConflictsCount.get() > 0) {
-			const confirmResult = await dialogService.confirm({
-				type: 'info',
+			const { confirmed } = await dialogService.confirm({
 				message: localize('mergeEditor.acceptMerge.unhandledConflicts.message', "Do you want to complete the merge of {0}?", basename(inputModel.resultUri)),
 				detail: localize('mergeEditor.acceptMerge.unhandledConflicts.detail', "The file contains unhandled conflicts."),
-				primaryButton: localize('mergeEditor.acceptMerge.unhandledConflicts.accept', "Complete with Conflicts"),
-				secondaryButton: localize('mergeEditor.acceptMerge.unhandledConflicts.cancel', "Cancel"),
+				primaryButton: localize({ key: 'mergeEditor.acceptMerge.unhandledConflicts.accept', comment: ['&& denotes a mnemonic'] }, "&&Complete with Conflicts")
 			});
 
-			if (!confirmResult.confirmed) {
+			if (!confirmed) {
 				return {
 					successful: false
 				};

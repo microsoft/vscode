@@ -6,7 +6,7 @@
 import * as assert from 'assert';
 import { URI } from 'vs/base/common/uri';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { workbenchInstantiationService, TestServiceAccessor, TestTextFileEditorModelManager } from 'vs/workbench/test/browser/workbenchTestServices';
+import { workbenchInstantiationService, TestServiceAccessor, ITestTextFileEditorModelManager } from 'vs/workbench/test/browser/workbenchTestServices';
 import { TextFileEditorModel } from 'vs/workbench/services/textfile/common/textFileEditorModel';
 import { FileChangesEvent, FileChangeType, FileOperationError, FileOperationResult } from 'vs/platform/files/common/files';
 import { toResource } from 'vs/base/test/common/utils';
@@ -33,7 +33,7 @@ suite('Files - TextFileEditorModelManager', () => {
 	});
 
 	test('add, remove, clear, get, getAll', function () {
-		const manager = accessor.textFileService.files as TestTextFileEditorModelManager;
+		const manager = accessor.textFileService.files as ITestTextFileEditorModelManager;
 
 		const model1: TextFileEditorModel = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/random1.txt'), 'utf8', undefined);
 		const model2: TextFileEditorModel = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/random2.txt'), 'utf8', undefined);
@@ -90,7 +90,7 @@ suite('Files - TextFileEditorModelManager', () => {
 	});
 
 	test('resolve', async () => {
-		const manager = accessor.textFileService.files as TestTextFileEditorModelManager;
+		const manager = accessor.textFileService.files as ITestTextFileEditorModelManager;
 		const resource = URI.file('/test.html');
 		const encoding = 'utf8';
 
@@ -130,7 +130,7 @@ suite('Files - TextFileEditorModelManager', () => {
 	});
 
 	test('resolve (async)', async () => {
-		const manager = accessor.textFileService.files as TestTextFileEditorModelManager;
+		const manager = accessor.textFileService.files as ITestTextFileEditorModelManager;
 		const resource = URI.file('/path/index.txt');
 
 		await manager.resolve(resource);
@@ -153,7 +153,7 @@ suite('Files - TextFileEditorModelManager', () => {
 	});
 
 	test('resolve (sync)', async () => {
-		const manager = accessor.textFileService.files as TestTextFileEditorModelManager;
+		const manager = accessor.textFileService.files as ITestTextFileEditorModelManager;
 		const resource = URI.file('/path/index.txt');
 
 		await manager.resolve(resource);
@@ -170,7 +170,7 @@ suite('Files - TextFileEditorModelManager', () => {
 	});
 
 	test('resolve (sync) - model disposed when error and first call to resolve', async () => {
-		const manager = accessor.textFileService.files as TestTextFileEditorModelManager;
+		const manager = accessor.textFileService.files as ITestTextFileEditorModelManager;
 		const resource = URI.file('/path/index.txt');
 
 		accessor.textFileService.setReadStreamErrorOnce(new FileOperationError('fail', FileOperationResult.FILE_OTHER_ERROR));
@@ -187,7 +187,7 @@ suite('Files - TextFileEditorModelManager', () => {
 	});
 
 	test('resolve (sync) - model not disposed when error and model existed before', async () => {
-		const manager = accessor.textFileService.files as TestTextFileEditorModelManager;
+		const manager = accessor.textFileService.files as ITestTextFileEditorModelManager;
 		const resource = URI.file('/path/index.txt');
 
 		await manager.resolve(resource);
@@ -206,7 +206,7 @@ suite('Files - TextFileEditorModelManager', () => {
 	});
 
 	test('resolve with initial contents', async () => {
-		const manager = accessor.textFileService.files as TestTextFileEditorModelManager;
+		const manager = accessor.textFileService.files as ITestTextFileEditorModelManager;
 		const resource = URI.file('/test.html');
 
 		const model = await manager.resolve(resource, { contents: createTextBufferFactory('Hello World') });
@@ -222,7 +222,7 @@ suite('Files - TextFileEditorModelManager', () => {
 	});
 
 	test('multiple resolves execute in sequence', async () => {
-		const manager = accessor.textFileService.files as TestTextFileEditorModelManager;
+		const manager = accessor.textFileService.files as ITestTextFileEditorModelManager;
 		const resource = URI.file('/test.html');
 
 		let resolvedModel: unknown;
@@ -256,7 +256,7 @@ suite('Files - TextFileEditorModelManager', () => {
 	});
 
 	test('removed from cache when model disposed', function () {
-		const manager = accessor.textFileService.files as TestTextFileEditorModelManager;
+		const manager = accessor.textFileService.files as ITestTextFileEditorModelManager;
 
 		const model1: TextFileEditorModel = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/random1.txt'), 'utf8', undefined);
 		const model2: TextFileEditorModel = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/random2.txt'), 'utf8', undefined);
@@ -278,7 +278,7 @@ suite('Files - TextFileEditorModelManager', () => {
 	});
 
 	test('events', async function () {
-		const manager = accessor.textFileService.files as TestTextFileEditorModelManager;
+		const manager = accessor.textFileService.files as ITestTextFileEditorModelManager;
 
 		const resource1 = toResource.call(this, '/path/index.txt');
 		const resource2 = toResource.call(this, '/path/other.txt');
@@ -340,11 +340,11 @@ suite('Files - TextFileEditorModelManager', () => {
 		const model2 = await manager.resolve(resource2, { encoding: 'utf8' });
 		assert.strictEqual(resolvedCounter, 2);
 
-		model1.updateTextEditorModel(createTextBufferFactory('changed'));
+		(model1 as TextFileEditorModel).updateTextEditorModel(createTextBufferFactory('changed'));
 		model1.updatePreferredEncoding('utf16');
 
 		await model1.revert();
-		model1.updateTextEditorModel(createTextBufferFactory('changed again'));
+		(model1 as TextFileEditorModel).updateTextEditorModel(createTextBufferFactory('changed again'));
 
 		await model1.save();
 		model1.dispose();
@@ -367,7 +367,7 @@ suite('Files - TextFileEditorModelManager', () => {
 	});
 
 	test('disposing model takes it out of the manager', async function () {
-		const manager = accessor.textFileService.files as TestTextFileEditorModelManager;
+		const manager = accessor.textFileService.files as ITestTextFileEditorModelManager;
 
 		const resource = toResource.call(this, '/path/index_something.txt');
 
@@ -379,12 +379,12 @@ suite('Files - TextFileEditorModelManager', () => {
 	});
 
 	test('canDispose with dirty model', async function () {
-		const manager = accessor.textFileService.files as TestTextFileEditorModelManager;
+		const manager = accessor.textFileService.files as ITestTextFileEditorModelManager;
 
 		const resource = toResource.call(this, '/path/index_something.txt');
 
 		const model = await manager.resolve(resource, { encoding: 'utf8' });
-		model.updateTextEditorModel(createTextBufferFactory('make dirty'));
+		(model as TextFileEditorModel).updateTextEditorModel(createTextBufferFactory('make dirty'));
 
 		const canDisposePromise = manager.canDispose(model as TextFileEditorModel);
 		assert.ok(canDisposePromise instanceof Promise);
@@ -414,7 +414,7 @@ suite('Files - TextFileEditorModelManager', () => {
 			id: languageId,
 		});
 
-		const manager = accessor.textFileService.files as TestTextFileEditorModelManager;
+		const manager = accessor.textFileService.files as ITestTextFileEditorModelManager;
 
 		const resource = toResource.call(this, '/path/index_something.txt');
 
@@ -430,7 +430,7 @@ suite('Files - TextFileEditorModelManager', () => {
 	});
 
 	test('file change events trigger reload (on a resolved model)', async () => {
-		const manager = accessor.textFileService.files as TestTextFileEditorModelManager;
+		const manager = accessor.textFileService.files as ITestTextFileEditorModelManager;
 		const resource = URI.file('/path/index.txt');
 
 		await manager.resolve(resource);
@@ -452,7 +452,7 @@ suite('Files - TextFileEditorModelManager', () => {
 	});
 
 	test('file change events trigger reload (after a model is resolved: https://github.com/microsoft/vscode/issues/132765)', async () => {
-		const manager = accessor.textFileService.files as TestTextFileEditorModelManager;
+		const manager = accessor.textFileService.files as ITestTextFileEditorModelManager;
 		const resource = URI.file('/path/index.txt');
 
 		manager.resolve(resource);

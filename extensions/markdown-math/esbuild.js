@@ -56,7 +56,11 @@ build().catch(() => process.exit(1));
 
 if (isWatch) {
 	const watcher = require('@parcel/watcher');
-	watcher.subscribe(srcDir, () => {
-		return build();
+	watcher.subscribe(srcDir, async () => {
+		try {
+			await build();
+		} catch (e) {
+			console.error(e);
+		}
 	});
 }

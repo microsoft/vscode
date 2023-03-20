@@ -22,7 +22,7 @@ export async function launch(options: LaunchOptions): Promise<{ electronProcess:
 
 	return {
 		electronProcess,
-		driver: new PlaywrightDriver(electron, context, page, undefined /* no server process */, options)
+		driver: new PlaywrightDriver(electron, context, page, undefined /* no server process */, Promise.resolve() /* Window is open already */, options)
 	};
 }
 
@@ -32,7 +32,8 @@ async function launchElectron(configuration: IElectronConfiguration, options: La
 	const electron = await measureAndLog(() => playwright._electron.launch({
 		executablePath: configuration.electronPath,
 		args: configuration.args,
-		env: configuration.env as { [key: string]: string }
+		env: configuration.env as { [key: string]: string },
+		timeout: 0
 	}), 'playwright-electron#launch', logger);
 
 	const window = await measureAndLog(() => electron.firstWindow(), 'playwright-electron#firstWindow', logger);

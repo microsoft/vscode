@@ -6,12 +6,13 @@
 import { CancelablePromise, createCancelablePromise, TimeoutTimer } from 'vs/base/common/async';
 import { RGBA } from 'vs/base/common/color';
 import { onUnexpectedError } from 'vs/base/common/errors';
+import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { StopWatch } from 'vs/base/common/stopwatch';
 import { noBreakWhitespace } from 'vs/base/common/strings';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { DynamicCssRules } from 'vs/editor/browser/editorDom';
-import { registerEditorContribution } from 'vs/editor/browser/editorExtensions';
+import { EditorContributionInstantiation, registerEditorContribution } from 'vs/editor/browser/editorExtensions';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
@@ -25,7 +26,6 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 
 export const ColorDecorationInjectedTextMarker = Object.create({});
 
-const MAX_DECORATORS = 500;
 
 export class ColorDetector extends Disposable implements IEditorContribution {
 
@@ -47,6 +47,8 @@ export class ColorDetector extends Disposable implements IEditorContribution {
 
 	private readonly _ruleFactory = new DynamicCssRules(this._editor);
 
+	private readonly _decoratorLimitReporter = new DecoratorLimitReporter();
+
 	constructor(
 		private readonly _editor: ICodeEditor,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
@@ -61,10 +63,11 @@ export class ColorDetector extends Disposable implements IEditorContribution {
 		}));
 		this._register(_editor.onDidChangeModelLanguage(() => this.onModelChanged()));
 		this._register(_languageFeaturesService.colorProvider.onDidChange(() => this.onModelChanged()));
-		this._register(_editor.onDidChangeConfiguration(() => {
+		this._register(_editor.onDidChangeConfiguration((e) => {
 			const prevIsEnabled = this._isEnabled;
 			this._isEnabled = this.isEnabled();
-			if (prevIsEnabled !== this._isEnabled) {
+			const updated = prevIsEnabled !== this._isEnabled || e.hasChanged(EditorOption.colorDecoratorsLimit);
+			if (updated) {
 				if (this._isEnabled) {
 					this.onModelChanged();
 				} else {
@@ -95,6 +98,10 @@ export class ColorDetector extends Disposable implements IEditorContribution {
 		}
 
 		return this._editor.getOption(EditorOption.colorDecorators);
+	}
+
+	public get limitReporter() {
+		return this._decoratorLimitReporter;
 	}
 
 	static get(editor: ICodeEditor): ColorDetector | null {
@@ -187,7 +194,9 @@ export class ColorDetector extends Disposable implements IEditorContribution {
 
 		const decorations: IModelDeltaDecoration[] = [];
 
-		for (let i = 0; i < colorData.length && decorations.length < MAX_DECORATORS; i++) {
+		const limit = this._editor.getOption(EditorOption.colorDecoratorsLimit);
+
+		for (let i = 0; i < colorData.length && decorations.length < limit; i++) {
 			const { red, green, blue, alpha } = colorData[i].colorInfo.color;
 			const rgba = new RGBA(Math.round(red * 255), Math.round(green * 255), Math.round(blue * 255), alpha);
 			const color = `rgba(${rgba.r}, ${rgba.g}, ${rgba.b}, ${rgba.a})`;
@@ -216,6 +225,8 @@ export class ColorDetector extends Disposable implements IEditorContribution {
 				}
 			});
 		}
+		const limited = limit < colorData.length ? limit : false;
+		this._decoratorLimitReporter.update(colorData.length, limited);
 
 		this._colorDecoratorIds.set(decorations);
 	}
@@ -249,4 +260,25 @@ export class ColorDetector extends Disposable implements IEditorContribution {
 	}
 }
 
-registerEditorContribution(ColorDetector.ID, ColorDetector);
+export class DecoratorLimitReporter {
+	private _onDidChange = new Emitter<void>();
+	public readonly onDidChange: Event<void> = this._onDidChange.event;
+
+	private _computed: number = 0;
+	private _limited: number | false = false;
+	public get computed(): number {
+		return this._computed;
+	}
+	public get limited(): number | false {
+		return this._limited;
+	}
+	public update(computed: number, limited: number | false) {
+		if (computed !== this._computed || limited !== this._limited) {
+			this._computed = computed;
+			this._limited = limited;
+			this._onDidChange.fire();
+		}
+	}
+}
+
+registerEditorContribution(ColorDetector.ID, ColorDetector, EditorContributionInstantiation.AfterFirstRender);

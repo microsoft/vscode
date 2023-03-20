@@ -37,7 +37,7 @@ export class CellDragAndDropPart extends CellContentPart {
 		super();
 	}
 
-	protected override didRenderCell(element: ICellViewModel): void {
+	override didRenderCell(element: ICellViewModel): void {
 		this.update(element);
 	}
 

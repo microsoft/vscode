@@ -19,7 +19,7 @@ class TypeScriptDocumentHighlightProvider implements vscode.DocumentHighlightPro
 		position: vscode.Position,
 		token: vscode.CancellationToken
 	): Promise<vscode.DocumentHighlight[]> {
-		const file = this.client.toOpenedFilePath(document);
+		const file = this.client.toOpenTsFilePath(document);
 		if (!file) {
 			return [];
 		}

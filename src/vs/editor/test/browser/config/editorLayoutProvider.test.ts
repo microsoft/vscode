@@ -45,6 +45,7 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 		options._write(EditorOption.lineNumbersMinChars, input.lineNumbersMinChars);
 		options._write(EditorOption.lineDecorationsWidth, input.lineDecorationsWidth);
 		options._write(EditorOption.folding, false);
+		options._write(EditorOption.padding, { top: 0, bottom: 0 });
 		const minimapOptions: EditorMinimapOptions = {
 			enabled: input.minimap,
 			autohide: false,

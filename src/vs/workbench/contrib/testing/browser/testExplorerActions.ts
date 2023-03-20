@@ -28,7 +28,7 @@ import { IActionableTestTreeElement, TestItemTreeElement } from 'vs/workbench/co
 import * as icons from 'vs/workbench/contrib/testing/browser/icons';
 import type { TestingExplorerView } from 'vs/workbench/contrib/testing/browser/testingExplorerView';
 import { ITestingOutputTerminalService } from 'vs/workbench/contrib/testing/browser/testingOutputTerminalService';
-import { TestCommandId, TestExplorerViewMode, TestExplorerViewSorting, Testing } from 'vs/workbench/contrib/testing/common/constants';
+import { TestCommandId, testConfigurationGroupNames, TestExplorerViewMode, TestExplorerViewSorting, Testing } from 'vs/workbench/contrib/testing/common/constants';
 import { InternalTestItem, ITestRunProfile, TestRunProfileBitset } from 'vs/workbench/contrib/testing/common/testTypes';
 import { TestingContextKeys } from 'vs/workbench/contrib/testing/common/testingContextKeys';
 import { ITestingPeekOpener } from 'vs/workbench/contrib/testing/common/testingPeekOpener';
@@ -41,6 +41,10 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
 import { getTestingConfiguration, TestingConfigKeys } from 'vs/workbench/contrib/testing/common/configuration';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { MessageController } from 'vs/editor/contrib/message/browser/messageController';
+import { isCodeEditor } from 'vs/editor/browser/editorBrowser';
+import { ITestingContinuousRunService } from 'vs/workbench/contrib/testing/common/testingContinuousRunService';
+import { IQuickInputService, IQuickPickItem, IQuickPickSeparator } from 'vs/platform/quickinput/common/quickInput';
 
 const category = Categories.Test;
 
@@ -50,8 +54,8 @@ const enum ActionOrder {
 	Run,
 	Debug,
 	Coverage,
+	RunContinuous,
 	RunUsing,
-	AutoRun,
 
 	// Submenu:
 	Collapse,
@@ -277,6 +281,115 @@ export class ConfigureTestProfilesAction extends Action2 {
 	}
 }
 
+const continuousMenus = (whenIsContinuousOn: boolean): IAction2Options['menu'] => [
+	{
+		id: MenuId.ViewTitle,
+		group: 'navigation',
+		order: ActionOrder.RunUsing,
+		when: ContextKeyExpr.and(
+			ContextKeyExpr.equals('view', Testing.ExplorerViewId),
+			TestingContextKeys.supportsContinuousRun.isEqualTo(true),
+			TestingContextKeys.isContinuousModeOn.isEqualTo(whenIsContinuousOn),
+		),
+	},
+	{
+		id: MenuId.CommandPalette,
+		when: TestingContextKeys.supportsContinuousRun.isEqualTo(true),
+	},
+];
+
+class StopContinuousRunAction extends Action2 {
+	constructor() {
+		super({
+			id: TestCommandId.StopContinousRun,
+			title: { value: localize('testing.stopContinuous', "Stop Continuous Run"), original: 'Stop Continuous Run' },
+			category,
+			icon: icons.testingTurnContinuousRunOff,
+			menu: continuousMenus(true),
+		});
+	}
+
+	run(accessor: ServicesAccessor): void {
+		accessor.get(ITestingContinuousRunService).stop();
+	}
+}
+
+class StartContinuousRunAction extends Action2 {
+	constructor() {
+		super({
+			id: TestCommandId.StartContinousRun,
+			title: { value: localize('testing.startContinuous', "Start Continuous Run"), original: 'Enable Continuous Run' },
+			category,
+			icon: icons.testingTurnContinuousRunOn,
+			menu: continuousMenus(false),
+		});
+	}
+	run(accessor: ServicesAccessor, ...args: any[]): void {
+		const controllerProfiles = accessor.get(ITestProfileService).all();
+		const notificationService = accessor.get(INotificationService);
+		const crs = accessor.get(ITestingContinuousRunService);
+
+		type ItemType = IQuickPickItem & { profile: ITestRunProfile };
+
+		const items: ItemType[] = [];
+		for (const { controller, profiles } of controllerProfiles) {
+			for (const profile of profiles) {
+				if (profile.supportsContinuousRun) {
+					items.push({
+						label: profile.label || controller.label.value,
+						description: controller.label.value,
+						profile,
+					});
+				}
+			}
+		}
+
+		if (items.length === 0) {
+			notificationService.info(localize('testing.noProfiles', 'No test continuous run-enabled profiles were found'));
+			return;
+		}
+
+		// special case: don't bother to quick a pickpick if there's only a single profile
+		if (items.length === 1) {
+			return crs.start([items[0].profile]);
+		}
+
+		const qpItems: (ItemType | IQuickPickSeparator)[] = [];
+		const selectedItems: ItemType[] = [];
+		const lastRun = crs.lastRunProfileIds;
+
+		items.sort((a, b) => a.profile.group - b.profile.group
+			|| a.profile.controllerId.localeCompare(b.profile.controllerId)
+			|| a.label.localeCompare(b.label));
+
+		for (let i = 0; i < items.length; i++) {
+			const item = items[i];
+			if (i === 0 || items[i - 1].profile.group !== item.profile.group) {
+				qpItems.push({ type: 'separator', label: testConfigurationGroupNames[item.profile.group] });
+			}
+
+			qpItems.push(item);
+			if (lastRun.has(item.profile.profileId)) {
+				selectedItems.push(item);
+			}
+		}
+
+		const quickpick = accessor.get(IQuickInputService).createQuickPick<IQuickPickItem & { profile: ITestRunProfile }>();
+		quickpick.title = localize('testing.selectContinuousProfiles', 'Select profiles to run when files change:');
+		quickpick.canSelectMany = true;
+		quickpick.items = qpItems;
+		quickpick.selectedItems = selectedItems;
+		quickpick.show();
+
+		quickpick.onDidAccept(() => {
+			if (quickpick.selectedItems.length) {
+				crs.start(quickpick.selectedItems.map(i => i.profile));
+				quickpick.dispose();
+			}
+		});
+	}
+}
+
 abstract class ExecuteSelectedAction extends ViewAction<TestingExplorerView> {
 	constructor(options: IAction2Options, private readonly group: TestRunProfileBitset) {
 		super({
@@ -310,7 +423,6 @@ abstract class ExecuteSelectedAction extends ViewAction<TestingExplorerView> {
 }
 
 export class RunSelectedAction extends ExecuteSelectedAction {
-
 	constructor() {
 		super({
 			id: TestCommandId.RunSelectedAction,
@@ -322,7 +434,6 @@ export class RunSelectedAction extends ExecuteSelectedAction {
 
 export class DebugSelectedAction extends ExecuteSelectedAction {
 	constructor() {
-
 		super({
 			id: TestCommandId.DebugSelectedAction,
 			title: localize('debugSelectedTests', 'Debug Tests'),
@@ -631,6 +742,11 @@ export class ClearTestResultsAction extends Action2 {
 				order: ActionOrder.ClearResults,
 				group: 'displayAction',
 				when: ContextKeyExpr.equals('view', Testing.ExplorerViewId)
+			}, {
+				id: MenuId.ViewTitle,
+				order: ActionOrder.ClearResults,
+				group: 'navigation',
+				when: ContextKeyExpr.equals('view', Testing.ResultsViewId)
 			}],
 		});
 	}
@@ -669,10 +785,15 @@ abstract class ExecuteTestAtCursor extends Action2 {
 	constructor(options: IAction2Options, protected readonly group: TestRunProfileBitset) {
 		super({
 			...options,
-			menu: {
+			menu: [{
 				id: MenuId.CommandPalette,
 				when: hasAnyTestProvider,
-			},
+			}, {
+				id: MenuId.EditorContext,
+				group: 'testing',
+				order: group === TestRunProfileBitset.Run ? ActionOrder.Run : ActionOrder.Debug,
+				when: ContextKeyExpr.and(TestingContextKeys.activeEditorHasTests, TestingContextKeys.capabilityToContextKey[group]),
+			}]
 		});
 	}
 
@@ -749,6 +870,8 @@ abstract class ExecuteTestAtCursor extends Action2 {
 				group: this.group,
 				tests: bestNodes.length ? bestNodes : bestNodesBefore,
 			});
+		} else if (isCodeEditor(activeControl)) {
+			MessageController.get(activeControl)?.showMessage(localize('noTestsAtCursor', "No tests found here"), position);
 		}
 	}
 }
@@ -787,10 +910,16 @@ abstract class ExecuteTestsInCurrentFile extends Action2 {
 	constructor(options: IAction2Options, protected readonly group: TestRunProfileBitset) {
 		super({
 			...options,
-			menu: {
+			menu: [{
 				id: MenuId.CommandPalette,
 				when: TestingContextKeys.capabilityToContextKey[group].isEqualTo(true),
-			},
+			}, {
+				id: MenuId.EditorContext,
+				group: 'testing',
+				// add 0.1 to be after the "at cursor" commands
+				order: (group === TestRunProfileBitset.Run ? ActionOrder.Run : ActionOrder.Debug) + 0.1,
+				when: ContextKeyExpr.and(TestingContextKeys.activeEditorHasTests, TestingContextKeys.capabilityToContextKey[group]),
+			}],
 		});
 	}
 
@@ -828,6 +957,10 @@ abstract class ExecuteTestsInCurrentFile extends Action2 {
 				tests: discovered,
 				group: this.group,
 			});
+		}
+
+		if (isCodeEditor(control)) {
+			MessageController.get(control)?.showMessage(localize('noTestsInFile', "No tests found in this file"), position);
 		}
 
 		return undefined;
@@ -1183,9 +1316,6 @@ export class CancelTestRefreshAction extends Action2 {
 }
 
 export const allTestActions = [
-	// todo: these are disabled until we figure out how we want autorun to work
-	// AutoRunOffAction,
-	// AutoRunOnAction,
 	CancelTestRefreshAction,
 	CancelTestRunAction,
 	ClearTestResultsAction,
@@ -1213,12 +1343,14 @@ export const allTestActions = [
 	SearchForTestExtension,
 	SelectDefaultTestProfiles,
 	ShowMostRecentOutputAction,
+	StartContinuousRunAction,
+	StopContinuousRunAction,
 	TestingSortByDurationAction,
 	TestingSortByLocationAction,
 	TestingSortByStatusAction,
 	TestingViewAsListAction,
 	TestingViewAsTreeAction,
 	ToggleInlineTestOutput,
-	UnhideTestAction,
 	UnhideAllTestsAction,
+	UnhideTestAction,
 ];

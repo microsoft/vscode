@@ -73,7 +73,6 @@ export class PatternInputWidget extends Widget {
 
 	setWidth(newWidth: number): void {
 		this.width = newWidth;
-		this.domNode.style.width = this.width + 'px';
 		this.contextViewProvider.layout();
 		this.setInputWidth();
 	}
@@ -135,7 +134,6 @@ export class PatternInputWidget extends Widget {
 
 	private render(options: IOptions): void {
 		this.domNode = document.createElement('div');
-		this.domNode.style.width = this.width + 'px';
 		this.domNode.classList.add('monaco-findInput');
 
 		this.inputBox = new ContextScopedHistoryInputBox(this.domNode, this.contextViewProvider, {

@@ -92,23 +92,39 @@ registerListeners();
  */
 let nlsConfigurationPromise = undefined;
 
+/**
+ * @type {String}
+ **/
+let osLocale = 'en';
+// This if statement can be simplified once
+// VS Code moves to Electron 22.
+// Ref https://github.com/microsoft/vscode/issues/159813
+// and https://github.com/electron/electron/pull/36035
+if ('getPreferredSystemLanguages' in app
+	&& typeof app.getPreferredSystemLanguages === 'function') {
+	// Use the most preferred OS language for language recommendation.
+	// The API might return an empty array on Linux, such as when
+	// the 'C' locale is the user's only configured locale.
+	// No matter the OS, if the array is empty, default back to 'en'.
+	const resolved = app.getPreferredSystemLanguages()?.[0] ?? 'en';
+	osLocale = processZhLocale(resolved.toLowerCase());
+}
 const metaDataFile = path.join(__dirname, 'nls.metadata.json');
 const locale = getUserDefinedLocale(argvConfig);
 if (locale) {
 	const { getNLSConfiguration } = require('./vs/base/node/languagePacks');
-	nlsConfigurationPromise = getNLSConfiguration(product.commit, userDataPath, metaDataFile, locale);
+	nlsConfigurationPromise = getNLSConfiguration(product.commit, userDataPath, metaDataFile, locale, osLocale);
 }
 
-if (product.quality === 'insider' || product.quality === 'exploration') {
+// Pass in the locale to Electron so that the
+// Windows Control Overlay is rendered correctly on Windows.
+// For now, don't pass in the locale on macOS due to
+// https://github.com/microsoft/vscode/issues/167543.
+// If the locale is `qps-ploc`, the Microsoft
+// Pseudo Language Language Pack is being used.
+// In that case, use `en` as the Electron locale.
 
-	// Pass in the locale to Electron so that the
-	// Windows Control Overlay is rendered correctly on Windows,
-	// and so that the traffic lights are rendered properly
-	// on macOS when using a custom titlebar.
-	// If the locale is `qps-ploc`, the Microsoft
-	// Pseudo Language Language Pack is being used.
-	// In that case, use `en` as the Electron locale.
-
+if (process.platform === 'win32' || process.platform === 'linux') {
 	const electronLocale = (!locale || locale === 'qps-ploc') ? 'en' : locale;
 	app.commandLine.appendSwitch('lang', electronLocale);
 }
@@ -184,7 +200,7 @@ function configureCommandlineSwitchesSync(cliArgs) {
 		// Persistently enable proposed api via argv.json: https://github.com/microsoft/vscode/issues/99775
 		'enable-proposed-api',
 
-		// Log level to use. Default is 'info'. Allowed values are 'critical', 'error', 'warn', 'info', 'debug', 'trace', 'off'.
+		// Log level to use. Default is 'info'. Allowed values are 'error', 'warn', 'info', 'debug', 'trace', 'off'.
 		'log-level'
 	];
 
@@ -228,6 +244,10 @@ function configureCommandlineSwitchesSync(cliArgs) {
 				case 'log-level':
 					if (typeof argvValue === 'string') {
 						process.argv.push('--log', argvValue);
+					} else if (Array.isArray(argvValue)) {
+						for (const value of argvValue) {
+							process.argv.push('--log', value);
+						}
 					}
 					break;
 			}
@@ -552,6 +572,30 @@ async function mkdirpIgnoreError(dir) {
 //#region NLS Support
 
 /**
+ * @param {string} appLocale
+ * @returns string
+ */
+function processZhLocale(appLocale) {
+	if (appLocale.startsWith('zh')) {
+		const region = appLocale.split('-')[1];
+		// On Windows and macOS, Chinese languages returned by
+		// app.getPreferredSystemLanguages() start with zh-hans
+		// for Simplified Chinese or zh-hant for Traditional Chinese,
+		// so we can easily determine whether to use Simplified or Traditional.
+		// However, on Linux, Chinese languages returned by that same API
+		// are of the form zh-XY, where XY is a country code.
+		// For China (CN), Singapore (SG), and Malaysia (MY)
+		// country codes, assume they use Simplified Chinese.
+		// For other cases, assume they use Traditional.
+		if (['hans', 'cn', 'sg', 'my'].includes(region)) {
+			return 'zh-cn';
+		}
+		return 'zh-tw';
+	}
+	return appLocale;
+}
+
+/**
  * Resolve the NLS configuration
  *
  * @return {Promise<NLSConfiguration>}
@@ -561,45 +605,28 @@ async function resolveNlsConfiguration() {
 	// First, we need to test a user defined locale. If it fails we try the app locale.
 	// If that fails we fall back to English.
 	let nlsConfiguration = nlsConfigurationPromise ? await nlsConfigurationPromise : undefined;
-	if (!nlsConfiguration) {
-
-		// Try to use the app locale. Please note that the app locale is only
-		// valid after we have received the app ready event. This is why the
-		// code is here.
-
-		/**
-		 * @type string
-		 */
-		let appLocale = app.getLocale();
-
-		// This if statement can be simplified once
-		// VS Code moves to Electron 22.
-		// Ref https://github.com/microsoft/vscode/issues/159813
-		// and https://github.com/electron/electron/pull/36035
-		if ((product.quality === 'insider' || product.quality === 'exploration')
-			&& 'getPreferredSystemLanguages' in app
-			&& typeof app.getPreferredSystemLanguages === 'function'
-			&& app.getPreferredSystemLanguages().length) {
-			appLocale = app.getPreferredSystemLanguages()[0];
-		}
-		if (!appLocale) {
-			nlsConfiguration = { locale: 'en', availableLanguages: {} };
-		} else {
-
-			// See above the comment about the loader and case sensitiveness
-			appLocale = appLocale.toLowerCase();
-
-			const { getNLSConfiguration } = require('./vs/base/node/languagePacks');
-			nlsConfiguration = await getNLSConfiguration(product.commit, userDataPath, metaDataFile, appLocale);
-			if (!nlsConfiguration) {
-				nlsConfiguration = { locale: appLocale, availableLanguages: {} };
-			}
-		}
-	} else {
-		// We received a valid nlsConfig from a user defined locale
+	if (nlsConfiguration) {
+		return nlsConfiguration;
 	}
 
-	return nlsConfiguration;
+	// Try to use the app locale. Please note that the app locale is only
+	// valid after we have received the app ready event. This is why the
+	// code is here.
+
+	/**
+	 * @type string
+	 */
+	let appLocale = app.getLocale();
+	if (!appLocale) {
+		return { locale: 'en', osLocale, availableLanguages: {} };
+	}
+
+	// See above the comment about the loader and case sensitiveness
+	appLocale = processZhLocale(appLocale.toLowerCase());
+
+	const { getNLSConfiguration } = require('./vs/base/node/languagePacks');
+	nlsConfiguration = await getNLSConfiguration(product.commit, userDataPath, metaDataFile, appLocale, osLocale);
+	return nlsConfiguration ?? { locale: 'en', osLocale, availableLanguages: {} };
 }
 
 /**

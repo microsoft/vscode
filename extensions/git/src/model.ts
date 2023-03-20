@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { workspace, WorkspaceFoldersChangeEvent, Uri, window, Event, EventEmitter, QuickPickItem, Disposable, SourceControl, SourceControlResourceGroup, TextEditor, Memento, commands, LogOutputChannel, l10n, ProgressLocation } from 'vscode';
+import { workspace, WorkspaceFoldersChangeEvent, Uri, window, Event, EventEmitter, QuickPickItem, Disposable, SourceControl, SourceControlResourceGroup, TextEditor, Memento, commands, LogOutputChannel, l10n, ProgressLocation, WorkspaceFolder } from 'vscode';
 import TelemetryReporter from '@vscode/extension-telemetry';
-import { Operation, Repository, RepositoryState } from './repository';
+import { Repository, RepositoryState } from './repository';
 import { memoize, sequentialize, debounce } from './decorators';
 import { dispose, anyEvent, filterEvent, isDescendant, pathEquals, toDisposable, eventToPromise } from './util';
 import { Git } from './git';
@@ -31,6 +31,50 @@ class RepositoryPick implements QuickPickItem {
 	}
 
 	constructor(public readonly repository: Repository, public readonly index: number) { }
+}
+
+abstract class RepositoryMap<T = void> extends Map<string, T> {
+	constructor() {
+		super();
+		this.updateContextKey();
+	}
+
+	override set(key: string, value: T): this {
+		const result = super.set(key, value);
+		this.updateContextKey();
+
+		return result;
+	}
+
+	override delete(key: string): boolean {
+		const result = super.delete(key);
+		this.updateContextKey();
+
+		return result;
+	}
+
+	abstract updateContextKey(): void;
+}
+
+/**
+ * Key   - normalized path used in user interface
+ * Value - path extracted from the output of the `git status` command
+ *         used when calling `git config --global --add safe.directory`
+ */
+class UnsafeRepositoryMap extends RepositoryMap<string> {
+	updateContextKey(): void {
+		commands.executeCommand('setContext', 'git.unsafeRepositoryCount', this.size);
+	}
+}
+
+/**
+ * Key   - normalized path used in user interface
+ * Value - value indicating whether the repository should be opened
+ */
+class ParentRepositoryMap extends RepositoryMap {
+	updateContextKey(): void {
+		commands.executeCommand('setContext', 'git.parentRepositoryCount', this.size);
+	}
 }
 
 export interface ModelChangeEvent {
@@ -107,8 +151,27 @@ export class Model implements IRemoteSourcePublisherRegistry, IPostCommitCommand
 	private _onDidChangePostCommitCommandsProviders = new EventEmitter<void>();
 	readonly onDidChangePostCommitCommandsProviders = this._onDidChangePostCommitCommandsProviders.event;
 
-	private showRepoOnHomeDriveRootWarning = true;
 	private pushErrorHandlers = new Set<PushErrorHandler>();
+
+	private _unsafeRepositories = new UnsafeRepositoryMap();
+	get unsafeRepositories(): UnsafeRepositoryMap {
+		return this._unsafeRepositories;
+	}
+
+	private _parentRepositories = new ParentRepositoryMap();
+	get parentRepositories(): ParentRepositoryMap {
+		return this._parentRepositories;
+	}
+
+	/**
+	 * We maintain a map containing both the path and the canonical path of the
+	 * workspace folders. We are doing this as `git.exe` expands the symbolic links
+	 * while there are scenarios in which VS Code does not.
+	 *
+	 * Key   - path of the workspace folder
+	 * Value - canonical path of the workspace folder
+	 */
+	private _workspaceFolders = new Map<string, string>();
 
 	private disposables: Disposable[] = [];
 
@@ -132,7 +195,9 @@ export class Model implements IRemoteSourcePublisherRegistry, IPostCommitCommand
 	private async doInitialScan(): Promise<void> {
 		const config = workspace.getConfiguration('git');
 		const autoRepositoryDetection = config.get<boolean | 'subFolders' | 'openEditors'>('autoRepositoryDetection');
+		const parentRepositoryConfig = config.get<'always' | 'never' | 'prompt'>('openRepositoryInParentFolders', 'prompt');
 
+		// Initial repository scan function
 		const initialScanFn = () => Promise.all([
 			this.onDidChangeWorkspaceFolders({ added: workspace.workspaceFolders || [], removed: [] }),
 			this.onDidChangeVisibleTextEditors(window.visibleTextEditors),
@@ -143,6 +208,15 @@ export class Model implements IRemoteSourcePublisherRegistry, IPostCommitCommand
 			await window.withProgress({ location: ProgressLocation.SourceControl }, initialScanFn);
 		} else {
 			await initialScanFn();
+		}
+
+		if (this._parentRepositories.size !== 0 &&
+			parentRepositoryConfig === 'prompt') {
+			// Parent repositories notification
+			this.showParentRepositoryNotification();
+		} else if (this._unsafeRepositories.size !== 0) {
+			// Unsafe repositories notification
+			this.showUnsafeRepositoryNotification();
 		}
 
 		/* __GDPR__
@@ -353,49 +427,88 @@ export class Model implements IRemoteSourcePublisherRegistry, IPostCommitCommand
 		}
 
 		try {
-			const rawRoot = await this.git.getRepositoryRoot(repoPath);
-
-			// This can happen whenever `path` has the wrong case sensitivity in
-			// case insensitive file systems
-			// https://github.com/microsoft/vscode/issues/33498
-			const repositoryRoot = Uri.file(rawRoot).fsPath;
-			this.logger.trace(`Repository root: ${repositoryRoot}`);
+			const { repositoryRoot, unsafeRepositoryMatch } = await this.getRepositoryRoot(repoPath);
+			this.logger.trace(`Repository root for path ${repoPath} is: ${repositoryRoot}`);
 
 			if (this.getRepositoryExact(repositoryRoot)) {
 				this.logger.trace(`Repository for path ${repositoryRoot} already exists`);
 				return;
 			}
 
-			if (this.shouldRepositoryBeIgnored(rawRoot)) {
+			if (this.shouldRepositoryBeIgnored(repositoryRoot)) {
 				this.logger.trace(`Repository for path ${repositoryRoot} is ignored`);
 				return;
 			}
 
-			// On Window, opening a git repository from the root of the HOMEDRIVE poses a security risk.
-			// We will only a open git repository from the root of the HOMEDRIVE if the user explicitly
-			// opens the HOMEDRIVE as a folder. Only show the warning once during repository discovery.
-			if (process.platform === 'win32' && process.env.HOMEDRIVE && pathEquals(`${process.env.HOMEDRIVE}\\`, repositoryRoot)) {
-				const isRepoInWorkspaceFolders = (workspace.workspaceFolders ?? []).find(f => pathEquals(f.uri.fsPath, repositoryRoot))!!;
+			// Handle git repositories that are in parent folders
+			const parentRepositoryConfig = config.get<'always' | 'never' | 'prompt'>('openRepositoryInParentFolders', 'prompt');
+			if (parentRepositoryConfig !== 'always' && this.globalState.get<boolean>(`parentRepository:${repositoryRoot}`) !== true) {
+				const isRepositoryOutsideWorkspace = await this.isRepositoryOutsideWorkspace(repositoryRoot);
+				if (isRepositoryOutsideWorkspace) {
+					this.logger.trace(`Repository in parent folder: ${repositoryRoot}`);
 
-				if (!isRepoInWorkspaceFolders) {
-					if (this.showRepoOnHomeDriveRootWarning) {
-						window.showWarningMessage(l10n.t('Unable to automatically open the git repository at "{0}". To open that git repository, open it directly as a folder in VS Code.', repositoryRoot));
-						this.showRepoOnHomeDriveRootWarning = false;
+					if (!this._parentRepositories.has(repositoryRoot)) {
+						// Show a notification if the parent repository is opened after the initial scan
+						if (this.state === 'initialized' && parentRepositoryConfig === 'prompt') {
+							this.showParentRepositoryNotification();
+						}
+
+						this._parentRepositories.set(repositoryRoot);
 					}
 
-					this.logger.trace(`Repository for path ${repositoryRoot} is on the root of the HOMEDRIVE`);
 					return;
 				}
 			}
 
+			// Handle unsafe repositories
+			if (unsafeRepositoryMatch && unsafeRepositoryMatch.length === 3) {
+				this.logger.trace(`Unsafe repository: ${repositoryRoot}`);
+
+				// Show a notification if the unsafe repository is opened after the initial scan
+				if (this._state === 'initialized' && !this._unsafeRepositories.has(repositoryRoot)) {
+					this.showUnsafeRepositoryNotification();
+				}
+
+				this._unsafeRepositories.set(repositoryRoot, unsafeRepositoryMatch[2]);
+
+				return;
+			}
+
+			// Open repository
 			const dotGit = await this.git.getRepositoryDotGit(repositoryRoot);
 			const repository = new Repository(this.git.open(repositoryRoot, dotGit, this.logger), this, this, this, this.globalState, this.logger, this.telemetryReporter);
 
 			this.open(repository);
 			repository.status(); // do not await this, we want SCM to know about the repo asap
-		} catch (ex) {
+		} catch (err) {
 			// noop
-			this.logger.trace(`Opening repository for path='${repoPath}' failed; ex=${ex}`);
+			this.logger.trace(`Opening repository for path='${repoPath}' failed; ex=${err}`);
+		}
+	}
+
+	async openParentRepository(repoPath: string): Promise<void> {
+		// Mark the repository to be opened from the parent folders
+		this.globalState.update(`parentRepository:${repoPath}`, true);
+
+		await this.openRepository(repoPath);
+		this.parentRepositories.delete(repoPath);
+	}
+
+	private async getRepositoryRoot(repoPath: string): Promise<{ repositoryRoot: string; unsafeRepositoryMatch: RegExpMatchArray | null }> {
+		try {
+			const rawRoot = await this.git.getRepositoryRoot(repoPath);
+
+			// This can happen whenever `path` has the wrong case sensitivity in case
+			// insensitive file systems https://github.com/microsoft/vscode/issues/33498
+			return { repositoryRoot: Uri.file(rawRoot).fsPath, unsafeRepositoryMatch: null };
+		} catch (err) {
+			// Handle unsafe repository
+			const unsafeRepositoryMatch = /^fatal: detected dubious ownership in repository at \'([^']+)\'[\s\S]*git config --global --add safe\.directory '?([^'\n]+)'?$/m.exec(err.stderr);
+			if (unsafeRepositoryMatch && unsafeRepositoryMatch.length === 3) {
+				return { repositoryRoot: path.normalize(unsafeRepositoryMatch[1]), unsafeRepositoryMatch };
+			}
+
+			throw err;
 		}
 	}
 
@@ -438,6 +551,7 @@ export class Model implements IRemoteSourcePublisherRegistry, IPostCommitCommand
 
 		const checkForSubmodules = () => {
 			if (!shouldDetectSubmodules) {
+				this.logger.trace('Automatic detection of git submodules is not enabled.');
 				return;
 			}
 
@@ -449,7 +563,10 @@ export class Model implements IRemoteSourcePublisherRegistry, IPostCommitCommand
 			repository.submodules
 				.slice(0, submodulesLimit)
 				.map(r => path.join(repository.root, r.path))
-				.forEach(p => this.eventuallyScanPossibleGitRepository(p));
+				.forEach(p => {
+					this.logger.trace(`Opening submodule: '${p}'`);
+					this.eventuallyScanPossibleGitRepository(p);
+				});
 		};
 
 		const updateMergeChanges = () => {
@@ -469,21 +586,20 @@ export class Model implements IRemoteSourcePublisherRegistry, IPostCommitCommand
 		});
 		checkForSubmodules();
 
-		const updateCommitInProgressContext = () => {
-			let commitInProgress = false;
+		const updateOperationInProgressContext = () => {
+			let operationInProgress = false;
 			for (const { repository } of this.openRepositories.values()) {
-				if (repository.operations.isRunning(Operation.Commit)) {
-					commitInProgress = true;
-					break;
+				if (repository.operations.shouldDisableCommands()) {
+					operationInProgress = true;
 				}
 			}
 
-			commands.executeCommand('setContext', 'commitInProgress', commitInProgress);
+			commands.executeCommand('setContext', 'operationInProgress', operationInProgress);
 		};
 
 		const operationEvent = anyEvent(repository.onDidRunOperation as Event<any>, repository.onRunOperation as Event<any>);
-		const operationListener = operationEvent(() => updateCommitInProgressContext());
-		updateCommitInProgressContext();
+		const operationListener = operationEvent(() => updateOperationInProgressContext());
+		updateOperationInProgressContext();
 
 		const dispose = () => {
 			disappearListener.dispose();
@@ -608,7 +724,7 @@ export class Model implements IRemoteSourcePublisherRegistry, IPostCommitCommand
 				return liveRepository;
 			}
 
-			if (hint === repository.mergeGroup || hint === repository.indexGroup || hint === repository.workingTreeGroup) {
+			if (hint === repository.mergeGroup || hint === repository.indexGroup || hint === repository.workingTreeGroup || hint === repository.untrackedGroup) {
 				return liveRepository;
 			}
 		}
@@ -669,6 +785,89 @@ export class Model implements IRemoteSourcePublisherRegistry, IPostCommitCommand
 
 	getPushErrorHandlers(): PushErrorHandler[] {
 		return [...this.pushErrorHandlers];
+	}
+
+	private async isRepositoryOutsideWorkspace(repositoryPath: string): Promise<boolean> {
+		const workspaceFolders = (workspace.workspaceFolders || [])
+			.filter(folder => folder.uri.scheme === 'file');
+
+		if (workspaceFolders.length === 0) {
+			return true;
+		}
+
+		const result = await Promise.all(workspaceFolders.map(async folder => {
+			const workspaceFolderRealPath = await this.getWorkspaceFolderRealPath(folder);
+			return workspaceFolderRealPath ? pathEquals(workspaceFolderRealPath, repositoryPath) || isDescendant(workspaceFolderRealPath, repositoryPath) : undefined;
+		}));
+
+		return !result.some(r => r);
+	}
+
+	private async getWorkspaceFolderRealPath(workspaceFolder: WorkspaceFolder): Promise<string | undefined> {
+		let result = this._workspaceFolders.get(workspaceFolder.uri.fsPath);
+
+		if (!result) {
+			try {
+				result = await fs.promises.realpath(workspaceFolder.uri.fsPath, { encoding: 'utf8' });
+				this._workspaceFolders.set(workspaceFolder.uri.fsPath, result);
+			} catch (err) {
+				// noop - Workspace folder does not exist
+				this.logger.trace(`Failed to resolve workspace folder: "${workspaceFolder.uri.fsPath}". ${err}`);
+			}
+		}
+
+		return result;
+	}
+
+	private async showParentRepositoryNotification(): Promise<void> {
+		const message = this.parentRepositories.size === 1 ?
+			l10n.t('A git repository was found in the parent folders of the workspace or the open file(s). Would you like to open the repository?') :
+			l10n.t('Git repositories were found in the parent folders of the workspace or the open file(s). Would you like to open the repositories?');
+
+		const yes = l10n.t('Yes');
+		const always = l10n.t('Always');
+		const never = l10n.t('Never');
+
+		const choice = await window.showInformationMessage(message, yes, always, never);
+		if (choice === yes) {
+			// Open Parent Repositories
+			commands.executeCommand('git.openRepositoriesInParentFolders');
+		} else if (choice === always || choice === never) {
+			// Update setting
+			const config = workspace.getConfiguration('git');
+			await config.update('openRepositoryInParentFolders', choice === always ? 'always' : 'never', true);
+
+			if (choice === always) {
+				for (const parentRepository of [...this.parentRepositories.keys()]) {
+					await this.openParentRepository(parentRepository);
+				}
+			}
+		}
+	}
+
+	private async showUnsafeRepositoryNotification(): Promise<void> {
+		// If no repositories are open, we will use a welcome view to inform the user
+		// that a potentially unsafe repository was found so we do not have to show
+		// the notification
+		if (this.repositories.length === 0) {
+			return;
+		}
+
+		const message = this._unsafeRepositories.size === 1 ?
+			l10n.t('The git repository in the current folder is potentially unsafe as the folder is owned by someone other than the current user.') :
+			l10n.t('The git repositories in the current folder are potentially unsafe as the folders are owned by someone other than the current user.');
+
+		const manageUnsafeRepositories = l10n.t('Manage Unsafe Repositories');
+		const learnMore = l10n.t('Learn More');
+
+		const choice = await window.showErrorMessage(message, manageUnsafeRepositories, learnMore);
+		if (choice === manageUnsafeRepositories) {
+			// Manage Unsafe Repositories
+			commands.executeCommand('git.manageUnsafeRepositories');
+		} else if (choice === learnMore) {
+			// Learn More
+			commands.executeCommand('vscode.open', Uri.parse('https://aka.ms/vscode-git-unsafe-repository'));
+		}
 	}
 
 	dispose(): void {

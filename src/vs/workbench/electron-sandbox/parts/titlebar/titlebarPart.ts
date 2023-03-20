@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { getZoomFactor, isWCOVisible } from 'vs/base/browser/browser';
+import { getZoomFactor, isWCOEnabled } from 'vs/base/browser/browser';
 import { $, addDisposableListener, append, EventType, hide, show } from 'vs/base/browser/dom';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
@@ -16,13 +16,13 @@ import { TitlebarPart as BrowserTitleBarPart } from 'vs/workbench/browser/parts/
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
-import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
+import { INativeHostService } from 'vs/platform/native/common/native';
 import { getTitleBarStyle, useWindowControlsOverlay } from 'vs/platform/window/common/window';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { Codicon } from 'vs/base/common/codicons';
+import { ThemeIcon } from 'vs/base/common/themables';
 import { NativeMenubarControl } from 'vs/workbench/electron-sandbox/parts/titlebar/menubarControl';
 import { IHoverService } from 'vs/workbench/services/hover/browser/hover';
-import { IProductService } from 'vs/platform/product/common/productService';
 
 export class TitlebarPart extends BrowserTitleBarPart {
 	private maxRestoreControl: HTMLElement | undefined;
@@ -59,7 +59,6 @@ export class TitlebarPart extends BrowserTitleBarPart {
 		@IConfigurationService configurationService: IConfigurationService,
 		@INativeWorkbenchEnvironmentService environmentService: INativeWorkbenchEnvironmentService,
 		@IInstantiationService instantiationService: IInstantiationService,
-		@IProductService productService: IProductService,
 		@IThemeService themeService: IThemeService,
 		@IStorageService storageService: IStorageService,
 		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
@@ -68,7 +67,7 @@ export class TitlebarPart extends BrowserTitleBarPart {
 		@INativeHostService private readonly nativeHostService: INativeHostService,
 		@IHoverService hoverService: IHoverService,
 	) {
-		super(contextMenuService, configurationService, environmentService, instantiationService, productService, themeService, storageService, layoutService, contextKeyService, hostService, hoverService);
+		super(contextMenuService, configurationService, environmentService, instantiationService, themeService, storageService, layoutService, contextKeyService, hostService, hoverService);
 
 		this.environmentService = environmentService;
 	}
@@ -85,11 +84,11 @@ export class TitlebarPart extends BrowserTitleBarPart {
 	private onDidChangeWindowMaximized(maximized: boolean): void {
 		if (this.maxRestoreControl) {
 			if (maximized) {
-				this.maxRestoreControl.classList.remove(...Codicon.chromeMaximize.classNamesArray);
-				this.maxRestoreControl.classList.add(...Codicon.chromeRestore.classNamesArray);
+				this.maxRestoreControl.classList.remove(...ThemeIcon.asClassNameArray(Codicon.chromeMaximize));
+				this.maxRestoreControl.classList.add(...ThemeIcon.asClassNameArray(Codicon.chromeRestore));
 			} else {
-				this.maxRestoreControl.classList.remove(...Codicon.chromeRestore.classNamesArray);
-				this.maxRestoreControl.classList.add(...Codicon.chromeMaximize.classNamesArray);
+				this.maxRestoreControl.classList.remove(...ThemeIcon.asClassNameArray(Codicon.chromeRestore));
+				this.maxRestoreControl.classList.add(...ThemeIcon.asClassNameArray(Codicon.chromeMaximize));
 			}
 		}
 
@@ -100,8 +99,6 @@ export class TitlebarPart extends BrowserTitleBarPart {
 				show(this.resizer);
 			}
 		}
-
-		this.adjustTitleMarginToCenter();
 	}
 
 	private onMenubarFocusChanged(focused: boolean): void {
@@ -167,15 +164,15 @@ export class TitlebarPart extends BrowserTitleBarPart {
 		}
 
 		// Window Controls (Native Windows/Linux)
-		if (!isMacintosh && getTitleBarStyle(this.configurationService) !== 'native' && !isWCOVisible() && this.windowControls) {
+		if (!isMacintosh && getTitleBarStyle(this.configurationService) !== 'native' && !isWCOEnabled() && this.primaryWindowControls) {
 			// Minimize
-			const minimizeIcon = append(this.windowControls, $('div.window-icon.window-minimize' + Codicon.chromeMinimize.cssSelector));
+			const minimizeIcon = append(this.primaryWindowControls, $('div.window-icon.window-minimize' + ThemeIcon.asCSSSelector(Codicon.chromeMinimize)));
 			this._register(addDisposableListener(minimizeIcon, EventType.CLICK, e => {
 				this.nativeHostService.minimizeWindow();
 			}));
 
 			// Restore
-			this.maxRestoreControl = append(this.windowControls, $('div.window-icon.window-max-restore'));
+			this.maxRestoreControl = append(this.primaryWindowControls, $('div.window-icon.window-max-restore'));
 			this._register(addDisposableListener(this.maxRestoreControl, EventType.CLICK, async e => {
 				const maximized = await this.nativeHostService.isMaximized();
 				if (maximized) {
@@ -186,7 +183,7 @@ export class TitlebarPart extends BrowserTitleBarPart {
 			}));
 
 			// Close
-			const closeIcon = append(this.windowControls, $('div.window-icon.window-close' + Codicon.chromeClose.cssSelector));
+			const closeIcon = append(this.primaryWindowControls, $('div.window-icon.window-close' + ThemeIcon.asCSSSelector(Codicon.chromeClose)));
 			this._register(addDisposableListener(closeIcon, EventType.CLICK, e => {
 				this.nativeHostService.closeWindow();
 			}));
@@ -218,7 +215,7 @@ export class TitlebarPart extends BrowserTitleBarPart {
 		super.updateStyles();
 
 		// WCO styles only supported on Windows currently
-		if (useWindowControlsOverlay(this.configurationService, this.productService)) {
+		if (useWindowControlsOverlay(this.configurationService)) {
 			if (!this.cachedWindowControlStyles ||
 				this.cachedWindowControlStyles.bgColor !== this.element.style.backgroundColor ||
 				this.cachedWindowControlStyles.fgColor !== this.element.style.color) {
@@ -230,7 +227,7 @@ export class TitlebarPart extends BrowserTitleBarPart {
 	override layout(width: number, height: number): void {
 		super.layout(width, height);
 
-		if (useWindowControlsOverlay(this.configurationService, this.productService) ||
+		if (useWindowControlsOverlay(this.configurationService) ||
 			(isMacintosh && isNative && getTitleBarStyle(this.configurationService) === 'custom')) {
 			// When the user goes into full screen mode, the height of the title bar becomes 0.
 			// Instead, set it back to the default titlebar height for Catalina users

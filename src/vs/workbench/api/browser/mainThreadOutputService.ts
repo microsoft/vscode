@@ -25,7 +25,7 @@ export class MainThreadOutputService extends Disposable implements MainThreadOut
 	constructor(
 		extHostContext: IExtHostContext,
 		@IOutputService outputService: IOutputService,
-		@IViewsService viewsService: IViewsService
+		@IViewsService viewsService: IViewsService,
 	) {
 		super();
 		this._outputService = outputService;
@@ -41,12 +41,13 @@ export class MainThreadOutputService extends Disposable implements MainThreadOut
 		setVisibleChannel();
 	}
 
-	public async $register(label: string, file: UriComponents, log: boolean, languageId: string | undefined, extensionId: string): Promise<string> {
+	public async $register(label: string, file: UriComponents, languageId: string | undefined, extensionId: string): Promise<string> {
 		const idCounter = (MainThreadOutputService._extensionIdPool.get(extensionId) || 0) + 1;
 		MainThreadOutputService._extensionIdPool.set(extensionId, idCounter);
 		const id = `extension-output-${extensionId}-#${idCounter}-${label}`;
+		const resource = URI.revive(file);
 
-		Registry.as<IOutputChannelRegistry>(Extensions.OutputChannels).registerChannel({ id, label, file: URI.revive(file), log, languageId, extensionId });
+		Registry.as<IOutputChannelRegistry>(Extensions.OutputChannels).registerChannel({ id, label, file: resource, log: false, languageId, extensionId });
 		this._register(toDisposable(() => this.$dispose(id)));
 		return id;
 	}

@@ -28,7 +28,7 @@ import { HotExitConfiguration } from 'vs/platform/files/common/files';
 import { ShutdownReason, ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { IFileDialogService, ConfirmResult, IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
+import { INativeHostService } from 'vs/platform/native/common/native';
 import { workbenchInstantiationService, TestServiceAccessor } from 'vs/workbench/test/electron-browser/workbenchTestServices';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
@@ -234,7 +234,7 @@ flakySuite('WorkingCopyBackupTracker (native)', function () {
 		const model = accessor.textFileService.files.get(resource);
 
 		accessor.fileDialogService.setConfirmResult(ConfirmResult.CANCEL);
-		accessor.filesConfigurationService.onFilesConfigurationChange({ files: { hotExit: 'off' } });
+		accessor.filesConfigurationService.testOnFilesConfigurationChange({ files: { hotExit: 'off' } });
 
 		await model?.resolve();
 		model?.textEditorModel?.setValue('foo');
@@ -281,7 +281,7 @@ flakySuite('WorkingCopyBackupTracker (native)', function () {
 		const model = accessor.textFileService.files.get(resource);
 
 		accessor.fileDialogService.setConfirmResult(ConfirmResult.DONT_SAVE);
-		accessor.filesConfigurationService.onFilesConfigurationChange({ files: { hotExit: 'off' } });
+		accessor.filesConfigurationService.testOnFilesConfigurationChange({ files: { hotExit: 'off' } });
 
 		await model?.resolve();
 		model?.textEditorModel?.setValue('foo');
@@ -333,7 +333,7 @@ flakySuite('WorkingCopyBackupTracker (native)', function () {
 		const model = accessor.textFileService.files.get(resource);
 
 		accessor.fileDialogService.setConfirmResult(ConfirmResult.SAVE);
-		accessor.filesConfigurationService.onFilesConfigurationChange({ files: { hotExit: 'off' } });
+		accessor.filesConfigurationService.testOnFilesConfigurationChange({ files: { hotExit: 'off' } });
 
 		await model?.resolve();
 		model?.textEditorModel?.setValue('foo');
@@ -532,7 +532,7 @@ flakySuite('WorkingCopyBackupTracker (native)', function () {
 			const model = accessor.textFileService.files.get(resource);
 
 			// Set hot exit config
-			accessor.filesConfigurationService.onFilesConfigurationChange({ files: { hotExit: setting } });
+			accessor.filesConfigurationService.testOnFilesConfigurationChange({ files: { hotExit: setting } });
 
 			// Set empty workspace if required
 			if (!workspace) {

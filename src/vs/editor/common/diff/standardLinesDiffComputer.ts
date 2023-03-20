@@ -5,13 +5,14 @@
 
 import { assertFn, checkAdjacentItems } from 'vs/base/common/assert';
 import { CharCode } from 'vs/base/common/charCode';
+import { LineRange } from 'vs/editor/common/core/lineRange';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { OffsetRange, SequenceDiff, ISequence } from 'vs/editor/common/diff/algorithms/diffAlgorithm';
 import { DynamicProgrammingDiffing } from 'vs/editor/common/diff/algorithms/dynamicProgrammingDiffing';
-import { optimizeSequenceDiffs } from 'vs/editor/common/diff/algorithms/joinSequenceDiffs';
+import { optimizeSequenceDiffs, smoothenSequenceDiffs } from 'vs/editor/common/diff/algorithms/joinSequenceDiffs';
 import { MyersDiffAlgorithm } from 'vs/editor/common/diff/algorithms/myersDiffAlgorithm';
-import { ILinesDiff, ILinesDiffComputer, ILinesDiffComputerOptions, LineRange, LineRangeMapping, RangeMapping } from 'vs/editor/common/diff/linesDiffComputer';
+import { ILinesDiff, ILinesDiffComputer, ILinesDiffComputerOptions, LineRangeMapping, RangeMapping } from 'vs/editor/common/diff/linesDiffComputer';
 
 export class StandardLinesDiffComputer implements ILinesDiffComputer {
 	private readonly dynamicProgrammingDiffing = new DynamicProgrammingDiffing();
@@ -116,7 +117,8 @@ export class StandardLinesDiffComputer implements ILinesDiffComputer {
 			? this.dynamicProgrammingDiffing.compute(sourceSlice, targetSlice)
 			: this.myersDiffingAlgorithm.compute(sourceSlice, targetSlice);
 
-		const diffs = optimizeSequenceDiffs(sourceSlice, targetSlice, originalDiffs);
+		let diffs = optimizeSequenceDiffs(sourceSlice, targetSlice, originalDiffs);
+		diffs = smoothenSequenceDiffs(sourceSlice, targetSlice, diffs);
 		const result = diffs.map(
 			(d) =>
 				new RangeMapping(

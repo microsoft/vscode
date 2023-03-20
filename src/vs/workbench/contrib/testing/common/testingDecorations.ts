@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { IAction } from 'vs/base/common/actions';
 import { binarySearch } from 'vs/base/common/arrays';
 import { Event } from 'vs/base/common/event';
 import { URI } from 'vs/base/common/uri';
@@ -30,7 +31,10 @@ export interface ITestingDecorationsService {
 	 * Ensures decorations in the given document URI are up to date,
 	 * and returns them.
 	 */
-	syncDecorations(resource: URI): ReadonlyMap<string, ITestDecoration>;
+	syncDecorations(resource: URI): Iterable<ITestDecoration> & {
+		readonly size: number;
+		getById(decorationId: string): ITestDecoration | undefined;
+	};
 
 	/**
 	 * Gets the range where a test ID is displayed, in the given URI.
@@ -55,6 +59,8 @@ export interface ITestDecoration {
 	 * Editor decoration instance.
 	 */
 	readonly editorDecoration: IModelDeltaDecoration;
+
+	getContextMenuActions(): { object: IAction[]; dispose(): void };
 }
 
 export class TestDecorations<T extends { id: string; line: number } = ITestDecoration> {

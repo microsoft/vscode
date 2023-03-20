@@ -15,7 +15,7 @@ import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { Schemas } from 'vs/base/common/network';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ConfigurationChangedEvent, EditorOption } from 'vs/editor/common/config/editorOptions';
-import { registerEditorContribution } from 'vs/editor/browser/editorExtensions';
+import { EditorContributionInstantiation, registerEditorContribution } from 'vs/editor/browser/editorExtensions';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IContentActionHandler, renderFormattedText } from 'vs/base/browser/formattedTextRenderer';
@@ -107,7 +107,13 @@ class UntitledTextEditorHintContentWidget implements IContentWidget {
 			this.domNode = $('.untitled-hint');
 			this.domNode.style.width = 'max-content';
 
-			const hintMsg = localize({ key: 'message', comment: ['Presereve double-square brackets and their order'] }, '[[Select a language]], or [[open a different editor]] to get started.\nStart typing to dismiss or [[don\'t show]] this again.');
+			const hintMsg = localize({
+				key: 'message',
+				comment: [
+					'Preserve double-square brackets and their order',
+					'language refers to a programming language'
+				]
+			}, '[[Select a language]], or [[fill with template]], or [[open a different editor]] to get started.\nStart typing to dismiss or [[don\'t show]] this again.');
 			const hintHandler: IContentActionHandler = {
 				disposables: this.toDispose,
 				callback: (index, event) => {
@@ -116,9 +122,12 @@ class UntitledTextEditorHintContentWidget implements IContentWidget {
 							languageOnClickOrTap(event.browserEvent);
 							break;
 						case '1':
-							chooseEditorOnClickOrTap(event.browserEvent);
+							snippetOnClickOrTap(event.browserEvent);
 							break;
 						case '2':
+							chooseEditorOnClickOrTap(event.browserEvent);
+							break;
+						case '3':
 							dontShowOnClickOrTap();
 							break;
 					}
@@ -141,7 +150,7 @@ class UntitledTextEditorHintContentWidget implements IContentWidget {
 			}
 
 			// the actual command handlers...
-			const languageOnClickOrTap = async (e: MouseEvent) => {
+			const languageOnClickOrTap = async (e: UIEvent) => {
 				e.stopPropagation();
 				// Need to focus editor before so current editor becomes active and the command is properly executed
 				this.editor.focus();
@@ -149,7 +158,13 @@ class UntitledTextEditorHintContentWidget implements IContentWidget {
 				this.editor.focus();
 			};
 
-			const chooseEditorOnClickOrTap = async (e: MouseEvent) => {
+			const snippetOnClickOrTap = async (e: UIEvent) => {
+				e.stopPropagation();
+
+				await this.commandService.executeCommand(ApplyFileSnippetAction.Id);
+			};
+
+			const chooseEditorOnClickOrTap = async (e: UIEvent) => {
 				e.stopPropagation();
 
 				const activeEditorInput = this.editorGroupsService.activeGroup.activeEditor;
@@ -192,4 +207,4 @@ class UntitledTextEditorHintContentWidget implements IContentWidget {
 	}
 }
 
-registerEditorContribution(UntitledTextEditorHintContribution.ID, UntitledTextEditorHintContribution);
+registerEditorContribution(UntitledTextEditorHintContribution.ID, UntitledTextEditorHintContribution, EditorContributionInstantiation.Eager); // eager because it needs to render a help message

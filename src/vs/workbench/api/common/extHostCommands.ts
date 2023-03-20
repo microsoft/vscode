@@ -25,7 +25,10 @@ import { TestItemImpl } from 'vs/workbench/api/common/extHostTestItem';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { SerializableObjectWithBuffers } from 'vs/workbench/services/extensions/common/proxyIdentifier';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
-import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
+import { StopWatch } from 'vs/base/common/stopwatch';
+import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
+import { TelemetryTrustedValue } from 'vs/platform/telemetry/common/telemetryUtils';
+import { IExtHostTelemetry } from 'vs/workbench/api/common/extHostTelemetry';
 
 interface CommandHandler {
 	callback: Function;
@@ -35,7 +38,7 @@ interface CommandHandler {
 }
 
 export interface ArgumentProcessor {
-	processArgument(arg: any): any;
+	processArgument(arg: any, extensionId: ExtensionIdentifier | undefined): any;
 }
 
 export class ExtHostCommands implements ExtHostCommandsShape {
@@ -49,16 +52,19 @@ export class ExtHostCommands implements ExtHostCommandsShape {
 	#telemetry: MainThreadTelemetryShape;
 
 	private readonly _logService: ILogService;
+	readonly #extHostTelemetry: IExtHostTelemetry;
 	private readonly _argumentProcessors: ArgumentProcessor[];
 
 	readonly converter: CommandsConverter;
 
 	constructor(
 		@IExtHostRpcService extHostRpc: IExtHostRpcService,
-		@ILogService logService: ILogService
+		@ILogService logService: ILogService,
+		@IExtHostTelemetry extHostTelemetry: IExtHostTelemetry
 	) {
 		this.#proxy = extHostRpc.getProxy(MainContext.MainThreadCommands);
 		this._logService = logService;
+		this.#extHostTelemetry = extHostTelemetry;
 		this.#telemetry = extHostRpc.getProxy(MainContext.MainThreadTelemetry);
 		this.converter = new CommandsConverter(
 			this,
@@ -235,7 +241,7 @@ export class ExtHostCommands implements ExtHostCommandsShape {
 			}
 		}
 
-		const start = Date.now();
+		const stopWatch = StopWatch.create();
 		try {
 			return await callback.apply(thisArg, args);
 		} catch (err) {
@@ -253,6 +259,11 @@ export class ExtHostCommands implements ExtHostCommandsShape {
 				throw err;
 			}
 
+			if (command.extension?.identifier) {
+				const reported = this.#extHostTelemetry.onExtensionError(command.extension.identifier, err);
+				this._logService.trace('forwarded error to extension?', reported, command.extension?.identifier);
+			}
+
 			throw new class CommandError extends Error {
 				readonly id = id;
 				readonly source = command!.extension?.displayName ?? command!.extension?.name;
@@ -262,17 +273,17 @@ export class ExtHostCommands implements ExtHostCommandsShape {
 			};
 		}
 		finally {
-			this._reportTelemetry(command, id, Date.now() - start);
+			this._reportTelemetry(command, id, stopWatch.elapsed());
 		}
 	}
 
 	private _reportTelemetry(command: CommandHandler, id: string, duration: number) {
-		if (!command.extension || command.extension.isBuiltin) {
+		if (!command.extension) {
 			return;
 		}
 		type ExtensionActionTelemetry = {
 			extensionId: string;
-			id: string;
+			id: TelemetryTrustedValue<string>;
 			duration: number;
 		};
 		type ExtensionActionTelemetryMeta = {
@@ -284,7 +295,7 @@ export class ExtHostCommands implements ExtHostCommandsShape {
 		};
 		this.#telemetry.$publicLog2<ExtensionActionTelemetry, ExtensionActionTelemetryMeta>('Extension:ActionExecuted', {
 			extensionId: command.extension.identifier.value,
-			id: id,
+			id: new TelemetryTrustedValue(id),
 			duration: duration,
 		});
 	}
@@ -292,10 +303,11 @@ export class ExtHostCommands implements ExtHostCommandsShape {
 	$executeContributedCommand(id: string, ...args: any[]): Promise<unknown> {
 		this._logService.trace('ExtHostCommands#$executeContributedCommand', id);
 
-		if (!this._commands.has(id)) {
+		const cmdHandler = this._commands.get(id);
+		if (!cmdHandler) {
 			return Promise.reject(new Error(`Contributed command '${id}' does not exist.`));
 		} else {
-			args = args.map(arg => this._argumentProcessors.reduce((r, p) => p.processArgument(r), arg));
+			args = args.map(arg => this._argumentProcessors.reduce((r, p) => p.processArgument(r, cmdHandler.extension?.identifier), arg));
 			return this._executeContributedCommand(id, args, true);
 		}
 	}

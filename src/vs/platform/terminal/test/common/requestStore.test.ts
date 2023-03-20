@@ -5,7 +5,8 @@
 
 import { fail, strictEqual } from 'assert';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
-import { ConsoleLogger, ILogService, LogService } from 'vs/platform/log/common/log';
+import { ConsoleLogger, ILogService } from 'vs/platform/log/common/log';
+import { LogService } from 'vs/platform/log/common/logService';
 import { RequestStore } from 'vs/platform/terminal/common/requestStore';
 
 suite('RequestStore', () => {

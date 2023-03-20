@@ -211,13 +211,11 @@ class SyncedBuffer {
 			args.scriptKindName = scriptKind;
 		}
 
-		if (this.client.apiVersion.gte(API.v240)) {
-			const tsPluginsForDocument = this.client.pluginManager.plugins
-				.filter(x => x.languages.indexOf(this.document.languageId) >= 0);
+		const tsPluginsForDocument = this.client.pluginManager.plugins
+			.filter(x => x.languages.indexOf(this.document.languageId) >= 0);
 
-			if (tsPluginsForDocument.length) {
-				(args as any).plugins = tsPluginsForDocument.map(plugin => plugin.name);
-			}
+		if (tsPluginsForDocument.length) {
+			(args as any).plugins = tsPluginsForDocument.map(plugin => plugin.name);
 		}
 
 		this.synchronizer.open(this.resource, args);
@@ -318,7 +316,7 @@ class GetErrRequest {
 		const supportsSyntaxGetErr = this.client.apiVersion.gte(API.v440);
 		const allFiles = coalesce(Array.from(files.entries)
 			.filter(entry => supportsSyntaxGetErr || client.hasCapabilityForResource(entry.resource, ClientCapability.Semantic))
-			.map(entry => client.normalizedPath(entry.resource)));
+			.map(entry => client.toTsFilePath(entry.resource)));
 
 		if (!allFiles.length) {
 			this._done = true;
@@ -481,7 +479,7 @@ export default class BufferSyncSupport extends Disposable {
 
 		this.diagnosticDelayer = new Delayer<any>(300);
 
-		const pathNormalizer = (path: vscode.Uri) => this.client.normalizedPath(path);
+		const pathNormalizer = (path: vscode.Uri) => this.client.toTsFilePath(path);
 		this.syncedBuffers = new SyncedBufferMap(pathNormalizer, { onCaseInsensitiveFileSystem });
 		this.pendingDiagnostics = new PendingDiagnostics(pathNormalizer, { onCaseInsensitiveFileSystem });
 		this.synchronizer = new BufferSynchronizer(client, pathNormalizer, onCaseInsensitiveFileSystem);
@@ -555,7 +553,7 @@ export default class BufferSyncSupport extends Disposable {
 	}
 
 	public toVsCodeResource(resource: vscode.Uri): vscode.Uri {
-		const filepath = this.client.normalizedPath(resource);
+		const filepath = this.client.toTsFilePath(resource);
 		for (const buffer of this.syncedBuffers.allBuffers) {
 			if (buffer.filepath === filepath) {
 				return buffer.resource;
@@ -590,7 +588,7 @@ export default class BufferSyncSupport extends Disposable {
 			return false;
 		}
 		const resource = document.uri;
-		const filepath = this.client.normalizedPath(resource);
+		const filepath = this.client.toTsFilePath(resource);
 		if (!filepath) {
 			return false;
 		}

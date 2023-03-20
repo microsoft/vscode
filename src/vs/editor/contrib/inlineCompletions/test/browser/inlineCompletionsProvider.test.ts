@@ -101,6 +101,13 @@ suite('Inline Completions', () => {
 			assert.deepStrictEqual(getOutput('[)]', '())'), ({ prefix: undefined, subword: "[(])[)]" }));
 			assert.deepStrictEqual(getOutput('[))]', '(())'), ({ prefix: undefined, subword: "[((]))" }));
 		});
+
+		test('Parenthesis Matching', () => {
+			assert.deepStrictEqual(getOutput('[console.log()]', 'console.log({ label: "(" })'), {
+				prefix: undefined,
+				subword: 'console.log([{ label: "(" }])'
+			});
+		});
 	});
 
 	test('Does not trigger automatically if disabled', async function () {
@@ -540,7 +547,6 @@ suite('Inline Completions', () => {
 
 				assert.deepStrictEqual(context.getAndClearViewStates(), [
 					'',
-					'hello\n',
 					'hello[world]\n',
 					'hello\n',
 					'hello\nhello[world]',

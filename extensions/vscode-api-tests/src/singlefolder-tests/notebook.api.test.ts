@@ -183,7 +183,6 @@ const apiTestSerializer: vscode.NotebookSerializer = {
 
 		// opening a cell-uri opens a notebook editor
 		await vscode.window.showTextDocument(cell.document, { viewColumn: vscode.ViewColumn.Active });
-		// await vscode.commands.executeCommand('vscode.open', cell.document.uri, vscode.ViewColumn.Active);
 
 		assert.strictEqual(!!vscode.window.activeNotebookEditor, true);
 		assert.strictEqual(vscode.window.activeNotebookEditor!.notebook.uri.toString(), document.uri.toString());
@@ -224,7 +223,8 @@ const apiTestSerializer: vscode.NotebookSerializer = {
 	});
 
 	test('#102411 - untitled notebook creation failed', async function () {
-		await vscode.commands.executeCommand('workbench.action.files.newUntitledFile', { viewType: notebookType });
+		const document = await vscode.workspace.openNotebookDocument(notebookType, undefined);
+		await vscode.window.showNotebookDocument(document);
 		assert.notStrictEqual(vscode.window.activeNotebookEditor, undefined, 'untitled notebook editor is not undefined');
 
 		await closeAllEditors();

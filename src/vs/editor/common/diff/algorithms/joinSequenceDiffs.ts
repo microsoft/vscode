@@ -12,6 +12,25 @@ export function optimizeSequenceDiffs(sequence1: ISequence, sequence2: ISequence
 	return result;
 }
 
+export function smoothenSequenceDiffs(sequence1: ISequence, sequence2: ISequence, sequenceDiffs: SequenceDiff[]): SequenceDiff[] {
+	const result: SequenceDiff[] = [];
+	for (const s of sequenceDiffs) {
+		const last = result[result.length - 1];
+		if (!last) {
+			result.push(s);
+			continue;
+		}
+
+		if (s.seq1Range.start - last.seq1Range.endExclusive <= 2 || s.seq2Range.start - last.seq2Range.endExclusive <= 2) {
+			result[result.length - 1] = new SequenceDiff(last.seq1Range.join(s.seq1Range), last.seq2Range.join(s.seq2Range));
+		} else {
+			result.push(s);
+		}
+	}
+
+	return result;
+}
+
 /**
  * This function fixes issues like this:
  * ```

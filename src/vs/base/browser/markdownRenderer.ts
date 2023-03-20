@@ -7,6 +7,7 @@ import * as DOM from 'vs/base/browser/dom';
 import * as dompurify from 'vs/base/browser/dompurify/dompurify';
 import { DomEmitter } from 'vs/base/browser/event';
 import { createElement, FormattedTextRenderOptions } from 'vs/base/browser/formattedTextRenderer';
+import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { renderLabelWithIcons } from 'vs/base/browser/ui/iconLabel/iconLabels';
 import { onUnexpectedError } from 'vs/base/common/errors';
@@ -14,6 +15,7 @@ import { Event } from 'vs/base/common/event';
 import { IMarkdownString, escapeDoubleQuotes, parseHrefAndDimensions, removeMarkdownEscapes, MarkdownStringTrustedOptions } from 'vs/base/common/htmlContent';
 import { markdownEscapeEscapedIcons } from 'vs/base/common/iconLabels';
 import { defaultGenerator } from 'vs/base/common/idGenerator';
+import { KeyCode } from 'vs/base/common/keyCodes';
 import { Lazy } from 'vs/base/common/lazy';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { marked } from 'vs/base/common/marked/marked';
@@ -30,7 +32,9 @@ export interface MarkedOptions extends marked.MarkedOptions {
 
 export interface MarkdownRenderOptions extends FormattedTextRenderOptions {
 	readonly codeBlockRenderer?: (languageId: string, value: string) => Promise<HTMLElement>;
+	readonly codeBlockRendererSync?: (languageId: string, value: string) => HTMLElement;
 	readonly asyncRenderCallback?: () => void;
+	readonly fillInIncompleteTokens?: boolean;
 }
 
 const defaultMarkedRenderers = Object.freeze({
@@ -147,8 +151,16 @@ export function renderMarkdown(markdown: IMarkdownString, options: MarkdownRende
 
 	// Will collect [id, renderedElement] tuples
 	const codeBlocks: Promise<[string, HTMLElement]>[] = [];
+	const syncCodeBlocks: [string, HTMLElement][] = [];
 
-	if (options.codeBlockRenderer) {
+	if (options.codeBlockRendererSync) {
+		renderer.code = (code, lang) => {
+			const id = defaultGenerator.nextId();
+			const value = options.codeBlockRendererSync!(postProcessCodeBlockLanguageId(lang), code);
+			syncCodeBlocks.push([id, value]);
+			return `<div class="code" data-code="${id}">${escape(code)}</div>`;
+		};
+	} else if (options.codeBlockRenderer) {
 		renderer.code = (code, lang) => {
 			const id = defaultGenerator.nextId();
 			const value = options.codeBlockRenderer!(postProcessCodeBlockLanguageId(lang), code);
@@ -158,15 +170,8 @@ export function renderMarkdown(markdown: IMarkdownString, options: MarkdownRende
 	}
 
 	if (options.actionHandler) {
-		const onClick = options.actionHandler.disposables.add(new DomEmitter(element, 'click'));
-		const onAuxClick = options.actionHandler.disposables.add(new DomEmitter(element, 'auxclick'));
-		options.actionHandler.disposables.add(Event.any(onClick.event, onAuxClick.event)(e => {
-			const mouseEvent = new StandardMouseEvent(e);
-			if (!mouseEvent.leftButton && !mouseEvent.middleButton) {
-				return;
-			}
-
-			let target: HTMLElement | null = mouseEvent.target;
+		const _activateLink = function (event: StandardMouseEvent | StandardKeyboardEvent): void {
+			let target: HTMLElement | null = event.target;
 			if (target.tagName !== 'A') {
 				target = target.parentElement;
 				if (!target || target.tagName !== 'A') {
@@ -179,13 +184,29 @@ export function renderMarkdown(markdown: IMarkdownString, options: MarkdownRende
 					if (markdown.baseUri) {
 						href = resolveWithBaseUri(URI.from(markdown.baseUri), href);
 					}
-					options.actionHandler!.callback(href, mouseEvent);
+					options.actionHandler!.callback(href, event);
 				}
 			} catch (err) {
 				onUnexpectedError(err);
 			} finally {
-				mouseEvent.preventDefault();
+				event.preventDefault();
 			}
+		};
+		const onClick = options.actionHandler.disposables.add(new DomEmitter(element, 'click'));
+		const onAuxClick = options.actionHandler.disposables.add(new DomEmitter(element, 'auxclick'));
+		options.actionHandler.disposables.add(Event.any(onClick.event, onAuxClick.event)(e => {
+			const mouseEvent = new StandardMouseEvent(e);
+			if (!mouseEvent.leftButton && !mouseEvent.middleButton) {
+				return;
+			}
+			_activateLink(mouseEvent);
+		}));
+		options.actionHandler.disposables.add(DOM.addDisposableListener(element, 'keydown', (e) => {
+			const keyboardEvent = new StandardKeyboardEvent(e);
+			if (!keyboardEvent.equals(KeyCode.Space) && !keyboardEvent.equals(KeyCode.Enter)) {
+				return;
+			}
+			_activateLink(keyboardEvent);
 		}));
 	}
 
@@ -217,7 +238,19 @@ export function renderMarkdown(markdown: IMarkdownString, options: MarkdownRende
 		value = markdownEscapeEscapedIcons(value);
 	}
 
-	let renderedMarkdown = marked.parse(value, markedOptions);
+	let renderedMarkdown: string;
+	if (options.fillInIncompleteTokens) {
+		// The defaults are applied by parse but not lexer()/parser(), and they need to be present
+		const opts = {
+			...marked.defaults,
+			...markedOptions
+		};
+		const tokens = marked.lexer(value, opts);
+		const newTokens = fillInIncompleteTokens(tokens);
+		renderedMarkdown = marked.parser(newTokens, opts);
+	} else {
+		renderedMarkdown = marked.parse(value, markedOptions);
+	}
 
 	// Rewrite theme icons
 	if (markdown.supportThemeIcons) {
@@ -281,6 +314,15 @@ export function renderMarkdown(markdown: IMarkdownString, options: MarkdownRende
 			}
 			options.asyncRenderCallback?.();
 		});
+	} else if (syncCodeBlocks.length > 0) {
+		const renderedElements = new Map(syncCodeBlocks);
+		const placeholderElements = element.querySelectorAll<HTMLDivElement>(`div[data-code]`);
+		for (const placeholderElement of placeholderElements) {
+			const renderedElement = renderedElements.get(placeholderElement.dataset['code'] ?? '');
+			if (renderedElement) {
+				DOM.reset(placeholderElement, renderedElement);
+			}
+		}
 	}
 
 	// signal size changes for image tags
@@ -336,7 +378,7 @@ function sanitizeRenderedMarkdown(
 		if (e.attrName === 'style' || e.attrName === 'class') {
 			if (element.tagName === 'SPAN') {
 				if (e.attrName === 'style') {
-					e.keepAttr = /^(color\:#[0-9a-fA-F]+;)?(background-color\:#[0-9a-fA-F]+;)?$/.test(e.attrValue);
+					e.keepAttr = /^(color\:(#[0-9a-fA-F]+|var\(--vscode(-[a-zA-Z]+)+\));)?(background-color\:(#[0-9a-fA-F]+|var\(--vscode(-[a-zA-Z]+)+\));)?$/.test(e.attrValue);
 					return;
 				} else if (e.attrName === 'class') {
 					e.keepAttr = /^codicon codicon-[a-z\-]+( codicon-modifier-[a-z\-]+)?$/.test(e.attrValue);
@@ -377,6 +419,7 @@ export const allowedMarkdownAttr = [
 	'target',
 	'title',
 	'width',
+	'start',
 ];
 
 function getSanitizerOptions(options: { readonly isTrusted?: boolean | MarkdownStringTrustedOptions }): { config: dompurify.Config; allowedSchemes: string[] } {
@@ -427,7 +470,7 @@ export function renderMarkdownAsPlaintext(markdown: IMarkdownString) {
 		value = `${value.substr(0, 100_000)}…`;
 	}
 
-	const html = marked.parse(value, { renderer: plainTextRenderer.getValue() }).replace(/&(#\d+|[a-zA-Z]+);/g, m => unescapeInfo.get(m) ?? m);
+	const html = marked.parse(value, { renderer: plainTextRenderer.value }).replace(/&(#\d+|[a-zA-Z]+);/g, m => unescapeInfo.get(m) ?? m);
 
 	return sanitizeRenderedMarkdown({ isTrusted: false }, html).toString();
 }
@@ -506,3 +549,85 @@ const plainTextRenderer = new Lazy<marked.Renderer>(() => {
 	};
 	return renderer;
 });
+
+function mergeRawTokenText(tokens: marked.Token[]): string {
+	let mergedTokenText = '';
+	tokens.forEach(token => {
+		mergedTokenText += token.raw;
+	});
+	return mergedTokenText;
+}
+
+export function fillInIncompleteTokens(tokens: marked.TokensList): marked.TokensList {
+	let i: number;
+	let newTokens: marked.Token[] | undefined;
+	for (i = 0; i < tokens.length; i++) {
+		const token = tokens[i];
+		if (token.type === 'paragraph' && token.raw.match(/(\n|^)```/)) {
+			// If the code block was complete, it would be in a type='code'
+			newTokens = completeCodeBlock(tokens.slice(i));
+			break;
+		}
+
+		if (token.type === 'paragraph' && token.raw.match(/(\n|^)\|/)) {
+			newTokens = completeTable(tokens.slice(i));
+			break;
+		}
+	}
+
+	if (newTokens) {
+		const newTokensList = [
+			...tokens.slice(0, i),
+			...newTokens,
+		];
+		(newTokensList as marked.TokensList).links = tokens.links;
+		return newTokensList as marked.TokensList;
+	}
+
+	return tokens;
+}
+
+function completeCodeBlock(tokens: marked.Token[]): marked.Token[] {
+	const mergedRawText = mergeRawTokenText(tokens);
+	return marked.lexer(mergedRawText + '\n```');
+}
+
+function completeTable(tokens: marked.Token[]): marked.Token[] {
+	const mergedRawText = mergeRawTokenText(tokens);
+	const lines = mergedRawText.split('\n');
+
+	let numCols: number | undefined; // The number of line1 col headers
+	let hasSeparatorRow = false;
+	for (let i = 0; i < lines.length; i++) {
+		const line = lines[i].trim();
+		if (typeof numCols === 'undefined' && line.match(/^\s*\|/)) {
+			const line1Matches = line.match(/(\|[^\|]+)(?=\||$)/g);
+			if (line1Matches) {
+				numCols = line1Matches.length;
+			}
+		} else if (typeof numCols === 'number') {
+			if (line.match(/^\s*\|/)) {
+				if (i !== lines.length - 1) {
+					// We got the line1 header row, and the line2 separator row, but there are more lines, and it wasn't parsed as a table!
+					// That's strange and means that the table is probably malformed in the source, so I won't try to patch it up.
+					return tokens;
+				}
+
+				// Got a line2 separator row- partial or complete, doesn't matter, we'll replace it with a correct one
+				hasSeparatorRow = true;
+			} else {
+				// The line after the header row isn't a valid separator row, so the table is malformed, don't fix it up
+				return tokens;
+			}
+		}
+	}
+
+	if (typeof numCols === 'number' && numCols > 0) {
+		const prefixText = hasSeparatorRow ? lines.slice(0, -1).join('\n') : mergedRawText;
+		const line1EndsInPipe = !!prefixText.match(/\|\s*$/);
+		const newRawText = prefixText + (line1EndsInPipe ? '' : '|') + `\n|${' --- |'.repeat(numCols)}`;
+		return marked.lexer(newRawText);
+	}
+
+	return tokens;
+}

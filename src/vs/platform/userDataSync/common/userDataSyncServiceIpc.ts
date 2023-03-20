@@ -77,11 +77,12 @@ export class UserDataSyncChannel implements IServerChannel {
 			case 'resolveContent': return this.service.resolveContent(URI.revive(args[0]));
 			case 'accept': return this.service.accept(reviewSyncResource(args[0], this.userDataProfilesService), URI.revive(args[1]), args[2], args[3]);
 			case 'getRemoteProfiles': return this.service.getRemoteProfiles();
-			case 'getLocalSyncResourceHandles': return this.service.getLocalSyncResourceHandles(args[0], reviveProfile(args[1], this.userDataProfilesService.profilesHome.scheme));
+			case 'getLocalSyncResourceHandles': return this.service.getLocalSyncResourceHandles(args[0], args[1] ? reviveProfile(args[1], this.userDataProfilesService.profilesHome.scheme) : undefined);
 			case 'getRemoteSyncResourceHandles': return this.service.getRemoteSyncResourceHandles(args[0], args[1]);
 			case 'replace': return this.service.replace(reviewSyncResourceHandle(args[0]));
 			case 'getAssociatedResources': return this.service.getAssociatedResources(reviewSyncResourceHandle(args[0]));
 			case 'getMachineId': return this.service.getMachineId(reviewSyncResourceHandle(args[0]));
+			case 'cleanUpRemoteData': return this.service.cleanUpRemoteData();
 
 			case 'createManualSyncTask': return this.createManualSyncTask();
 		}
@@ -95,7 +96,7 @@ export class UserDataSyncChannel implements IServerChannel {
 
 			switch (manualSyncTaskCommand) {
 				case 'merge': return manualSyncTask.merge();
-				case 'apply': return manualSyncTask.apply().finally(() => this.manualSyncTasks.delete(this.createKey(manualSyncTask.id)));
+				case 'apply': return manualSyncTask.apply().then(() => this.manualSyncTasks.delete(this.createKey(manualSyncTask.id)));
 				case 'stop': return manualSyncTask.stop().finally(() => this.manualSyncTasks.delete(this.createKey(manualSyncTask.id)));
 			}
 		}
@@ -244,6 +245,10 @@ export class UserDataSyncChannelClient extends Disposable implements IUserDataSy
 
 	getMachineId(syncResourceHandle: ISyncResourceHandle): Promise<string | undefined> {
 		return this.channel.call<string | undefined>('getMachineId', [syncResourceHandle]);
+	}
+
+	cleanUpRemoteData(): Promise<void> {
+		return this.channel.call('cleanUpRemoteData');
 	}
 
 	replace(syncResourceHandle: ISyncResourceHandle): Promise<void> {

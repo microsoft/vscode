@@ -6,7 +6,7 @@
 import { IWorkspaceEditingService } from 'vs/workbench/services/workspaces/common/workspaceEditing';
 import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
-import { hasWorkspaceFileExtension, isSavedWorkspace, isUntitledWorkspace, IWorkspaceContextService, IWorkspaceIdentifier, WorkbenchState, WORKSPACE_EXTENSION, WORKSPACE_FILTER } from 'vs/platform/workspace/common/workspace';
+import { hasWorkspaceFileExtension, isSavedWorkspace, isUntitledWorkspace, isWorkspaceIdentifier, IWorkspaceContextService, IWorkspaceIdentifier, toWorkspaceIdentifier, WorkbenchState, WORKSPACE_EXTENSION, WORKSPACE_FILTER } from 'vs/platform/workspace/common/workspace';
 import { IJSONEditingService, JSONEditingError, JSONEditingErrorCode } from 'vs/workbench/services/configuration/common/jsonEditing';
 import { IWorkspaceFolderCreationData, IWorkspacesService, rewriteWorkspaceFileForNewLocation, IEnterWorkspaceResult, IStoredWorkspace } from 'vs/platform/workspaces/common/workspaces';
 import { WorkspaceService } from 'vs/workbench/services/configuration/browser/configurationService';
@@ -331,9 +331,6 @@ export abstract class AbstractWorkspaceEditingService implements IWorkspaceEditi
 			case JSONEditingErrorCode.ERROR_INVALID_FILE:
 				this.onInvalidWorkspaceConfigurationFileError();
 				break;
-			case JSONEditingErrorCode.ERROR_FILE_DIRTY:
-				this.onWorkspaceConfigurationFileDirtyError();
-				break;
 			default:
 				this.notificationService.error(error.message);
 		}
@@ -341,11 +338,6 @@ export abstract class AbstractWorkspaceEditingService implements IWorkspaceEditi
 
 	private onInvalidWorkspaceConfigurationFileError(): void {
 		const message = localize('errorInvalidTaskConfiguration', "Unable to write into workspace configuration file. Please open the file to correct errors/warnings in it and try again.");
-		this.askToOpenWorkspaceConfigurationFile(message);
-	}
-
-	private onWorkspaceConfigurationFileDirtyError(): void {
-		const message = localize('errorWorkspaceConfigurationFileDirty', "Unable to write into workspace configuration file because the file has unsaved changes. Please save it and try again.");
 		this.askToOpenWorkspaceConfigurationFile(message);
 	}
 
@@ -408,9 +400,9 @@ export abstract class AbstractWorkspaceEditingService implements IWorkspaceEditi
 	}
 
 	protected getCurrentWorkspaceIdentifier(): IWorkspaceIdentifier | undefined {
-		const workspace = this.contextService.getWorkspace();
-		if (workspace?.configuration) {
-			return { id: workspace.id, configPath: workspace.configuration };
+		const identifier = toWorkspaceIdentifier(this.contextService.getWorkspace());
+		if (isWorkspaceIdentifier(identifier)) {
+			return identifier;
 		}
 
 		return undefined;

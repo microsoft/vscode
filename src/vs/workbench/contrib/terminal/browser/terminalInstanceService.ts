@@ -22,6 +22,7 @@ export class TerminalInstanceService extends Disposable implements ITerminalInst
 	declare _serviceBrand: undefined;
 	private _terminalShellTypeContextKey: IContextKey<string>;
 	private _terminalInRunCommandPicker: IContextKey<boolean>;
+	private _terminalSuggestWidgetVisibleContextKey: IContextKey<boolean>;
 	private _configHelper: TerminalConfigHelper;
 
 	private readonly _onDidCreateInstance = new Emitter<ITerminalInstance>();
@@ -35,16 +36,18 @@ export class TerminalInstanceService extends Disposable implements ITerminalInst
 		super();
 		this._terminalShellTypeContextKey = TerminalContextKeys.shellType.bindTo(this._contextKeyService);
 		this._terminalInRunCommandPicker = TerminalContextKeys.inTerminalRunCommandPicker.bindTo(this._contextKeyService);
+		this._terminalSuggestWidgetVisibleContextKey = TerminalContextKeys.suggestWidgetVisible.bindTo(this._contextKeyService);
 		this._configHelper = _instantiationService.createInstance(TerminalConfigHelper);
 	}
 
-	createInstance(profile: ITerminalProfile, target?: TerminalLocation, resource?: URI): ITerminalInstance;
-	createInstance(shellLaunchConfig: IShellLaunchConfig, target?: TerminalLocation, resource?: URI): ITerminalInstance;
-	createInstance(config: IShellLaunchConfig | ITerminalProfile, target?: TerminalLocation, resource?: URI): ITerminalInstance {
+	createInstance(profile: ITerminalProfile, target: TerminalLocation, resource?: URI): ITerminalInstance;
+	createInstance(shellLaunchConfig: IShellLaunchConfig, target: TerminalLocation, resource?: URI): ITerminalInstance;
+	createInstance(config: IShellLaunchConfig | ITerminalProfile, target: TerminalLocation, resource?: URI): ITerminalInstance {
 		const shellLaunchConfig = this.convertProfileToShellLaunchConfig(config);
 		const instance = this._instantiationService.createInstance(TerminalInstance,
 			this._terminalShellTypeContextKey,
 			this._terminalInRunCommandPicker,
+			this._terminalSuggestWidgetVisibleContextKey,
 			this._configHelper,
 			shellLaunchConfig,
 			resource

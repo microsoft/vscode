@@ -13,6 +13,7 @@ import { ActionRunner, IAction, IActionRunner, Separator, SubmenuAction } from '
 import { asArray } from 'vs/base/common/arrays';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { Codicon } from 'vs/base/common/codicons';
+import { ThemeIcon } from 'vs/base/common/themables';
 import { Emitter, Event } from 'vs/base/common/event';
 import { KeyCode, KeyMod, ScanCode, ScanCodeUtils } from 'vs/base/common/keyCodes';
 import { ResolvedKeybinding } from 'vs/base/common/keybindings';
@@ -85,10 +86,9 @@ export class MenuBar extends Disposable {
 	private readonly _onFocusStateChange: Emitter<boolean>;
 
 	private numMenusShown: number = 0;
-	private menuStyle: IMenuStyles | undefined;
 	private overflowLayoutScheduled: IDisposable | undefined = undefined;
 
-	constructor(private container: HTMLElement, private options: IMenuBarOptions = {}) {
+	constructor(private container: HTMLElement, private options: IMenuBarOptions, private menuStyle: IMenuStyles) {
 		super();
 
 		this.container.setAttribute('role', 'menubar');
@@ -314,7 +314,7 @@ export class MenuBar extends Disposable {
 	createOverflowMenu(): void {
 		const label = this.isCompact ? nls.localize('mAppMenu', 'Application Menu') : nls.localize('mMore', 'More');
 		const buttonElement = $('div.menubar-menu-button', { 'role': 'menuitem', 'tabindex': this.isCompact ? 0 : -1, 'aria-label': label, 'aria-haspopup': true });
-		const titleElement = $('div.menubar-menu-title.toolbar-toggle-more' + Codicon.menuBarMore.cssSelector, { 'role': 'none', 'aria-hidden': true });
+		const titleElement = $('div.menubar-menu-title.toolbar-toggle-more' + ThemeIcon.asCSSSelector(Codicon.menuBarMore), { 'role': 'none', 'aria-hidden': true });
 
 		buttonElement.appendChild(titleElement);
 		this.container.appendChild(buttonElement);
@@ -605,10 +605,6 @@ export class MenuBar extends Disposable {
 				buttonElement.removeAttribute('aria-keyshortcuts');
 			}
 		}
-	}
-
-	style(style: IMenuStyles): void {
-		this.menuStyle = style;
 	}
 
 	update(options?: IMenuBarOptions): void {
@@ -1029,10 +1025,7 @@ export class MenuBar extends Disposable {
 			useEventAsContext: true
 		};
 
-		const menuWidget = this._register(new Menu(menuHolder, customMenu.actions, menuOptions));
-		if (this.menuStyle) {
-			menuWidget.style(this.menuStyle);
-		}
+		const menuWidget = this._register(new Menu(menuHolder, customMenu.actions, menuOptions, this.menuStyle));
 
 		this._register(menuWidget.onDidCancel(() => {
 			this.focusState = MenubarState.FOCUSED;
