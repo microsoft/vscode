@@ -8,12 +8,9 @@ import { ITerminalStatus, ITerminalStatusHoverAction, TerminalCommandId } from '
 import { ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { localize } from 'vs/nls';
 import { Codicon } from 'vs/base/common/codicons';
-import { EnvironmentVariableMutatorType, IExtensionOwnedEnvironmentVariableMutator, IMergedEnvironmentVariableCollection, IMergedEnvironmentVariableCollectionDiff } from 'vs/platform/terminal/common/environmentVariable';
+import { IExtensionOwnedEnvironmentVariableMutator, IMergedEnvironmentVariableCollection, IMergedEnvironmentVariableCollectionDiff } from 'vs/platform/terminal/common/environmentVariable';
 import { TerminalStatus } from 'vs/workbench/contrib/terminal/browser/terminalStatusList';
 import Severity from 'vs/base/common/severity';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { URI } from 'vs/base/common/uri';
-import { Schemas } from 'vs/base/common/network';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 
 export class EnvironmentVariableInfoStale implements IEnvironmentVariableInfo {
