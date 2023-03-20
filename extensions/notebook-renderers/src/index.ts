@@ -5,34 +5,8 @@
 
 import type { ActivationFunction, OutputItem, RendererContext } from 'vscode-notebook-renderer';
 import { createOutputContent, scrollableClass } from './textHelper';
-
-interface IDisposable {
-	dispose(): void;
-}
-
-interface HtmlRenderingHook {
-	/**
-	 * Invoked after the output item has been rendered but before it has been appended to the document.
-	 *
-	 * @return A new `HTMLElement` or `undefined` to continue using the provided element.
-	 */
-	postRender(outputItem: OutputItem, element: HTMLElement, signal: AbortSignal): HTMLElement | undefined | Promise<HTMLElement | undefined>;
-}
-
-interface JavaScriptRenderingHook {
-	/**
-	 * Invoked before the script is evaluated.
-	 *
-	 * @return A new string of JavaScript or `undefined` to continue using the provided string.
-	 */
-	preEvaluate(outputItem: OutputItem, element: HTMLElement, script: string, signal: AbortSignal): string | undefined | Promise<string | undefined>;
-}
-
-interface RenderOptions {
-	readonly lineLimit: number;
-	readonly outputScrolling: boolean;
-	readonly outputWordWrap: boolean;
-}
+import { HtmlRenderingHook, IDisposable, IRichRenderContext, JavaScriptRenderingHook, RenderOptions } from './rendererTypes';
+import { ttPolicy } from './htmlHelper';
 
 function clearContainer(container: HTMLElement) {
 	while (container.firstChild) {
@@ -66,11 +40,6 @@ function renderImage(outputInfo: OutputItem, element: HTMLElement): IDisposable 
 
 	return disposable;
 }
-
-const ttPolicy = window.trustedTypes?.createPolicy('notebookRenderer', {
-	createHTML: value => value,
-	createScript: value => value,
-});
 
 const preservedScriptAttributes: (keyof HTMLScriptElement)[] = [
 	'type', 'src', 'nonce', 'noModule', 'async',
@@ -138,8 +107,6 @@ interface Event<T> {
 	(listener: (e: T) => any, thisArgs?: any, disposables?: IDisposable[]): IDisposable;
 }
 
-type IRichRenderContext = RendererContext<void> & { readonly settings: RenderOptions; readonly onDidChangeSettings: Event<RenderOptions> };
-
 function createDisposableStore(): { push(...disposables: IDisposable[]): void; dispose(): void } {
 	const localDisposables: IDisposable[] = [];
 	const disposable = {
@@ -177,16 +144,18 @@ function renderError(
 
 	if (err.stack) {
 		outputElement.classList.add('traceback');
-		if (ctx.settings.outputWordWrap) {
-			outputElement.classList.add('wordWrap');
-		}
-		disposableStore.push(ctx.onDidChangeSettings(e => {
-			outputElement.classList.toggle('wordWrap', e.outputWordWrap);
-		}));
 
 		const outputScrolling = ctx.settings.outputScrolling;
 		const content = createOutputContent(outputInfo.id, [err.stack ?? ''], ctx.settings.lineLimit, outputScrolling, true);
+		content.classList.toggle('word-wrap', ctx.settings.outputWordWrap);
+		disposableStore.push(ctx.onDidChangeSettings(e => {
+			content.classList.toggle('word-wrap', e.outputWordWrap);
+		}));
 		content.classList.toggle('scrollable', outputScrolling);
+		outputElement.classList.toggle('hide-refresh', !outputScrolling);
+		disposableStore.push(ctx.onDidChangeSettings(e => {
+			outputElement.classList.toggle('hide-refresh', !e.outputScrolling);
+		}));
 		outputElement.classList.toggle('remove-padding', outputScrolling);
 		outputElement.appendChild(content);
 		initializeScroll(content, disposableStore);
@@ -280,10 +249,14 @@ function renderStream(outputInfo: OutputItem, outputElement: HTMLElement, error:
 		const contentParent = document.createElement('div');
 		contentParent.appendChild(content);
 		contentParent.classList.toggle('scrollable', outputScrolling);
-
-		contentParent.classList.toggle('wordWrap', ctx.settings.outputWordWrap);
+		outputElement.classList.toggle('hide-refresh', !outputScrolling);
 		disposableStore.push(ctx.onDidChangeSettings(e => {
-			contentParent.classList.toggle('wordWrap', e.outputWordWrap);
+			outputElement.classList.toggle('hide-refresh', !e.outputScrolling);
+		}));
+
+		contentParent.classList.toggle('word-wrap', ctx.settings.outputWordWrap);
+		disposableStore.push(ctx.onDidChangeSettings(e => {
+			contentParent.classList.toggle('word-wrap', e.outputWordWrap);
 		}));
 
 
@@ -305,11 +278,15 @@ function renderText(outputInfo: OutputItem, outputElement: HTMLElement, ctx: IRi
 	const content = createOutputContent(outputInfo.id, [text], ctx.settings.lineLimit, ctx.settings.outputScrolling, false);
 	content.classList.add('output-plaintext');
 	if (ctx.settings.outputWordWrap) {
-		content.classList.add('wordWrap');
+		content.classList.add('word-wrap');
 	}
 
 	const outputScrolling = ctx.settings.outputScrolling;
 	content.classList.toggle('scrollable', outputScrolling);
+	outputElement.classList.toggle('hide-refresh', !outputScrolling);
+	disposableStore.push(ctx.onDidChangeSettings(e => {
+		outputElement.classList.toggle('hide-refresh', !e.outputScrolling);
+	}));
 	outputElement.classList.toggle('remove-padding', outputScrolling);
 	outputElement.appendChild(content);
 	initializeScroll(content, disposableStore);
@@ -347,7 +324,7 @@ export const activate: ActivationFunction<void> = (ctx) => {
 		white-space: pre;
 	}
 	/* When wordwrap turned on, force it to pre-wrap */
-	#container div.output_container .wordWrap span {
+	#container div.output_container .word-wrap span {
 		white-space: pre-wrap;
 	}
 	#container div.output .scrollable {
@@ -359,12 +336,19 @@ export const activate: ActivationFunction<void> = (ctx) => {
 		box-sizing: border-box;
 		border-width: 1px;
 		border-color: transparent;
+		cursor: text;
+	}
+	#container div.output .scrollable a {
+		cursor: pointer;
 	}
 	#container div.output .scrollable.more-above {
 		box-shadow: var(--vscode-scrollbar-shadow) 0 6px 6px -6px inset
 	}
 	#container div.output .scrollable.scrollbar-visible {
 		border-color: var(--vscode-editorWidget-border);
+	}
+	#container div.output.hide-refresh .scroll-refresh {
+		display: none;
 	}
 	.output-plaintext .code-bold,
 	.output-stream .code-bold,

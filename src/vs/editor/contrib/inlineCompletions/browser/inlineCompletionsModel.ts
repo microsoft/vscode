@@ -192,8 +192,10 @@ export class InlineCompletionsModel extends Disposable implements GhostTextWidge
 	}
 
 	public hide(): void {
-		this.completionSession.clear();
-		this.onDidChangeEmitter.fire();
+		if (this.completionSession.value) {
+			this.completionSession.clear();
+			this.onDidChangeEmitter.fire();
+		}
 	}
 
 	public commitCurrentSuggestion(): void {

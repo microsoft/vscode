@@ -69,7 +69,7 @@ export interface IInteractiveSessionReplyFollowup {
 export interface IInteractiveSessionResponseCommandFollowup {
 	kind: 'command';
 	commandId: string;
-	args: any[];
+	args?: any[];
 	title: string; // supports codicon strings
 }
 
@@ -86,10 +86,17 @@ export interface IInteractiveSessionVoteAction {
 	direction: InteractiveSessionVoteDirection;
 }
 
+export enum InteractiveSessionCopyKind {
+	// Keyboard shortcut or context menu
+	Action = 1,
+	Toolbar = 2
+}
+
 export interface IInteractiveSessionCopyAction {
 	kind: 'copy';
 	responseId: string;
 	codeBlockIndex: number;
+	copyType: InteractiveSessionCopyKind;
 }
 
 export interface IInteractiveSessionInsertAction {
