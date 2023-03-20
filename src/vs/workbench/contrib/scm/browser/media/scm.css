@@ -371,7 +371,7 @@
 .monaco-workbench .part.basepanel > .content .scm-view .scm-editor-container .monaco-editor .margin,
 .monaco-workbench .part.basepanel > .content .scm-view .scm-editor-container .monaco-editor .monaco-editor-background {
 	color: inherit;
-	background-color: unset
+	background-color: var(--vscode-input-background);
 }
 
 .scm-view .scm-editor-container .mtk1 {
