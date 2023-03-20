@@ -157,7 +157,9 @@ function renderError(
 			outputElement.classList.toggle('hide-refresh', !e.outputScrolling);
 		}));
 		outputElement.classList.toggle('remove-padding', outputScrolling);
-		outputElement.appendChild(content);
+		const contentParent = document.createElement('div');
+		contentParent.appendChild(content);
+		outputElement.appendChild(contentParent);
 		initializeScroll(content, disposableStore);
 	} else {
 		const header = document.createElement('div');
@@ -336,9 +338,11 @@ export const activate: ActivationFunction<void> = (ctx) => {
 		box-sizing: border-box;
 		border-width: 1px;
 		border-color: transparent;
+	}
+	#container div.output .scrollable div {
 		cursor: text;
 	}
-	#container div.output .scrollable a {
+	#container div.output .scrollable div a {
 		cursor: pointer;
 	}
 	#container div.output .scrollable.more-above {
