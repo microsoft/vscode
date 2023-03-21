@@ -76,11 +76,15 @@ class RunCommands extends Action2 {
 	//	- keybinding definitions don't allow running commands with several arguments
 	//  - and we want to be able to take on different other arguments in future, e.g., `runMode : 'serial' | 'concurrent'`
 	async run(accessor: ServicesAccessor, args: unknown) {
-		if (!this._isCommandArgs(args)) {
-			throw new Error('runCommands: invalid arguments');
-		}
-		const commandService = accessor.get(ICommandService);
+
 		const notificationService = accessor.get(INotificationService);
+
+		if (!this._isCommandArgs(args)) {
+			notificationService.error(nls.localize('runCommands.invalidArgs', "'runCommands' has received an argument with incorrect type. Please, review the argument passed to the command."));
+			return;
+		}
+
+		const commandService = accessor.get(ICommandService);
 		try {
 			for (const cmd of args.commands) {
 				await this._runCommand(commandService, cmd);
