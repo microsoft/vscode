@@ -44,7 +44,7 @@ export class AccessibleBufferWidget extends DisposableStore {
 	private readonly _focusedContextKey: IContextKey<boolean>;
 	private readonly _focusTracker: dom.IFocusTracker;
 	private _inQuickPick = false;
-	private _refresh = false;
+	private _prependNewLine = false;
 	private _bufferToEditorIndex: Map<number, number> = new Map();
 
 	constructor(
@@ -221,7 +221,7 @@ export class AccessibleBufferWidget extends DisposableStore {
 
 	async show(): Promise<void> {
 		await this._updateEditor();
-		this._refresh = true;
+		this._prependNewLine = true;
 		this._accessibleBuffer.tabIndex = -1;
 		this._bufferEditor.layout({ width: this._xtermElement.clientWidth, height: this._xtermElement.clientHeight });
 		this._accessibleBuffer.classList.add(Constants.Active);
@@ -251,8 +251,8 @@ export class AccessibleBufferWidget extends DisposableStore {
 		const end = Math.min(maxBufferSize, buffer.length - 1);
 		if (lastBufferIndex) {
 			const line = buffer.getLine(end - 1)?.translateToString(false).replace(new RegExp(' ', 'g'), '\xA0');
-			const result = line ? (this._refresh ? '\n' : '') + line + '\n' : '';
-			this._refresh = false;
+			const result = line ? (this._prependNewLine ? '\n' : '') + line + '\n' : '';
+			this._prependNewLine = false;
 			return result;
 		}
 		for (let i = 0; i <= end; i++) {
