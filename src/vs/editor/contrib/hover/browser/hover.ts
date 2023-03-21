@@ -524,6 +524,7 @@ class PageUpHoverAction extends EditorAction {
 			kbOpts: {
 				kbExpr: EditorContextKeys.hoverFocused,
 				primary: KeyCode.PageUp,
+				secondary: [KeyMod.Alt | KeyCode.UpArrow],
 				weight: KeybindingWeight.EditorContrib
 			}
 		});
@@ -555,6 +556,7 @@ class PageDownHoverAction extends EditorAction {
 			kbOpts: {
 				kbExpr: EditorContextKeys.hoverFocused,
 				primary: KeyCode.PageDown,
+				secondary: [KeyMod.Alt | KeyCode.DownArrow],
 				weight: KeybindingWeight.EditorContrib
 			}
 		});
@@ -585,6 +587,7 @@ class GoToTopHoverAction extends EditorAction {
 			kbOpts: {
 				kbExpr: EditorContextKeys.hoverFocused,
 				primary: KeyCode.Home,
+				secondary: [KeyMod.CtrlCmd | KeyCode.UpArrow],
 				weight: KeybindingWeight.EditorContrib
 			}
 		});
@@ -616,6 +619,7 @@ class GoToBottomHoverAction extends EditorAction {
 			kbOpts: {
 				kbExpr: EditorContextKeys.hoverFocused,
 				primary: KeyCode.End,
+				secondary: [KeyMod.CtrlCmd | KeyCode.DownArrow],
 				weight: KeybindingWeight.EditorContrib
 			}
 		});
