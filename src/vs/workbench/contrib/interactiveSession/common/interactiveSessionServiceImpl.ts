@@ -20,7 +20,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IViewsService } from 'vs/workbench/common/views';
 import { IInteractiveSessionContributionService } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionContributionService';
 import { ISerializableInteractiveSessionData, ISerializableInteractiveSessionsData, InteractiveSessionModel, InteractiveWelcomeMessageModel } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionModel';
-import { IInteractiveProgress, IInteractiveProvider, IInteractiveSessionDynamicRequest, IInteractiveSessionReplyFollowup, IInteractiveSessionService, IInteractiveSessionUserActionEvent, IInteractiveSlashCommand } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionService';
+import { IInteractiveProgress, IInteractiveProvider, IInteractiveSessionCompleteResponse, IInteractiveSessionDynamicRequest, IInteractiveSessionReplyFollowup, IInteractiveSessionService, IInteractiveSessionUserActionEvent, IInteractiveSlashCommand } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionService';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 
 const serializedInteractiveSessionKey = 'interactive.sessions';
@@ -333,6 +333,39 @@ export class InteractiveSessionService extends Disposable implements IInteractiv
 		}
 
 		this.trace('sendInteractiveRequestToProvider', `Something went wrong, couldn't send request to view ${viewId}`);
+	}
+
+	async addCompleteRequest(message: string, response: IInteractiveSessionCompleteResponse): Promise<void> {
+		this.trace('addCompleteRequest', `message: ${message}`);
+
+		// TODO this api should take a providerId, but there is no relation between the interactive editor provider and this provider, so just grab the first one
+		const providerId = Iterable.first(this._providers.keys());
+		if (!providerId) {
+			throw new Error('No providers available');
+		}
+
+		// Currently we only support one session per provider
+		let modelForProvider = Iterable.find(this._sessionModels.values(), model => model.providerId === providerId);
+		if (!modelForProvider) {
+			const viewId = this.interactiveSessionContributionService.getViewIdForProvider(providerId);
+			const view = await this.viewsService.openView(viewId);
+			if (view) {
+				modelForProvider = Iterable.find(this._sessionModels.values(), model => model.providerId === providerId);
+			}
+		}
+
+		if (!modelForProvider) {
+			throw new Error(`Could not start session for provider ${providerId}`);
+		}
+
+		const request = modelForProvider.addRequest(message);
+		modelForProvider.acceptResponseProgress(request, {
+			content: response.message,
+		});
+		modelForProvider.completeResponse(request, {
+			session: modelForProvider.session,
+			errorDetails: response.errorDetails,
+		});
 	}
 
 	cancelCurrentRequestForSession(sessionId: number): void {
