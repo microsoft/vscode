@@ -111,6 +111,7 @@ import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService
 import { NotebookKernelHistoryService } from 'vs/workbench/contrib/notebook/browser/services/notebookKernelHistoryServiceImpl';
 import { INotebookLoggingService } from 'vs/workbench/contrib/notebook/common/notebookLoggingService';
 import { NotebookLoggingService } from 'vs/workbench/contrib/notebook/browser/services/notebookLoggingServiceImpl';
+import product from 'vs/platform/product/common/product';
 
 /*--------------------------------------------------------------------------------------------- */
 
@@ -891,7 +892,7 @@ configurationRegistry.registerConfiguration({
 			markdownDescription: nls.localize('notebook.outputScrolling', "Use a scrollable region for notebook output when longer than the limit"),
 			type: 'boolean',
 			tags: ['notebookLayout'],
-			default: true
+			default: typeof product.quality !== 'string' ? product.quality !== 'stable' : false, // only enable as default in insiders
 		},
 		[NotebookSetting.outputWordWrap]: {
 			markdownDescription: nls.localize('notebook.outputWordWrap', "Controls whether the lines in output should wrap."),
