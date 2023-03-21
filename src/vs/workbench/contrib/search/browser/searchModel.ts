@@ -359,7 +359,7 @@ export class FileMatch extends Disposable implements IFileMatch {
 		}
 	}
 
-	private get notebookHighlightModel(): NotebookHighlightModel {
+	private get notebookHighlightModel(): NotebookSearchHighlightModel {
 		return this.parent().searchModel.notebookHighlightModel;
 	}
 
@@ -1678,7 +1678,7 @@ export class SearchModel extends Disposable {
 
 	private currentCancelTokenSource: CancellationTokenSource | null = null;
 	private searchCancelledForNewSearch: boolean = false;
-	public notebookHighlightModel: NotebookHighlightModel;
+	public notebookHighlightModel: NotebookSearchHighlightModel;
 
 	constructor(
 		@ISearchService private readonly searchService: ISearchService,
@@ -1689,7 +1689,7 @@ export class SearchModel extends Disposable {
 		@INotebookEditorService private readonly notebookEditorService: INotebookEditorService,
 	) {
 		super();
-		this.notebookHighlightModel = this._register(this.instantiationService.createInstance(NotebookHighlightModel));
+		this.notebookHighlightModel = this._register(this.instantiationService.createInstance(NotebookSearchHighlightModel));
 		this._searchResult = this.instantiationService.createInstance(SearchResult, this);
 	}
 
@@ -1941,7 +1941,7 @@ export class SearchModel extends Disposable {
 	}
 }
 
-class NotebookHighlightModel extends Disposable {
+class NotebookSearchHighlightModel extends Disposable {
 	private _decorations: ResourceMap<FindMatchDecorationModel>;
 
 	constructor() {
