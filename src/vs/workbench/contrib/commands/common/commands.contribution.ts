@@ -36,12 +36,12 @@ class RunCommands extends Action2 {
 									type: 'array',
 									description: nls.localize('runCommands.commands', "Commands to run"),
 									items: {
-										anyOf: [  // Note: we don't allow arbitrary strings as command names as does `keybindingService.ts` - such behavior would be useful if the commands registry doesn't know about all existing commands - needs investigation
+										anyOf: [
 											{
 												$ref: 'vscode://schemas/keybindings#/definitions/commandNames'
 											},
 											{
-												type: 'string', // we support "arbitrary" strings because extension-contributed command names aren't in 'vscode://schemas/keybindings#commandNames'
+												type: 'string',
 											},
 											{
 												type: 'object',
@@ -122,7 +122,7 @@ class RunCommands extends Action2 {
 		if (commandArgs === undefined) {
 			return commandService.executeCommand(commandID);
 		} else {
-			if (Array.isArray(commandArgs)) { // TODO@ulugbekna: this needs discussion - do we allow passing several arguments to command run, which isn't by the regular `keybindings.json`
+			if (Array.isArray(commandArgs)) {
 				return commandService.executeCommand(commandID, ...commandArgs);
 			} else {
 				return commandService.executeCommand(commandID, commandArgs);
