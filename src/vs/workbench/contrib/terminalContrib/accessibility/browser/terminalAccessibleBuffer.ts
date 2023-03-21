@@ -97,6 +97,7 @@ export class AccessibleBufferWidget extends DisposableStore {
 		this._accessibleBuffer.replaceChildren(this._editorContainer);
 		this._xtermElement.insertAdjacentElement('beforebegin', this._accessibleBuffer);
 		this._bufferEditor.layout({ width: this._xtermElement.clientWidth, height: this._xtermElement.clientHeight });
+		this.add(this._xterm.raw.onResize(() => this._bufferEditor.layout({ width: this._xtermElement.clientWidth, height: this._xtermElement.clientHeight })));
 		this.add(this._bufferEditor);
 		this._bufferEditor.onKeyDown((e) => {
 			// tab moves focus mode will prematurely move focus to the next element before
