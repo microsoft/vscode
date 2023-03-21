@@ -371,8 +371,6 @@ export class FileMatch extends Disposable implements IFileMatch {
 
 		this._notebookEditorWidget = widget;
 
-		this._findMatchDecorationModel?.dispose();
-		this._findMatchDecorationModel = new FindMatchDecorationModel(widget);
 		this._editorWidgetListener = this._notebookEditorWidget.textModel?.onDidChangeContent((e) => {
 			if (!e.rawEvents.some(event => event.kind === NotebookCellsChangeType.ChangeCellContent || event.kind === NotebookCellsChangeType.ModelChange)) {
 				return;
@@ -387,11 +385,17 @@ export class FileMatch extends Disposable implements IFileMatch {
 			return;
 		}
 
-		this.updateMatchesForEditorWidget();
+		// this.updateMatchesForEditorWidget();
 		if (this._notebookEditorWidget) {
 			this._notebookUpdateScheduler.cancel();
 			this._findMatchDecorationModel?.dispose();
+			this._findMatchDecorationModel = undefined;
 			this._editorWidgetListener?.dispose();
+		}
+
+		if (this._findMatchDecorationModel) {
+			this._findMatchDecorationModel?.dispose();
+			this._findMatchDecorationModel = undefined;
 		}
 		this._notebookEditorWidget = null;
 	}
@@ -415,6 +419,10 @@ export class FileMatch extends Disposable implements IFileMatch {
 		if (!this._notebookEditorWidget) {
 			return;
 		}
+
+		this._findMatchDecorationModel?.dispose();
+		this._findMatchDecorationModel = new FindMatchDecorationModel(this._notebookEditorWidget);
+
 		this._matches = new Map<string, Match>();
 
 		const wordSeparators = this._query.isWordMatch && this._query.wordSeparators ? this._query.wordSeparators : null;
@@ -464,6 +472,7 @@ export class FileMatch extends Disposable implements IFileMatch {
 				}
 			});
 		});
+
 		this._findMatchDecorationModel?.setAllFindMatchesDecorations(matches);
 		this._onChange.fire({ forceUpdateModel: modelChange });
 	}
@@ -615,7 +624,6 @@ export class FileMatch extends Disposable implements IFileMatch {
 		this.setSelectedMatch(null);
 		this.unbindModel();
 		this.unbindNotebookEditorWidget();
-		this._findMatchDecorationModel?.dispose();
 		this._onDispose.fire();
 		super.dispose();
 	}
