@@ -114,8 +114,6 @@ export class EditorLineNumberContextMenu extends Disposable implements IEditorCo
 			this.contextMenuService.showContextMenu({
 				getAnchor: () => anchor,
 				getActions: () => Separator.join(...actions),
-				menuActionOptions: { shouldForwardArgs: true },
-				getActionsContext: () => ({ lineNumber, uri: model.uri }),
 				onHide: () => menu.dispose(),
 			});
 		});
