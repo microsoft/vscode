@@ -33,10 +33,7 @@ class TypeScriptDocumentHighlightProvider implements vscode.DocumentHighlightPro
 			return [];
 		}
 
-		return response.body
-			.filter(highlight => highlight.file === file)
-			.map(convertDocumentHighlight)
-			.flat();
+		return response.body.flatMap(convertDocumentHighlight);
 	}
 }
 
