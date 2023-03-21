@@ -7,6 +7,7 @@ import * as nls from 'vs/nls';
 import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { ILogService } from 'vs/platform/log/common/log';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 
 type RunnableCommand = string | { command: string; args: any[] };
@@ -90,11 +91,23 @@ class RunCommands extends Action2 {
 		}
 
 		const commandService = accessor.get(ICommandService);
+		const logService = accessor.get(ILogService);
+
+		let i = 0;
 		try {
-			for (const cmd of args.commands) {
-				await this._runCommand(commandService, cmd);
+			for (; i < args.commands.length; ++i) {
+
+				const cmd = args.commands[i];
+
+				logService.debug(`runCommands: executing ${i}-th command: ${JSON.stringify(cmd)}`);
+
+				const r = await this._runCommand(commandService, cmd);
+
+				logService.debug(`runCommands: executed ${i}-th command with return value: ${JSON.stringify(r)}`);
 			}
 		} catch (err) {
+			logService.debug(`runCommands: executing ${i}-th command resulted in an error: ${err instanceof Error ? err.message : JSON.stringify(err)}`);
+
 			notificationService.error(err);
 		}
 	}
