@@ -33,7 +33,7 @@ import { minimapFindMatch, overviewRulerFindMatchForeground } from 'vs/platform/
 import { themeColorFromId } from 'vs/platform/theme/common/themeService';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { FindMatchDecorationModel } from 'vs/workbench/contrib/notebook/browser/contrib/find/findMatchDecorationModel';
-import { CellEditState, CellFindMatchWithIndex } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { CellEditState, CellFindMatchWithIndex, ICellViewModel, INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { NotebookEditorWidget } from 'vs/workbench/contrib/notebook/browser/notebookEditorWidget';
 import { INotebookEditorService } from 'vs/workbench/contrib/notebook/browser/services/notebookEditorService';
 import { NotebookCellsChangeType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
@@ -276,7 +276,6 @@ export class FileMatch extends Disposable implements IFileMatch {
 	private _updateScheduler: RunOnceScheduler;
 	private _notebookUpdateScheduler: RunOnceScheduler;
 	private _modelDecorations: string[] = [];
-	private _findMatchDecorationModel: FindMatchDecorationModel | undefined;
 
 	private _context: Map<number, string> = new Map();
 	public get context(): Map<number, string> {
@@ -360,6 +359,10 @@ export class FileMatch extends Disposable implements IFileMatch {
 		}
 	}
 
+	private get notebookHighlightModel(): NotebookSearchHighlightModel {
+		return this.parent().searchModel.notebookHighlightModel;
+	}
+
 	async bindNotebookEditorWidget(widget: NotebookEditorWidget) {
 
 		if (this._notebookEditorWidget === widget) {
@@ -370,15 +373,14 @@ export class FileMatch extends Disposable implements IFileMatch {
 		}
 
 		this._notebookEditorWidget = widget;
-
-		this._findMatchDecorationModel?.dispose();
-		this._findMatchDecorationModel = new FindMatchDecorationModel(widget);
 		this._editorWidgetListener = this._notebookEditorWidget.textModel?.onDidChangeContent((e) => {
 			if (!e.rawEvents.some(event => event.kind === NotebookCellsChangeType.ChangeCellContent || event.kind === NotebookCellsChangeType.ModelChange)) {
 				return;
 			}
 			this._notebookUpdateScheduler.schedule();
 		}) ?? null;
+
+		this.notebookHighlightModel.createDecorationModel(this.resource, widget);
 		await this.updateMatchesForEditorWidget();
 	}
 
@@ -390,7 +392,6 @@ export class FileMatch extends Disposable implements IFileMatch {
 		this.updateMatchesForEditorWidget();
 		if (this._notebookEditorWidget) {
 			this._notebookUpdateScheduler.cancel();
-			this._findMatchDecorationModel?.dispose();
 			this._editorWidgetListener?.dispose();
 		}
 		this._notebookEditorWidget = null;
@@ -464,7 +465,7 @@ export class FileMatch extends Disposable implements IFileMatch {
 				}
 			});
 		});
-		this._findMatchDecorationModel?.setAllFindMatchesDecorations(matches);
+		this.notebookHighlightModel.setDecoration(this.resource, matches);
 		this._onChange.fire({ forceUpdateModel: modelChange });
 	}
 
@@ -615,7 +616,6 @@ export class FileMatch extends Disposable implements IFileMatch {
 		this.setSelectedMatch(null);
 		this.unbindModel();
 		this.unbindNotebookEditorWidget();
-		this._findMatchDecorationModel?.dispose();
 		this._onDispose.fire();
 		super.dispose();
 	}
@@ -626,13 +626,10 @@ export class FileMatch extends Disposable implements IFileMatch {
 	}
 
 	private async highlightCurrentFindMatchDecoration(match: NotebookMatch): Promise<number | null> {
-		if (!this._findMatchDecorationModel) {
-			return null;
-		}
 		if (match.webviewIndex === undefined) {
-			return this._findMatchDecorationModel.highlightCurrentFindMatchDecorationInCell(match.cell, match.range());
+			return this.notebookHighlightModel.setCurrentCellMatch(this.resource, match.cell, match.range());
 		} else {
-			return this._findMatchDecorationModel.highlightCurrentFindMatchDecorationInWebview(match.cell, match.webviewIndex);
+			return this.notebookHighlightModel.setCurrentWebviewMatch(this.resource, match.cell, match.webviewIndex);
 		}
 	}
 
@@ -1455,11 +1452,13 @@ export class SearchResult extends Disposable {
 
 	private async onNotebookEditorWidgetAdded(editor: NotebookEditorWidget, resource: URI): Promise<void> {
 		const folderMatch = this._folderMatchesMap.findSubstr(resource);
+		this.searchModel.notebookHighlightModel.createDecorationModel(resource, editor);
 		await folderMatch?.bindNotebookEditorWidget(editor, resource);
 	}
 
 	private onNotebookEditorWidgetRemoved(editor: NotebookEditorWidget, resource: URI): void {
 		const folderMatch = this._folderMatchesMap.findSubstr(resource);
+		this.searchModel.notebookHighlightModel.clearDecorationModel(resource);
 		folderMatch?.unbindNotebookEditorWidget(editor, resource);
 	}
 
@@ -1679,6 +1678,7 @@ export class SearchModel extends Disposable {
 
 	private currentCancelTokenSource: CancellationTokenSource | null = null;
 	private searchCancelledForNewSearch: boolean = false;
+	public notebookHighlightModel: NotebookSearchHighlightModel;
 
 	constructor(
 		@ISearchService private readonly searchService: ISearchService,
@@ -1689,6 +1689,7 @@ export class SearchModel extends Disposable {
 		@INotebookEditorService private readonly notebookEditorService: INotebookEditorService,
 	) {
 		super();
+		this.notebookHighlightModel = this._register(this.instantiationService.createInstance(NotebookSearchHighlightModel));
 		this._searchResult = this.instantiationService.createInstance(SearchResult, this);
 	}
 
@@ -1815,6 +1816,7 @@ export class SearchModel extends Disposable {
 			this.searchResult.clear();
 		}
 
+		this.notebookHighlightModel.clearAllDecorations();
 		this._searchResult.query = this._searchQuery;
 
 		const progressEmitter = new Emitter<void>();
@@ -1936,6 +1938,43 @@ export class SearchModel extends Disposable {
 		this.cancelSearch();
 		this.searchResult.dispose();
 		super.dispose();
+	}
+}
+
+class NotebookSearchHighlightModel extends Disposable {
+	private _decorations: ResourceMap<FindMatchDecorationModel>;
+
+	constructor() {
+		super();
+		this._decorations = new ResourceMap<FindMatchDecorationModel>();
+	}
+
+	public setCurrentCellMatch(uri: URI, cell: ICellViewModel, range: Range): Promise<number | null> {
+		return this._decorations.get(uri)?.highlightCurrentFindMatchDecorationInCell(cell, range) ?? Promise.resolve(null);
+	}
+
+	public setCurrentWebviewMatch(uri: URI, cell: ICellViewModel, index: number): Promise<number | null> {
+		return this._decorations.get(uri)?.highlightCurrentFindMatchDecorationInWebview(cell, index) ?? Promise.resolve(null);
+	}
+
+	public setDecoration(uri: URI, matches: CellFindMatchWithIndex[]) {
+		this._decorations.get(uri)?.setAllFindMatchesDecorations(matches);
+	}
+
+	public clearDecorationModel(uri: URI) {
+		this._decorations.get(uri)?.dispose();
+	}
+
+	public createDecorationModel(uri: URI, notebookEditor: INotebookEditor) {
+		this.clearDecorationModel(uri);
+
+		const newDecoration = this._register(new FindMatchDecorationModel(notebookEditor));
+		this._decorations.set(uri, newDecoration);
+	}
+
+	public clearAllDecorations() {
+		this._decorations.forEach(decoration => decoration.dispose());
+		this._decorations.clear();
 	}
 }
 
