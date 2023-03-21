@@ -95,7 +95,14 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 		this._stickyScrollVisibleContextKey = EditorContextKeys.stickyScrollVisible.bindTo(this._contextKeyService);
 		const focusTracker = this._register(dom.trackFocus(this._stickyScrollWidget.getDomNode()));
 		this._register(focusTracker.onDidBlur(_ => {
-			this._disposeFocusStickyScrollStore();
+			const height = this._stickyScrollWidget.getDomNode().clientHeight;
+			if (height !== 0) {
+				this._disposeFocusStickyScrollStore();
+			} else {
+				// If the height is 0, then the blur has been caused by scrolling. In that case keep the focus on the sticky scroll.
+				this._focusedStickyElementIndex = -1;
+				this.focus();
+			}
 		}));
 		this._register(focusTracker.onDidFocus(_ => {
 			this.focus();
@@ -327,20 +334,29 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 				this._stickyScrollWidget.setState(this._widgetState);
 			} else {
 				this._stickyElements = this._stickyScrollWidget.getDomNode().children;
-				if (this._stickyElements.length === 0) {
-					this._disposeFocusStickyScrollStore();
+				// Suppose that previously the sticky scroll widget had height 0, then if there are visible lines, set the last line as focused
+				if (this._focusedStickyElementIndex === -1) {
 					this._stickyScrollWidget.setState(this._widgetState);
+					this._focusedStickyElementIndex = this._stickyElements.length - 1;
+					if (this._focusedStickyElementIndex !== -1) {
+						(this._stickyElements.item(this._focusedStickyElementIndex) as HTMLDivElement).focus();
+					}
 				} else {
 					const focusedStickyElementLineNumber = this._stickyScrollWidget.lineNumbers[this._focusedStickyElementIndex];
 					this._stickyScrollWidget.setState(this._widgetState);
-					const previousFocusedLineNumberExists = this._stickyScrollWidget.lineNumbers.includes(focusedStickyElementLineNumber);
+					// Suppose that after setting the state, there are no sticky lines, set the focused index to -1
+					if (this._stickyElements.length === 0) {
+						this._focusedStickyElementIndex = -1;
+					} else {
+						const previousFocusedLineNumberExists = this._stickyScrollWidget.lineNumbers.includes(focusedStickyElementLineNumber);
 
-					// If the line number is still there, do not change anything
-					// If the line number is not there, set the new focused line to be the last line
-					if (!previousFocusedLineNumberExists) {
-						this._focusedStickyElementIndex = this._stickyElements.length - 1;
+						// If the line number is still there, do not change anything
+						// If the line number is not there, set the new focused line to be the last line
+						if (!previousFocusedLineNumberExists) {
+							this._focusedStickyElementIndex = this._stickyElements.length - 1;
+						}
+						(this._stickyElements.item(this._focusedStickyElementIndex) as HTMLDivElement).focus();
 					}
-					(this._stickyElements.item(this._focusedStickyElementIndex) as HTMLDivElement).focus();
 				}
 			}
 		}
