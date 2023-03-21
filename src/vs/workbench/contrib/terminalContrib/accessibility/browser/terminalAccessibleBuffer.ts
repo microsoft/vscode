@@ -44,6 +44,7 @@ export class AccessibleBufferWidget extends DisposableStore {
 	private readonly _focusedContextKey: IContextKey<boolean>;
 	private readonly _focusTracker: dom.IFocusTracker;
 	private _inQuickPick = false;
+	private _bufferToEditorIndex: Map<number, number> = new Map();
 
 	constructor(
 		private readonly _instance: ITerminalInstance,
@@ -176,8 +177,12 @@ export class AccessibleBufferWidget extends DisposableStore {
 		}
 		const quickPickItems: IQuickPickItem[] = [];
 		for (const command of commands) {
-			const line = command.marker?.line;
+			let line = command.marker?.line;
 			if (!line || !command.command.length) {
+				continue;
+			}
+			line = this._bufferToEditorIndex.get(line);
+			if (!line) {
 				continue;
 			}
 			quickPickItems.push(
@@ -229,6 +234,7 @@ export class AccessibleBufferWidget extends DisposableStore {
 	}
 
 	private _getContent(startLine?: number): string {
+		this._bufferToEditorIndex = new Map();
 		const lines: string[] = [];
 		let currentLine: string = '';
 		const buffer = this._xterm?.raw.buffer.active;
@@ -244,6 +250,7 @@ export class AccessibleBufferWidget extends DisposableStore {
 				continue;
 			}
 			const isWrapped = buffer.getLine(i + 1)?.isWrapped;
+			this._bufferToEditorIndex.set(i, lines.length);
 			currentLine += line.translateToString(!isWrapped);
 			if (currentLine && !isWrapped || i === end - 1) {
 				lines.push(currentLine.replace(new RegExp(' ', 'g'), '\xA0'));
