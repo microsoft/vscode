@@ -95,7 +95,7 @@ class RunCommands extends Action2 {
 				await this._runCommand(commandService, cmd);
 			}
 		} catch (err) {
-			notificationService.warn(err);
+			notificationService.error(err);
 		}
 	}
 
