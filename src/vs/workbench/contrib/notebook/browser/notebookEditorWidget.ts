@@ -2302,7 +2302,9 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 				return;
 			}
 
-			this._webview.focusOutput(cell.id, this._webviewFocused);
+			if (!options?.skipReveal) {
+				this._webview.focusOutput(cell.id, this._webviewFocused);
+			}
 
 			cell.updateEditState(CellEditState.Preview, 'focusNotebookCell');
 			cell.focusMode = CellFocusMode.Output;
