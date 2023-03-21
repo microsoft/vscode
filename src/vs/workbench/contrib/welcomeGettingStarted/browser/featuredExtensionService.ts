@@ -5,7 +5,7 @@
 
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { IExtensionGalleryService, IExtensionManagementService } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IExtensionGalleryService, IExtensionManagementService, isTargetPlatformCompatible } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { IFeaturedExtension } from 'vs/base/common/product';
@@ -13,7 +13,7 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { localize } from 'vs/nls';
 import { IWorkbenchAssignmentService } from 'vs/workbench/services/assignment/common/assignmentService';
-import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
+import { ExtensionIdentifier, TargetPlatform } from 'vs/platform/extensions/common/extensions';
 
 type FeaturedExtensionTreatment = { extensions: string[]; showAsList?: string };
 type FeaturedExtensionStorageData = { title: string; description: string; imagePath: string; date: number };
@@ -39,6 +39,7 @@ export class FeaturedExtensionsService extends Disposable implements IFeaturedEx
 	private ignoredExtensions: Set<string> = new Set<string>();
 	private treatment: FeaturedExtensionTreatment | undefined;
 	private _isInitialized: boolean = false;
+	private targetPlatform: TargetPlatform = TargetPlatform.UNKNOWN;
 
 	private static readonly STORAGE_KEY = 'workbench.welcomePage.extensionMetadata';
 
@@ -96,13 +97,20 @@ export class FeaturedExtensionsService extends Disposable implements IFeaturedEx
 
 		this.treatment = extensions ? JSON.parse(extensions) : { extensions: [] };
 		this.title = extensionListTitle ?? localize('gettingStarted.featuredTitle', 'Featured');
+		this.targetPlatform = await this.extensionManagementService.getTargetPlatform();
 
 		if (this.treatment) {
 			const installed = await this.extensionManagementService.getInstalled();
-
 			for (const extension of this.treatment.extensions) {
 				if (installed.some(e => ExtensionIdentifier.equals(e.identifier.id, extension))) {
 					this.ignoredExtensions.add(extension);
+				}
+				else {
+					const galleryExtension = (await this.galleryService.getExtensions([{ id: extension }], CancellationToken.None))[0];
+					const supported = galleryExtension.allTargetPlatforms.some(targetPlatform => isTargetPlatformCompatible(targetPlatform, galleryExtension.allTargetPlatforms, this.targetPlatform));
+					if (!supported) {
+						this.ignoredExtensions.add(extension);
+					}
 				}
 			}
 		}

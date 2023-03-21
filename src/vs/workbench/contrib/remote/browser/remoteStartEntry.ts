@@ -50,7 +50,7 @@ export class RemoteStartEntry extends Disposable implements IWorkbenchContributi
 	private static readonly REMOTE_START_ENTRY_ACTIONS_COMMAND_ID = 'workbench.action.remote.showStartEntryActions';
 	private readonly remoteExtensionMetadata: RemoteExtensionMetadata[];
 	private _isInitialized: boolean = false;
-	private targetPlaform: TargetPlatform = TargetPlatform.UNKNOWN;
+	private targetPlatform: TargetPlatform = TargetPlatform.UNKNOWN;
 
 	constructor(
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
@@ -113,7 +113,7 @@ export class RemoteStartEntry extends Disposable implements IWorkbenchContributi
 			return;
 		}
 
-		this.targetPlaform = await this.extensionManagementService.getTargetPlatform();
+		this.targetPlatform = await this.extensionManagementService.getTargetPlatform();
 		for (let i = 0; i < this.remoteExtensionMetadata.length; i++) {
 			const installed = this.extensionService.extensions.some((e) => e.id?.toLowerCase() === this.remoteExtensionMetadata[i].id);
 			if (installed) {
@@ -264,7 +264,7 @@ export class RemoteStartEntry extends Disposable implements IWorkbenchContributi
 	private async getDependenciesFromGallery(extensionId: string): Promise<string | undefined> {
 
 		const galleryExtension = (await this.extensionGalleryService.getExtensions([{ id: extensionId }], CancellationToken.None))[0];
-		const canInstall = galleryExtension.allTargetPlatforms.some(targetPlatform => isTargetPlatformCompatible(targetPlatform, galleryExtension.allTargetPlatforms, this.targetPlaform));
+		const canInstall = galleryExtension.allTargetPlatforms.some(targetPlatform => isTargetPlatformCompatible(targetPlatform, galleryExtension.allTargetPlatforms, this.targetPlatform));
 		if (!canInstall) {
 			return undefined;
 		}
