@@ -132,6 +132,11 @@ export interface IInteractiveSessionDynamicRequest {
 	metadata?: any;
 }
 
+export interface IInteractiveSessionCompleteResponse {
+	message: string;
+	errorDetails?: IInteractiveResponseErrorDetails;
+}
+
 export const IInteractiveSessionService = createDecorator<IInteractiveSessionService>('IInteractiveSessionService');
 
 export interface IInteractiveSessionService {
@@ -149,6 +154,7 @@ export interface IInteractiveSessionService {
 	clearSession(sessionId: number): void;
 	acceptNewSessionState(sessionId: number, state: any): void;
 	addInteractiveRequest(context: any): void;
+	addCompleteRequest(message: string, response: IInteractiveSessionCompleteResponse): void;
 	sendInteractiveRequestToProvider(providerId: string, message: IInteractiveSessionDynamicRequest): void;
 	provideSuggestions(providerId: string, token: CancellationToken): Promise<string[] | undefined>;
 	releaseSession(sessionId: number): void;
