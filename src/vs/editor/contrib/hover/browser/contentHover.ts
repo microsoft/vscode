@@ -24,6 +24,8 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { Context as SuggestContext } from 'vs/editor/contrib/suggest/browser/suggest';
 import { AsyncIterableObject } from 'vs/base/common/async';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
+import { CursorChangeReason } from 'vs/editor/common/cursorEvents';
+import { CursorState } from 'vs/editor/common/cursorCommon';
 
 const $ = dom.$;
 
@@ -364,6 +366,10 @@ export class ContentHoverController extends Disposable {
 	public pageDown(): void {
 		this._widget.pageDown();
 	}
+
+	public escape(): void {
+		this._widget.escape();
+	}
 }
 
 class HoverResult {
@@ -427,6 +433,7 @@ export class ContentHoverWidget extends Disposable implements IContentWidget {
 	private readonly _hoverFocusedKey = EditorContextKeys.hoverFocused.bindTo(this._contextKeyService);
 	private readonly _hover: HoverWidget = this._register(new HoverWidget());
 	private readonly _focusTracker = this._register(dom.trackFocus(this.getDomNode()));
+	private _cursorState: CursorState[] | undefined = undefined;
 
 	private _visibleData: ContentHoverVisibleData | null = null;
 
@@ -619,6 +626,9 @@ export class ContentHoverWidget extends Disposable implements IContentWidget {
 	}
 
 	public focus(): void {
+		if (this._editor.hasTextFocus()) {
+			this._cursorState = this._editor._getViewModel()?.getCursorStates();
+		}
 		this._hover.containerDomNode.focus();
 	}
 
@@ -644,6 +654,22 @@ export class ContentHoverWidget extends Disposable implements IContentWidget {
 		const scrollTop = this._hover.scrollbar.getScrollPosition().scrollTop;
 		const scrollHeight = this._hover.scrollbar.getScrollDimensions().height;
 		this._hover.scrollbar.setScrollPosition({ scrollTop: scrollTop + scrollHeight });
+	}
+
+	public escape(): void {
+		console.log('Inside of escape');
+		if (this._cursorState) {
+			console.log('when cursor states are defined');
+			console.log('this._cursorState', this._cursorState);
+			const viewModel = this._editor._getViewModel();
+			console.log('viewModel?.getPrimaryCursorState() : ', viewModel?.getPrimaryCursorState());
+			/* viewModel?.setCursorStates(
+				'api',
+				CursorChangeReason.Explicit,
+				Array.from(this._cursorState)
+			); */
+			viewModel?.revealPrimaryCursor('api', true);
+		}
 	}
 }
 
