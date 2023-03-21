@@ -2459,7 +2459,17 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 			await this._warmupAll(!!options.includeOutput);
 			const end = Date.now();
 			this.logService.debug('Find', `Warmup time: ${end - start}ms`);
+
+			if (token.isCancellationRequested) {
+				return [];
+			}
+
 			const webviewMatches = await this._webview.find(query, { caseSensitive: options.caseSensitive, wholeWord: options.wholeWord, includeMarkup: !!options.includeMarkupPreview, includeOutput: !!options.includeOutput, shouldGetSearchPreviewInfo });
+
+			if (token.isCancellationRequested) {
+				return [];
+			}
+
 			// attach webview matches to model find matches
 			webviewMatches.forEach(match => {
 				if (!options.includeMarkupPreview && match.type === 'preview') {
