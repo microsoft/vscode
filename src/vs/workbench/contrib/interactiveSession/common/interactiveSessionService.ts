@@ -97,6 +97,9 @@ export interface IInteractiveSessionCopyAction {
 	responseId: string;
 	codeBlockIndex: number;
 	copyType: InteractiveSessionCopyKind;
+	copiedCharacters: number;
+	totalCharacters: number;
+	copiedText: string;
 }
 
 export interface IInteractiveSessionInsertAction {
