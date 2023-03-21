@@ -84,6 +84,11 @@ class RunCommands extends Action2 {
 			return;
 		}
 
+		if (args.commands.length === 0) {
+			notificationService.warn(nls.localize('runCommands.noCommandsToRun', "'runCommands' has not received commands to run. Did you forget to pass commands in the 'runCommands' argument?"));
+			return;
+		}
+
 		const commandService = accessor.get(ICommandService);
 		try {
 			for (const cmd of args.commands) {
