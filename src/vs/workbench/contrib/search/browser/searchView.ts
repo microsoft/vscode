@@ -204,7 +204,6 @@ export class SearchView extends ViewPane {
 		this.fileMatchFocused = Constants.FileFocusKey.bindTo(this.contextKeyService);
 		this.folderMatchFocused = Constants.FolderFocusKey.bindTo(this.contextKeyService);
 		this.folderMatchWithResourceFocused = Constants.ResourceFolderFocusKey.bindTo(this.contextKeyService);
-		this.isEditableItem = Constants.IsEditableItemKey.bindTo(this.contextKeyService);
 		this.hasSearchResultsKey = Constants.HasSearchResults.bindTo(this.contextKeyService);
 		this.matchFocused = Constants.MatchFocusKey.bindTo(this.contextKeyService);
 		this.searchStateKey = SearchStateKey.bindTo(this.contextKeyService);
@@ -220,6 +219,7 @@ export class SearchView extends ViewPane {
 		this.inputBoxFocused = Constants.InputBoxFocusedKey.bindTo(this.contextKeyService);
 		this.inputPatternIncludesFocused = Constants.PatternIncludesFocusedKey.bindTo(this.contextKeyService);
 		this.inputPatternExclusionsFocused = Constants.PatternExcludesFocusedKey.bindTo(this.contextKeyService);
+		this.isEditableItem = Constants.IsEditableItemKey.bindTo(this.contextKeyService);
 
 		this.instantiationService = this.instantiationService.createChild(
 			new ServiceCollection([IContextKeyService, this.contextKeyService]));
@@ -827,19 +827,22 @@ export class SearchView extends ViewPane {
 
 		this._register(Event.any<any>(this.tree.onDidFocus, this.tree.onDidChangeFocus)(() => {
 			const focus = this.tree.getFocus()[0];
-			this.firstMatchFocused.set(this.tree.navigate().first() === focus);
-			this.fileMatchOrMatchFocused.set(!!focus);
-			this.fileMatchFocused.set(focus instanceof FileMatch);
-			this.folderMatchFocused.set(focus instanceof FolderMatch);
+
+			if (this.tree.isDOMFocused()) {
+				this.firstMatchFocused.set(this.tree.navigate().first() === focus);
+				this.fileMatchOrMatchFocused.set(!!focus);
+				this.fileMatchFocused.set(focus instanceof FileMatch);
+				this.folderMatchFocused.set(focus instanceof FolderMatch);
+				this.matchFocused.set(focus instanceof Match);
+				this.fileMatchOrFolderMatchFocus.set(focus instanceof FileMatch || focus instanceof FolderMatch);
+				this.fileMatchOrFolderMatchWithResourceFocus.set(focus instanceof FileMatch || focus instanceof FolderMatchWithResource);
+				this.folderMatchWithResourceFocused.set(focus instanceof FolderMatchWithResource);
+				this.lastFocusState = 'tree';
+			}
 
 			// we don't need to check experimental flag here because NotebookMatches only exist when the flag is enabled
 			const editable = (!(focus instanceof NotebookMatch)) || !focus.isWebviewMatch();
 			this.isEditableItem.set(editable);
-			this.matchFocused.set(focus instanceof Match);
-			this.fileMatchOrFolderMatchFocus.set(focus instanceof FileMatch || focus instanceof FolderMatch);
-			this.fileMatchOrFolderMatchWithResourceFocus.set(focus instanceof FileMatch || focus instanceof FolderMatchWithResource);
-			this.folderMatchWithResourceFocused.set(focus instanceof FolderMatchWithResource);
-			this.lastFocusState = 'tree';
 		}));
 
 		this._register(this.tree.onDidBlur(() => {
