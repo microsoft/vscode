@@ -5,7 +5,6 @@
 
 import { Codicon } from 'vs/base/common/codicons';
 import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
-import { FileAccess } from 'vs/base/common/network';
 import * as resources from 'vs/base/common/resources';
 import { localize } from 'vs/nls';
 import { registerAction2 } from 'vs/platform/actions/common/actions';
@@ -29,6 +28,7 @@ const interactiveSessionExtensionPoint = extensionsRegistry.ExtensionsRegistry.r
 			additionalProperties: false,
 			type: 'object',
 			defaultSnippets: [{ body: { id: '', program: '', runtime: '' } }],
+			required: ['id', 'label'],
 			properties: {
 				id: {
 					description: localize('vscode.extension.contributes.interactiveSession.id', "Unique identifier for this Interactive Session provider."),
@@ -69,7 +69,7 @@ export class InteractiveSessionContributionService implements IInteractiveSessio
 				for (const providerDescriptor of extension.value) {
 					this.registerInteractiveSessionProvider(extension.description, providerDescriptor);
 					const extensionIcon = extension.description.icon ?
-						FileAccess.uriToBrowserUri(resources.joinPath(extension.description.extensionLocation, extension.description.icon)) :
+						resources.joinPath(extension.description.extensionLocation, extension.description.icon) :
 						undefined;
 					this._registeredProviders.set(providerDescriptor.id, {
 						...providerDescriptor,
@@ -107,7 +107,7 @@ export class InteractiveSessionContributionService implements IInteractiveSessio
 		const viewContainer: ViewContainer = Registry.as<IViewContainersRegistry>(ViewExtensions.ViewContainersRegistry).registerViewContainer({
 			id: viewContainerId,
 			title: providerDescriptor.label,
-			icon: providerDescriptor.icon !== '' ? resources.joinPath(extension.extensionLocation, providerDescriptor.icon) : Codicon.commentDiscussion,
+			icon: providerDescriptor.icon ? resources.joinPath(extension.extensionLocation, providerDescriptor.icon) : Codicon.commentDiscussion,
 			ctorDescriptor: new SyncDescriptor(ViewPaneContainer, [viewContainerId, { mergeViewWithContainerWhenSingleView: true }]),
 			storageId: viewContainerId,
 			hideIfEmpty: true,
