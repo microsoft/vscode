@@ -243,7 +243,7 @@ export class AccessibleBufferWidget extends DisposableStore {
 		}
 		const scrollback: number = this._configurationService.getValue(TerminalSettingId.Scrollback);
 		const maxBufferSize = scrollback + this._xterm.raw.rows - 1;
-		const end = Math.min(maxBufferSize, buffer.length);
+		const end = Math.min(maxBufferSize, buffer.length - 1);
 		for (let i = startLine ?? 0; i <= end; i++) {
 			const line = buffer.getLine(i);
 			if (!line) {
