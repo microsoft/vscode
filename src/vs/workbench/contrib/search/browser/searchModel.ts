@@ -385,7 +385,6 @@ export class FileMatch extends Disposable implements IFileMatch {
 			return;
 		}
 
-		// this.updateMatchesForEditorWidget();
 		if (this._notebookEditorWidget) {
 			this._notebookUpdateScheduler.cancel();
 			this._findMatchDecorationModel?.dispose();
@@ -441,7 +440,7 @@ export class FileMatch extends Disposable implements IFileMatch {
 		this.updateNotebookMatches(allMatches, true);
 	}
 
-	private updatesMatchesForLineAfterReplace(lineNumber: number, modelChange: boolean): void {
+	private async updatesMatchesForLineAfterReplace(lineNumber: number, modelChange: boolean): Promise<void> {
 		if (!this._model) {
 			return;
 		}
@@ -457,7 +456,7 @@ export class FileMatch extends Disposable implements IFileMatch {
 		const wordSeparators = this._query.isWordMatch && this._query.wordSeparators ? this._query.wordSeparators : null;
 		const matches = this._model.findMatches(this._query.pattern, range, !!this._query.isRegExp, !!this._query.isCaseSensitive, wordSeparators, false, this._maxResults ?? Number.MAX_SAFE_INTEGER);
 		this.updateMatches(matches, modelChange, this._model);
-		this.updateMatchesForEditorWidget();
+		await this.updateMatchesForEditorWidget();
 	}
 
 	private updateNotebookMatches(matches: CellFindMatchWithIndex[], modelChange: boolean): void {
@@ -546,7 +545,7 @@ export class FileMatch extends Disposable implements IFileMatch {
 	async replace(toReplace: Match): Promise<void> {
 		return this.replaceQ = this.replaceQ.finally(async () => {
 			await this.replaceService.replace(toReplace);
-			this.updatesMatchesForLineAfterReplace(toReplace.range().startLineNumber, false);
+			await this.updatesMatchesForLineAfterReplace(toReplace.range().startLineNumber, false);
 		});
 	}
 
