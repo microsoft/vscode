@@ -49,7 +49,7 @@ export class InteractiveSessionService extends Disposable implements IInteractiv
 	private readonly _providers = new Map<string, IInteractiveProvider>();
 	private readonly _sessionModels = new Map<number, InteractiveSessionModel>();
 	private readonly _releasedSessions = new Set<number>();
-	private readonly _pendingRequestSessions = new Set<number>();
+	private readonly _pendingRequests = new Map<number, CancelablePromise<void>>();
 	private readonly _unprocessedPersistedSessions: ISerializableInteractiveSessionsData;
 
 	private readonly _onDidPerformUserAction = this._register(new Emitter<IInteractiveSessionUserActionEvent>());
@@ -186,7 +186,7 @@ export class InteractiveSessionService extends Disposable implements IInteractiv
 			throw new Error(`Unknown provider: ${model.providerId}`);
 		}
 
-		if (this._pendingRequestSessions.has(sessionId)) {
+		if (this._pendingRequests.has(sessionId)) {
 			this.trace('sendRequest', `Session ${sessionId} already has a pending request`);
 			return undefined;
 		}
@@ -195,7 +195,6 @@ export class InteractiveSessionService extends Disposable implements IInteractiv
 	}
 
 	private _sendRequestAsync(model: InteractiveSessionModel, provider: IInteractiveProvider, message: string | IInteractiveSessionReplyFollowup): CancelablePromise<void> {
-		this._pendingRequestSessions.add(model.sessionId);
 		const request = model.addRequest(message);
 		let gotProgress = false;
 		const requestType = typeof message === 'string' ?
@@ -258,8 +257,9 @@ export class InteractiveSessionService extends Disposable implements IInteractiv
 				}
 			}
 		});
+		this._pendingRequests.set(model.sessionId, rawResponsePromise);
 		rawResponsePromise.finally(() => {
-			this._pendingRequestSessions.delete(model.sessionId);
+			this._pendingRequests.delete(model.sessionId);
 		});
 		return rawResponsePromise;
 	}
@@ -335,6 +335,11 @@ export class InteractiveSessionService extends Disposable implements IInteractiv
 		this.trace('sendInteractiveRequestToProvider', `Something went wrong, couldn't send request to view ${viewId}`);
 	}
 
+	cancelCurrentRequestForSession(sessionId: number): void {
+		this.trace('cancelCurrentRequestForSession', `sessionId: ${sessionId}`);
+		this._pendingRequests.get(sessionId)?.cancel();
+	}
+
 	clearSession(sessionId: number): void {
 		this.trace('clearSession', `sessionId: ${sessionId}`);
 		const model = this._sessionModels.get(sessionId);
@@ -344,6 +349,8 @@ export class InteractiveSessionService extends Disposable implements IInteractiv
 
 		model.dispose();
 		this._sessionModels.delete(sessionId);
+		this._pendingRequests.get(sessionId)?.cancel();
+		this._releasedSessions.delete(sessionId);
 	}
 
 	registerProvider(provider: IInteractiveProvider): IDisposable {

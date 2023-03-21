@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancelablePromise } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Event } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
@@ -141,7 +140,8 @@ export interface IInteractiveSessionService {
 	/**
 	 * Returns whether the request was accepted.
 	 */
-	sendRequest(sessionId: number, message: string | IInteractiveSessionReplyFollowup): { completePromise: CancelablePromise<void> } | undefined;
+	sendRequest(sessionId: number, message: string | IInteractiveSessionReplyFollowup): { completePromise: Promise<void> } | undefined;
+	cancelCurrentRequestForSession(sessionId: number): void;
 	getSlashCommands(sessionId: number, token: CancellationToken): Promise<IInteractiveSlashCommand[] | undefined>;
 	clearSession(sessionId: number): void;
 	acceptNewSessionState(sessionId: number, state: any): void;

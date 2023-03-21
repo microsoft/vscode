@@ -10,6 +10,7 @@ import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/act
 import { INTERACTIVE_SESSION_CATEGORY } from 'vs/workbench/contrib/interactiveSession/browser/actions/interactiveSessionActions';
 import { IInteractiveSessionWidget } from 'vs/workbench/contrib/interactiveSession/browser/interactiveSession';
 import { CONTEXT_INTERACTIVE_REQUEST_IN_PROGRESS } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionContextKeys';
+import { IInteractiveSessionService } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionService';
 
 export interface IInteractiveSessionExecuteActionContext {
 	widget: IInteractiveSessionWidget;
@@ -74,7 +75,10 @@ export function registerInteractiveSessionExecuteActions() {
 				return;
 			}
 
-			context.widget.cancelCurrentRequest();
+			const interactiveSessionService = accessor.get(IInteractiveSessionService);
+			if (context.widget.viewModel) {
+				interactiveSessionService.cancelCurrentRequestForSession(context.widget.viewModel.sessionId);
+			}
 		}
 	});
 }

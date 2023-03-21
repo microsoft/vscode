@@ -213,7 +213,8 @@ export class ExtHostInteractiveSession implements ExtHostInteractiveSessionShape
 		}
 
 		try {
-			if (realSession.saveState) {
+			// Check that the session has not been released since the request started
+			if (realSession.saveState && this._interactiveSessions.has(sessionId)) {
 				const newState = realSession.saveState();
 				this._proxy.$acceptInteractiveSessionState(sessionId, newState);
 			}

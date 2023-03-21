@@ -3,12 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as aria from 'vs/base/browser/ui/aria/aria';
 import * as dom from 'vs/base/browser/dom';
 import { IHistoryNavigationWidget } from 'vs/base/browser/history';
+import * as aria from 'vs/base/browser/ui/aria/aria';
 import { Button } from 'vs/base/browser/ui/button/button';
 import { ITreeContextMenuEvent, ITreeElement } from 'vs/base/browser/ui/tree/tree';
-import { CancelablePromise } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Emitter } from 'vs/base/common/event';
 import { HistoryNavigator } from 'vs/base/common/history';
@@ -38,7 +37,7 @@ import { IInteractiveSessionWidget } from 'vs/workbench/contrib/interactiveSessi
 import { InteractiveSessionFollowups } from 'vs/workbench/contrib/interactiveSession/browser/interactiveSessionFollowups';
 import { IInteractiveSessionRendererDelegate, InteractiveListItemRenderer, InteractiveSessionAccessibilityProvider, InteractiveSessionListDelegate, InteractiveTreeItem } from 'vs/workbench/contrib/interactiveSession/browser/interactiveSessionListRenderer';
 import { InteractiveSessionEditorOptions } from 'vs/workbench/contrib/interactiveSession/browser/interactiveSessionOptions';
-import { CONTEXT_IN_INTERACTIVE_INPUT, CONTEXT_IN_INTERACTIVE_SESSION, CONTEXT_INTERACTIVE_REQUEST_IN_PROGRESS } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionContextKeys';
+import { CONTEXT_INTERACTIVE_REQUEST_IN_PROGRESS, CONTEXT_IN_INTERACTIVE_INPUT, CONTEXT_IN_INTERACTIVE_SESSION } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionContextKeys';
 import { IInteractiveSessionReplyFollowup, IInteractiveSessionService, IInteractiveSlashCommand } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionService';
 import { IInteractiveSessionViewModel, InteractiveSessionViewModel, isRequestVM, isResponseVM, isWelcomeVM } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionViewModel';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
@@ -105,7 +104,6 @@ export class InteractiveSessionWidget extends Disposable implements IInteractive
 	private welcomeViewDisposables = this._register(new DisposableStore());
 	private bodyDimension: dom.Dimension | undefined;
 	private visible = false;
-	private currentRequest: CancelablePromise<void> | undefined;
 	private requestInProgress: IContextKey<boolean>;
 
 	private previousTreeScrollHeight: number = 0;
@@ -509,11 +507,6 @@ export class InteractiveSessionWidget extends Disposable implements IInteractive
 	}
 
 	async acceptInput(query?: string | IInteractiveSessionReplyFollowup): Promise<void> {
-		if (this.currentRequest) {
-			// TODO this logic is duplicated in the service, figure out who is in control
-			return;
-		}
-
 		if (!this.viewModel) {
 			// This currently shouldn't happen anymore, but leaving this here to make sure we don't get stuck without a viewmodel
 			await this.initializeSessionModel();
@@ -529,23 +522,13 @@ export class InteractiveSessionWidget extends Disposable implements IInteractive
 			const result = this.interactiveSessionService.sendRequest(this.viewModel.sessionId, input);
 			if (result) {
 				this.requestInProgress.set(true);
-				this.currentRequest = result.completePromise;
-				this.currentRequest.then(() => {
+				result.completePromise.finally(() => {
 					this.requestInProgress.set(false);
-					this.currentRequest = undefined;
 				});
 
 				this._inputEditor.setValue('');
 				revealLastElement(this.tree);
 			}
-		}
-	}
-
-	cancelCurrentRequest(): void {
-		if (this.currentRequest) {
-			this.currentRequest.cancel();
-			this.requestInProgress.set(false);
-			this.currentRequest = undefined;
 		}
 	}
 
