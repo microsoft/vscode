@@ -22,6 +22,14 @@ CopyAction?.addImplementation(50000, 'interactiveSession-codeblock', (accessor) 
 		return false;
 	}
 
+	const editorModel = editor.getModel();
+	if (!editorModel) {
+		return false;
+	}
+
+	const copiedText = editor.getSelections()?.reduce((acc, selection) => acc + editorModel.getValueInRange(selection), '') ?? '';
+	const totalCharacters = editorModel.getValueLength();
+
 	const interactiveSessionService = accessor.get(IInteractiveSessionService);
 	interactiveSessionService.notifyUserAction({
 		providerId: info.providerId,
@@ -29,7 +37,10 @@ CopyAction?.addImplementation(50000, 'interactiveSession-codeblock', (accessor) 
 			kind: 'copy',
 			codeBlockIndex: info.codeBlockIndex,
 			responseId: info.responseId,
-			copyType: InteractiveSessionCopyKind.Action
+			copyType: InteractiveSessionCopyKind.Action,
+			copiedText,
+			copiedCharacters: copiedText.length,
+			totalCharacters,
 		}
 	});
 

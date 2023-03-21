@@ -167,6 +167,9 @@ declare module 'vscode' {
 		responseId: string;
 		codeBlockIndex: number;
 		copyType: InteractiveSessionCopyKind;
+		copiedCharacters: number;
+		totalCharacters: number;
+		copiedText: string;
 	}
 
 	export interface InteractiveSessionInsertAction {
