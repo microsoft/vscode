@@ -152,7 +152,7 @@ class SlashCommandCompletions extends Disposable {
 					return null;
 				}
 
-				if (model.getValueInRange(new Range(1, 1, 1, 2)) !== '/') {
+				if (model.getValueInRange(new Range(1, 1, 1, 2)) !== '/' && model.getValueLength() > 0) {
 					return null;
 				}
 
