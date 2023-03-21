@@ -357,12 +357,28 @@ export class ContentHoverController extends Disposable {
 		this._widget.scrollDown();
 	}
 
+	public scrollLeft(): void {
+		this._widget.scrollLeft();
+	}
+
+	public scrollRight(): void {
+		this._widget.scrollRight();
+	}
+
 	public pageUp(): void {
 		this._widget.pageUp();
 	}
 
 	public pageDown(): void {
 		this._widget.pageDown();
+	}
+
+	public goToTop(): void {
+		this._widget.goToTop();
+	}
+
+	public goToBottom(): void {
+		this._widget.goToBottom();
 	}
 }
 
@@ -427,7 +443,7 @@ export class ContentHoverWidget extends Disposable implements IContentWidget {
 	private readonly _hoverFocusedKey = EditorContextKeys.hoverFocused.bindTo(this._contextKeyService);
 	private readonly _hover: HoverWidget = this._register(new HoverWidget());
 	private readonly _focusTracker = this._register(dom.trackFocus(this.getDomNode()));
-
+	private readonly _horizontalScrollingBy: number = 30;
 	private _visibleData: ContentHoverVisibleData | null = null;
 
 	/**
@@ -634,6 +650,16 @@ export class ContentHoverWidget extends Disposable implements IContentWidget {
 		this._hover.scrollbar.setScrollPosition({ scrollTop: scrollTop + fontInfo.lineHeight });
 	}
 
+	public scrollLeft(): void {
+		const scrollLeft = this._hover.scrollbar.getScrollPosition().scrollLeft;
+		this._hover.scrollbar.setScrollPosition({ scrollLeft: scrollLeft - this._horizontalScrollingBy });
+	}
+
+	public scrollRight(): void {
+		const scrollLeft = this._hover.scrollbar.getScrollPosition().scrollLeft;
+		this._hover.scrollbar.setScrollPosition({ scrollLeft: scrollLeft + this._horizontalScrollingBy });
+	}
+
 	public pageUp(): void {
 		const scrollTop = this._hover.scrollbar.getScrollPosition().scrollTop;
 		const scrollHeight = this._hover.scrollbar.getScrollDimensions().height;
@@ -644,6 +670,14 @@ export class ContentHoverWidget extends Disposable implements IContentWidget {
 		const scrollTop = this._hover.scrollbar.getScrollPosition().scrollTop;
 		const scrollHeight = this._hover.scrollbar.getScrollDimensions().height;
 		this._hover.scrollbar.setScrollPosition({ scrollTop: scrollTop + scrollHeight });
+	}
+
+	public goToTop(): void {
+		this._hover.scrollbar.setScrollPosition({ scrollTop: 0 });
+	}
+
+	public goToBottom(): void {
+		this._hover.scrollbar.setScrollPosition({ scrollTop: this._hover.scrollbar.getScrollDimensions().scrollHeight });
 	}
 }
 
