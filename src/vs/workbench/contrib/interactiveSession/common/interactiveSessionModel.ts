@@ -314,6 +314,7 @@ export class InteractiveSessionModel extends Disposable implements IInteractiveS
 	}
 
 	override dispose() {
+		this.session.dispose?.();
 		this._requests.forEach(r => r.response?.dispose());
 		this._onDidDispose.fire();
 		super.dispose();
