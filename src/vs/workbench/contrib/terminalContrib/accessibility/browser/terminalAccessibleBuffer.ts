@@ -250,6 +250,8 @@ export class AccessibleBufferWidget extends DisposableStore {
 		const maxBufferSize = scrollback + this._xterm.raw.rows - 1;
 		const end = Math.min(maxBufferSize, buffer.length - 1);
 		if (lastBufferIndex) {
+			// If the last buffer index is requested, this is as a result of
+			// a dynamic addition. Return only the last line to prevent duplication.
 			const line = buffer.getLine(end - 1)?.translateToString(false).replace(new RegExp(' ', 'g'), '\xA0');
 			const result = line ? (this._prependNewLine ? '\n' : '') + line + '\n' : '';
 			this._prependNewLine = false;
