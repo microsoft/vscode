@@ -409,6 +409,7 @@ class DirtyDiffWidget extends PeekViewWidget {
 			readOnly: false,
 			renderIndicators: false,
 			diffAlgorithm: 'smart',
+			stickyScroll: { enabled: false }
 		};
 
 		this.diffEditor = this.instantiationService.createInstance(EmbeddedDiffEditorWidget, container, options, this.editor);
