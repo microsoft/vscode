@@ -28,7 +28,7 @@ import { AudioCue, IAudioCueService } from 'vs/platform/audioCues/browser/audioC
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/terminalContextKey';
 
-const enum Constants {
+const enum CssClass {
 	Active = 'active',
 	Hide = 'hide'
 }
@@ -124,15 +124,15 @@ export class AccessibleBufferWidget extends DisposableStore {
 			// if the editor is focused via tab, we need to update the model
 			// and show it
 			await this._updateEditor();
-			this._accessibleBuffer.classList.add(Constants.Active);
-			this._xtermElement.classList.add(Constants.Hide);
+			this._accessibleBuffer.classList.add(CssClass.Active);
+			this._xtermElement.classList.add(CssClass.Hide);
 		}));
 		this._updateEditor();
 	}
 
 	private _hide(): void {
-		this._accessibleBuffer.classList.remove(Constants.Active);
-		this._xtermElement.classList.remove(Constants.Hide);
+		this._accessibleBuffer.classList.remove(CssClass.Active);
+		this._xtermElement.classList.remove(CssClass.Hide);
 		this._xterm.raw.focus();
 	}
 
@@ -222,8 +222,8 @@ export class AccessibleBufferWidget extends DisposableStore {
 		this._prependNewLine = true;
 		this._accessibleBuffer.tabIndex = -1;
 		this._bufferEditor.layout({ width: this._xtermElement.clientWidth, height: this._xtermElement.clientHeight });
-		this._accessibleBuffer.classList.add(Constants.Active);
-		this._xtermElement.classList.add(Constants.Hide);
+		this._accessibleBuffer.classList.add(CssClass.Active);
+		this._xtermElement.classList.add(CssClass.Hide);
 		this._bufferEditor.focus();
 	}
 
