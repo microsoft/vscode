@@ -97,20 +97,25 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 		this._stickyScrollVisibleContextKey = EditorContextKeys.stickyScrollVisible.bindTo(this._contextKeyService);
 		const focusTracker = this._register(dom.trackFocus(this._stickyScrollWidget.getDomNode()));
 		this._register(focusTracker.onDidBlur(_ => {
-			if (this._positionRevealed === true) {
-				this._disposeFocusStickyScrollStore();
-			} else {
-				// If the height is 0, then the blur has been caused by scrolling. In that case keep the focus on the sticky scroll.
+			const height = this._stickyScrollWidget.getDomNode().clientHeight;
+			// Suppose that the blurring is caused by scrolling, then keep the focus on the sticky scroll
+			// This is determined by the fact that the height of the widget has become zero and the position has not just been revealed through clicking
+			if (this._positionRevealed === false && height === 0) {
 				this._focusedStickyElementIndex = -1;
 				this.focus();
+
+			}
+			// In all other casees, dispose the focus on the sticky scroll
+			else {
+				this._disposeFocusStickyScrollStore();
 			}
 		}));
 		this._register(focusTracker.onDidFocus(_ => {
 			this.focus();
 		}));
 		this._register(this._createClickLinkGesture());
+		// Suppose that we on mouse down on the sticky scroll, then do not focus on the sticky scroll because this will be followed by a reveal of a position
 		this._register(dom.addDisposableListener(this._stickyScrollWidget.getDomNode(), dom.EventType.MOUSE_DOWN, (e) => {
-			console.log('inside of on mouse down');
 			this._onMouseDown = true;
 		}));
 	}
@@ -132,11 +137,14 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 		this._focusDisposableStore?.dispose();
 		this._focused = false;
 		this._positionRevealed = false;
+		this._onMouseDown = false;
 	}
 
 	public focus(): void {
+		// If the mouse is down, do not focus on the sticky scroll
 		if (this._onMouseDown) {
 			this._onMouseDown = false;
+			this._editor.focus();
 			return;
 		}
 		const focusState = this._stickyScrollFocusedContextKey.get();
@@ -256,7 +264,6 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 			if ((e.target as unknown as CustomMouseEvent).detail !== this._stickyScrollWidget.getId()) {
 				return;
 			}
-
 			if (e.hasTriggerModifier) {
 				// Control click
 				if (this._candidateDefinitionsLength > 1) {
@@ -269,11 +276,10 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 
 			} else if (!e.isRightClick) {
 				// Normal click
-				const position = { lineNumber: this._stickyScrollWidget.hoverOnLine, column: this._stickyScrollWidget.hoverOnColumn };
 				if (this._focused) {
 					this._disposeFocusStickyScrollStore();
 				}
-				this._revealPosition(position);
+				this._revealPosition({ lineNumber: this._stickyScrollWidget.hoverOnLine, column: this._stickyScrollWidget.hoverOnColumn });
 			}
 		}));
 		return linkGestureStore;
