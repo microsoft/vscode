@@ -195,6 +195,7 @@ export class InteractiveListItemRenderer extends Disposable implements ITreeRend
 		templateData.rowContainer.classList.toggle('interactive-request', isRequestVM(element));
 		templateData.rowContainer.classList.toggle('interactive-response', isResponseVM(element));
 		templateData.rowContainer.classList.toggle('interactive-welcome', isWelcomeVM(element));
+		templateData.rowContainer.classList.toggle('filtered-response', !!(isResponseVM(element) && element.errorDetails?.responseIsFiltered));
 		templateData.username.textContent = element.username;
 
 		if (element.avatarIconUri) {
@@ -230,7 +231,7 @@ export class InteractiveListItemRenderer extends Disposable implements ITreeRend
 			runProgressiveRender(true);
 			timer.cancelAndSet(runProgressiveRender, 50);
 		} else if (isResponseVM(element)) {
-			this.basicRenderElement(element.response.value, element, index, templateData, element.isCanceled);
+			this.basicRenderElement(element.response.value, element, index, templateData);
 		} else if (isRequestVM(element)) {
 			this.basicRenderElement(element.messageText, element, index, templateData);
 		} else {
@@ -238,7 +239,8 @@ export class InteractiveListItemRenderer extends Disposable implements ITreeRend
 		}
 	}
 
-	private basicRenderElement(markdownValue: string, element: InteractiveTreeItem, index: number, templateData: IInteractiveListItemTemplate, fillInIncompleteTokens = false) {
+	private basicRenderElement(markdownValue: string, element: InteractiveTreeItem, index: number, templateData: IInteractiveListItemTemplate) {
+		const fillInIncompleteTokens = isResponseVM(element) && (!element.isComplete || element.isCanceled || element.errorDetails?.responseIsFiltered);
 		const result = this.renderMarkdown(new MarkdownString(markdownValue), element, templateData.elementDisposables, templateData, fillInIncompleteTokens);
 		dom.clearNode(templateData.value);
 		templateData.value.appendChild(result.element);
@@ -299,7 +301,7 @@ export class InteractiveListItemRenderer extends Disposable implements ITreeRend
 		if (element.isCanceled) {
 			this.traceLayout('runProgressiveRender', `canceled, index=${index}`);
 			element.renderData = undefined;
-			this.basicRenderElement(element.response.value, element, index, templateData, true);
+			this.basicRenderElement(element.response.value, element, index, templateData);
 			isFullyRendered = true;
 		} else {
 			// TODO- this method has the side effect of updating element.renderData
@@ -315,7 +317,7 @@ export class InteractiveListItemRenderer extends Disposable implements ITreeRend
 					this.traceLayout('runProgressiveRender', `Rendered all available words, but model is not complete.`);
 				}
 				disposables.clear();
-				this.basicRenderElement(element.response.value, element, index, templateData, !element.isComplete);
+				this.basicRenderElement(element.response.value, element, index, templateData);
 			} else if (toRender) {
 				// Doing the progressive render
 				const plusCursor = toRender.match(/```.*$/) ? toRender + `\n${InteractiveListItemRenderer.cursorCharacter}` : toRender + ` ${InteractiveListItemRenderer.cursorCharacter}`;

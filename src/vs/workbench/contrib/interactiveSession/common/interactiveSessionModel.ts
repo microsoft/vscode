@@ -8,7 +8,7 @@ import { IMarkdownString, MarkdownString } from 'vs/base/common/htmlContent';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { ILogService } from 'vs/platform/log/common/log';
-import { IInteractiveProgress, IInteractiveResponse, IInteractiveSession, IInteractiveSessionFollowup, IInteractiveSessionReplyFollowup, InteractiveSessionVoteDirection } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionService';
+import { IInteractiveProgress, IInteractiveResponse, IInteractiveResponseErrorDetails, IInteractiveSession, IInteractiveSessionFollowup, IInteractiveSessionReplyFollowup, InteractiveSessionVoteDirection } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionService';
 
 export interface IInteractiveRequestModel {
 	readonly id: string;
@@ -16,11 +16,6 @@ export interface IInteractiveRequestModel {
 	readonly avatarIconUri?: URI;
 	readonly message: string | IInteractiveSessionReplyFollowup;
 	readonly response: IInteractiveResponseModel | undefined;
-}
-
-export interface IInteractiveResponseErrorDetails {
-	message: string;
-	responseIsIncomplete?: boolean;
 }
 
 export interface IInteractiveResponseModel {

@@ -101,6 +101,7 @@ declare module 'vscode' {
 	export interface InteractiveResponseErrorDetails {
 		message: string;
 		responseIsIncomplete?: boolean;
+		responseIsFiltered?: boolean;
 	}
 
 	export interface InteractiveResponseForProgress {

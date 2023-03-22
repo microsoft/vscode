@@ -9,8 +9,8 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILogService } from 'vs/platform/log/common/log';
-import { IInteractiveRequestModel, IInteractiveResponseErrorDetails, IInteractiveResponseModel, IInteractiveSessionModel, IInteractiveSessionWelcomeMessageModel, IInteractiveWelcomeMessageContent } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionModel';
-import { IInteractiveSessionReplyFollowup, IInteractiveSessionResponseCommandFollowup, IInteractiveSessionService, InteractiveSessionVoteDirection } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionService';
+import { IInteractiveRequestModel, IInteractiveResponseModel, IInteractiveSessionModel, IInteractiveSessionWelcomeMessageModel, IInteractiveWelcomeMessageContent } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionModel';
+import { IInteractiveResponseErrorDetails, IInteractiveSessionReplyFollowup, IInteractiveSessionResponseCommandFollowup, IInteractiveSessionService, InteractiveSessionVoteDirection } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionService';
 import { countWords } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionWordCounter';
 
 export function isRequestVM(item: unknown): item is IInteractiveRequestViewModel {
