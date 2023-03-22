@@ -657,7 +657,7 @@ export function createExtHostComments(mainContext: IMainContext, commands: ExtHo
 			userIconPath: vscodeComment.author.iconPath,
 			label: vscodeComment.label,
 			commentReactions: vscodeComment.reactions ? vscodeComment.reactions.map(reaction => convertToReaction(reaction)) : undefined,
-			visibility: vscodeComment.visibility,
+			state: vscodeComment.state,
 			timestamp: vscodeComment.timestamp?.toJSON()
 		};
 	}

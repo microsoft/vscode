@@ -1660,7 +1660,7 @@ export enum CommentMode {
 /**
  * @internal
  */
-export enum CommentVisibility {
+export enum CommentState {
 	Published = 0,
 	Draft = 1
 }

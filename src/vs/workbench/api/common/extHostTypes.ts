@@ -3056,7 +3056,7 @@ export enum CommentMode {
 	Preview = 1
 }
 
-export enum CommentVisibility {
+export enum CommentState {
 	Published = 0,
 	Draft = 1
 }
