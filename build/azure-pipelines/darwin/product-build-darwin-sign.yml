@@ -126,7 +126,7 @@ steps:
 
   - task: UseDotNet@2
     inputs:
-      version: 2.x
+      version: 6.x
 
   - task: EsrpClientTool@1
     displayName: Download ESRPClient
