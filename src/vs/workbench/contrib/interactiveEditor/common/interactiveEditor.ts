@@ -8,7 +8,7 @@ import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { IRange } from 'vs/editor/common/core/range';
 import { ISelection } from 'vs/editor/common/core/selection';
-import { Command, ProviderResult, TextEdit, WorkspaceEdit } from 'vs/editor/common/languages';
+import { ProviderResult, TextEdit, WorkspaceEdit } from 'vs/editor/common/languages';
 import { ITextModel } from 'vs/editor/common/model';
 import { localize } from 'vs/nls';
 import { MenuId } from 'vs/platform/actions/common/actions';
@@ -39,27 +39,32 @@ export interface IInteractiveEditorRequest {
 export type IInteractiveEditorResponse = IInteractiveEditorEditResponse | IInteractiveEditorBulkEditResponse | IInteractiveEditorMessageResponse;
 
 export interface IInteractiveEditorEditResponse {
+	id: number;
 	type: 'editorEdit';
 	edits: TextEdit[];
 	placeholder?: string;
 	wholeRange?: IRange;
-	commands?: Command[];
 }
 
 export interface IInteractiveEditorBulkEditResponse {
+	id: number;
 	type: 'bulkEdit';
 	edits: WorkspaceEdit;
 	placeholder?: string;
 	wholeRange?: IRange;
-	commands?: Command[];
 }
 
 export interface IInteractiveEditorMessageResponse {
+	id: number;
 	type: 'message';
 	message: IMarkdownString;
 	placeholder?: string;
 	wholeRange?: IRange;
-	commands?: Command[];
+}
+
+export const enum InteractiveEditorResponseFeedbackKind {
+	Helpful,
+	Unhelpful
 }
 
 export interface IInteractiveEditorSessionProvider {
@@ -69,6 +74,8 @@ export interface IInteractiveEditorSessionProvider {
 	prepareInteractiveEditorSession(model: ITextModel, range: ISelection, token: CancellationToken): ProviderResult<IInteractiveEditorSession>;
 
 	provideResponse(item: IInteractiveEditorSession, request: IInteractiveEditorRequest, token: CancellationToken): ProviderResult<IInteractiveEditorResponse>;
+
+	handleInteractiveEditorResponseFeedback?(session: IInteractiveEditorSession, response: IInteractiveEditorResponse, kind: InteractiveEditorResponseFeedbackKind): void;
 }
 
 export const IInteractiveEditorService = createDecorator<IInteractiveEditorService>('IInteractiveEditorService');

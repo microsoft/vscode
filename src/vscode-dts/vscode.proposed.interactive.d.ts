@@ -33,7 +33,6 @@ declare module 'vscode' {
 		edits: TextEdit[] | WorkspaceEdit;
 		placeholder?: string;
 		wholeRange?: Range;
-		commands?: Command[];
 	}
 
 	// todo@API make classes
@@ -41,7 +40,6 @@ declare module 'vscode' {
 		contents: MarkdownString;
 		placeholder?: string;
 		wholeRange?: Range;
-		commands?: Command[];
 	}
 
 	export interface TextDocumentContext {
@@ -58,6 +56,10 @@ declare module 'vscode' {
 
 		// eslint-disable-next-line local/vscode-dts-provider-naming
 		releaseInteractiveEditorSession?(session: InteractiveEditorSession): any;
+
+		// todo@API use enum instead of boolean
+		// eslint-disable-next-line local/vscode-dts-provider-naming
+		handleInteractiveEditorResponseFeedback?(session: InteractiveEditorSession, response: InteractiveEditorResponse | InteractiveEditorMessageResponse, helpful: boolean): void;
 	}
 
 
