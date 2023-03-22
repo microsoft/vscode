@@ -10,7 +10,7 @@ import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { IDecorationOptions } from 'vs/editor/common/editorCommon';
-import { CompletionContext, CompletionItem, CompletionList } from 'vs/editor/common/languages';
+import { CompletionContext, CompletionItem, CompletionItemKind, CompletionList } from 'vs/editor/common/languages';
 import { ITextModel } from 'vs/editor/common/model';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import { localize } from 'vs/nls';
@@ -164,7 +164,8 @@ class SlashCommandCompletions extends Disposable {
 							insertText: `${withSlash} `,
 							detail: c.detail,
 							range: new Range(1, 1, 1, 1),
-							kind: c.kind,
+							sortText: c.sortText ?? c.command,
+							kind: CompletionItemKind.Text // The icons are disabled here anyway
 						};
 					})
 				};
