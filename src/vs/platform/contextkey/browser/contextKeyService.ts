@@ -67,8 +67,10 @@ export class Context implements IContext {
 	}
 
 	public collectAllValues(): Record<string, any> {
-		let result = this._parent ? this._parent.collectAllValues() : Object.create(null);
-		result = { ...result, ...this._value };
+		const result = {
+			...this._parent?.collectAllValues(),
+			...this._value
+		};
 		delete result['_contextId'];
 		return result;
 	}
@@ -175,18 +177,10 @@ class ConfigAwareContextValuesContainer extends Context {
 		return value;
 	}
 
-	override setValue(key: string, value: any): boolean {
-		return super.setValue(key, value);
-	}
-
-	override removeValue(key: string): boolean {
-		return super.removeValue(key);
-	}
-
 	override collectAllValues(): { [key: string]: any } {
-		const result: { [key: string]: any } = Object.create(null);
+		const result = super.collectAllValues();
 		this._values.forEach((value, index) => result[index] = value);
-		return { ...result, ...super.collectAllValues() };
+		return result;
 	}
 }
 
@@ -498,6 +492,10 @@ class ScopedContextKeyService extends AbstractContextKeyService {
 	}
 
 	public updateParent(parentContextKeyService: AbstractContextKeyService): void {
+		if (this._parent === parentContextKeyService) {
+			return;
+		}
+
 		const thisContainer = this._parent.getContextValuesContainer(this._myContextId);
 		const oldAllValues = thisContainer.collectAllValues();
 		this._parent = parentContextKeyService;

@@ -700,8 +700,8 @@ export class TernarySearchTree<K, V> {
 		}
 	}
 
-	*[Symbol.iterator](): IterableIterator<[K, V]> {
-		yield* this._entries(this._root);
+	[Symbol.iterator](): IterableIterator<[K, V]> {
+		return this._entries(this._root);
 	}
 
 	private _entries(node: TernarySearchTreeNode<K, V> | undefined): IterableIterator<[K, V]> {
