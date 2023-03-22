@@ -380,6 +380,10 @@ export class ContentHoverController extends Disposable {
 	public goToBottom(): void {
 		this._widget.goToBottom();
 	}
+
+	public escape(): void {
+		this._widget.escape();
+	}
 }
 
 class HoverResult {
@@ -678,6 +682,10 @@ export class ContentHoverWidget extends Disposable implements IContentWidget {
 
 	public goToBottom(): void {
 		this._hover.scrollbar.setScrollPosition({ scrollTop: this._hover.scrollbar.getScrollDimensions().scrollHeight });
+	}
+
+	public escape(): void {
+		this._editor.focus();
 	}
 }
 

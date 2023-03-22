@@ -26,7 +26,7 @@ import * as languages from 'vs/editor/common/languages';
 import { CharacterPair, CommentRule, EnterAction } from 'vs/editor/common/languages/languageConfiguration';
 import { EndOfLineSequence } from 'vs/editor/common/model';
 import { IModelChangedEvent } from 'vs/editor/common/model/mirrorTextModel';
-import { IInteractiveEditorRequest, IInteractiveEditorResponse, IInteractiveEditorSession } from 'vs/workbench/contrib/interactiveEditor/common/interactiveEditor';
+import { IInteractiveEditorRequest, IInteractiveEditorResponse, IInteractiveEditorSession, InteractiveEditorResponseFeedbackKind } from 'vs/workbench/contrib/interactiveEditor/common/interactiveEditor';
 import { IAccessibilityInformation } from 'vs/platform/accessibility/common/accessibility';
 import { ConfigurationTarget, IConfigurationChange, IConfigurationData, IConfigurationOverrides } from 'vs/platform/configuration/common/configuration';
 import { ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
@@ -1072,7 +1072,7 @@ export interface MainThreadInteractiveShape extends IDisposable {
 }
 
 export interface MainThreadInteractiveEditorShape extends IDisposable {
-	$registerInteractiveEditorProvider(handle: number, debugName: string): Promise<void>;
+	$registerInteractiveEditorProvider(handle: number, debugName: string, supportsFeedback: boolean): Promise<void>;
 	$unregisterInteractiveEditorProvider(handle: number): Promise<void>;
 }
 
@@ -1081,6 +1081,7 @@ export type IInteractiveEditorResponseDto = Dto<IInteractiveEditorResponse>;
 export interface ExtHostInteractiveEditorShape {
 	$prepareInteractiveSession(handle: number, uri: UriComponents, range: ISelection, token: CancellationToken): Promise<IInteractiveEditorSession | undefined>;
 	$provideResponse(handle: number, session: IInteractiveEditorSession, request: IInteractiveEditorRequest, token: CancellationToken): Promise<IInteractiveEditorResponseDto | undefined>;
+	$handleFeedback(handle: number, sessionId: number, responseId: number, kind: InteractiveEditorResponseFeedbackKind): void;
 	$releaseSession(handle: number, sessionId: number): void;
 }
 

@@ -195,7 +195,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 	const extHostUriOpeners = rpcProtocol.set(ExtHostContext.ExtHostUriOpeners, new ExtHostUriOpeners(rpcProtocol));
 	const extHostProfileContentHandlers = rpcProtocol.set(ExtHostContext.ExtHostProfileContentHandlers, new ExtHostProfileContentHandlers(rpcProtocol));
 	rpcProtocol.set(ExtHostContext.ExtHostInteractive, new ExtHostInteractive(rpcProtocol, extHostNotebook, extHostDocumentsAndEditors, extHostCommands, extHostLogService));
-	const extHostInteractiveEditor = rpcProtocol.set(ExtHostContext.ExtHostInteractiveEditor, new ExtHostInteractiveEditor(rpcProtocol, extHostDocuments, extHostLogService, extHostCommands));
+	const extHostInteractiveEditor = rpcProtocol.set(ExtHostContext.ExtHostInteractiveEditor, new ExtHostInteractiveEditor(rpcProtocol, extHostDocuments, extHostLogService));
 	const extHostInteractiveSession = rpcProtocol.set(ExtHostContext.ExtHostInteractiveSession, new ExtHostInteractiveSession(rpcProtocol, extHostLogService));
 
 	// Check that no named customers are missing
