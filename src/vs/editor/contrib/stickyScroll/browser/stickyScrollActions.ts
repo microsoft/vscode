@@ -66,10 +66,7 @@ export class FocusStickyScroll extends EditorAction2 {
 	}
 
 	runEditorCommand(_accessor: ServicesAccessor, editor: ICodeEditor) {
-		const stickyScrollController = StickyScrollController.get(editor);
-		if (stickyScrollController) {
-			stickyScrollController.focus();
-		}
+		StickyScrollController.get(editor)?.focus();
 	}
 }
 
@@ -90,10 +87,7 @@ export class SelectNextStickyScrollLine extends EditorAction2 {
 	}
 
 	runEditorCommand(_accessor: ServicesAccessor, editor: ICodeEditor) {
-		const stickyScrollController = StickyScrollController.get(editor);
-		if (stickyScrollController) {
-			stickyScrollController.focusNext();
-		}
+		StickyScrollController.get(editor)?.focusNext();
 	}
 }
 
@@ -114,10 +108,7 @@ export class SelectPreviousStickyScrollLine extends EditorAction2 {
 	}
 
 	runEditorCommand(_accessor: ServicesAccessor, editor: ICodeEditor) {
-		const stickyScrollController = StickyScrollController.get(editor);
-		if (stickyScrollController) {
-			stickyScrollController.focusPrevious();
-		}
+		StickyScrollController.get(editor)?.focusPrevious();
 	}
 }
 
@@ -138,10 +129,7 @@ export class GoToStickyScrollLine extends EditorAction2 {
 	}
 
 	runEditorCommand(_accessor: ServicesAccessor, editor: ICodeEditor) {
-		const stickyScrollController = StickyScrollController.get(editor);
-		if (stickyScrollController) {
-			stickyScrollController.goToFocused();
-		}
+		StickyScrollController.get(editor)?.goToFocused();
 	}
 }
 
@@ -163,9 +151,6 @@ export class SelectEditor extends EditorAction2 {
 	}
 
 	runEditorCommand(_accessor: ServicesAccessor, editor: ICodeEditor) {
-		const stickyScrollController = StickyScrollController.get(editor);
-		if (stickyScrollController) {
-			stickyScrollController.escape();
-		}
+		StickyScrollController.get(editor)?.escape();
 	}
 }
