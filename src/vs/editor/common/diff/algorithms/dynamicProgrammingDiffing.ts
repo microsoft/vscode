@@ -3,7 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IDiffAlgorithm, SequenceDiff, OffsetRange, ISequence } from 'vs/editor/common/diff/algorithms/diffAlgorithm';
+import { OffsetRange } from 'vs/editor/common/core/offsetRange';
+import { IDiffAlgorithm, SequenceDiff, ISequence } from 'vs/editor/common/diff/algorithms/diffAlgorithm';
 import { Array2D } from 'vs/editor/common/diff/algorithms/utils';
 
 /**

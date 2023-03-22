@@ -3,7 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IDiffAlgorithm, ISequence, SequenceDiff, OffsetRange } from 'vs/editor/common/diff/algorithms/diffAlgorithm';
+import { OffsetRange } from 'vs/editor/common/core/offsetRange';
+import { IDiffAlgorithm, ISequence, SequenceDiff } from 'vs/editor/common/diff/algorithms/diffAlgorithm';
 
 /**
  * An O(ND) diff algorithm that has a quadratic space worst-case complexity.
