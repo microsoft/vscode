@@ -99,7 +99,7 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 		this._register(focusTracker.onDidBlur(_ => {
 			const height = this._stickyScrollWidget.getDomNode().clientHeight;
 			// Suppose that the blurring is caused by scrolling, then keep the focus on the sticky scroll
-			// This is determined by the fact that the height of the widget has become zero and the position has not just been revealed through clicking
+			// This is determined by the fact that the height of the widget has become zero and there has been no position revealing
 			if (this._positionRevealed === false && height === 0) {
 				this._focusedStickyElementIndex = -1;
 				this.focus();
@@ -114,7 +114,7 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 			this.focus();
 		}));
 		this._register(this._createClickLinkGesture());
-		// Suppose that we on mouse down on the sticky scroll, then do not focus on the sticky scroll because this will be followed by a reveal of a position
+		// Suppose that mouse down on the sticky scroll, then do not focus on the sticky scroll because this will be followed by the revealing of a position
 		this._register(dom.addDisposableListener(this._stickyScrollWidget.getDomNode(), dom.EventType.MOUSE_DOWN, (e) => {
 			this._onMouseDown = true;
 		}));
