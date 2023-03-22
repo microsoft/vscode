@@ -20,7 +20,7 @@ import { ClickLinkGesture } from 'vs/editor/contrib/gotoSymbol/browser/link/clic
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { getDefinitionsAtPosition } from 'vs/editor/contrib/gotoSymbol/browser/goToSymbol';
 import { goToDefinitionWithLocation } from 'vs/editor/contrib/inlayHints/browser/inlayHintsLocations';
-import { Position } from 'vs/editor/common/core/position';
+import { IPosition, Position } from 'vs/editor/common/core/position';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
 import { ILanguageFeatureDebounceService } from 'vs/editor/common/services/languageFeatureDebounce';
@@ -65,6 +65,8 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 	private _focusedStickyElementIndex: number = -1;
 	private _enabled = false;
 	private _focused = false;
+	private _positionRevealed = false;
+	private _onMouseDown = false;
 
 	constructor(
 		private readonly _editor: ICodeEditor,
@@ -96,18 +98,26 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 		const focusTracker = this._register(dom.trackFocus(this._stickyScrollWidget.getDomNode()));
 		this._register(focusTracker.onDidBlur(_ => {
 			const height = this._stickyScrollWidget.getDomNode().clientHeight;
-			if (height !== 0) {
-				this._disposeFocusStickyScrollStore();
-			} else {
-				// If the height is 0, then the blur has been caused by scrolling. In that case keep the focus on the sticky scroll.
+			// Suppose that the blurring is caused by scrolling, then keep the focus on the sticky scroll
+			// This is determined by the fact that the height of the widget has become zero and there has been no position revealing
+			if (this._positionRevealed === false && height === 0) {
 				this._focusedStickyElementIndex = -1;
 				this.focus();
+
+			}
+			// In all other casees, dispose the focus on the sticky scroll
+			else {
+				this._disposeFocusStickyScrollStore();
 			}
 		}));
 		this._register(focusTracker.onDidFocus(_ => {
 			this.focus();
 		}));
 		this._register(this._createClickLinkGesture());
+		// Suppose that mouse down on the sticky scroll, then do not focus on the sticky scroll because this will be followed by the revealing of a position
+		this._register(dom.addDisposableListener(this._stickyScrollWidget.getDomNode(), dom.EventType.MOUSE_DOWN, (e) => {
+			this._onMouseDown = true;
+		}));
 	}
 
 	get stickyScrollCandidateProvider(): IStickyLineCandidateProvider {
@@ -124,11 +134,19 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 
 	private _disposeFocusStickyScrollStore() {
 		this._stickyScrollFocusedContextKey.set(false);
-		this._focusDisposableStore!.dispose();
+		this._focusDisposableStore?.dispose();
 		this._focused = false;
+		this._positionRevealed = false;
+		this._onMouseDown = false;
 	}
 
 	public focus(): void {
+		// If the mouse is down, do not focus on the sticky scroll
+		if (this._onMouseDown) {
+			this._onMouseDown = false;
+			this._editor.focus();
+			return;
+		}
 		const focusState = this._stickyScrollFocusedContextKey.get();
 		if (focusState === true) {
 			return;
@@ -163,7 +181,14 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 	public goToFocused(): void {
 		const lineNumbers = this._stickyScrollWidget.lineNumbers;
 		this._disposeFocusStickyScrollStore();
-		this._editor.revealPosition({ lineNumber: lineNumbers[this._focusedStickyElementIndex], column: 1 });
+		this._revealPosition({ lineNumber: lineNumbers[this._focusedStickyElementIndex], column: 1 });
+	}
+
+	private _revealPosition(position: IPosition): void {
+		this._positionRevealed = true;
+		this._editor.revealPosition(position);
+		this._editor.setSelection(Range.fromPositions(position));
+		this._editor.focus();
 	}
 
 	private _createClickLinkGesture(): IDisposable {
@@ -245,18 +270,16 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 					if (this._focused) {
 						this._disposeFocusStickyScrollStore();
 					}
-					this._editor.revealPosition({ lineNumber: this._stickyScrollWidget.hoverOnLine, column: 1 });
+					this._revealPosition({ lineNumber: this._stickyScrollWidget.hoverOnLine, column: 1 });
 				}
 				this._instaService.invokeFunction(goToDefinitionWithLocation, e, this._editor as IActiveCodeEditor, { uri: this._editor.getModel()!.uri, range: this._stickyRangeProjectedOnEditor! });
 
 			} else if (!e.isRightClick) {
 				// Normal click
-				const position = { lineNumber: this._stickyScrollWidget.hoverOnLine, column: this._stickyScrollWidget.hoverOnColumn };
 				if (this._focused) {
 					this._disposeFocusStickyScrollStore();
 				}
-				this._editor.revealPosition(position);
-				this._editor.setSelection(Range.fromPositions(position));
+				this._revealPosition({ lineNumber: this._stickyScrollWidget.hoverOnLine, column: this._stickyScrollWidget.hoverOnColumn });
 			}
 		}));
 		return linkGestureStore;
