@@ -136,7 +136,7 @@ registerAction2(class extends Action2 {
 				{
 					primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyO,
 					weight: KeybindingWeight.WorkbenchContrib + 2,
-					when: ContextKeyExpr.or(TerminalContextKeys.accessibleBufferFocus, ContextKeyExpr.and(CONTEXT_ACCESSIBILITY_MODE_ENABLED, TerminalContextKeys.focus))
+					when: TerminalContextKeys.accessibleBufferFocus
 				}
 			],
 		});
