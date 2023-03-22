@@ -497,7 +497,7 @@ class PageDownHoverAction extends EditorAction {
 	}
 }
 
-class EscapefocusHoverAction extends EditorAction {
+class EscapeFocusHoverAction extends EditorAction {
 
 	constructor() {
 		super({
@@ -534,7 +534,7 @@ registerEditorAction(ScrollUpHoverAction);
 registerEditorAction(ScrollDownHoverAction);
 registerEditorAction(PageUpHoverAction);
 registerEditorAction(PageDownHoverAction);
-registerEditorAction(EscapefocusHoverAction);
+registerEditorAction(EscapeFocusHoverAction);
 HoverParticipantRegistry.register(MarkdownHoverParticipant);
 HoverParticipantRegistry.register(MarkerHoverParticipant);
 
