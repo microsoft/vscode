@@ -24,10 +24,10 @@ suite('diff fixtures', () => {
 		const firstFileName = files.find(f => f.startsWith('1.'))!;
 		const secondFileName = files.find(f => f.startsWith('2.'))!;
 
-		const firstContent = readFileSync(join(folderPath, firstFileName), 'utf8');
-		const firstContentLines = firstContent.split(/\r\n|\r|\n/);
-		const secondContent = readFileSync(join(folderPath, secondFileName), 'utf8');
-		const secondContentLines = secondContent.split(/\r\n|\r|\n/);
+		const firstContent = readFileSync(join(folderPath, firstFileName), 'utf8').replaceAll('\r\n', '\n').replaceAll('\r', '\n');
+		const firstContentLines = firstContent.split(/\n/);
+		const secondContent = readFileSync(join(folderPath, secondFileName), 'utf8').replaceAll('\r\n', '\n').replaceAll('\r', '\n');
+		const secondContentLines = secondContent.split(/\n/);
 
 		const diffingAlgo = diffingAlgoName === 'smart' ? new SmartLinesDiffComputer() : new StandardLinesDiffComputer();
 
