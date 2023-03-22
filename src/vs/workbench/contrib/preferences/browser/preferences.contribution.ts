@@ -557,12 +557,7 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 			constructor() {
 				super({
 					id: SETTINGS_COMMAND_FILTER_TELEMETRY,
-					title: nls.localize({ key: 'miOpenTelemetrySettings', comment: ['&& denotes a mnemonic'] }, "&&Telemetry Settings"),
-					menu: {
-						id: MenuId.MenubarPreferencesMenu,
-						group: '3_settings',
-						order: 1,
-					}
+					title: nls.localize({ key: 'miOpenTelemetrySettings', comment: ['&& denotes a mnemonic'] }, "&&Telemetry Settings")
 				});
 			}
 			run(accessor: ServicesAccessor) {
