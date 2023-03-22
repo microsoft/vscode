@@ -12,7 +12,7 @@ import { IntervalTimer } from 'vs/base/common/async';
 import { Codicon } from 'vs/base/common/codicons';
 import { Emitter, Event } from 'vs/base/common/event';
 import { FuzzyScore } from 'vs/base/common/filters';
-import { IMarkdownString, MarkdownString } from 'vs/base/common/htmlContent';
+import { IMarkdownString, MarkdownString, isMarkdownString } from 'vs/base/common/htmlContent';
 import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { ResourceMap } from 'vs/base/common/map';
 import { FileAccess } from 'vs/base/common/network';
@@ -225,7 +225,7 @@ export class InteractiveListItemRenderer extends Disposable implements ITreeRend
 			runProgressiveRender(true);
 			timer.cancelAndSet(runProgressiveRender, 50);
 		} else if (isResponseVM(element)) {
-			this.basicRenderElement(element.response.value, element, index, templateData, element.isCanceled);
+			this.basicRenderElement(element.response, element, index, templateData, element.isCanceled);
 		} else if (isRequestVM(element)) {
 			this.basicRenderElement(element.messageText, element, index, templateData);
 		} else {
@@ -233,11 +233,15 @@ export class InteractiveListItemRenderer extends Disposable implements ITreeRend
 		}
 	}
 
-	private basicRenderElement(markdownValue: string, element: InteractiveTreeItem, index: number, templateData: IInteractiveListItemTemplate, fillInIncompleteTokens = false) {
-		const result = this.renderMarkdown(new MarkdownString(markdownValue), element, templateData.elementDisposables, templateData, fillInIncompleteTokens);
-		dom.clearNode(templateData.value);
-		templateData.value.appendChild(result.element);
-		templateData.elementDisposables.add(result);
+	private basicRenderElement(value: string | IMarkdownString, element: InteractiveTreeItem, index: number, templateData: IInteractiveListItemTemplate, fillInIncompleteTokens = false) {
+		if (isMarkdownString(value)) {
+			const result = this.renderMarkdown(value, element, templateData.elementDisposables, templateData, fillInIncompleteTokens);
+			dom.clearNode(templateData.value);
+			templateData.value.appendChild(result.element);
+			templateData.elementDisposables.add(result);
+		} else {
+			dom.reset(templateData.value, value);
+		}
 
 		if (isResponseVM(element) && element.errorDetails?.message) {
 			const errorDetails = dom.append(templateData.value, $('.interactive-response-error-details', undefined, renderIcon(Codicon.error)));
@@ -294,7 +298,7 @@ export class InteractiveListItemRenderer extends Disposable implements ITreeRend
 		if (element.isCanceled) {
 			this.traceLayout('runProgressiveRender', `canceled, index=${index}`);
 			element.renderData = undefined;
-			this.basicRenderElement(element.response.value, element, index, templateData, true);
+			this.basicRenderElement(element.response, element, index, templateData, true);
 			isFullyRendered = true;
 		} else {
 			// TODO- this method has the side effect of updating element.renderData
@@ -310,7 +314,7 @@ export class InteractiveListItemRenderer extends Disposable implements ITreeRend
 					this.traceLayout('runProgressiveRender', `Rendered all available words, but model is not complete.`);
 				}
 				disposables.clear();
-				this.basicRenderElement(element.response.value, element, index, templateData, !element.isComplete);
+				this.basicRenderElement(element.response, element, index, templateData, !element.isComplete);
 			} else if (toRender) {
 				// Doing the progressive render
 				const plusCursor = toRender.match(/```.*$/) ? toRender + `\n${InteractiveListItemRenderer.cursorCharacter}` : toRender + ` ${InteractiveListItemRenderer.cursorCharacter}`;
