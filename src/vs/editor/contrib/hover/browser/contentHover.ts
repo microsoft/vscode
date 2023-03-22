@@ -24,9 +24,6 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { Context as SuggestContext } from 'vs/editor/contrib/suggest/browser/suggest';
 import { AsyncIterableObject } from 'vs/base/common/async';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { CursorChangeReason } from 'vs/editor/common/cursorEvents';
-import { CursorState } from 'vs/editor/common/cursorCommon';
-import { ScrollType } from 'vs/editor/common/editorCommon';
 
 const $ = dom.$;
 
