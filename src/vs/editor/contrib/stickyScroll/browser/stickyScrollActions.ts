@@ -144,3 +144,27 @@ export class GoToStickyScrollLine extends EditorAction2 {
 		}
 	}
 }
+
+export class EscapeStickyScroll extends EditorAction2 {
+	constructor() {
+		super({
+			id: 'editor.action.escapeStickyScroll',
+			title: {
+				value: localize('escapeStickyScroll.title', "Escape sticky scroll"),
+				original: 'Escape sticky scroll'
+			},
+			precondition: ContextKeyExpr.has('config.editor.stickyScroll.enabled'),
+			keybinding: {
+				weight,
+				primary: KeyCode.Escape
+			}
+		});
+	}
+
+	runEditorCommand(_accessor: ServicesAccessor, editor: ICodeEditor) {
+		const stickyScrollController = StickyScrollController.get(editor);
+		if (stickyScrollController) {
+			stickyScrollController.escape();
+		}
+	}
+}

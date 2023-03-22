@@ -172,6 +172,10 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 		}
 	}
 
+	public escape(): void {
+		this._editor.focus();
+	}
+
 	// True is next, false is previous
 	private _focusNav(direction: boolean): void {
 		this._focusedStickyElementIndex = direction ? this._focusedStickyElementIndex + 1 : this._focusedStickyElementIndex - 1;
