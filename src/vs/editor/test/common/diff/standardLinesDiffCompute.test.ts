@@ -101,7 +101,7 @@ function toJson(mappings: LineRangeMapping[]): unknown {
 	return mappings.map(m => m.toString());
 }
 
-function toJsonWithDetails(mappings: LineRangeMapping[]): unknown {
+function toJsonWithDetails(mappings: readonly LineRangeMapping[]): unknown {
 	return mappings.map(m => {
 		return { main: m.toString(), inner: m.innerChanges?.map(c => c.toString()) };
 	});

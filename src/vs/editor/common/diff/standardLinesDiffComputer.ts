@@ -9,20 +9,19 @@ import { LineRange } from 'vs/editor/common/core/lineRange';
 import { OffsetRange } from 'vs/editor/common/core/offsetRange';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
-import { ISequence, SequenceDiff } from 'vs/editor/common/diff/algorithms/diffAlgorithm';
+import { DateTimeout, ISequence, ITimeout, InfiniteTimeout, SequenceDiff } from 'vs/editor/common/diff/algorithms/diffAlgorithm';
 import { DynamicProgrammingDiffing } from 'vs/editor/common/diff/algorithms/dynamicProgrammingDiffing';
 import { optimizeSequenceDiffs, smoothenSequenceDiffs } from 'vs/editor/common/diff/algorithms/joinSequenceDiffs';
 import { MyersDiffAlgorithm } from 'vs/editor/common/diff/algorithms/myersDiffAlgorithm';
-import { ILinesDiff, ILinesDiffComputer, ILinesDiffComputerOptions, LineRangeMapping, RangeMapping } from 'vs/editor/common/diff/linesDiffComputer';
+import { ILinesDiffComputer, ILinesDiffComputerOptions, LineRangeMapping, LinesDiff, RangeMapping } from 'vs/editor/common/diff/linesDiffComputer';
 
 export class StandardLinesDiffComputer implements ILinesDiffComputer {
 	private readonly dynamicProgrammingDiffing = new DynamicProgrammingDiffing();
 	private readonly myersDiffingAlgorithm = new MyersDiffAlgorithm();
 
-	constructor(
-	) { }
+	computeDiff(originalLines: string[], modifiedLines: string[], options: ILinesDiffComputerOptions): LinesDiff {
+		const timeout = options.maxComputationTimeMs === 0 ? InfiniteTimeout.instance : new DateTimeout(options.maxComputationTimeMs);
 
-	computeDiff(originalLines: string[], modifiedLines: string[], options: ILinesDiffComputerOptions): ILinesDiff {
 		const perfectHashes = new Map<string, number>();
 		function getOrCreateHash(text: string): number {
 			let hash = perfectHashes.get(text);
@@ -39,12 +38,13 @@ export class StandardLinesDiffComputer implements ILinesDiffComputer {
 		const sequence1 = new LineSequence(srcDocLines, originalLines);
 		const sequence2 = new LineSequence(tgtDocLines, modifiedLines);
 
-		let lineAlignments = (() => {
+		const lineAlignmentResult = (() => {
 			if (sequence1.length + sequence2.length < 1500) {
 				// Use the improved algorithm for small files
 				return this.dynamicProgrammingDiffing.compute(
 					sequence1,
 					sequence2,
+					timeout,
 					(offset1, offset2) =>
 						originalLines[offset1] === modifiedLines[offset2]
 							? modifiedLines[offset2].length === 0
@@ -60,6 +60,8 @@ export class StandardLinesDiffComputer implements ILinesDiffComputer {
 			);
 		})();
 
+		let lineAlignments = lineAlignmentResult.diffs;
+		let hitTimeout = lineAlignmentResult.hitTimeout;
 		lineAlignments = optimizeSequenceDiffs(sequence1, sequence2, lineAlignments);
 
 		const alignments: RangeMapping[] = [];
@@ -72,10 +74,13 @@ export class StandardLinesDiffComputer implements ILinesDiffComputer {
 					// This is because of whitespace changes, diff these lines
 					const characterDiffs = this.refineDiff(originalLines, modifiedLines, new SequenceDiff(
 						new OffsetRange(seq1Offset, seq1Offset + 1),
-						new OffsetRange(seq2Offset, seq2Offset + 1)
-					));
-					for (const a of characterDiffs) {
+						new OffsetRange(seq2Offset, seq2Offset + 1),
+					), timeout);
+					for (const a of characterDiffs.maps) {
 						alignments.push(a);
+					}
+					if (characterDiffs.hitTimeout) {
+						hitTimeout = true;
 					}
 				}
 			}
@@ -94,8 +99,8 @@ export class StandardLinesDiffComputer implements ILinesDiffComputer {
 			seq1LastStart = diff.seq1Range.endExclusive;
 			seq2LastStart = diff.seq2Range.endExclusive;
 
-			const characterDiffs = this.refineDiff(originalLines, modifiedLines, diff);
-			for (const a of characterDiffs) {
+			const characterDiffs = this.refineDiff(originalLines, modifiedLines, diff, timeout);
+			for (const a of characterDiffs.maps) {
 				alignments.push(a);
 			}
 		}
@@ -104,19 +109,18 @@ export class StandardLinesDiffComputer implements ILinesDiffComputer {
 
 		const changes: LineRangeMapping[] = lineRangeMappingFromRangeMappings(alignments);
 
-		return {
-			quitEarly: false,
-			changes: changes,
-		};
+		return new LinesDiff(changes, hitTimeout);
 	}
 
-	private refineDiff(originalLines: string[], modifiedLines: string[], diff: SequenceDiff): RangeMapping[] {
+	private refineDiff(originalLines: string[], modifiedLines: string[], diff: SequenceDiff, timeout: ITimeout): { maps: RangeMapping[]; hitTimeout: boolean } {
 		const sourceSlice = new Slice(originalLines, diff.seq1Range);
 		const targetSlice = new Slice(modifiedLines, diff.seq2Range);
 
-		const originalDiffs = sourceSlice.length + targetSlice.length < 500
-			? this.dynamicProgrammingDiffing.compute(sourceSlice, targetSlice)
-			: this.myersDiffingAlgorithm.compute(sourceSlice, targetSlice);
+		const diffResult = sourceSlice.length + targetSlice.length < 500
+			? this.dynamicProgrammingDiffing.compute(sourceSlice, targetSlice, timeout)
+			: this.myersDiffingAlgorithm.compute(sourceSlice, targetSlice, timeout);
+
+		const originalDiffs = diffResult.diffs;
 
 		function mergeSequenceDiffs(sequenceDiffs1: SequenceDiff[], sequenceDiffs2: SequenceDiff[]): SequenceDiff[] {
 			const result: SequenceDiff[] = [];
@@ -217,7 +221,10 @@ export class StandardLinesDiffComputer implements ILinesDiffComputer {
 					targetSlice.translateRange(d.seq2Range).delta(diff.seq2Range.start)
 				)
 		);
-		return result;
+		return {
+			maps: result,
+			hitTimeout: diffResult.hitTimeout,
+		};
 	}
 }
 

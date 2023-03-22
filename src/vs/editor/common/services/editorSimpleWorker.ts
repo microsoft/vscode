@@ -406,7 +406,7 @@ export class EditorSimpleWorker implements IRequestHandler, IDisposable {
 
 		return {
 			identical,
-			quitEarly: result.quitEarly,
+			quitEarly: result.hitTimeout,
 			changes: result.changes.map(m => ([m.originalRange.startLineNumber, m.originalRange.endLineNumberExclusive, m.modifiedRange.startLineNumber, m.modifiedRange.endLineNumberExclusive, m.innerChanges?.map(m => [
 				m.originalRange.startLineNumber,
 				m.originalRange.startColumn,

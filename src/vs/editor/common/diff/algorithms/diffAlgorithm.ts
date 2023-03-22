@@ -9,13 +9,32 @@ import { OffsetRange } from 'vs/editor/common/core/offsetRange';
  * Represents a synchronous diff algorithm. Should be executed in a worker.
 */
 export interface IDiffAlgorithm {
-	compute(sequence1: ISequence, sequence2: ISequence): SequenceDiff[];
+	compute(sequence1: ISequence, sequence2: ISequence, timeout?: ITimeout): DiffAlgorithmResult;
+}
+
+export class DiffAlgorithmResult {
+	static trivial(seq1: ISequence, seq2: ISequence): DiffAlgorithmResult {
+		return new DiffAlgorithmResult([new SequenceDiff(new OffsetRange(0, seq1.length), new OffsetRange(0, seq2.length))], false);
+	}
+
+	static trivialTimedOut(seq1: ISequence, seq2: ISequence): DiffAlgorithmResult {
+		return new DiffAlgorithmResult([new SequenceDiff(new OffsetRange(0, seq1.length), new OffsetRange(0, seq2.length))], true);
+	}
+
+	constructor(
+		public readonly diffs: SequenceDiff[],
+		/**
+		 * Indicates if the time out was reached.
+		 * In that case, the diffs might be an approximation and the user should be asked to rerun the diff with more time.
+		 */
+		public readonly hitTimeout: boolean,
+	) { }
 }
 
 export class SequenceDiff {
 	constructor(
 		public readonly seq1Range: OffsetRange,
-		public readonly seq2Range: OffsetRange
+		public readonly seq2Range: OffsetRange,
 	) { }
 
 	public reverse(): SequenceDiff {
@@ -41,4 +60,27 @@ export interface ISequence {
 	 * Must not be negative.
 	*/
 	getBoundaryScore?(length: number): number;
+}
+
+export interface ITimeout {
+	isValid(): boolean;
+}
+
+export class InfiniteTimeout implements ITimeout {
+	public static instance = new InfiniteTimeout();
+
+	isValid(): boolean {
+		return true;
+	}
+}
+
+export class DateTimeout implements ITimeout {
+	private readonly startTime = Date.now();
+
+	constructor(private readonly timeout: number) {
+	}
+
+	public isValid(): boolean {
+		return Date.now() - this.startTime < this.timeout;
+	}
 }
