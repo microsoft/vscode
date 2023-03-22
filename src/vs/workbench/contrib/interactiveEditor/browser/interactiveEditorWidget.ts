@@ -56,6 +56,7 @@ import { CompletionContext, CompletionItem, CompletionItemInsertTextRule, Comple
 import { LanguageSelector } from 'vs/editor/common/languageSelector';
 import { DEFAULT_FONT_FAMILY } from 'vs/workbench/browser/style';
 import { IInteractiveSessionService } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionService';
+import { renderFormattedText } from 'vs/base/browser/formattedTextRenderer';
 
 class InteractiveEditorWidget {
 
@@ -339,9 +340,9 @@ class InteractiveEditorWidget {
 		let oldClasses: string[] = [];
 
 		return {
-			update: (update: { message?: string; actions?: IAction[]; classes?: string[] }) => {
+			update: (update: { message?: HTMLElement | string; actions?: IAction[]; classes?: string[] }) => {
 				if (update.message) {
-					label.innerText = update.message;
+					reset(label, update.message);
 					this._elements.status.classList.remove('hidden');
 				}
 				if (update.actions) {
@@ -505,13 +506,16 @@ export class InteractiveEditorZoneWidget extends ZoneWidget {
 class ToggleInlineDiff extends Action {
 
 	constructor(private readonly _inlineDiff: InlineDiffDecorations) {
-		super('diff', localize('toggleInlineDiff', "Toggle Inline Diff"), ThemeIcon.asClassName(Codicon.diff), true);
+		super('diff', '', ThemeIcon.asClassName(Codicon.diff), true);
 		this.checked = _inlineDiff.visible;
+		this.tooltip = localize('toggleInlineDiff', "Toggle Inline Diff");
+		this.label = _inlineDiff.visible ? localize('hideInlineDiff', "Hide") : localize('showInlineDiff', "Show");
 	}
 
 	override async run(): Promise<void> {
 		this._inlineDiff.visible = !this._inlineDiff.visible;
 		this.checked = this._inlineDiff.visible;
+		this.label = this._inlineDiff.visible ? localize('hideInlineDiff', "Hide") : localize('showInlineDiff', "Show");
 	}
 }
 
@@ -1010,7 +1014,8 @@ export class InteractiveEditorController implements IEditorContribution {
 
 			inlineDiffDecorations.update();
 
-			const fixedActions: Action[] = [new UndoAction(textModel), new ToggleInlineDiff(inlineDiffDecorations)];
+			const toggleAction = new ToggleInlineDiff(inlineDiffDecorations);
+			const fixedActions: Action[] = [new UndoAction(textModel), toggleAction];
 			roundStore.add(combinedDisposable(...fixedActions));
 
 			const feedback = new FeedbackToggles(provider, session, reply);
@@ -1019,8 +1024,19 @@ export class InteractiveEditorController implements IEditorContribution {
 
 			const editsCount = (moreMinimalEdits ?? reply.edits).length;
 
+			const message = renderFormattedText(
+				editsCount === 1
+					? localize({ key: 'edit.1', comment: ['[[ and ]] are markdown must not be removed'] }, "Done, made [[1 change]]")
+					: localize({ key: 'edit.N', comment: ['[[ and ]] are markdown must not be removed'] }, "Done, made [[{0} changes]]", editsCount),
+				{
+					actionHandler: {
+						disposables: roundStore,
+						callback: () => toggleAction.run(),
+					}
+				});
+
 			statusWidget.update({
-				message: editsCount === 1 ? localize('edit.1', "Done, made 1 change") : localize('edit.N', "Done, made {0} changes", editsCount),
+				message,
 				classes: [],
 				actions: Separator.join(feedback.actions, fixedActions),
 			});
