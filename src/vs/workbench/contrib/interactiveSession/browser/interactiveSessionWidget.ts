@@ -329,6 +329,7 @@ export class InteractiveSessionWidget extends Disposable implements IInteractive
 				accessibilityProvider: new InteractiveSessionAccessibilityProvider(),
 				keyboardNavigationLabelProvider: { getKeyboardNavigationLabel: (e: InteractiveTreeItem) => isRequestVM(e) ? e.message : isResponseVM(e) ? e.response.value : '' }, // TODO
 				setRowLineHeight: false,
+				findWidgetEnabled: false,
 				overrideStyles: {
 					listFocusBackground: this.listBackgroundColorDelegate(),
 					listInactiveFocusBackground: this.listBackgroundColorDelegate(),
