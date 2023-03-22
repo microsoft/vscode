@@ -29,13 +29,11 @@ import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/c
 import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/terminalContextKey';
 
 const enum Constants {
-	Scheme = 'terminal-accessible-buffer',
 	Active = 'active',
 	Hide = 'hide'
 }
 
 export class AccessibleBufferWidget extends DisposableStore {
-	public static ID: string = Constants.Scheme;
 	private _accessibleBuffer: HTMLElement;
 	private _bufferEditor: CodeEditorWidget;
 	private _editorContainer: HTMLElement;
@@ -144,10 +142,10 @@ export class AccessibleBufferWidget extends DisposableStore {
 		if (insertion && model && lineCount > this._xterm.raw.rows) {
 			const lineNumber = lineCount + 1;
 			model.pushEditOperations(null, [{
-				range: { startLineNumber: lineNumber, endLineNumber: lineNumber, startColumn: 1, endColumn: 1 }, text: await this._getContent(true)
+				range: { startLineNumber: lineNumber, endLineNumber: lineNumber, startColumn: 1, endColumn: 1 }, text: this._getContent(true)
 			}], () => []);
 		} else {
-			model = await this._getTextModel(URI.from({ scheme: `${Constants.Scheme}-${this._instance.instanceId}`, fragment: await this._getContent() }));
+			model = await this._getTextModel(this._instance.resource.with({ fragment: this._getContent() }));
 		}
 		if (!model) {
 			throw new Error('Could not create accessible buffer editor model');
