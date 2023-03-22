@@ -14,7 +14,7 @@ import { Action, IAction, IActionRunner } from 'vs/base/common/actions';
 import { Codicon } from 'vs/base/common/codicons';
 import { Color } from 'vs/base/common/color';
 import { Event as BaseEvent, Emitter } from 'vs/base/common/event';
-import { IMarkdownString, isMarkdownString } from 'vs/base/common/htmlContent';
+import { IMarkdownString, isMarkdownString, markdownStringEqual } from 'vs/base/common/htmlContent';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { ThemeIcon } from 'vs/base/common/themables';
@@ -70,6 +70,7 @@ export class Button extends Disposable implements IButton {
 
 	protected options: IButtonOptions;
 	protected _element: HTMLElement;
+	protected _label: string | IMarkdownString = '';
 	protected _labelElement: HTMLElement | undefined;
 	protected _labelShortElement: HTMLElement | undefined;
 
@@ -193,6 +194,14 @@ export class Button extends Disposable implements IButton {
 	}
 
 	set label(value: string | IMarkdownString) {
+		if (typeof this._label === 'string' && typeof value === 'string' && this._label === value) {
+			return;
+		}
+
+		if (isMarkdownString(this._label) && isMarkdownString(value) && markdownStringEqual(this._label, value)) {
+			return;
+		}
+
 		this._element.classList.add('monaco-text-button');
 		const labelElement = this.options.supportShortLabel ? this._labelElement! : this._element;
 
@@ -222,6 +231,12 @@ export class Button extends Disposable implements IButton {
 		} else if (this.options.title) {
 			this._element.title = renderStringAsPlaintext(value);
 		}
+
+		this._label = value;
+	}
+
+	get label(): string | IMarkdownString {
+		return this._label;
 	}
 
 	set labelShort(value: string) {
