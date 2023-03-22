@@ -341,6 +341,7 @@ export class ContentHoverController extends Disposable {
 				// Values found by trial and error
 				// Update the left and top offset to match the widget dom node
 				const resizableElement = this._resizableOverlay.resizableElement();
+				console.log('this._renderingAbove : ', this._renderingAbove);
 				if (this._renderingAbove) {
 					resizableElement.domNode.style.top = offsetTop - 2 + 'px';
 				} else {
@@ -372,6 +373,13 @@ export class ContentHoverController extends Disposable {
 				} else {
 					this._resizableOverlay.resizableElement().enableSashes(false, true, true, false);
 				}
+
+				if (renderingAbove) {
+					resizableElement.domNode.style.top = offsetTop - 2 + 'px';
+				} else {
+					resizableElement.domNode.style.top = offsetTop + 'px';
+				}
+				resizableElement.domNode.style.left = offsetLeft + 'px';
 
 				const maxRenderingWidth = this._widget.findMaxRenderingWidth();
 				const maxRenderingHeight = this._widget.findMaxRenderingHeight(this._widget.renderingAbove);
