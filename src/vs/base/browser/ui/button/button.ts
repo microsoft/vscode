@@ -200,9 +200,15 @@ export class Button extends Disposable implements IButton {
 			const rendered = renderMarkdown(value, { inline: true });
 			rendered.dispose();
 
-			// Only allow a very limited set of inline html tags
-			const sanitized = sanitize(rendered.element, { ADD_TAGS: ['b', 'i', 'u', 'code', 'span'], ALLOWED_ATTR: ['class'], RETURN_TRUSTED_TYPE: true });
-			labelElement.innerHTML = sanitized as unknown as string;
+			// Don't include outer `<p>`
+			const root = rendered.element.querySelector('p')?.innerHTML;
+			if (root) {
+				// Only allow a very limited set of inline html tags
+				const sanitized = sanitize(root, { ADD_TAGS: ['b', 'i', 'u', 'code', 'span'], ALLOWED_ATTR: ['class'], RETURN_TRUSTED_TYPE: true });
+				labelElement.innerHTML = sanitized as unknown as string;
+			} else {
+				reset(labelElement);
+			}
 		} else {
 			if (this.options.supportIcons) {
 				reset(labelElement, ...this.getContentElements(value));
