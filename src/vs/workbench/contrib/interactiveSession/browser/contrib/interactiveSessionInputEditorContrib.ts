@@ -147,12 +147,12 @@ class SlashCommandCompletions extends Disposable {
 					return null;
 				}
 
-				const slashCommands = await widget.getSlashCommands();
-				if (!slashCommands) {
+				if (model.getValueInRange(new Range(1, 1, 1, 2)) !== '/' && model.getValueLength() > 0) {
 					return null;
 				}
 
-				if (model.getValueInRange(new Range(1, 1, 1, 2)) !== '/') {
+				const slashCommands = await widget.getSlashCommands();
+				if (!slashCommands) {
 					return null;
 				}
 
