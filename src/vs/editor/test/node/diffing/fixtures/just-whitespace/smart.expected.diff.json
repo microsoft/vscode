@@ -1,6 +1,12 @@
 {
-	"originalFileName": "./1.js",
-	"modifiedFileName": "./2.js",
+	"original": {
+		"content": "console.log('foo'); ",
+		"fileName": "./1.js"
+	},
+	"modified": {
+		"content": "console.log('foo');",
+		"fileName": "./2.js"
+	},
 	"diffs": [
 		{
 			"originalRange": "[1,2)",

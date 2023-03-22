@@ -1,6 +1,12 @@
 {
-	"originalFileName": "./1.tst",
-	"modifiedFileName": "./2.tst",
+	"original": {
+		"content": "if (!all.length && !sourceActions.length) {\n\tconst activeNotebookModel = getNotebookEditorFromEditorPane(editorService.activeEditorPane)?.textModel;\n\tif (activeNotebookModel) {\n\t\tconst language = this.getSuggestedLanguage(activeNotebookModel);\n\t\tsuggestedExtension = language ? this.getSuggestedKernelFromLanguage(activeNotebookModel.viewType, language) : undefined;\n\t}\n\tif (suggestedExtension) {\n",
+		"fileName": "./1.tst"
+	},
+	"modified": {
+		"content": "if (!all.length && !sourceActions.length) {\n\tconst language = this.getSuggestedLanguage(notebookTextModel);\n\tsuggestedExtension = language ? this.getSuggestedKernelFromLanguage(notebookTextModel.viewType, language) : undefined;\n\tif (suggestedExtension) {\n",
+		"fileName": "./2.tst"
+	},
 	"diffs": [
 		{
 			"originalRange": "[2,7)",
