@@ -261,14 +261,8 @@
 }
 
 .interactive-session .interactive-session-followups .monaco-button {
-	display: block;
 	text-align: left;
 	width: initial;
-	color: var(--vscode-textLink-foreground);
-}
-
-.interactive-session .interactive-session-followups .monaco-button .codicon-sparkle {
-	float: left;
 }
 
 .interactive-session .interactive-session-followups .monaco-button .codicon {
@@ -286,6 +280,15 @@
 
 .interactive-session .interactive-input-part .interactive-input-followups .interactive-session-followups {
 	margin-bottom: 8px;
+}
+
+.interactive-session .interactive-input-part .interactive-input-followups .interactive-session-followups .monaco-button {
+	display: block;
+	color: var(--vscode-textLink-foreground);
+}
+
+.interactive-session .interactive-input-part .interactive-input-followups .interactive-session-followups .monaco-button .codicon-sparkle {
+	float: left;
 }
 
 .interactive-session .interactive-session-followups .monaco-button.interactive-followup-reply {
