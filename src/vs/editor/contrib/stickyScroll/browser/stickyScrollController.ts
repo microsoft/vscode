@@ -41,7 +41,7 @@ export interface IStickyScrollController {
 	goToFocused(): void;
 	findScrollWidgetState(): StickyScrollWidgetState;
 	dispose(): void;
-	escape(): void;
+	selectEditor(): void;
 }
 
 export class StickyScrollController extends Disposable implements IEditorContribution, IStickyScrollController {
@@ -173,7 +173,7 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 		}
 	}
 
-	public escape(): void {
+	public selectEditor(): void {
 		this._editor.focus();
 	}
 

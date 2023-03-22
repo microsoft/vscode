@@ -151,6 +151,6 @@ export class SelectEditor extends EditorAction2 {
 	}
 
 	runEditorCommand(_accessor: ServicesAccessor, editor: ICodeEditor) {
-		StickyScrollController.get(editor)?.escape();
+		StickyScrollController.get(editor)?.selectEditor();
 	}
 }
