@@ -924,7 +924,7 @@ abstract class UserDataProfileImportExportState extends Disposable implements IT
 				this.roots = await this.fetchRoots();
 				for (const root of this.roots) {
 					if (this.canSelect) {
-						root.checkbox = { isChecked: true };
+						root.checkbox = { isChecked: true, tooltip: localize('select', "Select {0}", root.label.label) };
 					} else {
 						root.checkbox = undefined;
 					}
