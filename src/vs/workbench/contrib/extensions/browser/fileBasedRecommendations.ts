@@ -270,6 +270,7 @@ export class FileBasedRecommendations extends ExtensionRecommendations {
 	}
 
 	private promptFromRecommendations(uri: URI, model: ITextModel, extensionRecommendations: IStringDictionary<IFileOpenCondition[]>): void {
+		let isImportantRecommendationForLanguage = false;
 		const importantRecommendations = new Set<string>();
 		const fileBasedRecommendations = new Set<string>();
 		for (const [extensionId, conditions] of Object.entries(extensionRecommendations)) {
@@ -278,7 +279,9 @@ export class FileBasedRecommendations extends ExtensionRecommendations {
 				if (condition.important) {
 					importantRecommendations.add(extensionId);
 					this.fileBasedImportantRecommendations.add(extensionId);
-					break;
+				}
+				if ((<IFileLanguageCondition>condition).languages) {
+					isImportantRecommendationForLanguage = true;
 				}
 			}
 		}
@@ -299,7 +302,7 @@ export class FileBasedRecommendations extends ExtensionRecommendations {
 		const language = model.getLanguageId();
 		const languageName = this.languageService.getLanguageName(language);
 		if (importantRecommendations.size &&
-			this.promptRecommendedExtensionForFileType(languageName && language !== PLAINTEXT_LANGUAGE_ID ? languageName : basename(uri), language, [...importantRecommendations])) {
+			this.promptRecommendedExtensionForFileType(languageName && isImportantRecommendationForLanguage && language !== PLAINTEXT_LANGUAGE_ID ? languageName : basename(uri), language, [...importantRecommendations])) {
 			return;
 		}
 
@@ -346,9 +349,9 @@ export class FileBasedRecommendations extends ExtensionRecommendations {
 		return JSON.parse(this.storageService.get(promptedRecommendationsStorageKey, StorageScope.PROFILE, '{}'));
 	}
 
-	private addToPromptedRecommendations(exeName: string, extensions: string[]) {
+	private addToPromptedRecommendations(language: string, extensions: string[]) {
 		const promptedRecommendations = this.getPromptedRecommendations();
-		promptedRecommendations[exeName] = extensions;
+		promptedRecommendations[language] = distinct([...(promptedRecommendations[language] ?? []), ...extensions]);
 		this.storageService.store(promptedRecommendationsStorageKey, JSON.stringify(promptedRecommendations), StorageScope.PROFILE, StorageTarget.USER);
 	}
 
