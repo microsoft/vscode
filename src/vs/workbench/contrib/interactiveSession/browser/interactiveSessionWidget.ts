@@ -261,8 +261,19 @@ export class InteractiveSessionWidget extends Disposable implements IInteractive
 		}
 
 		if (!this.slashCommandsPromise) {
-			this.slashCommandsPromise = this.interactiveSessionService.getSlashCommands(this.viewModel.sessionId, CancellationToken.None);
-			this.slashCommandsPromise.then(commands => this.lastSlashCommands = commands);
+			this.slashCommandsPromise = this.interactiveSessionService.getSlashCommands(this.viewModel.sessionId, CancellationToken.None).then(commands => {
+				// If this becomes a repeated pattern, we should have a real internal slash command provider system
+				const clearCommand: IInteractiveSlashCommand = {
+					command: 'clear',
+					sortText: 'z_clear',
+					detail: localize('clear', "Clear the session"),
+				};
+				this.lastSlashCommands = [
+					...(commands ?? []),
+					clearCommand
+				];
+				return this.lastSlashCommands;
+			});
 		}
 
 		return this.slashCommandsPromise;
@@ -513,12 +524,21 @@ export class InteractiveSessionWidget extends Disposable implements IInteractive
 		}
 
 		if (this.viewModel) {
-			if (!query && this._inputEditor.getValue()) {
+			const editorValue = this._inputEditor.getValue();
+			if (!query && editorValue) {
 				// Followups and programmatic messages don't go to history
-				this.history.add(this._inputEditor.getValue());
+				this.history.add(editorValue);
 			}
 
-			const input = query ?? this._inputEditor.getValue();
+			// Shortcut for /clear command
+			if (!query && editorValue.trim() === '/clear') {
+				// If this becomes a repeated pattern, we should have a real internal slash command provider system
+				this.clear();
+				this._inputEditor.setValue('');
+				return;
+			}
+
+			const input = query ?? editorValue;
 			const result = this.interactiveSessionService.sendRequest(this.viewModel.sessionId, input);
 			if (result) {
 				this.requestInProgress.set(true);
