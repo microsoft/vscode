@@ -136,7 +136,7 @@ export class AccessibleBufferWidget extends DisposableStore {
 		this._xterm.raw.focus();
 	}
 
-	private async _updateModel(insertion?: boolean): Promise<void> {
+	private async _updateModel(insertion?: boolean): Promise<ITextModel> {
 		let model = this._bufferEditor.getModel();
 		const lineCount = model?.getLineCount() ?? 0;
 		if (insertion && model && lineCount > this._xterm.raw.rows) {
@@ -151,11 +151,11 @@ export class AccessibleBufferWidget extends DisposableStore {
 			throw new Error('Could not create accessible buffer editor model');
 		}
 		this._bufferEditor.setModel(model);
+		return model;
 	}
 
 	private async _updateEditor(insertion?: boolean): Promise<void> {
-		await this._updateModel(insertion);
-		const model = this._bufferEditor.getModel();
+		const model = await this._updateModel(insertion);
 		if (!model) {
 			return;
 		}
