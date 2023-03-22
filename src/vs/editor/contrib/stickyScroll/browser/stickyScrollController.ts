@@ -41,6 +41,7 @@ export interface IStickyScrollController {
 	goToFocused(): void;
 	findScrollWidgetState(): StickyScrollWidgetState;
 	dispose(): void;
+	escape(): void;
 }
 
 export class StickyScrollController extends Disposable implements IEditorContribution, IStickyScrollController {

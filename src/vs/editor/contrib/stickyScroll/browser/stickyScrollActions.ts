@@ -150,8 +150,8 @@ export class EscapeStickyScroll extends EditorAction2 {
 		super({
 			id: 'editor.action.escapeStickyScroll',
 			title: {
-				value: localize('escapeStickyScroll.title', "Escape sticky scroll"),
-				original: 'Escape sticky scroll'
+				value: localize('escapeStickyScroll.title', "Escape Sticky Scroll"),
+				original: 'Escape Sticky Scroll'
 			},
 			precondition: ContextKeyExpr.has('config.editor.stickyScroll.enabled'),
 			keybinding: {
