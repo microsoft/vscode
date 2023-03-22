@@ -194,6 +194,7 @@
 		"remote-explorer": {"assign": ["alexr00"]},
 		"remote-tunnel": {"assign": ["aeschli", "connor4312"]},
 		"rename": {"assign": ["jrieken"]},
+		"runCommands": {"assign": ["ulugbekna"]},
 		"sandbox": {"assign": ["deepak1556"]},
 		"sash-widget": {"assign": ["joaomoreno"]},
 		"scm": {"assign": ["lszomoru"]},
