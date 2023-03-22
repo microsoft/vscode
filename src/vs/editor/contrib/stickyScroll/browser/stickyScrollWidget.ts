@@ -205,7 +205,6 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 				this._hoverOnColumn = this._editor.getModel().getLineContent(line).indexOf(text) + 1 || -1;
 			}
 		}));
-
 		return child;
 	}
 

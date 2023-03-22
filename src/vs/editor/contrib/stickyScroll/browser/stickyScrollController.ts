@@ -20,7 +20,7 @@ import { ClickLinkGesture } from 'vs/editor/contrib/gotoSymbol/browser/link/clic
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { getDefinitionsAtPosition } from 'vs/editor/contrib/gotoSymbol/browser/goToSymbol';
 import { goToDefinitionWithLocation } from 'vs/editor/contrib/inlayHints/browser/inlayHintsLocations';
-import { Position } from 'vs/editor/common/core/position';
+import { IPosition, Position } from 'vs/editor/common/core/position';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
 import { ILanguageFeatureDebounceService } from 'vs/editor/common/services/languageFeatureDebounce';
@@ -65,6 +65,8 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 	private _focusedStickyElementIndex: number = -1;
 	private _enabled = false;
 	private _focused = false;
+	private _positionRevealed = false;
+	private _onMouseDown = false;
 
 	constructor(
 		private readonly _editor: ICodeEditor,
@@ -95,8 +97,7 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 		this._stickyScrollVisibleContextKey = EditorContextKeys.stickyScrollVisible.bindTo(this._contextKeyService);
 		const focusTracker = this._register(dom.trackFocus(this._stickyScrollWidget.getDomNode()));
 		this._register(focusTracker.onDidBlur(_ => {
-			const height = this._stickyScrollWidget.getDomNode().clientHeight;
-			if (height !== 0) {
+			if (this._positionRevealed === true) {
 				this._disposeFocusStickyScrollStore();
 			} else {
 				// If the height is 0, then the blur has been caused by scrolling. In that case keep the focus on the sticky scroll.
@@ -108,6 +109,10 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 			this.focus();
 		}));
 		this._register(this._createClickLinkGesture());
+		this._register(dom.addDisposableListener(this._stickyScrollWidget.getDomNode(), dom.EventType.MOUSE_DOWN, (e) => {
+			console.log('inside of on mouse down');
+			this._onMouseDown = true;
+		}));
 	}
 
 	get stickyScrollCandidateProvider(): IStickyLineCandidateProvider {
@@ -124,11 +129,16 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 
 	private _disposeFocusStickyScrollStore() {
 		this._stickyScrollFocusedContextKey.set(false);
-		this._focusDisposableStore!.dispose();
+		this._focusDisposableStore?.dispose();
 		this._focused = false;
+		this._positionRevealed = false;
 	}
 
 	public focus(): void {
+		if (this._onMouseDown) {
+			this._onMouseDown = false;
+			return;
+		}
 		const focusState = this._stickyScrollFocusedContextKey.get();
 		if (focusState === true) {
 			return;
@@ -163,7 +173,14 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 	public goToFocused(): void {
 		const lineNumbers = this._stickyScrollWidget.lineNumbers;
 		this._disposeFocusStickyScrollStore();
-		this._editor.revealPosition({ lineNumber: lineNumbers[this._focusedStickyElementIndex], column: 1 });
+		this._revealPosition({ lineNumber: lineNumbers[this._focusedStickyElementIndex], column: 1 });
+	}
+
+	private _revealPosition(position: IPosition): void {
+		this._positionRevealed = true;
+		this._editor.revealPosition(position);
+		this._editor.setSelection(Range.fromPositions(position));
+		this._editor.focus();
 	}
 
 	private _createClickLinkGesture(): IDisposable {
@@ -239,13 +256,14 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 			if ((e.target as unknown as CustomMouseEvent).detail !== this._stickyScrollWidget.getId()) {
 				return;
 			}
+
 			if (e.hasTriggerModifier) {
 				// Control click
 				if (this._candidateDefinitionsLength > 1) {
 					if (this._focused) {
 						this._disposeFocusStickyScrollStore();
 					}
-					this._editor.revealPosition({ lineNumber: this._stickyScrollWidget.hoverOnLine, column: 1 });
+					this._revealPosition({ lineNumber: this._stickyScrollWidget.hoverOnLine, column: 1 });
 				}
 				this._instaService.invokeFunction(goToDefinitionWithLocation, e, this._editor as IActiveCodeEditor, { uri: this._editor.getModel()!.uri, range: this._stickyRangeProjectedOnEditor! });
 
@@ -255,8 +273,7 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 				if (this._focused) {
 					this._disposeFocusStickyScrollStore();
 				}
-				this._editor.revealPosition(position);
-				this._editor.setSelection(Range.fromPositions(position));
+				this._revealPosition(position);
 			}
 		}));
 		return linkGestureStore;
