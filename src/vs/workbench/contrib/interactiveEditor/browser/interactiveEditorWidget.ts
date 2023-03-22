@@ -56,6 +56,7 @@ import { Command, CompletionContext, CompletionItem, CompletionItemInsertTextRul
 import { LanguageSelector } from 'vs/editor/common/languageSelector';
 import { DEFAULT_FONT_FAMILY } from 'vs/workbench/browser/style';
 import { ICommandService } from 'vs/platform/commands/common/commands';
+import { IInteractiveSessionService } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionService';
 
 class InteractiveEditorWidget {
 
@@ -852,7 +853,7 @@ export class InteractiveEditorController implements IEditorContribution {
 			if (refer) {
 				this._logService.info('[IE] seeing refer command, continuing outside editor', provider.debugName);
 				this._editor.setSelection(wholeRange);
-				this._instaService.invokeFunction(showMessageResponse, input.value);
+				this._instaService.invokeFunction(sendRequest, input.value);
 				continue;
 			}
 
@@ -910,7 +911,8 @@ export class InteractiveEditorController implements IEditorContribution {
 			if (reply.type === 'message') {
 				this._logService.info('[IE] received a MESSAGE, continuing outside editor', provider.debugName);
 				this._editor.setSelection(reply.wholeRange ?? wholeRange);
-				this._instaService.invokeFunction(showMessageResponse, request.prompt);
+				this._instaService.invokeFunction(showMessageResponse, request.prompt, reply.message.value);
+
 				continue;
 			}
 
@@ -1116,8 +1118,12 @@ function installSlashCommandSupport(accessor: ServicesAccessor, editor: IActiveC
 	return store;
 }
 
-async function showMessageResponse(accessor: ServicesAccessor, query: string) {
+async function showMessageResponse(accessor: ServicesAccessor, query: string, response: string) {
+	const interactiveSessionService = accessor.get(IInteractiveSessionService);
+	interactiveSessionService.addCompleteRequest(query, { message: response });
+}
 
+async function sendRequest(accessor: ServicesAccessor, query: string) {
 
 	const widgetService = accessor.get(IInteractiveSessionWidgetService);
 	const viewsService = accessor.get(IViewsService);

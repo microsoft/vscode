@@ -563,10 +563,12 @@ export class InteractiveSessionWidget extends Disposable implements IInteractive
 	layout(height: number, width: number): void {
 		this.bodyDimension = new dom.Dimension(width, height);
 		const followupsHeight = this.followupsContainer.offsetHeight;
+		const inputPartBorder = 1;
 		const inputPartPadding = 24;
-		const inputEditorHeight = Math.min(this._inputEditor.getContentHeight(), height - followupsHeight - inputPartPadding, INPUT_EDITOR_MAX_HEIGHT);
+		const inputEditorHeight = Math.min(this._inputEditor.getContentHeight(), height - followupsHeight - inputPartPadding - inputPartBorder, INPUT_EDITOR_MAX_HEIGHT);
 		const lastElementVisible = this.tree.scrollTop + this.tree.renderHeight >= this.tree.scrollHeight;
-		const inputPartHeight = followupsHeight + inputEditorHeight + inputPartPadding;
+		const inputEditorBorder = 2;
+		const inputPartHeight = followupsHeight + inputEditorHeight + inputPartPadding + inputPartBorder + inputEditorBorder;
 		const listHeight = height - inputPartHeight;
 
 		this.tree.layout(listHeight, width);
