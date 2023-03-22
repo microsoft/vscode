@@ -11,8 +11,8 @@ import { KeyCode } from 'vs/base/common/keyCodes';
 import { Disposable, DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
 import { ContentWidgetPositionPreference, IActiveCodeEditor, ICodeEditor, IContentWidget, IContentWidgetPosition, IEditorMouseEvent, MouseTargetType } from 'vs/editor/browser/editorBrowser';
 import { ConfigurationChangedEvent, EditorOption } from 'vs/editor/common/config/editorOptions';
-import { Position } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
+import { IPosition, Position } from 'vs/editor/common/core/position';
+import { IRange, Range } from 'vs/editor/common/core/range';
 import { IModelDecoration, PositionAffinity } from 'vs/editor/common/model';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 import { TokenizationRegistry } from 'vs/editor/common/languages';
@@ -26,6 +26,7 @@ import { AsyncIterableObject } from 'vs/base/common/async';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { CursorChangeReason } from 'vs/editor/common/cursorEvents';
 import { CursorState } from 'vs/editor/common/cursorCommon';
+import { ScrollType } from 'vs/editor/common/editorCommon';
 
 const $ = dom.$;
 
@@ -433,7 +434,7 @@ export class ContentHoverWidget extends Disposable implements IContentWidget {
 	private readonly _hoverFocusedKey = EditorContextKeys.hoverFocused.bindTo(this._contextKeyService);
 	private readonly _hover: HoverWidget = this._register(new HoverWidget());
 	private readonly _focusTracker = this._register(dom.trackFocus(this.getDomNode()));
-	private _cursorState: CursorState[] | undefined = undefined;
+	private _primaryCursorPosition: IPosition | undefined = undefined;
 
 	private _visibleData: ContentHoverVisibleData | null = null;
 
@@ -474,6 +475,7 @@ export class ContentHoverWidget extends Disposable implements IContentWidget {
 		this._editor.addContentWidget(this);
 
 		this._register(this._focusTracker.onDidFocus(() => {
+			this._primaryCursorPosition = this._editor._getViewModel()?.getPrimaryCursorState().viewState.position;
 			this._hoverFocusedKey.set(true);
 		}));
 		this._register(this._focusTracker.onDidBlur(() => {
@@ -626,9 +628,6 @@ export class ContentHoverWidget extends Disposable implements IContentWidget {
 	}
 
 	public focus(): void {
-		if (this._editor.hasTextFocus()) {
-			this._cursorState = this._editor._getViewModel()?.getCursorStates();
-		}
 		this._hover.containerDomNode.focus();
 	}
 
@@ -657,18 +656,10 @@ export class ContentHoverWidget extends Disposable implements IContentWidget {
 	}
 
 	public escape(): void {
-		console.log('Inside of escape');
-		if (this._cursorState) {
-			console.log('when cursor states are defined');
-			console.log('this._cursorState', this._cursorState);
-			const viewModel = this._editor._getViewModel();
-			console.log('viewModel?.getPrimaryCursorState() : ', viewModel?.getPrimaryCursorState());
-			/* viewModel?.setCursorStates(
-				'api',
-				CursorChangeReason.Explicit,
-				Array.from(this._cursorState)
-			); */
-			viewModel?.revealPrimaryCursor('api', true);
+		if (this._primaryCursorPosition) {
+			const range: IRange = { startLineNumber: this._primaryCursorPosition.lineNumber, endLineNumber: this._primaryCursorPosition.lineNumber, startColumn: this._primaryCursorPosition.column, endColumn: this._primaryCursorPosition.column };
+			this._editor.setSelection(range);
+			this._editor.focus();
 		}
 	}
 }
