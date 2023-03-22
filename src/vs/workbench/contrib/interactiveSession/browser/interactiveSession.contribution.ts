@@ -14,18 +14,21 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { EditorPaneDescriptor, IEditorPaneRegistry } from 'vs/workbench/browser/editor';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
 import { EditorExtensions } from 'vs/workbench/common/editor';
-import { registerInteractiveSessionActions } from 'vs/workbench/contrib/interactiveSession/browser/interactiveSessionActions';
+import { registerInteractiveSessionActions } from 'vs/workbench/contrib/interactiveSession/browser/actions/interactiveSessionActions';
+import { registerInteractiveSessionCodeBlockActions } from 'vs/workbench/contrib/interactiveSession/browser/actions/interactiveSessionCodeblockActions';
+import { registerInteractiveSessionCopyActions } from 'vs/workbench/contrib/interactiveSession/browser/actions/interactiveSessionCopyActions';
+import { registerInteractiveSessionExecuteActions } from 'vs/workbench/contrib/interactiveSession/browser/actions/interactiveSessionExecuteActions';
+import { registerInteractiveSessionTitleActions } from 'vs/workbench/contrib/interactiveSession/browser/actions/interactiveSessionTitleActions';
 import { InteractiveSessionContributionService } from 'vs/workbench/contrib/interactiveSession/browser/interactiveSessionContributionServiceImpl';
 import { InteractiveSessionEditor } from 'vs/workbench/contrib/interactiveSession/browser/interactiveSessionEditor';
 import { InteractiveSessionEditorInput } from 'vs/workbench/contrib/interactiveSession/browser/interactiveSessionEditorInput';
+import { IInteractiveSessionWidgetService, InteractiveSessionWidgetService } from 'vs/workbench/contrib/interactiveSession/browser/interactiveSessionWidget';
 import { IInteractiveSessionContributionService } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionContributionService';
 import { IInteractiveSessionService } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionService';
 import { InteractiveSessionService } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionServiceImpl';
 import { IEditorResolverService, RegisteredEditorPriority } from 'vs/workbench/services/editor/common/editorResolverService';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import '../common/interactiveSessionColors';
-import { IInteractiveSessionWidgetService, InteractiveSessionWidgetService } from 'vs/workbench/contrib/interactiveSession/browser/interactiveSessionWidget';
-
 
 // Register configuration
 const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
@@ -36,22 +39,28 @@ configurationRegistry.registerConfiguration({
 	properties: {
 		'interactiveSession.editor.fontSize': {
 			type: 'number',
-			description: nls.localize('interactiveSession.editor.fontSize', "Controls the font size in pixels in the Interactive Session Sidebar."),
+			description: nls.localize('interactiveSession.editor.fontSize', "Controls the font size in pixels in Interactive Sessions."),
 			default: isMacintosh ? 12 : 14,
 		},
 		'interactiveSession.editor.fontFamily': {
 			type: 'string',
-			description: nls.localize('interactiveSession.editor.fontFamily', "Controls the font family in the Interactive Session Sidebar."),
+			description: nls.localize('interactiveSession.editor.fontFamily', "Controls the font family in Interactive Sessions."),
 			default: 'default'
 		},
 		'interactiveSession.editor.fontWeight': {
 			type: 'string',
-			description: nls.localize('interactiveSession.editor.fontWeight', "Controls the font weight in the Interactive Session Sidebar."),
+			description: nls.localize('interactiveSession.editor.fontWeight', "Controls the font weight in Interactive Sessions."),
 			default: 'default'
+		},
+		'interactiveSession.editor.wordWrap': {
+			type: 'string',
+			description: nls.localize('interactiveSession.editor.wordWrap', "Controls whether lines should wrap in Interactive Sessions."),
+			default: 'off',
+			enum: ['on', 'off']
 		},
 		'interactiveSession.editor.lineHeight': {
 			type: 'number',
-			description: nls.localize('interactiveSession.editor.lineHeight', "Controls the line height in pixels in the Interactive Session Sidebar. Use 0 to compute the line height from the font size."),
+			description: nls.localize('interactiveSession.editor.lineHeight', "Controls the line height in pixels in Interactive Sessions. Use 0 to compute the line height from the font size."),
 			default: 0
 		}
 	}
@@ -100,7 +109,14 @@ const workbenchContributionsRegistry = Registry.as<IWorkbenchContributionsRegist
 workbenchContributionsRegistry.registerWorkbenchContribution(InteractiveSessionResolverContribution, LifecyclePhase.Starting);
 
 registerInteractiveSessionActions();
+registerInteractiveSessionCopyActions();
+registerInteractiveSessionCodeBlockActions();
+registerInteractiveSessionTitleActions();
+registerInteractiveSessionExecuteActions();
 
 registerSingleton(IInteractiveSessionService, InteractiveSessionService, InstantiationType.Delayed);
 registerSingleton(IInteractiveSessionContributionService, InteractiveSessionContributionService, InstantiationType.Delayed);
 registerSingleton(IInteractiveSessionWidgetService, InteractiveSessionWidgetService, InstantiationType.Delayed);
+
+import 'vs/workbench/contrib/interactiveSession/browser/contrib/interactiveSessionInputEditorContrib';
+import 'vs/workbench/contrib/interactiveSession/browser/contrib/interactiveSessionCodeBlockCopy';

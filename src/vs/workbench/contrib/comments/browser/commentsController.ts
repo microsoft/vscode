@@ -536,6 +536,12 @@ export class CommentController implements IEditorContribution {
 				a = b;
 				b = temp;
 			}
+			if (a.commentThread.range === undefined) {
+				return -1;
+			}
+			if (b.commentThread.range === undefined) {
+				return 1;
+			}
 			if (a.commentThread.range.startLineNumber < b.commentThread.range.startLineNumber) {
 				return -1;
 			}
@@ -556,10 +562,10 @@ export class CommentController implements IEditorContribution {
 		});
 
 		const idx = findFirstInSorted(sortedWidgets, widget => {
-			const lineValueOne = reverse ? after.lineNumber : widget.commentThread.range.startLineNumber;
-			const lineValueTwo = reverse ? widget.commentThread.range.startLineNumber : after.lineNumber;
-			const columnValueOne = reverse ? after.column : widget.commentThread.range.startColumn;
-			const columnValueTwo = reverse ? widget.commentThread.range.startColumn : after.column;
+			const lineValueOne = reverse ? after.lineNumber : (widget.commentThread.range?.startLineNumber ?? 0);
+			const lineValueTwo = reverse ? (widget.commentThread.range?.startLineNumber ?? 0) : after.lineNumber;
+			const columnValueOne = reverse ? after.column : (widget.commentThread.range?.startColumn ?? 0);
+			const columnValueTwo = reverse ? (widget.commentThread.range?.startColumn ?? 0) : after.column;
 			if (lineValueOne > lineValueTwo) {
 				return true;
 			}
@@ -580,7 +586,7 @@ export class CommentController implements IEditorContribution {
 		} else {
 			nextWidget = sortedWidgets[idx];
 		}
-		this.editor.setSelection(nextWidget.commentThread.range);
+		this.editor.setSelection(nextWidget.commentThread.range ?? new Range(1, 1, 1, 1));
 		nextWidget.reveal(undefined, true);
 	}
 
@@ -766,7 +772,8 @@ export class CommentController implements IEditorContribution {
 			// The widget's position is undefined until the widget has been displayed, so rely on the glyph position instead
 			const existingCommentsAtLine = this._commentWidgets.filter(widget => widget.getGlyphPosition() === commentRange.endLineNumber);
 			if (existingCommentsAtLine.length) {
-				existingCommentsAtLine.forEach(widget => widget.toggleExpand());
+				const allExpanded = existingCommentsAtLine.every(widget => widget.expanded);
+				existingCommentsAtLine.forEach(allExpanded ? widget => widget.collapse() : widget => widget.expand());
 				this.processNextThreadToAdd();
 				return;
 			} else {

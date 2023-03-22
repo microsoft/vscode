@@ -14,12 +14,12 @@ import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { ViewPaneContainer } from 'vs/workbench/browser/parts/views/viewPaneContainer';
 import { IViewContainersRegistry, IViewDescriptor, IViewsRegistry, ViewContainer, ViewContainerLocation, Extensions as ViewExtensions } from 'vs/workbench/common/views';
-import { getClearAction, getOpenInteractiveSessionEditorAction } from 'vs/workbench/contrib/interactiveSession/browser/interactiveSessionActions';
+import { getClearAction } from 'vs/workbench/contrib/interactiveSession/browser/actions/interactiveSessionActions';
 import { IInteractiveSessionViewOptions, INTERACTIVE_SIDEBAR_PANEL_ID, InteractiveSessionViewPane } from 'vs/workbench/contrib/interactiveSession/browser/interactiveSessionSidebar';
-import { IInteractiveSessionContributionService, IInteractiveSessionProviderContribution } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionContributionService';
+import { IInteractiveSessionContributionService, IInteractiveSessionProviderContribution, IRawInteractiveSessionProviderContribution } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionContributionService';
 import * as extensionsRegistry from 'vs/workbench/services/extensions/common/extensionsRegistry';
 
-const interactiveSessionExtensionPoint = extensionsRegistry.ExtensionsRegistry.registerExtensionPoint<IInteractiveSessionProviderContribution[]>({
+const interactiveSessionExtensionPoint = extensionsRegistry.ExtensionsRegistry.registerExtensionPoint<IRawInteractiveSessionProviderContribution[]>({
 	extensionPoint: 'interactiveSession',
 	jsonSchema: {
 		description: localize('vscode.extension.contributes.interactiveSession', 'Contributes an Interactive Session provider'),
@@ -28,6 +28,7 @@ const interactiveSessionExtensionPoint = extensionsRegistry.ExtensionsRegistry.r
 			additionalProperties: false,
 			type: 'object',
 			defaultSnippets: [{ body: { id: '', program: '', runtime: '' } }],
+			required: ['id', 'label'],
 			properties: {
 				id: {
 					description: localize('vscode.extension.contributes.interactiveSession.id', "Unique identifier for this Interactive Session provider."),
@@ -48,7 +49,7 @@ const interactiveSessionExtensionPoint = extensionsRegistry.ExtensionsRegistry.r
 			}
 		}
 	},
-	activationEventsGenerator: (contributions: IInteractiveSessionProviderContribution[], result: { push(item: string): void }) => {
+	activationEventsGenerator: (contributions: IRawInteractiveSessionProviderContribution[], result: { push(item: string): void }) => {
 		for (const contrib of contributions) {
 			result.push(`onInteractiveSession:${contrib.id}`);
 		}
@@ -67,7 +68,13 @@ export class InteractiveSessionContributionService implements IInteractiveSessio
 				const extensionDisposable = new DisposableStore();
 				for (const providerDescriptor of extension.value) {
 					this.registerInteractiveSessionProvider(extension.description, providerDescriptor);
-					this._registeredProviders.set(providerDescriptor.id, providerDescriptor);
+					const extensionIcon = extension.description.icon ?
+						resources.joinPath(extension.description.extensionLocation, extension.description.icon) :
+						undefined;
+					this._registeredProviders.set(providerDescriptor.id, {
+						...providerDescriptor,
+						extensionIcon
+					});
 				}
 				this._registrationDisposables.set(extension.description.identifier.value, extensionDisposable);
 			}
@@ -90,13 +97,17 @@ export class InteractiveSessionContributionService implements IInteractiveSessio
 		return Array.from(this._registeredProviders.values());
 	}
 
-	private registerInteractiveSessionProvider(extension: Readonly<IRelaxedExtensionDescription>, providerDescriptor: IInteractiveSessionProviderContribution): IDisposable {
+	public getViewIdForProvider(providerId: string): string {
+		return InteractiveSessionViewPane.ID + '.' + providerId;
+	}
+
+	private registerInteractiveSessionProvider(extension: Readonly<IRelaxedExtensionDescription>, providerDescriptor: IRawInteractiveSessionProviderContribution): IDisposable {
 		// Register View Container
 		const viewContainerId = INTERACTIVE_SIDEBAR_PANEL_ID + '.' + providerDescriptor.id;
 		const viewContainer: ViewContainer = Registry.as<IViewContainersRegistry>(ViewExtensions.ViewContainersRegistry).registerViewContainer({
 			id: viewContainerId,
 			title: providerDescriptor.label,
-			icon: providerDescriptor.icon !== '' ? resources.joinPath(extension.extensionLocation, providerDescriptor.icon) : Codicon.commentDiscussion,
+			icon: providerDescriptor.icon ? resources.joinPath(extension.extensionLocation, providerDescriptor.icon) : Codicon.commentDiscussion,
 			ctorDescriptor: new SyncDescriptor(ViewPaneContainer, [viewContainerId, { mergeViewWithContainerWhenSingleView: true }]),
 			storageId: viewContainerId,
 			hideIfEmpty: true,
@@ -104,7 +115,7 @@ export class InteractiveSessionContributionService implements IInteractiveSessio
 		}, ViewContainerLocation.Sidebar);
 
 		// Register View
-		const viewId = InteractiveSessionViewPane.ID + '.' + providerDescriptor.id;
+		const viewId = this.getViewIdForProvider(providerDescriptor.id);
 		const viewDescriptor: IViewDescriptor[] = [{
 			id: viewId,
 			name: providerDescriptor.label,
@@ -119,14 +130,15 @@ export class InteractiveSessionContributionService implements IInteractiveSessio
 		const clearAction = registerAction2(getClearAction(viewId, providerDescriptor.id));
 
 		// "Open Interactive Session Editor" Action
-		const openEditor = registerAction2(getOpenInteractiveSessionEditorAction(providerDescriptor.id, providerDescriptor.label, providerDescriptor.when));
+		// Disabled for now, just one session is supported
+		// const openEditor = registerAction2(getOpenInteractiveSessionEditorAction(providerDescriptor.id, providerDescriptor.label, providerDescriptor.when));
 
 		return {
 			dispose: () => {
 				Registry.as<IViewsRegistry>(ViewExtensions.ViewsRegistry).deregisterViews(viewDescriptor, viewContainer);
 				Registry.as<IViewContainersRegistry>(ViewExtensions.ViewContainersRegistry).deregisterViewContainer(viewContainer);
 				clearAction.dispose();
-				openEditor.dispose();
+				// openEditor.dispose();
 			}
 		};
 	}

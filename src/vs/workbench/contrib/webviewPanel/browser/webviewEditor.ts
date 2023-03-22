@@ -10,7 +10,7 @@ import { DisposableStore, IDisposable, MutableDisposable } from 'vs/base/common/
 import { isWeb } from 'vs/base/common/platform';
 import { generateUuid } from 'vs/base/common/uuid';
 import * as nls from 'vs/nls';
-import { IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { IContextKeyService, IScopedContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IEditorOptions } from 'vs/platform/editor/common/editor';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -50,7 +50,7 @@ export class WebviewEditor extends EditorPane {
 	private readonly _onDidFocusWebview = this._register(new Emitter<void>());
 	public override get onDidFocus(): Event<any> { return this._onDidFocusWebview.event; }
 
-	private readonly _scopedContextKeyService = this._register(new MutableDisposable<IContextKeyService>());
+	private readonly _scopedContextKeyService = this._register(new MutableDisposable<IScopedContextKeyService>());
 
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,

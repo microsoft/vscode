@@ -8,7 +8,7 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { Emitter, Event } from 'vs/base/common/event';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IEnvironmentMainService } from 'vs/platform/environment/electron-main/environmentMainService';
-import { ILifecycleMainService } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
+import { ILifecycleMainService, LifecycleMainPhase } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { IRequestService } from 'vs/platform/request/common/request';
@@ -52,14 +52,17 @@ export abstract class AbstractUpdateService implements IUpdateService {
 		@IRequestService protected requestService: IRequestService,
 		@ILogService protected logService: ILogService,
 		@IProductService protected readonly productService: IProductService
-	) { }
+	) {
+		lifecycleMainService.when(LifecycleMainPhase.AfterWindowOpen)
+			.finally(() => this.initialize());
+	}
 
 	/**
 	 * This must be called before any other call. This is a performance
 	 * optimization, to avoid using extra CPU cycles before first window open.
 	 * https://github.com/microsoft/vscode/issues/89784
 	 */
-	async initialize(): Promise<void> {
+	protected async initialize(): Promise<void> {
 		if (!this.environmentMainService.isBuilt) {
 			return; // updates are never enabled when running out of sources
 		}

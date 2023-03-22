@@ -20,7 +20,7 @@ import * as nls from 'vs/nls';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ContextKeyExpr, IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
+import { IContextMenuService, IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { ISearchConfigurationProperties } from 'vs/workbench/services/search/common/search';
@@ -36,6 +36,12 @@ import { searchReplaceAllIcon, searchHideReplaceIcon, searchShowContextIcon, sea
 import { ToggleSearchEditorContextLinesCommandId } from 'vs/workbench/contrib/searchEditor/browser/constants';
 import { showHistoryKeybindingHint } from 'vs/platform/history/browser/historyWidgetKeybindingHint';
 import { defaultInputBoxStyles, defaultToggleStyles } from 'vs/platform/theme/browser/defaultStyles';
+import { NotebookFindFilters } from 'vs/workbench/contrib/notebook/browser/contrib/find/findFilters';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { NotebookEditorInput } from 'vs/workbench/contrib/notebook/common/notebookEditorInput';
+import { GroupModelChangeKind } from 'vs/workbench/common/editor';
+import { SearchFindInput } from 'vs/workbench/contrib/search/browser/searchFindInput';
 
 /** Specified in searchview.css */
 const SingleLineInputHeight = 26;
@@ -53,6 +59,13 @@ export interface ISearchWidgetOptions {
 	showContextToggle?: boolean;
 	inputBoxStyles: IInputBoxStyles;
 	toggleStyles: IToggleStyles;
+	notebookOptions?: NotebookToggleState;
+}
+
+interface NotebookToggleState {
+	isInNotebookMarkdownInput: boolean;
+	isInNotebookCellInput: boolean;
+	isInNotebookCellOutput: boolean;
 }
 
 class ReplaceAllAction extends Action {
@@ -92,6 +105,7 @@ function stopPropagationForMultiLineDownwards(event: IKeyboardEvent, value: stri
 		return;
 	}
 }
+
 
 export class SearchWidget extends Widget {
 	private static readonly INPUT_MAX_HEIGHT = 134;
@@ -153,6 +167,8 @@ export class SearchWidget extends Widget {
 	private showContextToggle!: Toggle;
 	public contextLinesInput!: InputBox;
 
+	private _notebookFilters: NotebookFindFilters;
+
 	constructor(
 		container: HTMLElement,
 		options: ISearchWidgetOptions,
@@ -161,12 +177,38 @@ export class SearchWidget extends Widget {
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
 		@IClipboardService private readonly clipboardServce: IClipboardService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IAccessibilityService private readonly accessibilityService: IAccessibilityService
+		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
+		@IContextMenuService private readonly contextMenuService: IContextMenuService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IEditorService private readonly editorService: IEditorService,
 	) {
 		super();
 		this.replaceActive = Constants.ReplaceActiveKey.bindTo(this.contextKeyService);
 		this.searchInputBoxFocused = Constants.SearchInputBoxFocusedKey.bindTo(this.contextKeyService);
 		this.replaceInputBoxFocused = Constants.ReplaceInputBoxFocusedKey.bindTo(this.contextKeyService);
+
+		const notebookOptions = options.notebookOptions ?? { isInNotebookMarkdownInput: true, isInNotebookCellInput: true, isInNotebookCellOutput: true };
+		this._notebookFilters = this._register(
+			new NotebookFindFilters(
+				notebookOptions.isInNotebookMarkdownInput,
+				!notebookOptions.isInNotebookMarkdownInput,
+				notebookOptions.isInNotebookCellInput,
+				notebookOptions.isInNotebookCellOutput
+			));
+
+		this._register(
+			this._notebookFilters.onDidChange(() => {
+				if (this.searchInput instanceof SearchFindInput) {
+					this.searchInput.updateStyles();
+				}
+			}));
+		this._register(this.editorService.onDidEditorsChange((e) => {
+			if (this.searchInput instanceof SearchFindInput &&
+				e.event.editor instanceof NotebookEditorInput &&
+				(e.event.kind === GroupModelChangeKind.EDITOR_OPEN || e.event.kind === GroupModelChangeKind.EDITOR_CLOSE)) {
+				this.searchInput.filterVisible = this._hasNotebookOpen();
+			}
+		}));
 
 		this._replaceHistoryDelayer = new Delayer<void>(500);
 
@@ -177,8 +219,18 @@ export class SearchWidget extends Widget {
 				this.updateAccessibilitySupport();
 			}
 		});
+
 		this.accessibilityService.onDidChangeScreenReaderOptimized(() => this.updateAccessibilitySupport());
 		this.updateAccessibilitySupport();
+	}
+
+	private _hasNotebookOpen(): boolean {
+		const editors = this.editorService.editors;
+		return editors.some(editor => editor instanceof NotebookEditorInput);
+	}
+
+	getFilters() {
+		return this._notebookFilters;
 	}
 
 	focus(select: boolean = true, focusReplace: boolean = false, suppressGlobalSearchBuffer = false): void {
@@ -326,7 +378,13 @@ export class SearchWidget extends Widget {
 		};
 
 		const searchInputContainer = dom.append(parent, dom.$('.search-container.input-box'));
-		this.searchInput = this._register(new ContextScopedFindInput(searchInputContainer, this.contextViewService, inputOptions, this.contextKeyService));
+
+		const experimentalNotebooksEnabled = this.configurationService.getValue<ISearchConfigurationProperties>('search').experimental.notebookSearch;
+		if (experimentalNotebooksEnabled) {
+			this.searchInput = this._register(new SearchFindInput(searchInputContainer, this.contextViewService, inputOptions, this.contextKeyService, this.contextMenuService, this.instantiationService, this._notebookFilters, this._hasNotebookOpen()));
+		} else {
+			this.searchInput = this._register(new ContextScopedFindInput(searchInputContainer, this.contextViewService, inputOptions, this.contextKeyService));
+		}
 		this.searchInput.onKeyDown((keyboardEvent: IKeyboardEvent) => this.onSearchInputKeyDown(keyboardEvent));
 		this.searchInput.setValue(options.value || '');
 		this.searchInput.setRegex(!!options.isRegex);

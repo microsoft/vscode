@@ -54,12 +54,12 @@ export class InteractiveSessionViewPane extends ViewPane {
 		this.view.render(parent);
 	}
 
-	acceptInput(): void {
-		this.view.acceptInput();
+	acceptInput(query?: string): void {
+		this.view.acceptInput(query);
 	}
 
-	clear(): void {
-		this.view.clear();
+	async clear(): Promise<void> {
+		await this.view.clear();
 	}
 
 	focusInput(): void {
@@ -74,6 +74,11 @@ export class InteractiveSessionViewPane extends ViewPane {
 	protected override layoutBody(height: number, width: number): void {
 		super.layoutBody(height, width);
 		this.view.layout(height, width);
+	}
+
+	override saveState(): void {
+		this.view.saveState();
+		super.saveState();
 	}
 }
 

@@ -40,6 +40,8 @@ const testLinks: ITestLink[] = [
 	{ link: '"foo" on line 339', prefix: '"', suffix: '" on line 339', hasRow: true, hasCol: false },
 	{ link: '"foo" on line 339, col 12', prefix: '"', suffix: '" on line 339, col 12', hasRow: true, hasCol: true },
 	{ link: '"foo" on line 339, column 12', prefix: '"', suffix: '" on line 339, column 12', hasRow: true, hasCol: true },
+	{ link: '"foo" line 339', prefix: '"', suffix: '" line 339', hasRow: true, hasCol: false },
+	{ link: '"foo" line 339 column 12', prefix: '"', suffix: '" line 339 column 12', hasRow: true, hasCol: true },
 
 	// Single quotes
 	{ link: '\'foo\',339', prefix: '\'', suffix: '\',339', hasRow: true, hasCol: false },
@@ -56,6 +58,8 @@ const testLinks: ITestLink[] = [
 	{ link: '\'foo\' on line 339', prefix: '\'', suffix: '\' on line 339', hasRow: true, hasCol: false },
 	{ link: '\'foo\' on line 339, col 12', prefix: '\'', suffix: '\' on line 339, col 12', hasRow: true, hasCol: true },
 	{ link: '\'foo\' on line 339, column 12', prefix: '\'', suffix: '\' on line 339, column 12', hasRow: true, hasCol: true },
+	{ link: '\'foo\' line 339', prefix: '\'', suffix: '\' line 339', hasRow: true, hasCol: false },
+	{ link: '\'foo\' line 339 column 12', prefix: '\'', suffix: '\' line 339 column 12', hasRow: true, hasCol: true },
 
 	// No quotes
 	{ link: 'foo, line 339', prefix: undefined, suffix: ', line 339', hasRow: true, hasCol: false },
@@ -70,6 +74,8 @@ const testLinks: ITestLink[] = [
 	{ link: 'foo on line 339', prefix: undefined, suffix: ' on line 339', hasRow: true, hasCol: false },
 	{ link: 'foo on line 339, col 12', prefix: undefined, suffix: ' on line 339, col 12', hasRow: true, hasCol: true },
 	{ link: 'foo on line 339, column 12', prefix: undefined, suffix: ' on line 339, column 12', hasRow: true, hasCol: true },
+	{ link: 'foo line 339', prefix: undefined, suffix: ' line 339', hasRow: true, hasCol: false },
+	{ link: 'foo line 339 column 12', prefix: undefined, suffix: ' line 339 column 12', hasRow: true, hasCol: true },
 
 	// Parentheses
 	{ link: 'foo(339)', prefix: undefined, suffix: '(339)', hasRow: true, hasCol: false },
@@ -321,6 +327,119 @@ suite('TerminalLinkParsing', () => {
 					}
 				] as IParsedLink[]
 			);
+		});
+
+		suite('"|"', () => {
+			test('should exclude pipe characters from link paths', () => {
+				deepStrictEqual(
+					detectLinks('|C:\\Github\\microsoft\\vscode|', OperatingSystem.Windows),
+					[
+						{
+							path: {
+								index: 1,
+								text: 'C:\\Github\\microsoft\\vscode'
+							},
+							prefix: undefined,
+							suffix: undefined
+						}
+					] as IParsedLink[]
+				);
+			});
+			test('should exclude pipe characters from link paths with suffixes', () => {
+				deepStrictEqual(
+					detectLinks('|C:\\Github\\microsoft\\vscode:400|', OperatingSystem.Windows),
+					[
+						{
+							path: {
+								index: 1,
+								text: 'C:\\Github\\microsoft\\vscode'
+							},
+							prefix: undefined,
+							suffix: {
+								col: undefined,
+								row: 400,
+								suffix: {
+									index: 27,
+									text: ':400'
+								}
+							}
+						}
+					] as IParsedLink[]
+				);
+			});
+		});
+
+		suite('"<>"', () => {
+			test('should exclude bracket characters from link paths', () => {
+				deepStrictEqual(
+					detectLinks('<C:\\Github\\microsoft\\vscode<', OperatingSystem.Windows),
+					[
+						{
+							path: {
+								index: 1,
+								text: 'C:\\Github\\microsoft\\vscode'
+							},
+							prefix: undefined,
+							suffix: undefined
+						}
+					] as IParsedLink[]
+				);
+				deepStrictEqual(
+					detectLinks('>C:\\Github\\microsoft\\vscode>', OperatingSystem.Windows),
+					[
+						{
+							path: {
+								index: 1,
+								text: 'C:\\Github\\microsoft\\vscode'
+							},
+							prefix: undefined,
+							suffix: undefined
+						}
+					] as IParsedLink[]
+				);
+			});
+			test('should exclude bracket characters from link paths with suffixes', () => {
+				deepStrictEqual(
+					detectLinks('<C:\\Github\\microsoft\\vscode:400<', OperatingSystem.Windows),
+					[
+						{
+							path: {
+								index: 1,
+								text: 'C:\\Github\\microsoft\\vscode'
+							},
+							prefix: undefined,
+							suffix: {
+								col: undefined,
+								row: 400,
+								suffix: {
+									index: 27,
+									text: ':400'
+								}
+							}
+						}
+					] as IParsedLink[]
+				);
+				deepStrictEqual(
+					detectLinks('>C:\\Github\\microsoft\\vscode:400>', OperatingSystem.Windows),
+					[
+						{
+							path: {
+								index: 1,
+								text: 'C:\\Github\\microsoft\\vscode'
+							},
+							prefix: undefined,
+							suffix: {
+								col: undefined,
+								row: 400,
+								suffix: {
+									index: 27,
+									text: ':400'
+								}
+							}
+						}
+					] as IParsedLink[]
+				);
+			});
 		});
 
 		suite('should detect file names in git diffs', () => {

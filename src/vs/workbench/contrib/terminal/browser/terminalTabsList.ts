@@ -21,7 +21,6 @@ import { ITerminalBackend, TerminalCommandId } from 'vs/workbench/contrib/termin
 import { TerminalLocation, TerminalSettingId } from 'vs/platform/terminal/common/terminal';
 import { Codicon } from 'vs/base/common/codicons';
 import { Action } from 'vs/base/common/actions';
-import { MarkdownString } from 'vs/base/common/htmlContent';
 import { DEFAULT_LABELS_CONTAINER, IResourceLabel, ResourceLabels } from 'vs/workbench/browser/labels';
 import { IDecorationData, IDecorationsProvider, IDecorationsService } from 'vs/workbench/services/decorations/common/decorations';
 import { IHoverAction, IHoverService } from 'vs/workbench/services/hover/browser/hover';
@@ -45,7 +44,7 @@ import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecy
 import { IProcessDetails } from 'vs/platform/terminal/common/terminalProcess';
 import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/terminalContextKey';
 import { getTerminalResourcesFromDragEvent, parseTerminalUri } from 'vs/workbench/contrib/terminal/browser/terminalUri';
-import { getShellIntegrationTooltip } from 'vs/workbench/contrib/terminal/browser/terminalTooltip';
+import { getInstanceHoverInfo } from 'vs/workbench/contrib/terminal/browser/terminalTooltip';
 import { defaultInputBoxStyles } from 'vs/platform/theme/browser/defaultStyles';
 import { Event, Emitter } from 'vs/base/common/event';
 import { Schemas } from 'vs/base/common/network';
@@ -80,6 +79,7 @@ export class TerminalTabList extends WorkbenchList<ITerminalInstance> {
 		@IDecorationsService decorationsService: IDecorationsService,
 		@IThemeService private readonly _themeService: IThemeService,
 		@ILifecycleService lifecycleService: ILifecycleService,
+		@IHoverService private readonly _hoverService: IHoverService,
 	) {
 		super('TerminalTabsList', container,
 			{
@@ -214,6 +214,19 @@ export class TerminalTabList extends WorkbenchList<ITerminalInstance> {
 		this.splice(0, this.length, this._terminalGroupService.instances.slice());
 	}
 
+	focusHover(): void {
+		const instance = this.getSelectedElements()[0];
+		if (!instance) {
+			return;
+		}
+
+		this._hoverService.showHover({
+			...getInstanceHoverInfo(instance),
+			target: this.getHTMLElement(),
+			trapFocus: true
+		}, true);
+	}
+
 	private _updateContextKey() {
 		this._terminalTabsSingleSelectedContextKey.set(this.getSelectedElements().length === 1);
 		const instance = this.getFocusedElements();
@@ -308,18 +321,9 @@ class TerminalTabsRenderer implements IListRenderer<ITerminalInstance, ITerminal
 			}
 		}
 
+		const hoverInfo = getInstanceHoverInfo(instance);
+		template.context.hoverActions = hoverInfo.actions;
 
-		let statusString = '';
-		const statuses = instance.statusList.statuses;
-		template.context.hoverActions = [];
-		for (const status of statuses) {
-			statusString += `\n\n---\n\n${status.icon ? `$(${status.icon?.id}) ` : ''}${status.tooltip || status.id}`;
-			if (status.hoverActions) {
-				template.context.hoverActions.push(...status.hoverActions);
-			}
-		}
-
-		const shellIntegrationString = getShellIntegrationTooltip(instance, true);
 		const iconId = this._instantiationService.invokeFunction(getIconId, instance);
 		const hasActionbar = !this.shouldHideActionBar();
 		let label: string = '';
@@ -373,7 +377,7 @@ class TerminalTabsRenderer implements IListRenderer<ITerminalInstance, ITerminal
 				badges: hasText
 			},
 			title: {
-				markdown: new MarkdownString(instance.title + shellIntegrationString + statusString, { supportThemeIcons: true }),
+				markdown: hoverInfo.content,
 				markdownNotSupportedFallback: undefined
 			},
 			extraClasses

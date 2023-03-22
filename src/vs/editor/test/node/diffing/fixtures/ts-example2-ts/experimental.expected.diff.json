@@ -1,6 +1,12 @@
 {
-	"originalFileName": "./1.tst",
-	"modifiedFileName": "./2.tst",
+	"original": {
+		"content": "function cloneTypeReference(source: TypeReference): TypeReference {\n    const type = <TypeReference>createType(source.flags);\n    type.symbol = source.symbol;\n    type.objectFlags = source.objectFlags;\n    type.target = source.target;\n    type.typeArguments = source.typeArguments;\n    return type;\n}",
+		"fileName": "./1.tst"
+	},
+	"modified": {
+		"content": "function cloneTypeReference(source: TypeReference): TypeReference {\n    const type = <TypeReference>createType(source.flags);\n    type.symbol = source.symbol;\n    type.objectFlags = source.objectFlags;\n    type.target = source.target;\n    type.resolvedTypeArguments = source.resolvedTypeArguments;\n    return type;\n}\n\nfunction createDeferredTypeReference(): DeferredTypeReference {\n    const aliasSymbol = getAliasSymbolForTypeNode(node);\n    const aliasTypeArguments = getTypeArgumentsForAliasSymbol(aliasSymbol);\n    type.target = target;\n    type.node = node;\n    type.mapper = mapper;\n    type.aliasSymbol = aliasSymbol;\n    return type;\n}\n\nfunction getTypeArguments(type: TypeReference): ReadonlyArray<Type> {\n    if (!type.resolvedTypeArguments) {\n        const node = type.node;\n    }\n    return type.resolvedTypeArguments;\n}",
+		"fileName": "./2.tst"
+	},
 	"diffs": [
 		{
 			"originalRange": "[6,7)",

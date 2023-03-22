@@ -5,12 +5,14 @@
 
 import { IAction, Separator } from 'vs/base/common/actions';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
-import { ICodeEditor, MouseTargetType } from 'vs/editor/browser/editorBrowser';
+import { isMacintosh } from 'vs/base/common/platform';
+import { ICodeEditor, IEditorMouseEvent, MouseTargetType } from 'vs/editor/browser/editorBrowser';
 import { registerEditorContribution, EditorContributionInstantiation } from 'vs/editor/browser/editorExtensions';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { IMenuService, MenuId } from 'vs/platform/actions/common/actions';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
+import { TextEditorSelectionSource } from 'vs/platform/editor/common/editor';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { Registry } from 'vs/platform/registry/common/platform';
 
@@ -56,43 +58,65 @@ export class EditorLineNumberContextMenu extends Disposable implements IEditorCo
 	) {
 		super();
 
-		this.registerListeners();
+		this._register(this.editor.onMouseDown((e: IEditorMouseEvent) => this.doShow(e, false)));
 
 	}
 
-	private registerListeners(): void {
-		this._register(this.editor.onContextMenu((e) => {
-			const menu = this.menuService.createMenu(MenuId.EditorLineNumberContext, this.contextKeyService);
+	public show(e: IEditorMouseEvent) {
+		this.doShow(e, true);
+	}
 
-			const model = this.editor.getModel();
-			if (!e.target.position || !model || e.target.type !== MouseTargetType.GUTTER_LINE_NUMBERS && e.target.type !== MouseTargetType.GUTTER_GLYPH_MARGIN) {
-				return;
+	private doShow(e: IEditorMouseEvent, force: boolean) {
+		const model = this.editor.getModel();
+
+		// on macOS ctrl+click is interpreted as right click
+		if (!e.event.rightButton && !(isMacintosh && e.event.leftButton && e.event.ctrlKey) && !force
+			|| e.target.type !== MouseTargetType.GUTTER_LINE_NUMBERS && e.target.type !== MouseTargetType.GUTTER_GLYPH_MARGIN
+			|| !e.target.position || !model
+		) {
+			return;
+		}
+
+		const anchor = { x: e.event.posx, y: e.event.posy };
+		const lineNumber = e.target.position.lineNumber;
+
+		const contextKeyService = this.contextKeyService.createOverlay([['editorLineNumber', lineNumber]]);
+		const menu = this.menuService.createMenu(MenuId.EditorLineNumberContext, contextKeyService);
+
+		const actions: IAction[][] = [];
+
+		this.instantiationService.invokeFunction(accessor => {
+			for (const generator of GutterActionsRegistry.getGutterActionsGenerators()) {
+				const collectedActions: IAction[] = [];
+				generator({ lineNumber, editor: this.editor, accessor }, { push: (action: IAction) => collectedActions.push(action) });
+				actions.push(collectedActions);
 			}
 
-			const anchor = { x: e.event.posx, y: e.event.posy };
-			const lineNumber = e.target.position.lineNumber;
+			const menuActions = menu.getActions({ arg: { lineNumber, uri: model.uri }, shouldForwardArgs: true });
+			actions.push(...menuActions.map(a => a[1]));
 
-			const actions: IAction[][] = [];
-
-			this.instantiationService.invokeFunction(accessor => {
-				for (const generator of GutterActionsRegistry.getGutterActionsGenerators()) {
-					const collectedActions: IAction[] = [];
-					generator({ lineNumber, editor: this.editor, accessor }, { push: (action: IAction) => collectedActions.push(action) });
-					actions.push(collectedActions);
+			// if the current editor selections do not contain the target line number,
+			// set the selection to the clicked line number
+			if (e.target.type === MouseTargetType.GUTTER_LINE_NUMBERS) {
+				const currentSelections = this.editor.getSelections();
+				const containsSelection = currentSelections?.some(selection => selection.containsPosition({ lineNumber, column: 1 }));
+				if (!containsSelection) {
+					const selection = {
+						startLineNumber: lineNumber,
+						endLineNumber: lineNumber,
+						startColumn: 1,
+						endColumn: model.getLineLength(lineNumber) + 1
+					};
+					this.editor.setSelection(selection, TextEditorSelectionSource.PROGRAMMATIC);
 				}
+			}
 
-				const menuActions = menu.getActions({ arg: { lineNumber, uri: model.uri }, shouldForwardArgs: true });
-				actions.push(...menuActions.map(a => a[1]));
-
-				this.contextMenuService.showContextMenu({
-					getAnchor: () => anchor,
-					getActions: () => Separator.join(...actions),
-					menuActionOptions: { shouldForwardArgs: true },
-					getActionsContext: () => ({ lineNumber, uri: model.uri }),
-					onHide: () => menu.dispose(),
-				});
+			this.contextMenuService.showContextMenu({
+				getAnchor: () => anchor,
+				getActions: () => Separator.join(...actions),
+				onHide: () => menu.dispose(),
 			});
-		}));
+		});
 	}
 }
 

@@ -11,6 +11,11 @@ import { ILanguageService } from 'vs/editor/common/languages/language';
 import * as nls from 'vs/nls';
 import { IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
+import { CommandsRegistry } from 'vs/platform/commands/common/commands';
+import { Registry } from 'vs/platform/registry/common/platform';
+import { Extensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
+import { EditorExtensionsRegistry } from 'vs/editor/browser/editorExtensions';
+import { MenuId, MenuRegistry, isIMenuItem } from 'vs/platform/actions/common/actions';
 
 export class ConfigureLanguageBasedSettingsAction extends Action {
 
@@ -63,3 +68,32 @@ export class ConfigureLanguageBasedSettingsAction extends Action {
 
 	}
 }
+
+// Register a command that gets all settings
+CommandsRegistry.registerCommand({
+	id: '_getAllSettings',
+	handler: () => {
+		const configRegistry = Registry.as<IConfigurationRegistry>(Extensions.Configuration);
+		const allSettings = configRegistry.getConfigurationProperties();
+		return allSettings;
+	}
+});
+
+//#region --- Register a command to get all actions from the command palette
+CommandsRegistry.registerCommand('_getAllCommands', function () {
+	const actions: { command: string; label: string; precondition?: string }[] = [];
+	for (const editorAction of EditorExtensionsRegistry.getEditorActions()) {
+		actions.push({ command: editorAction.id, label: editorAction.label, precondition: editorAction.precondition?.serialize() });
+	}
+	for (const menuItem of MenuRegistry.getMenuItems(MenuId.CommandPalette)) {
+		if (isIMenuItem(menuItem)) {
+			const title = typeof menuItem.command.title === 'string' ? menuItem.command.title : menuItem.command.title.value;
+			const category = menuItem.command.category ? typeof menuItem.command.category === 'string' ? menuItem.command.category : menuItem.command.category.value : undefined;
+			const label = category ? `${category}: ${title}` : title;
+			actions.push({ command: menuItem.command.id, label, precondition: menuItem.when?.serialize() });
+		}
+	}
+	return actions;
+});
+//#endregion
+

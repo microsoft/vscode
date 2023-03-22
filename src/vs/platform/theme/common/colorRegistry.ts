@@ -12,8 +12,6 @@ import * as nls from 'vs/nls';
 import { Extensions as JSONExtensions, IJSONContributionRegistry } from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
 import * as platform from 'vs/platform/registry/common/platform';
 import { IColorTheme } from 'vs/platform/theme/common/themeService';
-import { isString } from 'vs/base/common/types';
-import { CharCode } from 'vs/base/common/charCode';
 
 //  ------ API types
 
@@ -140,17 +138,6 @@ class ColorRegistry implements IColorRegistry {
 		const propertySchema: IJSONSchema = { type: 'string', description, format: 'color-hex', defaultSnippets: [{ body: '${1:#ff0000}' }] };
 		if (deprecationMessage) {
 			propertySchema.deprecationMessage = deprecationMessage;
-		}
-		if (defaults) {
-			const validateColorValue = (c: ColorValue | null) => {
-				if (isString(c) && c.charCodeAt(0) !== CharCode.Hash && !Color.Format.CSS.parseHex(c)) {
-					console.log(`Invalid color value: ${c} for color ${id}`);
-				}
-			};
-			validateColorValue(defaults.dark);
-			validateColorValue(defaults.light);
-			validateColorValue(defaults.hcDark);
-			validateColorValue(defaults.hcLight);
 		}
 		this.colorSchema.properties[id] = propertySchema;
 		this.colorReferenceSchema.enum.push(id);

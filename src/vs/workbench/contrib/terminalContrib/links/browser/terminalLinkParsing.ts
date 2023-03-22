@@ -70,7 +70,8 @@ const linkSuffixRegexEol = new Lazy<RegExp>(() => {
 		// "foo" on line 339
 		// "foo" on line 339, col 12
 		// "foo" on line 339, column 12
-		`['"]?(?:, |: ?| on )line ${l()}(, col(?:umn)? ${c()})?$`,
+		// "foo" line 339 column 12
+		`['"]?(?:,? |: ?| on )line ${l()}(,? col(?:umn)? ${c()})?$`,
 		// foo(339)
 		// foo(339,12)
 		// foo(339, 12)
@@ -121,7 +122,8 @@ const linkSuffixRegex = new Lazy<RegExp>(() => {
 		// "foo" on line 339
 		// "foo" on line 339, col 12
 		// "foo" on line 339, column 12
-		`['"]?(?:, |: ?| on )line ${l()}(, col(?:umn)? ${c()})?`,
+		// "foo" line 339 column 12
+		`['"]?(?:,? |: ?| on )line ${l()}(,? col(?:umn)? ${c()})?`,
 		// foo(339)
 		// foo(339,12)
 		// foo(339, 12)
@@ -202,8 +204,11 @@ export function toLinkSuffix(match: RegExpExecArray | null): ILinkSuffix | null 
 	};
 }
 
-// Paths cannot start with opening brackets
-const linkWithSuffixPathCharacters = /(?<path>[^\s\[\({][^\s]*)$/;
+// This defines valid path characters for a link with a suffix, the first `[]` of the regex includes
+// characters the path is not allowed to _start_ with, the second `[]` includes characters not
+// allowed at all in the path. If the characters show up in both regexes the link will stop at that
+// character, otherwise it will stop at a space character.
+const linkWithSuffixPathCharacters = /(?<path>[^\s\|<>\[\({][^\s\|<>]*)$/;
 
 export function detectLinks(line: string, os: OperatingSystem) {
 	// 1: Detect all links on line via suffixes first

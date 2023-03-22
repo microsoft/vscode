@@ -21,7 +21,7 @@ export abstract class BaseAssignmentService implements IAssignmentService {
 	}
 
 	constructor(
-		private readonly getMachineId: () => Promise<string>,
+		private readonly machineId: string,
 		protected readonly configurationService: IConfigurationService,
 		protected readonly productService: IProductService,
 		protected telemetry: IExperimentationTelemetry,
@@ -77,11 +77,10 @@ export abstract class BaseAssignmentService implements IAssignmentService {
 			TargetPopulation.Public : (this.productService.quality === 'exploration' ?
 				TargetPopulation.Exploration : TargetPopulation.Insiders);
 
-		const machineId = await this.getMachineId();
 		const filterProvider = new AssignmentFilterProvider(
 			this.productService.version,
 			this.productService.nameLong,
-			machineId,
+			this.machineId,
 			targetPopulation
 		);
 
