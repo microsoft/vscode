@@ -7,6 +7,7 @@ import { KeyCode } from 'vs/base/common/keyCodes';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import * as dom from 'vs/base/browser/dom';
+import { Event } from 'vs/base/common/event';
 import { IEditorConstructionOptions } from 'vs/editor/browser/config/editorConfiguration';
 import { EditorExtensionsRegistry } from 'vs/editor/browser/editorExtensions';
 import { CodeEditorWidget, ICodeEditorWidgetOptions } from 'vs/editor/browser/widget/codeEditorWidget';
@@ -95,9 +96,7 @@ export class AccessibleBufferWidget extends DisposableStore {
 		this.add(this._focusTracker.onDidBlur(() => this._focusedContextKey.reset()));
 		this._accessibleBuffer.replaceChildren(this._editorContainer);
 		this._xtermElement.insertAdjacentElement('beforebegin', this._accessibleBuffer);
-		this._bufferEditor.layout({ width: this._xtermElement.clientWidth, height: this._xtermElement.clientHeight });
-		this.add(this._xterm.raw.onResize(() => this._bufferEditor.layout({ width: this._xtermElement.clientWidth, height: this._xtermElement.clientHeight })));
-		this.add(this._bufferEditor);
+		this.add(Event.runAndSubscribe(this._xterm.raw.onResize, () => this._bufferEditor.layout({ width: this._xtermElement.clientWidth, height: this._xtermElement.clientHeight })));
 		this._bufferEditor.onKeyDown((e) => {
 			// tab moves focus mode will prematurely move focus to the next element before
 			// xterm can be focused
