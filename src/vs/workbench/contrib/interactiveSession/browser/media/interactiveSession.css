@@ -48,6 +48,8 @@
 	height: 24px;
 	border-radius: 50%;
 	background: var(--vscode-badge-background);
+	pointer-events: none;
+	user-select: none;
 }
 
 .interactive-list .interactive-item-container .header .avatar .icon {

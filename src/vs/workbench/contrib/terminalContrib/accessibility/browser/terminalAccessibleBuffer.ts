@@ -7,6 +7,7 @@ import { KeyCode } from 'vs/base/common/keyCodes';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import * as dom from 'vs/base/browser/dom';
+import { Event } from 'vs/base/common/event';
 import { IEditorConstructionOptions } from 'vs/editor/browser/config/editorConfiguration';
 import { EditorExtensionsRegistry } from 'vs/editor/browser/editorExtensions';
 import { CodeEditorWidget, ICodeEditorWidgetOptions } from 'vs/editor/browser/widget/codeEditorWidget';
@@ -28,14 +29,12 @@ import { AudioCue, IAudioCueService } from 'vs/platform/audioCues/browser/audioC
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/terminalContextKey';
 
-const enum Constants {
-	Scheme = 'terminal-accessible-buffer',
+const enum CssClass {
 	Active = 'active',
 	Hide = 'hide'
 }
 
 export class AccessibleBufferWidget extends DisposableStore {
-	public static ID: string = Constants.Scheme;
 	private _accessibleBuffer: HTMLElement;
 	private _bufferEditor: CodeEditorWidget;
 	private _editorContainer: HTMLElement;
@@ -49,7 +48,7 @@ export class AccessibleBufferWidget extends DisposableStore {
 
 	constructor(
 		private readonly _instance: ITerminalInstance,
-		private readonly _xterm: IXtermTerminal & { raw: Terminal },
+		private readonly _xterm: Pick<IXtermTerminal, 'getFont'> & { raw: Terminal },
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IModelService private readonly _modelService: IModelService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
@@ -90,15 +89,13 @@ export class AccessibleBufferWidget extends DisposableStore {
 		this._accessibleBuffer.ariaRoleDescription = localize('terminal.integrated.accessibleBuffer', 'Terminal buffer');
 		this._accessibleBuffer.classList.add('accessible-buffer');
 		this._editorContainer = document.createElement('div');
-		this._bufferEditor = this._instantiationService.createInstance(CodeEditorWidget, this._editorContainer, editorOptions, codeEditorWidgetOptions);
+		this._bufferEditor = this.add(this._instantiationService.createInstance(CodeEditorWidget, this._editorContainer, editorOptions, codeEditorWidgetOptions));
 		this._focusTracker = this.add(dom.trackFocus(this._editorContainer));
 		this.add(this._focusTracker.onDidFocus(() => this._focusedContextKey.set(true)));
 		this.add(this._focusTracker.onDidBlur(() => this._focusedContextKey.reset()));
 		this._accessibleBuffer.replaceChildren(this._editorContainer);
 		this._xtermElement.insertAdjacentElement('beforebegin', this._accessibleBuffer);
-		this._bufferEditor.layout({ width: this._xtermElement.clientWidth, height: this._xtermElement.clientHeight });
-		this.add(this._xterm.raw.onResize(() => this._bufferEditor.layout({ width: this._xtermElement.clientWidth, height: this._xtermElement.clientHeight })));
-		this.add(this._bufferEditor);
+		this.add(Event.runAndSubscribe(this._xterm.raw.onResize, () => this._bufferEditor.layout({ width: this._xtermElement.clientWidth, height: this._xtermElement.clientHeight })));
 		this._bufferEditor.onKeyDown((e) => {
 			switch (e.keyCode) {
 				case KeyCode.Tab:
@@ -130,37 +127,37 @@ export class AccessibleBufferWidget extends DisposableStore {
 			// if the editor is focused via tab, we need to update the model
 			// and show it
 			await this._updateEditor();
-			this._accessibleBuffer.classList.add(Constants.Active);
-			this._xtermElement.classList.add(Constants.Hide);
+			this._accessibleBuffer.classList.add(CssClass.Active);
+			this._xtermElement.classList.add(CssClass.Hide);
 		}));
 		this._updateEditor();
 	}
 
 	private _hide(): void {
-		this._accessibleBuffer.classList.remove(Constants.Active);
-		this._xtermElement.classList.remove(Constants.Hide);
+		this._accessibleBuffer.classList.remove(CssClass.Active);
+		this._xtermElement.classList.remove(CssClass.Hide);
 	}
 
-	private async _updateModel(insertion?: boolean): Promise<void> {
+	private async _updateModel(insertion?: boolean): Promise<ITextModel> {
 		let model = this._bufferEditor.getModel();
 		const lineCount = model?.getLineCount() ?? 0;
 		if (insertion && model && lineCount > this._xterm.raw.rows) {
 			const lineNumber = lineCount + 1;
 			model.pushEditOperations(null, [{
-				range: { startLineNumber: lineNumber, endLineNumber: lineNumber, startColumn: 1, endColumn: 1 }, text: await this._getContent(true)
+				range: { startLineNumber: lineNumber, endLineNumber: lineNumber, startColumn: 1, endColumn: 1 }, text: this._getContent(true)
 			}], () => []);
 		} else {
-			model = await this._getTextModel(URI.from({ scheme: `${Constants.Scheme}-${this._instance.instanceId}`, fragment: await this._getContent() }));
+			model = await this._getTextModel(this._instance.resource.with({ fragment: this._getContent() }));
 		}
 		if (!model) {
 			throw new Error('Could not create accessible buffer editor model');
 		}
 		this._bufferEditor.setModel(model);
+		return model;
 	}
 
 	private async _updateEditor(insertion?: boolean): Promise<void> {
-		await this._updateModel(insertion);
-		const model = this._bufferEditor.getModel();
+		const model = await this._updateModel(insertion);
 		if (!model) {
 			return;
 		}
@@ -227,8 +224,8 @@ export class AccessibleBufferWidget extends DisposableStore {
 		this._prependNewLine = true;
 		this._accessibleBuffer.tabIndex = -1;
 		this._bufferEditor.layout({ width: this._xtermElement.clientWidth, height: this._xtermElement.clientHeight });
-		this._accessibleBuffer.classList.add(Constants.Active);
-		this._xtermElement.classList.add(Constants.Hide);
+		this._accessibleBuffer.classList.add(CssClass.Active);
+		this._xtermElement.classList.add(CssClass.Hide);
 		this._bufferEditor.focus();
 	}
 
@@ -242,13 +239,11 @@ export class AccessibleBufferWidget extends DisposableStore {
 	}
 
 	private _getContent(lastBufferIndex?: boolean): string {
-		this._bufferToEditorIndex = new Map();
-		const lines: string[] = [];
-		let currentLine: string = '';
 		const buffer = this._xterm?.raw.buffer.active;
 		if (!buffer) {
 			return '';
 		}
+
 		const scrollback: number = this._configurationService.getValue(TerminalSettingId.Scrollback);
 		const maxBufferSize = scrollback + this._xterm.raw.rows - 1;
 		const end = Math.min(maxBufferSize, buffer.length - 1);
@@ -260,6 +255,10 @@ export class AccessibleBufferWidget extends DisposableStore {
 			this._prependNewLine = false;
 			return result;
 		}
+
+		this._bufferToEditorIndex = new Map();
+		const lines: string[] = [];
+		let currentLine: string = '';
 		for (let i = 0; i <= end; i++) {
 			const line = buffer.getLine(i);
 			if (!line) {
@@ -273,6 +272,7 @@ export class AccessibleBufferWidget extends DisposableStore {
 				currentLine = '';
 			}
 		}
+
 		return lines.join('\n');
 	}
 }
