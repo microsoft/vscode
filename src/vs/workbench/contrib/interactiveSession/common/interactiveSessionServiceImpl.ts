@@ -344,15 +344,11 @@ export class InteractiveSessionService extends Disposable implements IInteractiv
 			throw new Error('No providers available');
 		}
 
+		const viewId = this.interactiveSessionContributionService.getViewIdForProvider(providerId);
+		await this.viewsService.openView(viewId);
+
 		// Currently we only support one session per provider
-		let modelForProvider = Iterable.find(this._sessionModels.values(), model => model.providerId === providerId);
-		if (!modelForProvider) {
-			const viewId = this.interactiveSessionContributionService.getViewIdForProvider(providerId);
-			const view = await this.viewsService.openView(viewId);
-			if (view) {
-				modelForProvider = Iterable.find(this._sessionModels.values(), model => model.providerId === providerId);
-			}
-		}
+		const modelForProvider = Iterable.find(this._sessionModels.values(), model => model.providerId === providerId);
 
 		if (!modelForProvider) {
 			throw new Error(`Could not start session for provider ${providerId}`);
