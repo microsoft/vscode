@@ -237,13 +237,11 @@ export class AccessibleBufferWidget extends DisposableStore {
 	}
 
 	private _getContent(lastBufferIndex?: boolean): string {
-		this._bufferToEditorIndex = new Map();
-		const lines: string[] = [];
-		let currentLine: string = '';
 		const buffer = this._xterm?.raw.buffer.active;
 		if (!buffer) {
 			return '';
 		}
+
 		const scrollback: number = this._configurationService.getValue(TerminalSettingId.Scrollback);
 		const maxBufferSize = scrollback + this._xterm.raw.rows - 1;
 		const end = Math.min(maxBufferSize, buffer.length - 1);
@@ -255,6 +253,10 @@ export class AccessibleBufferWidget extends DisposableStore {
 			this._prependNewLine = false;
 			return result;
 		}
+
+		this._bufferToEditorIndex = new Map();
+		const lines: string[] = [];
+		let currentLine: string = '';
 		for (let i = 0; i <= end; i++) {
 			const line = buffer.getLine(i);
 			if (!line) {
@@ -268,6 +270,7 @@ export class AccessibleBufferWidget extends DisposableStore {
 				currentLine = '';
 			}
 		}
+
 		return lines.join('\n');
 	}
 }
