@@ -166,6 +166,8 @@ export class TerminalEditorInput extends EditorInput implements IEditorCloseHand
 			instance.onDisposed(() => this.dispose()),
 			instance.onTitleChanged(() => this._onDidChangeLabel.fire()),
 			instance.onIconChanged(() => this._onDidChangeLabel.fire()),
+			instanceOnDidFocusListener,
+			instanceOnDidBlurListener,
 			instance.statusList.onDidChangePrimaryStatus(() => this._onDidChangeLabel.fire())
 		];
 
