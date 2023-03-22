@@ -11,6 +11,8 @@ import { registerAction2 } from 'vs/platform/actions/common/actions';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { IRelaxedExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
+import { ILogService } from 'vs/platform/log/common/log';
+import { IProductService } from 'vs/platform/product/common/productService';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { ViewPaneContainer } from 'vs/workbench/browser/parts/views/viewPaneContainer';
 import { IViewContainersRegistry, IViewDescriptor, IViewsRegistry, ViewContainer, ViewContainerLocation, Extensions as ViewExtensions } from 'vs/workbench/common/views';
@@ -62,8 +64,16 @@ export class InteractiveSessionContributionService implements IInteractiveSessio
 	private _registrationDisposables = new Map<string, IDisposable>();
 	private _registeredProviders = new Map<string, IInteractiveSessionProviderContribution>();
 
-	constructor() {
+	constructor(
+		@IProductService productService: IProductService,
+		@ILogService logService: ILogService,
+	) {
 		interactiveSessionExtensionPoint.setHandler((extensions, delta) => {
+			if (productService.quality === 'stable') {
+				logService.trace(`InteractiveSessionContributionService#setHandler: the interactiveSession extension point is not available in stable VS Code.`);
+				return;
+			}
+
 			for (const extension of delta.added) {
 				const extensionDisposable = new DisposableStore();
 				for (const providerDescriptor of extension.value) {
