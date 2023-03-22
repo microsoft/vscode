@@ -121,6 +121,25 @@
 	margin-bottom: 8px;
 }
 
+.interactive-list .monaco-list-row .value h1 {
+	font-size: 20px;
+	font-weight: 600;
+	margin: 16px 0;
+
+}
+
+.interactive-list .monaco-list-row .value h2 {
+	font-size: 16px;
+	font-weight: 600;
+	margin: 16px 0;
+}
+
+.interactive-list .monaco-list-row .value h3 {
+	font-size: 14px;
+	font-weight: 600;
+	margin: 16px 0;
+}
+
 .interactive-list .monaco-list-row .value p {
 	margin: 0 0 16px 0;
 	line-height: 1.6em;
