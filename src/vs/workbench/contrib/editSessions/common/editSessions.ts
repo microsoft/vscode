@@ -108,4 +108,4 @@ export function hashedEditSessionId(editSessionId: string) {
 	return sha1.digest();
 }
 
-export const editSessionsLogId = 'editSessionsSyncLog';
+export const editSessionsLogId = 'editSessions';

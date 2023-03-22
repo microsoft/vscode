@@ -188,7 +188,7 @@ export class CommentService extends Disposable implements ICommentService {
 	}
 
 	private get _defaultCommentingEnablement(): boolean {
-		return !!this.configurationService.getValue<ICommentsConfiguration>(COMMENTS_SECTION).visible;
+		return !!this.configurationService.getValue<ICommentsConfiguration | undefined>(COMMENTS_SECTION)?.visible;
 	}
 
 	get isCommentingEnabled(): boolean {

@@ -82,6 +82,7 @@ import { IPreferencesService } from 'vs/workbench/services/preferences/common/pr
 import { TerminalExitReason } from 'vs/platform/terminal/common/terminal';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { raceTimeout } from 'vs/base/common/async';
 
 const QUICKOPEN_HISTORY_LIMIT_CONFIG = 'task.quickOpen.history';
 const PROBLEM_MATCHER_NEVER_CONFIG = 'task.problemMatchers.neverPrompt';
@@ -574,9 +575,10 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		// We need to first wait for extensions to be registered because we might read
 		// the `TaskDefinitionRegistry` in case `type` is `undefined`
 		await this._extensionService.whenInstalledExtensionsRegistered();
-
-		await Promise.all(
-			this._getActivationEvents(type).map(activationEvent => this._extensionService.activateByEvent(activationEvent))
+		await raceTimeout(
+			Promise.all(this._getActivationEvents(type).map(activationEvent => this._extensionService.activateByEvent(activationEvent))),
+			5000,
+			() => console.warn('Timed out activating extensions for task providers')
 		);
 	}
 

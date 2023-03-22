@@ -55,7 +55,7 @@ export class RemotePty extends Disposable implements ITerminalChildProcess {
 		this._startBarrier = new Barrier();
 	}
 
-	async start(): Promise<ITerminalLaunchError | undefined> {
+	async start(): Promise<ITerminalLaunchError | { injectedArgs: string[] } | undefined> {
 		// Fetch the environment to check shell permissions
 		const env = await this._remoteAgentService.getEnvironment();
 		if (!env) {
@@ -67,13 +67,13 @@ export class RemotePty extends Disposable implements ITerminalChildProcess {
 
 		const startResult = await this._remoteTerminalChannel.start(this._id);
 
-		if (typeof startResult !== 'undefined') {
+		if (startResult && 'message' in startResult) {
 			// An error occurred
 			return startResult;
 		}
 
 		this._startBarrier.open();
-		return undefined;
+		return startResult;
 	}
 
 	async detach(forcePersist?: boolean): Promise<void> {

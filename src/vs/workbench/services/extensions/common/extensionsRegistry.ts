@@ -11,7 +11,7 @@ import { EXTENSION_IDENTIFIER_PATTERN } from 'vs/platform/extensionManagement/co
 import { Extensions, IJSONContributionRegistry } from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IMessage } from 'vs/workbench/services/extensions/common/extensions';
-import { ExtensionIdentifier, IExtensionDescription, EXTENSION_CATEGORIES } from 'vs/platform/extensions/common/extensions';
+import { IExtensionDescription, EXTENSION_CATEGORIES, ExtensionIdentifierSet } from 'vs/platform/extensions/common/extensions';
 import { ExtensionKind } from 'vs/platform/environment/common/environment';
 import { allApiProposals } from 'vs/workbench/services/extensions/common/extensionsApiProposals';
 import { productSchemaId } from 'vs/platform/product/common/productService';
@@ -73,10 +73,10 @@ export interface IExtensionPoint<T> {
 
 export class ExtensionPointUserDelta<T> {
 
-	private static _toSet<T>(arr: readonly IExtensionPointUser<T>[]): Set<string> {
-		const result = new Set<string>();
+	private static _toSet<T>(arr: readonly IExtensionPointUser<T>[]): ExtensionIdentifierSet {
+		const result = new ExtensionIdentifierSet();
 		for (let i = 0, len = arr.length; i < len; i++) {
-			result.add(ExtensionIdentifier.toKey(arr[i].description.identifier));
+			result.add(arr[i].description.identifier);
 		}
 		return result;
 	}
@@ -92,8 +92,8 @@ export class ExtensionPointUserDelta<T> {
 		const previousSet = this._toSet(previous);
 		const currentSet = this._toSet(current);
 
-		const added = current.filter(user => !previousSet.has(ExtensionIdentifier.toKey(user.description.identifier)));
-		const removed = previous.filter(user => !currentSet.has(ExtensionIdentifier.toKey(user.description.identifier)));
+		const added = current.filter(user => !previousSet.has(user.description.identifier));
+		const removed = previous.filter(user => !currentSet.has(user.description.identifier));
 
 		return new ExtensionPointUserDelta<T>(added, removed);
 	}
@@ -582,7 +582,7 @@ export interface IExtensionPointDescriptor<T> {
 	defaultExtensionKind?: ExtensionKind[];
 	/**
 	 * A function which runs before the extension point has been validated and which
-	 * can should collect automatic activation events from the contribution.
+	 * should collect automatic activation events from the contribution.
 	 */
 	activationEventsGenerator?: IActivationEventsGenerator<removeArray<T>>;
 }

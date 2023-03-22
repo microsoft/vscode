@@ -6,5 +6,10 @@
 	"newUntitledIpynb.shortTitle": "Jupyter Notebook",
 	"openIpynbInNotebookEditor.title": "Open IPYNB File In Notebook Editor",
 	"cleanInvalidImageAttachment.title": "Clean Invalid Image Attachment Reference",
-	"markdownAttachmentRenderer.displayName": "Markdown it ipynb Cell Attachment renderer"
+	"markdownAttachmentRenderer.displayName": {
+		"message": "Markdown-It ipynb Cell Attachment renderer",
+		"comment": [
+			"Markdown-It is a product name and should not be translated"
+		]
+	}
 }

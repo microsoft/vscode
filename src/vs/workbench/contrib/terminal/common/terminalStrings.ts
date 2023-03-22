@@ -14,6 +14,10 @@ export const terminalStrings = {
 	doNotShowAgain: localize('doNotShowAgain', 'Do Not Show Again'),
 	currentSessionCategory: localize('currentSessionCategory', 'current session'),
 	previousSessionCategory: localize('previousSessionCategory', 'previous session'),
+	actionCategory: {
+		value: localize('terminalCategory', "Terminal"),
+		original: 'Terminal'
+	},
 	focus: {
 		value: localize('workbench.action.terminal.focus', "Focus Terminal"),
 		original: 'Focus Terminal'
@@ -55,5 +59,9 @@ export const terminalStrings = {
 	toggleSizeToContentWidth: {
 		value: localize('workbench.action.terminal.sizeToContentWidthInstance', "Toggle Size to Content Width"),
 		original: 'Toggle Size to Content Width'
-	}
+	},
+	focusHover: {
+		value: localize('workbench.action.terminal.focusHover', "Focus Hover"),
+		original: 'Focus Hover'
+	},
 };

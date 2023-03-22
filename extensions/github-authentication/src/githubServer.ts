@@ -15,7 +15,7 @@ import { crypto } from './node/crypto';
 import { fetching } from './node/fetch';
 
 const CLIENT_ID = '01ab8ac9400c4e429b23';
-const GITHUB_TOKEN_URL = 'http://localhost:3000/codeExchangeProxyEndpoints/github/login/oauth/access_token';
+const GITHUB_TOKEN_URL = 'https://vscode.dev/codeExchangeProxyEndpoints/github/login/oauth/access_token';
 const NETWORK_ERROR = 'network error';
 
 const REDIRECT_URL_STABLE = 'https://vscode.dev/redirect';
@@ -594,6 +594,13 @@ export class GitHubServer implements IGitHubServer {
 			return;
 		}
 
+		/* __GDPR__
+			"session" : {
+				"owner": "TylerLeonhardt",
+				"isEdu": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+				"isManaged": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+			}
+		*/
 		this._telemetryReporter.sendTelemetryEvent('session', {
 			isEdu: edu ?? 'unknown',
 			isManaged: managed ?? 'unknown'

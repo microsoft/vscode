@@ -583,7 +583,8 @@ export abstract class PersistentConnection extends Disposable {
 		return this._permanentFailure || PersistentConnection._permanentFailure;
 	}
 
-	private _isReconnecting: boolean;
+	private _isReconnecting: boolean = false;
+	private _isDisposed: boolean = false;
 
 	constructor(
 		private readonly _connectionType: ConnectionType,
@@ -593,7 +594,6 @@ export abstract class PersistentConnection extends Disposable {
 		private readonly _reconnectionFailureIsFatal: boolean
 	) {
 		super();
-		this._isReconnecting = false;
 
 		this._onDidStateChange.fire(new ConnectionGainEvent(this.reconnectionToken, 0, 0));
 
@@ -640,6 +640,11 @@ export abstract class PersistentConnection extends Disposable {
 		}
 	}
 
+	public override dispose(): void {
+		super.dispose();
+		this._isDisposed = true;
+	}
+
 	private async _beginReconnecting(): Promise<void> {
 		// Only have one reconnection loop active at a time.
 		if (this._isReconnecting) {
@@ -654,7 +659,7 @@ export abstract class PersistentConnection extends Disposable {
 	}
 
 	private async _runReconnectingLoop(): Promise<void> {
-		if (this._isPermanentFailure) {
+		if (this._isPermanentFailure || this._isDisposed) {
 			// no more attempts!
 			return;
 		}
@@ -735,7 +740,7 @@ export abstract class PersistentConnection extends Disposable {
 				this._onReconnectionPermanentFailure(this.protocol.getMillisSinceLastIncomingData(), attempt + 1, false);
 				break;
 			}
-		} while (!this._isPermanentFailure);
+		} while (!this._isPermanentFailure && !this._isDisposed);
 	}
 
 	private _onReconnectionPermanentFailure(millisSinceLastIncomingData: number, attempt: number, handled: boolean): void {

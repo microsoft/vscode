@@ -36,7 +36,6 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { themeColorFromId } from 'vs/platform/theme/common/themeService';
 import { ThemeIcon } from 'vs/base/common/themables';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
-import { BREAKPOINT_EDITOR_CONTRIBUTION_ID, IBreakpointEditorContribution } from 'vs/workbench/contrib/debug/common/debug';
 import { getTestItemContextOverlay } from 'vs/workbench/contrib/testing/browser/explorerProjections/testItemContextOverlay';
 import { testingRunAllIcon, testingRunIcon, testingStatesToIcons } from 'vs/workbench/contrib/testing/browser/icons';
 import { DefaultGutterClickAction, getTestingConfiguration, TestingConfigKeys } from 'vs/workbench/contrib/testing/common/configuration';
@@ -51,6 +50,8 @@ import { LiveTestResult } from 'vs/workbench/contrib/testing/common/testResult';
 import { ITestResultService } from 'vs/workbench/contrib/testing/common/testResultService';
 import { getContextForTestItem, ITestService, testsInFile } from 'vs/workbench/contrib/testing/common/testService';
 import { IncrementalTestCollectionItem, InternalTestItem, IRichLocation, ITestMessage, ITestRunProfile, TestDiffOpType, TestMessageType, TestResultItem, TestResultState, TestRunProfileBitset } from 'vs/workbench/contrib/testing/common/testTypes';
+import { EditorLineNumberContextMenu, GutterActionsRegistry } from 'vs/workbench/contrib/codeEditor/browser/editorLineNumberMenu';
+import { isMacintosh } from 'vs/base/common/platform';
 
 const MAX_INLINE_MESSAGE_LENGTH = 128;
 
@@ -203,6 +204,30 @@ export class TestingDecorationService extends Disposable implements ITestingDeco
 		)(() => {
 			if (!debounceInvalidate.isScheduled()) {
 				debounceInvalidate.schedule();
+			}
+		}));
+
+		this._register(GutterActionsRegistry.registerGutterActionsGenerator((context, result) => {
+			const model = context.editor.getModel();
+			const testingDecorations = TestingDecorations.get(context.editor);
+			if (!model || !testingDecorations?.currentUri) {
+				return;
+			}
+
+			const currentDecorations = this.syncDecorations(testingDecorations.currentUri);
+			if (!currentDecorations.size) {
+				return;
+			}
+
+			const modelDecorations = model.getLinesDecorations(context.lineNumber, context.lineNumber);
+			for (const { id } of modelDecorations) {
+				const decoration = currentDecorations.getById(id);
+				if (decoration) {
+					const { object: actions } = decoration.getContextMenuActions();
+					for (const action of actions) {
+						result.push(action);
+					}
+				}
 			}
 		}));
 	}
@@ -371,7 +396,9 @@ export class TestingDecorations extends Disposable implements IEditorContributio
 		return editor.getContribution<TestingDecorations>(Testing.DecorationsContributionId);
 	}
 
-	private currentUri?: URI;
+	public get currentUri() { return this._currentUri; }
+
+	private _currentUri?: URI;
 	private readonly expectedWidget = new MutableDisposable<ExpectedLensContentWidget>();
 	private readonly actualWidget = new MutableDisposable<ActualLensContentWidget>();
 
@@ -388,8 +415,8 @@ export class TestingDecorations extends Disposable implements IEditorContributio
 
 		this.attachModel(editor.getModel()?.uri);
 		this._register(decorations.onDidChange(() => {
-			if (this.currentUri) {
-				decorations.syncDecorations(this.currentUri);
+			if (this._currentUri) {
+				decorations.syncDecorations(this._currentUri);
 			}
 		}));
 		this._register(this.editor.onDidChangeModel(e => this.attachModel(e.newModelUrl || undefined)));
@@ -411,11 +438,11 @@ export class TestingDecorations extends Disposable implements IEditorContributio
 		}));
 		this._register(Event.accumulate(this.editor.onDidChangeModelContent, 0, this._store)(evts => {
 			const model = editor.getModel();
-			if (!this.currentUri || !model) {
+			if (!this._currentUri || !model) {
 				return;
 			}
 
-			const currentDecorations = decorations.syncDecorations(this.currentUri);
+			const currentDecorations = decorations.syncDecorations(this._currentUri);
 			if (!currentDecorations.size) {
 				return;
 			}
@@ -464,7 +491,7 @@ export class TestingDecorations extends Disposable implements IEditorContributio
 			uri = undefined;
 		}
 
-		this.currentUri = uri;
+		this._currentUri = uri;
 
 		if (!uri) {
 			return;
@@ -477,7 +504,7 @@ export class TestingDecorations extends Disposable implements IEditorContributio
 				// consume the iterator so that all tests in the file get expanded. Or
 				// at least until the URI changes. If new items are requested, changes
 				// will be trigged in the `onDidProcessDiff` callback.
-				if (this.currentUri !== uri) {
+				if (this._currentUri !== uri) {
 					break;
 				}
 			}
@@ -701,13 +728,12 @@ abstract class RunTestDecoration {
 
 	/** @inheritdoc */
 	public click(e: IEditorMouseEvent): boolean {
-		if (e.target.type !== MouseTargetType.GUTTER_GLYPH_MARGIN) {
+		if (e.target.type !== MouseTargetType.GUTTER_GLYPH_MARGIN
+			// handled by editor gutter context menu
+			|| e.event.rightButton
+			|| isMacintosh && e.event.leftButton && e.event.ctrlKey
+		) {
 			return false;
-		}
-
-		if (e.event.rightButton) {
-			this.showContextMenu(e);
-			return true;
 		}
 
 		switch (getTestingConfiguration(this.configurationService, TestingConfigKeys.DefaultGutterClickAction)) {
@@ -757,7 +783,7 @@ abstract class RunTestDecoration {
 	/**
 	 * Called when the decoration is clicked on.
 	 */
-	protected abstract getContextMenuActions(): IReference<IAction[]>;
+	abstract getContextMenuActions(): IReference<IAction[]>;
 
 	protected defaultRun() {
 		return this.testService.runTests({
@@ -774,26 +800,8 @@ abstract class RunTestDecoration {
 	}
 
 	private showContextMenu(e: IEditorMouseEvent) {
-		let actions = this.getContextMenuActions();
 		const editor = this.codeEditorService.listCodeEditors().find(e => e.getModel() === this.model);
-		if (editor) {
-			const contribution = editor.getContribution<IBreakpointEditorContribution>(BREAKPOINT_EDITOR_CONTRIBUTION_ID);
-			if (contribution) {
-				actions = {
-					dispose: actions.dispose,
-					object: Separator.join(
-						actions.object,
-						contribution.getContextMenuActionsAtPosition(this.line, this.model)
-					)
-				};
-			}
-		}
-
-		this.contextMenuService.showContextMenu({
-			getAnchor: () => ({ x: e.event.posx, y: e.event.posy }),
-			getActions: () => actions.object,
-			onHide: () => actions.dispose,
-		});
+		editor?.getContribution<EditorLineNumberContextMenu>(EditorLineNumberContextMenu.ID)?.show(e);
 	}
 
 	private getGutterLabel() {
@@ -874,7 +882,7 @@ abstract class RunTestDecoration {
 }
 
 class MultiRunTestDecoration extends RunTestDecoration implements ITestDecoration {
-	protected override getContextMenuActions() {
+	override getContextMenuActions() {
 		const allActions: IAction[] = [];
 		if (this.tests.some(({ test }) => this.testProfileService.capabilitiesForTest(test) & TestRunProfileBitset.Run)) {
 			allActions.push(new Action('testing.gutter.runAll', localize('run all test', 'Run All Tests'), undefined, undefined, () => this.defaultRun()));
@@ -941,7 +949,7 @@ class RunSingleTestDecoration extends RunTestDecoration implements ITestDecorati
 		super([{ test, resultItem }], visible, model, codeEditorService, testService, contextMenuService, commandService, configurationService, testProfiles, contextKeyService, menuService);
 	}
 
-	protected override getContextMenuActions() {
+	override getContextMenuActions() {
 		return this.getTestContextMenuActions(this.tests[0].test, this.tests[0].resultItem);
 	}
 }
@@ -1026,5 +1034,9 @@ class TestMessageDecoration implements ITestDecoration {
 		}
 
 		return false;
+	}
+
+	getContextMenuActions() {
+		return { object: [], dispose: () => { } };
 	}
 }

@@ -7,7 +7,7 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { onUnexpectedExternalError } from 'vs/base/common/errors';
 import { Position } from 'vs/editor/common/core/position';
 import * as languages from 'vs/editor/common/languages';
-import { ActionSet, IActionItem } from 'vs/platform/actionWidget/common/actionWidget';
+import { ActionSet } from 'vs/platform/actionWidget/common/actionWidget';
 
 export class CodeActionKind {
 	private static readonly sep = '.';
@@ -146,7 +146,6 @@ export interface CodeActionTrigger {
 		readonly notAvailableMessage: string;
 		readonly position: Position;
 	};
-	readonly preview?: boolean;
 }
 
 export class CodeActionCommandArgs {
@@ -188,7 +187,7 @@ export class CodeActionCommandArgs {
 	) { }
 }
 
-export class CodeActionItem implements IActionItem {
+export class CodeActionItem {
 
 	constructor(
 		public readonly action: languages.CodeAction,
@@ -215,10 +214,5 @@ export interface CodeActionSet extends ActionSet<CodeActionItem> {
 	readonly validActions: readonly CodeActionItem[];
 	readonly allActions: readonly CodeActionItem[];
 
-	readonly documentation: readonly {
-		id: string;
-		title: string;
-		tooltip?: string;
-		commandArguments?: any[];
-	}[];
+	readonly documentation: readonly languages.Command[];
 }

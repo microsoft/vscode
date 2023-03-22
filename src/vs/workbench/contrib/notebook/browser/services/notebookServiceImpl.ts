@@ -182,6 +182,10 @@ export class NotebookProviderInfoStore extends Disposable {
 					cellOptions = { resource, options };
 				}
 
+				if (!cellOptions) {
+					cellOptions = (options as INotebookEditorOptions | undefined)?.cellOptions;
+				}
+
 				const notebookOptions = { ...options, cellOptions } as INotebookEditorOptions;
 				return { editor: NotebookEditorInput.create(this._instantiationService, notebookUri, notebookProviderInfo.id), options: notebookOptions };
 			};

@@ -5,10 +5,11 @@
 
 import { CharCode } from 'vs/base/common/charCode';
 import { IDiffChange, ISequence, LcsDiff, IDiffResult } from 'vs/base/common/diff/diff';
-import { ILinesDiffComputer, ILinesDiff, ILinesDiffComputerOptions, LineRange, RangeMapping, LineRangeMapping } from 'vs/editor/common/diff/linesDiffComputer';
+import { ILinesDiffComputer, ILinesDiff, ILinesDiffComputerOptions, RangeMapping, LineRangeMapping } from 'vs/editor/common/diff/linesDiffComputer';
 import * as strings from 'vs/base/common/strings';
 import { Range } from 'vs/editor/common/core/range';
 import { assertFn, checkAdjacentItems } from 'vs/base/common/assert';
+import { LineRange } from 'vs/editor/common/core/lineRange';
 
 const MINIMUM_MATCHING_CHARACTER_LENGTH = 3;
 

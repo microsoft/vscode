@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from 'vs/base/browser/dom';
+import { Event } from 'vs/base/common/event';
 import { MarkdownString } from 'vs/base/common/htmlContent';
 import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { ICodeEditor, IEditorMouseEvent, MouseTargetType } from 'vs/editor/browser/editorBrowser';
@@ -65,7 +66,7 @@ export class InlineCompletionsHover implements IHoverPart {
 
 export class InlineCompletionsHoverParticipant implements IEditorHoverParticipant<InlineCompletionsHover> {
 
-	public readonly hoverOrdinal: number = 3;
+	public readonly hoverOrdinal: number = 4;
 
 	constructor(
 		private readonly _editor: ICodeEditor,
@@ -148,7 +149,7 @@ export class InlineCompletionsHoverParticipant implements IEditorHoverParticipan
 	private renderScreenReaderText(context: IEditorHoverRenderContext, part: InlineCompletionsHover, disposableStore: DisposableStore) {
 		const $ = dom.$;
 		const markdownHoverElement = $('div.hover-row.markdown-hover');
-		const hoverContentsElement = dom.append(markdownHoverElement, $('div.hover-contents'));
+		const hoverContentsElement = dom.append(markdownHoverElement, $('div.hover-contents', { ['aria-live']: 'assertive' }));
 		const renderer = disposableStore.add(new MarkdownRenderer({ editor: this._editor }, this._languageService, this._openerService));
 		const render = (code: string) => {
 			disposableStore.add(renderer.onDidRenderAsync(() => {
@@ -161,11 +162,17 @@ export class InlineCompletionsHoverParticipant implements IEditorHoverParticipan
 			hoverContentsElement.replaceChildren(renderedContents.element);
 		};
 
-		const ghostText = part.controller.activeModel?.inlineCompletionsModel?.ghostText;
-		if (ghostText) {
-			const lineText = this._editor.getModel()!.getLineContent(ghostText.lineNumber);
-			render(ghostText.renderForScreenReader(lineText));
-		}
+		disposableStore.add(Event.runAndSubscribe<void>(e => part.onDidChange(e), () => {
+			const ghostText = part.controller.activeModel?.inlineCompletionsModel?.ghostText;
+			if (ghostText) {
+				const lineText = this._editor.getModel()!.getLineContent(ghostText.lineNumber);
+				render(ghostText.renderForScreenReader(lineText));
+			} else {
+				dom.reset(hoverContentsElement);
+			}
+		}));
+
+
 		context.fragment.appendChild(markdownHoverElement);
 	}
 }

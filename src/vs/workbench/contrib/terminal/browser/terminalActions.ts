@@ -6,7 +6,7 @@
 import { BrowserFeatures } from 'vs/base/browser/canIUse';
 import { Action } from 'vs/base/common/actions';
 import { Codicon } from 'vs/base/common/codicons';
-import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
+import { KeyChord, KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { Schemas } from 'vs/base/common/network';
 import { isLinux, isWindows } from 'vs/base/common/platform';
 import { IDisposable } from 'vs/base/common/lifecycle';
@@ -17,7 +17,7 @@ import { EndOfLinePreference } from 'vs/editor/common/model';
 import { localize } from 'vs/nls';
 import { CONTEXT_ACCESSIBILITY_MODE_ENABLED } from 'vs/platform/accessibility/common/accessibility';
 import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
-import { ICommandActionTitle, ILocalizedString } from 'vs/platform/action/common/action';
+import { ICommandActionTitle } from 'vs/platform/action/common/action';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
@@ -33,10 +33,9 @@ import { IWorkspaceContextService, IWorkspaceFolder } from 'vs/platform/workspac
 import { PICK_WORKSPACE_FOLDER_COMMAND_ID } from 'vs/workbench/browser/actions/workspaceCommands';
 import { CLOSE_EDITOR_COMMAND_ID } from 'vs/workbench/browser/parts/editor/editorCommands';
 import { ResourceContextKey } from 'vs/workbench/common/contextkeys';
-import { findInFilesCommand, IFindInFilesArgs } from 'vs/workbench/contrib/search/browser/searchActionsFind';
-import { Direction, ICreateTerminalOptions, IInternalXtermTerminal, ITerminalEditorService, ITerminalGroupService, ITerminalInstance, ITerminalInstanceService, ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { Direction, ICreateTerminalOptions, ITerminalEditorService, ITerminalGroupService, ITerminalInstance, ITerminalInstanceService, ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { TerminalQuickAccessProvider } from 'vs/workbench/contrib/terminal/browser/terminalQuickAccess';
-import { IRemoteTerminalAttachTarget, ITerminalConfigHelper, ITerminalProfileService, TerminalCommandId, TERMINAL_ACTION_CATEGORY } from 'vs/workbench/contrib/terminal/common/terminal';
+import { IRemoteTerminalAttachTarget, ITerminalConfigHelper, ITerminalProfileService, TerminalCommandId } from 'vs/workbench/contrib/terminal/common/terminal';
 import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/terminalContextKey';
 import { createProfileSchemaEnums } from 'vs/platform/terminal/common/terminalProfiles';
 import { terminalStrings } from 'vs/workbench/contrib/terminal/common/terminalStrings';
@@ -57,15 +56,15 @@ import { ILanguageService } from 'vs/editor/common/languages/language';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { dirname } from 'vs/base/common/resources';
 import { getIconClasses } from 'vs/editor/common/services/getIconClasses';
-import { FileKind, IFileService } from 'vs/platform/files/common/files';
-import { Categories } from 'vs/platform/action/common/actionCommonCategories';
+import { FileKind } from 'vs/platform/files/common/files';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
-import { VSBuffer } from 'vs/base/common/buffer';
 import { killTerminalIcon, newTerminalIcon } from 'vs/workbench/contrib/terminal/browser/terminalIcons';
 
 export const switchTerminalActionViewItemSeparator = '\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500';
 export const switchTerminalShowTabsTitle = localize('showTerminalTabs', "Show Tabs");
+
+const category = terminalStrings.actionCategory;
 
 export interface WorkspaceFolderCwdPair {
 	folder: IWorkspaceFolder;
@@ -130,8 +129,6 @@ export class TerminalLaunchHelpAction extends Action {
 }
 
 export function registerTerminalActions() {
-	const category: ILocalizedString = { value: TERMINAL_ACTION_CATEGORY, original: 'Terminal' };
-
 	registerAction2(class extends Action2 {
 		constructor() {
 			super({
@@ -174,29 +171,6 @@ export function registerTerminalActions() {
 			const options = (typeof args === 'object' && args && 'location' in args) ? args as ICreateTerminalOptions : { location: TerminalLocation.Editor };
 			const instance = await terminalService.createTerminal(options);
 			instance.focusWhenReady();
-		}
-	});
-	registerAction2(class extends Action2 {
-		constructor() {
-			super({
-				id: TerminalCommandId.ShowTerminalAccessibilityHelp,
-				title: { value: localize('workbench.action.terminal.showAccessibilityHelp', "Show Terminal Accessibility Help"), original: 'Show Terminal Accessibility Help' },
-				f1: true,
-				category,
-				precondition: ContextKeyExpr.and(TerminalContextKeys.processSupported),
-				keybinding: {
-					primary: KeyMod.Alt | KeyCode.F1,
-					weight: KeybindingWeight.WorkbenchContrib,
-					linux: {
-						primary: KeyMod.Alt | KeyMod.Shift | KeyCode.F1,
-						secondary: [KeyMod.Alt | KeyCode.F1]
-					},
-					when: TerminalContextKeys.focus
-				}
-			});
-		}
-		async run(accessor: ServicesAccessor) {
-			accessor.get(ITerminalService).showTerminalAccessibilityHelp();
 		}
 	});
 
@@ -403,25 +377,6 @@ export function registerTerminalActions() {
 			if (output && typeof output === 'string') {
 				await accessor.get(IClipboardService).writeText(output);
 			}
-		}
-	});
-	registerAction2(class extends Action2 {
-		constructor() {
-			super({
-				id: TerminalCommandId.EnterAccessibilityMode,
-				title: { value: localize('workbench.action.terminal.enterAccessibilityMode', 'Enter Accessibility Mode'), original: 'Enter Accessibility Mode' },
-				f1: true,
-				category,
-				precondition: ContextKeyExpr.and(CONTEXT_ACCESSIBILITY_MODE_ENABLED, ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated)),
-				keybinding: {
-					primary: KeyMod.Shift | KeyCode.Tab,
-					weight: KeybindingWeight.WorkbenchContrib,
-					when: TerminalContextKeys.focus
-				}
-			});
-		}
-		async run(accessor: ServicesAccessor): Promise<void> {
-			accessor.get(ITerminalService).activeInstance?.focusAccessibilityBuffer();
 		}
 	});
 	registerAction2(class extends Action2 {
@@ -649,7 +604,7 @@ export function registerTerminalActions() {
 				text = editor.getModel().getValueInRange(selection, endOfLinePreference);
 			}
 			instance.sendText(text, true, true);
-			await focusActiveTerminal(instance, terminalEditorService, terminalGroupService);
+			await revealActiveTerminal(instance, terminalEditorService, terminalGroupService);
 		}
 	});
 	registerAction2(class extends Action2 {
@@ -681,7 +636,7 @@ export function registerTerminalActions() {
 			if (instance?.xterm?.isStdinDisabled || instance?.shellLaunchConfig.type === 'Task') {
 				instance = await terminalService.createTerminal();
 				terminalService.setActiveInstance(instance);
-				await focusActiveTerminal(instance, terminalEditorService, terminalGroupService);
+				await revealActiveTerminal(instance, terminalEditorService, terminalGroupService);
 			}
 
 			const isRemote = instance ? instance.isRemote : (workbenchEnvironmentService.remoteAuthority ? true : false);
@@ -818,129 +773,6 @@ export function registerTerminalActions() {
 		}
 		run(accessor: ServicesAccessor) {
 			accessor.get(ITerminalService).activeInstance?.scrollToTop();
-		}
-	});
-	registerAction2(class extends Action2 {
-		constructor() {
-			super({
-				id: TerminalCommandId.NavigationModeExit,
-				title: { value: localize('workbench.action.terminal.navigationModeExit', "Exit Navigation Mode"), original: 'Exit Navigation Mode' },
-				f1: true,
-				category,
-				keybinding: {
-					primary: KeyCode.Escape,
-					when: ContextKeyExpr.and(TerminalContextKeys.a11yTreeFocus, CONTEXT_ACCESSIBILITY_MODE_ENABLED),
-					weight: KeybindingWeight.WorkbenchContrib
-				},
-				precondition: TerminalContextKeys.processSupported
-			});
-		}
-		run(accessor: ServicesAccessor) {
-			accessor.get(ITerminalService).activeInstance?.navigationMode?.exitNavigationMode();
-		}
-	});
-	registerAction2(class extends Action2 {
-		constructor() {
-			super({
-				id: TerminalCommandId.NavigationModeFocusPrevious,
-				title: { value: localize('workbench.action.terminal.navigationModeFocusPrevious', "Focus Previous Line (Navigation Mode)"), original: 'Focus Previous Line (Navigation Mode)' },
-				f1: true,
-				category,
-				keybinding: [{
-					primary: KeyCode.UpArrow,
-					when: ContextKeyExpr.or(
-						ContextKeyExpr.and(TerminalContextKeys.a11yTreeFocus, CONTEXT_ACCESSIBILITY_MODE_ENABLED, TerminalContextKeys.navigationModeActive),
-						ContextKeyExpr.and(TerminalContextKeys.focus, CONTEXT_ACCESSIBILITY_MODE_ENABLED, TerminalContextKeys.navigationModeActive),
-					),
-					weight: KeybindingWeight.WorkbenchContrib
-				},
-				{
-					primary: KeyMod.CtrlCmd | KeyCode.UpArrow,
-					when: ContextKeyExpr.or(
-						ContextKeyExpr.and(TerminalContextKeys.a11yTreeFocus, CONTEXT_ACCESSIBILITY_MODE_ENABLED),
-						ContextKeyExpr.and(TerminalContextKeys.focus, CONTEXT_ACCESSIBILITY_MODE_ENABLED)
-					),
-					weight: KeybindingWeight.WorkbenchContrib
-				}],
-				precondition: TerminalContextKeys.processSupported
-			});
-		}
-		run(accessor: ServicesAccessor) {
-			accessor.get(ITerminalService).activeInstance?.navigationMode?.focusPreviousLine();
-		}
-	});
-	registerAction2(class extends Action2 {
-		constructor() {
-			super({
-				id: TerminalCommandId.NavigationModeFocusPreviousPage,
-				title: { value: localize('workbench.action.terminal.navigationModeFocusPreviousPage', "Focus Previous Page (Navigation Mode)"), original: 'Focus Previous Page (Navigation Mode)' },
-				f1: true,
-				category,
-				keybinding: [{
-					primary: KeyCode.PageUp,
-					when: ContextKeyExpr.or(
-						ContextKeyExpr.and(TerminalContextKeys.a11yTreeFocus, CONTEXT_ACCESSIBILITY_MODE_ENABLED, TerminalContextKeys.navigationModeActive),
-						ContextKeyExpr.and(TerminalContextKeys.focus, CONTEXT_ACCESSIBILITY_MODE_ENABLED, TerminalContextKeys.navigationModeActive),
-					),
-					weight: KeybindingWeight.WorkbenchContrib
-				}],
-				precondition: TerminalContextKeys.processSupported
-			});
-		}
-		run(accessor: ServicesAccessor) {
-			accessor.get(ITerminalService).activeInstance?.navigationMode?.focusPreviousPage();
-		}
-	});
-	registerAction2(class extends Action2 {
-		constructor() {
-			super({
-				id: TerminalCommandId.NavigationModeFocusNext,
-				title: { value: localize('workbench.action.terminal.navigationModeFocusNext', "Focus Next Line (Navigation Mode)"), original: 'Focus Next Line (Navigation Mode)' },
-				f1: true,
-				category,
-				keybinding: [{
-					primary: KeyCode.DownArrow,
-					when: ContextKeyExpr.or(
-						ContextKeyExpr.and(TerminalContextKeys.a11yTreeFocus, CONTEXT_ACCESSIBILITY_MODE_ENABLED, TerminalContextKeys.navigationModeActive),
-						ContextKeyExpr.and(TerminalContextKeys.focus, CONTEXT_ACCESSIBILITY_MODE_ENABLED, TerminalContextKeys.navigationModeActive),
-					),
-					weight: KeybindingWeight.WorkbenchContrib
-				},
-				{
-					primary: KeyMod.CtrlCmd | KeyCode.DownArrow,
-					when: ContextKeyExpr.or(
-						ContextKeyExpr.and(TerminalContextKeys.a11yTreeFocus, CONTEXT_ACCESSIBILITY_MODE_ENABLED),
-						ContextKeyExpr.and(TerminalContextKeys.focus, CONTEXT_ACCESSIBILITY_MODE_ENABLED)
-					),
-					weight: KeybindingWeight.WorkbenchContrib
-				}],
-				precondition: TerminalContextKeys.processSupported
-			});
-		}
-		run(accessor: ServicesAccessor) {
-			accessor.get(ITerminalService).activeInstance?.navigationMode?.focusNextLine();
-		}
-	});
-	registerAction2(class extends Action2 {
-		constructor() {
-			super({
-				id: TerminalCommandId.NavigationModeFocusNextPage,
-				title: { value: localize('workbench.action.terminal.navigationModeFocusNextPage', "Focus Next Page (Navigation Mode)"), original: 'Focus Next Page (Navigation Mode)' },
-				f1: true,
-				category,
-				keybinding: [{
-					primary: KeyCode.PageDown,
-					when: ContextKeyExpr.or(
-						ContextKeyExpr.and(TerminalContextKeys.a11yTreeFocus, CONTEXT_ACCESSIBILITY_MODE_ENABLED, TerminalContextKeys.navigationModeActive),
-						ContextKeyExpr.and(TerminalContextKeys.focus, CONTEXT_ACCESSIBILITY_MODE_ENABLED, TerminalContextKeys.navigationModeActive),
-					),
-					weight: KeybindingWeight.WorkbenchContrib
-				}],
-				precondition: TerminalContextKeys.processSupported
-			});
-		}
-		run(accessor: ServicesAccessor) {
-			accessor.get(ITerminalService).activeInstance?.navigationMode?.focusNextPage();
 		}
 	});
 	registerAction2(class extends Action2 {
@@ -1136,45 +968,6 @@ export function registerTerminalActions() {
 		}
 	});
 
-	registerAction2(class extends Action2 {
-		constructor() {
-			super({
-				id: TerminalCommandId.FindFocus,
-				title: { value: localize('workbench.action.terminal.focusFind', "Focus Find"), original: 'Focus Find' },
-				f1: true,
-				category,
-				keybinding: {
-					primary: KeyMod.CtrlCmd | KeyCode.KeyF,
-					when: ContextKeyExpr.or(TerminalContextKeys.findFocus, TerminalContextKeys.focus),
-					weight: KeybindingWeight.WorkbenchContrib
-				},
-				precondition: ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated)
-			});
-		}
-		run(accessor: ServicesAccessor) {
-			accessor.get(ITerminalService).activeInstance?.findWidget.value.reveal();
-		}
-	});
-	registerAction2(class extends Action2 {
-		constructor() {
-			super({
-				id: TerminalCommandId.FindHide,
-				title: { value: localize('workbench.action.terminal.hideFind', "Hide Find"), original: 'Hide Find' },
-				f1: true,
-				category,
-				keybinding: {
-					primary: KeyCode.Escape,
-					secondary: [KeyMod.Shift | KeyCode.Escape],
-					when: ContextKeyExpr.and(TerminalContextKeys.focus, TerminalContextKeys.findVisible),
-					weight: KeybindingWeight.WorkbenchContrib
-				},
-				precondition: ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated)
-			});
-		}
-		run(accessor: ServicesAccessor) {
-			accessor.get(ITerminalService).activeInstance?.findWidget.value.hide();
-		}
-	});
 
 	registerAction2(class extends Action2 {
 		constructor() {
@@ -1503,158 +1296,6 @@ export function registerTerminalActions() {
 	registerAction2(class extends Action2 {
 		constructor() {
 			super({
-				id: TerminalCommandId.ToggleFindRegex,
-				title: { value: localize('workbench.action.terminal.toggleFindRegex', "Toggle Find Using Regex"), original: 'Toggle Find Using Regex' },
-				f1: true,
-				category,
-				keybinding: {
-					primary: KeyMod.Alt | KeyCode.KeyR,
-					mac: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KeyR },
-					when: ContextKeyExpr.or(TerminalContextKeys.focus, TerminalContextKeys.findFocus),
-					weight: KeybindingWeight.WorkbenchContrib
-				},
-				precondition: ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated)
-			});
-		}
-		run(accessor: ServicesAccessor) {
-			const terminalService = accessor.get(ITerminalService);
-			const state = terminalService.activeInstance?.findWidget.value.findState;
-			state?.change({ isRegex: !state.isRegex }, false);
-		}
-	});
-	registerAction2(class extends Action2 {
-		constructor() {
-			super({
-				id: TerminalCommandId.ToggleFindWholeWord,
-				title: { value: localize('workbench.action.terminal.toggleFindWholeWord', "Toggle Find Using Whole Word"), original: 'Toggle Find Using Whole Word' },
-				f1: true,
-				category,
-				keybinding: {
-					primary: KeyMod.Alt | KeyCode.KeyW,
-					mac: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KeyW },
-					when: ContextKeyExpr.or(TerminalContextKeys.focus, TerminalContextKeys.findFocus),
-					weight: KeybindingWeight.WorkbenchContrib
-				},
-				precondition: ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated)
-			});
-		}
-		run(accessor: ServicesAccessor) {
-			const terminalService = accessor.get(ITerminalService);
-			const state = terminalService.activeInstance?.findWidget.value.findState;
-			state?.change({ wholeWord: !state.wholeWord }, false);
-		}
-	});
-	registerAction2(class extends Action2 {
-		constructor() {
-			super({
-				id: TerminalCommandId.ToggleFindCaseSensitive,
-				title: { value: localize('workbench.action.terminal.toggleFindCaseSensitive', "Toggle Find Using Case Sensitive"), original: 'Toggle Find Using Case Sensitive' },
-				f1: true,
-				category,
-				keybinding: {
-					primary: KeyMod.Alt | KeyCode.KeyC,
-					mac: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KeyC },
-					when: ContextKeyExpr.or(TerminalContextKeys.focus, TerminalContextKeys.findFocus),
-					weight: KeybindingWeight.WorkbenchContrib
-				},
-				precondition: ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated)
-			});
-		}
-		run(accessor: ServicesAccessor) {
-			const terminalService = accessor.get(ITerminalService);
-			const state = terminalService.activeInstance?.findWidget.value.findState;
-			state?.change({ matchCase: !state.matchCase }, false);
-		}
-	});
-	registerAction2(class extends Action2 {
-		constructor() {
-			super({
-				id: TerminalCommandId.FindNext,
-				title: { value: localize('workbench.action.terminal.findNext', "Find Next"), original: 'Find Next' },
-				f1: true,
-				category,
-				keybinding: [
-					{
-						primary: KeyCode.F3,
-						mac: { primary: KeyMod.CtrlCmd | KeyCode.KeyG, secondary: [KeyCode.F3] },
-						when: ContextKeyExpr.or(TerminalContextKeys.focus, TerminalContextKeys.findFocus),
-						weight: KeybindingWeight.WorkbenchContrib
-					},
-					{
-						primary: KeyMod.Shift | KeyCode.Enter,
-						when: TerminalContextKeys.findInputFocus,
-						weight: KeybindingWeight.WorkbenchContrib
-					}
-				],
-				precondition: ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated)
-			});
-		}
-		run(accessor: ServicesAccessor) {
-			const terminalService = accessor.get(ITerminalService);
-			const findWidget = terminalService.activeInstance?.findWidget.value;
-			if (findWidget) {
-				findWidget.show();
-				findWidget.find(false);
-			}
-		}
-	});
-	registerAction2(class extends Action2 {
-		constructor() {
-			super({
-				id: TerminalCommandId.FindPrevious,
-				title: { value: localize('workbench.action.terminal.findPrevious', "Find Previous"), original: 'Find Previous' },
-				f1: true,
-				category,
-				keybinding: [
-					{
-						primary: KeyMod.Shift | KeyCode.F3,
-						mac: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyG, secondary: [KeyMod.Shift | KeyCode.F3] },
-						when: ContextKeyExpr.or(TerminalContextKeys.focus, TerminalContextKeys.findFocus),
-						weight: KeybindingWeight.WorkbenchContrib
-					},
-					{
-						primary: KeyCode.Enter,
-						when: TerminalContextKeys.findInputFocus,
-						weight: KeybindingWeight.WorkbenchContrib
-					}
-				],
-				precondition: ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated)
-			});
-		}
-		run(accessor: ServicesAccessor) {
-			const terminalService = accessor.get(ITerminalService);
-			const findWidget = terminalService.activeInstance?.findWidget.value;
-			if (findWidget) {
-				findWidget.show();
-				findWidget.find(true);
-			}
-		}
-	});
-	registerAction2(class extends Action2 {
-		constructor() {
-			super({
-				id: TerminalCommandId.SearchWorkspace,
-				title: { value: localize('workbench.action.terminal.searchWorkspace', "Search Workspace"), original: 'Search Workspace' },
-				f1: true,
-				category,
-				keybinding: [
-					{
-						primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyF,
-						when: ContextKeyExpr.and(TerminalContextKeys.processSupported, TerminalContextKeys.focus, TerminalContextKeys.textSelected),
-						weight: KeybindingWeight.WorkbenchContrib + 50
-					}
-				],
-				precondition: TerminalContextKeys.processSupported
-			});
-		}
-		run(accessor: ServicesAccessor) {
-			const query = accessor.get(ITerminalService).activeInstance?.selection;
-			findInFilesCommand(accessor, { query } as IFindInFilesArgs);
-		}
-	});
-	registerAction2(class extends Action2 {
-		constructor() {
-			super({
 				id: TerminalCommandId.Relaunch,
 				title: { value: localize('workbench.action.terminal.relaunch', "Relaunch Active Terminal"), original: 'Relaunch Active Terminal' },
 				f1: true,
@@ -1664,20 +1305,6 @@ export function registerTerminalActions() {
 		}
 		run(accessor: ServicesAccessor) {
 			accessor.get(ITerminalService).activeInstance?.relaunch();
-		}
-	});
-	registerAction2(class extends Action2 {
-		constructor() {
-			super({
-				id: TerminalCommandId.ShowEnvironmentInformation,
-				title: { value: localize('workbench.action.terminal.showEnvironmentInformation', "Show Environment Information"), original: 'Show Environment Information' },
-				f1: true,
-				category,
-				precondition: TerminalContextKeys.processSupported
-			});
-		}
-		run(accessor: ServicesAccessor) {
-			accessor.get(ITerminalService).activeInstance?.showEnvironmentInfoHover();
 		}
 	});
 	registerAction2(class extends Action2 {
@@ -1943,6 +1570,7 @@ export function registerTerminalActions() {
 			const terminalService = accessor.get(ITerminalService);
 			const terminalEditorService = accessor.get(ITerminalEditorService);
 			const terminalGroupService = accessor.get(ITerminalGroupService);
+			const terminalProfileService = accessor.get(ITerminalProfileService);
 			const workspaceContextService = accessor.get(IWorkspaceContextService);
 			const commandService = accessor.get(ICommandService);
 			const folders = workspaceContextService.getWorkspace().folders;
@@ -1970,8 +1598,12 @@ export function registerTerminalActions() {
 				}
 				terminalService.setActiveInstance(instance);
 				await focusActiveTerminal(instance, terminalEditorService, terminalGroupService);
-			} else if (TerminalContextKeys.webExtensionContributedProfile) {
-				commandService.executeCommand(TerminalCommandId.NewWithProfile);
+			} else {
+				if (terminalProfileService.contributedProfiles.length > 0) {
+					commandService.executeCommand(TerminalCommandId.NewWithProfile);
+				} else {
+					commandService.executeCommand(TerminalCommandId.Toggle);
+				}
 			}
 		}
 	});
@@ -2082,6 +1714,25 @@ export function registerTerminalActions() {
 	registerAction2(class extends Action2 {
 		constructor() {
 			super({
+				id: TerminalCommandId.FocusHover,
+				title: terminalStrings.focusHover,
+				f1: true,
+				category,
+				precondition: ContextKeyExpr.or(ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated), TerminalContextKeys.isOpen),
+				keybinding: {
+					primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyMod.CtrlCmd | KeyCode.KeyI),
+					weight: KeybindingWeight.WorkbenchContrib,
+					when: ContextKeyExpr.or(TerminalContextKeys.tabsFocus, TerminalContextKeys.focus)
+				}
+			});
+		}
+		async run(accessor: ServicesAccessor) {
+			accessor.get(ITerminalGroupService).focusHover();
+		}
+	});
+	registerAction2(class extends Action2 {
+		constructor() {
+			super({
 				id: TerminalCommandId.Clear,
 				title: { value: localize('workbench.action.terminal.clear', "Clear"), original: 'Clear' },
 				f1: true,
@@ -2093,62 +1744,14 @@ export function registerTerminalActions() {
 					// Weight is higher than work workbench contributions so the keybinding remains
 					// highest priority when chords are registered afterwards
 					weight: KeybindingWeight.WorkbenchContrib + 1,
-					when: TerminalContextKeys.focus
+					// Disable the keybinding when accessibility mode is enabled as chords include
+					// important screen reader keybindings such as cmd+k, cmd+i to show the hover
+					when: ContextKeyExpr.and(TerminalContextKeys.focus, CONTEXT_ACCESSIBILITY_MODE_ENABLED.negate()),
 				}]
 			});
 		}
 		run(accessor: ServicesAccessor) {
 			accessor.get(ITerminalService).doWithActiveInstance(t => t.clearBuffer());
-		}
-	});
-
-	registerAction2(class extends Action2 {
-		constructor() {
-			super({
-				id: TerminalCommandId.OpenDetectedLink,
-				title: { value: localize('workbench.action.terminal.openDetectedLink', "Open Detected Link..."), original: 'Open Detected Link...' },
-				f1: true,
-				category,
-				precondition: TerminalContextKeys.terminalHasBeenCreated,
-				keybinding: {
-					primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyO,
-					weight: KeybindingWeight.WorkbenchContrib + 1,
-					when: TerminalContextKeys.focus,
-				}
-			});
-		}
-		run(accessor: ServicesAccessor) {
-			accessor.get(ITerminalService).doWithActiveInstance(t => t.showLinkQuickpick());
-		}
-	});
-
-	registerAction2(class extends Action2 {
-		constructor() {
-			super({
-				id: TerminalCommandId.OpenWebLink,
-				title: { value: localize('workbench.action.terminal.openLastUrlLink', "Open Last Url Link"), original: 'Open Last Url Link' },
-				f1: true,
-				category,
-				precondition: TerminalContextKeys.terminalHasBeenCreated,
-			});
-		}
-		run(accessor: ServicesAccessor) {
-			accessor.get(ITerminalService).doWithActiveInstance(t => t.openRecentLink('url'));
-		}
-	});
-
-	registerAction2(class extends Action2 {
-		constructor() {
-			super({
-				id: TerminalCommandId.OpenFileLink,
-				title: { value: localize('workbench.action.terminal.openLastLocalFileLink', "Open Last Local File Link"), original: 'Open Last Local File Link' },
-				f1: true,
-				category,
-				precondition: TerminalContextKeys.terminalHasBeenCreated,
-			});
-		}
-		run(accessor: ServicesAccessor) {
-			accessor.get(ITerminalService).doWithActiveInstance(t => t.openRecentLink('localFile'));
 		}
 	});
 
@@ -2392,85 +1995,6 @@ export function registerTerminalActions() {
 			accessor.get(ITerminalService).activeInstance?.quickFix?.showMenu();
 		}
 	});
-	registerAction2(class extends Action2 {
-		constructor() {
-			super({
-				id: TerminalCommandId.ShowTextureAtlas,
-				title: { value: localize('workbench.action.terminal.showTextureAtlas', "Show Terminal Texture Atlas"), original: 'Show Terminal Texture Atlas' },
-				f1: true,
-				category: Categories.Developer,
-				precondition: ContextKeyExpr.or(TerminalContextKeys.isOpen)
-			});
-		}
-		async run(accessor: ServicesAccessor) {
-			const terminalService = accessor.get(ITerminalService);
-			const fileService = accessor.get(IFileService);
-			const openerService = accessor.get(IOpenerService);
-			const workspaceContextService = accessor.get(IWorkspaceContextService);
-			const bitmap = await terminalService.activeInstance?.xterm?.textureAtlas;
-			if (!bitmap) {
-				return;
-			}
-			const cwdUri = workspaceContextService.getWorkspace().folders[0].uri;
-			const fileUri = URI.joinPath(cwdUri, 'textureAtlas.png');
-			const canvas = document.createElement('canvas');
-			canvas.width = bitmap.width;
-			canvas.height = bitmap.height;
-			const ctx = canvas.getContext('bitmaprenderer');
-			if (!ctx) {
-				return;
-			}
-			ctx.transferFromImageBitmap(bitmap);
-			const blob = await new Promise<Blob | null>((res) => canvas.toBlob(res));
-			if (!blob) {
-				return;
-			}
-			await fileService.writeFile(fileUri, VSBuffer.wrap(new Uint8Array(await blob.arrayBuffer())));
-			openerService.open(fileUri);
-		}
-	});
-	registerAction2(class extends Action2 {
-		constructor() {
-			super({
-				id: TerminalCommandId.WriteDataToTerminal,
-				title: { value: localize('workbench.action.terminal.writeDataToTerminal', "Write Data to Terminal"), original: 'Write Data to Terminal' },
-				f1: true,
-				category: Categories.Developer
-			});
-		}
-		async run(accessor: ServicesAccessor) {
-			const terminalService = accessor.get(ITerminalService);
-			const terminalGroupService = accessor.get(ITerminalGroupService);
-			const quickInputService = accessor.get(IQuickInputService);
-
-			const instance = await terminalService.getActiveOrCreateInstance();
-			await terminalGroupService.showPanel();
-			await instance.processReady;
-			if (!instance.xterm) {
-				throw new Error('Cannot write data to terminal if xterm isn\'t initialized');
-			}
-			const data = await quickInputService.input({
-				value: '',
-				placeHolder: 'Enter data, use \\x to escape',
-				prompt: localize('workbench.action.terminal.writeDataToTerminal.prompt', "Enter data to write directly to the terminal, bypassing the pty"),
-			});
-			if (!data) {
-				return;
-			}
-			let escapedData = data
-				.replace(/\\n/g, '\n')
-				.replace(/\\r/g, '\r');
-			while (true) {
-				const match = escapedData.match(/\\x([0-9a-fA-F]{2})/);
-				if (match === null || match.index === undefined || match.length < 2) {
-					break;
-				}
-				escapedData = escapedData.slice(0, match.index) + String.fromCharCode(parseInt(match[1], 16)) + escapedData.slice(match.index + 4);
-			}
-			const xterm = instance.xterm as any as IInternalXtermTerminal;
-			xterm._writeText(escapedData);
-		}
-	});
 
 	// Some commands depend on platform features
 	if (BrowserFeatures.clipboard.writeText) {
@@ -2684,7 +2208,6 @@ let newWithProfileAction: IDisposable;
 
 export function refreshTerminalActions(detectedProfiles: ITerminalProfile[]) {
 	const profileEnum = createProfileSchemaEnums(detectedProfiles);
-	const category: ILocalizedString = { value: TERMINAL_ACTION_CATEGORY, original: 'Terminal' };
 	newWithProfileAction?.dispose();
 	newWithProfileAction = registerAction2(class extends Action2 {
 		constructor() {
@@ -2862,5 +2385,13 @@ async function focusActiveTerminal(instance: ITerminalInstance, terminalEditorSe
 		await instance.focusWhenReady(true);
 	} else {
 		await terminalGroupService.showPanel(true);
+	}
+}
+
+async function revealActiveTerminal(instance: ITerminalInstance, terminalEditorService: ITerminalEditorService, terminalGroupService: ITerminalGroupService): Promise<void> {
+	if (instance.target === TerminalLocation.Editor) {
+		await terminalEditorService.revealActiveEditor();
+	} else {
+		await terminalGroupService.showPanel();
 	}
 }

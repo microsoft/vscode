@@ -437,6 +437,10 @@ export class UpdateContribution extends Disposable implements IWorkbenchContribu
 			},
 			when: CONTEXT_UPDATE_STATE.isEqualTo(StateType.Ready)
 		});
+
+		CommandsRegistry.registerCommand('_update.state', () => {
+			return this.state;
+		});
 	}
 }
 
