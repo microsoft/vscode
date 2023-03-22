@@ -100,6 +100,11 @@
 	align-items: center;
 }
 
+.monaco-editor .interactive-editor .status .status-item .label A {
+	color: var(--vscode-textLink-foreground);
+	cursor: pointer;
+}
+
 .monaco-editor .interactive-editor .status .status-item.error .label {
 	color: var(--vscode-errorForeground);
 }
