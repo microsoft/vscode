@@ -431,7 +431,6 @@ export class ContentHoverWidget extends Disposable implements IContentWidget {
 	private readonly _hoverFocusedKey = EditorContextKeys.hoverFocused.bindTo(this._contextKeyService);
 	private readonly _hover: HoverWidget = this._register(new HoverWidget());
 	private readonly _focusTracker = this._register(dom.trackFocus(this.getDomNode()));
-	private _primaryCursorPosition: IPosition | undefined = undefined;
 
 	private _visibleData: ContentHoverVisibleData | null = null;
 
@@ -472,7 +471,6 @@ export class ContentHoverWidget extends Disposable implements IContentWidget {
 		this._editor.addContentWidget(this);
 
 		this._register(this._focusTracker.onDidFocus(() => {
-			this._primaryCursorPosition = this._editor._getViewModel()?.getPrimaryCursorState().viewState.position;
 			this._hoverFocusedKey.set(true);
 		}));
 		this._register(this._focusTracker.onDidBlur(() => {
@@ -653,11 +651,7 @@ export class ContentHoverWidget extends Disposable implements IContentWidget {
 	}
 
 	public escape(): void {
-		if (this._primaryCursorPosition) {
-			const range: IRange = { startLineNumber: this._primaryCursorPosition.lineNumber, endLineNumber: this._primaryCursorPosition.lineNumber, startColumn: this._primaryCursorPosition.column, endColumn: this._primaryCursorPosition.column };
-			this._editor.setSelection(range);
-			this._editor.focus();
-		}
+		this._editor.focus();
 	}
 }
 
