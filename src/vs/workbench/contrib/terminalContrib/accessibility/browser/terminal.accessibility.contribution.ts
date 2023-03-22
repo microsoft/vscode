@@ -105,7 +105,7 @@ registerAction2(class extends Action2 {
 				{
 					primary: KeyMod.Shift | KeyCode.Tab,
 					weight: KeybindingWeight.WorkbenchContrib,
-					when: ContextKeyExpr.and(CONTEXT_ACCESSIBILITY_MODE_ENABLED, terminalTabFocusContextKey)
+					when: ContextKeyExpr.and(CONTEXT_ACCESSIBILITY_MODE_ENABLED, terminalTabFocusContextKey, TerminalContextKeys.accessibleBufferFocus.negate())
 				}
 			],
 		});
