@@ -523,7 +523,7 @@ class UndoAction extends Action {
 
 	private readonly _myAlternativeVersionId: number;
 
-	constructor(private readonly _model: ITextModel) {
+	constructor(private readonly _model: ITextModel, private readonly _provider: IInteractiveEditorSessionProvider, private readonly _session: IInteractiveEditorSession, private readonly _response: IInteractiveEditorResponse) {
 		super('undo', localize('undo', "Undo"), ThemeIcon.asClassName(Codicon.discard), false);
 		this._myAlternativeVersionId = _model.getAlternativeVersionId();
 
@@ -537,6 +537,10 @@ class UndoAction extends Action {
 	override async run(): Promise<void> {
 		if (this._myAlternativeVersionId === this._model.getAlternativeVersionId()) {
 			this._model.undo();
+
+			if (this._provider.handleInteractiveEditorResponseFeedback) {
+				this._provider.handleInteractiveEditorResponseFeedback(this._session, this._response, InteractiveEditorResponseFeedbackKind.Undone);
+			}
 		}
 	}
 }
@@ -1015,7 +1019,7 @@ export class InteractiveEditorController implements IEditorContribution {
 			inlineDiffDecorations.update();
 
 			const toggleAction = new ToggleInlineDiff(inlineDiffDecorations);
-			const fixedActions: Action[] = [new UndoAction(textModel), toggleAction];
+			const fixedActions: Action[] = [new UndoAction(textModel, provider, session, reply), toggleAction];
 			roundStore.add(combinedDisposable(...fixedActions));
 
 			const feedback = new FeedbackToggles(provider, session, reply);
