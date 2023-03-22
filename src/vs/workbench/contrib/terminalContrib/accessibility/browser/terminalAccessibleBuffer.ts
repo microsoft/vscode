@@ -47,7 +47,7 @@ export class AccessibleBufferWidget extends DisposableStore {
 
 	constructor(
 		private readonly _instance: ITerminalInstance,
-		private readonly _xterm: IXtermTerminal & { raw: Terminal },
+		private readonly _xterm: Pick<IXtermTerminal, 'getFont'> & { raw: Terminal },
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IModelService private readonly _modelService: IModelService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
@@ -89,7 +89,7 @@ export class AccessibleBufferWidget extends DisposableStore {
 		this._accessibleBuffer.classList.add('accessible-buffer');
 		this._editorContainer = document.createElement('div');
 		this._accessibleBuffer.tabIndex = -1;
-		this._bufferEditor = this._instantiationService.createInstance(CodeEditorWidget, this._editorContainer, editorOptions, codeEditorWidgetOptions);
+		this._bufferEditor = this.add(this._instantiationService.createInstance(CodeEditorWidget, this._editorContainer, editorOptions, codeEditorWidgetOptions));
 		this._focusTracker = this.add(dom.trackFocus(this._editorContainer));
 		this.add(this._focusTracker.onDidFocus(() => this._focusedContextKey.set(true)));
 		this.add(this._focusTracker.onDidBlur(() => this._focusedContextKey.reset()));
