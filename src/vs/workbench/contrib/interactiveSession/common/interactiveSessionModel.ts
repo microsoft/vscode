@@ -8,7 +8,7 @@ import { IMarkdownString, MarkdownString } from 'vs/base/common/htmlContent';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { ILogService } from 'vs/platform/log/common/log';
-import { IInteractiveProgress, IInteractiveResponse, IInteractiveSession, IInteractiveSessionFollowup, IInteractiveSessionReplyFollowup } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionService';
+import { IInteractiveProgress, IInteractiveResponse, IInteractiveSession, IInteractiveSessionFollowup, IInteractiveSessionReplyFollowup, InteractiveSessionVoteDirection } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionService';
 
 export interface IInteractiveRequestModel {
 	readonly id: string;
@@ -33,8 +33,10 @@ export interface IInteractiveResponseModel {
 	readonly response: IMarkdownString;
 	readonly isComplete: boolean;
 	readonly isCanceled: boolean;
+	readonly vote: InteractiveSessionVoteDirection | undefined;
 	readonly followups?: IInteractiveSessionFollowup[] | undefined;
 	readonly errorDetails?: IInteractiveResponseErrorDetails;
+	setVote(vote: InteractiveSessionVoteDirection): void;
 }
 
 export function isRequest(item: unknown): item is IInteractiveRequestModel {
@@ -86,6 +88,11 @@ export class InteractiveResponseModel extends Disposable implements IInteractive
 		return this._isCanceled;
 	}
 
+	private _vote: InteractiveSessionVoteDirection | undefined;
+	public get vote(): InteractiveSessionVoteDirection | undefined {
+		return this._vote;
+	}
+
 	private _followups: IInteractiveSessionFollowup[] | undefined;
 	public get followups(): IInteractiveSessionFollowup[] | undefined {
 		return this._followups;
@@ -101,7 +108,7 @@ export class InteractiveResponseModel extends Disposable implements IInteractive
 		return this._errorDetails;
 	}
 
-	constructor(response: IMarkdownString, public readonly username: string, public readonly providerId: string, public readonly avatarIconUri?: URI, isComplete: boolean = false, isCanceled = false, providerResponseId?: string, errorDetails?: IInteractiveResponseErrorDetails, followups?: IInteractiveSessionFollowup[]) {
+	constructor(response: IMarkdownString, public readonly username: string, public readonly providerId: string, public readonly avatarIconUri?: URI, isComplete: boolean = false, isCanceled = false, vote?: InteractiveSessionVoteDirection, providerResponseId?: string, errorDetails?: IInteractiveResponseErrorDetails, followups?: IInteractiveSessionFollowup[]) {
 		super();
 		this._response = response;
 		this._isComplete = isComplete;
@@ -109,6 +116,7 @@ export class InteractiveResponseModel extends Disposable implements IInteractive
 		this._providerResponseId = providerResponseId;
 		this._errorDetails = errorDetails;
 		this._isCanceled = isCanceled;
+		this._vote = vote;
 		this._id = 'response_' + InteractiveResponseModel.nextId++;
 	}
 
@@ -137,6 +145,11 @@ export class InteractiveResponseModel extends Disposable implements IInteractive
 		this._followups = followups;
 		this._onDidChange.fire(); // Fire so that command followups get rendered on the row
 	}
+
+	setVote(vote: InteractiveSessionVoteDirection): void {
+		this._vote = vote;
+		this._onDidChange.fire();
+	}
 }
 
 export interface IInteractiveSessionModel {
@@ -160,6 +173,7 @@ export interface ISerializableInteractiveSessionRequestData {
 	responseErrorDetails: IInteractiveResponseErrorDetails | undefined;
 	followups: IInteractiveSessionFollowup[] | undefined;
 	isCanceled: boolean | undefined;
+	vote: InteractiveSessionVoteDirection | undefined;
 }
 
 export interface ISerializableInteractiveSessionData {
@@ -224,7 +238,7 @@ export class InteractiveSessionModel extends Disposable implements IInteractiveS
 		return requests.map((raw: ISerializableInteractiveSessionRequestData) => {
 			const request = new InteractiveRequestModel(raw.message, this.session.requesterUsername, this.session.requesterAvatarIconUri);
 			if (raw.response || raw.responseErrorDetails) {
-				request.response = new InteractiveResponseModel(new MarkdownString(raw.response), this.session.responderUsername, this.providerId, this.session.responderAvatarIconUri, true, raw.isCanceled, raw.providerResponseId, raw.responseErrorDetails, raw.followups);
+				request.response = new InteractiveResponseModel(new MarkdownString(raw.response), this.session.responderUsername, this.providerId, this.session.responderAvatarIconUri, true, raw.isCanceled, raw.vote, raw.providerResponseId, raw.responseErrorDetails, raw.followups);
 			}
 			return request;
 		});
@@ -298,14 +312,15 @@ export class InteractiveSessionModel extends Disposable implements IInteractiveS
 
 	toJSON(): ISerializableInteractiveSessionData {
 		return {
-			requests: this._requests.map(r => {
-				return <ISerializableInteractiveSessionRequestData>{
+			requests: this._requests.map((r): ISerializableInteractiveSessionRequestData => {
+				return {
 					providerResponseId: r.response?.providerResponseId,
 					message: typeof r.message === 'string' ? r.message : r.message.message,
 					response: r.response ? r.response.response.value : undefined,
 					responseErrorDetails: r.response?.errorDetails,
 					followups: r.response?.followups,
-					isCanceled: r.response?.isCanceled
+					isCanceled: r.response?.isCanceled,
+					vote: r.response?.vote
 				};
 			}),
 			providerId: this.providerId,

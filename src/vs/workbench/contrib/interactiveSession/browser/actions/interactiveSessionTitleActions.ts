@@ -7,7 +7,9 @@ import { Codicon } from 'vs/base/common/codicons';
 import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { localize } from 'vs/nls';
 import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
+import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { INTERACTIVE_SESSION_CATEGORY } from 'vs/workbench/contrib/interactiveSession/browser/actions/interactiveSessionActions';
+import { CONTEXT_RESPONSE_HAS_PROVIDER_ID, CONTEXT_RESPONSE_VOTE } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionContextKeys';
 import { IInteractiveSessionService, IInteractiveSessionUserActionEvent, InteractiveSessionVoteDirection } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionService';
 import { isResponseVM } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionViewModel';
 
@@ -23,9 +25,10 @@ export function registerInteractiveSessionTitleActions() {
 				f1: false,
 				category: INTERACTIVE_SESSION_CATEGORY,
 				icon: Codicon.thumbsup,
+				precondition: CONTEXT_RESPONSE_VOTE.isEqualTo(''), // Should be disabled but visible when vote=down
 				menu: {
 					id: MenuId.InteractiveSessionTitle,
-					// when: interactiveSessionResponseHasProviderId, // re-add when the provider id has been adopted
+					when: ContextKeyExpr.and(CONTEXT_RESPONSE_HAS_PROVIDER_ID, CONTEXT_RESPONSE_VOTE.notEqualsTo('down')),
 					group: 'navigation',
 					order: 1
 				}
@@ -47,6 +50,7 @@ export function registerInteractiveSessionTitleActions() {
 					responseId: item.providerResponseId
 				}
 			});
+			item.setVote(InteractiveSessionVoteDirection.Up);
 		}
 	});
 
@@ -61,9 +65,10 @@ export function registerInteractiveSessionTitleActions() {
 				f1: false,
 				category: INTERACTIVE_SESSION_CATEGORY,
 				icon: Codicon.thumbsdown,
+				precondition: CONTEXT_RESPONSE_VOTE.isEqualTo(''), // Should be disabled but visible when vote=down
 				menu: {
 					id: MenuId.InteractiveSessionTitle,
-					// when: interactiveSessionResponseHasProviderId, // re-add when the provider id has been adopted
+					when: ContextKeyExpr.and(CONTEXT_RESPONSE_HAS_PROVIDER_ID, CONTEXT_RESPONSE_VOTE.notEqualsTo('up')),
 					group: 'navigation',
 					order: 2
 				}
@@ -85,6 +90,7 @@ export function registerInteractiveSessionTitleActions() {
 					responseId: item.providerResponseId
 				}
 			});
+			item.setVote(InteractiveSessionVoteDirection.Down);
 		}
 	});
 }
