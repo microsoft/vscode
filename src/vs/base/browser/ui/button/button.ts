@@ -194,7 +194,7 @@ export class Button extends Disposable implements IButton {
 	}
 
 	set label(value: string | IMarkdownString) {
-		if (typeof this._label === 'string' && typeof value === 'string' && this._label === value) {
+		if (this._label === value) {
 			return;
 		}
 
