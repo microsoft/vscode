@@ -261,12 +261,14 @@
 }
 
 .interactive-session .interactive-session-followups .monaco-button {
-	width: initial;
-
-	color: var(--vscode-textLink-foreground);
-	justify-content: left;
+	display: block;
 	text-align: left;
-	align-items: start;
+	width: initial;
+	color: var(--vscode-textLink-foreground);
+}
+
+.interactive-session .interactive-session-followups .monaco-button .codicon-sparkle {
+	float: left;
 }
 
 .interactive-session .interactive-session-followups .monaco-button .codicon {
