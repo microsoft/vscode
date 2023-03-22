@@ -46,7 +46,7 @@ export class ToggleStickyScroll extends Action2 {
 	}
 }
 
-const weight = KeybindingWeight.EditorContrib + 10000;
+const weight = KeybindingWeight.EditorContrib;
 
 export class FocusStickyScroll extends EditorAction2 {
 
@@ -145,13 +145,14 @@ export class GoToStickyScrollLine extends EditorAction2 {
 	}
 }
 
-export class EscapeStickyScroll extends EditorAction2 {
+export class SelectEditor extends EditorAction2 {
+
 	constructor() {
 		super({
-			id: 'editor.action.escapeStickyScroll',
+			id: 'editor.action.selectEditor',
 			title: {
-				value: localize('escapeStickyScroll.title', "Escape Sticky Scroll"),
-				original: 'Escape Sticky Scroll'
+				value: localize('selectEditor.title', "Select Editor"),
+				original: 'Select Editor'
 			},
 			precondition: ContextKeyExpr.has('config.editor.stickyScroll.enabled'),
 			keybinding: {
