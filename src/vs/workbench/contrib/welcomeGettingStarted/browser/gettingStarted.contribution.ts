@@ -31,6 +31,8 @@ import { IExtensionService } from 'vs/workbench/services/extensions/common/exten
 import { StartupPageContribution, } from 'vs/workbench/contrib/welcomeGettingStarted/browser/startupPage';
 import { ExtensionsInput } from 'vs/workbench/contrib/extensions/common/extensionsInput';
 import { Categories } from 'vs/platform/action/common/actionCommonCategories';
+import { SettingsEditor2 } from 'vs/workbench/contrib/preferences/browser/settingsEditor2';
+import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
 
 
 export * as icons from 'vs/workbench/contrib/welcomeGettingStarted/browser/gettingStartedIcons';
@@ -248,6 +250,28 @@ registerAction2(class extends Action2 {
 		quickPick.busy = false;
 		await gettingStartedService.installedExtensionsRegistered;
 		quickPick.items = this.getQuickPickItems(contextService, gettingStartedService);
+	}
+});
+
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: 'settings.filterByTelemetry',
+			title: localize({ key: 'miOpenTelemetrySettings', comment: ['&& denotes a mnemonic'] }, "&&Telemetry Settings"),
+			menu: {
+				id: MenuId.MenubarPreferencesMenu,
+				group: '3_settings',
+				order: 1,
+			}
+		});
+	}
+	run(accessor: ServicesAccessor) {
+		const editorPane = accessor.get(IEditorService).activeEditorPane;
+		if (editorPane instanceof SettingsEditor2) {
+			editorPane.focusSearch(`@tag:telemetry`);
+		} else {
+			accessor.get(IPreferencesService).openSettings({ jsonEditor: false, query: '@tag:telemetry' });
+		}
 	}
 });
 
