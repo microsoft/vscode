@@ -14764,6 +14764,11 @@ declare module 'vscode' {
 		 * @param message A Debug Adapter Protocol message
 		 */
 		handleMessage(message: DebugProtocolMessage): void;
+
+		/**
+		 * An event which fires when the debug adapter was closed
+		 */
+		readonly onDidClose?: Event<number | null>;
 	}
 
 	/**

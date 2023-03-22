@@ -979,6 +979,10 @@ class DirectDebugAdapter extends AbstractDebugAdapter {
 		implementation.onDidSendMessage((message: vscode.DebugProtocolMessage) => {
 			this.acceptMessage(message as DebugProtocol.ProtocolMessage);
 		});
+
+		implementation.onDidClose?.((status: number | null) => {
+			this._onExit.fire(status);
+		});
 	}
 
 	startSession(): Promise<void> {
