@@ -28,7 +28,7 @@ export class MainThreadInteractiveEditor implements MainThreadInteractiveEditorS
 		this._registrations.dispose();
 	}
 
-	async $registerInteractiveEditorProvider(handle: number, debugName: string): Promise<void> {
+	async $registerInteractiveEditorProvider(handle: number, debugName: string, supportsFeedback: boolean): Promise<void> {
 		const unreg = this._interactiveEditorService.addProvider({
 			debugName,
 			prepareInteractiveEditorSession: async (model, range, token) => {
@@ -49,6 +49,9 @@ export class MainThreadInteractiveEditor implements MainThreadInteractiveEditorS
 					result.edits = reviveWorkspaceEditDto(result.edits, this._uriIdentService);
 				}
 				return <IInteractiveEditorResponse | undefined>result;
+			},
+			handleInteractiveEditorResponseFeedback: !supportsFeedback ? undefined : async (session, response, kind) => {
+				this._proxy.$handleFeedback(handle, session.id, response.id, kind);
 			}
 		});
 

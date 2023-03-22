@@ -15,7 +15,7 @@ import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/c
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { ZoneWidget } from 'vs/editor/contrib/zoneWidget/browser/zoneWidget';
 import { assertType } from 'vs/base/common/types';
-import { IInteractiveEditorResponse, IInteractiveEditorService, CTX_INTERACTIVE_EDITOR_FOCUSED, CTX_INTERACTIVE_EDITOR_HAS_ACTIVE_REQUEST, CTX_INTERACTIVE_EDITOR_INNER_CURSOR_FIRST, CTX_INTERACTIVE_EDITOR_INNER_CURSOR_LAST, CTX_INTERACTIVE_EDITOR_EMPTY, CTX_INTERACTIVE_EDITOR_OUTER_CURSOR_POSITION, CTX_INTERACTIVE_EDITOR_VISIBLE, MENU_INTERACTIVE_EDITOR_WIDGET, IInteractiveEditorRequest, IInteractiveEditorSession, IInteractiveEditorSlashCommand } from 'vs/workbench/contrib/interactiveEditor/common/interactiveEditor';
+import { IInteractiveEditorResponse, IInteractiveEditorService, CTX_INTERACTIVE_EDITOR_FOCUSED, CTX_INTERACTIVE_EDITOR_HAS_ACTIVE_REQUEST, CTX_INTERACTIVE_EDITOR_INNER_CURSOR_FIRST, CTX_INTERACTIVE_EDITOR_INNER_CURSOR_LAST, CTX_INTERACTIVE_EDITOR_EMPTY, CTX_INTERACTIVE_EDITOR_OUTER_CURSOR_POSITION, CTX_INTERACTIVE_EDITOR_VISIBLE, MENU_INTERACTIVE_EDITOR_WIDGET, IInteractiveEditorRequest, IInteractiveEditorSession, IInteractiveEditorSlashCommand, IInteractiveEditorSessionProvider, InteractiveEditorResponseFeedbackKind } from 'vs/workbench/contrib/interactiveEditor/common/interactiveEditor';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { Iterable } from 'vs/base/common/iterator';
 import { ICursorStateComputer, IModelDecorationOptions, IModelDeltaDecoration, ITextModel, IValidEditOperation } from 'vs/editor/common/model';
@@ -52,10 +52,9 @@ import { IViewsService } from 'vs/workbench/common/views';
 import { IInteractiveSessionContributionService } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionContributionService';
 import { InteractiveSessionViewPane } from 'vs/workbench/contrib/interactiveSession/browser/interactiveSessionSidebar';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
-import { Command, CompletionContext, CompletionItem, CompletionItemInsertTextRule, CompletionItemKind, CompletionItemProvider, CompletionList, ProviderResult } from 'vs/editor/common/languages';
+import { CompletionContext, CompletionItem, CompletionItemInsertTextRule, CompletionItemKind, CompletionItemProvider, CompletionList, ProviderResult } from 'vs/editor/common/languages';
 import { LanguageSelector } from 'vs/editor/common/languageSelector';
 import { DEFAULT_FONT_FAMILY } from 'vs/workbench/browser/style';
-import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IInteractiveSessionService } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionService';
 
 class InteractiveEditorWidget {
@@ -503,14 +502,6 @@ export class InteractiveEditorZoneWidget extends ZoneWidget {
 	}
 }
 
-class CommandAction extends Action {
-
-	constructor(command: Command, @ICommandService commandService: ICommandService) {
-		const icon = ThemeIcon.fromString(command.title);
-		super(command.id, icon ? command.tooltip : command.title, icon ? ThemeIcon.asClassName(icon) : undefined, true, () => commandService.executeCommand(command.id, ...(command.arguments ?? [])));
-	}
-}
-
 class ToggleInlineDiff extends Action {
 
 	constructor(private readonly _inlineDiff: InlineDiffDecorations) {
@@ -651,6 +642,63 @@ class InlineDiffDecorations {
 		};
 
 		return { tracking, decorating };
+	}
+}
+
+class FeedbackToggles {
+
+	private readonly _onDidChange = new Emitter<this>();
+	readonly onDidChange: Event<this> = this._onDidChange.event;
+
+	private readonly _helpful: Action;
+	private readonly _unHelpful: Action;
+
+	constructor(provider: IInteractiveEditorSessionProvider, session: IInteractiveEditorSession, response: IInteractiveEditorResponse) {
+
+		const supportsFeedback = typeof provider.handleInteractiveEditorResponseFeedback === 'function';
+
+		const update = (kind: InteractiveEditorResponseFeedbackKind) => {
+			if (supportsFeedback) {
+				provider.handleInteractiveEditorResponseFeedback!(session, response, kind);
+
+				if (kind === InteractiveEditorResponseFeedbackKind.Helpful) {
+					this._helpful.tooltip = localize('thanks', "Thanks for your feedback!");
+					this._helpful.checked = true;
+					this._helpful.enabled = false;
+					this._unHelpful.enabled = false;
+				} else {
+					this._unHelpful.tooltip = localize('thanks', "Thanks for your feedback!");
+					this._unHelpful.checked = true;
+					this._unHelpful.enabled = false;
+					this._helpful.enabled = false;
+				}
+
+				this._onDidChange.fire(this);
+			}
+		};
+
+		this._helpful = new Action('interactiveEditor.helpful', localize('helpful', "Vote Up"), ThemeIcon.asClassName(Codicon.thumbsup), supportsFeedback, () => update(InteractiveEditorResponseFeedbackKind.Helpful));
+		this._unHelpful = new Action('interactiveEditor.unHelpful', localize('unhelpful', "Vote Down"), ThemeIcon.asClassName(Codicon.thumbsdown), supportsFeedback, () => update(InteractiveEditorResponseFeedbackKind.Unhelpful));
+
+		this._helpful.tooltip = this._helpful.label;
+		this._unHelpful.tooltip = this._unHelpful.label;
+	}
+
+	dispose() {
+		this._onDidChange.dispose();
+		this._helpful.dispose();
+		this._unHelpful.dispose();
+	}
+
+	get actions() {
+		const result: IAction[] = [];
+		if (this._helpful.enabled || this._helpful.checked) {
+			result.push(this._helpful);
+		}
+		if (this._unHelpful.enabled || this._unHelpful.checked) {
+			result.push(this._unHelpful);
+		}
+		return result;
 	}
 }
 
@@ -962,17 +1010,19 @@ export class InteractiveEditorController implements IEditorContribution {
 
 			inlineDiffDecorations.update();
 
-
-			const replyActions: Action[] = reply.commands?.map(command => this._instaService.createInstance(CommandAction, command)) ?? [];
 			const fixedActions: Action[] = [new UndoAction(textModel), new ToggleInlineDiff(inlineDiffDecorations)];
-			roundStore.add(combinedDisposable(...replyActions, ...fixedActions));
+			roundStore.add(combinedDisposable(...fixedActions));
+
+			const feedback = new FeedbackToggles(provider, session, reply);
+			roundStore.add(feedback);
+			roundStore.add(feedback.onDidChange(() => { statusWidget.update({ actions: Separator.join(feedback.actions, fixedActions) }); }));
 
 			const editsCount = (moreMinimalEdits ?? reply.edits).length;
 
 			statusWidget.update({
 				message: editsCount === 1 ? localize('edit.1', "Done, made 1 change") : localize('edit.N', "Done, made {0} changes", editsCount),
 				classes: [],
-				actions: Separator.join(replyActions, fixedActions),
+				actions: Separator.join(feedback.actions, fixedActions),
 			});
 
 			if (!InteractiveEditorController._promptHistory.includes(input.value)) {
