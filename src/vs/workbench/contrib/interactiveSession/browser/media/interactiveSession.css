@@ -7,10 +7,6 @@
 	border-top: 1px solid var(--vscode-interactive-responseBorder);
 }
 
-.interactive-list .monaco-list-row:last-of-type .interactive-item-container {
-	border-bottom: 1px solid var(--vscode-interactive-responseBorder);
-}
-
 .interactive-list .monaco-list-row .monaco-tl-twistie {
 	/* Hide twisties */
 	display: none !important;
@@ -252,6 +248,7 @@
 	padding: 12px 0px;
 	display: flex;
 	flex-direction: column;
+	border-top: solid 1px var(--vscode-interactive-responseBorder);
 }
 
 .interactive-session .interactive-session-followups {
