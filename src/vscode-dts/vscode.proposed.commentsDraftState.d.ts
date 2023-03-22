@@ -7,12 +7,12 @@ declare module 'vscode' {
 
 	// https://github.com/microsoft/vscode/issues/171166
 
-	export enum CommentVisibility {
+	export enum CommentState {
 		Published = 0,
 		Draft = 1
 	}
 
 	export interface Comment {
-		visibility?: CommentVisibility;
+		state?: CommentState;
 	}
 }
