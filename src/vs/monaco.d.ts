@@ -2320,6 +2320,10 @@ declare namespace monaco.editor {
 		readonly endLineNumberExclusive: number;
 		constructor(startLineNumber: number, endLineNumberExclusive: number);
 		/**
+		 * Indicates if this line range contains the given line number.
+		 */
+		contains(lineNumber: number): boolean;
+		/**
 		 * Indicates if this line range is empty.
 		 */
 		get isEmpty(): boolean;

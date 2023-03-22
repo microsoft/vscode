@@ -26,6 +26,13 @@ export class LineRange {
 	}
 
 	/**
+	 * Indicates if this line range contains the given line number.
+	 */
+	public contains(lineNumber: number): boolean {
+		return this.startLineNumber <= lineNumber && lineNumber < this.endLineNumberExclusive;
+	}
+
+	/**
 	 * Indicates if this line range is empty.
 	 */
 	get isEmpty(): boolean {
