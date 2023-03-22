@@ -44,6 +44,8 @@ export class AccessibleBufferWidget extends DisposableStore {
 	private readonly _focusedContextKey: IContextKey<boolean>;
 	private readonly _focusTracker: dom.IFocusTracker;
 	private _inQuickPick = false;
+	private _prependNewLine = false;
+	private _bufferToEditorIndex: Map<number, number> = new Map();
 
 	constructor(
 		private readonly _instance: ITerminalInstance,
@@ -96,6 +98,7 @@ export class AccessibleBufferWidget extends DisposableStore {
 		this._accessibleBuffer.replaceChildren(this._editorContainer);
 		this._xtermElement.insertAdjacentElement('beforebegin', this._accessibleBuffer);
 		this._bufferEditor.layout({ width: this._xtermElement.clientWidth, height: this._xtermElement.clientHeight });
+		this.add(this._xterm.raw.onResize(() => this._bufferEditor.layout({ width: this._xtermElement.clientWidth, height: this._xtermElement.clientHeight })));
 		this.add(this._bufferEditor);
 		this._bufferEditor.onKeyDown((e) => {
 			// tab moves focus mode will prematurely move focus to the next element before
@@ -140,7 +143,9 @@ export class AccessibleBufferWidget extends DisposableStore {
 		const lineCount = model?.getLineCount() ?? 0;
 		if (insertion && model && lineCount > this._xterm.raw.rows) {
 			const lineNumber = lineCount + 1;
-			model.pushEditOperations(null, [{ range: { startLineNumber: lineNumber, endLineNumber: lineNumber, startColumn: 1, endColumn: 1 }, text: await this._getContent(lineNumber - 1) }], () => []);
+			model.pushEditOperations(null, [{
+				range: { startLineNumber: lineNumber, endLineNumber: lineNumber, startColumn: 1, endColumn: 1 }, text: await this._getContent(true)
+			}], () => []);
 		} else {
 			model = await this._getTextModel(URI.from({ scheme: `${Constants.Scheme}-${this._instance.instanceId}`, fragment: await this._getContent() }));
 		}
@@ -176,8 +181,12 @@ export class AccessibleBufferWidget extends DisposableStore {
 		}
 		const quickPickItems: IQuickPickItem[] = [];
 		for (const command of commands) {
-			const line = command.marker?.line;
+			let line = command.marker?.line;
 			if (!line || !command.command.length) {
+				continue;
+			}
+			line = this._bufferToEditorIndex.get(line);
+			if (!line) {
 				continue;
 			}
 			quickPickItems.push(
@@ -212,6 +221,7 @@ export class AccessibleBufferWidget extends DisposableStore {
 
 	async show(): Promise<void> {
 		await this._updateEditor();
+		this._prependNewLine = true;
 		this._accessibleBuffer.tabIndex = -1;
 		this._bufferEditor.layout({ width: this._xtermElement.clientWidth, height: this._xtermElement.clientHeight });
 		this._accessibleBuffer.classList.add(Constants.Active);
@@ -228,7 +238,8 @@ export class AccessibleBufferWidget extends DisposableStore {
 		return this._modelService.createModel(resource.fragment, null, resource, false);
 	}
 
-	private _getContent(startLine?: number): string {
+	private _getContent(lastBufferIndex?: boolean): string {
+		this._bufferToEditorIndex = new Map();
 		const lines: string[] = [];
 		let currentLine: string = '';
 		const buffer = this._xterm?.raw.buffer.active;
@@ -237,13 +248,22 @@ export class AccessibleBufferWidget extends DisposableStore {
 		}
 		const scrollback: number = this._configurationService.getValue(TerminalSettingId.Scrollback);
 		const maxBufferSize = scrollback + this._xterm.raw.rows - 1;
-		const end = Math.min(maxBufferSize, buffer.length);
-		for (let i = startLine ?? 0; i <= end; i++) {
+		const end = Math.min(maxBufferSize, buffer.length - 1);
+		if (lastBufferIndex) {
+			// If the last buffer index is requested, this is as a result of
+			// a dynamic addition. Return only the last line to prevent duplication.
+			const line = buffer.getLine(end - 1)?.translateToString(false).replace(new RegExp(' ', 'g'), '\xA0');
+			const result = line ? (this._prependNewLine ? '\n' : '') + line + '\n' : '';
+			this._prependNewLine = false;
+			return result;
+		}
+		for (let i = 0; i <= end; i++) {
 			const line = buffer.getLine(i);
 			if (!line) {
 				continue;
 			}
 			const isWrapped = buffer.getLine(i + 1)?.isWrapped;
+			this._bufferToEditorIndex.set(i, lines.length);
 			currentLine += line.translateToString(!isWrapped);
 			if (currentLine && !isWrapped || i === end - 1) {
 				lines.push(currentLine.replace(new RegExp(' ', 'g'), '\xA0'));

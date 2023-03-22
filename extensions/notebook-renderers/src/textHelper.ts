@@ -48,6 +48,7 @@ function generateNestedViewAllElement(outputId: string) {
 	const link = document.createElement('a');
 	link.textContent = '...';
 	link.href = `command:workbench.action.openLargeOutput?${outputId}`;
+	link.ariaLabel = 'Open full output in text editor';
 	link.title = 'Open full output in text editor';
 	link.style.setProperty('text-decoration', 'none');
 	container.appendChild(link);

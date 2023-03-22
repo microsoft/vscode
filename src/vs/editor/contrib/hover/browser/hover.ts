@@ -275,6 +275,10 @@ export class ModesHoverController implements IEditorContribution {
 		this._contentWidget?.goToBottom();
 	}
 
+	public escape(): void {
+		this._contentWidget?.escape();
+	}
+
 	public isHoverVisible(): boolean | undefined {
 		return this._contentWidget?.isVisible();
 	}
@@ -634,6 +638,36 @@ class GoToBottomHoverAction extends EditorAction {
 	}
 }
 
+class EscapeFocusHoverAction extends EditorAction {
+
+	constructor() {
+		super({
+			id: 'editor.action.escapeFocusHover',
+			label: nls.localize({
+				key: 'escapeFocusHover',
+				comment: [
+					'Action that allows to escape from the hover widget with the escape command when the hover widget is focused.'
+				]
+			}, "Escape Focus Hover"),
+			alias: 'Escape Focus Hover',
+			precondition: EditorContextKeys.hoverFocused,
+			kbOpts: {
+				kbExpr: EditorContextKeys.hoverFocused,
+				primary: KeyCode.Escape,
+				weight: KeybindingWeight.EditorContrib
+			}
+		});
+	}
+
+	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
+		const controller = ModesHoverController.get(editor);
+		if (!controller) {
+			return;
+		}
+		controller.escape();
+	}
+}
+
 registerEditorContribution(ModesHoverController.ID, ModesHoverController, EditorContributionInstantiation.BeforeFirstInteraction);
 registerEditorAction(ShowOrFocusHoverAction);
 registerEditorAction(ShowDefinitionPreviewHoverAction);
@@ -645,6 +679,7 @@ registerEditorAction(PageUpHoverAction);
 registerEditorAction(PageDownHoverAction);
 registerEditorAction(GoToTopHoverAction);
 registerEditorAction(GoToBottomHoverAction);
+registerEditorAction(EscapeFocusHoverAction);
 HoverParticipantRegistry.register(MarkdownHoverParticipant);
 HoverParticipantRegistry.register(MarkerHoverParticipant);
 

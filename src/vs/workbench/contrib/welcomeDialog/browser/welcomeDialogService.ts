@@ -9,6 +9,8 @@ import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/
 import { ILinkDescriptor } from 'vs/platform/opener/browser/link';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { MarkdownString } from 'vs/base/common/htmlContent';
+import { openLinkFromMarkdown } from 'vs/editor/contrib/markdownRenderer/browser/markdownRenderer';
+import { IOpenerService } from 'vs/platform/opener/common/opener';
 
 interface IWelcomeDialogItem {
 	readonly title: string;
@@ -30,7 +32,8 @@ export class WelcomeDialogService implements IWelcomeDialogService {
 	declare readonly _serviceBrand: undefined;
 
 	constructor(
-		@IDialogService private readonly dialogService: IDialogService) {
+		@IDialogService private readonly dialogService: IDialogService,
+		@IOpenerService private readonly openerService: IOpenerService) {
 	}
 
 	async show(welcomeDialogItem: IWelcomeDialogItem): Promise<void> {
@@ -45,21 +48,23 @@ export class WelcomeDialogService implements IWelcomeDialogService {
 		const hr = new MarkdownString(undefined, { supportThemeIcons: true, supportHtml: true });
 		hr.appendMarkdown('<hr>');
 
-		const link = new MarkdownString(undefined, { supportThemeIcons: true, supportHtml: true });
-		if (welcomeDialogItem.action) {
-			link.appendLink(welcomeDialogItem.action.href, welcomeDialogItem.action.label as string);
-		}
-
 		await this.dialogService.prompt({
 			type: 'none',
 			message: welcomeDialogItem.title,
 			cancelButton: welcomeDialogItem.buttonText,
+			buttons: welcomeDialogItem.action ? [{
+				label: welcomeDialogItem.action.label as string,
+				run: () => {
+					openLinkFromMarkdown(this.openerService, welcomeDialogItem.action?.href!, true);
+					welcomeDialogItem.onClose?.();
+				}
+
+			}] : undefined,
 			custom: {
 				disableCloseAction: true,
 				markdownDetails: [
 					{ markdown: hr, classes: ['hr'] },
-					...welcomeDialogItem.messages.map(value => { return { markdown: renderBody(value.icon, value.message), classes: ['message-body'] }; }),
-					{ markdown: link, classes: ['link'] }
+					...welcomeDialogItem.messages.map(value => { return { markdown: renderBody(value.icon, value.message), classes: ['message-body'] }; })
 				]
 			}
 		});

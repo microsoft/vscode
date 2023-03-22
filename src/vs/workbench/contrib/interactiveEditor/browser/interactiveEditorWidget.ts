@@ -56,6 +56,7 @@ import { Command, CompletionContext, CompletionItem, CompletionItemInsertTextRul
 import { LanguageSelector } from 'vs/editor/common/languageSelector';
 import { DEFAULT_FONT_FAMILY } from 'vs/workbench/browser/style';
 import { ICommandService } from 'vs/platform/commands/common/commands';
+import { IInteractiveSessionService } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionService';
 
 class InteractiveEditorWidget {
 
@@ -840,8 +841,12 @@ export class InteractiveEditorController implements IEditorContribution {
 			this._ctsRequest = new CancellationTokenSource(this._ctsSession.token);
 
 			this._historyOffset = -1;
-			this._editor.revealRange(wholeRange, ScrollType.Smooth);
-			const input = await this._zone.getInput(wholeRange.getEndPosition(), placeholder, value, this._ctsRequest.token);
+			const inputPromise = this._zone.getInput(wholeRange.getEndPosition(), placeholder, value, this._ctsRequest.token);
+
+			// reveal the line after the whole range to ensure that the input box is visible
+			this._editor.revealPosition({ lineNumber: wholeRange.endLineNumber + 1, column: 1 }, ScrollType.Smooth);
+
+			const input = await inputPromise;
 			roundStore.clear();
 
 			if (!input || !input.value) {
@@ -852,7 +857,7 @@ export class InteractiveEditorController implements IEditorContribution {
 			if (refer) {
 				this._logService.info('[IE] seeing refer command, continuing outside editor', provider.debugName);
 				this._editor.setSelection(wholeRange);
-				this._instaService.invokeFunction(showMessageResponse, input.value);
+				this._instaService.invokeFunction(sendRequest, input.value);
 				continue;
 			}
 
@@ -895,7 +900,7 @@ export class InteractiveEditorController implements IEditorContribution {
 			if (!reply) {
 				this._logService.trace('[IE] NO reply or edits', provider.debugName);
 				value = input.value;
-				statusWidget.update({ message: localize('empty', "No results, tweak your input and try again."), classes: ['warn'], actions: [] });
+				statusWidget.update({ message: localize('empty', "No results, please refine your input and try again."), classes: ['warn'], actions: [] });
 				continue;
 			}
 
@@ -910,7 +915,8 @@ export class InteractiveEditorController implements IEditorContribution {
 			if (reply.type === 'message') {
 				this._logService.info('[IE] received a MESSAGE, continuing outside editor', provider.debugName);
 				this._editor.setSelection(reply.wholeRange ?? wholeRange);
-				this._instaService.invokeFunction(showMessageResponse, request.prompt);
+				this._instaService.invokeFunction(showMessageResponse, request.prompt, reply.message.value);
+
 				continue;
 			}
 
@@ -1116,8 +1122,12 @@ function installSlashCommandSupport(accessor: ServicesAccessor, editor: IActiveC
 	return store;
 }
 
-async function showMessageResponse(accessor: ServicesAccessor, query: string) {
+async function showMessageResponse(accessor: ServicesAccessor, query: string, response: string) {
+	const interactiveSessionService = accessor.get(IInteractiveSessionService);
+	interactiveSessionService.addCompleteRequest(query, { message: response });
+}
 
+async function sendRequest(accessor: ServicesAccessor, query: string) {
 
 	const widgetService = accessor.get(IInteractiveSessionWidgetService);
 	const viewsService = accessor.get(IViewsService);

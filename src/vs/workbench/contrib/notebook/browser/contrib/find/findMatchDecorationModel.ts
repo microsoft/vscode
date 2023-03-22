@@ -149,4 +149,5 @@ export class FindMatchDecorationModel extends Disposable {
 		this.clearDecorations();
 		super.dispose();
 	}
+
 }
