@@ -331,7 +331,10 @@ export class FileBasedRecommendations extends ExtensionRecommendations {
 	private async promptImportantExtensionsInstallNotification(recommendations: string[], name: string, language: string): Promise<void> {
 		try {
 			const treatmentMessage = await this.tasExperimentService.getTreatment<string>('languageRecommendationMessage');
-			const message = treatmentMessage ? treatmentMessage.replace('{0}', () => name) : localize('reallyRecommended', "Do you want to install the recommended extensions for {0}?", name);
+			const message = treatmentMessage ? treatmentMessage.replace('{0}', () => name)
+				: recommendations.length > 1
+					? localize('reallyRecommended', "Do you want to install the recommended extensions for {0}?", name)
+					: localize('singleRecommended', "Do you want to install the recommended extension for {0}?", name);
 			const result = await this.extensionRecommendationNotificationService.promptImportantExtensionsInstallNotification(recommendations, message, recommendations.map(extensionId => `@id:${extensionId}`).join(' '), RecommendationSource.FILE);
 			if (result === RecommendationsNotificationResult.Accepted) {
 				this.addToPromptedRecommendations(language, recommendations);
