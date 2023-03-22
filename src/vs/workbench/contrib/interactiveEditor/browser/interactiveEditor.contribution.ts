@@ -18,7 +18,6 @@ registerEditorContribution(InteractiveEditorController.ID, InteractiveEditorCont
 registerAction2(interactiveEditorActions.StartSessionAction);
 registerAction2(interactiveEditorActions.MakeRequestAction);
 registerAction2(interactiveEditorActions.StopRequestAction);
-registerAction2(interactiveEditorActions.AcceptWithPreviewInteractiveEditorAction);
 registerAction2(interactiveEditorActions.CancelSessionAction);
 registerAction2(interactiveEditorActions.ArrowOutUpAction);
 registerAction2(interactiveEditorActions.ArrowOutDownAction);
