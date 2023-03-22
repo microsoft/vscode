@@ -896,7 +896,7 @@ export class InteractiveEditorController implements IEditorContribution {
 			if (!reply) {
 				this._logService.trace('[IE] NO reply or edits', provider.debugName);
 				value = input.value;
-				statusWidget.update({ message: localize('empty', "No results, tweak your input and try again."), classes: ['warn'], actions: [] });
+				statusWidget.update({ message: localize('empty', "No results, please refine your input and try again."), classes: ['warn'], actions: [] });
 				continue;
 			}
 
