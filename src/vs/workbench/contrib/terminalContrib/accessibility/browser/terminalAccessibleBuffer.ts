@@ -90,7 +90,6 @@ export class AccessibleBufferWidget extends DisposableStore {
 		this._accessibleBuffer.ariaRoleDescription = localize('terminal.integrated.accessibleBuffer', 'Terminal buffer');
 		this._accessibleBuffer.classList.add('accessible-buffer');
 		this._editorContainer = document.createElement('div');
-		this._accessibleBuffer.tabIndex = -1;
 		this._bufferEditor = this._instantiationService.createInstance(CodeEditorWidget, this._editorContainer, editorOptions, codeEditorWidgetOptions);
 		this._focusTracker = this.add(dom.trackFocus(this._editorContainer));
 		this.add(this._focusTracker.onDidFocus(() => this._focusedContextKey.set(true)));
@@ -101,12 +100,17 @@ export class AccessibleBufferWidget extends DisposableStore {
 		this.add(this._xterm.raw.onResize(() => this._bufferEditor.layout({ width: this._xtermElement.clientWidth, height: this._xtermElement.clientHeight })));
 		this.add(this._bufferEditor);
 		this._bufferEditor.onKeyDown((e) => {
-			// tab moves focus mode will prematurely move focus to the next element before
-			// xterm can be focused
-			if (e.keyCode === KeyCode.Escape || e.keyCode === KeyCode.Tab) {
-				e.stopPropagation();
-				e.preventDefault();
-				this._hide();
+			switch (e.keyCode) {
+				case KeyCode.Tab:
+					// On tab or shift+tab, hide the accessible buffer and perform the default tab
+					// behavior
+					this._hide();
+					break;
+				case KeyCode.Escape:
+					// On escape, hide the accessible buffer and force focus onto the terminal
+					this._hide();
+					this._xterm.raw.focus();
+					break;
 			}
 		});
 		this.add(this._configurationService.onDidChangeConfiguration(e => {
@@ -135,7 +139,6 @@ export class AccessibleBufferWidget extends DisposableStore {
 	private _hide(): void {
 		this._accessibleBuffer.classList.remove(Constants.Active);
 		this._xtermElement.classList.remove(Constants.Hide);
-		this._xterm.raw.focus();
 	}
 
 	private async _updateModel(insertion?: boolean): Promise<void> {
