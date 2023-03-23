@@ -2357,7 +2357,7 @@ declare namespace monaco.editor {
 		/**
 		 * If inner changes have not been computed, this is set to undefined.
 		 * Otherwise, it represents the character-level diff in this line range.
-		 * The original range of each range mapping should be contained in the original line range (same for modified).
+		 * The original range of each range mapping should be contained in the original line range (same for modified), exceptions are new-lines.
 		 * Must not be an empty array.
 		 */
 		readonly innerChanges: RangeMapping[] | undefined;

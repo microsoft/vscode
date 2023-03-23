@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { BugIndicatingError } from 'vs/base/common/errors';
 import { OffsetRange } from 'vs/editor/common/core/offsetRange';
 
 /**
@@ -78,9 +79,20 @@ export class DateTimeout implements ITimeout {
 	private readonly startTime = Date.now();
 
 	constructor(private readonly timeout: number) {
+		// Recommendation: Set a log-point `{this.debuggerDisable()}` here
+		if (timeout <= 0) {
+			throw new BugIndicatingError('timeout must be positive');
+		}
 	}
 
 	public isValid(): boolean {
-		return Date.now() - this.startTime < this.timeout;
+		const now = Date.now();
+		// eslint-disable-next-line no-debugger
+		debugger; // WARNING, call `this.debuggerDisable()` to not get different results when debugging
+		return now - this.startTime < this.timeout;
+	}
+
+	public debuggerDisable() {
+		this.isValid = () => true;
 	}
 }
