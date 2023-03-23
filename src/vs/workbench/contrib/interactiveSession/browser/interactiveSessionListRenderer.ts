@@ -240,7 +240,7 @@ export class InteractiveListItemRenderer extends Disposable implements ITreeRend
 	}
 
 	private basicRenderElement(markdownValue: string, element: InteractiveTreeItem, index: number, templateData: IInteractiveListItemTemplate) {
-		const fillInIncompleteTokens = isResponseVM(element) && (!element.isComplete || element.isCanceled || element.errorDetails?.responseIsFiltered);
+		const fillInIncompleteTokens = isResponseVM(element) && (!element.isComplete || element.isCanceled || element.errorDetails?.responseIsFiltered || element.errorDetails?.responseIsIncomplete);
 		const result = this.renderMarkdown(new MarkdownString(markdownValue), element, templateData.elementDisposables, templateData, fillInIncompleteTokens);
 		dom.clearNode(templateData.value);
 		templateData.value.appendChild(result.element);
