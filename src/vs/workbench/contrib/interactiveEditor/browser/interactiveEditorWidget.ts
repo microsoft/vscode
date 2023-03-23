@@ -976,7 +976,6 @@ export class InteractiveEditorController implements IEditorContribution {
 
 			if (reply.type === 'message') {
 				this._logService.info('[IE] received a MESSAGE, continuing outside editor', provider.debugName);
-				this._editor.setSelection(reply.wholeRange ?? wholeRange);
 				this._instaService.invokeFunction(showMessageResponse, request.prompt, reply.message.value);
 
 				continue;
