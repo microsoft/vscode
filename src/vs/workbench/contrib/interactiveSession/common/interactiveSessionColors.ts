@@ -8,20 +8,14 @@ import { localize } from 'vs/nls';
 import { registerColor } from 'vs/platform/theme/common/colorRegistry';
 
 
-export const interactiveResponseBackground = registerColor(
-	'interactive.responseBackground',
+export const interactiveRequestBackground = registerColor(
+	'interactive.requestBackground',
 	{ dark: new Color(new RGBA(255, 255, 255, 0.03)), light: new Color(new RGBA(0, 0, 0, 0.03)), hcDark: null, hcLight: null, },
-	localize('interactive.responseBackground', 'The resting background color of an interactive response.')
+	localize('interactive.requestBackground', 'The background color of an interactive request.')
 );
 
-export const interactiveResponseActiveBackground = registerColor(
-	'interactive.responseActiveBackground',
+export const interactiveRequestBorder = registerColor(
+	'interactive.requestBorder',
 	{ dark: new Color(new RGBA(255, 255, 255, 0.10)), light: new Color(new RGBA(0, 0, 0, 0.10)), hcDark: null, hcLight: null, },
-	localize('interactive.responseActiveBackground', 'The active background color of an interactive response. Used when the response shows a fade out animation on load.')
-);
-
-export const interactiveResponseBorder = registerColor(
-	'interactive.responseBorder',
-	{ dark: new Color(new RGBA(255, 255, 255, 0.10)), light: new Color(new RGBA(0, 0, 0, 0.10)), hcDark: null, hcLight: null, },
-	localize('interactive.responseBorder', 'The border color of an interactive response.')
+	localize('interactive.requestBorder', 'The border color of an interactive request.')
 );
