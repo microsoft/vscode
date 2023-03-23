@@ -116,7 +116,7 @@ export class AccessibleBufferWidget extends DisposableStore {
 			}
 		}));
 		this.add(this._xterm.raw.onWriteParsed(async () => {
-			if (this._focusedContextKey.get()) {
+			if (this._accessibleBuffer.classList.contains(CssClass.Active)) {
 				await this._updateEditor(true);
 			}
 		}));
