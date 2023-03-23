@@ -114,6 +114,8 @@ export class InteractiveSessionWidget extends Disposable implements IInteractive
 
 	private previousTreeScrollHeight: number = 0;
 
+	private currentViewModelPromise: Promise<IInteractiveSessionViewModel | undefined> | undefined;
+
 	private viewModelDisposables = new DisposableStore();
 	private _viewModel: InteractiveSessionViewModel | undefined;
 	private set viewModel(viewModel: InteractiveSessionViewModel | undefined) {
@@ -506,34 +508,39 @@ export class InteractiveSessionWidget extends Disposable implements IInteractive
 	}
 
 	private async initializeSessionModel(initial = false) {
-		if (this.viewModel) {
+		if (this.currentViewModelPromise) {
 			return;
 		}
 
-		await this.extensionService.whenInstalledExtensionsRegistered();
-		const model = await this.interactiveSessionService.startSession(this.providerId, initial, CancellationToken.None);
-		if (!model) {
-			throw new Error('Failed to start session');
-		}
+		const doInitializeSessionModel = async () => {
+			await this.extensionService.whenInstalledExtensionsRegistered();
+			const model = await this.interactiveSessionService.startSession(this.providerId, initial, CancellationToken.None);
+			if (!model) {
+				throw new Error('Failed to start session');
+			}
 
-		if (this.viewModel) {
-			// Oops, created two. TODO this could be better
-			return;
-		}
+			if (this.viewModel) {
+				// Oops, created two. TODO this could be better
+				return;
+			}
 
-		this.viewModel = this.instantiationService.createInstance(InteractiveSessionViewModel, model);
-		this.viewModelDisposables.add(this.viewModel.onDidChange(() => {
-			this.slashCommandsPromise = undefined;
-			this.onDidChangeItems();
-		}));
-		this.viewModelDisposables.add(this.viewModel.onDidDisposeModel(() => {
-			this.viewModel = undefined;
-			this.onDidChangeItems();
-		}));
+			this.viewModel = this.instantiationService.createInstance(InteractiveSessionViewModel, model);
+			this.viewModelDisposables.add(this.viewModel.onDidChange(() => {
+				this.slashCommandsPromise = undefined;
+				this.onDidChangeItems();
+			}));
+			this.viewModelDisposables.add(this.viewModel.onDidDisposeModel(() => {
+				this.viewModel = undefined;
+				this.onDidChangeItems();
+			}));
 
-		if (this.tree) {
-			this.onDidChangeItems();
-		}
+			if (this.tree) {
+				this.onDidChangeItems();
+			}
+		};
+		this.currentViewModelPromise = doInitializeSessionModel()
+			.then(() => this.viewModel);
+		await this.currentViewModelPromise;
 	}
 
 	async acceptInput(query?: string | IInteractiveSessionReplyFollowup): Promise<void> {
@@ -569,6 +576,10 @@ export class InteractiveSessionWidget extends Disposable implements IInteractive
 				revealLastElement(this.tree);
 			}
 		}
+	}
+
+	async waitForViewModel(): Promise<IInteractiveSessionViewModel | undefined> {
+		return this.currentViewModelPromise;
 	}
 
 	focusLastMessage(): void {
