@@ -9,13 +9,13 @@ import { DisposableStore, combinedDisposable, toDisposable } from 'vs/base/commo
 import { IActiveCodeEditor, ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditorLayoutInfo, EditorOption } from 'vs/editor/common/config/editorOptions';
 import { Range } from 'vs/editor/common/core/range';
-import { IEditorContribution, IEditorDecorationsCollection } from 'vs/editor/common/editorCommon';
+import { IEditorContribution, IEditorDecorationsCollection, ScrollType } from 'vs/editor/common/editorCommon';
 import { localize } from 'vs/nls';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { ZoneWidget } from 'vs/editor/contrib/zoneWidget/browser/zoneWidget';
 import { assertType } from 'vs/base/common/types';
-import { IInteractiveEditorResponse, IInteractiveEditorService, CTX_INTERACTIVE_EDITOR_FOCUSED, CTX_INTERACTIVE_EDITOR_HAS_ACTIVE_REQUEST, CTX_INTERACTIVE_EDITOR_INNER_CURSOR_FIRST, CTX_INTERACTIVE_EDITOR_INNER_CURSOR_LAST, CTX_INTERACTIVE_EDITOR_EMPTY, CTX_INTERACTIVE_EDITOR_OUTER_CURSOR_POSITION, CTX_INTERACTIVE_EDITOR_VISIBLE, MENU_INTERACTIVE_EDITOR_WIDGET, IInteractiveEditorRequest, IInteractiveEditorSession, IInteractiveEditorSlashCommand } from 'vs/workbench/contrib/interactiveEditor/common/interactiveEditor';
+import { IInteractiveEditorResponse, IInteractiveEditorService, CTX_INTERACTIVE_EDITOR_FOCUSED, CTX_INTERACTIVE_EDITOR_HAS_ACTIVE_REQUEST, CTX_INTERACTIVE_EDITOR_INNER_CURSOR_FIRST, CTX_INTERACTIVE_EDITOR_INNER_CURSOR_LAST, CTX_INTERACTIVE_EDITOR_EMPTY, CTX_INTERACTIVE_EDITOR_OUTER_CURSOR_POSITION, CTX_INTERACTIVE_EDITOR_VISIBLE, MENU_INTERACTIVE_EDITOR_WIDGET, IInteractiveEditorRequest, IInteractiveEditorSession, IInteractiveEditorSlashCommand, IInteractiveEditorSessionProvider, InteractiveEditorResponseFeedbackKind } from 'vs/workbench/contrib/interactiveEditor/common/interactiveEditor';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { Iterable } from 'vs/base/common/iterator';
 import { ICursorStateComputer, IModelDecorationOptions, IModelDeltaDecoration, ITextModel, IValidEditOperation } from 'vs/editor/common/model';
@@ -52,12 +52,11 @@ import { IViewsService } from 'vs/workbench/common/views';
 import { IInteractiveSessionContributionService } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionContributionService';
 import { InteractiveSessionViewPane } from 'vs/workbench/contrib/interactiveSession/browser/interactiveSessionSidebar';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
-import { Command, CompletionContext, CompletionItem, CompletionItemInsertTextRule, CompletionItemKind, CompletionItemProvider, CompletionList, ProviderResult } from 'vs/editor/common/languages';
+import { CompletionContext, CompletionItem, CompletionItemInsertTextRule, CompletionItemKind, CompletionItemProvider, CompletionList, ProviderResult } from 'vs/editor/common/languages';
 import { LanguageSelector } from 'vs/editor/common/languageSelector';
 import { DEFAULT_FONT_FAMILY } from 'vs/workbench/browser/style';
-import { ICommandService } from 'vs/platform/commands/common/commands';
-import { isFalsyOrEmpty } from 'vs/base/common/arrays';
-
+import { IInteractiveSessionService } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionService';
+import { renderFormattedText } from 'vs/base/browser/formattedTextRenderer';
 
 class InteractiveEditorWidget {
 
@@ -97,7 +96,7 @@ class InteractiveEditorWidget {
 	private _editorDim: Dimension | undefined;
 	private _isLayouting: boolean = false;
 
-	public acceptInput: (preview: boolean) => void = InteractiveEditorWidget._noop;
+	public acceptInput: () => void = InteractiveEditorWidget._noop;
 	private _cancelInput: () => void = InteractiveEditorWidget._noop;
 
 	constructor(
@@ -126,7 +125,7 @@ class InteractiveEditorWidget {
 				useShadows: false,
 				vertical: 'hidden',
 				horizontal: 'auto',
-				// alwaysConsumeMouseWheel: false
+				alwaysConsumeMouseWheel: false
 			},
 			lineDecorationsWidth: 0,
 			overviewRulerBorder: false,
@@ -245,7 +244,7 @@ class InteractiveEditorWidget {
 		}
 	}
 
-	getInput(placeholder: string, value: string, token: CancellationToken): Promise<{ value: string; preview: boolean } | undefined> {
+	getInput(placeholder: string, value: string, token: CancellationToken): Promise<string | undefined> {
 
 		this._elements.placeholder.innerText = placeholder;
 		this._elements.placeholder.style.fontSize = `${this.inputEditor.getOption(EditorOption.fontSize)}px`;
@@ -253,16 +252,18 @@ class InteractiveEditorWidget {
 
 		this._inputModel.setValue(value);
 		this.inputEditor.setSelection(this._inputModel.getFullModelRange());
+		this.inputEditor.updateOptions({ ariaLabel: localize('aria-label.N', "Interactive Editor Input: {0}", placeholder) });
 
 		const disposeOnDone = new DisposableStore();
 
 		disposeOnDone.add(this.inputEditor.onDidLayoutChange(() => this._onDidChangeHeight.fire()));
+		disposeOnDone.add(this.inputEditor.onDidContentSizeChange(() => this._onDidChangeHeight.fire()));
 
 		const ctxInnerCursorFirst = CTX_INTERACTIVE_EDITOR_INNER_CURSOR_FIRST.bindTo(this._contextKeyService);
 		const ctxInnerCursorLast = CTX_INTERACTIVE_EDITOR_INNER_CURSOR_LAST.bindTo(this._contextKeyService);
 		const ctxInputEditorFocused = CTX_INTERACTIVE_EDITOR_FOCUSED.bindTo(this._contextKeyService);
 
-		return new Promise<{ value: string; preview: boolean } | undefined>(resolve => {
+		return new Promise<string | undefined>(resolve => {
 
 			this._cancelInput = () => {
 				this.acceptInput = InteractiveEditorWidget._noop;
@@ -271,7 +272,7 @@ class InteractiveEditorWidget {
 				return true;
 			};
 
-			this.acceptInput = (preview) => {
+			this.acceptInput = () => {
 				const newValue = this.inputEditor.getModel()!.getValue();
 				if (newValue.trim().length === 0) {
 					// empty or whitespace only
@@ -281,7 +282,7 @@ class InteractiveEditorWidget {
 
 				this.acceptInput = InteractiveEditorWidget._noop;
 				this._cancelInput = InteractiveEditorWidget._noop;
-				resolve({ value: newValue, preview });
+				resolve(newValue);
 			};
 
 			disposeOnDone.add(token.onCancellationRequested(() => this._cancelInput()));
@@ -341,9 +342,9 @@ class InteractiveEditorWidget {
 		let oldClasses: string[] = [];
 
 		return {
-			update: (update: { message?: string; actions?: IAction[]; classes?: string[] }) => {
+			update: (update: { message?: HTMLElement | string; actions?: IAction[]; classes?: string[] }) => {
 				if (update.message) {
-					label.innerText = update.message;
+					reset(label, update.message);
 					this._elements.status.classList.remove('hidden');
 				}
 				if (update.actions) {
@@ -471,7 +472,7 @@ export class InteractiveEditorZoneWidget extends ZoneWidget {
 		super._relayout(this._computeHeightInLines());
 	}
 
-	async getInput(where: IPosition, placeholder: string, value: string, token: CancellationToken): Promise<{ value: string; preview: boolean } | undefined> {
+	async getInput(where: IPosition, placeholder: string, value: string, token: CancellationToken): Promise<string | undefined> {
 		assertType(this.editor.hasModel());
 		super.show(where, this._computeHeightInLines());
 		this._ctxVisible.set(true);
@@ -482,7 +483,18 @@ export class InteractiveEditorZoneWidget extends ZoneWidget {
 	}
 
 	updatePosition(where: IPosition) {
+		// todo@jrieken
+		// UGYLY: we need to restore focus because showing the zone removes and adds it and that
+		// means we loose focus for a bit
+		const hasFocusNow = this.widget.inputEditor.hasWidgetFocus();
 		super.show(where, this._computeHeightInLines());
+		if (hasFocusNow) {
+			this.widget.inputEditor.focus();
+		}
+	}
+
+	protected override revealRange(_range: Range, _isLastLine: boolean) {
+		// disabled
 	}
 
 	override hide(): void {
@@ -493,24 +505,19 @@ export class InteractiveEditorZoneWidget extends ZoneWidget {
 	}
 }
 
-class CommandAction extends Action {
-
-	constructor(command: Command, @ICommandService commandService: ICommandService) {
-		const icon = ThemeIcon.fromString(command.title);
-		super(command.id, icon ? command.tooltip : command.title, icon ? ThemeIcon.asClassName(icon) : undefined, true, () => commandService.executeCommand(command.id));
-	}
-}
-
 class ToggleInlineDiff extends Action {
 
 	constructor(private readonly _inlineDiff: InlineDiffDecorations) {
-		super('diff', localize('toggleInlineDiff', "Toggle Inline Diff"), ThemeIcon.asClassName(Codicon.diff), true);
+		super('diff', '', ThemeIcon.asClassName(Codicon.diff), true);
 		this.checked = _inlineDiff.visible;
+		this.tooltip = localize('toggleInlineDiff', "Toggle Inline Diff");
+		this.label = _inlineDiff.visible ? localize('hideInlineDiff', "Hide") : localize('showInlineDiff', "Show");
 	}
 
 	override async run(): Promise<void> {
 		this._inlineDiff.visible = !this._inlineDiff.visible;
 		this.checked = this._inlineDiff.visible;
+		this.label = this._inlineDiff.visible ? localize('hideInlineDiff', "Hide") : localize('showInlineDiff', "Show");
 	}
 }
 
@@ -518,7 +525,7 @@ class UndoAction extends Action {
 
 	private readonly _myAlternativeVersionId: number;
 
-	constructor(private readonly _model: ITextModel) {
+	constructor(private readonly _model: ITextModel, private readonly _provider: IInteractiveEditorSessionProvider, private readonly _session: IInteractiveEditorSession, private readonly _response: IInteractiveEditorResponse) {
 		super('undo', localize('undo', "Undo"), ThemeIcon.asClassName(Codicon.discard), false);
 		this._myAlternativeVersionId = _model.getAlternativeVersionId();
 
@@ -532,6 +539,10 @@ class UndoAction extends Action {
 	override async run(): Promise<void> {
 		if (this._myAlternativeVersionId === this._model.getAlternativeVersionId()) {
 			this._model.undo();
+
+			if (this._provider.handleInteractiveEditorResponseFeedback) {
+				this._provider.handleInteractiveEditorResponseFeedback(this._session, this._response, InteractiveEditorResponseFeedbackKind.Undone);
+			}
 		}
 	}
 }
@@ -632,15 +643,76 @@ class InlineDiffDecorations {
 
 		const decorating: IModelDecorationOptions = {
 			description: 'interactive-editor-inline-diff',
-			className: 'interactive-editor-lines-inserted-range',
+			className: !edit.range.isEmpty() ? 'interactive-editor-lines-inserted-range' : undefined,
+			showIfCollapsed: true,
 			before: {
 				content,
 				inlineClassName: 'interactive-editor-lines-deleted-range-inline',
-				attachedData: edit
+				attachedData: edit,
 			}
 		};
 
 		return { tracking, decorating };
+	}
+}
+
+class FeedbackToggles {
+
+	private readonly _onDidChange = new Emitter<this>();
+	readonly onDidChange: Event<this> = this._onDidChange.event;
+
+	private readonly _helpful: Action;
+	private readonly _unHelpful: Action;
+
+	constructor(provider: IInteractiveEditorSessionProvider, session: IInteractiveEditorSession, response: IInteractiveEditorResponse) {
+
+		const supportsFeedback = typeof provider.handleInteractiveEditorResponseFeedback === 'function';
+
+		const update = (kind: InteractiveEditorResponseFeedbackKind) => {
+			if (supportsFeedback) {
+				provider.handleInteractiveEditorResponseFeedback!(session, response, kind);
+
+				if (kind === InteractiveEditorResponseFeedbackKind.Helpful) {
+					this._helpful.tooltip = localize('thanks', "Thanks for your feedback!");
+					this._helpful.checked = true;
+					this._helpful.enabled = false;
+					this._unHelpful.tooltip = localize('thanks', "Thanks for your feedback!");
+					this._unHelpful.enabled = false;
+				} else {
+					this._unHelpful.tooltip = localize('thanks', "Thanks for your feedback!");
+					this._unHelpful.checked = true;
+					this._unHelpful.enabled = false;
+					this._helpful.tooltip = localize('thanks', "Thanks for your feedback!");
+					this._helpful.enabled = false;
+				}
+
+				this._onDidChange.fire(this);
+			}
+		};
+
+		this._helpful = new Action('interactiveEditor.helpful', localize('helpful', "Vote Up"), ThemeIcon.asClassName(Codicon.thumbsup), supportsFeedback, () => update(InteractiveEditorResponseFeedbackKind.Helpful));
+		this._unHelpful = new Action('interactiveEditor.unHelpful', localize('unhelpful', "Vote Down"), ThemeIcon.asClassName(Codicon.thumbsdown), supportsFeedback, () => update(InteractiveEditorResponseFeedbackKind.Unhelpful));
+
+		this._helpful.tooltip = this._helpful.label;
+		this._unHelpful.tooltip = this._unHelpful.label;
+	}
+
+	dispose() {
+		this._onDidChange.dispose();
+		this._helpful.dispose();
+		this._unHelpful.dispose();
+	}
+
+	get actions() {
+		// const result: IAction[] = [];
+		// if (this._helpful.enabled || this._helpful.checked) {
+		// 	result.push(this._helpful);
+		// }
+		// if (this._unHelpful.enabled || this._unHelpful.checked) {
+		// 	result.push(this._unHelpful);
+		// }
+		// return result;
+		return [this._helpful, this._unHelpful];
 	}
 }
 
@@ -831,24 +903,29 @@ export class InteractiveEditorController implements IEditorContribution {
 			this._ctsRequest = new CancellationTokenSource(this._ctsSession.token);
 
 			this._historyOffset = -1;
-			const fullPlaceholder = isFalsyOrEmpty(session.slashCommands) ? placeholder : localize('placeholder', "{0}, type '/' for topics", placeholder);
-			const input = await this._zone.getInput(wholeRange.getEndPosition(), fullPlaceholder, value, this._ctsRequest.token);
+			const inputPromise = this._zone.getInput(wholeRange.getEndPosition(), placeholder, value, this._ctsRequest.token);
+
+			// reveal the line after the whole range to ensure that the input box is visible
+			this._editor.revealPosition({ lineNumber: wholeRange.endLineNumber + 1, column: 1 }, ScrollType.Smooth);
+
+			const input = await inputPromise;
 			roundStore.clear();
 
-			if (!input || !input.value) {
+			if (!input) {
 				continue;
 			}
 
-			const refer = session.slashCommands?.some(value => value.refer && input.value.startsWith(`/${value.command}`));
+			const refer = session.slashCommands?.some(value => value.refer && input.startsWith(`/${value.command}`));
 			if (refer) {
 				this._logService.info('[IE] seeing refer command, continuing outside editor', provider.debugName);
-				this._instaService.invokeFunction(showMessageResponse, input.value);
+				this._editor.setSelection(wholeRange);
+				this._instaService.invokeFunction(sendRequest, input);
 				continue;
 			}
 
 			const sw = StopWatch.create();
 			const request: IInteractiveEditorRequest = {
-				prompt: input.value,
+				prompt: input,
 				selection: this._editor.getSelection(),
 				wholeRange
 			};
@@ -878,20 +955,20 @@ export class InteractiveEditorController implements IEditorContribution {
 
 			if (this._ctsRequest.token.isCancellationRequested) {
 				this._logService.trace('[IE] request CANCELED', provider.debugName);
-				value = input.value;
+				value = input;
 				continue;
 			}
 
 			if (!reply) {
 				this._logService.trace('[IE] NO reply or edits', provider.debugName);
-				value = input.value;
-				statusWidget.update({ message: localize('empty', "No results, tweak your input and try again."), classes: ['warn'], actions: [] });
+				value = input;
+				statusWidget.update({ message: localize('empty', "No results, please refine your input and try again."), classes: ['warn'], actions: [] });
 				continue;
 			}
 
 			if (reply.type === 'bulkEdit') {
 				this._logService.info('[IE] performaing a BULK EDIT, exiting interactive editor', provider.debugName);
-				this._bulkEditService.apply(reply.edits, { editor: this._editor, label: localize('ie', "{0}", input.value), showPreview: true });
+				this._bulkEditService.apply(reply.edits, { editor: this._editor, label: localize('ie', "{0}", input), showPreview: true });
 				// todo@jrieken preview bulk edit?
 				// todo@jrieken keep interactive editor?
 				break;
@@ -899,12 +976,13 @@ export class InteractiveEditorController implements IEditorContribution {
 
 			if (reply.type === 'message') {
 				this._logService.info('[IE] received a MESSAGE, continuing outside editor', provider.debugName);
-				this._instaService.invokeFunction(showMessageResponse, request.prompt);
+				this._instaService.invokeFunction(showMessageResponse, request.prompt, reply.message.value);
+
 				continue;
 			}
 
 			// make edits more minimal
-			const moreMinimalEdits = (await this._editorWorkerService.computeMoreMinimalEdits(textModel.uri, reply.edits, true));
+			const moreMinimalEdits = (await this._editorWorkerService.computeHumanReadableDiff(textModel.uri, reply.edits));
 			this._logService.trace('[IE] edits from PROVIDER and after making them MORE MINIMAL', provider.debugName, reply.edits, moreMinimalEdits);
 			this._recorder.addExchange(session, request, reply);
 
@@ -945,21 +1023,35 @@ export class InteractiveEditorController implements IEditorContribution {
 
 			inlineDiffDecorations.update();
 
+			const toggleAction = new ToggleInlineDiff(inlineDiffDecorations);
+			const fixedActions: Action[] = [new UndoAction(textModel, provider, session, reply), toggleAction];
+			roundStore.add(combinedDisposable(...fixedActions));
 
-			const replyActions: Action[] = reply.commands?.map(command => this._instaService.createInstance(CommandAction, command)) ?? [];
-			const fixedActions: Action[] = [new UndoAction(textModel), new ToggleInlineDiff(inlineDiffDecorations)];
-			roundStore.add(combinedDisposable(...replyActions, ...fixedActions));
+			const feedback = new FeedbackToggles(provider, session, reply);
+			roundStore.add(feedback);
+			roundStore.add(feedback.onDidChange(() => { statusWidget.update({ actions: Separator.join(feedback.actions, fixedActions) }); }));
 
 			const editsCount = (moreMinimalEdits ?? reply.edits).length;
 
+			const message = renderFormattedText(
+				editsCount === 1
+					? localize({ key: 'edit.1', comment: ['[[ and ]] are markdown must not be removed'] }, "Done, made [[1 change]]")
+					: localize({ key: 'edit.N', comment: ['[[ and ]] are markdown must not be removed'] }, "Done, made [[{0} changes]]", editsCount),
+				{
+					actionHandler: {
+						disposables: roundStore,
+						callback: () => toggleAction.run(),
+					}
+				});
+
 			statusWidget.update({
-				message: editsCount === 1 ? localize('edit.1', "Done, made 1 change") : localize('edit.N', "Done, made {0} changes", editsCount),
+				message,
 				classes: [],
-				actions: Separator.join(replyActions, fixedActions),
+				actions: Separator.join(feedback.actions, fixedActions),
 			});
 
-			if (!InteractiveEditorController._promptHistory.includes(input.value)) {
-				InteractiveEditorController._promptHistory.unshift(input.value);
+			if (!InteractiveEditorController._promptHistory.includes(input)) {
+				InteractiveEditorController._promptHistory.unshift(input);
 			}
 			placeholder = reply.placeholder ?? session.placeholder ?? '';
 			value = '';
@@ -987,8 +1079,8 @@ export class InteractiveEditorController implements IEditorContribution {
 		this._telemetryService.publicLog2<TelemetryData, TelemetryDataClassification>('interactiveEditor/session', data);
 	}
 
-	accept(preview: boolean): void {
-		this._zone.widget.acceptInput(preview);
+	accept(): void {
+		this._zone.widget.acceptInput();
 	}
 
 	cancelCurrentRequest(): void {
@@ -1105,8 +1197,12 @@ function installSlashCommandSupport(accessor: ServicesAccessor, editor: IActiveC
 	return store;
 }
 
-async function showMessageResponse(accessor: ServicesAccessor, query: string) {
+async function showMessageResponse(accessor: ServicesAccessor, query: string, response: string) {
+	const interactiveSessionService = accessor.get(IInteractiveSessionService);
+	interactiveSessionService.addCompleteRequest(query, { message: response });
+}
 
+async function sendRequest(accessor: ServicesAccessor, query: string) {
 
 	const widgetService = accessor.get(IInteractiveSessionWidgetService);
 	const viewsService = accessor.get(IViewsService);

@@ -27,6 +27,18 @@ function generateViewMoreElement(outputId: string) {
 	container.appendChild(third);
 	container.appendChild(forth);
 
+	const refreshSpan = document.createElement('span');
+	refreshSpan.classList.add('scroll-refresh');
+	const fifth = document.createElement('span');
+	fifth.textContent = '. Refresh to view ';
+
+	const sixth = document.createElement('a');
+	sixth.textContent = 'scrollable element';
+	sixth.href = `command:cellOutput.enableScrolling?${outputId}`;
+	refreshSpan.appendChild(fifth);
+	refreshSpan.appendChild(sixth);
+	container.appendChild(refreshSpan);
+
 	return container;
 }
 
@@ -36,6 +48,7 @@ function generateNestedViewAllElement(outputId: string) {
 	const link = document.createElement('a');
 	link.textContent = '...';
 	link.href = `command:workbench.action.openLargeOutput?${outputId}`;
+	link.ariaLabel = 'Open full output in text editor';
 	link.title = 'Open full output in text editor';
 	link.style.setProperty('text-decoration', 'none');
 	container.appendChild(link);

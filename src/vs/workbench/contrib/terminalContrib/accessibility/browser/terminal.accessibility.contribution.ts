@@ -43,7 +43,7 @@ class AccessibleBufferContribution extends DisposableStore implements ITerminalC
 	}
 	layout(xterm: IXtermTerminal & { raw: Terminal }): void {
 		if (!this._accessibleBufferWidget) {
-			this._accessibleBufferWidget = this._instantiationService.createInstance(AccessibleBufferWidget, this._instance, xterm);
+			this._accessibleBufferWidget = this.add(this._instantiationService.createInstance(AccessibleBufferWidget, this._instance, xterm));
 		}
 	}
 	async show(): Promise<void> {
@@ -105,7 +105,7 @@ registerAction2(class extends Action2 {
 				{
 					primary: KeyMod.Shift | KeyCode.Tab,
 					weight: KeybindingWeight.WorkbenchContrib,
-					when: ContextKeyExpr.and(CONTEXT_ACCESSIBILITY_MODE_ENABLED, terminalTabFocusContextKey)
+					when: ContextKeyExpr.and(CONTEXT_ACCESSIBILITY_MODE_ENABLED, terminalTabFocusContextKey, TerminalContextKeys.accessibleBufferFocus.negate())
 				}
 			],
 		});
@@ -136,7 +136,7 @@ registerAction2(class extends Action2 {
 				{
 					primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyO,
 					weight: KeybindingWeight.WorkbenchContrib + 2,
-					when: ContextKeyExpr.or(TerminalContextKeys.accessibleBufferFocus, ContextKeyExpr.and(CONTEXT_ACCESSIBILITY_MODE_ENABLED, TerminalContextKeys.focus))
+					when: TerminalContextKeys.accessibleBufferFocus
 				}
 			],
 		});

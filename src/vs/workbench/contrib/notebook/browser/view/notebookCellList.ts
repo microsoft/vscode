@@ -1085,7 +1085,7 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 			if (element instanceof MarkupCellViewModel) {
 				return this._revealInCenterIfOutsideViewport(viewIndex);
 			} else {
-				const rangeOffset = element.layoutInfo.outputContainerOffset + offset;
+				const rangeOffset = element.layoutInfo.outputContainerOffset + Math.min(offset, element.layoutInfo.outputTotalHeight);
 				this.view.setScrollTop(elementTop - this.view.renderHeight / 2);
 				this.view.setScrollTop(elementTop + rangeOffset - this.view.renderHeight / 2);
 			}

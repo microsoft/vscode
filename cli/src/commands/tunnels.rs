@@ -139,7 +139,7 @@ pub async fn service(
 					],
 				)
 				.await?;
-			ctx.log.result(format!("Service successfully installed! You can use `{} tunnel service log` to monitor it, and `code tunnel service uninstall` to remove it.", APPLICATION_NAME));
+			ctx.log.result(format!("Service successfully installed! You can use `{} tunnel service log` to monitor it, and `{} tunnel service uninstall` to remove it.", APPLICATION_NAME, APPLICATION_NAME));
 		}
 		TunnelServiceSubCommands::Uninstall => {
 			manager.unregister().await?;

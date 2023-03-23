@@ -7,6 +7,7 @@ import { KeyCode } from 'vs/base/common/keyCodes';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import * as dom from 'vs/base/browser/dom';
+import { Event } from 'vs/base/common/event';
 import { IEditorConstructionOptions } from 'vs/editor/browser/config/editorConfiguration';
 import { EditorExtensionsRegistry } from 'vs/editor/browser/editorExtensions';
 import { CodeEditorWidget, ICodeEditorWidgetOptions } from 'vs/editor/browser/widget/codeEditorWidget';
@@ -28,14 +29,12 @@ import { AudioCue, IAudioCueService } from 'vs/platform/audioCues/browser/audioC
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/terminalContextKey';
 
-const enum Constants {
-	Scheme = 'terminal-accessible-buffer',
+const enum CssClass {
 	Active = 'active',
 	Hide = 'hide'
 }
 
 export class AccessibleBufferWidget extends DisposableStore {
-	public static ID: string = Constants.Scheme;
 	private _accessibleBuffer: HTMLElement;
 	private _bufferEditor: CodeEditorWidget;
 	private _editorContainer: HTMLElement;
@@ -44,10 +43,12 @@ export class AccessibleBufferWidget extends DisposableStore {
 	private readonly _focusedContextKey: IContextKey<boolean>;
 	private readonly _focusTracker: dom.IFocusTracker;
 	private _inQuickPick = false;
+	private _prependNewLine = false;
+	private _bufferToEditorIndex: Map<number, number> = new Map();
 
 	constructor(
 		private readonly _instance: ITerminalInstance,
-		private readonly _xterm: IXtermTerminal & { raw: Terminal },
+		private readonly _xterm: Pick<IXtermTerminal, 'getFont'> & { raw: Terminal },
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IModelService private readonly _modelService: IModelService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
@@ -88,22 +89,25 @@ export class AccessibleBufferWidget extends DisposableStore {
 		this._accessibleBuffer.ariaRoleDescription = localize('terminal.integrated.accessibleBuffer', 'Terminal buffer');
 		this._accessibleBuffer.classList.add('accessible-buffer');
 		this._editorContainer = document.createElement('div');
-		this._accessibleBuffer.tabIndex = -1;
-		this._bufferEditor = this._instantiationService.createInstance(CodeEditorWidget, this._editorContainer, editorOptions, codeEditorWidgetOptions);
+		this._bufferEditor = this.add(this._instantiationService.createInstance(CodeEditorWidget, this._editorContainer, editorOptions, codeEditorWidgetOptions));
 		this._focusTracker = this.add(dom.trackFocus(this._editorContainer));
 		this.add(this._focusTracker.onDidFocus(() => this._focusedContextKey.set(true)));
 		this.add(this._focusTracker.onDidBlur(() => this._focusedContextKey.reset()));
 		this._accessibleBuffer.replaceChildren(this._editorContainer);
 		this._xtermElement.insertAdjacentElement('beforebegin', this._accessibleBuffer);
-		this._bufferEditor.layout({ width: this._xtermElement.clientWidth, height: this._xtermElement.clientHeight });
-		this.add(this._bufferEditor);
+		this.add(Event.runAndSubscribe(this._xterm.raw.onResize, () => this._bufferEditor.layout({ width: this._xtermElement.clientWidth, height: this._xtermElement.clientHeight })));
 		this._bufferEditor.onKeyDown((e) => {
-			// tab moves focus mode will prematurely move focus to the next element before
-			// xterm can be focused
-			if (e.keyCode === KeyCode.Escape || e.keyCode === KeyCode.Tab) {
-				e.stopPropagation();
-				e.preventDefault();
-				this._hide();
+			switch (e.keyCode) {
+				case KeyCode.Tab:
+					// On tab or shift+tab, hide the accessible buffer and perform the default tab
+					// behavior
+					this._hide();
+					break;
+				case KeyCode.Escape:
+					// On escape, hide the accessible buffer and force focus onto the terminal
+					this._hide();
+					this._xterm.raw.focus();
+					break;
 			}
 		});
 		this.add(this._configurationService.onDidChangeConfiguration(e => {
@@ -112,7 +116,7 @@ export class AccessibleBufferWidget extends DisposableStore {
 			}
 		}));
 		this.add(this._xterm.raw.onWriteParsed(async () => {
-			if (this._focusedContextKey.get()) {
+			if (this._accessibleBuffer.classList.contains(CssClass.Active)) {
 				await this._updateEditor(true);
 			}
 		}));
@@ -123,36 +127,37 @@ export class AccessibleBufferWidget extends DisposableStore {
 			// if the editor is focused via tab, we need to update the model
 			// and show it
 			await this._updateEditor();
-			this._accessibleBuffer.classList.add(Constants.Active);
-			this._xtermElement.classList.add(Constants.Hide);
+			this._accessibleBuffer.classList.add(CssClass.Active);
+			this._xtermElement.classList.add(CssClass.Hide);
 		}));
 		this._updateEditor();
 	}
 
 	private _hide(): void {
-		this._accessibleBuffer.classList.remove(Constants.Active);
-		this._xtermElement.classList.remove(Constants.Hide);
-		this._xterm.raw.focus();
+		this._accessibleBuffer.classList.remove(CssClass.Active);
+		this._xtermElement.classList.remove(CssClass.Hide);
 	}
 
-	private async _updateModel(insertion?: boolean): Promise<void> {
+	private async _updateModel(insertion?: boolean): Promise<ITextModel> {
 		let model = this._bufferEditor.getModel();
 		const lineCount = model?.getLineCount() ?? 0;
 		if (insertion && model && lineCount > this._xterm.raw.rows) {
 			const lineNumber = lineCount + 1;
-			model.pushEditOperations(null, [{ range: { startLineNumber: lineNumber, endLineNumber: lineNumber, startColumn: 1, endColumn: 1 }, text: await this._getContent(lineNumber - 1) }], () => []);
+			model.pushEditOperations(null, [{
+				range: { startLineNumber: lineNumber, endLineNumber: lineNumber, startColumn: 1, endColumn: 1 }, text: this._getContent(true)
+			}], () => []);
 		} else {
-			model = await this._getTextModel(URI.from({ scheme: `${Constants.Scheme}-${this._instance.instanceId}`, fragment: await this._getContent() }));
+			model = await this._getTextModel(this._instance.resource.with({ fragment: this._getContent() }));
 		}
 		if (!model) {
 			throw new Error('Could not create accessible buffer editor model');
 		}
 		this._bufferEditor.setModel(model);
+		return model;
 	}
 
 	private async _updateEditor(insertion?: boolean): Promise<void> {
-		await this._updateModel(insertion);
-		const model = this._bufferEditor.getModel();
+		const model = await this._updateModel(insertion);
 		if (!model) {
 			return;
 		}
@@ -176,8 +181,12 @@ export class AccessibleBufferWidget extends DisposableStore {
 		}
 		const quickPickItems: IQuickPickItem[] = [];
 		for (const command of commands) {
-			const line = command.marker?.line;
+			let line = command.marker?.line;
 			if (!line || !command.command.length) {
+				continue;
+			}
+			line = this._bufferToEditorIndex.get(line);
+			if (!line) {
 				continue;
 			}
 			quickPickItems.push(
@@ -212,10 +221,11 @@ export class AccessibleBufferWidget extends DisposableStore {
 
 	async show(): Promise<void> {
 		await this._updateEditor();
+		this._prependNewLine = true;
 		this._accessibleBuffer.tabIndex = -1;
 		this._bufferEditor.layout({ width: this._xtermElement.clientWidth, height: this._xtermElement.clientHeight });
-		this._accessibleBuffer.classList.add(Constants.Active);
-		this._xtermElement.classList.add(Constants.Hide);
+		this._accessibleBuffer.classList.add(CssClass.Active);
+		this._xtermElement.classList.add(CssClass.Hide);
 		this._bufferEditor.focus();
 	}
 
@@ -228,26 +238,41 @@ export class AccessibleBufferWidget extends DisposableStore {
 		return this._modelService.createModel(resource.fragment, null, resource, false);
 	}
 
-	private _getContent(startLine?: number): string {
-		const lines: string[] = [];
-		let currentLine: string = '';
+	private _getContent(lastBufferIndex?: boolean): string {
 		const buffer = this._xterm?.raw.buffer.active;
 		if (!buffer) {
 			return '';
 		}
-		const end = buffer.length;
-		for (let i = startLine ?? 0; i <= end; i++) {
+
+		const scrollback: number = this._configurationService.getValue(TerminalSettingId.Scrollback);
+		const maxBufferSize = scrollback + this._xterm.raw.rows - 1;
+		const end = Math.min(maxBufferSize, buffer.length - 1);
+		if (lastBufferIndex) {
+			// If the last buffer index is requested, this is as a result of
+			// a dynamic addition. Return only the last line to prevent duplication.
+			const line = buffer.getLine(end - 1)?.translateToString(false).replace(new RegExp(' ', 'g'), '\xA0');
+			const result = line ? (this._prependNewLine ? '\n' : '') + line + '\n' : '';
+			this._prependNewLine = false;
+			return result;
+		}
+
+		this._bufferToEditorIndex = new Map();
+		const lines: string[] = [];
+		let currentLine: string = '';
+		for (let i = 0; i <= end; i++) {
 			const line = buffer.getLine(i);
 			if (!line) {
 				continue;
 			}
 			const isWrapped = buffer.getLine(i + 1)?.isWrapped;
+			this._bufferToEditorIndex.set(i, lines.length);
 			currentLine += line.translateToString(!isWrapped);
 			if (currentLine && !isWrapped || i === end - 1) {
 				lines.push(currentLine.replace(new RegExp(' ', 'g'), '\xA0'));
 				currentLine = '';
 			}
 		}
+
 		return lines.join('\n');
 	}
 }

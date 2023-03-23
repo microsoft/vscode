@@ -738,7 +738,7 @@ abstract class InstallExtensionTask extends AbstractExtensionTask<ILocalExtensio
 	private _profileLocation = this.options.profileLocation;
 	get profileLocation() { return this._profileLocation; }
 
-	protected _verificationStatus = ExtensionVerificationStatus.Unverified;
+	protected _verificationStatus: ExtensionVerificationStatus = false;
 	get verificationStatus() { return this._verificationStatus; }
 
 	protected _operation = InstallOperation.Install;

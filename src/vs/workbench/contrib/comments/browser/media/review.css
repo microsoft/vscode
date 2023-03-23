@@ -517,6 +517,10 @@ div.preview.inline .monaco-editor .comment-range-glyph {
 	justify-content: center;
 }
 
+.monaco-editor .comment-range-glyph.comment-thread-unresolved:before {
+	color: var(--vscode-editorGutter-commentUnresolvedGlyphForeground);
+}
+
 .monaco-editor .margin-view-overlays .comment-range-glyph.multiline-add {
 	border-left-width: 3px;
 	border-left-style: dotted;

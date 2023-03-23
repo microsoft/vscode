@@ -282,7 +282,7 @@ steps:
   - ${{ if eq(parameters.VSCODE_PUBLISH, true) }}:
       - task: UseDotNet@2
         inputs:
-          version: 3.x
+          version: 6.x
         condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'))
 
   - ${{ if eq(parameters.VSCODE_PUBLISH, true) }}:

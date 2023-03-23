@@ -10,7 +10,7 @@ import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { IDecorationOptions } from 'vs/editor/common/editorCommon';
-import { CompletionContext, CompletionItem, CompletionList } from 'vs/editor/common/languages';
+import { CompletionContext, CompletionItem, CompletionItemKind, CompletionList } from 'vs/editor/common/languages';
 import { ITextModel } from 'vs/editor/common/model';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import { localize } from 'vs/nls';
@@ -64,9 +64,11 @@ class InputEditorDecorations extends Disposable {
 		const slashCommands = await this.widget.getSlashCommands();
 
 		if (!value) {
-			const emptyPlaceholder = slashCommands?.length ?
+			const extensionPlaceholder = this.widget.viewModel?.inputPlaceholder;
+			const defaultPlaceholder = slashCommands?.length ?
 				localize('interactive.input.placeholderWithCommands', "Ask a question or type '/' for topics") :
 				localize('interactive.input.placeholderNoCommands', "Ask a question");
+			const placeholder = extensionPlaceholder ?? defaultPlaceholder;
 			const decoration: IDecorationOptions[] = [
 				{
 					range: {
@@ -77,7 +79,7 @@ class InputEditorDecorations extends Disposable {
 					},
 					renderOptions: {
 						after: {
-							contentText: emptyPlaceholder,
+							contentText: placeholder,
 							color: this.getPlaceholderColor()
 						}
 					}
@@ -145,6 +147,10 @@ class SlashCommandCompletions extends Disposable {
 					return null;
 				}
 
+				if (model.getValueInRange(new Range(1, 1, 1, 2)) !== '/' && model.getValueLength() > 0) {
+					return null;
+				}
+
 				const slashCommands = await widget.getSlashCommands();
 				if (!slashCommands) {
 					return null;
@@ -158,7 +164,8 @@ class SlashCommandCompletions extends Disposable {
 							insertText: `${withSlash} `,
 							detail: c.detail,
 							range: new Range(1, 1, 1, 1),
-							kind: c.kind,
+							sortText: c.sortText ?? c.command,
+							kind: CompletionItemKind.Text // The icons are disabled here anyway
 						};
 					})
 				};

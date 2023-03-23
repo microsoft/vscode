@@ -59,11 +59,13 @@ export interface ISearchWidgetOptions {
 	showContextToggle?: boolean;
 	inputBoxStyles: IInputBoxStyles;
 	toggleStyles: IToggleStyles;
-	notebookOptions?: {
-		isInNotebookMarkdownInput: boolean;
-		isInNotebookCellInput: boolean;
-		isInNotebookCellOutput: boolean;
-	};
+	notebookOptions?: NotebookToggleState;
+}
+
+interface NotebookToggleState {
+	isInNotebookMarkdownInput: boolean;
+	isInNotebookCellInput: boolean;
+	isInNotebookCellOutput: boolean;
 }
 
 class ReplaceAllAction extends Action {
@@ -185,12 +187,13 @@ export class SearchWidget extends Widget {
 		this.searchInputBoxFocused = Constants.SearchInputBoxFocusedKey.bindTo(this.contextKeyService);
 		this.replaceInputBoxFocused = Constants.ReplaceInputBoxFocusedKey.bindTo(this.contextKeyService);
 
+		const notebookOptions = options.notebookOptions ?? { isInNotebookMarkdownInput: true, isInNotebookCellInput: true, isInNotebookCellOutput: true };
 		this._notebookFilters = this._register(
 			new NotebookFindFilters(
-				options.notebookOptions?.isInNotebookMarkdownInput ?? true,
-				!options.notebookOptions?.isInNotebookMarkdownInput ?? false,
-				options.notebookOptions?.isInNotebookCellInput ?? true,
-				options.notebookOptions?.isInNotebookCellOutput ?? false
+				notebookOptions.isInNotebookMarkdownInput,
+				!notebookOptions.isInNotebookMarkdownInput,
+				notebookOptions.isInNotebookCellInput,
+				notebookOptions.isInNotebookCellOutput
 			));
 
 		this._register(
