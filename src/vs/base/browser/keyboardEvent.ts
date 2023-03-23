@@ -23,14 +23,12 @@ function extractKeyCode(e: KeyboardEvent): KeyCode {
 	if (keyCode === 3) {
 		return KeyCode.PauseBreak;
 	} else if (browser.isFirefox) {
-		if (keyCode === 59) {
-			return KeyCode.Semicolon;
-		} else if (keyCode === 107) {
-			return KeyCode.Equal;
-		} else if (keyCode === 109) {
-			return KeyCode.Minus;
-		} else if (platform.isMacintosh && keyCode === 224) {
-			return KeyCode.Meta;
+		switch (keyCode) {
+			case 59: return KeyCode.Semicolon;
+			case 107: return KeyCode.Equal;
+			case 109: return KeyCode.Minus;
+			case 224:
+				if (platform.isMacintosh) { return KeyCode.Meta; }
 		}
 	} else if (browser.isWebKit) {
 		if (keyCode === 91) {
