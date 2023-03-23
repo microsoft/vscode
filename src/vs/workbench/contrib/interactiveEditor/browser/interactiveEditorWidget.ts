@@ -643,11 +643,12 @@ class InlineDiffDecorations {
 
 		const decorating: IModelDecorationOptions = {
 			description: 'interactive-editor-inline-diff',
-			className: 'interactive-editor-lines-inserted-range',
+			className: !edit.range.isEmpty() ? 'interactive-editor-lines-inserted-range' : undefined,
+			showIfCollapsed: true,
 			before: {
 				content,
 				inlineClassName: 'interactive-editor-lines-deleted-range-inline',
-				attachedData: edit
+				attachedData: edit,
 			}
 		};
 
