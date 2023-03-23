@@ -25,8 +25,11 @@ function extractKeyCode(e: KeyboardEvent): KeyCode {
 	} else if (browser.isFirefox) {
 		switch (keyCode) {
 			case 59: return KeyCode.Semicolon;
-			case 107: return KeyCode.Equal;
-			case 109: return KeyCode.Minus;
+
+			// based on: https://developer.mozilla.org/en-US/docs/Web/API/KeyboardEvent/keyCode#numpad_keys
+			case 107: return KeyCode.NumpadAdd;
+			case 109: return KeyCode.NumpadSubtract;
+
 			case 224:
 				if (platform.isMacintosh) { return KeyCode.Meta; }
 		}
