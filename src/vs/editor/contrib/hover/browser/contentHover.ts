@@ -719,8 +719,6 @@ export class ResizableHoverOverlay extends Disposable implements IOverlayWidget 
 		this._resizableElement.maxSize = new dom.Dimension(Number.MAX_SAFE_INTEGER, Number.MAX_SAFE_INTEGER);
 		this._resizableElement.clearSashHoverState();
 		this._editor.removeOverlayWidget(this);
-		// TODO: do we need to force render the editor?
-		this._editor.render();
 	}
 
 	public resizableElement(): ResizableHTMLElement {
@@ -732,7 +730,6 @@ export class ResizableHoverOverlay extends Disposable implements IOverlayWidget 
 	}
 
 	public getDomNode(): HTMLElement {
-		console.log('Inside of getDomNode() of ResizableHoverOverlay');
 		return this._resizableElement.domNode;
 	}
 
@@ -741,17 +738,14 @@ export class ResizableHoverOverlay extends Disposable implements IOverlayWidget 
 	}
 
 	public getPosition(): IOverlayWidgetPosition | null {
-		console.log('Inside of getPosition of ResizableHoverOverlay');
 		return null;
 	}
 
 	public showAt(): void {
-
 		// Adding the overlay widget
 		this._editor.addOverlayWidget(this);
 		this._resizableElement.domNode.style.zIndex = '49';
 		this._resizableElement.domNode.style.position = 'fixed';
-		this._editor.layoutOverlayWidget(this);
 	}
 
 }
