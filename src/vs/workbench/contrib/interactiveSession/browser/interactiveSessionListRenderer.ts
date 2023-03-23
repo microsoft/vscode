@@ -24,6 +24,7 @@ import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
 import { EDITOR_FONT_DEFAULTS, IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { Range } from 'vs/editor/common/core/range';
 import { ILanguageService } from 'vs/editor/common/languages/language';
+import { PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/languages/modesRegistry';
 import { ITextModel } from 'vs/editor/common/model';
 import { IModelService } from 'vs/editor/common/services/model';
 import { BracketMatchingController } from 'vs/editor/contrib/bracketMatching/browser/bracketMatching';
@@ -667,9 +668,7 @@ class CodeBlockPart extends Disposable implements IInteractiveResultCodeBlockPar
 
 	private setLanguage(languageId: string): void {
 		const vscodeLanguageId = this.languageService.getLanguageIdByLanguageName(languageId);
-		if (vscodeLanguageId) {
-			this.textModel.setLanguage(vscodeLanguageId);
-		}
+		this.textModel.setLanguage(vscodeLanguageId ?? PLAINTEXT_LANGUAGE_ID);
 	}
 }
 
