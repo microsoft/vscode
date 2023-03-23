@@ -2,5 +2,6 @@
 	"displayName": "Microsoft Account",
 	"description": "Microsoft authentication provider",
 	"signIn": "Sign In",
-	"signOut": "Sign Out"
+	"signOut": "Sign Out",
+	"microsoftAuthentication.enterprise.endpoint.description": "Login endpoint for enterprise authentication"
 }
