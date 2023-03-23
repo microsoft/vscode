@@ -9,6 +9,10 @@ parameters:
     default: false
 
 steps:
+  - task: NodeTool@0
+    inputs:
+      versionSpec: "16.x"
+
   - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
     - template: ../distro/download-distro.yml
     - script: node build/azure-pipelines/distro/apply-cli-patches
@@ -29,13 +33,7 @@ steps:
       tar -xvzf $(Build.ArtifactStagingDirectory)/vscode-internal-openssl-prebuilt-0.0.5.tgz --strip-components=1 --directory=$(Build.ArtifactStagingDirectory)/openssl
     displayName: Extract openssl prebuilt
 
-  - task: NodeTool@0
-    inputs:
-      versionSpec: "16.x"
-
-  - script: |
-      set -e
-      node build/azure-pipelines/cli/prepare.js
+  - script: node build/azure-pipelines/cli/prepare.js
     displayName: Prepare CLI build
     env:
       GITHUB_TOKEN: "$(github-distro-mixin-password)"

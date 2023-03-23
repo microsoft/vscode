@@ -183,18 +183,17 @@ stages:
     - stage: CompileCLI
       dependsOn: []
       jobs:
-        - ${{ if or(eq(parameters.VSCODE_BUILD_LINUX, true), eq(parameters.VSCODE_BUILD_ALPINE, true)) }}:
-          - job: LinuxX64
+        - ${{ if eq(parameters.VSCODE_BUILD_LINUX, true) }}:
+          - job: CLILinuxX64
             pool: vscode-1es-linux
             steps:
               - template: ./linux/cli-build-linux.yml
                 parameters:
                   VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
                   VSCODE_BUILD_LINUX: ${{ parameters.VSCODE_BUILD_LINUX }}
-                  VSCODE_BUILD_ALPINE: ${{ parameters.VSCODE_BUILD_ALPINE }}
 
         - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), or(eq(parameters.VSCODE_BUILD_LINUX_ARMHF, true), eq(parameters.VSCODE_BUILD_LINUX_ARM64, true))) }}:
-          - job: LinuxGnuARM
+          - job: CLILinuxGnuARM
             pool: vscode-1es-linux
             steps:
               - template: ./linux/cli-build-linux.yml
@@ -203,23 +202,28 @@ stages:
                   VSCODE_BUILD_LINUX_ARMHF: ${{ parameters.VSCODE_BUILD_LINUX_ARMHF }}
                   VSCODE_BUILD_LINUX_ARM64: ${{ parameters.VSCODE_BUILD_LINUX_ARM64 }}
 
+        - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), eq(parameters.VSCODE_BUILD_ALPINE, true)) }}:
+          - job: CLIAlpineX64
+            pool: vscode-1es-linux
+            steps:
+              - template: ./alpine/cli-build-alpine.yml
+                parameters:
+                  VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
+                  VSCODE_BUILD_ALPINE: ${{ parameters.VSCODE_BUILD_ALPINE }}
+
         - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), eq(parameters.VSCODE_BUILD_ALPINE_ARM64, true)) }}:
-          - job: LinuxAlpineARM64
+          - job: CLIAlpineARM64
             pool: vscode-1es-linux-20.04-arm64
             steps:
-              - task: NodeTool@0
-                displayName: Install Node.js
-                inputs:
-                  versionSpec: 16.x
-              - script: npm install -g yarn
-                displayName: Install yarn
-              - template: ./linux/cli-build-linux.yml
+              - bash: sudo apt update && sudo apt install -y unzip
+                displayName: Install unzip
+              - template: ./alpine/cli-build-alpine.yml
                 parameters:
                   VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
                   VSCODE_BUILD_ALPINE_ARM64: ${{ parameters.VSCODE_BUILD_ALPINE_ARM64 }}
 
         - ${{ if eq(parameters.VSCODE_BUILD_MACOS, true) }}:
-          - job: MacOSX64
+          - job: CLIMacOSX64
             pool:
               vmImage: macOS-11
             steps:
@@ -229,7 +233,7 @@ stages:
                   VSCODE_BUILD_MACOS: ${{ parameters.VSCODE_BUILD_MACOS }}
 
         - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), eq(parameters.VSCODE_BUILD_MACOS_ARM64, true)) }}:
-          - job: MacOSARM64
+          - job: CLIMacOSARM64
             pool:
               vmImage: macOS-11
             steps:
@@ -239,7 +243,7 @@ stages:
                   VSCODE_BUILD_MACOS_ARM64: ${{ parameters.VSCODE_BUILD_MACOS_ARM64 }}
 
         - ${{ if eq(parameters.VSCODE_BUILD_WIN32, true) }}:
-          - job: WindowsX64
+          - job: CLIWindowsX64
             pool: vscode-1es-windows
             steps:
               - template: ./win32/cli-build-win32.yml
@@ -248,7 +252,7 @@ stages:
                   VSCODE_BUILD_WIN32: ${{ parameters.VSCODE_BUILD_WIN32 }}
 
         - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), eq(parameters.VSCODE_BUILD_WIN32_ARM64, true)) }}:
-          - job: WindowsARM64
+          - job: CLIWindowsARM64
             pool: vscode-1es-windows
             steps:
               - template: ./win32/cli-build-win32.yml
@@ -257,7 +261,7 @@ stages:
                   VSCODE_BUILD_WIN32_ARM64: ${{ parameters.VSCODE_BUILD_WIN32_ARM64 }}
 
         - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), eq(parameters.VSCODE_BUILD_WIN32_32BIT, true)) }}:
-          - job: WindowsX86
+          - job: CLIWindowsX86
             pool: vscode-1es-windows
             steps:
               - template: ./win32/cli-build-win32.yml
@@ -538,7 +542,7 @@ stages:
             variables:
               VSCODE_ARCH: x64
             steps:
-              - template: linux/product-build-alpine.yml
+              - template: alpine/product-build-alpine.yml
 
         - ${{ if eq(parameters.VSCODE_BUILD_ALPINE_ARM64, true) }}:
           - job: LinuxAlpineArm64
@@ -546,7 +550,7 @@ stages:
             variables:
               VSCODE_ARCH: arm64
             steps:
-              - template: linux/product-build-alpine.yml
+              - template: alpine/product-build-alpine.yml
 
   - ${{ if and(eq(parameters.VSCODE_COMPILE_ONLY, false), eq(variables['VSCODE_BUILD_STAGE_MACOS'], true)) }}:
     - stage: macOS
