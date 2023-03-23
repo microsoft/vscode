@@ -274,6 +274,7 @@ export class RemoteStartEntry extends Disposable implements IWorkbenchContributi
 				quickPick.dispose();
 			}
 		});
+		quickPick.onDidHide(() => quickPick.dispose());
 		quickPick.show();
 	}
 }
