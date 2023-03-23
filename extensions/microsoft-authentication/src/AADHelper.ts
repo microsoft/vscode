@@ -13,6 +13,7 @@ import { BetterTokenStorage, IDidChangeInOtherWindowEvent } from './betterSecret
 import { LoopbackAuthServer } from './node/authServer';
 import { base64Decode } from './node/buffer';
 import { fetching } from './node/fetch';
+import { UriEventHandler } from './UriEventHandler';
 
 const redirectUrl = 'https://vscode.dev/redirect';
 const loginEndpointUrl = 'https://login.microsoftonline.com/';
@@ -72,12 +73,6 @@ interface IScopeData {
 
 export const REFRESH_NETWORK_FAILURE = 'Network failure';
 
-class UriEventHandler extends vscode.EventEmitter<vscode.Uri> implements vscode.UriHandler {
-	public handleUri(uri: vscode.Uri) {
-		this.fire(uri);
-	}
-}
-
 export class AzureActiveDirectoryService {
 	// For details on why this is set to 2/3... see https://github.com/microsoft/vscode/issues/133201#issuecomment-966668197
 	private static REFRESH_TIMEOUT_MODIFIER = 1000 * 2 / 3;
@@ -95,10 +90,9 @@ export class AzureActiveDirectoryService {
 
 	private readonly _tokenStorage: BetterTokenStorage<IStoredSession>;
 
-	constructor(private _context: vscode.ExtensionContext) {
+	constructor(private _context: vscode.ExtensionContext, uriHandler: UriEventHandler) {
 		this._tokenStorage = new BetterTokenStorage('microsoft.login.keylist', _context);
-		this._uriHandler = new UriEventHandler();
-		_context.subscriptions.push(vscode.window.registerUriHandler(this._uriHandler));
+		this._uriHandler = uriHandler;
 		_context.subscriptions.push(this._tokenStorage.onDidChangeInOtherWindow((e) => this.checkForUpdates(e)));
 	}
 

@@ -5,13 +5,18 @@
 
 import * as vscode from 'vscode';
 import { AzureActiveDirectoryService } from './AADHelper';
+import { UriEventHandler } from './UriEventHandler';
 import TelemetryReporter from '@vscode/extension-telemetry';
 
 export async function activate(context: vscode.ExtensionContext) {
 	const { name, version, aiKey } = context.extension.packageJSON as { name: string; version: string; aiKey: string };
 	const telemetryReporter = new TelemetryReporter(aiKey);
 
-	const loginService = new AzureActiveDirectoryService(context);
+	const uriHandler = new UriEventHandler();
+	context.subscriptions.push(uriHandler);
+	context.subscriptions.push(vscode.window.registerUriHandler(uriHandler));
+
+	const loginService = new AzureActiveDirectoryService(context, uriHandler);
 	await loginService.initialize();
 
 	context.subscriptions.push(vscode.authentication.registerAuthenticationProvider('microsoft', 'Microsoft', {
