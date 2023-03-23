@@ -3,11 +3,24 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { BugIndicatingError } from 'vs/base/common/errors';
+
 /**
  * A range of offsets (0-based).
 */
 export class OffsetRange {
-	constructor(public readonly start: number, public readonly endExclusive: number) { }
+	public static tryCreate(start: number, endExclusive: number): OffsetRange | undefined {
+		if (start > endExclusive) {
+			return undefined;
+		}
+		return new OffsetRange(start, endExclusive);
+	}
+
+	constructor(public readonly start: number, public readonly endExclusive: number) {
+		if (start > endExclusive) {
+			throw new BugIndicatingError(`Invalid range: ${this.toString()}`);
+		}
+	}
 
 	get isEmpty(): boolean {
 		return this.start === this.endExclusive;
@@ -27,6 +40,10 @@ export class OffsetRange {
 
 	public equals(other: OffsetRange): boolean {
 		return this.start === other.start && this.endExclusive === other.endExclusive;
+	}
+
+	public containsRange(other: OffsetRange): boolean {
+		return this.start <= other.start && other.endExclusive <= this.endExclusive;
 	}
 
 	public contains(offset: number): boolean {

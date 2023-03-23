@@ -126,8 +126,8 @@ export class StandardLinesDiffComputer implements ILinesDiffComputer {
 			: this.myersDiffingAlgorithm.compute(sourceSlice, targetSlice, timeout);
 
 		let diffs = diffResult.diffs;
-		diffs = coverFullWords(sourceSlice, targetSlice, diffs);
 		diffs = optimizeSequenceDiffs(sourceSlice, targetSlice, diffs);
+		diffs = coverFullWords(sourceSlice, targetSlice, diffs);
 		diffs = smoothenSequenceDiffs(sourceSlice, targetSlice, diffs);
 
 		const result = diffs.map(
@@ -160,8 +160,7 @@ function coverFullWords(sequence1: Slice, sequence2: Slice, sequenceDiffs: Seque
 		const originalLength1 = lastModifiedWord.s1Range.length - lastModifiedWord.deleted;
 		const originalLength2 = lastModifiedWord.s2Range.length - lastModifiedWord.added;
 		if (originalLength1 !== originalLength2) {
-			lastModifiedWord = undefined;
-			return; // TODO figure out why this happens
+			// TODO figure out why this happens
 		}
 
 		if (Math.max(lastModifiedWord.deleted, lastModifiedWord.added) + (lastModifiedWord.count - 1) > originalLength1) {
@@ -173,18 +172,26 @@ function coverFullWords(sequence1: Slice, sequence2: Slice, sequenceDiffs: Seque
 
 	for (const s of sequenceDiffs) {
 		function processWord(s1Range: OffsetRange, s2Range: OffsetRange) {
-			if (!lastModifiedWord || !lastModifiedWord.s1Range.equals(s1Range) || !lastModifiedWord.s2Range.equals(s2Range)) {
-				if (lastModifiedWord && lastModifiedWord.s1Range.endExclusive < s1Range.start && lastModifiedWord.s2Range.endExclusive < s2Range.start) {
+			if (!lastModifiedWord || !lastModifiedWord.s1Range.containsRange(s1Range) || !lastModifiedWord.s2Range.containsRange(s2Range)) {
+				if (lastModifiedWord && !(lastModifiedWord.s1Range.endExclusive < s1Range.start && lastModifiedWord.s2Range.endExclusive < s2Range.start)) {
+					const s1Added = OffsetRange.tryCreate(lastModifiedWord.s1Range.endExclusive, s1Range.start);
+					const s2Added = OffsetRange.tryCreate(lastModifiedWord.s2Range.endExclusive, s2Range.start);
+					lastModifiedWord.deleted += s1Added?.length ?? 0;
+					lastModifiedWord.added += s2Added?.length ?? 0;
+
+					lastModifiedWord.s1Range = lastModifiedWord.s1Range.join(s1Range);
+					lastModifiedWord.s2Range = lastModifiedWord.s2Range.join(s2Range);
+				} else {
 					maybePushWordToAdditional();
+					lastModifiedWord = { added: 0, deleted: 0, count: 0, s1Range: s1Range, s2Range: s2Range };
 				}
-				lastModifiedWord = { added: 0, deleted: 0, count: 0, s1Range: s1Range, s2Range: s2Range };
 			}
 
 			const changedS1 = s1Range.intersect(s.seq1Range);
 			const changedS2 = s2Range.intersect(s.seq2Range);
 			lastModifiedWord.count++;
-			lastModifiedWord.added += changedS2?.length ?? 0;
 			lastModifiedWord.deleted += changedS1?.length ?? 0;
+			lastModifiedWord.added += changedS2?.length ?? 0;
 		}
 
 		const w1Before = sequence1.findWordContaining(s.seq1Range.start - 1);
