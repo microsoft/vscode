@@ -44,7 +44,7 @@ async function main() {
 			'./scripts/code-web.sh|bat[, folderMountPath[, options]]\n' +
 			'                           Start with an empty workspace and no folder opened in explorer\n' +
 			'  folderMountPath          Open local folder (eg: use `.` to open current directory)\n' +
-			'  --playground             Include the vscode-web-playground extension (added by default if no folderPath is provided)\n'
+			'  --playground             Include the vscode-web-playground extension\n'
 		);
 		startServer(['--help']);
 		return;
