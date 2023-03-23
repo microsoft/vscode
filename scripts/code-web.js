@@ -39,7 +39,6 @@ async function main() {
 		],
 	});
 
-	console.log(args);
 	if (args.help) {
 		console.log(
 			'./scripts/code-web.sh|bat[, folderMountPath[, options]]\n' +
