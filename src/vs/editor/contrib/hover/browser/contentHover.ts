@@ -27,6 +27,10 @@ import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { IResizeEvent, ResizableHTMLElement } from 'vs/base/browser/ui/resizable/resizable';
 import { Emitter, Event } from 'vs/base/common/event';
 
+
+// QUESTIONS TO ASK
+// 1. How to make the overlay have higher index, appear on top and have the layer below still detect the on mouse events
+
 const $ = dom.$;
 
 export class ContentHoverController extends Disposable {
@@ -78,8 +82,9 @@ export class ContentHoverController extends Disposable {
 			}
 		}));
 		this._register(this._resizableOverlay.onDidResize((e) => {
+			// When the resizable hover overlay changed. resize the widget
 			this._widget.resize(e.dimension);
-			// Update the left offset of the resizable element because the content widget may change left offset as it is resized
+			// Update the left and top offset of the resizable element because the content widget may change its left and top offset as it is resized
 			const offsetLeft = this._widget.getDomNode().offsetLeft;
 			if (offsetLeft) {
 				this._resizableOverlay.getDomNode().style.left = offsetLeft + 'px';
@@ -317,6 +322,7 @@ export class ContentHoverController extends Disposable {
 				console.log('After onContentsChanged');
 				// TODO: do we need this forced render here?
 
+				// Needed in order to render correctly the content hover widget
 				this._editor.render();
 
 				console.log('containerDomNode : ', containerDomNode);
@@ -331,7 +337,7 @@ export class ContentHoverController extends Disposable {
 				console.log('contentsDomNode offset top : ', contentsDomNode.offsetTop);
 				console.log('contentsDomNode offset left : ', contentsDomNode.offsetLeft);
 
-				// After the final rendering of the widget, retrieve its top and left offsets
+				// After the final rendering of the widget, retrieve its top and left offsets in order to set the size of the resizable element
 				const widgetDomNode = this._widget.getDomNode();
 				const offsetTop = widgetDomNode.offsetTop;
 				const offsetLeft = widgetDomNode.offsetLeft;
@@ -341,13 +347,7 @@ export class ContentHoverController extends Disposable {
 				// Values found by trial and error
 				// Update the left and top offset to match the widget dom node
 				const resizableElement = this._resizableOverlay.resizableElement();
-				console.log('this._renderingAbove : ', this._renderingAbove);
-				if (this._renderingAbove) {
-					resizableElement.domNode.style.top = offsetTop - 2 + 'px';
-				} else {
-					resizableElement.domNode.style.top = offsetTop + 'px';
-				}
-				resizableElement.domNode.style.left = offsetLeft + 'px';
+
 				// Set a different width and height to the resizable element
 				resizableElement.layout(clientHeight + 4, clientWidth + 4); // Used to be 7 and 6
 
@@ -394,7 +394,7 @@ export class ContentHoverController extends Disposable {
 
 				this._editor.layoutOverlayWidget(this._resizableOverlay);
 				// TODO: Do we need this forced rendering?
-				this._editor.render();
+				// this._editor.render();
 
 				// TODO: Do we need this scan dom node?
 				// this._widget._hover.scrollbar.scanDomNode();
@@ -454,7 +454,7 @@ export class ContentHoverController extends Disposable {
 			// It would appear that the first time the render message is called, the tool tip position is undefined, then when called again, it gives the correct answer
 			const tooltipPosition: IPosition = { lineNumber: showAtPosition.lineNumber, column: showAtPosition.column };
 			// The tooltip position is saved in the resizable overlay
-			this._resizableOverlay.setToooltipPosition(tooltipPosition);
+			this._resizableOverlay.tooltipPosition = tooltipPosition;
 			const persistedSize = this._resizableOverlay.findPersistedSize();
 
 			console.log('persisted size : ', persistedSize);
@@ -502,7 +502,7 @@ export class ContentHoverController extends Disposable {
 			console.log('* Before layoutContentWidget and render');
 
 			// TODO: Do we actually need to layout the content widget here?
-			this._editor.layoutContentWidget(this._widget);
+			// this._editor.layoutContentWidget(this._widget);
 			// this._editor.render();
 
 			console.log('* After layoutContentWidget and render');
@@ -526,7 +526,7 @@ export class ContentHoverController extends Disposable {
 			console.log('resizableWidgetDomNode offset left : ', resizableWidgetDomNode.offsetLeft);
 
 			// Calling show at with the position, size and rendering above option
-			this._resizableOverlay.showAt(this._renderingAbove);
+			this._resizableOverlay.showAt();
 
 			// Added for logging purposes
 			resizableWidgetDomNode = this._resizableOverlay.getDomNode();
@@ -878,7 +878,7 @@ export class ResizableHoverOverlay extends Disposable implements IOverlayWidget 
 		return this._resizableElement.domNode;
 	}
 
-	public setToooltipPosition(tooltipPosition: IPosition): void {
+	public set tooltipPosition(tooltipPosition: IPosition) {
 		this._tooltipPosition = tooltipPosition;
 	}
 
@@ -887,7 +887,7 @@ export class ResizableHoverOverlay extends Disposable implements IOverlayWidget 
 		return null;
 	}
 
-	public showAt(renderingAbove: boolean): void {
+	public showAt(): void {
 		console.log('Inside of showAt of ResizableHoverOverlay');
 		console.log('Before adding overlay widget');
 
@@ -900,6 +900,7 @@ export class ResizableHoverOverlay extends Disposable implements IOverlayWidget 
 		console.log('resizableWidgetDomNode offset left : ', resizableWidgetDomNode.offsetLeft);
 		// -- end of logging
 
+		// Adding the overlay widget
 		this._editor.addOverlayWidget(this);
 
 		// -- beginning of logging
@@ -912,20 +913,11 @@ export class ResizableHoverOverlay extends Disposable implements IOverlayWidget 
 		console.log('resizableWidgetDomNode offset left : ', resizableWidgetDomNode.offsetLeft);
 		// --- end of logging
 
-		/*
-		this._renderingAbove = renderingAbove ? ContentWidgetPositionPreference.ABOVE : ContentWidgetPositionPreference.BELOW;
-
-		// Enable sashes depending on what side the rendering is on
-		if (renderingAbove) {
-			this._resizableElement.enableSashes(true, true, false, false);
-		} else {
-			this._resizableElement.enableSashes(false, true, true, false);
-		}
-		*/
-
+		// Setting the appropriate CSS
 		this._resizableElement.domNode.style.zIndex = '10';
 		this._resizableElement.domNode.style.position = 'fixed';
 
+		// Laying out the overlay widget
 		this._editor.layoutOverlayWidget(this);
 	}
 
@@ -1097,6 +1089,7 @@ export class ContentHoverWidget extends Disposable implements IContentWidget {
 	}
 
 	public getPosition(): IContentWidgetPosition | null {
+		console.log('inside of get position');
 		if (!this._visibleData) {
 			return null;
 		}
@@ -1180,25 +1173,26 @@ export class ContentHoverWidget extends Disposable implements IContentWidget {
 
 		console.log('* Before the first onContentsChanged of showAt of ContentHoverWidget');
 		console.log('persistedSize : ', persistedSize);
-		this.onContentsChanged();
-
-		// Simply force a synchronous render on the editor
-		// such that the widget does not really render with left = '0px'
-		this._editor.render();
 
 		const containerDomNode = this.getDomNode();
 		let height;
 
-		// When there is a persisted size then do not use a maximum height or width
-		if (persistedSize) {
+		// If the persisted size has already been found
+		if (!persistedSize) {
+			this._hover.contentsDomNode.style.maxHeight = `${Math.max(this._editor.getLayoutInfo().height / 4, 250)}px`;
+			this._hover.contentsDomNode.style.maxWidth = `${Math.max(this._editor.getLayoutInfo().width * 0.66, 500)}px`;
+			this.onContentsChanged();
+
+			// Simply force a synchronous render on the editor
+			// such that the widget does not really render with left = '0px'
+			this._editor.render();
+			height = containerDomNode.clientHeight;
+		} else {
+			// When there is a persisted size then do not use a maximum height or width
+			// Set the height to the persisted size height, set no maximum height and width
 			height = persistedSize.height;
 			this._hover.contentsDomNode.style.maxHeight = 'none';
 			this._hover.contentsDomNode.style.maxWidth = 'none';
-
-		} else {
-			height = containerDomNode.clientHeight;
-			this._hover.contentsDomNode.style.maxHeight = `${Math.max(this._editor.getLayoutInfo().height / 4, 250)}px`;
-			this._hover.contentsDomNode.style.maxWidth = `${Math.max(this._editor.getLayoutInfo().width * 0.66, 500)}px`;
 		}
 
 		console.log('* After render inside of showAt of ContentHoverWidget');
@@ -1231,11 +1225,15 @@ export class ContentHoverWidget extends Disposable implements IContentWidget {
 		if (height > maxHeight) {
 			height = maxHeight;
 		}
+
+		// point of the code was to update the maximum height and width and then update the rendering above variable
+		// Do we need to calculcate it here? Yes becuse needs to be defined before getting the dom node
 		if (this._editor.getOption(EditorOption.hover).above) {
 			this._renderingAbove = height <= maxHeightAbove ? ContentWidgetPositionPreference.ABOVE : ContentWidgetPositionPreference.BELOW;
 		} else {
 			this._renderingAbove = height <= maxHeightBelow ? ContentWidgetPositionPreference.BELOW : ContentWidgetPositionPreference.ABOVE;
 		}
+		console.log('this._renderingAbove : ', this._renderingAbove);
 
 		const contentsDomNode = this.getContentsDomNode();
 		console.log('containerDomNode : ', containerDomNode);
@@ -1253,7 +1251,9 @@ export class ContentHoverWidget extends Disposable implements IContentWidget {
 		// TODO: Doing a second layout of the hover after force rendering the editor
 		console.log('* Before the second onContentsChanged of showAt of ContentHoverWidget');
 
-		this.onContentsChanged();
+		if (!persistedSize) {
+			this.onContentsChanged();
+		}
 
 		if (visibleData.stoleFocus) {
 			this._hover.containerDomNode.focus();
@@ -1277,6 +1277,8 @@ export class ContentHoverWidget extends Disposable implements IContentWidget {
 		persistedSize?: dom.Dimension | undefined
 	): void {
 
+		// When the contents are changed, update the width and the height variables
+
 		console.log('* Inside of contents changed');
 		console.log('persistedSize : ', persistedSize);
 
@@ -1298,15 +1300,18 @@ export class ContentHoverWidget extends Disposable implements IContentWidget {
 		console.log('contentsDomNode offset left : ', contentsDomNode.offsetLeft);
 		console.log('persisted size : ', persistedSize);
 
+		// Suppose a persisted size is defined
 		if (persistedSize) {
 
 			console.log('* When there is a persisted size');
 			// If persisted size does not fit in the editor for example on editor resize, use a different size, smaller one
 
+			// REmove some pixels since one sash is 4 pixels wide
 			let widthMinusSashes = persistedSize.width - 4;
 			let heightMinusSashes = persistedSize.height - 4;
 
 			// Already takes into account the horizontal scroll bar calculation
+			// In this case, need to decide before if rendering should be above or below so move the code before
 			const maxRenderingHeight = this.findMaxRenderingHeight(this._renderingAbove);
 			const maxRenderingWidth = this.findMaxRenderingWidth();
 
@@ -1321,6 +1326,7 @@ export class ContentHoverWidget extends Disposable implements IContentWidget {
 			console.log('widthMinusSashes : ', widthMinusSashes);
 			console.log('heightMinusSashes : ', heightMinusSashes);
 
+			// Already setting directly the height and width parameters
 			containerDomNode.style.width = widthMinusSashes + 'px';
 			containerDomNode.style.height = heightMinusSashes + 'px';
 			contentsDomNode.style.width = widthMinusSashes + 'px';
@@ -1328,6 +1334,7 @@ export class ContentHoverWidget extends Disposable implements IContentWidget {
 
 		} else {
 
+			// Otherwise the height and width are set to auto
 			containerDomNode.style.width = 'auto';
 			containerDomNode.style.height = 'auto';
 			contentsDomNode.style.width = 'auto';
@@ -1346,6 +1353,7 @@ export class ContentHoverWidget extends Disposable implements IContentWidget {
 		console.log('contentsDomNode offset top : ', contentsDomNode.offsetTop);
 		console.log('contentsDomNode offset left : ', contentsDomNode.offsetLeft);
 
+		// layout the content widget
 		this._editor.layoutContentWidget(this);
 
 		console.log('* After layout content widget');
