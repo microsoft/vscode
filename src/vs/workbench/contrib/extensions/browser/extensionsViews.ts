@@ -193,7 +193,7 @@ export class ExtensionsListView extends ViewPane {
 					if (!extension) {
 						return '';
 					}
-					const publisher = localize('extension.arialabel.publihser', "Publisher {0}", extension.publisherDisplayName);
+					const publisher = extension.publisherDomain?.verified ? localize('extension.arialabel.verifiedPublihser', "Verified Publisher {0}", extension.publisherDisplayName) : localize('extension.arialabel.publihser', "Publisher {0}", extension.publisherDisplayName);
 					const deprecated = extension?.deprecationInfo ? localize('extension.arialabel.deprecated', "Deprecated") : '';
 					return `${extension.displayName}, ${deprecated ? `${deprecated}, ` : ''}${extension.version}, ${publisher}, ${extension.description}`;
 				},

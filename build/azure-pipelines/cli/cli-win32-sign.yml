@@ -12,9 +12,8 @@ steps:
       SecretsFilter: "ESRP-PKI,esrp-aad-username,esrp-aad-password"
 
   - task: UseDotNet@2
-    displayName: "Use .NET"
     inputs:
-      version: 3.x
+      version: 6.x
 
   - task: EsrpClientTool@1
     displayName: "Use ESRP client"

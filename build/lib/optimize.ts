@@ -202,7 +202,7 @@ export interface IOptimizeAMDTaskOpts {
 	languages?: Language[];
 	/**
 	 * File contents interceptor
-	 * @param contents The contens of the file
+	 * @param contents The contents of the file
 	 * @param path The absolute file path, always using `/`, even on Windows
 	 */
 	fileContentMapper?: (contents: string, path: string) => string;

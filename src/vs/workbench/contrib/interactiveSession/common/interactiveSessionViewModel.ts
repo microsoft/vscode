@@ -9,22 +9,28 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILogService } from 'vs/platform/log/common/log';
-import { IInteractiveRequestModel, IInteractiveResponseErrorDetails, IInteractiveResponseModel, IInteractiveSessionModel, IInteractiveSessionResponseCommandFollowup } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionModel';
-import { IInteractiveSessionService } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionService';
+import { IInteractiveRequestModel, IInteractiveResponseModel, IInteractiveSessionModel, IInteractiveSessionWelcomeMessageModel, IInteractiveWelcomeMessageContent } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionModel';
+import { IInteractiveResponseErrorDetails, IInteractiveSessionReplyFollowup, IInteractiveSessionResponseCommandFollowup, IInteractiveSessionService, InteractiveSessionVoteDirection } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionService';
 import { countWords } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionWordCounter';
 
 export function isRequestVM(item: unknown): item is IInteractiveRequestViewModel {
-	return !isResponseVM(item);
+	return !!item && typeof item === 'object' && 'message' in item;
 }
 
 export function isResponseVM(item: unknown): item is IInteractiveResponseViewModel {
 	return !!item && typeof (item as IInteractiveResponseViewModel).onDidChange !== 'undefined';
 }
 
+export function isWelcomeVM(item: unknown): item is IInteractiveWelcomeMessageViewModel {
+	return !!item && typeof item === 'object' && 'content' in item;
+}
+
 export interface IInteractiveSessionViewModel {
-	sessionId: number;
-	onDidDisposeModel: Event<void>;
-	onDidChange: Event<void>;
+	readonly sessionId: number;
+	readonly onDidDisposeModel: Event<void>;
+	readonly onDidChange: Event<void>;
+	readonly welcomeMessage: IInteractiveWelcomeMessageViewModel | undefined;
+	readonly inputPlaceholder?: string;
 	getItems(): (IInteractiveRequestViewModel | IInteractiveResponseViewModel)[];
 }
 
@@ -32,7 +38,8 @@ export interface IInteractiveRequestViewModel {
 	readonly id: string;
 	readonly username: string;
 	readonly avatarIconUri?: URI;
-	readonly message: string;
+	readonly message: string | IInteractiveSessionReplyFollowup;
+	readonly messageText: string;
 	currentRenderedHeight: number | undefined;
 }
 
@@ -52,17 +59,23 @@ export interface IInteractiveSessionLiveUpdateData {
 export interface IInteractiveResponseViewModel {
 	readonly onDidChange: Event<void>;
 	readonly id: string;
+	readonly providerId: string;
+	readonly providerResponseId: string | undefined;
 	readonly username: string;
 	readonly avatarIconUri?: URI;
 	readonly response: IMarkdownString;
 	readonly isComplete: boolean;
-	readonly followups?: string[];
+	readonly isCanceled: boolean;
+	readonly isPlaceholder: boolean;
+	readonly vote: InteractiveSessionVoteDirection | undefined;
+	readonly replyFollowups?: IInteractiveSessionReplyFollowup[];
 	readonly commandFollowups?: IInteractiveSessionResponseCommandFollowup[];
 	readonly errorDetails?: IInteractiveResponseErrorDetails;
 	readonly progressiveResponseRenderingEnabled: boolean;
 	readonly contentUpdateTimings?: IInteractiveSessionLiveUpdateData;
 	renderData?: IInteractiveResponseRenderData;
 	currentRenderedHeight: number | undefined;
+	setVote(vote: InteractiveSessionVoteDirection): void;
 }
 
 export class InteractiveSessionViewModel extends Disposable implements IInteractiveSessionViewModel {
@@ -73,6 +86,14 @@ export class InteractiveSessionViewModel extends Disposable implements IInteract
 	readonly onDidChange = this._onDidChange.event;
 
 	private readonly _items: (IInteractiveRequestViewModel | IInteractiveResponseViewModel)[] = [];
+
+	get inputPlaceholder(): string | undefined {
+		return this._model.inputPlaceholder;
+	}
+
+	get welcomeMessage() {
+		return this._model.welcomeMessage;
+	}
 
 	get sessionId() {
 		return this._model.sessionId;
@@ -95,7 +116,7 @@ export class InteractiveSessionViewModel extends Disposable implements IInteract
 		_model.getRequests().forEach((request, i) => {
 			this._items.push(new InteractiveRequestViewModel(request));
 			if (request.response) {
-				this._items.push(this.instantiationService.createInstance(InteractiveResponseViewModel, request.response, this.progressiveResponseRenderingEnabled));
+				this.onAddResponse(request.response);
 			}
 		});
 
@@ -124,7 +145,7 @@ export class InteractiveSessionViewModel extends Disposable implements IInteract
 	}
 
 	getItems() {
-		return this._items;
+		return [...this._items];
 	}
 
 	override dispose() {
@@ -152,6 +173,10 @@ export class InteractiveRequestViewModel implements IInteractiveRequestViewModel
 		return this._model.message;
 	}
 
+	get messageText() {
+		return typeof this.message === 'string' ? this.message : this.message.message;
+	}
+
 	currentRenderedHeight: number | undefined;
 
 	constructor(readonly _model: IInteractiveRequestModel) { }
@@ -164,9 +189,20 @@ export class InteractiveResponseViewModel extends Disposable implements IInterac
 	readonly onDidChange = this._onDidChange.event;
 
 	private _isPlaceholder = false;
+	get isPlaceholder() {
+		return this._isPlaceholder;
+	}
 
 	get id() {
 		return this._model.id + `_${this._changeCount}`;
+	}
+
+	get providerId() {
+		return this._model.providerId;
+	}
+
+	get providerResponseId() {
+		return this._model.providerResponseId;
 	}
 
 	get username() {
@@ -189,16 +225,24 @@ export class InteractiveResponseViewModel extends Disposable implements IInterac
 		return this._model.isComplete;
 	}
 
-	get followups() {
-		return this._model.followups;
+	get isCanceled() {
+		return this._model.isCanceled;
+	}
+
+	get replyFollowups() {
+		return this._model.followups?.filter((f): f is IInteractiveSessionReplyFollowup => f.kind === 'reply');
 	}
 
 	get commandFollowups() {
-		return this._model.commandFollowups;
+		return this._model.followups?.filter((f): f is IInteractiveSessionResponseCommandFollowup => f.kind === 'command');
 	}
 
 	get errorDetails() {
 		return this._model.errorDetails;
+	}
+
+	get vote() {
+		return this._model.vote;
 	}
 
 	renderData: IInteractiveResponseRenderData | undefined = undefined;
@@ -273,4 +317,36 @@ export class InteractiveResponseViewModel extends Disposable implements IInterac
 	private trace(tag: string, message: string) {
 		this.logService.trace(`InteractiveResponseViewModel#${tag}: ${message}`);
 	}
+
+	setVote(vote: InteractiveSessionVoteDirection): void {
+		this._changeCount++;
+		this._model.setVote(vote);
+	}
+}
+
+export interface IInteractiveWelcomeMessageViewModel {
+	readonly id: string;
+	readonly username: string;
+	readonly avatarIconUri?: URI;
+	readonly content: IInteractiveWelcomeMessageContent[];
+}
+
+export class InteractiveWelcomeMessageViewModel implements IInteractiveWelcomeMessageViewModel {
+	get id() {
+		return this._model.id;
+	}
+
+	get username() {
+		return this._model.username;
+	}
+
+	get avatarIconUri() {
+		return this._model.avatarIconUri;
+	}
+
+	get content() {
+		return this._model.content;
+	}
+
+	constructor(readonly _model: IInteractiveSessionWelcomeMessageModel) { }
 }

@@ -3,19 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { DisposableMap } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableMap } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
+import { ILogService } from 'vs/platform/log/common/log';
+import { IProductService } from 'vs/platform/product/common/productService';
 import { ExtHostContext, ExtHostInteractiveSessionShape, IInteractiveRequestDto, MainContext, MainThreadInteractiveSessionShape } from 'vs/workbench/api/common/extHost.protocol';
 import { IInteractiveSessionContributionService } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionContributionService';
-import { IInteractiveProgress, IInteractiveRequest, IInteractiveResponse, IInteractiveSession, IInteractiveSessionService } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionService';
+import { IInteractiveProgress, IInteractiveRequest, IInteractiveResponse, IInteractiveSession, IInteractiveSessionDynamicRequest, IInteractiveSessionService } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionService';
 import { IExtHostContext, extHostNamedCustomer } from 'vs/workbench/services/extensions/common/extHostCustomers';
 
 @extHostNamedCustomer(MainContext.MainThreadInteractiveSession)
-export class MainThreadInteractiveSession implements MainThreadInteractiveSessionShape {
+export class MainThreadInteractiveSession extends Disposable implements MainThreadInteractiveSessionShape {
 
-	private readonly _inputRegistrations = new DisposableMap<number>();
-
-	private readonly _registrations = new DisposableMap<number>();
+	private readonly _registrations = this._register(new DisposableMap<number>());
 	private readonly _activeRequestProgressCallbacks = new Map<string, (progress: IInteractiveProgress) => void>();
 
 	private readonly _proxy: ExtHostInteractiveSessionShape;
@@ -24,17 +24,23 @@ export class MainThreadInteractiveSession implements MainThreadInteractiveSessio
 		extHostContext: IExtHostContext,
 		@IInteractiveSessionService private readonly _interactiveSessionService: IInteractiveSessionService,
 		@IInteractiveSessionContributionService private readonly interactiveSessionContribService: IInteractiveSessionContributionService,
-		// @ILogService private readonly logService: ILogService,
+		@IProductService private readonly productService: IProductService,
+		@ILogService private readonly logService: ILogService,
 	) {
+		super();
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostInteractiveSession);
-	}
 
-	dispose(): void {
-		this._inputRegistrations.dispose();
-		this._registrations.dispose();
+		this._register(this._interactiveSessionService.onDidPerformUserAction(e => {
+			this._proxy.$onDidPerformUserAction(e);
+		}));
 	}
 
 	async $registerInteractiveSessionProvider(handle: number, id: string, implementsProgress: boolean): Promise<void> {
+		if (this.productService.quality === 'stable') {
+			this.logService.trace(`The interactive session API is not supported in stable VS Code.`);
+			return;
+		}
+
 		const registration = this.interactiveSessionContribService.registeredProviders.find(staticProvider => staticProvider.id === id);
 		if (!registration) {
 			throw new Error(`Provider ${id} must be declared in the package.json.`);
@@ -54,10 +60,11 @@ export class MainThreadInteractiveSession implements MainThreadInteractiveSessio
 					registration.extensionIcon;
 				return <IInteractiveSession>{
 					id: session.id,
-					requesterUsername: session.requesterUsername ?? 'Username',
+					requesterUsername: session.requesterUsername,
 					requesterAvatarIconUri: URI.revive(session.requesterAvatarIconUri),
-					responderUsername: session.responderUsername ?? 'Response',
+					responderUsername: session.responderUsername,
 					responderAvatarIconUri,
+					inputPlaceholder: session.inputPlaceholder,
 					dispose: () => {
 						this._proxy.$releaseSession(session.id);
 					}
@@ -89,8 +96,14 @@ export class MainThreadInteractiveSession implements MainThreadInteractiveSessio
 			provideSuggestions: (token) => {
 				return this._proxy.$provideInitialSuggestions(handle, token);
 			},
+			provideWelcomeMessage: (token) => {
+				return this._proxy.$provideWelcomeMessage(handle, token);
+			},
 			provideSlashCommands: (session, token) => {
 				return this._proxy.$provideSlashCommands(handle, session.id, token);
+			},
+			provideFollowups: (session, token) => {
+				return this._proxy.$provideFollowups(handle, session.id, token);
 			}
 		});
 
@@ -108,6 +121,10 @@ export class MainThreadInteractiveSession implements MainThreadInteractiveSessio
 
 	$addInteractiveSessionRequest(context: any): void {
 		this._interactiveSessionService.addInteractiveRequest(context);
+	}
+
+	$sendInteractiveRequestToProvider(providerId: string, message: IInteractiveSessionDynamicRequest): void {
+		return this._interactiveSessionService.sendInteractiveRequestToProvider(providerId, message);
 	}
 
 	async $unregisterInteractiveSessionProvider(handle: number): Promise<void> {

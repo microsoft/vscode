@@ -480,8 +480,7 @@ export function toExtensionDescription(extension: IExtension, isUnderDevelopment
 		extensionLocation: extension.location,
 		...extension.manifest,
 		uuid: extension.identifier.uuid,
-		targetPlatform: extension.targetPlatform,
-		browserNlsBundleUris: extension.browserNlsBundleUris
+		targetPlatform: extension.targetPlatform
 	};
 }
 

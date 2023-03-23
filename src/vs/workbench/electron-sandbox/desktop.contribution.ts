@@ -270,7 +270,7 @@ import { applicationConfigurationNodeBase } from 'vs/workbench/common/configurat
 			'window.experimental.sharedProcessUseUtilityProcess': { // TODO@bpasero remove me once sandbox is final
 				type: 'boolean',
 				description: localize('experimentalUseSharedProcessUseUtilityProcess', "Experimental: When enabled, the window will have sandbox mode enabled via Electron API."),
-				default: typeof product.quality === 'string' && product.quality !== 'stable', // disabled by default in stable for now
+				default: typeof product.quality === 'string',
 				'scope': ConfigurationScope.APPLICATION,
 				ignoreSync: true
 			}

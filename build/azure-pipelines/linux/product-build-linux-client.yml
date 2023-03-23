@@ -321,16 +321,17 @@ steps:
   - ${{ if eq(parameters.VSCODE_PUBLISH, true) }}:
       - task: UseDotNet@2
         inputs:
-          version: 2.x
+          version: 6.x
 
   - ${{ if eq(parameters.VSCODE_PUBLISH, true) }}:
       - task: EsrpClientTool@1
+        continueOnError: true
         displayName: Download ESRPClient
 
   - ${{ if eq(parameters.VSCODE_PUBLISH, true) }}:
       - script: |
           set -e
-          node build/azure-pipelines/common/sign "$(esrpclient.toolpath)/$(esrpclient.toolname)" rpm $(ESRP-PKI) $(esrp-aad-username) $(esrp-aad-password) .build/linux/rpm '*.rpm'
+          node build/azure-pipelines/common/sign $(Agent.ToolsDirectory)/esrpclient/*/*/net6.0/esrpcli.dll rpm $(ESRP-PKI) $(esrp-aad-username) $(esrp-aad-password) .build/linux/rpm '*.rpm'
         displayName: Codesign rpm
 
   - ${{ if eq(parameters.VSCODE_PUBLISH, true) }}:

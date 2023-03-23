@@ -85,6 +85,7 @@ export interface ICommandHandler {
 #include(vs/editor/browser/config/editorConfiguration): IEditorConstructionOptions
 #includeAll(vs/editor/browser/editorBrowser;editorCommon.=>):
 #include(vs/editor/common/config/fontInfo): FontInfo, BareFontInfo
+#include(vs/editor/common/config/editorZoom): EditorZoom, IEditorZoom
 
 //compatibility:
 export type IReadOnlyModel = ITextModel;

@@ -106,7 +106,7 @@ fn validate_cli_is_good(exe_path: &Path) -> Result<(), AnyError> {
 
 	if !o.status.success() {
 		let msg = format!(
-			"could not execute new binary, aborting. Stdout:\r\n\r\n{}\r\n\r\nStderr:\r\n\r\n{}",
+			"could not execute new binary, aborting. Stdout:\n\n{}\n\nStderr:\n\n{}",
 			String::from_utf8_lossy(&o.stdout),
 			String::from_utf8_lossy(&o.stderr),
 		);

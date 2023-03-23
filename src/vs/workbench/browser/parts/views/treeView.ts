@@ -70,6 +70,7 @@ import { CheckboxStateHandler, TreeItemCheckbox } from 'vs/workbench/browser/par
 import { setTimeout0 } from 'vs/base/common/platform';
 import { AriaRole } from 'vs/base/browser/ui/aria/aria';
 import { TelemetryTrustedValue } from 'vs/platform/telemetry/common/telemetryUtils';
+import { ITreeViewsDnDService } from 'vs/editor/common/services/treeViewsDndService';
 
 export class TreeViewPane extends ViewPane {
 
@@ -916,10 +917,14 @@ abstract class AbstractTreeView extends Disposable implements ITreeView {
 		return this.tree?.getSelection() ?? [];
 	}
 
-	setFocus(item: ITreeItem): void {
+	setFocus(item?: ITreeItem): void {
 		if (this.tree) {
-			this.focus(true, item);
-			this.tree.setFocus([item]);
+			if (item) {
+				this.focus(true, item);
+				this.tree.setFocus([item]);
+			} else {
+				this.tree.setFocus([]);
+			}
 		}
 	}
 
@@ -1398,7 +1403,7 @@ class MultipleSelectionActionRunner extends ActionRunner {
 			selectionHandleArgs = undefined;
 		}
 
-		await action.run(...[context, selectionHandleArgs]);
+		await action.run(context, selectionHandleArgs);
 	}
 }
 
@@ -1539,7 +1544,7 @@ export class CustomTreeViewDragAndDrop implements ITreeDragAndDrop<ITreeItem> {
 		private readonly treeId: string,
 		@ILabelService private readonly labelService: ILabelService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@ITreeViewsService private readonly treeViewsDragAndDropService: ITreeViewsService,
+		@ITreeViewsDnDService private readonly treeViewsDragAndDropService: ITreeViewsDnDService,
 		@ILogService private readonly logService: ILogService) {
 		this.treeMimeType = `application/vnd.code.tree.${treeId.toLowerCase()}`;
 	}

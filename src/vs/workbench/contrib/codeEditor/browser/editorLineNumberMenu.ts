@@ -58,15 +58,19 @@ export class EditorLineNumberContextMenu extends Disposable implements IEditorCo
 	) {
 		super();
 
-		this._register(this.editor.onMouseDown((e: IEditorMouseEvent) => this.show(e)));
+		this._register(this.editor.onMouseDown((e: IEditorMouseEvent) => this.doShow(e, false)));
 
 	}
 
 	public show(e: IEditorMouseEvent) {
+		this.doShow(e, true);
+	}
+
+	private doShow(e: IEditorMouseEvent, force: boolean) {
 		const model = this.editor.getModel();
 
 		// on macOS ctrl+click is interpreted as right click
-		if (!e.event.rightButton && !(isMacintosh && e.event.leftButton && e.event.ctrlKey)
+		if (!e.event.rightButton && !(isMacintosh && e.event.leftButton && e.event.ctrlKey) && !force
 			|| e.target.type !== MouseTargetType.GUTTER_LINE_NUMBERS && e.target.type !== MouseTargetType.GUTTER_GLYPH_MARGIN
 			|| !e.target.position || !model
 		) {
@@ -95,23 +99,21 @@ export class EditorLineNumberContextMenu extends Disposable implements IEditorCo
 			// set the selection to the clicked line number
 			if (e.target.type === MouseTargetType.GUTTER_LINE_NUMBERS) {
 				const currentSelections = this.editor.getSelections();
-				const containsSelection = currentSelections?.some(selection => selection.containsPosition({ lineNumber, column: 1 }));
+				const lineRange = {
+					startLineNumber: lineNumber,
+					endLineNumber: lineNumber,
+					startColumn: 1,
+					endColumn: model.getLineLength(lineNumber) + 1
+				};
+				const containsSelection = currentSelections?.some(selection => !selection.isEmpty() && selection.intersectRanges(lineRange) !== null);
 				if (!containsSelection) {
-					const selection = {
-						startLineNumber: lineNumber,
-						endLineNumber: lineNumber,
-						startColumn: 1,
-						endColumn: model.getLineLength(lineNumber) + 1
-					};
-					this.editor.setSelection(selection, TextEditorSelectionSource.PROGRAMMATIC);
+					this.editor.setSelection(lineRange, TextEditorSelectionSource.PROGRAMMATIC);
 				}
 			}
 
 			this.contextMenuService.showContextMenu({
 				getAnchor: () => anchor,
 				getActions: () => Separator.join(...actions),
-				menuActionOptions: { shouldForwardArgs: true },
-				getActionsContext: () => ({ lineNumber, uri: model.uri }),
 				onHide: () => menu.dispose(),
 			});
 		});

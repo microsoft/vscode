@@ -50,7 +50,7 @@ export class ExtensionsResource implements IProfileResource {
 		return this.withProfileScopedServices(profile, async (extensionEnablementService) => {
 			const profileExtensions: IProfileExtension[] = await this.getProfileExtensions(content);
 			const installedExtensions = await this.extensionManagementService.getInstalled(undefined, profile.extensionsResource);
-			const extensionsToEnableOrDisable: { extension: ILocalExtension; enable: boolean }[] = [];
+			const extensionsToEnableOrDisable: { extension: IExtensionIdentifier; enable: boolean }[] = [];
 			const extensionsToInstall: IProfileExtension[] = [];
 			for (const e of profileExtensions) {
 				const isDisabled = extensionEnablementService.getDisabledExtensions().some(disabledExtension => areSameExtensions(disabledExtension, e.identifier));
@@ -58,20 +58,20 @@ export class ExtensionsResource implements IProfileResource {
 				if (!installedExtension || (!installedExtension.isBuiltin && installedExtension.preRelease !== e.preRelease)) {
 					extensionsToInstall.push(e);
 				}
-				if (installedExtension && isDisabled !== !!e.disabled) {
-					extensionsToEnableOrDisable.push({ extension: installedExtension, enable: !e.disabled });
+				if (isDisabled !== !!e.disabled) {
+					extensionsToEnableOrDisable.push({ extension: e.identifier, enable: !e.disabled });
 				}
 			}
 			const extensionsToUninstall: ILocalExtension[] = installedExtensions.filter(extension => !extension.isBuiltin && !profileExtensions.some(({ identifier }) => areSameExtensions(identifier, extension.identifier)));
 			for (const { extension, enable } of extensionsToEnableOrDisable) {
 				if (enable) {
-					this.logService.trace(`Importing Profile (${profile.name}): Enabling extension...`, extension.identifier.id);
-					await extensionEnablementService.enableExtension(extension.identifier);
-					this.logService.info(`Importing Profile (${profile.name}): Enabled extension...`, extension.identifier.id);
+					this.logService.trace(`Importing Profile (${profile.name}): Enabling extension...`, extension.id);
+					await extensionEnablementService.enableExtension(extension);
+					this.logService.info(`Importing Profile (${profile.name}): Enabled extension...`, extension.id);
 				} else {
-					this.logService.trace(`Importing Profile (${profile.name}): Disabling extension...`, extension.identifier.id);
-					await extensionEnablementService.disableExtension(extension.identifier);
-					this.logService.info(`Importing Profile (${profile.name}): Disabled extension...`, extension.identifier.id);
+					this.logService.trace(`Importing Profile (${profile.name}): Disabling extension...`, extension.id);
+					await extensionEnablementService.disableExtension(extension);
+					this.logService.info(`Importing Profile (${profile.name}): Disabled extension...`, extension.id);
 				}
 			}
 			if (extensionsToInstall.length) {
@@ -118,10 +118,6 @@ export class ExtensionsResource implements IProfileResource {
 				if (!extension.isBuiltin) {
 					if (!extension.identifier.uuid) {
 						// skip user extensions without uuid
-						continue;
-					}
-					if (disabled && !extension.isBuiltin) {
-						// skip user disabled extensions
 						continue;
 					}
 				}
@@ -188,7 +184,8 @@ export abstract class ExtensionsResourceTreeItem implements IProfileResourceTree
 					} else {
 						that.excludedExtensions.add(e.identifier.id.toLowerCase());
 					}
-				}
+				},
+				tooltip: localize('exclude', "Select {0} Extension", e.displayName || e.identifier.id)
 			} : undefined,
 			command: {
 				id: 'extension.open',

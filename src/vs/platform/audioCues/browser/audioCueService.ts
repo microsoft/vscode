@@ -71,7 +71,7 @@ export class AudioCueService extends Disposable implements IAudioCueService {
 
 		const url = FileAccess.asBrowserUri(
 			`vs/platform/audioCues/browser/media/${sound.fileName}`
-		).toString();
+		).toString(true);
 
 		try {
 			await playAudio(url, this.getVolumeInPercent() / 100);
