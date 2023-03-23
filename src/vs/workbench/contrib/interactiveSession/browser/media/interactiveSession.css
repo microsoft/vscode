@@ -3,10 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-.interactive-list .monaco-list-row .interactive-item-container {
-	border-bottom: 1px solid var(--vscode-interactive-requestBorder);
-}
-
 .interactive-list .monaco-list-row .monaco-tl-twistie {
 	/* Hide twisties */
 	display: none !important;
@@ -116,6 +112,8 @@
 
 .interactive-list .monaco-list-row .interactive-request {
 	background-color: var(--vscode-interactive-requestBackground);
+	border-bottom: 1px solid var(--vscode-interactive-requestBorder);
+	border-top: 1px solid var(--vscode-interactive-requestBorder);
 }
 
 .interactive-list .monaco-list-row .value {
