@@ -70,6 +70,18 @@
 	display: initial;
 }
 
+.interactive-list .interactive-item-container .header .monaco-toolbar .action-label {
+	border: 1px solid transparent;
+	padding: 2px;
+}
+
+.interactive-list .interactive-item-container .header .monaco-toolbar .checked .action-label,
+.interactive-list .interactive-item-container .header .monaco-toolbar .checked .action-label:hover {
+	color: var(--vscode-inputOption-activeForeground) !important;
+	border-color: var(--vscode-inputOption-activeBorder);
+	background-color: var(--vscode-inputOption-activeBackground);
+}
+
 .interactive-list .interactive-item-container .value {
 	width: 100%;
 }
@@ -323,7 +335,7 @@
 
 .interactive-list .interactive-item-container .monaco-toolbar .codicon {
 	/* Very aggressive list styles try to apply focus colors to every codicon in a list row. */
-	color: var(--vscode-foreground) !important;
+	color: var(--vscode-icon-foreground) !important;
 }
 
 .interactive-session .interactive-item-container.filtered-response .value .rendered-markdown {
