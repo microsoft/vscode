@@ -252,6 +252,7 @@ class InteractiveEditorWidget {
 
 		this._inputModel.setValue(value);
 		this.inputEditor.setSelection(this._inputModel.getFullModelRange());
+		this.inputEditor.updateOptions({ ariaLabel: localize('aria-label.N', "Interactive Editor Input: {0}", placeholder) });
 
 		const disposeOnDone = new DisposableStore();
 
