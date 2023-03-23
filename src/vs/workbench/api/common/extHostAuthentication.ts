@@ -9,12 +9,6 @@ import { IMainContext, MainContext, MainThreadAuthenticationShape, ExtHostAuthen
 import { Disposable } from 'vs/workbench/api/common/extHostTypes';
 import { IExtensionDescription, ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 
-interface GetSessionsRequest {
-	scopes: string;
-	providerId: string;
-	result: Promise<vscode.AuthenticationSession | undefined>;
-}
-
 interface ProviderWithMetadata {
 	label: string;
 	provider: vscode.AuthenticationProvider;
@@ -30,7 +24,8 @@ export class ExtHostAuthentication implements ExtHostAuthenticationShape {
 	private _onDidChangeSessions = new Emitter<vscode.AuthenticationSessionsChangeEvent>();
 	readonly onDidChangeSessions: Event<vscode.AuthenticationSessionsChangeEvent> = this._onDidChangeSessions.event;
 
-	private _inFlightRequests = new Map<string, GetSessionsRequest[]>();
+	private _getSessionTaskSingler = new TaskSingler<vscode.AuthenticationSession | undefined>();
+	private _getSessionsTaskSingler = new TaskSingler<ReadonlyArray<vscode.AuthenticationSession>>();
 
 	constructor(mainContext: IMainContext) {
 		this._proxy = mainContext.getProxy(MainContext.MainThreadAuthentication);
@@ -47,41 +42,22 @@ export class ExtHostAuthentication implements ExtHostAuthenticationShape {
 	async getSession(requestingExtension: IExtensionDescription, providerId: string, scopes: readonly string[], options: vscode.AuthenticationGetSessionOptions): Promise<vscode.AuthenticationSession | undefined>;
 	async getSession(requestingExtension: IExtensionDescription, providerId: string, scopes: readonly string[], options: vscode.AuthenticationGetSessionOptions = {}): Promise<vscode.AuthenticationSession | undefined> {
 		const extensionId = ExtensionIdentifier.toKey(requestingExtension.identifier);
-		const inFlightRequests = this._inFlightRequests.get(extensionId) || [];
 		const sortedScopes = [...scopes].sort().join(' ');
-		let inFlightRequest: GetSessionsRequest | undefined = inFlightRequests.find(request => request.providerId === providerId && request.scopes === sortedScopes);
-
-		if (inFlightRequest) {
-			return inFlightRequest.result;
-		} else {
-			const session = this._getSession(requestingExtension, extensionId, providerId, scopes, options);
-			inFlightRequest = {
-				providerId,
-				scopes: sortedScopes,
-				result: session
-			};
-
-			inFlightRequests.push(inFlightRequest);
-			this._inFlightRequests.set(extensionId, inFlightRequests);
-
-			try {
-				await session;
-			} finally {
-				const requestIndex = inFlightRequests.findIndex(request => request.providerId === providerId && request.scopes === sortedScopes);
-				if (requestIndex > -1) {
-					inFlightRequests.splice(requestIndex);
-					this._inFlightRequests.set(extensionId, inFlightRequests);
-				}
-			}
-
-			return session;
-		}
+		return await this._getSessionTaskSingler.getOrCreate(`${extensionId} ${providerId} ${sortedScopes}`, async () => {
+			await this._proxy.$ensureProvider(providerId);
+			const extensionName = requestingExtension.displayName || requestingExtension.name;
+			return this._proxy.$getSession(providerId, scopes, extensionId, extensionName, options);
+		});
 	}
 
-	private async _getSession(requestingExtension: IExtensionDescription, extensionId: string, providerId: string, scopes: readonly string[], options: vscode.AuthenticationGetSessionOptions = {}): Promise<vscode.AuthenticationSession | undefined> {
-		await this._proxy.$ensureProvider(providerId);
-		const extensionName = requestingExtension.displayName || requestingExtension.name;
-		return this._proxy.$getSession(providerId, scopes, extensionId, extensionName, options);
+	async getSessions(requestingExtension: IExtensionDescription, providerId: string, scopes: readonly string[]): Promise<ReadonlyArray<vscode.AuthenticationSession>> {
+		const extensionId = ExtensionIdentifier.toKey(requestingExtension.identifier);
+		const sortedScopes = [...scopes].sort().join(' ');
+		return await this._getSessionsTaskSingler.getOrCreate(`${extensionId} ${sortedScopes}`, async () => {
+			await this._proxy.$ensureProvider(providerId);
+			const extensionName = requestingExtension.displayName || requestingExtension.name;
+			return this._proxy.$getSessions(providerId, scopes, extensionId, extensionName);
+		});
 	}
 
 	async removeSession(providerId: string, sessionId: string): Promise<void> {
@@ -160,5 +136,20 @@ export class ExtHostAuthentication implements ExtHostAuthenticationShape {
 	$onDidChangeAuthenticationSessions(id: string, label: string) {
 		this._onDidChangeSessions.fire({ provider: { id, label } });
 		return Promise.resolve();
+	}
+}
+
+class TaskSingler<T> {
+	private _inFlightPromises = new Map<string, Promise<T>>();
+	getOrCreate(key: string, promiseFactory: () => Promise<T>) {
+		const inFlight = this._inFlightPromises.get(key);
+		if (inFlight) {
+			return inFlight;
+		}
+
+		const promise = promiseFactory().finally(() => this._inFlightPromises.delete(key));
+		this._inFlightPromises.set(key, promise);
+
+		return promise;
 	}
 }

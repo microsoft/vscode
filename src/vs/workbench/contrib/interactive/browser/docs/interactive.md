@@ -20,6 +20,20 @@ The workbench editor service is not aware of how models are resolved in `EditorI
 
 ![editor registration](interactive.editor.drawio.svg)
 
+## Interactive Window Editor Model Resolution
+
+The Interactive.open command will manually create an EditorInput specific for the Interactive Window and resolving that Input will go through the following workflow:
+
+The `NotebookEditorModelResolverService` will create a `NotebookFileWorkingCopyModelFactory` and use that to create a `WorkingCopyManager` which is then used to create a `SimpleNotebookEditorModel`.
+
+When the `SimpleNotebookEditorModel` is requested to `load`, it will ask the `WorkingCopyManager` to create a new `StoredWorkingCopy` which reads content from a resource URI with the `fileService`. That content is passed to the the `ModelFactory` which retreives a `NotebookSerializer` from the `notebookService` and constructs a `NotebookTextModel`.
+
+![editor registration](interactive.model.resolution.drawio.svg)
+
+The `FileSystem` provider that is registered for `vscode-interactive` schema will always return an empty buffer for any read, and will drop all write requests as nothing is stored on disk for Interactive Window resources. The `notebookSerializer` that is registered for the `interactive` viewtype knows to return an empty notebook data model when it deserializes an empty buffer when the model is being resolved.
+
+Restoring the interactive window happens through the `EditorModelCache`, where the full notebook data is stored, and can be used to repopulate the `EditorInput` without needing to go through the editor model resolution flow, effectively skipping any filesystem reads.
+
 ## UI/EH editor/document syncing
 
 `EditorInput` is responsible for resolving models for the given resources but in Interactive Window it's much simpler as we are not resolving models ourselves but delegating to Notebook and TextEditor. `InteractiveEditorInput` does the coordination job.

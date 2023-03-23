@@ -5,7 +5,6 @@
 
 import { hostname, release } from 'os';
 import { raceTimeout } from 'vs/base/common/async';
-import { VSBuffer } from 'vs/base/common/buffer';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { isSigPipeError, onUnexpectedError, setUnexpectedErrorHandler } from 'vs/base/common/errors';
 import { Disposable } from 'vs/base/common/lifecycle';
@@ -171,6 +170,16 @@ class CliMain extends Disposable {
 			configurationService.initialize()
 		]);
 
+		// Get machine ID
+		let machineId: string | undefined = undefined;
+		try {
+			machineId = await resolveMachineId(stateService, logService);
+		} catch (error) {
+			if (error.code !== 'ENOENT') {
+				logService.error(error);
+			}
+		}
+
 		// Initialize user data profiles after initializing the state
 		userDataProfilesService.init();
 
@@ -201,23 +210,10 @@ class CliMain extends Disposable {
 				appenders.push(new OneDataSystemAppender(isInternal, 'monacoworkbench', null, productService.aiConfig.ariaKey));
 			}
 
-			const { installSourcePath } = environmentService;
-
 			const config: ITelemetryServiceConfig = {
 				appenders,
 				sendErrorTelemetry: false,
-				commonProperties: (async () => {
-					let machineId: string | undefined = undefined;
-					try {
-						machineId = await resolveMachineId(stateService);
-					} catch (error) {
-						if (error.code !== 'ENOENT') {
-							logService.error(error);
-						}
-					}
-
-					return resolveCommonProperties(fileService, release(), hostname(), process.arch, productService.commit, productService.version, machineId, isInternal, installSourcePath);
-				})(),
+				commonProperties: resolveCommonProperties(release(), hostname(), process.arch, productService.commit, productService.version, machineId, isInternal),
 				piiPaths: getPiiPathsFromEnvironment(environmentService)
 			};
 
@@ -261,30 +257,25 @@ class CliMain extends Disposable {
 		}
 		const profileLocation = (profile ?? userDataProfilesService.defaultProfile).extensionsResource;
 
-		// Install Source
-		if (this.argv['install-source']) {
-			return this.setInstallSource(environmentService, fileService, this.argv['install-source']);
-		}
-
 		// List Extensions
 		if (this.argv['list-extensions']) {
-			return instantiationService.createInstance(ExtensionManagementCLI).listExtensions(!!this.argv['show-versions'], this.argv['category'], profileLocation);
+			return instantiationService.createInstance(ExtensionManagementCLI, new ConsoleLogger(LogLevel.Info, false)).listExtensions(!!this.argv['show-versions'], this.argv['category'], profileLocation);
 		}
 
 		// Install Extension
 		else if (this.argv['install-extension'] || this.argv['install-builtin-extension']) {
 			const installOptions: InstallOptions = { isMachineScoped: !!this.argv['do-not-sync'], installPreReleaseVersion: !!this.argv['pre-release'], profileLocation };
-			return instantiationService.createInstance(ExtensionManagementCLI).installExtensions(this.asExtensionIdOrVSIX(this.argv['install-extension'] || []), this.asExtensionIdOrVSIX(this.argv['install-builtin-extension'] || []), installOptions, !!this.argv['force']);
+			return instantiationService.createInstance(ExtensionManagementCLI, new ConsoleLogger(LogLevel.Info, false)).installExtensions(this.asExtensionIdOrVSIX(this.argv['install-extension'] || []), this.asExtensionIdOrVSIX(this.argv['install-builtin-extension'] || []), installOptions, !!this.argv['force']);
 		}
 
 		// Uninstall Extension
 		else if (this.argv['uninstall-extension']) {
-			return instantiationService.createInstance(ExtensionManagementCLI).uninstallExtensions(this.asExtensionIdOrVSIX(this.argv['uninstall-extension']), !!this.argv['force'], profileLocation);
+			return instantiationService.createInstance(ExtensionManagementCLI, new ConsoleLogger(LogLevel.Info, false)).uninstallExtensions(this.asExtensionIdOrVSIX(this.argv['uninstall-extension']), !!this.argv['force'], profileLocation);
 		}
 
 		// Locate Extension
 		else if (this.argv['locate-extension']) {
-			return instantiationService.createInstance(ExtensionManagementCLI).locateExtension(this.argv['locate-extension']);
+			return instantiationService.createInstance(ExtensionManagementCLI, new ConsoleLogger(LogLevel.Info, false)).locateExtension(this.argv['locate-extension']);
 		}
 
 		// Telemetry
@@ -295,10 +286,6 @@ class CliMain extends Disposable {
 
 	private asExtensionIdOrVSIX(inputs: string[]): (string | URI)[] {
 		return inputs.map(input => /\.vsix$/i.test(input) ? URI.file(isAbsolute(input) ? input : join(cwd(), input)) : input);
-	}
-
-	private async setInstallSource(environmentService: INativeEnvironmentService, fileService: IFileService, installSource: string): Promise<void> {
-		await fileService.writeFile(URI.file(environmentService.installSourcePath), VSBuffer.fromString(installSource.slice(0, 30)));
 	}
 }
 

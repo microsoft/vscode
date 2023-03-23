@@ -582,7 +582,7 @@ export interface IExtensionPointDescriptor<T> {
 	defaultExtensionKind?: ExtensionKind[];
 	/**
 	 * A function which runs before the extension point has been validated and which
-	 * can should collect automatic activation events from the contribution.
+	 * should collect automatic activation events from the contribution.
 	 */
 	activationEventsGenerator?: IActivationEventsGenerator<removeArray<T>>;
 }

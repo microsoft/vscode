@@ -174,7 +174,7 @@ export class RemoteTunnelService extends Disposable implements IRemoteTunnelServ
 
 		const hostName = this._getHostName();
 		if (hostName) {
-			this.setTunnelStatus(TunnelStates.connecting(localize({ key: 'remoteTunnelService.openTunnelWithName', comment: ['{0} is a host name'] }, 'Opening tunnel for {0}', hostName)));
+			this.setTunnelStatus(TunnelStates.connecting(localize({ key: 'remoteTunnelService.openTunnelWithName', comment: ['{0} is a tunnel name'] }, 'Opening tunnel {0}', hostName)));
 		} else {
 			this.setTunnelStatus(TunnelStates.connecting(localize('remoteTunnelService.openTunnel', 'Opening tunnel')));
 		}

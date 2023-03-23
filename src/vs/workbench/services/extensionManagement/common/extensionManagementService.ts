@@ -176,9 +176,9 @@ export class ExtensionManagementService extends Disposable implements IWorkbench
 			.map(({ extensionManagementService }) => extensionManagementService.unzip(zipLocation))).then(([extensionIdentifier]) => extensionIdentifier);
 	}
 
-	download(extension: IGalleryExtension, operation: InstallOperation): Promise<URI> {
+	download(extension: IGalleryExtension, operation: InstallOperation, donotVerifySignature: boolean): Promise<URI> {
 		if (this.extensionManagementServerService.localExtensionManagementServer) {
-			return this.extensionManagementServerService.localExtensionManagementServer.extensionManagementService.download(extension, operation);
+			return this.extensionManagementServerService.localExtensionManagementServer.extensionManagementService.download(extension, operation, donotVerifySignature);
 		}
 		throw new Error('Cannot download extension');
 	}

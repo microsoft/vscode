@@ -99,10 +99,15 @@ export class FeaturedExtensionsService extends Disposable implements IFeaturedEx
 
 		if (this.treatment) {
 			const installed = await this.extensionManagementService.getInstalled();
-
 			for (const extension of this.treatment.extensions) {
 				if (installed.some(e => ExtensionIdentifier.equals(e.identifier.id, extension))) {
 					this.ignoredExtensions.add(extension);
+				}
+				else {
+					const galleryExtension = (await this.galleryService.getExtensions([{ id: extension }], CancellationToken.None))[0];
+					if (!await this.extensionManagementService.canInstall(galleryExtension)) {
+						this.ignoredExtensions.add(extension);
+					}
 				}
 			}
 		}

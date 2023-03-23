@@ -28,7 +28,7 @@ import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensio
 import { ILabelService } from 'vs/platform/label/common/label';
 import { ILogService, ILoggerService } from 'vs/platform/log/common/log';
 import { INativeHostService } from 'vs/platform/native/common/native';
-import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
+import { INotificationService, NotificationPriority, Severity } from 'vs/platform/notification/common/notification';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { isLoggingOnly } from 'vs/platform/telemetry/common/telemetryUtils';
@@ -326,7 +326,10 @@ export class NativeLocalProcessExtensionHost implements IExtensionHost {
 						label: nls.localize('reloadWindow', "Reload Window"),
 						run: () => this._hostService.reload()
 					}],
-					{ sticky: true }
+					{
+						sticky: true,
+						priority: NotificationPriority.URGENT
+					}
 				);
 			}, 10000);
 		}
@@ -376,7 +379,7 @@ export class NativeLocalProcessExtensionHost implements IExtensionHost {
 			let timeoutHandle: any;
 			const installTimeoutCheck = () => {
 				timeoutHandle = setTimeout(() => {
-					reject('The local extenion host took longer than 60s to send its ready message.');
+					reject('The local extension host took longer than 60s to send its ready message.');
 				}, 60 * 1000);
 			};
 			const uninstallTimeoutCheck = () => {
@@ -423,7 +426,7 @@ export class NativeLocalProcessExtensionHost implements IExtensionHost {
 	}
 
 	private async _createExtHostInitData(): Promise<IExtensionHostInitData> {
-		const [telemetryInfo, initData] = await Promise.all([this._telemetryService.getTelemetryInfo(), this._initDataProvider.getInitData()]);
+		const initData = await this._initDataProvider.getInitData();
 		const workspace = this._contextService.getWorkspace();
 		const deltaExtensions = this.extensions.set(initData.allExtensions, initData.myExtensions);
 		return {
@@ -464,7 +467,12 @@ export class NativeLocalProcessExtensionHost implements IExtensionHost {
 			allExtensions: deltaExtensions.toAdd,
 			activationEvents: deltaExtensions.addActivationEvents,
 			myExtensions: deltaExtensions.myToAdd,
-			telemetryInfo,
+			telemetryInfo: {
+				sessionId: this._telemetryService.sessionId,
+				machineId: this._telemetryService.machineId,
+				firstSessionDate: this._telemetryService.firstSessionDate,
+				msftInternal: this._telemetryService.msftInternal
+			},
 			logLevel: this._logService.getLevel(),
 			loggers: [...this._loggerService.getRegisteredLoggers()],
 			logsLocation: this._environmentService.extHostLogsPath,

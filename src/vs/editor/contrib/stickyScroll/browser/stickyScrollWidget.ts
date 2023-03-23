@@ -69,8 +69,16 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 		dom.clearNode(this._rootDomNode);
 		this._disposableStore.clear();
 		this._lineNumbers.length = 0;
-		this._lastLineRelativePosition = state.lastLineRelativePosition;
-		this._lineNumbers = state.lineNumbers;
+		const editorLineHeight = this._editor.getOption(EditorOption.lineHeight);
+		const futureWidgetHeight = state.lineNumbers.length * editorLineHeight + state.lastLineRelativePosition;
+
+		if (futureWidgetHeight > 0) {
+			this._lastLineRelativePosition = state.lastLineRelativePosition;
+			this._lineNumbers = state.lineNumbers;
+		} else {
+			this._lastLineRelativePosition = 0;
+			this._lineNumbers = [];
+		}
 		this._renderRootNode();
 	}
 
