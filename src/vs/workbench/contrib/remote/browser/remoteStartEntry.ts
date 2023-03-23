@@ -69,7 +69,8 @@ export class RemoteStartEntry extends Disposable implements IWorkbenchContributi
 		@IContextKeyService private readonly contextKeyService: IContextKeyService) {
 
 		super();
-		registerConfiguration(this.productService.quality !== 'stable');
+		const enable = this.extensionGalleryService.isEnabled() && (this.productService.remoteExtensionTips ?? false) && this.productService.quality !== 'stable';
+		registerConfiguration(enable);
 		const remoteExtensionTips = { ...this.productService.remoteExtensionTips, ...this.productService.virtualWorkspaceExtensionTips };
 		this.remoteExtensionMetadata = Object.values(remoteExtensionTips).filter(value => value.showInStartEntry === true).map(value => {
 			return { id: value.extensionId, installed: false, friendlyName: value.friendlyName, remoteCommands: [], isPlatformCompatible: false, dependencies: [] };
@@ -241,9 +242,11 @@ export class RemoteStartEntry extends Disposable implements IWorkbenchContributi
 			const selectedItems = quickPick.selectedItems;
 			if (selectedItems.length === 1) {
 				const selectedItem = selectedItems[0].id!;
-				quickPick.busy = true;
 				const remoteExtension = this.remoteExtensionMetadata.find(value => ExtensionIdentifier.equals(value.id, selectedItem));
 				if (remoteExtension) {
+
+					quickPick.items = [];
+					quickPick.busy = true;
 
 					quickPick.placeholder = nls.localize('remote.startActions.installingExtension', 'Installing extension... ');
 
@@ -263,14 +266,15 @@ export class RemoteStartEntry extends Disposable implements IWorkbenchContributi
 					this.commandService.executeCommand(command);
 
 					this.telemetryService.publicLog2<RemoteStartActionEvent, RemoteStartActionClassification>('remoteStartList.ActionExecuted', { command: command, remoteExtensionId: selectedItem });
-					quickPick.busy = false;
 				}
 				else {
 					this.commandService.executeCommand(selectedItem);
 					this.telemetryService.publicLog2<RemoteStartActionEvent, RemoteStartActionClassification>('remoteStartList.ActionExecuted', { command: selectedItem });
 				}
+				quickPick.dispose();
 			}
 		});
+		quickPick.onDidHide(() => quickPick.dispose());
 		quickPick.show();
 	}
 }
