@@ -674,11 +674,13 @@ class FeedbackToggles {
 					this._helpful.tooltip = localize('thanks', "Thanks for your feedback!");
 					this._helpful.checked = true;
 					this._helpful.enabled = false;
+					this._unHelpful.tooltip = localize('thanks', "Thanks for your feedback!");
 					this._unHelpful.enabled = false;
 				} else {
 					this._unHelpful.tooltip = localize('thanks', "Thanks for your feedback!");
 					this._unHelpful.checked = true;
 					this._unHelpful.enabled = false;
+					this._helpful.tooltip = localize('thanks', "Thanks for your feedback!");
 					this._helpful.enabled = false;
 				}
 
@@ -700,14 +702,15 @@ class FeedbackToggles {
 	}
 
 	get actions() {
-		const result: IAction[] = [];
-		if (this._helpful.enabled || this._helpful.checked) {
-			result.push(this._helpful);
-		}
-		if (this._unHelpful.enabled || this._unHelpful.checked) {
-			result.push(this._unHelpful);
-		}
-		return result;
+		// const result: IAction[] = [];
+		// if (this._helpful.enabled || this._helpful.checked) {
+		// 	result.push(this._helpful);
+		// }
+		// if (this._unHelpful.enabled || this._unHelpful.checked) {
+		// 	result.push(this._unHelpful);
+		// }
+		// return result;
+		return [this._helpful, this._unHelpful];
 	}
 }
 
