@@ -12,5 +12,5 @@ steps:
   - script: node build/lib/builtInExtensions.js
     env:
       GITHUB_TOKEN: "$(github-distro-mixin-password)"
-    condition: and(succeeded(), eq(variables.BUILTIN_EXTENSIONS_RESTORED, 'true'))
+    condition: and(succeeded(), ne(variables.BUILTIN_EXTENSIONS_RESTORED, 'true'))
     displayName: Download built-in extensions
