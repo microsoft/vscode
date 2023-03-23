@@ -153,25 +153,24 @@ steps:
       rm -rf $ROOT/vscode-server-*-web.tar.*
       (cd $ROOT && mv $LEGACY_SERVER_BUILD_NAME $SERVER_BUILD_NAME && tar --owner=0 --group=0 -czf $SERVER_TARBALL_PATH $SERVER_BUILD_NAME)
     displayName: Prepare for publish
-    condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'))
 
   - publish: $(Agent.BuildDirectory)/vscode-server-alpine-$(VSCODE_ARCH).tar.gz
     artifact: vscode_server_alpine_$(VSCODE_ARCH)_archive-unsigned
     displayName: Publish server archive
-    condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'), ne(variables['VSCODE_ARCH'], 'x64'))
+    condition: and(succeeded(), ne(variables['VSCODE_ARCH'], 'x64'))
 
   - publish: $(Agent.BuildDirectory)/vscode-server-alpine-$(VSCODE_ARCH)-web.tar.gz
     artifact: vscode_web_alpine_$(VSCODE_ARCH)_archive-unsigned
     displayName: Publish web server archive
-    condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'), ne(variables['VSCODE_ARCH'], 'x64'))
+    condition: and(succeeded(), ne(variables['VSCODE_ARCH'], 'x64'))
 
   # Legacy x64 artifact name
   - publish: $(Agent.BuildDirectory)/vscode-server-linux-alpine.tar.gz
     artifact: vscode_server_linux_alpine_archive-unsigned
     displayName: Publish x64 server archive
-    condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'), eq(variables['VSCODE_ARCH'], 'x64'))
+    condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'x64'))
 
   - publish: $(Agent.BuildDirectory)/vscode-server-linux-alpine-web.tar.gz
     artifact: vscode_web_linux_alpine_archive-unsigned
     displayName: Publish x64 web server archive
-    condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'), eq(variables['VSCODE_ARCH'], 'x64'))
+    condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'x64'))

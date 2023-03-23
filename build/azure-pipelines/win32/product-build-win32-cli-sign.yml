@@ -45,8 +45,8 @@ steps:
     parameters:
       VSCODE_CLI_ARTIFACTS:
         - ${{ if eq(parameters.VSCODE_BUILD_WIN32, true) }}:
-            - unsigned_vscode_cli_win32_x64_cli
+          - unsigned_vscode_cli_win32_x64_cli
         - ${{ if eq(parameters.VSCODE_BUILD_WIN32_ARM64, true) }}:
-            - unsigned_vscode_cli_win32_arm64_cli
+          - unsigned_vscode_cli_win32_arm64_cli
         - ${{ if eq(parameters.VSCODE_BUILD_WIN32_32BIT, true) }}:
-            - unsigned_vscode_cli_win32_ia32_cli
+          - unsigned_vscode_cli_win32_ia32_cli

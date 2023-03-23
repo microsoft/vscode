@@ -146,7 +146,6 @@ steps:
       AZURE_CLIENT_SECRET="$(AZURE_CLIENT_SECRET)" \
         node build/azure-pipelines/upload-nlsmetadata
     displayName: Upload NLS Metadata
-    condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'))
 
   - script: |
       set -e
@@ -161,9 +160,7 @@ steps:
 
       cd $ROOT && tar --owner=0 --group=0 -czf $WEB_TARBALL_PATH $WEB_BUILD_NAME
     displayName: Prepare for publish
-    condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'))
 
   - publish: $(Agent.BuildDirectory)/vscode-web.tar.gz
     artifact: vscode_web_linux_standalone_archive-unsigned
     displayName: Publish web archive
-    condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'))

@@ -19,12 +19,12 @@ parameters:
 
 steps:
   - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
-      - ${{ if eq(parameters.VSCODE_BUILD_ALPINE_ARM64, true) }}:
-          - bash: sudo apt update && sudo apt install -y unzip
-            displayName: Install unzip
-      - template: ../distro/download-distro.yml
-      - script: node build/azure-pipelines/distro/apply-cli-patches
-        displayName: Apply distro patches
+    - ${{ if eq(parameters.VSCODE_BUILD_ALPINE_ARM64, true) }}:
+      - bash: sudo apt update && sudo apt install -y unzip
+        displayName: Install unzip
+    - template: ../distro/download-distro.yml
+    - script: node build/azure-pipelines/distro/apply-cli-patches
+      displayName: Apply distro patches
 
   - task: Npm@1
     displayName: Download openssl prebuilt
@@ -43,20 +43,20 @@ steps:
 
   # inspired by: https://github.com/emk/rust-musl-builder/blob/main/Dockerfile
   - ${{ if or(eq(parameters.VSCODE_BUILD_ALPINE_ARM64, true), eq(parameters.VSCODE_BUILD_ALPINE, true)) }}:
-      - bash: |
-          set -e
-          sudo apt-get update
-          sudo apt-get install -yq build-essential musl-dev musl-tools linux-libc-dev pkgconf xutils-dev lld
-          sudo ln -s "/usr/bin/g++" "/usr/bin/musl-g++" || echo "link exists"
-        displayName: Install musl build dependencies
+    - bash: |
+        set -e
+        sudo apt-get update
+        sudo apt-get install -yq build-essential musl-dev musl-tools linux-libc-dev pkgconf xutils-dev lld
+        sudo ln -s "/usr/bin/g++" "/usr/bin/musl-g++" || echo "link exists"
+      displayName: Install musl build dependencies
 
   - ${{ if eq(parameters.VSCODE_BUILD_LINUX_ARMHF, true) }}:
-      - bash: sudo apt-get install -yq gcc-arm-linux-gnueabihf g++-arm-linux-gnueabihf binutils-arm-linux-gnueabihf
-        displayName: Install arm32 toolchains
+    - bash: sudo apt-get install -yq gcc-arm-linux-gnueabihf g++-arm-linux-gnueabihf binutils-arm-linux-gnueabihf
+      displayName: Install arm32 toolchains
 
   - ${{ if eq(parameters.VSCODE_BUILD_LINUX_ARM64, true) }}:
-      - bash: sudo apt-get install -yq gcc-aarch64-linux-gnu g++-aarch64-linux-gnu binutils-aarch64-linux-gnu
-        displayName: Install arm64 toolchains
+    - bash: sudo apt-get install -yq gcc-aarch64-linux-gnu g++-aarch64-linux-gnu binutils-aarch64-linux-gnu
+      displayName: Install arm64 toolchains
 
   - task: NodeTool@0
     inputs:
@@ -73,65 +73,65 @@ steps:
     parameters:
       targets:
         - ${{ if eq(parameters.VSCODE_BUILD_ALPINE_ARM64, true) }}:
-            - aarch64-unknown-linux-musl
+          - aarch64-unknown-linux-musl
         - ${{ if eq(parameters.VSCODE_BUILD_ALPINE, true) }}:
-            - x86_64-unknown-linux-musl
+          - x86_64-unknown-linux-musl
         - ${{ if eq(parameters.VSCODE_BUILD_LINUX_ARM64, true) }}:
-            - aarch64-unknown-linux-gnu
+          - aarch64-unknown-linux-gnu
         - ${{ if eq(parameters.VSCODE_BUILD_LINUX, true) }}:
-            - x86_64-unknown-linux-gnu
+          - x86_64-unknown-linux-gnu
         - ${{ if eq(parameters.VSCODE_BUILD_LINUX_ARMHF, true) }}:
-            - armv7-unknown-linux-gnueabihf
+          - armv7-unknown-linux-gnueabihf
 
   - ${{ if eq(parameters.VSCODE_BUILD_ALPINE_ARM64, true) }}:
-      - template: ../cli/cli-compile-and-publish.yml
-        parameters:
-          VSCODE_CLI_TARGET: aarch64-unknown-linux-musl
-          VSCODE_CLI_ARTIFACT: vscode_cli_alpine_arm64_cli
-          VSCODE_CLI_ENV:
-            CXX_aarch64-unknown-linux-musl: musl-g++
-            CC_aarch64-unknown-linux-musl: musl-gcc
-            OPENSSL_LIB_DIR: $(Build.ArtifactStagingDirectory)/openssl/arm64-linux-musl/lib
-            OPENSSL_INCLUDE_DIR: $(Build.ArtifactStagingDirectory)/openssl/arm64-linux-musl/include
-            OPENSSL_STATIC: "1"
+    - template: ../cli/cli-compile-and-publish.yml
+      parameters:
+        VSCODE_CLI_TARGET: aarch64-unknown-linux-musl
+        VSCODE_CLI_ARTIFACT: vscode_cli_alpine_arm64_cli
+        VSCODE_CLI_ENV:
+          CXX_aarch64-unknown-linux-musl: musl-g++
+          CC_aarch64-unknown-linux-musl: musl-gcc
+          OPENSSL_LIB_DIR: $(Build.ArtifactStagingDirectory)/openssl/arm64-linux-musl/lib
+          OPENSSL_INCLUDE_DIR: $(Build.ArtifactStagingDirectory)/openssl/arm64-linux-musl/include
+          OPENSSL_STATIC: "1"
 
   - ${{ if eq(parameters.VSCODE_BUILD_ALPINE, true) }}:
-      - template: ../cli/cli-compile-and-publish.yml
-        parameters:
-          VSCODE_CLI_TARGET: x86_64-unknown-linux-musl
-          VSCODE_CLI_ARTIFACT: vscode_cli_alpine_x64_cli
-          VSCODE_CLI_ENV:
-            CXX_aarch64-unknown-linux-musl: musl-g++
-            CC_aarch64-unknown-linux-musl: musl-gcc
-            OPENSSL_LIB_DIR: $(Build.ArtifactStagingDirectory)/openssl/x64-linux-musl/lib
-            OPENSSL_INCLUDE_DIR: $(Build.ArtifactStagingDirectory)/openssl/x64-linux-musl/include
-            OPENSSL_STATIC: "1"
+    - template: ../cli/cli-compile-and-publish.yml
+      parameters:
+        VSCODE_CLI_TARGET: x86_64-unknown-linux-musl
+        VSCODE_CLI_ARTIFACT: vscode_cli_alpine_x64_cli
+        VSCODE_CLI_ENV:
+          CXX_aarch64-unknown-linux-musl: musl-g++
+          CC_aarch64-unknown-linux-musl: musl-gcc
+          OPENSSL_LIB_DIR: $(Build.ArtifactStagingDirectory)/openssl/x64-linux-musl/lib
+          OPENSSL_INCLUDE_DIR: $(Build.ArtifactStagingDirectory)/openssl/x64-linux-musl/include
+          OPENSSL_STATIC: "1"
 
   - ${{ if eq(parameters.VSCODE_BUILD_LINUX_ARM64, true) }}:
-      - template: ../cli/cli-compile-and-publish.yml
-        parameters:
-          VSCODE_CLI_TARGET: aarch64-unknown-linux-gnu
-          VSCODE_CLI_ARTIFACT: vscode_cli_linux_arm64_cli
-          VSCODE_CLI_ENV:
-            CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER: aarch64-linux-gnu-gcc
-            OPENSSL_LIB_DIR: $(Build.ArtifactStagingDirectory)/openssl/arm64-linux/lib
-            OPENSSL_INCLUDE_DIR: $(Build.ArtifactStagingDirectory)/openssl/arm64-linux/include
+    - template: ../cli/cli-compile-and-publish.yml
+      parameters:
+        VSCODE_CLI_TARGET: aarch64-unknown-linux-gnu
+        VSCODE_CLI_ARTIFACT: vscode_cli_linux_arm64_cli
+        VSCODE_CLI_ENV:
+          CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER: aarch64-linux-gnu-gcc
+          OPENSSL_LIB_DIR: $(Build.ArtifactStagingDirectory)/openssl/arm64-linux/lib
+          OPENSSL_INCLUDE_DIR: $(Build.ArtifactStagingDirectory)/openssl/arm64-linux/include
 
   - ${{ if eq(parameters.VSCODE_BUILD_LINUX, true) }}:
-      - template: ../cli/cli-compile-and-publish.yml
-        parameters:
-          VSCODE_CLI_TARGET: x86_64-unknown-linux-gnu
-          VSCODE_CLI_ARTIFACT: vscode_cli_linux_x64_cli
-          VSCODE_CLI_ENV:
-            OPENSSL_LIB_DIR: $(Build.ArtifactStagingDirectory)/openssl/x64-linux/lib
-            OPENSSL_INCLUDE_DIR: $(Build.ArtifactStagingDirectory)/openssl/x64-linux/include
+    - template: ../cli/cli-compile-and-publish.yml
+      parameters:
+        VSCODE_CLI_TARGET: x86_64-unknown-linux-gnu
+        VSCODE_CLI_ARTIFACT: vscode_cli_linux_x64_cli
+        VSCODE_CLI_ENV:
+          OPENSSL_LIB_DIR: $(Build.ArtifactStagingDirectory)/openssl/x64-linux/lib
+          OPENSSL_INCLUDE_DIR: $(Build.ArtifactStagingDirectory)/openssl/x64-linux/include
 
   - ${{ if eq(parameters.VSCODE_BUILD_LINUX_ARMHF, true) }}:
-      - template: ../cli/cli-compile-and-publish.yml
-        parameters:
-          VSCODE_CLI_TARGET: armv7-unknown-linux-gnueabihf
-          VSCODE_CLI_ARTIFACT: vscode_cli_linux_armhf_cli
-          VSCODE_CLI_ENV:
-            CARGO_TARGET_ARMV7_UNKNOWN_LINUX_GNUEABIHF_LINKER: arm-linux-gnueabihf-gcc
-            OPENSSL_LIB_DIR: $(Build.ArtifactStagingDirectory)/openssl/arm-linux/lib
-            OPENSSL_INCLUDE_DIR: $(Build.ArtifactStagingDirectory)/openssl/arm-linux/include
+    - template: ../cli/cli-compile-and-publish.yml
+      parameters:
+        VSCODE_CLI_TARGET: armv7-unknown-linux-gnueabihf
+        VSCODE_CLI_ARTIFACT: vscode_cli_linux_armhf_cli
+        VSCODE_CLI_ENV:
+          CARGO_TARGET_ARMV7_UNKNOWN_LINUX_GNUEABIHF_LINKER: arm-linux-gnueabihf-gcc
+          OPENSSL_LIB_DIR: $(Build.ArtifactStagingDirectory)/openssl/arm-linux/lib
+          OPENSSL_INCLUDE_DIR: $(Build.ArtifactStagingDirectory)/openssl/arm-linux/include
