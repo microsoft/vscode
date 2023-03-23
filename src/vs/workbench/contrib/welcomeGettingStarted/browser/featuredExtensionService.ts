@@ -99,7 +99,7 @@ export class FeaturedExtensionsService extends Disposable implements IFeaturedEx
 
 		if (this.treatment) {
 			const installed = await this.extensionManagementService.getInstalled();
-			for (const extension of this.treatment.extensions) {
+			for (const [_, extension] of Object.entries(this.treatment.extensions)) {
 				if (installed.some(e => ExtensionIdentifier.equals(e.identifier.id, extension))) {
 					this.ignoredExtensions.add(extension);
 				}
