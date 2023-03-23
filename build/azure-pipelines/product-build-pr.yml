@@ -147,7 +147,7 @@ jobs:
       variables:
         VSCODE_ARCH: x64
       steps:
-        - template: product-build-pr-cache.yml
+        - template: oss/product-build-pr-cache-linux.yml
 
     - job: Windowsx64MaintainNodeModulesCache
       displayName: Windows (Maintain node_modules cache)
@@ -156,7 +156,7 @@ jobs:
       variables:
         VSCODE_ARCH: x64
       steps:
-        - template: product-build-pr-cache-win32.yml
+        - template: oss/product-build-pr-cache-win32.yml
 
   # - job: macOSUnitTest
   #   displayName: macOS (Unit Tests)
