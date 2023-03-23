@@ -36,9 +36,9 @@ const enum FeaturedExtensionMetadataType {
 export class FeaturedExtensionsService extends Disposable implements IFeaturedExtensionsService {
 	declare readonly _serviceBrand: undefined;
 
-	private ignoredExtensions: Set<string> = new Set<string>();
-	private treatment: FeaturedExtensionTreatment | undefined;
-	private _isInitialized: boolean = false;
+	private ignoredExtensions: Set<string>;
+	private treatment: FeaturedExtensionTreatment;
+	private _isInitialized: boolean;
 
 	private static readonly STORAGE_KEY = 'workbench.welcomePage.extensionMetadata';
 
@@ -50,6 +50,9 @@ export class FeaturedExtensionsService extends Disposable implements IFeaturedEx
 		@IExtensionGalleryService private readonly galleryService: IExtensionGalleryService,
 	) {
 		super();
+		this.ignoredExtensions = new Set<string>();
+		this.treatment = { extensions: [] };
+		this._isInitialized = false;
 		this.title = localize('gettingStarted.featuredTitle', 'Featured');
 	}
 
@@ -59,10 +62,10 @@ export class FeaturedExtensionsService extends Disposable implements IFeaturedEx
 
 		await this._init();
 
-		let treatments = this.treatment?.extensions.filter(extension => !this.ignoredExtensions.has(extension)) ?? new Array<string>();
+		let treatments = this.treatment.extensions.filter(extension => !this.ignoredExtensions.has(extension)) ?? new Array<string>();
 		const featuredExtensions: IFeaturedExtension[] = new Array();
 
-		if (this.treatment?.showAsList !== 'true' && treatments.length > 0) {
+		if (this.treatment.showAsList !== 'true' && treatments.length > 0) {
 			// pick a random extensionId for display
 			const treatment = treatments[Math.floor(Math.random() * treatments.length)];
 			treatments = [treatment];
@@ -94,20 +97,29 @@ export class FeaturedExtensionsService extends Disposable implements IFeaturedEx
 			new Promise<string | undefined>(resolve => setTimeout(() => resolve(''), 2000))
 		]);
 
-		this.treatment = extensions ? JSON.parse(extensions) : { extensions: [] };
+		if (extensions) {
+			const treatmentObj: FeaturedExtensionTreatment = JSON.parse(extensions);
+			if (treatmentObj && Array.isArray(treatmentObj.extensions)) {
+				this.treatment = treatmentObj;
+			}
+		}
+
+		if (this.treatment.extensions.length === 0) {
+			this._isInitialized = true;
+			return;
+		}
+
 		this.title = extensionListTitle ?? localize('gettingStarted.featuredTitle', 'Featured');
 
-		if (this.treatment) {
-			const installed = await this.extensionManagementService.getInstalled();
-			for (const extension of Object.values(this.treatment.extensions)) {
-				if (installed.some(e => ExtensionIdentifier.equals(e.identifier.id, extension))) {
+		const installed = await this.extensionManagementService.getInstalled();
+		for (const extension of this.treatment.extensions) {
+			if (installed.some(e => ExtensionIdentifier.equals(e.identifier.id, extension))) {
+				this.ignoredExtensions.add(extension);
+			}
+			else {
+				const galleryExtension = (await this.galleryService.getExtensions([{ id: extension }], CancellationToken.None))[0];
+				if (!await this.extensionManagementService.canInstall(galleryExtension)) {
 					this.ignoredExtensions.add(extension);
-				}
-				else {
-					const galleryExtension = (await this.galleryService.getExtensions([{ id: extension }], CancellationToken.None))[0];
-					if (!await this.extensionManagementService.canInstall(galleryExtension)) {
-						this.ignoredExtensions.add(extension);
-					}
 				}
 			}
 		}
