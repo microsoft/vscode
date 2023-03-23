@@ -331,7 +331,7 @@ steps:
   - ${{ if eq(parameters.VSCODE_PUBLISH, true) }}:
       - script: |
           set -e
-          node build/azure-pipelines/common/sign "$(Agent.ToolsDirectory)/esrpclient/*/*/net6.0/esrpcli.dll" rpm $(ESRP-PKI) $(esrp-aad-username) $(esrp-aad-password) .build/linux/rpm '*.rpm'
+          node build/azure-pipelines/common/sign $(Agent.ToolsDirectory)/esrpclient/*/*/net6.0/esrpcli.dll rpm $(ESRP-PKI) $(esrp-aad-username) $(esrp-aad-password) .build/linux/rpm '*.rpm'
         displayName: Codesign rpm
 
   - ${{ if eq(parameters.VSCODE_PUBLISH, true) }}:
