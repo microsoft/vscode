@@ -159,10 +159,6 @@ resources:
       image: vscodehub.azurecr.io/vscode-linux-build-agent:stretch-armhf
       endpoint: VSCodeHub
       options: --user 0:0 --cap-add SYS_ADMIN
-    - container: centos7-devtoolset8-x64
-      image: vscodehub.azurecr.io/vscode-linux-build-agent:centos7-devtoolset8-x64
-      endpoint: VSCodeHub
-      options: --user 0:0 --cap-add SYS_ADMIN
     - container: snapcraft
       image: vscodehub.azurecr.io/vscode-linux-build-agent:snapcraft-x64
       endpoint: VSCodeHub
@@ -371,35 +367,9 @@ stages:
                   VSCODE_BUILD_WIN32_32BIT: ${{ parameters.VSCODE_BUILD_WIN32_32BIT }}
 
   - ${{ if and(eq(parameters.VSCODE_COMPILE_ONLY, false), eq(variables['VSCODE_BUILD_STAGE_LINUX'], true)) }}:
-    - stage: LinuxServerDependencies
-      dependsOn: [] # run in parallel to compile stage
-      pool: vscode-1es-linux
-      jobs:
-        - ${{ if eq(parameters.VSCODE_BUILD_LINUX, true) }}:
-          - job: x64
-            container: centos7-devtoolset8-x64
-            variables:
-              VSCODE_ARCH: x64
-              NPM_ARCH: x64
-            steps:
-              - template: linux/product-build-linux-server.yml
-                parameters:
-                  VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
-
-        - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), eq(parameters.VSCODE_BUILD_LINUX_ARM64, true)) }}:
-          - job: arm64
-            variables:
-              VSCODE_ARCH: arm64
-            steps:
-              - template: linux/product-build-linux-server.yml
-                parameters:
-                  VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
-
-  - ${{ if and(eq(parameters.VSCODE_COMPILE_ONLY, false), eq(variables['VSCODE_BUILD_STAGE_LINUX'], true)) }}:
     - stage: Linux
       dependsOn:
         - Compile
-        - LinuxServerDependencies
         - ${{ if eq(parameters.VSCODE_BUILD_TUNNEL_CLI, true) }}:
           - CompileCLI
       pool: vscode-1es-linux
@@ -413,8 +383,9 @@ stages:
               NPM_ARCH: x64
               DISPLAY: ":10"
             steps:
-              - template: linux/product-build-linux-client.yml
+              - template: linux/product-build-linux.yml
                 parameters:
+                  VSCODE_ARCH: x64
                   VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
                   VSCODE_BUILD_TUNNEL_CLI: false
                   VSCODE_RUN_UNIT_TESTS: true
@@ -428,8 +399,9 @@ stages:
               NPM_ARCH: x64
               DISPLAY: ":10"
             steps:
-              - template: linux/product-build-linux-client.yml
+              - template: linux/product-build-linux.yml
                 parameters:
+                  VSCODE_ARCH: x64
                   VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
                   VSCODE_BUILD_TUNNEL_CLI: false
                   VSCODE_RUN_UNIT_TESTS: false
@@ -443,8 +415,9 @@ stages:
               NPM_ARCH: x64
               DISPLAY: ":10"
             steps:
-              - template: linux/product-build-linux-client.yml
+              - template: linux/product-build-linux.yml
                 parameters:
+                  VSCODE_ARCH: x64
                   VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
                   VSCODE_BUILD_TUNNEL_CLI: false
                   VSCODE_RUN_UNIT_TESTS: false
@@ -459,8 +432,9 @@ stages:
               NPM_ARCH: x64
               DISPLAY: ":10"
             steps:
-              - template: linux/product-build-linux-client.yml
+              - template: linux/product-build-linux.yml
                 parameters:
+                  VSCODE_ARCH: x64
                   VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
                   VSCODE_BUILD_TUNNEL_CLI: ${{ parameters.VSCODE_BUILD_TUNNEL_CLI }}
                   VSCODE_RUN_UNIT_TESTS: ${{ eq(parameters.VSCODE_STEP_ON_IT, false) }}
@@ -484,24 +458,14 @@ stages:
               VSCODE_ARCH: armhf
               NPM_ARCH: arm
             steps:
-              - template: linux/product-build-linux-client.yml
+              - template: linux/product-build-linux.yml
                 parameters:
+                  VSCODE_ARCH: armhf
                   VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
                   VSCODE_BUILD_TUNNEL_CLI: ${{ parameters.VSCODE_BUILD_TUNNEL_CLI }}
                   VSCODE_RUN_UNIT_TESTS: false
                   VSCODE_RUN_INTEGRATION_TESTS: false
                   VSCODE_RUN_SMOKE_TESTS: false
-
-        # TODO@joaomoreno: We don't ship ARM snaps for now
-        - ${{ if and(false, eq(variables['VSCODE_CIBUILD'], false), eq(parameters.VSCODE_BUILD_LINUX_ARMHF, true)) }}:
-          - job: LinuxSnapArmhf
-            dependsOn:
-              - LinuxArmhf
-            container: snapcraft
-            variables:
-              VSCODE_ARCH: armhf
-            steps:
-              - template: linux/snap-build-linux.yml
 
         - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), eq(parameters.VSCODE_BUILD_LINUX_ARM64, true)) }}:
           - job: LinuxArm64
@@ -510,24 +474,14 @@ stages:
               VSCODE_ARCH: arm64
               NPM_ARCH: arm64
             steps:
-              - template: linux/product-build-linux-client.yml
+              - template: linux/product-build-linux.yml
                 parameters:
+                  VSCODE_ARCH: x64
                   VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
                   VSCODE_BUILD_TUNNEL_CLI: ${{ parameters.VSCODE_BUILD_TUNNEL_CLI }}
                   VSCODE_RUN_UNIT_TESTS: false
                   VSCODE_RUN_INTEGRATION_TESTS: false
                   VSCODE_RUN_SMOKE_TESTS: false
-
-        # TODO@joaomoreno: We don't ship ARM snaps for now
-        - ${{ if and(false, eq(variables['VSCODE_CIBUILD'], false), eq(parameters.VSCODE_BUILD_LINUX_ARM64, true)) }}:
-          - job: LinuxSnapArm64
-            dependsOn:
-              - LinuxArm64
-            container: snapcraft
-            variables:
-              VSCODE_ARCH: arm64
-            steps:
-              - template: linux/snap-build-linux.yml
 
   - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), eq(parameters.VSCODE_COMPILE_ONLY, false), eq(variables['VSCODE_BUILD_STAGE_ALPINE'], true)) }}:
     - stage: Alpine

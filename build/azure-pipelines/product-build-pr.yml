@@ -42,8 +42,9 @@ jobs:
         NPM_ARCH: x64
         DISPLAY: ":10"
       steps:
-        - template: linux/product-build-linux-client.yml
+        - template: linux/product-build-linux.yml
           parameters:
+            VSCODE_ARCH: x64
             VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
             VSCODE_BUILD_TUNNEL_CLI: false
             VSCODE_RUN_UNIT_TESTS: true
@@ -59,8 +60,9 @@ jobs:
         NPM_ARCH: x64
         DISPLAY: ":10"
       steps:
-        - template: linux/product-build-linux-client.yml
+        - template: linux/product-build-linux.yml
           parameters:
+            VSCODE_ARCH: x64
             VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
             VSCODE_BUILD_TUNNEL_CLI: false
             VSCODE_RUN_UNIT_TESTS: false
@@ -76,8 +78,9 @@ jobs:
         NPM_ARCH: x64
         DISPLAY: ":10"
       steps:
-        - template: linux/product-build-linux-client.yml
+        - template: linux/product-build-linux.yml
           parameters:
+            VSCODE_ARCH: x64
             VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
             VSCODE_BUILD_TUNNEL_CLI: false
             VSCODE_RUN_UNIT_TESTS: false

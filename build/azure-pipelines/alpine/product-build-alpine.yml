@@ -57,6 +57,16 @@ steps:
     condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'), ne(variables['NPM_REGISTRY'], 'none'))
     displayName: Setup NPM Authentication
 
+  - task: Docker@1
+    inputs:
+      azureSubscriptionEndpoint: "vscode-builds-subscription"
+      azureContainerRegistry: vscodehub.azurecr.io
+      command: "Run an image"
+      imageName: "vscode-linux-build-agent:alpine-$(VSCODE_ARCH)"
+      containerCommand: uname
+    displayName: "Pull image"
+    condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
+
   - script: |
       set -e
       for i in {1..5}; do # try 5 times
@@ -71,26 +81,8 @@ steps:
       ELECTRON_SKIP_BINARY_DOWNLOAD: 1
       PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
       GITHUB_TOKEN: "$(github-distro-mixin-password)"
+      VSCODE_REMOTE_DEPENDENCIES_CONTAINER_NAME: vscodehub.azurecr.io/vscode-linux-build-agent:alpine-$(VSCODE_ARCH)
     displayName: Install build dependencies
-    condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
-
-  - task: Docker@1
-    inputs:
-      azureSubscriptionEndpoint: "vscode-builds-subscription"
-      azureContainerRegistry: vscodehub.azurecr.io
-      command: "Run an image"
-      imageName: "vscode-linux-build-agent:alpine-$(VSCODE_ARCH)"
-      containerCommand: uname
-    displayName: "Pull image"
-    condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
-
-  - script: |
-      set -e
-      docker run -e VSCODE_QUALITY -e GITHUB_TOKEN -v $(pwd):/root/vscode -v ~/.netrc:/root/.netrc vscodehub.azurecr.io/vscode-linux-build-agent:alpine-$(VSCODE_ARCH) /root/vscode/build/azure-pipelines/linux/scripts/install-remote-dependencies.sh
-      sudo chown -R $(id -u):$(id -g) remote/node_modules .build/distro/npm/remote/.yarnrc .build/distro/npm/remote/node_modules
-    env:
-      GITHUB_TOKEN: "$(github-distro-mixin-password)"
-    displayName: Install dependencies
     condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
 
   - script: node build/azure-pipelines/distro/mixin-npm

@@ -29,7 +29,8 @@ steps:
     displayName: Download distro
 
   - script: |
-      cat << EOF > ~/.netrc
+      mkdir -p .build
+      cat << EOF | tee ~/.netrc .build/.netrc > /dev/null
       machine github.com
       login vscode
       password $(github-distro-mixin-password)
@@ -48,8 +49,8 @@ steps:
         -o $ArchivePath \
         -L "https://api.github.com/repos/microsoft/vscode-distro/zipball/$DistroVersion"
 
-      mkdir -p .build
       unzip $ArchivePath -d .build
       mv .build/microsoft-vscode-distro-$DistroVersion .build/distro
+      cp remote/.yarnrc .build/distro/npm/remote/.yarnrc
     condition: and(succeeded(), not(contains(variables['Agent.OS'], 'windows')))
     displayName: Download distro
