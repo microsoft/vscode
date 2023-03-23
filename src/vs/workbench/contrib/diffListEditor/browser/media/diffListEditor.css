@@ -1,0 +1,78 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/* .diff-list-editor .monaco-scrollable-element {
+	padding: 20px;
+} */
+
+.diff-list-editor .monaco-list {
+	top: 20px;
+}
+
+.diff-list-editor .monaco-list-row {
+	left: 20px;
+	cursor: default !important;
+	width: calc(100% - 40px);
+}
+
+.diff-list-editor .monaco-list-row.focused,
+.diff-list-editor .monaco-list-row.selected,
+.diff-list-editor .monaco-list-row.selected.focused {
+	outline: 0px !important;
+}
+
+.diff-list-editor .resource-container {
+	line-height: 40px;
+}
+
+.diff-list-editor .resource-header {
+	display: flex;
+	align-items: center;
+	background-color: var(--vscode-list-hoverBackground);
+	border: 1px solid var(--vscode-notebook-cellBorderColor);
+	border-top-left-radius: 5px;
+	border-top-right-radius: 5px;
+	cursor: default;
+}
+
+/* .diff-list-editor .monaco-list-row.focused .resource-header,
+.diff-list-editor .monaco-list-row.selected .resource-header,
+.diff-list-editor .monaco-list-row.selected.focused .resource-header,
+.diff-list-editor .monaco-list-row.focused .diff-editor-container,
+.diff-list-editor .monaco-list-row.selected .diff-editor-container,
+.diff-list-editor .monaco-list-row.selected.focused .diff-editor-container {
+	outline: 1px solid var(--vscode-contrastActiveBorder);
+	outline-offset: -1px;
+} */
+
+.diff-list-editor .resource-header.collapsed {
+	border-radius: 5px;
+}
+
+.diff-list-editor .resource-header > .resource-folding-indicator {
+	display: flex;
+	align-items: center;
+	padding: 0 10px;
+	height: 40px;
+	cursor: pointer;
+}
+
+.diff-list-editor .resource-header > .resource-label {
+	font-family: var(--monaco-monospace-font);
+	cursor: pointer;
+}
+
+.diff-list-editor .resource-header > .resource-label:hover {
+	text-decoration: underline;
+}
+
+.diff-list-editor .diff-editor-container {
+	border-bottom-left-radius: 5px;
+	border-bottom-right-radius: 5px;
+
+	border-left: 1px solid var(--vscode-notebook-cellBorderColor);
+	border-right: 1px solid var(--vscode-notebook-cellBorderColor);
+	border-bottom: 1px solid var(--vscode-notebook-cellBorderColor);
+}

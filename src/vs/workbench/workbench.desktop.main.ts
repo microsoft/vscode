@@ -164,6 +164,9 @@ import 'vs/workbench/contrib/localHistory/electron-sandbox/localHistory.contribu
 // Merge Editor
 import 'vs/workbench/contrib/mergeEditor/electron-sandbox/mergeEditor.contribution';
 
+// DiffList Editor
+import 'vs/workbench/contrib/diffListEditor/browser/diffListEditor.contribution';
+
 // Remote Tunnel
 import 'vs/workbench/contrib/remoteTunnel/electron-sandbox/remoteTunnel.contribution';
 

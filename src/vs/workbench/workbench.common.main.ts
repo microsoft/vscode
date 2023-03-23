@@ -220,6 +220,9 @@ import 'vs/workbench/contrib/markers/browser/markers.contribution';
 // Merge Editor
 import 'vs/workbench/contrib/mergeEditor/browser/mergeEditor.contribution';
 
+// DiffList Editor
+import 'vs/workbench/contrib/diffListEditor/browser/diffListEditor.contribution';
+
 // Commands
 import 'vs/workbench/contrib/commands/common/commands.contribution';
 
