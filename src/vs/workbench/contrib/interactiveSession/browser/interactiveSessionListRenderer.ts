@@ -258,7 +258,8 @@ export class InteractiveListItemRenderer extends Disposable implements ITreeRend
 		templateData.elementDisposables.add(result);
 
 		if (isResponseVM(element) && element.errorDetails?.message) {
-			const errorDetails = dom.append(templateData.value, $('.interactive-response-error-details', undefined, renderIcon(Codicon.error)));
+			const icon = element.errorDetails.responseIsFiltered ? Codicon.info : Codicon.error;
+			const errorDetails = dom.append(templateData.value, $('.interactive-response-error-details', undefined, renderIcon(icon)));
 			errorDetails.appendChild($('span', undefined, element.errorDetails.message));
 		}
 
