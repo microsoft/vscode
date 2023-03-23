@@ -325,6 +325,7 @@ steps:
 
   - ${{ if eq(parameters.VSCODE_PUBLISH, true) }}:
       - task: EsrpClientTool@1
+        continueOnError: true
         displayName: Download ESRPClient
 
   - ${{ if eq(parameters.VSCODE_PUBLISH, true) }}:

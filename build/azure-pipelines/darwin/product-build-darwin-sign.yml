@@ -129,6 +129,7 @@ steps:
       version: 6.x
 
   - task: EsrpClientTool@1
+    continueOnError: true
     displayName: Download ESRPClient
 
   - script: |
