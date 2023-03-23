@@ -376,6 +376,41 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal, II
 		return (await this._getSearchAddon()).findPrevious(term, searchOptions);
 	}
 
+	getContent(startIndex?: number): string {
+		const buffer = this.raw.buffer.active;
+		if (!buffer) {
+			return '';
+		}
+
+		const scrollback: number = this._configurationService.getValue(TerminalSettingId.Scrollback);
+		const maxBufferSize = scrollback + this.raw.rows - 1;
+		const end = Math.min(maxBufferSize, buffer.length - 1);
+		if (startIndex) {
+			// If the last buffer index is requested, this is as a result of
+			// a dynamic addition. Return only the last line to prevent duplication.
+			const line = buffer.getLine(end - 1)?.translateToString(false).replace(new RegExp(' ', 'g'), '\xA0');
+			const result = line ? line + '\n' : '';
+			return result;
+		}
+
+		const lines: string[] = [];
+		let currentLine: string = '';
+		for (let i = 0; i <= end; i++) {
+			const line = buffer.getLine(i);
+			if (!line) {
+				continue;
+			}
+			const isWrapped = buffer.getLine(i + 1)?.isWrapped;
+			currentLine += line.translateToString(!isWrapped);
+			if (currentLine && !isWrapped || i === end - 1) {
+				lines.push(currentLine.replace(new RegExp(' ', 'g'), '\xA0'));
+				currentLine = '';
+			}
+		}
+
+		return lines.join('\n');
+	}
+
 	private _updateFindColors(searchOptions: ISearchOptions): void {
 		const theme = this._themeService.getColorTheme();
 		// Theme color names align with monaco/vscode whereas xterm.js has some different naming.

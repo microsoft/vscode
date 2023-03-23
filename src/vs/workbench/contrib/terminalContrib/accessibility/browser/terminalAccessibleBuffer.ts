@@ -43,12 +43,11 @@ export class AccessibleBufferWidget extends DisposableStore {
 	private readonly _focusedContextKey: IContextKey<boolean>;
 	private readonly _focusTracker: dom.IFocusTracker;
 	private _inQuickPick = false;
-	private _prependNewLine = false;
 	private _bufferToEditorIndex: Map<number, number> = new Map();
 
 	constructor(
 		private readonly _instance: ITerminalInstance,
-		private readonly _xterm: Pick<IXtermTerminal, 'getFont'> & { raw: Terminal },
+		private readonly _xterm: Pick<IXtermTerminal, 'getFont' | 'getContent'> & { raw: Terminal },
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IModelService private readonly _modelService: IModelService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
@@ -144,10 +143,10 @@ export class AccessibleBufferWidget extends DisposableStore {
 		if (insertion && model && lineCount > this._xterm.raw.rows) {
 			const lineNumber = lineCount + 1;
 			model.pushEditOperations(null, [{
-				range: { startLineNumber: lineNumber, endLineNumber: lineNumber, startColumn: 1, endColumn: 1 }, text: this._getContent(true)
+				range: { startLineNumber: lineNumber, endLineNumber: lineNumber, startColumn: 1, endColumn: 1 }, text: this._xterm.getContent(1)
 			}], () => []);
 		} else {
-			model = await this._getTextModel(this._instance.resource.with({ fragment: this._getContent() }));
+			model = await this._getTextModel(this._instance.resource.with({ fragment: this._xterm.getContent() }));
 		}
 		if (!model) {
 			throw new Error('Could not create accessible buffer editor model');
@@ -221,7 +220,6 @@ export class AccessibleBufferWidget extends DisposableStore {
 
 	async show(): Promise<void> {
 		await this._updateEditor();
-		this._prependNewLine = true;
 		this._accessibleBuffer.tabIndex = -1;
 		this._bufferEditor.layout({ width: this._xtermElement.clientWidth, height: this._xtermElement.clientHeight });
 		this._accessibleBuffer.classList.add(CssClass.Active);
@@ -234,45 +232,6 @@ export class AccessibleBufferWidget extends DisposableStore {
 		if (existing && !existing.isDisposed()) {
 			return existing;
 		}
-
 		return this._modelService.createModel(resource.fragment, null, resource, false);
-	}
-
-	private _getContent(lastBufferIndex?: boolean): string {
-		const buffer = this._xterm?.raw.buffer.active;
-		if (!buffer) {
-			return '';
-		}
-
-		const scrollback: number = this._configurationService.getValue(TerminalSettingId.Scrollback);
-		const maxBufferSize = scrollback + this._xterm.raw.rows - 1;
-		const end = Math.min(maxBufferSize, buffer.length - 1);
-		if (lastBufferIndex) {
-			// If the last buffer index is requested, this is as a result of
-			// a dynamic addition. Return only the last line to prevent duplication.
-			const line = buffer.getLine(end - 1)?.translateToString(false).replace(new RegExp(' ', 'g'), '\xA0');
-			const result = line ? (this._prependNewLine ? '\n' : '') + line + '\n' : '';
-			this._prependNewLine = false;
-			return result;
-		}
-
-		this._bufferToEditorIndex = new Map();
-		const lines: string[] = [];
-		let currentLine: string = '';
-		for (let i = 0; i <= end; i++) {
-			const line = buffer.getLine(i);
-			if (!line) {
-				continue;
-			}
-			const isWrapped = buffer.getLine(i + 1)?.isWrapped;
-			this._bufferToEditorIndex.set(i, lines.length);
-			currentLine += line.translateToString(!isWrapped);
-			if (currentLine && !isWrapped || i === end - 1) {
-				lines.push(currentLine.replace(new RegExp(' ', 'g'), '\xA0'));
-				currentLine = '';
-			}
-		}
-
-		return lines.join('\n');
 	}
 }
