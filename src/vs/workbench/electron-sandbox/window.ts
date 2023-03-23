@@ -787,22 +787,6 @@ export class NativeWindow extends Disposable {
 					}
 				);
 			}
-
-			if (parseInt(version[0]) === 6 && parseInt(version[1]) === 2 || parseInt(version[0]) === 6 && parseInt(version[1]) === 3) {
-				const message = localize('windows 8 eol', "{0} on Windows 8/8.1 will no longer receive any further updates.", this.productService.nameLong);
-
-				this.notificationService.prompt(
-					Severity.Warning,
-					message,
-					[{
-						label: localize('learnMore', "Learn More"),
-						run: () => this.openerService.open(URI.parse('https://aka.ms/vscode-faq-win8'))
-					}],
-					{
-						neverShowAgain: { id: 'windows8eol', isSecondary: true, scope: NeverShowAgainScope.APPLICATION }
-					}
-				);
-			}
 		}
 
 		// MacOS 10.11 and 10.12 warning
