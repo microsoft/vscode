@@ -7,18 +7,12 @@ steps:
     inputs:
       versionSpec: "16.x"
 
-  - powershell: |
-      . build/azure-pipelines/win32/exec.ps1
-      $ErrorActionPreference = "Stop"
-      exec { node build/setup-npm-registry.js $env:NPM_REGISTRY }
+  - powershell: node build/setup-npm-registry.js $env:NPM_REGISTRY
     condition: and(succeeded(), ne(variables['NPM_REGISTRY'], 'none'))
     displayName: Setup NPM Registry
 
-  - powershell: |
-      if (!(Test-Path ".build")) { New-Item -Path ".build" -ItemType Directory }
-      node build/azure-pipelines/common/computeNodeModulesCacheKey.js win32 $(VSCODE_ARCH) > .build/yarnlockhash
-      node build/azure-pipelines/common/computeBuiltInDepsCacheKey.js > .build/builtindepshash
-    displayName: Prepare cache inputs
+  - powershell: mkdir -p .build && node build/azure-pipelines/common/computeNodeModulesCacheKey.js win32 $(VSCODE_ARCH) > .build/yarnlockhash
+    displayName: Prepare node_modules cache key
 
   - task: Cache@2
     inputs:
@@ -26,12 +20,6 @@ steps:
       path: .build/node_modules_cache
       cacheHitVar: NODE_MODULES_RESTORED
     displayName: Restore node_modules cache
-
-  - task: Cache@2
-    inputs:
-      key: '"builtInDeps" | .build/builtindepshash'
-      path: .build/builtInExtensions
-    displayName: Restore built-in extensions
 
   - powershell: 7z.exe x .build/node_modules_cache/cache.7z -aoa -bb
     condition: and(succeeded(), eq(variables.NODE_MODULES_RESTORED, 'true'))
@@ -65,14 +53,6 @@ steps:
       GITHUB_TOKEN: "$(github-distro-mixin-password)"
     displayName: Install dependencies
     condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
-
-  - powershell: |
-      . build/azure-pipelines/win32/exec.ps1
-      $ErrorActionPreference = "Stop"
-      exec { node build/lib/builtInExtensions.js }
-    env:
-      GITHUB_TOKEN: "$(github-distro-mixin-password)"
-    displayName: Download built-in extensions
 
   - powershell: |
       . build/azure-pipelines/win32/exec.ps1
