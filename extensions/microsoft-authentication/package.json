@@ -31,13 +31,17 @@
       {
         "label": "Microsoft",
         "id": "microsoft"
+      },
+      {
+        "label": "Azure Cloud",
+        "id": "azure-cloud"
       }
     ],
     "configuration": [
       {
-        "title": "Microsoft Authentication",
+        "title": "Azure Cloud",
         "properties": {
-          "microsoftAuthentication.enterprise.endpoint": {
+          "azureCloud.endpoint": {
             "anyOf": [
               {
                 "type": "string"
@@ -57,7 +61,7 @@
               }
             ],
             "default": "https://login.microsoftonline.com",
-            "description": "%microsoftAuthentication.enterprise.endpoint.description%"
+            "description": "%azureCloud.endpoint.description%"
           }
         }
       }
