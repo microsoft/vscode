@@ -16,7 +16,7 @@ import { fetching } from './node/fetch';
 import { UriEventHandler } from './UriEventHandler';
 
 const redirectUrl = 'https://vscode.dev/redirect';
-const loginEndpointUrl = 'https://login.microsoftonline.com/';
+const defaultLoginEndpointUrl = 'https://login.microsoftonline.com/';
 const DEFAULT_CLIENT_ID = 'aebc6443-996d-45c2-90f0-388ff96faa56';
 const DEFAULT_TENANT = 'organizations';
 
@@ -82,6 +82,7 @@ export class AzureActiveDirectoryService {
 	private _refreshingPromise: Promise<any> | undefined;
 	private _uriHandler: UriEventHandler;
 	private _sessionChangeEmitter: vscode.EventEmitter<vscode.AuthenticationProviderAuthenticationSessionsChangeEvent> = new vscode.EventEmitter<vscode.AuthenticationProviderAuthenticationSessionsChangeEvent>();
+	private _loginEndpointUrl: string;
 
 	// Used to keep track of current requests when not using the local server approach.
 	private _pendingNonces = new Map<string, string[]>();
@@ -90,9 +91,10 @@ export class AzureActiveDirectoryService {
 
 	private readonly _tokenStorage: BetterTokenStorage<IStoredSession>;
 
-	constructor(private _context: vscode.ExtensionContext, uriHandler: UriEventHandler) {
+	constructor(private _context: vscode.ExtensionContext, uriHandler: UriEventHandler, loginEndpointUrl: string = defaultLoginEndpointUrl) {
 		this._tokenStorage = new BetterTokenStorage('microsoft.login.keylist', _context);
 		this._uriHandler = uriHandler;
+		this._loginEndpointUrl = loginEndpointUrl;
 		_context.subscriptions.push(this._tokenStorage.onDidChangeInOtherWindow((e) => this.checkForUpdates(e)));
 	}
 
@@ -305,7 +307,7 @@ export class AzureActiveDirectoryService {
 			code_challenge_method: 'S256',
 			code_challenge: codeChallenge,
 		}).toString();
-		const loginUrl = `${loginEndpointUrl}${scopeData.tenant}/oauth2/v2.0/authorize?${qs}`;
+		const loginUrl = `${this._loginEndpointUrl}${scopeData.tenant}/oauth2/v2.0/authorize?${qs}`;
 		const server = new LoopbackAuthServer(path.join(__dirname, '../media'), loginUrl);
 		await server.start();
 
@@ -335,7 +337,7 @@ export class AzureActiveDirectoryService {
 		const state = encodeURIComponent(callbackUri.toString(true));
 		const codeVerifier = generateCodeVerifier();
 		const codeChallenge = await generateCodeChallenge(codeVerifier);
-		const signInUrl = `${loginEndpointUrl}${scopeData.tenant}/oauth2/v2.0/authorize`;
+		const signInUrl = `${this._loginEndpointUrl}${scopeData.tenant}/oauth2/v2.0/authorize`;
 		const oauthStartQuery = new URLSearchParams({
 			response_type: 'code',
 			client_id: encodeURIComponent(scopeData.clientId),
@@ -575,7 +577,7 @@ export class AzureActiveDirectoryService {
 		});
 
 		const proxyEndpoints: { [providerId: string]: string } | undefined = await vscode.commands.executeCommand('workbench.getCodeExchangeProxyEndpoints');
-		const endpointUrl = proxyEndpoints?.microsoft || loginEndpointUrl;
+		const endpointUrl = proxyEndpoints?.microsoft || this._loginEndpointUrl;
 		const endpoint = `${endpointUrl}${scopeData.tenant}/oauth2/v2.0/token`;
 
 		try {
@@ -711,7 +713,7 @@ export class AzureActiveDirectoryService {
 			});
 
 			const proxyEndpoints: { [providerId: string]: string } | undefined = await vscode.commands.executeCommand('workbench.getCodeExchangeProxyEndpoints');
-			const endpointUrl = proxyEndpoints?.microsoft || loginEndpointUrl;
+			const endpointUrl = proxyEndpoints?.microsoft || this._loginEndpointUrl;
 			const endpoint = `${endpointUrl}${scopeData.tenant}/oauth2/v2.0/token`;
 
 			const json = await this.fetchTokenResponse(endpoint, postData, scopeData);
