@@ -32,6 +32,8 @@ import { Emitter, Event } from 'vs/base/common/event';
 // 1. How to make the overlay have higher index, appear on top and have the layer below still detect the on mouse events
 
 const $ = dom.$;
+const SCROLLBAR_WIDTH = 10;
+const SASH_WIDTH = 4;
 
 export class ContentHoverController extends Disposable {
 
@@ -324,7 +326,7 @@ export class ContentHoverController extends Disposable {
 
 				// Update the left and top offset to match the widget dom node
 				const resizableElement = this._resizableOverlay.resizableElement();
-				resizableElement.layout(clientHeight + 4, clientWidth + 4);
+				resizableElement.layout(clientHeight + SASH_WIDTH, clientWidth + SASH_WIDTH);
 
 				// Find if rendered above or below in the container dom node
 				const topLineNumber = anchor.initialMousePosY;
@@ -821,10 +823,10 @@ export class ContentHoverWidget extends Disposable implements IContentWidget {
 		this._hover.contentsDomNode.style.maxHeight = 'none';
 		this._hover.contentsDomNode.style.maxWidth = 'none';
 
-		this._hover.containerDomNode.style.width = size.width - 4 + 'px';
-		this._hover.containerDomNode.style.height = size.height - 4 + 'px';
-		this._hover.contentsDomNode.style.width = size.width - 4 + 'px';
-		this._hover.contentsDomNode.style.height = size.height - 4 + 'px';
+		this._hover.containerDomNode.style.width = size.width - SASH_WIDTH + 'px';
+		this._hover.containerDomNode.style.height = size.height - SASH_WIDTH + 'px';
+		this._hover.contentsDomNode.style.width = size.width - SASH_WIDTH + 'px';
+		this._hover.contentsDomNode.style.height = size.height - SASH_WIDTH + 'px';
 
 		const scrollDimensions = this._hover.scrollbar.getScrollDimensions();
 		const hasHorizontalScrollbar = (scrollDimensions.scrollWidth > scrollDimensions.width);
@@ -834,7 +836,7 @@ export class ContentHoverWidget extends Disposable implements IContentWidget {
 			if (this._hover.contentsDomNode.style.paddingBottom !== extraBottomPadding) {
 				this._hover.contentsDomNode.style.paddingBottom = extraBottomPadding;
 			}
-			this._hover.contentsDomNode.style.height = size.height - 14 + 'px';
+			this._hover.contentsDomNode.style.height = size.height - SASH_WIDTH - SCROLLBAR_WIDTH + 'px';
 		}
 
 		this._hover.scrollbar.scanDomNode();
@@ -859,20 +861,17 @@ export class ContentHoverWidget extends Disposable implements IContentWidget {
 			availableSpace = bodyBox.height - mouseBottom;
 		}
 
-		let divMaxHeight = 0;
+		let divMaxHeight = SASH_WIDTH;
 		for (const childHtmlElement of this._hover.contentsDomNode.children) {
 			divMaxHeight += childHtmlElement.clientHeight;
 		}
 
-		let maxRenderingHeight;
 		if (this._hover.contentsDomNode.clientWidth < this._hover.contentsDomNode.scrollWidth) {
 			// Adding 10 which is the width of the horizontal scrollbar
-			maxRenderingHeight = Math.min(availableSpace, divMaxHeight + 16);
-		} else {
-			maxRenderingHeight = Math.min(availableSpace, divMaxHeight + 6);
+			divMaxHeight += SCROLLBAR_WIDTH;
 		}
 
-		return maxRenderingHeight;
+		return Math.min(availableSpace, divMaxHeight);
 	}
 
 	public findMaxRenderingWidth(): number | undefined {
@@ -1074,8 +1073,8 @@ export class ContentHoverWidget extends Disposable implements IContentWidget {
 		// Suppose a persisted size is defined
 		if (persistedSize) {
 
-			const widthMinusSash = Math.min(this.findMaxRenderingWidth() ?? Infinity, persistedSize.width - 4);
-			const heightMinusSash = Math.min(this.findMaxRenderingHeight(this._renderingAbove) ?? Infinity, persistedSize.height - 4);
+			const widthMinusSash = Math.min(this.findMaxRenderingWidth() ?? Infinity, persistedSize.width - SASH_WIDTH);
+			const heightMinusSash = Math.min(this.findMaxRenderingHeight(this._renderingAbove) ?? Infinity, persistedSize.height - SASH_WIDTH);
 
 			// Already setting directly the height and width parameters
 			containerDomNode.style.width = widthMinusSash + 'px';
@@ -1100,19 +1099,19 @@ export class ContentHoverWidget extends Disposable implements IContentWidget {
 		if (hasHorizontalScrollbar) {
 			// There is just a horizontal scrollbar
 			const extraBottomPadding = `${this._hover.scrollbar.options.horizontalScrollbarSize}px`;
-			let rerender = false;
+			let reposition = false;
 			if (this._hover.contentsDomNode.style.paddingBottom !== extraBottomPadding) {
 				this._hover.contentsDomNode.style.paddingBottom = extraBottomPadding;
-				rerender = true;
+				reposition = true;
 			}
 			const maxRenderingHeight = this.findMaxRenderingHeight(this._renderingAbove);
 			// Need the following code since we are using an exact height when using the persisted size. If not used the horizontal scrollbar would just not be visible.
 			if (persistedSize && maxRenderingHeight) {
-				containerDomNode.style.height = Math.min(maxRenderingHeight, persistedSize.height - 4) + 'px';
-				contentsDomNode.style.height = Math.min(maxRenderingHeight, persistedSize.height - 14) + 'px';
-				rerender = true;
+				containerDomNode.style.height = Math.min(maxRenderingHeight, persistedSize.height - SASH_WIDTH) + 'px';
+				contentsDomNode.style.height = Math.min(maxRenderingHeight, persistedSize.height - SASH_WIDTH - SCROLLBAR_WIDTH) + 'px';
+				reposition = true;
 			}
-			if (rerender) {
+			if (reposition) {
 				this._editor.layoutContentWidget(this);
 				this._hover.onContentsChanged();
 			}
