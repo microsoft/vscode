@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import { AzureActiveDirectoryService, onDidChangeSessions } from './AADHelper';
+import { AzureActiveDirectoryService } from './AADHelper';
 import TelemetryReporter from '@vscode/extension-telemetry';
 
 export async function activate(context: vscode.ExtensionContext) {
@@ -15,7 +15,7 @@ export async function activate(context: vscode.ExtensionContext) {
 	await loginService.initialize();
 
 	context.subscriptions.push(vscode.authentication.registerAuthenticationProvider('microsoft', 'Microsoft', {
-		onDidChangeSessions: onDidChangeSessions.event,
+		onDidChangeSessions: loginService.onDidChangeSessions,
 		getSessions: (scopes: string[]) => loginService.getSessions(scopes),
 		createSession: async (scopes: string[]) => {
 			try {
@@ -31,9 +31,7 @@ export async function activate(context: vscode.ExtensionContext) {
 					scopes: JSON.stringify(scopes.map(s => s.replace(/[0-9A-F]{8}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{12}/i, '{guid}'))),
 				});
 
-				const session = await loginService.createSession(scopes.sort());
-				onDidChangeSessions.fire({ added: [session], removed: [], changed: [] });
-				return session;
+				return await loginService.createSession(scopes.sort());
 			} catch (e) {
 				/* __GDPR__
 					"loginFailed" : { "owner": "TylerLeonhardt", "comment": "Used to determine how often users run into issues with the login flow." }
@@ -50,10 +48,7 @@ export async function activate(context: vscode.ExtensionContext) {
 				*/
 				telemetryReporter.sendTelemetryEvent('logout');
 
-				const session = await loginService.removeSessionById(id);
-				if (session) {
-					onDidChangeSessions.fire({ added: [], removed: [session], changed: [] });
-				}
+				await loginService.removeSessionById(id);
 			} catch (e) {
 				/* __GDPR__
 					"logoutFailed" : { "owner": "TylerLeonhardt", "comment": "Used to determine how often fail to log out." }

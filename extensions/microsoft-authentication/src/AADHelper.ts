@@ -70,8 +70,6 @@ interface IScopeData {
 	tenant: string;
 }
 
-export const onDidChangeSessions = new vscode.EventEmitter<vscode.AuthenticationProviderAuthenticationSessionsChangeEvent>();
-
 export const REFRESH_NETWORK_FAILURE = 'Network failure';
 
 class UriEventHandler extends vscode.EventEmitter<vscode.Uri> implements vscode.UriHandler {
@@ -88,6 +86,7 @@ export class AzureActiveDirectoryService {
 	private _refreshTimeouts: Map<string, NodeJS.Timeout> = new Map<string, NodeJS.Timeout>();
 	private _refreshingPromise: Promise<any> | undefined;
 	private _uriHandler: UriEventHandler;
+	private _sessionChangeEmitter: vscode.EventEmitter<vscode.AuthenticationProviderAuthenticationSessionsChangeEvent> = new vscode.EventEmitter<vscode.AuthenticationProviderAuthenticationSessionsChangeEvent>();
 
 	// Used to keep track of current requests when not using the local server approach.
 	private _pendingNonces = new Map<string, string[]>();
@@ -161,6 +160,10 @@ export class AzureActiveDirectoryService {
 	}
 
 	//#region session operations
+
+	public get onDidChangeSessions(): vscode.Event<vscode.AuthenticationProviderAuthenticationSessionsChangeEvent> {
+		return this._sessionChangeEmitter.event;
+	}
 
 	async getSessions(scopes?: string[]): Promise<vscode.AuthenticationSession[]> {
 		if (!scopes) {
@@ -246,7 +249,7 @@ export class AzureActiveDirectoryService {
 		return Promise.all(matchingTokens.map(token => this.convertToSession(token, scopeData)));
 	}
 
-	public createSession(scopes: string[]): Promise<vscode.AuthenticationSession> {
+	public async createSession(scopes: string[]): Promise<vscode.AuthenticationSession> {
 		let modifiedScopes = [...scopes];
 		if (!modifiedScopes.includes('openid')) {
 			modifiedScopes.push('openid');
@@ -280,7 +283,9 @@ export class AzureActiveDirectoryService {
 		}
 
 		try {
-			return this.createSessionWithLocalServer(scopeData);
+			const session = await this.createSessionWithLocalServer(scopeData);
+			this._sessionChangeEmitter.fire({ added: [session], removed: [], changed: [] });
+			return session;
 		} catch (e) {
 			Logger.error(`Error creating session for scopes: ${scopeData.scopeStr} Error: ${e}`);
 
@@ -386,7 +391,7 @@ export class AzureActiveDirectoryService {
 			});
 	}
 
-	public removeSessionById(sessionId: string, writeToDisk: boolean = true): Promise<vscode.AuthenticationSession | undefined> {
+	public async removeSessionById(sessionId: string, writeToDisk: boolean = true): Promise<vscode.AuthenticationSession | undefined> {
 		Logger.info(`Logging out of session '${sessionId}'`);
 		const tokenIndex = this._tokens.findIndex(token => token.sessionId === sessionId);
 		if (tokenIndex === -1) {
@@ -395,7 +400,13 @@ export class AzureActiveDirectoryService {
 		}
 
 		const token = this._tokens.splice(tokenIndex, 1)[0];
-		return this.removeSessionByIToken(token, writeToDisk);
+		const session = await this.removeSessionByIToken(token, writeToDisk);
+
+		if (session) {
+			this._sessionChangeEmitter.fire({ added: [], removed: [session], changed: [] });
+		}
+
+		return session;
 	}
 
 	public async clearSessions() {
@@ -424,7 +435,7 @@ export class AzureActiveDirectoryService {
 
 		const session = this.convertToSessionSync(token);
 		Logger.info(`Sending change event for session that was removed with scopes: ${token.scope}`);
-		onDidChangeSessions.fire({ added: [], removed: [session], changed: [] });
+		this._sessionChangeEmitter.fire({ added: [], removed: [session], changed: [] });
 		Logger.info(`Logged out of session '${token.sessionId}' with scopes: ${token.scope}`);
 		return session;
 	}
@@ -439,7 +450,7 @@ export class AzureActiveDirectoryService {
 			try {
 				const refreshedToken = await this.refreshToken(refreshToken, scopeData, sessionId);
 				Logger.info('Triggering change session event...');
-				onDidChangeSessions.fire({ added: [], removed: [], changed: [this.convertToSessionSync(refreshedToken)] });
+				this._sessionChangeEmitter.fire({ added: [], removed: [], changed: [this.convertToSessionSync(refreshedToken)] });
 			} catch (e) {
 				if (e.message !== REFRESH_NETWORK_FAILURE) {
 					vscode.window.showErrorMessage(vscode.l10n.t('You have been signed out because reading stored authentication information failed.'));
@@ -848,7 +859,7 @@ export class AzureActiveDirectoryService {
 					Logger.info(`Session added in another window with scopes: ${session.scope}`);
 					const token = await this.refreshToken(session.refreshToken, scopeData, session.id);
 					Logger.info(`Sending change event for session that was added with scopes: ${scopeData.scopeStr}`);
-					onDidChangeSessions.fire({ added: [this.convertToSessionSync(token)], removed: [], changed: [] });
+					this._sessionChangeEmitter.fire({ added: [this.convertToSessionSync(token)], removed: [], changed: [] });
 					return;
 				} catch (e) {
 					// Network failures will automatically retry on next poll.
