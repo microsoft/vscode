@@ -31,6 +31,7 @@ import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storag
 import { defaultButtonStyles } from 'vs/platform/theme/browser/defaultStyles';
 import { foreground } from 'vs/platform/theme/common/colorRegistry';
 import { DEFAULT_FONT_FAMILY } from 'vs/workbench/browser/style';
+import { Memento } from 'vs/workbench/common/memento';
 import { getSimpleCodeEditorWidgetOptions, getSimpleEditorOptions } from 'vs/workbench/contrib/codeEditor/browser/simpleEditorOptions';
 import { IInteractiveSessionExecuteActionContext } from 'vs/workbench/contrib/interactiveSession/browser/actions/interactiveSessionExecuteActions';
 import { IInteractiveSessionWidget } from 'vs/workbench/contrib/interactiveSession/browser/interactiveSession';
@@ -60,6 +61,11 @@ const $ = dom.$;
 
 function revealLastElement(list: WorkbenchObjectTree<any>) {
 	list.scrollTop = list.scrollHeight - list.renderHeight;
+}
+
+interface IViewState {
+	history: string[];
+	inputValue: string;
 }
 
 const HISTORY_STORAGE_KEY = 'interactiveSession.history';
@@ -138,6 +144,9 @@ export class InteractiveSessionWidget extends Disposable implements IInteractive
 	private lastSlashCommands: IInteractiveSlashCommand[] | undefined;
 	private slashCommandsPromise: Promise<IInteractiveSlashCommand[] | undefined> | undefined;
 
+	private memento: Memento;
+	private viewState: IViewState;
+
 	constructor(
 		private readonly providerId: string,
 		readonly viewId: string | undefined,
@@ -160,7 +169,12 @@ export class InteractiveSessionWidget extends Disposable implements IInteractive
 		this._register((interactiveSessionWidgetService as InteractiveSessionWidgetService).register(this));
 		this.initializeSessionModel(true);
 
-		this.history = new HistoryNavigator(JSON.parse(this.storageService.get(this.getHistoryStorageKey(), StorageScope.WORKSPACE, '[]')), 50);
+		const oldPersistedHistory = JSON.parse(this.storageService.get(this.getHistoryStorageKey(), StorageScope.WORKSPACE, '[]'));
+		this.memento = new Memento('interactive-session-' + this.providerId, storageService);
+		this.viewState = this.memento.getMemento(StorageScope.WORKSPACE, StorageTarget.USER) as IViewState;
+
+		const history = this.viewState.history ?? oldPersistedHistory;
+		this.history = new HistoryNavigator(history, 50);
 	}
 
 	get element(): HTMLElement {
@@ -247,8 +261,13 @@ export class InteractiveSessionWidget extends Disposable implements IInteractive
 			if (!this.inputModel) {
 				this.inputModel = this.modelService.getModel(this.inputUri) || this.modelService.createModel('', null, this.inputUri, true);
 				this.inputModel.updateOptions({ bracketColorizationOptions: { enabled: false, independentColorPoolPerBracketType: false } });
+				this._inputEditor.setModel(this.inputModel);
+				if (this.viewState.inputValue) {
+					this.inputModel.setValue(this.viewState.inputValue);
+					const lineNumber = this.inputModel.getLineCount();
+					this._inputEditor.setPosition({ lineNumber, column: this.inputModel.getLineMaxColumn(lineNumber) });
+				}
 			}
-			this._inputEditor.setModel(this.inputModel);
 
 			// Not sure why this is needed- the view is being rendered before it's visible, and then the list content doesn't show up
 			this.onDidChangeItems();
@@ -613,14 +632,13 @@ export class InteractiveSessionWidget extends Disposable implements IInteractive
 
 	saveState(): void {
 		const inputHistory = this.history.getHistory();
-		if (inputHistory.length) {
-			this.storageService.store(this.getHistoryStorageKey(), JSON.stringify(inputHistory), StorageScope.WORKSPACE, StorageTarget.USER);
-		} else {
-			this.storageService.remove(this.getHistoryStorageKey(), StorageScope.WORKSPACE);
-		}
+		this.viewState.history = inputHistory;
+		this.viewState.inputValue = this._inputEditor.getValue();
+		this.memento.saveMemento();
 	}
 
 	public override dispose(): void {
+		this.saveState();
 		super.dispose();
 
 		if (this.viewModel) {
