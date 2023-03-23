@@ -16,7 +16,7 @@ import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService
 import { EndOfLinePreference } from 'vs/editor/common/model';
 import { localize } from 'vs/nls';
 import { CONTEXT_ACCESSIBILITY_MODE_ENABLED } from 'vs/platform/accessibility/common/accessibility';
-import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
+import { Action2, registerAction2, IAction2Options } from 'vs/platform/actions/common/actions';
 import { ICommandActionTitle } from 'vs/platform/action/common/action';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -35,7 +35,7 @@ import { CLOSE_EDITOR_COMMAND_ID } from 'vs/workbench/browser/parts/editor/edito
 import { ResourceContextKey } from 'vs/workbench/common/contextkeys';
 import { Direction, ICreateTerminalOptions, ITerminalEditorService, ITerminalGroupService, ITerminalInstance, ITerminalInstanceService, ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { TerminalQuickAccessProvider } from 'vs/workbench/contrib/terminal/browser/terminalQuickAccess';
-import { IRemoteTerminalAttachTarget, ITerminalConfigHelper, ITerminalProfileService, TerminalCommandId } from 'vs/workbench/contrib/terminal/common/terminal';
+import { IRemoteTerminalAttachTarget, ITerminalConfigHelper, ITerminalProfileResolverService, ITerminalProfileService, TerminalCommandId } from 'vs/workbench/contrib/terminal/common/terminal';
 import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/terminalContextKey';
 import { createProfileSchemaEnums } from 'vs/platform/terminal/common/terminalProfiles';
 import { terminalStrings } from 'vs/workbench/contrib/terminal/common/terminalStrings';
@@ -128,48 +128,81 @@ export class TerminalLaunchHelpAction extends Action {
 	}
 }
 
-export function registerTerminalActions() {
+/**
+ * A wrapper function around registerAction2 to help make registering terminal actions more concise.
+ * The following default options are used if undefined:
+ *
+ * - `f1`: true
+ * - `category`: Terminal
+ * - `precondition`: TerminalContextKeys.processSupported
+ */
+function registerTerminalAction(
+	options: IAction2Options & { run: (c: ITerminalServicesCollection, accessor: ServicesAccessor, args?: unknown) => void | Promise<void> }
+): void {
+	// Set defaults
+	options.f1 = options.f1 ?? true;
+	options.category = options.category ?? category;
+	options.precondition = options.precondition ?? TerminalContextKeys.processSupported;
+	// Remove run function from options so it's not passed through to registerAction2
+	const runFunc = options.run;
+	const strictOptions: IAction2Options & { run?: (c: ITerminalServicesCollection, accessor: ServicesAccessor, args?: unknown) => void | Promise<void> } = options;
+	delete (strictOptions as IAction2Options & { run?: (c: ITerminalServicesCollection, accessor: ServicesAccessor, args?: unknown) => void | Promise<void> })['run'];
+	// Register
 	registerAction2(class extends Action2 {
 		constructor() {
-			super({
-				id: TerminalCommandId.NewInActiveWorkspace,
-				title: { value: localize('workbench.action.terminal.newInActiveWorkspace', "Create New Terminal (In Active Workspace)"), original: 'Create New Terminal (In Active Workspace)' },
-				f1: true,
-				category,
-				precondition: TerminalContextKeys.processSupported
-			});
+			super(strictOptions as IAction2Options);
 		}
-		async run(accessor: ServicesAccessor) {
-			const terminalService = accessor.get(ITerminalService);
-			const terminalGroupService = accessor.get(ITerminalGroupService);
-			if (terminalService.isProcessSupportRegistered) {
-				const instance = await terminalService.createTerminal({ location: terminalService.defaultLocation });
+		run(accessor: ServicesAccessor, args?: unknown) {
+			return runFunc(getTerminalServices(accessor), accessor, args);
+		}
+	});
+}
+
+interface ITerminalServicesCollection {
+	service: ITerminalService;
+	groupService: ITerminalGroupService;
+	instanceService: ITerminalInstanceService;
+	editorService: ITerminalEditorService;
+	profileService: ITerminalProfileService;
+	profileResolverService: ITerminalProfileResolverService;
+}
+
+function getTerminalServices(accessor: ServicesAccessor): ITerminalServicesCollection {
+	return {
+		service: accessor.get(ITerminalService),
+		groupService: accessor.get(ITerminalGroupService),
+		instanceService: accessor.get(ITerminalInstanceService),
+		editorService: accessor.get(ITerminalEditorService),
+		profileService: accessor.get(ITerminalProfileService),
+		profileResolverService: accessor.get(ITerminalProfileResolverService)
+	};
+}
+
+export function registerTerminalActions() {
+	registerTerminalAction({
+		id: TerminalCommandId.NewInActiveWorkspace,
+		title: { value: localize('workbench.action.terminal.newInActiveWorkspace', "Create New Terminal (In Active Workspace)"), original: 'Create New Terminal (In Active Workspace)' },
+		run: async (c) => {
+			if (c.service.isProcessSupportRegistered) {
+				const instance = await c.service.createTerminal({ location: c.service.defaultLocation });
 				if (!instance) {
 					return;
 				}
-				terminalService.setActiveInstance(instance);
+				c.service.setActiveInstance(instance);
 			}
-			await terminalGroupService.showPanel(true);
+			await c.groupService.showPanel(true);
 		}
 	});
 
 	// Register new with profile command
 	refreshTerminalActions([]);
 
-	registerAction2(class extends Action2 {
-		constructor() {
-			super({
-				id: TerminalCommandId.CreateTerminalEditor,
-				title: { value: localize('workbench.action.terminal.createTerminalEditor', "Create New Terminal in Editor Area"), original: 'Create New Terminal in Editor Area' },
-				f1: true,
-				category,
-				precondition: TerminalContextKeys.processSupported
-			});
-		}
-		async run(accessor: ServicesAccessor, args?: unknown) {
-			const terminalService = accessor.get(ITerminalService);
+	registerTerminalAction({
+		id: TerminalCommandId.CreateTerminalEditor,
+		title: { value: localize('workbench.action.terminal.createTerminalEditor', "Create New Terminal in Editor Area"), original: 'Create New Terminal in Editor Area' },
+		run: async (c, _, args) => {
 			const options = (typeof args === 'object' && args && 'location' in args) ? args as ICreateTerminalOptions : { location: TerminalLocation.Editor };
-			const instance = await terminalService.createTerminal(options);
+			const instance = await c.service.createTerminal(options);
 			instance.focusWhenReady();
 		}
 	});
@@ -315,40 +348,33 @@ export function registerTerminalActions() {
 			await terminalGroupService.showPanel(true);
 		}
 	});
-	registerAction2(class extends Action2 {
-		constructor() {
-			super({
-				id: TerminalCommandId.RunRecentCommand,
-				title: { value: localize('workbench.action.terminal.runRecentCommand', "Run Recent Command..."), original: 'Run Recent Command...' },
-				f1: true,
-				category,
-				precondition: ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated),
-				keybinding: [
-					{
-						primary: KeyMod.CtrlCmd | KeyCode.KeyR,
-						mac: { primary: KeyMod.WinCtrl | KeyCode.KeyR },
-						when: ContextKeyExpr.and(TerminalContextKeys.focus, CONTEXT_ACCESSIBILITY_MODE_ENABLED),
-						weight: KeybindingWeight.WorkbenchContrib
-					},
-					{
-						primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KeyR,
-						mac: { primary: KeyMod.WinCtrl | KeyMod.Alt | KeyCode.KeyR },
-						when: ContextKeyExpr.and(TerminalContextKeys.focus, CONTEXT_ACCESSIBILITY_MODE_ENABLED.negate()),
-						weight: KeybindingWeight.WorkbenchContrib
-					}
-				]
-			});
-		}
-		async run(accessor: ServicesAccessor): Promise<void> {
-			const terminalGroupService = accessor.get(ITerminalGroupService);
-			const terminalEditorService = accessor.get(ITerminalEditorService);
-			const instance = accessor.get(ITerminalService).activeInstance;
+
+	registerTerminalAction({
+		id: TerminalCommandId.RunRecentCommand,
+		title: { value: localize('workbench.action.terminal.runRecentCommand', "Run Recent Command..."), original: 'Run Recent Command...' },
+		precondition: ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated),
+		keybinding: [
+			{
+				primary: KeyMod.CtrlCmd | KeyCode.KeyR,
+				mac: { primary: KeyMod.WinCtrl | KeyCode.KeyR },
+				when: ContextKeyExpr.and(TerminalContextKeys.focus, CONTEXT_ACCESSIBILITY_MODE_ENABLED),
+				weight: KeybindingWeight.WorkbenchContrib
+			},
+			{
+				primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KeyR,
+				mac: { primary: KeyMod.WinCtrl | KeyMod.Alt | KeyCode.KeyR },
+				when: ContextKeyExpr.and(TerminalContextKeys.focus, CONTEXT_ACCESSIBILITY_MODE_ENABLED.negate()),
+				weight: KeybindingWeight.WorkbenchContrib
+			}
+		],
+		run: async (c) => {
+			const instance = c.service.activeInstance;
 			if (instance) {
 				await instance.runRecent('command');
 				if (instance?.target === TerminalLocation.Editor) {
-					await terminalEditorService.revealActiveEditor();
+					await c.editorService.revealActiveEditor();
 				} else {
-					await terminalGroupService.showPanel(false);
+					await c.groupService.showPanel(false);
 				}
 			}
 		}
