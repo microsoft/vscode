@@ -125,7 +125,7 @@ class InteractiveEditorWidget {
 				useShadows: false,
 				vertical: 'hidden',
 				horizontal: 'auto',
-				// alwaysConsumeMouseWheel: false
+				alwaysConsumeMouseWheel: false
 			},
 			lineDecorationsWidth: 0,
 			overviewRulerBorder: false,
