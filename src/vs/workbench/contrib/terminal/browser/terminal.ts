@@ -1045,11 +1045,6 @@ export interface IXtermTerminal {
 	 * Refreshes the terminal after it has been moved.
 	 */
 	refresh(): void;
-
-	/**
-	 * Gets the buffer content as a string
-	 */
-	getContent(startIndex?: number): string;
 }
 
 export interface IInternalXtermTerminal {

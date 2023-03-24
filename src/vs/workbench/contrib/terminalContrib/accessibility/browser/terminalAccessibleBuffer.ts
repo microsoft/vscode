@@ -52,7 +52,7 @@ export class AccessibleBufferWidget extends DisposableStore {
 
 	constructor(
 		private readonly _instance: ITerminalInstance,
-		private readonly _xterm: Pick<IXtermTerminal, 'getFont' | 'getContent'> & { raw: Terminal },
+		private readonly _xterm: Pick<IXtermTerminal, 'getFont'> & { raw: Terminal },
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IModelService private readonly _modelService: IModelService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
@@ -148,10 +148,10 @@ export class AccessibleBufferWidget extends DisposableStore {
 		if (insertion && model && lineCount > this._xterm.raw.rows) {
 			const lineNumber = lineCount + 1;
 			model.pushEditOperations(null, [{
-				range: { startLineNumber: lineNumber, endLineNumber: lineNumber, startColumn: 1, endColumn: 1 }, text: this._xterm.getContent(1)
+				range: { startLineNumber: lineNumber, endLineNumber: lineNumber, startColumn: 1, endColumn: 1 }, text: this._getContent(1)
 			}], () => []);
 		} else {
-			model = await this._getTextModel(this._instance.resource.with({ fragment: this._xterm.getContent() }));
+			model = await this._getTextModel(this._instance.resource.with({ fragment: this._getContent() }));
 		}
 		if (!model) {
 			throw new Error('Could not create accessible buffer editor model');
@@ -239,6 +239,41 @@ export class AccessibleBufferWidget extends DisposableStore {
 		this._accessibleBuffer.classList.add(CssClass.Active);
 		this._xtermElement.classList.add(CssClass.Hide);
 		this._bufferEditor.focus();
+	}
+
+	private _getContent(startIndex?: number): string {
+		const buffer = this._xterm.raw.buffer.active;
+		if (!buffer) {
+			return '';
+		}
+
+		const scrollback: number = this._configurationService.getValue(TerminalSettingId.Scrollback);
+		const maxBufferSize = scrollback + this._xterm.raw.rows - 1;
+		const end = Math.min(maxBufferSize, buffer.length - 1);
+		if (startIndex) {
+			// If the last buffer index is requested, this is as a result of
+			// a dynamic addition. Return only the last line to prevent duplication.
+			const line = buffer.getLine(end - 1)?.translateToString(false).replace(new RegExp(' ', 'g'), '\xA0');
+			const result = line ? line + '\n' : '';
+			return result;
+		}
+
+		const lines: string[] = [];
+		let currentLine: string = '';
+		for (let i = 0; i <= end; i++) {
+			const line = buffer.getLine(i);
+			if (!line) {
+				continue;
+			}
+			const isWrapped = buffer.getLine(i + 1)?.isWrapped;
+			currentLine += line.translateToString(!isWrapped);
+			if (currentLine && !isWrapped || i === end - 1) {
+				lines.push(currentLine.replace(new RegExp(' ', 'g'), '\xA0'));
+				currentLine = '';
+			}
+		}
+
+		return lines.join('\n');
 	}
 
 	private async _getTextModel(resource: URI): Promise<ITextModel | null> {
