@@ -41,7 +41,7 @@
       {
         "title": "Azure Cloud",
         "properties": {
-          "azureCloud.endpoint": {
+          "azure-cloud.endpoint": {
             "anyOf": [
               {
                 "type": "string"
@@ -49,19 +49,16 @@
               {
                 "type": "string",
                 "enum": [
-                  "https://login.microsoftonline.com",
                   "https://login.chinacloudapi.cn",
                   "https://login.microsoftonline.us"
                 ],
                 "enumDescriptions": [
-                  "Azure Public",
                   "Azure China",
                   "Azure US Government"
                 ]
               }
             ],
-            "default": "https://login.microsoftonline.com",
-            "description": "%azureCloud.endpoint.description%"
+            "description": "%azure-cloud.endpoint.description%"
           }
         }
       }

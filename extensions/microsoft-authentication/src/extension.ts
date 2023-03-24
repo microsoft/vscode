@@ -9,7 +9,7 @@ import { UriEventHandler } from './UriEventHandler';
 import TelemetryReporter from '@vscode/extension-telemetry';
 
 async function initAzureCloudAuthProvider(context: vscode.ExtensionContext, telemetryReporter: TelemetryReporter, uriHandler: UriEventHandler): Promise<vscode.Disposable | undefined> {
-	const settingValue = vscode.workspace.getConfiguration().get<string>('azureCloud.endpoint');
+	const settingValue = vscode.workspace.getConfiguration('azure-cloud').get<string | undefined>('endpoint');
 	if (!settingValue) {
 		return undefined;
 	}

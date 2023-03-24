@@ -3,5 +3,5 @@
 	"description": "Microsoft authentication provider",
 	"signIn": "Sign In",
 	"signOut": "Sign Out",
-	"azureCloud.endpoint.description": "Login endpoint for Azure authentication"
+	"azure-cloud.endpoint.description": "Login endpoint for Azure authentication"
 }
