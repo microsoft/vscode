@@ -152,7 +152,6 @@ registerAction2(class extends Action2 {
 			return;
 		}
 		const quickPick = await AccessibleBufferContribution.get(instance)?.createCommandQuickPick();
-		quickPick?.onDidHide(() => quickPick.dispose());
 		quickPick?.show();
 	}
 });
