@@ -60,7 +60,7 @@ interface HelpInformation {
 	extensionDescription: IExtensionDescription;
 	getStarted?: string;
 	documentation?: string;
-	feedback?: string;
+	reportIssue?: string;
 	issues?: string;
 	remoteName?: string[] | string;
 	virtualWorkspace?: string;
@@ -82,6 +82,11 @@ const remoteHelpExtPoint = ExtensionsRegistry.registerExtensionPoint<HelpInforma
 			},
 			'feedback': {
 				description: nls.localize('RemoteHelpInformationExtPoint.feedback', "The url, or a command that returns the url, to your project's feedback reporter"),
+				type: 'string',
+				markdownDeprecationMessage: nls.localize('RemoteHelpInformationExtPoint.feedback.deprecated', "Use {0} instead", '`reportIssue`')
+			},
+			'reportIssue': {
+				description: nls.localize('RemoteHelpInformationExtPoint.reportIssue', "The url, or a command that returns the url, to your project's issue reporter"),
 				type: 'string'
 			},
 			'issues': {
@@ -207,26 +212,6 @@ class HelpModel {
 			));
 		}
 
-		const feedback = viewModel.helpInformation.filter(info => info.feedback);
-
-		if (feedback.length) {
-			helpItems.push(new HelpItem(
-				icons.feedbackIcon,
-				nls.localize('remote.help.feedback', "Provide Feedback"),
-				feedback.map((info: HelpInformation) => (new HelpItemValue(commandService,
-					info.extensionDescription,
-					(typeof info.remoteName === 'string') ? [info.remoteName] : info.remoteName,
-					info.virtualWorkspace,
-					info.feedback!)
-				)),
-				quickInputService,
-				environmentService,
-				openerService,
-				remoteExplorerService,
-				workspaceContextService
-			));
-		}
-
 		const issues = viewModel.helpInformation.filter(info => info.issues);
 
 		if (issues.length) {
@@ -254,7 +239,8 @@ class HelpModel {
 				viewModel.helpInformation.map(info => (new HelpItemValue(commandService,
 					info.extensionDescription,
 					(typeof info.remoteName === 'string') ? [info.remoteName] : info.remoteName,
-					info.virtualWorkspace
+					info.virtualWorkspace,
+					info.reportIssue
 				))),
 				quickInputService,
 				environmentService,
@@ -560,7 +546,7 @@ class RemoteViewPaneContainer extends FilterViewPaneContainer implements IViewMo
 			return;
 		}
 
-		if (!extension.value.documentation && !extension.value.feedback && !extension.value.getStarted && !extension.value.issues) {
+		if (!extension.value.documentation && !extension.value.getStarted && !extension.value.issues) {
 			return;
 		}
 
@@ -568,7 +554,7 @@ class RemoteViewPaneContainer extends FilterViewPaneContainer implements IViewMo
 			extensionDescription: extension.description,
 			getStarted: extension.value.getStarted,
 			documentation: extension.value.documentation,
-			feedback: extension.value.feedback,
+			reportIssue: extension.value.reportIssue,
 			issues: extension.value.issues,
 			remoteName: extension.value.remoteName,
 			virtualWorkspace: extension.value.virtualWorkspace
