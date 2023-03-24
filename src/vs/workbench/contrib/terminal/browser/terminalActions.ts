@@ -511,7 +511,7 @@ export function registerTerminalActions() {
 				text = editor.getModel().getValueInRange(selection, endOfLinePreference);
 			}
 			instance.sendText(text, true, true);
-			await revealActiveTerminal(instance, c.editorService, c.groupService);
+			await revealActiveTerminal(instance, c);
 		}
 	});
 
@@ -535,7 +535,7 @@ export function registerTerminalActions() {
 			if (instance?.xterm?.isStdinDisabled || instance?.shellLaunchConfig.type === 'Task') {
 				instance = await c.service.createTerminal();
 				c.service.setActiveInstance(instance);
-				await revealActiveTerminal(instance, c.editorService, c.groupService);
+				await revealActiveTerminal(instance, c);
 			}
 
 			const isRemote = instance ? instance.isRemote : (workbenchEnvironmentService.remoteAuthority ? true : false);
@@ -655,7 +655,7 @@ export function registerTerminalActions() {
 		id: TerminalCommandId.ChangeIcon,
 		title: terminalStrings.changeIcon,
 		precondition: ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated),
-		run: (c, _, args: unknown) => getActiveInstance(c, args)?.changeIcon()
+		run: (c, _, args: unknown) => getResourceOrActiveInstance(c, args)?.changeIcon()
 	});
 
 	registerTerminalAction({
@@ -678,7 +678,7 @@ export function registerTerminalActions() {
 		id: TerminalCommandId.ChangeColor,
 		title: terminalStrings.changeColor,
 		precondition: ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated),
-		run: (c, _, args) => getActiveInstance(c, args)?.changeColor()
+		run: (c, _, args) => getResourceOrActiveInstance(c, args)?.changeColor()
 	});
 
 	registerTerminalAction({
@@ -796,7 +796,7 @@ export function registerTerminalActions() {
 					config: { attachPersistentProcess: selected.term }
 				});
 				c.service.setActiveInstance(instance);
-				await focusActiveTerminal(instance, c.editorService, c.groupService);
+				await focusActiveTerminal(instance, c);
 			}
 		}
 	});
@@ -941,7 +941,7 @@ export function registerTerminalActions() {
 				return;
 			}
 			c.service.setActiveInstance(instance);
-			await focusActiveTerminal(instance, c.editorService, c.groupService);
+			await focusActiveTerminal(instance, c);
 		}
 	});
 
@@ -1011,7 +1011,7 @@ export function registerTerminalActions() {
 				return;
 			}
 			const instance = await c.service.createTerminal({ location: { parentTerminal: activeInstance }, config: options?.config, cwd });
-			await focusActiveTerminal(instance, c.editorService, c.groupService);
+			await focusActiveTerminal(instance, c);
 		}
 	});
 
@@ -1194,7 +1194,7 @@ export function registerTerminalActions() {
 					instance = await c.service.createTerminal(eventOrOptions);
 				}
 				c.service.setActiveInstance(instance);
-				await focusActiveTerminal(instance, c.editorService, c.groupService);
+				await focusActiveTerminal(instance, c);
 			} else {
 				if (c.profileService.contributedProfiles.length > 0) {
 					commandService.executeCommand(TerminalCommandId.NewWithProfile);
@@ -1579,7 +1579,6 @@ interface IRemoteTerminalPick extends IQuickPickItem {
 	term: IRemoteTerminalAttachTarget;
 }
 
-// TODO: Change to work with terminal service collection
 function getSelectedInstances(accessor: ServicesAccessor): ITerminalInstance[] | undefined {
 	const listService = accessor.get(IListService);
 	const terminalService = accessor.get(ITerminalService);
@@ -1657,10 +1656,7 @@ export function refreshTerminalActions(detectedProfiles: ITerminalProfile[]) {
 			});
 		}
 		async run(accessor: ServicesAccessor, eventOrOptionsOrProfile: MouseEvent | ICreateTerminalOptions | ITerminalProfile | { profileName: string } | undefined, profile?: ITerminalProfile) {
-			const terminalService = accessor.get(ITerminalService);
-			const terminalProfileService = accessor.get(ITerminalProfileService);
-			const terminalEditorService = accessor.get(ITerminalEditorService);
-			const terminalGroupService = accessor.get(ITerminalGroupService);
+			const c = getTerminalServices(accessor);
 			const workspaceContextService = accessor.get(IWorkspaceContextService);
 			const commandService = accessor.get(ICommandService);
 
@@ -1670,7 +1666,7 @@ export function refreshTerminalActions(detectedProfiles: ITerminalProfile[]) {
 			let cwd: string | URI | undefined;
 
 			if (isObject(eventOrOptionsOrProfile) && eventOrOptionsOrProfile && 'profileName' in eventOrOptionsOrProfile) {
-				const config = terminalProfileService.availableProfiles.find(profile => profile.profileName === eventOrOptionsOrProfile.profileName);
+				const config = c.profileService.availableProfiles.find(profile => profile.profileName === eventOrOptionsOrProfile.profileName);
 				if (!config) {
 					throw new Error(`Could not find terminal profile "${eventOrOptionsOrProfile.profileName}"`);
 				}
@@ -1684,9 +1680,9 @@ export function refreshTerminalActions(detectedProfiles: ITerminalProfile[]) {
 
 			// split terminal
 			if (event && (event.altKey || event.ctrlKey)) {
-				const parentTerminal = terminalService.activeInstance;
+				const parentTerminal = c.service.activeInstance;
 				if (parentTerminal) {
-					await terminalService.createTerminal({ location: { parentTerminal }, config: options?.config });
+					await c.service.createTerminal({ location: { parentTerminal }, config: options?.config });
 					return;
 				}
 			}
@@ -1707,21 +1703,20 @@ export function refreshTerminalActions(detectedProfiles: ITerminalProfile[]) {
 
 			if (options) {
 				options.cwd = cwd;
-				instance = await terminalService.createTerminal(options);
+				instance = await c.service.createTerminal(options);
 			} else {
-				instance = await terminalService.showProfileQuickPick('createInstance', cwd);
+				instance = await c.service.showProfileQuickPick('createInstance', cwd);
 			}
 
 			if (instance) {
-				terminalService.setActiveInstance(instance);
-				await focusActiveTerminal(instance, terminalEditorService, terminalGroupService);
+				c.service.setActiveInstance(instance);
+				await focusActiveTerminal(instance, c);
 			}
 		}
 	});
 }
 
-// TODO: Improve name to include resource usage
-function getActiveInstance(c: ITerminalServicesCollection, resource: unknown): ITerminalInstance | undefined {
+function getResourceOrActiveInstance(c: ITerminalServicesCollection, resource: unknown): ITerminalInstance | undefined {
 	return c.service.getInstanceFromResource(toOptionalUri(resource)) || c.service.activeInstance;
 }
 
@@ -1795,27 +1790,25 @@ export function shrinkWorkspaceFolderCwdPairs(pairs: WorkspaceFolderCwdPair[]): 
 	return selectedPairsInOrder;
 }
 
-// TODO: Work with terminal service collection
-async function focusActiveTerminal(instance: ITerminalInstance, terminalEditorService: ITerminalEditorService, terminalGroupService: ITerminalGroupService): Promise<void> {
+async function focusActiveTerminal(instance: ITerminalInstance, c: ITerminalServicesCollection): Promise<void> {
 	if (instance.target === TerminalLocation.Editor) {
-		await terminalEditorService.revealActiveEditor();
+		await c.editorService.revealActiveEditor();
 		await instance.focusWhenReady(true);
 	} else {
-		await terminalGroupService.showPanel(true);
+		await c.groupService.showPanel(true);
 	}
 }
 
-// TODO: Work with terminal service collection
-async function revealActiveTerminal(instance: ITerminalInstance, terminalEditorService: ITerminalEditorService, terminalGroupService: ITerminalGroupService): Promise<void> {
+async function revealActiveTerminal(instance: ITerminalInstance, c: ITerminalServicesCollection): Promise<void> {
 	if (instance.target === TerminalLocation.Editor) {
-		await terminalEditorService.revealActiveEditor();
+		await c.editorService.revealActiveEditor();
 	} else {
-		await terminalGroupService.showPanel();
+		await c.groupService.showPanel();
 	}
 }
 
 async function renameWithQuickPick(c: ITerminalServicesCollection, accessor: ServicesAccessor, resource?: unknown) {
-	const instance = getActiveInstance(c, resource);
+	const instance = getResourceOrActiveInstance(c, resource);
 	if (instance) {
 		const title = await accessor.get(IQuickInputService).input({
 			value: instance.title,
