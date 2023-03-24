@@ -39,7 +39,6 @@ import { parse } from 'vs/base/common/json';
 import * as objects from 'vs/base/common/objects';
 import { IKeyboardLayoutService } from 'vs/platform/keyboardLayout/common/keyboardLayout';
 import { INavigatorWithKeyboard, IKeyboard } from 'vs/workbench/services/keybinding/browser/navigatorKeyboard';
-import { flatten } from 'vs/base/common/arrays';
 import { BrowserFeatures, KeyboardSupport } from 'vs/base/browser/canIUse';
 import { ILogService } from 'vs/platform/log/common/log';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
@@ -283,7 +282,7 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 	}
 
 	private updateSchema() {
-		updateSchema(flatten(this._contributions.map(x => x.getSchemaAdditions())));
+		updateSchema(this._contributions.flatMap(x => x.getSchemaAdditions()));
 	}
 
 	private _printKeybinding(keybinding: Keybinding): string {
