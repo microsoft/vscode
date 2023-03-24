@@ -132,7 +132,7 @@ export async function activate(context: vscode.ExtensionContext) {
 	let azureCloudAuthProviderDisposable = await initAzureCloudAuthProvider(context, telemetryReporter, uriHandler);
 
 	context.subscriptions.push(vscode.workspace.onDidChangeConfiguration(async e => {
-		if (e.affectsConfiguration('azureCloud.endpoint')) {
+		if (e.affectsConfiguration('azure-cloud.endpoint')) {
 			azureCloudAuthProviderDisposable?.dispose();
 			azureCloudAuthProviderDisposable = await initAzureCloudAuthProvider(context, telemetryReporter, uriHandler);
 		}
