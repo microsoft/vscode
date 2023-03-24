@@ -175,9 +175,7 @@ export class AccessibleBufferWidget extends DisposableStore {
 	}
 
 	async createQuickPick(): Promise<IQuickPick<IAccessibleBufferQuickPickItem> | undefined> {
-		if (!this._focusedContextKey.get()) {
-			await this.show();
-		}
+		const currentPosition = this._bufferEditor.getPosition();
 		this._inQuickPick = true;
 		const commands = this._instance.capabilities.get(TerminalCapability.CommandDetection)?.commands;
 		if (!commands?.length) {
@@ -201,6 +199,13 @@ export class AccessibleBufferWidget extends DisposableStore {
 				});
 		}
 		const quickPick = this._quickInputService.createQuickPick<IAccessibleBufferQuickPickItem>();
+		quickPick.canSelectMany = false;
+		quickPick.onDidHide(() => {
+			if (quickPick.activeItems.length === 0 && currentPosition) {
+				// reset position
+				this._bufferEditor.setPosition(currentPosition);
+			}
+		});
 		quickPick.onDidAccept(() => {
 			const item = quickPick.activeItems[0];
 			const model = this._bufferEditor.getModel();
@@ -209,14 +214,15 @@ export class AccessibleBufferWidget extends DisposableStore {
 			}
 			quickPick.hide();
 			this._bufferEditor.setSelection({ startLineNumber: item.lineNumber, startColumn: 1, endLineNumber: item.lineNumber, endColumn: 1 });
-			this._bufferEditor.revealLine(item.lineNumber);
 			this._inQuickPick = false;
 			return;
 		});
 		quickPick.onDidChangeActive(() => {
-			if (quickPick.activeItems[0].exitCode) {
+			const activeItem = quickPick.activeItems[0];
+			if (activeItem.exitCode) {
 				this._audioCueService.playAudioCue(AudioCue.error, true);
 			}
+			this._bufferEditor.revealLine(activeItem.lineNumber);
 		});
 		quickPick.items = quickPickItems.reverse();
 		return quickPick;
