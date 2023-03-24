@@ -510,6 +510,7 @@ export class InteractiveSessionWidget extends Disposable implements IInteractive
 
 	private async initializeSessionModel(initial = false) {
 		if (this.currentViewModelPromise) {
+			await this.currentViewModelPromise;
 			return;
 		}
 
