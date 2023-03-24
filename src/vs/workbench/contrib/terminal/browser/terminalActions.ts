@@ -99,8 +99,9 @@ export async function getCwdForSplit(configHelper: ITerminalConfigHelper, instan
 	}
 }
 
-export const terminalSendSequenceCommand = (accessor: ServicesAccessor, args: unknown) => {
-	accessor.get(ITerminalService).doWithActiveInstance(async t => {
+export const terminalSendSequenceCommand = async (accessor: ServicesAccessor, args: unknown) => {
+	const instance = accessor.get(ITerminalService).activeInstance;
+	if (instance) {
 		const text = isObject(args) && 'text' in args ? toOptionalString(args.text) : undefined;
 		if (!text) {
 			return;
@@ -108,11 +109,11 @@ export const terminalSendSequenceCommand = (accessor: ServicesAccessor, args: un
 		const configurationResolverService = accessor.get(IConfigurationResolverService);
 		const workspaceContextService = accessor.get(IWorkspaceContextService);
 		const historyService = accessor.get(IHistoryService);
-		const activeWorkspaceRootUri = historyService.getLastActiveWorkspaceRoot(t.isRemote ? Schemas.vscodeRemote : Schemas.file);
+		const activeWorkspaceRootUri = historyService.getLastActiveWorkspaceRoot(instance.isRemote ? Schemas.vscodeRemote : Schemas.file);
 		const lastActiveWorkspaceRoot = activeWorkspaceRootUri ? withNullAsUndefined(workspaceContextService.getWorkspaceFolder(activeWorkspaceRootUri)) : undefined;
 		const resolvedText = await configurationResolverService.resolveAsync(lastActiveWorkspaceRoot, text);
-		t.sendText(resolvedText, false);
-	});
+		instance.sendText(resolvedText, false);
+	}
 };
 
 export class TerminalLaunchHelpAction extends Action {
@@ -233,11 +234,11 @@ export function registerTerminalActions() {
 		}
 	});
 
-	registerTerminalAction({
+	registerActiveInstanceAction({
 		id: TerminalCommandId.MoveToEditor,
 		title: terminalStrings.moveToEditor,
 		precondition: ContextKeyExpr.and(ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated), TerminalContextKeys.terminalEditorActive.toNegated(), TerminalContextKeys.viewShowing),
-		run: (c) => c.service.doWithActiveInstance(instance => c.service.moveToEditor(instance))
+		run: (activeInstance, c) => c.service.moveToEditor(activeInstance)
 	});
 
 	registerTerminalAction({
