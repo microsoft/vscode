@@ -188,6 +188,7 @@ export interface ITerminalService extends ITerminalInstanceHost {
 	moveToTerminalView(source?: ITerminalInstance | URI): Promise<void>;
 	getPrimaryBackend(): ITerminalBackend | undefined;
 
+	// TODO: Consider removing this
 	/**
 	 * Perform an action with the active terminal instance, if the terminal does
 	 * not exist the callback will not be called.
