@@ -116,20 +116,20 @@ export class SearchWidget extends Widget {
 		return appendKeyBindingLabel(nls.localize('search.action.replaceAll.enabled.label', "Replace All"), kb);
 	};
 
-	domNode!: HTMLElement;
+	domNode: HTMLElement | undefined;
 
-	searchInput!: FindInput;
-	searchInputFocusTracker!: dom.IFocusTracker;
+	searchInput: FindInput | undefined;
+	searchInputFocusTracker: dom.IFocusTracker | undefined;
 	private searchInputBoxFocused: IContextKey<boolean>;
 
-	private replaceContainer!: HTMLElement;
-	replaceInput!: ReplaceInput;
-	replaceInputFocusTracker!: dom.IFocusTracker;
+	private replaceContainer: HTMLElement | undefined;
+	replaceInput: ReplaceInput | undefined;
+	replaceInputFocusTracker: dom.IFocusTracker | undefined;
 	private replaceInputBoxFocused: IContextKey<boolean>;
-	private toggleReplaceButton!: Button;
-	private replaceAllAction!: ReplaceAllAction;
+	private toggleReplaceButton: Button | undefined;
+	private replaceAllAction: ReplaceAllAction | undefined;
 	private replaceActive: IContextKey<boolean>;
-	private replaceActionBar!: ActionBar;
+	private replaceActionBar: ActionBar | undefined;
 	private _replaceHistoryDelayer: Delayer<void>;
 	private ignoreGlobalFindBufferOnNextFocus = false;
 	private previousGlobalFindBufferValue: string | null = null;
@@ -237,32 +237,38 @@ export class SearchWidget extends Widget {
 		this.ignoreGlobalFindBufferOnNextFocus = suppressGlobalSearchBuffer;
 
 		if (focusReplace && this.isReplaceShown()) {
-			this.replaceInput.focus();
-			if (select) {
-				this.replaceInput.select();
+			if (this.replaceInput) {
+				this.replaceInput.focus();
+				if (select) {
+					this.replaceInput.select();
+				}
 			}
 		} else {
-			this.searchInput.focus();
-			if (select) {
-				this.searchInput.select();
+			if (this.searchInput) {
+				this.searchInput.focus();
+				if (select) {
+					this.searchInput.select();
+				}
 			}
 		}
 	}
 
 	setWidth(width: number) {
-		this.searchInput.inputBox.layout();
-		this.replaceInput.width = width - 28;
-		this.replaceInput.inputBox.layout();
+		this.searchInput?.inputBox.layout();
+		if (this.replaceInput) {
+			this.replaceInput.width = width - 28;
+			this.replaceInput.inputBox.layout();
+		}
 	}
 
 	clear() {
-		this.searchInput.clear();
-		this.replaceInput.setValue('');
+		this.searchInput?.clear();
+		this.replaceInput?.setValue('');
 		this.setReplaceAllActionState(false);
 	}
 
 	isReplaceShown(): boolean {
-		return !this.replaceContainer.classList.contains('disabled');
+		return this.replaceContainer ? !this.replaceContainer.classList.contains('disabled') : false;
 	}
 
 	isReplaceActive(): boolean {
@@ -270,7 +276,7 @@ export class SearchWidget extends Widget {
 	}
 
 	getReplaceValue(): string {
-		return this.replaceInput.getValue();
+		return this.replaceInput?.getValue() ?? '';
 	}
 
 	toggleReplace(show?: boolean): void {
@@ -280,32 +286,32 @@ export class SearchWidget extends Widget {
 	}
 
 	getSearchHistory(): string[] {
-		return this.searchInput.inputBox.getHistory();
+		return this.searchInput?.inputBox.getHistory() ?? [];
 	}
 
 	getReplaceHistory(): string[] {
-		return this.replaceInput.inputBox.getHistory();
+		return this.replaceInput?.inputBox.getHistory() ?? [];
 	}
 
 	clearHistory(): void {
-		this.searchInput.inputBox.clearHistory();
-		this.replaceInput.inputBox.clearHistory();
+		this.searchInput?.inputBox.clearHistory();
+		this.replaceInput?.inputBox.clearHistory();
 	}
 
 	showNextSearchTerm() {
-		this.searchInput.inputBox.showNextValue();
+		this.searchInput?.inputBox.showNextValue();
 	}
 
 	showPreviousSearchTerm() {
-		this.searchInput.inputBox.showPreviousValue();
+		this.searchInput?.inputBox.showPreviousValue();
 	}
 
 	showNextReplaceTerm() {
-		this.replaceInput.inputBox.showNextValue();
+		this.replaceInput?.inputBox.showNextValue();
 	}
 
 	showPreviousReplaceTerm() {
-		this.replaceInput.inputBox.showPreviousValue();
+		this.replaceInput?.inputBox.showPreviousValue();
 	}
 
 	searchInputHasFocus(): boolean {
@@ -313,15 +319,15 @@ export class SearchWidget extends Widget {
 	}
 
 	replaceInputHasFocus(): boolean {
-		return this.replaceInput.inputBox.hasFocus();
+		return !!this.replaceInput?.inputBox.hasFocus();
 	}
 
 	focusReplaceAllAction(): void {
-		this.replaceActionBar.focus(true);
+		this.replaceActionBar?.focus(true);
 	}
 
 	focusRegexAction(): void {
-		this.searchInput.focusOnRegex();
+		this.searchInput?.focusOnRegex();
 	}
 
 	private render(container: HTMLElement, options: ISearchWidgetOptions): void {
@@ -337,7 +343,7 @@ export class SearchWidget extends Widget {
 	}
 
 	private updateAccessibilitySupport(): void {
-		this.searchInput.setFocusInputOnOptionClick(!this.accessibilityService.isScreenReaderOptimized());
+		this.searchInput?.setFocusInputOnOptionClick(!this.accessibilityService.isScreenReaderOptimized());
 	}
 
 	private renderToggleReplaceButton(parent: HTMLElement): void {
@@ -396,7 +402,7 @@ export class SearchWidget extends Widget {
 		this._register(this.searchInput.inputBox.onDidHeightChange(() => this._onDidHeightChange.fire()));
 
 		this._register(this.onReplaceValueChanged(() => {
-			this._replaceHistoryDelayer.trigger(() => this.replaceInput.inputBox.addToHistory());
+			this._replaceHistoryDelayer.trigger(() => this.replaceInput?.inputBox.addToHistory());
 		}));
 
 		this.searchInputFocusTracker = this._register(dom.trackFocus(this.searchInput.inputBox.inputElement));
@@ -407,9 +413,9 @@ export class SearchWidget extends Widget {
 			if (!this.ignoreGlobalFindBufferOnNextFocus && useGlobalFindBuffer) {
 				const globalBufferText = await this.clipboardServce.readFindText();
 				if (globalBufferText && this.previousGlobalFindBufferValue !== globalBufferText) {
-					this.searchInput.inputBox.addToHistory();
-					this.searchInput.setValue(globalBufferText);
-					this.searchInput.select();
+					this.searchInput?.inputBox.addToHistory();
+					this.searchInput?.setValue(globalBufferText);
+					this.searchInput?.select();
 				}
 
 				this.previousGlobalFindBufferValue = globalBufferText;
@@ -480,7 +486,9 @@ export class SearchWidget extends Widget {
 
 		this._register(this.replaceInput.onDidOptionChange(viaKeyboard => {
 			if (!viaKeyboard) {
-				this._onPreserveCaseChange.fire(this.replaceInput.getPreserveCase());
+				if (this.replaceInput) {
+					this._onPreserveCaseChange.fire(this.replaceInput.getPreserveCase());
+				}
 			}
 		}));
 
@@ -507,25 +515,25 @@ export class SearchWidget extends Widget {
 	}
 
 	private onToggleReplaceButton(): void {
-		this.replaceContainer.classList.toggle('disabled');
+		this.replaceContainer?.classList.toggle('disabled');
 		if (this.isReplaceShown()) {
-			this.toggleReplaceButton.element.classList.remove(...ThemeIcon.asClassNameArray(searchHideReplaceIcon));
-			this.toggleReplaceButton.element.classList.add(...ThemeIcon.asClassNameArray(searchShowReplaceIcon));
+			this.toggleReplaceButton?.element.classList.remove(...ThemeIcon.asClassNameArray(searchHideReplaceIcon));
+			this.toggleReplaceButton?.element.classList.add(...ThemeIcon.asClassNameArray(searchShowReplaceIcon));
 		} else {
-			this.toggleReplaceButton.element.classList.remove(...ThemeIcon.asClassNameArray(searchShowReplaceIcon));
-			this.toggleReplaceButton.element.classList.add(...ThemeIcon.asClassNameArray(searchHideReplaceIcon));
+			this.toggleReplaceButton?.element.classList.remove(...ThemeIcon.asClassNameArray(searchShowReplaceIcon));
+			this.toggleReplaceButton?.element.classList.add(...ThemeIcon.asClassNameArray(searchHideReplaceIcon));
 		}
-		this.toggleReplaceButton.element.setAttribute('aria-expanded', this.isReplaceShown() ? 'true' : 'false');
+		this.toggleReplaceButton?.element.setAttribute('aria-expanded', this.isReplaceShown() ? 'true' : 'false');
 		this.updateReplaceActiveState();
 		this._onReplaceToggled.fire();
 	}
 
 	setValue(value: string) {
-		this.searchInput.setValue(value);
+		this.searchInput?.setValue(value);
 	}
 
 	setReplaceAllActionState(enabled: boolean): void {
-		if (this.replaceAllAction.enabled !== enabled) {
+		if (this.replaceAllAction && (this.replaceAllAction.enabled !== enabled)) {
 			this.replaceAllAction.enabled = enabled;
 			this.replaceAllAction.label = enabled ? SearchWidget.REPLACE_ALL_ENABLED_LABEL(this.keybindingService) : SearchWidget.REPLACE_ALL_DISABLED_LABEL;
 			this.updateReplaceActiveState();
@@ -534,11 +542,11 @@ export class SearchWidget extends Widget {
 
 	private updateReplaceActiveState(): void {
 		const currentState = this.isReplaceActive();
-		const newState = this.isReplaceShown() && this.replaceAllAction.enabled;
+		const newState = this.isReplaceShown() && !!this.replaceAllAction?.enabled;
 		if (currentState !== newState) {
 			this.replaceActive.set(newState);
 			this._onReplaceStateChange.fire(newState);
-			this.replaceInput.inputBox.layout();
+			this.replaceInput?.inputBox.layout();
 		}
 	}
 
@@ -546,7 +554,7 @@ export class SearchWidget extends Widget {
 		if (value.length === 0) {
 			return null;
 		}
-		if (!this.searchInput.getRegex()) {
+		if (!(this.searchInput?.getRegex())) {
 			return null;
 		}
 		try {
@@ -559,11 +567,11 @@ export class SearchWidget extends Widget {
 	}
 
 	private onSearchInputChanged(): void {
-		this.searchInput.clearMessage();
+		this.searchInput?.clearMessage();
 		this.setReplaceAllActionState(false);
 
 		if (this.searchConfiguration.searchOnType) {
-			if (this.searchInput.getRegex()) {
+			if (this.searchInput?.getRegex()) {
 				try {
 					const regex = new RegExp(this.searchInput.getValue(), 'ug');
 					const matchienessHeuristic = `
@@ -593,12 +601,12 @@ export class SearchWidget extends Widget {
 
 	private onSearchInputKeyDown(keyboardEvent: IKeyboardEvent) {
 		if (keyboardEvent.equals(ctrlKeyMod | KeyCode.Enter)) {
-			this.searchInput.inputBox.insertAtCursor('\n');
+			this.searchInput?.inputBox.insertAtCursor('\n');
 			keyboardEvent.preventDefault();
 		}
 
 		if (keyboardEvent.equals(KeyCode.Enter)) {
-			this.searchInput.onSearchSubmit();
+			this.searchInput?.onSearchSubmit();
 			this.submitSearch();
 			keyboardEvent.preventDefault();
 		}
@@ -610,26 +618,26 @@ export class SearchWidget extends Widget {
 
 		else if (keyboardEvent.equals(KeyCode.Tab)) {
 			if (this.isReplaceShown()) {
-				this.replaceInput.focus();
+				this.replaceInput?.focus();
 			} else {
-				this.searchInput.focusOnCaseSensitive();
+				this.searchInput?.focusOnCaseSensitive();
 			}
 			keyboardEvent.preventDefault();
 		}
 
 		else if (keyboardEvent.equals(KeyCode.UpArrow)) {
-			stopPropagationForMultiLineUpwards(keyboardEvent, this.searchInput.getValue(), this.searchInput.domNode.querySelector('textarea'));
+			stopPropagationForMultiLineUpwards(keyboardEvent, this.searchInput?.getValue() ?? '', this.searchInput?.domNode.querySelector('textarea') ?? null);
 		}
 
 		else if (keyboardEvent.equals(KeyCode.DownArrow)) {
-			stopPropagationForMultiLineDownwards(keyboardEvent, this.searchInput.getValue(), this.searchInput.domNode.querySelector('textarea'));
+			stopPropagationForMultiLineDownwards(keyboardEvent, this.searchInput?.getValue() ?? '', this.searchInput?.domNode.querySelector('textarea') ?? null);
 		}
 	}
 
 	private onCaseSensitiveKeyDown(keyboardEvent: IKeyboardEvent) {
 		if (keyboardEvent.equals(KeyMod.Shift | KeyCode.Tab)) {
 			if (this.isReplaceShown()) {
-				this.replaceInput.focus();
+				this.replaceInput?.focus();
 				keyboardEvent.preventDefault();
 			}
 		}
@@ -638,7 +646,7 @@ export class SearchWidget extends Widget {
 	private onRegexKeyDown(keyboardEvent: IKeyboardEvent) {
 		if (keyboardEvent.equals(KeyCode.Tab)) {
 			if (this.isReplaceShown()) {
-				this.replaceInput.focusOnPreserve();
+				this.replaceInput?.focusOnPreserve();
 				keyboardEvent.preventDefault();
 			}
 		}
@@ -661,7 +669,7 @@ export class SearchWidget extends Widget {
 
 	private onReplaceInputKeyDown(keyboardEvent: IKeyboardEvent) {
 		if (keyboardEvent.equals(ctrlKeyMod | KeyCode.Enter)) {
-			this.replaceInput.inputBox.insertAtCursor('\n');
+			this.replaceInput?.inputBox.insertAtCursor('\n');
 			keyboardEvent.preventDefault();
 		}
 
@@ -671,21 +679,21 @@ export class SearchWidget extends Widget {
 		}
 
 		else if (keyboardEvent.equals(KeyCode.Tab)) {
-			this.searchInput.focusOnCaseSensitive();
+			this.searchInput?.focusOnCaseSensitive();
 			keyboardEvent.preventDefault();
 		}
 
 		else if (keyboardEvent.equals(KeyMod.Shift | KeyCode.Tab)) {
-			this.searchInput.focus();
+			this.searchInput?.focus();
 			keyboardEvent.preventDefault();
 		}
 
 		else if (keyboardEvent.equals(KeyCode.UpArrow)) {
-			stopPropagationForMultiLineUpwards(keyboardEvent, this.replaceInput.getValue(), this.replaceInput.domNode.querySelector('textarea'));
+			stopPropagationForMultiLineUpwards(keyboardEvent, this.replaceInput?.getValue() ?? '', this.replaceInput?.domNode.querySelector('textarea') ?? null);
 		}
 
 		else if (keyboardEvent.equals(KeyCode.DownArrow)) {
-			stopPropagationForMultiLineDownwards(keyboardEvent, this.replaceInput.getValue(), this.replaceInput.domNode.querySelector('textarea'));
+			stopPropagationForMultiLineDownwards(keyboardEvent, this.replaceInput?.getValue() ?? '', this.replaceInput?.domNode.querySelector('textarea') ?? null);
 		}
 	}
 
@@ -697,8 +705,8 @@ export class SearchWidget extends Widget {
 	}
 
 	private async submitSearch(triggeredOnType = false, delay: number = 0): Promise<void> {
-		this.searchInput.validate();
-		if (!this.searchInput.inputBox.isInputValid()) {
+		this.searchInput?.validate();
+		if (!this.searchInput?.inputBox.isInputValid()) {
 			return;
 		}
 
