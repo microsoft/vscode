@@ -53,12 +53,12 @@ const linkSuffixRegexEol = new Lazy<RegExp>(() => {
 		// foo:339
 		// foo:339:12
 		// foo 339
-		// foo 339:12                    [#140780]
+		// foo 339:12                        [#140780]
 		// "foo",339
 		// "foo",339:12
 		`(?::| |['"],)${l()}(:${c()})?$`,
-		// The quotes below are optional [#171652]
-		// "foo", line 339                [#40468]
+		// The quotes below are optional     [#171652]
+		// "foo", line 339                   [#40468]
 		// "foo", line 339, col 12
 		// "foo", line 339, column 12
 		// "foo":line 339
@@ -71,7 +71,10 @@ const linkSuffixRegexEol = new Lazy<RegExp>(() => {
 		// "foo" on line 339, col 12
 		// "foo" on line 339, column 12
 		// "foo" line 339 column 12
-		`['"]?(?:,? |: ?| on )line ${l()}(,? col(?:umn)? ${c()})?$`,
+		// "foo", line 339, character 12     [#171880]
+		// "foo", line 339, characters 12-13 [#171880]
+		// "foo", lines 339-340              [#171880]
+		`['"]?(?:,? |: ?| on )lines? ${l()}(:?-\\d+)?(,? (col(?:umn)?|characters?) ${c()}(:?-\\d+)?)?$`,
 		// foo(339)
 		// foo(339,12)
 		// foo(339, 12)
@@ -101,36 +104,10 @@ const linkSuffixRegex = new Lazy<RegExp>(() => {
 		return `(?<col${ci++}>\\d+)`;
 	}
 
+	// These duplicate the regex's above, just without the trailing `$`
 	const lineAndColumnRegexClauses = [
-		// foo:339
-		// foo:339:12
-		// foo 339
-		// foo 339:12                    [#140780]
-		// "foo",339
-		// "foo",339:12
 		`(?::| |['"],)${l()}(:${c()})?`,
-		// The quotes below are optional [#171652]
-		// foo, line 339                [#40468]
-		// foo, line 339, col 12
-		// foo, line 339, column 12
-		// "foo":line 339
-		// "foo":line 339, col 12
-		// "foo":line 339, column 12
-		// "foo": line 339
-		// "foo": line 339, col 12
-		// "foo": line 339, column 12
-		// "foo" on line 339
-		// "foo" on line 339, col 12
-		// "foo" on line 339, column 12
-		// "foo" line 339 column 12
-		`['"]?(?:,? |: ?| on )line ${l()}(,? col(?:umn)? ${c()})?`,
-		// foo(339)
-		// foo(339,12)
-		// foo(339, 12)
-		// foo (339)
-		//   ...
-		// foo: (339)
-		//   ...
+		`['"]?(?:,? |: ?| on )lines? ${l()}(:?-\\d+)?(,? (col(?:umn)?|characters?) ${c()}(:?-\\d+)?)?`,
 		`:? ?[\\[\\(]${l()}(?:, ?${c()})?[\\]\\)]`,
 	];
 
