@@ -1799,7 +1799,7 @@ async function focusActiveTerminal(instance: ITerminalInstance, c: ITerminalServ
 	}
 }
 
-async function revealActiveTerminal(instance: ITerminalInstance, c: ITerminalServicesCollection): Promise<void> {
+export async function revealActiveTerminal(instance: ITerminalInstance, c: ITerminalServicesCollection): Promise<void> {
 	if (instance.target === TerminalLocation.Editor) {
 		await c.editorService.revealActiveEditor();
 	} else {
