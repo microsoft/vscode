@@ -27,9 +27,6 @@ import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { IResizeEvent, ResizableHTMLElement } from 'vs/base/browser/ui/resizable/resizable';
 import { Emitter, Event } from 'vs/base/common/event';
 
-// QUESTIONS TO ASK
-// 1. How to make the overlay have higher index, appear on top and have the layer below still detect the on mouse events
-
 const $ = dom.$;
 const SCROLLBAR_WIDTH = 10;
 const SASH_WIDTH = 4;
@@ -324,7 +321,6 @@ export class ContentHoverController extends Disposable {
 				const clientWidth = widgetDomNode.clientWidth;
 				const clientHeight = widgetDomNode.clientHeight;
 
-
 				// Find if rendered above or below in the container dom node
 				const topLineNumber = anchor.initialMousePosY;
 				let renderingAbove: boolean = true;
@@ -349,17 +345,16 @@ export class ContentHoverController extends Disposable {
 				if (renderingAbove) {
 					this._resizableOverlay.resizableElement().enableSashes(true, true, false, false);
 					resizableElement.northSash.el.style.width = clientWidth + SASH_WIDTH - 2 + 'px';
-					resizableElement.eastSash.el.style.height = clientHeight + SASH_WIDTH - 2 + 'px';
 					resizableElement.domNode.style.top = offsetTop - 2 + 'px';
 					resizableElement.eastSash.el.style.top = 2 + 'px';
 				} else {
 					this._resizableOverlay.resizableElement().enableSashes(false, true, true, false);
 					resizableElement.southSash.el.style.width = clientWidth + SASH_WIDTH - 2 + 'px';
-					resizableElement.eastSash.el.style.height = clientHeight + SASH_WIDTH - 2 + 'px';
 					resizableElement.domNode.style.top = offsetTop + 'px';
 					resizableElement.eastSash.el.style.top = 0 + 'px';
 				}
 
+				resizableElement.eastSash.el.style.height = clientHeight + SASH_WIDTH - 2 + 'px';
 				resizableElement.domNode.style.left = offsetLeft + 'px';
 
 				const maxRenderingWidth = this._widget.findMaxRenderingWidth();
@@ -617,7 +612,6 @@ export class ResizableHoverOverlay extends Disposable implements IOverlayWidget 
 			}
 			this._persistedHoverWidgetSizes.set(uri, updatedPersistedSizesForUri);
 		});
-
 		this._register(this._resizableElement.onDidWillResize(() => {
 			this._resizing = true;
 			this._initialHeight = this._resizableElement.domNode.clientHeight;
@@ -642,13 +636,12 @@ export class ResizableHoverOverlay extends Disposable implements IOverlayWidget 
 			if (this._renderingAbove === ContentWidgetPositionPreference.ABOVE) {
 				this._resizableElement.domNode.style.top = this._initialTop - (height - this._initialHeight) + 'px';
 				this._resizableElement.northSash.el.style.width = width - 2 + 'px';
-				this._resizableElement.eastSash.el.style.height = height - 2 + 'px';
 				this._resizableElement.eastSash.el.style.top = 2 + 'px';
 			} else {
 				this._resizableElement.southSash.el.style.width = width - 2 + 'px';
-				this._resizableElement.eastSash.el.style.height = height - 2 + 'px';
 				this._resizableElement.eastSash.el.style.top = 0 + 'px';
 			}
+			this._resizableElement.eastSash.el.style.height = height - 2 + 'px';
 
 			// Fire the current dimension
 			this._onDidResize.fire({ dimension: this._size, done: false });
@@ -758,12 +751,10 @@ export class ResizableHoverOverlay extends Disposable implements IOverlayWidget 
 	}
 
 	public show(): void {
-		// Adding the overlay widget
 		this._editor.addOverlayWidget(this);
 		this._resizableElement.domNode.style.zIndex = '49';
 		this._resizableElement.domNode.style.position = 'fixed';
 	}
-
 }
 
 export class ContentHoverWidget extends Disposable implements IContentWidget {
@@ -833,7 +824,7 @@ export class ContentHoverWidget extends Disposable implements IContentWidget {
 	}
 
 	public resize(size: dom.Dimension) {
-		// Removing the max height and max width here, the max resizing is controller by the resizable overlay
+		// Removing the max height and max width here - the max size is controlled by the resizable overlay
 		this._hover.contentsDomNode.style.maxHeight = 'none';
 		this._hover.contentsDomNode.style.maxWidth = 'none';
 
@@ -845,7 +836,7 @@ export class ContentHoverWidget extends Disposable implements IContentWidget {
 		const scrollDimensions = this._hover.scrollbar.getScrollDimensions();
 		const hasHorizontalScrollbar = (scrollDimensions.scrollWidth > scrollDimensions.width);
 		if (hasHorizontalScrollbar) {
-			// When there is a horizontal scroll-bar use a different height
+			// When there is a horizontal scroll-bar use a different height to make the scroll-bar visible
 			const extraBottomPadding = `${this._hover.scrollbar.options.horizontalScrollbarSize}px`;
 			if (this._hover.contentsDomNode.style.paddingBottom !== extraBottomPadding) {
 				this._hover.contentsDomNode.style.paddingBottom = extraBottomPadding;
@@ -881,7 +872,6 @@ export class ContentHoverWidget extends Disposable implements IContentWidget {
 		}
 
 		if (this._hover.contentsDomNode.clientWidth < this._hover.contentsDomNode.scrollWidth) {
-			// Adding 10 which is the width of the horizontal scrollbar
 			divMaxHeight += SCROLLBAR_WIDTH;
 		}
 
