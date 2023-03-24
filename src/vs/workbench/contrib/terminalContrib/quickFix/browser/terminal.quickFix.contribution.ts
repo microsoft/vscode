@@ -1,0 +1,76 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+import { ITerminalContribution, ITerminalInstance, IXtermTerminal } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { Terminal as RawXtermTerminal } from 'xterm';
+import { registerTerminalContribution } from 'vs/workbench/contrib/terminal/browser/terminalExtensions';
+import { DisposableStore } from 'vs/base/common/lifecycle';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { TerminalQuickFixAddon } from 'vs/workbench/contrib/terminal/browser/xterm/quickFixAddon';
+import { freePort, gitCreatePr, gitPushSetUpstream, gitSimilar, gitTwoDashes, pwshGeneralError, pwshUnixCommandNotFoundError } from 'vs/workbench/contrib/terminal/browser/terminalQuickFixBuiltinActions';
+import { TerminalWidgetManager } from 'vs/workbench/contrib/terminal/browser/widgets/widgetManager';
+import { ITerminalProcessManager, TerminalCommandId } from 'vs/workbench/contrib/terminal/common/terminal';
+import { registerActiveInstanceAction } from 'vs/workbench/contrib/terminal/browser/terminalActions';
+import { localize } from 'vs/nls';
+import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/terminalContextKey';
+import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
+import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
+
+class TerminalQuickFixContribution extends DisposableStore implements ITerminalContribution {
+	static readonly ID = 'terminal.quickFix';
+
+	static get(instance: ITerminalInstance): TerminalQuickFixContribution | null {
+		return instance.getContribution<TerminalQuickFixContribution>(TerminalQuickFixContribution.ID);
+	}
+
+	private _addon?: TerminalQuickFixAddon;
+	get addon(): TerminalQuickFixAddon | undefined { return this._addon; }
+
+	constructor(
+		private readonly _instance: ITerminalInstance,
+		processManager: ITerminalProcessManager,
+		widgetManager: TerminalWidgetManager,
+		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+	) {
+		super();
+	}
+
+	xtermReady(xterm: IXtermTerminal & { raw: RawXtermTerminal }): void {
+		// Create addon
+		// TODO: aliases aren't used?
+		this._addon = this._instantiationService.createInstance(TerminalQuickFixAddon, undefined, this._instance.capabilities);
+		xterm.raw.loadAddon(this._addon);
+
+		// Hook up listeners
+		this.add(this._addon.onDidRequestRerunCommand((e) => this._instance.runCommand(e.command, e.addNewLine || false)));
+
+		// Register quick fixes
+		// TODO: Move these into the terminalContrib
+		for (const actionOption of [
+			gitTwoDashes(),
+			freePort(this),
+			gitSimilar(),
+			gitPushSetUpstream(),
+			gitCreatePr(),
+			pwshUnixCommandNotFoundError(),
+			pwshGeneralError()
+		]) {
+			this._addon.registerCommandFinishedListener(actionOption);
+		}
+	}
+}
+
+registerTerminalContribution(TerminalQuickFixContribution.ID, TerminalQuickFixContribution);
+
+registerActiveInstanceAction({
+	id: TerminalCommandId.ShowQuickFixes,
+	title: { value: localize('workbench.action.terminal.showQuickFixes', "Show Terminal Quick Fixes"), original: 'Show Terminal Quick Fixes' },
+	precondition: TerminalContextKeys.focus,
+	keybinding: {
+		primary: KeyMod.CtrlCmd | KeyCode.Period,
+		weight: KeybindingWeight.WorkbenchContrib
+	},
+	run: (activeInstance) => TerminalQuickFixContribution.get(activeInstance)?.addon?.showMenu()
+});
