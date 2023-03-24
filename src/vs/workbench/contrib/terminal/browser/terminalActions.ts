@@ -237,9 +237,7 @@ export function registerTerminalActions() {
 		id: TerminalCommandId.MoveToEditor,
 		title: terminalStrings.moveToEditor,
 		precondition: ContextKeyExpr.and(ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated), TerminalContextKeys.terminalEditorActive.toNegated(), TerminalContextKeys.viewShowing),
-		run: (c) => {
-			c.service.doWithActiveInstance(instance => c.service.moveToEditor(instance));
-		}
+		run: (c) => c.service.doWithActiveInstance(instance => c.service.moveToEditor(instance))
 	});
 
 	registerTerminalAction({
@@ -271,9 +269,7 @@ export function registerTerminalActions() {
 		title: { value: localize('workbench.action.terminal.showTabs', "Show Tabs"), original: 'Show Tabs' },
 		f1: false,
 		precondition: ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated),
-		run: (c) => {
-			c.groupService.showTabs();
-		}
+		run: (c) => c.groupService.showTabs()
 	});
 
 	registerTerminalAction({
@@ -394,9 +390,7 @@ export function registerTerminalActions() {
 			weight: KeybindingWeight.WorkbenchContrib
 		},
 		precondition: ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated),
-		run: (c) => {
-			c.groupService.activeGroup?.resizePane(Direction.Left);
-		}
+		run: (c) => c.groupService.activeGroup?.resizePane(Direction.Left)
 	});
 
 	registerTerminalAction({
@@ -409,9 +403,7 @@ export function registerTerminalActions() {
 			weight: KeybindingWeight.WorkbenchContrib
 		},
 		precondition: ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated),
-		run: (c) => {
-			c.groupService.activeGroup?.resizePane(Direction.Right);
-		}
+		run: (c) => c.groupService.activeGroup?.resizePane(Direction.Right)
 	});
 
 	registerTerminalAction({
@@ -423,9 +415,7 @@ export function registerTerminalActions() {
 			weight: KeybindingWeight.WorkbenchContrib
 		},
 		precondition: ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated),
-		run: (c) => {
-			c.groupService.activeGroup?.resizePane(Direction.Up);
-		}
+		run: (c) => c.groupService.activeGroup?.resizePane(Direction.Up)
 	});
 
 	registerTerminalAction({
@@ -437,9 +427,7 @@ export function registerTerminalActions() {
 			weight: KeybindingWeight.WorkbenchContrib
 		},
 		precondition: ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated),
-		run: (c) => {
-			c.groupService.activeGroup?.resizePane(Direction.Down);
-		}
+		run: (c) => c.groupService.activeGroup?.resizePane(Direction.Down)
 	});
 
 	registerTerminalAction({
@@ -465,9 +453,7 @@ export function registerTerminalActions() {
 			when: ContextKeyExpr.or(TerminalContextKeys.tabsFocus, TerminalContextKeys.focus),
 		},
 		precondition: ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated),
-		run: (c) => {
-			c.groupService.focusTabs();
-		}
+		run: (c) => c.groupService.focusTabs()
 	});
 
 	registerTerminalAction({
@@ -669,9 +655,7 @@ export function registerTerminalActions() {
 		id: TerminalCommandId.ChangeIcon,
 		title: terminalStrings.changeIcon,
 		precondition: ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated),
-		run: async (c, accessor, args: unknown) => {
-			await getActiveInstance(accessor, args)?.changeIcon();
-		}
+		run: (c, accessor, args: unknown) => getActiveInstance(accessor, args)?.changeIcon()
 	});
 
 	registerTerminalAction({
@@ -679,9 +663,7 @@ export function registerTerminalActions() {
 		title: terminalStrings.changeIcon,
 		f1: false,
 		precondition: ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated),
-		run: async (c) => {
-			await c.groupService.activeInstance?.changeIcon();
-		}
+		run: (c) => c.groupService.activeInstance?.changeIcon()
 	});
 
 	registerTerminalAction({
@@ -689,18 +671,14 @@ export function registerTerminalActions() {
 		title: terminalStrings.changeIcon,
 		f1: false,
 		precondition: ContextKeyExpr.and(ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated), TerminalContextKeys.tabsSingularSelection),
-		run: async (c, accessor) => {
-			await getSelectedInstances(accessor)?.[0].changeIcon();
-		}
+		run: (c, accessor) => getSelectedInstances(accessor)?.[0].changeIcon()
 	});
 
 	registerTerminalAction({
 		id: TerminalCommandId.ChangeColor,
 		title: terminalStrings.changeColor,
 		precondition: ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated),
-		run: async (c, accessor, args) => {
-			await getActiveInstance(accessor, args)?.changeColor();
-		}
+		run: (c, accessor, args) => getActiveInstance(accessor, args)?.changeColor()
 	});
 
 	registerTerminalAction({
@@ -708,9 +686,7 @@ export function registerTerminalActions() {
 		title: terminalStrings.changeColor,
 		f1: false,
 		precondition: ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated),
-		run: async (c) => {
-			await c.groupService.activeInstance?.changeColor();
-		}
+		run: (c) => c.groupService.activeInstance?.changeColor()
 	});
 
 	registerTerminalAction({
@@ -718,18 +694,14 @@ export function registerTerminalActions() {
 		title: terminalStrings.changeColor,
 		f1: false,
 		precondition: ContextKeyExpr.and(ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated), TerminalContextKeys.tabsSingularSelection),
-		run: async (c, accessor) => {
-			await getSelectedInstances(accessor)?.[0].changeColor();
-		}
+		run: (c, accessor) => getSelectedInstances(accessor)?.[0].changeColor()
 	});
 
 	registerTerminalAction({
 		id: TerminalCommandId.Rename,
 		title: terminalStrings.rename,
 		precondition: ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated),
-		run: async (c, accessor, args) => {
-			await renameWithQuickPick(accessor, args);
-		}
+		run: (c, accessor, args) => renameWithQuickPick(accessor, args)
 	});
 
 	registerTerminalAction({
@@ -737,9 +709,7 @@ export function registerTerminalActions() {
 		title: terminalStrings.rename,
 		f1: false,
 		precondition: ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated),
-		run: async (c, accessor) => {
-			await renameWithQuickPick(accessor);
-		}
+		run: (c, accessor) => renameWithQuickPick(accessor)
 	});
 
 	// TODO: Use terminal service collection, move to bottom
@@ -847,9 +817,7 @@ export function registerTerminalActions() {
 		id: TerminalCommandId.QuickOpenTerm,
 		title: { value: localize('quickAccessTerminal', "Switch Active Terminal"), original: 'Switch Active Terminal' },
 		precondition: ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated),
-		run: (c, accessor) => {
-			accessor.get(IQuickInputService).quickAccess.show(TerminalQuickAccessProvider.PREFIX);
-		}
+		run: (c, accessor) => accessor.get(IQuickInputService).quickAccess.show(TerminalQuickAccessProvider.PREFIX)
 	});
 
 	registerActiveInstanceAction({
@@ -1311,9 +1279,7 @@ export function registerTerminalActions() {
 			weight: KeybindingWeight.WorkbenchContrib,
 			when: ContextKeyExpr.and(TerminalContextKeys.focus, ResourceContextKey.Scheme.isEqualTo(Schemas.vscodeTerminal), TerminalContextKeys.editorFocus)
 		},
-		run: async (c, accessor) => {
-			await accessor.get(ICommandService).executeCommand(CLOSE_EDITOR_COMMAND_ID);
-		}
+		run: (c, accessor) => accessor.get(ICommandService).executeCommand(CLOSE_EDITOR_COMMAND_ID)
 	});
 
 	registerTerminalAction({
@@ -1357,10 +1323,7 @@ export function registerTerminalActions() {
 			weight: KeybindingWeight.WorkbenchContrib,
 			when: ContextKeyExpr.or(TerminalContextKeys.tabsFocus, TerminalContextKeys.focus)
 		},
-		run: async (c) => {
-			// TODO: Remove braces for single line run functions
-			c.groupService.focusHover();
-		}
+		run: (c) => c.groupService.focusHover()
 	});
 
 	registerActiveInstanceAction({
@@ -1383,17 +1346,14 @@ export function registerTerminalActions() {
 	registerTerminalAction({
 		id: TerminalCommandId.SelectDefaultProfile,
 		title: { value: localize('workbench.action.terminal.selectDefaultShell', "Select Default Profile"), original: 'Select Default Profile' },
-		run: async (c) => {
-			await c.service.showProfileQuickPick('setDefault');
-		}
+		run: (c) => c.service.showProfileQuickPick('setDefault')
 	});
 
 	registerTerminalAction({
 		id: TerminalCommandId.CreateWithProfileButton,
 		title: TerminalCommandId.CreateWithProfileButton,
 		f1: false,
-		run: async (c) => {
-		}
+		run: (c) => { }
 	});
 
 	registerTerminalAction({
@@ -1429,9 +1389,7 @@ export function registerTerminalActions() {
 		title: terminalStrings.toggleSizeToContentWidth,
 		f1: false,
 		precondition: ContextKeyExpr.and(ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated), TerminalContextKeys.focus),
-		run: async (c, accessor) => {
-			await getSelectedInstances(accessor)?.[0].toggleSizeToContentWidth();
-		}
+		run: (c, accessor) => getSelectedInstances(accessor)?.[0].toggleSizeToContentWidth()
 	});
 
 	registerTerminalAction({
