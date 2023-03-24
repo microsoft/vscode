@@ -655,7 +655,7 @@ export function registerTerminalActions() {
 		id: TerminalCommandId.ChangeIcon,
 		title: terminalStrings.changeIcon,
 		precondition: ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated),
-		run: (c, accessor, args: unknown) => getActiveInstance(accessor, args)?.changeIcon()
+		run: (c, _, args: unknown) => getActiveInstance(c, args)?.changeIcon()
 	});
 
 	registerTerminalAction({
@@ -678,7 +678,7 @@ export function registerTerminalActions() {
 		id: TerminalCommandId.ChangeColor,
 		title: terminalStrings.changeColor,
 		precondition: ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated),
-		run: (c, accessor, args) => getActiveInstance(accessor, args)?.changeColor()
+		run: (c, _, args) => getActiveInstance(c, args)?.changeColor()
 	});
 
 	registerTerminalAction({
@@ -701,7 +701,7 @@ export function registerTerminalActions() {
 		id: TerminalCommandId.Rename,
 		title: terminalStrings.rename,
 		precondition: ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated),
-		run: (c, accessor, args) => renameWithQuickPick(accessor, args)
+		run: (c, accessor, args) => renameWithQuickPick(c, accessor, args)
 	});
 
 	registerTerminalAction({
@@ -709,20 +709,8 @@ export function registerTerminalActions() {
 		title: terminalStrings.rename,
 		f1: false,
 		precondition: ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated),
-		run: (c, accessor) => renameWithQuickPick(accessor)
+		run: (c, accessor) => renameWithQuickPick(c, accessor)
 	});
-
-	// TODO: Use terminal service collection, move to bottom
-	async function renameWithQuickPick(accessor: ServicesAccessor, resource?: unknown) {
-		const instance = getActiveInstance(accessor, resource);
-		if (instance) {
-			const title = await accessor.get(IQuickInputService).input({
-				value: instance.title,
-				prompt: localize('workbench.action.terminal.rename.prompt', "Enter terminal name"),
-			});
-			instance.rename(title);
-		}
-	}
 
 	registerTerminalAction({
 		id: TerminalCommandId.RenameInstance,
@@ -1752,12 +1740,9 @@ export function refreshTerminalActions(detectedProfiles: ITerminalProfile[]) {
 	});
 }
 
-// TODO: Work with terminal service collection
 // TODO: Improve name to include resource usage
-function getActiveInstance(accessor: ServicesAccessor, resource: unknown): ITerminalInstance | undefined {
-	const terminalService = accessor.get(ITerminalService);
-	const instance = terminalService.getInstanceFromResource(toOptionalUri(resource)) || terminalService.activeInstance;
-	return instance;
+function getActiveInstance(c: ITerminalServicesCollection, resource: unknown): ITerminalInstance | undefined {
+	return c.service.getInstanceFromResource(toOptionalUri(resource)) || c.service.activeInstance;
 }
 
 async function pickTerminalCwd(accessor: ServicesAccessor, cancel?: CancellationToken): Promise<WorkspaceFolderCwdPair | undefined> {
@@ -1846,6 +1831,17 @@ async function revealActiveTerminal(instance: ITerminalInstance, terminalEditorS
 		await terminalEditorService.revealActiveEditor();
 	} else {
 		await terminalGroupService.showPanel();
+	}
+}
+
+async function renameWithQuickPick(c: ITerminalServicesCollection, accessor: ServicesAccessor, resource?: unknown) {
+	const instance = getActiveInstance(c, resource);
+	if (instance) {
+		const title = await accessor.get(IQuickInputService).input({
+			value: instance.title,
+			prompt: localize('workbench.action.terminal.rename.prompt', "Enter terminal name"),
+		});
+		instance.rename(title);
 	}
 }
 
