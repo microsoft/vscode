@@ -26,21 +26,18 @@ export class TerminalQuickFixService implements ITerminalQuickFixService {
 	private readonly _onDidUnregisterProvider = new Emitter<string>();
 	readonly onDidUnregisterProvider = this._onDidUnregisterProvider.event;
 
-	// TODO: Private, rename
-	terminalQuickFixes: Promise<Array<ITerminalCommandSelector>>;
+	readonly extensionQuickFixes: Promise<Array<ITerminalCommandSelector>>;
 
 	constructor() {
-		// TODO: Simplify?
-		this.terminalQuickFixes = new Promise((r) => quickFixExtensionPoint.setHandler(fixes => {
-			const quickFixes = fixes.filter(c => isProposedApiEnabled(c.description, 'terminalQuickFixProvider')).map(c => {
+		this.extensionQuickFixes = new Promise((r) => quickFixExtensionPoint.setHandler(fixes => {
+			r(fixes.filter(c => isProposedApiEnabled(c.description, 'terminalQuickFixProvider')).map(c => {
 				if (!c.value) {
 					return [];
 				}
 				return c.value.map(fix => { return { ...fix, extensionIdentifier: c.description.identifier.value }; });
-			}).flat();
-			r(quickFixes);
+			}).flat());
 		}));
-		this.terminalQuickFixes.then(selectors => {
+		this.extensionQuickFixes.then(selectors => {
 			for (const selector of selectors) {
 				this.registerCommandSelector(selector);
 			}
@@ -57,7 +54,7 @@ export class TerminalQuickFixService implements ITerminalQuickFixService {
 		// IDisposable synchronously but we must await ITerminalContributionService.quickFixes
 		// asynchronously before actually registering the provider.
 		let disposed = false;
-		this.terminalQuickFixes.then(() => {
+		this.extensionQuickFixes.then(() => {
 			if (disposed) {
 				return;
 			}

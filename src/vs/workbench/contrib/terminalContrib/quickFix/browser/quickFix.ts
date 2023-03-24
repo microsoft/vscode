@@ -18,8 +18,7 @@ export interface ITerminalQuickFixService {
 	onDidRegisterCommandSelector: Event<ITerminalCommandSelector>;
 	onDidUnregisterProvider: Event<string>;
 	readonly _serviceBrand: undefined;
-	// TODO: name
-	readonly terminalQuickFixes: Promise<Array<ITerminalCommandSelector>>;
+	readonly extensionQuickFixes: Promise<Array<ITerminalCommandSelector>>;
 	providers: Map<string, ITerminalQuickFixProvider>;
 	registerQuickFixProvider(id: string, provider: ITerminalQuickFixProvider): IDisposable;
 	registerCommandSelector(selector: ITerminalCommandSelector): void;
