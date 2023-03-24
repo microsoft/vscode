@@ -40,6 +40,7 @@ class DiffListEditorResolverContribution extends Disposable {
 					return {
 						editor: instantiationService.createInstance(
 							DiffListEditorInput,
+							diffListEditor.label,
 							diffListEditor.resources.map(resource => {
 								return new DiffListEditorInputData(
 									resource.resource,
@@ -64,13 +65,13 @@ class DiffListEditorSerializer implements IEditorSerializer {
 	}
 
 	serialize(editor: DiffListEditorInput): string | undefined {
-		return JSON.stringify(editor.resources);
+		return JSON.stringify({ label: editor.label, resources: editor.resources });
 	}
 
 	deserialize(instantiationService: IInstantiationService, serializedEditor: string): EditorInput | undefined {
 		try {
-			const data = parse(serializedEditor) as DiffListEditorInputData[];
-			return instantiationService.createInstance(DiffListEditorInput, data);
+			const data = parse(serializedEditor) as { label: string | undefined; resources: DiffListEditorInputData[] };
+			return instantiationService.createInstance(DiffListEditorInput, data.label, data.resources);
 		} catch (err) {
 			onUnexpectedError(err);
 			return undefined;

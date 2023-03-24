@@ -129,7 +129,6 @@ export class DiffListDelegate implements IListVirtualDelegate<IDiffListResource>
 		const modifiedLineCount = element.modifiedTextModel?.getLineCount() ?? 0;
 		const lineCount = element.expanded ? Math.max(originalLineCount, modifiedLineCount) : 0;
 
-		console.log(element.resource.fsPath, ' - ', (lineCount * this.lineHeight) + 40 + 20);
 		return (lineCount * this.lineHeight) + 40 + 20;
 	}
 

@@ -44,14 +44,14 @@ export class DiffListEditorInput extends EditorInput {
 	}
 
 	override getName(): string {
-		return localize('name', "Diff List Editor");
+		return this.label ?? localize('name', "Diff List Editor");
 	}
 
 	override get editorId(): string {
 		return DEFAULT_EDITOR_ASSOCIATION.id;
 	}
 
-	constructor(readonly resources: DiffListEditorInputData[]) {
+	constructor(readonly label: string | undefined, readonly resources: DiffListEditorInputData[]) {
 		super();
 	}
 }
