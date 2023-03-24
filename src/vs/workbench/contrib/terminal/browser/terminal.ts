@@ -1047,7 +1047,7 @@ export interface IXtermTerminal {
 	refresh(): void;
 
 	/**
-	 * Gets the content as a string
+	 * Gets the buffer content as a string
 	 */
 	getContent(startIndex?: number): string;
 }
