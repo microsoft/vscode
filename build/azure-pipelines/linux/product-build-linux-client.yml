@@ -36,6 +36,9 @@ steps:
         path: $(Build.ArtifactStagingDirectory)
       displayName: Download compilation output
 
+    - script: tar -xzf $(Build.ArtifactStagingDirectory)/compilation.tar.gz
+      displayName: Extract compilation output
+
     - task: DownloadPipelineArtifact@2
       inputs:
         artifact: reh_node_modules-$(VSCODE_ARCH)
@@ -52,11 +55,6 @@ steps:
         echo "##vso[task.setvariable variable=DBUS_SESSION_BUS_ADDRESS]$DBUS_LAUNCH_RESULT"
       displayName: Setup system services
       condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'x64'))
-
-    - script: |
-        set -e
-        tar -xzf $(Build.ArtifactStagingDirectory)/compilation.tar.gz
-      displayName: Extract compilation output
 
   - script: node build/setup-npm-registry.js $NPM_REGISTRY
     condition: and(succeeded(), ne(variables['NPM_REGISTRY'], 'none'))

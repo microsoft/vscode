@@ -18,9 +18,7 @@ steps:
       path: $(Build.ArtifactStagingDirectory)
     displayName: Download compilation output
 
-  - script: |
-      set -e
-      tar -xzf $(Build.ArtifactStagingDirectory)/compilation.tar.gz
+  - script: tar -xzf $(Build.ArtifactStagingDirectory)/compilation.tar.gz
     displayName: Extract compilation output
 
   - script: node build/setup-npm-registry.js $NPM_REGISTRY
