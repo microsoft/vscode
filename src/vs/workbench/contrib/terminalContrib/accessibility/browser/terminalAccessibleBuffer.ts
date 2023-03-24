@@ -97,16 +97,8 @@ export class AccessibleBufferWidget extends DisposableStore {
 		this._xtermElement.insertAdjacentElement('beforebegin', this._accessibleBuffer);
 		this.add(Event.runAndSubscribe(this._xterm.raw.onResize, () => this._bufferEditor.layout({ width: this._xtermElement.clientWidth, height: this._xtermElement.clientHeight })));
 		this._bufferEditor.onKeyDown((e) => {
-			switch (e.keyCode) {
-				case KeyCode.Tab:
-					// On tab or shift+tab, hide the accessible buffer and perform the default tab
-					// behavior
-					this._hide();
-					break;
-				case KeyCode.Escape:
-					// On escape, hide the accessible buffer and force focus onto the terminal
-					this._hide();
-					break;
+			if (e.keyCode === KeyCode.Tab || e.keyCode === KeyCode.Escape) {
+				this._hide();
 			}
 		});
 		this.add(this._configurationService.onDidChangeConfiguration(e => {
