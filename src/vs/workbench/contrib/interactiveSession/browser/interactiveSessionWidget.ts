@@ -129,6 +129,7 @@ export class InteractiveSessionWidget extends Disposable implements IInteractive
 			this.viewModelDisposables.add(viewModel);
 		}
 
+		this.currentViewModelPromise = undefined;
 		this.slashCommandsPromise = undefined;
 		this.lastSlashCommands = undefined;
 		this.getSlashCommands().then(() => {
@@ -509,6 +510,7 @@ export class InteractiveSessionWidget extends Disposable implements IInteractive
 
 	private async initializeSessionModel(initial = false) {
 		if (this.currentViewModelPromise) {
+			await this.currentViewModelPromise;
 			return;
 		}
 
