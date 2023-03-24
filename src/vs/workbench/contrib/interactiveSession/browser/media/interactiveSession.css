@@ -3,10 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-.interactive-list .monaco-list-row:not(:first-of-type) .interactive-item-container {
-	border-top: 1px solid var(--vscode-interactive-responseBorder);
-}
-
 .interactive-list .monaco-list-row .monaco-tl-twistie {
 	/* Hide twisties */
 	display: none !important;
@@ -96,7 +92,7 @@
 .interactive-list .interactive-item-container .value table,
 .interactive-list .interactive-item-container .value table td,
 .interactive-list .interactive-item-container .value table th {
-	border: 1px solid var(--vscode-interactive-responseBorder);
+	border: 1px solid var(--vscode-interactive-requestBorder);
 	border-collapse: collapse;
 	padding: 4px 6px;
 }
@@ -114,9 +110,10 @@
 	overflow: hidden;
 }
 
-.interactive-list .monaco-list-row .interactive-response,
-.interactive-list .monaco-list-row .interactive-welcome {
-	background-color: var(--vscode-interactive-responseBackground);
+.interactive-list .monaco-list-row .interactive-request {
+	background-color: var(--vscode-interactive-requestBackground);
+	border-bottom: 1px solid var(--vscode-interactive-requestBorder);
+	border-top: 1px solid var(--vscode-interactive-requestBorder);
 }
 
 .interactive-list .monaco-list-row .value {
@@ -218,7 +215,7 @@
 	right: 10px;
 	height: 26px;
 	background-color: var(--vscode-interactive-result-editor-background-color);
-	border: 1px solid var(--vscode-interactive-responseBorder);
+	border: 1px solid var(--vscode-interactive-requestBorder);
 	z-index: 100;
 }
 
@@ -271,7 +268,14 @@
 
 .interactive-session .interactive-response .interactive-response-error-details .codicon {
 	margin-top: 1px;
+}
+
+.interactive-session .interactive-response .interactive-response-error-details .codicon-error {
 	color: var(--vscode-errorForeground) !important; /* Have to override default styles which apply to all lists */
+}
+
+.interactive-session .interactive-response .interactive-response-error-details .codicon-info {
+	color: var(--vscode-notificationsInfoIcon-foreground) !important; /* Have to override default styles which apply to all lists */
 }
 
 .interactive-session .interactive-item-container .value .interactive-slash-command {
@@ -282,7 +286,7 @@
 	padding: 12px 0px;
 	display: flex;
 	flex-direction: column;
-	border-top: solid 1px var(--vscode-interactive-responseBorder);
+	border-top: solid 1px var(--vscode-interactive-requestBorder);
 }
 
 .interactive-session .interactive-session-followups {

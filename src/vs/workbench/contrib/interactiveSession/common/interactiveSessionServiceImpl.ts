@@ -345,7 +345,12 @@ export class InteractiveSessionService extends Disposable implements IInteractiv
 		}
 
 		const viewId = this.interactiveSessionContributionService.getViewIdForProvider(providerId);
-		await this.viewsService.openView(viewId);
+		const view = await this.viewsService.openView(viewId);
+
+		if ((view as any).waitForViewModel) {
+			// TODO The ViewPane type is in /browser/, and the flow is a bit weird, rethink this
+			await (view as any).waitForViewModel();
+		}
 
 		// Currently we only support one session per provider
 		const modelForProvider = Iterable.find(this._sessionModels.values(), model => model.providerId === providerId);

@@ -108,7 +108,6 @@ export function registerInteractiveSessionCodeBlockActions() {
 				await bulkEditService.apply([new ResourceTextEdit(activeModel.uri, {
 					range: activeSelection,
 					text: context.code,
-					insertAsSnippet: true,
 				})]);
 
 				interactiveSessionService.notifyUserAction(<IInteractiveSessionUserActionEvent>{
