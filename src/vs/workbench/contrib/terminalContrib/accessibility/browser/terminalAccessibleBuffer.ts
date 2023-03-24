@@ -34,6 +34,11 @@ const enum CssClass {
 	Hide = 'hide'
 }
 
+interface IAccessibleBufferQuickPickItem extends IQuickPickItem {
+	lineNumber: number;
+	exitCode?: number;
+}
+
 export class AccessibleBufferWidget extends DisposableStore {
 	private _accessibleBuffer: HTMLElement;
 	private _bufferEditor: CodeEditorWidget;
@@ -169,7 +174,7 @@ export class AccessibleBufferWidget extends DisposableStore {
 		this._bufferEditor.setScrollTop(this._bufferEditor.getScrollHeight());
 	}
 
-	async createQuickPick(): Promise<IQuickPick<IQuickPickItem> | undefined> {
+	async createQuickPick(): Promise<IQuickPick<IAccessibleBufferQuickPickItem> | undefined> {
 		if (!this._focusedContextKey.get()) {
 			await this.show();
 		}
@@ -178,7 +183,7 @@ export class AccessibleBufferWidget extends DisposableStore {
 		if (!commands?.length) {
 			return;
 		}
-		const quickPickItems: IQuickPickItem[] = [];
+		const quickPickItems: IAccessibleBufferQuickPickItem[] = [];
 		for (const command of commands) {
 			let line = command.marker?.line;
 			if (!line || !command.command.length) {
@@ -191,26 +196,25 @@ export class AccessibleBufferWidget extends DisposableStore {
 			quickPickItems.push(
 				{
 					label: localize('terminal.integrated.symbolQuickPick.labelNoExitCode', '{0}', command.command),
-					meta: JSON.stringify({ line: line + 1, exitCode: command.exitCode })
+					lineNumber: line + 1,
+					exitCode: command.exitCode
 				});
 		}
-		const quickPick = this._quickInputService.createQuickPick<IQuickPickItem>();
+		const quickPick = this._quickInputService.createQuickPick<IAccessibleBufferQuickPickItem>();
 		quickPick.onDidAccept(() => {
 			const item = quickPick.activeItems[0];
 			const model = this._bufferEditor.getModel();
-			if (!model || !item.meta) {
+			if (!model) {
 				return;
 			}
 			quickPick.hide();
-			const data: { line: number; exitCode: number } = JSON.parse(item.meta);
-			this._bufferEditor.setSelection({ startLineNumber: data.line, startColumn: 1, endLineNumber: data.line, endColumn: 1 });
-			this._bufferEditor.revealLine(data.line);
+			this._bufferEditor.setSelection({ startLineNumber: item.lineNumber, startColumn: 1, endLineNumber: item.lineNumber, endColumn: 1 });
+			this._bufferEditor.revealLine(item.lineNumber);
 			this._inQuickPick = false;
 			return;
 		});
 		quickPick.onDidChangeActive(() => {
-			const data = quickPick.activeItems?.[0]?.meta;
-			if (data && JSON.parse(data).exitCode) {
+			if (quickPick.activeItems[0].exitCode) {
 				this._audioCueService.playAudioCue(AudioCue.error, true);
 			}
 		});
