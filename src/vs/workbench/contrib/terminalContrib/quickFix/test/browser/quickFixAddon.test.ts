@@ -20,7 +20,6 @@ import { gitSimilar, freePort, FreePortOutputRegex, gitCreatePr, GitCreatePrOutp
 import { TerminalQuickFixAddon, getQuickFixesForCommand } from 'vs/workbench/contrib/terminalContrib/quickFix/browser/quickFixAddon';
 import { URI } from 'vs/base/common/uri';
 import { Terminal } from 'xterm';
-import { ITerminalContributionService } from 'vs/workbench/contrib/terminal/common/terminalExtensionPoints';
 import { Emitter } from 'vs/base/common/event';
 import { LabelService } from 'vs/workbench/services/label/common/labelService';
 import { ILabelService } from 'vs/platform/label/common/label';
@@ -46,8 +45,12 @@ suite('QuickFixAddon', () => {
 			rows: 30
 		});
 		instantiationService.stub(IStorageService, new TestStorageService());
-		instantiationService.stub(ITerminalContributionService, { terminalQuickFixes: Promise.resolve([]) } as Partial<ITerminalContributionService>);
-		instantiationService.stub(ITerminalQuickFixService, { onDidRegisterProvider: new Emitter().event, onDidUnregisterProvider: new Emitter().event, onDidRegisterCommandSelector: new Emitter().event } as Partial<ITerminalQuickFixService>);
+		instantiationService.stub(ITerminalQuickFixService, {
+			onDidRegisterProvider: new Emitter().event,
+			onDidUnregisterProvider: new Emitter().event,
+			onDidRegisterCommandSelector: new Emitter().event,
+			extensionQuickFixes: Promise.resolve([])
+		} as Partial<ITerminalQuickFixService>);
 		instantiationService.stub(IConfigurationService, new TestConfigurationService());
 		instantiationService.stub(ILabelService, {} as Partial<ILabelService>);
 		const capabilities = new TerminalCapabilityStore();
