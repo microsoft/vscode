@@ -728,7 +728,7 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 
 		await promise;
 		if (!this.decorationsProvider) {
-			this.decorationsProvider = new ExplorerDecorationsProvider(this.explorerService, this.contextService);
+			this.decorationsProvider = new ExplorerDecorationsProvider(this.explorerService, this.contextService, this.fileService);
 			this._register(this.decorationService.registerDecorationsProvider(this.decorationsProvider));
 		}
 	}

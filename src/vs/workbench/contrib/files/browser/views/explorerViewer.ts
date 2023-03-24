@@ -497,6 +497,7 @@ export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, Fu
 			fileKind: stat.isRoot ? FileKind.ROOT_FOLDER : stat.isDirectory ? FileKind.FOLDER : FileKind.FILE,
 			extraClasses: realignNestedChildren ? [...extraClasses, 'align-nest-icon-with-parent-icon'] : extraClasses,
 			fileDecorations: this.config.explorer.decorations,
+			isSymbolicLink: stat.isSymbolicLink,
 			matches: createMatches(filterData),
 			separator: this.labelService.getSeparator(stat.resource.scheme, stat.resource.authority),
 			domId

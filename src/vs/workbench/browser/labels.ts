@@ -57,6 +57,11 @@ export interface IResourceLabelOptions extends IIconLabelValueOptions {
 	 * Will take the provided label as is and e.g. not override it for untitled files.
 	 */
 	readonly forceLabel?: boolean;
+
+	/**
+	 * Whether this resource is a symbolic link.
+	 */
+	readonly isSymbolicLink?: boolean;
 }
 
 export interface IFileLabelOptions extends IResourceLabelOptions {
@@ -456,6 +461,7 @@ class ResourceLabelWidget extends IconLabel {
 			}
 		}
 
+		const hasIsSymbolicLinkChanged = this.hasIsSymbolicLinkChanged(options);
 		const hasResourceChanged = this.hasResourceChanged(label);
 		const hasPathLabelChanged = hasResourceChanged || this.hasPathLabelChanged(label);
 		const hasFileKindChanged = this.hasFileKindChanged(options);
@@ -472,9 +478,16 @@ class ResourceLabelWidget extends IconLabel {
 		}
 
 		this.render({
-			updateIcon: hasResourceChanged || hasFileKindChanged,
-			updateDecoration: hasResourceChanged || hasFileKindChanged
+			updateIcon: hasResourceChanged || hasFileKindChanged || hasIsSymbolicLinkChanged,
+			updateDecoration: hasResourceChanged || hasFileKindChanged || hasIsSymbolicLinkChanged
 		});
+	}
+
+	private hasIsSymbolicLinkChanged(newOptions?: IResourceLabelOptions): boolean {
+		const isNewSymbolicLink = newOptions?.isSymbolicLink;
+		const isOldSymbolicLink = this.options?.isSymbolicLink;
+
+		return isNewSymbolicLink !== isOldSymbolicLink;
 	}
 
 	private hasFileKindChanged(newOptions?: IResourceLabelOptions): boolean {
