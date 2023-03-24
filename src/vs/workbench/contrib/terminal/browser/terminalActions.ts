@@ -1031,14 +1031,14 @@ export function registerTerminalActions() {
 		run: async (c, accessor) => {
 			const instances = getSelectedInstances(accessor);
 			if (instances) {
+				const promises: Promise<void>[] = [];
 				for (const t of instances) {
-					c.service.setActiveInstance(t);
-					// TODO: This should await???
-					c.service.doWithActiveInstance(async instance => {
-						await c.service.createTerminal({ location: { parentTerminal: instance } });
+					promises.push((async () => {
+						await c.service.createTerminal({ location: { parentTerminal: t } });
 						await c.groupService.showPanel(true);
-					});
+					})());
 				}
+				await Promise.all(promises);
 			}
 		}
 	});
