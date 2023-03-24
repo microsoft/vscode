@@ -16,8 +16,8 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 registerActiveInstanceAction({
 	id: TerminalCommandId.ShowEnvironmentContributions,
 	title: { value: localize('workbench.action.terminal.showEnvironmentContributions', "Show Environment Contributions"), original: 'Show Environment Contributions' },
-	run: async (instance, c, accessor) => {
-		const collection = instance.extEnvironmentVariableCollection;
+	run: async (activeInstance, c, accessor) => {
+		const collection = activeInstance.extEnvironmentVariableCollection;
 		if (collection) {
 			const editorService = accessor.get(IEditorService);
 			await editorService.openEditor({

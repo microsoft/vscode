@@ -159,6 +159,10 @@ export function registerTerminalAction(
 	});
 }
 
+/**
+ * A wrapper around {@link registerTerminalAction} that ensures an active instance exists and
+ * provides it to the run function.
+ */
 export function registerActiveInstanceAction(
 	options: IAction2Options & { run: (activeInstance: ITerminalInstance, c: ITerminalServicesCollection, accessor: ServicesAccessor, args?: unknown) => void | Promise<unknown> }
 ): IDisposable {
