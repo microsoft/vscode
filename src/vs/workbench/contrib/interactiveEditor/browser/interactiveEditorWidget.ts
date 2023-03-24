@@ -136,6 +136,7 @@ class InteractiveEditorWidget {
 			revealHorizontalRightPadding: 5,
 			minimap: { enabled: false },
 			guides: { indentation: false },
+			rulers: [],
 			cursorWidth: 1,
 			wrappingStrategy: 'advanced',
 			wrappingIndent: 'none',
