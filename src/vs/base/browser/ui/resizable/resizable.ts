@@ -187,4 +187,20 @@ export class ResizableHTMLElement {
 	get preferredSize() {
 		return this._preferredSize;
 	}
+
+	get northSash() {
+		return this._northSash;
+	}
+
+	get eastSash() {
+		return this._eastSash;
+	}
+
+	get westSash() {
+		return this._westSash;
+	}
+
+	get southSash() {
+		return this._southSash;
+	}
 }

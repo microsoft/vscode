@@ -39,7 +39,6 @@ export class ContentHoverController extends Disposable {
 	private readonly _participants: IEditorHoverParticipant[];
 	private readonly _resizableOverlay = this._register(this._instantiationService.createInstance(ResizableHoverOverlay, this._editor));
 	private readonly _widget = this._register(this._instantiationService.createInstance(ContentHoverWidget, this._editor));
-	private readonly _widgetUnderlay = this._register(this._instantiationService.createInstance(ContentHoverWidgetUnderlay, this._editor));
 	private readonly _computer: ContentHoverComputer;
 	private readonly _hoverOperation: HoverOperation<IHoverPart>;
 	private _renderingAbove: boolean = this._editor.getOption(EditorOption.hover).above;
@@ -86,7 +85,6 @@ export class ContentHoverController extends Disposable {
 		this._register(this._resizableOverlay.onDidResize((e) => {
 			// When the resizable hover overlay changes, resize the widget
 			this._widget.resize(e.dimension);
-			this._widgetUnderlay.resize(e.dimension);
 			// Update the left and top offset of the resizable element because the content widget may change its left and top offset as it is resized
 			this._repositionResizableOverlay();
 		}));
@@ -241,7 +239,6 @@ export class ContentHoverController extends Disposable {
 			this._renderMessages(this._currentResult.anchor, this._currentResult.messages);
 		} else {
 			this._widget.hide();
-			this._widgetUnderlay.hide();
 			this._resizableOverlay.hide();
 		}
 	}
@@ -322,20 +319,11 @@ export class ContentHoverController extends Disposable {
 
 				// After the final rendering of the widget, retrieve its top and left offsets in order to set the size of the resizable element
 				const widgetDomNode = this._widget.getDomNode();
-				const widgetUnderlayDomNode = this._widgetUnderlay.getDomNode();
 				const offsetTop = widgetDomNode.offsetTop;
 				const offsetLeft = widgetDomNode.offsetLeft;
 				const clientWidth = widgetDomNode.clientWidth;
 				const clientHeight = widgetDomNode.clientHeight;
 
-				widgetUnderlayDomNode.style.width = clientWidth + SASH_WIDTH + 2 + 'px';
-				widgetUnderlayDomNode.style.height = clientHeight + SASH_WIDTH + 2 + 'px';
-				widgetUnderlayDomNode.style.left = offsetLeft + 'px';
-				widgetUnderlayDomNode.style.top = offsetTop - SASH_WIDTH + 'px';
-
-				// Update the left and top offset to match the widget dom node
-				const resizableElement = this._resizableOverlay.resizableElement();
-				resizableElement.layout(clientHeight + SASH_WIDTH, clientWidth + SASH_WIDTH);
 
 				// Find if rendered above or below in the container dom node
 				const topLineNumber = anchor.initialMousePosY;
@@ -350,16 +338,28 @@ export class ContentHoverController extends Disposable {
 				}
 
 				this._renderingAbove = renderingAbove;
-				this._widget.renderingAbove = renderingAbove ? ContentWidgetPositionPreference.ABOVE : ContentWidgetPositionPreference.BELOW;
-				this._resizableOverlay.renderingAbove = renderingAbove ? ContentWidgetPositionPreference.ABOVE : ContentWidgetPositionPreference.BELOW;
+				const contentWidgetPositionPreference = renderingAbove ? ContentWidgetPositionPreference.ABOVE : ContentWidgetPositionPreference.BELOW;
+				this._widget.renderingAbove = contentWidgetPositionPreference;
+				this._resizableOverlay.renderingAbove = contentWidgetPositionPreference;
+
+				const resizableElement = this._resizableOverlay.resizableElement();
+				resizableElement.layout(clientHeight + SASH_WIDTH, clientWidth + SASH_WIDTH);
 
 				// Enable sashes depending on what side the rendering is on
 				if (renderingAbove) {
+					console.log('rendering above');
 					this._resizableOverlay.resizableElement().enableSashes(true, true, false, false);
+					resizableElement.northSash.el.style.width = clientWidth + SASH_WIDTH - 2 + 'px';
+					resizableElement.eastSash.el.style.height = clientHeight + SASH_WIDTH - 2 + 'px';
 					resizableElement.domNode.style.top = offsetTop - 2 + 'px';
+					resizableElement.eastSash.el.style.top = 2 + 'px';
 				} else {
+					console.log('rendering below');
 					this._resizableOverlay.resizableElement().enableSashes(false, true, true, false);
+					resizableElement.southSash.el.style.width = clientWidth + SASH_WIDTH - 2 + 'px';
+					resizableElement.eastSash.el.style.height = clientHeight + SASH_WIDTH - 2 + 'px';
 					resizableElement.domNode.style.top = offsetTop + 'px';
+					resizableElement.eastSash.el.style.top = 0 + 'px';
 				}
 
 				resizableElement.domNode.style.left = offsetLeft + 'px';
@@ -643,6 +643,13 @@ export class ResizableHoverOverlay extends Disposable implements IOverlayWidget 
 			// Update the top parameters only when we decided to render above
 			if (this._renderingAbove === ContentWidgetPositionPreference.ABOVE) {
 				this._resizableElement.domNode.style.top = this._initialTop - (height - this._initialHeight) + 'px';
+				this._resizableElement.northSash.el.style.width = width - 2 + 'px';
+				this._resizableElement.eastSash.el.style.height = height - 2 + 'px';
+				this._resizableElement.eastSash.el.style.top = 2 + 'px';
+			} else {
+				this._resizableElement.southSash.el.style.width = width - 2 + 'px';
+				this._resizableElement.eastSash.el.style.height = height - 2 + 'px';
+				this._resizableElement.eastSash.el.style.top = 0 + 'px';
 			}
 
 			// Fire the current dimension
@@ -759,48 +766,6 @@ export class ResizableHoverOverlay extends Disposable implements IOverlayWidget 
 		this._resizableElement.domNode.style.position = 'fixed';
 	}
 
-}
-
-class ContentHoverWidgetUnderlay extends Disposable implements IOverlayWidget {
-
-	static readonly ID = 'editor.contrib.contentHoverWidgetUnderlay';
-	public readonly containerDomNode: HTMLElement;
-
-	constructor(
-		private readonly _editor: ICodeEditor,
-	) {
-		super();
-		this.containerDomNode = document.createElement('div');
-		this.containerDomNode.className = 'monaco-hover-underlay';
-	}
-
-	public getId(): string {
-		return ContentHoverWidgetUnderlay.ID;
-	}
-
-	public getDomNode(): HTMLElement {
-		return this.containerDomNode;
-	}
-
-	public getPosition(): IOverlayWidgetPosition | null {
-		return null;
-	}
-
-	public resize(size: dom.Dimension) {
-		this.containerDomNode.style.width = size.width + 'px';
-		this.containerDomNode.style.height = size.height + 'px';
-		this._editor.layoutOverlayWidget(this);
-	}
-
-	public show(): void {
-		this._editor.addOverlayWidget(this);
-		this.containerDomNode.style.zIndex = '49';
-		this.containerDomNode.style.position = 'fixed';
-	}
-
-	public hide(): void {
-		this._editor.removeOverlayWidget(this);
-	}
 }
 
 export class ContentHoverWidget extends Disposable implements IContentWidget {
