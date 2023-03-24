@@ -10,7 +10,7 @@ import { CodeActionKind } from 'vs/editor/contrib/codeAction/common/types';
 import { localize } from 'vs/nls';
 import { ActionListItemKind, IActionListItem } from 'vs/platform/actionWidget/browser/actionList';
 import { TerminalQuickFixType } from 'vs/platform/terminal/common/xterm/terminalQuickFix';
-import { ITerminalAction } from 'vs/workbench/contrib/terminal/browser/xterm/quickFixAddon';
+import { ITerminalAction } from 'vs/workbench/contrib/terminalContrib/quickFix/browser/quickFixAddon';
 
 export class TerminalQuickFix {
 	action: ITerminalAction;
