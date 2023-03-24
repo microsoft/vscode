@@ -99,9 +99,10 @@ export async function getCwdForSplit(configHelper: ITerminalConfigHelper, instan
 	}
 }
 
-export const terminalSendSequenceCommand = (accessor: ServicesAccessor, args: { text?: string } | undefined) => {
+export const terminalSendSequenceCommand = (accessor: ServicesAccessor, args: unknown) => {
 	accessor.get(ITerminalService).doWithActiveInstance(async t => {
-		if (!args?.text) {
+		const text = toOptionalString(args && typeof args === 'object' && 'text' in args ? args.text : undefined);
+		if (!text) {
 			return;
 		}
 		const configurationResolverService = accessor.get(IConfigurationResolverService);
@@ -109,7 +110,7 @@ export const terminalSendSequenceCommand = (accessor: ServicesAccessor, args: { 
 		const historyService = accessor.get(IHistoryService);
 		const activeWorkspaceRootUri = historyService.getLastActiveWorkspaceRoot(t.isRemote ? Schemas.vscodeRemote : Schemas.file);
 		const lastActiveWorkspaceRoot = activeWorkspaceRootUri ? withNullAsUndefined(workspaceContextService.getWorkspaceFolder(activeWorkspaceRootUri)) : undefined;
-		const resolvedText = await configurationResolverService.resolveAsync(lastActiveWorkspaceRoot, args.text);
+		const resolvedText = await configurationResolverService.resolveAsync(lastActiveWorkspaceRoot, text);
 		t.sendText(resolvedText, false);
 	});
 };
@@ -262,10 +263,7 @@ export function registerTerminalActions() {
 		id: TerminalCommandId.MoveToTerminalPanel,
 		title: terminalStrings.moveToTerminalPanel,
 		precondition: ContextKeyExpr.and(ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated), TerminalContextKeys.terminalEditorActive),
-		run: async (c, _, args: unknown) => {
-			const resource = URI.isUri(args) ? args : undefined;
-			await c.service.moveToTerminalView(resource);
-		}
+		run: (c, _, args) => c.service.moveToTerminalView(toOptionalUri(args))
 	});
 
 	registerTerminalAction({
@@ -955,11 +953,7 @@ export function registerTerminalActions() {
 				}
 			}]
 		},
-		run: async (c, accessor, args) => {
-			// TODO: Come up with a nicer way to parse args
-			const sequence = args && typeof args === 'object' && 'text' in args ? args as { text?: string } : undefined;
-			terminalSendSequenceCommand(accessor, sequence);
-		}
+		run: (c, accessor, args) => terminalSendSequenceCommand(accessor, args)
 	});
 
 	registerTerminalAction({
@@ -1617,9 +1611,8 @@ export function registerTerminalActions() {
 		title: { value: localize('workbench.action.terminal.switchTerminal', "Switch Terminal"), original: 'Switch Terminal' },
 		precondition: ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated),
 		run: async (c, accessor, args) => {
-			// TODO: Improve cast
-			const item = args as string | undefined;
-			if (!item || !item.split) {
+			const item = toOptionalString(args);
+			if (!item) {
 				return;
 			}
 			if (item === switchTerminalActionViewItemSeparator) {
@@ -1808,8 +1801,7 @@ export function refreshTerminalActions(detectedProfiles: ITerminalProfile[]) {
 // TODO: Improve name to include resource usage
 function getActiveInstance(accessor: ServicesAccessor, resource: unknown): ITerminalInstance | undefined {
 	const terminalService = accessor.get(ITerminalService);
-	const castedResource = URI.isUri(resource) ? resource : undefined;
-	const instance = terminalService.getInstanceFromResource(castedResource) || terminalService.activeInstance;
+	const instance = terminalService.getInstanceFromResource(toOptionalUri(resource)) || terminalService.activeInstance;
 	return instance;
 }
 
@@ -1900,4 +1892,12 @@ async function revealActiveTerminal(instance: ITerminalInstance, terminalEditorS
 	} else {
 		await terminalGroupService.showPanel();
 	}
+}
+
+function toOptionalUri(obj: unknown): URI | undefined {
+	return URI.isUri(obj) ? obj : undefined;
+}
+
+function toOptionalString(obj: unknown): string | undefined {
+	return typeof obj === 'string' ? obj : undefined;
 }
