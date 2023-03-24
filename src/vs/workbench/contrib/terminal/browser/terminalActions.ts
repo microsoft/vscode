@@ -1208,7 +1208,6 @@ export function registerTerminalActions() {
 	registerTerminalAction({
 		id: TerminalCommandId.Kill,
 		title: { value: localize('workbench.action.terminal.kill', "Kill the Active Terminal Instance"), original: 'Kill the Active Terminal Instance' },
-		// TODO: Define preconditions at top of file
 		precondition: ContextKeyExpr.or(ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated), TerminalContextKeys.isOpen),
 		icon: killTerminalIcon,
 		run: async (c) => {
