@@ -485,7 +485,7 @@ export class GuidesTextModelPart extends TextModelPart implements IGuidesTextMod
 		const foldingRules = this.getLanguageConfiguration(
 			this.textModel.getLanguageId()
 		).foldingRules;
-		const offSide = Boolean(foldingRules && foldingRules.offSide);
+		const languageOffSide = Boolean(foldingRules && foldingRules.offSide);
 
 		const result: number[] = new Array<number>(
 			endLineNumber - startLineNumber + 1
@@ -498,6 +498,8 @@ export class GuidesTextModelPart extends TextModelPart implements IGuidesTextMod
 		let belowContentLineIndex =
 			-2; /* -2 is a marker for not having computed it */
 		let belowContentLineIndent = -1;
+
+		let lineOffSide = false;
 
 		for (
 			let lineNumber = startLineNumber;
@@ -547,10 +549,15 @@ export class GuidesTextModelPart extends TextModelPart implements IGuidesTextMod
 						break;
 					}
 				}
+
+				lineOffSide = this.textModel.bracketPairs.findEnclosingBrackets({
+					lineNumber: lineNumber,
+					column: 1
+				})?.[1]?.startLineNumber !== belowContentLineIndex + 1;
 			}
 
 			result[resultIndex] = this._getIndentLevelForWhitespaceLine(
-				offSide,
+				languageOffSide || lineOffSide,
 				aboveContentLineIndent,
 				belowContentLineIndent
 			);
