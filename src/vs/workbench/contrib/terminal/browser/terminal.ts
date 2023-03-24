@@ -189,13 +189,6 @@ export interface ITerminalService extends ITerminalInstanceHost {
 	getPrimaryBackend(): ITerminalBackend | undefined;
 
 	/**
-	 * Perform an action with the active terminal instance, if the terminal does
-	 * not exist the callback will not be called.
-	 * @param callback The callback that fires with the active terminal
-	 */
-	doWithActiveInstance<T>(callback: (terminal: ITerminalInstance) => T): T | void;
-
-	/**
 	 * Fire the onActiveTabChanged event, this will trigger the terminal dropdown to be updated,
 	 * among other things.
 	 */
