@@ -110,7 +110,6 @@ export class AccessibleBufferWidget extends DisposableStore {
 				case KeyCode.Escape:
 					// On escape, hide the accessible buffer and force focus onto the terminal
 					this._hide();
-					this._xterm.raw.focus();
 					break;
 			}
 		});
@@ -140,6 +139,7 @@ export class AccessibleBufferWidget extends DisposableStore {
 	private _hide(): void {
 		this._accessibleBuffer.classList.remove(CssClass.Active);
 		this._xtermElement.classList.remove(CssClass.Hide);
+		this._xterm.raw.focus();
 	}
 
 	private async _updateModel(insertion?: boolean): Promise<ITextModel> {
