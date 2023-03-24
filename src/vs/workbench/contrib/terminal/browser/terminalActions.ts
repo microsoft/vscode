@@ -940,6 +940,7 @@ export function registerTerminalActions() {
 		id: TerminalCommandId.SendSequence,
 		// TODO: Pull into terminalStrings
 		title: { value: localize('workbench.action.terminal.sendSequence', "Send Custom Sequence To Terminal"), original: 'Send Custom Sequence To Terminal' },
+		f1: false,
 		description: {
 			description: localize('workbench.action.terminal.sendSequence', "Send Custom Sequence To Terminal"),
 			args: [{
