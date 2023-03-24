@@ -1995,7 +1995,7 @@ export class Repository {
 		}
 	}
 
-	async getStatus(opts?: { limit?: number; ignoreSubmodules?: boolean; untrackedChanges?: 'mixed' | 'separate' | 'hidden'; cancellationToken?: CancellationToken }): Promise<{ status: IFileStatus[]; statusLength: number; didHitLimit: boolean }> {
+	async getStatus(opts?: { limit?: number; similarityThreshold?: number; ignoreSubmodules?: boolean; untrackedChanges?: 'mixed' | 'separate' | 'hidden'; cancellationToken?: CancellationToken }): Promise<{ status: IFileStatus[]; statusLength: number; didHitLimit: boolean }> {
 		if (opts?.cancellationToken && opts?.cancellationToken.isCancellationRequested) {
 			throw new CancellationError();
 		}
@@ -2013,6 +2013,10 @@ export class Repository {
 
 		if (opts?.ignoreSubmodules) {
 			args.push('--ignore-submodules');
+		}
+
+		if (opts?.similarityThreshold) {
+			args.push(`--find-renames=${opts.similarityThreshold}%`);
 		}
 
 		const child = this.stream(args, { env });

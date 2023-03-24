@@ -2521,6 +2521,12 @@
           "default": true,
           "description": "%config.openDiffOnClick%"
         },
+        "git.similarityThreshold": {
+          "type": "number",
+          "scope": "resource",
+          "default": 50,
+          "markdownDescription": "%config.similarityThreshold%"
+        },
         "git.supportCancellation": {
           "type": "boolean",
           "scope": "resource",

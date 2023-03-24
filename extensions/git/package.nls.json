@@ -216,6 +216,7 @@
 	"config.confirmNoVerifyCommit": "Controls whether to ask for confirmation before committing without verification.",
 	"config.closeDiffOnOperation": "Controls whether the diff editor should be automatically closed when changes are stashed, committed, discarded, staged, or unstaged.",
 	"config.openDiffOnClick": "Controls whether the diff editor should be opened when clicking a change. Otherwise the regular editor will be opened.",
+	"config.similarityThreshold": "Controls the threshold on the similarity index (i.e. amount of additions/deletions compared to the file's size) for changes on a file to be considered a rename. This becomes the value of the [`find-renames` option of the `status` command](https://git-scm.com/docs/git-status).",
 	"config.supportCancellation": "Controls whether a notification comes up when running the Sync action, which allows the user to cancel the operation.",
 	"config.branchSortOrder": "Controls the sort order for branches.",
 	"config.untrackedChanges": "Controls how untracked changes behave.",
