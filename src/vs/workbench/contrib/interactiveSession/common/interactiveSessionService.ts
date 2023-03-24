@@ -7,9 +7,9 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { Event } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
-import { CompletionItemKind, ProviderResult } from 'vs/editor/common/languages';
+import { ProviderResult } from 'vs/editor/common/languages';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IInteractiveResponseErrorDetails, InteractiveSessionModel } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionModel';
+import { InteractiveSessionModel } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionModel';
 
 export interface IInteractiveSession {
 	id: number;
@@ -24,6 +24,12 @@ export interface IInteractiveSession {
 export interface IInteractiveRequest {
 	session: IInteractiveSession;
 	message: string | IInteractiveSessionReplyFollowup;
+}
+
+export interface IInteractiveResponseErrorDetails {
+	message: string;
+	responseIsIncomplete?: boolean;
+	responseIsFiltered?: boolean;
 }
 
 export interface IInteractiveResponse {
@@ -54,7 +60,7 @@ export interface IInteractiveProvider {
 
 export interface IInteractiveSlashCommand {
 	command: string;
-	kind: CompletionItemKind;
+	sortText?: string;
 	detail?: string;
 }
 

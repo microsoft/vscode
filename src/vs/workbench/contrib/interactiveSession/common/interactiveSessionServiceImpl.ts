@@ -344,15 +344,16 @@ export class InteractiveSessionService extends Disposable implements IInteractiv
 			throw new Error('No providers available');
 		}
 
-		// Currently we only support one session per provider
-		let modelForProvider = Iterable.find(this._sessionModels.values(), model => model.providerId === providerId);
-		if (!modelForProvider) {
-			const viewId = this.interactiveSessionContributionService.getViewIdForProvider(providerId);
-			const view = await this.viewsService.openView(viewId);
-			if (view) {
-				modelForProvider = Iterable.find(this._sessionModels.values(), model => model.providerId === providerId);
-			}
+		const viewId = this.interactiveSessionContributionService.getViewIdForProvider(providerId);
+		const view = await this.viewsService.openView(viewId);
+
+		if ((view as any).waitForViewModel) {
+			// TODO The ViewPane type is in /browser/, and the flow is a bit weird, rethink this
+			await (view as any).waitForViewModel();
 		}
+
+		// Currently we only support one session per provider
+		const modelForProvider = Iterable.find(this._sessionModels.values(), model => model.providerId === providerId);
 
 		if (!modelForProvider) {
 			throw new Error(`Could not start session for provider ${providerId}`);

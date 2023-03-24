@@ -147,6 +147,21 @@ export class EditorWorkerService extends Disposable implements IEditorWorkerServ
 		}
 	}
 
+	public computeHumanReadableDiff(resource: URI, edits: languages.TextEdit[] | null | undefined): Promise<languages.TextEdit[] | undefined> {
+		if (isNonEmptyArray(edits)) {
+			if (!canSyncModel(this._modelService, resource)) {
+				return Promise.resolve(edits); // File too large
+			}
+			const sw = StopWatch.create(true);
+			const result = this._workerManager.withWorker().then(client => client.computeHumanReadableDiff(resource, edits));
+			result.finally(() => this._logService.trace('FORMAT#computeHumanReadableDiff', resource.toString(true), sw.elapsed()));
+			return Promise.race([result, timeout(1000).then(() => edits)]);
+
+		} else {
+			return Promise.resolve(undefined);
+		}
+	}
+
 	public canNavigateValueSet(resource: URI): boolean {
 		return (canSyncModel(this._modelService, resource));
 	}
@@ -532,6 +547,12 @@ export class EditorWorkerClient extends Disposable implements IEditorWorkerClien
 	public computeMoreMinimalEdits(resource: URI, edits: languages.TextEdit[], pretty: boolean): Promise<languages.TextEdit[]> {
 		return this._withSyncedResources([resource]).then(proxy => {
 			return proxy.computeMoreMinimalEdits(resource.toString(), edits, pretty);
+		});
+	}
+
+	public computeHumanReadableDiff(resource: URI, edits: languages.TextEdit[]): Promise<languages.TextEdit[]> {
+		return this._withSyncedResources([resource]).then(proxy => {
+			return proxy.computeHumanReadableDiff(resource.toString(), edits);
 		});
 	}
 

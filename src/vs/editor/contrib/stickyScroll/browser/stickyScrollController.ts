@@ -41,6 +41,7 @@ export interface IStickyScrollController {
 	goToFocused(): void;
 	findScrollWidgetState(): StickyScrollWidgetState;
 	dispose(): void;
+	selectEditor(): void;
 }
 
 export class StickyScrollController extends Disposable implements IEditorContribution, IStickyScrollController {
@@ -170,6 +171,10 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 		if (this._focusedStickyElementIndex > 0) {
 			this._focusNav(false);
 		}
+	}
+
+	public selectEditor(): void {
+		this._editor.focus();
 	}
 
 	// True is next, false is previous

@@ -892,7 +892,7 @@ configurationRegistry.registerConfiguration({
 			markdownDescription: nls.localize('notebook.outputScrolling', "Use a scrollable region for notebook output when longer than the limit"),
 			type: 'boolean',
 			tags: ['notebookLayout'],
-			default: typeof product.quality !== 'string' ? product.quality !== 'stable' : false, // only enable as default in insiders
+			default: typeof product.quality === 'string' && product.quality !== 'stable' // only enable as default in insiders
 		},
 		[NotebookSetting.outputWordWrap]: {
 			markdownDescription: nls.localize('notebook.outputWordWrap', "Controls whether the lines in output should wrap."),

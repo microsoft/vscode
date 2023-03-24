@@ -125,7 +125,7 @@ class InteractiveEditorWidget {
 				useShadows: false,
 				vertical: 'hidden',
 				horizontal: 'auto',
-				// alwaysConsumeMouseWheel: false
+				alwaysConsumeMouseWheel: false
 			},
 			lineDecorationsWidth: 0,
 			overviewRulerBorder: false,
@@ -136,6 +136,7 @@ class InteractiveEditorWidget {
 			revealHorizontalRightPadding: 5,
 			minimap: { enabled: false },
 			guides: { indentation: false },
+			rulers: [],
 			cursorWidth: 1,
 			wrappingStrategy: 'advanced',
 			wrappingIndent: 'none',
@@ -252,10 +253,12 @@ class InteractiveEditorWidget {
 
 		this._inputModel.setValue(value);
 		this.inputEditor.setSelection(this._inputModel.getFullModelRange());
+		this.inputEditor.updateOptions({ ariaLabel: localize('aria-label.N', "Interactive Editor Input: {0}", placeholder) });
 
 		const disposeOnDone = new DisposableStore();
 
 		disposeOnDone.add(this.inputEditor.onDidLayoutChange(() => this._onDidChangeHeight.fire()));
+		disposeOnDone.add(this.inputEditor.onDidContentSizeChange(() => this._onDidChangeHeight.fire()));
 
 		const ctxInnerCursorFirst = CTX_INTERACTIVE_EDITOR_INNER_CURSOR_FIRST.bindTo(this._contextKeyService);
 		const ctxInnerCursorLast = CTX_INTERACTIVE_EDITOR_INNER_CURSOR_LAST.bindTo(this._contextKeyService);
@@ -523,7 +526,7 @@ class UndoAction extends Action {
 
 	private readonly _myAlternativeVersionId: number;
 
-	constructor(private readonly _model: ITextModel) {
+	constructor(private readonly _model: ITextModel, private readonly _provider: IInteractiveEditorSessionProvider, private readonly _session: IInteractiveEditorSession, private readonly _response: IInteractiveEditorResponse) {
 		super('undo', localize('undo', "Undo"), ThemeIcon.asClassName(Codicon.discard), false);
 		this._myAlternativeVersionId = _model.getAlternativeVersionId();
 
@@ -537,6 +540,10 @@ class UndoAction extends Action {
 	override async run(): Promise<void> {
 		if (this._myAlternativeVersionId === this._model.getAlternativeVersionId()) {
 			this._model.undo();
+
+			if (this._provider.handleInteractiveEditorResponseFeedback) {
+				this._provider.handleInteractiveEditorResponseFeedback(this._session, this._response, InteractiveEditorResponseFeedbackKind.Undone);
+			}
 		}
 	}
 }
@@ -637,11 +644,12 @@ class InlineDiffDecorations {
 
 		const decorating: IModelDecorationOptions = {
 			description: 'interactive-editor-inline-diff',
-			className: 'interactive-editor-lines-inserted-range',
+			className: !edit.range.isEmpty() ? 'interactive-editor-lines-inserted-range' : undefined,
+			showIfCollapsed: true,
 			before: {
 				content,
 				inlineClassName: 'interactive-editor-lines-deleted-range-inline',
-				attachedData: edit
+				attachedData: edit,
 			}
 		};
 
@@ -669,11 +677,13 @@ class FeedbackToggles {
 					this._helpful.tooltip = localize('thanks', "Thanks for your feedback!");
 					this._helpful.checked = true;
 					this._helpful.enabled = false;
+					this._unHelpful.tooltip = localize('thanks', "Thanks for your feedback!");
 					this._unHelpful.enabled = false;
 				} else {
 					this._unHelpful.tooltip = localize('thanks', "Thanks for your feedback!");
 					this._unHelpful.checked = true;
 					this._unHelpful.enabled = false;
+					this._helpful.tooltip = localize('thanks', "Thanks for your feedback!");
 					this._helpful.enabled = false;
 				}
 
@@ -695,14 +705,15 @@ class FeedbackToggles {
 	}
 
 	get actions() {
-		const result: IAction[] = [];
-		if (this._helpful.enabled || this._helpful.checked) {
-			result.push(this._helpful);
-		}
-		if (this._unHelpful.enabled || this._unHelpful.checked) {
-			result.push(this._unHelpful);
-		}
-		return result;
+		// const result: IAction[] = [];
+		// if (this._helpful.enabled || this._helpful.checked) {
+		// 	result.push(this._helpful);
+		// }
+		// if (this._unHelpful.enabled || this._unHelpful.checked) {
+		// 	result.push(this._unHelpful);
+		// }
+		// return result;
+		return [this._helpful, this._unHelpful];
 	}
 }
 
@@ -966,14 +977,13 @@ export class InteractiveEditorController implements IEditorContribution {
 
 			if (reply.type === 'message') {
 				this._logService.info('[IE] received a MESSAGE, continuing outside editor', provider.debugName);
-				this._editor.setSelection(reply.wholeRange ?? wholeRange);
 				this._instaService.invokeFunction(showMessageResponse, request.prompt, reply.message.value);
 
 				continue;
 			}
 
 			// make edits more minimal
-			const moreMinimalEdits = (await this._editorWorkerService.computeMoreMinimalEdits(textModel.uri, reply.edits, true));
+			const moreMinimalEdits = (await this._editorWorkerService.computeHumanReadableDiff(textModel.uri, reply.edits));
 			this._logService.trace('[IE] edits from PROVIDER and after making them MORE MINIMAL', provider.debugName, reply.edits, moreMinimalEdits);
 			this._recorder.addExchange(session, request, reply);
 
@@ -1015,7 +1025,7 @@ export class InteractiveEditorController implements IEditorContribution {
 			inlineDiffDecorations.update();
 
 			const toggleAction = new ToggleInlineDiff(inlineDiffDecorations);
-			const fixedActions: Action[] = [new UndoAction(textModel), toggleAction];
+			const fixedActions: Action[] = [new UndoAction(textModel, provider, session, reply), toggleAction];
 			roundStore.add(combinedDisposable(...fixedActions));
 
 			const feedback = new FeedbackToggles(provider, session, reply);

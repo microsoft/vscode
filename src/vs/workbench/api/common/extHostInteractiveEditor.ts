@@ -13,7 +13,7 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { ExtHostInteractiveEditorShape, IInteractiveEditorResponseDto, IMainContext, MainContext, MainThreadInteractiveEditorShape } from 'vs/workbench/api/common/extHost.protocol';
 import { ExtHostDocuments } from 'vs/workbench/api/common/extHostDocuments';
 import * as typeConvert from 'vs/workbench/api/common/extHostTypeConverters';
-import { WorkspaceEdit } from 'vs/workbench/api/common/extHostTypes';
+import * as extHostTypes from 'vs/workbench/api/common/extHostTypes';
 import type * as vscode from 'vscode';
 
 class ProviderWrapper {
@@ -128,7 +128,7 @@ export class ExtHostInteractiveEditor implements ExtHostInteractiveEditorShape {
 			}
 
 			const { edits } = res;
-			if (edits instanceof WorkspaceEdit) {
+			if (edits instanceof extHostTypes.WorkspaceEdit) {
 				return {
 					...stub,
 					id,
@@ -153,8 +153,23 @@ export class ExtHostInteractiveEditor implements ExtHostInteractiveEditorShape {
 		const entry = this._inputProvider.get(handle);
 		const sessionData = this._inputSessions.get(sessionId);
 		const response = sessionData?.responses[responseId];
+
 		if (entry && response) {
-			entry.provider.handleInteractiveEditorResponseFeedback?.(sessionData.session, response, kind === InteractiveEditorResponseFeedbackKind.Helpful ? true : false);
+			// todo@jrieken move to type converter
+			let apiKind: extHostTypes.InteractiveEditorResponseFeedbackKind;
+			switch (kind) {
+				case InteractiveEditorResponseFeedbackKind.Helpful:
+					apiKind = extHostTypes.InteractiveEditorResponseFeedbackKind.Helpful;
+					break;
+				case InteractiveEditorResponseFeedbackKind.Unhelpful:
+					apiKind = extHostTypes.InteractiveEditorResponseFeedbackKind.Unhelpful;
+					break;
+				case InteractiveEditorResponseFeedbackKind.Undone:
+					apiKind = extHostTypes.InteractiveEditorResponseFeedbackKind.Undone;
+					break;
+			}
+
+			entry.provider.handleInteractiveEditorResponseFeedback?.(sessionData.session, response, apiKind);
 		}
 	}
 

@@ -63,8 +63,9 @@ export interface IInteractiveEditorMessageResponse {
 }
 
 export const enum InteractiveEditorResponseFeedbackKind {
-	Helpful,
-	Unhelpful
+	Unhelpful = 0,
+	Helpful = 1,
+	Undone = 2
 }
 
 export interface IInteractiveEditorSessionProvider {

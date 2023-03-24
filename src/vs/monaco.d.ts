@@ -4351,6 +4351,7 @@ declare namespace monaco.editor {
 		*/
 		mode?: 'prefix' | 'subword' | 'subwordSmart';
 		showToolbar?: 'always' | 'onHover';
+		suppressSuggestions?: boolean;
 	}
 
 	export interface IBracketPairColorizationOptions {

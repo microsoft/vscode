@@ -3,10 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-.interactive-list .monaco-list-row:not(:first-of-type) .interactive-item-container {
-	border-top: 1px solid var(--vscode-interactive-responseBorder);
-}
-
 .interactive-list .monaco-list-row .monaco-tl-twistie {
 	/* Hide twisties */
 	display: none !important;
@@ -18,6 +14,7 @@
 	flex-direction: column;
 	gap: 6px;
 
+	cursor: default;
 	user-select: text;
 	-webkit-user-select: text;
 }
@@ -70,6 +67,18 @@
 	display: initial;
 }
 
+.interactive-list .interactive-item-container .header .monaco-toolbar .action-label {
+	border: 1px solid transparent;
+	padding: 2px;
+}
+
+.interactive-list .interactive-item-container .header .monaco-toolbar .checked .action-label,
+.interactive-list .interactive-item-container .header .monaco-toolbar .checked .action-label:hover {
+	color: var(--vscode-inputOption-activeForeground) !important;
+	border-color: var(--vscode-inputOption-activeBorder);
+	background-color: var(--vscode-inputOption-activeBackground);
+}
+
 .interactive-list .interactive-item-container .value {
 	width: 100%;
 }
@@ -83,7 +92,7 @@
 .interactive-list .interactive-item-container .value table,
 .interactive-list .interactive-item-container .value table td,
 .interactive-list .interactive-item-container .value table th {
-	border: 1px solid var(--vscode-interactive-responseBorder);
+	border: 1px solid var(--vscode-interactive-requestBorder);
 	border-collapse: collapse;
 	padding: 4px 6px;
 }
@@ -101,9 +110,10 @@
 	overflow: hidden;
 }
 
-.interactive-list .monaco-list-row .interactive-response,
-.interactive-list .monaco-list-row .interactive-welcome {
-	background-color: var(--vscode-interactive-responseBackground);
+.interactive-list .monaco-list-row .interactive-request {
+	background-color: var(--vscode-interactive-requestBackground);
+	border-bottom: 1px solid var(--vscode-interactive-requestBorder);
+	border-top: 1px solid var(--vscode-interactive-requestBorder);
 }
 
 .interactive-list .monaco-list-row .value {
@@ -119,6 +129,25 @@
 
 .interactive-list .monaco-list-row .value > .interactive-response-error-details:not(:last-child) {
 	margin-bottom: 8px;
+}
+
+.interactive-list .monaco-list-row .value h1 {
+	font-size: 20px;
+	font-weight: 600;
+	margin: 16px 0;
+
+}
+
+.interactive-list .monaco-list-row .value h2 {
+	font-size: 16px;
+	font-weight: 600;
+	margin: 16px 0;
+}
+
+.interactive-list .monaco-list-row .value h3 {
+	font-size: 14px;
+	font-weight: 600;
+	margin: 16px 0;
 }
 
 .interactive-list .monaco-list-row .value p {
@@ -186,7 +215,7 @@
 	right: 10px;
 	height: 26px;
 	background-color: var(--vscode-interactive-result-editor-background-color);
-	border: 1px solid var(--vscode-interactive-responseBorder);
+	border: 1px solid var(--vscode-interactive-requestBorder);
 	z-index: 100;
 }
 
@@ -239,7 +268,14 @@
 
 .interactive-session .interactive-response .interactive-response-error-details .codicon {
 	margin-top: 1px;
+}
+
+.interactive-session .interactive-response .interactive-response-error-details .codicon-error {
 	color: var(--vscode-errorForeground) !important; /* Have to override default styles which apply to all lists */
+}
+
+.interactive-session .interactive-response .interactive-response-error-details .codicon-info {
+	color: var(--vscode-notificationsInfoIcon-foreground) !important; /* Have to override default styles which apply to all lists */
 }
 
 .interactive-session .interactive-item-container .value .interactive-slash-command {
@@ -250,7 +286,7 @@
 	padding: 12px 0px;
 	display: flex;
 	flex-direction: column;
-	border-top: solid 1px var(--vscode-interactive-responseBorder);
+	border-top: solid 1px var(--vscode-interactive-requestBorder);
 }
 
 .interactive-session .interactive-session-followups {
@@ -261,12 +297,8 @@
 }
 
 .interactive-session .interactive-session-followups .monaco-button {
-	width: initial;
-
-	color: var(--vscode-textLink-foreground);
-	justify-content: left;
 	text-align: left;
-	align-items: start;
+	width: initial;
 }
 
 .interactive-session .interactive-session-followups .monaco-button .codicon {
@@ -286,6 +318,15 @@
 	margin-bottom: 8px;
 }
 
+.interactive-session .interactive-input-part .interactive-input-followups .interactive-session-followups .monaco-button {
+	display: block;
+	color: var(--vscode-textLink-foreground);
+}
+
+.interactive-session .interactive-input-part .interactive-input-followups .interactive-session-followups .monaco-button .codicon-sparkle {
+	float: left;
+}
+
 .interactive-session .interactive-session-followups .monaco-button.interactive-followup-reply {
 	padding: 0px;
 	font-size: 11px;
@@ -299,5 +340,10 @@
 
 .interactive-list .interactive-item-container .monaco-toolbar .codicon {
 	/* Very aggressive list styles try to apply focus colors to every codicon in a list row. */
-	color: var(--vscode-foreground) !important;
+	color: var(--vscode-icon-foreground) !important;
+}
+
+.interactive-session .interactive-item-container.filtered-response .value .rendered-markdown {
+	-webkit-mask-image: linear-gradient(rgba(0, 0, 0, 0.85), rgba(0, 0, 0, 0.05));
+	mask-image: linear-gradient(rgba(0, 0, 0, 0.85), rgba(0, 0, 0, 0.05));
 }

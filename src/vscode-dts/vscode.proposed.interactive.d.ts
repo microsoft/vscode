@@ -42,6 +42,12 @@ declare module 'vscode' {
 		wholeRange?: Range;
 	}
 
+	export enum InteractiveEditorResponseFeedbackKind {
+		Unhelpful = 0,
+		Helpful = 1,
+		Undone = 2
+	}
+
 	export interface TextDocumentContext {
 		document: TextDocument;
 		selection: Selection;
@@ -59,7 +65,7 @@ declare module 'vscode' {
 
 		// todo@API use enum instead of boolean
 		// eslint-disable-next-line local/vscode-dts-provider-naming
-		handleInteractiveEditorResponseFeedback?(session: InteractiveEditorSession, response: InteractiveEditorResponse | InteractiveEditorMessageResponse, helpful: boolean): void;
+		handleInteractiveEditorResponseFeedback?(session: InteractiveEditorSession, response: InteractiveEditorResponse | InteractiveEditorMessageResponse, kind: InteractiveEditorResponseFeedbackKind): void;
 	}
 
 
@@ -95,6 +101,7 @@ declare module 'vscode' {
 	export interface InteractiveResponseErrorDetails {
 		message: string;
 		responseIsIncomplete?: boolean;
+		responseIsFiltered?: boolean;
 	}
 
 	export interface InteractiveResponseForProgress {
