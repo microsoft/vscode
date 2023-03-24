@@ -721,10 +721,10 @@ class UserKeybindings extends Disposable {
 			}
 		}));
 
-		this._register(userDataProfileService.onDidChangeCurrentProfile(e => e.join(this.whenCurrentProfieChanged(e))));
+		this._register(userDataProfileService.onDidChangeCurrentProfile(e => e.join(this.whenCurrentProfileChanged(e))));
 	}
 
-	private async whenCurrentProfieChanged(e: DidChangeUserDataProfileEvent): Promise<void> {
+	private async whenCurrentProfileChanged(e: DidChangeUserDataProfileEvent): Promise<void> {
 		if (e.preserveData) {
 			if (await this.fileService.exists(e.previous.keybindingsResource)) {
 				await this.fileService.copy(e.previous.keybindingsResource, e.profile.keybindingsResource);
