@@ -74,7 +74,7 @@ const linkSuffixRegexEol = new Lazy<RegExp>(() => {
 		// "foo", line 339, character 12     [#171880]
 		// "foo", line 339, characters 12-13 [#171880]
 		// "foo", lines 339-340              [#171880]
-		`['"]?(?:,? |: ?| on )lines? ${l()}(:?-\\d+)?(,? (col(?:umn)?|characters?) ${c()}(:?-\\d+)?)?$`,
+		`['"]?(?:,? |: ?| on )lines? ${l()}(?:-\\d+)?(?:,? (?:col(?:umn)?|characters?) ${c()}(?:-\\d+)?)?$`,
 		// foo(339)
 		// foo(339,12)
 		// foo(339, 12)
@@ -107,7 +107,7 @@ const linkSuffixRegex = new Lazy<RegExp>(() => {
 	// These duplicate the regex's above, just without the trailing `$`
 	const lineAndColumnRegexClauses = [
 		`(?::| |['"],)${l()}(:${c()})?`,
-		`['"]?(?:,? |: ?| on )lines? ${l()}(:?-\\d+)?(,? (col(?:umn)?|characters?) ${c()}(:?-\\d+)?)?`,
+		`['"]?(?:,? |: ?| on )lines? ${l()}(?:-\\d+)?(?:,? (?:col(?:umn)?|characters?) ${c()}(?:-\\d+)?)?`,
 		`:? ?[\\[\\(]${l()}(?:, ?${c()})?[\\]\\)]`,
 	];
 
