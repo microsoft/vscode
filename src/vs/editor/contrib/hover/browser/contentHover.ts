@@ -347,14 +347,12 @@ export class ContentHoverController extends Disposable {
 
 				// Enable sashes depending on what side the rendering is on
 				if (renderingAbove) {
-					console.log('rendering above');
 					this._resizableOverlay.resizableElement().enableSashes(true, true, false, false);
 					resizableElement.northSash.el.style.width = clientWidth + SASH_WIDTH - 2 + 'px';
 					resizableElement.eastSash.el.style.height = clientHeight + SASH_WIDTH - 2 + 'px';
 					resizableElement.domNode.style.top = offsetTop - 2 + 'px';
 					resizableElement.eastSash.el.style.top = 2 + 'px';
 				} else {
-					console.log('rendering below');
 					this._resizableOverlay.resizableElement().enableSashes(false, true, true, false);
 					resizableElement.southSash.el.style.width = clientWidth + SASH_WIDTH - 2 + 'px';
 					resizableElement.eastSash.el.style.height = clientHeight + SASH_WIDTH - 2 + 'px';
