@@ -175,14 +175,6 @@ async fn serve_singleton_rpc<C: Clone + Send + Sync + 'static>(
 	}
 }
 
-const CONTROL_INSTRUCTIONS: &str =
-	"Connected to an existing tunnel process running on this machine. You can press:
-
-- Ctrl+C to detach
-- \"x\" + Enter to stop the tunnel and exit
-- \"r\" + Enter to restart the tunnel
-";
-
 /// Log sink that can broadcast and replay log events. Used for transmitting
 /// logs from the singleton to all clients. This should be created and injected
 /// into other services, like the tunnel, before `start_singleton_server`
@@ -223,12 +215,8 @@ impl BroadcastLogSink {
 
 		let _ = log_replay_tx.send(RpcCaller::serialize_notify(
 			&JsonRpcSerializer {},
-			protocol::singleton::METHOD_LOG,
-			protocol::singleton::LogMessage {
-				level: None,
-				prefix: "",
-				message: CONTROL_INSTRUCTIONS,
-			},
+			protocol::singleton::METHOD_LOG_REPLY_DONE,
+			protocol::EmptyObject {},
 		));
 
 		ConcatReceivable::new(log_replay_rx, self.tx.subscribe())
