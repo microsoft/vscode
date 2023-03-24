@@ -28,6 +28,7 @@ import { IQuickInputService, IQuickPick, IQuickPickItem } from 'vs/platform/quic
 import { AudioCue, IAudioCueService } from 'vs/platform/audioCues/browser/audioCueService';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/terminalContextKey';
+import { withNullAsUndefined } from 'vs/base/common/types';
 
 const enum CssClass {
 	Active = 'active',
@@ -48,7 +49,6 @@ export class AccessibleBufferWidget extends DisposableStore {
 	private readonly _focusedContextKey: IContextKey<boolean>;
 	private readonly _focusTracker: dom.IFocusTracker;
 	private _inQuickPick = false;
-	private _bufferToEditorIndex: Map<number, number> = new Map();
 
 	constructor(
 		private readonly _instance: ITerminalInstance,
@@ -175,7 +175,7 @@ export class AccessibleBufferWidget extends DisposableStore {
 	}
 
 	async createQuickPick(): Promise<IQuickPick<IAccessibleBufferQuickPickItem> | undefined> {
-		const currentPosition = this._bufferEditor.getPosition();
+		let currentPosition = withNullAsUndefined(this._bufferEditor.getPosition());
 		this._inQuickPick = true;
 		const commands = this._instance.capabilities.get(TerminalCapability.CommandDetection)?.commands;
 		if (!commands?.length) {
@@ -183,12 +183,8 @@ export class AccessibleBufferWidget extends DisposableStore {
 		}
 		const quickPickItems: IAccessibleBufferQuickPickItem[] = [];
 		for (const command of commands) {
-			let line = command.marker?.line;
+			const line = command.marker?.line;
 			if (!line || !command.command.length) {
-				continue;
-			}
-			line = this._bufferToEditorIndex.get(line);
-			if (!line) {
 				continue;
 			}
 			quickPickItems.push(
@@ -200,10 +196,17 @@ export class AccessibleBufferWidget extends DisposableStore {
 		}
 		const quickPick = this._quickInputService.createQuickPick<IAccessibleBufferQuickPickItem>();
 		quickPick.canSelectMany = false;
+		quickPick.onDidChangeActive(() => {
+			const activeItem = quickPick.activeItems[0];
+			if (activeItem.exitCode) {
+				this._audioCueService.playAudioCue(AudioCue.error, true);
+			}
+			this._bufferEditor.revealLine(activeItem.lineNumber, 0);
+		});
 		quickPick.onDidHide(() => {
-			if (quickPick.activeItems.length === 0 && currentPosition) {
-				// reset position
+			if (currentPosition) {
 				this._bufferEditor.setPosition(currentPosition);
+				this._bufferEditor.revealLineInCenter(currentPosition.lineNumber);
 			}
 		});
 		quickPick.onDidAccept(() => {
@@ -212,17 +215,16 @@ export class AccessibleBufferWidget extends DisposableStore {
 			if (!model) {
 				return;
 			}
+			if (!item && currentPosition) {
+				// reset
+				this._bufferEditor.setPosition(currentPosition);
+			} else {
+				this._bufferEditor.setSelection({ startLineNumber: item.lineNumber, startColumn: 1, endLineNumber: item.lineNumber, endColumn: 1 });
+				currentPosition = this._bufferEditor.getSelection()?.getPosition();
+			}
 			quickPick.hide();
-			this._bufferEditor.setSelection({ startLineNumber: item.lineNumber, startColumn: 1, endLineNumber: item.lineNumber, endColumn: 1 });
 			this._inQuickPick = false;
 			return;
-		});
-		quickPick.onDidChangeActive(() => {
-			const activeItem = quickPick.activeItems[0];
-			if (activeItem.exitCode) {
-				this._audioCueService.playAudioCue(AudioCue.error, true);
-			}
-			this._bufferEditor.revealLine(activeItem.lineNumber);
 		});
 		quickPick.items = quickPickItems.reverse();
 		return quickPick;
