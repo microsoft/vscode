@@ -137,7 +137,7 @@ export class TerminalLaunchHelpAction extends Action {
  */
 function registerTerminalAction(
 	options: IAction2Options & { run: (c: ITerminalServicesCollection, accessor: ServicesAccessor, args?: unknown) => void | Promise<void> }
-): void {
+): IDisposable {
 	// Set defaults
 	options.f1 = options.f1 ?? true;
 	options.category = options.category ?? category;
@@ -147,7 +147,7 @@ function registerTerminalAction(
 	const strictOptions: IAction2Options & { run?: (c: ITerminalServicesCollection, accessor: ServicesAccessor, args?: unknown) => void | Promise<void> } = options;
 	delete (strictOptions as IAction2Options & { run?: (c: ITerminalServicesCollection, accessor: ServicesAccessor, args?: unknown) => void | Promise<void> })['run'];
 	// Register
-	registerAction2(class extends Action2 {
+	return registerAction2(class extends Action2 {
 		constructor() {
 			super(strictOptions as IAction2Options);
 		}
@@ -159,9 +159,9 @@ function registerTerminalAction(
 
 function registerActiveInstanceAction(
 	options: IAction2Options & { run: (activeInstance: ITerminalInstance, c: ITerminalServicesCollection, accessor: ServicesAccessor, args?: unknown) => void | Promise<void> }
-): void {
+): IDisposable {
 	const originalRun = options.run;
-	registerTerminalAction({
+	return registerTerminalAction({
 		...options,
 		run: (c, accessor, args) => {
 			const activeInstance = c.service.activeInstance;
