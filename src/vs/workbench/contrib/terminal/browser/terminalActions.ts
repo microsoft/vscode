@@ -10,7 +10,7 @@ import { KeyChord, KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { Schemas } from 'vs/base/common/network';
 import { isLinux, isWindows } from 'vs/base/common/platform';
 import { IDisposable } from 'vs/base/common/lifecycle';
-import { withNullAsUndefined, isObject } from 'vs/base/common/types';
+import { withNullAsUndefined, isObject, isString } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { EndOfLinePreference } from 'vs/editor/common/model';
@@ -355,7 +355,7 @@ export function registerTerminalActions() {
 				return;
 			}
 			const output = command.getOutput();
-			if (output && typeof output === 'string') {
+			if (isString(output)) {
 				await clipboardService.writeText(output);
 			}
 		}
@@ -1648,7 +1648,7 @@ export function validateTerminalName(name: string): { content: string; severity:
 }
 
 function convertOptionsOrProfileToOptions(optionsOrProfile?: ICreateTerminalOptions | ITerminalProfile): ICreateTerminalOptions | undefined {
-	if (typeof optionsOrProfile === 'object' && 'profileName' in optionsOrProfile) {
+	if (isObject(optionsOrProfile) && 'profileName' in optionsOrProfile) {
 		return { config: optionsOrProfile as ITerminalProfile, location: (optionsOrProfile as ICreateTerminalOptions).location };
 	}
 	return optionsOrProfile;
@@ -1701,7 +1701,7 @@ export function refreshTerminalActions(detectedProfiles: ITerminalProfile[]) {
 			let instance: ITerminalInstance | undefined;
 			let cwd: string | URI | undefined;
 
-			if (typeof eventOrOptionsOrProfile === 'object' && eventOrOptionsOrProfile && 'profileName' in eventOrOptionsOrProfile) {
+			if (isObject(eventOrOptionsOrProfile) && eventOrOptionsOrProfile && 'profileName' in eventOrOptionsOrProfile) {
 				const config = terminalProfileService.availableProfiles.find(profile => profile.profileName === eventOrOptionsOrProfile.profileName);
 				if (!config) {
 					throw new Error(`Could not find terminal profile "${eventOrOptionsOrProfile.profileName}"`);
@@ -1803,7 +1803,7 @@ async function pickTerminalCwd(accessor: ServicesAccessor, cancel?: Cancellation
 
 async function resolveWorkspaceFolderCwd(folder: IWorkspaceFolder, configurationService: IConfigurationService, configurationResolverService: IConfigurationResolverService): Promise<WorkspaceFolderCwdPair> {
 	const cwdConfig = configurationService.getValue(TerminalSettingId.Cwd, { resource: folder.uri });
-	if (typeof cwdConfig !== 'string' || cwdConfig.length === 0) {
+	if (!isString(cwdConfig) || cwdConfig.length === 0) {
 		return { folder, cwd: folder.uri, isAbsolute: false, isOverridden: false };
 	}
 
@@ -1854,5 +1854,5 @@ function toOptionalUri(obj: unknown): URI | undefined {
 }
 
 function toOptionalString(obj: unknown): string | undefined {
-	return typeof obj === 'string' ? obj : undefined;
+	return isString(obj) ? obj : undefined;
 }
