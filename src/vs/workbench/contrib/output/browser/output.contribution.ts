@@ -79,7 +79,8 @@ Registry.as<IViewsRegistry>(ViewContainerExtensions.ViewsRegistry).registerViews
 			}
 		},
 		order: 1,
-	}
+	},
+	makeActivationEvent: true
 }], VIEW_CONTAINER);
 
 Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane(

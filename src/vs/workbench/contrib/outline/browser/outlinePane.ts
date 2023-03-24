@@ -36,6 +36,8 @@ import { AbstractTreeViewState, IAbstractTreeViewState, TreeFindMode } from 'vs/
 import { URI } from 'vs/base/common/uri';
 import { ctxAllCollapsed, ctxFilterOnType, ctxFollowsCursor, ctxSortMode, IOutlinePane, OutlineSortOrder } from 'vs/workbench/contrib/outline/browser/outline';
 import { defaultProgressBarStyles } from 'vs/platform/theme/browser/defaultStyles';
+import { IProgressService } from 'vs/platform/progress/common/progress';
+import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 
 class OutlineTreeSorter<E> implements ITreeSorter<E> {
 
@@ -94,8 +96,10 @@ export class OutlinePane extends ViewPane implements IOutlinePane {
 		@IOpenerService openerService: IOpenerService,
 		@IThemeService themeService: IThemeService,
 		@ITelemetryService telemetryService: ITelemetryService,
+		@IProgressService progressService: IProgressService,
+		@IExtensionService extensionService: IExtensionService
 	) {
-		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, _instantiationService, openerService, themeService, telemetryService);
+		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, _instantiationService, openerService, themeService, telemetryService, progressService, extensionService);
 		this._outlineViewState.restore(this._storageService);
 		this._disposables.add(this._outlineViewState);
 

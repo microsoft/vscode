@@ -90,6 +90,8 @@ import { MessageController } from 'vs/editor/contrib/message/browser/messageCont
 import { contrastBorder, registerColor } from 'vs/platform/theme/common/colorRegistry';
 import { defaultButtonStyles, defaultCountBadgeStyles } from 'vs/platform/theme/browser/defaultStyles';
 import { GhostTextController } from 'vs/editor/contrib/inlineCompletions/browser/ghostTextController';
+import { IProgressService } from 'vs/platform/progress/common/progress';
+import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 
 type TreeElement = ISCMRepository | ISCMInput | ISCMActionButton | ISCMResourceGroup | IResourceNode<ISCMResource, ISCMResourceGroup> | ISCMResource;
 
@@ -2218,8 +2220,10 @@ export class SCMViewPane extends ViewPane {
 		@IMenuService private menuService: IMenuService,
 		@IOpenerService openerService: IOpenerService,
 		@ITelemetryService telemetryService: ITelemetryService,
+		@IProgressService progressService: IProgressService,
+		@IExtensionService extensionService: IExtensionService
 	) {
-		super({ ...options, titleMenuId: MenuId.SCMTitle }, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService);
+		super({ ...options, titleMenuId: MenuId.SCMTitle }, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService, progressService, extensionService);
 
 		this._onDidLayout = new Emitter<void>();
 		this.layoutCache = {

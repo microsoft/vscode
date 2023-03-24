@@ -33,7 +33,7 @@ import { Link } from 'vs/platform/opener/browser/link';
 import { Orientation } from 'vs/base/browser/ui/sash/sash';
 import { ProgressBar } from 'vs/base/browser/ui/progressbar/progressbar';
 import { AbstractProgressScope, ScopedProgressIndicator } from 'vs/workbench/services/progress/browser/progressIndicator';
-import { IProgressIndicator } from 'vs/platform/progress/common/progress';
+import { IProgressIndicator, IProgressService } from 'vs/platform/progress/common/progress';
 import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
 import { ScrollbarVisibility } from 'vs/base/common/scrollable';
 import { URI } from 'vs/base/common/uri';
@@ -46,12 +46,15 @@ import { FilterWidget, IFilterWidgetOptions } from 'vs/workbench/browser/parts/v
 import { BaseActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { defaultButtonStyles, defaultProgressBarStyles } from 'vs/platform/theme/browser/defaultStyles';
+import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
+import { timeout } from 'vs/base/common/async';
 
 export interface IViewPaneOptions extends IPaneOptions {
 	id: string;
 	showActionsAlways?: boolean;
 	titleMenuId?: MenuId;
 	donotForwardArgs?: boolean;
+	makeActivationEvent?: boolean;
 }
 
 export interface IFilterViewPaneOptions extends IViewPaneOptions {
@@ -213,6 +216,8 @@ export abstract class ViewPane extends Pane implements IView {
 		@IOpenerService protected openerService: IOpenerService,
 		@IThemeService protected themeService: IThemeService,
 		@ITelemetryService protected telemetryService: ITelemetryService,
+		@IProgressService protected progressService: IProgressService,
+		@IExtensionService protected extensionService: IExtensionService
 	) {
 		super({ ...options, ...{ orientation: viewDescriptorService.getViewLocationById(options.id) === ViewContainerLocation.Panel ? Orientation.HORIZONTAL : Orientation.VERTICAL } });
 
@@ -230,6 +235,29 @@ export abstract class ViewPane extends Pane implements IView {
 		this._register(this.menuActions.onDidChange(() => this.updateActions()));
 
 		this.viewWelcomeController = new ViewWelcomeController(this.id, contextKeyService);
+		if (options.makeActivationEvent) {
+			if (this.isBodyVisible()) {
+				this.fireActivationEvent();
+			} else {
+				const fireActivation = this.onDidChangeBodyVisibility(visible => {
+					if (visible) {
+						this.fireActivationEvent();
+						fireActivation.dispose();
+					}
+				});
+				this._register(fireActivation);
+			}
+		}
+	}
+
+	private activated: boolean = false;
+	private async fireActivationEvent(): Promise<void> {
+		if (!this.activated) {
+			const promise = this.progressService.withProgress({ location: this.id }, () => this.extensionService.activateByEvent(`onView:${this.id}`))
+				.then(() => timeout(2000));
+			this.activated = true;
+			return promise;
+		}
 	}
 
 	override get headerVisible(): boolean {
@@ -666,8 +694,10 @@ export abstract class FilterViewPane extends ViewPane {
 		@IOpenerService openerService: IOpenerService,
 		@IThemeService themeService: IThemeService,
 		@ITelemetryService telemetryService: ITelemetryService,
+		@IProgressService progressService: IProgressService,
+		@IExtensionService extensionService: IExtensionService
 	) {
-		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService);
+		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService, progressService, extensionService);
 		this.filterWidget = this._register(instantiationService.createChild(new ServiceCollection([IContextKeyService, this.scopedContextKeyService])).createInstance(FilterWidget, options.filterOptions));
 	}
 

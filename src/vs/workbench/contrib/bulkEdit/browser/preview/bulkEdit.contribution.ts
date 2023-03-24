@@ -342,4 +342,5 @@ Registry.as<IViewsRegistry>(ViewContainerExtensions.ViewsRegistry).registerViews
 	when: BulkEditPreviewContribution.ctxEnabled,
 	ctorDescriptor: new SyncDescriptor(BulkEditPane),
 	containerIcon: refactorPreviewViewIcon,
+	makeActivationEvent: true
 }], container);

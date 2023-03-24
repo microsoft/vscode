@@ -77,14 +77,14 @@ export class WebviewViewPane extends ViewPane {
 		@IThemeService themeService: IThemeService,
 		@IViewDescriptorService viewDescriptorService: IViewDescriptorService,
 		@IActivityService private readonly activityService: IActivityService,
-		@IExtensionService private readonly extensionService: IExtensionService,
-		@IProgressService private readonly progressService: IProgressService,
+		@IExtensionService extensionService: IExtensionService,
+		@IProgressService progressService: IProgressService,
 		@IStorageService private readonly storageService: IStorageService,
 		@IViewsService private readonly viewService: IViewsService,
 		@IWebviewService private readonly webviewService: IWebviewService,
 		@IWebviewViewService private readonly webviewViewService: IWebviewViewService,
 	) {
-		super({ ...options, titleMenuId: MenuId.ViewTitle }, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService);
+		super({ ...options, titleMenuId: MenuId.ViewTitle }, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService, progressService, extensionService);
 		this.extensionId = options.fromExtensionId;
 		this.defaultTitle = this.title;
 

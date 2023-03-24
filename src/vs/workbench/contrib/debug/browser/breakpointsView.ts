@@ -52,6 +52,8 @@ import { Breakpoint, DataBreakpoint, ExceptionBreakpoint, FunctionBreakpoint, In
 import { DisassemblyViewInput } from 'vs/workbench/contrib/debug/common/disassemblyViewInput';
 import { ACTIVE_GROUP, IEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { IHoverService } from 'vs/workbench/services/hover/browser/hover';
+import { IProgressService } from 'vs/platform/progress/common/progress';
+import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 
 const $ = dom.$;
 
@@ -110,8 +112,10 @@ export class BreakpointsView extends ViewPane {
 		@IMenuService menuService: IMenuService,
 		@IHoverService private readonly hoverService: IHoverService,
 		@ILanguageService private readonly languageService: ILanguageService,
+		@IProgressService progressService: IProgressService,
+		@IExtensionService extensionService: IExtensionService
 	) {
-		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService);
+		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService, progressService, extensionService);
 
 		this.menu = menuService.createMenu(MenuId.DebugBreakpointsContext, contextKeyService);
 		this._register(this.menu);

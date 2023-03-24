@@ -774,7 +774,8 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 					id: viewDescriptor.id,
 					title: viewDescriptor.name,
 					fromExtensionId: (viewDescriptor as Partial<ICustomViewDescriptor>).extensionId,
-					expanded: !collapsed
+					expanded: !collapsed,
+					makeActivationEvent: viewDescriptor.makeActivationEvent
 				});
 
 			pane.render();

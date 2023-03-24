@@ -21,6 +21,8 @@ import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { isWeb } from 'vs/base/common/platform';
 import { DragAndDropObserver } from 'vs/base/browser/dom';
+import { IProgressService } from 'vs/platform/progress/common/progress';
+import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 
 export class EmptyView extends ViewPane {
 
@@ -41,8 +43,10 @@ export class EmptyView extends ViewPane {
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IOpenerService openerService: IOpenerService,
 		@ITelemetryService telemetryService: ITelemetryService,
+		@IProgressService progressService: IProgressService,
+		@IExtensionService extensionService: IExtensionService
 	) {
-		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService);
+		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService, progressService, extensionService);
 
 		this._register(this.contextService.onDidChangeWorkbenchState(() => this.refreshTitle()));
 		this._register(this.labelService.onDidChangeFormatters(() => this.refreshTitle()));

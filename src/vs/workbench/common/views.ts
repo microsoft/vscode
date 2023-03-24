@@ -298,6 +298,8 @@ export interface IViewDescriptor {
 	readonly virtualWorkspace?: string;
 
 	readonly openCommandActionDescriptor?: OpenCommandActionDescriptor;
+
+	readonly makeActivationEvent?: boolean;
 }
 
 export interface ICustomTreeViewDescriptor extends ITreeViewDescriptor {

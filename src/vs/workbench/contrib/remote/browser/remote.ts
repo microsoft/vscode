@@ -455,9 +455,11 @@ class HelpPanel extends ViewPane {
 		@IWorkbenchEnvironmentService protected readonly environmentService: IWorkbenchEnvironmentService,
 		@IThemeService themeService: IThemeService,
 		@ITelemetryService telemetryService: ITelemetryService,
-		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService
+		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
+		@IProgressService progressService: IProgressService,
+		@IExtensionService extensionService: IExtensionService
 	) {
-		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService);
+		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService, progressService, extensionService);
 	}
 
 	protected override renderBody(container: HTMLElement): void {
@@ -507,6 +509,7 @@ class HelpPanelDescriptor implements IViewDescriptor {
 	readonly hideByDefault = false;
 	readonly group = 'help@50';
 	readonly order = -10;
+	readonly makeActivationEvent = true;
 
 	constructor(viewModel: IViewModel) {
 		this.ctorDescriptor = new SyncDescriptor(HelpPanel, [viewModel]);

@@ -34,7 +34,8 @@ Registry.as<IViewsRegistry>(ViewExtensions.ViewsRegistry).registerViews([{
 	collapsed: true,
 	order: 2,
 	weight: 30,
-	focusCommand: { id: 'outline.focus' }
+	focusCommand: { id: 'outline.focus' },
+	makeActivationEvent: true
 }], VIEW_CONTAINER);
 
 // --- configurations

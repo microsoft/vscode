@@ -52,6 +52,7 @@ export class EditSessionsDataViews extends Disposable {
 			when: ContextKeyExpr.and(EDIT_SESSIONS_SHOW_VIEW),
 			order: 100,
 			hideByDefault: true,
+			makeActivationEvent: true
 		}], container);
 
 		viewsRegistry.registerViewWelcomeContent(viewId, {
