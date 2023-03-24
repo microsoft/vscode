@@ -29,6 +29,7 @@ import { Codicon } from 'vs/base/common/codicons';
 import { ThemeIcon } from 'vs/base/common/themables';
 import { IUserDataSyncMachinesService, UserDataSyncMachinesService } from 'vs/platform/userDataSync/common/userDataSyncMachines';
 import { Emitter } from 'vs/base/common/event';
+import { CancellationError } from 'vs/base/common/errors';
 
 type ExistingSession = IQuickPickItem & { session: AuthenticationSession & { providerId: string } };
 type AuthenticationProviderOption = IQuickPickItem & { provider: IAuthenticationProvider };
@@ -302,7 +303,7 @@ export class EditSessionsWorkbenchService extends Disposable implements IEditSes
 
 		return new Promise((resolve, reject) => {
 			quickpick.onDidHide((e) => {
-				resolve(undefined);
+				reject(new CancellationError());
 				quickpick.dispose();
 			});
 
