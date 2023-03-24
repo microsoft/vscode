@@ -22,11 +22,13 @@ import { TerminalQuickFixContributionService } from 'vs/workbench/contrib/termin
 import { TerminalQuickFixService } from 'vs/workbench/contrib/terminalContrib/quickFix/browser/terminalQuickFixService';
 import { Terminal as RawXtermTerminal } from 'xterm';
 
+// Services
 registerSingleton(ITerminalQuickFixContributionService, TerminalQuickFixContributionService, InstantiationType.Delayed);
 registerSingleton(ITerminalQuickFixService, TerminalQuickFixService, InstantiationType.Delayed);
 
+// Contributions
 class TerminalQuickFixContribution extends DisposableStore implements ITerminalContribution {
-	static readonly ID = 'terminal.quickFix';
+	static readonly ID = 'quickFix';
 
 	static get(instance: ITerminalInstance): TerminalQuickFixContribution | null {
 		return instance.getContribution<TerminalQuickFixContribution>(TerminalQuickFixContribution.ID);
@@ -68,9 +70,9 @@ class TerminalQuickFixContribution extends DisposableStore implements ITerminalC
 		}
 	}
 }
-
 registerTerminalContribution(TerminalQuickFixContribution.ID, TerminalQuickFixContribution);
 
+// Actions
 registerActiveInstanceAction({
 	id: TerminalCommandId.ShowQuickFixes,
 	title: { value: localize('workbench.action.terminal.showQuickFixes', "Show Terminal Quick Fixes"), original: 'Show Terminal Quick Fixes' },

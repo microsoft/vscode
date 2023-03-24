@@ -89,7 +89,6 @@ class TestTerminalExtensionService extends TestExtensionService {
 class TestTerminalContributionService implements ITerminalContributionService {
 	_serviceBrand: undefined;
 	terminalProfiles: readonly IExtensionTerminalProfile[] = [];
-	terminalQuickFixes: Promise<ITerminalCommandSelector[]> = Promise.resolve([]);
 	setProfiles(profiles: IExtensionTerminalProfile[]): void {
 		this.terminalProfiles = profiles;
 	}
