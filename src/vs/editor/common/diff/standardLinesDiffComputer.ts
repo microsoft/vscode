@@ -112,9 +112,8 @@ export class StandardLinesDiffComputer implements ILinesDiffComputer {
 
 		scanForWhitespaceChanges(originalLines.length - seq1LastStart);
 
-		const changes: LineRangeMapping[] = lineRangeMappingFromRangeMappings(alignments);
-		const fixedChanges = moveUpInvalidInnerChanges(changes, originalLines.length, modifiedLines.length);
-		return new LinesDiff(fixedChanges, hitTimeout);
+		const changes = lineRangeMappingFromRangeMappings(alignments, originalLines, modifiedLines);
+		return new LinesDiff(changes, hitTimeout);
 	}
 
 	private refineDiff(originalLines: string[], modifiedLines: string[], diff: SequenceDiff, timeout: ITimeout, considerWhitespaceChanges: boolean): { mappings: RangeMapping[]; hitTimeout: boolean } {
@@ -242,30 +241,21 @@ function mergeSequenceDiffs(sequenceDiffs1: SequenceDiff[], sequenceDiffs2: Sequ
 	return result;
 }
 
-export function lineRangeMappingFromRangeMappings(alignments: RangeMapping[]): LineRangeMapping[] {
+export function lineRangeMappingFromRangeMappings(alignments: RangeMapping[], originalLines: string[], modifiedLines: string[]): LineRangeMapping[] {
 	const changes: LineRangeMapping[] = [];
 	for (const g of group(
-		alignments,
+		alignments.map(a => getLineRangeMapping(a, originalLines, modifiedLines)),
 		(a1, a2) =>
-			(a2.originalRange.startLineNumber - (a1.originalRange.endLineNumber - (a1.originalRange.endColumn > 1 ? 0 : 1)) <= 1)
-			|| (a2.modifiedRange.startLineNumber - (a1.modifiedRange.endLineNumber - (a1.modifiedRange.endColumn > 1 ? 0 : 1)) <= 1)
+			a1.originalRange.overlapOrTouch(a2.originalRange)
+			|| a1.modifiedRange.overlapOrTouch(a2.modifiedRange)
 	)) {
 		const first = g[0];
 		const last = g[g.length - 1];
 
-		const originalLineRange = new LineRange(
-			first.originalRange.startLineNumber,
-			last.originalRange.endLineNumber + (last.originalRange.endColumn > 1 || last.modifiedRange.endColumn > 1 ? 1 : 0)
-		);
-		const modifiedLineRange = new LineRange(
-			first.modifiedRange.startLineNumber,
-			last.modifiedRange.endLineNumber + (last.originalRange.endColumn > 1 || last.modifiedRange.endColumn > 1 ? 1 : 0)
-		);
-
 		changes.push(new LineRangeMapping(
-			originalLineRange,
-			modifiedLineRange,
-			g,
+			first.originalRange.join(last.originalRange),
+			first.modifiedRange.join(last.modifiedRange),
+			g.map(a => a.innerChanges![0]),
 		));
 	}
 
@@ -281,41 +271,36 @@ export function lineRangeMappingFromRangeMappings(alignments: RangeMapping[]): L
 	return changes;
 }
 
-// We can get rid of this function by making sure `refineDiff` doesn't assume (H).
-// However, this makes {@see lineRangeMappingFromRangeMappings} much more complicated.
-function moveUpInvalidInnerChanges(alignments: LineRangeMapping[], originalLineCount: number, modifiedLineCount: number): LineRangeMapping[] {
-	return alignments.map(a => {
-		if (!a.innerChanges) {
-			return a;
-		}
+function getLineRangeMapping(rangeMapping: RangeMapping, originalLines: string[], modifiedLines: string[]): LineRangeMapping {
+	let lineStartDelta = 0;
+	let lineEndDelta = 0;
 
-		return new LineRangeMapping(a.originalRange, a.modifiedRange, a.innerChanges.map(c => {
-			if (c.originalRange.endColumn === 1 && c.originalRange.endLineNumber > originalLineCount) {
-				assertFn(() => c.modifiedRange.endColumn === 1 && c.modifiedRange.endLineNumber > modifiedLineCount);
+	// rangeMapping describes the edit that replaces `rangeMapping.originalRange` with `newText := getText(modifiedLines, rangeMapping.modifiedRange)`.
 
-				if (c.originalRange.isEmpty() || c.modifiedRange.isEmpty()) {
-					assertFn(() => c.originalRange.startColumn === 1 && c.modifiedRange.startColumn === 1);
-					assertFn(() =>
-						/* Both ranges go to the end, if both start from the beginning, both would be empty */
-						c.originalRange.startLineNumber > 1 && c.modifiedRange.startLineNumber > 1
-					);
+	// original: xxx[ \n <- this line is not modified
+	// modified: xxx[ \n
+	if (rangeMapping.modifiedRange.startColumn - 1 >= modifiedLines[rangeMapping.modifiedRange.startLineNumber - 1].length
+		&& rangeMapping.originalRange.startColumn - 1 >= originalLines[rangeMapping.originalRange.startLineNumber - 1].length) {
+		lineStartDelta = 1;
+	}
 
-					return new RangeMapping(
-						new Range(c.originalRange.startLineNumber - 1, Number.MAX_SAFE_INTEGER, c.originalRange.endLineNumber - 1, Number.MAX_SAFE_INTEGER),
-						new Range(c.modifiedRange.startLineNumber - 1, Number.MAX_SAFE_INTEGER, c.modifiedRange.endLineNumber - 1, Number.MAX_SAFE_INTEGER),
-					);
-				} else {
-					return new RangeMapping(
-						new Range(c.originalRange.startLineNumber, c.originalRange.startColumn, c.originalRange.endLineNumber - 1, Number.MAX_SAFE_INTEGER),
-						new Range(c.modifiedRange.startLineNumber, c.modifiedRange.startColumn, c.modifiedRange.endLineNumber - 1, Number.MAX_SAFE_INTEGER),
-					);
-				}
-			}
-			assertFn(() => !(c.modifiedRange.endColumn === 1 && c.modifiedRange.endLineNumber > modifiedLineCount));
+	// original: ]xxx \n <- this line is not modified
+	// modified: ]xx  \n
+	if (rangeMapping.modifiedRange.endColumn === 1 && rangeMapping.originalRange.endColumn === 1) {
+		// the end line is not touched, as the last line in `newText` is empty
+		lineEndDelta = -1;
+	}
 
-			return c;
-		}));
-	});
+	const originalLineRange = new LineRange(
+		rangeMapping.originalRange.startLineNumber + lineStartDelta,
+		rangeMapping.originalRange.endLineNumber + 1 + lineEndDelta
+	);
+	const modifiedLineRange = new LineRange(
+		rangeMapping.modifiedRange.startLineNumber + lineStartDelta,
+		rangeMapping.modifiedRange.endLineNumber + 1 + lineEndDelta
+	);
+
+	return new LineRangeMapping(originalLineRange, modifiedLineRange, [rangeMapping]);
 }
 
 function* group<T>(items: Iterable<T>, shouldBeGrouped: (item1: T, item2: T) => boolean): Iterable<T[]> {
@@ -374,23 +359,42 @@ class Slice implements ISequence {
 	private readonly offsetByLine: number[] = [];
 
 	constructor(public readonly lines: string[], lineRange: OffsetRange, public readonly considerWhitespaceChanges: boolean) {
+		// This slice has to have lineRange.length many \n! (otherwise diffing against an empty slice will be problematic)
+		// (Unless it covers the entire document, in that case the other slice also has to cover the entire document ands it's okay)
+
+		// If the slice covers the end, but does not start at the beginning, we include just the \n of the previous line.
+		let trimFirstLineFully = false;
+		if (lineRange.start > 0 && lineRange.endExclusive >= lines.length) {
+			lineRange = new OffsetRange(lineRange.start - 1, lineRange.endExclusive);
+			trimFirstLineFully = true;
+		}
+
 		this.lineRange = lineRange;
 
 		for (let i = this.lineRange.start; i < this.lineRange.endExclusive; i++) {
-			const l = lines[i];
-			const l1 = considerWhitespaceChanges ? l : l.trimStart();
-			const line = considerWhitespaceChanges ? l1 : l1.trimEnd();
+			let line = lines[i];
+			let offset = 0;
+			if (trimFirstLineFully) {
+				offset = line.length;
+				line = '';
+				trimFirstLineFully = false;
+			} else if (!considerWhitespaceChanges) {
+				const trimmedStartLine = line.trimStart();
+				offset = line.length - trimmedStartLine.length;
+				line = trimmedStartLine.trimEnd();
+			}
 
-			this.offsetByLine.push(l.length - l1.length);
+			this.offsetByLine.push(offset);
 
 			for (let i = 0; i < line.length; i++) {
 				this.elements.push(line.charCodeAt(i));
 			}
-			// We assume that every line ends with a newline so that we can diff a full line against an empty range (H).
-			// However, this can lead to positions that are outside of the document.
-			// This is fixed later.
-			this.elements.push('\n'.charCodeAt(0));
-			this.firstCharOffsetByLineMinusOne[i - this.lineRange.start] = this.elements.length;
+
+			// Don't add an \n that does not exist in the document.
+			if (i < lines.length - 1) {
+				this.elements.push('\n'.charCodeAt(0));
+				this.firstCharOffsetByLineMinusOne[i - this.lineRange.start] = this.elements.length;
+			}
 		}
 		// To account for the last line
 		this.offsetByLine.push(0);

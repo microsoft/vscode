@@ -2340,6 +2340,12 @@ declare namespace monaco.editor {
 		 */
 		join(other: LineRange): LineRange;
 		toString(): string;
+		/**
+		 * The resulting range is empty if the ranges do not intersect, but touch.
+		 * If the ranges don't even touch, the result is undefined.
+		 */
+		intersect(other: LineRange): LineRange | undefined;
+		overlapOrTouch(other: LineRange): boolean;
 	}
 
 	/**

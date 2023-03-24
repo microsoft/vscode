@@ -3,6 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { BugIndicatingError } from 'vs/base/common/errors';
+
 /**
  * A range of lines (1-based).
  */
@@ -21,6 +23,9 @@ export class LineRange {
 		startLineNumber: number,
 		endLineNumberExclusive: number,
 	) {
+		if (startLineNumber > endLineNumberExclusive) {
+			throw new BugIndicatingError(`startLineNumber ${startLineNumber} cannot be after endLineNumberExclusive ${endLineNumberExclusive}`);
+		}
 		this.startLineNumber = startLineNumber;
 		this.endLineNumberExclusive = endLineNumberExclusive;
 	}
@@ -65,5 +70,22 @@ export class LineRange {
 
 	public toString(): string {
 		return `[${this.startLineNumber},${this.endLineNumberExclusive})`;
+	}
+
+	/**
+	 * The resulting range is empty if the ranges do not intersect, but touch.
+	 * If the ranges don't even touch, the result is undefined.
+	 */
+	public intersect(other: LineRange): LineRange | undefined {
+		const startLineNumber = Math.max(this.startLineNumber, other.startLineNumber);
+		const endLineNumberExclusive = Math.min(this.endLineNumberExclusive, other.endLineNumberExclusive);
+		if (startLineNumber <= endLineNumberExclusive) {
+			return new LineRange(startLineNumber, endLineNumberExclusive);
+		}
+		return undefined;
+	}
+
+	public overlapOrTouch(other: LineRange): boolean {
+		return this.startLineNumber <= other.endLineNumberExclusive && other.startLineNumber <= this.endLineNumberExclusive;
 	}
 }

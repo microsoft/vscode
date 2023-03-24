@@ -582,33 +582,6 @@ export class EditorSimpleWorker implements IRequestHandler, IDisposable {
 
 			const diff = linesDiffComputers.experimental.computeDiff(originalLines, modifiedLines, { maxComputationTimeMs: 1000, ignoreTrimWhitespace: false });
 
-			// TODO this should be fixed in the experimental diff algorithm, but it might have consequences for the merge editor.
-			function moveUpInvalidInnerChanges(alignments: LineRangeMapping[], originalLineCount: number, modifiedLineCount: number): LineRangeMapping[] {
-				return alignments.map(a => {
-					if (!a.innerChanges) {
-						return a;
-					}
-					return new LineRangeMapping(a.originalRange, a.modifiedRange, a.innerChanges.map(c => {
-						if (c.originalRange.endColumn === 1 && c.originalRange.endLineNumber > originalLineCount) {
-							if (c.originalRange.isEmpty() || c.modifiedRange.isEmpty()) {
-								return new RangeMapping(
-									new Range(c.originalRange.startLineNumber - 1, Number.MAX_SAFE_INTEGER, c.originalRange.endLineNumber - 1, Number.MAX_SAFE_INTEGER),
-									new Range(c.modifiedRange.startLineNumber - 1, Number.MAX_SAFE_INTEGER, c.modifiedRange.endLineNumber - 1, Number.MAX_SAFE_INTEGER),
-								);
-							} else {
-								return new RangeMapping(
-									new Range(c.originalRange.startLineNumber, c.originalRange.startColumn, c.originalRange.endLineNumber - 1, Number.MAX_SAFE_INTEGER),
-									new Range(c.modifiedRange.startLineNumber, c.modifiedRange.startColumn, c.modifiedRange.endLineNumber - 1, Number.MAX_SAFE_INTEGER),
-								);
-							}
-						}
-						return c;
-					}));
-				});
-			}
-
-			const repairedAlignments = moveUpInvalidInnerChanges(diff.changes, originalLines.length, modifiedLines.length);
-
 			const start = Range.lift(range).getStartPosition();
 
 			function addPositions(pos1: Position, pos2: Position): Position {
@@ -632,7 +605,7 @@ export class EditorSimpleWorker implements IRequestHandler, IDisposable {
 				return result;
 			}
 
-			for (const c of repairedAlignments) {
+			for (const c of diff.changes) {
 				if (c.innerChanges) {
 					for (const x of c.innerChanges) {
 						result.push({
