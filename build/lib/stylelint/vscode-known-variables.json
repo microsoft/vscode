@@ -190,7 +190,7 @@
 		"--vscode-editorGroupHeader-tabsBorder",
 		"--vscode-editorGutter-addedBackground",
 		"--vscode-editorGutter-background",
-		"--vscode-editorGutter-commentGlyphForground",
+		"--vscode-editorGutter-commentGlyphForeground",
 		"--vscode-editorGutter-commentRangeForeground",
 		"--vscode-editorGutter-commentUnresolvedGlyphForeground",
 		"--vscode-editorGutter-deletedBackground",
