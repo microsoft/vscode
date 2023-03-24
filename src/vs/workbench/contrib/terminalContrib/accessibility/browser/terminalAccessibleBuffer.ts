@@ -208,6 +208,7 @@ export class AccessibleBufferWidget extends DisposableStore {
 				this._bufferEditor.setPosition(currentPosition);
 				this._bufferEditor.revealLineInCenter(currentPosition.lineNumber);
 			}
+			quickPick.dispose();
 		});
 		quickPick.onDidAccept(() => {
 			const item = quickPick.activeItems[0];
