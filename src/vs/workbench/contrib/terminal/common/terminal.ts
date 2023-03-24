@@ -8,7 +8,7 @@ import { Event } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { IProcessEnvironment, OperatingSystem } from 'vs/base/common/platform';
 import { IExtensionPointDescriptor } from 'vs/workbench/services/extensions/common/extensionsRegistry';
-import { IProcessDataEvent, IProcessReadyEvent, IShellLaunchConfig, ITerminalChildProcess, ITerminalLaunchError, ITerminalProfile, ITerminalProfileObject, ITerminalsLayoutInfo, ITerminalsLayoutInfoById, TerminalIcon, TerminalLocationString, IProcessProperty, TitleEventSource, ProcessPropertyType, IFixedTerminalDimensions, IExtensionTerminalProfile, ICreateContributedTerminalProfileOptions, IProcessPropertyMap, ITerminalEnvironment, ITerminalProcessOptions, ITerminalContributions } from 'vs/platform/terminal/common/terminal';
+import { IProcessDataEvent, IProcessReadyEvent, IShellLaunchConfig, ITerminalChildProcess, ITerminalLaunchError, ITerminalProfile, ITerminalProfileObject, ITerminalsLayoutInfo, ITerminalsLayoutInfoById, TerminalIcon, TerminalLocationString, IProcessProperty, TitleEventSource, ProcessPropertyType, IFixedTerminalDimensions, IExtensionTerminalProfile, ICreateContributedTerminalProfileOptions, IProcessPropertyMap, ITerminalEnvironment, ITerminalProcessOptions, ITerminalContributions, ITerminalOutputMatcher, ITerminalOutputMatch } from 'vs/platform/terminal/common/terminal';
 import { IEnvironmentVariableInfo } from 'vs/workbench/contrib/terminal/common/environmentVariable';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { URI } from 'vs/base/common/uri';
@@ -16,7 +16,6 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { IMarkProperties, ISerializedCommandDetectionCapability, ITerminalCapabilityStore, IXtermMarker } from 'vs/platform/terminal/common/capabilities/capabilities';
 import { ThemeIcon } from 'vs/base/common/themables';
 import { IProcessDetails } from 'vs/platform/terminal/common/terminalProcess';
-import { ITerminalQuickFixProvider, ITerminalCommandSelector, ITerminalOutputMatch, ITerminalOutputMatcher } from 'vs/platform/terminal/common/xterm/terminalQuickFix';
 import Severity from 'vs/base/common/severity';
 import { IMergedEnvironmentVariableCollection } from 'vs/platform/terminal/common/environmentVariable';
 
@@ -88,21 +87,6 @@ export interface ITerminalProfileService {
 	registerTerminalProfileProvider(extensionIdentifier: string, id: string, profileProvider: ITerminalProfileProvider): IDisposable;
 }
 
-export const ITerminalQuickFixService = createDecorator<ITerminalQuickFixService>('terminalQuickFixService');
-export interface ITerminalQuickFixService {
-	onDidRegisterProvider: Event<ITerminalQuickFixProviderSelector>;
-	onDidRegisterCommandSelector: Event<ITerminalCommandSelector>;
-	onDidUnregisterProvider: Event<string>;
-	readonly _serviceBrand: undefined;
-	providers: Map<string, ITerminalQuickFixProvider>;
-	registerQuickFixProvider(id: string, provider: ITerminalQuickFixProvider): IDisposable;
-	registerCommandSelector(selector: ITerminalCommandSelector): void;
-}
-
-export interface ITerminalQuickFixProviderSelector {
-	selector: ITerminalCommandSelector;
-	provider: ITerminalQuickFixProvider;
-}
 export interface ITerminalProfileProvider {
 	createContributedTerminalProfile(options: ICreateContributedTerminalProfileOptions): Promise<void>;
 }
@@ -822,73 +806,5 @@ export const terminalContributionsDescriptor: IExtensionPointDescriptor<ITermina
 				},
 			},
 		},
-	},
-};
-
-export const terminalQuickFixesContributionsDescriptor: IExtensionPointDescriptor<ITerminalCommandSelector[]> = {
-	extensionPoint: 'terminalQuickFixes',
-	defaultExtensionKind: ['workspace'],
-	activationEventsGenerator: (terminalQuickFixes: ITerminalCommandSelector[], result: { push(item: string): void }) => {
-		for (const quickFixContrib of terminalQuickFixes ?? []) {
-			result.push(`onTerminalQuickFixRequest:${quickFixContrib.id}`);
-		}
-	},
-	jsonSchema: {
-		description: nls.localize('vscode.extension.contributes.terminalQuickFixes', 'Contributes terminal quick fixes.'),
-		type: 'array',
-		items: {
-			type: 'object',
-			additionalProperties: false,
-			required: ['id', 'commandLineMatcher', 'outputMatcher', 'commandExitResult'],
-			defaultSnippets: [{
-				body: {
-					id: '$1',
-					commandLineMatcher: '$2',
-					outputMatcher: '$3',
-					exitStatus: '$4'
-				}
-			}],
-			properties: {
-				id: {
-					description: nls.localize('vscode.extension.contributes.terminalQuickFixes.id', "The ID of the quick fix provider"),
-					type: 'string',
-				},
-				commandLineMatcher: {
-					description: nls.localize('vscode.extension.contributes.terminalQuickFixes.commandLineMatcher', "A regular expression or string to test the command line against"),
-					type: 'string',
-				},
-				outputMatcher: {
-					markdownDescription: nls.localize('vscode.extension.contributes.terminalQuickFixes.outputMatcher', "A regular expression or string to match a single line of the output against, which provides groups to be referenced in terminalCommand and uri.\n\nFor example:\n\n `lineMatcher: /git push --set-upstream origin (?<branchName>[^\s]+)/;`\n\n`terminalCommand: 'git push --set-upstream origin ${group:branchName}';`\n"),
-					type: 'object',
-					required: ['lineMatcher', 'anchor', 'offset', 'length'],
-					properties: {
-						lineMatcher: {
-							description: 'A regular expression or string to test the command line against',
-							type: 'string'
-						},
-						anchor: {
-							description: 'Where the search should begin in the buffer',
-							enum: ['top', 'bottom']
-						},
-						offset: {
-							description: 'The number of lines vertically from the anchor in the buffer to start matching against',
-							type: 'number'
-						},
-						length: {
-							description: 'The number of rows to match against, this should be as small as possible for performance reasons',
-							type: 'number'
-						}
-					}
-				},
-				commandExitResult: {
-					description: nls.localize('vscode.extension.contributes.terminalQuickFixes.commandExitResult', "The command exit result to match on"),
-					enum: ['success', 'error'],
-					enumDescriptions: [
-						'The command exited with an exit code of zero.',
-						'The command exited with a non-zero exit code.'
-					]
-				}
-			},
-		}
 	},
 };

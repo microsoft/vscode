@@ -9,8 +9,8 @@ import { Schemas } from 'vs/base/common/network';
 import { CodeActionKind } from 'vs/editor/contrib/codeAction/common/types';
 import { localize } from 'vs/nls';
 import { ActionListItemKind, IActionListItem } from 'vs/platform/actionWidget/browser/actionList';
-import { TerminalQuickFixType } from 'vs/platform/terminal/common/xterm/terminalQuickFix';
 import { ITerminalAction } from 'vs/workbench/contrib/terminalContrib/quickFix/browser/quickFixAddon';
+import { TerminalQuickFixType } from 'vs/workbench/contrib/terminalContrib/quickFix/browser/quickFix';
 
 export class TerminalQuickFix {
 	action: ITerminalAction;

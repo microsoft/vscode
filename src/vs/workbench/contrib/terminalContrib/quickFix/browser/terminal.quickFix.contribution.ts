@@ -3,20 +3,25 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ITerminalContribution, ITerminalInstance, IXtermTerminal } from 'vs/workbench/contrib/terminal/browser/terminal';
-import { Terminal as RawXtermTerminal } from 'xterm';
-import { registerTerminalContribution } from 'vs/workbench/contrib/terminal/browser/terminalExtensions';
+import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { DisposableStore } from 'vs/base/common/lifecycle';
+import { localize } from 'vs/nls';
+import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { TerminalQuickFixAddon } from 'vs/workbench/contrib/terminalContrib/quickFix/browser/quickFixAddon';
-import { freePort, gitCreatePr, gitPushSetUpstream, gitSimilar, gitTwoDashes, pwshGeneralError, pwshUnixCommandNotFoundError } from 'vs/workbench/contrib/terminalContrib/quickFix/browser/terminalQuickFixBuiltinActions';
+import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { ITerminalContribution, ITerminalInstance, IXtermTerminal } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { registerActiveInstanceAction } from 'vs/workbench/contrib/terminal/browser/terminalActions';
+import { registerTerminalContribution } from 'vs/workbench/contrib/terminal/browser/terminalExtensions';
 import { TerminalWidgetManager } from 'vs/workbench/contrib/terminal/browser/widgets/widgetManager';
 import { ITerminalProcessManager, TerminalCommandId } from 'vs/workbench/contrib/terminal/common/terminal';
-import { registerActiveInstanceAction } from 'vs/workbench/contrib/terminal/browser/terminalActions';
-import { localize } from 'vs/nls';
 import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/terminalContextKey';
-import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { ITerminalQuickFixService } from 'vs/workbench/contrib/terminalContrib/quickFix/browser/quickFix';
+import { TerminalQuickFixAddon } from 'vs/workbench/contrib/terminalContrib/quickFix/browser/quickFixAddon';
+import { freePort, gitCreatePr, gitPushSetUpstream, gitSimilar, gitTwoDashes, pwshGeneralError, pwshUnixCommandNotFoundError } from 'vs/workbench/contrib/terminalContrib/quickFix/browser/terminalQuickFixBuiltinActions';
+import { TerminalQuickFixService } from 'vs/workbench/contrib/terminalContrib/quickFix/browser/terminalQuickFixService';
+import { Terminal as RawXtermTerminal } from 'xterm';
+
+registerSingleton(ITerminalQuickFixService, TerminalQuickFixService, InstantiationType.Delayed);
 
 class TerminalQuickFixContribution extends DisposableStore implements ITerminalContribution {
 	static readonly ID = 'terminal.quickFix';

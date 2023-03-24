@@ -5,9 +5,8 @@
 
 import { Emitter } from 'vs/base/common/event';
 import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { ITerminalQuickFixProvider, ITerminalCommandSelector } from 'vs/platform/terminal/common/xterm/terminalQuickFix';
-import { ITerminalQuickFixProviderSelector, ITerminalQuickFixService } from 'vs/workbench/contrib/terminal/common/terminal';
-import { ITerminalContributionService } from 'vs/workbench/contrib/terminal/common/terminalExtensionPoints';
+import { ITerminalCommandSelector } from 'vs/platform/terminal/common/terminal';
+import { ITerminalQuickFixService, ITerminalQuickFixProvider, ITerminalQuickFixProviderSelector, ITerminalQuickFixContributionService } from 'vs/workbench/contrib/terminalContrib/quickFix/browser/quickFix';
 
 export class TerminalQuickFixService implements ITerminalQuickFixService {
 	declare _serviceBrand: undefined;
@@ -24,8 +23,8 @@ export class TerminalQuickFixService implements ITerminalQuickFixService {
 	private readonly _onDidUnregisterProvider = new Emitter<string>();
 	readonly onDidUnregisterProvider = this._onDidUnregisterProvider.event;
 
-	constructor(@ITerminalContributionService private readonly _terminalContributionService: ITerminalContributionService) {
-		this._terminalContributionService.terminalQuickFixes.then(selectors => {
+	constructor(@ITerminalQuickFixContributionService private readonly _terminalQuickFixContributionService: ITerminalQuickFixContributionService) {
+		this._terminalQuickFixContributionService.terminalQuickFixes.then(selectors => {
 			for (const selector of selectors) {
 				this.registerCommandSelector(selector);
 			}
@@ -42,7 +41,7 @@ export class TerminalQuickFixService implements ITerminalQuickFixService {
 		// IDisposable synchronously but we must await ITerminalContributionService.quickFixes
 		// asynchronously before actually registering the provider.
 		let disposed = false;
-		this._terminalContributionService.terminalQuickFixes.then(() => {
+		this._terminalQuickFixContributionService.terminalQuickFixes.then(() => {
 			if (disposed) {
 				return;
 			}

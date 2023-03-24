@@ -21,15 +21,15 @@ import { TerminalQuickFixAddon, getQuickFixesForCommand } from 'vs/workbench/con
 import { URI } from 'vs/base/common/uri';
 import { Terminal } from 'xterm';
 import { ITerminalContributionService } from 'vs/workbench/contrib/terminal/common/terminalExtensionPoints';
-import { ITerminalQuickFixService } from 'vs/workbench/contrib/terminal/common/terminal';
 import { Emitter } from 'vs/base/common/event';
-import { ITerminalOutputMatcher } from 'vs/platform/terminal/common/xterm/terminalQuickFix';
 import { LabelService } from 'vs/workbench/services/label/common/labelService';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { OpenerService } from 'vs/editor/browser/services/openerService';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { TestStorageService } from 'vs/workbench/test/common/workbenchTestServices';
+import { ITerminalQuickFixService } from 'vs/workbench/contrib/terminalContrib/quickFix/browser/quickFix';
+import { ITerminalOutputMatcher } from 'vs/platform/terminal/common/terminal';
 
 suite('QuickFixAddon', () => {
 	let quickFixAddon: TerminalQuickFixAddon;

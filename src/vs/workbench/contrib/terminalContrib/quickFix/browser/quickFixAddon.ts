@@ -23,14 +23,13 @@ import { AudioCue, IAudioCueService } from 'vs/platform/audioCues/browser/audioC
 import { IActionWidgetService } from 'vs/platform/actionWidget/browser/actionWidget';
 import { ActionSet } from 'vs/platform/actionWidget/common/actionWidget';
 import { TerminalQuickFix, toMenuItems } from 'vs/workbench/contrib/terminalContrib/quickFix/browser/terminalQuickFixMenuItems';
-import { ITerminalQuickFixProviderSelector, ITerminalQuickFixService } from 'vs/workbench/contrib/terminal/common/terminal';
-import { ITerminalQuickFixOptions, IResolvedExtensionOptions, IUnresolvedExtensionOptions, ITerminalCommandSelector, ITerminalQuickFix, IInternalOptions, ITerminalQuickFixCommandAction, ITerminalQuickFixOpenerAction, TerminalQuickFixType } from 'vs/platform/terminal/common/xterm/terminalQuickFix';
 import { getLinesForCommand } from 'vs/platform/terminal/common/capabilities/commandDetectionCapability';
 import { IAnchor } from 'vs/base/browser/ui/contextview/contextview';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { Schemas } from 'vs/base/common/network';
 import { URI } from 'vs/base/common/uri';
-import { ITerminalContributionService } from 'vs/workbench/contrib/terminal/common/terminalExtensionPoints';
+import { IInternalOptions, IResolvedExtensionOptions, ITerminalQuickFix, ITerminalQuickFixCommandAction, ITerminalQuickFixContributionService, ITerminalQuickFixOpenerAction, ITerminalQuickFixOptions, ITerminalQuickFixProviderSelector, ITerminalQuickFixService, IUnresolvedExtensionOptions, TerminalQuickFixType } from 'vs/workbench/contrib/terminalContrib/quickFix/browser/quickFix';
+import { ITerminalCommandSelector } from 'vs/platform/terminal/common/terminal';
 
 const quickFixSelectors = [
 	DecorationSelector.QuickFix,
@@ -79,7 +78,7 @@ export class TerminalQuickFixAddon extends Disposable implements ITerminalAddon,
 		@IExtensionService private readonly _extensionService: IExtensionService,
 		@IActionWidgetService private readonly _actionWidgetService: IActionWidgetService,
 		@ILabelService private readonly _labelService: ILabelService,
-		@ITerminalContributionService terminalContributionService: ITerminalContributionService
+		@ITerminalQuickFixContributionService terminalQuickFixContributionService: ITerminalQuickFixContributionService
 	) {
 		super();
 		const commandDetectionCapability = this._capabilities.get(TerminalCapability.CommandDetection);
@@ -93,7 +92,7 @@ export class TerminalQuickFixAddon extends Disposable implements ITerminalAddon,
 			}));
 		}
 		this._register(this._quickFixService.onDidRegisterProvider(result => this.registerCommandFinishedListener(convertToQuickFixOptions(result))));
-		terminalContributionService.terminalQuickFixes.then(quickFixSelectors => {
+		terminalQuickFixContributionService.terminalQuickFixes.then(quickFixSelectors => {
 			for (const selector of quickFixSelectors) {
 				this.registerCommandSelector(selector);
 			}

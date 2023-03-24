@@ -5,8 +5,8 @@
 
 import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
-import { IInternalOptions, ITerminalCommandMatchResult, ITerminalQuickFixCommandAction, TerminalQuickFixActionInternal, TerminalQuickFixType } from 'vs/platform/terminal/common/xterm/terminalQuickFix';
 import { ITerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { IInternalOptions, ITerminalCommandMatchResult, ITerminalQuickFixCommandAction, TerminalQuickFixActionInternal, TerminalQuickFixType } from 'vs/workbench/contrib/terminalContrib/quickFix/browser/quickFix';
 
 export const GitCommandLineRegex = /git/;
 export const GitPushCommandLineRegex = /git\s+push/;

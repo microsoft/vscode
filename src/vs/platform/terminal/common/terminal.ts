@@ -859,3 +859,46 @@ export enum TerminalExitReason {
 	User = 3,
 	Extension = 4,
 }
+
+export interface ITerminalOutputMatch {
+	regexMatch: RegExpMatchArray;
+	outputLines: string[];
+}
+
+/**
+ * A matcher that runs on a sub-section of a terminal command's output
+ */
+export interface ITerminalOutputMatcher {
+	/**
+	 * A string or regex to match against the unwrapped line. If this is a regex with the multiline
+	 * flag, it will scan an amount of lines equal to `\n` instances in the regex + 1.
+	 */
+	lineMatcher: string | RegExp;
+	/**
+	 * Which side of the output to anchor the {@link offset} and {@link length} against.
+	 */
+	anchor: 'top' | 'bottom';
+	/**
+	 * The number of rows above or below the {@link anchor} to start matching against.
+	 */
+	offset: number;
+	/**
+	 * The number of rows to match against, this should be as small as possible for performance
+	 * reasons. This is capped at 40.
+	 */
+	length: number;
+
+	/**
+	 * If multiple matches are expected - this will result in {@link outputLines} being returned
+	 * when there's a {@link regexMatch} from {@link offset} to {@link length}
+	 */
+	multipleMatches?: boolean;
+}
+
+export interface ITerminalCommandSelector {
+	id: string;
+	commandLineMatcher: string | RegExp;
+	outputMatcher?: ITerminalOutputMatcher;
+	exitStatus: boolean;
+	commandExitResult: 'success' | 'error';
+}
