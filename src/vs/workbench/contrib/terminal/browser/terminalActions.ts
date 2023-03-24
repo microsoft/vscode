@@ -137,7 +137,7 @@ export class TerminalLaunchHelpAction extends Action {
  * - `category`: Terminal
  * - `precondition`: TerminalContextKeys.processSupported
  */
-function registerTerminalAction(
+export function registerTerminalAction(
 	options: IAction2Options & { run: (c: ITerminalServicesCollection, accessor: ServicesAccessor, args?: unknown) => void | Promise<unknown> }
 ): IDisposable {
 	// Set defaults
@@ -159,7 +159,11 @@ function registerTerminalAction(
 	});
 }
 
-function registerActiveInstanceAction(
+/**
+ * A wrapper around {@link registerTerminalAction} that ensures an active instance exists and
+ * provides it to the run function.
+ */
+export function registerActiveInstanceAction(
 	options: IAction2Options & { run: (activeInstance: ITerminalInstance, c: ITerminalServicesCollection, accessor: ServicesAccessor, args?: unknown) => void | Promise<unknown> }
 ): IDisposable {
 	const originalRun = options.run;
@@ -174,7 +178,7 @@ function registerActiveInstanceAction(
 	});
 }
 
-interface ITerminalServicesCollection {
+export interface ITerminalServicesCollection {
 	service: ITerminalService;
 	groupService: ITerminalGroupService;
 	instanceService: ITerminalInstanceService;
@@ -1799,7 +1803,7 @@ async function focusActiveTerminal(instance: ITerminalInstance, c: ITerminalServ
 	}
 }
 
-async function revealActiveTerminal(instance: ITerminalInstance, c: ITerminalServicesCollection): Promise<void> {
+export async function revealActiveTerminal(instance: ITerminalInstance, c: ITerminalServicesCollection): Promise<void> {
 	if (instance.target === TerminalLocation.Editor) {
 		await c.editorService.revealActiveEditor();
 	} else {
