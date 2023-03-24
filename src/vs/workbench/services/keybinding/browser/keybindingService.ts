@@ -4,47 +4,53 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as nls from 'vs/nls';
+
+// base
 import * as browser from 'vs/base/browser/browser';
+import { BrowserFeatures, KeyboardSupport } from 'vs/base/browser/canIUse';
 import * as dom from 'vs/base/browser/dom';
 import { printKeyboardEvent, printStandardKeyboardEvent, StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
+import { RunOnceScheduler } from 'vs/base/common/async';
 import { Emitter, Event } from 'vs/base/common/event';
+import { parse } from 'vs/base/common/json';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
-import { KeyCode, KeyMod, ScanCode, ScanCodeUtils, IMMUTABLE_CODE_TO_KEY_CODE, KeyCodeUtils } from 'vs/base/common/keyCodes';
-import { ResolvedKeybinding, KeyCodeChord, ScanCodeChord, Keybinding } from 'vs/base/common/keybindings';
+import { UserSettingsLabelProvider } from 'vs/base/common/keybindingLabels';
 import { KeybindingParser } from 'vs/base/common/keybindingParser';
-import { OS, OperatingSystem, isMacintosh } from 'vs/base/common/platform';
-import { ICommandService, CommandsRegistry } from 'vs/platform/commands/common/commands';
-import { ContextKeyExpr, IContextKeyService, ContextKeyExpression, IContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { Keybinding, KeyCodeChord, ResolvedKeybinding, ScanCodeChord } from 'vs/base/common/keybindings';
+import { IMMUTABLE_CODE_TO_KEY_CODE, KeyCode, KeyCodeUtils, KeyMod, ScanCode, ScanCodeUtils } from 'vs/base/common/keyCodes';
+import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
+import * as objects from 'vs/base/common/objects';
+import { isMacintosh, OperatingSystem, OS } from 'vs/base/common/platform';
+import { dirname } from 'vs/base/common/resources';
+
+// platform
+import { MenuRegistry } from 'vs/platform/actions/common/actions';
+import { CommandsRegistry, ICommandService } from 'vs/platform/commands/common/commands';
+import { ContextKeyExpr, ContextKeyExpression, IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
+import { FileOperation, IFileService } from 'vs/platform/files/common/files';
+import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { Extensions, IJSONContributionRegistry } from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
 import { AbstractKeybindingService } from 'vs/platform/keybinding/common/abstractKeybindingService';
-import { IKeyboardEvent, IKeybindingService, KeybindingsSchemaContribution } from 'vs/platform/keybinding/common/keybinding';
+import { IKeybindingService, IKeyboardEvent, KeybindingsSchemaContribution } from 'vs/platform/keybinding/common/keybinding';
 import { KeybindingResolver } from 'vs/platform/keybinding/common/keybindingResolver';
-import { IKeybindingItem, IExtensionKeybindingRule, KeybindingWeight, KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { IExtensionKeybindingRule, IKeybindingItem, KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { ResolvedKeybindingItem } from 'vs/platform/keybinding/common/resolvedKeybindingItem';
+import { IKeyboardLayoutService } from 'vs/platform/keyboardLayout/common/keyboardLayout';
+import { IKeyboardMapper } from 'vs/platform/keyboardLayout/common/keyboardMapper';
+import { ILogService } from 'vs/platform/log/common/log';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { ExtensionMessageCollector, ExtensionsRegistry } from 'vs/workbench/services/extensions/common/extensionsRegistry';
-import { IUserKeybindingItem, KeybindingIO, OutputBuilder } from 'vs/workbench/services/keybinding/common/keybindingIO';
-import { IKeyboardMapper } from 'vs/platform/keyboardLayout/common/keyboardMapper';
-import { IHostService } from 'vs/workbench/services/host/browser/host';
-import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { MenuRegistry } from 'vs/platform/actions/common/actions';
-import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
+
+// workbench
 import { commandsExtensionPoint } from 'vs/workbench/services/actions/common/menusExtensionPoint';
-import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { RunOnceScheduler } from 'vs/base/common/async';
-import { FileOperation, IFileService } from 'vs/platform/files/common/files';
-import { parse } from 'vs/base/common/json';
-import * as objects from 'vs/base/common/objects';
-import { IKeyboardLayoutService } from 'vs/platform/keyboardLayout/common/keyboardLayout';
-import { INavigatorWithKeyboard, IKeyboard } from 'vs/workbench/services/keybinding/browser/navigatorKeyboard';
-import { BrowserFeatures, KeyboardSupport } from 'vs/base/browser/canIUse';
-import { ILogService } from 'vs/platform/log/common/log';
-import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
-import { dirname } from 'vs/base/common/resources';
+import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
+import { ExtensionMessageCollector, ExtensionsRegistry } from 'vs/workbench/services/extensions/common/extensionsRegistry';
+import { IHostService } from 'vs/workbench/services/host/browser/host';
+import { IKeyboard, INavigatorWithKeyboard } from 'vs/workbench/services/keybinding/browser/navigatorKeyboard';
 import { getAllUnboundCommands } from 'vs/workbench/services/keybinding/browser/unboundCommands';
-import { UserSettingsLabelProvider } from 'vs/base/common/keybindingLabels';
+import { IUserKeybindingItem, KeybindingIO, OutputBuilder } from 'vs/workbench/services/keybinding/common/keybindingIO';
 import { DidChangeUserDataProfileEvent, IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
 
 interface ContributedKeyBinding {
