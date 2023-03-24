@@ -18,6 +18,8 @@ export interface ITerminalQuickFixService {
 	onDidRegisterCommandSelector: Event<ITerminalCommandSelector>;
 	onDidUnregisterProvider: Event<string>;
 	readonly _serviceBrand: undefined;
+	// TODO: name
+	readonly terminalQuickFixes: Promise<Array<ITerminalCommandSelector>>;
 	providers: Map<string, ITerminalQuickFixProvider>;
 	registerQuickFixProvider(id: string, provider: ITerminalQuickFixProvider): IDisposable;
 	registerCommandSelector(selector: ITerminalCommandSelector): void;
@@ -93,9 +95,3 @@ export interface IResolvedExtensionOptions extends ITerminalQuickFixOptions {
 export interface IUnresolvedExtensionOptions extends ITerminalQuickFixOptions {
 	type: 'unresolved';
 }
-
-export interface ITerminalQuickFixContributionService {
-	readonly _serviceBrand: undefined;
-	readonly terminalQuickFixes: Promise<Array<ITerminalCommandSelector>>;
-}
-export const ITerminalQuickFixContributionService = createDecorator<ITerminalQuickFixContributionService>('terminalQuickFixContributionsService');

@@ -28,7 +28,7 @@ import { IAnchor } from 'vs/base/browser/ui/contextview/contextview';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { Schemas } from 'vs/base/common/network';
 import { URI } from 'vs/base/common/uri';
-import { IInternalOptions, IResolvedExtensionOptions, ITerminalQuickFix, ITerminalQuickFixCommandAction, ITerminalQuickFixContributionService, ITerminalQuickFixOpenerAction, ITerminalQuickFixOptions, ITerminalQuickFixProviderSelector, ITerminalQuickFixService, IUnresolvedExtensionOptions, TerminalQuickFixType } from 'vs/workbench/contrib/terminalContrib/quickFix/browser/quickFix';
+import { IInternalOptions, IResolvedExtensionOptions, ITerminalQuickFix, ITerminalQuickFixCommandAction, ITerminalQuickFixOpenerAction, ITerminalQuickFixOptions, ITerminalQuickFixProviderSelector, ITerminalQuickFixService, IUnresolvedExtensionOptions, TerminalQuickFixType } from 'vs/workbench/contrib/terminalContrib/quickFix/browser/quickFix';
 import { ITerminalCommandSelector } from 'vs/platform/terminal/common/terminal';
 import { ActionListItemKind, IActionListItem } from 'vs/platform/actionWidget/browser/actionList';
 import { CodeActionKind } from 'vs/editor/contrib/codeAction/common/types';
@@ -81,8 +81,7 @@ export class TerminalQuickFixAddon extends Disposable implements ITerminalAddon,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@IExtensionService private readonly _extensionService: IExtensionService,
 		@IActionWidgetService private readonly _actionWidgetService: IActionWidgetService,
-		@ILabelService private readonly _labelService: ILabelService,
-		@ITerminalQuickFixContributionService terminalQuickFixContributionService: ITerminalQuickFixContributionService
+		@ILabelService private readonly _labelService: ILabelService
 	) {
 		super();
 		const commandDetectionCapability = this._capabilities.get(TerminalCapability.CommandDetection);
@@ -96,7 +95,7 @@ export class TerminalQuickFixAddon extends Disposable implements ITerminalAddon,
 			}));
 		}
 		this._register(this._quickFixService.onDidRegisterProvider(result => this.registerCommandFinishedListener(convertToQuickFixOptions(result))));
-		terminalQuickFixContributionService.terminalQuickFixes.then(quickFixSelectors => {
+		this._quickFixService.terminalQuickFixes.then(quickFixSelectors => {
 			for (const selector of quickFixSelectors) {
 				this.registerCommandSelector(selector);
 			}

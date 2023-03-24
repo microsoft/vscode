@@ -5,8 +5,11 @@
 
 import { Emitter } from 'vs/base/common/event';
 import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { localize } from 'vs/nls';
 import { ITerminalCommandSelector } from 'vs/platform/terminal/common/terminal';
-import { ITerminalQuickFixService, ITerminalQuickFixProvider, ITerminalQuickFixProviderSelector, ITerminalQuickFixContributionService } from 'vs/workbench/contrib/terminalContrib/quickFix/browser/quickFix';
+import { ITerminalQuickFixService, ITerminalQuickFixProvider, ITerminalQuickFixProviderSelector } from 'vs/workbench/contrib/terminalContrib/quickFix/browser/quickFix';
+import { isProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
+import { ExtensionsRegistry } from 'vs/workbench/services/extensions/common/extensionsRegistry';
 
 export class TerminalQuickFixService implements ITerminalQuickFixService {
 	declare _serviceBrand: undefined;
@@ -23,10 +26,21 @@ export class TerminalQuickFixService implements ITerminalQuickFixService {
 	private readonly _onDidUnregisterProvider = new Emitter<string>();
 	readonly onDidUnregisterProvider = this._onDidUnregisterProvider.event;
 
-	constructor(
-		@ITerminalQuickFixContributionService private readonly _terminalQuickFixContributionService: ITerminalQuickFixContributionService
-	) {
-		this._terminalQuickFixContributionService.terminalQuickFixes.then(selectors => {
+	// TODO: Private, rename
+	terminalQuickFixes: Promise<Array<ITerminalCommandSelector>>;
+
+	constructor() {
+		// TODO: Simplify?
+		this.terminalQuickFixes = new Promise((r) => quickFixExtensionPoint.setHandler(fixes => {
+			const quickFixes = fixes.filter(c => isProposedApiEnabled(c.description, 'terminalQuickFixProvider')).map(c => {
+				if (!c.value) {
+					return [];
+				}
+				return c.value.map(fix => { return { ...fix, extensionIdentifier: c.description.identifier.value }; });
+			}).flat();
+			r(quickFixes);
+		}));
+		this.terminalQuickFixes.then(selectors => {
 			for (const selector of selectors) {
 				this.registerCommandSelector(selector);
 			}
@@ -43,7 +57,7 @@ export class TerminalQuickFixService implements ITerminalQuickFixService {
 		// IDisposable synchronously but we must await ITerminalContributionService.quickFixes
 		// asynchronously before actually registering the provider.
 		let disposed = false;
-		this._terminalQuickFixContributionService.terminalQuickFixes.then(() => {
+		this.terminalQuickFixes.then(() => {
 			if (disposed) {
 				return;
 			}
@@ -65,3 +79,71 @@ export class TerminalQuickFixService implements ITerminalQuickFixService {
 		});
 	}
 }
+
+const quickFixExtensionPoint = ExtensionsRegistry.registerExtensionPoint<ITerminalCommandSelector[]>({
+	extensionPoint: 'terminalQuickFixes',
+	defaultExtensionKind: ['workspace'],
+	activationEventsGenerator: (terminalQuickFixes: ITerminalCommandSelector[], result: { push(item: string): void }) => {
+		for (const quickFixContrib of terminalQuickFixes ?? []) {
+			result.push(`onTerminalQuickFixRequest:${quickFixContrib.id}`);
+		}
+	},
+	jsonSchema: {
+		description: localize('vscode.extension.contributes.terminalQuickFixes', 'Contributes terminal quick fixes.'),
+		type: 'array',
+		items: {
+			type: 'object',
+			additionalProperties: false,
+			required: ['id', 'commandLineMatcher', 'outputMatcher', 'commandExitResult'],
+			defaultSnippets: [{
+				body: {
+					id: '$1',
+					commandLineMatcher: '$2',
+					outputMatcher: '$3',
+					exitStatus: '$4'
+				}
+			}],
+			properties: {
+				id: {
+					description: localize('vscode.extension.contributes.terminalQuickFixes.id', "The ID of the quick fix provider"),
+					type: 'string',
+				},
+				commandLineMatcher: {
+					description: localize('vscode.extension.contributes.terminalQuickFixes.commandLineMatcher', "A regular expression or string to test the command line against"),
+					type: 'string',
+				},
+				outputMatcher: {
+					markdownDescription: localize('vscode.extension.contributes.terminalQuickFixes.outputMatcher', "A regular expression or string to match a single line of the output against, which provides groups to be referenced in terminalCommand and uri.\n\nFor example:\n\n `lineMatcher: /git push --set-upstream origin (?<branchName>[^\s]+)/;`\n\n`terminalCommand: 'git push --set-upstream origin ${group:branchName}';`\n"),
+					type: 'object',
+					required: ['lineMatcher', 'anchor', 'offset', 'length'],
+					properties: {
+						lineMatcher: {
+							description: 'A regular expression or string to test the command line against',
+							type: 'string'
+						},
+						anchor: {
+							description: 'Where the search should begin in the buffer',
+							enum: ['top', 'bottom']
+						},
+						offset: {
+							description: 'The number of lines vertically from the anchor in the buffer to start matching against',
+							type: 'number'
+						},
+						length: {
+							description: 'The number of rows to match against, this should be as small as possible for performance reasons',
+							type: 'number'
+						}
+					}
+				},
+				commandExitResult: {
+					description: localize('vscode.extension.contributes.terminalQuickFixes.commandExitResult', "The command exit result to match on"),
+					enum: ['success', 'error'],
+					enumDescriptions: [
+						'The command exited with an exit code of zero.',
+						'The command exited with a non-zero exit code.'
+					]
+				}
+			},
+		}
+	},
+});
