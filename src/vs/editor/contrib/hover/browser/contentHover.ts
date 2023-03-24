@@ -27,7 +27,6 @@ import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { IResizeEvent, ResizableHTMLElement } from 'vs/base/browser/ui/resizable/resizable';
 import { Emitter, Event } from 'vs/base/common/event';
 
-
 // QUESTIONS TO ASK
 // 1. How to make the overlay have higher index, appear on top and have the layer below still detect the on mouse events
 
@@ -329,10 +328,10 @@ export class ContentHoverController extends Disposable {
 				const clientWidth = widgetDomNode.clientWidth;
 				const clientHeight = widgetDomNode.clientHeight;
 
-				widgetUnderlayDomNode.style.width = clientWidth + 6 + 'px';
-				widgetUnderlayDomNode.style.height = clientHeight + 6 + 'px';
+				widgetUnderlayDomNode.style.width = clientWidth + SASH_WIDTH + 2 + 'px';
+				widgetUnderlayDomNode.style.height = clientHeight + SASH_WIDTH + 2 + 'px';
 				widgetUnderlayDomNode.style.left = offsetLeft + 'px';
-				widgetUnderlayDomNode.style.top = offsetTop - 4 + 'px';
+				widgetUnderlayDomNode.style.top = offsetTop - SASH_WIDTH + 'px';
 
 				// Update the left and top offset to match the widget dom node
 				const resizableElement = this._resizableOverlay.resizableElement();

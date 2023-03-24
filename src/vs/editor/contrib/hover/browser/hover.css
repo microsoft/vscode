@@ -29,7 +29,4 @@
 	background-color: var(--vscode-textCodeBlock-background);
 }
 
-.monaco-editor .monaco-hover-underlay {
-	background-color: var(--vscode-editorHoverWidget-background);
-}
 
