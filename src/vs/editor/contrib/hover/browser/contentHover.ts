@@ -17,13 +17,14 @@ import { IModelDecoration, PositionAffinity } from 'vs/editor/common/model';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 import { TokenizationRegistry } from 'vs/editor/common/languages';
 import { HoverOperation, HoverStartMode, HoverStartSource, IHoverComputer } from 'vs/editor/contrib/hover/browser/hoverOperation';
-import { HoverAnchor, HoverAnchorType, HoverParticipantRegistry, HoverRangeAnchor, IEditorHoverColorPickerWidget, IEditorHoverAction, IEditorHoverParticipant, IEditorHoverRenderContext, IEditorHoverStatusBar, IHoverPart } from 'vs/editor/contrib/hover/browser/hoverTypes';
+import { HoverAnchor, HoverAnchorType, HoverParticipantRegistry, HoverRangeAnchor, IEditorHoverAction, IEditorHoverParticipant, IEditorHoverRenderContext, IEditorHoverStatusBar, IHoverPart } from 'vs/editor/contrib/hover/browser/hoverTypes';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { Context as SuggestContext } from 'vs/editor/contrib/suggest/browser/suggest';
 import { AsyncIterableObject } from 'vs/base/common/async';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
+import { ColorPickerWidget } from 'vs/editor/contrib/colorPicker/browser/colorPickerWidget';
 
 const $ = dom.$;
 
@@ -255,7 +256,7 @@ export class ContentHoverController extends Disposable {
 		const statusBar = disposables.add(new EditorHoverStatusBar(this._keybindingService));
 		const fragment = document.createDocumentFragment();
 
-		let colorPicker: IEditorHoverColorPickerWidget | null = null;
+		let colorPicker: ColorPickerWidget | null = null;
 		const context: IEditorHoverRenderContext = {
 			fragment,
 			statusBar,
@@ -266,6 +267,7 @@ export class ContentHoverController extends Disposable {
 
 		for (const participant of this._participants) {
 			const hoverParts = messages.filter(msg => msg.owner === participant);
+			console.log('hoverParts : ', hoverParts);
 			if (hoverParts.length > 0) {
 				disposables.add(participant.renderHoverParts(context, hoverParts));
 			}
@@ -424,7 +426,7 @@ class ContentHoverVisibleData {
 	public closestMouseDistance: number | undefined = undefined;
 
 	constructor(
-		public readonly colorPicker: IEditorHoverColorPickerWidget | null,
+		public readonly colorPicker: ColorPickerWidget | null,
 		public readonly showAtPosition: Position,
 		public readonly showAtSecondaryPosition: Position,
 		public readonly preferAbove: boolean,
@@ -449,6 +451,7 @@ export class ContentHoverWidget extends Disposable implements IContentWidget {
 	private readonly _focusTracker = this._register(dom.trackFocus(this.getDomNode()));
 	private readonly _horizontalScrollingBy: number = 30;
 	private _visibleData: ContentHoverVisibleData | null = null;
+	private colorPicker: ColorPickerWidget | null = null;
 
 	/**
 	 * Returns `null` if the hover is not visible.
@@ -583,6 +586,11 @@ export class ContentHoverWidget extends Disposable implements IContentWidget {
 	}
 
 	public showAt(node: DocumentFragment, visibleData: ContentHoverVisibleData): void {
+
+		console.log('inside of showAt');
+
+		this.colorPicker = visibleData.colorPicker;
+
 		this._setVisibleData(visibleData);
 
 		this._hover.contentsDomNode.textContent = '';
@@ -592,9 +600,25 @@ export class ContentHoverWidget extends Disposable implements IContentWidget {
 
 		this.onContentsChanged();
 
+		if (this.colorPicker) {
+			console.log('before render');
+			const clientHeight = this.colorPicker.body.domNode.clientHeight;
+			const clientWidth = this.colorPicker.body.domNode.clientWidth;
+			console.log('clientHeight : ', clientHeight);
+			console.log('clientWidth : ', clientWidth);
+		}
+
 		// Simply force a synchronous render on the editor
 		// such that the widget does not really render with left = '0px'
 		this._editor.render();
+
+		if (this.colorPicker) {
+			console.log('after render');
+			const clientHeight = this.colorPicker.body.domNode.clientHeight;
+			const clientWidth = this.colorPicker.body.domNode.clientWidth;
+			console.log('clientHeight : ', clientHeight);
+			console.log('clientWidth : ', clientWidth);
+		}
 
 		// See https://github.com/microsoft/vscode/issues/140339
 		// TODO: Doing a second layout of the hover after force rendering the editor
@@ -603,7 +627,15 @@ export class ContentHoverWidget extends Disposable implements IContentWidget {
 		if (visibleData.stoleFocus) {
 			this._hover.containerDomNode.focus();
 		}
-		visibleData.colorPicker?.layout();
+
+		if (this.colorPicker) {
+			console.log('before calling layout on color picker');
+			const clientHeight = this.colorPicker.body.domNode.clientHeight;
+			const clientWidth = this.colorPicker.body.domNode.clientWidth;
+			console.log('clientHeight : ', clientHeight);
+			console.log('clientWidth : ', clientWidth);
+			this.colorPicker.layout();
+		}
 	}
 
 	public hide(): void {
@@ -618,8 +650,24 @@ export class ContentHoverWidget extends Disposable implements IContentWidget {
 	}
 
 	public onContentsChanged(): void {
+		if (this.colorPicker) {
+			console.log('before layout content widget');
+			const clientHeight = this.colorPicker.body.domNode.clientHeight;
+			const clientWidth = this.colorPicker.body.domNode.clientWidth;
+			console.log('clientHeight : ', clientHeight);
+			console.log('clientWidth : ', clientWidth);
+		}
+
 		this._editor.layoutContentWidget(this);
 		this._hover.onContentsChanged();
+
+		if (this.colorPicker) {
+			console.log('after layout content widget');
+			const clientHeight = this.colorPicker.body.domNode.clientHeight;
+			const clientWidth = this.colorPicker.body.domNode.clientWidth;
+			console.log('clientHeight : ', clientHeight);
+			console.log('clientWidth : ', clientWidth);
+		}
 
 		const scrollDimensions = this._hover.scrollbar.getScrollDimensions();
 		const hasHorizontalScrollbar = (scrollDimensions.scrollWidth > scrollDimensions.width);

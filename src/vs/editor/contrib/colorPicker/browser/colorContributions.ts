@@ -5,7 +5,7 @@
 
 import { Disposable } from 'vs/base/common/lifecycle';
 import { ICodeEditor, IEditorMouseEvent, MouseTargetType } from 'vs/editor/browser/editorBrowser';
-import { EditorContributionInstantiation, registerEditorContribution } from 'vs/editor/browser/editorExtensions';
+import { EditorContributionInstantiation, registerEditorContribution, EditorAction, ServicesAccessor, registerEditorAction } from 'vs/editor/browser/editorExtensions';
 import { Range } from 'vs/editor/common/core/range';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { ColorDecorationInjectedTextMarker } from 'vs/editor/contrib/colorPicker/browser/colorDetector';
@@ -13,6 +13,45 @@ import { ColorHoverParticipant } from 'vs/editor/contrib/colorPicker/browser/col
 import { ModesHoverController } from 'vs/editor/contrib/hover/browser/hover';
 import { HoverStartMode, HoverStartSource } from 'vs/editor/contrib/hover/browser/hoverOperation';
 import { HoverParticipantRegistry } from 'vs/editor/contrib/hover/browser/hoverTypes';
+import { KeyChord, KeyCode, KeyMod } from 'vs/base/common/keyCodes';
+import { localize } from 'vs/nls';
+import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import 'vs/css!./colorPicker';
+import { StandaloneColorPickerWidget } from 'vs/editor/contrib/colorPicker/browser/colorPickerWidget';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
+
+class InsertColor extends EditorAction {
+
+	constructor() {
+		super({
+			id: 'editor.action.colorPickerInsertColor',
+			label: localize({
+				key: 'colorPickerInsertColor',
+				comment: [
+					'Action that allow to insert a color using the color picker'
+				]
+			}, "Insert Color With Color Picker"),
+			alias: 'Insert Color With Color Picker',
+			precondition: undefined,
+			kbOpts: {
+				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyMod.CtrlCmd | KeyCode.KeyP),
+				weight: KeybindingWeight.EditorContrib
+			}
+		});
+	}
+
+	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
+		console.log('inside of run of the insert color picker');
+		const themeService = accessor.get(IThemeService);
+		const position = editor._getViewModel()?.getPrimaryCursorState().viewState.position;
+		if (position) {
+			const stickyScrollWidget = new StandaloneColorPickerWidget(position, editor, themeService);
+			editor.addContentWidget(stickyScrollWidget);
+		}
+	}
+}
+
+registerEditorAction(InsertColor);
 
 export class ColorContribution extends Disposable implements IEditorContribution {
 

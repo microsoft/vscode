@@ -99,6 +99,8 @@ export class ColorHoverParticipant implements IEditorHoverParticipant<ColorHover
 	}
 
 	public renderHoverParts(context: IEditorHoverRenderContext, hoverParts: ColorHover[]): IDisposable {
+		console.log('Inisde of rendeHoverParts of the ColorHoverParticipant.ts');
+
 		if (hoverParts.length === 0 || !this._editor.hasModel()) {
 			return Disposable.None;
 		}
@@ -107,8 +109,25 @@ export class ColorHoverParticipant implements IEditorHoverParticipant<ColorHover
 		const colorHover = hoverParts[0];
 		const editorModel = this._editor.getModel();
 		const model = colorHover.model;
+
+		console.log('model : ', model);
+		console.log('context.fragment : ', context.fragment);
+
 		const widget = disposables.add(new ColorPickerWidget(context.fragment, model, this._editor.getOption(EditorOption.pixelRatio), this._themeService));
+
+		console.log('before setting the color picker');
+		let clientHeight = widget.body.domNode.clientHeight;
+		let clientWidth = widget.body.domNode.clientWidth;
+		console.log('clientHeight : ', clientHeight);
+		console.log('clientWidth : ', clientWidth);
+
 		context.setColorPicker(widget);
+
+		console.log('after setting the color picker');
+		clientHeight = widget.body.domNode.clientHeight;
+		clientWidth = widget.body.domNode.clientWidth;
+		console.log('clientHeight : ', clientHeight);
+		console.log('clientWidth : ', clientWidth);
 
 		let range = new Range(colorHover.range.startLineNumber, colorHover.range.startColumn, colorHover.range.endLineNumber, colorHover.range.endColumn);
 
@@ -161,6 +180,12 @@ export class ColorHoverParticipant implements IEditorHoverParticipant<ColorHover
 			updateColorPresentations(color).then(updateEditorModel);
 		}));
 		disposables.add(model.onDidChangeColor(updateColorPresentations));
+
+		console.log('before returning the disposables');
+		clientHeight = widget.body.domNode.clientHeight;
+		clientWidth = widget.body.domNode.clientWidth;
+		console.log('clientHeight : ', clientHeight);
+		console.log('clientWidth : ', clientWidth);
 
 		return disposables;
 	}

@@ -16,6 +16,10 @@ import { IEditorHoverColorPickerWidget } from 'vs/editor/contrib/hover/browser/h
 import { localize } from 'vs/nls';
 import { editorHoverBackground } from 'vs/platform/theme/common/colorRegistry';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition } from 'vs/editor/browser/editorBrowser';
+import { PositionAffinity } from 'vs/editor/common/model';
+import { EditorOption } from 'vs/editor/common/config/editorOptions';
+import { IPosition } from 'vs/editor/common/core/position';
 
 const $ = dom.$;
 
@@ -71,7 +75,7 @@ export class ColorPickerHeader extends Disposable {
 
 export class ColorPickerBody extends Disposable {
 
-	private readonly domNode: HTMLElement;
+	private readonly _domNode: HTMLElement;
 	private readonly saturationBox: SaturationBox;
 	private readonly hueStrip: Strip;
 	private readonly opacityStrip: Strip;
@@ -79,20 +83,20 @@ export class ColorPickerBody extends Disposable {
 	constructor(container: HTMLElement, private readonly model: ColorPickerModel, private pixelRatio: number) {
 		super();
 
-		this.domNode = $('.colorpicker-body');
-		dom.append(container, this.domNode);
+		this._domNode = $('.colorpicker-body');
+		dom.append(container, this._domNode);
 
-		this.saturationBox = new SaturationBox(this.domNode, this.model, this.pixelRatio);
+		this.saturationBox = new SaturationBox(this._domNode, this.model, this.pixelRatio);
 		this._register(this.saturationBox);
 		this._register(this.saturationBox.onDidChange(this.onDidSaturationValueChange, this));
 		this._register(this.saturationBox.onColorFlushed(this.flushColor, this));
 
-		this.opacityStrip = new OpacityStrip(this.domNode, this.model);
+		this.opacityStrip = new OpacityStrip(this._domNode, this.model);
 		this._register(this.opacityStrip);
 		this._register(this.opacityStrip.onDidChange(this.onDidOpacityChange, this));
 		this._register(this.opacityStrip.onColorFlushed(this.flushColor, this));
 
-		this.hueStrip = new HueStrip(this.domNode, this.model);
+		this.hueStrip = new HueStrip(this._domNode, this.model);
 		this._register(this.hueStrip);
 		this._register(this.hueStrip.onDidChange(this.onDidHueChange, this));
 		this._register(this.hueStrip.onColorFlushed(this.flushColor, this));
@@ -119,7 +123,12 @@ export class ColorPickerBody extends Disposable {
 		this.model.color = new Color(new HSVA(h === 360 ? 0 : h, hsva.s, hsva.v, hsva.a));
 	}
 
+	get domNode() {
+		return this._domNode;
+	}
+
 	layout(): void {
+		console.log('inside of layout of the color picker body');
 		this.saturationBox.layout();
 		this.opacityStrip.layout();
 		this.hueStrip.layout();
@@ -197,6 +206,8 @@ class SaturationBox extends Disposable {
 	layout(): void {
 		this.width = this.domNode.offsetWidth;
 		this.height = this.domNode.offsetHeight;
+		console.log('this.width : ', this.width);
+		console.log('this.heigth : ', this.height);
 		this.canvas.width = this.width * this.pixelRatio;
 		this.canvas.height = this.height * this.pixelRatio;
 		this.paint();
@@ -267,7 +278,7 @@ abstract class Strip extends Disposable {
 
 	layout(): void {
 		this.height = this.domNode.offsetHeight - this.slider.offsetHeight;
-
+		console.log('this.height : ', this.height);
 		const value = this.getValue(this.model.color);
 		this.updateSliderPosition(value);
 	}
@@ -370,5 +381,51 @@ export class ColorPickerWidget extends Widget implements IEditorHoverColorPicker
 
 	layout(): void {
 		this.body.layout();
+	}
+}
+
+export class StandaloneColorPickerWidget implements IContentWidget {
+
+	static readonly ID = 'editor.contrib.standaloneColorPickerWidget';
+	private body: HTMLElement;
+
+	constructor(
+		private position: IPosition,
+		private readonly editor: ICodeEditor,
+		@IThemeService private readonly themeService: IThemeService,
+	) {
+		const node = document.createElement('div');
+		const rgba = new RGBA(0, 0, 0, 0);
+		const color = new Color(rgba);
+		const colorModel = new ColorPickerModel(color, [{ label: 'rgba' }], 0.5);
+		const colorPickerWidget = new ColorPickerWidget(node, colorModel, this.editor.getOption(EditorOption.pixelRatio), this.themeService);
+		colorPickerWidget.layout();
+		this.body = node;
+		this.body.style.position = 'fixed';
+		this.body.style.zIndex = '40';
+		this.body.style.background = 'red';
+		console.log('this.body : ', this.body);
+
+		this.editor.onDidChangeCursorPosition((e) => {
+			this.position = e.position;
+			this.editor.layoutContentWidget(this);
+		});
+	}
+
+	public getId(): string {
+		return StandaloneColorPickerWidget.ID;
+	}
+
+	public getDomNode(): HTMLElement {
+		return this.body;
+	}
+
+	public getPosition(): IContentWidgetPosition | null {
+		return {
+			position: this.position,
+			secondaryPosition: this.position,
+			preference: ([ContentWidgetPositionPreference.ABOVE]),
+			positionAffinity: PositionAffinity.None
+		};
 	}
 }
