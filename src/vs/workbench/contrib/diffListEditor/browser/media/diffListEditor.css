@@ -3,10 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-/* .diff-list-editor .monaco-scrollable-element {
-	padding: 20px;
-} */
-
 .diff-list-editor .monaco-list {
 	top: 20px;
 }
@@ -23,29 +19,17 @@
 	outline: 0px !important;
 }
 
-.diff-list-editor .resource-container {
-	line-height: 40px;
-}
-
 .diff-list-editor .resource-header {
 	display: flex;
 	align-items: center;
+	height: 38px;
+	line-height: 38px;
 	background-color: var(--vscode-list-hoverBackground);
 	border: 1px solid var(--vscode-notebook-cellBorderColor);
 	border-top-left-radius: 5px;
 	border-top-right-radius: 5px;
 	cursor: default;
 }
-
-/* .diff-list-editor .monaco-list-row.focused .resource-header,
-.diff-list-editor .monaco-list-row.selected .resource-header,
-.diff-list-editor .monaco-list-row.selected.focused .resource-header,
-.diff-list-editor .monaco-list-row.focused .diff-editor-container,
-.diff-list-editor .monaco-list-row.selected .diff-editor-container,
-.diff-list-editor .monaco-list-row.selected.focused .diff-editor-container {
-	outline: 1px solid var(--vscode-contrastActiveBorder);
-	outline-offset: -1px;
-} */
 
 .diff-list-editor .resource-header.collapsed {
 	border-radius: 5px;
@@ -55,7 +39,7 @@
 	display: flex;
 	align-items: center;
 	padding: 0 10px;
-	height: 40px;
+	height: 38px;
 	cursor: pointer;
 }
 

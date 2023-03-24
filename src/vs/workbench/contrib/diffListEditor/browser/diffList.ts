@@ -37,9 +37,9 @@ import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 export const diffEditorWidgetOptions: IDiffEditorConstructionOptions = {
 	scrollBeyondLastLine: false,
 	scrollbar: {
-		verticalScrollbarSize: 14,
-		horizontal: 'auto',
-		vertical: 'auto',
+		verticalScrollbarSize: 0,
+		horizontal: 'visible',
+		vertical: 'hidden',
 		useShadows: true,
 		verticalHasArrows: false,
 		horizontalHasArrows: false,
@@ -128,8 +128,11 @@ export class DiffListDelegate implements IListVirtualDelegate<IDiffListResource>
 		const originalLineCount = element.originalTextModel?.getLineCount() ?? 0;
 		const modifiedLineCount = element.modifiedTextModel?.getLineCount() ?? 0;
 		const lineCount = element.expanded ? Math.max(originalLineCount, modifiedLineCount) : 0;
+		const editorHeight = element.expanded ? (lineCount * this.lineHeight) + 12 /* horizontal scrollbar */ : 0;
 
-		return (lineCount * this.lineHeight) + 40 + 20;
+		return 40 + 		// header
+			editorHeight +	// editor;
+			20;  			// footer
 	}
 
 	hasDynamicHeight(element: IDiffListResource): boolean {
@@ -203,12 +206,12 @@ export class DiffListResourceRenderer implements IListRenderer<IDiffListResource
 		});
 
 		templateData.diffEditor.layout({
-			height: templateData.diffEditor.getContentHeight(),
+			height: templateData.diffEditor.getContentHeight() + 12,
 			width: templateData.resourceHeader.clientWidth,
 		});
 
-		templateData.editorContainer.style.height = templateData.diffEditor.getContentHeight() + 'px';
-		templateData.diffEditorContainer.style.height = (templateData.diffEditor.getContentHeight() + 5) + 'px';
+		templateData.editorContainer.style.height = templateData.diffEditor.getContentHeight() + 12 + 'px';
+		templateData.diffEditorContainer.style.height = (templateData.diffEditor.getContentHeight() + 12 + 5) + 'px';
 		templateData.diffEditorContainer.style.display = element.expanded ? 'block' : 'none';
 	}
 
