@@ -10,7 +10,7 @@ import { KeyChord, KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { Schemas } from 'vs/base/common/network';
 import { isLinux, isWindows } from 'vs/base/common/platform';
 import { IDisposable } from 'vs/base/common/lifecycle';
-import { withNullAsUndefined } from 'vs/base/common/types';
+import { withNullAsUndefined, isObject } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { EndOfLinePreference } from 'vs/editor/common/model';
@@ -101,7 +101,7 @@ export async function getCwdForSplit(configHelper: ITerminalConfigHelper, instan
 
 export const terminalSendSequenceCommand = (accessor: ServicesAccessor, args: unknown) => {
 	accessor.get(ITerminalService).doWithActiveInstance(async t => {
-		const text = toOptionalString(args && typeof args === 'object' && 'text' in args ? args.text : undefined);
+		const text = isObject(args) && 'text' in args ? toOptionalString(args.text) : undefined;
 		if (!text) {
 			return;
 		}
@@ -216,7 +216,7 @@ export function registerTerminalActions() {
 		id: TerminalCommandId.CreateTerminalEditor,
 		title: { value: localize('workbench.action.terminal.createTerminalEditor', "Create New Terminal in Editor Area"), original: 'Create New Terminal in Editor Area' },
 		run: async (c, _, args) => {
-			const options = (typeof args === 'object' && args && 'location' in args) ? args as ICreateTerminalOptions : { location: TerminalLocation.Editor };
+			const options = (isObject(args) && 'location' in args) ? args as ICreateTerminalOptions : { location: TerminalLocation.Editor };
 			const instance = await c.service.createTerminal(options);
 			instance.focusWhenReady();
 		}
@@ -978,7 +978,7 @@ export function registerTerminalActions() {
 			}]
 		},
 		run: async (c, _, args) => {
-			const cwd = args && typeof args === 'object' && 'cwd' in args && typeof args.cwd === 'string' ? args.cwd : undefined;
+			const cwd = isObject(args) && 'cwd' in args ? toOptionalString(args.cwd) : undefined;
 			const instance = await c.service.createTerminal({ cwd });
 			if (!instance) {
 				return;
@@ -1012,7 +1012,7 @@ export function registerTerminalActions() {
 		precondition: ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated),
 		run: async (activeInstance, c, accessor, args) => {
 			const notificationService = accessor.get(INotificationService);
-			const name = args && typeof args === 'object' && 'name' in args && typeof args.name === 'string' ? args.name : undefined;
+			const name = isObject(args) && 'name' in args ? toOptionalString(args.name) : undefined;
 			if (!name) {
 				notificationService.warn(localize('workbench.action.terminal.renameWithArg.noName', "No name argument provided"));
 				return;
@@ -1052,8 +1052,7 @@ export function registerTerminalActions() {
 			}]
 		},
 		run: async (c, accessor, args) => {
-			// TODO: Validate arg shape
-			const optionsOrProfile = args as ICreateTerminalOptions | ITerminalProfile | undefined;
+			const optionsOrProfile = isObject(args) ? args as ICreateTerminalOptions | ITerminalProfile : undefined;
 			const commandService = accessor.get(ICommandService);
 			const workspaceContextService = accessor.get(IWorkspaceContextService);
 			const options = convertOptionsOrProfileToOptions(optionsOrProfile);
@@ -1232,8 +1231,7 @@ export function registerTerminalActions() {
 			}]
 		},
 		run: async (c, accessor, args) => {
-			// TODO: Improve cast
-			let eventOrOptions = args as MouseEvent | ICreateTerminalOptions | undefined;
+			let eventOrOptions = isObject(args) ? args as MouseEvent | ICreateTerminalOptions : undefined;
 			const workspaceContextService = accessor.get(IWorkspaceContextService);
 			const commandService = accessor.get(ICommandService);
 			const folders = workspaceContextService.getWorkspace().folders;
