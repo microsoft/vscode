@@ -34,7 +34,7 @@ const ERR_FILE_NOT_FOUND = createFileSystemProviderError(localize('fileNotExists
 const ERR_FILE_IS_DIR = createFileSystemProviderError(localize('fileIsDirectory', "File is Directory"), FileSystemProviderErrorCode.FileIsADirectory);
 const ERR_FILE_NOT_DIR = createFileSystemProviderError(localize('fileNotDirectory', "File is not a directory"), FileSystemProviderErrorCode.FileNotADirectory);
 const ERR_DIR_NOT_EMPTY = createFileSystemProviderError(localize('dirIsNotEmpty', "Directory is not empty"), FileSystemProviderErrorCode.Unknown);
-const ERR_FILE_EXCEEDS_MEMORY_LIMIT = createFileSystemProviderError(localize('fileExceedsMemoryLimit', "File exceeds memory limit"), FileSystemProviderErrorCode.FileExceedsMemoryLimit);
+const ERR_FILE_EXCEEDS_STORAGE_QUOTA = createFileSystemProviderError(localize('fileExceedsStorageQuota', "File exceeds available storage quota"), FileSystemProviderErrorCode.FileExceedsStorageQuota);
 
 // Arbitrary Internal Errors
 const ERR_UNKNOWN_INTERNAL = (message: string) => createFileSystemProviderError(localize('internal', "Internal error occurred in IndexedDB File System Provider. ({0})", message), FileSystemProviderErrorCode.Unknown);
@@ -428,13 +428,13 @@ export class IndexedDBFileSystemProvider extends Disposable implements IFileSyst
 	private async writeMany() {
 		if (this.fileWriteBatch.length) {
 			const estimated = await navigator?.storage?.estimate?.();
-			let memoryLimit = (estimated?.quota ?? Number.MAX_SAFE_INTEGER) - (estimated?.usage ?? 0);
+			let availableStorage = (estimated?.quota ?? Number.MAX_SAFE_INTEGER) - (estimated?.usage ?? 0);
 			const fileBatch = this.fileWriteBatch.splice(0, this.fileWriteBatch.length);
 			await this.indexedDB.runInTransaction(this.store, 'readwrite', objectStore => fileBatch.map(entry => {
-				if (entry.content.length > memoryLimit) {
-					throw ERR_FILE_EXCEEDS_MEMORY_LIMIT;
+				if (entry.content.length > availableStorage) {
+					throw ERR_FILE_EXCEEDS_STORAGE_QUOTA;
 				}
-				memoryLimit = memoryLimit - entry.content.length;
+				availableStorage = availableStorage - entry.content.length;
 				return objectStore.put(entry.content, entry.resource.path);
 			}));
 		}
