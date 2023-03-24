@@ -894,18 +894,20 @@ export function registerTerminalActions() {
 
 	registerTerminalAction({
 		id: TerminalCommandId.SendSequence,
-		// TODO: Pull into terminalStrings
-		title: { value: localize('workbench.action.terminal.sendSequence', "Send Custom Sequence To Terminal"), original: 'Send Custom Sequence To Terminal' },
+		title: terminalStrings.sendSequence,
 		f1: false,
 		description: {
-			description: localize('workbench.action.terminal.sendSequence', "Send Custom Sequence To Terminal"),
+			description: terminalStrings.sendSequence.value,
 			args: [{
 				name: 'args',
 				schema: {
 					type: 'object',
 					required: ['text'],
 					properties: {
-						text: { type: 'string' }
+						text: {
+							description: localize('sendSequence', "The sequence of text to send to the terminal"),
+							type: 'string'
+						}
 					},
 				}
 			}]
@@ -915,10 +917,9 @@ export function registerTerminalActions() {
 
 	registerTerminalAction({
 		id: TerminalCommandId.NewWithCwd,
-		// TODO: Pull into terminalStrings
-		title: { value: localize('workbench.action.terminal.newWithCwd', "Create New Terminal Starting in a Custom Working Directory"), original: 'Create New Terminal Starting in a Custom Working Directory' },
+		title: terminalStrings.newWithCwd,
 		description: {
-			description: localize('workbench.action.terminal.newWithCwd', "Create New Terminal Starting in a Custom Working Directory"),
+			description: terminalStrings.newWithCwd.value,
 			args: [{
 				name: 'args',
 				schema: {
@@ -946,10 +947,9 @@ export function registerTerminalActions() {
 
 	registerActiveInstanceAction({
 		id: TerminalCommandId.RenameWithArgs,
-		// TODO: Move to terminalStrings
-		title: { value: localize('workbench.action.terminal.renameWithArg', "Rename the Currently Active Terminal"), original: 'Rename the Currently Active Terminal' },
+		title: terminalStrings.renameWithArgs,
 		description: {
-			description: localize('workbench.action.terminal.renameWithArg', "Rename the Currently Active Terminal"),
+			description: terminalStrings.renameWithArgs.value,
 			args: [{
 				name: 'args',
 				schema: {
@@ -997,16 +997,6 @@ export function registerTerminalActions() {
 			when: TerminalContextKeys.focus
 		},
 		icon: Codicon.splitHorizontal,
-		description: {
-			// TODO: This is meant to be a localized string? Is this used anywhere?
-			description: 'workbench.action.terminal.split',
-			args: [{
-				name: 'profile',
-				schema: {
-					type: 'object'
-				}
-			}]
-		},
 		run: async (c, accessor, args) => {
 			const optionsOrProfile = isObject(args) ? args as ICreateTerminalOptions | ITerminalProfile : undefined;
 			const commandService = accessor.get(ICommandService);
@@ -1175,16 +1165,6 @@ export function registerTerminalActions() {
 			primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Backquote,
 			mac: { primary: KeyMod.WinCtrl | KeyMod.Shift | KeyCode.Backquote },
 			weight: KeybindingWeight.WorkbenchContrib
-		},
-		description: {
-			// TODO: This is meant to be localized?
-			description: 'workbench.action.terminal.new',
-			args: [{
-				name: 'eventOrOptions',
-				schema: {
-					type: 'object'
-				}
-			}]
 		},
 		run: async (c, accessor, args) => {
 			let eventOrOptions = isObject(args) ? args as MouseEvent | ICreateTerminalOptions : undefined;
@@ -1657,7 +1637,7 @@ export function refreshTerminalActions(detectedProfiles: ITerminalProfile[]) {
 				category,
 				precondition: ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.webExtensionContributedProfile),
 				description: {
-					description: 'workbench.action.terminal.newWithProfile',
+					description: TerminalCommandId.NewWithProfile,
 					args: [{
 						name: 'args',
 						schema: {
