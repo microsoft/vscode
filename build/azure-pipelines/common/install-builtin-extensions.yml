@@ -12,7 +12,7 @@ steps:
 
   - task: Cache@2
     inputs:
-      key: .build/builtindepshash
+      key: '"builtin-extensions" | .build/builtindepshash'
       path: .build/builtInExtensions
       cacheHitVar: BUILTIN_EXTENSIONS_RESTORED
     displayName: Restore built-in extensions cache
