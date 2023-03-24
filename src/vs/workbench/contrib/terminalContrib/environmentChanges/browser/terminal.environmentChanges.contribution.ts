@@ -4,33 +4,20 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Schemas } from 'vs/base/common/network';
-import { localize } from 'vs/nls';
-import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { EnvironmentVariableMutatorType, IMergedEnvironmentVariableCollection } from 'vs/platform/terminal/common/environmentVariable';
-import { ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
-import { TerminalCommandId } from 'vs/workbench/contrib/terminal/common/terminal';
-import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/terminalContextKey';
-import { terminalStrings } from 'vs/workbench/contrib/terminal/common/terminalStrings';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { URI } from 'vs/base/common/uri';
-
-const category = terminalStrings.actionCategory;
+import { localize } from 'vs/nls';
+import { EnvironmentVariableMutatorType, IMergedEnvironmentVariableCollection } from 'vs/platform/terminal/common/environmentVariable';
+import { registerActiveInstanceAction } from 'vs/workbench/contrib/terminal/browser/terminalActions';
+import { TerminalCommandId } from 'vs/workbench/contrib/terminal/common/terminal';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 
 // TODO: The rest of the terminal environment changes feature should move here https://github.com/microsoft/vscode/issues/177241
 
-registerAction2(class extends Action2 {
-	constructor() {
-		super({
-			id: TerminalCommandId.ShowEnvironmentContributions,
-			title: { value: localize('workbench.action.terminal.showEnvironmentContributions', "Show Environment Contributions"), original: 'Show Environment Contributions' },
-			category,
-			f1: true,
-			precondition: TerminalContextKeys.processSupported
-		});
-	}
-	async run(accessor: ServicesAccessor) {
-		const collection = accessor.get(ITerminalService).activeInstance?.extEnvironmentVariableCollection;
+registerActiveInstanceAction({
+	id: TerminalCommandId.ShowEnvironmentContributions,
+	title: { value: localize('workbench.action.terminal.showEnvironmentContributions', "Show Environment Contributions"), original: 'Show Environment Contributions' },
+	run: async (instance, c, accessor) => {
+		const collection = instance.extEnvironmentVariableCollection;
 		if (collection) {
 			const editorService = accessor.get(IEditorService);
 			await editorService.openEditor({
