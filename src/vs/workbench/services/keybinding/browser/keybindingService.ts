@@ -63,10 +63,6 @@ interface ContributedKeyBinding {
 	win?: string;
 }
 
-function isContributedKeyBindingsArray(thing: ContributedKeyBinding | ContributedKeyBinding[]): thing is ContributedKeyBinding[] {
-	return Array.isArray(thing);
-}
-
 function isValidContributedKeyBinding(keyBinding: ContributedKeyBinding, rejects: string[]): boolean {
 	if (!keyBinding) {
 		rejects.push(nls.localize('nonempty', "expected non-empty value."));
@@ -519,7 +515,7 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 	}
 
 	private _handleKeybindingsExtensionPointUser(extensionId: ExtensionIdentifier, isBuiltin: boolean, keybindings: ContributedKeyBinding | ContributedKeyBinding[], collector: ExtensionMessageCollector, result: IExtensionKeybindingRule[]): void {
-		if (isContributedKeyBindingsArray(keybindings)) {
+		if (Array.isArray(keybindings)) {
 			for (let i = 0, len = keybindings.length; i < len; i++) {
 				this._handleKeybinding(extensionId, isBuiltin, i + 1, keybindings[i], collector, result);
 			}
