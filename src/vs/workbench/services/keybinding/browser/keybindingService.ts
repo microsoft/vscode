@@ -197,7 +197,7 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 		super(contextKeyService, commandService, telemetryService, notificationService, logService);
 
 		this.isComposingGlobalContextKey = contextKeyService.createKey('isComposing', false);
-		this.updateSchema();
+		this.updateKeybindingsJsonSchema();
 
 		this._keyboardMapper = this.keyboardLayoutService.getKeyboardMapper();
 		this.keyboardLayoutService.onDidChangeKeyboardLayout(() => {
@@ -229,8 +229,8 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 			this.updateResolver();
 		});
 
-		this.updateSchema();
-		this._register(extensionService.onDidRegisterExtensions(() => this.updateSchema()));
+		this.updateKeybindingsJsonSchema();
+		this._register(extensionService.onDidRegisterExtensions(() => this.updateKeybindingsJsonSchema()));
 
 		// for standard keybindings
 		this._register(dom.addDisposableListener(window, dom.EventType.KEY_DOWN, (e: KeyboardEvent) => {
@@ -278,12 +278,12 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 	public registerSchemaContribution(contribution: KeybindingsSchemaContribution): void {
 		this._contributions.push(contribution);
 		if (contribution.onDidChange) {
-			this._register(contribution.onDidChange(() => this.updateSchema()));
+			this._register(contribution.onDidChange(() => this.updateKeybindingsJsonSchema()));
 		}
-		this.updateSchema();
+		this.updateKeybindingsJsonSchema();
 	}
 
-	private updateSchema() {
+	private updateKeybindingsJsonSchema() {
 		updateSchema(this._contributions.flatMap(x => x.getSchemaAdditions()));
 	}
 
