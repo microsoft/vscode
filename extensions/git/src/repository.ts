@@ -1460,6 +1460,10 @@ export class Repository implements Disposable {
 		return await this.repository.getCommit(ref);
 	}
 
+	async getCommitFiles(ref: string): Promise<string[]> {
+		return await this.repository.getCommitFiles(ref);
+	}
+
 	async reset(treeish: string, hard?: boolean): Promise<void> {
 		await this.run(Operation.Reset, () => this.repository.reset(treeish, hard));
 	}

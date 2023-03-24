@@ -2468,6 +2468,11 @@ export class Repository {
 		return commits[0];
 	}
 
+	async getCommitFiles(ref: string): Promise<string[]> {
+		const result = await this.exec(['diff-tree', '--no-commit-id', '--name-only', '-r', ref]);
+		return result.stdout.split('\n').filter(l => !!l);
+	}
+
 	async updateSubmodules(paths: string[]): Promise<void> {
 		const args = ['submodule', 'update'];
 

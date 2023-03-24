@@ -3270,6 +3270,54 @@ export class CommandCenter {
 		};
 	}
 
+	@command('git.timeline.openCommit', { repository: false })
+	async timelineOpenCommit(item: TimelineItem, uri: Uri | undefined, _source: string) {
+		console.log('timelineOpenCommit', item);
+		if (!GitTimelineItem.is(item)) {
+			return;
+		}
+
+		const cmd = await this.resolveTimelineOpenCommitCommand(
+			item, uri,
+			{
+				preserveFocus: true,
+				preview: true,
+				viewColumn: ViewColumn.Active
+			},
+		);
+		if (cmd === undefined) {
+			return undefined;
+		}
+
+		return commands.executeCommand(cmd.command, ...(cmd.arguments ?? []));
+	}
+
+	async resolveTimelineOpenCommitCommand(item: TimelineItem, uri: Uri | undefined, options?: TextDocumentShowOptions): Promise<Command | undefined> {
+		if (uri === undefined || uri === null || !GitTimelineItem.is(item)) {
+			return undefined;
+		}
+
+		const repository = await this.model.getRepository(uri.fsPath);
+		if (!repository) {
+			return undefined;
+		}
+
+		const commit = await repository.getCommit(item.ref);
+		const commitFiles = await repository.getCommitFiles(item.ref);
+
+		const args: [Uri, Uri | undefined, Uri | undefined][] = [];
+		for (const commitFile of commitFiles) {
+			const commitFileUri = Uri.file(path.join(repository.root, commitFile));
+			args.push([commitFileUri, toGitUri(commitFileUri, item.previousRef), toGitUri(commitFileUri, item.ref)]);
+		}
+
+		return {
+			command: 'vscode.changes',
+			title: l10n.t('Open Commit'),
+			arguments: [`${item.shortRef} - ${commit.message}`, args, options]
+		};
+	}
+
 	@command('git.timeline.copyCommitId', { repository: false })
 	async timelineCopyCommitId(item: TimelineItem, _uri: Uri | undefined, _source: string) {
 		if (!GitTimelineItem.is(item)) {

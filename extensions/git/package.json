@@ -660,6 +660,12 @@
         "category": "Git"
       },
       {
+        "command": "git.timeline.openCommit",
+        "title": "%command.timelineOpenCommit%",
+        "icon": "$(wand)",
+        "category": "Git"
+      },
+      {
         "command": "git.rebaseAbort",
         "title": "%command.rebaseAbort%",
         "category": "Git",
@@ -1156,6 +1162,10 @@
         },
         {
           "command": "git.timeline.compareWithSelected",
+          "when": "false"
+        },
+        {
+          "command": "git.timeline.openCommit",
           "when": "false"
         },
         {
@@ -1747,9 +1757,19 @@
       ],
       "timeline/item/context": [
         {
+          "command": "git.timeline.openCommit",
+          "group": "inline",
+          "when": "config.git.enabled && !git.missing && timelineItem =~ /git:file:commit\\b/ && !listMultiSelection"
+        },
+        {
           "command": "git.timeline.openDiff",
-          "group": "1_actions",
+          "group": "1_actions@1",
           "when": "config.git.enabled && !git.missing && timelineItem =~ /git:file\\b/ && !listMultiSelection"
+        },
+        {
+          "command": "git.timeline.openCommit",
+          "group": "1_actions@2",
+          "when": "config.git.enabled && !git.missing && timelineItem =~ /git:file:commit\\b/ && !listMultiSelection"
         },
         {
           "command": "git.timeline.compareWithSelected",
