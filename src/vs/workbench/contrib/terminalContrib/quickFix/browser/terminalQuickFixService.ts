@@ -23,7 +23,9 @@ export class TerminalQuickFixService implements ITerminalQuickFixService {
 	private readonly _onDidUnregisterProvider = new Emitter<string>();
 	readonly onDidUnregisterProvider = this._onDidUnregisterProvider.event;
 
-	constructor(@ITerminalQuickFixContributionService private readonly _terminalQuickFixContributionService: ITerminalQuickFixContributionService) {
+	constructor(
+		@ITerminalQuickFixContributionService private readonly _terminalQuickFixContributionService: ITerminalQuickFixContributionService
+	) {
 		this._terminalQuickFixContributionService.terminalQuickFixes.then(selectors => {
 			for (const selector of selectors) {
 				this.registerCommandSelector(selector);
