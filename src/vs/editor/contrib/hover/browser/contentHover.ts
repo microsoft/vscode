@@ -422,7 +422,7 @@ export class ContentHoverController extends Disposable {
 				anchor.initialMousePosY,
 				disposables
 			), persistedSize);
-			this._widgetUnderlay.show();
+
 			this._resizableOverlay.show();
 		} else {
 			disposables.dispose();
