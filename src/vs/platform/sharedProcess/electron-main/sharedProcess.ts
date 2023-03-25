@@ -26,7 +26,6 @@ import { IUserDataProfilesService } from 'vs/platform/userDataProfile/common/use
 import { IPolicyService } from 'vs/platform/policy/common/policy';
 import { ILoggerMainService } from 'vs/platform/log/electron-main/loggerService';
 import { UtilityProcess } from 'vs/platform/utilityProcess/electron-main/utilityProcess';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
 import { canUseUtilityProcess } from 'vs/base/parts/sandbox/electron-main/electronTypes';
 import { parseSharedProcessDebugPort } from 'vs/platform/environment/node/environmentService';
@@ -42,19 +41,7 @@ export class SharedProcess extends Disposable implements ISharedProcess {
 	private windowCloseListener: ((event: ElectronEvent) => void) | undefined = undefined;
 
 	private utilityProcess: UtilityProcess | undefined = undefined;
-	private readonly useUtilityProcess = (() => {
-		let useUtilityProcess = false;
-		if (canUseUtilityProcess) {
-			const sharedProcessUseUtilityProcess = this.configurationService.getValue<boolean>('window.experimental.sharedProcessUseUtilityProcess');
-			if (typeof sharedProcessUseUtilityProcess === 'boolean') {
-				useUtilityProcess = sharedProcessUseUtilityProcess;
-			} else {
-				useUtilityProcess = typeof product.quality === 'string';
-			}
-		}
-
-		return useUtilityProcess;
-	})();
+	private readonly useUtilityProcess = canUseUtilityProcess;
 
 	constructor(
 		private readonly machineId: string,
@@ -66,8 +53,7 @@ export class SharedProcess extends Disposable implements ISharedProcess {
 		@ILoggerMainService private readonly loggerMainService: ILoggerMainService,
 		@IPolicyService private readonly policyService: IPolicyService,
 		@IThemeMainService private readonly themeMainService: IThemeMainService,
-		@IProtocolMainService private readonly protocolMainService: IProtocolMainService,
-		@IConfigurationService private readonly configurationService: IConfigurationService
+		@IProtocolMainService private readonly protocolMainService: IProtocolMainService
 	) {
 		super();
 
