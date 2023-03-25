@@ -166,6 +166,7 @@ pub mod singleton {
 	pub const METHOD_SHUTDOWN: &str = "shutdown";
 	pub const METHOD_STATUS: &str = "status";
 	pub const METHOD_LOG: &str = "log";
+	pub const METHOD_LOG_REPLY_DONE: &str = "log_done";
 
 	#[derive(Serialize)]
 	pub struct LogMessage<'a> {

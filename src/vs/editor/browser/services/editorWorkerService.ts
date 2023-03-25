@@ -21,7 +21,7 @@ import { regExpFlags } from 'vs/base/common/strings';
 import { isNonEmptyArray } from 'vs/base/common/arrays';
 import { ILogService } from 'vs/platform/log/common/log';
 import { StopWatch } from 'vs/base/common/stopwatch';
-import { canceled } from 'vs/base/common/errors';
+import { canceled, onUnexpectedError } from 'vs/base/common/errors';
 import { UnicodeHighlighterOptions } from 'vs/editor/common/services/unicodeTextModelHighlighter';
 import { IEditorWorkerHost } from 'vs/editor/common/services/editorWorkerHost';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
@@ -153,7 +153,11 @@ export class EditorWorkerService extends Disposable implements IEditorWorkerServ
 				return Promise.resolve(edits); // File too large
 			}
 			const sw = StopWatch.create(true);
-			const result = this._workerManager.withWorker().then(client => client.computeHumanReadableDiff(resource, edits));
+			const result = this._workerManager.withWorker().then(client => client.computeHumanReadableDiff(resource, edits)).catch((err) => {
+				onUnexpectedError(err);
+				// In case of an exception, fall back to computeMoreMinimalEdits
+				return this.computeMoreMinimalEdits(resource, edits, true);
+			});
 			result.finally(() => this._logService.trace('FORMAT#computeHumanReadableDiff', resource.toString(true), sw.elapsed()));
 			return Promise.race([result, timeout(1000).then(() => edits)]);
 
