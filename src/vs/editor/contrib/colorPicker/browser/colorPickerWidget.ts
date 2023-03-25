@@ -404,6 +404,8 @@ export class StandaloneColorPickerWidget implements IContentWidget {
 		this.body.style.position = 'fixed';
 		this.body.style.zIndex = '40';
 		this.body.style.background = 'red';
+		this.body.style.height = 200 + 'px';
+		this.body.style.width = 500 + 'px';
 		console.log('this.body : ', this.body);
 
 		this.editor.onDidChangeCursorPosition((e) => {
