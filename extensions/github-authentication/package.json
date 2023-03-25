@@ -60,6 +60,7 @@
   },
   "dependencies": {
     "node-fetch": "2.6.7",
+    "https-proxy-agent": "^5.0.1",
     "@vscode/extension-telemetry": "0.7.5",
     "vscode-tas-client": "^0.1.47"
   },
