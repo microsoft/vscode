@@ -12,7 +12,7 @@ import { ServiceCollection } from 'vs/platform/instantiation/common/serviceColle
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { FileService } from 'vs/platform/files/common/fileService';
 import { NullLogService } from 'vs/platform/log/common/log';
-import { workbenchInstantiationService, TestNativeTextFileServiceWithEncodingOverrides, TestServiceAccessor } from 'vs/workbench/test/electron-browser/workbenchTestServices';
+import { TestNativeTextFileServiceWithEncodingOverrides, TestServiceAccessor, workbenchInstantiationService } from 'vs/workbench/test/electron-sandbox/workbenchTestServices';
 import { IWorkingCopyFileService, WorkingCopyFileService } from 'vs/workbench/services/workingCopy/common/workingCopyFileService';
 import { WorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 import { UriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentityService';
@@ -28,7 +28,7 @@ suite('Files - NativeTextFileService', function () {
 	let instantiationService: IInstantiationService;
 
 	setup(() => {
-		instantiationService = workbenchInstantiationService(disposables);
+		instantiationService = workbenchInstantiationService(undefined, disposables);
 
 		const logService = new NullLogService();
 		const fileService = new FileService(logService);

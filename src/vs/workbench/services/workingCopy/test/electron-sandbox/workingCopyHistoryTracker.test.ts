@@ -5,16 +5,14 @@
 
 import * as assert from 'assert';
 import { Event } from 'vs/base/common/event';
-import { TestContextService, TestWorkingCopy } from 'vs/workbench/test/common/workbenchTestServices';
+import { TestContextService, TestStorageService, TestWorkingCopy } from 'vs/workbench/test/common/workbenchTestServices';
 import { randomPath } from 'vs/base/common/extpath';
-import { tmpdir } from 'os';
 import { join } from 'vs/base/common/path';
 import { URI } from 'vs/base/common/uri';
-import { TestWorkingCopyHistoryService } from 'vs/workbench/services/workingCopy/test/electron-browser/workingCopyHistoryService.test';
 import { WorkingCopyHistoryTracker } from 'vs/workbench/services/workingCopy/common/workingCopyHistoryTracker';
 import { WorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 import { UriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentityService';
-import { TestFileService, TestPathService } from 'vs/workbench/test/browser/workbenchTestServices';
+import { TestEnvironmentService, TestFileService, TestLifecycleService, TestPathService, TestRemoteAgentService } from 'vs/workbench/test/browser/workbenchTestServices';
 import { DeferredPromise } from 'vs/base/common/async';
 import { IFileService } from 'vs/platform/files/common/files';
 import { Schemas } from 'vs/base/common/network';
@@ -29,6 +27,41 @@ import { assertIsDefined } from 'vs/base/common/types';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { InMemoryFileSystemProvider } from 'vs/platform/files/common/inMemoryFilesystemProvider';
 import { IDisposable } from 'vs/base/common/lifecycle';
+import { NativeWorkingCopyHistoryService } from 'vs/workbench/services/workingCopy/common/workingCopyHistoryService';
+import { NullLogService } from 'vs/platform/log/common/log';
+import { FileService } from 'vs/platform/files/common/fileService';
+import { LabelService } from 'vs/workbench/services/label/common/labelService';
+
+class TestWorkingCopyHistoryService extends NativeWorkingCopyHistoryService {
+
+	readonly _fileService: IFileService;
+	readonly _configurationService: TestConfigurationService;
+	readonly _lifecycleService: TestLifecycleService;
+
+	constructor(testDir: URI | string) {
+		const environmentService = TestEnvironmentService;
+		const logService = new NullLogService();
+		const fileService = new FileService(logService);
+
+		fileService.registerProvider(Schemas.vscodeUserData, new InMemoryFileSystemProvider());
+
+		const remoteAgentService = new TestRemoteAgentService();
+
+		const uriIdentityService = new UriIdentityService(fileService);
+
+		const labelService = new LabelService(environmentService, new TestContextService(), new TestPathService(), new TestRemoteAgentService(), new TestStorageService(), new TestLifecycleService());
+
+		const lifecycleService = new TestLifecycleService();
+
+		const configurationService = new TestConfigurationService();
+
+		super(fileService, remoteAgentService, environmentService, uriIdentityService, labelService, lifecycleService, logService, configurationService);
+
+		this._fileService = fileService;
+		this._configurationService = configurationService;
+		this._lifecycleService = lifecycleService;
+	}
+}
 
 suite('WorkingCopyHistoryTracker', () => {
 
@@ -67,7 +100,7 @@ suite('WorkingCopyHistoryTracker', () => {
 	}
 
 	setup(async () => {
-		testDir = URI.file(randomPath(join(tmpdir(), 'vsctests', 'workingcopyhistorytracker'))).with({ scheme: Schemas.inMemory });
+		testDir = URI.file(randomPath(join('vsctests', 'workingcopyhistorytracker'))).with({ scheme: Schemas.inMemory });
 		historyHome = joinPath(testDir, 'User', 'History');
 		workHome = joinPath(testDir, 'work');
 

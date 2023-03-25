@@ -16,11 +16,12 @@ import { NullLogService } from 'vs/platform/log/common/log';
 import { flakySuite, getRandomTestPath } from 'vs/base/test/node/testUtils';
 import { DiskFileSystemProvider } from 'vs/platform/files/node/diskFileSystemProvider';
 import { detectEncodingByBOM } from 'vs/workbench/services/textfile/test/node/encoding/encoding.test';
-import { workbenchInstantiationService, TestNativeTextFileServiceWithEncodingOverrides } from 'vs/workbench/test/electron-browser/workbenchTestServices';
+import { workbenchInstantiationService } from 'vs/workbench/test/electron-browser/workbenchTestServices';
 import createSuite from 'vs/workbench/services/textfile/test/common/textFileService.io.test';
 import { IWorkingCopyFileService, WorkingCopyFileService } from 'vs/workbench/services/workingCopy/common/workingCopyFileService';
 import { WorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 import { UriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentityService';
+import { TestNativeTextFileServiceWithEncodingOverrides } from 'vs/workbench/test/electron-sandbox/workbenchTestServices';
 
 flakySuite('Files - NativeTextFileService i/o', function () {
 	const disposables = new DisposableStore();
