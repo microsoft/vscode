@@ -839,14 +839,19 @@ export class DebugSession implements IDebugSession {
 	}
 
 	getAllThreads(): IThread[] {
-		const result: IThread[] = [];
+		const result1: IThread[] = [];
+		const result2: IThread[] = [];
 		this.threadIds.forEach((threadId) => {
 			const thread = this.threads.get(threadId);
 			if (thread) {
-				result.push(thread);
+				if (thread.stoppedDetails && thread.stoppedDetails.reason) {
+					result1.push(thread);
+				} else {
+					result2.push(thread);
+				}
 			}
 		});
-		return result;
+		return result1.concat(result2);
 	}
 
 	clearThreads(removeThreads: boolean, reference: number | undefined = undefined): void {
