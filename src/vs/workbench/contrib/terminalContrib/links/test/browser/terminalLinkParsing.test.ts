@@ -99,6 +99,11 @@ const testLinks: ITestLink[] = [
 	{ link: 'foo: [339,12]', prefix: undefined, suffix: ': [339,12]', hasRow: true, hasCol: true },
 	{ link: 'foo: [339, 12]', prefix: undefined, suffix: ': [339, 12]', hasRow: true, hasCol: true },
 
+	// OCaml-style
+	{ link: '"foo", line 339, character 12', prefix: '"', suffix: '", line 339, character 12', hasRow: true, hasCol: true },
+	{ link: '"foo", line 339, characters 12-13', prefix: '"', suffix: '", line 339, characters 12-13', hasRow: true, hasCol: true },
+	{ link: '"foo", lines 339-340', prefix: '"', suffix: '", lines 339-340', hasRow: true, hasCol: false },
+
 	// Non-breaking space
 	{ link: 'foo\u00A0339:12', prefix: undefined, suffix: '\u00A0339:12', hasRow: true, hasCol: true },
 	{ link: '"foo" on line 339,\u00A0column 12', prefix: '"', suffix: '" on line 339,\u00A0column 12', hasRow: true, hasCol: true },
