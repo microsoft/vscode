@@ -103,7 +103,7 @@ export class ExplorerDataSource implements IAsyncDataSource<ExplorerItem | Explo
 			return element;
 		}
 
-		const wasError = element.isError;
+		const hasError = element.error;
 		const sortOrder = this.explorerService.sortOrderConfiguration.sortOrder;
 		const children = element.fetchChildren(sortOrder);
 		if (Array.isArray(children)) {
@@ -113,7 +113,7 @@ export class ExplorerDataSource implements IAsyncDataSource<ExplorerItem | Explo
 		const promise = children.then(
 			children => {
 				// Clear previous error decoration on root folder
-				if (element instanceof ExplorerItem && element.isRoot && !element.isError && wasError && this.contextService.getWorkbenchState() !== WorkbenchState.FOLDER) {
+				if (element instanceof ExplorerItem && element.isRoot && !element.error && hasError && this.contextService.getWorkbenchState() !== WorkbenchState.FOLDER) {
 					explorerRootErrorEmitter.fire(element.resource);
 				}
 				return children;
@@ -124,7 +124,7 @@ export class ExplorerDataSource implements IAsyncDataSource<ExplorerItem | Explo
 					if (this.contextService.getWorkbenchState() === WorkbenchState.FOLDER) {
 						// Single folder create a dummy explorer item to show error
 						const placeholder = new ExplorerItem(element.resource, this.fileService, this.configService, undefined, undefined, false);
-						placeholder.isError = true;
+						placeholder.error = e;
 						return [placeholder];
 					} else {
 						explorerRootErrorEmitter.fire(element.resource);
