@@ -312,6 +312,42 @@ suite('Debug - CallStack', () => {
 		assert.strictEqual(session.getAllThreads().length, 0);
 	});
 
+	const testGetReasonableThreadsFirst = (threadNames: string[], stoppedThreadIndex: number) => {
+		assert.strictEqual(threadNames.length, 2, "This function expects exactly two thread names");
+
+		const stoppedThreadName = threadNames[stoppedThreadIndex];
+		const notStoppedThreadName = threadNames[1 - stoppedThreadIndex];
+		const stoppedReason = 'breakpoint';
+
+		// Add the threads
+		const session = createTestSession(model);
+		model.addSession(session);
+
+		session['raw'] = <any>mockRawSession;
+
+		// Hit the breakpoint
+		model.rawUpdate({
+			sessionId: session.getId(),
+			threads: threadNames.map((threadName, index) => { return { id: index, name: threadName }; }),
+			stoppedDetails: {
+				reason: stoppedReason,
+				threadId: stoppedThreadIndex,
+				allThreadsStopped: true
+			},
+		});
+		assert.strictEqual(session.getAllThreads().length, threadNames.length);
+
+		// Start with the thread that hit a breakpoint
+		assert.equal(session.getAllThreads()[0].name, stoppedThreadName, "A");
+		assert.equal(session.getAllThreads()[1].name, notStoppedThreadName, "A");
+	};
+
+	// Ref: https://github.com/microsoft/vscode/issues/178308
+	test('threads get all reasonable threads first', async () => {
+		testGetReasonableThreadsFirst(["firstThread", "secondThread"], 0);
+		testGetReasonableThreadsFirst(["firstThread", "secondThread"], 1);
+	});
+
 	test('stack frame get specific source name', () => {
 		const session = createTestSession(model);
 		model.addSession(session);
