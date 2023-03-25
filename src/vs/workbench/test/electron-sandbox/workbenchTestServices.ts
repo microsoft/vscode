@@ -4,13 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event } from 'vs/base/common/event';
-import { workbenchInstantiationService as browserWorkbenchInstantiationService, ITestInstantiationService } from 'vs/workbench/test/browser/workbenchTestServices';
+import { workbenchInstantiationService as browserWorkbenchInstantiationService, ITestInstantiationService, TestEncodingOracle, TestFileDialogService, TestFilesConfigurationService, TestFileService, TestLifecycleService, TestTextFileService, TestWorkingCopyBackupService } from 'vs/workbench/test/browser/workbenchTestServices';
 import { ISharedProcessService } from 'vs/platform/ipc/electron-sandbox/services';
 import { INativeHostService, IOSProperties, IOSStatistics } from 'vs/platform/native/common/native';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
-import { INativeOpenDialogOptions } from 'vs/platform/dialogs/common/dialogs';
+import { IFileDialogService, INativeOpenDialogOptions } from 'vs/platform/dialogs/common/dialogs';
 import { IPartsSplash } from 'vs/platform/theme/common/themeService';
 import { IOpenedWindow, IOpenEmptyWindowOptions, IWindowOpenable, IOpenWindowOptions, IColorScheme } from 'vs/platform/window/common/window';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
@@ -28,6 +28,15 @@ import { IExtensionRecommendationNotificationService } from 'vs/platform/extensi
 import { IProductService } from 'vs/platform/product/common/productService';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { IModelService } from 'vs/editor/common/services/model';
+import { ModelService } from 'vs/editor/common/services/modelService';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
+import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
+import { IWorkingCopyBackupService } from 'vs/workbench/services/workingCopy/common/workingCopyBackup';
+import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
+import { TestContextService } from 'vs/workbench/test/common/workbenchTestServices';
+import { NativeTextFileService } from 'vs/workbench/services/textfile/electron-sandbox/nativeTextFileService';
 
 export class TestSharedProcessService implements ISharedProcessService {
 
@@ -163,4 +172,33 @@ export function workbenchInstantiationService(overrides?: {
 	instantiationService.stub(INativeHostService, new TestNativeHostService());
 
 	return instantiationService;
+}
+
+export class TestServiceAccessor {
+	constructor(
+		@ILifecycleService public lifecycleService: TestLifecycleService,
+		@ITextFileService public textFileService: TestTextFileService,
+		@IFilesConfigurationService public filesConfigurationService: TestFilesConfigurationService,
+		@IWorkspaceContextService public contextService: TestContextService,
+		@IModelService public modelService: ModelService,
+		@IFileService public fileService: TestFileService,
+		@INativeHostService public nativeHostService: TestNativeHostService,
+		@IFileDialogService public fileDialogService: TestFileDialogService,
+		@IWorkingCopyBackupService public workingCopyBackupService: TestWorkingCopyBackupService,
+		@IWorkingCopyService public workingCopyService: IWorkingCopyService,
+		@IEditorService public editorService: IEditorService
+	) {
+	}
+}
+
+export class TestNativeTextFileServiceWithEncodingOverrides extends NativeTextFileService {
+
+	private _testEncoding: TestEncodingOracle | undefined;
+	override get encoding(): TestEncodingOracle {
+		if (!this._testEncoding) {
+			this._testEncoding = this._register(this.instantiationService.createInstance(TestEncodingOracle));
+		}
+
+		return this._testEncoding;
+	}
 }
