@@ -81,6 +81,7 @@ import { TextSearchCompleteMessage } from 'vs/workbench/services/search/common/s
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { NotebookFindContrib } from 'vs/workbench/contrib/notebook/browser/contrib/find/notebookFindWidget';
+import { ILogService } from 'vs/platform/log/common/log';
 
 const $ = dom.$;
 
@@ -189,6 +190,7 @@ export class SearchView extends ViewPane {
 		@IOpenerService openerService: IOpenerService,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@INotebookService private readonly notebookService: INotebookService,
+		@ILogService private readonly logService: ILogService,
 	) {
 
 		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService);
@@ -341,7 +343,7 @@ export class SearchView extends ViewPane {
 				if (this.searchWidget.isReplaceActive()) {
 					this.searchWidget.focusReplaceAllAction();
 				} else {
-					this.searchWidget.isReplaceShown() ? this.searchWidget.replaceInput.focusOnPreserve() : this.searchWidget.focusRegexAction();
+					this.searchWidget.isReplaceShown() ? this.searchWidget.replaceInput?.focusOnPreserve() : this.searchWidget.focusRegexAction();
 				}
 				dom.EventHelper.stop(e);
 			}
@@ -486,6 +488,11 @@ export class SearchView extends ViewPane {
 			}
 		}));
 
+		if (!this.searchWidget.searchInput || !this.searchWidget.replaceInput) {
+			this.logService.warn(`Cannot fully create search widget. Search or replace input undefined. SearchInput: ${this.searchWidget.searchInput}, ReplaceInput: ${this.searchWidget.replaceInput}`);
+			return;
+		}
+
 		if (showReplace) {
 			this.searchWidget.toggleReplace(true);
 		}
@@ -495,7 +502,7 @@ export class SearchView extends ViewPane {
 		this._register(this.searchWidget.searchInput.onDidOptionChange(() => this.triggerQueryChange()));
 		this._register(this.searchWidget.getFilters().onDidChange(() => this.triggerQueryChange()));
 
-		const updateHasPatternKey = () => this.hasSearchPatternKey.set(this.searchWidget.searchInput.getValue().length > 0);
+		const updateHasPatternKey = () => this.hasSearchPatternKey.set(this.searchWidget.searchInput ? (this.searchWidget.searchInput.getValue().length > 0) : false);
 		updateHasPatternKey();
 		this._register(this.searchWidget.searchInput.onDidChange(() => updateHasPatternKey()));
 
@@ -538,7 +545,11 @@ export class SearchView extends ViewPane {
 		}
 	}
 
-	private trackInputBox(inputFocusTracker: dom.IFocusTracker, contextKey?: IContextKey<boolean>): void {
+	private trackInputBox(inputFocusTracker: dom.IFocusTracker | undefined, contextKey?: IContextKey<boolean>): void {
+		if (!inputFocusTracker) {
+			return;
+		}
+
 		this._register(inputFocusTracker.onDidFocus(() => {
 			this.lastFocusState = 'input';
 			this.inputBoxFocused.set(true);
@@ -1013,9 +1024,9 @@ export class SearchView extends ViewPane {
 			return false;
 		}
 
-		this.searchWidget.searchInput.setCaseSensitive(controller.getState().matchCase);
-		this.searchWidget.searchInput.setWholeWords(controller.getState().wholeWord);
-		this.searchWidget.searchInput.setRegex(controller.getState().isRegex);
+		this.searchWidget.searchInput?.setCaseSensitive(controller.getState().matchCase);
+		this.searchWidget.searchInput?.setWholeWords(controller.getState().wholeWord);
+		this.searchWidget.searchInput?.setRegex(controller.getState().isRegex);
 		this.updateText(searchString, allowSearchOnType);
 
 		return true;
@@ -1032,7 +1043,7 @@ export class SearchView extends ViewPane {
 			return false;
 		}
 
-		if (this.searchWidget.searchInput.getRegex()) {
+		if (this.searchWidget.searchInput?.getRegex()) {
 			selectedText = strings.escapeRegExpCharacters(selectedText);
 		}
 
@@ -1150,7 +1161,7 @@ export class SearchView extends ViewPane {
 
 	allSearchFieldsClear(): boolean {
 		return this.searchWidget.getReplaceValue() === '' &&
-			this.searchWidget.searchInput.getValue() === '';
+			(!this.searchWidget.searchInput || this.searchWidget.searchInput.getValue() === '');
 	}
 
 	allFilePatternFieldsClear(): boolean {
@@ -1266,34 +1277,34 @@ export class SearchView extends ViewPane {
 	}
 
 	toggleCaseSensitive(): void {
-		this.searchWidget.searchInput.setCaseSensitive(!this.searchWidget.searchInput.getCaseSensitive());
+		this.searchWidget.searchInput?.setCaseSensitive(!this.searchWidget.searchInput.getCaseSensitive());
 		this.triggerQueryChange();
 	}
 
 	toggleWholeWords(): void {
-		this.searchWidget.searchInput.setWholeWords(!this.searchWidget.searchInput.getWholeWords());
+		this.searchWidget.searchInput?.setWholeWords(!this.searchWidget.searchInput.getWholeWords());
 		this.triggerQueryChange();
 	}
 
 	toggleRegex(): void {
-		this.searchWidget.searchInput.setRegex(!this.searchWidget.searchInput.getRegex());
+		this.searchWidget.searchInput?.setRegex(!this.searchWidget.searchInput.getRegex());
 		this.triggerQueryChange();
 	}
 
 	togglePreserveCase(): void {
-		this.searchWidget.replaceInput.setPreserveCase(!this.searchWidget.replaceInput.getPreserveCase());
+		this.searchWidget.replaceInput?.setPreserveCase(!this.searchWidget.replaceInput.getPreserveCase());
 		this.triggerQueryChange();
 	}
 
 	setSearchParameters(args: IFindInFilesArgs = {}): void {
 		if (typeof args.isCaseSensitive === 'boolean') {
-			this.searchWidget.searchInput.setCaseSensitive(args.isCaseSensitive);
+			this.searchWidget.searchInput?.setCaseSensitive(args.isCaseSensitive);
 		}
 		if (typeof args.matchWholeWord === 'boolean') {
-			this.searchWidget.searchInput.setWholeWords(args.matchWholeWord);
+			this.searchWidget.searchInput?.setWholeWords(args.matchWholeWord);
 		}
 		if (typeof args.isRegex === 'boolean') {
-			this.searchWidget.searchInput.setRegex(args.isRegex);
+			this.searchWidget.searchInput?.setRegex(args.isRegex);
 		}
 		if (typeof args.filesToInclude === 'string') {
 			this.searchIncludePattern.setValue(String(args.filesToInclude));
@@ -1302,12 +1313,12 @@ export class SearchView extends ViewPane {
 			this.searchExcludePattern.setValue(String(args.filesToExclude));
 		}
 		if (typeof args.query === 'string') {
-			this.searchWidget.searchInput.setValue(args.query);
+			this.searchWidget.searchInput?.setValue(args.query);
 		}
 		if (typeof args.replace === 'string') {
-			this.searchWidget.replaceInput.setValue(args.replace);
+			this.searchWidget.replaceInput?.setValue(args.replace);
 		} else {
-			if (this.searchWidget.replaceInput.getValue() !== '') {
+			if (this.searchWidget.replaceInput && this.searchWidget.replaceInput.getValue() !== '') {
 				this.searchWidget.replaceInput.setValue('');
 			}
 		}
@@ -1315,7 +1326,7 @@ export class SearchView extends ViewPane {
 			this.triggerQueryChange();
 		}
 		if (typeof args.preserveCase === 'boolean') {
-			this.searchWidget.replaceInput.setPreserveCase(args.preserveCase);
+			this.searchWidget.replaceInput?.setPreserveCase(args.preserveCase);
 		}
 		if (typeof args.useExcludeSettingsAndIgnoreFiles === 'boolean') {
 			this.inputPatternExcludes.setUseExcludesAndIgnoreFiles(args.useExcludeSettingsAndIgnoreFiles);
@@ -1393,7 +1404,7 @@ export class SearchView extends ViewPane {
 	}
 
 	private _onQueryChanged(preserveFocus: boolean, triggeredOnType = false): void {
-		if (!this.searchWidget.searchInput.inputBox.isInputValid()) {
+		if (!(this.searchWidget.searchInput?.inputBox.isInputValid())) {
 			return;
 		}
 
@@ -1455,7 +1466,7 @@ export class SearchView extends ViewPane {
 		const folderResources = this.contextService.getWorkspace().folders;
 
 		const onQueryValidationError = (err: Error) => {
-			this.searchWidget.searchInput.showMessage({ content: err.message, type: MessageType.ERROR });
+			this.searchWidget.searchInput?.showMessage({ content: err.message, type: MessageType.ERROR });
 			this.viewModel.searchResult.clear();
 		};
 
@@ -1500,7 +1511,7 @@ export class SearchView extends ViewPane {
 
 	private onQueryTriggered(query: ITextQuery, options: ITextQueryBuilderOptions, excludePatternText: string, includePatternText: string, triggeredOnType: boolean): void {
 		this.addToSearchHistoryDelayer.trigger(() => {
-			this.searchWidget.searchInput.onSearchSubmit();
+			this.searchWidget.searchInput?.onSearchSubmit();
 			this.inputPatternExcludes.onSearchSubmit();
 			this.inputPatternIncludes.onSearchSubmit();
 		});
@@ -1537,7 +1548,7 @@ export class SearchView extends ViewPane {
 			return new Promise<void>(resolve => progressComplete = resolve);
 		});
 
-		this.searchWidget.searchInput.clearMessage();
+		this.searchWidget.searchInput?.clearMessage();
 		this.state = SearchUIState.Searching;
 		this.showEmptyStage();
 
@@ -1657,7 +1668,7 @@ export class SearchView extends ViewPane {
 				return onComplete(undefined);
 			} else {
 				progressComplete();
-				this.searchWidget.searchInput.showMessage({ content: e.message, type: MessageType.ERROR });
+				this.searchWidget.searchInput?.showMessage({ content: e.message, type: MessageType.ERROR });
 				this.viewModel.searchResult.clear();
 
 				return Promise.resolve();
@@ -1875,7 +1886,7 @@ export class SearchView extends ViewPane {
 			} else {
 				const controller = editor.getControl()?.getContribution<NotebookFindContrib>(NotebookFindContrib.id);
 				const matchIndex = element instanceof Match ? element.parent().matches().findIndex(e => e.id() === element.id()) : undefined;
-				controller?.show(this.searchWidget.searchInput.getValue(), { matchIndex, focus: false });
+				controller?.show(this.searchWidget.searchInput?.getValue(), { matchIndex, focus: false });
 			}
 
 		}

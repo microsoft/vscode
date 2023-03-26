@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ITestInstantiationService, TestLifecycleService, TestFilesConfigurationService, TestFileService, TestFileDialogService, TestPathService, TestEncodingOracle } from 'vs/workbench/test/browser/workbenchTestServices';
+import { ITestInstantiationService, TestLifecycleService, TestFilesConfigurationService, TestFileService, TestFileDialogService, TestPathService } from 'vs/workbench/test/browser/workbenchTestServices';
 import { TestNativeHostService, workbenchInstantiationService as electronSandboxWorkbenchInstantiationService } from 'vs/workbench/test/electron-sandbox/workbenchTestServices';
 import { NativeTextFileService, } from 'vs/workbench/services/textfile/electron-sandbox/nativeTextFileService';
 import { FileOperationError, IFileService } from 'vs/platform/files/common/files';
@@ -159,18 +159,6 @@ export class TestTextFileService extends NativeTextFileService {
 			size: 10,
 			readonly: false
 		};
-	}
-}
-
-export class TestNativeTextFileServiceWithEncodingOverrides extends NativeTextFileService {
-
-	private _testEncoding: TestEncodingOracle | undefined;
-	override get encoding(): TestEncodingOracle {
-		if (!this._testEncoding) {
-			this._testEncoding = this._register(this.instantiationService.createInstance(TestEncodingOracle));
-		}
-
-		return this._testEncoding;
 	}
 }
 

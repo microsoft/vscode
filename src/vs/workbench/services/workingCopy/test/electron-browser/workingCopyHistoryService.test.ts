@@ -24,7 +24,7 @@ import { UriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentitySe
 import { LabelService } from 'vs/workbench/services/label/common/labelService';
 import { TestLifecycleService, TestRemoteAgentService, TestWillShutdownEvent } from 'vs/workbench/test/browser/workbenchTestServices';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
-import { NativeWorkingCopyHistoryService } from 'vs/workbench/services/workingCopy/electron-sandbox/workingCopyHistoryService';
+import { NativeWorkingCopyHistoryService } from 'vs/workbench/services/workingCopy/common/workingCopyHistoryService';
 import { joinPath, dirname as resourcesDirname, basename } from 'vs/base/common/resources';
 import { firstOrDefault } from 'vs/base/common/arrays';
 
