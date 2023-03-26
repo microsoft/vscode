@@ -114,9 +114,9 @@ export abstract class TitleControl extends Themable {
 		parent: HTMLElement,
 		protected accessor: IEditorGroupsAccessor,
 		protected group: IEditorGroupView,
-		@IContextMenuService private readonly contextMenuService: IContextMenuService,
+		@IContextMenuService protected readonly contextMenuService: IContextMenuService,
 		@IInstantiationService protected instantiationService: IInstantiationService,
-		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+		@IContextKeyService protected readonly contextKeyService: IContextKeyService,
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
 		@INotificationService private readonly notificationService: INotificationService,
 		@IMenuService private readonly menuService: IMenuService,
@@ -402,7 +402,7 @@ export abstract class TitleControl extends Themable {
 		});
 	}
 
-	private getKeybinding(action: IAction): ResolvedKeybinding | undefined {
+	protected getKeybinding(action: IAction): ResolvedKeybinding | undefined {
 		return this.keybindingService.lookupKeybinding(action.id, this.getEditorPaneAwareContextKeyService());
 	}
 

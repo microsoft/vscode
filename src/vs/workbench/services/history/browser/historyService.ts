@@ -111,7 +111,8 @@ export class HistoryService extends Disposable implements IHistoryService {
 			mouseBackForwardSupportListener.clear();
 
 			if (this.configurationService.getValue(HistoryService.MOUSE_NAVIGATION_SETTING)) {
-				mouseBackForwardSupportListener.add(addDisposableListener(this.layoutService.container, EventType.MOUSE_DOWN, e => this.onMouseDown(e)));
+				mouseBackForwardSupportListener.add(addDisposableListener(this.layoutService.container, EventType.MOUSE_DOWN, e => this.onMouseDownOrUp(e, true)));
+				mouseBackForwardSupportListener.add(addDisposableListener(this.layoutService.container, EventType.MOUSE_UP, e => this.onMouseDownOrUp(e, false)));
 			}
 		};
 
@@ -124,17 +125,26 @@ export class HistoryService extends Disposable implements IHistoryService {
 		handleMouseBackForwardSupport();
 	}
 
-	private onMouseDown(event: MouseEvent): void {
+	private onMouseDownOrUp(event: MouseEvent, isMouseDown: boolean): void {
 
 		// Support to navigate in history when mouse buttons 4/5 are pressed
+		// We want to trigger this on mouse down for a faster experience
+		// but we also need to prevent mouse up from triggering the default
+		// which is to navigate in the browser history.
+
 		switch (event.button) {
 			case 3:
 				EventHelper.stop(event);
-				this.goBack();
+				if (isMouseDown) {
+					this.goBack();
+				}
 				break;
 			case 4:
 				EventHelper.stop(event);
-				this.goForward();
+				if (isMouseDown) {
+					this.goForward();
+				}
+
 				break;
 		}
 	}

@@ -15,11 +15,12 @@ import { transformOutgoingURIs } from 'vs/base/common/uriIpc';
 import { listProcesses } from 'vs/base/node/ps';
 import { getMachineInfo, collectWorkspaceStats } from 'vs/platform/diagnostics/node/diagnosticsService';
 import { IDiagnosticInfoOptions, IDiagnosticInfo } from 'vs/platform/diagnostics/common/diagnostics';
-import { basename, join } from 'vs/base/common/path';
+import { basename } from 'vs/base/common/path';
 import { ProcessItem } from 'vs/base/common/processes';
 import { ServerConnectionToken, ServerConnectionTokenType } from 'vs/server/node/serverConnectionToken';
 import { IExtensionHostStatusService } from 'vs/server/node/extensionHostStatusService';
 import { IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
+import { joinPath } from 'vs/base/common/resources';
 
 export class RemoteAgentEnvironmentChannel implements IServerChannel {
 
@@ -100,8 +101,8 @@ export class RemoteAgentEnvironmentChannel implements IServerChannel {
 			connectionToken: (this._connectionToken.type !== ServerConnectionTokenType.None ? this._connectionToken.value : ''),
 			appRoot: URI.file(this._environmentService.appRoot),
 			settingsPath: this._environmentService.machineSettingsResource,
-			logsPath: URI.file(this._environmentService.logsPath),
-			extensionHostLogsPath: URI.file(join(this._environmentService.logsPath, `exthost${RemoteAgentEnvironmentChannel._namePool++}`)),
+			logsPath: this._environmentService.logsHome,
+			extensionHostLogsPath: joinPath(this._environmentService.logsHome, `exthost${RemoteAgentEnvironmentChannel._namePool++}`),
 			globalStorageHome: this._userDataProfilesService.defaultProfile.globalStorageHome,
 			workspaceStorageHome: this._environmentService.workspaceStorageHome,
 			localHistoryHome: this._environmentService.localHistoryHome,

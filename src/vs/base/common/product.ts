@@ -4,12 +4,36 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IStringDictionary } from 'vs/base/common/collections';
+import { PlatformName } from 'vs/base/common/platform';
 
 export interface IBuiltInExtension {
 	readonly name: string;
 	readonly version: string;
 	readonly repo: string;
 	readonly metadata: any;
+}
+
+export interface IProductWalkthrough {
+	id: string;
+	steps: IProductWalkthroughStep[];
+}
+
+export interface IProductWalkthroughStep {
+	id: string;
+	title: string;
+	when: string;
+	description: string;
+	media:
+	| { type: 'image'; path: string | { hc: string; hcLight?: string; light: string; dark: string }; altText: string }
+	| { type: 'svg'; path: string; altText: string }
+	| { type: 'markdown'; path: string };
+}
+
+export interface IFeaturedExtension {
+	readonly id: string;
+	readonly title: string;
+	readonly description: string;
+	readonly imagePath: string;
 }
 
 export type ConfigurationSyncStore = {
@@ -49,6 +73,8 @@ export interface IProductConfiguration {
 	readonly dataFolderName: string; // location for extensions (e.g. ~/.vscode-insiders)
 
 	readonly builtInExtensions?: IBuiltInExtension[];
+	readonly walkthroughMetadata?: IProductWalkthrough[];
+	readonly featuredExtensions?: IFeaturedExtension[];
 
 	readonly downloadUrl?: string;
 	readonly updateUrl?: string;
@@ -80,17 +106,16 @@ export interface IProductConfiguration {
 		readonly nlsBaseUrl: string;
 	};
 
-	readonly extensionTips?: { [id: string]: string };
-	readonly extensionImportantTips?: IStringDictionary<ImportantExtensionTip>;
-	readonly configBasedExtensionTips?: { [id: string]: IConfigBasedExtensionTip };
-	readonly exeBasedExtensionTips?: { [id: string]: IExeBasedExtensionTip };
-	readonly remoteExtensionTips?: { [remoteName: string]: IRemoteExtensionTip };
-	readonly virtualWorkspaceExtensionTips?: { [virtualWorkspaceName: string]: IVirtualWorkspaceExtensionTip };
-	readonly extensionKeywords?: { [extension: string]: readonly string[] };
+	readonly extensionRecommendations?: IStringDictionary<IExtensionRecommendations>;
+	readonly configBasedExtensionTips?: IStringDictionary<IConfigBasedExtensionTip>;
+	readonly exeBasedExtensionTips?: IStringDictionary<IExeBasedExtensionTip>;
+	readonly remoteExtensionTips?: IStringDictionary<IRemoteExtensionTip>;
+	readonly virtualWorkspaceExtensionTips?: IStringDictionary<IVirtualWorkspaceExtensionTip>;
+	readonly extensionKeywords?: IStringDictionary<string[]>;
 	readonly keymapExtensionTips?: readonly string[];
 	readonly webExtensionTips?: readonly string[];
 	readonly languageExtensionTips?: readonly string[];
-	readonly trustedExtensionUrlPublicKeys?: { [id: string]: string[] };
+	readonly trustedExtensionUrlPublicKeys?: IStringDictionary<string[]>;
 	readonly trustedExtensionAuthAccess?: readonly string[];
 
 	readonly commandPaletteSuggestedCommandIds?: string[];
@@ -172,7 +197,27 @@ export interface ITunnelApplicationConfig {
 	extension: IRemoteExtensionTip;
 }
 
-export type ImportantExtensionTip = { name: string; languages?: string[]; pattern?: string; isExtensionPack?: boolean; whenNotInstalled?: string[] };
+export interface IExtensionRecommendations {
+	readonly onFileOpen: IFileOpenCondition[];
+}
+
+export interface IExtensionRecommendationCondition {
+	readonly important?: boolean;
+	readonly whenInstalled?: string[];
+	readonly whenNotInstalled?: string[];
+}
+
+export type IFileOpenCondition = IFileLanguageCondition | IFilePathCondition | IFileContentCondition;
+
+export interface IFileLanguageCondition extends IExtensionRecommendationCondition {
+	readonly languages: string[];
+}
+
+export interface IFilePathCondition extends IExtensionRecommendationCondition {
+	readonly pathGlob: string;
+}
+
+export type IFileContentCondition = (IFileLanguageCondition | IFilePathCondition) & { readonly contentPattern: string };
 
 export interface IAppCenterConfiguration {
 	readonly 'win32-ia32': string;
@@ -185,7 +230,13 @@ export interface IConfigBasedExtensionTip {
 	configPath: string;
 	configName: string;
 	configScheme?: string;
-	recommendations: IStringDictionary<{ name: string; remotes?: string[]; important?: boolean; isExtensionPack?: boolean; whenNotInstalled?: string[] }>;
+	recommendations: IStringDictionary<{
+		name: string;
+		contentPattern?: string;
+		important?: boolean;
+		isExtensionPack?: boolean;
+		whenNotInstalled?: string[];
+	}>;
 }
 
 export interface IExeBasedExtensionTip {
@@ -198,11 +249,15 @@ export interface IExeBasedExtensionTip {
 export interface IRemoteExtensionTip {
 	friendlyName: string;
 	extensionId: string;
+	supportedPlatforms?: PlatformName[];
+	showInStartEntry?: boolean;
 }
 
 export interface IVirtualWorkspaceExtensionTip {
 	friendlyName: string;
 	extensionId: string;
+	supportedPlatforms?: PlatformName[];
+	showInStartEntry?: boolean;
 }
 
 export interface ISurveyData {

@@ -10,6 +10,7 @@ import { getEditorLineNumberForPageOffset, scrollToRevealSourceLine, getLineElem
 import { SettingsManager, getData } from './settings';
 import throttle = require('lodash.throttle');
 import morphdom from 'morphdom';
+import type { ToWebviewMessage } from '../types/previewMessaging';
 
 let scrollDisabledCount = 0;
 
@@ -21,12 +22,15 @@ let documentResource = settings.settings.source;
 
 const vscode = acquireVsCodeApi();
 
-const originalState = vscode.getState();
-
+const originalState = vscode.getState() ?? {} as any;
 const state = {
-	...(typeof originalState === 'object' ? originalState : {}),
+	...originalState,
 	...getData<any>('data-state')
 };
+
+if (typeof originalState.scrollProgress !== 'undefined' && originalState?.resource !== state.resource) {
+	state.scrollProgress = 0;
+}
 
 // Make sure to sync VS Code state here
 vscode.setState(state);
@@ -62,7 +66,9 @@ onceDocumentLoaded(() => {
 	if (typeof scrollProgress === 'number' && !settings.settings.fragment) {
 		doAfterImagesLoaded(() => {
 			scrollDisabledCount += 1;
-			window.scrollTo(0, scrollProgress * document.body.clientHeight);
+			// Always set scroll of at least 1 to prevent VS Code's webview code from auto scrolling us
+			const scrollToY = Math.max(1, scrollProgress * document.body.clientHeight);
+			window.scrollTo(0, scrollToY);
 		});
 		return;
 	}
@@ -114,16 +120,17 @@ window.addEventListener('resize', () => {
 }, true);
 
 window.addEventListener('message', async event => {
-	switch (event.data.type) {
+	const data = event.data as ToWebviewMessage.Type;
+	switch (data.type) {
 		case 'onDidChangeTextEditorSelection':
-			if (event.data.source === documentResource) {
-				marker.onDidChangeTextEditorSelection(event.data.line, documentVersion);
+			if (data.source === documentResource) {
+				marker.onDidChangeTextEditorSelection(data.line, documentVersion);
 			}
 			return;
 
 		case 'updateView':
-			if (event.data.source === documentResource) {
-				onUpdateView(event.data.line);
+			if (data.source === documentResource) {
+				onUpdateView(data.line);
 			}
 			return;
 
@@ -131,7 +138,7 @@ window.addEventListener('message', async event => {
 			const root = document.querySelector('.markdown-body')!;
 
 			const parser = new DOMParser();
-			const newContent = parser.parseFromString(event.data.content, 'text/html');
+			const newContent = parser.parseFromString(data.content, 'text/html');
 
 			// Strip out meta http-equiv tags
 			for (const metaElement of Array.from(newContent.querySelectorAll('meta'))) {
@@ -140,11 +147,15 @@ window.addEventListener('message', async event => {
 				}
 			}
 
-			if (event.data.source !== documentResource) {
+			if (data.source !== documentResource) {
 				root.replaceWith(newContent.querySelector('.markdown-body')!);
-				documentResource = event.data.source;
+				documentResource = data.source;
 			} else {
-				// Compare two elements but skip `data-line`
+				const skippedAttrs = [
+					'open', // for details
+				];
+
+				// Compare two elements but some elements
 				const areEqual = (a: Element, b: Element): boolean => {
 					if (a.isEqualNode(b)) {
 						return true;
@@ -154,8 +165,8 @@ window.addEventListener('message', async event => {
 						return false;
 					}
 
-					const aAttrs = a.attributes;
-					const bAttrs = b.attributes;
+					const aAttrs = [...a.attributes].filter(attr => !skippedAttrs.includes(attr.name));
+					const bAttrs = [...b.attributes].filter(attr => !skippedAttrs.includes(attr.name));
 					if (aAttrs.length !== bAttrs.length) {
 						return false;
 					}
@@ -186,15 +197,13 @@ window.addEventListener('message', async event => {
 					style.remove();
 				}
 				newRoot.prepend(...styles);
-
 				morphdom(root, newRoot, {
 					childrenOnly: true,
 					onBeforeElUpdated: (fromEl, toEl) => {
 						if (areEqual(fromEl, toEl)) {
-							// areEqual doesn't look at `data-line` so copy those over
-
+							// areEqual doesn't look at `data-line` so copy those over manually
 							const fromLines = fromEl.querySelectorAll('[data-line]');
-							const toLines = fromEl.querySelectorAll('[data-line]');
+							const toLines = toEl.querySelectorAll('[data-line]');
 							if (fromLines.length !== toLines.length) {
 								console.log('unexpected line number change');
 							}
@@ -208,6 +217,12 @@ window.addEventListener('message', async event => {
 							}
 
 							return false;
+						}
+
+						if (fromEl.tagName === 'DETAILS' && toEl.tagName === 'DETAILS') {
+							if (fromEl.hasAttribute('open')) {
+								toEl.setAttribute('open', '');
+							}
 						}
 
 						return true;

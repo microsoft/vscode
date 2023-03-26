@@ -25,10 +25,6 @@ export class BrowserWindowDriver implements IWindowDriver {
 		inputElement.dispatchEvent(event);
 	}
 
-	async getTitle(): Promise<string> {
-		return document.title;
-	}
-
 	async isActiveElement(selector: string): Promise<boolean> {
 		const element = document.querySelector(selector);
 
@@ -196,14 +192,6 @@ export class BrowserWindowDriver implements IWindowDriver {
 		y = Math.round(y);
 
 		return { x, y };
-	}
-
-	click(selector: string, xoffset?: number, yoffset?: number): Promise<void> {
-
-		// This is actually not used in the playwright drivers
-		// that can implement `click` natively via the driver
-
-		throw new Error('Method not implemented.');
 	}
 
 	async exitApplication(): Promise<void> {

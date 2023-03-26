@@ -35,10 +35,11 @@ import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiati
 import { ILabelService } from 'vs/platform/label/common/label';
 import { registerColor } from 'vs/platform/theme/common/colorRegistry';
 import { registerThemingParticipant, themeColorFromId } from 'vs/platform/theme/common/themeService';
+import { GutterActionsRegistry } from 'vs/workbench/contrib/codeEditor/browser/editorLineNumberMenu';
 import { getBreakpointMessageAndIcon } from 'vs/workbench/contrib/debug/browser/breakpointsView';
 import { BreakpointWidget } from 'vs/workbench/contrib/debug/browser/breakpointWidget';
 import * as icons from 'vs/workbench/contrib/debug/browser/debugIcons';
-import { BreakpointWidgetContext, CONTEXT_BREAKPOINT_WIDGET_VISIBLE, DebuggerString, IBreakpoint, IBreakpointEditorContribution, IBreakpointUpdateData, IDebugConfiguration, IDebugService, IDebugSession, State } from 'vs/workbench/contrib/debug/common/debug';
+import { BREAKPOINT_EDITOR_CONTRIBUTION_ID, BreakpointWidgetContext, CONTEXT_BREAKPOINT_WIDGET_VISIBLE, DebuggerString, IBreakpoint, IBreakpointEditorContribution, IBreakpointUpdateData, IDebugConfiguration, IDebugService, IDebugSession, State } from 'vs/workbench/contrib/debug/common/debug';
 
 const $ = dom.$;
 
@@ -250,20 +251,8 @@ export class BreakpointEditorContribution implements IBreakpointEditorContributi
 			const uri = model.uri;
 
 			if (e.event.rightButton || (env.isMacintosh && e.event.leftButton && e.event.ctrlKey)) {
-				if (!canSetBreakpoints) {
-					return;
-				}
-
-				const anchor = { x: e.event.posx, y: e.event.posy };
-				const breakpoints = this.debugService.getModel().getBreakpoints({ lineNumber, uri });
-				const actions = this.getContextMenuActions(breakpoints, uri, lineNumber);
-
-				this.contextMenuService.showContextMenu({
-					getAnchor: () => anchor,
-					getActions: () => actions,
-					getActionsContext: () => breakpoints.length ? breakpoints[0] : undefined,
-					onHide: () => disposeIfDisposable(actions)
-				});
+				// handled by editor gutter context menu
+				return;
 			} else {
 				const breakpoints = this.debugService.getModel().getBreakpoints({ uri, lineNumber });
 
@@ -632,6 +621,25 @@ export class BreakpointEditorContribution implements IBreakpointEditorContributi
 		dispose(this.toDispose);
 	}
 }
+
+GutterActionsRegistry.registerGutterActionsGenerator(({ lineNumber, editor, accessor }, result) => {
+	const model = editor.getModel();
+	const debugService = accessor.get(IDebugService);
+	if (!model || !debugService.getAdapterManager().hasEnabledDebuggers() || !debugService.canSetBreakpointsIn(model)) {
+		return;
+	}
+
+	const breakpointEditorContribution = editor.getContribution<IBreakpointEditorContribution>(BREAKPOINT_EDITOR_CONTRIBUTION_ID);
+	if (!breakpointEditorContribution) {
+		return;
+	}
+
+	const actions = breakpointEditorContribution.getContextMenuActionsAtPosition(lineNumber, model);
+
+	for (const action of actions) {
+		result.push(action);
+	}
+});
 
 class InlineBreakpointWidget implements IContentWidget, IDisposable {
 

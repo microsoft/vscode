@@ -45,7 +45,7 @@ export interface DocumentSortingParams {
 	 */
 	uri: string;
 	/**
-	 * The format options
+	 * The sort options
 	 */
 	options: SortOptions;
 }

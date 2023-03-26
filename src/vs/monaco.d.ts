@@ -1097,6 +1097,18 @@ declare namespace monaco.editor {
 	 */
 	export function registerCommand(id: string, handler: (accessor: any, ...args: any[]) => void): IDisposable;
 
+	export interface ILinkOpener {
+		open(resource: Uri): boolean | Promise<boolean>;
+	}
+
+	/**
+	 * Registers a handler that is called when a link is opened in any editor. The handler callback should return `true` if the link was handled and `false` otherwise.
+	 * The handler that was registered last will be called first when a link is opened.
+	 *
+	 * Returns a disposable that can unregister the opener again.
+	 */
+	export function registerLinkOpener(opener: ILinkOpener): IDisposable;
+
 	export type BuiltinTheme = 'vs' | 'vs-dark' | 'hc-black' | 'hc-light';
 
 	export interface IStandaloneThemeData {
@@ -1552,6 +1564,8 @@ declare namespace monaco.editor {
 		 * In this case, the range must be empty and set to the last line.
 		 */
 		blockIsAfterEnd?: boolean | null;
+		blockDoesNotCollapse?: boolean | null;
+		blockPadding?: [top: number, right: number, bottom: number, left: number] | null;
 		/**
 		 * Message to be rendered when hovering over the glyph margin decoration.
 		 */
@@ -2292,30 +2306,6 @@ declare namespace monaco.editor {
 		 */
 		readonly changes: LineRangeMapping[];
 	}
-
-	/**
-	 * Maps a line range in the original text model to a line range in the modified text model.
-	 */
-	export class LineRangeMapping {
-		/**
-		 * The line range in the original text model.
-		 */
-		readonly originalRange: LineRange;
-		/**
-		 * The line range in the modified text model.
-		 */
-		readonly modifiedRange: LineRange;
-		/**
-		 * If inner changes have not been computed, this is set to undefined.
-		 * Otherwise, it represents the character-level diff in this line range.
-		 * The original range of each range mapping should be contained in the original line range (same for modified).
-		 * Must not be an empty array.
-		 */
-		readonly innerChanges: RangeMapping[] | undefined;
-		constructor(originalRange: LineRange, modifiedRange: LineRange, innerChanges: RangeMapping[] | undefined);
-		toString(): string;
-	}
-
 	/**
 	 * A range of lines (1-based).
 	 */
@@ -2345,6 +2335,29 @@ declare namespace monaco.editor {
 		 * Creates a line range that combines this and the given line range.
 		 */
 		join(other: LineRange): LineRange;
+		toString(): string;
+	}
+
+	/**
+	 * Maps a line range in the original text model to a line range in the modified text model.
+	 */
+	export class LineRangeMapping {
+		/**
+		 * The line range in the original text model.
+		 */
+		readonly originalRange: LineRange;
+		/**
+		 * The line range in the modified text model.
+		 */
+		readonly modifiedRange: LineRange;
+		/**
+		 * If inner changes have not been computed, this is set to undefined.
+		 * Otherwise, it represents the character-level diff in this line range.
+		 * The original range of each range mapping should be contained in the original line range (same for modified).
+		 * Must not be an empty array.
+		 */
+		readonly innerChanges: RangeMapping[] | undefined;
+		constructor(originalRange: LineRange, modifiedRange: LineRange, innerChanges: RangeMapping[] | undefined);
 		toString(): string;
 	}
 
@@ -2477,7 +2490,7 @@ declare namespace monaco.editor {
 		readonly label: string;
 		readonly alias: string;
 		isSupported(): boolean;
-		run(): Promise<void>;
+		run(args?: unknown): Promise<void>;
 	}
 
 	export type IEditorModel = ITextModel | IDiffEditorModel;
@@ -4051,6 +4064,10 @@ declare namespace monaco.editor {
 		 * Maximum number of sticky lines to show
 		 */
 		maxLineCount?: number;
+		/**
+		 * Model to choose for sticky scroll by default
+		 */
+		defaultModel?: 'outlineModel' | 'foldingProviderModel' | 'indentationModel';
 	}
 
 	/**
@@ -4334,6 +4351,7 @@ declare namespace monaco.editor {
 		*/
 		mode?: 'prefix' | 'subword' | 'subwordSmart';
 		showToolbar?: 'always' | 'onHover';
+		suppressSuggestions?: boolean;
 	}
 
 	export interface IBracketPairColorizationOptions {
@@ -4590,9 +4608,9 @@ declare namespace monaco.editor {
 		acceptSuggestionOnEnter = 1,
 		accessibilitySupport = 2,
 		accessibilityPageSize = 3,
-		screenReaderAnnounceInlineSuggestion = 4,
-		ariaLabel = 5,
-		autoClosingBrackets = 6,
+		ariaLabel = 4,
+		autoClosingBrackets = 5,
+		screenReaderAnnounceInlineSuggestion = 6,
 		autoClosingDelete = 7,
 		autoClosingOvertype = 8,
 		autoClosingQuotes = 9,
@@ -5829,6 +5847,14 @@ declare namespace monaco.editor {
 		readonly letterSpacing: number;
 	}
 
+	export const EditorZoom: IEditorZoom;
+
+	export interface IEditorZoom {
+		onDidChangeZoomLevel: IEvent<number>;
+		getZoomLevel(): number;
+		setZoomLevel(zoomLevel: number): void;
+	}
+
 	//compatibility:
 	export type IReadOnlyModel = ITextModel;
 	export type IModel = ITextModel;
@@ -5878,10 +5904,17 @@ declare namespace monaco.languages {
 	export function getEncodedLanguageId(languageId: string): number;
 
 	/**
-	 * An event emitted when a language is needed for the first time (e.g. a model has it set).
+	 * An event emitted when a language is associated for the first time with a text model.
 	 * @event
 	 */
 	export function onLanguage(languageId: string, callback: () => void): IDisposable;
+
+	/**
+	 * An event emitted when a language is associated for the first time with a text model or
+	 * whena language is encountered during the tokenization of another language.
+	 * @event
+	 */
+	export function onLanguageEncountered(languageId: string, callback: () => void): IDisposable;
 
 	/**
 	 * Set the editing configuration for a language.

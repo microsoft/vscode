@@ -11,7 +11,7 @@ import { ITerminalInstance } from 'vs/workbench/contrib/terminal/browser/termina
 export const GitCommandLineRegex = /git/;
 export const GitPushCommandLineRegex = /git\s+push/;
 export const GitTwoDashesRegex = /error: did you mean `--(.+)` \(with two dashes\)\?/;
-export const GitSimilarOutputRegex = /(?:(most similar (command|commands) (is|are)))((\n\s*(?<fixedCommand>[^\s]+))+)/m;
+export const GitSimilarOutputRegex = /(?:(most similar commands? (is|are)))/;
 export const FreePortOutputRegex = /(?:address already in use (?:0\.0\.0\.0|127\.0\.0\.1|localhost|::):|Unable to bind [^ ]*:|can't listen on port |listen EADDRINUSE [^ ]*:)(?<portNumber>\d{4,5})/;
 export const GitPushOutputRegex = /git push --set-upstream origin (?<branchName>[^\s]+)/;
 // The previous line starts with "Create a pull request for \'([^\s]+)\' on GitHub by visiting:\s*"
@@ -37,12 +37,14 @@ export function gitSimilar(): IInternalOptions {
 		},
 		commandExitResult: 'error',
 		getQuickFixes: (matchResult: ITerminalCommandMatchResult) => {
-			if (!matchResult?.outputMatch) {
+			const regexMatch = matchResult.outputMatch?.regexMatch[0];
+			if (!regexMatch || !matchResult.outputMatch) {
 				return;
 			}
 			const actions: TerminalQuickFixActionInternal[] = [];
-			const results = matchResult.outputMatch.regexMatch[0].split('\n').map(r => r.trim());
-			for (let i = 1; i < results.length; i++) {
+			const startIndex = matchResult.outputMatch.outputLines.findIndex(l => l.includes(regexMatch)) + 1;
+			const results = matchResult.outputMatch.outputLines.map(r => r.trim());
+			for (let i = startIndex; i < results.length; i++) {
 				const fixedCommand = results[i];
 				if (fixedCommand) {
 					actions.push({
@@ -173,21 +175,24 @@ export function gitCreatePr(): IInternalOptions {
 		commandLineMatcher: GitPushCommandLineRegex,
 		// Example output:
 		// ...
-		// 9:  remote:
-		// 8:  remote: Create a pull request for 'my_branch' on GitHub by visiting:
-		// 7:  remote:      https://github.com/microsoft/vscode/pull/new/my_branch
-		// 6:  remote:
-		// 5:  remote: GitHub found x vulnerabilities on microsoft/vscode's default branch (...). To find out more, visit:
-		// 4:  remote:      https://github.com/microsoft/vscode/security/dependabot
-		// 3:  remote:
-		// 2:  To https://github.com/microsoft/vscode
-		// 1:  * [new branch]              my_branch -> my_branch
-		// 0:  Branch 'my_branch' set up to track remote branch 'my_branch' from 'origin'.
+		// 10: remote:
+		// 9:  remote: Create a pull request for 'my_branch' on GitHub by visiting:
+		// 8:  remote:      https://github.com/microsoft/vscode/pull/new/my_branch
+		// 7:  remote:
+		// 6:  remote: GitHub found x vulnerabilities on microsoft/vscode's default branch (...). To find out more, visit:
+		// 5:  remote:      https://github.com/microsoft/vscode/security/dependabot
+		// 4:  remote:
+		// 3:  To https://github.com/microsoft/vscode
+		// 2:  * [new branch]              my_branch -> my_branch
+		// 1:  Branch 'my_branch' set up to track remote branch 'my_branch' from 'origin'.
+		// 0:
 		outputMatcher: {
 			lineMatcher: GitCreatePrOutputRegex,
 			anchor: 'bottom',
-			offset: 3,
-			length: 6
+			offset: 4,
+			// ~6 should only be needed here for security alerts, but the git provider can customize
+			// the text, so use 12 to be safe.
+			length: 12
 		},
 		commandExitResult: 'success',
 		getQuickFixes: (matchResult: ITerminalCommandMatchResult) => {

@@ -45,6 +45,7 @@ import { Scrollable, ScrollbarVisibility } from 'vs/base/common/scrollable';
 import { SmoothScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
 import { DomEmitter } from 'vs/base/browser/event';
 import { CommentContextKeys } from 'vs/workbench/contrib/comments/common/commentContextKeys';
+import { FileAccess } from 'vs/base/common/network';
 
 export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 	private _domNode: HTMLElement;
@@ -116,7 +117,7 @@ export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 		const avatar = dom.append(this._domNode, dom.$('div.avatar-container'));
 		if (comment.userIconPath) {
 			const img = <HTMLImageElement>dom.append(avatar, dom.$('img.avatar'));
-			img.src = comment.userIconPath.toString();
+			img.src = FileAccess.uriToBrowserUri(URI.revive(comment.userIconPath)).toString(true);
 			img.onerror = _ => img.remove();
 		}
 		this._commentDetailsContainer = dom.append(this._domNode, dom.$('.review-comment-contents'));

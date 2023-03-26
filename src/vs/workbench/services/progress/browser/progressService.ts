@@ -11,7 +11,7 @@ import { IProgressService, IProgressOptions, IProgressStep, ProgressLocation, IP
 import { StatusbarAlignment, IStatusbarService, IStatusbarEntryAccessor, IStatusbarEntry } from 'vs/workbench/services/statusbar/browser/statusbar';
 import { DeferredPromise, RunOnceScheduler, timeout } from 'vs/base/common/async';
 import { ProgressBadge, IActivityService } from 'vs/workbench/services/activity/common/activity';
-import { INotificationService, Severity, INotificationHandle } from 'vs/platform/notification/common/notification';
+import { INotificationService, Severity, INotificationHandle, NotificationPriority } from 'vs/platform/notification/common/notification';
 import { Action } from 'vs/base/common/actions';
 import { Event, Emitter } from 'vs/base/common/event';
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
@@ -68,7 +68,7 @@ export class ProgressService extends Disposable implements IProgressService {
 
 		switch (location) {
 			case ProgressLocation.Notification:
-				return this.withNotificationProgress({ ...options, location, silent: this.notificationService.doNotDisturbMode }, task, onDidCancel);
+				return this.withNotificationProgress({ ...options, location, priority: this.notificationService.doNotDisturbMode ? NotificationPriority.SILENT : undefined }, task, onDidCancel);
 			case ProgressLocation.Window: {
 				const type = (options as IProgressWindowOptions).type;
 				if ((options as IProgressWindowOptions).command) {
@@ -78,7 +78,7 @@ export class ProgressService extends Disposable implements IProgressService {
 				// Window progress without command can be shown as silent notification
 				// which will first appear in the status bar and can then be brought to
 				// the front when clicking.
-				return this.withNotificationProgress({ delay: 150 /* default for ProgressLocation.Window */, ...options, silent: true, location: ProgressLocation.Notification, type }, task, onDidCancel);
+				return this.withNotificationProgress({ delay: 150 /* default for ProgressLocation.Window */, ...options, priority: NotificationPriority.SILENT, location: ProgressLocation.Notification, type }, task, onDidCancel);
 			}
 			case ProgressLocation.Explorer:
 				return this.withPaneCompositeProgress('workbench.view.explorer', ViewContainerLocation.Sidebar, task, { ...options, location });
@@ -266,7 +266,7 @@ export class ProgressService extends Disposable implements IProgressService {
 			return toDisposable(() => promise.complete());
 		};
 
-		const createNotification = (message: string, silent: boolean, increment?: number): INotificationHandle => {
+		const createNotification = (message: string, priority?: NotificationPriority, increment?: number): INotificationHandle => {
 			const notificationDisposables = new DisposableStore();
 
 			const primaryActions = options.primaryActions ? Array.from(options.primaryActions) : [];
@@ -310,7 +310,7 @@ export class ProgressService extends Disposable implements IProgressService {
 				source: options.source,
 				actions: { primary: primaryActions, secondary: secondaryActions },
 				progress: typeof increment === 'number' && increment >= 0 ? { total: 100, worked: increment } : { infinite: true },
-				silent
+				priority
 			});
 
 			// Switch to window based progress once the notification
@@ -328,7 +328,7 @@ export class ProgressService extends Disposable implements IProgressService {
 				}
 			};
 			notificationDisposables.add(notification.onDidChangeVisibility(onVisibilityChange));
-			if (silent) {
+			if (priority === NotificationPriority.SILENT) {
 				onVisibilityChange(false);
 			}
 
@@ -365,10 +365,10 @@ export class ProgressService extends Disposable implements IProgressService {
 				// create notification now or after a delay
 				if (typeof options.delay === 'number' && options.delay > 0) {
 					if (typeof notificationTimeout !== 'number') {
-						notificationTimeout = setTimeout(() => notificationHandle = createNotification(titleAndMessage!, !!options.silent, step?.increment), options.delay);
+						notificationTimeout = setTimeout(() => notificationHandle = createNotification(titleAndMessage!, options.priority, step?.increment), options.delay);
 					}
 				} else {
-					notificationHandle = createNotification(titleAndMessage, !!options.silent, step?.increment);
+					notificationHandle = createNotification(titleAndMessage, options.priority, step?.increment);
 				}
 			}
 

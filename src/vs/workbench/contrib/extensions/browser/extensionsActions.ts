@@ -121,6 +121,23 @@ export class PromptExtensionInstallFailureAction extends Action {
 			return;
 		}
 
+		if (ExtensionManagementErrorCode.Signature === (<ExtensionManagementErrorCode>this.error.name)) {
+			await this.dialogService.prompt({
+				type: 'error',
+				message: localize('signature verification failed', "{0} cannot verify the '{1}' extension. Are you sure you want to install it?", this.productService.nameLong, this.extension.displayName || this.extension.identifier.id),
+				buttons: [{
+					label: localize('install anyway', "Install Anyway"),
+					run: () => {
+						const installAction = this.installOptions?.isMachineScoped ? this.instantiationService.createInstance(InstallAction, { donotVerifySignature: true }) : this.instantiationService.createInstance(InstallAndSyncAction, { donotVerifySignature: true });
+						installAction.extension = this.extension;
+						return installAction.run();
+					}
+				}],
+				cancelButton: localize('cancel', "Cancel")
+			});
+			return;
+		}
+
 		let operationMessage = this.installOperation === InstallOperation.Update ? localize('update operation', "Error while updating '{0}' extension.", this.extension.displayName || this.extension.identifier.id)
 			: localize('install operation', "Error while installing '{0}' extension.", this.extension.displayName || this.extension.identifier.id);
 		let additionalMessage;
@@ -132,7 +149,7 @@ export class PromptExtensionInstallFailureAction extends Action {
 			promptChoices.push({
 				label: localize('install release version', "Install Release Version"),
 				run: () => {
-					const installAction = this.installOptions?.isMachineScoped ? this.instantiationService.createInstance(InstallAction, !!this.installOptions.installPreReleaseVersion) : this.instantiationService.createInstance(InstallAndSyncAction, !!this.installOptions?.installPreReleaseVersion);
+					const installAction = this.installOptions?.isMachineScoped ? this.instantiationService.createInstance(InstallAction, { installPreReleaseVersion: !!this.installOptions.installPreReleaseVersion }) : this.instantiationService.createInstance(InstallAndSyncAction, { installPreReleaseVersion: !!this.installOptions?.installPreReleaseVersion });
 					installAction.extension = this.extension;
 					return installAction.run();
 				}
@@ -291,7 +308,7 @@ export abstract class AbstractInstallAction extends ExtensionAction {
 	private readonly updateThrottler = new Throttler();
 
 	constructor(
-		id: string, private readonly installPreReleaseVersion: boolean, cssClass: string,
+		id: string, readonly options: InstallOptions, cssClass: string,
 		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IExtensionService private readonly runtimeExtensionService: IExtensionService,
@@ -322,7 +339,7 @@ export abstract class AbstractInstallAction extends ExtensionAction {
 			return;
 		}
 		if (this.extension.state === ExtensionState.Uninstalled && await this.extensionsWorkbenchService.canInstall(this.extension)) {
-			this.enabled = this.installPreReleaseVersion ? this.extension.hasPreReleaseVersion : this.extension.hasReleaseVersion;
+			this.enabled = this.options.installPreReleaseVersion ? this.extension.hasPreReleaseVersion : this.extension.hasReleaseVersion;
 			this.updateLabel();
 		}
 	}
@@ -342,7 +359,7 @@ export abstract class AbstractInstallAction extends ExtensionAction {
 			}
 			const buttons: IPromptButton<DeprecationChoice>[] = [
 				{
-					label: localize({ key: 'install anyway', comment: ['&& denotes a mnemonic'] }, "&&Install Anyway"),
+					label: localize('install anyway', "Install Anyway"),
 					run: () => DeprecationChoice.InstallAnyway
 				}
 			];
@@ -395,19 +412,20 @@ export abstract class AbstractInstallAction extends ExtensionAction {
 			}
 		}
 
-		this.extensionsWorkbenchService.open(this.extension, { showPreReleaseVersion: this.installPreReleaseVersion });
+		this.extensionsWorkbenchService.open(this.extension, { showPreReleaseVersion: this.options.installPreReleaseVersion });
 
 		alert(localize('installExtensionStart', "Installing extension {0} started. An editor is now open with more details on this extension", this.extension.displayName));
 
 		/* __GDPR__
 			"extensions:action:install" : {
 				"owner": "sandy081",
+				"actionId" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
 				"${include}": [
 					"${GalleryExtensionTelemetryData}"
 				]
 			}
 		*/
-		this.telemetryService.publicLog('extensions:action:install', this.extension.telemetryData);
+		this.telemetryService.publicLog('extensions:action:install', { ...this.extension.telemetryData, actionId: this.id });
 
 		const extension = await this.install(this.extension);
 
@@ -480,7 +498,7 @@ export abstract class AbstractInstallAction extends ExtensionAction {
 
 	getLabel(primary?: boolean): string {
 		/* install pre-release version */
-		if (this.installPreReleaseVersion && this.extension?.hasPreReleaseVersion) {
+		if (this.options.installPreReleaseVersion && this.extension?.hasPreReleaseVersion) {
 			return primary ? localize('install pre-release', "Install Pre-Release") : localize('install pre-release version', "Install Pre-Release Version");
 		}
 		/* install released version that has a pre release version */
@@ -491,14 +509,14 @@ export abstract class AbstractInstallAction extends ExtensionAction {
 	}
 
 	protected getInstallOptions(): InstallOptions {
-		return { installPreReleaseVersion: this.installPreReleaseVersion };
+		return this.options;
 	}
 }
 
 export class InstallAction extends AbstractInstallAction {
 
 	constructor(
-		installPreReleaseVersion: boolean,
+		options: InstallOptions,
 		@IExtensionsWorkbenchService extensionsWorkbenchService: IExtensionsWorkbenchService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IExtensionService runtimeExtensionService: IExtensionService,
@@ -507,11 +525,11 @@ export class InstallAction extends AbstractInstallAction {
 		@IDialogService dialogService: IDialogService,
 		@IPreferencesService preferencesService: IPreferencesService,
 		@IExtensionManagementServerService private readonly extensionManagementServerService: IExtensionManagementServerService,
-		@IWorkbenchExtensionManagementService private readonly workbenchExtensioManagementService: IWorkbenchExtensionManagementService,
+		@IWorkbenchExtensionManagementService private readonly workbenchExtensionManagementService: IWorkbenchExtensionManagementService,
 		@IUserDataSyncEnablementService protected readonly userDataSyncEnablementService: IUserDataSyncEnablementService,
 		@ITelemetryService telemetryService: ITelemetryService,
 	) {
-		super(`extensions.install`, installPreReleaseVersion, InstallAction.Class,
+		super(`extensions.install`, options, InstallAction.Class,
 			extensionsWorkbenchService, instantiationService, runtimeExtensionService, workbenchThemeService, labelService, dialogService, preferencesService, telemetryService);
 		this.updateLabel();
 		this._register(labelService.onDidChangeFormatters(() => this.updateLabel(), this));
@@ -528,7 +546,7 @@ export class InstallAction extends AbstractInstallAction {
 		// When remote connection exists
 		if (this._manifest && this.extensionManagementServerService.remoteExtensionManagementServer) {
 
-			const server = this.workbenchExtensioManagementService.getExtensionManagementServerToInstall(this._manifest);
+			const server = this.workbenchExtensionManagementService.getExtensionManagementServerToInstall(this._manifest);
 
 			if (server === this.extensionManagementServerService.remoteExtensionManagementServer) {
 				const host = this.extensionManagementServerService.remoteExtensionManagementServer.label;
@@ -566,7 +584,7 @@ export class InstallAction extends AbstractInstallAction {
 export class InstallAndSyncAction extends AbstractInstallAction {
 
 	constructor(
-		installPreReleaseVersion: boolean,
+		options: InstallOptions,
 		@IExtensionsWorkbenchService extensionsWorkbenchService: IExtensionsWorkbenchService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IExtensionService runtimeExtensionService: IExtensionService,
@@ -578,7 +596,7 @@ export class InstallAndSyncAction extends AbstractInstallAction {
 		@IUserDataSyncEnablementService private readonly userDataSyncEnablementService: IUserDataSyncEnablementService,
 		@ITelemetryService telemetryService: ITelemetryService,
 	) {
-		super('extensions.installAndSync', installPreReleaseVersion, AbstractInstallAction.Class,
+		super('extensions.installAndSync', options, AbstractInstallAction.Class,
 			extensionsWorkbenchService, instantiationService, runtimeExtensionService, workbenchThemeService, labelService, dialogService, preferencesService, telemetryService);
 		this.tooltip = localize({ key: 'install everywhere tooltip', comment: ['Placeholder is the name of the product. Eg: Visual Studio Code or Visual Studio Code - Insiders'] }, "Install this extension in all your synced {0} instances", productService.nameLong);
 		this._register(Event.any(userDataSyncEnablementService.onDidChangeEnablement,
@@ -610,12 +628,12 @@ export class InstallDropdownAction extends ActionWithDropDownAction {
 	) {
 		super(`extensions.installActions`, '', [
 			[
-				instantiationService.createInstance(InstallAndSyncAction, extensionsWorkbenchService.preferPreReleases),
-				instantiationService.createInstance(InstallAndSyncAction, !extensionsWorkbenchService.preferPreReleases),
+				instantiationService.createInstance(InstallAndSyncAction, { installPreReleaseVersion: extensionsWorkbenchService.preferPreReleases }),
+				instantiationService.createInstance(InstallAndSyncAction, { installPreReleaseVersion: !extensionsWorkbenchService.preferPreReleases }),
 			],
 			[
-				instantiationService.createInstance(InstallAction, extensionsWorkbenchService.preferPreReleases),
-				instantiationService.createInstance(InstallAction, !extensionsWorkbenchService.preferPreReleases),
+				instantiationService.createInstance(InstallAction, { installPreReleaseVersion: extensionsWorkbenchService.preferPreReleases }),
+				instantiationService.createInstance(InstallAction, { installPreReleaseVersion: !extensionsWorkbenchService.preferPreReleases }),
 			]
 		]);
 	}

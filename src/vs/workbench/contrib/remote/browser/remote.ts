@@ -22,7 +22,7 @@ import { VIEWLET_ID } from 'vs/workbench/contrib/remote/browser/remoteExplorer';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IViewDescriptor, IViewsRegistry, Extensions, ViewContainerLocation, IViewContainersRegistry, IViewDescriptorService } from 'vs/workbench/common/views';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
+import { IExtensionDescription, IRelaxedExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { ICommandService } from 'vs/platform/commands/common/commands';
@@ -285,7 +285,11 @@ class HelpItemValue {
 				if (url.authority) {
 					this._url = this.urlOrCommand;
 				} else {
-					const urlCommand: Promise<string | undefined> = this.commandService.executeCommand(this.urlOrCommand);
+					const urlCommand: Promise<string | undefined> = this.commandService.executeCommand(this.urlOrCommand).then((result) => {
+						// if executing this command times out, cache its value whenever it eventually resolves
+						this._url = result;
+						return this._url;
+					});
 					// We must be defensive. The command may never return, meaning that no help at all is ever shown!
 					const emptyString: Promise<string> = new Promise(resolve => setTimeout(() => resolve(''), 500));
 					this._url = await Promise.race([urlCommand, emptyString]);
@@ -312,6 +316,20 @@ abstract class HelpItemBase implements IHelpItem {
 	) {
 		this.iconClasses.push(...ThemeIcon.asClassNameArray(icon));
 		this.iconClasses.push('remote-help-tree-node-item-icon');
+	}
+
+	protected async getActions(): Promise<{
+		label: string;
+		description: string;
+		extensionDescription: Readonly<IRelaxedExtensionDescription>;
+	}[]> {
+		return (await Promise.all(this.values.map(async (value) => {
+			return {
+				label: value.extensionDescription.displayName || value.extensionDescription.identifier.value,
+				description: await value.url,
+				extensionDescription: value.extensionDescription
+			};
+		}))).filter(item => item.description);
 	}
 
 	async handleClick() {
@@ -351,13 +369,7 @@ abstract class HelpItemBase implements IHelpItem {
 		}
 
 		if (this.values.length > 1) {
-			const actions = (await Promise.all(this.values.map(async (value) => {
-				return {
-					label: value.extensionDescription.displayName || value.extensionDescription.identifier.value,
-					description: await value.url,
-					extensionDescription: value.extensionDescription
-				};
-			}))).filter(item => item.description);
+			const actions = await this.getActions();
 
 			if (actions.length) {
 				const action = await this.quickInputService.pick(actions, { placeHolder: nls.localize('pickRemoteExtension', "Select url to open") });
@@ -405,6 +417,20 @@ class IssueReporterItem extends HelpItemBase {
 		workspaceContextService: IWorkspaceContextService
 	) {
 		super(icon, label, values, quickInputService, environmentService, remoteExplorerService, workspaceContextService);
+	}
+
+	protected override async getActions(): Promise<{
+		label: string;
+		description: string;
+		extensionDescription: Readonly<IRelaxedExtensionDescription>;
+	}[]> {
+		return Promise.all(this.values.map(async (value) => {
+			return {
+				label: value.extensionDescription.displayName || value.extensionDescription.identifier.value,
+				description: '',
+				extensionDescription: value.extensionDescription
+			};
+		}));
 	}
 
 	protected async takeAction(extensionDescription: IExtensionDescription): Promise<void> {

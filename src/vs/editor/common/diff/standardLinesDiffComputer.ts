@@ -5,13 +5,14 @@
 
 import { assertFn, checkAdjacentItems } from 'vs/base/common/assert';
 import { CharCode } from 'vs/base/common/charCode';
+import { LineRange } from 'vs/editor/common/core/lineRange';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { OffsetRange, SequenceDiff, ISequence } from 'vs/editor/common/diff/algorithms/diffAlgorithm';
 import { DynamicProgrammingDiffing } from 'vs/editor/common/diff/algorithms/dynamicProgrammingDiffing';
 import { optimizeSequenceDiffs, smoothenSequenceDiffs } from 'vs/editor/common/diff/algorithms/joinSequenceDiffs';
 import { MyersDiffAlgorithm } from 'vs/editor/common/diff/algorithms/myersDiffAlgorithm';
-import { ILinesDiff, ILinesDiffComputer, ILinesDiffComputerOptions, LineRange, LineRangeMapping, RangeMapping } from 'vs/editor/common/diff/linesDiffComputer';
+import { ILinesDiff, ILinesDiffComputer, ILinesDiffComputerOptions, LineRangeMapping, RangeMapping } from 'vs/editor/common/diff/linesDiffComputer';
 
 export class StandardLinesDiffComputer implements ILinesDiffComputer {
 	private readonly dynamicProgrammingDiffing = new DynamicProgrammingDiffing();
@@ -116,7 +117,97 @@ export class StandardLinesDiffComputer implements ILinesDiffComputer {
 			? this.dynamicProgrammingDiffing.compute(sourceSlice, targetSlice)
 			: this.myersDiffingAlgorithm.compute(sourceSlice, targetSlice);
 
-		let diffs = optimizeSequenceDiffs(sourceSlice, targetSlice, originalDiffs);
+		function mergeSequenceDiffs(sequenceDiffs1: SequenceDiff[], sequenceDiffs2: SequenceDiff[]): SequenceDiff[] {
+			const result: SequenceDiff[] = [];
+
+			while (sequenceDiffs1.length > 0 || sequenceDiffs2.length > 0) {
+				const sd1 = sequenceDiffs1[0];
+				const sd2 = sequenceDiffs2[0];
+
+				let next: SequenceDiff;
+				if (sd1 && (!sd2 || sd1.seq1Range.start < sd2.seq1Range.start)) {
+					next = sequenceDiffs1.shift()!;
+				} else {
+					next = sequenceDiffs2.shift()!;
+				}
+
+				if (result.length > 0 && result[result.length - 1].seq1Range.endExclusive >= next.seq1Range.start) {
+					result[result.length - 1] = result[result.length - 1].join(next);
+				} else {
+					result.push(next);
+				}
+			}
+
+			return result;
+		}
+
+		function coverFullWords(sequence1: Slice, sequence2: Slice, sequenceDiffs: SequenceDiff[]): SequenceDiff[] {
+			const additional: SequenceDiff[] = [];
+
+			let lastModifiedWord: { added: number; deleted: number; count: number; s1Range: OffsetRange; s2Range: OffsetRange } | undefined = undefined;
+
+			function maybePushWordToAdditional() {
+				if (!lastModifiedWord) {
+					return;
+				}
+
+				const originalLength1 = lastModifiedWord.s1Range.length - lastModifiedWord.deleted;
+				const originalLength2 = lastModifiedWord.s2Range.length - lastModifiedWord.added;
+				if (originalLength1 !== originalLength2) {
+					lastModifiedWord = undefined;
+					return; // TODO figure out why this happens
+				}
+
+				if (Math.max(lastModifiedWord.deleted, lastModifiedWord.added) + (lastModifiedWord.count - 1) > originalLength1) {
+					additional.push(new SequenceDiff(lastModifiedWord.s1Range, lastModifiedWord.s2Range));
+				}
+
+				lastModifiedWord = undefined;
+			}
+
+			for (const s of sequenceDiffs) {
+				function processWord(s1Range: OffsetRange, s2Range: OffsetRange) {
+					if (!lastModifiedWord || !lastModifiedWord.s1Range.equals(s1Range) || !lastModifiedWord.s2Range.equals(s2Range)) {
+						if (lastModifiedWord && lastModifiedWord.s1Range.endExclusive < s1Range.start && lastModifiedWord.s2Range.endExclusive < s2Range.start) {
+							maybePushWordToAdditional();
+						}
+						lastModifiedWord = { added: 0, deleted: 0, count: 0, s1Range: s1Range, s2Range: s2Range };
+					}
+
+					const changedS1 = s1Range.intersect(s.seq1Range);
+					const changedS2 = s2Range.intersect(s.seq2Range);
+					lastModifiedWord.count++;
+					lastModifiedWord.added += changedS2?.length ?? 0;
+					lastModifiedWord.deleted += changedS1?.length ?? 0;
+				}
+
+				const w1Before = sequence1.findWordContaining(s.seq1Range.start - 1);
+				const w2Before = sequence2.findWordContaining(s.seq2Range.start - 1);
+
+				const w1After = sequence1.findWordContaining(s.seq1Range.endExclusive);
+				const w2After = sequence2.findWordContaining(s.seq2Range.endExclusive);
+
+				if (w1Before && w1After && w2Before && w2After && w1Before.equals(w1After) && w2Before.equals(w2After)) {
+					processWord(w1Before, w2Before);
+				} else {
+					if (w1Before && w2Before) {
+						processWord(w1Before, w2Before);
+					}
+					if (w1After && w2After) {
+						processWord(w1After, w2After);
+					}
+				}
+			}
+
+			maybePushWordToAdditional();
+
+			const merged = mergeSequenceDiffs(sequenceDiffs, additional);
+			return merged;
+		}
+
+		let diffs = originalDiffs;
+		diffs = coverFullWords(sourceSlice, targetSlice, diffs);
+		diffs = optimizeSequenceDiffs(sourceSlice, targetSlice, diffs);
 		diffs = smoothenSequenceDiffs(sourceSlice, targetSlice, diffs);
 		const result = diffs.map(
 			(d) =>
@@ -245,6 +336,10 @@ class Slice implements ISequence {
 		}
 	}
 
+	toString() {
+		return `Slice: "${this.text}"`;
+	}
+
 	get text(): string {
 		return [...this.elements].map(e => String.fromCharCode(e)).join('');
 	}
@@ -304,6 +399,39 @@ class Slice implements ISequence {
 	public translateRange(range: OffsetRange): Range {
 		return Range.fromPositions(this.translateOffset(range.start), this.translateOffset(range.endExclusive));
 	}
+
+	/**
+	 * Finds the word that contains the character at the given offset
+	 */
+	public findWordContaining(offset: number): OffsetRange | undefined {
+		if (offset < 0 || offset >= this.elements.length) {
+			return undefined;
+		}
+
+		if (!isWordChar(this.elements[offset])) {
+			return undefined;
+		}
+
+		// find start
+		let start = offset;
+		while (start > 0 && isWordChar(this.elements[start - 1])) {
+			start--;
+		}
+
+		// find end
+		let end = offset;
+		while (end < this.elements.length && isWordChar(this.elements[end])) {
+			end++;
+		}
+
+		return new OffsetRange(start, end);
+	}
+}
+
+function isWordChar(charCode: number): boolean {
+	return charCode >= CharCode.a && charCode <= CharCode.z
+		|| charCode >= CharCode.A && charCode <= CharCode.Z
+		|| charCode >= CharCode.Digit0 && charCode <= CharCode.Digit9;
 }
 
 const enum CharBoundaryCategory {

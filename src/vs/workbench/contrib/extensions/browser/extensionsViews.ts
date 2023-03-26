@@ -37,7 +37,7 @@ import { alert } from 'vs/base/browser/ui/aria/aria';
 import { IListContextMenuEvent } from 'vs/base/browser/ui/list/list';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IAction, Action, Separator, ActionRunner } from 'vs/base/common/actions';
-import { ExtensionIdentifier, ExtensionUntrustedWorkspaceSupportType, ExtensionVirtualWorkspaceSupportType, IExtensionDescription, isLanguagePackExtension } from 'vs/platform/extensions/common/extensions';
+import { ExtensionIdentifierMap, ExtensionUntrustedWorkspaceSupportType, ExtensionVirtualWorkspaceSupportType, IExtensionDescription, isLanguagePackExtension } from 'vs/platform/extensions/common/extensions';
 import { CancelablePromise, createCancelablePromise, ThrottledDelayer } from 'vs/base/common/async';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { SeverityIcon } from 'vs/platform/severityIcon/browser/severityIcon';
@@ -193,7 +193,7 @@ export class ExtensionsListView extends ViewPane {
 					if (!extension) {
 						return '';
 					}
-					const publisher = localize('extension.arialabel.publihser', "Publisher {0}", extension.publisherDisplayName);
+					const publisher = extension.publisherDomain?.verified ? localize('extension.arialabel.verifiedPublihser', "Verified Publisher {0}", extension.publisherDisplayName) : localize('extension.arialabel.publihser', "Publisher {0}", extension.publisherDisplayName);
 					const deprecated = extension?.deprecationInfo ? localize('extension.arialabel.deprecated', "Deprecated") : '';
 					return `${extension.displayName}, ${deprecated ? `${deprecated}, ` : ''}${extension.version}, ${publisher}, ${extension.description}`;
 				},
@@ -524,12 +524,12 @@ export class ExtensionsListView extends ViewPane {
 			result = this.sortExtensions(result, options);
 		} else {
 			result = local.filter(e => (!e.isBuiltin || e.outdated || e.reloadRequiredStatus !== undefined) && matchingText(e));
-			const runningExtensionsById = runningExtensions.reduce((result, e) => { result.set(ExtensionIdentifier.toKey(e.identifier.value), e); return result; }, new Map<string, IExtensionDescription>());
+			const runningExtensionsById = runningExtensions.reduce((result, e) => { result.set(e.identifier.value, e); return result; }, new ExtensionIdentifierMap<IExtensionDescription>());
 
 			const defaultSort = (e1: IExtension, e2: IExtension) => {
-				const running1 = runningExtensionsById.get(ExtensionIdentifier.toKey(e1.identifier.id));
+				const running1 = runningExtensionsById.get(e1.identifier.id);
 				const isE1Running = !!running1 && this.extensionManagementServerService.getExtensionManagementServer(toExtension(running1)) === e1.server;
-				const running2 = runningExtensionsById.get(ExtensionIdentifier.toKey(e2.identifier.id));
+				const running2 = runningExtensionsById.get(e2.identifier.id);
 				const isE2Running = running2 && this.extensionManagementServerService.getExtensionManagementServer(toExtension(running2)) === e2.server;
 				if ((isE1Running && isE2Running)) {
 					return e1.displayName.localeCompare(e2.displayName);

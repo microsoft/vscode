@@ -1,0 +1,145 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.monaco-editor .interactive-editor {
+	z-index: 100;
+	color: inherit;
+	padding-top: 6px;
+}
+
+/* body */
+
+.monaco-editor .interactive-editor .body {
+	display: flex;
+}
+
+.monaco-editor .interactive-editor .body .content {
+	display: flex;
+	box-sizing: border-box;
+	border-radius: 2px;
+	border: 1px solid var(--vscode-interactiveEditorInput-border);
+}
+
+.monaco-editor .interactive-editor .body .content.synthetic-focus {
+	outline: 1px solid var(--vscode-interactiveEditorInput-focusBorder);
+}
+
+.monaco-editor .interactive-editor .body .content .input {
+	padding: 2px 2px 2px 4px;
+	border-top-left-radius: 2px;
+	border-bottom-left-radius: 2px;
+	background-color: var(--vscode-interactiveEditorInput-background);
+	cursor: text;
+}
+
+.monaco-editor .interactive-editor .monaco-editor-background {
+	background-color: var(--vscode-interactiveEditorInput-background);
+}
+
+.monaco-editor .interactive-editor .body .content .input .editor-placeholder {
+	position: absolute;
+	z-index: 1;
+	padding: 3px 0 0 0;
+	color: var(--vscode-interactiveEditorInput-placeholderForeground);
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.monaco-editor .interactive-editor .body .content .input .editor-placeholder.hidden {
+	display: none;
+}
+
+.monaco-editor .interactive-editor .body .content .input .editor-container {
+	vertical-align: middle;
+}
+.monaco-editor .interactive-editor .body .toolbar {
+	display: flex;
+	flex-direction: column;
+	align-self: stretch;
+	padding-right: 4px;
+	border-top-right-radius: 2px;
+	border-bottom-right-radius: 2px;
+	background: var(--vscode-interactiveEditorInput-background);
+}
+
+.monaco-editor .interactive-editor .body .toolbar .actions-container {
+	display: flex;
+	flex-direction: row;
+	gap: 4px;
+}
+
+/* progress bit */
+
+.monaco-editor .interactive-editor .progress {
+	position: relative;
+	width: calc(100% - 18px);
+	left: 19px;
+}
+
+/* UGLY - fighting against workbench styles */
+.monaco-workbench .part.editor > .content .monaco-editor .interactive-editor .progress .monaco-progress-container {
+	top: 0;
+}
+
+/* status */
+
+.monaco-editor .interactive-editor .status {
+	padding: 6px 10px 2px 2px;
+}
+
+.monaco-editor .interactive-editor .status.hidden {
+	display: none;
+}
+
+.monaco-editor .interactive-editor .status .status-item {
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+}
+
+.monaco-editor .interactive-editor .status .status-item .label A {
+	color: var(--vscode-textLink-foreground);
+	cursor: pointer;
+}
+
+.monaco-editor .interactive-editor .status .status-item.error .label {
+	color: var(--vscode-errorForeground);
+}
+
+.monaco-editor .interactive-editor .status .status-item.warn .label {
+	color: var(--vscode-editorWarning-foreground);
+}
+
+.monaco-editor .interactive-editor .status .monaco-toolbar .action-label.checked {
+	color: var(--vscode-inputOption-activeForeground);
+	background-color: var(--vscode-inputOption-activeBackground);
+	outline: 1px solid var(--vscode-inputOption-activeBorder);
+}
+
+/* decoration styles */
+
+.monaco-editor .interactive-editor-lines-deleted-range-inline {
+	text-decoration: line-through;
+	background-color: var(--vscode-diffEditor-removedTextBackground);
+	opacity: 0.6;
+}
+.monaco-editor .interactive-editor-lines-inserted-range {
+	background-color: var(--vscode-diffEditor-insertedTextBackground);
+}
+
+.monaco-editor .interactive-editor-block {
+	border-radius: 6px;
+	border: 1px solid var(--vscode-interactiveEditor-border);
+	box-shadow: 0 4px 8px var(--vscode-interactiveEditor-shadow);
+}
+
+.monaco-editor .interactive-editor-slash-command {
+	color: var(--vscode-textLink-foreground)
+}
+
+.monaco-editor .interactive-editor-slash-command-detail {
+	opacity: 0.5;
+}

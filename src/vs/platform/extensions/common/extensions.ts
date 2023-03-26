@@ -11,9 +11,8 @@ import { ExtensionKind } from 'vs/platform/environment/common/environment';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { getRemoteName } from 'vs/platform/remote/common/remoteHosts';
 
-export const MANIFEST_CACHE_FOLDER = 'CachedExtensions';
-export const USER_MANIFEST_CACHE_FILE = 'user';
-export const BUILTIN_MANIFEST_CACHE_FILE = 'builtin';
+export const USER_MANIFEST_CACHE_FILE = 'extensions.user.cache';
+export const BUILTIN_MANIFEST_CACHE_FILE = 'extensions.builtin.cache';
 export const UNDEFINED_PUBLISHER = 'undefined_publisher';
 
 export interface ICommand {
@@ -322,7 +321,6 @@ export interface IExtension {
 	readonly changelogUrl?: URI;
 	readonly isValid: boolean;
 	readonly validations: readonly [Severity, string][];
-	readonly browserNlsBundleUris?: { [language: string]: URI };
 }
 
 /**
@@ -380,6 +378,72 @@ export class ExtensionIdentifier {
 	}
 }
 
+export class ExtensionIdentifierSet {
+
+	private readonly _set = new Set<string>();
+
+	public get size(): number {
+		return this._set.size;
+	}
+
+	constructor(iterable?: Iterable<ExtensionIdentifier | string>) {
+		if (iterable) {
+			for (const value of iterable) {
+				this.add(value);
+			}
+		}
+	}
+
+	public add(id: ExtensionIdentifier | string): void {
+		this._set.add(ExtensionIdentifier.toKey(id));
+	}
+
+	public delete(extensionId: ExtensionIdentifier): boolean {
+		return this._set.delete(ExtensionIdentifier.toKey(extensionId));
+	}
+
+	public has(id: ExtensionIdentifier | string): boolean {
+		return this._set.has(ExtensionIdentifier.toKey(id));
+	}
+}
+
+export class ExtensionIdentifierMap<T> {
+
+	private readonly _map = new Map<string, T>();
+
+	public clear(): void {
+		this._map.clear();
+	}
+
+	public delete(id: ExtensionIdentifier | string): void {
+		this._map.delete(ExtensionIdentifier.toKey(id));
+	}
+
+	public get(id: ExtensionIdentifier | string): T | undefined {
+		return this._map.get(ExtensionIdentifier.toKey(id));
+	}
+
+	public has(id: ExtensionIdentifier | string): boolean {
+		return this._map.has(ExtensionIdentifier.toKey(id));
+	}
+
+	public set(id: ExtensionIdentifier | string, value: T): void {
+		this._map.set(ExtensionIdentifier.toKey(id), value);
+	}
+
+	public values(): IterableIterator<T> {
+		return this._map.values();
+	}
+
+	forEach(callbackfn: (value: T, key: string, map: Map<string, T>) => void): void {
+		this._map.forEach(callbackfn);
+	}
+
+	[Symbol.iterator](): IterableIterator<[string, T]> {
+		return this._map[Symbol.iterator]();
+	}
+}
+
 export interface IRelaxedExtensionDescription extends IRelaxedExtensionManifest {
 	id?: string;
 	identifier: ExtensionIdentifier;
@@ -389,7 +453,6 @@ export interface IRelaxedExtensionDescription extends IRelaxedExtensionManifest 
 	isUserBuiltin: boolean;
 	isUnderDevelopment: boolean;
 	extensionLocation: URI;
-	browserNlsBundleUris?: { [language: string]: URI };
 }
 
 export type IExtensionDescription = Readonly<IRelaxedExtensionDescription>;

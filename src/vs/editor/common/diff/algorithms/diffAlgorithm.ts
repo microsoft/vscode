@@ -23,6 +23,10 @@ export class SequenceDiff {
 	public toString(): string {
 		return `${this.seq1Range} <-> ${this.seq2Range}`;
 	}
+
+	public join(other: SequenceDiff): SequenceDiff {
+		return new SequenceDiff(this.seq1Range.join(other.seq1Range), this.seq2Range.join(other.seq2Range));
+	}
 }
 
 /**
@@ -49,6 +53,19 @@ export class OffsetRange {
 
 	public join(other: OffsetRange): OffsetRange {
 		return new OffsetRange(Math.min(this.start, other.start), Math.max(this.endExclusive, other.endExclusive));
+	}
+
+	public equals(other: OffsetRange): boolean {
+		return this.start === other.start && this.endExclusive === other.endExclusive;
+	}
+
+	intersect(seq1Range: OffsetRange): OffsetRange | undefined {
+		const start = Math.max(this.start, seq1Range.start);
+		const end = Math.min(this.endExclusive, seq1Range.endExclusive);
+		if (start <= end) {
+			return new OffsetRange(start, end);
+		}
+		return undefined;
 	}
 }
 

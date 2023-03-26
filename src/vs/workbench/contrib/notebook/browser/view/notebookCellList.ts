@@ -78,7 +78,7 @@ function validateWebviewBoundary(element: HTMLElement) {
 }
 
 export class NotebookCellList extends WorkbenchList<CellViewModel> implements IDisposable, IStyleController, INotebookCellList {
-	override readonly view!: NotebookCellListView<CellViewModel>;
+	protected override readonly view!: NotebookCellListView<CellViewModel>;
 	get onWillScroll(): Event<ScrollEvent> { return this.view.onWillScroll; }
 
 	get rowsContainer(): HTMLElement {
@@ -88,7 +88,7 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 	get scrollableElement(): HTMLElement {
 		return this.view.scrollableElementDomNode;
 	}
-	private _previousFocusedElements: CellViewModel[] = [];
+	private _previousFocusedElements: readonly CellViewModel[] = [];
 	private readonly _localDisposableStore = new DisposableStore();
 	private readonly _viewModelStore = new DisposableStore();
 	private styleElement?: HTMLStyleElement;
@@ -1085,7 +1085,7 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 			if (element instanceof MarkupCellViewModel) {
 				return this._revealInCenterIfOutsideViewport(viewIndex);
 			} else {
-				const rangeOffset = element.layoutInfo.outputContainerOffset + offset;
+				const rangeOffset = element.layoutInfo.outputContainerOffset + Math.min(offset, element.layoutInfo.outputTotalHeight);
 				this.view.setScrollTop(elementTop - this.view.renderHeight / 2);
 				this.view.setScrollTop(elementTop + rangeOffset - this.view.renderHeight / 2);
 			}

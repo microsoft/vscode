@@ -44,8 +44,6 @@ interface IRecentlyOpenedPick extends IQuickPickItem {
 	remoteAuthority: string | undefined;
 }
 
-const fileCategory = { value: localize('file', "File"), original: 'File' };
-
 abstract class BaseOpenRecentAction extends Action2 {
 
 	private readonly removeFromRecentlyOpened: IQuickInputButton = {
@@ -243,7 +241,7 @@ export class OpenRecentAction extends BaseOpenRecentAction {
 				mnemonicTitle: localize({ key: 'miMore', comment: ['&& denotes a mnemonic'] }, "&&More..."),
 				original: 'Open Recent...'
 			},
-			category: fileCategory,
+			category: Categories.File,
 			f1: true,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
@@ -269,7 +267,7 @@ class QuickPickRecentAction extends BaseOpenRecentAction {
 		super({
 			id: 'workbench.action.quickOpenRecent',
 			title: { value: localize('quickOpenRecent', "Quick Open Recent..."), original: 'Quick Open Recent...' },
-			category: fileCategory,
+			category: Categories.File,
 			f1: false // hide quick pickers from command palette to not confuse with the other entry that shows a input field
 		});
 	}

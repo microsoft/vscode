@@ -731,7 +731,12 @@ export class QuickInputList {
 	}
 
 	layout(maxHeight?: number): void {
-		this.list.getHTMLElement().style.maxHeight = maxHeight ? `calc(${Math.floor(maxHeight / 44) * 44}px)` : '';
+		this.list.getHTMLElement().style.maxHeight = maxHeight ? `${
+			// Make sure height aligns with list item heights
+			Math.floor(maxHeight / 44) * 44
+			// Add some extra height so that it's clear there's more to scroll
+			+ 6
+			}px` : '';
 		this.list.layout();
 	}
 

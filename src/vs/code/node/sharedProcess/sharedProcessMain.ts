@@ -3,12 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+/* eslint-disable local/code-layering, local/code-import-patterns */
+// TODO@bpasero remove these once utility process is the only way
+import { Server as BrowserWindowMessagePortServer } from 'vs/base/parts/ipc/electron-browser/ipc.mp';
+import { SharedProcessWorkerService } from 'vs/platform/sharedProcess/electron-browser/sharedProcessWorkerService';
+import { ILocalPtyService } from 'vs/platform/terminal/electron-sandbox/terminal';
+
 import { hostname, release } from 'os';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { onUnexpectedError, setUnexpectedErrorHandler } from 'vs/base/common/errors';
 import { combinedDisposable, Disposable, toDisposable } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
-import { joinPath } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { IPCServer, ProxyChannel, StaticRouter } from 'vs/base/parts/ipc/common/ipc';
 import { Server as UtilityProcessMessagePortServer, once } from 'vs/base/parts/ipc/node/ipc.mp';
@@ -72,6 +77,7 @@ import { UserDataSyncService } from 'vs/platform/userDataSync/common/userDataSyn
 import { UserDataSyncChannel } from 'vs/platform/userDataSync/common/userDataSyncServiceIpc';
 import { UserDataSyncStoreManagementService, UserDataSyncStoreService } from 'vs/platform/userDataSync/common/userDataSyncStoreService';
 import { IUserDataProfileStorageService } from 'vs/platform/userDataProfile/common/userDataProfileStorageService';
+import { NativeUserDataProfileStorageService } from 'vs/platform/userDataProfile/node/userDataProfileStorageService';
 import { ActiveWindowManager } from 'vs/platform/windows/node/windowTracker';
 import { ISignService } from 'vs/platform/sign/common/sign';
 import { SignService } from 'vs/platform/sign/node/signService';
@@ -103,24 +109,16 @@ import { localize } from 'vs/nls';
 import { LogService } from 'vs/platform/log/common/logService';
 import { ipcUtilityProcessWorkerChannelName, IUtilityProcessWorkerConfiguration } from 'vs/platform/utilityProcess/common/utilityProcessWorkerService';
 import { isUtilityProcess } from 'vs/base/parts/sandbox/node/electronTypes';
-
-/* eslint-disable local/code-layering, local/code-import-patterns */
-// TODO@bpasero layer is not allowed in utility process
-import { Server as BrowserWindowMessagePortServer } from 'vs/base/parts/ipc/electron-browser/ipc.mp';
-import { ExtensionTipsService } from 'vs/platform/extensionManagement/electron-sandbox/extensionTipsService';
-import { ExtensionRecommendationNotificationServiceChannelClient } from 'vs/platform/extensionRecommendations/electron-sandbox/extensionRecommendationsIpc';
-import { MessagePortMainProcessService } from 'vs/platform/ipc/electron-browser/mainProcessService';
-import { IMainProcessService } from 'vs/platform/ipc/electron-sandbox/services';
-import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
-import { NativeStorageService } from 'vs/platform/storage/electron-sandbox/storageService';
-import { ILocalPtyService } from 'vs/platform/terminal/electron-sandbox/terminal';
-import { UserDataAutoSyncService } from 'vs/platform/userDataSync/electron-sandbox/userDataAutoSyncService';
-import { UserDataProfileStorageService } from 'vs/platform/userDataProfile/electron-sandbox/userDataProfileStorageService';
-import { SharedProcessWorkerService } from 'vs/platform/sharedProcess/electron-browser/sharedProcessWorkerService';
-import { SharedProcessRequestService } from 'vs/platform/request/electron-browser/sharedProcessRequestService';
-import { RemoteTunnelService } from 'vs/platform/remoteTunnel/electron-browser/remoteTunnelService';
-import { ISharedProcessLifecycleService, SharedProcessLifecycleService } from 'vs/platform/lifecycle/electron-browser/sharedProcessLifecycleService';
-import { ExtensionsProfileScannerService } from 'vs/platform/extensionManagement/electron-sandbox/extensionsProfileScannerService';
+import { ISharedProcessLifecycleService, SharedProcessLifecycleService } from 'vs/platform/lifecycle/node/sharedProcessLifecycleService';
+import { RemoteTunnelService } from 'vs/platform/remoteTunnel/node/remoteTunnelService';
+import { ExtensionsProfileScannerService } from 'vs/platform/extensionManagement/node/extensionsProfileScannerService';
+import { RequestChannelClient } from 'vs/platform/request/common/requestIpc';
+import { ExtensionRecommendationNotificationServiceChannelClient } from 'vs/platform/extensionRecommendations/common/extensionRecommendationsIpc';
+import { INativeHostService } from 'vs/platform/native/common/native';
+import { UserDataAutoSyncService } from 'vs/platform/userDataSync/node/userDataAutoSyncService';
+import { ExtensionTipsService } from 'vs/platform/extensionManagement/node/extensionTipsService';
+import { IMainProcessService, MainProcessService } from 'vs/platform/ipc/common/mainProcessService';
+import { RemoteStorageService } from 'vs/platform/storage/common/storageService';
 
 class SharedProcessMain extends Disposable {
 
@@ -145,9 +143,14 @@ class SharedProcessMain extends Disposable {
 	private registerListeners(): void {
 
 		// Shared process lifecycle
-		const onExit = async () => {
-			this.lifecycleService?.fireOnWillShutdown();
-			this.dispose();
+		let didExit = false;
+		const onExit = () => {
+			if (!didExit) {
+				didExit = true;
+
+				this.lifecycleService?.fireOnWillShutdown();
+				this.dispose();
+			}
 		};
 		process.once('exit', onExit);
 		if (isUtilityProcess(process)) {
@@ -217,7 +220,7 @@ class SharedProcessMain extends Disposable {
 
 		// Main Process
 		const mainRouter = new StaticRouter(ctx => ctx === 'main');
-		const mainProcessService = new MessagePortMainProcessService(this.server, mainRouter);
+		const mainProcessService = new MainProcessService(this.server, mainRouter);
 		services.set(IMainProcessService, mainProcessService);
 
 		// Policies
@@ -229,11 +232,11 @@ class SharedProcessMain extends Disposable {
 		services.set(INativeEnvironmentService, environmentService);
 
 		// Logger
-		const loggerService = new LoggerChannelClient(undefined, this.configuration.logLevel, this.configuration.loggers.map(loggerResource => ({ ...loggerResource, resource: URI.revive(loggerResource.resource) })), mainProcessService.getChannel('logger'));
+		const loggerService = new LoggerChannelClient(undefined, this.configuration.logLevel, environmentService.logsHome, this.configuration.loggers.map(loggerResource => ({ ...loggerResource, resource: URI.revive(loggerResource.resource) })), mainProcessService.getChannel('logger'));
 		services.set(ILoggerService, loggerService);
 
 		// Log
-		const logger = this._register(loggerService.createLogger(joinPath(URI.file(environmentService.logsPath), 'sharedprocess.log'), { id: 'sharedLog', name: localize('sharedLog', "Shared") }));
+		const logger = this._register(loggerService.createLogger('sharedprocess', { name: localize('sharedLog', "Shared") }));
 		const consoleLogger = this._register(new ConsoleLogger(logger.getLevel()));
 		const logService = this._register(new LogService(logger, [consoleLogger]));
 		services.set(ILogService, logService);
@@ -266,7 +269,7 @@ class SharedProcessMain extends Disposable {
 		fileService.registerProvider(Schemas.vscodeUserData, userDataFileSystemProvider);
 
 		// User Data Profiles
-		const userDataProfilesService = this._register(new UserDataProfilesService(this.configuration.profiles.all, URI.revive(this.configuration.profiles.home), mainProcessService.getChannel('userDataProfiles')));
+		const userDataProfilesService = this._register(new UserDataProfilesService(this.configuration.profiles.all, URI.revive(this.configuration.profiles.home).with({ scheme: environmentService.userRoamingDataHome.scheme }), mainProcessService.getChannel('userDataProfiles')));
 		services.set(IUserDataProfilesService, userDataProfilesService);
 
 		// Configuration
@@ -274,7 +277,7 @@ class SharedProcessMain extends Disposable {
 		services.set(IConfigurationService, configurationService);
 
 		// Storage (global access only)
-		const storageService = new NativeStorageService(undefined, { defaultProfile: userDataProfilesService.defaultProfile, currentProfile: userDataProfilesService.defaultProfile }, mainProcessService, environmentService);
+		const storageService = new RemoteStorageService(undefined, { defaultProfile: userDataProfilesService.defaultProfile, currentProfile: userDataProfilesService.defaultProfile }, mainProcessService, environmentService);
 		services.set(IStorageService, storageService);
 		this._register(toDisposable(() => storageService.flush()));
 
@@ -289,7 +292,7 @@ class SharedProcessMain extends Disposable {
 		services.set(IUriIdentityService, uriIdentityService);
 
 		// Request
-		services.set(IRequestService, new SharedProcessRequestService(mainProcessService, configurationService, logService));
+		services.set(IRequestService, new RequestChannelClient(mainProcessService.getChannel('request')));
 
 		// Checksum
 		services.set(IChecksumService, new SyncDescriptor(ChecksumService, undefined, false /* proxied to other processes */));
@@ -316,7 +319,6 @@ class SharedProcessMain extends Disposable {
 		if (supportsTelemetry(productService, environmentService)) {
 			const logAppender = new TelemetryLogAppender(logService, loggerService, environmentService, productService);
 			appenders.push(logAppender);
-			const { installSourcePath } = environmentService;
 			if (productService.aiConfig?.ariaKey) {
 				const collectorAppender = new OneDataSystemAppender(internalTelemetry, 'monacoworkbench', null, productService.aiConfig.ariaKey);
 				this._register(toDisposable(() => collectorAppender.flush())); // Ensure the 1DS appender is disposed so that it flushes remaining data
@@ -325,7 +327,7 @@ class SharedProcessMain extends Disposable {
 
 			telemetryService = new TelemetryService({
 				appenders,
-				commonProperties: resolveCommonProperties(fileService, release(), hostname(), process.arch, productService.commit, productService.version, this.configuration.machineId, internalTelemetry, installSourcePath),
+				commonProperties: resolveCommonProperties(release(), hostname(), process.arch, productService.commit, productService.version, this.configuration.machineId, internalTelemetry),
 				sendErrorTelemetry: true,
 				piiPaths: getPiiPathsFromEnvironment(environmentService),
 			}, configurationService, productService);
@@ -373,7 +375,7 @@ class SharedProcessMain extends Disposable {
 		services.set(IUserDataSyncBackupStoreService, new SyncDescriptor(UserDataSyncBackupStoreService, undefined, false /* Eagerly cleans up old backups */));
 		services.set(IUserDataSyncEnablementService, new SyncDescriptor(UserDataSyncEnablementService, undefined, true));
 		services.set(IUserDataSyncService, new SyncDescriptor(UserDataSyncService, undefined, false /* Initializes the Sync State */));
-		services.set(IUserDataProfileStorageService, new SyncDescriptor(UserDataProfileStorageService, undefined, true));
+		services.set(IUserDataProfileStorageService, new SyncDescriptor(NativeUserDataProfileStorageService, undefined, true));
 		services.set(IUserDataSyncResourceProviderService, new SyncDescriptor(UserDataSyncResourceProviderService, undefined, true));
 
 		// Terminal
@@ -383,7 +385,7 @@ class SharedProcessMain extends Disposable {
 			shortGraceTime: LocalReconnectConstants.ShortGraceTime,
 			scrollback: configurationService.getValue<number>(TerminalSettingId.PersistentSessionScrollback) ?? 100
 		},
-			localize('ptyHost', "Pty Host"),
+			false,
 			configurationService,
 			environmentService,
 			logService,

@@ -91,7 +91,7 @@ export class Repl extends FilterViewPane implements IHistoryNavigationWidget {
 	private static readonly URI = uri.parse(`${DEBUG_SCHEME}:replinput`);
 
 	private history: HistoryNavigator<string>;
-	private tree!: WorkbenchAsyncDataTree<IDebugSession, IReplElement, FuzzyScore>;
+	private tree?: WorkbenchAsyncDataTree<IDebugSession, IReplElement, FuzzyScore>;
 	private replOptions: ReplOptions;
 	private previousTreeScrollHeight: number = 0;
 	private replDelegate!: ReplDelegate;
@@ -164,14 +164,14 @@ export class Repl extends FilterViewPane implements IHistoryNavigationWidget {
 
 		this._register(this.debugService.getViewModel().onDidFocusSession(async session => this.onDidFocusSession(session)));
 		this._register(this.debugService.getViewModel().onDidEvaluateLazyExpression(async e => {
-			if (e instanceof Variable && this.tree.hasNode(e)) {
+			if (e instanceof Variable && this.tree?.hasNode(e)) {
 				await this.tree.updateChildren(e, false, true);
 				await this.tree.expand(e);
 			}
 		}));
 		this._register(this.debugService.onWillNewSession(async newSession => {
 			// Need to listen to output events for sessions which are not yet fully initialised
-			const input = this.tree.getInput();
+			const input = this.tree?.getInput();
 			if (!input || input.state === State.Inactive) {
 				await this.selectSession(newSession);
 			}
@@ -200,7 +200,7 @@ export class Repl extends FilterViewPane implements IHistoryNavigationWidget {
 			}
 		}));
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration('debug.console.wordWrap')) {
+			if (e.affectsConfiguration('debug.console.wordWrap') && this.tree) {
 				this.tree.dispose();
 				this.treeContainer.innerText = '';
 				dom.clearNode(this.treeContainer);
@@ -220,8 +220,10 @@ export class Repl extends FilterViewPane implements IHistoryNavigationWidget {
 
 		this._register(this.filterWidget.onDidChangeFilterText(() => {
 			this.filter.filterQuery = this.filterWidget.getFilterText();
-			this.tree.refilter();
-			revealLastElement(this.tree);
+			if (this.tree) {
+				this.tree.refilter();
+				revealLastElement(this.tree);
+			}
 		}));
 	}
 
@@ -308,7 +310,7 @@ export class Repl extends FilterViewPane implements IHistoryNavigationWidget {
 
 	get isReadonly(): boolean {
 		// Do not allow to edit inactive sessions
-		const session = this.tree.getInput();
+		const session = this.tree?.getInput();
 		if (session && session.state !== State.Inactive) {
 			return false;
 		}
@@ -342,7 +344,7 @@ export class Repl extends FilterViewPane implements IHistoryNavigationWidget {
 			this.modelChangeListener.dispose();
 			this.modelChangeListener = activeEditorControl.onDidChangeModelLanguage(() => this.setMode());
 			if (this.model && activeEditorControl.hasModel()) {
-				this.model.setMode(activeEditorControl.getModel().getLanguageId());
+				this.model.setLanguage(activeEditorControl.getModel().getLanguageId());
 			}
 		}
 	}
@@ -373,7 +375,7 @@ export class Repl extends FilterViewPane implements IHistoryNavigationWidget {
 			this.container.style.setProperty(`--vscode-repl-font-size-for-twistie`, `${this.replOptions.replConfiguration.fontSizeForTwistie}px`);
 			this.container.style.setProperty(`--vscode-repl-line-height`, this.replOptions.replConfiguration.cssLineHeight);
 
-			this.tree.rerender();
+			this.tree?.rerender();
 
 			if (this.bodyContentDimension) {
 				this.layoutBodyContent(this.bodyContentDimension.height, this.bodyContentDimension.width);
@@ -393,7 +395,7 @@ export class Repl extends FilterViewPane implements IHistoryNavigationWidget {
 	}
 
 	async selectSession(session?: IDebugSession): Promise<void> {
-		const treeInput = this.tree && this.tree.getInput();
+		const treeInput = this.tree?.getInput();
 		if (!session) {
 			const focusedSession = this.debugService.getViewModel().focusedSession;
 			// If there is a focusedSession focus on that one, otherwise just show any other not ignored session
@@ -426,7 +428,7 @@ export class Repl extends FilterViewPane implements IHistoryNavigationWidget {
 	}
 
 	async clearRepl(): Promise<void> {
-		const session = this.tree.getInput();
+		const session = this.tree?.getInput();
 		if (session) {
 			session.removeReplExpressions();
 			if (session.state === State.Inactive) {
@@ -440,10 +442,10 @@ export class Repl extends FilterViewPane implements IHistoryNavigationWidget {
 	}
 
 	acceptReplInput(): void {
-		const session = this.tree.getInput();
+		const session = this.tree?.getInput();
 		if (session && !this.isReadonly) {
 			session.addReplExpression(this.debugService.getViewModel().focusedStackFrame, this.replInput.getValue());
-			revealLastElement(this.tree);
+			revealLastElement(this.tree!);
 			this.history.add(this.replInput.getValue());
 			this.replInput.setValue('');
 			const shouldRelayout = this.replInputLineCount > 1;
@@ -457,7 +459,7 @@ export class Repl extends FilterViewPane implements IHistoryNavigationWidget {
 
 	getVisibleContent(): string {
 		let text = '';
-		if (this.model) {
+		if (this.model && this.tree) {
 			const lineDelimiter = this.textResourcePropertiesService.getEOL(this.model.uri);
 			const traverseAndAppend = (node: ITreeNode<IReplElement, FuzzyScore>) => {
 				node.children.forEach(child => {
@@ -493,7 +495,7 @@ export class Repl extends FilterViewPane implements IHistoryNavigationWidget {
 	}
 
 	collapseAll(): void {
-		this.tree.collapseAll();
+		this.tree?.collapseAll();
 	}
 
 	getReplInput(): CodeEditorWidget {
@@ -523,6 +525,10 @@ export class Repl extends FilterViewPane implements IHistoryNavigationWidget {
 	private get refreshScheduler(): RunOnceScheduler {
 		const autoExpanded = new Set<string>();
 		return new RunOnceScheduler(async () => {
+			if (!this.tree) {
+				return;
+			}
+
 			if (!this.tree.getInput()) {
 				return;
 			}
@@ -537,9 +543,9 @@ export class Repl extends FilterViewPane implements IHistoryNavigationWidget {
 						if (element instanceof ReplGroup) {
 							if (element.autoExpand && !autoExpanded.has(element.getId())) {
 								autoExpanded.add(element.getId());
-								await this.tree.expand(element);
+								await this.tree!.expand(element);
 							}
-							if (!this.tree.isCollapsed(element)) {
+							if (!this.tree!.isCollapsed(element)) {
 								// Repl groups can have children which are repl groups thus we might need to expand those as well
 								await autoExpandElements(element.getChildren());
 							}
@@ -569,7 +575,7 @@ export class Repl extends FilterViewPane implements IHistoryNavigationWidget {
 		const wordWrap = this.configurationService.getValue<IDebugConfiguration>('debug').console.wordWrap;
 		this.treeContainer.classList.toggle('word-wrap', wordWrap);
 		const linkDetector = this.instantiationService.createInstance(LinkDetector);
-		this.tree = <WorkbenchAsyncDataTree<IDebugSession, IReplElement, FuzzyScore>>this.instantiationService.createInstance(
+		const tree = this.tree = <WorkbenchAsyncDataTree<IDebugSession, IReplElement, FuzzyScore>>this.instantiationService.createInstance(
 			WorkbenchAsyncDataTree,
 			'DebugRepl',
 			this.treeContainer,
@@ -598,25 +604,25 @@ export class Repl extends FilterViewPane implements IHistoryNavigationWidget {
 				}
 			});
 
-		this._register(this.tree.onDidChangeContentHeight(() => {
-			if (this.tree.scrollHeight !== this.previousTreeScrollHeight) {
+		this._register(tree.onDidChangeContentHeight(() => {
+			if (tree.scrollHeight !== this.previousTreeScrollHeight) {
 				// Due to rounding, the scrollTop + renderHeight will not exactly match the scrollHeight.
 				// Consider the tree to be scrolled all the way down if it is within 2px of the bottom.
-				const lastElementWasVisible = this.tree.scrollTop + this.tree.renderHeight >= this.previousTreeScrollHeight - 2;
+				const lastElementWasVisible = tree.scrollTop + tree.renderHeight >= this.previousTreeScrollHeight - 2;
 				if (lastElementWasVisible) {
 					setTimeout(() => {
 						// Can't set scrollTop during this event listener, the list might overwrite the change
-						revealLastElement(this.tree);
+						revealLastElement(tree);
 					}, 0);
 				}
 			}
 
-			this.previousTreeScrollHeight = this.tree.scrollHeight;
+			this.previousTreeScrollHeight = tree.scrollHeight;
 		}));
 
-		this._register(this.tree.onContextMenu(e => this.onContextMenu(e)));
+		this._register(tree.onContextMenu(e => this.onContextMenu(e)));
 		let lastSelectedString: string;
-		this._register(this.tree.onMouseClick(() => {
+		this._register(tree.onMouseClick(() => {
 			const selection = window.getSelection();
 			if (!selection || selection.type !== 'Range' || lastSelectedString === selection.toString()) {
 				// only focus the input if the user is not currently selecting.
