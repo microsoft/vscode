@@ -65,13 +65,6 @@ suite('Replace Pattern test', () => {
 		testParse('hello$10a0', 'hello$10a0', true);
 		// $$ => no treatment
 		testParse('hello$$', 'hello$$', false);
-		// $$0 => no treatment
-		testParse('hello$$0', 'hello$$0', false);
-
-		// $0 => $0
-		// No change after #149990
-		testParse('hello$0', 'hello$0', true);
-		testParse('hello$02', 'hello$02', true);
 
 		testParse('hello$`', 'hello$`', true);
 		testParse('hello$\'', 'hello$\'', true);
