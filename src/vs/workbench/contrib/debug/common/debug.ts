@@ -1183,6 +1183,13 @@ export const enum BreakpointWidgetContext {
 	LOG_MESSAGE = 2
 }
 
+// Debug Hover States
+export const enum DEBUG_HOVER_EXPRESSION {
+	NOT_CHANGED,
+	NOT_AVAILABLE,
+	CANCELLED,
+}
+
 export interface IDebugEditorContribution extends editorCommon.IEditorContribution {
 	showHover(range: Position, focus: boolean): Promise<void>;
 	addLaunchConfiguration(): Promise<any>;

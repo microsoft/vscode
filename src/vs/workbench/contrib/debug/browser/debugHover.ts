@@ -30,7 +30,7 @@ import { asCssVariable, editorHoverBackground, editorHoverBorder, editorHoverFor
 import { renderExpressionValue } from 'vs/workbench/contrib/debug/browser/baseDebugView';
 import { LinkDetector } from 'vs/workbench/contrib/debug/browser/linkDetector';
 import { VariablesRenderer } from 'vs/workbench/contrib/debug/browser/variablesView';
-import { IDebugService, IDebugSession, IExpression, IExpressionContainer, IStackFrame } from 'vs/workbench/contrib/debug/common/debug';
+import { DEBUG_HOVER_EXPRESSION, IDebugService, IDebugSession, IExpression, IExpressionContainer, IStackFrame } from 'vs/workbench/contrib/debug/common/debug';
 import { Expression, Variable } from 'vs/workbench/contrib/debug/common/debugModel';
 import { getEvaluatableExpressionAtPosition } from 'vs/workbench/contrib/debug/common/debugUtils';
 
@@ -178,31 +178,35 @@ export class DebugHoverWidget implements IContentWidget {
 		return this.domNode;
 	}
 
-	async showAt(position: Position, focus: boolean, fallbackToEditorHover: (position: Position, focus: boolean) => void): Promise<void> {
+	async showAt(position: Position, focus: boolean): Promise<void | DEBUG_HOVER_EXPRESSION> {
 		this.showCancellationSource?.cancel();
 		const cancellationSource = this.showCancellationSource = new CancellationTokenSource();
 		const session = this.debugService.getViewModel().focusedSession;
 
 		if (!session || !this.editor.hasModel()) {
 			this.hide();
-			return;
+			return DEBUG_HOVER_EXPRESSION.NOT_AVAILABLE;
 		}
 
 		const result = await this.debugHoverComputer.compute(position, cancellationSource.token);
 		if (this.isVisible() && !result.rangeChanged) {
-			return;
+			return DEBUG_HOVER_EXPRESSION.NOT_CHANGED;
 		}
 
-		if (!result.range || cancellationSource.token.isCancellationRequested) {
+		if (!result.range) {
 			this.hide();
-			return;
+			return DEBUG_HOVER_EXPRESSION.NOT_AVAILABLE;
+		}
+
+		if (cancellationSource.token.isCancellationRequested) {
+			this.hide();
+			return DEBUG_HOVER_EXPRESSION.CANCELLED;
 		}
 
 		const expression = await this.debugHoverComputer.evaluate(session);
-		if (cancellationSource.token.isCancellationRequested || !expression || (expression instanceof Expression && !expression.available)) {
+		if (!expression || (expression instanceof Expression && !expression.available)) {
 			this.hide();
-			fallbackToEditorHover(position, focus);
-			return;
+			return DEBUG_HOVER_EXPRESSION.NOT_AVAILABLE;
 		}
 
 		this.highlightDecorations.set([{

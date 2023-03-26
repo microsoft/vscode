@@ -44,7 +44,7 @@ import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity'
 import { FloatingClickWidget } from 'vs/workbench/browser/codeeditor';
 import { DebugHoverWidget } from 'vs/workbench/contrib/debug/browser/debugHover';
 import { ExceptionWidget } from 'vs/workbench/contrib/debug/browser/exceptionWidget';
-import { CONTEXT_EXCEPTION_WIDGET_VISIBLE, IDebugConfiguration, IDebugEditorContribution, IDebugService, IDebugSession, IExceptionInfo, IExpression, IStackFrame, State } from 'vs/workbench/contrib/debug/common/debug';
+import { CONTEXT_EXCEPTION_WIDGET_VISIBLE, DEBUG_HOVER_EXPRESSION, IDebugConfiguration, IDebugEditorContribution, IDebugService, IDebugSession, IExceptionInfo, IExpression, IStackFrame, State } from 'vs/workbench/contrib/debug/common/debug';
 import { Expression } from 'vs/workbench/contrib/debug/common/debugModel';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 
@@ -374,7 +374,13 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 		const sf = this.debugService.getViewModel().focusedStackFrame;
 		const model = this.editor.getModel();
 		if (sf && model && this.uriIdentityService.extUri.isEqual(sf.source.uri, model.uri) && !this.altPressed) {
-			return this.hoverWidget.showAt(position, focus, this.showEditorHover.bind(this));
+			return this.hoverWidget.showAt(position, focus).then(state => {
+				console.log('>> Debug hover experssion', state);
+				if (state === DEBUG_HOVER_EXPRESSION.NOT_AVAILABLE) {
+					// When no expression available fallback to editor hover
+					this.showEditorHover(position, focus);
+				}
+			});
 		}
 	}
 
