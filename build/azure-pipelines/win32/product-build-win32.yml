@@ -51,7 +51,9 @@ steps:
     condition: and(succeeded(), ne(variables['NPM_REGISTRY'], 'none'))
     displayName: Setup NPM Registry
 
-  - pwsh: mkdir .build -ea 0 && node build/azure-pipelines/common/computeNodeModulesCacheKey.js win32 $(VSCODE_ARCH) > .build/yarnlockhash
+  - pwsh: |
+      mkdir .build -ea 0
+      node build/azure-pipelines/common/computeNodeModulesCacheKey.js win32 $(VSCODE_ARCH) > .build/yarnlockhash
     displayName: Prepare node_modules cache key
 
   - task: Cache@2
