@@ -53,7 +53,6 @@ class TerminalQuickFixContribution extends DisposableStore implements ITerminalC
 		this.add(this._addon.onDidRequestRerunCommand((e) => this._instance.runCommand(e.command, e.addNewLine || false)));
 
 		// Register quick fixes
-		// TODO: Move these into the terminalContrib
 		for (const actionOption of [
 			gitTwoDashes(),
 			freePort(this),
