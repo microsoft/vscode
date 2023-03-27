@@ -1322,13 +1322,6 @@ export function registerTerminalActions() {
 	});
 
 	registerTerminalAction({
-		id: TerminalCommandId.CreateWithProfileButton,
-		title: TerminalCommandId.CreateWithProfileButton,
-		f1: false,
-		run: (c) => { }
-	});
-
-	registerTerminalAction({
 		id: TerminalCommandId.ConfigureTerminalSettings,
 		title: { value: localize('workbench.action.terminal.openSettings', "Configure Terminal Settings"), original: 'Configure Terminal Settings' },
 		precondition: ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated),
