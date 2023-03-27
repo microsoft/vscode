@@ -21,7 +21,7 @@ import { IEditorWorkerHost } from 'vs/editor/common/services/editorWorkerHost';
 import { StopWatch } from 'vs/base/common/stopwatch';
 import { UnicodeTextModelHighlighter, UnicodeHighlighterOptions } from 'vs/editor/common/services/unicodeTextModelHighlighter';
 import { DiffComputer, IChange } from 'vs/editor/common/diff/smartLinesDiffComputer';
-import { ILinesDiffComputer, LineRangeMapping, RangeMapping } from 'vs/editor/common/diff/linesDiffComputer';
+import { ILinesDiffComputer } from 'vs/editor/common/diff/linesDiffComputer';
 import { linesDiffComputers } from 'vs/editor/common/diff/linesDiffComputers';
 import { createProxyObject, getAllMethodNames } from 'vs/base/common/objects';
 import { IDocumentDiffProviderOptions } from 'vs/editor/common/diff/documentDiffProvider';
