@@ -30,6 +30,7 @@ import { Emitter, Event } from 'vs/base/common/event';
 const $ = dom.$;
 const SCROLLBAR_WIDTH = 10;
 const SASH_WIDTH = 4;
+const TOTAL_BORDER_WIDTH = 2;
 
 export class ContentHoverController extends Disposable {
 
@@ -38,7 +39,6 @@ export class ContentHoverController extends Disposable {
 	private readonly _widget = this._register(this._instantiationService.createInstance(ContentHoverWidget, this._editor));
 	private readonly _computer: ContentHoverComputer;
 	private readonly _hoverOperation: HoverOperation<IHoverPart>;
-	private _renderingAbove: boolean = this._editor.getOption(EditorOption.hover).above;
 
 	private _currentResult: HoverResult | null = null;
 
@@ -98,14 +98,10 @@ export class ContentHoverController extends Disposable {
 		const offsetLeft = widgetDomNode.offsetLeft;
 
 		if (offsetLeft) {
-			resizableOverlayDomNode.style.left = offsetLeft + 'px';
+			resizableOverlayDomNode.style.left = offsetLeft - SASH_WIDTH + TOTAL_BORDER_WIDTH + 'px';
 		}
 		if (offsetTop) {
-			if (this._renderingAbove) {
-				resizableOverlayDomNode.style.top = offsetTop - 2 + 'px';
-			} else {
-				resizableOverlayDomNode.style.top = offsetTop + 'px';
-			}
+			resizableOverlayDomNode.style.top = offsetTop - SASH_WIDTH + TOTAL_BORDER_WIDTH + 'px';
 		}
 	}
 
@@ -333,29 +329,37 @@ export class ContentHoverController extends Disposable {
 					}
 				}
 
-				this._renderingAbove = renderingAbove;
 				const contentWidgetPositionPreference = renderingAbove ? ContentWidgetPositionPreference.ABOVE : ContentWidgetPositionPreference.BELOW;
 				this._widget.renderingAbove = contentWidgetPositionPreference;
 				this._resizableOverlay.renderingAbove = contentWidgetPositionPreference;
 
 				const resizableElement = this._resizableOverlay.resizableElement();
-				resizableElement.layout(clientHeight + SASH_WIDTH, clientWidth + SASH_WIDTH);
+				resizableElement.layout(clientHeight + 2 * SASH_WIDTH - TOTAL_BORDER_WIDTH, clientWidth + 2 * SASH_WIDTH - TOTAL_BORDER_WIDTH);
 
-				// Enable sashes depending on what side the rendering is on
+				resizableElement.domNode.style.top = offsetTop - TOTAL_BORDER_WIDTH + 'px';
+				resizableElement.domNode.style.left = offsetLeft - SASH_WIDTH + TOTAL_BORDER_WIDTH + 'px';
+				const horizontalSashLeft = TOTAL_BORDER_WIDTH + 'px';
+				resizableElement.northSash.el.style.left = horizontalSashLeft;
+				resizableElement.southSash.el.style.left = horizontalSashLeft;
+				const horizontalSashWidth = clientWidth + TOTAL_BORDER_WIDTH + 'px';
+				resizableElement.northSash.el.style.width = horizontalSashWidth;
+				resizableElement.southSash.el.style.width = horizontalSashWidth;
+				const verticalSashHeight = clientHeight + TOTAL_BORDER_WIDTH + 'px';
+				resizableElement.eastSash.el.style.height = verticalSashHeight;
+				resizableElement.westSash.el.style.height = verticalSashHeight;
+
 				if (renderingAbove) {
 					this._resizableOverlay.resizableElement().enableSashes(true, true, false, false);
-					resizableElement.northSash.el.style.width = clientWidth + SASH_WIDTH - 2 + 'px';
-					resizableElement.domNode.style.top = offsetTop - 2 + 'px';
-					resizableElement.eastSash.el.style.top = 2 + 'px';
+					const verticalSashTop = SASH_WIDTH - TOTAL_BORDER_WIDTH + 'px';
+					resizableElement.eastSash.el.style.top = verticalSashTop;
+					resizableElement.westSash.el.style.top = verticalSashTop;
 				} else {
 					this._resizableOverlay.resizableElement().enableSashes(false, true, true, false);
-					resizableElement.southSash.el.style.width = clientWidth + SASH_WIDTH - 2 + 'px';
-					resizableElement.domNode.style.top = offsetTop + 'px';
-					resizableElement.eastSash.el.style.top = 0 + 'px';
+					const verticalSashTop = TOTAL_BORDER_WIDTH + 'px';
+					resizableElement.eastSash.el.style.top = verticalSashTop;
+					resizableElement.westSash.el.style.top = verticalSashTop;
 				}
 
-				resizableElement.eastSash.el.style.height = clientHeight + SASH_WIDTH - 2 + 'px';
-				resizableElement.domNode.style.left = offsetLeft + 'px';
 
 				const maxRenderingWidth = this._widget.findMaxRenderingWidth();
 				const maxRenderingHeight = this._widget.findMaxRenderingHeight(this._widget.renderingAbove);
@@ -635,13 +639,14 @@ export class ResizableHoverOverlay extends Disposable implements IOverlayWidget 
 			// Update the top parameters only when we decided to render above
 			if (this._renderingAbove === ContentWidgetPositionPreference.ABOVE) {
 				this._resizableElement.domNode.style.top = this._initialTop - (height - this._initialHeight) + 'px';
-				this._resizableElement.northSash.el.style.width = width - 2 + 'px';
-				this._resizableElement.eastSash.el.style.top = 2 + 'px';
-			} else {
-				this._resizableElement.southSash.el.style.width = width - 2 + 'px';
-				this._resizableElement.eastSash.el.style.top = 0 + 'px';
 			}
-			this._resizableElement.eastSash.el.style.height = height - 2 + 'px';
+			const horizontalSashWidth = width - 2 * SASH_WIDTH + 2 * TOTAL_BORDER_WIDTH + 'px';
+			this._resizableElement.northSash.el.style.width = horizontalSashWidth;
+			this._resizableElement.southSash.el.style.width = horizontalSashWidth;
+			const verticalSashWidth = height - 2 * SASH_WIDTH + 2 * TOTAL_BORDER_WIDTH + 'px';
+			this._resizableElement.eastSash.el.style.height = verticalSashWidth;
+			this._resizableElement.westSash.el.style.height = verticalSashWidth;
+			this._resizableElement.eastSash.el.style.top = TOTAL_BORDER_WIDTH + 'px';
 
 			// Fire the current dimension
 			this._onDidResize.fire({ dimension: this._size, done: false });
@@ -828,10 +833,12 @@ export class ContentHoverWidget extends Disposable implements IContentWidget {
 		this._hover.contentsDomNode.style.maxHeight = 'none';
 		this._hover.contentsDomNode.style.maxWidth = 'none';
 
-		this._hover.containerDomNode.style.width = size.width - SASH_WIDTH + 'px';
-		this._hover.containerDomNode.style.height = size.height - SASH_WIDTH + 'px';
-		this._hover.contentsDomNode.style.width = size.width - SASH_WIDTH + 'px';
-		this._hover.contentsDomNode.style.height = size.height - SASH_WIDTH + 'px';
+		const width = size.width - 2 * SASH_WIDTH + TOTAL_BORDER_WIDTH + 'px';
+		this._hover.containerDomNode.style.width = width;
+		this._hover.contentsDomNode.style.width = width;
+		const height = size.height - 2 * SASH_WIDTH + TOTAL_BORDER_WIDTH + 'px';
+		this._hover.containerDomNode.style.height = height;
+		this._hover.contentsDomNode.style.height = height;
 
 		const scrollDimensions = this._hover.scrollbar.getScrollDimensions();
 		const hasHorizontalScrollbar = (scrollDimensions.scrollWidth > scrollDimensions.width);
@@ -841,7 +848,7 @@ export class ContentHoverWidget extends Disposable implements IContentWidget {
 			if (this._hover.contentsDomNode.style.paddingBottom !== extraBottomPadding) {
 				this._hover.contentsDomNode.style.paddingBottom = extraBottomPadding;
 			}
-			this._hover.contentsDomNode.style.height = size.height - SASH_WIDTH - SCROLLBAR_WIDTH + 'px';
+			this._hover.contentsDomNode.style.height = size.height - 2 * SASH_WIDTH + TOTAL_BORDER_WIDTH - SCROLLBAR_WIDTH + 'px';
 		}
 
 		this._hover.scrollbar.scanDomNode();
