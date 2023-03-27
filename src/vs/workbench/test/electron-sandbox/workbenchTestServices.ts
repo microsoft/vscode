@@ -4,10 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event } from 'vs/base/common/event';
-import { workbenchInstantiationService as browserWorkbenchInstantiationService, ITestInstantiationService, TestEncodingOracle, TestFileDialogService, TestFilesConfigurationService, TestFileService, TestLifecycleService, TestTextFileService, TestWorkingCopyBackupService } from 'vs/workbench/test/browser/workbenchTestServices';
+import { workbenchInstantiationService as browserWorkbenchInstantiationService, ITestInstantiationService, TestEncodingOracle, TestEnvironmentService, TestFileDialogService, TestFilesConfigurationService, TestFileService, TestLifecycleService, TestTextFileService } from 'vs/workbench/test/browser/workbenchTestServices';
 import { ISharedProcessService } from 'vs/platform/ipc/electron-sandbox/services';
 import { INativeHostService, IOSProperties, IOSStatistics } from 'vs/platform/native/common/native';
-import { VSBuffer } from 'vs/base/common/buffer';
+import { VSBuffer, VSBufferReadable, VSBufferReadableStream } from 'vs/base/common/buffer';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { IFileDialogService, INativeOpenDialogOptions } from 'vs/platform/dialogs/common/dialogs';
@@ -37,6 +37,15 @@ import { IWorkingCopyBackupService } from 'vs/workbench/services/workingCopy/com
 import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 import { TestContextService } from 'vs/workbench/test/common/workbenchTestServices';
 import { NativeTextFileService } from 'vs/workbench/services/textfile/electron-sandbox/nativeTextFileService';
+import { insert } from 'vs/base/common/arrays';
+import { Schemas } from 'vs/base/common/network';
+import { FileService } from 'vs/platform/files/common/fileService';
+import { InMemoryFileSystemProvider } from 'vs/platform/files/common/inMemoryFilesystemProvider';
+import { NullLogService } from 'vs/platform/log/common/log';
+import { FileUserDataProvider } from 'vs/platform/userData/common/fileUserDataProvider';
+import { IWorkingCopyIdentifier } from 'vs/workbench/services/workingCopy/common/workingCopy';
+import { NativeWorkingCopyBackupService } from 'vs/workbench/services/workingCopy/electron-sandbox/workingCopyBackupService';
+import { CancellationToken } from 'vs/base/common/cancellation';
 
 export class TestSharedProcessService implements ISharedProcessService {
 
@@ -167,7 +176,10 @@ export function workbenchInstantiationService(overrides?: {
 	contextKeyService?: (instantiationService: IInstantiationService) => IContextKeyService;
 	textEditorService?: (instantiationService: IInstantiationService) => ITextEditorService;
 }, disposables = new DisposableStore()): ITestInstantiationService {
-	const instantiationService = browserWorkbenchInstantiationService(overrides, disposables);
+	const instantiationService = browserWorkbenchInstantiationService({
+		workingCopyBackupService: (instantiationService: IInstantiationService) => new TestNativeWorkingCopyBackupService(),
+		...overrides
+	}, disposables);
 
 	instantiationService.stub(INativeHostService, new TestNativeHostService());
 
@@ -184,7 +196,7 @@ export class TestServiceAccessor {
 		@IFileService public fileService: TestFileService,
 		@INativeHostService public nativeHostService: TestNativeHostService,
 		@IFileDialogService public fileDialogService: TestFileDialogService,
-		@IWorkingCopyBackupService public workingCopyBackupService: TestWorkingCopyBackupService,
+		@IWorkingCopyBackupService public workingCopyBackupService: TestNativeWorkingCopyBackupService,
 		@IWorkingCopyService public workingCopyService: IWorkingCopyService,
 		@IEditorService public editorService: IEditorService
 	) {
@@ -200,5 +212,86 @@ export class TestNativeTextFileServiceWithEncodingOverrides extends NativeTextFi
 		}
 
 		return this._testEncoding;
+	}
+}
+
+export class TestNativeWorkingCopyBackupService extends NativeWorkingCopyBackupService {
+
+	private backupResourceJoiners: Function[];
+	private discardBackupJoiners: Function[];
+	discardedBackups: IWorkingCopyIdentifier[];
+	discardedAllBackups: boolean;
+	private pendingBackupsArr: Promise<void>[];
+
+	constructor() {
+		const environmentService = TestEnvironmentService;
+		const logService = new NullLogService();
+		const fileService = new FileService(logService);
+		const lifecycleService = new TestLifecycleService();
+		super(environmentService as any, fileService, logService, lifecycleService);
+
+		const inMemoryFileSystemProvider = new InMemoryFileSystemProvider();
+		fileService.registerProvider(Schemas.inMemory, inMemoryFileSystemProvider);
+		fileService.registerProvider(Schemas.vscodeUserData, new FileUserDataProvider(Schemas.file, inMemoryFileSystemProvider, Schemas.vscodeUserData, logService));
+
+		this.backupResourceJoiners = [];
+		this.discardBackupJoiners = [];
+		this.discardedBackups = [];
+		this.pendingBackupsArr = [];
+		this.discardedAllBackups = false;
+	}
+
+	testGetFileService(): IFileService {
+		return this.fileService;
+	}
+
+	async waitForAllBackups(): Promise<void> {
+		await Promise.all(this.pendingBackupsArr);
+	}
+
+	joinBackupResource(): Promise<void> {
+		return new Promise(resolve => this.backupResourceJoiners.push(resolve));
+	}
+
+	override async backup(identifier: IWorkingCopyIdentifier, content?: VSBufferReadableStream | VSBufferReadable, versionId?: number, meta?: any, token?: CancellationToken): Promise<void> {
+		const p = super.backup(identifier, content, versionId, meta, token);
+		const removeFromPendingBackups = insert(this.pendingBackupsArr, p.then(undefined, undefined));
+
+		try {
+			await p;
+		} finally {
+			removeFromPendingBackups();
+		}
+
+		while (this.backupResourceJoiners.length) {
+			this.backupResourceJoiners.pop()!();
+		}
+	}
+
+	joinDiscardBackup(): Promise<void> {
+		return new Promise(resolve => this.discardBackupJoiners.push(resolve));
+	}
+
+	override async discardBackup(identifier: IWorkingCopyIdentifier): Promise<void> {
+		await super.discardBackup(identifier);
+		this.discardedBackups.push(identifier);
+
+		while (this.discardBackupJoiners.length) {
+			this.discardBackupJoiners.pop()!();
+		}
+	}
+
+	override async discardBackups(filter?: { except: IWorkingCopyIdentifier[] }): Promise<void> {
+		this.discardedAllBackups = true;
+
+		return super.discardBackups(filter);
+	}
+
+	async getBackupContents(identifier: IWorkingCopyIdentifier): Promise<string> {
+		const backupResource = this.toBackupResource(identifier);
+
+		const fileContents = await this.fileService.readFile(backupResource);
+
+		return fileContents.value.toString();
 	}
 }
