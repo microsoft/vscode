@@ -245,6 +245,7 @@ class HelpModel {
 				quickInputService,
 				environmentService,
 				commandService,
+				openerService,
 				remoteExplorerService,
 				workspaceContextService
 			));
@@ -399,6 +400,7 @@ class IssueReporterItem extends HelpItemBase {
 		quickInputService: IQuickInputService,
 		environmentService: IWorkbenchEnvironmentService,
 		private commandService: ICommandService,
+		private openerService: IOpenerService,
 		remoteExplorerService: IRemoteExplorerService,
 		workspaceContextService: IWorkspaceContextService
 	) {
@@ -419,8 +421,12 @@ class IssueReporterItem extends HelpItemBase {
 		}));
 	}
 
-	protected async takeAction(extensionDescription: IExtensionDescription): Promise<void> {
-		await this.commandService.executeCommand('workbench.action.openIssueReporter', [extensionDescription.identifier.value]);
+	protected async takeAction(extensionDescription: IExtensionDescription, url: string): Promise<void> {
+		if (!url) {
+			await this.commandService.executeCommand('workbench.action.openIssueReporter', [extensionDescription.identifier.value]);
+		} else {
+			await this.openerService.open(URI.parse(url));
+		}
 	}
 }
 
