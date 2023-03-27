@@ -375,7 +375,6 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 		const model = this.editor.getModel();
 		if (sf && model && this.uriIdentityService.extUri.isEqual(sf.source.uri, model.uri) && !this.altPressed) {
 			return this.hoverWidget.showAt(position, focus).then(state => {
-				console.log('>> Debug hover experssion', state);
 				if (state === DEBUG_HOVER_EXPRESSION.NOT_AVAILABLE) {
 					// When no expression available fallback to editor hover
 					this.showEditorHover(position, focus);
