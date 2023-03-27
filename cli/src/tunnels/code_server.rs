@@ -4,7 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 use super::paths::{InstalledServer, LastUsedServers, ServerPaths};
 use crate::async_pipe::get_socket_name;
-use crate::constants::{APPLICATION_NAME, QUALITYLESS_PRODUCT_NAME, QUALITYLESS_SERVER_NAME};
+use crate::constants::{
+	APPLICATION_NAME, EDITOR_WEB_URL, QUALITYLESS_PRODUCT_NAME, QUALITYLESS_SERVER_NAME,
+};
 use crate::options::{Quality, TelemetryLevel};
 use crate::state::LauncherPaths;
 use crate::update_service::{
@@ -796,4 +798,41 @@ fn parse_port_from(text: &str) -> Option<u16> {
 		cap.get(1)
 			.and_then(|path| path.as_str().parse::<u16>().ok())
 	})
+}
+
+pub fn print_listening(log: &log::Logger, tunnel_name: &str) {
+	debug!(
+		log,
+		"{} is listening for incoming connections", QUALITYLESS_SERVER_NAME
+	);
+
+	let home_dir = dirs::home_dir().unwrap_or_else(|| PathBuf::from(""));
+	let current_dir = std::env::current_dir().unwrap_or_else(|_| PathBuf::from(""));
+
+	let dir = if home_dir == current_dir {
+		PathBuf::from("")
+	} else {
+		current_dir
+	};
+
+	let base_web_url = match EDITOR_WEB_URL {
+		Some(u) => u,
+		None => return,
+	};
+
+	let mut addr = url::Url::parse(base_web_url).unwrap();
+	{
+		let mut ps = addr.path_segments_mut().unwrap();
+		ps.push("tunnel");
+		ps.push(tunnel_name);
+		for segment in &dir {
+			let as_str = segment.to_string_lossy();
+			if !(as_str.len() == 1 && as_str.starts_with(std::path::MAIN_SEPARATOR)) {
+				ps.push(as_str.as_ref());
+			}
+		}
+	}
+
+	let message = &format!("\nOpen this link in your browser {}\n", addr);
+	log.result(message);
 }
