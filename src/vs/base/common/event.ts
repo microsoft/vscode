@@ -372,6 +372,10 @@ export namespace Event {
 	 *
 	 * @example
 	 * ```
+	 * // Start accumulating events, when the first listener is attached, flush
+	 * // the event after a timeout such that multiple listeners attached before
+	 * // the timeout would receive the event
+	 * this.onInstallExtension = Event.buffer(service.onInstallExtension, true);
 	 * ```
 	 */
 	export function buffer<T>(event: Event<T>, flushAfterTimeout = false, _buffer: T[] = []): Event<T> {
