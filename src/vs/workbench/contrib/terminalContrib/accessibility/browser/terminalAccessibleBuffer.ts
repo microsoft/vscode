@@ -48,7 +48,6 @@ export class AccessibleBufferWidget extends DisposableStore {
 	private _xtermElement: HTMLElement;
 	private readonly _focusedContextKey: IContextKey<boolean>;
 	private readonly _focusTracker: dom.IFocusTracker;
-	private _inQuickPick = false;
 
 	constructor(
 		private readonly _instance: ITerminalInstance,
@@ -110,6 +109,7 @@ export class AccessibleBufferWidget extends DisposableStore {
 				case KeyCode.Escape:
 					// On escape, hide the accessible buffer and force focus onto the terminal
 					this._hide();
+					this._xterm.raw.focus();
 					break;
 			}
 		});
@@ -124,7 +124,9 @@ export class AccessibleBufferWidget extends DisposableStore {
 			}
 		}));
 		this.add(this._bufferEditor.onDidFocusEditorText(async () => {
-			if (this._inQuickPick) {
+			if (this._accessibleBuffer.classList.contains(CssClass.Active)) {
+				// the user has focused the editor via mouse or
+				// Go to Command was run so we've already updated the editor
 				return;
 			}
 			// if the editor is focused via tab, we need to update the model
@@ -139,7 +141,6 @@ export class AccessibleBufferWidget extends DisposableStore {
 	private _hide(): void {
 		this._accessibleBuffer.classList.remove(CssClass.Active);
 		this._xtermElement.classList.remove(CssClass.Hide);
-		this._xterm.raw.focus();
 	}
 
 	private async _updateModel(insertion?: boolean): Promise<ITextModel> {
@@ -176,7 +177,6 @@ export class AccessibleBufferWidget extends DisposableStore {
 
 	async createQuickPick(): Promise<IQuickPick<IAccessibleBufferQuickPickItem> | undefined> {
 		let currentPosition = withNullAsUndefined(this._bufferEditor.getPosition());
-		this._inQuickPick = true;
 		const commands = this._instance.capabilities.get(TerminalCapability.CommandDetection)?.commands;
 		if (!commands?.length) {
 			return;
@@ -209,7 +209,6 @@ export class AccessibleBufferWidget extends DisposableStore {
 				this._bufferEditor.revealLineInCenter(currentPosition.lineNumber);
 			}
 			quickPick.dispose();
-			this._inQuickPick = false;
 		});
 		quickPick.onDidAccept(() => {
 			const item = quickPick.activeItems[0];
@@ -224,8 +223,7 @@ export class AccessibleBufferWidget extends DisposableStore {
 				this._bufferEditor.setSelection({ startLineNumber: item.lineNumber, startColumn: 1, endLineNumber: item.lineNumber, endColumn: 1 });
 				currentPosition = this._bufferEditor.getSelection()?.getPosition();
 			}
-			quickPick.hide();
-			this._inQuickPick = false;
+			this._bufferEditor.focus();
 			return;
 		});
 		quickPick.items = quickPickItems.reverse();
