@@ -17,24 +17,20 @@ import { KeyChord, KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { localize } from 'vs/nls';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import 'vs/css!./colorPicker';
-import { StandaloneColorPickerWidget } from 'vs/editor/contrib/colorPicker/browser/standaloneColorPickerWidget';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
+import { StandaloneColorPickerController } from 'vs/editor/contrib/colorPicker/browser/standaloneColorPickerWidget';
 
-class InsertColor extends EditorAction {
+class ShowOrFocusStandaloneColorPicker extends EditorAction {
 
 	constructor() {
 		super({
-			id: 'editor.action.colorPickerInsertColor',
+			id: 'editor.action.showOrFocusStandaloneColorPicker',
 			label: localize({
-				key: 'colorPickerInsertColor',
+				key: 'showOrFocusStandaloneColorPicker',
 				comment: [
-					'Action that allow to insert a color using the color picker'
+					'Action that shows the standalone color picker or focuses on it'
 				]
-			}, "Insert Color With Color Picker"),
-			alias: 'Insert Color With Color Picker',
+			}, "Show or Focus the Color Picker"),
+			alias: 'Show or Focus the Color Picker',
 			precondition: undefined,
 			kbOpts: {
 				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyMod.CtrlCmd | KeyCode.KeyP),
@@ -44,20 +40,40 @@ class InsertColor extends EditorAction {
 	}
 
 	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
-		console.log('inside of run of the insert color picker');
-		const themeService = accessor.get(IThemeService);
-		const position = editor._getViewModel()?.getPrimaryCursorState().viewState.position;
-		if (position) {
-			const instantiationService = accessor.get(IInstantiationService);
-			const keybindingService = accessor.get(IKeybindingService);
-			const languageFeatureService = accessor.get(ILanguageFeaturesService);
-			const stickyScrollWidget = new StandaloneColorPickerWidget(position, editor, instantiationService, keybindingService, languageFeatureService, themeService);
-			editor.addContentWidget(stickyScrollWidget);
-		}
+		console.log('inside of showing or focusing the color picker');
+		StandaloneColorPickerController.get(editor)?.showOrFocus();
 	}
 }
 
-registerEditorAction(InsertColor);
+registerEditorAction(ShowOrFocusStandaloneColorPicker);
+
+class HideStandaloneColorPicker extends EditorAction {
+
+	constructor() {
+		super({
+			id: 'editor.action.hideColorPicker',
+			label: localize({
+				key: 'hideColorPicker',
+				comment: [
+					'Action that hides the color picker'
+				]
+			}, "Hide the Color Picker"),
+			alias: 'Hide the Color Picker',
+			precondition: undefined,
+			kbOpts: {
+				primary: KeyCode.Escape,
+				weight: KeybindingWeight.EditorContrib
+			}
+		});
+	}
+
+	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
+		console.log('inside of hide of color picker');
+		StandaloneColorPickerController.get(editor)?.hide();
+	}
+}
+
+registerEditorAction(HideStandaloneColorPicker);
 
 export class ColorContribution extends Disposable implements IEditorContribution {
 

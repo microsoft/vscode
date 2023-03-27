@@ -3,12 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Color, RGBA } from 'vs/base/common/color';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import 'vs/css!./colorPicker';
-import { ColorPickerModel } from 'vs/editor/contrib/colorPicker/browser/colorPickerModel';
 import { HoverAnchor, HoverParticipantRegistry, IEditorHoverParticipant, IEditorHoverRenderContext, IHoverPart } from 'vs/editor/contrib/hover/browser/hoverTypes';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition } from 'vs/editor/browser/editorBrowser';
 import { PositionAffinity } from 'vs/editor/common/model';
 import { IPosition } from 'vs/editor/common/core/position';
@@ -25,7 +21,61 @@ import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { coalesce } from 'vs/base/common/arrays';
 import { IColorInformation } from 'vs/editor/common/languages';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
+import 'vs/css!./colorPicker';
+import { IEditorContribution } from 'vs/editor/common/editorCommon';
+import { EditorContributionInstantiation, registerEditorContribution } from 'vs/editor/browser/editorExtensions';
+import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
+import { ILanguageFeatureDebounceService } from 'vs/editor/common/services/languageFeatureDebounce';
+import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 
+export class StandaloneColorPickerController extends Disposable implements IEditorContribution {
+
+	public static ID = 'editor.contrib.standaloneColorPickerController';
+	private _standaloneColorPickerWidget: StandaloneColorPickerWidget | null = null;
+	private _colorHoverVisible: IContextKey<boolean>;
+	private _colorHoverFocused: IContextKey<boolean>;
+
+	constructor(
+		private readonly _editor: ICodeEditor,
+		@IKeybindingService private readonly _keybindingService: IKeybindingService,
+		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@ILanguageFeaturesService private readonly _languageFeatureService: ILanguageFeaturesService,
+		@ILanguageFeatureDebounceService _languageFeatureDebounceService: ILanguageFeatureDebounceService,
+		@IContextKeyService private readonly _contextKeyService: IContextKeyService
+	) {
+		super();
+		this._colorHoverVisible = EditorContextKeys.colorHoverVisible.bindTo(this._contextKeyService);
+		this._colorHoverFocused = EditorContextKeys.colorHoverFocused.bindTo(this._contextKeyService);
+	}
+
+	public showOrFocus() {
+
+		// Suppose tha the color hover is not visible, then make it visible
+		if (!this._colorHoverVisible.get()) {
+			const position = this._editor._getViewModel()?.getPrimaryCursorState().viewState.position;
+			if (position) {
+				this._standaloneColorPickerWidget = new StandaloneColorPickerWidget(position, this._editor, this._instantiationService, this._keybindingService, this._languageFeatureService);
+				this._editor.addContentWidget(this._standaloneColorPickerWidget);
+			}
+			this._colorHoverVisible.set(true);
+		} else if (!this._colorHoverFocused.get()) {
+			this._standaloneColorPickerWidget?.focus();
+			this._colorHoverFocused.set(true);
+		}
+	}
+
+	public hide() {
+		this._standaloneColorPickerWidget?.hide();
+		this._colorHoverFocused.set(false);
+		this._colorHoverVisible.set(false);
+	}
+
+	public static get(editor: ICodeEditor) {
+		return editor.getContribution<StandaloneColorPickerController>(StandaloneColorPickerController.ID);
+	}
+}
+
+registerEditorContribution(StandaloneColorPickerController.ID, StandaloneColorPickerController, EditorContributionInstantiation.AfterFirstRender);
 
 export class StandaloneColorPickerWidget implements IContentWidget {
 
@@ -43,7 +93,6 @@ export class StandaloneColorPickerWidget implements IContentWidget {
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
 		@ILanguageFeaturesService private readonly languageFeaturesService: ILanguageFeaturesService,
-		@IThemeService private readonly themeService: IThemeService,
 	) {
 		// const node = document.createElement('div');
 		// const rgba = new RGBA(0, 0, 0, 0);
