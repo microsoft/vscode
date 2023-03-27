@@ -18,3 +18,4 @@ import 'vs/workbench/contrib/terminalContrib/developer/browser/terminal.develope
 import 'vs/workbench/contrib/terminalContrib/environmentChanges/browser/terminal.environmentChanges.contribution';
 import 'vs/workbench/contrib/terminalContrib/find/browser/terminal.find.contribution';
 import 'vs/workbench/contrib/terminalContrib/links/browser/terminal.links.contribution';
+import 'vs/workbench/contrib/terminalContrib/quickFix/browser/terminal.quickFix.contribution';

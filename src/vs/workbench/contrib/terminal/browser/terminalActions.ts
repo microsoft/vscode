@@ -1444,17 +1444,6 @@ export function registerTerminalActions() {
 		run: (activeInstance) => activeInstance.hideSuggestWidget()
 	});
 
-	registerActiveInstanceAction({
-		id: TerminalCommandId.ShowQuickFixes,
-		title: { value: localize('workbench.action.terminal.showQuickFixes', "Show Terminal Quick Fixes"), original: 'Show Terminal Quick Fixes' },
-		precondition: TerminalContextKeys.focus,
-		keybinding: {
-			primary: KeyMod.CtrlCmd | KeyCode.Period,
-			weight: KeybindingWeight.WorkbenchContrib
-		},
-		run: (activeInstance) => activeInstance.quickFix?.showMenu()
-	});
-
 	// Some commands depend on platform features
 	if (BrowserFeatures.clipboard.writeText) {
 		registerActiveInstanceAction({

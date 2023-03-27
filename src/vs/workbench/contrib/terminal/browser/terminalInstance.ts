@@ -55,7 +55,6 @@ import { IViewDescriptorService, IViewsService, ViewContainerLocation } from 'vs
 import { TaskSettingId } from 'vs/workbench/contrib/tasks/common/tasks';
 import { IRequestAddInstanceToGroupEvent, ITerminalChildElement, ITerminalContribution, ITerminalInstance, TerminalDataTransfers } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { TerminalLaunchHelpAction } from 'vs/workbench/contrib/terminal/browser/terminalActions';
-import { freePort, gitCreatePr, gitPushSetUpstream, gitSimilar, gitTwoDashes, pwshGeneralError as pwshGeneralError, pwshUnixCommandNotFoundError } from 'vs/workbench/contrib/terminal/browser/terminalQuickFixBuiltinActions';
 import { TerminalConfigHelper } from 'vs/workbench/contrib/terminal/browser/terminalConfigHelper';
 import { TerminalEditorInput } from 'vs/workbench/contrib/terminal/browser/terminalEditorInput';
 import { getColorClass, getColorStyleElement, getStandardColors } from 'vs/workbench/contrib/terminal/browser/terminalIcon';
@@ -65,7 +64,6 @@ import { ITerminalStatusList, TerminalStatus, TerminalStatusList } from 'vs/work
 import { TypeAheadAddon } from 'vs/workbench/contrib/terminal/browser/xterm/terminalTypeAheadAddon';
 import { getTerminalResourcesFromDragEvent, getTerminalUri } from 'vs/workbench/contrib/terminal/browser/terminalUri';
 import { TerminalWidgetManager } from 'vs/workbench/contrib/terminal/browser/widgets/widgetManager';
-import { ITerminalQuickFixAddon, TerminalQuickFixAddon } from 'vs/workbench/contrib/terminal/browser/xterm/quickFixAddon';
 import { LineDataEventAddon } from 'vs/workbench/contrib/terminal/browser/xterm/lineDataEventAddon';
 import { XtermTerminal } from 'vs/workbench/contrib/terminal/browser/xterm/xtermTerminal';
 import { IEnvironmentVariableInfo } from 'vs/workbench/contrib/terminal/common/environmentVariable';
@@ -81,7 +79,6 @@ import { IPathService } from 'vs/workbench/services/path/common/pathService';
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
 import type { IMarker, Terminal as XTermTerminal } from 'xterm';
 import { IAudioCueService, AudioCue } from 'vs/platform/audioCues/browser/audioCueService';
-import { ITerminalQuickFixOptions } from 'vs/platform/terminal/common/xterm/terminalQuickFix';
 import { FileSystemProviderCapabilities, IFileService } from 'vs/platform/files/common/files';
 import { preparePathForShell } from 'vs/workbench/contrib/terminal/common/terminalEnvironment';
 import { IEnvironmentVariableCollection, IMergedEnvironmentVariableCollection } from 'vs/platform/terminal/common/environmentVariable';
@@ -165,7 +162,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	private _exitCode: number | undefined;
 	private _exitReason: TerminalExitReason | undefined;
 	private _skipTerminalCommands: string[];
-	private _aliases: string[][] | undefined;
 	private _shellType: TerminalShellType | undefined;
 	private _title: string = '';
 	private _titleSource: TitleEventSource = TitleEventSource.Process;
@@ -209,17 +205,10 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	private _disableShellIntegrationReporting: boolean | undefined;
 	private _usedShellIntegrationInjection: boolean = false;
 	get usedShellIntegrationInjection(): boolean { return this._usedShellIntegrationInjection; }
-	private _quickFixAddon: TerminalQuickFixAddon | undefined;
 	private _lineDataEventAddon: LineDataEventAddon | undefined;
 
 	readonly capabilities = new TerminalCapabilityStoreMultiplexer();
 	readonly statusList: ITerminalStatusList;
-
-	/**
-	 * Enables opening the contextual actions, if any, that are available
-	 * and registering of command finished listeners
-	 */
-	get quickFix(): ITerminalQuickFixAddon | undefined { return this._quickFixAddon; }
 
 	get extEnvironmentVariableCollection(): IMergedEnvironmentVariableCollection | undefined { return this._processManager.extEnvironmentVariableCollection; }
 
@@ -625,12 +614,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		return undefined;
 	}
 
-	private _registerQuickFixProvider(quickFixAddon: ITerminalQuickFixAddon, ...options: ITerminalQuickFixOptions[]): void {
-		for (const actionOption of options) {
-			quickFixAddon.registerCommandFinishedListener(actionOption);
-		}
-	}
-
 	private _initDimensions(): void {
 		// The terminal panel needs to have been created to get the real view dimensions
 		if (!this._container) {
@@ -765,10 +748,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			this.disableShellIntegrationReporting
 		);
 		this.xterm = xterm;
-		this._quickFixAddon = this._scopedInstantiationService.createInstance(TerminalQuickFixAddon, this._aliases, this.capabilities);
-		this.xterm?.raw.loadAddon(this._quickFixAddon);
-		this._registerQuickFixProvider(this._quickFixAddon, gitTwoDashes(), freePort(this), gitSimilar(), gitPushSetUpstream(), gitCreatePr(), pwshUnixCommandNotFoundError(), pwshGeneralError());
-		this._register(this._quickFixAddon.onDidRequestRerunCommand(async (e) => await this.runCommand(e.command, e.addNewLine || false)));
 		this.updateAccessibilitySupport();
 		this.xterm.onDidRequestRunCommand(e => {
 			if (e.copyAsHtml) {
