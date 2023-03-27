@@ -56,7 +56,6 @@ export class AccessibleBufferWidget extends DisposableStore {
 		@IQuickInputService private readonly _quickInputService: IQuickInputService,
 		@IAudioCueService private readonly _audioCueService: IAudioCueService,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
-
 	) {
 		super();
 		this._xtermElement = _xterm.raw.element!;
