@@ -505,10 +505,10 @@ node-gyp-build@^4.3.0:
   resolved "https://registry.yarnpkg.com/node-gyp-build/-/node-gyp-build-4.3.0.tgz#9f256b03e5826150be39c764bf51e993946d71a3"
   integrity sha512-iWjXZvmboq0ja1pUGULQBexmxq8CV4xBhX7VDOTbL7ZR4FOowwY/VOtRxBN/yKxmdGoIp4j5ysNT4u3S2pDQ3Q==
 
-node-pty@0.11.0-beta30:
-  version "0.11.0-beta30"
-  resolved "https://registry.yarnpkg.com/node-pty/-/node-pty-0.11.0-beta30.tgz#ea1ede12ada64115f83b8c6bbf519549b656dbac"
-  integrity sha512-4VqKeomvs5brx9Pf+3QdAAhsIcATREWSTCY8QPj5STp7jDpVbRt6SWhJz9EewJ9KiHbggXaQAzRiAVqARNiVvQ==
+node-pty@0.11.0-beta31:
+  version "0.11.0-beta31"
+  resolved "https://registry.yarnpkg.com/node-pty/-/node-pty-0.11.0-beta31.tgz#f1e7b79d437a96b50c23580475eb7d4bdceb577f"
+  integrity sha512-fqsvKbdP1NuaFxu2zXborL/b5+CDrLruRK7CU0YaTjgbrYUsCR6IITCs1mORb1ZpIZ26ccvcc8TVfstGqwgl9g==
   dependencies:
     nan "^2.17.0"
 
