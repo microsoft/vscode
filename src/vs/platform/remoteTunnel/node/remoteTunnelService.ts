@@ -49,7 +49,7 @@ export class RemoteTunnelService extends Disposable implements IRemoteTunnelServ
 
 	declare readonly _serviceBrand: undefined;
 
-	private readonly _onDidTokenFailedEmitter = new Emitter<boolean>();
+	private readonly _onDidTokenFailedEmitter = new Emitter<IRemoteTunnelAccount | undefined>();
 	public readonly onDidTokenFailed = this._onDidTokenFailedEmitter.event;
 
 	private readonly _onDidChangeTunnelStatusEmitter = new Emitter<TunnelStatus>();
@@ -63,7 +63,7 @@ export class RemoteTunnelService extends Disposable implements IRemoteTunnelServ
 	private _account: IRemoteTunnelAccount | undefined;
 	private _tunnelProcess: CancelablePromise<any> | undefined;
 
-	private _tunnelStatus: TunnelStatus = TunnelStates.disconnected;
+	private _tunnelStatus: TunnelStatus = TunnelStates.disconnected();
 	private _startTunnelProcessDelayer: Delayer<void>;
 
 	private _tunnelCommand: string | undefined;
@@ -183,7 +183,7 @@ export class RemoteTunnelService extends Disposable implements IRemoteTunnelServ
 		} catch (e) {
 			this._logger.error(e);
 		}
-		this.setTunnelStatus(TunnelStates.disconnected);
+		this.setTunnelStatus(TunnelStates.disconnected());
 
 	}
 
@@ -215,23 +215,24 @@ export class RemoteTunnelService extends Disposable implements IRemoteTunnelServ
 			}
 			isAttached = status === 0;
 			this._logger.info(isAttached ? 'Other tunnel running, attaching...' : 'No other tunnel running');
+			if (!isAttached && !this._account) {
+				return;
+			}
 		} catch (e) {
 			this._logger.error(e);
 			this._tunnelProcess = undefined;
-			this._onDidTokenFailedEmitter.fire(true);
-			this.setTunnelStatus(TunnelStates.disconnected);
+			this.setTunnelStatus(TunnelStates.disconnected());
 			return;
 		}
 
-		if (this._account) {
-			const { token, providerId, accountLabel: accountName } = this._account;
-
-			this.setTunnelStatus(TunnelStates.connecting(localize({ key: 'remoteTunnelService.authorizing', comment: ['{0} is a user account name, {1} a provider name (e.g. Github)'] }, 'Connecting as {0} ({1})', accountName, providerId)));
+		const account = this._account;
+		if (account) {
+			this.setTunnelStatus(TunnelStates.connecting(localize({ key: 'remoteTunnelService.authorizing', comment: ['{0} is a user account name, {1} a provider name (e.g. Github)'] }, 'Connecting as {0} ({1})', account.accountLabel, account.providerId)));
 			const onLoginOutput = (a: string, isErr: boolean) => {
-				a = a.replaceAll(token, '*'.repeat(4));
+				a = a.replaceAll(account.token, '*'.repeat(4));
 				onOutput(a, isErr);
 			};
-			const loginProcess = this.runCodeTunneCommand('login', ['user', 'login', '--provider', providerId, '--access-token', token, '--log', LogLevelToString(this._logger.getLevel())], onLoginOutput);
+			const loginProcess = this.runCodeTunneCommand('login', ['user', 'login', '--provider', account.providerId, '--access-token', account.token, '--log', LogLevelToString(this._logger.getLevel())], onLoginOutput);
 			this._tunnelProcess = loginProcess;
 			try {
 				await loginProcess;
@@ -241,8 +242,8 @@ export class RemoteTunnelService extends Disposable implements IRemoteTunnelServ
 			} catch (e) {
 				this._logger.error(e);
 				this._tunnelProcess = undefined;
-				this._onDidTokenFailedEmitter.fire(true);
-				this.setTunnelStatus(TunnelStates.disconnected);
+				this._onDidTokenFailedEmitter.fire(account);
+				this.setTunnelStatus(TunnelStates.disconnected(account));
 				return;
 			}
 		}
@@ -274,8 +275,8 @@ export class RemoteTunnelService extends Disposable implements IRemoteTunnelServ
 				this.setTunnelStatus(TunnelStates.connected(info));
 			} else if (message.match(/error refreshing token/)) {
 				serveCommand.cancel();
-				this._onDidTokenFailedEmitter.fire(true);
-				this.setTunnelStatus(TunnelStates.disconnected);
+				this._onDidTokenFailedEmitter.fire(account);
+				this.setTunnelStatus(TunnelStates.disconnected(account));
 			}
 		});
 		this._tunnelProcess = serveCommand;
@@ -286,7 +287,7 @@ export class RemoteTunnelService extends Disposable implements IRemoteTunnelServ
 				this._tunnelProcess = undefined;
 				this._account = undefined;
 
-				this.setTunnelStatus(TunnelStates.disconnected);
+				this.setTunnelStatus(TunnelStates.disconnected());
 			}
 		});
 	}
@@ -364,7 +365,7 @@ export class RemoteTunnelService extends Disposable implements IRemoteTunnelServ
 			const tunnelAccessAccount = this.storageService.get(TUNNEL_ACCESS_ACCOUNT, StorageScope.APPLICATION);
 			if (tunnelAccessAccount) {
 				const account = JSON.parse(tunnelAccessAccount) as IRemoteTunnelAccount;
-				if (account && isString(account.accountLabel) && isString(account.providerId) && isString(account.token)) {
+				if (account && isString(account.accountLabel) && isString(account.sessionId) && isString(account.providerId) && isString(account.token)) {
 					return account;
 				}
 				this._logger.error('Problems restoring account from storage, invalid format', account);
@@ -388,7 +389,7 @@ export class RemoteTunnelService extends Disposable implements IRemoteTunnelServ
 
 function isDifferentAccount(a1: IRemoteTunnelAccount | undefined, a2: IRemoteTunnelAccount | undefined): boolean {
 	if (a1 && a2) {
-		return a1.token !== a2.token || a1.providerId !== a2.providerId;
+		return a1.token !== a2.token || a1.sessionId !== a2.sessionId || a1.providerId !== a2.providerId;
 	}
 	return a1 !== a2;
 }

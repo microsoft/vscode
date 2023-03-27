@@ -10,6 +10,7 @@ import { localize } from 'vs/nls';
 export interface IRemoteTunnelAccount {
 	readonly providerId: string;
 	readonly token: string;
+	readonly sessionId: string;
 	readonly accountLabel: string;
 }
 
@@ -17,7 +18,7 @@ export const IRemoteTunnelService = createDecorator<IRemoteTunnelService>('IRemo
 export interface IRemoteTunnelService {
 	readonly _serviceBrand: undefined;
 
-	readonly onDidTokenFailed: Event<boolean>;
+	readonly onDidTokenFailed: Event<IRemoteTunnelAccount | undefined>;
 
 	readonly onDidChangeTunnelStatus: Event<TunnelStatus>;
 	getTunnelStatus(): Promise<TunnelStatus>;
@@ -25,7 +26,7 @@ export interface IRemoteTunnelService {
 	getAccount(): Promise<IRemoteTunnelAccount | undefined>;
 	readonly onDidChangeAccount: Event<IRemoteTunnelAccount | undefined>;
 	updateAccount(account: IRemoteTunnelAccount | undefined): Promise<TunnelStatus>;
-
+	stopTunnel(): Promise<void>;
 	getHostName(): Promise<string | undefined>;
 
 }
@@ -46,10 +47,9 @@ export namespace TunnelStates {
 	}
 	export interface Disconnected {
 		readonly type: 'disconnected';
+		readonly onTokenFailed?: IRemoteTunnelAccount;
 	}
-
-	export const disconnected: Disconnected = { type: 'disconnected' };
-	export const uninitialized: Uninitialized = { type: 'uninitialized' };
+	export const disconnected = (onTokenFailed?: IRemoteTunnelAccount): Disconnected => ({ type: 'disconnected', onTokenFailed });
 	export const connected = (info: ConnectionInfo): Connected => ({ type: 'connected', info });
 	export const connecting = (progress?: string): Connecting => ({ type: 'connecting', progress });
 
