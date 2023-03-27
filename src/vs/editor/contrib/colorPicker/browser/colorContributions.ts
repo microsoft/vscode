@@ -17,8 +17,11 @@ import { KeyChord, KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { localize } from 'vs/nls';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import 'vs/css!./colorPicker';
-import { StandaloneColorPickerWidget } from 'vs/editor/contrib/colorPicker/browser/colorPickerWidget';
+import { StandaloneColorPickerWidget } from 'vs/editor/contrib/colorPicker/browser/standaloneColorPickerWidget';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 
 class InsertColor extends EditorAction {
 
@@ -45,7 +48,10 @@ class InsertColor extends EditorAction {
 		const themeService = accessor.get(IThemeService);
 		const position = editor._getViewModel()?.getPrimaryCursorState().viewState.position;
 		if (position) {
-			const stickyScrollWidget = new StandaloneColorPickerWidget(position, editor, themeService);
+			const instantiationService = accessor.get(IInstantiationService);
+			const keybindingService = accessor.get(IKeybindingService);
+			const languageFeatureService = accessor.get(ILanguageFeaturesService);
+			const stickyScrollWidget = new StandaloneColorPickerWidget(position, editor, instantiationService, keybindingService, languageFeatureService, themeService);
 			editor.addContentWidget(stickyScrollWidget);
 		}
 	}

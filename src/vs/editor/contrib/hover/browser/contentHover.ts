@@ -265,7 +265,9 @@ export class ContentHoverController extends Disposable {
 			hide: () => this.hide()
 		};
 
+		console.log('this._participants : ', this._participants);
 		for (const participant of this._participants) {
+			console.log('participant : ', participant);
 			const hoverParts = messages.filter(msg => msg.owner === participant);
 			console.log('hoverParts : ', hoverParts);
 			if (hoverParts.length > 0) {
@@ -634,8 +636,8 @@ export class ContentHoverWidget extends Disposable implements IContentWidget {
 			const clientWidth = this.colorPicker.body.domNode.clientWidth;
 			console.log('clientHeight : ', clientHeight);
 			console.log('clientWidth : ', clientWidth);
-			this.colorPicker.layout();
 		}
+		visibleData.colorPicker?.layout();
 	}
 
 	public hide(): void {
@@ -737,7 +739,7 @@ export class ContentHoverWidget extends Disposable implements IContentWidget {
 	}
 }
 
-class EditorHoverStatusBar extends Disposable implements IEditorHoverStatusBar {
+export class EditorHoverStatusBar extends Disposable implements IEditorHoverStatusBar {
 
 	public readonly hoverElement: HTMLElement;
 	private readonly actionsElement: HTMLElement;
@@ -769,7 +771,7 @@ class EditorHoverStatusBar extends Disposable implements IEditorHoverStatusBar {
 	}
 }
 
-class ContentHoverComputer implements IHoverComputer<IHoverPart> {
+export class ContentHoverComputer implements IHoverComputer<IHoverPart> {
 
 	private _anchor: HoverAnchor | null = null;
 	public get anchor(): HoverAnchor | null { return this._anchor; }

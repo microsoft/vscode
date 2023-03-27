@@ -54,18 +54,23 @@ export class ColorHoverParticipant implements IEditorHoverParticipant<ColorHover
 	) { }
 
 	public computeSync(anchor: HoverAnchor, lineDecorations: IModelDecoration[]): ColorHover[] {
+		console.log('inside of computeSync of the ColorHoverParticipant.ts');
 		return [];
 	}
 
 	public computeAsync(anchor: HoverAnchor, lineDecorations: IModelDecoration[], token: CancellationToken): AsyncIterableObject<ColorHover> {
+		console.log('inside of computeAsync of the ColorHoverParticipant.ts');
 		return AsyncIterableObject.fromPromise(this._computeAsync(anchor, lineDecorations, token));
 	}
 
 	private async _computeAsync(anchor: HoverAnchor, lineDecorations: IModelDecoration[], token: CancellationToken): Promise<ColorHover[]> {
+		console.log('inside of _computeAsync of the ColorHoverParticipant.ts');
+		console.log('lineDecorations : ', lineDecorations);
 		if (!this._editor.hasModel()) {
 			return [];
 		}
 		const colorDetector = ColorDetector.get(this._editor);
+		console.log('colorDetector : ', colorDetector);
 		if (!colorDetector) {
 			return [];
 		}
@@ -75,6 +80,7 @@ export class ColorHoverParticipant implements IEditorHoverParticipant<ColorHover
 			}
 
 			const colorData = colorDetector.getColorData(d.range.getStartPosition());
+			console.log('colorData : ', colorData);
 			if (colorData) {
 				const colorHover = await this._createColorHover(this._editor.getModel(), colorData.colorInfo, colorData.provider);
 				return [colorHover];
@@ -82,6 +88,15 @@ export class ColorHoverParticipant implements IEditorHoverParticipant<ColorHover
 
 		}
 		return [];
+	}
+
+	public async createColorHover(colorInfo: IColorInformation, provider: DocumentColorProvider): Promise<ColorHover[]> {
+		if (!this._editor.hasModel()) {
+			return [];
+		}
+
+		const colorHover = await this._createColorHover(this._editor.getModel(), colorInfo, provider);
+		return [colorHover];
 	}
 
 	private async _createColorHover(editorModel: ITextModel, colorInfo: IColorInformation, provider: DocumentColorProvider): Promise<ColorHover> {
@@ -99,7 +114,7 @@ export class ColorHoverParticipant implements IEditorHoverParticipant<ColorHover
 	}
 
 	public renderHoverParts(context: IEditorHoverRenderContext, hoverParts: ColorHover[]): IDisposable {
-		console.log('Inisde of rendeHoverParts of the ColorHoverParticipant.ts');
+		console.log('Inside of rendeHoverParts of the ColorHoverParticipant.ts');
 
 		if (hoverParts.length === 0 || !this._editor.hasModel()) {
 			return Disposable.None;
@@ -132,6 +147,7 @@ export class ColorHoverParticipant implements IEditorHoverParticipant<ColorHover
 		let range = new Range(colorHover.range.startLineNumber, colorHover.range.startColumn, colorHover.range.endLineNumber, colorHover.range.endColumn);
 
 		const updateEditorModel = () => {
+			console.log('inside of update editor model');
 			let textEdits: ISingleEditOperation[];
 			let newRange: Range;
 			if (model.presentation.textEdit) {
@@ -163,6 +179,7 @@ export class ColorHoverParticipant implements IEditorHoverParticipant<ColorHover
 		};
 
 		const updateColorPresentations = (color: Color) => {
+			console.log('inside of update color presentations');
 			return getColorPresentations(editorModel, {
 				range: range,
 				color: {
