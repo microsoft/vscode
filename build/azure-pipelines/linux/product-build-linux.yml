@@ -7,8 +7,6 @@ parameters:
     type: boolean
   - name: VSCODE_RUN_SMOKE_TESTS
     type: boolean
-  - name: VSCODE_BUILD_TUNNEL_CLI
-    type: boolean
   - name: VSCODE_ARCH
     type: string
 
@@ -211,13 +209,12 @@ steps:
           GITHUB_TOKEN: "$(github-distro-mixin-password)"
         displayName: Transpile
 
-  - ${{ if eq(parameters.VSCODE_BUILD_TUNNEL_CLI, true) }}:
-    - task: DownloadPipelineArtifact@2
-      inputs:
-        artifact: vscode_cli_linux_$(VSCODE_ARCH)_cli
-        patterns: "**"
-        path: $(Build.ArtifactStagingDirectory)/cli
-      displayName: Download VS Code CLI
+  - task: DownloadPipelineArtifact@2
+    inputs:
+      artifact: vscode_cli_linux_$(VSCODE_ARCH)_cli
+      patterns: "**"
+      path: $(Build.ArtifactStagingDirectory)/cli
+    displayName: Download VS Code CLI
 
     - script: |
         set -e
