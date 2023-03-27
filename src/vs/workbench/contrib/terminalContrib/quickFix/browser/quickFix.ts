@@ -80,17 +80,16 @@ export interface ITerminalCommandMatchResult {
 	outputMatch?: ITerminalOutputMatch;
 }
 
-// TODO: Prefix these
-export interface IInternalOptions extends ITerminalQuickFixOptions {
+export interface ITerminalQuickFixInternalOptions extends ITerminalQuickFixOptions {
 	type: 'internal';
 	getQuickFixes: TerminalQuickFixCallback;
 }
 
-export interface IResolvedExtensionOptions extends ITerminalQuickFixOptions {
+export interface ITerminalQuickFixResolvedExtensionOptions extends ITerminalQuickFixOptions {
 	type: 'resolved';
 	getQuickFixes: TerminalQuickFixCallbackExtension;
 }
 
-export interface IUnresolvedExtensionOptions extends ITerminalQuickFixOptions {
+export interface ITerminalQuickFixUnresolvedExtensionOptions extends ITerminalQuickFixOptions {
 	type: 'unresolved';
 }

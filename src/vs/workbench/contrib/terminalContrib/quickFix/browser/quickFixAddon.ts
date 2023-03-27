@@ -28,7 +28,7 @@ import { IAnchor } from 'vs/base/browser/ui/contextview/contextview';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { Schemas } from 'vs/base/common/network';
 import { URI } from 'vs/base/common/uri';
-import { IInternalOptions, IResolvedExtensionOptions, ITerminalQuickFix, ITerminalQuickFixCommandAction, ITerminalQuickFixOpenerAction, ITerminalQuickFixOptions, ITerminalQuickFixProviderSelector, ITerminalQuickFixService, IUnresolvedExtensionOptions, TerminalQuickFixType } from 'vs/workbench/contrib/terminalContrib/quickFix/browser/quickFix';
+import { ITerminalQuickFixInternalOptions, ITerminalQuickFixResolvedExtensionOptions, ITerminalQuickFix, ITerminalQuickFixCommandAction, ITerminalQuickFixOpenerAction, ITerminalQuickFixOptions, ITerminalQuickFixProviderSelector, ITerminalQuickFixService, ITerminalQuickFixUnresolvedExtensionOptions, TerminalQuickFixType } from 'vs/workbench/contrib/terminalContrib/quickFix/browser/quickFix';
 import { ITerminalCommandSelector } from 'vs/platform/terminal/common/terminal';
 import { ActionListItemKind, IActionListItem } from 'vs/platform/actionWidget/browser/actionList';
 import { CodeActionKind } from 'vs/editor/contrib/codeAction/common/types';
@@ -59,7 +59,7 @@ export class TerminalQuickFixAddon extends Disposable implements ITerminalAddon,
 
 	private _terminal: Terminal | undefined;
 
-	private _commandListeners: Map<string, (ITerminalQuickFixOptions | IResolvedExtensionOptions | IUnresolvedExtensionOptions)[]> = new Map();
+	private _commandListeners: Map<string, (ITerminalQuickFixOptions | ITerminalQuickFixResolvedExtensionOptions | ITerminalQuickFixUnresolvedExtensionOptions)[]> = new Map();
 
 	private _quickFixes: ITerminalAction[] | undefined;
 
@@ -154,7 +154,7 @@ export class TerminalQuickFixAddon extends Disposable implements ITerminalAddon,
 		this._commandListeners.set(matcherKey, currentOptions);
 	}
 
-	registerCommandFinishedListener(options: ITerminalQuickFixOptions | IResolvedExtensionOptions): void {
+	registerCommandFinishedListener(options: ITerminalQuickFixOptions | ITerminalQuickFixResolvedExtensionOptions): void {
 		const matcherKey = options.commandLineMatcher.toString();
 		let currentOptions = this._commandListeners.get(matcherKey) || [];
 		// removes the unresolved options
@@ -305,7 +305,7 @@ export async function getQuickFixesForCommand(
 			}
 			let quickFixes;
 			if (option.type === 'resolved') {
-				quickFixes = await (option as IResolvedExtensionOptions).getQuickFixes(terminalCommand, getLinesForCommand(terminal.buffer.active, terminalCommand, terminal.cols, option.outputMatcher), option, new CancellationTokenSource().token);
+				quickFixes = await (option as ITerminalQuickFixResolvedExtensionOptions).getQuickFixes(terminalCommand, getLinesForCommand(terminal.buffer.active, terminalCommand, terminal.cols, option.outputMatcher), option, new CancellationTokenSource().token);
 			} else if (option.type === 'unresolved') {
 				if (!getResolvedFixes) {
 					throw new Error('No resolved fix provider');
@@ -325,7 +325,7 @@ export async function getQuickFixesForCommand(
 					continue;
 				}
 				const matchResult = { commandLineMatch, outputMatch, commandLine: terminalCommand.command };
-				quickFixes = (option as IInternalOptions).getQuickFixes(matchResult);
+				quickFixes = (option as ITerminalQuickFixInternalOptions).getQuickFixes(matchResult);
 			}
 
 			if (quickFixes) {
@@ -411,7 +411,7 @@ export async function getQuickFixesForCommand(
 	return fixes.length > 0 ? fixes : undefined;
 }
 
-function convertToQuickFixOptions(selectorProvider: ITerminalQuickFixProviderSelector): IResolvedExtensionOptions {
+function convertToQuickFixOptions(selectorProvider: ITerminalQuickFixProviderSelector): ITerminalQuickFixResolvedExtensionOptions {
 	return {
 		id: selectorProvider.selector.id,
 		type: 'resolved',
