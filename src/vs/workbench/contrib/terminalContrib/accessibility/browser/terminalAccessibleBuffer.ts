@@ -119,12 +119,12 @@ export class AccessibleBufferWidget extends DisposableStore {
 			}
 		}));
 		this.add(this._xterm.raw.onWriteParsed(async () => {
-			if (this._accessibleBuffer.classList.contains(CssClass.Active)) {
+			if (this._isActive()) {
 				await this._updateEditor(true);
 			}
 		}));
 		this.add(this._bufferEditor.onDidFocusEditorText(async () => {
-			if (this._accessibleBuffer.classList.contains(CssClass.Active)) {
+			if (this._isActive()) {
 				// the user has focused the editor via mouse or
 				// Go to Command was run so we've already updated the editor
 				return;
@@ -135,7 +135,16 @@ export class AccessibleBufferWidget extends DisposableStore {
 			this._accessibleBuffer.classList.add(CssClass.Active);
 			this._xtermElement.classList.add(CssClass.Hide);
 		}));
+		this.add(this._instance.onDidRequestFocus(() => {
+			if (this._isActive()) {
+				this._bufferEditor.focus();
+			}
+		}));
 		this._updateEditor();
+	}
+
+	private _isActive(): boolean {
+		return this._accessibleBuffer.classList.contains(CssClass.Active);
 	}
 
 	private _hide(): void {
