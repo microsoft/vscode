@@ -20,7 +20,6 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { TerminalSettingId } from 'vs/platform/terminal/common/terminal';
 import { SelectionClipboardContributionID } from 'vs/workbench/contrib/codeEditor/browser/selectionClipboard';
 import { getSimpleEditorOptions } from 'vs/workbench/contrib/codeEditor/browser/simpleEditorOptions';
-import { ITerminalFont } from 'vs/workbench/contrib/terminal/common/terminal';
 import { ITerminalInstance, IXtermTerminal } from 'vs/workbench/contrib/terminal/browser/terminal';
 import type { Terminal } from 'xterm';
 import { TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
@@ -42,9 +41,8 @@ interface IAccessibleBufferQuickPickItem extends IQuickPickItem {
 
 export class AccessibleBufferWidget extends DisposableStore {
 	private _accessibleBuffer: HTMLElement;
-	private _bufferEditor: CodeEditorWidget;
+	private _editorWidget: CodeEditorWidget;
 	private _editorContainer: HTMLElement;
-	private _font: ITerminalFont;
 	private _xtermElement: HTMLElement;
 	private readonly _focusedContextKey: IContextKey<boolean>;
 	private readonly _focusTracker: dom.IFocusTracker;
@@ -61,22 +59,26 @@ export class AccessibleBufferWidget extends DisposableStore {
 
 	) {
 		super();
-		this._focusedContextKey = TerminalContextKeys.accessibleBufferFocus.bindTo(this._contextKeyService);
+		this._xtermElement = _xterm.raw.element!;
+		this._accessibleBuffer = document.createElement('div');
+		this._accessibleBuffer.setAttribute('role', 'document');
+		this._accessibleBuffer.ariaRoleDescription = localize('terminal.integrated.accessibleBuffer', 'Terminal buffer');
+		this._accessibleBuffer.classList.add('accessible-buffer');
+		this._editorContainer = document.createElement('div');
 		const codeEditorWidgetOptions: ICodeEditorWidgetOptions = {
 			isSimpleWidget: true,
 			contributions: EditorExtensionsRegistry.getSomeEditorContributions([LinkDetector.ID, SelectionClipboardContributionID])
 		};
-		this._font = _xterm.getFont();
-		// this will be defined because we await the container opening
-		this._xtermElement = _xterm.raw.element!;
+		const font = _xterm.getFont();
 		const editorOptions: IEditorConstructionOptions = {
 			...getSimpleEditorOptions(),
 			lineDecorationsWidth: 6,
 			dragAndDrop: true,
 			cursorWidth: 1,
-			fontSize: this._font.fontSize,
-			lineHeight: this._font.charHeight ? this._font.charHeight * this._font.lineHeight : 1,
-			fontFamily: this._font.fontFamily,
+			fontSize: font.fontSize,
+			lineHeight: font.charHeight ? font.charHeight * font.lineHeight : 1,
+			letterSpacing: font.letterSpacing,
+			fontFamily: font.fontFamily,
 			wrappingStrategy: 'advanced',
 			wrappingIndent: 'none',
 			padding: { top: 2, bottom: 2 },
@@ -87,19 +89,26 @@ export class AccessibleBufferWidget extends DisposableStore {
 			cursorBlinking: this._configurationService.getValue('terminal.integrated.cursorBlinking'),
 			readOnly: true
 		};
-		this._accessibleBuffer = document.createElement('div');
-		this._accessibleBuffer.setAttribute('role', 'document');
-		this._accessibleBuffer.ariaRoleDescription = localize('terminal.integrated.accessibleBuffer', 'Terminal buffer');
-		this._accessibleBuffer.classList.add('accessible-buffer');
-		this._editorContainer = document.createElement('div');
-		this._bufferEditor = this.add(this._instantiationService.createInstance(CodeEditorWidget, this._editorContainer, editorOptions, codeEditorWidgetOptions));
-		this._focusTracker = this.add(dom.trackFocus(this._editorContainer));
-		this.add(this._focusTracker.onDidFocus(() => this._focusedContextKey.set(true)));
-		this.add(this._focusTracker.onDidBlur(() => this._focusedContextKey.reset()));
+		this._editorWidget = this.add(this._instantiationService.createInstance(CodeEditorWidget, this._editorContainer, editorOptions, codeEditorWidgetOptions));
 		this._accessibleBuffer.replaceChildren(this._editorContainer);
 		this._xtermElement.insertAdjacentElement('beforebegin', this._accessibleBuffer);
-		this.add(Event.runAndSubscribe(this._xterm.raw.onResize, () => this._bufferEditor.layout({ width: this._xtermElement.clientWidth, height: this._xtermElement.clientHeight })));
-		this._bufferEditor.onKeyDown((e) => {
+
+		this._focusTracker = this.add(dom.trackFocus(this._editorContainer));
+		this._focusedContextKey = TerminalContextKeys.accessibleBufferFocus.bindTo(this._contextKeyService);
+		this._trackFocus();
+
+		this._initializeTerminalListeners();
+		this._initializeEditorListeners();
+		this._updateEditor();
+	}
+
+	private _trackFocus(): void {
+		this.add(this._focusTracker.onDidFocus(() => this._focusedContextKey.set(true)));
+		this.add(this._focusTracker.onDidBlur(() => this._focusedContextKey.reset()));
+	}
+
+	private _initializeEditorListeners(): void {
+		this.add(this._editorWidget.onKeyDown((e) => {
 			switch (e.keyCode) {
 				case KeyCode.Tab:
 					// On tab or shift+tab, hide the accessible buffer and perform the default tab
@@ -112,18 +121,8 @@ export class AccessibleBufferWidget extends DisposableStore {
 					this._xterm.raw.focus();
 					break;
 			}
-		});
-		this.add(this._configurationService.onDidChangeConfiguration(e => {
-			if (e.affectedKeys.has(TerminalSettingId.FontFamily)) {
-				this._font = _xterm.getFont();
-			}
 		}));
-		this.add(this._xterm.raw.onWriteParsed(async () => {
-			if (this._isActive()) {
-				await this._updateEditor(true);
-			}
-		}));
-		this.add(this._bufferEditor.onDidFocusEditorText(async () => {
+		this.add(this._editorWidget.onDidFocusEditorText(async () => {
 			if (this._isActive()) {
 				// the user has focused the editor via mouse or
 				// Go to Command was run so we've already updated the editor
@@ -135,12 +134,26 @@ export class AccessibleBufferWidget extends DisposableStore {
 			this._accessibleBuffer.classList.add(CssClass.Active);
 			this._xtermElement.classList.add(CssClass.Hide);
 		}));
+	}
+
+	private _initializeTerminalListeners(): void {
 		this.add(this._instance.onDidRequestFocus(() => {
 			if (this._isActive()) {
-				this._bufferEditor.focus();
+				this._editorWidget.focus();
 			}
 		}));
-		this._updateEditor();
+		this.add(Event.runAndSubscribe(this._xterm.raw.onResize, () => this._editorWidget.layout({ width: this._xtermElement.clientWidth, height: this._xtermElement.clientHeight })));
+		this.add(this._configurationService.onDidChangeConfiguration(e => {
+			if (e.affectedKeys.has(TerminalSettingId.FontFamily) || e.affectedKeys.has(TerminalSettingId.FontSize) || e.affectedKeys.has(TerminalSettingId.LineHeight) || e.affectedKeys.has(TerminalSettingId.LetterSpacing)) {
+				const font = this._xterm.getFont();
+				this._editorWidget.updateOptions({ fontFamily: font.fontFamily, fontSize: font.fontSize, lineHeight: font.charHeight ? font.charHeight * font.lineHeight : 1, letterSpacing: font.letterSpacing });
+			}
+		}));
+		this.add(this._xterm.raw.onWriteParsed(async () => {
+			if (this._isActive()) {
+				await this._updateEditor(true);
+			}
+		}));
 	}
 
 	private _isActive(): boolean {
@@ -153,7 +166,7 @@ export class AccessibleBufferWidget extends DisposableStore {
 	}
 
 	private async _updateModel(insertion?: boolean): Promise<ITextModel> {
-		let model = this._bufferEditor.getModel();
+		let model = this._editorWidget.getModel();
 		const lineCount = model?.getLineCount() ?? 0;
 		if (insertion && model && lineCount > this._xterm.raw.rows) {
 			const lineNumber = lineCount + 1;
@@ -166,7 +179,7 @@ export class AccessibleBufferWidget extends DisposableStore {
 		if (!model) {
 			throw new Error('Could not create accessible buffer editor model');
 		}
-		this._bufferEditor.setModel(model);
+		this._editorWidget.setModel(model);
 		return model;
 	}
 
@@ -176,16 +189,16 @@ export class AccessibleBufferWidget extends DisposableStore {
 			return;
 		}
 		const lineNumber = model.getLineCount() - 1;
-		const selection = this._bufferEditor.getSelection();
+		const selection = this._editorWidget.getSelection();
 		// If the selection is at the top of the buffer, IE the default when not set, move it to the bottom
 		if (selection?.startColumn === 1 && selection.endColumn === 1 && selection.startLineNumber === 1 && selection.endLineNumber === 1) {
-			this._bufferEditor.setSelection({ startLineNumber: lineNumber, startColumn: 1, endLineNumber: lineNumber, endColumn: 1 });
+			this._editorWidget.setSelection({ startLineNumber: lineNumber, startColumn: 1, endLineNumber: lineNumber, endColumn: 1 });
 		}
-		this._bufferEditor.setScrollTop(this._bufferEditor.getScrollHeight());
+		this._editorWidget.setScrollTop(this._editorWidget.getScrollHeight());
 	}
 
 	async createQuickPick(): Promise<IQuickPick<IAccessibleBufferQuickPickItem> | undefined> {
-		let currentPosition = withNullAsUndefined(this._bufferEditor.getPosition());
+		let currentPosition = withNullAsUndefined(this._editorWidget.getPosition());
 		const commands = this._instance.capabilities.get(TerminalCapability.CommandDetection)?.commands;
 		if (!commands?.length) {
 			return;
@@ -210,29 +223,29 @@ export class AccessibleBufferWidget extends DisposableStore {
 			if (activeItem.exitCode) {
 				this._audioCueService.playAudioCue(AudioCue.error, true);
 			}
-			this._bufferEditor.revealLine(activeItem.lineNumber, 0);
+			this._editorWidget.revealLine(activeItem.lineNumber, 0);
 		});
 		quickPick.onDidHide(() => {
 			if (currentPosition) {
-				this._bufferEditor.setPosition(currentPosition);
-				this._bufferEditor.revealLineInCenter(currentPosition.lineNumber);
+				this._editorWidget.setPosition(currentPosition);
+				this._editorWidget.revealLineInCenter(currentPosition.lineNumber);
 			}
 			quickPick.dispose();
 		});
 		quickPick.onDidAccept(() => {
 			const item = quickPick.activeItems[0];
-			const model = this._bufferEditor.getModel();
+			const model = this._editorWidget.getModel();
 			if (!model) {
 				return;
 			}
 			if (!item && currentPosition) {
 				// reset
-				this._bufferEditor.setPosition(currentPosition);
+				this._editorWidget.setPosition(currentPosition);
 			} else {
-				this._bufferEditor.setSelection({ startLineNumber: item.lineNumber, startColumn: 1, endLineNumber: item.lineNumber, endColumn: 1 });
-				currentPosition = this._bufferEditor.getSelection()?.getPosition();
+				this._editorWidget.setSelection({ startLineNumber: item.lineNumber, startColumn: 1, endLineNumber: item.lineNumber, endColumn: 1 });
+				currentPosition = this._editorWidget.getSelection()?.getPosition();
 			}
-			this._bufferEditor.focus();
+			this._editorWidget.focus();
 			return;
 		});
 		quickPick.items = quickPickItems.reverse();
@@ -242,10 +255,10 @@ export class AccessibleBufferWidget extends DisposableStore {
 	async show(): Promise<void> {
 		await this._updateEditor();
 		this._accessibleBuffer.tabIndex = -1;
-		this._bufferEditor.layout({ width: this._xtermElement.clientWidth, height: this._xtermElement.clientHeight });
+		this._editorWidget.layout({ width: this._xtermElement.clientWidth, height: this._xtermElement.clientHeight });
 		this._accessibleBuffer.classList.add(CssClass.Active);
 		this._xtermElement.classList.add(CssClass.Hide);
-		this._bufferEditor.focus();
+		this._editorWidget.focus();
 	}
 
 	private _getContent(startIndex?: number): string {
