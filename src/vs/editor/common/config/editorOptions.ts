@@ -3823,7 +3823,7 @@ class InlineEditorSuggest extends BaseEditorOption<EditorOption.inlineSuggest, I
 			enabled: true,
 			mode: 'subwordSmart',
 			showToolbar: 'onHover',
-			suppressSuggestions: false,
+			suppressSuggestions: true,
 		};
 
 		super(
