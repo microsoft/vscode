@@ -13,7 +13,7 @@ import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import 'vs/css!./colorPicker';
 import { MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
 
-export class ShowStandaloneColorPicker extends EditorAction2 {
+export class ShowOrFocusStandaloneColorPicker extends EditorAction2 {
 
 	constructor() {
 		super({
@@ -94,4 +94,4 @@ class InsertColorFromStandaloneColorPicker extends EditorAction {
 
 registerEditorAction(HideStandaloneColorPicker);
 registerEditorAction(InsertColorFromStandaloneColorPicker);
-registerAction2(ShowStandaloneColorPicker);
+registerAction2(ShowOrFocusStandaloneColorPicker);
