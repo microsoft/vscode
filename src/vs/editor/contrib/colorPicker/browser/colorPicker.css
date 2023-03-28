@@ -157,10 +157,13 @@
 
 .standalone-color-picker-class {
 	display: block;
+	border: 1px solid transparent;
+	overflow: hidden;
 }
 
 .standalone-color-picker-class:focus {
 	border: 1px solid var(--vscode-focusBorder);
+	border-bottom:  1px solid var(--vscode-focusBorder);
 }
 
 .colorpicker-body.standalone-color-picker {

@@ -183,6 +183,8 @@ export class StandaloneColorPickerWidget implements IContentWidget {
 		const fragment = document.createDocumentFragment();
 		let colorPicker: ColorPickerWidget | null = null;
 		const statusBar = this._disposables.add(new EditorHoverStatusBar(this.keybindingService));
+		const maxHeight = Math.max(this.editor.getLayoutInfo().height / 4, 250);
+		const maxWidth = Math.max(this.editor.getLayoutInfo().width * 0.66, 500);
 
 		const context: IEditorHoverRenderContext = {
 			fragment,
@@ -221,9 +223,6 @@ export class StandaloneColorPickerWidget implements IContentWidget {
 		const colorPickerBody = colorPicker?.body as ColorPickerBody;
 		const enterButton = colorPickerBody.enterButton;
 
-		const maxHeight = Math.max(this.editor.getLayoutInfo().height / 4, 250);
-		const maxWidth = Math.max(this.editor.getLayoutInfo().width * 0.66, 500);
-
 		this.body.style.maxHeight = maxHeight + 'px';
 		this.body.style.maxWidth = maxWidth + 'px';
 		this.body.style.display = 'block';
@@ -236,6 +235,11 @@ export class StandaloneColorPickerWidget implements IContentWidget {
 		colorPicker?.layout();
 		this.editor.layoutContentWidget(this);
 		this.editor.render();
+
+		// const offsetTop = this.body.offsetHeight;
+		// this.body.style.top = offsetTop + 'px';
+		// this.editor.layoutContentWidget(this);
+		// this.editor.render();
 
 		if (colorPicker) {
 			console.log('after final render');
@@ -281,8 +285,6 @@ export class StandaloneColorPickerWidget implements IContentWidget {
 
 	public focus(): void {
 		this.body.focus();
-		this.editor.layoutContentWidget(this);
-		this.editor.render();
 		console.log('this.body after focus : ', this.body);
 	}
 }
