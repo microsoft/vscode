@@ -7,7 +7,7 @@ import 'vs/css!./interactiveEditor';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { DisposableStore, combinedDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { IActiveCodeEditor, ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { EditorLayoutInfo, EditorOption } from 'vs/editor/common/config/editorOptions';
+import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { Range } from 'vs/editor/common/core/range';
 import { IEditorContribution, IEditorDecorationsCollection, ScrollType } from 'vs/editor/common/editorCommon';
 import { localize } from 'vs/nls';
@@ -221,10 +221,7 @@ class InteractiveEditorWidget {
 	layout(dim: Dimension) {
 		this._isLayouting = true;
 		try {
-			const innerEditorWidth = Math.min(
-				Number.MAX_SAFE_INTEGER, //  TODO@jrieken define max width?
-				dim.width - (getTotalWidth(this._elements.rhsToolbar) + 12 /* L/R-padding */)
-			);
+			const innerEditorWidth = dim.width - (getTotalWidth(this._elements.rhsToolbar) + 12 /* L/R-padding */);
 			const newDim = new Dimension(innerEditorWidth, this.inputEditor.getContentHeight());
 			if (!this._editorDim || !Dimension.equals(this._editorDim, newDim)) {
 				this._editorDim = newDim;
@@ -239,8 +236,8 @@ class InteractiveEditorWidget {
 
 	getHeight(): number {
 		const base = getTotalHeight(this._elements.progress) + getTotalHeight(this._elements.status);
-		const editorHeight = this.inputEditor.getContentHeight() + 6 /* padding and border */;
-		return base + editorHeight + 12 /* padding */;
+		const editorHeight = this.inputEditor.getContentHeight() + 12 /* padding and border */;
+		return base + editorHeight + 12 /* padding */ + 8 /*shadow*/;
 	}
 
 	updateProgress(show: boolean) {
@@ -400,6 +397,7 @@ class InteractiveEditorWidget {
 	reset() {
 		this._ctxInputEmpty.reset();
 		reset(this._elements.status);
+		this._elements.status.classList.add('hidden');
 	}
 
 	focus() {
@@ -413,6 +411,7 @@ export class InteractiveEditorZoneWidget extends ZoneWidget {
 
 	private readonly _ctxVisible: IContextKey<boolean>;
 	private readonly _ctxCursorPosition: IContextKey<'above' | 'below' | ''>;
+	private _dimension?: Dimension;
 
 	constructor(
 		editor: ICodeEditor,
@@ -456,14 +455,7 @@ export class InteractiveEditorZoneWidget extends ZoneWidget {
 		container.appendChild(this.widget.domNode);
 	}
 
-	protected override _getWidth(info: EditorLayoutInfo): number {
-		// TODO@jrieken
-		// makes the zone widget wider than wanted but this aligns
-		// it with wholeLine decorations that are added above
-		return info.width;
-	}
 
-	private _dimension?: Dimension;
 
 	protected override _onWidth(widthInPixel: number): void {
 		if (this._dimension) {
@@ -476,13 +468,12 @@ export class InteractiveEditorZoneWidget extends ZoneWidget {
 		const info = this.editor.getLayoutInfo();
 		const spaceLeft = info.lineNumbersWidth + info.glyphMarginWidth + info.decorationsWidth;
 		const spaceRight = info.minimap.minimapWidth + info.verticalScrollbarWidth;
-		const inputLeftPadding = 4;
-		const inputRightPadding = 4;
 
-		const width = widthInPixel - (spaceLeft + spaceRight + inputLeftPadding + inputRightPadding);
+		const width = Math.min(640, info.contentWidth - (info.glyphMarginWidth + info.decorationsWidth));
 		this._dimension = new Dimension(width, heightInPixel);
-		this.widget.domNode.style.marginLeft = `${spaceLeft + inputLeftPadding}px`;
-		this.widget.domNode.style.marginRight = `${spaceRight + inputRightPadding}px`;
+		this.widget.domNode.style.marginLeft = `${spaceLeft}px`;
+		this.widget.domNode.style.marginRight = `${spaceRight}px`;
+		this.widget.domNode.style.width = `${width}px`;
 		this.widget.layout(this._dimension);
 	}
 
@@ -778,9 +769,8 @@ export class InteractiveEditorController implements IEditorContribution {
 
 	private static _decoBlock = ModelDecorationOptions.register({
 		description: 'interactive-editor',
-		blockClassName: 'interactive-editor-block',
-		blockDoesNotCollapse: true,
-		blockPadding: [4, 0, 1, 4]
+		showIfCollapsed: false,
+		className: 'interactive-editor-block-selection',
 	});
 
 	private static _decoWholeRange = ModelDecorationOptions.register({

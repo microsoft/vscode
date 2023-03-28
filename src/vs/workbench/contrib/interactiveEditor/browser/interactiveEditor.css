@@ -6,7 +6,10 @@
 .monaco-editor .interactive-editor {
 	z-index: 100;
 	color: inherit;
-	padding-top: 6px;
+	padding: 6px;
+	border-radius: 6px;
+	border: 1px solid var(--vscode-interactiveEditor-border);
+	box-shadow: 0 4px 8px var(--vscode-interactiveEditor-shadow);
 }
 
 /* body */
@@ -143,10 +146,8 @@
 	background-color: var(--vscode-diffEditor-insertedTextBackground);
 }
 
-.monaco-editor .interactive-editor-block {
-	border-radius: 6px;
-	border: 1px solid var(--vscode-interactiveEditor-border);
-	box-shadow: 0 4px 8px var(--vscode-interactiveEditor-shadow);
+.monaco-editor .interactive-editor-block-selection {
+	background-color: var(--vscode-interactiveEditor-regionHighlight);
 }
 
 .monaco-editor .interactive-editor-slash-command {
