@@ -30,11 +30,17 @@ import { asCssVariable, editorHoverBackground, editorHoverBorder, editorHoverFor
 import { renderExpressionValue } from 'vs/workbench/contrib/debug/browser/baseDebugView';
 import { LinkDetector } from 'vs/workbench/contrib/debug/browser/linkDetector';
 import { VariablesRenderer } from 'vs/workbench/contrib/debug/browser/variablesView';
-import { DEBUG_HOVER_EXPRESSION, IDebugService, IDebugSession, IExpression, IExpressionContainer, IStackFrame } from 'vs/workbench/contrib/debug/common/debug';
+import { IDebugService, IDebugSession, IExpression, IExpressionContainer, IStackFrame } from 'vs/workbench/contrib/debug/common/debug';
 import { Expression, Variable } from 'vs/workbench/contrib/debug/common/debugModel';
 import { getEvaluatableExpressionAtPosition } from 'vs/workbench/contrib/debug/common/debugUtils';
 
 const $ = dom.$;
+
+export const enum ShowDebugHoverResult {
+	NOT_CHANGED,
+	NOT_AVAILABLE,
+	CANCELLED,
+}
 
 async function doFindExpression(container: IExpressionContainer, namesToFind: string[]): Promise<IExpression | null> {
 	if (!container) {
@@ -178,35 +184,37 @@ export class DebugHoverWidget implements IContentWidget {
 		return this.domNode;
 	}
 
-	async showAt(position: Position, focus: boolean): Promise<void | DEBUG_HOVER_EXPRESSION> {
+	async showAt(position: Position, focus: boolean): Promise<void | ShowDebugHoverResult> {
 		this.showCancellationSource?.cancel();
 		const cancellationSource = this.showCancellationSource = new CancellationTokenSource();
 		const session = this.debugService.getViewModel().focusedSession;
 
 		if (!session || !this.editor.hasModel()) {
 			this.hide();
-			return DEBUG_HOVER_EXPRESSION.NOT_AVAILABLE;
+			return ShowDebugHoverResult.NOT_AVAILABLE;
 		}
 
 		const result = await this.debugHoverComputer.compute(position, cancellationSource.token);
 		if (this.isVisible() && !result.rangeChanged) {
-			return DEBUG_HOVER_EXPRESSION.NOT_CHANGED;
+			return ShowDebugHoverResult.NOT_CHANGED;
 		}
 
 		if (!result.range) {
 			this.hide();
-			return DEBUG_HOVER_EXPRESSION.NOT_AVAILABLE;
+			return ShowDebugHoverResult.NOT_AVAILABLE;
 		}
+
+
+		const expression = await this.debugHoverComputer.evaluate(session);
 
 		if (cancellationSource.token.isCancellationRequested) {
 			this.hide();
-			return DEBUG_HOVER_EXPRESSION.CANCELLED;
+			return ShowDebugHoverResult.CANCELLED;
 		}
 
-		const expression = await this.debugHoverComputer.evaluate(session);
 		if (!expression || (expression instanceof Expression && !expression.available)) {
 			this.hide();
-			return DEBUG_HOVER_EXPRESSION.NOT_AVAILABLE;
+			return ShowDebugHoverResult.NOT_AVAILABLE;
 		}
 
 		this.highlightDecorations.set([{
