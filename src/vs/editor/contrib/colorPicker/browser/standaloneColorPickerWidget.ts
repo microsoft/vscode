@@ -78,6 +78,7 @@ export class StandaloneColorPickerController extends Disposable implements IEdit
 		this._standaloneColorPickerWidget?.hide();
 		this._colorHoverFocused.set(false);
 		this._colorHoverVisible.set(false);
+		this._editor.focus();
 	}
 
 	public updateEditor() {
@@ -218,13 +219,7 @@ export class StandaloneColorPickerWidget implements IContentWidget {
 		}
 
 		const colorPickerHeader = colorPicker?.header as ColorPickerHeader;
-		// colorPickerHeader.domNode.style.width = 600 + 'px';
-		// colorPickerHeader.domNode.style.height = 20 + 'px';
-
 		const colorPickerBody = colorPicker?.body as ColorPickerBody;
-		const saturationBox = colorPickerBody.saturationBox;
-		const hueStrip = colorPickerBody.hueStrip;
-		const opacityStrip = colorPickerBody.opacityStrip;
 		const enterButton = colorPickerBody.enterButton;
 
 		const maxHeight = Math.max(this.editor.getLayoutInfo().height / 4, 250);
@@ -233,21 +228,7 @@ export class StandaloneColorPickerWidget implements IContentWidget {
 		this.body.style.maxHeight = maxHeight + 'px';
 		this.body.style.maxWidth = maxWidth + 'px';
 		this.body.style.display = 'block';
-
-		// this.body.style.height = 240 + 'px';
-		// saturationBox.domNode.style.width = 500 + 'px';
-		// saturationBox.domNode.style.height = 200 + 'px';
-		// saturationBox.canvas.style.width = 500 + 'px';
-		// saturationBox.canvas.style.height = 200 + 'px';
-		// hueStrip.domNode.style.height = 170 + 'px';
-		// opacityStrip.domNode.style.height = 170 + 'px';
-		// enterButton.style.height = 20 + 'px';
-		// enterButton.style.width = 50 + 'px';
-		// enterButton.style.top = 190 + 'px';
-		// enterButton.style.left = 520 + 'px';
-
-		// enterButton.style.position = 'absolute';
-		// enterButton.textContent = 'Insert';
+		this.body.tabIndex = 0;
 
 		console.log('fragment : ', fragment);
 		console.log('fragment.childNodes : ', fragment.childNodes);
@@ -295,6 +276,7 @@ export class StandaloneColorPickerWidget implements IContentWidget {
 		this._disposables.dispose();
 		this._colorHoverFocused.set(false);
 		this._colorHoverVisible.set(false);
+		this.editor.focus();
 	}
 
 	public focus(): void {
