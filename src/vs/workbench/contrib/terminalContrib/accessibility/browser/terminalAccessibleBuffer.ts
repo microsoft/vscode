@@ -154,14 +154,10 @@ export class AccessibleBufferWidget extends DisposableStore {
 				this._editorWidget.updateOptions({ fontFamily: font.fontFamily, fontSize: font.fontSize, lineHeight: font.charHeight ? font.charHeight * font.lineHeight : 1, letterSpacing: font.letterSpacing });
 			}
 		}));
-		this.add(this._xterm.raw.onScroll(async () => {
-			if (this._isActive() && !this._inProgressUpdate) {
-				await this._updateEditor();
-			}
-		}));
+		this.add(this._xterm.raw.onScroll(async () => await this._updateEditor()));
 		this.add(this._xterm.raw.onWriteParsed(async () => {
 			// dynamically update the viewport before there's a scroll event
-			if (this._isActive() && !this._inProgressUpdate && !this._xterm.raw.buffer.active.baseY) {
+			if (!this._xterm.raw.buffer.active.baseY) {
 				await this._updateEditor();
 			}
 		}));
@@ -178,6 +174,9 @@ export class AccessibleBufferWidget extends DisposableStore {
 
 
 	private async _updateEditor(): Promise<void> {
+		if (this._inProgressUpdate || !this._isActive()) {
+			return;
+		}
 		this._inProgressUpdate = true;
 		const model = await this._updateModel();
 		if (!model) {
