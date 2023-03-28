@@ -49,7 +49,7 @@ export class AccessibleBufferWidget extends DisposableStore {
 	private readonly _focusTracker: dom.IFocusTracker;
 	private _lastMarker: IMarker | undefined;
 	private _lastRowCount: number = 0;
-	private _cachedLines: string[] = [];
+	private _lines: string[] = [];
 	private _inProgressUpdate: boolean = false;
 
 	constructor(
@@ -180,7 +180,7 @@ export class AccessibleBufferWidget extends DisposableStore {
 		if (!model) {
 			return;
 		}
-		const lineNumber = model.getLineCount() - 1;
+		const lineNumber = model.getLineCount();
 		const selection = this._editorWidget.getSelection();
 		// If the selection is at the top of the buffer, IE the default when not set, move it to the bottom
 		if (selection?.startColumn === 1 && selection.endColumn === 1 && selection.startLineNumber === 1 && selection.endLineNumber === 1) {
@@ -260,31 +260,35 @@ export class AccessibleBufferWidget extends DisposableStore {
 
 	private async _updateModel(): Promise<ITextModel> {
 		if (this._lastMarker?.isDisposed) {
-			this._cachedLines = [];
+			this._lines = [];
 		}
-		if (this._xterm.raw.buffer.active.length > this._cachedLines.length) {
+		if (this._xterm.raw.buffer.active.length > this._lines.length) {
 			this._removeViewportContent();
 			this._updateScrollbackContent();
 		}
 		this._updateViewportContent();
-		const model = await this._getTextModel(this._instance.resource.with({ fragment: this._cachedLines.join('\n') }));
-		if (!model) {
-			throw new Error('Could not create accessible buffer editor model');
+		let model = this._editorWidget.getModel();
+		const text = this._lines.join('\n');
+		if (model) {
+			this._logService.debug('Edited accessible buffer model with ', this._lines.length, ' lines');
+			model.setValue(text);
+		} else {
+			this._logService.debug('Created new accessible buffer model with ', this._lines.length, ' lines');
+			model = await this._getTextModel(this._instance.resource.with({ fragment: text }));
 		}
 		this._editorWidget.setModel(model);
-		this._logService.debug('Accessible buffer update complete, cached ', this._cachedLines.length, ' lines');
 		this._lastMarker = this._xterm.raw.registerMarker();
 		this._lastRowCount = this._xterm.raw.rows;
-		return model;
+		return model!;
 	}
 
 	private _removeViewportContent(): void {
-		if (this._cachedLines.length && this._lastMarker?.line) {
+		if (this._lines.length && this._lastMarker?.line) {
 			// remove previous viewport content in case it has changed
 			for (let i = this._lastMarker.line; i < this._lastMarker.line + this._lastRowCount; i++) {
-				this._cachedLines.pop();
+				this._lines.pop();
 			}
-			this._logService.debug('Removed ', this._lastRowCount, ' lines from cached lines, now ', this._cachedLines.length, ' lines');
+			this._logService.debug('Removed ', this._lastRowCount, ' lines from cached lines, now ', this._lines.length, ' lines');
 		}
 	}
 
@@ -302,16 +306,16 @@ export class AccessibleBufferWidget extends DisposableStore {
 			const isWrapped = buffer.getLine(i + 1)?.isWrapped;
 			currentLine += line.translateToString(!isWrapped);
 			if (currentLine && !isWrapped || i === (buffer.baseY + this._lastRowCount ?? this._xterm.raw.rows) - 1) {
-				this._cachedLines.push(currentLine.replace(new RegExp(' ', 'g'), '\xA0'));
+				this._lines.push(currentLine.replace(new RegExp(' ', 'g'), '\xA0'));
 				currentLine = '';
 			}
 		}
-		this._logService.debug('Viewport content update complete, ', this._cachedLines.length, ' lines');
+		this._logService.debug('Viewport content update complete, ', this._lines.length, ' lines');
 	}
 
 	private _updateScrollbackContent(): void {
-		if (!this._cachedLines) {
-			this._cachedLines = [];
+		if (!this._lines) {
+			this._lines = [];
 		}
 		const buffer = this._xterm.raw.buffer.active;
 		if (!buffer) {
@@ -327,7 +331,7 @@ export class AccessibleBufferWidget extends DisposableStore {
 		for (let i = start; i < end; i++) {
 			const line = buffer.getLine(i);
 			if (!line) {
-				return;
+				continue;
 			}
 			const isWrapped = buffer.getLine(i + 1)?.isWrapped;
 			currentLine += line.translateToString(!isWrapped);
@@ -336,8 +340,8 @@ export class AccessibleBufferWidget extends DisposableStore {
 				currentLine = '';
 			}
 		}
-		this._cachedLines.push(...lines);
-		this._logService.debug('Updated scrollback content, now ', this._cachedLines.length, ' lines');
+		this._lines.push(...lines);
+		this._logService.debug('Updated scrollback content, now ', this._lines.length, ' lines');
 	}
 
 	private async _getTextModel(resource: URI): Promise<ITextModel | null> {
