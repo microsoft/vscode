@@ -15,6 +15,22 @@ interface ITestLink {
 	hasCol: boolean;
 }
 
+const operatingSystems: ReadonlyArray<OperatingSystem> = [
+	OperatingSystem.Linux,
+	OperatingSystem.Macintosh,
+	OperatingSystem.Windows
+];
+const osTestPath: { [key: number | OperatingSystem]: string } = {
+	[OperatingSystem.Linux]: '/test/path/linux',
+	[OperatingSystem.Macintosh]: '/test/path/macintosh',
+	[OperatingSystem.Windows]: 'C:\\test\\path\\windows'
+};
+const osLabel: { [key: number | OperatingSystem]: string } = {
+	[OperatingSystem.Linux]: '[Linux]',
+	[OperatingSystem.Macintosh]: '[macOS]',
+	[OperatingSystem.Windows]: '[Windows]'
+};
+
 const testRow = 339;
 const testCol = 12;
 const testLinks: ITestLink[] = [
@@ -375,76 +391,78 @@ suite('TerminalLinkParsing', () => {
 		});
 
 		suite('"<>"', () => {
-			test('should exclude bracket characters from link paths', () => {
-				deepStrictEqual(
-					detectLinks('<C:\\Github\\microsoft\\vscode<', OperatingSystem.Windows),
-					[
-						{
-							path: {
-								index: 1,
-								text: 'C:\\Github\\microsoft\\vscode'
-							},
-							prefix: undefined,
-							suffix: undefined
-						}
-					] as IParsedLink[]
-				);
-				deepStrictEqual(
-					detectLinks('>C:\\Github\\microsoft\\vscode>', OperatingSystem.Windows),
-					[
-						{
-							path: {
-								index: 1,
-								text: 'C:\\Github\\microsoft\\vscode'
-							},
-							prefix: undefined,
-							suffix: undefined
-						}
-					] as IParsedLink[]
-				);
-			});
-			test('should exclude bracket characters from link paths with suffixes', () => {
-				deepStrictEqual(
-					detectLinks('<C:\\Github\\microsoft\\vscode:400<', OperatingSystem.Windows),
-					[
-						{
-							path: {
-								index: 1,
-								text: 'C:\\Github\\microsoft\\vscode'
-							},
-							prefix: undefined,
-							suffix: {
-								col: undefined,
-								row: 400,
+			for (const os of operatingSystems) {
+				test(`should exclude bracket characters from link paths ${osLabel[os]}`, () => {
+					deepStrictEqual(
+						detectLinks(`<${osTestPath[os]}<`, os),
+						[
+							{
+								path: {
+									index: 1,
+									text: osTestPath[os]
+								},
+								prefix: undefined,
+								suffix: undefined
+							}
+						] as IParsedLink[]
+					);
+					deepStrictEqual(
+						detectLinks(`>${osTestPath[os]}>`, os),
+						[
+							{
+								path: {
+									index: 1,
+									text: osTestPath[os]
+								},
+								prefix: undefined,
+								suffix: undefined
+							}
+						] as IParsedLink[]
+					);
+				});
+				test(`should exclude bracket characters from link paths with suffixes ${osLabel[os]}`, () => {
+					deepStrictEqual(
+						detectLinks(`<${osTestPath[os]}:400<`, os),
+						[
+							{
+								path: {
+									index: 1,
+									text: osTestPath[os]
+								},
+								prefix: undefined,
 								suffix: {
-									index: 27,
-									text: ':400'
+									col: undefined,
+									row: 400,
+									suffix: {
+										index: 1 + osTestPath[os].length,
+										text: ':400'
+									}
 								}
 							}
-						}
-					] as IParsedLink[]
-				);
-				deepStrictEqual(
-					detectLinks('>C:\\Github\\microsoft\\vscode:400>', OperatingSystem.Windows),
-					[
-						{
-							path: {
-								index: 1,
-								text: 'C:\\Github\\microsoft\\vscode'
-							},
-							prefix: undefined,
-							suffix: {
-								col: undefined,
-								row: 400,
+						] as IParsedLink[]
+					);
+					deepStrictEqual(
+						detectLinks(`>${osTestPath[os]}:400>`, os),
+						[
+							{
+								path: {
+									index: 1,
+									text: osTestPath[os]
+								},
+								prefix: undefined,
 								suffix: {
-									index: 27,
-									text: ':400'
+									col: undefined,
+									row: 400,
+									suffix: {
+										index: 1 + osTestPath[os].length,
+										text: ':400'
+									}
 								}
 							}
-						}
-					] as IParsedLink[]
-				);
-			});
+						] as IParsedLink[]
+					);
+				});
+			}
 		});
 
 		suite('should detect file names in git diffs', () => {
