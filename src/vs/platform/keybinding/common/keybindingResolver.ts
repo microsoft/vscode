@@ -16,6 +16,10 @@ export interface IResolveResult {
 	bubble: boolean;
 }
 
+/**
+ * Stores mappings from keybindings to commands and from commands to keybindings.
+ * Given a sequence of chords, `resolve`s which keybinding it matches
+ */
 export class KeybindingResolver {
 	private readonly _log: (str: string) => void;
 	private readonly _defaultKeybindings: ResolvedKeybindingItem[];
