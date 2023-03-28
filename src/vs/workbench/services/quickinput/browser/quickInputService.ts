@@ -72,7 +72,7 @@ class QuickInputHoverDelegate implements IHoverDelegate {
 	showHover(options: IHoverDelegateOptions, focus?: boolean): IHoverWidget | undefined {
 		return this.hoverService.showHover({
 			...options,
-			hideOnHover: false,
+			showHoverHint: true,
 			hideOnKeyDown: false,
 			skipFadeInAnimation: true,
 		}, focus);
