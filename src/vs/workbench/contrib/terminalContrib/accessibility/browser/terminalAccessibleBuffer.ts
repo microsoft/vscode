@@ -141,7 +141,7 @@ export class AccessibleBufferWidget extends DisposableStore {
 				this._editorWidget.focus();
 			}
 		}));
-		this.add(Event.runAndSubscribe(this._xterm.raw.onResize, () => this._editorWidget.layout({ width: this._xtermElement.clientWidth, height: this._xtermElement.clientHeight })));
+		this.add(Event.runAndSubscribe(this._xterm.raw.onResize, () => this._layout()));
 		this.add(this._configurationService.onDidChangeConfiguration(e => {
 			if (e.affectedKeys.has(TerminalSettingId.FontFamily) || e.affectedKeys.has(TerminalSettingId.FontSize) || e.affectedKeys.has(TerminalSettingId.LineHeight) || e.affectedKeys.has(TerminalSettingId.LetterSpacing)) {
 				const font = this._xterm.getFont();
@@ -251,10 +251,14 @@ export class AccessibleBufferWidget extends DisposableStore {
 		return quickPick;
 	}
 
+	private _layout(): void {
+		this._editorWidget.layout({ width: this._xtermElement.clientWidth, height: this._xtermElement.clientHeight });
+	}
+
 	async show(): Promise<void> {
 		await this._updateEditor();
 		this._accessibleBuffer.tabIndex = -1;
-		this._editorWidget.layout({ width: this._xtermElement.clientWidth, height: this._xtermElement.clientHeight });
+		this._layout();
 		this._accessibleBuffer.classList.add(CssClass.Active);
 		this._xtermElement.classList.add(CssClass.Hide);
 		this._editorWidget.focus();
