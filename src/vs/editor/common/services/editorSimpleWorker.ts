@@ -21,7 +21,7 @@ import { IEditorWorkerHost } from 'vs/editor/common/services/editorWorkerHost';
 import { StopWatch } from 'vs/base/common/stopwatch';
 import { UnicodeTextModelHighlighter, UnicodeHighlighterOptions } from 'vs/editor/common/services/unicodeTextModelHighlighter';
 import { DiffComputer, IChange } from 'vs/editor/common/diff/smartLinesDiffComputer';
-import { ILinesDiffComputer } from 'vs/editor/common/diff/linesDiffComputer';
+import { ILinesDiffComputer, ILinesDiffComputerOptions } from 'vs/editor/common/diff/linesDiffComputer';
 import { linesDiffComputers } from 'vs/editor/common/diff/linesDiffComputers';
 import { createProxyObject, getAllMethodNames } from 'vs/base/common/objects';
 import { IDocumentDiffProviderOptions } from 'vs/editor/common/diff/documentDiffProvider';
@@ -531,7 +531,7 @@ export class EditorSimpleWorker implements IRequestHandler, IDisposable {
 		return result;
 	}
 
-	public async computeHumanReadableDiff(modelUrl: string, edits: TextEdit[]): Promise<TextEdit[]> {
+	public async computeHumanReadableDiff(modelUrl: string, edits: TextEdit[], options: ILinesDiffComputerOptions): Promise<TextEdit[]> {
 		const model = this._getModel(modelUrl);
 		if (!model) {
 			return edits;
@@ -580,7 +580,7 @@ export class EditorSimpleWorker implements IRequestHandler, IDisposable {
 			const originalLines = original.split(/\r\n|\n|\r/);
 			const modifiedLines = text.split(/\r\n|\n|\r/);
 
-			const diff = linesDiffComputers.experimental.computeDiff(originalLines, modifiedLines, { maxComputationTimeMs: 1000, ignoreTrimWhitespace: false });
+			const diff = linesDiffComputers.experimental.computeDiff(originalLines, modifiedLines, options);
 
 			const start = Range.lift(range).getStartPosition();
 

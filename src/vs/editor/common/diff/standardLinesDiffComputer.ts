@@ -105,6 +105,9 @@ export class StandardLinesDiffComputer implements ILinesDiffComputer {
 			seq2LastStart = diff.seq2Range.endExclusive;
 
 			const characterDiffs = this.refineDiff(originalLines, modifiedLines, diff, timeout, considerWhitespaceChanges);
+			if (characterDiffs.hitTimeout) {
+				hitTimeout = true;
+			}
 			for (const a of characterDiffs.mappings) {
 				alignments.push(a);
 			}
@@ -271,7 +274,7 @@ export function lineRangeMappingFromRangeMappings(alignments: RangeMapping[], or
 	return changes;
 }
 
-function getLineRangeMapping(rangeMapping: RangeMapping, originalLines: string[], modifiedLines: string[]): LineRangeMapping {
+export function getLineRangeMapping(rangeMapping: RangeMapping, originalLines: string[], modifiedLines: string[]): LineRangeMapping {
 	let lineStartDelta = 0;
 	let lineEndDelta = 0;
 
@@ -281,14 +284,15 @@ function getLineRangeMapping(rangeMapping: RangeMapping, originalLines: string[]
 	// modified: xxx[ \n
 	if (rangeMapping.modifiedRange.startColumn - 1 >= modifiedLines[rangeMapping.modifiedRange.startLineNumber - 1].length
 		&& rangeMapping.originalRange.startColumn - 1 >= originalLines[rangeMapping.originalRange.startLineNumber - 1].length) {
-		lineStartDelta = 1;
+		lineStartDelta = 1; // +1 is always possible, as startLineNumber < endLineNumber + 1
 	}
 
 	// original: ]xxx \n <- this line is not modified
 	// modified: ]xx  \n
-	if (rangeMapping.modifiedRange.endColumn === 1 && rangeMapping.originalRange.endColumn === 1) {
-		// the end line is not touched, as the last line in `newText` is empty
-		lineEndDelta = -1;
+	if (rangeMapping.modifiedRange.endColumn === 1 && rangeMapping.originalRange.endColumn === 1
+		&& rangeMapping.originalRange.startLineNumber + lineStartDelta <= rangeMapping.originalRange.endLineNumber
+		&& rangeMapping.modifiedRange.startLineNumber + lineStartDelta <= rangeMapping.modifiedRange.endLineNumber) {
+		lineEndDelta = -1; // We can only do this if the range is not empty yet
 	}
 
 	const originalLineRange = new LineRange(
