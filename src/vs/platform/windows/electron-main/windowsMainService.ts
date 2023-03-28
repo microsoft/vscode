@@ -1324,15 +1324,6 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 			}
 		}
 
-		let preferUtilityProcess = false;
-		if (canUseUtilityProcess) {
-			if (typeof windowConfig?.experimental?.sharedProcessUseUtilityProcess === 'boolean') {
-				preferUtilityProcess = windowConfig.experimental.sharedProcessUseUtilityProcess;
-			} else {
-				preferUtilityProcess = typeof product.quality === 'string' && product.quality !== 'stable';
-			}
-		}
-
 		// Build up the window configuration from provided options, config and environment
 		const configuration: INativeWindowConfiguration = {
 
@@ -1398,7 +1389,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 			policiesData: this.policyService.serialize(),
 			continueOn: this.environmentMainService.continueOn,
 
-			preferUtilityProcess
+			preferUtilityProcess: canUseUtilityProcess
 		};
 
 		// New window

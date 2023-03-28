@@ -21,7 +21,7 @@ import { regExpFlags } from 'vs/base/common/strings';
 import { isNonEmptyArray } from 'vs/base/common/arrays';
 import { ILogService } from 'vs/platform/log/common/log';
 import { StopWatch } from 'vs/base/common/stopwatch';
-import { canceled } from 'vs/base/common/errors';
+import { canceled, onUnexpectedError } from 'vs/base/common/errors';
 import { UnicodeHighlighterOptions } from 'vs/editor/common/services/unicodeTextModelHighlighter';
 import { IEditorWorkerHost } from 'vs/editor/common/services/editorWorkerHost';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
@@ -140,6 +140,25 @@ export class EditorWorkerService extends Disposable implements IEditorWorkerServ
 			const sw = StopWatch.create(true);
 			const result = this._workerManager.withWorker().then(client => client.computeMoreMinimalEdits(resource, edits, pretty));
 			result.finally(() => this._logService.trace('FORMAT#computeMoreMinimalEdits', resource.toString(true), sw.elapsed()));
+			return Promise.race([result, timeout(1000).then(() => edits)]);
+
+		} else {
+			return Promise.resolve(undefined);
+		}
+	}
+
+	public computeHumanReadableDiff(resource: URI, edits: languages.TextEdit[] | null | undefined): Promise<languages.TextEdit[] | undefined> {
+		if (isNonEmptyArray(edits)) {
+			if (!canSyncModel(this._modelService, resource)) {
+				return Promise.resolve(edits); // File too large
+			}
+			const sw = StopWatch.create(true);
+			const result = this._workerManager.withWorker().then(client => client.computeHumanReadableDiff(resource, edits)).catch((err) => {
+				onUnexpectedError(err);
+				// In case of an exception, fall back to computeMoreMinimalEdits
+				return this.computeMoreMinimalEdits(resource, edits, true);
+			});
+			result.finally(() => this._logService.trace('FORMAT#computeHumanReadableDiff', resource.toString(true), sw.elapsed()));
 			return Promise.race([result, timeout(1000).then(() => edits)]);
 
 		} else {
@@ -532,6 +551,12 @@ export class EditorWorkerClient extends Disposable implements IEditorWorkerClien
 	public computeMoreMinimalEdits(resource: URI, edits: languages.TextEdit[], pretty: boolean): Promise<languages.TextEdit[]> {
 		return this._withSyncedResources([resource]).then(proxy => {
 			return proxy.computeMoreMinimalEdits(resource.toString(), edits, pretty);
+		});
+	}
+
+	public computeHumanReadableDiff(resource: URI, edits: languages.TextEdit[]): Promise<languages.TextEdit[]> {
+		return this._withSyncedResources([resource]).then(proxy => {
+			return proxy.computeHumanReadableDiff(resource.toString(), edits);
 		});
 	}
 

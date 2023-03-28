@@ -5,8 +5,8 @@
 
 import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
-import { IInternalOptions, ITerminalCommandMatchResult, ITerminalQuickFixCommandAction, TerminalQuickFixActionInternal, TerminalQuickFixType } from 'vs/platform/terminal/common/xterm/terminalQuickFix';
 import { ITerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { ITerminalQuickFixInternalOptions, ITerminalCommandMatchResult, ITerminalQuickFixCommandAction, TerminalQuickFixActionInternal, TerminalQuickFixType } from 'vs/workbench/contrib/terminalContrib/quickFix/browser/quickFix';
 
 export const GitCommandLineRegex = /git/;
 export const GitPushCommandLineRegex = /git\s+push/;
@@ -24,7 +24,7 @@ export const enum QuickFixSource {
 	Builtin = 'builtin'
 }
 
-export function gitSimilar(): IInternalOptions {
+export function gitSimilar(): ITerminalQuickFixInternalOptions {
 	return {
 		id: 'Git Similar',
 		type: 'internal',
@@ -61,7 +61,7 @@ export function gitSimilar(): IInternalOptions {
 	};
 }
 
-export function gitTwoDashes(): IInternalOptions {
+export function gitTwoDashes(): ITerminalQuickFixInternalOptions {
 	return {
 		id: 'Git Two Dashes',
 		type: 'internal',
@@ -88,7 +88,7 @@ export function gitTwoDashes(): IInternalOptions {
 		}
 	};
 }
-export function freePort(terminalInstance?: Partial<ITerminalInstance>): IInternalOptions {
+export function freePort(terminalInstance?: Partial<ITerminalInstance>): ITerminalQuickFixInternalOptions {
 	return {
 		id: 'Free Port',
 		type: 'internal',
@@ -122,7 +122,7 @@ export function freePort(terminalInstance?: Partial<ITerminalInstance>): IIntern
 	};
 }
 
-export function gitPushSetUpstream(): IInternalOptions {
+export function gitPushSetUpstream(): ITerminalQuickFixInternalOptions {
 	return {
 		id: 'Git Push Set Upstream',
 		type: 'internal',
@@ -168,7 +168,7 @@ export function gitPushSetUpstream(): IInternalOptions {
 	};
 }
 
-export function gitCreatePr(): IInternalOptions {
+export function gitCreatePr(): ITerminalQuickFixInternalOptions {
 	return {
 		id: 'Git Create Pr',
 		type: 'internal',
@@ -213,7 +213,7 @@ export function gitCreatePr(): IInternalOptions {
 	};
 }
 
-export function pwshGeneralError(): IInternalOptions {
+export function pwshGeneralError(): ITerminalQuickFixInternalOptions {
 	return {
 		id: 'Pwsh General Error',
 		type: 'internal',
@@ -262,7 +262,7 @@ export function pwshGeneralError(): IInternalOptions {
 	};
 }
 
-export function pwshUnixCommandNotFoundError(): IInternalOptions {
+export function pwshUnixCommandNotFoundError(): ITerminalQuickFixInternalOptions {
 	return {
 		id: 'Unix Command Not Found',
 		type: 'internal',

@@ -3,12 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as aria from 'vs/base/browser/ui/aria/aria';
 import * as dom from 'vs/base/browser/dom';
 import { IHistoryNavigationWidget } from 'vs/base/browser/history';
+import * as aria from 'vs/base/browser/ui/aria/aria';
 import { Button } from 'vs/base/browser/ui/button/button';
 import { ITreeContextMenuEvent, ITreeElement } from 'vs/base/browser/ui/tree/tree';
-import { CancelablePromise } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Emitter } from 'vs/base/common/event';
 import { HistoryNavigator } from 'vs/base/common/history';
@@ -32,15 +31,17 @@ import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storag
 import { defaultButtonStyles } from 'vs/platform/theme/browser/defaultStyles';
 import { foreground } from 'vs/platform/theme/common/colorRegistry';
 import { DEFAULT_FONT_FAMILY } from 'vs/workbench/browser/style';
+import { Memento } from 'vs/workbench/common/memento';
 import { getSimpleCodeEditorWidgetOptions, getSimpleEditorOptions } from 'vs/workbench/contrib/codeEditor/browser/simpleEditorOptions';
 import { IInteractiveSessionExecuteActionContext } from 'vs/workbench/contrib/interactiveSession/browser/actions/interactiveSessionExecuteActions';
 import { IInteractiveSessionWidget } from 'vs/workbench/contrib/interactiveSession/browser/interactiveSession';
 import { InteractiveSessionFollowups } from 'vs/workbench/contrib/interactiveSession/browser/interactiveSessionFollowups';
 import { IInteractiveSessionRendererDelegate, InteractiveListItemRenderer, InteractiveSessionAccessibilityProvider, InteractiveSessionListDelegate, InteractiveTreeItem } from 'vs/workbench/contrib/interactiveSession/browser/interactiveSessionListRenderer';
 import { InteractiveSessionEditorOptions } from 'vs/workbench/contrib/interactiveSession/browser/interactiveSessionOptions';
-import { CONTEXT_IN_INTERACTIVE_INPUT, CONTEXT_IN_INTERACTIVE_SESSION, CONTEXT_INTERACTIVE_REQUEST_IN_PROGRESS } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionContextKeys';
+import { CONTEXT_INTERACTIVE_REQUEST_IN_PROGRESS, CONTEXT_IN_INTERACTIVE_INPUT, CONTEXT_IN_INTERACTIVE_SESSION } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionContextKeys';
 import { IInteractiveSessionReplyFollowup, IInteractiveSessionService, IInteractiveSlashCommand } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionService';
 import { IInteractiveSessionViewModel, InteractiveSessionViewModel, isRequestVM, isResponseVM, isWelcomeVM } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionViewModel';
+import { IInteractiveSessionWidgetHistoryService } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionWidgetHistoryService';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 
 export const IInteractiveSessionWidgetService = createDecorator<IInteractiveSessionWidgetService>('interactiveSessionWidgetService');
@@ -63,7 +64,10 @@ function revealLastElement(list: WorkbenchObjectTree<any>) {
 	list.scrollTop = list.scrollHeight - list.renderHeight;
 }
 
-const HISTORY_STORAGE_KEY = 'interactiveSession.history';
+interface IViewState {
+	inputValue: string;
+}
+
 const INPUT_EDITOR_MAX_HEIGHT = 250;
 
 export class InteractiveSessionWidget extends Disposable implements IInteractiveSessionWidget, IHistoryNavigationWidget {
@@ -105,10 +109,11 @@ export class InteractiveSessionWidget extends Disposable implements IInteractive
 	private welcomeViewDisposables = this._register(new DisposableStore());
 	private bodyDimension: dom.Dimension | undefined;
 	private visible = false;
-	private currentRequest: CancelablePromise<void> | undefined;
 	private requestInProgress: IContextKey<boolean>;
 
 	private previousTreeScrollHeight: number = 0;
+
+	private currentViewModelPromise: Promise<IInteractiveSessionViewModel | undefined> | undefined;
 
 	private viewModelDisposables = new DisposableStore();
 	private _viewModel: InteractiveSessionViewModel | undefined;
@@ -124,6 +129,7 @@ export class InteractiveSessionWidget extends Disposable implements IInteractive
 			this.viewModelDisposables.add(viewModel);
 		}
 
+		this.currentViewModelPromise = undefined;
 		this.slashCommandsPromise = undefined;
 		this.lastSlashCommands = undefined;
 		this.getSlashCommands().then(() => {
@@ -140,13 +146,16 @@ export class InteractiveSessionWidget extends Disposable implements IInteractive
 	private lastSlashCommands: IInteractiveSlashCommand[] | undefined;
 	private slashCommandsPromise: Promise<IInteractiveSlashCommand[] | undefined> | undefined;
 
+	private memento: Memento;
+	private viewState: IViewState;
+
 	constructor(
 		private readonly providerId: string,
 		readonly viewId: string | undefined,
 		private readonly listBackgroundColorDelegate: () => string,
 		private readonly inputEditorBackgroundColorDelegate: () => string,
 		private readonly resultEditorBackgroundColorDelegate: () => string,
-		@IStorageService private readonly storageService: IStorageService,
+		@IStorageService storageService: IStorageService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IModelService private readonly modelService: IModelService,
@@ -154,6 +163,7 @@ export class InteractiveSessionWidget extends Disposable implements IInteractive
 		@IInteractiveSessionService private readonly interactiveSessionService: IInteractiveSessionService,
 		@IInteractiveSessionWidgetService interactiveSessionWidgetService: IInteractiveSessionWidgetService,
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
+		@IInteractiveSessionWidgetHistoryService private readonly historyService: IInteractiveSessionWidgetHistoryService,
 	) {
 		super();
 		CONTEXT_IN_INTERACTIVE_SESSION.bindTo(contextKeyService).set(true);
@@ -162,7 +172,12 @@ export class InteractiveSessionWidget extends Disposable implements IInteractive
 		this._register((interactiveSessionWidgetService as InteractiveSessionWidgetService).register(this));
 		this.initializeSessionModel(true);
 
-		this.history = new HistoryNavigator(JSON.parse(this.storageService.get(this.getHistoryStorageKey(), StorageScope.WORKSPACE, '[]')), 50);
+		const history = this.historyService.getHistory(this.providerId);
+		this.history = new HistoryNavigator(history, 50);
+		this._register(this.historyService.onDidClearHistory(() => this.history.clear()));
+
+		this.memento = new Memento('interactive-session-' + this.providerId, storageService);
+		this.viewState = this.memento.getMemento(StorageScope.WORKSPACE, StorageTarget.USER) as IViewState;
 	}
 
 	get element(): HTMLElement {
@@ -249,8 +264,13 @@ export class InteractiveSessionWidget extends Disposable implements IInteractive
 			if (!this.inputModel) {
 				this.inputModel = this.modelService.getModel(this.inputUri) || this.modelService.createModel('', null, this.inputUri, true);
 				this.inputModel.updateOptions({ bracketColorizationOptions: { enabled: false, independentColorPoolPerBracketType: false } });
+				this._inputEditor.setModel(this.inputModel);
+				if (this.viewState.inputValue) {
+					this.inputModel.setValue(this.viewState.inputValue);
+					const lineNumber = this.inputModel.getLineCount();
+					this._inputEditor.setPosition({ lineNumber, column: this.inputModel.getLineMaxColumn(lineNumber) });
+				}
 			}
-			this._inputEditor.setModel(this.inputModel);
 
 			// Not sure why this is needed- the view is being rendered before it's visible, and then the list content doesn't show up
 			this.onDidChangeItems();
@@ -263,8 +283,19 @@ export class InteractiveSessionWidget extends Disposable implements IInteractive
 		}
 
 		if (!this.slashCommandsPromise) {
-			this.slashCommandsPromise = this.interactiveSessionService.getSlashCommands(this.viewModel.sessionId, CancellationToken.None);
-			this.slashCommandsPromise.then(commands => this.lastSlashCommands = commands);
+			this.slashCommandsPromise = this.interactiveSessionService.getSlashCommands(this.viewModel.sessionId, CancellationToken.None).then(commands => {
+				// If this becomes a repeated pattern, we should have a real internal slash command provider system
+				const clearCommand: IInteractiveSlashCommand = {
+					command: 'clear',
+					sortText: 'z_clear',
+					detail: localize('clear', "Clear the session"),
+				};
+				this.lastSlashCommands = [
+					...(commands ?? []),
+					clearCommand
+				];
+				return this.lastSlashCommands;
+			});
 		}
 
 		return this.slashCommandsPromise;
@@ -417,9 +448,10 @@ export class InteractiveSessionWidget extends Disposable implements IInteractive
 		options.wrappingStrategy = 'advanced';
 		options.bracketPairColorization = { enabled: false };
 		options.suggest = { showIcons: false };
+		options.scrollbar = { ...(options.scrollbar ?? {}), vertical: 'hidden' };
 
 		const inputEditorElement = dom.append(inputContainer, $('.interactive-input-editor'));
-		this._inputEditor = this._register(scopedInstantiationService.createInstance(CodeEditorWidget, inputEditorElement, options, { ...getSimpleCodeEditorWidgetOptions(), isSimpleWidget: false }));
+		this._inputEditor = this._register(scopedInstantiationService.createInstance(CodeEditorWidget, inputEditorElement, options, getSimpleCodeEditorWidgetOptions()));
 
 		this._register(this._inputEditor.onDidChangeModelContent(() => {
 			const currentHeight = Math.min(this._inputEditor.getContentHeight(), INPUT_EDITOR_MAX_HEIGHT);
@@ -477,61 +509,69 @@ export class InteractiveSessionWidget extends Disposable implements IInteractive
 	}
 
 	private async initializeSessionModel(initial = false) {
-		if (this.viewModel) {
+		if (this.currentViewModelPromise) {
+			await this.currentViewModelPromise;
 			return;
 		}
 
-		await this.extensionService.whenInstalledExtensionsRegistered();
-		const model = await this.interactiveSessionService.startSession(this.providerId, initial, CancellationToken.None);
-		if (!model) {
-			throw new Error('Failed to start session');
-		}
+		const doInitializeSessionModel = async () => {
+			await this.extensionService.whenInstalledExtensionsRegistered();
+			const model = await this.interactiveSessionService.startSession(this.providerId, initial, CancellationToken.None);
+			if (!model) {
+				throw new Error('Failed to start session');
+			}
 
-		if (this.viewModel) {
-			// Oops, created two. TODO this could be better
-			return;
-		}
+			if (this.viewModel) {
+				// Oops, created two. TODO this could be better
+				return;
+			}
 
-		this.viewModel = this.instantiationService.createInstance(InteractiveSessionViewModel, model);
-		this.viewModelDisposables.add(this.viewModel.onDidChange(() => {
-			this.slashCommandsPromise = undefined;
-			this.onDidChangeItems();
-		}));
-		this.viewModelDisposables.add(this.viewModel.onDidDisposeModel(() => {
-			this.viewModel = undefined;
-			this.onDidChangeItems();
-		}));
+			this.viewModel = this.instantiationService.createInstance(InteractiveSessionViewModel, model);
+			this.viewModelDisposables.add(this.viewModel.onDidChange(() => {
+				this.slashCommandsPromise = undefined;
+				this.onDidChangeItems();
+			}));
+			this.viewModelDisposables.add(this.viewModel.onDidDisposeModel(() => {
+				this.viewModel = undefined;
+				this.onDidChangeItems();
+			}));
 
-		if (this.tree) {
-			this.onDidChangeItems();
-		}
+			if (this.tree) {
+				this.onDidChangeItems();
+			}
+		};
+		this.currentViewModelPromise = doInitializeSessionModel()
+			.then(() => this.viewModel);
+		await this.currentViewModelPromise;
 	}
 
 	async acceptInput(query?: string | IInteractiveSessionReplyFollowup): Promise<void> {
-		if (this.currentRequest) {
-			// TODO this logic is duplicated in the service, figure out who is in control
-			return;
-		}
-
 		if (!this.viewModel) {
 			// This currently shouldn't happen anymore, but leaving this here to make sure we don't get stuck without a viewmodel
 			await this.initializeSessionModel();
 		}
 
 		if (this.viewModel) {
-			if (!query && this._inputEditor.getValue()) {
+			const editorValue = this._inputEditor.getValue();
+			if (!query && editorValue) {
 				// Followups and programmatic messages don't go to history
-				this.history.add(this._inputEditor.getValue());
+				this.history.add(editorValue);
 			}
 
-			const input = query ?? this._inputEditor.getValue();
+			// Shortcut for /clear command
+			if (!query && editorValue.trim() === '/clear') {
+				// If this becomes a repeated pattern, we should have a real internal slash command provider system
+				this.clear();
+				this._inputEditor.setValue('');
+				return;
+			}
+
+			const input = query ?? editorValue;
 			const result = this.interactiveSessionService.sendRequest(this.viewModel.sessionId, input);
 			if (result) {
 				this.requestInProgress.set(true);
-				this.currentRequest = result.completePromise;
-				this.currentRequest.then(() => {
+				result.completePromise.finally(() => {
 					this.requestInProgress.set(false);
-					this.currentRequest = undefined;
 				});
 
 				this._inputEditor.setValue('');
@@ -540,12 +580,8 @@ export class InteractiveSessionWidget extends Disposable implements IInteractive
 		}
 	}
 
-	cancelCurrentRequest(): void {
-		if (this.currentRequest) {
-			this.currentRequest.cancel();
-			this.requestInProgress.set(false);
-			this.currentRequest = undefined;
-		}
+	async waitForViewModel(): Promise<IInteractiveSessionViewModel | undefined> {
+		return this.currentViewModelPromise;
 	}
 
 	focusLastMessage(): void {
@@ -579,10 +615,12 @@ export class InteractiveSessionWidget extends Disposable implements IInteractive
 	layout(height: number, width: number): void {
 		this.bodyDimension = new dom.Dimension(width, height);
 		const followupsHeight = this.followupsContainer.offsetHeight;
+		const inputPartBorder = 1;
 		const inputPartPadding = 24;
-		const inputEditorHeight = Math.min(this._inputEditor.getContentHeight(), height - followupsHeight - inputPartPadding, INPUT_EDITOR_MAX_HEIGHT);
+		const inputEditorHeight = Math.min(this._inputEditor.getContentHeight(), height - followupsHeight - inputPartPadding - inputPartBorder, INPUT_EDITOR_MAX_HEIGHT);
 		const lastElementVisible = this.tree.scrollTop + this.tree.renderHeight >= this.tree.scrollHeight;
-		const inputPartHeight = followupsHeight + inputEditorHeight + inputPartPadding;
+		const inputEditorBorder = 2;
+		const inputPartHeight = followupsHeight + inputEditorHeight + inputPartPadding + inputPartBorder + inputEditorBorder;
 		const listHeight = height - inputPartHeight;
 
 		this.tree.layout(listHeight, width);
@@ -601,16 +639,20 @@ export class InteractiveSessionWidget extends Disposable implements IInteractive
 		this._inputEditor.layout({ width: width - inputPartPadding - editorBorder - editorPadding - executeToolbarWidth, height: inputEditorHeight });
 	}
 
-	private getHistoryStorageKey(): string {
-		return HISTORY_STORAGE_KEY + this.providerId;
-	}
-
 	saveState(): void {
 		const inputHistory = this.history.getHistory();
-		if (inputHistory.length) {
-			this.storageService.store(this.getHistoryStorageKey(), JSON.stringify(inputHistory), StorageScope.WORKSPACE, StorageTarget.USER);
-		} else {
-			this.storageService.remove(this.getHistoryStorageKey(), StorageScope.WORKSPACE);
+		this.historyService.saveHistory(this.providerId, inputHistory);
+
+		this.viewState.inputValue = this._inputEditor.getValue();
+		this.memento.saveMemento();
+	}
+
+	public override dispose(): void {
+		this.saveState();
+		super.dispose();
+
+		if (this.viewModel) {
+			this.interactiveSessionService.releaseSession(this.viewModel.sessionId);
 		}
 	}
 }

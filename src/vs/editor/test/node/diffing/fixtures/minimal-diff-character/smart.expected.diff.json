@@ -1,6 +1,12 @@
 {
-	"originalFileName": "./1.tst",
-	"modifiedFileName": "./2.tst",
+	"original": {
+		"content": "import * as path from 'path';\nimport { Command } from 'vscode';\nimport * as nls from 'vscode-nls';\n\n\"()()()()()()()()()()()()()\"",
+		"fileName": "./1.tst"
+	},
+	"modified": {
+		"content": "import * as path from 'path';\nimport { Command, commands } from 'vscode';\nimport * as nls from 'vscode-nls';\n\n\"Gallicum()est()divisa()in()partres()tres()quarum()unam()est()()()()()()()()()()()()\"",
+		"fileName": "./2.tst"
+	},
 	"diffs": [
 		{
 			"originalRange": "[2,3)",

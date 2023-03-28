@@ -5,11 +5,8 @@
 
 import * as assert from 'assert';
 import { isMacintosh, isWindows } from 'vs/base/common/platform';
-import { tmpdir } from 'os';
 import { join } from 'vs/base/common/path';
-import { Promises } from 'vs/base/node/pfs';
 import { URI } from 'vs/base/common/uri';
-import { flakySuite, getRandomTestPath } from 'vs/base/test/node/testUtils';
 import { hash } from 'vs/base/common/hash';
 import { NativeWorkingCopyBackupTracker } from 'vs/workbench/services/workingCopy/electron-sandbox/workingCopyBackupTracker';
 import { TextFileEditorModelManager } from 'vs/workbench/services/textfile/common/textFileEditorModelManager';
@@ -18,7 +15,6 @@ import { EditorPart } from 'vs/workbench/browser/parts/editor/editorPart';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { EditorService } from 'vs/workbench/services/editor/browser/editorService';
 import { IWorkingCopyBackupService } from 'vs/workbench/services/workingCopy/common/workingCopyBackup';
-import { NodeTestWorkingCopyBackupService } from 'vs/workbench/services/workingCopy/test/electron-browser/workingCopyBackupService.test';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { toResource } from 'vs/base/test/common/utils';
 import { IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
@@ -29,7 +25,6 @@ import { ShutdownReason, ILifecycleService } from 'vs/workbench/services/lifecyc
 import { IFileDialogService, ConfirmResult, IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { INativeHostService } from 'vs/platform/native/common/native';
-import { workbenchInstantiationService, TestServiceAccessor } from 'vs/workbench/test/electron-browser/workbenchTestServices';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -44,8 +39,13 @@ import { TestContextService, TestWorkingCopy } from 'vs/workbench/test/common/wo
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IWorkingCopyBackup } from 'vs/workbench/services/workingCopy/common/workingCopy';
 import { Event, Emitter } from 'vs/base/common/event';
+import { generateUuid } from 'vs/base/common/uuid';
+import { Schemas } from 'vs/base/common/network';
+import { joinPath } from 'vs/base/common/resources';
+import { VSBuffer } from 'vs/base/common/buffer';
+import { TestServiceAccessor, workbenchInstantiationService } from 'vs/workbench/test/electron-sandbox/workbenchTestServices';
 
-flakySuite('WorkingCopyBackupTracker (native)', function () {
+suite('WorkingCopyBackupTracker (native)', function () {
 
 	class TestWorkingCopyBackupTracker extends NativeWorkingCopyBackupTracker {
 
@@ -107,9 +107,9 @@ flakySuite('WorkingCopyBackupTracker (native)', function () {
 		}
 	}
 
-	let testDir: string;
-	let backupHome: string;
-	let workspaceBackupPath: string;
+	let testDir: URI;
+	let backupHome: URI;
+	let workspaceBackupPath: URI;
 
 	let accessor: TestServiceAccessor;
 	let disposables: DisposableStore;
@@ -117,35 +117,31 @@ flakySuite('WorkingCopyBackupTracker (native)', function () {
 	setup(async () => {
 		disposables = new DisposableStore();
 
-		testDir = getRandomTestPath(tmpdir(), 'vsctests', 'backuprestorer');
-		backupHome = join(testDir, 'Backups');
-		const workspacesJsonPath = join(backupHome, 'workspaces.json');
+		testDir = URI.file(join(generateUuid(), 'vsctests', 'workingcopyhistoryservice')).with({ scheme: Schemas.inMemory });
+		backupHome = joinPath(testDir, 'Backups');
+		const workspacesJsonPath = joinPath(backupHome, 'workspaces.json');
 
-		const workspaceResource = URI.file(isWindows ? 'c:\\workspace' : '/workspace');
-		workspaceBackupPath = join(backupHome, hash(workspaceResource.fsPath).toString(16));
+		const workspaceResource = URI.file(isWindows ? 'c:\\workspace' : '/workspace').with({ scheme: Schemas.inMemory });
+		workspaceBackupPath = joinPath(backupHome, hash(workspaceResource.toString()).toString(16));
 
-		const instantiationService = workbenchInstantiationService(disposables);
+		const instantiationService = workbenchInstantiationService(undefined, disposables);
 		accessor = instantiationService.createInstance(TestServiceAccessor);
 		disposables.add((<TextFileEditorModelManager>accessor.textFileService.files));
 
 		disposables.add(registerTestFileEditor());
 
-		await Promises.mkdir(backupHome, { recursive: true });
-		await Promises.mkdir(workspaceBackupPath, { recursive: true });
+		await accessor.fileService.createFolder(backupHome);
+		await accessor.fileService.createFolder(workspaceBackupPath);
 
-		return Promises.writeFile(workspacesJsonPath, '');
+		return accessor.fileService.writeFile(workspacesJsonPath, VSBuffer.fromString(''));
 	});
 
 	teardown(async () => {
 		disposables.dispose();
-
-		return Promises.rm(testDir);
 	});
 
 	async function createTracker(autoSaveEnabled = false): Promise<{ accessor: TestServiceAccessor; part: EditorPart; tracker: TestWorkingCopyBackupTracker; instantiationService: IInstantiationService; cleanup: () => Promise<void> }> {
-		const workingCopyBackupService = new NodeTestWorkingCopyBackupService(testDir, workspaceBackupPath);
-		const instantiationService = workbenchInstantiationService(disposables);
-		instantiationService.stub(IWorkingCopyBackupService, workingCopyBackupService);
+		const instantiationService = workbenchInstantiationService(undefined, disposables);
 
 		const configurationService = new TestConfigurationService();
 		if (autoSaveEnabled) {
@@ -319,7 +315,7 @@ flakySuite('WorkingCopyBackupTracker (native)', function () {
 
 		const veto = await event.value;
 		assert.ok(!veto);
-		assert.ok(!accessor.workingCopyBackupService.discardedAllBackups);
+		assert.ok(accessor.workingCopyBackupService.discardedAllBackups);
 
 		await cleanup();
 	});

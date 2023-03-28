@@ -30,7 +30,8 @@ export class StartSessionAction extends EditorAction2 {
 			precondition: ContextKeyExpr.and(CTX_INTERACTIVE_EDITOR_HAS_PROVIDER, EditorContextKeys.writable),
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
-				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyCode.KeyI)
+				primary: KeyMod.CtrlCmd | KeyCode.KeyI,
+				secondary: [KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyCode.KeyI)],
 			}
 		});
 	}
@@ -90,7 +91,7 @@ export class MakeRequestAction extends AbstractInteractiveEditorAction {
 	}
 
 	runInteractiveEditorCommand(_accessor: ServicesAccessor, ctrl: InteractiveEditorController, _editor: ICodeEditor, ..._args: any[]): void {
-		ctrl.accept(false);
+		ctrl.accept();
 	}
 }
 
@@ -117,26 +118,6 @@ export class StopRequestAction extends AbstractInteractiveEditorAction {
 
 	runInteractiveEditorCommand(_accessor: ServicesAccessor, ctrl: InteractiveEditorController, _editor: ICodeEditor, ..._args: any[]): void {
 		ctrl.cancelCurrentRequest();
-	}
-}
-
-export class AcceptWithPreviewInteractiveEditorAction extends AbstractInteractiveEditorAction {
-
-	constructor() {
-		super({
-			id: 'interactiveEditor.acceptWithPreview',
-			title: localize('acceptPreview', 'Ask Question & Preview Reply'),
-			precondition: ContextKeyExpr.and(CTX_INTERACTIVE_EDITOR_VISIBLE, CTX_INTERACTIVE_EDITOR_EMPTY.negate()),
-			keybinding: {
-				when: CTX_INTERACTIVE_EDITOR_FOCUSED,
-				weight: KeybindingWeight.EditorCore + 7,
-				primary: KeyMod.Shift + KeyCode.Enter
-			}
-		});
-	}
-
-	runInteractiveEditorCommand(_accessor: ServicesAccessor, ctrl: InteractiveEditorController, _editor: ICodeEditor, ..._args: any[]): void {
-		ctrl.accept(true);
 	}
 }
 

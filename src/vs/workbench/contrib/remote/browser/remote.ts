@@ -285,7 +285,11 @@ class HelpItemValue {
 				if (url.authority) {
 					this._url = this.urlOrCommand;
 				} else {
-					const urlCommand: Promise<string | undefined> = this.commandService.executeCommand(this.urlOrCommand);
+					const urlCommand: Promise<string | undefined> = this.commandService.executeCommand(this.urlOrCommand).then((result) => {
+						// if executing this command times out, cache its value whenever it eventually resolves
+						this._url = result;
+						return this._url;
+					});
 					// We must be defensive. The command may never return, meaning that no help at all is ever shown!
 					const emptyString: Promise<string> = new Promise(resolve => setTimeout(() => resolve(''), 500));
 					this._url = await Promise.race([urlCommand, emptyString]);

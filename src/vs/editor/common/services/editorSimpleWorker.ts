@@ -25,6 +25,7 @@ import { ILinesDiffComputer } from 'vs/editor/common/diff/linesDiffComputer';
 import { linesDiffComputers } from 'vs/editor/common/diff/linesDiffComputers';
 import { createProxyObject, getAllMethodNames } from 'vs/base/common/objects';
 import { IDocumentDiffProviderOptions } from 'vs/editor/common/diff/documentDiffProvider';
+import { BugIndicatingError } from 'vs/base/common/errors';
 
 export interface IMirrorModel extends IMirrorTextModel {
 	readonly uri: URI;
@@ -405,7 +406,7 @@ export class EditorSimpleWorker implements IRequestHandler, IDisposable {
 
 		return {
 			identical,
-			quitEarly: result.quitEarly,
+			quitEarly: result.hitTimeout,
 			changes: result.changes.map(m => ([m.originalRange.startLineNumber, m.originalRange.endLineNumberExclusive, m.modifiedRange.startLineNumber, m.modifiedRange.endLineNumberExclusive, m.innerChanges?.map(m => [
 				m.originalRange.startLineNumber,
 				m.originalRange.startColumn,
@@ -519,6 +520,104 @@ export class EditorSimpleWorker implements IRequestHandler, IDisposable {
 
 				if (model.getValueInRange(newEdit.range) !== newEdit.text) {
 					result.push(newEdit);
+				}
+			}
+		}
+
+		if (typeof lastEol === 'number') {
+			result.push({ eol: lastEol, text: '', range: { startLineNumber: 0, startColumn: 0, endLineNumber: 0, endColumn: 0 } });
+		}
+
+		return result;
+	}
+
+	public async computeHumanReadableDiff(modelUrl: string, edits: TextEdit[]): Promise<TextEdit[]> {
+		const model = this._getModel(modelUrl);
+		if (!model) {
+			return edits;
+		}
+
+		const result: TextEdit[] = [];
+		let lastEol: EndOfLineSequence | undefined = undefined;
+
+		edits = edits.slice(0).sort((a, b) => {
+			if (a.range && b.range) {
+				return Range.compareRangesUsingStarts(a.range, b.range);
+			}
+			// eol only changes should go to the end
+			const aRng = a.range ? 0 : 1;
+			const bRng = b.range ? 0 : 1;
+			return aRng - bRng;
+		});
+
+		for (let { range, text, eol } of edits) {
+
+			if (typeof eol === 'number') {
+				lastEol = eol;
+			}
+
+			if (Range.isEmpty(range) && !text) {
+				// empty change
+				continue;
+			}
+
+			const original = model.getValueInRange(range);
+			text = text.replace(/\r\n|\n|\r/g, model.eol);
+
+			if (original === text) {
+				// noop
+				continue;
+			}
+
+			// make sure diff won't take too long
+			if (Math.max(text.length, original.length) > EditorSimpleWorker._diffLimit) {
+				result.push({ range, text });
+				continue;
+			}
+
+			// compute diff between original and edit.text
+
+			const originalLines = original.split(/\r\n|\n|\r/);
+			const modifiedLines = text.split(/\r\n|\n|\r/);
+
+			const diff = linesDiffComputers.experimental.computeDiff(originalLines, modifiedLines, { maxComputationTimeMs: 1000, ignoreTrimWhitespace: false });
+
+			const start = Range.lift(range).getStartPosition();
+
+			function addPositions(pos1: Position, pos2: Position): Position {
+				return new Position(pos1.lineNumber + pos2.lineNumber - 1, pos2.lineNumber === 1 ? pos1.column + pos2.column - 1 : pos2.column);
+			}
+
+			function getText(lines: string[], range: Range): string[] {
+				const result: string[] = [];
+				for (let i = range.startLineNumber; i <= range.endLineNumber; i++) {
+					const line = lines[i - 1];
+					if (i === range.startLineNumber && i === range.endLineNumber) {
+						result.push(line.substring(range.startColumn - 1, range.endColumn - 1));
+					} else if (i === range.startLineNumber) {
+						result.push(line.substring(range.startColumn - 1));
+					} else if (i === range.endLineNumber) {
+						result.push(line.substring(0, range.endColumn - 1));
+					} else {
+						result.push(line);
+					}
+				}
+				return result;
+			}
+
+			for (const c of diff.changes) {
+				if (c.innerChanges) {
+					for (const x of c.innerChanges) {
+						result.push({
+							range: Range.fromPositions(
+								addPositions(start, x.originalRange.getStartPosition()),
+								addPositions(start, x.originalRange.getEndPosition())
+							),
+							text: getText(modifiedLines, x.modifiedRange).join(model.eol)
+						});
+					}
+				} else {
+					throw new BugIndicatingError('The experimental diff algorithm always produces inner changes');
 				}
 			}
 		}

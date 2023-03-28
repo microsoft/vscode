@@ -24,16 +24,18 @@ suite('diff fixtures', () => {
 		const firstFileName = files.find(f => f.startsWith('1.'))!;
 		const secondFileName = files.find(f => f.startsWith('2.'))!;
 
-		const firstContentLines = readFileSync(join(folderPath, firstFileName), 'utf8').split(/\r\n|\r|\n/);
-		const secondContentLines = readFileSync(join(folderPath, secondFileName), 'utf8').split(/\r\n|\r|\n/);
+		const firstContent = readFileSync(join(folderPath, firstFileName), 'utf8').replaceAll('\r\n', '\n').replaceAll('\r', '\n');
+		const firstContentLines = firstContent.split(/\n/);
+		const secondContent = readFileSync(join(folderPath, secondFileName), 'utf8').replaceAll('\r\n', '\n').replaceAll('\r', '\n');
+		const secondContentLines = secondContent.split(/\n/);
 
 		const diffingAlgo = diffingAlgoName === 'smart' ? new SmartLinesDiffComputer() : new StandardLinesDiffComputer();
 
 		const diff = diffingAlgo.computeDiff(firstContentLines, secondContentLines, { ignoreTrimWhitespace: false, maxComputationTimeMs: Number.MAX_SAFE_INTEGER });
 
 		const actualDiffingResult: DiffingResult = {
-			originalFileName: `./${firstFileName}`,
-			modifiedFileName: `./${secondFileName}`,
+			original: { content: firstContent, fileName: `./${firstFileName}` },
+			modified: { content: secondContent, fileName: `./${secondFileName}` },
 			diffs: diff.changes.map<IDetailedDiff>(c => ({
 				originalRange: c.originalRange.toString(),
 				modifiedRange: c.modifiedRange.toString(),
@@ -88,6 +90,10 @@ suite('diff fixtures', () => {
 		}
 	}
 
+	test(`uiae`, () => {
+		runTest('subword', 'experimental');
+	});
+
 	for (const folder of folders) {
 		for (const diffingAlgoName of ['smart', 'experimental'] as const) {
 			test(`${folder}-${diffingAlgoName}`, () => {
@@ -98,8 +104,8 @@ suite('diff fixtures', () => {
 });
 
 interface DiffingResult {
-	originalFileName: string;
-	modifiedFileName: string;
+	original: { content: string; fileName: string };
+	modified: { content: string; fileName: string };
 
 	diffs: IDetailedDiff[];
 }

@@ -86,6 +86,10 @@ export class TestingExplorerView extends ViewPane {
 	private readonly dimensions = { width: 0, height: 0 };
 	private lastFocusState = LastFocusState.Input;
 
+	public get focusedTreeElements() {
+		return this.viewModel.tree.getFocus().filter(isDefined);
+	}
+
 	constructor(
 		options: IViewletViewOptions,
 		@IContextMenuService contextMenuService: IContextMenuService,

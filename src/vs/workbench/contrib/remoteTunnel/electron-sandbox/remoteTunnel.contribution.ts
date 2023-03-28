@@ -77,7 +77,7 @@ namespace RemoteTunnelCommandLabels {
 	export const showLog = localize('remoteTunnel.actions.showLog', 'Show Remote Tunnel Service Log');
 	export const configure = localize('remoteTunnel.actions.configure', 'Configure Machine Name...');
 	export const copyToClipboard = localize('remoteTunnel.actions.copyToClipboard', 'Copy Browser URI to Clipboard');
-	export const learnMore = localize('remoteTunnel.actions.learnMore', 'Get Started with VS Code Tunnels');
+	export const learnMore = localize('remoteTunnel.actions.learnMore', 'Get Started with Tunnels');
 }
 
 
@@ -200,9 +200,9 @@ export class RemoteTunnelWorkbenchContribution extends Disposable implements IWo
 					localize(
 						{
 							key: 'recommend.remoteExtension',
-							comment: ['{0} will be a host name, {1} will the link address to the web UI, {6} an extension name. [label](command:commandId) is a markdown link. Only translate the label, do not modify the format']
+							comment: ['{0} will be a tunnel name, {1} will the link address to the web UI, {6} an extension name. [label](command:commandId) is a markdown link. Only translate the label, do not modify the format']
 						},
-						"'{0}' has turned on remote access. The {1} extension can be used to connect to it.",
+						"Tunnel '{0}' is avaiable for remote access. The {1} extension can be used to connect to it.",
 						usedOnHost, remoteExtension.friendlyName
 					),
 				actions: {
@@ -499,10 +499,10 @@ export class RemoteTunnelWorkbenchContribution extends Disposable implements IWo
 							localize(
 								{
 									key: 'progress.turnOn.final',
-									comment: ['{0} will be a host name, {1} will the link address to the web UI, {6} an extesnion name. [label](command:commandId) is a markdown link. Only translate the label, do not modify the format']
+									comment: ['{0} will be the tunnel name, {1} will the link address to the web UI, {6} an extension name, {7} a link to the extension documentation. [label](command:commandId) is a markdown link. Only translate the label, do not modify the format']
 								},
-								"Remote tunnel access is enabled for [{0}](command:{4}). To access from a different machine, open [{1}]({2}) or use the {6} extension. Use the Account menu to [configure](command:{3}) or [turn off](command:{5}).",
-								connectionInfo.hostName, connectionInfo.domain, linkToOpenForMarkdown, RemoteTunnelCommandIds.manage, RemoteTunnelCommandIds.configure, RemoteTunnelCommandIds.turnOff, remoteExtension.friendlyName
+								"You can now access this machine anywhere via the secure tunnel [{0}](command:{4}). To connect via a different machine, use the generated [{1}]({2}) link or use the [{6}]({7}) extension in the desktop or web. You can [configure](command:{3}) or [turn off](command:{5}) this access via the VS Code Accounts menu.",
+								connectionInfo.hostName, connectionInfo.domain, linkToOpenForMarkdown, RemoteTunnelCommandIds.manage, RemoteTunnelCommandIds.configure, RemoteTunnelCommandIds.turnOff, remoteExtension.friendlyName, 'https://code.visualstudio.com/docs/remote/tunnels'
 							),
 						actions: {
 							primary: [
@@ -698,7 +698,7 @@ export class RemoteTunnelWorkbenchContribution extends Disposable implements IWo
 			items.push({ id: RemoteTunnelCommandIds.learnMore, label: RemoteTunnelCommandLabels.learnMore });
 			if (this.connectionInfo && account) {
 				quickPick.title = localize(
-					{ key: 'manage.title.on', comment: ['{0} will be a user account name, {1} the provider name (e.g. Github), {2} is the host name'] },
+					{ key: 'manage.title.on', comment: ['{0} will be a user account name, {1} the provider name (e.g. Github), {2} is the tunnel name'] },
 					'Remote Machine Access enabled for {0}({1}) as {2}', account.accountLabel, account.providerId, this.connectionInfo.hostName);
 				items.push({ id: RemoteTunnelCommandIds.copyToClipboard, label: RemoteTunnelCommandLabels.copyToClipboard, description: this.connectionInfo.domain });
 			} else {

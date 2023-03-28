@@ -216,6 +216,12 @@ fi
 
 append_dir GTK_PATH "$SNAP/usr/lib/$ARCH/gtk-3.0"
 append_dir GTK_PATH "$SNAP/usr/lib/gtk-3.0"
+# We don't have gtk libraries in this path but
+# enforcing this environment variable will disallow
+# gtk binaries like `gtk-query-immodules` to not search
+# in system default library paths.
+# Based on https://gitlab.gnome.org/GNOME/gtk/-/blob/main/gtk/gtkmodules.c#L104-136
+export GTK_EXE_PREFIX="$SNAP/usr"
 
 # ibus and fcitx integration
 GTK_IM_MODULE_DIR="$SNAP_USER_COMMON/.cache/immodules"

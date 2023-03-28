@@ -3974,3 +3974,13 @@ export enum InteractiveSessionCopyKind {
 }
 
 //#endregion
+
+//#region Interactive Editor
+
+export enum InteractiveEditorResponseFeedbackKind {
+	Unhelpful = 0,
+	Helpful = 1,
+	Undone = 2
+}
+
+//#endregion
