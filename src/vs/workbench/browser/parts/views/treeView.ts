@@ -15,7 +15,6 @@ import { ElementsDragAndDropData } from 'vs/base/browser/ui/list/listView';
 import { IAsyncDataSource, ITreeContextMenuEvent, ITreeDragAndDrop, ITreeDragOverReaction, ITreeNode, ITreeRenderer, TreeDragOverBubble } from 'vs/base/browser/ui/tree/tree';
 import { CollapseAllAction } from 'vs/base/browser/ui/tree/treeDefaults';
 import { ActionRunner, IAction } from 'vs/base/common/actions';
-import { timeout } from 'vs/base/common/async';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { Codicon } from 'vs/base/common/codicons';
 import { isCancellationError } from 'vs/base/common/errors';
@@ -1481,7 +1480,6 @@ export class CustomTreeView extends AbstractTreeView {
 		@IViewDescriptorService viewDescriptorService: IViewDescriptorService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IHoverService hoverService: IHoverService,
-		@IExtensionService private readonly extensionService: IExtensionService,
 		@IActivityService activityService: IActivityService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@ILogService logService: ILogService,
@@ -1506,11 +1504,6 @@ export class CustomTreeView extends AbstractTreeView {
 				id: this.id,
 			});
 			this.createTree();
-			this.progressService.withProgress({ location: this.id }, () => this.extensionService.activateByEvent(`onView:${this.id}`))
-				.then(() => timeout(2000))
-				.then(() => {
-					this.updateMessage();
-				});
 			this.activated = true;
 		}
 	}

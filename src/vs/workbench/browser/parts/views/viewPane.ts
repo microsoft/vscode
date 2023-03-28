@@ -47,7 +47,6 @@ import { BaseActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { defaultButtonStyles, defaultProgressBarStyles } from 'vs/platform/theme/browser/defaultStyles';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { timeout } from 'vs/base/common/async';
 
 export interface IViewPaneOptions extends IPaneOptions {
 	id: string;
@@ -253,8 +252,7 @@ export abstract class ViewPane extends Pane implements IView {
 	private activated: boolean = false;
 	private async fireActivationEvent(): Promise<void> {
 		if (!this.activated) {
-			const promise = this.progressService.withProgress({ location: this.id }, () => this.extensionService.activateByEvent(`onView:${this.id}`))
-				.then(() => timeout(2000));
+			const promise = this.progressService.withProgress({ location: this.id }, () => this.extensionService.activateByEvent(`onView:${this.id}`));
 			this.activated = true;
 			return promise;
 		}
