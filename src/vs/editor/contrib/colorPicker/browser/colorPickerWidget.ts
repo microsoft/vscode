@@ -20,22 +20,22 @@ const $ = dom.$;
 
 export class ColorPickerHeader extends Disposable {
 
-	private readonly domNode: HTMLElement;
+	private readonly _domNode: HTMLElement;
 	private readonly pickedColorNode: HTMLElement;
 	private backgroundColor: Color;
 
 	constructor(container: HTMLElement, private readonly model: ColorPickerModel, themeService: IThemeService) {
 		super();
 
-		this.domNode = $('.colorpicker-header');
-		dom.append(container, this.domNode);
+		this._domNode = $('.colorpicker-header');
+		dom.append(container, this._domNode);
 
-		this.pickedColorNode = dom.append(this.domNode, $('.picked-color'));
+		this.pickedColorNode = dom.append(this._domNode, $('.picked-color'));
 
 		const tooltip = localize('clickToToggleColorOptions', "Click to toggle color options (rgb/hsl/hex)");
 		this.pickedColorNode.setAttribute('title', tooltip);
 
-		const colorBox = dom.append(this.domNode, $('.original-color'));
+		const colorBox = dom.append(this._domNode, $('.original-color'));
 		colorBox.style.backgroundColor = Color.Format.CSS.format(this.model.originalColor) || '';
 
 		this.backgroundColor = themeService.getColorTheme().getColor(editorHoverBackground) || Color.white;
@@ -54,6 +54,10 @@ export class ColorPickerHeader extends Disposable {
 		this.pickedColorNode.classList.toggle('light', model.color.rgba.a < 0.5 ? this.backgroundColor.isLighter() : model.color.isLighter());
 
 		this.onDidChangeColor(this.model.color);
+	}
+
+	public get domNode(): HTMLElement {
+		return this._domNode;
 	}
 
 	private onDidChangeColor(color: Color): void {
@@ -388,6 +392,7 @@ export class ColorPickerWidget extends Widget implements IEditorHoverColorPicker
 	private static readonly ID = 'editor.contrib.colorPickerWidget';
 
 	body: ColorPickerBody;
+	header: ColorPickerHeader;
 
 	constructor(container: Node, readonly model: ColorPickerModel, private pixelRatio: number, themeService: IThemeService, standaloneColorPicker: boolean = false) {
 		super();
@@ -397,10 +402,10 @@ export class ColorPickerWidget extends Widget implements IEditorHoverColorPicker
 		const element = $('.colorpicker-widget');
 		container.appendChild(element);
 
-		const header = new ColorPickerHeader(element, this.model, themeService);
+		this.header = new ColorPickerHeader(element, this.model, themeService);
 		this.body = new ColorPickerBody(element, this.model, this.pixelRatio, standaloneColorPicker);
 
-		this._register(header);
+		this._register(this.header);
 		this._register(this.body);
 	}
 

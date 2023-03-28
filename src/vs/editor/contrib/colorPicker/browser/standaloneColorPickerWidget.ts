@@ -12,7 +12,7 @@ import { ColorHover, ColorHoverParticipant } from 'vs/editor/contrib/colorPicker
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { EditorHoverStatusBar } from 'vs/editor/contrib/hover/browser/contentHover';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { ColorPickerBody, ColorPickerWidget } from 'vs/editor/contrib/colorPicker/browser/colorPickerWidget';
+import { ColorPickerBody, ColorPickerHeader, ColorPickerWidget } from 'vs/editor/contrib/colorPicker/browser/colorPickerWidget';
 import { AsyncIterableObject, CancelableAsyncIterableObject, createCancelableAsyncIterable, RunOnceScheduler } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { onUnexpectedError } from 'vs/base/common/errors';
@@ -133,6 +133,7 @@ export class StandaloneColorPickerWidget implements IContentWidget {
 				console.log('entered into the case when the participant is pushed');
 				const participantInstance: ColorHoverParticipant = this.instantiationService.createInstance(participant, this.editor);
 				participantInstance.standaloneColorPickerWidget = true;
+				participantInstance.updateEditorOnEnter = true;
 				this._participants.push(participantInstance);
 			}
 		}
@@ -225,6 +226,10 @@ export class StandaloneColorPickerWidget implements IContentWidget {
 			console.log('clientWidth : ', clientWidth);
 		}
 
+		const colorPickerHeader = colorPicker?.header as ColorPickerHeader;
+		colorPickerHeader.domNode.style.width = 600 + 'px';
+		colorPickerHeader.domNode.style.height = 20 + 'px';
+
 		const colorPickerBody = colorPicker?.body as ColorPickerBody;
 		colorPickerBody.domNode.style.background = 'red';
 		const saturationBox = colorPickerBody.saturationBox;
@@ -244,7 +249,12 @@ export class StandaloneColorPickerWidget implements IContentWidget {
 		enterButton.style.left = 520 + 'px';
 		enterButton.style.position = 'absolute';
 		enterButton.textContent = 'Insert';
+
+		console.log('fragment : ', fragment);
+		console.log('fragment.childNodes : ', fragment.childNodes);
 		this.body.appendChild(fragment);
+		this.body.style.height = 240 + 'px';
+
 		colorPicker?.layout();
 		this.editor.layoutContentWidget(this);
 		this.editor.render();
@@ -340,7 +350,7 @@ export class ColorHoverComputer implements IColorHoverComputer<IHoverPart> {
 		this._participants.map((participant) => {
 			const colorInfo: IColorInformation = {
 				range: range,
-				color: { red: 0, green: 0, blue: 0, alpha: 0 }
+				color: { red: 0, green: 0, blue: 0, alpha: 1 }
 			};
 			const textModel = this._editor.getModel()!;
 			const registry = this.languageFeaturesService.colorProvider;

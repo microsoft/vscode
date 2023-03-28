@@ -219,6 +219,14 @@ export class ColorHoverParticipant implements IEditorHoverParticipant<ColorHover
 			});
 		};
 
+		if (this._standaloneColorPickerWidget) {
+			console.log('inside of the second if loop of the renderHoverParts, should be called once when the initial rendering is done');
+			// set an initial color to avoid the color picker to be empty
+			const color: Color = new Color(new RGBA(0, 0, 0, 1));
+			updateColorPresentations(color);
+			this._color = color;
+		}
+
 		disposables.add(model.onColorFlushed((color: Color) => {
 			// Call update editor model only when the enter key is pressed
 			console.log('this._updateEditorOnEnter : ', this._updateEditorOnEnter);
