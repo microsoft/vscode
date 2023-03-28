@@ -23,6 +23,7 @@ import { SparseTokensStore } from 'vs/editor/common/tokens/sparseTokensStore';
 import { BracketPairsTextModelPart } from 'vs/editor/common/model/bracketPairsTextModelPart/bracketPairsImpl';
 import { BackgroundTokenizationState, ITokenizationTextModelPart } from 'vs/editor/common/tokenizationTextModelPart';
 import { countEOL } from 'vs/editor/common/core/eolCounter';
+import { BugIndicatingError } from 'vs/base/common/errors';
 
 export class TokenizationTextModelPart extends TextModelPart implements ITokenizationTextModelPart {
 	private readonly _onDidChangeLanguage: Emitter<IModelLanguageChangedEvent> = this._register(new Emitter<IModelLanguageChangedEvent>());
@@ -107,13 +108,17 @@ export class TokenizationTextModelPart extends TextModelPart implements ITokeniz
 		return this._backgroundTokenizationState;
 	}
 
+	private validateLineNumber(lineNumber: number): void {
+		if (lineNumber < 1 || lineNumber > this._textModel.getLineCount()) {
+			throw new BugIndicatingError('Illegal value for lineNumber');
+		}
+	}
+
 	public setLineTokens(
 		lineNumber: number,
 		tokens: Uint32Array | ArrayBuffer | null
 	): void {
-		if (lineNumber < 1 || lineNumber > this._textModel.getLineCount()) {
-			throw new Error('Illegal value for lineNumber');
-		}
+		this.validateLineNumber(lineNumber);
 
 		this._tokens.setTokens(
 			this._languageId,
@@ -285,9 +290,7 @@ export class TokenizationTextModelPart extends TextModelPart implements ITokeniz
 	}
 
 	public forceTokenization(lineNumber: number): void {
-		if (lineNumber < 1 || lineNumber > this._textModel.getLineCount()) {
-			throw new Error('Illegal value for lineNumber');
-		}
+		this.validateLineNumber(lineNumber);
 
 		this._tokenization.forceTokenization(lineNumber);
 	}
@@ -303,14 +306,8 @@ export class TokenizationTextModelPart extends TextModelPart implements ITokeniz
 	}
 
 	public getLineTokens(lineNumber: number): LineTokens {
-		if (lineNumber < 1 || lineNumber > this._textModel.getLineCount()) {
-			throw new Error('Illegal value for lineNumber');
-		}
+		this.validateLineNumber(lineNumber);
 
-		return this._getLineTokens(lineNumber);
-	}
-
-	private _getLineTokens(lineNumber: number): LineTokens {
 		const lineText = this._textModel.getLineContent(lineNumber);
 		const syntacticTokens = this._tokens.getTokens(
 			this._languageId,
@@ -359,7 +356,7 @@ export class TokenizationTextModelPart extends TextModelPart implements ITokeniz
 		this.assertNotDisposed();
 		const position = this._textModel.validatePosition(_position);
 		const lineContent = this._textModel.getLineContent(position.lineNumber);
-		const lineTokens = this._getLineTokens(position.lineNumber);
+		const lineTokens = this.getLineTokens(position.lineNumber);
 		const tokenIndex = lineTokens.findTokenIndexAtOffset(position.column - 1);
 
 		// (1). First try checking right biased word
