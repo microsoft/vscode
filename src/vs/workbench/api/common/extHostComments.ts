@@ -491,7 +491,7 @@ export function createExtHostComments(mainContext: IMainContext, commands: ExtHo
 			}
 			if (modified('comments')) {
 				formattedModifications.comments =
-					this._comments.map(cmt => convertToDTOComment(this, cmt, this._commentsMap));
+					this._comments.map(cmt => convertToDTOComment(this, cmt, this._commentsMap, this.extensionDescription));
 			}
 			if (modified('collapsibleState')) {
 				formattedModifications.collapseState = convertToCollapsibleState(this._collapseState);
@@ -666,11 +666,15 @@ export function createExtHostComments(mainContext: IMainContext, commands: ExtHo
 		}
 	}
 
-	function convertToDTOComment(thread: ExtHostCommentThread, vscodeComment: vscode.Comment, commentsMap: Map<vscode.Comment, number>): CommentChanges {
+	function convertToDTOComment(thread: ExtHostCommentThread, vscodeComment: vscode.Comment, commentsMap: Map<vscode.Comment, number>, extension: IExtensionDescription): CommentChanges {
 		let commentUniqueId = commentsMap.get(vscodeComment)!;
 		if (!commentUniqueId) {
 			commentUniqueId = ++thread.commentHandle;
 			commentsMap.set(vscodeComment, commentUniqueId);
+		}
+
+		if (vscodeComment.state !== undefined) {
+			checkProposedApiEnabled(extension, 'commentsDraftState');
 		}
 
 		return {
@@ -682,6 +686,7 @@ export function createExtHostComments(mainContext: IMainContext, commands: ExtHo
 			userIconPath: vscodeComment.author.iconPath,
 			label: vscodeComment.label,
 			commentReactions: vscodeComment.reactions ? vscodeComment.reactions.map(reaction => convertToReaction(reaction)) : undefined,
+			state: vscodeComment.state,
 			timestamp: vscodeComment.timestamp?.toJSON()
 		};
 	}

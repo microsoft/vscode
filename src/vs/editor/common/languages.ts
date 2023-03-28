@@ -1661,6 +1661,14 @@ export enum CommentMode {
 /**
  * @internal
  */
+export enum CommentState {
+	Published = 0,
+	Draft = 1
+}
+
+/**
+ * @internal
+ */
 export interface Comment {
 	readonly uniqueIdInThread: number;
 	readonly body: string | IMarkdownString;
