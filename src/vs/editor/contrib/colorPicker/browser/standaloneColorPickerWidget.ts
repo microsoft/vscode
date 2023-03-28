@@ -48,7 +48,7 @@ export class StandaloneColorPickerController extends Disposable implements IEdit
 		super();
 		console.log('creating new instance of the standalone color picker widget');
 		this._colorHoverVisible = EditorContextKeys.standaloneColorPickerVisible.bindTo(this._contextKeyService);
-		this._colorHoverFocused = EditorContextKeys.standaloneColorHoverVisible.bindTo(this._contextKeyService);
+		this._colorHoverFocused = EditorContextKeys.standaloneColorPickerFocused.bindTo(this._contextKeyService);
 	}
 
 	public showOrFocus() {
@@ -165,7 +165,7 @@ export class StandaloneColorPickerWidget implements IContentWidget {
 		this._hoverOperation.range = this.selection;
 		this._hoverOperation.start(HoverStartMode.Immediate);
 		this._colorHoverVisible = EditorContextKeys.standaloneColorPickerVisible.bindTo(this._contextKeyService);
-		this._colorHoverFocused = EditorContextKeys.standaloneColorHoverVisible.bindTo(this._contextKeyService);
+		this._colorHoverFocused = EditorContextKeys.standaloneColorPickerFocused.bindTo(this._contextKeyService);
 	}
 
 	public updateEditor() {
@@ -218,7 +218,6 @@ export class StandaloneColorPickerWidget implements IContentWidget {
 			console.log('clientWidth : ', clientWidth);
 		}
 
-		const colorPickerHeader = colorPicker?.header as ColorPickerHeader;
 		const colorPickerBody = colorPicker?.body as ColorPickerBody;
 		const enterButton = colorPickerBody.enterButton;
 
@@ -229,6 +228,7 @@ export class StandaloneColorPickerWidget implements IContentWidget {
 		this.body.style.maxWidth = maxWidth + 'px';
 		this.body.style.display = 'block';
 		this.body.tabIndex = 0;
+		this.body.classList.add('standalone-color-picker-class');
 
 		console.log('fragment : ', fragment);
 		console.log('fragment.childNodes : ', fragment.childNodes);
@@ -281,6 +281,9 @@ export class StandaloneColorPickerWidget implements IContentWidget {
 
 	public focus(): void {
 		this.body.focus();
+		this.editor.layoutContentWidget(this);
+		this.editor.render();
+		console.log('this.body after focus : ', this.body);
 	}
 }
 

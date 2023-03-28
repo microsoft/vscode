@@ -155,6 +155,14 @@
 	pointer-events: none;
 }
 
+.standalone-color-picker-class {
+	display: block;
+}
+
+.standalone-color-picker-class:focus {
+	border: 1px solid var(--vscode-focusBorder);
+}
+
 .colorpicker-body.standalone-color-picker {
 	color: var(--vscode-editorHoverWidget-foreground);
 	background-color: var(--vscode-editorHoverWidget-background);

@@ -78,7 +78,7 @@ class InsertColorFromStandaloneColorPicker extends EditorAction {
 				]
 			}, "Insert Color from Standalone Color Picker"),
 			alias: 'Insert Color from Standalone Color Picker',
-			precondition: EditorContextKeys.standaloneColorPickerVisible.isEqualTo(true),
+			precondition: EditorContextKeys.standaloneColorPickerFocused.isEqualTo(true),
 			kbOpts: {
 				primary: KeyCode.Enter,
 				weight: KeybindingWeight.EditorContrib
