@@ -56,13 +56,12 @@ export class TextModelTokenization extends Disposable {
 	public handleDidChangeContent(e: IModelContentChangedEvent): void {
 		if (e.isFlush) {
 			this._resetTokenizationState();
-			return;
+		} else if (!e.isEolChange) {
+			if (this._tokenizationStateStore) {
+				this._tokenizationStateStore.store.acceptChanges(e.changes);
+			}
+			this._defaultBackgroundTokenizer?.handleChanges();
 		}
-		if (this._tokenizationStateStore) {
-			this._tokenizationStateStore.store.acceptChanges(e.changes);
-		}
-
-		this._defaultBackgroundTokenizer?.handleChanges();
 	}
 
 	public handleDidChangeAttached(): void {

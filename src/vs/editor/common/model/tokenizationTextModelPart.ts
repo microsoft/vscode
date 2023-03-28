@@ -6,7 +6,7 @@
 import { Emitter, Event } from 'vs/base/common/event';
 import { CharCode } from 'vs/base/common/charCode';
 import { IPosition, Position } from 'vs/editor/common/core/position';
-import { IRange, Range } from 'vs/editor/common/core/range';
+import { Range } from 'vs/editor/common/core/range';
 import { getWordAtText, IWordAtPosition } from 'vs/editor/common/core/wordHelper';
 import { StandardTokenType } from 'vs/editor/common/encodedTokenAttributes';
 import { ILanguageService } from 'vs/editor/common/languages/language';
@@ -22,6 +22,7 @@ import { SparseMultilineTokens } from 'vs/editor/common/tokens/sparseMultilineTo
 import { SparseTokensStore } from 'vs/editor/common/tokens/sparseTokensStore';
 import { BracketPairsTextModelPart } from 'vs/editor/common/model/bracketPairsTextModelPart/bracketPairsImpl';
 import { BackgroundTokenizationState, ITokenizationTextModelPart } from 'vs/editor/common/tokenizationTextModelPart';
+import { countEOL } from 'vs/editor/common/core/eolCounter';
 
 export class TokenizationTextModelPart extends TextModelPart implements ITokenizationTextModelPart {
 	private readonly _onDidChangeLanguage: Emitter<IModelLanguageChangedEvent> = this._register(new Emitter<IModelLanguageChangedEvent>());
@@ -75,35 +76,30 @@ export class TokenizationTextModelPart extends TextModelPart implements ITokeniz
 		);
 	}
 
-	public acceptEdit(
-		range: IRange,
-		text: string,
-		eolCount: number,
-		firstLineLength: number,
-		lastLineLength: number
-	): void {
-		this._tokens.acceptEdit(range, eolCount, firstLineLength);
-		this._semanticTokens.acceptEdit(
-			range,
-			eolCount,
-			firstLineLength,
-			lastLineLength,
-			text.length > 0 ? text.charCodeAt(0) : CharCode.Null
-		);
+	public handleDidChangeContent(change: IModelContentChangedEvent): void {
+		if (change.isFlush) {
+			this._tokens.flush();
+			this._semanticTokens.flush();
+		} else if (!change.isEolChange) { // We don't have to do anything on an EOL change
+			for (const c of change.changes) {
+				const [eolCount, firstLineLength, lastLineLength] = countEOL(c.text);
+
+				this._tokens.acceptEdit(c.range, eolCount, firstLineLength);
+				this._semanticTokens.acceptEdit(
+					c.range,
+					eolCount,
+					firstLineLength,
+					lastLineLength,
+					c.text.length > 0 ? c.text.charCodeAt(0) : CharCode.Null
+				);
+			}
+		}
+
+		this._tokenization.handleDidChangeContent(change);
 	}
 
 	public handleDidChangeAttached(): void {
 		this._tokenization.handleDidChangeAttached();
-	}
-
-	public flush(): void {
-		this._tokens.flush();
-		this._semanticTokens.flush();
-	}
-
-	// TODO@hediet TODO@alexdima what is the difference between this and acceptEdit?
-	public handleDidChangeContent(change: IModelContentChangedEvent): void {
-		this._tokenization.handleDidChangeContent(change);
 	}
 
 	private _backgroundTokenizationState = BackgroundTokenizationState.InProgress;

@@ -2897,6 +2897,10 @@ declare namespace monaco.editor {
 		 * The model has been reset to a new value.
 		 */
 		readonly isFlush: boolean;
+		/**
+		 * Flag that indicates that this event describes an eol change.
+		 */
+		readonly isEolChange: boolean;
 	}
 
 	/**
