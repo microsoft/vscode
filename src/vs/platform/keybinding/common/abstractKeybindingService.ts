@@ -37,7 +37,15 @@ export abstract class AbstractKeybindingService extends Disposable implements IK
 		return this._onDidUpdateKeybindings ? this._onDidUpdateKeybindings.event : Event.None; // Sinon stubbing walks properties on prototype
 	}
 
-	private _currentChord: CurrentChord[] | null;
+	/** recently recorded keypresses that can trigger a keybinding;
+	 *
+	 * example: say, there's "cmd+k cmd+i" keybinding;
+	 * the user pressed "cmd+k" (before they press "cmd+i")
+	 * "cmd+k" would be stored in this array, when on pressing "cmd+i", the service
+	 * would invoke the command bound by the keybinding
+	 */
+	private _currentChords: CurrentChord[] | null;
+
 	private _currentChordChecker: IntervalTimer;
 	private _currentChordStatusMessage: IDisposable | null;
 	private _ignoreSingleModifiers: KeybindingModifierSet;
@@ -47,7 +55,7 @@ export abstract class AbstractKeybindingService extends Disposable implements IK
 	protected _logging: boolean;
 
 	public get inChordMode(): boolean {
-		return !!this._currentChord;
+		return !!this._currentChords;
 	}
 
 	constructor(
@@ -59,7 +67,7 @@ export abstract class AbstractKeybindingService extends Disposable implements IK
 	) {
 		super();
 
-		this._currentChord = null;
+		this._currentChords = null;
 		this._currentChordChecker = new IntervalTimer();
 		this._currentChordStatusMessage = null;
 		this._ignoreSingleModifiers = KeybindingModifierSet.EMPTY;
@@ -141,8 +149,8 @@ export abstract class AbstractKeybindingService extends Disposable implements IK
 		}
 
 		const contextValue = this._contextKeyService.getContext(target);
-		const currentChord = this._currentChord ? this._currentChord.map((({ keypress }) => keypress)) : null;
-		return this._getResolver().resolve(contextValue, currentChord, firstChord);
+		const currentChords = this._currentChords ? this._currentChords.map((({ keypress }) => keypress)) : null;
+		return this._getResolver().resolve(contextValue, currentChords, firstChord);
 	}
 
 	private _scheduleLeaveChordMode(): void {
@@ -164,7 +172,7 @@ export abstract class AbstractKeybindingService extends Disposable implements IK
 	}
 
 	private _enterMultiChordMode(firstChord: string, keypressLabel: string | null): void {
-		this._currentChord = [{
+		this._currentChords = [{
 			keypress: firstChord,
 			label: keypressLabel
 		}];
@@ -174,12 +182,12 @@ export abstract class AbstractKeybindingService extends Disposable implements IK
 	}
 
 	private _continueMultiChordMode(nextChord: string, keypressLabel: string | null): void {
-		this._currentChord = this._currentChord ? this._currentChord : [];
-		this._currentChord.push({
+		this._currentChords = this._currentChords ? this._currentChords : [];
+		this._currentChords.push({
 			keypress: nextChord,
 			label: keypressLabel
 		});
-		const fullKeypressLabel = this._currentChord.map(({ label }) => label).join(', ');
+		const fullKeypressLabel = this._currentChords.map(({ label }) => label).join(', ');
 		this._currentChordStatusMessage = this._notificationService.status(nls.localize('next.chord', "({0}) was pressed. Waiting for next key of chord...", fullKeypressLabel));
 		this._scheduleLeaveChordMode();
 	}
@@ -190,7 +198,7 @@ export abstract class AbstractKeybindingService extends Disposable implements IK
 			this._currentChordStatusMessage = null;
 		}
 		this._currentChordChecker.cancel();
-		this._currentChord = null;
+		this._currentChords = null;
 		IME.enable();
 	}
 
@@ -271,7 +279,7 @@ export abstract class AbstractKeybindingService extends Disposable implements IK
 		}
 
 		let firstChord: string | null = null; // the first keybinding i.e. Ctrl+K
-		let currentChord: string[] | null = null;// the "second" keybinding i.e. Ctrl+K "Ctrl+D"
+		let currentChords: string[] | null = null;// the "second" keybinding i.e. Ctrl+K "Ctrl+D"
 
 		if (isSingleModiferChord) {
 			// The keybinding is the second keypress of a single modifier chord, e.g. "shift shift".
@@ -279,10 +287,10 @@ export abstract class AbstractKeybindingService extends Disposable implements IK
 			// hence we disregard `_currentChord` and use the same modifier instead.
 			const [dispatchKeyname,] = keybinding.getSingleModifierDispatchChords();
 			firstChord = dispatchKeyname;
-			currentChord = dispatchKeyname ? [dispatchKeyname] : [];
+			currentChords = dispatchKeyname ? [dispatchKeyname] : [];
 		} else {
 			[firstChord,] = keybinding.getDispatchChords();
-			currentChord = this._currentChord ? this._currentChord.map(({ keypress }) => keypress) : null;
+			currentChords = this._currentChords ? this._currentChords.map(({ keypress }) => keypress) : null;
 		}
 
 		if (firstChord === null) {
@@ -293,7 +301,7 @@ export abstract class AbstractKeybindingService extends Disposable implements IK
 
 		const contextValue = this._contextKeyService.getContext(target);
 		const keypressLabel = keybinding.getLabel();
-		const resolveResult = this._getResolver().resolve(contextValue, currentChord, firstChord);
+		const resolveResult = this._getResolver().resolve(contextValue, currentChords, firstChord);
 
 		this._logService.trace('KeybindingService#dispatch', keypressLabel, resolveResult?.commandId);
 
@@ -304,16 +312,16 @@ export abstract class AbstractKeybindingService extends Disposable implements IK
 			return shouldPreventDefault;
 		}
 
-		if (this._currentChord) {
+		if (this._currentChords) {
 			if (resolveResult && !resolveResult.leaveMultiChord) {
 				shouldPreventDefault = true;
 				this._continueMultiChordMode(firstChord, keypressLabel);
 				this._log(`+ Continuing chord mode...`);
 				return shouldPreventDefault;
 			} else if (!resolveResult || !resolveResult.commandId) {
-				const currentChordLabel = this._currentChord.map(({ label }) => label).join(', ');
-				this._log(`+ Leaving chord mode: Nothing bound to "${currentChordLabel}, ${keypressLabel}".`);
-				this._notificationService.status(nls.localize('missing.chord', "The key combination ({0}, {1}) is not a command.", currentChordLabel, keypressLabel), { hideAfter: 10 * 1000 /* 10s */ });
+				const currentChordsLabel = this._currentChords.map(({ label }) => label).join(', ');
+				this._log(`+ Leaving chord mode: Nothing bound to "${currentChordsLabel}, ${keypressLabel}".`);
+				this._notificationService.status(nls.localize('missing.chord', "The key combination ({0}, {1}) is not a command.", currentChordsLabel, keypressLabel), { hideAfter: 10 * 1000 /* 10s */ });
 				shouldPreventDefault = true;
 			}
 		}
