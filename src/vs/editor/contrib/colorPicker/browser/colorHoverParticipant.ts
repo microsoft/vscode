@@ -9,7 +9,7 @@ import { Color, RGBA } from 'vs/base/common/color';
 import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
-import { Range } from 'vs/editor/common/core/range';
+import { IRange, Range } from 'vs/editor/common/core/range';
 import { IModelDecoration, ITextModel, TrackedRangeStickiness } from 'vs/editor/common/model';
 import { DocumentColorProvider, IColorInformation } from 'vs/editor/common/languages';
 import { getColorPresentations } from 'vs/editor/contrib/colorPicker/browser/color';
@@ -47,6 +47,7 @@ export class ColorHover implements IHoverPart {
 export class ColorHoverParticipant implements IEditorHoverParticipant<ColorHover> {
 
 	public readonly hoverOrdinal: number = 2;
+	private _range: Range | null = null;
 
 	constructor(
 		private readonly _editor: ICodeEditor,
@@ -113,6 +114,10 @@ export class ColorHoverParticipant implements IEditorHoverParticipant<ColorHover
 		return new ColorHover(this, Range.lift(colorInfo.range), model, provider);
 	}
 
+	public set range(range: Range) {
+		this._range = range;
+	}
+
 	public renderHoverParts(context: IEditorHoverRenderContext, hoverParts: ColorHover[]): IDisposable {
 		console.log('Inside of rendeHoverParts of the ColorHoverParticipant.ts');
 
@@ -151,18 +156,26 @@ export class ColorHoverParticipant implements IEditorHoverParticipant<ColorHover
 			let textEdits: ISingleEditOperation[];
 			let newRange: Range;
 			if (model.presentation.textEdit) {
+				if (this._range) {
+					model.presentation.textEdit.range = this._range;
+				}
+				console.log('inside of the first if loop');
 				textEdits = [model.presentation.textEdit];
+				console.log('textEdits : ', textEdits);
+
 				newRange = new Range(
 					model.presentation.textEdit.range.startLineNumber,
 					model.presentation.textEdit.range.startColumn,
 					model.presentation.textEdit.range.endLineNumber,
 					model.presentation.textEdit.range.endColumn
 				);
+				console.log('newRange : ', newRange);
 				const trackedRange = this._editor.getModel()!._setTrackedRange(null, newRange, TrackedRangeStickiness.GrowsOnlyWhenTypingAfter);
 				this._editor.pushUndoStop();
 				this._editor.executeEdits('colorpicker', textEdits);
 				newRange = this._editor.getModel()!._getTrackedRange(trackedRange) || newRange;
 			} else {
+				console.log('inside of second if loop');
 				textEdits = [{ range, text: model.presentation.label, forceMoveMarkers: false }];
 				newRange = range.setEndPosition(range.endLineNumber, range.startColumn + model.presentation.label.length);
 				this._editor.pushUndoStop();
@@ -170,6 +183,7 @@ export class ColorHoverParticipant implements IEditorHoverParticipant<ColorHover
 			}
 
 			if (model.presentation.additionalTextEdits) {
+				console.log('inside of third if loop');
 				textEdits = [...model.presentation.additionalTextEdits];
 				this._editor.executeEdits('colorpicker', textEdits);
 				context.hide();
@@ -189,6 +203,7 @@ export class ColorHoverParticipant implements IEditorHoverParticipant<ColorHover
 					alpha: color.rgba.a
 				}
 			}, colorHover.provider, CancellationToken.None).then((colorPresentations) => {
+				console.log('colorPresentations : ', colorPresentations);
 				model.colorPresentations = colorPresentations || [];
 			});
 		};

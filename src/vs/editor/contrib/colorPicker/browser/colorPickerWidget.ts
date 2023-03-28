@@ -146,7 +146,7 @@ class SaturationBox extends Disposable {
 
 	private readonly _domNode: HTMLElement;
 	private readonly selection: HTMLElement;
-	private readonly canvas: HTMLCanvasElement;
+	private readonly _canvas: HTMLCanvasElement;
 	private width!: number;
 	private height!: number;
 
@@ -164,9 +164,9 @@ class SaturationBox extends Disposable {
 		dom.append(container, this._domNode);
 
 		// Create canvas, draw selected color
-		this.canvas = document.createElement('canvas');
-		this.canvas.className = 'saturation-box';
-		dom.append(this._domNode, this.canvas);
+		this._canvas = document.createElement('canvas');
+		this._canvas.className = 'saturation-box';
+		dom.append(this._domNode, this._canvas);
 
 		// Add selection circle
 		this.selection = $('.saturation-selection');
@@ -181,6 +181,10 @@ class SaturationBox extends Disposable {
 
 	public get domNode() {
 		return this._domNode;
+	}
+
+	public get canvas() {
+		return this._canvas;
 	}
 
 	private onPointerDown(e: PointerEvent): void {
@@ -222,8 +226,8 @@ class SaturationBox extends Disposable {
 		console.log('this.heigth : ', this.height);
 
 		// TODO: works if hard-coding the values, need to figure out why the above is zero
-		this.canvas.width = this.width * this.pixelRatio;
-		this.canvas.height = this.height * this.pixelRatio;
+		this._canvas.width = this.width * this.pixelRatio;
+		this._canvas.height = this.height * this.pixelRatio;
 		this.paint();
 
 		const hsva = this.model.color.hsva;
@@ -233,18 +237,18 @@ class SaturationBox extends Disposable {
 	private paint(): void {
 		const hsva = this.model.color.hsva;
 		const saturatedColor = new Color(new HSVA(hsva.h, 1, 1, 1));
-		const ctx = this.canvas.getContext('2d')!;
+		const ctx = this._canvas.getContext('2d')!;
 
-		const whiteGradient = ctx.createLinearGradient(0, 0, this.canvas.width, 0);
+		const whiteGradient = ctx.createLinearGradient(0, 0, this._canvas.width, 0);
 		whiteGradient.addColorStop(0, 'rgba(255, 255, 255, 1)');
 		whiteGradient.addColorStop(0.5, 'rgba(255, 255, 255, 0.5)');
 		whiteGradient.addColorStop(1, 'rgba(255, 255, 255, 0)');
 
-		const blackGradient = ctx.createLinearGradient(0, 0, 0, this.canvas.height);
+		const blackGradient = ctx.createLinearGradient(0, 0, 0, this._canvas.height);
 		blackGradient.addColorStop(0, 'rgba(0, 0, 0, 0)');
 		blackGradient.addColorStop(1, 'rgba(0, 0, 0, 1)');
 
-		ctx.rect(0, 0, this.canvas.width, this.canvas.height);
+		ctx.rect(0, 0, this._canvas.width, this._canvas.height);
 		ctx.fillStyle = Color.Format.CSS.format(saturatedColor)!;
 		ctx.fill();
 		ctx.fillStyle = whiteGradient;

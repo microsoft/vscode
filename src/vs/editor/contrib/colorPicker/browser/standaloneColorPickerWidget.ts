@@ -27,6 +27,8 @@ import { EditorContributionInstantiation, registerEditorContribution } from 'vs/
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { ILanguageFeatureDebounceService } from 'vs/editor/common/services/languageFeatureDebounce';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { IRange, Range } from 'vs/editor/common/core/range';
+import { Selection } from 'vs/editor/common/core/selection';
 
 export class StandaloneColorPickerController extends Disposable implements IEditorContribution {
 
@@ -53,8 +55,12 @@ export class StandaloneColorPickerController extends Disposable implements IEdit
 		// Suppose tha the color hover is not visible, then make it visible
 		if (!this._colorHoverVisible.get()) {
 			const position = this._editor._getViewModel()?.getPrimaryCursorState().viewState.position;
-			if (position) {
-				this._standaloneColorPickerWidget = new StandaloneColorPickerWidget(position, this._editor, this._instantiationService, this._keybindingService, this._languageFeatureService);
+			// const selection = this._editor._getViewModel()?.getPrimaryCursorState().viewState.selection;
+			const selection = this._editor.getSelection();
+			console.log('position : ', position);
+			console.log('selection ; ', selection);
+			if (position && selection) {
+				this._standaloneColorPickerWidget = new StandaloneColorPickerWidget(position, selection, this._editor, this._instantiationService, this._keybindingService, this._languageFeatureService);
 				this._editor.addContentWidget(this._standaloneColorPickerWidget);
 			}
 			this._colorHoverVisible.set(true);
@@ -89,6 +95,7 @@ export class StandaloneColorPickerWidget implements IContentWidget {
 
 	constructor(
 		private position: IPosition,
+		private selection: Selection,
 		private readonly editor: ICodeEditor,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
@@ -136,8 +143,22 @@ export class StandaloneColorPickerWidget implements IContentWidget {
 		this.editor.onDidChangeCursorPosition((e) => {
 			this.position = e.position;
 			this.editor.layoutContentWidget(this);
+			for (const participant of this._participants) {
+				if (participant instanceof ColorHoverParticipant) {
+					participant.range = Range.fromPositions(e.position, e.position);
+				}
+			}
+		});
+		this.editor.onDidChangeCursorSelection((e) => {
+			this._hoverOperation.range = e.selection;
+			for (const participant of this._participants) {
+				if (participant instanceof ColorHoverParticipant) {
+					participant.range = e.selection;
+				}
+			}
 		});
 
+		this._hoverOperation.range = this.selection;
 		this._hoverOperation.start(HoverStartMode.Immediate);
 	}
 
@@ -184,12 +205,11 @@ export class StandaloneColorPickerWidget implements IContentWidget {
 
 		saturationBox.domNode.style.width = 500 + 'px';
 		saturationBox.domNode.style.height = 200 + 'px';
+		saturationBox.canvas.style.width = 500 + 'px';
+		saturationBox.canvas.style.height = 200 + 'px';
 		hueStrip.domNode.style.height = 200 + 'px';
 		opacityStrip.domNode.style.height = 200 + 'px';
 		this.body.appendChild(fragment);
-		this.editor.layoutContentWidget(this);
-		this.editor.render();
-
 		colorPicker?.layout();
 		this.editor.layoutContentWidget(this);
 		this.editor.render();
@@ -236,11 +256,11 @@ export interface IColorHoverComputer<T> {
 	/**
 	 * This is called after half the hover time
 	 */
-	computeAsync?: (token: CancellationToken) => AsyncIterableObject<T>;
+	computeAsync?: (token: CancellationToken, range: IRange) => AsyncIterableObject<T>;
 	/**
 	 * This is called after all the hover time
 	 */
-	computeSync?: () => T[];
+	computeSync?: (range: IRange) => T[];
 }
 
 export class ColorHoverComputer implements IColorHoverComputer<IHoverPart> {
@@ -268,7 +288,7 @@ export class ColorHoverComputer implements IColorHoverComputer<IHoverPart> {
 	) {
 	}
 
-	public computeAsync(token: CancellationToken): AsyncIterableObject<IHoverPart> {
+	public computeAsync(token: CancellationToken, range: IRange): AsyncIterableObject<IHoverPart> {
 		console.log('computeAsync of ColorHoverComputer');
 		const anchor = this._anchor;
 		console.log('anchor : ', anchor);
@@ -280,7 +300,7 @@ export class ColorHoverComputer implements IColorHoverComputer<IHoverPart> {
 		console.log('this._participants : ', this._participants);
 		this._participants.map((participant) => {
 			const colorInfo: IColorInformation = {
-				range: { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 1 },
+				range: range,
 				color: { red: 0, green: 0, blue: 0, alpha: 0 }
 			};
 			const textModel = this._editor.getModel()!;
@@ -297,7 +317,7 @@ export class ColorHoverComputer implements IColorHoverComputer<IHoverPart> {
 		return AsyncIterableObject.merge(iterable);
 	}
 
-	public computeSync(): IHoverPart[] {
+	public computeSync(range: IRange): IHoverPart[] {
 		console.log('computeSync of ColorHoverComputer');
 		if (!this._editor.hasModel() || !this._anchor) {
 			return [];
@@ -306,7 +326,7 @@ export class ColorHoverComputer implements IColorHoverComputer<IHoverPart> {
 		let result: IHoverPart[] = [];
 		for (const participant of this._participants) {
 			const colorInfo: IColorInformation = {
-				range: { startLineNumber: 0, startColumn: 0, endLineNumber: 0, endColumn: 0 },
+				range: range,
 				color: { red: 0, green: 0, blue: 0, alpha: 0 }
 			};
 			const textModel = this._editor.getModel();
@@ -363,12 +383,17 @@ export class IColorHoverOperation<T> extends Disposable {
 	private _asyncIterable: CancelableAsyncIterableObject<T> | null = null;
 	private _asyncIterableDone: boolean = false;
 	private _result: T[] = [];
+	private _range: IRange | null = null;
 
 	constructor(
 		private readonly _editor: ICodeEditor,
 		private readonly _computer: IColorHoverComputer<T>
 	) {
 		super();
+	}
+
+	public set range(range: IRange) {
+		this._range = range;
 	}
 
 	public override dispose(): void {
@@ -407,10 +432,10 @@ export class IColorHoverOperation<T> extends Disposable {
 		console.log('inside of _triggerAsyncComputation');
 		this._setState(HoverOperationState.SecondWait);
 		this._secondWaitScheduler.schedule(this._secondWaitTime);
-
-		if (this._computer.computeAsync) {
+		console.log('this._range : ', this._range);
+		if (this._computer.computeAsync && this._range !== null) {
 			this._asyncIterableDone = false;
-			this._asyncIterable = createCancelableAsyncIterable(token => this._computer.computeAsync!(token));
+			this._asyncIterable = createCancelableAsyncIterable(token => this._computer.computeAsync!(token, this._range!));
 			console.log('this._asyncIterable : ', this._asyncIterable);
 			(async () => {
 				try {
@@ -438,8 +463,9 @@ export class IColorHoverOperation<T> extends Disposable {
 
 	private _triggerSyncComputation(): void {
 		console.log('inside of _triggerSyncComputation');
-		if (this._computer.computeSync) {
-			this._result = this._result.concat(this._computer.computeSync());
+		console.log('this._range : ', this._range);
+		if (this._computer.computeSync && this._range) {
+			this._result = this._result.concat(this._computer.computeSync(this._range));
 		}
 		this._setState(this._asyncIterableDone ? HoverOperationState.Idle : HoverOperationState.WaitingForAsync);
 	}
