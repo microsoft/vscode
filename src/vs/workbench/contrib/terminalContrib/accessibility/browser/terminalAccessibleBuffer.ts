@@ -28,6 +28,7 @@ import { AudioCue, IAudioCueService } from 'vs/platform/audioCues/browser/audioC
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/terminalContextKey';
 import { withNullAsUndefined } from 'vs/base/common/types';
+import { ILogService } from 'vs/platform/log/common/log';
 
 const enum CssClass {
 	Active = 'active',
@@ -60,6 +61,7 @@ export class AccessibleBufferWidget extends DisposableStore {
 		@IQuickInputService private readonly _quickInputService: IQuickInputService,
 		@IAudioCueService private readonly _audioCueService: IAudioCueService,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
+		@ILogService private readonly _logService: ILogService
 	) {
 		super();
 		this._xtermElement = _xterm.raw.element!;
@@ -177,19 +179,19 @@ export class AccessibleBufferWidget extends DisposableStore {
 			for (let i = this._lastMarker.line; i < this._lastMarker.line + this._lastRowCount; i++) {
 				this._cachedLines.pop();
 			}
-			console.log('deleting from ', this._lastMarker.line, this._lastMarker.line + this._lastRowCount);
+			this._logService.debug('Removed ', this._lastRowCount, ' lines from cached lines, now ', this._cachedLines.length, ' lines');
 			this._updateScrollbackContent();
-			console.log('scrollback', this._cachedLines);
+			this._logService.debug('Updated scrollback content, now ', this._cachedLines.length, ' lines');
 		}
 
 		lines.push(...this._cachedLines, ...this._getViewportContent());
-		model = await this._getTextModel(this._instance.resource.with({ fragment: this._cachedLines.join('\n') }));
+		model = await this._getTextModel(this._instance.resource.with({ fragment: lines.join('\n') }));
 		if (!model) {
 			throw new Error('Could not create accessible buffer editor model');
 		}
 		this._editorWidget.setModel(model);
 		this._cachedLines = lines;
-		console.log('set cached lines', lines);
+		this._logService.debug('Accessible buffer update complete, cached ', this._cachedLines.length, ' lines');
 		this._lastMarker = this._xterm.raw.registerMarker();
 		this._lastRowCount = this._xterm.raw.rows;
 		return model;
@@ -294,7 +296,7 @@ export class AccessibleBufferWidget extends DisposableStore {
 				currentLine = '';
 			}
 		}
-		console.log('adding from buffer.baseY', buffer.baseY, 'to', buffer.baseY + this._lastRowCount ?? this._xterm.raw.rows - 1);
+		this._logService.debug('Viewport content update complete, ', lines.length, ' lines');
 		return lines;
 	}
 
@@ -309,21 +311,21 @@ export class AccessibleBufferWidget extends DisposableStore {
 		const scrollback: number = this._configurationService.getValue(TerminalSettingId.Scrollback);
 		const maxBufferSize = scrollback + this._xterm.raw.rows - 1;
 		const end = Math.min(maxBufferSize, buffer.baseY);
-		const i = this._lastMarker?.line ? this._lastMarker.line - 1 : 0;
-		// console.log('adding from ', start, end);
+		const start = this._lastMarker?.line ? this._lastMarker.line - this._lastRowCount : 0;
+		this._logService.debug('Updating scrollback content, start: ', start, ' end: ', end, ' buffer size: ', buffer.length);
 		const lines: string[] = [];
 		let currentLine: string = '';
-		// for (let i = start; i < end; i++) {
-		const line = buffer.getLine(i);
-		if (!line) {
-			return;
-		}
-		const isWrapped = buffer.getLine(i + 1)?.isWrapped;
-		currentLine += line.translateToString(!isWrapped);
-		if (currentLine && !isWrapped || i === end - 1) {
-			lines.push(currentLine.replace(new RegExp(' ', 'g'), '\xA0'));
-			currentLine = '';
-			// }
+		for (let i = start; i < end; i++) {
+			const line = buffer.getLine(i);
+			if (!line) {
+				return;
+			}
+			const isWrapped = buffer.getLine(i + 1)?.isWrapped;
+			currentLine += line.translateToString(!isWrapped);
+			if (currentLine && !isWrapped || i === end - 1) {
+				lines.push(currentLine.replace(new RegExp(' ', 'g'), '\xA0'));
+				currentLine = '';
+			}
 		}
 		this._cachedLines.push(...lines);
 	}
