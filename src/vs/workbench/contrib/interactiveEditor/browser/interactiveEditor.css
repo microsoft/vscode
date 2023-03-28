@@ -113,10 +113,23 @@
 	color: var(--vscode-editorWarning-foreground);
 }
 
+.monaco-editor .interactive-editor .status .monaco-toolbar .action-item {
+	padding: 0 2px;
+}
+
 .monaco-editor .interactive-editor .status .monaco-toolbar .action-label.checked {
 	color: var(--vscode-inputOption-activeForeground);
 	background-color: var(--vscode-inputOption-activeBackground);
 	outline: 1px solid var(--vscode-inputOption-activeBorder);
+}
+
+.monaco-editor .interactive-editor .status .monaco-toolbar .action-label.label-button {
+	background: var(--vscode-button-background);
+	color: var(--vscode-button-foreground);
+}
+
+.monaco-editor .interactive-editor .status .monaco-toolbar .action-label.label-button:hover {
+	background: var(--vscode-button-hoverBackground);
 }
 
 /* decoration styles */

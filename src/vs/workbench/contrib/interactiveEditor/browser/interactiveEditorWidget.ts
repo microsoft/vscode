@@ -15,7 +15,7 @@ import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/c
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { ZoneWidget } from 'vs/editor/contrib/zoneWidget/browser/zoneWidget';
 import { assertType } from 'vs/base/common/types';
-import { IInteractiveEditorResponse, IInteractiveEditorService, CTX_INTERACTIVE_EDITOR_FOCUSED, CTX_INTERACTIVE_EDITOR_HAS_ACTIVE_REQUEST, CTX_INTERACTIVE_EDITOR_INNER_CURSOR_FIRST, CTX_INTERACTIVE_EDITOR_INNER_CURSOR_LAST, CTX_INTERACTIVE_EDITOR_EMPTY, CTX_INTERACTIVE_EDITOR_OUTER_CURSOR_POSITION, CTX_INTERACTIVE_EDITOR_VISIBLE, MENU_INTERACTIVE_EDITOR_WIDGET, IInteractiveEditorRequest, IInteractiveEditorSession, IInteractiveEditorSlashCommand, IInteractiveEditorSessionProvider, InteractiveEditorResponseFeedbackKind } from 'vs/workbench/contrib/interactiveEditor/common/interactiveEditor';
+import { IInteractiveEditorResponse, IInteractiveEditorService, CTX_INTERACTIVE_EDITOR_FOCUSED, CTX_INTERACTIVE_EDITOR_HAS_ACTIVE_REQUEST, CTX_INTERACTIVE_EDITOR_INNER_CURSOR_FIRST, CTX_INTERACTIVE_EDITOR_INNER_CURSOR_LAST, CTX_INTERACTIVE_EDITOR_EMPTY, CTX_INTERACTIVE_EDITOR_OUTER_CURSOR_POSITION, CTX_INTERACTIVE_EDITOR_VISIBLE, MENU_INTERACTIVE_EDITOR_WIDGET, IInteractiveEditorRequest, IInteractiveEditorSession, IInteractiveEditorSlashCommand, IInteractiveEditorSessionProvider, InteractiveEditorResponseFeedbackKind, IInteractiveEditorEditResponse } from 'vs/workbench/contrib/interactiveEditor/common/interactiveEditor';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { Iterable } from 'vs/base/common/iterator';
 import { ICursorStateComputer, IModelDecorationOptions, IModelDeltaDecoration, ITextModel, IValidEditOperation } from 'vs/editor/common/model';
@@ -58,6 +58,11 @@ import { DEFAULT_FONT_FAMILY } from 'vs/workbench/browser/style';
 import { IInteractiveSessionService } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionService';
 import { renderFormattedText } from 'vs/base/browser/formattedTextRenderer';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
+import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IUntitledTextResourceEditorInput } from 'vs/workbench/common/editor';
+import { IActionViewItemProvider } from 'vs/base/browser/ui/actionbar/actionbar';
+import { ActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
 
 class InteractiveEditorWidget {
 
@@ -335,7 +340,23 @@ class InteractiveEditorWidget {
 			h('div.actions@actions'),
 		]);
 
-		const toolbar = this._instantiationService.createInstance(WorkbenchToolBar, actions, {});
+		const actionViewItemProvider: IActionViewItemProvider = action => {
+			if (action.class) {
+				return undefined;
+			}
+			const res = new class extends ActionViewItem {
+				constructor() {
+					super(undefined, action, { icon: false, label: true });
+				}
+				override render(container: HTMLElement): void {
+					super.render(container);
+					this.label!.classList.add('label-button');
+				}
+			};
+			return res;
+		};
+
+		const toolbar = this._instantiationService.createInstance(WorkbenchToolBar, actions, { actionViewItemProvider });
 		this._historyStore.add(toolbar);
 
 		reset(this._elements.status, root);
@@ -549,6 +570,46 @@ class UndoAction extends Action {
 	}
 }
 
+class MoveToClipboard extends Action {
+
+	constructor(
+		private readonly _model: ITextModel,
+		private readonly _beforeModelVersionId: number,
+		private readonly _response: IInteractiveEditorEditResponse,
+		@IClipboardService private readonly _clipboardService: IClipboardService,
+	) {
+		super('moveToClipboard', localize('moveToClipboard', "Move to Clipboard"), undefined, _response.edits.length === 1);
+	}
+
+	override async run() {
+		while (this._beforeModelVersionId !== this._model.getAlternativeVersionId()) {
+			this._model.undo();
+		}
+		const [edit] = this._response.edits;
+		this._clipboardService.writeText(edit.text);
+	}
+}
+
+class MoveToNewFile extends Action {
+	constructor(
+		private readonly _model: ITextModel,
+		private readonly _beforeModelVersionId: number,
+		private readonly _response: IInteractiveEditorEditResponse,
+		@IEditorService private readonly _editorService: IEditorService,
+	) {
+		super('moveToClipboard', localize('moveToNewFile', "Move to New File"), undefined, _response.edits.length === 1);
+	}
+
+	override async run() {
+		while (this._beforeModelVersionId !== this._model.getAlternativeVersionId()) {
+			this._model.undo();
+		}
+		const [edit] = this._response.edits;
+		const input: IUntitledTextResourceEditorInput = { forceUntitled: true, resource: undefined, contents: edit.text, languageId: this._model.getLanguageId() };
+		this._editorService.openEditor(input);
+	}
+}
+
 type Exchange = { req: IInteractiveEditorRequest; res: IInteractiveEditorResponse };
 export type Recording = { when: Date; session: IInteractiveEditorSession; value: string; exchanges: Exchange[] };
 
@@ -660,9 +721,6 @@ class InlineDiffDecorations {
 
 class FeedbackToggles {
 
-	private readonly _onDidChange = new Emitter<this>();
-	readonly onDidChange: Event<this> = this._onDidChange.event;
-
 	private readonly _helpful: Action;
 	private readonly _unHelpful: Action;
 
@@ -673,22 +731,13 @@ class FeedbackToggles {
 		const update = (kind: InteractiveEditorResponseFeedbackKind) => {
 			if (supportsFeedback) {
 				provider.handleInteractiveEditorResponseFeedback!(session, response, kind);
-
 				if (kind === InteractiveEditorResponseFeedbackKind.Helpful) {
-					this._helpful.tooltip = localize('thanks', "Thanks for your feedback!");
 					this._helpful.checked = true;
-					this._helpful.enabled = false;
-					this._unHelpful.tooltip = localize('thanks', "Thanks for your feedback!");
-					this._unHelpful.enabled = false;
+					this._unHelpful.checked = false;
 				} else {
-					this._unHelpful.tooltip = localize('thanks', "Thanks for your feedback!");
 					this._unHelpful.checked = true;
-					this._unHelpful.enabled = false;
-					this._helpful.tooltip = localize('thanks', "Thanks for your feedback!");
-					this._helpful.enabled = false;
+					this._helpful.checked = false;
 				}
-
-				this._onDidChange.fire(this);
 			}
 		};
 
@@ -700,7 +749,6 @@ class FeedbackToggles {
 	}
 
 	dispose() {
-		this._onDidChange.dispose();
 		this._helpful.dispose();
 		this._unHelpful.dispose();
 	}
@@ -1004,6 +1052,10 @@ export class InteractiveEditorController implements IEditorContribution {
 				}]);
 			}
 
+
+			const moveToClipboardAction = this._instaService.createInstance(MoveToClipboard, textModel, textModel.getAlternativeVersionId(), reply);
+			const moveToFileAction = this._instaService.createInstance(MoveToNewFile, textModel, textModel.getAlternativeVersionId(), reply);
+
 			try {
 				ignoreModelChanges = true;
 
@@ -1036,7 +1088,12 @@ export class InteractiveEditorController implements IEditorContribution {
 
 			const feedback = new FeedbackToggles(provider, session, reply);
 			roundStore.add(feedback);
-			roundStore.add(feedback.onDidChange(() => { statusWidget.update({ actions: Separator.join(feedback.actions, fixedActions) }); }));
+
+			const leftActions = [...feedback.actions];
+			if (reply.edits.length === 1) {
+				leftActions.unshift(moveToFileAction);
+				leftActions.unshift(moveToClipboardAction);
+			}
 
 			const editsCount = (moreMinimalEdits ?? reply.edits).length;
 
@@ -1054,7 +1111,7 @@ export class InteractiveEditorController implements IEditorContribution {
 			statusWidget.update({
 				message,
 				classes: [],
-				actions: Separator.join(feedback.actions, fixedActions),
+				actions: Separator.join(leftActions, fixedActions),
 			});
 
 			if (!InteractiveEditorController._promptHistory.includes(input)) {
