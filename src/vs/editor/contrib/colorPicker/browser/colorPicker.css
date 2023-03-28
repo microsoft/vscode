@@ -177,4 +177,13 @@
 	position: absolute;
 	right: 8px;
 	bottom: 8px;
+	background: var(--vscode-button-background);
+	color: var(--vscode-button-foreground);
+	border-radius: 2px;
+	border: none;
+	cursor: pointer;
+}
+
+.colorpicker-body .insert-button:hover{
+	background: var(--vscode-button-hoverBackground);
 }
