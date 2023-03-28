@@ -57,6 +57,7 @@ import { LanguageSelector } from 'vs/editor/common/languageSelector';
 import { DEFAULT_FONT_FAMILY } from 'vs/workbench/browser/style';
 import { IInteractiveSessionService } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionService';
 import { renderFormattedText } from 'vs/base/browser/formattedTextRenderer';
+import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 
 class InteractiveEditorWidget {
 
@@ -725,6 +726,8 @@ export class InteractiveEditorController implements IEditorContribution {
 		return editor.getContribution<InteractiveEditorController>(InteractiveEditorController.ID);
 	}
 
+	private static _inlineDiffStorageKey: string = 'interactiveEditor.storage.inlineDiff';
+
 	private static _decoBlock = ModelDecorationOptions.register({
 		description: 'interactive-editor',
 		blockClassName: 'interactive-editor-block',
@@ -756,7 +759,9 @@ export class InteractiveEditorController implements IEditorContribution {
 		@IBulkEditService private readonly _bulkEditService: IBulkEditService,
 		@IEditorWorkerService private readonly _editorWorkerService: IEditorWorkerService,
 		@ILogService private readonly _logService: ILogService,
-		@ITelemetryService private readonly _telemetryService: ITelemetryService
+		@ITelemetryService private readonly _telemetryService: ITelemetryService,
+		@IStorageService private readonly _storageService: IStorageService,
+
 	) {
 		this._zone = this._store.add(_instaService.createInstance(InteractiveEditorZoneWidget, this._editor));
 		this._ctxHasActiveRequest = CTX_INTERACTIVE_EDITOR_HAS_ACTIVE_REQUEST.bindTo(contextKeyService);
@@ -808,6 +813,7 @@ export class InteractiveEditorController implements IEditorContribution {
 		};
 
 		const statusWidget = this._zone.widget.createStatusEntry();
+		this._inlineDiffEnabled = this._storageService.getBoolean(InteractiveEditorController._inlineDiffStorageKey, StorageScope.PROFILE, false);
 		const inlineDiffDecorations = new InlineDiffDecorations(this._editor, this._inlineDiffEnabled);
 
 		const blockDecoration = this._editor.createDecorationsCollection();
@@ -1061,6 +1067,7 @@ export class InteractiveEditorController implements IEditorContribution {
 		} while (!thisSession.token.isCancellationRequested);
 
 		this._inlineDiffEnabled = inlineDiffDecorations.visible;
+		this._storageService.store(InteractiveEditorController._inlineDiffStorageKey, this._inlineDiffEnabled, StorageScope.PROFILE, StorageTarget.USER);
 
 		// done, cleanup
 		wholeRangeDecoration.clear();
