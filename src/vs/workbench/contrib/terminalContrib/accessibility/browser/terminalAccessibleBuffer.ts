@@ -262,10 +262,8 @@ export class AccessibleBufferWidget extends DisposableStore {
 		if (this._lastMarker?.isDisposed) {
 			this._lines = [];
 		}
-		if (this._xterm.raw.buffer.active.length > this._lines.length) {
-			this._removeViewportContent();
-			this._updateScrollbackContent();
-		}
+		this._removeViewportContent();
+		this._updateScrollbackContent();
 		this._updateViewportContent();
 		let model = this._editorWidget.getModel();
 		const text = this._lines.join('\n');
