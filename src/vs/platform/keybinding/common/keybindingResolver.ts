@@ -16,6 +16,10 @@ export interface IResolveResult {
 	bubble: boolean;
 }
 
+/**
+ * Stores mappings from keybindings to commands and from commands to keybindings.
+ * Given a sequence of chords, `resolve`s which keybinding it matches
+ */
 export class KeybindingResolver {
 	private readonly _log: (str: string) => void;
 	private readonly _defaultKeybindings: ResolvedKeybindingItem[];
@@ -277,15 +281,15 @@ export class KeybindingResolver {
 		return items[items.length - 1];
 	}
 
-	public resolve(context: IContext, currentChord: string[] | null, keypress: string): IResolveResult | null {
-		this._log(`| Resolving ${keypress}${currentChord ? ` chorded from ${currentChord}` : ``}`);
+	public resolve(context: IContext, currentChords: string[] | null, keypress: string): IResolveResult | null {
+		this._log(`| Resolving ${keypress}${currentChords ? ` chorded from ${currentChords}` : ``}`);
 		let lookupMap: ResolvedKeybindingItem[] | null = null;
 
-		if (currentChord !== null) {
-			// Fetch all chord bindings for `currentChord`
-			const candidates = this._map.get(currentChord[0]);
+		if (currentChords !== null) {
+			// Fetch all chord bindings for `currentChords`
+			const candidates = this._map.get(currentChords[0]);
 			if (typeof candidates === 'undefined') {
-				// No chords starting with `currentChord`
+				// No chords starting with `currentChords`
 				this._log(`\\ No keybinding entries.`);
 				return null;
 			}
@@ -293,18 +297,18 @@ export class KeybindingResolver {
 			lookupMap = [];
 			for (let i = 0, len = candidates.length; i < len; i++) {
 				const candidate = candidates[i];
-				if (candidate.chords.length <= currentChord.length) {
+				if (candidate.chords.length <= currentChords.length) {
 					continue;
 				}
 
 				let prefixMatches = true;
-				for (let i = 1; i < currentChord.length; i++) {
-					if (candidate.chords[i] !== currentChord[i]) {
+				for (let i = 1; i < currentChords.length; i++) {
+					if (candidate.chords[i] !== currentChords[i]) {
 						prefixMatches = false;
 						break;
 					}
 				}
-				if (prefixMatches && candidate.chords[currentChord.length] === keypress) {
+				if (prefixMatches && candidate.chords[currentChords.length] === keypress) {
 					lookupMap.push(candidate);
 				}
 			}
@@ -325,7 +329,7 @@ export class KeybindingResolver {
 			return null;
 		}
 
-		if (currentChord === null && result.chords.length > 1 && result.chords[1] !== null) {
+		if (currentChords === null && result.chords.length > 1 && result.chords[1] !== null) {
 			this._log(`\\ From ${lookupMap.length} keybinding entries, matched chord, when: ${printWhenExplanation(result.when)}, source: ${printSourceExplanation(result)}.`);
 			return {
 				enterMultiChord: true,
@@ -334,7 +338,7 @@ export class KeybindingResolver {
 				commandArgs: null,
 				bubble: false
 			};
-		} else if (currentChord !== null && currentChord.length + 1 < result.chords.length) {
+		} else if (currentChords !== null && currentChords.length + 1 < result.chords.length) {
 			this._log(`\\ From ${lookupMap.length} keybinding entries, continued chord, when: ${printWhenExplanation(result.when)}, source: ${printSourceExplanation(result)}.`);
 			return {
 				enterMultiChord: false,
