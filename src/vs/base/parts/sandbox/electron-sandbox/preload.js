@@ -116,7 +116,7 @@
 	// #######################################################################
 
 	/**
-	 * @type {import('../electron-sandbox/globals')}
+	 * @type {import('./globals')}
 	 */
 	const globals = {
 
@@ -124,7 +124,7 @@
 		 * A minimal set of methods exposed from Electron's `ipcRenderer`
 		 * to support communication to main process.
 		 *
-		 * @typedef {import('../electron-sandbox/electronTypes').IpcRenderer} IpcRenderer
+		 * @typedef {import('./electronTypes').IpcRenderer} IpcRenderer
 		 * @typedef {import('electron').IpcRendererEvent} IpcRendererEvent
 		 *
 		 * @type {IpcRenderer}
@@ -194,7 +194,7 @@
 		},
 
 		/**
-		 * @type {import('../electron-sandbox/globals').IpcMessagePort}
+		 * @type {import('./globals').IpcMessagePort}
 		 */
 		ipcMessagePort: {
 
@@ -224,7 +224,7 @@
 		/**
 		 * Support for subset of methods of Electron's `webFrame` type.
 		 *
-		 * @type {import('../electron-sandbox/electronTypes').WebFrame}
+		 * @type {import('./electronTypes').WebFrame}
 		 */
 		webFrame: {
 
@@ -244,7 +244,7 @@
 		 * Note: when `sandbox` is enabled, the only properties available
 		 * are https://github.com/electron/electron/blob/master/docs/api/process.md#sandbox
 		 *
-		 * @typedef {import('../electron-sandbox/globals').ISandboxNodeProcess} ISandboxNodeProcess
+		 * @typedef {import('./globals').ISandboxNodeProcess} ISandboxNodeProcess
 		 *
 		 * @type {ISandboxNodeProcess}
 		 */
@@ -293,7 +293,7 @@
 		/**
 		 * Some information about the context we are running in.
 		 *
-		 * @type {import('../electron-sandbox/globals').ISandboxContext}
+		 * @type {import('./globals').ISandboxContext}
 		 */
 		context: {
 
