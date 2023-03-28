@@ -62,7 +62,7 @@ export class StandaloneColorPickerController extends Disposable implements IEdit
 			console.log('position : ', position);
 			console.log('selection ; ', selection);
 			if (position && selection) {
-				this._standaloneColorPickerWidget = new StandaloneColorPickerWidget(position, selection, this._editor, this._instantiationService, this._keybindingService, this._languageFeatureService);
+				this._standaloneColorPickerWidget = new StandaloneColorPickerWidget(position, selection, this._editor, this._instantiationService, this._keybindingService, this._languageFeatureService, this._contextKeyService);
 				this._editor.addContentWidget(this._standaloneColorPickerWidget);
 			}
 			this._colorHoverVisible.set(true);
@@ -81,6 +81,7 @@ export class StandaloneColorPickerController extends Disposable implements IEdit
 	}
 
 	public updateEditor() {
+		console.log('inside of udpate editor of the standalone color picker controller');
 		this._standaloneColorPickerWidget?.updateEditor();
 		this.hide();
 	}
@@ -102,6 +103,8 @@ export class StandaloneColorPickerWidget implements IContentWidget {
 	private body: HTMLElement = document.createElement('div');
 	private _resultFound: boolean = false;
 	private _hoverParts: IHoverPart[] = [];
+	private _colorHoverVisible: IContextKey<boolean>;
+	private _colorHoverFocused: IContextKey<boolean>;
 
 	constructor(
 		private position: IPosition,
@@ -110,6 +113,7 @@ export class StandaloneColorPickerWidget implements IContentWidget {
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
 		@ILanguageFeaturesService private readonly languageFeaturesService: ILanguageFeaturesService,
+		@IContextKeyService private readonly _contextKeyService: IContextKeyService
 	) {
 		this._participants = [];
 		for (const participant of HoverParticipantRegistry.getAll()) {
@@ -159,6 +163,8 @@ export class StandaloneColorPickerWidget implements IContentWidget {
 
 		this._hoverOperation.range = this.selection;
 		this._hoverOperation.start(HoverStartMode.Immediate);
+		this._colorHoverVisible = EditorContextKeys.standaloneColorPickerVisible.bindTo(this._contextKeyService);
+		this._colorHoverFocused = EditorContextKeys.standaloneColorHoverVisible.bindTo(this._contextKeyService);
 	}
 
 	public updateEditor() {
@@ -287,6 +293,8 @@ export class StandaloneColorPickerWidget implements IContentWidget {
 		this.editor.removeContentWidget(this);
 		this._resultFound = false;
 		this._disposables.dispose();
+		this._colorHoverFocused.set(false);
+		this._colorHoverVisible.set(false);
 	}
 
 	public focus(): void {
