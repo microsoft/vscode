@@ -47,8 +47,8 @@ export class StandaloneColorPickerController extends Disposable implements IEdit
 	) {
 		super();
 		console.log('creating new instance of the standalone color picker widget');
-		this._colorHoverVisible = EditorContextKeys.colorHoverVisible.bindTo(this._contextKeyService);
-		this._colorHoverFocused = EditorContextKeys.colorHoverFocused.bindTo(this._contextKeyService);
+		this._colorHoverVisible = EditorContextKeys.standaloneColorPickerVisible.bindTo(this._contextKeyService);
+		this._colorHoverFocused = EditorContextKeys.standaloneColorHoverVisible.bindTo(this._contextKeyService);
 	}
 
 	public showOrFocus() {

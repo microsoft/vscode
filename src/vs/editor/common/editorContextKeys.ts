@@ -44,8 +44,8 @@ export namespace EditorContextKeys {
 	export const stickyScrollFocused = new RawContextKey<boolean>('stickyScrollFocused', false, nls.localize('stickyScrollFocused', "Whether the sticky scroll is focused"));
 	export const stickyScrollVisible = new RawContextKey<boolean>('stickyScrollVisible', false, nls.localize('stickyScrollVisible', "Whether the sticky scroll is visible"));
 
-	export const colorHoverVisible = new RawContextKey<boolean>('colorHoverVisible', false, nls.localize('colorHoverVisible', "Whether the color hover is visible"));
-	export const colorHoverFocused = new RawContextKey<boolean>('colorHoverFocused', false, nls.localize('colorHoverFocused', "Whether the color hover is focused"));
+	export const standaloneColorPickerVisible = new RawContextKey<boolean>('standaloneColorPickerVisible', false, nls.localize('standaloneColorPickerVisible', "Whether the standalone color picker is visible"));
+	export const standaloneColorHoverVisible = new RawContextKey<boolean>('standaloneColorHoverVisible', false, nls.localize('standaloneColorHoverVisible', "Whether the standalone color picker is focused"));
 
 	/**
 	 * A context key that is set when an editor is part of a larger editor, like notebooks or
