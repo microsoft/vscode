@@ -8,7 +8,7 @@ import { HoverAnchor, HoverParticipantRegistry, IEditorHoverParticipant, IEditor
 import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition } from 'vs/editor/browser/editorBrowser';
 import { PositionAffinity } from 'vs/editor/common/model';
 import { IPosition } from 'vs/editor/common/core/position';
-import { ColorHoverParticipant } from 'vs/editor/contrib/colorPicker/browser/colorHoverParticipant';
+import { ColorHover, ColorHoverParticipant } from 'vs/editor/contrib/colorPicker/browser/colorHoverParticipant';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { EditorHoverStatusBar } from 'vs/editor/contrib/hover/browser/contentHover';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
@@ -46,6 +46,7 @@ export class StandaloneColorPickerController extends Disposable implements IEdit
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService
 	) {
 		super();
+		console.log('creating new instance of the standalone color picker widget');
 		this._colorHoverVisible = EditorContextKeys.colorHoverVisible.bindTo(this._contextKeyService);
 		this._colorHoverFocused = EditorContextKeys.colorHoverFocused.bindTo(this._contextKeyService);
 	}
@@ -54,6 +55,7 @@ export class StandaloneColorPickerController extends Disposable implements IEdit
 
 		// Suppose tha the color hover is not visible, then make it visible
 		if (!this._colorHoverVisible.get()) {
+			console.log('inside of color hover not visible');
 			const position = this._editor._getViewModel()?.getPrimaryCursorState().viewState.position;
 			// const selection = this._editor._getViewModel()?.getPrimaryCursorState().viewState.selection;
 			const selection = this._editor.getSelection();
@@ -65,15 +67,22 @@ export class StandaloneColorPickerController extends Disposable implements IEdit
 			}
 			this._colorHoverVisible.set(true);
 		} else if (!this._colorHoverFocused.get()) {
+			console.log('inside of color hover not focused');
 			this._standaloneColorPickerWidget?.focus();
 			this._colorHoverFocused.set(true);
 		}
 	}
 
 	public hide() {
+		console.log('calling hide');
 		this._standaloneColorPickerWidget?.hide();
 		this._colorHoverFocused.set(false);
 		this._colorHoverVisible.set(false);
+	}
+
+	public updateEditor() {
+		this._standaloneColorPickerWidget?.updateEditor();
+		this.hide();
 	}
 
 	public static get(editor: ICodeEditor) {
@@ -92,6 +101,7 @@ export class StandaloneColorPickerWidget implements IContentWidget {
 	private _disposables: DisposableStore = new DisposableStore();
 	private body: HTMLElement = document.createElement('div');
 	private _resultFound: boolean = false;
+	private _hoverParts: IHoverPart[] = [];
 
 	constructor(
 		private position: IPosition,
@@ -121,7 +131,9 @@ export class StandaloneColorPickerWidget implements IContentWidget {
 			console.log('participant : ', participant);
 			if (participant === ColorHoverParticipant) {
 				console.log('entered into the case when the participant is pushed');
-				this._participants.push(this.instantiationService.createInstance(participant, this.editor));
+				const participantInstance: ColorHoverParticipant = this.instantiationService.createInstance(participant, this.editor);
+				participantInstance.standaloneColorPickerWidget = true;
+				this._participants.push(participantInstance);
 			}
 		}
 		console.log('this._participants : ', this._participants);
@@ -142,12 +154,12 @@ export class StandaloneColorPickerWidget implements IContentWidget {
 
 		this.editor.onDidChangeCursorPosition((e) => {
 			this.position = e.position;
-			this.editor.layoutContentWidget(this);
 			for (const participant of this._participants) {
 				if (participant instanceof ColorHoverParticipant) {
 					participant.range = Range.fromPositions(e.position, e.position);
 				}
 			}
+			this.editor.layoutContentWidget(this);
 		});
 		this.editor.onDidChangeCursorSelection((e) => {
 			this._hoverOperation.range = e.selection;
@@ -156,10 +168,20 @@ export class StandaloneColorPickerWidget implements IContentWidget {
 					participant.range = e.selection;
 				}
 			}
+			this.editor.layoutContentWidget(this);
 		});
 
 		this._hoverOperation.range = this.selection;
 		this._hoverOperation.start(HoverStartMode.Immediate);
+	}
+
+	public updateEditor() {
+		console.log('inside of update editor of the standalone color picker widget');
+		for (const participant of this._participants) {
+			if (this._hoverParts.length > 0 && participant instanceof ColorHoverParticipant) {
+				participant.updateEditorModel(this._hoverParts as ColorHover[]);
+			}
+		}
 	}
 
 	private _renderColorPicker(messages: IHoverPart[]) {
@@ -181,7 +203,12 @@ export class StandaloneColorPickerWidget implements IContentWidget {
 			const hoverParts = messages.filter(msg => msg.owner === participant);
 			if (hoverParts.length > 0) {
 				console.log('hoverParts : ', hoverParts);
+				this._hoverParts = hoverParts;
 				this._disposables.add(participant.renderHoverParts(context, hoverParts));
+
+				if (participant instanceof ColorHoverParticipant) {
+					participant.updateEditorOnEnter = true;
+				}
 				// Early break in order not to render twice
 			}
 		}
@@ -203,13 +230,20 @@ export class StandaloneColorPickerWidget implements IContentWidget {
 		const saturationBox = colorPickerBody.saturationBox;
 		const hueStrip = colorPickerBody.hueStrip;
 		const opacityStrip = colorPickerBody.opacityStrip;
+		const enterButton = colorPickerBody.enterButton;
 
 		saturationBox.domNode.style.width = 500 + 'px';
 		saturationBox.domNode.style.height = 200 + 'px';
 		saturationBox.canvas.style.width = 500 + 'px';
 		saturationBox.canvas.style.height = 200 + 'px';
-		hueStrip.domNode.style.height = 200 + 'px';
-		opacityStrip.domNode.style.height = 200 + 'px';
+		hueStrip.domNode.style.height = 170 + 'px';
+		opacityStrip.domNode.style.height = 170 + 'px';
+		enterButton.style.height = 20 + 'px';
+		enterButton.style.width = 50 + 'px';
+		enterButton.style.top = 190 + 'px';
+		enterButton.style.left = 520 + 'px';
+		enterButton.style.position = 'absolute';
+		enterButton.textContent = 'Insert';
 		this.body.appendChild(fragment);
 		colorPicker?.layout();
 		this.editor.layoutContentWidget(this);
@@ -222,6 +256,10 @@ export class StandaloneColorPickerWidget implements IContentWidget {
 			console.log('clientHeight : ', clientHeight);
 			console.log('clientWidth : ', clientWidth);
 		}
+
+		enterButton.onclick = () => {
+			this.updateEditor();
+		};
 	}
 
 	public getId(): string {

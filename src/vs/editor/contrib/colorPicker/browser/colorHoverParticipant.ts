@@ -48,11 +48,18 @@ export class ColorHoverParticipant implements IEditorHoverParticipant<ColorHover
 
 	public readonly hoverOrdinal: number = 2;
 	private _range: Range | null = null;
+	private _color: Color | null = null;
+	private _standaloneColorPickerWidget: boolean = false;
+	private _updateEditorOnEnter: boolean = false;
 
 	constructor(
 		private readonly _editor: ICodeEditor,
 		@IThemeService private readonly _themeService: IThemeService,
 	) { }
+
+	public set updateEditorOnEnter(value: boolean) {
+		this._updateEditorOnEnter = value;
+	}
 
 	public computeSync(anchor: HoverAnchor, lineDecorations: IModelDecoration[]): ColorHover[] {
 		console.log('inside of computeSync of the ColorHoverParticipant.ts');
@@ -118,6 +125,10 @@ export class ColorHoverParticipant implements IEditorHoverParticipant<ColorHover
 		this._range = range;
 	}
 
+	public set standaloneColorPickerWidget(value: boolean) {
+		this._standaloneColorPickerWidget = value;
+	}
+
 	public renderHoverParts(context: IEditorHoverRenderContext, hoverParts: ColorHover[]): IDisposable {
 		console.log('Inside of rendeHoverParts of the ColorHoverParticipant.ts');
 
@@ -133,7 +144,7 @@ export class ColorHoverParticipant implements IEditorHoverParticipant<ColorHover
 		console.log('model : ', model);
 		console.log('context.fragment : ', context.fragment);
 
-		const widget = disposables.add(new ColorPickerWidget(context.fragment, model, this._editor.getOption(EditorOption.pixelRatio), this._themeService));
+		const widget = disposables.add(new ColorPickerWidget(context.fragment, model, this._editor.getOption(EditorOption.pixelRatio), this._themeService, this._standaloneColorPickerWidget));
 
 		console.log('before setting the color picker');
 		let clientHeight = widget.body.domNode.clientHeight;
@@ -193,7 +204,7 @@ export class ColorHoverParticipant implements IEditorHoverParticipant<ColorHover
 		};
 
 		const updateColorPresentations = (color: Color) => {
-			console.log('inside of update color presentations');
+			console.log('inside of update color presentations of the renderHoverParts');
 			return getColorPresentations(editorModel, {
 				range: range,
 				color: {
@@ -209,7 +220,12 @@ export class ColorHoverParticipant implements IEditorHoverParticipant<ColorHover
 		};
 
 		disposables.add(model.onColorFlushed((color: Color) => {
-			updateColorPresentations(color).then(updateEditorModel);
+			// Call update editor model only when the enter key is pressed
+			console.log('this._updateEditorOnEnter : ', this._updateEditorOnEnter);
+			if (!this._updateEditorOnEnter) {
+				updateColorPresentations(color).then(updateEditorModel);
+			}
+			this._color = color;
 		}));
 		disposables.add(model.onDidChangeColor(updateColorPresentations));
 
@@ -220,5 +236,78 @@ export class ColorHoverParticipant implements IEditorHoverParticipant<ColorHover
 		console.log('clientWidth : ', clientWidth);
 
 		return disposables;
+	}
+
+	public updateEditorModel(hoverParts: ColorHover[]): void {
+
+		console.log('inside of update editor model wrapper');
+		if (!this._editor.hasModel()) {
+			return;
+		}
+
+		const colorHover = hoverParts[0];
+		const editorModel = this._editor.getModel();
+		const model = colorHover.model;
+		let range = new Range(colorHover.range.startLineNumber, colorHover.range.startColumn, colorHover.range.endLineNumber, colorHover.range.endColumn);
+
+		const updateEditorModel = () => {
+			console.log('inside of update editor model');
+			let textEdits: ISingleEditOperation[];
+			let newRange: Range;
+			if (model.presentation.textEdit) {
+				if (this._range) {
+					model.presentation.textEdit.range = this._range;
+				}
+				console.log('inside of the first if loop');
+				textEdits = [model.presentation.textEdit];
+				console.log('textEdits : ', textEdits);
+
+				newRange = new Range(
+					model.presentation.textEdit.range.startLineNumber,
+					model.presentation.textEdit.range.startColumn,
+					model.presentation.textEdit.range.endLineNumber,
+					model.presentation.textEdit.range.endColumn
+				);
+				console.log('newRange : ', newRange);
+				const trackedRange = this._editor.getModel()!._setTrackedRange(null, newRange, TrackedRangeStickiness.GrowsOnlyWhenTypingAfter);
+				this._editor.pushUndoStop();
+				this._editor.executeEdits('colorpicker', textEdits);
+				newRange = this._editor.getModel()!._getTrackedRange(trackedRange) || newRange;
+			} else {
+				console.log('inside of second if loop');
+				textEdits = [{ range, text: model.presentation.label, forceMoveMarkers: false }];
+				newRange = range.setEndPosition(range.endLineNumber, range.startColumn + model.presentation.label.length);
+				this._editor.pushUndoStop();
+				this._editor.executeEdits('colorpicker', textEdits);
+			}
+
+			if (model.presentation.additionalTextEdits) {
+				console.log('inside of third if loop');
+				textEdits = [...model.presentation.additionalTextEdits];
+				this._editor.executeEdits('colorpicker', textEdits);
+			}
+			this._editor.pushUndoStop();
+			range = newRange;
+		};
+
+		const updateColorPresentations = (color: Color) => {
+			console.log('inside of update color presentations');
+			return getColorPresentations(editorModel, {
+				range: range,
+				color: {
+					red: color.rgba.r / 255,
+					green: color.rgba.g / 255,
+					blue: color.rgba.b / 255,
+					alpha: color.rgba.a
+				}
+			}, colorHover.provider, CancellationToken.None).then((colorPresentations) => {
+				console.log('colorPresentations : ', colorPresentations);
+				model.colorPresentations = colorPresentations || [];
+			});
+		};
+
+		if (this._color) {
+			updateColorPresentations(this._color).then(updateEditorModel);
+		}
 	}
 }

@@ -74,8 +74,9 @@ export class ColorPickerBody extends Disposable {
 	private readonly _saturationBox: SaturationBox;
 	private readonly _hueStrip: Strip;
 	private readonly _opacityStrip: Strip;
+	private readonly _enterButton: HTMLElement | null = null;
 
-	constructor(container: HTMLElement, private readonly model: ColorPickerModel, private pixelRatio: number) {
+	constructor(container: HTMLElement, private readonly model: ColorPickerModel, private pixelRatio: number, private standaloneColorPicker: boolean = false) {
 		super();
 
 		this._domNode = $('.colorpicker-body');
@@ -95,6 +96,11 @@ export class ColorPickerBody extends Disposable {
 		this._register(this._hueStrip);
 		this._register(this._hueStrip.onDidChange(this.onDidHueChange, this));
 		this._register(this._hueStrip.onColorFlushed(this.flushColor, this));
+
+		if (this.standaloneColorPicker) {
+			this._enterButton = document.createElement('button');
+			this._domNode.append(this._enterButton);
+		}
 	}
 
 	private flushColor(): void {
@@ -132,6 +138,10 @@ export class ColorPickerBody extends Disposable {
 
 	get hueStrip() {
 		return this._hueStrip;
+	}
+
+	get enterButton() {
+		return this._enterButton;
 	}
 
 	layout(): void {
@@ -379,7 +389,7 @@ export class ColorPickerWidget extends Widget implements IEditorHoverColorPicker
 
 	body: ColorPickerBody;
 
-	constructor(container: Node, readonly model: ColorPickerModel, private pixelRatio: number, themeService: IThemeService) {
+	constructor(container: Node, readonly model: ColorPickerModel, private pixelRatio: number, themeService: IThemeService, standaloneColorPicker: boolean = false) {
 		super();
 
 		this._register(PixelRatio.onDidChange(() => this.layout()));
@@ -388,7 +398,7 @@ export class ColorPickerWidget extends Widget implements IEditorHoverColorPicker
 		container.appendChild(element);
 
 		const header = new ColorPickerHeader(element, this.model, themeService);
-		this.body = new ColorPickerBody(element, this.model, this.pixelRatio);
+		this.body = new ColorPickerBody(element, this.model, this.pixelRatio, standaloneColorPicker);
 
 		this._register(header);
 		this._register(this.body);
