@@ -62,7 +62,8 @@ import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IUntitledTextResourceEditorInput } from 'vs/workbench/common/editor';
 import { IActionViewItemProvider } from 'vs/base/browser/ui/actionbar/actionbar';
-import { ActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
+import { ActionWithDropdownActionViewItem } from 'vs/base/browser/ui/dropdown/dropdownActionViewItem';
+import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 
 class InteractiveEditorWidget {
 
@@ -109,6 +110,7 @@ class InteractiveEditorWidget {
 		parentEditor: ICodeEditor | undefined,
 		@IModelService private readonly _modelService: IModelService,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
+		@IContextMenuService private readonly _contextMenuService: IContextMenuService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 	) {
 
@@ -338,19 +340,13 @@ class InteractiveEditorWidget {
 		]);
 
 		const actionViewItemProvider: IActionViewItemProvider = action => {
-			if (action.class) {
+			if (!(action instanceof MoveToClipboard)) {
 				return undefined;
 			}
-			const res = new class extends ActionViewItem {
-				constructor() {
-					super(undefined, action, { icon: false, label: true });
-				}
-				override render(container: HTMLElement): void {
-					super.render(container);
-					this.label!.classList.add('label-button');
-				}
-			};
-			return res;
+
+			return new ActionWithDropdownActionViewItem(undefined, action, {
+				menuActionsOrProvider: [action.undoToNewFileAction, action.undoAction],
+			}, this._contextMenuService);
 		};
 
 		const toolbar = this._instantiationService.createInstance(WorkbenchToolBar, actions, { actionViewItemProvider });
@@ -537,49 +533,21 @@ class ToggleInlineDiff extends Action {
 
 class UndoAction extends Action {
 
-	private readonly _myAlternativeVersionId: number;
+	private readonly _beforeModelVersionId: number;
 
 	constructor(private readonly _model: ITextModel, private readonly _provider: IInteractiveEditorSessionProvider, private readonly _session: IInteractiveEditorSession, private readonly _response: IInteractiveEditorResponse) {
-		super('undo', localize('undo', "Undo"), ThemeIcon.asClassName(Codicon.discard), false);
-		this._myAlternativeVersionId = _model.getAlternativeVersionId();
-
-		const update = () => {
-			this.enabled = this._myAlternativeVersionId === this._model.getAlternativeVersionId();
-		};
-		this._store.add(_model.onDidChangeContent(() => update()));
-		update();
+		super('undo', localize('undo', "Undo"), ThemeIcon.asClassName(Codicon.discard), true);
+		this._beforeModelVersionId = _model.getAlternativeVersionId();
 	}
 
 	override async run(): Promise<void> {
-		if (this._myAlternativeVersionId === this._model.getAlternativeVersionId()) {
-			this._model.undo();
-
-			if (this._provider.handleInteractiveEditorResponseFeedback) {
-				this._provider.handleInteractiveEditorResponseFeedback(this._session, this._response, InteractiveEditorResponseFeedbackKind.Undone);
-			}
-		}
-	}
-}
-
-class MoveToClipboard extends Action {
-
-	constructor(
-		private readonly _model: ITextModel,
-		private readonly _beforeModelVersionId: number,
-		private readonly _response: IInteractiveEditorEditResponse,
-		@IClipboardService private readonly _clipboardService: IClipboardService,
-	) {
-		super('moveToClipboard', localize('moveToClipboard', "Move to Clipboard"), undefined, _response.edits.length === 1);
-	}
-
-	override async run() {
 		while (this._beforeModelVersionId !== this._model.getAlternativeVersionId()) {
 			this._model.undo();
 		}
-		const [edit] = this._response.edits;
-		this._clipboardService.writeText(edit.text);
+		this._provider.handleInteractiveEditorResponseFeedback?.(this._session, this._response, InteractiveEditorResponseFeedbackKind.Undone);
 	}
 }
+
 
 class MoveToNewFile extends Action {
 	constructor(
@@ -598,6 +566,28 @@ class MoveToNewFile extends Action {
 		const [edit] = this._response.edits;
 		const input: IUntitledTextResourceEditorInput = { forceUntitled: true, resource: undefined, contents: edit.text, languageId: this._model.getLanguageId() };
 		this._editorService.openEditor(input);
+	}
+}
+
+class MoveToClipboard extends Action {
+
+	constructor(
+		readonly undoToNewFileAction: MoveToNewFile,
+		readonly undoAction: UndoAction,
+		private readonly _model: ITextModel,
+		private readonly _beforeModelVersionId: number,
+		private readonly _response: IInteractiveEditorEditResponse,
+		@IClipboardService private readonly _clipboardService: IClipboardService,
+	) {
+		super('moveToClipboard', localize('moveToClipboard', "Move to Clipboard"), undefined, _response.edits.length === 1);
+	}
+
+	override async run() {
+		while (this._beforeModelVersionId !== this._model.getAlternativeVersionId()) {
+			this._model.undo();
+		}
+		const [edit] = this._response.edits;
+		this._clipboardService.writeText(edit.text);
 	}
 }
 
@@ -1043,8 +1033,13 @@ export class InteractiveEditorController implements IEditorContribution {
 			}
 
 
-			const moveToClipboardAction = this._instaService.createInstance(MoveToClipboard, textModel, textModel.getAlternativeVersionId(), reply);
-			const moveToFileAction = this._instaService.createInstance(MoveToNewFile, textModel, textModel.getAlternativeVersionId(), reply);
+			const undoToClipboardAction = this._instaService.createInstance(
+				MoveToClipboard,
+				this._instaService.createInstance(MoveToNewFile, textModel, textModel.getAlternativeVersionId(), reply),
+				new UndoAction(textModel, provider, session, reply),
+				textModel,
+				textModel.getAlternativeVersionId(), reply
+			);
 
 			try {
 				ignoreModelChanges = true;
@@ -1073,7 +1068,7 @@ export class InteractiveEditorController implements IEditorContribution {
 			inlineDiffDecorations.update();
 
 			const toggleAction = new ToggleInlineDiff(inlineDiffDecorations);
-			const fixedActions: Action[] = [new UndoAction(textModel, provider, session, reply), toggleAction];
+			const fixedActions: Action[] = [toggleAction];
 			roundStore.add(combinedDisposable(...fixedActions));
 
 			const feedback = new FeedbackToggles(provider, session, reply);
@@ -1081,8 +1076,7 @@ export class InteractiveEditorController implements IEditorContribution {
 
 			const leftActions = [...feedback.actions];
 			if (reply.edits.length === 1) {
-				leftActions.unshift(moveToFileAction);
-				leftActions.unshift(moveToClipboardAction);
+				leftActions.unshift(undoToClipboardAction);
 			}
 
 			const editsCount = (moreMinimalEdits ?? reply.edits).length;
