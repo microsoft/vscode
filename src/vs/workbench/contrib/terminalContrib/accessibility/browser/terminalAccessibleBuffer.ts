@@ -279,6 +279,11 @@ export class AccessibleBufferWidget extends DisposableStore {
 			// remove previous viewport content in case it has changed
 			for (let i = this._lastMarker.line; i < this._lastMarker.line + this._lastRowCount; i++) {
 				this._lines.pop();
+				let isWrapped = this._xterm.raw.buffer.active.getLine(i)?.isWrapped;
+				while (isWrapped) {
+					i++;
+					isWrapped = this._xterm.raw.buffer.active.getLine(i)?.isWrapped;
+				}
 			}
 			this._logService.debug('Removed ', this._lastRowCount, ' lines from cached lines, now ', this._lines.length, ' lines');
 		}
