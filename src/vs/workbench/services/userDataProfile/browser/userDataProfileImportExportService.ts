@@ -529,7 +529,7 @@ export class UserDataProfileImportExportService extends Disposable implements IU
 	private async pickProfileContentHandler(name: string): Promise<string | undefined> {
 		await this.extensionService.activateByEvent('onProfile');
 		if (this.profileContentHandlers.size === 1) {
-			return this.profileContentHandlers.values().next().value;
+			return this.profileContentHandlers.keys().next().value;
 		}
 		const options: QuickPickItem[] = [];
 		for (const [id, profileContentHandler] of this.profileContentHandlers) {
