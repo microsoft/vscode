@@ -1621,6 +1621,7 @@ export interface CommentThread<T = IRange> {
 export interface CommentingRanges {
 	readonly resource: URI;
 	ranges: IRange[];
+	fileComments: boolean;
 }
 
 /**
@@ -1655,6 +1656,14 @@ export interface CommentOptions {
 export enum CommentMode {
 	Editing = 0,
 	Preview = 1
+}
+
+/**
+ * @internal
+ */
+export enum CommentState {
+	Published = 0,
+	Draft = 1
 }
 
 /**

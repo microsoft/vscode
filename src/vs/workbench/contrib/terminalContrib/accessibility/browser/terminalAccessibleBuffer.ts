@@ -102,17 +102,28 @@ export class AccessibleBufferWidget extends DisposableStore {
 		this._focusedContextKey = TerminalContextKeys.accessibleBufferFocus.bindTo(this._contextKeyService);
 		this._trackFocus();
 
-		this._initializeTerminalListeners();
-		this._initializeEditorListeners();
-		this._updateEditor();
-	}
+		// initialize terminal listeners
+		this.add(this._instance.onDidRequestFocus(() => {
+			if (this._isActive()) {
+				this._editorWidget.focus();
+			}
+		}));
+		this.add(Event.runAndSubscribe(this._xterm.raw.onResize, () => this._layout()));
+		this.add(this._configurationService.onDidChangeConfiguration(e => {
+			if (e.affectedKeys.has(TerminalSettingId.FontFamily) || e.affectedKeys.has(TerminalSettingId.FontSize) || e.affectedKeys.has(TerminalSettingId.LineHeight) || e.affectedKeys.has(TerminalSettingId.LetterSpacing)) {
+				const font = this._xterm.getFont();
+				this._editorWidget.updateOptions({ fontFamily: font.fontFamily, fontSize: font.fontSize, lineHeight: font.charHeight ? font.charHeight * font.lineHeight : 1, letterSpacing: font.letterSpacing });
+			}
+		}));
+		this.add(this._xterm.raw.onScroll(async () => await this._updateEditor()));
+		this.add(this._xterm.raw.onWriteParsed(async () => {
+			// dynamically update the viewport before there's a scroll event
+			if (!this._xterm.raw.buffer.active.baseY) {
+				await this._updateEditor();
+			}
+		}));
 
-	private _trackFocus(): void {
-		this.add(this._focusTracker.onDidFocus(() => this._focusedContextKey.set(true)));
-		this.add(this._focusTracker.onDidBlur(() => this._focusedContextKey.reset()));
-	}
-
-	private _initializeEditorListeners(): void {
+		// initialize editor listeners
 		this.add(this._editorWidget.onKeyDown((e) => {
 			switch (e.keyCode) {
 				case KeyCode.Tab:
@@ -139,28 +150,13 @@ export class AccessibleBufferWidget extends DisposableStore {
 			this._accessibleBuffer.classList.add(CssClass.Active);
 			this._xtermElement.classList.add(CssClass.Hide);
 		}));
+
+		this._updateEditor();
 	}
 
-	private _initializeTerminalListeners(): void {
-		this.add(this._instance.onDidRequestFocus(() => {
-			if (this._isActive()) {
-				this._editorWidget.focus();
-			}
-		}));
-		this.add(Event.runAndSubscribe(this._xterm.raw.onResize, () => this._editorWidget.layout({ width: this._xtermElement.clientWidth, height: this._xtermElement.clientHeight })));
-		this.add(this._configurationService.onDidChangeConfiguration(e => {
-			if (e.affectedKeys.has(TerminalSettingId.FontFamily) || e.affectedKeys.has(TerminalSettingId.FontSize) || e.affectedKeys.has(TerminalSettingId.LineHeight) || e.affectedKeys.has(TerminalSettingId.LetterSpacing)) {
-				const font = this._xterm.getFont();
-				this._editorWidget.updateOptions({ fontFamily: font.fontFamily, fontSize: font.fontSize, lineHeight: font.charHeight ? font.charHeight * font.lineHeight : 1, letterSpacing: font.letterSpacing });
-			}
-		}));
-		this.add(this._xterm.raw.onScroll(async () => await this._updateEditor()));
-		this.add(this._xterm.raw.onWriteParsed(async () => {
-			// dynamically update the viewport before there's a scroll event
-			if (!this._xterm.raw.buffer.active.baseY) {
-				await this._updateEditor();
-			}
-		}));
+	private _trackFocus(): void {
+		this.add(this._focusTracker.onDidFocus(() => this._focusedContextKey.set(true)));
+		this.add(this._focusTracker.onDidBlur(() => this._focusedContextKey.reset()));
 	}
 
 	private _isActive(): boolean {
@@ -171,7 +167,6 @@ export class AccessibleBufferWidget extends DisposableStore {
 		this._accessibleBuffer.classList.remove(CssClass.Active);
 		this._xtermElement.classList.remove(CssClass.Hide);
 	}
-
 
 	private async _updateEditor(): Promise<void> {
 		if (this._inProgressUpdate || !this._isActive()) {
@@ -247,10 +242,14 @@ export class AccessibleBufferWidget extends DisposableStore {
 		return quickPick;
 	}
 
+	private _layout(): void {
+		this._editorWidget.layout({ width: this._xtermElement.clientWidth, height: this._xtermElement.clientHeight });
+	}
+
 	async show(): Promise<void> {
 		await this._updateEditor();
 		this._accessibleBuffer.tabIndex = -1;
-		this._editorWidget.layout({ width: this._xtermElement.clientWidth, height: this._xtermElement.clientHeight });
+		this._layout();
 		this._accessibleBuffer.classList.add(CssClass.Active);
 		this._xtermElement.classList.add(CssClass.Hide);
 		this._editorWidget.focus();

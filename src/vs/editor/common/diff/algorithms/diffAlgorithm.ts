@@ -77,22 +77,28 @@ export class InfiniteTimeout implements ITimeout {
 
 export class DateTimeout implements ITimeout {
 	private readonly startTime = Date.now();
+	private valid = true;
 
-	constructor(private readonly timeout: number) {
-		// Recommendation: Set a log-point `{this.debuggerDisable()}` here
+	constructor(private timeout: number) {
 		if (timeout <= 0) {
 			throw new BugIndicatingError('timeout must be positive');
 		}
 	}
 
+	// Recommendation: Set a log-point `{this.disable()}` in the body
 	public isValid(): boolean {
-		const now = Date.now();
-		// eslint-disable-next-line no-debugger
-		debugger; // WARNING, call `this.debuggerDisable()` to not get different results when debugging
-		return now - this.startTime < this.timeout;
+		const valid = Date.now() - this.startTime < this.timeout;
+		if (!valid && this.valid) {
+			this.valid = false; // timeout reached
+			// eslint-disable-next-line no-debugger
+			debugger; // WARNING: Most likely debugging caused the timeout. Call `this.disable()` to continue without timing out.
+		}
+		return this.valid;
 	}
 
-	public debuggerDisable() {
+	public disable() {
+		this.timeout = Number.MAX_SAFE_INTEGER;
 		this.isValid = () => true;
+		this.valid = true;
 	}
 }
