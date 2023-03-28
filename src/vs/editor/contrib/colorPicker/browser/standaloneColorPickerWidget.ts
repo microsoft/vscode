@@ -199,6 +199,7 @@ export class StandaloneColorPickerWidget implements IContentWidget {
 		}
 
 		const colorPickerBody = colorPicker?.body as ColorPickerBody;
+		colorPickerBody.domNode.style.background = 'red';
 		const saturationBox = colorPickerBody.saturationBox;
 		const hueStrip = colorPickerBody.hueStrip;
 		const opacityStrip = colorPickerBody.opacityStrip;
