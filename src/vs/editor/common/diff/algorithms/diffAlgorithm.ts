@@ -88,7 +88,7 @@ export class DateTimeout implements ITimeout {
 	public isValid(): boolean {
 		const now = Date.now();
 		// eslint-disable-next-line no-debugger
-		// debugger; // WARNING, call `this.debuggerDisable()` to not get different results when debugging
+		debugger; // WARNING, call `this.debuggerDisable()` to not get different results when debugging
 		return now - this.startTime < this.timeout;
 	}
 
