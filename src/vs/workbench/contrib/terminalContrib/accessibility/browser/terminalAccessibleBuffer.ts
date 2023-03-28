@@ -159,6 +159,12 @@ export class AccessibleBufferWidget extends DisposableStore {
 				await this._updateEditor();
 			}
 		}));
+		this.add(this._xterm.raw.onWriteParsed(async () => {
+			// dynamically update the viewport before there's a scroll event
+			if (this._isActive() && !this._inProgressUpdate && !this._xterm.raw.buffer.active.baseY) {
+				await this._updateEditor();
+			}
+		}));
 	}
 
 	private _isActive(): boolean {
@@ -170,32 +176,6 @@ export class AccessibleBufferWidget extends DisposableStore {
 		this._xtermElement.classList.remove(CssClass.Hide);
 	}
 
-	private async _updateModel(): Promise<ITextModel> {
-		this._inProgressUpdate = true;
-		let model = this._editorWidget.getModel();
-		const lines: string[] = [];
-		if (this._cachedLines?.length && this._lastMarker?.line) {
-			// remove previous viewport content in case it has changed
-			for (let i = this._lastMarker.line; i < this._lastMarker.line + this._lastRowCount; i++) {
-				this._cachedLines.pop();
-			}
-			this._logService.debug('Removed ', this._lastRowCount, ' lines from cached lines, now ', this._cachedLines.length, ' lines');
-			this._updateScrollbackContent();
-			this._logService.debug('Updated scrollback content, now ', this._cachedLines.length, ' lines');
-		}
-
-		lines.push(...this._cachedLines, ...this._getViewportContent());
-		model = await this._getTextModel(this._instance.resource.with({ fragment: lines.join('\n') }));
-		if (!model) {
-			throw new Error('Could not create accessible buffer editor model');
-		}
-		this._editorWidget.setModel(model);
-		this._cachedLines = lines;
-		this._logService.debug('Accessible buffer update complete, cached ', this._cachedLines.length, ' lines');
-		this._lastMarker = this._xterm.raw.registerMarker();
-		this._lastRowCount = this._xterm.raw.rows;
-		return model;
-	}
 
 	private async _updateEditor(): Promise<void> {
 		this._inProgressUpdate = true;
@@ -277,11 +257,40 @@ export class AccessibleBufferWidget extends DisposableStore {
 		this._editorWidget.focus();
 	}
 
-	private _getViewportContent(): string[] {
-		const lines: string[] = [];
+	private async _updateModel(): Promise<ITextModel> {
+		if (this._lastMarker?.isDisposed) {
+			this._cachedLines = [];
+		}
+		if (this._xterm.raw.buffer.active.length > this._cachedLines.length) {
+			this._removeViewportContent();
+			this._updateScrollbackContent();
+		}
+		this._updateViewportContent();
+		const model = await this._getTextModel(this._instance.resource.with({ fragment: this._cachedLines.join('\n') }));
+		if (!model) {
+			throw new Error('Could not create accessible buffer editor model');
+		}
+		this._editorWidget.setModel(model);
+		this._logService.debug('Accessible buffer update complete, cached ', this._cachedLines.length, ' lines');
+		this._lastMarker = this._xterm.raw.registerMarker();
+		this._lastRowCount = this._xterm.raw.rows;
+		return model;
+	}
+
+	private _removeViewportContent(): void {
+		if (this._cachedLines.length && this._lastMarker?.line) {
+			// remove previous viewport content in case it has changed
+			for (let i = this._lastMarker.line; i < this._lastMarker.line + this._lastRowCount; i++) {
+				this._cachedLines.pop();
+			}
+			this._logService.debug('Removed ', this._lastRowCount, ' lines from cached lines, now ', this._cachedLines.length, ' lines');
+		}
+	}
+
+	private _updateViewportContent(): void {
 		const buffer = this._xterm.raw.buffer.active;
 		if (!buffer) {
-			return [];
+			return;
 		}
 		let currentLine: string = '';
 		for (let i = buffer.baseY; i < buffer.baseY + this._lastRowCount ?? this._xterm.raw.rows - 1; i++) {
@@ -292,12 +301,11 @@ export class AccessibleBufferWidget extends DisposableStore {
 			const isWrapped = buffer.getLine(i + 1)?.isWrapped;
 			currentLine += line.translateToString(!isWrapped);
 			if (currentLine && !isWrapped || i === (buffer.baseY + this._lastRowCount ?? this._xterm.raw.rows) - 1) {
-				lines.push(currentLine.replace(new RegExp(' ', 'g'), '\xA0'));
+				this._cachedLines.push(currentLine.replace(new RegExp(' ', 'g'), '\xA0'));
 				currentLine = '';
 			}
 		}
-		this._logService.debug('Viewport content update complete, ', lines.length, ' lines');
-		return lines;
+		this._logService.debug('Viewport content update complete, ', this._cachedLines.length, ' lines');
 	}
 
 	private _updateScrollbackContent(): void {
@@ -305,7 +313,7 @@ export class AccessibleBufferWidget extends DisposableStore {
 			this._cachedLines = [];
 		}
 		const buffer = this._xterm.raw.buffer.active;
-		if (!buffer || !buffer.baseY) {
+		if (!buffer) {
 			return;
 		}
 		const scrollback: number = this._configurationService.getValue(TerminalSettingId.Scrollback);
@@ -328,6 +336,7 @@ export class AccessibleBufferWidget extends DisposableStore {
 			}
 		}
 		this._cachedLines.push(...lines);
+		this._logService.debug('Updated scrollback content, now ', this._cachedLines.length, ' lines');
 	}
 
 	private async _getTextModel(resource: URI): Promise<ITextModel | null> {
