@@ -78,9 +78,9 @@ export class ColorPickerBody extends Disposable {
 	private readonly _saturationBox: SaturationBox;
 	private readonly _hueStrip: Strip;
 	private readonly _opacityStrip: Strip;
-	private readonly _enterButton: HTMLElement | null = null;
+	private readonly _insertButton: InsertButton | null = null;
 
-	constructor(container: HTMLElement, private readonly model: ColorPickerModel, private pixelRatio: number, private standaloneColorPicker: boolean = false) {
+	constructor(container: HTMLElement, private readonly model: ColorPickerModel, private pixelRatio: number, private showingStandaloneColorPicker: boolean = false) {
 		super();
 
 		this._domNode = $('.colorpicker-body');
@@ -91,19 +91,19 @@ export class ColorPickerBody extends Disposable {
 		this._register(this._saturationBox.onDidChange(this.onDidSaturationValueChange, this));
 		this._register(this._saturationBox.onColorFlushed(this.flushColor, this));
 
-		this._opacityStrip = new OpacityStrip(this._domNode, this.model);
+		this._opacityStrip = new OpacityStrip(this._domNode, this.model, showingStandaloneColorPicker);
 		this._register(this._opacityStrip);
 		this._register(this._opacityStrip.onDidChange(this.onDidOpacityChange, this));
 		this._register(this._opacityStrip.onColorFlushed(this.flushColor, this));
 
-		this._hueStrip = new HueStrip(this._domNode, this.model);
+		this._hueStrip = new HueStrip(this._domNode, this.model, showingStandaloneColorPicker);
 		this._register(this._hueStrip);
 		this._register(this._hueStrip.onDidChange(this.onDidHueChange, this));
 		this._register(this._hueStrip.onColorFlushed(this.flushColor, this));
 
-		if (this.standaloneColorPicker) {
-			this._enterButton = document.createElement('button');
-			this._domNode.append(this._enterButton);
+		if (this.showingStandaloneColorPicker) {
+			this._insertButton = new InsertButton(this._domNode);
+			this._register(this._insertButton);
 		}
 	}
 
@@ -145,7 +145,7 @@ export class ColorPickerBody extends Disposable {
 	}
 
 	get enterButton() {
-		return this._enterButton;
+		return this._insertButton;
 	}
 
 	layout(): void {
@@ -297,10 +297,16 @@ abstract class Strip extends Disposable {
 	private readonly _onColorFlushed = new Emitter<void>();
 	readonly onColorFlushed: Event<void> = this._onColorFlushed.event;
 
-	constructor(container: HTMLElement, protected model: ColorPickerModel) {
+	constructor(container: HTMLElement, protected model: ColorPickerModel, showingStandaloneColorPicker: boolean = false) {
 		super();
-		this.domNode = dom.append(container, $('.strip'));
-		this.overlay = dom.append(this.domNode, $('.overlay'));
+		if (showingStandaloneColorPicker) {
+			this.domNode = dom.append(container, $('.modified-strip'));
+			this.overlay = dom.append(this.domNode, $('.modified-overlay'));
+		} else {
+			this.domNode = dom.append(container, $('.strip'));
+			this.overlay = dom.append(this.domNode, $('.overlay'));
+		}
+
 		this.slider = dom.append(this.domNode, $('.slider'));
 		this.slider.style.top = `0px`;
 
@@ -354,8 +360,8 @@ abstract class Strip extends Disposable {
 
 class OpacityStrip extends Strip {
 
-	constructor(container: HTMLElement, model: ColorPickerModel) {
-		super(container, model);
+	constructor(container: HTMLElement, model: ColorPickerModel, showingStandaloneColorPicker: boolean = false) {
+		super(container, model, showingStandaloneColorPicker);
 		this.domNode.classList.add('opacity-strip');
 
 		this._register(model.onDidChangeColor(this.onDidChangeColor, this));
@@ -377,13 +383,30 @@ class OpacityStrip extends Strip {
 
 class HueStrip extends Strip {
 
-	constructor(container: HTMLElement, model: ColorPickerModel) {
-		super(container, model);
+	constructor(container: HTMLElement, model: ColorPickerModel, showingStandaloneColorPicker: boolean = false) {
+		super(container, model, showingStandaloneColorPicker);
 		this.domNode.classList.add('hue-strip');
 	}
 
 	protected getValue(color: Color): number {
 		return 1 - (color.hsva.h / 360);
+	}
+}
+
+class InsertButton extends Disposable {
+
+	private _button: HTMLElement;
+	private readonly _onClicked = this._register(new Emitter<void>());
+	public readonly onClicked = this._onClicked.event;
+
+	constructor(container: HTMLElement) {
+		super();
+		this._button = dom.append(container, document.createElement('button'));
+		this._button.classList.add('insert-button');
+		this._button.textContent = 'Insert';
+		this._button.onclick = e => {
+			this._onClicked.fire();
+		};
 	}
 }
 

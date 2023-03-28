@@ -104,6 +104,11 @@
 	height: 150px;
 }
 
+.colorpicker-body .modified-strip {
+	width: 25px;
+	height: 122px;
+}
+
 .colorpicker-body .hue-strip {
 	position: relative;
 	margin-left: 8px;
@@ -138,4 +143,17 @@
 .colorpicker-body .strip .overlay {
 	height: 150px;
 	pointer-events: none;
+}
+
+.colorpicker-body .modified-strip .modified-overlay {
+	height: 122px;
+	pointer-events: none;
+}
+
+.colorpicker-body .insert-button {
+	height: 20px;
+	width: 58px;
+	position: absolute;
+	right: 8px;
+	bottom: 8px;
 }

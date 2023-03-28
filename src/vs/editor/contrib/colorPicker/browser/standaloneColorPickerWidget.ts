@@ -111,21 +111,6 @@ export class StandaloneColorPickerWidget implements IContentWidget {
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
 		@ILanguageFeaturesService private readonly languageFeaturesService: ILanguageFeaturesService,
 	) {
-		// const node = document.createElement('div');
-		// const rgba = new RGBA(0, 0, 0, 0);
-		// const color = new Color(rgba);
-		// const colorModel = new ColorPickerModel(color, [{ label: 'rgba' }], 0.5);
-		// const colorPickerWidget = new ColorPickerWidget(node, colorModel, this.editor.getOption(EditorOption.pixelRatio), this.themeService);
-		// colorPickerWidget.layout();
-		// this.body = node;
-		// this.body.style.position = 'fixed';
-		// this.body.style.zIndex = '40';
-		// this.body.style.background = 'red';
-		// this.body.style.height = 200 + 'px';
-		// this.body.style.width = 500 + 'px';
-		// console.log('this.body : ', this.body);
-
-		// Keeping only the color hover participants
 		this._participants = [];
 		for (const participant of HoverParticipantRegistry.getAll()) {
 			console.log('participant : ', participant);
@@ -227,8 +212,8 @@ export class StandaloneColorPickerWidget implements IContentWidget {
 		}
 
 		const colorPickerHeader = colorPicker?.header as ColorPickerHeader;
-		colorPickerHeader.domNode.style.width = 600 + 'px';
-		colorPickerHeader.domNode.style.height = 20 + 'px';
+		// colorPickerHeader.domNode.style.width = 600 + 'px';
+		// colorPickerHeader.domNode.style.height = 20 + 'px';
 
 		const colorPickerBody = colorPicker?.body as ColorPickerBody;
 		colorPickerBody.domNode.style.background = 'red';
@@ -237,24 +222,31 @@ export class StandaloneColorPickerWidget implements IContentWidget {
 		const opacityStrip = colorPickerBody.opacityStrip;
 		const enterButton = colorPickerBody.enterButton;
 
-		saturationBox.domNode.style.width = 500 + 'px';
-		saturationBox.domNode.style.height = 200 + 'px';
-		saturationBox.canvas.style.width = 500 + 'px';
-		saturationBox.canvas.style.height = 200 + 'px';
-		hueStrip.domNode.style.height = 170 + 'px';
-		opacityStrip.domNode.style.height = 170 + 'px';
-		enterButton.style.height = 20 + 'px';
-		enterButton.style.width = 50 + 'px';
-		enterButton.style.top = 190 + 'px';
-		enterButton.style.left = 520 + 'px';
-		enterButton.style.position = 'absolute';
-		enterButton.textContent = 'Insert';
+		const maxHeight = Math.max(this.editor.getLayoutInfo().height / 4, 250);
+		const maxWidth = Math.max(this.editor.getLayoutInfo().width * 0.66, 500);
+
+		this.body.style.maxHeight = maxHeight + 'px';
+		this.body.style.maxWidth = maxWidth + 'px';
+		this.body.style.display = 'block';
+
+		// this.body.style.height = 240 + 'px';
+		// saturationBox.domNode.style.width = 500 + 'px';
+		// saturationBox.domNode.style.height = 200 + 'px';
+		// saturationBox.canvas.style.width = 500 + 'px';
+		// saturationBox.canvas.style.height = 200 + 'px';
+		// hueStrip.domNode.style.height = 170 + 'px';
+		// opacityStrip.domNode.style.height = 170 + 'px';
+		// enterButton.style.height = 20 + 'px';
+		// enterButton.style.width = 50 + 'px';
+		// enterButton.style.top = 190 + 'px';
+		// enterButton.style.left = 520 + 'px';
+
+		// enterButton.style.position = 'absolute';
+		// enterButton.textContent = 'Insert';
 
 		console.log('fragment : ', fragment);
 		console.log('fragment.childNodes : ', fragment.childNodes);
 		this.body.appendChild(fragment);
-		this.body.style.height = 240 + 'px';
-
 		colorPicker?.layout();
 		this.editor.layoutContentWidget(this);
 		this.editor.render();
@@ -267,9 +259,11 @@ export class StandaloneColorPickerWidget implements IContentWidget {
 			console.log('clientWidth : ', clientWidth);
 		}
 
-		enterButton.onclick = () => {
+		enterButton?.onClicked(() => {
+			console.log('on the button click');
 			this.updateEditor();
-		};
+			this.hide();
+		});
 	}
 
 	public getId(): string {

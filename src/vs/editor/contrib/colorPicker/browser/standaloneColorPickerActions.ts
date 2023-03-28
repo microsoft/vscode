@@ -27,7 +27,7 @@ class ShowOrFocusStandaloneColorPicker extends EditorAction {
 			precondition: undefined,
 			kbOpts: {
 				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyMod.CtrlCmd | KeyCode.KeyP),
-				weight: KeybindingWeight.EditorContrib + 1000000
+				weight: KeybindingWeight.EditorContrib
 			}
 		});
 	}
@@ -55,7 +55,7 @@ class HideStandaloneColorPicker extends EditorAction {
 			precondition: EditorContextKeys.standaloneColorPickerVisible.isEqualTo(true),
 			kbOpts: {
 				primary: KeyCode.Escape,
-				weight: KeybindingWeight.EditorContrib + 1000000
+				weight: KeybindingWeight.EditorContrib
 			}
 		});
 	}
@@ -81,7 +81,7 @@ class InsertColorFromStandaloneColorPicker extends EditorAction {
 			precondition: EditorContextKeys.standaloneColorPickerVisible.isEqualTo(true),
 			kbOpts: {
 				primary: KeyCode.Enter,
-				weight: KeybindingWeight.EditorContrib + 1000000
+				weight: KeybindingWeight.EditorContrib
 			}
 		});
 	}
