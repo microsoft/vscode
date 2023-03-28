@@ -24,7 +24,7 @@ export class ColorPickerHeader extends Disposable {
 	private readonly pickedColorNode: HTMLElement;
 	private backgroundColor: Color;
 
-	constructor(container: HTMLElement, private readonly model: ColorPickerModel, themeService: IThemeService) {
+	constructor(container: HTMLElement, private readonly model: ColorPickerModel, themeService: IThemeService, private showingStandaloneColorPicker: boolean = false) {
 		super();
 
 		this._domNode = $('.colorpicker-header');
@@ -54,6 +54,10 @@ export class ColorPickerHeader extends Disposable {
 		this.pickedColorNode.classList.toggle('light', model.color.rgba.a < 0.5 ? this.backgroundColor.isLighter() : model.color.isLighter());
 
 		this.onDidChangeColor(this.model.color);
+
+		if (this.showingStandaloneColorPicker) {
+			this._domNode.classList.add('standalone-color-picker');
+		}
 	}
 
 	public get domNode(): HTMLElement {
@@ -104,6 +108,7 @@ export class ColorPickerBody extends Disposable {
 		if (this.showingStandaloneColorPicker) {
 			this._insertButton = new InsertButton(this._domNode);
 			this._register(this._insertButton);
+			this._domNode.classList.add('standalone-color-picker');
 		}
 	}
 
@@ -425,7 +430,7 @@ export class ColorPickerWidget extends Widget implements IEditorHoverColorPicker
 		const element = $('.colorpicker-widget');
 		container.appendChild(element);
 
-		this.header = new ColorPickerHeader(element, this.model, themeService);
+		this.header = new ColorPickerHeader(element, this.model, themeService, standaloneColorPicker);
 		this.body = new ColorPickerBody(element, this.model, this.pixelRatio, standaloneColorPicker);
 
 		this._register(this.header);
