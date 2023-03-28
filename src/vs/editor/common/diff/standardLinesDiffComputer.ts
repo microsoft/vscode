@@ -105,6 +105,9 @@ export class StandardLinesDiffComputer implements ILinesDiffComputer {
 			seq2LastStart = diff.seq2Range.endExclusive;
 
 			const characterDiffs = this.refineDiff(originalLines, modifiedLines, diff, timeout, considerWhitespaceChanges);
+			if (characterDiffs.hitTimeout) {
+				hitTimeout = true;
+			}
 			for (const a of characterDiffs.mappings) {
 				alignments.push(a);
 			}
