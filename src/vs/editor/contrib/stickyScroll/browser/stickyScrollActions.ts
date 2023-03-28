@@ -69,7 +69,6 @@ export class FocusStickyScroll extends EditorAction2 {
 		StickyScrollController.get(editor)?.focus();
 	}
 }
-
 export class SelectNextStickyScrollLine extends EditorAction2 {
 	constructor() {
 		super({

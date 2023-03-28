@@ -4,41 +4,41 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { EditorAction, ServicesAccessor, registerEditorAction } from 'vs/editor/browser/editorExtensions';
+import { EditorAction, EditorAction2, ServicesAccessor, registerEditorAction } from 'vs/editor/browser/editorExtensions';
 import { KeyChord, KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { localize } from 'vs/nls';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { StandaloneColorPickerController } from 'vs/editor/contrib/colorPicker/browser/standaloneColorPickerWidget';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import 'vs/css!./colorPicker';
+import { MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
 
-class ShowOrFocusStandaloneColorPicker extends EditorAction {
+export class ShowStandaloneColorPicker extends EditorAction2 {
 
 	constructor() {
 		super({
 			id: 'editor.action.showOrFocusStandaloneColorPicker',
-			label: localize({
-				key: 'showOrFocusStandaloneColorPicker',
-				comment: [
-					'Action that shows the standalone color picker or focuses on it'
-				]
-			}, "Show or Focus the Color Picker"),
-			alias: 'Show or Focus the Color Picker',
+			title: {
+				value: localize('showOrFocusStandaloneColorPicker', "Show or Focus Standalone Color Picker"),
+				mnemonicTitle: localize({ key: 'mishowOrFocusStandaloneColorPicker', comment: ['&& denotes a mnemonic'] }, "&&Show or Focus Standalone Color Picker"),
+				original: 'Show or Focus Standalone Color Picker',
+			},
 			precondition: undefined,
-			kbOpts: {
+			menu: [
+				{ id: MenuId.CommandPalette },
+			],
+			keybinding: {
+				weight: KeybindingWeight.EditorContrib,
 				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyMod.CtrlCmd | KeyCode.KeyP),
-				weight: KeybindingWeight.EditorContrib
 			}
 		});
 	}
 
-	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
-		console.log('inside of showing or focusing the color picker');
+	runEditorCommand(_accessor: ServicesAccessor, editor: ICodeEditor) {
+		console.log('inside of show or focus of standalone color picker');
 		StandaloneColorPickerController.get(editor)?.showOrFocus();
 	}
 }
-
-registerEditorAction(ShowOrFocusStandaloneColorPicker);
 
 class HideStandaloneColorPicker extends EditorAction {
 
@@ -94,3 +94,4 @@ class InsertColorFromStandaloneColorPicker extends EditorAction {
 
 registerEditorAction(HideStandaloneColorPicker);
 registerEditorAction(InsertColorFromStandaloneColorPicker);
+registerAction2(ShowStandaloneColorPicker);

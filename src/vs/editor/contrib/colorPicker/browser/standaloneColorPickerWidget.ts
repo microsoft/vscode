@@ -12,7 +12,7 @@ import { ColorHover, ColorHoverParticipant } from 'vs/editor/contrib/colorPicker
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { EditorHoverStatusBar } from 'vs/editor/contrib/hover/browser/contentHover';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { ColorPickerBody, ColorPickerHeader, ColorPickerWidget } from 'vs/editor/contrib/colorPicker/browser/colorPickerWidget';
+import { ColorPickerBody, ColorPickerWidget } from 'vs/editor/contrib/colorPicker/browser/colorPickerWidget';
 import { AsyncIterableObject, CancelableAsyncIterableObject, createCancelableAsyncIterable, RunOnceScheduler } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { onUnexpectedError } from 'vs/base/common/errors';
@@ -29,6 +29,7 @@ import { ILanguageFeatureDebounceService } from 'vs/editor/common/services/langu
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
+import * as dom from 'vs/base/browser/dom';
 
 export class StandaloneColorPickerController extends Disposable implements IEditorContribution {
 
@@ -128,6 +129,7 @@ export class StandaloneColorPickerWidget implements IContentWidget {
 			}
 		}
 		console.log('this._participants : ', this._participants);
+		const focusTracker = this._disposables.add(dom.trackFocus(this.body));
 		this._computer = new ColorHoverComputer(this.editor, this._participants, this.languageFeaturesService);
 		this._hoverOperation = this._disposables.add(new IColorHoverOperation(this.editor, this._computer));
 
@@ -144,24 +146,31 @@ export class StandaloneColorPickerWidget implements IContentWidget {
 		}));
 
 		this.editor.onDidChangeCursorPosition((e) => {
-			this.position = e.position;
-			for (const participant of this._participants) {
-				if (participant instanceof ColorHoverParticipant) {
-					participant.range = Range.fromPositions(e.position, e.position);
-				}
-			}
-			this.editor.layoutContentWidget(this);
+			this.hide();
+			// this.position = e.position;
+			// for (const participant of this._participants) {
+			// 	if (participant instanceof ColorHoverParticipant) {
+			// 		participant.range = Range.fromPositions(e.position, e.position);
+			// 	}
+			// }
+			// this.editor.layoutContentWidget(this);
 		});
 		this.editor.onDidChangeCursorSelection((e) => {
-			this._hoverOperation.range = e.selection;
-			for (const participant of this._participants) {
-				if (participant instanceof ColorHoverParticipant) {
-					participant.range = e.selection;
-				}
-			}
-			this.editor.layoutContentWidget(this);
+			this.hide();
+			// this._hoverOperation.range = e.selection;
+			// for (const participant of this._participants) {
+			// 	if (participant instanceof ColorHoverParticipant) {
+			// 		participant.range = e.selection;
+			// 	}
+			// }
+			// this.editor.layoutContentWidget(this);
 		});
-
+		this._disposables.add(focusTracker.onDidBlur(_ => {
+			this.hide();
+		}));
+		this._disposables.add(focusTracker.onDidFocus(_ => {
+			this.focus();
+		}));
 		this._hoverOperation.range = this.selection;
 		this._hoverOperation.start(HoverStartMode.Immediate);
 		this._colorHoverVisible = EditorContextKeys.standaloneColorPickerVisible.bindTo(this._contextKeyService);
