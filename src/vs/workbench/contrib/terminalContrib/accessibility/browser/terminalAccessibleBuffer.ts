@@ -96,17 +96,26 @@ export class AccessibleBufferWidget extends DisposableStore {
 		this._focusedContextKey = TerminalContextKeys.accessibleBufferFocus.bindTo(this._contextKeyService);
 		this._trackFocus();
 
-		this._initializeTerminalListeners();
-		this._initializeEditorListeners();
-		this._updateEditor();
-	}
+		// initialize terminal listeners
+		this.add(this._instance.onDidRequestFocus(() => {
+			if (this._isActive()) {
+				this._editorWidget.focus();
+			}
+		}));
+		this.add(Event.runAndSubscribe(this._xterm.raw.onResize, () => this._layout()));
+		this.add(this._configurationService.onDidChangeConfiguration(e => {
+			if (e.affectedKeys.has(TerminalSettingId.FontFamily) || e.affectedKeys.has(TerminalSettingId.FontSize) || e.affectedKeys.has(TerminalSettingId.LineHeight) || e.affectedKeys.has(TerminalSettingId.LetterSpacing)) {
+				const font = this._xterm.getFont();
+				this._editorWidget.updateOptions({ fontFamily: font.fontFamily, fontSize: font.fontSize, lineHeight: font.charHeight ? font.charHeight * font.lineHeight : 1, letterSpacing: font.letterSpacing });
+			}
+		}));
+		this.add(this._xterm.raw.onWriteParsed(async () => {
+			if (this._isActive()) {
+				await this._updateEditor(true);
+			}
+		}));
 
-	private _trackFocus(): void {
-		this.add(this._focusTracker.onDidFocus(() => this._focusedContextKey.set(true)));
-		this.add(this._focusTracker.onDidBlur(() => this._focusedContextKey.reset()));
-	}
-
-	private _initializeEditorListeners(): void {
+		// initialize editor listeners
 		this.add(this._editorWidget.onKeyDown((e) => {
 			switch (e.keyCode) {
 				case KeyCode.Tab:
@@ -133,26 +142,13 @@ export class AccessibleBufferWidget extends DisposableStore {
 			this._accessibleBuffer.classList.add(CssClass.Active);
 			this._xtermElement.classList.add(CssClass.Hide);
 		}));
+
+		this._updateEditor();
 	}
 
-	private _initializeTerminalListeners(): void {
-		this.add(this._instance.onDidRequestFocus(() => {
-			if (this._isActive()) {
-				this._editorWidget.focus();
-			}
-		}));
-		this.add(Event.runAndSubscribe(this._xterm.raw.onResize, () => this._layout()));
-		this.add(this._configurationService.onDidChangeConfiguration(e => {
-			if (e.affectedKeys.has(TerminalSettingId.FontFamily) || e.affectedKeys.has(TerminalSettingId.FontSize) || e.affectedKeys.has(TerminalSettingId.LineHeight) || e.affectedKeys.has(TerminalSettingId.LetterSpacing)) {
-				const font = this._xterm.getFont();
-				this._editorWidget.updateOptions({ fontFamily: font.fontFamily, fontSize: font.fontSize, lineHeight: font.charHeight ? font.charHeight * font.lineHeight : 1, letterSpacing: font.letterSpacing });
-			}
-		}));
-		this.add(this._xterm.raw.onWriteParsed(async () => {
-			if (this._isActive()) {
-				await this._updateEditor(true);
-			}
-		}));
+	private _trackFocus(): void {
+		this.add(this._focusTracker.onDidFocus(() => this._focusedContextKey.set(true)));
+		this.add(this._focusTracker.onDidBlur(() => this._focusedContextKey.reset()));
 	}
 
 	private _isActive(): boolean {
