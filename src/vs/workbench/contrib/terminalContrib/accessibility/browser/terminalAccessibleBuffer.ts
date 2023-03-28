@@ -50,7 +50,6 @@ export class AccessibleBufferWidget extends DisposableStore {
 	private _lastMarker: IMarker | undefined;
 	private _lastRowCount: number = 0;
 	private _lines: string[] = [];
-	private _inProgressUpdate: boolean = false;
 
 	constructor(
 		private readonly _instance: ITerminalInstance,
@@ -172,10 +171,6 @@ export class AccessibleBufferWidget extends DisposableStore {
 	}
 
 	private async _updateEditor(): Promise<void> {
-		if (this._inProgressUpdate) {
-			return;
-		}
-		this._inProgressUpdate = true;
 		const model = await this._updateModel();
 		if (!model) {
 			return;
@@ -187,7 +182,6 @@ export class AccessibleBufferWidget extends DisposableStore {
 			this._editorWidget.setSelection({ startLineNumber: lineNumber, startColumn: 1, endLineNumber: lineNumber, endColumn: 1 });
 		}
 		this._editorWidget.setScrollTop(this._editorWidget.getScrollHeight());
-		this._inProgressUpdate = false;
 	}
 
 	async createQuickPick(): Promise<IQuickPick<IAccessibleBufferQuickPickItem> | undefined> {
