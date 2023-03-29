@@ -90,7 +90,7 @@
 /* status */
 
 .monaco-editor .interactive-editor .status {
-	padding: 6px 10px 2px 2px;
+	padding: 6px 0px 2px 0px;
 	display: flex;
 	justify-content: space-between;
 	align-items: center;
@@ -98,6 +98,11 @@
 
 .monaco-editor .interactive-editor .status.hidden {
 	display: none;
+}
+
+.monaco-editor .interactive-editor .status .label {
+	padding-left: 12px;
+	font-size: 12px;
 }
 
 .monaco-editor .interactive-editor .status .label A {

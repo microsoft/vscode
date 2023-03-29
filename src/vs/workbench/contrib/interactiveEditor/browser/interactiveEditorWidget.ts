@@ -53,7 +53,6 @@ import { CompletionContext, CompletionItem, CompletionItemInsertTextRule, Comple
 import { LanguageSelector } from 'vs/editor/common/languageSelector';
 import { DEFAULT_FONT_FAMILY } from 'vs/workbench/browser/style';
 import { IInteractiveSessionService } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionService';
-import { renderFormattedText } from 'vs/base/browser/formattedTextRenderer';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { createActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 
@@ -228,13 +227,13 @@ class InteractiveEditorWidget {
 	layout(dim: Dimension) {
 		this._isLayouting = true;
 		try {
-			const innerEditorWidth = dim.width - (getTotalWidth(this._elements.editorToolbar) + 12 /* L/R-padding */);
+			const innerEditorWidth = dim.width - (getTotalWidth(this._elements.editorToolbar) + 8 /* L/R-padding */);
 			const newDim = new Dimension(innerEditorWidth, this.inputEditor.getContentHeight());
 			if (!this._editorDim || !Dimension.equals(this._editorDim, newDim)) {
 				this._editorDim = newDim;
 				this.inputEditor.layout(this._editorDim);
 
-				this._elements.placeholder.style.width = `${innerEditorWidth - 4 /* input-padding*/}px`;
+				this._elements.placeholder.style.width = `${innerEditorWidth  /* input-padding*/}px`;
 			}
 		} finally {
 			this._isLayouting = false;
@@ -338,11 +337,29 @@ class InteractiveEditorWidget {
 		this.inputEditor.setSelection(this._inputModel.getFullModelRange());
 	}
 
-	updateMessage(message: HTMLElement | string, classes?: string[]) {
+	updateMessage(message: string, classes?: string[], resetAfter?: number) {
+		const isTempMessage = typeof resetAfter === 'number';
+		if (isTempMessage && !this._elements.statusLabel.dataset['state']) {
+			const messageNow = this._elements.statusLabel.innerText;
+			const classes = Array.from(this._elements.statusLabel.classList.values());
+			setTimeout(() => {
+				if (messageNow) {
+					this.updateMessage(messageNow, classes);
+				} else {
+					reset(this._elements.statusLabel);
+				}
+			}, resetAfter);
+		}
+
 		this._elements.status.classList.toggle('hidden', false);
 
 		reset(this._elements.statusLabel, message);
 		this._elements.statusLabel.className = `label ${(classes ?? []).join(' ')}`;
+		if (isTempMessage) {
+			this._elements.statusLabel.dataset['state'] = 'temp';
+		} else {
+			delete this._elements.statusLabel.dataset['state'];
+		}
 	}
 
 	reset() {
@@ -917,22 +934,7 @@ export class InteractiveEditorController implements IEditorContribution {
 
 			inlineDiffDecorations.update();
 
-
-
-			const editsCount = (moreMinimalEdits ?? reply.edits).length;
-
-			const message = renderFormattedText(
-				editsCount === 1
-					? localize({ key: 'edit.1', comment: ['[[ and ]] are markdown must not be removed'] }, "Done, made [[1 change]]")
-					: localize({ key: 'edit.N', comment: ['[[ and ]] are markdown must not be removed'] }, "Done, made [[{0} changes]]", editsCount),
-				{
-					actionHandler: {
-						disposables: roundStore,
-						callback: () => this.toggleInlineDiff(),
-					}
-				});
-
-			this._zone.widget.updateMessage(message);
+			this._zone.widget.updateMessage(reply.detail ?? localize('fyi', "AI-generated code may be incorrect."));
 
 			if (!InteractiveEditorController._promptHistory.includes(input)) {
 				InteractiveEditorController._promptHistory.unshift(input);
@@ -1023,6 +1025,7 @@ export class InteractiveEditorController implements IEditorContribution {
 			while (model.getAlternativeVersionId() !== modelVersionId) {
 				model.undo();
 			}
+			this._lastEditState.provider.handleInteractiveEditorResponseFeedback?.(this._lastEditState.session, this._lastEditState.response, InteractiveEditorResponseFeedbackKind.Undone);
 			return this._lastEditState.response.edits[0].text;
 		}
 	}
@@ -1032,6 +1035,7 @@ export class InteractiveEditorController implements IEditorContribution {
 			const kind = helpful ? InteractiveEditorResponseFeedbackKind.Helpful : InteractiveEditorResponseFeedbackKind.Unhelpful;
 			this._lastEditState.provider.handleInteractiveEditorResponseFeedback?.(this._lastEditState.session, this._lastEditState.response, kind);
 			this._ctxLastFeedbackKind.set(helpful ? 'helpful' : 'unhelpful');
+			this._zone.widget.updateMessage('Thank you for your feedback!', undefined, 1250);
 		}
 	}
 }
@@ -1058,12 +1062,11 @@ function installSlashCommandSupport(accessor: ServicesAccessor, editor: IActiveC
 				const withSlash = `/${command.command}`;
 
 				return {
-					label: withSlash,
+					label: { label: withSlash, description: command.detail },
 					insertText: `${withSlash} $0`,
 					insertTextRules: CompletionItemInsertTextRule.InsertAsSnippet,
 					kind: CompletionItemKind.Text,
 					range: new Range(1, 1, 1, 1),
-					detail: command.detail
 				};
 			});
 

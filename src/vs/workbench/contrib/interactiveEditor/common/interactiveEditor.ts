@@ -43,6 +43,7 @@ export interface IInteractiveEditorEditResponse {
 	id: number;
 	type: 'editorEdit';
 	edits: TextEdit[];
+	detail?: string;
 	placeholder?: string;
 	wholeRange?: IRange;
 }
@@ -51,6 +52,7 @@ export interface IInteractiveEditorBulkEditResponse {
 	id: number;
 	type: 'bulkEdit';
 	edits: WorkspaceEdit;
+	detail?: string;
 	placeholder?: string;
 	wholeRange?: IRange;
 }
@@ -59,6 +61,7 @@ export interface IInteractiveEditorMessageResponse {
 	id: number;
 	type: 'message';
 	message: IMarkdownString;
+	detail?: string;
 	placeholder?: string;
 	wholeRange?: IRange;
 }
