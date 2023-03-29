@@ -93,13 +93,11 @@ export class ColorHoverParticipant implements IEditorHoverParticipant<ColorHover
 		return [];
 	}
 
-	public async createColorHover(colorInfo: IColorInformation, provider: DocumentColorProvider): Promise<ColorHover[]> {
+	public async createColorHover(colorInfo: IColorInformation, provider: DocumentColorProvider): Promise<ColorHover | null> {
 		if (!this._editor.hasModel()) {
-			return [];
+			return null;
 		}
-
-		const colorHover = await this._createColorHover(this._editor.getModel(), colorInfo, provider);
-		return [colorHover];
+		return await this._createColorHover(this._editor.getModel(), colorInfo, provider);
 	}
 
 	private async _createColorHover(editorModel: ITextModel, colorInfo: IColorInformation, provider: DocumentColorProvider): Promise<ColorHover> {

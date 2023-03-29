@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { HoverAnchor, HoverParticipantRegistry, IEditorHoverParticipant, IEditorHoverRenderContext, IHoverPart } from 'vs/editor/contrib/hover/browser/hoverTypes';
+import { HoverParticipantRegistry, IEditorHoverParticipant, IEditorHoverRenderContext, IHoverPart } from 'vs/editor/contrib/hover/browser/hoverTypes';
 import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition } from 'vs/editor/browser/editorBrowser';
 import { PositionAffinity } from 'vs/editor/common/model';
 import { Position } from 'vs/editor/common/core/position';
@@ -13,12 +13,8 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { EditorHoverStatusBar } from 'vs/editor/contrib/hover/browser/contentHover';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ColorPickerBody, ColorPickerHeader, ColorPickerWidget } from 'vs/editor/contrib/colorPicker/browser/colorPickerWidget';
-import { AsyncIterableObject, CancelableAsyncIterableObject, createCancelableAsyncIterable, RunOnceScheduler } from 'vs/base/common/async';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { onUnexpectedError } from 'vs/base/common/errors';
 import { Emitter } from 'vs/base/common/event';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
-import { coalesce } from 'vs/base/common/arrays';
 import { IColorInformation } from 'vs/editor/common/languages';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
@@ -109,7 +105,6 @@ export class StandaloneColorPickerWidget implements IContentWidget {
 
 	private readonly _participants: IEditorHoverParticipant[] = [];
 	private readonly _standaloneColorPickerComputer: StandaloneColorPickerComputer;
-	private readonly _standaloneColorPickerOperation: StandaloneColorPickerOperation<IHoverPart>;
 
 	private _disposables: DisposableStore = new DisposableStore();
 	private _resultFound: boolean = false;
@@ -148,10 +143,17 @@ export class StandaloneColorPickerWidget implements IContentWidget {
 
 		const focusTracker = this._disposables.add(dom.trackFocus(this.body));
 
-		this._standaloneColorPickerComputer = new StandaloneColorPickerComputer(this.editor, this._participants, this.languageFeaturesService);
-		this._standaloneColorPickerOperation = this._disposables.add(new StandaloneColorPickerOperation(this.editor, this._standaloneColorPickerComputer));
+		const selection = this._selection ?
+			{
+				startLineNumber: this._selection.startLineNumber,
+				startColumn: this._selection.startColumn,
+				endLineNumber: this._selection.endLineNumber,
+				endColumn: this._selection.endColumn
+			} : { startLineNumber: 0, endLineNumber: 0, endColumn: 0, startColumn: 0 };
 
-		this._disposables.add(this._standaloneColorPickerOperation.onResult((result) => {
+		this._standaloneColorPickerComputer = new StandaloneColorPickerComputer(selection, this.editor, this._participants, this.languageFeaturesService);
+
+		this._disposables.add(this._standaloneColorPickerComputer.onResult((result) => {
 
 			console.log('inside of on result of the hover operation');
 			console.log('result.value : ', result.value);
@@ -174,17 +176,9 @@ export class StandaloneColorPickerWidget implements IContentWidget {
 			this.focus();
 		}));
 
-		this._standaloneColorPickerOperation.range = this._selection ?
-			{
-				startLineNumber: this._selection.startLineNumber,
-				startColumn: this._selection.startColumn,
-				endLineNumber: this._selection.endLineNumber,
-				endColumn: this._selection.endColumn
-			} : { startLineNumber: 0, endLineNumber: 0, endColumn: 0, startColumn: 0 };
-
 		// Starting the hover operation
 		// TODO: The hover operation should always be immediate since started using the keybindings
-		this._standaloneColorPickerOperation.start(HoverStartMode.Immediate);
+		this._standaloneColorPickerComputer.start();
 		this._colorHoverVisible = EditorContextKeys.standaloneColorPickerVisible.bindTo(this.contextKeyService);
 		this._colorHoverFocused = EditorContextKeys.standaloneColorPickerFocused.bindTo(this.contextKeyService);
 	}
@@ -317,279 +311,87 @@ export class StandaloneColorPickerWidget implements IContentWidget {
 	}
 }
 
-export interface IStandaloneColorPickerComputer<T> {
-	/**
-	 * This is called after half the hover time
-	 */
-	computeAsync?: (token: CancellationToken, range: IRange) => AsyncIterableObject<T>;
-	/**
-	 * This is called after all the hover time
-	 */
-	computeSync?: (range: IRange) => T[];
+export class StandaloneColorPickerResult {
+	constructor(
+		public readonly value: ColorHover[]
+	) { }
 }
 
-export class StandaloneColorPickerComputer implements IStandaloneColorPickerComputer<IHoverPart> {
+export interface IStandaloneColorPickerComputer {
+	start(): Promise<void>;
+}
 
-	private _anchor: HoverAnchor | null = null;
-	public get anchor(): HoverAnchor | null { return this._anchor; }
-	public set anchor(value: HoverAnchor | null) { this._anchor = value; }
+export class StandaloneColorPickerComputer extends Disposable implements IStandaloneColorPickerComputer {
 
-	private _shouldFocus: boolean = false;
-	public get shouldFocus(): boolean { return this._shouldFocus; }
-	public set shouldFocus(value: boolean) { this._shouldFocus = value; }
-
-	private _source: HoverStartSource = HoverStartSource.Mouse;
-	public get source(): HoverStartSource { return this._source; }
-	public set source(value: HoverStartSource) { this._source = value; }
-
-	private _insistOnKeepingHoverVisible: boolean = false;
-	public get insistOnKeepingHoverVisible(): boolean { return this._insistOnKeepingHoverVisible; }
-	public set insistOnKeepingHoverVisible(value: boolean) { this._insistOnKeepingHoverVisible = value; }
+	private readonly _onResult = this._register(new Emitter<StandaloneColorPickerResult>());
+	public readonly onResult = this._onResult.event;
 
 	constructor(
+		private readonly _range: IRange,
 		private readonly _editor: ICodeEditor,
 		private readonly _participants: readonly IEditorHoverParticipant[],
 		@ILanguageFeaturesService private readonly languageFeaturesService: ILanguageFeaturesService
 	) {
+		super();
 	}
 
-	public computeAsync(token: CancellationToken, range: IRange): AsyncIterableObject<IHoverPart> {
-		console.log('computeAsync of ColorHoverComputer');
-		const anchor = this._anchor;
-		console.log('anchor : ', anchor);
+	public async start(): Promise<void> {
+		if (this._range !== null) {
+			const result = await this.computeAsync(this._range);
+			this._onResult.fire(new StandaloneColorPickerResult(result.slice(0)));
+		}
+	}
+
+	private async computeAsync(range: IRange): Promise<ColorHover[]> {
+
+		console.log('computeSync of ColorHoverComputer');
 
 		if (!this._editor.hasModel()) {
-			return AsyncIterableObject.EMPTY;
+			return [];
 		}
-		const iterable: AsyncIterable<IHoverPart>[] = [];
-		console.log('this._participants : ', this._participants);
-		this._participants.map((participant) => {
+
+		let result: ColorHover[] = [];
+
+		for (const participant of this._participants) {
 			const colorInfo: IColorInformation = {
 				range: range,
 				color: { red: 0, green: 0, blue: 0, alpha: 1 }
 			};
-			const textModel = this._editor.getModel()!;
-			const registry = this.languageFeaturesService.colorProvider;
-			const providers = registry.ordered(textModel).reverse();
-			if (providers.length === 0) {
-				return;
-			}
-			console.log('providers : ', providers);
-			const provider = providers[0];
-			if (participant instanceof ColorHoverParticipant) {
-				console.log('colorInfo : ', colorInfo);
-				console.log('provider : ', provider);
-				const colorHover = participant.createColorHover(colorInfo, provider);
-				console.log('colorHover ; ', colorHover);
-				const colorHoverIterable = AsyncIterableObject.fromPromise(colorHover);
-				iterable.push(colorHoverIterable);
-			}
-		});
-		return AsyncIterableObject.merge(iterable);
-	}
-
-	public computeSync(range: IRange): IHoverPart[] {
-		console.log('computeSync of ColorHoverComputer');
-		if (!this._editor.hasModel() || !this._anchor) {
-			return [];
-		}
-
-		let result: IHoverPart[] = [];
-		for (const participant of this._participants) {
-			const colorInfo: IColorInformation = {
-				range: range,
-				color: { red: 0, green: 0, blue: 0, alpha: 0 }
-			};
 			const textModel = this._editor.getModel();
 			const registry = this.languageFeaturesService.colorProvider;
 			const providers = registry.ordered(textModel).reverse();
+
+			console.log('providers : ', providers);
+
+			// TODO: When there are no providers, we still want to render a color picker
+			if (providers.length === 0) {
+				return [];
+			}
+
+			// Otherwise choose the first provider
 			const provider = providers[0];
+
+			console.log('provider : ', provider);
+
 			if (participant instanceof ColorHoverParticipant) {
-				participant.createColorHover(colorInfo, provider).then((colorHover) => {
+
+				console.log('entered into the case when participant is ColorHoverParticipant');
+
+				// TODO: do we need to set the provider for each participant, what does it do?
+				// TODO: What is the difference between the participants and the document color providers?
+
+				const colorHover = await participant.createColorHover(colorInfo, provider);
+				if (colorHover) {
 					result = result.concat(colorHover);
-				});
+				}
 			}
 		}
 
-		return coalesce(result);
-	}
-}
-
-const enum HoverOperationState {
-	Idle,
-	FirstWait,
-	SecondWait,
-	WaitingForAsync = 3,
-	WaitingForAsyncShowingLoading = 4,
-}
-
-export const enum HoverStartMode {
-	Delayed = 0,
-	Immediate = 1
-}
-
-export const enum HoverStartSource {
-	Mouse = 0,
-	Keyboard = 1
-}
-
-export class HoverResult<T> {
-	constructor(
-		public readonly value: T[],
-		public readonly isComplete: boolean,
-		public readonly hasLoadingMessage: boolean,
-	) { }
-}
-
-export class StandaloneColorPickerOperation<T> extends Disposable {
-
-	private readonly _onResult = this._register(new Emitter<HoverResult<T>>());
-	public readonly onResult = this._onResult.event;
-
-	private readonly _firstWaitScheduler = this._register(new RunOnceScheduler(() => this._triggerAsyncComputation(), 0));
-	private readonly _secondWaitScheduler = this._register(new RunOnceScheduler(() => this._triggerSyncComputation(), 0));
-	private readonly _loadingMessageScheduler = this._register(new RunOnceScheduler(() => this._triggerLoadingMessage(), 0));
-
-	private _state = HoverOperationState.Idle;
-	private _asyncIterable: CancelableAsyncIterableObject<T> | null = null;
-	private _asyncIterableDone: boolean = false;
-	private _result: T[] = [];
-	private _range: IRange | null = null;
-
-	constructor(
-		private readonly _editor: ICodeEditor,
-		private readonly _computer: IStandaloneColorPickerComputer<T>
-	) {
-		super();
-	}
-
-	public set range(range: IRange) {
-		this._range = range;
+		console.log('result from computeAsync : ', result);
+		return result;
 	}
 
 	public override dispose(): void {
-		if (this._asyncIterable) {
-			this._asyncIterable.cancel();
-			this._asyncIterable = null;
-		}
 		super.dispose();
 	}
-
-	private get _hoverTime(): number {
-		return this._editor.getOption(EditorOption.hover).delay;
-	}
-
-	private get _firstWaitTime(): number {
-		return this._hoverTime / 2;
-	}
-
-	private get _secondWaitTime(): number {
-		return this._hoverTime - this._firstWaitTime;
-	}
-
-	private get _loadingMessageTime(): number {
-		return 3 * this._hoverTime;
-	}
-
-	private _setState(state: HoverOperationState, fireResult: boolean = true): void {
-		console.log('inside of _setState');
-		this._state = state;
-		if (fireResult) {
-			this._fireResult();
-		}
-	}
-
-	private _triggerAsyncComputation(): void {
-		console.log('inside of _triggerAsyncComputation');
-		this._setState(HoverOperationState.SecondWait);
-		this._secondWaitScheduler.schedule(this._secondWaitTime);
-		console.log('this._range : ', this._range);
-		if (this._computer.computeAsync && this._range !== null) {
-			this._asyncIterableDone = false;
-			this._asyncIterable = createCancelableAsyncIterable(token => this._computer.computeAsync!(token, this._range!));
-			console.log('this._asyncIterable : ', this._asyncIterable);
-			(async () => {
-				try {
-					for await (const item of this._asyncIterable!) {
-						if (item) {
-							this._result.push(item);
-							this._fireResult();
-						}
-					}
-					this._asyncIterableDone = true;
-
-					if (this._state === HoverOperationState.WaitingForAsync || this._state === HoverOperationState.WaitingForAsyncShowingLoading) {
-						this._setState(HoverOperationState.Idle);
-					}
-
-				} catch (e) {
-					onUnexpectedError(e);
-				}
-			})();
-
-		} else {
-			this._asyncIterableDone = true;
-		}
-	}
-
-	private _triggerSyncComputation(): void {
-		console.log('inside of _triggerSyncComputation');
-		console.log('this._range : ', this._range);
-		if (this._computer.computeSync && this._range) {
-			this._result = this._result.concat(this._computer.computeSync(this._range));
-		}
-		this._setState(this._asyncIterableDone ? HoverOperationState.Idle : HoverOperationState.WaitingForAsync);
-	}
-
-	private _triggerLoadingMessage(): void {
-		if (this._state === HoverOperationState.WaitingForAsync) {
-			this._setState(HoverOperationState.WaitingForAsyncShowingLoading);
-		}
-	}
-
-	private _fireResult(): void {
-		console.log('inside of _fireResult');
-		if (this._state === HoverOperationState.FirstWait || this._state === HoverOperationState.SecondWait) {
-			// Do not send out results before the hover time
-			return;
-		}
-		const isComplete = (this._state === HoverOperationState.Idle);
-		const hasLoadingMessage = (this._state === HoverOperationState.WaitingForAsyncShowingLoading);
-		this._onResult.fire(new HoverResult(this._result.slice(0), isComplete, hasLoadingMessage));
-	}
-
-	public start(mode: HoverStartMode): void {
-		if (mode === HoverStartMode.Delayed) {
-			if (this._state === HoverOperationState.Idle) {
-				this._setState(HoverOperationState.FirstWait);
-				this._firstWaitScheduler.schedule(this._firstWaitTime);
-				this._loadingMessageScheduler.schedule(this._loadingMessageTime);
-			}
-		} else {
-			switch (this._state) {
-				case HoverOperationState.Idle:
-					this._triggerAsyncComputation();
-					this._secondWaitScheduler.cancel();
-					this._triggerSyncComputation();
-					break;
-				case HoverOperationState.SecondWait:
-					this._secondWaitScheduler.cancel();
-					this._triggerSyncComputation();
-					break;
-			}
-		}
-	}
-
-	public cancel(): void {
-		this._firstWaitScheduler.cancel();
-		this._secondWaitScheduler.cancel();
-		this._loadingMessageScheduler.cancel();
-		if (this._asyncIterable) {
-			this._asyncIterable.cancel();
-			this._asyncIterable = null;
-		}
-		this._result = [];
-		this._setState(HoverOperationState.Idle, false);
-	}
-
 }
