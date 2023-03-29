@@ -108,6 +108,7 @@ suite('XtermTerminal', () => {
 		});
 		themeService = new TestThemeService();
 		viewDescriptorService = new TestViewDescriptorService();
+
 		instantiationService = new TestInstantiationService();
 		instantiationService.stub(IConfigurationService, configurationService);
 		instantiationService.stub(ILogService, new NullLogService());
