@@ -41,12 +41,15 @@ interface IAccessibleBufferQuickPickItem extends IQuickPickItem {
 }
 
 export class AccessibleBufferWidget extends DisposableStore {
+
 	private _accessibleBuffer: HTMLElement;
 	private _editorWidget: CodeEditorWidget;
 	private _editorContainer: HTMLElement;
 	private _xtermElement: HTMLElement;
+
 	private readonly _focusedContextKey: IContextKey<boolean>;
 	private readonly _focusTracker: dom.IFocusTracker;
+
 	private _lastMarker: IMarker | undefined;
 	private _lastLinesInViewport: number = 0;
 	private _lines: string[] = [];
@@ -104,6 +107,7 @@ export class AccessibleBufferWidget extends DisposableStore {
 		this._focusedContextKey = TerminalContextKeys.accessibleBufferFocus.bindTo(this._contextKeyService);
 		this.add(this._focusTracker.onDidFocus(() => this._focusedContextKey.set(true)));
 		this.add(this._focusTracker.onDidBlur(() => this._focusedContextKey.reset()));
+
 		this.add(Event.runAndSubscribe(this._xterm.raw.onResize, () => this._layout()));
 		this.add(this._configurationService.onDidChangeConfiguration(e => {
 			if (e.affectedKeys.has(TerminalSettingId.FontFamily) || e.affectedKeys.has(TerminalSettingId.FontSize) || e.affectedKeys.has(TerminalSettingId.LineHeight) || e.affectedKeys.has(TerminalSettingId.LetterSpacing)) {
@@ -111,7 +115,6 @@ export class AccessibleBufferWidget extends DisposableStore {
 				this._editorWidget.updateOptions({ fontFamily: font.fontFamily, fontSize: font.fontSize, lineHeight: font.charHeight ? font.charHeight * font.lineHeight : 1, letterSpacing: font.letterSpacing });
 			}
 		}));
-		// initialize editor this._listeners
 		this.add(this._editorWidget.onKeyDown((e) => {
 			switch (e.keyCode) {
 				case KeyCode.Tab:
@@ -139,41 +142,23 @@ export class AccessibleBufferWidget extends DisposableStore {
 			this._accessibleBuffer.classList.add(CssClass.Active);
 			this._xtermElement.classList.add(CssClass.Hide);
 		}));
+
 		this._updateEditor();
 	}
+
 	override dispose(): void {
 		this._disposeListeners();
 		super.dispose();
 	}
 
-	private _hide(): void {
-		this._disposeListeners();
-		this._accessibleBuffer.classList.remove(CssClass.Active);
-		this._xtermElement.classList.remove(CssClass.Hide);
-	}
-
-	private async _updateEditor(): Promise<void> {
-		if (this._isUpdating) {
-			this._pendingUpdates++;
-			return;
-		}
-		this._isUpdating = true;
-		const model = await this._updateModel();
-		if (!model) {
-			return;
-		}
-		const lineNumber = model.getLineCount();
-		const selection = this._editorWidget.getSelection();
-		// If the selection is at the top of the buffer, IE the default when not set, move it to the bottom
-		if (selection?.startColumn === 1 && selection.endColumn === 1 && selection.startLineNumber === 1 && selection.endLineNumber === 1) {
-			this._editorWidget.setSelection({ startLineNumber: lineNumber, startColumn: 1, endLineNumber: lineNumber, endColumn: 1 });
-		}
-		this._editorWidget.setScrollTop(this._editorWidget.getScrollHeight());
-		this._isUpdating = false;
-		if (this._pendingUpdates) {
-			this._pendingUpdates--;
-			await this._updateEditor();
-		}
+	async show(): Promise<void> {
+		this._registerListeners();
+		await this._updateEditor();
+		this._accessibleBuffer.tabIndex = -1;
+		this._layout();
+		this._accessibleBuffer.classList.add(CssClass.Active);
+		this._xtermElement.classList.add(CssClass.Hide);
+		this._editorWidget.focus();
 	}
 
 	async createQuickPick(): Promise<IQuickPick<IAccessibleBufferQuickPickItem> | undefined> {
@@ -231,14 +216,38 @@ export class AccessibleBufferWidget extends DisposableStore {
 		return quickPick;
 	}
 
-	private _layout(): void {
-		this._editorWidget.layout({ width: this._xtermElement.clientWidth, height: this._xtermElement.clientHeight });
+	private _hide(): void {
+		this._disposeListeners();
+		this._accessibleBuffer.classList.remove(CssClass.Active);
+		this._xtermElement.classList.remove(CssClass.Hide);
 	}
 
-	private _disposeListeners(): void {
-		for (const listener of this._listeners) {
-			listener.dispose();
+	private async _updateEditor(): Promise<void> {
+		if (this._isUpdating) {
+			this._pendingUpdates++;
+			return;
 		}
+		this._isUpdating = true;
+		const model = await this._updateModel();
+		if (!model) {
+			return;
+		}
+		const lineNumber = model.getLineCount();
+		const selection = this._editorWidget.getSelection();
+		// If the selection is at the top of the buffer, IE the default when not set, move it to the bottom
+		if (selection?.startColumn === 1 && selection.endColumn === 1 && selection.startLineNumber === 1 && selection.endLineNumber === 1) {
+			this._editorWidget.setSelection({ startLineNumber: lineNumber, startColumn: 1, endLineNumber: lineNumber, endColumn: 1 });
+		}
+		this._editorWidget.setScrollTop(this._editorWidget.getScrollHeight());
+		this._isUpdating = false;
+		if (this._pendingUpdates) {
+			this._pendingUpdates--;
+			await this._updateEditor();
+		}
+	}
+
+	private _layout(): void {
+		this._editorWidget.layout({ width: this._xtermElement.clientWidth, height: this._xtermElement.clientHeight });
 	}
 
 	private _registerListeners(): void {
@@ -252,35 +261,18 @@ export class AccessibleBufferWidget extends DisposableStore {
 		this._listeners.push(this._instance.onDidRequestFocus(() => this._editorWidget.focus()));
 	}
 
-	async show(): Promise<void> {
-		this._registerListeners();
-		await this._updateEditor();
-		this._accessibleBuffer.tabIndex = -1;
-		this._layout();
-		this._accessibleBuffer.classList.add(CssClass.Active);
-		this._xtermElement.classList.add(CssClass.Hide);
-		this._editorWidget.focus();
+	private _disposeListeners(): void {
+		for (const listener of this._listeners) {
+			listener.dispose();
+		}
 	}
 
-	private async _updateModel(): Promise<ITextModel> {
-		if (this._lastMarker?.isDisposed) {
-			this._lines = [];
+	private async _getTextModel(resource: URI): Promise<ITextModel | null> {
+		const existing = this._modelService.getModel(resource);
+		if (existing && !existing.isDisposed()) {
+			return existing;
 		}
-		this._removeViewportContent();
-		this._updateScrollbackContent();
-		this._updateViewportContent();
-		let model = this._editorWidget.getModel();
-		const text = this._lines.join('\n');
-		if (model) {
-			this._logService.debug('Edited accessible buffer model with ', this._lines.length, ' lines');
-			model.setValue(text);
-		} else {
-			this._logService.debug('Created new accessible buffer model with ', this._lines.length, ' lines');
-			model = await this._getTextModel(this._instance.resource.with({ fragment: text }));
-		}
-		this._editorWidget.setModel(model);
-		this._lastMarker = this._xterm.raw.registerMarker();
-		return model!;
+		return this._modelService.createModel(resource.fragment, null, resource, false);
 	}
 
 	private _removeViewportContent(): void {
@@ -350,11 +342,24 @@ export class AccessibleBufferWidget extends DisposableStore {
 		this._logService.debug('Updated scrollback content, now ', this._lines.length, ' lines');
 	}
 
-	private async _getTextModel(resource: URI): Promise<ITextModel | null> {
-		const existing = this._modelService.getModel(resource);
-		if (existing && !existing.isDisposed()) {
-			return existing;
+	private async _updateModel(): Promise<ITextModel> {
+		if (this._lastMarker?.isDisposed) {
+			this._lines = [];
 		}
-		return this._modelService.createModel(resource.fragment, null, resource, false);
+		this._removeViewportContent();
+		this._updateScrollbackContent();
+		this._updateViewportContent();
+		let model = this._editorWidget.getModel();
+		const text = this._lines.join('\n');
+		if (model) {
+			this._logService.debug('Edited accessible buffer model with ', this._lines.length, ' lines');
+			model.setValue(text);
+		} else {
+			this._logService.debug('Created new accessible buffer model with ', this._lines.length, ' lines');
+			model = await this._getTextModel(this._instance.resource.with({ fragment: text }));
+		}
+		this._editorWidget.setModel(model);
+		this._lastMarker = this._xterm.raw.registerMarker();
+		return model!;
 	}
 }
