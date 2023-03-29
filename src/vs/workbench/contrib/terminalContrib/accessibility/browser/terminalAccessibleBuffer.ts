@@ -48,7 +48,7 @@ export class AccessibleBufferWidget extends DisposableStore {
 	private readonly _focusedContextKey: IContextKey<boolean>;
 	private readonly _focusTracker: dom.IFocusTracker;
 	private _lastMarker: IMarker | undefined;
-	private _lastRowCount: number = 0;
+	private _lastLinesInViewport: number = 0;
 	private _lines: string[] = [];
 	private _listeners: IDisposable[] = [];
 	private _isUpdating: boolean = false;
@@ -280,22 +280,18 @@ export class AccessibleBufferWidget extends DisposableStore {
 		}
 		this._editorWidget.setModel(model);
 		this._lastMarker = this._xterm.raw.registerMarker();
-		this._lastRowCount = this._xterm.raw.rows;
 		return model!;
 	}
 
 	private _removeViewportContent(): void {
 		if (this._lines.length && this._lastMarker?.line) {
 			// remove previous viewport content in case it has changed
-			for (let i = this._lastMarker.line; i < this._lastMarker.line + this._lastRowCount; i++) {
+			let i = 0;
+			while (i < this._lastLinesInViewport) {
 				this._lines.pop();
-				let isWrapped = this._xterm.raw.buffer.active.getLine(i)?.isWrapped;
-				while (isWrapped) {
-					i++;
-					isWrapped = this._xterm.raw.buffer.active.getLine(i)?.isWrapped;
-				}
+				i++;
 			}
-			this._logService.debug('Removed ', this._lastRowCount, ' lines from cached lines, now ', this._lines.length, ' lines');
+			this._logService.debug('Removed ', this._lastLinesInViewport, ' lines from cached lines, now ', this._lines.length, ' lines');
 		}
 	}
 
@@ -304,19 +300,22 @@ export class AccessibleBufferWidget extends DisposableStore {
 		if (!buffer) {
 			return;
 		}
+		let linesInViewport = 0;
 		let currentLine: string = '';
-		for (let i = buffer.baseY; i < buffer.baseY + this._lastRowCount ?? this._xterm.raw.rows - 1; i++) {
+		for (let i = buffer.baseY; i <= buffer.baseY + this._xterm.raw.rows - 1; i++) {
 			const line = buffer.getLine(i);
 			if (!line) {
 				continue;
 			}
 			const isWrapped = buffer.getLine(i + 1)?.isWrapped;
 			currentLine += line.translateToString(!isWrapped);
-			if (currentLine && !isWrapped || i === (buffer.baseY + this._lastRowCount ?? this._xterm.raw.rows) - 1) {
+			if (currentLine && !isWrapped || i === (buffer.baseY + this._xterm.raw.rows - 1)) {
 				this._lines.push(currentLine.replace(new RegExp(' ', 'g'), '\xA0'));
+				linesInViewport++;
 				currentLine = '';
 			}
 		}
+		this._lastLinesInViewport = linesInViewport;
 		this._logService.debug('Viewport content update complete, ', this._lines.length, ' lines');
 	}
 
@@ -331,7 +330,7 @@ export class AccessibleBufferWidget extends DisposableStore {
 		const scrollback: number = this._configurationService.getValue(TerminalSettingId.Scrollback);
 		const maxBufferSize = scrollback + this._xterm.raw.rows - 1;
 		const end = Math.min(maxBufferSize, buffer.baseY);
-		const start = this._lastMarker?.line ? this._lastMarker.line - this._lastRowCount : 0;
+		const start = this._lastMarker?.line ? this._lastMarker.line - this._lastLinesInViewport : 0;
 		this._logService.debug('Updating scrollback content, start: ', start, ' end: ', end, ' buffer size: ', buffer.length);
 		const lines: string[] = [];
 		let currentLine: string = '';
