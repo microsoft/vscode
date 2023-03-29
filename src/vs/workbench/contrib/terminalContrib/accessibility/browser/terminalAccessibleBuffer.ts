@@ -64,8 +64,7 @@ export class AccessibleBufferWidget extends DisposableStore {
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IQuickInputService private readonly _quickInputService: IQuickInputService,
 		@IAudioCueService private readonly _audioCueService: IAudioCueService,
-		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
-		@ILogService private readonly _logService: ILogService
+		@IContextKeyService private readonly _contextKeyService: IContextKeyService
 	) {
 		super();
 		this._xtermElement = _xterm.raw.element!;
@@ -276,10 +275,8 @@ export class AccessibleBufferWidget extends DisposableStore {
 		let model = this._editorWidget.getModel();
 		const text = this._bufferTracker.lines.join('\n');
 		if (model) {
-			this._logService.debug('Edited accessible buffer model with ', this._bufferTracker.lines.length, ' lines');
 			model.setValue(text);
 		} else {
-			this._logService.debug('Created new accessible buffer model with ', this._bufferTracker.lines.length, ' lines');
 			model = await this.getTextModel(this._instance.resource.with({ fragment: text }));
 		}
 		this._editorWidget.setModel(model);
