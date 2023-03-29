@@ -13,6 +13,7 @@ import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle'
 import { StopWatch } from 'vs/base/common/stopwatch';
 import { withNullAsUndefined } from 'vs/base/common/types';
 import { localize } from 'vs/nls';
+import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
@@ -20,7 +21,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IViewsService } from 'vs/workbench/common/views';
 import { IInteractiveSessionContributionService } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionContributionService';
 import { ISerializableInteractiveSessionData, ISerializableInteractiveSessionsData, InteractiveSessionModel, InteractiveWelcomeMessageModel } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionModel';
-import { IInteractiveProgress, IInteractiveProvider, IInteractiveSessionCompleteResponse, IInteractiveSessionDynamicRequest, IInteractiveSessionReplyFollowup, IInteractiveSessionService, IInteractiveSessionUserActionEvent, IInteractiveSlashCommand } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionService';
+import { IInteractiveProgress, IInteractiveProvider, IInteractiveSessionCompleteResponse, IInteractiveSessionDynamicRequest, IInteractiveSessionReplyFollowup, IInteractiveSessionService, IInteractiveSessionUserActionEvent, IInteractiveSlashCommand, InteractiveSessionCopyKind, InteractiveSessionVoteDirection } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionService';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 
 const serializedInteractiveSessionKey = 'interactive.sessions';
@@ -29,7 +30,7 @@ type InteractiveSessionProviderInvokedEvent = {
 	providerId: string;
 	timeToFirstProgress: number;
 	totalTime: number;
-	result: 'success' | 'error' | 'errorWithOutput' | 'cancelled';
+	result: 'success' | 'error' | 'errorWithOutput' | 'cancelled' | 'filtered';
 	requestType: 'string' | 'followup' | 'slashCommand';
 };
 
@@ -41,6 +42,52 @@ type InteractiveSessionProviderInvokedClassification = {
 	requestType: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The type of request that the user made.' };
 	owner: 'roblourens';
 	comment: 'Provides insight into the performance of InteractiveSession providers.';
+};
+
+type InteractiveSessionVoteEvent = {
+	providerId: string;
+	direction: 'up' | 'down';
+};
+
+type InteractiveSessionVoteClassification = {
+	providerId: { classification: 'PublicNonPersonalData'; purpose: 'FeatureInsight'; comment: 'The identifier of the provider that this response came from.' };
+	direction: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the user voted up or down.' };
+	owner: 'roblourens';
+	comment: 'Provides insight into the performance of InteractiveSession providers.';
+};
+
+type InteractiveSessionCopyEvent = {
+	providerId: string;
+	copyKind: 'action' | 'toolbar';
+};
+
+type InteractiveSessionCopyClassification = {
+	providerId: { classification: 'PublicNonPersonalData'; purpose: 'FeatureInsight'; comment: 'The identifier of the provider that this codeblock response came from.' };
+	copyKind: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'How the copy was initiated.' };
+	owner: 'roblourens';
+	comment: 'Provides insight into the usage of InteractiveSession features.';
+};
+
+type InteractiveSessionInsertEvent = {
+	providerId: string;
+};
+
+type InteractiveSessionInsertClassification = {
+	providerId: { classification: 'PublicNonPersonalData'; purpose: 'FeatureInsight'; comment: 'The identifier of the provider that this codeblock response came from.' };
+	owner: 'roblourens';
+	comment: 'Provides insight into the usage of InteractiveSession features.';
+};
+
+type InteractiveSessionCommandEvent = {
+	providerId: string;
+	commandId: string;
+};
+
+type InteractiveSessionCommandClassification = {
+	providerId: { classification: 'PublicNonPersonalData'; purpose: 'FeatureInsight'; comment: 'The identifier of the provider that this codeblock response came from.' };
+	commandId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The id of the command that was executed.' };
+	owner: 'roblourens';
+	comment: 'Provides insight into the usage of InteractiveSession features.';
 };
 
 export class InteractiveSessionService extends Disposable implements IInteractiveSessionService {
@@ -85,6 +132,29 @@ export class InteractiveSessionService extends Disposable implements IInteractiv
 	}
 
 	notifyUserAction(action: IInteractiveSessionUserActionEvent): void {
+		if (action.action.kind === 'vote') {
+			this.telemetryService.publicLog2<InteractiveSessionVoteEvent, InteractiveSessionVoteClassification>('interactiveSessionVote', {
+				providerId: action.providerId,
+				direction: action.action.direction === InteractiveSessionVoteDirection.Up ? 'up' : 'down'
+			});
+		} else if (action.action.kind === 'copy') {
+			this.telemetryService.publicLog2<InteractiveSessionCopyEvent, InteractiveSessionCopyClassification>('interactiveSessionCopy', {
+				providerId: action.providerId,
+				copyKind: action.action.copyType === InteractiveSessionCopyKind.Action ? 'action' : 'toolbar'
+			});
+		} else if (action.action.kind === 'insert') {
+			this.telemetryService.publicLog2<InteractiveSessionInsertEvent, InteractiveSessionInsertClassification>('interactiveSessionInsert', {
+				providerId: action.providerId,
+			});
+		} else if (action.action.kind === 'command') {
+			const command = CommandsRegistry.getCommand(action.action.command.commandId);
+			const commandId = command ? action.action.command.commandId : 'INVALID';
+			this.telemetryService.publicLog2<InteractiveSessionCommandEvent, InteractiveSessionCommandClassification>('interactiveSessionCommand', {
+				providerId: action.providerId,
+				commandId
+			});
+		}
+
 		this._onDidPerformUserAction.fire(action);
 	}
 
@@ -240,11 +310,15 @@ export class InteractiveSessionService extends Disposable implements IInteractiv
 					rawResponse = { session: model.session, errorDetails: { message: localize('emptyResponse', "Provider returned null response") } };
 				}
 
+				const result = rawResponse.errorDetails?.responseIsFiltered ? 'filtered' :
+					rawResponse.errorDetails && gotProgress ? 'errorWithOutput' :
+						rawResponse.errorDetails ? 'error' :
+							'success';
 				this.telemetryService.publicLog2<InteractiveSessionProviderInvokedEvent, InteractiveSessionProviderInvokedClassification>('interactiveSessionProviderInvoked', {
 					providerId: provider.id,
 					timeToFirstProgress: rawResponse.timings?.firstProgress ?? 0,
 					totalTime: rawResponse.timings?.totalElapsed ?? 0,
-					result: rawResponse.errorDetails && gotProgress ? 'errorWithOutput' : rawResponse.errorDetails ? 'error' : 'success',
+					result,
 					requestType
 				});
 				model.completeResponse(request, rawResponse);
