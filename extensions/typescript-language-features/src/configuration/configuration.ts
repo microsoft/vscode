@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
+import * as Proto from '../tsServer/protocol/protocol';
 import * as objects from '../utils/objects';
-import * as Proto from '../protocol';
 
 export enum TsServerLogLevel {
 	Off,

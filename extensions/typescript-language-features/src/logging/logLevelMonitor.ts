@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import { TsServerLogLevel } from './configuration';
-import { Disposable } from './dispose';
+import { TsServerLogLevel } from '../configuration/configuration';
+import { Disposable } from '../utils/dispose';
 
 
 export class LogLevelMonitor extends Disposable {
