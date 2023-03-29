@@ -12,7 +12,7 @@ import { ColorHover, ColorHoverParticipant } from 'vs/editor/contrib/colorPicker
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { EditorHoverStatusBar } from 'vs/editor/contrib/hover/browser/contentHover';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { ColorPickerBody, ColorPickerWidget } from 'vs/editor/contrib/colorPicker/browser/colorPickerWidget';
+import { ColorPickerBody, ColorPickerHeader, ColorPickerWidget } from 'vs/editor/contrib/colorPicker/browser/colorPickerWidget';
 import { AsyncIterableObject, CancelableAsyncIterableObject, createCancelableAsyncIterable, RunOnceScheduler } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { onUnexpectedError } from 'vs/base/common/errors';
@@ -187,6 +187,7 @@ export class StandaloneColorPickerWidget implements IContentWidget {
 	}
 
 	private _renderColorPicker(messages: IHoverPart[]) {
+
 		this._resultFound = true;
 		console.log('Entered into _renderColorPicker');
 		const fragment = document.createDocumentFragment();
@@ -232,6 +233,9 @@ export class StandaloneColorPickerWidget implements IContentWidget {
 		const colorPickerBody = colorPicker?.body as ColorPickerBody;
 		const enterButton = colorPickerBody.enterButton;
 
+		const colorPickerHeader = colorPicker?.header as ColorPickerHeader;
+		const closeButton = colorPickerHeader.closeButton;
+
 		this.body.style.maxHeight = maxHeight + 'px';
 		this.body.style.maxWidth = maxWidth + 'px';
 		this.body.style.display = 'block';
@@ -261,6 +265,10 @@ export class StandaloneColorPickerWidget implements IContentWidget {
 		enterButton?.onClicked(() => {
 			console.log('on the button click');
 			this.updateEditor();
+			this.hide();
+		});
+		closeButton?.onClicked(() => {
+			console.log('on the close button click');
 			this.hide();
 		});
 	}

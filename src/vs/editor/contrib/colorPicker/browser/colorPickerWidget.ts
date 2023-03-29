@@ -7,14 +7,17 @@ import { PixelRatio } from 'vs/base/browser/browser';
 import * as dom from 'vs/base/browser/dom';
 import { GlobalPointerMoveMonitor } from 'vs/base/browser/globalPointerMoveMonitor';
 import { Widget } from 'vs/base/browser/ui/widget';
+import { Codicon } from 'vs/base/common/codicons';
 import { Color, HSVA, RGBA } from 'vs/base/common/color';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
+import { ThemeIcon } from 'vs/base/common/themables';
 import 'vs/css!./colorPicker';
 import { ColorPickerModel } from 'vs/editor/contrib/colorPicker/browser/colorPickerModel';
 import { IEditorHoverColorPickerWidget } from 'vs/editor/contrib/hover/browser/hoverTypes';
 import { localize } from 'vs/nls';
 import { editorHoverBackground } from 'vs/platform/theme/common/colorRegistry';
+import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 const $ = dom.$;
 
@@ -23,6 +26,7 @@ export class ColorPickerHeader extends Disposable {
 	private readonly _domNode: HTMLElement;
 	private readonly pickedColorNode: HTMLElement;
 	private backgroundColor: Color;
+	private readonly _closeButton: CloseButton | null = null;
 
 	constructor(container: HTMLElement, private readonly model: ColorPickerModel, themeService: IThemeService, private showingStandaloneColorPicker: boolean = false) {
 		super();
@@ -56,12 +60,18 @@ export class ColorPickerHeader extends Disposable {
 		this.onDidChangeColor(this.model.color);
 
 		if (this.showingStandaloneColorPicker) {
+			this._closeButton = new CloseButton(this._domNode);
+			this._register(this._closeButton);
 			this._domNode.classList.add('standalone-color-picker');
 		}
 	}
 
 	public get domNode(): HTMLElement {
 		return this._domNode;
+	}
+
+	public get closeButton(): CloseButton | null {
+		return this._closeButton;
 	}
 
 	private onDidChangeColor(color: Color): void {
@@ -73,6 +83,29 @@ export class ColorPickerHeader extends Disposable {
 	private onDidChangePresentation(): void {
 		this.pickedColorNode.textContent = this.model.presentation ? this.model.presentation.label : '';
 		this.pickedColorNode.prepend($('.codicon.codicon-color-mode'));
+	}
+}
+
+class CloseButton extends Disposable {
+
+	private _button: HTMLElement;
+	private readonly _onClicked = this._register(new Emitter<void>());
+	public readonly onClicked = this._onClicked.event;
+
+	constructor(container: HTMLElement) {
+		super();
+		this._button = document.createElement('div');
+		const closeButtonInnerDiv = document.createElement('div');
+		dom.append(container, this._button);
+		dom.append(this._button, closeButtonInnerDiv);
+		this._button.classList.add('color-picker-close-button-outer-div');
+		closeButtonInnerDiv.classList.add('color-picker-close-button-inner-div');
+		const closeIcon = registerIcon('color-picker-close', Codicon.close, localize('closeIcon', 'Icon to close the color picker'));
+		const closeButton = dom.append(closeButtonInnerDiv, $('.button' + ThemeIcon.asCSSSelector(closeIcon)));
+		closeButton.classList.add('color-picker-close-button');
+		this._button.onclick = e => {
+			this._onClicked.fire();
+		};
 	}
 }
 
