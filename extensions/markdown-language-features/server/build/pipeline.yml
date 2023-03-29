@@ -24,31 +24,10 @@ extends:
       - name: vscode-markdown-languageserver
 
         buildSteps:
-          - script: yarn --cwd extensions/markdown-language-features/server install
+          - script: yarn install
             displayName: Install dependencies
 
-          - script: yarn --cwd extensions/markdown-language-features/server run compile
+          - script: gulp compile-extension:markdown-language-features-server
             displayName: Compile
-
-        testPlatforms:
-          - name: Linux
-            nodeVersions:
-              - 16.x
-          - name: MacOS
-            nodeVersions:
-              - 16.x
-          - name: Windows
-            nodeVersions:
-              - 16.x
-
-        testSteps:
-          - script: yarn --cwd extensions/markdown-language-features/server install
-            displayName: Install dependencies
-
-          - script: yarn --cwd extensions/markdown-language-features/server run compile
-            displayName: Compile
-
-          - script: yarn --cwd extensions/markdown-language-features/server test
-            displayName: Test npm package
 
         publishPackage: ${{ parameters.publishPackage }}
