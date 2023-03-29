@@ -91,6 +91,21 @@ export class RangeMap {
 
 	private groups: IRangedGroup[] = [];
 	private _size = 0;
+	private _topPadding = 0;
+
+	get topPadding() {
+		return this._topPadding;
+	}
+
+	set topPadding(topPadding: number) {
+		this._topPadding = topPadding;
+		this._size = this._topPadding + this.groups.reduce((t, g) => t + (g.size * (g.range.end - g.range.start)), 0);
+	}
+
+	constructor(topPadding?: number) {
+		this._topPadding = topPadding || 0;
+		this._size = this._topPadding;
+	}
 
 	splice(index: number, deleteCount: number, items: IItem[] = []): void {
 		const diff = items.length - deleteCount;
@@ -104,7 +119,7 @@ export class RangeMap {
 		}));
 
 		this.groups = concat(before, middle, after);
-		this._size = this.groups.reduce((t, g) => t + (g.size * (g.range.end - g.range.start)), 0);
+		this._size = this._topPadding + this.groups.reduce((t, g) => t + (g.size * (g.range.end - g.range.start)), 0);
 	}
 
 	/**
@@ -135,8 +150,12 @@ export class RangeMap {
 			return -1;
 		}
 
+		if (position < this._topPadding) {
+			return 0;
+		}
+
 		let index = 0;
-		let size = 0;
+		let size = this._topPadding;
 
 		for (const group of this.groups) {
 			const count = group.range.end - group.range.start;
@@ -177,7 +196,7 @@ export class RangeMap {
 			const newCount = count + groupCount;
 
 			if (index < newCount) {
-				return position + ((index - count) * group.size);
+				return this._topPadding + position + ((index - count) * group.size);
 			}
 
 			position += groupCount * group.size;

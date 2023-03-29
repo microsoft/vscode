@@ -62,6 +62,7 @@ export interface IListViewOptionsUpdate {
 	readonly scrollByPage?: boolean;
 	readonly mouseWheelScrollSensitivity?: number;
 	readonly fastScrollSensitivity?: number;
+	readonly topPadding?: number;
 }
 
 export interface IListViewOptions<T> extends IListViewOptionsUpdate {
@@ -278,6 +279,7 @@ export class ListView<T> implements IListView<T> {
 	private items: IItem<T>[];
 	private itemId: number;
 	private rangeMap: RangeMap;
+	private topPadding: number;
 	private cache: RowCache<T>;
 	private renderers = new Map<string, IListRenderer<any /* TODO@joao */, any>>();
 	private lastRenderTop: number;
@@ -359,7 +361,8 @@ export class ListView<T> implements IListView<T> {
 
 		this.items = [];
 		this.itemId = 0;
-		this.rangeMap = new RangeMap();
+		this.topPadding = options.topPadding ?? 0;
+		this.rangeMap = new RangeMap(this.topPadding);
 
 		for (const renderer of renderers) {
 			this.renderers.set(renderer.templateId, renderer);
@@ -465,6 +468,23 @@ export class ListView<T> implements IListView<T> {
 
 		if (scrollableOptions) {
 			this.scrollableElement.updateOptions(scrollableOptions);
+		}
+
+		if (options.topPadding !== undefined && options.topPadding !== this.topPadding) {
+			// trigger a rerender
+			this.topPadding = options.topPadding;
+			const lastRenderRange = this.getRenderRange(this.lastRenderTop, this.lastRenderHeight);
+			const offset = options.topPadding - this.rangeMap.topPadding;
+			this.rangeMap.topPadding = options.topPadding;
+
+			this.render(lastRenderRange, Math.max(0, this.lastRenderTop + offset), this.lastRenderHeight, undefined, undefined, true);
+			this.setScrollTop(this.lastRenderTop);
+
+			this.eventuallyUpdateScrollDimensions();
+
+			if (this.supportDynamicHeights) {
+				this._rerender(this.lastRenderTop, this.lastRenderHeight);
+			}
 		}
 	}
 
@@ -597,7 +617,7 @@ export class ListView<T> implements IListView<T> {
 
 		// TODO@joao: improve this optimization to catch even more cases
 		if (start === 0 && deleteCount >= this.items.length) {
-			this.rangeMap = new RangeMap();
+			this.rangeMap = new RangeMap(this.topPadding);
 			this.rangeMap.splice(0, 0, inserted);
 			deleted = this.items;
 			this.items = inserted;

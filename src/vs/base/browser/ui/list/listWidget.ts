@@ -972,6 +972,7 @@ export interface IListOptions<T> extends IListOptionsUpdate {
 	readonly scrollableElementChangeOptions?: ScrollableElementChangeOptions;
 	readonly alwaysConsumeMouseWheel?: boolean;
 	readonly initialSize?: Dimension;
+	readonly topPadding?: number;
 }
 
 export interface IListStyles {
