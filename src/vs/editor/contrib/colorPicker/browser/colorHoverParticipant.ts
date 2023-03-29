@@ -50,16 +50,11 @@ export class ColorHoverParticipant implements IEditorHoverParticipant<ColorHover
 	private _range: Range | null = null;
 	private _color: Color | null = null;
 	private _standaloneColorPickerWidget: boolean = false;
-	private _updateEditorOnEnter: boolean = false;
 
 	constructor(
 		private readonly _editor: ICodeEditor,
 		@IThemeService private readonly _themeService: IThemeService,
 	) { }
-
-	public set updateEditorOnEnter(value: boolean) {
-		this._updateEditorOnEnter = value;
-	}
 
 	public computeSync(anchor: HoverAnchor, lineDecorations: IModelDecoration[]): ColorHover[] {
 		console.log('inside of computeSync of the ColorHoverParticipant.ts');
@@ -232,8 +227,7 @@ export class ColorHoverParticipant implements IEditorHoverParticipant<ColorHover
 
 		disposables.add(model.onColorFlushed((color: Color) => {
 			// Call update editor model only when the enter key is pressed
-			console.log('this._updateEditorOnEnter : ', this._updateEditorOnEnter);
-			if (!this._updateEditorOnEnter) {
+			if (!this._standaloneColorPickerWidget) {
 				updateColorPresentations(color).then(updateEditorModel);
 			}
 			this._color = color;

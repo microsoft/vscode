@@ -179,6 +179,7 @@
 .standalone-color-picker-class {
 	display: block;
 	border: 1px solid transparent;
+	border-bottom: 1px solid var(--vscode-editorHoverWidget-border);
 	overflow: hidden;
 }
 
