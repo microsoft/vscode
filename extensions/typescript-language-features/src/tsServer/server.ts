@@ -239,7 +239,7 @@ export class SingleTsServer extends Disposable implements ITypeScriptServer {
 				}
 			}).catch((err: Error) => {
 				if (err instanceof TypeScriptServerError) {
-					if (!executeInfo.token || !executeInfo.token.isCancellationRequested) {
+					if (!executeInfo.token?.isCancellationRequested) {
 						/* __GDPR__
 							"languageServiceErrorResponse" : {
 								"owner": "mjbvz",

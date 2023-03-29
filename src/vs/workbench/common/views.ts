@@ -703,7 +703,7 @@ export interface ITreeView extends IDisposable {
 
 	getSelection(): ITreeItem[];
 
-	setFocus(item: ITreeItem): void;
+	setFocus(item?: ITreeItem): void;
 
 	show(container: any): void;
 }

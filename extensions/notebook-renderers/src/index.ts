@@ -147,14 +147,21 @@ function renderError(
 
 		const outputScrolling = ctx.settings.outputScrolling;
 		const content = createOutputContent(outputInfo.id, [err.stack ?? ''], ctx.settings.lineLimit, outputScrolling, true);
-		content.classList.toggle('word-wrap', ctx.settings.outputWordWrap);
+		const contentParent = document.createElement('div');
+		contentParent.classList.toggle('word-wrap', ctx.settings.outputWordWrap);
 		disposableStore.push(ctx.onDidChangeSettings(e => {
-			content.classList.toggle('word-wrap', e.outputWordWrap);
+			contentParent.classList.toggle('word-wrap', e.outputWordWrap);
 		}));
-		content.classList.toggle('scrollable', outputScrolling);
+		contentParent.classList.toggle('scrollable', outputScrolling);
+		outputElement.classList.toggle('hide-refresh', !outputScrolling);
+		disposableStore.push(ctx.onDidChangeSettings(e => {
+			outputElement.classList.toggle('hide-refresh', !e.outputScrolling);
+		}));
 		outputElement.classList.toggle('remove-padding', outputScrolling);
-		outputElement.appendChild(content);
-		initializeScroll(content, disposableStore);
+
+		contentParent.appendChild(content);
+		outputElement.appendChild(contentParent);
+		initializeScroll(contentParent, disposableStore);
 	} else {
 		const header = document.createElement('div');
 		const headerMessage = err.name && err.message ? `${err.name}: ${err.message}` : err.name || err.message;
@@ -245,6 +252,10 @@ function renderStream(outputInfo: OutputItem, outputElement: HTMLElement, error:
 		const contentParent = document.createElement('div');
 		contentParent.appendChild(content);
 		contentParent.classList.toggle('scrollable', outputScrolling);
+		outputElement.classList.toggle('hide-refresh', !outputScrolling);
+		disposableStore.push(ctx.onDidChangeSettings(e => {
+			outputElement.classList.toggle('hide-refresh', !e.outputScrolling);
+		}));
 
 		contentParent.classList.toggle('word-wrap', ctx.settings.outputWordWrap);
 		disposableStore.push(ctx.onDidChangeSettings(e => {
@@ -275,6 +286,10 @@ function renderText(outputInfo: OutputItem, outputElement: HTMLElement, ctx: IRi
 
 	const outputScrolling = ctx.settings.outputScrolling;
 	content.classList.toggle('scrollable', outputScrolling);
+	outputElement.classList.toggle('hide-refresh', !outputScrolling);
+	disposableStore.push(ctx.onDidChangeSettings(e => {
+		outputElement.classList.toggle('hide-refresh', !e.outputScrolling);
+	}));
 	outputElement.classList.toggle('remove-padding', outputScrolling);
 	outputElement.appendChild(content);
 	initializeScroll(content, disposableStore);
@@ -324,9 +339,11 @@ export const activate: ActivationFunction<void> = (ctx) => {
 		box-sizing: border-box;
 		border-width: 1px;
 		border-color: transparent;
+	}
+	#container div.output .scrollable div {
 		cursor: text;
 	}
-	#container div.output .scrollable a {
+	#container div.output .scrollable div a {
 		cursor: pointer;
 	}
 	#container div.output .scrollable.more-above {
@@ -334,6 +351,9 @@ export const activate: ActivationFunction<void> = (ctx) => {
 	}
 	#container div.output .scrollable.scrollbar-visible {
 		border-color: var(--vscode-editorWidget-border);
+	}
+	#container div.output.hide-refresh .scroll-refresh {
+		display: none;
 	}
 	.output-plaintext .code-bold,
 	.output-stream .code-bold,

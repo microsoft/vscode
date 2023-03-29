@@ -305,7 +305,7 @@ class MyCompletionItem extends vscode.CompletionItem {
 		detail: Proto.CompletionEntryDetails,
 		filepath: string
 	): { command?: vscode.Command; additionalTextEdits?: vscode.TextEdit[] } {
-		if (!detail.codeActions || !detail.codeActions.length) {
+		if (!detail.codeActions?.length) {
 			return {};
 		}
 

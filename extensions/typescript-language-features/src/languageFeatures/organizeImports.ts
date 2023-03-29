@@ -133,7 +133,7 @@ class ImportsCodeActionProvider implements vscode.CodeActionProvider {
 			return [];
 		}
 
-		if (!context.only || !context.only.contains(this.commandMetadata.kind)) {
+		if (!context.only?.contains(this.commandMetadata.kind)) {
 			return [];
 		}
 

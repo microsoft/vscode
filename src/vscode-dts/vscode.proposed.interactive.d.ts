@@ -33,7 +33,7 @@ declare module 'vscode' {
 		edits: TextEdit[] | WorkspaceEdit;
 		placeholder?: string;
 		wholeRange?: Range;
-		commands?: Command[];
+		detail?: string;
 	}
 
 	// todo@API make classes
@@ -41,7 +41,13 @@ declare module 'vscode' {
 		contents: MarkdownString;
 		placeholder?: string;
 		wholeRange?: Range;
-		commands?: Command[];
+		detail?: string;
+	}
+
+	export enum InteractiveEditorResponseFeedbackKind {
+		Unhelpful = 0,
+		Helpful = 1,
+		Undone = 2
 	}
 
 	export interface TextDocumentContext {
@@ -58,6 +64,10 @@ declare module 'vscode' {
 
 		// eslint-disable-next-line local/vscode-dts-provider-naming
 		releaseInteractiveEditorSession?(session: InteractiveEditorSession): any;
+
+		// todo@API use enum instead of boolean
+		// eslint-disable-next-line local/vscode-dts-provider-naming
+		handleInteractiveEditorResponseFeedback?(session: InteractiveEditorSession, response: InteractiveEditorResponse | InteractiveEditorMessageResponse, kind: InteractiveEditorResponseFeedbackKind): void;
 	}
 
 
@@ -73,9 +83,9 @@ declare module 'vscode' {
 	}
 
 	export interface InteractiveSession {
-		// TODO Will be required
-		requester?: InteractiveSessionParticipantInformation;
-		responder?: InteractiveSessionParticipantInformation;
+		requester: InteractiveSessionParticipantInformation;
+		responder: InteractiveSessionParticipantInformation;
+		inputPlaceholder?: string;
 
 		saveState?(): InteractiveSessionState;
 	}
@@ -93,6 +103,7 @@ declare module 'vscode' {
 	export interface InteractiveResponseErrorDetails {
 		message: string;
 		responseIsIncomplete?: boolean;
+		responseIsFiltered?: boolean;
 	}
 
 	export interface InteractiveResponseForProgress {
@@ -167,6 +178,9 @@ declare module 'vscode' {
 		responseId: string;
 		codeBlockIndex: number;
 		copyType: InteractiveSessionCopyKind;
+		copiedCharacters: number;
+		totalCharacters: number;
+		copiedText: string;
 	}
 
 	export interface InteractiveSessionInsertAction {

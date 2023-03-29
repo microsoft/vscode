@@ -748,6 +748,8 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 	private installing: IExtension[] = [];
 	private tasksInProgress: CancelablePromise<any>[] = [];
 
+	readonly whenInitialized: Promise<void>;
+
 	constructor(
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IEditorService private readonly editorService: IEditorService,
@@ -807,7 +809,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 
 		urlService.registerHandler(this);
 
-		this.initialize();
+		this.whenInitialized = this.initialize();
 	}
 
 	private async initialize(): Promise<void> {

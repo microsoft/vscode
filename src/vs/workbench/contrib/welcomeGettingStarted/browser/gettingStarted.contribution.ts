@@ -32,7 +32,6 @@ import { StartupPageContribution, } from 'vs/workbench/contrib/welcomeGettingSta
 import { ExtensionsInput } from 'vs/workbench/contrib/extensions/common/extensionsInput';
 import { Categories } from 'vs/platform/action/common/actionCommonCategories';
 
-
 export * as icons from 'vs/workbench/contrib/welcomeGettingStarted/browser/gettingStartedIcons';
 
 registerAction2(class extends Action2 {

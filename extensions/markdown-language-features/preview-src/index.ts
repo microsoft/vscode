@@ -23,14 +23,13 @@ let documentResource = settings.settings.source;
 const vscode = acquireVsCodeApi();
 
 const originalState = vscode.getState() ?? {} as any;
-
 const state = {
-	originalState,
+	...originalState,
 	...getData<any>('data-state')
 };
 
-if (originalState?.resource !== state.resource) {
-	state.scrollProgress = undefined;
+if (typeof originalState.scrollProgress !== 'undefined' && originalState?.resource !== state.resource) {
+	state.scrollProgress = 0;
 }
 
 // Make sure to sync VS Code state here
@@ -67,7 +66,9 @@ onceDocumentLoaded(() => {
 	if (typeof scrollProgress === 'number' && !settings.settings.fragment) {
 		doAfterImagesLoaded(() => {
 			scrollDisabledCount += 1;
-			window.scrollTo(0, scrollProgress * document.body.clientHeight);
+			// Always set scroll of at least 1 to prevent VS Code's webview code from auto scrolling us
+			const scrollToY = Math.max(1, scrollProgress * document.body.clientHeight);
+			window.scrollTo(0, scrollToY);
 		});
 		return;
 	}
@@ -76,10 +77,16 @@ onceDocumentLoaded(() => {
 		doAfterImagesLoaded(() => {
 			// Try to scroll to fragment if available
 			if (settings.settings.fragment) {
+				let fragment: string;
+				try {
+					fragment = encodeURIComponent(settings.settings.fragment);
+				} catch {
+					fragment = settings.settings.fragment;
+				}
 				state.fragment = undefined;
 				vscode.setState(state);
 
-				const element = getLineElementForFragment(settings.settings.fragment, documentVersion);
+				const element = getLineElementForFragment(fragment, documentVersion);
 				if (element) {
 					scrollDisabledCount += 1;
 					scrollToRevealSourceLine(element.line, documentVersion, settings);

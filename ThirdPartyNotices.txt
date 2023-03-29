@@ -1191,7 +1191,7 @@ SOFTWARE.
 
 ---------------------------------------------------------
 
-jeff-hykin/better-cpp-syntax 1.17.3 - MIT
+jeff-hykin/better-cpp-syntax 1.17.4 - MIT
 https://github.com/jeff-hykin/better-cpp-syntax
 
 MIT License
@@ -1275,7 +1275,7 @@ SOFTWARE.
 
 ---------------------------------------------------------
 
-jeff-hykin/better-shell-syntax 1.3.3 - MIT
+jeff-hykin/better-shell-syntax 1.5.0 - MIT
 https://github.com/jeff-hykin/better-shell-syntax
 
 MIT License
@@ -1303,7 +1303,7 @@ SOFTWARE.
 
 ---------------------------------------------------------
 
-jlelong/vscode-latex-basics 1.5.0 - MIT
+jlelong/vscode-latex-basics 1.5.1 - MIT
 https://github.com/jlelong/vscode-latex-basics
 
 Copyright (c) vscode-latex-basics authors

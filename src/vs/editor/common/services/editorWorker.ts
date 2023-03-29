@@ -29,6 +29,7 @@ export interface IEditorWorkerService {
 	computeDirtyDiff(original: URI, modified: URI, ignoreTrimWhitespace: boolean): Promise<IChange[] | null>;
 
 	computeMoreMinimalEdits(resource: URI, edits: TextEdit[] | null | undefined, pretty?: boolean): Promise<TextEdit[] | undefined>;
+	computeHumanReadableDiff(resource: URI, edits: TextEdit[] | null | undefined): Promise<TextEdit[] | undefined>;
 
 	canComputeWordRanges(resource: URI): boolean;
 	computeWordRanges(resource: URI, range: IRange): Promise<{ [word: string]: IRange[] } | null>;

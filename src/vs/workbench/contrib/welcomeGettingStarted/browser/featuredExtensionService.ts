@@ -59,7 +59,7 @@ export class FeaturedExtensionsService extends Disposable implements IFeaturedEx
 
 		await this._init();
 
-		let treatments = this.treatment?.extensions.filter(extension => !this.ignoredExtensions.has(extension)) ?? new Array<string>();
+		let treatments = this.treatment?.extensions?.filter(extension => !this.ignoredExtensions.has(extension)) ?? new Array<string>();
 		const featuredExtensions: IFeaturedExtension[] = new Array();
 
 		if (this.treatment?.showAsList !== 'true' && treatments.length > 0) {
@@ -94,15 +94,24 @@ export class FeaturedExtensionsService extends Disposable implements IFeaturedEx
 			new Promise<string | undefined>(resolve => setTimeout(() => resolve(''), 2000))
 		]);
 
-		this.treatment = extensions ? JSON.parse(extensions) : { extensions: [] };
+		try {
+			this.treatment = extensions ? JSON.parse(extensions) : { extensions: [] };
+		} catch {
+		}
+
 		this.title = extensionListTitle ?? localize('gettingStarted.featuredTitle', 'Featured');
 
-		if (this.treatment) {
+		if (this.treatment?.extensions && Array.isArray(this.treatment.extensions)) {
 			const installed = await this.extensionManagementService.getInstalled();
-
 			for (const extension of this.treatment.extensions) {
 				if (installed.some(e => ExtensionIdentifier.equals(e.identifier.id, extension))) {
 					this.ignoredExtensions.add(extension);
+				}
+				else {
+					const galleryExtension = (await this.galleryService.getExtensions([{ id: extension }], CancellationToken.None))[0];
+					if (!await this.extensionManagementService.canInstall(galleryExtension)) {
+						this.ignoredExtensions.add(extension);
+					}
 				}
 			}
 		}
