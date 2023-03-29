@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import * as arrays from './arrays';
-import { Disposable } from './dispose';
+import * as arrays from '../utils/arrays';
+import { Disposable } from '../utils/dispose';
 
 export interface TypeScriptServerPlugin {
 	readonly extension: vscode.Extension<unknown>;

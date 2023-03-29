@@ -4,12 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import type * as Proto from '../protocol';
+import { DocumentSelector } from '../configuration/documentSelector';
+import type * as Proto from '../tsServer/protocol/protocol';
+import * as typeConverters from '../typeConverters';
 import { ClientCapability, ITypeScriptServiceClient } from '../typescriptService';
-import { conditionalRegistration, requireSomeCapability } from '../utils/dependentRegistration';
-import { DocumentSelector } from '../utils/documentSelector';
-import * as Previewer from '../utils/previewer';
-import * as typeConverters from '../utils/typeConverters';
+import { conditionalRegistration, requireSomeCapability } from './util/dependentRegistration';
+import * as Previewer from './util/textRendering';
 
 class TypeScriptSignatureHelpProvider implements vscode.SignatureHelpProvider {
 

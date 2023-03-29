@@ -7,7 +7,7 @@ import * as semver from 'semver';
 import * as vscode from 'vscode';
 
 
-export default class API {
+export class API {
 	public static fromSimpleString(value: string): API {
 		return new API(value, value, value);
 	}

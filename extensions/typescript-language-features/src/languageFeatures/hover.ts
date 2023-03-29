@@ -4,12 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import type * as Proto from '../protocol';
+import type * as Proto from '../tsServer/protocol/protocol';
 import { ClientCapability, ITypeScriptServiceClient, ServerType } from '../typescriptService';
-import { conditionalRegistration, requireSomeCapability } from '../utils/dependentRegistration';
-import { DocumentSelector } from '../utils/documentSelector';
-import { markdownDocumentation } from '../utils/previewer';
-import * as typeConverters from '../utils/typeConverters';
+import { conditionalRegistration, requireSomeCapability } from './util/dependentRegistration';
+import { DocumentSelector } from '../configuration/documentSelector';
+import { markdownDocumentation } from './util/textRendering';
+import * as typeConverters from '../typeConverters';
 import FileConfigurationManager from './fileConfigurationManager';
 
 

@@ -4,17 +4,17 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import type * as Proto from '../protocol';
+import { vscodeNotebookCell } from '../configuration/fileSchemes';
+import * as languageModeIds from '../configuration/languageIds';
+import * as typeConverters from '../typeConverters';
 import { ClientCapability, ITypeScriptServiceClient } from '../typescriptService';
-import API from '../utils/api';
 import { coalesce } from '../utils/arrays';
 import { Delayer, setImmediate } from '../utils/async';
 import { nulToken } from '../utils/cancellation';
 import { Disposable } from '../utils/dispose';
-import { vscodeNotebookCell } from '../utils/fileSchemes';
-import * as languageModeIds from '../utils/languageIds';
 import { ResourceMap } from '../utils/resourceMap';
-import * as typeConverters from '../utils/typeConverters';
+import { API } from './api';
+import type * as Proto from './protocol/protocol';
 
 const enum BufferKind {
 	TypeScript = 1,
