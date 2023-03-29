@@ -54,7 +54,7 @@ export class BufferContentTracker {
 		}
 		let linesInViewport = 0;
 		let currentLine: string = '';
-		for (let i = buffer.baseY; i <= buffer.baseY + this._xterm.raw.rows - 1; i++) {
+		for (let i = buffer.baseY; i < buffer.baseY + this._xterm.raw.rows - 1; i++) {
 			const line = buffer.getLine(i);
 			if (!line) {
 				continue;

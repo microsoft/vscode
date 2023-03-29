@@ -250,7 +250,12 @@ export class AccessibleBufferWidget extends DisposableStore {
 	}
 
 	private _registerListeners(): void {
-		const onRequestUpdateEditor = Event.latch(Event.any(this._xterm.raw.onScroll, this._xterm.raw.onWriteParsed));
+		this._xterm.raw.onWriteParsed(async () => {
+			if (this._xterm.raw.buffer.active.baseY === 0) {
+				await this._updateEditor();
+			}
+		});
+		const onRequestUpdateEditor = Event.latch(this._xterm.raw.onScroll);
 		this._listeners.push(onRequestUpdateEditor(async () => await this._updateEditor()));
 		this._listeners.push(this._instance.onDidRequestFocus(() => this._editorWidget.focus()));
 	}
