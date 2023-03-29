@@ -10,10 +10,13 @@ import { IXtermTerminal } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { IMarker, Terminal } from 'xterm';
 
 export class BufferContentTracker {
-	private _lastMarker: IMarker | undefined;
-	private _lastLinesInViewport: number = 0;
+
+	private _lastCachedMarker: IMarker | undefined;
+	private _priorViewportLineCount: number = 0;
+
 	private _lines: string[] = [];
 	get lines(): string[] { return this._lines; }
+
 	constructor(
 		private readonly _xterm: Pick<IXtermTerminal, 'getFont'> & { raw: Terminal },
 		@ILogService private readonly _logService: ILogService,
@@ -21,28 +24,26 @@ export class BufferContentTracker {
 	}
 
 	update(): void {
-		if (this._lastMarker?.isDisposed) {
+		if (this._lastCachedMarker?.isDisposed) {
+			// the terminal was cleared, reset the cache
 			this._lines = [];
 			return;
 		}
 		this._removeViewportContent();
 		this._updateScrollbackContent();
 		this._updateViewportContent();
-	}
-
-	registerMarker(): void {
-		this._lastMarker = this._xterm.raw.registerMarker();
+		this._lastCachedMarker = this._xterm.raw.registerMarker();
 	}
 
 	private _removeViewportContent(): void {
-		if (this._lines.length && this._lastMarker?.line) {
+		if (this._lines.length && this._lastCachedMarker?.line) {
 			// remove previous viewport content in case it has changed
 			let i = 0;
-			while (i < this._lastLinesInViewport) {
+			while (i < this._priorViewportLineCount) {
 				this._lines.pop();
 				i++;
 			}
-			this._logService.debug('Removed ', this._lastLinesInViewport, ' lines from cached lines, now ', this._lines.length, ' lines');
+			this._logService.debug('Removed ', this._priorViewportLineCount, ' lines from cached lines, now ', this._lines.length, ' lines');
 		}
 	}
 
@@ -53,7 +54,7 @@ export class BufferContentTracker {
 		}
 		let linesInViewport = 0;
 		let currentLine: string = '';
-		for (let i = buffer.baseY; i < buffer.baseY + this._xterm.raw.rows - 1; i++) {
+		for (let i = buffer.baseY; i <= buffer.baseY + this._xterm.raw.rows - 1; i++) {
 			const line = buffer.getLine(i);
 			if (!line) {
 				continue;
@@ -69,7 +70,7 @@ export class BufferContentTracker {
 				}
 			}
 		}
-		this._lastLinesInViewport = linesInViewport;
+		this._priorViewportLineCount = linesInViewport;
 		this._logService.debug('Viewport content update complete, ', this._lines.length, ' lines');
 	}
 
@@ -81,7 +82,7 @@ export class BufferContentTracker {
 		const scrollback: number = this._configurationService.getValue(TerminalSettingId.Scrollback);
 		const maxBufferSize = scrollback + this._xterm.raw.rows - 1;
 		const end = Math.min(maxBufferSize, buffer.baseY);
-		const start = this._lastMarker?.line ? this._lastMarker.line - this._lastLinesInViewport : 0;
+		const start = this._lastCachedMarker?.line ? this._lastCachedMarker.line - this._priorViewportLineCount : 0;
 		this._logService.debug('Updating scrollback content, start: ', start, ' end: ', end, ' buffer size: ', buffer.length);
 		const lines: string[] = [];
 		let currentLine: string = '';

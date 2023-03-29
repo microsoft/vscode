@@ -280,7 +280,6 @@ export class AccessibleBufferWidget extends DisposableStore {
 			model = await this.getTextModel(this._instance.resource.with({ fragment: text }));
 		}
 		this._editorWidget.setModel(model);
-		this._bufferTracker.registerMarker();
 		return model!;
 	}
 }
