@@ -22,7 +22,8 @@ export class BufferContentTracker {
 
 	update(): void {
 		if (this._lastMarker?.isDisposed) {
-			this._clear();
+			this._lines = [];
+			return;
 		}
 		this._removeViewportContent();
 		this._updateScrollbackContent();
@@ -31,10 +32,6 @@ export class BufferContentTracker {
 
 	registerMarker(): void {
 		this._lastMarker = this._xterm.raw.registerMarker();
-	}
-
-	private _clear(): void {
-		this._lines = [];
 	}
 
 	private _removeViewportContent(): void {
