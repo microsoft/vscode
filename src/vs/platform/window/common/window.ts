@@ -285,6 +285,7 @@ export interface INativeWindowConfiguration extends IWindowConfiguration, Native
 	backupPath?: string;
 
 	profiles: {
+		home: UriComponents;
 		all: readonly UriDto<IUserDataProfile>[];
 		profile: UriDto<IUserDataProfile>;
 	};
@@ -317,6 +318,8 @@ export interface INativeWindowConfiguration extends IWindowConfiguration, Native
 
 	os: IOSConfiguration;
 	policiesData?: IStringDictionary<{ definition: PolicyDefinition; value: PolicyValue }>;
+
+	preferUtilityProcess: boolean; // TODO@bpasero remove me once full app sandbox landed
 }
 
 /**

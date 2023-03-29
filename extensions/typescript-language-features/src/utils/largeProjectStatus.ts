@@ -15,7 +15,7 @@ interface Hint {
 
 class ExcludeHintItem {
 	public configFileName?: string;
-	private _item: vscode.StatusBarItem;
+	private readonly _item: vscode.StatusBarItem;
 	private _currentHint?: Hint;
 
 	constructor(

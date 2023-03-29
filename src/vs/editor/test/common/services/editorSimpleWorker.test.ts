@@ -88,7 +88,7 @@ suite('EditorSimpleWorker', () => {
 
 	test('MoreMinimal', () => {
 
-		return worker.computeMoreMinimalEdits(model.uri.toString(), [{ text: 'This is line One', range: new Range(1, 1, 1, 17) }]).then(edits => {
+		return worker.computeMoreMinimalEdits(model.uri.toString(), [{ text: 'This is line One', range: new Range(1, 1, 1, 17) }], false).then(edits => {
 			assert.strictEqual(edits.length, 1);
 			const [first] = edits;
 			assert.strictEqual(first.text, 'O');
@@ -104,7 +104,7 @@ suite('EditorSimpleWorker', () => {
 			'}'
 		], '\n');
 
-		return worker.computeMoreMinimalEdits(model.uri.toString(), [{ text: '{\r\n\t"a":1\r\n}', range: new Range(1, 1, 3, 2) }]).then(edits => {
+		return worker.computeMoreMinimalEdits(model.uri.toString(), [{ text: '{\r\n\t"a":1\r\n}', range: new Range(1, 1, 3, 2) }], false).then(edits => {
 			assert.strictEqual(edits.length, 0);
 		});
 	});
@@ -117,7 +117,7 @@ suite('EditorSimpleWorker', () => {
 			'}'
 		], '\n');
 
-		return worker.computeMoreMinimalEdits(model.uri.toString(), [{ text: '{\r\n\t"b":1\r\n}', range: new Range(1, 1, 3, 2) }]).then(edits => {
+		return worker.computeMoreMinimalEdits(model.uri.toString(), [{ text: '{\r\n\t"b":1\r\n}', range: new Range(1, 1, 3, 2) }], false).then(edits => {
 			assert.strictEqual(edits.length, 1);
 			const [first] = edits;
 			assert.strictEqual(first.text, 'b');
@@ -125,7 +125,7 @@ suite('EditorSimpleWorker', () => {
 		});
 	});
 
-	test('MoreMinimal, issue #15385 newline changes and other', function () {
+	test('MoreMinimal, issue #15385 newline changes and other 2/2', function () {
 
 		const model = worker.addModel([
 			'package main',	// 1
@@ -133,7 +133,7 @@ suite('EditorSimpleWorker', () => {
 			'}'				// 3
 		]);
 
-		return worker.computeMoreMinimalEdits(model.uri.toString(), [{ text: '\n', range: new Range(3, 2, 4, 1000) }]).then(edits => {
+		return worker.computeMoreMinimalEdits(model.uri.toString(), [{ text: '\n', range: new Range(3, 2, 4, 1000) }], false).then(edits => {
 			assert.strictEqual(edits.length, 1);
 			const [first] = edits;
 			assert.strictEqual(first.text, '\n');

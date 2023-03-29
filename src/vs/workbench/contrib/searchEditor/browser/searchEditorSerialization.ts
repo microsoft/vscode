@@ -10,7 +10,7 @@ import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { Range } from 'vs/editor/common/core/range';
 import type { ITextModel } from 'vs/editor/common/model';
 import { localize } from 'vs/nls';
-import { FileMatch, Match, searchMatchComparer, SearchResult, FolderMatch } from 'vs/workbench/contrib/search/common/searchModel';
+import { FileMatch, Match, searchMatchComparer, SearchResult, FolderMatch } from 'vs/workbench/contrib/search/browser/searchModel';
 import type { SearchConfiguration } from 'vs/workbench/contrib/searchEditor/browser/searchEditorInput';
 import { ITextQuery, SearchSortOrder } from 'vs/workbench/services/search/common/search';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';

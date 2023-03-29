@@ -531,7 +531,7 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 			const sourceLanguageId = sourceTextModel.getLanguageId();
 			const targetLanguageId = targetTextModel.getLanguageId();
 			if (sourceLanguageId !== PLAINTEXT_LANGUAGE_ID && targetLanguageId === PLAINTEXT_LANGUAGE_ID) {
-				targetTextModel.setMode(sourceLanguageId); // only use if more specific than plain/text
+				targetTextModel.setLanguage(sourceLanguageId); // only use if more specific than plain/text
 			}
 
 			// transient properties
@@ -591,13 +591,18 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 				// of untitled model if it is a valid path name and
 				// figure out the file extension from the mode if any.
 
+				let nameCandidate: string;
 				if (await this.pathService.hasValidBasename(joinPath(defaultFilePath, model.name), model.name)) {
-					const languageId = model.getLanguageId();
-					if (languageId && languageId !== PLAINTEXT_LANGUAGE_ID) {
-						suggestedFilename = this.suggestFilename(languageId, model.name);
-					} else {
-						suggestedFilename = model.name;
-					}
+					nameCandidate = model.name;
+				} else {
+					nameCandidate = basename(resource);
+				}
+
+				const languageId = model.getLanguageId();
+				if (languageId && languageId !== PLAINTEXT_LANGUAGE_ID) {
+					suggestedFilename = this.suggestFilename(languageId, nameCandidate);
+				} else {
+					suggestedFilename = nameCandidate;
 				}
 			}
 		}

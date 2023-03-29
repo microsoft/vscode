@@ -42,6 +42,7 @@ import { EditorGroupColumn } from 'vs/workbench/services/editor/common/editorGro
 import { ACTIVE_GROUP, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import type * as vscode from 'vscode';
 import * as types from './extHostTypes';
+import { IInteractiveSessionFollowup, IInteractiveSessionReplyFollowup, IInteractiveSessionResponseCommandFollowup } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionService';
 
 export namespace Command {
 
@@ -1527,6 +1528,21 @@ export namespace LanguageSelector {
 	}
 }
 
+export namespace NotebookDocumentSaveReason {
+
+	export function to(reason: SaveReason): vscode.NotebookDocumentSaveReason {
+		switch (reason) {
+			case SaveReason.AUTO:
+				return types.NotebookDocumentSaveReason.AfterDelay;
+			case SaveReason.EXPLICIT:
+				return types.NotebookDocumentSaveReason.Manual;
+			case SaveReason.FOCUS_CHANGE:
+			case SaveReason.WINDOW_CHANGE:
+				return types.NotebookDocumentSaveReason.FocusOut;
+		}
+	}
+}
+
 export namespace NotebookRange {
 
 	export function from(range: vscode.NotebookRange): ICellRange {
@@ -2087,5 +2103,43 @@ export namespace DataTransfer {
 		await Promise.all(promises);
 
 		return newDTO;
+	}
+}
+
+export namespace InteractiveSessionReplyFollowup {
+	export function to(followup: IInteractiveSessionReplyFollowup): vscode.InteractiveSessionReplyFollowup {
+		return {
+			message: followup.message,
+			metadata: followup.metadata,
+			title: followup.title,
+			tooltip: followup.tooltip,
+		};
+	}
+
+	export function from(followup: vscode.InteractiveSessionReplyFollowup): IInteractiveSessionReplyFollowup {
+		return {
+			kind: 'reply',
+			message: followup.message,
+			metadata: followup.metadata,
+			title: followup.title,
+			tooltip: followup.tooltip,
+		};
+	}
+}
+
+export namespace InteractiveSessionFollowup {
+	export function from(followup: string | vscode.InteractiveSessionFollowup): IInteractiveSessionFollowup {
+		if (typeof followup === 'string') {
+			return <IInteractiveSessionReplyFollowup>{ title: followup, message: followup, kind: 'reply' };
+		} else if ('commandId' in followup) {
+			return <IInteractiveSessionResponseCommandFollowup>{
+				kind: 'command',
+				title: followup.title ?? '',
+				commandId: followup.commandId ?? '',
+				args: followup.args
+			};
+		} else {
+			return InteractiveSessionReplyFollowup.from(followup);
+		}
 	}
 }

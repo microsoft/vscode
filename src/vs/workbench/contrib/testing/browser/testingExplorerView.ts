@@ -86,6 +86,10 @@ export class TestingExplorerView extends ViewPane {
 	private readonly dimensions = { width: 0, height: 0 };
 	private lastFocusState = LastFocusState.Input;
 
+	public get focusedTreeElements() {
+		return this.viewModel.tree.getFocus().filter(isDefined);
+	}
+
 	constructor(
 		options: IViewletViewOptions,
 		@IContextMenuService contextMenuService: IContextMenuService,
@@ -525,7 +529,9 @@ class TestingExplorerViewModel extends Disposable {
 
 		this._register(this.tree.onDidChangeCollapseState(evt => {
 			if (evt.node.element instanceof TestItemTreeElement) {
-				this.projection.value?.expandElement(evt.node.element, evt.deep ? Infinity : 0);
+				if (!evt.node.collapsed) {
+					this.projection.value?.expandElement(evt.node.element, evt.deep ? Infinity : 0);
+				}
 				collapseStateSaver.schedule();
 			}
 		}));
@@ -991,14 +997,19 @@ class TreeSorter implements ITreeSorter<TestExplorerTreeElement> {
 			return stateDelta;
 		}
 
+		let inSameLocation = false;
 		if (a instanceof TestItemTreeElement && b instanceof TestItemTreeElement && a.test.item.uri && b.test.item.uri && a.test.item.uri.toString() === b.test.item.uri.toString() && a.test.item.range && b.test.item.range) {
+			inSameLocation = true;
+
 			const delta = a.test.item.range.startLineNumber - b.test.item.range.startLineNumber;
 			if (delta !== 0) {
 				return delta;
 			}
 		}
 
-		return (a.sortText || a.label).localeCompare(b.sortText || b.label);
+		// If tests are in the same location and there's no preferred sortText,
+		// keep the extension's insertion order (#163449).
+		return inSameLocation && !a.sortText && !b.sortText ? 0 : (a.sortText || a.label).localeCompare(b.sortText || b.label);
 	}
 }
 

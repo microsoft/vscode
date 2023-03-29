@@ -40,7 +40,7 @@ import { IWindowState, ICodeWindow, ILoadEvent, WindowMode, WindowError, LoadRea
 import { Color } from 'vs/base/common/color';
 import { IPolicyService } from 'vs/platform/policy/common/policy';
 import { IUserDataProfile } from 'vs/platform/userDataProfile/common/userDataProfile';
-import { IStateMainService } from 'vs/platform/state/electron-main/state';
+import { IStateService } from 'vs/platform/state/node/state';
 import { IUserDataProfilesMainService } from 'vs/platform/userDataProfile/electron-main/userDataProfile';
 import { INativeHostMainService } from 'vs/platform/native/electron-main/nativeHostMainService';
 import { OneDataSystemAppender } from 'vs/platform/telemetry/node/1dsAppender';
@@ -50,6 +50,7 @@ import { resolveCommonProperties } from 'vs/platform/telemetry/common/commonProp
 import { hostname, release } from 'os';
 import { resolveMachineId } from 'vs/platform/telemetry/electron-main/telemetryUtils';
 import { ILoggerMainService } from 'vs/platform/log/electron-main/loggerService';
+import { firstOrDefault } from 'vs/base/common/arrays';
 
 export interface IWindowCreationOptions {
 	readonly state: IWindowState;
@@ -124,6 +125,9 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 
 	private _lastFocusTime = -1;
 	get lastFocusTime(): number { return this._lastFocusTime; }
+
+	private _isSandboxed = false;
+	get isSandboxed(): boolean { return this._isSandboxed; }
 
 	get backupPath(): string | undefined { return this._config?.backupPath; }
 
@@ -200,7 +204,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		@IProductService private readonly productService: IProductService,
 		@IProtocolMainService private readonly protocolMainService: IProtocolMainService,
 		@IWindowsMainService private readonly windowsMainService: IWindowsMainService,
-		@IStateMainService private readonly stateMainService: IStateMainService,
+		@IStateService private readonly stateService: IStateService,
 		@INativeHostMainService private readonly nativeHostMainService: INativeHostMainService
 	) {
 		super();
@@ -220,7 +224,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 			if (typeof CodeWindow.sandboxState === 'undefined') {
 				// we should only check this once so that we do not end up
 				// with some windows in sandbox mode and some not!
-				CodeWindow.sandboxState = this.stateMainService.getItem<boolean>('window.experimental.useSandbox', false);
+				CodeWindow.sandboxState = this.stateService.getItem<boolean>('window.experimental.useSandbox', false);
 			}
 
 			const windowSettings = this.configurationService.getValue<IWindowSettings | undefined>('window');
@@ -233,6 +237,8 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 				useSandbox = typeof this.productService.quality === 'string' && this.productService.quality !== 'stable';
 			}
 
+			this._isSandboxed = useSandbox;
+
 			const options: BrowserWindowConstructorOptions & { experimentalDarkMode: boolean } = {
 				width: this.windowState.width,
 				height: this.windowState.height,
@@ -244,7 +250,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 				show: !isFullscreenOrMaximized, // reduce flicker by showing later
 				title: this.productService.nameLong,
 				webPreferences: {
-					preload: FileAccess.asFileUri('vs/base/parts/sandbox/electron-browser/preload.js').fsPath,
+					preload: FileAccess.asFileUri('vs/base/parts/sandbox/electron-sandbox/preload.js').fsPath,
 					additionalArguments: [`--vscode-window-config=${this.configObjectUrl.resource.toString()}`],
 					v8CacheOptions: this.environmentMainService.useCodeCache ? 'bypassHeatCheck' : 'none',
 					enableWebSQL: false,
@@ -335,7 +341,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 
 			// Update the window controls immediately based on cached values
 			if (useCustomTitleStyle && ((isWindows && useWindowControlsOverlay(this.configurationService)) || isMacintosh)) {
-				const cachedWindowControlHeight = this.stateMainService.getItem<number>((CodeWindow.windowControlHeightStateStorageKey));
+				const cachedWindowControlHeight = this.stateService.getItem<number>((CodeWindow.windowControlHeightStateStorageKey));
 				if (cachedWindowControlHeight) {
 					this.updateWindowControls({ height: cachedWindowControlHeight });
 				}
@@ -793,13 +799,12 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 				appenders.push(new OneDataSystemAppender(isInternal, 'monacoworkbench', null, this.productService.aiConfig.ariaKey));
 			}
 
-			const { installSourcePath } = this.environmentMainService;
-			const machineId = await resolveMachineId(this.stateMainService);
+			const machineId = await resolveMachineId(this.stateService, this.logService);
 
 			const config: ITelemetryServiceConfig = {
 				appenders,
 				sendErrorTelemetry: false,
-				commonProperties: resolveCommonProperties(this.fileService, release(), hostname(), process.arch, this.productService.commit, this.productService.version, machineId, isInternal, installSourcePath),
+				commonProperties: resolveCommonProperties(release(), hostname(), process.arch, this.productService.commit, this.productService.version, machineId, isInternal),
 				piiPaths: getPiiPathsFromEnvironment(this.environmentMainService)
 			};
 
@@ -876,7 +881,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 			}
 
 			// Delegate to windows service
-			const [window] = await this.windowsMainService.open({
+			const window = firstOrDefault(await this.windowsMainService.open({
 				context: OpenContext.API,
 				userEnv: this._config.userEnv,
 				cli: {
@@ -887,8 +892,8 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 				forceEmpty,
 				forceNewWindow: true,
 				remoteAuthority: this.remoteAuthority
-			});
-			window.focus();
+			}));
+			window?.focus();
 		}
 	}
 
@@ -1082,7 +1087,8 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		configuration.continueOn = this.environmentMainService.continueOn;
 		configuration.profiles = {
 			all: this.userDataProfilesService.profiles,
-			profile: this.profile || this.userDataProfilesService.defaultProfile
+			profile: this.profile || this.userDataProfilesService.defaultProfile,
+			home: this.userDataProfilesService.profilesHome
 		};
 		configuration.logLevel = this.loggerMainService.getLogLevel();
 		configuration.loggers = {
@@ -1197,7 +1203,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 
 		// Cache the height for speeds lookups on startup
 		if (options.height) {
-			this.stateMainService.setItem((CodeWindow.windowControlHeightStateStorageKey), options.height);
+			this.stateService.setItem((CodeWindow.windowControlHeightStateStorageKey), options.height);
 		}
 
 		// Windows: window control overlay (WCO)

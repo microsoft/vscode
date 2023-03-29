@@ -63,19 +63,21 @@ class MyCompletionItem extends vscode.CompletionItem {
 	) {
 		super(tsEntry.name, MyCompletionItem.convertKind(tsEntry.kind));
 
-		if (tsEntry.source && tsEntry.hasAction) {
+		if (tsEntry.source && tsEntry.hasAction && client.apiVersion.lt(API.v490)) {
 			// De-prioritze auto-imports
 			// https://github.com/microsoft/vscode/issues/40311
 			this.sortText = '\uffff' + tsEntry.sortText;
+		} else {
+			this.sortText = tsEntry.sortText;
+		}
 
+		if (tsEntry.source && tsEntry.hasAction) {
 			// Render "fancy" when source is a workspace path
 			const qualifierCandidate = vscode.workspace.asRelativePath(tsEntry.source);
 			if (qualifierCandidate !== tsEntry.source) {
 				this.label = { label: tsEntry.name, description: qualifierCandidate };
 			}
 
-		} else {
-			this.sortText = tsEntry.sortText;
 		}
 
 		const { sourceDisplay, isSnippet } = tsEntry;
@@ -303,7 +305,7 @@ class MyCompletionItem extends vscode.CompletionItem {
 		detail: Proto.CompletionEntryDetails,
 		filepath: string
 	): { command?: vscode.Command; additionalTextEdits?: vscode.TextEdit[] } {
-		if (!detail.codeActions || !detail.codeActions.length) {
+		if (!detail.codeActions?.length) {
 			return {};
 		}
 

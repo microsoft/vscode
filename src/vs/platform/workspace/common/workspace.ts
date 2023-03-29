@@ -462,6 +462,11 @@ export function isTemporaryWorkspace(arg1: IWorkspace | URI): boolean {
 	return path?.scheme === Schemas.tmp;
 }
 
+export const STANDALONE_EDITOR_WORKSPACE_ID = '4064f6ec-cb38-4ad0-af64-ee6467e63c82';
+export function isStandaloneEditorWorkspace(workspace: IWorkspace): boolean {
+	return workspace.id === STANDALONE_EDITOR_WORKSPACE_ID;
+}
+
 export function isSavedWorkspace(path: URI, environmentService: IEnvironmentService): boolean {
 	return !isUntitledWorkspace(path, environmentService) && !isTemporaryWorkspace(path);
 }
