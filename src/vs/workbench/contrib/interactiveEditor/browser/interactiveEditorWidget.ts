@@ -347,7 +347,7 @@ class InteractiveEditorWidget {
 
 	reset() {
 		this._ctxInputEmpty.reset();
-		reset(this._elements.status);
+		reset(this._elements.statusLabel);
 		this._elements.status.classList.add('hidden');
 	}
 
