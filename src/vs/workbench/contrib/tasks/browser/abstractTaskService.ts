@@ -47,7 +47,7 @@ import { ITextFileService } from 'vs/workbench/services/textfile/common/textfile
 import { ITerminalGroupService, ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { ITerminalProfileResolverService } from 'vs/workbench/contrib/terminal/common/terminal';
 
-import { ConfiguringTask, ContributedTask, CustomTask, ExecutionEngine, InMemoryTask, ITaskEvent, ITaskIdentifier, ITaskSet, JsonSchemaVersion, KeyedTaskIdentifier, RuntimeType, Task, TaskDefinition, TaskEventKind, TaskGroup, TaskRunSource, TaskSettingId, TaskSorter, TaskSourceKind, TasksSchemaProperties, TASK_RUNNING_STATE, USER_TASKS_GROUP_KEY } from 'vs/workbench/contrib/tasks/common/tasks';
+import { ConfiguringTask, ContributedTask, CustomTask, ExecutionEngine, IExtensionTaskSource, InMemoryTask, ITaskEvent, ITaskIdentifier, ITaskSet, JsonSchemaVersion, KeyedTaskIdentifier, RuntimeType, Task, TaskScope, TaskDefinition, TaskEventKind, TaskGroup, TaskRunSource, TaskSettingId, TaskSorter, TaskSourceKind, TasksSchemaProperties, TASK_RUNNING_STATE, USER_TASKS_GROUP_KEY } from 'vs/workbench/contrib/tasks/common/tasks';
 import { CustomExecutionSupportedContext, ICustomizationProperties, IProblemMatcherRunOptions, ITaskFilter, ITaskProvider, ITaskService, IWorkspaceFolderTaskResult, ProcessExecutionSupportedContext, ServerlessWebContext, ShellExecutionSupportedContext, TaskCommandsRegistered, TaskExecutionSupportedContext } from 'vs/workbench/contrib/tasks/common/taskService';
 import { ITaskExecuteResult, ITaskResolver, ITaskSummary, ITaskSystem, ITaskSystemInfo, ITaskTerminateResponse, TaskError, TaskErrors, TaskExecuteKind } from 'vs/workbench/contrib/tasks/common/taskSystem';
 import { getTemplates as getTaskTemplates } from 'vs/workbench/contrib/tasks/common/taskTemplates';
@@ -929,7 +929,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		const quickOpenHistoryLimit = this._configurationService.getValue<number>(QUICKOPEN_HISTORY_LIMIT_CONFIG);
 		this._recentlyUsedTasks = new LRUCache<string, string>(quickOpenHistoryLimit);
 
-		const storageValue = this._storageService.get(AbstractTaskService.RecentlyUsedTasks_KeyV2, StorageScope.WORKSPACE);
+		const storageValue = this._storageService.get(AbstractTaskService.RecentlyUsedTasks_KeyV2, StorageScope.PROFILE);
 		if (storageValue) {
 			try {
 				const values: [string, string][] = JSON.parse(storageValue);
@@ -1065,10 +1065,11 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			if (ContributedTask.is(task) && customizations) {
 				const custom: CustomTask[] = [];
 				const customized: IStringDictionary<ConfiguringTask> = Object.create(null);
+				const scope = task._source.scope;
 				await this._computeTasksForSingleConfig(task._source.workspaceFolder ?? this.workspaceFolders[0], {
 					version: '2.0.0',
 					tasks: [customizations]
-				}, TaskRunSource.System, custom, customized, TaskConfig.TaskConfigSource.TasksJson, true);
+				}, TaskRunSource.User, custom, customized, scope === TaskScope.Global ? TaskConfig.TaskConfigSource.User : TaskConfig.TaskConfigSource.TasksJson, true);
 				for (const configuration in customized) {
 					key = customized[configuration].getRecentlyUsedKey()!;
 				}
@@ -1095,7 +1096,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		for (const key of keys) {
 			keyValues.push([key, this._recentlyUsedTasks.get(key, Touch.None)!]);
 		}
-		this._storageService.store(AbstractTaskService.RecentlyUsedTasks_KeyV2, JSON.stringify(keyValues), StorageScope.WORKSPACE, StorageTarget.USER);
+		this._storageService.store(AbstractTaskService.RecentlyUsedTasks_KeyV2, JSON.stringify(keyValues), StorageScope.PROFILE, StorageTarget.USER);
 	}
 
 	private async _setPersistentTask(task: Task): Promise<void> {
@@ -1133,7 +1134,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		for (const key of keys) {
 			keyValues.push([key, this._persistentTasks.get(key, Touch.None)!]);
 		}
-		this._storageService.store(AbstractTaskService.PersistentTasks_Key, JSON.stringify(keyValues), StorageScope.WORKSPACE, StorageTarget.USER);
+		this._storageService.store(AbstractTaskService.PersistentTasks_Key, JSON.stringify(keyValues), StorageScope.PROFILE, StorageTarget.USER);
 	}
 
 	private _openDocumentation(): void {
@@ -1511,11 +1512,11 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			return;
 		}
 
-		const workspaceFolder = task.getWorkspaceFolder();
+		const workspaceFolder = task.getWorkspaceFolder() ?? this.workspaceFolders[0];
 		if (!workspaceFolder) {
 			return Promise.resolve(undefined);
 		}
-		const configuration = this._getConfiguration(workspaceFolder, task._source.kind);
+		const configuration = this._getConfiguration(workspaceFolder, task._source.kind, (task._source as IExtensionTaskSource).scope);
 		if (configuration.hasParseErrors) {
 			this._notificationService.warn(nls.localize('customizeParseErrors', 'The current task configuration has errors. Please fix the errors first before customizing a task.'));
 			return Promise.resolve<void>(undefined);
@@ -1549,7 +1550,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			if (editorConfig.editor.insertSpaces) {
 				content = content.replace(/(\n)(\t+)/g, (_, s1, s2) => s1 + ' '.repeat(s2.length * editorConfig.editor.tabSize));
 			}
-			await this._textFileService.create([{ resource: workspaceFolder.toResource('.vscode/tasks.json'), value: content }]);
+			await this._textFileService.create([{ resource: this._getResourceForTask(task), value: content }]);
 		} else {
 			// We have a global task configuration
 			if ((index === -1) && properties) {
@@ -1569,7 +1570,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 				} else {
 					fileConfig.tasks[index] = toCustomize;
 				}
-				await this._writeConfiguration(workspaceFolder, 'tasks.tasks', fileConfig.tasks, task._source.kind);
+				await this._writeConfiguration(workspaceFolder, 'tasks.tasks', fileConfig.tasks, task._source.kind, (task._source as IExtensionTaskSource).scope);
 			}
 		}
 
@@ -1578,11 +1579,12 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		}
 	}
 
-	private _writeConfiguration(workspaceFolder: IWorkspaceFolder, key: string, value: any, source?: string): Promise<void> | undefined {
+	private _writeConfiguration(workspaceFolder: IWorkspaceFolder, key: string, value: any, source?: string, scope?: TaskScope): Promise<void> | undefined {
 		let target: ConfigurationTarget | undefined = undefined;
 		switch (source) {
 			case TaskSourceKind.User: target = ConfigurationTarget.USER; break;
 			case TaskSourceKind.WorkspaceFile: target = ConfigurationTarget.WORKSPACE; break;
+			case TaskSourceKind.Extension: target = scope === TaskScope.Global ? ConfigurationTarget.USER : ConfigurationTarget.WORKSPACE; break;
 			default: if (this._contextService.getWorkbenchState() === WorkbenchState.FOLDER) {
 				target = ConfigurationTarget.WORKSPACE;
 			} else if (this._contextService.getWorkbenchState() === WorkbenchState.WORKSPACE) {
@@ -1614,30 +1616,37 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 	}
 
 	private _getResourceForTask(task: CustomTask | ConfiguringTask | ContributedTask): URI {
-		if (CustomTask.is(task)) {
-			let uri = this._getResourceForKind(task._source.kind);
-			if (!uri) {
-				const taskFolder = task.getWorkspaceFolder();
-				if (taskFolder) {
-					uri = taskFolder.toResource(task._source.config.file);
-				} else {
-					uri = this.workspaceFolders[0].uri;
+		switch (task._source.kind) {
+			case TaskSourceKind.User: {
+				return resources.joinPath(resources.dirname(this._preferencesService.userSettingsResource), 'tasks.json');
+			}
+			case TaskSourceKind.WorkspaceFile: {
+				if (this._workspace && this._workspace.configuration) {
+					return this._workspace.configuration;
 				}
 			}
-			return uri;
-		} else {
-			return task.getWorkspaceFolder()!.toResource('.vscode/tasks.json');
+			case TaskSourceKind.Extension: {
+				if ((task._source as IExtensionTaskSource).scope === TaskScope.Global) {
+					return resources.joinPath(resources.dirname(this._preferencesService.userSettingsResource), 'tasks.json');
+				} else if (this._workspace && this._workspace.configuration) {
+					return this._workspace.configuration;
+				}
+			}
+			default: {
+				return task.getWorkspaceFolder()!.toResource('.vscode/tasks.json');
+			}
 		}
 	}
 
-	public async openConfig(task: CustomTask | ConfiguringTask | undefined): Promise<boolean> {
+	public async openConfig(task: CustomTask | ConfiguringTask | ContributedTask | undefined): Promise<boolean> {
 		let resource: URI | undefined;
 		if (task) {
 			resource = this._getResourceForTask(task);
 		} else {
 			resource = (this._workspaceFolders && (this._workspaceFolders.length > 0)) ? this._workspaceFolders[0].toResource('.vscode/tasks.json') : undefined;
 		}
-		return this._openEditorAtTask(resource, task ? task._label : undefined, task ? task._source.config.index : -1);
+		const index = ConfiguringTask.is(task) || CustomTask.is(task) ? task._source.config.index : -1;
+		return this._openEditorAtTask(resource, task ? task._label : undefined, index);
 	}
 
 	private _createRunnableTask(tasks: TaskMap, group: TaskGroup): { task: Task; resolver: ITaskResolver } | undefined {
@@ -2031,10 +2040,8 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 
 		for (const set of contributedTaskSets) {
 			for (const task of set.tasks) {
-				const workspaceFolder = task.getWorkspaceFolder();
-				if (workspaceFolder) {
-					contributedTasks.add(workspaceFolder, task);
-				}
+				const key = task.getWorkspaceFolder() ?? this.workspaceFolders[0];
+				contributedTasks.add(key, task);
 			}
 		}
 
@@ -2166,10 +2173,8 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			const result: TaskMap = new TaskMap();
 			for (const set of contributedTaskSets) {
 				for (const task of set.tasks) {
-					const folder = task.getWorkspaceFolder();
-					if (folder) {
-						result.add(folder, task);
-					}
+					const key = task.getWorkspaceFolder() ?? USER_TASKS_GROUP_KEY;
+					result.add(key, task);
 				}
 			}
 			return result;
@@ -2455,7 +2460,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		return TaskConfig.JsonSchemaVersion.from(config);
 	}
 
-	protected _getConfiguration(workspaceFolder: IWorkspaceFolder, source?: string): { config: TaskConfig.IExternalTaskRunnerConfiguration | undefined; hasParseErrors: boolean } {
+	protected _getConfiguration(workspaceFolder: IWorkspaceFolder, source?: string, scope?: TaskScope): { config: TaskConfig.IExternalTaskRunnerConfiguration | undefined; hasParseErrors: boolean } {
 		let result;
 		if ((source !== TaskSourceKind.User) && (this._contextService.getWorkbenchState() === WorkbenchState.EMPTY)) {
 			result = undefined;
@@ -2468,11 +2473,19 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 					}
 					break;
 				}
+				case TaskSourceKind.Extension: {
+					if (scope === TaskScope.Global) {
+						result = Objects.deepClone(wholeConfig.userValue);
+					}
+					break;
+				}
 				case TaskSourceKind.Workspace: result = Objects.deepClone(wholeConfig.workspaceFolderValue); break;
 				case TaskSourceKind.WorkspaceFile: {
 					if ((this._contextService.getWorkbenchState() === WorkbenchState.WORKSPACE)
 						&& (wholeConfig.workspaceFolderValue !== wholeConfig.workspaceValue)) {
 						result = Objects.deepClone(wholeConfig.workspaceValue);
+					} else {
+						result = Objects.deepClone(wholeConfig.workspaceFolderValue);
 					}
 					break;
 				}

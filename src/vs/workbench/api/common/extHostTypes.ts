@@ -2258,6 +2258,7 @@ export class Task implements vscode.Task {
 			problemMatchers = arg6;
 		} else {
 			this.target = arg2;
+			this._scope = this.scope;
 			this._name = this.name = arg3;
 			this._source = this.source = arg4;
 			this.execution = arg5;
