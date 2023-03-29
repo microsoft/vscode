@@ -108,11 +108,14 @@ export class ColorHoverParticipant implements IEditorHoverParticipant<ColorHover
 	}
 
 	private async _createColorHover(editorModel: ITextModel, colorInfo: IColorInformation, provider: DocumentColorProvider): Promise<ColorHover> {
+		console.log('inside of _createColorHover of the ColorHoverParticipant.ts');
+		console.log('colorInfo : ', colorInfo);
+		console.log('provider : ', provider);
 		const originalText = editorModel.getValueInRange(colorInfo.range);
 		const { red, green, blue, alpha } = colorInfo.color;
 		const rgba = new RGBA(Math.round(red * 255), Math.round(green * 255), Math.round(blue * 255), alpha);
 		const color = new Color(rgba);
-
+		console.log('Before getColorPresentations');
 		const colorPresentations = await getColorPresentations(editorModel, colorInfo, provider, CancellationToken.None);
 		const model = new ColorPickerModel(color, [], 0);
 		model.colorPresentations = colorPresentations || [];

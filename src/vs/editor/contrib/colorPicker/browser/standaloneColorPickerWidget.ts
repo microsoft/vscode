@@ -360,8 +360,14 @@ export class ColorHoverComputer implements IColorHoverComputer<IHoverPart> {
 			const textModel = this._editor.getModel()!;
 			const registry = this.languageFeaturesService.colorProvider;
 			const providers = registry.ordered(textModel).reverse();
+			if (providers.length === 0) {
+				return;
+			}
+			console.log('providers : ', providers);
 			const provider = providers[0];
 			if (participant instanceof ColorHoverParticipant) {
+				console.log('colorInfo : ', colorInfo);
+				console.log('provider : ', provider);
 				const colorHover = participant.createColorHover(colorInfo, provider);
 				console.log('colorHover ; ', colorHover);
 				const colorHoverIterable = AsyncIterableObject.fromPromise(colorHover);
