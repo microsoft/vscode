@@ -51,7 +51,8 @@ export class AccessibleBufferWidget extends DisposableStore {
 	private _lastRowCount: number = 0;
 	private _lines: string[] = [];
 	private _listeners: IDisposable[] = [];
-	private _inProgressUpdate: boolean = false;
+	private _isUpdating: boolean = false;
+	private _pendingUpdates = 0;
 
 	constructor(
 		private readonly _instance: ITerminalInstance,
@@ -111,7 +112,33 @@ export class AccessibleBufferWidget extends DisposableStore {
 				this._editorWidget.updateOptions({ fontFamily: font.fontFamily, fontSize: font.fontSize, lineHeight: font.charHeight ? font.charHeight * font.lineHeight : 1, letterSpacing: font.letterSpacing });
 			}
 		}));
-
+		// initialize editor this._listeners
+		this.add(this._editorWidget.onKeyDown((e) => {
+			switch (e.keyCode) {
+				case KeyCode.Tab:
+					// On tab or shift+tab, hide the accessible buffer and perform the default tab
+					// behavior
+					this._hide();
+					break;
+				case KeyCode.Escape:
+					// On escape, hide the accessible buffer and force focus onto the terminal
+					this._hide();
+					this._xterm.raw.focus();
+					break;
+			}
+		}));
+		this.add(this._editorWidget.onDidFocusEditorText(async () => {
+			if (this._accessibleBuffer.classList.contains(CssClass.Active)) {
+				// the user has focused the editor via mouse or
+				// Go to Command was run so we've already updated the editor
+				return;
+			}
+			// if the editor is focused via tab, we need to update the model
+			// and show it
+			await this._updateEditor();
+			this._accessibleBuffer.classList.add(CssClass.Active);
+			this._xtermElement.classList.add(CssClass.Hide);
+		}));
 		this._updateEditor();
 	}
 	override dispose(): void {
@@ -126,10 +153,11 @@ export class AccessibleBufferWidget extends DisposableStore {
 	}
 
 	private async _updateEditor(): Promise<void> {
-		if (this._inProgressUpdate) {
+		if (this._isUpdating) {
+			this._pendingUpdates++;
 			return;
 		}
-		this._inProgressUpdate = true;
+		this._isUpdating = true;
 		const model = await this._updateModel();
 		if (!model) {
 			return;
@@ -141,7 +169,11 @@ export class AccessibleBufferWidget extends DisposableStore {
 			this._editorWidget.setSelection({ startLineNumber: lineNumber, startColumn: 1, endLineNumber: lineNumber, endColumn: 1 });
 		}
 		this._editorWidget.setScrollTop(this._editorWidget.getScrollHeight());
-		this._inProgressUpdate = false;
+		this._isUpdating = false;
+		if (this._pendingUpdates) {
+			this._pendingUpdates--;
+			await this._updateEditor();
+		}
 	}
 
 	async createQuickPick(): Promise<IQuickPick<IAccessibleBufferQuickPickItem> | undefined> {
@@ -216,34 +248,6 @@ export class AccessibleBufferWidget extends DisposableStore {
 			if (this._xterm.raw.buffer.active.baseY === 0) {
 				await this._updateEditor();
 			}
-		}));
-
-		// initialize editor this._listeners
-		this._listeners.push(this._editorWidget.onKeyDown((e) => {
-			switch (e.keyCode) {
-				case KeyCode.Tab:
-					// On tab or shift+tab, hide the accessible buffer and perform the default tab
-					// behavior
-					this._hide();
-					break;
-				case KeyCode.Escape:
-					// On escape, hide the accessible buffer and force focus onto the terminal
-					this._hide();
-					this._xterm.raw.focus();
-					break;
-			}
-		}));
-		this._listeners.push(this._editorWidget.onDidFocusEditorText(async () => {
-			if (this._accessibleBuffer.classList.contains(CssClass.Active)) {
-				// the user has focused the editor via mouse or
-				// Go to Command was run so we've already updated the editor
-				return;
-			}
-			// if the editor is focused via tab, we need to update the model
-			// and show it
-			await this._updateEditor();
-			this._accessibleBuffer.classList.add(CssClass.Active);
-			this._xtermElement.classList.add(CssClass.Hide);
 		}));
 		this._listeners.push(this._instance.onDidRequestFocus(() => this._editorWidget.focus()));
 	}
