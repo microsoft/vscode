@@ -284,5 +284,3 @@ export class AccessibleBufferWidget extends DisposableStore {
 		return model!;
 	}
 }
-export { BufferContentTracker };
-
