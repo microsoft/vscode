@@ -300,12 +300,13 @@ export class KeybindingResolver {
 		return items[items.length - 1];
 	}
 
-	public resolve(context: IContext, currentChords: string[] | null, keypress: string): ResolutionResult {
+	public resolve(context: IContext, currentChords: string[], keypress: string): ResolutionResult {
+
 		this._log(`| Resolving ${keypress}${currentChords ? ` chorded from ${currentChords}` : ``}`);
 
 		let lookupMap: ResolvedKeybindingItem[] | null = null;
 
-		if (currentChords === null) {
+		if (currentChords.length === 0) {
 			const candidates = this._map.get(keypress);
 			if (candidates === undefined) {
 				// No bindings with `keypress`
@@ -349,10 +350,10 @@ export class KeybindingResolver {
 			return NoMatchingKb;
 		}
 
-		if (currentChords === null && result.chords.length > 1 && result.chords[1] !== null) { // first chord of a multi-chord KB matched
+		if (currentChords.length === 0 && result.chords.length > 1 && result.chords[1] !== null) { // first chord of a multi-chord KB matched
 			this._log(`\\ From ${lookupMap.length} keybinding entries, matched chord, when: ${printWhenExplanation(result.when)}, source: ${printSourceExplanation(result)}.`);
 			return MoreChordsNeeded;
-		} else if (currentChords !== null && currentChords.length + 1 < result.chords.length) { // prefix (ie, a sequence of chords) of a multi-chord KB matched, eg 2 out of 3 matched - still need one more to dispatch the KB
+		} else if (currentChords.length !== 0 && currentChords.length + 1 < result.chords.length) { // prefix (ie, a sequence of chords) of a multi-chord KB matched, eg 2 out of 3 matched - still need one more to dispatch the KB
 			this._log(`\\ From ${lookupMap.length} keybinding entries, continued chord, when: ${printWhenExplanation(result.when)}, source: ${printSourceExplanation(result)}.`);
 			return MoreChordsNeeded;
 		}
