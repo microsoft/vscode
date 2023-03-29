@@ -172,6 +172,10 @@ export class RawDebugSession implements IDisposable {
 		this.debugAdapter.onRequest(request => this.dispatchRequest(request));
 	}
 
+	get isInShutdown() {
+		return this.inShutdown;
+	}
+
 	get onDidExitAdapter(): Event<AdapterEndEvent> {
 		return this._onDidExitAdapter.event;
 	}
