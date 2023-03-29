@@ -24,7 +24,7 @@ extends:
       - name: vscode-markdown-languageserver
 
         buildSteps:
-          - script: yarn --cwd extensions/markdown-language-features/server install
+          - script: yarn install
             displayName: Install dependencies
 
           - script: gulp compile-extension:markdown-language-features-server
