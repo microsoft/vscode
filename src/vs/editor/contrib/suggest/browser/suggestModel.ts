@@ -185,7 +185,8 @@ export class SuggestModel implements IDisposable {
 		}));
 		this._toDispose.add(this._editor.onDidChangeModelContent(() => {
 			// only filter completions when the editor isn't composing a character
-			// e.g. \u00a8 + u makes \u00fc but just \u00a8 cannot be used for filtering
+			// allow-any-unicode-next-line
+			// e.g. ¨ + u makes ü but just ¨ cannot be used for filtering
 			if (!editorIsComposing && this._triggerState !== undefined) {
 				this._refilterCompletionItems();
 			}
