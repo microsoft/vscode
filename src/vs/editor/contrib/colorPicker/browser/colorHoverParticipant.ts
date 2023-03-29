@@ -201,6 +201,7 @@ export class ColorHoverParticipant implements IEditorHoverParticipant<ColorHover
 
 		const updateColorPresentations = (color: Color) => {
 			console.log('inside of update color presentations of the renderHoverParts');
+			console.log('color : ', color);
 			return getColorPresentations(editorModel, {
 				range: range,
 				color: {

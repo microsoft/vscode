@@ -413,12 +413,27 @@ class DefaultDocumentColorProvider implements DocumentColorProvider {
 	}
 
 	provideColorPresentations(model: ITextModel, colorInfo: IColorInformation, token: CancellationToken): ProviderResult<IColorPresentation[]> {
+		console.log('inside of provideColorPresentations of the DefaultDocumentColorProvider');
 		const range = colorInfo.range;
 		const color: IColor = colorInfo.color;
-		const colorInstance = new Color(new RGBA(color.red, color.green, color.blue, color.alpha));
+		console.log('color : ', color);
+
+		console.log('color.red : ', color.red);
+		console.log('color.green : ', color.green);
+		console.log('color.blue : ', color.blue);
+
+		const RGBAColor = new RGBA(Math.round(255 * color.red), Math.round(255 * color.green), Math.round(255 * color.blue), color.alpha);
+		console.log('RGBA color : ', RGBAColor);
+
+		const colorInstance = new Color(RGBAColor);
+		console.log('colorInstance : ', colorInstance);
 		const rgba = Color.Format.CSS.formatRGBA(colorInstance);
+		// hsla provides strange color string
 		const hsla = Color.Format.CSS.formatHSLA(colorInstance);
 		const hexa = Color.Format.CSS.formatHexA(colorInstance);
+		console.log('rgba : ', rgba);
+		console.log('hsla : ', hsla);
+		console.log('hexa : ', hexa);
 		const colorPresentations: IColorPresentation[] = [];
 		// Using two default color formats, RGBA and Hex
 		colorPresentations.push({ label: rgba, textEdit: { range: range, text: rgba } });
