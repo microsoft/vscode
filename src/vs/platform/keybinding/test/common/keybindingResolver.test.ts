@@ -8,7 +8,7 @@ import { decodeKeybinding, createSimpleKeybinding, KeyCodeChord } from 'vs/base/
 import { KeyChord, KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { OS } from 'vs/base/common/platform';
 import { ContextKeyExpr, ContextKeyExpression, IContext } from 'vs/platform/contextkey/common/contextkey';
-import { KeybindingResolver } from 'vs/platform/keybinding/common/keybindingResolver';
+import { KeybindingResolver, ResultKind } from 'vs/platform/keybinding/common/keybindingResolver';
 import { ResolvedKeybindingItem } from 'vs/platform/keybinding/common/resolvedKeybindingItem';
 import { USLayoutResolvedKeybinding } from 'vs/platform/keybinding/common/usLayoutResolvedKeybinding';
 import { createUSLayoutResolvedKeybinding } from 'vs/platform/keybinding/test/common/keybindingsTestUtils';
@@ -50,8 +50,13 @@ suite('KeybindingResolver', () => {
 		assert.strictEqual(contextRules.evaluate(createContext({ bar: 'bz' })), false);
 
 		const resolver = new KeybindingResolver([keybindingItem], [], () => { });
-		assert.strictEqual(resolver.resolve(createContext({ bar: 'baz' }), null, getDispatchStr(runtimeKeybinding))!.commandId, 'yes');
-		assert.strictEqual(resolver.resolve(createContext({ bar: 'bz' }), null, getDispatchStr(runtimeKeybinding)), null);
+
+		const r1 = resolver.resolve(createContext({ bar: 'baz' }), null, getDispatchStr(runtimeKeybinding));
+		assert.ok(r1.kind === ResultKind.KbFound);
+		assert.strictEqual(r1.commandId, 'yes');
+
+		const r2 = resolver.resolve(createContext({ bar: 'bz' }), null, getDispatchStr(runtimeKeybinding));
+		assert.strictEqual(r2.kind, ResultKind.NoMatchingKb);
 	});
 
 	test('resolve key with arguments', () => {
@@ -62,7 +67,10 @@ suite('KeybindingResolver', () => {
 		const keybindingItem = kbItem(keybinding, 'yes', commandArgs, contextRules, true);
 
 		const resolver = new KeybindingResolver([keybindingItem], [], () => { });
-		assert.strictEqual(resolver.resolve(createContext({ bar: 'baz' }), null, getDispatchStr(runtimeKeybinding))!.commandArgs, commandArgs);
+
+		const r = resolver.resolve(createContext({ bar: 'baz' }), null, getDispatchStr(runtimeKeybinding));
+		assert.ok(r.kind === ResultKind.KbFound);
+		assert.strictEqual(r.commandArgs, commandArgs);
 	});
 
 	test('KeybindingResolver.handleRemovals simple 1', () => {
@@ -408,28 +416,26 @@ suite('KeybindingResolver', () => {
 			const expectedKeybinding = decodeKeybinding(_expectedKey, OS)!;
 
 			let previousChord: string[] | null = null;
+
 			for (let i = 0, len = expectedKeybinding.chords.length; i < len; i++) {
+
 				const chord = getDispatchStr(<KeyCodeChord>expectedKeybinding.chords[i]);
+
 				const result = resolver.resolve(ctx, previousChord, chord);
+
 				if (i === len - 1) {
 					// if it's the final chord, then we should find a valid command,
 					// and there should not be a chord.
-					assert.ok(result !== null, `Enters multi chord for ${commandId} at chord ${i}`);
-					assert.strictEqual(result!.commandId, commandId, `Enters multi chord for ${commandId} at chord ${i}`);
-					assert.strictEqual(result!.enterMultiChord, false, `Enters multi chord for ${commandId} at chord ${i}`);
+					assert.ok(result.kind === ResultKind.KbFound, `Enters multi chord for ${commandId} at chord ${i}`);
+					assert.strictEqual(result.commandId, commandId, `Enters multi chord for ${commandId} at chord ${i}`);
 				} else if (i > 0) {
 					// if this is an intermediate chord, we should not find a valid command,
 					// and there should be an open chord we continue.
-					assert.ok(result !== null, `Continues multi chord for ${commandId} at chord ${i}`);
-					assert.strictEqual(result!.commandId, null, `Continues multi chord for ${commandId} at chord ${i}`);
-					assert.strictEqual(result!.enterMultiChord, false, `Is already in multi chord for ${commandId} at chord ${i}`);
-					assert.strictEqual(result!.leaveMultiChord, false, `Does not leave multi chord for ${commandId} at chord ${i}`);
+					assert.ok(result.kind === ResultKind.MoreChordsNeeded, `Continues multi chord for ${commandId} at chord ${i}`);
 				} else {
 					// if it's not the final chord and not an intermediate, then we should not
 					// find a valid command, and we should enter a chord.
-					assert.ok(result !== null, `Enters multi chord for ${commandId} at chord ${i}`);
-					assert.strictEqual(result!.commandId, null, `Enters multi chord for ${commandId} at chord ${i}`);
-					assert.strictEqual(result!.enterMultiChord, true, `Enters multi chord for ${commandId} at chord ${i}`);
+					assert.ok(result.kind === ResultKind.MoreChordsNeeded, `Enters multi chord for ${commandId} at chord ${i}`);
 				}
 				if (previousChord === null) {
 					previousChord = [];
