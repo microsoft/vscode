@@ -32,7 +32,6 @@ import { getDefinitionsAtPosition } from '../goToSymbol';
 import { IWordAtPosition } from 'vs/editor/common/core/wordHelper';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import { ModelDecorationInjectedTextOptions } from 'vs/editor/common/model/textModel';
-import { LinkOpener } from 'vs/editor/contrib/links/browser/links';
 
 export class GotoDefinitionAtPositionEditorContribution implements IEditorContribution {
 
@@ -63,21 +62,15 @@ export class GotoDefinitionAtPositionEditorContribution implements IEditorContri
 		}));
 
 		this.toUnhook.add(linkGesture.onExecute((mouseEvent: ClickLinkMouseEvent) => {
-			if (!this.isEnabled(mouseEvent)) {
-				return;
+			if (this.isEnabled(mouseEvent)) {
+				this.gotoDefinition(mouseEvent.target.position!, mouseEvent.hasSideBySideModifier)
+					.catch((error: Error) => {
+						onUnexpectedError(error);
+					})
+					.finally(() => {
+						this.removeLinkDecorations();
+					});
 			}
-			LinkOpener.get(this.editor)?.openLink(
-				mouseEvent.target.range!,
-				nls.localize('link.label', "Go to Definition"),
-				() => {
-					this.gotoDefinition(mouseEvent.target.position!, mouseEvent.hasSideBySideModifier)
-						.catch((error: Error) => {
-							onUnexpectedError(error);
-						})
-						.finally(() => {
-							this.removeLinkDecorations();
-						});
-				});
 		}));
 
 		this.toUnhook.add(linkGesture.onCancel(() => {

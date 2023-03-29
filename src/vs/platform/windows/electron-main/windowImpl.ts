@@ -8,7 +8,6 @@ import { DeferredPromise, RunOnceScheduler, timeout } from 'vs/base/common/async
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { Emitter } from 'vs/base/common/event';
-import { mnemonicButtonLabel } from 'vs/base/common/labels';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { FileAccess, Schemas } from 'vs/base/common/network';
 import { join } from 'vs/base/common/path';
@@ -31,17 +30,17 @@ import { IProtocolMainService } from 'vs/platform/protocol/electron-main/protoco
 import { resolveMarketplaceHeaders } from 'vs/platform/externalServices/common/marketplace';
 import { IApplicationStorageMainService, IStorageMainService } from 'vs/platform/storage/electron-main/storageMainService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { ThemeIcon } from 'vs/base/common/themables';
 import { IThemeMainService } from 'vs/platform/theme/electron-main/themeMainService';
 import { getMenuBarVisibility, getTitleBarStyle, IFolderToOpen, INativeWindowConfiguration, IWindowSettings, IWorkspaceToOpen, MenuBarVisibility, useWindowControlsOverlay, WindowMinimumSize, zoomLevelToZoomFactor } from 'vs/platform/window/common/window';
 import { IWindowsMainService, OpenContext } from 'vs/platform/windows/electron-main/windows';
-import { ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
+import { ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier, toWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
 import { IWorkspacesManagementMainService } from 'vs/platform/workspaces/electron-main/workspacesManagementMainService';
 import { IWindowState, ICodeWindow, ILoadEvent, WindowMode, WindowError, LoadReason, defaultWindowState } from 'vs/platform/window/electron-main/window';
 import { Color } from 'vs/base/common/color';
 import { IPolicyService } from 'vs/platform/policy/common/policy';
 import { IUserDataProfile } from 'vs/platform/userDataProfile/common/userDataProfile';
-import { IStateMainService } from 'vs/platform/state/electron-main/state';
+import { IStateService } from 'vs/platform/state/node/state';
 import { IUserDataProfilesMainService } from 'vs/platform/userDataProfile/electron-main/userDataProfile';
 import { INativeHostMainService } from 'vs/platform/native/electron-main/nativeHostMainService';
 import { OneDataSystemAppender } from 'vs/platform/telemetry/node/1dsAppender';
@@ -50,6 +49,8 @@ import { getPiiPathsFromEnvironment, isInternalTelemetry, ITelemetryAppender, su
 import { resolveCommonProperties } from 'vs/platform/telemetry/common/commonProperties';
 import { hostname, release } from 'os';
 import { resolveMachineId } from 'vs/platform/telemetry/electron-main/telemetryUtils';
+import { ILoggerMainService } from 'vs/platform/log/electron-main/loggerService';
+import { firstOrDefault } from 'vs/base/common/arrays';
 
 export interface IWindowCreationOptions {
 	readonly state: IWindowState;
@@ -125,6 +126,9 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 	private _lastFocusTime = -1;
 	get lastFocusTime(): number { return this._lastFocusTime; }
 
+	private _isSandboxed = false;
+	get isSandboxed(): boolean { return this._isSandboxed; }
+
 	get backupPath(): string | undefined { return this._config?.backupPath; }
 
 	get openedWorkspace(): IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | undefined { return this._config?.workspace; }
@@ -139,7 +143,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 			return profile;
 		}
 
-		return this.userDataProfilesService.getOrSetProfileForWorkspace(this.config.workspace ?? 'empty-window', this.userDataProfilesService.defaultProfile);
+		return this.userDataProfilesService.getProfileForWorkspace(this.config.workspace ?? toWorkspaceIdentifier(this.backupPath, this.isExtensionDevelopmentHost)) ?? this.userDataProfilesService.defaultProfile;
 	}
 
 	get remoteAuthority(): string | undefined { return this._config?.remoteAuthority; }
@@ -183,6 +187,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 	constructor(
 		config: IWindowCreationOptions,
 		@ILogService private readonly logService: ILogService,
+		@ILoggerMainService private readonly loggerMainService: ILoggerMainService,
 		@IEnvironmentMainService private readonly environmentMainService: IEnvironmentMainService,
 		@IPolicyService private readonly policyService: IPolicyService,
 		@IUserDataProfilesMainService private readonly userDataProfilesService: IUserDataProfilesMainService,
@@ -199,12 +204,13 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		@IProductService private readonly productService: IProductService,
 		@IProtocolMainService private readonly protocolMainService: IProtocolMainService,
 		@IWindowsMainService private readonly windowsMainService: IWindowsMainService,
-		@IStateMainService private readonly stateMainService: IStateMainService,
+		@IStateService private readonly stateService: IStateService,
 		@INativeHostMainService private readonly nativeHostMainService: INativeHostMainService
 	) {
 		super();
 
 		//#region create browser window
+		let useSandbox = false;
 		{
 			// Load window state
 			const [state, hasMultipleDisplays] = this.restoreWindowState(config.state);
@@ -218,12 +224,11 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 			if (typeof CodeWindow.sandboxState === 'undefined') {
 				// we should only check this once so that we do not end up
 				// with some windows in sandbox mode and some not!
-				CodeWindow.sandboxState = this.stateMainService.getItem<boolean>('window.experimental.useSandbox', false);
+				CodeWindow.sandboxState = this.stateService.getItem<boolean>('window.experimental.useSandbox', false);
 			}
 
 			const windowSettings = this.configurationService.getValue<IWindowSettings | undefined>('window');
 
-			let useSandbox = false;
 			if (typeof windowSettings?.experimental?.useSandbox === 'boolean') {
 				useSandbox = windowSettings.experimental.useSandbox;
 			} else if (this.productService.quality === 'stable' && CodeWindow.sandboxState) {
@@ -231,6 +236,8 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 			} else {
 				useSandbox = typeof this.productService.quality === 'string' && this.productService.quality !== 'stable';
 			}
+
+			this._isSandboxed = useSandbox;
 
 			const options: BrowserWindowConstructorOptions & { experimentalDarkMode: boolean } = {
 				width: this.windowState.width,
@@ -243,7 +250,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 				show: !isFullscreenOrMaximized, // reduce flicker by showing later
 				title: this.productService.nameLong,
 				webPreferences: {
-					preload: FileAccess.asFileUri('vs/base/parts/sandbox/electron-browser/preload.js').fsPath,
+					preload: FileAccess.asFileUri('vs/base/parts/sandbox/electron-sandbox/preload.js').fsPath,
 					additionalArguments: [`--vscode-window-config=${this.configObjectUrl.resource.toString()}`],
 					v8CacheOptions: this.environmentMainService.useCodeCache ? 'bypassHeatCheck' : 'none',
 					enableWebSQL: false,
@@ -334,7 +341,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 
 			// Update the window controls immediately based on cached values
 			if (useCustomTitleStyle && ((isWindows && useWindowControlsOverlay(this.configurationService)) || isMacintosh)) {
-				const cachedWindowControlHeight = this.stateMainService.getItem<number>((CodeWindow.windowControlHeightStateStorageKey));
+				const cachedWindowControlHeight = this.stateService.getItem<number>((CodeWindow.windowControlHeightStateStorageKey));
 				if (cachedWindowControlHeight) {
 					this.updateWindowControls({ height: cachedWindowControlHeight });
 				}
@@ -440,7 +447,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		this.createTouchBar();
 
 		// Eventing
-		this.registerListeners();
+		this.registerListeners(useSandbox);
 	}
 
 	setRepresentedFilename(filename: string): void {
@@ -544,12 +551,12 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		});
 	}
 
-	private registerListeners(): void {
+	private registerListeners(sandboxed: boolean): void {
 
 		// Window error conditions to handle
-		this._win.on('unresponsive', () => this.onWindowError(WindowError.UNRESPONSIVE));
-		this._win.webContents.on('render-process-gone', (event, details) => this.onWindowError(WindowError.PROCESS_GONE, details));
-		this._win.webContents.on('did-fail-load', (event, exitCode, reason) => this.onWindowError(WindowError.LOAD, { reason, exitCode }));
+		this._win.on('unresponsive', () => this.onWindowError(WindowError.UNRESPONSIVE, { sandboxed }));
+		this._win.webContents.on('render-process-gone', (event, details) => this.onWindowError(WindowError.PROCESS_GONE, { ...details, sandboxed }));
+		this._win.webContents.on('did-fail-load', (event, exitCode, reason) => this.onWindowError(WindowError.LOAD, { reason, exitCode, sandboxed }));
 
 		// Prevent windows/iframes from blocking the unload
 		// through DOM events. We have our own logic for
@@ -646,10 +653,10 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		return this.marketplaceHeadersPromise;
 	}
 
-	private async onWindowError(error: WindowError.UNRESPONSIVE): Promise<void>;
-	private async onWindowError(error: WindowError.PROCESS_GONE, details: { reason: string; exitCode: number }): Promise<void>;
-	private async onWindowError(error: WindowError.LOAD, details: { reason: string; exitCode: number }): Promise<void>;
-	private async onWindowError(type: WindowError, details?: { reason: string; exitCode: number }): Promise<void> {
+	private async onWindowError(error: WindowError.UNRESPONSIVE, details: { sandboxed: boolean }): Promise<void>;
+	private async onWindowError(error: WindowError.PROCESS_GONE, details: { reason: string; exitCode: number; sandboxed: boolean }): Promise<void>;
+	private async onWindowError(error: WindowError.LOAD, details: { reason: string; exitCode: number; sandboxed: boolean }): Promise<void>;
+	private async onWindowError(type: WindowError, details: { reason?: string; exitCode?: number; sandboxed: boolean }): Promise<void> {
 
 		switch (type) {
 			case WindowError.PROCESS_GONE:
@@ -666,7 +673,8 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		// Telemetry
 		type WindowErrorClassification = {
 			type: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'The type of window error to understand the nature of the error better.' };
-			reason: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'The reason of the window error to understand the nature of the error better.' };
+			reason: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The reason of the window error to understand the nature of the error better.' };
+			sandboxed: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'If the window was sandboxed or not.' };
 			code: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'The exit code of the window process to understand the nature of the error better' };
 			owner: 'bpasero';
 			comment: 'Provides insight into reasons the vscode window had an error.';
@@ -675,8 +683,14 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 			type: WindowError;
 			reason: string | undefined;
 			code: number | undefined;
+			sandboxed: string;
 		};
-		this.telemetryService.publicLog2<WindowErrorEvent, WindowErrorClassification>('windowerror', { type, reason: details?.reason, code: details?.exitCode });
+		this.telemetryService.publicLog2<WindowErrorEvent, WindowErrorClassification>('windowerror', {
+			type,
+			reason: details?.reason,
+			code: details?.exitCode,
+			sandboxed: details?.sandboxed ? '1' : '0'
+		});
 
 		// Inform User if non-recoverable
 		switch (type) {
@@ -713,26 +727,22 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 					}
 
 					// Show Dialog
-					const result = await this.dialogMainService.showMessageBox({
-						title: this.productService.nameLong,
+					const { response, checkboxChecked } = await this.dialogMainService.showMessageBox({
 						type: 'warning',
 						buttons: [
-							mnemonicButtonLabel(localize({ key: 'reopen', comment: ['&& denotes a mnemonic'] }, "&&Reopen")),
-							mnemonicButtonLabel(localize({ key: 'wait', comment: ['&& denotes a mnemonic'] }, "&&Keep Waiting")),
-							mnemonicButtonLabel(localize({ key: 'close', comment: ['&& denotes a mnemonic'] }, "&&Close"))
+							localize({ key: 'reopen', comment: ['&& denotes a mnemonic'] }, "&&Reopen"),
+							localize({ key: 'close', comment: ['&& denotes a mnemonic'] }, "&&Close"),
+							localize({ key: 'wait', comment: ['&& denotes a mnemonic'] }, "&&Keep Waiting")
 						],
 						message: localize('appStalled', "The window is not responding"),
 						detail: localize('appStalledDetail', "You can reopen or close the window or keep waiting."),
-						noLink: true,
-						defaultId: 0,
-						cancelId: 1,
 						checkboxLabel: this._config?.workspace ? localize('doNotRestoreEditors', "Don't restore editors") : undefined
 					}, this._win);
 
 					// Handle choice
-					if (result.response !== 1 /* keep waiting */) {
-						const reopen = result.response === 0;
-						await this.destroyWindow(reopen, result.checkboxChecked);
+					if (response !== 2 /* keep waiting */) {
+						const reopen = response === 0;
+						await this.destroyWindow(reopen, checkboxChecked);
 					}
 				}
 
@@ -757,30 +767,29 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 						}
 
 						// Show Dialog
-						const result = await this.dialogMainService.showMessageBox({
-							title: this.productService.nameLong,
+						const { response, checkboxChecked } = await this.dialogMainService.showMessageBox({
 							type: 'warning',
 							buttons: [
-								mnemonicButtonLabel(localize({ key: 'reopen', comment: ['&& denotes a mnemonic'] }, "&&Reopen")),
-								mnemonicButtonLabel(localize({ key: 'close', comment: ['&& denotes a mnemonic'] }, "&&Close"))
+								this._config?.workspace ? localize({ key: 'reopen', comment: ['&& denotes a mnemonic'] }, "&&Reopen") : localize({ key: 'newWindow', comment: ['&& denotes a mnemonic'] }, "&&New Window"),
+								localize({ key: 'close', comment: ['&& denotes a mnemonic'] }, "&&Close")
 							],
 							message,
-							detail: localize('appGoneDetail', "We are sorry for the inconvenience. You can reopen the window to continue where you left off."),
-							noLink: true,
-							defaultId: 0,
+							detail: this._config?.workspace ?
+								localize('appGoneDetailWorkspace', "We are sorry for the inconvenience. You can reopen the window to continue where you left off.") :
+								localize('appGoneDetailEmptyWindow', "We are sorry for the inconvenience. You can open a new empty window to start again."),
 							checkboxLabel: this._config?.workspace ? localize('doNotRestoreEditors', "Don't restore editors") : undefined
 						}, this._win);
 
 						// Handle choice
-						const reopen = result.response === 0;
-						await this.destroyWindow(reopen, result.checkboxChecked);
+						const reopen = response === 0;
+						await this.destroyWindow(reopen, checkboxChecked);
 					}
 				}
 				break;
 		}
 	}
 
-	private async handleWindowsAdminCrash(details: { reason: string; exitCode: number }) {
+	private async handleWindowsAdminCrash(details: { reason?: string; exitCode?: number; sandboxed: boolean }) {
 
 		// Prepare telemetry event (TODO@bpasero remove me eventually)
 		const appenders: ITelemetryAppender[] = [];
@@ -790,20 +799,19 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 				appenders.push(new OneDataSystemAppender(isInternal, 'monacoworkbench', null, this.productService.aiConfig.ariaKey));
 			}
 
-			const { installSourcePath } = this.environmentMainService;
-			const machineId = await resolveMachineId(this.stateMainService);
+			const machineId = await resolveMachineId(this.stateService, this.logService);
 
 			const config: ITelemetryServiceConfig = {
 				appenders,
 				sendErrorTelemetry: false,
-				commonProperties: resolveCommonProperties(this.fileService, release(), hostname(), process.arch, this.productService.commit, this.productService.version, machineId, isInternal, installSourcePath),
+				commonProperties: resolveCommonProperties(release(), hostname(), process.arch, this.productService.commit, this.productService.version, machineId, isInternal),
 				piiPaths: getPiiPathsFromEnvironment(this.environmentMainService)
 			};
 
 			const telemetryService = new TelemetryService(config, this.configurationService, this.productService);
 
 			type WindowAdminErrorClassification = {
-				reason: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'The reason of the window error to understand the nature of the error better.' };
+				reason: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The reason of the window error to understand the nature of the error better.' };
 				code: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'The exit code of the window process to understand the nature of the error better' };
 				owner: 'bpasero';
 				comment: 'Provides insight into reasons the vscode window had an error when running as admin.';
@@ -816,17 +824,19 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		}
 
 		// Inform user
-		await this.dialogMainService.showMessageBox({
-			title: this.productService.nameLong,
+		const { response } = await this.dialogMainService.showMessageBox({
 			type: 'error',
 			buttons: [
-				mnemonicButtonLabel(localize({ key: 'close', comment: ['&& denotes a mnemonic'] }, "&&Close"))
+				localize({ key: 'learnMore', comment: ['&& denotes a mnemonic'] }, "&&Learn More"),
+				localize({ key: 'close', comment: ['&& denotes a mnemonic'] }, "&&Close")
 			],
-			message: localize('appGoneAdminMessage', "Running as administrator is not supported"),
-			detail: localize('appGoneAdminDetail', "Please try again without administrator privileges.", this.productService.nameLong),
-			noLink: true,
-			defaultId: 0
+			message: localize('appGoneAdminMessage', "Running as administrator is not supported in your environment"),
+			detail: localize('appGoneAdminDetail', "We are sorry for the inconvenience. Please try again without administrator privileges.", this.productService.nameLong)
 		}, this._win);
+
+		if (response === 0) {
+			await this.nativeHostMainService.openExternal(undefined, 'https://go.microsoft.com/fwlink/?linkid=2220179');
+		}
 
 		// Ensure to await flush telemetry
 		await Promise.all(appenders.map(appender => appender.flush()));
@@ -871,7 +881,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 			}
 
 			// Delegate to windows service
-			const [window] = await this.windowsMainService.open({
+			const window = firstOrDefault(await this.windowsMainService.open({
 				context: OpenContext.API,
 				userEnv: this._config.userEnv,
 				cli: {
@@ -882,8 +892,8 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 				forceEmpty,
 				forceNewWindow: true,
 				remoteAuthority: this.remoteAuthority
-			});
-			window.focus();
+			}));
+			window?.focus();
 		}
 	}
 
@@ -899,30 +909,34 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 	private onConfigurationUpdated(e?: IConfigurationChangeEvent): void {
 
 		// Menubar
-		const newMenuBarVisibility = this.getMenuBarVisibility();
-		if (newMenuBarVisibility !== this.currentMenuBarVisibility) {
-			this.currentMenuBarVisibility = newMenuBarVisibility;
-			this.setMenuBarVisibility(newMenuBarVisibility);
+		if (!e || e.affectsConfiguration('window.menuBarVisibility')) {
+			const newMenuBarVisibility = this.getMenuBarVisibility();
+			if (newMenuBarVisibility !== this.currentMenuBarVisibility) {
+				this.currentMenuBarVisibility = newMenuBarVisibility;
+				this.setMenuBarVisibility(newMenuBarVisibility);
+			}
 		}
 
 		// Proxy
-		let newHttpProxy = (this.configurationService.getValue<string>('http.proxy') || '').trim()
-			|| (process.env['https_proxy'] || process.env['HTTPS_PROXY'] || process.env['http_proxy'] || process.env['HTTP_PROXY'] || '').trim() // Not standardized.
-			|| undefined;
+		if (!e || e.affectsConfiguration('http.proxy')) {
+			let newHttpProxy = (this.configurationService.getValue<string>('http.proxy') || '').trim()
+				|| (process.env['https_proxy'] || process.env['HTTPS_PROXY'] || process.env['http_proxy'] || process.env['HTTP_PROXY'] || '').trim() // Not standardized.
+				|| undefined;
 
-		if (newHttpProxy?.endsWith('/')) {
-			newHttpProxy = newHttpProxy.substr(0, newHttpProxy.length - 1);
-		}
+			if (newHttpProxy?.endsWith('/')) {
+				newHttpProxy = newHttpProxy.substr(0, newHttpProxy.length - 1);
+			}
 
-		const newNoProxy = (process.env['no_proxy'] || process.env['NO_PROXY'] || '').trim() || undefined; // Not standardized.
-		if ((newHttpProxy || '').indexOf('@') === -1 && (newHttpProxy !== this.currentHttpProxy || newNoProxy !== this.currentNoProxy)) {
-			this.currentHttpProxy = newHttpProxy;
-			this.currentNoProxy = newNoProxy;
+			const newNoProxy = (process.env['no_proxy'] || process.env['NO_PROXY'] || '').trim() || undefined; // Not standardized.
+			if ((newHttpProxy || '').indexOf('@') === -1 && (newHttpProxy !== this.currentHttpProxy || newNoProxy !== this.currentNoProxy)) {
+				this.currentHttpProxy = newHttpProxy;
+				this.currentNoProxy = newNoProxy;
 
-			const proxyRules = newHttpProxy || '';
-			const proxyBypassRules = newNoProxy ? `${newNoProxy},<local>` : '<local>';
-			this.logService.trace(`Setting proxy to '${proxyRules}', bypassing '${proxyBypassRules}'`);
-			this._win.webContents.session.setProxy({ proxyRules, proxyBypassRules, pacScript: '' });
+				const proxyRules = newHttpProxy || '';
+				const proxyBypassRules = newNoProxy ? `${newNoProxy},<local>` : '<local>';
+				this.logService.trace(`Setting proxy to '${proxyRules}', bypassing '${proxyBypassRules}'`);
+				this._win.webContents.session.setProxy({ proxyRules, proxyBypassRules, pacScript: '' });
+			}
 		}
 	}
 
@@ -1073,9 +1087,14 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		configuration.continueOn = this.environmentMainService.continueOn;
 		configuration.profiles = {
 			all: this.userDataProfilesService.profiles,
-			profile: this.profile || this.userDataProfilesService.defaultProfile
+			profile: this.profile || this.userDataProfilesService.defaultProfile,
+			home: this.userDataProfilesService.profilesHome
 		};
-		configuration.logLevel = this.logService.getLevel();
+		configuration.logLevel = this.loggerMainService.getLogLevel();
+		configuration.loggers = {
+			window: this.loggerMainService.getRegisteredLoggers(this.id),
+			global: this.loggerMainService.getRegisteredLoggers()
+		};
 
 		// Load config
 		this.load(configuration, { isReload: true, disableExtensions: cli?.['disable-extensions'] });
@@ -1184,7 +1203,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 
 		// Cache the height for speeds lookups on startup
 		if (options.height) {
-			this.stateMainService.setItem((CodeWindow.windowControlHeightStateStorageKey), options.height);
+			this.stateService.setItem((CodeWindow.windowControlHeightStateStorageKey), options.height);
 		}
 
 		// Windows: window control overlay (WCO)
@@ -1647,6 +1666,9 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 
 	override dispose(): void {
 		super.dispose();
+
+		// Deregister the loggers for this window
+		this.loggerMainService.deregisterLoggers(this.id);
 
 		this._win = null!; // Important to dereference the window object to allow for GC
 	}

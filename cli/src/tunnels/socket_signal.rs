@@ -6,7 +6,12 @@
 use serde::Serialize;
 use tokio::sync::mpsc;
 
-use super::protocol::{ClientRequestMethod, RefServerMessageParams, ToClientRequest};
+use crate::msgpack_rpc::MsgPackCaller;
+
+use super::{
+	protocol::{ClientRequestMethod, RefServerMessageParams, ToClientRequest},
+	server_multiplexer::ServerMultiplexer,
+};
 
 pub struct CloseReason(pub String);
 
@@ -15,8 +20,6 @@ pub enum SocketSignal {
 	Send(Vec<u8>),
 	/// Closes the socket (e.g. as a result of an error)
 	CloseWith(CloseReason),
-	/// Disposes ServerBridge corresponding to an ID
-	CloseServerBridge(u16),
 }
 
 impl SocketSignal {
@@ -28,20 +31,43 @@ impl SocketSignal {
 	}
 }
 
+/// todo@connor4312: cleanup once everything is moved to rpc standard interfaces
+pub enum ServerMessageDestination {
+	Channel(mpsc::Sender<SocketSignal>),
+	Rpc(MsgPackCaller),
+}
+
 /// Struct that handling sending or closing a connected server socket.
 pub struct ServerMessageSink {
-	tx: mpsc::Sender<SocketSignal>,
+	id: u16,
+	tx: Option<ServerMessageDestination>,
+	multiplexer: ServerMultiplexer,
 	flate: Option<FlateStream<CompressFlateAlgorithm>>,
 }
 
 impl ServerMessageSink {
-	pub fn new_plain(tx: mpsc::Sender<SocketSignal>) -> Self {
-		Self { tx, flate: None }
+	pub fn new_plain(
+		multiplexer: ServerMultiplexer,
+		id: u16,
+		tx: ServerMessageDestination,
+	) -> Self {
+		Self {
+			tx: Some(tx),
+			id,
+			multiplexer,
+			flate: None,
+		}
 	}
 
-	pub fn new_compressed(tx: mpsc::Sender<SocketSignal>) -> Self {
+	pub fn new_compressed(
+		multiplexer: ServerMultiplexer,
+		id: u16,
+		tx: ServerMessageDestination,
+	) -> Self {
 		Self {
-			tx,
+			tx: Some(tx),
+			id,
+			multiplexer,
 			flate: Some(FlateStream::new(CompressFlateAlgorithm(
 				flate2::Compress::new(flate2::Compression::new(2), false),
 			))),
@@ -50,18 +76,29 @@ impl ServerMessageSink {
 
 	pub async fn server_message(
 		&mut self,
-		i: u16,
 		body: &[u8],
 	) -> Result<(), mpsc::error::SendError<SocketSignal>> {
-		let msg = {
-			let body = self.get_server_msg_content(body);
-			SocketSignal::from_message(&ToClientRequest {
-				id: None,
-				params: ClientRequestMethod::servermsg(RefServerMessageParams { i, body }),
-			})
+		let id = self.id;
+		let mut tx = self.tx.take().unwrap();
+		let body = self.get_server_msg_content(body);
+		let msg = RefServerMessageParams { i: id, body };
+
+		let r = match &mut tx {
+			ServerMessageDestination::Channel(tx) => {
+				tx.send(SocketSignal::from_message(&ToClientRequest {
+					id: None,
+					params: ClientRequestMethod::servermsg(msg),
+				}))
+				.await
+			}
+			ServerMessageDestination::Rpc(caller) => {
+				caller.notify("servermsg", msg);
+				Ok(())
+			}
 		};
 
-		self.tx.send(msg).await
+		self.tx = Some(tx);
+		r
 	}
 
 	pub(crate) fn get_server_msg_content<'a: 'b, 'b>(&'a mut self, body: &'b [u8]) -> &'b [u8] {
@@ -73,13 +110,11 @@ impl ServerMessageSink {
 
 		body
 	}
+}
 
-	#[allow(dead_code)]
-	pub async fn closed_server_bridge(
-		&mut self,
-		i: u16,
-	) -> Result<(), mpsc::error::SendError<SocketSignal>> {
-		self.tx.send(SocketSignal::CloseServerBridge(i)).await
+impl Drop for ServerMessageSink {
+	fn drop(&mut self) {
+		self.multiplexer.remove(self.id);
 	}
 }
 
@@ -228,7 +263,11 @@ mod tests {
 	#[test]
 	fn test_round_trips_compression() {
 		let (tx, _) = mpsc::channel(1);
-		let mut sink = ServerMessageSink::new_compressed(tx);
+		let mut sink = ServerMessageSink::new_compressed(
+			ServerMultiplexer::new(),
+			0,
+			ServerMessageDestination::Channel(tx),
+		);
 		let mut decompress = ClientMessageDecoder::new_compressed();
 
 		// 3000 and 30000 test resizing the buffer

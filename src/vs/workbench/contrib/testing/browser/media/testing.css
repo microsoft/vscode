@@ -56,6 +56,9 @@
 .test-output-peek-tree .test-peek-item {
 	display: flex;
 	align-items: center;
+}
+
+.test-output-peek-tree {
 	color: var(--vscode-editor-foreground);
 }
 
@@ -237,7 +240,6 @@
 
 .monaco-editor .testing-run-glyph {
 	cursor: pointer;
-	color: var(--vscode-testingColorRunAction);
 }
 
 .testing-diff-title-widget {

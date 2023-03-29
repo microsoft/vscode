@@ -370,9 +370,17 @@ registerAction2(class ChangeCellLanguageAction extends NotebookCellAction<ICellR
 		const modelService = accessor.get(IModelService);
 		const quickInputService = accessor.get(IQuickInputService);
 		const languageDetectionService = accessor.get(ILanguageDetectionService);
+		const kernelService = accessor.get(INotebookKernelService);
+
+		let languages = context.notebookEditor.activeKernel?.supportedLanguages;
+		if (!languages) {
+			const matchResult = kernelService.getMatchingKernel(context.notebookEditor.textModel);
+			const allSupportedLanguages = matchResult.all.flatMap(kernel => kernel.supportedLanguages);
+			languages = allSupportedLanguages.length > 0 ? allSupportedLanguages : languageService.getRegisteredLanguageIds();
+		}
 
 		const providerLanguages = new Set([
-			...(context.notebookEditor.activeKernel?.supportedLanguages ?? languageService.getRegisteredLanguageIds()),
+			...languages,
 			'markdown'
 		]);
 

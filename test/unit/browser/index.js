@@ -133,12 +133,13 @@ async function runTestsInBrowser(testModules, browserType) {
 	if (argv.build) {
 		target.search = `?build=true`;
 	}
-	await page.goto(target.href);
 
 	const emitter = new events.EventEmitter();
 	await page.exposeFunction('mocha_report', (type, data1, data2) => {
 		emitter.emit(type, data1, data2);
 	});
+
+	await page.goto(target.href);
 
 	page.on('console', async msg => {
 		consoleLogFn(msg)(msg.text(), await Promise.all(msg.args().map(async arg => await arg.jsonValue())));
@@ -176,7 +177,7 @@ async function runTestsInBrowser(testModules, browserType) {
 	await browser.close();
 
 	if (failingTests.length > 0) {
-		let res =  `The followings tests are failing:\n - ${failingTests.map(({ title, message }) => `${title} (reason: ${message})`).join('\n - ')}`;
+		let res = `The followings tests are failing:\n - ${failingTests.map(({ title, message }) => `${title} (reason: ${message})`).join('\n - ')}`;
 
 		if (failingModuleIds.length > 0) {
 			res += `\n\nTo DEBUG, open ${browserType.toUpperCase()} and navigate to ${target.href}?${failingModuleIds.map(module => `m=${module}`).join('&')}`;

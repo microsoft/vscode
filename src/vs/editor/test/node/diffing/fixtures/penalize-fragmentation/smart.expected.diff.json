@@ -1,6 +1,12 @@
 {
-	"originalFileName": "./1.txt",
-	"modifiedFileName": "./2.txt",
+	"original": {
+		"content": "import { IChange, IDiffComputationResult } from 'vs/editor/common/diff/diffComputer';",
+		"fileName": "./1.txt"
+	},
+	"modified": {
+		"content": "import { IDocumentDiffProviderOptions } from 'vs/editor/common/diff/documentDiffProvider';\nimport { IChange } from 'vs/editor/common/diff/smartLinesDiffComputer';",
+		"fileName": "./2.txt"
+	},
 	"diffs": [
 		{
 			"originalRange": "[1,2)",

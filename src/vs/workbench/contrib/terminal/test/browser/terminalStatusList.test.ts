@@ -8,8 +8,9 @@ import { Codicon } from 'vs/base/common/codicons';
 import Severity from 'vs/base/common/severity';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { spinningLoading } from 'vs/platform/theme/common/iconRegistry';
-import { ThemeIcon } from 'vs/platform/theme/common/themeService';
-import { ITerminalStatus, TerminalStatusList } from 'vs/workbench/contrib/terminal/browser/terminalStatusList';
+import { ThemeIcon } from 'vs/base/common/themables';
+import { TerminalStatusList } from 'vs/workbench/contrib/terminal/browser/terminalStatusList';
+import { ITerminalStatus } from 'vs/workbench/contrib/terminal/common/terminal';
 
 function statusesEqual(list: TerminalStatusList, expected: [string, Severity][]) {
 	deepStrictEqual(list.statuses.map(e => [e.id, e.severity]), expected);

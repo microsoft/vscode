@@ -457,19 +457,33 @@ class CodeActionAdapter {
 		return { cacheId, actions };
 	}
 
-	async resolveCodeAction(id: extHostProtocol.ChainedCacheId, token: CancellationToken): Promise<extHostProtocol.IWorkspaceEditDto | undefined> {
+	async resolveCodeAction(id: extHostProtocol.ChainedCacheId, token: CancellationToken): Promise<{ edit?: extHostProtocol.IWorkspaceEditDto; command?: extHostProtocol.ICommandDto }> {
 		const [sessionId, itemId] = id;
 		const item = this._cache.get(sessionId, itemId);
 		if (!item || CodeActionAdapter._isCommand(item)) {
-			return undefined; // code actions only!
+			return {}; // code actions only!
 		}
 		if (!this._provider.resolveCodeAction) {
-			return; // this should not happen...
+			return {}; // this should not happen...
 		}
+
+
 		const resolvedItem = (await this._provider.resolveCodeAction(item, token)) ?? item;
-		return resolvedItem?.edit
-			? typeConvert.WorkspaceEdit.from(resolvedItem.edit, undefined)
-			: undefined;
+
+		let resolvedEdit: extHostProtocol.IWorkspaceEditDto | undefined;
+		if (resolvedItem.edit) {
+			resolvedEdit = typeConvert.WorkspaceEdit.from(resolvedItem.edit, undefined);
+		}
+
+		let resolvedCommand: extHostProtocol.ICommandDto | undefined;
+		if (resolvedItem.command) {
+			const disposables = this._disposables.get(sessionId);
+			if (disposables) {
+				resolvedCommand = this._commands.toInternal(resolvedItem.command, disposables);
+			}
+		}
+
+		return { edit: resolvedEdit, command: resolvedCommand };
 	}
 
 	releaseCodeActions(cachedId: number): void {
@@ -1074,6 +1088,8 @@ class InlineCompletionAdapterBase {
 	disposeCompletions(pid: number): void { }
 
 	handleDidShowCompletionItem(pid: number, idx: number): void { }
+
+	handlePartialAccept(pid: number, idx: number, acceptedCharacters: number): void { }
 }
 
 class InlineCompletionAdapter extends InlineCompletionAdapterBase {
@@ -1093,8 +1109,10 @@ class InlineCompletionAdapter extends InlineCompletionAdapterBase {
 		super();
 	}
 
-	public get supportsHandleDidShowCompletionItem(): boolean {
-		return isProposedApiEnabled(this._extension, 'inlineCompletionsAdditions') && typeof this._provider.handleDidShowCompletionItem === 'function';
+	public get supportsHandleEvents(): boolean {
+		return isProposedApiEnabled(this._extension, 'inlineCompletionsAdditions')
+			&& (typeof this._provider.handleDidShowCompletionItem === 'function'
+				|| typeof this._provider.handleDidPartiallyAcceptCompletionItem === 'function');
 	}
 
 	private readonly languageTriggerKindToVSCodeTriggerKind: Record<languages.InlineCompletionTriggerKind, InlineCompletionTriggerKind> = {
@@ -1179,6 +1197,15 @@ class InlineCompletionAdapter extends InlineCompletionAdapterBase {
 		if (completionItem) {
 			if (this._provider.handleDidShowCompletionItem && this._isAdditionsProposedApiEnabled) {
 				this._provider.handleDidShowCompletionItem(completionItem);
+			}
+		}
+	}
+
+	override handlePartialAccept(pid: number, idx: number, acceptedCharacters: number): void {
+		const completionItem = this._references.get(pid)?.items[idx];
+		if (completionItem) {
+			if (this._provider.handleDidPartiallyAcceptCompletionItem && this._isAdditionsProposedApiEnabled) {
+				this._provider.handleDidPartiallyAcceptCompletionItem(completionItem, acceptedCharacters);
 			}
 		}
 	}
@@ -2008,8 +2035,8 @@ export class ExtHostLanguageFeatures implements extHostProtocol.ExtHostLanguageF
 		return this._withAdapter(handle, CodeActionAdapter, adapter => adapter.provideCodeActions(URI.revive(resource), rangeOrSelection, context, token), undefined, token);
 	}
 
-	$resolveCodeAction(handle: number, id: extHostProtocol.ChainedCacheId, token: CancellationToken): Promise<extHostProtocol.IWorkspaceEditDto | undefined> {
-		return this._withAdapter(handle, CodeActionAdapter, adapter => adapter.resolveCodeAction(id, token), undefined, undefined);
+	$resolveCodeAction(handle: number, id: extHostProtocol.ChainedCacheId, token: CancellationToken): Promise<{ edit?: extHostProtocol.IWorkspaceEditDto; command?: extHostProtocol.ICommandDto }> {
+		return this._withAdapter(handle, CodeActionAdapter, adapter => adapter.resolveCodeAction(id, token), {}, undefined);
 	}
 
 	$releaseCodeActions(handle: number, cacheId: number): void {
@@ -2145,7 +2172,7 @@ export class ExtHostLanguageFeatures implements extHostProtocol.ExtHostLanguageF
 	registerInlineCompletionsProvider(extension: IExtensionDescription, selector: vscode.DocumentSelector, provider: vscode.InlineCompletionItemProvider): vscode.Disposable {
 		const adapter = new InlineCompletionAdapter(extension, this._documents, provider, this._commands.converter);
 		const handle = this._addNewAdapter(adapter, extension);
-		this._proxy.$registerInlineCompletionsSupport(handle, this._transformDocumentSelector(selector), adapter.supportsHandleDidShowCompletionItem);
+		this._proxy.$registerInlineCompletionsSupport(handle, this._transformDocumentSelector(selector), adapter.supportsHandleEvents);
 		return this._createDisposable(handle);
 	}
 
@@ -2156,6 +2183,12 @@ export class ExtHostLanguageFeatures implements extHostProtocol.ExtHostLanguageF
 	$handleInlineCompletionDidShow(handle: number, pid: number, idx: number): void {
 		this._withAdapter(handle, InlineCompletionAdapterBase, async adapter => {
 			adapter.handleDidShowCompletionItem(pid, idx);
+		}, undefined, undefined);
+	}
+
+	$handleInlineCompletionPartialAccept(handle: number, pid: number, idx: number, acceptedCharacters: number): void {
+		this._withAdapter(handle, InlineCompletionAdapterBase, async adapter => {
+			adapter.handlePartialAccept(pid, idx, acceptedCharacters);
 		}, undefined, undefined);
 	}
 

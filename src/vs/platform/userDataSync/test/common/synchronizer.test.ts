@@ -161,8 +161,8 @@ class TestSynchroniser extends AbstractSynchroniser {
 		super.stop();
 	}
 
-	override async triggerLocalChange(): Promise<void> {
-		super.triggerLocalChange();
+	testTriggerLocalChange(): void {
+		this.triggerLocalChange();
 	}
 
 	onDidTriggerLocalChangeCall: Emitter<void> = this._register(new Emitter<void>());
@@ -462,7 +462,7 @@ suite('TestSynchronizer - Auto Sync', () => {
 
 		server.reset();
 		const promise = Event.toPromise(testObject.onDidTriggerLocalChangeCall.event);
-		await testObject.triggerLocalChange();
+		testObject.testTriggerLocalChange();
 
 		await promise;
 		assert.deepStrictEqual(server.requests, []);
@@ -603,39 +603,6 @@ suite('TestSynchronizer - Manual Sync', () => {
 		let preview = await testObject.preview(await client.getResourceManifest(), {});
 		preview = await testObject.merge(preview!.resourcePreviews[0].previewResource);
 		preview = await testObject.accept(preview!.resourcePreviews[0].localResource);
-		preview = await testObject.apply(false);
-
-		assert.deepStrictEqual(testObject.status, SyncStatus.Idle);
-		assert.strictEqual(preview, null);
-		assertConflicts(testObject.conflicts.conflicts, []);
-
-		assert.strictEqual((await testObject.getRemoteUserData(null)).syncData?.content, expectedContent);
-		assert.strictEqual((await client.instantiationService.get(IFileService).readFile(testObject.localResource)).value.toString(), expectedContent);
-	}));
-
-	test('preview -> accept', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
-		const testObject: TestSynchroniser = disposableStore.add(client.instantiationService.createInstance(TestSynchroniser, { syncResource: SyncResource.Settings, profile: client.instantiationService.get(IUserDataProfilesService).defaultProfile }, undefined));
-		testObject.syncResult = { hasConflicts: false, hasError: false };
-		testObject.syncBarrier.open();
-
-		let preview = await testObject.preview(await client.getResourceManifest(), {});
-		preview = await testObject.accept(preview!.resourcePreviews[0].previewResource);
-
-		assert.deepStrictEqual(testObject.status, SyncStatus.Syncing);
-		assertPreviews(preview!.resourcePreviews, [testObject.localResource]);
-		assertConflicts(testObject.conflicts.conflicts, []);
-	}));
-
-	test('preview -> accept -> apply', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
-		const testObject: TestSynchroniser = disposableStore.add(client.instantiationService.createInstance(TestSynchroniser, { syncResource: SyncResource.Settings, profile: client.instantiationService.get(IUserDataProfilesService).defaultProfile }, undefined));
-		testObject.syncResult = { hasConflicts: false, hasError: false };
-		testObject.syncBarrier.open();
-		await testObject.sync(await client.getResourceManifest());
-
-		const manifest = await client.getResourceManifest();
-		const expectedContent = manifest![testObject.resource];
-		let preview = await testObject.preview(await client.getResourceManifest(), {});
-		preview = await testObject.accept(preview!.resourcePreviews[0].previewResource);
 		preview = await testObject.apply(false);
 
 		assert.deepStrictEqual(testObject.status, SyncStatus.Idle);
@@ -883,7 +850,7 @@ suite('TestSynchronizer - Manual Sync', () => {
 		assert.strictEqual((await client.instantiationService.get(IFileService).readFile(testObject.localResource)).value.toString(), expectedContent);
 	}));
 
-	test('conflicts: preview -> accept', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+	test('conflicts: preview -> accept 2', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		const testObject: TestSynchroniser = disposableStore.add(client.instantiationService.createInstance(TestSynchroniser, { syncResource: SyncResource.Settings, profile: client.instantiationService.get(IUserDataProfilesService).defaultProfile }, undefined));
 		testObject.syncResult = { hasConflicts: true, hasError: false };
 		testObject.syncBarrier.open();

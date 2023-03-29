@@ -691,10 +691,11 @@ export function getActiveElement(): Element | null {
 	return result;
 }
 
-export function createStyleSheet(container: HTMLElement = document.getElementsByTagName('head')[0]): HTMLStyleElement {
+export function createStyleSheet(container: HTMLElement = document.getElementsByTagName('head')[0], beforeAppend?: (style: HTMLStyleElement) => void): HTMLStyleElement {
 	const style = document.createElement('style');
 	style.type = 'text/css';
 	style.media = 'screen';
+	beforeAppend?.(style);
 	container.appendChild(style);
 	return style;
 }
@@ -1038,6 +1039,14 @@ export function join(nodes: Node[], separator: Node | string): Node[] {
 	});
 
 	return result;
+}
+
+export function setVisibility(visible: boolean, ...elements: HTMLElement[]): void {
+	if (visible) {
+		show(...elements);
+	} else {
+		hide(...elements);
+	}
 }
 
 export function show(...elements: HTMLElement[]): void {
@@ -1436,6 +1445,7 @@ export const basicMarkupHtmlTags = Object.freeze([
 	'samp',
 	'small',
 	'small',
+	'source',
 	'span',
 	'strike',
 	'strong',
@@ -1460,7 +1470,7 @@ export const basicMarkupHtmlTags = Object.freeze([
 
 const defaultDomPurifyConfig = Object.freeze<dompurify.Config & { RETURN_TRUSTED_TYPE: true }>({
 	ALLOWED_TAGS: ['a', 'button', 'blockquote', 'code', 'div', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'hr', 'input', 'label', 'li', 'p', 'pre', 'select', 'small', 'span', 'strong', 'textarea', 'ul', 'ol'],
-	ALLOWED_ATTR: ['href', 'data-href', 'data-command', 'target', 'title', 'name', 'src', 'alt', 'class', 'id', 'role', 'tabindex', 'style', 'data-code', 'width', 'height', 'align', 'x-dispatch', 'required', 'checked', 'placeholder', 'type'],
+	ALLOWED_ATTR: ['href', 'data-href', 'data-command', 'target', 'title', 'name', 'src', 'alt', 'class', 'id', 'role', 'tabindex', 'style', 'data-code', 'width', 'height', 'align', 'x-dispatch', 'required', 'checked', 'placeholder', 'type', 'start'],
 	RETURN_DOM: false,
 	RETURN_DOM_FRAGMENT: false,
 	RETURN_TRUSTED_TYPE: true
@@ -1818,8 +1828,23 @@ export function h(tag: string, ...args: [] | [attributes: { $: string } & Partia
 		el.id = match.groups['id'];
 	}
 
+	const classNames = [];
 	if (match.groups['class']) {
-		el.className = match.groups['class'].replace(/\./g, ' ').trim();
+		for (const className of match.groups['class'].split('.')) {
+			if (className !== '') {
+				classNames.push(className);
+			}
+		}
+	}
+	if (attributes.className !== undefined) {
+		for (const className of attributes.className.split('.')) {
+			if (className !== '') {
+				classNames.push(className);
+			}
+		}
+	}
+	if (classNames.length > 0) {
+		el.className = classNames.join(' ');
 	}
 
 	const result: Record<string, HTMLElement> = {};
@@ -1842,7 +1867,9 @@ export function h(tag: string, ...args: [] | [attributes: { $: string } & Partia
 	}
 
 	for (const [key, value] of Object.entries(attributes)) {
-		if (key === 'style') {
+		if (key === 'className') {
+			continue;
+		} else if (key === 'style') {
 			for (const [cssKey, cssValue] of Object.entries(value)) {
 				el.style.setProperty(
 					camelCaseToHyphenCase(cssKey),

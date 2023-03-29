@@ -21,6 +21,21 @@ interface ServerReadyAction {
 	killOnServerStop?: boolean;
 }
 
+// Escape codes, compiled from https://invisible-island.net/xterm/ctlseqs/ctlseqs.html#h3-Functions-using-CSI-_-ordered-by-the-final-character_s_
+const CSI_SEQUENCE = /(:?\x1b\[|\x9B)[=?>!]?[\d;:]*["$#'* ]?[a-zA-Z@^`{}|~]/g;
+
+/**
+ * Froms vs/base/common/strings.ts in core
+ * @see https://github.com/microsoft/vscode/blob/22a2a0e833175c32a2005b977d7fbd355582e416/src/vs/base/common/strings.ts#L736
+ */
+function removeAnsiEscapeCodes(str: string): string {
+	if (str) {
+		str = str.replace(CSI_SEQUENCE, '');
+	}
+
+	return str;
+}
+
 class Trigger {
 	private _fired = false;
 
@@ -77,16 +92,17 @@ class ServerReadyDetector extends vscode.Disposable {
 
 				// first find the detector with a matching pid
 				const pid = await e.terminal.processId;
+				const str = removeAnsiEscapeCodes(e.data);
 				for (const [, detector] of this.detectors) {
 					if (detector.shellPid === pid) {
-						detector.detectPattern(e.data);
+						detector.detectPattern(str);
 						return;
 					}
 				}
 
 				// if none found, try all detectors until one matches
 				for (const [, detector] of this.detectors) {
-					if (detector.detectPattern(e.data)) {
+					if (detector.detectPattern(str)) {
 						return;
 					}
 				}

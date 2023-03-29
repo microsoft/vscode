@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Codicon } from 'vs/base/common/codicons';
+import { ThemeIcon } from 'vs/base/common/themables';
 import { localize } from 'vs/nls';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { Action2 } from 'vs/platform/actions/common/actions';
@@ -38,7 +39,7 @@ export class ShowAudioCueHelp extends Action2 {
 				: `${audioCueService.isEnabled(cue) ? '$(check)' : '     '} ${cue.name}`,
 			audioCue: cue,
 			buttons: [{
-				iconClass: Codicon.settingsGear.classNames,
+				iconClass: ThemeIcon.asClassName(Codicon.settingsGear),
 				tooltip: localize('audioCues.help.settings', 'Enable/Disable Audio Cue'),
 			}],
 		}));

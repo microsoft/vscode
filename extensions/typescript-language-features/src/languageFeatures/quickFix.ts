@@ -228,7 +228,7 @@ class TypeScriptQuickFixProvider implements vscode.CodeActionProvider<VsCodeCode
 		context: vscode.CodeActionContext,
 		token: vscode.CancellationToken
 	): Promise<VsCodeCodeAction[] | undefined> {
-		const file = this.client.toOpenedFilePath(document);
+		const file = this.client.toOpenTsFilePath(document);
 		if (!file) {
 			return;
 		}
@@ -386,6 +386,7 @@ const preferredFixes = new Map<string, { readonly priority: number; readonly the
 	[fixNames.constructorForDerivedNeedSuperCall, { priority: 2 }],
 	[fixNames.extendsInterfaceBecomesImplements, { priority: 2 }],
 	[fixNames.awaitInSyncFunction, { priority: 2 }],
+	[fixNames.removeUnnecessaryAwait, { priority: 2 }],
 	[fixNames.classIncorrectlyImplementsInterface, { priority: 3 }],
 	[fixNames.classDoesntImplementInheritedAbstractMember, { priority: 3 }],
 	[fixNames.unreachableCode, { priority: 2 }],
@@ -394,6 +395,7 @@ const preferredFixes = new Map<string, { readonly priority: number; readonly the
 	[fixNames.spelling, { priority: 0 }],
 	[fixNames.addMissingAwait, { priority: 2 }],
 	[fixNames.addMissingOverride, { priority: 2 }],
+	[fixNames.addMissingNewOperator, { priority: 2 }],
 	[fixNames.fixImport, { priority: 1, thereCanOnlyBeOne: true }],
 ]);
 

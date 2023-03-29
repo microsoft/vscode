@@ -32,7 +32,8 @@ import { ITimelineService, TimelineChangeEvent, TimelineItem, TimelineOptions, T
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { SideBySideEditor, EditorResourceAccessor } from 'vs/workbench/common/editor';
 import { ICommandService, CommandsRegistry } from 'vs/platform/commands/common/commands';
-import { IThemeService, ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { ThemeIcon } from 'vs/base/common/themables';
 import { IViewDescriptorService } from 'vs/workbench/common/views';
 import { IProgressService } from 'vs/platform/progress/common/progress';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
@@ -503,7 +504,7 @@ export class TimelinePane extends ViewPane {
 
 			this.pendingRequests.clear();
 
-			if (!this.isBodyVisible()) {
+			if (!this.isBodyVisible() && this.tree) {
 				this.tree.setChildren(null, undefined);
 				this._isEmpty = true;
 			}
@@ -1089,14 +1090,14 @@ export class TimelineIdentityProvider implements IIdentityProvider<TreeElement> 
 
 class TimelineActionRunner extends ActionRunner {
 
-	override async runAction(action: IAction, { uri, item }: TimelineActionContext): Promise<void> {
+	protected override async runAction(action: IAction, { uri, item }: TimelineActionContext): Promise<void> {
 		if (!isTimelineItem(item)) {
 			// TODO@eamodio do we need to do anything else?
 			await action.run();
 			return;
 		}
 
-		await action.run(...[
+		await action.run(
 			{
 				$mid: MarshalledId.TimelineActionContext,
 				handle: item.handle,
@@ -1105,7 +1106,7 @@ class TimelineActionRunner extends ActionRunner {
 			},
 			uri,
 			item.source,
-		]);
+		);
 	}
 }
 
@@ -1180,6 +1181,8 @@ class TimelineTreeRenderer implements ITreeRenderer<TreeElement, FuzzyScore, Tim
 			template.icon.className = `custom-view-tree-node-item-icon ${ThemeIcon.asClassName(item.themeIcon)}`;
 			if (item.themeIcon.color) {
 				template.icon.style.color = theme.getColor(item.themeIcon.color.id)?.toString() ?? '';
+			} else {
+				template.icon.style.color = '';
 			}
 			template.icon.style.backgroundImage = '';
 		} else {

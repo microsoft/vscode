@@ -16,7 +16,7 @@ import { DebugSessionUUID, ExtHostDebugServiceShape, IBreakpointsDeltaDto, IDebu
 import { IExtHostEditorTabs } from 'vs/workbench/api/common/extHostEditorTabs';
 import { IExtHostExtensionService } from 'vs/workbench/api/common/extHostExtensionService';
 import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
-import { DataBreakpoint, DebugAdapterExecutable, DebugAdapterInlineImplementation, DebugAdapterNamedPipeServer, DebugAdapterServer, DebugConsoleMode, Disposable, FunctionBreakpoint, Location, Position, SourceBreakpoint } from 'vs/workbench/api/common/extHostTypes';
+import { Breakpoint, DataBreakpoint, DebugAdapterExecutable, DebugAdapterInlineImplementation, DebugAdapterNamedPipeServer, DebugAdapterServer, DebugConsoleMode, Disposable, FunctionBreakpoint, Location, Position, setBreakpointId, SourceBreakpoint } from 'vs/workbench/api/common/extHostTypes';
 import { IExtHostWorkspace } from 'vs/workbench/api/common/extHostWorkspace';
 import { AbstractDebugAdapter } from 'vs/workbench/contrib/debug/common/abstractDebugAdapter';
 import { IAdapterDescriptor, IConfig, IDebugAdapter, IDebugAdapterExecutable, IDebugAdapterNamedPipeServer, IDebugAdapterServer, IDebuggerContribution } from 'vs/workbench/contrib/debug/common/debug';
@@ -529,7 +529,7 @@ export abstract class ExtHostDebugServiceBase implements IExtHostDebugService, E
 			for (const bpd of delta.added) {
 				const id = bpd.id;
 				if (id && !this._breakpoints.has(id)) {
-					let bp: vscode.Breakpoint;
+					let bp: Breakpoint;
 					if (bpd.type === 'function') {
 						bp = new FunctionBreakpoint(bpd.functionName, bpd.enabled, bpd.condition, bpd.hitCondition, bpd.logMessage);
 					} else if (bpd.type === 'data') {
@@ -538,7 +538,7 @@ export abstract class ExtHostDebugServiceBase implements IExtHostDebugService, E
 						const uri = URI.revive(bpd.uri);
 						bp = new SourceBreakpoint(new Location(uri, new Position(bpd.line, bpd.character)), bpd.enabled, bpd.condition, bpd.hitCondition, bpd.logMessage);
 					}
-					(bp as any)._id = id;
+					setBreakpointId(bp, id);
 					this._breakpoints.set(id, bp);
 					a.push(bp);
 				}

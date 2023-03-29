@@ -32,14 +32,13 @@ import { StartupPageContribution, } from 'vs/workbench/contrib/welcomeGettingSta
 import { ExtensionsInput } from 'vs/workbench/contrib/extensions/common/extensionsInput';
 import { Categories } from 'vs/platform/action/common/actionCommonCategories';
 
-
 export * as icons from 'vs/workbench/contrib/welcomeGettingStarted/browser/gettingStartedIcons';
 
 registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: 'workbench.action.openWalkthrough',
-			title: { value: localize('miGetStarted', "Get Started"), original: 'Get Started' },
+			title: { value: localize('miWelcome', "Welcome"), original: 'Welcome' },
 			category: Categories.Help,
 			f1: true,
 			menu: {
@@ -117,14 +116,14 @@ Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane
 	EditorPaneDescriptor.create(
 		GettingStartedPage,
 		GettingStartedPage.ID,
-		localize('getStarted', "Get Started")
+		localize('welcome', "Welcome")
 	),
 	[
 		new SyncDescriptor(GettingStartedInput)
 	]
 );
 
-const category = { value: localize('getStarted', "Get Started"), original: 'Get Started' };
+const category = { value: localize('welcome', "Welcome"), original: 'Welcome' };
 
 registerAction2(class extends Action2 {
 	constructor() {
@@ -298,18 +297,6 @@ configurationRegistry.registerConfiguration({
 			type: 'boolean',
 			default: true,
 			description: localize('workbench.welcomePage.walkthroughs.openOnInstall', "When enabled, an extension's walkthrough will open upon install of the extension.")
-		},
-		'workbench.welcomePage.experimental.videoTutorials': {
-			scope: ConfigurationScope.MACHINE,
-			type: 'string',
-			enum: [
-				'off',
-				'on',
-				'experimental'
-			],
-			tags: ['experimental'],
-			default: 'off',
-			description: localize('workbench.welcomePage.videoTutorials', "When enabled, the get started page has additional links to video tutorials.")
 		},
 		'workbench.startupEditor': {
 			'scope': ConfigurationScope.RESOURCE,

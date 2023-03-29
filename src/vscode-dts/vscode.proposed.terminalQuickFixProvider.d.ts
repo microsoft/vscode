@@ -66,7 +66,7 @@ declare module 'vscode' {
 			 */
 		offset: number;
 		/**
-		 * The number of rows to match against, this should be as small as possible for performance
+		 * The number of wrapped lines to match against, this should be as small as possible for performance
 		 * reasons. This is capped at 40.
 		 */
 		length: number;

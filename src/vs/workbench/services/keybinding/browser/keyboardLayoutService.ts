@@ -548,7 +548,7 @@ export class BrowserKeyboardLayoutService extends Disposable implements IKeyboar
 		}
 
 		this._register(configurationService.onDidChangeConfiguration(e => {
-			if (e.affectedKeys.indexOf('keyboard.layout') >= 0) {
+			if (e.affectsConfiguration('keyboard.layout')) {
 				const keyboardConfig = configurationService.getValue<{ layout: string }>('keyboard');
 				const layout = keyboardConfig.layout;
 				this._keyboardLayoutMode = layout;

@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as errors from 'vs/base/common/errors';
 import * as platform from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
 
@@ -55,8 +56,6 @@ export namespace Schemas {
 	export const vscodeUserData = 'vscode-userdata';
 
 	export const vscodeCustomEditor = 'vscode-custom-editor';
-
-	export const vscodeNotebook = 'vscode-notebook';
 
 	export const vscodeNotebookCell = 'vscode-notebook-cell';
 
@@ -146,7 +145,12 @@ class RemoteAuthoritiesImpl {
 
 	rewrite(uri: URI): URI {
 		if (this._delegate) {
-			return this._delegate(uri);
+			try {
+				return this._delegate(uri);
+			} catch (err) {
+				errors.onUnexpectedError(err);
+				return uri;
+			}
 		}
 		const authority = uri.authority;
 		let host = this._hosts[authority];

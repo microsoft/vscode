@@ -13,22 +13,30 @@ VSCODE_SHELL_INTEGRATION=1
 # Run relevant rc/profile only if shell integration has been injected, not when run manually
 if [ "$VSCODE_INJECTION" == "1" ]; then
 	if [ -z "$VSCODE_SHELL_LOGIN" ]; then
-		. ~/.bashrc
+		if [ -r ~/.bashrc ]; then
+			. ~/.bashrc
+		fi
 	else
 		# Imitate -l because --init-file doesn't support it:
 		# run the first of these files that exists
-		if [ -f /etc/profile ]; then
+		if [ -r /etc/profile ]; then
 			. /etc/profile
 		fi
 		# exceute the first that exists
-		if [ -f ~/.bash_profile ]; then
+		if [ -r ~/.bash_profile ]; then
 			. ~/.bash_profile
-		elif [ -f ~/.bash_login ]; then
+		elif [ -r ~/.bash_login ]; then
 			. ~/.bash_login
-		elif [ -f ~/.profile ]; then
+		elif [ -r ~/.profile ]; then
 			. ~/.profile
 		fi
 		builtin unset VSCODE_SHELL_LOGIN
+
+		# Apply any explicit path prefix (see #99878)
+		if [ -n "$VSCODE_PATH_PREFIX" ]; then
+			export PATH=$VSCODE_PATH_PREFIX$PATH
+			builtin unset VSCODE_PATH_PREFIX
+		fi
 	fi
 	builtin unset VSCODE_INJECTION
 fi
@@ -67,27 +75,13 @@ __vsc_escape_value() {
 	for (( i=0; i < "${#str}"; ++i )); do
 		byte="${str:$i:1}"
 
-		# Backslashes must be doubled.
+		# Escape backslashes and semi-colons
 		if [ "$byte" = "\\" ]; then
 			token="\\\\"
-		# Conservatively pass alphanumerics through.
-		elif [[ "$byte" == [0-9A-Za-z] ]]; then
-			token="$byte"
-		# Hex-encode anything else.
-		# (Importantly including: semicolon, newline, and control chars).
+		elif [ "$byte" = ";" ]; then
+			token="\\x3b"
 		else
-			# The printf '0x%02X' "'$byte'" converts the character to a hex integer.
-			# See printf's specification:
-			# > If the leading character is a single-quote or double-quote, the value shall be the numeric value in the
-			# > underlying codeset of the character following the single-quote or double-quote.
-			# However, the result is a sign-extended int, so a high bit like 0xD7 becomes 0xFFF…FD7
-			# We mask that word with 0xFF to get lowest 8 bits, and then encode that byte as "\xD7" per our escaping scheme.
-			builtin printf -v token '\\x%02X' "$(( $(builtin printf '0x%X' "'$byte'") & 0xFF ))"
-			#             |________| ^^^ ^^^                        ^^^^^^  ^^^^^^^  |______|
-			#                   |     |  |                            |        |         |
-			# store in `token` -+     |  |   the hex value -----------+        |         |
-			# the '\x…'-prefixed -----+  |   of the byte as an integer --------+         |
-			# 0-padded, two hex digits --+   masked to one byte (due to sign extension) -+
+			token="$byte"
 		fi
 
 		out+="$token"

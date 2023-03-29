@@ -5,12 +5,14 @@
 
 import { Command, Disposable, Event, EventEmitter, SourceControlActionButton, Uri, workspace, l10n } from 'vscode';
 import { Branch, Status } from './api/git';
+import { OperationKind } from './operation';
 import { CommitCommandsCenter } from './postCommitCommands';
-import { Repository, OperationKind } from './repository';
+import { Repository } from './repository';
 import { dispose } from './util';
 
 interface ActionButtonState {
 	readonly HEAD: Branch | undefined;
+	readonly isCheckoutInProgress: boolean;
 	readonly isCommitInProgress: boolean;
 	readonly isMergeInProgress: boolean;
 	readonly isRebaseInProgress: boolean;
@@ -38,6 +40,7 @@ export class ActionButtonCommand {
 		readonly postCommitCommandCenter: CommitCommandsCenter) {
 		this._state = {
 			HEAD: undefined,
+			isCheckoutInProgress: false,
 			isCommitInProgress: false,
 			isMergeInProgress: false,
 			isRebaseInProgress: false,
@@ -134,8 +137,8 @@ export class ActionButtonCommand {
 		const config = workspace.getConfiguration('git', Uri.file(this.repository.root));
 		const showActionButton = config.get<{ publish: boolean }>('showActionButton', { publish: true });
 
-		// Branch does have an upstream, commit/merge/rebase is in progress, or the button is disabled
-		if (this.state.HEAD?.upstream || this.state.isCommitInProgress || this.state.isMergeInProgress || this.state.isRebaseInProgress || !showActionButton.publish) { return undefined; }
+		// Not a branch (tag, detached), branch does have an upstream, commit/merge/rebase is in progress, or the button is disabled
+		if (!this.state.HEAD?.name || this.state.HEAD?.upstream || this.state.isCommitInProgress || this.state.isMergeInProgress || this.state.isRebaseInProgress || !showActionButton.publish) { return undefined; }
 
 		// Button icon
 		const icon = this.state.isSyncInProgress ? '$(sync~spin)' : '$(cloud-upload)';
@@ -145,11 +148,15 @@ export class ActionButtonCommand {
 				command: 'git.publish',
 				title: l10n.t({ message: '{0} Publish Branch', args: [icon], comment: ['{Locked="Branch"}', 'Do not translate "Branch" as it is a git term'] }),
 				tooltip: this.state.isSyncInProgress ?
-					l10n.t({ message: 'Publishing Branch...', comment: ['{Locked="Branch"}', 'Do not translate "Branch" as it is a git term'] }) :
-					l10n.t({ message: 'Publish Branch', comment: ['{Locked="Branch"}', 'Do not translate "Branch" as it is a git term'] }),
+					(this.state.HEAD?.name ?
+						l10n.t({ message: 'Publishing Branch "{0}"...', args: [this.state.HEAD.name], comment: ['{Locked="Branch"}', 'Do not translate "Branch" as it is a git term'] }) :
+						l10n.t({ message: 'Publishing Branch...', comment: ['{Locked="Branch"}', 'Do not translate "Branch" as it is a git term'] })) :
+					(this.repository.HEAD?.name ?
+						l10n.t({ message: 'Publish Branch "{0}"', args: [this.state.HEAD?.name], comment: ['{Locked="Branch"}', 'Do not translate "Branch" as it is a git term'] }) :
+						l10n.t({ message: 'Publish Branch', comment: ['{Locked="Branch"}', 'Do not translate "Branch" as it is a git term'] })),
 				arguments: [this.repository.sourceControl],
 			},
-			enabled: !this.state.isSyncInProgress
+			enabled: !this.state.isCheckoutInProgress && !this.state.isSyncInProgress
 		};
 	}
 
@@ -168,18 +175,22 @@ export class ActionButtonCommand {
 		return {
 			command: {
 				command: 'git.sync',
-				title: `${icon}${behind}${ahead}`,
+				title: l10n.t('{0} Sync Changes{1}{2}', icon, behind, ahead),
 				tooltip: this.state.isSyncInProgress ?
 					l10n.t('Synchronizing Changes...')
 					: this.repository.syncTooltip,
 				arguments: [this.repository.sourceControl],
 			},
-			description: l10n.t('{0} Sync Changes{1}{2}', icon, behind, ahead),
-			enabled: !this.state.isSyncInProgress
+			description: `${icon}${behind}${ahead}`,
+			enabled: !this.state.isCheckoutInProgress && !this.state.isSyncInProgress
 		};
 	}
 
 	private onDidChangeOperations(): void {
+		const isCheckoutInProgress
+			= this.repository.operations.isRunning(OperationKind.Checkout) ||
+			this.repository.operations.isRunning(OperationKind.CheckoutTracking);
+
 		const isCommitInProgress =
 			this.repository.operations.isRunning(OperationKind.Commit) ||
 			this.repository.operations.isRunning(OperationKind.PostCommitCommand) ||
@@ -190,7 +201,7 @@ export class ActionButtonCommand {
 			this.repository.operations.isRunning(OperationKind.Push) ||
 			this.repository.operations.isRunning(OperationKind.Pull);
 
-		this.state = { ...this.state, isCommitInProgress, isSyncInProgress };
+		this.state = { ...this.state, isCheckoutInProgress, isCommitInProgress, isSyncInProgress };
 	}
 
 	private onDidChangeSmartCommitSettings(): void {

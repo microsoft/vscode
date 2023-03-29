@@ -17,3 +17,9 @@ pub mod state;
 pub mod tunnels;
 pub mod update_service;
 pub mod util;
+
+mod async_pipe;
+mod json_rpc;
+mod msgpack_rpc;
+mod rpc;
+mod singleton;

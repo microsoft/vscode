@@ -80,13 +80,13 @@ class TypeScriptWorkspaceSymbolProvider implements vscode.WorkspaceSymbolProvide
 				const path = vscode.Uri.file(JSON.parse(document.uri.query)?.path);
 				if (doesResourceLookLikeATypeScriptFile(path) || doesResourceLookLikeAJavaScriptFile(path)) {
 					const document = await vscode.workspace.openTextDocument(path);
-					return this.client.toOpenedFilePath(document);
+					return this.client.toOpenTsFilePath(document);
 				}
 			} catch {
 				// noop
 			}
 		}
-		return this.client.toOpenedFilePath(document);
+		return this.client.toOpenTsFilePath(document);
 	}
 
 	private toSymbolInformation(item: Proto.NavtoItem) {

@@ -49,21 +49,13 @@ __vsc_escape_value() {
 	for (( i = 0; i < ${#str}; ++i )); do
 		byte="${str:$i:1}"
 
-		# Backslashes must be doubled.
+		# Escape backslashes and semi-colons
 		if [ "$byte" = "\\" ]; then
 			token="\\\\"
-		# Conservatively pass alphanumerics through.
-		elif [[ "$byte" == [0-9A-Za-z] ]]; then
-			token="$byte"
-		# Hex-encode anything else.
-		# (Importantly including: semicolon, newline, and control chars).
+		elif [ "$byte" = ";" ]; then
+			token="\\x3b"
 		else
-			token="\\x${(l:2::0:)$(( [##16] #byte ))}"
-			#            | |  |       |/|/ |_____|
-			#            | |  |       | |     |
-			# left-pad --+ |  |       | |     +- the byte value of the character
-			# two digits --+  |       | +------- in hexadecimal
-			# with '0' -------+       +--------- with no prefix
+			token="$byte"
 		fi
 
 		out+="$token"

@@ -3,27 +3,21 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as dom from 'vs/base/browser/dom';
-import { toAction } from 'vs/base/common/actions';
-import { coalesceInPlace } from 'vs/base/common/arrays';
 import { createCancelablePromise, CancelablePromise, RunOnceScheduler } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { MarkdownString } from 'vs/base/common/htmlContent';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { LinkedList } from 'vs/base/common/linkedList';
 import { Schemas } from 'vs/base/common/network';
 import * as platform from 'vs/base/common/platform';
 import * as resources from 'vs/base/common/resources';
 import { StopWatch } from 'vs/base/common/stopwatch';
-import { assertType } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import 'vs/css!./links';
 import { ICodeEditor, MouseTargetType } from 'vs/editor/browser/editorBrowser';
 import { EditorAction, EditorContributionInstantiation, registerEditorAction, registerEditorContribution, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { Position } from 'vs/editor/common/core/position';
-import { IRange, Range } from 'vs/editor/common/core/range';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { LanguageFeatureRegistry } from 'vs/editor/common/languageFeatureRegistry';
 import { LinkProvider } from 'vs/editor/common/languages';
@@ -34,7 +28,6 @@ import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeat
 import { ClickLinkGesture, ClickLinkKeyboardEvent, ClickLinkMouseEvent } from 'vs/editor/contrib/gotoSymbol/browser/link/clickLinkGesture';
 import { getLinks, Link, LinksList } from 'vs/editor/contrib/links/browser/getLinks';
 import * as nls from 'vs/nls';
-import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 
@@ -222,50 +215,50 @@ export class LinkDetector extends Disposable implements IEditorContribution {
 	}
 
 	public openLinkOccurrence(occurrence: LinkOccurrence, openToSide: boolean, fromUserGesture = false): void {
+
+		if (!this.openerService) {
+			return;
+		}
+
 		const { link } = occurrence;
 
-		LinkOpener.get(this.editor)?.openLink(link.range, nls.localize('open', "Open Link"), () => {
+		link.resolve(CancellationToken.None).then(uri => {
 
-			link.resolve(CancellationToken.None).then(uri => {
+			// Support for relative file URIs of the shape file://./relativeFile.txt or file:///./relativeFile.txt
+			if (typeof uri === 'string' && this.editor.hasModel()) {
+				const modelUri = this.editor.getModel().uri;
+				if (modelUri.scheme === Schemas.file && uri.startsWith(`${Schemas.file}:`)) {
+					const parsedUri = URI.parse(uri);
+					if (parsedUri.scheme === Schemas.file) {
+						const fsPath = resources.originalFSPath(parsedUri);
 
-				// Support for relative file URIs of the shape file://./relativeFile.txt or file:///./relativeFile.txt
-				if (typeof uri === 'string' && this.editor.hasModel()) {
-					const modelUri = this.editor.getModel().uri;
-					if (modelUri.scheme === Schemas.file && uri.startsWith(`${Schemas.file}:`)) {
-						const parsedUri = URI.parse(uri);
-						if (parsedUri.scheme === Schemas.file) {
-							const fsPath = resources.originalFSPath(parsedUri);
+						let relativePath: string | null = null;
+						if (fsPath.startsWith('/./')) {
+							relativePath = `.${fsPath.substr(1)}`;
+						} else if (fsPath.startsWith('//./')) {
+							relativePath = `.${fsPath.substr(2)}`;
+						}
 
-							let relativePath: string | null = null;
-							if (fsPath.startsWith('/./')) {
-								relativePath = `.${fsPath.substr(1)}`;
-							} else if (fsPath.startsWith('//./')) {
-								relativePath = `.${fsPath.substr(2)}`;
-							}
-
-							if (relativePath) {
-								uri = resources.joinPath(modelUri, relativePath);
-							}
+						if (relativePath) {
+							uri = resources.joinPath(modelUri, relativePath);
 						}
 					}
 				}
+			}
 
+			return this.openerService.open(uri, { openToSide, fromUserGesture, allowContributedOpeners: true, allowCommands: true, fromWorkspace: true });
 
-
-				return this.openerService.open(uri, { openToSide, fromUserGesture, allowContributedOpeners: true, allowCommands: true, fromWorkspace: true });
-
-			}, err => {
-				const messageOrError =
-					err instanceof Error ? (<Error>err).message : err;
-				// different error cases
-				if (messageOrError === 'invalid') {
-					this.notificationService.warn(nls.localize('invalid.url', 'Failed to open this link because it is not well-formed: {0}', link.url!.toString()));
-				} else if (messageOrError === 'missing') {
-					this.notificationService.warn(nls.localize('missing.url', 'Failed to open this link because its target is missing.'));
-				} else {
-					onUnexpectedError(err);
-				}
-			});
+		}, err => {
+			const messageOrError =
+				err instanceof Error ? (<Error>err).message : err;
+			// different error cases
+			if (messageOrError === 'invalid') {
+				this.notificationService.warn(nls.localize('invalid.url', 'Failed to open this link because it is not well-formed: {0}', link.url!.toString()));
+			} else if (messageOrError === 'missing') {
+				this.notificationService.warn(nls.localize('missing.url', 'Failed to open this link because its target is missing.'));
+			} else {
+				onUnexpectedError(err);
+			}
 		});
 	}
 
@@ -398,78 +391,6 @@ function getHoverMessage(link: Link, useMetaKey: boolean): MarkdownString {
 	}
 }
 
-export class LinkOpener extends Disposable implements IEditorContribution {
-
-	public static readonly ID = 'editor.linkOpener';
-
-	public static get(editor: ICodeEditor): LinkOpener | null {
-		return editor.getContribution<LinkOpener>(LinkOpener.ID);
-	}
-
-	private readonly links = new LinkedList<{ range: IRange; label: string; callback: () => void }>();
-
-	constructor(
-		private readonly editor: ICodeEditor,
-		@IContextMenuService private readonly contextMenuService: IContextMenuService,
-	) {
-		super();
-	}
-
-	openLink(range: IRange, label: string, callback: () => void): void {
-		this.links.push({ range, label, callback });
-		if (this.links.size === 1) {
-			queueMicrotask(() => this.openLinks());
-		}
-	}
-
-	private openLinks(): void {
-		if (!this.editor.hasModel()) {
-			return;
-		}
-
-		const links = [...this.links];
-		this.links.clear();
-
-		// remove links that don't overlap, late links win over early links
-		for (let i = 1; i < links.length; i++) {
-			const link = links[i];
-			const prevLink = links[i - 1];
-			if (!Range.areIntersecting(link.range, prevLink.range)) {
-				links[i - 1] = undefined!;
-			}
-		}
-		coalesceInPlace(links);
-
-		if (links.length === 1) {
-			// single: just invoke callback
-			links[0].callback();
-
-		} else if (links.length > 1) {
-			// multiple: show context menu
-
-			this.contextMenuService.showContextMenu({
-				getAnchor: () => {
-					assertType(this.editor.hasModel());
-					const position = Range.getStartPosition(links[0].range);
-					const cursorCoords = this.editor.getScrolledVisiblePosition(position);
-					// Translate to absolute editor position
-					const editorCoords = dom.getDomNodePagePosition(this.editor.getDomNode());
-					const posx = editorCoords.left + cursorCoords.left;
-					const posy = editorCoords.top + cursorCoords.top + cursorCoords.height;
-					return { x: posx, y: posy };
-				},
-				getActions: () => {
-					return links.map(item => toAction({
-						id: '',
-						label: item.label,
-						run: item.callback
-					}));
-				},
-			});
-		}
-	}
-}
-
 class OpenLinkAction extends EditorAction {
 
 	constructor() {
@@ -481,7 +402,7 @@ class OpenLinkAction extends EditorAction {
 		});
 	}
 
-	public run(_accessor: ServicesAccessor, editor: ICodeEditor): void {
+	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
 		const linkDetector = LinkDetector.get(editor);
 		if (!linkDetector) {
 			return;
@@ -501,5 +422,4 @@ class OpenLinkAction extends EditorAction {
 }
 
 registerEditorContribution(LinkDetector.ID, LinkDetector, EditorContributionInstantiation.AfterFirstRender);
-registerEditorContribution(LinkOpener.ID, LinkOpener, EditorContributionInstantiation.Lazy);
 registerEditorAction(OpenLinkAction);

@@ -21,6 +21,7 @@ import { ProgressBar } from 'vs/base/browser/ui/progressbar/progressbar';
 import { Severity } from 'vs/platform/notification/common/notification';
 import { isNonEmptyArray } from 'vs/base/common/arrays';
 import { Codicon } from 'vs/base/common/codicons';
+import { ThemeIcon } from 'vs/base/common/themables';
 import { DropdownMenuActionViewItem } from 'vs/base/browser/ui/dropdown/dropdownActionViewItem';
 import { DomEmitter } from 'vs/base/browser/event';
 import { Gesture, EventType as GestureEventType } from 'vs/base/browser/touch';
@@ -380,10 +381,10 @@ export class NotificationTemplateRenderer extends Disposable {
 		// first remove, then set as the codicon class names overlap
 		NotificationTemplateRenderer.SEVERITIES.forEach(severity => {
 			if (notification.severity !== severity) {
-				this.template.icon.classList.remove(...this.toSeverityIcon(severity).classNamesArray);
+				this.template.icon.classList.remove(...ThemeIcon.asClassNameArray(this.toSeverityIcon(severity)));
 			}
 		});
-		this.template.icon.classList.add(...this.toSeverityIcon(notification.severity).classNamesArray);
+		this.template.icon.classList.add(...ThemeIcon.asClassNameArray(this.toSeverityIcon(notification.severity)));
 	}
 
 	private renderMessage(notification: INotificationViewItem): boolean {
@@ -536,7 +537,7 @@ export class NotificationTemplateRenderer extends Disposable {
 		}
 	}
 
-	private toSeverityIcon(severity: Severity): Codicon {
+	private toSeverityIcon(severity: Severity): ThemeIcon {
 		switch (severity) {
 			case Severity.Warning:
 				return Codicon.warning;

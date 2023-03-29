@@ -21,6 +21,9 @@ export interface IWorkbenchQuickAccessConfiguration {
 		commandPalette: {
 			history: number;
 			preserveInput: boolean;
+			experimental: {
+				suggestCommands: boolean;
+			};
 		};
 		quickOpen: {
 			enableExperimentalNewVersion: boolean;

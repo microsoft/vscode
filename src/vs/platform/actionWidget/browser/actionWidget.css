@@ -3,13 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-.action-list-description {
-	opacity: .7;
-	margin-left: 0.5em;
-	font-size: .9em;
-	white-space: pre;
-}
-
 .action-widget {
 	font-size: 13px;
 	border-radius: 0;
@@ -54,10 +47,6 @@
 	outline: 0 !important;
 }
 
-.action-widget .monaco-list .monaco-scrollable-element .monaco-list-rows {
-	height: 100% !important;
-}
-
 .action-widget .monaco-list .monaco-scrollable-element {
 	overflow: visible;
 }
@@ -72,14 +61,14 @@
 }
 
 .action-widget .monaco-list .monaco-list-row.action.focused:not(.option-disabled) {
-	background-color: var(--vscode-quickInputList-focusBackground);
+	background-color: var(--vscode-quickInputList-focusBackground) !important;
 	color: var(--vscode-quickInputList-focusForeground);
 	outline: 1px solid var(--vscode-menu-selectionBorder, transparent);
 	outline-offset: -1px;
 }
 
 .action-widget .monaco-list-row.group-header {
-	color: var(--vscode-pickerGroup-foreground);
+	color: var(--vscode-pickerGroup-foreground) !important;
 	font-weight: 600;
 }
 
@@ -123,7 +112,6 @@
 /* Action bar */
 
 .action-widget .action-widget-action-bar {
-	margin-top: 4px;
 	background-color: var(--vscode-editorHoverWidget-statusBarBackground);
 	border-top: 1px solid var(--vscode-editorHoverWidget-border);
 }

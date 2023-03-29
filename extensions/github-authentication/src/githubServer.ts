@@ -9,7 +9,7 @@ import { PromiseAdapter, promiseFromEvent } from './common/utils';
 import { ExperimentationTelemetry } from './common/experimentationService';
 import { AuthProviderType, UriEventHandler } from './github';
 import { Log } from './common/logger';
-import { isSupportedEnvironment } from './common/env';
+import { isSupportedClient, isSupportedTarget } from './common/env';
 import { LoopbackAuthServer } from './node/authServer';
 import { crypto } from './node/crypto';
 import { fetching } from './node/fetch';
@@ -96,30 +96,15 @@ export class GitHubServer implements IGitHubServer {
 			if (proxyEndpoints?.github && new URL(proxyEndpoints.github).hostname === 'insiders.vscode.dev') {
 				this._redirectEndpoint = REDIRECT_URL_INSIDERS;
 			}
-			return this._redirectEndpoint;
 		} else {
-			// GHES
-			const result = await fetching(this.getServerUri('/meta').toString(true));
-			if (result.ok) {
-				try {
-					const json: { installed_version: string } = await result.json();
-					const [majorStr, minorStr, _patch] = json.installed_version.split('.');
-					const major = Number(majorStr);
-					const minor = Number(minorStr);
-					if (major >= 4 || major === 3 && minor >= 8
-					) {
-						// GHES 3.8 and above used vscode.dev/redirect as the route.
-						// It only supports a single redirect endpoint, so we can't use
-						// insiders.vscode.dev/redirect when we're running in Insiders, unfortunately.
-						this._redirectEndpoint = 'https://vscode.dev/redirect';
-					}
-				} catch (e) {
-					this._logger.error(e);
-				}
-			}
-
-			// TODO in like 1 year change the default vscode.dev/redirect maybe
-			this._redirectEndpoint = 'https://vscode-auth.github.com/';
+			// GHE only supports a single redirect endpoint, so we can't use
+			// insiders.vscode.dev/redirect when we're running in Insiders, unfortunately.
+			// Additionally, we make the assumption that this function will only be used
+			// in flows that target supported GHE targets, not on-prem GHES. Because of this
+			// assumption, we can assume that the GHE version used is at least 3.8 which is
+			// the version that changed the redirect endpoint to this URI from the old
+			// GitHub maintained server.
+			this._redirectEndpoint = 'https://vscode.dev/redirect';
 		}
 		return this._redirectEndpoint;
 	}
@@ -154,8 +139,9 @@ export class GitHubServer implements IGitHubServer {
 		const nonce: string = crypto.getRandomValues(new Uint32Array(2)).reduce((prev, curr) => prev += curr.toString(16), '');
 		const callbackUri = await vscode.env.asExternalUri(vscode.Uri.parse(`${vscode.env.uriScheme}://vscode.github-authentication/did-authenticate?nonce=${encodeURIComponent(nonce)}`));
 
-		const supported = isSupportedEnvironment(callbackUri);
-		if (supported) {
+		const supportedClient = isSupportedClient(callbackUri);
+		const supportedTarget = isSupportedTarget(this._type, this._ghesUri);
+		if (supportedClient && supportedTarget) {
 			try {
 				return await this.doLoginWithoutLocalServer(scopes, nonce, callbackUri);
 			} catch (e) {
@@ -167,9 +153,11 @@ export class GitHubServer implements IGitHubServer {
 		// Starting a local server is only supported if:
 		// 1. We are in a UI extension because we need to open a port on the machine that has the browser
 		// 2. We are in a node runtime because we need to open a port on the machine
+		// 3. code exchange can only be done with a supported target
 		if (
 			this._extensionKind === vscode.ExtensionKind.UI &&
-			typeof navigator === 'undefined'
+			typeof navigator === 'undefined' &&
+			supportedTarget
 		) {
 			try {
 				await promptToContinue();
@@ -189,7 +177,11 @@ export class GitHubServer implements IGitHubServer {
 				this._logger.error(e);
 				userCancelled = e.message ?? e === 'User Cancelled';
 			}
-		} else if (!supported) {
+		}
+
+		// In a supported environment, we can't use PAT auth because we use this auth for Settings Sync and it doesn't support PATs.
+		// With that said, GitHub Enterprise isn't used by Settings Sync so we can use PATs for that.
+		if (!supportedClient || this._type === AuthProviderType.githubEnterprise) {
 			try {
 				await promptToContinue();
 				return await this.doLoginWithPat(scopes);
@@ -338,7 +330,23 @@ export class GitHubServer implements IGitHubServer {
 
 	private async doLoginWithPat(scopes: string): Promise<string> {
 		this._logger.info(`Trying to retrieve PAT... (${scopes})`);
-		const token = await vscode.window.showInputBox({ prompt: 'GitHub Personal Access Token', ignoreFocusOut: true });
+
+		const button = vscode.l10n.t('Continue to GitHub');
+		const modalResult = await vscode.window.showInformationMessage(
+			vscode.l10n.t('Continue to GitHub to create a Personal Access Token (PAT)'),
+			{
+				modal: true,
+				detail: vscode.l10n.t('To finish authenticating, navigate to GitHub to create a PAT then paste the PAT into the input box.')
+			}, button);
+
+		if (modalResult !== button) {
+			throw new Error('User Cancelled');
+		}
+
+		const description = `${vscode.env.appName} (${scopes})`;
+		const uriToOpen = await vscode.env.asExternalUri(this.baseUri.with({ path: '/settings/tokens/new', query: `description=${description}&scopes=${scopes.split(' ').join(',')}` }));
+		await vscode.env.openExternal(uriToOpen);
+		const token = await vscode.window.showInputBox({ placeHolder: `ghp_1a2b3c4...`, prompt: `GitHub Personal Access Token - ${scopes}`, ignoreFocusOut: true });
 		if (!token) { throw new Error('User Cancelled'); }
 
 		const tokenScopes = await getScopes(token, this.getServerUri('/'), this._logger); // Example: ['repo', 'user']
@@ -482,11 +490,12 @@ export class GitHubServer implements IGitHubServer {
 	}
 
 	private getServerUri(path: string = '') {
-		if (this._type === AuthProviderType.github) {
-			return vscode.Uri.parse('https://api.github.com').with({ path });
-		}
-		// GHES
 		const apiUri = this.baseUri;
+		// github.com and Hosted GitHub Enterprise instances
+		if (isSupportedTarget(this._type, this._ghesUri)) {
+			return vscode.Uri.parse(`${apiUri.scheme}://api.${apiUri.authority}`).with({ path });
+		}
+		// GitHub Enterprise Server (aka on-prem)
 		return vscode.Uri.parse(`${apiUri.scheme}://${apiUri.authority}/api/v3${path}`);
 	}
 
@@ -541,14 +550,16 @@ export class GitHubServer implements IGitHubServer {
 		}
 
 		if (this._type === AuthProviderType.github) {
-			return await this.checkEduDetails(token);
+			return await this.checkUserDetails(token);
 		}
 
 		// GHES
 		await this.checkEnterpriseVersion(token);
 	}
 
-	private async checkEduDetails(token: string): Promise<void> {
+	private async checkUserDetails(token: string): Promise<void> {
+		let edu: string | undefined;
+
 		try {
 			const result = await fetching('https://education.github.com/api/user', {
 				headers: {
@@ -560,41 +571,62 @@ export class GitHubServer implements IGitHubServer {
 
 			if (result.ok) {
 				const json: { student: boolean; faculty: boolean } = await result.json();
-
-				/* __GDPR__
-					"session" : {
-						"owner": "TylerLeonhardt",
-						"isEdu": { "classification": "NonIdentifiableDemographicInfo", "purpose": "FeatureInsight" }
-					}
-				*/
-				this._telemetryReporter.sendTelemetryEvent('session', {
-					isEdu: json.student
-						? 'student'
-						: json.faculty
-							? 'faculty'
-							: 'none'
-				});
+				edu = json.student
+					? 'student'
+					: json.faculty
+						? 'faculty'
+						: 'none';
 			}
 		} catch (e) {
 			// No-op
 		}
+
+		let managed: string | undefined;
+		try {
+			const user = await this.getUserInfo(token);
+			// Apparently, this is how you tell if a user is an EMU...
+			managed = user.accountName.includes('_') ? 'true' : 'false';
+		} catch (e) {
+			// No-op
+		}
+
+		if (edu === undefined && managed === undefined) {
+			return;
+		}
+
+		/* __GDPR__
+			"session" : {
+				"owner": "TylerLeonhardt",
+				"isEdu": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+				"isManaged": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+			}
+		*/
+		this._telemetryReporter.sendTelemetryEvent('session', {
+			isEdu: edu ?? 'unknown',
+			isManaged: managed ?? 'unknown'
+		});
 	}
 
 	private async checkEnterpriseVersion(token: string): Promise<void> {
 		try {
+			let version: string;
+			if (!isSupportedTarget(this._type, this._ghesUri)) {
+				const result = await fetching(this.getServerUri('/meta').toString(), {
+					headers: {
+						Authorization: `token ${token}`,
+						'User-Agent': 'Visual-Studio-Code'
+					}
+				});
 
-			const result = await fetching(this.getServerUri('/meta').toString(), {
-				headers: {
-					Authorization: `token ${token}`,
-					'User-Agent': 'Visual-Studio-Code'
+				if (!result.ok) {
+					return;
 				}
-			});
 
-			if (!result.ok) {
-				return;
+				const json: { verifiable_password_authentication: boolean; installed_version: string } = await result.json();
+				version = json.installed_version;
+			} else {
+				version = 'hosted';
 			}
-
-			const json: { verifiable_password_authentication: boolean; installed_version: string } = await result.json();
 
 			/* __GDPR__
 				"ghe-session" : {
@@ -603,7 +635,7 @@ export class GitHubServer implements IGitHubServer {
 				}
 			*/
 			this._telemetryReporter.sendTelemetryEvent('ghe-session', {
-				version: json.installed_version
+				version
 			});
 		} catch {
 			// No-op

@@ -9,14 +9,14 @@ import { MenuRegistry, MenuId, registerAction2 } from 'vs/platform/actions/commo
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import { isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
-import { ConfigureRuntimeArgumentsAction, ToggleDevToolsAction, ToggleSharedProcessAction, ReloadWindowWithExtensionsDisabledAction } from 'vs/workbench/electron-sandbox/actions/developerActions';
+import { ConfigureRuntimeArgumentsAction, ToggleDevToolsAction, ReloadWindowWithExtensionsDisabledAction, OpenUserDataFolderAction } from 'vs/workbench/electron-sandbox/actions/developerActions';
 import { ZoomResetAction, ZoomOutAction, ZoomInAction, CloseWindowAction, SwitchWindowAction, QuickSwitchWindowAction, NewWindowTabHandler, ShowPreviousWindowTabHandler, ShowNextWindowTabHandler, MoveWindowTabToNewWindowHandler, MergeWindowTabsHandlerHandler, ToggleWindowTabsBarHandler } from 'vs/workbench/electron-sandbox/actions/windowActions';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IsMacContext } from 'vs/platform/contextkey/common/contextkeys';
-import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
+import { INativeHostService } from 'vs/platform/native/common/native';
 import { IJSONContributionRegistry, Extensions as JSONExtensions } from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import { InstallShellScriptAction, UninstallShellScriptAction } from 'vs/workbench/electron-sandbox/actions/installActions';
@@ -106,8 +106,8 @@ import { applicationConfigurationNodeBase } from 'vs/workbench/common/configurat
 	// Actions: Developer
 	registerAction2(ReloadWindowWithExtensionsDisabledAction);
 	registerAction2(ConfigureRuntimeArgumentsAction);
-	registerAction2(ToggleSharedProcessAction);
 	registerAction2(ToggleDevToolsAction);
+	registerAction2(OpenUserDataFolderAction);
 })();
 
 // Menu
@@ -265,7 +265,7 @@ import { applicationConfigurationNodeBase } from 'vs/workbench/common/configurat
 				tags: product.quality === 'stable' ? ['experimental'] : undefined,
 				'scope': ConfigurationScope.APPLICATION,
 				ignoreSync: true
-			},
+			}
 		}
 	});
 
@@ -352,7 +352,7 @@ import { applicationConfigurationNodeBase } from 'vs/workbench/common/configurat
 				}
 			},
 			'log-level': {
-				type: 'string',
+				type: ['string', 'array'],
 				description: localize('argv.logLevel', "Log level to use. Default is 'info'. Allowed values are 'error', 'warn', 'info', 'debug', 'trace', 'off'.")
 			}
 		}

@@ -3,16 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as osPath from 'vs/base/common/path';
 import { IMouseWheelEvent } from 'vs/base/browser/mouseEvent';
 import { coalesce } from 'vs/base/common/arrays';
-import { DeferredPromise } from 'vs/base/common/async';
+import { DeferredPromise, runWhenIdle } from 'vs/base/common/async';
 import { decodeBase64 } from 'vs/base/common/buffer';
 import { Emitter, Event } from 'vs/base/common/event';
 import { getExtensionForMimeType } from 'vs/base/common/mime';
 import { FileAccess, Schemas } from 'vs/base/common/network';
 import { equals } from 'vs/base/common/objects';
 import { isMacintosh, isWeb } from 'vs/base/common/platform';
-import { dirname, joinPath } from 'vs/base/common/resources';
+import { dirname, isEqual, joinPath } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import * as UUID from 'vs/base/common/uuid';
 import { TokenizationRegistry } from 'vs/editor/common/languages';
@@ -26,7 +27,6 @@ import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IFileService } from 'vs/platform/files/common/files';
-import { ILogger, ILoggerService, ILogService } from 'vs/platform/log/common/log';
 import { IOpenerService, matchesScheme, matchesSomeScheme } from 'vs/platform/opener/common/opener';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { editorFindMatch, editorFindMatchHighlight } from 'vs/platform/theme/common/colorRegistry';
@@ -45,10 +45,18 @@ import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookS
 import { IWebviewElement, IWebviewService, WebviewContentPurpose, WebviewOriginStore } from 'vs/workbench/contrib/webview/browser/webview';
 import { WebviewWindowDragMonitor } from 'vs/workbench/contrib/webview/browser/webviewWindowDragMonitor';
 import { asWebviewUri, webviewGenericCspSource } from 'vs/workbench/contrib/webview/common/webview';
-import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { registerLogChannel } from 'vs/workbench/services/output/common/output';
 import { FromWebviewMessage, IAckOutputHeight, IClickedDataUrlMessage, ICodeBlockHighlightRequest, IContentWidgetTopRequest, IControllerPreload, ICreationContent, ICreationRequestMessage, IFindMatch, IMarkupCellInitialization, RendererMetadata, StaticPreloadMetadata, ToWebviewMessage } from './webviewMessages';
+import { IPathService } from 'vs/workbench/services/path/common/pathService';
+import { ITextEditorOptions } from 'vs/platform/editor/common/editor';
+import { EditorInput } from 'vs/workbench/common/editor/editorInput';
+import { INotebookLoggingService } from 'vs/workbench/contrib/notebook/common/notebookLoggingService';
+import { IDisposable } from 'vs/base/common/lifecycle';
+
+const LINE_COLUMN_REGEX = /:([\d]+)(?::([\d]+))?$/;
+const LineQueryRegex = /line=(\d+)$/;
+
 
 export interface ICachedInset<K extends ICommonCellInfo> {
 	outputId: string;
@@ -82,6 +90,7 @@ export interface INotebookDelegateForWebview {
 	didResizeOutput(cellId: string): void;
 	setScrollTop(scrollTop: number): void;
 	triggerScroll(event: IMouseWheelEvent): void;
+	updatePerformanceMetadata(cellId: string, executionId: string, duration: number, rendererId: string): void;
 }
 
 interface BacklayerWebviewOptions {
@@ -100,10 +109,10 @@ interface BacklayerWebviewOptions {
 	readonly markupFontSize: number;
 	readonly outputLineHeight: number;
 	readonly outputScrolling: boolean;
+	readonly outputWordWrap: boolean;
 	readonly outputLineLimit: number;
 }
 
-const logChannelId = 'notebook.rendering';
 
 export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 
@@ -117,6 +126,10 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 	element: HTMLElement;
 	webview: IWebviewElement | undefined = undefined;
 	insetMapping: Map<IDisplayOutputViewModel, ICachedInset<T>> = new Map();
+	pendingWebviewIdleCreationRequest: Map<IDisplayOutputViewModel, IDisposable> = new Map();
+	pendingWebviewIdleInsetMapping: Map<IDisplayOutputViewModel, ICachedInset<T>> = new Map();
+	private reversedPendingWebviewIdleInsetMapping: Map<string, IDisplayOutputViewModel> = new Map();
+
 	readonly markupPreviewMapping = new Map<string, IMarkupCellInitialization>();
 	private hiddenInsetMapping: Set<IDisplayOutputViewModel> = new Set();
 	private reversedInsetMapping: Map<string, IDisplayOutputViewModel> = new Map();
@@ -127,12 +140,8 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 	private _disposed = false;
 	private _currentKernel?: INotebookKernel;
 
-	private _initialized?: DeferredPromise<void>;
-	private _webviewPreloadInitialized?: DeferredPromise<void>;
 	private firstInit = true;
 	private initializeMarkupPromise?: { readonly requestId: string; readonly p: DeferredPromise<void>; readonly isFirstInit: boolean };
-
-	private readonly _renderLogger: ILogger;
 
 	private readonly nonce = UUID.generateUuid();
 
@@ -158,15 +167,11 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
 		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService,
 		@IStorageService private readonly storageService: IStorageService,
-		@ILoggerService loggerService: ILoggerService,
-		@ILogService logService: ILogService,
+		@IPathService private readonly pathService: IPathService,
+		@INotebookLoggingService private readonly notebookLogService: INotebookLoggingService,
 		@IThemeService themeService: IThemeService,
 	) {
 		super(themeService);
-
-		const logsPath = joinPath(environmentService.windowLogsPath, 'notebook.rendering.log');
-		this._renderLogger = this._register(loggerService.createLogger(logsPath, { name: 'notebook.rendering' }));
-		registerLogChannel(logChannelId, nls.localize('renderChannelName', "Notebook rendering"), logsPath, fileService, logService);
 
 		this._logRendererDebugMessage('Creating backlayer webview for notebook');
 
@@ -215,7 +220,7 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 	}
 
 	private _logRendererDebugMessage(msg: string) {
-		this._renderLogger.debug(`${this.documentUri} (${this.id}) - ${msg}`);
+		this.notebookLogService.debug('BacklayerWebview', `${this.documentUri} (${this.id}) - ${msg}`);
 	}
 
 	private _updateStyles() {
@@ -230,6 +235,11 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 			type: 'notebookOptions',
 			options: {
 				dragAndDropEnabled: this.options.dragAndDropEnabled
+			},
+			renderOptions: {
+				lineLimit: this.options.outputLineLimit,
+				outputScrolling: this.options.outputScrolling,
+				outputWordWrap: this.options.outputWordWrap
 			}
 		});
 	}
@@ -253,16 +263,21 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 			'notebook-cell-renderer-not-found-error': nls.localize({
 				key: 'notebook.error.rendererNotFound',
 				comment: ['$0 is a placeholder for the mime type']
-			}, "No renderer found for '$0' a"),
+			}, "No renderer found for '$0'"),
+			'notebook-cell-renderer-fallbacks-exhausted': nls.localize({
+				key: 'notebook.error.rendererFallbacksExhausted',
+				comment: ['$0 is a placeholder for the mime type']
+			}, "Could not render content for '$0'"),
 		};
 	}
 
-	private generateContent(coreDependencies: string, baseUrl: string) {
+	private generateContent(baseUrl: string) {
 		const renderersData = this.getRendererData();
 		const preloadsData = this.getStaticPreloadsData();
 		const renderOptions = {
 			lineLimit: this.options.outputLineLimit,
-			outputScrolling: this.options.outputScrolling
+			outputScrolling: this.options.outputScrolling,
+			outputWordWrap: this.options.outputWordWrap
 		};
 		const preloadScript = preloadsScriptStr(
 			this.options,
@@ -312,14 +327,14 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 						font-size: var(--notebook-cell-output-font-size);
 						width: var(--notebook-output-width);
 						margin-left: var(--notebook-output-left-margin);
+						background-color: var(--theme-notebook-output-background);
 						padding-top: var(--notebook-output-node-padding);
 						padding-right: var(--notebook-output-node-padding);
 						padding-bottom: var(--notebook-output-node-padding);
 						padding-left: var(--notebook-output-node-left-padding);
 						box-sizing: border-box;
-						border-top: none !important;
+						border-top: none;
 						border: 1px solid var(--theme-notebook-output-border);
-						background-color: var(--theme-notebook-output-background);
 					}
 
 					/* markdown */
@@ -431,10 +446,6 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 				<style id="vscode-tokenization-styles" nonce="${this.nonce}">${getTokenizationCss()}</style>
 			</head>
 			<body style="overflow: hidden;">
-				<script>
-					self.require = {};
-				</script>
-				${coreDependencies}
 				<div id='findStart' tabIndex=-1></div>
 				<div id='container' class="widgetarea" style="position: absolute;width:100%;top: 0px"></div>
 				<div id="_defaultColorPalatte"></div>
@@ -491,67 +502,10 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 		return !!this.webview;
 	}
 
-	async createWebview(): Promise<void> {
+	createWebview(): Promise<void> {
 		const baseUrl = this.asWebviewUri(this.getNotebookBaseUri(), undefined);
-
-		// Python notebooks assume that requirejs is a global.
-		// For all other notebooks, they need to provide their own loader.
-		if (!this.documentUri.path.toLowerCase().endsWith('.ipynb')) {
-			const htmlContent = this.generateContent('', baseUrl.toString());
-			this._initialize(htmlContent);
-			return;
-		}
-
-		let coreDependencies = '';
-
-		this._initialized = new DeferredPromise();
-		this._webviewPreloadInitialized = new DeferredPromise();
-
-		if (!isWeb) {
-			const loaderUri = FileAccess.asFileUri('vs/loader.js');
-			const loader = this.asWebviewUri(loaderUri, undefined);
-
-			coreDependencies = `<script src="${loader}"></script><script>
-			var requirejs = (function() {
-				return require;
-			}());
-			</script>`;
-			const htmlContent = this.generateContent(coreDependencies, baseUrl.toString());
-			this._initialize(htmlContent);
-			this._initialized.complete();
-		} else {
-			const loaderUri = FileAccess.asBrowserUri('vs/loader.js');
-
-			fetch(loaderUri.toString(true)).then(async response => {
-				if (response.status !== 200) {
-					throw new Error(response.statusText);
-				}
-
-				const loaderJs = await response.text();
-
-				coreDependencies = `
-<script>
-${loaderJs}
-</script>
-<script>
-var requirejs = (function() {
-	return require;
-}());
-</script>
-`;
-
-				const htmlContent = this.generateContent(coreDependencies, baseUrl.toString());
-				this._initialize(htmlContent);
-				this._initialized!.complete();
-			}, error => {
-				// the fetch request is rejected
-				const htmlContent = this.generateContent(coreDependencies, baseUrl.toString());
-				this._initialize(htmlContent);
-				this._initialized!.complete();
-			});
-		}
-
-		await this._initialized.p;
+		const htmlContent = this.generateContent(baseUrl.toString());
+		return this._initialize(htmlContent);
 	}
 
 	private getNotebookBaseUri() {
@@ -586,7 +540,7 @@ var requirejs = (function() {
 		];
 	}
 
-	private _initialize(content: string) {
+	private _initialize(content: string): Promise<void> {
 		if (!document.body.contains(this.element)) {
 			throw new Error('Element is already detached from the DOM tree');
 		}
@@ -596,6 +550,12 @@ var requirejs = (function() {
 		this._register(this.webview);
 
 		this._register(new WebviewWindowDragMonitor(() => this.webview));
+
+		const initializePromise = new DeferredPromise<void>();
+
+		this._register(this.webview.onFatalError(e => {
+			initializePromise.error(new Error(`Could not initialize webview: ${e.message}}`));
+		}));
 
 		this._register(this.webview.onMessage(async (message) => {
 			const data: FromWebviewMessage | { readonly __vscode_notebook_message: undefined } = message.message;
@@ -609,7 +569,7 @@ var requirejs = (function() {
 
 			switch (data.type) {
 				case 'initialized': {
-					this._webviewPreloadInitialized?.complete();
+					initializePromise.complete();
 					this.initializeWebViewState();
 					break;
 				}
@@ -629,6 +589,25 @@ var requirejs = (function() {
 								const { cellInfo, output } = resolvedResult;
 								this.notebookEditor.updateOutputHeight(cellInfo, output, height, !!update.init, 'webview#dimension');
 								this.notebookEditor.scheduleOutputHeightAck(cellInfo, update.id, height);
+							} else if (update.init) {
+								// might be idle render request's ack
+								const outputRequest = this.reversedPendingWebviewIdleInsetMapping.get(update.id);
+								if (outputRequest) {
+									const inset = this.pendingWebviewIdleInsetMapping.get(outputRequest)!;
+
+									// clear the pending mapping
+									this.pendingWebviewIdleCreationRequest.delete(outputRequest);
+									this.pendingWebviewIdleCreationRequest.delete(outputRequest);
+
+									const cellInfo = inset.cellInfo;
+									this.reversedInsetMapping.set(update.id, outputRequest);
+									this.insetMapping.set(outputRequest, inset);
+									this.notebookEditor.updateOutputHeight(cellInfo, outputRequest, height, !!update.init, 'webview#dimension');
+									this.notebookEditor.scheduleOutputHeightAck(cellInfo, update.id, height);
+
+								}
+
+								this.reversedPendingWebviewIdleInsetMapping.delete(update.id);
 							}
 						} else {
 							this.notebookEditor.updateMarkupCellHeight(update.id, height, !!update.init);
@@ -726,6 +705,17 @@ var requirejs = (function() {
 							this.openerService.open(CellUri.generateCellOutputUri(this.documentUri, outputId));
 							return;
 						}
+						if (uri.path === 'cellOutput.enableScrolling') {
+							const outputId = uri.query;
+							const cell = this.reversedInsetMapping.get(outputId);
+
+							if (cell) {
+								cell.resetRenderer();
+							}
+
+							console.log(outputId);
+							return;
+						}
 
 						// We allow a very limited set of commands
 						this.openerService.open(data.href, {
@@ -735,44 +725,28 @@ var requirejs = (function() {
 								'github-issues.authNow',
 								'workbench.extensions.search',
 								'workbench.action.openSettings',
+								'_notebook.selectKernel',
+								// TODO@rebornix explore open output channel with name command
+								'jupyter.viewOutput'
 							],
 						});
 						return;
 					}
 
-					let linkToOpen: URI | string | undefined;
-					if (matchesSomeScheme(data.href, Schemas.http, Schemas.https, Schemas.mailto, Schemas.vscodeNotebookCell, Schemas.vscodeNotebook)) {
-						linkToOpen = data.href;
+					if (matchesSomeScheme(data.href, Schemas.http, Schemas.https, Schemas.mailto)) {
+						this.openerService.open(data.href, { fromUserGesture: true, fromWorkspace: true });
+					} else if (matchesScheme(data.href, Schemas.vscodeNotebookCell)) {
+						const uri = URI.parse(data.href);
+						this._handleNotebookCellResource(uri);
 					} else if (!/^[\w\-]+:/.test(data.href)) {
-						const fragmentStartIndex = data.href.lastIndexOf('#');
-						const path = decodeURI(fragmentStartIndex >= 0 ? data.href.slice(0, fragmentStartIndex) : data.href);
-						if (this.documentUri.scheme === Schemas.untitled) {
-							const folders = this.workspaceContextService.getWorkspace().folders;
-							if (!folders.length) {
-								return;
-							}
-							linkToOpen = URI.joinPath(folders[0].uri, path);
+						this._handleResourceOpening(data.href);
+					} else {
+						// uri with scheme
+						if (osPath.isAbsolute(data.href)) {
+							this._openUri(URI.file(data.href));
 						} else {
-							if (data.href.startsWith('/')) {
-								// Resolve relative to workspace
-								let folder = this.workspaceContextService.getWorkspaceFolder(this.documentUri);
-								if (!folder) {
-									const folders = this.workspaceContextService.getWorkspace().folders;
-									if (!folders.length) {
-										return;
-									}
-									folder = folders[0];
-								}
-								linkToOpen = URI.joinPath(folder.uri, path);
-							} else {
-								// Resolve relative to notebook document
-								linkToOpen = URI.joinPath(dirname(this.documentUri), path);
-							}
+							this._openUri(URI.parse(data.href));
 						}
-					}
-
-					if (linkToOpen) {
-						this.openerService.open(linkToOpen, { fromUserGesture: true, fromWorkspace: true });
 					}
 					break;
 				}
@@ -890,8 +864,112 @@ var requirejs = (function() {
 					this._logRendererDebugMessage(`${data.message}${data.data ? ' ' + JSON.stringify(data.data, null, 4) : ''}`);
 					break;
 				}
+				case 'notebookPerformanceMessage': {
+					this.notebookEditor.updatePerformanceMetadata(data.cellId, data.executionId, data.duration, data.rendererId);
+					break;
+				}
 			}
 		}));
+
+		return initializePromise.p;
+	}
+
+	private _handleNotebookCellResource(uri: URI) {
+		const lineMatch = /\?line=(\d+)$/.exec(uri.fragment);
+		if (lineMatch) {
+			const parsedLineNumber = parseInt(lineMatch[1], 10);
+			if (!isNaN(parsedLineNumber)) {
+				const lineNumber = parsedLineNumber + 1;
+				const fragment = uri.fragment.substring(0, lineMatch.index);
+
+				// open the uri with selection
+				const editorOptions: ITextEditorOptions = {
+					selection: { startLineNumber: lineNumber, startColumn: 1, endLineNumber: lineNumber, endColumn: 1 }
+				};
+				this.openerService.open(uri.with({ fragment }), {
+					fromUserGesture: true,
+					fromWorkspace: true,
+					editorOptions: editorOptions
+				});
+				return;
+			}
+		}
+
+		this.openerService.open(uri, { fromUserGesture: true, fromWorkspace: true });
+		return uri;
+	}
+
+	private _handleResourceOpening(href: string) {
+		let linkToOpen: URI | undefined = undefined;
+		if (href.startsWith('/')) {
+			linkToOpen = URI.parse(href);
+		} else if (href.startsWith('~')) {
+			const userHome = this.pathService.resolvedUserHome;
+			if (userHome) {
+				linkToOpen = URI.parse(osPath.join(userHome.fsPath, href.substring(1)));
+			}
+		} else {
+			if (this.documentUri.scheme === Schemas.untitled) {
+				const folders = this.workspaceContextService.getWorkspace().folders;
+				if (!folders.length) {
+					return;
+				}
+				linkToOpen = URI.joinPath(folders[0].uri, href);
+			} else {
+				// Resolve relative to notebook document
+				linkToOpen = URI.joinPath(dirname(this.documentUri), href);
+			}
+		}
+
+		if (linkToOpen) {
+			this._openUri(linkToOpen);
+		}
+	}
+
+	private _openUri(uri: URI) {
+		let lineNumber: number | undefined = undefined;
+		let column: number | undefined = undefined;
+		const lineCol = LINE_COLUMN_REGEX.exec(uri.path);
+		if (lineCol) {
+			uri = uri.with({
+				path: uri.path.slice(0, lineCol.index),
+				fragment: `L${lineCol[0].slice(1)}`
+			});
+			lineNumber = parseInt(lineCol[1], 10);
+			column = parseInt(lineCol[2], 10);
+		}
+
+		//#region error renderer migration, remove once done
+		const lineMatch = LineQueryRegex.exec(uri.query);
+		if (lineMatch) {
+			const parsedLineNumber = parseInt(lineMatch[1], 10);
+			if (!isNaN(parsedLineNumber)) {
+				lineNumber = parsedLineNumber + 1;
+				column = 1;
+				uri = uri.with({ fragment: `L${lineNumber}` });
+			}
+		}
+
+		uri = uri.with({
+			query: null
+		});
+		//#endregion
+
+		let match: { group: IEditorGroup; editor: EditorInput } | undefined = undefined;
+
+		for (const group of this.editorGroupService.groups) {
+			const editorInput = group.editors.find(editor => editor.resource && isEqual(editor.resource, uri, true));
+			if (editorInput) {
+				match = { group, editor: editorInput };
+				break;
+			}
+		}
+
+		if (match) {
+			match.group.openEditor(match.editor, lineNumber !== undefined && column !== undefined ? <ITextEditorOptions>{ selection: { startLineNumber: lineNumber, startColumn: column } } : undefined);
+		} else {
+			this.openerService.open(uri, { fromUserGesture: true, fromWorkspace: true });
+		}
 	}
 
 	private _handleHighlightCodeBlock(codeBlocks: ReadonlyArray<ICodeBlockHighlightRequest>) {
@@ -953,6 +1031,7 @@ var requirejs = (function() {
 		this.localResourceRootsCache = this._getResourceRootsCache();
 		const webview = webviewService.createWebviewElement({
 			origin: BackLayerWebView.getOriginStore(this.storageService).getOrigin(this.notebookViewType, undefined),
+			title: nls.localize('webview title', "Notebook webview content"),
 			options: {
 				purpose: WebviewContentPurpose.NotebookRenderer,
 				enableFindWidget: false,
@@ -966,7 +1045,7 @@ var requirejs = (function() {
 			extension: undefined
 		});
 
-		webview.html = content;
+		webview.setHtml(content);
 		return webview;
 	}
 
@@ -1213,11 +1292,6 @@ var requirejs = (function() {
 		const requestId = UUID.generateUuid();
 		this.initializeMarkupPromise = { p: new DeferredPromise(), requestId, isFirstInit: this.firstInit };
 
-		if (this._webviewPreloadInitialized) {
-			// wait for webview preload script module to be loaded
-			await this._webviewPreloadInitialized.p;
-		}
-
 		this.firstInit = false;
 
 		for (const cell of cells) {
@@ -1247,12 +1321,50 @@ var requirejs = (function() {
 		}
 	}
 
-	async createOutput(cellInfo: T, content: IInsetRenderOutput, cellTop: number, offset: number) {
+	requestCreateOutputWhenWebviewIdle(cellInfo: T, content: IInsetRenderOutput, cellTop: number, offset: number) {
+		if (this._disposed) {
+			return;
+		}
+
+		if (this.insetMapping.has(content.source)) {
+			return;
+		}
+
+		if (this.pendingWebviewIdleCreationRequest.has(content.source)) {
+			return;
+		}
+
+		if (this.pendingWebviewIdleInsetMapping.has(content.source)) {
+			// handled in renderer process, waiting for webview to process it when idle
+			return;
+		}
+
+		this.pendingWebviewIdleCreationRequest.set(content.source, runWhenIdle(() => {
+			const { message, renderer } = this._createOutputCreationMessage(cellInfo, content, cellTop, offset, true, true);
+			this._sendMessageToWebview(message);
+			this.pendingWebviewIdleInsetMapping.set(content.source, { outputId: message.outputId, cellInfo: cellInfo, renderer, cachedCreation: message });
+			this.reversedPendingWebviewIdleInsetMapping.set(message.outputId, content.source);
+			this.pendingWebviewIdleCreationRequest.delete(content.source);
+		}));
+	}
+
+	createOutput(cellInfo: T, content: IInsetRenderOutput, cellTop: number, offset: number): void {
 		if (this._disposed) {
 			return;
 		}
 
 		const cachedInset = this.insetMapping.get(content.source);
+
+		// we now request to render the output immediately, so we can remove the pending request
+		// dispose the pending request in renderer process if it exists
+		this.pendingWebviewIdleCreationRequest.get(content.source)?.dispose();
+		this.pendingWebviewIdleCreationRequest.delete(content.source);
+
+		// if request has already been sent out, we then remove it from the pending mapping
+		this.pendingWebviewIdleInsetMapping.delete(content.source);
+		if (cachedInset) {
+			this.reversedPendingWebviewIdleInsetMapping.delete(cachedInset.outputId);
+		}
 
 		if (cachedInset && this._cachedInsetEqual(cachedInset, content)) {
 			this.hiddenInsetMapping.delete(content.source);
@@ -1266,13 +1378,28 @@ var requirejs = (function() {
 			return;
 		}
 
+		// create new output
+		const createOutput = () => {
+			const { message, renderer } = this._createOutputCreationMessage(cellInfo, content, cellTop, offset, false, false);
+			this._sendMessageToWebview(message);
+			this.insetMapping.set(content.source, { outputId: message.outputId, cellInfo: cellInfo, renderer, cachedCreation: message });
+			this.hiddenInsetMapping.delete(content.source);
+			this.reversedInsetMapping.set(message.outputId, content.source);
+		};
+
+		createOutput();
+	}
+
+	private _createOutputCreationMessage(cellInfo: T, content: IInsetRenderOutput, cellTop: number, offset: number, createOnIdle: boolean, initiallyHidden: boolean): { readonly message: ICreationRequestMessage; readonly renderer: INotebookRendererInfo | undefined } {
 		const messageBase = {
 			type: 'html',
+			executionId: cellInfo.executionId,
 			cellId: cellInfo.cellId,
 			cellTop: cellTop,
 			outputOffset: offset,
 			left: 0,
 			requiredPreloads: [],
+			createOnIdle: createOnIdle
 		} as const;
 
 		let message: ICreationRequestMessage;
@@ -1299,6 +1426,7 @@ var requirejs = (function() {
 					},
 					allOutputs: output.outputs.map(output => ({ mime: output.mime })),
 				},
+				initiallyHidden: initiallyHidden
 			};
 		} else {
 			message = {
@@ -1307,17 +1435,18 @@ var requirejs = (function() {
 				content: {
 					type: content.type,
 					htmlContent: content.htmlContent,
-				}
+				},
+				initiallyHidden: initiallyHidden
 			};
 		}
 
-		this._sendMessageToWebview(message);
-		this.insetMapping.set(content.source, { outputId: message.outputId, cellInfo: cellInfo, renderer, cachedCreation: message });
-		this.hiddenInsetMapping.delete(content.source);
-		this.reversedInsetMapping.set(message.outputId, content.source);
+		return {
+			message,
+			renderer
+		};
 	}
 
-	async updateOutput(cellInfo: T, content: IInsetRenderOutput, cellTop: number, offset: number) {
+	updateOutput(cellInfo: T, content: IInsetRenderOutput, cellTop: number, offset: number): void {
 		if (this._disposed) {
 			return;
 		}
@@ -1356,7 +1485,7 @@ var requirejs = (function() {
 		return;
 	}
 
-	removeInsets(outputs: readonly ICellOutputViewModel[]) {
+	removeInsets(outputs: readonly ICellOutputViewModel[]): void {
 		if (this._disposed) {
 			return;
 		}
@@ -1377,11 +1506,15 @@ var requirejs = (function() {
 				cellId: outputCache.cellInfo.cellId
 			});
 			this.insetMapping.delete(output);
+			this.pendingWebviewIdleCreationRequest.get(output)?.dispose();
+			this.pendingWebviewIdleCreationRequest.delete(output);
+			this.pendingWebviewIdleInsetMapping.delete(output);
+			this.reversedPendingWebviewIdleInsetMapping.delete(id);
 			this.reversedInsetMapping.delete(id);
 		}
 	}
 
-	hideInset(output: ICellOutputViewModel) {
+	hideInset(output: ICellOutputViewModel): void {
 		if (this._disposed) {
 			return;
 		}
@@ -1423,7 +1556,7 @@ var requirejs = (function() {
 		});
 	}
 
-	async find(query: string, options: { wholeWord?: boolean; caseSensitive?: boolean; includeMarkup: boolean; includeOutput: boolean }): Promise<IFindMatch[]> {
+	async find(query: string, options: { wholeWord?: boolean; caseSensitive?: boolean; includeMarkup: boolean; includeOutput: boolean; shouldGetSearchPreviewInfo: boolean }): Promise<IFindMatch[]> {
 		if (query === '') {
 			return [];
 		}
@@ -1575,6 +1708,7 @@ var requirejs = (function() {
 		this.webview = undefined;
 		this.notebookEditor = null!;
 		this.insetMapping.clear();
+		this.pendingWebviewIdleCreationRequest.clear();
 		super.dispose();
 	}
 }

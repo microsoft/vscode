@@ -13,7 +13,7 @@ import { WorkspaceEditMetadata } from 'vs/editor/common/languages';
 import { IProgress } from 'vs/platform/progress/common/progress';
 import { UndoRedoGroup, UndoRedoSource } from 'vs/platform/undoRedo/common/undoRedo';
 import { getNotebookEditorFromEditorPane } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { ICellPartialMetadataEdit, ICellReplaceEdit, IDocumentMetadataEdit, ISelectionState, IWorkspaceNotebookCellEdit, SelectionStateType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellUri, ICellPartialMetadataEdit, ICellReplaceEdit, IDocumentMetadataEdit, ISelectionState, IWorkspaceNotebookCellEdit, SelectionStateType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { INotebookEditorModelResolverService } from 'vs/workbench/contrib/notebook/common/notebookEditorModelResolverService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 
@@ -54,7 +54,20 @@ export class BulkCellEdits {
 		private readonly _edits: ResourceNotebookCellEdit[],
 		@IEditorService private readonly _editorService: IEditorService,
 		@INotebookEditorModelResolverService private readonly _notebookModelService: INotebookEditorModelResolverService,
-	) { }
+	) {
+		this._edits = this._edits.map(e => {
+			if (e.resource.scheme === CellUri.scheme) {
+				const uri = CellUri.parse(e.resource)?.notebook;
+				if (!uri) {
+					throw new Error(`Invalid notebook URI: ${e.resource}`);
+				}
+
+				return new ResourceNotebookCellEdit(uri, e.cellEdit, e.notebookVersionId, e.metadata);
+			} else {
+				return e;
+			}
+		});
+	}
 
 	async apply(): Promise<readonly URI[]> {
 		const resources: URI[] = [];

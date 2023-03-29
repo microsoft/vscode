@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
+import { INativeHostService } from 'vs/platform/native/common/native';
 import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
@@ -82,6 +82,11 @@ export class TimerService extends AbstractTimerService {
 		} catch (error) {
 			// ignore, be on the safe side with these hardware method calls
 		}
+	}
+
+	protected override _shouldReportPerfMarks(): boolean {
+		// always send when running with the prof-append-timers flag
+		return super._shouldReportPerfMarks() || Boolean(this._environmentService.args['prof-append-timers']);
 	}
 }
 

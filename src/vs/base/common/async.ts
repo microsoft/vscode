@@ -10,6 +10,7 @@ import { Disposable, IDisposable, MutableDisposable, toDisposable } from 'vs/bas
 import { extUri as defaultExtUri, IExtUri } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { setTimeout0 } from 'vs/base/common/platform';
+import { MicrotaskDelay } from './symbols';
 
 export function isThenable<T>(obj: unknown): obj is Promise<T> {
 	return !!obj && typeof (obj as unknown as Promise<T>).then === 'function';
@@ -273,9 +274,6 @@ const microtaskDeferred = (fn: () => void): IScheduledLater => {
 		dispose: () => { scheduled = false; },
 	};
 };
-
-/** Can be passed into the Delayed to defer using a microtask */
-export const MicrotaskDelay = Symbol('MicrotaskDelay');
 
 /**
  * A helper to delay (debounce) execution of a task that is being requested often.
@@ -875,6 +873,13 @@ export class RunOnceScheduler implements IDisposable {
 		return this.timeoutToken !== -1;
 	}
 
+	flush(): void {
+		if (this.isScheduled()) {
+			this.cancel();
+			this.doRun();
+		}
+	}
+
 	private onTimeout() {
 		this.timeoutToken = -1;
 		if (this.runner) {
@@ -961,6 +966,7 @@ export class ProcessTimeRunOnceScheduler {
 }
 
 export class RunOnceWorker<T> extends RunOnceScheduler {
+
 	private units: T[] = [];
 
 	constructor(runner: (units: T[]) => void, timeout: number) {
@@ -1068,7 +1074,9 @@ export class ThrottledWorker<T> extends Disposable {
 		}
 
 		// Add to pending units first
-		this.pendingWork.push(...units);
+		for (const unit of units) {
+			this.pendingWork.push(unit);
+		}
 
 		// If not throttled, start working directly
 		// Otherwise, when the throttle delay has

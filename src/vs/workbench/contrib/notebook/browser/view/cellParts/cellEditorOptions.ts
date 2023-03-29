@@ -19,7 +19,7 @@ import { IBaseCellEditorOptions, ICellViewModel } from 'vs/workbench/contrib/not
 import { NOTEBOOK_CELL_LINE_NUMBERS, NOTEBOOK_EDITOR_FOCUSED } from 'vs/workbench/contrib/notebook/common/notebookContextKeys';
 import { CellContentPart } from 'vs/workbench/contrib/notebook/browser/view/cellPart';
 import { NotebookCellInternalMetadata, NOTEBOOK_EDITOR_ID } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { NotebookOptions } from 'vs/workbench/contrib/notebook/common/notebookOptions';
+import { NotebookOptions } from 'vs/workbench/contrib/notebook/browser/notebookOptions';
 import { CellViewModelStateChangeEvent } from 'vs/workbench/contrib/notebook/browser/notebookViewEvents';
 
 export class CellEditorOptions extends CellContentPart {

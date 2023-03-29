@@ -213,16 +213,12 @@ class TypeScriptAutoFixProvider implements vscode.CodeActionProvider {
 			return undefined;
 		}
 
-		const file = this.client.toOpenedFilePath(document);
+		const file = this.client.toOpenTsFilePath(document);
 		if (!file) {
 			return undefined;
 		}
 
 		const actions = this.getFixAllActions(context.only);
-		if (this.client.bufferSyncSupport.hasPendingDiagnostics(document.uri)) {
-			return actions;
-		}
-
 		const diagnostics = this.diagnosticsManager.getDiagnostics(document.uri);
 		if (!diagnostics.length) {
 			// Actions are a no-op in this case but we still want to return them

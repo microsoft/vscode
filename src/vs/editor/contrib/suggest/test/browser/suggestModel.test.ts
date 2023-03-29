@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 import * as assert from 'assert';
 import { Event } from 'vs/base/common/event';
-import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { mock } from 'vs/base/test/common/mock';
 import { CoreEditingCommands } from 'vs/editor/browser/coreCommands';
@@ -38,6 +38,7 @@ import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace
 import { LanguageFeaturesService } from 'vs/editor/common/services/languageFeaturesService';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { getSnippetSuggestSupport, setSnippetSuggestSupport } from 'vs/editor/contrib/suggest/browser/suggest';
 
 
 function createMockEditor(model: TextModel, languageFeaturesService: ILanguageFeaturesService): ITestCodeEditor {
@@ -294,7 +295,7 @@ suite('SuggestModel - TriggerAndCancelOracle', function () {
 				assertEvent(model.onDidSuggest, function () {
 					model.trigger({ auto: false });
 				}, function (event) {
-					assert.strictEqual(event.auto, false);
+					assert.strictEqual(event.triggerOptions.auto, false);
 					assert.strictEqual(event.isFrozen, false);
 					assert.strictEqual(event.completionModel.items.length, 0);
 				})
@@ -312,7 +313,7 @@ suite('SuggestModel - TriggerAndCancelOracle', function () {
 				editor.trigger('keyboard', Handler.Type, { text: 'd' });
 
 			}, event => {
-				assert.strictEqual(event.auto, true);
+				assert.strictEqual(event.triggerOptions.auto, true);
 				assert.strictEqual(event.completionModel.items.length, 1);
 				const [first] = event.completionModel.items;
 
@@ -351,7 +352,7 @@ suite('SuggestModel - TriggerAndCancelOracle', function () {
 					editor.trigger('keyboard', Handler.Type, { text: 'My' });
 
 				}, event => {
-					assert.strictEqual(event.auto, true);
+					assert.strictEqual(event.triggerOptions.auto, true);
 					assert.strictEqual(event.completionModel.items.length, 1);
 					const [first] = event.completionModel.items;
 					assert.strictEqual(first.completion.label, 'My Table');
@@ -361,7 +362,7 @@ suite('SuggestModel - TriggerAndCancelOracle', function () {
 						editor.trigger('keyboard', Handler.Type, { text: ' ' });
 
 					}, event => {
-						assert.strictEqual(event.auto, true);
+						assert.strictEqual(event.triggerOptions.auto, true);
 						assert.strictEqual(event.completionModel.items.length, 1);
 						const [first] = event.completionModel.items;
 						assert.strictEqual(first.completion.label, 'My Table');
@@ -414,7 +415,7 @@ suite('SuggestModel - TriggerAndCancelOracle', function () {
 				editor.trigger('keyboard', Handler.Type, { text: 'foo' });
 
 			}, event => {
-				assert.strictEqual(event.auto, true);
+				assert.strictEqual(event.triggerOptions.auto, true);
 				assert.strictEqual(event.completionModel.items.length, 1);
 				const [first] = event.completionModel.items;
 				assert.strictEqual(first.completion.label, 'foo.bar');
@@ -426,7 +427,7 @@ suite('SuggestModel - TriggerAndCancelOracle', function () {
 
 			}, event => {
 				// SYNC
-				assert.strictEqual(event.auto, true);
+				assert.strictEqual(event.triggerOptions.auto, true);
 				assert.strictEqual(event.completionModel.items.length, 1);
 				const [first] = event.completionModel.items;
 				assert.strictEqual(first.completion.label, 'foo.bar');
@@ -437,7 +438,7 @@ suite('SuggestModel - TriggerAndCancelOracle', function () {
 
 			}, event => {
 				// ASYNC
-				assert.strictEqual(event.auto, true);
+				assert.strictEqual(event.triggerOptions.auto, true);
 				assert.strictEqual(event.completionModel.items.length, 2);
 				const [first, second] = event.completionModel.items;
 				assert.strictEqual(first.completion.label, 'foo.bar');
@@ -458,7 +459,7 @@ suite('SuggestModel - TriggerAndCancelOracle', function () {
 			return assertEvent(model.onDidSuggest, () => {
 				model.trigger({ auto: false });
 			}, event => {
-				assert.strictEqual(event.auto, false);
+				assert.strictEqual(event.triggerOptions.auto, false);
 				assert.strictEqual(event.isFrozen, false);
 				assert.strictEqual(event.completionModel.items.length, 1);
 
@@ -483,7 +484,7 @@ suite('SuggestModel - TriggerAndCancelOracle', function () {
 			return assertEvent(model.onDidSuggest, () => {
 				model.trigger({ auto: false });
 			}, event => {
-				assert.strictEqual(event.auto, false);
+				assert.strictEqual(event.triggerOptions.auto, false);
 				assert.strictEqual(event.isFrozen, false);
 				assert.strictEqual(event.completionModel.items.length, 1);
 
@@ -520,7 +521,7 @@ suite('SuggestModel - TriggerAndCancelOracle', function () {
 			return assertEvent(model.onDidSuggest, () => {
 				model.trigger({ auto: false });
 			}, event => {
-				assert.strictEqual(event.auto, false);
+				assert.strictEqual(event.triggerOptions.auto, false);
 				assert.strictEqual(event.completionModel.getIncompleteProvider().size, 1);
 				assert.strictEqual(event.completionModel.items.length, 1);
 
@@ -557,7 +558,7 @@ suite('SuggestModel - TriggerAndCancelOracle', function () {
 			return assertEvent(model.onDidSuggest, () => {
 				model.trigger({ auto: false });
 			}, event => {
-				assert.strictEqual(event.auto, false);
+				assert.strictEqual(event.triggerOptions.auto, false);
 				assert.strictEqual(event.completionModel.getIncompleteProvider().size, 1);
 				assert.strictEqual(event.completionModel.items.length, 1);
 
@@ -567,7 +568,7 @@ suite('SuggestModel - TriggerAndCancelOracle', function () {
 					// until now
 					editor.trigger('keyboard', Handler.Type, { text: ';' });
 				}, event => {
-					assert.strictEqual(event.auto, false);
+					assert.strictEqual(event.triggerOptions.auto, false);
 					assert.strictEqual(event.completionModel.getIncompleteProvider().size, 1);
 					assert.strictEqual(event.completionModel.items.length, 1);
 
@@ -662,7 +663,7 @@ suite('SuggestModel - TriggerAndCancelOracle', function () {
 				editor.trigger('keyboard', Handler.Type, { text: 'd' });
 
 			}, event => {
-				assert.strictEqual(event.auto, true);
+				assert.strictEqual(event.triggerOptions.auto, true);
 				assert.strictEqual(event.completionModel.items.length, 1);
 				const [first] = event.completionModel.items;
 
@@ -673,7 +674,7 @@ suite('SuggestModel - TriggerAndCancelOracle', function () {
 				CoreEditingCommands.DeleteLeft.runEditorCommand(null, editor, null);
 
 			}, event => {
-				assert.strictEqual(event.auto, true);
+				assert.strictEqual(event.triggerOptions.auto, true);
 				assert.strictEqual(event.completionModel.items.length, 1);
 				const [first] = event.completionModel.items;
 
@@ -705,7 +706,7 @@ suite('SuggestModel - TriggerAndCancelOracle', function () {
 
 		return withOracle(async (sugget, editor) => {
 			class TestCtrl extends SuggestController {
-				override _insertSuggestion(item: ISelectedSuggestion, flags: number = 0) {
+				_insertSuggestion_publicForTest(item: ISelectedSuggestion, flags: number = 0) {
 					super._insertSuggestion(item, flags);
 				}
 			}
@@ -721,7 +722,7 @@ suite('SuggestModel - TriggerAndCancelOracle', function () {
 				const [first] = event.completionModel.items;
 				assert.strictEqual(first.completion.label, 'bar');
 
-				ctrl._insertSuggestion({ item: first, index: 0, model: event.completionModel });
+				ctrl._insertSuggestion_publicForTest({ item: first, index: 0, model: event.completionModel });
 			});
 
 			assert.strictEqual(
@@ -742,7 +743,7 @@ suite('SuggestModel - TriggerAndCancelOracle', function () {
 				editor.trigger('keyboard', Handler.Type, { text: 'e' });
 
 			}, event => {
-				assert.strictEqual(event.auto, true);
+				assert.strictEqual(event.triggerOptions.auto, true);
 				assert.strictEqual(event.completionModel.items.length, 1);
 				const [first] = event.completionModel.items;
 
@@ -799,7 +800,7 @@ suite('SuggestModel - TriggerAndCancelOracle', function () {
 				editor.trigger('keyboard', Handler.Type, { text: 'c' });
 
 			}, event => {
-				assert.strictEqual(event.auto, true);
+				assert.strictEqual(event.triggerOptions.auto, true);
 				assert.strictEqual(event.completionModel.items.length, 2);
 				assert.strictEqual(disposeA, 0);
 				assert.strictEqual(disposeB, 0);
@@ -808,7 +809,7 @@ suite('SuggestModel - TriggerAndCancelOracle', function () {
 			await assertEvent(model.onDidSuggest, () => {
 				editor.trigger('keyboard', Handler.Type, { text: 'o' });
 			}, event => {
-				assert.strictEqual(event.auto, true);
+				assert.strictEqual(event.triggerOptions.auto, true);
 				assert.strictEqual(event.completionModel.items.length, 2);
 
 				// clean up
@@ -866,7 +867,7 @@ suite('SuggestModel - TriggerAndCancelOracle', function () {
 				editor.trigger('keyboard', Handler.Type, { text: 'Z' });
 
 			}, event => {
-				assert.strictEqual(event.auto, true);
+				assert.strictEqual(event.triggerOptions.auto, true);
 				assert.strictEqual(event.completionModel.items.length, 1);
 				assert.strictEqual(event.completionModel.items[0].textLabel, 'Z aaa');
 			});
@@ -876,7 +877,7 @@ suite('SuggestModel - TriggerAndCancelOracle', function () {
 				// item should be: Z aaa, aaa
 				editor.trigger('keyboard', Handler.Type, { text: ' a' });
 			}, event => {
-				assert.strictEqual(event.auto, true);
+				assert.strictEqual(event.triggerOptions.auto, true);
 				assert.strictEqual(event.completionModel.items.length, 2);
 				assert.strictEqual(event.completionModel.items[0].textLabel, 'Z aaa');
 				assert.strictEqual(event.completionModel.items[1].textLabel, 'aaa');
@@ -923,7 +924,7 @@ suite('SuggestModel - TriggerAndCancelOracle', function () {
 				editor.trigger('keyboard', Handler.Type, { text: '.' });
 
 			}, event => {
-				assert.strictEqual(event.auto, true);
+				assert.strictEqual(event.triggerOptions.auto, true);
 				assert.strictEqual(event.completionModel.items.length, 1);
 			});
 
@@ -936,7 +937,7 @@ suite('SuggestModel - TriggerAndCancelOracle', function () {
 				editor.trigger('keyboard', Handler.Type, { text: 'a' });
 
 			}, event => {
-				assert.strictEqual(event.auto, true);
+				assert.strictEqual(event.triggerOptions.auto, true);
 				assert.strictEqual(event.completionModel.items.length, 2);
 			});
 		});
@@ -979,7 +980,7 @@ suite('SuggestModel - TriggerAndCancelOracle', function () {
 				editor.trigger('keyboard', Handler.Type, { text: 't' });
 
 			}, event => {
-				assert.strictEqual(event.auto, true);
+				assert.strictEqual(event.triggerOptions.auto, true);
 				assert.strictEqual(event.completionModel.items.length, 1);
 				assert.strictEqual(event.completionModel.items[0].textLabel, 'git.pull');
 			});
@@ -990,7 +991,7 @@ suite('SuggestModel - TriggerAndCancelOracle', function () {
 				editor.trigger('keyboard', Handler.Type, { text: 'p' });
 
 			}, event => {
-				assert.strictEqual(event.auto, true);
+				assert.strictEqual(event.triggerOptions.auto, true);
 				assert.strictEqual(event.completionModel.items.length, 1);
 				assert.strictEqual(event.completionModel.items[0].textLabel, 'git.pull');
 			});
@@ -1046,7 +1047,7 @@ suite('SuggestModel - TriggerAndCancelOracle', function () {
 				model.trigger({ auto: false });
 
 			}, event => {
-				assert.strictEqual(event.auto, false);
+				assert.strictEqual(event.triggerOptions.auto, false);
 				assert.strictEqual(event.completionModel.items.length, 2);
 				assert.strictEqual(event.completionModel.items[0].textLabel, 'foo-20');
 				assert.strictEqual(event.completionModel.items[1].textLabel, 'foo-hello');
@@ -1059,12 +1060,135 @@ suite('SuggestModel - TriggerAndCancelOracle', function () {
 				editor.trigger('keyboard', Handler.Type, { text: '2' });
 
 			}, event => {
-				assert.strictEqual(event.auto, true);
+				assert.strictEqual(event.triggerOptions.auto, true);
 				assert.strictEqual(event.completionModel.items.length, 2);
 				assert.strictEqual(event.completionModel.items[0].textLabel, 'foo-20');
 				assert.strictEqual(event.completionModel.items[1].textLabel, 'foo-210');
 				assert.deepStrictEqual(requestCounts, [1, 2]);
 			});
+		});
+	});
+
+	test('Set refilter-flag, keep triggerKind', function () {
+
+		disposables.add(registry.register({ scheme: 'test' }, {
+			triggerCharacters: ['.'],
+			provideCompletionItems(doc, pos, ctx) {
+				return {
+					suggestions: [{
+						label: doc.getWordUntilPosition(pos).word || 'hello',
+						kind: CompletionItemKind.Property,
+						insertText: 'foofoo',
+						range: getDefaultSuggestRange(doc, pos)
+					}]
+				};
+			},
+		}));
+
+		return withOracle(async function (model, editor) {
+
+			await assertEvent(model.onDidSuggest, () => {
+				editor.setValue('foo');
+				editor.setSelection(new Selection(1, 4, 1, 4));
+				editor.trigger('keyboard', Handler.Type, { text: 'o' });
+
+
+			}, event => {
+				assert.strictEqual(event.triggerOptions.auto, true);
+				assert.strictEqual(event.triggerOptions.triggerCharacter, undefined);
+				assert.strictEqual(event.triggerOptions.triggerKind, undefined);
+				assert.strictEqual(event.completionModel.items.length, 1);
+			});
+
+			await assertEvent(model.onDidSuggest, () => {
+				editor.trigger('keyboard', Handler.Type, { text: '.' });
+
+			}, event => {
+				assert.strictEqual(event.triggerOptions.auto, true);
+				assert.strictEqual(event.triggerOptions.refilter, undefined);
+				assert.strictEqual(event.triggerOptions.triggerCharacter, '.');
+				assert.strictEqual(event.triggerOptions.triggerKind, CompletionTriggerKind.TriggerCharacter);
+				assert.strictEqual(event.completionModel.items.length, 1);
+			});
+
+			await assertEvent(model.onDidSuggest, () => {
+				editor.trigger('keyboard', Handler.Type, { text: 'h' });
+
+			}, event => {
+				assert.strictEqual(event.triggerOptions.auto, true);
+				assert.strictEqual(event.triggerOptions.refilter, true);
+				assert.strictEqual(event.triggerOptions.triggerCharacter, '.');
+				assert.strictEqual(event.triggerOptions.triggerKind, CompletionTriggerKind.TriggerCharacter);
+				assert.strictEqual(event.completionModel.items.length, 1);
+			});
+		});
+	});
+
+	test('Snippets gone from IntelliSense #173244', function () {
+
+		const snippetProvider: CompletionItemProvider = {
+			provideCompletionItems(doc, pos, ctx) {
+				return {
+					suggestions: [{
+						label: 'log',
+						kind: CompletionItemKind.Snippet,
+						insertText: 'log',
+						range: getDefaultSuggestRange(doc, pos)
+					}]
+				};
+			}
+		};
+		const old = setSnippetSuggestSupport(snippetProvider);
+
+		disposables.add(toDisposable(() => {
+			if (getSnippetSuggestSupport() === snippetProvider) {
+				setSnippetSuggestSupport(old);
+			}
+		}));
+
+		disposables.add(registry.register({ scheme: 'test' }, {
+			triggerCharacters: ['.'],
+			provideCompletionItems(doc, pos, ctx) {
+				return {
+					suggestions: [{
+						label: 'locals',
+						kind: CompletionItemKind.Property,
+						insertText: 'locals',
+						range: getDefaultSuggestRange(doc, pos)
+					}],
+					incomplete: true
+				};
+			},
+		}));
+
+		return withOracle(async function (model, editor) {
+
+			await assertEvent(model.onDidSuggest, () => {
+				editor.setValue('');
+				editor.setSelection(new Selection(1, 1, 1, 1));
+				editor.trigger('keyboard', Handler.Type, { text: 'l' });
+
+
+			}, event => {
+				assert.strictEqual(event.triggerOptions.auto, true);
+				assert.strictEqual(event.triggerOptions.triggerCharacter, undefined);
+				assert.strictEqual(event.triggerOptions.triggerKind, undefined);
+				assert.strictEqual(event.completionModel.items.length, 2);
+				assert.strictEqual(event.completionModel.items[0].textLabel, 'locals');
+				assert.strictEqual(event.completionModel.items[1].textLabel, 'log');
+			});
+
+			await assertEvent(model.onDidSuggest, () => {
+				editor.trigger('keyboard', Handler.Type, { text: 'o' });
+
+			}, event => {
+				assert.strictEqual(event.triggerOptions.triggerKind, CompletionTriggerKind.TriggerForIncompleteCompletions);
+				assert.strictEqual(event.triggerOptions.auto, true);
+				assert.strictEqual(event.completionModel.items.length, 2);
+				assert.strictEqual(event.completionModel.items[0].textLabel, 'locals');
+				assert.strictEqual(event.completionModel.items[1].textLabel, 'log');
+			});
+
 		});
 	});
 });

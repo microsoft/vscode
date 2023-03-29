@@ -30,7 +30,8 @@ import { INotificationService, Severity } from 'vs/platform/notification/common/
 import { InputBox, MessageType } from 'vs/base/browser/ui/inputbox/inputBox';
 import { once } from 'vs/base/common/functional';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { IThemeService, ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { ThemeIcon } from 'vs/base/common/themables';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { ViewPane, IViewPaneOptions } from 'vs/workbench/browser/parts/views/viewPane';
 import { URI } from 'vs/base/common/uri';
@@ -789,7 +790,7 @@ export class TunnelPanel extends ViewPane {
 		this.tunnelViewMultiSelectionContext = TunnelViewMultiSelectionContextKey.bindTo(contextKeyService);
 		this.portChangableContextKey = PortChangableContextKey.bindTo(contextKeyService);
 
-		const overlayContextKeyService = this._register(this.contextKeyService.createOverlay([['view', TunnelPanel.ID]]));
+		const overlayContextKeyService = this.contextKeyService.createOverlay([['view', TunnelPanel.ID]]);
 		const titleMenu = this._register(this.menuService.createMenu(MenuId.TunnelTitle, overlayContextKeyService));
 		const updateActions = () => {
 			this.titleActions = [];
@@ -948,7 +949,7 @@ export class TunnelPanel extends ViewPane {
 
 	private onFocusChanged(event: ITableEvent<ITunnelItem>) {
 		if (event.indexes.length > 0 && event.elements.length > 0) {
-			this.lastFocus = event.indexes;
+			this.lastFocus = [...event.indexes];
 		}
 		const elements = event.elements;
 		const item = elements && elements.length ? elements[0] : undefined;
@@ -1504,6 +1505,8 @@ namespace ChangeTunnelPrivacyAction {
 					source: arg.source
 				});
 			}
+
+			return undefined;
 		};
 	}
 }

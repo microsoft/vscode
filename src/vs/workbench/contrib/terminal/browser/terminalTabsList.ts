@@ -8,7 +8,8 @@ import { IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { IThemeService, ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { ThemeIcon } from 'vs/base/common/themables';
 import { ITerminalGroupService, ITerminalInstance, ITerminalService, TerminalDataTransfers } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { localize } from 'vs/nls';
 import * as DOM from 'vs/base/browser/dom';
@@ -20,10 +21,8 @@ import { ITerminalBackend, TerminalCommandId } from 'vs/workbench/contrib/termin
 import { TerminalLocation, TerminalSettingId } from 'vs/platform/terminal/common/terminal';
 import { Codicon } from 'vs/base/common/codicons';
 import { Action } from 'vs/base/common/actions';
-import { MarkdownString } from 'vs/base/common/htmlContent';
-import { TerminalDecorationsProvider } from 'vs/workbench/contrib/terminal/browser/terminalDecorationsProvider';
 import { DEFAULT_LABELS_CONTAINER, IResourceLabel, ResourceLabels } from 'vs/workbench/browser/labels';
-import { IDecorationsService } from 'vs/workbench/services/decorations/common/decorations';
+import { IDecorationData, IDecorationsProvider, IDecorationsService } from 'vs/workbench/services/decorations/common/decorations';
 import { IHoverAction, IHoverService } from 'vs/workbench/services/hover/browser/hover';
 import Severity from 'vs/base/common/severity';
 import { Disposable, DisposableStore, dispose, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
@@ -45,8 +44,11 @@ import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecy
 import { IProcessDetails } from 'vs/platform/terminal/common/terminalProcess';
 import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/terminalContextKey';
 import { getTerminalResourcesFromDragEvent, parseTerminalUri } from 'vs/workbench/contrib/terminal/browser/terminalUri';
-import { getShellIntegrationTooltip } from 'vs/workbench/contrib/terminal/browser/terminalTooltip';
+import { getInstanceHoverInfo } from 'vs/workbench/contrib/terminal/browser/terminalTooltip';
 import { defaultInputBoxStyles } from 'vs/platform/theme/browser/defaultStyles';
+import { Event, Emitter } from 'vs/base/common/event';
+import { Schemas } from 'vs/base/common/network';
+import { getColorForSeverity } from 'vs/workbench/contrib/terminal/browser/terminalStatusList';
 
 const $ = DOM.$;
 
@@ -61,7 +63,7 @@ export const enum TerminalTabsListSizes {
 }
 
 export class TerminalTabList extends WorkbenchList<ITerminalInstance> {
-	private _decorationsProvider: TerminalDecorationsProvider | undefined;
+	private _decorationsProvider: TabDecorationsProvider | undefined;
 	private _terminalTabsSingleSelectedContextKey: IContextKey<boolean>;
 	private _isSplitContextKey: IContextKey<boolean>;
 
@@ -77,6 +79,7 @@ export class TerminalTabList extends WorkbenchList<ITerminalInstance> {
 		@IDecorationsService decorationsService: IDecorationsService,
 		@IThemeService private readonly _themeService: IThemeService,
 		@ILifecycleService lifecycleService: ILifecycleService,
+		@IHoverService private readonly _hoverService: IHoverService,
 	) {
 		super('TerminalTabsList', container,
 			{
@@ -100,7 +103,6 @@ export class TerminalTabList extends WorkbenchList<ITerminalInstance> {
 			},
 			contextKeyService,
 			listService,
-			themeService,
 			_configurationService,
 			instantiationService,
 		);
@@ -194,7 +196,7 @@ export class TerminalTabList extends WorkbenchList<ITerminalInstance> {
 			}
 		});
 		if (!this._decorationsProvider) {
-			this._decorationsProvider = instantiationService.createInstance(TerminalDecorationsProvider);
+			this._decorationsProvider = instantiationService.createInstance(TabDecorationsProvider);
 			decorationsService.registerDecorationsProvider(this._decorationsProvider);
 		}
 		this.refresh();
@@ -210,6 +212,19 @@ export class TerminalTabList extends WorkbenchList<ITerminalInstance> {
 		}
 
 		this.splice(0, this.length, this._terminalGroupService.instances.slice());
+	}
+
+	focusHover(): void {
+		const instance = this.getSelectedElements()[0];
+		if (!instance) {
+			return;
+		}
+
+		this._hoverService.showHover({
+			...getInstanceHoverInfo(instance),
+			target: this.getHTMLElement(),
+			trapFocus: true
+		}, true);
 	}
 
 	private _updateContextKey() {
@@ -306,18 +321,9 @@ class TerminalTabsRenderer implements IListRenderer<ITerminalInstance, ITerminal
 			}
 		}
 
+		const hoverInfo = getInstanceHoverInfo(instance);
+		template.context.hoverActions = hoverInfo.actions;
 
-		let statusString = '';
-		const statuses = instance.statusList.statuses;
-		template.context.hoverActions = [];
-		for (const status of statuses) {
-			statusString += `\n\n---\n\n${status.icon ? `$(${status.icon?.id}) ` : ''}${status.tooltip || status.id}`;
-			if (status.hoverActions) {
-				template.context.hoverActions.push(...status.hoverActions);
-			}
-		}
-
-		const shellIntegrationString = getShellIntegrationTooltip(instance, true);
 		const iconId = this._instantiationService.invokeFunction(getIconId, instance);
 		const hasActionbar = !this.shouldHideActionBar();
 		let label: string = '';
@@ -371,7 +377,7 @@ class TerminalTabsRenderer implements IListRenderer<ITerminalInstance, ITerminal
 				badges: hasText
 			},
 			title: {
-				markdown: new MarkdownString(instance.title + shellIntegrationString + statusString, { supportThemeIcons: true }),
+				markdown: hoverInfo.content,
 				markdownNotSupportedFallback: undefined
 			},
 			extraClasses
@@ -704,29 +710,70 @@ class TerminalTabsDragAndDrop implements IListDragAndDrop<ITerminalInstance> {
 		}
 
 		// Check if files were dragged from the tree explorer
-		let path: string | undefined;
+		let resource: URI | undefined;
 		const rawResources = e.dataTransfer.getData(DataTransfers.RESOURCES);
 		if (rawResources) {
-			path = URI.parse(JSON.parse(rawResources)[0]).fsPath;
+			resource = URI.parse(JSON.parse(rawResources)[0]);
 		}
 
 		const rawCodeFiles = e.dataTransfer.getData(CodeDataTransfers.FILES);
-		if (!path && rawCodeFiles) {
-			path = URI.file(JSON.parse(rawCodeFiles)[0]).fsPath;
+		if (!resource && rawCodeFiles) {
+			resource = URI.file(JSON.parse(rawCodeFiles)[0]);
 		}
 
-		if (!path && e.dataTransfer.files.length > 0 && e.dataTransfer.files[0].path /* Electron only */) {
+		if (!resource && e.dataTransfer.files.length > 0 && e.dataTransfer.files[0].path /* Electron only */) {
 			// Check if the file was dragged from the filesystem
-			path = URI.file(e.dataTransfer.files[0].path).fsPath;
+			resource = URI.file(e.dataTransfer.files[0].path);
 		}
 
-		if (!path) {
+		if (!resource) {
 			return;
 		}
 
 		this._terminalService.setActiveInstance(instance);
 
 		instance.focus();
-		await instance.sendPath(path, false);
+		await instance.sendPath(resource, false);
+	}
+}
+
+class TabDecorationsProvider implements IDecorationsProvider {
+	readonly label: string = localize('label', "Terminal");
+	private readonly _onDidChange = new Emitter<URI[]>();
+
+	constructor(
+		@ITerminalService private readonly _terminalService: ITerminalService
+	) {
+		this._terminalService.onDidChangeInstancePrimaryStatus(e => this._onDidChange.fire([e.resource]));
+	}
+
+	get onDidChange(): Event<URI[]> {
+		return this._onDidChange.event;
+	}
+
+	provideDecorations(resource: URI): IDecorationData | undefined {
+		if (resource.scheme !== Schemas.vscodeTerminal) {
+			return undefined;
+		}
+
+		const instance = this._terminalService.getInstanceFromResource(resource);
+		if (!instance) {
+			return undefined;
+		}
+
+		const primaryStatus = instance?.statusList?.primary;
+		if (!primaryStatus?.icon) {
+			return undefined;
+		}
+
+		return {
+			color: getColorForSeverity(primaryStatus.severity),
+			letter: primaryStatus.icon,
+			tooltip: primaryStatus.tooltip
+		};
+	}
+
+	dispose(): void {
+		this.dispose();
 	}
 }

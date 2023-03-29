@@ -466,6 +466,10 @@ export class TextAreaHandler extends ViewPart {
 		}));
 	}
 
+	public writeScreenReaderContent(reason: string): void {
+		this._textAreaInput.writeScreenReaderContent(reason);
+	}
+
 	public override dispose(): void {
 		super.dispose();
 	}

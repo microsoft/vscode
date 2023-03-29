@@ -51,7 +51,7 @@ class SelectionRanges {
 	}
 }
 
-class SmartSelectController implements IEditorContribution {
+export class SmartSelectController implements IEditorContribution {
 
 	static readonly ID = 'editor.contrib.smartSelectController';
 

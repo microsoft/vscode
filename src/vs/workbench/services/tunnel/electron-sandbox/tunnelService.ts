@@ -79,7 +79,7 @@ export class TunnelService extends AbstractTunnelService {
 		return isPortPrivileged(port, this.defaultTunnelHost, OS, this._nativeWorkbenchEnvironmentService.os.release);
 	}
 
-	protected retainOrCreateTunnel(addressProvider: IAddressProvider, remoteHost: string, remotePort: number, localPort: number | undefined, elevateIfNeeded: boolean, privacy?: string, protocol?: string): Promise<RemoteTunnel | undefined> | undefined {
+	protected retainOrCreateTunnel(addressProvider: IAddressProvider, remoteHost: string, remotePort: number, localHost: string, localPort: number | undefined, elevateIfNeeded: boolean, privacy?: string, protocol?: string): Promise<RemoteTunnel | undefined> | undefined {
 		const existing = this.getTunnelFromMap(remoteHost, remotePort);
 		if (existing) {
 			++existing.refcount;
@@ -91,18 +91,18 @@ export class TunnelService extends AbstractTunnelService {
 		} else {
 			this.logService.trace(`ForwardedPorts: (TunnelService) Creating tunnel without provider ${remoteHost}:${remotePort} on local port ${localPort}.`);
 
-			const tunnel = this._createSharedProcessTunnel(addressProvider, remoteHost, remotePort, localPort, elevateIfNeeded);
+			const tunnel = this._createSharedProcessTunnel(addressProvider, remoteHost, remotePort, localHost, localPort, elevateIfNeeded);
 			this.logService.trace('ForwardedPorts: (TunnelService) Tunnel created without provider.');
 			this.addTunnelToMap(remoteHost, remotePort, tunnel);
 			return tunnel;
 		}
 	}
 
-	private async _createSharedProcessTunnel(addressProvider: IAddressProvider, tunnelRemoteHost: string, tunnelRemotePort: number, tunnelLocalPort: number | undefined, elevateIfNeeded: boolean | undefined): Promise<RemoteTunnel> {
+	private async _createSharedProcessTunnel(addressProvider: IAddressProvider, tunnelRemoteHost: string, tunnelRemotePort: number, tunnelLocalHost: string, tunnelLocalPort: number | undefined, elevateIfNeeded: boolean | undefined): Promise<RemoteTunnel> {
 		const { id } = await this._sharedProcessTunnelService.createTunnel();
 		this._activeSharedProcessTunnels.add(id);
 		const authority = this._environmentService.remoteAuthority!;
-		const result = await this._sharedProcessTunnelService.startTunnel(authority, id, tunnelRemoteHost, tunnelRemotePort, tunnelLocalPort, elevateIfNeeded);
+		const result = await this._sharedProcessTunnelService.startTunnel(authority, id, tunnelRemoteHost, tunnelRemotePort, tunnelLocalHost, tunnelLocalPort, elevateIfNeeded);
 		const tunnel = this._instantiationService.createInstance(SharedProcessTunnel, id, addressProvider, tunnelRemoteHost, tunnelRemotePort, result.tunnelLocalPort, result.localAddress, () => {
 			this._activeSharedProcessTunnels.delete(id);
 		});

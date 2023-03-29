@@ -65,9 +65,14 @@
 	-webkit-user-select: text;
 }
 
+.monaco-workbench .notifications-list-container .notification-list-item .notification-list-item-message a {
+	color: var(--vscode-notificationLink-foreground);
+}
+
 .monaco-workbench .notifications-list-container .notification-list-item .notification-list-item-message a:focus {
 	outline-width: 1px;
 	outline-style: solid;
+	outline-color: var(--vscode-focusBorder);
 }
 
 .monaco-workbench .notifications-list-container .notification-list-item.expanded .notification-list-item-message {

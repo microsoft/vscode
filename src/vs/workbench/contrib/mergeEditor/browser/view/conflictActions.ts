@@ -136,8 +136,12 @@ export class ActionsSource {
 					);
 
 					if (modifiedBaseRange.canBeCombined) {
+						const commandName = modifiedBaseRange.isOrderRelevant
+							? localize('acceptBoth0First', "Accept Combination ({0} First)", inputData.title)
+							: localize('acceptBoth', "Accept Combination");
+
 						result.push(
-							command(localize('acceptBoth', "Accept Combination"), async () => {
+							command(commandName, async () => {
 								transaction((tx) => {
 									model.setState(
 										modifiedBaseRange,

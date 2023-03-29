@@ -74,6 +74,8 @@ interface StandardTsServerRequests {
 	'provideInlayHints': [Proto.InlayHintsRequestArgs, Proto.InlayHintsResponse];
 	'encodedSemanticClassifications-full': [Proto.EncodedSemanticClassificationsRequestArgs, Proto.EncodedSemanticClassificationsResponse];
 	'findSourceDefinition': [Proto.FileLocationRequestArgs, Proto.DefinitionResponse];
+	'getMoveToRefactoringFileSuggestions': [Proto.GetMoveToRefactoringFileSuggestionsRequestArgs, Proto.GetMoveToRefactoringFileSuggestionsResponse];
+	'getEditsForMoveToFileRefactor': [Proto.GetEditsForMoveToFileRefactorRequestArgs, Proto.GetEditsForMoveToFileRefactorResponse];
 }
 
 interface NoResponseTsServerRequests {
@@ -129,19 +131,11 @@ export class ClientCapabilities {
 }
 
 export interface ITypeScriptServiceClient {
-	/**
-	 * Convert a resource (VS Code) to a normalized path (TypeScript).
-	 *
-	 * Does not try handling case insensitivity.
-	 */
-	normalizedPath(resource: vscode.Uri): string | undefined;
 
 	/**
-	 * Map a resource to a normalized path
-	 *
-	 * This will attempt to handle case insensitivity.
+	 * Convert a (VS Code) resource to a path that TypeScript server understands.
 	 */
-	toPath(resource: vscode.Uri): string | undefined;
+	toTsFilePath(resource: vscode.Uri): string | undefined;
 
 	/**
 	 * Convert a path to a resource.
@@ -153,7 +147,7 @@ export interface ITypeScriptServiceClient {
 	 *
 	 * @return The normalized path or `undefined` if the document is not open on the server.
 	 */
-	toOpenedFilePath(document: vscode.TextDocument, options?: {
+	toOpenTsFilePath(document: vscode.TextDocument, options?: {
 		suppressAlertOnFailure?: boolean;
 	}): string | undefined;
 

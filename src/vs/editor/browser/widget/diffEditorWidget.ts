@@ -7,7 +7,7 @@ import * as dom from 'vs/base/browser/dom';
 import { createFastDomNode, FastDomNode } from 'vs/base/browser/fastDomNode';
 import { IMouseWheelEvent } from 'vs/base/browser/mouseEvent';
 import { MOUSE_CURSOR_TEXT_CSS_CLASS_NAME } from 'vs/base/browser/ui/mouseCursor/mouseCursor';
-import { ISashEvent, IVerticalSashLayoutProvider, Orientation, Sash, SashState } from 'vs/base/browser/ui/sash/sash';
+import { IBoundarySashes, ISashEvent, IVerticalSashLayoutProvider, Orientation, Sash, SashState } from 'vs/base/browser/ui/sash/sash';
 import * as assert from 'vs/base/common/assert';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { Codicon } from 'vs/base/common/codicons';
@@ -56,7 +56,8 @@ import { INotificationService } from 'vs/platform/notification/common/notificati
 import { IEditorProgressService, IProgressRunner } from 'vs/platform/progress/common/progress';
 import { defaultInsertColor, defaultRemoveColor, diffDiagonalFill, diffInserted, diffOverviewRulerInserted, diffOverviewRulerRemoved, diffRemoved } from 'vs/platform/theme/common/colorRegistry';
 import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
-import { getThemeTypeSelector, IColorTheme, IThemeService, registerThemingParticipant, ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { getThemeTypeSelector, IColorTheme, IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
+import { ThemeIcon } from 'vs/base/common/themables';
 
 export interface IDiffCodeEditorWidgetOptions {
 	originalEditor?: ICodeEditorWidgetOptions;
@@ -220,6 +221,8 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 	private _isVisible: boolean;
 	private _isHandlingScrollEvent: boolean;
 
+	private _boundarySashes: IBoundarySashes | undefined;
+
 	private _options: ValidDiffEditorBaseOptions;
 
 	private _strategy!: DiffEditorWidgetStyle;
@@ -249,6 +252,7 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 		@IEditorProgressService private readonly _editorProgressService: IEditorProgressService
 	) {
 		super();
+		codeEditorService.willCreateDiffEditor();
 
 		this._documentDiffProvider = this._register(instantiationService.createInstance(WorkerBasedDocumentDiffProvider, options));
 		this._register(this._documentDiffProvider.onDidChange(e => this._beginUpdateDecorationsSoon()));
@@ -402,6 +406,11 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 
 	public getViewWidth(): number {
 		return this._elementSizeObserver.getWidth();
+	}
+
+	setBoundarySashes(sashes: IBoundarySashes) {
+		this._boundarySashes = sashes;
+		this._strategy.setBoundarySashes(sashes);
 	}
 
 	private _setState(newState: editorBrowser.DiffEditorState): void {
@@ -1402,6 +1411,11 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 		this._strategy?.dispose();
 
 		this._strategy = newStrategy;
+
+		if (this._boundarySashes) {
+			newStrategy.setBoundarySashes(this._boundarySashes);
+		}
+
 		newStrategy.applyColors(this._themeService.getColorTheme());
 
 		if (this._diffComputationResult) {
@@ -1571,6 +1585,10 @@ abstract class DiffEditorWidgetStyle extends Disposable {
 
 	public abstract setEnableSplitViewResizing(enableSplitViewResizing: boolean): void;
 	public abstract layout(): number;
+
+	setBoundarySashes(_sashes: IBoundarySashes): void {
+		// To be implemented by subclasses
+	}
 }
 
 interface IMyViewZone {
@@ -2048,6 +2066,10 @@ class DiffEditorWidgetSideBySide extends DiffEditorWidgetStyle implements IVerti
 
 	public getVerticalSashHeight(sash: Sash): number {
 		return this._dataSource.getHeight();
+	}
+
+	override setBoundarySashes(sashes: IBoundarySashes) {
+		this._sash.orthogonalEndSash = sashes.bottom;
 	}
 
 	protected _getViewZones(lineChanges: ILineChange[], originalForeignVZ: IEditorWhitespace[], modifiedForeignVZ: IEditorWhitespace[]): IEditorsZones {

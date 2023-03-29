@@ -20,7 +20,7 @@ const element = document.createElement('div');
 element.style.height = '1000px';
 element.style.width = '200px';
 
-export class TestObjectTree<T> extends ObjectTree<T, any> {
+class TestObjectTree<T> extends ObjectTree<T, any> {
 	constructor(serializer: (node: T) => string, sorter?: ITreeSorter<T>) {
 		super(
 			'test',

@@ -71,6 +71,8 @@ export interface WebviewInitInfo {
 	readonly providedViewType?: string;
 	readonly origin?: string;
 
+	readonly title: string | undefined;
+
 	readonly options: WebviewOptions;
 	readonly contentOptions: WebviewContentOptions;
 
@@ -180,9 +182,14 @@ export interface IWebview extends IDisposable {
 	readonly origin: string;
 
 	/**
-	 * The html content of the webview.
+	 * Set html content of the webview.
 	 */
-	html: string;
+	setHtml(html: string): void;
+
+	/**
+	 * Set the title of the webview. This is set on the webview's iframe element.
+	 */
+	setTitle(title: string): void;
 
 	/**
 	 * Control what content is allowed/blocked inside the webview.
@@ -208,15 +215,26 @@ export interface IWebview extends IDisposable {
 
 	readonly onDidFocus: Event<void>;
 	readonly onDidBlur: Event<void>;
+
+	/**
+	 * Fired when the webview is disposed of.
+	 */
 	readonly onDidDispose: Event<void>;
 
 	readonly onDidClickLink: Event<string>;
 	readonly onDidScroll: Event<{ readonly scrollYPercentage: number }>;
 	readonly onDidWheel: Event<IMouseWheelEvent>;
+
 	readonly onDidUpdateState: Event<string | undefined>;
 	readonly onDidReload: Event<void>;
-	readonly onMessage: Event<WebviewMessageReceivedEvent>;
+
+	/**
+	 * Fired when the webview cannot be loaded or is now in a non-functional state.
+	 */
+	readonly onFatalError: Event<{ readonly message: string }>;
 	readonly onMissingCsp: Event<ExtensionIdentifier>;
+
+	readonly onMessage: Event<WebviewMessageReceivedEvent>;
 
 	postMessage(message: any, transfer?: readonly ArrayBuffer[]): Promise<boolean>;
 

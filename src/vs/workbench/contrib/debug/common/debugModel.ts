@@ -25,6 +25,7 @@ import { DebugStorage } from 'vs/workbench/contrib/debug/common/debugStorage';
 import { DisassemblyViewInput } from 'vs/workbench/contrib/debug/common/disassemblyViewInput';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
+import { ILogService } from 'vs/platform/log/common/log';
 
 interface IDebugProtocolVariableWithContext extends DebugProtocol.Variable {
 	__vscodeVariableMenuContext?: string;
@@ -873,9 +874,14 @@ export class Breakpoint extends BaseBreakpoint implements IBreakpoint {
 		private _adapterData: any,
 		private readonly textFileService: ITextFileService,
 		private readonly uriIdentityService: IUriIdentityService,
+		private readonly logService: ILogService,
 		id = generateUuid()
 	) {
 		super(enabled, hitCondition, condition, logMessage, id);
+	}
+
+	get originalUri() {
+		return this._uri;
 	}
 
 	get lineNumber(): number {
@@ -891,7 +897,7 @@ export class Breakpoint extends BaseBreakpoint implements IBreakpoint {
 	}
 
 	get uri(): uri {
-		return this.verified && this.data && this.data.source ? getUriFromSource(this.data.source, this.data.source.path, this.data.sessionId, this.uriIdentityService) : this._uri;
+		return this.verified && this.data && this.data.source ? getUriFromSource(this.data.source, this.data.source.path, this.data.sessionId, this.uriIdentityService, this.logService) : this._uri;
 	}
 
 	get column(): number | undefined {
@@ -1077,8 +1083,10 @@ export class ExceptionBreakpoint extends BaseBreakpoint implements IExceptionBre
 		result.label = this.label;
 		result.enabled = this.enabled;
 		result.supportsCondition = this.supportsCondition;
+		result.conditionDescription = this.conditionDescription;
 		result.condition = this.condition;
 		result.fallback = this.fallback;
+		result.description = this.description;
 
 		return result;
 	}
@@ -1164,10 +1172,6 @@ export class ThreadAndSessionIds implements ITreeElement {
 	}
 }
 
-export class Memory {
-
-}
-
 export class DebugModel implements IDebugModel {
 
 	private sessions: IDebugSession[];
@@ -1186,7 +1190,8 @@ export class DebugModel implements IDebugModel {
 	constructor(
 		debugStorage: DebugStorage,
 		@ITextFileService private readonly textFileService: ITextFileService,
-		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService
+		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
+		@ILogService private readonly logService: ILogService
 	) {
 		this.breakpoints = debugStorage.loadBreakpoints();
 		this.functionBreakpoints = debugStorage.loadFunctionBreakpoints();
@@ -1337,11 +1342,15 @@ export class DebugModel implements IDebugModel {
 		return { wholeCallStack, topCallStack: wholeCallStack };
 	}
 
-	getBreakpoints(filter?: { uri?: uri; lineNumber?: number; column?: number; enabledOnly?: boolean }): IBreakpoint[] {
+	getBreakpoints(filter?: { uri?: uri; originalUri?: uri; lineNumber?: number; column?: number; enabledOnly?: boolean }): IBreakpoint[] {
 		if (filter) {
-			const uriStr = filter.uri ? filter.uri.toString() : undefined;
+			const uriStr = filter.uri?.toString();
+			const originalUriStr = filter.originalUri?.toString();
 			return this.breakpoints.filter(bp => {
 				if (uriStr && bp.uri.toString() !== uriStr) {
+					return false;
+				}
+				if (originalUriStr && bp.originalUri.toString() !== originalUriStr) {
 					return false;
 				}
 				if (filter.lineNumber && bp.lineNumber !== filter.lineNumber) {
@@ -1427,7 +1436,7 @@ export class DebugModel implements IDebugModel {
 	}
 
 	addBreakpoints(uri: uri, rawData: IBreakpointData[], fireEvent = true): IBreakpoint[] {
-		const newBreakpoints = rawData.map(rawBp => new Breakpoint(uri, rawBp.lineNumber, rawBp.column, rawBp.enabled === false ? false : true, rawBp.condition, rawBp.hitCondition, rawBp.logMessage, undefined, this.textFileService, this.uriIdentityService, rawBp.id));
+		const newBreakpoints = rawData.map(rawBp => new Breakpoint(uri, rawBp.lineNumber, rawBp.column, rawBp.enabled === false ? false : true, rawBp.condition, rawBp.hitCondition, rawBp.logMessage, undefined, this.textFileService, this.uriIdentityService, this.logService, rawBp.id));
 		this.breakpoints = this.breakpoints.concat(newBreakpoints);
 		this.breakpointsActivated = true;
 		this.sortAndDeDup();

@@ -119,6 +119,7 @@ async function createModel(context: ExtensionContext, logger: LogOutputChannel, 
 	model.registerPostCommitCommandsProvider(postCommitCommandsProvider);
 
 	checkGitVersion(info);
+	commands.executeCommand('setContext', 'gitVersion2.35', git.compareGitVersionTo('2.35') >= 0);
 
 	return model;
 }

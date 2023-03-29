@@ -29,6 +29,7 @@ import { ShellIntegrationAddon } from 'vs/platform/terminal/common/xterm/shellIn
 import { formatMessageForTerminal } from 'vs/platform/terminal/common/terminalStrings';
 import { IPtyHostProcessReplayEvent } from 'vs/platform/terminal/common/capabilities/capabilities';
 import { IProductService } from 'vs/platform/product/common/productService';
+import { join } from 'path';
 
 type WorkspaceId = string;
 
@@ -283,7 +284,7 @@ export class PtyService extends Disposable implements IPtyService {
 		return allTerminals.filter(entry => entry.isOrphan);
 	}
 
-	async start(id: number): Promise<ITerminalLaunchError | undefined> {
+	async start(id: number): Promise<ITerminalLaunchError | { injectedArgs: string[] } | undefined> {
 		this._logService.trace('ptyService#start', id);
 		const pty = this._ptys.get(id);
 		return pty ? pty.start() : { message: `Could not find pty with id "${id}"` };
@@ -350,19 +351,56 @@ export class PtyService extends Disposable implements IPtyService {
 		return { ...process.env };
 	}
 
-	async getWslPath(original: string): Promise<string> {
-		if (!isWindows) {
-			return original;
-		}
-		if (getWindowsBuildNumber() < 17063) {
-			return original.replace(/\\/g, '/');
-		}
-		return new Promise<string>(c => {
-			const proc = execFile('bash.exe', ['-c', `wslpath ${escapeNonWindowsPath(original)}`], {}, (error, stdout, stderr) => {
-				c(escapeNonWindowsPath(stdout.trim()));
+	async getWslPath(original: string, direction: 'unix-to-win' | 'win-to-unix' | unknown): Promise<string> {
+		if (direction === 'win-to-unix') {
+			if (!isWindows) {
+				return original;
+			}
+			if (getWindowsBuildNumber() < 17063) {
+				return original.replace(/\\/g, '/');
+			}
+			const wslExecutable = this._getWSLExecutablePath();
+			if (!wslExecutable) {
+				return original;
+			}
+			return new Promise<string>(c => {
+				const proc = execFile(wslExecutable, ['-e', 'wslpath', original], {}, (error, stdout, stderr) => {
+					c(error ? original : escapeNonWindowsPath(stdout.trim()));
+				});
+				proc.stdin!.end();
 			});
-			proc.stdin!.end();
-		});
+		}
+		if (direction === 'unix-to-win') {
+			// The backend is Windows, for example a local Windows workspace with a wsl session in
+			// the terminal.
+			if (isWindows) {
+				if (getWindowsBuildNumber() < 17063) {
+					return original;
+				}
+				const wslExecutable = this._getWSLExecutablePath();
+				if (!wslExecutable) {
+					return original;
+				}
+				return new Promise<string>(c => {
+					const proc = execFile(wslExecutable, ['-e', 'wslpath', '-w', original], {}, (error, stdout, stderr) => {
+						c(error ? original : stdout.trim());
+					});
+					proc.stdin!.end();
+				});
+			}
+		}
+		// Fallback just in case
+		return original;
+	}
+
+	private _getWSLExecutablePath(): string | undefined {
+		const useWSLexe = getWindowsBuildNumber() >= 16299;
+		const is32ProcessOn64Windows = process.env.hasOwnProperty('PROCESSOR_ARCHITEW6432');
+		const systemRoot = process.env['SystemRoot'];
+		if (systemRoot) {
+			return join(systemRoot, is32ProcessOn64Windows ? 'Sysnative' : 'System32', useWSLexe ? 'wsl.exe' : 'bash.exe');
+		}
+		return undefined;
 	}
 
 	async getRevivedPtyNewId(id: number): Promise<number | undefined> {
@@ -653,11 +691,11 @@ class PersistentTerminalProcess extends Disposable {
 		}
 	}
 
-	async start(): Promise<ITerminalLaunchError | undefined> {
+	async start(): Promise<ITerminalLaunchError | { injectedArgs: string[] } | undefined> {
 		this._logService.trace('persistentTerminalProcess#start', this._persistentProcessId, this._isStarted);
 		if (!this._isStarted) {
 			const result = await this._terminalProcess.start();
-			if (result) {
+			if (result && 'message' in result) {
 				// it's a terminal launch error
 				return result;
 			}
@@ -673,12 +711,13 @@ class PersistentTerminalProcess extends Disposable {
 			} else {
 				this._onPersistentProcessReady.fire();
 			}
-		} else {
-			this._onProcessReady.fire({ pid: this._pid, cwd: this._cwd, requiresWindowsMode: isWindows && getWindowsBuildNumber() < 21376 });
-			this._onDidChangeProperty.fire({ type: ProcessPropertyType.Title, value: this._terminalProcess.currentTitle });
-			this._onDidChangeProperty.fire({ type: ProcessPropertyType.ShellType, value: this._terminalProcess.shellType });
-			this.triggerReplay();
+			return result;
 		}
+
+		this._onProcessReady.fire({ pid: this._pid, cwd: this._cwd, requiresWindowsMode: isWindows && getWindowsBuildNumber() < 21376 });
+		this._onDidChangeProperty.fire({ type: ProcessPropertyType.Title, value: this._terminalProcess.currentTitle });
+		this._onDidChangeProperty.fire({ type: ProcessPropertyType.ShellType, value: this._terminalProcess.shellType });
+		this.triggerReplay();
 		return undefined;
 	}
 	shutdown(immediate: boolean): void {

@@ -32,7 +32,7 @@ import { IWorkspaceFolderCreationData } from 'vs/platform/workspaces/common/work
 import { IIntegrityService } from 'vs/workbench/services/integrity/common/integrity';
 import { isWindows, isMacintosh, isCI } from 'vs/base/common/platform';
 import { IProductService } from 'vs/platform/product/common/productService';
-import { INotificationService, NeverShowAgainScope, Severity } from 'vs/platform/notification/common/notification';
+import { INotificationService, NeverShowAgainScope, NotificationPriority, Severity } from 'vs/platform/notification/common/notification';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
 import { IAccessibilityService, AccessibilitySupport } from 'vs/platform/accessibility/common/accessibility';
@@ -43,7 +43,7 @@ import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storag
 import { assertIsDefined } from 'vs/base/common/types';
 import { IOpenerService, OpenOptions } from 'vs/platform/opener/common/opener';
 import { Schemas } from 'vs/base/common/network';
-import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
+import { INativeHostService } from 'vs/platform/native/common/native';
 import { posix } from 'vs/base/common/path';
 import { ITunnelService, extractLocalHostUriMetaDataForPortMapping } from 'vs/platform/tunnel/common/tunnel';
 import { IWorkbenchLayoutService, Parts, positionFromString, Position } from 'vs/workbench/services/layout/browser/layoutService';
@@ -68,6 +68,8 @@ import { dirname } from 'vs/base/common/resources';
 import { IBannerService } from 'vs/workbench/services/banner/browser/bannerService';
 import { Codicon } from 'vs/base/common/codicons';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
+import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
+import { IUtilityProcessWorkerWorkbenchService } from 'vs/workbench/services/utilityProcess/electron-sandbox/utilityProcessWorkerWorkbenchService';
 
 export class NativeWindow extends Disposable {
 
@@ -120,7 +122,9 @@ export class NativeWindow extends Disposable {
 		@IProgressService private readonly progressService: IProgressService,
 		@ILabelService private readonly labelService: ILabelService,
 		@IBannerService private readonly bannerService: IBannerService,
-		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService
+		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
+		@IPreferencesService private readonly preferencesService: IPreferencesService,
+		@IUtilityProcessWorkerWorkbenchService private readonly utilityProcessWorkerWorkbenchService: IUtilityProcessWorkerWorkbenchService
 	) {
 		super();
 
@@ -203,6 +207,10 @@ export class NativeWindow extends Disposable {
 					run: () => this.nativeHostService.relaunch()
 				},
 				{
+					label: localize('configure', "Configure"),
+					run: () => this.preferencesService.openUserSettings({ query: 'application.shellEnvironmentResolutionTimeout' })
+				},
+				{
 					label: localize('learnMore', "Learn More"),
 					run: () => this.openerService.open('https://go.microsoft.com/fwlink/?linkid=2149667')
 				}]
@@ -228,27 +236,25 @@ export class NativeWindow extends Disposable {
 		ipcRenderer.on('vscode:openProxyAuthenticationDialog', async (event: unknown, payload: { authInfo: AuthInfo; username?: string; password?: string; replyChannel: string }) => {
 			const rememberCredentialsKey = 'window.rememberProxyCredentials';
 			const rememberCredentials = this.storageService.getBoolean(rememberCredentialsKey, StorageScope.APPLICATION);
-			const result = await this.dialogService.input(Severity.Warning, localize('proxyAuthRequired', "Proxy Authentication Required"),
-				[
-					localize({ key: 'loginButton', comment: ['&& denotes a mnemonic'] }, "&&Log In"),
-					localize({ key: 'cancelButton', comment: ['&& denotes a mnemonic'] }, "&&Cancel")
-				],
-				[
-					{ placeholder: localize('username', "Username"), value: payload.username },
-					{ placeholder: localize('password', "Password"), type: 'password', value: payload.password }
-				],
-				{
-					cancelId: 1,
-					detail: localize('proxyDetail', "The proxy {0} requires a username and password.", `${payload.authInfo.host}:${payload.authInfo.port}`),
-					checkbox: {
-						label: localize('rememberCredentials', "Remember my credentials"),
-						checked: rememberCredentials
-					}
-				});
+			const result = await this.dialogService.input({
+				type: 'warning',
+				message: localize('proxyAuthRequired', "Proxy Authentication Required"),
+				primaryButton: localize({ key: 'loginButton', comment: ['&& denotes a mnemonic'] }, "&&Log In"),
+				inputs:
+					[
+						{ placeholder: localize('username', "Username"), value: payload.username },
+						{ placeholder: localize('password', "Password"), type: 'password', value: payload.password }
+					],
+				detail: localize('proxyDetail', "The proxy {0} requires a username and password.", `${payload.authInfo.host}:${payload.authInfo.port}`),
+				checkbox: {
+					label: localize('rememberCredentials', "Remember my credentials"),
+					checked: rememberCredentials
+				}
+			});
 
 			// Reply back to the channel without result to indicate
 			// that the login dialog was cancelled
-			if (result.choice !== 0 || !result.values) {
+			if (!result.confirmed || !result.values) {
 				ipcRenderer.send(payload.replyChannel);
 			}
 
@@ -411,7 +417,6 @@ export class NativeWindow extends Disposable {
 			localize({ key: 'closeWindowButtonLabel', comment: ['&& denotes a mnemonic'] }, "&&Close Window");
 
 		const res = await dialogService.confirm({
-			type: 'question',
 			message,
 			primaryButton,
 			checkbox: {
@@ -428,9 +433,7 @@ export class NativeWindow extends Disposable {
 	}
 
 	private onBeforeShutdownError({ error, reason }: BeforeShutdownErrorEvent): void {
-		this.dialogService.show(Severity.Error, this.toShutdownLabel(reason, true), undefined, {
-			detail: localize('shutdownErrorDetail', "Error: {0}", toErrorMessage(error))
-		});
+		this.dialogService.error(this.toShutdownLabel(reason, true), localize('shutdownErrorDetail', "Error: {0}", toErrorMessage(error)));
 	}
 
 	private onWillShutdown({ reason, force, joiners }: WillShutdownEvent): void {
@@ -622,7 +625,10 @@ export class NativeWindow extends Disposable {
 
 		// Notify some services about lifecycle phases
 		this.lifecycleService.when(LifecyclePhase.Ready).then(() => this.nativeHostService.notifyReady());
-		this.lifecycleService.when(LifecyclePhase.Restored).then(() => this.sharedProcessService.notifyRestored());
+		this.lifecycleService.when(LifecyclePhase.Restored).then(() => {
+			this.sharedProcessService.notifyRestored();
+			this.utilityProcessWorkerWorkbenchService.notifyRestored();
+		});
 
 		// Check for situations that are worth warning the user about
 		this.handleWarnings();
@@ -644,7 +650,7 @@ export class NativeWindow extends Disposable {
 				this.logService.error('Error: There is a dependency cycle in the AMD modules that needs to be resolved!');
 				this.nativeHostService.exit(37); // running on a build machine, just exit without showing a dialog
 			} else {
-				this.dialogService.show(Severity.Error, localize('loaderCycle', "There is a dependency cycle in the AMD modules that needs to be resolved!"));
+				this.dialogService.error(localize('loaderCycle', "There is a dependency cycle in the AMD modules that needs to be resolved!"));
 				this.nativeHostService.openDevTools();
 			}
 		}
@@ -691,23 +697,85 @@ export class NativeWindow extends Disposable {
 			}
 		}
 
-		// Windows 7 warning
+		// Windows 7/8/8.1 warning
 		if (isWindows) {
 			const version = this.environmentService.os.release.split('.');
+			const majorVersion = version[0];
+			const minorVersion = version[1];
+			const eolReleases = new Map<string, Map<string, string>>([
+				['6', new Map<string, string>([
+					['1', 'Windows 7 / Windows Server 2008 R2'],
+					['2', 'Windows 8 / Windows Server 2012'],
+					['3', 'Windows 8.1 / Windows Server 2012 R2'],
+				])],
+			]);
 
 			// Refs https://docs.microsoft.com/en-us/windows/win32/api/winnt/ns-winnt-osversioninfoa
-			if (parseInt(version[0]) === 6 && parseInt(version[1]) === 1) {
-				const message = localize('windows 7 eol', "{0} on Windows 7 will no longer receive any further updates.", this.productService.nameLong);
+			if (eolReleases.get(majorVersion)?.has(minorVersion)) {
+				const message = localize('windowseolmessage', "{0} on {1} will soon stop receiving updates. Consider upgrading your windows version.", this.productService.nameLong, eolReleases.get(majorVersion)?.get(minorVersion));
+				const actions = [{
+					label: localize('windowseolBannerLearnMore', "Learn More"),
+					href: 'https://aka.ms/vscode-faq-old-windows'
+				}];
+
+				this.bannerService.show({
+					id: 'windowseol.banner',
+					message,
+					ariaLabel: localize('windowseolarialabel', "{0}. Use navigation keys to access banner actions.", message),
+					actions,
+					icon: Codicon.warning
+				});
 
 				this.notificationService.prompt(
 					Severity.Warning,
 					message,
 					[{
 						label: localize('learnMore', "Learn More"),
-						run: () => this.openerService.open(URI.parse('https://aka.ms/vscode-faq-win7'))
+						run: () => this.openerService.open(URI.parse('https://aka.ms/vscode-faq-old-windows'))
 					}],
 					{
-						neverShowAgain: { id: 'windows7eol', isSecondary: true, scope: NeverShowAgainScope.APPLICATION }
+						neverShowAgain: { id: 'windowseol', isSecondary: true, scope: NeverShowAgainScope.APPLICATION },
+						priority: NotificationPriority.URGENT,
+						sticky: true
+					}
+				);
+			}
+		}
+
+		// MacOS 10.11 and 10.12 warning
+		if (isMacintosh) {
+			const majorVersion = this.environmentService.os.release.split('.')[0];
+			const eolReleases = new Map<string, string>([
+				['15', 'OS X El Capitan'],
+				['16', 'macOS Sierra'],
+			]);
+			// Refs https://en.wikipedia.org/wiki/Darwin_%28operating_system%29#Release_history
+			if (eolReleases.has(majorVersion)) {
+				const message = localize('macoseolmessage', "{0} on {1} will soon stop receiving updates. Consider upgrading your macOS version.", this.productService.nameLong, eolReleases.get(majorVersion));
+				const actions = [{
+					label: localize('macoseolBannerLearnMore', "Learn More"),
+					href: 'https://aka.ms/vscode-faq-old-macOS'
+				}];
+
+				this.bannerService.show({
+					id: 'macoseol.banner',
+					message,
+					ariaLabel: localize('macoseolarialabel', "{0}. Use navigation keys to access banner actions.", message),
+					actions,
+					icon: Codicon.warning
+				});
+
+				this.notificationService.prompt(
+					Severity.Warning,
+					message,
+					[{
+						label: localize('learnMore', "Learn More"),
+						run: () => this.openerService.open(URI.parse('https://aka.ms/vscode-faq-old-macOS'))
+					}],
+					{
+						neverShowAgain: { id: 'macoseol', isSecondary: true, scope: NeverShowAgainScope.APPLICATION },
+						priority: NotificationPriority.URGENT,
+						sticky: true
 					}
 				);
 			}

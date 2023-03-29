@@ -11,11 +11,9 @@ use std::{
 };
 
 use async_trait::async_trait;
-use tokio::sync::mpsc;
 use zbus::{dbus_proxy, zvariant, Connection};
 
 use crate::{
-	commands::tunnels::ShutdownSignal,
 	constants::{APPLICATION_NAME, PRODUCT_NAME_LONG},
 	log,
 	state::LauncherPaths,
@@ -120,13 +118,7 @@ impl ServiceManager for SystemdService {
 		launcher_paths: crate::state::LauncherPaths,
 		mut handle: impl 'static + super::ServiceContainer,
 	) -> Result<(), crate::util::errors::AnyError> {
-		let (tx, rx) = mpsc::unbounded_channel::<ShutdownSignal>();
-		tokio::spawn(async move {
-			tokio::signal::ctrl_c().await.ok();
-			tx.send(ShutdownSignal::CtrlC).ok();
-		});
-
-		handle.run_service(self.log, launcher_paths, rx).await
+		handle.run_service(self.log, launcher_paths).await
 	}
 
 	async fn show_logs(&self) -> Result<(), AnyError> {
@@ -197,7 +189,7 @@ fn write_systemd_service_file(
       ExecStart={} \"{}\"\n\
       \n\
       [Install]\n\
-      WantedBy=multi-user.target\n\
+      WantedBy=default.target\n\
     ",
 		PRODUCT_NAME_LONG,
 		exe.into_os_string().to_string_lossy(),

@@ -78,6 +78,10 @@
 	max-width: 50px;
 }
 
+.search-editor .search-widget .context-lines-input input[type=number]::-webkit-inner-spin-button {
+	/* Hide arrow button that shows in type=number fields */
+	-webkit-appearance: none !important;
+}
 
 .search-editor .search-widget .replace-container {
 	margin-top: 6px;
@@ -170,4 +174,15 @@
 
 .search-editor a.prominent {
 	text-decoration: underline;
+}
+
+.monaco-editor .searchEditorFindMatch {
+	box-sizing: border-box;
+	background-color: var(--vscode-searchEditor-findMatchBackground);
+	border: 1px solid var(--vscode-searchEditor-findMatchBorder);
+}
+
+.monaco-editor.hc-black .searchEditorFindMatch,
+.monaco-editor.hc-light .searchEditorFindMatch {
+	border: 1px dotted var(--vscode-searchEditor-findMatchBorder);
 }

@@ -382,11 +382,26 @@ export function parseLineAndColumnAware(rawPath: string): IPathWithLineAndColumn
 }
 
 const pathChars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+const windowsSafePathFirstChars = 'BDEFGHIJKMOQRSTUVWXYZbdefghijkmoqrstuvwxyz0123456789';
 
 export function randomPath(parent?: string, prefix?: string, randomLength = 8): string {
 	let suffix = '';
 	for (let i = 0; i < randomLength; i++) {
-		suffix += pathChars.charAt(Math.floor(Math.random() * pathChars.length));
+		let pathCharsTouse: string;
+		if (i === 0 && isWindows && !prefix && (randomLength === 3 || randomLength === 4)) {
+
+			// Windows has certain reserved file names that cannot be used, such
+			// as AUX, CON, PRN, etc. We want to avoid generating a random name
+			// that matches that pattern, so we use a different set of characters
+			// for the first character of the name that does not include any of
+			// the reserved names first characters.
+
+			pathCharsTouse = windowsSafePathFirstChars;
+		} else {
+			pathCharsTouse = pathChars;
+		}
+
+		suffix += pathCharsTouse.charAt(Math.floor(Math.random() * pathCharsTouse.length));
 	}
 
 	let randomFileName: string;

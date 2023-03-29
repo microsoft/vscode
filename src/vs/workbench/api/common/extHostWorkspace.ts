@@ -6,7 +6,7 @@
 import { delta as arrayDelta, mapArrayOrNot } from 'vs/base/common/arrays';
 import { Barrier } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { Emitter, Event } from 'vs/base/common/event';
+import { AsyncEmitter, Emitter, Event } from 'vs/base/common/event';
 import { toDisposable } from 'vs/base/common/lifecycle';
 import { TernarySearchTree } from 'vs/base/common/ternarySearchTree';
 import { Schemas } from 'vs/base/common/network';
@@ -653,6 +653,37 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape, IExtHostWorkspac
 
 		return result;
 	}
+
+	private readonly _onWillCreateEditSessionIdentityEvent = new AsyncEmitter<vscode.EditSessionIdentityWillCreateEvent>();
+
+	getOnWillCreateEditSessionIdentityEvent(extension: IExtensionDescription): Event<vscode.EditSessionIdentityWillCreateEvent> {
+		return (listener, thisArg, disposables) => {
+			const wrappedListener: IExtensionListener<vscode.EditSessionIdentityWillCreateEvent> = function wrapped(e) { listener.call(thisArg, e); };
+			wrappedListener.extension = extension;
+			return this._onWillCreateEditSessionIdentityEvent.event(wrappedListener, undefined, disposables);
+		};
+	}
+
+	// main thread calls this to trigger participants
+	async $onWillCreateEditSessionIdentity(workspaceFolder: UriComponents, token: CancellationToken, timeout: number): Promise<void> {
+		const folder = await this.resolveWorkspaceFolder(URI.revive(workspaceFolder));
+
+		if (folder === undefined) {
+			throw new Error('Unable to resolve workspace folder');
+		}
+
+		await this._onWillCreateEditSessionIdentityEvent.fireAsync({ workspaceFolder: folder }, token, async (thenable: Promise<unknown>, listener) => {
+			const now = Date.now();
+			await Promise.resolve(thenable);
+			if (Date.now() - now > timeout) {
+				this._logService.warn('SLOW edit session create-participant', (<IExtensionListener<vscode.EditSessionIdentityWillCreateEvent>>listener).extension.identifier);
+			}
+		});
+
+		if (token.isCancellationRequested) {
+			return undefined;
+		}
+	}
 }
 
 export const IExtHostWorkspace = createDecorator<IExtHostWorkspace>('IExtHostWorkspace');
@@ -675,3 +706,9 @@ function parseSearchInclude(include: string | IRelativePatternDto | undefined | 
 		folder: includeFolder
 	};
 }
+
+interface IExtensionListener<E> {
+	extension: IExtensionDescription;
+	(e: E): any;
+}
+

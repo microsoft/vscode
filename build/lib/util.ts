@@ -7,13 +7,14 @@ import * as es from 'event-stream';
 import _debounce = require('debounce');
 import * as _filter from 'gulp-filter';
 import * as rename from 'gulp-rename';
-import * as _ from 'underscore';
 import * as path from 'path';
 import * as fs from 'fs';
 import * as _rimraf from 'rimraf';
 import * as VinylFile from 'vinyl';
 import { ThroughStream } from 'through';
 import * as sm from 'source-map';
+import { pathToFileURL } from 'url';
+import * as ternaryStream from 'ternary-stream';
 
 const root = path.dirname(path.dirname(__dirname));
 
@@ -252,6 +253,32 @@ export function stripSourceMappingURL(): NodeJS.ReadWriteStream {
 	return es.duplex(input, output);
 }
 
+/** Splits items in the stream based on the predicate, sending them to onTrue if true, or onFalse otherwise */
+export function $if(test: boolean | ((f: VinylFile) => boolean), onTrue: NodeJS.ReadWriteStream, onFalse: NodeJS.ReadWriteStream = es.through()) {
+	if (typeof test === 'boolean') {
+		return test ? onTrue : onFalse;
+	}
+
+	return ternaryStream(test, onTrue, onFalse);
+}
+
+/** Operator that appends the js files' original path a sourceURL, so debug locations map */
+export function appendOwnPathSourceURL(): NodeJS.ReadWriteStream {
+	const input = es.through();
+
+	const output = input
+		.pipe(es.mapSync<VinylFile, VinylFile>(f => {
+			if (!(f.contents instanceof Buffer)) {
+				throw new Error(`contents of ${f.path} are not a buffer`);
+			}
+
+			f.contents = Buffer.concat([f.contents, Buffer.from(`\n//# sourceURL=${pathToFileURL(f.path)}`)]);
+			return f;
+		}));
+
+	return es.duplex(input, output);
+}
+
 export function rewriteSourceMappingURL(sourceMappingURLBase: string): NodeJS.ReadWriteStream {
 	const input = es.through();
 
@@ -413,16 +440,22 @@ export function acquireWebNodePaths() {
 	return nodePaths;
 }
 
-export function createExternalLoaderConfig(webEndpoint?: string, commit?: string, quality?: string) {
+export interface IExternalLoaderInfo {
+	baseUrl: string;
+	paths: { [moduleId: string]: string };
+	[key: string]: any;
+}
+
+export function createExternalLoaderConfig(webEndpoint?: string, commit?: string, quality?: string): IExternalLoaderInfo | undefined {
 	if (!webEndpoint || !commit || !quality) {
 		return undefined;
 	}
 	webEndpoint = webEndpoint + `/${quality}/${commit}`;
 	const nodePaths = acquireWebNodePaths();
 	Object.keys(nodePaths).map(function (key, _) {
-		nodePaths[key] = `${webEndpoint}/node_modules/${key}/${nodePaths[key]}`;
+		nodePaths[key] = `../node_modules/${key}/${nodePaths[key]}`;
 	});
-	const externalLoaderConfig = {
+	const externalLoaderConfig: IExternalLoaderInfo = {
 		baseUrl: `${webEndpoint}/out`,
 		recordStats: true,
 		paths: nodePaths

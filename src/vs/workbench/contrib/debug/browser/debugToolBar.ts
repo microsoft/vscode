@@ -28,7 +28,8 @@ import { INotificationService } from 'vs/platform/notification/common/notificati
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { widgetBorder, widgetShadow } from 'vs/platform/theme/common/colorRegistry';
-import { IThemeService, Themable, ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { IThemeService, Themable } from 'vs/platform/theme/common/themeService';
+import { ThemeIcon } from 'vs/base/common/themables';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { FocusSessionActionViewItem } from 'vs/workbench/contrib/debug/browser/debugActionViewItems';
 import { debugToolBarBackground, debugToolBarBorder } from 'vs/workbench/contrib/debug/browser/debugColors';

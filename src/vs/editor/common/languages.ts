@@ -4,7 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { Codicon, CSSIcon } from 'vs/base/common/codicons';
+import { Codicon } from 'vs/base/common/codicons';
+import { ThemeIcon } from 'vs/base/common/themables';
 import { Color } from 'vs/base/common/color';
 import { VSDataTransfer } from 'vs/base/common/dataTransfer';
 import { Event } from 'vs/base/common/event';
@@ -18,9 +19,9 @@ import { Selection } from 'vs/editor/common/core/selection';
 import { LanguageId } from 'vs/editor/common/encodedTokenAttributes';
 import * as model from 'vs/editor/common/model';
 import { TokenizationRegistry as TokenizationRegistryImpl } from 'vs/editor/common/tokenizationRegistry';
+import { ContiguousMultilineTokens } from 'vs/editor/common/tokens/contiguousMultilineTokens';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { IMarkerData } from 'vs/platform/markers/common/markers';
-import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 
 /**
  * @internal
@@ -33,14 +34,11 @@ export interface ILanguageIdCodec {
 export class Token {
 	_tokenBrand: void = undefined;
 
-	public readonly offset: number;
-	public readonly type: string;
-	public readonly language: string;
-
-	constructor(offset: number, type: string, language: string) {
-		this.offset = offset;
-		this.type = type;
-		this.language = language;
+	constructor(
+		public readonly offset: number,
+		public readonly type: string,
+		public readonly language: string,
+	) {
 	}
 
 	public toString(): string {
@@ -54,12 +52,10 @@ export class Token {
 export class TokenizationResult {
 	_tokenizationResultBrand: void = undefined;
 
-	public readonly tokens: Token[];
-	public readonly endState: IState;
-
-	constructor(tokens: Token[], endState: IState) {
-		this.tokens = tokens;
-		this.endState = endState;
+	constructor(
+		public readonly tokens: Token[],
+		public readonly endState: IState,
+	) {
 	}
 }
 
@@ -69,20 +65,32 @@ export class TokenizationResult {
 export class EncodedTokenizationResult {
 	_encodedTokenizationResultBrand: void = undefined;
 
-	/**
-	 * The tokens in binary format. Each token occupies two array indices. For token i:
-	 *  - at offset 2*i => startIndex
-	 *  - at offset 2*i + 1 => metadata
-	 *
-	 */
-	public readonly tokens: Uint32Array;
-	public readonly endState: IState;
-
-	constructor(tokens: Uint32Array, endState: IState) {
-		this.tokens = tokens;
-		this.endState = endState;
+	constructor(
+		/**
+		 * The tokens in binary format. Each token occupies two array indices. For token i:
+		 *  - at offset 2*i => startIndex
+		 *  - at offset 2*i + 1 => metadata
+		 *
+		 */
+		public readonly tokens: Uint32Array,
+		public readonly endState: IState,
+	) {
 	}
 }
+
+/**
+ * @internal
+ */
+export interface IBackgroundTokenizer extends IDisposable {
+	/**
+	 * Instructs the background tokenizer to set the tokens for the given range again.
+	 *
+	 * This might be necessary if the renderer overwrote those tokens with heuristically computed ones for some viewport,
+	 * when the change does not even propagate to that viewport.
+	 */
+	requestTokens(startLineNumber: number, endLineNumberExclusive: number): void;
+}
+
 
 /**
  * @internal
@@ -94,6 +102,26 @@ export interface ITokenizationSupport {
 	tokenize(line: string, hasEOL: boolean, state: IState): TokenizationResult;
 
 	tokenizeEncoded(line: string, hasEOL: boolean, state: IState): EncodedTokenizationResult;
+
+	/**
+	 * Can be/return undefined if default background tokenization should be used.
+	 */
+	createBackgroundTokenizer?(textModel: model.ITextModel, store: IBackgroundTokenizationStore): IBackgroundTokenizer | undefined;
+}
+
+/**
+ * @internal
+ */
+export interface IBackgroundTokenizationStore {
+	setTokens(tokens: ContiguousMultilineTokens[]): void;
+
+	setEndState(lineNumber: number, state: IState): void;
+
+	/**
+	 * Should be called to indicate that the background tokenization has finished for now.
+	 * (This triggers bracket pair colorization to re-parse the bracket pairs with token information)
+	 */
+	backgroundTokenizationFinished(): void;
 }
 
 /**
@@ -279,7 +307,7 @@ export const enum CompletionItemKind {
  */
 export namespace CompletionItemKinds {
 
-	const byKind = new Map<CompletionItemKind, CSSIcon>();
+	const byKind = new Map<CompletionItemKind, ThemeIcon>();
 	byKind.set(CompletionItemKind.Method, Codicon.symbolMethod);
 	byKind.set(CompletionItemKind.Function, Codicon.symbolFunction);
 	byKind.set(CompletionItemKind.Constructor, Codicon.symbolConstructor);
@@ -313,7 +341,7 @@ export namespace CompletionItemKinds {
 	/**
 	 * @internal
 	 */
-	export function toIcon(kind: CompletionItemKind): CSSIcon {
+	export function toIcon(kind: CompletionItemKind): ThemeIcon {
 		let codicon = byKind.get(kind);
 		if (!codicon) {
 			console.info('No codicon found for CompletionItemKind ' + kind);
@@ -654,6 +682,11 @@ export interface InlineCompletionsProvider<T extends InlineCompletions = InlineC
 	 * Will be called when an item is shown.
 	*/
 	handleItemDidShow?(completions: T, item: T['items'][number]): void;
+
+	/**
+	 * Will be called when an item is partially accepted.
+	 */
+	handlePartialAccept?(completions: T, item: T['items'][number], acceptedCharacters: number): void;
 
 	/**
 	 * Will be called when a completions list is no longer in use and can be garbage-collected.
@@ -1066,7 +1099,7 @@ export const enum SymbolTag {
  */
 export namespace SymbolKinds {
 
-	const byKind = new Map<SymbolKind, CSSIcon>();
+	const byKind = new Map<SymbolKind, ThemeIcon>();
 	byKind.set(SymbolKind.File, Codicon.symbolFile);
 	byKind.set(SymbolKind.Module, Codicon.symbolModule);
 	byKind.set(SymbolKind.Namespace, Codicon.symbolNamespace);
@@ -1096,7 +1129,7 @@ export namespace SymbolKinds {
 	/**
 	 * @internal
 	 */
-	export function toIcon(kind: SymbolKind): CSSIcon {
+	export function toIcon(kind: SymbolKind): ThemeIcon {
 		let icon = byKind.get(kind);
 		if (!icon) {
 			console.info('No codicon found for SymbolKind ' + kind);
@@ -1390,6 +1423,20 @@ export class FoldingRangeKind {
 	static readonly Region = new FoldingRangeKind('region');
 
 	/**
+	 * Returns a {@link FoldingRangeKind} for the given value.
+	 *
+	 * @param value of the kind.
+	 */
+	static fromValue(value: string) {
+		switch (value) {
+			case 'comment': return FoldingRangeKind.Comment;
+			case 'imports': return FoldingRangeKind.Imports;
+			case 'region': return FoldingRangeKind.Region;
+		}
+		return new FoldingRangeKind(value);
+	}
+
+	/**
 	 * Creates a new {@link FoldingRangeKind}.
 	 *
 	 * @param value of the kind.
@@ -1546,7 +1593,7 @@ export interface CommentThread<T = IRange> {
 	extensionId?: string;
 	threadId: string;
 	resource: string | null;
-	range: T;
+	range: T | undefined;
 	label: string | undefined;
 	contextValue: string | undefined;
 	comments: Comment[] | undefined;
@@ -1558,7 +1605,7 @@ export interface CommentThread<T = IRange> {
 	canReply: boolean;
 	input?: CommentInput;
 	onDidChangeInput: Event<CommentInput | undefined>;
-	onDidChangeRange: Event<T>;
+	onDidChangeRange: Event<T | undefined>;
 	onDidChangeLabel: Event<string | undefined>;
 	onDidChangeCollapsibleState: Event<CommentThreadCollapsibleState | undefined>;
 	onDidChangeState: Event<CommentThreadState | undefined>;
@@ -1574,6 +1621,7 @@ export interface CommentThread<T = IRange> {
 export interface CommentingRanges {
 	readonly resource: URI;
 	ranges: IRange[];
+	fileComments: boolean;
 }
 
 /**
@@ -1613,11 +1661,19 @@ export enum CommentMode {
 /**
  * @internal
  */
+export enum CommentState {
+	Published = 0,
+	Draft = 1
+}
+
+/**
+ * @internal
+ */
 export interface Comment {
 	readonly uniqueIdInThread: number;
 	readonly body: string | IMarkdownString;
 	readonly userName: string;
-	readonly userIconPath?: string;
+	readonly userIconPath?: UriComponents;
 	readonly contextValue?: string;
 	readonly commentReactions?: CommentReaction[];
 	readonly label?: string;
@@ -1742,8 +1798,35 @@ export interface ITokenizationSupportChangedEvent {
 /**
  * @internal
  */
-export interface ITokenizationSupportFactory {
-	createTokenizationSupport(): ProviderResult<ITokenizationSupport>;
+export interface ILazyTokenizationSupport {
+	get tokenizationSupport(): Promise<ITokenizationSupport | null>;
+}
+
+/**
+ * @internal
+ */
+export class LazyTokenizationSupport implements IDisposable, ILazyTokenizationSupport {
+	private _tokenizationSupport: Promise<ITokenizationSupport & IDisposable | null> | null = null;
+
+	constructor(private readonly createSupport: () => Promise<ITokenizationSupport & IDisposable | null>) {
+	}
+
+	dispose(): void {
+		if (this._tokenizationSupport) {
+			this._tokenizationSupport.then((support) => {
+				if (support) {
+					support.dispose();
+				}
+			});
+		}
+	}
+
+	get tokenizationSupport(): Promise<ITokenizationSupport | null> {
+		if (!this._tokenizationSupport) {
+			this._tokenizationSupport = this.createSupport();
+		}
+		return this._tokenizationSupport;
+	}
 }
 
 /**
@@ -1762,7 +1845,7 @@ export interface ITokenizationRegistry {
 	 * Fire a change event for a language.
 	 * This is useful for languages that embed other languages.
 	 */
-	fire(languageIds: string[]): void;
+	handleChange(languageIds: string[]): void;
 
 	/**
 	 * Register a tokenization support.
@@ -1772,7 +1855,7 @@ export interface ITokenizationRegistry {
 	/**
 	 * Register a tokenization support factory.
 	 */
-	registerFactory(languageId: string, factory: ITokenizationSupportFactory): IDisposable;
+	registerFactory(languageId: string, factory: ILazyTokenizationSupport): IDisposable;
 
 	/**
 	 * Get or create the tokenization support for a language.

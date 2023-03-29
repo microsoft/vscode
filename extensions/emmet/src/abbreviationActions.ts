@@ -240,10 +240,10 @@ export async function wrapWithAbbreviation(args: any): Promise<boolean> {
 	}
 
 	let currentValue = '';
-	function inputChanged(value: string): string {
+	async function inputChanged(value: string): Promise<string> {
 		if (value !== currentValue) {
 			currentValue = value;
-			makeChanges(value, true);
+			await makeChanges(value, true);
 		}
 		return '';
 	}
@@ -622,26 +622,25 @@ export function isValidLocationForEmmetAbbreviation(document: vscode.TextDocumen
  *
  * @returns false if no snippet can be inserted.
  */
-function expandAbbreviationInRange(editor: vscode.TextEditor, expandAbbrList: ExpandAbbreviationInput[], insertSameSnippet: boolean): Thenable<boolean> {
+async function expandAbbreviationInRange(editor: vscode.TextEditor, expandAbbrList: ExpandAbbreviationInput[], insertSameSnippet: boolean): Promise<boolean> {
 	if (!expandAbbrList || expandAbbrList.length === 0) {
-		return Promise.resolve(false);
+		return false;
 	}
 
 	// Snippet to replace at multiple cursors are not the same
 	// `editor.insertSnippet` will have to be called for each instance separately
 	// We will not be able to maintain multiple cursors after snippet insertion
-	const insertPromises: Thenable<boolean>[] = [];
+	let insertedSnippetsCount = 0;
 	if (!insertSameSnippet) {
-		expandAbbrList.sort((a: ExpandAbbreviationInput, b: ExpandAbbreviationInput) => { return b.rangeToReplace.start.compareTo(a.rangeToReplace.start); }).forEach((expandAbbrInput: ExpandAbbreviationInput) => {
+		expandAbbrList.sort((a: ExpandAbbreviationInput, b: ExpandAbbreviationInput) => { return b.rangeToReplace.start.compareTo(a.rangeToReplace.start); });
+		for (const expandAbbrInput of expandAbbrList) {
 			const expandedText = expandAbbr(expandAbbrInput);
 			if (expandedText) {
-				insertPromises.push(editor.insertSnippet(new vscode.SnippetString(expandedText), expandAbbrInput.rangeToReplace, { undoStopBefore: false, undoStopAfter: false }));
+				await editor.insertSnippet(new vscode.SnippetString(expandedText), expandAbbrInput.rangeToReplace, { undoStopBefore: false, undoStopAfter: false });
+				insertedSnippetsCount++;
 			}
-		});
-		if (insertPromises.length === 0) {
-			return Promise.resolve(false);
 		}
-		return Promise.all(insertPromises).then(() => Promise.resolve(true));
+		return insertedSnippetsCount > 0;
 	}
 
 	// Snippet to replace at all cursors are the same
@@ -653,7 +652,7 @@ function expandAbbreviationInRange(editor: vscode.TextEditor, expandAbbrList: Ex
 	if (expandedText) {
 		return editor.insertSnippet(new vscode.SnippetString(expandedText), allRanges);
 	}
-	return Promise.resolve(false);
+	return false;
 }
 
 /**
@@ -694,7 +693,7 @@ function expandAbbr(input: ExpandAbbreviationInput): string | undefined {
 	try {
 		expandedText = helper.expandAbbreviation(input.abbreviation, expandOptions);
 	} catch (e) {
-		vscode.window.showErrorMessage('Failed to expand abbreviation');
+		void vscode.window.showErrorMessage('Failed to expand abbreviation');
 	}
 
 	return expandedText;

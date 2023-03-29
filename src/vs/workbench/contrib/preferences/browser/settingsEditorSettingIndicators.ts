@@ -17,8 +17,7 @@ import { localize } from 'vs/nls';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { ConfigurationTarget, IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
-import { getIgnoredSettings } from 'vs/platform/userDataSync/common/settingsMerge';
-import { getDefaultIgnoredSettings, IUserDataSyncEnablementService } from 'vs/platform/userDataSync/common/userDataSync';
+import { IUserDataSyncEnablementService } from 'vs/platform/userDataSync/common/userDataSync';
 import { SettingsTreeSettingElement } from 'vs/workbench/contrib/preferences/browser/settingsTreeModels';
 import { POLICY_SETTING_TAG } from 'vs/workbench/contrib/preferences/common/preferences';
 import { IHoverOptions, IHoverService, IHoverWidget } from 'vs/workbench/services/hover/browser/hover';
@@ -35,9 +34,27 @@ export interface ISettingOverrideClickEvent {
 
 interface SettingIndicator {
 	element: HTMLElement;
+	/**
+	 * The element to focus on when navigating with keyboard.
+	 * When undefined, use {@link element} instead.
+	 */
+	focusElement?: HTMLElement;
 	label: SimpleIconLabel;
 	disposables: DisposableStore;
 }
+
+/**
+ * Contains a set of the sync-ignored settings
+ * to keep the sync ignored indicator and the getIndicatorsLabelAriaLabel() function in sync.
+ * SettingsTreeIndicatorsLabel#updateSyncIgnored provides the source of truth.
+ */
+let cachedSyncIgnoredSettingsSet: Set<string> = new Set<string>();
+
+/**
+ * Contains a copy of the sync-ignored settings to determine when to update
+ * cachedSyncIgnoredSettingsSet.
+ */
+let cachedSyncIgnoredSettings: string[] = [];
 
 /**
  * Renders the indicators next to a setting, such as "Also Modified In".
@@ -52,6 +69,9 @@ export class SettingsTreeIndicatorsLabel implements IDisposable {
 	private readonly allIndicators: SettingIndicator[];
 
 	private readonly profilesEnabled: boolean;
+
+	private readonly keybindingListeners: DisposableStore = new DisposableStore();
+	private focusedIndex = 0;
 
 	constructor(
 		container: HTMLElement,
@@ -110,7 +130,6 @@ export class SettingsTreeIndicatorsLabel implements IDisposable {
 
 	private createWorkspaceTrustIndicator(): SettingIndicator {
 		const workspaceTrustElement = $('span.setting-indicator.setting-item-workspace-trust');
-		workspaceTrustElement.tabIndex = 0;
 		const workspaceTrustLabel = new SimpleIconLabel(workspaceTrustElement);
 		workspaceTrustLabel.text = '$(warning) ' + localize('workspaceUntrustedLabel', "Setting value not applied");
 
@@ -151,7 +170,6 @@ export class SettingsTreeIndicatorsLabel implements IDisposable {
 
 	private createSyncIgnoredIndicator(): SettingIndicator {
 		const syncIgnoredElement = $('span.setting-indicator.setting-item-ignored');
-		syncIgnoredElement.tabIndex = 0;
 		const syncIgnoredLabel = new SimpleIconLabel(syncIgnoredElement);
 		syncIgnoredLabel.text = localize('extensionSyncIgnoredLabel', 'Not synced');
 
@@ -175,7 +193,6 @@ export class SettingsTreeIndicatorsLabel implements IDisposable {
 
 	private createDefaultOverrideIndicator(): SettingIndicator {
 		const defaultOverrideIndicator = $('span.setting-indicator.setting-item-default-overridden');
-		defaultOverrideIndicator.tabIndex = 0;
 		const defaultOverrideLabel = new SimpleIconLabel(defaultOverrideIndicator);
 		defaultOverrideLabel.text = localize('defaultOverriddenLabel', "Default value changed");
 
@@ -202,7 +219,56 @@ export class SettingsTreeIndicatorsLabel implements IDisposable {
 			}
 			DOM.append(this.indicatorsContainerElement, indicatorsToShow[indicatorsToShow.length - 1].element);
 			DOM.append(this.indicatorsContainerElement, $('span', undefined, ')'));
+			this.resetIndicatorNavigationKeyBindings(indicatorsToShow);
 		}
+	}
+
+	private resetIndicatorNavigationKeyBindings(indicators: SettingIndicator[]) {
+		this.keybindingListeners.clear();
+		this.indicatorsContainerElement.role = indicators.length >= 1 ? 'toolbar' : 'button';
+		if (!indicators.length) {
+			return;
+		}
+		const firstElement = indicators[0].focusElement ?? indicators[0].element;
+		firstElement.tabIndex = 0;
+		this.keybindingListeners.add(DOM.addDisposableListener(this.indicatorsContainerElement, 'keydown', (e) => {
+			const ev = new StandardKeyboardEvent(e);
+			let handled = true;
+			if (ev.equals(KeyCode.Home)) {
+				this.focusIndicatorAt(indicators, 0);
+			} else if (ev.equals(KeyCode.End)) {
+				this.focusIndicatorAt(indicators, indicators.length - 1);
+			} else if (ev.equals(KeyCode.RightArrow)) {
+				const indexToFocus = (this.focusedIndex + 1) % indicators.length;
+				this.focusIndicatorAt(indicators, indexToFocus);
+			} else if (ev.equals(KeyCode.LeftArrow)) {
+				const indexToFocus = this.focusedIndex ? this.focusedIndex - 1 : indicators.length - 1;
+				this.focusIndicatorAt(indicators, indexToFocus);
+			} else {
+				handled = false;
+			}
+
+			if (handled) {
+				e.preventDefault();
+				e.stopPropagation();
+			}
+		}));
+	}
+
+	private focusIndicatorAt(indicators: SettingIndicator[], index: number) {
+		if (index === this.focusedIndex) {
+			return;
+		}
+		const indicator = indicators[index];
+		const elementToFocus = indicator.focusElement ?? indicator.element;
+		elementToFocus.tabIndex = 0;
+		elementToFocus.focus();
+
+		const currentlyFocusedIndicator = indicators[this.focusedIndex];
+		const previousFocusedElement = currentlyFocusedIndicator.focusElement ?? currentlyFocusedIndicator.element;
+		previousFocusedElement.tabIndex = -1;
+
+		this.focusedIndex = index;
 	}
 
 	updateWorkspaceTrust(element: SettingsTreeSettingElement) {
@@ -214,6 +280,10 @@ export class SettingsTreeIndicatorsLabel implements IDisposable {
 		this.syncIgnoredIndicator.element.style.display = this.userDataSyncEnablementService.isEnabled()
 			&& ignoredSettings.includes(element.setting.key) ? 'inline' : 'none';
 		this.render();
+		if (cachedSyncIgnoredSettings !== ignoredSettings) {
+			cachedSyncIgnoredSettings = ignoredSettings;
+			cachedSyncIgnoredSettingsSet = new Set<string>(cachedSyncIgnoredSettings);
+		}
 	}
 
 	private getInlineScopeDisplayText(completeScope: string): string {
@@ -228,9 +298,8 @@ export class SettingsTreeIndicatorsLabel implements IDisposable {
 	}
 
 	dispose() {
-		const indicators = [this.workspaceTrustIndicator, this.scopeOverridesIndicator,
-		this.syncIgnoredIndicator, this.defaultOverrideIndicator];
-		for (const indicator of indicators) {
+		this.keybindingListeners.dispose();
+		for (const indicator of this.allIndicators) {
 			indicator.disposables.dispose();
 		}
 	}
@@ -238,7 +307,7 @@ export class SettingsTreeIndicatorsLabel implements IDisposable {
 	updateScopeOverrides(element: SettingsTreeSettingElement, onDidClickOverrideElement: Emitter<ISettingOverrideClickEvent>, onApplyFilter: Emitter<string>) {
 		this.scopeOverridesIndicator.element.innerText = '';
 		this.scopeOverridesIndicator.element.style.display = 'none';
-		this.scopeOverridesIndicator.element.tabIndex = 0;
+		this.scopeOverridesIndicator.focusElement = this.scopeOverridesIndicator.element;
 		if (element.hasPolicyValue) {
 			// If the setting falls under a policy, then no matter what the user sets, the policy value takes effect.
 			this.scopeOverridesIndicator.element.style.display = 'inline';
@@ -286,7 +355,6 @@ export class SettingsTreeIndicatorsLabel implements IDisposable {
 				// just to click into the one override there is.
 				this.scopeOverridesIndicator.element.style.display = 'inline';
 				this.scopeOverridesIndicator.element.classList.remove('setting-indicator');
-				this.scopeOverridesIndicator.element.removeAttribute('tabIndex');
 				this.scopeOverridesIndicator.disposables.clear();
 
 				const prefaceText = element.isConfigured ?
@@ -296,6 +364,8 @@ export class SettingsTreeIndicatorsLabel implements IDisposable {
 
 				const overriddenScope = element.overriddenScopeList[0];
 				const view = DOM.append(this.scopeOverridesIndicator.element, $('a.modified-scope', undefined, this.getInlineScopeDisplayText(overriddenScope)));
+				view.tabIndex = -1;
+				this.scopeOverridesIndicator.focusElement = view;
 				const onClickOrKeydown = (e: UIEvent) => {
 					const [scope, language] = overriddenScope.split(':');
 					onDidClickOverrideElement.fire({
@@ -455,8 +525,7 @@ export function getIndicatorsLabelAriaLabel(element: SettingsTreeSettingElement,
 	}
 
 	// Add sync ignored text
-	const ignoredSettings = getIgnoredSettings(getDefaultIgnoredSettings(), configurationService);
-	if (ignoredSettings.includes(element.setting.key)) {
+	if (cachedSyncIgnoredSettingsSet.has(element.setting.key)) {
 		ariaLabelSections.push(localize('syncIgnoredAriaLabel', "Setting ignored during sync"));
 	}
 

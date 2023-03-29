@@ -8,7 +8,6 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { escapeMarkdownSyntaxTokens } from 'vs/base/common/htmlContent';
 import { KeybindingParser } from 'vs/base/common/keybindingParser';
-import { OS } from 'vs/base/common/platform';
 import { escape } from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
 import { generateUuid } from 'vs/base/common/uuid';
@@ -59,7 +58,7 @@ export class ReleaseNotesManager {
 			}
 			const html = await this.renderBody(this._lastText);
 			if (this._currentReleaseNotes) {
-				this._currentReleaseNotes.webview.html = html;
+				this._currentReleaseNotes.webview.setHtml(html);
 			}
 		});
 
@@ -76,11 +75,12 @@ export class ReleaseNotesManager {
 		const activeEditorPane = this._editorService.activeEditorPane;
 		if (this._currentReleaseNotes) {
 			this._currentReleaseNotes.setName(title);
-			this._currentReleaseNotes.webview.html = html;
+			this._currentReleaseNotes.webview.setHtml(html);
 			this._webviewWorkbenchService.revealWebview(this._currentReleaseNotes, activeEditorPane ? activeEditorPane.group : this._editorGroupService.activeGroup, false);
 		} else {
 			this._currentReleaseNotes = this._webviewWorkbenchService.openWebview(
 				{
+					title,
 					options: {
 						tryRestoreScrollPosition: true,
 						enableFindWidget: true,
@@ -109,7 +109,7 @@ export class ReleaseNotesManager {
 				this._currentReleaseNotes = undefined;
 			}));
 
-			this._currentReleaseNotes.webview.html = html;
+			this._currentReleaseNotes.webview.setHtml(html);
 		}
 
 		return true;
@@ -142,7 +142,7 @@ export class ReleaseNotesManager {
 			};
 
 			const kbstyle = (match: string, kb: string) => {
-				const keybinding = KeybindingParser.parseKeybinding(kb, OS);
+				const keybinding = KeybindingParser.parseKeybinding(kb);
 
 				if (!keybinding) {
 					return unassigned;

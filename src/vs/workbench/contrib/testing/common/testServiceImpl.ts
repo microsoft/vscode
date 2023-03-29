@@ -133,7 +133,7 @@ export class TestService extends Disposable implements ITestService {
 		const resolved: ResolvedTestRunRequest = {
 			targets: [],
 			exclude: req.exclude?.map(t => t.item.extId),
-			isAutoRun: req.isAutoRun,
+			continuous: req.continuous,
 		};
 
 		// First, try to run the tests using the default run profiles...
@@ -176,6 +176,41 @@ export class TestService extends Disposable implements ITestService {
 		}
 
 		return this.runResolvedTests(resolved, token);
+	}
+
+	/** @inheritdoc */
+	public async startContinuousRun(req: ResolvedTestRunRequest, token: CancellationToken) {
+		if (!req.exclude) {
+			req.exclude = [...this.excluded.all];
+		}
+
+		const trust = await this.workspaceTrustRequestService.requestWorkspaceTrust({
+			message: localize('testTrust', "Running tests may execute code in your workspace."),
+		});
+
+		if (!trust) {
+			return;
+		}
+
+		const byController = groupBy(req.targets, (a, b) => a.controllerId.localeCompare(b.controllerId));
+		const requests = byController.map(
+			group => this.testControllers.get(group[0].controllerId)?.startContinuousRun(
+				group.map(controlReq => ({
+					excludeExtIds: req.exclude!.filter(t => !controlReq.testIds.includes(t)),
+					profileId: controlReq.profileId,
+					controllerId: controlReq.controllerId,
+					testIds: controlReq.testIds,
+				})),
+				token,
+			).then(result => {
+				const errs = result.map(r => r.error).filter(isDefined);
+				if (errs.length) {
+					this.notificationService.error(localize('testError', 'An error occurred attempting to run tests: {0}', errs.join(' ')));
+				}
+			})
+		);
+
+		await Promise.all(requests);
 	}
 
 	/**

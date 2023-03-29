@@ -24,7 +24,6 @@ const buffer = require('gulp-buffer');
 import * as jsoncParser from 'jsonc-parser';
 import webpack = require('webpack');
 import { getProductionDependencies } from './dependencies';
-import _ = require('underscore');
 import { getExtensionStream } from './builtInExtensions';
 import { getVersion } from './getVersion';
 
@@ -87,6 +86,9 @@ function fromLocal(extensionPath: string, forWeb: boolean): Stream {
 
 
 function fromLocalWebpack(extensionPath: string, webpackConfigFileName: string): Stream {
+	const vsce = require('@vscode/vsce') as typeof import('@vscode/vsce');
+	const webpack = require('webpack');
+	const webpackGulp = require('webpack-stream');
 	const result = es.through();
 
 	const packagedDependencies: string[] = [];
@@ -99,10 +101,6 @@ function fromLocalWebpack(extensionPath: string, webpackConfigFileName: string):
 			}
 		}
 	}
-
-	const vsce = require('vsce') as typeof import('vsce');
-	const webpack = require('webpack');
-	const webpackGulp = require('webpack-stream');
 
 	vsce.listFiles({ cwd: extensionPath, packageManager: vsce.PackageManager.Yarn, packagedDependencies }).then(fileNames => {
 		const files = fileNames
@@ -183,9 +181,8 @@ function fromLocalWebpack(extensionPath: string, webpackConfigFileName: string):
 }
 
 function fromLocalNormal(extensionPath: string): Stream {
+	const vsce = require('@vscode/vsce') as typeof import('@vscode/vsce');
 	const result = es.through();
-
-	const vsce = require('vsce') as typeof import('vsce');
 
 	vsce.listFiles({ cwd: extensionPath, packageManager: vsce.PackageManager.Yarn })
 		.then(fileNames => {
@@ -375,7 +372,7 @@ export function packageLocalExtensionsStream(forWeb: boolean): Stream {
 	} else {
 		// also include shared production node modules
 		const productionDependencies = getProductionDependencies('extensions/');
-		const dependenciesSrc = _.flatten(productionDependencies.map(d => path.relative(root, d.path)).map(d => [`${d}/**`, `!${d}/**/{test,tests}/**`]));
+		const dependenciesSrc = productionDependencies.map(d => path.relative(root, d.path)).map(d => [`${d}/**`, `!${d}/**/{test,tests}/**`]).flat();
 
 		result = es.merge(
 			localExtensionsStream,
@@ -419,7 +416,6 @@ export interface IScannedBuiltinExtension {
 	extensionPath: string;
 	packageJSON: any;
 	packageNLS?: any;
-	browserNlsMetadataPath?: string;
 	readmePath?: string;
 	changelogPath?: string;
 }
@@ -444,13 +440,6 @@ export function scanBuiltinExtensions(extensionsRoot: string, exclude: string[] 
 			const children = fs.readdirSync(path.join(extensionsRoot, extensionFolder));
 			const packageNLSPath = children.filter(child => child === 'package.nls.json')[0];
 			const packageNLS = packageNLSPath ? JSON.parse(fs.readFileSync(path.join(extensionsRoot, extensionFolder, packageNLSPath)).toString()) : undefined;
-			let browserNlsMetadataPath: string | undefined;
-			if (packageJSON.browser) {
-				const browserEntrypointFolderPath = path.join(extensionFolder, path.dirname(packageJSON.browser));
-				if (fs.existsSync(path.join(extensionsRoot, browserEntrypointFolderPath, 'nls.metadata.json'))) {
-					browserNlsMetadataPath = path.join(browserEntrypointFolderPath, 'nls.metadata.json');
-				}
-			}
 			const readme = children.filter(child => /^readme(\.txt|\.md|)$/i.test(child))[0];
 			const changelog = children.filter(child => /^changelog(\.txt|\.md|)$/i.test(child))[0];
 
@@ -458,7 +447,6 @@ export function scanBuiltinExtensions(extensionsRoot: string, exclude: string[] 
 				extensionPath: extensionFolder,
 				packageJSON,
 				packageNLS,
-				browserNlsMetadataPath,
 				readmePath: readme ? path.join(extensionFolder, readme) : undefined,
 				changelogPath: changelog ? path.join(extensionFolder, changelog) : undefined,
 			});

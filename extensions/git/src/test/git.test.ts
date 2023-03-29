@@ -213,18 +213,6 @@ suite('git', () => {
 			]);
 		});
 
-		test('single remote (read-only)', () => {
-			const sample = `[remote "origin"]
-	url = https://github.com/microsoft/vscode.git
-	fetch = +refs/heads/*:refs/remotes/origin/*
-	pushurl = no_push
-`;
-
-			assert.deepStrictEqual(parseGitRemotes(sample), [
-				{ name: 'origin', fetchUrl: 'https://github.com/microsoft/vscode.git', pushUrl: 'no_push', isReadOnly: true }
-			]);
-		});
-
 		test('single remote (multiple urls)', () => {
 			const sample = `[remote "origin"]
 	url = https://github.com/microsoft/vscode.git

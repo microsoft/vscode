@@ -16,7 +16,7 @@ import { joinPath } from 'vs/base/common/resources';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import { IEditorGroupsService, IEditorGroup, GroupsOrder, IEditorReplacement, isEditorReplacement, ICloseEditorOptions } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IUntypedEditorReplacement, IEditorService, ISaveEditorsOptions, ISaveAllEditorsOptions, IRevertAllEditorsOptions, IBaseSaveRevertAllEditorOptions, IOpenEditorsOptions, PreferredGroup, isPreferredGroup, IEditorsChangeEvent } from 'vs/workbench/services/editor/common/editorService';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IConfigurationChangeEvent, IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { Disposable, IDisposable, dispose, DisposableStore } from 'vs/base/common/lifecycle';
 import { coalesce, distinct } from 'vs/base/common/arrays';
 import { isCodeEditor, isDiffEditor, ICodeEditor, IDiffEditor, isCompositeEditor } from 'vs/editor/browser/editorBrowser';
@@ -74,7 +74,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 	) {
 		super();
 
-		this.onConfigurationUpdated(configurationService.getValue<IWorkbenchEditorConfiguration>());
+		this.onConfigurationUpdated();
 
 		this.registerListeners();
 	}
@@ -99,7 +99,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 		this._register(this.fileService.onDidFilesChange(e => this.onDidFilesChange(e)));
 
 		// Configuration
-		this._register(this.configurationService.onDidChangeConfiguration(e => this.onConfigurationUpdated(this.configurationService.getValue<IWorkbenchEditorConfiguration>())));
+		this._register(this.configurationService.onDidChangeConfiguration(e => this.onConfigurationUpdated(e)));
 	}
 
 	//#region Editor & group event handlers
@@ -295,7 +295,12 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 
 	private closeOnFileDelete: boolean = false;
 
-	private onConfigurationUpdated(configuration: IWorkbenchEditorConfiguration): void {
+	private onConfigurationUpdated(e?: IConfigurationChangeEvent): void {
+		if (e && !e.affectsConfiguration('workbench.editor.closeOnFileDelete')) {
+			return;
+		}
+
+		const configuration = this.configurationService.getValue<IWorkbenchEditorConfiguration>();
 		if (typeof configuration.workbench?.editor?.closeOnFileDelete === 'boolean') {
 			this.closeOnFileDelete = configuration.workbench.editor.closeOnFileDelete;
 		} else {

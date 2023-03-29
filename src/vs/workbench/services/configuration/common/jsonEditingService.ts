@@ -51,7 +51,7 @@ export class JSONEditingService implements IJSONEditingService {
 		let hasEdits: boolean = false;
 		for (const value of values) {
 			const edit = this.getEdits(model, value)[0];
-			hasEdits = this.applyEditsToBuffer(edit, model);
+			hasEdits = !!edit && this.applyEditsToBuffer(edit, model);
 		}
 		if (hasEdits) {
 			return this.textFileService.save(model.uri);

@@ -22,7 +22,6 @@ import { ExtensionState, IExtension, IExtensionsWorkbenchService, IWorkspaceReco
 import { Query } from 'vs/workbench/contrib/extensions/common/extensionQuery';
 import { IExtensionService, toExtension } from 'vs/workbench/services/extensions/common/extensions';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { attachBadgeStyler } from 'vs/platform/theme/common/styler';
 import { IViewletViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { CountBadge } from 'vs/base/browser/ui/countBadge/countBadge';
@@ -38,10 +37,10 @@ import { alert } from 'vs/base/browser/ui/aria/aria';
 import { IListContextMenuEvent } from 'vs/base/browser/ui/list/list';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IAction, Action, Separator, ActionRunner } from 'vs/base/common/actions';
-import { ExtensionIdentifier, ExtensionUntrustedWorkspaceSupportType, ExtensionVirtualWorkspaceSupportType, IExtensionDescription, isLanguagePackExtension } from 'vs/platform/extensions/common/extensions';
+import { ExtensionIdentifierMap, ExtensionUntrustedWorkspaceSupportType, ExtensionVirtualWorkspaceSupportType, IExtensionDescription, isLanguagePackExtension } from 'vs/platform/extensions/common/extensions';
 import { CancelablePromise, createCancelablePromise, ThrottledDelayer } from 'vs/base/common/async';
 import { IProductService } from 'vs/platform/product/common/productService';
-import { SeverityIcon } from 'vs/platform/severityIcon/common/severityIcon';
+import { SeverityIcon } from 'vs/platform/severityIcon/browser/severityIcon';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
 import { IViewDescriptorService } from 'vs/workbench/common/views';
@@ -56,6 +55,7 @@ import { IWorkbenchLayoutService, Position } from 'vs/workbench/services/layout/
 import { HoverPosition } from 'vs/base/browser/ui/hover/hoverWidget';
 import { ILogService } from 'vs/platform/log/common/log';
 import { isOfflineError } from 'vs/base/parts/request/common/request';
+import { defaultCountBadgeStyles } from 'vs/platform/theme/browser/defaultStyles';
 
 // Extensions that are automatically classified as Programming Language extensions, but should be Feature extensions
 const FORCE_FEATURE_EXTENSIONS = ['vscode.git', 'vscode.git-base', 'vscode.search-result'];
@@ -170,8 +170,7 @@ export class ExtensionsListView extends ViewPane {
 		super.renderHeader(container);
 
 		if (!this.options.hideBadge) {
-			this.badge = new CountBadge(append(container, $('.count-badge-wrapper')));
-			this._register(attachBadgeStyler(this.badge, this.themeService));
+			this.badge = new CountBadge(append(container, $('.count-badge-wrapper')), {}, defaultCountBadgeStyles);
 		}
 	}
 
@@ -194,7 +193,7 @@ export class ExtensionsListView extends ViewPane {
 					if (!extension) {
 						return '';
 					}
-					const publisher = localize('extension.arialabel.publihser', "Publisher {0}", extension.publisherDisplayName);
+					const publisher = extension.publisherDomain?.verified ? localize('extension.arialabel.verifiedPublihser', "Verified Publisher {0}", extension.publisherDisplayName) : localize('extension.arialabel.publihser', "Publisher {0}", extension.publisherDisplayName);
 					const deprecated = extension?.deprecationInfo ? localize('extension.arialabel.deprecated', "Deprecated") : '';
 					return `${extension.displayName}, ${deprecated ? `${deprecated}, ` : ''}${extension.version}, ${publisher}, ${extension.description}`;
 				},
@@ -222,6 +221,10 @@ export class ExtensionsListView extends ViewPane {
 			messageContainer,
 			messageSeverityIcon
 		};
+
+		if (this.queryResult) {
+			this.setModel(this.queryResult.model);
+		}
 	}
 
 	protected override layoutBody(height: number, width: number): void {
@@ -285,7 +288,7 @@ export class ExtensionsListView extends ViewPane {
 	}
 
 	count(): number {
-		return this.list ? this.list.length : 0;
+		return this.queryResult?.model.length ?? 0;
 	}
 
 	protected showEmptyModel(): Promise<IPagedModel<IExtension>> {
@@ -474,12 +477,12 @@ export class ExtensionsListView extends ViewPane {
 			return this.sortExtensions(themesExtensions, options);
 		}
 
-		const isLangaugeBasicExtension = (e: IExtension): boolean => {
+		const isLanguageBasicExtension = (e: IExtension): boolean => {
 			return FORCE_FEATURE_EXTENSIONS.indexOf(e.identifier.id) === -1
 				&& (Array.isArray(e.local?.manifest?.contributes?.grammars) && e.local!.manifest!.contributes!.grammars.length > 0);
 		};
 		if (showBasicsOnly) {
-			const basics = result.filter(isLangaugeBasicExtension);
+			const basics = result.filter(isLanguageBasicExtension);
 			return this.sortExtensions(basics, options);
 		}
 		if (showFeaturesOnly) {
@@ -487,7 +490,7 @@ export class ExtensionsListView extends ViewPane {
 				return e.local
 					&& e.local.manifest
 					&& !isThemeExtension(e)
-					&& !isLangaugeBasicExtension(e);
+					&& !isLanguageBasicExtension(e);
 			});
 			return this.sortExtensions(others, options);
 		}
@@ -521,12 +524,12 @@ export class ExtensionsListView extends ViewPane {
 			result = this.sortExtensions(result, options);
 		} else {
 			result = local.filter(e => (!e.isBuiltin || e.outdated || e.reloadRequiredStatus !== undefined) && matchingText(e));
-			const runningExtensionsById = runningExtensions.reduce((result, e) => { result.set(ExtensionIdentifier.toKey(e.identifier.value), e); return result; }, new Map<string, IExtensionDescription>());
+			const runningExtensionsById = runningExtensions.reduce((result, e) => { result.set(e.identifier.value, e); return result; }, new ExtensionIdentifierMap<IExtensionDescription>());
 
 			const defaultSort = (e1: IExtension, e2: IExtension) => {
-				const running1 = runningExtensionsById.get(ExtensionIdentifier.toKey(e1.identifier.id));
+				const running1 = runningExtensionsById.get(e1.identifier.id);
 				const isE1Running = !!running1 && this.extensionManagementServerService.getExtensionManagementServer(toExtension(running1)) === e1.server;
-				const running2 = runningExtensionsById.get(ExtensionIdentifier.toKey(e2.identifier.id));
+				const running2 = runningExtensionsById.get(e2.identifier.id);
 				const isE2Running = running2 && this.extensionManagementServerService.getExtensionManagementServer(toExtension(running2)) === e2.server;
 				if ((isE1Running && isE2Running)) {
 					return e1.displayName.localeCompare(e2.displayName);
@@ -552,7 +555,7 @@ export class ExtensionsListView extends ViewPane {
 			const reloadRequired: IExtension[] = [];
 			const noActionRequired: IExtension[] = [];
 			result.forEach(e => {
-				if (e.outdated && !this.extensionsWorkbenchService.isExtensionIgnoresUpdates(e)) {
+				if (e.outdated && !e.pinned) {
 					outdated.push(e);
 				}
 				else if (e.reloadRequiredStatus) {
@@ -837,6 +840,7 @@ export class ExtensionsListView extends ViewPane {
 			|| ExtensionsListView.isKeymapsRecommendedExtensionsQuery(query.value)
 			|| ExtensionsListView.isLanguageRecommendedExtensionsQuery(query.value)
 			|| ExtensionsListView.isExeRecommendedExtensionsQuery(query.value)
+			|| ExtensionsListView.isRemoteRecommendedExtensionsQuery(query.value)
 			|| /@recommended:all/i.test(query.value)
 			|| ExtensionsListView.isSearchRecommendedExtensionsQuery(query.value)
 			|| ExtensionsListView.isRecommendedExtensionsQuery(query.value);
@@ -861,6 +865,11 @@ export class ExtensionsListView extends ViewPane {
 		// Exe recommendations
 		if (ExtensionsListView.isExeRecommendedExtensionsQuery(query.value)) {
 			return this.getExeRecommendationsModel(query, options, token);
+		}
+
+		// Remote recommendations
+		if (ExtensionsListView.isRemoteRecommendedExtensionsQuery(query.value)) {
+			return this.getRemoteRecommendationsModel(query, options, token);
 		}
 
 		// All recommendations
@@ -929,6 +938,14 @@ export class ExtensionsListView extends ViewPane {
 		return new PagedModel(installableRecommendations);
 	}
 
+	private async getRemoteRecommendationsModel(query: Query, options: IQueryOptions, token: CancellationToken): Promise<IPagedModel<IExtension>> {
+		const value = query.value.replace(/@recommended:remotes/g, '').trim().toLowerCase();
+		const recommendations = this.extensionRecommendationsService.getRemoteRecommendations();
+		const installableRecommendations = (await this.getInstallableRecommendations(recommendations, { ...options, source: 'recommendations-remotes' }, token))
+			.filter(extension => extension.identifier.id.toLowerCase().indexOf(value) > -1);
+		return new PagedModel(installableRecommendations);
+	}
+
 	private async getExeRecommendationsModel(query: Query, options: IQueryOptions, token: CancellationToken): Promise<IPagedModel<IExtension>> {
 		const exe = query.value.replace(/@exe:/g, '').trim().toLowerCase();
 		const { important, others } = await this.extensionRecommendationsService.getExeBasedRecommendations(exe.startsWith('"') ? exe.substring(1, exe.length - 1) : exe);
@@ -987,21 +1004,35 @@ export class ExtensionsListView extends ViewPane {
 		return new PagedModel(this.sortExtensions(result, options));
 	}
 
-	private setModel(model: IPagedModel<IExtension>, error?: any) {
+	private setModel(model: IPagedModel<IExtension>, error?: any, donotResetScrollTop?: boolean) {
 		if (this.list) {
 			this.list.model = new DelayedPagedModel(model);
-			this.list.scrollTop = 0;
+			if (!donotResetScrollTop) {
+				this.list.scrollTop = 0;
+			}
 			this.updateBody(error);
+		}
+		if (this.badge) {
+			this.badge.setCount(this.count());
+		}
+	}
+
+	private updateModel(model: IPagedModel<IExtension>) {
+		if (this.list) {
+			this.list.model = new DelayedPagedModel(model);
+			this.updateBody();
+		}
+		if (this.badge) {
+			this.badge.setCount(this.count());
 		}
 	}
 
 	private updateBody(error?: any): void {
-		const count = this.count();
-		if (this.bodyTemplate && this.badge) {
+		if (this.bodyTemplate) {
 
+			const count = this.count();
 			this.bodyTemplate.extensionsList.classList.toggle('hidden', count === 0);
 			this.bodyTemplate.messageContainer.classList.toggle('hidden', count > 0);
-			this.badge.setCount(count);
 
 			if (count === 0 && this.isBodyVisible()) {
 				if (error) {
@@ -1019,6 +1050,7 @@ export class ExtensionsListView extends ViewPane {
 				alert(this.bodyTemplate.messageBox.textContent);
 			}
 		}
+
 		this.updateSize();
 	}
 
@@ -1026,13 +1058,6 @@ export class ExtensionsListView extends ViewPane {
 		if (this.options.flexibleHeight) {
 			this.maximumBodySize = this.list?.model.length ? Number.POSITIVE_INFINITY : 0;
 			this.storageService.store(`${this.id}.size`, this.list?.model.length || 0, StorageScope.PROFILE, StorageTarget.MACHINE);
-		}
-	}
-
-	private updateModel(model: IPagedModel<IExtension>) {
-		if (this.list) {
-			this.list.model = new DelayedPagedModel(model);
-			this.updateBody();
 		}
 	}
 
@@ -1151,6 +1176,10 @@ export class ExtensionsListView extends ViewPane {
 
 	static isExeRecommendedExtensionsQuery(query: string): boolean {
 		return /@exe:.+/i.test(query);
+	}
+
+	static isRemoteRecommendedExtensionsQuery(query: string): boolean {
+		return /@recommended:remotes/i.test(query);
 	}
 
 	static isKeymapsRecommendedExtensionsQuery(query: string): boolean {

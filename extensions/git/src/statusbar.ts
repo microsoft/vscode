@@ -4,10 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable, Command, EventEmitter, Event, workspace, Uri, l10n } from 'vscode';
-import { Repository, OperationKind, CheckoutOperation } from './repository';
+import { Repository } from './repository';
 import { anyEvent, dispose, filterEvent } from './util';
 import { Branch, RefType, RemoteSourcePublisher } from './api/git';
 import { IRemoteSourcePublisherRegistry } from './remotePublisher';
+import { CheckoutOperation, CheckoutTrackingOperation, OperationKind } from './operation';
 
 interface CheckoutStatusBarState {
 	readonly isCheckoutRunning: boolean;
@@ -42,7 +43,7 @@ class CheckoutStatusBar {
 	get command(): Command | undefined {
 		const operationData = [
 			...this.repository.operations.getOperations(OperationKind.Checkout) as CheckoutOperation[],
-			...this.repository.operations.getOperations(OperationKind.CheckoutTracking) as CheckoutOperation[]
+			...this.repository.operations.getOperations(OperationKind.CheckoutTracking) as CheckoutTrackingOperation[]
 		];
 
 		const rebasing = !!this.repository.rebaseCommit;
@@ -68,12 +69,12 @@ class CheckoutStatusBar {
 		}
 
 		// Branch
-		if (this.repository.HEAD?.name) {
+		if (this.repository.HEAD.type === RefType.Head && this.repository.HEAD.name) {
 			return this.repository.isBranchProtected() ? '$(lock)' : '$(git-branch)';
 		}
 
 		// Tag
-		if (this.repository.HEAD?.commit && this.repository.refs.filter(iref => iref.type === RefType.Tag && iref.commit === this.repository.HEAD!.commit).length) {
+		if (this.repository.HEAD.type === RefType.Tag) {
 			return '$(tag)';
 		}
 
