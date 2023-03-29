@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { strictEqual } from 'assert';
+import { timeout } from 'vs/base/common/async';
 import { Emitter } from 'vs/base/common/event';
 import { isWindows } from 'vs/base/common/platform';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
@@ -39,9 +40,6 @@ import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecy
 import { TestLifecycleService } from 'vs/workbench/test/browser/workbenchTestServices';
 import { TestStorageService } from 'vs/workbench/test/common/workbenchTestServices';
 import { Terminal } from 'xterm';
-class TestXtermTerminal extends XtermTerminal {
-
-}
 
 class TestAccessibleBufferWidget extends AccessibleBufferWidget {
 	public override get lines(): string[] {
@@ -65,7 +63,7 @@ suite('Accessible buffer', () => {
 	let configurationService: TestConfigurationService;
 	let themeService: TestThemeService;
 	let viewDescriptorService: TestViewDescriptorService;
-	let xterm: TestXtermTerminal;
+	let xterm: XtermTerminal;
 	let capabilities: TerminalCapabilityStore;
 	let configHelper: TerminalConfigHelper;
 	let terminalInstance: Pick<ITerminalInstance, 'capabilities' | 'onDidRequestFocus' | 'resource'>;
@@ -97,26 +95,35 @@ suite('Accessible buffer', () => {
 		instantiationService.stub(ILifecycleService, new TestLifecycleService());
 		instantiationService.stub(ICodeEditorService, new TestCodeEditorService(themeService));
 		configHelper = instantiationService.createInstance(TerminalConfigHelper);
-		xterm = instantiationService.createInstance(TestXtermTerminal, Terminal, configHelper, 80, 30, { getBackgroundColor: () => undefined }, new TerminalCapabilityStore(), new MockContextKeyService().createKey('', true)!, true);
-		const container = document.createElement('div');
-		xterm.raw.open(container);
-		configurationService = new TestConfigurationService({ terminal: { integrated: { tabs: { separator: ' - ', title: '${cwd}', description: '${cwd}' } } } });
-		configHelper = new TerminalConfigHelper(configurationService, null!, null!, null!, null!);
 		capabilities = new TerminalCapabilityStore();
 		if (!isWindows) {
 			capabilities.add(TerminalCapability.NaiveCwdDetection, null!);
 		}
+		xterm = instantiationService.createInstance(XtermTerminal, Terminal, configHelper, 80, 30, { getBackgroundColor: () => undefined }, capabilities, new MockContextKeyService().createKey('', true)!, true);
+		const container = document.createElement('div');
+		xterm.raw.open(container);
+		configurationService = new TestConfigurationService({ terminal: { integrated: { tabs: { separator: ' - ', title: '${cwd}', description: '${cwd}' } } } });
+		configHelper = new TerminalConfigHelper(configurationService, null!, null!, null!, null!);
 		terminalInstance = { capabilities, onDidRequestFocus: new Emitter<void>().event, resource: getTerminalUri('workspaceID', 2, 'title') };
 		accessibleBufferWidget = instantiationService.createInstance(TestAccessibleBufferWidget, terminalInstance, xterm);
 	});
-	test.skip('should clear cached lines', () => {
+	test('should clear cached lines', async () => {
 		accessibleBufferWidget.show();
-		strictEqual(accessibleBufferWidget.lines.length, 1);
-		xterm._writeText('abcd'.repeat(1000));
-		xterm._writeText('b'.repeat(80));
-		strictEqual(accessibleBufferWidget.lines.length, 2);
+		strictEqual(accessibleBufferWidget.lines.length, 0);
+		await writeP(xterm.raw, 'abcd\n'.repeat(10));
 		xterm.clearBuffer();
-		accessibleBufferWidget.show();
-		strictEqual(accessibleBufferWidget.lines.length, 1);
+		await accessibleBufferWidget.show();
+		strictEqual(accessibleBufferWidget.lines.length, 0);
 	});
 });
+
+async function writeP(terminal: Terminal, data: string): Promise<void> {
+	return new Promise<void>((resolve, reject) => {
+		const failTimeout = timeout(2000);
+		failTimeout.then(() => reject('Writing to xterm is taking longer than 2 seconds'));
+		terminal.write(data, () => {
+			failTimeout.cancel();
+			resolve();
+		});
+	});
+}

@@ -298,9 +298,12 @@ export class AccessibleBufferWidget extends DisposableStore {
 			const isWrapped = buffer.getLine(i + 1)?.isWrapped;
 			currentLine += line.translateToString(!isWrapped);
 			if (currentLine && !isWrapped || i === (buffer.baseY + this._xterm.raw.rows - 1)) {
-				this._lines.push(currentLine.replace(new RegExp(' ', 'g'), '\xA0'));
-				linesInViewport++;
-				currentLine = '';
+				const line = currentLine.replace(new RegExp(' ', 'g'), '\xA0');
+				if (line.length) {
+					this._lines.push(line);
+					linesInViewport++;
+					currentLine = '';
+				}
 			}
 		}
 		this._lastLinesInViewport = linesInViewport;
