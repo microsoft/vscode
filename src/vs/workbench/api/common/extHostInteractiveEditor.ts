@@ -116,7 +116,6 @@ export class ExtHostInteractiveEditor implements ExtHostInteractiveEditorShape {
 			const stub: Partial<IInteractiveEditorResponseDto> = {
 				wholeRange: typeConvert.Range.from(res.wholeRange),
 				placeholder: res.placeholder,
-				detail: res.detail
 			};
 
 			if (ExtHostInteractiveEditor._isMessageResponse(res)) {
