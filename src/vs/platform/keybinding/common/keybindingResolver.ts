@@ -6,15 +6,34 @@
 import { implies, ContextKeyExpression, ContextKeyExprType, IContext, IContextKeyService, expressionsAreEqualWithConstantSubstitution } from 'vs/platform/contextkey/common/contextkey';
 import { ResolvedKeybindingItem } from 'vs/platform/keybinding/common/resolvedKeybindingItem';
 
-export interface IResolveResult {
-	/** Whether the resolved keybinding is entering a multi chord */
-	enterMultiChord: boolean;
-	/** Whether the resolved keybinding is leaving (and executing) a multi chord keybinding */
-	leaveMultiChord: boolean;
-	commandId: string | null;
-	commandArgs: any;
-	bubble: boolean;
+//#region resolution-result
+
+export const enum ResultKind {
+	/** No keybinding found this sequence of chords */
+	NoMatchingKb,
+
+	/** There're several keybindings that have the given sequence of chords as a prefix */
+	MoreChordsNeeded,
+
+	/** A single keybinding found to be dispatched/invoked */
+	KbFound
 }
+
+export type ResolutionResult =
+	| { kind: ResultKind.NoMatchingKb }
+	| { kind: ResultKind.MoreChordsNeeded }
+	| { kind: ResultKind.KbFound; commandId: string | null; commandArgs: any; isBubble: boolean };
+
+
+// util definitions to make working with the above types easier within this module:
+
+const NoMatchingKb: ResolutionResult = { kind: ResultKind.NoMatchingKb };
+const MoreChordsNeeded: ResolutionResult = { kind: ResultKind.MoreChordsNeeded };
+function KbFound(commandId: string | null, commandArgs: any, isBubble: boolean): ResolutionResult {
+	return { kind: ResultKind.KbFound, commandId, commandArgs, isBubble };
+}
+
+//#endregion
 
 /**
  * Stores mappings from keybindings to commands and from commands to keybindings.
@@ -281,7 +300,7 @@ export class KeybindingResolver {
 		return items[items.length - 1];
 	}
 
-	public resolve(context: IContext, currentChords: string[] | null, keypress: string): IResolveResult | null {
+	public resolve(context: IContext, currentChords: string[] | null, keypress: string): ResolutionResult {
 		this._log(`| Resolving ${keypress}${currentChords ? ` chorded from ${currentChords}` : ``}`);
 
 		let lookupMap: ResolvedKeybindingItem[] | null = null;
@@ -291,7 +310,7 @@ export class KeybindingResolver {
 			if (candidates === undefined) {
 				// No bindings with `keypress`
 				this._log(`\\ No keybinding entries.`);
-				return null;
+				return NoMatchingKb;
 			}
 
 			lookupMap = candidates;
@@ -301,7 +320,7 @@ export class KeybindingResolver {
 			if (candidates === undefined) {
 				// No chords starting with `currentChords`
 				this._log(`\\ No keybinding entries.`);
-				return null;
+				return NoMatchingKb;
 			}
 
 			lookupMap = [];
@@ -327,37 +346,19 @@ export class KeybindingResolver {
 		const result = this._findCommand(context, lookupMap);
 		if (!result) {
 			this._log(`\\ From ${lookupMap.length} keybinding entries, no when clauses matched the context.`);
-			return null;
+			return NoMatchingKb;
 		}
 
-		if (currentChords === null && result.chords.length > 1 && result.chords[1] !== null) {
+		if (currentChords === null && result.chords.length > 1 && result.chords[1] !== null) { // first chord of a multi-chord KB matched
 			this._log(`\\ From ${lookupMap.length} keybinding entries, matched chord, when: ${printWhenExplanation(result.when)}, source: ${printSourceExplanation(result)}.`);
-			return {
-				enterMultiChord: true,
-				leaveMultiChord: false,
-				commandId: null,
-				commandArgs: null,
-				bubble: false
-			};
-		} else if (currentChords !== null && currentChords.length + 1 < result.chords.length) {
+			return MoreChordsNeeded;
+		} else if (currentChords !== null && currentChords.length + 1 < result.chords.length) { // prefix (ie, a sequence of chords) of a multi-chord KB matched, eg 2 out of 3 matched - still need one more to dispatch the KB
 			this._log(`\\ From ${lookupMap.length} keybinding entries, continued chord, when: ${printWhenExplanation(result.when)}, source: ${printSourceExplanation(result)}.`);
-			return {
-				enterMultiChord: false,
-				leaveMultiChord: false,
-				commandId: null,
-				commandArgs: null,
-				bubble: false
-			};
+			return MoreChordsNeeded;
 		}
 
 		this._log(`\\ From ${lookupMap.length} keybinding entries, matched ${result.command}, when: ${printWhenExplanation(result.when)}, source: ${printSourceExplanation(result)}.`);
-		return {
-			enterMultiChord: false,
-			leaveMultiChord: result.chords.length > 1,
-			commandId: result.command,
-			commandArgs: result.commandArgs,
-			bubble: result.bubble
-		};
+		return KbFound(result.command, result.commandArgs, result.bubble);
 	}
 
 	private _findCommand(context: IContext, matches: ResolvedKeybindingItem[]): ResolvedKeybindingItem | null {
