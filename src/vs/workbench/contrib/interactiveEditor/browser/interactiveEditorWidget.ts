@@ -15,7 +15,7 @@ import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/c
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { ZoneWidget } from 'vs/editor/contrib/zoneWidget/browser/zoneWidget';
 import { assertType } from 'vs/base/common/types';
-import { IInteractiveEditorResponse, IInteractiveEditorService, CTX_INTERACTIVE_EDITOR_FOCUSED, CTX_INTERACTIVE_EDITOR_HAS_ACTIVE_REQUEST, CTX_INTERACTIVE_EDITOR_INNER_CURSOR_FIRST, CTX_INTERACTIVE_EDITOR_INNER_CURSOR_LAST, CTX_INTERACTIVE_EDITOR_EMPTY, CTX_INTERACTIVE_EDITOR_OUTER_CURSOR_POSITION, CTX_INTERACTIVE_EDITOR_VISIBLE, MENU_INTERACTIVE_EDITOR_WIDGET, IInteractiveEditorRequest, IInteractiveEditorSession, IInteractiveEditorSlashCommand, IInteractiveEditorSessionProvider, InteractiveEditorResponseFeedbackKind, IInteractiveEditorEditResponse, CTX_INTERACTIVE_EDITOR_LAST_EDIT_TYPE as CTX_INTERACTIVE_EDITOR_LAST_EDIT_KIND, MENU_INTERACTIVE_EDITOR_WIDGET_STATUS, CTX_INTERACTIVE_EDITOR_LAST_FEEDBACK as CTX_INTERACTIVE_EDITOR_LAST_FEEDBACK_KIND } from 'vs/workbench/contrib/interactiveEditor/common/interactiveEditor';
+import { IInteractiveEditorResponse, IInteractiveEditorService, CTX_INTERACTIVE_EDITOR_FOCUSED, CTX_INTERACTIVE_EDITOR_HAS_ACTIVE_REQUEST, CTX_INTERACTIVE_EDITOR_INNER_CURSOR_FIRST, CTX_INTERACTIVE_EDITOR_INNER_CURSOR_LAST, CTX_INTERACTIVE_EDITOR_EMPTY, CTX_INTERACTIVE_EDITOR_OUTER_CURSOR_POSITION, CTX_INTERACTIVE_EDITOR_VISIBLE, MENU_INTERACTIVE_EDITOR_WIDGET, IInteractiveEditorRequest, IInteractiveEditorSession, IInteractiveEditorSlashCommand, IInteractiveEditorSessionProvider, InteractiveEditorResponseFeedbackKind, IInteractiveEditorEditResponse, CTX_INTERACTIVE_EDITOR_LAST_EDIT_TYPE as CTX_INTERACTIVE_EDITOR_LAST_EDIT_KIND, MENU_INTERACTIVE_EDITOR_WIDGET_STATUS, CTX_INTERACTIVE_EDITOR_LAST_FEEDBACK as CTX_INTERACTIVE_EDITOR_LAST_FEEDBACK_KIND, CTX_INTERACTIVE_EDITOR_INLNE_DIFF } from 'vs/workbench/contrib/interactiveEditor/common/interactiveEditor';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { Iterable } from 'vs/base/common/iterator';
 import { ICursorStateComputer, IModelDecorationOptions, IModelDeltaDecoration, ITextModel, IValidEditOperation } from 'vs/editor/common/model';
@@ -40,9 +40,6 @@ import { isCancellationError } from 'vs/base/common/errors';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorker';
 import { ILogService } from 'vs/platform/log/common/log';
 import { StopWatch } from 'vs/base/common/stopwatch';
-import { Action } from 'vs/base/common/actions';
-import { Codicon } from 'vs/base/common/codicons';
-import { ThemeIcon } from 'vs/base/common/themables';
 import { LRUCache } from 'vs/base/common/map';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IBulkEditService } from 'vs/editor/browser/services/bulkEditService';
@@ -210,6 +207,7 @@ class InteractiveEditorWidget {
 			hiddenItemStrategy: HiddenItemStrategy.NoHide,
 			toolbarOptions: {
 				primaryGroup: () => true,
+				useSeparatorsInPrimaryActions: true
 			},
 			actionViewItemProvider: (action, options) => createActionViewItem(this._instantiationService, action, options)
 		});
@@ -470,22 +468,6 @@ export class InteractiveEditorZoneWidget extends ZoneWidget {
 	}
 }
 
-class ToggleInlineDiff extends Action {
-
-	constructor(private readonly _inlineDiff: InlineDiffDecorations) {
-		super('diff', '', ThemeIcon.asClassName(Codicon.diff), true);
-		this.checked = _inlineDiff.visible;
-		this.tooltip = localize('toggleInlineDiff', "Toggle Inline Diff");
-		this.label = _inlineDiff.visible ? localize('hideInlineDiff', "Hide") : localize('showInlineDiff', "Show");
-	}
-
-	override async run(): Promise<void> {
-		this._inlineDiff.visible = !this._inlineDiff.visible;
-		this.checked = this._inlineDiff.visible;
-		this.label = this._inlineDiff.visible ? localize('hideInlineDiff', "Hide") : localize('showInlineDiff', "Show");
-	}
-}
-
 
 type Exchange = { req: IInteractiveEditorRequest; res: IInteractiveEditorResponse };
 export type Recording = { when: Date; session: IInteractiveEditorSession; value: string; exchanges: Exchange[] };
@@ -596,53 +578,6 @@ class InlineDiffDecorations {
 	}
 }
 
-class FeedbackToggles {
-
-	private readonly _helpful: Action;
-	private readonly _unHelpful: Action;
-
-	constructor(provider: IInteractiveEditorSessionProvider, session: IInteractiveEditorSession, response: IInteractiveEditorResponse) {
-
-		const supportsFeedback = typeof provider.handleInteractiveEditorResponseFeedback === 'function';
-
-		const update = (kind: InteractiveEditorResponseFeedbackKind) => {
-			if (supportsFeedback) {
-				provider.handleInteractiveEditorResponseFeedback!(session, response, kind);
-				if (kind === InteractiveEditorResponseFeedbackKind.Helpful) {
-					this._helpful.checked = true;
-					this._unHelpful.checked = false;
-				} else {
-					this._unHelpful.checked = true;
-					this._helpful.checked = false;
-				}
-			}
-		};
-
-		this._helpful = new Action('interactiveEditor.helpful', localize('helpful', "Vote Up"), ThemeIcon.asClassName(Codicon.thumbsup), supportsFeedback, () => update(InteractiveEditorResponseFeedbackKind.Helpful));
-		this._unHelpful = new Action('interactiveEditor.unHelpful', localize('unhelpful', "Vote Down"), ThemeIcon.asClassName(Codicon.thumbsdown), supportsFeedback, () => update(InteractiveEditorResponseFeedbackKind.Unhelpful));
-
-		this._helpful.tooltip = this._helpful.label;
-		this._unHelpful.tooltip = this._unHelpful.label;
-	}
-
-	dispose() {
-		this._helpful.dispose();
-		this._unHelpful.dispose();
-	}
-
-	get actions() {
-		// const result: IAction[] = [];
-		// if (this._helpful.enabled || this._helpful.checked) {
-		// 	result.push(this._helpful);
-		// }
-		// if (this._unHelpful.enabled || this._unHelpful.checked) {
-		// 	result.push(this._unHelpful);
-		// }
-		// return result;
-		return [this._helpful, this._unHelpful];
-	}
-}
-
 class LastEditorState {
 
 	constructor(
@@ -681,10 +616,12 @@ export class InteractiveEditorController implements IEditorContribution {
 	private readonly _recorder = new SessionRecorder();
 	private readonly _zone: InteractiveEditorZoneWidget;
 	private readonly _ctxHasActiveRequest: IContextKey<boolean>;
+	private readonly _ctxInlineDiff: IContextKey<boolean>;
 	private readonly _ctxLastEditKind: IContextKey<'' | 'simple'>;
 	private readonly _ctxLastFeedbackKind: IContextKey<'helpful' | 'unhelpful' | ''>;
-	private _lastEditState?: LastEditorState;
 
+	private _lastEditState?: LastEditorState;
+	private _lastInlineDecorations?: InlineDiffDecorations;
 	private _inlineDiffEnabled: boolean = false;
 
 	private _ctsSession: CancellationTokenSource = new CancellationTokenSource();
@@ -704,6 +641,7 @@ export class InteractiveEditorController implements IEditorContribution {
 	) {
 		this._zone = this._store.add(_instaService.createInstance(InteractiveEditorZoneWidget, this._editor));
 		this._ctxHasActiveRequest = CTX_INTERACTIVE_EDITOR_HAS_ACTIVE_REQUEST.bindTo(contextKeyService);
+		this._ctxInlineDiff = CTX_INTERACTIVE_EDITOR_INLNE_DIFF.bindTo(contextKeyService);
 		this._ctxLastEditKind = CTX_INTERACTIVE_EDITOR_LAST_EDIT_KIND.bindTo(contextKeyService);
 		this._ctxLastFeedbackKind = CTX_INTERACTIVE_EDITOR_LAST_FEEDBACK_KIND.bindTo(contextKeyService);
 	}
@@ -755,6 +693,8 @@ export class InteractiveEditorController implements IEditorContribution {
 
 		this._inlineDiffEnabled = this._storageService.getBoolean(InteractiveEditorController._inlineDiffStorageKey, StorageScope.PROFILE, false);
 		const inlineDiffDecorations = new InlineDiffDecorations(this._editor, this._inlineDiffEnabled);
+		this._lastInlineDecorations = inlineDiffDecorations;
+		this._ctxInlineDiff.set(this._inlineDiffEnabled);
 
 		const blockDecoration = this._editor.createDecorationsCollection();
 		const wholeRangeDecoration = this._editor.createDecorationsCollection();
@@ -976,14 +916,7 @@ export class InteractiveEditorController implements IEditorContribution {
 
 			inlineDiffDecorations.update();
 
-			const toggleDiffAction = new ToggleInlineDiff(inlineDiffDecorations);
-			roundStore.add(toggleDiffAction);
 
-			const feedback = new FeedbackToggles(provider, session, reply);
-			roundStore.add(feedback);
-
-			// const leftActions: IAction[] = reply.edits.length === 1 ? [new UndoPlaceholderAction(undoActions)] : [];
-			// leftActions.push(toggleDiffAction);
 
 			const editsCount = (moreMinimalEdits ?? reply.edits).length;
 
@@ -994,7 +927,7 @@ export class InteractiveEditorController implements IEditorContribution {
 				{
 					actionHandler: {
 						disposables: roundStore,
-						callback: () => toggleDiffAction.run(),
+						callback: () => this.toggleInlineDiff(),
 					}
 				});
 
@@ -1023,6 +956,7 @@ export class InteractiveEditorController implements IEditorContribution {
 		this._ctxLastEditKind.reset();
 		this._ctxLastFeedbackKind.reset();
 		this._lastEditState = undefined;
+		this._lastInlineDecorations = undefined;
 
 		this._zone.hide();
 		this._editor.focus();
@@ -1052,6 +986,14 @@ export class InteractiveEditorController implements IEditorContribution {
 			const newLine = up ? lineNumber : lineNumber + 1;
 			this._editor.setPosition({ lineNumber: newLine, column });
 			this._editor.focus();
+		}
+	}
+
+	toggleInlineDiff(): void {
+		this._inlineDiffEnabled = !this._inlineDiffEnabled;
+		this._ctxInlineDiff.set(this._inlineDiffEnabled);
+		if (this._lastInlineDecorations) {
+			this._lastInlineDecorations.visible = this._inlineDiffEnabled;
 		}
 	}
 

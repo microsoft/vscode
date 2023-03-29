@@ -28,6 +28,7 @@ registerAction2(interactiveEditorActions.NextFromHistory);
 registerAction2(interactiveEditorActions.UndoToClipboard);
 registerAction2(interactiveEditorActions.UndoToNewFile);
 registerAction2(interactiveEditorActions.UndoCommand);
+registerAction2(interactiveEditorActions.ToggleInlineDiff);
 registerAction2(interactiveEditorActions.FeebackHelpfulCommand);
 registerAction2(interactiveEditorActions.FeebackUnhelpfulCommand);
 
