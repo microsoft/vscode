@@ -207,7 +207,7 @@ export class AccessibleBufferWidget extends DisposableStore {
 		this._listeners.push(this._xterm.raw.onScroll(async () => await this._updateEditor()));
 		this._listeners.push(this._xterm.raw.onWriteParsed(async () => {
 			// dynamically update the viewport before there's a scroll event
-			if (!this._xterm.raw.buffer.active.baseY) {
+			if (this._xterm.raw.buffer.active.baseY === 0) {
 				await this._updateEditor();
 			}
 		}));
