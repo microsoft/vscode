@@ -43,6 +43,12 @@ class TestXtermTerminal extends XtermTerminal {
 
 }
 
+class TestAccessibleBufferWidget extends AccessibleBufferWidget {
+	public override get lines(): string[] {
+		return super.lines;
+	}
+}
+
 const defaultTerminalConfig: Partial<ITerminalConfiguration> = {
 	fontFamily: 'monospace',
 	fontWeight: 'normal',
@@ -63,7 +69,7 @@ suite('Accessible buffer', () => {
 	let capabilities: TerminalCapabilityStore;
 	let configHelper: TerminalConfigHelper;
 	let terminalInstance: Pick<ITerminalInstance, 'capabilities' | 'onDidRequestFocus' | 'resource'>;
-	let accessibleBufferWidget: AccessibleBufferWidget;
+	let accessibleBufferWidget: TestAccessibleBufferWidget;
 
 	setup(() => {
 		configurationService = new TestConfigurationService({
@@ -101,7 +107,7 @@ suite('Accessible buffer', () => {
 			capabilities.add(TerminalCapability.NaiveCwdDetection, null!);
 		}
 		terminalInstance = { capabilities, onDidRequestFocus: new Emitter<void>().event, resource: getTerminalUri('workspaceID', 2, 'title') };
-		accessibleBufferWidget = instantiationService.createInstance(AccessibleBufferWidget, terminalInstance, xterm);
+		accessibleBufferWidget = instantiationService.createInstance(TestAccessibleBufferWidget, terminalInstance, xterm);
 	});
 	test.skip('should clear cached lines', () => {
 		accessibleBufferWidget.show();

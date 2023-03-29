@@ -53,7 +53,7 @@ export class AccessibleBufferWidget extends DisposableStore {
 	private _lastMarker: IMarker | undefined;
 	private _lastLinesInViewport: number = 0;
 	private _lines: string[] = [];
-	get lines(): string[] { return this._lines; }
+	protected get lines(): string[] { return this._lines; }
 	private _listeners: IDisposable[] = [];
 	private _isUpdating: boolean = false;
 	private _pendingUpdates = 0;
