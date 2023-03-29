@@ -298,12 +298,7 @@ export class BufferContentTracker {
 		@ILogService private readonly _logService: ILogService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService) {
 	}
-	private _clear(): void {
-		this._lines = [];
-	}
-	registerMarker(): void {
-		this._lastMarker = this._xterm.raw.registerMarker();
-	}
+
 	update(): void {
 		if (this._lastMarker?.isDisposed) {
 			this._clear();
@@ -311,6 +306,14 @@ export class BufferContentTracker {
 		this._removeViewportContent();
 		this._updateScrollbackContent();
 		this._updateViewportContent();
+	}
+
+	registerMarker(): void {
+		this._lastMarker = this._xterm.raw.registerMarker();
+	}
+
+	private _clear(): void {
+		this._lines = [];
 	}
 
 	private _removeViewportContent(): void {
