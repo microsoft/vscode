@@ -68,7 +68,6 @@ export class ColorHoverParticipant implements IEditorHoverParticipant<ColorHover
 
 	private async _computeAsync(anchor: HoverAnchor, lineDecorations: IModelDecoration[], token: CancellationToken): Promise<ColorHover[]> {
 		console.log('inside of _computeAsync of the ColorHoverParticipant.ts');
-		console.log('lineDecorations : ', lineDecorations);
 		if (!this._editor.hasModel()) {
 			return [];
 		}
@@ -101,14 +100,18 @@ export class ColorHoverParticipant implements IEditorHoverParticipant<ColorHover
 	}
 
 	private async _createColorHover(editorModel: ITextModel, colorInfo: IColorInformation, provider: DocumentColorProvider): Promise<ColorHover> {
+
 		console.log('inside of _createColorHover of the ColorHoverParticipant.ts');
 		console.log('colorInfo : ', colorInfo);
 		console.log('provider : ', provider);
+
 		const originalText = editorModel.getValueInRange(colorInfo.range);
 		const { red, green, blue, alpha } = colorInfo.color;
 		const rgba = new RGBA(Math.round(red * 255), Math.round(green * 255), Math.round(blue * 255), alpha);
 		const color = new Color(rgba);
+
 		console.log('Before getColorPresentations');
+
 		const colorPresentations = await getColorPresentations(editorModel, colorInfo, provider, CancellationToken.None);
 		const model = new ColorPickerModel(color, [], 0);
 		model.colorPresentations = colorPresentations || [];
@@ -140,26 +143,15 @@ export class ColorHoverParticipant implements IEditorHoverParticipant<ColorHover
 		console.log('model : ', model);
 		console.log('context.fragment : ', context.fragment);
 
+		// Using a different color picker widget when using a standalone color picker
 		const widget = disposables.add(new ColorPickerWidget(context.fragment, model, this._editor.getOption(EditorOption.pixelRatio), this._themeService, this._standaloneColorPickerWidget));
-
-		console.log('before setting the color picker');
-		let clientHeight = widget.body.domNode.clientHeight;
-		let clientWidth = widget.body.domNode.clientWidth;
-		console.log('clientHeight : ', clientHeight);
-		console.log('clientWidth : ', clientWidth);
-
 		context.setColorPicker(widget);
-
-		console.log('after setting the color picker');
-		clientHeight = widget.body.domNode.clientHeight;
-		clientWidth = widget.body.domNode.clientWidth;
-		console.log('clientHeight : ', clientHeight);
-		console.log('clientWidth : ', clientWidth);
 
 		let range = new Range(colorHover.range.startLineNumber, colorHover.range.startColumn, colorHover.range.endLineNumber, colorHover.range.endColumn);
 
 		const updateEditorModel = () => {
 			console.log('inside of update editor model');
+
 			let textEdits: ISingleEditOperation[];
 			let newRange: Range;
 			if (model.presentation.textEdit) {
@@ -216,7 +208,7 @@ export class ColorHoverParticipant implements IEditorHoverParticipant<ColorHover
 		};
 
 		if (this._standaloneColorPickerWidget) {
-			console.log('inside of the second if loop of the renderHoverParts, should be called once when the initial rendering is done');
+			console.log('When using the standalone color picker widget to render the hover parts');
 			// set an initial color to avoid the color picker to be empty
 			const color: Color = new Color(new RGBA(0, 0, 0, 1));
 			updateColorPresentations(color);
@@ -232,29 +224,26 @@ export class ColorHoverParticipant implements IEditorHoverParticipant<ColorHover
 		}));
 		disposables.add(model.onDidChangeColor(updateColorPresentations));
 
-		console.log('before returning the disposables');
-		clientHeight = widget.body.domNode.clientHeight;
-		clientWidth = widget.body.domNode.clientWidth;
-		console.log('clientHeight : ', clientHeight);
-		console.log('clientWidth : ', clientWidth);
-
 		return disposables;
 	}
 
-	public updateEditorModel(hoverParts: ColorHover[]): void {
+	public updateEditorModel(colorHoverData: ColorHover[]): void {
 
 		console.log('inside of update editor model wrapper');
+
 		if (!this._editor.hasModel()) {
 			return;
 		}
 
-		const colorHover = hoverParts[0];
+		const colorHover = colorHoverData[0];
 		const editorModel = this._editor.getModel();
 		const model = colorHover.model;
 		let range = new Range(colorHover.range.startLineNumber, colorHover.range.startColumn, colorHover.range.endLineNumber, colorHover.range.endColumn);
 
 		const updateEditorModel = () => {
+
 			console.log('inside of update editor model');
+
 			let textEdits: ISingleEditOperation[];
 			let newRange: Range;
 			if (model.presentation.textEdit) {
