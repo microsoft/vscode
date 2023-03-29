@@ -30,6 +30,7 @@ interface CurrentChord {
 const HIGH_FREQ_COMMANDS = /^(cursor|delete|undo|redo|tab|editor\.action\.clipboard)/;
 
 export abstract class AbstractKeybindingService extends Disposable implements IKeybindingService {
+
 	public _serviceBrand: undefined;
 
 	protected readonly _onDidUpdateKeybindings: Emitter<void> = this._register(new Emitter<void>());
@@ -44,7 +45,7 @@ export abstract class AbstractKeybindingService extends Disposable implements IK
 	 * "cmd+k" would be stored in this array, when on pressing "cmd+i", the service
 	 * would invoke the command bound by the keybinding
 	 */
-	private _currentChords: CurrentChord[] | null;
+	private _currentChords: CurrentChord[];
 
 	private _currentChordChecker: IntervalTimer;
 	private _currentChordStatusMessage: IDisposable | null;
@@ -55,7 +56,7 @@ export abstract class AbstractKeybindingService extends Disposable implements IK
 	protected _logging: boolean;
 
 	public get inChordMode(): boolean {
-		return !!this._currentChords;
+		return this._currentChords.length > 0;
 	}
 
 	constructor(
@@ -67,7 +68,7 @@ export abstract class AbstractKeybindingService extends Disposable implements IK
 	) {
 		super();
 
-		this._currentChords = null;
+		this._currentChords = [];
 		this._currentChordChecker = new IntervalTimer();
 		this._currentChordStatusMessage = null;
 		this._ignoreSingleModifiers = KeybindingModifierSet.EMPTY;
@@ -149,7 +150,7 @@ export abstract class AbstractKeybindingService extends Disposable implements IK
 		}
 
 		const contextValue = this._contextKeyService.getContext(target);
-		const currentChords = this._currentChords ? this._currentChords.map((({ keypress }) => keypress)) : null;
+		const currentChords = this._currentChords.length > 0 ? this._currentChords.map((({ keypress }) => keypress)) : null; // TODO@ulugbekna: adapt `resolve` to accept []
 		return this._getResolver().resolve(contextValue, currentChords, firstChord);
 	}
 
@@ -172,21 +173,14 @@ export abstract class AbstractKeybindingService extends Disposable implements IK
 	}
 
 	private _enterMultiChordMode(firstChord: string, keypressLabel: string | null): void {
-		this._currentChords = [{
-			keypress: firstChord,
-			label: keypressLabel
-		}];
+		this._currentChords.push({ keypress: firstChord, label: keypressLabel });
 		this._currentChordStatusMessage = this._notificationService.status(nls.localize('first.chord', "({0}) was pressed. Waiting for second key of chord...", keypressLabel));
 		this._scheduleLeaveChordMode();
 		IME.disable();
 	}
 
 	private _continueMultiChordMode(nextChord: string, keypressLabel: string | null): void {
-		this._currentChords = this._currentChords ? this._currentChords : [];
-		this._currentChords.push({
-			keypress: nextChord,
-			label: keypressLabel
-		});
+		this._currentChords.push({ keypress: nextChord, label: keypressLabel });
 		const fullKeypressLabel = this._currentChords.map(({ label }) => label).join(', ');
 		this._currentChordStatusMessage = this._notificationService.status(nls.localize('next.chord', "({0}) was pressed. Waiting for next key of chord...", fullKeypressLabel));
 		this._scheduleLeaveChordMode();
@@ -198,7 +192,7 @@ export abstract class AbstractKeybindingService extends Disposable implements IK
 			this._currentChordStatusMessage = null;
 		}
 		this._currentChordChecker.cancel();
-		this._currentChords = null;
+		this._currentChords = [];
 		IME.enable();
 	}
 
@@ -287,10 +281,10 @@ export abstract class AbstractKeybindingService extends Disposable implements IK
 			// hence we disregard `_currentChord` and use the same modifier instead.
 			const [dispatchKeyname,] = userKeypress.getSingleModifierDispatchChords();
 			userPressedChord = dispatchKeyname;
-			currentChords = dispatchKeyname ? [dispatchKeyname] : [];
+			currentChords = dispatchKeyname ? [dispatchKeyname] : []; // TODO@ulugbekna: in the `else` case we assign an empty array - make sure `resolve` can handle an empty array well
 		} else {
 			[userPressedChord,] = userKeypress.getDispatchChords();
-			currentChords = this._currentChords ? this._currentChords.map(({ keypress }) => keypress) : null;
+			currentChords = this._currentChords.length > 0 ? this._currentChords.map(({ keypress }) => keypress) : null;
 		}
 
 		if (userPressedChord === null) {
@@ -313,7 +307,7 @@ export abstract class AbstractKeybindingService extends Disposable implements IK
 			return shouldPreventDefault;
 		}
 
-		if (this._currentChords) {
+		if (this._currentChords.length > 0) {
 			if (resolveResult && !resolveResult.leaveMultiChord) {
 				shouldPreventDefault = true;
 				this._continueMultiChordMode(userPressedChord, keypressLabel);
