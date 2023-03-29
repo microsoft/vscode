@@ -91,28 +91,25 @@
 
 .monaco-editor .interactive-editor .status {
 	padding: 6px 10px 2px 2px;
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
 }
 
 .monaco-editor .interactive-editor .status.hidden {
 	display: none;
 }
 
-.monaco-editor .interactive-editor .status .status-item {
-	display: flex;
-	justify-content: space-between;
-	align-items: center;
-}
-
-.monaco-editor .interactive-editor .status .status-item .label A {
+.monaco-editor .interactive-editor .status .label A {
 	color: var(--vscode-textLink-foreground);
 	cursor: pointer;
 }
 
-.monaco-editor .interactive-editor .status .status-item.error .label {
+.monaco-editor .interactive-editor .status .label.error {
 	color: var(--vscode-errorForeground);
 }
 
-.monaco-editor .interactive-editor .status .status-item.warn .label {
+.monaco-editor .interactive-editor .status .label.warn {
 	color: var(--vscode-editorWarning-foreground);
 }
 
@@ -126,17 +123,6 @@
 	outline: 1px solid var(--vscode-inputOption-activeBorder);
 }
 
-.monaco-editor .interactive-editor .status .monaco-toolbar .action-item.action-dropdown-item,
-.monaco-editor .interactive-editor .status .monaco-toolbar .action-item.action-dropdown-item .dropdown-label .action-label.dropdown.codicon {
-	background: var(--vscode-button-background);
-	color: var(--vscode-button-foreground);
-	border-radius: 4px;
-}
-
-.monaco-editor .interactive-editor .status .monaco-toolbar .action-item.action-dropdown-item:hover,
-.monaco-editor .interactive-editor .status .monaco-toolbar .action-item.action-dropdown-item .dropdown-label .action-label.dropdown.codicon:hover {
-	background: var(--vscode-button-hoverBackground);
-}
 
 /* decoration styles */
 

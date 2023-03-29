@@ -15,7 +15,7 @@ import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/c
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { ZoneWidget } from 'vs/editor/contrib/zoneWidget/browser/zoneWidget';
 import { assertType } from 'vs/base/common/types';
-import { IInteractiveEditorResponse, IInteractiveEditorService, CTX_INTERACTIVE_EDITOR_FOCUSED, CTX_INTERACTIVE_EDITOR_HAS_ACTIVE_REQUEST, CTX_INTERACTIVE_EDITOR_INNER_CURSOR_FIRST, CTX_INTERACTIVE_EDITOR_INNER_CURSOR_LAST, CTX_INTERACTIVE_EDITOR_EMPTY, CTX_INTERACTIVE_EDITOR_OUTER_CURSOR_POSITION, CTX_INTERACTIVE_EDITOR_VISIBLE, MENU_INTERACTIVE_EDITOR_WIDGET, IInteractiveEditorRequest, IInteractiveEditorSession, IInteractiveEditorSlashCommand, IInteractiveEditorSessionProvider, InteractiveEditorResponseFeedbackKind, IInteractiveEditorEditResponse } from 'vs/workbench/contrib/interactiveEditor/common/interactiveEditor';
+import { IInteractiveEditorResponse, IInteractiveEditorService, CTX_INTERACTIVE_EDITOR_FOCUSED, CTX_INTERACTIVE_EDITOR_HAS_ACTIVE_REQUEST, CTX_INTERACTIVE_EDITOR_INNER_CURSOR_FIRST, CTX_INTERACTIVE_EDITOR_INNER_CURSOR_LAST, CTX_INTERACTIVE_EDITOR_EMPTY, CTX_INTERACTIVE_EDITOR_OUTER_CURSOR_POSITION, CTX_INTERACTIVE_EDITOR_VISIBLE, MENU_INTERACTIVE_EDITOR_WIDGET, IInteractiveEditorRequest, IInteractiveEditorSession, IInteractiveEditorSlashCommand, IInteractiveEditorSessionProvider, InteractiveEditorResponseFeedbackKind, IInteractiveEditorEditResponse, CTX_INTERACTIVE_EDITOR_LAST_EDIT_TYPE as CTX_INTERACTIVE_EDITOR_LAST_EDIT_KIND, MENU_INTERACTIVE_EDITOR_WIDGET_STATUS, CTX_INTERACTIVE_EDITOR_LAST_FEEDBACK as CTX_INTERACTIVE_EDITOR_LAST_FEEDBACK_KIND } from 'vs/workbench/contrib/interactiveEditor/common/interactiveEditor';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { Iterable } from 'vs/base/common/iterator';
 import { ICursorStateComputer, IModelDecorationOptions, IModelDeltaDecoration, ITextModel, IValidEditOperation } from 'vs/editor/common/model';
@@ -30,7 +30,7 @@ import { IModelService } from 'vs/editor/common/services/model';
 import { URI } from 'vs/base/common/uri';
 import { EmbeddedCodeEditorWidget } from 'vs/editor/browser/widget/embeddedCodeEditorWidget';
 import { GhostTextController } from 'vs/editor/contrib/inlineCompletions/browser/ghostTextController';
-import { MenuWorkbenchToolBar, WorkbenchToolBar } from 'vs/platform/actions/browser/toolbar';
+import { HiddenItemStrategy, MenuWorkbenchToolBar } from 'vs/platform/actions/browser/toolbar';
 import { ProgressBar } from 'vs/base/browser/ui/progressbar/progressbar';
 import { SuggestController } from 'vs/editor/contrib/suggest/browser/suggestController';
 import { IPosition, Position } from 'vs/editor/common/core/position';
@@ -40,7 +40,7 @@ import { isCancellationError } from 'vs/base/common/errors';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorker';
 import { ILogService } from 'vs/platform/log/common/log';
 import { StopWatch } from 'vs/base/common/stopwatch';
-import { Action, IAction, Separator } from 'vs/base/common/actions';
+import { Action } from 'vs/base/common/actions';
 import { Codicon } from 'vs/base/common/codicons';
 import { ThemeIcon } from 'vs/base/common/themables';
 import { LRUCache } from 'vs/base/common/map';
@@ -58,12 +58,7 @@ import { DEFAULT_FONT_FAMILY } from 'vs/workbench/browser/style';
 import { IInteractiveSessionService } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionService';
 import { renderFormattedText } from 'vs/base/browser/formattedTextRenderer';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IUntitledTextResourceEditorInput } from 'vs/workbench/common/editor';
-import { IActionViewItemProvider } from 'vs/base/browser/ui/actionbar/actionbar';
-import { ActionWithDropdownActionViewItem } from 'vs/base/browser/ui/dropdown/dropdownActionViewItem';
-import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
+import { createActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 
 class InteractiveEditorWidget {
 
@@ -80,11 +75,14 @@ class InteractiveEditorWidget {
 						h('div.editor-placeholder@placeholder'),
 						h('div.editor-container@editor'),
 					]),
-					h('div.toolbar@rhsToolbar'),
+					h('div.toolbar@editorToolbar'),
 				]),
 			]),
 			h('div.progress@progress'),
-			h('div.status.hidden@status'),
+			h('div.status.hidden@status', [
+				h('div.actions@statusToolbar'),
+				h('div.label@statusLabel'),
+			]),
 		]
 	);
 
@@ -110,7 +108,6 @@ class InteractiveEditorWidget {
 		parentEditor: ICodeEditor | undefined,
 		@IModelService private readonly _modelService: IModelService,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
-		@IContextMenuService private readonly _contextMenuService: IContextMenuService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 	) {
 
@@ -200,7 +197,7 @@ class InteractiveEditorWidget {
 		this._store.add(addDisposableListener(this._elements.placeholder, 'click', () => this.inputEditor.focus()));
 
 
-		const toolbar = this._instantiationService.createInstance(MenuWorkbenchToolBar, this._elements.rhsToolbar, MENU_INTERACTIVE_EDITOR_WIDGET, {
+		const toolbar = this._instantiationService.createInstance(MenuWorkbenchToolBar, this._elements.editorToolbar, MENU_INTERACTIVE_EDITOR_WIDGET, {
 			telemetrySource: 'interactiveEditorWidget-toolbar',
 			toolbarOptions: { primaryGroup: 'main' }
 		});
@@ -208,6 +205,16 @@ class InteractiveEditorWidget {
 
 		this._progressBar = new ProgressBar(this._elements.progress);
 		this._store.add(this._progressBar);
+
+		const statusToolbar = this._instantiationService.createInstance(MenuWorkbenchToolBar, this._elements.statusToolbar, MENU_INTERACTIVE_EDITOR_WIDGET_STATUS, {
+			hiddenItemStrategy: HiddenItemStrategy.NoHide,
+			toolbarOptions: {
+				primaryGroup: () => true,
+			},
+			actionViewItemProvider: (action, options) => createActionViewItem(this._instantiationService, action, options)
+		});
+
+		this._historyStore.add(statusToolbar);
 	}
 
 	dispose(): void {
@@ -223,7 +230,7 @@ class InteractiveEditorWidget {
 	layout(dim: Dimension) {
 		this._isLayouting = true;
 		try {
-			const innerEditorWidth = dim.width - (getTotalWidth(this._elements.rhsToolbar) + 12 /* L/R-padding */);
+			const innerEditorWidth = dim.width - (getTotalWidth(this._elements.editorToolbar) + 12 /* L/R-padding */);
 			const newDim = new Dimension(innerEditorWidth, this.inputEditor.getContentHeight());
 			if (!this._editorDim || !Dimension.equals(this._editorDim, newDim)) {
 				this._editorDim = newDim;
@@ -333,61 +340,11 @@ class InteractiveEditorWidget {
 		this.inputEditor.setSelection(this._inputModel.getFullModelRange());
 	}
 
-	createStatusEntry() {
-		const { root, label, actions } = h('div.status-item@item', [
-			h('div.actions@actions'),
-			h('div.label@label'),
-		]);
+	updateMessage(message: HTMLElement | string, classes?: string[]) {
+		this._elements.status.classList.toggle('hidden', false);
 
-		const actionViewItemProvider: IActionViewItemProvider = action => {
-			if (!(action instanceof MoveToClipboard)) {
-				return undefined;
-			}
-
-			return new ActionWithDropdownActionViewItem(undefined, action, {
-				menuActionsOrProvider: [action.undoToNewFileAction, action.undoAction],
-			}, this._contextMenuService);
-		};
-
-		const toolbar = this._instantiationService.createInstance(WorkbenchToolBar, actions, { actionViewItemProvider });
-		this._historyStore.add(toolbar);
-
-		reset(this._elements.status, root);
-		this._onDidChangeHeight.fire();
-
-		let oldClasses: string[] = [];
-
-		return {
-			update: (update: { message?: HTMLElement | string; actions?: IAction[]; classes?: string[] }) => {
-				if (update.message) {
-					reset(label, update.message);
-					this._elements.status.classList.remove('hidden');
-				}
-				if (update.actions) {
-					toolbar.setActions(update.actions);
-				}
-				if (update.classes) {
-					oldClasses.forEach(value => root.classList.remove(value));
-					oldClasses = update.classes.slice();
-					root.classList.add(...update.classes);
-				}
-			},
-			updateMessage(message: string) {
-				label.innerText = message;
-			},
-			updateActions(actions: IAction[]) {
-				toolbar.setActions(actions);
-			},
-			updateClasses: (classes: string[]) => {
-				root.classList.add(...classes);
-			},
-			remove: () => {
-				root.remove();
-				toolbar.dispose();
-				this._elements.status.classList.add('hidden');
-				this._onDidChangeHeight.fire();
-			}
-		};
+		reset(this._elements.statusLabel, message);
+		this._elements.statusLabel.className = `label ${(classes ?? []).join(' ')}`;
 	}
 
 	reset() {
@@ -450,8 +407,6 @@ export class InteractiveEditorZoneWidget extends ZoneWidget {
 	protected override _fillContainer(container: HTMLElement): void {
 		container.appendChild(this.widget.domNode);
 	}
-
-
 
 	protected override _onWidth(widthInPixel: number): void {
 		if (this._dimension) {
@@ -531,65 +486,6 @@ class ToggleInlineDiff extends Action {
 	}
 }
 
-class UndoAction extends Action {
-
-	private readonly _beforeModelVersionId: number;
-
-	constructor(private readonly _model: ITextModel, private readonly _provider: IInteractiveEditorSessionProvider, private readonly _session: IInteractiveEditorSession, private readonly _response: IInteractiveEditorResponse) {
-		super('undo', localize('undo', "Undo"), ThemeIcon.asClassName(Codicon.discard), true);
-		this._beforeModelVersionId = _model.getAlternativeVersionId();
-	}
-
-	override async run(): Promise<void> {
-		while (this._beforeModelVersionId !== this._model.getAlternativeVersionId()) {
-			this._model.undo();
-		}
-		this._provider.handleInteractiveEditorResponseFeedback?.(this._session, this._response, InteractiveEditorResponseFeedbackKind.Undone);
-	}
-}
-
-
-class MoveToNewFile extends Action {
-	constructor(
-		private readonly _model: ITextModel,
-		private readonly _beforeModelVersionId: number,
-		private readonly _response: IInteractiveEditorEditResponse,
-		@IEditorService private readonly _editorService: IEditorService,
-	) {
-		super('moveToClipboard', localize('moveToNewFile', "Move to New File"), undefined, _response.edits.length === 1);
-	}
-
-	override async run() {
-		while (this._beforeModelVersionId !== this._model.getAlternativeVersionId()) {
-			this._model.undo();
-		}
-		const [edit] = this._response.edits;
-		const input: IUntitledTextResourceEditorInput = { forceUntitled: true, resource: undefined, contents: edit.text, languageId: this._model.getLanguageId() };
-		this._editorService.openEditor(input);
-	}
-}
-
-class MoveToClipboard extends Action {
-
-	constructor(
-		readonly undoToNewFileAction: MoveToNewFile,
-		readonly undoAction: UndoAction,
-		private readonly _model: ITextModel,
-		private readonly _beforeModelVersionId: number,
-		private readonly _response: IInteractiveEditorEditResponse,
-		@IClipboardService private readonly _clipboardService: IClipboardService,
-	) {
-		super('moveToClipboard', localize('moveToClipboard', "Move to Clipboard"), undefined, _response.edits.length === 1);
-	}
-
-	override async run() {
-		while (this._beforeModelVersionId !== this._model.getAlternativeVersionId()) {
-			this._model.undo();
-		}
-		const [edit] = this._response.edits;
-		this._clipboardService.writeText(edit.text);
-	}
-}
 
 type Exchange = { req: IInteractiveEditorRequest; res: IInteractiveEditorResponse };
 export type Recording = { when: Date; session: IInteractiveEditorSession; value: string; exchanges: Exchange[] };
@@ -747,6 +643,17 @@ class FeedbackToggles {
 	}
 }
 
+class LastEditorState {
+
+	constructor(
+		readonly model: ITextModel,
+		readonly modelVersionId: number,
+		readonly provider: IInteractiveEditorSessionProvider,
+		readonly session: IInteractiveEditorSession,
+		readonly response: IInteractiveEditorEditResponse,
+	) { }
+}
+
 export class InteractiveEditorController implements IEditorContribution {
 
 	static ID = 'interactiveEditor';
@@ -774,6 +681,10 @@ export class InteractiveEditorController implements IEditorContribution {
 	private readonly _recorder = new SessionRecorder();
 	private readonly _zone: InteractiveEditorZoneWidget;
 	private readonly _ctxHasActiveRequest: IContextKey<boolean>;
+	private readonly _ctxLastEditKind: IContextKey<'' | 'simple'>;
+	private readonly _ctxLastFeedbackKind: IContextKey<'helpful' | 'unhelpful' | ''>;
+	private _lastEditState?: LastEditorState;
+
 	private _inlineDiffEnabled: boolean = false;
 
 	private _ctsSession: CancellationTokenSource = new CancellationTokenSource();
@@ -782,17 +693,19 @@ export class InteractiveEditorController implements IEditorContribution {
 	constructor(
 		private readonly _editor: ICodeEditor,
 		@IInstantiationService private readonly _instaService: IInstantiationService,
-		@IContextKeyService contextKeyService: IContextKeyService,
 		@IInteractiveEditorService private readonly _interactiveEditorService: IInteractiveEditorService,
 		@IBulkEditService private readonly _bulkEditService: IBulkEditService,
 		@IEditorWorkerService private readonly _editorWorkerService: IEditorWorkerService,
 		@ILogService private readonly _logService: ILogService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@IStorageService private readonly _storageService: IStorageService,
+		@IContextKeyService contextKeyService: IContextKeyService,
 
 	) {
 		this._zone = this._store.add(_instaService.createInstance(InteractiveEditorZoneWidget, this._editor));
 		this._ctxHasActiveRequest = CTX_INTERACTIVE_EDITOR_HAS_ACTIVE_REQUEST.bindTo(contextKeyService);
+		this._ctxLastEditKind = CTX_INTERACTIVE_EDITOR_LAST_EDIT_KIND.bindTo(contextKeyService);
+		this._ctxLastFeedbackKind = CTX_INTERACTIVE_EDITOR_LAST_FEEDBACK_KIND.bindTo(contextKeyService);
 	}
 
 	dispose(): void {
@@ -840,7 +753,6 @@ export class InteractiveEditorController implements IEditorContribution {
 			undos: ''
 		};
 
-		const statusWidget = this._zone.widget.createStatusEntry();
 		this._inlineDiffEnabled = this._storageService.getBoolean(InteractiveEditorController._inlineDiffStorageKey, StorageScope.PROFILE, false);
 		const inlineDiffDecorations = new InlineDiffDecorations(this._editor, this._inlineDiffEnabled);
 
@@ -940,6 +852,9 @@ export class InteractiveEditorController implements IEditorContribution {
 			this._historyOffset = -1;
 			const inputPromise = this._zone.getInput(wholeRange.getEndPosition(), placeholder, value, this._ctsRequest.token);
 
+
+			this._ctxLastFeedbackKind.reset();
+
 			// reveal the line after the whole range to ensure that the input box is visible
 			this._editor.revealPosition({ lineNumber: wholeRange.endLineNumber + 1, column: 1 }, ScrollType.Smooth);
 
@@ -977,8 +892,7 @@ export class InteractiveEditorController implements IEditorContribution {
 				if (!isCancellationError(e)) {
 					this._logService.error('[IE] ERROR during request', provider.debugName);
 					this._logService.error(e);
-					// this._zone.widget.showMessage(toErrorMessage(e));
-					statusWidget.update({ message: toErrorMessage(e), classes: ['error'], actions: [] });
+					this._zone.widget.updateMessage(toErrorMessage(e), ['error']);
 					// statusWidget
 					continue;
 				}
@@ -997,7 +911,7 @@ export class InteractiveEditorController implements IEditorContribution {
 			if (!reply) {
 				this._logService.trace('[IE] NO reply or edits', provider.debugName);
 				value = input;
-				statusWidget.update({ message: localize('empty', "No results, please refine your input and try again."), classes: ['warn'], actions: [] });
+				this._zone.widget.updateMessage(localize('empty', "No results, please refine your input and try again."), ['warn']);
 				continue;
 			}
 
@@ -1017,6 +931,7 @@ export class InteractiveEditorController implements IEditorContribution {
 			}
 
 			// make edits more minimal
+			this._ctxLastEditKind.set(reply.edits.length === 1 ? 'simple' : '');
 			const moreMinimalEdits = (await this._editorWorkerService.computeHumanReadableDiff(textModel.uri, reply.edits));
 			this._logService.trace('[IE] edits from PROVIDER and after making them MORE MINIMAL', provider.debugName, reply.edits, moreMinimalEdits);
 			this._recorder.addExchange(session, request, reply);
@@ -1032,14 +947,8 @@ export class InteractiveEditorController implements IEditorContribution {
 				}]);
 			}
 
+			this._lastEditState = new LastEditorState(textModel, textModel.getAlternativeVersionId(), provider, session, reply);
 
-			const undoToClipboardAction = this._instaService.createInstance(
-				MoveToClipboard,
-				this._instaService.createInstance(MoveToNewFile, textModel, textModel.getAlternativeVersionId(), reply),
-				new UndoAction(textModel, provider, session, reply),
-				textModel,
-				textModel.getAlternativeVersionId(), reply
-			);
 
 			try {
 				ignoreModelChanges = true;
@@ -1068,14 +977,13 @@ export class InteractiveEditorController implements IEditorContribution {
 			inlineDiffDecorations.update();
 
 			const toggleDiffAction = new ToggleInlineDiff(inlineDiffDecorations);
-			// const fixedActions: Action[] = [toggleAction];
 			roundStore.add(toggleDiffAction);
 
 			const feedback = new FeedbackToggles(provider, session, reply);
 			roundStore.add(feedback);
 
-			const leftActions: IAction[] = reply.edits.length === 1 ? [undoToClipboardAction] : [];
-			leftActions.push(toggleDiffAction);
+			// const leftActions: IAction[] = reply.edits.length === 1 ? [new UndoPlaceholderAction(undoActions)] : [];
+			// leftActions.push(toggleDiffAction);
 
 			const editsCount = (moreMinimalEdits ?? reply.edits).length;
 
@@ -1090,11 +998,7 @@ export class InteractiveEditorController implements IEditorContribution {
 					}
 				});
 
-			statusWidget.update({
-				message,
-				classes: [],
-				actions: Separator.join(leftActions, feedback.actions),
-			});
+			this._zone.widget.updateMessage(message);
 
 			if (!InteractiveEditorController._promptHistory.includes(input)) {
 				InteractiveEditorController._promptHistory.unshift(input);
@@ -1116,6 +1020,9 @@ export class InteractiveEditorController implements IEditorContribution {
 		store.dispose();
 		session.dispose?.();
 
+		this._ctxLastEditKind.reset();
+		this._ctxLastFeedbackKind.reset();
+		this._lastEditState = undefined;
 
 		this._zone.hide();
 		this._editor.focus();
@@ -1165,6 +1072,24 @@ export class InteractiveEditorController implements IEditorContribution {
 
 	recordings() {
 		return this._recorder.getAll();
+	}
+
+	undoLast(): string | void {
+		if (this._lastEditState) {
+			const { model, modelVersionId } = this._lastEditState;
+			while (model.getAlternativeVersionId() !== modelVersionId) {
+				model.undo();
+			}
+			return this._lastEditState.response.edits[0].text;
+		}
+	}
+
+	feedbackLast(helpful: boolean) {
+		if (this._lastEditState) {
+			const kind = helpful ? InteractiveEditorResponseFeedbackKind.Helpful : InteractiveEditorResponseFeedbackKind.Unhelpful;
+			this._lastEditState.provider.handleInteractiveEditorResponseFeedback?.(this._lastEditState.session, this._lastEditState.response, kind);
+			this._ctxLastFeedbackKind.set(helpful ? 'helpful' : 'unhelpful');
+		}
 	}
 }
 
