@@ -834,6 +834,10 @@ export class InteractiveEditorController implements IEditorContribution {
 				continue;
 			}
 
+			if (!InteractiveEditorController._promptHistory.includes(input)) {
+				InteractiveEditorController._promptHistory.unshift(input);
+			}
+
 			const refer = session.slashCommands?.some(value => value.refer && input.startsWith(`/${value.command}`));
 			if (refer) {
 				this._logService.info('[IE] seeing refer command, continuing outside editor', provider.debugName);
@@ -974,9 +978,6 @@ export class InteractiveEditorController implements IEditorContribution {
 				: localize('lines.N', "Generated reply and changed {0} lines.", linesChanged)
 			);
 
-			if (!InteractiveEditorController._promptHistory.includes(input)) {
-				InteractiveEditorController._promptHistory.unshift(input);
-			}
 			placeholder = reply.placeholder ?? session.placeholder ?? '';
 			value = '';
 			data.rounds += round + '|';
