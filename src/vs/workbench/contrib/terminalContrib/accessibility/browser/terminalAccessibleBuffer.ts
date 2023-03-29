@@ -104,7 +104,6 @@ export class AccessibleBufferWidget extends DisposableStore {
 		this._focusedContextKey = TerminalContextKeys.accessibleBufferFocus.bindTo(this._contextKeyService);
 		this.add(this._focusTracker.onDidFocus(() => this._focusedContextKey.set(true)));
 		this.add(this._focusTracker.onDidBlur(() => this._focusedContextKey.reset()));
-
 		this.add(Event.runAndSubscribe(this._xterm.raw.onResize, () => this._layout()));
 		this.add(this._configurationService.onDidChangeConfiguration(e => {
 			if (e.affectedKeys.has(TerminalSettingId.FontFamily) || e.affectedKeys.has(TerminalSettingId.FontSize) || e.affectedKeys.has(TerminalSettingId.LineHeight) || e.affectedKeys.has(TerminalSettingId.LetterSpacing)) {
@@ -135,6 +134,7 @@ export class AccessibleBufferWidget extends DisposableStore {
 			}
 			// if the editor is focused via tab, we need to update the model
 			// and show it
+			this._registerListeners();
 			await this._updateEditor();
 			this._accessibleBuffer.classList.add(CssClass.Active);
 			this._xtermElement.classList.add(CssClass.Hide);
