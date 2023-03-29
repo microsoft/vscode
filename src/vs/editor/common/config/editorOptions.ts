@@ -5604,13 +5604,11 @@ export const EditorOptions = {
 	)),
 	wordWrapBreakAfterCharacters: register(new EditorStringOption(
 		EditorOption.wordWrapBreakAfterCharacters, 'wordWrapBreakAfterCharacters',
-		// allow-any-unicode-next-line
-		' \t})]?|/&.,;¢°′″‰℃、。｡､￠，．：；？！％・･ゝゞヽヾーァィゥェォッャュョヮヵヶぁぃぅぇぉっゃゅょゎゕゖㇰㇱㇲㇳㇴㇵㇶㇷㇸㇹㇺㇻㇼㇽㇾㇿ々〻ｧｨｩｪｫｬｭｮｯｰ”〉》」』】〕）］｝｣',
+		' \t})]?|/&.,;\u00a2\u00b0\u2032\u2033\u2030\u2103\u3001\u3002\uff61\uff64\uffe0\uff0c\uff0e\uff1a\uff1b\uff1f\uff01\uff05\u30fb\uff65\u309d\u309e\u30fd\u30fe\u30fc\u30a1\u30a3\u30a5\u30a7\u30a9\u30c3\u30e3\u30e5\u30e7\u30ee\u30f5\u30f6\u3041\u3043\u3045\u3047\u3049\u3063\u3083\u3085\u3087\u308e\u3095\u3096\u31f0\u31f1\u31f2\u31f3\u31f4\u31f5\u31f6\u31f7\u31f8\u31f9\u31fa\u31fb\u31fc\u31fd\u31fe\u31ff\u3005\u303b\uff67\uff68\uff69\uff6a\uff6b\uff6c\uff6d\uff6e\uff6f\uff70\u201d\u3009\u300b\u300d\u300f\u3011\u3015\uff09\uff3d\uff5d\uff63',
 	)),
 	wordWrapBreakBeforeCharacters: register(new EditorStringOption(
 		EditorOption.wordWrapBreakBeforeCharacters, 'wordWrapBreakBeforeCharacters',
-		// allow-any-unicode-next-line
-		'([{‘“〈《「『【〔（［｛｢£¥＄￡￥+＋'
+		'([{\u2018\u201c\u3008\u300a\u300c\u300e\u3010\u3014\uff08\uff3b\uff5b\uff62\u00a3\u00a5\uff04\uffe1\uffe5+\uff0b'
 	)),
 	wordWrapColumn: register(new EditorIntOption(
 		EditorOption.wordWrapColumn, 'wordWrapColumn',
