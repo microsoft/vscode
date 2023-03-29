@@ -5,7 +5,7 @@
 
 import 'vs/css!./interactiveEditor';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
-import { DisposableStore, combinedDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
 import { IActiveCodeEditor, ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { Range } from 'vs/editor/common/core/range';
@@ -335,8 +335,8 @@ class InteractiveEditorWidget {
 
 	createStatusEntry() {
 		const { root, label, actions } = h('div.status-item@item', [
-			h('div.label@label'),
 			h('div.actions@actions'),
+			h('div.label@label'),
 		]);
 
 		const actionViewItemProvider: IActionViewItemProvider = action => {
@@ -1067,17 +1067,15 @@ export class InteractiveEditorController implements IEditorContribution {
 
 			inlineDiffDecorations.update();
 
-			const toggleAction = new ToggleInlineDiff(inlineDiffDecorations);
-			const fixedActions: Action[] = [toggleAction];
-			roundStore.add(combinedDisposable(...fixedActions));
+			const toggleDiffAction = new ToggleInlineDiff(inlineDiffDecorations);
+			// const fixedActions: Action[] = [toggleAction];
+			roundStore.add(toggleDiffAction);
 
 			const feedback = new FeedbackToggles(provider, session, reply);
 			roundStore.add(feedback);
 
-			const leftActions = [...feedback.actions];
-			if (reply.edits.length === 1) {
-				leftActions.unshift(undoToClipboardAction);
-			}
+			const leftActions: IAction[] = reply.edits.length === 1 ? [undoToClipboardAction] : [];
+			leftActions.push(toggleDiffAction);
 
 			const editsCount = (moreMinimalEdits ?? reply.edits).length;
 
@@ -1088,14 +1086,14 @@ export class InteractiveEditorController implements IEditorContribution {
 				{
 					actionHandler: {
 						disposables: roundStore,
-						callback: () => toggleAction.run(),
+						callback: () => toggleDiffAction.run(),
 					}
 				});
 
 			statusWidget.update({
 				message,
 				classes: [],
-				actions: Separator.join(leftActions, fixedActions),
+				actions: Separator.join(leftActions, feedback.actions),
 			});
 
 			if (!InteractiveEditorController._promptHistory.includes(input)) {
