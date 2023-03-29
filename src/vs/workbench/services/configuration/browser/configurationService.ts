@@ -398,6 +398,10 @@ export class WorkspaceService extends Disposable implements IWorkbenchConfigurat
 		}
 	}
 
+	hasCachedConfigurationDefaultsOverrides(): boolean {
+		return this.defaultConfiguration.hasCachedConfigurationDefaultsOverrides();
+	}
+
 	inspect<T>(key: string, overrides?: IConfigurationOverrides): IConfigurationValue<T> {
 		return this._configuration.inspect<T>(key, overrides);
 	}
@@ -749,6 +753,9 @@ export class WorkspaceService extends Disposable implements IWorkbenchConfigurat
 		if (this.workspace) {
 			const previousData = this._configuration.toData();
 			const change = this._configuration.compareAndUpdateDefaultConfiguration(configurationModel, properties);
+			if (this.applicationConfiguration) {
+				this._configuration.updateApplicationConfiguration(this.applicationConfiguration.reparse());
+			}
 			if (this.remoteUserConfiguration) {
 				this._configuration.updateLocalUserConfiguration(this.localUserConfiguration.reparse());
 				this._configuration.updateRemoteUserConfiguration(this.remoteUserConfiguration.reparse());
@@ -782,8 +789,8 @@ export class WorkspaceService extends Disposable implements IWorkbenchConfigurat
 	private onApplicationConfigurationChanged(applicationConfiguration: ConfigurationModel): void {
 		const previous = { data: this._configuration.toData(), workspace: this.workspace };
 		const change = this._configuration.compareAndUpdateApplicationConfiguration(applicationConfiguration);
-		const configuraitonProperties = this.configurationRegistry.getConfigurationProperties();
-		change.keys = change.keys.filter(key => configuraitonProperties[key]?.scope === ConfigurationScope.APPLICATION);
+		const configurationProperties = this.configurationRegistry.getConfigurationProperties();
+		change.keys = change.keys.filter(key => configurationProperties[key]?.scope === ConfigurationScope.APPLICATION);
 		this.triggerConfigurationChange(change, previous, ConfigurationTarget.USER);
 	}
 
@@ -1256,11 +1263,13 @@ class RegisterConfigurationSchemasContribution extends Disposable implements IWo
 
 class ResetConfigurationDefaultsOverridesCache extends Disposable implements IWorkbenchContribution {
 	constructor(
-		@IConfigurationService configurationService: IConfigurationService,
+		@IConfigurationService configurationService: WorkspaceService,
 		@IExtensionService extensionService: IExtensionService,
 	) {
 		super();
-		extensionService.whenInstalledExtensionsRegistered().then(() => configurationService.reloadConfiguration(ConfigurationTarget.DEFAULT));
+		if (configurationService.hasCachedConfigurationDefaultsOverrides()) {
+			extensionService.whenInstalledExtensionsRegistered().then(() => configurationService.reloadConfiguration(ConfigurationTarget.DEFAULT));
+		}
 	}
 }
 

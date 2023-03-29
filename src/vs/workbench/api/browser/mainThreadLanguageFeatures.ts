@@ -183,8 +183,15 @@ export class MainThreadLanguageFeatures extends Disposable implements MainThread
 					dispose: () => listDto.cacheId && this._proxy.$releaseCodeLenses(handle, listDto.cacheId)
 				};
 			},
-			resolveCodeLens: (_model: ITextModel, codeLens: languages.CodeLens, token: CancellationToken): Promise<languages.CodeLens | undefined> => {
-				return this._proxy.$resolveCodeLens(handle, codeLens, token);
+			resolveCodeLens: async (model: ITextModel, codeLens: languages.CodeLens, token: CancellationToken): Promise<languages.CodeLens | undefined> => {
+				const result = await this._proxy.$resolveCodeLens(handle, codeLens, token);
+				if (!result) {
+					return undefined;
+				}
+				return {
+					...result,
+					range: model.validateRange(result.range),
+				};
 			}
 		};
 
@@ -345,8 +352,15 @@ export class MainThreadLanguageFeatures extends Disposable implements MainThread
 
 		if (supportsResolve) {
 			provider.resolveCodeAction = async (codeAction: languages.CodeAction, token: CancellationToken): Promise<languages.CodeAction> => {
-				const data = await this._proxy.$resolveCodeAction(handle, (<ICodeActionDto>codeAction).cacheId!, token);
-				codeAction.edit = reviveWorkspaceEditDto(data, this._uriIdentService);
+				const resolved = await this._proxy.$resolveCodeAction(handle, (<ICodeActionDto>codeAction).cacheId!, token);
+				if (resolved.edit) {
+					codeAction.edit = reviveWorkspaceEditDto(resolved.edit, this._uriIdentService);
+				}
+
+				if (resolved.command) {
+					codeAction.command = resolved.command;
+				}
+
 				return codeAction;
 			};
 		}
@@ -537,14 +551,19 @@ export class MainThreadLanguageFeatures extends Disposable implements MainThread
 		this._registrations.set(handle, this._languageFeaturesService.completionProvider.register(selector, provider));
 	}
 
-	$registerInlineCompletionsSupport(handle: number, selector: IDocumentFilterDto[], supportsHandleDidShowCompletionItem: boolean): void {
+	$registerInlineCompletionsSupport(handle: number, selector: IDocumentFilterDto[], supportsHandleEvents: boolean): void {
 		const provider: languages.InlineCompletionsProvider<IdentifiableInlineCompletions> = {
 			provideInlineCompletions: async (model: ITextModel, position: EditorPosition, context: languages.InlineCompletionContext, token: CancellationToken): Promise<IdentifiableInlineCompletions | undefined> => {
 				return this._proxy.$provideInlineCompletions(handle, model.uri, position, context, token);
 			},
 			handleItemDidShow: async (completions: IdentifiableInlineCompletions, item: IdentifiableInlineCompletion): Promise<void> => {
-				if (supportsHandleDidShowCompletionItem) {
+				if (supportsHandleEvents) {
 					await this._proxy.$handleInlineCompletionDidShow(handle, completions.pid, item.idx);
+				}
+			},
+			handlePartialAccept: async (completions, item, acceptedCharacters): Promise<void> => {
+				if (supportsHandleEvents) {
+					await this._proxy.$handleInlineCompletionPartialAccept(handle, completions.pid, item.idx, acceptedCharacters);
 				}
 			},
 			freeInlineCompletions: (completions: IdentifiableInlineCompletions): void => {

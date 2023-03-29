@@ -33,7 +33,7 @@ export class BracketTokens {
 		for (const closingBracket of configuration.bracketsNew.closingBrackets) {
 			const length = toLength(0, closingBracket.bracketText.length);
 			let bracketIds = SmallImmutableSet.getEmpty();
-			const closingBrackets = closingBracket.getClosedBrackets();
+			const closingBrackets = closingBracket.getOpeningBrackets();
 			for (const bracket of closingBrackets) {
 				bracketIds = bracketIds.add(getId(bracket), identityKeyProvider);
 			}

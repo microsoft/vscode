@@ -167,6 +167,7 @@ export class MainThreadWebviewPanels extends Disposable implements extHostProtoc
 		const webview = this._webviewWorkbenchService.openWebview({
 			origin,
 			providedViewType: viewType,
+			title: initData.title,
 			options: reviveWebviewOptions(initData.panelOptions),
 			contentOptions: reviveWebviewContentOptions(initData.webviewOptions),
 			extension
@@ -260,7 +261,7 @@ export class MainThreadWebviewPanels extends Disposable implements extHostProtoc
 			resolveWebview: async (webviewInput): Promise<void> => {
 				const viewType = this.webviewPanelViewType.toExternal(webviewInput.viewType);
 				if (!viewType) {
-					webviewInput.webview.html = this._mainThreadWebviews.getWebviewResolvedFailedContent(webviewInput.viewType);
+					webviewInput.webview.setHtml(this._mainThreadWebviews.getWebviewResolvedFailedContent(webviewInput.viewType));
 					return;
 				}
 
@@ -287,7 +288,7 @@ export class MainThreadWebviewPanels extends Disposable implements extHostProtoc
 					}, editorGroupToColumn(this._editorGroupService, webviewInput.group || 0));
 				} catch (error) {
 					onUnexpectedError(error);
-					webviewInput.webview.html = this._mainThreadWebviews.getWebviewResolvedFailedContent(viewType);
+					webviewInput.webview.setHtml(this._mainThreadWebviews.getWebviewResolvedFailedContent(viewType));
 				}
 			}
 		}));

@@ -64,6 +64,7 @@ export interface IExtension {
 	readonly rating?: number;
 	readonly ratingCount?: number;
 	readonly outdated: boolean;
+	readonly pinned: boolean;
 	readonly outdatedTargetPlatform: boolean;
 	readonly reloadRequiredStatus?: string;
 	readonly enablementState: EnablementState;
@@ -95,6 +96,7 @@ export interface IExtensionsWorkbenchService {
 	readonly local: IExtension[];
 	readonly installed: IExtension[];
 	readonly outdated: IExtension[];
+	readonly whenInitialized: Promise<void>;
 	queryLocal(server?: IExtensionManagementServer): Promise<IExtension[]>;
 	queryGallery(token: CancellationToken): Promise<IPager<IExtension>>;
 	queryGallery(options: IQueryOptions, token: CancellationToken): Promise<IPager<IExtension>>;
@@ -110,8 +112,7 @@ export interface IExtensionsWorkbenchService {
 	canSetLanguage(extension: IExtension): boolean;
 	setLanguage(extension: IExtension): Promise<void>;
 	setEnablement(extensions: IExtension | IExtension[], enablementState: EnablementState): Promise<void>;
-	setExtensionIgnoresUpdate(extension: IExtension, ignoreAutoUpate: boolean): void;
-	isExtensionIgnoresUpdates(extension: IExtension): boolean;
+	pinExtension(extension: IExtension, pin: boolean): Promise<void>;
 	open(extension: IExtension | string, options?: IExtensionEditorOptions): Promise<void>;
 	checkForUpdates(): Promise<void>;
 	getExtensionStatus(extension: IExtension): IExtensionsStatus | undefined;

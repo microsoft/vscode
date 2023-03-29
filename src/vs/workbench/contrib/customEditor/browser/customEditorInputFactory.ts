@@ -103,6 +103,7 @@ function reviveWebview(webviewService: IWebviewService, data: { origin: string |
 	const webview = webviewService.createWebviewOverlay({
 		providedViewType: data.viewType,
 		origin: data.origin,
+		title: undefined,
 		options: {
 			purpose: WebviewContentPurpose.CustomEditor,
 			enableFindWidget: data.webviewOptions.enableFindWidget,

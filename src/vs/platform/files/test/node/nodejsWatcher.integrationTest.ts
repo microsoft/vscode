@@ -6,7 +6,7 @@
 import { tmpdir } from 'os';
 import { basename, dirname, join } from 'vs/base/common/path';
 import { Promises, RimRafMode } from 'vs/base/node/pfs';
-import { flakySuite, getPathFromAmdModule, getRandomTestPath } from 'vs/base/test/node/testUtils';
+import { flakySuite, getRandomTestPath } from 'vs/base/test/node/testUtils';
 import { FileChangeType } from 'vs/platform/files/common/files';
 import { INonRecursiveWatchRequest } from 'vs/platform/files/common/watcher';
 import { NodeJSFileWatcherLibrary, watchFileContents } from 'vs/platform/files/node/watcher/nodejs/nodejsWatcherLib';
@@ -16,6 +16,7 @@ import { ltrim } from 'vs/base/common/strings';
 import { DeferredPromise } from 'vs/base/common/async';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { NodeJSWatcher } from 'vs/platform/files/node/watcher/nodejs/nodejsWatcher';
+import { FileAccess } from 'vs/base/common/network';
 
 // this suite has shown flaky runs in Azure pipelines where
 // tasks would just hang and timeout after a while (not in
@@ -80,7 +81,7 @@ import { NodeJSWatcher } from 'vs/platform/files/node/watcher/nodejs/nodejsWatch
 
 		testDir = getRandomTestPath(tmpdir(), 'vsctests', 'filewatcher');
 
-		const sourceDir = getPathFromAmdModule(require, './fixtures/service');
+		const sourceDir = FileAccess.asFileUri('vs/platform/files/test/node/fixtures/service').fsPath;
 
 		await Promises.copy(sourceDir, testDir, { preserveSymlinks: false });
 	});

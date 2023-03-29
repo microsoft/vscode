@@ -153,7 +153,7 @@ export const Operation = {
 	HashObject: { kind: OperationKind.HashObject, blocking: false, readOnly: false, remote: false, retry: false, showProgress: true } as HashObjectOperation,
 	Ignore: { kind: OperationKind.Ignore, blocking: false, readOnly: false, remote: false, retry: false, showProgress: true } as IgnoreOperation,
 	Log: { kind: OperationKind.Log, blocking: false, readOnly: true, remote: false, retry: false, showProgress: true } as LogOperation,
-	LogFile: { kind: OperationKind.LogFile, blocking: false, readOnly: true, remote: false, retry: false, showProgress: true } as LogFileOperation,
+	LogFile: { kind: OperationKind.LogFile, blocking: false, readOnly: true, remote: false, retry: false, showProgress: false } as LogFileOperation,
 	Merge: { kind: OperationKind.Merge, blocking: false, readOnly: false, remote: false, retry: false, showProgress: true } as MergeOperation,
 	MergeAbort: { kind: OperationKind.MergeAbort, blocking: false, readOnly: false, remote: false, retry: false, showProgress: true } as MergeAbortOperation,
 	MergeBase: { kind: OperationKind.MergeBase, blocking: false, readOnly: true, remote: false, retry: false, showProgress: true } as MergeBaseOperation,

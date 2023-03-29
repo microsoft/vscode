@@ -7,7 +7,7 @@ import * as nls from 'vs/nls';
 import { ExtensionsRegistry } from 'vs/workbench/services/extensions/common/extensionsRegistry';
 import { IIconRegistry, Extensions as IconRegistryExtensions } from 'vs/platform/theme/common/iconRegistry';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { CSSIcon } from 'vs/base/common/codicons';
+import { ThemeIcon } from 'vs/base/common/themables';
 import * as resources from 'vs/base/common/resources';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { extname, posix } from 'vs/base/common/path';
@@ -22,7 +22,7 @@ interface IIconExtensionPoint {
 const iconRegistry: IIconRegistry = Registry.as<IIconRegistry>(IconRegistryExtensions.IconContribution);
 
 const iconReferenceSchema = iconRegistry.getIconReferenceSchema();
-const iconIdPattern = `^${CSSIcon.iconNameSegment}(-${CSSIcon.iconNameSegment})+$`;
+const iconIdPattern = `^${ThemeIcon.iconNameSegment}(-${ThemeIcon.iconNameSegment})+$`;
 
 const iconConfigurationExtPoint = ExtensionsRegistry.registerExtensionPoint<IIconExtensionPoint>({
 	extensionPoint: 'icons',

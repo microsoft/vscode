@@ -8,9 +8,10 @@ import { renderLabelWithIcons } from 'vs/base/browser/ui/iconLabel/iconLabels';
 import { Toggle } from 'vs/base/browser/ui/toggle/toggle';
 import { Action, IAction, Separator } from 'vs/base/common/actions';
 import { Codicon } from 'vs/base/common/codicons';
+import { ThemeIcon } from 'vs/base/common/themables';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { clamp } from 'vs/base/common/numbers';
-import { autorun, autorunWithStore, derived, IObservable, ISettableObservable, ITransaction, observableValue, transaction } from 'vs/base/common/observable';
+import { autorun, derived, IObservable, ISettableObservable, ITransaction, observableValue, transaction } from 'vs/base/common/observable';
 import { noBreakWhitespace } from 'vs/base/common/strings';
 import { isDefined } from 'vs/base/common/types';
 import { EditorExtensionsRegistry, IEditorContributionDescription } from 'vs/editor/browser/editorExtensions';
@@ -44,18 +45,16 @@ export class InputCodeEditorView extends CodeEditorView {
 		this.htmlElements.root.classList.add(`input`);
 
 		this._register(
-			autorunWithStore((reader, store) => {
-				if (this.checkboxesVisible.read(reader)) {
-					store.add(
-						new EditorGutter(this.editor, this.htmlElements.gutterDiv, {
-							getIntersectingGutterItems: (range, reader) => {
-								return this.modifiedBaseRangeGutterItemInfos.read(reader);
-							},
-							createView: (item, target) => new MergeConflictGutterItemView(item, target, contextMenuService),
-						})
-					);
-				}
-			}, 'update checkboxes')
+			new EditorGutter(this.editor, this.htmlElements.gutterDiv, {
+				getIntersectingGutterItems: (range, reader) => {
+					if (this.checkboxesVisible.read(reader)) {
+						return this.modifiedBaseRangeGutterItemInfos.read(reader);
+					} else {
+						return [];
+					}
+				},
+				createView: (item, target) => new MergeConflictGutterItemView(item, target, contextMenuService),
+			})
 		);
 
 		this._register(
@@ -415,7 +414,7 @@ export class MergeConflictGutterItemView extends Disposable implements IGutterIt
 			autorun('Update Checkbox', (reader) => {
 				const item = this.item.read(reader)!;
 				const value = item.toggleState.read(reader);
-				const iconMap: Record<InputState, { icon: Codicon | undefined; checked: boolean; title: string }> = {
+				const iconMap: Record<InputState, { icon: ThemeIcon | undefined; checked: boolean; title: string }> = {
 					[InputState.excluded]: { icon: undefined, checked: false, title: localize('accept.excluded', "Accept") },
 					[InputState.unrecognized]: { icon: Codicon.circleFilled, checked: false, title: localize('accept.conflicting', "Accept (result is dirty)") },
 					[InputState.first]: { icon: Codicon.check, checked: true, title: localize('accept.first', "Undo accept") },

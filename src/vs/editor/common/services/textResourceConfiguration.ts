@@ -26,7 +26,7 @@ export interface ITextResourceConfigurationChangeEvent {
 	 * @param resource Resource for which the configuration has to be checked.
 	 * @param section Section of the configuration
 	 */
-	affectsConfiguration(resource: URI, section: string): boolean;
+	affectsConfiguration(resource: URI | undefined, section: string): boolean;
 }
 
 export interface ITextResourceConfigurationService {

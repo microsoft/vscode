@@ -191,6 +191,7 @@ class RenameController implements IEditorContribution {
 		}
 
 		if (this._cts.token.isCancellationRequested) {
+			this._cts.dispose();
 			return undefined;
 		}
 		this._cts.dispose();
@@ -330,7 +331,7 @@ registerEditorCommand(new RenameCommand({
 	handler: x => x.acceptRenameInput(false),
 	kbOpts: {
 		weight: KeybindingWeight.EditorContrib + 99,
-		kbExpr: EditorContextKeys.focus,
+		kbExpr: ContextKeyExpr.and(EditorContextKeys.focus, ContextKeyExpr.not('isComposing')),
 		primary: KeyCode.Enter
 	}
 }));
@@ -341,7 +342,7 @@ registerEditorCommand(new RenameCommand({
 	handler: x => x.acceptRenameInput(true),
 	kbOpts: {
 		weight: KeybindingWeight.EditorContrib + 99,
-		kbExpr: EditorContextKeys.focus,
+		kbExpr: ContextKeyExpr.and(EditorContextKeys.focus, ContextKeyExpr.not('isComposing')),
 		primary: KeyMod.Shift + KeyCode.Enter
 	}
 }));

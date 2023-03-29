@@ -22,11 +22,11 @@ export async function launch(options: LaunchOptions): Promise<{ serverProcess: C
 	const { serverProcess, endpoint } = await launchServer(options);
 
 	// Launch browser
-	const { browser, context, page } = await launchBrowser(options, endpoint);
+	const { browser, context, page, pageLoadedPromise } = await launchBrowser(options, endpoint);
 
 	return {
 		serverProcess,
-		driver: new PlaywrightDriver(browser, context, page, serverProcess, options)
+		driver: new PlaywrightDriver(browser, context, page, serverProcess, pageLoadedPromise, options)
 	};
 }
 
@@ -88,7 +88,11 @@ async function launchServer(options: LaunchOptions) {
 async function launchBrowser(options: LaunchOptions, endpoint: string) {
 	const { logger, workspacePath, tracing, headless } = options;
 
-	const browser = await measureAndLog(() => playwright[options.browser ?? 'chromium'].launch({ headless: headless ?? false }), 'playwright#launch', logger);
+	const browser = await measureAndLog(() => playwright[options.browser ?? 'chromium'].launch({
+		headless: headless ?? false,
+		timeout: 0
+	}), 'playwright#launch', logger);
+
 	browser.on('disconnected', () => logger.log(`Playwright: browser disconnected`));
 
 	const context = await measureAndLog(() => browser.newContext(), 'browser.newContext', logger);
@@ -133,9 +137,12 @@ async function launchBrowser(options: LaunchOptions, endpoint: string) {
 		`["logLevel","${options.verbose ? 'trace' : 'info'}"]`
 	].join(',')}]`;
 
-	await measureAndLog(() => page.goto(`${endpoint}&${workspacePath.endsWith('.code-workspace') ? 'workspace' : 'folder'}=${URI.file(workspacePath!).path}&payload=${payloadParam}`), 'page.goto()', logger);
+	const gotoPromise = measureAndLog(() => page.goto(`${endpoint}&${workspacePath.endsWith('.code-workspace') ? 'workspace' : 'folder'}=${URI.file(workspacePath!).path}&payload=${payloadParam}`), 'page.goto()', logger);
+	const pageLoadedPromise = page.waitForLoadState('load');
 
-	return { browser, context, page };
+	await gotoPromise;
+
+	return { browser, context, page, pageLoadedPromise };
 }
 
 function waitForEndpoint(server: ChildProcess, logger: Logger): Promise<string> {

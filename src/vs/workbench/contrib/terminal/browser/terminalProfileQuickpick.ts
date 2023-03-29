@@ -10,7 +10,8 @@ import { IExtensionTerminalProfile, ITerminalProfile, ITerminalProfileObject, Te
 import { getUriClasses, getColorClass, getColorStyleElement } from 'vs/workbench/contrib/terminal/browser/terminalIcon';
 import { configureTerminalProfileIcon } from 'vs/workbench/contrib/terminal/browser/terminalIcons';
 import * as nls from 'vs/nls';
-import { IThemeService, ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { ThemeIcon } from 'vs/base/common/themables';
 import { ITerminalProfileResolverService, ITerminalProfileService } from 'vs/workbench/contrib/terminal/common/terminal';
 import { IQuickPickTerminalObject, ITerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { IPickerQuickAccessItem } from 'vs/platform/quickinput/browser/pickerQuickAccess';
@@ -232,7 +233,7 @@ export class TerminalProfileQuickpick {
 			// possible so the message is optimized for a single path.
 			const handle = this._notificationService.prompt(
 				Severity.Warning,
-				nls.localize('unsafePathWarning', 'This profile uses a potentially unsafe path that can be modified by another user: {0}. Are you use you want to use it?', `"${unsafePaths.join(',')}"`),
+				nls.localize('unsafePathWarning', 'This terminal profile uses a potentially unsafe path that can be modified by another user: {0}. Are you sure you want to use it?', `"${unsafePaths.join(',')}"`),
 				[{
 					label: nls.localize('yes', 'Yes'),
 					run: () => r(true)

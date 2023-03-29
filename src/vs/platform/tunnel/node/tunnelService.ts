@@ -168,7 +168,7 @@ export class BaseTunnelService extends AbstractTunnelService {
 		return isPortPrivileged(port, this.defaultTunnelHost, OS, os.release());
 	}
 
-	protected retainOrCreateTunnel(addressProvider: IAddressProvider, remoteHost: string, remotePort: number, localPort: number | undefined, elevateIfNeeded: boolean, privacy?: string, protocol?: string): Promise<RemoteTunnel | undefined> | undefined {
+	protected retainOrCreateTunnel(addressProvider: IAddressProvider, remoteHost: string, remotePort: number, localHost: string, localPort: number | undefined, elevateIfNeeded: boolean, privacy?: string, protocol?: string): Promise<RemoteTunnel | undefined> | undefined {
 		const existing = this.getTunnelFromMap(remoteHost, remotePort);
 		if (existing) {
 			++existing.refcount;
@@ -189,7 +189,7 @@ export class BaseTunnelService extends AbstractTunnelService {
 				ipcLogger: null
 			};
 
-			const tunnel = createRemoteTunnel(options, this.defaultTunnelHost, remoteHost, remotePort, localPort);
+			const tunnel = createRemoteTunnel(options, localHost, remoteHost, remotePort, localPort);
 			this.logService.trace('ForwardedPorts: (TunnelService) Tunnel created without provider.');
 			this.addTunnelToMap(remoteHost, remotePort, tunnel);
 			return tunnel;
@@ -221,7 +221,7 @@ export class SharedTunnelsService extends Disposable implements ISharedTunnelsSe
 		super();
 	}
 
-	async openTunnel(authority: string, addressProvider: IAddressProvider | undefined, remoteHost: string | undefined, remotePort: number, localPort?: number, elevateIfNeeded?: boolean, privacy?: string, protocol?: string): Promise<RemoteTunnel | undefined> {
+	async openTunnel(authority: string, addressProvider: IAddressProvider | undefined, remoteHost: string | undefined, remotePort: number, localHost: string, localPort?: number, elevateIfNeeded?: boolean, privacy?: string, protocol?: string): Promise<RemoteTunnel | undefined> {
 		this.logService.trace(`ForwardedPorts: (SharedTunnelService) openTunnel request for ${remoteHost}:${remotePort} on local port ${localPort}.`);
 		if (!this._tunnelServices.has(authority)) {
 			const tunnelService = new TunnelService(this.logService, this.signService, this.productService, this.configurationService);
@@ -234,6 +234,6 @@ export class SharedTunnelsService extends Disposable implements ISharedTunnelsSe
 				}
 			});
 		}
-		return this._tunnelServices.get(authority)!.openTunnel(addressProvider, remoteHost, remotePort, localPort, elevateIfNeeded, privacy, protocol);
+		return this._tunnelServices.get(authority)!.openTunnel(addressProvider, remoteHost, remotePort, localHost, localPort, elevateIfNeeded, privacy, protocol);
 	}
 }

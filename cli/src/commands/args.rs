@@ -10,17 +10,30 @@ use clap::{ArgEnum, Args, Parser, Subcommand};
 use const_format::concatcp;
 
 const CLI_NAME: &str = concatcp!(constants::PRODUCT_NAME_LONG, " CLI");
-const TEMPLATE: &str = concatcp!(
+const HELP_COMMANDS: &str = "Usage: {name} [options][paths...]
+
+To read output from another program, append '-' (e.g. 'echo Hello World | {name} -')";
+
+const STANDALONE_TEMPLATE: &str = concatcp!(
+	CLI_NAME,
+	" Standalone - {version}
+
+",
+	HELP_COMMANDS,
+	"
+Running editor commands requires installing ",
+	constants::QUALITYLESS_PRODUCT_NAME,
+	", and may differ slightly.
+
+{all-args}"
+);
+const INTEGRATED_TEMPLATE: &str = concatcp!(
 	CLI_NAME,
 	" - {version}
 
-Usage: ",
-	constants::APPLICATION_NAME,
-	" [options][paths...]
-
-To read output from another program, append '-' (e.g. 'echo Hello World | ",
-	constants::APPLICATION_NAME,
-	" -')
+",
+	HELP_COMMANDS,
+	"
 
 {all-args}"
 );
@@ -37,9 +50,8 @@ const VERSION: &str = concatcp!(NUMBER_IN_VERSION, " (commit ", COMMIT_IN_VERSIO
 
 #[derive(Parser, Debug, Default)]
 #[clap(
-   help_template = TEMPLATE,
+   help_template = INTEGRATED_TEMPLATE,
    long_about = None,
-   name = CLI_NAME,
    version = VERSION,
  )]
 pub struct IntegratedCli {
@@ -69,9 +81,8 @@ pub struct CliCore {
 
 #[derive(Parser, Debug, Default)]
 #[clap(
-   help_template = TEMPLATE,
+   help_template = STANDALONE_TEMPLATE,
    long_about = None,
-   name = CLI_NAME,
    version = VERSION,
  )]
 pub struct StandaloneCli {
@@ -135,6 +146,22 @@ impl<'a> From<&'a CliCore> for CodeServerArgs {
 pub enum StandaloneCommands {
 	/// Updates the CLI.
 	Update(StandaloneUpdateArgs),
+
+	/// Internal commands for WSL serving.
+	#[clap(hide = true)]
+	Wsl(WslArgs),
+}
+
+#[derive(Args, Debug, Clone)]
+pub struct WslArgs {
+	#[clap(subcommand)]
+	pub command: WslCommands,
+}
+
+#[derive(Subcommand, Debug, Clone)]
+pub enum WslCommands {
+	/// Runs the WSL server on stdin/out
+	Serve,
 }
 
 #[derive(Args, Debug, Clone)]
@@ -173,10 +200,7 @@ pub struct ExtensionArgs {
 
 impl ExtensionArgs {
 	pub fn add_code_args(&self, target: &mut Vec<String>) {
-		if let Some(ed) = &self.desktop_code_options.extensions_dir {
-			target.push(ed.to_string());
-		}
-
+		self.desktop_code_options.add_code_args(target);
 		self.subcommand.add_code_args(target);
 	}
 }
@@ -569,6 +593,10 @@ pub struct TunnelServeArgs {
 	#[clap(long)]
 	pub random_name: bool,
 
+	/// Prevents the machine going to sleep while this command runs.
+	#[clap(long)]
+	pub no_sleep: bool,
+
 	/// Sets the machine name for port forwarding service
 	#[clap(long)]
 	pub name: Option<String>,
@@ -596,6 +624,15 @@ pub enum TunnelSubcommand {
 	/// Delete all servers which are currently not running.
 	Prune,
 
+	/// Stops any running tunnel on the system.
+	Kill,
+
+	/// Restarts any running tunnel on the system.
+	Restart,
+
+	/// Gets whether there is a tunnel running on the current machineiou.
+	Status,
+
 	/// Rename the name of this machine associated with port forwarding service.
 	Rename(TunnelRenameArgs),
 
@@ -613,7 +650,7 @@ pub enum TunnelSubcommand {
 #[derive(Subcommand, Debug, Clone)]
 pub enum TunnelServiceSubCommands {
 	/// Installs or re-installs the tunnel service on the machine.
-	Install,
+	Install(TunnelServiceInstallArgs),
 
 	/// Uninstalls and stops the tunnel service.
 	Uninstall,
@@ -624,6 +661,13 @@ pub enum TunnelServiceSubCommands {
 	/// Internal command for running the service
 	#[clap(hide = true)]
 	InternalRun,
+}
+
+#[derive(Args, Debug, Clone)]
+pub struct TunnelServiceInstallArgs {
+	/// If set, the user accepts the server license terms and the server will be started without a user prompt.
+	#[clap(long)]
+	pub accept_server_license_terms: bool,
 }
 
 #[derive(Args, Debug, Clone)]

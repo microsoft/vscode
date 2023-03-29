@@ -6,10 +6,8 @@
 import 'vs/css!./suggestEnabledInput';
 import { $, Dimension, append } from 'vs/base/browser/dom';
 import { Widget } from 'vs/base/browser/ui/widget';
-import { Color } from 'vs/base/common/color';
 import { Emitter, Event } from 'vs/base/common/event';
 import { KeyCode } from 'vs/base/common/keyCodes';
-import { IDisposable } from 'vs/base/common/lifecycle';
 import { mixin } from 'vs/base/common/objects';
 import { isMacintosh } from 'vs/base/common/platform';
 import { URI as uri } from 'vs/base/common/uri';
@@ -26,14 +24,12 @@ import { SnippetController2 } from 'vs/editor/contrib/snippet/browser/snippetCon
 import { SuggestController } from 'vs/editor/contrib/suggest/browser/suggestController';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ColorIdentifier, editorSelectionBackground, inputBackground, inputBorder, inputForeground, inputPlaceholderForeground, selectionBackground } from 'vs/platform/theme/common/colorRegistry';
-import { IStyleOverrides, attachStyler } from 'vs/platform/theme/common/styler';
-import { IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
+import { ColorIdentifier, asCssVariable, asCssVariableWithDefault, editorSelectionBackground, inputBackground, inputBorder, inputForeground, inputPlaceholderForeground, selectionBackground } from 'vs/platform/theme/common/colorRegistry';
+import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { MenuPreventer } from 'vs/workbench/contrib/codeEditor/browser/menuPreventer';
 import { getSimpleEditorOptions } from 'vs/workbench/contrib/codeEditor/browser/simpleEditorOptions';
 import { SelectionClipboardContributionID } from 'vs/workbench/contrib/codeEditor/browser/selectionClipboard';
 import { EditorExtensionsRegistry } from 'vs/editor/browser/editorExtensions';
-import { IThemable } from 'vs/base/common/styler';
 import { DEFAULT_FONT_FAMILY } from 'vs/workbench/browser/style';
 import { HistoryNavigator } from 'vs/base/common/history';
 import { registerAndCreateHistoryNavigationContext, IHistoryNavigationContext } from 'vs/platform/history/browser/contextScopedHistoryWidget';
@@ -41,6 +37,8 @@ import { IHistoryNavigationWidget } from 'vs/base/browser/history';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import { IEditorConstructionOptions } from 'vs/editor/browser/config/editorConfiguration';
+import { ensureValidWordDefinition, getWordAtText } from 'vs/editor/common/core/wordHelper';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 export interface SuggestResultsProvider {
 	/**
@@ -57,6 +55,20 @@ export interface SuggestResultsProvider {
 	 * Defaults to the empty array.
 	 */
 	triggerCharacters?: string[];
+
+	/**
+	 * Optional regular expression that describes what a word is
+	 *
+	 * Defaults to space separated words.
+	 */
+	wordDefinition?: RegExp;
+
+	/**
+	 * Show suggestions even if the trigger character is not present.
+	 *
+	 * Defaults to false.
+	 */
+	alwaysShowSuggestions?: boolean;
 
 	/**
 	 * Defines the sorting function used when showing results.
@@ -89,29 +101,21 @@ interface SuggestEnabledInputOptions {
 	 * Defaults to an internal DOM node.
 	 */
 	overflowWidgetsDomNode?: HTMLElement;
+
+	/**
+	 * Override the default styling of the input.
+	 */
+	styleOverrides?: ISuggestEnabledInputStyleOverrides;
 }
 
-export interface ISuggestEnabledInputStyleOverrides extends IStyleOverrides {
+export interface ISuggestEnabledInputStyleOverrides {
 	inputBackground?: ColorIdentifier;
 	inputForeground?: ColorIdentifier;
 	inputBorder?: ColorIdentifier;
 	inputPlaceholderForeground?: ColorIdentifier;
 }
 
-type ISuggestEnabledInputStyles = {
-	[P in keyof ISuggestEnabledInputStyleOverrides]: Color | undefined;
-};
-
-export function attachSuggestEnabledInputBoxStyler(widget: IThemable, themeService: IThemeService, style?: ISuggestEnabledInputStyleOverrides): IDisposable {
-	return attachStyler(themeService, {
-		inputBackground: style?.inputBackground || inputBackground,
-		inputForeground: style?.inputForeground || inputForeground,
-		inputBorder: style?.inputBorder || inputBorder,
-		inputPlaceholderForeground: style?.inputPlaceholderForeground || inputPlaceholderForeground,
-	} as ISuggestEnabledInputStyleOverrides, widget);
-}
-
-export class SuggestEnabledInput extends Widget implements IThemable {
+export class SuggestEnabledInput extends Widget {
 
 	private readonly _onShouldFocusResults = new Emitter<void>();
 	readonly onShouldFocusResults: Event<void> = this._onShouldFocusResults.event;
@@ -142,6 +146,7 @@ export class SuggestEnabledInput extends Widget implements IThemable {
 		@IModelService modelService: IModelService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@ILanguageFeaturesService languageFeaturesService: ILanguageFeaturesService,
+		@IConfigurationService configurationService: IConfigurationService
 	) {
 		super();
 
@@ -153,6 +158,8 @@ export class SuggestEnabledInput extends Widget implements IThemable {
 			getSimpleEditorOptions(),
 			getSuggestEnabledInputOptions(ariaLabel));
 		editorOptions.overflowWidgetsDomNode = options.overflowWidgetsDomNode;
+		editorOptions.accessibilitySupport = configurationService.getValue<'auto' | 'off' | 'on'>('editor.accessibilitySupport');
+		editorOptions.cursorBlinking = configurationService.getValue<'blink' | 'smooth' | 'phase' | 'expand' | 'solid'>('editor.cursorBlinking');
 
 		const scopedContextKeyService = this.getScopedContextKeyService(contextKeyService);
 
@@ -172,6 +179,18 @@ export class SuggestEnabledInput extends Widget implements IThemable {
 				]),
 				isSimpleWidget: true,
 			}));
+
+		this._register(configurationService.onDidChangeConfiguration((e) => {
+			if (e.affectsConfiguration('editor.accessibilitySupport') ||
+				e.affectsConfiguration('editor.cursorBlinking')) {
+				const accessibilitySupport = configurationService.getValue<'auto' | 'off' | 'on'>('editor.accessibilitySupport');
+				const cursorBlinking = configurationService.getValue<'blink' | 'smooth' | 'phase' | 'expand' | 'solid'>('editor.cursorBlinking');
+				this.inputWidget.updateOptions({
+					accessibilitySupport,
+					cursorBlinking
+				});
+			}
+		}));
 
 		this._register(this.inputWidget.onDidFocusEditorText(() => this._onDidFocus.fire()));
 		this._register(this.inputWidget.onDidBlurEditorText(() => this._onDidBlur.fire()));
@@ -193,6 +212,7 @@ export class SuggestEnabledInput extends Widget implements IThemable {
 		})));
 
 		const onKeyDownMonaco = Event.chain(this.inputWidget.onKeyDown);
+		this._register(onKeyDownMonaco.filter(e => e.keyCode === KeyCode.Enter).on(e => { e.preventDefault(); /** Do nothing. Enter causes new line which is not expected. */ }, this));
 		this._register(onKeyDownMonaco.filter(e => e.keyCode === KeyCode.DownArrow && (isMacintosh ? e.metaKey : e.ctrlKey)).on(() => this._onShouldFocusResults.fire(), this));
 
 		let preexistingContent = this.getValue();
@@ -210,7 +230,9 @@ export class SuggestEnabledInput extends Widget implements IThemable {
 		const validatedSuggestProvider = {
 			provideResults: suggestionProvider.provideResults,
 			sortKey: suggestionProvider.sortKey || (a => a),
-			triggerCharacters: suggestionProvider.triggerCharacters || []
+			triggerCharacters: suggestionProvider.triggerCharacters || [],
+			wordDefinition: suggestionProvider.wordDefinition ? ensureValidWordDefinition(suggestionProvider.wordDefinition) : undefined,
+			alwaysShowSuggestions: !!suggestionProvider.alwaysShowSuggestions,
 		};
 
 		this.setValue(options.value || '');
@@ -221,12 +243,19 @@ export class SuggestEnabledInput extends Widget implements IThemable {
 				const query = model.getValue();
 
 				const zeroIndexedColumn = position.column - 1;
+				let alreadyTypedCount = 0, zeroIndexedWordStart = 0;
 
-				const zeroIndexedWordStart = query.lastIndexOf(' ', zeroIndexedColumn - 1) + 1;
-				const alreadyTypedCount = zeroIndexedColumn - zeroIndexedWordStart;
+				if (validatedSuggestProvider.wordDefinition) {
+					const wordAtText = getWordAtText(position.column, validatedSuggestProvider.wordDefinition, query, 0);
+					alreadyTypedCount = wordAtText?.word.length ?? 0;
+					zeroIndexedWordStart = wordAtText ? wordAtText.startColumn - 1 : 0;
+				} else {
+					zeroIndexedWordStart = query.lastIndexOf(' ', zeroIndexedColumn - 1) + 1;
+					alreadyTypedCount = zeroIndexedColumn - zeroIndexedWordStart;
+				}
 
 				// dont show suggestions if the user has typed something, but hasn't used the trigger character
-				if (alreadyTypedCount > 0 && validatedSuggestProvider.triggerCharacters.indexOf(query[zeroIndexedWordStart]) === -1) {
+				if (!validatedSuggestProvider.alwaysShowSuggestions && alreadyTypedCount > 0 && validatedSuggestProvider.triggerCharacters?.indexOf(query[zeroIndexedWordStart]) === -1) {
 					return { suggestions: [] };
 				}
 
@@ -253,6 +282,8 @@ export class SuggestEnabledInput extends Widget implements IThemable {
 				};
 			}
 		}));
+
+		this.style(options.styleOverrides || {});
 	}
 
 	protected getScopedContextKeyService(_contextKeyService: IContextKeyService): IContextKeyService | undefined {
@@ -275,20 +306,17 @@ export class SuggestEnabledInput extends Widget implements IThemable {
 		return this.inputWidget.getValue();
 	}
 
-	public style(colors: ISuggestEnabledInputStyles): void {
-		this.stylingContainer.style.backgroundColor = colors.inputBackground ? colors.inputBackground.toString() : '';
-		this.stylingContainer.style.color = colors.inputForeground ? colors.inputForeground.toString() : '';
-		this.placeholderText.style.color = colors.inputPlaceholderForeground ? colors.inputPlaceholderForeground.toString() : '';
-
+	private style(styleOverrides: ISuggestEnabledInputStyleOverrides): void {
+		this.stylingContainer.style.backgroundColor = asCssVariable(styleOverrides.inputBackground ?? inputBackground);
+		this.stylingContainer.style.color = asCssVariable(styleOverrides.inputForeground ?? inputForeground);
+		this.placeholderText.style.color = asCssVariable(styleOverrides.inputPlaceholderForeground ?? inputPlaceholderForeground);
 		this.stylingContainer.style.borderWidth = '1px';
 		this.stylingContainer.style.borderStyle = 'solid';
-		this.stylingContainer.style.borderColor = colors.inputBorder ?
-			colors.inputBorder.toString() :
-			'transparent';
+		this.stylingContainer.style.borderColor = asCssVariableWithDefault(styleOverrides.inputBorder ?? inputBorder, 'transparent');
 
 		const cursor = this.stylingContainer.getElementsByClassName('cursor')[0] as HTMLDivElement;
 		if (cursor) {
-			cursor.style.backgroundColor = colors.inputForeground ? colors.inputForeground.toString() : '';
+			cursor.style.backgroundColor = asCssVariable(styleOverrides.inputForeground ?? inputForeground);
 		}
 	}
 
@@ -333,8 +361,9 @@ export class SuggestEnabledInputWithHistory extends SuggestEnabledInput implemen
 		@IModelService modelService: IModelService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@ILanguageFeaturesService languageFeaturesService: ILanguageFeaturesService,
+		@IConfigurationService configurationService: IConfigurationService
 	) {
-		super(id, parent, suggestionProvider, ariaLabel, resourceHandle, suggestOptions, instantiationService, modelService, contextKeyService, languageFeaturesService);
+		super(id, parent, suggestionProvider, ariaLabel, resourceHandle, suggestOptions, instantiationService, modelService, contextKeyService, languageFeaturesService, configurationService);
 		this.history = new HistoryNavigator<string>(history, 100);
 	}
 
@@ -411,8 +440,9 @@ export class ContextScopedSuggestEnabledInputWithHistory extends SuggestEnabledI
 		@IModelService modelService: IModelService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@ILanguageFeaturesService languageFeaturesService: ILanguageFeaturesService,
+		@IConfigurationService configurationService: IConfigurationService
 	) {
-		super(options, instantiationService, modelService, contextKeyService, languageFeaturesService);
+		super(options, instantiationService, modelService, contextKeyService, languageFeaturesService, configurationService);
 
 		const { historyNavigationBackwardsEnablement, historyNavigationForwardsEnablement } = this.historyContext;
 		this._register(this.inputWidget.onDidChangeCursorPosition(({ position }) => {

@@ -49,7 +49,7 @@ import { IUserDataProfileService } from 'vs/workbench/services/userDataProfile/c
 
 const ROOT = URI.file('tests').with({ scheme: 'vscode-tests' });
 
-export class ConfigurationCache implements IConfigurationCache {
+class ConfigurationCache implements IConfigurationCache {
 	needsCaching(resource: URI): boolean { return false; }
 	async read(): Promise<string> { return ''; }
 	async write(): Promise<void> { }

@@ -10,7 +10,7 @@ import { ILifecycleService, LifecyclePhase } from 'vs/workbench/services/lifecyc
 import { Action2, IAction2Options, MenuId, MenuRegistry, registerAction2 } from 'vs/platform/actions/common/actions';
 import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { localize } from 'vs/nls';
-import { IEditSessionsStorageService, Change, ChangeType, Folder, EditSession, FileType, EDIT_SESSION_SYNC_CATEGORY, EDIT_SESSIONS_CONTAINER_ID, EditSessionSchemaVersion, IEditSessionsLogService, EDIT_SESSIONS_VIEW_ICON, EDIT_SESSIONS_TITLE, EDIT_SESSIONS_SHOW_VIEW, EDIT_SESSIONS_DATA_VIEW_ID, decodeEditSessionFileContent, hashedEditSessionId } from 'vs/workbench/contrib/editSessions/common/editSessions';
+import { IEditSessionsStorageService, Change, ChangeType, Folder, EditSession, FileType, EDIT_SESSION_SYNC_CATEGORY, EDIT_SESSIONS_CONTAINER_ID, EditSessionSchemaVersion, IEditSessionsLogService, EDIT_SESSIONS_VIEW_ICON, EDIT_SESSIONS_TITLE, EDIT_SESSIONS_SHOW_VIEW, EDIT_SESSIONS_DATA_VIEW_ID, decodeEditSessionFileContent, hashedEditSessionId, editSessionsLogId } from 'vs/workbench/contrib/editSessions/common/editSessions';
 import { ISCMRepository, ISCMService } from 'vs/workbench/contrib/scm/common/scm';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IWorkspaceContextService, IWorkspaceFolder, WorkbenchState } from 'vs/platform/workspace/common/workspace';
@@ -30,14 +30,14 @@ import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { workbenchConfigurationNodeBase } from 'vs/workbench/common/configuration';
 import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
-import { IQuickInputButton, IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
+import { IQuickInputButton, IQuickInputService, IQuickPickItem, IQuickPickSeparator } from 'vs/platform/quickinput/common/quickInput';
 import { ExtensionsRegistry } from 'vs/workbench/services/extensions/common/extensionsRegistry';
 import { ContextKeyExpr, ContextKeyExpression, IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { getVirtualWorkspaceLocation } from 'vs/platform/workspace/common/virtualWorkspace';
 import { Schemas } from 'vs/base/common/network';
 import { IsWebContext } from 'vs/platform/contextkey/common/contextkeys';
-import { isProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
+import { IExtensionService, isProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
 import { EditSessionsLogService } from 'vs/workbench/contrib/editSessions/common/editSessionsLogService';
 import { IViewContainersRegistry, Extensions as ViewExtensions, ViewContainerLocation, IViewsService } from 'vs/workbench/common/views';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
@@ -45,14 +45,13 @@ import { ViewPaneContainer } from 'vs/workbench/browser/parts/views/viewPaneCont
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { EditSessionsDataViews } from 'vs/workbench/contrib/editSessions/browser/editSessionsViews';
 import { EditSessionsFileSystemProvider } from 'vs/workbench/contrib/editSessions/browser/editSessionsFileSystemProvider';
-import { isNative } from 'vs/base/common/platform';
+import { isNative, isWeb } from 'vs/base/common/platform';
 import { VirtualWorkspaceContext, WorkspaceFolderCountContext } from 'vs/workbench/common/contextkeys';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { equals } from 'vs/base/common/objects';
 import { EditSessionIdentityMatch, IEditSessionIdentityService } from 'vs/platform/workspace/common/editSessions';
-import { ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { ThemeIcon } from 'vs/base/common/themables';
 import { IOutputService } from 'vs/workbench/services/output/common/output';
-import * as Constants from 'vs/workbench/contrib/logs/common/logConstants';
 import { sha1Hex } from 'vs/base/browser/hash';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { IActivityService, NumberBadge } from 'vs/workbench/services/activity/common/activity';
@@ -61,9 +60,12 @@ import { ILocalizedString } from 'vs/platform/action/common/action';
 import { Codicon } from 'vs/base/common/codicons';
 import { CancellationError } from 'vs/base/common/errors';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
+import { IExtensionsViewPaneContainer, VIEWLET_ID } from 'vs/workbench/contrib/extensions/common/extensions';
+import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
 
 registerSingleton(IEditSessionsLogService, EditSessionsLogService, InstantiationType.Delayed);
 registerSingleton(IEditSessionsStorageService, EditSessionsWorkbenchService, InstantiationType.Delayed);
+
 
 const continueWorkingOnCommand: IAction2Options = {
 	id: '_workbench.editSessions.actions.continueEditSession',
@@ -82,6 +84,23 @@ const showOutputChannelCommand: IAction2Options = {
 	title: { value: localize('show log', 'Show Log'), original: 'Show Log' },
 	category: EDIT_SESSION_SYNC_CATEGORY
 };
+const installAdditionalContinueOnOptionsCommand = {
+	id: 'workbench.action.continueOn.extensions',
+	title: localize('continueOn.installAdditional', 'Install additional development environment options'),
+};
+registerAction2(class extends Action2 {
+	constructor() {
+		super({ ...installAdditionalContinueOnOptionsCommand, f1: false });
+	}
+
+	async run(accessor: ServicesAccessor): Promise<void> {
+		const paneCompositePartService = accessor.get(IPaneCompositePartService);
+		const viewlet = await paneCompositePartService.openPaneComposite(VIEWLET_ID, ViewContainerLocation.Sidebar, true);
+		const view = viewlet?.getViewPaneContainer() as IExtensionsViewPaneContainer | undefined;
+		view?.search('@tag:continueOn');
+	}
+});
+
 const resumeProgressOptionsTitle = `[${localize('resuming working changes window', 'Resuming working changes...')}](command:${showOutputChannelCommand.id})`;
 const resumeProgressOptions = {
 	location: ProgressLocation.Window,
@@ -98,6 +117,8 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 
 	private static APPLICATION_LAUNCHED_VIA_CONTINUE_ON_STORAGE_KEY = 'applicationLaunchedViaContinueOn';
 	private accountsMenuBadgeDisposable = this._register(new MutableDisposable());
+
+	private registeredCommands = new Set<string>();
 
 	constructor(
 		@IEditSessionsStorageService private readonly editSessionsStorageService: IEditSessionsStorageService,
@@ -124,6 +145,7 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 		@IActivityService private readonly activityService: IActivityService,
 		@IEditorService private readonly editorService: IEditorService,
 		@IRemoteAgentService private readonly remoteAgentService: IRemoteAgentService,
+		@IExtensionService private readonly extensionService: IExtensionService,
 	) {
 		super();
 
@@ -136,7 +158,11 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 		this.shouldShowViewsContext = EDIT_SESSIONS_SHOW_VIEW.bindTo(this.contextKeyService);
 
 		this._register(this.fileService.registerProvider(EditSessionsFileSystemProvider.SCHEMA, new EditSessionsFileSystemProvider(this.editSessionsStorageService)));
-		this.lifecycleService.onWillShutdown((e) => e.join(this.autoStoreEditSession(), { id: 'autoStoreWorkingChanges', label: localize('autoStoreWorkingChanges', 'Storing current working changes...') }));
+		this.lifecycleService.onWillShutdown((e) => {
+			if (this.configurationService.getValue('workbench.experimental.cloudChanges.autoStore') === 'onShutdown' && !isWeb) {
+				e.join(this.autoStoreEditSession(), { id: 'autoStoreWorkingChanges', label: localize('autoStoreWorkingChanges', 'Storing current working changes...') });
+			}
+		});
 		this._register(this.editSessionsStorageService.onDidSignIn(() => this.updateAccountsMenuBadge()));
 		this._register(this.editSessionsStorageService.onDidSignOut(() => this.updateAccountsMenuBadge()));
 	}
@@ -201,17 +227,15 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 	}
 
 	private async autoStoreEditSession() {
-		if (this.configurationService.getValue('workbench.experimental.cloudChanges.autoStore') === 'onShutdown') {
-			const cancellationTokenSource = new CancellationTokenSource();
-			await this.progressService.withProgress({
-				location: ProgressLocation.Window,
-				type: 'syncing',
-				title: localize('store working changes', 'Storing working changes...')
-			}, async () => this.storeEditSession(false, cancellationTokenSource.token), () => {
-				cancellationTokenSource.cancel();
-				cancellationTokenSource.dispose();
-			});
-		}
+		const cancellationTokenSource = new CancellationTokenSource();
+		await this.progressService.withProgress({
+			location: ProgressLocation.Window,
+			type: 'syncing',
+			title: localize('store working changes', 'Storing working changes...')
+		}, async () => this.storeEditSession(false, cancellationTokenSource.token), () => {
+			cancellationTokenSource.cancel();
+			cancellationTokenSource.dispose();
+		});
 	}
 
 	private registerViews() {
@@ -250,7 +274,7 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 
 			run(accessor: ServicesAccessor, ...args: any[]) {
 				const outputChannel = accessor.get(IOutputService);
-				void outputChannel.showChannel(Constants.editSessionsLogChannelId);
+				void outputChannel.showChannel(editSessionsLogId);
 			}
 		}));
 	}
@@ -376,8 +400,8 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 				});
 			}
 
-			async run(accessor: ServicesAccessor, editSessionId?: string): Promise<void> {
-				await that.progressService.withProgress({ ...resumeProgressOptions, title: resumeProgressOptionsTitle }, async () => await that.resumeEditSession(editSessionId));
+			async run(accessor: ServicesAccessor, editSessionId?: string, force?: boolean): Promise<void> {
+				await that.progressService.withProgress({ ...resumeProgressOptions, title: resumeProgressOptionsTitle }, async () => await that.resumeEditSession(editSessionId, undefined, force));
 			}
 		}));
 	}
@@ -471,22 +495,17 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 
 			// TODO@joyceerhl Provide the option to diff files which would be overwritten by edit session contents
 			if (conflictingChanges.length > 0) {
-				const yes = localize('resume edit session yes', 'Yes');
-				const cancel = localize('resume edit session cancel', 'Cancel');
 				// Allow to show edit sessions
 
-				const result = await this.dialogService.show(
-					Severity.Warning,
-					conflictingChanges.length > 1 ?
+				const { confirmed } = await this.dialogService.confirm({
+					type: Severity.Warning,
+					message: conflictingChanges.length > 1 ?
 						localize('resume edit session warning many', 'Resuming your working changes from the cloud will overwrite the following {0} files. Do you want to proceed?', conflictingChanges.length) :
 						localize('resume edit session warning 1', 'Resuming your working changes from the cloud will overwrite {0}. Do you want to proceed?', basename(conflictingChanges[0].uri)),
-					[cancel, yes],
-					{
-						detail: conflictingChanges.length > 1 ? getFileNamesMessage(conflictingChanges.map((c) => c.uri)) : undefined,
-						cancelId: 0
-					});
+					detail: conflictingChanges.length > 1 ? getFileNamesMessage(conflictingChanges.map((c) => c.uri)) : undefined
+				});
 
-				if (result.choice === 0) {
+				if (!confirmed) {
 					return;
 				}
 			}
@@ -630,6 +649,8 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 
 					continue;
 				}
+
+				await this.editSessionIdentityService.onWillCreateEditSessionIdentity(workspaceFolder, cancellationToken);
 
 				name = name ?? workspaceFolder.name;
 				const relativeFilePath = relativePath(workspaceFolder.uri, uri) ?? uri.path;
@@ -779,7 +800,7 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 					));
 
 					if (contribution.qualifiedName) {
-						this.generateStandaloneOptionCommand(command.id, contribution.qualifiedName, command.category, when, contribution.remoteGroup);
+						this.generateStandaloneOptionCommand(command.id, contribution.qualifiedName, contribution.category ?? command.category, when, contribution.remoteGroup);
 					}
 				}
 			}
@@ -796,21 +817,26 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 			f1: true
 		};
 
-		registerAction2(class StandaloneContinueOnOption extends Action2 {
-			constructor() {
-				super(command);
-			}
+		if (!this.registeredCommands.has(command.id)) {
+			this.registeredCommands.add(command.id);
 
-			async run(accessor: ServicesAccessor): Promise<void> {
-				return accessor.get(ICommandService).executeCommand(continueWorkingOnCommand.id, undefined, commandId);
-			}
-		});
+			registerAction2(class StandaloneContinueOnOption extends Action2 {
+				constructor() {
+					super(command);
+				}
 
-		if (remoteGroup !== undefined) {
-			MenuRegistry.appendMenuItem(MenuId.StatusBarRemoteIndicatorMenu, {
-				group: remoteGroup,
-				command: command
+				async run(accessor: ServicesAccessor): Promise<void> {
+					return accessor.get(ICommandService).executeCommand(continueWorkingOnCommand.id, undefined, commandId);
+				}
 			});
+
+			if (remoteGroup !== undefined) {
+				MenuRegistry.appendMenuItem(MenuId.StatusBarRemoteIndicatorMenu, {
+					group: remoteGroup,
+					command: command,
+					when: command.precondition
+				});
+			}
 		}
 	}
 
@@ -851,14 +877,22 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 			: this.contextService.getWorkspace().folders.map((folder) => folder.name).join(', ');
 		quickPick.placeholder = localize('continueEditSessionPick.title.v2', "Select a development environment to continue working on {0} in", `'${workspaceContext}'`);
 		quickPick.items = this.createPickItems();
+		this.extensionService.onDidChangeExtensions(() => {
+			quickPick.items = this.createPickItems();
+		});
 
 		const command = await new Promise<string | undefined>((resolve, reject) => {
 			quickPick.onDidHide(() => resolve(undefined));
 
 			quickPick.onDidAccept((e) => {
 				const selection = quickPick.activeItems[0].command;
-				resolve(selection);
-				quickPick.hide();
+
+				if (selection === installAdditionalContinueOnOptionsCommand.id) {
+					void this.commandService.executeCommand(installAdditionalContinueOnOptionsCommand.id);
+				} else {
+					resolve(selection);
+					quickPick.hide();
+				}
 			});
 
 			quickPick.show();
@@ -912,7 +946,7 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 		}
 	}
 
-	private createPickItems(): ContinueEditSessionItem[] {
+	private createPickItems(): (ContinueEditSessionItem | IQuickPickSeparator)[] {
 		const items = [...this.continueEditSessionOptions].filter((option) => option.when === undefined || this.contextKeyService.contextMatchesRules(option.when));
 
 		if (getVirtualWorkspaceLocation(this.contextService.getWorkspace()) !== undefined && isNative) {
@@ -923,7 +957,8 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 			));
 		}
 
-		return items.sort((item1, item2) => item1.label.localeCompare(item2.label));
+		const sortedItems: (ContinueEditSessionItem | IQuickPickSeparator)[] = items.sort((item1, item2) => item1.label.localeCompare(item2.label));
+		return sortedItems.concat({ type: 'separator' }, new ContinueEditSessionItem(installAdditionalContinueOnOptionsCommand.title, installAdditionalContinueOnOptionsCommand.id));
 	}
 }
 
@@ -953,6 +988,7 @@ interface ICommand {
 	when: string;
 	documentation?: string;
 	qualifiedName?: string;
+	category?: string;
 	remoteGroup?: string;
 }
 
@@ -1011,7 +1047,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			'type': 'string',
 			'tags': ['experimental', 'usesOnlineServices'],
 			'default': 'off',
-			'markdownDescription': localize('autoStoreWorkingChangesDescription', "Controls whether to automatically store available working changes in the cloud for the current workspace."),
+			'markdownDescription': localize('autoStoreWorkingChangesDescription', "Controls whether to automatically store available working changes in the cloud for the current workspace. This setting has no effect in the web."),
 		},
 		'workbench.cloudChanges.autoResume': {
 			enum: ['onReload', 'off'],

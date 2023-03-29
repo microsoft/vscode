@@ -5,11 +5,11 @@
 
 import * as assert from 'assert';
 import * as path from 'vs/base/common/path';
-import { getPathFromAmdModule } from 'vs/base/test/node/testUtils';
 import { SingleModifierChord, ResolvedKeybinding, Keybinding } from 'vs/base/common/keybindings';
 import { Promises } from 'vs/base/node/pfs';
 import { IKeyboardEvent } from 'vs/platform/keybinding/common/keybinding';
 import { IKeyboardMapper } from 'vs/platform/keyboardLayout/common/keyboardMapper';
+import { FileAccess } from 'vs/base/common/network';
 
 export interface IResolvedKeybinding {
 	label: string | null;
@@ -46,7 +46,7 @@ export function assertResolveKeybinding(mapper: IKeyboardMapper, keybinding: Key
 }
 
 export function readRawMapping<T>(file: string): Promise<T> {
-	return Promises.readFile(getPathFromAmdModule(require, `vs/workbench/services/keybinding/test/node/${file}.js`)).then((buff) => {
+	return Promises.readFile(FileAccess.asFileUri(`vs/workbench/services/keybinding/test/node/${file}.js`).fsPath).then((buff) => {
 		const contents = buff.toString();
 		const func = new Function('define', contents);
 		let rawMappings: T | null = null;
@@ -58,7 +58,7 @@ export function readRawMapping<T>(file: string): Promise<T> {
 }
 
 export function assertMapping(writeFileIfDifferent: boolean, mapper: IKeyboardMapper, file: string): Promise<void> {
-	const filePath = path.normalize(getPathFromAmdModule(require, `vs/workbench/services/keybinding/test/node/${file}`));
+	const filePath = path.normalize(FileAccess.asFileUri(`vs/workbench/services/keybinding/test/node/${file}`).fsPath);
 
 	return Promises.readFile(filePath).then((buff) => {
 		const expected = buff.toString().replace(/\r\n/g, '\n');

@@ -198,7 +198,7 @@ class TscTaskProvider extends Disposable implements vscode.TaskProvider {
 		if (editor) {
 			const document = editor.document;
 			if (document && (document.languageId === 'typescript' || document.languageId === 'typescriptreact')) {
-				return this.client.value.toPath(document.uri);
+				return this.client.value.toTsFilePath(document.uri);
 			}
 		}
 		return undefined;

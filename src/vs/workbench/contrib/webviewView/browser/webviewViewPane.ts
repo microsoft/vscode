@@ -177,6 +177,7 @@ export class WebviewViewPane extends ViewPane {
 		const webview = this.webviewService.createWebviewOverlay({
 			origin,
 			providedViewType: this.id,
+			title: this.title,
 			options: { purpose: WebviewContentPurpose.WebviewView },
 			contentOptions: {},
 			extension: this.extensionId ? { id: this.extensionId } : undefined

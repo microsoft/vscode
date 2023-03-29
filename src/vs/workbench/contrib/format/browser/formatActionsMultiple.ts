@@ -24,7 +24,7 @@ import { IExtensionService, toExtension } from 'vs/workbench/services/extensions
 import { Disposable, DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ITextModel } from 'vs/editor/common/model';
-import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
+import { INotificationService, NotificationPriority, Severity } from 'vs/platform/notification/common/notification';
 import { ILanguageService } from 'vs/editor/common/languages/language';
 import { IWorkbenchExtensionEnablementService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { editorConfigurationBaseNode } from 'vs/editor/common/config/editorConfigurationSchema';
@@ -152,13 +152,12 @@ class DefaultFormatter extends Disposable implements IWorkbenchContribution {
 		if (mode !== FormattingMode.Silent) {
 			// running from a user action -> show modal dialog so that users configure
 			// a default formatter
-			const result = await this._dialogService.confirm({
+			const { confirmed } = await this._dialogService.confirm({
 				message: nls.localize('miss.1', "Configure Default Formatter"),
 				detail: formatterOrMessage,
-				primaryButton: nls.localize('do.config', "Configure..."),
-				secondaryButton: nls.localize('cancel', "Cancel")
+				primaryButton: nls.localize({ key: 'do.config', comment: ['&& denotes a mnemonic'] }, "&&Configure...")
 			});
-			if (result.confirmed) {
+			if (confirmed) {
 				return this._pickAndPersistDefaultFormatter(formatter, document);
 			}
 		} else {
@@ -166,8 +165,8 @@ class DefaultFormatter extends Disposable implements IWorkbenchContribution {
 			this._notificationService.prompt(
 				Severity.Info,
 				formatterOrMessage,
-				[{ label: nls.localize('do.config', "Configure..."), run: () => this._pickAndPersistDefaultFormatter(formatter, document) }],
-				{ silent: true }
+				[{ label: nls.localize('do.config.notification', "Configure..."), run: () => this._pickAndPersistDefaultFormatter(formatter, document) }],
+				{ priority: NotificationPriority.SILENT }
 			);
 		}
 		return undefined;
@@ -221,7 +220,7 @@ class DefaultFormatter extends Disposable implements IWorkbenchContribution {
 			if (typeof result !== 'string') {
 				return;
 			}
-			const command = { id: `formatter/configure/dfl/${generateUuid()}`, title: nls.localize('do.config', "Configure...") };
+			const command = { id: `formatter/configure/dfl/${generateUuid()}`, title: nls.localize('do.config.command', "Configure...") };
 			this._languageStatusStore.add(CommandsRegistry.registerCommand(command.id, () => this._pickAndPersistDefaultFormatter(formatter, document)));
 			this._languageStatusStore.add(this._languageStatusService.addStatus({
 				id: 'formatter.conflict',

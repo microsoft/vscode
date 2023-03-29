@@ -84,7 +84,7 @@ export class SnippetsResourceTreeItem implements IProfileResourceTreeItem {
 	readonly handle = this.profile.snippetsHome.toString();
 	readonly label = { label: localize('snippets', "Snippets") };
 	readonly collapsibleState = TreeItemCollapsibleState.Collapsed;
-	checkbox: ITreeItemCheckboxState = { isChecked: true };
+	checkbox: ITreeItemCheckboxState | undefined;
 
 	private readonly excludedSnippets = new ResourceSet();
 

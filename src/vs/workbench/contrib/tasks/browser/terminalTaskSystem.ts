@@ -33,12 +33,12 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IShellLaunchConfig, TerminalSettingId, WaitOnExitValue } from 'vs/platform/terminal/common/terminal';
 import { formatMessageForTerminal } from 'vs/platform/terminal/common/terminalStrings';
-import { ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { ThemeIcon } from 'vs/base/common/themables';
 import { IViewDescriptorService, IViewsService, ViewContainerLocation } from 'vs/workbench/common/views';
 import { TaskTerminalStatus } from 'vs/workbench/contrib/tasks/browser/taskTerminalStatus';
 import { ProblemCollectorEventKind, ProblemHandlingStrategy, StartStopProblemCollector, WatchingProblemCollector } from 'vs/workbench/contrib/tasks/common/problemCollectors';
 import { GroupKind } from 'vs/workbench/contrib/tasks/common/taskConfiguration';
-import { CommandOptions, CommandString, ContributedTask, CustomTask, DependsOrder, ICommandConfiguration, IConfigurationProperties, IExtensionTaskSource, InMemoryTask, IPresentationOptions, IShellConfiguration, IShellQuotingOptions, ITaskEvent, PanelKind, RevealKind, RevealProblemKind, RuntimeType, ShellQuoting, Task, TaskEvent, TaskEventKind, TaskScope, TaskSettingId, TaskSourceKind } from 'vs/workbench/contrib/tasks/common/tasks';
+import { CommandOptions, CommandString, ContributedTask, CustomTask, DependsOrder, ICommandConfiguration, IConfigurationProperties, IExtensionTaskSource, InMemoryTask, IPresentationOptions, IShellConfiguration, IShellQuotingOptions, ITaskEvent, PanelKind, RevealKind, RevealProblemKind, RuntimeType, ShellQuoting, Task, TaskEvent, TaskEventKind, TaskScope, TaskSourceKind } from 'vs/workbench/contrib/tasks/common/tasks';
 import { ITaskService } from 'vs/workbench/contrib/tasks/common/taskService';
 import { IResolvedVariables, IResolveSet, ITaskExecuteResult, ITaskResolver, ITaskSummary, ITaskSystem, ITaskSystemInfo, ITaskSystemInfoResolver, ITaskTerminateResponse, TaskError, TaskErrors, TaskExecuteKind, Triggers } from 'vs/workbench/contrib/tasks/common/taskSystem';
 import { ITerminalGroupService, ITerminalInstance, ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
@@ -51,6 +51,7 @@ import { IOutputService } from 'vs/workbench/services/output/common/output';
 import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
 import { IPathService } from 'vs/workbench/services/path/common/pathService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IDisposable } from 'xterm';
 
 interface ITerminalData {
 	terminal: ITerminalInstance;
@@ -215,9 +216,6 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 	private _reconnectedTerminals: ITerminalInstance[] | undefined;
 
 	taskShellIntegrationStartSequence(cwd: string | URI | undefined): string {
-		if (!this._configurationService.getValue(TaskSettingId.ShowDecorations)) {
-			return '';
-		}
 		return (
 			VSCodeSequence(VSCodeOscPt.PromptStart) +
 			VSCodeSequence(VSCodeOscPt.Property, `${VSCodeOscProperty.Task}=True`) +
@@ -229,9 +227,6 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 		);
 	}
 	get taskShellIntegrationOutputSequence(): string {
-		if (!this._configurationService.getValue(TaskSettingId.ShowDecorations)) {
-			return '';
-		}
 		return VSCodeSequence(VSCodeOscPt.CommandExecuted);
 	}
 
@@ -902,20 +897,25 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 				this._logService.error('Task terminal process never got ready');
 			});
 			this._fireTaskEvent(TaskEvent.create(TaskEventKind.Start, task, terminal.instanceId, resolver.values));
-			const onData = terminal.onLineData((line) => {
-				watchingProblemMatcher.processLine(line);
-				if (!delayer) {
-					delayer = new Async.Delayer(3000);
-				}
-				delayer.trigger(() => {
-					watchingProblemMatcher.forceDelivery();
-					delayer = undefined;
+			let onData: IDisposable | undefined;
+			if (problemMatchers.length) {
+				// prevent https://github.com/microsoft/vscode/issues/174511 from happening
+				onData = terminal.onLineData((line) => {
+					watchingProblemMatcher.processLine(line);
+					if (!delayer) {
+						delayer = new Async.Delayer(3000);
+					}
+					delayer.trigger(() => {
+						watchingProblemMatcher.forceDelivery();
+						delayer = undefined;
+					});
 				});
-			});
+			}
+
 			promise = new Promise<ITaskSummary>((resolve, reject) => {
 				const onExit = terminal!.onExit((terminalLaunchResult) => {
 					const exitCode = typeof terminalLaunchResult === 'number' ? terminalLaunchResult : terminalLaunchResult?.code;
-					onData.dispose();
+					onData?.dispose();
 					onExit.dispose();
 					const key = task.getMapKey();
 					if (this._busyTasks[mapKey]) {
@@ -1453,6 +1453,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 			}
 
 			terminalToReuse.terminal.scrollToBottom();
+			launchConfigs.reconnectionProperties = { ownerId: ReconnectionType, data: { lastTask: task.getCommonTaskId(), group, label: task._label, id: task._id } };
 			await terminalToReuse.terminal.reuseTerminal(launchConfigs);
 
 			if (task.command.presentation && task.command.presentation.clear) {

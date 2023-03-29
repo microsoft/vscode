@@ -25,9 +25,9 @@ import { TerminalRecorder } from 'vs/platform/terminal/common/terminalRecorder';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { EnvironmentVariableInfoChangesActive, EnvironmentVariableInfoStale } from 'vs/workbench/contrib/terminal/browser/environmentVariableInfo';
 import { ITerminalInstanceService } from 'vs/workbench/contrib/terminal/browser/terminal';
-import { IEnvironmentVariableCollection, IEnvironmentVariableInfo, IEnvironmentVariableService, IMergedEnvironmentVariableCollection } from 'vs/workbench/contrib/terminal/common/environmentVariable';
-import { MergedEnvironmentVariableCollection } from 'vs/workbench/contrib/terminal/common/environmentVariableCollection';
-import { serializeEnvironmentVariableCollections } from 'vs/workbench/contrib/terminal/common/environmentVariableShared';
+import { IEnvironmentVariableInfo, IEnvironmentVariableService } from 'vs/workbench/contrib/terminal/common/environmentVariable';
+import { MergedEnvironmentVariableCollection } from 'vs/platform/terminal/common/environmentVariableCollection';
+import { serializeEnvironmentVariableCollections } from 'vs/platform/terminal/common/environmentVariableShared';
 import { IBeforeProcessDataEvent, ITerminalBackend, ITerminalConfigHelper, ITerminalProcessManager, ITerminalProfileResolverService, ProcessState } from 'vs/workbench/contrib/terminal/common/terminal';
 import * as terminalEnvironment from 'vs/workbench/contrib/terminal/common/terminalEnvironment';
 import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
@@ -38,6 +38,7 @@ import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteA
 import { TaskSettingId } from 'vs/workbench/contrib/tasks/common/tasks';
 import Severity from 'vs/base/common/severity';
 import { INotificationService } from 'vs/platform/notification/common/notification';
+import { IEnvironmentVariableCollection, IMergedEnvironmentVariableCollection } from 'vs/platform/terminal/common/environmentVariable';
 
 const enum ProcessConstants {
 	/**
@@ -93,7 +94,6 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 
 	private _shellLaunchConfig?: IShellLaunchConfig;
 	private _dimensions: ITerminalDimensions = { cols: 0, rows: 0 };
-	private _isScreenReaderModeEnabled: boolean = false;
 
 	private readonly _onPtyDisconnect = this._register(new Emitter<void>());
 	readonly onPtyDisconnect = this._onPtyDisconnect.event;
@@ -122,6 +122,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 	get hasWrittenData(): boolean { return this._hasWrittenData; }
 	get hasChildProcesses(): boolean { return this._hasChildProcesses; }
 	get reconnectionProperties(): IReconnectionProperties | undefined { return this._shellLaunchConfig?.attachPersistentProcess?.reconnectionProperties || this._shellLaunchConfig?.reconnectionProperties || undefined; }
+	get extEnvironmentVariableCollection(): IMergedEnvironmentVariableCollection | undefined { return this._extEnvironmentVariableCollection; }
 
 	constructor(
 		private readonly _instanceId: number,
@@ -172,7 +173,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 		if (environmentVariableCollections) {
 			this._extEnvironmentVariableCollection = new MergedEnvironmentVariableCollection(environmentVariableCollections);
 			this._register(this._environmentVariableService.onDidChangeCollections(newCollection => this._onEnvironmentVariableCollectionChange(newCollection)));
-			this.environmentVariableInfo = new EnvironmentVariableInfoChangesActive(this._extEnvironmentVariableCollection);
+			this.environmentVariableInfo = this._instantiationService.createInstance(EnvironmentVariableInfoChangesActive, this._extEnvironmentVariableCollection);
 			this._onEnvironmentVariableInfoChange.fire(this.environmentVariableInfo);
 		}
 	}
@@ -219,13 +220,11 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 		shellLaunchConfig: IShellLaunchConfig,
 		cols: number,
 		rows: number,
-		isScreenReaderModeEnabled: boolean,
 		reset: boolean = true
-	): Promise<ITerminalLaunchError | undefined> {
+	): Promise<ITerminalLaunchError | { injectedArgs: string[] } | undefined> {
 		this._shellLaunchConfig = shellLaunchConfig;
 		this._dimensions.cols = cols;
 		this._dimensions.rows = rows;
-		this._isScreenReaderModeEnabled = isScreenReaderModeEnabled;
 
 		let newProcess: ITerminalChildProcess | undefined;
 
@@ -279,9 +278,10 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 					});
 					const options: ITerminalProcessOptions = {
 						shellIntegration: {
-							enabled: this._configurationService.getValue(TerminalSettingId.ShellIntegrationEnabled)
+							enabled: this._configurationService.getValue(TerminalSettingId.ShellIntegrationEnabled),
+							suggestEnabled: this._configurationService.getValue(TerminalSettingId.ShellIntegrationSuggestEnabled),
 						},
-						windowsEnableConpty: this._configHelper.config.windowsEnableConpty && !isScreenReaderModeEnabled,
+						windowsEnableConpty: this._configHelper.config.windowsEnableConpty,
 						environmentVariableCollections: this._extEnvironmentVariableCollection?.collections ? serializeEnvironmentVariableCollections(this._extEnvironmentVariableCollection.collections) : undefined
 					};
 					try {
@@ -318,7 +318,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 					}
 				}
 				if (!newProcess) {
-					newProcess = await this._launchLocalProcess(backend, shellLaunchConfig, cols, rows, this.userHome, isScreenReaderModeEnabled, variableResolver);
+					newProcess = await this._launchLocalProcess(backend, shellLaunchConfig, cols, rows, this.userHome, variableResolver);
 				}
 				if (!this._isDisposed) {
 					this._setupPtyHostListeners(backend);
@@ -390,7 +390,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 		return undefined;
 	}
 
-	async relaunch(shellLaunchConfig: IShellLaunchConfig, cols: number, rows: number, isScreenReaderModeEnabled: boolean, reset: boolean): Promise<ITerminalLaunchError | undefined> {
+	async relaunch(shellLaunchConfig: IShellLaunchConfig, cols: number, rows: number, reset: boolean): Promise<ITerminalLaunchError | { injectedArgs: string[] } | undefined> {
 		this.ptyProcessReady = this._createPtyProcessReadyPromise();
 		this._logService.trace(`Relaunching terminal instance ${this._instanceId}`);
 
@@ -404,7 +404,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 		// triggered
 		this._hasWrittenData = false;
 
-		return this.createProcess(shellLaunchConfig, cols, rows, isScreenReaderModeEnabled, reset);
+		return this.createProcess(shellLaunchConfig, cols, rows, reset);
 	}
 
 	// Fetch any extension environment additions and apply them
@@ -433,7 +433,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 			// if it happens - it's not worth adding plumbing to sync back the resolved collection.
 			await this._extEnvironmentVariableCollection.applyToProcessEnvironment(env, variableResolver);
 			if (this._extEnvironmentVariableCollection.map.size > 0) {
-				this.environmentVariableInfo = new EnvironmentVariableInfoChangesActive(this._extEnvironmentVariableCollection);
+				this.environmentVariableInfo = this._instantiationService.createInstance(EnvironmentVariableInfoChangesActive, this._extEnvironmentVariableCollection);
 				this._onEnvironmentVariableInfoChange.fire(this.environmentVariableInfo);
 			}
 		}
@@ -446,7 +446,6 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 		cols: number,
 		rows: number,
 		userHome: string | undefined,
-		isScreenReaderModeEnabled: boolean,
 		variableResolver: terminalEnvironment.VariableResolver | undefined
 	): Promise<ITerminalChildProcess> {
 		await this._terminalProfileResolverService.resolveShellLaunchConfig(shellLaunchConfig, {
@@ -468,9 +467,10 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 
 		const options: ITerminalProcessOptions = {
 			shellIntegration: {
-				enabled: this._configurationService.getValue(TerminalSettingId.ShellIntegrationEnabled)
+				enabled: this._configurationService.getValue(TerminalSettingId.ShellIntegrationEnabled),
+				suggestEnabled: this._configurationService.getValue(TerminalSettingId.ShellIntegrationSuggestEnabled),
 			},
-			windowsEnableConpty: this._configHelper.config.windowsEnableConpty && !isScreenReaderModeEnabled,
+			windowsEnableConpty: this._configHelper.config.windowsEnableConpty,
 			environmentVariableCollections: this._extEnvironmentVariableCollection ? serializeEnvironmentVariableCollections(this._extEnvironmentVariableCollection.collections) : undefined
 		};
 		const shouldPersist = ((this._configurationService.getValue(TaskSettingId.Reconnection) && shellLaunchConfig.reconnectionProperties) || !shellLaunchConfig.isFeatureTerminal) && this._configHelper.config.enablePersistentSessions && !shellLaunchConfig.isTransient;
@@ -518,7 +518,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 					// using the previous shellLaunchConfig
 					const message = localize('ptyHostRelaunch', "Restarting the terminal because the connection to the shell process was lost...");
 					this._onProcessData.fire({ data: formatMessageForTerminal(message, { loudFormatting: true }), trackCommit: false });
-					await this.relaunch(this._shellLaunchConfig, this._dimensions.cols, this._dimensions.rows, this._isScreenReaderModeEnabled, false);
+					await this.relaunch(this._shellLaunchConfig, this._dimensions.cols, this._dimensions.rows, false);
 				}
 			}
 		}));
@@ -651,7 +651,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 		if (diff === undefined) {
 			// If there are no longer differences, remove the stale info indicator
 			if (this.environmentVariableInfo instanceof EnvironmentVariableInfoStale) {
-				this.environmentVariableInfo = new EnvironmentVariableInfoChangesActive(this._extEnvironmentVariableCollection!);
+				this.environmentVariableInfo = this._instantiationService.createInstance(EnvironmentVariableInfoChangesActive, this._extEnvironmentVariableCollection!);
 				this._onEnvironmentVariableInfoChange.fire(this.environmentVariableInfo);
 			}
 			return;

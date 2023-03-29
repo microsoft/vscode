@@ -5,29 +5,30 @@
 
 import 'vs/base/browser/ui/codicons/codiconStyles'; // The codicon symbol styles are defined here and must be loaded
 import { Codicon } from 'vs/base/common/codicons';
+import { ThemeIcon } from 'vs/base/common/themables';
 import { ResolvedKeybinding } from 'vs/base/common/keybindings';
 import { CodeAction } from 'vs/editor/common/languages';
 import { CodeActionItem, CodeActionKind } from 'vs/editor/contrib/codeAction/common/types';
 import 'vs/editor/contrib/symbolIcons/browser/symbolIcons'; // The codicon symbol colors are defined here and must be loaded to get colors
 import { localize } from 'vs/nls';
-import { ActionListItemKind, IListMenuItem } from 'vs/platform/actionWidget/browser/actionList';
+import { ActionListItemKind, IActionListItem } from 'vs/platform/actionWidget/browser/actionList';
 
 interface ActionGroup {
 	readonly kind: CodeActionKind;
 	readonly title: string;
-	readonly icon?: { readonly codicon: Codicon; readonly color?: string };
+	readonly icon?: ThemeIcon;
 }
 
 const uncategorizedCodeActionGroup = Object.freeze<ActionGroup>({ kind: CodeActionKind.Empty, title: localize('codeAction.widget.id.more', 'More Actions...') });
 
 const codeActionGroups = Object.freeze<ActionGroup[]>([
 	{ kind: CodeActionKind.QuickFix, title: localize('codeAction.widget.id.quickfix', 'Quick Fix...') },
-	{ kind: CodeActionKind.RefactorExtract, title: localize('codeAction.widget.id.extract', 'Extract...'), icon: { codicon: Codicon.wrench } },
-	{ kind: CodeActionKind.RefactorInline, title: localize('codeAction.widget.id.inline', 'Inline...'), icon: { codicon: Codicon.wrench } },
-	{ kind: CodeActionKind.RefactorRewrite, title: localize('codeAction.widget.id.convert', 'Rewrite...'), icon: { codicon: Codicon.wrench } },
-	{ kind: CodeActionKind.RefactorMove, title: localize('codeAction.widget.id.move', 'Move...'), icon: { codicon: Codicon.wrench } },
-	{ kind: CodeActionKind.SurroundWith, title: localize('codeAction.widget.id.surround', 'Surround With...'), icon: { codicon: Codicon.symbolSnippet } },
-	{ kind: CodeActionKind.Source, title: localize('codeAction.widget.id.source', 'Source Action...'), icon: { codicon: Codicon.symbolFile } },
+	{ kind: CodeActionKind.RefactorExtract, title: localize('codeAction.widget.id.extract', 'Extract...'), icon: Codicon.wrench },
+	{ kind: CodeActionKind.RefactorInline, title: localize('codeAction.widget.id.inline', 'Inline...'), icon: Codicon.wrench },
+	{ kind: CodeActionKind.RefactorRewrite, title: localize('codeAction.widget.id.convert', 'Rewrite...'), icon: Codicon.wrench },
+	{ kind: CodeActionKind.RefactorMove, title: localize('codeAction.widget.id.move', 'Move...'), icon: Codicon.wrench },
+	{ kind: CodeActionKind.SurroundWith, title: localize('codeAction.widget.id.surround', 'Surround With...'), icon: Codicon.symbolSnippet },
+	{ kind: CodeActionKind.Source, title: localize('codeAction.widget.id.source', 'Source Action...'), icon: Codicon.symbolFile },
 	uncategorizedCodeActionGroup,
 ]);
 
@@ -35,9 +36,9 @@ export function toMenuItems(
 	inputCodeActions: readonly CodeActionItem[],
 	showHeaders: boolean,
 	keybindingResolver: (action: CodeAction) => ResolvedKeybinding | undefined
-): IListMenuItem<CodeActionItem>[] {
+): IActionListItem<CodeActionItem>[] {
 	if (!showHeaders) {
-		return inputCodeActions.map((action): IListMenuItem<CodeActionItem> => {
+		return inputCodeActions.map((action): IActionListItem<CodeActionItem> => {
 			return {
 				kind: ActionListItemKind.Action,
 				item: action,
@@ -61,7 +62,7 @@ export function toMenuItems(
 		}
 	}
 
-	const allMenuItems: IListMenuItem<CodeActionItem>[] = [];
+	const allMenuItems: IActionListItem<CodeActionItem>[] = [];
 	for (const menuEntry of menuEntries) {
 		if (menuEntry.actions.length) {
 			allMenuItems.push({ kind: ActionListItemKind.Header, group: menuEntry.group });

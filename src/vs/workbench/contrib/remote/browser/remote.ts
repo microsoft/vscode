@@ -13,7 +13,8 @@ import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IThemeService, ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { ThemeIcon } from 'vs/base/common/themables';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IExtensionService, isProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
 import { FilterViewPaneContainer } from 'vs/workbench/browser/parts/views/viewsViewlet';
@@ -21,7 +22,7 @@ import { VIEWLET_ID } from 'vs/workbench/contrib/remote/browser/remoteExplorer';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IViewDescriptor, IViewsRegistry, Extensions, ViewContainerLocation, IViewContainersRegistry, IViewDescriptorService } from 'vs/workbench/common/views';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
+import { IExtensionDescription, IRelaxedExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { ICommandService } from 'vs/platform/commands/common/commands';
@@ -59,7 +60,7 @@ interface HelpInformation {
 	extensionDescription: IExtensionDescription;
 	getStarted?: string;
 	documentation?: string;
-	feedback?: string;
+	reportIssue?: string;
 	issues?: string;
 	remoteName?: string[] | string;
 	virtualWorkspace?: string;
@@ -81,6 +82,11 @@ const remoteHelpExtPoint = ExtensionsRegistry.registerExtensionPoint<HelpInforma
 			},
 			'feedback': {
 				description: nls.localize('RemoteHelpInformationExtPoint.feedback', "The url, or a command that returns the url, to your project's feedback reporter"),
+				type: 'string',
+				markdownDeprecationMessage: nls.localize('RemoteHelpInformationExtPoint.feedback.deprecated', "Use {0} instead", '`reportIssue`')
+			},
+			'reportIssue': {
+				description: nls.localize('RemoteHelpInformationExtPoint.reportIssue', "The url, or a command that returns the url, to your project's issue reporter"),
 				type: 'string'
 			},
 			'issues': {
@@ -116,10 +122,8 @@ class HelpTreeRenderer implements ITreeRenderer<HelpModel | IHelpItem, IHelpItem
 	renderTemplate(container: HTMLElement): IHelpItemTemplateData {
 		container.classList.add('remote-help-tree-node-item');
 		const icon = dom.append(container, dom.$('.remote-help-tree-node-item-icon'));
-		const data = <IHelpItemTemplateData>Object.create(null);
-		data.parent = container;
-		data.icon = icon;
-		return data;
+		const parent = container;
+		return { parent, icon };
 	}
 
 	renderElement(element: ITreeNode<IHelpItem, IHelpItem>, index: number, templateData: IHelpItemTemplateData, height: number | undefined): void {
@@ -208,26 +212,6 @@ class HelpModel {
 			));
 		}
 
-		const feedback = viewModel.helpInformation.filter(info => info.feedback);
-
-		if (feedback.length) {
-			helpItems.push(new HelpItem(
-				icons.feedbackIcon,
-				nls.localize('remote.help.feedback', "Provide Feedback"),
-				feedback.map((info: HelpInformation) => (new HelpItemValue(commandService,
-					info.extensionDescription,
-					(typeof info.remoteName === 'string') ? [info.remoteName] : info.remoteName,
-					info.virtualWorkspace,
-					info.feedback!)
-				)),
-				quickInputService,
-				environmentService,
-				openerService,
-				remoteExplorerService,
-				workspaceContextService
-			));
-		}
-
 		const issues = viewModel.helpInformation.filter(info => info.issues);
 
 		if (issues.length) {
@@ -255,11 +239,13 @@ class HelpModel {
 				viewModel.helpInformation.map(info => (new HelpItemValue(commandService,
 					info.extensionDescription,
 					(typeof info.remoteName === 'string') ? [info.remoteName] : info.remoteName,
-					info.virtualWorkspace
+					info.virtualWorkspace,
+					info.reportIssue
 				))),
 				quickInputService,
 				environmentService,
 				commandService,
+				openerService,
 				remoteExplorerService,
 				workspaceContextService
 			));
@@ -286,7 +272,11 @@ class HelpItemValue {
 				if (url.authority) {
 					this._url = this.urlOrCommand;
 				} else {
-					const urlCommand: Promise<string | undefined> = this.commandService.executeCommand(this.urlOrCommand);
+					const urlCommand: Promise<string | undefined> = this.commandService.executeCommand(this.urlOrCommand).then((result) => {
+						// if executing this command times out, cache its value whenever it eventually resolves
+						this._url = result;
+						return this._url;
+					});
 					// We must be defensive. The command may never return, meaning that no help at all is ever shown!
 					const emptyString: Promise<string> = new Promise(resolve => setTimeout(() => resolve(''), 500));
 					this._url = await Promise.race([urlCommand, emptyString]);
@@ -313,6 +303,20 @@ abstract class HelpItemBase implements IHelpItem {
 	) {
 		this.iconClasses.push(...ThemeIcon.asClassNameArray(icon));
 		this.iconClasses.push('remote-help-tree-node-item-icon');
+	}
+
+	protected async getActions(): Promise<{
+		label: string;
+		description: string;
+		extensionDescription: Readonly<IRelaxedExtensionDescription>;
+	}[]> {
+		return (await Promise.all(this.values.map(async (value) => {
+			return {
+				label: value.extensionDescription.displayName || value.extensionDescription.identifier.value,
+				description: await value.url,
+				extensionDescription: value.extensionDescription
+			};
+		}))).filter(item => item.description);
 	}
 
 	async handleClick() {
@@ -352,13 +356,7 @@ abstract class HelpItemBase implements IHelpItem {
 		}
 
 		if (this.values.length > 1) {
-			const actions = (await Promise.all(this.values.map(async (value) => {
-				return {
-					label: value.extensionDescription.displayName || value.extensionDescription.identifier.value,
-					description: await value.url,
-					extensionDescription: value.extensionDescription
-				};
-			}))).filter(item => item.description);
+			const actions = await this.getActions();
 
 			if (actions.length) {
 				const action = await this.quickInputService.pick(actions, { placeHolder: nls.localize('pickRemoteExtension', "Select url to open") });
@@ -402,14 +400,33 @@ class IssueReporterItem extends HelpItemBase {
 		quickInputService: IQuickInputService,
 		environmentService: IWorkbenchEnvironmentService,
 		private commandService: ICommandService,
+		private openerService: IOpenerService,
 		remoteExplorerService: IRemoteExplorerService,
 		workspaceContextService: IWorkspaceContextService
 	) {
 		super(icon, label, values, quickInputService, environmentService, remoteExplorerService, workspaceContextService);
 	}
 
-	protected async takeAction(extensionDescription: IExtensionDescription): Promise<void> {
-		await this.commandService.executeCommand('workbench.action.openIssueReporter', [extensionDescription.identifier.value]);
+	protected override async getActions(): Promise<{
+		label: string;
+		description: string;
+		extensionDescription: Readonly<IRelaxedExtensionDescription>;
+	}[]> {
+		return Promise.all(this.values.map(async (value) => {
+			return {
+				label: value.extensionDescription.displayName || value.extensionDescription.identifier.value,
+				description: '',
+				extensionDescription: value.extensionDescription
+			};
+		}));
+	}
+
+	protected async takeAction(extensionDescription: IExtensionDescription, url: string): Promise<void> {
+		if (!url) {
+			await this.commandService.executeCommand('workbench.action.openIssueReporter', [extensionDescription.identifier.value]);
+		} else {
+			await this.openerService.open(URI.parse(url));
+		}
 	}
 }
 
@@ -535,7 +552,7 @@ class RemoteViewPaneContainer extends FilterViewPaneContainer implements IViewMo
 			return;
 		}
 
-		if (!extension.value.documentation && !extension.value.feedback && !extension.value.getStarted && !extension.value.issues) {
+		if (!extension.value.documentation && !extension.value.getStarted && !extension.value.issues) {
 			return;
 		}
 
@@ -543,7 +560,7 @@ class RemoteViewPaneContainer extends FilterViewPaneContainer implements IViewMo
 			extensionDescription: extension.description,
 			getStarted: extension.value.getStarted,
 			documentation: extension.value.documentation,
-			feedback: extension.value.feedback,
+			reportIssue: extension.value.reportIssue,
 			issues: extension.value.issues,
 			remoteName: extension.value.remoteName,
 			virtualWorkspace: extension.value.virtualWorkspace
@@ -961,9 +978,12 @@ export class RemoteAgentConnectionStatusListener extends Disposable implements I
 							console.log(`Error handled: Not showing a notification for the error.`);
 						} else if (!this._reloadWindowShown) {
 							this._reloadWindowShown = true;
-							dialogService.show(Severity.Error, nls.localize('reconnectionPermanentFailure', "Cannot reconnect. Please reload the window."), [nls.localize('reloadWindow', "Reload Window"), nls.localize('cancel', "Cancel")], { cancelId: 1, custom: true }).then(result => {
-								// Reload the window
-								if (result.choice === 0) {
+							dialogService.confirm({
+								type: Severity.Error,
+								message: nls.localize('reconnectionPermanentFailure', "Cannot reconnect. Please reload the window."),
+								primaryButton: nls.localize({ key: 'reloadWindow.dialog', comment: ['&& denotes a mnemonic'] }, "&&Reload Window")
+							}).then(result => {
+								if (result.confirmed) {
 									commandService.executeCommand(ReloadWindowAction.ID);
 								}
 							});

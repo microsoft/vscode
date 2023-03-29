@@ -10,11 +10,12 @@
   },
   "aiKey": "0c6ae279ed8443289764825290e4f9e2-1a736e7c-1324-4338-be46-fc2a58ae4d14-7255",
   "enabledApiProposals": [
-    "telemetryLogger",
     "diffCommand",
     "contribEditorContentMenu",
+    "contribEditSessions",
     "contribViewsWelcome",
     "editSessionIdentityProvider",
+    "quickDiffProvider",
     "scmActionButton",
     "scmSelectedProvider",
     "scmValidation",
@@ -50,6 +51,13 @@
   },
   "contributes": {
     "commands": [
+      {
+        "command": "git.continueInLocalClone",
+        "title": "%command.continueInLocalClone%",
+        "category": "Git",
+        "icon": "$(repo-clone)",
+        "enablement": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0 && remoteName"
+      },
       {
         "command": "git.clone",
         "title": "%command.clone%",
@@ -660,7 +668,8 @@
       {
         "command": "git.closeAllDiffEditors",
         "title": "%command.closeAllDiffEditors%",
-        "category": "Git"
+        "category": "Git",
+        "enablement": "!operationInProgress"
       },
       {
         "command": "git.api.getRepositories",
@@ -704,6 +713,19 @@
         "command": "git.manageUnsafeRepositories",
         "title": "%command.manageUnsafeRepositories%",
         "category": "Git"
+      },
+      {
+        "command": "git.openRepositoriesInParentFolders",
+        "title": "%command.openRepositoriesInParentFolders%",
+        "category": "Git"
+      }
+    ],
+    "continueEditSession": [
+      {
+        "command": "git.continueInLocalClone",
+        "qualifiedName": "%command.continueInLocalClone.qualifiedName%",
+        "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0 && remoteName",
+        "remoteGroup": "remote_42_git_0_local@0"
       }
     ],
     "keybindings": [
@@ -728,6 +750,10 @@
     ],
     "menus": {
       "commandPalette": [
+        {
+          "command": "git.continueInLocalClone",
+          "when": "false"
+        },
         {
           "command": "git.clone",
           "when": "config.git.enabled && !git.missing"
@@ -786,7 +812,7 @@
         },
         {
           "command": "git.stageSelectedRanges",
-          "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0"
+          "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0 && resourceScheme =~ /^git$|^file$/"
         },
         {
           "command": "git.stageChange",
@@ -794,7 +820,7 @@
         },
         {
           "command": "git.revertSelectedRanges",
-          "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0"
+          "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0 && resourceScheme =~ /^git$|^file$/"
         },
         {
           "command": "git.revertChange",
@@ -814,7 +840,7 @@
         },
         {
           "command": "git.unstageSelectedRanges",
-          "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0"
+          "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0 && isInDiffEditor && resourceScheme =~ /^git$|^file$/"
         },
         {
           "command": "git.clean",
@@ -1143,6 +1169,10 @@
         {
           "command": "git.manageUnsafeRepositories",
           "when": "config.git.enabled && !git.missing && git.unsafeRepositoryCount != 0"
+        },
+        {
+          "command": "git.openRepositoriesInParentFolders",
+          "when": "config.git.enabled && !git.missing && git.parentRepositoryCount != 0"
         }
       ],
       "scm/title": [
@@ -1624,12 +1654,12 @@
         {
           "command": "git.commitMessageAccept",
           "group": "navigation",
-          "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0 && editorLangId == git-commit && commitInProgress"
+          "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0 && editorLangId == git-commit"
         },
         {
           "command": "git.commitMessageDiscard",
           "group": "navigation",
-          "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0 && editorLangId == git-commit && commitInProgress"
+          "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0 && editorLangId == git-commit"
         },
         {
           "command": "git.stageSelectedRanges",
@@ -2654,6 +2684,22 @@
           "tags": [
             "experimental"
           ]
+        },
+        "git.openRepositoryInParentFolders": {
+          "type": "string",
+          "enum": [
+            "always",
+            "never",
+            "prompt"
+          ],
+          "enumDescriptions": [
+            "%config.openRepositoryInParentFolders.always%",
+            "%config.openRepositoryInParentFolders.never%",
+            "%config.openRepositoryInParentFolders.prompt%"
+          ],
+          "default": "prompt",
+          "markdownDescription": "%config.openRepositoryInParentFolders%",
+          "scope": "resource"
         }
       }
     },
@@ -2799,14 +2845,14 @@
       {
         "view": "scm",
         "contents": "%view.workbench.scm.empty%",
-        "when": "config.git.enabled && !git.missing && workbenchState == empty && git.unsafeRepositoryCount == 0",
+        "when": "config.git.enabled && !git.missing && workbenchState == empty && git.parentRepositoryCount == 0 && git.unsafeRepositoryCount == 0",
         "enablement": "git.state == initialized",
         "group": "2_open@1"
       },
       {
         "view": "scm",
         "contents": "%view.workbench.scm.emptyWorkspace%",
-        "when": "config.git.enabled && !git.missing && workbenchState == workspace && workspaceFolderCount == 0 && git.unsafeRepositoryCount == 0",
+        "when": "config.git.enabled && !git.missing && workbenchState == workspace && workspaceFolderCount == 0 && git.parentRepositoryCount == 0 && git.unsafeRepositoryCount == 0",
         "enablement": "git.state == initialized",
         "group": "2_open@1"
       },
@@ -2823,14 +2869,24 @@
       {
         "view": "scm",
         "contents": "%view.workbench.scm.folder%",
-        "when": "config.git.enabled && !git.missing && git.state == initialized && workbenchState == folder && scmRepositoryCount == 0 && git.unsafeRepositoryCount == 0 && remoteName != 'codespaces'",
+        "when": "config.git.enabled && !git.missing && git.state == initialized && workbenchState == folder && scmRepositoryCount == 0 && git.parentRepositoryCount == 0 && git.unsafeRepositoryCount == 0 && remoteName != 'codespaces'",
         "group": "5_scm@1"
       },
       {
         "view": "scm",
         "contents": "%view.workbench.scm.workspace%",
-        "when": "config.git.enabled && !git.missing && git.state == initialized && workbenchState == workspace && workspaceFolderCount != 0 && scmRepositoryCount == 0 && git.unsafeRepositoryCount == 0 && remoteName != 'codespaces'",
+        "when": "config.git.enabled && !git.missing && git.state == initialized && workbenchState == workspace && workspaceFolderCount != 0 && scmRepositoryCount == 0 && git.parentRepositoryCount == 0 && git.unsafeRepositoryCount == 0 && remoteName != 'codespaces'",
         "group": "5_scm@1"
+      },
+      {
+        "view": "scm",
+        "contents": "%view.workbench.scm.repositoryInParentFolders%",
+        "when": "config.git.enabled && !git.missing && git.state == initialized && git.parentRepositoryCount == 1"
+      },
+      {
+        "view": "scm",
+        "contents": "%view.workbench.scm.repositoriesInParentFolders%",
+        "when": "config.git.enabled && !git.missing && git.state == initialized && git.parentRepositoryCount > 1"
       },
       {
         "view": "scm",
@@ -2845,22 +2901,20 @@
       {
         "view": "explorer",
         "contents": "%view.workbench.cloneRepository%",
-        "when": "config.git.enabled",
-        "enablement": "git.state == initialized",
+        "when": "config.git.enabled && git.state == initialized && scmRepositoryCount == 0",
         "group": "5_scm@1"
       },
       {
         "view": "explorer",
         "contents": "%view.workbench.learnMore%",
-        "when": "config.git.enabled",
-        "enablement": "git.state == initialized",
+        "when": "config.git.enabled && git.state == initialized && scmRepositoryCount == 0",
         "group": "5_scm@10"
       }
     ]
   },
   "dependencies": {
     "@joaomoreno/unique-names-generator": "^5.1.0",
-    "@vscode/extension-telemetry": "0.7.4-preview",
+    "@vscode/extension-telemetry": "0.7.5",
     "@vscode/iconv-lite-umd": "0.7.0",
     "byline": "^5.0.0",
     "file-type": "16.5.4",

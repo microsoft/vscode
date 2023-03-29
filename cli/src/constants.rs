@@ -61,6 +61,9 @@ pub const QUALITYLESS_SERVER_NAME: &str = concatcp!(QUALITYLESS_PRODUCT_NAME, " 
 /// Web URL the editor is hosted at. For VS Code, this is vscode.dev.
 pub const EDITOR_WEB_URL: Option<&'static str> = option_env!("VSCODE_CLI_EDITOR_WEB_URL");
 
+/// Name shown in places where we need to tell a user what a process is, e.g. in sleep inhibition.
+pub const TUNNEL_ACTIVITY_NAME: &str = concatcp!(PRODUCT_NAME_LONG, " Tunnel");
+
 const NONINTERACTIVE_VAR: &str = "VSCODE_CLI_NONINTERACTIVE";
 
 pub fn get_default_user_agent() -> String {
@@ -69,6 +72,8 @@ pub fn get_default_user_agent() -> String {
 		VSCODE_CLI_VERSION.unwrap_or("dev")
 	)
 }
+
+const NO_COLOR_ENV: &str = "NO_COLOR";
 
 lazy_static! {
 	pub static ref TUNNEL_SERVICE_USER_AGENT: String =
@@ -98,5 +103,11 @@ lazy_static! {
 		option_env!("VSCODE_CLI_SERVER_NAME_MAP").and_then(|s| serde_json::from_str(s).unwrap());
 
 	/// Whether i/o interactions are allowed in the current CLI.
-	pub static ref IS_INTERACTIVE_CLI: bool = atty::is(atty::Stream::Stdin) && std::env::var(NONINTERACTIVE_VAR).is_err();
+	pub static ref IS_A_TTY: bool = atty::is(atty::Stream::Stdin);
+
+	/// Whether i/o interactions are allowed in the current CLI.
+	pub static ref COLORS_ENABLED: bool = *IS_A_TTY && std::env::var(NO_COLOR_ENV).is_err();
+
+	/// Whether i/o interactions are allowed in the current CLI.
+	pub static ref IS_INTERACTIVE_CLI: bool = *IS_A_TTY && std::env::var(NONINTERACTIVE_VAR).is_err();
 }

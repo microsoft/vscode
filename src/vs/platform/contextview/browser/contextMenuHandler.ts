@@ -14,8 +14,7 @@ import { IContextViewService } from 'vs/platform/contextview/browser/contextView
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { attachMenuStyler } from 'vs/platform/theme/common/styler';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { defaultMenuStyles } from 'vs/platform/theme/browser/defaultStyles';
 
 
 export interface IContextMenuHandlerOptions {
@@ -34,7 +33,6 @@ export class ContextMenuHandler {
 		private telemetryService: ITelemetryService,
 		private notificationService: INotificationService,
 		private keybindingService: IKeybindingService,
-		private themeService: IThemeService
 	) { }
 
 	configure(options: IContextMenuHandlerOptions): void {
@@ -84,16 +82,16 @@ export class ContextMenuHandler {
 				const menuDisposables = new DisposableStore();
 
 				const actionRunner = delegate.actionRunner || new ActionRunner();
-				actionRunner.onWillRun(this.onActionRun, this, menuDisposables);
+				actionRunner.onWillRun(evt => this.onActionRun(evt, !delegate.skipTelemetry), this, menuDisposables);
 				actionRunner.onDidRun(this.onDidActionRun, this, menuDisposables);
 				menu = new Menu(container, actions, {
 					actionViewItemProvider: delegate.getActionViewItem,
 					context: delegate.getActionsContext ? delegate.getActionsContext() : null,
 					actionRunner,
 					getKeyBinding: delegate.getKeyBinding ? delegate.getKeyBinding : action => this.keybindingService.lookupKeybinding(action.id)
-				});
-
-				menuDisposables.add(attachMenuStyler(menu, this.themeService));
+				},
+					defaultMenuStyles
+				);
 
 				menu.onDidCancel(() => this.contextViewService.hideContextView(true), null, menuDisposables);
 				menu.onDidBlur(() => this.contextViewService.hideContextView(true), null, menuDisposables);
@@ -149,8 +147,10 @@ export class ContextMenuHandler {
 		}, shadowRootElement, !!shadowRootElement);
 	}
 
-	private onActionRun(e: IRunEvent): void {
-		this.telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', { id: e.action.id, from: 'contextMenu' });
+	private onActionRun(e: IRunEvent, logTelemetry: boolean): void {
+		if (logTelemetry) {
+			this.telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', { id: e.action.id, from: 'contextMenu' });
+		}
 
 		this.contextViewService.hideContextView(false);
 	}

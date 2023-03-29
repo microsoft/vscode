@@ -67,6 +67,9 @@
           "bashrc_Apple_Terminal",
           "zshrc_Apple_Terminal"
         ],
+        "filenamePatterns": [
+          ".env.*"
+        ],
         "firstLine": "^#!.*\\b(bash|fish|zsh|sh|ksh|dtksh|pdksh|mksh|ash|dash|yash|sh|csh|jcsh|tcsh|itcsh).*|^#\\s*-\\*-[^*]*mode:\\s*shell-script[^*]*-\\*-",
         "configuration": "./language-configuration.json",
         "mimetypes": [

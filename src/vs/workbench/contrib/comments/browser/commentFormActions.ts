@@ -24,6 +24,7 @@ export class CommentFormActions implements IDisposable {
 		this._toDispose.clear();
 
 		this._buttonElements.forEach(b => b.remove());
+		this._buttonElements = [];
 
 		const groups = menu.getActions({ shouldForwardArgs: true });
 		let isPrimary: boolean = !hasOnlySecondaryActions;

@@ -137,7 +137,7 @@ export class DynamicEditorConfigurations extends Disposable implements IWorkbenc
 			properties: {
 				'workbench.editorAssociations': {
 					type: 'object',
-					markdownDescription: localize('editor.editorAssociations', "Configure glob patterns to editors (for example `\"*.hex\": \"hexEditor.hexEdit\"`). These have precedence over the default behavior."),
+					markdownDescription: localize('editor.editorAssociations', "Configure glob patterns to editors (for example `\"*.hex\": \"hexEditor.hexedit\"`). These have precedence over the default behavior."),
 					patternProperties: {
 						'.*': {
 							type: 'string',
@@ -158,7 +158,7 @@ export class DynamicEditorConfigurations extends Disposable implements IWorkbenc
 					default: getLargeFileConfirmationLimit(this.environmentService.remoteAuthority) / ByteSize.MB,
 					minimum: 1,
 					scope: ConfigurationScope.RESOURCE,
-					markdownDescription: localize('editorLargeFileSizeConfirmation', "Controls the minimum size of a file in MB before asking for confirmation when opening in the editor."),
+					markdownDescription: localize('editorLargeFileSizeConfirmation', "Controls the minimum size of a file in MB before asking for confirmation when opening in the editor. Note that this setting may not apply to all editor types and environments."),
 				}
 			}
 		};

@@ -6,7 +6,6 @@
 import 'vs/css!./media/menubarControl';
 import { localize } from 'vs/nls';
 import { IMenuService, MenuId, IMenu, SubmenuItemAction, registerAction2, Action2, MenuItemAction, MenuRegistry } from 'vs/platform/actions/common/actions';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { MenuBarVisibility, getTitleBarStyle, IWindowOpenable, getMenuBarVisibility } from 'vs/platform/window/common/window';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IAction, Action, SubmenuAction, Separator, IActionRunner, ActionRunner, WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification } from 'vs/base/common/actions';
@@ -27,7 +26,6 @@ import { IPreferencesService } from 'vs/workbench/services/preferences/common/pr
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { MenuBar, IMenuBarOptions } from 'vs/base/browser/ui/menu/menubar';
 import { Direction } from 'vs/base/browser/ui/menu/menu';
-import { attachMenuStyler } from 'vs/platform/theme/common/styler';
 import { mnemonicMenuLabel, unmnemonicLabel } from 'vs/base/common/labels';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
@@ -42,6 +40,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { OpenRecentAction } from 'vs/workbench/browser/actions/windowActions';
 import { isICommandActionToggleInfo } from 'vs/platform/action/common/action';
 import { createAndFillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
+import { defaultMenuStyles } from 'vs/platform/theme/browser/defaultStyles';
 
 export type IOpenRecentAction = IAction & { uri: URI; remoteAuthority?: string };
 
@@ -397,7 +396,6 @@ export class CustomMenubarControl extends MenubarControl {
 		@IPreferencesService preferencesService: IPreferencesService,
 		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
 		@IAccessibilityService accessibilityService: IAccessibilityService,
-		@IThemeService private readonly themeService: IThemeService,
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IHostService hostService: IHostService,
@@ -573,7 +571,7 @@ export class CustomMenubarControl extends MenubarControl {
 				this.reinstallDisposables.clear();
 			}
 
-			this.menubar = this.reinstallDisposables.add(new MenuBar(this.container, this.getMenuBarOptions()));
+			this.menubar = this.reinstallDisposables.add(new MenuBar(this.container, this.getMenuBarOptions(), defaultMenuStyles));
 
 			this.accessibilityService.alwaysUnderlineAccessKeys().then(val => {
 				this.alwaysOnMnemonics = val;
@@ -606,8 +604,6 @@ export class CustomMenubarControl extends MenubarControl {
 			this.reinstallDisposables.add(addDisposableListener(this.container, EventType.FOCUS_OUT, () => {
 				this.focusInsideMenubar = false;
 			}));
-
-			this.reinstallDisposables.add(attachMenuStyler(this.menubar, this.themeService));
 
 			// Fire visibility change for the first install if menu is shown
 			if (this.menubar.isVisible) {

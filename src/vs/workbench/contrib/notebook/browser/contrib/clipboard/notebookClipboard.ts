@@ -28,7 +28,7 @@ import { RedoCommand, UndoCommand } from 'vs/editor/browser/editorExtensions';
 import { IWebview } from 'vs/workbench/contrib/webview/browser/webview';
 import { Categories } from 'vs/platform/action/common/actionCommonCategories';
 import { IOutputService } from 'vs/workbench/services/output/common/output';
-import { rendererLogChannelId } from 'vs/workbench/contrib/logs/common/logConstants';
+import { rendererLogId } from 'vs/workbench/common/logConstants';
 import { ILogService } from 'vs/platform/log/common/log';
 
 let _logging: boolean = false;
@@ -559,7 +559,7 @@ registerAction2(class extends Action2 {
 		toggleLogging();
 		if (_logging) {
 			const outputService = accessor.get(IOutputService);
-			outputService.showChannel(rendererLogChannelId);
+			outputService.showChannel(rendererLogId);
 		}
 	}
 });

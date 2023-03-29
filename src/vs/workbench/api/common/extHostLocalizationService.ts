@@ -40,7 +40,7 @@ export class ExtHostLocalizationService implements ExtHostLocalizationShape {
 
 		let key = message;
 		if (comment && comment.length > 0) {
-			key += `/${Array.isArray(comment) ? comment.join() : comment}`;
+			key += `/${Array.isArray(comment) ? comment.join('') : comment}`;
 		}
 		const str = this.bundleCache.get(extensionId)?.contents[key];
 		if (!str) {
@@ -95,7 +95,7 @@ export class ExtHostLocalizationService implements ExtHostLocalizationShape {
 
 	private async getBundleLocation(extension: IExtensionDescription): Promise<URI | undefined> {
 		if (extension.isBuiltin) {
-			const uri = await this._proxy.$fetchBuiltInBundleUri(extension.identifier.value);
+			const uri = await this._proxy.$fetchBuiltInBundleUri(extension.identifier.value, this.currentLanguage);
 			return URI.revive(uri);
 		}
 

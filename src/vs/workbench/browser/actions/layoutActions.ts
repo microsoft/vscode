@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from 'vs/nls';
-import Severity from 'vs/base/common/severity';
 import { MenuId, MenuRegistry, registerAction2, Action2 } from 'vs/platform/actions/common/actions';
 import { Categories } from 'vs/platform/action/common/actionCommonCategories';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -24,9 +23,9 @@ import { TogglePanelAction } from 'vs/workbench/browser/parts/panel/panelActions
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { AuxiliaryBarVisibleContext, PanelAlignmentContext, PanelVisibleContext, SideBarVisibleContext, FocusedViewContext, InEditorZenModeContext, IsCenteredLayoutContext, EditorAreaVisibleContext, IsFullscreenContext, PanelPositionContext } from 'vs/workbench/common/contextkeys';
 import { Codicon } from 'vs/base/common/codicons';
+import { ThemeIcon } from 'vs/base/common/themables';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
-import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { ICommandActionTitle } from 'vs/platform/action/common/action';
 
 // Register Icons
@@ -488,11 +487,13 @@ registerAction2(ToggleStatusbarVisibilityAction);
 
 // --- Toggle Tabs Visibility
 
-registerAction2(class extends Action2 {
+export class ToggleTabsVisibilityAction extends Action2 {
+
+	static readonly ID = 'workbench.action.toggleTabsVisibility';
 
 	constructor() {
 		super({
-			id: 'workbench.action.toggleTabsVisibility',
+			id: ToggleTabsVisibilityAction.ID,
 			title: {
 				value: localize('toggleTabs', "Toggle Tab Visibility"),
 				original: 'Toggle Tab Visibility'
@@ -510,7 +511,8 @@ registerAction2(class extends Action2 {
 
 		return configurationService.updateValue('workbench.editor.showTabs', newVisibilityValue);
 	}
-});
+}
+registerAction2(ToggleTabsVisibilityAction);
 
 // --- Toggle Zen Mode
 
@@ -792,13 +794,13 @@ class MoveFocusedViewAction extends Action2 {
 		const focusedViewId = viewId || FocusedViewContext.getValue(contextKeyService);
 
 		if (focusedViewId === undefined || focusedViewId.trim() === '') {
-			dialogService.show(Severity.Error, localize('moveFocusedView.error.noFocusedView', "There is no view currently focused."));
+			dialogService.error(localize('moveFocusedView.error.noFocusedView', "There is no view currently focused."));
 			return;
 		}
 
 		const viewDescriptor = viewDescriptorService.getViewDescriptorById(focusedViewId);
 		if (!viewDescriptor || !viewDescriptor.canMoveView) {
-			dialogService.show(Severity.Error, localize('moveFocusedView.error.nonMovableView', "The currently focused view is not movable."));
+			dialogService.error(localize('moveFocusedView.error.nonMovableView', "The currently focused view is not movable."));
 			return;
 		}
 
@@ -954,7 +956,7 @@ registerAction2(class extends Action2 {
 		}
 
 		if (!viewDescriptor) {
-			dialogService.show(Severity.Error, localize('resetFocusedView.error.noFocusedView', "There is no view currently focused."));
+			dialogService.error(localize('resetFocusedView.error.noFocusedView', "There is no view currently focused."));
 			return;
 		}
 
@@ -1110,10 +1112,10 @@ interface CustomizeLayoutItem {
 	id: string;
 	active: ContextKeyExpression;
 	label: string;
-	activeIcon: Codicon;
+	activeIcon: ThemeIcon;
 	visualIcon?: LayoutVisualIcon;
 	activeAriaLabel: string;
-	inactiveIcon?: Codicon;
+	inactiveIcon?: ThemeIcon;
 	inactiveAriaLabel?: string;
 	useButtons: boolean;
 }
@@ -1226,6 +1228,8 @@ registerAction2(class CustomizeLayoutAction extends Action2 {
 				label = `$(${icon.id}) ${label}`;
 			}
 
+			const icon = toggled ? item.activeIcon : item.inactiveIcon;
+
 			return {
 				type: 'item',
 				id: item.id,
@@ -1235,7 +1239,7 @@ registerAction2(class CustomizeLayoutAction extends Action2 {
 					{
 						alwaysVisible: false,
 						tooltip: ariaLabel,
-						iconClass: toggled ? item.activeIcon.classNames : item.inactiveIcon?.classNames
+						iconClass: icon ? ThemeIcon.asClassName(icon) : undefined
 					}
 				]
 			};
@@ -1284,13 +1288,13 @@ registerAction2(class CustomizeLayoutAction extends Action2 {
 
 		const closeButton = {
 			alwaysVisible: true,
-			iconClass: Codicon.close.classNames,
+			iconClass: ThemeIcon.asClassName(Codicon.close),
 			tooltip: localize('close', "Close")
 		};
 
 		const resetButton = {
 			alwaysVisible: true,
-			iconClass: Codicon.discard.classNames,
+			iconClass: ThemeIcon.asClassName(Codicon.discard),
 			tooltip: localize('restore defaults', "Restore Defaults")
 		};
 

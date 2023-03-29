@@ -199,11 +199,13 @@ class ToggleScreencastModeAction extends Action2 {
 		}));
 
 		const onKeyDown = disposables.add(new DomEmitter(window, 'keydown', true));
+		const onCompositionStart = disposables.add(new DomEmitter(window, 'compositionstart', true));
 		const onCompositionUpdate = disposables.add(new DomEmitter(window, 'compositionupdate', true));
 		const onCompositionEnd = disposables.add(new DomEmitter(window, 'compositionend', true));
 
 		let length = 0;
 		let composing: Element | undefined = undefined;
+		let imeBackSpace = false;
 
 		const clearKeyboardScheduler = new RunOnceScheduler(() => {
 			keyboardMarker.textContent = '';
@@ -211,77 +213,110 @@ class ToggleScreencastModeAction extends Action2 {
 			length = 0;
 		}, keyboardMarkerTimeout);
 
+		disposables.add(onCompositionStart.event(e => {
+			imeBackSpace = true;
+		}));
+
 		disposables.add(onCompositionUpdate.event(e => {
-			if (e.data) {
+			if (e.data && imeBackSpace) {
+				if (length > 20) {
+					keyboardMarker.innerText = '';
+					length = 0;
+				}
 				composing = composing ?? append(keyboardMarker, $('span.key'));
 				composing.textContent = e.data;
+			} else if (imeBackSpace) {
+				keyboardMarker.innerText = '';
+				append(keyboardMarker, $('span.key', {}, `Backspace`));
 			}
-
 			clearKeyboardScheduler.schedule();
 		}));
 
 		disposables.add(onCompositionEnd.event(e => {
 			composing = undefined;
+			length++;
 		}));
 
 		disposables.add(onKeyDown.event(e => {
-			if (e.key === 'Process') {
-				if (!e.code.includes('Key')) {
+			if (e.key === 'Process' || /[\uac00-\ud787\u3131-\u314e\u314f-\u3163\u3041-\u3094\u30a1-\u30f4\u30fc\u3005\u3006\u3024\u4e00-\u9fa5]/u.test(e.key)) {
+				if (e.code === 'Backspace') {
+					imeBackSpace = true;
+				} else if (!e.code.includes('Key')) {
 					composing = undefined;
-					clearKeyboardScheduler.cancel();
+					imeBackSpace = false;
+				} else {
+					imeBackSpace = true;
 				}
+				clearKeyboardScheduler.schedule();
+				return;
+			}
 
+			if (e.isComposing) {
 				return;
 			}
 
 			const event = new StandardKeyboardEvent(e);
 			const shortcut = keybindingService.softDispatch(event, event.target);
 
-			if (shortcut?.commandId || !configurationService.getValue('screencastMode.onlyKeyboardShortcuts')) {
-				if (
-					event.ctrlKey || event.altKey || event.metaKey || event.shiftKey
-					|| length > 20
-					|| event.keyCode === KeyCode.Backspace || event.keyCode === KeyCode.Escape
-				) {
-					keyboardMarker.innerText = '';
-					length = 0;
-				}
-
-				const format = configurationService.getValue<'keys' | 'command' | 'commandWithGroup' | 'commandAndKeys' | 'commandWithGroupAndKeys'>('screencastMode.keyboardShortcutsFormat');
-				const keybinding = keybindingService.resolveKeyboardEvent(event);
-				const command = shortcut?.commandId ? MenuRegistry.getCommand(shortcut.commandId) : null;
-
-				let titleLabel = '';
-				let keyLabel = keybinding.getLabel();
-
-				if (command) {
-					titleLabel = typeof command.title === 'string' ? command.title : command.title.value;
-
-					if ((format === 'commandWithGroup' || format === 'commandWithGroupAndKeys') && command.category) {
-						titleLabel = `${typeof command.category === 'string' ? command.category : command.category.value}: ${titleLabel} `;
-					}
-
-					if (shortcut?.commandId) {
-						const keybindings = keybindingService.lookupKeybindings(shortcut.commandId)
-							.filter(k => k.getLabel()?.endsWith(keyLabel ?? ''));
-
-						if (keybindings.length > 0) {
-							keyLabel = keybindings[keybindings.length - 1].getLabel();
-						}
-					}
-				}
-
-				if (format !== 'keys' && titleLabel) {
-					append(keyboardMarker, $('span.title', {}, `${titleLabel} `));
-				}
-
-				if (!configurationService.getValue('screencastMode.onlyKeyboardShortcuts') || !titleLabel || shortcut?.commandId && (format === 'keys' || format === 'commandAndKeys' || format === 'commandWithGroupAndKeys')) {
-					append(keyboardMarker, $('span.key', {}, keyLabel || ''));
-				}
-
-				length++;
+			// Hide the single arrow key pressed
+			if (shortcut?.commandId && configurationService.getValue('screencastMode.hideSingleEditorCursorMoves') && (
+				['cursorLeft', 'cursorRight', 'cursorUp', 'cursorDown'].includes(shortcut.commandId))
+			) {
+				return;
 			}
 
+			if (
+				event.ctrlKey || event.altKey || event.metaKey || event.shiftKey
+				|| length > 20
+				|| event.keyCode === KeyCode.Backspace || event.keyCode === KeyCode.Escape
+				|| event.keyCode === KeyCode.UpArrow || event.keyCode === KeyCode.DownArrow
+				|| event.keyCode === KeyCode.LeftArrow || event.keyCode === KeyCode.RightArrow
+			) {
+				keyboardMarker.innerText = '';
+				length = 0;
+			}
+
+			const format = configurationService.getValue<'keys' | 'command' | 'commandWithGroup' | 'commandAndKeys' | 'commandWithGroupAndKeys'>('screencastMode.keyboardShortcutsFormat');
+			const keybinding = keybindingService.resolveKeyboardEvent(event);
+			const command = shortcut?.commandId ? MenuRegistry.getCommand(shortcut.commandId) : null;
+
+			let titleLabel = '';
+			let keyLabel: string | undefined | null = keybinding.getLabel();
+
+			if (command) {
+				titleLabel = typeof command.title === 'string' ? command.title : command.title.value;
+
+				if ((format === 'commandWithGroup' || format === 'commandWithGroupAndKeys') && command.category) {
+					titleLabel = `${typeof command.category === 'string' ? command.category : command.category.value}: ${titleLabel} `;
+				}
+
+				if (shortcut?.commandId) {
+					const keybindings = keybindingService.lookupKeybindings(shortcut.commandId)
+						.filter(k => k.getLabel()?.endsWith(keyLabel ?? ''));
+
+					if (keybindings.length > 0) {
+						keyLabel = keybindings[keybindings.length - 1].getLabel();
+					}
+				}
+			}
+
+			const onlyKeyboardShortcuts = configurationService.getValue('screencastMode.onlyKeyboardShortcuts');
+
+			if (format !== 'keys' && titleLabel && !onlyKeyboardShortcuts) {
+				append(keyboardMarker, $('span.title', {}, `${titleLabel} `));
+			}
+
+			if (onlyKeyboardShortcuts || !titleLabel || shortcut?.commandId && (format === 'keys' || format === 'commandAndKeys' || format === 'commandWithGroupAndKeys')) {
+				// Fix label for arrow keys
+				keyLabel = keyLabel?.replace('UpArrow', '↑')
+					?.replace('DownArrow', '↓')
+					?.replace('LeftArrow', '←')
+					?.replace('RightArrow', '→');
+
+				append(keyboardMarker, $('span.key', {}, keyLabel ?? ''));
+			}
+
+			length++;
 			clearKeyboardScheduler.schedule();
 		}));
 
@@ -385,6 +420,11 @@ configurationRegistry.registerConfiguration({
 		'screencastMode.onlyKeyboardShortcuts': {
 			type: 'boolean',
 			description: localize('screencastMode.onlyKeyboardShortcuts', "Show only keyboard shortcuts in screencast mode (do not include action names)."),
+			default: false
+		},
+		'screencastMode.hideSingleEditorCursorMoves': {
+			type: 'boolean',
+			description: localize('screencastMode.hideSingleEditorCursorMoves', "Hide the single editor cursor move commands in screencast mode."),
 			default: false
 		},
 		'screencastMode.keyboardOverlayTimeout': {

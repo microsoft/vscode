@@ -50,7 +50,7 @@ export class SettingsResource implements IProfileResource {
 	async apply(content: string, profile: IUserDataProfile): Promise<void> {
 		const settingsContent: ISettingsContent = JSON.parse(content);
 		if (settingsContent.settings === null) {
-			this.logService.info(`Profile: No settings to apply...`);
+			this.logService.info(`Importing Profile (${profile.name}): No settings to apply...`);
 			return;
 		}
 		const localSettingsContent = await this.getLocalFileContent(profile);
@@ -87,7 +87,7 @@ export class SettingsResourceTreeItem implements IProfileResourceTreeItem {
 	readonly handle = ProfileResourceType.Settings;
 	readonly label = { label: localize('settings', "Settings") };
 	readonly collapsibleState = TreeItemCollapsibleState.Expanded;
-	checkbox: ITreeItemCheckboxState = { isChecked: true };
+	checkbox: ITreeItemCheckboxState | undefined;
 
 	constructor(
 		private readonly profile: IUserDataProfile,

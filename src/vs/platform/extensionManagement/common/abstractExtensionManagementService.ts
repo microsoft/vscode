@@ -10,10 +10,11 @@ import { CancellationError, getErrorMessage } from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
 import { isWeb } from 'vs/base/common/platform';
+import { isDefined } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import * as nls from 'vs/nls';
 import {
-	ExtensionManagementError, IExtensionGalleryService, IExtensionIdentifier, IExtensionManagementParticipant, IGalleryExtension, IGalleryMetadata, ILocalExtension, InstallOperation,
+	ExtensionManagementError, IExtensionGalleryService, IExtensionIdentifier, IExtensionManagementParticipant, IGalleryExtension, ILocalExtension, InstallOperation,
 	IExtensionsControlManifest, StatisticType, isTargetPlatformCompatible, TargetPlatformToString, ExtensionManagementErrorCode,
 	InstallOptions, InstallVSIXOptions, UninstallOptions, Metadata, InstallExtensionEvent, DidUninstallExtensionEvent, InstallExtensionResult, UninstallExtensionEvent, IExtensionManagementService
 } from 'vs/platform/extensionManagement/common/extensionManagement';
@@ -24,20 +25,17 @@ import { IProductService } from 'vs/platform/product/common/productService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
 
-export const enum ExtensionVerificationStatus {
-	'Verified' = 'Verified',
-	'Unverified' = 'Unverified',
-	'UnknownError' = 'UnknownError',
-}
+export type ExtensionVerificationStatus = boolean | string;
 
 export type InstallExtensionTaskOptions = InstallOptions & InstallVSIXOptions & { readonly profileLocation: URI };
 export interface IInstallExtensionTask {
 	readonly identifier: IExtensionIdentifier;
 	readonly source: IGalleryExtension | URI;
 	readonly operation: InstallOperation;
+	readonly profileLocation: URI;
 	readonly verificationStatus?: ExtensionVerificationStatus;
-	run(): Promise<{ local: ILocalExtension; metadata: Metadata }>;
-	waitUntilTaskIsFinished(): Promise<{ local: ILocalExtension; metadata: Metadata }>;
+	run(): Promise<ILocalExtension>;
+	waitUntilTaskIsFinished(): Promise<ILocalExtension>;
 	cancel(): void;
 }
 
@@ -130,10 +128,12 @@ export abstract class AbstractExtensionManagementService extends Disposable impl
 
 	protected async installExtension(manifest: IExtensionManifest, extension: URI | IGalleryExtension, options: InstallOptions & InstallVSIXOptions): Promise<ILocalExtension> {
 
+		const isApplicationScoped = options.isApplicationScoped || options.isBuiltin || isApplicationScopedExtension(manifest);
 		const installExtensionTaskOptions: InstallExtensionTaskOptions = {
 			...options,
 			installOnlyNewlyAddedFromExtensionPack: URI.isUri(extension) ? options.installOnlyNewlyAddedFromExtensionPack : true, /* always true for gallery extensions */
-			profileLocation: isApplicationScopedExtension(manifest) ? this.userDataProfilesService.defaultProfile.extensionsResource : options.profileLocation ?? this.getCurrentExtensionsManifestLocation()
+			isApplicationScoped,
+			profileLocation: isApplicationScoped ? this.userDataProfilesService.defaultProfile.extensionsResource : options.profileLocation ?? this.getCurrentExtensionsManifestLocation()
 		};
 		const getInstallExtensionTaskKey = (extension: IGalleryExtension) => `${ExtensionKey.create(extension).toString()}${installExtensionTaskOptions.profileLocation ? `-${installExtensionTaskOptions.profileLocation.toString()}` : ''}`;
 
@@ -142,8 +142,7 @@ export abstract class AbstractExtensionManagementService extends Disposable impl
 			const installingExtension = this.installingExtensions.get(getInstallExtensionTaskKey(extension));
 			if (installingExtension) {
 				this.logService.info('Extensions is already requested to install', extension.identifier.id);
-				const { local } = await installingExtension.task.waitUntilTaskIsFinished();
-				return local;
+				return installingExtension.task.waitUntilTaskIsFinished();
 			}
 		}
 
@@ -234,7 +233,7 @@ export abstract class AbstractExtensionManagementService extends Disposable impl
 				await this.joinAllSettled(extensionsToInstall.map(async ({ task }) => {
 					const startTime = new Date().getTime();
 					try {
-						const { local } = await task.run();
+						const local = await task.run();
 						await this.joinAllSettled(this.participants.map(participant => participant.postInstall(local, task.source, installExtensionTaskOptions, CancellationToken.None)));
 						if (!URI.isUri(task.source)) {
 							const isUpdate = task.operation === InstallOperation.Update;
@@ -252,7 +251,7 @@ export abstract class AbstractExtensionManagementService extends Disposable impl
 								} catch (error) { /* ignore */ }
 							}
 						}
-						installResults.push({ local, identifier: task.identifier, operation: task.operation, source: task.source, context: installExtensionTaskOptions.context, profileLocation: installExtensionTaskOptions.profileLocation, applicationScoped: local.isApplicationScoped });
+						installResults.push({ local, identifier: task.identifier, operation: task.operation, source: task.source, context: installExtensionTaskOptions.context, profileLocation: task.profileLocation, applicationScoped: local.isApplicationScoped });
 					} catch (error) {
 						if (!URI.isUri(task.source)) {
 							reportTelemetry(this.telemetryService, task.operation === InstallOperation.Update ? 'extensionGallery:update' : 'extensionGallery:install', {
@@ -654,13 +653,15 @@ export abstract class AbstractExtensionManagementService extends Disposable impl
 	abstract getManifest(vsix: URI): Promise<IExtensionManifest>;
 	abstract install(vsix: URI, options?: InstallVSIXOptions): Promise<ILocalExtension>;
 	abstract installFromLocation(location: URI, profileLocation: URI): Promise<ILocalExtension>;
+	abstract installExtensionsFromProfile(extensions: IExtensionIdentifier[], fromProfileLocation: URI, toProfileLocation: URI): Promise<ILocalExtension[]>;
 	abstract getInstalled(type?: ExtensionType, profileLocation?: URI): Promise<ILocalExtension[]>;
-	abstract download(extension: IGalleryExtension, operation: InstallOperation): Promise<URI>;
+	abstract copyExtensions(fromProfileLocation: URI, toProfileLocation: URI): Promise<void>;
+	abstract download(extension: IGalleryExtension, operation: InstallOperation, donotVerifySignature: boolean): Promise<URI>;
 	abstract reinstallFromGallery(extension: ILocalExtension): Promise<ILocalExtension>;
+	abstract cleanUp(): Promise<void>;
 
-	abstract getMetadata(extension: ILocalExtension): Promise<Metadata | undefined>;
-	abstract updateMetadata(local: ILocalExtension, metadata: IGalleryMetadata): Promise<ILocalExtension>;
-	abstract updateExtensionScope(local: ILocalExtension, isMachineScoped: boolean): Promise<ILocalExtension>;
+	abstract onDidUpdateExtensionMetadata: Event<ILocalExtension>;
+	abstract updateMetadata(local: ILocalExtension, metadata: Partial<Metadata>, profileLocation?: URI): Promise<ILocalExtension>;
 
 	protected abstract getCurrentExtensionsManifestLocation(): URI;
 	protected abstract createInstallExtensionTask(manifest: IExtensionManifest, extension: URI | IGalleryExtension, options: InstallExtensionTaskOptions): IInstallExtensionTask;
@@ -686,14 +687,25 @@ function toExtensionManagementError(error: Error): ExtensionManagementError {
 	return e;
 }
 
-export function reportTelemetry(telemetryService: ITelemetryService, eventName: string, { extensionData, verificationStatus, duration, error, durationSinceUpdate }: { extensionData: any; verificationStatus?: ExtensionVerificationStatus; duration?: number; durationSinceUpdate?: number; error?: Error }): void {
+function reportTelemetry(telemetryService: ITelemetryService, eventName: string, { extensionData, verificationStatus, duration, error, durationSinceUpdate }: { extensionData: any; verificationStatus?: ExtensionVerificationStatus; duration?: number; durationSinceUpdate?: number; error?: Error }): void {
 	let errorcode: ExtensionManagementErrorCode | undefined;
 	let errorcodeDetail: string | undefined;
+
+	if (isDefined(verificationStatus)) {
+		if (verificationStatus === true) {
+			verificationStatus = 'Verified';
+		} else if (verificationStatus === false) {
+			verificationStatus = 'Unverified';
+		} else {
+			errorcode = ExtensionManagementErrorCode.Signature;
+			errorcodeDetail = verificationStatus;
+			verificationStatus = 'Unverified';
+		}
+	}
 
 	if (error) {
 		if (error instanceof ExtensionManagementError) {
 			errorcode = error.code;
-
 			if (error.code === ExtensionManagementErrorCode.Signature) {
 				errorcodeDetail = error.message;
 			}

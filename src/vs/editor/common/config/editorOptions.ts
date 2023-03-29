@@ -58,6 +58,10 @@ export interface IEditorOptions {
 	 */
 	ariaLabel?: string;
 	/**
+	 * Control whether a screen reader announces inline suggestion content immediately.
+	 */
+	screenReaderAnnounceInlineSuggestion?: boolean;
+	/**
 	 * The `tabindex` property of the editor's textarea
 	 */
 	tabIndex?: number;
@@ -698,6 +702,11 @@ export interface IEditorOptions {
 	 * When enabled, this shows a preview of the drop location and triggers an `onDropIntoEditor` event.
 	 */
 	dropIntoEditor?: IDropIntoEditorOptions;
+
+	/**
+	 * Controls whether the editor receives tabs or defers them to the workbench for navigation.
+	 */
+	tabFocusMode?: boolean;
 }
 
 /**
@@ -2649,7 +2658,10 @@ export interface IEditorStickyScrollOptions {
 	 * Maximum number of sticky lines to show
 	 */
 	maxLineCount?: number;
-
+	/**
+	 * Model to choose for sticky scroll by default
+	 */
+	defaultModel?: 'outlineModel' | 'foldingProviderModel' | 'indentationModel';
 }
 
 /**
@@ -2660,21 +2672,27 @@ export type EditorStickyScrollOptions = Readonly<Required<IEditorStickyScrollOpt
 class EditorStickyScroll extends BaseEditorOption<EditorOption.stickyScroll, IEditorStickyScrollOptions, EditorStickyScrollOptions> {
 
 	constructor() {
-		const defaults: EditorStickyScrollOptions = { enabled: false, maxLineCount: 5 };
+		const defaults: EditorStickyScrollOptions = { enabled: false, maxLineCount: 5, defaultModel: 'outlineModel' };
 		super(
 			EditorOption.stickyScroll, 'stickyScroll', defaults,
 			{
 				'editor.stickyScroll.enabled': {
 					type: 'boolean',
 					default: defaults.enabled,
-					description: nls.localize('editor.stickyScroll', "Shows the nested current scopes during the scroll at the top of the editor.")
+					description: nls.localize('editor.stickyScroll.enabled', "Shows the nested current scopes during the scroll at the top of the editor.")
 				},
 				'editor.stickyScroll.maxLineCount': {
 					type: 'number',
 					default: defaults.maxLineCount,
 					minimum: 1,
 					maximum: 10,
-					description: nls.localize('editor.stickyScroll.', "Defines the maximum number of sticky lines to show.")
+					description: nls.localize('editor.stickyScroll.maxLineCount', "Defines the maximum number of sticky lines to show.")
+				},
+				'editor.stickyScroll.defaultModel': {
+					type: 'string',
+					enum: ['outlineModel', 'foldingProviderModel', 'indentationModel'],
+					default: defaults.defaultModel,
+					description: nls.localize('editor.stickyScroll.defaultModel', "Defines the model to use for determining which lines to stick. If the outline model does not exist, it will fall back on the folding provider model which falls back on the indentation model. This order is respected in all three cases.")
 				},
 			}
 		);
@@ -2688,6 +2706,7 @@ class EditorStickyScroll extends BaseEditorOption<EditorOption.stickyScroll, IEd
 		return {
 			enabled: boolean(input.enabled, this.defaultValue.enabled),
 			maxLineCount: EditorIntOption.clampedInt(input.maxLineCount, this.defaultValue.maxLineCount, 1, 10),
+			defaultModel: stringSet<'outlineModel' | 'foldingProviderModel' | 'indentationModel'>(input.defaultModel, this.defaultValue.defaultModel, ['outlineModel', 'foldingProviderModel', 'indentationModel']),
 		};
 	}
 }
@@ -3784,6 +3803,10 @@ export interface IInlineSuggestOptions {
 	 * Defaults to `prefix`.
 	*/
 	mode?: 'prefix' | 'subword' | 'subwordSmart';
+
+	showToolbar?: 'always' | 'onHover';
+
+	suppressSuggestions?: boolean;
 }
 
 /**
@@ -3798,7 +3821,9 @@ class InlineEditorSuggest extends BaseEditorOption<EditorOption.inlineSuggest, I
 	constructor() {
 		const defaults: InternalInlineSuggestOptions = {
 			enabled: true,
-			mode: 'subwordSmart'
+			mode: 'subwordSmart',
+			showToolbar: 'onHover',
+			suppressSuggestions: false,
 		};
 
 		super(
@@ -3808,7 +3833,22 @@ class InlineEditorSuggest extends BaseEditorOption<EditorOption.inlineSuggest, I
 					type: 'boolean',
 					default: defaults.enabled,
 					description: nls.localize('inlineSuggest.enabled', "Controls whether to automatically show inline suggestions in the editor.")
-				}
+				},
+				'editor.inlineSuggest.showToolbar': {
+					type: 'string',
+					default: defaults.showToolbar,
+					enum: ['always', 'onHover'],
+					enumDescriptions: [
+						nls.localize('inlineSuggest.showToolbar.always', "Show the inline suggestion toolbar whenever an inline suggestion is shown."),
+						nls.localize('inlineSuggest.showToolbar.onHover', "Show the inline suggestion toolbar when hovering over an inline suggestion."),
+					],
+					description: nls.localize('inlineSuggest.showToolbar', "Controls when to show the inline suggestion toolbar."),
+				},
+				'editor.inlineSuggest.suppressSuggestions': {
+					type: 'boolean',
+					default: defaults.suppressSuggestions,
+					description: nls.localize('inlineSuggest.suppressSuggestions', "Controls how inline suggestions interact with the suggest widget. If enabled, the suggest widget is not shown automatically when inline suggestions are available.")
+				},
 			}
 		);
 	}
@@ -3821,6 +3861,8 @@ class InlineEditorSuggest extends BaseEditorOption<EditorOption.inlineSuggest, I
 		return {
 			enabled: boolean(input.enabled, this.defaultValue.enabled),
 			mode: stringSet(input.mode, this.defaultValue.mode, ['prefix', 'subword', 'subwordSmart']),
+			showToolbar: stringSet(input.showToolbar, this.defaultValue.showToolbar, ['always', 'onHover']),
+			suppressSuggestions: boolean(input.suppressSuggestions, this.defaultValue.suppressSuggestions),
 		};
 	}
 }
@@ -4267,13 +4309,13 @@ class EditorSuggest extends BaseEditorOption<EditorOption.suggest, ISuggestOptio
 					type: 'string',
 					enum: ['always', 'never', 'whenTriggerCharacter', 'whenQuickSuggestion'],
 					enumDescriptions: [
-						nls.localize('suggest.insertMode.always', "Always activate the suggest widget when triggering IntelliSense automatically."),
-						nls.localize('suggest.insertMode.never', "Never activate the suggest when when triggering IntelliSense automatically."),
-						nls.localize('suggest.insertMode.whenTriggerCharacter', "Activate the suggest widget only when triggering IntelliSense from a trigger character."),
-						nls.localize('suggest.insertMode.whenQuickSuggestion', "Activate the suggest widget only when triggering IntelliSense as you type."),
+						nls.localize('suggest.insertMode.always', "Always select a suggestion when automatically triggering IntelliSense."),
+						nls.localize('suggest.insertMode.never', "Never select a suggestion when automatically triggering IntelliSense."),
+						nls.localize('suggest.insertMode.whenTriggerCharacter', "Select a suggestion only when triggering IntelliSense from a trigger character."),
+						nls.localize('suggest.insertMode.whenQuickSuggestion', "Select a suggestion only when triggering IntelliSense as you type."),
 					],
 					default: defaults.selectionMode,
-					markdownDescription: nls.localize('suggest.selectionMode', "Controls whether the suggest widget becomes active when triggered via quick suggest or trigger characters. Note that the widget is always active when explicitly invoked, e.g via `Ctrl+Space`.")
+					markdownDescription: nls.localize('suggest.selectionMode', "Controls whether a suggestion is selected when the widget shows. Note that this only applies to automatically triggered suggestions (`#editor.quickSuggestions#` and `#editor.suggestOnTriggerCharacters#`) and that a suggestion is always selected when explicitly invoked, e.g via `Ctrl+Space`.")
 				},
 				'editor.suggest.snippetsPreventQuickSuggestions': {
 					type: 'boolean',
@@ -4555,22 +4597,6 @@ class SmartSelect extends BaseEditorOption<EditorOption.smartSelect, ISmartSelec
 
 //#endregion
 
-//#region tabFocusMode
-
-class EditorTabFocusMode extends ComputedEditorOption<EditorOption.tabFocusMode, boolean> {
-
-	constructor() {
-		super(EditorOption.tabFocusMode);
-	}
-
-	public compute(env: IEnvironmentalOptions, options: IComputedEditorOptions, _: boolean): boolean {
-		const readOnly = options.get(EditorOption.readOnly);
-		return (readOnly ? true : env.tabFocusMode);
-	}
-}
-
-//#endregion
-
 //#region wrappingIndent
 
 /**
@@ -4751,6 +4777,7 @@ export const enum EditorOption {
 	accessibilityPageSize,
 	ariaLabel,
 	autoClosingBrackets,
+	screenReaderAnnounceInlineSuggestion,
 	autoClosingDelete,
 	autoClosingOvertype,
 	autoClosingQuotes,
@@ -4891,7 +4918,7 @@ export const enum EditorOption {
 export const EditorOptions = {
 	acceptSuggestionOnCommitCharacter: register(new EditorBooleanOption(
 		EditorOption.acceptSuggestionOnCommitCharacter, 'acceptSuggestionOnCommitCharacter', true,
-		{ markdownDescription: nls.localize('acceptSuggestionOnCommitCharacter', "Controls whether suggestions should be accepted on commit characters. For example, in JavaScript, the semi-colon (`; `) can be a commit character that accepts a suggestion and types that character.") }
+		{ markdownDescription: nls.localize('acceptSuggestionOnCommitCharacter', "Controls whether suggestions should be accepted on commit characters. For example, in JavaScript, the semi-colon (`;`) can be a commit character that accepts a suggestion and types that character.") }
 	)),
 	acceptSuggestionOnEnter: register(new EditorStringEnumOption(
 		EditorOption.acceptSuggestionOnEnter, 'acceptSuggestionOnEnter',
@@ -4914,6 +4941,13 @@ export const EditorOptions = {
 		})),
 	ariaLabel: register(new EditorStringOption(
 		EditorOption.ariaLabel, 'ariaLabel', nls.localize('editorViewAccessibleLabel', "Editor content")
+	)),
+	screenReaderAnnounceInlineSuggestion: register(new EditorBooleanOption(
+		EditorOption.screenReaderAnnounceInlineSuggestion, 'screenReaderAnnounceInlineSuggestion', false,
+		{
+			description: nls.localize('screenReaderAnnounceInlineSuggestion', "Control whether inline suggestions are announced by a screen reader. Note that this does not work on macOS with VoiceOver."),
+			tags: ['accessibility']
+		}
 	)),
 	autoClosingBrackets: register(new EditorStringEnumOption(
 		EditorOption.autoClosingBrackets, 'autoClosingBrackets',
@@ -5605,7 +5639,9 @@ export const EditorOptions = {
 	// Leave these at the end (because they have dependencies!)
 	editorClassName: register(new EditorClassName()),
 	pixelRatio: register(new EditorPixelRatio()),
-	tabFocusMode: register(new EditorTabFocusMode()),
+	tabFocusMode: register(new EditorBooleanOption(EditorOption.tabFocusMode, 'tabFocusMode', false,
+		{ markdownDescription: nls.localize('tabFocusMode', "Controls whether the editor receives tabs or defers them to the workbench for navigation.") }
+	)),
 	layoutInfo: register(new EditorLayoutInfoComputer()),
 	wrappingInfo: register(new EditorWrappingInfoComputer()),
 	wrappingIndent: register(new WrappingIndentOption()),

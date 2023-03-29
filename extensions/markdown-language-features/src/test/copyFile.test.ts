@@ -9,7 +9,7 @@ import * as vscode from 'vscode';
 import { resolveCopyDestination } from '../languageFeatures/copyFiles/copyFiles';
 
 
-suite.only('resolveCopyDestination', () => {
+suite('resolveCopyDestination', () => {
 
 	test('Relative destinations should resolve next to document', async () => {
 		const documentUri = vscode.Uri.parse('test://projects/project/sub/readme.md');

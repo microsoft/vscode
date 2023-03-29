@@ -9,18 +9,17 @@ import { Action, IAction } from 'vs/base/common/actions';
 import { Event } from 'vs/base/common/event';
 import { localize } from 'vs/nls';
 import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { ThemeIcon } from 'vs/base/common/themables';
 import { NOTEBOOK_ACTIONS_CATEGORY, SELECT_KERNEL_ID } from 'vs/workbench/contrib/notebook/browser/controller/coreActions';
 import { getNotebookEditorFromEditorPane, INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { selectKernelIcon } from 'vs/workbench/contrib/notebook/browser/notebookIcons';
-import { KernelPickerFlatStrategy, KernelPickerMRUStrategy, KernelQuickPickContext } from 'vs/workbench/contrib/notebook/browser/viewParts/notebookKernelQuickPickStrategy';
+import { KernelPickerMRUStrategy, KernelQuickPickContext } from 'vs/workbench/contrib/notebook/browser/viewParts/notebookKernelQuickPickStrategy';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
 import { NOTEBOOK_IS_ACTIVE_EDITOR, NOTEBOOK_KERNEL_COUNT } from 'vs/workbench/contrib/notebook/common/notebookContextKeys';
-import { INotebookKernelService } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
+import { INotebookKernelHistoryService, INotebookKernelService } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 
 function getEditorFromContext(editorService: IEditorService, context?: KernelQuickPickContext): INotebookEditor | undefined {
@@ -97,7 +96,6 @@ registerAction2(class extends Action2 {
 
 	async run(accessor: ServicesAccessor, context?: KernelQuickPickContext): Promise<boolean> {
 		const instantiationService = accessor.get(IInstantiationService);
-		const configurationService = accessor.get(IConfigurationService);
 		const editorService = accessor.get(IEditorService);
 
 		const editor = getEditorFromContext(editorService, context);
@@ -126,15 +124,8 @@ registerAction2(class extends Action2 {
 		}
 
 		const wantedKernelId = controllerId ? `${extensionId}/${controllerId}` : undefined;
-		const kernelPickerType = configurationService.getValue<'all' | 'mru'>('notebook.kernelPicker.type');
-
-		if (kernelPickerType === 'mru') {
-			const strategy = instantiationService.createInstance(KernelPickerMRUStrategy);
-			return await strategy.showQuickPick(editor, wantedKernelId);
-		} else {
-			const strategy = instantiationService.createInstance(KernelPickerFlatStrategy);
-			return await strategy.showQuickPick(editor, wantedKernelId);
-		}
+		const strategy = instantiationService.createInstance(KernelPickerMRUStrategy);
+		return strategy.showQuickPick(editor, wantedKernelId);
 	}
 });
 
@@ -146,7 +137,7 @@ export class NotebooKernelActionViewItem extends ActionViewItem {
 		actualAction: IAction,
 		private readonly _editor: { onDidChangeModel: Event<void>; textModel: NotebookTextModel | undefined; scopedContextKeyService?: IContextKeyService } | INotebookEditor,
 		@INotebookKernelService private readonly _notebookKernelService: INotebookKernelService,
-		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@INotebookKernelHistoryService private readonly _notebookKernelHistoryService: INotebookKernelHistoryService,
 	) {
 		super(
 			undefined,
@@ -154,6 +145,8 @@ export class NotebooKernelActionViewItem extends ActionViewItem {
 			{ label: false, icon: true }
 		);
 		this._register(_editor.onDidChangeModel(this._update, this));
+		this._register(_notebookKernelService.onDidAddKernel(this._update, this));
+		this._register(_notebookKernelService.onDidRemoveKernel(this._update, this));
 		this._register(_notebookKernelService.onDidChangeNotebookAffinity(this._update, this));
 		this._register(_notebookKernelService.onDidChangeSelectedNotebooks(this._update, this));
 		this._register(_notebookKernelService.onDidChangeSourceActions(this._update, this));
@@ -185,12 +178,7 @@ export class NotebooKernelActionViewItem extends ActionViewItem {
 			return;
 		}
 
-		const kernelPickerType = this._configurationService.getValue<'all' | 'mru'>('notebook.kernelPicker.type');
-		if (kernelPickerType === 'mru') {
-			KernelPickerMRUStrategy.updateKernelStatusAction(notebook, this._action, this._notebookKernelService);
-		} else {
-			KernelPickerFlatStrategy.updateKernelStatusAction(notebook, this._action, this._notebookKernelService, this._editor.scopedContextKeyService);
-		}
+		KernelPickerMRUStrategy.updateKernelStatusAction(notebook, this._action, this._notebookKernelService, this._notebookKernelHistoryService);
 
 		this.updateClass();
 	}

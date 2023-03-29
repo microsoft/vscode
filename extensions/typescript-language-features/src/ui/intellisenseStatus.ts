@@ -102,7 +102,7 @@ export class IntellisenseStatus extends Disposable {
 			return;
 		}
 
-		const file = this._client.toOpenedFilePath(doc, { suppressAlertOnFailure: true });
+		const file = this._client.toOpenTsFilePath(doc, { suppressAlertOnFailure: true });
 		if (!file) {
 			this.updateState(IntellisenseState.None);
 			return;

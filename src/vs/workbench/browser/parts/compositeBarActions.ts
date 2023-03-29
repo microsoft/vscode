@@ -9,7 +9,7 @@ import { $, addDisposableListener, append, clearNode, EventHelper, EventType, ge
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { toDisposable, MutableDisposable, DisposableStore, disposeIfDisposable } from 'vs/base/common/lifecycle';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { IThemeService, IColorTheme, ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { IThemeService, IColorTheme } from 'vs/platform/theme/common/themeService';
 import { TextBadge, NumberBadge, IBadge, IconBadge, ProgressBadge } from 'vs/workbench/services/activity/common/activity';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { contrastBorder } from 'vs/platform/theme/common/colorRegistry';
@@ -21,6 +21,7 @@ import { CompositeDragAndDropObserver, ICompositeDragAndDrop, Before2D, toggleDr
 import { Color } from 'vs/base/common/color';
 import { IBaseActionViewItemOptions, BaseActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
 import { Codicon } from 'vs/base/common/codicons';
+import { ThemeIcon } from 'vs/base/common/themables';
 import { IHoverService, IHoverWidget } from 'vs/workbench/services/hover/browser/hover';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -465,7 +466,7 @@ export class CompositeOverflowActivityAction extends ActivityAction {
 		super({
 			id: 'additionalComposites.action',
 			name: localize('additionalViews', "Additional Views"),
-			cssClass: Codicon.more.classNames
+			cssClass: ThemeIcon.asClassName(Codicon.more)
 		});
 	}
 

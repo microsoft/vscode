@@ -38,7 +38,7 @@ export class TasksResource implements IProfileResource {
 	async apply(content: string, profile: IUserDataProfile): Promise<void> {
 		const tasksContent: ITasksResourceContent = JSON.parse(content);
 		if (!tasksContent.tasks) {
-			this.logService.info(`Profile: No tasks to apply...`);
+			this.logService.info(`Importing Profile (${profile.name}): No tasks to apply...`);
 			return;
 		}
 		await this.fileService.writeFile(profile.tasksResource, VSBuffer.fromString(tasksContent.tasks));
@@ -66,7 +66,7 @@ export class TasksResourceTreeItem implements IProfileResourceTreeItem {
 	readonly handle = ProfileResourceType.Tasks;
 	readonly label = { label: localize('tasks', "User Tasks") };
 	readonly collapsibleState = TreeItemCollapsibleState.Expanded;
-	checkbox: ITreeItemCheckboxState = { isChecked: true };
+	checkbox: ITreeItemCheckboxState | undefined;
 
 	constructor(
 		private readonly profile: IUserDataProfile,

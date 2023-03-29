@@ -625,26 +625,21 @@ export const ACTIVITY_BAR_BADGE_FOREGROUND = registerColor('activityBarBadge.for
 	hcLight: Color.white
 }, localize('activityBarBadgeForeground', "Activity notification badge foreground color. The activity bar is showing on the far left or right and allows to switch between views of the side bar."));
 
-export const ACTIVITY_BAR_PROFILE_FOREGROUND = registerColor('activityBarItem.profilesForeground', {
-	dark: ACTIVITY_BAR_INACTIVE_FOREGROUND,
-	light: ACTIVITY_BAR_INACTIVE_FOREGROUND,
-	hcDark: ACTIVITY_BAR_INACTIVE_FOREGROUND,
-	hcLight: ACTIVITY_BAR_INACTIVE_FOREGROUND
-}, localize('activityBarItem.profilesForeground', "Foreground color for the profile entry on the activity bar."));
+// < --- Profiles --- >
 
-export const ACTIVITY_BAR_PROFILE_HOVER_FOREGROUND = registerColor('activityBarItem.profilesHoverForeground', {
-	dark: ACTIVITY_BAR_FOREGROUND,
-	light: ACTIVITY_BAR_FOREGROUND,
-	hcDark: ACTIVITY_BAR_FOREGROUND,
-	hcLight: ACTIVITY_BAR_FOREGROUND
-}, localize('activityBarItem.profilesHoverForeground', "Foreground color for the profile entry on the activity bar when hovering."));
+export const PROFILE_BADGE_BACKGROUND = registerColor('profileBadge.background', {
+	dark: '#4D4D4D',
+	light: '#C4C4C4',
+	hcDark: Color.white,
+	hcLight: Color.black
+}, localize('profileBadgeBackground', "Profile badge background color. The profile badge shows on top of the settings gear icon in the activity bar."));
 
-export const ACTIVITY_BAR_PROFILE_BACKGROUND = registerColor('activityBarItem.profilesBackground', {
-	dark: lighten(ACTIVITY_BAR_BACKGROUND, 0.5),
-	light: darken(ACTIVITY_BAR_BACKGROUND, 0.12),
-	hcDark: null,
-	hcLight: null
-}, localize('activityBarItem.profilesBackground', "Background color for the profile entry on the activity bar."));
+export const PROFILE_BADGE_FOREGROUND = registerColor('profileBadge.foreground', {
+	dark: Color.white,
+	light: '#333333',
+	hcDark: Color.black,
+	hcLight: Color.white
+}, localize('profileBadgeForeground', "Profile badge foreground color. The profile badge shows on top of the settings gear icon in the activity bar."));
 
 // < --- Remote --- >
 

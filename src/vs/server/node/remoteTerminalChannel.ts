@@ -20,9 +20,9 @@ import { IGetTerminalLayoutInfoArgs, ISetTerminalLayoutInfoArgs } from 'vs/platf
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { createURITransformer } from 'vs/workbench/api/node/uriTransformer';
 import { CLIServerBase, ICommandsExecuter } from 'vs/workbench/api/node/extHostCLIServer';
-import { IEnvironmentVariableCollection } from 'vs/workbench/contrib/terminal/common/environmentVariable';
-import { MergedEnvironmentVariableCollection } from 'vs/workbench/contrib/terminal/common/environmentVariableCollection';
-import { deserializeEnvironmentVariableCollection } from 'vs/workbench/contrib/terminal/common/environmentVariableShared';
+import { IEnvironmentVariableCollection } from 'vs/platform/terminal/common/environmentVariable';
+import { MergedEnvironmentVariableCollection } from 'vs/platform/terminal/common/environmentVariableCollection';
+import { deserializeEnvironmentVariableCollection } from 'vs/platform/terminal/common/environmentVariableShared';
 import { ICreateTerminalProcessArguments, ICreateTerminalProcessResult, IWorkspaceFolderData } from 'vs/workbench/contrib/terminal/common/remoteTerminalChannel';
 import * as terminalEnvironment from 'vs/workbench/contrib/terminal/common/terminalEnvironment';
 import { AbstractVariableResolverService } from 'vs/workbench/services/configurationResolver/common/variableResolver';
