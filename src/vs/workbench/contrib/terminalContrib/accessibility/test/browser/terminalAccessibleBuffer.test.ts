@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { strictEqual } from 'assert';
-import assert = require('assert');
 import { timeout } from 'vs/base/common/async';
 import { isWindows } from 'vs/base/common/platform';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
@@ -98,14 +97,13 @@ suite('Accessible buffer', () => {
 		bufferTracker = instantiationService.createInstance(BufferContentTracker, xterm);
 
 	});
-	test.skip('should clear cached lines', async () => {
+	test('should clear cached lines beyond the prompt line', async () => {
 		strictEqual(bufferTracker.lines.length, 0);
+		await writeP(xterm.raw, 'abcd\n');
 		await writeP(xterm.raw, 'abcd');
-		assert.equal(xterm.raw.buffer.active.getLine(0)?.translateToString(true), 'abcd');
 		xterm.clearBuffer();
-		assert.equal(xterm.raw.buffer.active.getLine(0)?.translateToString(true), undefined);
 		await bufferTracker.update();
-		strictEqual(bufferTracker.lines.length, 0);
+		strictEqual(bufferTracker.lines.length, 1);
 	});
 	test('should render lines in the viewport', async () => {
 		strictEqual(bufferTracker.lines.length, 0);
