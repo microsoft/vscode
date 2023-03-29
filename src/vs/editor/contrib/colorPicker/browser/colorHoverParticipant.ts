@@ -106,15 +106,23 @@ export class ColorHoverParticipant implements IEditorHoverParticipant<ColorHover
 		console.log('provider : ', provider);
 
 		const originalText = editorModel.getValueInRange(colorInfo.range);
+
+		console.log('originalText : ', originalText);
+
 		const { red, green, blue, alpha } = colorInfo.color;
 		const rgba = new RGBA(Math.round(red * 255), Math.round(green * 255), Math.round(blue * 255), alpha);
 		const color = new Color(rgba);
 
 		console.log('Before getColorPresentations');
+		console.log('colorInfo : ', colorInfo);
 
 		const colorPresentations = await getColorPresentations(editorModel, colorInfo, provider, CancellationToken.None);
+
+		console.log('colorPresentations : ', colorPresentations);
+
 		const model = new ColorPickerModel(color, [], 0);
 		model.colorPresentations = colorPresentations || [];
+
 		model.guessColorPresentation(color, originalText);
 
 		return new ColorHover(this, Range.lift(colorInfo.range), model, provider);
@@ -243,6 +251,7 @@ export class ColorHoverParticipant implements IEditorHoverParticipant<ColorHover
 		const updateEditorModel = () => {
 
 			console.log('inside of update editor model');
+			console.log('model  : ', model);
 
 			let textEdits: ISingleEditOperation[];
 			let newRange: Range;

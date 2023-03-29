@@ -35,6 +35,7 @@ export function getColors(registry: LanguageFeatureRegistry<DocumentColorProvide
 }
 
 export function getColorPresentations(model: ITextModel, colorInfo: IColorInformation, provider: DocumentColorProvider, token: CancellationToken): Promise<IColorPresentation[] | null | undefined> {
+	console.log('before calling the provideColorPresentations');
 	return Promise.resolve(provider.provideColorPresentations(model, colorInfo, token));
 }
 

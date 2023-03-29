@@ -6,7 +6,7 @@
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { HoverParticipantRegistry, IEditorHoverRenderContext } from 'vs/editor/contrib/hover/browser/hoverTypes';
 import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition } from 'vs/editor/browser/editorBrowser';
-import { PositionAffinity } from 'vs/editor/common/model';
+import { ITextModel, PositionAffinity } from 'vs/editor/common/model';
 import { Position } from 'vs/editor/common/core/position';
 import { ColorHover, ColorHoverParticipant } from 'vs/editor/contrib/colorPicker/browser/colorHoverParticipant';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -15,7 +15,7 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ColorPickerBody, ColorPickerHeader, ColorPickerWidget } from 'vs/editor/contrib/colorPicker/browser/colorPickerWidget';
 import { Emitter } from 'vs/base/common/event';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
-import { IColorInformation } from 'vs/editor/common/languages';
+import { DocumentColorProvider, IColor, IColorInformation, IColorPresentation, ProviderResult } from 'vs/editor/common/languages';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { EditorContributionInstantiation, registerEditorContribution } from 'vs/editor/browser/editorExtensions';
@@ -23,9 +23,12 @@ import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { ILanguageFeatureDebounceService } from 'vs/editor/common/services/languageFeatureDebounce';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { Selection } from 'vs/editor/common/core/selection';
-import { IRange } from 'vs/editor/common/core/range';
+import { IRange, Range } from 'vs/editor/common/core/range';
 import * as dom from 'vs/base/browser/dom';
 import 'vs/css!./colorPicker';
+import { ColorPickerModel } from 'vs/editor/contrib/colorPicker/browser/colorPickerModel';
+import { Color, RGBA } from 'vs/base/common/color';
+import { CancellationToken } from 'vs/base/common/cancellation';
 
 export class StandaloneColorPickerController extends Disposable implements IEditorContribution {
 
@@ -368,6 +371,14 @@ export class StandaloneColorPickerComputer extends Disposable implements IStanda
 
 			// TODO: When there are no providers, we still want to render a color picker
 			if (providers.length === 0) {
+				console.log('early return because no providers');
+
+				// Suppose that the above does not give a color hover array, then we still want a color hover array
+				const tempProvider = new DefaultDocumentColorProvider();
+				const colorHover = await participant.createColorHover(colorInfo, tempProvider);
+				if (colorHover) {
+					result = result.concat(colorHover);
+				}
 				continue;
 			}
 
@@ -391,5 +402,28 @@ export class StandaloneColorPickerComputer extends Disposable implements IStanda
 
 	public override dispose(): void {
 		super.dispose();
+	}
+}
+
+class DefaultDocumentColorProvider implements DocumentColorProvider {
+	constructor() { }
+
+	provideDocumentColors(model: ITextModel, token: CancellationToken): ProviderResult<IColorInformation[]> {
+		return [];
+	}
+
+	provideColorPresentations(model: ITextModel, colorInfo: IColorInformation, token: CancellationToken): ProviderResult<IColorPresentation[]> {
+		const range = colorInfo.range;
+		const color: IColor = colorInfo.color;
+		const colorInstance = new Color(new RGBA(color.red, color.green, color.blue, color.alpha));
+		const rgba = Color.Format.CSS.formatRGBA(colorInstance);
+		const hsla = Color.Format.CSS.formatHSLA(colorInstance);
+		const hexa = Color.Format.CSS.formatHexA(colorInstance);
+		const colorPresentations: IColorPresentation[] = [];
+		// Using two default color formats, RGBA and Hex
+		colorPresentations.push({ label: rgba, textEdit: { range: range, text: rgba } });
+		colorPresentations.push({ label: hsla, textEdit: { range: range, text: hsla } });
+		colorPresentations.push({ label: hexa, textEdit: { range: range, text: hexa } });
+		return colorPresentations;
 	}
 }
