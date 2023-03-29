@@ -71,7 +71,7 @@ import * as Constants from 'vs/workbench/contrib/search/common/constants';
 import { IReplaceService } from 'vs/workbench/contrib/search/browser/replace';
 import { getOutOfWorkspaceEditorResources, SearchStateKey, SearchUIState } from 'vs/workbench/contrib/search/common/search';
 import { ISearchHistoryService, ISearchHistoryValues } from 'vs/workbench/contrib/search/common/searchHistoryService';
-import { FileMatch, FileMatchOrMatch, FolderMatch, FolderMatchWithResource, IChangeEvent, ISearchWorkbenchService, Match, NotebookMatch, RenderableMatch, searchMatchComparer, SearchModel, SearchResult } from 'vs/workbench/contrib/search/browser/searchModel';
+import { FileMatch, FileMatchOrMatch, FolderMatch, FolderMatchWithResource, IChangeEvent, ISearchWorkbenchService, Match, NotebookFileMatch, NotebookMatch, RenderableMatch, searchMatchComparer, SearchModel, SearchResult } from 'vs/workbench/contrib/search/browser/searchModel';
 import { createEditorFromSearchResult } from 'vs/workbench/contrib/searchEditor/browser/searchEditorActions';
 import { ACTIVE_GROUP, IEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { IPreferencesService, ISettingsEditorOptions } from 'vs/workbench/services/preferences/common/preferences';
@@ -1856,6 +1856,7 @@ export class SearchView extends ViewPane {
 		}
 
 		if (editor instanceof NotebookEditor) {
+			const elemParent = element.parent() as NotebookFileMatch;
 			const experimentalNotebooksEnabled = this.configurationService.getValue<ISearchConfigurationProperties>('search').experimental.notebookSearch;
 			if (experimentalNotebooksEnabled) {
 				if (element instanceof Match) {
@@ -1866,14 +1867,14 @@ export class SearchView extends ViewPane {
 						if (editorWidget) {
 							// Ensure that the editor widget is binded. If if is, then this should return immediately.
 							// Otherwise, it will bind the widget.
-							await element.parent().bindNotebookEditorWidget(editorWidget);
+							await elemParent.bindNotebookEditorWidget(editorWidget);
 
 							const matchIndex = oldParentMatches.findIndex(e => e.id() === element.id());
 							const matches = element.parent().matches();
 							const match = matchIndex >= matches.length ? matches[matches.length - 1] : matches[matchIndex];
 
 							if (match instanceof NotebookMatch) {
-								element.parent().showMatch(match);
+								elemParent.showMatch(match);
 							}
 
 							if (!this.tree.getFocus().includes(match) || !this.tree.getSelection().includes(match)) {
