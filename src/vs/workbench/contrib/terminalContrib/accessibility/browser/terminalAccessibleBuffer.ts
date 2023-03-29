@@ -50,13 +50,11 @@ export class AccessibleBufferWidget extends DisposableStore {
 	private readonly _focusedContextKey: IContextKey<boolean>;
 	private readonly _focusTracker: dom.IFocusTracker;
 
-	private _lastMarker: IMarker | undefined;
-	private _lastLinesInViewport: number = 0;
-	private _lines: string[] = [];
-	protected get lines(): string[] { return this._lines; }
 	private _listeners: IDisposable[] = [];
 	private _isUpdating: boolean = false;
 	private _pendingUpdates = 0;
+
+	private _bufferTracker: BufferContentTracker;
 
 	constructor(
 		private readonly _instance: Pick<ITerminalInstance, 'capabilities' | 'onDidRequestFocus' | 'resource'>,
@@ -71,6 +69,7 @@ export class AccessibleBufferWidget extends DisposableStore {
 	) {
 		super();
 		this._xtermElement = _xterm.raw.element!;
+		this._bufferTracker = this._instantiationService.createInstance(BufferContentTracker, _xterm);
 		this._accessibleBuffer = document.createElement('div');
 		this._accessibleBuffer.setAttribute('role', 'document');
 		this._accessibleBuffer.ariaRoleDescription = localize('terminal.integrated.accessibleBuffer', 'Terminal buffer');
@@ -271,6 +270,49 @@ export class AccessibleBufferWidget extends DisposableStore {
 		return this._modelService.createModel(resource.fragment, null, resource, false);
 	}
 
+
+	private async _updateModel(): Promise<ITextModel> {
+		this._bufferTracker.update();
+		let model = this._editorWidget.getModel();
+		const text = this._bufferTracker.lines.join('\n');
+		if (model) {
+			this._logService.debug('Edited accessible buffer model with ', this._bufferTracker.lines.length, ' lines');
+			model.setValue(text);
+		} else {
+			this._logService.debug('Created new accessible buffer model with ', this._bufferTracker.lines.length, ' lines');
+			model = await this.getTextModel(this._instance.resource.with({ fragment: text }));
+		}
+		this._editorWidget.setModel(model);
+		this._bufferTracker.registerMarker();
+		return model!;
+	}
+}
+
+export class BufferContentTracker {
+	private _lastMarker: IMarker | undefined;
+	private _lastLinesInViewport: number = 0;
+	private _lines: string[] = [];
+	get lines(): string[] { return this._lines; }
+	constructor(
+		private readonly _xterm: Pick<IXtermTerminal, 'getFont'> & { raw: Terminal },
+		@ILogService private readonly _logService: ILogService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService) {
+	}
+	private _clear(): void {
+		this._lines = [];
+	}
+	registerMarker(): void {
+		this._lastMarker = this._xterm.raw.registerMarker();
+	}
+	update(): void {
+		if (this._lastMarker?.isDisposed) {
+			this._clear();
+		}
+		this._removeViewportContent();
+		this._updateScrollbackContent();
+		this._updateViewportContent();
+	}
+
 	private _removeViewportContent(): void {
 		if (this._lines.length && this._lastMarker?.line) {
 			// remove previous viewport content in case it has changed
@@ -336,26 +378,5 @@ export class AccessibleBufferWidget extends DisposableStore {
 		}
 		this._lines.push(...lines);
 		this._logService.debug('Updated scrollback content, now ', this._lines.length, ' lines');
-	}
-
-	private async _updateModel(): Promise<ITextModel> {
-		if (this._lastMarker?.isDisposed) {
-			this._lines = [];
-		}
-		this._removeViewportContent();
-		this._updateScrollbackContent();
-		this._updateViewportContent();
-		let model = this._editorWidget.getModel();
-		const text = this._lines.join('\n');
-		if (model) {
-			this._logService.debug('Edited accessible buffer model with ', this._lines.length, ' lines');
-			model.setValue(text);
-		} else {
-			this._logService.debug('Created new accessible buffer model with ', this._lines.length, ' lines');
-			model = await this.getTextModel(this._instance.resource.with({ fragment: text }));
-		}
-		this._editorWidget.setModel(model);
-		this._lastMarker = this._xterm.raw.registerMarker();
-		return model!;
 	}
 }

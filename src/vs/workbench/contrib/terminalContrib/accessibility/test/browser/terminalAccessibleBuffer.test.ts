@@ -5,7 +5,6 @@
 
 import { strictEqual } from 'assert';
 import { timeout } from 'vs/base/common/async';
-import { Emitter } from 'vs/base/common/event';
 import { isWindows } from 'vs/base/common/platform';
 import { equalsIgnoreCase } from 'vs/base/common/strings';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
@@ -31,22 +30,14 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
 import { IViewDescriptorService } from 'vs/workbench/common/views';
 import { TestViewDescriptorService } from 'vs/workbench/contrib/comments/test/browser/commentsView.test';
-import { ITerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { TerminalConfigHelper } from 'vs/workbench/contrib/terminal/browser/terminalConfigHelper';
-import { getTerminalUri } from 'vs/workbench/contrib/terminal/browser/terminalUri';
 import { XtermTerminal } from 'vs/workbench/contrib/terminal/browser/xterm/xtermTerminal';
 import { ITerminalConfiguration } from 'vs/workbench/contrib/terminal/common/terminal';
-import { AccessibleBufferWidget } from 'vs/workbench/contrib/terminalContrib/accessibility/browser/terminalAccessibleBuffer';
+import { BufferContentTracker } from 'vs/workbench/contrib/terminalContrib/accessibility/browser/terminalAccessibleBuffer';
 import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { TestLifecycleService } from 'vs/workbench/test/browser/workbenchTestServices';
 import { TestStorageService } from 'vs/workbench/test/common/workbenchTestServices';
 import { Terminal } from 'xterm';
-
-class TestAccessibleBufferWidget extends AccessibleBufferWidget {
-	public override get lines(): string[] {
-		return super.lines;
-	}
-}
 
 const defaultTerminalConfig: Partial<ITerminalConfiguration> = {
 	fontFamily: 'monospace',
@@ -67,8 +58,7 @@ suite('Accessible buffer', () => {
 	let xterm: XtermTerminal;
 	let capabilities: TerminalCapabilityStore;
 	let configHelper: TerminalConfigHelper;
-	let terminalInstance: Pick<ITerminalInstance, 'capabilities' | 'onDidRequestFocus' | 'resource'>;
-	let accessibleBufferWidget: TestAccessibleBufferWidget;
+	let bufferTracker: BufferContentTracker;
 
 	setup(() => {
 		configurationService = new TestConfigurationService({
@@ -105,22 +95,22 @@ suite('Accessible buffer', () => {
 		xterm.raw.open(container);
 		configurationService = new TestConfigurationService({ terminal: { integrated: { tabs: { separator: ' - ', title: '${cwd}', description: '${cwd}' } } } });
 		configHelper = new TerminalConfigHelper(configurationService, null!, null!, null!, null!);
-		terminalInstance = { capabilities, onDidRequestFocus: new Emitter<void>().event, resource: getTerminalUri('workspaceID', 2, 'title') };
-		accessibleBufferWidget = instantiationService.createInstance(TestAccessibleBufferWidget, terminalInstance, xterm);
+		bufferTracker = instantiationService.createInstance(BufferContentTracker, xterm);
+
 	});
 	test('should clear cached lines', async () => {
-		strictEqual(accessibleBufferWidget.lines.length, 0);
+		strictEqual(bufferTracker.lines.length, 0);
 		await writeP(xterm.raw, 'abcd');
 		xterm.raw.clear();
-		await accessibleBufferWidget.show();
-		strictEqual(accessibleBufferWidget.lines.length, 0);
+		await bufferTracker.update();
+		strictEqual(bufferTracker.lines.length, 0);
 	});
-	test.skip('should render lines in the viewport', async () => {
-		strictEqual(accessibleBufferWidget.lines.length, 0);
+	test('should render lines in the viewport', async () => {
+		strictEqual(bufferTracker.lines.length, 0);
 		await writeP(xterm.raw, 'abcd');
+		await bufferTracker.update();
 		equalsIgnoreCase(xterm.raw.buffer.active.getLine(0)?.translateToString() ?? '', 'abcd');
-		await accessibleBufferWidget.show();
-		strictEqual(accessibleBufferWidget.lines.length, 1);
+		strictEqual(bufferTracker.lines.length, 1);
 	});
 });
 async function writeP(terminal: Terminal, data: string): Promise<void> {
