@@ -6,7 +6,10 @@
 .monaco-editor .interactive-editor {
 	z-index: 100;
 	color: inherit;
-	padding-top: 6px;
+	padding: 6px;
+	border-radius: 6px;
+	border: 1px solid var(--vscode-interactiveEditor-border);
+	box-shadow: 0 4px 8px var(--vscode-interactiveEditor-shadow);
 }
 
 /* body */
@@ -87,30 +90,36 @@
 /* status */
 
 .monaco-editor .interactive-editor .status {
-	padding: 6px 10px 2px 2px;
+	padding: 6px 0px 2px 0px;
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
 }
 
 .monaco-editor .interactive-editor .status.hidden {
 	display: none;
 }
 
-.monaco-editor .interactive-editor .status .status-item {
-	display: flex;
-	justify-content: space-between;
-	align-items: center;
+.monaco-editor .interactive-editor .status .label {
+	padding-left: 12px;
+	font-size: 12px;
 }
 
-.monaco-editor .interactive-editor .status .status-item .label A {
+.monaco-editor .interactive-editor .status .label A {
 	color: var(--vscode-textLink-foreground);
 	cursor: pointer;
 }
 
-.monaco-editor .interactive-editor .status .status-item.error .label {
+.monaco-editor .interactive-editor .status .label.error {
 	color: var(--vscode-errorForeground);
 }
 
-.monaco-editor .interactive-editor .status .status-item.warn .label {
+.monaco-editor .interactive-editor .status .label.warn {
 	color: var(--vscode-editorWarning-foreground);
+}
+
+.monaco-editor .interactive-editor .status .monaco-toolbar .action-item {
+	padding: 0 2px;
 }
 
 .monaco-editor .interactive-editor .status .monaco-toolbar .action-label.checked {
@@ -118,6 +127,7 @@
 	background-color: var(--vscode-inputOption-activeBackground);
 	outline: 1px solid var(--vscode-inputOption-activeBorder);
 }
+
 
 /* decoration styles */
 
@@ -130,10 +140,8 @@
 	background-color: var(--vscode-diffEditor-insertedTextBackground);
 }
 
-.monaco-editor .interactive-editor-block {
-	border-radius: 6px;
-	border: 1px solid var(--vscode-interactiveEditor-border);
-	box-shadow: 0 4px 8px var(--vscode-interactiveEditor-shadow);
+.monaco-editor .interactive-editor-block-selection {
+	background-color: var(--vscode-interactiveEditor-regionHighlight);
 }
 
 .monaco-editor .interactive-editor-slash-command {
