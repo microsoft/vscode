@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { HoverParticipantRegistry, IEditorHoverParticipant, IEditorHoverRenderContext, IHoverPart } from 'vs/editor/contrib/hover/browser/hoverTypes';
+import { HoverParticipantRegistry, IEditorHoverRenderContext, IHoverPart } from 'vs/editor/contrib/hover/browser/hoverTypes';
 import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition } from 'vs/editor/browser/editorBrowser';
 import { PositionAffinity } from 'vs/editor/common/model';
 import { Position } from 'vs/editor/common/core/position';
@@ -103,7 +103,7 @@ export class StandaloneColorPickerWidget implements IContentWidget {
 	private readonly _position: Position | undefined = undefined;
 	private readonly _selection: Selection | null = null;
 
-	private readonly _participants: IEditorHoverParticipant[] = [];
+	private readonly _participants: ColorHoverParticipant[] = [];
 	private readonly _standaloneColorPickerComputer: StandaloneColorPickerComputer;
 
 	private _disposables: DisposableStore = new DisposableStore();
@@ -196,7 +196,7 @@ export class StandaloneColorPickerWidget implements IContentWidget {
 		}
 	}
 
-	private _render(messages: IHoverPart[]) {
+	private _render(messages: ColorHover[]) {
 
 		console.log('Entered into _renderColorPicker');
 
@@ -329,7 +329,7 @@ export class StandaloneColorPickerComputer extends Disposable implements IStanda
 	constructor(
 		private readonly _range: IRange,
 		private readonly _editor: ICodeEditor,
-		private readonly _participants: readonly IEditorHoverParticipant[],
+		private readonly _participants: readonly ColorHoverParticipant[],
 		@ILanguageFeaturesService private readonly languageFeaturesService: ILanguageFeaturesService
 	) {
 		super();
@@ -361,11 +361,12 @@ export class StandaloneColorPickerComputer extends Disposable implements IStanda
 			const registry = this.languageFeaturesService.colorProvider;
 			const providers = registry.ordered(textModel).reverse();
 
+			console.log('participant : ', participant);
 			console.log('providers : ', providers);
 
 			// TODO: When there are no providers, we still want to render a color picker
 			if (providers.length === 0) {
-				return [];
+				continue;
 			}
 
 			// Otherwise choose the first provider
@@ -373,17 +374,12 @@ export class StandaloneColorPickerComputer extends Disposable implements IStanda
 
 			console.log('provider : ', provider);
 
-			if (participant instanceof ColorHoverParticipant) {
+			// TODO: do we need to set the provider for each participant, what does it do?
+			// TODO: What is the difference between the participants and the document color providers?
 
-				console.log('entered into the case when participant is ColorHoverParticipant');
-
-				// TODO: do we need to set the provider for each participant, what does it do?
-				// TODO: What is the difference between the participants and the document color providers?
-
-				const colorHover = await participant.createColorHover(colorInfo, provider);
-				if (colorHover) {
-					result = result.concat(colorHover);
-				}
+			const colorHover = await participant.createColorHover(colorInfo, provider);
+			if (colorHover) {
+				result = result.concat(colorHover);
 			}
 		}
 
