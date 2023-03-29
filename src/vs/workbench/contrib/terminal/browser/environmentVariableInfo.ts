@@ -11,6 +11,8 @@ import { Codicon } from 'vs/base/common/codicons';
 import { IExtensionOwnedEnvironmentVariableMutator, IMergedEnvironmentVariableCollection, IMergedEnvironmentVariableCollectionDiff } from 'vs/platform/terminal/common/environmentVariable';
 import { TerminalStatus } from 'vs/workbench/contrib/terminal/browser/terminalStatusList';
 import Severity from 'vs/base/common/severity';
+import { ICommandService } from 'vs/platform/commands/common/commands';
+import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 
 export class EnvironmentVariableInfoStale implements IEnvironmentVariableInfo {
 	readonly requiresAction = true;
@@ -18,7 +20,8 @@ export class EnvironmentVariableInfoStale implements IEnvironmentVariableInfo {
 	constructor(
 		private readonly _diff: IMergedEnvironmentVariableCollectionDiff,
 		private readonly _terminalId: number,
-		@ITerminalService private readonly _terminalService: ITerminalService
+		@ITerminalService private readonly _terminalService: ITerminalService,
+		@IExtensionService private readonly _extensionService: IExtensionService
 	) {
 	}
 
@@ -31,7 +34,7 @@ export class EnvironmentVariableInfoStale implements IEnvironmentVariableInfo {
 		let message = localize('extensionEnvironmentContributionInfoStale', "The following extensions want to relaunch the terminal to contribute to its environment:");
 		message += '\n';
 		for (const ext of extSet) {
-			message += `\n- \`${ext}\``;
+			message += `\n- \`${getExtensionName(ext, this._extensionService)}\``;
 		}
 		return message;
 	}
@@ -59,7 +62,9 @@ export class EnvironmentVariableInfoChangesActive implements IEnvironmentVariabl
 	readonly requiresAction = false;
 
 	constructor(
-		private readonly _collection: IMergedEnvironmentVariableCollection
+		private readonly _collection: IMergedEnvironmentVariableCollection,
+		@ICommandService private readonly _commandService: ICommandService,
+		@IExtensionService private readonly _extensionService: IExtensionService
 	) {
 	}
 
@@ -70,16 +75,25 @@ export class EnvironmentVariableInfoChangesActive implements IEnvironmentVariabl
 		let message = localize('extensionEnvironmentContributionInfoActive', "The following extensions have contributed to this terminal's environment:");
 		message += '\n';
 		for (const ext of extSet) {
-			message += `\n- \`${ext}\``;
+			message += `\n- \`${getExtensionName(ext, this._extensionService)}\``;
 		}
 		return message;
+	}
+
+	private _getActions(): ITerminalStatusHoverAction[] {
+		return [{
+			label: localize('showEnvironmentContributions', "Show environment contributions"),
+			run: () => this._commandService.executeCommand(TerminalCommandId.ShowEnvironmentContributions),
+			commandId: TerminalCommandId.ShowEnvironmentContributions
+		}];
 	}
 
 	getStatus(): ITerminalStatus {
 		return {
 			id: TerminalStatus.EnvironmentVariableInfoChangesActive,
 			severity: Severity.Info,
-			tooltip: this._getInfo()
+			tooltip: this._getInfo(),
+			hoverActions: this._getActions()
 		};
 	}
 }
@@ -90,4 +104,8 @@ function addExtensionIdentifiers(extSet: Set<string>, diff: IterableIterator<IEx
 			extSet.add(mutator.extensionIdentifier);
 		}
 	}
+}
+
+function getExtensionName(id: string, extensionService: IExtensionService): string {
+	return extensionService.extensions.find(e => e.id === id)?.displayName || id;
 }

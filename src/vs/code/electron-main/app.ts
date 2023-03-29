@@ -668,7 +668,7 @@ export class CodeApplication extends Disposable {
 	private shouldBlockURI(uri: URI): boolean {
 		if (uri.authority === Schemas.file && isWindows) {
 			const { options, buttonIndeces } = massageMessageBoxOptions({
-				type: 'question',
+				type: 'warning',
 				buttons: [
 					localize({ key: 'open', comment: ['&& denotes a mnemonic'] }, "&&Yes"),
 					localize({ key: 'cancel', comment: ['&& denotes a mnemonic'] }, "&&No")
@@ -1225,7 +1225,7 @@ export class CodeApplication extends Disposable {
 		const win32MutexName = this.productService.win32MutexName;
 		if (isWindows && win32MutexName) {
 			try {
-				const WindowsMutex = await import('@vscode/windows-mutex');
+				const WindowsMutex = await import('windows-mutex');
 				const mutex = new WindowsMutex.Mutex(win32MutexName);
 				once(this.lifecycleMainService.onWillShutdown)(() => mutex.release());
 			} catch (error) {

@@ -681,13 +681,6 @@ export class TerminalService implements ITerminalService {
 		this._onDidChangeActiveGroup.fire(this._terminalGroupService.activeGroup);
 	}
 
-	doWithActiveInstance<T>(callback: (terminal: ITerminalInstance) => T): T | void {
-		const instance = this.activeInstance;
-		if (instance) {
-			return callback(instance);
-		}
-	}
-
 	getInstanceFromId(terminalId: number): ITerminalInstance | undefined {
 		let bgIndex = -1;
 		this._backgroundedTerminalInstances.forEach((terminalInstance, i) => {

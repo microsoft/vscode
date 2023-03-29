@@ -18,13 +18,18 @@ registerEditorContribution(InteractiveEditorController.ID, InteractiveEditorCont
 registerAction2(interactiveEditorActions.StartSessionAction);
 registerAction2(interactiveEditorActions.MakeRequestAction);
 registerAction2(interactiveEditorActions.StopRequestAction);
-registerAction2(interactiveEditorActions.AcceptWithPreviewInteractiveEditorAction);
 registerAction2(interactiveEditorActions.CancelSessionAction);
 registerAction2(interactiveEditorActions.ArrowOutUpAction);
 registerAction2(interactiveEditorActions.ArrowOutDownAction);
 registerAction2(interactiveEditorActions.FocusInteractiveEditor);
 registerAction2(interactiveEditorActions.PreviousFromHistory);
 registerAction2(interactiveEditorActions.NextFromHistory);
+
+registerAction2(interactiveEditorActions.UndoToClipboard);
+registerAction2(interactiveEditorActions.UndoToNewFile);
 registerAction2(interactiveEditorActions.UndoCommand);
+registerAction2(interactiveEditorActions.ToggleInlineDiff);
+registerAction2(interactiveEditorActions.FeebackHelpfulCommand);
+registerAction2(interactiveEditorActions.FeebackUnhelpfulCommand);
 
 registerAction2(interactiveEditorActions.CopyRecordings);

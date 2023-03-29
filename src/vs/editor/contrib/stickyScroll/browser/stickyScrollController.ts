@@ -20,7 +20,7 @@ import { ClickLinkGesture } from 'vs/editor/contrib/gotoSymbol/browser/link/clic
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { getDefinitionsAtPosition } from 'vs/editor/contrib/gotoSymbol/browser/goToSymbol';
 import { goToDefinitionWithLocation } from 'vs/editor/contrib/inlayHints/browser/inlayHintsLocations';
-import { Position } from 'vs/editor/common/core/position';
+import { IPosition, Position } from 'vs/editor/common/core/position';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
 import { ILanguageFeatureDebounceService } from 'vs/editor/common/services/languageFeatureDebounce';
@@ -41,6 +41,7 @@ export interface IStickyScrollController {
 	goToFocused(): void;
 	findScrollWidgetState(): StickyScrollWidgetState;
 	dispose(): void;
+	selectEditor(): void;
 }
 
 export class StickyScrollController extends Disposable implements IEditorContribution, IStickyScrollController {
@@ -65,6 +66,8 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 	private _focusedStickyElementIndex: number = -1;
 	private _enabled = false;
 	private _focused = false;
+	private _positionRevealed = false;
+	private _onMouseDown = false;
 
 	constructor(
 		private readonly _editor: ICodeEditor,
@@ -95,12 +98,27 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 		this._stickyScrollVisibleContextKey = EditorContextKeys.stickyScrollVisible.bindTo(this._contextKeyService);
 		const focusTracker = this._register(dom.trackFocus(this._stickyScrollWidget.getDomNode()));
 		this._register(focusTracker.onDidBlur(_ => {
-			this._disposeFocusStickyScrollStore();
+			const height = this._stickyScrollWidget.getDomNode().clientHeight;
+			// Suppose that the blurring is caused by scrolling, then keep the focus on the sticky scroll
+			// This is determined by the fact that the height of the widget has become zero and there has been no position revealing
+			if (this._positionRevealed === false && height === 0) {
+				this._focusedStickyElementIndex = -1;
+				this.focus();
+
+			}
+			// In all other casees, dispose the focus on the sticky scroll
+			else {
+				this._disposeFocusStickyScrollStore();
+			}
 		}));
 		this._register(focusTracker.onDidFocus(_ => {
 			this.focus();
 		}));
 		this._register(this._createClickLinkGesture());
+		// Suppose that mouse down on the sticky scroll, then do not focus on the sticky scroll because this will be followed by the revealing of a position
+		this._register(dom.addDisposableListener(this._stickyScrollWidget.getDomNode(), dom.EventType.MOUSE_DOWN, (e) => {
+			this._onMouseDown = true;
+		}));
 	}
 
 	get stickyScrollCandidateProvider(): IStickyLineCandidateProvider {
@@ -117,11 +135,19 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 
 	private _disposeFocusStickyScrollStore() {
 		this._stickyScrollFocusedContextKey.set(false);
-		this._focusDisposableStore!.dispose();
+		this._focusDisposableStore?.dispose();
 		this._focused = false;
+		this._positionRevealed = false;
+		this._onMouseDown = false;
 	}
 
 	public focus(): void {
+		// If the mouse is down, do not focus on the sticky scroll
+		if (this._onMouseDown) {
+			this._onMouseDown = false;
+			this._editor.focus();
+			return;
+		}
 		const focusState = this._stickyScrollFocusedContextKey.get();
 		if (focusState === true) {
 			return;
@@ -147,6 +173,10 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 		}
 	}
 
+	public selectEditor(): void {
+		this._editor.focus();
+	}
+
 	// True is next, false is previous
 	private _focusNav(direction: boolean): void {
 		this._focusedStickyElementIndex = direction ? this._focusedStickyElementIndex + 1 : this._focusedStickyElementIndex - 1;
@@ -156,7 +186,14 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 	public goToFocused(): void {
 		const lineNumbers = this._stickyScrollWidget.lineNumbers;
 		this._disposeFocusStickyScrollStore();
-		this._editor.revealPosition({ lineNumber: lineNumbers[this._focusedStickyElementIndex], column: 1 });
+		this._revealPosition({ lineNumber: lineNumbers[this._focusedStickyElementIndex], column: 1 });
+	}
+
+	private _revealPosition(position: IPosition): void {
+		this._positionRevealed = true;
+		this._editor.revealPosition(position);
+		this._editor.setSelection(Range.fromPositions(position));
+		this._editor.focus();
 	}
 
 	private _createClickLinkGesture(): IDisposable {
@@ -238,18 +275,16 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 					if (this._focused) {
 						this._disposeFocusStickyScrollStore();
 					}
-					this._editor.revealPosition({ lineNumber: this._stickyScrollWidget.hoverOnLine, column: 1 });
+					this._revealPosition({ lineNumber: this._stickyScrollWidget.hoverOnLine, column: 1 });
 				}
 				this._instaService.invokeFunction(goToDefinitionWithLocation, e, this._editor as IActiveCodeEditor, { uri: this._editor.getModel()!.uri, range: this._stickyRangeProjectedOnEditor! });
 
 			} else if (!e.isRightClick) {
 				// Normal click
-				const position = { lineNumber: this._stickyScrollWidget.hoverOnLine, column: this._stickyScrollWidget.hoverOnColumn };
 				if (this._focused) {
 					this._disposeFocusStickyScrollStore();
 				}
-				this._editor.revealPosition(position);
-				this._editor.setSelection(Range.fromPositions(position));
+				this._revealPosition({ lineNumber: this._stickyScrollWidget.hoverOnLine, column: this._stickyScrollWidget.hoverOnColumn });
 			}
 		}));
 		return linkGestureStore;
@@ -327,20 +362,29 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 				this._stickyScrollWidget.setState(this._widgetState);
 			} else {
 				this._stickyElements = this._stickyScrollWidget.getDomNode().children;
-				if (this._stickyElements.length === 0) {
-					this._disposeFocusStickyScrollStore();
+				// Suppose that previously the sticky scroll widget had height 0, then if there are visible lines, set the last line as focused
+				if (this._focusedStickyElementIndex === -1) {
 					this._stickyScrollWidget.setState(this._widgetState);
+					this._focusedStickyElementIndex = this._stickyElements.length - 1;
+					if (this._focusedStickyElementIndex !== -1) {
+						(this._stickyElements.item(this._focusedStickyElementIndex) as HTMLDivElement).focus();
+					}
 				} else {
 					const focusedStickyElementLineNumber = this._stickyScrollWidget.lineNumbers[this._focusedStickyElementIndex];
 					this._stickyScrollWidget.setState(this._widgetState);
-					const previousFocusedLineNumberExists = this._stickyScrollWidget.lineNumbers.includes(focusedStickyElementLineNumber);
+					// Suppose that after setting the state, there are no sticky lines, set the focused index to -1
+					if (this._stickyElements.length === 0) {
+						this._focusedStickyElementIndex = -1;
+					} else {
+						const previousFocusedLineNumberExists = this._stickyScrollWidget.lineNumbers.includes(focusedStickyElementLineNumber);
 
-					// If the line number is still there, do not change anything
-					// If the line number is not there, set the new focused line to be the last line
-					if (!previousFocusedLineNumberExists) {
-						this._focusedStickyElementIndex = this._stickyElements.length - 1;
+						// If the line number is still there, do not change anything
+						// If the line number is not there, set the new focused line to be the last line
+						if (!previousFocusedLineNumberExists) {
+							this._focusedStickyElementIndex = this._stickyElements.length - 1;
+						}
+						(this._stickyElements.item(this._focusedStickyElementIndex) as HTMLDivElement).focus();
 					}
-					(this._stickyElements.item(this._focusedStickyElementIndex) as HTMLDivElement).focus();
 				}
 			}
 		}

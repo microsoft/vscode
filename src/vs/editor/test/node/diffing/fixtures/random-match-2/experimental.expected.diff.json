@@ -1,14 +1,20 @@
 {
-	"originalFileName": "./1.tst",
-	"modifiedFileName": "./2.tst",
+	"original": {
+		"content": "if (!all.length && !sourceActions.length) {\n\tconst activeNotebookModel = getNotebookEditorFromEditorPane(editorService.activeEditorPane)?.textModel;\n\tif (activeNotebookModel) {\n\t\tconst language = this.getSuggestedLanguage(activeNotebookModel);\n\t\tsuggestedExtension = language ? this.getSuggestedKernelFromLanguage(activeNotebookModel.viewType, language) : undefined;\n\t}\n\tif (suggestedExtension) {\n",
+		"fileName": "./1.tst"
+	},
+	"modified": {
+		"content": "if (!all.length && !sourceActions.length) {\n\tconst language = this.getSuggestedLanguage(notebookTextModel);\n\tsuggestedExtension = language ? this.getSuggestedKernelFromLanguage(notebookTextModel.viewType, language) : undefined;\n\tif (suggestedExtension) {\n",
+		"fileName": "./2.tst"
+	},
 	"diffs": [
 		{
 			"originalRange": "[2,7)",
 			"modifiedRange": "[2,4)",
 			"innerChanges": [
 				{
-					"originalRange": "[2,8 -> 4,11]",
-					"modifiedRange": "[2,8 -> 2,10]"
+					"originalRange": "[2,8 -> 4,17]",
+					"modifiedRange": "[2,8 -> 2,16]"
 				},
 				{
 					"originalRange": "[4,46 -> 4,53]",

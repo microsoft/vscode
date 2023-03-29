@@ -3056,6 +3056,11 @@ export enum CommentMode {
 	Preview = 1
 }
 
+export enum CommentState {
+	Published = 0,
+	Draft = 1
+}
+
 export enum CommentThreadState {
 	Unresolved = 0,
 	Resolved = 1
@@ -3966,6 +3971,21 @@ export class InteractiveWindowInput {
 export enum InteractiveSessionVoteDirection {
 	Up = 1,
 	Down = 2
+}
+
+export enum InteractiveSessionCopyKind {
+	Action = 1,
+	Toolbar = 2
+}
+
+//#endregion
+
+//#region Interactive Editor
+
+export enum InteractiveEditorResponseFeedbackKind {
+	Unhelpful = 0,
+	Helpful = 1,
+	Undone = 2
 }
 
 //#endregion

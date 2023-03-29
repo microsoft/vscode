@@ -189,7 +189,7 @@ export class DiskTypeScriptVersionProvider implements ITypeScriptVersionProvider
 		} catch (err) {
 			return undefined;
 		}
-		if (!desc || !desc.version) {
+		if (!desc?.version) {
 			return undefined;
 		}
 		return desc.version ? API.fromVersionString(desc.version) : undefined;

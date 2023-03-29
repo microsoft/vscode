@@ -226,7 +226,7 @@ export interface IEditorService {
 	 * ```
 	 *
 	 * If you already have an `EditorInput` in hand and must use it for opening, use `group.openEditor`
-	 * instead, via `IEditorGroupService`.
+	 * instead, via `IEditorGroupsService`.
 	 */
 	openEditor(editor: EditorInput, options?: IEditorOptions, group?: IEditorGroup | GroupIdentifier | SIDE_GROUP_TYPE | ACTIVE_GROUP_TYPE): Promise<IEditorPane | undefined>;
 

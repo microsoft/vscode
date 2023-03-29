@@ -12,7 +12,7 @@ import { localize } from 'vs/nls';
 import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { INTERACTIVE_SESSION_CATEGORY } from 'vs/workbench/contrib/interactiveSession/browser/actions/interactiveSessionActions';
-import { IInteractiveSessionService, IInteractiveSessionUserActionEvent } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionService';
+import { IInteractiveSessionCopyAction, IInteractiveSessionService, IInteractiveSessionUserActionEvent, InteractiveSessionCopyKind } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionService';
 import { IInteractiveResponseViewModel } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionViewModel';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 
@@ -57,10 +57,14 @@ export function registerInteractiveSessionCodeBlockActions() {
 			const interactiveSessionService = accessor.get(IInteractiveSessionService);
 			interactiveSessionService.notifyUserAction(<IInteractiveSessionUserActionEvent>{
 				providerId: context.element.providerId,
-				action: {
+				action: <IInteractiveSessionCopyAction>{
 					kind: 'copy',
 					responseId: context.element.providerResponseId,
 					codeBlockIndex: context.codeBlockIndex,
+					copyType: InteractiveSessionCopyKind.Toolbar,
+					copiedCharacters: context.code.length,
+					totalCharacters: context.code.length,
+					copiedText: context.code,
 				}
 			});
 		}
@@ -76,8 +80,10 @@ export function registerInteractiveSessionCodeBlockActions() {
 				},
 				f1: false,
 				category: INTERACTIVE_SESSION_CATEGORY,
+				icon: Codicon.insert,
 				menu: {
 					id: MenuId.InteractiveSessionCodeBlock,
+					group: 'navigation',
 				}
 			});
 		}
@@ -102,7 +108,6 @@ export function registerInteractiveSessionCodeBlockActions() {
 				await bulkEditService.apply([new ResourceTextEdit(activeModel.uri, {
 					range: activeSelection,
 					text: context.code,
-					insertAsSnippet: true,
 				})]);
 
 				interactiveSessionService.notifyUserAction(<IInteractiveSessionUserActionEvent>{

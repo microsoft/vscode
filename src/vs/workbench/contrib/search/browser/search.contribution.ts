@@ -353,8 +353,8 @@ configurationRegistry.registerConfiguration({
 		},
 		'search.experimental.notebookSearch': {
 			type: 'boolean',
-			description: nls.localize('search.experimental.notebookSearch', "Controls whether to use the experimental notebook search in the global search. Please refresh your search for changes to this setting to take effect."),
-			default: typeof product.quality !== 'string' ? product.quality !== 'stable' : false, // only enable as default in insiders
+			description: nls.localize('search.experimental.notebookSearch', "Controls whether to use the experimental notebook search in the global search. Please reload your VS Code instance for changes to this setting to take effect."),
+			default: typeof product.quality === 'string' && product.quality !== 'stable', // only enable as default in insiders
 		},
 	}
 });
