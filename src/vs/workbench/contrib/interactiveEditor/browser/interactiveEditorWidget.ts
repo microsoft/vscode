@@ -602,6 +602,7 @@ export class InteractiveEditorController implements IEditorContribution {
 	private static _decoBlock = ModelDecorationOptions.register({
 		description: 'interactive-editor',
 		showIfCollapsed: false,
+		isWholeLine: true,
 		className: 'interactive-editor-block-selection',
 	});
 
