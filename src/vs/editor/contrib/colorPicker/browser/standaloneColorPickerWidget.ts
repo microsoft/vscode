@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { HoverParticipantRegistry, IEditorHoverRenderContext, IHoverPart } from 'vs/editor/contrib/hover/browser/hoverTypes';
+import { HoverParticipantRegistry, IEditorHoverRenderContext } from 'vs/editor/contrib/hover/browser/hoverTypes';
 import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition } from 'vs/editor/browser/editorBrowser';
 import { PositionAffinity } from 'vs/editor/common/model';
 import { Position } from 'vs/editor/common/core/position';
@@ -108,7 +108,7 @@ export class StandaloneColorPickerWidget implements IContentWidget {
 
 	private _disposables: DisposableStore = new DisposableStore();
 	private _resultFound: boolean = false;
-	private _hoverParts: IHoverPart[] = [];
+	private _colorHoverData: ColorHover[] = [];
 	private _colorHoverVisible: IContextKey<boolean>;
 	private _colorHoverFocused: IContextKey<boolean>;
 
@@ -186,19 +186,21 @@ export class StandaloneColorPickerWidget implements IContentWidget {
 	public updateEditor() {
 
 		console.log('inside of update editor of the standalone color picker widget');
-		console.log('this._hoverParts.length : ', this._hoverParts.length);
+		console.log('this._hoverParts.length : ', this._colorHoverData.length);
 
 		for (const participant of this._participants) {
+			// TODO: Maybe I don't even need the participant, maybe I can work without the participant?
 			// TODO: What happens when the hover parts length is bigger than zero, then that means that the update is called several times
-			if (this._hoverParts.length > 0 && participant instanceof ColorHoverParticipant) {
-				participant.updateEditorModel(this._hoverParts as ColorHover[]);
+			if (this._colorHoverData.length > 0 && participant instanceof ColorHoverParticipant) {
+				participant.updateEditorModel(this._colorHoverData);
 			}
 		}
 	}
 
-	private _render(messages: ColorHover[]) {
+	private _render(colorHoverData: ColorHover[]) {
 
 		console.log('Entered into _renderColorPicker');
+		console.log('colorHoverData : ', colorHoverData);
 
 		// Once the messages have been found once, we do not want to find a second result
 		this._resultFound = true;
@@ -217,7 +219,7 @@ export class StandaloneColorPickerWidget implements IContentWidget {
 		};
 
 		for (const participant of this._participants) {
-			const hoverParts = messages.filter(msg => msg.owner === participant);
+			const hoverParts = colorHoverData.filter(msg => msg.owner === participant);
 
 			// We select only the hover parts which correspond to the color hover participants
 			if (hoverParts.length > 0) {
@@ -225,7 +227,7 @@ export class StandaloneColorPickerWidget implements IContentWidget {
 				console.log('hoverParts : ', hoverParts);
 
 				// Setting the hover parts, these are saved only, not directly used
-				this._hoverParts = hoverParts;
+				this._colorHoverData = hoverParts;
 				// Calling the hover parts of the participant
 				this._disposables.add(participant.renderHoverParts(context, hoverParts));
 			}

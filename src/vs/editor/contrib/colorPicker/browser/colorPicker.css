@@ -71,26 +71,26 @@
 	color: var(--vscode-editorHoverWidget-foreground);
 	background-color: var(--vscode-editorHoverWidget-background);
 	border: 1px solid var(--vscode-editorHoverWidget-border);
+	border-bottom: none;
 }
 
-.colorpicker-header .color-picker-close-button-outer-div {
+.colorpicker-header .close-button {
 	cursor: pointer;
 	background-color: var(--vscode-editorHoverWidget-background);
 	border-left: 1px solid var(--vscode-editorHoverWidget-border);
 }
 
-.colorpicker-header .color-picker-close-button-inner-div {
+.colorpicker-header .close-button-inner-div {
 	width: 100%;
 	height: 100%;
 	text-align: center;
-	justify-content: center;
 }
 
-.colorpicker-header .color-picker-close-button-inner-div:hover {
+.colorpicker-header .close-button-inner-div:hover {
 	background-color: var(--vscode-toolbar-hoverBackground);
 }
 
-.colorpicker-header .color-picker-close-button {
+.colorpicker-header .close-icon {
 	padding: 3px;
 }
 

@@ -95,15 +95,15 @@ class CloseButton extends Disposable {
 	constructor(container: HTMLElement) {
 		super();
 		this._button = document.createElement('div');
-		const closeButtonInnerDiv = document.createElement('div');
 		dom.append(container, this._button);
-		dom.append(this._button, closeButtonInnerDiv);
-		this._button.classList.add('color-picker-close-button-outer-div');
-		closeButtonInnerDiv.classList.add('color-picker-close-button-inner-div');
-		const closeIcon = registerIcon('color-picker-close', Codicon.close, localize('closeIcon', 'Icon to close the color picker'));
-		const closeButton = dom.append(closeButtonInnerDiv, $('.button' + ThemeIcon.asCSSSelector(closeIcon)));
-		closeButton.classList.add('color-picker-close-button');
-		this._button.onclick = e => {
+		this._button.classList.add('close-button');
+		const innerDiv = document.createElement('div');
+		dom.append(this._button, innerDiv);
+		innerDiv.classList.add('close-button-inner-div');
+
+		const closeButton = dom.append(innerDiv, $('.button' + ThemeIcon.asCSSSelector(registerIcon('color-picker-close', Codicon.close, localize('closeIcon', 'Icon to close the color picker')))));
+		closeButton.classList.add('close-icon');
+		this._button.onclick = () => {
 			this._onClicked.fire();
 		};
 	}
