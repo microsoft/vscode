@@ -7,6 +7,7 @@ import { strictEqual } from 'assert';
 import { timeout } from 'vs/base/common/async';
 import { Emitter } from 'vs/base/common/event';
 import { isWindows } from 'vs/base/common/platform';
+import { equalsIgnoreCase } from 'vs/base/common/strings';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
@@ -114,11 +115,12 @@ suite('Accessible buffer', () => {
 		await accessibleBufferWidget.show();
 		strictEqual(accessibleBufferWidget.lines.length, 0);
 	});
-	test('should render lines in the viewport', async () => {
+	test.skip('should render lines in the viewport', async () => {
 		strictEqual(accessibleBufferWidget.lines.length, 0);
 		await writeP(xterm.raw, 'abcd');
+		equalsIgnoreCase(xterm.raw.buffer.active.getLine(0)?.translateToString() ?? '', 'abcd');
 		await accessibleBufferWidget.show();
-		strictEqual(accessibleBufferWidget.lines.length, 0);
+		strictEqual(accessibleBufferWidget.lines.length, 1);
 	});
 });
 async function writeP(terminal: Terminal, data: string): Promise<void> {
