@@ -62,6 +62,7 @@ export function createBreakpointDecorations(accessor: ServicesAccessor, model: I
 		if (breakpoint.lineNumber > model.getLineCount()) {
 			return;
 		}
+		const hasOtherBreakpointsOnLine = breakpoints.some(bp => bp !== breakpoint && bp.lineNumber === breakpoint.lineNumber);
 		const column = model.getLineFirstNonWhitespaceColumn(breakpoint.lineNumber);
 		const range = model.validateRange(
 			breakpoint.column ? new Range(breakpoint.lineNumber, breakpoint.column, breakpoint.lineNumber, breakpoint.column + 1)
@@ -69,7 +70,7 @@ export function createBreakpointDecorations(accessor: ServicesAccessor, model: I
 		);
 
 		result.push({
-			options: getBreakpointDecorationOptions(accessor, model, breakpoint, state, breakpointsActivated, showBreakpointsInOverviewRuler),
+			options: getBreakpointDecorationOptions(accessor, model, breakpoint, state, breakpointsActivated, showBreakpointsInOverviewRuler, hasOtherBreakpointsOnLine),
 			range
 		});
 	});
@@ -77,7 +78,7 @@ export function createBreakpointDecorations(accessor: ServicesAccessor, model: I
 	return result;
 }
 
-function getBreakpointDecorationOptions(accessor: ServicesAccessor, model: ITextModel, breakpoint: IBreakpoint, state: State, breakpointsActivated: boolean, showBreakpointsInOverviewRuler: boolean): IModelDecorationOptions {
+function getBreakpointDecorationOptions(accessor: ServicesAccessor, model: ITextModel, breakpoint: IBreakpoint, state: State, breakpointsActivated: boolean, showBreakpointsInOverviewRuler: boolean, hasOtherBreakpointsOnLine: boolean): IModelDecorationOptions {
 	const debugService = accessor.get(IDebugService);
 	const languageService = accessor.get(ILanguageService);
 	const { icon, message, showAdapterUnverifiedMessage } = getBreakpointMessageAndIcon(state, breakpointsActivated, breakpoint, undefined);
@@ -128,7 +129,7 @@ function getBreakpointDecorationOptions(accessor: ServicesAccessor, model: IText
 		};
 	}
 
-	const renderInline = breakpoint.column && (breakpoint.column > model.getLineFirstNonWhitespaceColumn(breakpoint.lineNumber));
+	const renderInline = breakpoint.column && (hasOtherBreakpointsOnLine || breakpoint.column > model.getLineFirstNonWhitespaceColumn(breakpoint.lineNumber));
 	return {
 		description: 'breakpoint-decoration',
 		glyphMarginClassName: ThemeIcon.asClassName(icon),
