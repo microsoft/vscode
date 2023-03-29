@@ -96,11 +96,12 @@
 	align-items: center;
 }
 
-.monaco-editor .interactive-editor .status.hidden {
+.monaco-editor .interactive-editor .status .actions.hidden {
 	display: none;
 }
 
 .monaco-editor .interactive-editor .status .label {
+	margin-left: auto;
 	padding-left: 12px;
 	font-size: 12px;
 }
