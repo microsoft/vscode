@@ -250,7 +250,7 @@ export default class TypeScriptServiceClientHost extends Disposable {
 	private configFileDiagnosticsReceived(event: Proto.ConfigFileDiagnosticEvent): void {
 		// See https://github.com/microsoft/TypeScript/issues/10384
 		const body = event.body;
-		if (!body || !body.diagnostics || !body.configFile) {
+		if (!body?.diagnostics || !body.configFile) {
 			return;
 		}
 
