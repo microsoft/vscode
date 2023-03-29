@@ -53,12 +53,13 @@ export class AccessibleBufferWidget extends DisposableStore {
 	private _lastMarker: IMarker | undefined;
 	private _lastLinesInViewport: number = 0;
 	private _lines: string[] = [];
+	get lines(): string[] { return this._lines; }
 	private _listeners: IDisposable[] = [];
 	private _isUpdating: boolean = false;
 	private _pendingUpdates = 0;
 
 	constructor(
-		private readonly _instance: ITerminalInstance,
+		private readonly _instance: Pick<ITerminalInstance, 'capabilities' | 'onDidRequestFocus' | 'resource'>,
 		private readonly _xterm: Pick<IXtermTerminal, 'getFont'> & { raw: Terminal },
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IModelService private readonly _modelService: IModelService,
