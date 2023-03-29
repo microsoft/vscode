@@ -238,8 +238,7 @@ class ToggleScreencastModeAction extends Action2 {
 		}));
 
 		disposables.add(onKeyDown.event(e => {
-			// allow-any-unicode-next-line
-			if (e.key === 'Process' || /[가-힇ㄱ-ㅎㅏ-ㅣぁ-ゔァ-ヴー々〆〤一-龥]/.test(e.key)) {
+			if (e.key === 'Process' || /[\uac00-\ud787\u3131-\u314e\u314f-\u3163\u3041-\u3094\u30a1-\u30f4\u30fc\u3005\u3006\u3024\u4e00-\u9fa5]/u.test(e.key)) {
 				if (e.code === 'Backspace') {
 					imeBackSpace = true;
 				} else if (!e.code.includes('Key')) {
