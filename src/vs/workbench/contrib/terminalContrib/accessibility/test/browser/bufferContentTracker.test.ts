@@ -4,9 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { strictEqual } from 'assert';
-import { timeout } from 'vs/base/common/async';
 import { isWindows } from 'vs/base/common/platform';
-import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { ContextMenuService } from 'vs/platform/contextview/browser/contextMenuService';
@@ -19,6 +17,7 @@ import { TerminalCapabilityStore } from 'vs/platform/terminal/common/capabilitie
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
 import { TerminalConfigHelper } from 'vs/workbench/contrib/terminal/browser/terminalConfigHelper';
+import { writeP } from 'vs/workbench/contrib/terminal/browser/terminalTestHelpers';
 import { XtermTerminal } from 'vs/workbench/contrib/terminal/browser/xterm/xtermTerminal';
 import { ITerminalConfiguration } from 'vs/workbench/contrib/terminal/common/terminal';
 import { BufferContentTracker } from 'vs/workbench/contrib/terminalContrib/accessibility/browser/bufferContentTracker';
@@ -47,16 +46,7 @@ suite('Buffer Content Tracker', () => {
 	let bufferTracker: BufferContentTracker;
 
 	setup(() => {
-		configurationService = new TestConfigurationService({
-			editor: {
-				fastScrollSensitivity: 2,
-				mouseWheelScrollSensitivity: 1
-			} as Partial<IEditorOptions>,
-			terminal: {
-				integrated: defaultTerminalConfig
-			}
-		});
-
+		configurationService = new TestConfigurationService({ terminal: { integrated: defaultTerminalConfig } });
 		instantiationService = new TestInstantiationService();
 		themeService = new TestThemeService();
 		instantiationService = new TestInstantiationService();
@@ -65,7 +55,6 @@ suite('Buffer Content Tracker', () => {
 		instantiationService.stub(ILogService, new NullLogService());
 		instantiationService.stub(IContextMenuService, instantiationService.createInstance(ContextMenuService));
 		instantiationService.stub(ILifecycleService, new TestLifecycleService());
-
 		configHelper = instantiationService.createInstance(TerminalConfigHelper);
 		capabilities = new TerminalCapabilityStore();
 		if (!isWindows) {
@@ -94,14 +83,4 @@ suite('Buffer Content Tracker', () => {
 		strictEqual(bufferTracker.lines.length, 1);
 	});
 });
-async function writeP(terminal: Terminal, data: string): Promise<void> {
-	return new Promise<void>((resolve, reject) => {
-		const failTimeout = timeout(2000);
-		failTimeout.then(() => reject('Writing to xterm is taking longer than 2 seconds'));
-		terminal.write(data, () => {
-			failTimeout.cancel();
-			resolve();
-		});
-	});
-}
 
