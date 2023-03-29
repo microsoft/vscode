@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { KeyCode } from 'vs/base/common/keyCodes';
-import { DisposableStore } from 'vs/base/common/lifecycle';
+import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import * as dom from 'vs/base/browser/dom';
 import { Event } from 'vs/base/common/event';
@@ -50,6 +50,7 @@ export class AccessibleBufferWidget extends DisposableStore {
 	private _lastMarker: IMarker | undefined;
 	private _lastRowCount: number = 0;
 	private _lines: string[] = [];
+	private _listeners: IDisposable[] = [];
 
 	constructor(
 		private readonly _instance: ITerminalInstance,
@@ -99,14 +100,9 @@ export class AccessibleBufferWidget extends DisposableStore {
 
 		this._focusTracker = this.add(dom.trackFocus(this._editorContainer));
 		this._focusedContextKey = TerminalContextKeys.accessibleBufferFocus.bindTo(this._contextKeyService);
-		this._trackFocus();
+		this.add(this._focusTracker.onDidFocus(() => this._focusedContextKey.set(true)));
+		this.add(this._focusTracker.onDidBlur(() => this._focusedContextKey.reset()));
 
-		// initialize terminal listeners
-		this.add(this._instance.onDidRequestFocus(() => {
-			if (this._isActive()) {
-				this._editorWidget.focus();
-			}
-		}));
 		this.add(Event.runAndSubscribe(this._xterm.raw.onResize, () => this._layout()));
 		this.add(this._configurationService.onDidChangeConfiguration(e => {
 			if (e.affectedKeys.has(TerminalSettingId.FontFamily) || e.affectedKeys.has(TerminalSettingId.FontSize) || e.affectedKeys.has(TerminalSettingId.LineHeight) || e.affectedKeys.has(TerminalSettingId.LetterSpacing)) {
@@ -114,58 +110,13 @@ export class AccessibleBufferWidget extends DisposableStore {
 				this._editorWidget.updateOptions({ fontFamily: font.fontFamily, fontSize: font.fontSize, lineHeight: font.charHeight ? font.charHeight * font.lineHeight : 1, letterSpacing: font.letterSpacing });
 			}
 		}));
-		this.add(this._xterm.raw.onScroll(async () => {
-			if (this._isActive()) {
-				await this._updateEditor();
-			}
-		}));
-		this.add(this._xterm.raw.onWriteParsed(async () => {
-			// dynamically update the viewport before there's a scroll event
-			if (!this._xterm.raw.buffer.active.baseY && this._isActive()) {
-				await this._updateEditor();
-			}
-		}));
 
-		// initialize editor listeners
-		this.add(this._editorWidget.onKeyDown((e) => {
-			switch (e.keyCode) {
-				case KeyCode.Tab:
-					// On tab or shift+tab, hide the accessible buffer and perform the default tab
-					// behavior
-					this._hide();
-					break;
-				case KeyCode.Escape:
-					// On escape, hide the accessible buffer and force focus onto the terminal
-					this._hide();
-					this._xterm.raw.focus();
-					break;
-			}
-		}));
-		this.add(this._editorWidget.onDidFocusEditorText(async () => {
-			if (this._isActive()) {
-				// the user has focused the editor via mouse or
-				// Go to Command was run so we've already updated the editor
-				return;
-			}
-			// if the editor is focused via tab, we need to update the model
-			// and show it
-			await this._updateEditor();
-			this._accessibleBuffer.classList.add(CssClass.Active);
-			this._xtermElement.classList.add(CssClass.Hide);
-		}));
 		this._updateEditor();
 	}
 
-	private _trackFocus(): void {
-		this.add(this._focusTracker.onDidFocus(() => this._focusedContextKey.set(true)));
-		this.add(this._focusTracker.onDidBlur(() => this._focusedContextKey.reset()));
-	}
-
-	private _isActive(): boolean {
-		return this._accessibleBuffer.classList.contains(CssClass.Active);
-	}
 
 	private _hide(): void {
+		this._disposeListeners();
 		this._accessibleBuffer.classList.remove(CssClass.Active);
 		this._xtermElement.classList.remove(CssClass.Hide);
 	}
@@ -243,7 +194,53 @@ export class AccessibleBufferWidget extends DisposableStore {
 		this._editorWidget.layout({ width: this._xtermElement.clientWidth, height: this._xtermElement.clientHeight });
 	}
 
+	private _disposeListeners(): void {
+		for (const listener of this._listeners) {
+			listener.dispose();
+		}
+	}
+
+	private _initializeListeners(): void {
+		this._listeners.push(this._xterm.raw.onScroll(async () => await this._updateEditor()));
+		this._listeners.push(this._xterm.raw.onWriteParsed(async () => {
+			// dynamically update the viewport before there's a scroll event
+			if (!this._xterm.raw.buffer.active.baseY) {
+				await this._updateEditor();
+			}
+		}));
+
+		// initialize editor this._listeners
+		this._listeners.push(this._editorWidget.onKeyDown((e) => {
+			switch (e.keyCode) {
+				case KeyCode.Tab:
+					// On tab or shift+tab, hide the accessible buffer and perform the default tab
+					// behavior
+					this._hide();
+					break;
+				case KeyCode.Escape:
+					// On escape, hide the accessible buffer and force focus onto the terminal
+					this._hide();
+					this._xterm.raw.focus();
+					break;
+			}
+		}));
+		this._listeners.push(this._editorWidget.onDidFocusEditorText(async () => {
+			if (this._accessibleBuffer.classList.contains(CssClass.Active)) {
+				// the user has focused the editor via mouse or
+				// Go to Command was run so we've already updated the editor
+				return;
+			}
+			// if the editor is focused via tab, we need to update the model
+			// and show it
+			await this._updateEditor();
+			this._accessibleBuffer.classList.add(CssClass.Active);
+			this._xtermElement.classList.add(CssClass.Hide);
+		}));
+		this._listeners.push(this._instance.onDidRequestFocus(() => this._editorWidget.focus()));
+	}
+
 	async show(): Promise<void> {
+		this._initializeListeners();
 		await this._updateEditor();
 		this._accessibleBuffer.tabIndex = -1;
 		this._layout();
