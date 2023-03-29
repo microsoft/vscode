@@ -113,7 +113,10 @@ export class AccessibleBufferWidget extends DisposableStore {
 
 		this._updateEditor();
 	}
-
+	override dispose(): void {
+		this._disposeListeners();
+		super.dispose();
+	}
 
 	private _hide(): void {
 		this._disposeListeners();
@@ -200,7 +203,7 @@ export class AccessibleBufferWidget extends DisposableStore {
 		}
 	}
 
-	private _initializeListeners(): void {
+	private _registerListeners(): void {
 		this._listeners.push(this._xterm.raw.onScroll(async () => await this._updateEditor()));
 		this._listeners.push(this._xterm.raw.onWriteParsed(async () => {
 			// dynamically update the viewport before there's a scroll event
@@ -240,7 +243,7 @@ export class AccessibleBufferWidget extends DisposableStore {
 	}
 
 	async show(): Promise<void> {
-		this._initializeListeners();
+		this._registerListeners();
 		await this._updateEditor();
 		this._accessibleBuffer.tabIndex = -1;
 		this._layout();
