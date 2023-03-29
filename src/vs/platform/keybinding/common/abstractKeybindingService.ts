@@ -153,7 +153,7 @@ export abstract class AbstractKeybindingService extends Disposable implements IK
 		}
 
 		const contextValue = this._contextKeyService.getContext(target);
-		const currentChords = this._currentChords.length > 0 ? this._currentChords.map((({ keypress }) => keypress)) : null; // TODO@ulugbekna: adapt `resolve` to accept []
+		const currentChords = this._currentChords.map((({ keypress }) => keypress));
 		return this._getResolver().resolve(contextValue, currentChords, firstChord);
 	}
 
@@ -297,7 +297,7 @@ export abstract class AbstractKeybindingService extends Disposable implements IK
 			currentChords = dispatchKeyname ? [dispatchKeyname] : []; // TODO@ulugbekna: in the `else` case we assign an empty array - make sure `resolve` can handle an empty array well
 		} else {
 			[userPressedChord,] = userKeypress.getDispatchChords();
-			currentChords = this._currentChords.length > 0 ? this._currentChords.map(({ keypress }) => keypress) : null;
+			currentChords = this._currentChords.map(({ keypress }) => keypress);
 		}
 
 		if (userPressedChord === null) {
