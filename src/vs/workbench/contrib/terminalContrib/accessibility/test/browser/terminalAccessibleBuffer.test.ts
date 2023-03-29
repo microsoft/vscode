@@ -108,15 +108,19 @@ suite('Accessible buffer', () => {
 		accessibleBufferWidget = instantiationService.createInstance(TestAccessibleBufferWidget, terminalInstance, xterm);
 	});
 	test('should clear cached lines', async () => {
-		accessibleBufferWidget.show();
 		strictEqual(accessibleBufferWidget.lines.length, 0);
-		await writeP(xterm.raw, 'abcd\n'.repeat(10));
-		xterm.clearBuffer();
+		await writeP(xterm.raw, 'abcd');
+		xterm.raw.clear();
+		await accessibleBufferWidget.show();
+		strictEqual(accessibleBufferWidget.lines.length, 0);
+	});
+	test('should render lines in the viewport', async () => {
+		strictEqual(accessibleBufferWidget.lines.length, 0);
+		await writeP(xterm.raw, 'abcd');
 		await accessibleBufferWidget.show();
 		strictEqual(accessibleBufferWidget.lines.length, 0);
 	});
 });
-
 async function writeP(terminal: Terminal, data: string): Promise<void> {
 	return new Promise<void>((resolve, reject) => {
 		const failTimeout = timeout(2000);
