@@ -173,8 +173,8 @@ function createCandidateDecorations(model: ITextModel, breakpointDecorations: IB
 		const lastColumn = model.getLineLastNonWhitespaceColumn(lineNumber);
 		positions.forEach(p => {
 			const range = new Range(p.lineNumber, p.column, p.lineNumber, p.column + 1);
-			if (p.column <= firstColumn || p.column > lastColumn) {
-				// Do not render candidates on the start of the line.
+			if ((p.column <= firstColumn && !breakpointDecorations.some(bp => bp.range.startColumn > firstColumn && bp.range.startLineNumber === p.lineNumber)) || p.column > lastColumn) {
+				// Do not render candidates on the start of the line if there's no other breakpoint on the line.
 				return;
 			}
 
