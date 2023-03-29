@@ -1420,7 +1420,6 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			NotebookCellStatusBarItem: extHostTypes.NotebookCellStatusBarItem,
 			NotebookControllerAffinity: extHostTypes.NotebookControllerAffinity,
 			NotebookControllerAffinity2: extHostTypes.NotebookControllerAffinity2,
-			NotebookDocumentSaveReason: extHostTypes.NotebookDocumentSaveReason,
 			NotebookEdit: extHostTypes.NotebookEdit,
 			NotebookKernelSourceAction: extHostTypes.NotebookKernelSourceAction,
 			PortAttributes: extHostTypes.PortAttributes,
