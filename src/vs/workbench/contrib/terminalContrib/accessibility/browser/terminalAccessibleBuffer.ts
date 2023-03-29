@@ -252,13 +252,8 @@ export class AccessibleBufferWidget extends DisposableStore {
 	}
 
 	private _registerListeners(): void {
-		this._listeners.push(this._xterm.raw.onScroll(async () => await this._updateEditor()));
-		this._listeners.push(this._xterm.raw.onWriteParsed(async () => {
-			// dynamically update the viewport before there's a scroll event
-			if (this._xterm.raw.buffer.active.baseY === 0) {
-				await this._updateEditor();
-			}
-		}));
+		const onRequestUpdateEditor = Event.latch(Event.any(this._xterm.raw.onScroll, this._xterm.raw.onWriteParsed));
+		this._listeners.push(onRequestUpdateEditor(async () => await this._updateEditor()));
 		this._listeners.push(this._instance.onDidRequestFocus(() => this._editorWidget.focus()));
 	}
 
@@ -268,7 +263,7 @@ export class AccessibleBufferWidget extends DisposableStore {
 		}
 	}
 
-	private async _getTextModel(resource: URI): Promise<ITextModel | null> {
+	async getTextModel(resource: URI): Promise<ITextModel | null> {
 		const existing = this._modelService.getModel(resource);
 		if (existing && !existing.isDisposed()) {
 			return existing;
@@ -313,9 +308,6 @@ export class AccessibleBufferWidget extends DisposableStore {
 	}
 
 	private _updateScrollbackContent(): void {
-		if (!this._lines) {
-			this._lines = [];
-		}
 		const buffer = this._xterm.raw.buffer.active;
 		if (!buffer) {
 			return;
@@ -357,7 +349,7 @@ export class AccessibleBufferWidget extends DisposableStore {
 			model.setValue(text);
 		} else {
 			this._logService.debug('Created new accessible buffer model with ', this._lines.length, ' lines');
-			model = await this._getTextModel(this._instance.resource.with({ fragment: text }));
+			model = await this.getTextModel(this._instance.resource.with({ fragment: text }));
 		}
 		this._editorWidget.setModel(model);
 		this._lastMarker = this._xterm.raw.registerMarker();
