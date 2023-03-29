@@ -352,8 +352,15 @@ export class MainThreadLanguageFeatures extends Disposable implements MainThread
 
 		if (supportsResolve) {
 			provider.resolveCodeAction = async (codeAction: languages.CodeAction, token: CancellationToken): Promise<languages.CodeAction> => {
-				const data = await this._proxy.$resolveCodeAction(handle, (<ICodeActionDto>codeAction).cacheId!, token);
-				codeAction.edit = reviveWorkspaceEditDto(data, this._uriIdentService);
+				const resolved = await this._proxy.$resolveCodeAction(handle, (<ICodeActionDto>codeAction).cacheId!, token);
+				if (resolved.edit) {
+					codeAction.edit = reviveWorkspaceEditDto(resolved.edit, this._uriIdentService);
+				}
+
+				if (resolved.command) {
+					codeAction.command = resolved.command;
+				}
+
 				return codeAction;
 			};
 		}

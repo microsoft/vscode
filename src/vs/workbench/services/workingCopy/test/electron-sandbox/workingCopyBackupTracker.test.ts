@@ -117,7 +117,7 @@ suite('WorkingCopyBackupTracker (native)', function () {
 	setup(async () => {
 		disposables = new DisposableStore();
 
-		testDir = URI.file(join(generateUuid(), 'vsctests', 'workingcopyhistoryservice')).with({ scheme: Schemas.inMemory });
+		testDir = URI.file(join(generateUuid(), 'vsctests', 'workingcopybackuptracker')).with({ scheme: Schemas.inMemory });
 		backupHome = joinPath(testDir, 'Backups');
 		const workspacesJsonPath = joinPath(backupHome, 'workspaces.json');
 

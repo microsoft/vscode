@@ -33,6 +33,7 @@ declare module 'vscode' {
 		edits: TextEdit[] | WorkspaceEdit;
 		placeholder?: string;
 		wholeRange?: Range;
+		detail?: string;
 	}
 
 	// todo@API make classes
@@ -40,6 +41,7 @@ declare module 'vscode' {
 		contents: MarkdownString;
 		placeholder?: string;
 		wholeRange?: Range;
+		detail?: string;
 	}
 
 	export enum InteractiveEditorResponseFeedbackKind {

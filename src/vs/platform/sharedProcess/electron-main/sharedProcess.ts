@@ -294,7 +294,7 @@ export class SharedProcess extends Disposable implements ISharedProcess {
 			backgroundColor: this.themeMainService.getBackgroundColor(),
 			title: 'shared-process',
 			webPreferences: {
-				preload: FileAccess.asFileUri('vs/base/parts/sandbox/electron-browser/preload.js').fsPath,
+				preload: FileAccess.asFileUri('vs/base/parts/sandbox/electron-sandbox/preload.js').fsPath,
 				additionalArguments: [`--vscode-window-config=${configObjectUrl.resource.toString()}`],
 				v8CacheOptions: this.environmentMainService.useCodeCache ? 'bypassHeatCheck' : 'none',
 				nodeIntegration: true,
