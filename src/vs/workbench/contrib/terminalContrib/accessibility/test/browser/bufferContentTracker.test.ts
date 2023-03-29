@@ -66,9 +66,8 @@ suite('Buffer Content Tracker', () => {
 		configurationService = new TestConfigurationService({ terminal: { integrated: { tabs: { separator: ' - ', title: '${cwd}', description: '${cwd}' } } } });
 		configHelper = new TerminalConfigHelper(configurationService, null!, null!, null!, null!);
 		bufferTracker = instantiationService.createInstance(BufferContentTracker, xterm);
-
 	});
-	test('should clear cached lines beyond the prompt line', async () => {
+	test('should clear lines beyond the prompt line', async () => {
 		strictEqual(bufferTracker.lines.length, 0);
 		await writeP(xterm.raw, 'abcd\n');
 		await writeP(xterm.raw, 'abcd');
@@ -76,7 +75,26 @@ suite('Buffer Content Tracker', () => {
 		await bufferTracker.update();
 		strictEqual(bufferTracker.lines.length, 1);
 	});
-	test('should render lines in the viewport', async () => {
+	test('should add lines in the viewport and scrollback', async () => {
+		strictEqual(bufferTracker.lines.length, 0);
+		await writeP(xterm.raw, 'abcd\n'.repeat(8));
+		await bufferTracker.update();
+		strictEqual(bufferTracker.lines.length, 8);
+	});
+	test('should add lines in the viewport and full scrollback', async () => {
+		strictEqual(bufferTracker.lines.length, 0);
+		await writeP(xterm.raw, 'abcd\n'.repeat(1030));
+		await bufferTracker.update();
+		strictEqual(bufferTracker.lines.length, 1030);
+	});
+	test('should always refresh viewport', async () => {
+		strictEqual(bufferTracker.lines.length, 0);
+		await writeP(xterm.raw, 'abcd\n'.repeat(6));
+		await bufferTracker.update();
+		await writeP(xterm.raw, '\x1b[2;2H');
+		strictEqual(bufferTracker.lines.length, 1);
+	});
+	test('should always refresh viewport with full scrollback', async () => {
 		strictEqual(bufferTracker.lines.length, 0);
 		await writeP(xterm.raw, 'abcd');
 		await bufferTracker.update();
