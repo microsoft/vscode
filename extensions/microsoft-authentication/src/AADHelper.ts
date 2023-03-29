@@ -92,7 +92,8 @@ export class AzureActiveDirectoryService {
 	private readonly _tokenStorage: BetterTokenStorage<IStoredSession>;
 
 	constructor(private _context: vscode.ExtensionContext, uriHandler: UriEventHandler, loginEndpointUrl: string = defaultLoginEndpointUrl) {
-		this._tokenStorage = new BetterTokenStorage('microsoft.login.keylist', _context);
+		const keylistKey = loginEndpointUrl === defaultLoginEndpointUrl ? 'microsoft.login.keylist' : 'azure-cloud.login.keylist';
+		this._tokenStorage = new BetterTokenStorage(keylistKey, _context);
 		this._uriHandler = uriHandler;
 		this._loginEndpointUrl = loginEndpointUrl;
 		_context.subscriptions.push(this._tokenStorage.onDidChangeInOtherWindow((e) => this.checkForUpdates(e)));

@@ -49,8 +49,8 @@
               {
                 "type": "string",
                 "enum": [
-                  "https://login.chinacloudapi.cn",
-                  "https://login.microsoftonline.us"
+                  "https://login.chinacloudapi.cn/",
+                  "https://login.microsoftonline.us/"
                 ],
                 "enumDescriptions": [
                   "Azure China",
