@@ -436,6 +436,10 @@ class OutputAutomaticPortForwarding extends Disposable {
 			this.tryStartStopUrlFinder();
 		}));
 		this.tryStartStopUrlFinder();
+
+		if (configurationService.getValue(PORT_AUTO_SOURCE_SETTING) === PORT_AUTO_SOURCE_SETTING_HYBRID) {
+			this._register(this.tunnelService.onTunnelClosed(tunnel => this.notifier.hide([tunnel.port])));
+		}
 	}
 
 	private tryStartStopUrlFinder() {
@@ -644,12 +648,12 @@ class ProcAutomaticPortForwarding extends Disposable {
 			}
 		}
 
-		if (removedPorts.length > 0) {
-			await this.notifier.hide(removedPorts);
-		}
-
 		if (this.unforwardOnly) {
 			return;
+		}
+
+		if (removedPorts.length > 0) {
+			await this.notifier.hide(removedPorts);
 		}
 
 		const tunnels = await this.forwardCandidates();
