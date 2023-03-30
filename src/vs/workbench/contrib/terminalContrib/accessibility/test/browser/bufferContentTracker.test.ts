@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { strictEqual } from 'assert';
+import { equals } from 'vs/base/common/arrays';
 import { isWindows } from 'vs/base/common/platform';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
@@ -77,28 +78,33 @@ suite('Buffer Content Tracker', () => {
 	});
 	test('should add lines in the viewport and scrollback', async () => {
 		strictEqual(bufferTracker.lines.length, 0);
-		await writeP(xterm.raw, 'abcd\n'.repeat(8));
+		const content = 'abcd\n'.repeat(38);
+		await writeP(xterm.raw, content);
 		await bufferTracker.update();
-		strictEqual(bufferTracker.lines.length, 8);
+		equals(bufferTracker.lines, content.split('\n'));
 	});
 	test('should add lines in the viewport and full scrollback', async () => {
 		strictEqual(bufferTracker.lines.length, 0);
-		await writeP(xterm.raw, 'abcd\n'.repeat(1030));
+		const content = 'abcd\n'.repeat(1030);
+		await writeP(xterm.raw, content);
 		await bufferTracker.update();
-		strictEqual(bufferTracker.lines.length, 1030);
+		equals(bufferTracker.lines, content.split('\n'));
 	});
 	test('should always refresh viewport', async () => {
 		strictEqual(bufferTracker.lines.length, 0);
-		await writeP(xterm.raw, 'abcd\n'.repeat(6));
+		const content = 'abcd\n'.repeat(38);
+		await writeP(xterm.raw, content);
 		await bufferTracker.update();
-		await writeP(xterm.raw, '\x1b[2;2H');
-		strictEqual(bufferTracker.lines.length, 1);
+		equals(bufferTracker.lines, content.split('\n'));
+		// TODO: move cursor up and insert and then verify that the viewport lines have been updated
 	});
 	test('should always refresh viewport with full scrollback', async () => {
 		strictEqual(bufferTracker.lines.length, 0);
-		await writeP(xterm.raw, 'abcd');
+		const content = 'abcd\n'.repeat(1030);
+		await writeP(xterm.raw, content);
 		await bufferTracker.update();
-		strictEqual(bufferTracker.lines.length, 1);
+		equals(bufferTracker.lines, content.split('\n'));
+		// TODO: move cursor up and insert and then verify that the viewport lines have been updated
 	});
 });
 
