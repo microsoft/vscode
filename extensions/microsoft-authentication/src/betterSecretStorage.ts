@@ -192,7 +192,7 @@ export class BetterTokenStorage<T> {
 
 		// The KeyList is only a list of keys to aid initial start up of VS Code to know which
 		// Keys are associated with this handler.
-		if (key === this.keylistKey) {
+		if (key === 'microsoft.login.keylist' || key === 'azure-cloud.login.keylist') {
 			return;
 		}
 		const tokens = await this.getTokens();
