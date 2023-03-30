@@ -42,7 +42,7 @@ function main() {
 		const distroPath = path.join(basePath, name);
 		const ossPath = path.relative(basePath, distroPath);
 
-		if (ossPath === 'product.json' || ossPath === 'product.server.json') {
+		if (ossPath === 'product.json') {
 			const distro = JSON.parse(fs.readFileSync(distroPath, 'utf8')) as Product;
 			const oss = JSON.parse(fs.readFileSync(ossPath, 'utf8')) as OSSProduct;
 			let builtInExtensions = oss.builtInExtensions;
