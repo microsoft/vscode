@@ -15,7 +15,7 @@ import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/c
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { ZoneWidget } from 'vs/editor/contrib/zoneWidget/browser/zoneWidget';
 import { assertType } from 'vs/base/common/types';
-import { IInteractiveEditorResponse, IInteractiveEditorService, CTX_INTERACTIVE_EDITOR_FOCUSED, CTX_INTERACTIVE_EDITOR_HAS_ACTIVE_REQUEST, CTX_INTERACTIVE_EDITOR_INNER_CURSOR_FIRST, CTX_INTERACTIVE_EDITOR_INNER_CURSOR_LAST, CTX_INTERACTIVE_EDITOR_EMPTY, CTX_INTERACTIVE_EDITOR_OUTER_CURSOR_POSITION, CTX_INTERACTIVE_EDITOR_VISIBLE, MENU_INTERACTIVE_EDITOR_WIDGET, IInteractiveEditorRequest, IInteractiveEditorSession, IInteractiveEditorSlashCommand, IInteractiveEditorSessionProvider, InteractiveEditorResponseFeedbackKind, IInteractiveEditorEditResponse, CTX_INTERACTIVE_EDITOR_LAST_EDIT_TYPE as CTX_INTERACTIVE_EDITOR_LAST_EDIT_KIND, MENU_INTERACTIVE_EDITOR_WIDGET_STATUS, CTX_INTERACTIVE_EDITOR_LAST_FEEDBACK as CTX_INTERACTIVE_EDITOR_LAST_FEEDBACK_KIND, CTX_INTERACTIVE_EDITOR_INLNE_DIFF } from 'vs/workbench/contrib/interactiveEditor/common/interactiveEditor';
+import { IInteractiveEditorResponse, IInteractiveEditorService, CTX_INTERACTIVE_EDITOR_FOCUSED, CTX_INTERACTIVE_EDITOR_HAS_ACTIVE_REQUEST, CTX_INTERACTIVE_EDITOR_INNER_CURSOR_FIRST, CTX_INTERACTIVE_EDITOR_INNER_CURSOR_LAST, CTX_INTERACTIVE_EDITOR_EMPTY, CTX_INTERACTIVE_EDITOR_OUTER_CURSOR_POSITION, CTX_INTERACTIVE_EDITOR_VISIBLE, MENU_INTERACTIVE_EDITOR_WIDGET, IInteractiveEditorRequest, IInteractiveEditorSession, IInteractiveEditorSlashCommand, IInteractiveEditorSessionProvider, InteractiveEditorResponseFeedbackKind, IInteractiveEditorEditResponse, CTX_INTERACTIVE_EDITOR_LAST_EDIT_TYPE as CTX_INTERACTIVE_EDITOR_LAST_EDIT_KIND, MENU_INTERACTIVE_EDITOR_WIDGET_STATUS, CTX_INTERACTIVE_EDITOR_LAST_FEEDBACK as CTX_INTERACTIVE_EDITOR_LAST_FEEDBACK_KIND, CTX_INTERACTIVE_EDITOR_INLNE_DIFF, CTX_INTERACTIVE_EDITOR_HAS_RESPONSE } from 'vs/workbench/contrib/interactiveEditor/common/interactiveEditor';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { Iterable } from 'vs/base/common/iterator';
 import { ICursorStateComputer, IModelDecorationOptions, IModelDeltaDecoration, ITextModel, IValidEditOperation } from 'vs/editor/common/model';
@@ -55,6 +55,7 @@ import { DEFAULT_FONT_FAMILY } from 'vs/workbench/browser/style';
 import { IInteractiveSessionService } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionService';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { createActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
+import { splitLines } from 'vs/base/common/strings';
 
 class InteractiveEditorWidget {
 
@@ -75,8 +76,8 @@ class InteractiveEditorWidget {
 				]),
 			]),
 			h('div.progress@progress'),
-			h('div.status.hidden@status', [
-				h('div.actions@statusToolbar'),
+			h('div.status@status', [
+				h('div.actions.hidden@statusToolbar'),
 				h('div.label@statusLabel'),
 			]),
 		]
@@ -337,6 +338,11 @@ class InteractiveEditorWidget {
 		this.inputEditor.setSelection(this._inputModel.getFullModelRange());
 	}
 
+	updateToolbar(show: boolean) {
+		this._elements.statusToolbar.classList.toggle('hidden', !show);
+		this._onDidChangeHeight.fire();
+	}
+
 	updateMessage(message: string, classes?: string[], resetAfter?: number) {
 		const isTempMessage = typeof resetAfter === 'number';
 		if (isTempMessage && !this._elements.statusLabel.dataset['state']) {
@@ -360,12 +366,13 @@ class InteractiveEditorWidget {
 		} else {
 			delete this._elements.statusLabel.dataset['state'];
 		}
+		this._onDidChangeHeight.fire();
 	}
 
 	reset() {
 		this._ctxInputEmpty.reset();
 		reset(this._elements.statusLabel);
-		this._elements.status.classList.add('hidden');
+		this._elements.statusToolbar.classList.add('hidden');
 	}
 
 	focus() {
@@ -634,6 +641,7 @@ export class InteractiveEditorController implements IEditorContribution {
 	private readonly _recorder = new SessionRecorder();
 	private readonly _zone: InteractiveEditorZoneWidget;
 	private readonly _ctxHasActiveRequest: IContextKey<boolean>;
+	private readonly _ctxHasResponse: IContextKey<boolean>;
 	private readonly _ctxInlineDiff: IContextKey<boolean>;
 	private readonly _ctxLastEditKind: IContextKey<'' | 'simple'>;
 	private readonly _ctxLastFeedbackKind: IContextKey<'helpful' | 'unhelpful' | ''>;
@@ -659,6 +667,7 @@ export class InteractiveEditorController implements IEditorContribution {
 	) {
 		this._zone = this._store.add(_instaService.createInstance(InteractiveEditorZoneWidget, this._editor));
 		this._ctxHasActiveRequest = CTX_INTERACTIVE_EDITOR_HAS_ACTIVE_REQUEST.bindTo(contextKeyService);
+		this._ctxHasResponse = CTX_INTERACTIVE_EDITOR_HAS_RESPONSE.bindTo(contextKeyService);
 		this._ctxInlineDiff = CTX_INTERACTIVE_EDITOR_INLNE_DIFF.bindTo(contextKeyService);
 		this._ctxLastEditKind = CTX_INTERACTIVE_EDITOR_LAST_EDIT_KIND.bindTo(contextKeyService);
 		this._ctxLastFeedbackKind = CTX_INTERACTIVE_EDITOR_LAST_FEEDBACK_KIND.bindTo(contextKeyService);
@@ -740,6 +749,8 @@ export class InteractiveEditorController implements IEditorContribution {
 		if (session.slashCommands) {
 			store.add(this._instaService.invokeFunction(installSlashCommandSupport, this._zone.widget.inputEditor as IActiveCodeEditor, session.slashCommands));
 		}
+
+		this._zone.widget.updateMessage(session.message ?? localize('welcome.1', "AI-generated code may be incorrect."));
 
 		// CANCEL when input changes
 		this._editor.onDidChangeModel(this._ctsSession.cancel, this._ctsSession, store);
@@ -823,6 +834,10 @@ export class InteractiveEditorController implements IEditorContribution {
 				continue;
 			}
 
+			if (!InteractiveEditorController._promptHistory.includes(input)) {
+				InteractiveEditorController._promptHistory.unshift(input);
+			}
+
 			const refer = session.slashCommands?.some(value => value.refer && input.startsWith(`/${value.command}`));
 			if (refer) {
 				this._logService.info('[IE] seeing refer command, continuing outside editor', provider.debugName);
@@ -856,6 +871,7 @@ export class InteractiveEditorController implements IEditorContribution {
 				}
 			} finally {
 				this._ctxHasActiveRequest.set(false);
+				this._ctxHasResponse.set(!!reply);
 				this._zone.widget.updateProgress(false);
 				this._logService.trace('[IE] request took', sw.elapsed(), provider.debugName);
 			}
@@ -934,11 +950,34 @@ export class InteractiveEditorController implements IEditorContribution {
 
 			inlineDiffDecorations.update();
 
-			this._zone.widget.updateMessage(reply.detail ?? localize('fyi', "AI-generated code may be incorrect."));
+			// line count
+			const lineSet = new Set<number>();
+			let addRemoveCount = 0;
+			for (const edit of moreMinimalEdits ?? reply.edits) {
 
-			if (!InteractiveEditorController._promptHistory.includes(input)) {
-				InteractiveEditorController._promptHistory.unshift(input);
+				const len2 = splitLines(edit.text).length - 1;
+
+				if (Range.isEmpty(edit.range) && len2 > 0) {
+					// insert lines
+					addRemoveCount += len2;
+				} else if (Range.isEmpty(edit.range) && edit.text.length === 0) {
+					// delete
+					addRemoveCount += edit.range.endLineNumber - edit.range.startLineNumber + 1;
+				} else {
+					// edit
+					for (let line = edit.range.startLineNumber; line <= edit.range.endLineNumber; line++) {
+						lineSet.add(line);
+					}
+				}
 			}
+			const linesChanged = addRemoveCount + lineSet.size;
+
+			this._zone.widget.updateToolbar(true);
+			this._zone.widget.updateMessage(linesChanged === 1
+				? localize('lines.1', "Generated reply and changed 1 line.")
+				: localize('lines.N', "Generated reply and changed {0} lines.", linesChanged)
+			);
+
 			placeholder = reply.placeholder ?? session.placeholder ?? '';
 			value = '';
 			data.rounds += round + '|';
@@ -957,6 +996,7 @@ export class InteractiveEditorController implements IEditorContribution {
 		session.dispose?.();
 
 		this._ctxLastEditKind.reset();
+		this._ctxHasResponse.reset();
 		this._ctxLastFeedbackKind.reset();
 		this._lastEditState = undefined;
 		this._lastInlineDecorations = undefined;
@@ -995,6 +1035,7 @@ export class InteractiveEditorController implements IEditorContribution {
 	toggleInlineDiff(): void {
 		this._inlineDiffEnabled = !this._inlineDiffEnabled;
 		this._ctxInlineDiff.set(this._inlineDiffEnabled);
+		this._storageService.store(InteractiveEditorController._inlineDiffStorageKey, this._inlineDiffEnabled, StorageScope.PROFILE, StorageTarget.USER);
 		if (this._lastInlineDecorations) {
 			this._lastInlineDecorations.visible = this._inlineDiffEnabled;
 		}

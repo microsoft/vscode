@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import type * as Proto from '../protocol';
-import { ITypeScriptServiceClient } from '../typescriptService';
-import * as typeConverters from './typeConverters';
+import type * as Proto from '../../tsServer/protocol/protocol';
+import * as typeConverters from '../../typeConverters';
+import { ITypeScriptServiceClient } from '../../typescriptService';
 
 export function getEditForCodeAction(
 	client: ITypeScriptServiceClient,

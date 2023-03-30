@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 import * as path from 'path';
 import * as vscode from 'vscode';
-import { TypeScriptServiceConfiguration } from './configuration';
-import { RelativeWorkspacePathResolver } from './relativePathResolver';
+import { RelativeWorkspacePathResolver } from '../utils/relativePathResolver';
+import { TypeScriptServiceConfiguration } from '../configuration/configuration';
 
 
 export class TypeScriptPluginPathsProvider {

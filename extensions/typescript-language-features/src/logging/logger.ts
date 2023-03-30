@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import { memoize } from './memoize';
+import { memoize } from '../utils/memoize';
 
 
 type LogLevel = 'Trace' | 'Info' | 'Error';

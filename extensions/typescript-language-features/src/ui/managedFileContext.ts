@@ -4,11 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
+import { disabledSchemes } from '../configuration/fileSchemes';
+import { isJsConfigOrTsConfigFileName } from '../configuration/languageDescription';
+import { isSupportedLanguageMode } from '../configuration/languageIds';
+import { Disposable } from '../utils/dispose';
 import { ActiveJsTsEditorTracker } from './activeJsTsEditorTracker';
-import { Disposable } from './dispose';
-import { disabledSchemes } from './fileSchemes';
-import { isJsConfigOrTsConfigFileName } from './languageDescription';
-import { isSupportedLanguageMode } from './languageIds';
 
 /**E
  * When clause context set when the current file is managed by vscode's built-in typescript extension.
