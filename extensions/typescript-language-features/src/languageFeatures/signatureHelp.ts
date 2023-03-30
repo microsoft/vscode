@@ -72,19 +72,19 @@ class TypeScriptSignatureHelpProvider implements vscode.SignatureHelpProvider {
 
 	private convertSignature(item: Proto.SignatureHelpItem, baseUri: vscode.Uri) {
 		const signature = new vscode.SignatureInformation(
-			Previewer.plainWithLinks(item.prefixDisplayParts, this.client),
-			Previewer.markdownDocumentation(item.documentation, item.tags.filter(x => x.name !== 'param'), this.client, baseUri));
+			Previewer.asPlainTextWithLinks(item.prefixDisplayParts, this.client),
+			Previewer.documentationToMarkdown(item.documentation, item.tags.filter(x => x.name !== 'param'), this.client, baseUri));
 
 		let textIndex = signature.label.length;
-		const separatorLabel = Previewer.plainWithLinks(item.separatorDisplayParts, this.client);
+		const separatorLabel = Previewer.asPlainTextWithLinks(item.separatorDisplayParts, this.client);
 		for (let i = 0; i < item.parameters.length; ++i) {
 			const parameter = item.parameters[i];
-			const label = Previewer.plainWithLinks(parameter.displayParts, this.client);
+			const label = Previewer.asPlainTextWithLinks(parameter.displayParts, this.client);
 
 			signature.parameters.push(
 				new vscode.ParameterInformation(
 					[textIndex, textIndex + label.length],
-					Previewer.markdownDocumentation(parameter.documentation, [], this.client, baseUri)));
+					Previewer.documentationToMarkdown(parameter.documentation, [], this.client, baseUri)));
 
 			textIndex += label.length;
 			signature.label += label;
@@ -95,7 +95,7 @@ class TypeScriptSignatureHelpProvider implements vscode.SignatureHelpProvider {
 			}
 		}
 
-		signature.label += Previewer.plainWithLinks(item.suffixDisplayParts, this.client);
+		signature.label += Previewer.asPlainTextWithLinks(item.suffixDisplayParts, this.client);
 		return signature;
 	}
 }
