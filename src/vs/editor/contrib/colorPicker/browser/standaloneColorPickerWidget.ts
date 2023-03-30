@@ -609,7 +609,7 @@ class DefaultDocumentColorProviderForStandaloneColorPicker implements DocumentCo
 		console.log('inside of provideDocumentColors of the DefaultDocumentColorProviderForStandaloneColorPicker');
 		// Default are the custom CSS color formats
 		// TODO: need to create an extension where this could be used otherwise it will not work
-		const rgbaRegex = 'rgba[(](\s*)([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5]),(\s*)([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5]),(\s*)([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5]),(\s*)(([0-1]|)[.][0-9]*)[)]';
+		const rgbaRegex = `/rgba[(](\s*)([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])(\s*),(\s*)([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])(\s*),(\s*)([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])(\s*),(\s*)([01][.]|[01]|[.][0-9]+|[0][.][0-9]*)(\s*)[)]/gm`;
 		const matches = model.findMatches(rgbaRegex, false, true, false, null, true);
 		console.log('matches : ', matches);
 
@@ -618,7 +618,10 @@ class DefaultDocumentColorProviderForStandaloneColorPicker implements DocumentCo
 		/// RGBA done
 		const allText = model.getLinesContent().join('\n');
 		const rgbaRegexOther = /rgba[(](\s*)([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])(\s*),(\s*)([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])(\s*),(\s*)([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])(\s*),(\s*)([01][.]|[01]|[.][0-9]+|[0][.][0-9]*)(\s*)[)]/gm;
+		const rgbRegexOther = /rgb[(](\s*)([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])(\s*),(\s*)([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])(\s*),(\s*)([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])(\s*)[)]/gm;
 		const rgbaMatches = [...allText.matchAll(rgbaRegexOther)];
+		const rgbMatches = [...allText.matchAll(rgbRegexOther)];
+
 		console.log('matchesOther : ', rgbaMatches);
 
 		for (const match of rgbaMatches) {
@@ -667,11 +670,58 @@ class DefaultDocumentColorProviderForStandaloneColorPicker implements DocumentCo
 			result.push(colorInformation);
 		}
 
+		for (const match of rgbMatches) {
+
+			console.log('match : ', match);
+
+			const range = this._findRange(model, match);
+			if (!range) {
+				return;
+			}
+
+			console.log('range : ', range);
+
+			const finalNumbers = [];
+			for (const element of match) {
+				const parsedNumber = Number(element);
+				if (parsedNumber) {
+					finalNumbers.push(parsedNumber);
+				}
+			}
+			console.log('finalNumbers : ', finalNumbers);
+
+			const red = finalNumbers[0] / 255;
+			const green = finalNumbers[1] / 255;
+			const blue = finalNumbers[2] / 255;
+
+			console.log('red : ', red);
+			console.log('green : ', green);
+			console.log('blue : ', blue);
+
+			if (!(red && blue && green)) {
+				return;
+			}
+			const color: IColor = {
+				red: red,
+				blue: blue,
+				green: green,
+				alpha: 1
+			};
+			const colorInformation = {
+				range: range,
+				color: color
+			};
+			result.push(colorInformation);
+		}
+
 		// HEXA
 		console.log('Inside of Hexa');
 
-		const hexaRegex = /#([A-Fa-f0-9]{8})/gm;
+		// Using a negative look ahead to make sure that the next character is not a hex digit
+		const hexaRegex = /#([A-Fa-f0-9]{8}(?![A-Fa-f0-9]))/gm;
+		const hexRegex = /#([A-Fa-f0-9]{6}(?![A-Fa-f0-9]))/gm;
 		const hexaMatches = [...allText.matchAll(hexaRegex)];
+		const hexMatches = [...allText.matchAll(hexRegex)];
 		console.log('hexaMatches : ', hexaMatches);
 
 		for (const match of hexaMatches) {
@@ -715,9 +765,53 @@ class DefaultDocumentColorProviderForStandaloneColorPicker implements DocumentCo
 			result.push(colorInformation);
 		}
 
+		for (const match of hexMatches) {
+
+			console.log('match : ', match);
+
+			const range = this._findRange(model, match);
+			if (!range) {
+				return;
+			}
+
+			console.log('range : ', range);
+
+			const hexValue = match.at(0);
+
+			console.log('hexValue : ', hexValue);
+
+			if (!hexValue) {
+				console.log('early return');
+				return;
+			}
+
+			const parsedHexColor = Color.Format.CSS.parseHex(hexValue);
+			console.log('parsedHexColor : ', parsedHexColor);
+
+			if (!parsedHexColor) {
+				console.log('early return');
+				return;
+			}
+
+			const parsedHexIColor = {
+				red: parsedHexColor.rgba.r / 255,
+				green: parsedHexColor.rgba.g / 255,
+				blue: parsedHexColor.rgba.b / 255,
+				alpha: parsedHexColor.rgba.a
+			};
+			const colorInformation = {
+				range: range,
+				color: parsedHexIColor
+			};
+			result.push(colorInformation);
+		}
+
 		// ------------
 		const hslaRegex = /hsla[(](\s*)(36[0]|3[0-5][0-9]|[12][0-9][0-9]|[1-9]?[0-9])(\s*),(\s*)(100|\d{1,2}|\d{1,2}[.]\d*)%(\s*),(\s*)(100|\d{1,2}|\d{1,2}[.]\d*)%(\s*),(\s*)([01][.]|[01]|[.][0-9]+|[0][.][0-9]*)(\s*)[)]/gm;
+		const hslRegex = /hsl[(](\s*)(36[0]|3[0-5][0-9]|[12][0-9][0-9]|[1-9]?[0-9])(\s*),(\s*)(100|\d{1,2}|\d{1,2}[.]\d*)%(\s*),(\s*)(100|\d{1,2}|\d{1,2}[.]\d*)%(\s*)[)]/gm;
 		const hslaMatches = [...allText.matchAll(hslaRegex)];
+		const hslMatches = [...allText.matchAll(hslRegex)];
+
 		console.log('hslaMatches : ', hslaMatches);
 
 		for (const match of hslaMatches) {
@@ -779,6 +873,73 @@ class DefaultDocumentColorProviderForStandaloneColorPicker implements DocumentCo
 				green: intermediaryResult[1] + m,
 				blue: intermediaryResult[2] + m,
 				alpha: alpha
+			};
+
+			const colorInformation = {
+				range: range,
+				color: parsedHslaValue
+			};
+			result.push(colorInformation);
+		}
+
+		for (const match of hslMatches) {
+
+			console.log('match : ', match);
+
+			const range = this._findRange(model, match);
+			if (!range) {
+				return;
+			}
+
+			console.log('range : ', range);
+
+			const hslaValue = match.at(0);
+
+			console.log('hslaValue : ', hslaValue);
+
+			const finalNumbers = [];
+			for (const element of match) {
+				const parsedNumber = Number(element);
+				if (parsedNumber) {
+					finalNumbers.push(parsedNumber);
+				}
+			}
+
+			const h = finalNumbers[0];
+			const s = finalNumbers[1];
+			const l = finalNumbers[2];
+
+			const normalizedS = s / 100;
+			const normalizedL = l / 100;
+			const normalizedH = h / 60;
+
+			const c = (1 - Math.abs(2 * normalizedL - 1)) * normalizedS;
+			const x = c * (1 - Math.abs(normalizedH % 2 - 1));
+
+			let intermediaryResult;
+			if (normalizedH >= 0 && normalizedH < 1) {
+				intermediaryResult = [c, x, 0];
+			} else if (normalizedH >= 1 && normalizedH < 2) {
+				intermediaryResult = [x, c, 0];
+			} else if (normalizedH >= 2 && normalizedH < 3) {
+				intermediaryResult = [0, c, x];
+			} else if (normalizedH >= 3 && normalizedH < 4) {
+				intermediaryResult = [0, x, c];
+			} else if (normalizedH >= 4 && normalizedH < 5) {
+				intermediaryResult = [x, 0, c];
+			} else if (normalizedH >= 5 && normalizedH <= 6) {
+				intermediaryResult = [c, 0, x];
+			} else {
+				throw new Error('Invalid HSLA value');
+			}
+
+			const m = normalizedL - c / 2;
+
+			const parsedHslaValue = {
+				red: intermediaryResult[0] + m,
+				green: intermediaryResult[1] + m,
+				blue: intermediaryResult[2] + m,
+				alpha: 1
 			};
 
 			const colorInformation = {
