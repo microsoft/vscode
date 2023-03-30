@@ -239,7 +239,6 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 			this._log(`/ Received  keydown event - ${printKeyboardEvent(e)}`);
 			this._log(`| Converted keydown event - ${printStandardKeyboardEvent(keyEvent)}`);
 			const shouldPreventDefaultAndStopPropagation = this._dispatch(keyEvent, keyEvent.target);
-
 			if (shouldPreventDefaultAndStopPropagation) {
 				keyEvent.preventDefault();
 				keyEvent.stopPropagation();
