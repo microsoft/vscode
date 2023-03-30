@@ -93,7 +93,7 @@ export class ColorHoverParticipant implements IEditorHoverParticipant<ColorHover
 		return [];
 	}
 
-	public async createColorHover(colorInfo: IColorInformation, provider: DocumentColorProvider): Promise<ColorHover | null> {
+	public async createColorHover(colorInfo: IColorInformation, provider: DocumentColorProvider): Promise<{ colorHover: ColorHover; foundInMap: boolean } | null> {
 		if (!this._editor.hasModel()) {
 			return null;
 		}
@@ -106,12 +106,17 @@ export class ColorHoverParticipant implements IEditorHoverParticipant<ColorHover
 		console.log('colorDetectorDatas : ', colorDetector.colorDatas);
 		const colorDetectorData = colorDetector.getColorData(new Position(colorInfo.range.startLineNumber, colorInfo.range.startColumn));
 		console.log('colorDetectorData : ', colorDetectorData);
+		let foundInMap = false;
 		if (colorDetectorData) {
 			console.log('entered in if loop');
+			foundInMap = true;
 			finalColorInfo = colorDetectorData.colorInfo;
 		}
 		console.log('final color info : ', finalColorInfo);
-		return await this._createColorHover(this._editor.getModel(), finalColorInfo, provider);
+		console.log('foundInMap : ', foundInMap);
+		const colorHover = await this._createColorHover(this._editor.getModel(), finalColorInfo, provider);
+		console.log('foundInMap : ', foundInMap);
+		return { colorHover: colorHover, foundInMap: foundInMap };
 	}
 
 	private async _createColorHover(editorModel: ITextModel, colorInfo: IColorInformation, provider: DocumentColorProvider): Promise<ColorHover> {

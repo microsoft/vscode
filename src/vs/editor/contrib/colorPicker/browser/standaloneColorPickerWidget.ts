@@ -122,6 +122,7 @@ export class StandaloneColorPickerWidget implements IContentWidget {
 	private _colorHoverData: ColorHover[] = [];
 	private _colorHoverVisible: IContextKey<boolean>;
 	private _colorHoverFocused: IContextKey<boolean>;
+	private _selectionForColorPicker: boolean = false;
 
 	constructor(
 		private readonly editor: ICodeEditor,
@@ -173,13 +174,18 @@ export class StandaloneColorPickerWidget implements IContentWidget {
 			// When a result has been found, don't render a second time, only render with the first result
 			// render the color picker, when there is a result which is a non null array
 			if (!this._resultFound && result.value.length !== 0) {
-				this._render(result.value);
+				this._render(result.value, result.foundInMap);
 			}
 		}));
 
 		// When the cursor position changes, hide the color picker
 		this.editor.onDidChangeCursorPosition(() => {
-			this.hide();
+			if (!this._selectionForColorPicker) {
+				this.hide();
+			} else {
+				this._selectionForColorPicker = false;
+			}
+
 		});
 		this._disposables.add(focusTracker.onDidBlur(_ => {
 			this.hide();
@@ -213,9 +219,11 @@ export class StandaloneColorPickerWidget implements IContentWidget {
 		}
 	}
 
-	private _render(colorHoverData: ColorHover[]) {
+	private _render(colorHoverData: ColorHover[], foundInMap: boolean) {
 
 		console.log('Entered into _renderColorPicker');
+		console.log('foundInMap : ', foundInMap);
+
 		console.log('colorHoverData : ', colorHoverData);
 
 		// Once the messages have been found once, we do not want to find a second result
@@ -293,6 +301,14 @@ export class StandaloneColorPickerWidget implements IContentWidget {
 		const clientWidth = this.body.clientWidth;
 		console.log('clientHeight : ', clientHeight);
 		console.log('clientWidth : ', clientWidth);
+
+		if (foundInMap) {
+			// if found in map is true then we want to highlight the selection in the editor
+			const range = colorHoverData[0].range;
+			console.log('range : ', range);
+			this._selectionForColorPicker = true;
+			this.editor.setSelection(range);
+		}
 	}
 
 	public getId(): string {
@@ -335,7 +351,8 @@ export class StandaloneColorPickerWidget implements IContentWidget {
 
 export class StandaloneColorPickerResult {
 	constructor(
-		public readonly value: ColorHover[]
+		public readonly value: ColorHover[],
+		public readonly foundInMap: boolean
 	) { }
 }
 
@@ -391,20 +408,25 @@ export class StandaloneColorPickerComputer extends Disposable implements IStanda
 
 	public async start(): Promise<void> {
 		if (this._range !== null) {
-			const result = await this.computeAsync(this._range);
-			this._onResult.fire(new StandaloneColorPickerResult(result.slice(0)));
+			const computeAsyncResult = await this.computeAsync(this._range);
+			if (!computeAsyncResult) {
+				return;
+			}
+			console.log(' computeAsyncResult.foundInMap : ', computeAsyncResult.foundInMap);
+			this._onResult.fire(new StandaloneColorPickerResult(computeAsyncResult.result.slice(0), computeAsyncResult.foundInMap));
 		}
 	}
 
-	private async computeAsync(range: IRange): Promise<ColorHover[]> {
+	private async computeAsync(range: IRange): Promise<{ result: ColorHover[]; foundInMap: boolean } | null> {
 
 		console.log('computeAsync of ColorHoverComputer');
 
 		if (!this._editor.hasModel()) {
-			return [];
+			return null;
 		}
 
 		let result: ColorHover[] = [];
+		let foundInMap = false;
 
 		for (const participant of this._participants) {
 			const colorInfo: IColorInformation = {
@@ -422,7 +444,12 @@ export class StandaloneColorPickerComputer extends Disposable implements IStanda
 			if (providers.length === 0 && this._defaultProvider) {
 				console.log('early return because no providers');
 
-				const colorHover = await participant.createColorHover(colorInfo, this._defaultProvider);
+				const createColorHoverResult = await participant.createColorHover(colorInfo, this._defaultProvider);
+				if (!createColorHoverResult) {
+					return null;
+				}
+				const colorHover = createColorHoverResult.colorHover;
+				foundInMap = createColorHoverResult.foundInMap;
 				if (colorHover) {
 					result = result.concat(colorHover);
 				}
@@ -437,14 +464,20 @@ export class StandaloneColorPickerComputer extends Disposable implements IStanda
 			// TODO: do we need to set the provider for each participant, what does it do?
 			// TODO: What is the difference between the participants and the document color providers?
 
-			const colorHover = await participant.createColorHover(colorInfo, provider);
+			const createColorHoverResult = await participant.createColorHover(colorInfo, provider);
+			if (!createColorHoverResult) {
+				return null;
+			}
+			const colorHover = createColorHoverResult.colorHover;
+			foundInMap = createColorHoverResult.foundInMap;
+			console.log('foundInMap of computeAsync : ', foundInMap);
 			if (colorHover) {
 				result = result.concat(colorHover);
 			}
 		}
 
 		console.log('result from computeAsync : ', result);
-		return result;
+		return { result: result, foundInMap: foundInMap };
 	}
 
 	private onModelChanged(): void {
@@ -668,6 +701,9 @@ class DefaultDocumentColorProviderForStandaloneColorPicker implements DocumentCo
 	provideColorPresentations(model: ITextModel, colorInfo: IColorInformation, token: CancellationToken): ProviderResult<IColorPresentation[]> {
 		console.log('inside of provideColorPresentations of the DefaultDocumentColorProvider');
 		console.log('colorInfo : ', colorInfo);
+
+		const languageId = model.getLanguageId();
+		console.log('languageId : ', languageId);
 		// Using the CSS color format as the default
 		// Allow the user to be able to define other custom color formats
 		const range = colorInfo.range;
