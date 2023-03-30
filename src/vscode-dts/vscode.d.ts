@@ -4090,14 +4090,9 @@ declare module 'vscode' {
 		insertSpaces: boolean;
 
 		/**
-		 * The list of multiple ranges to format at once, if the provider supports it.
-		 */
-		ranges?: Range[];
-
-		/**
 		 * Signature for further properties.
 		 */
-		[key: string]: boolean | number | string | Range[] | undefined;
+		[key: string]: boolean | number | string;
 	}
 
 	/**
@@ -4139,16 +4134,6 @@ declare module 'vscode' {
 		 * signaled by returning `undefined`, `null`, or an empty array.
 		 */
 		provideDocumentRangeFormattingEdits(document: TextDocument, range: Range, options: FormattingOptions, token: CancellationToken): ProviderResult<TextEdit[]>;
-	}
-
-	/**
-	 * Metadata about a registered {@linkcode DocumentRangeFormattingEditProvider}.
-	 */
-	export interface DocumentRangeFormattingEditProviderMetadata {
-		/**
-		 * `true` if the range formatting provider supports formatting multiple ranges at once.
-		 */
-		readonly canFormatMultipleRanges?: boolean;
 	}
 
 	/**
@@ -13095,10 +13080,9 @@ declare module 'vscode' {
 		 *
 		 * @param selector A selector that defines the documents this provider is applicable to.
 		 * @param provider A document range formatting edit provider.
-		 * @param metadata Metadata about the provider.
 		 * @return A {@link Disposable} that unregisters this provider when being disposed.
 		 */
-		export function registerDocumentRangeFormattingEditProvider(selector: DocumentSelector, provider: DocumentRangeFormattingEditProvider, metadata?: DocumentRangeFormattingEditProviderMetadata): Disposable;
+		export function registerDocumentRangeFormattingEditProvider(selector: DocumentSelector, provider: DocumentRangeFormattingEditProvider): Disposable;
 
 		/**
 		 * Register a formatting provider that works on type. The provider is active when the user enables the setting `editor.formatOnType`.
