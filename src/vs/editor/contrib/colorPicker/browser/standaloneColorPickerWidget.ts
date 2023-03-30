@@ -617,7 +617,7 @@ class DefaultDocumentColorProviderForStandaloneColorPicker implements DocumentCo
 
 		/// RGBA done
 		const allText = model.getLinesContent().join('\n');
-		const rgbaRegexOther = /rgba[(](\s*)([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5]),(\s*)([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5]),(\s*)([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5]),(\s*)(([0-1]|)[.][0-9]*)[)]/gm;
+		const rgbaRegexOther = /rgba[(](\s*)([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])(\s*),(\s*)([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])(\s*),(\s*)([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])(\s*),(\s*)([01][.]|[01]|[.][0-9]+|[0][.][0-9]*)(\s*)[)]/gm;
 		const rgbaMatches = [...allText.matchAll(rgbaRegexOther)];
 		console.log('matchesOther : ', rgbaMatches);
 
@@ -632,10 +632,19 @@ class DefaultDocumentColorProviderForStandaloneColorPicker implements DocumentCo
 
 			console.log('range : ', range);
 
-			const red = Number(match.at(2)) / 255;
-			const green = Number(match.at(4)) / 255;
-			const blue = Number(match.at(6)) / 255;
-			const alpha = Number(match.at(8));
+			const finalNumbers = [];
+			for (const element of match) {
+				const parsedNumber = Number(element);
+				if (parsedNumber) {
+					finalNumbers.push(parsedNumber);
+				}
+			}
+			console.log('finalNumbers : ', finalNumbers);
+
+			const red = finalNumbers[0] / 255;
+			const green = finalNumbers[1] / 255;
+			const blue = finalNumbers[2] / 255;
+			const alpha = finalNumbers[3];
 
 			console.log('red : ', red);
 			console.log('green : ', green);
@@ -707,6 +716,77 @@ class DefaultDocumentColorProviderForStandaloneColorPicker implements DocumentCo
 		}
 
 		// ------------
+		const hslaRegex = /hsla[(](\s*)(36[0]|3[0-5][0-9]|[12][0-9][0-9]|[1-9]?[0-9])(\s*),(\s*)(100|\d{1,2}|\d{1,2}[.]\d*)%(\s*),(\s*)(100|\d{1,2}|\d{1,2}[.]\d*)%(\s*),(\s*)([01][.]|[01]|[.][0-9]+|[0][.][0-9]*)(\s*)[)]/gm;
+		const hslaMatches = [...allText.matchAll(hslaRegex)];
+		console.log('hslaMatches : ', hslaMatches);
+
+		for (const match of hslaMatches) {
+
+			console.log('match : ', match);
+
+			const range = this._findRange(model, match);
+			if (!range) {
+				return;
+			}
+
+			console.log('range : ', range);
+
+			const hslaValue = match.at(0);
+
+			console.log('hslaValue : ', hslaValue);
+
+			const finalNumbers = [];
+			for (const element of match) {
+				const parsedNumber = Number(element);
+				if (parsedNumber) {
+					finalNumbers.push(parsedNumber);
+				}
+			}
+
+			const h = finalNumbers[0];
+			const s = finalNumbers[1];
+			const l = finalNumbers[2];
+			const alpha = finalNumbers[3];
+
+			const normalizedS = s / 100;
+			const normalizedL = l / 100;
+			const normalizedH = h / 60;
+
+			const c = (1 - Math.abs(2 * normalizedL - 1)) * normalizedS;
+			const x = c * (1 - Math.abs(normalizedH % 2 - 1));
+
+			let intermediaryResult;
+			if (normalizedH >= 0 && normalizedH < 1) {
+				intermediaryResult = [c, x, 0];
+			} else if (normalizedH >= 1 && normalizedH < 2) {
+				intermediaryResult = [x, c, 0];
+			} else if (normalizedH >= 2 && normalizedH < 3) {
+				intermediaryResult = [0, c, x];
+			} else if (normalizedH >= 3 && normalizedH < 4) {
+				intermediaryResult = [0, x, c];
+			} else if (normalizedH >= 4 && normalizedH < 5) {
+				intermediaryResult = [x, 0, c];
+			} else if (normalizedH >= 5 && normalizedH <= 6) {
+				intermediaryResult = [c, 0, x];
+			} else {
+				throw new Error('Invalid HSLA value');
+			}
+
+			const m = normalizedL - c / 2;
+
+			const parsedHslaValue = {
+				red: intermediaryResult[0] + m,
+				green: intermediaryResult[1] + m,
+				blue: intermediaryResult[2] + m,
+				alpha: alpha
+			};
+
+			const colorInformation = {
+				range: range,
+				color: parsedHslaValue
+			};
+			result.push(colorInformation);
+		}
 
 		console.log('result : ', result);
 		return result;
