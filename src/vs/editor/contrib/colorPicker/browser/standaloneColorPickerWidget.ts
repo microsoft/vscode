@@ -179,14 +179,15 @@ export class StandaloneColorPickerWidget implements IContentWidget {
 		}));
 
 		// When the cursor position changes, hide the color picker
-		this.editor.onDidChangeCursorPosition(() => {
+		this._disposables.add(this.editor.onDidChangeCursorPosition(() => {
+			console.log('ondidchangeCursorPosition');
+			console.log('this._selectionForColorPicker : ', this._selectionForColorPicker);
 			if (!this._selectionForColorPicker) {
 				this.hide();
 			} else {
 				this._selectionForColorPicker = false;
 			}
-
-		});
+		}));
 		this._disposables.add(focusTracker.onDidBlur(_ => {
 			this.hide();
 		}));
@@ -304,9 +305,14 @@ export class StandaloneColorPickerWidget implements IContentWidget {
 
 		if (foundInMap) {
 			// if found in map is true then we want to highlight the selection in the editor
+			if (enterButton) {
+				enterButton.button.textContent = 'Replace';
+			}
 			const range = colorHoverData[0].range;
 			console.log('range : ', range);
 			this._selectionForColorPicker = true;
+			console.log('right before setting the range selection in the _render function');
+			console.log('this._selectionForColorPicker : ', this._selectionForColorPicker);
 			this.editor.setSelection(range);
 		}
 	}

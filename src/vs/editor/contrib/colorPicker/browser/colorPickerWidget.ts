@@ -448,6 +448,10 @@ class InsertButton extends Disposable {
 			this._onClicked.fire();
 		};
 	}
+
+	public get button(): HTMLElement {
+		return this._button;
+	}
 }
 
 export class ColorPickerWidget extends Widget implements IEditorHoverColorPickerWidget {
