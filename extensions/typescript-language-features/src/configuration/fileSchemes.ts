@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { isWeb } from './platform';
 import * as vscode from 'vscode';
+import { isWeb } from '../utils/platform';
 
 export const file = 'file';
 export const untitled = 'untitled';

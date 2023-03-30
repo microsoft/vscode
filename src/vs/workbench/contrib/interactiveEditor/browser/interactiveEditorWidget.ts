@@ -149,6 +149,7 @@ class InteractiveEditorWidget {
 			suggest: {
 				showIcons: false,
 				showSnippets: false,
+				showStatusBar: false,
 			}
 		};
 

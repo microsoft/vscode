@@ -4,14 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import * as Proto from './protocol';
+import * as Proto from './tsServer/protocol/protocol';
 import BufferSyncSupport from './tsServer/bufferSyncSupport';
 import { ExecutionTarget } from './tsServer/server';
 import { TypeScriptVersion } from './tsServer/versionProvider';
-import API from './utils/api';
-import { TypeScriptServiceConfiguration } from './utils/configuration';
-import { PluginManager } from './utils/plugins';
-import { TelemetryReporter } from './utils/telemetry';
+import { API } from './tsServer/api';
+import { TypeScriptServiceConfiguration } from './configuration/configuration';
+import { PluginManager } from './tsServer/plugins';
+import { TelemetryReporter } from './logging/telemetry';
 
 export enum ServerType {
 	Syntax = 'syntax',

@@ -5,7 +5,7 @@
 
 import * as vscode from 'vscode';
 import { ITypeScriptServiceClient } from '../typescriptService';
-import { Disposable } from './dispose';
+import { Disposable } from '../utils/dispose';
 
 
 const typingsInstallTimeout = 30 * 1000;

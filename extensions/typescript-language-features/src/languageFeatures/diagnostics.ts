@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
+import { DiagnosticLanguage } from '../configuration/languageDescription';
 import * as arrays from '../utils/arrays';
 import { Disposable } from '../utils/dispose';
-import { DiagnosticLanguage } from '../utils/languageDescription';
 import { ResourceMap } from '../utils/resourceMap';
 
 function diagnosticsEquals(a: vscode.Diagnostic, b: vscode.Diagnostic): boolean {

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { PluginManager } from '../utils/plugins';
+import { PluginManager } from '../tsServer/plugins';
 import { Command } from './commandManager';
 
 export class ConfigurePluginCommand implements Command {
