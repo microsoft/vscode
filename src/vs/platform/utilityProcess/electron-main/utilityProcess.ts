@@ -88,6 +88,12 @@ export interface IWindowUtilityProcessConfiguration extends IUtilityProcessConfi
 	readonly windowLifecycleBound?: boolean;
 }
 
+function isWindowUtilityProcessConfiguration(config: IUtilityProcessConfiguration): config is IWindowUtilityProcessConfiguration {
+	const candidate = config as IWindowUtilityProcessConfiguration;
+
+	return typeof candidate.responseWindowId === 'number';
+}
+
 interface IUtilityProcessExitBaseEvent {
 
 	/**
@@ -118,9 +124,19 @@ export interface IUtilityProcessCrashEvent extends IUtilityProcessExitBaseEvent 
 	readonly reason: 'clean-exit' | 'abnormal-exit' | 'killed' | 'crashed' | 'oom' | 'launch-failed' | 'integrity-failure';
 }
 
+export interface IUtilityProcessInfo {
+	readonly pid: number;
+	readonly name: string;
+}
+
 export class UtilityProcess extends Disposable {
 
 	private static ID_COUNTER = 0;
+
+	private static readonly all = new Map<number, IUtilityProcessInfo>();
+	static getAll(): IUtilityProcessInfo[] {
+		return Array.from(UtilityProcess.all.values());
+	}
 
 	private readonly id = String(++UtilityProcess.ID_COUNTER);
 
@@ -206,7 +222,7 @@ export class UtilityProcess extends Disposable {
 		const serviceName = `${this.configuration.type}-${this.id}`;
 		const modulePath = FileAccess.asFileUri('bootstrap-fork.js').fsPath;
 		const args = this.configuration.args ?? [];
-		const execArgv = [...this.configuration.execArgv ?? [], `--vscode-utility-kind=${this.configuration.type}`];
+		const execArgv = this.configuration.execArgv ?? [];
 		const allowLoadingUnsignedLibraries = this.configuration.allowLoadingUnsignedLibraries;
 		const stdio = 'pipe';
 		const env = this.createEnv(configuration, isWindowSandboxed);
@@ -237,8 +253,9 @@ export class UtilityProcess extends Disposable {
 			env['VSCODE_PARENT_PID'] = String(configuration.parentLifecycleBound);
 		}
 		if (isWindowSandboxed) {
-			env['VSCODE_CRASH_REPORTER_SANDBOXED_HINT'] = '1';
+			env['VSCODE_CRASH_REPORTER_SANDBOXED_HINT'] = '1'; // TODO@bpasero remove me once sandbox is final
 		}
+		env['VSCODE_CRASH_REPORTER_PROCESS_TYPE'] = configuration.type;
 
 		// Remove any environment variables that are not allowed
 		removeDangerousEnvVariables(env);
@@ -271,6 +288,10 @@ export class UtilityProcess extends Disposable {
 		// Spawn
 		this._register(Event.fromNodeEventEmitter<void>(process, 'spawn')(() => {
 			this.processPid = process.pid;
+
+			if (typeof process.pid === 'number') {
+				UtilityProcess.all.set(process.pid, { pid: process.pid, name: isWindowUtilityProcessConfiguration(configuration) ? `${configuration.type} [${configuration.responseWindowId}]` : configuration.type });
+			}
 
 			this.log('successfully created', Severity.Info);
 		}));
@@ -386,6 +407,10 @@ export class UtilityProcess extends Disposable {
 	}
 
 	private onDidExitOrCrashOrKill(): void {
+		if (typeof this.processPid === 'number') {
+			UtilityProcess.all.delete(this.processPid);
+		}
+
 		this.process = undefined;
 	}
 

@@ -7,27 +7,18 @@ import { LanguageId } from 'vs/editor/common/encodedTokenAttributes';
 import { EncodedTokenizationResult, IBackgroundTokenizationStore, IBackgroundTokenizer, IState, ITokenizationSupport, TokenizationResult } from 'vs/editor/common/languages';
 import { nullTokenizeEncoded } from 'vs/editor/common/languages/nullTokenize';
 import { ITextModel } from 'vs/editor/common/model';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { Disposable } from 'vs/base/common/lifecycle';
+import { IObservable, keepAlive } from 'vs/base/common/observable';
 
-export class TokenizationSupportWithLineLimit implements ITokenizationSupport {
-	private _maxTokenizationLineLength: number;
-
+export class TokenizationSupportWithLineLimit extends Disposable implements ITokenizationSupport {
 	constructor(
-		private readonly _languageId: string,
 		private readonly _encodedLanguageId: LanguageId,
 		private readonly _actual: ITokenizationSupport,
-		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		private readonly _maxTokenizationLineLength: IObservable<number>,
 	) {
-		this._maxTokenizationLineLength = this._configurationService.getValue<number>('editor.maxTokenizationLineLength', {
-			overrideIdentifier: this._languageId
-		});
-		this._configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration('editor.maxTokenizationLineLength')) {
-				this._maxTokenizationLineLength = this._configurationService.getValue<number>('editor.maxTokenizationLineLength', {
-					overrideIdentifier: this._languageId
-				});
-			}
-		});
+		super();
+
+		this._register(keepAlive(this._maxTokenizationLineLength));
 	}
 
 	getInitialState(): IState {
@@ -40,7 +31,7 @@ export class TokenizationSupportWithLineLimit implements ITokenizationSupport {
 
 	tokenizeEncoded(line: string, hasEOL: boolean, state: IState): EncodedTokenizationResult {
 		// Do not attempt to tokenize if a line is too long
-		if (line.length >= this._maxTokenizationLineLength) {
+		if (line.length >= this._maxTokenizationLineLength.get()) {
 			return nullTokenizeEncoded(this._encodedLanguageId, state);
 		}
 

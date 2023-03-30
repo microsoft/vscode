@@ -115,9 +115,9 @@ if (isESM) {
 	}
 
 	/**
-	 * @param {string} entrypoint
-	 * @param {(value: any) => void} onLoad
-	 * @param {(err: Error) => void} onError
+	 * @param {string=} entrypoint
+	 * @param {(value: any) => void=} onLoad
+	 * @param {(err: Error) => void=} onError
 	 */
 	exports.load = function (entrypoint, onLoad, onError) {
 		if (!entrypoint) {
@@ -137,7 +137,7 @@ if (isESM) {
 		onLoad = onLoad || function () { };
 		onError = onError || function (err) { console.error(err); };
 
-		performance.mark(`code/fork/willLoadCode`);
+		performance.mark('code/fork/willLoadCode');
 		loader([entrypoint], onLoad, onError);
 	};
 

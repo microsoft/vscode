@@ -45,7 +45,7 @@
 
 .monaco-workbench .part.editor > .content:not(.empty) .editor-group-container.empty > .editor-group-watermark {
 	max-width: 200px;
-	height: calc(100% - 35px);
+	height: calc(100% - 70px);
 }
 
 .monaco-workbench .part.editor > .content .editor-group-container > .editor-group-watermark > .letterpress {

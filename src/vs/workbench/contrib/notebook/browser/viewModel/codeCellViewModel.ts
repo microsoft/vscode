@@ -21,7 +21,7 @@ import { NotebookOptionsChangeEvent } from 'vs/workbench/contrib/notebook/browse
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { BaseCellViewModel } from './baseCellViewModel';
 import { NotebookLayoutInfo } from 'vs/workbench/contrib/notebook/browser/notebookViewEvents';
-import { INotebookExecutionStateService } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
+import { ICellExecutionStateChangedEvent } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
 
 export class CodeCellViewModel extends BaseCellViewModel implements ICellViewModel {
 	readonly cellKind = CellKind.Code;
@@ -29,9 +29,9 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 	protected readonly _onLayoutInfoRead = this._register(new Emitter<void>());
 	readonly onLayoutInfoRead = this._onLayoutInfoRead.event;
 
-	protected readonly _onDidStartExecution = this._register(new Emitter<void>());
+	protected readonly _onDidStartExecution = this._register(new Emitter<ICellExecutionStateChangedEvent>());
 	readonly onDidStartExecution = this._onDidStartExecution.event;
-	protected readonly _onDidStopExecution = this._register(new Emitter<void>());
+	protected readonly _onDidStopExecution = this._register(new Emitter<ICellExecutionStateChangedEvent>());
 	readonly onDidStopExecution = this._onDidStopExecution.event;
 
 	protected readonly _onDidChangeOutputs = this._register(new Emitter<NotebookCellOutputsSplice>());
@@ -125,7 +125,6 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 		readonly viewContext: ViewContext,
 		@IConfigurationService configurationService: IConfigurationService,
 		@INotebookService private readonly _notebookService: INotebookService,
-		@INotebookExecutionStateService private readonly _notebookExecutionStateService: INotebookExecutionStateService,
 		@ITextModelService modelService: ITextModelService,
 		@IUndoRedoService undoRedoService: IUndoRedoService,
 		@ICodeEditorService codeEditorService: ICodeEditorService
@@ -154,16 +153,6 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 			dispose(removedOutputs);
 		}));
 
-		this._register(this._notebookExecutionStateService.onDidChangeCellExecution(e => {
-			if (e.affectsCell(model.uri)) {
-				if (e.changed) {
-					this._onDidStartExecution.fire();
-				} else {
-					this._onDidStopExecution.fire();
-				}
-			}
-		}));
-
 		this._outputCollection = new Array(this.model.outputs.length);
 
 		this._layoutInfo = {
@@ -185,6 +174,14 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 			layoutState: CellLayoutState.Uninitialized,
 			estimatedHasHorizontalScrolling: false
 		};
+	}
+
+	updateExecutionState(e: ICellExecutionStateChangedEvent) {
+		if (e.changed) {
+			this._onDidStartExecution.fire(e);
+		} else {
+			this._onDidStopExecution.fire(e);
+		}
 	}
 
 	updateOptions(e: NotebookOptionsChangeEvent) {

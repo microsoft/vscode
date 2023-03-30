@@ -134,6 +134,9 @@ import 'vs/workbench/contrib/debug/browser/extensionHostDebugService';
 // Welcome Banner
 import 'vs/workbench/contrib/welcomeBanner/browser/welcomeBanner.contribution';
 
+// Welcome Dialog
+import 'vs/workbench/contrib/welcomeDialog/browser/welcomeDialog.contribution';
+
 // Webview
 import 'vs/workbench/contrib/webview/browser/webview.web.contribution';
 
@@ -152,7 +155,7 @@ import 'vs/workbench/contrib/tasks/browser/taskService';
 import 'vs/workbench/contrib/tags/browser/workspaceTagsService';
 
 // Issues
-import 'vs/workbench/contrib/issue/browser/issue.web.contribution';
+import 'vs/workbench/contrib/issue/browser/issue.contribution';
 
 // Splash
 import 'vs/workbench/contrib/splash/browser/splash.contribution';
@@ -180,7 +183,7 @@ import { Event, Emitter } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { GroupOrientation } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { UserDataSyncResourceProviderService } from 'vs/platform/userDataSync/common/userDataSyncResourceProvider';
-import { RemoteAuthorityResolverError } from 'vs/platform/remote/common/remoteAuthorityResolver';
+import { RemoteAuthorityResolverError, RemoteAuthorityResolverErrorCode } from 'vs/platform/remote/common/remoteAuthorityResolver';
 
 export {
 
@@ -195,6 +198,7 @@ export {
 	GroupOrientation,
 	LogLevel,
 	RemoteAuthorityResolverError,
+	RemoteAuthorityResolverErrorCode,
 
 	// Facade API
 	env,

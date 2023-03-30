@@ -9,7 +9,6 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { AppResourcePath, FileAccess } from 'vs/base/common/network';
 import { getAllMethodNames } from 'vs/base/common/objects';
-import { globals } from 'vs/base/common/platform';
 import * as strings from 'vs/base/common/strings';
 
 const INITIALIZE = '$initialize';
@@ -322,12 +321,14 @@ export class SimpleWorkerClient<W extends object, H extends object> extends Disp
 
 		// Gather loader configuration
 		let loaderConfiguration: any = null;
-		if (typeof globals.require !== 'undefined' && typeof globals.require.getConfig === 'function') {
+
+		const globalRequire: { getConfig?(): object } | undefined = (globalThis as any).require;
+		if (typeof globalRequire !== 'undefined' && typeof globalRequire.getConfig === 'function') {
 			// Get the configuration from the Monaco AMD Loader
-			loaderConfiguration = globals.require.getConfig();
-		} else if (typeof globals.requirejs !== 'undefined') {
+			loaderConfiguration = globalRequire.getConfig();
+		} else if (typeof (globalThis as any).requirejs !== 'undefined') {
 			// Get the configuration from requirejs
-			loaderConfiguration = globals.requirejs.s.contexts._.config;
+			loaderConfiguration = (globalThis as any).requirejs.s.contexts._.config;
 		}
 
 		if (isESM) {
@@ -534,7 +535,7 @@ export class SimpleWorkerServer<H extends object> {
 
 				// Since this is in a web worker, enable catching errors
 				loaderConfig.catchError = true;
-				globals.require.config(loaderConfig);
+				globalThis.require.config(loaderConfig);
 			}
 		}
 
@@ -555,10 +556,10 @@ export class SimpleWorkerServer<H extends object> {
 			// Use the global require to be sure to get the global config
 
 			// ESM-comment-begin
-			const req = (globals.require || require);
+			const req = (globalThis.require || require);
 			// ESM-comment-end
 			// ESM-uncomment-begin
-			// const req = globals.require;
+			// const req = globalThis.require;
 			// ESM-uncomment-end
 
 			req([moduleId], (module: { create: IRequestHandlerFactory<H> }) => {

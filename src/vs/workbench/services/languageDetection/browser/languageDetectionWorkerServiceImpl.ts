@@ -332,7 +332,7 @@ export class LanguageDetectionWorkerClient extends EditorWorkerClient {
 
 		await this._withSyncedResources([resource]);
 		const modelId = await (await this._getProxy()).detectLanguage(resource.toString(), langBiases, preferHistory, supportedLangs);
-		const langaugeId = this.getLanguageId(modelId);
+		const languageId = this.getLanguageId(modelId);
 
 		const LanguageDetectionStatsId = 'automaticlanguagedetection.perf';
 
@@ -350,10 +350,10 @@ export class LanguageDetectionWorkerClient extends EditorWorkerClient {
 
 		this._telemetryService.publicLog2<ILanguageDetectionPerf, LanguageDetectionPerfClassification>(LanguageDetectionStatsId, {
 			timeSpent: Date.now() - startTime,
-			detection: langaugeId || 'unknown',
+			detection: languageId || 'unknown',
 		});
 
-		return langaugeId;
+		return languageId;
 	}
 }
 

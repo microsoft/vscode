@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { deepStrictEqual, ok } from 'assert';
-import { timeout } from 'vs/base/common/async';
 import type { Terminal } from 'xterm';
 import { CommandDetectionCapability } from 'vs/platform/terminal/common/capabilities/commandDetectionCapability';
 import { ILogService, NullLogService } from 'vs/platform/log/common/log';
@@ -13,17 +12,7 @@ import { IContextMenuService } from 'vs/platform/contextview/browser/contextView
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { IContextMenuDelegate } from 'vs/base/browser/contextmenu';
 import { importAMDNodeModule } from 'vs/amdX';
-
-async function writeP(terminal: Terminal, data: string): Promise<void> {
-	return new Promise<void>((resolve, reject) => {
-		const failTimeout = timeout(2000);
-		failTimeout.then(() => reject('Writing to xterm is taking longer than 2 seconds'));
-		terminal.write(data, () => {
-			failTimeout.cancel();
-			resolve();
-		});
-	});
-}
+import { writeP } from 'vs/workbench/contrib/terminal/browser/terminalTestHelpers';
 
 type TestTerminalCommandMatch = Pick<ITerminalCommand, 'command' | 'cwd' | 'exitCode'> & { marker: { line: number } };
 

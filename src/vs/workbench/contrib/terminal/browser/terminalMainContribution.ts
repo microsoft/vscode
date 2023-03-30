@@ -5,11 +5,8 @@
 
 import { Disposable } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
-import { TabFocus, TabFocusContext } from 'vs/editor/browser/config/tabFocus';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { ILabelService } from 'vs/platform/label/common/label';
-import { TerminalSettingId } from 'vs/platform/terminal/common/terminal';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { ITerminalEditorService, ITerminalGroupService, ITerminalService, terminalEditorId } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { terminalStrings } from 'vs/workbench/contrib/terminal/common/terminalStrings';
@@ -27,8 +24,7 @@ export class TerminalMainContribution extends Disposable implements IWorkbenchCo
 		@ITerminalService terminalService: ITerminalService,
 		@ITerminalEditorService terminalEditorService: ITerminalEditorService,
 		@ITerminalGroupService terminalGroupService: ITerminalGroupService,
-		@IConfigurationService configurationService: IConfigurationService,
-		@IContextKeyService contextKeyService: IContextKeyService
+		@IConfigurationService configurationService: IConfigurationService
 	) {
 		super();
 
@@ -74,19 +70,5 @@ export class TerminalMainContribution extends Disposable implements IWorkbenchCo
 				separator: ''
 			}
 		});
-
-		const viewKey = new Set<string>();
-		viewKey.add('focusedView');
-		TabFocus.setTabFocusMode(configurationService.getValue('editor.tabFocusMode'), TabFocusContext.Editor);
-		TabFocus.setTabFocusMode(configurationService.getValue(TerminalSettingId.TabFocusMode), TabFocusContext.Terminal);
-		this._register(contextKeyService.onDidChangeContext((c) => {
-			if (c.affectsSome(viewKey)) {
-				if (contextKeyService.getContextKeyValue('focusedView') === 'terminal') {
-					TabFocus.setTabFocusMode(configurationService.getValue(TerminalSettingId.TabFocusMode), TabFocusContext.Terminal);
-				} else {
-					TabFocus.setTabFocusMode(configurationService.getValue('editor.tabFocusMode'), TabFocusContext.Editor);
-				}
-			}
-		}));
 	}
 }

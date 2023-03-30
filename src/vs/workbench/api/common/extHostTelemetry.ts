@@ -7,7 +7,7 @@ import type * as vscode from 'vscode';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { Event, Emitter } from 'vs/base/common/event';
 import { ExtHostTelemetryShape } from 'vs/workbench/api/common/extHost.protocol';
-import { TelemetryLevel } from 'vs/platform/telemetry/common/telemetry';
+import { ICommonProperties, TelemetryLevel } from 'vs/platform/telemetry/common/telemetry';
 import { ILogger, ILoggerService, LogLevel, isLogLevel } from 'vs/platform/log/common/log';
 import { IExtHostInitDataService } from 'vs/workbench/api/common/extHostInitDataService';
 import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
@@ -94,8 +94,8 @@ export class ExtHostTelemetry extends Disposable implements ExtHostTelemetryShap
 		this.updateLoggerVisibility();
 	}
 
-	getBuiltInCommonProperties(extension: IExtensionDescription): Record<string, string | boolean | number | undefined> {
-		const commonProperties: Record<string, string | boolean | number | undefined> = {};
+	getBuiltInCommonProperties(extension: IExtensionDescription): ICommonProperties {
+		const commonProperties: ICommonProperties = Object.create(null);
 		// TODO @lramos15, does os info like node arch, platform version, etc exist here.
 		// Or will first party extensions just mix this in
 		commonProperties['common.extname'] = `${extension.publisher}.${extension.name}`;
@@ -126,6 +126,12 @@ export class ExtHostTelemetry extends Disposable implements ExtHostTelemetryShap
 		this._oldTelemetryEnablement = this.getTelemetryConfiguration();
 		this._level = level;
 		const telemetryDetails = this.getTelemetryDetails();
+		// Remove all disposed loggers
+		this._telemetryLoggers.forEach((logger, key) => {
+			if (logger.isDisposed) {
+				this._telemetryLoggers.delete(key);
+			}
+		});
 		// Loop through all loggers and update their level
 		this._telemetryLoggers.forEach(logger => {
 			logger.updateTelemetryEnablements(telemetryDetails.isUsageEnabled, telemetryDetails.isErrorsEnabled);
@@ -140,6 +146,10 @@ export class ExtHostTelemetry extends Disposable implements ExtHostTelemetryShap
 
 	onExtensionError(extension: ExtensionIdentifier, error: Error): boolean {
 		const logger = this._telemetryLoggers.get(extension.value);
+		if (logger && logger.isDisposed) {
+			this._telemetryLoggers.delete(extension.value);
+			return false;
+		}
 		if (!logger || logger.ignoreUnhandledExtHostErrors) {
 			return false;
 		}
@@ -279,11 +289,18 @@ export class ExtHostTelemetryLogger {
 		return this._apiObject;
 	}
 
+	get isDisposed(): boolean {
+		return !this._sender;
+	}
+
 	dispose(): void {
 		if (this._sender?.flush) {
-			// Disposed of so now we set it to undefined
-			Promise.resolve(this._sender.flush()).then(this._sender = undefined);
+			let tempSender: vscode.TelemetrySender | undefined = this._sender;
+			this._sender = undefined;
+			Promise.resolve(tempSender.flush!()).then(tempSender = undefined);
 			this._apiObject = undefined;
+		} else {
+			this._sender = undefined;
 		}
 	}
 }

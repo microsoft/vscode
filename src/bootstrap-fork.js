@@ -245,13 +245,22 @@ function terminateWhenParentTerminates() {
 function configureCrashReporter() {
 	const crashReporterSandboxedHint = process.env['VSCODE_CRASH_REPORTER_SANDBOXED_HINT'];
 	if (crashReporterSandboxedHint) {
-		try {
-			if (process['crashReporter'] && typeof process['crashReporter'].addExtraParameter === 'function' /* Electron only */) {
-				process['crashReporter'].addExtraParameter('_sandboxed', 'true');
-			}
-		} catch (error) {
-			console.error(error);
+		addCrashReporterParameter('_sandboxed', 'true');
+	}
+
+	const crashReporterProcessType = process.env['VSCODE_CRASH_REPORTER_PROCESS_TYPE'];
+	if (crashReporterProcessType) {
+		addCrashReporterParameter('processType', crashReporterProcessType);
+	}
+}
+
+function addCrashReporterParameter(key, value) {
+	try {
+		if (process['crashReporter'] && typeof process['crashReporter'].addExtraParameter === 'function' /* Electron only */) {
+			process['crashReporter'].addExtraParameter(key, value);
 		}
+	} catch (error) {
+		console.error(error);
 	}
 }
 

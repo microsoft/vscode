@@ -17,13 +17,14 @@ import { CodeActionKeybindingResolver } from 'vs/editor/contrib/codeAction/brows
 import { toMenuItems } from 'vs/editor/contrib/codeAction/browser/codeActionMenu';
 import { MessageController } from 'vs/editor/contrib/message/browser/messageController';
 import { localize } from 'vs/nls';
-import { IActionWidgetService, IRenderDelegate } from 'vs/platform/actionWidget/browser/actionWidget';
+import { IActionWidgetService } from 'vs/platform/actionWidget/browser/actionWidget';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { CodeActionAutoApply, CodeActionItem, CodeActionSet, CodeActionTrigger } from '../common/types';
 import { CodeActionsState } from './codeActionModel';
 import { LightBulbWidget } from './lightBulbWidget';
+import { IActionListDelegate } from 'vs/platform/actionWidget/browser/actionList';
 
 export interface IActionShowOptions {
 	readonly includeDisabledActions?: boolean;
@@ -43,10 +44,8 @@ export class CodeActionUi extends Disposable {
 
 	constructor(
 		private readonly _editor: ICodeEditor,
-		quickFixActionId: string,
-		preferredFixActionId: string,
 		private readonly delegate: {
-			applyCodeAction: (action: CodeActionItem, regtriggerAfterApply: boolean, preview: boolean) => Promise<void>;
+			applyCodeAction: (action: CodeActionItem, retriggerAfterApply: boolean, preview: boolean) => Promise<void>;
 		},
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
@@ -56,7 +55,7 @@ export class CodeActionUi extends Disposable {
 		super();
 
 		this._lightBulbWidget = new Lazy(() => {
-			const widget = this._register(instantiationService.createInstance(LightBulbWidget, this._editor, quickFixActionId, preferredFixActionId));
+			const widget = this._register(instantiationService.createInstance(LightBulbWidget, this._editor));
 			this._register(widget.onClick(e => this.showCodeActionList(e.actions, e, { includeDisabledActions: false, fromLightbulb: true })));
 			return widget;
 		});
@@ -181,9 +180,9 @@ export class CodeActionUi extends Disposable {
 
 		const anchor = Position.isIPosition(at) ? this.toCoords(at) : at;
 
-		const delegate: IRenderDelegate<CodeActionItem> = {
+		const delegate: IActionListDelegate<CodeActionItem> = {
 			onSelect: async (action: CodeActionItem, preview?: boolean) => {
-				this.delegate.applyCodeAction(action, /* retrigger */ true, !!preview ? preview : false);
+				this.delegate.applyCodeAction(action, /* retrigger */ true, !!preview);
 				this._actionWidgetService.hide();
 			},
 			onHide: () => {
@@ -234,7 +233,7 @@ export class CodeActionUi extends Disposable {
 			tooltip: command.tooltip ?? '',
 			class: undefined,
 			enabled: true,
-			run: () => this._commandService.executeCommand(command.id, ...(command.commandArguments ?? [])),
+			run: () => this._commandService.executeCommand(command.id, ...(command.arguments ?? [])),
 		}));
 
 		if (options.includeDisabledActions && actions.validActions.length > 0 && actions.allActions.length !== actions.validActions.length) {

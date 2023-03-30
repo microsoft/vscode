@@ -33,8 +33,8 @@
 	background-color: inherit;
 }
 
-.monaco-workbench .editor-instance .find-focused .xterm .xterm-viewport,
-.monaco-workbench .pane-body.integrated-terminal .find-focused .xterm .xterm-viewport,
+.monaco-workbench .editor-instance .force-scrollbar .xterm .xterm-viewport,
+.monaco-workbench .pane-body.integrated-terminal .force-scrollbar .xterm .xterm-viewport,
 .monaco-workbench .editor-instance .xterm.focus .xterm-viewport,
 .monaco-workbench .pane-body.integrated-terminal .xterm.focus .xterm-viewport,
 .monaco-workbench .editor-instance .xterm:focus .xterm-viewport,

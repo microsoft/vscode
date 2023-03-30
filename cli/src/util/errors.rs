@@ -2,11 +2,12 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-use std::fmt::Display;
-
-use crate::constants::{
-	APPLICATION_NAME, CONTROL_PORT, DOCUMENTATION_URL, QUALITYLESS_PRODUCT_NAME,
+use crate::{
+	constants::{APPLICATION_NAME, CONTROL_PORT, DOCUMENTATION_URL, QUALITYLESS_PRODUCT_NAME},
+	rpc::ResponseError,
 };
+use std::fmt::Display;
+use thiserror::Error;
 
 // Wraps another error with additional info.
 #[derive(Debug, Clone)]
@@ -171,7 +172,7 @@ impl std::fmt::Display for SetupError {
 	fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
 		write!(
 			f,
-			"{}\r\n\r\nMore info at {}/remote/linux",
+			"{}\n\nMore info at {}/remote/linux",
 			DOCUMENTATION_URL.unwrap_or("<docs>"),
 			self.0
 		)
@@ -343,7 +344,7 @@ pub struct ServiceAlreadyRegistered();
 
 impl std::fmt::Display for ServiceAlreadyRegistered {
 	fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-		write!(f, "Already registered the service. Run `code tunnel service uninstall` to unregister it first")
+		write!(f, "Already registered the service. Run `{} tunnel service uninstall` to unregister it first", APPLICATION_NAME)
 	}
 }
 
@@ -475,6 +476,26 @@ macro_rules! makeAnyError {
     };
 }
 
+/// Internal errors in the VS Code CLI.
+/// Note: other error should be migrated to this type gradually
+#[derive(Error, Debug)]
+pub enum CodeError {
+	#[error("could not connect to socket/pipe: {0:?}")]
+	AsyncPipeFailed(std::io::Error),
+	#[error("could not listen on socket/pipe: {0:?}")]
+	AsyncPipeListenerFailed(std::io::Error),
+	#[error("could not create singleton lock file: {0:?}")]
+	SingletonLockfileOpenFailed(std::io::Error),
+	#[error("could not read singleton lock file: {0:?}")]
+	SingletonLockfileReadFailed(rmp_serde::decode::Error),
+	#[error("the process holding the singleton lock file (pid={0}) exited")]
+	SingletonLockedProcessExited(u32),
+	#[error("no tunnel process is currently running")]
+	NoRunningTunnel,
+	#[error("rpc call failed: {0:?}")]
+	TunnelRpcCallFailed(ResponseError),
+}
+
 makeAnyError!(
 	MissingLegalConsent,
 	MismatchConnectionToken,
@@ -505,7 +526,8 @@ makeAnyError!(
 	MissingHomeDirectory,
 	CommandFailed,
 	OAuthError,
-	InvalidRpcDataError
+	InvalidRpcDataError,
+	CodeError
 );
 
 impl From<reqwest::Error> for AnyError {

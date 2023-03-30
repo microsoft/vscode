@@ -291,7 +291,7 @@ export class PtyService extends Disposable implements IPtyService {
 		return allTerminals.filter(entry => entry.isOrphan);
 	}
 
-	async start(id: number): Promise<ITerminalLaunchError | undefined> {
+	async start(id: number): Promise<ITerminalLaunchError | { injectedArgs: string[] } | undefined> {
 		this._logService.trace('ptyService#start', id);
 		const pty = this._ptys.get(id);
 		return pty ? pty.start() : { message: `Could not find pty with id "${id}"` };
@@ -698,11 +698,11 @@ class PersistentTerminalProcess extends Disposable {
 		}
 	}
 
-	async start(): Promise<ITerminalLaunchError | undefined> {
+	async start(): Promise<ITerminalLaunchError | { injectedArgs: string[] } | undefined> {
 		this._logService.trace('persistentTerminalProcess#start', this._persistentProcessId, this._isStarted);
 		if (!this._isStarted) {
 			const result = await this._terminalProcess.start();
-			if (result) {
+			if (result && 'message' in result) {
 				// it's a terminal launch error
 				return result;
 			}
@@ -718,12 +718,13 @@ class PersistentTerminalProcess extends Disposable {
 			} else {
 				this._onPersistentProcessReady.fire();
 			}
-		} else {
-			this._onProcessReady.fire({ pid: this._pid, cwd: this._cwd, requiresWindowsMode: isWindows && getWindowsBuildNumber() < 21376 });
-			this._onDidChangeProperty.fire({ type: ProcessPropertyType.Title, value: this._terminalProcess.currentTitle });
-			this._onDidChangeProperty.fire({ type: ProcessPropertyType.ShellType, value: this._terminalProcess.shellType });
-			this.triggerReplay();
+			return result;
 		}
+
+		this._onProcessReady.fire({ pid: this._pid, cwd: this._cwd, requiresWindowsMode: isWindows && getWindowsBuildNumber() < 21376 });
+		this._onDidChangeProperty.fire({ type: ProcessPropertyType.Title, value: this._terminalProcess.currentTitle });
+		this._onDidChangeProperty.fire({ type: ProcessPropertyType.ShellType, value: this._terminalProcess.shellType });
+		this.triggerReplay();
 		return undefined;
 	}
 	shutdown(immediate: boolean): void {

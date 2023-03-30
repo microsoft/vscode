@@ -21,15 +21,15 @@ export function getNLSConfiguration(language: string, userDataPath: string): Pro
 	return exists(metaData).then((fileExists) => {
 		if (!fileExists || !product.commit) {
 			// console.log(`==> MetaData or commit unknown. Using default language.`);
-			return Promise.resolve({ locale: 'en', availableLanguages: {} });
+			// The OS Locale on the remote side really doesn't matter, so we return the default locale
+			return Promise.resolve({ locale: 'en', osLocale: 'en', availableLanguages: {} });
 		}
 		const key = `${language}||${userDataPath}`;
 		let result = _cache.get(key);
 		if (!result) {
 			const { getNLSConfiguration } = <typeof import('vs/base/node/languagePacks')>require(`../../base/node/languagePacks.${isESM ? 'esm' : 'cjs'}}}`);
 
-			// For remote, we just use language for both locale and language since we don't have any use case for the locale
-			// on the server side.
+			// The OS Locale on the remote side really doesn't matter, so we pass in the same language
 			result = getNLSConfiguration(product.commit, userDataPath, metaData, language, language).then(value => {
 				if (InternalNLSConfiguration.is(value)) {
 					value._languagePackSupport = true;
