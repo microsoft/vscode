@@ -21,7 +21,7 @@ import { IExtensionResourceLoaderService } from 'vs/platform/extensionResourceLo
 import { ICreateData, TextMateTokenizationWorker } from 'vs/workbench/services/textMate/browser/worker/textMate.worker';
 import { TextMateWorkerTokenizerController } from 'vs/workbench/services/textMate/browser/workerHost/textMateWorkerTokenizerController';
 import { IValidGrammarDefinition } from 'vs/workbench/services/textMate/common/TMScopeRegistry';
-import { INITIAL, IRawTheme, StackDiff } from 'vscode-textmate';
+import type { IRawTheme, StackDiff } from 'vscode-textmate';
 
 export class TextMateWorkerHost implements IDisposable {
 	private _workerProxyPromise: Promise<TextMateTokenizationWorker | null> | null = null;
@@ -145,7 +145,7 @@ export class TextMateWorkerHost implements IDisposable {
 			}
 
 			store.add(keepAliveWhenAttached(textModel, () => {
-				const controller = new TextMateWorkerTokenizerController(textModel, workerProxy, this._languageService.languageIdCodec, tokenStore, INITIAL, this._configurationService, maxTokenizationLineLength);
+				const controller = new TextMateWorkerTokenizerController(textModel, workerProxy, this._languageService.languageIdCodec, tokenStore, this._configurationService, maxTokenizationLineLength);
 				this._workerTokenizerControllers.set(textModel.uri.toString(), controller);
 
 				return toDisposable(() => {
@@ -211,4 +211,3 @@ function keepAliveWhenAttached(textModel: ITextModel, factory: () => IDisposable
 	}));
 	return disposableStore;
 }
-

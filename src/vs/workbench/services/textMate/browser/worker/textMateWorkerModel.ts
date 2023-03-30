@@ -7,7 +7,7 @@ import { URI } from 'vs/base/common/uri';
 import { LanguageId } from 'vs/editor/common/encodedTokenAttributes';
 import { IModelChangedEvent, MirrorTextModel } from 'vs/editor/common/model/mirrorTextModel';
 import { TokenizationStateStore } from 'vs/editor/common/model/textModelTokens';
-import { diffStateStacksRefEq, StateStack, StackDiff } from 'vscode-textmate';
+import type { diffStateStacksRefEq, StateStack, StackDiff } from 'vscode-textmate';
 import { ContiguousMultilineTokensBuilder } from 'vs/editor/common/tokens/contiguousMultilineTokensBuilder';
 import { countEOL } from 'vs/editor/common/core/eolCounter';
 import { LineTokens } from 'vs/editor/common/tokens/lineTokens';
@@ -17,6 +17,7 @@ import { RunOnceScheduler } from 'vs/base/common/async';
 import { TextMateTokenizationWorker } from './textMate.worker';
 import { observableValue } from 'vs/base/common/observable';
 import { TokenizationSupportWithLineLimit } from 'vs/workbench/services/textMate/browser/tokenizationSupport/tokenizationSupportWithLineLimit';
+import { importAMDNodeModule } from 'vs/amdX';
 
 export class TextMateWorkerModel extends MirrorTextModel {
 	private _tokenizationStateStore: TokenizationStateStore | null;
@@ -28,6 +29,7 @@ export class TextMateWorkerModel extends MirrorTextModel {
 		'_maxTokenizationLineLength',
 		-1
 	);
+	private _diffStateStacksRefEqFn?: typeof diffStateStacksRefEq;
 
 	constructor(
 		uri: URI,
@@ -129,9 +131,14 @@ export class TextMateWorkerModel extends MirrorTextModel {
 		});
 	}
 
-	private _tokenize(): void {
+	private async _tokenize(): Promise<void> {
 		if (this._isDisposed || !this._tokenizationStateStore) {
 			return;
+		}
+
+		if (!this._diffStateStacksRefEqFn) {
+			const { diffStateStacksRefEq } = await importAMDNodeModule<typeof import('vscode-textmate')>('vscode-textmate', 'release/main.js');
+			this._diffStateStacksRefEqFn = diffStateStacksRefEq;
 		}
 
 		const startTime = new Date().getTime();
@@ -172,7 +179,7 @@ export class TextMateWorkerModel extends MirrorTextModel {
 						tokenizeResult.endState
 					)
 				) {
-					const delta = diffStateStacksRefEq(
+					const delta = this._diffStateStacksRefEqFn(
 						lineStartState,
 						tokenizeResult.endState as StateStack
 					);

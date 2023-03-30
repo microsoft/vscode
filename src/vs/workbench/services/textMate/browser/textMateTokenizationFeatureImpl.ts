@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { importAMDNodeModule } from 'vs/amdX';
 import * as dom from 'vs/base/browser/dom';
 import { equals as equalArray } from 'vs/base/common/arrays';
 import { Color } from 'vs/base/common/color';
@@ -231,7 +232,7 @@ export class TextMateTokenizationFeature extends Disposable implements ITextMate
 			return this._grammarFactory;
 		}
 
-		const [vscodeTextmate, vscodeOniguruma] = await Promise.all([import('vscode-textmate'), this._getVSCodeOniguruma()]);
+		const [vscodeTextmate, vscodeOniguruma] = await Promise.all([importAMDNodeModule<typeof import('vscode-textmate')>('vscode-textmate', 'release/main.js'), this._getVSCodeOniguruma()]);
 		const onigLib: Promise<IOnigLib> = Promise.resolve({
 			createOnigScanner: (sources: string[]) => vscodeOniguruma.createOnigScanner(sources),
 			createOnigString: (str: string) => vscodeOniguruma.createOnigString(str)
@@ -337,7 +338,7 @@ export class TextMateTokenizationFeature extends Disposable implements ITextMate
 	private _getVSCodeOniguruma(): Promise<typeof import('vscode-oniguruma')> {
 		if (!this._vscodeOniguruma) {
 			this._vscodeOniguruma = (async () => {
-				const [vscodeOniguruma, wasm] = await Promise.all([import('vscode-oniguruma'), this._loadVSCodeOnigurumaWASM()]);
+				const [vscodeOniguruma, wasm] = await Promise.all([importAMDNodeModule<typeof import('vscode-oniguruma')>('vscode-oniguruma', 'release/main.js'), this._loadVSCodeOnigurumaWASM()]);
 				await vscodeOniguruma.loadWASM({
 					data: wasm,
 					print: (str: string) => {

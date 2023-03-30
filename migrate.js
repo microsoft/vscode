@@ -70,7 +70,7 @@ function migrateOne(filePath, fileContents) {
 			writeDestFile(cjsFilePath, cjsFileContents);
 			writeDestFile(filePath, fileContents.toString());
 		} else if (
-			filePath.endsWith('vs/base/parts/sandbox/electron-browser/preload.js')
+			filePath.endsWith('vs/base/parts/sandbox/electron-sandbox/preload.js')
 		) {
 			// Rename to .cjs
 			const cjsFilePath = filePath.replace(/\.js$/, '.cjs');

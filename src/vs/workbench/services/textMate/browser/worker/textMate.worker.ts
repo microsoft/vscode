@@ -10,7 +10,7 @@ import { IWorkerContext } from 'vs/editor/common/services/editorSimpleWorker';
 import type { StateDeltas, TextMateWorkerHost } from 'vs/workbench/services/textMate/browser/workerHost/textMateWorkerHost';
 import { ICreateGrammarResult, TMGrammarFactory } from 'vs/workbench/services/textMate/common/TMGrammarFactory';
 import { IValidEmbeddedLanguagesMap, IValidGrammarDefinition, IValidTokenTypeMap } from 'vs/workbench/services/textMate/common/TMScopeRegistry';
-import { IOnigLib, IRawTheme } from 'vscode-textmate';
+import type { IOnigLib, IRawTheme } from 'vscode-textmate';
 import { TextMateWorkerModel } from './textMateWorkerModel';
 
 export interface ICreateData {

@@ -631,7 +631,7 @@ async function resolveNlsConfiguration() {
 	// See above the comment about the loader and case sensitiveness
 	appLocale = processZhLocale(appLocale.toLowerCase());
 
-	const { getNLSConfiguration } = require('./vs/base/node/languagePacks');
+	const { getNLSConfiguration } = require('./vs/base/node/languagePacks' + requireExtension);
 	nlsConfiguration = await getNLSConfiguration(product.commit, userDataPath, metaDataFile, appLocale, osLocale);
 	return nlsConfiguration ?? { locale: 'en', osLocale, availableLanguages: {} };
 }
