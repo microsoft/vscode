@@ -911,6 +911,7 @@ export const NotebookSetting = {
 	cellToolbarVisibility: 'notebook.cellToolbarVisibility',
 	showCellStatusBar: 'notebook.showCellStatusBar',
 	textDiffEditorPreview: 'notebook.diff.enablePreview',
+	diffOverviewRuler: 'notebook.diff.overviewRuler',
 	experimentalInsertToolbarAlignment: 'notebook.experimental.insertToolbarAlignment',
 	compactView: 'notebook.compactView',
 	focusIndicator: 'notebook.cellFocusIndicator',

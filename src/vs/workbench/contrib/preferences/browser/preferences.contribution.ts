@@ -418,8 +418,9 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 					}
 				});
 			}
-			run(accessor: ServicesAccessor, args?: IOpenSettingsActionOptions) {
-				args = sanitizeOpenSettingsArgs(args);
+			run(accessor: ServicesAccessor, args?: string | IOpenSettingsActionOptions) {
+				// Match the behaviour of workbench.action.openSettings
+				args = typeof args === 'string' ? { query: args } : sanitizeOpenSettingsArgs(args);
 				return accessor.get(IPreferencesService).openWorkspaceSettings(args);
 			}
 		});

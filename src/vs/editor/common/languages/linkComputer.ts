@@ -154,7 +154,8 @@ function getClassifier(): CharacterClassifier<CharacterClass> {
 	if (_classifier === null) {
 		_classifier = new CharacterClassifier<CharacterClass>(CharacterClass.None);
 
-		const FORCE_TERMINATION_CHARACTERS = ' \t<>\'\"\u3001\u3002\uff61\uff64\uff0c\uff0e\uff1a\uff1b\u2018\u3008\u300c\u300e\u3014\uff08\uff3b\uff5b\uff62\uff63\uff5d\uff3d\uff09\u3015\u300f\u300d\u3009\u2019\uff40\uff5e\u2026';
+		// allow-any-unicode-next-line
+		const FORCE_TERMINATION_CHARACTERS = ' \t<>\'\"、。｡､，．：；‘〈「『〔（［｛｢｣｝］）〕』」〉’｀～…';
 		for (let i = 0; i < FORCE_TERMINATION_CHARACTERS.length; i++) {
 			_classifier.set(FORCE_TERMINATION_CHARACTERS.charCodeAt(i), CharacterClass.ForceTermination);
 		}

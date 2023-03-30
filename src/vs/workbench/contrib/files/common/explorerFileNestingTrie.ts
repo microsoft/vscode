@@ -210,7 +210,8 @@ export class SufTrie {
 		}
 
 		if (this.epsilon.length) {
-			lines.push('\u03b5 => ' + this.epsilon.join('; '));
+			// allow-any-unicode-next-line
+			lines.push('ε => ' + this.epsilon.join('; '));
 		}
 
 		[...this.map.entries()].map(([key, trie]) =>

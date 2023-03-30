@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { KeyCode } from 'vs/base/common/keyCodes';
-import { DisposableStore } from 'vs/base/common/lifecycle';
+import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import * as dom from 'vs/base/browser/dom';
 import { Event } from 'vs/base/common/event';
@@ -28,6 +28,7 @@ import { AudioCue, IAudioCueService } from 'vs/platform/audioCues/browser/audioC
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/terminalContextKey';
 import { withNullAsUndefined } from 'vs/base/common/types';
+import { BufferContentTracker } from 'vs/workbench/contrib/terminalContrib/accessibility/browser/bufferContentTracker';
 
 const enum CssClass {
 	Active = 'active',
@@ -40,25 +41,34 @@ interface IAccessibleBufferQuickPickItem extends IQuickPickItem {
 }
 
 export class AccessibleBufferWidget extends DisposableStore {
+
 	private _accessibleBuffer: HTMLElement;
 	private _editorWidget: CodeEditorWidget;
 	private _editorContainer: HTMLElement;
 	private _xtermElement: HTMLElement;
+
 	private readonly _focusedContextKey: IContextKey<boolean>;
 	private readonly _focusTracker: dom.IFocusTracker;
 
+	private _listeners: IDisposable[] = [];
+	private _isUpdating: boolean = false;
+	private _pendingUpdates = 0;
+
+	private _bufferTracker: BufferContentTracker;
+
 	constructor(
-		private readonly _instance: ITerminalInstance,
+		private readonly _instance: Pick<ITerminalInstance, 'capabilities' | 'onDidRequestFocus' | 'resource'>,
 		private readonly _xterm: Pick<IXtermTerminal, 'getFont'> & { raw: Terminal },
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IModelService private readonly _modelService: IModelService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IQuickInputService private readonly _quickInputService: IQuickInputService,
 		@IAudioCueService private readonly _audioCueService: IAudioCueService,
-		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
+		@IContextKeyService private readonly _contextKeyService: IContextKeyService
 	) {
 		super();
 		this._xtermElement = _xterm.raw.element!;
+		this._bufferTracker = this._instantiationService.createInstance(BufferContentTracker, _xterm);
 		this._accessibleBuffer = document.createElement('div');
 		this._accessibleBuffer.setAttribute('role', 'document');
 		this._accessibleBuffer.ariaRoleDescription = localize('terminal.integrated.accessibleBuffer', 'Terminal buffer');
@@ -94,14 +104,9 @@ export class AccessibleBufferWidget extends DisposableStore {
 
 		this._focusTracker = this.add(dom.trackFocus(this._editorContainer));
 		this._focusedContextKey = TerminalContextKeys.accessibleBufferFocus.bindTo(this._contextKeyService);
-		this._trackFocus();
+		this.add(this._focusTracker.onDidFocus(() => this._focusedContextKey.set(true)));
+		this.add(this._focusTracker.onDidBlur(() => this._focusedContextKey.reset()));
 
-		// initialize terminal listeners
-		this.add(this._instance.onDidRequestFocus(() => {
-			if (this._isActive()) {
-				this._editorWidget.focus();
-			}
-		}));
 		this.add(Event.runAndSubscribe(this._xterm.raw.onResize, () => this._layout()));
 		this.add(this._configurationService.onDidChangeConfiguration(e => {
 			if (e.affectedKeys.has(TerminalSettingId.FontFamily) || e.affectedKeys.has(TerminalSettingId.FontSize) || e.affectedKeys.has(TerminalSettingId.LineHeight) || e.affectedKeys.has(TerminalSettingId.LetterSpacing)) {
@@ -109,13 +114,6 @@ export class AccessibleBufferWidget extends DisposableStore {
 				this._editorWidget.updateOptions({ fontFamily: font.fontFamily, fontSize: font.fontSize, lineHeight: font.charHeight ? font.charHeight * font.lineHeight : 1, letterSpacing: font.letterSpacing });
 			}
 		}));
-		this.add(this._xterm.raw.onWriteParsed(async () => {
-			if (this._isActive()) {
-				await this._updateEditor(true);
-			}
-		}));
-
-		// initialize editor listeners
 		this.add(this._editorWidget.onKeyDown((e) => {
 			switch (e.keyCode) {
 				case KeyCode.Tab:
@@ -131,13 +129,14 @@ export class AccessibleBufferWidget extends DisposableStore {
 			}
 		}));
 		this.add(this._editorWidget.onDidFocusEditorText(async () => {
-			if (this._isActive()) {
+			if (this._accessibleBuffer.classList.contains(CssClass.Active)) {
 				// the user has focused the editor via mouse or
 				// Go to Command was run so we've already updated the editor
 				return;
 			}
 			// if the editor is focused via tab, we need to update the model
 			// and show it
+			this._registerListeners();
 			await this._updateEditor();
 			this._accessibleBuffer.classList.add(CssClass.Active);
 			this._xtermElement.classList.add(CssClass.Hide);
@@ -146,50 +145,19 @@ export class AccessibleBufferWidget extends DisposableStore {
 		this._updateEditor();
 	}
 
-	private _trackFocus(): void {
-		this.add(this._focusTracker.onDidFocus(() => this._focusedContextKey.set(true)));
-		this.add(this._focusTracker.onDidBlur(() => this._focusedContextKey.reset()));
+	override dispose(): void {
+		this._disposeListeners();
+		super.dispose();
 	}
 
-	private _isActive(): boolean {
-		return this._accessibleBuffer.classList.contains(CssClass.Active);
-	}
-
-	private _hide(): void {
-		this._accessibleBuffer.classList.remove(CssClass.Active);
-		this._xtermElement.classList.remove(CssClass.Hide);
-	}
-
-	private async _updateModel(insertion?: boolean): Promise<ITextModel> {
-		let model = this._editorWidget.getModel();
-		const lineCount = model?.getLineCount() ?? 0;
-		if (insertion && model && lineCount > this._xterm.raw.rows) {
-			const lineNumber = lineCount + 1;
-			model.pushEditOperations(null, [{
-				range: { startLineNumber: lineNumber, endLineNumber: lineNumber, startColumn: 1, endColumn: 1 }, text: this._getContent(1)
-			}], () => []);
-		} else {
-			model = await this._getTextModel(this._instance.resource.with({ fragment: this._getContent() }));
-		}
-		if (!model) {
-			throw new Error('Could not create accessible buffer editor model');
-		}
-		this._editorWidget.setModel(model);
-		return model;
-	}
-
-	private async _updateEditor(insertion?: boolean): Promise<void> {
-		const model = await this._updateModel(insertion);
-		if (!model) {
-			return;
-		}
-		const lineNumber = model.getLineCount() - 1;
-		const selection = this._editorWidget.getSelection();
-		// If the selection is at the top of the buffer, IE the default when not set, move it to the bottom
-		if (selection?.startColumn === 1 && selection.endColumn === 1 && selection.startLineNumber === 1 && selection.endLineNumber === 1) {
-			this._editorWidget.setSelection({ startLineNumber: lineNumber, startColumn: 1, endLineNumber: lineNumber, endColumn: 1 });
-		}
-		this._editorWidget.setScrollTop(this._editorWidget.getScrollHeight());
+	async show(): Promise<void> {
+		this._registerListeners();
+		await this._updateEditor();
+		this._accessibleBuffer.tabIndex = -1;
+		this._layout();
+		this._accessibleBuffer.classList.add(CssClass.Active);
+		this._xtermElement.classList.add(CssClass.Hide);
+		this._editorWidget.focus();
 	}
 
 	async createQuickPick(): Promise<IQuickPick<IAccessibleBufferQuickPickItem> | undefined> {
@@ -247,59 +215,76 @@ export class AccessibleBufferWidget extends DisposableStore {
 		return quickPick;
 	}
 
+	private _hide(): void {
+		this._disposeListeners();
+		this._accessibleBuffer.classList.remove(CssClass.Active);
+		this._xtermElement.classList.remove(CssClass.Hide);
+	}
+
+	private async _updateEditor(): Promise<void> {
+		if (this._isUpdating) {
+			this._pendingUpdates++;
+			return;
+		}
+		this._isUpdating = true;
+		const model = await this._updateModel();
+		if (!model) {
+			return;
+		}
+		const lineNumber = model.getLineCount();
+		const selection = this._editorWidget.getSelection();
+		// If the selection is at the top of the buffer, IE the default when not set, move it to the bottom
+		if (selection?.startColumn === 1 && selection.endColumn === 1 && selection.startLineNumber === 1 && selection.endLineNumber === 1) {
+			this._editorWidget.setSelection({ startLineNumber: lineNumber, startColumn: 1, endLineNumber: lineNumber, endColumn: 1 });
+		}
+		this._editorWidget.setScrollTop(this._editorWidget.getScrollHeight());
+		this._isUpdating = false;
+		if (this._pendingUpdates) {
+			this._pendingUpdates--;
+			await this._updateEditor();
+		}
+	}
+
 	private _layout(): void {
 		this._editorWidget.layout({ width: this._xtermElement.clientWidth, height: this._xtermElement.clientHeight });
 	}
 
-	async show(): Promise<void> {
-		await this._updateEditor();
-		this._accessibleBuffer.tabIndex = -1;
-		this._layout();
-		this._accessibleBuffer.classList.add(CssClass.Active);
-		this._xtermElement.classList.add(CssClass.Hide);
-		this._editorWidget.focus();
+	private _registerListeners(): void {
+		this._xterm.raw.onWriteParsed(async () => {
+			if (this._xterm.raw.buffer.active.baseY === 0) {
+				await this._updateEditor();
+			}
+		});
+		const onRequestUpdateEditor = Event.latch(this._xterm.raw.onScroll);
+		this._listeners.push(onRequestUpdateEditor(async () => await this._updateEditor()));
+		this._listeners.push(this._instance.onDidRequestFocus(() => this._editorWidget.focus()));
 	}
 
-	private _getContent(startIndex?: number): string {
-		const buffer = this._xterm.raw.buffer.active;
-		if (!buffer) {
-			return '';
+	private _disposeListeners(): void {
+		for (const listener of this._listeners) {
+			listener.dispose();
 		}
-
-		const scrollback: number = this._configurationService.getValue(TerminalSettingId.Scrollback);
-		const maxBufferSize = scrollback + this._xterm.raw.rows - 1;
-		const end = Math.min(maxBufferSize, buffer.length - 1);
-		if (startIndex) {
-			// If the last buffer index is requested, this is as a result of
-			// a dynamic addition. Return only the last line to prevent duplication.
-			const line = buffer.getLine(end - 1)?.translateToString(false).replace(new RegExp(' ', 'g'), '\xA0');
-			const result = line ? line + '\n' : '';
-			return result;
-		}
-
-		const lines: string[] = [];
-		let currentLine: string = '';
-		for (let i = 0; i <= end; i++) {
-			const line = buffer.getLine(i);
-			if (!line) {
-				continue;
-			}
-			const isWrapped = buffer.getLine(i + 1)?.isWrapped;
-			currentLine += line.translateToString(!isWrapped);
-			if (currentLine && !isWrapped || i === end - 1) {
-				lines.push(currentLine.replace(new RegExp(' ', 'g'), '\xA0'));
-				currentLine = '';
-			}
-		}
-
-		return lines.join('\n');
 	}
 
-	private async _getTextModel(resource: URI): Promise<ITextModel | null> {
+	async getTextModel(resource: URI): Promise<ITextModel | null> {
 		const existing = this._modelService.getModel(resource);
 		if (existing && !existing.isDisposed()) {
 			return existing;
 		}
 		return this._modelService.createModel(resource.fragment, null, resource, false);
+	}
+
+
+	private async _updateModel(): Promise<ITextModel> {
+		this._bufferTracker.update();
+		let model = this._editorWidget.getModel();
+		const text = this._bufferTracker.lines.join('\n');
+		if (model) {
+			model.setValue(text);
+		} else {
+			model = await this.getTextModel(this._instance.resource.with({ fragment: text }));
+		}
+		this._editorWidget.setModel(model);
+		return model!;
 	}
 }

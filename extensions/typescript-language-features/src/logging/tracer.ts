@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import type * as Proto from '../protocol';
+import type * as Proto from '../tsServer/protocol/protocol';
 import { Logger } from './logger';
 
 enum Trace {

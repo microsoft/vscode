@@ -8,9 +8,9 @@
  */
 
 import * as vscode from 'vscode';
-import type * as Proto from '../protocol';
-import * as PConst from '../protocol.const';
-import { ITypeScriptServiceClient } from '../typescriptService';
+import type * as Proto from './tsServer/protocol/protocol';
+import * as PConst from './tsServer/protocol/protocol.const';
+import { ITypeScriptServiceClient } from './typescriptService';
 
 export namespace Range {
 	export const fromTextSpan = (span: Proto.TextSpan): vscode.Range =>
