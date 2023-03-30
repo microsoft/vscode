@@ -5,9 +5,9 @@
 
 import * as assert from 'assert';
 import 'mocha';
-import { SymbolDisplayPart } from '../../protocol';
 import { Uri } from 'vscode';
-import { IFilePathToResourceConverter, markdownDocumentation, plainWithLinks, tagsMarkdownPreview } from '../../utils/previewer';
+import { IFilePathToResourceConverter, markdownDocumentation, plainWithLinks, tagsMarkdownPreview } from '../../languageFeatures/util/textRendering';
+import { SymbolDisplayPart } from '../../tsServer/protocol/protocol';
 
 const noopToResource: IFilePathToResourceConverter = {
 	toResource: (path) => Uri.file(path)

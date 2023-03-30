@@ -3,14 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancelablePromise } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Event } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
-import { CompletionItemKind, ProviderResult } from 'vs/editor/common/languages';
+import { ProviderResult } from 'vs/editor/common/languages';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IInteractiveResponseErrorDetails, InteractiveSessionModel } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionModel';
+import { InteractiveSessionModel } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionModel';
 
 export interface IInteractiveSession {
 	id: number;
@@ -18,12 +17,19 @@ export interface IInteractiveSession {
 	requesterAvatarIconUri?: URI;
 	responderUsername: string;
 	responderAvatarIconUri?: URI;
+	inputPlaceholder?: string;
 	dispose?(): void;
 }
 
 export interface IInteractiveRequest {
 	session: IInteractiveSession;
 	message: string | IInteractiveSessionReplyFollowup;
+}
+
+export interface IInteractiveResponseErrorDetails {
+	message: string;
+	responseIsIncomplete?: boolean;
+	responseIsFiltered?: boolean;
 }
 
 export interface IInteractiveResponse {
@@ -54,7 +60,7 @@ export interface IInteractiveProvider {
 
 export interface IInteractiveSlashCommand {
 	command: string;
-	kind: CompletionItemKind;
+	sortText?: string;
 	detail?: string;
 }
 
@@ -69,7 +75,7 @@ export interface IInteractiveSessionReplyFollowup {
 export interface IInteractiveSessionResponseCommandFollowup {
 	kind: 'command';
 	commandId: string;
-	args: any[];
+	args?: any[];
 	title: string; // supports codicon strings
 }
 
@@ -86,10 +92,20 @@ export interface IInteractiveSessionVoteAction {
 	direction: InteractiveSessionVoteDirection;
 }
 
+export enum InteractiveSessionCopyKind {
+	// Keyboard shortcut or context menu
+	Action = 1,
+	Toolbar = 2
+}
+
 export interface IInteractiveSessionCopyAction {
 	kind: 'copy';
 	responseId: string;
 	codeBlockIndex: number;
+	copyType: InteractiveSessionCopyKind;
+	copiedCharacters: number;
+	totalCharacters: number;
+	copiedText: string;
 }
 
 export interface IInteractiveSessionInsertAction {
@@ -122,6 +138,11 @@ export interface IInteractiveSessionDynamicRequest {
 	metadata?: any;
 }
 
+export interface IInteractiveSessionCompleteResponse {
+	message: string;
+	errorDetails?: IInteractiveResponseErrorDetails;
+}
+
 export const IInteractiveSessionService = createDecorator<IInteractiveSessionService>('IInteractiveSessionService');
 
 export interface IInteractiveSessionService {
@@ -133,13 +154,16 @@ export interface IInteractiveSessionService {
 	/**
 	 * Returns whether the request was accepted.
 	 */
-	sendRequest(sessionId: number, message: string | IInteractiveSessionReplyFollowup): { completePromise: CancelablePromise<void> } | undefined;
+	sendRequest(sessionId: number, message: string | IInteractiveSessionReplyFollowup): { completePromise: Promise<void> } | undefined;
+	cancelCurrentRequestForSession(sessionId: number): void;
 	getSlashCommands(sessionId: number, token: CancellationToken): Promise<IInteractiveSlashCommand[] | undefined>;
 	clearSession(sessionId: number): void;
 	acceptNewSessionState(sessionId: number, state: any): void;
 	addInteractiveRequest(context: any): void;
+	addCompleteRequest(message: string, response: IInteractiveSessionCompleteResponse): void;
 	sendInteractiveRequestToProvider(providerId: string, message: IInteractiveSessionDynamicRequest): void;
 	provideSuggestions(providerId: string, token: CancellationToken): Promise<string[] | undefined>;
+	releaseSession(sessionId: number): void;
 
 	onDidPerformUserAction: Event<IInteractiveSessionUserActionEvent>;
 	notifyUserAction(event: IInteractiveSessionUserActionEvent): void;

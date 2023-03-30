@@ -2119,8 +2119,8 @@ export namespace InteractiveSessionFollowup {
 		} else if ('commandId' in followup) {
 			return <IInteractiveSessionResponseCommandFollowup>{
 				kind: 'command',
-				title: followup.title,
-				commandId: followup.commandId,
+				title: followup.title ?? '',
+				commandId: followup.commandId ?? '',
 				args: followup.args
 			};
 		} else {

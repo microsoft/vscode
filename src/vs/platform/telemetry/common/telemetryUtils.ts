@@ -350,18 +350,16 @@ function removePropertiesWithPossibleUserInfo(property: string): string {
 		return property;
 	}
 
-	const value = property.toLowerCase();
-
 	const userDataRegexes = [
 		{ label: 'Google API Key', regex: /AIza[A-Za-z0-9_\\\-]{35}/ },
 		{ label: 'Slack Token', regex: /xox[pbar]\-[A-Za-z0-9]/ },
-		{ label: 'Generic Secret', regex: /(key|token|sig|secret|signature|password|passwd|pwd|android:value)[^a-zA-Z0-9]/ },
+		{ label: 'Generic Secret', regex: /(key|token|sig|secret|signature|password|passwd|pwd|android:value)[^a-zA-Z0-9]/i },
 		{ label: 'Email', regex: /@[a-zA-Z0-9-]+\.[a-zA-Z0-9-]+/ } // Regex which matches @*.site
 	];
 
 	// Check for common user data in the telemetry events
 	for (const secretRegex of userDataRegexes) {
-		if (secretRegex.regex.test(value)) {
+		if (secretRegex.regex.test(property)) {
 			return `<REDACTED: ${secretRegex.label}>`;
 		}
 	}

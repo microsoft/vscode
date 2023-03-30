@@ -52,7 +52,7 @@
 		"focusBorder": "#0078d4",
 		"foreground": "#cccccc",
 		"icon.foreground": "#cccccc",
-		"input.background": "#ffffff0f",
+		"input.background": "#2a2a2a",
 		"input.border": "#ffffff1f",
 		"input.foreground": "#cccccc",
 		"input.placeholderForeground": "#ffffff79",

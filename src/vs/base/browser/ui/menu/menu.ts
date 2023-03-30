@@ -1034,7 +1034,8 @@ ${formatRule(Codicon.menuSubmenu)}
 	flex-direction: row-reverse;
 }
 
-.monaco-menu .monaco-action-bar .action-item {
+:host-context(.monaco-workbench:not(.reduce-motion)) .monaco-menu .monaco-action-bar .action-item,
+.monaco-workbench:not(.reduce-motion) .monaco-menu .monaco-action-bar .action-item {
 	cursor: pointer;
 	display: inline-block;
 	transition: transform 50ms ease;
@@ -1309,7 +1310,7 @@ ${formatRule(Codicon.menuSubmenu)}
 				font-size: 11px !important;
 			}
 
-			.monaco-scrollable-element > .visible {
+			:host-context(.monaco-workbench:not(.reduce-motion)) .monaco-scrollable-element > .visible {
 				opacity: 1;
 
 				/* Background rule added for IE9 - to allow clicks on dom node */
@@ -1321,7 +1322,7 @@ ${formatRule(Codicon.menuSubmenu)}
 				opacity: 0;
 				pointer-events: none;
 			}
-			.monaco-scrollable-element > .invisible.fade {
+			:host-context(.monaco-workbench:not(.reduce-motion)) .monaco-scrollable-element > .invisible.fade {
 				transition: opacity 800ms linear;
 			}
 

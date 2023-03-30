@@ -22,7 +22,7 @@ use crate::{
 	auth::Auth,
 	constants::APPLICATION_NAME,
 	json_rpc::{new_json_rpc, start_json_rpc},
-	log::{self, Logger},
+	log,
 	singleton::connect_as_client,
 	state::LauncherPaths,
 	tunnels::{
@@ -139,7 +139,7 @@ pub async fn service(
 					],
 				)
 				.await?;
-			ctx.log.result(format!("Service successfully installed! You can use `{} tunnel service log` to monitor it, and `code tunnel service uninstall` to remove it.", APPLICATION_NAME));
+			ctx.log.result(format!("Service successfully installed! You can use `{} tunnel service log` to monitor it, and `{} tunnel service uninstall` to remove it.", APPLICATION_NAME, APPLICATION_NAME));
 		}
 		TunnelServiceSubCommands::Uninstall => {
 			manager.unregister().await?;
@@ -330,10 +330,14 @@ fn get_connection_token(tunnel: &ActiveTunnel) -> String {
 
 async fn serve_with_csa(
 	paths: LauncherPaths,
-	mut log: Logger,
+	mut log: log::Logger,
 	gateway_args: TunnelServeArgs,
 	mut csa: CodeServerArgs,
 ) -> Result<i32, AnyError> {
+	let log_broadcast = BroadcastLogSink::new();
+	log = log.tee(log_broadcast.clone());
+	log::install_global_logger(log.clone()); // re-install so that library logs are captured
+
 	let shutdown = match gateway_args
 		.parent_process_id
 		.and_then(|p| Pid::from_str(&p).ok())
@@ -377,8 +381,6 @@ async fn serve_with_csa(
 
 	debug!(log, "starting as new singleton");
 
-	let log_broadcast = BroadcastLogSink::new();
-	log = log.tee(log_broadcast.clone());
 	let mut server =
 		make_singleton_server(log_broadcast.clone(), log.clone(), server, shutdown.clone());
 	let platform = spanf!(log, log.span("prereq"), PreReqChecker::new().verify())?;
