@@ -28,7 +28,6 @@ export class BufferContentTracker {
 			// the terminal was cleared, reset the cache
 			this._lines = [];
 			this._lastCachedMarker = undefined;
-			return;
 		}
 		this._removeViewportContent();
 		this._updateScrollbackContent();
