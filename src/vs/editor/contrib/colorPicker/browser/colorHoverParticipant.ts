@@ -9,9 +9,9 @@ import { Color, RGBA } from 'vs/base/common/color';
 import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
-import { Range } from 'vs/editor/common/core/range';
+import { IRange, Range } from 'vs/editor/common/core/range';
 import { IModelDecoration, ITextModel, TrackedRangeStickiness } from 'vs/editor/common/model';
-import { DocumentColorProvider, IColorInformation } from 'vs/editor/common/languages';
+import { DocumentColorProvider, IColor, IColorInformation, IColorPresentation, ProviderResult } from 'vs/editor/common/languages';
 import { getColorPresentations } from 'vs/editor/contrib/colorPicker/browser/color';
 import { ColorDetector } from 'vs/editor/contrib/colorPicker/browser/colorDetector';
 import { ColorPickerModel } from 'vs/editor/contrib/colorPicker/browser/colorPickerModel';
@@ -257,7 +257,6 @@ export class ColorHoverParticipant implements IEditorHoverParticipant<ColorHover
 			console.log('inside of on color flushed');
 			console.log('this._foundInMap : ', this._foundInMap);
 			if (!this._standaloneColorPickerWidget) {
-				this._foundInMap = false;
 				updateColorPresentations(color).then(updateEditorModel);
 			}
 			this._color = color;

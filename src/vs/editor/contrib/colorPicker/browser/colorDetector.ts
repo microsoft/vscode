@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancelablePromise, createCancelablePromise, TimeoutTimer } from 'vs/base/common/async';
+import { CancellationToken } from 'vs/base/common/cancellation';
 import { RGBA } from 'vs/base/common/color';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
@@ -17,15 +18,27 @@ import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
-import { IModelDecoration, IModelDeltaDecoration } from 'vs/editor/common/model';
+import { IModelDecoration, IModelDeltaDecoration, ITextModel } from 'vs/editor/common/model';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 import { IFeatureDebounceInformation, ILanguageFeatureDebounceService } from 'vs/editor/common/services/languageFeatureDebounce';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import { getColors, IColorData } from 'vs/editor/contrib/colorPicker/browser/color';
+import { DefaultDocumentColorProviderForStandaloneColorPicker } from 'vs/editor/contrib/colorPicker/browser/defaultDocumentColorProvider';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 export const ColorDecorationInjectedTextMarker = Object.create({});
 
+export function getDefaultColors(model: ITextModel, token: CancellationToken): Promise<IColorData[]> {
+	const colors: IColorData[] = [];
+	const provider = new DefaultDocumentColorProviderForStandaloneColorPicker();
+	const result = provider.provideDocumentColors(model, token);
+	if (Array.isArray(result)) {
+		for (const colorInfo of result) {
+			colors.push({ colorInfo, provider });
+		}
+	}
+	return new Promise(() => { return colors; });
+}
 
 export class ColorDetector extends Disposable implements IEditorContribution {
 
@@ -48,6 +61,8 @@ export class ColorDetector extends Disposable implements IEditorContribution {
 	private readonly _ruleFactory = new DynamicCssRules(this._editor);
 
 	private readonly _decoratorLimitReporter = new DecoratorLimitReporter();
+
+	private useDefaultColorProvider: boolean = false;
 
 	constructor(
 		private readonly _editor: ICodeEditor,
@@ -124,7 +139,11 @@ export class ColorDetector extends Disposable implements IEditorContribution {
 		}
 		const model = this._editor.getModel();
 
-		if (!model || !this._languageFeaturesService.colorProvider.has(model)) {
+		// TODO: transform into a setting later
+		// When this is enabled, this means we still want the color boxes to show up with the default color provider that makes boxes show up
+		this.useDefaultColorProvider = true;
+
+		if (!model || !this._languageFeaturesService.colorProvider.has(model) && !this.useDefaultColorProvider) {
 			console.log('second early return');
 			return;
 		}
@@ -149,7 +168,16 @@ export class ColorDetector extends Disposable implements IEditorContribution {
 			}
 			const sw = new StopWatch(false);
 			console.log('before getColors of beginCompute');
-			const colors = await getColors(this._languageFeaturesService.colorProvider, model, token);
+			let colors = await getColors(this._languageFeaturesService.colorProvider, model, token);
+
+			if (this.useDefaultColorProvider && colors.length === 0) {
+				console.log('entered into the first if loop of the beginCompute');
+				// When there are no colors and the default color provider is used, then compute the color data from this
+				colors = await getDefaultColors(model, token);
+			} else if (this.useDefaultColorProvider) {
+				console.log('entered into the second if loop of begin compute');
+				// In this case, there are colors but there are also default colors, so we should not show duplicated, if duplicates are found
+			}
 			this._debounceInformation.update(model, sw.elapsed());
 			return colors;
 		});
@@ -173,6 +201,8 @@ export class ColorDetector extends Disposable implements IEditorContribution {
 	}
 
 	private updateDecorations(colorDatas: IColorData[]): void {
+		console.log('inside of updateDecorations');
+		console.log('colorDatas: ', colorDatas);
 		const decorations = colorDatas.map(c => ({
 			range: {
 				startLineNumber: c.colorInfo.range.startLineNumber,
@@ -194,6 +224,8 @@ export class ColorDetector extends Disposable implements IEditorContribution {
 	private _colorDecorationClassRefs = this._register(new DisposableStore());
 
 	private updateColorDecorators(colorData: IColorData[]): void {
+		console.log('inside of update color decorators');
+		console.log('colorDatas : ', colorData);
 		this._colorDecorationClassRefs.clear();
 
 		const decorations: IModelDeltaDecoration[] = [];
