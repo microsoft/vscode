@@ -234,7 +234,9 @@ export class ColorHoverParticipant implements IEditorHoverParticipant<ColorHover
 		if (this._standaloneColorPickerWidget) {
 			console.log('When using the standalone color picker widget to render the hover parts');
 			// set an initial color to avoid the color picker to be empty
-			const color: Color = new Color(new RGBA(0, 0, 0, 1));
+			// const color: Color = new Color(new RGBA(0, 0, 0, 1));
+			console.log('hoverParts : ', hoverParts);
+			const color = hoverParts[0].model.color;
 			updateColorPresentations(color);
 			this._color = color;
 		}

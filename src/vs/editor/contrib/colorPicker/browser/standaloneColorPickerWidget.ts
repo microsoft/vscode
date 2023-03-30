@@ -36,6 +36,7 @@ import { onUnexpectedError } from 'vs/base/common/errors';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 import { DynamicCssRules } from 'vs/editor/browser/editorDom';
 import { noBreakWhitespace } from 'vs/base/common/strings';
+import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
 
 export class StandaloneColorPickerController extends Disposable implements IEditorContribution {
 
@@ -189,7 +190,11 @@ export class StandaloneColorPickerWidget implements IContentWidget {
 
 		// Starting the hover operation
 		// TODO: The hover operation should always be immediate since started using the keybindings
-		this._standaloneColorPickerComputer.start();
+		// Call the start function only when the first update has been completed, not before
+		this._disposables.add(this._standaloneColorPickerComputer.onUpdated(() => {
+			this._standaloneColorPickerComputer.start();
+		}));
+
 		this._colorHoverVisible = EditorContextKeys.standaloneColorPickerVisible.bindTo(this.contextKeyService);
 		this._colorHoverFocused = EditorContextKeys.standaloneColorPickerFocused.bindTo(this.contextKeyService);
 	}
@@ -342,6 +347,9 @@ export class StandaloneColorPickerComputer extends Disposable implements IStanda
 
 	private readonly _onResult = this._register(new Emitter<StandaloneColorPickerResult>());
 	public readonly onResult = this._onResult.event;
+	private readonly _updated = this._register(new Emitter<void>());
+	public readonly onUpdated = this._updated.event;
+
 	private _disposables = new DisposableStore();
 	private _defaultProvider: DocumentColorProvider | undefined = undefined;
 	private readonly _localToDispose = this._register(new DisposableStore());
@@ -390,7 +398,7 @@ export class StandaloneColorPickerComputer extends Disposable implements IStanda
 
 	private async computeAsync(range: IRange): Promise<ColorHover[]> {
 
-		console.log('computeSync of ColorHoverComputer');
+		console.log('computeAsync of ColorHoverComputer');
 
 		if (!this._editor.hasModel()) {
 			return [];
@@ -469,6 +477,7 @@ export class StandaloneColorPickerComputer extends Disposable implements IStanda
 			}
 			const sw = new StopWatch(false);
 			const colors = await this.getColors(this._defaultProvider!, model, token);
+			console.log('after getColors');
 			this._debounceInformation.update(model, sw.elapsed());
 			return colors;
 		});
@@ -476,6 +485,8 @@ export class StandaloneColorPickerComputer extends Disposable implements IStanda
 			this.updateDecorations(colorInfos);
 			// this.updateColorDecorators(colorInfos);
 			this._computePromise = null;
+			// fire the even to sginal that now start can be called
+			this._updated.fire();
 		}, onUnexpectedError);
 	}
 
@@ -575,6 +586,7 @@ export class StandaloneColorPickerComputer extends Disposable implements IStanda
 // Then provide the appropropriate document symbols and the appropriate color representations
 
 class DefaultDocumentColorProviderForStandaloneColorPicker implements DocumentColorProvider {
+
 	constructor() { }
 
 	// TODO: Have a pop up which translates somewhow the RGBA to another format, on save, it adds another pannel
@@ -617,10 +629,15 @@ class DefaultDocumentColorProviderForStandaloneColorPicker implements DocumentCo
 
 			console.log('match : ', match);
 
-			const red = Number(match.at(2));
-			const green = Number(match.at(4));
-			const blue = Number(match.at(6));
+			const red = Number(match.at(2)) / 255;
+			const green = Number(match.at(4)) / 255;
+			const blue = Number(match.at(6)) / 255;
 			const alpha = Number(match.at(8));
+
+			console.log('red : ', red);
+			console.log('green : ', green);
+			console.log('blue : ', blue);
+			console.log('alpha : ', alpha);
 
 			if (!(red && blue && green && alpha)) {
 				return;
@@ -653,7 +670,6 @@ class DefaultDocumentColorProviderForStandaloneColorPicker implements DocumentCo
 		console.log('colorInfo : ', colorInfo);
 		// Using the CSS color format as the default
 		// Allow the user to be able to define other custom color formats
-
 		const range = colorInfo.range;
 		const colorFromInfo: IColor = colorInfo.color;
 		const color = new Color(new RGBA(Math.round(255 * colorFromInfo.red), Math.round(255 * colorFromInfo.green), Math.round(255 * colorFromInfo.blue), colorFromInfo.alpha));
