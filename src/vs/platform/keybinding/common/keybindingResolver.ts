@@ -350,15 +350,14 @@ export class KeybindingResolver {
 			return NoMatchingKb;
 		}
 
-		if (currentChords.length === 0 && result.chords.length > 1 && result.chords[1] !== null) { // first chord of a multi-chord KB matched
-			this._log(`\\ From ${lookupMap.length} keybinding entries, matched chord, when: ${printWhenExplanation(result.when)}, source: ${printSourceExplanation(result)}.`);
-			return MoreChordsNeeded;
-		} else if (currentChords.length !== 0 && currentChords.length + 1 < result.chords.length) { // prefix (ie, a sequence of chords) of a multi-chord KB matched, eg 2 out of 3 matched - still need one more to dispatch the KB
-			this._log(`\\ From ${lookupMap.length} keybinding entries, continued chord, when: ${printWhenExplanation(result.when)}, source: ${printSourceExplanation(result)}.`);
+		if (currentChords.length + 1 /* keypress */ < result.chords.length) {
+			// The chord sequence is not complete
+			this._log(`\\ From ${lookupMap.length} keybinding entries, awaiting ${result.chords.length - currentChords.length - 1} more chord(s), when: ${printWhenExplanation(result.when)}, source: ${printSourceExplanation(result)}.`);
 			return MoreChordsNeeded;
 		}
 
 		this._log(`\\ From ${lookupMap.length} keybinding entries, matched ${result.command}, when: ${printWhenExplanation(result.when)}, source: ${printSourceExplanation(result)}.`);
+
 		return KbFound(result.command, result.commandArgs, result.bubble);
 	}
 
