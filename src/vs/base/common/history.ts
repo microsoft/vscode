@@ -152,6 +152,8 @@ export class HistoryNavigator2<T> {
 		this.cursor = this.tail;
 		this.size++;
 
+		this._removeDuplicateValues(value);
+
 		while (this.size > this.capacity) {
 			this.head = this.head.next!;
 			this.head.previous = undefined;
@@ -165,6 +167,9 @@ export class HistoryNavigator2<T> {
 	replaceLast(value: T): T {
 		const oldValue = this.tail.value;
 		this.tail.value = value;
+
+		this._removeDuplicateValues(value);
+
 		return oldValue;
 	}
 
@@ -214,6 +219,26 @@ export class HistoryNavigator2<T> {
 		while (node) {
 			yield node.value;
 			node = node.next;
+		}
+	}
+
+	private _removeDuplicateValues(value: T): void {
+		let temp = this.head;
+
+		while (temp !== this.tail) {
+			if (temp.value === value) {
+				if (temp === this.head) {
+					this.head = this.head.next!;
+					this.head.previous = undefined;
+				} else {
+					temp.previous!.next = temp.next;
+					temp.next!.previous = temp.previous;
+				}
+
+				this.size--;
+			}
+
+			temp = temp.next!;
 		}
 	}
 }
