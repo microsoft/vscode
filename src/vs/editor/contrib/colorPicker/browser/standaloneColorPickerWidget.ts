@@ -253,7 +253,7 @@ export class StandaloneColorPickerWidget implements IContentWidget {
 				// Setting the hover parts, these are saved only, not directly used
 				this._colorHoverData = hoverParts;
 				// Calling the hover parts of the participant
-				participant.foundInMap = true;
+				participant.foundInMap = foundInMap;
 				this._disposables.add(participant.renderHoverParts(context, hoverParts));
 			}
 		}
@@ -379,10 +379,7 @@ export class StandaloneColorPickerComputer extends Disposable implements IStanda
 	private _computePromise: CancelablePromise<IColorData[]> | null = null;
 	private _timeoutTimer: TimeoutTimer | null = null;
 	private _debounceInformation: IFeatureDebounceInformation;
-	private readonly _colorDecoratorIds = this._editor.createDecorationsCollection();
 	private _decorationsIds: string[] = [];
-	private readonly _ruleFactory = new DynamicCssRules(this._editor);
-	private readonly _decoratorLimitReporter = new DecoratorLimitReporter();
 
 	// TODO: Input the correct range directly
 	constructor(
@@ -570,51 +567,6 @@ export class StandaloneColorPickerComputer extends Disposable implements IStanda
 		console.log('colorDetector?.colorDatas : ', colorDetector?.colorDatas);
 	}
 
-	private _colorDecorationClassRefs = this._register(new DisposableStore());
-
-	private updateColorDecorators(colorData: IColorData[]): void {
-		console.log('inside of update color decorations');
-
-		this._colorDecorationClassRefs.clear();
-
-		const decorations: IModelDeltaDecoration[] = [];
-
-		const limit = this._editor.getOption(EditorOption.colorDecoratorsLimit);
-
-		for (let i = 0; i < colorData.length && decorations.length < limit; i++) {
-			const { red, green, blue, alpha } = colorData[i].colorInfo.color;
-			const rgba = new RGBA(Math.round(red * 255), Math.round(green * 255), Math.round(blue * 255), alpha);
-			const color = `rgba(${rgba.r}, ${rgba.g}, ${rgba.b}, ${rgba.a})`;
-
-			const ref = this._colorDecorationClassRefs.add(
-				this._ruleFactory.createClassNameRef({
-					backgroundColor: color
-				})
-			);
-
-			decorations.push({
-				range: {
-					startLineNumber: colorData[i].colorInfo.range.startLineNumber,
-					startColumn: colorData[i].colorInfo.range.startColumn,
-					endLineNumber: colorData[i].colorInfo.range.endLineNumber,
-					endColumn: colorData[i].colorInfo.range.endColumn
-				},
-				options: {
-					description: 'colorDetector',
-					before: {
-						content: noBreakWhitespace,
-						inlineClassName: `${ref.className} colorpicker-color-decoration`,
-						inlineClassNameAffectsLetterSpacing: true,
-						attachedData: ColorDecorationInjectedTextMarker
-					}
-				}
-			});
-		}
-		const limited = limit < colorData.length ? limit : false;
-		this._decoratorLimitReporter.update(colorData.length, limited);
-		this._colorDecoratorIds.set(decorations);
-	}
-
 	public override dispose(): void {
 		super.dispose();
 		this._disposables.dispose();
@@ -696,10 +648,7 @@ class DefaultDocumentColorProviderForStandaloneColorPicker implements DocumentCo
 
 		// ALSO do hsla and hexa
 
-		// const exampleIColorInformation = {
-		// 	range: { startLineNumber: 1, endLineNumber: 2, startColumn: 1, endColumn: 1 },
-		// 	color: { red: 0.5, green: 0.5, blue: 0.5, alpha: 0.5 }
-		// };
+
 		console.log('result : ', result);
 		return result;
 	}

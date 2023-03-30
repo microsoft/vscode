@@ -158,6 +158,7 @@ export class ColorHoverParticipant implements IEditorHoverParticipant<ColorHover
 	}
 
 	public set foundInMap(value: boolean) {
+		console.log('inside of setting the foundInMap value to : ', value);
 		this._foundInMap = value;
 	}
 
@@ -255,9 +256,9 @@ export class ColorHoverParticipant implements IEditorHoverParticipant<ColorHover
 			// Call update editor model only when the enter key is pressed
 			console.log('inside of on color flushed');
 			console.log('this._foundInMap : ', this._foundInMap);
-			if (!this._standaloneColorPickerWidget || this._standaloneColorPickerWidget && this._foundInMap) {
-				updateColorPresentations(color).then(updateEditorModel);
+			if (!this._standaloneColorPickerWidget) {
 				this._foundInMap = false;
+				updateColorPresentations(color).then(updateEditorModel);
 			}
 			this._color = color;
 		}));
