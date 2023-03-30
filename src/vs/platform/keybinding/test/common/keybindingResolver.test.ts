@@ -381,25 +381,35 @@ suite('KeybindingResolver', () => {
 				undefined
 			),
 			_kbItem(
-				KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyMod.CtrlCmd | KeyCode.KeyC),
+				KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyMod.CtrlCmd | KeyCode.KeyC), // cmd+k cmd+c
 				'comment lines',
 				undefined
 			),
 			_kbItem(
-				KeyChord(KeyMod.CtrlCmd | KeyCode.KeyG, KeyMod.CtrlCmd | KeyCode.KeyC),
+				KeyChord(KeyMod.CtrlCmd | KeyCode.KeyG, KeyMod.CtrlCmd | KeyCode.KeyC), // cmd+g cmd+c
 				'unreachablechord',
 				undefined
 			),
 			_kbItem(
-				KeyMod.CtrlCmd | KeyCode.KeyG,
+				KeyMod.CtrlCmd | KeyCode.KeyG, // cmd+g
 				'eleven',
 				undefined
 			),
 			_kbItem(
-				[KeyMod.CtrlCmd | KeyCode.KeyK, KeyCode.KeyA, KeyCode.KeyB],
+				[KeyMod.CtrlCmd | KeyCode.KeyK, KeyCode.KeyA, KeyCode.KeyB], // cmd+k a b
 				'long multi chord',
 				undefined
 			),
+			_kbItem(
+				[KeyMod.CtrlCmd | KeyCode.KeyB, KeyMod.CtrlCmd | KeyCode.KeyC], // cmd+b cmd+c
+				'shadowed by long-multi-chord-2',
+				undefined
+			),
+			_kbItem(
+				[KeyMod.CtrlCmd | KeyCode.KeyB, KeyMod.CtrlCmd | KeyCode.KeyC, KeyCode.KeyI], // cmd+b cmd+c i
+				'long-multi-chord-2',
+				undefined
+			)
 		];
 
 		const resolver = new KeybindingResolver(items, [], () => { });
@@ -444,40 +454,67 @@ suite('KeybindingResolver', () => {
 			}
 		};
 
-		test('resolve command - several', () => {
-
+		test('resolve command - 1', () => {
 			testKbLookupByCommand('first', []);
+		});
 
+		test('resolve command - 2', () => {
 			testKbLookupByCommand('second', [KeyCode.KeyZ, KeyCode.KeyX]);
 			testResolve(createContext({ key2: true }), KeyCode.KeyX, 'second');
 			testResolve(createContext({}), KeyCode.KeyZ, 'second');
+		});
 
+		test('resolve command - 3', () => {
 			testKbLookupByCommand('third', [KeyCode.KeyX]);
 			testResolve(createContext({ key3: true }), KeyCode.KeyX, 'third');
+		});
 
+		test('resolve command - 4', () => {
 			testKbLookupByCommand('fourth', []);
+		});
 
+		test('resolve command - 5', () => {
 			testKbLookupByCommand('fifth', [KeyChord(KeyMod.CtrlCmd | KeyCode.KeyY, KeyCode.KeyZ)]);
 			testResolve(createContext({}), KeyChord(KeyMod.CtrlCmd | KeyCode.KeyY, KeyCode.KeyZ), 'fifth');
+		});
 
+		test('resolve command - 6', () => {
 			testKbLookupByCommand('seventh', [KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyMod.CtrlCmd | KeyCode.KeyK)]);
 			testResolve(createContext({}), KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyMod.CtrlCmd | KeyCode.KeyK), 'seventh');
+		});
 
+		test('resolve command - 7', () => {
 			testKbLookupByCommand('uncomment lines', [KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyMod.CtrlCmd | KeyCode.KeyU)]);
 			testResolve(createContext({}), KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyMod.CtrlCmd | KeyCode.KeyU), 'uncomment lines');
+		});
 
+		test('resolve command - 8', () => {
 			testKbLookupByCommand('comment lines', [KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyMod.CtrlCmd | KeyCode.KeyC)]);
 			testResolve(createContext({}), KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyMod.CtrlCmd | KeyCode.KeyC), 'comment lines');
+		});
 
+		test('resolve command - 9', () => {
 			testKbLookupByCommand('unreachablechord', []);
+		});
 
+		test('resolve command - 10', () => {
 			testKbLookupByCommand('eleven', [KeyMod.CtrlCmd | KeyCode.KeyG]);
 			testResolve(createContext({}), KeyMod.CtrlCmd | KeyCode.KeyG, 'eleven');
+		});
 
+		test('resolve command - 11', () => {
 			testKbLookupByCommand('sixth', []);
+		});
 
+		test('resolve command - 12', () => {
 			testKbLookupByCommand('long multi chord', [[KeyMod.CtrlCmd | KeyCode.KeyK, KeyCode.KeyA, KeyCode.KeyB]]);
 			testResolve(createContext({}), [KeyMod.CtrlCmd | KeyCode.KeyK, KeyCode.KeyA, KeyCode.KeyB], 'long multi chord');
+		});
+
+		const emptyContext = createContext({});
+
+		test('KBs having common prefix - the one defined later is returned', () => {
+			testResolve(emptyContext, [KeyMod.CtrlCmd | KeyCode.KeyB, KeyMod.CtrlCmd | KeyCode.KeyC, KeyCode.KeyI], 'long-multi-chord-2');
 		});
 	});
 });
