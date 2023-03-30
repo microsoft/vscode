@@ -76,6 +76,19 @@ suite('Buffer Content Tracker', () => {
 		assert.deepStrictEqual(bufferTracker.lines, [prompt]);
 		assert.strictEqual(bufferTracker.lines.length, 1);
 	});
+	test('repeated updates should not change the content', async () => {
+		assert.strictEqual(bufferTracker.lines.length, 0);
+		await writeP(xterm.raw, prompt);
+		await bufferTracker.update();
+		assert.deepStrictEqual(bufferTracker.lines, [prompt]);
+		assert.strictEqual(bufferTracker.lines.length, 1);
+		await bufferTracker.update();
+		assert.deepStrictEqual(bufferTracker.lines, [prompt]);
+		assert.strictEqual(bufferTracker.lines.length, 1);
+		await bufferTracker.update();
+		assert.deepStrictEqual(bufferTracker.lines, [prompt]);
+		assert.strictEqual(bufferTracker.lines.length, 1);
+	});
 	test('should add lines in the viewport and scrollback', async () => {
 		await assertBufferExpected(promptPlusData, 38, xterm.raw, bufferTracker);
 	});
