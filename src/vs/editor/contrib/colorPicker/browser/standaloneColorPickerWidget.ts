@@ -36,7 +36,6 @@ import { onUnexpectedError } from 'vs/base/common/errors';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 import { DynamicCssRules } from 'vs/editor/browser/editorDom';
 import { noBreakWhitespace } from 'vs/base/common/strings';
-import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
 
 export class StandaloneColorPickerController extends Disposable implements IEditorContribution {
 
@@ -254,6 +253,7 @@ export class StandaloneColorPickerWidget implements IContentWidget {
 				// Setting the hover parts, these are saved only, not directly used
 				this._colorHoverData = hoverParts;
 				// Calling the hover parts of the participant
+				participant.foundInMap = true;
 				this._disposables.add(participant.renderHoverParts(context, hoverParts));
 			}
 		}

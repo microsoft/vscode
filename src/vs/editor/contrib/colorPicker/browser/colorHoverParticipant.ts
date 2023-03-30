@@ -50,6 +50,7 @@ export class ColorHoverParticipant implements IEditorHoverParticipant<ColorHover
 	public readonly hoverOrdinal: number = 2;
 	private _range: Range | null = null;
 	private _color: Color | null = null;
+	private _foundInMap: boolean = false;
 	private _standaloneColorPickerWidget: boolean = false;
 
 	constructor(
@@ -156,6 +157,10 @@ export class ColorHoverParticipant implements IEditorHoverParticipant<ColorHover
 		this._standaloneColorPickerWidget = value;
 	}
 
+	public set foundInMap(value: boolean) {
+		this._foundInMap = value;
+	}
+
 	public renderHoverParts(context: IEditorHoverRenderContext, hoverParts: ColorHover[]): IDisposable {
 		console.log('Inside of rendeHoverParts of the ColorHoverParticipant.ts');
 
@@ -248,8 +253,11 @@ export class ColorHoverParticipant implements IEditorHoverParticipant<ColorHover
 
 		disposables.add(model.onColorFlushed((color: Color) => {
 			// Call update editor model only when the enter key is pressed
-			if (!this._standaloneColorPickerWidget) {
+			console.log('inside of on color flushed');
+			console.log('this._foundInMap : ', this._foundInMap);
+			if (!this._standaloneColorPickerWidget || this._standaloneColorPickerWidget && this._foundInMap) {
 				updateColorPresentations(color).then(updateEditorModel);
+				this._foundInMap = false;
 			}
 			this._color = color;
 		}));
