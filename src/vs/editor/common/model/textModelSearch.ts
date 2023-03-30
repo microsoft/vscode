@@ -161,7 +161,12 @@ class LineFeedCounter {
 export class TextModelSearch {
 
 	public static findMatches(model: TextModel, searchParams: SearchParams, searchRange: Range, captureMatches: boolean, limitResultCount: number): FindMatch[] {
+		console.log('searchParams : ', searchParams);
+		console.log('searchRange : ', searchRange);
+		console.log('captureMatches : ', captureMatches);
+		console.log('limiteResultCount : ', limitResultCount);
 		const searchData = searchParams.parseSearchRequest();
+		console.log('searchData : ', searchData);
 		if (!searchData) {
 			return [];
 		}
@@ -201,6 +206,7 @@ export class TextModelSearch {
 	}
 
 	private static _doFindMatchesMultiline(model: TextModel, searchRange: Range, searcher: Searcher, captureMatches: boolean, limitResultCount: number): FindMatch[] {
+		console.log('inside of _doFindMatchesMultiline');
 		const deltaOffset = model.getOffsetAt(searchRange.getStartPosition());
 		// We always execute multiline search over the lines joined with \n
 		// This makes it that \n will match the EOL for both CRLF and LF models
@@ -224,6 +230,7 @@ export class TextModelSearch {
 	}
 
 	private static _doFindMatchesLineByLine(model: TextModel, searchRange: Range, searchData: SearchData, captureMatches: boolean, limitResultCount: number): FindMatch[] {
+		console.log('inside of _doFindMatchesLineByLine');
 		const result: FindMatch[] = [];
 		let resultLen = 0;
 

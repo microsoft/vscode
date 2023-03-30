@@ -115,14 +115,17 @@ export class ColorDetector extends Disposable implements IEditorContribution {
 	}
 
 	private onModelChanged(): void {
+		console.log('inside of on model changed');
 		this.stop();
 
 		if (!this._isEnabled) {
+			console.log('early return');
 			return;
 		}
 		const model = this._editor.getModel();
 
 		if (!model || !this._languageFeaturesService.colorProvider.has(model)) {
+			console.log('second early return');
 			return;
 		}
 
@@ -138,13 +141,14 @@ export class ColorDetector extends Disposable implements IEditorContribution {
 		this.beginCompute();
 	}
 
-	private beginCompute(): void {
+	public beginCompute(): void {
 		this._computePromise = createCancelablePromise(async token => {
 			const model = this._editor.getModel();
 			if (!model) {
 				return Promise.resolve([]);
 			}
 			const sw = new StopWatch(false);
+			console.log('before getColors of beginCompute');
 			const colors = await getColors(this._languageFeaturesService.colorProvider, model, token);
 			this._debounceInformation.update(model, sw.elapsed());
 			return colors;
@@ -238,7 +242,19 @@ export class ColorDetector extends Disposable implements IEditorContribution {
 		this._colorDecorationClassRefs.clear();
 	}
 
+	public get colorDatas(): Map<string, IColorData> {
+		return this._colorDatas;
+	}
+
+	public set colorDatas(ids: Map<string, IColorData>) {
+		this._colorDatas = ids;
+	}
+
 	getColorData(position: Position): IColorData | null {
+		console.log('inside of getColorData');
+		console.log('position : ', position);
+		console.log('this._colorDatas : ', this._colorDatas);
+
 		const model = this._editor.getModel();
 		if (!model) {
 			return null;
@@ -248,9 +264,12 @@ export class ColorDetector extends Disposable implements IEditorContribution {
 			.getDecorationsInRange(Range.fromPositions(position, position))
 			.filter(d => this._colorDatas.has(d.id));
 
+		console.log('decorations : ', decorations);
+
 		if (decorations.length === 0) {
 			return null;
 		}
+
 
 		return this._colorDatas.get(decorations[0].id)!;
 	}

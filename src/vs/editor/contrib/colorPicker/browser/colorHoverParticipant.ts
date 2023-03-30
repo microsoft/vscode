@@ -19,6 +19,7 @@ import { ColorPickerWidget } from 'vs/editor/contrib/colorPicker/browser/colorPi
 import { HoverAnchor, HoverAnchorType, IEditorHoverParticipant, IEditorHoverRenderContext, IHoverPart } from 'vs/editor/contrib/hover/browser/hoverTypes';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { ISingleEditOperation } from 'vs/editor/common/core/editOperation';
+import { Position } from 'vs/editor/common/core/position';
 
 export class ColorHover implements IHoverPart {
 
@@ -96,7 +97,21 @@ export class ColorHoverParticipant implements IEditorHoverParticipant<ColorHover
 		if (!this._editor.hasModel()) {
 			return null;
 		}
-		return await this._createColorHover(this._editor.getModel(), colorInfo, provider);
+		//  colorDetector.getColorData(d.range.getStartPosition()) needed in order to specify that you want the whole word at that position
+		const colorDetector = ColorDetector.get(this._editor);
+		if (!colorDetector) {
+			return null;
+		}
+		let finalColorInfo = colorInfo;
+		console.log('colorDetectorDatas : ', colorDetector.colorDatas);
+		const colorDetectorData = colorDetector.getColorData(new Position(colorInfo.range.startLineNumber, colorInfo.range.startColumn));
+		console.log('colorDetectorData : ', colorDetectorData);
+		if (colorDetectorData) {
+			console.log('entered in if loop');
+			finalColorInfo = colorDetectorData.colorInfo;
+		}
+		console.log('final color info : ', finalColorInfo);
+		return await this._createColorHover(this._editor.getModel(), finalColorInfo, provider);
 	}
 
 	private async _createColorHover(editorModel: ITextModel, colorInfo: IColorInformation, provider: DocumentColorProvider): Promise<ColorHover> {

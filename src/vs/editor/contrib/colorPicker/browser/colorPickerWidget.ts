@@ -62,6 +62,8 @@ export class ColorPickerHeader extends Disposable {
 		if (this.showingStandaloneColorPicker) {
 			this._closeButton = new CloseButton(this._domNode);
 			this._register(this._closeButton);
+			this.pickedColorNode.classList.add('picked-color-standalone');
+			colorBox.classList.add('original-color-standalone');
 			this._domNode.classList.add('standalone-color-picker');
 		}
 	}

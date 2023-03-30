@@ -1147,6 +1147,7 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 
 			matchMapper = (searchRange: Range) => this.findMatchesLineByLine(searchRange, searchData, captureMatches, limitResultCount);
 		} else {
+			console.log('entered into the case when regex');
 			matchMapper = (searchRange: Range) => TextModelSearch.findMatches(this, new SearchParams(searchString, isRegex, matchCase, wordSeparators), searchRange, captureMatches, limitResultCount);
 		}
 

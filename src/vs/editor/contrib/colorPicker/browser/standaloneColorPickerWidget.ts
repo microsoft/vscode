@@ -6,7 +6,7 @@
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { HoverParticipantRegistry, IEditorHoverRenderContext } from 'vs/editor/contrib/hover/browser/hoverTypes';
 import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition } from 'vs/editor/browser/editorBrowser';
-import { ITextModel, PositionAffinity } from 'vs/editor/common/model';
+import { IModelDeltaDecoration, ITextModel, PositionAffinity } from 'vs/editor/common/model';
 import { Position } from 'vs/editor/common/core/position';
 import { ColorHover, ColorHoverParticipant } from 'vs/editor/contrib/colorPicker/browser/colorHoverParticipant';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -20,15 +20,22 @@ import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeat
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { EditorContributionInstantiation, registerEditorContribution } from 'vs/editor/browser/editorExtensions';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { ILanguageFeatureDebounceService } from 'vs/editor/common/services/languageFeatureDebounce';
+import { IFeatureDebounceInformation, ILanguageFeatureDebounceService } from 'vs/editor/common/services/languageFeatureDebounce';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { Selection } from 'vs/editor/common/core/selection';
-import { IRange, Range } from 'vs/editor/common/core/range';
+import { IRange } from 'vs/editor/common/core/range';
 import * as dom from 'vs/base/browser/dom';
 import 'vs/css!./colorPicker';
-import { ColorPickerModel } from 'vs/editor/contrib/colorPicker/browser/colorPickerModel';
 import { Color, RGBA } from 'vs/base/common/color';
 import { CancellationToken } from 'vs/base/common/cancellation';
+import { CancelablePromise, TimeoutTimer, createCancelablePromise } from 'vs/base/common/async';
+import { StopWatch } from 'vs/base/common/stopwatch';
+import { IColorData } from 'vs/editor/contrib/colorPicker/browser/color';
+import { ColorDecorationInjectedTextMarker, ColorDetector, DecoratorLimitReporter } from 'vs/editor/contrib/colorPicker/browser/colorDetector';
+import { onUnexpectedError } from 'vs/base/common/errors';
+import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
+import { DynamicCssRules } from 'vs/editor/browser/editorDom';
+import { noBreakWhitespace } from 'vs/base/common/strings';
 
 export class StandaloneColorPickerController extends Disposable implements IEditorContribution {
 
@@ -42,7 +49,7 @@ export class StandaloneColorPickerController extends Disposable implements IEdit
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@ILanguageFeaturesService private readonly _languageFeatureService: ILanguageFeaturesService,
-		@ILanguageFeatureDebounceService _languageFeatureDebounceService: ILanguageFeatureDebounceService,
+		@ILanguageFeatureDebounceService private readonly _languageFeatureDebounceService: ILanguageFeatureDebounceService,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService
 	) {
 		super();
@@ -62,7 +69,7 @@ export class StandaloneColorPickerController extends Disposable implements IEdit
 			console.log('inside of color hover not visible');
 
 			this._colorHoverVisible.set(true);
-			this._standaloneColorPickerWidget = new StandaloneColorPickerWidget(this._editor, this._instantiationService, this._keybindingService, this._languageFeatureService, this._contextKeyService);
+			this._standaloneColorPickerWidget = new StandaloneColorPickerWidget(this._editor, this._instantiationService, this._keybindingService, this._languageFeatureService, this._contextKeyService, this._languageFeatureDebounceService);
 			this._editor.addContentWidget(this._standaloneColorPickerWidget);
 
 		} else if (!this._colorHoverFocused.get()) {
@@ -120,7 +127,8 @@ export class StandaloneColorPickerWidget implements IContentWidget {
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
 		@ILanguageFeaturesService private readonly languageFeaturesService: ILanguageFeaturesService,
-		@IContextKeyService private readonly contextKeyService: IContextKeyService
+		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+		@ILanguageFeatureDebounceService private readonly languageFeatureDebounceService: ILanguageFeatureDebounceService
 	) {
 		this._position = this.editor._getViewModel()?.getPrimaryCursorState().viewState.position;
 		this._selection = this.editor.getSelection();
@@ -154,7 +162,7 @@ export class StandaloneColorPickerWidget implements IContentWidget {
 				endColumn: this._selection.endColumn
 			} : { startLineNumber: 0, endLineNumber: 0, endColumn: 0, startColumn: 0 };
 
-		this._standaloneColorPickerComputer = new StandaloneColorPickerComputer(selection, this.editor, this._participants, this.languageFeaturesService);
+		this._standaloneColorPickerComputer = new StandaloneColorPickerComputer(selection, this.editor, this._participants, this.languageFeaturesService, this.languageFeatureDebounceService);
 
 		this._disposables.add(this._standaloneColorPickerComputer.onResult((result) => {
 
@@ -276,6 +284,10 @@ export class StandaloneColorPickerWidget implements IContentWidget {
 		this.editor.layoutContentWidget(this);
 
 		console.log('this.body : ', this.body);
+		const clientHeight = this.body.clientHeight;
+		const clientWidth = this.body.clientWidth;
+		console.log('clientHeight : ', clientHeight);
+		console.log('clientWidth : ', clientWidth);
 	}
 
 	public getId(): string {
@@ -330,14 +342,43 @@ export class StandaloneColorPickerComputer extends Disposable implements IStanda
 
 	private readonly _onResult = this._register(new Emitter<StandaloneColorPickerResult>());
 	public readonly onResult = this._onResult.event;
+	private _disposables = new DisposableStore();
+	private _defaultProvider: DocumentColorProvider | undefined = undefined;
+	private readonly _localToDispose = this._register(new DisposableStore());
+	private _computePromise: CancelablePromise<IColorData[]> | null = null;
+	private _timeoutTimer: TimeoutTimer | null = null;
+	private _debounceInformation: IFeatureDebounceInformation;
+	private readonly _colorDecoratorIds = this._editor.createDecorationsCollection();
+	private _decorationsIds: string[] = [];
+	private readonly _ruleFactory = new DynamicCssRules(this._editor);
+	private readonly _decoratorLimitReporter = new DecoratorLimitReporter();
 
+	// TODO: Input the correct range directly
 	constructor(
 		private readonly _range: IRange,
 		private readonly _editor: ICodeEditor,
 		private readonly _participants: readonly ColorHoverParticipant[],
-		@ILanguageFeaturesService private readonly languageFeaturesService: ILanguageFeaturesService
+		@ILanguageFeaturesService private readonly languageFeaturesService: ILanguageFeaturesService,
+		@ILanguageFeatureDebounceService languageFeatureDebounceService: ILanguageFeatureDebounceService,
 	) {
 		super();
+
+		const textModel = this._editor.getModel();
+		if (!textModel) {
+			return;
+		}
+		const registry = this.languageFeaturesService.colorProvider;
+		const providers = registry.ordered(textModel).reverse();
+
+		if (providers.length === 0) {
+			// Suppose that the above does not give a color hover array, then we still want a color hover array
+			this._defaultProvider = new DefaultDocumentColorProviderForStandaloneColorPicker();
+			// TODO: Only do this when have to use the default document symbol provider
+			// Don't need disposables because computer is unique per document, but may need listner on model content changed
+			this.onModelChanged();
+		}
+
+		this._debounceInformation = languageFeatureDebounceService.for(languageFeaturesService.colorProvider, 'Document Colors', { min: ColorDetector.RECOMPUTE_TIME });
 	}
 
 	public async start(): Promise<void> {
@@ -370,12 +411,10 @@ export class StandaloneColorPickerComputer extends Disposable implements IStanda
 			console.log('providers : ', providers);
 
 			// TODO: When there are no providers, we still want to render a color picker
-			if (providers.length === 0) {
+			if (providers.length === 0 && this._defaultProvider) {
 				console.log('early return because no providers');
 
-				// Suppose that the above does not give a color hover array, then we still want a color hover array
-				const tempProvider = new DefaultDocumentColorProvider();
-				const colorHover = await participant.createColorHover(colorInfo, tempProvider);
+				const colorHover = await participant.createColorHover(colorInfo, this._defaultProvider);
 				if (colorHover) {
 					result = result.concat(colorHover);
 				}
@@ -400,40 +439,228 @@ export class StandaloneColorPickerComputer extends Disposable implements IStanda
 		return result;
 	}
 
+	private onModelChanged(): void {
+		console.log('inside of on model changed of standalone color picker computer');
+
+		const model = this._editor.getModel();
+		if (!model) {
+			console.log('second early return');
+			return;
+		}
+
+		this._localToDispose.add(this._editor.onDidChangeModelContent(() => {
+			if (!this._timeoutTimer) {
+				this._timeoutTimer = new TimeoutTimer();
+				this._timeoutTimer.cancelAndSet(() => {
+					this._timeoutTimer = null;
+					this.beginComputeColorDatas();
+				}, this._debounceInformation.get(model));
+			}
+		}));
+		this.beginComputeColorDatas();
+	}
+
+	private beginComputeColorDatas(): void {
+		console.log('inside of begin compute color datas');
+		this._computePromise = createCancelablePromise(async token => {
+			const model = this._editor.getModel();
+			if (!model) {
+				return Promise.resolve([]);
+			}
+			const sw = new StopWatch(false);
+			const colors = await this.getColors(this._defaultProvider!, model, token);
+			this._debounceInformation.update(model, sw.elapsed());
+			return colors;
+		});
+		this._computePromise.then((colorInfos) => {
+			this.updateDecorations(colorInfos);
+			// this.updateColorDecorators(colorInfos);
+			this._computePromise = null;
+		}, onUnexpectedError);
+	}
+
+	// Using thed default provider here
+	private async getColors(provider: DocumentColorProvider, model: ITextModel, token: CancellationToken): Promise<IColorData[]> {
+		const colors: IColorData[] = [];
+		console.log('inside of getColors');
+		const documentColors = await provider.provideDocumentColors(model, token)!;
+		if (Array.isArray(documentColors)) {
+			for (const colorInfo of documentColors) {
+				colors.push({ colorInfo, provider });
+			}
+		}
+		return colors;
+	}
+
+	private updateDecorations(colorDatas: IColorData[]): void {
+		console.log('inside of update decorations');
+		console.log('colorDatas : ', colorDatas);
+		const decorations = colorDatas.map(c => ({
+			range: {
+				startLineNumber: c.colorInfo.range.startLineNumber,
+				startColumn: c.colorInfo.range.startColumn,
+				endLineNumber: c.colorInfo.range.endLineNumber,
+				endColumn: c.colorInfo.range.endColumn
+			},
+			options: ModelDecorationOptions.EMPTY
+		}));
+
+		this._editor.changeDecorations((changeAccessor) => {
+			this._decorationsIds = changeAccessor.deltaDecorations(this._decorationsIds, decorations);
+
+			const colorDetector = ColorDetector.get(this._editor);
+			if (!colorDetector) {
+				return;
+			}
+			colorDetector.colorDatas = new Map<string, IColorData>();
+			this._decorationsIds.forEach((id, i) => colorDetector.colorDatas.set(id, colorDatas[i]));
+		});
+
+		const colorDetector = ColorDetector.get(this._editor);
+		console.log('colorDetector?.colorDatas : ', colorDetector?.colorDatas);
+	}
+
+	private _colorDecorationClassRefs = this._register(new DisposableStore());
+
+	private updateColorDecorators(colorData: IColorData[]): void {
+		console.log('inside of update color decorations');
+
+		this._colorDecorationClassRefs.clear();
+
+		const decorations: IModelDeltaDecoration[] = [];
+
+		const limit = this._editor.getOption(EditorOption.colorDecoratorsLimit);
+
+		for (let i = 0; i < colorData.length && decorations.length < limit; i++) {
+			const { red, green, blue, alpha } = colorData[i].colorInfo.color;
+			const rgba = new RGBA(Math.round(red * 255), Math.round(green * 255), Math.round(blue * 255), alpha);
+			const color = `rgba(${rgba.r}, ${rgba.g}, ${rgba.b}, ${rgba.a})`;
+
+			const ref = this._colorDecorationClassRefs.add(
+				this._ruleFactory.createClassNameRef({
+					backgroundColor: color
+				})
+			);
+
+			decorations.push({
+				range: {
+					startLineNumber: colorData[i].colorInfo.range.startLineNumber,
+					startColumn: colorData[i].colorInfo.range.startColumn,
+					endLineNumber: colorData[i].colorInfo.range.endLineNumber,
+					endColumn: colorData[i].colorInfo.range.endColumn
+				},
+				options: {
+					description: 'colorDetector',
+					before: {
+						content: noBreakWhitespace,
+						inlineClassName: `${ref.className} colorpicker-color-decoration`,
+						inlineClassNameAffectsLetterSpacing: true,
+						attachedData: ColorDecorationInjectedTextMarker
+					}
+				}
+			});
+		}
+		const limited = limit < colorData.length ? limit : false;
+		this._decoratorLimitReporter.update(colorData.length, limited);
+		this._colorDecoratorIds.set(decorations);
+	}
+
 	public override dispose(): void {
 		super.dispose();
+		this._disposables.dispose();
 	}
 }
 
-class DefaultDocumentColorProvider implements DocumentColorProvider {
+// Add possibility to register a new color format by referring to the specific type
+// Then provide the appropropriate document symbols and the appropriate color representations
+
+class DefaultDocumentColorProviderForStandaloneColorPicker implements DocumentColorProvider {
 	constructor() { }
 
+	// TODO: Have a pop up which translates somewhow the RGBA to another format, on save, it adds another pannel
+	// Then these are searched everywhere in the file and to provide the correct color presentations
+	// Then you can also add a new color using the custom formatting, need a custom button for this however
+	// TODO: Change the colors_data which is what I want to change in a difffernet way, directly in the code above
 	provideDocumentColors(model: ITextModel, token: CancellationToken): ProviderResult<IColorInformation[]> {
-		return [];
+
+		console.log('inside of provideDocumentColors of the DefaultDocumentColorProviderForStandaloneColorPicker');
+		// Default are the custom CSS color formats
+		// TODO: need to create an extension where this could be used otherwise it will not work
+		const rgbaRegex = 'rgba[(](\s*)([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5]),(\s*)([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5]),(\s*)([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5]),(\s*)(([0-1]|)[.][0-9]*)[)]';
+		const matches = model.findMatches(rgbaRegex, false, true, false, null, true);
+		console.log('matches : ', matches);
+
+		// TODO: Not able to use the find Matches above with the regex below which works?
+
+		/// RGBA done
+		const allText = model.getLinesContent().join('\n');
+		const rgbaRegexOther = /rgba[(](\s*)([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5]),(\s*)([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5]),(\s*)([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5]),(\s*)(([0-1]|)[.][0-9]*)[)]/gm;
+		const matchesOther = [...allText.matchAll(rgbaRegexOther)];
+		console.log('matchesOther : ', matchesOther);
+
+		const result: IColorInformation[] = [];
+
+		for (const match of matchesOther) {
+			const index = match.index;
+			const length = match[0].length;
+			if (!index) {
+				continue;
+			}
+			const startPosition = model.getPositionAt(index);
+			const endPosition = model.getPositionAt(index + length);
+			const range: IRange = {
+				startLineNumber: startPosition.lineNumber,
+				startColumn: startPosition.column,
+				endLineNumber: endPosition.lineNumber,
+				endColumn: endPosition.column
+			};
+
+			console.log('match : ', match);
+
+			const red = Number(match.at(2));
+			const green = Number(match.at(4));
+			const blue = Number(match.at(6));
+			const alpha = Number(match.at(8));
+
+			if (!(red && blue && green && alpha)) {
+				return;
+			}
+			const color: IColor = {
+				red: red,
+				blue: blue,
+				green: green,
+				alpha: alpha
+			};
+			const colorInformation = {
+				range: range,
+				color: color
+			};
+			result.push(colorInformation);
+		}
+
+		// ALSO do hsla and hexa
+
+		// const exampleIColorInformation = {
+		// 	range: { startLineNumber: 1, endLineNumber: 2, startColumn: 1, endColumn: 1 },
+		// 	color: { red: 0.5, green: 0.5, blue: 0.5, alpha: 0.5 }
+		// };
+		console.log('result : ', result);
+		return result;
 	}
 
 	provideColorPresentations(model: ITextModel, colorInfo: IColorInformation, token: CancellationToken): ProviderResult<IColorPresentation[]> {
 		console.log('inside of provideColorPresentations of the DefaultDocumentColorProvider');
+		console.log('colorInfo : ', colorInfo);
+		// Using the CSS color format as the default
+		// Allow the user to be able to define other custom color formats
+
 		const range = colorInfo.range;
-		const color: IColor = colorInfo.color;
-		console.log('color : ', color);
-
-		console.log('color.red : ', color.red);
-		console.log('color.green : ', color.green);
-		console.log('color.blue : ', color.blue);
-
-		const RGBAColor = new RGBA(Math.round(255 * color.red), Math.round(255 * color.green), Math.round(255 * color.blue), color.alpha);
-		console.log('RGBA color : ', RGBAColor);
-
-		const colorInstance = new Color(RGBAColor);
-		console.log('colorInstance : ', colorInstance);
-		const rgba = Color.Format.CSS.formatRGBA(colorInstance);
+		const colorFromInfo: IColor = colorInfo.color;
+		const color = new Color(new RGBA(Math.round(255 * colorFromInfo.red), Math.round(255 * colorFromInfo.green), Math.round(255 * colorFromInfo.blue), colorFromInfo.alpha));
+		const rgba = Color.Format.CSS.formatRGBA(color);
 		// hsla provides strange color string
-		const hsla = Color.Format.CSS.formatHSLA(colorInstance);
-		const hexa = Color.Format.CSS.formatHexA(colorInstance);
-		console.log('rgba : ', rgba);
-		console.log('hsla : ', hsla);
-		console.log('hexa : ', hexa);
+		const hsla = Color.Format.CSS.formatHSLA(color);
+		const hexa = Color.Format.CSS.formatHexA(color);
 		const colorPresentations: IColorPresentation[] = [];
 		// Using two default color formats, RGBA and Hex
 		colorPresentations.push({ label: rgba, textEdit: { range: range, text: rgba } });
