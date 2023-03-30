@@ -406,7 +406,7 @@ export class MainThreadLanguageFeatures extends Disposable implements MainThread
 			extensionId,
 			displayName,
 			canFormatMultipleRanges: metadata.canFormatMultipleRanges,
-			provideDocumentRangeFormattingEdits: (model: ITextModel, range: EditorRange | EditorRange[], options: languages.FormattingOptions, token: CancellationToken): Promise<ISingleEditOperation[] | undefined> => {
+			provideDocumentRangeFormattingEdits: (model: ITextModel, range: EditorRange, options: languages.FormattingOptions, token: CancellationToken): Promise<ISingleEditOperation[] | undefined> => {
 				return this._proxy.$provideDocumentRangeFormattingEdits(handle, model.uri, range, options, token);
 			}
 		}));

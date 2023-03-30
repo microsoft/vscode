@@ -565,19 +565,10 @@ class RangeFormattingAdapter {
 
 	constructor(
 		private readonly _documents: ExtHostDocuments,
-		private readonly _provider: vscode.DocumentRangeFormattingEditProvider,
-		private readonly _canFormatMultipleRanges: boolean
+		private readonly _provider: vscode.DocumentRangeFormattingEditProvider
 	) { }
 
 	async provideDocumentRangeFormattingEdits(resource: URI, range: IRange, options: languages.FormattingOptions, token: CancellationToken): Promise<ISingleEditOperation[] | undefined> {
-
-		if (this._canFormatMultipleRanges) {
-			if (!Array.isArray(options.ranges)) { throw new Error('Provided no list of ranges to multiple range provider'); }
-
-			options.ranges = options.ranges.map<Range>(typeConvert.Range.to) as any;
-		} else {
-			if (Array.isArray(range)) { throw new Error('Provided list of ranges to single range provider'); }
-		}
 
 		const document = this._documents.getDocument(resource);
 		const ran = typeConvert.Range.to(range);
@@ -2069,7 +2060,7 @@ export class ExtHostLanguageFeatures implements extHostProtocol.ExtHostLanguageF
 		if (canFormatMultipleRanges) {
 			checkProposedApiEnabled(extension, 'formatMultipleRanges');
 		}
-		const handle = this._addNewAdapter(new RangeFormattingAdapter(this._documents, provider, canFormatMultipleRanges), extension);
+		const handle = this._addNewAdapter(new RangeFormattingAdapter(this._documents, provider), extension);
 		this._proxy.$registerRangeFormattingSupport(handle, this._transformDocumentSelector(selector), extension.identifier, extension.displayName || extension.name, metadata ?? { canFormatMultipleRanges: false });
 		return this._createDisposable(handle);
 	}
