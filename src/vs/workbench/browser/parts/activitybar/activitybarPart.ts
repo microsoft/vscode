@@ -525,14 +525,14 @@ export class ActivitybarPart extends Part implements IPaneCompositeSelectorPart 
 		this.globalActivityAction = this._register(new ActivityAction({
 			id: 'workbench.actions.manage',
 			name: localize('manage', "Manage"),
-			cssClass: ThemeIcon.asClassName(ActivitybarPart.GEAR_ICON),
+			classNames: ThemeIcon.asClassNameArray(ActivitybarPart.GEAR_ICON),
 		}));
 
 		if (this.accountsVisibilityPreference) {
 			this.accountsActivityAction = this._register(new ActivityAction({
 				id: 'workbench.actions.accounts',
 				name: localize('accounts', "Accounts"),
-				cssClass: ThemeIcon.asClassName(ActivitybarPart.ACCOUNTS_ICON)
+				classNames: ThemeIcon.asClassNameArray(ActivitybarPart.ACCOUNTS_ICON)
 			}));
 
 			this.globalActivityActionBar.push(this.accountsActivityAction, { index: ActivitybarPart.ACCOUNTS_ACTION_INDEX });
@@ -553,7 +553,7 @@ export class ActivitybarPart extends Part implements IPaneCompositeSelectorPart 
 				this.accountsActivityAction = this._register(new ActivityAction({
 					id: 'workbench.actions.accounts',
 					name: localize('accounts', "Accounts"),
-					cssClass: ThemeIcon.asClassName(Codicon.account)
+					classNames: ThemeIcon.asClassNameArray(Codicon.account)
 				}));
 				this.globalActivityActionBar.push(this.accountsActivityAction, { index: ActivitybarPart.ACCOUNTS_ACTION_INDEX });
 			}
@@ -641,15 +641,16 @@ export class ActivitybarPart extends Part implements IPaneCompositeSelectorPart 
 	}
 
 	private static toActivity(id: string, name: string, icon: URI | ThemeIcon | undefined, keybindingId: string | undefined): IActivity {
-		let cssClass: string | undefined = undefined;
+		let classNames: string[] | undefined = undefined;
 		let iconUrl: URI | undefined = undefined;
 		if (URI.isUri(icon)) {
 			iconUrl = icon;
 			const cssUrl = asCSSUrl(icon);
 			const hash = new StringSHA1();
 			hash.update(cssUrl);
-			cssClass = `activity-${id.replace(/\./g, '-')}-${hash.digest()}`;
-			const iconClass = `.monaco-workbench .activitybar .monaco-action-bar .action-label.${cssClass}`;
+			const iconId = `activity-${id.replace(/\./g, '-')}-${hash.digest()}`;
+			const iconClass = `.monaco-workbench .activitybar .monaco-action-bar .action-label.${iconId}`;
+			classNames = [iconId, 'uri-icon'];
 			createCSSRule(iconClass, `
 				mask: ${cssUrl} no-repeat 50% 50%;
 				mask-size: 24px;
@@ -657,10 +658,10 @@ export class ActivitybarPart extends Part implements IPaneCompositeSelectorPart 
 				-webkit-mask-size: 24px;
 			`);
 		} else if (ThemeIcon.isThemeIcon(icon)) {
-			cssClass = ThemeIcon.asClassName(icon);
+			classNames = ThemeIcon.asClassNameArray(icon);
 		}
 
-		return { id, name, cssClass, iconUrl, keybindingId };
+		return { id, name, classNames, iconUrl, keybindingId };
 	}
 
 	private showOrHideViewContainer(viewContainer: ViewContainer): void {
