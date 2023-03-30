@@ -181,6 +181,7 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 	private userKeybindings: UserKeybindings;
 	private isComposingGlobalContextKey: IContextKey<boolean>;
 	private readonly _contributions: KeybindingsSchemaContribution[] = [];
+	private readonly kbsJsonSchema: KeybindingsJsonSchema;
 
 	constructor(
 		@IContextKeyService contextKeyService: IContextKeyService,
@@ -197,6 +198,8 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 		super(contextKeyService, commandService, telemetryService, notificationService, logService);
 
 		this.isComposingGlobalContextKey = contextKeyService.createKey('isComposing', false);
+
+		this.kbsJsonSchema = new KeybindingsJsonSchema();
 		this.updateKeybindingsJsonSchema();
 
 		this._keyboardMapper = this.keyboardLayoutService.getKeyboardMapper();
@@ -284,7 +287,7 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 	}
 
 	private updateKeybindingsJsonSchema() {
-		KeybindingsJsonSchema.getInstance().updateSchema(this._contributions.flatMap(x => x.getSchemaAdditions()));
+		this.kbsJsonSchema.updateSchema(this._contributions.flatMap(x => x.getSchemaAdditions()));
 	}
 
 	private _printKeybinding(keybinding: Keybinding): string {
@@ -770,16 +773,12 @@ class UserKeybindings extends Disposable {
 	}
 }
 
+/**
+ * Registers the `keybindings.json`'s schema with the JSON schema registry. Allows updating the schema, e.g., when new commands are registered (e.g., by extensions).
+ *
+ * Lifecycle owned by `WorkbenchKeybindingService`. Must be instantiated only once.
+ */
 class KeybindingsJsonSchema {
-
-	private static instance: KeybindingsJsonSchema | undefined;
-
-	static getInstance() {
-		if (!this.instance) {
-			this.instance = new KeybindingsJsonSchema();
-		}
-		return this.instance;
-	}
 
 	private static readonly schemaId = 'vscode://schemas/keybindings';
 
@@ -880,10 +879,13 @@ class KeybindingsJsonSchema {
 
 	private readonly schemaRegistry = Registry.as<IJSONContributionRegistry>(Extensions.JSONContribution);
 
-	private constructor() {
+	constructor() {
 		this.schemaRegistry.registerSchema(KeybindingsJsonSchema.schemaId, this.schema);
 	}
 
+	// TODO@ulugbekna: can updates happen incrementally rather than rebuilding; concerns:
+	// - is just appending additional schemas enough for the registry to pick them up?
+	// - can `CommandsRegistry.getCommands` and `MenuRegistry.getCommands` return different values at different times? ie would just pushing new schemas from `additionalContributions` not be enough?
 	updateSchema(additionalContributions: readonly IJSONSchema[]) {
 		this.commandsSchemas.length = 0;
 		this.commandsEnum.length = 0;
