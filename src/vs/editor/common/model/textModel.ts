@@ -1928,9 +1928,6 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 	public getLanguageIdAtPosition(lineNumber: number, column: number): string {
 		return this.tokenization.getLanguageIdAtPosition(lineNumber, column);
 	}
-	public setLineTokens(lineNumber: number, tokens: Uint32Array | ArrayBuffer | null): void {
-		this._tokenizationTextModelPart.setLineTokens(lineNumber, tokens);
-	}
 
 	public getWordAtPosition(position: IPosition): IWordAtPosition | null {
 		return this._tokenizationTextModelPart.getWordAtPosition(position);
