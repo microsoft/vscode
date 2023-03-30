@@ -15,7 +15,6 @@ import { IProductService } from 'vs/platform/product/common/productService';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { Categories } from 'vs/platform/action/common/actionCommonCategories';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 
 class KeybindingsReferenceAction extends Action2 {
 
