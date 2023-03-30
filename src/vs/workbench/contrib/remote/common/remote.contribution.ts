@@ -324,7 +324,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 			},
 			'remote.autoForwardPortsSource': {
 				type: 'string',
-				markdownDescription: localize('remote.autoForwardPortsSource', "Sets the source from which ports are automatically forwarded when {0} is true. On Windows and Mac remotes, the `process` option has no effect and `output` will be used. Requires a reload to take effect.", '`#remote.autoForwardPorts#`'),
+				markdownDescription: localize('remote.autoForwardPortsSource', "Sets the source from which ports are automatically forwarded when {0} is true. On Windows and Mac remotes, the `process` and `hybrid` options have no effect and `output` will be used. Requires a reload to take effect.", '`#remote.autoForwardPorts#`'),
 				enum: ['process', 'output', 'hybrid'],
 				enumDescriptions: [
 					localize('remote.autoForwardPortsSource.process', "Ports will be automatically forwarded when discovered by watching for processes that are started and include a port."),
