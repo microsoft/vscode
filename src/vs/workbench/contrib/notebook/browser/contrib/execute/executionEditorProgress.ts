@@ -45,7 +45,7 @@ export class ExecutionEditorProgressController extends Disposable implements INo
 				for (const cell of this._notebookEditor.getCellsInRange(range)) {
 					if (cell.handle === exe.cellHandle) {
 						const top = this._notebookEditor.getAbsoluteTopOfElement(cell);
-						if (this._notebookEditor.scrollTop < top + 30) {
+						if (this._notebookEditor.scrollTop < top + 23) {
 							return true;
 						}
 					}
