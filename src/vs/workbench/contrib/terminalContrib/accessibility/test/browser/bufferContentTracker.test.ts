@@ -44,7 +44,8 @@ suite('Buffer Content Tracker', async () => {
 	let capabilities: TerminalCapabilityStore;
 	let configHelper: TerminalConfigHelper;
 	let bufferTracker: BufferContentTracker;
-
+	const prompt = 'vscode-git:(prompt/more-tests)';
+	const promptPlusData = 'vscode-git:(prompt/more-tests) ' + 'some data';
 	setup(() => {
 		configurationService = new TestConfigurationService({ terminal: { integrated: defaultTerminalConfig } });
 		instantiationService = new TestInstantiationService();
@@ -67,58 +68,42 @@ suite('Buffer Content Tracker', async () => {
 		configHelper = new TerminalConfigHelper(configurationService, null!, null!, null!, null!);
 		bufferTracker = instantiationService.createInstance(BufferContentTracker, xterm);
 	});
-	test('should clear lines beyond the prompt line', async () => {
-		xterm.raw.clear();
+	test('should not clear the prompt line', async () => {
 		assert.strictEqual(bufferTracker.lines.length, 0);
-		await writeP(xterm.raw, 'abcd\r\nabcd');
+		await writeP(xterm.raw, prompt);
 		xterm.clearBuffer();
 		await bufferTracker.update();
+		assert.deepStrictEqual(bufferTracker.lines, [prompt]);
 		assert.strictEqual(bufferTracker.lines.length, 1);
-		assert.deepStrictEqual(bufferTracker.lines, ['abcd']);
 	});
 	test('should add lines in the viewport and scrollback', async () => {
-		xterm.raw.clear();
-		assert.strictEqual(bufferTracker.lines.length, 0);
-		const content = 'abcd\r\n'.repeat(38).trimEnd();
-		await writeP(xterm.raw, content);
-		await bufferTracker.update();
-		assert.strictEqual(bufferTracker.lines.length, 38);
-		assert.deepStrictEqual(bufferTracker.lines, content.split('\r\n'));
+		await assertBufferExpected(promptPlusData, 38, xterm.raw, bufferTracker);
 	});
 	test('should add lines in the viewport and full scrollback', async () => {
-		xterm.raw.clear();
-		assert.strictEqual(bufferTracker.lines.length, 0);
-		const content = 'abcd\r\n'.repeat(1030).trimEnd();
-		await writeP(xterm.raw, content);
-		await bufferTracker.update();
-		assert.strictEqual(bufferTracker.lines.length, 1030);
-		assert.deepStrictEqual(bufferTracker.lines, content.split('\r\n'));
+		await assertBufferExpected(promptPlusData, 1030, xterm.raw, bufferTracker);
 	});
 	test('should always refresh viewport', async () => {
-		xterm.raw.clear();
-		assert.strictEqual(bufferTracker.lines.length, 0);
-		const content = 'abcd\r\n'.repeat(6).trimEnd();
-		await writeP(xterm.raw, content);
-		await bufferTracker.update();
-		assert.strictEqual(bufferTracker.lines.length, 6);
-		assert.deepStrictEqual(bufferTracker.lines, content.split('\r\n'));
+		await assertBufferExpected(promptPlusData, 6, xterm.raw, bufferTracker);
 		await writeP(xterm.raw, '\x1b[3Ainserteddata');
 		await bufferTracker.update();
-		assert.deepStrictEqual(bufferTracker.lines, ['abcd', 'abcd', 'abcdinserteddata', 'abcd', 'abcd', 'abcd']);
+		assert.deepStrictEqual(bufferTracker.lines, [promptPlusData, promptPlusData, `${promptPlusData}inserteddata`, promptPlusData, promptPlusData, promptPlusData].map(s => s.replace(new RegExp(' ', 'g'), '\xA0')));
 	});
 	test('should always refresh viewport with full scrollback', async () => {
-		xterm.raw.clear();
-		assert.strictEqual(bufferTracker.lines.length, 0);
-		const content = 'abcd\r\n'.repeat(1030).trimEnd();
-		await writeP(xterm.raw, content);
-		await bufferTracker.update();
-		assert.strictEqual(bufferTracker.lines.length, 1030);
-		assert.deepStrictEqual(bufferTracker.lines, content.split('\r\n'));
-		await writeP(xterm.raw, '\x1b[4Ainserteddata');
+		const content = `${promptPlusData}\r\n`.repeat(1030).trimEnd().replace(new RegExp(' ', 'g'), '\xA0');
+		await assertBufferExpected('abcd', 1030, xterm.raw, bufferTracker);
+		await writeP(xterm.raw, '\x1b[4Ainsertion');
 		await bufferTracker.update();
 		const expected = content.split('\r\n');
-		expected[1025] = 'abcdinserteddata';
+		expected[1025] = `${promptPlusData}insertion`;
 		assert.deepStrictEqual(bufferTracker.lines, expected);
 	});
 });
+
+async function assertBufferExpected(data: string, rows: number, terminal: Terminal, bufferTracker: BufferContentTracker): Promise<void> {
+	const content = `${data}\r\n`.repeat(rows).trimEnd();
+	await writeP(terminal, content);
+	await bufferTracker.update();
+	assert.strictEqual(bufferTracker.lines.length, rows);
+	assert.deepStrictEqual(bufferTracker.lines, content.split('\r\n').map(s => s.replace(new RegExp(' ', 'g'), '\xA0')));
+}
 
