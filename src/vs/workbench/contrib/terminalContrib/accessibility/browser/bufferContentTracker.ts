@@ -27,6 +27,7 @@ export class BufferContentTracker {
 		if (this._lastCachedMarker?.isDisposed) {
 			// the terminal was cleared, reset the cache
 			this._lines = [];
+			this._lastCachedMarker = undefined;
 			return;
 		}
 		this._removeViewportContent();
