@@ -121,6 +121,7 @@ export class HistoryNavigator2<T> {
 	private head: HistoryNode<T>;
 	private tail: HistoryNode<T>;
 	private cursor: HistoryNode<T>;
+	private valueSet: Set<T>;
 	private size: number;
 
 	constructor(history: readonly T[], private capacity: number = 10) {
@@ -138,6 +139,8 @@ export class HistoryNavigator2<T> {
 		for (let i = 1; i < history.length; i++) {
 			this.add(history[i]);
 		}
+
+		this.valueSet = new Set(history);
 	}
 
 	add(value: T): void {
@@ -154,10 +157,14 @@ export class HistoryNavigator2<T> {
 
 		this._removeDuplicateValues(value);
 
+		this.valueSet.add(value);
+
 		while (this.size > this.capacity) {
 			this.head = this.head.next!;
 			this.head.previous = undefined;
 			this.size--;
+
+			this.valueSet.delete(this.head.value);
 		}
 	}
 
@@ -169,6 +176,9 @@ export class HistoryNavigator2<T> {
 		this.tail.value = value;
 
 		this._removeDuplicateValues(value);
+
+		this.valueSet.add(value);
+		this.valueSet.delete(oldValue);
 
 		return oldValue;
 	}
@@ -198,14 +208,7 @@ export class HistoryNavigator2<T> {
 	}
 
 	has(t: T): boolean {
-		let temp: HistoryNode<T> | undefined = this.head;
-		while (temp) {
-			if (temp.value === t) {
-				return true;
-			}
-			temp = temp.next;
-		}
-		return false;
+		return this.valueSet.has(t);
 	}
 
 	resetCursor(): T {
@@ -223,6 +226,10 @@ export class HistoryNavigator2<T> {
 	}
 
 	private _removeDuplicateValues(value: T): void {
+		if (!this.has(value)) {
+			return;
+		}
+
 		let temp = this.head;
 
 		while (temp !== this.tail) {
@@ -240,5 +247,7 @@ export class HistoryNavigator2<T> {
 
 			temp = temp.next!;
 		}
+
+		this.valueSet.delete(value);
 	}
 }
