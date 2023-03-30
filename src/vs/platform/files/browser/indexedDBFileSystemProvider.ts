@@ -427,16 +427,19 @@ export class IndexedDBFileSystemProvider extends Disposable implements IFileSyst
 	private fileWriteBatch: { resource: URI; content: Uint8Array }[] = [];
 	private async writeMany() {
 		if (this.fileWriteBatch.length) {
-			const estimated = await navigator?.storage?.estimate?.();
-			let availableStorage = (estimated?.quota ?? Number.MAX_SAFE_INTEGER) - (estimated?.usage ?? 0);
 			const fileBatch = this.fileWriteBatch.splice(0, this.fileWriteBatch.length);
-			await this.indexedDB.runInTransaction(this.store, 'readwrite', objectStore => fileBatch.map(entry => {
-				if (entry.content.length > availableStorage) {
+			try {
+				await this.indexedDB.runInTransaction(this.store, 'readwrite', objectStore => fileBatch.map(entry => {
+					return objectStore.put(entry.content, entry.resource.path);
+				}));
+			} catch (ex) {
+				const estimated = await navigator?.storage?.estimate?.();
+				if ((estimated?.quota ?? Number.MAX_SAFE_INTEGER) === (estimated?.usage ?? 0)) {
 					throw ERR_FILE_EXCEEDS_STORAGE_QUOTA;
 				}
-				availableStorage = availableStorage - entry.content.length;
-				return objectStore.put(entry.content, entry.resource.path);
-			}));
+
+				throw ex;
+			}
 		}
 	}
 
