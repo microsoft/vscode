@@ -6,7 +6,7 @@
 import * as assert from 'assert';
 import 'mocha';
 import { Uri } from 'vscode';
-import { IFilePathToResourceConverter, markdownDocumentation, plainWithLinks, tagsMarkdownPreview } from '../../languageFeatures/util/textRendering';
+import { IFilePathToResourceConverter, documentationToMarkdown, asPlainTextWithLinks, tagsToMarkdown } from '../../languageFeatures/util/textRendering';
 import { SymbolDisplayPart } from '../../tsServer/protocol/protocol';
 
 const noopToResource: IFilePathToResourceConverter = {
@@ -16,7 +16,7 @@ const noopToResource: IFilePathToResourceConverter = {
 suite('typescript.previewer', () => {
 	test('Should ignore hyphens after a param tag', async () => {
 		assert.strictEqual(
-			tagsMarkdownPreview([
+			tagsToMarkdown([
 				{
 					name: 'param',
 					text: 'a - b'
@@ -27,7 +27,7 @@ suite('typescript.previewer', () => {
 
 	test('Should parse url jsdoc @link', async () => {
 		assert.strictEqual(
-			markdownDocumentation(
+			documentationToMarkdown(
 				'x {@link http://www.example.com/foo} y {@link https://api.jquery.com/bind/#bind-eventType-eventData-handler} z',
 				[],
 				noopToResource, undefined
@@ -37,7 +37,7 @@ suite('typescript.previewer', () => {
 
 	test('Should parse url jsdoc @link with text', async () => {
 		assert.strictEqual(
-			markdownDocumentation(
+			documentationToMarkdown(
 				'x {@link http://www.example.com/foo abc xyz} y {@link http://www.example.com/bar|b a z} z',
 				[],
 				noopToResource, undefined
@@ -47,7 +47,7 @@ suite('typescript.previewer', () => {
 
 	test('Should treat @linkcode jsdocs links as monospace', async () => {
 		assert.strictEqual(
-			markdownDocumentation(
+			documentationToMarkdown(
 				'x {@linkcode http://www.example.com/foo} y {@linkplain http://www.example.com/bar} z',
 				[],
 				noopToResource, undefined
@@ -57,7 +57,7 @@ suite('typescript.previewer', () => {
 
 	test('Should parse url jsdoc @link in param tag', async () => {
 		assert.strictEqual(
-			tagsMarkdownPreview([
+			tagsToMarkdown([
 				{
 					name: 'param',
 					text: 'a x {@link http://www.example.com/foo abc xyz} y {@link http://www.example.com/bar|b a z} z'
@@ -68,7 +68,7 @@ suite('typescript.previewer', () => {
 
 	test('Should ignore unclosed jsdocs @link', async () => {
 		assert.strictEqual(
-			markdownDocumentation(
+			documentationToMarkdown(
 				'x {@link http://www.example.com/foo y {@link http://www.example.com/bar bar} z',
 				[],
 				noopToResource, undefined
@@ -78,7 +78,7 @@ suite('typescript.previewer', () => {
 
 	test('Should support non-ascii characters in parameter name (#90108)', async () => {
 		assert.strictEqual(
-			tagsMarkdownPreview([
+			tagsToMarkdown([
 				{
 					name: 'param',
 					text: 'parámetroConDiacríticos this will not'
@@ -89,7 +89,7 @@ suite('typescript.previewer', () => {
 
 	test('Should render @example blocks as code', () => {
 		assert.strictEqual(
-			tagsMarkdownPreview([
+			tagsToMarkdown([
 				{
 					name: 'example',
 					text: 'code();'
@@ -101,7 +101,7 @@ suite('typescript.previewer', () => {
 
 	test('Should not render @example blocks as code as if they contain a codeblock', () => {
 		assert.strictEqual(
-			tagsMarkdownPreview([
+			tagsToMarkdown([
 				{
 					name: 'example',
 					text: 'Not code\n```\ncode();\n```'
@@ -113,7 +113,7 @@ suite('typescript.previewer', () => {
 
 	test('Should render @example blocks as code if they contain a <caption>', () => {
 		assert.strictEqual(
-			tagsMarkdownPreview([
+			tagsToMarkdown([
 				{
 					name: 'example',
 					text: '<caption>Not code</caption>\ncode();'
@@ -125,7 +125,7 @@ suite('typescript.previewer', () => {
 
 	test('Should not render @example blocks as code if they contain a <caption> and a codeblock', () => {
 		assert.strictEqual(
-			tagsMarkdownPreview([
+			tagsToMarkdown([
 				{
 					name: 'example',
 					text: '<caption>Not code</caption>\n```\ncode();\n```'
@@ -137,7 +137,7 @@ suite('typescript.previewer', () => {
 
 	test('Should render @linkcode symbol name as code', async () => {
 		assert.strictEqual(
-			plainWithLinks([
+			asPlainTextWithLinks([
 				{ "text": "a ", "kind": "text" },
 				{ "text": "{@linkcode ", "kind": "link" },
 				{
@@ -157,7 +157,7 @@ suite('typescript.previewer', () => {
 
 	test('Should render @linkcode text as code', async () => {
 		assert.strictEqual(
-			plainWithLinks([
+			asPlainTextWithLinks([
 				{ "text": "a ", "kind": "text" },
 				{ "text": "{@linkcode ", "kind": "link" },
 				{
