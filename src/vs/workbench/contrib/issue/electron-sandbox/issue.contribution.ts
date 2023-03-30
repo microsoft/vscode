@@ -4,109 +4,139 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from 'vs/nls';
-import product from 'vs/platform/product/common/product';
-import { MenuRegistry, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
-import { ICommandAction } from 'vs/platform/action/common/action';
-import { Categories } from 'vs/platform/action/common/actionCommonCategories';
-import { ReportPerformanceIssueUsingReporterAction, OpenProcessExplorer, StopTracing } from 'vs/workbench/contrib/issue/electron-sandbox/issueActions';
+import { MenuRegistry, MenuId, registerAction2, Action2 } from 'vs/platform/actions/common/actions';
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IWorkbenchIssueService } from 'vs/workbench/services/issue/common/issue';
-import { WorkbenchIssueService } from 'vs/workbench/services/issue/electron-sandbox/issueService';
+import { NativeIssueService } from 'vs/workbench/services/issue/electron-sandbox/issueService';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
-import { IssueReporterData } from 'vs/platform/issue/common/issue';
 import { IIssueService } from 'vs/platform/issue/electron-sandbox/issue';
-import { OpenIssueReporterArgs, OpenIssueReporterActionId, OpenIssueReporterApiCommandId } from 'vs/workbench/contrib/issue/common/commands';
+import { BaseIssueContribution } from 'vs/workbench/contrib/issue/common/issue.contribution';
+import { IProductService } from 'vs/platform/product/common/productService';
+import { Registry } from 'vs/platform/registry/common/platform';
+import { Extensions, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
+import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
+import { Categories } from 'vs/platform/action/common/actionCommonCategories';
+import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { INativeEnvironmentService } from 'vs/platform/environment/common/environment';
+import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
+import { INativeHostService } from 'vs/platform/native/common/native';
+import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';
+import { IssueType } from 'vs/platform/issue/common/issue';
 
-if (!!product.reportIssueUrl) {
-	registerAction2(ReportPerformanceIssueUsingReporterAction);
+//#region Issue Contribution
 
-	CommandsRegistry.registerCommand(OpenIssueReporterActionId, function (accessor, args?: [string] | OpenIssueReporterArgs) {
-		const data: Partial<IssueReporterData> = Array.isArray(args)
-			? { extensionId: args[0] }
-			: args || {};
+registerSingleton(IWorkbenchIssueService, NativeIssueService, InstantiationType.Delayed);
 
-		return accessor.get(IWorkbenchIssueService).openReporter(data);
-	});
+class NativeIssueContribution extends BaseIssueContribution {
 
-	CommandsRegistry.registerCommand({
-		id: OpenIssueReporterApiCommandId,
-		handler: function (accessor, args?: [string] | OpenIssueReporterArgs) {
-			const data: Partial<IssueReporterData> = Array.isArray(args)
-				? { extensionId: args[0] }
-				: args || {};
+	constructor(
+		@IProductService productService: IProductService
+	) {
+		super(productService);
 
-			return accessor.get(IWorkbenchIssueService).openReporter(data);
-		},
-		description: {
-			description: 'Open the issue reporter and optionally prefill part of the form.',
-			args: [
-				{
-					name: 'options',
-					description: 'Data to use to prefill the issue reporter with.',
-					isOptional: true,
-					schema: {
-						oneOf: [
-							{
-								type: 'string',
-								description: 'The extension id to preselect.'
-							},
-							{
-								type: 'object',
-								properties: {
-									extensionId: {
-										type: 'string'
-									},
-									issueTitle: {
-										type: 'string'
-									},
-									issueBody: {
-										type: 'string'
-									}
-								}
-
-							}
-						]
-					}
-				},
-			]
+		if (productService.reportIssueUrl) {
+			registerAction2(ReportPerformanceIssueUsingReporterAction);
 		}
-	});
+	}
+}
+Registry.as<IWorkbenchContributionsRegistry>(Extensions.Workbench).registerWorkbenchContribution(NativeIssueContribution, LifecyclePhase.Restored);
 
-	const reportIssue: ICommandAction = {
-		id: OpenIssueReporterActionId,
-		title: {
-			value: localize({ key: 'reportIssueInEnglish', comment: ['Translate this to "Report Issue in English" in all languages please!'] }, "Report Issue..."),
-			original: 'Report Issue...'
-		},
-		category: Categories.Help
-	};
+class ReportPerformanceIssueUsingReporterAction extends Action2 {
 
-	MenuRegistry.appendMenuItem(MenuId.CommandPalette, { command: reportIssue });
+	static readonly ID = 'workbench.action.reportPerformanceIssueUsingReporter';
 
-	MenuRegistry.appendMenuItem(MenuId.MenubarHelpMenu, {
-		group: '3_feedback',
-		command: {
-			id: OpenIssueReporterActionId,
-			title: localize({ key: 'miReportIssue', comment: ['&& denotes a mnemonic', 'Translate this to "Report Issue in English" in all languages please!'] }, "Report &&Issue")
-		},
-		order: 3
-	});
+	constructor() {
+		super({
+			id: ReportPerformanceIssueUsingReporterAction.ID,
+			title: { value: localize({ key: 'reportPerformanceIssue', comment: [`Here, 'issue' means problem or bug`] }, "Report Performance Issue..."), original: 'Report Performance Issue' },
+			category: Categories.Help,
+			f1: true
+		});
+	}
+
+	override async run(accessor: ServicesAccessor): Promise<void> {
+		const issueService = accessor.get(IWorkbenchIssueService);
+
+		return issueService.openReporter({ issueType: IssueType.PerformanceIssue });
+	}
 }
 
+//#endregion
+
+//#region Commands
+
+class OpenProcessExplorer extends Action2 {
+
+	static readonly ID = 'workbench.action.openProcessExplorer';
+
+	constructor() {
+		super({
+			id: OpenProcessExplorer.ID,
+			title: { value: localize('openProcessExplorer', "Open Process Explorer"), original: 'Open Process Explorer' },
+			category: Categories.Developer,
+			f1: true
+		});
+	}
+
+	override async run(accessor: ServicesAccessor): Promise<void> {
+		const issueService = accessor.get(IWorkbenchIssueService);
+
+		return issueService.openProcessExplorer();
+	}
+}
+registerAction2(OpenProcessExplorer);
 MenuRegistry.appendMenuItem(MenuId.MenubarHelpMenu, {
 	group: '5_tools',
 	command: {
-		id: 'workbench.action.openProcessExplorer',
+		id: OpenProcessExplorer.ID,
 		title: localize({ key: 'miOpenProcessExplorerer', comment: ['&& denotes a mnemonic'] }, "Open &&Process Explorer")
 	},
 	order: 2
 });
 
-registerAction2(OpenProcessExplorer);
-registerAction2(StopTracing);
+class StopTracing extends Action2 {
 
-registerSingleton(IWorkbenchIssueService, WorkbenchIssueService, InstantiationType.Delayed);
+	static readonly ID = 'workbench.action.stopTracing';
+
+	constructor() {
+		super({
+			id: StopTracing.ID,
+			title: { value: localize('stopTracing', "Stop Tracing"), original: 'Stop Tracing' },
+			category: Categories.Developer,
+			f1: true
+		});
+	}
+
+	override async run(accessor: ServicesAccessor): Promise<void> {
+		const issueService = accessor.get(IIssueService);
+		const environmentService = accessor.get(INativeEnvironmentService);
+		const dialogService = accessor.get(IDialogService);
+		const nativeHostService = accessor.get(INativeHostService);
+		const progressService = accessor.get(IProgressService);
+
+		if (!environmentService.args.trace) {
+			const { confirmed } = await dialogService.confirm({
+				message: localize('stopTracing.message', "Tracing requires to launch with a '--trace' argument"),
+				primaryButton: localize({ key: 'stopTracing.button', comment: ['&& denotes a mnemonic'] }, "&&Relaunch and Enable Tracing"),
+			});
+
+			if (confirmed) {
+				return nativeHostService.relaunch({ addArgs: ['--trace'] });
+			}
+		}
+
+		await progressService.withProgress({
+			location: ProgressLocation.Dialog,
+			title: localize('stopTracing.title', "Creating trace file..."),
+			cancellable: false,
+			detail: localize('stopTracing.detail', "This can take up to one minute to complete.")
+		}, () => issueService.stopTracing());
+	}
+}
+registerAction2(StopTracing);
 
 CommandsRegistry.registerCommand('_issues.getSystemStatus', (accessor) => {
 	return accessor.get(IIssueService).getSystemStatus();
 });
+
+//#endregion

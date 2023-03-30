@@ -1312,7 +1312,6 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 
 	private async openInBrowserWindow(options: IOpenBrowserWindowOptions): Promise<ICodeWindow> {
 		const windowConfig = this.configurationService.getValue<IWindowSettings | undefined>('window');
-		const filesConfig = this.configurationService.getValue<{ experimental?: { watcherUseUtilityProcess?: boolean } } | undefined>('files');
 
 		const lastActiveWindow = this.getLastActiveWindow();
 		const defaultProfile = lastActiveWindow?.profile ?? this.userDataProfilesMainService.defaultProfile;
@@ -1375,7 +1374,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 				window: [],
 				global: this.loggerService.getRegisteredLoggers()
 			},
-			logsPath: this.environmentMainService.logsPath,
+			logsPath: this.environmentMainService.logsHome.fsPath,
 
 			product,
 			isInitialStartup: options.initialStartup,
@@ -1390,7 +1389,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 			policiesData: this.policyService.serialize(),
 			continueOn: this.environmentMainService.continueOn,
 
-			preferUtilityProcess: canUseUtilityProcess ? (filesConfig?.experimental?.watcherUseUtilityProcess ?? windowConfig?.experimental?.sharedProcessUseUtilityProcess ?? false) : false
+			preferUtilityProcess: canUseUtilityProcess
 		};
 
 		// New window
@@ -1453,7 +1452,10 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 				configuration['extensions-dir'] = currentWindowConfig['extensions-dir'];
 				configuration['disable-extensions'] = currentWindowConfig['disable-extensions'];
 			}
-			configuration.loggers = currentWindowConfig?.loggers ?? configuration.loggers;
+			configuration.loggers = {
+				global: configuration.loggers.global,
+				window: currentWindowConfig?.loggers.window ?? configuration.loggers.window
+			};
 		}
 
 		// Update window identifier and session now

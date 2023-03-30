@@ -64,11 +64,6 @@ export class HoverService implements IHoverService {
 			options.container
 		);
 		hover.onRequestLayout(() => provider.layout());
-		if (options.onClick) {
-			hoverDisposables.add(addDisposableListener(hover.domNode, EventType.CLICK, e => {
-				options.onClick!(e);
-			}));
-		}
 		if ('targetElements' in options.target) {
 			for (const element of options.target.targetElements) {
 				hoverDisposables.add(addDisposableListener(element, EventType.CLICK, () => this.hideHover()));

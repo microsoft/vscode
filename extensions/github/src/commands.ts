@@ -7,15 +7,15 @@ import * as vscode from 'vscode';
 import { API as GitAPI } from './typings/git';
 import { publishRepository } from './publish';
 import { DisposableStore } from './util';
-import { getLink } from './links';
+import { LinkContext, getLink } from './links';
 
 function getVscodeDevHost(): string {
 	return `https://${vscode.env.appName.toLowerCase().includes('insiders') ? 'insiders.' : ''}vscode.dev/github`;
 }
 
-async function copyVscodeDevLink(gitAPI: GitAPI, useSelection: boolean) {
+async function copyVscodeDevLink(gitAPI: GitAPI, useSelection: boolean, context: LinkContext, includeRange = true) {
 	try {
-		const permalink = getLink(gitAPI, useSelection, getVscodeDevHost());
+		const permalink = getLink(gitAPI, useSelection, getVscodeDevHost(), undefined, context, includeRange);
 		if (permalink) {
 			return vscode.env.clipboard.writeText(permalink);
 		}
@@ -45,12 +45,16 @@ export function registerCommands(gitAPI: GitAPI): vscode.Disposable {
 		}
 	}));
 
-	disposables.add(vscode.commands.registerCommand('github.copyVscodeDevLink', async () => {
-		return copyVscodeDevLink(gitAPI, true);
+	disposables.add(vscode.commands.registerCommand('github.copyVscodeDevLink', async (context: LinkContext) => {
+		return copyVscodeDevLink(gitAPI, true, context);
 	}));
 
-	disposables.add(vscode.commands.registerCommand('github.copyVscodeDevLinkFile', async () => {
-		return copyVscodeDevLink(gitAPI, false);
+	disposables.add(vscode.commands.registerCommand('github.copyVscodeDevLinkFile', async (context: LinkContext) => {
+		return copyVscodeDevLink(gitAPI, false, context);
+	}));
+
+	disposables.add(vscode.commands.registerCommand('github.copyVscodeDevLinkWithoutRange', async (context: LinkContext) => {
+		return copyVscodeDevLink(gitAPI, true, context, false);
 	}));
 
 	disposables.add(vscode.commands.registerCommand('github.openOnVscodeDev', async () => {

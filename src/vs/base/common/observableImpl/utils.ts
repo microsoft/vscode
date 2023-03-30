@@ -276,8 +276,12 @@ export function wasEventTriggeredRecently(event: Event<any>, timeoutMs: number, 
 }
 
 /**
- * This ensures the observable is kept up-to-date.
- * This is useful when the observables `get` method is used.
+ * This ensures the observable cache is kept up-to-date, even if there are no subscribers.
+ * This is useful when the observables `get` method is used, but not its `read` method.
+ *
+ * (Usually, when no one is actually observing the observable, getting its value will
+ * compute it from scratch, as the cache cannot be trusted:
+ * Because no one is actually observing its value, keeping the cache up-to-date would be too expensive)
 */
 export function keepAlive(observable: IObservable<any>): IDisposable {
 	const o = new KeepAliveObserver();

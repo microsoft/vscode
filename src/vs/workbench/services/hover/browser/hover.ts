@@ -94,6 +94,14 @@ export interface IHoverOptions {
 	hideOnHover?: boolean;
 
 	/**
+	 * When {@link hideOnHover} is explicitly true or undefined and its auto value is detected to
+	 * hide, show a hint at the bottom of the hover explaining how to mouse over the widget. This
+	 * should be used in the cases where despite the hover having no interactive content, it's
+	 * likely the user may want to interact with it somehow.
+	 */
+	showHoverHint?: boolean;
+
+	/**
 	 * Whether to hide the hover when a key is pressed.
 	 */
 	hideOnKeyDown?: boolean;
@@ -133,11 +141,6 @@ export interface IHoverOptions {
 	 * - If there are elements in the hover to focus, focus stays inside of the hover when tabbing
 	 */
 	trapFocus?: boolean;
-
-	/**
-	 * A callback which will be executed when the hover is clicked
-	 */
-	onClick?(e: MouseEvent): void;
 
 	/*
 	 * The container to pass to {@link IContextViewProvider.showContextView} which renders the hover

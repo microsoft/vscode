@@ -74,7 +74,8 @@ export interface ICommandHandler {
 #includeAll(vs/editor/common/model): IScrollEvent
 #include(vs/editor/common/diff/smartLinesDiffComputer): IChange, ICharChange, ILineChange
 #include(vs/editor/common/diff/documentDiffProvider): IDocumentDiffProvider, IDocumentDiffProviderOptions, IDocumentDiff
-#include(vs/editor/common/diff/linesDiffComputer): LineRangeMapping, LineRange, RangeMapping
+#include(vs/editor/common/core/lineRange): LineRange
+#include(vs/editor/common/diff/linesDiffComputer): LineRangeMapping, RangeMapping
 #include(vs/editor/common/core/dimension): IDimension
 #includeAll(vs/editor/common/editorCommon): IScrollEvent
 #includeAll(vs/editor/common/textModelEvents):
@@ -84,6 +85,7 @@ export interface ICommandHandler {
 #include(vs/editor/browser/config/editorConfiguration): IEditorConstructionOptions
 #includeAll(vs/editor/browser/editorBrowser;editorCommon.=>):
 #include(vs/editor/common/config/fontInfo): FontInfo, BareFontInfo
+#include(vs/editor/common/config/editorZoom): EditorZoom, IEditorZoom
 
 //compatibility:
 export type IReadOnlyModel = ITextModel;

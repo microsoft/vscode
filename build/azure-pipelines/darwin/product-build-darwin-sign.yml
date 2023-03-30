@@ -126,19 +126,20 @@ steps:
 
   - task: UseDotNet@2
     inputs:
-      version: 2.x
+      version: 6.x
 
   - task: EsrpClientTool@1
+    continueOnError: true
     displayName: Download ESRPClient
 
   - script: |
       set -e
-      node build/azure-pipelines/common/sign "$(esrpclient.toolpath)/$(esrpclient.toolname)" darwin-sign $(ESRP-PKI) $(esrp-aad-username) $(esrp-aad-password) $(Pipeline.Workspace)/unsigned_vscode_client_darwin_$(VSCODE_ARCH)_archive VSCode-darwin-$(VSCODE_ARCH).zip
+      node build/azure-pipelines/common/sign $(Agent.ToolsDirectory)/esrpclient/*/*/net6.0/esrpcli.dll darwin-sign $(ESRP-PKI) $(esrp-aad-username) $(esrp-aad-password) $(Pipeline.Workspace)/unsigned_vscode_client_darwin_$(VSCODE_ARCH)_archive VSCode-darwin-$(VSCODE_ARCH).zip
     displayName: Codesign
 
   - script: |
       set -e
-      node build/azure-pipelines/common/sign "$(esrpclient.toolpath)/$(esrpclient.toolname)" darwin-notarize $(ESRP-PKI) $(esrp-aad-username) $(esrp-aad-password) $(Pipeline.Workspace)/unsigned_vscode_client_darwin_$(VSCODE_ARCH)_archive VSCode-darwin-$(VSCODE_ARCH).zip
+      node build/azure-pipelines/common/sign $(Agent.ToolsDirectory)/esrpclient/*/*/net6.0/esrpcli.dll darwin-notarize $(ESRP-PKI) $(esrp-aad-username) $(esrp-aad-password) $(Pipeline.Workspace)/unsigned_vscode_client_darwin_$(VSCODE_ARCH)_archive VSCode-darwin-$(VSCODE_ARCH).zip
     displayName: Notarize
 
   - script: |

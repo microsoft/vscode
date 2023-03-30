@@ -21,10 +21,10 @@ export class NativeEnvironmentService extends AbstractNativeEnvironmentService {
 	}
 }
 
-export function parsePtyHostDebugPort(args: NativeParsedArgs, isBuild: boolean): IDebugParams {
-	return parseDebugParams(args['inspect-ptyhost'], args['inspect-brk-ptyhost'], 5877, isBuild, args.extensionEnvironment);
+export function parsePtyHostDebugPort(args: NativeParsedArgs, isBuilt: boolean): IDebugParams {
+	return parseDebugParams(args['inspect-ptyhost'], args['inspect-brk-ptyhost'], 5877, isBuilt, args.extensionEnvironment);
 }
 
-export function parseSharedProcessDebugPort(args: NativeParsedArgs, isBuild: boolean): IDebugParams {
-	return parseDebugParams(args['inspect-sharedprocess'], args['inspect-brk-sharedprocess'], 5879, isBuild, args.extensionEnvironment);
+export function parseSharedProcessDebugPort(args: NativeParsedArgs, isBuilt: boolean): IDebugParams {
+	return parseDebugParams(args['inspect-sharedprocess'], args['inspect-brk-sharedprocess'], 5879, isBuilt, args.extensionEnvironment);
 }

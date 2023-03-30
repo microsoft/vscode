@@ -11,7 +11,7 @@ import {
 	ProviderResult, TextEdit, Range, Position, Disposable, CompletionItem, CompletionList, CompletionContext, Hover, MarkdownString, FoldingContext, DocumentSymbol, SymbolInformation, l10n
 } from 'vscode';
 import {
-	LanguageClientOptions, RequestType, NotificationType,
+	LanguageClientOptions, RequestType, NotificationType, FormattingOptions as LSPFormattingOptions,
 	DidChangeConfigurationNotification, HandleDiagnosticsSignature, ResponseError, DocumentRangeFormattingParams,
 	DocumentRangeFormattingRequest, ProvideCompletionItemsSignature, ProvideHoverSignature, BaseLanguageClient, ProvideFoldingRangeSignature, ProvideDocumentSymbolsSignature, ProvideDocumentColorsSignature
 } from 'vscode-languageclient';
@@ -36,6 +36,23 @@ namespace LanguageStatusRequest {
 	export const type: RequestType<string, JSONLanguageStatus, any> = new RequestType('json/languageStatus');
 }
 
+interface SortOptions extends LSPFormattingOptions {
+}
+
+interface DocumentSortingParams {
+	/**
+	 * The uri of the document to sort.
+	 */
+	readonly uri: string;
+	/**
+	 * The sort options
+	 */
+	readonly options: SortOptions;
+}
+
+namespace DocumentSortingRequest {
+	export const type: RequestType<DocumentSortingParams, TextEdit[], any> = new RequestType('json/sort');
+}
 
 export interface ISchemaAssociations {
 	[pattern: string]: string[];
@@ -144,6 +161,37 @@ export async function startClient(context: ExtensionContext, newLanguageClient: 
 			await client.sendNotification(SchemaContentChangeNotification.type, cachedSchemas);
 		}
 		window.showInformationMessage(l10n.t('JSON schema cache cleared.'));
+	}));
+
+	toDispose.push(commands.registerCommand('json.sort', async () => {
+
+		if (isClientReady) {
+			const textEditor = window.activeTextEditor;
+			if (textEditor) {
+				const document = textEditor.document;
+				const filesConfig = workspace.getConfiguration('files', document);
+				const options: SortOptions = {
+					tabSize: textEditor.options.tabSize ? Number(textEditor.options.tabSize) : 4,
+					insertSpaces: textEditor.options.insertSpaces ? Boolean(textEditor.options.insertSpaces) : true,
+					trimTrailingWhitespace: filesConfig.get<boolean>('trimTrailingWhitespace'),
+					trimFinalNewlines: filesConfig.get<boolean>('trimFinalNewlines'),
+					insertFinalNewline: filesConfig.get<boolean>('insertFinalNewline'),
+				};
+				const params: DocumentSortingParams = {
+					uri: document.uri.toString(),
+					options
+				};
+				const textEdits = await client.sendRequest(DocumentSortingRequest.type, params);
+				const success = await textEditor.edit(mutator => {
+					for (const edit of textEdits) {
+						mutator.replace(client.protocol2CodeConverter.asRange(edit.range), edit.newText);
+					}
+				});
+				if (!success) {
+					window.showErrorMessage(l10n.t('Failed to sort the JSONC document, please consider opening an issue.'));
+				}
+			}
+		}
 	}));
 
 	// Options to control the language client
@@ -497,40 +545,58 @@ function getSettings(): Settings {
 		}
 	};
 
-	const collectSchemaSettings = (schemaSettings: JSONSchemaSettings[], folderUri?: Uri) => {
-		for (const setting of schemaSettings) {
-			const url = getSchemaId(setting, folderUri);
-			if (url) {
-				const schemaSetting: JSONSchemaSettings = { url, fileMatch: setting.fileMatch, folderUri: folderUri?.toString(false), schema: setting.schema };
-				schemas.push(schemaSetting);
+	/*
+	 * Add schemas from the settings
+	 * folderUri to which folder the setting is scoped to. `undefined` means global (also external files)
+	 * settingsLocation against which path relative schema URLs are resolved
+	 */
+	const collectSchemaSettings = (schemaSettings: JSONSchemaSettings[] | undefined, folderUri: string | undefined, settingsLocation: Uri | undefined) => {
+		if (schemaSettings) {
+			for (const setting of schemaSettings) {
+				const url = getSchemaId(setting, settingsLocation);
+				if (url) {
+					const schemaSetting: JSONSchemaSettings = { url, fileMatch: setting.fileMatch, folderUri, schema: setting.schema };
+					schemas.push(schemaSetting);
+				}
 			}
 		}
 	};
 
-	const globalSettings = workspace.getConfiguration('json', null).get<JSONSchemaSettings[]>('schemas');
-	if (Array.isArray(globalSettings)) {
-		collectSchemaSettings(globalSettings);
-	}
-	const folders = workspace.workspaceFolders;
-	if (folders) {
-		for (const folder of folders) {
-			const schemaConfigInfo = workspace.getConfiguration('json', folder.uri).inspect<JSONSchemaSettings[]>('schemas');
-			if (schemaConfigInfo && Array.isArray(schemaConfigInfo.workspaceFolderValue)) {
-				collectSchemaSettings(schemaConfigInfo.workspaceFolderValue, folder.uri);
+	const folders = workspace.workspaceFolders ?? [];
+
+	const schemaConfigInfo = workspace.getConfiguration('json', null).inspect<JSONSchemaSettings[]>('schemas');
+	if (schemaConfigInfo) {
+		// settings in user config
+		collectSchemaSettings(schemaConfigInfo.globalValue, undefined, undefined);
+		if (workspace.workspaceFile) {
+			if (schemaConfigInfo.workspaceValue) {
+				const settingsLocation = Uri.joinPath(workspace.workspaceFile, '..');
+				// settings in the workspace configuration file apply to all files (also external files)
+				collectSchemaSettings(schemaConfigInfo.workspaceValue, undefined, settingsLocation);
+			}
+			for (const folder of folders) {
+				const folderUri = folder.uri;
+				const folderSchemaConfigInfo = workspace.getConfiguration('json', folderUri).inspect<JSONSchemaSettings[]>('schemas');
+				collectSchemaSettings(folderSchemaConfigInfo?.workspaceFolderValue, folderUri.toString(false), folderUri);
+			}
+		} else {
+			if (schemaConfigInfo.workspaceValue && folders.length === 1) {
+				// single folder workspace: settings apply to all files (also external files)
+				collectSchemaSettings(schemaConfigInfo.workspaceValue, undefined, folders[0].uri);
 			}
 		}
 	}
 	return settings;
 }
 
-function getSchemaId(schema: JSONSchemaSettings, folderUri?: Uri): string | undefined {
+function getSchemaId(schema: JSONSchemaSettings, settingsLocation?: Uri): string | undefined {
 	let url = schema.url;
 	if (!url) {
 		if (schema.schema) {
 			url = schema.schema.id || `vscode://schemas/custom/${encodeURIComponent(hash(schema.schema).toString(16))}`;
 		}
-	} else if (folderUri && (url[0] === '.' || url[0] === '/')) {
-		url = Uri.joinPath(folderUri, url).toString(false);
+	} else if (settingsLocation && (url[0] === '.' || url[0] === '/')) {
+		url = Uri.joinPath(settingsLocation, url).toString(false);
 	}
 	return url;
 }

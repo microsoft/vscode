@@ -81,7 +81,7 @@ export class EditSessionsDataViews extends Disposable {
 			async run(accessor: ServicesAccessor, handle: TreeViewItemHandleArg): Promise<void> {
 				const editSessionId = URI.parse(handle.$treeItemHandle).path.substring(1);
 				const commandService = accessor.get(ICommandService);
-				await commandService.executeCommand('workbench.editSessions.actions.resumeLatest', editSessionId);
+				await commandService.executeCommand('workbench.editSessions.actions.resumeLatest', editSessionId, true);
 				await treeView.refresh();
 			}
 		});

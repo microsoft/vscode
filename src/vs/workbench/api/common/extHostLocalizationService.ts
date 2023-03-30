@@ -95,7 +95,7 @@ export class ExtHostLocalizationService implements ExtHostLocalizationShape {
 
 	private async getBundleLocation(extension: IExtensionDescription): Promise<URI | undefined> {
 		if (extension.isBuiltin) {
-			const uri = await this._proxy.$fetchBuiltInBundleUri(extension.identifier.value);
+			const uri = await this._proxy.$fetchBuiltInBundleUri(extension.identifier.value, this.currentLanguage);
 			return URI.revive(uri);
 		}
 

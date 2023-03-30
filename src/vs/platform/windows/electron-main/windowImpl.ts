@@ -50,6 +50,7 @@ import { resolveCommonProperties } from 'vs/platform/telemetry/common/commonProp
 import { hostname, release } from 'os';
 import { resolveMachineId } from 'vs/platform/telemetry/electron-main/telemetryUtils';
 import { ILoggerMainService } from 'vs/platform/log/electron-main/loggerService';
+import { firstOrDefault } from 'vs/base/common/arrays';
 
 export interface IWindowCreationOptions {
 	readonly state: IWindowState;
@@ -249,7 +250,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 				show: !isFullscreenOrMaximized, // reduce flicker by showing later
 				title: this.productService.nameLong,
 				webPreferences: {
-					preload: FileAccess.asFileUri('vs/base/parts/sandbox/electron-browser/preload.js').fsPath,
+					preload: FileAccess.asFileUri('vs/base/parts/sandbox/electron-sandbox/preload.js').fsPath,
 					additionalArguments: [`--vscode-window-config=${this.configObjectUrl.resource.toString()}`],
 					v8CacheOptions: this.environmentMainService.useCodeCache ? 'bypassHeatCheck' : 'none',
 					enableWebSQL: false,
@@ -798,13 +799,12 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 				appenders.push(new OneDataSystemAppender(isInternal, 'monacoworkbench', null, this.productService.aiConfig.ariaKey));
 			}
 
-			const { installSourcePath } = this.environmentMainService;
-			const machineId = await resolveMachineId(this.stateService);
+			const machineId = await resolveMachineId(this.stateService, this.logService);
 
 			const config: ITelemetryServiceConfig = {
 				appenders,
 				sendErrorTelemetry: false,
-				commonProperties: resolveCommonProperties(this.fileService, release(), hostname(), process.arch, this.productService.commit, this.productService.version, machineId, isInternal, installSourcePath),
+				commonProperties: resolveCommonProperties(release(), hostname(), process.arch, this.productService.commit, this.productService.version, machineId, isInternal),
 				piiPaths: getPiiPathsFromEnvironment(this.environmentMainService)
 			};
 
@@ -881,7 +881,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 			}
 
 			// Delegate to windows service
-			const [window] = await this.windowsMainService.open({
+			const window = firstOrDefault(await this.windowsMainService.open({
 				context: OpenContext.API,
 				userEnv: this._config.userEnv,
 				cli: {
@@ -892,8 +892,8 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 				forceEmpty,
 				forceNewWindow: true,
 				remoteAuthority: this.remoteAuthority
-			});
-			window.focus();
+			}));
+			window?.focus();
 		}
 	}
 

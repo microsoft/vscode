@@ -103,7 +103,7 @@ export class ExplorerDataSource implements IAsyncDataSource<ExplorerItem | Explo
 			return element;
 		}
 
-		const wasError = element.isError;
+		const hasError = element.error;
 		const sortOrder = this.explorerService.sortOrderConfiguration.sortOrder;
 		const children = element.fetchChildren(sortOrder);
 		if (Array.isArray(children)) {
@@ -113,7 +113,7 @@ export class ExplorerDataSource implements IAsyncDataSource<ExplorerItem | Explo
 		const promise = children.then(
 			children => {
 				// Clear previous error decoration on root folder
-				if (element instanceof ExplorerItem && element.isRoot && !element.isError && wasError && this.contextService.getWorkbenchState() !== WorkbenchState.FOLDER) {
+				if (element instanceof ExplorerItem && element.isRoot && !element.error && hasError && this.contextService.getWorkbenchState() !== WorkbenchState.FOLDER) {
 					explorerRootErrorEmitter.fire(element.resource);
 				}
 				return children;
@@ -124,7 +124,7 @@ export class ExplorerDataSource implements IAsyncDataSource<ExplorerItem | Explo
 					if (this.contextService.getWorkbenchState() === WorkbenchState.FOLDER) {
 						// Single folder create a dummy explorer item to show error
 						const placeholder = new ExplorerItem(element.resource, this.fileService, this.configService, undefined, undefined, false);
-						placeholder.isError = true;
+						placeholder.error = e;
 						return [placeholder];
 					} else {
 						explorerRootErrorEmitter.fire(element.resource);
@@ -281,6 +281,7 @@ export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, Fu
 	private readonly hoverDelegate = new class implements IHoverDelegate {
 
 		private lastHoverHideTime = 0;
+		private hiddenFromClick = false;
 		readonly placement = 'element';
 
 		get delay() {
@@ -305,7 +306,8 @@ export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, Fu
 				element = options.target.targetElements[0];
 			}
 
-			const row = element.closest('.monaco-tl-row') as HTMLElement | undefined;
+			const tlRow = element.closest('.monaco-tl-row') as HTMLElement | undefined;
+			const listRow = tlRow?.closest('.monaco-list-row') as HTMLElement | undefined;
 
 			const child = element.querySelector('div.monaco-icon-label-container') as Element | undefined;
 			const childOfChild = child?.querySelector('span.monaco-icon-name-container') as HTMLElement | undefined;
@@ -322,7 +324,7 @@ export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, Fu
 			// If it's overflowing or has a decoration show the tooltip
 			overflowed = overflowed || hasDecoration;
 
-			const indentGuideElement = row?.querySelector('.monaco-tl-indent') as HTMLElement | undefined;
+			const indentGuideElement = tlRow?.querySelector('.monaco-tl-indent') as HTMLElement | undefined;
 			if (!indentGuideElement) {
 				return;
 			}
@@ -331,20 +333,19 @@ export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, Fu
 				...options,
 				target: indentGuideElement,
 				compact: true,
-				container: row,
+				container: listRow,
 				additionalClasses: ['explorer-item-hover'],
 				skipFadeInAnimation: true,
 				showPointer: false,
-				onClick: (e) => {
-					this.hoverService.hideHover();
-					element.dispatchEvent(new MouseEvent(e.type, { ...e, bubbles: true }));
-				},
 				hoverPosition: HoverPosition.RIGHT,
 			}, focus) : undefined;
 		}
 
 		onDidHideHover(): void {
-			this.lastHoverHideTime = Date.now();
+			if (!this.hiddenFromClick) {
+				this.lastHoverHideTime = Date.now();
+			}
+			this.hiddenFromClick = false;
 		}
 	}(this.configurationService, this.hoverService);
 
@@ -391,7 +392,8 @@ export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, Fu
 
 	renderTemplate(container: HTMLElement): IFileTemplateData {
 		const templateDisposables = new DisposableStore();
-		const label = templateDisposables.add(this.labels.create(container, { supportHighlights: true, hoverDelegate: this.hoverDelegate }));
+		const experimentalHover = this.configurationService.getValue<boolean>('explorer.experimental.hover');
+		const label = templateDisposables.add(this.labels.create(container, { supportHighlights: true, hoverDelegate: experimentalHover ? this.hoverDelegate : undefined }));
 		templateDisposables.add(label.onDidRender(() => {
 			try {
 				if (templateData.currentContext) {
@@ -489,8 +491,9 @@ export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, Fu
 		const themeIsUnhappyWithNesting = theme.hasFileIcons && (theme.hidesExplorerArrows || !theme.hasFolderIcons);
 		const realignNestedChildren = stat.nestedParent && themeIsUnhappyWithNesting;
 
+		const experimentalHover = this.configurationService.getValue<boolean>('explorer.experimental.hover');
 		templateData.label.setResource({ resource: stat.resource, name: label }, {
-			title: isStringArray(label) ? label[0] : label,
+			title: experimentalHover ? isStringArray(label) ? label[0] : label : undefined,
 			fileKind: stat.isRoot ? FileKind.ROOT_FOLDER : stat.isDirectory ? FileKind.FOLDER : FileKind.FILE,
 			extraClasses: realignNestedChildren ? [...extraClasses, 'align-nest-icon-with-parent-icon'] : extraClasses,
 			fileDecorations: this.config.explorer.decorations,

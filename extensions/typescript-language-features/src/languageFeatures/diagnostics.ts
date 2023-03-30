@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
+import { DiagnosticLanguage } from '../configuration/languageDescription';
 import * as arrays from '../utils/arrays';
 import { Disposable } from '../utils/dispose';
-import { DiagnosticLanguage } from '../utils/languageDescription';
 import { ResourceMap } from '../utils/resourceMap';
 
 function diagnosticsEquals(a: vscode.Diagnostic, b: vscode.Diagnostic): boolean {
@@ -53,7 +53,7 @@ class FileDiagnostics {
 		}
 
 		const existing = this._diagnostics.get(kind);
-		if (arrays.equals(existing || arrays.empty, diagnostics, diagnosticsEquals)) {
+		if (existing?.length === 0 && diagnostics.length === 0) {
 			// No need to update
 			return false;
 		}
@@ -103,7 +103,7 @@ interface LanguageDiagnosticSettings {
 
 function areLanguageDiagnosticSettingsEqual(currentSettings: LanguageDiagnosticSettings, newSettings: LanguageDiagnosticSettings): boolean {
 	return currentSettings.validate === newSettings.validate
-		&& currentSettings.enableSuggestions && currentSettings.enableSuggestions;
+		&& currentSettings.enableSuggestions === newSettings.enableSuggestions;
 }
 
 class DiagnosticSettings {

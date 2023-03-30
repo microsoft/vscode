@@ -18,7 +18,7 @@ import { IContextMenuService } from 'vs/platform/contextview/browser/contextView
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IMenuService } from 'vs/platform/actions/common/actions';
+import { IMenuService, MenuId } from 'vs/platform/actions/common/actions';
 import { EditorCommandsContextActionRunner, ITitleControlDimensions, IToolbarActions, TitleControl } from 'vs/workbench/browser/parts/editor/titleControl';
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { IDisposable, dispose, DisposableStore, combinedDisposable, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
@@ -51,7 +51,8 @@ import { isSafari } from 'vs/base/browser/browser';
 import { equals } from 'vs/base/common/objects';
 import { EditorActivation } from 'vs/platform/editor/common/editor';
 import { UNLOCK_GROUP_COMMAND_ID } from 'vs/workbench/browser/parts/editor/editorCommands';
-import { ITreeViewsService } from 'vs/workbench/services/views/browser/treeViewsService';
+import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
+import { ITreeViewsDnDService } from 'vs/editor/common/services/treeViewsDndService';
 
 interface IEditorInputLabel {
 	editor: EditorInput;
@@ -146,7 +147,7 @@ export class TabsTitleControl extends TitleControl {
 		@IEditorService private readonly editorService: EditorServiceImpl,
 		@IPathService private readonly pathService: IPathService,
 		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService,
-		@ITreeViewsService private readonly treeViewsDragAndDropService: ITreeViewsService
+		@ITreeViewsDnDService private readonly treeViewsDragAndDropService: ITreeViewsDnDService
 	) {
 		super(parent, accessor, group, contextMenuService, instantiationService, contextKeyService, keybindingService, notificationService, menuService, quickInputService, themeService, configurationService, fileService);
 
@@ -399,6 +400,32 @@ export class TabsTitleControl extends TitleControl {
 			// Disable normal scrolling, opening the editor will already reveal it properly
 			EventHelper.stop(e, true);
 		}));
+
+		// Context menu
+		const showContextMenu = (e: Event) => {
+			EventHelper.stop(e);
+
+			// Find target anchor
+			let anchor: HTMLElement | { x: number; y: number } = tabsContainer;
+			if (e instanceof MouseEvent) {
+				const event = new StandardMouseEvent(e);
+				anchor = { x: event.posx, y: event.posy };
+			}
+
+			// Show it
+			this.contextMenuService.showContextMenu({
+				getAnchor: () => anchor,
+				menuId: MenuId.EditorTabsBarContext,
+				contextKeyService: this.contextKeyService,
+				menuActionOptions: { shouldForwardArgs: true },
+				getActionsContext: () => ({ groupId: this.group.id }),
+				getKeyBinding: action => this.getKeybinding(action),
+				onHide: () => this.group.focus()
+			});
+		};
+
+		this._register(addDisposableListener(tabsContainer, TouchEventType.Contextmenu, e => showContextMenu(e)));
+		this._register(addDisposableListener(tabsContainer, EventType.CONTEXT_MENU, e => showContextMenu(e)));
 	}
 
 	private doHandleDecorationsChange(): void {
