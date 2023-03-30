@@ -56,6 +56,17 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
 		this._debugConfigurationProviders = new Map();
 		this._debugAdapterDescriptorFactories = new Map();
 		this._sessions = new Set();
+
+		this.debugService.getViewModel().onDidFocusThread(({ thread, explicit, session }) => {
+			this._proxy.$acceptDebugFocus({ type: 'thread', threadId: thread?.threadId, frameId: undefined, sessionId: session?.getId() });
+		});
+
+		this.debugService.getViewModel().onDidFocusStackFrame(({ stackFrame, explicit, session }) => {
+			const sessionId = session?.getId();
+			// would not make sense for sessionId to be undefined, but threadId no be defined
+			const type = (sessionId === undefined) ? 'empty' : 'stackFrame';
+			this._proxy.$acceptDebugFocus({ type, threadId: stackFrame?.thread.threadId, frameId: stackFrame?.frameId, sessionId });
+		});
 	}
 
 	public dispose(): void {

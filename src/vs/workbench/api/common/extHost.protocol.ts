@@ -2015,6 +2015,15 @@ export interface IDebugSessionFullDto {
 
 export type IDebugSessionDto = IDebugSessionFullDto | DebugSessionUUID;
 
+export type IDebugFocusType = 'thread' | 'stackFrame' | 'empty';
+
+export interface IDebugFocusDto {
+	type: IDebugFocusType;
+	threadId: number | undefined;
+	frameId: number | undefined;
+	sessionId: string | undefined;
+}
+
 export interface ExtHostDebugServiceShape {
 	$substituteVariables(folder: UriComponents | undefined, config: IConfig): Promise<IConfig>;
 	$runInTerminal(args: DebugProtocol.RunInTerminalRequestArguments, sessionId: string): Promise<number | undefined>;
@@ -2031,6 +2040,7 @@ export interface ExtHostDebugServiceShape {
 	$acceptDebugSessionCustomEvent(session: IDebugSessionDto, event: any): void;
 	$acceptBreakpointsDelta(delta: IBreakpointsDeltaDto): void;
 	$acceptDebugSessionNameChanged(session: IDebugSessionDto, name: string): void;
+	$acceptDebugFocus(focus: IDebugFocusDto | undefined): void;
 }
 
 
