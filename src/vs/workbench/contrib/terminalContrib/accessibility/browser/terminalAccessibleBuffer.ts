@@ -171,7 +171,7 @@ export class AccessibleBufferWidget extends DisposableStore {
 		const quickPickItems: IAccessibleBufferQuickPickItem[] = [];
 		for (const command of commands) {
 			const line = command.marker?.line;
-			if (!line || !command.command.length) {
+			if (line === undefined || !command.command.length || line < 0) {
 				continue;
 			}
 			quickPickItems.push(
