@@ -102,12 +102,12 @@ suite('Buffer Content Tracker', () => {
 		assert.deepStrictEqual(bufferTracker.lines, [promptPlusData, promptPlusData, `${promptPlusData}inserteddata`, promptPlusData, promptPlusData, promptPlusData].map(s => s.replace(new RegExp(' ', 'g'), '\xA0')));
 	});
 	test('should always refresh viewport with full scrollback', async () => {
-		const content = `${promptPlusData}\r\n`.repeat(1030).trimEnd().replace(new RegExp(' ', 'g'), '\xA0');
-		await assertBufferExpected(promptPlusData, 1030, xterm.raw, bufferTracker);
+		const content = `${prompt}\r\n`.repeat(1030).trimEnd().replace(new RegExp(' ', 'g'), '\xA0');
+		await assertBufferExpected(prompt, 1030, xterm.raw, bufferTracker);
 		await writeP(xterm.raw, '\x1b[4Ainsertion');
 		await bufferTracker.update();
 		const expected = content.split('\r\n');
-		expected[1025] = `${promptPlusData}insertion`;
+		expected[1025] = `${prompt}insertion`;
 		assert.deepStrictEqual(bufferTracker.lines, expected);
 	});
 });
