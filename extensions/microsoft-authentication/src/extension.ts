@@ -4,11 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import { AzureActiveDirectoryService } from './AADHelper';
+import { AzureActiveDirectoryService, IStoredSession } from './AADHelper';
 import { UriEventHandler } from './UriEventHandler';
 import TelemetryReporter from '@vscode/extension-telemetry';
+import { BetterTokenStorage } from 'src/betterSecretStorage';
 
-async function initAzureCloudAuthProvider(context: vscode.ExtensionContext, telemetryReporter: TelemetryReporter, uriHandler: UriEventHandler): Promise<vscode.Disposable | undefined> {
+async function initAzureCloudAuthProvider(context: vscode.ExtensionContext, telemetryReporter: TelemetryReporter, uriHandler: UriEventHandler, tokenStorage: BetterTokenStorage<IStoredSession>): Promise<vscode.Disposable | undefined> {
 	const settingValue = vscode.workspace.getConfiguration('azure-cloud').get<string | undefined>('endpoint');
 	if (!settingValue) {
 		return undefined;
@@ -23,7 +24,7 @@ async function initAzureCloudAuthProvider(context: vscode.ExtensionContext, tele
 		return;
 	}
 
-	const azureEnterpriseAuthProvider = new AzureActiveDirectoryService(context, uriHandler, settingValue);
+	const azureEnterpriseAuthProvider = new AzureActiveDirectoryService(context, uriHandler, tokenStorage, settingValue);
 	await azureEnterpriseAuthProvider.initialize();
 
 	const disposable = vscode.authentication.registerAuthenticationProvider('azure-cloud', 'Azure Cloud', {
@@ -82,7 +83,9 @@ export async function activate(context: vscode.ExtensionContext) {
 	context.subscriptions.push(uriHandler);
 	context.subscriptions.push(vscode.window.registerUriHandler(uriHandler));
 
-	const loginService = new AzureActiveDirectoryService(context, uriHandler);
+	const betterSecretStorage = new BetterTokenStorage<IStoredSession>('microsoft.login.keylist', context);
+
+	const loginService = new AzureActiveDirectoryService(context, uriHandler, betterSecretStorage);
 	await loginService.initialize();
 
 	context.subscriptions.push(vscode.authentication.registerAuthenticationProvider('microsoft', 'Microsoft', {
@@ -129,12 +132,12 @@ export async function activate(context: vscode.ExtensionContext) {
 		}
 	}, { supportsMultipleAccounts: true }));
 
-	let azureCloudAuthProviderDisposable = await initAzureCloudAuthProvider(context, telemetryReporter, uriHandler);
+	let azureCloudAuthProviderDisposable = await initAzureCloudAuthProvider(context, telemetryReporter, uriHandler, betterSecretStorage);
 
 	context.subscriptions.push(vscode.workspace.onDidChangeConfiguration(async e => {
 		if (e.affectsConfiguration('azure-cloud.endpoint')) {
 			azureCloudAuthProviderDisposable?.dispose();
-			azureCloudAuthProviderDisposable = await initAzureCloudAuthProvider(context, telemetryReporter, uriHandler);
+			azureCloudAuthProviderDisposable = await initAzureCloudAuthProvider(context, telemetryReporter, uriHandler, betterSecretStorage);
 		}
 	}));
 

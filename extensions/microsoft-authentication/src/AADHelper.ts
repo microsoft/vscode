@@ -36,7 +36,7 @@ interface IToken {
 	sessionId: string; // The account id + the scope
 }
 
-interface IStoredSession {
+export interface IStoredSession {
 	id: string;
 	refreshToken: string;
 	scope: string; // Scopes are alphabetized and joined with a space
@@ -45,6 +45,7 @@ interface IStoredSession {
 		displayName?: string;
 		id: string;
 	};
+	endpoint: string | undefined;
 }
 
 export interface ITokenResponse {
@@ -80,28 +81,25 @@ export class AzureActiveDirectoryService {
 	private _tokens: IToken[] = [];
 	private _refreshTimeouts: Map<string, NodeJS.Timeout> = new Map<string, NodeJS.Timeout>();
 	private _refreshingPromise: Promise<any> | undefined;
-	private _uriHandler: UriEventHandler;
 	private _sessionChangeEmitter: vscode.EventEmitter<vscode.AuthenticationProviderAuthenticationSessionsChangeEvent> = new vscode.EventEmitter<vscode.AuthenticationProviderAuthenticationSessionsChangeEvent>();
-	private _loginEndpointUrl: string;
 
 	// Used to keep track of current requests when not using the local server approach.
 	private _pendingNonces = new Map<string, string[]>();
 	private _codeExchangePromises = new Map<string, Promise<vscode.AuthenticationSession>>();
 	private _codeVerfifiers = new Map<string, string>();
 
-	private readonly _tokenStorage: BetterTokenStorage<IStoredSession>;
-
-	constructor(private _context: vscode.ExtensionContext, uriHandler: UriEventHandler, loginEndpointUrl: string = defaultLoginEndpointUrl) {
-		const keylistKey = loginEndpointUrl === defaultLoginEndpointUrl ? 'microsoft.login.keylist' : 'azure-cloud.login.keylist';
-		this._tokenStorage = new BetterTokenStorage(keylistKey, _context);
-		this._uriHandler = uriHandler;
-		this._loginEndpointUrl = loginEndpointUrl;
+	constructor(
+		private readonly _context: vscode.ExtensionContext,
+		private readonly _uriHandler: UriEventHandler,
+		private readonly _tokenStorage: BetterTokenStorage<IStoredSession>,
+		private readonly _loginEndpointUrl: string = defaultLoginEndpointUrl
+	) {
 		_context.subscriptions.push(this._tokenStorage.onDidChangeInOtherWindow((e) => this.checkForUpdates(e)));
 	}
 
 	public async initialize(): Promise<void> {
 		Logger.info('Reading sessions from secret storage...');
-		const sessions = await this._tokenStorage.getAll();
+		const sessions = await this._tokenStorage.getAll(item => this.sessionMatchesEndpoint(item));
 		Logger.info(`Got ${sessions.length} stored sessions`);
 
 		const refreshes = sessions.map(async session => {
@@ -409,7 +407,7 @@ export class AzureActiveDirectoryService {
 	public async clearSessions() {
 		Logger.info('Logging out of all sessions');
 		this._tokens = [];
-		await this._tokenStorage.deleteAll();
+		await this._tokenStorage.deleteAll(item => this.sessionMatchesEndpoint(item));
 
 		this._refreshTimeouts.forEach(timeout => {
 			clearTimeout(timeout);
@@ -829,7 +827,8 @@ export class AzureActiveDirectoryService {
 			id: token.sessionId,
 			refreshToken: token.refreshToken,
 			scope: token.scope,
-			account: token.account
+			account: token.account,
+			endpoint: this._loginEndpointUrl,
 		});
 		Logger.info(`Stored token for scopes: ${scopeData.scopeStr}`);
 	}
@@ -841,6 +840,12 @@ export class AzureActiveDirectoryService {
 				Logger.error('session not found that was apparently just added');
 				return;
 			}
+
+			if (!this.sessionMatchesEndpoint(session)) {
+				// If the session wasn't made for this login endpoint, ignore this update
+				continue;
+			}
+
 			const matchesExisting = this._tokens.some(token => token.scope === session.scope && token.sessionId === session.id);
 			if (!matchesExisting && session.refreshToken) {
 				try {
@@ -878,6 +883,13 @@ export class AzureActiveDirectoryService {
 		// because access tokens are not stored in Secret Storage due to their short lifespan. This new refresh token
 		// is not useful in this window because we really only care about the lifetime of the _access_ token which we
 		// are already managing (see usages of `setSessionTimeout`).
+	}
+
+	private sessionMatchesEndpoint(session: IStoredSession): boolean {
+		// For older sessions with no endpoint set, it can be assumed to be the default endpoint
+		session.endpoint ||= defaultLoginEndpointUrl;
+
+		return session.endpoint === this._loginEndpointUrl;
 	}
 
 	//#endregion
