@@ -580,11 +580,31 @@ class DefaultDocumentColorProviderForStandaloneColorPicker implements DocumentCo
 
 	constructor() { }
 
+	private _findRange(model: ITextModel, match: RegExpMatchArray): IRange | undefined {
+
+		const index = match.index;
+		const length = match[0].length;
+		if (!index) {
+			return;
+		}
+		const startPosition = model.getPositionAt(index);
+		const endPosition = model.getPositionAt(index + length);
+		const range: IRange = {
+			startLineNumber: startPosition.lineNumber,
+			startColumn: startPosition.column,
+			endLineNumber: endPosition.lineNumber,
+			endColumn: endPosition.column
+		};
+		return range;
+	}
+
 	// TODO: Have a pop up which translates somewhow the RGBA to another format, on save, it adds another pannel
 	// Then these are searched everywhere in the file and to provide the correct color presentations
 	// Then you can also add a new color using the custom formatting, need a custom button for this however
 	// TODO: Change the colors_data which is what I want to change in a difffernet way, directly in the code above
 	provideDocumentColors(model: ITextModel, token: CancellationToken): ProviderResult<IColorInformation[]> {
+
+		const result: IColorInformation[] = [];
 
 		console.log('inside of provideDocumentColors of the DefaultDocumentColorProviderForStandaloneColorPicker');
 		// Default are the custom CSS color formats
@@ -598,27 +618,19 @@ class DefaultDocumentColorProviderForStandaloneColorPicker implements DocumentCo
 		/// RGBA done
 		const allText = model.getLinesContent().join('\n');
 		const rgbaRegexOther = /rgba[(](\s*)([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5]),(\s*)([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5]),(\s*)([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5]),(\s*)(([0-1]|)[.][0-9]*)[)]/gm;
-		const matchesOther = [...allText.matchAll(rgbaRegexOther)];
-		console.log('matchesOther : ', matchesOther);
+		const rgbaMatches = [...allText.matchAll(rgbaRegexOther)];
+		console.log('matchesOther : ', rgbaMatches);
 
-		const result: IColorInformation[] = [];
-
-		for (const match of matchesOther) {
-			const index = match.index;
-			const length = match[0].length;
-			if (!index) {
-				continue;
-			}
-			const startPosition = model.getPositionAt(index);
-			const endPosition = model.getPositionAt(index + length);
-			const range: IRange = {
-				startLineNumber: startPosition.lineNumber,
-				startColumn: startPosition.column,
-				endLineNumber: endPosition.lineNumber,
-				endColumn: endPosition.column
-			};
+		for (const match of rgbaMatches) {
 
 			console.log('match : ', match);
+
+			const range = this._findRange(model, match);
+			if (!range) {
+				return;
+			}
+
+			console.log('range : ', range);
 
 			const red = Number(match.at(2)) / 255;
 			const green = Number(match.at(4)) / 255;
@@ -646,8 +658,55 @@ class DefaultDocumentColorProviderForStandaloneColorPicker implements DocumentCo
 			result.push(colorInformation);
 		}
 
-		// ALSO do hsla and hexa
+		// HEXA
+		console.log('Inside of Hexa');
 
+		const hexaRegex = /#([A-Fa-f0-9]{8})/gm;
+		const hexaMatches = [...allText.matchAll(hexaRegex)];
+		console.log('hexaMatches : ', hexaMatches);
+
+		for (const match of hexaMatches) {
+
+			console.log('match : ', match);
+
+			const range = this._findRange(model, match);
+			if (!range) {
+				return;
+			}
+
+			console.log('range : ', range);
+
+			const hexValue = match.at(0);
+
+			console.log('hexValue : ', hexValue);
+
+			if (!hexValue) {
+				console.log('early return');
+				return;
+			}
+
+			const parsedHexColor = Color.Format.CSS.parseHex(hexValue);
+			console.log('parsedHexColor : ', parsedHexColor);
+
+			if (!parsedHexColor) {
+				console.log('early return');
+				return;
+			}
+
+			const parsedHexIColor = {
+				red: parsedHexColor.rgba.r / 255,
+				green: parsedHexColor.rgba.g / 255,
+				blue: parsedHexColor.rgba.b / 255,
+				alpha: parsedHexColor.rgba.a
+			};
+			const colorInformation = {
+				range: range,
+				color: parsedHexIColor
+			};
+			result.push(colorInformation);
+		}
+
+		// ------------
 
 		console.log('result : ', result);
 		return result;
