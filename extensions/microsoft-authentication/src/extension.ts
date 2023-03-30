@@ -10,7 +10,7 @@ import { UriEventHandler } from './UriEventHandler';
 import TelemetryReporter from '@vscode/extension-telemetry';
 
 async function initAzureCloudAuthProvider(context: vscode.ExtensionContext, telemetryReporter: TelemetryReporter, uriHandler: UriEventHandler, tokenStorage: BetterTokenStorage<IStoredSession>): Promise<vscode.Disposable | undefined> {
-	const settingValue = vscode.workspace.getConfiguration('azure-cloud').get<string | undefined>('endpoint');
+	let settingValue = vscode.workspace.getConfiguration('azure-cloud').get<string | undefined>('endpoint');
 	if (!settingValue) {
 		return undefined;
 	}
@@ -24,10 +24,15 @@ async function initAzureCloudAuthProvider(context: vscode.ExtensionContext, tele
 		return;
 	}
 
+	// Add trailing slash if needed
+	if (!settingValue.endsWith('/')) {
+		settingValue += '/';
+	}
+
 	const azureEnterpriseAuthProvider = new AzureActiveDirectoryService(context, uriHandler, tokenStorage, settingValue);
 	await azureEnterpriseAuthProvider.initialize();
 
-	const disposable = vscode.authentication.registerAuthenticationProvider('azure-cloud', 'Azure Cloud', {
+	const disposable = vscode.authentication.registerAuthenticationProvider('azure-cloud', settingValue, {
 		onDidChangeSessions: azureEnterpriseAuthProvider.onDidChangeSessions,
 		getSessions: (scopes: string[]) => azureEnterpriseAuthProvider.getSessions(scopes),
 		createSession: async (scopes: string[]) => {
