@@ -90,7 +90,7 @@ suite('Buffer Content Tracker', () => {
 	});
 	test('should always refresh viewport with full scrollback', async () => {
 		const content = `${promptPlusData}\r\n`.repeat(1030).trimEnd().replace(new RegExp(' ', 'g'), '\xA0');
-		await assertBufferExpected('abcd', 1030, xterm.raw, bufferTracker);
+		await assertBufferExpected(promptPlusData, 1030, xterm.raw, bufferTracker);
 		await writeP(xterm.raw, '\x1b[4Ainsertion');
 		await bufferTracker.update();
 		const expected = content.split('\r\n');
