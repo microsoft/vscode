@@ -118,7 +118,7 @@ registerActiveInstanceAction({
 });
 registerActiveInstanceAction({
 	id: TerminalCommandId.OpenWebLink,
-	title: { value: localize('workbench.action.terminal.openLastUrlLink', "Open Last Url Link"), original: 'Open Last Url Link' },
+	title: { value: localize('workbench.action.terminal.openLastUrlLink', "Open Last URL Link"), original: 'Open Last URL Link' },
 	f1: true,
 	category,
 	precondition: TerminalContextKeys.terminalHasBeenCreated,

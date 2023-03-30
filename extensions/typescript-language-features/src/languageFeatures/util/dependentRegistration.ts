@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import { ClientCapability, ITypeScriptServiceClient } from '../typescriptService';
-import API from './api';
-import { Disposable } from './dispose';
+import { API } from '../../tsServer/api';
+import { ClientCapability, ITypeScriptServiceClient } from '../../typescriptService';
+import { Disposable } from '../../utils/dispose';
 
 export class Condition extends Disposable {
 	private _value: boolean;

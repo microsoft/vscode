@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as vscode from 'vscode';
 import * as cp from 'child_process';
+import * as vscode from 'vscode';
 
-import { Disposable } from '../utils/dispose';
 import { CommandManager } from '../commands/commandManager';
+import { Disposable } from '../utils/dispose';
 
 
 export async function nodeWasResolvable(): Promise<boolean> {

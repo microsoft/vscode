@@ -623,12 +623,6 @@ export class TextEdit {
 	}
 }
 
-export enum NotebookDocumentSaveReason {
-	Manual = 1,
-	AfterDelay = 2,
-	FocusOut = 3
-}
-
 @es5ClassCompat
 export class NotebookEdit implements vscode.NotebookEdit {
 

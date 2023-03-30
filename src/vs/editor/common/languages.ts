@@ -1182,6 +1182,10 @@ export interface FormattingOptions {
 	 * Prefer spaces over tabs.
 	 */
 	insertSpaces: boolean;
+	/**
+	 * The list of multiple ranges to format at once, if the provider supports it.
+	 */
+	ranges?: Range[];
 }
 /**
  * The document formatting provider interface defines the contract between extensions and
@@ -1212,6 +1216,8 @@ export interface DocumentRangeFormattingEditProvider {
 	readonly extensionId?: ExtensionIdentifier;
 
 	readonly displayName?: string;
+
+	readonly canFormatMultipleRanges: boolean;
 
 	/**
 	 * Provide formatting edits for a range in a document.

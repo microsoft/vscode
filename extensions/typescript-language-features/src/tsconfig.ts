@@ -5,10 +5,10 @@
 
 import * as path from 'path';
 import * as vscode from 'vscode';
-import type * as Proto from '../protocol';
-import { ITypeScriptServiceClient, ServerResponse } from '../typescriptService';
-import { nulToken } from '../utils/cancellation';
-import { TypeScriptServiceConfiguration } from './configuration';
+import type * as Proto from './tsServer/protocol/protocol';
+import { ITypeScriptServiceClient, ServerResponse } from './typescriptService';
+import { nulToken } from './utils/cancellation';
+import { TypeScriptServiceConfiguration } from './configuration/configuration';
 
 
 export const enum ProjectType {

@@ -7174,6 +7174,10 @@ declare namespace monaco.languages {
 		 * Prefer spaces over tabs.
 		 */
 		insertSpaces: boolean;
+		/**
+		 * The list of multiple ranges to format at once, if the provider supports it.
+		 */
+		ranges?: Range[];
 	}
 
 	/**
@@ -7194,6 +7198,7 @@ declare namespace monaco.languages {
 	 */
 	export interface DocumentRangeFormattingEditProvider {
 		readonly displayName?: string;
+		readonly canFormatMultipleRanges: boolean;
 		/**
 		 * Provide formatting edits for a range in a document.
 		 *

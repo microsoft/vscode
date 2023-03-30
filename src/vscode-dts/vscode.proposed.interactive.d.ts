@@ -54,18 +54,18 @@ declare module 'vscode' {
 		action?: string;
 	}
 
-	export interface InteractiveEditorSessionProvider {
+	export interface InteractiveEditorSessionProvider<S extends InteractiveEditorSession = InteractiveEditorSession, R extends InteractiveEditorResponse | InteractiveEditorMessageResponse = InteractiveEditorResponse | InteractiveEditorMessageResponse> {
 		// Create a session. The lifetime of this session is the duration of the editing session with the input mode widget.
-		prepareInteractiveEditorSession(context: TextDocumentContext, token: CancellationToken): ProviderResult<InteractiveEditorSession>;
+		prepareInteractiveEditorSession(context: TextDocumentContext, token: CancellationToken): ProviderResult<S>;
 
-		provideInteractiveEditorResponse(request: InteractiveEditorRequest, token: CancellationToken): ProviderResult<InteractiveEditorResponse | InteractiveEditorMessageResponse>;
+		provideInteractiveEditorResponse(request: InteractiveEditorRequest, token: CancellationToken): ProviderResult<R>;
 
 		// eslint-disable-next-line local/vscode-dts-provider-naming
-		releaseInteractiveEditorSession?(session: InteractiveEditorSession): any;
+		releaseInteractiveEditorSession?(session: S): any;
 
 		// todo@API use enum instead of boolean
 		// eslint-disable-next-line local/vscode-dts-provider-naming
-		handleInteractiveEditorResponseFeedback?(session: InteractiveEditorSession, response: InteractiveEditorResponse | InteractiveEditorMessageResponse, kind: InteractiveEditorResponseFeedbackKind): void;
+		handleInteractiveEditorResponseFeedback?(session: S, response: R, kind: InteractiveEditorResponseFeedbackKind): void;
 	}
 
 

@@ -770,6 +770,12 @@ configurationRegistry.registerConfiguration({
 			default: true,
 			tags: ['notebookLayout']
 		},
+		[NotebookSetting.diffOverviewRuler]: {
+			description: nls.localize('notebook.diff.enableOverviewRuler.description', "Whether to render the overview ruler in the diff editor for notebook."),
+			type: 'boolean',
+			default: false,
+			tags: ['notebookLayout']
+		},
 		[NotebookSetting.cellToolbarVisibility]: {
 			markdownDescription: nls.localize('notebook.cellToolbarVisibility.description', "Whether the cell toolbar should appear on hover or click."),
 			type: 'string',

@@ -131,7 +131,8 @@ function getBlocks(document: ITextModel, configuration: ProjectionConfiguration)
 				inBlock = false;
 				blocks.push(new Block(new LineRange(startLineNumber, curLine - startLineNumber + 1)));
 				// We add a (hopefully) unique symbol so that diffing recognizes the deleted block (HEXAGRAM FOR CONFLICT)
-				transformedContent.push('\u4dc5');
+				// allow-any-unicode-next-line
+				transformedContent.push('䷅');
 			}
 		}
 	}

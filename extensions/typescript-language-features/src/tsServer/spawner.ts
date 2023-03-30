@@ -4,21 +4,21 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
+import { SyntaxServerConfiguration, TsServerLogLevel, TypeScriptServiceConfiguration } from '../configuration/configuration';
+import { Logger } from '../logging/logger';
+import { TelemetryReporter } from '../logging/telemetry';
+import Tracer from '../logging/tracer';
 import { OngoingRequestCancellerFactory } from '../tsServer/cancellation';
 import { ClientCapabilities, ClientCapability, ServerType } from '../typescriptService';
-import API from '../utils/api';
-import { SyntaxServerConfiguration, TsServerLogLevel, TypeScriptServiceConfiguration } from '../utils/configuration';
-import { Logger } from '../utils/logger';
+import { memoize } from '../utils/memoize';
 import { isWeb, isWebAndHasSharedArrayBuffers } from '../utils/platform';
-import { TypeScriptPluginPathsProvider } from '../utils/pluginPathsProvider';
-import { PluginManager } from '../utils/plugins';
-import { TelemetryReporter } from '../utils/telemetry';
-import Tracer from '../utils/tracer';
+import { API } from './api';
 import { ILogDirectoryProvider } from './logDirectoryProvider';
+import { TypeScriptPluginPathsProvider } from './pluginPathsProvider';
+import { PluginManager } from './plugins';
 import { GetErrRoutingTsServer, ITypeScriptServer, SingleTsServer, SyntaxRoutingTsServer, TsServerDelegate, TsServerLog, TsServerProcessFactory, TsServerProcessKind } from './server';
 import { TypeScriptVersionManager } from './versionManager';
 import { ITypeScriptVersionProvider, TypeScriptVersion } from './versionProvider';
-import { memoize } from '../utils/memoize';
 
 const enum CompositeServerType {
 	/** Run a single server that handles all commands  */

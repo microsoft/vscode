@@ -2399,11 +2399,8 @@ export class SCMViewPane extends ViewPane {
 			this.scmViewService.focus(e.element.repository);
 
 			// Focus the action button
-			const target = e.browserEvent?.target as HTMLElement;
-			if (target.classList.contains('monaco-tl-row') || target.classList.contains('button-container')) {
-				this.actionButtonRenderer.focusActionButton(e.element);
-				this.tree.setFocus([], e.browserEvent);
-			}
+			this.actionButtonRenderer.focusActionButton(e.element);
+			this.tree.setFocus([], e.browserEvent);
 
 			return;
 		}

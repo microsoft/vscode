@@ -38,6 +38,7 @@ export const allApiProposals = Object.freeze({
 	fileComments: 'https://raw.githubusercontent.com/microsoft/vscode/main/src/vscode-dts/vscode.proposed.fileComments.d.ts',
 	fileSearchProvider: 'https://raw.githubusercontent.com/microsoft/vscode/main/src/vscode-dts/vscode.proposed.fileSearchProvider.d.ts',
 	findTextInFiles: 'https://raw.githubusercontent.com/microsoft/vscode/main/src/vscode-dts/vscode.proposed.findTextInFiles.d.ts',
+	formatMultipleRanges: 'https://raw.githubusercontent.com/microsoft/vscode/main/src/vscode-dts/vscode.proposed.formatMultipleRanges.d.ts',
 	fsChunks: 'https://raw.githubusercontent.com/microsoft/vscode/main/src/vscode-dts/vscode.proposed.fsChunks.d.ts',
 	getSessions: 'https://raw.githubusercontent.com/microsoft/vscode/main/src/vscode-dts/vscode.proposed.getSessions.d.ts',
 	idToken: 'https://raw.githubusercontent.com/microsoft/vscode/main/src/vscode-dts/vscode.proposed.idToken.d.ts',

@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
+import { TelemetryReporter } from '../logging/telemetry';
+import { isImplicitProjectConfigFile, openOrCreateConfig, ProjectType } from '../tsconfig';
 import { ITypeScriptServiceClient } from '../typescriptService';
-import { TelemetryReporter } from './telemetry';
-import { isImplicitProjectConfigFile, openOrCreateConfig, ProjectType } from './tsconfig';
 
 
 interface Hint {
