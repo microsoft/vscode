@@ -118,7 +118,7 @@
 			"name": "string.key, emphasis log.exception"
 		},
 		{
-			"match": "\\b[a-z]+://\\S+\\b/?",
+			"match": "\\b[a-z][a-z0-9+.-]+://\\S+\\b/?",
 			"name": "constant.language log.constant"
 		},
 		{
