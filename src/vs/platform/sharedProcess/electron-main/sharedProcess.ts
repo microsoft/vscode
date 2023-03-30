@@ -312,7 +312,7 @@ export class SharedProcess extends Disposable implements ISharedProcess {
 		configObjectUrl.update(this.createSharedProcessConfiguration());
 
 		// Load with config
-		this.window.loadURL(FileAccess.asBrowserUri(`vs/code/node/sharedProcess/sharedProcess${this.environmentMainService.isBuilt ? '' : '-dev'}.html`).toString(true));
+		this.window.loadURL(FileAccess.asBrowserUri(`vs/code/node/sharedProcess/sharedProcess${isESM ? '-esm' : this.environmentMainService.isBuilt ? '' : '-dev'}.html`).toString(true));
 	}
 
 	private createSharedProcessConfiguration(): ISharedProcessConfiguration {

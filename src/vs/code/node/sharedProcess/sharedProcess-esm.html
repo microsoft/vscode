@@ -5,7 +5,7 @@
 		<meta charset="utf-8" />
 		<meta http-equiv="Content-Security-Policy" content="
 			default-src 'none';
-			script-src 'self' node: blob: 'sha256-dIi31KrQLN+HT34lXCM9yk0b9Ia7HUTNfaU1sWMEkMc=' 'sha256-RsVIeg4GZpwQFU06L6rjHmAPb1uf3nIAiIKfadQb7wc=' 'nonce-imp0rt-ma9';
+			script-src 'self' node: blob: 'sha256-dIi31KrQLN+HT34lXCM9yk0b9Ia7HUTNfaU1sWMEkMc=' 'sha256-CkIJldL6r7Oh+hfmigNT9mFwSb58MsDBZgpCQL/I4V0=' 'nonce-imp0rt-ma9';
 			connect-src 'self' https:;" />
 	</head>
 
@@ -21,7 +21,7 @@
 		// to a blob that exports all properties of the module as named exports and the module itself as default.
 		const importMap = { imports: {} };
 		const builtin = require('module').builtinModules.filter(mod => !mod.startsWith('_')).sort();
-		const extra = ['graceful-fs', 'xterm', 'xterm-headless', 'yauzl', 'yazl', 'minimist'].sort(); // subset of node_modules that are used in the shared process
+		const extra = ['electron', 'graceful-fs', 'xterm', 'xterm-headless', 'yauzl', 'yazl', 'minimist'].sort(); // subset of node_modules that are used in the shared process
 
 		for (const name of new Set([].concat(builtin, extra))) {
 
