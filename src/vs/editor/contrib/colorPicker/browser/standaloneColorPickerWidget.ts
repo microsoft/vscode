@@ -802,16 +802,31 @@ class DefaultDocumentColorProviderForStandaloneColorPicker implements DocumentCo
 		// Allow the user to be able to define other custom color formats
 		const range = colorInfo.range;
 		const colorFromInfo: IColor = colorInfo.color;
-		const color = new Color(new RGBA(Math.round(255 * colorFromInfo.red), Math.round(255 * colorFromInfo.green), Math.round(255 * colorFromInfo.blue), colorFromInfo.alpha));
-		const rgba = Color.Format.CSS.formatRGBA(color);
-		// hsla provides strange color string
-		const hsla = Color.Format.CSS.formatHSLA(color);
-		const hexa = Color.Format.CSS.formatHexA(color);
+
+		const alpha = colorFromInfo.alpha;
+		const color = new Color(new RGBA(Math.round(255 * colorFromInfo.red), Math.round(255 * colorFromInfo.green), Math.round(255 * colorFromInfo.blue), alpha));
+
+		let rgb;
+		let hsl;
+		let hex;
+
+		// if alpha is 1, don't need to use the alpha channel
+		if (alpha === 1) {
+			rgb = Color.Format.CSS.formatRGB(color);
+			hsl = Color.Format.CSS.formatHSL(color);
+			hex = Color.Format.CSS.formatHex(color);
+		}
+		// otherwise need to use the alpha channel
+		else {
+			rgb = Color.Format.CSS.formatRGBA(color);
+			hsl = Color.Format.CSS.formatHSLA(color);
+			hex = Color.Format.CSS.formatHexA(color);
+		}
+
 		const colorPresentations: IColorPresentation[] = [];
-		// Using two default color formats, RGBA and Hex
-		colorPresentations.push({ label: rgba, textEdit: { range: range, text: rgba } });
-		colorPresentations.push({ label: hsla, textEdit: { range: range, text: hsla } });
-		colorPresentations.push({ label: hexa, textEdit: { range: range, text: hexa } });
+		colorPresentations.push({ label: rgb, textEdit: { range: range, text: rgb } });
+		colorPresentations.push({ label: hsl, textEdit: { range: range, text: hsl } });
+		colorPresentations.push({ label: hex, textEdit: { range: range, text: hex } });
 		return colorPresentations;
 	}
 }
