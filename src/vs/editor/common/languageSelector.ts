@@ -12,9 +12,7 @@ export interface LanguageFilter {
 	readonly scheme?: string;
 	readonly pattern?: string | IRelativePattern;
 	readonly notebookType?: string;
-	/**
-	 * This provider is implemented in the UI thread.
-	 */
+	/* This provider is implemented in the UI thread. */
 	readonly hasAccessToAllModels?: boolean;
 	readonly exclusive?: boolean;
 }
@@ -24,12 +22,12 @@ export type LanguageSelector = string | LanguageFilter | ReadonlyArray<string | 
 export function score(selector: LanguageSelector | undefined, candidateUri: URI, candidateLanguage: string, candidateIsSynchronized: boolean, candidateNotebookUri: URI | undefined, candidateNotebookType: string | undefined): number {
 
 	if (Array.isArray(selector)) {
-		// array -> take max individual value
+		/* array -> take max individual value */
 		let ret = 0;
 		for (const filter of selector) {
 			const value = score(filter, candidateUri, candidateLanguage, candidateIsSynchronized, candidateNotebookUri, candidateNotebookType);
 			if (value === 10) {
-				return value; // already at the highest
+				return value; /* already at the highest */
 			}
 			if (value > ret) {
 				ret = value;
@@ -43,9 +41,11 @@ export function score(selector: LanguageSelector | undefined, candidateUri: URI,
 			return 0;
 		}
 
-		// short-hand notion, desugars to
-		// 'fooLang' -> { language: 'fooLang'}
-		// '*' -> { language: '*' }
+		/*
+		 * short-hand notion, desugars to
+		 * 'fooLang' -> { language: 'fooLang'}
+		 '*' -> { language: '*' }
+                */
 		if (selector === '*') {
 			return 5;
 		} else if (selector === candidateLanguage) {
@@ -55,15 +55,17 @@ export function score(selector: LanguageSelector | undefined, candidateUri: URI,
 		}
 
 	} else if (selector) {
-		// filter -> select accordingly, use defaults for scheme
+		/* filter -> select accordingly, use defaults for scheme */
+
 		const { language, pattern, scheme, hasAccessToAllModels, notebookType } = selector as LanguageFilter; // TODO: microsoft/TypeScript#42768
 
 		if (!candidateIsSynchronized && !hasAccessToAllModels) {
 			return 0;
 		}
-
-		// selector targets a notebook -> use the notebook uri instead
-		// of the "normal" document uri.
+		/*
+		 * selector targets a notebook -> use the notebook uri instead
+		 * of the "normal" document uri.
+		*/
 		if (notebookType && candidateNotebookUri) {
 			candidateUri = candidateNotebookUri;
 		}
@@ -105,11 +107,13 @@ export function score(selector: LanguageSelector | undefined, candidateUri: URI,
 			if (typeof pattern === 'string') {
 				normalizedPattern = pattern;
 			} else {
-				// Since this pattern has a `base` property, we need
-				// to normalize this path first before passing it on
-				// because we will compare it against `Uri.fsPath`
-				// which uses platform specific separators.
-				// Refs: https://github.com/microsoft/vscode/issues/99938
+				/*
+				 * Since this pattern has a `base` property, we need
+				 * to normalize this path first before passing it on
+				 * because we will compare it against `Uri.fsPath`
+				 * which uses platform specific separators.
+				 * https://github.com/microsoft/vscode/issues/99938
+				*/
 				normalizedPattern = { ...pattern, base: normalize(pattern.base) };
 			}
 
