@@ -271,7 +271,7 @@ export abstract class AbstractKeybindingService extends Disposable implements IK
 	}
 
 	private _doDispatch(userKeypress: ResolvedKeybinding, target: IContextKeyServiceTarget, isSingleModiferChord = false): boolean {
-		let shouldPreventDefault = false;
+		let shouldPreventDefaultAndStopPropagation = false;
 
 		if (userKeypress.hasMultipleChords()) { // warn - because user can press a single chord at a time
 			console.warn('Unexpected keyboard event mapped to multiple chords');
@@ -296,7 +296,7 @@ export abstract class AbstractKeybindingService extends Disposable implements IK
 		if (userPressedChord === null) {
 			this._log(`\\ Keyboard event cannot be dispatched in keydown phase.`);
 			// cannot be dispatched, probably only modifier keys
-			return shouldPreventDefault;
+			return shouldPreventDefaultAndStopPropagation;
 		}
 
 		const contextValue = this._contextKeyService.getContext(target);
@@ -307,23 +307,23 @@ export abstract class AbstractKeybindingService extends Disposable implements IK
 		this._logService.trace('KeybindingService#dispatch', keypressLabel, resolveResult?.commandId);
 
 		if (resolveResult && resolveResult.enterMultiChord) {
-			shouldPreventDefault = true;
+			shouldPreventDefaultAndStopPropagation = true;
 			this._enterMultiChordMode(userPressedChord, keypressLabel);
 			this._log(`+ Entering chord mode...`);
-			return shouldPreventDefault;
+			return shouldPreventDefaultAndStopPropagation;
 		}
 
 		if (this._currentChords) {
 			if (resolveResult && !resolveResult.leaveMultiChord) {
-				shouldPreventDefault = true;
+				shouldPreventDefaultAndStopPropagation = true;
 				this._continueMultiChordMode(userPressedChord, keypressLabel);
 				this._log(`+ Continuing chord mode...`);
-				return shouldPreventDefault;
+				return shouldPreventDefaultAndStopPropagation;
 			} else if (!resolveResult || !resolveResult.commandId) {
 				const currentChordsLabel = this._currentChords.map(({ label }) => label).join(', ');
 				this._log(`+ Leaving chord mode: Nothing bound to "${currentChordsLabel}, ${keypressLabel}".`);
 				this._notificationService.status(nls.localize('missing.chord', "The key combination ({0}, {1}) is not a command.", currentChordsLabel, keypressLabel), { hideAfter: 10 * 1000 /* 10s */ });
-				shouldPreventDefault = true;
+				shouldPreventDefaultAndStopPropagation = true;
 			}
 		}
 
@@ -331,7 +331,7 @@ export abstract class AbstractKeybindingService extends Disposable implements IK
 
 		if (resolveResult && resolveResult.commandId) {
 			if (!resolveResult.bubble) {
-				shouldPreventDefault = true;
+				shouldPreventDefaultAndStopPropagation = true;
 			}
 			this._log(`+ Invoking command ${resolveResult.commandId}.`);
 			if (typeof resolveResult.commandArgs === 'undefined') {
@@ -344,7 +344,7 @@ export abstract class AbstractKeybindingService extends Disposable implements IK
 			}
 		}
 
-		return shouldPreventDefault;
+		return shouldPreventDefaultAndStopPropagation;
 	}
 
 	mightProducePrintableCharacter(event: IKeyboardEvent): boolean {
