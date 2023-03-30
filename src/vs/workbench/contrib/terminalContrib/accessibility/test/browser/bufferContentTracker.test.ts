@@ -36,7 +36,7 @@ const defaultTerminalConfig: Partial<ITerminalConfiguration> = {
 	unicodeVersion: '6'
 };
 
-suite('Buffer Content Tracker', async () => {
+suite('Buffer Content Tracker', () => {
 	let instantiationService: TestInstantiationService;
 	let configurationService: TestConfigurationService;
 	let themeService: TestThemeService;
