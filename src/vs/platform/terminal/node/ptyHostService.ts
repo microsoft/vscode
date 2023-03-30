@@ -5,13 +5,9 @@
 
 import { Emitter } from 'vs/base/common/event';
 import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
-import { FileAccess } from 'vs/base/common/network';
 import { IProcessEnvironment, isWindows, OperatingSystem } from 'vs/base/common/platform';
-import { ProxyChannel } from 'vs/base/parts/ipc/common/ipc';
-import { Client, IIPCOptions } from 'vs/base/parts/ipc/node/ipc.cp';
+import { IChannelClient, ProxyChannel } from 'vs/base/parts/ipc/common/ipc';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IEnvironmentService, INativeEnvironmentService } from 'vs/platform/environment/common/environment';
-import { parsePtyHostDebugPort } from 'vs/platform/environment/node/environmentService';
 import { getResolvedShellEnv } from 'vs/platform/shell/node/shellEnv';
 import { ILogService, ILoggerService } from 'vs/platform/log/common/log';
 import { RequestStore } from 'vs/platform/terminal/common/requestStore';
@@ -21,6 +17,7 @@ import { IGetTerminalLayoutInfoArgs, IProcessDetails, ISetTerminalLayoutInfoArgs
 import { detectAvailableProfiles } from 'vs/platform/terminal/node/terminalProfiles';
 import { IPtyHostProcessReplayEvent } from 'vs/platform/terminal/common/capabilities/capabilities';
 import { RemoteLoggerChannelClient } from 'vs/platform/log/common/logIpc';
+import { IPtyHostStarter } from 'vs/platform/terminal/node/nodePtyHostStarter';
 
 enum Constants {
 	MaxRestarts = 5
@@ -39,7 +36,7 @@ let lastPtyId = 0;
 export class PtyHostService extends Disposable implements IPtyService {
 	declare readonly _serviceBrand: undefined;
 
-	private _client: Client;
+	private _client: IChannelClient;
 	// ProxyChannel is not used here because events get lost when forwarding across multiple proxies
 	private _proxy: IPtyService;
 
@@ -78,10 +75,8 @@ export class PtyHostService extends Disposable implements IPtyService {
 	readonly onProcessExit = this._onProcessExit.event;
 
 	constructor(
-		private readonly _reconnectConstants: IReconnectConstants,
-		private readonly isRemote: boolean,
+		private readonly _ptyHostStarter: IPtyHostStarter,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
-		@IEnvironmentService private readonly _environmentService: INativeEnvironmentService,
 		@ILogService private readonly _logService: ILogService,
 		@ILoggerService private readonly _loggerService: ILoggerService,
 	) {
@@ -133,32 +128,38 @@ export class PtyHostService extends Disposable implements IPtyService {
 		}
 	}
 
-	private _startPtyHost(): [Client, IPtyService] {
-		const opts: IIPCOptions = {
-			serverName: 'Pty Host',
-			args: ['--type=ptyHost', '--logsPath', this._environmentService.logsHome.fsPath],
-			env: {
-				VSCODE_LAST_PTY_ID: lastPtyId,
-				VSCODE_PTY_REMOTE: this.isRemote,
-				VSCODE_AMD_ENTRYPOINT: 'vs/platform/terminal/node/ptyHostMain',
-				VSCODE_PIPE_LOGGING: 'true',
-				VSCODE_VERBOSE_LOGGING: 'true', // transmit console logs from server to client,
-				VSCODE_RECONNECT_GRACE_TIME: this._reconnectConstants.graceTime,
-				VSCODE_RECONNECT_SHORT_GRACE_TIME: this._reconnectConstants.shortGraceTime,
-				VSCODE_RECONNECT_SCROLLBACK: this._reconnectConstants.scrollback
-			}
-		};
+	private _startPtyHost(): [IChannelClient, IPtyService] {
+		// TODO: Call starter
 
-		const ptyHostDebug = parsePtyHostDebugPort(this._environmentService.args, this._environmentService.isBuilt);
-		if (ptyHostDebug) {
-			if (ptyHostDebug.break && ptyHostDebug.port) {
-				opts.debugBrk = ptyHostDebug.port;
-			} else if (!ptyHostDebug.break && ptyHostDebug.port) {
-				opts.debug = ptyHostDebug.port;
-			}
-		}
 
-		const client = new Client(FileAccess.asFileUri('bootstrap-fork').fsPath, opts);
+		// const opts: IIPCOptions = {
+		// 	serverName: 'Pty Host',
+		// 	args: ['--type=ptyHost', '--logsPath', this._environmentService.logsHome.fsPath],
+		// 	env: {
+		// 		VSCODE_LAST_PTY_ID: lastPtyId,
+		// 		VSCODE_PTY_REMOTE: this.isRemote,
+		// 		VSCODE_AMD_ENTRYPOINT: 'vs/platform/terminal/node/ptyHostMain',
+		// 		VSCODE_PIPE_LOGGING: 'true',
+		// 		VSCODE_VERBOSE_LOGGING: 'true', // transmit console logs from server to client,
+		// 		VSCODE_RECONNECT_GRACE_TIME: this._reconnectConstants.graceTime,
+		// 		VSCODE_RECONNECT_SHORT_GRACE_TIME: this._reconnectConstants.shortGraceTime,
+		// 		VSCODE_RECONNECT_SCROLLBACK: this._reconnectConstants.scrollback
+		// 	}
+		// };
+
+		// const ptyHostDebug = parsePtyHostDebugPort(this._environmentService.args, this._environmentService.isBuilt);
+		// if (ptyHostDebug) {
+		// 	if (ptyHostDebug.break && ptyHostDebug.port) {
+		// 		opts.debugBrk = ptyHostDebug.port;
+		// 	} else if (!ptyHostDebug.break && ptyHostDebug.port) {
+		// 		opts.debug = ptyHostDebug.port;
+		// 	}
+		// }
+
+		// const client = new Client(FileAccess.asFileUri('bootstrap-fork').fsPath, opts);
+		const client = this._ptyHostStarter.start(lastPtyId);
+
+		// TODO: Verify this is correct order
 		this._onPtyHostStart.fire();
 
 		// Setup heartbeat service and trigger a heartbeat immediately to reset the timeouts
@@ -166,19 +167,19 @@ export class PtyHostService extends Disposable implements IPtyService {
 		heartbeatService.onBeat(() => this._handleHeartbeat());
 		this._handleHeartbeat();
 
-		// Handle exit
-		this._register(client.onDidProcessExit(e => {
-			this._onPtyHostExit.fire(e.code);
-			if (!this._isDisposed) {
-				if (this._restartCount <= Constants.MaxRestarts) {
-					this._logService.error(`ptyHost terminated unexpectedly with code ${e.code}`);
-					this._restartCount++;
-					this.restartPtyHost();
-				} else {
-					this._logService.error(`ptyHost terminated unexpectedly with code ${e.code}, giving up`);
-				}
-			}
-		}));
+		// TODO: Handle exit
+		// this._register(client.onDidProcessExit(e => {
+		// 	this._onPtyHostExit.fire(e.code);
+		// 	if (!this._isDisposed) {
+		// 		if (this._restartCount <= Constants.MaxRestarts) {
+		// 			this._logService.error(`ptyHost terminated unexpectedly with code ${e.code}`);
+		// 			this._restartCount++;
+		// 			this.restartPtyHost();
+		// 		} else {
+		// 			this._logService.error(`ptyHost terminated unexpectedly with code ${e.code}, giving up`);
+		// 		}
+		// 	}
+		// }));
 
 		// Setup logging
 		this._register(new RemoteLoggerChannelClient(this._loggerService, client.getChannel(TerminalIpcChannels.Logger)));
@@ -346,7 +347,8 @@ export class PtyHostService extends Disposable implements IPtyService {
 
 	private _disposePtyHost(): void {
 		this._proxy.shutdownAll?.();
-		this._client.dispose();
+		// TODO: Support disposing of the client
+		// this._client.dispose();
 	}
 
 	private _handleHeartbeat() {

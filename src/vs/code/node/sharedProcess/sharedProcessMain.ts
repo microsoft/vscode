@@ -119,6 +119,7 @@ import { UserDataAutoSyncService } from 'vs/platform/userDataSync/node/userDataA
 import { ExtensionTipsService } from 'vs/platform/extensionManagement/node/extensionTipsService';
 import { IMainProcessService, MainProcessService } from 'vs/platform/ipc/common/mainProcessService';
 import { RemoteStorageService } from 'vs/platform/storage/common/storageService';
+import { NodePtyHostStarter } from 'vs/platform/terminal/node/nodePtyHostStarter';
 
 class SharedProcessMain extends Disposable {
 
@@ -379,15 +380,14 @@ class SharedProcessMain extends Disposable {
 		services.set(IUserDataSyncResourceProviderService, new SyncDescriptor(UserDataSyncResourceProviderService, undefined, true));
 
 		// Terminal
-
-		const ptyHostService = new PtyHostService({
+		const ptyHostStarter = new NodePtyHostStarter({
 			graceTime: LocalReconnectConstants.GraceTime,
 			shortGraceTime: LocalReconnectConstants.ShortGraceTime,
 			scrollback: configurationService.getValue<number>(TerminalSettingId.PersistentSessionScrollback) ?? 100
-		},
-			false,
+		}, false, environmentService);
+		const ptyHostService = new PtyHostService(
+			ptyHostStarter,
 			configurationService,
-			environmentService,
 			logService,
 			loggerService
 		);

@@ -80,6 +80,7 @@ import { localize } from 'vs/nls';
 import { RemoteExtensionsScannerChannel, RemoteExtensionsScannerService } from 'vs/server/node/remoteExtensionsScanner';
 import { RemoteExtensionsScannerChannelName } from 'vs/platform/remote/common/remoteExtensionsScanner';
 import { RemoteUserDataProfilesServiceChannel } from 'vs/platform/userDataProfile/common/userDataProfileIpc';
+import { NodePtyHostStarter } from 'vs/platform/terminal/node/nodePtyHostStarter';
 
 const eventPrefix = 'monacoworkbench';
 
@@ -190,8 +191,8 @@ export async function setupServerServices(connectionToken: ServerConnectionToken
 	const instantiationService: IInstantiationService = new InstantiationService(services);
 	services.set(ILanguagePackService, instantiationService.createInstance(NativeLanguagePackService));
 
-	const ptyService = instantiationService.createInstance(
-		PtyHostService,
+	const ptyHostStarter = instantiationService.createInstance(
+		NodePtyHostStarter,
 		{
 			graceTime: ProtocolConstants.ReconnectionGraceTime,
 			shortGraceTime: ProtocolConstants.ReconnectionShortGraceTime,
@@ -199,6 +200,7 @@ export async function setupServerServices(connectionToken: ServerConnectionToken
 		},
 		true
 	);
+	const ptyService = instantiationService.createInstance(PtyHostService, ptyHostStarter);
 	services.set(IPtyService, ptyService);
 
 	services.set(IEncryptionMainService, new SyncDescriptor(EncryptionMainService, [machineId]));
