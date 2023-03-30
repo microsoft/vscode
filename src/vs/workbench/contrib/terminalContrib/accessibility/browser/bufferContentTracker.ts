@@ -40,7 +40,7 @@ export class BufferContentTracker {
 		if (this._lines.length && this._lastCachedMarker?.line) {
 			// remove previous viewport content in case it has changed
 			let i = 0;
-			while (i < this._priorViewportLineCount) {
+			while (i <= this._priorViewportLineCount) {
 				this._lines.pop();
 				i++;
 			}
@@ -55,7 +55,7 @@ export class BufferContentTracker {
 		}
 		let linesInViewport = 0;
 		let currentLine: string = '';
-		for (let i = buffer.baseY; i < buffer.baseY + this._xterm.raw.rows - 1; i++) {
+		for (let i = buffer.baseY; i < buffer.baseY + this._xterm.raw.rows; i++) {
 			const line = buffer.getLine(i);
 			if (!line) {
 				continue;

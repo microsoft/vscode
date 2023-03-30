@@ -3,8 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { strictEqual } from 'assert';
-import { equals } from 'vs/base/common/arrays';
+import * as assert from 'assert';
 import { isWindows } from 'vs/base/common/platform';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
@@ -37,7 +36,7 @@ const defaultTerminalConfig: Partial<ITerminalConfiguration> = {
 	unicodeVersion: '6'
 };
 
-suite('Buffer Content Tracker', () => {
+suite('Buffer Content Tracker', async () => {
 	let instantiationService: TestInstantiationService;
 	let configurationService: TestConfigurationService;
 	let themeService: TestThemeService;
@@ -69,42 +68,57 @@ suite('Buffer Content Tracker', () => {
 		bufferTracker = instantiationService.createInstance(BufferContentTracker, xterm);
 	});
 	test('should clear lines beyond the prompt line', async () => {
-		strictEqual(bufferTracker.lines.length, 0);
-		await writeP(xterm.raw, 'abcd\n');
-		await writeP(xterm.raw, 'abcd');
+		xterm.raw.clear();
+		assert.strictEqual(bufferTracker.lines.length, 0);
+		await writeP(xterm.raw, 'abcd\r\nabcd');
 		xterm.clearBuffer();
 		await bufferTracker.update();
-		strictEqual(bufferTracker.lines.length, 1);
+		assert.strictEqual(bufferTracker.lines.length, 1);
+		assert.deepStrictEqual(bufferTracker.lines, ['abcd']);
 	});
 	test('should add lines in the viewport and scrollback', async () => {
-		strictEqual(bufferTracker.lines.length, 0);
-		const content = 'abcd\n'.repeat(38);
+		xterm.raw.clear();
+		assert.strictEqual(bufferTracker.lines.length, 0);
+		const content = 'abcd\r\n'.repeat(38).trimEnd();
 		await writeP(xterm.raw, content);
 		await bufferTracker.update();
-		equals(bufferTracker.lines, content.split('\n'));
+		assert.strictEqual(bufferTracker.lines.length, 38);
+		assert.deepStrictEqual(bufferTracker.lines, content.split('\r\n'));
 	});
 	test('should add lines in the viewport and full scrollback', async () => {
-		strictEqual(bufferTracker.lines.length, 0);
-		const content = 'abcd\n'.repeat(1030);
+		xterm.raw.clear();
+		assert.strictEqual(bufferTracker.lines.length, 0);
+		const content = 'abcd\r\n'.repeat(1030).trimEnd();
 		await writeP(xterm.raw, content);
 		await bufferTracker.update();
-		equals(bufferTracker.lines, content.split('\n'));
+		assert.strictEqual(bufferTracker.lines.length, 1030);
+		assert.deepStrictEqual(bufferTracker.lines, content.split('\r\n'));
 	});
 	test('should always refresh viewport', async () => {
-		strictEqual(bufferTracker.lines.length, 0);
-		const content = 'abcd\n'.repeat(38);
+		xterm.raw.clear();
+		assert.strictEqual(bufferTracker.lines.length, 0);
+		const content = 'abcd\r\n'.repeat(6).trimEnd();
 		await writeP(xterm.raw, content);
 		await bufferTracker.update();
-		equals(bufferTracker.lines, content.split('\n'));
-		// TODO: move cursor up and insert and then verify that the viewport lines have been updated
+		assert.strictEqual(bufferTracker.lines.length, 6);
+		assert.deepStrictEqual(bufferTracker.lines, content.split('\r\n'));
+		await writeP(xterm.raw, '\x1b[3Ainserteddata');
+		await bufferTracker.update();
+		assert.deepStrictEqual(bufferTracker.lines, ['abcd', 'abcd', 'abcdinserteddata', 'abcd', 'abcd', 'abcd']);
 	});
 	test('should always refresh viewport with full scrollback', async () => {
-		strictEqual(bufferTracker.lines.length, 0);
-		const content = 'abcd\n'.repeat(1030);
+		xterm.raw.clear();
+		assert.strictEqual(bufferTracker.lines.length, 0);
+		const content = 'abcd\r\n'.repeat(1030).trimEnd();
 		await writeP(xterm.raw, content);
 		await bufferTracker.update();
-		equals(bufferTracker.lines, content.split('\n'));
-		// TODO: move cursor up and insert and then verify that the viewport lines have been updated
+		assert.strictEqual(bufferTracker.lines.length, 1030);
+		assert.deepStrictEqual(bufferTracker.lines, content.split('\r\n'));
+		await writeP(xterm.raw, '\x1b[4Ainserteddata');
+		await bufferTracker.update();
+		const expected = content.split('\r\n');
+		expected[1025] = 'abcdinserteddata';
+		assert.deepStrictEqual(bufferTracker.lines, expected);
 	});
 });
 

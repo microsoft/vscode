@@ -29,6 +29,7 @@ import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/c
 import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/terminalContextKey';
 import { withNullAsUndefined } from 'vs/base/common/types';
 import { BufferContentTracker } from 'vs/workbench/contrib/terminalContrib/accessibility/browser/bufferContentTracker';
+import { ILogService } from 'vs/platform/log/common/log';
 
 const enum CssClass {
 	Active = 'active',
@@ -64,7 +65,8 @@ export class AccessibleBufferWidget extends DisposableStore {
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IQuickInputService private readonly _quickInputService: IQuickInputService,
 		@IAudioCueService private readonly _audioCueService: IAudioCueService,
-		@IContextKeyService private readonly _contextKeyService: IContextKeyService
+		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
+		@ILogService private readonly _logService: ILogService
 	) {
 		super();
 		this._xtermElement = _xterm.raw.element!;
@@ -240,6 +242,7 @@ export class AccessibleBufferWidget extends DisposableStore {
 		this._editorWidget.setScrollTop(this._editorWidget.getScrollHeight());
 		this._isUpdating = false;
 		if (this._pendingUpdates) {
+			this._logService.debug('TerminalAccessibleBuffer._updateEditor: pending updates', this._pendingUpdates);
 			this._pendingUpdates--;
 			await this._updateEditor();
 		}
