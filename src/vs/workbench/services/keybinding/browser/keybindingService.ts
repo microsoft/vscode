@@ -181,6 +181,7 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 	private userKeybindings: UserKeybindings;
 	private isComposingGlobalContextKey: IContextKey<boolean>;
 	private readonly _contributions: KeybindingsSchemaContribution[] = [];
+	private readonly kbsJsonSchema: KeybindingsJsonSchema;
 
 	constructor(
 		@IContextKeyService contextKeyService: IContextKeyService,
@@ -197,6 +198,8 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 		super(contextKeyService, commandService, telemetryService, notificationService, logService);
 
 		this.isComposingGlobalContextKey = contextKeyService.createKey('isComposing', false);
+
+		this.kbsJsonSchema = new KeybindingsJsonSchema();
 		this.updateKeybindingsJsonSchema();
 
 		this._keyboardMapper = this.keyboardLayoutService.getKeyboardMapper();
@@ -284,7 +287,7 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 	}
 
 	private updateKeybindingsJsonSchema() {
-		updateSchema(this._contributions.flatMap(x => x.getSchemaAdditions()));
+		this.kbsJsonSchema.updateSchema(this._contributions.flatMap(x => x.getSchemaAdditions()));
 	}
 
 	private _printKeybinding(keybinding: Keybinding): string {
@@ -770,167 +773,182 @@ class UserKeybindings extends Disposable {
 	}
 }
 
-const schemaId = 'vscode://schemas/keybindings';
-const commandsSchemas: IJSONSchema[] = [];
-const commandsEnum: string[] = [];
-const removalCommandsEnum: string[] = [];
-const commandsEnumDescriptions: (string | undefined)[] = [];
-const schema: IJSONSchema = {
-	id: schemaId,
-	type: 'array',
-	title: nls.localize('keybindings.json.title', "Keybindings configuration"),
-	allowTrailingCommas: true,
-	allowComments: true,
-	definitions: {
-		'editorGroupsSchema': {
-			'type': 'array',
-			'items': {
-				'type': 'object',
-				'properties': {
-					'groups': {
-						'$ref': '#/definitions/editorGroupsSchema',
-						'default': [{}, {}]
-					},
-					'size': {
-						'type': 'number',
-						'default': 0.5
+/**
+ * Registers the `keybindings.json`'s schema with the JSON schema registry. Allows updating the schema, e.g., when new commands are registered (e.g., by extensions).
+ *
+ * Lifecycle owned by `WorkbenchKeybindingService`. Must be instantiated only once.
+ */
+class KeybindingsJsonSchema {
+
+	private static readonly schemaId = 'vscode://schemas/keybindings';
+
+	private readonly commandsSchemas: IJSONSchema[] = [];
+	private readonly commandsEnum: string[] = [];
+	private readonly removalCommandsEnum: string[] = [];
+	private readonly commandsEnumDescriptions: (string | undefined)[] = [];
+	private readonly schema: IJSONSchema = {
+		id: KeybindingsJsonSchema.schemaId,
+		type: 'array',
+		title: nls.localize('keybindings.json.title', "Keybindings configuration"),
+		allowTrailingCommas: true,
+		allowComments: true,
+		definitions: {
+			'editorGroupsSchema': {
+				'type': 'array',
+				'items': {
+					'type': 'object',
+					'properties': {
+						'groups': {
+							'$ref': '#/definitions/editorGroupsSchema',
+							'default': [{}, {}]
+						},
+						'size': {
+							'type': 'number',
+							'default': 0.5
+						}
 					}
 				}
-			}
-		},
-		'commandNames': {
-			'type': 'string',
-			'enum': commandsEnum,
-			'enumDescriptions': <any>commandsEnumDescriptions,
-			'description': nls.localize('keybindings.json.command', "Name of the command to execute"),
-		},
-		'commandType': {
-			'anyOf': [ // repetition of this clause here and below is intentional: one is for nice diagnostics & one is for code completion
-				{
-					$ref: '#/definitions/commandNames'
-				},
-				{
-					'type': 'string',
-					'enum': removalCommandsEnum,
-					'enumDescriptions': <any>commandsEnumDescriptions,
-					'description': nls.localize('keybindings.json.removalCommand', "Name of the command to remove keyboard shortcut for"),
-				},
-				{
-					'type': 'string'
-				},
-			]
-		},
-		'commandsSchemas': {
-			'allOf': commandsSchemas
-		}
-	},
-	items: {
-		'required': ['key'],
-		'type': 'object',
-		'defaultSnippets': [{ 'body': { 'key': '$1', 'command': '$2', 'when': '$3' } }],
-		'properties': {
-			'key': {
-				'type': 'string',
-				'description': nls.localize('keybindings.json.key', "Key or key sequence (separated by space)"),
 			},
-			'command': {
-				'anyOf': [
+			'commandNames': {
+				'type': 'string',
+				'enum': this.commandsEnum,
+				'enumDescriptions': <any>this.commandsEnumDescriptions,
+				'description': nls.localize('keybindings.json.command', "Name of the command to execute"),
+			},
+			'commandType': {
+				'anyOf': [ // repetition of this clause here and below is intentional: one is for nice diagnostics & one is for code completion
 					{
-						'if': {
-							'type': 'array'
-						},
-						'then': {
-							'not': {
-								'type': 'array'
-							},
-							'errorMessage': nls.localize('keybindings.commandsIsArray', "Incorrect type. Expected \"{0}\". The field 'command' does not support running multiple commands. Use command 'runCommands' to pass it multiple commands to run.", 'string')
-						},
-						'else': {
-							'$ref': '#/definitions/commandType'
-						}
+						$ref: '#/definitions/commandNames'
 					},
 					{
-						'$ref': '#/definitions/commandType'
-					}
+						'type': 'string',
+						'enum': this.removalCommandsEnum,
+						'enumDescriptions': <any>this.commandsEnumDescriptions,
+						'description': nls.localize('keybindings.json.removalCommand', "Name of the command to remove keyboard shortcut for"),
+					},
+					{
+						'type': 'string'
+					},
 				]
 			},
-			'when': {
-				'type': 'string',
-				'description': nls.localize('keybindings.json.when', "Condition when the key is active.")
-			},
-			'args': {
-				'description': nls.localize('keybindings.json.args', "Arguments to pass to the command to execute.")
+			'commandsSchemas': {
+				'allOf': this.commandsSchemas
 			}
 		},
-		'$ref': '#/definitions/commandsSchemas'
-	}
-};
-
-const schemaRegistry = Registry.as<IJSONContributionRegistry>(Extensions.JSONContribution);
-schemaRegistry.registerSchema(schemaId, schema);
-
-function updateSchema(additionalContributions: readonly IJSONSchema[]) {
-	commandsSchemas.length = 0;
-	commandsEnum.length = 0;
-	removalCommandsEnum.length = 0;
-	commandsEnumDescriptions.length = 0;
-
-	const knownCommands = new Set<string>();
-	const addKnownCommand = (commandId: string, description?: string | undefined) => {
-		if (!/^_/.test(commandId)) {
-			if (!knownCommands.has(commandId)) {
-				knownCommands.add(commandId);
-
-				commandsEnum.push(commandId);
-				commandsEnumDescriptions.push(description);
-
-				// Also add the negative form for keybinding removal
-				removalCommandsEnum.push(`-${commandId}`);
-			}
+		items: {
+			'required': ['key'],
+			'type': 'object',
+			'defaultSnippets': [{ 'body': { 'key': '$1', 'command': '$2', 'when': '$3' } }],
+			'properties': {
+				'key': {
+					'type': 'string',
+					'description': nls.localize('keybindings.json.key', "Key or key sequence (separated by space)"),
+				},
+				'command': {
+					'anyOf': [
+						{
+							'if': {
+								'type': 'array'
+							},
+							'then': {
+								'not': {
+									'type': 'array'
+								},
+								'errorMessage': nls.localize('keybindings.commandsIsArray', "Incorrect type. Expected \"{0}\". The field 'command' does not support running multiple commands. Use command 'runCommands' to pass it multiple commands to run.", 'string')
+							},
+							'else': {
+								'$ref': '#/definitions/commandType'
+							}
+						},
+						{
+							'$ref': '#/definitions/commandType'
+						}
+					]
+				},
+				'when': {
+					'type': 'string',
+					'description': nls.localize('keybindings.json.when', "Condition when the key is active.")
+				},
+				'args': {
+					'description': nls.localize('keybindings.json.args', "Arguments to pass to the command to execute.")
+				}
+			},
+			'$ref': '#/definitions/commandsSchemas'
 		}
 	};
 
-	const allCommands = CommandsRegistry.getCommands();
-	for (const [commandId, command] of allCommands) {
-		const commandDescription = command.description;
+	private readonly schemaRegistry = Registry.as<IJSONContributionRegistry>(Extensions.JSONContribution);
 
-		addKnownCommand(commandId, commandDescription ? commandDescription.description : undefined);
+	constructor() {
+		this.schemaRegistry.registerSchema(KeybindingsJsonSchema.schemaId, this.schema);
+	}
 
-		if (!commandDescription || !commandDescription.args || commandDescription.args.length !== 1 || !commandDescription.args[0].schema) {
-			continue;
-		}
+	// TODO@ulugbekna: can updates happen incrementally rather than rebuilding; concerns:
+	// - is just appending additional schemas enough for the registry to pick them up?
+	// - can `CommandsRegistry.getCommands` and `MenuRegistry.getCommands` return different values at different times? ie would just pushing new schemas from `additionalContributions` not be enough?
+	updateSchema(additionalContributions: readonly IJSONSchema[]) {
+		this.commandsSchemas.length = 0;
+		this.commandsEnum.length = 0;
+		this.removalCommandsEnum.length = 0;
+		this.commandsEnumDescriptions.length = 0;
 
-		const argsSchema = commandDescription.args[0].schema;
-		const argsRequired = (
-			(typeof commandDescription.args[0].isOptional !== 'undefined')
-				? (!commandDescription.args[0].isOptional)
-				: (Array.isArray(argsSchema.required) && argsSchema.required.length > 0)
-		);
-		const addition = {
-			'if': {
-				'required': ['command'],
-				'properties': {
-					'command': { 'const': commandId }
-				}
-			},
-			'then': {
-				'required': (<string[]>[]).concat(argsRequired ? ['args'] : []),
-				'properties': {
-					'args': argsSchema
+		const knownCommands = new Set<string>();
+		const addKnownCommand = (commandId: string, description?: string | undefined) => {
+			if (!/^_/.test(commandId)) {
+				if (!knownCommands.has(commandId)) {
+					knownCommands.add(commandId);
+
+					this.commandsEnum.push(commandId);
+					this.commandsEnumDescriptions.push(description);
+
+					// Also add the negative form for keybinding removal
+					this.removalCommandsEnum.push(`-${commandId}`);
 				}
 			}
 		};
 
-		commandsSchemas.push(addition);
-	}
+		const allCommands = CommandsRegistry.getCommands();
+		for (const [commandId, command] of allCommands) {
+			const commandDescription = command.description;
 
-	const menuCommands = MenuRegistry.getCommands();
-	for (const commandId of menuCommands.keys()) {
-		addKnownCommand(commandId);
-	}
+			addKnownCommand(commandId, commandDescription ? commandDescription.description : undefined);
 
-	commandsSchemas.push(...additionalContributions);
-	schemaRegistry.notifySchemaChanged(schemaId);
+			if (!commandDescription || !commandDescription.args || commandDescription.args.length !== 1 || !commandDescription.args[0].schema) {
+				continue;
+			}
+
+			const argsSchema = commandDescription.args[0].schema;
+			const argsRequired = (
+				(typeof commandDescription.args[0].isOptional !== 'undefined')
+					? (!commandDescription.args[0].isOptional)
+					: (Array.isArray(argsSchema.required) && argsSchema.required.length > 0)
+			);
+			const addition = {
+				'if': {
+					'required': ['command'],
+					'properties': {
+						'command': { 'const': commandId }
+					}
+				},
+				'then': {
+					'required': (<string[]>[]).concat(argsRequired ? ['args'] : []),
+					'properties': {
+						'args': argsSchema
+					}
+				}
+			};
+
+			this.commandsSchemas.push(addition);
+		}
+
+		const menuCommands = MenuRegistry.getCommands();
+		for (const commandId of menuCommands.keys()) {
+			addKnownCommand(commandId);
+		}
+
+		this.commandsSchemas.push(...additionalContributions);
+		this.schemaRegistry.notifySchemaChanged(KeybindingsJsonSchema.schemaId);
+	}
 }
 
 registerSingleton(IKeybindingService, WorkbenchKeybindingService, InstantiationType.Eager);

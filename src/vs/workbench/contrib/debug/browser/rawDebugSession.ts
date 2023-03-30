@@ -311,7 +311,7 @@ export class RawDebugSession implements IDisposable {
 		if (this.capabilities.supportsTerminateRequest) {
 			if (!this.terminated) {
 				this.terminated = true;
-				return this.send('terminate', { restart }, undefined, 2000);
+				return this.send('terminate', { restart }, undefined);
 			}
 			return this.disconnect({ terminateDebuggee: true, restart });
 		}
