@@ -5,9 +5,9 @@
 
 import * as vscode from 'vscode';
 import { AzureActiveDirectoryService, IStoredSession } from './AADHelper';
+import { BetterTokenStorage } from './betterSecretStorage';
 import { UriEventHandler } from './UriEventHandler';
 import TelemetryReporter from '@vscode/extension-telemetry';
-import { BetterTokenStorage } from 'src/betterSecretStorage';
 
 async function initAzureCloudAuthProvider(context: vscode.ExtensionContext, telemetryReporter: TelemetryReporter, uriHandler: UriEventHandler, tokenStorage: BetterTokenStorage<IStoredSession>): Promise<vscode.Disposable | undefined> {
 	const settingValue = vscode.workspace.getConfiguration('azure-cloud').get<string | undefined>('endpoint');
