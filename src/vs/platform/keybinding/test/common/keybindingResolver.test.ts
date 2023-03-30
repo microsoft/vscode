@@ -313,7 +313,7 @@ suite('KeybindingResolver', () => {
 		});
 	});
 
-	test('resolve command', () => {
+	suite('resolve command', () => {
 
 		function _kbItem(keybinding: number | number[], command: string, when: ContextKeyExpression | undefined): ResolvedKeybindingItem {
 			return kbItem(keybinding, command, null, when, true);
@@ -404,7 +404,7 @@ suite('KeybindingResolver', () => {
 
 		const resolver = new KeybindingResolver(items, [], () => { });
 
-		const testKey = (commandId: string, expectedKeys: number[] | number[][]) => {
+		const testKbLookupByCommand = (commandId: string, expectedKeys: number[] | number[][]) => {
 			// Test lookup
 			const lookupResult = resolver.lookupKeybindings(commandId);
 			assert.strictEqual(lookupResult.length, expectedKeys.length, 'Length mismatch @ commandId ' + commandId);
@@ -444,37 +444,40 @@ suite('KeybindingResolver', () => {
 			}
 		};
 
-		testKey('first', []);
+		test('resolve command - several', () => {
 
-		testKey('second', [KeyCode.KeyZ, KeyCode.KeyX]);
-		testResolve(createContext({ key2: true }), KeyCode.KeyX, 'second');
-		testResolve(createContext({}), KeyCode.KeyZ, 'second');
+			testKbLookupByCommand('first', []);
 
-		testKey('third', [KeyCode.KeyX]);
-		testResolve(createContext({ key3: true }), KeyCode.KeyX, 'third');
+			testKbLookupByCommand('second', [KeyCode.KeyZ, KeyCode.KeyX]);
+			testResolve(createContext({ key2: true }), KeyCode.KeyX, 'second');
+			testResolve(createContext({}), KeyCode.KeyZ, 'second');
 
-		testKey('fourth', []);
+			testKbLookupByCommand('third', [KeyCode.KeyX]);
+			testResolve(createContext({ key3: true }), KeyCode.KeyX, 'third');
 
-		testKey('fifth', [KeyChord(KeyMod.CtrlCmd | KeyCode.KeyY, KeyCode.KeyZ)]);
-		testResolve(createContext({}), KeyChord(KeyMod.CtrlCmd | KeyCode.KeyY, KeyCode.KeyZ), 'fifth');
+			testKbLookupByCommand('fourth', []);
 
-		testKey('seventh', [KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyMod.CtrlCmd | KeyCode.KeyK)]);
-		testResolve(createContext({}), KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyMod.CtrlCmd | KeyCode.KeyK), 'seventh');
+			testKbLookupByCommand('fifth', [KeyChord(KeyMod.CtrlCmd | KeyCode.KeyY, KeyCode.KeyZ)]);
+			testResolve(createContext({}), KeyChord(KeyMod.CtrlCmd | KeyCode.KeyY, KeyCode.KeyZ), 'fifth');
 
-		testKey('uncomment lines', [KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyMod.CtrlCmd | KeyCode.KeyU)]);
-		testResolve(createContext({}), KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyMod.CtrlCmd | KeyCode.KeyU), 'uncomment lines');
+			testKbLookupByCommand('seventh', [KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyMod.CtrlCmd | KeyCode.KeyK)]);
+			testResolve(createContext({}), KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyMod.CtrlCmd | KeyCode.KeyK), 'seventh');
 
-		testKey('comment lines', [KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyMod.CtrlCmd | KeyCode.KeyC)]);
-		testResolve(createContext({}), KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyMod.CtrlCmd | KeyCode.KeyC), 'comment lines');
+			testKbLookupByCommand('uncomment lines', [KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyMod.CtrlCmd | KeyCode.KeyU)]);
+			testResolve(createContext({}), KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyMod.CtrlCmd | KeyCode.KeyU), 'uncomment lines');
 
-		testKey('unreachablechord', []);
+			testKbLookupByCommand('comment lines', [KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyMod.CtrlCmd | KeyCode.KeyC)]);
+			testResolve(createContext({}), KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyMod.CtrlCmd | KeyCode.KeyC), 'comment lines');
 
-		testKey('eleven', [KeyMod.CtrlCmd | KeyCode.KeyG]);
-		testResolve(createContext({}), KeyMod.CtrlCmd | KeyCode.KeyG, 'eleven');
+			testKbLookupByCommand('unreachablechord', []);
 
-		testKey('sixth', []);
+			testKbLookupByCommand('eleven', [KeyMod.CtrlCmd | KeyCode.KeyG]);
+			testResolve(createContext({}), KeyMod.CtrlCmd | KeyCode.KeyG, 'eleven');
 
-		testKey('long multi chord', [[KeyMod.CtrlCmd | KeyCode.KeyK, KeyCode.KeyA, KeyCode.KeyB]]);
-		testResolve(createContext({}), [KeyMod.CtrlCmd | KeyCode.KeyK, KeyCode.KeyA, KeyCode.KeyB], 'long multi chord');
+			testKbLookupByCommand('sixth', []);
+
+			testKbLookupByCommand('long multi chord', [[KeyMod.CtrlCmd | KeyCode.KeyK, KeyCode.KeyA, KeyCode.KeyB]]);
+			testResolve(createContext({}), [KeyMod.CtrlCmd | KeyCode.KeyK, KeyCode.KeyA, KeyCode.KeyB], 'long multi chord');
+		});
 	});
 });
