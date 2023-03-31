@@ -1221,6 +1221,18 @@
           "tags": [
             "experimental"
           ]
+        },
+        "typescript.preferGoToSourceDefinition": {
+          "type": "boolean",
+          "default": false,
+          "description": "%configuration.preferGoToSourceDefinition%",
+          "scope": "window"
+        },
+				"javascript.preferGoToSourceDefinition": {
+          "type": "boolean",
+          "default": false,
+          "description": "%configuration.preferGoToSourceDefinition%",
+          "scope": "window"
         }
       }
     },

@@ -29,7 +29,16 @@ export default class TypeScriptDefinitionProvider extends DefinitionProviderBase
 		}
 
 		const span = response.body.textSpan ? typeConverters.Range.fromTextSpan(response.body.textSpan) : undefined;
-		return response.body.definitions
+		let definitions = response.body.definitions;
+
+		if (vscode.workspace.getConfiguration(document.languageId).get('preferGoToSourceDefinition', false)) {
+			const sourceDefinitionsResponse = await this.client.execute('findSourceDefinition', args, token);
+			if (sourceDefinitionsResponse.type === 'response' && sourceDefinitionsResponse.body) {
+				definitions = sourceDefinitionsResponse.body;
+			}
+		}
+
+		return definitions
 			.map((location): vscode.DefinitionLink => {
 				const target = typeConverters.Location.fromTextSpan(this.client.toResource(location.file), location);
 				if (location.contextStart && location.contextEnd) {
