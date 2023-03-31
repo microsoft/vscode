@@ -5,6 +5,5 @@
 
 .monaco-editor .resizable-widget {
 	z-index: 40;
-	display: flex;
-	flex-direction: column;
+	display: block;
 }

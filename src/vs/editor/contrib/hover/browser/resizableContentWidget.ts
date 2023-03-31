@@ -15,27 +15,21 @@ import { clamp } from 'vs/base/common/numbers';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { Emitter, Event } from 'vs/base/common/event';
 
-// TODO: need several types of constructors depending on what kind of resizable element we will be creating
 export abstract class ResizableWidget implements IDisposable {
 
 	readonly element: ResizableHTMLElement;
-	// readonly _domNode: HTMLElement;
 	private readonly _disposables = new DisposableStore();
 	private readonly _persistingMechanism: IPersistingMechanism;
-
-	// TODO: do I need this?
-	// private _renderingAbove: ContentWidgetPositionPreference = ContentWidgetPositionPreference.ABOVE;
 
 	constructor(
 		private readonly _editor: ICodeEditor,
 		private readonly _persistingOptions: IPersistingOptions,
 	) {
+
+		console.log('Inside of ResizableWidget constructor');
+
 		this.element = new ResizableHTMLElement();
 		this.element.domNode.classList.add('editor-widget', 'resizable-widget');
-
-		// TODO: setting the resizable widget to this instance like for the suggest widget
-		// TODO: this._resizableContentWidget.resizableWidget = this;
-		// TODO: this._domNode = dom.append(this.element.domNode, this._contents);
 
 		if (this._persistingOptions instanceof SingleSizePersistingOptions) {
 			this._persistingMechanism = new SingleSizePersistingMechanism(this, this.element, this._editor, this._persistingOptions);
@@ -51,8 +45,7 @@ export abstract class ResizableWidget implements IDisposable {
 		this.element.dispose();
 	}
 
-	resize(dimension: dom.Dimension): void {
-	}
+	resize(dimension: dom.Dimension): void { }
 
 	hide(): void {
 		this.element.clearSashHoverState();
@@ -73,7 +66,6 @@ export abstract class ResizableWidget implements IDisposable {
 
 export abstract class ResizableContentWidget implements IContentWidget {
 
-	// Previously was a static variable now it is a private one
 	abstract ID: string;
 	private _position: IPosition | null = null;
 	private _secondaryPosition: IPosition | null = null;
@@ -82,6 +74,7 @@ export abstract class ResizableContentWidget implements IContentWidget {
 
 	constructor(private readonly resizableWidget: ResizableWidget, private readonly editor: ICodeEditor) {
 		this.editor.addContentWidget(this);
+		console.log('Inisde of ResizableContentWidget constructor');
 	}
 
 	findPersistedSize(): dom.Dimension | undefined {
@@ -89,20 +82,30 @@ export abstract class ResizableContentWidget implements IContentWidget {
 	}
 
 	getId(): string {
+		console.log('this.ID : ', this.ID);
 		return this.ID;
 	}
 
 	getDomNode(): HTMLElement {
+		console.log('Inside of getDomNode of ResizableContentWidget');
+		console.log('this.resizableWidget.element.domNode : ', this.resizableWidget.element.domNode);
+		this.resizableWidget.element.domNode.style.zIndex = '49';
+		this.resizableWidget.element.domNode.style.position = 'fixed';
+		this.resizableWidget.element.domNode.style.display = 'block';
 		return this.resizableWidget.element.domNode;
 	}
 
 	getPosition(): IContentWidgetPosition | null {
-		return {
+
+		console.log('Inside of getPosition of ResizableContentWidget');
+		const contentWidgetPosition = {
 			position: this._position,
 			secondaryPosition: this._secondaryPosition,
 			preference: (this._preference),
 			positionAffinity: this._positionAffinity
 		};
+		console.log('contentWidgetPosition: ', contentWidgetPosition);
+		return contentWidgetPosition;
 	}
 
 	hide(): void {
@@ -144,6 +147,7 @@ interface IPersistingMechanism extends IDisposable {
 	findSize(): dom.Dimension | undefined;
 }
 
+// TODO: maybe need to make more generic, this is specific to the suggest widget
 class SingleSizePersistingMechanism implements IPersistingMechanism {
 
 	private readonly _persistedWidgetSize: PersistedWidgetSize | null = null;
@@ -185,7 +189,6 @@ class SingleSizePersistingMechanism implements IPersistingMechanism {
 				return;
 			}
 
-			// TODO: maybe need to make more generic, this is specific to the suggest widget
 			if (state) {
 				const fontInfo = this.editor.getOption(EditorOption.fontInfo);
 				const itemHeight = clamp(this.editor.getOption(EditorOption.suggestLineHeight) || fontInfo.lineHeight, 8, 1000);
@@ -357,6 +360,9 @@ class MultipleSizePersistingMechanism implements IPersistingMechanism {
 	}
 
 	findSize(): dom.Dimension | undefined {
+
+		console.log('Inside of findSize of the MultiplePersistingMechanisms');
+
 		if (!this._tooltipPosition || !this.editor.hasModel()) {
 			return;
 		}
