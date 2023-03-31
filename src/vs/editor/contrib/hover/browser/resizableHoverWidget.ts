@@ -49,7 +49,7 @@ export class ResizableHoverWidget extends ResizableWidget {
 
 		this.hoverDisposables.add(this.element.onDidResize((e) => {
 			// When the resizable hover overlay changes, resize the widget
-			// this._widget.resize(e.dimension);
+			this.resize(e.dimension);
 		}));
 
 		this.hoverDisposables.add(this.editor.onDidLayoutChange(() => this._layout()));
@@ -336,6 +336,7 @@ export class ResizableHoverWidget extends ResizableWidget {
 
 	public override hide(): void {
 		this.element.clearSashHoverState();
+		this.editor.removeContentWidget(this.resizableContentWidget);
 		if (this._visibleData) {
 			const stoleFocus = this._visibleData.stoleFocus;
 			this._setVisibleData(null);
