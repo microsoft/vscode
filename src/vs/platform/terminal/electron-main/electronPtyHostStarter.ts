@@ -5,12 +5,19 @@
 
 import { FileAccess } from 'vs/base/common/network';
 import { Client, IIPCOptions } from 'vs/base/parts/ipc/node/ipc.cp';
+import { canUseUtilityProcess } from 'vs/base/parts/sandbox/electron-main/electronTypes';
 import { IEnvironmentService, INativeEnvironmentService } from 'vs/platform/environment/common/environment';
 import { parsePtyHostDebugPort } from 'vs/platform/environment/node/environmentService';
 import { IReconnectConstants } from 'vs/platform/terminal/common/terminal';
+import { NodePtyHostStarter } from 'vs/platform/terminal/node/nodePtyHostStarter';
 import { IPtyHostConnection, IPtyHostStarter } from 'vs/platform/terminal/node/ptyHost';
+import { UtilityProcess } from 'vs/platform/utilityProcess/electron-main/utilityProcess';
 
 export class ElectronPtyHostStarter implements IPtyHostStarter {
+
+	private utilityProcess: UtilityProcess | undefined = undefined;
+	private readonly useUtilityProcess = canUseUtilityProcess;
+
 	constructor(
 		private readonly _reconnectConstants: IReconnectConstants,
 		private readonly _isRemote: boolean,
@@ -19,6 +26,12 @@ export class ElectronPtyHostStarter implements IPtyHostStarter {
 	}
 
 	start(lastPtyId: number): IPtyHostConnection {
+		if (!this.useUtilityProcess) {
+			return new NodePtyHostStarter(this._reconnectConstants, this._isRemote, this._environmentService).start(lastPtyId);
+		}
+
+		console.log('use utility proc');
+
 		// TODO: Convert to use utility process
 		const opts: IIPCOptions = {
 			serverName: 'Pty Host',
