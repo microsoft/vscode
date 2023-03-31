@@ -9,6 +9,10 @@ import { IRange } from 'vs/editor/common/core/range';
 import { ITextModel } from 'vs/editor/common/model';
 import { DocumentColorProvider, IColor, IColorInformation, IColorPresentation, ProviderResult } from 'vs/editor/common/languages';
 
+// TODO: clean the code, make it correct
+// TODO: clean the code so that the header is the corerct size when using the standalone color picker widget
+// TODO: make the standalone color picker widget bigger by default, so that the hsla can fit inside of the color header
+
 export class DefaultDocumentColorProviderForStandaloneColorPicker implements DocumentColorProvider {
 
 	constructor() { }
