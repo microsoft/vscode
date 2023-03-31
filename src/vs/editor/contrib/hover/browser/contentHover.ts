@@ -31,7 +31,7 @@ const $ = dom.$;
 export class ContentHoverController extends Disposable {
 
 	private readonly _participants: IEditorHoverParticipant[];
-	// TODO: Initially, private readonly _widget = this._register(this._instantiationService.createInstance(ContentHoverWidget, this._editor));
+	// INITIALLY: private readonly _widget = this._register(this._instantiationService.createInstance(ContentHoverWidget, this._editor));
 	private readonly _widget;
 	private readonly _computer: ContentHoverComputer;
 	private readonly _hoverOperation: HoverOperation<IHoverPart>;
