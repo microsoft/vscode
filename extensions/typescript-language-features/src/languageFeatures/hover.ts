@@ -8,7 +8,7 @@ import type * as Proto from '../tsServer/protocol/protocol';
 import { ClientCapability, ITypeScriptServiceClient, ServerType } from '../typescriptService';
 import { conditionalRegistration, requireSomeCapability } from './util/dependentRegistration';
 import { DocumentSelector } from '../configuration/documentSelector';
-import { markdownDocumentation } from './util/textRendering';
+import { documentationToMarkdown } from './util/textRendering';
 import * as typeConverters from '../typeConverters';
 import FileConfigurationManager from './fileConfigurationManager';
 
@@ -68,7 +68,7 @@ class TypeScriptHoverProvider implements vscode.HoverProvider {
 			displayParts.push(data.displayString);
 			parts.push(new vscode.MarkdownString().appendCodeblock(displayParts.join(' '), 'typescript'));
 		}
-		const md = markdownDocumentation(data.documentation, data.tags, this.client, resource);
+		const md = documentationToMarkdown(data.documentation, data.tags, this.client, resource);
 		parts.push(md);
 		return parts;
 	}
