@@ -875,6 +875,11 @@ export class AzureActiveDirectoryService {
 		}
 
 		for (const { value } of e.removed) {
+			if (!this.sessionMatchesEndpoint(value)) {
+				// If the session wasn't made for this login endpoint, ignore this update
+				continue;
+			}
+
 			Logger.info(`Session removed in another window with scopes: ${value.scope}`);
 			await this.removeSessionById(value.id, false);
 		}
