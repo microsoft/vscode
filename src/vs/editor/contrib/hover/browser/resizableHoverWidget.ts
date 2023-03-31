@@ -182,6 +182,7 @@ class ResizableHoverWidget extends ResizableWidget {
 	}
 
 	// Needs to be updated in the resizableContentWidget
+	/*
 	public getPosition(): IContentWidgetPosition | null {
 		if (!this._visibleData) {
 			return null;
@@ -202,6 +203,7 @@ class ResizableHoverWidget extends ResizableWidget {
 			positionAffinity: affinity
 		};
 	}
+	*/
 
 	public getDomNode() {
 		return this._hover.containerDomNode;
