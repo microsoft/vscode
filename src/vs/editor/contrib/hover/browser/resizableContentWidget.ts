@@ -24,7 +24,7 @@ export abstract class ResizableWidget implements IDisposable {
 	private readonly _persistingMechanism: IPersistingMechanism;
 
 	// TODO: do I need this?
-	private _renderingAbove: ContentWidgetPositionPreference = ContentWidgetPositionPreference.ABOVE;
+	// private _renderingAbove: ContentWidgetPositionPreference = ContentWidgetPositionPreference.ABOVE;
 
 	constructor(
 		private readonly _editor: ICodeEditor,
@@ -51,17 +51,18 @@ export abstract class ResizableWidget implements IDisposable {
 		this.element.dispose();
 	}
 
-	resize(width: number, height: number): void { }
+	resize(dimension: dom.Dimension): void {
+	}
 
 	hide(): void {
 		this.element.clearSashHoverState();
 	}
 
-	findMaximumRenderingHeight(): number {
+	findMaximumRenderingHeight(): number | undefined {
 		return Infinity;
 	}
 
-	findMaximumRenderingWidth(): number {
+	findMaximumRenderingWidth(): number | undefined {
 		return Infinity;
 	}
 }
@@ -75,7 +76,9 @@ export abstract class ResizableContentWidget implements IContentWidget {
 	private _preference: ContentWidgetPositionPreference[] = [];
 	private _positionAffinity: PositionAffinity | undefined = undefined;
 
-	constructor(private readonly resizableWidget: ResizableWidget, private readonly editor: ICodeEditor) { }
+	constructor(private readonly resizableWidget: ResizableWidget, private readonly editor: ICodeEditor) {
+		this.editor.addContentWidget(this);
+	}
 
 	getId(): string {
 		return this.ID;
@@ -97,6 +100,7 @@ export abstract class ResizableContentWidget implements IContentWidget {
 	hide(): void {
 		this.editor.layoutContentWidget(this);
 	}
+
 	set position(position: IPosition | null) {
 		this._position = position;
 	}
@@ -162,7 +166,7 @@ class SingleSizePersistingMechanism implements IPersistingMechanism {
 		}));
 		this._disposables.add(this.element.onDidResize(e => {
 
-			this.resizableWidget.resize(e.dimension.width, e.dimension.height);
+			this.resizableWidget.resize(new dom.Dimension(e.dimension.width, e.dimension.height));
 
 			if (state) {
 				state.persistHeight = state.persistHeight || !!e.north || !!e.south;
@@ -215,8 +219,8 @@ class MultipleSizePersistingMechanism implements IPersistingMechanism {
 
 	private _resizing: boolean = false;
 	private _size: dom.Dimension | undefined = undefined;
-	private _maxRenderingHeight: number = Infinity;
-	private _maxRenderingWidth: number = Infinity;
+	private _maxRenderingHeight: number | undefined = Infinity;
+	private _maxRenderingWidth: number | undefined = Infinity;
 
 	private readonly _onDidResize = new Emitter<IResizeEvent>();
 	readonly onDidResize: Event<IResizeEvent> = this._onDidResize.event;
@@ -275,6 +279,8 @@ class MultipleSizePersistingMechanism implements IPersistingMechanism {
 			}
 			this._size = new dom.Dimension(width, height);
 			this.element.layout(height, width);
+			// Calling the resize function of the
+			this.resizableWidget.resize(new dom.Dimension(width, height));
 
 			// Update the top parameters only when we decided to render above
 			// TODO: presumably do not need to resize the element
@@ -290,7 +296,8 @@ class MultipleSizePersistingMechanism implements IPersistingMechanism {
 			// this.element.eastSash.el.style.top = TOTAL_BORDER_WIDTH + 'px';
 
 			// Fire the current dimension
-			this._onDidResize.fire({ dimension: this._size, done: false });
+			// TODO: probably don't need to listen on the firing event?
+			// this._onDidResize.fire({ dimension: this._size, done: false });
 
 			this._maxRenderingWidth = this.resizableWidget.findMaximumRenderingWidth();
 			this._maxRenderingHeight = this.resizableWidget.findMaximumRenderingHeight();

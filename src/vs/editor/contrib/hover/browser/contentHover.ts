@@ -423,7 +423,7 @@ class FilteredHoverResult extends HoverResult {
 	}
 }
 
-class ContentHoverVisibleData {
+export class ContentHoverVisibleData {
 
 	public closestMouseDistance: number | undefined = undefined;
 
