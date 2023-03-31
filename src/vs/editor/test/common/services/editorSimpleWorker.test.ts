@@ -167,13 +167,10 @@ suite('EditorSimpleWorker', () => {
 					'function test() {}'
 				],
 				[{
-					text: "\n/**\n * Compares two strings and returns a number indicating whether the first string is less than, equal to, or greater than the second string in sort order.\n * @param a The first string to compare.\n * @param b The second string to compare.\n * @returns A negative number if the first string is less than the second string; zero if the first string is equal to the second string; a positive number if the first string is greater than the second string.\n */\n",
+					text: "\n/** Some Comment */\n",
 					range: new Range(1, 1, 1, 1)
 				}]),
-			([{
-				range: "[1,1 -> 1,1]",
-				text: "\n/**\n * Compares two strings and returns a number indicating whether the first string is less than, equal to, or greater than the second string in sort order.\n * @param a The first string to compare.\n * @param b The second string to compare.\n * @returns A negative number if the first string is less than the second string; zero if the first string is equal to the second string; a positive number if the first string is greater than the second string.\n */\n"
-			}])
+			([{ range: "[1,1 -> 1,1]", text: "\n/** Some Comment */\n" }])
 		);
 	});
 
