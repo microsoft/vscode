@@ -9,6 +9,12 @@ import { Client, IIPCOptions } from 'vs/base/parts/ipc/node/ipc.cp';
 import { IEnvironmentService, INativeEnvironmentService } from 'vs/platform/environment/common/environment';
 import { parsePtyHostDebugPort } from 'vs/platform/environment/node/environmentService';
 import { IReconnectConstants } from 'vs/platform/terminal/common/terminal';
+import { Event } from 'vs/base/common/event';
+
+export interface IPtyHostConnection {
+	readonly client: IChannelClient;
+	readonly onDidProcessExit: Event<{ code: number; signal: string }>;
+}
 
 export interface IPtyHostStarter {
 	/**
@@ -17,7 +23,7 @@ export interface IPtyHostStarter {
 	 * @param lastPtyId Tracks the last terminal ID from the pty host so we can give it to the new
 	 * pty host if it's restarted and avoid ID conflicts.
 	 */
-	start(lastPtyId: number): IChannelClient;
+	start(lastPtyId: number): IPtyHostConnection;
 }
 
 export class NodePtyHostStarter implements IPtyHostStarter {
@@ -28,7 +34,7 @@ export class NodePtyHostStarter implements IPtyHostStarter {
 	) {
 	}
 
-	start(lastPtyId: number): IChannelClient {
+	start(lastPtyId: number): IPtyHostConnection {
 		const opts: IIPCOptions = {
 			serverName: 'Pty Host',
 			args: ['--type=ptyHost', '--logsPath', this._environmentService.logsHome.fsPath],
@@ -70,6 +76,9 @@ export class NodePtyHostStarter implements IPtyHostStarter {
 		// 	}
 		// }));
 
-		return client;
+		return {
+			client,
+			onDidProcessExit: client.onDidProcessExit
+		};
 	}
 }

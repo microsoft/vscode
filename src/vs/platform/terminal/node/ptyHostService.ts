@@ -157,9 +157,7 @@ export class PtyHostService extends Disposable implements IPtyService {
 		// }
 
 		// const client = new Client(FileAccess.asFileUri('bootstrap-fork').fsPath, opts);
-		const client = this._ptyHostStarter.start(lastPtyId);
-
-		// TODO: Verify this is correct order
+		const { client, onDidProcessExit } = this._ptyHostStarter.start(lastPtyId);
 		this._onPtyHostStart.fire();
 
 		// Setup heartbeat service and trigger a heartbeat immediately to reset the timeouts
@@ -167,19 +165,18 @@ export class PtyHostService extends Disposable implements IPtyService {
 		heartbeatService.onBeat(() => this._handleHeartbeat());
 		this._handleHeartbeat();
 
-		// TODO: Handle exit
-		// this._register(client.onDidProcessExit(e => {
-		// 	this._onPtyHostExit.fire(e.code);
-		// 	if (!this._isDisposed) {
-		// 		if (this._restartCount <= Constants.MaxRestarts) {
-		// 			this._logService.error(`ptyHost terminated unexpectedly with code ${e.code}`);
-		// 			this._restartCount++;
-		// 			this.restartPtyHost();
-		// 		} else {
-		// 			this._logService.error(`ptyHost terminated unexpectedly with code ${e.code}, giving up`);
-		// 		}
-		// 	}
-		// }));
+		this._register(onDidProcessExit(e => {
+			this._onPtyHostExit.fire(e.code);
+			if (!this._isDisposed) {
+				if (this._restartCount <= Constants.MaxRestarts) {
+					this._logService.error(`ptyHost terminated unexpectedly with code ${e.code}`);
+					this._restartCount++;
+					this.restartPtyHost();
+				} else {
+					this._logService.error(`ptyHost terminated unexpectedly with code ${e.code}, giving up`);
+				}
+			}
+		}));
 
 		// Setup logging
 		this._register(new RemoteLoggerChannelClient(this._loggerService, client.getChannel(TerminalIpcChannels.Logger)));
