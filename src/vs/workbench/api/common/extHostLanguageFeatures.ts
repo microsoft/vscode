@@ -33,7 +33,7 @@ import { Cache } from './cache';
 import { StopWatch } from 'vs/base/common/stopwatch';
 import { isCancellationError, NotImplementedError } from 'vs/base/common/errors';
 import { raceCancellationError } from 'vs/base/common/async';
-import { isProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
+import { checkProposedApiEnabled, isProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
 import { IExtHostTelemetry } from 'vs/workbench/api/common/extHostTelemetry';
 
 // --- adapter
@@ -2055,9 +2055,13 @@ export class ExtHostLanguageFeatures implements extHostProtocol.ExtHostLanguageF
 		return this._withAdapter(handle, DocumentFormattingAdapter, adapter => adapter.provideDocumentFormattingEdits(URI.revive(resource), options, token), undefined, token);
 	}
 
-	registerDocumentRangeFormattingEditProvider(extension: IExtensionDescription, selector: vscode.DocumentSelector, provider: vscode.DocumentRangeFormattingEditProvider): vscode.Disposable {
+	registerDocumentRangeFormattingEditProvider(extension: IExtensionDescription, selector: vscode.DocumentSelector, provider: vscode.DocumentRangeFormattingEditProvider, metadata?: vscode.DocumentRangeFormattingEditProviderMetadata): vscode.Disposable {
+		const canFormatMultipleRanges = metadata?.canFormatMultipleRanges ?? false;
+		if (canFormatMultipleRanges) {
+			checkProposedApiEnabled(extension, 'formatMultipleRanges');
+		}
 		const handle = this._addNewAdapter(new RangeFormattingAdapter(this._documents, provider), extension);
-		this._proxy.$registerRangeFormattingSupport(handle, this._transformDocumentSelector(selector), extension.identifier, extension.displayName || extension.name);
+		this._proxy.$registerRangeFormattingSupport(handle, this._transformDocumentSelector(selector), extension.identifier, extension.displayName || extension.name, metadata ?? { canFormatMultipleRanges: false });
 		return this._createDisposable(handle);
 	}
 

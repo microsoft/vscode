@@ -439,7 +439,7 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 		this._setValueFromTextBuffer(textBuffer, disposable);
 	}
 
-	private _createContentChanged2(range: Range, rangeOffset: number, rangeLength: number, text: string, isUndoing: boolean, isRedoing: boolean, isFlush: boolean): IModelContentChangedEvent {
+	private _createContentChanged2(range: Range, rangeOffset: number, rangeLength: number, text: string, isUndoing: boolean, isRedoing: boolean, isFlush: boolean, isEolChange: boolean): IModelContentChangedEvent {
 		return {
 			changes: [{
 				range: range,
@@ -448,6 +448,7 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 				text: text,
 			}],
 			eol: this._buffer.getEOL(),
+			isEolChange: isEolChange,
 			versionId: this.getVersionId(),
 			isUndoing: isUndoing,
 			isRedoing: isRedoing,
@@ -467,9 +468,6 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 		this._bufferDisposable = textBufferDisposable;
 		this._increaseVersionId();
 
-		// Flush all tokens
-		this._tokenizationTextModelPart.flush();
-
 		// Destroy all my decorations
 		this._decorations = Object.create(null);
 		this._decorationsTree = new DecorationsTrees();
@@ -487,7 +485,7 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 				false,
 				false
 			),
-			this._createContentChanged2(new Range(1, 1, endLineNumber, endColumn), 0, oldModelValueLength, this.getValue(), false, false, true)
+			this._createContentChanged2(new Range(1, 1, endLineNumber, endColumn), 0, oldModelValueLength, this.getValue(), false, false, true, false)
 		);
 	}
 
@@ -518,7 +516,7 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 				false,
 				false
 			),
-			this._createContentChanged2(new Range(1, 1, endLineNumber, endColumn), 0, oldModelValueLength, this.getValue(), false, false, false)
+			this._createContentChanged2(new Range(1, 1, endLineNumber, endColumn), 0, oldModelValueLength, this.getValue(), false, false, false, true)
 		);
 	}
 
@@ -1410,14 +1408,12 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 		this._trimAutoWhitespaceLines = result.trimAutoWhitespaceLineNumbers;
 
 		if (contentChanges.length !== 0) {
-			// We do a first pass to update tokens and decorations
+			// We do a first pass to update decorations
 			// because we want to read decorations in the second pass
 			// where we will emit content change events
 			// and we want to read the final decorations
 			for (let i = 0, len = contentChanges.length; i < len; i++) {
 				const change = contentChanges[i];
-				const [eolCount, firstLineLength, lastLineLength] = countEOL(change.text);
-				this._tokenizationTextModelPart.acceptEdit(change.range, change.text, eolCount, firstLineLength, lastLineLength);
 				this._decorationsTree.acceptReplace(change.rangeOffset, change.rangeLength, change.text.length, change.forceMoveMarkers);
 			}
 
@@ -1515,6 +1511,7 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 				{
 					changes: contentChanges,
 					eol: this._buffer.getEOL(),
+					isEolChange: false,
 					versionId: this.getVersionId(),
 					isUndoing: this._isUndoing,
 					isRedoing: this._isRedoing,
@@ -1930,9 +1927,6 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 
 	public getLanguageIdAtPosition(lineNumber: number, column: number): string {
 		return this.tokenization.getLanguageIdAtPosition(lineNumber, column);
-	}
-	public setLineTokens(lineNumber: number, tokens: Uint32Array | ArrayBuffer | null): void {
-		this._tokenizationTextModelPart.setLineTokens(lineNumber, tokens);
 	}
 
 	public getWordAtPosition(position: IPosition): IWordAtPosition | null {
