@@ -19,24 +19,23 @@ import { Emitter, Event } from 'vs/base/common/event';
 export abstract class ResizableWidget implements IDisposable {
 
 	readonly element: ResizableHTMLElement;
-	readonly _domNode: HTMLElement;
+	// readonly _domNode: HTMLElement;
 	private readonly _disposables = new DisposableStore();
 	private readonly _persistingMechanism: IPersistingMechanism;
+
+	// TODO: do I need this?
 	private _renderingAbove: ContentWidgetPositionPreference = ContentWidgetPositionPreference.ABOVE;
 
 	constructor(
-		// The ContentWidget is within a disposable and the disposable can be instatiated
-		private readonly _resizableContentWidget: ResizableContentWidget,
 		private readonly _editor: ICodeEditor,
-		private readonly _contents: HTMLElement,
 		private readonly _persistingOptions: IPersistingOptions,
 	) {
 		this.element = new ResizableHTMLElement();
 		this.element.domNode.classList.add('editor-widget', 'resizable-widget');
 
 		// TODO: setting the resizable widget to this instance like for the suggest widget
-		this._resizableContentWidget.resizableWidget = this;
-		this._domNode = dom.append(this.element.domNode, this._contents);
+		// TODO: this._resizableContentWidget.resizableWidget = this;
+		// TODO: this._domNode = dom.append(this.element.domNode, this._contents);
 
 		if (this._persistingOptions instanceof SingleSizePersistingOptions) {
 			this._persistingMechanism = new SingleSizePersistingMechanism(this, this.element, this._editor, this._persistingOptions);
@@ -70,34 +69,20 @@ export abstract class ResizableWidget implements IDisposable {
 export abstract class ResizableContentWidget implements IContentWidget {
 
 	// Previously was a static variable now it is a private one
-	private _ID: string = '';
-	private _resizableWidget: ResizableWidget | null = null;
+	abstract ID: string;
 	private _position: IPosition | null = null;
 	private _secondaryPosition: IPosition | null = null;
 	private _preference: ContentWidgetPositionPreference[] = [];
 	private _positionAffinity: PositionAffinity | undefined = undefined;
 
-	constructor(
-		private readonly editor: ICodeEditor,
-	) { }
-
-	set resizableWidget(resizableWidget: ResizableWidget) {
-		this._resizableWidget = resizableWidget;
-	}
-
-	// TODO: mus tbe implemented by the child class
-	abstract set ID(id: string);
+	constructor(private readonly resizableWidget: ResizableWidget, private readonly editor: ICodeEditor) { }
 
 	getId(): string {
-		return this._ID;
+		return this.ID;
 	}
 
 	getDomNode(): HTMLElement {
-		if (this._resizableWidget) {
-			return this._resizableWidget.element.domNode;
-		} else {
-			return new HTMLElement();
-		}
+		return this.resizableWidget.element.domNode;
 	}
 
 	getPosition(): IContentWidgetPosition | null {
@@ -109,6 +94,9 @@ export abstract class ResizableContentWidget implements IContentWidget {
 		};
 	}
 
+	hide(): void {
+		this.editor.layoutContentWidget(this);
+	}
 	set position(position: IPosition | null) {
 		this._position = position;
 	}

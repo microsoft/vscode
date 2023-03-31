@@ -96,6 +96,7 @@ class PersistedWidgetSize {
 	}
 }
 
+// TODO: The suggest widget is a disposable and it can be instantiated
 export class SuggestWidget implements IDisposable {
 
 	private static LOADING_MESSAGE: string = nls.localize('suggestWidget.loading', "Loading...");
@@ -921,6 +922,7 @@ export class SuggestWidget implements IDisposable {
 	}
 }
 
+// TODO: The suggest content widget is a content widget and it belongs to the suggest widget
 export class SuggestContentWidget implements IContentWidget {
 
 	readonly allowEditorOverflow = true;

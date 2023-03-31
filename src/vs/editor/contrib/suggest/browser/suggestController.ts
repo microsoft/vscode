@@ -144,6 +144,8 @@ export class SuggestController implements IEditorContribution {
 
 		this.widget = this._toDispose.add(new IdleValue(() => {
 
+			// TODO: The point where the suggest widget instance is created
+			// TODO: suggest widget should be mapped to the content hover widget
 			const widget = this._instantiationService.createInstance(SuggestWidget, this.editor);
 
 			this._toDispose.add(widget);

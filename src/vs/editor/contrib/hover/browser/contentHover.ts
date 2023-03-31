@@ -30,7 +30,11 @@ const $ = dom.$;
 export class ContentHoverController extends Disposable {
 
 	private readonly _participants: IEditorHoverParticipant[];
+	// TODO: instead of making an instance of the content hover widget, make an instance of the resizable content hover widget
 	private readonly _widget = this._register(this._instantiationService.createInstance(ContentHoverWidget, this._editor));
+
+	// TODO: private readonly _resizableOverlay = this._register(this._instantiationService.createInstance(ResizableContentHoverWidget, this._editor));
+
 	private readonly _computer: ContentHoverComputer;
 	private readonly _hoverOperation: HoverOperation<IHoverPart>;
 
