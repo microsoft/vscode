@@ -156,9 +156,9 @@ export class HistoryNavigator2<T> {
 
 		if (this.valueSet.has(value)) {
 			this._deleteFromList(value);
-			this.valueSet.delete(value);
+		} else {
+			this.valueSet.add(value);
 		}
-		this.valueSet.add(value);
 
 		while (this.size > this.capacity) {
 			this.valueSet.delete(this.head.value);
@@ -183,9 +183,9 @@ export class HistoryNavigator2<T> {
 
 		if (this.valueSet.has(value)) {
 			this._deleteFromList(value);
-			this.valueSet.delete(value);
+		} else {
+			this.valueSet.add(value);
 		}
-		this.valueSet.add(value);
 
 		return oldValue;
 	}
