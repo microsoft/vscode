@@ -13,8 +13,8 @@ import { ConfigurationChangedEvent, EditorOption } from 'vs/editor/common/config
 import { Position } from 'vs/editor/common/core/position';
 import { HoverStartSource } from 'vs/editor/contrib/hover/browser/hoverOperation';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { ContentHoverVisibleData, computeDistanceFromPointToRectangle } from 'vs/editor/contrib/hover/browser/contentHover';
 import { PositionAffinity } from 'vs/editor/common/model';
+import { IEditorHoverColorPickerWidget } from 'vs/editor/contrib/hover/browser/hoverTypes';
 
 const SCROLLBAR_WIDTH = 10;
 
@@ -479,4 +479,30 @@ export class ResizableContentHoverWidget extends ResizableContentWidget {
 	constructor(resizableHoverWidget: ResizableHoverWidget, editor: ICodeEditor) {
 		super(resizableHoverWidget, editor);
 	}
+}
+
+export class ContentHoverVisibleData {
+
+	public closestMouseDistance: number | undefined = undefined;
+
+	constructor(
+		public readonly colorPicker: IEditorHoverColorPickerWidget | null,
+		public readonly showAtPosition: Position,
+		public readonly showAtSecondaryPosition: Position,
+		public readonly preferAbove: boolean,
+		public readonly stoleFocus: boolean,
+		public readonly source: HoverStartSource,
+		public readonly isBeforeContent: boolean,
+		public initialMousePosX: number | undefined,
+		public initialMousePosY: number | undefined,
+		public readonly disposables: DisposableStore
+	) { }
+}
+
+export function computeDistanceFromPointToRectangle(pointX: number, pointY: number, left: number, top: number, width: number, height: number): number {
+	const x = (left + width / 2); // x center of rectangle
+	const y = (top + height / 2); // y center of rectangle
+	const dx = Math.max(Math.abs(pointX - x) - width / 2, 0);
+	const dy = Math.max(Math.abs(pointY - y) - height / 2, 0);
+	return Math.sqrt(dx * dx + dy * dy);
 }
