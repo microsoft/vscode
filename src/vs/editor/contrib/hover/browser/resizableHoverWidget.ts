@@ -380,6 +380,10 @@ export class ResizableHoverWidget extends ResizableWidget {
 		this.editor.layoutContentWidget(this.resizableContentWidget);
 		this._hover.onContentsChanged();
 
+		const clientHeight = this._hover.containerDomNode.clientHeight;
+		const clientWidth = this._hover.containerDomNode.clientWidth;
+		this.element.layout(clientHeight, clientWidth);
+
 		const scrollDimensions = this._hover.scrollbar.getScrollDimensions();
 		const hasHorizontalScrollbar = (scrollDimensions.scrollWidth > scrollDimensions.width);
 		if (hasHorizontalScrollbar) {
