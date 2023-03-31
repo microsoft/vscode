@@ -660,7 +660,7 @@ GutterActionsRegistry.registerGutterActionsGenerator(({ lineNumber, editor, acce
 	const actions = breakpointEditorContribution.getContextMenuActionsAtPosition(lineNumber, model);
 
 	for (const action of actions) {
-		result.push(action);
+		result.push(action, '2_debug');
 	}
 });
 
