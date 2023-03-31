@@ -6,7 +6,7 @@
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { HoverParticipantRegistry, IEditorHoverRenderContext } from 'vs/editor/contrib/hover/browser/hoverTypes';
 import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition } from 'vs/editor/browser/editorBrowser';
-import { IModelDeltaDecoration, ITextModel, PositionAffinity } from 'vs/editor/common/model';
+import { ITextModel, PositionAffinity } from 'vs/editor/common/model';
 import { Position } from 'vs/editor/common/core/position';
 import { ColorHover, ColorHoverParticipant } from 'vs/editor/contrib/colorPicker/browser/colorHoverParticipant';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -15,7 +15,7 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ColorPickerBody, ColorPickerHeader, ColorPickerWidget } from 'vs/editor/contrib/colorPicker/browser/colorPickerWidget';
 import { Emitter } from 'vs/base/common/event';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
-import { DocumentColorProvider, IColor, IColorInformation, IColorPresentation, ProviderResult } from 'vs/editor/common/languages';
+import { DocumentColorProvider, IColorInformation } from 'vs/editor/common/languages';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { EditorContributionInstantiation, registerEditorContribution } from 'vs/editor/browser/editorExtensions';
@@ -26,16 +26,13 @@ import { Selection } from 'vs/editor/common/core/selection';
 import { IRange } from 'vs/editor/common/core/range';
 import * as dom from 'vs/base/browser/dom';
 import 'vs/css!./colorPicker';
-import { Color, RGBA } from 'vs/base/common/color';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { CancelablePromise, TimeoutTimer, createCancelablePromise } from 'vs/base/common/async';
 import { StopWatch } from 'vs/base/common/stopwatch';
 import { IColorData } from 'vs/editor/contrib/colorPicker/browser/color';
-import { ColorDecorationInjectedTextMarker, ColorDetector, DecoratorLimitReporter } from 'vs/editor/contrib/colorPicker/browser/colorDetector';
+import { ColorDetector } from 'vs/editor/contrib/colorPicker/browser/colorDetector';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
-import { DynamicCssRules } from 'vs/editor/browser/editorDom';
-import { noBreakWhitespace } from 'vs/base/common/strings';
 import { DefaultDocumentColorProviderForStandaloneColorPicker } from 'vs/editor/contrib/colorPicker/browser/defaultDocumentColorProvider';
 
 export class StandaloneColorPickerController extends Disposable implements IEditorContribution {

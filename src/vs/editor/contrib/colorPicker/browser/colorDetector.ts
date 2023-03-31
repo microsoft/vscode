@@ -29,6 +29,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 export const ColorDecorationInjectedTextMarker = Object.create({});
 
 export function getDefaultColors(model: ITextModel, token: CancellationToken): Promise<IColorData[]> {
+	console.log('inside of getDefaultColros');
 	const colors: IColorData[] = [];
 	const provider = new DefaultDocumentColorProviderForStandaloneColorPicker();
 	const result = provider.provideDocumentColors(model, token);
@@ -37,7 +38,8 @@ export function getDefaultColors(model: ITextModel, token: CancellationToken): P
 			colors.push({ colorInfo, provider });
 		}
 	}
-	return new Promise(() => { return colors; });
+	console.log('colors inside of getDefaultColors: ', colors);
+	return Promise.resolve(colors);
 }
 
 export class ColorDetector extends Disposable implements IEditorContribution {
@@ -174,14 +176,17 @@ export class ColorDetector extends Disposable implements IEditorContribution {
 				console.log('entered into the first if loop of the beginCompute');
 				// When there are no colors and the default color provider is used, then compute the color data from this
 				colors = await getDefaultColors(model, token);
+				console.log('colors after getDefaultColors');
 			} else if (this.useDefaultColorProvider) {
 				console.log('entered into the second if loop of begin compute');
 				// In this case, there are colors but there are also default colors, so we should not show duplicated, if duplicates are found
 			}
 			this._debounceInformation.update(model, sw.elapsed());
+			console.log('colors : ', colors);
 			return colors;
 		});
 		this._computePromise.then((colorInfos) => {
+			console.log('colorInfos : ', colorInfos);
 			this.updateDecorations(colorInfos);
 			this.updateColorDecorators(colorInfos);
 			this._computePromise = null;
