@@ -82,7 +82,7 @@ class MyCompletionItem extends vscode.CompletionItem {
 
 		const { sourceDisplay, isSnippet } = tsEntry;
 		if (sourceDisplay) {
-			this.label = { label: tsEntry.name, description: Previewer.plainWithLinks(sourceDisplay, client) };
+			this.label = { label: tsEntry.name, description: Previewer.asPlainTextWithLinks(sourceDisplay, client) };
 		}
 
 		if (tsEntry.labelDetails) {
@@ -255,7 +255,7 @@ class MyCompletionItem extends vscode.CompletionItem {
 			parts.push(action.description);
 		}
 
-		parts.push(Previewer.plainWithLinks(detail.displayParts, client));
+		parts.push(Previewer.asPlainTextWithLinks(detail.displayParts, client));
 		return parts.join('\n\n');
 	}
 
@@ -265,7 +265,7 @@ class MyCompletionItem extends vscode.CompletionItem {
 		baseUri: vscode.Uri,
 	): vscode.MarkdownString | undefined {
 		const documentation = new vscode.MarkdownString();
-		Previewer.addMarkdownDocumentation(documentation, detail.documentation, detail.tags, client);
+		Previewer.appendDocumentationAsMarkdown(documentation, detail.documentation, detail.tags, client);
 		documentation.baseUri = baseUri;
 		return documentation.value.length ? documentation : undefined;
 	}
