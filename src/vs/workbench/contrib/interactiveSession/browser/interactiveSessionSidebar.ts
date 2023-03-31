@@ -7,6 +7,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -15,6 +16,7 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IViewPaneOptions, ViewPane } from 'vs/workbench/browser/parts/views/viewPane';
 import { IViewDescriptorService } from 'vs/workbench/common/views';
 import { InteractiveSessionWidget } from 'vs/workbench/contrib/interactiveSession/browser/interactiveSessionWidget';
+import { IInteractiveSessionViewModel } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionViewModel';
 
 export interface IInteractiveSessionViewOptions {
 	readonly providerId: string;
@@ -22,13 +24,12 @@ export interface IInteractiveSessionViewOptions {
 
 export const INTERACTIVE_SIDEBAR_PANEL_ID = 'workbench.panel.interactiveSessionSidebar';
 export class InteractiveSessionViewPane extends ViewPane {
-	static instances: InteractiveSessionViewPane[] = [];
 	static ID = 'workbench.panel.interactiveSession.view';
 
 	private view: InteractiveSessionWidget;
 
 	constructor(
-		interactivSessionViewOptions: IInteractiveSessionViewOptions,
+		interactiveSessionViewOptions: IInteractiveSessionViewOptions,
 		options: IViewPaneOptions,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IContextMenuService contextMenuService: IContextMenuService,
@@ -41,9 +42,8 @@ export class InteractiveSessionViewPane extends ViewPane {
 		@ITelemetryService telemetryService: ITelemetryService,
 	) {
 		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService);
-		// TODO hacks
-		InteractiveSessionViewPane.instances.push(this);
-		this.view = this._register(this.instantiationService.createInstance(InteractiveSessionWidget, interactivSessionViewOptions.providerId, this.id, () => this.getBackgroundColor(), () => this.getBackgroundColor(), () => editorBackground));
+		const scopedInstantiationService = this.instantiationService.createChild(new ServiceCollection([IContextKeyService, this.scopedContextKeyService]));
+		this.view = this._register(scopedInstantiationService.createInstance(InteractiveSessionWidget, interactiveSessionViewOptions.providerId, this.id, () => this.getBackgroundColor(), () => this.getBackgroundColor(), () => editorBackground));
 
 		this._register(this.onDidChangeBodyVisibility(visible => {
 			this.view.setVisible(visible);
@@ -55,12 +55,16 @@ export class InteractiveSessionViewPane extends ViewPane {
 		this.view.render(parent);
 	}
 
-	acceptInput(): void {
-		this.view.acceptInput();
+	acceptInput(query?: string): void {
+		this.view.acceptInput(query);
 	}
 
-	clear(): void {
-		this.view.clear();
+	waitForViewModel(): Promise<IInteractiveSessionViewModel | undefined> {
+		return this.view.waitForViewModel();
+	}
+
+	async clear(): Promise<void> {
+		await this.view.clear();
 	}
 
 	focusInput(): void {
@@ -75,6 +79,11 @@ export class InteractiveSessionViewPane extends ViewPane {
 	protected override layoutBody(height: number, width: number): void {
 		super.layoutBody(height, width);
 		this.view.layout(height, width);
+	}
+
+	override saveState(): void {
+		this.view.saveState();
+		super.saveState();
 	}
 }
 

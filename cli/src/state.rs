@@ -13,7 +13,10 @@ use std::{
 
 use serde::{de::DeserializeOwned, Serialize};
 
-use crate::util::errors::{wrap, AnyError, NoHomeForLauncherError, WrappedError};
+use crate::{
+	constants::VSCODE_CLI_QUALITY,
+	util::errors::{wrap, AnyError, NoHomeForLauncherError, WrappedError},
+};
 
 const HOME_DIR_ALTS: [&str; 2] = ["$HOME", "~"];
 
@@ -135,6 +138,14 @@ impl LauncherPaths {
 	/// Root directory for the server launcher
 	pub fn root(&self) -> &Path {
 		&self.root
+	}
+
+	/// Lockfile for the running tunnel
+	pub fn tunnel_lockfile(&self) -> PathBuf {
+		self.root.join(format!(
+			"tunnel-{}.lock",
+			VSCODE_CLI_QUALITY.unwrap_or("oss")
+		))
 	}
 
 	/// Suggested path for tunnel service logs, when using file logs

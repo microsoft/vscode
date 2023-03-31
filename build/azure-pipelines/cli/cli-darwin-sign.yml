@@ -6,9 +6,10 @@ parameters:
 steps:
   - task: UseDotNet@2
     inputs:
-      version: 2.x
+      version: 6.x
 
   - task: EsrpClientTool@1
+    continueOnError: true
     displayName: Download ESRPClient
 
   - ${{ each target in parameters.VSCODE_CLI_ARTIFACTS }}:
@@ -20,12 +21,12 @@ steps:
 
   - script: |
       set -e
-      node build/azure-pipelines/common/sign "$(esrpclient.toolpath)/$(esrpclient.toolname)" darwin-sign $(ESRP-PKI) $(esrp-aad-username) $(esrp-aad-password) $(Build.ArtifactStagingDirectory)/pkg "*.zip"
+      node build/azure-pipelines/common/sign $(Agent.ToolsDirectory)/esrpclient/*/*/net6.0/esrpcli.dll darwin-sign $(ESRP-PKI) $(esrp-aad-username) $(esrp-aad-password) $(Build.ArtifactStagingDirectory)/pkg "*.zip"
     displayName: Codesign
 
   - script: |
       set -e
-      node build/azure-pipelines/common/sign "$(esrpclient.toolpath)/$(esrpclient.toolname)" darwin-notarize $(ESRP-PKI) $(esrp-aad-username) $(esrp-aad-password) $(Build.ArtifactStagingDirectory)/pkg "*.zip"
+      node build/azure-pipelines/common/sign $(Agent.ToolsDirectory)/esrpclient/*/*/net6.0/esrpcli.dll darwin-notarize $(ESRP-PKI) $(esrp-aad-username) $(esrp-aad-password) $(Build.ArtifactStagingDirectory)/pkg "*.zip"
     displayName: Notarize
 
   - ${{ each target in parameters.VSCODE_CLI_ARTIFACTS }}:

@@ -3050,6 +3050,11 @@ export enum CommentMode {
 	Preview = 1
 }
 
+export enum CommentState {
+	Published = 0,
+	Draft = 1
+}
+
 export enum CommentThreadState {
 	Unresolved = 0,
 	Resolved = 1
@@ -3766,20 +3771,13 @@ export class TestRunRequest implements vscode.TestRunRequest {
 		public readonly include: vscode.TestItem[] | undefined = undefined,
 		public readonly exclude: vscode.TestItem[] | undefined = undefined,
 		public readonly profile: vscode.TestRunProfile | undefined = undefined,
+		public readonly continuous = false,
 	) { }
 }
 
+/** Back-compat for proposed API users */
 @es5ClassCompat
-export class TestRunRequest2 extends TestRunRequest implements vscode.TestRunRequest2 {
-	constructor(
-		include: vscode.TestItem[] | undefined = undefined,
-		exclude: vscode.TestItem[] | undefined = undefined,
-		profile: vscode.TestRunProfile | undefined = undefined,
-		public readonly continuous = false,
-	) {
-		super(include, exclude, profile);
-	}
-}
+export class TestRunRequest2 extends TestRunRequest { }
 
 @es5ClassCompat
 export class TestMessage implements vscode.TestMessage {
@@ -3960,4 +3958,28 @@ export class TerminalEditorTabInput {
 export class InteractiveWindowInput {
 	constructor(readonly uri: URI, readonly inputBoxUri: URI) { }
 }
+//#endregion
+
+//#region Interactive session
+
+export enum InteractiveSessionVoteDirection {
+	Up = 1,
+	Down = 2
+}
+
+export enum InteractiveSessionCopyKind {
+	Action = 1,
+	Toolbar = 2
+}
+
+//#endregion
+
+//#region Interactive Editor
+
+export enum InteractiveEditorResponseFeedbackKind {
+	Unhelpful = 0,
+	Helpful = 1,
+	Undone = 2
+}
+
 //#endregion

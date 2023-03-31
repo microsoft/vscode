@@ -154,7 +154,9 @@ export class MainThreadTreeViews extends Disposable implements MainThreadTreeVie
 			if (select) {
 				treeView.setSelection([item]);
 			}
-			if (focus) {
+			if (focus === false) {
+				treeView.setFocus();
+			} else if (focus) {
 				treeView.setFocus(item);
 			}
 			let itemsToExpand = [item];

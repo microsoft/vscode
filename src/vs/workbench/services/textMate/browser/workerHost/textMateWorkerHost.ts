@@ -6,6 +6,7 @@
 import { BugIndicatingError } from 'vs/base/common/errors';
 import { DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { AppResourcePath, FileAccess, nodeModulesAsarPath, nodeModulesPath } from 'vs/base/common/network';
+import { IObservable } from 'vs/base/common/observable';
 import { isWeb } from 'vs/base/common/platform';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { createWebWorker, MonacoWebWorker } from 'vs/editor/browser/services/webWorker';
@@ -122,7 +123,7 @@ export class TextMateWorkerHost implements IDisposable {
 	}
 
 	// Will be recreated when worker is killed (because tokenizer is re-registered when languages change)
-	public createBackgroundTokenizer(textModel: ITextModel, tokenStore: IBackgroundTokenizationStore): IBackgroundTokenizer | undefined {
+	public createBackgroundTokenizer(textModel: ITextModel, tokenStore: IBackgroundTokenizationStore, maxTokenizationLineLength: IObservable<number>): IBackgroundTokenizer | undefined {
 		if (this._workerTokenizerControllers.has(textModel.uri.toString())) {
 			throw new BugIndicatingError();
 		}
@@ -144,7 +145,7 @@ export class TextMateWorkerHost implements IDisposable {
 			}
 
 			store.add(keepAliveWhenAttached(textModel, () => {
-				const controller = new TextMateWorkerTokenizerController(textModel, workerProxy, this._languageService.languageIdCodec, tokenStore, INITIAL);
+				const controller = new TextMateWorkerTokenizerController(textModel, workerProxy, this._languageService.languageIdCodec, tokenStore, INITIAL, this._configurationService, maxTokenizationLineLength);
 				this._workerTokenizerControllers.set(textModel.uri.toString(), controller);
 
 				return toDisposable(() => {
@@ -188,7 +189,8 @@ export class TextMateWorkerHost implements IDisposable {
 
 export interface StateDeltas {
 	startLineNumber: number;
-	stateDeltas: StackDiff[];
+	// null means the state for that line did not change
+	stateDeltas: (StackDiff | null)[];
 }
 
 function keepAliveWhenAttached(textModel: ITextModel, factory: () => IDisposable): IDisposable {

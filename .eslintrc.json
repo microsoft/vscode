@@ -181,6 +181,7 @@
 							"invalidate",
 							"open",
 							"override",
+							"perform",
 							"receive",
 							"register",
 							"remove",

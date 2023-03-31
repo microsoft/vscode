@@ -5,74 +5,98 @@
 
 import { handleANSIOutput } from './ansi';
 
-function generateViewMoreElement(outputId: string, adjustableSize: boolean) {
-	const container = document.createElement('span');
-	const first = document.createElement('span');
+export const scrollableClass = 'scrollable';
 
-	if (adjustableSize) {
-		first.textContent = 'Output exceeds the ';
-		const second = document.createElement('a');
-		second.textContent = 'size limit';
-		second.href = `command:workbench.action.openSettings?%5B%22notebook.output.textLineLimit%22%5D`;
-		container.appendChild(first);
-		container.appendChild(second);
-	} else {
-		first.textContent = 'Output exceeds the maximium size limit';
-		container.appendChild(first);
-	}
+function generateViewMoreElement(outputId: string) {
+	const container = document.createElement('div');
+	const first = document.createElement('span');
+	first.textContent = 'Output exceeds the ';
+
+	const second = document.createElement('a');
+	second.textContent = 'size limit';
+	second.href = `command:workbench.action.openSettings?%5B%22notebook.output.textLineLimit%22%5D`;
+	container.appendChild(first);
+	container.appendChild(second);
 
 	const third = document.createElement('span');
 	third.textContent = '. Open the full output data ';
+
 	const forth = document.createElement('a');
 	forth.textContent = 'in a text editor';
 	forth.href = `command:workbench.action.openLargeOutput?${outputId}`;
 	container.appendChild(third);
 	container.appendChild(forth);
+
+	const refreshSpan = document.createElement('span');
+	refreshSpan.classList.add('scroll-refresh');
+	const fifth = document.createElement('span');
+	fifth.textContent = '. Refresh to view ';
+
+	const sixth = document.createElement('a');
+	sixth.textContent = 'scrollable element';
+	sixth.href = `command:cellOutput.enableScrolling?${outputId}`;
+	refreshSpan.appendChild(fifth);
+	refreshSpan.appendChild(sixth);
+	container.appendChild(refreshSpan);
+
 	return container;
 }
 
-function truncatedArrayOfString(id: string, buffer: string[], linesLimit: number, container: HTMLElement, trustHtml: boolean) {
-	const lineCount = buffer.length;
-	container.appendChild(generateViewMoreElement(id, true));
+function generateNestedViewAllElement(outputId: string) {
+	const container = document.createElement('div');
 
-	const div = document.createElement('div');
-	container.appendChild(div);
-	div.appendChild(handleANSIOutput(buffer.slice(0, linesLimit - 5).join('\n'), trustHtml));
+	const link = document.createElement('a');
+	link.textContent = '...';
+	link.href = `command:workbench.action.openLargeOutput?${outputId}`;
+	link.ariaLabel = 'Open full output in text editor';
+	link.title = 'Open full output in text editor';
+	link.style.setProperty('text-decoration', 'none');
+	container.appendChild(link);
 
-	// view more ...
-	const viewMoreSpan = document.createElement('span');
-	viewMoreSpan.innerText = '...';
-	container.appendChild(viewMoreSpan);
-
-	const div2 = document.createElement('div');
-	container.appendChild(div2);
-	div2.appendChild(handleANSIOutput(buffer.slice(lineCount - 5).join('\n'), trustHtml));
+	return container;
 }
 
-function scrollableArrayOfString(id: string, buffer: string[], container: HTMLElement, trustHtml: boolean) {
-	const scrollableDiv = document.createElement('div');
-	scrollableDiv.classList.add('scrollable');
-
-	if (buffer.length > 5000) {
-		container.appendChild(generateViewMoreElement(id, false));
-	}
-	container.appendChild(scrollableDiv);
-	scrollableDiv.appendChild(handleANSIOutput(buffer.slice(0, 5000).join('\n'), trustHtml));
-}
-
-export function insertOutput(id: string, outputs: string[], linesLimit: number, scrollable: boolean, container: HTMLElement, trustHtml: boolean) {
-	const buffer = outputs.join('\n').split(/\r\n|\r|\n/g);
+function truncatedArrayOfString(id: string, buffer: string[], linesLimit: number, trustHtml: boolean) {
+	const container = document.createElement('div');
 	const lineCount = buffer.length;
 
-	if (lineCount < linesLimit) {
+	if (lineCount <= linesLimit) {
 		const spanElement = handleANSIOutput(buffer.join('\n'), trustHtml);
 		container.appendChild(spanElement);
-		return;
+		return container;
 	}
 
+	container.appendChild(generateViewMoreElement(id));
+	container.appendChild(handleANSIOutput(buffer.slice(0, linesLimit - 5).join('\n'), trustHtml));
+
+	// truncated piece
+	const elipses = document.createElement('div');
+	elipses.innerText = '...';
+	container.appendChild(elipses);
+
+	container.appendChild(handleANSIOutput(buffer.slice(lineCount - 5).join('\n'), trustHtml));
+
+	return container;
+}
+
+function scrollableArrayOfString(id: string, buffer: string[], trustHtml: boolean) {
+	const element = document.createElement('div');
+	if (buffer.length > 5000) {
+		element.appendChild(generateNestedViewAllElement(id));
+	}
+
+	element.appendChild(handleANSIOutput(buffer.slice(-5000).join('\n'), trustHtml));
+
+	return element;
+}
+
+export function createOutputContent(id: string, outputs: string[], linesLimit: number, scrollable: boolean, trustHtml: boolean): HTMLElement {
+
+	const buffer = outputs.join('\n').split(/\r\n|\r|\n/g);
+
 	if (scrollable) {
-		scrollableArrayOfString(id, buffer, container, trustHtml);
+		return scrollableArrayOfString(id, buffer, trustHtml);
 	} else {
-		truncatedArrayOfString(id, buffer, linesLimit, container, trustHtml);
+		return truncatedArrayOfString(id, buffer, linesLimit, trustHtml);
 	}
 }

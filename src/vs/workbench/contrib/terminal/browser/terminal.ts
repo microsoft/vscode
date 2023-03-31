@@ -12,6 +12,7 @@ import { URI } from 'vs/base/common/uri';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IKeyMods } from 'vs/platform/quickinput/common/quickInput';
 import { IMarkProperties, ITerminalCapabilityStore, ITerminalCommand } from 'vs/platform/terminal/common/capabilities/capabilities';
+import { IMergedEnvironmentVariableCollection } from 'vs/platform/terminal/common/environmentVariable';
 import { IExtensionTerminalProfile, IReconnectionProperties, IShellIntegration, IShellLaunchConfig, ITerminalDimensions, ITerminalLaunchError, ITerminalProfile, ITerminalTabLayoutInfoById, TerminalExitReason, TerminalIcon, TerminalLocation, TerminalShellType, TerminalType, TitleEventSource, WaitOnExitValue } from 'vs/platform/terminal/common/terminal';
 import { IColorTheme } from 'vs/platform/theme/common/themeService';
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
@@ -19,7 +20,7 @@ import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { IEditableData } from 'vs/workbench/common/views';
 import { ITerminalStatusList } from 'vs/workbench/contrib/terminal/browser/terminalStatusList';
 import { ScrollPosition } from 'vs/workbench/contrib/terminal/browser/xterm/markNavigationAddon';
-import { ITerminalQuickFixAddon } from 'vs/workbench/contrib/terminal/browser/xterm/quickFixAddon';
+import { XtermTerminal } from 'vs/workbench/contrib/terminal/browser/xterm/xtermTerminal';
 import { IRegisterContributedProfileArgs, IRemoteTerminalAttachTarget, IStartExtensionTerminalRequest, ITerminalBackend, ITerminalConfigHelper, ITerminalFont, ITerminalProcessExtHostProxy } from 'vs/workbench/contrib/terminal/common/terminal';
 import { EditorGroupColumn } from 'vs/workbench/services/editor/common/editorGroupColumn';
 import { ISimpleSelectedSuggestion } from 'vs/workbench/services/suggest/browser/simpleSuggestWidget';
@@ -36,6 +37,7 @@ export const ITerminalInstanceService = createDecorator<ITerminalInstanceService
  * been initialized.
  */
 export interface ITerminalContribution extends IDisposable {
+	layout?(xterm: IXtermTerminal & { raw: RawXtermTerminal }): void;
 	xtermReady?(xterm: IXtermTerminal & { raw: RawXtermTerminal }): void;
 }
 
@@ -76,6 +78,8 @@ export interface ITerminalInstanceService {
 	 * @param remoteAuthority The remote authority of the backend.
 	 */
 	getBackend(remoteAuthority?: string): Promise<ITerminalBackend | undefined>;
+
+	didRegisterBackend(remoteAuthority?: string): void;
 }
 
 export interface IBrowserTerminalConfigHelper extends ITerminalConfigHelper {
@@ -186,13 +190,6 @@ export interface ITerminalService extends ITerminalInstanceHost {
 	getPrimaryBackend(): ITerminalBackend | undefined;
 
 	/**
-	 * Perform an action with the active terminal instance, if the terminal does
-	 * not exist the callback will not be called.
-	 * @param callback The callback that fires with the active terminal
-	 */
-	doWithActiveInstance<T>(callback: (terminal: ITerminalInstance) => T): T | void;
-
-	/**
 	 * Fire the onActiveTabChanged event, this will trigger the terminal dropdown to be updated,
 	 * among other things.
 	 */
@@ -216,7 +213,6 @@ export interface ITerminalService extends ITerminalInstanceHost {
 
 	resolveLocation(location?: ITerminalLocationOptions): TerminalLocation | undefined;
 	setNativeDelegate(nativeCalls: ITerminalServiceNativeDelegate): void;
-	handleNewRegisteredBackend(backend: ITerminalBackend): void;
 	toggleEscapeSequenceLogging(): Promise<void>;
 
 	getEditingTerminal(): ITerminalInstance | undefined;
@@ -355,6 +351,7 @@ export interface ITerminalGroupService extends ITerminalInstanceHost {
 	showPanel(focus?: boolean): Promise<void>;
 	hidePanel(): void;
 	focusTabs(): void;
+	focusHover(): void;
 	showTabs(): void;
 	updateVisibility(): void;
 }
@@ -453,10 +450,10 @@ export interface ITerminalInstance {
 	readonly os?: OperatingSystem;
 	readonly capabilities: ITerminalCapabilityStore;
 	readonly usedShellIntegrationInjection: boolean;
+	readonly injectedArgs: string[] | undefined;
+	readonly extEnvironmentVariableCollection: IMergedEnvironmentVariableCollection | undefined;
 
 	readonly statusList: ITerminalStatusList;
-
-	quickFix: ITerminalQuickFixAddon | undefined;
 
 	/**
 	 * The process ID of the shell process, this is undefined when there is no process associated
@@ -533,6 +530,7 @@ export interface ITerminalInstance {
 	onDidChangeHasChildProcesses: Event<boolean>;
 
 	onDidFocus: Event<ITerminalInstance>;
+	onDidRequestFocus: Event<void>;
 	onDidBlur: Event<ITerminalInstance>;
 	onDidInputData: Event<ITerminalInstance>;
 
@@ -587,7 +585,7 @@ export interface ITerminalInstance {
 	/**
 	 * The xterm.js instance for this terminal.
 	 */
-	readonly xterm?: IXtermTerminal;
+	readonly xterm?: XtermTerminal;
 
 	/**
 	 * Returns an array of data events that have fired within the first 10 seconds. If this is
@@ -651,11 +649,6 @@ export interface ITerminalInstance {
 	 * The remote-aware $HOME directory (or Windows equivalent) of the terminal.
 	 */
 	userHome: string | undefined;
-
-	/**
-	 * Shows the environment information hover if the widget exists.
-	 */
-	showEnvironmentInfoHover(): void;
 
 	/**
 	 * Registers and returns a marker
@@ -1039,11 +1032,6 @@ export interface IXtermTerminal {
 	 * Returns a reverse iterator of buffer lines as strings
 	 */
 	getBufferReverseIterator(): IterableIterator<string>;
-
-	/**
-	 * Focuses the accessible buffer, updating its contents
-	 */
-	focusAccessibleBuffer(): Promise<void>;
 
 	/**
 	 * Refreshes the terminal after it has been moved.

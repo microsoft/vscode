@@ -492,7 +492,7 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 	private _sortByLabel = true;
 	private _autoFocusOnList = true;
 	private _keepScrollPosition = false;
-	private _itemActivation = this.ui.isScreenReaderOptimized() ? ItemActivation.NONE /* https://github.com/microsoft/vscode/issues/57501 */ : ItemActivation.FIRST;
+	private _itemActivation = ItemActivation.FIRST;
 	private _activeItems: T[] = [];
 	private activeItemsUpdated = false;
 	private activeItemsToConfirm: T[] | null = [];
@@ -955,12 +955,12 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 			// Select element when keys are pressed that signal it
 			const quickNavKeys = this._quickNavigate.keybindings;
 			const wasTriggerKeyPressed = quickNavKeys.some(k => {
-				const [firstChord, secondChord] = k.getChords();// TODO@chords
-				if (secondChord) {
+				const chords = k.getChords();
+				if (chords.length > 1) {
 					return false;
 				}
 
-				if (firstChord.shiftKey && keyCode === KeyCode.Shift) {
+				if (chords[0].shiftKey && keyCode === KeyCode.Shift) {
 					if (keyboardEvent.ctrlKey || keyboardEvent.altKey || keyboardEvent.metaKey) {
 						return false; // this is an optimistic check for the shift key being used to navigate back in quick input
 					}
@@ -968,15 +968,15 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 					return true;
 				}
 
-				if (firstChord.altKey && keyCode === KeyCode.Alt) {
+				if (chords[0].altKey && keyCode === KeyCode.Alt) {
 					return true;
 				}
 
-				if (firstChord.ctrlKey && keyCode === KeyCode.Ctrl) {
+				if (chords[0].ctrlKey && keyCode === KeyCode.Ctrl) {
 					return true;
 				}
 
-				if (firstChord.metaKey && keyCode === KeyCode.Meta) {
+				if (chords[0].metaKey && keyCode === KeyCode.Meta) {
 					return true;
 				}
 
@@ -1054,6 +1054,10 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 			this.ui.checkAll.checked = this.ui.list.getAllVisibleChecked();
 			this.ui.visibleCount.setCount(this.ui.list.getVisibleCount());
 			this.ui.count.setCount(this.ui.list.getCheckedCount());
+			// Ensure no item is focused when using a screenreader when items update (#57501 & #166920 & #176848)
+			if (this.ui.isScreenReaderOptimized() && ariaLabel && visibilities.inputBox) {
+				this._itemActivation = ItemActivation.NONE;
+			}
 			switch (this._itemActivation) {
 				case ItemActivation.NONE:
 					this._itemActivation = ItemActivation.FIRST; // only valid once, then unset

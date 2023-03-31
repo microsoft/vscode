@@ -12,6 +12,8 @@
 	user-select: initial;
 	-webkit-user-select: initial;
 	position: relative;
+	/* Create stacking context before to terminal canvases. */
+	z-index: 0;
 }
 
 .terminal-command-decoration.hide {
@@ -434,8 +436,10 @@
 	bottom: 0;
 	pointer-events: none;
 	opacity: 0; /* hidden initially */
-	transition: left 70ms ease-out, right 70ms ease-out, top 70ms ease-out, bottom 70ms ease-out, opacity 150ms ease-out;
 	z-index: 34;
+}
+.monaco-workbench:not(.reduce-motion) .pane-body.integrated-terminal .terminal-drop-overlay {
+	transition: left 70ms ease-out, right 70ms ease-out, top 70ms ease-out, bottom 70ms ease-out, opacity 150ms ease-out;
 }
 .monaco-workbench .pane-body.integrated-terminal .terminal-group > .monaco-split-view2.horizontal .terminal-drop-overlay.drop-before {
 	right: 50%;
@@ -587,18 +591,28 @@
 	outline-color: var(--vscode-focusBorder);
 }
 
-/* Overrides for the a11y buffer as we're hosting monaco within it */
-.xterm .xterm-accessible-buffer {
-	padding: 0 !important;
-	overflow: initial !important;
-	overflow-x: initial !important;
-}
-.xterm .xterm-accessible-buffer:focus-within {
-	top: 0 !important;
-	left: 0 !important;
-	pointer-events: all !important;
-}
-.xterm > .xterm-accessible-buffer {
+.monaco-workbench .accessible-buffer {
+	position: absolute;
+	left: 0;
+	top: 0;
+	bottom: 0;
+	right: 0;
+	opacity: 0;
 	/* Reset cursor style as monaco controls it here */
 	cursor: default;
+	padding: 0;
+	overflow: initial;
+	overflow-x: initial;
+}
+
+.monaco-workbench .accessible-buffer div {
+	white-space: pre-wrap;
+}
+
+.monaco-workbench .accessible-buffer.focus-within,
+.monaco-workbench .accessible-buffer.active {
+	pointer-events: all;
+	opacity: 1;
+	z-index: 33;
+	background-color: var(--vscode-terminal-background, --vscode-panel-background);
 }

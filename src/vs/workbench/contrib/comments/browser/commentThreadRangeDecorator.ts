@@ -73,7 +73,7 @@ export class CommentThreadRangeDecorator extends Disposable {
 		const newDecoration: CommentThreadRangeDecoration[] = [];
 		if (thread) {
 			const range = thread.range;
-			if (!((range.startLineNumber === range.endLineNumber) && (range.startColumn === range.endColumn))) {
+			if (range && !((range.startLineNumber === range.endLineNumber) && (range.startColumn === range.endColumn))) {
 				if (thread.collapsibleState === CommentThreadCollapsibleState.Expanded) {
 					this.currentThreadCollapseStateListener = thread.onDidChangeCollapsibleState(state => {
 						if (state === CommentThreadCollapsibleState.Collapsed) {
@@ -108,7 +108,7 @@ export class CommentThreadRangeDecorator extends Disposable {
 				const range = thread.range;
 				// We only want to show a range decoration when there's the range spans either multiple lines
 				// or, when is spans multiple characters on the sample line
-				if ((range.startLineNumber === range.endLineNumber) && (range.startColumn === range.endColumn)) {
+				if (!range || (range.startLineNumber === range.endLineNumber) && (range.startColumn === range.endColumn)) {
 					return;
 				}
 

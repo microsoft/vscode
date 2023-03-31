@@ -335,7 +335,7 @@
 	border: 0px;
 	outline: 1px solid transparent;
 	background-color: var(--vscode-peekViewTitle-background);
-	color: var(--vscode--editor-foreground);
+	color: var(--vscode-editor-foreground);
 	font-size: inherit;
 	font-family: var(--monaco-monospace-font);
 }
@@ -509,12 +509,16 @@ div.preview.inline .monaco-editor .comment-range-glyph {
 	width: 9px;
 	left: -6px;
 	z-index: 10;
-	color: var(--vscode-editorGutter-commentGlyphForground);
+	color: var(--vscode-editorGutter-commentGlyphForeground);
 	text-align: center;
 	display: flex;
 	flex-direction: row;
 	align-items: center;
 	justify-content: center;
+}
+
+.monaco-editor .comment-range-glyph.comment-thread-unresolved:before {
+	color: var(--vscode-editorGutter-commentUnresolvedGlyphForeground);
 }
 
 .monaco-editor .margin-view-overlays .comment-range-glyph.multiline-add {

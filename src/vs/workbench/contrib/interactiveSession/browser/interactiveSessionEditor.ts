@@ -44,9 +44,9 @@ export class InteractiveSessionEditor extends EditorPane {
 		super(InteractiveSessionEditor.ID, telemetryService, themeService, storageService);
 	}
 
-	public clear() {
+	public async clear() {
 		if (this.widget) {
-			this.widget.clear();
+			await this.widget.clear();
 		}
 	}
 
