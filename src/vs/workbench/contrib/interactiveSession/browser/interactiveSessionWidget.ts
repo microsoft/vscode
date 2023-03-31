@@ -577,6 +577,8 @@ export class InteractiveSessionWidget extends Disposable implements IInteractive
 				this._inputEditor.setValue('');
 				revealLastElement(this.tree);
 			}
+
+			this._inputEditor.focus();
 		}
 	}
 
