@@ -116,6 +116,9 @@ import { massageMessageBoxOptions } from 'vs/platform/dialogs/common/dialogs';
 import { IUtilityProcessWorkerMainService, UtilityProcessWorkerMainService } from 'vs/platform/utilityProcess/electron-main/utilityProcessWorkerMainService';
 import { ipcUtilityProcessWorkerChannelName } from 'vs/platform/utilityProcess/common/utilityProcessWorkerService';
 import { firstOrDefault } from 'vs/base/common/arrays';
+import { ILocalPtyService, LocalReconnectConstants, TerminalIpcChannels, TerminalSettingId } from 'vs/platform/terminal/common/terminal';
+import { ElectronPtyHostStarter } from 'vs/platform/terminal/electron-main/electronPtyHostStarter';
+import { PtyHostService } from 'vs/platform/terminal/node/ptyHostService';
 
 /**
  * The main VS Code application. There will only ever be one instance,
@@ -912,6 +915,26 @@ export class CodeApplication extends Disposable {
 		services.set(IStorageMainService, new SyncDescriptor(StorageMainService));
 		services.set(IApplicationStorageMainService, new SyncDescriptor(ApplicationStorageMainService));
 
+		// Terminal
+		const ptyHostStarter = new ElectronPtyHostStarter({
+			graceTime: LocalReconnectConstants.GraceTime,
+			shortGraceTime: LocalReconnectConstants.ShortGraceTime,
+			scrollback: this.configurationService.getValue<number>(TerminalSettingId.PersistentSessionScrollback) ?? 100
+		}, false, this.environmentMainService);
+		const ptyHostService = new PtyHostService(
+			ptyHostStarter,
+			this.configurationService,
+			this.logService,
+			// accessor.get(ILoggerMainService)
+		);
+		ptyHostService.initialize();
+		services.set(ILocalPtyService, ptyHostService);
+		// services.set(ILocalPtyService, new SyncDescriptor(PtyHostService, [
+		// 	ptyHostStarter,
+		// 	this.configurationService,
+		// 	this.logService
+		// ]));
+
 		// External terminal
 		if (isWindows) {
 			services.set(IExternalTerminalMainService, new SyncDescriptor(WindowsExternalTerminalService));
@@ -1056,6 +1079,10 @@ export class CodeApplication extends Disposable {
 		// Profile Storage Changes Listener (shared process)
 		const profileStorageListener = this._register(new ProfileStorageChangesListenerChannel(accessor.get(IStorageMainService), accessor.get(IUserDataProfilesMainService), this.logService));
 		sharedProcessClient.then(client => client.registerChannel('profileStorageListener', profileStorageListener));
+
+		// Terminal
+		const ptyHostChannel = ProxyChannel.fromService(accessor.get(ILocalPtyService));
+		mainProcessElectronServer.registerChannel(TerminalIpcChannels.LocalPty, ptyHostChannel);
 
 		// External Terminal
 		const externalTerminalChannel = ProxyChannel.fromService(accessor.get(IExternalTerminalMainService));

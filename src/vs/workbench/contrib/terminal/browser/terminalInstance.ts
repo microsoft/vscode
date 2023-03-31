@@ -2156,7 +2156,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			&& !this._shellLaunchConfig.isExtensionOwnedTerminal &&
 			!this._shellLaunchConfig.attachPersistentProcess
 		) {
-			this.relaunch();
+			// this.relaunch();
 			return;
 		}
 

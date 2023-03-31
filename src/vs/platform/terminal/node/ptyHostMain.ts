@@ -25,7 +25,7 @@ let server: ChildProcessServer<string> | UtilityProcessServer;
 if (isUtilityProcess(process)) {
 	server = new UtilityProcessServer();
 } else {
-	server = new ChildProcessServer('ptyHost');
+	server = new ChildProcessServer(TerminalIpcChannels.PtyHost);
 }
 
 const lastPtyId = parseInt(process.env.VSCODE_LAST_PTY_ID || '0');

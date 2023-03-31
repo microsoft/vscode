@@ -8,8 +8,7 @@ import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
 import { IProcessEnvironment, OperatingSystem, isWindows } from 'vs/base/common/platform';
 import { ProxyChannel } from 'vs/base/parts/ipc/common/ipc';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ILogService, ILoggerService } from 'vs/platform/log/common/log';
-import { RemoteLoggerChannelClient } from 'vs/platform/log/common/logIpc';
+import { ILogService } from 'vs/platform/log/common/log';
 import { getResolvedShellEnv } from 'vs/platform/shell/node/shellEnv';
 import { IPtyHostProcessReplayEvent } from 'vs/platform/terminal/common/capabilities/capabilities';
 import { RequestStore } from 'vs/platform/terminal/common/requestStore';
@@ -78,7 +77,7 @@ export class PtyHostService extends Disposable implements IPtyService {
 		private readonly _ptyHostStarter: IPtyHostStarter,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@ILogService private readonly _logService: ILogService,
-		@ILoggerService private readonly _loggerService: ILoggerService,
+		// @ILoggerService private readonly _loggerService: ILoggerService,
 	) {
 		super();
 
@@ -152,7 +151,7 @@ export class PtyHostService extends Disposable implements IPtyService {
 		}));
 
 		// Setup logging
-		this._register(new RemoteLoggerChannelClient(this._loggerService, client.getChannel(TerminalIpcChannels.Logger)));
+		// this._register(new RemoteLoggerChannelClient(this._loggerService, client.getChannel(TerminalIpcChannels.Logger)));
 
 		// Create proxy and forward events
 		const proxy = ProxyChannel.toService<IPtyService>(client.getChannel(TerminalIpcChannels.PtyHost));
@@ -321,6 +320,7 @@ export class PtyHostService extends Disposable implements IPtyService {
 	}
 
 	private _handleHeartbeat() {
+		this._logService.info('heartbeat');
 		this._clearHeartbeatTimeouts();
 		this._heartbeatFirstTimeout = setTimeout(() => this._handleHeartbeatFirstTimeout(), HeartbeatConstants.BeatInterval * HeartbeatConstants.FirstWaitMultiplier);
 		if (!this._isResponsive) {
