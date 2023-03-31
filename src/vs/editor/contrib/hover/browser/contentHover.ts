@@ -26,6 +26,7 @@ import { AsyncIterableObject } from 'vs/base/common/async';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { IResizeEvent, ResizableHTMLElement } from 'vs/base/browser/ui/resizable/resizable';
 import { Emitter, Event } from 'vs/base/common/event';
+import { ResourceMap } from 'vs/base/common/map';
 
 const $ = dom.$;
 const SCROLLBAR_WIDTH = 10;
@@ -562,7 +563,7 @@ export class ResizableHoverOverlay extends Disposable implements IOverlayWidget 
 	// Creating a new resizable HTML element
 	private readonly _resizableElement: ResizableHTMLElement = this._register(new ResizableHTMLElement());
 	// Map which maps from a text model URI, to a map from the stringified version of [offset, left] to the dom dimension
-	private readonly _persistedHoverWidgetSizes = new Map<string, Map<string, dom.Dimension>>();
+	private readonly _persistedHoverWidgetSizes = new ResourceMap<Map<string, dom.Dimension>>();
 	// Boolean which is indicating whether we are currently resizing or not
 	private _resizing: boolean = false;
 	// The current size of the resizable element
@@ -589,8 +590,8 @@ export class ResizableHoverOverlay extends Disposable implements IOverlayWidget 
 	constructor(private readonly _editor: ICodeEditor) {
 		super();
 		this._resizableElement.minSize = new dom.Dimension(10, 24);
-		this._editor.onDidChangeModelContent((e) => {
-			const uri = this._editor.getModel()?.uri.toString();
+		this._register(this._editor.onDidChangeModelContent((e) => {
+			const uri = this._editor.getModel()?.uri;
 			if (!uri || !this._persistedHoverWidgetSizes.has(uri)) {
 				return;
 			}
@@ -615,7 +616,7 @@ export class ResizableHoverOverlay extends Disposable implements IOverlayWidget 
 				}
 			}
 			this._persistedHoverWidgetSizes.set(uri, updatedPersistedSizesForUri);
-		});
+		}));
 		this._register(this._resizableElement.onDidWillResize(() => {
 			this._resizing = true;
 			this._initialHeight = this._resizableElement.domNode.clientHeight;
@@ -665,7 +666,7 @@ export class ResizableHoverOverlay extends Disposable implements IOverlayWidget 
 				if (!this._editor.hasModel()) {
 					return;
 				}
-				const uri = this._editor.getModel().uri.toString();
+				const uri = this._editor.getModel().uri;
 				if (!uri || !this._tooltipPosition) {
 					return;
 				}
@@ -716,7 +717,7 @@ export class ResizableHoverOverlay extends Disposable implements IOverlayWidget 
 		}
 		const offset = this._editor.getModel().getOffsetAt({ lineNumber: this._tooltipPosition.lineNumber, column: wordPosition.startColumn });
 		const length = wordPosition.word.length;
-		const uri = this._editor.getModel().uri.toString();
+		const uri = this._editor.getModel().uri;
 		const persistedSizesForUri = this._persistedHoverWidgetSizes.get(uri);
 		if (!persistedSizesForUri) {
 			return;
