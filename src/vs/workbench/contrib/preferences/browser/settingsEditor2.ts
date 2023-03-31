@@ -937,11 +937,18 @@ export class SettingsEditor2 extends EditorPane {
 			if (classList && classList.contains('monaco-list') && classList.contains('settings-editor-tree')) {
 				this._currentFocusContext = SettingsFocusContext.SettingTree;
 				this.settingRowFocused.set(true);
+				this.treeFocusedElement = withUndefinedAsNull(this.settingsTree.firstVisibleElement);
+				if (this.treeFocusedElement) {
+					this.treeFocusedElement.tabbable = true;
+				}
 			}
 		}));
 
 		this._register(this.settingsTree.onDidBlur(() => {
 			this.settingRowFocused.set(false);
+			// Clear out the focused element, otherwise it could be
+			// out of date during the next onDidFocus event.
+			this.treeFocusedElement = null;
 		}));
 
 		// There is no different select state in the settings tree
