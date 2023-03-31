@@ -195,23 +195,24 @@ export class DebugHoverWidget implements IContentWidget {
 		}
 
 		const result = await this.debugHoverComputer.compute(position, cancellationSource.token);
-		if (this.isVisible() && !result.rangeChanged) {
-			return ShowDebugHoverResult.NOT_CHANGED;
-		}
-
-		if (!result.range) {
-			this.hide();
-			return ShowDebugHoverResult.NOT_AVAILABLE;
-		}
-
-
-		const expression = await this.debugHoverComputer.evaluate(session);
-
 		if (cancellationSource.token.isCancellationRequested) {
 			this.hide();
 			return ShowDebugHoverResult.CANCELLED;
 		}
+		if (!result.range) {
+			this.hide();
+			return ShowDebugHoverResult.NOT_AVAILABLE;
+		}
+		if (this.isVisible() && !result.rangeChanged) {
+			this.hide();
+			return ShowDebugHoverResult.NOT_CHANGED;
+		}
 
+		const expression = await this.debugHoverComputer.evaluate(session);
+		if (cancellationSource.token.isCancellationRequested) {
+			this.hide();
+			return ShowDebugHoverResult.CANCELLED;
+		}
 		if (!expression || (expression instanceof Expression && !expression.available)) {
 			this.hide();
 			return ShowDebugHoverResult.NOT_AVAILABLE;
