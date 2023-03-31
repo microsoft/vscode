@@ -31,7 +31,7 @@ const $ = dom.$;
 export class ContentHoverController extends Disposable {
 
 	private readonly _participants: IEditorHoverParticipant[];
-	// TODO: Initial, private readonly _widget = this._register(this._instantiationService.createInstance(ContentHoverWidget, this._editor));
+	// TODO: Initially, private readonly _widget = this._register(this._instantiationService.createInstance(ContentHoverWidget, this._editor));
 	private readonly _widget;
 	private readonly _computer: ContentHoverComputer;
 	private readonly _hoverOperation: HoverOperation<IHoverPart>;
@@ -422,7 +422,7 @@ class FilteredHoverResult extends HoverResult {
 	}
 }
 
-export class ContentHoverVisibleData {
+class ContentHoverVisibleData {
 
 	public closestMouseDistance: number | undefined = undefined;
 
@@ -818,7 +818,7 @@ class ContentHoverComputer implements IHoverComputer<IHoverPart> {
 	}
 }
 
-export function computeDistanceFromPointToRectangle(pointX: number, pointY: number, left: number, top: number, width: number, height: number): number {
+function computeDistanceFromPointToRectangle(pointX: number, pointY: number, left: number, top: number, width: number, height: number): number {
 	const x = (left + width / 2); // x center of rectangle
 	const y = (top + height / 2); // y center of rectangle
 	const dx = Math.max(Math.abs(pointX - x) - width / 2, 0);
