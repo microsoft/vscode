@@ -24,17 +24,15 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { Context as SuggestContext } from 'vs/editor/contrib/suggest/browser/suggest';
 import { AsyncIterableObject } from 'vs/base/common/async';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
+import { ResizableHoverWidget } from 'vs/editor/contrib/hover/browser/resizableHoverWidget';
 
 const $ = dom.$;
 
 export class ContentHoverController extends Disposable {
 
 	private readonly _participants: IEditorHoverParticipant[];
-	// TODO: instead of making an instance of the content hover widget, make an instance of the resizable content hover widget
-	private readonly _widget = this._register(this._instantiationService.createInstance(ContentHoverWidget, this._editor));
-
-	// TODO: private readonly _resizableOverlay = this._register(this._instantiationService.createInstance(ResizableContentHoverWidget, this._editor));
-
+	// TODO: Initial, private readonly _widget = this._register(this._instantiationService.createInstance(ContentHoverWidget, this._editor));
+	private readonly _widget;
 	private readonly _computer: ContentHoverComputer;
 	private readonly _hoverOperation: HoverOperation<IHoverPart>;
 
@@ -47,6 +45,7 @@ export class ContentHoverController extends Disposable {
 	) {
 		super();
 
+		this._widget = this._register(this._instantiationService.createInstance(ResizableHoverWidget, this._editor));
 		// Instantiate participants and sort them by `hoverOrdinal` which is relevant for rendering order.
 		this._participants = [];
 		for (const participant of HoverParticipantRegistry.getAll()) {
@@ -819,7 +818,7 @@ class ContentHoverComputer implements IHoverComputer<IHoverPart> {
 	}
 }
 
-function computeDistanceFromPointToRectangle(pointX: number, pointY: number, left: number, top: number, width: number, height: number): number {
+export function computeDistanceFromPointToRectangle(pointX: number, pointY: number, left: number, top: number, width: number, height: number): number {
 	const x = (left + width / 2); // x center of rectangle
 	const y = (top + height / 2); // y center of rectangle
 	const dx = Math.max(Math.abs(pointX - x) - width / 2, 0);

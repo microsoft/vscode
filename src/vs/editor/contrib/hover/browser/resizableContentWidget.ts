@@ -65,6 +65,10 @@ export abstract class ResizableWidget implements IDisposable {
 	findMaximumRenderingWidth(): number | undefined {
 		return Infinity;
 	}
+
+	findPersistedSize(): dom.Dimension | undefined {
+		return this._persistingMechanism.findSize();
+	}
 }
 
 export abstract class ResizableContentWidget implements IContentWidget {
@@ -78,6 +82,10 @@ export abstract class ResizableContentWidget implements IContentWidget {
 
 	constructor(private readonly resizableWidget: ResizableWidget, private readonly editor: ICodeEditor) {
 		this.editor.addContentWidget(this);
+	}
+
+	findPersistedSize(): dom.Dimension | undefined {
+		return this.resizableWidget.findPersistedSize();
 	}
 
 	getId(): string {

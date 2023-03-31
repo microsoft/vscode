@@ -13,13 +13,13 @@ import { ConfigurationChangedEvent, EditorOption } from 'vs/editor/common/config
 import { Position } from 'vs/editor/common/core/position';
 import { HoverStartSource } from 'vs/editor/contrib/hover/browser/hoverOperation';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { ContentHoverVisibleData } from 'vs/editor/contrib/hover/browser/contentHover';
+import { ContentHoverVisibleData, computeDistanceFromPointToRectangle } from 'vs/editor/contrib/hover/browser/contentHover';
 import { PositionAffinity } from 'vs/editor/common/model';
 
 const SCROLLBAR_WIDTH = 10;
 
 // TODO: maybe don't need the resizable widget class
-class ResizableHoverWidget extends ResizableWidget {
+export class ResizableHoverWidget extends ResizableWidget {
 
 	public ID = 'editor.contrib.resizableContentHoverWidget';
 	private hoverDisposables = new DisposableStore();
@@ -181,30 +181,6 @@ class ResizableHoverWidget extends ResizableWidget {
 		super.dispose();
 	}
 
-	// Needs to be updated in the resizableContentWidget
-	/*
-	public getPosition(): IContentWidgetPosition | null {
-		if (!this._visibleData) {
-			return null;
-		}
-		let preferAbove = this._visibleData.preferAbove;
-		if (!preferAbove && this._contextKeyService.getContextKeyValue<boolean>(SuggestContext.Visible.key)) {
-			// Prefer rendering above if the suggest widget is visible
-			preferAbove = true;
-		}
-
-		// :before content can align left of the text content
-		const affinity = this._visibleData.isBeforeContent ? PositionAffinity.LeftOfInjectedText : undefined;
-
-		return {
-			position: this._visibleData.showAtPosition,
-			secondaryPosition: this._visibleData.showAtSecondaryPosition,
-			preference: ([this._renderingAbove]),
-			positionAffinity: affinity
-		};
-	}
-	*/
-
 	public getDomNode() {
 		return this._hover.containerDomNode;
 	}
@@ -260,7 +236,9 @@ class ResizableHoverWidget extends ResizableWidget {
 		codeClasses.forEach(node => this.editor.applyFontInfo(node));
 	}
 
-	public showAt(node: DocumentFragment, visibleData: ContentHoverVisibleData, persistedSize: dom.Dimension | undefined): void {
+	public showAt(node: DocumentFragment, visibleData: ContentHoverVisibleData): void {
+
+		const persistedSize = this.findPersistedSize();
 
 		if (!this.editor || !this.editor.hasModel()) {
 			return;
@@ -493,7 +471,7 @@ class ResizableHoverWidget extends ResizableWidget {
 	// -- decide what should be in the resizable content widget and what should be in the disposable hover widget
 }
 
-class ResizableContentHoverWidget extends ResizableContentWidget {
+export class ResizableContentHoverWidget extends ResizableContentWidget {
 
 	public ID = 'editor.contrib.resizableContentHoverWidget';
 	private hoverDisposables = new DisposableStore();
@@ -502,7 +480,3 @@ class ResizableContentHoverWidget extends ResizableContentWidget {
 		super(resizableHoverWidget, editor);
 	}
 }
-function computeDistanceFromPointToRectangle(initialMousePosX: number, initialMousePosY: number, left: number, top: number, width: number, height: number): number | undefined {
-	throw new Error('Function not implemented.');
-}
-
