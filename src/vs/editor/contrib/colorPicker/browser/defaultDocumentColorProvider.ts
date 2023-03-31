@@ -63,6 +63,7 @@ export class DefaultDocumentColorProviderForStandaloneColorPicker implements Doc
 
 			const range = this._findRange(model, match);
 			if (!range) {
+				console.log('early return');
 				return [];
 			}
 
@@ -73,6 +74,8 @@ export class DefaultDocumentColorProviderForStandaloneColorPicker implements Doc
 				const parsedNumber = Number(element);
 				if (parsedNumber) {
 					finalNumbers.push(parsedNumber);
+				} else if (element === '0') {
+					finalNumbers.push(0);
 				}
 			}
 			console.log('finalNumbers : ', finalNumbers);
@@ -87,9 +90,6 @@ export class DefaultDocumentColorProviderForStandaloneColorPicker implements Doc
 			console.log('blue : ', blue);
 			console.log('alpha : ', alpha);
 
-			if (!(red && blue && green && alpha)) {
-				return [];
-			}
 			const color: IColor = {
 				red: red,
 				blue: blue,
@@ -109,6 +109,7 @@ export class DefaultDocumentColorProviderForStandaloneColorPicker implements Doc
 
 			const range = this._findRange(model, match);
 			if (!range) {
+				console.log('early return');
 				return [];
 			}
 
@@ -119,6 +120,8 @@ export class DefaultDocumentColorProviderForStandaloneColorPicker implements Doc
 				const parsedNumber = Number(element);
 				if (parsedNumber) {
 					finalNumbers.push(parsedNumber);
+				} else if (element === '0') {
+					finalNumbers.push(0);
 				}
 			}
 			console.log('finalNumbers : ', finalNumbers);
@@ -131,9 +134,6 @@ export class DefaultDocumentColorProviderForStandaloneColorPicker implements Doc
 			console.log('green : ', green);
 			console.log('blue : ', blue);
 
-			if (!(red && blue && green)) {
-				return;
-			}
 			const color: IColor = {
 				red: red,
 				blue: blue,
@@ -163,6 +163,7 @@ export class DefaultDocumentColorProviderForStandaloneColorPicker implements Doc
 
 			const range = this._findRange(model, match);
 			if (!range) {
+				console.log('early return');
 				return [];
 			}
 
@@ -245,6 +246,8 @@ export class DefaultDocumentColorProviderForStandaloneColorPicker implements Doc
 		const hslaMatches = [...allText.matchAll(hslaRegex)];
 		const hslMatches = [...allText.matchAll(hslRegex)];
 
+		// TODO: Look into the CSS extension for how to use HSL values
+
 		console.log('hslaMatches : ', hslaMatches);
 
 		for (const match of hslaMatches) {
@@ -267,6 +270,8 @@ export class DefaultDocumentColorProviderForStandaloneColorPicker implements Doc
 				const parsedNumber = Number(element);
 				if (parsedNumber) {
 					finalNumbers.push(parsedNumber);
+				} else if (element === '0') {
+					finalNumbers.push(0);
 				}
 			}
 
@@ -315,6 +320,8 @@ export class DefaultDocumentColorProviderForStandaloneColorPicker implements Doc
 			result.push(colorInformation);
 		}
 
+		console.log('hslMatches : ', hslMatches);
+
 		for (const match of hslMatches) {
 
 			console.log('match : ', match);
@@ -335,8 +342,12 @@ export class DefaultDocumentColorProviderForStandaloneColorPicker implements Doc
 				const parsedNumber = Number(element);
 				if (parsedNumber) {
 					finalNumbers.push(parsedNumber);
+				} else if (element === '0') {
+					finalNumbers.push(0);
 				}
 			}
+
+			console.log('finalNumbers : ', finalNumbers);
 
 			const h = finalNumbers[0];
 			const s = finalNumbers[1];
