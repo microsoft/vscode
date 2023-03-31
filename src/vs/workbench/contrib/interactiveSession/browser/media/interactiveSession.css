@@ -158,7 +158,6 @@
 .interactive-list .monaco-list-row .monaco-tokenized-source,
 .interactive-list .monaco-list-row code {
 	font-family: var(--monaco-monospace-font);
-	word-break: break-all;
 	word-wrap: break-word;
 }
 
