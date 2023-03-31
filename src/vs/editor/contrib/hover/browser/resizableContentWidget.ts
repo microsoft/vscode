@@ -91,7 +91,7 @@ export abstract class ResizableContentWidget implements IContentWidget {
 		console.log('this.resizableWidget.element.domNode : ', this.resizableWidget.element.domNode);
 		this.resizableWidget.element.domNode.style.zIndex = '49';
 		this.resizableWidget.element.domNode.style.position = 'fixed';
-		this.resizableWidget.element.domNode.style.display = 'block';
+		// this.resizableWidget.element.domNode.style.display = 'block';
 		return this.resizableWidget.element.domNode;
 	}
 

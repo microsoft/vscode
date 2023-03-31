@@ -321,6 +321,9 @@ export class ResizableHoverWidget extends ResizableWidget {
 		}
 
 
+		const clientHeight = this._hover.containerDomNode.clientHeight;
+		const clientWidth = this._hover.containerDomNode.clientWidth;
+		this.element.layout(clientHeight, clientWidth);
 		this.resizableContentWidget.position = this._visibleData.showAtPosition;
 		this.resizableContentWidget.secondaryPosition = this._visibleData.showAtSecondaryPosition;
 		this.resizableContentWidget.preference = [this._renderingAbove];
