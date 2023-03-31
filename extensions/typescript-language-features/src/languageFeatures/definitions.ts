@@ -33,7 +33,7 @@ export default class TypeScriptDefinitionProvider extends DefinitionProviderBase
 
 		if (vscode.workspace.getConfiguration(document.languageId).get('preferGoToSourceDefinition', false)) {
 			const sourceDefinitionsResponse = await this.client.execute('findSourceDefinition', args, token);
-			if (sourceDefinitionsResponse.type === 'response' && sourceDefinitionsResponse.body) {
+			if (sourceDefinitionsResponse.type === 'response' && sourceDefinitionsResponse.body?.length) {
 				definitions = sourceDefinitionsResponse.body;
 			}
 		}
