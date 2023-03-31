@@ -937,7 +937,7 @@ export class SettingsEditor2 extends EditorPane {
 			if (classList && classList.contains('monaco-list') && classList.contains('settings-editor-tree')) {
 				this._currentFocusContext = SettingsFocusContext.SettingTree;
 				this.settingRowFocused.set(true);
-				this.treeFocusedElement = withUndefinedAsNull(this.settingsTree.firstVisibleElement);
+				this.treeFocusedElement ??= withUndefinedAsNull(this.settingsTree.firstVisibleElement);
 				if (this.treeFocusedElement) {
 					this.treeFocusedElement.tabbable = true;
 				}
