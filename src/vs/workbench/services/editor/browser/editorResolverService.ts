@@ -573,17 +573,11 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 
 		const handle = this.notificationService.prompt(Severity.Warning,
 			localize('editorResolver.conflictingDefaults', 'There are multiple default editors available for the resource.'),
-			[{
-				label: localize('editorResolver.openSettings', 'Open settings'),
-				run: async () => {
-					// Open the settings editor and focus the editorResolver setting
-					// Circular dependency textFileService -> fileDialogService -> editorService -> editorResolverService -> preferencesService -> textFileService: Error: textFileService -> fileDialogService -> editorService -> editorResolverService -> preferencesService -> textFileService
+			[
+				{
+					label: localize('editorResolver.keepDefault', 'Keep {0}', editorName),
+					run: writeCurrentEditorsToStorage
 				}
-			},
-			{
-				label: localize('editorResolver.keepDefault', 'Keep {0}', editorName),
-				run: writeCurrentEditorsToStorage
-			}
 			]);
 		// If the user pressed X we assume they want to keep the current editor as default
 		const onCloseListener = handle.onDidClose(() => {
