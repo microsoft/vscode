@@ -240,6 +240,10 @@ export interface IEditorOptions {
 	 * Defaults to false.
 	 */
 	fontVariations?: boolean | string;
+	// /**
+	//   * Controls whether to use default color decorations or not using the default document color provider
+	// */
+	// defaultColorDecorations?: boolean;
 	/**
 	 * Disable the use of `transform: translate3d(0px, 0px, 0px)` for the editor margin and lines layers.
 	 * The usage of `transform: translate3d(0px, 0px, 0px)` acts as a hint for browsers to create an extra layer.
@@ -4801,6 +4805,7 @@ export const enum EditorOption {
 	cursorSurroundingLines,
 	cursorSurroundingLinesStyle,
 	cursorWidth,
+	// defaultColorDecorations,
 	disableLayerHinting,
 	disableMonospaceOptimizations,
 	domReadOnly,
@@ -5128,6 +5133,9 @@ export const EditorOptions = {
 		0, 0, Constants.MAX_SAFE_SMALL_INTEGER,
 		{ markdownDescription: nls.localize('cursorWidth', "Controls the width of the cursor when `#editor.cursorStyle#` is set to `line`.") }
 	)),
+	// defaultColorDecorations: register(new EditorBooleanOption(
+	// 	EditorOption.defaultColorDecorations, 'defaultColorDecorations', false
+	// )),
 	disableLayerHinting: register(new EditorBooleanOption(
 		EditorOption.disableLayerHinting, 'disableLayerHinting', false,
 	)),

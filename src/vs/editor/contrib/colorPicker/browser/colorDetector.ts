@@ -64,7 +64,9 @@ export class ColorDetector extends Disposable implements IEditorContribution {
 
 	private readonly _decoratorLimitReporter = new DecoratorLimitReporter();
 
-	private useDefaultColorProvider: boolean = false;
+	// TODO: transform into a setting later
+	// When this is enabled, this means we still want the color boxes to show up with the default color provider that makes boxes show up
+	private useDefaultColorProvider: boolean;
 
 	constructor(
 		private readonly _editor: ICodeEditor,
@@ -74,6 +76,8 @@ export class ColorDetector extends Disposable implements IEditorContribution {
 	) {
 		super();
 		this._debounceInformation = languageFeatureDebounceService.for(_languageFeaturesService.colorProvider, 'Document Colors', { min: ColorDetector.RECOMPUTE_TIME });
+		this.useDefaultColorProvider = true;
+		// TODO: this._editor.getOption(EditorOption.defaultColorDecorations);
 		this._register(_editor.onDidChangeModel(() => {
 			this._isEnabled = this.isEnabled();
 			this.onModelChanged();
@@ -91,6 +95,10 @@ export class ColorDetector extends Disposable implements IEditorContribution {
 					this.removeAllDecorations();
 				}
 			}
+			// TODO: const defaultColorDecorations = e.hasChanged(EditorOption.defaultColorDecorations);
+			// if (defaultColorDecorations) {
+			// 	this.useDefaultColorProvider = this._editor.getOption(EditorOption.defaultColorDecorations);
+			// }
 		}));
 
 		this._timeoutTimer = null;
@@ -140,10 +148,6 @@ export class ColorDetector extends Disposable implements IEditorContribution {
 			return;
 		}
 		const model = this._editor.getModel();
-
-		// TODO: transform into a setting later
-		// When this is enabled, this means we still want the color boxes to show up with the default color provider that makes boxes show up
-		this.useDefaultColorProvider = true;
 
 		if (!model || !this._languageFeaturesService.colorProvider.has(model) && !this.useDefaultColorProvider) {
 			console.log('second early return');

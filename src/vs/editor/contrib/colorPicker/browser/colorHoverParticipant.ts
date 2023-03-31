@@ -9,9 +9,9 @@ import { Color, RGBA } from 'vs/base/common/color';
 import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
-import { IRange, Range } from 'vs/editor/common/core/range';
+import { Range } from 'vs/editor/common/core/range';
 import { IModelDecoration, ITextModel, TrackedRangeStickiness } from 'vs/editor/common/model';
-import { DocumentColorProvider, IColor, IColorInformation, IColorPresentation, ProviderResult } from 'vs/editor/common/languages';
+import { DocumentColorProvider, IColorInformation } from 'vs/editor/common/languages';
 import { getColorPresentations } from 'vs/editor/contrib/colorPicker/browser/color';
 import { ColorDetector } from 'vs/editor/contrib/colorPicker/browser/colorDetector';
 import { ColorPickerModel } from 'vs/editor/contrib/colorPicker/browser/colorPickerModel';
@@ -266,6 +266,8 @@ export class ColorHoverParticipant implements IEditorHoverParticipant<ColorHover
 		return disposables;
 	}
 
+	// UPDATE the editor model without using the replace or insert button in order to update the color?
+	// different to the traditional hover, because inserting a color, but I guess we should keep the same functionality
 	public updateEditorModel(colorHoverData: ColorHover[]): void {
 
 		console.log('inside of update editor model wrapper');
