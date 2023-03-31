@@ -4,27 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { FileAccess } from 'vs/base/common/network';
-import { IChannelClient } from 'vs/base/parts/ipc/common/ipc';
 import { Client, IIPCOptions } from 'vs/base/parts/ipc/node/ipc.cp';
 import { IEnvironmentService, INativeEnvironmentService } from 'vs/platform/environment/common/environment';
 import { parsePtyHostDebugPort } from 'vs/platform/environment/node/environmentService';
 import { IReconnectConstants } from 'vs/platform/terminal/common/terminal';
-import { Event } from 'vs/base/common/event';
-
-export interface IPtyHostConnection {
-	readonly client: IChannelClient;
-	readonly onDidProcessExit: Event<{ code: number; signal: string }>;
-}
-
-export interface IPtyHostStarter {
-	/**
-	 * Creates a pty host and connects to it.
-	 *
-	 * @param lastPtyId Tracks the last terminal ID from the pty host so we can give it to the new
-	 * pty host if it's restarted and avoid ID conflicts.
-	 */
-	start(lastPtyId: number): IPtyHostConnection;
-}
+import { IPtyHostConnection, IPtyHostStarter } from 'vs/platform/terminal/node/ptyHost';
 
 export class NodePtyHostStarter implements IPtyHostStarter {
 	constructor(
@@ -60,24 +44,10 @@ export class NodePtyHostStarter implements IPtyHostStarter {
 		}
 
 		const client = new Client(FileAccess.asFileUri('bootstrap-fork').fsPath, opts);
-		// this._onPtyHostStart.fire();
-
-		// TODO: Handle exit
-		// this._register(client.onDidProcessExit(e => {
-		// 	this._onPtyHostExit.fire(e.code);
-		// 	if (!this._isDisposed) {
-		// 		if (this._restartCount <= Constants.MaxRestarts) {
-		// 			this._logService.error(`ptyHost terminated unexpectedly with code ${e.code}`);
-		// 			this._restartCount++;
-		// 			this.restartPtyHost();
-		// 		} else {
-		// 			this._logService.error(`ptyHost terminated unexpectedly with code ${e.code}, giving up`);
-		// 		}
-		// 	}
-		// }));
 
 		return {
 			client,
+			dispose: client.dispose,
 			onDidProcessExit: client.onDidProcessExit
 		};
 	}
