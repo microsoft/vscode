@@ -907,7 +907,7 @@ export class InteractiveEditorController implements IEditorContribution {
 
 			// make edits more minimal
 			this._ctxLastEditKind.set(reply.edits.length === 1 ? 'simple' : '');
-			const moreMinimalEdits = (await this._editorWorkerService.computeMoreMinimalEdits(textModel.uri, reply.edits, true));
+			const moreMinimalEdits = (await this._editorWorkerService.computeHumanReadableDiff(textModel.uri, reply.edits));
 			this._logService.trace('[IE] edits from PROVIDER and after making them MORE MINIMAL', provider.debugName, reply.edits, moreMinimalEdits);
 			this._recorder.addExchange(session, request, reply);
 

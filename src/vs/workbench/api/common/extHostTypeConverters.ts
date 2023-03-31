@@ -9,7 +9,7 @@ import { IDataTransferItem, UriList, VSDataTransfer } from 'vs/base/common/dataT
 import { once } from 'vs/base/common/functional';
 import * as htmlContent from 'vs/base/common/htmlContent';
 import { DisposableStore } from 'vs/base/common/lifecycle';
-import { ResourceSet } from 'vs/base/common/map';
+import { ResourceMap, ResourceSet } from 'vs/base/common/map';
 import { marked } from 'vs/base/common/marked/marked';
 import { parse } from 'vs/base/common/marshalling';
 import { Mimes } from 'vs/base/common/mime';
@@ -649,13 +649,30 @@ export namespace WorkspaceEdit {
 
 	export function to(value: extHostProtocol.IWorkspaceEditDto) {
 		const result = new types.WorkspaceEdit();
+		const edits = new ResourceMap<(types.TextEdit | types.SnippetTextEdit)[]>();
 		for (const edit of value.edits) {
 			if ((<extHostProtocol.IWorkspaceTextEditDto>edit).textEdit) {
-				result.replace(
-					URI.revive((<extHostProtocol.IWorkspaceTextEditDto>edit).resource),
-					Range.to((<extHostProtocol.IWorkspaceTextEditDto>edit).textEdit.range),
-					(<extHostProtocol.IWorkspaceTextEditDto>edit).textEdit.text
-				);
+
+				const item = <extHostProtocol.IWorkspaceTextEditDto>edit;
+				const uri = URI.revive(item.resource);
+				const range = Range.to(item.textEdit.range);
+				const text = item.textEdit.text;
+				const isSnippet = item.textEdit.insertAsSnippet;
+
+				let editOrSnippetTest: types.TextEdit | types.SnippetTextEdit;
+				if (isSnippet) {
+					editOrSnippetTest = types.SnippetTextEdit.replace(range, new types.SnippetString(text));
+				} else {
+					editOrSnippetTest = types.TextEdit.replace(range, text);
+				}
+
+				const array = edits.get(uri);
+				if (!array) {
+					edits.set(uri, [editOrSnippetTest]);
+				} else {
+					array.push(editOrSnippetTest);
+				}
+
 			} else {
 				result.renameFile(
 					URI.revive((<extHostProtocol.IWorkspaceFileEditDto>edit).oldResource!),
@@ -663,6 +680,10 @@ export namespace WorkspaceEdit {
 					(<extHostProtocol.IWorkspaceFileEditDto>edit).options
 				);
 			}
+		}
+
+		for (const [uri, array] of edits) {
+			result.set(uri, array);
 		}
 		return result;
 	}
