@@ -233,8 +233,10 @@ export class NotebookEditor extends EditorPane implements INotebookEditorPane {
 
 			const viewState = options?.viewState ?? this._loadNotebookEditorViewState(input);
 
+			// We might be moving the notebook widget between groups, and these services are tied to the group
 			this._widget.value!.setParentContextKeyService(this._contextKeyService);
 			this._widget.value!.setEditorProgressService(this._editorProgressService);
+
 			await this._widget.value!.setModel(model.notebook, viewState, perf);
 			const isReadOnly = input.hasCapability(EditorInputCapabilities.Readonly);
 			await this._widget.value!.setOptions({ ...options, isReadOnly });
