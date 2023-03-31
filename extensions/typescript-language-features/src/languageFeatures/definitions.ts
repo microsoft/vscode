@@ -5,6 +5,7 @@
 
 import * as vscode from 'vscode';
 import { DocumentSelector } from '../configuration/documentSelector';
+import { API } from '../tsServer/api';
 import * as typeConverters from '../typeConverters';
 import { ClientCapability, ITypeScriptServiceClient } from '../typescriptService';
 import DefinitionProviderBase from './definitionProviderBase';
@@ -31,7 +32,7 @@ export default class TypeScriptDefinitionProvider extends DefinitionProviderBase
 		const span = response.body.textSpan ? typeConverters.Range.fromTextSpan(response.body.textSpan) : undefined;
 		let definitions = response.body.definitions;
 
-		if (vscode.workspace.getConfiguration(document.languageId).get('preferGoToSourceDefinition', false)) {
+		if (vscode.workspace.getConfiguration(document.languageId).get('preferGoToSourceDefinition', false) && this.client.apiVersion.gte(API.v470)) {
 			const sourceDefinitionsResponse = await this.client.execute('findSourceDefinition', args, token);
 			if (sourceDefinitionsResponse.type === 'response' && sourceDefinitionsResponse.body?.length) {
 				definitions = sourceDefinitionsResponse.body;
