@@ -147,10 +147,6 @@ export abstract class PaneComposite extends Composite implements IPaneComposite 
 		return this.viewPaneContainer?.getTitle() ?? '';
 	}
 
-	override saveState(): void {
-		super.saveState();
-	}
-
 	override focus(): void {
 		this.viewPaneContainer?.focus();
 	}

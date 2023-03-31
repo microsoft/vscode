@@ -668,7 +668,7 @@ export class CodeApplication extends Disposable {
 	private shouldBlockURI(uri: URI): boolean {
 		if (uri.authority === Schemas.file && isWindows) {
 			const { options, buttonIndeces } = massageMessageBoxOptions({
-				type: 'question',
+				type: 'warning',
 				buttons: [
 					localize({ key: 'open', comment: ['&& denotes a mnemonic'] }, "&&Yes"),
 					localize({ key: 'cancel', comment: ['&& denotes a mnemonic'] }, "&&No")

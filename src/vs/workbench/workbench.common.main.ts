@@ -103,6 +103,7 @@ import 'vs/workbench/services/outline/browser/outlineService';
 import 'vs/workbench/services/languageDetection/browser/languageDetectionWorkerServiceImpl';
 import 'vs/editor/common/services/languageFeaturesService';
 import 'vs/editor/common/services/semanticTokensStylingService';
+import 'vs/editor/common/services/treeViewsDndService';
 import 'vs/workbench/services/textMate/browser/textMateTokenizationFeature.contribution';
 
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
@@ -218,6 +219,9 @@ import 'vs/workbench/contrib/markers/browser/markers.contribution';
 
 // Merge Editor
 import 'vs/workbench/contrib/mergeEditor/browser/mergeEditor.contribution';
+
+// Commands
+import 'vs/workbench/contrib/commands/common/commands.contribution';
 
 // Comments
 import 'vs/workbench/contrib/comments/browser/comments.contribution';

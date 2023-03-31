@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 use crate::async_pipe::get_socket_rw_stream;
-use crate::constants::{CONTROL_PORT, EDITOR_WEB_URL, QUALITYLESS_SERVER_NAME};
+use crate::constants::CONTROL_PORT;
 use crate::log;
 use crate::rpc::{MaybeSync, RpcBuilder, RpcDispatcher, Serialization};
 use crate::self_update::SelfUpdate;
@@ -25,8 +25,6 @@ use opentelemetry::trace::SpanKind;
 use opentelemetry::KeyValue;
 use std::collections::HashMap;
 
-use std::env;
-use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, AtomicU32, AtomicUsize, Ordering};
 use std::sync::Arc;
 use std::time::Instant;
@@ -117,43 +115,6 @@ pub struct ServerTermination {
 	pub tunnel: ActiveTunnel,
 }
 
-fn print_listening(log: &log::Logger, tunnel_name: &str) {
-	debug!(
-		log,
-		"{} is listening for incoming connections", QUALITYLESS_SERVER_NAME
-	);
-
-	let home_dir = dirs::home_dir().unwrap_or_else(|| PathBuf::from(""));
-	let current_dir = env::current_dir().unwrap_or_else(|_| PathBuf::from(""));
-
-	let dir = if home_dir == current_dir {
-		PathBuf::from("")
-	} else {
-		current_dir
-	};
-
-	let base_web_url = match EDITOR_WEB_URL {
-		Some(u) => u,
-		None => return,
-	};
-
-	let mut addr = url::Url::parse(base_web_url).unwrap();
-	{
-		let mut ps = addr.path_segments_mut().unwrap();
-		ps.push("tunnel");
-		ps.push(tunnel_name);
-		for segment in &dir {
-			let as_str = segment.to_string_lossy();
-			if !(as_str.len() == 1 && as_str.starts_with(std::path::MAIN_SEPARATOR)) {
-				ps.push(as_str.as_ref());
-			}
-		}
-	}
-
-	let message = &format!("\r\nOpen this link in your browser {}\r\n", addr);
-	log.result(message);
-}
-
 // Runs the launcher server. Exits on a ctrl+c or when requested by a user.
 // Note that client connections may not be closed when this returns; use
 // `close_all_clients()` on the ServerTermination to make this happen.
@@ -166,8 +127,6 @@ pub async fn serve(
 	mut shutdown_rx: Barrier<ShutdownSignal>,
 ) -> Result<ServerTermination, AnyError> {
 	let mut port = tunnel.add_port_direct(CONTROL_PORT).await?;
-	print_listening(log, &tunnel.name);
-
 	let mut forwarding = PortForwardingProcessor::new();
 	let (tx, mut rx) = mpsc::channel::<ServerSignal>(4);
 	let (exit_barrier, signal_exit) = new_barrier();

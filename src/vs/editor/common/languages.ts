@@ -1182,6 +1182,10 @@ export interface FormattingOptions {
 	 * Prefer spaces over tabs.
 	 */
 	insertSpaces: boolean;
+	/**
+	 * The list of multiple ranges to format at once, if the provider supports it.
+	 */
+	ranges?: Range[];
 }
 /**
  * The document formatting provider interface defines the contract between extensions and
@@ -1212,6 +1216,8 @@ export interface DocumentRangeFormattingEditProvider {
 	readonly extensionId?: ExtensionIdentifier;
 
 	readonly displayName?: string;
+
+	readonly canFormatMultipleRanges: boolean;
 
 	/**
 	 * Provide formatting edits for a range in a document.
@@ -1593,7 +1599,7 @@ export interface CommentThread<T = IRange> {
 	extensionId?: string;
 	threadId: string;
 	resource: string | null;
-	range: T;
+	range: T | undefined;
 	label: string | undefined;
 	contextValue: string | undefined;
 	comments: Comment[] | undefined;
@@ -1605,7 +1611,7 @@ export interface CommentThread<T = IRange> {
 	canReply: boolean;
 	input?: CommentInput;
 	onDidChangeInput: Event<CommentInput | undefined>;
-	onDidChangeRange: Event<T>;
+	onDidChangeRange: Event<T | undefined>;
 	onDidChangeLabel: Event<string | undefined>;
 	onDidChangeCollapsibleState: Event<CommentThreadCollapsibleState | undefined>;
 	onDidChangeState: Event<CommentThreadState | undefined>;
@@ -1621,6 +1627,7 @@ export interface CommentThread<T = IRange> {
 export interface CommentingRanges {
 	readonly resource: URI;
 	ranges: IRange[];
+	fileComments: boolean;
 }
 
 /**
@@ -1660,11 +1667,19 @@ export enum CommentMode {
 /**
  * @internal
  */
+export enum CommentState {
+	Published = 0,
+	Draft = 1
+}
+
+/**
+ * @internal
+ */
 export interface Comment {
 	readonly uniqueIdInThread: number;
 	readonly body: string | IMarkdownString;
 	readonly userName: string;
-	readonly userIconPath?: string;
+	readonly userIconPath?: UriComponents;
 	readonly contextValue?: string;
 	readonly commentReactions?: CommentReaction[];
 	readonly label?: string;

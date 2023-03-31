@@ -8,6 +8,7 @@ declare module 'vscode' {
 	export interface InteractiveEditorSlashCommand {
 		command: string;
 		detail?: string;
+		refer?: boolean;
 		// kind: CompletionItemKind;
 	}
 
@@ -15,6 +16,7 @@ declare module 'vscode' {
 	export interface InteractiveEditorSession {
 		placeholder?: string;
 		slashCommands?: InteractiveEditorSlashCommand[];
+		wholeRange?: Range;
 	}
 
 	// todo@API make classes
@@ -30,11 +32,20 @@ declare module 'vscode' {
 	export interface InteractiveEditorResponse {
 		edits: TextEdit[] | WorkspaceEdit;
 		placeholder?: string;
+		wholeRange?: Range;
 	}
 
 	// todo@API make classes
 	export interface InteractiveEditorMessageResponse {
 		contents: MarkdownString;
+		placeholder?: string;
+		wholeRange?: Range;
+	}
+
+	export enum InteractiveEditorResponseFeedbackKind {
+		Unhelpful = 0,
+		Helpful = 1,
+		Undone = 2
 	}
 
 	export interface TextDocumentContext {
@@ -43,14 +54,18 @@ declare module 'vscode' {
 		action?: string;
 	}
 
-	export interface InteractiveEditorSessionProvider {
+	export interface InteractiveEditorSessionProvider<S extends InteractiveEditorSession = InteractiveEditorSession, R extends InteractiveEditorResponse | InteractiveEditorMessageResponse = InteractiveEditorResponse | InteractiveEditorMessageResponse> {
 		// Create a session. The lifetime of this session is the duration of the editing session with the input mode widget.
-		prepareInteractiveEditorSession(context: TextDocumentContext, token: CancellationToken): ProviderResult<InteractiveEditorSession>;
+		prepareInteractiveEditorSession(context: TextDocumentContext, token: CancellationToken): ProviderResult<S>;
 
-		provideInteractiveEditorResponse(request: InteractiveEditorRequest, token: CancellationToken): ProviderResult<InteractiveEditorResponse | InteractiveEditorMessageResponse>;
+		provideInteractiveEditorResponse(request: InteractiveEditorRequest, token: CancellationToken): ProviderResult<R>;
 
 		// eslint-disable-next-line local/vscode-dts-provider-naming
-		releaseInteractiveEditorSession?(session: InteractiveEditorSession): any;
+		releaseInteractiveEditorSession?(session: S): any;
+
+		// todo@API use enum instead of boolean
+		// eslint-disable-next-line local/vscode-dts-provider-naming
+		handleInteractiveEditorResponseFeedback?(session: S, response: R, kind: InteractiveEditorResponseFeedbackKind): void;
 	}
 
 
@@ -66,9 +81,9 @@ declare module 'vscode' {
 	}
 
 	export interface InteractiveSession {
-		// TODO Will be required
-		requester?: InteractiveSessionParticipantInformation;
-		responder?: InteractiveSessionParticipantInformation;
+		requester: InteractiveSessionParticipantInformation;
+		responder: InteractiveSessionParticipantInformation;
+		inputPlaceholder?: string;
 
 		saveState?(): InteractiveSessionState;
 	}
@@ -86,6 +101,7 @@ declare module 'vscode' {
 	export interface InteractiveResponseErrorDetails {
 		message: string;
 		responseIsIncomplete?: boolean;
+		responseIsFiltered?: boolean;
 	}
 
 	export interface InteractiveResponseForProgress {
@@ -104,7 +120,7 @@ declare module 'vscode' {
 
 	export interface InteractiveResponseCommand {
 		commandId: string;
-		args: any[];
+		args?: any[];
 		title: string; // supports codicon strings
 	}
 
@@ -149,10 +165,20 @@ declare module 'vscode' {
 		direction: InteractiveSessionVoteDirection;
 	}
 
+	export enum InteractiveSessionCopyKind {
+		// Keyboard shortcut or context menu
+		Action = 1,
+		Toolbar = 2
+	}
+
 	export interface InteractiveSessionCopyAction {
 		kind: 'copy';
 		responseId: string;
 		codeBlockIndex: number;
+		copyType: InteractiveSessionCopyKind;
+		copiedCharacters: number;
+		totalCharacters: number;
+		copiedText: string;
 	}
 
 	export interface InteractiveSessionInsertAction {

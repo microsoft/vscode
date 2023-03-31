@@ -1591,7 +1591,7 @@ export class SettingsEditor2 extends EditorPane {
 		}
 
 		if (this.tocTreeModel && this.tocTreeModel.settingsTreeRoot) {
-			const count = this.tocTreeModel.settingsTreeRoot.count;
+			const count = this.searchResultModel.getUniqueResultsCount();
 			let resultString: string;
 			switch (count) {
 				case 0: resultString = localize('noResults', "No Settings Found"); break;

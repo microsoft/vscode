@@ -8,7 +8,7 @@ import { IMarkdownString, MarkdownString } from 'vs/base/common/htmlContent';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { ILogService } from 'vs/platform/log/common/log';
-import { IInteractiveProgress, IInteractiveResponse, IInteractiveSession, IInteractiveSessionFollowup, IInteractiveSessionReplyFollowup } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionService';
+import { IInteractiveProgress, IInteractiveResponse, IInteractiveResponseErrorDetails, IInteractiveSession, IInteractiveSessionFollowup, IInteractiveSessionReplyFollowup, InteractiveSessionVoteDirection } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionService';
 
 export interface IInteractiveRequestModel {
 	readonly id: string;
@@ -16,11 +16,6 @@ export interface IInteractiveRequestModel {
 	readonly avatarIconUri?: URI;
 	readonly message: string | IInteractiveSessionReplyFollowup;
 	readonly response: IInteractiveResponseModel | undefined;
-}
-
-export interface IInteractiveResponseErrorDetails {
-	message: string;
-	responseIsIncomplete?: boolean;
 }
 
 export interface IInteractiveResponseModel {
@@ -32,8 +27,11 @@ export interface IInteractiveResponseModel {
 	readonly avatarIconUri?: URI;
 	readonly response: IMarkdownString;
 	readonly isComplete: boolean;
+	readonly isCanceled: boolean;
+	readonly vote: InteractiveSessionVoteDirection | undefined;
 	readonly followups?: IInteractiveSessionFollowup[] | undefined;
 	readonly errorDetails?: IInteractiveResponseErrorDetails;
+	setVote(vote: InteractiveSessionVoteDirection): void;
 }
 
 export function isRequest(item: unknown): item is IInteractiveRequestModel {
@@ -80,6 +78,16 @@ export class InteractiveResponseModel extends Disposable implements IInteractive
 		return this._isComplete;
 	}
 
+	private _isCanceled: boolean;
+	public get isCanceled(): boolean {
+		return this._isCanceled;
+	}
+
+	private _vote: InteractiveSessionVoteDirection | undefined;
+	public get vote(): InteractiveSessionVoteDirection | undefined {
+		return this._vote;
+	}
+
 	private _followups: IInteractiveSessionFollowup[] | undefined;
 	public get followups(): IInteractiveSessionFollowup[] | undefined {
 		return this._followups;
@@ -95,13 +103,15 @@ export class InteractiveResponseModel extends Disposable implements IInteractive
 		return this._errorDetails;
 	}
 
-	constructor(response: IMarkdownString, public readonly username: string, public readonly providerId: string, public readonly avatarIconUri?: URI, isComplete: boolean = false, providerResponseId?: string, errorDetails?: IInteractiveResponseErrorDetails, followups?: IInteractiveSessionFollowup[]) {
+	constructor(response: IMarkdownString, public readonly username: string, public readonly providerId: string, public readonly avatarIconUri?: URI, isComplete: boolean = false, isCanceled = false, vote?: InteractiveSessionVoteDirection, providerResponseId?: string, errorDetails?: IInteractiveResponseErrorDetails, followups?: IInteractiveSessionFollowup[]) {
 		super();
 		this._response = response;
 		this._isComplete = isComplete;
 		this._followups = followups;
 		this._providerResponseId = providerResponseId;
 		this._errorDetails = errorDetails;
+		this._isCanceled = isCanceled;
+		this._vote = vote;
 		this._id = 'response_' + InteractiveResponseModel.nextId++;
 	}
 
@@ -120,9 +130,20 @@ export class InteractiveResponseModel extends Disposable implements IInteractive
 		this._onDidChange.fire();
 	}
 
+	cancel(): void {
+		this._isComplete = true;
+		this._isCanceled = true;
+		this._onDidChange.fire();
+	}
+
 	setFollowups(followups: IInteractiveSessionFollowup[] | undefined): void {
 		this._followups = followups;
 		this._onDidChange.fire(); // Fire so that command followups get rendered on the row
+	}
+
+	setVote(vote: InteractiveSessionVoteDirection): void {
+		this._vote = vote;
+		this._onDidChange.fire();
 	}
 }
 
@@ -132,6 +153,7 @@ export interface IInteractiveSessionModel {
 	readonly sessionId: number;
 	readonly providerId: string;
 	readonly welcomeMessage: IInteractiveSessionWelcomeMessageModel | undefined;
+	readonly inputPlaceholder?: string;
 	getRequests(): IInteractiveRequestModel[];
 }
 
@@ -145,6 +167,8 @@ export interface ISerializableInteractiveSessionRequestData {
 	response: string | undefined;
 	responseErrorDetails: IInteractiveResponseErrorDetails | undefined;
 	followups: IInteractiveSessionFollowup[] | undefined;
+	isCanceled: boolean | undefined;
+	vote: InteractiveSessionVoteDirection | undefined;
 }
 
 export interface ISerializableInteractiveSessionData {
@@ -183,6 +207,10 @@ export class InteractiveSessionModel extends Disposable implements IInteractiveS
 		return this.session.id;
 	}
 
+	get inputPlaceholder(): string | undefined {
+		return this.session.inputPlaceholder;
+	}
+
 	constructor(
 		public readonly session: IInteractiveSession,
 		public readonly providerId: string,
@@ -205,7 +233,7 @@ export class InteractiveSessionModel extends Disposable implements IInteractiveS
 		return requests.map((raw: ISerializableInteractiveSessionRequestData) => {
 			const request = new InteractiveRequestModel(raw.message, this.session.requesterUsername, this.session.requesterAvatarIconUri);
 			if (raw.response || raw.responseErrorDetails) {
-				request.response = new InteractiveResponseModel(new MarkdownString(raw.response), this.session.responderUsername, this.providerId, this.session.responderAvatarIconUri, true, raw.providerResponseId, raw.responseErrorDetails, raw.followups);
+				request.response = new InteractiveResponseModel(new MarkdownString(raw.response), this.session.responderUsername, this.providerId, this.session.responderAvatarIconUri, true, raw.isCanceled, raw.vote, raw.providerResponseId, raw.responseErrorDetails, raw.followups);
 			}
 			return request;
 		});
@@ -249,6 +277,12 @@ export class InteractiveSessionModel extends Disposable implements IInteractiveS
 		}
 	}
 
+	cancelRequest(request: InteractiveRequestModel): void {
+		if (request.response) {
+			request.response.cancel();
+		}
+	}
+
 	completeResponse(request: InteractiveRequestModel, rawResponse: IInteractiveResponse): void {
 		if (!request.response) {
 			request.response = new InteractiveResponseModel(new MarkdownString(''), this.session.responderUsername, this.providerId, this.session.responderAvatarIconUri);
@@ -273,13 +307,15 @@ export class InteractiveSessionModel extends Disposable implements IInteractiveS
 
 	toJSON(): ISerializableInteractiveSessionData {
 		return {
-			requests: this._requests.map(r => {
+			requests: this._requests.map((r): ISerializableInteractiveSessionRequestData => {
 				return {
 					providerResponseId: r.response?.providerResponseId,
 					message: typeof r.message === 'string' ? r.message : r.message.message,
 					response: r.response ? r.response.response.value : undefined,
 					responseErrorDetails: r.response?.errorDetails,
-					followups: r.response?.followups
+					followups: r.response?.followups,
+					isCanceled: r.response?.isCanceled,
+					vote: r.response?.vote
 				};
 			}),
 			providerId: this.providerId,
@@ -288,6 +324,7 @@ export class InteractiveSessionModel extends Disposable implements IInteractiveS
 	}
 
 	override dispose() {
+		this.session.dispose?.();
 		this._requests.forEach(r => r.response?.dispose());
 		this._onDidDispose.fire();
 		super.dispose();

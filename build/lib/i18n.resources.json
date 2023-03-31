@@ -55,6 +55,10 @@
 			"project": "vscode-workbench"
 		},
 		{
+			"name": "vs/workbench/contrib/commands",
+			"project": "vscode-workbench"
+		},
+		{
 			"name": "vs/workbench/contrib/comments",
 			"project": "vscode-workbench"
 		},
@@ -380,6 +384,10 @@
 		},
 		{
 			"name": "vs/workbench/services/history",
+			"project": "vscode-workbench"
+		},
+		{
+			"name": "vs/workbench/services/hover",
 			"project": "vscode-workbench"
 		},
 		{

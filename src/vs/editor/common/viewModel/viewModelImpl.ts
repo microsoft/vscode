@@ -195,7 +195,7 @@ export class ViewModel extends Disposable implements IViewModel {
 		const modelVisibleRanges = this._toModelVisibleRanges(viewVisibleRange);
 
 		for (const modelVisibleRange of modelVisibleRanges) {
-			this.model.tokenization.tokenizeViewport(modelVisibleRange.startLineNumber, modelVisibleRange.endLineNumber);
+			this.model.tokenization.refreshTokens(modelVisibleRange.startLineNumber, modelVisibleRange.endLineNumber);
 		}
 	}
 

@@ -16,6 +16,7 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IViewPaneOptions, ViewPane } from 'vs/workbench/browser/parts/views/viewPane';
 import { IViewDescriptorService } from 'vs/workbench/common/views';
 import { InteractiveSessionWidget } from 'vs/workbench/contrib/interactiveSession/browser/interactiveSessionWidget';
+import { IInteractiveSessionViewModel } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionViewModel';
 
 export interface IInteractiveSessionViewOptions {
 	readonly providerId: string;
@@ -58,6 +59,10 @@ export class InteractiveSessionViewPane extends ViewPane {
 		this.view.acceptInput(query);
 	}
 
+	waitForViewModel(): Promise<IInteractiveSessionViewModel | undefined> {
+		return this.view.waitForViewModel();
+	}
+
 	async clear(): Promise<void> {
 		await this.view.clear();
 	}
@@ -74,6 +79,11 @@ export class InteractiveSessionViewPane extends ViewPane {
 	protected override layoutBody(height: number, width: number): void {
 		super.layoutBody(height, width);
 		this.view.layout(height, width);
+	}
+
+	override saveState(): void {
+		this.view.saveState();
+		super.saveState();
 	}
 }
 

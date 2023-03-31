@@ -22,6 +22,7 @@ use crate::{
 	rpc::{RpcCaller, RpcDispatcher},
 	singleton::SingletonServer,
 	state::LauncherPaths,
+	tunnels::code_server::print_listening,
 	update_service::Platform,
 	util::{
 		errors::{AnyError, CodeError},
@@ -52,11 +53,13 @@ struct SingletonServerContext {
 	log: log::Logger,
 	shutdown_tx: broadcast::Sender<ShutdownSignal>,
 	broadcast_tx: broadcast::Sender<Vec<u8>>,
+	current_name: Arc<Mutex<Option<String>>>,
 }
 
 pub struct RpcServer {
 	fut: JoinHandle<Result<(), CodeError>>,
 	shutdown_broadcast: broadcast::Sender<ShutdownSignal>,
+	current_name: Arc<Mutex<Option<String>>>,
 }
 
 pub fn make_singleton_server(
@@ -68,31 +71,51 @@ pub fn make_singleton_server(
 	let (shutdown_broadcast, _) = broadcast::channel(4);
 	let rpc = new_json_rpc();
 
+	let current_name = Arc::new(Mutex::new(None));
 	let mut rpc = rpc.methods(SingletonServerContext {
 		log: log.clone(),
 		shutdown_tx: shutdown_broadcast.clone(),
 		broadcast_tx: log_broadcast.get_brocaster(),
+		current_name: current_name.clone(),
 	});
 
-	rpc.register_sync("restart", |_: protocol::EmptyObject, ctx| {
-		info!(ctx.log, "restarting tunnel after client request");
-		let _ = ctx.shutdown_tx.send(ShutdownSignal::RpcRestartRequested);
-		Ok(())
-	});
+	rpc.register_sync(
+		protocol::singleton::METHOD_RESTART,
+		|_: protocol::EmptyObject, ctx| {
+			info!(ctx.log, "restarting tunnel after client request");
+			let _ = ctx.shutdown_tx.send(ShutdownSignal::RpcRestartRequested);
+			Ok(())
+		},
+	);
 
-	rpc.register_sync("shutdown", |_: protocol::EmptyObject, ctx| {
-		info!(
-			ctx.log,
-			"closing tunnel and all clients after a shutdown request"
-		);
-		let _ = ctx.broadcast_tx.send(RpcCaller::serialize_notify(
-			&JsonRpcSerializer {},
-			"shutdown",
-			protocol::EmptyObject {},
-		));
-		let _ = ctx.shutdown_tx.send(ShutdownSignal::RpcShutdownRequested);
-		Ok(())
-	});
+	rpc.register_sync(
+		protocol::singleton::METHOD_STATUS,
+		|_: protocol::EmptyObject, c| {
+			Ok(protocol::singleton::Status {
+				tunnel: match c.current_name.lock().unwrap().clone() {
+					Some(name) => protocol::singleton::TunnelState::Connected { name },
+					None => protocol::singleton::TunnelState::Disconnected,
+				},
+			})
+		},
+	);
+
+	rpc.register_sync(
+		protocol::singleton::METHOD_SHUTDOWN,
+		|_: protocol::EmptyObject, ctx| {
+			info!(
+				ctx.log,
+				"closing tunnel and all clients after a shutdown request"
+			);
+			let _ = ctx.broadcast_tx.send(RpcCaller::serialize_notify(
+				&JsonRpcSerializer {},
+				protocol::singleton::METHOD_SHUTDOWN,
+				protocol::EmptyObject {},
+			));
+			let _ = ctx.shutdown_tx.send(ShutdownSignal::RpcShutdownRequested);
+			Ok(())
+		},
+	);
 
 	// we tokio spawn instead of keeping a future, since we want it to progress
 	// even outside of the start_singleton_server loop (i.e. while the tunnel restarts)
@@ -101,6 +124,7 @@ pub fn make_singleton_server(
 	});
 	RpcServer {
 		shutdown_broadcast,
+		current_name,
 		fut,
 	}
 }
@@ -112,6 +136,12 @@ pub async fn start_singleton_server<'a>(
 		ShutdownRequest::Derived(Box::new(args.server.shutdown_broadcast.subscribe())),
 		ShutdownRequest::Derived(Box::new(args.shutdown.clone())),
 	]);
+
+	{
+		print_listening(&args.log, &args.tunnel.name);
+		let mut name = args.server.current_name.lock().unwrap();
+		*name = Some(args.tunnel.name.clone())
+	}
 
 	let serve_fut = super::serve(
 		&args.log,
@@ -162,13 +192,6 @@ async fn serve_singleton_rpc<C: Clone + Send + Sync + 'static>(
 	}
 }
 
-const CONTROL_INSTRUCTIONS: &str =
-	"Connected to an existing tunnel process running on this machine. You can press:\r
-\r
-- Ctrl+C to detach\r
-- \"x\" to stop the tunnel and exit\r
-- \"r\" to restart the tunnel\r";
-
 /// Log sink that can broadcast and replay log events. Used for transmitting
 /// logs from the singleton to all clients. This should be created and injected
 /// into other services, like the tunnel, before `start_singleton_server`
@@ -209,12 +232,8 @@ impl BroadcastLogSink {
 
 		let _ = log_replay_tx.send(RpcCaller::serialize_notify(
 			&JsonRpcSerializer {},
-			"log",
-			protocol::singleton::LogMessage {
-				level: None,
-				prefix: "",
-				message: CONTROL_INSTRUCTIONS,
-			},
+			protocol::singleton::METHOD_LOG_REPLY_DONE,
+			protocol::EmptyObject {},
 		));
 
 		ConcatReceivable::new(log_replay_rx, self.tx.subscribe())
@@ -226,7 +245,7 @@ impl log::LogSink for BroadcastLogSink {
 		let s = JsonRpcSerializer {};
 		let serialized = RpcCaller::serialize_notify(
 			&s,
-			"log",
+			protocol::singleton::METHOD_LOG,
 			protocol::singleton::LogMessage {
 				level: Some(level),
 				prefix,

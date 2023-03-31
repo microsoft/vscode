@@ -9,6 +9,8 @@ import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity'
 import { reviveWorkspaceEditDto } from 'vs/workbench/api/browser/mainThreadBulkEdits';
 import { ExtHostContext, ExtHostInteractiveEditorShape, MainContext, MainThreadInteractiveEditorShape } from 'vs/workbench/api/common/extHost.protocol';
 import { IExtHostContext, extHostNamedCustomer } from 'vs/workbench/services/extensions/common/extHostCustomers';
+import { IProductService } from 'vs/platform/product/common/productService';
+import { ILogService } from 'vs/platform/log/common/log';
 
 @extHostNamedCustomer(MainContext.MainThreadInteractiveEditor)
 export class MainThreadInteractiveEditor implements MainThreadInteractiveEditorShape {
@@ -20,6 +22,8 @@ export class MainThreadInteractiveEditor implements MainThreadInteractiveEditorS
 		extHostContext: IExtHostContext,
 		@IInteractiveEditorService private readonly _interactiveEditorService: IInteractiveEditorService,
 		@IUriIdentityService private readonly _uriIdentService: IUriIdentityService,
+		@IProductService private readonly productService: IProductService,
+		@ILogService private readonly logService: ILogService,
 	) {
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostInteractiveEditor);
 	}
@@ -28,7 +32,12 @@ export class MainThreadInteractiveEditor implements MainThreadInteractiveEditorS
 		this._registrations.dispose();
 	}
 
-	async $registerInteractiveEditorProvider(handle: number, debugName: string): Promise<void> {
+	async $registerInteractiveEditorProvider(handle: number, debugName: string, supportsFeedback: boolean): Promise<void> {
+		if (this.productService.quality === 'stable') {
+			this.logService.trace(`The interactive editor API is not supported in stable VS Code.`);
+			return;
+		}
+
 		const unreg = this._interactiveEditorService.addProvider({
 			debugName,
 			prepareInteractiveEditorSession: async (model, range, token) => {
@@ -49,6 +58,9 @@ export class MainThreadInteractiveEditor implements MainThreadInteractiveEditorS
 					result.edits = reviveWorkspaceEditDto(result.edits, this._uriIdentService);
 				}
 				return <IInteractiveEditorResponse | undefined>result;
+			},
+			handleInteractiveEditorResponseFeedback: !supportsFeedback ? undefined : async (session, response, kind) => {
+				this._proxy.$handleFeedback(handle, session.id, response.id, kind);
 			}
 		});
 
