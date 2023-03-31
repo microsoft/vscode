@@ -5,7 +5,8 @@
 
 import { DefaultURITransformer } from 'vs/base/common/uriIpc';
 import { ProxyChannel } from 'vs/base/parts/ipc/common/ipc';
-import { Server } from 'vs/base/parts/ipc/node/ipc.cp';
+import { Server as ChildProcessServer } from 'vs/base/parts/ipc/node/ipc.cp';
+import { Server as UtilityProcessServer } from 'vs/base/parts/ipc/node/ipc.mp';
 import { localize } from 'vs/nls';
 import { OPTIONS, parseArgs } from 'vs/platform/environment/node/argv';
 import { NativeEnvironmentService } from 'vs/platform/environment/node/environmentService';
@@ -18,8 +19,14 @@ import { IProductService } from 'vs/platform/product/common/productService';
 import { IReconnectConstants, TerminalIpcChannels } from 'vs/platform/terminal/common/terminal';
 import { HeartbeatService } from 'vs/platform/terminal/node/heartbeatService';
 import { PtyService } from 'vs/platform/terminal/node/ptyService';
+import { isUtilityProcess } from 'vs/base/parts/sandbox/node/electronTypes';
 
-const server = new Server('ptyHost');
+let server: ChildProcessServer<string> | UtilityProcessServer;
+if (isUtilityProcess(process)) {
+	server = new UtilityProcessServer();
+} else {
+	server = new ChildProcessServer('ptyHost');
+}
 
 const lastPtyId = parseInt(process.env.VSCODE_LAST_PTY_ID || '0');
 delete process.env.VSCODE_LAST_PTY_ID;
