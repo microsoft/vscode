@@ -16,6 +16,7 @@ import { BaseGhostTextWidgetModel, GhostText } from './ghostText';
 import { provideInlineCompletions, TrackedInlineCompletions, UpdateOperation } from './inlineCompletionsModel';
 import { inlineCompletionToGhostText, minimizeInlineCompletion, NormalizedInlineCompletion } from './inlineCompletionToGhostText';
 import { SuggestWidgetInlineCompletionProvider } from './suggestWidgetInlineCompletionProvider';
+import { autorun } from 'vs/base/common/observable';
 
 export class SuggestWidgetPreviewModel extends BaseGhostTextWidgetModel {
 	private readonly suggestionInlineCompletionSource = this._register(
@@ -45,7 +46,7 @@ export class SuggestWidgetPreviewModel extends BaseGhostTextWidgetModel {
 	) {
 		super(editor);
 
-		this._register(this.suggestionInlineCompletionSource.onDidChange(() => {
+		this._register(autorun('update', reader => {
 			if (!this.editor.hasModel()) {
 				// onDidChange might be called when calling setModel on the editor, before we are disposed.
 				return;
@@ -53,7 +54,7 @@ export class SuggestWidgetPreviewModel extends BaseGhostTextWidgetModel {
 
 			this.updateCacheSoon.schedule();
 
-			const suggestWidgetState = this.suggestionInlineCompletionSource.state;
+			const suggestWidgetState = this.suggestionInlineCompletionSource.state.read(reader);
 			if (!suggestWidgetState) {
 				this.minReservedLineCount = 0;
 			}
@@ -90,7 +91,7 @@ export class SuggestWidgetPreviewModel extends BaseGhostTextWidgetModel {
 	}
 
 	private async updateCache() {
-		const state = this.suggestionInlineCompletionSource.state;
+		const state = this.suggestionInlineCompletionSource.state.get();
 		if (!state || !state.selectedItem) {
 			return;
 		}
@@ -152,7 +153,7 @@ export class SuggestWidgetPreviewModel extends BaseGhostTextWidgetModel {
 		const augmentedCompletion = minimizeInlineCompletion(model, this.cache.value?.completions[0]?.toLiveInlineCompletion());
 
 		const suggestWidgetState = this.suggestionInlineCompletionSource.state;
-		const suggestInlineCompletion = minimizeInlineCompletion(model, suggestWidgetState?.selectedItem?.normalizedInlineCompletion);
+		const suggestInlineCompletion = minimizeInlineCompletion(model, suggestWidgetState?.get()?.selectedItem?.normalizedInlineCompletion);
 
 		const isAugmentedCompletionValid = augmentedCompletion
 			&& suggestInlineCompletion
