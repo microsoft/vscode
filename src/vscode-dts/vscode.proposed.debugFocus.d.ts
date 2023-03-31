@@ -5,31 +5,34 @@
 
 declare module 'vscode' {
 
-	// See https://github.com/microsoft/vscode/issues/160694
+	// See https://github.com/microsoft/vscode/issues/63943
+
+	/**
+	* An event describing UI selection changes
+	*/
+	export type DebugFocusType = 'thread' | 'stackFrame' | 'empty';
+
+	export interface DebugFocus {
+		readonly type: DebugFocusType;
+		/**
+		 * Id of the debug session (DAP id). May be undefined if terminated, etc.
+		 */
+		readonly sessionId?: string;
+
+		/**
+		 * Id of the associated thread (DAP id). May be undefined if a session is selected, but no thread of frame is (this
+		 * state is not currently possible in the UI)
+		 */
+		readonly threadId?: number;
+		/**
+		 * Id of the stack frame (DAP id), if applicable. May be undefined if a thread is selected, but no frame is (this
+		 * state is not currently possible in the UI)
+		 */
+		readonly frameId?: number;
+	}
+
 
 	export namespace debug {
-		/**
-		* An event describing UI selection changes
-		*/
-		export type DebugFocusType = 'thread' | 'stackFrame' | 'empty';
-		export interface DebugFocus {
-			readonly type: DebugFocusType;
-			/**
-			 * Id of the debug session (DAP id). May be undefined if terminated, etc.
-			 */
-			readonly sessionId?: string;
-
-			/**
-			 * Id of the associated thread (DAP id). May be undefined if a session is selected, but no thread of frame is (this
-			 * state is not currently possible in the UI)
-			 */
-			readonly threadId?: number;
-			/**
-			 * Id of the stack frame (DAP id), if applicable. May be undefined if a thread is selected, but no frame is (this
-			 * state is not currently possible in the UI)
-			 */
-			readonly frameId?: number;
-		}
 		/**
 		 * The currently focused thread or stack frame id, or `undefined` if this has not been set. (e.g. not in debug mode).
 		 */
