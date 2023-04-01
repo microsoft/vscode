@@ -13,6 +13,7 @@ import { IProductService } from 'vs/platform/product/common/productService';
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IExtensionGalleryService } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { ILogService } from 'vs/platform/log/common/log';
 
 export class WebLocaleService implements ILocaleService {
 	declare readonly _serviceBrand: undefined;
@@ -76,7 +77,10 @@ export class WebLocaleService implements ILocaleService {
 class WebActiveLanguagePackService implements IActiveLanguagePackService {
 	_serviceBrand: undefined;
 
-	constructor(@IExtensionGalleryService private readonly galleryService: IExtensionGalleryService) { }
+	constructor(
+		@IExtensionGalleryService private readonly galleryService: IExtensionGalleryService,
+		@ILogService private readonly logService: ILogService
+	) { }
 
 	async getExtensionIdProvidingCurrentLocale(): Promise<string | undefined> {
 		const language = Language.value();
@@ -88,17 +92,26 @@ class WebActiveLanguagePackService implements IActiveLanguagePackService {
 			return extensionId;
 		}
 
-		const tagResult = await this.galleryService.query({ text: `tag:lp-${language}` }, CancellationToken.None);
-
-		// Only install extensions that are published by Microsoft and start with vscode-language-pack for extra certainty
-		const extensionToInstall = tagResult.firstPage.find(e => e.publisher === 'MS-CEINTL' && e.name.startsWith('vscode-language-pack'));
-		if (extensionToInstall) {
-			window.localStorage.setItem(WebLocaleService._LOCAL_STORAGE_EXTENSION_ID_KEY, extensionToInstall.identifier.id);
-			return extensionToInstall.identifier.id;
+		if (!this.galleryService.isEnabled()) {
+			return undefined;
 		}
 
-		// TODO: If a non-Microsoft language pack is installed, we should prompt the user asking if they want to install that.
-		// Since no such language packs exist yet, we can wait until that happens to implement this.
+		try {
+			const tagResult = await this.galleryService.query({ text: `tag:lp-${language}` }, CancellationToken.None);
+
+			// Only install extensions that are published by Microsoft and start with vscode-language-pack for extra certainty
+			const extensionToInstall = tagResult.firstPage.find(e => e.publisher === 'MS-CEINTL' && e.name.startsWith('vscode-language-pack'));
+			if (extensionToInstall) {
+				window.localStorage.setItem(WebLocaleService._LOCAL_STORAGE_EXTENSION_ID_KEY, extensionToInstall.identifier.id);
+				return extensionToInstall.identifier.id;
+			}
+
+			// TODO: If a non-Microsoft language pack is installed, we should prompt the user asking if they want to install that.
+			// Since no such language packs exist yet, we can wait until that happens to implement this.
+		} catch (e) {
+			// Best effort
+			this.logService.error(e);
+		}
 
 		return undefined;
 	}
