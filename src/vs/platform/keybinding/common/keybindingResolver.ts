@@ -300,34 +300,37 @@ export class KeybindingResolver {
 		return items[items.length - 1];
 	}
 
+	/**
+	 * Looks up a keybinding trigged as a result of pressing a sequence of chords - `[...currentChords, keypress]`
+	 *
+	 * Example: resolving 3 chords pressed sequentially - `cmd+k cmd+p cmd+i`:
+	 * 	`currentChords = [ 'cmd+k' , 'cmd+p' ]` and `keypress = `cmd+i` - last pressed chord
+	 */
 	public resolve(context: IContext, currentChords: string[], keypress: string): ResolutionResult {
 
 		this._log(`| Resolving ${keypress}${currentChords ? ` chorded from ${currentChords}` : ``}`);
 
+		const firstChord = currentChords.length === 0 ? keypress : currentChords[0];
+
+		const kbCandidates = this._map.get(firstChord);
+		if (kbCandidates === undefined) {
+			// No bindings with `keypress`
+			this._log(`\\ No keybinding entries.`);
+			return NoMatchingKb;
+		}
+
 		let lookupMap: ResolvedKeybindingItem[] | null = null;
 
 		if (currentChords.length === 0) {
-			const candidates = this._map.get(keypress);
-			if (candidates === undefined) {
-				// No bindings with `keypress`
-				this._log(`\\ No keybinding entries.`);
-				return NoMatchingKb;
-			}
-
-			lookupMap = candidates;
+			lookupMap = kbCandidates;
 		} else {
 			// Fetch all chord bindings for `currentChords`
-			const candidates = this._map.get(currentChords[0]);
-			if (candidates === undefined) {
-				// No chords starting with `currentChords`
-				this._log(`\\ No keybinding entries.`);
-				return NoMatchingKb;
-			}
-
 			lookupMap = [];
-			for (let i = 0, len = candidates.length; i < len; i++) {
-				const candidate = candidates[i];
-				if (candidate.chords.length <= currentChords.length) {
+			for (let i = 0, len = kbCandidates.length; i < len; i++) {
+
+				const candidate = kbCandidates[i];
+
+				if (currentChords.length >= candidate.chords.length) { // # of pressed chords can't be less than # of chords in a keybinding to invoke
 					continue;
 				}
 
@@ -344,12 +347,14 @@ export class KeybindingResolver {
 			}
 		}
 
+		// check there's a keybinding with a matching when clause
 		const result = this._findCommand(context, lookupMap);
 		if (!result) {
 			this._log(`\\ From ${lookupMap.length} keybinding entries, no when clauses matched the context.`);
 			return NoMatchingKb;
 		}
 
+		// check we got all chords necessary to be sure a particular keybinding needs to be invoked
 		if (currentChords.length + 1 /* keypress */ < result.chords.length) {
 			// The chord sequence is not complete
 			this._log(`\\ From ${lookupMap.length} keybinding entries, awaiting ${result.chords.length - currentChords.length - 1} more chord(s), when: ${printWhenExplanation(result.when)}, source: ${printSourceExplanation(result)}.`);
