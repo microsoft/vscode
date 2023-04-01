@@ -573,6 +573,32 @@ export function fillInIncompleteTokens(tokens: marked.TokensList): marked.Tokens
 			newTokens = completeTable(tokens.slice(i));
 			break;
 		}
+
+		if (i === tokens.length - 1 && token.type === 'paragraph') {
+			for (const subtoken of token.tokens) {
+				if (subtoken.type === 'text') {
+					const lines = subtoken.raw.split('\n');
+					const lastLine = lines[lines.length - 1];
+					if (lastLine.includes('`')) {
+						newTokens = completeCodespan(tokens.slice(i));
+						break;
+					} else if (lastLine.includes('**')) {
+						newTokens = completeDoublestar(tokens.slice(i));
+						break;
+					} else if (lastLine.match(/\*\w/)) {
+						newTokens = completeStar(tokens.slice(i));
+						break;
+					} else if (lastLine.match(/(^|\s)__\w/)) {
+						newTokens = completeDoubleUnderscore(tokens.slice(i));
+						break;
+					} else if (lastLine.match(/(^|\s)_\w/)) {
+						newTokens = completeUnderscore(tokens.slice(i));
+						break;
+					}
+				}
+			}
+			break;
+		}
 	}
 
 	if (newTokens) {
@@ -588,8 +614,32 @@ export function fillInIncompleteTokens(tokens: marked.TokensList): marked.Tokens
 }
 
 function completeCodeBlock(tokens: marked.Token[]): marked.Token[] {
+	return completeWithString(tokens, '\n```');
+}
+
+function completeCodespan(tokens: marked.Token[]): marked.Token[] {
+	return completeWithString(tokens, '`');
+}
+
+function completeStar(tokens: marked.Token[]): marked.Token[] {
+	return completeWithString(tokens, '*');
+}
+
+function completeUnderscore(tokens: marked.Token[]): marked.Token[] {
+	return completeWithString(tokens, '_');
+}
+
+function completeDoublestar(tokens: marked.Token[]): marked.Token[] {
+	return completeWithString(tokens, '**');
+}
+
+function completeDoubleUnderscore(tokens: marked.Token[]): marked.Token[] {
+	return completeWithString(tokens, '__');
+}
+
+function completeWithString(tokens: marked.Token[], closingString: string): marked.Token[] {
 	const mergedRawText = mergeRawTokenText(tokens);
-	return marked.lexer(mergedRawText + '\n```');
+	return marked.lexer(mergedRawText + closingString);
 }
 
 function completeTable(tokens: marked.Token[]): marked.Token[] {
