@@ -640,7 +640,7 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 		return quickPickEntries;
 	}
 
-	public async showEditorPicker(quickInputService: IQuickInputService, editor: IUntypedEditorInput, showDefaultPicker?: boolean): Promise<IEditorOptions | undefined> {
+	async showEditorPicker(quickInputService: IQuickInputService, editor: IUntypedEditorInput, showDefaultPicker?: boolean): Promise<IEditorOptions | undefined> {
 
 		type EditorPick = {
 			readonly item: IQuickPickItem;
