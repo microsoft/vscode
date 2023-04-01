@@ -14,8 +14,7 @@ variables:
   - name: NPM_REGISTRY
     value: "none"
   - name: VSCODE_CIBUILD
-    value: true
-    # value: ${{ in(variables['Build.Reason'], 'IndividualCI', 'BatchedCI') }}
+    value: ${{ in(variables['Build.Reason'], 'IndividualCI', 'BatchedCI') }}
   - name: VSCODE_QUALITY
     value: oss
   - name: VSCODE_STEP_ON_IT
