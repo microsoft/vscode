@@ -40,7 +40,7 @@ async function main(): Promise<void> {
 		timestamp: (new Date()).getTime(),
 		version,
 		isReleased: false,
-		private: Boolean(process.env['VSCODE_PRIVATE_BUILD']?.trim()),
+		private: process.env['VSCODE_PRIVATE_BUILD'] === 'true',
 		sourceBranch,
 		queuedBy,
 		assets: [],
