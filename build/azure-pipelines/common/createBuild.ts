@@ -34,6 +34,7 @@ async function main(): Promise<void> {
 	console.log('Quality:', quality);
 	console.log('Version:', version);
 	console.log('Commit:', commit);
+	console.log('VSCODE_PRIVATE_BUILD:', process.env['VSCODE_PRIVATE_BUILD']);
 
 	const build = {
 		id: commit,
