@@ -189,36 +189,23 @@ steps:
     - script: yarn gulp vscode-linux-$(VSCODE_ARCH)-min-ci
       env:
         GITHUB_TOKEN: "$(github-distro-mixin-password)"
-      displayName: Build
+      displayName: Build client
 
-    - script: |
-        set -e
-        yarn gulp vscode-reh-linux-$(VSCODE_ARCH)-min-ci
-        yarn gulp vscode-reh-web-linux-$(VSCODE_ARCH)-min-ci
+    - script: yarn gulp vscode-reh-linux-$(VSCODE_ARCH)-min-ci
       env:
         GITHUB_TOKEN: "$(github-distro-mixin-password)"
-      displayName: Build Server
+      displayName: Build server
+
+    - script: yarn gulp vscode-reh-web-linux-$(VSCODE_ARCH)-min-ci
+      env:
+        GITHUB_TOKEN: "$(github-distro-mixin-password)"
+      displayName: Build server (web)
 
   - ${{ else }}:
-      - script: yarn gulp "transpile-client-swc" "transpile-extensions"
-        env:
-          GITHUB_TOKEN: "$(github-distro-mixin-password)"
-        displayName: Transpile
-
-  - task: DownloadPipelineArtifact@2
-    inputs:
-      artifact: vscode_cli_linux_$(VSCODE_ARCH)_cli
-      patterns: "**"
-      path: $(Build.ArtifactStagingDirectory)/cli
-    displayName: Download VS Code CLI
-
-  - script: |
-      set -e
-      tar -xzvf $(Build.ArtifactStagingDirectory)/cli/*.tar.gz -C $(Build.ArtifactStagingDirectory)/cli
-      CLI_APP_NAME=$(node -p "require(\"$(agent.builddirectory)/VSCode-linux-$(VSCODE_ARCH)/resources/app/product.json\").tunnelApplicationName")
-      APP_NAME=$(node -p "require(\"$(agent.builddirectory)/VSCode-linux-$(VSCODE_ARCH)/resources/app/product.json\").applicationName")
-      mv $(Build.ArtifactStagingDirectory)/cli/$APP_NAME $(agent.builddirectory)/VSCode-linux-$(VSCODE_ARCH)/bin/$CLI_APP_NAME
-    displayName: Make CLI executable
+    - script: yarn gulp "transpile-client-swc" "transpile-extensions"
+      env:
+        GITHUB_TOKEN: "$(github-distro-mixin-password)"
+      displayName: Transpile
 
   - ${{ if or(eq(parameters.VSCODE_RUN_UNIT_TESTS, true), eq(parameters.VSCODE_RUN_INTEGRATION_TESTS, true), eq(parameters.VSCODE_RUN_SMOKE_TESTS, true)) }}:
     - template: product-build-linux-test.yml
@@ -229,6 +216,21 @@ steps:
         VSCODE_RUN_SMOKE_TESTS: ${{ parameters.VSCODE_RUN_SMOKE_TESTS }}
 
   - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
+    - task: DownloadPipelineArtifact@2
+      inputs:
+        artifact: vscode_cli_linux_$(VSCODE_ARCH)_cli
+        patterns: "**"
+        path: $(Build.ArtifactStagingDirectory)/cli
+      displayName: Download VS Code CLI
+
+    - script: |
+        set -e
+        tar -xzvf $(Build.ArtifactStagingDirectory)/cli/*.tar.gz -C $(Build.ArtifactStagingDirectory)/cli
+        CLI_APP_NAME=$(node -p "require(\"$(agent.builddirectory)/VSCode-linux-$(VSCODE_ARCH)/resources/app/product.json\").tunnelApplicationName")
+        APP_NAME=$(node -p "require(\"$(agent.builddirectory)/VSCode-linux-$(VSCODE_ARCH)/resources/app/product.json\").applicationName")
+        mv $(Build.ArtifactStagingDirectory)/cli/$APP_NAME $(agent.builddirectory)/VSCode-linux-$(VSCODE_ARCH)/bin/$CLI_APP_NAME
+      displayName: Make CLI executable
+
     - script: yarn gulp "vscode-linux-$(VSCODE_ARCH)-build-deb"
       displayName: Build deb package
 

@@ -113,39 +113,21 @@ steps:
         GITHUB_TOKEN: "$(github-distro-mixin-password)"
       displayName: Build client
 
-    - script: |
-        set -e
-        yarn gulp vscode-reh-darwin-$(VSCODE_ARCH)-min-ci
-        yarn gulp vscode-reh-web-darwin-$(VSCODE_ARCH)-min-ci
+    - script: yarn gulp vscode-reh-darwin-$(VSCODE_ARCH)-min-ci
       env:
         GITHUB_TOKEN: "$(github-distro-mixin-password)"
-      displayName: Build Server
+      displayName: Build server
+
+    - script: yarn gulp vscode-reh-web-darwin-$(VSCODE_ARCH)-min-ci
+      env:
+        GITHUB_TOKEN: "$(github-distro-mixin-password)"
+      displayName: Build server (web)
 
   - ${{ else }}:
       - script: yarn gulp transpile-client-swc transpile-extensions
         env:
           GITHUB_TOKEN: "$(github-distro-mixin-password)"
         displayName: Transpile
-
-  - task: DownloadPipelineArtifact@2
-    inputs:
-      artifact: unsigned_vscode_cli_darwin_$(VSCODE_ARCH)_cli
-      patterns: "**"
-      path: $(Build.ArtifactStagingDirectory)/cli
-    displayName: Download VS Code CLI
-
-  - script: |
-      set -e
-      APP_ROOT="$(Agent.BuildDirectory)/VSCode-darwin-$(VSCODE_ARCH)"
-      APP_NAME="`ls $APP_ROOT | head -n 1`"
-      APP_PATH="$APP_ROOT/$APP_NAME"
-      ARCHIVE_NAME=$(ls "$(Build.ArtifactStagingDirectory)/cli" | head -n 1)
-      unzip "$(Build.ArtifactStagingDirectory)/cli/$ARCHIVE_NAME" -d "$(Build.ArtifactStagingDirectory)/cli"
-      CLI_APP_NAME=$(node -p "require(\"$APP_PATH/Contents/Resources/app/product.json\").tunnelApplicationName")
-      APP_NAME=$(node -p "require(\"$APP_PATH/Contents/Resources/app/product.json\").applicationName")
-      mv "$(Build.ArtifactStagingDirectory)/cli/$APP_NAME" "$APP_PATH/Contents/Resources/app/bin/$CLI_APP_NAME"
-      chmod +x "$APP_PATH/Contents/Resources/app/bin/$CLI_APP_NAME"
-    displayName: Make CLI executable
 
   - ${{ if or(eq(parameters.VSCODE_RUN_UNIT_TESTS, true), eq(parameters.VSCODE_RUN_INTEGRATION_TESTS, true), eq(parameters.VSCODE_RUN_SMOKE_TESTS, true)) }}:
     - template: product-build-darwin-test.yml
@@ -156,6 +138,26 @@ steps:
         VSCODE_RUN_SMOKE_TESTS: ${{ parameters.VSCODE_RUN_SMOKE_TESTS }}
 
   - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
+    - task: DownloadPipelineArtifact@2
+      inputs:
+        artifact: unsigned_vscode_cli_darwin_$(VSCODE_ARCH)_cli
+        patterns: "**"
+        path: $(Build.ArtifactStagingDirectory)/cli
+      displayName: Download VS Code CLI
+
+    - script: |
+        set -e
+        APP_ROOT="$(Agent.BuildDirectory)/VSCode-darwin-$(VSCODE_ARCH)"
+        APP_NAME="`ls $APP_ROOT | head -n 1`"
+        APP_PATH="$APP_ROOT/$APP_NAME"
+        ARCHIVE_NAME=$(ls "$(Build.ArtifactStagingDirectory)/cli" | head -n 1)
+        unzip "$(Build.ArtifactStagingDirectory)/cli/$ARCHIVE_NAME" -d "$(Build.ArtifactStagingDirectory)/cli"
+        CLI_APP_NAME=$(node -p "require(\"$APP_PATH/Contents/Resources/app/product.json\").tunnelApplicationName")
+        APP_NAME=$(node -p "require(\"$APP_PATH/Contents/Resources/app/product.json\").applicationName")
+        mv "$(Build.ArtifactStagingDirectory)/cli/$APP_NAME" "$APP_PATH/Contents/Resources/app/bin/$CLI_APP_NAME"
+        chmod +x "$APP_PATH/Contents/Resources/app/bin/$CLI_APP_NAME"
+      displayName: Make CLI executable
+
     # Setting hardened entitlements is a requirement for:
     # * Apple notarization
     # * Running tests on Big Sur (because Big Sur has additional security precautions)
