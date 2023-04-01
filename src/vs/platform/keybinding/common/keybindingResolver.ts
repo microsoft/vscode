@@ -308,20 +308,20 @@ export class KeybindingResolver {
 	 */
 	public resolve(context: IContext, currentChords: string[], keypress: string): ResolutionResult {
 
-		this._log(`| Resolving ${keypress}${currentChords ? ` chorded from ${currentChords}` : ``}`);
+		const pressedChords = [...currentChords, keypress];
 
-		const firstChord = currentChords.length === 0 ? keypress : currentChords[0];
+		this._log(`| Resolving ${pressedChords}`);
 
-		const kbCandidates = this._map.get(firstChord);
+		const kbCandidates = this._map.get(pressedChords[0]);
 		if (kbCandidates === undefined) {
-			// No bindings with `keypress`
+			// No bindings with such 0-th chord
 			this._log(`\\ No keybinding entries.`);
 			return NoMatchingKb;
 		}
 
 		let lookupMap: ResolvedKeybindingItem[] | null = null;
 
-		if (currentChords.length === 0) {
+		if (pressedChords.length < 2) {
 			lookupMap = kbCandidates;
 		} else {
 			// Fetch all chord bindings for `currentChords`
@@ -330,18 +330,18 @@ export class KeybindingResolver {
 
 				const candidate = kbCandidates[i];
 
-				if (currentChords.length >= candidate.chords.length) { // # of pressed chords can't be less than # of chords in a keybinding to invoke
+				if (pressedChords.length > candidate.chords.length) { // # of pressed chords can't be less than # of chords in a keybinding to invoke
 					continue;
 				}
 
 				let prefixMatches = true;
-				for (let i = 1; i < currentChords.length; i++) {
-					if (candidate.chords[i] !== currentChords[i]) {
+				for (let i = 1; i < pressedChords.length; i++) {
+					if (candidate.chords[i] !== pressedChords[i]) {
 						prefixMatches = false;
 						break;
 					}
 				}
-				if (prefixMatches && candidate.chords[currentChords.length] === keypress) {
+				if (prefixMatches) {
 					lookupMap.push(candidate);
 				}
 			}
@@ -355,9 +355,9 @@ export class KeybindingResolver {
 		}
 
 		// check we got all chords necessary to be sure a particular keybinding needs to be invoked
-		if (currentChords.length + 1 /* keypress */ < result.chords.length) {
+		if (pressedChords.length < result.chords.length) {
 			// The chord sequence is not complete
-			this._log(`\\ From ${lookupMap.length} keybinding entries, awaiting ${result.chords.length - currentChords.length - 1} more chord(s), when: ${printWhenExplanation(result.when)}, source: ${printSourceExplanation(result)}.`);
+			this._log(`\\ From ${lookupMap.length} keybinding entries, awaiting ${result.chords.length - pressedChords.length} more chord(s), when: ${printWhenExplanation(result.when)}, source: ${printSourceExplanation(result)}.`);
 			return MoreChordsNeeded;
 		}
 
