@@ -12,10 +12,10 @@ trigger:
     include: ["main", "release/*"]
 
 parameters:
-  - name: VSCODE_DISTRO_REF
-    displayName: Distro Ref (Private build)
-    type: string
-    default: " "
+  - name: VSCODE_PRIVATE_BUILD
+    displayName: "Private Build"
+    type: boolean
+    default: false
   - name: VSCODE_QUALITY
     displayName: Quality
     type: string
@@ -98,8 +98,8 @@ parameters:
     default: false
 
 variables:
-  - name: VSCODE_DISTRO_REF
-    value: ${{ parameters.VSCODE_DISTRO_REF }}
+  - name: VSCODE_PRIVATE_BUILD
+    value: ${{ parameters.VSCODE_PRIVATE_BUILD }}
   - name: NPM_REGISTRY
     value: ${{ parameters.NPM_REGISTRY }}
   - name: VSCODE_QUALITY
@@ -646,7 +646,7 @@ stages:
           steps:
             - template: product-publish.yml
 
-    - ${{ if and(parameters.VSCODE_RELEASE, eq(parameters.VSCODE_DISTRO_REF, ' ')) }}:
+    - ${{ if and(parameters.VSCODE_RELEASE, not(parameters.VSCODE_PRIVATE_BUILD)) }}:
       - stage: ApproveRelease
         dependsOn: [] # run in parallel to compile stage
         pool: vscode-1es-linux
@@ -662,11 +662,11 @@ stages:
                   steps:
                     - checkout: none
 
-    - ${{ if or(and(parameters.VSCODE_RELEASE, eq(parameters.VSCODE_DISTRO_REF, ' ')), and(in(parameters.VSCODE_QUALITY, 'insider', 'exploration'), eq(variables['VSCODE_SCHEDULEDBUILD'], true))) }}:
+    - ${{ if or(and(parameters.VSCODE_RELEASE, not(parameters.VSCODE_PRIVATE_BUILD)), and(in(parameters.VSCODE_QUALITY, 'insider', 'exploration'), eq(variables['VSCODE_SCHEDULEDBUILD'], true))) }}:
       - stage: Release
         dependsOn:
           - Publish
-          - ${{ if and(parameters.VSCODE_RELEASE, eq(parameters.VSCODE_DISTRO_REF, ' ')) }}:
+          - ${{ if and(parameters.VSCODE_RELEASE, not(parameters.VSCODE_PRIVATE_BUILD)) }}:
             - ApproveRelease
         pool: vscode-1es-linux
         jobs:
