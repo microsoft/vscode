@@ -34,14 +34,13 @@ async function main(): Promise<void> {
 	console.log('Quality:', quality);
 	console.log('Version:', version);
 	console.log('Commit:', commit);
-	console.log('VSCODE_PRIVATE_BUILD:', process.env['VSCODE_PRIVATE_BUILD']);
 
 	const build = {
 		id: commit,
 		timestamp: (new Date()).getTime(),
 		version,
 		isReleased: false,
-		private: process.env['VSCODE_PRIVATE_BUILD'] === 'true',
+		private: process.env['VSCODE_PRIVATE_BUILD']?.toLowerCase() === 'true',
 		sourceBranch,
 		queuedBy,
 		assets: [],
