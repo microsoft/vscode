@@ -9,10 +9,9 @@ parameters:
     type: boolean
 
 steps:
-  - script: |
-      set -e
-      VSCODE_MIXIN_PASSWORD="$(github-distro-mixin-password)" \
-        yarn npm-run-all -lp "electron $(VSCODE_ARCH)" "playwright-install"
+  - script: yarn npm-run-all -lp "electron $(VSCODE_ARCH)" "playwright-install"
+    env:
+      GITHUB_TOKEN: "$(github-distro-mixin-password)"
     displayName: Download Electron and Playwright
 
   - ${{ if eq(parameters.VSCODE_QUALITY, 'oss') }}:
@@ -41,40 +40,34 @@ steps:
 
   - ${{ if eq(parameters.VSCODE_RUN_UNIT_TESTS, true) }}:
     - ${{ if eq(parameters.VSCODE_QUALITY, 'oss') }}:
-      - script: |
-          set -e
-          DISPLAY=:10 ./scripts/test.sh --tfs "Unit Tests"
+      - script: ./scripts/test.sh --tfs "Unit Tests"
+        env:
+          DISPLAY: ":10"
         displayName: Run unit tests (Electron)
         timeoutInMinutes: 15
 
-      - script: |
-          set -e
-          yarn test-node
+      - script: yarn test-node
         displayName: Run unit tests (node.js)
         timeoutInMinutes: 15
 
-      - script: |
-          set -e
-          DEBUG=*browser* yarn test-browser-no-install --browser chromium --tfs "Browser Unit Tests"
+      - script: yarn test-browser-no-install --browser chromium --tfs "Browser Unit Tests"
+        env:
+          DEBUG: "*browser*"
         displayName: Run unit tests (Browser, Chromium)
         timeoutInMinutes: 15
 
     - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
-      - script: |
-          set -e
-          ./scripts/test.sh --build --tfs "Unit Tests"
+      - script: ./scripts/test.sh --build --tfs "Unit Tests"
         displayName: Run unit tests (Electron)
         timeoutInMinutes: 15
 
-      - script: |
-          set -e
-          yarn test-node --build
+      - script: yarn test-node --build
         displayName: Run unit tests (node.js)
         timeoutInMinutes: 15
 
-      - script: |
-          set -e
-          DEBUG=*browser* yarn test-browser-no-install --build --browser chromium --tfs "Browser Unit Tests"
+      - script: yarn test-browser-no-install --build --browser chromium --tfs "Browser Unit Tests"
+        env:
+          DEBUG: "*browser*"
         displayName: Run unit tests (Browser, Chromium)
         timeoutInMinutes: 15
 
@@ -102,21 +95,17 @@ steps:
 
   - ${{ if eq(parameters.VSCODE_RUN_INTEGRATION_TESTS, true) }}:
     - ${{ if eq(parameters.VSCODE_QUALITY, 'oss') }}:
-      - script: |
-          set -e
-          DISPLAY=:10 ./scripts/test-integration.sh --tfs "Integration Tests"
+      - script: ./scripts/test-integration.sh --tfs "Integration Tests"
+        env:
+          DISPLAY: ":10"
         displayName: Run integration tests (Electron)
         timeoutInMinutes: 20
 
-      - script: |
-          set -e
-          ./scripts/test-web-integration.sh --browser chromium
+      - script: ./scripts/test-web-integration.sh --browser chromium
         displayName: Run integration tests (Browser, Chromium)
         timeoutInMinutes: 20
 
-      - script: |
-          set -e
-          ./scripts/test-remote-integration.sh
+      - script: ./scripts/test-remote-integration.sh
         displayName: Run integration tests (Remote)
         timeoutInMinutes: 20
 
@@ -130,15 +119,15 @@ steps:
           APP_NAME=$(node -p "require(\"$APP_ROOT/resources/app/product.json\").applicationName")
           INTEGRATION_TEST_APP_NAME="$APP_NAME" \
           INTEGRATION_TEST_ELECTRON_PATH="$APP_ROOT/$APP_NAME" \
-          VSCODE_REMOTE_SERVER_PATH="$(agent.builddirectory)/vscode-reh-linux-$(VSCODE_ARCH)" \
           ./scripts/test-integration.sh --build --tfs "Integration Tests"
+        env:
+          VSCODE_REMOTE_SERVER_PATH: $(agent.builddirectory)/vscode-reh-linux-$(VSCODE_ARCH)
         displayName: Run integration tests (Electron)
         timeoutInMinutes: 20
 
-      - script: |
-          set -e
-          VSCODE_REMOTE_SERVER_PATH="$(agent.builddirectory)/vscode-reh-web-linux-$(VSCODE_ARCH)" \
-          ./scripts/test-web-integration.sh --browser chromium
+      - script: ./scripts/test-web-integration.sh --browser chromium
+        env:
+          VSCODE_REMOTE_SERVER_PATH: $(agent.builddirectory)/vscode-reh-web-linux-$(VSCODE_ARCH)
         displayName: Run integration tests (Browser, Chromium)
         timeoutInMinutes: 20
 
@@ -148,8 +137,9 @@ steps:
           APP_NAME=$(node -p "require(\"$APP_ROOT/resources/app/product.json\").applicationName")
           INTEGRATION_TEST_APP_NAME="$APP_NAME" \
           INTEGRATION_TEST_ELECTRON_PATH="$APP_ROOT/$APP_NAME" \
-          VSCODE_REMOTE_SERVER_PATH="$(agent.builddirectory)/vscode-reh-linux-$(VSCODE_ARCH)" \
           ./scripts/test-remote-integration.sh
+        env:
+          VSCODE_REMOTE_SERVER_PATH: $(agent.builddirectory)/vscode-reh-linux-$(VSCODE_ARCH)
         displayName: Run integration tests (Remote)
         timeoutInMinutes: 20
 
@@ -164,49 +154,32 @@ steps:
       condition: succeededOrFailed()
 
     - ${{ if eq(parameters.VSCODE_QUALITY, 'oss') }}:
-      - script: |
-          set -e
-          yarn --cwd test/smoke compile
+      - script: yarn --cwd test/smoke compile
         displayName: Compile smoke tests
 
-      - script: |
-          set -e
-          yarn gulp \
-            compile-extension:markdown-language-features \
-            compile-extension-media
+      - script: yarn gulp compile-extension:markdown-language-features compile-extension-media compile-extension:vscode-test-resolver
         displayName: Build extensions for smoke tests
 
-      - script: |
-          set -e
-          yarn smoketest-no-compile --tracing
+      - script: yarn smoketest-no-compile --tracing
         timeoutInMinutes: 20
         displayName: Run smoke tests (Electron)
 
-      - script: |
-          set -e
-          yarn smoketest-no-compile --web --tracing --headless --electronArgs="--disable-dev-shm-usage"
+      - script: yarn smoketest-no-compile --web --tracing --headless --electronArgs="--disable-dev-shm-usage"
         timeoutInMinutes: 20
         displayName: Run smoke tests (Browser, Chromium)
 
-      - script: |
-          set -e
-          yarn gulp compile-extension:vscode-test-resolver
-          yarn smoketest-no-compile --remote --tracing
+      - script: yarn smoketest-no-compile --remote --tracing
         timeoutInMinutes: 20
         displayName: Run smoke tests (Remote)
 
     - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
-      - script: |
-          set -e
-          APP_PATH=$(agent.builddirectory)/VSCode-linux-$(VSCODE_ARCH)
-          yarn smoketest-no-compile --tracing --build "$APP_PATH"
+      - script: yarn smoketest-no-compile --tracing --build "$(agent.builddirectory)/VSCode-linux-$(VSCODE_ARCH)"
         timeoutInMinutes: 20
         displayName: Run smoke tests (Electron)
 
-      - script: |
-          set -e
-          VSCODE_REMOTE_SERVER_PATH="$(agent.builddirectory)/vscode-reh-web-linux-$(VSCODE_ARCH)" \
-          yarn smoketest-no-compile --web --tracing --headless --electronArgs="--disable-dev-shm-usage"
+      - script: yarn smoketest-no-compile --web --tracing --headless --electronArgs="--disable-dev-shm-usage"
+        env:
+          VSCODE_REMOTE_SERVER_PATH: $(agent.builddirectory)/vscode-reh-web-linux-$(VSCODE_ARCH)
         timeoutInMinutes: 20
         displayName: Run smoke tests (Browser, Chromium)
 
