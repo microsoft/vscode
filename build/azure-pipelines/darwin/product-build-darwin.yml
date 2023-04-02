@@ -137,7 +137,7 @@ steps:
         VSCODE_RUN_INTEGRATION_TESTS: ${{ parameters.VSCODE_RUN_INTEGRATION_TESTS }}
         VSCODE_RUN_SMOKE_TESTS: ${{ parameters.VSCODE_RUN_SMOKE_TESTS }}
 
-  - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), ne(parameters.VSCODE_QUALITY, 'oss')) }}:
+  - ${{ if and(eq(variables['VSCODE_CIBUILD'], 'false'), ne(parameters.VSCODE_QUALITY, 'oss')) }}:
     - task: DownloadPipelineArtifact@2
       inputs:
         artifact: unsigned_vscode_cli_darwin_$(VSCODE_ARCH)_cli

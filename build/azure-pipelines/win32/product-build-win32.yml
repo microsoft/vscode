@@ -162,7 +162,7 @@ steps:
         VSCODE_RUN_INTEGRATION_TESTS: ${{ parameters.VSCODE_RUN_INTEGRATION_TESTS }}
         VSCODE_RUN_SMOKE_TESTS: ${{ parameters.VSCODE_RUN_SMOKE_TESTS }}
 
-  - ${{ if eq(variables['VSCODE_CIBUILD'], false) }}:
+  - ${{ if eq(variables['VSCODE_CIBUILD'], 'false') }}:
     - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
       - task: DownloadPipelineArtifact@2
         inputs:
