@@ -318,6 +318,15 @@ stages:
                   VSCODE_RUN_INTEGRATION_TESTS: ${{ eq(parameters.VSCODE_STEP_ON_IT, false) }}
                   VSCODE_RUN_SMOKE_TESTS: ${{ eq(parameters.VSCODE_STEP_ON_IT, false) }}
 
+          - job: windowsCLISign
+            timeoutInMinutes: 90
+            steps:
+              - template:  win32/product-build-win32-cli-sign.yml
+                parameters:
+                  VSCODE_BUILD_WIN32: ${{ parameters.VSCODE_BUILD_WIN32 }}
+                  VSCODE_BUILD_WIN32_ARM64: ${{ parameters.VSCODE_BUILD_WIN32_ARM64 }}
+                  VSCODE_BUILD_WIN32_32BIT: ${{ parameters.VSCODE_BUILD_WIN32_32BIT }}
+
         - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), eq(parameters.VSCODE_BUILD_WIN32_32BIT, true)) }}:
           - job: Windows32
             timeoutInMinutes: 120
@@ -343,15 +352,6 @@ stages:
                   VSCODE_RUN_UNIT_TESTS: false
                   VSCODE_RUN_INTEGRATION_TESTS: false
                   VSCODE_RUN_SMOKE_TESTS: false
-
-        - job: windowsCLISign
-          timeoutInMinutes: 90
-          steps:
-            - template:  win32/product-build-win32-cli-sign.yml
-              parameters:
-                VSCODE_BUILD_WIN32: ${{ parameters.VSCODE_BUILD_WIN32 }}
-                VSCODE_BUILD_WIN32_ARM64: ${{ parameters.VSCODE_BUILD_WIN32_ARM64 }}
-                VSCODE_BUILD_WIN32_32BIT: ${{ parameters.VSCODE_BUILD_WIN32_32BIT }}
 
   - ${{ if and(eq(parameters.VSCODE_COMPILE_ONLY, false), eq(variables['VSCODE_BUILD_STAGE_LINUX'], true)) }}:
     - stage: Linux
