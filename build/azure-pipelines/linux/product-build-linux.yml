@@ -1,6 +1,8 @@
 parameters:
   - name: VSCODE_QUALITY
     type: string
+  - name: VSCODE_CIBUILD
+    type: boolean
   - name: VSCODE_RUN_UNIT_TESTS
     type: boolean
   - name: VSCODE_RUN_INTEGRATION_TESTS
@@ -215,7 +217,7 @@ steps:
         VSCODE_RUN_INTEGRATION_TESTS: ${{ parameters.VSCODE_RUN_INTEGRATION_TESTS }}
         VSCODE_RUN_SMOKE_TESTS: ${{ parameters.VSCODE_RUN_SMOKE_TESTS }}
 
-  - ${{ if and(eq(variables['VSCODE_CIBUILD'], 'false'), ne(parameters.VSCODE_QUALITY, 'oss')) }}:
+  - ${{ if and(ne(parameters.VSCODE_CIBUILD, true), ne(parameters.VSCODE_QUALITY, 'oss')) }}:
     - task: DownloadPipelineArtifact@2
       inputs:
         artifact: vscode_cli_linux_$(VSCODE_ARCH)_cli
