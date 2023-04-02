@@ -137,7 +137,7 @@ steps:
         VSCODE_RUN_INTEGRATION_TESTS: ${{ parameters.VSCODE_RUN_INTEGRATION_TESTS }}
         VSCODE_RUN_SMOKE_TESTS: ${{ parameters.VSCODE_RUN_SMOKE_TESTS }}
 
-  - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
+  - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), ne(parameters.VSCODE_QUALITY, 'oss')) }}:
     - task: DownloadPipelineArtifact@2
       inputs:
         artifact: unsigned_vscode_cli_darwin_$(VSCODE_ARCH)_cli
@@ -173,11 +173,9 @@ steps:
         DEBUG=electron-osx-sign* node build/darwin/sign.js $(agent.builddirectory)
       displayName: Set Hardened Entitlements
 
-    - ${{ if and(eq(parameters.VSCODE_RUN_UNIT_TESTS, false), eq(parameters.VSCODE_RUN_INTEGRATION_TESTS, false), eq(parameters.VSCODE_RUN_SMOKE_TESTS, false)) }}:
       - script: cd $(agent.builddirectory)/VSCode-darwin-$(VSCODE_ARCH) && zip -r -X -y $(agent.builddirectory)/VSCode-darwin-$(VSCODE_ARCH).zip *
         displayName: Archive build
 
-    - ${{ if and(eq(parameters.VSCODE_RUN_UNIT_TESTS, false), eq(parameters.VSCODE_RUN_INTEGRATION_TESTS, false), eq(parameters.VSCODE_RUN_SMOKE_TESTS, false)) }}:
       - script: |
           set -e
 
@@ -188,46 +186,38 @@ steps:
           pushd .. && mv vscode-reh-web-darwin-$(VSCODE_ARCH) vscode-server-darwin-$(VSCODE_ARCH)-web && zip -Xry vscode-server-darwin-$(VSCODE_ARCH)-web.zip vscode-server-darwin-$(VSCODE_ARCH)-web && popd
         displayName: Prepare to publish servers
 
-    - ${{ if and(eq(parameters.VSCODE_RUN_UNIT_TESTS, false), eq(parameters.VSCODE_RUN_INTEGRATION_TESTS, false), eq(parameters.VSCODE_RUN_SMOKE_TESTS, false)) }}:
       - task: AzureArtifacts.manifest-generator-task.manifest-generator-task.ManifestGeneratorTask@0
         displayName: Generate SBOM (client)
         inputs:
           BuildDropPath: $(agent.builddirectory)/VSCode-darwin-$(VSCODE_ARCH)
           PackageName: Visual Studio Code
 
-    - ${{ if and(eq(parameters.VSCODE_RUN_UNIT_TESTS, false), eq(parameters.VSCODE_RUN_INTEGRATION_TESTS, false), eq(parameters.VSCODE_RUN_SMOKE_TESTS, false)) }}:
       - publish: $(agent.builddirectory)/VSCode-darwin-$(VSCODE_ARCH)/_manifest
         displayName: Publish SBOM (client)
         artifact: vscode_client_darwin_$(VSCODE_ARCH)_sbom
 
-    - ${{ if and(eq(parameters.VSCODE_RUN_UNIT_TESTS, false), eq(parameters.VSCODE_RUN_INTEGRATION_TESTS, false), eq(parameters.VSCODE_RUN_SMOKE_TESTS, false)) }}:
       - task: AzureArtifacts.manifest-generator-task.manifest-generator-task.ManifestGeneratorTask@0
         displayName: Generate SBOM (server)
         inputs:
           BuildDropPath: $(agent.builddirectory)/vscode-server-darwin-$(VSCODE_ARCH)
           PackageName: Visual Studio Code Server
 
-    - ${{ if and(eq(parameters.VSCODE_RUN_UNIT_TESTS, false), eq(parameters.VSCODE_RUN_INTEGRATION_TESTS, false), eq(parameters.VSCODE_RUN_SMOKE_TESTS, false)) }}:
       - publish: $(agent.builddirectory)/vscode-server-darwin-$(VSCODE_ARCH)/_manifest
         displayName: Publish SBOM (server)
         artifact: vscode_server_darwin_$(VSCODE_ARCH)_sbom
 
-    - ${{ if and(eq(parameters.VSCODE_RUN_UNIT_TESTS, false), eq(parameters.VSCODE_RUN_INTEGRATION_TESTS, false), eq(parameters.VSCODE_RUN_SMOKE_TESTS, false)) }}:
       - publish: $(Agent.BuildDirectory)/VSCode-darwin-$(VSCODE_ARCH).zip
         artifact: unsigned_vscode_client_darwin_$(VSCODE_ARCH)_archive
         displayName: Publish client archive
 
-    - ${{ if and(eq(parameters.VSCODE_RUN_UNIT_TESTS, false), eq(parameters.VSCODE_RUN_INTEGRATION_TESTS, false), eq(parameters.VSCODE_RUN_SMOKE_TESTS, false)) }}:
       - publish: $(Agent.BuildDirectory)/vscode-server-darwin-$(VSCODE_ARCH).zip
         artifact: vscode_server_darwin_$(VSCODE_ARCH)_archive-unsigned
         displayName: Publish server archive
 
-    - ${{ if and(eq(parameters.VSCODE_RUN_UNIT_TESTS, false), eq(parameters.VSCODE_RUN_INTEGRATION_TESTS, false), eq(parameters.VSCODE_RUN_SMOKE_TESTS, false)) }}:
       - publish: $(Agent.BuildDirectory)/vscode-server-darwin-$(VSCODE_ARCH)-web.zip
         artifact: vscode_web_darwin_$(VSCODE_ARCH)_archive-unsigned
         displayName: Publish web server archive
 
-    - ${{ if and(eq(parameters.VSCODE_RUN_UNIT_TESTS, false), eq(parameters.VSCODE_RUN_INTEGRATION_TESTS, false), eq(parameters.VSCODE_RUN_SMOKE_TESTS, false)) }}:
       - task: AzureCLI@2
         inputs:
           azureSubscription: "vscode-builds-subscription"
@@ -239,7 +229,6 @@ steps:
             Write-Host "##vso[task.setvariable variable=AZURE_CLIENT_ID]$env:servicePrincipalId"
             Write-Host "##vso[task.setvariable variable=AZURE_CLIENT_SECRET;issecret=true]$env:servicePrincipalKey"
 
-    - ${{ if and(eq(parameters.VSCODE_RUN_UNIT_TESTS, false), eq(parameters.VSCODE_RUN_INTEGRATION_TESTS, false), eq(parameters.VSCODE_RUN_SMOKE_TESTS, false)) }}:
       - script: |
           set -e
           AZURE_STORAGE_ACCOUNT="ticino" \
