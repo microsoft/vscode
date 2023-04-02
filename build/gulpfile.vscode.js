@@ -45,7 +45,6 @@ const vscodeEntryPoints = [
 	buildfile.workerExtensionHost,
 	buildfile.workerNotebook,
 	buildfile.workerLanguageDetection,
-	buildfile.workerSharedProcess,
 	buildfile.workerLocalFileSearch,
 	buildfile.workerProfileAnalysis,
 	buildfile.workbenchDesktop,

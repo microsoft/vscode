@@ -198,12 +198,6 @@ const RULES: IRule[] = [
 		]
 	},
 
-	// Electron (renderer): skip
-	{
-		target: '**/vs/**/electron-browser/**',
-		skip: true // -> supports all types
-	},
-
 	// Electron (main)
 	{
 		target: '**/vs/**/electron-main/**',
