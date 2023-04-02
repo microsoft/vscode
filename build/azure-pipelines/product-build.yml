@@ -96,10 +96,6 @@ parameters:
     displayName: "Skip tests"
     type: boolean
     default: false
-  - name: VSCODE_CIBUILD
-    displayName: "CI Build"
-    type: boolean
-    default: false
 
 variables:
   - name: VSCODE_PRIVATE_BUILD
@@ -119,7 +115,7 @@ variables:
   - name: VSCODE_BUILD_STAGE_WEB
     value: ${{ eq(parameters.VSCODE_BUILD_WEB, true) }}
   - name: VSCODE_CIBUILD
-    value: ${{ eq(parameters.VSCODE_CIBUILD, true) }}
+    value: ${{ in(variables['Build.Reason'], 'IndividualCI', 'BatchedCI') }}
   - name: VSCODE_PUBLISH
     value: ${{ and(eq(parameters.VSCODE_PUBLISH, true), eq(variables.VSCODE_CIBUILD, false), eq(parameters.VSCODE_COMPILE_ONLY, false)) }}
   - name: VSCODE_PUBLISH_TO_MOONCAKE
