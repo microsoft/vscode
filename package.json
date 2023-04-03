@@ -77,7 +77,7 @@
     "jschardet": "3.0.0",
     "keytar": "7.9.0",
     "minimist": "^1.2.6",
-    "native-is-elevated": "0.4.3",
+    "native-is-elevated": "0.6.0",
     "native-keymap": "^3.3.2",
     "native-watchdog": "^1.4.1",
     "node-pty": "0.11.0-beta32",
@@ -231,7 +231,7 @@
   },
   "optionalDependencies": {
     "@vscode/windows-registry": "1.0.6",
-    "windows-foreground-love": "0.4.0",
+    "windows-foreground-love": "0.5.0",
     "windows-mutex": "0.4.1",
     "windows-process-tree": "0.4.0"
   },
