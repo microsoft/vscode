@@ -60,7 +60,6 @@ export class LightBulbWidget extends Disposable implements IContentWidget {
 
 	constructor(
 		private readonly _editor: ICodeEditor,
-
 		@IKeybindingService keybindingService: IKeybindingService
 	) {
 		super();
@@ -157,7 +156,7 @@ export class LightBulbWidget extends Disposable implements IContentWidget {
 		}
 
 		const model = this._editor.getModel();
-		if (!model) {
+		if (!model || model.getLanguageId() === 'scminput') {
 			return this.hide();
 		}
 
