@@ -19,7 +19,7 @@ export abstract class ResizableWidget implements IDisposable {
 
 	readonly element: ResizableHTMLElement;
 	private readonly _disposables = new DisposableStore();
-	private readonly _persistingMechanism: IPersistingMechanism;
+	protected readonly _persistingMechanism: SingleSizePersistingMechanism | MultipleSizePersistingMechanism;
 	private resizing: boolean = false;
 
 	constructor(
@@ -162,7 +162,7 @@ interface IPersistingMechanism extends IDisposable {
 }
 
 // TODO: maybe need to make more generic, this is specific to the suggest widget
-class SingleSizePersistingMechanism implements IPersistingMechanism {
+export class SingleSizePersistingMechanism implements IPersistingMechanism {
 
 	private readonly _persistedWidgetSize: PersistedWidgetSize | null = null;
 	private readonly _disposables = new DisposableStore();
@@ -232,7 +232,7 @@ class SingleSizePersistingMechanism implements IPersistingMechanism {
 	}
 }
 
-class MultipleSizePersistingMechanism implements IPersistingMechanism {
+export class MultipleSizePersistingMechanism implements IPersistingMechanism {
 
 	private readonly _persistedWidgetSizes: ResourceMap<Map<string, dom.Dimension>> = new ResourceMap<Map<string, dom.Dimension>>();
 	private readonly _disposables = new DisposableStore();
@@ -242,8 +242,7 @@ class MultipleSizePersistingMechanism implements IPersistingMechanism {
 	// private _initialHeight: number = 0;
 	// private _initialTop: number = 0;
 
-	private _resizing: boolean = false;
-	private _size: dom.Dimension | undefined = undefined;
+	// private _size: dom.Dimension | undefined = undefined;
 	private _maxRenderingHeight: number | undefined = Infinity;
 	private _maxRenderingWidth: number | undefined = Infinity;
 
@@ -257,6 +256,7 @@ class MultipleSizePersistingMechanism implements IPersistingMechanism {
 		public readonly editor: ICodeEditor
 	) {
 
+		console.log('Inside of constructor of the multiple size persisting mechanism');
 		this.element.minSize = new dom.Dimension(10, 24);
 		this._disposables.add(this.editor.onDidChangeModelContent((e) => {
 			const uri = this.editor.getModel()?.uri;
@@ -285,26 +285,30 @@ class MultipleSizePersistingMechanism implements IPersistingMechanism {
 			}
 			this._persistedWidgetSizes.set(uri, updatedPersistedSizesForUri);
 		}));
-		this._disposables.add(this.element.onDidWillResize(() => {
-			this._resizing = true;
-			// this._initialHeight = this.element.domNode.clientHeight;
-			// this._initialTop = this.element.domNode.offsetTop;
-		}));
+		// this._disposables.add(this.element.onDidWillResize(() => {
+		// 	this._resizing = true;
+		// 	// this._initialHeight = this.element.domNode.clientHeight;
+		// 	// this._initialTop = this.element.domNode.offsetTop;
+		// }));
 		this._disposables.add(this.element.onDidResize(e => {
 
-			let height = e.dimension.height;
-			let width = e.dimension.width;
-			const maxWidth = this.element.maxSize.width;
-			const maxHeight = this.element.maxSize.height;
+			console.log('Inside of on did resize of the multiple size persisting mechanism');
+			console.log('e : ', e);
 
-			width = Math.min(maxWidth, width);
-			height = Math.min(maxHeight, height);
+			const height = e.dimension.height;
+			const width = e.dimension.width;
+
+			// const maxWidth = this.element.maxSize.width;
+			// const maxHeight = this.element.maxSize.height;
+
+			// width = Math.min(maxWidth, width);
+			// height = Math.min(maxHeight, height);
+
 			if (!this._maxRenderingHeight) {
 				return;
 			}
-			this._size = new dom.Dimension(width, height);
-			this.element.layout(height, width);
-			// Calling the resize function of the
+			// this._size = new dom.Dimension(width, height);
+			// this.element.layout(height, width);
 			this.resizableWidget.resize(new dom.Dimension(width, height));
 
 			// Update the top parameters only when we decided to render above
@@ -360,7 +364,9 @@ class MultipleSizePersistingMechanism implements IPersistingMechanism {
 					const persistedWidgetSizesForUri = this._persistedWidgetSizes.get(uri)!;
 					persistedWidgetSizesForUri.set(JSON.stringify([offset, length]), persistedSize);
 				}
-				this._resizing = false;
+
+				console.log('this._persistedWidgetSizes : ', this._persistedWidgetSizes);
+				// this._resizing = false;
 			}
 
 			// this.editor.layoutOverlayWidget(this);
