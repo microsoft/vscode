@@ -88,16 +88,17 @@ export class ResizableHoverWidget extends ResizableWidget {
 	}
 
 	public override resize(size: dom.Dimension) {
+
 		console.log('Inside of resize');
 
 		// Removing the max height and max width here - the max size is controlled by the resizable overlay
 		this.hoverWidget.contentsDomNode.style.maxHeight = 'none';
 		this.hoverWidget.contentsDomNode.style.maxWidth = 'none';
 
-		const width = size.width + 'px';
+		const width = size.width - 7 + 'px';
 		this.hoverWidget.containerDomNode.style.width = width;
 		this.hoverWidget.contentsDomNode.style.width = width;
-		const height = size.height + 'px';
+		const height = size.height - 7 + 'px';
 		this.hoverWidget.containerDomNode.style.height = height;
 		this.hoverWidget.contentsDomNode.style.height = height;
 
@@ -106,7 +107,9 @@ export class ResizableHoverWidget extends ResizableWidget {
 
 		const scrollDimensions = this.hoverWidget.scrollbar.getScrollDimensions();
 		const hasHorizontalScrollbar = (scrollDimensions.scrollWidth > scrollDimensions.width);
+
 		if (hasHorizontalScrollbar) {
+			console.log('Inside of hasHorizontalScrollbar');
 			// When there is a horizontal scroll-bar use a different height to make the scroll-bar visible
 			const extraBottomPadding = `${this.hoverWidget.scrollbar.options.horizontalScrollbarSize}px`;
 			if (this.hoverWidget.contentsDomNode.style.paddingBottom !== extraBottomPadding) {
@@ -312,11 +315,9 @@ export class ResizableHoverWidget extends ResizableWidget {
 		}
 		visibleData.colorPicker?.layout();
 
-
 		if (!this.visibleData) {
 			return;
 		}
-
 
 		const clientHeight = this.hoverWidget.containerDomNode.clientHeight;
 		const clientWidth = this.hoverWidget.containerDomNode.clientWidth;
@@ -332,7 +333,9 @@ export class ResizableHoverWidget extends ResizableWidget {
 	}
 
 	public override hide(): void {
+
 		console.log('Inside of hide of ResizableHoverWidget');
+
 		this.element.clearSashHoverState();
 		this.editor.removeContentWidget(this.resizableContentWidget);
 		if (this.visibleData) {
@@ -344,8 +347,6 @@ export class ResizableHoverWidget extends ResizableWidget {
 			}
 		}
 	}
-
-	// NEW
 
 	public onContentsChanged(persistedSize?: dom.Dimension | undefined): void {
 
@@ -376,12 +377,15 @@ export class ResizableHoverWidget extends ResizableWidget {
 			contentsDomNode.style.height = 'auto';
 		}
 
+		containerDomNode.style.top = 2 + 'px';
+		containerDomNode.style.left = 2 + 'px';
+
 		this.editor.layoutContentWidget(this.resizableContentWidget);
 		this.hoverWidget.onContentsChanged();
 
 		const clientHeight = this.hoverWidget.containerDomNode.clientHeight;
 		const clientWidth = this.hoverWidget.containerDomNode.clientWidth;
-		this.element.layout(clientHeight + 8, clientWidth + 8);
+		this.element.layout(clientHeight + 7, clientWidth + 7);
 		// this.element.layout(clientHeight, clientWidth);
 
 		const scrollDimensions = this.hoverWidget.scrollbar.getScrollDimensions();
