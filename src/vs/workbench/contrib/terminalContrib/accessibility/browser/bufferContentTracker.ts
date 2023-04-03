@@ -33,8 +33,8 @@ export class BufferContentTracker {
 		const cached = this._getCachedContent();
 		const viewport = this._updateViewportContent();
 		this._lastCachedMarker = this._xterm.raw.registerMarker();
-		console.log('marker', this._lastCachedMarker?.line);
 		this._lines = cached ? [...cached, ...viewport] : [...viewport];
+		this._logService.debug('Cached lines', this._lines);
 	}
 
 	private _getCachedContent(): string[] | undefined {
@@ -44,10 +44,17 @@ export class BufferContentTracker {
 		const cached = this._lines;
 		let currentLine: string = '';
 		const buffer = this._xterm.raw.buffer.active;
-		// let i = this._lastCachedMarker.line;
-		// const scrollback: number = this._configurationService.getValue(TerminalSettingId.Scrollback);
-		// const maxBufferSize = scrollback + this._xterm.raw.rows - 1;
-
+		const scrollback: number = this._configurationService.getValue(TerminalSettingId.Scrollback);
+		const maxBufferSize = scrollback + this._xterm.raw.rows - 1;
+		const numToAdd = this._xterm.raw.buffer.active.baseY - this._lastCachedMarker?.line + this._priorViewportLineCount;
+		if (numToAdd + cached.length > maxBufferSize) {
+			// remove lines from the top of the cache if it will exceed the max buffer size
+			const numToRemove = numToAdd + cached.length - maxBufferSize;
+			for (let i = 0; i < numToRemove; i++) {
+				cached.shift();
+			}
+			this._logService.debug('Removed ', numToRemove, ' lines from top of cached lines, now ', cached.length, ' lines');
+		}
 		for (let i = this._lastCachedMarker?.line - this._priorViewportLineCount; i < this._xterm.raw.buffer.active.baseY; i++) {
 			const line = buffer.getLine(i);
 			if (!line) {
@@ -58,6 +65,7 @@ export class BufferContentTracker {
 			if (currentLine && !isWrapped || i === (buffer.baseY + this._xterm.raw.rows - 1)) {
 				const line = currentLine.replace(new RegExp(' ', 'g'), '\xA0');
 				if (line.length) {
+					this._logService.debug('cached ', line);
 					cached.push(line);
 					currentLine = '';
 				}
@@ -103,7 +111,7 @@ export class BufferContentTracker {
 			}
 		}
 		this._priorViewportLineCount = linesInViewport;
-		this._logService.debug('Viewport content update complete, ', this._lines.length, ' lines');
+		this._logService.debug('Viewport content update complete, ', viewport.length, ' lines');
 		return viewport;
 	}
 }
