@@ -108,7 +108,7 @@ export class ModesHoverController implements IEditorContribution {
 
 		const target = mouseEvent.target;
 
-		if (target.type === MouseTargetType.CONTENT_WIDGET && target.detail === ContentHoverWidget.ID) {
+		if (target.type === MouseTargetType.CONTENT_WIDGET && target.detail === ResizableHoverWidget.ID) { // ContentHoverWidget
 			this._hoverClicked = true;
 			// mouse down on top of content hover widget
 			return;
@@ -221,6 +221,7 @@ export class ModesHoverController implements IEditorContribution {
 	}
 
 	private _hideWidgets(): void {
+		console.log('inside of _hideWidgets');
 		if ((this._isMouseDown && this._hoverClicked && this._contentWidget?.isColorPickerVisible()) || InlineSuggestionHintsContentWidget.dropDownVisible) {
 			return;
 		}
