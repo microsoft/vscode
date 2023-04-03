@@ -21,7 +21,7 @@ const SCROLLBAR_WIDTH = 10;
 // TODO: maybe don't need the resizable widget class
 export class ResizableHoverWidget extends ResizableWidget {
 
-	public ID = 'editor.contrib.resizableContentHoverWidget';
+	public static ID = 'editor.contrib.resizableContentHoverWidget';
 	private hoverDisposables = new DisposableStore();
 	// The ContentWidget is a child of the resizable widget
 	private resizableContentWidget: ResizableContentHoverWidget;
@@ -335,6 +335,7 @@ export class ResizableHoverWidget extends ResizableWidget {
 	}
 
 	public override hide(): void {
+		console.log('Inside of hide of ResizableHoverWidget');
 		this.element.clearSashHoverState();
 		this.editor.removeContentWidget(this.resizableContentWidget);
 		if (this._visibleData) {
@@ -383,11 +384,15 @@ export class ResizableHoverWidget extends ResizableWidget {
 
 		const clientHeight = this._hover.containerDomNode.clientHeight;
 		const clientWidth = this._hover.containerDomNode.clientWidth;
-		this.element.layout(clientHeight, clientWidth);
+		this.element.layout(clientHeight + 8, clientWidth + 8);
+		// this.element.layout(clientHeight, clientWidth);
 
 		const scrollDimensions = this._hover.scrollbar.getScrollDimensions();
 		const hasHorizontalScrollbar = (scrollDimensions.scrollWidth > scrollDimensions.width);
-		if (hasHorizontalScrollbar) {
+		console.log('hasHorizontalScrollbar: ', hasHorizontalScrollbar);
+
+		// if (hasHorizontalScrollbar) {
+		if (false) {
 			// There is just a horizontal scrollbar
 			const extraBottomPadding = `${this._hover.scrollbar.options.horizontalScrollbarSize}px`;
 			let reposition = false;
@@ -404,6 +409,7 @@ export class ResizableHoverWidget extends ResizableWidget {
 			}
 			if (reposition) {
 				this.editor.layoutContentWidget(this.resizableContentWidget);
+				this.editor.render();
 				this._hover.onContentsChanged();
 			}
 		}

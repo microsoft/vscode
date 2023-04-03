@@ -109,6 +109,7 @@ export abstract class ResizableContentWidget implements IContentWidget {
 	}
 
 	hide(): void {
+		console.log('Inside of hide of the ResizableContentWidget');
 		this.editor.layoutContentWidget(this);
 	}
 

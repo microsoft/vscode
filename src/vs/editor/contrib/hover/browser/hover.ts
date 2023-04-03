@@ -30,6 +30,7 @@ import { MarkerHoverParticipant } from 'vs/editor/contrib/hover/browser/markerHo
 import 'vs/css!./hover';
 import { InlineSuggestionHintsContentWidget } from 'vs/editor/contrib/inlineCompletions/browser/inlineSuggestionHintsWidget';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { ResizableHoverWidget } from 'vs/editor/contrib/hover/browser/resizableHoverWidget';
 
 export class ModesHoverController implements IEditorContribution {
 
@@ -163,8 +164,18 @@ export class ModesHoverController implements IEditorContribution {
 			return;
 		}
 
-		if (this._isHoverSticky && target.type === MouseTargetType.OVERLAY_WIDGET && target.detail === MarginHoverWidget.ID) {
-			// mouse moved on top of overlay hover widget
+		console.log('Inside of _onEditorMouseMove');
+		console.log('target.detail: ', target.detail);
+
+		if (target.type === MouseTargetType.OVERLAY_WIDGET && target.detail === MarginHoverWidget.ID) {
+			console.log('Insid of first if loop');
+			// mouse down on top of overlay margin hover widget
+			return;
+		}
+
+		if (target.type === MouseTargetType.CONTENT_WIDGET && target.detail === ResizableHoverWidget.ID) {
+			console.log('Inside of the second if loop');
+			// mouse down on top of the overlay hover widget
 			return;
 		}
 
