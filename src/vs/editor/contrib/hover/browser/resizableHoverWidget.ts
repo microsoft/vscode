@@ -124,6 +124,17 @@ export class ResizableHoverWidget extends ResizableWidget {
 			//  - 2 * SASH_WIDTH + TOTAL_BORDER_WIDTH
 		}
 
+		const sashWidth = size.width - 5 + 'px';
+		const sashHeight = size.height - 5 + 'px';
+		this.element.northSash.el.style.width = sashWidth;
+		this.element.southSash.el.style.width = sashWidth;
+		this.element.northSash.el.style.left = 2 + 'px';
+		this.element.southSash.el.style.left = 2 + 'px';
+		this.element.eastSash.el.style.height = sashHeight;
+		this.element.westSash.el.style.height = sashHeight;
+		this.element.eastSash.el.style.top = 2 + 'px';
+		this.element.westSash.el.style.top = 2 + 'px';
+
 		this.hoverWidget.scrollbar.scanDomNode();
 		this.editor.layoutContentWidget(this.resizableContentWidget);
 		this.editor.render();
@@ -435,9 +446,10 @@ export class ResizableHoverWidget extends ResizableWidget {
 				reposition = true;
 			}
 			if (reposition) {
+				console.log('Inside of the case when repositioning');
 
 				if (persistedSize) {
-					console.log('Inside of the case when repositioning');
+					console.log('when using a persisted size');
 					this.element.layout(clientHeight + 17 - 6, clientWidth + 7);
 					this.editor.layoutContentWidget(this.resizableContentWidget);
 					this.editor.render();
@@ -453,6 +465,37 @@ export class ResizableHoverWidget extends ResizableWidget {
 		}
 
 		console.log('this.resizableContentWidget : ', this.resizableContentWidget);
+
+		// ---
+
+		console.log('Before changing the sash size');
+
+		const size = this.element.size;
+		let height = size.height;
+		const width = size.width;
+		this.element.northSash.el.style.width = width - 4 + 'px';
+		this.element.southSash.el.style.width = width - 4 + 'px';
+		this.element.northSash.el.style.left = 2 + 'px';
+		this.element.southSash.el.style.left = 2 + 'px';
+
+		if (hasHorizontalScrollbar) {
+			height = clientHeight + 12;
+		} else {
+			height = clientHeight + 2;
+		}
+
+		if (!persistedSize) {
+			this.element.eastSash.el.style.height = height + 'px';
+			this.element.westSash.el.style.height = height + 'px';
+		} else {
+			this.element.eastSash.el.style.height = height - 5 + 'px';
+			this.element.westSash.el.style.height = height - 5 + 'px';
+		}
+
+		this.element.eastSash.el.style.top = 2 + 'px';
+		this.element.westSash.el.style.top = 2 + 'px';
+		// ---
+
 		this.editor.layoutContentWidget(this.resizableContentWidget);
 	}
 
