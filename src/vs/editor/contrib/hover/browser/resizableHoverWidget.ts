@@ -234,6 +234,11 @@ export class ResizableHoverWidget extends ResizableWidget {
 
 	public showAt(node: DocumentFragment, visibleData: ContentHoverVisibleData): void {
 
+		this.resizableContentWidget.position = visibleData.showAtPosition;
+		this.resizableContentWidget.secondaryPosition = visibleData.showAtSecondaryPosition;
+		this.resizableContentWidget.preference = [this._renderingAbove];
+		this.resizableContentWidget.positionAffinity = visibleData.isBeforeContent ? PositionAffinity.LeftOfInjectedText : undefined;
+
 		this.editor.addContentWidget(this.resizableContentWidget);
 
 		const persistedSize = this.findPersistedSize();

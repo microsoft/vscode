@@ -143,7 +143,6 @@ export class ContentHoverController extends Disposable {
 		}
 
 		if (!anchor) {
-			console.log('When anchor is false');
 			this._setCurrentResult(null);
 			return false;
 		}
@@ -155,7 +154,6 @@ export class ContentHoverController extends Disposable {
 
 		if (!anchor.canAdoptVisibleHover(this._currentResult.anchor, this._widget.position)) {
 			// The new anchor is not compatible with the previous anchor
-			console.log('When canAdoptVisibleHover is false');
 			this._setCurrentResult(null);
 			this._startHoverOperationIfNecessary(anchor, mode, source, focus, false);
 			return true;
@@ -183,7 +181,6 @@ export class ContentHoverController extends Disposable {
 	}
 
 	private _setCurrentResult(hoverResult: HoverResult | null): void {
-		console.log('Inside of _setCurrentResult');
 		if (this._currentResult === hoverResult) {
 			// avoid updating the DOM to avoid resetting the user selection
 			return;
@@ -192,7 +189,6 @@ export class ContentHoverController extends Disposable {
 			hoverResult = null;
 		}
 		this._currentResult = hoverResult;
-		console.log('this._currentResult', this._currentResult);
 		if (this._currentResult) {
 			this._renderMessages(this._currentResult.anchor, this._currentResult.messages);
 		} else {
@@ -201,7 +197,6 @@ export class ContentHoverController extends Disposable {
 	}
 
 	public hide(): void {
-		console.log('Inisde of hide of the ContentHoverController');
 		this._computer.anchor = null;
 		this._hoverOperation.cancel();
 		this._setCurrentResult(null);
