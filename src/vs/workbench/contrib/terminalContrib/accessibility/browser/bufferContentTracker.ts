@@ -30,16 +30,47 @@ export class BufferContentTracker {
 			this._lastCachedMarker = undefined;
 		}
 		this._removeViewportContent();
-		this._updateScrollbackContent();
-		this._updateViewportContent();
+		const cached = this._getCachedContent();
+		const viewport = this._updateViewportContent();
 		this._lastCachedMarker = this._xterm.raw.registerMarker();
+		console.log('marker', this._lastCachedMarker?.line);
+		this._lines = cached ? [...cached, ...viewport] : [...viewport];
+	}
+
+	private _getCachedContent(): string[] | undefined {
+		if (!this._lastCachedMarker?.line) {
+			return undefined;
+		}
+		const cached = this._lines;
+		let currentLine: string = '';
+		const buffer = this._xterm.raw.buffer.active;
+		// let i = this._lastCachedMarker.line;
+		// const scrollback: number = this._configurationService.getValue(TerminalSettingId.Scrollback);
+		// const maxBufferSize = scrollback + this._xterm.raw.rows - 1;
+
+		for (let i = this._lastCachedMarker?.line - this._priorViewportLineCount; i < this._xterm.raw.buffer.active.baseY; i++) {
+			const line = buffer.getLine(i);
+			if (!line) {
+				continue;
+			}
+			const isWrapped = buffer.getLine(i + 1)?.isWrapped;
+			currentLine += line.translateToString(!isWrapped);
+			if (currentLine && !isWrapped || i === (buffer.baseY + this._xterm.raw.rows - 1)) {
+				const line = currentLine.replace(new RegExp(' ', 'g'), '\xA0');
+				if (line.length) {
+					cached.push(line);
+					currentLine = '';
+				}
+			}
+		}
+		return cached;
 	}
 
 	private _removeViewportContent(): void {
 		if (this._lines.length && this._lastCachedMarker) {
 			// remove previous viewport content in case it has changed
 			let i = 0;
-			while (i < this._priorViewportLineCount) {
+			while (i < (this._priorViewportLineCount < this._xterm.raw.rows ? this._priorViewportLineCount - 1 : this._priorViewportLineCount)) {
 				this._lines.pop();
 				i++;
 			}
@@ -47,11 +78,12 @@ export class BufferContentTracker {
 		}
 	}
 
-	private _updateViewportContent(): void {
+	private _updateViewportContent(): string[] {
 		const buffer = this._xterm.raw.buffer.active;
 		if (!buffer) {
-			return;
+			throw new Error('No buffer');
 		}
+		const viewport = [];
 		let linesInViewport = 0;
 		let currentLine: string = '';
 		for (let i = buffer.baseY; i < buffer.baseY + this._xterm.raw.rows; i++) {
@@ -63,42 +95,15 @@ export class BufferContentTracker {
 			currentLine += line.translateToString(!isWrapped);
 			if (currentLine && !isWrapped || i === (buffer.baseY + this._xterm.raw.rows - 1)) {
 				const line = currentLine.replace(new RegExp(' ', 'g'), '\xA0');
+				linesInViewport++;
 				if (line.length) {
-					this._lines.push(line);
-					linesInViewport++;
+					viewport.push(line);
 					currentLine = '';
 				}
 			}
 		}
 		this._priorViewportLineCount = linesInViewport;
 		this._logService.debug('Viewport content update complete, ', this._lines.length, ' lines');
-	}
-
-	private _updateScrollbackContent(): void {
-		const buffer = this._xterm.raw.buffer.active;
-		if (!buffer) {
-			return;
-		}
-		const scrollback: number = this._configurationService.getValue(TerminalSettingId.Scrollback);
-		const maxBufferSize = scrollback + this._xterm.raw.rows - 1;
-		const end = Math.min(maxBufferSize, buffer.baseY);
-		const start = this._lastCachedMarker?.line ? this._lastCachedMarker.line - this._priorViewportLineCount : 0;
-		this._logService.debug('Updating scrollback content, start: ', start, ' end: ', end, ' buffer size: ', buffer.length);
-		const lines: string[] = [];
-		let currentLine: string = '';
-		for (let i = start; i < end; i++) {
-			const line = buffer.getLine(i);
-			if (!line) {
-				continue;
-			}
-			const isWrapped = buffer.getLine(i + 1)?.isWrapped;
-			currentLine += line.translateToString(!isWrapped);
-			if (currentLine && !isWrapped || i === end - 1) {
-				lines.push(currentLine.replace(new RegExp(' ', 'g'), '\xA0'));
-				currentLine = '';
-			}
-		}
-		this._lines.push(...lines);
-		this._logService.debug('Updated scrollback content, now ', this._lines.length, ' lines');
+		return viewport;
 	}
 }
