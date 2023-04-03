@@ -91,6 +91,7 @@ import { defaultButtonStyles, defaultCountBadgeStyles } from 'vs/platform/theme/
 import { GhostTextController } from 'vs/editor/contrib/inlineCompletions/browser/ghostTextController';
 import { CodeActionController } from 'vs/editor/contrib/codeAction/browser/codeActionController';
 import { IResolvedTextEditorModel, ITextModelContentProvider, ITextModelService } from 'vs/editor/common/services/resolverService';
+import { Schemas } from 'vs/base/common/network';
 
 type TreeElement = ISCMRepository | ISCMInput | ISCMActionButton | ISCMResourceGroup | IResourceNode<ISCMResource, ISCMResourceGroup> | ISCMResource;
 
