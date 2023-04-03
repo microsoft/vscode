@@ -38,14 +38,11 @@ export class BufferContentTracker {
 	}
 
 	private _updateCachedContent(): void {
-		if (!this._lastCachedMarker?.line) {
-			return;
-		}
 		let currentLine: string = '';
 		const buffer = this._xterm.raw.buffer.active;
 		const scrollback: number = this._configurationService.getValue(TerminalSettingId.Scrollback);
 		const maxBufferSize = scrollback + this._xterm.raw.rows - 1;
-		const numToAdd = this._xterm.raw.buffer.active.baseY - this._lastCachedMarker?.line + this._priorViewportLineCount;
+		const numToAdd = this._xterm.raw.buffer.active.baseY - (this._lastCachedMarker?.line ?? 0) + this._priorViewportLineCount;
 		if (numToAdd + this._lines.length > maxBufferSize) {
 			// remove lines from the top of the cache if it will exceed the max buffer size
 			const numToRemove = numToAdd + this._lines.length - maxBufferSize;
@@ -54,7 +51,7 @@ export class BufferContentTracker {
 			}
 			this._logService.debug('Removed ', numToRemove, ' lines from top of cached lines, now ', this._lines.length, ' lines');
 		}
-		for (let i = this._lastCachedMarker?.line - this._priorViewportLineCount; i < this._xterm.raw.buffer.active.baseY; i++) {
+		for (let i = (this._lastCachedMarker?.line ?? 0) - this._priorViewportLineCount; i < this._xterm.raw.buffer.active.baseY; i++) {
 			const line = buffer.getLine(i);
 			if (!line) {
 				continue;
