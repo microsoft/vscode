@@ -593,7 +593,7 @@ function completeListItemPattern(token: marked.Tokens.List): marked.Tokens.List 
 		return;
 	}
 
-	//
+	// Re-parse the whole list with the last item replaced
 	const completeList = marked.lexer(mergeRawTokenText(token.items.slice(0, token.items.length - 1)) + newList.items[0].raw);
 	if (completeList.length === 1 && completeList[0].type === 'list') {
 		return completeList[0];
