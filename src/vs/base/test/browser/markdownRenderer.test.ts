@@ -539,7 +539,16 @@ suite('MarkdownRenderer', () => {
 			});
 
 			test(`incomplete ${name} after newline`, () => {
-				const text = `some text\nmore text here and ${delimiter}code`;
+				const text = `some text\nmore text here and ${delimiter}text`;
+				const tokens = marked.lexer(text);
+				const newTokens = fillInIncompleteTokens(tokens);
+
+				const completeTokens = marked.lexer(text + delimiter);
+				assert.deepStrictEqual(newTokens, completeTokens);
+			});
+
+			test(`incomplete ${name} in list`, () => {
+				const text = `- list item one\n- list item two and ${delimiter}text`;
 				const tokens = marked.lexer(text);
 				const newTokens = fillInIncompleteTokens(tokens);
 
@@ -565,7 +574,16 @@ suite('MarkdownRenderer', () => {
 			simpleMarkdownTestSuite('star', '*');
 
 			test(`star between letters`, () => {
-				const text = 'a*b';
+				const text = 'sldkfjsd a*b';
+				const tokens = marked.lexer(text);
+				const newTokens = fillInIncompleteTokens(tokens);
+
+				const completeTokens = marked.lexer(text + '*');
+				assert.deepStrictEqual(newTokens, completeTokens);
+			});
+
+			test(`nested pattern`, () => {
+				const text = 'sldkfjsd *abc __def__ ghi';
 				const tokens = marked.lexer(text);
 				const newTokens = fillInIncompleteTokens(tokens);
 
