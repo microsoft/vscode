@@ -95,7 +95,7 @@ parameters:
 
 variables:
   - name: VSCODE_PRIVATE_BUILD
-    value: ${{ ne(variables['Build.Repository.Uri'], 'https://github.com/microsoft/vscode') }}
+    value: ${{ ne(variables['Build.Repository.Uri'], 'https://github.com/microsoft/vscode.git') }}
   - name: NPM_REGISTRY
     value: ${{ parameters.NPM_REGISTRY }}
   - name: VSCODE_QUALITY
@@ -163,8 +163,6 @@ stages:
         variables:
           VSCODE_ARCH: x64
         steps:
-          - script: echo "${{ variables['Build.Repository.Uri'] }}"
-            displayName: "Hello World"
           - template: product-compile.yml
             parameters:
               VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
