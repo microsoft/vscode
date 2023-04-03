@@ -81,11 +81,8 @@ export class SharedProcess extends Disposable {
 	private onWillShutdown(): void {
 		this.logService.trace('[SharedProcess] onWillShutdown');
 
-		if (this.utilityProcess) {
-			this.utilityProcess.postMessage('vscode:electron-main->shared-process=exit');
-
-			this.utilityProcess = undefined;
-		}
+		this.utilityProcess?.postMessage('vscode:electron-main->shared-process=exit');
+		this.utilityProcess = undefined;
 	}
 
 	private _whenReady: Promise<void> | undefined = undefined;

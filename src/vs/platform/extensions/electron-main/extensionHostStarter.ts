@@ -20,7 +20,7 @@ export class ExtensionHostStarter implements IDisposable, IExtensionHostStarter 
 
 	private static _lastId: number = 0;
 
-	protected readonly _extHosts: Map<string, WindowUtilityProcess>;
+	private readonly _extHosts = new Map<string, WindowUtilityProcess>();
 	private _shutdown = false;
 
 	constructor(
@@ -29,7 +29,6 @@ export class ExtensionHostStarter implements IDisposable, IExtensionHostStarter 
 		@IWindowsMainService private readonly _windowsMainService: IWindowsMainService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 	) {
-		this._extHosts = new Map<string, WindowUtilityProcess>();
 
 		// On shutdown: gracefully await extension host shutdowns
 		this._lifecycleMainService.onWillShutdown(e => {
