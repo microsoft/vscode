@@ -24,6 +24,7 @@ import { IMarkerData, IMarkerService } from 'vs/platform/markers/common/markers'
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import { LanguageSelector } from 'vs/editor/common/languageSelector';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { MetadataConsts } from 'vs/editor/common/encodedTokenAttributes';
 
 /**
  * Register information about a new language.
@@ -98,7 +99,7 @@ export function setLanguageConfiguration(languageId: string, configuration: Lang
 /**
  * @internal
  */
-export class EncodedTokenizationSupportAdapter implements languages.ITokenizationSupport {
+export class EncodedTokenizationSupportAdapter implements languages.ITokenizationSupport, IDisposable {
 
 	private readonly _languageId: string;
 	private readonly _actual: EncodedTokensProvider;
@@ -106,6 +107,10 @@ export class EncodedTokenizationSupportAdapter implements languages.ITokenizatio
 	constructor(languageId: string, actual: EncodedTokensProvider) {
 		this._languageId = languageId;
 		this._actual = actual;
+	}
+
+	dispose(): void {
+		// NOOP
 	}
 
 	public getInitialState(): languages.IState {
@@ -128,7 +133,7 @@ export class EncodedTokenizationSupportAdapter implements languages.ITokenizatio
 /**
  * @internal
  */
-export class TokenizationSupportAdapter implements languages.ITokenizationSupport {
+export class TokenizationSupportAdapter implements languages.ITokenizationSupport, IDisposable {
 
 	constructor(
 		private readonly _languageId: string,
@@ -136,6 +141,10 @@ export class TokenizationSupportAdapter implements languages.ITokenizationSuppor
 		private readonly _languageService: ILanguageService,
 		private readonly _standaloneThemeService: IStandaloneThemeService,
 	) {
+	}
+
+	dispose(): void {
+		// NOOP
 	}
 
 	public getInitialState(): languages.IState {
@@ -193,7 +202,7 @@ export class TokenizationSupportAdapter implements languages.ITokenizationSuppor
 		let previousStartIndex: number = 0;
 		for (let i = 0, len = tokens.length; i < len; i++) {
 			const t = tokens[i];
-			const metadata = tokenTheme.match(languageId, t.scopes);
+			const metadata = tokenTheme.match(languageId, t.scopes) | MetadataConsts.BALANCED_BRACKETS_MASK;
 			if (resultLen > 0 && result[resultLen - 1] === metadata) {
 				// same metadata
 				continue;
@@ -384,18 +393,16 @@ function createTokenizationSupportAdapter(languageId: string, provider: TokensPr
  * with a tokens provider set using `registerDocumentSemanticTokensProvider` or `registerDocumentRangeSemanticTokensProvider`.
  */
 export function registerTokensProviderFactory(languageId: string, factory: TokensProviderFactory): IDisposable {
-	const adaptedFactory: languages.ITokenizationSupportFactory = {
-		createTokenizationSupport: async (): Promise<languages.ITokenizationSupport | null> => {
-			const result = await Promise.resolve(factory.create());
-			if (!result) {
-				return null;
-			}
-			if (isATokensProvider(result)) {
-				return createTokenizationSupportAdapter(languageId, result);
-			}
-			return new MonarchTokenizer(StandaloneServices.get(ILanguageService), StandaloneServices.get(IStandaloneThemeService), languageId, compile(languageId, result), StandaloneServices.get(IConfigurationService));
+	const adaptedFactory = new languages.LazyTokenizationSupport(async () => {
+		const result = await Promise.resolve(factory.create());
+		if (!result) {
+			return null;
 		}
-	};
+		if (isATokensProvider(result)) {
+			return createTokenizationSupportAdapter(languageId, result);
+		}
+		return new MonarchTokenizer(StandaloneServices.get(ILanguageService), StandaloneServices.get(IStandaloneThemeService), languageId, compile(languageId, result), StandaloneServices.get(IConfigurationService));
+	});
 	return languages.TokenizationRegistry.registerFactory(languageId, adaptedFactory);
 }
 

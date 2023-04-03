@@ -7,28 +7,28 @@ import * as path from 'path';
 import * as vscode from 'vscode';
 import { IExperimentationTelemetryReporter } from './experimentTelemetryReporter';
 import { DiagnosticKind, DiagnosticsManager } from './languageFeatures/diagnostics';
-import * as Proto from './protocol';
-import { EventName } from './protocol.const';
+import * as Proto from './tsServer/protocol/protocol';
+import { EventName } from './tsServer/protocol/protocol.const';
+import { API } from './tsServer/api';
 import BufferSyncSupport from './tsServer/bufferSyncSupport';
 import { OngoingRequestCancellerFactory } from './tsServer/cancellation';
 import { ILogDirectoryProvider } from './tsServer/logDirectoryProvider';
+import { TypeScriptPluginPathsProvider } from './tsServer/pluginPathsProvider';
 import { ITypeScriptServer, TsServerLog, TsServerProcessFactory, TypeScriptServerExitEvent } from './tsServer/server';
 import { TypeScriptServerError } from './tsServer/serverError';
 import { TypeScriptServerSpawner } from './tsServer/spawner';
 import { TypeScriptVersionManager } from './tsServer/versionManager';
 import { ITypeScriptVersionProvider, TypeScriptVersion } from './tsServer/versionProvider';
 import { ClientCapabilities, ClientCapability, ExecConfig, ITypeScriptServiceClient, ServerResponse, TypeScriptRequests } from './typescriptService';
-import API from './utils/api';
-import { ServiceConfigurationProvider, SyntaxServerConfiguration, TsServerLogLevel, TypeScriptServiceConfiguration, areServiceConfigurationsEqual } from './utils/configuration';
+import { ServiceConfigurationProvider, SyntaxServerConfiguration, TsServerLogLevel, TypeScriptServiceConfiguration, areServiceConfigurationsEqual } from './configuration/configuration';
 import { Disposable } from './utils/dispose';
-import * as fileSchemes from './utils/fileSchemes';
-import { Logger } from './utils/logger';
+import * as fileSchemes from './configuration/fileSchemes';
+import { Logger } from './logging/logger';
 import { isWeb, isWebAndHasSharedArrayBuffers } from './utils/platform';
-import { TypeScriptPluginPathsProvider } from './utils/pluginPathsProvider';
-import { PluginManager, TypeScriptServerPlugin } from './utils/plugins';
-import { TelemetryProperties, TelemetryReporter, VSCodeTelemetryReporter } from './utils/telemetry';
-import Tracer from './utils/tracer';
-import { ProjectType, inferredProjectCompilerOptions } from './utils/tsconfig';
+import { PluginManager, TypeScriptServerPlugin } from './tsServer/plugins';
+import { TelemetryProperties, TelemetryReporter, VSCodeTelemetryReporter } from './logging/telemetry';
+import Tracer from './logging/tracer';
+import { ProjectType, inferredProjectCompilerOptions } from './tsconfig';
 
 
 export interface TsDiagnostics {
@@ -697,12 +697,7 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 		}
 
 		if (resource.scheme === fileSchemes.file && !isWeb()) {
-			if (!resource.fsPath) {
-				return undefined;
-			}
-
-			// Convert to posix style path
-			return path.posix.normalize(resource.fsPath.split(path.sep).join(path.posix.sep));
+			return resource.fsPath;
 		}
 
 		return (this.isProjectWideIntellisenseOnWebEnabled() ? '' : this.inMemoryResourcePrefix)

@@ -10,6 +10,7 @@ import { CancellationError, getErrorMessage } from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
 import { isWeb } from 'vs/base/common/platform';
+import { isDefined } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import * as nls from 'vs/nls';
 import {
@@ -24,11 +25,7 @@ import { IProductService } from 'vs/platform/product/common/productService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
 
-export const enum ExtensionVerificationStatus {
-	'Verified' = 'Verified',
-	'Unverified' = 'Unverified',
-	'UnknownError' = 'UnknownError',
-}
+export type ExtensionVerificationStatus = boolean | string;
 
 export type InstallExtensionTaskOptions = InstallOptions & InstallVSIXOptions & { readonly profileLocation: URI };
 export interface IInstallExtensionTask {
@@ -659,7 +656,7 @@ export abstract class AbstractExtensionManagementService extends Disposable impl
 	abstract installExtensionsFromProfile(extensions: IExtensionIdentifier[], fromProfileLocation: URI, toProfileLocation: URI): Promise<ILocalExtension[]>;
 	abstract getInstalled(type?: ExtensionType, profileLocation?: URI): Promise<ILocalExtension[]>;
 	abstract copyExtensions(fromProfileLocation: URI, toProfileLocation: URI): Promise<void>;
-	abstract download(extension: IGalleryExtension, operation: InstallOperation): Promise<URI>;
+	abstract download(extension: IGalleryExtension, operation: InstallOperation, donotVerifySignature: boolean): Promise<URI>;
 	abstract reinstallFromGallery(extension: ILocalExtension): Promise<ILocalExtension>;
 	abstract cleanUp(): Promise<void>;
 
@@ -694,10 +691,21 @@ function reportTelemetry(telemetryService: ITelemetryService, eventName: string,
 	let errorcode: ExtensionManagementErrorCode | undefined;
 	let errorcodeDetail: string | undefined;
 
+	if (isDefined(verificationStatus)) {
+		if (verificationStatus === true) {
+			verificationStatus = 'Verified';
+		} else if (verificationStatus === false) {
+			verificationStatus = 'Unverified';
+		} else {
+			errorcode = ExtensionManagementErrorCode.Signature;
+			errorcodeDetail = verificationStatus;
+			verificationStatus = 'Unverified';
+		}
+	}
+
 	if (error) {
 		if (error instanceof ExtensionManagementError) {
 			errorcode = error.code;
-
 			if (error.code === ExtensionManagementErrorCode.Signature) {
 				errorcodeDetail = error.message;
 			}

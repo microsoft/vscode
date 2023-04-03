@@ -63,7 +63,9 @@ suite('InteractiveSession', () => {
 		testService.registerProvider(provider2);
 
 		let session1 = await testService.startSession('provider1', true, CancellationToken.None);
+		session1!.addRequest('request 1');
 		let session2 = await testService.startSession('provider2', true, CancellationToken.None);
+		session2!.addRequest('request 2');
 		assert.strictEqual(provider1.lastInitialState, undefined);
 		assert.strictEqual(provider2.lastInitialState, undefined);
 		testService.acceptNewSessionState(session1!.sessionId, { state: 'provider1_state' });

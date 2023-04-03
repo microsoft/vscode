@@ -5,6 +5,7 @@
 
 import * as dom from 'vs/base/browser/dom';
 import { Button, IButtonStyles } from 'vs/base/browser/ui/button/button';
+import { MarkdownString } from 'vs/base/common/htmlContent';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IInteractiveSessionFollowup } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionService';
 
@@ -24,11 +25,18 @@ export class InteractiveSessionFollowups<T extends IInteractiveSessionFollowup> 
 	}
 
 	private renderFollowup(container: HTMLElement, followup: T): void {
-		const button = this._register(new Button(container, { ...this.options, supportIcons: true }));
+		const tooltip = 'tooltip' in followup ? followup.tooltip : undefined;
+		const button = this._register(new Button(container, { ...this.options, supportIcons: true, title: tooltip }));
+		if (followup.kind === 'reply') {
+			button.element.classList.add('interactive-followup-reply');
+		} else if (followup.kind === 'command') {
+			button.element.classList.add('interactive-followup-command');
+		}
+
 		const label = followup.kind === 'reply' ?
-			'$(wand) ' + (followup.title || followup.message) :
+			'$(sparkle) ' + (followup.title || followup.message) :
 			followup.title;
-		button.label = label;
+		button.label = new MarkdownString(label, { supportThemeIcons: true });
 
 		this._register(button.onDidClick(() => this.clickHandler(followup)));
 	}

@@ -233,7 +233,7 @@ export class CodeActionUi extends Disposable {
 			tooltip: command.tooltip ?? '',
 			class: undefined,
 			enabled: true,
-			run: () => this._commandService.executeCommand(command.id, ...(command.commandArguments ?? [])),
+			run: () => this._commandService.executeCommand(command.id, ...(command.arguments ?? [])),
 		}));
 
 		if (options.includeDisabledActions && actions.validActions.length > 0 && actions.allActions.length !== actions.validActions.length) {

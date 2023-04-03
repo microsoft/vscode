@@ -110,6 +110,10 @@ export class OverlayWebview extends Disposable implements IOverlayWebview {
 	}
 
 	public claim(owner: any, scopedContextKeyService: IContextKeyService | undefined) {
+		if (this._isDisposed) {
+			return;
+		}
+
 		const oldOwner = this._owner;
 
 		this._owner = owner;
@@ -222,6 +226,7 @@ export class OverlayWebview extends Disposable implements IOverlayWebview {
 			this._webviewEvents.add(webview.onMissingCsp(x => { this._onMissingCsp.fire(x); }));
 			this._webviewEvents.add(webview.onDidWheel(x => { this._onDidWheel.fire(x); }));
 			this._webviewEvents.add(webview.onDidReload(() => { this._onDidReload.fire(); }));
+			this._webviewEvents.add(webview.onFatalError(x => { this._onFatalError.fire(x); }));
 
 			this._webviewEvents.add(webview.onDidScroll(x => {
 				this._initialScrollProgress = x.scrollYPercentage;
@@ -319,6 +324,9 @@ export class OverlayWebview extends Disposable implements IOverlayWebview {
 
 	private readonly _onDidWheel = this._register(new Emitter<IMouseWheelEvent>());
 	public readonly onDidWheel = this._onDidWheel.event;
+
+	private readonly _onFatalError = this._register(new Emitter<{ readonly message: string }>());
+	public onFatalError = this._onFatalError.event;
 
 	public async postMessage(message: any, transfer?: readonly ArrayBuffer[]): Promise<boolean> {
 		if (this._webview.value) {

@@ -163,7 +163,7 @@ async function main(): Promise<void> {
 	const platform = getPlatform(product, os, arch, unprocessedType);
 	const type = getRealType(unprocessedType);
 	const quality = getEnv('VSCODE_QUALITY');
-	const commit = process.env['VSCODE_DISTRO_COMMIT'] || getEnv('BUILD_SOURCEVERSION');
+	const commit = getEnv('BUILD_SOURCEVERSION');
 
 	console.log('Creating asset...');
 

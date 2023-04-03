@@ -1097,7 +1097,7 @@ class TimelineActionRunner extends ActionRunner {
 			return;
 		}
 
-		await action.run(...[
+		await action.run(
 			{
 				$mid: MarshalledId.TimelineActionContext,
 				handle: item.handle,
@@ -1106,7 +1106,7 @@ class TimelineActionRunner extends ActionRunner {
 			},
 			uri,
 			item.source,
-		]);
+		);
 	}
 }
 

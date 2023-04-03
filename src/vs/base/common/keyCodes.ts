@@ -648,7 +648,7 @@ for (let i = 0; i <= KeyCode.MAX_VALUE; i++) {
 		[5, 1, ScanCode.None, empty, KeyCode.Ctrl, 'Ctrl', 17, 'VK_CONTROL', empty, empty],
 		[4, 1, ScanCode.None, empty, KeyCode.Shift, 'Shift', 16, 'VK_SHIFT', empty, empty],
 		[6, 1, ScanCode.None, empty, KeyCode.Alt, 'Alt', 18, 'VK_MENU', empty, empty],
-		[57, 1, ScanCode.None, empty, KeyCode.Meta, 'Meta', 0, 'VK_COMMAND', empty, empty],
+		[57, 1, ScanCode.None, empty, KeyCode.Meta, 'Meta', 91, 'VK_COMMAND', empty, empty],
 		[5, 1, ScanCode.ControlLeft, 'ControlLeft', KeyCode.Ctrl, empty, 0, 'VK_LCONTROL', empty, empty],
 		[4, 1, ScanCode.ShiftLeft, 'ShiftLeft', KeyCode.Shift, empty, 0, 'VK_LSHIFT', empty, empty],
 		[6, 1, ScanCode.AltLeft, 'AltLeft', KeyCode.Alt, empty, 0, 'VK_LMENU', empty, empty],

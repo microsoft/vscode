@@ -972,9 +972,13 @@ export class Repository implements Disposable {
 			return;
 		}
 
-		const path = uri.path;
+		// Ignore path that is inside a merge group
+		if (this.mergeGroup.resourceStates.some(r => r.resourceUri.path === uri.path)) {
+			return undefined;
+		}
 
-		if (this.mergeGroup.resourceStates.some(r => r.resourceUri.path === path)) {
+		// Ignore path that is inside a submodule
+		if (this.submodules.some(s => isDescendant(path.join(this.repository.root, s.path), uri.path))) {
 			return undefined;
 		}
 
