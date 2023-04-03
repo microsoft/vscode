@@ -304,9 +304,10 @@ export class MultipleSizePersistingMechanism implements IPersistingMechanism {
 			// width = Math.min(maxWidth, width);
 			// height = Math.min(maxHeight, height);
 
-			if (!this._maxRenderingHeight) {
-				return;
-			}
+			// if (!this._maxRenderingHeight) {
+			// 	console.log('returning because of the max rendering height');
+			// 	return;
+			// }
 			// this._size = new dom.Dimension(width, height);
 			// this.element.layout(height, width);
 			this.resizableWidget.resize(new dom.Dimension(width, height));
