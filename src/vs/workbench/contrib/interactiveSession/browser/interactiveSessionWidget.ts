@@ -38,7 +38,7 @@ import { IInteractiveSessionWidget } from 'vs/workbench/contrib/interactiveSessi
 import { InteractiveSessionFollowups } from 'vs/workbench/contrib/interactiveSession/browser/interactiveSessionFollowups';
 import { IInteractiveSessionRendererDelegate, InteractiveListItemRenderer, InteractiveSessionAccessibilityProvider, InteractiveSessionListDelegate, InteractiveTreeItem } from 'vs/workbench/contrib/interactiveSession/browser/interactiveSessionListRenderer';
 import { InteractiveSessionEditorOptions } from 'vs/workbench/contrib/interactiveSession/browser/interactiveSessionOptions';
-import { CONTEXT_INTERACTIVE_REQUEST_IN_PROGRESS, CONTEXT_IN_INTERACTIVE_INPUT, CONTEXT_IN_INTERACTIVE_SESSION } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionContextKeys';
+import { CONTEXT_INTERACTIVE_INPUT_HAS_TEXT, CONTEXT_INTERACTIVE_REQUEST_IN_PROGRESS, CONTEXT_IN_INTERACTIVE_INPUT, CONTEXT_IN_INTERACTIVE_SESSION } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionContextKeys';
 import { IInteractiveSessionReplyFollowup, IInteractiveSessionService, IInteractiveSlashCommand } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionService';
 import { IInteractiveSessionViewModel, InteractiveSessionViewModel, isRequestVM, isResponseVM, isWelcomeVM } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionViewModel';
 import { IInteractiveSessionWidgetHistoryService } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionWidgetHistoryService';
@@ -110,6 +110,7 @@ export class InteractiveSessionWidget extends Disposable implements IInteractive
 	private bodyDimension: dom.Dimension | undefined;
 	private visible = false;
 	private requestInProgress: IContextKey<boolean>;
+	private inputEditorHasText: IContextKey<boolean>;
 
 	private previousTreeScrollHeight: number = 0;
 
@@ -168,6 +169,7 @@ export class InteractiveSessionWidget extends Disposable implements IInteractive
 		super();
 		CONTEXT_IN_INTERACTIVE_SESSION.bindTo(contextKeyService).set(true);
 		this.requestInProgress = CONTEXT_INTERACTIVE_REQUEST_IN_PROGRESS.bindTo(contextKeyService);
+		this.inputEditorHasText = CONTEXT_INTERACTIVE_INPUT_HAS_TEXT.bindTo(contextKeyService);
 
 		this._register((interactiveSessionWidgetService as InteractiveSessionWidgetService).register(this));
 		this.initializeSessionModel(true);
@@ -463,7 +465,9 @@ export class InteractiveSessionWidget extends Disposable implements IInteractive
 			// Only allow history navigation when the input is empty.
 			// (If this model change happened as a result of a history navigation, this is canceled out by a call in this.navigateHistory)
 			const model = this._inputEditor.getModel();
-			this.setHistoryNavigationEnablement(!!model && model.getValue() === '');
+			const inputHasText = !!model && model.getValue() !== '';
+			this.setHistoryNavigationEnablement(!inputHasText);
+			this.inputEditorHasText.set(inputHasText);
 		}));
 		this._register(this._inputEditor.onDidFocusEditorText(() => {
 			this._onDidFocus.fire();
@@ -577,6 +581,8 @@ export class InteractiveSessionWidget extends Disposable implements IInteractive
 				this._inputEditor.setValue('');
 				revealLastElement(this.tree);
 			}
+
+			this._inputEditor.focus();
 		}
 	}
 
