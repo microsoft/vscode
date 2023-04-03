@@ -30,7 +30,6 @@ import { ILifecycleMainService } from 'vs/platform/lifecycle/electron-main/lifec
 import { ILogService } from 'vs/platform/log/common/log';
 import { ICommonNativeHostService, IOSProperties, IOSStatistics } from 'vs/platform/native/common/native';
 import { IProductService } from 'vs/platform/product/common/productService';
-import { ISharedProcess } from 'vs/platform/sharedProcess/node/sharedProcess';
 import { IPartsSplash } from 'vs/platform/theme/common/themeService';
 import { IThemeMainService } from 'vs/platform/theme/electron-main/themeMainService';
 import { ICodeWindow } from 'vs/platform/window/electron-main/window';
@@ -53,7 +52,6 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 	declare readonly _serviceBrand: undefined;
 
 	constructor(
-		private sharedProcess: ISharedProcess,
 		@IWindowsMainService private readonly windowsMainService: IWindowsMainService,
 		@IDialogMainService private readonly dialogMainService: IDialogMainService,
 		@ILifecycleMainService private readonly lifecycleMainService: ILifecycleMainService,
@@ -783,10 +781,6 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 		} else {
 			this.stateService.removeItem('window.experimental.useSandbox');
 		}
-	}
-
-	async toggleSharedProcessWindow(): Promise<void> {
-		return this.sharedProcess.toggle();
 	}
 
 	//#endregion
