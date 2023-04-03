@@ -17,7 +17,6 @@ import { GotoDefinitionAtPositionEditorContribution } from 'vs/editor/contrib/go
 import { HoverStartMode, HoverStartSource } from 'vs/editor/contrib/hover/browser/hoverOperation';
 import { ContentHoverWidget, ContentHoverController } from 'vs/editor/contrib/hover/browser/contentHover';
 import { MarginHoverWidget } from 'vs/editor/contrib/hover/browser/marginHover';
-import * as nls from 'vs/nls';
 import { AccessibilitySupport } from 'vs/platform/accessibility/common/accessibility';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
@@ -31,6 +30,7 @@ import 'vs/css!./hover';
 import { InlineSuggestionHintsContentWidget } from 'vs/editor/contrib/inlineCompletions/browser/inlineSuggestionHintsWidget';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ResizableHoverWidget } from 'vs/editor/contrib/hover/browser/resizableHoverWidget';
+import * as nls from 'vs/nls';
 
 export class ModesHoverController implements IEditorContribution {
 

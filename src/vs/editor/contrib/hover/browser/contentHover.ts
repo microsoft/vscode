@@ -31,7 +31,7 @@ const $ = dom.$;
 export class ContentHoverController extends Disposable {
 
 	private readonly _participants: IEditorHoverParticipant[];
-	private readonly _widget;
+	private readonly _widget = this._register(this._instantiationService.createInstance(ResizableHoverWidget, this._editor));
 	private readonly _computer: ContentHoverComputer;
 	private readonly _hoverOperation: HoverOperation<IHoverPart>;
 
@@ -44,7 +44,6 @@ export class ContentHoverController extends Disposable {
 	) {
 		super();
 
-		this._widget = this._register(this._instantiationService.createInstance(ResizableHoverWidget, this._editor));
 		// Instantiate participants and sort them by `hoverOrdinal` which is relevant for rendering order.
 		this._participants = [];
 		for (const participant of HoverParticipantRegistry.getAll()) {
@@ -87,10 +86,8 @@ export class ContentHoverController extends Disposable {
 
 		// While the hover overlay is resizing, the hover is showing
 		if (this._widget.isResizing()) {
-			console.log('early return because is resizing');
 			return true;
 		}
-
 		const anchorCandidates: HoverAnchor[] = [];
 
 		for (const participant of this._participants) {
@@ -154,7 +151,6 @@ export class ContentHoverController extends Disposable {
 		}
 
 		if (!anchor) {
-			console.log('iniside of no anchor');
 			this._setCurrentResult(null);
 			return false;
 		}
@@ -166,7 +162,6 @@ export class ContentHoverController extends Disposable {
 
 		if (!anchor.canAdoptVisibleHover(this._currentResult.anchor, this._widget.position)) {
 			// The new anchor is not compatible with the previous anchor
-			console.log('inside of cn not adopt visible hover');
 			this._setCurrentResult(null);
 			this._startHoverOperationIfNecessary(anchor, mode, source, focus, false);
 			return true;
@@ -210,7 +205,6 @@ export class ContentHoverController extends Disposable {
 	}
 
 	public hide(): void {
-		console.log('inside of hide of content hover controller');
 		this._computer.anchor = null;
 		this._hoverOperation.cancel();
 		this._setCurrentResult(null);
