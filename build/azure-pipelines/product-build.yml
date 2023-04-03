@@ -156,15 +156,6 @@ resources:
       endpoint: VSCodeHub
 
 stages:
-  - ${{ if eq(variables['Build.Repository.Uri'], 'foo') }}:
-    - stage: Debug
-      jobs:
-        - job: Debug
-          pool: vscode-1es-linux
-          steps:
-            - script: echo "Hello World"
-              displayName: "Hello World"
-
   - stage: Compile
     jobs:
       - job: Compile
@@ -172,6 +163,8 @@ stages:
         variables:
           VSCODE_ARCH: x64
         steps:
+          - script: echo "${{ variables['Build.Repository.Uri'] }}"
+            displayName: "Hello World"
           - template: product-compile.yml
             parameters:
               VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
