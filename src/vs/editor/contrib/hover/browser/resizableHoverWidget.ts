@@ -17,7 +17,10 @@ import { PositionAffinity } from 'vs/editor/common/model';
 import { IEditorHoverColorPickerWidget } from 'vs/editor/contrib/hover/browser/hoverTypes';
 
 const SCROLLBAR_WIDTH = 10;
+
 // TODO: maybe don't need the resizable widget class
+// TODO: How to increase the z-index so that appears above the tabs? Somehow does not work
+
 export class ResizableHoverWidget extends ResizableWidget {
 
 	public static ID = 'editor.contrib.resizableContentHoverWidget';
@@ -124,6 +127,8 @@ export class ResizableHoverWidget extends ResizableWidget {
 		this.hoverWidget.scrollbar.scanDomNode();
 		this.editor.layoutContentWidget(this.resizableContentWidget);
 		this.editor.render();
+
+		console.log('this.resizableContentWidget.getDomNode() : ', this.resizableContentWidget.getDomNode());
 	}
 
 	public override findMaximumRenderingHeight(): number | undefined {
@@ -240,7 +245,8 @@ export class ResizableHoverWidget extends ResizableWidget {
 		this.resizableContentWidget.secondaryPosition = visibleData.showAtSecondaryPosition;
 		this.resizableContentWidget.preference = [this.renderingAbove];
 		this.resizableContentWidget.positionAffinity = visibleData.isBeforeContent ? PositionAffinity.LeftOfInjectedText : undefined;
-
+		this.resizableContentWidget.getDomNode().style.position = 'fixed';
+		this.resizableContentWidget.getDomNode().style.zIndex = '100';
 		this.editor.addContentWidget(this.resizableContentWidget);
 
 		const persistedSize = this.findPersistedSize();
@@ -311,6 +317,12 @@ export class ResizableHoverWidget extends ResizableWidget {
 			this.renderingAbove = height <= maxHeightAbove ? ContentWidgetPositionPreference.ABOVE : ContentWidgetPositionPreference.BELOW;
 		} else {
 			this.renderingAbove = height <= maxHeightBelow ? ContentWidgetPositionPreference.BELOW : ContentWidgetPositionPreference.ABOVE;
+		}
+
+		if (this.renderingAbove === ContentWidgetPositionPreference.ABOVE) {
+			this.element.enableSashes(true, true, false, false);
+		} else {
+			this.element.enableSashes(false, true, true, false);
 		}
 
 		// See https://github.com/microsoft/vscode/issues/140339
@@ -440,6 +452,7 @@ export class ResizableHoverWidget extends ResizableWidget {
 			}
 		}
 
+		console.log('this.resizableContentWidget : ', this.resizableContentWidget);
 		this.editor.layoutContentWidget(this.resizableContentWidget);
 	}
 

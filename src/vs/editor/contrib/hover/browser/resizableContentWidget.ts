@@ -43,8 +43,10 @@ export abstract class ResizableWidget implements IDisposable {
 		this._disposables.add(this.element.onDidWillResize(() => {
 			this.resizing = true;
 		}));
-		this._disposables.add(this.element.onDidResize(() => {
-			this.resizing = false;
+		this._disposables.add(this.element.onDidResize((e) => {
+			if (e.done) {
+				this.resizing = false;
+			}
 		}));
 	}
 
@@ -102,7 +104,7 @@ export abstract class ResizableContentWidget implements IContentWidget {
 	getDomNode(): HTMLElement {
 		console.log('Inside of getDomNode of ResizableContentWidget');
 		console.log('this.resizableWidget.element.domNode : ', this.resizableWidget.element.domNode);
-		this.resizableWidget.element.domNode.style.zIndex = '49';
+		this.resizableWidget.element.domNode.style.zIndex = '100';
 		this.resizableWidget.element.domNode.style.position = 'fixed';
 		// this.resizableWidget.element.domNode.style.display = 'block';
 		return this.resizableWidget.element.domNode;
