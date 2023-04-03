@@ -146,13 +146,13 @@ flakySuite('Native Modules (all platforms)', () => {
 		assert.ok(typeof result === 'string' || typeof result === 'undefined', testErrorMessage('@vscode/windows-registry'));
 	});
 
-	test('vscode-windows-ca-certs', async () => {
+	test('@vscode/windows-ca-certs', async () => {
 		// @ts-ignore we do not directly depend on this module anymore
-		// but indirectly from our dependency to `vscode-proxy-agent`
+		// but indirectly from our dependency to `@vscode/proxy-agent`
 		// we still want to ensure this module can work properly.
-		const windowsCerts = await import('vscode-windows-ca-certs');
+		const windowsCerts = await import('@vscode/windows-ca-certs');
 		const store = new windowsCerts.Crypt32();
-		assert.ok(windowsCerts, testErrorMessage('vscode-windows-ca-certs'));
+		assert.ok(windowsCerts, testErrorMessage('@vscode/windows-ca-certs'));
 		let certCount = 0;
 		try {
 			while (store.next()) {
