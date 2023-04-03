@@ -115,7 +115,8 @@ export class ResizableHoverWidget extends ResizableWidget {
 			if (this.hoverWidget.contentsDomNode.style.paddingBottom !== extraBottomPadding) {
 				this.hoverWidget.contentsDomNode.style.paddingBottom = extraBottomPadding;
 			}
-			this.hoverWidget.contentsDomNode.style.height = size.height - SCROLLBAR_WIDTH + 'px'; // - 2 * SASH_WIDTH + TOTAL_BORDER_WIDTH
+			this.hoverWidget.contentsDomNode.style.height = size.height - SCROLLBAR_WIDTH - 7 + 'px';
+			//  - 2 * SASH_WIDTH + TOTAL_BORDER_WIDTH
 		}
 
 		this.hoverWidget.scrollbar.scanDomNode();
@@ -415,26 +416,6 @@ export class ResizableHoverWidget extends ResizableWidget {
 			}
 		}
 	}
-
-	// OLD FUNCTION
-	/*
-	public onContentsChanged(): void {
-		this.editor.layoutContentWidget(this.resizableContentWidget);
-		this._hover.onContentsChanged();
-
-		const scrollDimensions = this._hover.scrollbar.getScrollDimensions();
-		const hasHorizontalScrollbar = (scrollDimensions.scrollWidth > scrollDimensions.width);
-		if (hasHorizontalScrollbar) {
-			// There is just a horizontal scrollbar
-			const extraBottomPadding = `${this._hover.scrollbar.options.horizontalScrollbarSize}px`;
-			if (this._hover.contentsDomNode.style.paddingBottom !== extraBottomPadding) {
-				this._hover.contentsDomNode.style.paddingBottom = extraBottomPadding;
-				this.editor.layoutContentWidget(this.resizableContentWidget);
-				this._hover.onContentsChanged();
-			}
-		}
-	}
-	*/
 
 	public clear(): void {
 		this.hoverWidget.contentsDomNode.textContent = '';
