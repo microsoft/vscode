@@ -1311,6 +1311,15 @@
     https-proxy-agent "^5.0.0"
     proxy-from-env "^1.1.0"
 
+"@vscode/spdlog@^0.13.8":
+  version "0.13.8"
+  resolved "https://registry.yarnpkg.com/@vscode/spdlog/-/spdlog-0.13.8.tgz#6136438e149f90eeb9d493d7b396866a542e1229"
+  integrity sha512-yYgiAF2eOFJJRvDGdB3b7LNNS+CTdIkmHmAYUr8RaAu+aJlCsRkfCdMS/jisnyHzVLYlE4bZYn/gkAbROtEeYw==
+  dependencies:
+    bindings "^1.5.0"
+    mkdirp "^0.5.5"
+    nan "^2.17.0"
+
 "@vscode/sqlite3@5.1.2-vscode":
   version "5.1.2-vscode"
   resolved "https://registry.yarnpkg.com/@vscode/sqlite3/-/sqlite3-5.1.2-vscode.tgz#ba15962d23ad784a43ecbaaa22c93f17f93b2400"
@@ -9348,15 +9357,6 @@ sparkles@^1.0.0:
   version "1.0.1"
   resolved "https://registry.yarnpkg.com/sparkles/-/sparkles-1.0.1.tgz#008db65edce6c50eec0c5e228e1945061dd0437c"
   integrity sha512-dSO0DDYUahUt/0/pD/Is3VIm5TGJjludZ0HVymmhYF6eNA53PVLhnUk0znSYbH8IYBuJdCE+1luR22jNLMaQdw==
-
-spdlog@^0.13.0:
-  version "0.13.7"
-  resolved "https://registry.yarnpkg.com/spdlog/-/spdlog-0.13.7.tgz#719a972be103e473770202e37dca1c9d80502180"
-  integrity sha512-DiWxvyHuDJKfNuanSnizY2pmqZGaSHej3xpOD4LQ+kkT3oLWpCXI6VRFDnziyXBQKCl8kmyaYnOu9QBhf1WEXQ==
-  dependencies:
-    bindings "^1.5.0"
-    mkdirp "^0.5.5"
-    nan "^2.17.0"
 
 spdx-correct@^3.0.0:
   version "3.1.1"

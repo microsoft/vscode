@@ -12,6 +12,14 @@ fsevents/src/**
 fsevents/test/**
 !fsevents/**/*.node
 
+@vscode/spdlog/binding.gyp
+@vscode/spdlog/build/**
+@vscode/spdlog/deps/**
+@vscode/spdlog/src/**
+@vscode/spdlog/test/**
+@vscode/spdlog/*.yml
+!@vscode/spdlog/build/Release/*.node
+
 @vscode/sqlite3/binding.gyp
 @vscode/sqlite3/benchmark/**
 @vscode/sqlite3/cloudformation/**
@@ -52,14 +60,6 @@ node-vsce-sign/**
 !node-vsce-sign/src/main.js
 !node-vsce-sign/package.json
 !node-vsce-sign/bin/**
-
-spdlog/binding.gyp
-spdlog/build/**
-spdlog/deps/**
-spdlog/src/**
-spdlog/test/**
-spdlog/*.yml
-!spdlog/build/Release/*.node
 
 windows-foreground-love/binding.gyp
 windows-foreground-love/build/**
