@@ -28,7 +28,6 @@ export class BufferContentTracker {
 			// the terminal was cleared, reset the cache
 			this._lines = [];
 			this._lastCachedMarker = undefined;
-			return;
 		}
 		this._removeViewportContent();
 		this._updateScrollbackContent();
@@ -37,10 +36,10 @@ export class BufferContentTracker {
 	}
 
 	private _removeViewportContent(): void {
-		if (this._lines.length && this._lastCachedMarker?.line) {
+		if (this._lines.length && this._lastCachedMarker) {
 			// remove previous viewport content in case it has changed
 			let i = 0;
-			while (i < this._priorViewportLineCount) {
+			while (i <= this._priorViewportLineCount) {
 				this._lines.pop();
 				i++;
 			}
@@ -55,7 +54,7 @@ export class BufferContentTracker {
 		}
 		let linesInViewport = 0;
 		let currentLine: string = '';
-		for (let i = buffer.baseY; i < buffer.baseY + this._xterm.raw.rows - 1; i++) {
+		for (let i = buffer.baseY; i < buffer.baseY + this._xterm.raw.rows; i++) {
 			const line = buffer.getLine(i);
 			if (!line) {
 				continue;
