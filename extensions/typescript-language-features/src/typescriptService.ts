@@ -76,7 +76,7 @@ interface StandardTsServerRequests {
 	'findSourceDefinition': [Proto.FileLocationRequestArgs, Proto.DefinitionResponse];
 	'getMoveToRefactoringFileSuggestions': [Proto.GetMoveToRefactoringFileSuggestionsRequestArgs, Proto.GetMoveToRefactoringFileSuggestionsResponse];
 	'getEditsForMoveToFileRefactor': [Proto.GetEditsForMoveToFileRefactorRequestArgs, Proto.GetEditsForMoveToFileRefactorResponse];
-	'jsxLinkedEdit': [Proto.FileLocationRequestArgs, Proto.JsxLinkedEditResponse];
+	'LinkedEditing': [Proto.FileLocationRequestArgs, Proto.LinkedEditingResponse];
 }
 
 interface NoResponseTsServerRequests {

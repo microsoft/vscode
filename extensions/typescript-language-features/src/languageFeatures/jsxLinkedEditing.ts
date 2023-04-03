@@ -4,11 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
+import { DocumentSelector } from '../configuration/documentSelector';
+import { API } from '../tsServer/api';
+import * as typeConverters from '../typeConverters';
 import { ClientCapability, ITypeScriptServiceClient } from '../typescriptService';
-import { conditionalRegistration, requireMinVersion, requireSomeCapability } from '../utils/dependentRegistration';
-import { DocumentSelector } from '../utils/documentSelector';
-import * as typeConverters from '../utils/typeConverters';
-import API from '../utils/api';
+import { conditionalRegistration, requireMinVersion, requireSomeCapability } from './util/dependentRegistration';
 
 class JsxLinkedEditingSupport implements vscode.LinkedEditingRangeProvider {
 
@@ -25,12 +25,12 @@ class JsxLinkedEditingSupport implements vscode.LinkedEditingRangeProvider {
 		}
 
 		const args = typeConverters.Position.toFileLocationRequestArgs(filepath, position);
-		const response = await this.client.execute('jsxLinkedEdit', args, token);
+		const response = await this.client.execute('LinkedEditing', args, token);
 		if (response.type !== 'response' || !response.body) {
 			return undefined;
 		}
 
-		const wordPattern = response.body.wordPattern ? new RegExp(response.body.wordPattern) : undefined;
+		const wordPattern = undefined;//response.body.wordPattern ? new RegExp(response.body.wordPattern) : undefined;
 		return new vscode.LinkedEditingRanges(response.body.ranges.map(range => typeConverters.Range.fromTextSpan(range)), wordPattern);
 	}
 }
