@@ -1400,10 +1400,10 @@
   dependencies:
     node-addon-api "^3.0.2"
 
-"@vscode/windows-registry@1.0.6":
-  version "1.0.6"
-  resolved "https://registry.yarnpkg.com/@vscode/windows-registry/-/windows-registry-1.0.6.tgz#8b9fb9a55bf5a0be4ea11849c45ae94c6910e3e4"
-  integrity sha512-ZW5bz9F3Ta6zsikce2dchyruF3QsRyWYKOJ2dEicS+inReD/oE8Um+KsLVcvrjIb44aSYpsm64DIUmMl15ujtg==
+"@vscode/windows-registry@1.0.8":
+  version "1.0.8"
+  resolved "https://registry.yarnpkg.com/@vscode/windows-registry/-/windows-registry-1.0.8.tgz#064d5fc86c34dd60d2e6d64a1611035ba0c7464f"
+  integrity sha512-6yvwDBnB+Xg5VBCVbmNBfEJAoeWWe2UQBxZUlfxkGf6+habAx6a5g6wQcdcMJc1w7l/wR2zhGPNgqVQttKKO/w==
 
 "@webassemblyjs/ast@1.11.1":
   version "1.11.1"
