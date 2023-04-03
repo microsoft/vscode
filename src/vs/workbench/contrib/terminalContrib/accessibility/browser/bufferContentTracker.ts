@@ -30,30 +30,29 @@ export class BufferContentTracker {
 			this._lastCachedMarker = undefined;
 		}
 		this._removeViewportContent();
-		const cached = this._getCachedContent();
+		this._updateCachedContent();
 		const viewport = this._updateViewportContent();
 		this._lastCachedMarker = this._xterm.raw.registerMarker();
-		this._lines = cached ? [...cached, ...viewport] : [...viewport];
+		this._lines.push(...viewport);
 		this._logService.debug('Cached lines', this._lines);
 	}
 
-	private _getCachedContent(): string[] | undefined {
+	private _updateCachedContent(): void {
 		if (!this._lastCachedMarker?.line) {
-			return undefined;
+			return;
 		}
-		const cached = this._lines;
 		let currentLine: string = '';
 		const buffer = this._xterm.raw.buffer.active;
 		const scrollback: number = this._configurationService.getValue(TerminalSettingId.Scrollback);
 		const maxBufferSize = scrollback + this._xterm.raw.rows - 1;
 		const numToAdd = this._xterm.raw.buffer.active.baseY - this._lastCachedMarker?.line + this._priorViewportLineCount;
-		if (numToAdd + cached.length > maxBufferSize) {
+		if (numToAdd + this._lines.length > maxBufferSize) {
 			// remove lines from the top of the cache if it will exceed the max buffer size
-			const numToRemove = numToAdd + cached.length - maxBufferSize;
+			const numToRemove = numToAdd + this._lines.length - maxBufferSize;
 			for (let i = 0; i < numToRemove; i++) {
-				cached.shift();
+				this._lines.shift();
 			}
-			this._logService.debug('Removed ', numToRemove, ' lines from top of cached lines, now ', cached.length, ' lines');
+			this._logService.debug('Removed ', numToRemove, ' lines from top of cached lines, now ', this._lines.length, ' lines');
 		}
 		for (let i = this._lastCachedMarker?.line - this._priorViewportLineCount; i < this._xterm.raw.buffer.active.baseY; i++) {
 			const line = buffer.getLine(i);
@@ -66,12 +65,11 @@ export class BufferContentTracker {
 				const line = currentLine.replace(new RegExp(' ', 'g'), '\xA0');
 				if (line.length) {
 					this._logService.debug('cached ', line);
-					cached.push(line);
+					this._lines.push(line);
 					currentLine = '';
 				}
 			}
 		}
-		return cached;
 	}
 
 	private _removeViewportContent(): void {
