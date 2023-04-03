@@ -66,6 +66,15 @@
     https-proxy-agent "^5.0.0"
     proxy-from-env "^1.1.0"
 
+"@vscode/spdlog@^0.13.8":
+  version "0.13.8"
+  resolved "https://registry.yarnpkg.com/@vscode/spdlog/-/spdlog-0.13.8.tgz#6136438e149f90eeb9d493d7b396866a542e1229"
+  integrity sha512-yYgiAF2eOFJJRvDGdB3b7LNNS+CTdIkmHmAYUr8RaAu+aJlCsRkfCdMS/jisnyHzVLYlE4bZYn/gkAbROtEeYw==
+  dependencies:
+    bindings "^1.5.0"
+    mkdirp "^0.5.5"
+    nan "^2.17.0"
+
 "@vscode/vscode-languagedetection@1.0.21":
   version "1.0.21"
   resolved "https://registry.yarnpkg.com/@vscode/vscode-languagedetection/-/vscode-languagedetection-1.0.21.tgz#89b48f293f6aa3341bb888c1118d16ff13b032d3"
@@ -675,15 +684,6 @@ socks@^2.3.3:
   dependencies:
     ip "^1.1.5"
     smart-buffer "^4.1.0"
-
-spdlog@^0.13.0:
-  version "0.13.7"
-  resolved "https://registry.yarnpkg.com/spdlog/-/spdlog-0.13.7.tgz#719a972be103e473770202e37dca1c9d80502180"
-  integrity sha512-DiWxvyHuDJKfNuanSnizY2pmqZGaSHej3xpOD4LQ+kkT3oLWpCXI6VRFDnziyXBQKCl8kmyaYnOu9QBhf1WEXQ==
-  dependencies:
-    bindings "^1.5.0"
-    mkdirp "^0.5.5"
-    nan "^2.17.0"
 
 string-width@^1.0.1:
   version "1.0.2"
