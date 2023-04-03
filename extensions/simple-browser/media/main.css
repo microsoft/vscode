@@ -103,7 +103,7 @@ iframe {
 	position: absolute;
 	bottom: 1em;
 	background: var(--vscode-editorWidget-background);
-	color: var(--vscode-editorWidget-foreground);
+	color: var(--vscode-editorWidget-foreground11);
 	padding: 0.2em 0.2em;
 	border-radius: 4px;
 
