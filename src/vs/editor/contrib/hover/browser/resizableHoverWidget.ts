@@ -392,8 +392,7 @@ export class ResizableHoverWidget extends ResizableWidget {
 		const hasHorizontalScrollbar = (scrollDimensions.scrollWidth > scrollDimensions.width);
 		console.log('hasHorizontalScrollbar: ', hasHorizontalScrollbar);
 
-		// if (hasHorizontalScrollbar) {
-		if (false) {
+		if (hasHorizontalScrollbar) {
 			// There is just a horizontal scrollbar
 			const extraBottomPadding = `${this.hoverWidget.scrollbar.options.horizontalScrollbarSize}px`;
 			let reposition = false;
@@ -409,6 +408,7 @@ export class ResizableHoverWidget extends ResizableWidget {
 				reposition = true;
 			}
 			if (reposition) {
+				this.element.layout(clientHeight + 17, clientWidth + 7);
 				this.editor.layoutContentWidget(this.resizableContentWidget);
 				this.editor.render();
 				this.hoverWidget.onContentsChanged();
