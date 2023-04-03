@@ -7177,10 +7177,10 @@ napi-build-utils@^1.0.1:
   resolved "https://registry.yarnpkg.com/napi-build-utils/-/napi-build-utils-1.0.2.tgz#b1fddc0b2c46e380a0b7a76f984dd47c41a13806"
   integrity sha512-ONmRUqK7zj7DWX0D9ADe03wbwOBZxNAfF20PlGfCWQcD3+/MakShIHrMqx9YwPTfxDdF1zLeL+RGZiR9kGMLdg==
 
-native-is-elevated@0.4.3:
-  version "0.4.3"
-  resolved "https://registry.yarnpkg.com/native-is-elevated/-/native-is-elevated-0.4.3.tgz#f1071c4a821acc71d43f36ff8051d3816d832e1c"
-  integrity sha512-bHS3sCoh+raqFGIxmL/plER3eBQ+IEBy4RH/4uahhToZneTvqNKQrL0PgOTtnpL55XjBd3dy0pNtZMkCk0J48g==
+native-is-elevated@0.6.0:
+  version "0.6.0"
+  resolved "https://registry.yarnpkg.com/native-is-elevated/-/native-is-elevated-0.6.0.tgz#9fd9c9c53bfd87d6e6af15a5d6bcb8e592b7ec79"
+  integrity sha512-HW1wDo4WYZC7W68kaS0cs7FtDTrcFoAY1APc4SlU4Un/FuL7pjilXFEteBCA58EWClKk0912JLIoekOJ/NohnQ==
 
 native-keymap@^3.3.2:
   version "3.3.3"
@@ -10837,10 +10837,10 @@ wildcard@^2.0.0:
   resolved "https://registry.yarnpkg.com/wildcard/-/wildcard-2.0.0.tgz#a77d20e5200c6faaac979e4b3aadc7b3dd7f8fec"
   integrity sha512-JcKqAHLPxcdb9KM49dufGXn2x3ssnfjbcaQdLlfZsL9rH9wgDQjUtDxbo8NE0F6SFvydeu1VhZe7hZuHsB2/pw==
 
-windows-foreground-love@0.4.0:
-  version "0.4.0"
-  resolved "https://registry.yarnpkg.com/windows-foreground-love/-/windows-foreground-love-0.4.0.tgz#79b628ba0ffc0436fa8066da8f85db042e431976"
-  integrity sha512-IPv60/Z6pJE8AQEBLzYWFfCVh6Z5G6qCrysbJzXYCKFkQY3XivsePdbZ0C0wqRNqsFjpVr06vnIdKfIcZFgDXQ==
+windows-foreground-love@0.5.0:
+  version "0.5.0"
+  resolved "https://registry.yarnpkg.com/windows-foreground-love/-/windows-foreground-love-0.5.0.tgz#7672b04eb05f934a6543cacdc3cd16ff34e3cb10"
+  integrity sha512-yjBwmKEmQBDk3Z7yg/U9hizGWat8C6Pe4MQWl5bN6mvPU81Bt6HV2k/6mGlK3ETJLW1hCLhYx2wcGh+ykUUCyA==
 
 windows-mutex@0.4.1:
   version "0.4.1"
