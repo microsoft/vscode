@@ -20,6 +20,7 @@ export abstract class ResizableWidget implements IDisposable {
 	readonly element: ResizableHTMLElement;
 	private readonly _disposables = new DisposableStore();
 	private readonly _persistingMechanism: IPersistingMechanism;
+	private resizing: boolean = false;
 
 	constructor(
 		private readonly _editor: ICodeEditor,
@@ -38,6 +39,17 @@ export abstract class ResizableWidget implements IDisposable {
 		} else {
 			throw new Error('Please specify a valid persisting mechanism');
 		}
+
+		this._disposables.add(this.element.onDidWillResize(() => {
+			this.resizing = true;
+		}));
+		this._disposables.add(this.element.onDidResize(() => {
+			this.resizing = false;
+		}));
+	}
+
+	public isResizing() {
+		return this.resizing;
 	}
 
 	dispose(): void {
@@ -48,6 +60,7 @@ export abstract class ResizableWidget implements IDisposable {
 	resize(dimension: dom.Dimension): void { }
 
 	hide(): void {
+		this.resizing = false;
 		this.element.clearSashHoverState();
 	}
 

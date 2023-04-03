@@ -76,10 +76,20 @@ export class ContentHoverController extends Disposable {
 		}));
 	}
 
+	get widget() {
+		return this._widget;
+	}
+
 	/**
 	 * Returns true if the hover shows now or will show.
 	 */
 	public maybeShowAt(mouseEvent: IEditorMouseEvent): boolean {
+
+		// While the hover overlay is resizing, the hover is showing
+		if (this._widget.isResizing()) {
+			return true;
+		}
+
 		const anchorCandidates: HoverAnchor[] = [];
 
 		for (const participant of this._participants) {

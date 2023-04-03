@@ -227,7 +227,9 @@ export class ModesHoverController implements IEditorContribution {
 
 		this._hoverClicked = false;
 		this._glyphWidget?.hide();
-		this._contentWidget?.hide();
+		if (!this._contentWidget?.widget.isResizing()) {
+			this._contentWidget?.hide();
+		}
 	}
 
 	private _getOrCreateContentWidget(): ContentHoverController {
