@@ -149,6 +149,7 @@ export class ResizableHoverWidget extends ResizableWidget {
 		}
 
 		if (this.hoverWidget.contentsDomNode.clientWidth < this.hoverWidget.contentsDomNode.scrollWidth) {
+			console.log('Adding the scrollbar width when there is a horizontal scrollbar');
 			divMaxHeight += SCROLLBAR_WIDTH;
 		}
 
@@ -335,6 +336,9 @@ export class ResizableHoverWidget extends ResizableWidget {
 		// const clientWidth = this.hoverWidget.containerDomNode.clientWidth;
 		// this.element.layout(clientHeight, clientWidth);
 
+		this.resizableContentWidget.preference = [this.renderingAbove];
+
+		console.log('this.renderingAbove : ', this.renderingAbove);
 		console.log('At the end of showAt');
 	}
 

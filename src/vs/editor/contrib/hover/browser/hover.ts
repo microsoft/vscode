@@ -221,7 +221,7 @@ export class ModesHoverController implements IEditorContribution {
 	}
 
 	private _hideWidgets(): void {
-		console.log('inside of _hideWidgets');
+		// console.log('inside of _hideWidgets');
 		if ((this._isMouseDown && this._hoverClicked && this._contentWidget?.isColorPickerVisible()) || InlineSuggestionHintsContentWidget.dropDownVisible) {
 			return;
 		}
@@ -229,7 +229,7 @@ export class ModesHoverController implements IEditorContribution {
 		this._hoverClicked = false;
 		this._glyphWidget?.hide();
 		if (!this._contentWidget?.widget.isResizing()) {
-			console.log('calling hide on content widget');
+			// console.log('calling hide on content widget');
 			this._contentWidget?.hide();
 		}
 	}
