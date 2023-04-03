@@ -479,22 +479,4 @@ export class InteractiveSessionService extends Disposable implements IInteractiv
 	getAll() {
 		return [...this._providers];
 	}
-
-	async provideSuggestions(providerId: string, token: CancellationToken): Promise<string[] | undefined> {
-		this.trace('provideSuggestions', `Called for provider ${providerId}`);
-		await this.extensionService.activateByEvent(`onInteractiveSession:${providerId}`);
-
-		const provider = this._providers.get(providerId);
-		if (!provider) {
-			throw new Error(`Unknown provider: ${providerId}`);
-		}
-
-		if (!provider.provideSuggestions) {
-			return;
-		}
-
-		const suggestions = await provider.provideSuggestions(token);
-		this.trace('provideSuggestions', `Provider returned ${suggestions?.length} suggestions`);
-		return withNullAsUndefined(suggestions);
-	}
 }

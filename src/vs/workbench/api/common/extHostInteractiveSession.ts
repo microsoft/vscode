@@ -115,19 +115,6 @@ export class ExtHostInteractiveSession implements ExtHostInteractiveSessionShape
 		return undefined;
 	}
 
-	async $provideInitialSuggestions(handle: number, token: CancellationToken): Promise<string[] | undefined> {
-		const entry = this._interactiveSessionProvider.get(handle);
-		if (!entry) {
-			return undefined;
-		}
-
-		if (!entry.provider.provideInitialSuggestions) {
-			return undefined;
-		}
-
-		return withNullAsUndefined(await entry.provider.provideInitialSuggestions(token));
-	}
-
 	async $provideWelcomeMessage(handle: number, token: CancellationToken): Promise<(string | IInteractiveSessionReplyFollowup[])[] | undefined> {
 		const entry = this._interactiveSessionProvider.get(handle);
 		if (!entry) {
