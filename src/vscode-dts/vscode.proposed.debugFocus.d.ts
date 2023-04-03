@@ -7,41 +7,61 @@ declare module 'vscode' {
 
 	// See https://github.com/microsoft/vscode/issues/63943
 
-	/**
-	* An event describing UI selection changes
-	*/
-	export type DebugFocusType = 'thread' | 'stackFrame' | 'empty';
-
-	export interface DebugFocus {
-		readonly type: DebugFocusType;
+	export interface ThreadContext {
 		/**
-		 * Id of the debug session (DAP id). May be undefined if terminated, etc.
+		 * Id of the debug session (DAP id).
 		 */
-		readonly sessionId?: string;
+		readonly sessionId: string;
 
 		/**
-		 * Id of the associated thread (DAP id). May be undefined if a session is selected, but no thread of frame is (this
-		 * state is not currently possible in the UI)
+		 * Id of the associated thread (DAP id). May be undefined if thread has become unselected.
 		 */
-		readonly threadId?: number;
+		readonly threadId: number | undefined;
+	}
+
+	export interface StackFrameContext {
 		/**
-		 * Id of the stack frame (DAP id), if applicable. May be undefined if a thread is selected, but no frame is (this
-		 * state is not currently possible in the UI)
+		 * Id of the debug session (DAP id).
 		 */
-		readonly frameId?: number;
+		readonly sessionId: string;
+
+		/**
+		 * Id of the associated thread (DAP id). May be undefined if a frame is unselected.
+		 */
+		readonly threadId: number | undefined;
+		/**
+		 * Id of the stack frame (DAP id). May be undefined if a frame is unselected.
+		 */
+		readonly frameId: number | undefined;
 	}
 
 
 	export namespace debug {
 		/**
-		 * The currently focused thread or stack frame id, or `undefined` if this has not been set. (e.g. not in debug mode).
+		 * The currently focused thread
 		 */
-		export let focus: DebugFocus | undefined;
+		export let threadFocus: ThreadContext | undefined;
 
 		/**
-		 * An {@link Event} which fires when the {@link debug.focus} changes. Provides a sessionId. threadId is not undefined
-		 * when a thread of frame has gained focus. frameId is defined when a stackFrame has gained focus.
+		 * An {@link Event} which fires when the {@link debug.threadFocus} changes. Provides a sessionId. threadId is defined
+		 * when a thread of frame has gained focus, and undefined when no frame is selected.
+		 *
+		 * This event will be fired if a stack frame is selected
 		 */
-		export const onDidChangeDebugFocus: Event<DebugFocus | undefined>;
+		export const onDidChangeThreadFocus: Event<ThreadContext>;
+
+		/**
+		 * The currently focused thread or stack frame id, or `undefined` if no frame is selected.
+		 */
+		export let stackFrameFocus: StackFrameContext | undefined;
+
+		/**
+		 * An {@link Event} which fires when the {@link debug.stackFrameFocus} changes. Provides a sessionId and threadId.
+		 * stackFrameId is when a frame has gained focus, and undefined when no stack frame is selected.
+		 *
+		 * This event will be accompanied by a onDidChangeThreadFocus event, also. Listeners should listen for
+		 * the appropriate granularity.
+		 */
+		export const onDidChangeStackFrameFocus: Event<StackFrameContext>;
 	}
 }

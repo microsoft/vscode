@@ -12,7 +12,7 @@ import { IExtensionDescription } from 'vs/platform/extensions/common/extensions'
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { ISignService } from 'vs/platform/sign/common/sign';
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
-import { DebugSessionUUID, ExtHostDebugServiceShape, IBreakpointsDeltaDto, IDebugFocusDto, IDebugSessionDto, IFunctionBreakpointDto, ISourceMultiBreakpointDto, MainContext, MainThreadDebugServiceShape } from 'vs/workbench/api/common/extHost.protocol';
+import { DebugSessionUUID, ExtHostDebugServiceShape, IBreakpointsDeltaDto, IThreadFocusDto, IStackFrameFocusDto, IDebugSessionDto, IFunctionBreakpointDto, ISourceMultiBreakpointDto, MainContext, MainThreadDebugServiceShape } from 'vs/workbench/api/common/extHost.protocol';
 import { IExtHostEditorTabs } from 'vs/workbench/api/common/extHostEditorTabs';
 import { IExtHostExtensionService } from 'vs/workbench/api/common/extHostExtensionService';
 import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
@@ -41,8 +41,12 @@ export interface IExtHostDebugService extends ExtHostDebugServiceShape {
 	onDidReceiveDebugSessionCustomEvent: Event<vscode.DebugSessionCustomEvent>;
 	onDidChangeBreakpoints: Event<vscode.BreakpointsChangeEvent>;
 	breakpoints: vscode.Breakpoint[];
-	onDidChangeDebugFocus: Event<vscode.DebugFocus | undefined>;
-	focus: vscode.DebugFocus | undefined;
+
+	onDidChangeThreadFocus: Event<vscode.ThreadContext>;
+	threadFocus: vscode.ThreadContext | undefined;
+
+	onDidChangeStackFrameFocus: Event<vscode.StackFrameContext>;
+	stackFrameFocus: vscode.StackFrameContext | undefined;
 
 	addBreakpoints(breakpoints0: readonly vscode.Breakpoint[]): Promise<void>;
 	removeBreakpoints(breakpoints0: readonly vscode.Breakpoint[]): Promise<void>;
@@ -93,8 +97,11 @@ export abstract class ExtHostDebugServiceBase implements IExtHostDebugService, E
 
 	private readonly _onDidChangeBreakpoints: Emitter<vscode.BreakpointsChangeEvent>;
 
-	private _focus: vscode.DebugFocus | undefined;
-	private readonly _onDidChangeDebugFocus: Emitter<vscode.DebugFocus | undefined>;
+	private _stackFramefocus: vscode.StackFrameContext | undefined;
+	private readonly _onDidChangeStackFrameFocus: Emitter<vscode.StackFrameContext>;
+
+	private _threadFocus: vscode.ThreadContext | undefined;
+	private readonly _onDidChangeThreadFocus: Emitter<vscode.ThreadContext>;
 
 	private _debugAdapters: Map<number, IDebugAdapter>;
 	private _debugAdaptersTrackers: Map<number, vscode.DebugAdapterTracker>;
@@ -134,7 +141,8 @@ export abstract class ExtHostDebugServiceBase implements IExtHostDebugService, E
 			}
 		});
 
-		this._onDidChangeDebugFocus = new Emitter<vscode.DebugFocus | undefined>();
+		this._onDidChangeThreadFocus = new Emitter<vscode.ThreadContext>();
+		this._onDidChangeStackFrameFocus = new Emitter<vscode.StackFrameContext>();
 
 		this._activeDebugConsole = new ExtHostDebugConsole(this._debugServiceProxy);
 
@@ -198,12 +206,20 @@ export abstract class ExtHostDebugServiceBase implements IExtHostDebugService, E
 	// extension debug API
 
 
-	get focus(): vscode.DebugFocus | undefined {
-		return this._focus;
+	get stackFrameFocus(): vscode.StackFrameContext | undefined {
+		return this._stackFramefocus;
 	}
 
-	get onDidChangeDebugFocus(): Event<vscode.DebugFocus | undefined> {
-		return this._onDidChangeDebugFocus.event;
+	get onDidChangeStackFrameFocus(): Event<vscode.StackFrameContext> {
+		return this._onDidChangeStackFrameFocus.event;
+	}
+
+	get threadFocus(): vscode.ThreadContext | undefined {
+		return this._threadFocus;
+	}
+
+	get onDidChangeThreadFocus(): Event<vscode.ThreadContext> {
+		return this._onDidChangeThreadFocus.event;
 	}
 
 	get onDidChangeBreakpoints(): Event<vscode.BreakpointsChangeEvent> {
@@ -600,16 +616,25 @@ export abstract class ExtHostDebugServiceBase implements IExtHostDebugService, E
 		this.fireBreakpointChanges(a, r, c);
 	}
 
-	public $acceptDebugFocus(focusDto: IDebugFocusDto): void {
-		const focus: vscode.DebugFocus = {
-			type: focusDto.type,
+	public $acceptThreadFocus(focusDto: IThreadFocusDto): void {
+		const focus: vscode.ThreadContext = {
+			threadId: focusDto.threadId,
+			sessionId: focusDto.sessionId
+		};
+
+		this._threadFocus = focus;
+		this._onDidChangeThreadFocus.fire(focus);
+	}
+
+	public $acceptStackFrameFocus(focusDto: IStackFrameFocusDto): void {
+		const focus: vscode.StackFrameContext = {
 			threadId: focusDto.threadId,
 			frameId: focusDto.frameId,
 			sessionId: focusDto.sessionId
 		};
 
-		this._focus = focus;
-		this._onDidChangeDebugFocus.fire(focus);
+		this._stackFramefocus = focus;
+		this._onDidChangeStackFrameFocus.fire(focus);
 	}
 
 	public $provideDebugConfigurations(configProviderHandle: number, folderUri: UriComponents | undefined, token: CancellationToken): Promise<vscode.DebugConfiguration[]> {
