@@ -558,6 +558,32 @@ function mergeRawTokenText(tokens: marked.Token[]): string {
 	return mergedTokenText;
 }
 
+function completeSingleLinePattern(tokens: marked.TokensList, i: number, token: marked.Tokens.ListItem | marked.Tokens.Paragraph) {
+	for (const subtoken of token.tokens) {
+		if (subtoken.type === 'text') {
+			const lines = subtoken.raw.split('\n');
+			const lastLine = lines[lines.length - 1];
+			if (lastLine.includes('`')) {
+				return completeCodespan(tokens.slice(i));
+			} else if (lastLine.includes('**')) {
+				return completeDoublestar(tokens.slice(i));
+			} else if (lastLine.match(/\*\w/)) {
+				return completeStar(tokens.slice(i));
+			} else if (lastLine.match(/(^|\s)__\w/)) {
+				return completeDoubleUnderscore(tokens.slice(i));
+			} else if (lastLine.match(/(^|\s)_\w/)) {
+				return completeUnderscore(tokens.slice(i));
+			} else if (lastLine.match(/(^|\s)\[.*\]\(\w*/)) {
+				return completeLinkTarget(tokens.slice(i));
+			} else if (lastLine.match(/(^|\s)\[\w/)) {
+				return completeLinkText(tokens.slice(i));
+			}
+		}
+	}
+
+	return undefined;
+}
+
 export function fillInIncompleteTokens(tokens: marked.TokensList): marked.TokensList {
 	let i: number;
 	let newTokens: marked.Token[] | undefined;
@@ -574,30 +600,18 @@ export function fillInIncompleteTokens(tokens: marked.TokensList): marked.Tokens
 			break;
 		}
 
+		// if (token.type === 'list') {
+		// 	const lastItem = token.items[token.items.length - 1];
+		// 	// Patch up this one list item
+		// 	completeSingleLinePattern
+		// }
+
 		if (i === tokens.length - 1 && token.type === 'paragraph') {
-			for (const subtoken of token.tokens) {
-				if (subtoken.type === 'text') {
-					const lines = subtoken.raw.split('\n');
-					const lastLine = lines[lines.length - 1];
-					if (lastLine.includes('`')) {
-						newTokens = completeCodespan(tokens.slice(i));
-						break;
-					} else if (lastLine.includes('**')) {
-						newTokens = completeDoublestar(tokens.slice(i));
-						break;
-					} else if (lastLine.match(/\*\w/)) {
-						newTokens = completeStar(tokens.slice(i));
-						break;
-					} else if (lastLine.match(/(^|\s)__\w/)) {
-						newTokens = completeDoubleUnderscore(tokens.slice(i));
-						break;
-					} else if (lastLine.match(/(^|\s)_\w/)) {
-						newTokens = completeUnderscore(tokens.slice(i));
-						break;
-					}
-				}
+			// Only operates on a single token, because any newline that follows this should break these patterns
+			newTokens = completeSingleLinePattern(tokens, i, token);
+			if (newTokens) {
+				break;
 			}
-			break;
 		}
 	}
 
@@ -627,6 +641,14 @@ function completeStar(tokens: marked.Token[]): marked.Token[] {
 
 function completeUnderscore(tokens: marked.Token[]): marked.Token[] {
 	return completeWithString(tokens, '_');
+}
+
+function completeLinkTarget(tokens: marked.Token[]): marked.Token[] {
+	return completeWithString(tokens, ')');
+}
+
+function completeLinkText(tokens: marked.Token[]): marked.Token[] {
+	return completeWithString(tokens, '](about:blank)');
 }
 
 function completeDoublestar(tokens: marked.Token[]): marked.Token[] {

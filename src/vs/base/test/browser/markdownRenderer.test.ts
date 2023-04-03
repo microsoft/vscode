@@ -610,5 +610,58 @@ suite('MarkdownRenderer', () => {
 				assert.deepStrictEqual(newTokens, tokens);
 			});
 		});
+
+		suite('link', () => {
+			test('incomplete link text', () => {
+				const incomplete = 'abc [text';
+				const tokens = marked.lexer(incomplete);
+				const newTokens = fillInIncompleteTokens(tokens);
+
+				const completeTokens = marked.lexer(incomplete + '](about:blank)');
+				assert.deepStrictEqual(newTokens, completeTokens);
+			});
+
+			test('incomplete link target', () => {
+				const incomplete = 'foo [text](http://microsoft';
+				const tokens = marked.lexer(incomplete);
+				const newTokens = fillInIncompleteTokens(tokens);
+
+				const completeTokens = marked.lexer(incomplete + ')');
+				assert.deepStrictEqual(newTokens, completeTokens);
+			});
+
+			test('incomplete link in list', () => {
+				const incomplete = '- [text';
+				const tokens = marked.lexer(incomplete);
+				const newTokens = fillInIncompleteTokens(tokens);
+
+				const completeTokens = marked.lexer(incomplete + '](about:blank)');
+				assert.deepStrictEqual(newTokens, completeTokens);
+			});
+
+			test('square brace between letters', () => {
+				const incomplete = 'a[b';
+				const tokens = marked.lexer(incomplete);
+				const newTokens = fillInIncompleteTokens(tokens);
+
+				assert.deepStrictEqual(newTokens, tokens);
+			});
+
+			test('square brace on previous line', () => {
+				const incomplete = 'text[\nmore text';
+				const tokens = marked.lexer(incomplete);
+				const newTokens = fillInIncompleteTokens(tokens);
+
+				assert.deepStrictEqual(newTokens, tokens);
+			});
+
+			test('complete link', () => {
+				const incomplete = 'text [link](http://microsoft.com)';
+				const tokens = marked.lexer(incomplete);
+				const newTokens = fillInIncompleteTokens(tokens);
+
+				assert.deepStrictEqual(newTokens, tokens);
+			});
+		});
 	});
 });
