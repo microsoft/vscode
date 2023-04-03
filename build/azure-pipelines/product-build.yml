@@ -156,6 +156,15 @@ resources:
       endpoint: VSCodeHub
 
 stages:
+  - ${{ if eq(variables['Build.Repository.Uri'], 'foo') }}:
+    - stage: Debug
+      jobs:
+        - job: Debug
+          pool: vscode-1es-linux
+          steps:
+            - script: echo "Hello World"
+              displayName: "Hello World"
+
   - stage: Compile
     jobs:
       - job: Compile
