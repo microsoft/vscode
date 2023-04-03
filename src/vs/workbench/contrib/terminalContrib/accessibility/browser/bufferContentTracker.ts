@@ -39,7 +39,7 @@ export class BufferContentTracker {
 		if (this._lines.length && this._lastCachedMarker) {
 			// remove previous viewport content in case it has changed
 			let i = 0;
-			while (i <= this._priorViewportLineCount) {
+			while (i < this._priorViewportLineCount) {
 				this._lines.pop();
 				i++;
 			}

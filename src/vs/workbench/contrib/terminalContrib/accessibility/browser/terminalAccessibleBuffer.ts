@@ -57,6 +57,8 @@ export class AccessibleBufferWidget extends DisposableStore {
 
 	private _bufferTracker: BufferContentTracker;
 
+	private _cursorPosition: { lineNumber: number; column: number } | undefined;
+
 	constructor(
 		private readonly _instance: Pick<ITerminalInstance, 'capabilities' | 'onDidRequestFocus' | 'resource'>,
 		private readonly _xterm: Pick<IXtermTerminal, 'getFont'> & { raw: Terminal },
@@ -128,6 +130,13 @@ export class AccessibleBufferWidget extends DisposableStore {
 					this._hide();
 					this._xterm.raw.focus();
 					break;
+			}
+		}));
+		this.add(this._editorWidget.onDidChangeCursorPosition((c) => {
+			if (c.source === 'mouse' || c.source === 'keyboard') {
+				this._cursorPosition = { lineNumber: c.position.lineNumber, column: c.position.column };
+			} else if (this._cursorPosition) {
+				this._resetPosition();
 			}
 		}));
 		this.add(this._editorWidget.onDidFocusEditorText(async () => {
@@ -217,6 +226,13 @@ export class AccessibleBufferWidget extends DisposableStore {
 		return quickPick;
 	}
 
+	private _resetPosition(): void {
+		if (this._cursorPosition) {
+			this._editorWidget.setPosition(this._cursorPosition);
+			this._editorWidget.setScrollPosition({ scrollTop: this._editorWidget.getTopForLineNumber(this._cursorPosition.lineNumber) });
+		}
+	}
+
 	private _hide(): void {
 		this._disposeListeners();
 		this._accessibleBuffer.classList.remove(CssClass.Active);
@@ -233,13 +249,11 @@ export class AccessibleBufferWidget extends DisposableStore {
 		if (!model) {
 			return;
 		}
-		const lineNumber = model.getLineCount();
-		const selection = this._editorWidget.getSelection();
-		// If the selection is at the top of the buffer, IE the default when not set, move it to the bottom
-		if (selection?.startColumn === 1 && selection.endColumn === 1 && selection.startLineNumber === 1 && selection.endLineNumber === 1) {
-			this._editorWidget.setSelection({ startLineNumber: lineNumber, startColumn: 1, endLineNumber: lineNumber, endColumn: 1 });
+		this._resetPosition();
+		if (!this._cursorPosition) {
+			this._editorWidget.setPosition({ lineNumber: model?.getLineCount() || 1, column: 1 });
+			this._editorWidget.setScrollTop(this._editorWidget.getScrollHeight());
 		}
-		this._editorWidget.setScrollTop(this._editorWidget.getScrollHeight());
 		this._isUpdating = false;
 		if (this._pendingUpdates) {
 			this._logService.debug('TerminalAccessibleBuffer._updateEditor: pending updates', this._pendingUpdates);
