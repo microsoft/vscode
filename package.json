@@ -120,7 +120,6 @@
     "@types/webpack": "^5.28.1",
     "@types/wicg-file-system-access": "^2020.9.5",
     "@types/windows-foreground-love": "^0.3.0",
-    "@types/windows-process-tree": "^0.2.0",
     "@types/winreg": "^1.2.30",
     "@types/yauzl": "^2.9.1",
     "@types/yazl": "^2.4.2",
@@ -225,9 +224,9 @@
   },
   "optionalDependencies": {
     "@vscode/windows-mutex": "0.4.2",
+    "@vscode/windows-process-tree": "0.4.2",
     "@vscode/windows-registry": "1.0.10",
-    "windows-foreground-love": "0.5.0",
-    "windows-process-tree": "0.4.0"
+    "windows-foreground-love": "0.5.0"
   },
   "resolutions": {
     "elliptic": "^6.5.3",
