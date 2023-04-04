@@ -11,7 +11,7 @@
 	"enabledApiProposals": [
 		"documentPaste",
 		"diffContentOptions",
-    "notebookDocumentWillSave"
+		"notebookDocumentWillSave"
 	],
 	"activationEvents": [
 		"onNotebook:jupyter-notebook"

@@ -385,6 +385,7 @@ export class AttachmentCleaner implements vscode.CodeActionProvider {
 
 	dispose() {
 		this._disposables.forEach(d => d.dispose());
+		this._delayer.dispose();
 	}
 }
 
