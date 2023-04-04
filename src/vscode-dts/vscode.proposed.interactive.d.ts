@@ -143,13 +143,13 @@ declare module 'vscode' {
 
 	export type InteractiveWelcomeMessageContent = string | InteractiveSessionReplyFollowup[];
 
-	export interface InteractiveSessionProvider {
+	export interface InteractiveSessionProvider<S extends InteractiveSession = InteractiveSession> {
 		provideWelcomeMessage?(token: CancellationToken): ProviderResult<InteractiveWelcomeMessageContent[]>;
-		provideFollowups?(session: InteractiveSession, token: CancellationToken): ProviderResult<(string | InteractiveSessionFollowup)[]>;
-		provideSlashCommands?(session: InteractiveSession, token: CancellationToken): ProviderResult<InteractiveSessionSlashCommand[]>;
+		provideFollowups?(session: S, token: CancellationToken): ProviderResult<(string | InteractiveSessionFollowup)[]>;
+		provideSlashCommands?(session: S, token: CancellationToken): ProviderResult<InteractiveSessionSlashCommand[]>;
 
-		prepareSession(initialState: InteractiveSessionState | undefined, token: CancellationToken): ProviderResult<InteractiveSession>;
-		resolveRequest(session: InteractiveSession, context: InteractiveSessionRequestArgs | string, token: CancellationToken): ProviderResult<InteractiveRequest>;
+		prepareSession(initialState: InteractiveSessionState | undefined, token: CancellationToken): ProviderResult<S>;
+		resolveRequest(session: S, context: InteractiveSessionRequestArgs | string, token: CancellationToken): ProviderResult<InteractiveRequest>;
 		provideResponseWithProgress(request: InteractiveRequest, progress: Progress<InteractiveProgress>, token: CancellationToken): ProviderResult<InteractiveResponseForProgress>;
 	}
 
