@@ -69,7 +69,7 @@ import { IPreferencesService } from 'vs/workbench/services/preferences/common/pr
 import { getLocale } from 'vs/platform/languagePacks/common/languagePacks';
 import { ILocaleService } from 'vs/workbench/services/localization/common/locale';
 import { isString } from 'vs/base/common/types';
-import { showWindowLogActionId } from 'vs/workbench/common/logConstants';
+import { showWindowLogActionId } from 'vs/workbench/services/log/common/logConstants';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 
 export class PromptExtensionInstallFailureAction extends Action {

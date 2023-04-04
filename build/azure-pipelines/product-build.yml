@@ -660,7 +660,7 @@ stages:
           steps:
             - template: product-publish.yml
 
-    - ${{ if and(parameters.VSCODE_RELEASE, not(parameters.VSCODE_PRIVATE_BUILD)) }}:
+    - ${{ if and(parameters.VSCODE_RELEASE, eq(variables['VSCODE_PRIVATE_BUILD'], false)) }}:
       - stage: ApproveRelease
         dependsOn: [] # run in parallel to compile stage
         pool: vscode-1es-linux
@@ -676,11 +676,11 @@ stages:
                   steps:
                     - checkout: none
 
-    - ${{ if or(and(parameters.VSCODE_RELEASE, not(parameters.VSCODE_PRIVATE_BUILD)), and(in(parameters.VSCODE_QUALITY, 'insider', 'exploration'), eq(variables['VSCODE_SCHEDULEDBUILD'], true))) }}:
+    - ${{ if or(and(parameters.VSCODE_RELEASE, eq(variables['VSCODE_PRIVATE_BUILD'], false)), and(in(parameters.VSCODE_QUALITY, 'insider', 'exploration'), eq(variables['VSCODE_SCHEDULEDBUILD'], true))) }}:
       - stage: Release
         dependsOn:
           - Publish
-          - ${{ if and(parameters.VSCODE_RELEASE, not(parameters.VSCODE_PRIVATE_BUILD)) }}:
+          - ${{ if and(parameters.VSCODE_RELEASE, eq(variables['VSCODE_PRIVATE_BUILD'], false)) }}:
             - ApproveRelease
         pool: vscode-1es-linux
         jobs:
