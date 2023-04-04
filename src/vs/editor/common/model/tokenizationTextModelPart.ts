@@ -488,43 +488,13 @@ class GrammarTokens extends Disposable {
 	}
 
 	private setTokens(tokens: ContiguousMultilineTokens[]): { changes: { fromLineNumber: number; toLineNumber: number }[] } {
-		if (tokens.length === 0) {
-			return { changes: [] };
+		const { changes } = this._tokens.setMultilineTokens(tokens, this._textModel);
+
+		if (changes.length > 0) {
+			this._onDidChangeTokens.fire({ semanticTokensApplied: false, ranges: changes, });
 		}
 
-		const ranges: { fromLineNumber: number; toLineNumber: number }[] = [];
-
-		for (let i = 0, len = tokens.length; i < len; i++) {
-			const element = tokens[i];
-			let minChangedLineNumber = 0;
-			let maxChangedLineNumber = 0;
-			let hasChange = false;
-			for (let lineNumber = element.startLineNumber; lineNumber <= element.endLineNumber; lineNumber++) {
-				if (hasChange) {
-					this._tokens.setTokens(this._textModel.getLanguageId(), lineNumber - 1, this._textModel.getLineLength(lineNumber), element.getLineTokens(lineNumber), false);
-					maxChangedLineNumber = lineNumber;
-				} else {
-					const lineHasChange = this._tokens.setTokens(this._textModel.getLanguageId(), lineNumber - 1, this._textModel.getLineLength(lineNumber), element.getLineTokens(lineNumber), true);
-					if (lineHasChange) {
-						hasChange = true;
-						minChangedLineNumber = lineNumber;
-						maxChangedLineNumber = lineNumber;
-					}
-				}
-			}
-			if (hasChange) {
-				ranges.push({ fromLineNumber: minChangedLineNumber, toLineNumber: maxChangedLineNumber, });
-			}
-		}
-
-		if (ranges.length > 0) {
-			this._onDidChangeTokens.fire({
-				semanticTokensApplied: false,
-				ranges: ranges,
-			});
-		}
-
-		return { changes: ranges };
+		return { changes: changes };
 	}
 
 	private refreshAllVisibleLineTokens(): void {
