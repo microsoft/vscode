@@ -94,14 +94,16 @@ export class ResizableHoverWidget extends ResizableWidget {
 		this.hoverWidget.containerDomNode.style.height = height;
 		this.hoverWidget.contentsDomNode.style.height = height;
 
-		this.element.northSash.el.style.width = width;
-		this.element.southSash.el.style.width = width;
-		this.element.northSash.el.style.left = 3 + 'px';
-		this.element.southSash.el.style.left = 3 + 'px';
-		this.element.eastSash.el.style.height = height;
-		this.element.westSash.el.style.height = height;
-		this.element.eastSash.el.style.top = 3 + 'px';
-		this.element.westSash.el.style.top = 3 + 'px';
+		const horizontalSashLength = size.width - 4 + 'px';
+		this.element.northSash.el.style.width = horizontalSashLength;
+		this.element.southSash.el.style.width = horizontalSashLength;
+		this.element.northSash.el.style.left = 2 + 'px';
+		this.element.southSash.el.style.left = 2 + 'px';
+		const verticalSashLength = size.height - 4 + 'px';
+		this.element.eastSash.el.style.height = verticalSashLength;
+		this.element.westSash.el.style.height = verticalSashLength;
+		this.element.eastSash.el.style.top = 2 + 'px';
+		this.element.westSash.el.style.top = 2 + 'px';
 
 		const scrollDimensions = this.hoverWidget.scrollbar.getScrollDimensions();
 		const hasHorizontalScrollbar = (scrollDimensions.scrollWidth > scrollDimensions.width);
@@ -429,18 +431,18 @@ export class ResizableHoverWidget extends ResizableWidget {
 
 		console.log('Before changing the sash size');
 
-		const finalClientHeight = containerDomNode.clientHeight;
-		const finalClientWidth = containerDomNode.clientWidth;
+		const finalClientHeight = containerDomNode.clientHeight + 2;
+		const finalClientWidth = containerDomNode.clientWidth + 2;
 
 		this.element.northSash.el.style.width = finalClientWidth + 'px';
 		this.element.southSash.el.style.width = finalClientWidth + 'px';
-		this.element.northSash.el.style.left = 3 + 'px';
-		this.element.southSash.el.style.left = 3 + 'px';
+		this.element.northSash.el.style.left = 2 + 'px';
+		this.element.southSash.el.style.left = 2 + 'px';
 
 		this.element.eastSash.el.style.height = finalClientHeight + 'px';
 		this.element.westSash.el.style.height = finalClientHeight + 'px';
-		this.element.eastSash.el.style.top = 3 + 'px';
-		this.element.westSash.el.style.top = 3 + 'px';
+		this.element.eastSash.el.style.top = 2 + 'px';
+		this.element.westSash.el.style.top = 2 + 'px';
 
 		this.editor.layoutContentWidget(this.resizableContentWidget);
 	}
