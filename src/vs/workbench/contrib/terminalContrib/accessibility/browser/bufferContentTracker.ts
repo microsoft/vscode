@@ -22,10 +22,18 @@ export class BufferContentTracker {
 	private _lines: string[] = [];
 	get lines(): string[] { return this._lines; }
 
+	bufferToEditorLineMapping: Map<number, number> = new Map();
+
 	constructor(
 		private readonly _xterm: Pick<IXtermTerminal, 'getFont'> & { raw: Terminal },
 		@ILogService private readonly _logService: ILogService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService) {
+	}
+
+	reset(): void {
+		this._lines = [];
+		this._lastCachedMarker = undefined;
+		this.update();
 	}
 
 	update(): void {
@@ -70,6 +78,7 @@ export class BufferContentTracker {
 			if (!line) {
 				continue;
 			}
+			this.bufferToEditorLineMapping.set(i, this._lines.length + cachedLines.length);
 			const isWrapped = buffer.getLine(i + 1)?.isWrapped;
 			currentLine += line.translateToString(!isWrapped);
 			if (currentLine && !isWrapped || i === (buffer.baseY + this._xterm.raw.rows - 1)) {
@@ -90,8 +99,11 @@ export class BufferContentTracker {
 		}
 		// remove previous viewport content in case it has changed
 		let linesToRemove = this._priorEditorViewportLineCount;
+		let index = 1;
 		while (linesToRemove) {
+			this.bufferToEditorLineMapping.forEach((value, key) => { if (value === this._lines.length - index) { this.bufferToEditorLineMapping.delete(key); } });
 			this._lines.pop();
+			index++;
 			linesToRemove--;
 		}
 		this._logService.debug('Buffer content tracker: removed lines from viewport, now ', this._lines.length, ' lines cached');
@@ -106,6 +118,7 @@ export class BufferContentTracker {
 			if (!line) {
 				continue;
 			}
+			this.bufferToEditorLineMapping.set(i, this._lines.length);
 			const isWrapped = buffer.getLine(i + 1)?.isWrapped;
 			currentLine += line.translateToString(!isWrapped);
 			if (currentLine && !isWrapped || i === (buffer.baseY + this._xterm.raw.rows - 1)) {

@@ -172,15 +172,19 @@ export class AccessibleBufferWidget extends DisposableStore {
 	}
 
 	async createQuickPick(): Promise<IQuickPick<IAccessibleBufferQuickPickItem> | undefined> {
-		let currentPosition = withNullAsUndefined(this._editorWidget.getPosition());
+		this._cursorPosition = withNullAsUndefined(this._editorWidget.getPosition());
 		const commands = this._instance.capabilities.get(TerminalCapability.CommandDetection)?.commands;
 		if (!commands?.length) {
 			return;
 		}
 		const quickPickItems: IAccessibleBufferQuickPickItem[] = [];
 		for (const command of commands) {
-			const line = command.marker?.line;
+			let line = command.marker?.line;
 			if (line === undefined || !command.command.length || line < 0) {
+				continue;
+			}
+			line = this._bufferTracker.bufferToEditorLineMapping.get(line);
+			if (!line) {
 				continue;
 			}
 			quickPickItems.push(
@@ -200,10 +204,7 @@ export class AccessibleBufferWidget extends DisposableStore {
 			this._editorWidget.revealLine(activeItem.lineNumber, 0);
 		});
 		quickPick.onDidHide(() => {
-			if (currentPosition) {
-				this._editorWidget.setPosition(currentPosition);
-				this._editorWidget.revealLineInCenter(currentPosition.lineNumber);
-			}
+			this._resetPosition();
 			quickPick.dispose();
 		});
 		quickPick.onDidAccept(() => {
@@ -212,12 +213,10 @@ export class AccessibleBufferWidget extends DisposableStore {
 			if (!model) {
 				return;
 			}
-			if (!item && currentPosition) {
-				// reset
-				this._editorWidget.setPosition(currentPosition);
+			if (!item && this._cursorPosition) {
+				this._resetPosition();
 			} else {
-				this._editorWidget.setSelection({ startLineNumber: item.lineNumber, startColumn: 1, endLineNumber: item.lineNumber, endColumn: 1 });
-				currentPosition = this._editorWidget.getSelection()?.getPosition();
+				this._cursorPosition = { lineNumber: item.lineNumber, column: 1 };
 			}
 			this._editorWidget.focus();
 			return;
@@ -263,6 +262,7 @@ export class AccessibleBufferWidget extends DisposableStore {
 	}
 
 	private _layout(): void {
+		this._bufferTracker.reset();
 		this._editorWidget.layout({ width: this._xtermElement.clientWidth, height: this._xtermElement.clientHeight });
 	}
 
@@ -290,7 +290,6 @@ export class AccessibleBufferWidget extends DisposableStore {
 		}
 		return this._modelService.createModel(resource.fragment, null, resource, false);
 	}
-
 
 	private async _updateModel(): Promise<ITextModel> {
 		this._bufferTracker.update();
