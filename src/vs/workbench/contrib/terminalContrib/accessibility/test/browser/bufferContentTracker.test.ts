@@ -90,13 +90,13 @@ suite('Buffer Content Tracker', () => {
 		assert.strictEqual(bufferTracker.lines.length, 1);
 	});
 	test('should add lines in the viewport and scrollback', async () => {
-		await assertBufferExpected(promptPlusData, 38, xterm.raw, bufferTracker);
+		await writeAndAssertBufferState(promptPlusData, 38, xterm.raw, bufferTracker);
 	});
 	test('should add lines in the viewport and full scrollback', async () => {
-		await assertBufferExpected(promptPlusData, 1030, xterm.raw, bufferTracker);
+		await writeAndAssertBufferState(promptPlusData, 1030, xterm.raw, bufferTracker);
 	});
 	test('should refresh viewport', async () => {
-		await assertBufferExpected(promptPlusData, 6, xterm.raw, bufferTracker);
+		await writeAndAssertBufferState(promptPlusData, 6, xterm.raw, bufferTracker);
 		await writeP(xterm.raw, '\x1b[3Ainserteddata');
 		await bufferTracker.update();
 		assert.deepStrictEqual(bufferTracker.lines, [promptPlusData, promptPlusData, `${promptPlusData}inserteddata`, promptPlusData, promptPlusData, promptPlusData].map(s => s.replace(new RegExp(' ', 'g'), '\xA0')));
@@ -129,7 +129,7 @@ suite('Buffer Content Tracker', () => {
 	});
 });
 
-async function assertBufferExpected(data: string, rows: number, terminal: Terminal, bufferTracker: BufferContentTracker): Promise<void> {
+async function writeAndAssertBufferState(data: string, rows: number, terminal: Terminal, bufferTracker: BufferContentTracker): Promise<void> {
 	const content = `${data}\r\n`.repeat(rows).trimEnd();
 	await writeP(terminal, content);
 	await bufferTracker.update();
