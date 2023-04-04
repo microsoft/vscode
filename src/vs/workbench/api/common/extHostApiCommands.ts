@@ -6,7 +6,7 @@
 import { isFalsyOrEmpty } from 'vs/base/common/arrays';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { Schemas } from 'vs/base/common/network';
-import { URI } from 'vs/base/common/uri';
+import { URI, UriComponents } from 'vs/base/common/uri';
 import { IPosition } from 'vs/editor/common/core/position';
 import { IRange } from 'vs/editor/common/core/range';
 import * as languages from 'vs/editor/common/languages';
@@ -464,7 +464,18 @@ const newCommands: ApiCommand[] = [
 			new ApiCommandArgument('value', 'The context key value', () => true, v => v),
 		],
 		ApiCommandResult.Void
-	)
+	),
+	// --- saving
+	new ApiCommand(
+		'vscode.save', 'workbench.action.files.save', 'Saves the active editor and returns the resulting resource`.',
+		[],
+		new ApiCommandResult<Array<UriComponents>, { uri: URI } | undefined>('The resulting saved editor.', v => (v[0] ? { uri: URI.revive(v[0]) } : undefined))
+	),
+	new ApiCommand(
+		'vscode.saveAs', 'workbench.action.files.saveAs', 'Saves the active editor to a new file name as provided by the user and returns the resulting resource`.',
+		[],
+		new ApiCommandResult<Array<UriComponents>, { uri: URI } | undefined>('The resulting saved as edito.', v => (v[0] ? { uri: URI.revive(v[0]) } : undefined))
+	),
 ];
 
 //#endregion

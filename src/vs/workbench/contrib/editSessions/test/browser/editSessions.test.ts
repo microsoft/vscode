@@ -129,7 +129,7 @@ suite('Edit session sync', () => {
 			override registerTextModelContentProvider = () => ({ dispose: () => { } });
 		});
 		instantiationService.stub(IEditorService, new class extends mock<IEditorService>() {
-			override saveAll = async (_options: ISaveAllEditorsOptions) => true;
+			override saveAll = async (_options: ISaveAllEditorsOptions) => { return { success: true, editors: [] }; };
 		});
 
 		editSessionsContribution = instantiationService.createInstance(EditSessionsContribution);

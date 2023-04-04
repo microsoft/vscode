@@ -29,7 +29,7 @@ import { getMultiSelectedEditorContexts } from 'vs/workbench/browser/parts/edito
 import { Schemas } from 'vs/base/common/network';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { IEditorService, SIDE_GROUP, ISaveEditorsOptions } from 'vs/workbench/services/editor/common/editorService';
+import { IEditorService, SIDE_GROUP, ISaveEditorsOptions, ISaveEditorsResult } from 'vs/workbench/services/editor/common/editorService';
 import { IEditorGroupsService, GroupsOrder, IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { basename, joinPath, isEqual } from 'vs/base/common/resources';
@@ -309,7 +309,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	when: undefined,
 	primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyCode.KeyP),
 	id: 'workbench.action.files.copyPathOfActiveFile',
-	handler: async (accessor) => {
+	handler: async accessor => {
 		const editorService = accessor.get(IEditorService);
 		const activeInput = editorService.activeEditor;
 		const resource = EditorResourceAccessor.getOriginalUri(activeInput, { supportSideBySide: SideBySideEditor.PRIMARY });
@@ -360,7 +360,7 @@ CommandsRegistry.registerCommand({
 
 // Save / Save As / Save All / Revert
 
-async function saveSelectedEditors(accessor: ServicesAccessor, options?: ISaveEditorsOptions): Promise<void> {
+async function saveSelectedEditors(accessor: ServicesAccessor, options?: ISaveEditorsOptions): Promise<ISaveEditorsResult> {
 	const listService = accessor.get(IListService);
 	const editorGroupService = accessor.get(IEditorGroupsService);
 	const codeEditorService = accessor.get(ICodeEditorService);
@@ -392,11 +392,11 @@ async function saveSelectedEditors(accessor: ServicesAccessor, options?: ISaveEd
 	}
 
 	if (!editors || editors.length === 0) {
-		return; // nothing to save
+		return { editors: [], success: false }; // nothing to save
 	}
 
 	// Save editors
-	await doSaveEditors(accessor, editors, options);
+	const result = await doSaveEditors(accessor, editors, options);
 
 	// Special treatment for embedded editors: if we detect that focus is
 	// inside an embedded code editor, we save that model as well if we
@@ -410,13 +410,18 @@ async function saveSelectedEditors(accessor: ServicesAccessor, options?: ISaveEd
 		if (resource && !editors.some(({ editor }) => isEqual(EditorResourceAccessor.getCanonicalUri(editor, { supportSideBySide: SideBySideEditor.PRIMARY }), resource))) {
 			const model = textFileService.files.get(resource);
 			if (!model?.isReadonly()) {
-				await textFileService.save(resource, options);
+				const embeddedEditorSaveResult = await textFileService.save(resource, options);
+				if (embeddedEditorSaveResult) {
+					result.editors.push({ resource: embeddedEditorSaveResult });
+				}
 			}
 		}
 	}
+
+	return result;
 }
 
-function saveDirtyEditorsOfGroups(accessor: ServicesAccessor, groups: readonly IEditorGroup[], options?: ISaveEditorsOptions): Promise<void> {
+function saveDirtyEditorsOfGroups(accessor: ServicesAccessor, groups: readonly IEditorGroup[], options?: ISaveEditorsOptions): Promise<ISaveEditorsResult> {
 	const dirtyEditors: IEditorIdentifier[] = [];
 	for (const group of groups) {
 		for (const editor of group.getEditors(EditorsOrder.MOST_RECENTLY_ACTIVE)) {
@@ -429,13 +434,13 @@ function saveDirtyEditorsOfGroups(accessor: ServicesAccessor, groups: readonly I
 	return doSaveEditors(accessor, dirtyEditors, options);
 }
 
-async function doSaveEditors(accessor: ServicesAccessor, editors: IEditorIdentifier[], options?: ISaveEditorsOptions): Promise<void> {
+async function doSaveEditors(accessor: ServicesAccessor, editors: IEditorIdentifier[], options?: ISaveEditorsOptions): Promise<ISaveEditorsResult> {
 	const editorService = accessor.get(IEditorService);
 	const notificationService = accessor.get(INotificationService);
 	const instantiationService = accessor.get(IInstantiationService);
 
 	try {
-		await editorService.save(editors, options);
+		return await editorService.save(editors, options);
 	} catch (error) {
 		if (!isCancellationError(error)) {
 			notificationService.notify({
@@ -451,6 +456,8 @@ async function doSaveEditors(accessor: ServicesAccessor, editors: IEditorIdentif
 			});
 		}
 	}
+
+	return { editors: [], success: false };
 }
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({
@@ -458,8 +465,8 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	weight: KeybindingWeight.WorkbenchContrib,
 	primary: KeyMod.CtrlCmd | KeyCode.KeyS,
 	id: SAVE_FILE_COMMAND_ID,
-	handler: accessor => {
-		return saveSelectedEditors(accessor, { reason: SaveReason.EXPLICIT, force: true /* force save even when non-dirty */ });
+	handler: async accessor => {
+		return saveResultToUris(await saveSelectedEditors(accessor, { reason: SaveReason.EXPLICIT, force: true /* force save even when non-dirty */ }));
 	}
 });
 
@@ -469,8 +476,8 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyCode.KeyS),
 	win: { primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyS) },
 	id: SAVE_FILE_WITHOUT_FORMATTING_COMMAND_ID,
-	handler: accessor => {
-		return saveSelectedEditors(accessor, { reason: SaveReason.EXPLICIT, force: true /* force save even when non-dirty */, skipSaveParticipants: true });
+	handler: async accessor => {
+		return saveResultToUris(await saveSelectedEditors(accessor, { reason: SaveReason.EXPLICIT, force: true /* force save even when non-dirty */, skipSaveParticipants: true }));
 	}
 });
 
@@ -479,8 +486,8 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	weight: KeybindingWeight.WorkbenchContrib,
 	when: undefined,
 	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyS,
-	handler: accessor => {
-		return saveSelectedEditors(accessor, { reason: SaveReason.EXPLICIT, saveAs: true });
+	handler: async accessor => {
+		return saveResultToUris(await saveSelectedEditors(accessor, { reason: SaveReason.EXPLICIT, saveAs: true }));
 	}
 });
 
@@ -491,14 +498,14 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	mac: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KeyS },
 	win: { primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyCode.KeyS) },
 	id: SAVE_ALL_COMMAND_ID,
-	handler: (accessor) => {
-		return saveDirtyEditorsOfGroups(accessor, accessor.get(IEditorGroupsService).getGroups(GroupsOrder.MOST_RECENTLY_ACTIVE), { reason: SaveReason.EXPLICIT });
+	handler: async accessor => {
+		return saveResultToUris(await saveDirtyEditorsOfGroups(accessor, accessor.get(IEditorGroupsService).getGroups(GroupsOrder.MOST_RECENTLY_ACTIVE), { reason: SaveReason.EXPLICIT }));
 	}
 });
 
 CommandsRegistry.registerCommand({
 	id: SAVE_ALL_IN_GROUP_COMMAND_ID,
-	handler: (accessor, _: URI | object, editorContext: IEditorCommandsContext) => {
+	handler: async (accessor, _: URI | object, editorContext: IEditorCommandsContext) => {
 		const editorGroupService = accessor.get(IEditorGroupsService);
 
 		const contexts = getMultiSelectedEditorContexts(editorContext, accessor.get(IListService), accessor.get(IEditorGroupsService));
@@ -510,18 +517,26 @@ CommandsRegistry.registerCommand({
 			groups = coalesce(contexts.map(context => editorGroupService.getGroup(context.groupId)));
 		}
 
-		return saveDirtyEditorsOfGroups(accessor, groups, { reason: SaveReason.EXPLICIT });
+		return saveResultToUris(await saveDirtyEditorsOfGroups(accessor, groups, { reason: SaveReason.EXPLICIT }));
 	}
 });
 
 CommandsRegistry.registerCommand({
 	id: SAVE_FILES_COMMAND_ID,
-	handler: accessor => {
+	handler: async accessor => {
 		const editorService = accessor.get(IEditorService);
 
-		return editorService.saveAll({ includeUntitled: false, reason: SaveReason.EXPLICIT });
+		return saveResultToUris(await editorService.saveAll({ includeUntitled: false, reason: SaveReason.EXPLICIT }));
 	}
 });
+
+function saveResultToUris(result: ISaveEditorsResult): URI[] {
+	if (!result.success) {
+		return [];
+	}
+
+	return coalesce(result.editors.map(editor => EditorResourceAccessor.getCanonicalUri(editor, { supportSideBySide: SideBySideEditor.PRIMARY })));
+}
 
 CommandsRegistry.registerCommand({
 	id: REVERT_FILE_COMMAND_ID,
@@ -580,7 +595,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	when: ContextKeyExpr.and(FilesExplorerFocusCondition, ExplorerCompressedFocusContext, ExplorerCompressedFirstFocusContext.negate()),
 	primary: KeyCode.LeftArrow,
 	id: PREVIOUS_COMPRESSED_FOLDER,
-	handler: (accessor) => {
+	handler: accessor => {
 		const paneCompositeService = accessor.get(IPaneCompositePartService);
 		const viewlet = paneCompositeService.getActivePaneComposite(ViewContainerLocation.Sidebar);
 
@@ -599,7 +614,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	when: ContextKeyExpr.and(FilesExplorerFocusCondition, ExplorerCompressedFocusContext, ExplorerCompressedLastFocusContext.negate()),
 	primary: KeyCode.RightArrow,
 	id: NEXT_COMPRESSED_FOLDER,
-	handler: (accessor) => {
+	handler: accessor => {
 		const paneCompositeService = accessor.get(IPaneCompositePartService);
 		const viewlet = paneCompositeService.getActivePaneComposite(ViewContainerLocation.Sidebar);
 
@@ -618,7 +633,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	when: ContextKeyExpr.and(FilesExplorerFocusCondition, ExplorerCompressedFocusContext, ExplorerCompressedFirstFocusContext.negate()),
 	primary: KeyCode.Home,
 	id: FIRST_COMPRESSED_FOLDER,
-	handler: (accessor) => {
+	handler: accessor => {
 		const paneCompositeService = accessor.get(IPaneCompositePartService);
 		const viewlet = paneCompositeService.getActivePaneComposite(ViewContainerLocation.Sidebar);
 
@@ -637,7 +652,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	when: ContextKeyExpr.and(FilesExplorerFocusCondition, ExplorerCompressedFocusContext, ExplorerCompressedLastFocusContext.negate()),
 	primary: KeyCode.End,
 	id: LAST_COMPRESSED_FOLDER,
-	handler: (accessor) => {
+	handler: accessor => {
 		const paneCompositeService = accessor.get(IPaneCompositePartService);
 		const viewlet = paneCompositeService.getActivePaneComposite(ViewContainerLocation.Sidebar);
 

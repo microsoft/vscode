@@ -164,4 +164,20 @@ suite('vscode API - commands', () => {
 
 		return closeAllEditors();
 	});
+
+	test('api-command: vscode.save', async function () {
+		let result = await commands.executeCommand<{ uri: Uri } | undefined>('vscode.save');
+		assert.strictEqual(result, undefined);
+
+		assert.ok(workspace.workspaceFolders);
+		assert.ok(workspace.workspaceFolders.length > 0);
+		const uri = Uri.parse(workspace.workspaceFolders[0].uri.toString() + '/far.js');
+
+		await commands.executeCommand('vscode.open', uri);
+		assert.strictEqual(window.tabGroups.all.length, 1);
+		assert.strictEqual(window.tabGroups.all[0].activeTab?.group.viewColumn, ViewColumn.One);
+
+		result = await commands.executeCommand<{ uri: Uri }>('vscode.save');
+		assert.strictEqual(result.uri.toString(), uri.toString());
+	});
 });

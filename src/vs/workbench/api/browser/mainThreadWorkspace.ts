@@ -202,7 +202,7 @@ export class MainThreadWorkspace implements MainThreadWorkspaceShape {
 	// --- save & edit resources ---
 
 	$saveAll(includeUntitled?: boolean): Promise<boolean> {
-		return this._editorService.saveAll({ includeUntitled });
+		return this._editorService.saveAll({ includeUntitled }).then(res => res.success);
 	}
 
 	$resolveProxy(url: string): Promise<string | undefined> {
