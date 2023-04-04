@@ -96,7 +96,7 @@ jobs:
 
     - job: Windowsx64UnitTests
       displayName: Windows (Unit Tests)
-      pool: 1es-oss-windows-2022-x64
+      pool: 1es-oss-windows-2019-x64
       timeoutInMinutes: 30
       variables:
         VSCODE_ARCH: x64
@@ -112,7 +112,7 @@ jobs:
 
     - job: Windowsx64IntegrationTests
       displayName: Windows (Integration Tests)
-      pool: 1es-oss-windows-2022-x64
+      pool: 1es-oss-windows-2019-x64
       timeoutInMinutes: 30
       variables:
         VSCODE_ARCH: x64
@@ -128,7 +128,7 @@ jobs:
 
     # - job: Windowsx64SmokeTests
     #   displayName: Windows (Smoke Tests)
-    #   pool: 1es-oss-windows-2022-x64
+    #   pool: 1es-oss-windows-2019-x64
     #   timeoutInMinutes: 30
     #   variables:
     #     VSCODE_ARCH: x64
@@ -153,7 +153,7 @@ jobs:
 
     - job: Windowsx64MaintainNodeModulesCache
       displayName: Windows (Maintain node_modules cache)
-      pool: 1es-oss-windows-2022-x64
+      pool: 1es-oss-windows-2019-x64
       timeoutInMinutes: 30
       variables:
         VSCODE_ARCH: x64
