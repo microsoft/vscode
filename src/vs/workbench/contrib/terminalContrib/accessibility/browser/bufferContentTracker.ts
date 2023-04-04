@@ -10,9 +10,14 @@ import { IXtermTerminal } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { IMarker, Terminal } from 'xterm';
 
 export class BufferContentTracker {
-
+	/**
+	 * Marks the last part of the buffer that was cached
+	 */
 	private _lastCachedMarker: IMarker | undefined;
-	private _priorViewportLineCount: number = 0;
+	/**
+	 * The number of wrapped lines in the viewport when the last cached marker was set
+	 */
+	private _priorEditorViewportLineCount: number = 0;
 
 	private _lines: string[] = [];
 	get lines(): string[] { return this._lines; }
@@ -31,27 +36,36 @@ export class BufferContentTracker {
 		}
 		this._removeViewportContent();
 		this._updateCachedContent();
-		const viewport = this._updateViewportContent();
+		this._updateViewportContent();
 		this._lastCachedMarker = this._xterm.raw.registerMarker();
-		this._lines.push(...viewport);
-		this._logService.debug('Cached lines', this._lines);
+		this._logService.debug('Buffer content tracker: set ', this._lines.length, ' lines');
 	}
 
 	private _updateCachedContent(): void {
-		let currentLine: string = '';
 		const buffer = this._xterm.raw.buffer.active;
+		const start = this._lastCachedMarker?.line ? this._lastCachedMarker.line - this._xterm.raw.rows + 1 : 0;
+		const end = buffer.baseY;
+		if (start < 0 || start > end) {
+			// in the viewport, no need to cache
+			return;
+		}
+
+		// to keep the cache size down, remove any lines that are no longer in the scrollback
 		const scrollback: number = this._configurationService.getValue(TerminalSettingId.Scrollback);
 		const maxBufferSize = scrollback + this._xterm.raw.rows - 1;
-		const numToAdd = this._xterm.raw.buffer.active.baseY - (this._lastCachedMarker?.line ?? 0) + this._priorViewportLineCount;
-		if (numToAdd + this._lines.length > maxBufferSize) {
-			// remove lines from the top of the cache if it will exceed the max buffer size
-			const numToRemove = numToAdd + this._lines.length - maxBufferSize;
+		const linesToAdd = end - start;
+		if (linesToAdd + this._lines.length > maxBufferSize) {
+			const numToRemove = linesToAdd + this._lines.length - maxBufferSize;
 			for (let i = 0; i < numToRemove; i++) {
 				this._lines.shift();
 			}
-			this._logService.debug('Removed ', numToRemove, ' lines from top of cached lines, now ', this._lines.length, ' lines');
+			this._logService.debug('Buffer content tracker: removed ', numToRemove, ' lines from top of cached lines, now ', this._lines.length, ' lines');
 		}
-		for (let i = (this._lastCachedMarker?.line ?? 0) - this._priorViewportLineCount; i < this._xterm.raw.buffer.active.baseY; i++) {
+
+		// iterate through the buffer lines and add them to the editor line cache
+		const cachedLines = [];
+		let currentLine: string = '';
+		for (let i = start; i < end; i++) {
 			const line = buffer.getLine(i);
 			if (!line) {
 				continue;
@@ -61,33 +75,31 @@ export class BufferContentTracker {
 			if (currentLine && !isWrapped || i === (buffer.baseY + this._xterm.raw.rows - 1)) {
 				const line = currentLine.replace(new RegExp(' ', 'g'), '\xA0');
 				if (line.length) {
-					this._logService.debug('cached ', line);
-					this._lines.push(line);
+					cachedLines.push(line);
 					currentLine = '';
 				}
 			}
 		}
+		this._logService.debug('Buffer content tracker:', cachedLines.length, ' lines cached');
+		this._lines.push(...cachedLines);
 	}
 
 	private _removeViewportContent(): void {
-		if (this._lines.length && this._lastCachedMarker) {
-			// remove previous viewport content in case it has changed
-			let i = 0;
-			while (i < (this._priorViewportLineCount < this._xterm.raw.rows ? this._priorViewportLineCount - 1 : this._priorViewportLineCount)) {
-				this._lines.pop();
-				i++;
-			}
-			this._logService.debug('Removed ', this._priorViewportLineCount, ' lines from cached lines, now ', this._lines.length, ' lines');
+		if (!this._lines.length) {
+			return;
 		}
+		// remove previous viewport content in case it has changed
+		let linesToRemove = this._priorEditorViewportLineCount;
+		while (linesToRemove) {
+			this._lines.pop();
+			linesToRemove--;
+		}
+		this._logService.debug('Buffer content tracker: removed lines from viewport, now ', this._lines.length, ' lines cached');
 	}
 
-	private _updateViewportContent(): string[] {
+	private _updateViewportContent(): void {
 		const buffer = this._xterm.raw.buffer.active;
-		if (!buffer) {
-			throw new Error('No buffer');
-		}
-		const viewport = [];
-		let linesInViewport = 0;
+		this._priorEditorViewportLineCount = 0;
 		let currentLine: string = '';
 		for (let i = buffer.baseY; i < buffer.baseY + this._xterm.raw.rows; i++) {
 			const line = buffer.getLine(i);
@@ -98,15 +110,13 @@ export class BufferContentTracker {
 			currentLine += line.translateToString(!isWrapped);
 			if (currentLine && !isWrapped || i === (buffer.baseY + this._xterm.raw.rows - 1)) {
 				const line = currentLine.replace(new RegExp(' ', 'g'), '\xA0');
-				linesInViewport++;
 				if (line.length) {
-					viewport.push(line);
+					this._priorEditorViewportLineCount++;
+					this._lines.push(line);
 					currentLine = '';
 				}
 			}
 		}
-		this._priorViewportLineCount = linesInViewport;
-		this._logService.debug('Viewport content update complete, ', viewport.length, ' lines');
-		return viewport;
+		this._logService.debug('Viewport content update complete, ', this._lines.length, ' lines in the viewport');
 	}
 }

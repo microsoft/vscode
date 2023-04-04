@@ -108,8 +108,8 @@ suite('Buffer Content Tracker', () => {
 		await writeP(xterm.raw, '\x1b[4Ainsertion');
 		await bufferTracker.update();
 		const expected = content.split('\r\n');
-		expected[1026] = `${prompt}insertion`;
-		assert.deepStrictEqual(bufferTracker.lines[1026], `${prompt}insertion`);
+		expected[1025] = `${prompt}insertion`;
+		assert.deepStrictEqual(bufferTracker.lines[1025], `${prompt}insertion`);
 	});
 });
 
