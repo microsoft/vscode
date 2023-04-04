@@ -22,7 +22,7 @@ import { IAttachedView } from 'vs/editor/common/model';
 import { BracketPairsTextModelPart } from 'vs/editor/common/model/bracketPairsTextModelPart/bracketPairsImpl';
 import { AttachedViews, IAttachedViewState, TextModel } from 'vs/editor/common/model/textModel';
 import { TextModelPart } from 'vs/editor/common/model/textModelPart';
-import { DefaultBackgroundTokenizer, TokenizerWithStateStoreAndTextModel } from 'vs/editor/common/model/textModelTokens';
+import { DefaultBackgroundTokenizer, TokenizerWithStateStoreAndTextModel, TrackingTokenizationStateStore } from 'vs/editor/common/model/textModelTokens';
 import { IModelContentChangedEvent, IModelLanguageChangedEvent, IModelLanguageConfigurationChangedEvent, IModelTokensChangedEvent } from 'vs/editor/common/textModelEvents';
 import { BackgroundTokenizationState, ITokenizationTextModelPart } from 'vs/editor/common/tokenizationTextModelPart';
 import { ContiguousMultilineTokens } from 'vs/editor/common/tokens/contiguousMultilineTokens';
@@ -336,6 +336,10 @@ class GrammarTokens extends Disposable {
 	private readonly _backgroundTokenizer = this._register(new MutableDisposable<IBackgroundTokenizer>());
 
 	private readonly _tokens = new ContiguousTokensStore(this._languageIdCodec);
+	private _debugBackgroundTokens: ContiguousTokensStore | undefined;
+	private _debugBackgroundStates: TrackingTokenizationStateStore<IState> | undefined;
+
+	private readonly _debugBackgroundTokenizer = this._register(new MutableDisposable<IBackgroundTokenizer>());
 
 	private _backgroundTokenizationState = BackgroundTokenizationState.InProgress;
 	public get backgroundTokenizationState(): BackgroundTokenizationState {
@@ -386,6 +390,10 @@ class GrammarTokens extends Disposable {
 
 	public resetTokenization(fireTokenChangeEvent: boolean = true): void {
 		this._tokens.flush();
+		this._debugBackgroundTokens?.flush();
+		if (this._debugBackgroundStates) {
+			this._debugBackgroundStates = new TrackingTokenizationStateStore(this._textModel.getLineCount());
+		}
 		if (fireTokenChangeEvent) {
 			this._onDidChangeTokens.fire({
 				semanticTokensApplied: false,
@@ -452,13 +460,33 @@ class GrammarTokens extends Disposable {
 				},
 			};
 
-			if (tokenizationSupport && tokenizationSupport.createBackgroundTokenizer) {
+			if (tokenizationSupport && tokenizationSupport.createBackgroundTokenizer && !tokenizationSupport.backgroundTokenizerShouldOnlyVerifyTokens) {
 				this._backgroundTokenizer.value = tokenizationSupport.createBackgroundTokenizer(this._textModel, b);
 			}
 			if (!this._backgroundTokenizer.value) {
 				this._backgroundTokenizer.value = this._defaultBackgroundTokenizer =
 					new DefaultBackgroundTokenizer(this._tokenizer, b);
 				this._defaultBackgroundTokenizer.handleChanges();
+			}
+
+			if (tokenizationSupport?.backgroundTokenizerShouldOnlyVerifyTokens && tokenizationSupport.createBackgroundTokenizer) {
+				this._debugBackgroundTokens = new ContiguousTokensStore(this._languageIdCodec);
+				this._debugBackgroundStates = new TrackingTokenizationStateStore(this._textModel.getLineCount());
+				this._debugBackgroundTokenizer.value = tokenizationSupport.createBackgroundTokenizer(this._textModel, {
+					setTokens: (tokens) => {
+						this._debugBackgroundTokens?.setMultilineTokens(tokens, this._textModel);
+					},
+					backgroundTokenizationFinished() {
+						// NO OP
+					},
+					setEndState: (lineNumber, state) => {
+						this._debugBackgroundStates?.setEndState(lineNumber, state);
+					},
+				});
+			} else {
+				this._debugBackgroundTokens = undefined;
+				this._debugBackgroundStates = undefined;
+				this._debugBackgroundTokenizer.value = undefined;
 			}
 		}
 
@@ -478,7 +506,9 @@ class GrammarTokens extends Disposable {
 				const [eolCount, firstLineLength] = countEOL(c.text);
 
 				this._tokens.acceptEdit(c.range, eolCount, firstLineLength);
+				this._debugBackgroundTokens?.acceptEdit(c.range, eolCount, firstLineLength);
 			}
+			this._debugBackgroundStates?.acceptChanges(e.changes);
 
 			if (this._tokenizer) {
 				this._tokenizer.store.acceptChanges(e.changes);
@@ -554,11 +584,24 @@ class GrammarTokens extends Disposable {
 
 	public getLineTokens(lineNumber: number): LineTokens {
 		const lineText = this._textModel.getLineContent(lineNumber);
-		return this._tokens.getTokens(
+		const result = this._tokens.getTokens(
 			this._textModel.getLanguageId(),
 			lineNumber - 1,
 			lineText
 		);
+		if (this._debugBackgroundTokens && this._debugBackgroundStates && this._tokenizer) {
+			if (this._debugBackgroundStates.getFirstInvalidEndStateLineNumberOrMax() > lineNumber && this._tokenizer.store.getFirstInvalidEndStateLineNumberOrMax() > lineNumber) {
+				const backgroundResult = this._debugBackgroundTokens.getTokens(
+					this._textModel.getLanguageId(),
+					lineNumber - 1,
+					lineText
+				);
+				if (!result.equals(backgroundResult) && this._debugBackgroundTokenizer.value?.reportMismatchingTokens) {
+					this._debugBackgroundTokenizer.value.reportMismatchingTokens(lineNumber);
+				}
+			}
+		}
+		return result;
 	}
 
 	public getTokenTypeIfInsertingCharacter(lineNumber: number, column: number, character: string): StandardTokenType {

@@ -89,6 +89,8 @@ export interface IBackgroundTokenizer extends IDisposable {
 	 * when the change does not even propagate to that viewport.
 	 */
 	requestTokens(startLineNumber: number, endLineNumberExclusive: number): void;
+
+	reportMismatchingTokens?(lineNumber: number): void;
 }
 
 
@@ -96,6 +98,11 @@ export interface IBackgroundTokenizer extends IDisposable {
  * @internal
  */
 export interface ITokenizationSupport {
+	/**
+	 * If true, the background tokenizer will only be used to verify tokens against the default background tokenizer.
+	 * Used for debugging.
+	 */
+	readonly backgroundTokenizerShouldOnlyVerifyTokens?: boolean;
 
 	getInitialState(): IState;
 
