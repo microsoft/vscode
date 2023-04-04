@@ -40,7 +40,6 @@ export interface IQuickInputOptions {
 	idPrefix: string;
 	container: HTMLElement;
 	ignoreFocusOut(): boolean;
-	isScreenReaderOptimized(): boolean;
 	backKeybindingLabel(): string | undefined;
 	setContextKey(id?: string): void;
 	linkOpenerDelegate(content: string): void;
@@ -114,10 +113,8 @@ interface QuickInputUI {
 	onDidTriggerButton: Event<IQuickInputButton>;
 	ignoreFocusOut: boolean;
 	keyMods: Writeable<IKeyMods>;
-	isScreenReaderOptimized(): boolean;
 	show(controller: QuickInput): void;
 	setVisibilities(visibilities: Visibilities): void;
-	setComboboxAccessibility(enabled: boolean): void;
 	setEnabled(enabled: boolean): void;
 	setContextKey(contextKey?: string): void;
 	linkOpenerDelegate(content: string): void;
@@ -928,7 +925,7 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 			this.visibleDisposables.add(this.registerQuickNavigation());
 			this.valueSelectionUpdated = true;
 		}
-		super.show(); // TODO: Why have show() bubble up while update() trickles down? (Could move setComboboxAccessibility() here.)
+		super.show(); // TODO: Why have show() bubble up while update() trickles down?
 	}
 
 	private handleAccept(inBackground: boolean): void {
@@ -1100,7 +1097,6 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 		}
 		this.ui.customButton.label = this.customLabel || '';
 		this.ui.customButton.element.title = this.customHover || '';
-		this.ui.setComboboxAccessibility(true);
 		if (!visibilities.inputBox) {
 			// we need to move focus into the tree to detect keybindings
 			// properly when the input box is not visible (quick nav)
@@ -1231,7 +1227,6 @@ export class QuickInputController extends Disposable {
 	private ui: QuickInputUI | undefined;
 	private dimension?: dom.IDimension;
 	private titleBarOffset?: number;
-	private comboboxAccessibility = false;
 	private enabled = true;
 	private readonly onDidAcceptEmitter = this._register(new Emitter<void>());
 	private readonly onDidCustomEmitter = this._register(new Emitter<void>());
@@ -1341,7 +1336,9 @@ export class QuickInputController extends Disposable {
 		const progressBar = new ProgressBar(container, this.styles.progressBar);
 		progressBar.getContainer().classList.add('quick-input-progress');
 
-		const list = this._register(new QuickInputList(container, this.idPrefix + 'list', this.options));
+		const listId = this.idPrefix + 'list';
+		const list = this._register(new QuickInputList(container, listId, this.options));
+		inputBox.setAttribute('aria-controls', listId);
 		this._register(list.onChangedAllVisibleChecked(checked => {
 			checkAll.checked = checked;
 		}));
@@ -1450,11 +1447,9 @@ export class QuickInputController extends Disposable {
 			onDidTriggerButton: this.onDidTriggerButtonEmitter.event,
 			ignoreFocusOut: false,
 			keyMods: this.keyMods,
-			isScreenReaderOptimized: () => this.options.isScreenReaderOptimized(),
 			show: controller => this.show(controller),
 			hide: () => this.hide(),
 			setVisibilities: visibilities => this.setVisibilities(visibilities),
-			setComboboxAccessibility: enabled => this.setComboboxAccessibility(enabled),
 			setEnabled: enabled => this.setEnabled(enabled),
 			setContextKey: contextKey => this.options.setContextKey(contextKey),
 			linkOpenerDelegate: content => this.options.linkOpenerDelegate(content)
@@ -1685,7 +1680,6 @@ export class QuickInputController extends Disposable {
 		ui.list.matchOnLabel = true;
 		ui.list.sortByLabel = true;
 		ui.ignoreFocusOut = false;
-		this.setComboboxAccessibility(false);
 		ui.inputBox.ariaLabel = '';
 		ui.inputBox.toggles = undefined;
 
@@ -1714,26 +1708,6 @@ export class QuickInputController extends Disposable {
 		ui.container.classList.toggle('show-checkboxes', !!visibilities.checkBox);
 		ui.container.classList.toggle('hidden-input', !visibilities.inputBox && !visibilities.description);
 		this.updateLayout(); // TODO
-	}
-
-	private setComboboxAccessibility(enabled: boolean) {
-		if (enabled !== this.comboboxAccessibility) {
-			const ui = this.getUI();
-			this.comboboxAccessibility = enabled;
-			if (this.comboboxAccessibility) {
-				ui.inputBox.setAttribute('role', 'combobox');
-				ui.inputBox.setAttribute('aria-haspopup', 'true');
-				ui.inputBox.setAttribute('aria-autocomplete', 'list');
-				ui.inputBox.setAttribute('aria-controls', ui.list.id);
-				ui.inputBox.setAttribute('aria-expanded', 'true');
-			} else {
-				ui.inputBox.removeAttribute('role');
-				ui.inputBox.removeAttribute('aria-haspopup');
-				ui.inputBox.removeAttribute('aria-autocomplete');
-				ui.inputBox.removeAttribute('aria-controls');
-				ui.inputBox.removeAttribute('aria-expanded');
-			}
-		}
 	}
 
 	private setEnabled(enabled: boolean) {

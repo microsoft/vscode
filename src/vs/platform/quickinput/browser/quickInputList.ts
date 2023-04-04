@@ -6,7 +6,7 @@
 import * as dom from 'vs/base/browser/dom';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
-import { AriaRole } from 'vs/base/browser/ui/aria/aria';
+import { alert, AriaRole } from 'vs/base/browser/ui/aria/aria';
 import { HoverPosition } from 'vs/base/browser/ui/hover/hoverWidget';
 import { IHoverWidget } from 'vs/base/browser/ui/iconLabel/iconHoverDelegate';
 import { IconLabel, IIconLabelValueOptions } from 'vs/base/browser/ui/iconLabel/iconLabel';
@@ -286,7 +286,6 @@ export class QuickInputList {
 
 	readonly id: string;
 	private container: HTMLElement;
-	private liveElement: HTMLElement;
 	private list: List<ListElement>;
 	private inputElements: Array<QuickPickItem> = [];
 	private elements: ListElement[] = [];
@@ -326,11 +325,6 @@ export class QuickInputList {
 	) {
 		this.id = id;
 		this.container = dom.append(this.parent, $('.quick-input-list'));
-		this.liveElement = dom.append(this.container, $('div', {
-			'aria-live': 'polite',
-			'aria-relevant': 'additions'
-		}));
-
 		const delegate = new ListElementDelegate();
 		const accessibilityProvider = new QuickInputAccessibilityProvider();
 		this.list = options.createList('QuickInput', this.container, delegate, [new ListElementRenderer()], {
@@ -343,16 +337,8 @@ export class QuickInputList {
 		this.list.getHTMLElement().id = id;
 		this.disposables.push(this.list);
 		this.disposables.push(this.list.onDidChangeFocus(e => {
-			const item = $('div', {
-				'aria-labelledby': this.getActiveDescendant() ?? ''
-			});
-			if (this.liveElement.hasChildNodes()) {
-				dom.reset(this.liveElement, item);
-			} else {
-				// give NVDA time to register that the newly created live region - ref https://github.com/nvaccess/nvda/issues/8873
-				setTimeout(() => {
-					dom.reset(this.liveElement, item);
-				}, 500);
+			if (e.elements.length) {
+				alert(e.elements.map(el => el.saneAriaLabel).join(', '));
 			}
 		}));
 		this.disposables.push(this.list.onKeyDown(e => {
