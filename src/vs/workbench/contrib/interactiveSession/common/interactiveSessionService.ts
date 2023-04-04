@@ -52,7 +52,6 @@ export interface IInteractiveProvider {
 	prepareSession(initialState: IPersistedInteractiveState | undefined, token: CancellationToken): ProviderResult<IInteractiveSession | undefined>;
 	resolveRequest?(session: IInteractiveSession, context: any, token: CancellationToken): ProviderResult<IInteractiveRequest>;
 	provideWelcomeMessage?(token: CancellationToken): ProviderResult<(string | IInteractiveSessionReplyFollowup[])[] | undefined>;
-	provideSuggestions?(token: CancellationToken): ProviderResult<string[] | undefined>;
 	provideFollowups?(session: IInteractiveSession, token: CancellationToken): ProviderResult<IInteractiveSessionFollowup[] | undefined>;
 	provideReply(request: IInteractiveRequest, progress: (progress: IInteractiveProgress) => void, token: CancellationToken): ProviderResult<IInteractiveResponse>;
 	provideSlashCommands?(session: IInteractiveSession, token: CancellationToken): ProviderResult<IInteractiveSlashCommand[]>;
@@ -162,7 +161,6 @@ export interface IInteractiveSessionService {
 	addInteractiveRequest(context: any): void;
 	addCompleteRequest(message: string, response: IInteractiveSessionCompleteResponse): void;
 	sendInteractiveRequestToProvider(providerId: string, message: IInteractiveSessionDynamicRequest): void;
-	provideSuggestions(providerId: string, token: CancellationToken): Promise<string[] | undefined>;
 	releaseSession(sessionId: number): void;
 
 	onDidPerformUserAction: Event<IInteractiveSessionUserActionEvent>;

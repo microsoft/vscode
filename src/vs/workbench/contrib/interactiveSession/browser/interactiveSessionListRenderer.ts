@@ -615,7 +615,8 @@ class CodeBlockPart extends Disposable implements IInteractiveResultCodeBlockPar
 			this.layout(width);
 		}
 
-		this.setText(data.text);
+		const text = this.fixCodeText(data.text, data.languageId);
+		this.setText(text);
 		this.setLanguage(data.languageId);
 
 		this.layout(width);
@@ -636,6 +637,16 @@ class CodeBlockPart extends Disposable implements IInteractiveResultCodeBlockPar
 			codeBlockIndex: data.codeBlockIndex,
 			element: data.element
 		};
+	}
+
+	private fixCodeText(text: string, languageId: string): string {
+		if (languageId === 'php') {
+			if (!text.trim().startsWith('<')) {
+				return `<?php\n${text}\n?>`;
+			}
+		}
+
+		return text;
 	}
 
 	private setText(newText: string): void {
