@@ -164,15 +164,17 @@ function nodejs(platform, arch) {
 	if (platform === 'win32') {
 		let base;
 		let path;
+		let requestOptions = undefined;
 		if (product.nodejsRepository) {
 			base = 'https://github.com';
 			path = `/${product.nodejsRepository}/releases/download/v${nodeVersion}/win-${arch}-node.exe`;
+			requestOptions = { headers: { Authorization: `Bearer ${process.env['GITHUB_TOKEN'] }` } };
 		} else {
 			base = 'https://nodejs.org';
 			path = `/dist/v${nodeVersion}/win-${arch}/node.exe`;
 		}
 
-		return remote(path, { base })
+		return remote(path, { base, requestOptions })
 			.pipe(rename('node.exe'));
 	}
 
