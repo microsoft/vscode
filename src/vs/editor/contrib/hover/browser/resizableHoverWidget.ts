@@ -26,6 +26,7 @@ export class ResizableHoverWidget extends ResizableWidget {
 	private resizableContentWidget: ResizableContentHoverWidget;
 	private visibleData: ContentHoverVisibleData | null = null;
 	private renderingAbove: ContentWidgetPositionPreference;
+	private visible: boolean = false;
 
 	public readonly hoverWidget: HoverWidget = this.disposableStore.add(new HoverWidget());
 	public readonly allowEditorOverflow = true;
@@ -230,6 +231,8 @@ export class ResizableHoverWidget extends ResizableWidget {
 
 	public showAt(node: DocumentFragment, visibleData: ContentHoverVisibleData): void {
 
+		console.log('Inside of showAt');
+
 		if (this.persistingMechanism instanceof MultipleSizePersistingMechanism) {
 			this.persistingMechanism.position = visibleData.showAtPosition;
 		}
@@ -240,7 +243,10 @@ export class ResizableHoverWidget extends ResizableWidget {
 		const domNode = this.resizableContentWidget.getDomNode();
 		domNode.style.position = 'fixed';
 		domNode.style.zIndex = '50';
-		this.editor.addContentWidget(this.resizableContentWidget);
+
+		if (!this.visible) {
+			this.editor.addContentWidget(this.resizableContentWidget);
+		}
 
 		const persistedSize = this.findPersistedSize();
 
@@ -330,12 +336,14 @@ export class ResizableHoverWidget extends ResizableWidget {
 		if (!this.visibleData) {
 			return;
 		}
+
+		this.visible = true;
 	}
 
 	public override hide(): void {
 
 		console.log('Inside of hide of ResizableHoverWidget');
-
+		this.visible = false;
 		this.element.clearSashHoverState();
 		this.editor.removeContentWidget(this.resizableContentWidget);
 		if (this.visibleData) {
