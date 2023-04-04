@@ -236,8 +236,9 @@ export class ResizableHoverWidget extends ResizableWidget {
 		this.resizableContentWidget.secondaryPosition = visibleData.showAtSecondaryPosition;
 		this.resizableContentWidget.positionAffinity = visibleData.isBeforeContent ? PositionAffinity.LeftOfInjectedText : undefined;
 
-		this.resizableContentWidget.getDomNode().style.position = 'fixed';
-		this.resizableContentWidget.getDomNode().style.zIndex = '50';
+		const domNode = this.resizableContentWidget.getDomNode();
+		domNode.style.position = 'fixed';
+		domNode.style.zIndex = '50';
 		this.editor.addContentWidget(this.resizableContentWidget);
 
 		const persistedSize = this.findPersistedSize();
@@ -253,9 +254,7 @@ export class ResizableHoverWidget extends ResizableWidget {
 		this.hoverWidget.contentsDomNode.style.paddingBottom = '';
 		this._updateFont();
 
-		const containerDomNode = this.resizableContentWidget.getDomNode();
 		let height;
-
 		// If the persisted size has already been found then set a maximum height and width
 		if (!persistedSize) {
 			this.hoverWidget.contentsDomNode.style.maxHeight = `${Math.max(this.editor.getLayoutInfo().height / 4, 250)}px`;
@@ -265,7 +264,7 @@ export class ResizableHoverWidget extends ResizableWidget {
 			// Simply force a synchronous render on the editor
 			// such that the widget does not really render with left = '0px'
 			this.editor.render();
-			height = containerDomNode.clientHeight;
+			height = domNode.clientHeight;
 		}
 		// When there is a persisted size then do not use a maximum height or width
 		else {
@@ -359,6 +358,8 @@ export class ResizableHoverWidget extends ResizableWidget {
 		// Suppose a persisted size is defined
 		if (persistedSize) {
 
+			console.log('Using persisted size');
+
 			const width = Math.min(this.findMaximumRenderingWidth() ?? Infinity, persistedSize.width - 7 - 7);
 			const height = Math.min(this.findMaximumRenderingHeight() ?? Infinity, persistedSize.height - 7 - 7);
 
@@ -369,6 +370,8 @@ export class ResizableHoverWidget extends ResizableWidget {
 
 		} else {
 
+			console.log('Not using persisted size');
+
 			// Otherwise the height and width are set to auto
 			containerDomNode.style.width = 'auto';
 			containerDomNode.style.height = 'auto';
@@ -376,50 +379,63 @@ export class ResizableHoverWidget extends ResizableWidget {
 			contentsDomNode.style.height = 'auto';
 		}
 
-		containerDomNode.style.top = 2 + 'px';
-		containerDomNode.style.left = 2 + 'px';
-
 		this.editor.layoutContentWidget(this.resizableContentWidget);
 		this.hoverWidget.onContentsChanged();
 
 		const clientHeight = this.hoverWidget.containerDomNode.clientHeight;
 		const clientWidth = this.hoverWidget.containerDomNode.clientWidth;
 
-		this.element.layout(clientHeight + 7, clientWidth + 7);
+		this.element.layout(clientHeight + 6, clientWidth + 6);
+		containerDomNode.style.height = clientHeight + 'px';
+		containerDomNode.style.width = clientWidth + 'px';
+		containerDomNode.style.top = 2 + 'px';
+		containerDomNode.style.left = 2 + 'px';
 
 		const scrollDimensions = this.hoverWidget.scrollbar.getScrollDimensions();
 		const hasHorizontalScrollbar = (scrollDimensions.scrollWidth > scrollDimensions.width);
 
 		if (hasHorizontalScrollbar) {
+			console.log('has horizontal scrollbar');
+
 			const extraBottomPadding = `${this.hoverWidget.scrollbar.options.horizontalScrollbarSize}px`;
-			let reposition = false;
+			// let reposition = false;
 			if (this.hoverWidget.contentsDomNode.style.paddingBottom !== extraBottomPadding) {
 				this.hoverWidget.contentsDomNode.style.paddingBottom = extraBottomPadding;
-				reposition = true;
+				// reposition = true;
 			}
 			const maxRenderingHeight = this.findMaximumRenderingHeight();
 
-			// Need the following code in order to make the scrollbar visible when exact persisted size is used
-			if (persistedSize && maxRenderingHeight) {
-				containerDomNode.style.height = Math.min(maxRenderingHeight, persistedSize.height - 9) + 'px'; //  - SASH_WIDTH
-				contentsDomNode.style.height = Math.min(maxRenderingHeight, persistedSize.height - 9 - SCROLLBAR_WIDTH) + 'px'; //  - SASH_WIDTH
-				reposition = true;
+			if (!maxRenderingHeight) {
+				return;
 			}
-			if (reposition) {
-				console.log('Inside of the case when repositioning');
 
-				if (persistedSize) {
-					console.log('when using a persisted size');
-					this.element.layout(clientHeight + 17 - 6, clientWidth + 7);
-				} else {
-					console.log('Inside of the case when repositioning');
-					this.element.layout(clientHeight + 17, clientWidth + 7);
-				}
-
-				this.editor.layoutContentWidget(this.resizableContentWidget);
-				this.editor.render();
-				this.hoverWidget.onContentsChanged();
+			if (persistedSize) { // if (persistedSize && maxRenderingHeight) {
+				containerDomNode.style.height = Math.min(maxRenderingHeight, persistedSize.height - 6) + 'px';
+				contentsDomNode.style.height = Math.min(maxRenderingHeight, persistedSize.height - 6 - SCROLLBAR_WIDTH) + 'px';
+				this.element.layout(clientHeight + 10 + 6, clientWidth + 6);
+				// reposition = true;
+			} else {
+				containerDomNode.style.height = Math.min(maxRenderingHeight, clientHeight) + 'px';
+				contentsDomNode.style.height = Math.min(maxRenderingHeight, clientHeight - SCROLLBAR_WIDTH) + 'px';
+				this.element.layout(clientHeight + 6, clientWidth + 6);
 			}
+			// if (reposition) {
+			// 	console.log('Inside of the case when repositioning');
+			// 	if (persistedSize) {
+			// 		console.log('when using a persisted size');
+			// 		this.element.layout(clientHeight + 17 - 6, clientWidth + 7);
+			// 	} else {
+			// 		console.log('Inside of the case when repositioning');
+			// 		this.element.layout(clientHeight + 10 + 6, clientWidth + 6);
+			// 	}
+			// 	this.editor.layoutContentWidget(this.resizableContentWidget);
+			// 	this.editor.render();
+			// 	this.hoverWidget.onContentsChanged();
+			// }
+
+			this.editor.layoutContentWidget(this.resizableContentWidget);
+			// this.editor.render();
+			this.hoverWidget.onContentsChanged();
 		}
 
 		console.log('Before changing the sash size');
@@ -432,7 +448,7 @@ export class ResizableHoverWidget extends ResizableWidget {
 		this.element.northSash.el.style.left = 2 + 'px';
 		this.element.southSash.el.style.left = 2 + 'px';
 
-		if (hasHorizontalScrollbar) {
+		if (hasHorizontalScrollbar && persistedSize) {
 			height = clientHeight + 12;
 		} else {
 			height = clientHeight + 2;

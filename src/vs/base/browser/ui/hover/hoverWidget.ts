@@ -37,7 +37,6 @@ export class HoverWidget extends Disposable {
 			consumeMouseWheelIfScrollbarIsNeeded: true
 		}));
 		this.containerDomNode.appendChild(this.scrollbar.getDomNode());
-		this.containerDomNode.style.zIndex = '50';
 	}
 
 	public onContentsChanged(): void {

@@ -148,9 +148,6 @@ export class ContentHoverController extends Disposable {
 		}
 
 		if (!anchor) {
-
-			console.log('no anchor');
-
 			this._setCurrentResult(null);
 			return false;
 		}
@@ -161,9 +158,6 @@ export class ContentHoverController extends Disposable {
 		}
 
 		if (!anchor.canAdoptVisibleHover(this._currentResult.anchor, this._widget.position)) {
-
-			console.log('can not adopt visible hover');
-
 			// The new anchor is not compatible with the previous anchor
 			this._setCurrentResult(null);
 			this._startHoverOperationIfNecessary(anchor, mode, source, focus, false);

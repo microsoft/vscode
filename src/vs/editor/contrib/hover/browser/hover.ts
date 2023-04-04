@@ -31,6 +31,7 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ResizableContentHoverWidget } from 'vs/editor/contrib/hover/browser/resizableHoverWidget';
 import * as nls from 'vs/nls';
 import 'vs/css!./hover';
+
 export class ModesHoverController implements IEditorContribution {
 
 	public static readonly ID = 'editor.contrib.hover';
@@ -165,11 +166,6 @@ export class ModesHoverController implements IEditorContribution {
 
 		if (target.type === MouseTargetType.OVERLAY_WIDGET && target.detail === MarginHoverWidget.ID) {
 			// mouse down on top of overlay margin hover widget
-			return;
-		}
-
-		if (target.type === MouseTargetType.CONTENT_WIDGET && target.detail === ResizableContentHoverWidget.ID) {
-			// mouse down on top of the content hover widget
 			return;
 		}
 
