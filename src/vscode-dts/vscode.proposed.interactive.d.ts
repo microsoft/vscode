@@ -144,7 +144,6 @@ declare module 'vscode' {
 	export type InteractiveWelcomeMessageContent = string | InteractiveSessionReplyFollowup[];
 
 	export interface InteractiveSessionProvider<S extends InteractiveSession = InteractiveSession> {
-		provideInitialSuggestions?(token: CancellationToken): ProviderResult<string[]>;
 		provideWelcomeMessage?(token: CancellationToken): ProviderResult<InteractiveWelcomeMessageContent[]>;
 		provideFollowups?(session: S, token: CancellationToken): ProviderResult<(string | InteractiveSessionFollowup)[]>;
 		provideSlashCommands?(session: S, token: CancellationToken): ProviderResult<InteractiveSessionSlashCommand[]>;

@@ -15,7 +15,7 @@ function getVscodeDevHost(): string {
 
 async function copyVscodeDevLink(gitAPI: GitAPI, useSelection: boolean, context: LinkContext, includeRange = true) {
 	try {
-		const permalink = getLink(gitAPI, useSelection, getVscodeDevHost(), undefined, context, includeRange);
+		const permalink = getLink(gitAPI, useSelection, getVscodeDevHost(), 'headlink', context, includeRange);
 		if (permalink) {
 			return vscode.env.clipboard.writeText(permalink);
 		}
