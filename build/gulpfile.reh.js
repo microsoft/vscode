@@ -162,7 +162,17 @@ function nodejs(platform, arch) {
 	}
 
 	if (platform === 'win32') {
-		return remote(`/dist/v${nodeVersion}/win-${arch}/node.exe`, { base: 'https://nodejs.org' })
+		let base;
+		let path;
+		if (product.nodejsRepository) {
+			base = 'https://github.com';
+			path = `${product.nodejsRepository}/releases/download/v${nodeVersion}/win-${arch}-node.exe`;
+		} else {
+			base = 'https://nodejs.org';
+			path = `/dist/v${nodeVersion}/win-${arch}/node.exe`;
+		}
+
+		return remote(path, { base })
 			.pipe(rename('node.exe'));
 	}
 
