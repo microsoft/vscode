@@ -433,8 +433,7 @@ export class IndexedDBFileSystemProvider extends Disposable implements IFileSyst
 					return objectStore.put(entry.content, entry.resource.path);
 				}));
 			} catch (ex) {
-				const estimated = await navigator?.storage?.estimate?.();
-				if ((estimated?.quota ?? Number.MAX_SAFE_INTEGER) === (estimated?.usage ?? 0)) {
+				if (ex instanceof DOMException && ex.name === 'QuotaExceededError') {
 					throw ERR_FILE_EXCEEDS_STORAGE_QUOTA;
 				}
 
