@@ -453,12 +453,14 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 		const gdkBackend = process.env['GDK_BACKEND'];
 		const gioModuleDir = process.env['GIO_MODULE_DIR'];
 		const gtkExePrefix = process.env['GTK_EXE_PREFIX'];
+		const gsettingsSchemaDir = process.env['GSETTINGS_SCHEMA_DIR'];
 		delete process.env['GDK_PIXBUF_MODULE_FILE'];
 		delete process.env['GDK_PIXBUF_MODULEDIR'];
 		delete process.env['GTK_IM_MODULE_FILE'];
 		delete process.env['GDK_BACKEND'];
 		delete process.env['GIO_MODULE_DIR'];
 		delete process.env['GTK_EXE_PREFIX'];
+		delete process.env['GSETTINGS_SCHEMA_DIR'];
 
 		shell.openExternal(url);
 
@@ -469,6 +471,7 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 		process.env['GDK_BACKEND'] = gdkBackend;
 		process.env['GIO_MODULE_DIR'] = gioModuleDir;
 		process.env['GTK_EXE_PREFIX'] = gtkExePrefix;
+		process.env['GSETTINGS_SCHEMA_DIR'] = gsettingsSchemaDir;
 	}
 
 	moveItemToTrash(windowId: number | undefined, fullPath: string): Promise<void> {
