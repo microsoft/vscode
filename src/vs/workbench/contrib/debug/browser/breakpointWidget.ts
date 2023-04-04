@@ -169,7 +169,7 @@ export class BreakpointWidget extends ZoneWidget implements IPrivateBreakpointWi
 		if (this.editor.hasModel()) {
 			// Use plaintext language for log messages, otherwise respect underlying editor language #125619
 			const languageId = this.context === Context.LOG_MESSAGE ? PLAINTEXT_LANGUAGE_ID : this.editor.getModel().getLanguageId();
-			this.input.getModel().setMode(languageId);
+			this.input.getModel().setLanguage(languageId);
 		}
 	}
 
@@ -229,7 +229,7 @@ export class BreakpointWidget extends ZoneWidget implements IPrivateBreakpointWi
 		CONTEXT_IN_BREAKPOINT_WIDGET.bindTo(scopedContextKeyService).set(true);
 		const model = this.modelService.createModel('', null, uri.parse(`${DEBUG_SCHEME}:${this.editor.getId()}:breakpointinput`), true);
 		if (this.editor.hasModel()) {
-			model.setMode(this.editor.getModel().getLanguageId());
+			model.setLanguage(this.editor.getModel().getLanguageId());
 		}
 		this.input.setModel(model);
 		this.setInputMode();
@@ -329,7 +329,7 @@ export class BreakpointWidget extends ZoneWidget implements IPrivateBreakpointWi
 					hitCondition,
 					logMessage
 				});
-				this.debugService.updateBreakpoints(this.breakpoint.uri, data, false).then(undefined, onUnexpectedError);
+				this.debugService.updateBreakpoints(this.breakpoint.originalUri, data, false).then(undefined, onUnexpectedError);
 			} else {
 				const model = this.editor.getModel();
 				if (model) {

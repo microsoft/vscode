@@ -78,26 +78,17 @@ export class InlineCompletionsModel extends Disposable implements GhostTextWidge
 			})
 		);
 
-		this._register(
-			this.editor.onDidType((e) => {
-				this.handleUserInput();
-			})
-		);
+		this._register(this.editor.onDidType((e) => { this.handleUserInput(); }));
 
 		this._register(
 			this.editor.onDidChangeCursorPosition((e) => {
-				if (e.reason === CursorChangeReason.Explicit ||
-					this.session && !this.session.isValid) {
+				if (e.reason === CursorChangeReason.Explicit || this.session && !this.session.isValid) {
 					this.hide();
 				}
 			})
 		);
 
-		this._register(
-			toDisposable(() => {
-				this.disposed = true;
-			})
-		);
+		this._register(toDisposable(() => { this.disposed = true; }));
 
 		this._register(
 			this.editor.onDidBlurEditorWidget(() => {
@@ -192,8 +183,10 @@ export class InlineCompletionsModel extends Disposable implements GhostTextWidge
 	}
 
 	public hide(): void {
-		this.completionSession.clear();
-		this.onDidChangeEmitter.fire();
+		if (this.completionSession.value) {
+			this.completionSession.clear();
+			this.onDidChangeEmitter.fire();
+		}
 	}
 
 	public commitCurrentSuggestion(): void {
@@ -483,7 +476,9 @@ export class InlineCompletionsSession extends BaseGhostTextWidgetModel {
 				);
 
 				const endTime = new Date();
-				this.debounce.update(this.editor.getModel(), endTime.getTime() - startTime.getTime());
+				if (this.editor.hasModel()) {
+					this.debounce.update(this.editor.getModel(), endTime.getTime() - startTime.getTime());
+				}
 
 			} catch (e) {
 				onUnexpectedError(e);
@@ -710,7 +705,7 @@ export class SynchronizedInlineCompletionsCache extends Disposable {
 		for (const c of this.completions) {
 			const newRange = model.getDecorationRange(c.decorationId);
 			if (!newRange) {
-				onUnexpectedError(new Error('Decoration has no range'));
+				// onUnexpectedError(new Error('Decoration has no range'));
 				continue;
 			}
 			if (!c.synchronizedRange.equalsRange(newRange)) {

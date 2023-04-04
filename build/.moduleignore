@@ -121,9 +121,9 @@ vscode-encrypt/README.md
 @vscode/policy-watcher/index.d.ts
 !@vscode/policy-watcher/build/Release/vscode-policy-watcher.node
 
-vscode-windows-ca-certs/**/*
-!vscode-windows-ca-certs/package.json
-!vscode-windows-ca-certs/**/*.node
+@vscode/windows-ca-certs/**/*
+!@vscode/windows-ca-certs/package.json
+!@vscode/windows-ca-certs/**/*.node
 
 node-addon-api/**/*
 prebuild-install/**/*

@@ -6,14 +6,11 @@
 use std::path::{Path, PathBuf};
 
 use async_trait::async_trait;
-use tokio::sync::mpsc;
 
 use crate::log;
 use crate::state::LauncherPaths;
 use crate::util::errors::{wrap, AnyError};
 use crate::util::io::{tailf, TailEvent};
-
-use super::shutdown_signal::ShutdownSignal;
 
 pub const SERVICE_LOG_FILE_NAME: &str = "tunnel-service.log";
 
@@ -23,7 +20,6 @@ pub trait ServiceContainer: Send {
 		&mut self,
 		log: log::Logger,
 		launcher_paths: LauncherPaths,
-		shutdown_rx: mpsc::UnboundedReceiver<ShutdownSignal>,
 	) -> Result<(), AnyError>;
 }
 

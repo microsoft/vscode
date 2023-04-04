@@ -15,7 +15,7 @@ name = "code"
 futures = "0.3"
 clap = { version = "3.0", features = ["derive", "env"] }
 open = { version = "2.1.0" }
-reqwest = { version = "0.11.9", default-features = false, features = ["json", "stream", "native-tls-vendored"] }
+reqwest = { version = "0.11.9", default-features = false, features = ["json", "stream", "native-tls"] }
 tokio = { version = "1.24.2", features = ["full"] }
 tokio-util = { version = "0.7", features = ["compat"] }
 flate2 = { version = "1.0.22" }
@@ -31,17 +31,17 @@ dirs = "4.0.0"
 rand = "0.8.5"
 atty = "0.2.14"
 opentelemetry = { version = "0.18.0", features = ["rt-tokio"] }
-opentelemetry-application-insights = { version = "0.22.0", features = ["reqwest-client-vendored-tls"] }
+opentelemetry-application-insights = { version = "0.22.0", features = ["reqwest-client"] }
 serde_bytes = "0.11.5"
 chrono = { version = "0.4", features = ["serde"] }
 gethostname = "0.2.3"
 libc = "0.2"
-tunnels = { git = "https://github.com/microsoft/dev-tunnels", rev = "3870e9133dfb9557774521bb447827f19b26e55d", default-features = false, features = ["connections", "vendored-openssl"] }
+tunnels = { git = "https://github.com/microsoft/dev-tunnels", rev = "730aa86f8ccd9e2dd4541693fbce763357da93f4", default-features = false, features = ["connections"] }
 keyring = "1.1"
 dialoguer = "0.10"
 hyper = "0.14"
 indicatif = "0.16"
-tempfile = "3.3"
+tempfile = "3.4"
 clap_lex = "0.2"
 url = "2.3"
 async-trait = "0.1"
@@ -50,6 +50,10 @@ const_format = "0.2"
 sha2 = "0.10"
 base64 = "0.13"
 shell-escape = "0.1.5"
+thiserror = "1.0"
+cfg-if = "1.0.0"
+pin-project = "1.0"
+console = "0.15"
 
 [build-dependencies]
 serde = { version = "1.0" }
@@ -70,7 +74,7 @@ zbus = { version = "3.4", default-features = false, features = ["tokio"] }
 russh = { git = "https://github.com/microsoft/vscode-russh", branch = "main" }
 russh-cryptovec = { git = "https://github.com/microsoft/vscode-russh", branch = "main" }
 russh-keys = { git = "https://github.com/microsoft/vscode-russh", branch = "main" }
-secret-service = { git = "https://github.com/microsoft/vscode-secret-service-rs", rev = "30f0414108a122d6f2bfc28a5425d0dac9738518" }
+secret-service = { git = "https://github.com/microsoft/vscode-secret-service-rs", rev = "fbbaf222de10546609be26bb043e64356e855edb" }
 
 [profile.release]
 strip = true

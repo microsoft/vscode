@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IExtensionManifest, ExtensionIdentifier, ExtensionUntrustedWorkspaceSupportType, ExtensionVirtualWorkspaceSupportType, IExtensionIdentifier, ALL_EXTENSION_KINDS } from 'vs/platform/extensions/common/extensions';
+import { IExtensionManifest, ExtensionUntrustedWorkspaceSupportType, ExtensionVirtualWorkspaceSupportType, IExtensionIdentifier, ALL_EXTENSION_KINDS, ExtensionIdentifierMap } from 'vs/platform/extensions/common/extensions';
 import { ExtensionKind } from 'vs/platform/environment/common/environment';
 import { ExtensionsRegistry } from 'vs/workbench/services/extensions/common/extensionsRegistry';
 import { getGalleryExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
@@ -44,13 +44,13 @@ export class ExtensionManifestPropertiesService extends Disposable implements IE
 	readonly _serviceBrand: undefined;
 
 	private _extensionPointExtensionKindsMap: Map<string, ExtensionKind[]> | null = null;
-	private _productExtensionKindsMap: Map<string, ExtensionKind[]> | null = null;
-	private _configuredExtensionKindsMap: Map<string, ExtensionKind | ExtensionKind[]> | null = null;
+	private _productExtensionKindsMap: ExtensionIdentifierMap<ExtensionKind[]> | null = null;
+	private _configuredExtensionKindsMap: ExtensionIdentifierMap<ExtensionKind | ExtensionKind[]> | null = null;
 
-	private _productVirtualWorkspaceSupportMap: Map<string, { default?: boolean; override?: boolean }> | null = null;
-	private _configuredVirtualWorkspaceSupportMap: Map<string, boolean> | null = null;
+	private _productVirtualWorkspaceSupportMap: ExtensionIdentifierMap<{ default?: boolean; override?: boolean }> | null = null;
+	private _configuredVirtualWorkspaceSupportMap: ExtensionIdentifierMap<boolean> | null = null;
 
-	private readonly _configuredExtensionWorkspaceTrustRequestMap: Map<string, { supported: ExtensionUntrustedWorkspaceSupportType; version?: string }>;
+	private readonly _configuredExtensionWorkspaceTrustRequestMap: ExtensionIdentifierMap<{ supported: ExtensionUntrustedWorkspaceSupportType; version?: string }>;
 	private readonly _productExtensionWorkspaceTrustRequestMap: Map<string, ExtensionUntrustedWorkspaceSupport>;
 
 	constructor(
@@ -62,17 +62,17 @@ export class ExtensionManifestPropertiesService extends Disposable implements IE
 		super();
 
 		// Workspace trust request type (settings.json)
-		this._configuredExtensionWorkspaceTrustRequestMap = new Map<string, { supported: ExtensionUntrustedWorkspaceSupportType; version?: string }>();
+		this._configuredExtensionWorkspaceTrustRequestMap = new ExtensionIdentifierMap<{ supported: ExtensionUntrustedWorkspaceSupportType; version?: string }>();
 		const configuredExtensionWorkspaceTrustRequests = configurationService.inspect<{ [key: string]: { supported: ExtensionUntrustedWorkspaceSupportType; version?: string } }>(WORKSPACE_TRUST_EXTENSION_SUPPORT).userValue || {};
 		for (const id of Object.keys(configuredExtensionWorkspaceTrustRequests)) {
-			this._configuredExtensionWorkspaceTrustRequestMap.set(ExtensionIdentifier.toKey(id), configuredExtensionWorkspaceTrustRequests[id]);
+			this._configuredExtensionWorkspaceTrustRequestMap.set(id, configuredExtensionWorkspaceTrustRequests[id]);
 		}
 
-		// Workspace trust request type (products.json)
+		// Workspace trust request type (product.json)
 		this._productExtensionWorkspaceTrustRequestMap = new Map<string, ExtensionUntrustedWorkspaceSupport>();
 		if (productService.extensionUntrustedWorkspaceSupport) {
 			for (const id of Object.keys(productService.extensionUntrustedWorkspaceSupport)) {
-				this._productExtensionWorkspaceTrustRequestMap.set(ExtensionIdentifier.toKey(id), productService.extensionUntrustedWorkspaceSupport[id]);
+				this._productExtensionWorkspaceTrustRequestMap.set(id, productService.extensionUntrustedWorkspaceSupport[id]);
 			}
 		}
 	}
@@ -138,15 +138,15 @@ export class ExtensionManifestPropertiesService extends Disposable implements IE
 
 	getUserConfiguredExtensionKind(extensionIdentifier: IExtensionIdentifier): ExtensionKind[] | undefined {
 		if (this._configuredExtensionKindsMap === null) {
-			const configuredExtensionKindsMap = new Map<string, ExtensionKind | ExtensionKind[]>();
+			const configuredExtensionKindsMap = new ExtensionIdentifierMap<ExtensionKind | ExtensionKind[]>();
 			const configuredExtensionKinds = this.configurationService.getValue<{ [key: string]: ExtensionKind | ExtensionKind[] }>('remote.extensionKind') || {};
 			for (const id of Object.keys(configuredExtensionKinds)) {
-				configuredExtensionKindsMap.set(ExtensionIdentifier.toKey(id), configuredExtensionKinds[id]);
+				configuredExtensionKindsMap.set(id, configuredExtensionKinds[id]);
 			}
 			this._configuredExtensionKindsMap = configuredExtensionKindsMap;
 		}
 
-		const userConfiguredExtensionKind = this._configuredExtensionKindsMap.get(ExtensionIdentifier.toKey(extensionIdentifier.id));
+		const userConfiguredExtensionKind = this._configuredExtensionKindsMap.get(extensionIdentifier.id);
 		return userConfiguredExtensionKind ? this.toArray(userConfiguredExtensionKind) : undefined;
 	}
 
@@ -303,53 +303,53 @@ export class ExtensionManifestPropertiesService extends Disposable implements IE
 
 	private getProductExtensionKind(manifest: IExtensionManifest): ExtensionKind[] | undefined {
 		if (this._productExtensionKindsMap === null) {
-			const productExtensionKindsMap = new Map<string, ExtensionKind[]>();
+			const productExtensionKindsMap = new ExtensionIdentifierMap<ExtensionKind[]>();
 			if (this.productService.extensionKind) {
 				for (const id of Object.keys(this.productService.extensionKind)) {
-					productExtensionKindsMap.set(ExtensionIdentifier.toKey(id), this.productService.extensionKind[id]);
+					productExtensionKindsMap.set(id, this.productService.extensionKind[id]);
 				}
 			}
 			this._productExtensionKindsMap = productExtensionKindsMap;
 		}
 
 		const extensionId = getGalleryExtensionId(manifest.publisher, manifest.name);
-		return this._productExtensionKindsMap.get(ExtensionIdentifier.toKey(extensionId));
+		return this._productExtensionKindsMap.get(extensionId);
 	}
 
 	private getProductVirtualWorkspaceSupport(manifest: IExtensionManifest): { default?: boolean; override?: boolean } | undefined {
 		if (this._productVirtualWorkspaceSupportMap === null) {
-			const productWorkspaceSchemesMap = new Map<string, { default?: boolean; override?: boolean }>();
+			const productWorkspaceSchemesMap = new ExtensionIdentifierMap<{ default?: boolean; override?: boolean }>();
 			if (this.productService.extensionVirtualWorkspacesSupport) {
 				for (const id of Object.keys(this.productService.extensionVirtualWorkspacesSupport)) {
-					productWorkspaceSchemesMap.set(ExtensionIdentifier.toKey(id), this.productService.extensionVirtualWorkspacesSupport[id]);
+					productWorkspaceSchemesMap.set(id, this.productService.extensionVirtualWorkspacesSupport[id]);
 				}
 			}
 			this._productVirtualWorkspaceSupportMap = productWorkspaceSchemesMap;
 		}
 
 		const extensionId = getGalleryExtensionId(manifest.publisher, manifest.name);
-		return this._productVirtualWorkspaceSupportMap.get(ExtensionIdentifier.toKey(extensionId));
+		return this._productVirtualWorkspaceSupportMap.get(extensionId);
 	}
 
 	private getConfiguredVirtualWorkspaceSupport(manifest: IExtensionManifest): boolean | undefined {
 		if (this._configuredVirtualWorkspaceSupportMap === null) {
-			const configuredWorkspaceSchemesMap = new Map<string, boolean>();
+			const configuredWorkspaceSchemesMap = new ExtensionIdentifierMap<boolean>();
 			const configuredWorkspaceSchemes = this.configurationService.getValue<{ [key: string]: boolean }>('extensions.supportVirtualWorkspaces') || {};
 			for (const id of Object.keys(configuredWorkspaceSchemes)) {
 				if (configuredWorkspaceSchemes[id] !== undefined) {
-					configuredWorkspaceSchemesMap.set(ExtensionIdentifier.toKey(id), configuredWorkspaceSchemes[id]);
+					configuredWorkspaceSchemesMap.set(id, configuredWorkspaceSchemes[id]);
 				}
 			}
 			this._configuredVirtualWorkspaceSupportMap = configuredWorkspaceSchemesMap;
 		}
 
 		const extensionId = getGalleryExtensionId(manifest.publisher, manifest.name);
-		return this._configuredVirtualWorkspaceSupportMap.get(ExtensionIdentifier.toKey(extensionId));
+		return this._configuredVirtualWorkspaceSupportMap.get(extensionId);
 	}
 
 	private getConfiguredExtensionWorkspaceTrustRequest(manifest: IExtensionManifest): ExtensionUntrustedWorkspaceSupportType | undefined {
 		const extensionId = getGalleryExtensionId(manifest.publisher, manifest.name);
-		const extensionWorkspaceTrustRequest = this._configuredExtensionWorkspaceTrustRequestMap.get(ExtensionIdentifier.toKey(extensionId));
+		const extensionWorkspaceTrustRequest = this._configuredExtensionWorkspaceTrustRequestMap.get(extensionId);
 
 		if (extensionWorkspaceTrustRequest && (extensionWorkspaceTrustRequest.version === undefined || extensionWorkspaceTrustRequest.version === manifest.version)) {
 			return extensionWorkspaceTrustRequest.supported;
@@ -360,7 +360,7 @@ export class ExtensionManifestPropertiesService extends Disposable implements IE
 
 	private getProductExtensionWorkspaceTrustRequest(manifest: IExtensionManifest): ExtensionUntrustedWorkspaceSupport | undefined {
 		const extensionId = getGalleryExtensionId(manifest.publisher, manifest.name);
-		return this._productExtensionWorkspaceTrustRequestMap.get(ExtensionIdentifier.toKey(extensionId));
+		return this._productExtensionWorkspaceTrustRequestMap.get(extensionId);
 	}
 
 	private toArray(extensionKind: ExtensionKind | ExtensionKind[]): ExtensionKind[] {

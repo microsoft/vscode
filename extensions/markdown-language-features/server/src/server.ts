@@ -22,7 +22,8 @@ interface MdServerInitializationOptions extends LsConfiguration { }
 const organizeLinkDefKind = 'source.organizeLinkDefinitions';
 
 export async function startVsCodeServer(connection: Connection) {
-	const logger = new LogFunctionLogger(connection.console.log.bind(connection.console));
+	const configurationManager = new ConfigurationManager(connection);
+	const logger = new LogFunctionLogger(connection.console.log.bind(connection.console), configurationManager);
 
 	const parser = new class implements md.IMdParser {
 		slugifier = md.githubSlugifier;
@@ -41,7 +42,7 @@ export async function startVsCodeServer(connection: Connection) {
 		return workspace;
 	};
 
-	return startServer(connection, { documents, notebooks, logger, parser, workspaceFactory });
+	return startServer(connection, { documents, notebooks, configurationManager, logger, parser, workspaceFactory });
 }
 
 type WorkspaceFactory = (config: {
@@ -53,6 +54,7 @@ type WorkspaceFactory = (config: {
 export async function startServer(connection: Connection, serverConfig: {
 	documents: TextDocuments<md.ITextDocument>;
 	notebooks?: NotebookDocuments<md.ITextDocument>;
+	configurationManager: ConfigurationManager;
 	logger: md.ILogger;
 	parser: md.IMdParser;
 	workspaceFactory: WorkspaceFactory;
@@ -63,22 +65,29 @@ export async function startServer(connection: Connection, serverConfig: {
 
 	connection.onInitialize((params: InitializeParams): InitializeResult => {
 		const initOptions = params.initializationOptions as MdServerInitializationOptions | undefined;
-		const config = getLsConfiguration(initOptions ?? {});
 
-		const configurationManager = new ConfigurationManager(connection);
+		const mdConfig = getLsConfiguration(initOptions ?? {});
 
-		const workspace = serverConfig.workspaceFactory({ connection, config, workspaceFolders: params.workspaceFolders });
+		const workspace = serverConfig.workspaceFactory({ connection, config: mdConfig, workspaceFolders: params.workspaceFolders });
 		mdLs = md.createLanguageService({
 			workspace,
 			parser: serverConfig.parser,
 			logger: serverConfig.logger,
-			markdownFileExtensions: config.markdownFileExtensions,
-			excludePaths: config.excludePaths,
+			...mdConfig,
+			get preferredMdPathExtensionStyle() {
+				switch (serverConfig.configurationManager.getSettings()?.markdown.preferredMdPathExtensionStyle) {
+					case 'includeExtension': return md.PreferredMdPathExtensionStyle.includeExtension;
+					case 'removeExtension': return md.PreferredMdPathExtensionStyle.removeExtension;
+					case 'auto':
+					default:
+						return md.PreferredMdPathExtensionStyle.auto;
+				}
+			}
 		});
 
-		registerCompletionsSupport(connection, documents, mdLs, configurationManager);
-		registerDocumentHighlightSupport(connection, documents, mdLs, configurationManager);
-		registerValidateSupport(connection, workspace, documents, mdLs, configurationManager, serverConfig.logger);
+		registerCompletionsSupport(connection, documents, mdLs, serverConfig.configurationManager);
+		registerDocumentHighlightSupport(connection, documents, mdLs, serverConfig.configurationManager);
+		registerValidateSupport(connection, workspace, documents, mdLs, serverConfig.configurationManager, serverConfig.logger);
 
 		return {
 			capabilities: {

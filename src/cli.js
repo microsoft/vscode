@@ -28,4 +28,4 @@ bootstrap.enableASARSupport();
 process.env['VSCODE_CLI'] = '1';
 
 // Load CLI through AMD loader
-require('./bootstrap-amd').load('vs/code/node/cli/main');
+require('./bootstrap-amd').load('vs/code/node/cli');

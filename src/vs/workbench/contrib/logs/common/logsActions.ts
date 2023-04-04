@@ -13,7 +13,7 @@ import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/
 import { dirname, basename, isEqual } from 'vs/base/common/resources';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IOutputService } from 'vs/workbench/services/output/common/output';
-import { extensionTelemetryLogChannelId, telemetryLogChannelId } from 'vs/platform/telemetry/common/telemetryUtils';
+import { extensionTelemetryLogChannelId, telemetryLogId } from 'vs/platform/telemetry/common/telemetryUtils';
 import { IDefaultLogLevelsService } from 'vs/workbench/contrib/logs/common/defaultLogLevels';
 import { Codicon } from 'vs/base/common/codicons';
 import { ThemeIcon } from 'vs/base/common/themables';
@@ -52,7 +52,7 @@ export class SetLogLevelAction extends Action {
 		const extensionLogs: LogChannelQuickPickItem[] = [], logs: LogChannelQuickPickItem[] = [];
 		const logLevel = this.loggerService.getLogLevel();
 		for (const channel of this.outputService.getChannelDescriptors()) {
-			if (!channel.log || !channel.file || channel.id === telemetryLogChannelId || channel.id === extensionTelemetryLogChannelId) {
+			if (!channel.log || !channel.file || channel.id === telemetryLogId || channel.id === extensionTelemetryLogChannelId) {
 				continue;
 			}
 			const channelLogLevel = this.loggerService.getLogLevel(channel.file) ?? logLevel;
@@ -129,7 +129,7 @@ export class SetLogLevelAction extends Action {
 	}
 
 	private getLogLevelEntries(defaultLogLevel: LogLevel, currentLogLevel: LogLevel): LogLevelQuickPickItem[] {
-		const button: IQuickInputButton = { iconClass: ThemeIcon.asClassName(Codicon.arrowSwap), tooltip: nls.localize('resetLogLevel', "Set as Default Log Level") };
+		const button: IQuickInputButton = { iconClass: ThemeIcon.asClassName(Codicon.checkAll), tooltip: nls.localize('resetLogLevel', "Set as Default Log Level") };
 		return [
 			{ label: this.getLabel(LogLevel.Trace, currentLogLevel), level: LogLevel.Trace, description: this.getDescription(LogLevel.Trace, defaultLogLevel), buttons: defaultLogLevel !== LogLevel.Trace ? [button] : undefined },
 			{ label: this.getLabel(LogLevel.Debug, currentLogLevel), level: LogLevel.Debug, description: this.getDescription(LogLevel.Debug, defaultLogLevel), buttons: defaultLogLevel !== LogLevel.Debug ? [button] : undefined },
@@ -201,7 +201,7 @@ export class OpenWindowSessionLogFileAction extends Action {
 	}
 
 	private async getSessions(): Promise<URI[]> {
-		const logsPath = URI.file(this.environmentService.logsPath).with({ scheme: this.environmentService.logFile.scheme });
+		const logsPath = this.environmentService.logsHome.with({ scheme: this.environmentService.logFile.scheme });
 		const result: URI[] = [logsPath];
 		const stat = await this.fileService.resolve(dirname(logsPath));
 		if (stat.children) {

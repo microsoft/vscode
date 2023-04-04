@@ -71,7 +71,7 @@ export class AudioCueService extends Disposable implements IAudioCueService {
 
 		const url = FileAccess.asBrowserUri(
 			`vs/platform/audioCues/browser/media/${sound.fileName}`
-		).toString();
+		).toString(true);
 
 		try {
 			await playAudio(url, this.getVolumeInPercent() / 100);
@@ -296,7 +296,7 @@ export class AudioCue {
 
 	public static readonly terminalCommandFailed = AudioCue.register({
 		name: localize('audioCues.terminalCommandFailed', 'Terminal Command Failed'),
-		sound: Sound.taskFailed,
+		sound: Sound.error,
 		settingsKey: 'audioCues.terminalCommandFailed'
 	});
 

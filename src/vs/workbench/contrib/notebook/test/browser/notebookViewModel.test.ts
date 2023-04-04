@@ -37,6 +37,7 @@ suite('NotebookViewModel', () => {
 	let undoRedoService: IUndoRedoService;
 	let modelService: IModelService;
 	let languageService: ILanguageService;
+	let notebookExecutionStateService: INotebookExecutionStateService;
 
 	suiteSetup(() => {
 		disposables = new DisposableStore();
@@ -46,6 +47,7 @@ suite('NotebookViewModel', () => {
 		undoRedoService = instantiationService.get(IUndoRedoService);
 		modelService = instantiationService.get(IModelService);
 		languageService = instantiationService.get(ILanguageService);
+		notebookExecutionStateService = instantiationService.get(INotebookExecutionStateService);
 
 		instantiationService.stub(IConfigurationService, new TestConfigurationService());
 		instantiationService.stub(IThemeService, new TestThemeService());
@@ -57,7 +59,7 @@ suite('NotebookViewModel', () => {
 		const notebook = new NotebookTextModel('notebook', URI.parse('test'), [], {}, { transientCellMetadata: {}, transientDocumentMetadata: {}, transientOutputs: false, cellContentMetadata: {} }, undoRedoService, modelService, languageService);
 		const model = new NotebookEditorTestModel(notebook);
 		const viewContext = new ViewContext(new NotebookOptions(instantiationService.get(IConfigurationService), instantiationService.get(INotebookExecutionStateService)), new NotebookEventDispatcher(), () => ({} as IBaseCellEditorOptions));
-		const viewModel = new NotebookViewModel('notebook', model.notebook, viewContext, null, { isReadOnly: false }, instantiationService, bulkEditService, undoRedoService, textModelService);
+		const viewModel = new NotebookViewModel('notebook', model.notebook, viewContext, null, { isReadOnly: false }, instantiationService, bulkEditService, undoRedoService, textModelService, notebookExecutionStateService);
 		assert.strictEqual(viewModel.viewType, 'notebook');
 	});
 

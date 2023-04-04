@@ -566,6 +566,15 @@ registerAction2(class InterruptNotebook extends CancelNotebook {
 						NOTEBOOK_INTERRUPTIBLE_KERNEL,
 						ContextKeyExpr.equals('config.notebook.globalToolbar', true)
 					)
+				},
+				{
+					id: MenuId.InteractiveToolbar,
+					when: ContextKeyExpr.and(
+						NOTEBOOK_HAS_RUNNING_CELL,
+						NOTEBOOK_INTERRUPTIBLE_KERNEL,
+						ContextKeyExpr.equals('resourceScheme', Schemas.vscodeInteractive)
+					),
+					group: 'navigation/execute'
 				}
 			]
 		});

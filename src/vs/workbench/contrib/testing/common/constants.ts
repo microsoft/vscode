@@ -13,6 +13,9 @@ export const enum Testing {
 	ExplorerViewId = 'workbench.view.testing',
 	OutputPeekContributionId = 'editor.contrib.testingOutputPeek',
 	DecorationsContributionId = 'editor.contrib.testingDecorations',
+
+	ResultsPanelId = 'workbench.panel.testResults',
+	ResultsViewId = 'workbench.panel.testResults.view',
 }
 
 export const enum TestExplorerViewMode {
@@ -61,6 +64,8 @@ export const enum TestCommandId {
 	DebugLastRun = 'testing.debugLastRun',
 	DebugSelectedAction = 'testing.debugSelected',
 	FilterAction = 'workbench.actions.treeView.testExplorer.filter',
+	GetExplorerSelection = '_testing.getExplorerSelection',
+	GetSelectedProfiles = 'testing.getSelectedProfiles',
 	GoToTest = 'testing.editFocusedTest',
 	HideTestAction = 'testing.hideTest',
 	OpenOutputPeek = 'testing.openOutputPeek',

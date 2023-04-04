@@ -7,44 +7,44 @@ import { distinct } from 'vs/base/common/arrays';
 import { Codicon } from 'vs/base/common/codicons';
 import { KeyChord, KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { isDefined } from 'vs/base/common/types';
+import { isCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
+import { MessageController } from 'vs/editor/contrib/message/browser/messageController';
 import { localize } from 'vs/nls';
+import { Categories } from 'vs/platform/action/common/actionCommonCategories';
 import { Action2, IAction2Options, MenuId } from 'vs/platform/actions/common/actions';
 import { ICommandService } from 'vs/platform/commands/common/commands';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ContextKeyExpr, ContextKeyExpression, ContextKeyGreaterExpr } from 'vs/platform/contextkey/common/contextkey';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';
+import { IQuickInputService, IQuickPickItem, IQuickPickSeparator } from 'vs/platform/quickinput/common/quickInput';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { ViewAction } from 'vs/workbench/browser/parts/views/viewPane';
-import { Categories } from 'vs/platform/action/common/actionCommonCategories';
 import { FocusedViewContext } from 'vs/workbench/common/contextkeys';
-import { ViewContainerLocation } from 'vs/workbench/common/views';
-import { IExtensionsViewPaneContainer, VIEWLET_ID as EXTENSIONS_VIEWLET_ID } from 'vs/workbench/contrib/extensions/common/extensions';
-import { IActionableTestTreeElement, TestItemTreeElement } from 'vs/workbench/contrib/testing/browser/explorerProjections/index';
+import { IViewsService, ViewContainerLocation } from 'vs/workbench/common/views';
+import { VIEWLET_ID as EXTENSIONS_VIEWLET_ID, IExtensionsViewPaneContainer } from 'vs/workbench/contrib/extensions/common/extensions';
+import { IActionableTestTreeElement, TestExplorerTreeElement, TestItemTreeElement } from 'vs/workbench/contrib/testing/browser/explorerProjections/index';
 import * as icons from 'vs/workbench/contrib/testing/browser/icons';
-import type { TestingExplorerView } from 'vs/workbench/contrib/testing/browser/testingExplorerView';
+import { TestingExplorerView } from 'vs/workbench/contrib/testing/browser/testingExplorerView';
 import { ITestingOutputTerminalService } from 'vs/workbench/contrib/testing/browser/testingOutputTerminalService';
-import { TestCommandId, testConfigurationGroupNames, TestExplorerViewMode, TestExplorerViewSorting, Testing } from 'vs/workbench/contrib/testing/common/constants';
-import { InternalTestItem, ITestRunProfile, TestRunProfileBitset } from 'vs/workbench/contrib/testing/common/testTypes';
-import { TestingContextKeys } from 'vs/workbench/contrib/testing/common/testingContextKeys';
-import { ITestingPeekOpener } from 'vs/workbench/contrib/testing/common/testingPeekOpener';
-import { isFailedState } from 'vs/workbench/contrib/testing/common/testingStates';
-import { canUseProfileWithTest, ITestProfileService } from 'vs/workbench/contrib/testing/common/testProfileService';
+import { TestingConfigKeys, getTestingConfiguration } from 'vs/workbench/contrib/testing/common/configuration';
+import { TestCommandId, TestExplorerViewMode, TestExplorerViewSorting, Testing, testConfigurationGroupNames } from 'vs/workbench/contrib/testing/common/constants';
+import { ITestProfileService, canUseProfileWithTest } from 'vs/workbench/contrib/testing/common/testProfileService';
 import { ITestResult } from 'vs/workbench/contrib/testing/common/testResult';
 import { ITestResultService } from 'vs/workbench/contrib/testing/common/testResultService';
-import { expandAndGetTestById, IMainThreadTestCollection, ITestService, testsInFile } from 'vs/workbench/contrib/testing/common/testService';
+import { IMainThreadTestCollection, ITestService, expandAndGetTestById, testsInFile } from 'vs/workbench/contrib/testing/common/testService';
+import { ExtTestRunProfileKind, ITestRunProfile, InternalTestItem, TestRunProfileBitset } from 'vs/workbench/contrib/testing/common/testTypes';
+import { TestingContextKeys } from 'vs/workbench/contrib/testing/common/testingContextKeys';
+import { ITestingContinuousRunService } from 'vs/workbench/contrib/testing/common/testingContinuousRunService';
+import { ITestingPeekOpener } from 'vs/workbench/contrib/testing/common/testingPeekOpener';
+import { isFailedState } from 'vs/workbench/contrib/testing/common/testingStates';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
-import { getTestingConfiguration, TestingConfigKeys } from 'vs/workbench/contrib/testing/common/configuration';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { MessageController } from 'vs/editor/contrib/message/browser/messageController';
-import { isCodeEditor } from 'vs/editor/browser/editorBrowser';
-import { ITestingContinuousRunService } from 'vs/workbench/contrib/testing/common/testingContinuousRunService';
-import { IQuickInputService, IQuickPickItem, IQuickPickSeparator } from 'vs/platform/quickinput/common/quickInput';
 
 const category = Categories.Test;
 
@@ -417,8 +417,49 @@ abstract class ExecuteSelectedAction extends ViewAction<TestingExplorerView> {
 	 * @override
 	 */
 	public runInView(accessor: ServicesAccessor, view: TestingExplorerView): Promise<ITestResult | undefined> {
-		const { include, exclude } = view.getSelectedOrVisibleItems();
+		const { include, exclude } = view.getTreeIncludeExclude();
 		return accessor.get(ITestService).runTests({ tests: include, exclude, group: this.group });
+	}
+}
+
+export class GetSelectedProfiles extends Action2 {
+	constructor() {
+		super({ id: TestCommandId.GetSelectedProfiles, title: localize('getSelectedProfiles', 'Get Selected Profiles') });
+	}
+
+	/**
+	 * @override
+	 */
+	public override run(accessor: ServicesAccessor) {
+		const profiles = accessor.get(ITestProfileService);
+		return [
+			...profiles.getGroupDefaultProfiles(TestRunProfileBitset.Run),
+			...profiles.getGroupDefaultProfiles(TestRunProfileBitset.Debug),
+			...profiles.getGroupDefaultProfiles(TestRunProfileBitset.Coverage),
+		].map(p => ({
+			controllerId: p.controllerId,
+			label: p.label,
+			kind: p.group & TestRunProfileBitset.Coverage
+				? ExtTestRunProfileKind.Coverage
+				: p.group & TestRunProfileBitset.Debug
+					? ExtTestRunProfileKind.Debug
+					: ExtTestRunProfileKind.Run,
+		}));
+	}
+}
+
+export class GetExplorerSelection extends ViewAction<TestingExplorerView> {
+	constructor() {
+		super({ id: TestCommandId.GetExplorerSelection, title: localize('getExplorerSelection', 'Get Explorer Selection'), viewId: Testing.ExplorerViewId });
+	}
+
+	/**
+	 * @override
+	 */
+	public override runInView(_accessor: ServicesAccessor, view: TestingExplorerView) {
+		const { include, exclude } = view.getTreeIncludeExclude(undefined, 'selected');
+		const mapper = (i: InternalTestItem) => i.item.extId;
+		return { include: include.map(mapper), exclude: exclude.map(mapper) };
 	}
 }
 
@@ -742,6 +783,11 @@ export class ClearTestResultsAction extends Action2 {
 				order: ActionOrder.ClearResults,
 				group: 'displayAction',
 				when: ContextKeyExpr.equals('view', Testing.ExplorerViewId)
+			}, {
+				id: MenuId.ViewTitle,
+				order: ActionOrder.ClearResults,
+				group: 'navigation',
+				when: ContextKeyExpr.equals('view', Testing.ResultsViewId)
 			}],
 		});
 	}
@@ -769,7 +815,12 @@ export class GoToTest extends Action2 {
 		});
 	}
 
-	public override async run(accessor: ServicesAccessor, element?: IActionableTestTreeElement, preserveFocus?: boolean) {
+	public override async run(accessor: ServicesAccessor, element?: TestExplorerTreeElement, preserveFocus?: boolean) {
+		if (!element) {
+			const view = accessor.get(IViewsService).getActiveViewWithId<TestingExplorerView>(Testing.ExplorerViewId);
+			element = view?.focusedTreeElements[0];
+		}
+
 		if (element && element instanceof TestItemTreeElement) {
 			accessor.get(ICommandService).executeCommand('vscode.revealTest', element.test.item.extId, preserveFocus);
 		}
@@ -1324,6 +1375,8 @@ export const allTestActions = [
 	DebugLastRun,
 	DebugSelectedAction,
 	GoToTest,
+	GetExplorerSelection,
+	GetSelectedProfiles,
 	HideTestAction,
 	OpenOutputPeek,
 	RefreshTestsAction,

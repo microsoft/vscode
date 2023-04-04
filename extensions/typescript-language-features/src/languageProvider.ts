@@ -11,12 +11,12 @@ import FileConfigurationManager from './languageFeatures/fileConfigurationManage
 import { CachedResponse } from './tsServer/cachedResponse';
 import { ClientCapability } from './typescriptService';
 import TypeScriptServiceClient from './typescriptServiceClient';
+import TypingsStatus from './ui/typingsStatus';
 import { Disposable } from './utils/dispose';
-import { DocumentSelector } from './utils/documentSelector';
-import * as fileSchemes from './utils/fileSchemes';
-import { LanguageDescription } from './utils/languageDescription';
-import { TelemetryReporter } from './utils/telemetry';
-import TypingsStatus from './utils/typingsStatus';
+import { DocumentSelector } from './configuration/documentSelector';
+import * as fileSchemes from './configuration/fileSchemes';
+import { LanguageDescription } from './configuration/languageDescription';
+import { TelemetryReporter } from './logging/telemetry';
 
 
 const validateSetting = 'validate.enable';

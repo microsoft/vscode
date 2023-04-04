@@ -14,6 +14,8 @@ import { DiffElementViewModelBase } from 'vs/workbench/contrib/notebook/browser/
 import { NotebookDiffEditorEventDispatcher } from 'vs/workbench/contrib/notebook/browser/diff/eventDispatcher';
 import { INotebookTextDiffEditor } from 'vs/workbench/contrib/notebook/browser/diff/notebookDiffEditorBrowser';
 
+const MINIMUM_SLIDER_SIZE = 20;
+
 export class NotebookDiffOverviewRuler extends Themable {
 	private readonly _domNode: FastDomNode<HTMLCanvasElement>;
 	private readonly _overviewViewportDomElement: FastDomNode<HTMLElement>;
@@ -158,10 +160,10 @@ export class NotebookDiffOverviewRuler extends Themable {
 
 		const computedAvailableSize = Math.max(0, layoutInfo.height);
 		const computedRepresentableSize = Math.max(0, computedAvailableSize - 2 * 0);
-		const computedRatio = scrollHeight > 0 ? (computedRepresentableSize / scrollHeight) : 0;
-
-		const computedSliderSize = Math.max(0, Math.round(layoutInfo.height * computedRatio));
-		const computedSliderPosition = Math.round(scrollTop * computedRatio);
+		const visibleSize = layoutInfo.height;
+		const computedSliderSize = Math.round(Math.max(MINIMUM_SLIDER_SIZE, Math.floor(visibleSize * computedRepresentableSize / scrollHeight)));
+		const computedSliderRatio = (computedRepresentableSize - computedSliderSize) / (scrollHeight - visibleSize);
+		const computedSliderPosition = Math.round(scrollTop * computedSliderRatio);
 
 		return {
 			height: computedSliderSize,

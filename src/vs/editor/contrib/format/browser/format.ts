@@ -27,7 +27,7 @@ import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { FormattingEdit } from 'vs/editor/contrib/format/browser/formattingEdit';
 import * as nls from 'vs/nls';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
-import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
+import { ExtensionIdentifierSet } from 'vs/platform/extensions/common/extensions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IProgress } from 'vs/platform/progress/common/progress';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
@@ -67,14 +67,14 @@ export function getRealAndSyntheticDocumentFormattersOrdered(
 	model: ITextModel
 ): DocumentFormattingEditProvider[] {
 	const result: DocumentFormattingEditProvider[] = [];
-	const seen = new Set<string>();
+	const seen = new ExtensionIdentifierSet();
 
 	// (1) add all document formatter
 	const docFormatter = documentFormattingEditProvider.ordered(model);
 	for (const formatter of docFormatter) {
 		result.push(formatter);
 		if (formatter.extensionId) {
-			seen.add(ExtensionIdentifier.toKey(formatter.extensionId));
+			seen.add(formatter.extensionId);
 		}
 	}
 
@@ -82,10 +82,10 @@ export function getRealAndSyntheticDocumentFormattersOrdered(
 	const rangeFormatter = documentRangeFormattingEditProvider.ordered(model);
 	for (const formatter of rangeFormatter) {
 		if (formatter.extensionId) {
-			if (seen.has(ExtensionIdentifier.toKey(formatter.extensionId))) {
+			if (seen.has(formatter.extensionId)) {
 				continue;
 			}
-			seen.add(ExtensionIdentifier.toKey(formatter.extensionId));
+			seen.add(formatter.extensionId);
 		}
 		result.push({
 			displayName: formatter.displayName,
@@ -217,11 +217,23 @@ export async function formatDocumentRangesWithProvider(
 	const allEdits: TextEdit[] = [];
 	const rawEditsList: TextEdit[][] = [];
 	try {
-		for (const range of ranges) {
-			if (cts.token.isCancellationRequested) {
-				return true;
+		if (provider.canFormatMultipleRanges) {
+			logService.trace(`[format][provideDocumentRangeFormattingEdits] (request)`, provider.extensionId?.value, ranges);
+			const result = (await provider.provideDocumentRangeFormattingEdits(
+				model,
+				ranges[0],
+				{ ...model.getFormattingOptions(), ranges },
+				cts.token
+			)) || [];
+			logService.trace(`[format][provideDocumentRangeFormattingEdits] (response)`, provider.extensionId?.value, result);
+			rawEditsList.push(result);
+		} else {
+			for (const range of ranges) {
+				if (cts.token.isCancellationRequested) {
+					return true;
+				}
+				rawEditsList.push(await computeEdits(range));
 			}
-			rawEditsList.push(await computeEdits(range));
 		}
 
 		for (let i = 0; i < ranges.length; ++i) {

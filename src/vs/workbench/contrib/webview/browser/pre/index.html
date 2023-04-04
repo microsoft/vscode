@@ -5,7 +5,7 @@
 	<meta charset="UTF-8">
 
 	<meta http-equiv="Content-Security-Policy"
-		content="default-src 'none'; script-src 'sha256-RaCvj6SRgHm+2C3LKzSAamDwa3Bp4u4iQ1Y2Sm+97tE=' 'self'; frame-src 'self'; style-src 'unsafe-inline';">
+		content="default-src 'none'; script-src 'sha256-4A7BC3A+gc8e1t5I0rfDNtBiGlA0/GTojKdfdDHAWYw=' 'self'; frame-src 'self'; style-src 'unsafe-inline';">
 
 	<!-- Disable pinch zooming -->
 	<meta name="viewport"
@@ -131,21 +131,16 @@
 			}
 
 			kbd {
-				color: var(--vscode-editor-foreground);
+				background-color: var(--vscode-keybindingLabel-background);
+				color: var(--vscode-keybindingLabel-foreground);
+				border-style: solid;
+				border-width: 1px;
 				border-radius: 3px;
+				border-color: var(--vscode-keybindingLabel-border);
+				border-bottom-color: var(--vscode-keybindingLabel-bottomBorder);
+				box-shadow: inset 0 -1px 0 var(--vscode-widget-shadow);
 				vertical-align: middle;
 				padding: 1px 3px;
-
-				background-color: hsla(0,0%,50%,.17);
-				border: 1px solid rgba(71,71,71,.4);
-				border-bottom-color: rgba(88,88,88,.4);
-				box-shadow: inset 0 -1px 0 rgba(88,88,88,.4);
-			}
-			.vscode-light kbd {
-				background-color: hsla(0,0%,87%,.5);
-				border: 1px solid hsla(0,0%,80%,.7);
-				border-bottom-color: hsla(0,0%,73%,.7);
-				box-shadow: inset 0 -1px 0 hsla(0,0%,73%,.7);
 			}
 
 			::-webkit-scrollbar {
@@ -223,9 +218,8 @@
 				return reject(new Error('Service Workers are not enabled. Webviews will not work. Try disabling private/incognito mode.'));
 			}
 
-			const swPath = `service-worker.js?v=${expectedWorkerVersion}&vscode-resource-base-authority=${searchParams.get('vscode-resource-base-authority')}&remoteAuthority=${searchParams.get('remoteAuthority') ?? ''}`;
+			const swPath = encodeURI(`service-worker.js?v=${expectedWorkerVersion}&vscode-resource-base-authority=${searchParams.get('vscode-resource-base-authority')}&remoteAuthority=${searchParams.get('remoteAuthority') ?? ''}`);
 			navigator.serviceWorker.register(swPath)
-				.then(() => navigator.serviceWorker.ready)
 				.then(async registration => {
 					/**
 					 * @param {MessageEvent} event
@@ -247,7 +241,6 @@
 							// `unregister` and `register` here.
 							return registration.unregister()
 								.then(() => navigator.serviceWorker.register(swPath))
-								.then(() => navigator.serviceWorker.ready)
 								.finally(() => { resolve(); });
 						}
 					};
@@ -266,6 +259,8 @@
 						// service worker already loaded & ready to receive messages
 						postVersionMessage(currentController);
 					} else {
+						console.log(`Found unexpected service worker controller. Found: ${currentController?.scriptURL}. Expected: ${swPath}`);
+
 						// either there's no controlling service worker, or it's an old one:
 						// wait for it to change before posting the message
 						const onControllerChange = () => {
@@ -275,7 +270,10 @@
 						navigator.serviceWorker.addEventListener('controllerchange', onControllerChange);
 					}
 				}).catch(error => {
-					reject(new Error(`Could not register service workers: ${error}.`));
+					if (!onElectron && error instanceof Error && error.message.includes('user denied permission')) {
+						return reject(new Error(`Could not register service worker. Please make sure third party cookies are enabled: ${error}`));
+					}
+					return reject(new Error(`Could not register service worker: ${error}.`));
 				});
 		});
 
@@ -440,13 +438,13 @@
 		};
 
 		hostMessaging.onMessage('did-load-resource', (_event, data) => {
-			navigator.serviceWorker.ready.then(registration => {
+			navigator.serviceWorker.getRegistration().then(registration => {
 				assertIsDefined(registration.active).postMessage({ channel: 'did-load-resource', data }, data.data?.buffer ? [data.data.buffer] : []);
 			});
 		});
 
 		hostMessaging.onMessage('did-load-localhost', (_event, data) => {
-			navigator.serviceWorker.ready.then(registration => {
+			navigator.serviceWorker.getRegistration().then(registration => {
 				assertIsDefined(registration.active).postMessage({ channel: 'did-load-localhost', data });
 			});
 		});
@@ -604,7 +602,7 @@
 		/**
 		 * @param {KeyboardEvent} e
 		 */
-		const handleInnerUp = (e) => {
+		const handleInnerKeyup = (e) => {
 			hostMessaging.postMessage('did-keyup', {
 				key: e.key,
 				keyCode: e.keyCode,
@@ -833,6 +831,12 @@
 			return '<!DOCTYPE html>\n' + newDocument.documentElement.outerHTML;
 		}
 
+		// Also forward events before the contents of the webview have loaded
+		window.addEventListener('keydown', handleInnerKeydown);
+		window.addEventListener('keyup', handleInnerKeyup);
+		window.addEventListener('dragenter', handleInnerDragStartEvent);
+		window.addEventListener('dragover', handleInnerDragStartEvent);
+
 		onDomReady(() => {
 			if (!document.body) {
 				return;
@@ -963,6 +967,9 @@
 				newFrame.style.cssText = 'display: block; margin: 0; overflow: hidden; position: absolute; width: 100%; height: 100%; visibility: hidden';
 				document.body.appendChild(newFrame);
 
+				newFrame.contentWindow.addEventListener('keydown', handleInnerKeydown);
+				newFrame.contentWindow.addEventListener('keyup', handleInnerKeyup);
+
 				/**
 				 * @param {Document} contentDocument
 				 */
@@ -1070,7 +1077,7 @@
 					contentWindow.addEventListener('click', handleInnerClick);
 					contentWindow.addEventListener('auxclick', handleAuxClick);
 					contentWindow.addEventListener('keydown', handleInnerKeydown);
-					contentWindow.addEventListener('keyup', handleInnerUp);
+					contentWindow.addEventListener('keyup', handleInnerKeyup);
 					contentWindow.addEventListener('contextmenu', e => {
 						if (e.defaultPrevented) {
 							// Extension code has already handled this event
@@ -1210,11 +1217,6 @@
 						break;
 				}
 			};
-
-			// Also forward events before the contents of the webview have loaded
-			window.addEventListener('keydown', handleInnerKeydown);
-			window.addEventListener('dragenter', handleInnerDragStartEvent);
-			window.addEventListener('dragover', handleInnerDragStartEvent);
 
 			hostMessaging.signalReady();
 		});
