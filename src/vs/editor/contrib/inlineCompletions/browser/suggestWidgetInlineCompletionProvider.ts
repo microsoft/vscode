@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { compareBy, findMaxBy, numberComparator } from 'vs/base/common/arrays';
-import { Event } from 'vs/base/common/event';
+import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IActiveCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { Position } from 'vs/editor/common/core/position';
@@ -15,7 +15,6 @@ import { SnippetSession } from 'vs/editor/contrib/snippet/browser/snippetSession
 import { CompletionItem } from 'vs/editor/contrib/suggest/browser/suggest';
 import { SuggestController } from 'vs/editor/contrib/suggest/browser/suggestController';
 import { minimizeInlineCompletion, NormalizedInlineCompletion, normalizedInlineCompletionsEquals } from './inlineCompletionToGhostText';
-import { IObservable, observableValue, transaction } from 'vs/base/common/observable';
 
 export interface SuggestWidgetState {
 	/**
@@ -35,11 +34,18 @@ export class SuggestWidgetInlineCompletionProvider extends Disposable {
 	private isShiftKeyPressed = false;
 	private _isActive = false;
 	private _currentSuggestItemInfo: SuggestItemInfo | undefined = undefined;
+	private readonly onDidChangeEmitter = new Emitter<void>();
 
-	private readonly _state = observableValue('suggestWidgetInlineCompletionProvider.state', undefined as SuggestWidgetState | undefined);
+	public readonly onDidChange = this.onDidChangeEmitter.event;
 
-	public get state(): IObservable<SuggestWidgetState | undefined> {
-		return this._state;
+	/**
+	 * Returns undefined if the suggest widget is not active.
+	*/
+	get state(): SuggestWidgetState | undefined {
+		if (!this._isActive) {
+			return undefined;
+		}
+		return { selectedItem: this._currentSuggestItemInfo };
 	}
 
 	constructor(
@@ -81,7 +87,8 @@ export class SuggestWidgetInlineCompletionProvider extends Disposable {
 							if (!normalizedSuggestItem) {
 								return undefined;
 							}
-							const valid = rangeStartsWith(normalizedItemToPreselect.range, normalizedSuggestItem.range) &&
+							const valid =
+								rangeStartsWith(normalizedItemToPreselect.range, normalizedSuggestItem.range) &&
 								normalizedItemToPreselect.insertText.startsWith(normalizedSuggestItem.insertText);
 							return { index, valid, prefixLength: normalizedSuggestItem.insertText.length, suggestItem };
 						})
@@ -135,9 +142,7 @@ export class SuggestWidgetInlineCompletionProvider extends Disposable {
 			shouldFire = true;
 		}
 		if (shouldFire) {
-			transaction(tx => {
-				this._state.set(this._isActive ? { selectedItem: this._currentSuggestItemInfo } : undefined, tx);
-			});
+			this.onDidChangeEmitter.fire();
 		}
 	}
 
