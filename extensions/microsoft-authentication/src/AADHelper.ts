@@ -273,6 +273,11 @@ export class AzureActiveDirectoryService {
 
 		const runsRemote = vscode.env.remoteName !== undefined;
 		const runsServerless = vscode.env.remoteName === undefined && vscode.env.uiKind === vscode.UIKind.Web;
+
+		if (runsServerless && this._loginEndpointUrl !== defaultLoginEndpointUrl) {
+			throw new Error('Sign in to non-public Azure clouds is not supported on the web.');
+		}
+
 		if (runsRemote || runsServerless) {
 			return this.createSessionWithoutLocalServer(scopeData);
 		}
@@ -711,8 +716,16 @@ export class AzureActiveDirectoryService {
 				redirect_uri: redirectUrl
 			});
 
-			const proxyEndpoints: { [providerId: string]: string } | undefined = await vscode.commands.executeCommand('workbench.getCodeExchangeProxyEndpoints');
-			const endpointUrl = proxyEndpoints?.microsoft || this._loginEndpointUrl;
+			let endpointUrl: string;
+
+			if (this._loginEndpointUrl !== defaultLoginEndpointUrl) {
+				// If this is for sovereign clouds, don't try using the proxy endpoint, which supports only public cloud
+				endpointUrl = this._loginEndpointUrl;
+			} else {
+				const proxyEndpoints: { [providerId: string]: string } | undefined = await vscode.commands.executeCommand('workbench.getCodeExchangeProxyEndpoints');
+				endpointUrl = proxyEndpoints?.microsoft || this._loginEndpointUrl;
+			}
+
 			const endpoint = `${endpointUrl}${scopeData.tenant}/oauth2/v2.0/token`;
 
 			const json = await this.fetchTokenResponse(endpoint, postData, scopeData);
