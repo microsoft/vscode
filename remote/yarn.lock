@@ -92,10 +92,10 @@
   dependencies:
     node-addon-api "^3.0.2"
 
-"@vscode/windows-registry@1.0.6":
-  version "1.0.6"
-  resolved "https://registry.yarnpkg.com/@vscode/windows-registry/-/windows-registry-1.0.6.tgz#8b9fb9a55bf5a0be4ea11849c45ae94c6910e3e4"
-  integrity sha512-ZW5bz9F3Ta6zsikce2dchyruF3QsRyWYKOJ2dEicS+inReD/oE8Um+KsLVcvrjIb44aSYpsm64DIUmMl15ujtg==
+"@vscode/windows-registry@1.0.9":
+  version "1.0.9"
+  resolved "https://registry.yarnpkg.com/@vscode/windows-registry/-/windows-registry-1.0.9.tgz#12a6290c2946c198052f14fea5605db3855f90c3"
+  integrity sha512-4hnq8P9C9KJ7jMtIvU31DWRnCme9M6WUB+8Gl76sF9dUg7QSJ58PyD5q3to5c2NDyjsqsaQVOYE0jLLexCi5VA==
 
 agent-base@4:
   version "4.2.0"
