@@ -86,36 +86,35 @@ export class ResizableHoverWidget extends ResizableWidget {
 		this.hoverWidget.contentsDomNode.style.maxWidth = 'none';
 
 		// TODO: Change the pixel sizes
-		const width = size.width + 'px';
+		const width = size.width - 6 + 'px';
 		this.hoverWidget.containerDomNode.style.width = width;
 		this.hoverWidget.contentsDomNode.style.width = width;
-		const height = size.height + 'px';
+		const height = size.height - 6 + 'px';
 		this.hoverWidget.containerDomNode.style.height = height;
 		this.hoverWidget.contentsDomNode.style.height = height;
 
-		// this.element.layout(size.height + 6, size.width + 6);
-
-		const sashWidth = size.width - 5 + 'px';
-		const sashHeight = size.height - 5 + 'px';
-		this.element.northSash.el.style.width = sashWidth;
-		this.element.southSash.el.style.width = sashWidth;
-		this.element.northSash.el.style.left = 2 + 'px';
-		this.element.southSash.el.style.left = 2 + 'px';
-		this.element.eastSash.el.style.height = sashHeight;
-		this.element.westSash.el.style.height = sashHeight;
-		this.element.eastSash.el.style.top = 2 + 'px';
-		this.element.westSash.el.style.top = 2 + 'px';
+		this.element.northSash.el.style.width = width;
+		this.element.southSash.el.style.width = width;
+		this.element.northSash.el.style.left = 3 + 'px';
+		this.element.southSash.el.style.left = 3 + 'px';
+		this.element.eastSash.el.style.height = height;
+		this.element.westSash.el.style.height = height;
+		this.element.eastSash.el.style.top = 3 + 'px';
+		this.element.westSash.el.style.top = 3 + 'px';
 
 		const scrollDimensions = this.hoverWidget.scrollbar.getScrollDimensions();
 		const hasHorizontalScrollbar = (scrollDimensions.scrollWidth > scrollDimensions.width);
 
 		if (hasHorizontalScrollbar) {
+
+			console.log('has horizontal scrollbar in the resize function');
+
 			// When there is a horizontal scroll-bar use a different height to make the scroll-bar visible
 			const extraBottomPadding = `${this.hoverWidget.scrollbar.options.horizontalScrollbarSize}px`;
 			if (this.hoverWidget.contentsDomNode.style.paddingBottom !== extraBottomPadding) {
 				this.hoverWidget.contentsDomNode.style.paddingBottom = extraBottomPadding;
 			}
-			this.hoverWidget.contentsDomNode.style.height = size.height - SCROLLBAR_WIDTH - 7 + 'px';
+			this.hoverWidget.contentsDomNode.style.height = size.height - SCROLLBAR_WIDTH - 6 + 'px';
 		}
 
 		this.hoverWidget.scrollbar.scanDomNode();
@@ -362,8 +361,8 @@ export class ResizableHoverWidget extends ResizableWidget {
 
 			console.log('Using persisted size');
 
-			const width = Math.min(this.findMaximumRenderingWidth() ?? Infinity, persistedSize.width - 7 - 7);
-			const height = Math.min(this.findMaximumRenderingHeight() ?? Infinity, persistedSize.height - 7 - 7);
+			const width = Math.min(this.findMaximumRenderingWidth() ?? Infinity, persistedSize.width - 6);
+			const height = Math.min(this.findMaximumRenderingHeight() ?? Infinity, persistedSize.height - 6);
 
 			containerDomNode.style.width = width + 'px';
 			containerDomNode.style.height = height + 'px';
@@ -374,7 +373,6 @@ export class ResizableHoverWidget extends ResizableWidget {
 
 			console.log('Not using persisted size');
 
-			// Otherwise the height and width are set to auto
 			containerDomNode.style.width = 'auto';
 			containerDomNode.style.height = 'auto';
 			contentsDomNode.style.width = 'auto';
@@ -384,8 +382,8 @@ export class ResizableHoverWidget extends ResizableWidget {
 		this.editor.layoutContentWidget(this.resizableContentWidget);
 		this.hoverWidget.onContentsChanged();
 
-		const clientHeight = this.hoverWidget.containerDomNode.clientHeight;
-		const clientWidth = this.hoverWidget.containerDomNode.clientWidth;
+		const clientHeight = containerDomNode.clientHeight;
+		const clientWidth = containerDomNode.clientWidth;
 
 		this.element.layout(clientHeight + 6, clientWidth + 6);
 		containerDomNode.style.height = clientHeight + 'px';
@@ -400,10 +398,8 @@ export class ResizableHoverWidget extends ResizableWidget {
 			console.log('has horizontal scrollbar');
 
 			const extraBottomPadding = `${this.hoverWidget.scrollbar.options.horizontalScrollbarSize}px`;
-			// let reposition = false;
 			if (this.hoverWidget.contentsDomNode.style.paddingBottom !== extraBottomPadding) {
 				this.hoverWidget.contentsDomNode.style.paddingBottom = extraBottomPadding;
-				// reposition = true;
 			}
 			const maxRenderingHeight = this.findMaximumRenderingHeight();
 
@@ -411,61 +407,32 @@ export class ResizableHoverWidget extends ResizableWidget {
 				return;
 			}
 
-			if (persistedSize) { // if (persistedSize && maxRenderingHeight) {
+			if (persistedSize) {
 				containerDomNode.style.height = Math.min(maxRenderingHeight, persistedSize.height - 6) + 'px';
 				contentsDomNode.style.height = Math.min(maxRenderingHeight, persistedSize.height - 6 - SCROLLBAR_WIDTH) + 'px';
-				this.element.layout(clientHeight + 10 + 6, clientWidth + 6);
-				// reposition = true;
 			} else {
 				containerDomNode.style.height = Math.min(maxRenderingHeight, clientHeight) + 'px';
 				contentsDomNode.style.height = Math.min(maxRenderingHeight, clientHeight - SCROLLBAR_WIDTH) + 'px';
-				this.element.layout(clientHeight + 6, clientWidth + 6);
 			}
-			// if (reposition) {
-			// 	console.log('Inside of the case when repositioning');
-			// 	if (persistedSize) {
-			// 		console.log('when using a persisted size');
-			// 		this.element.layout(clientHeight + 17 - 6, clientWidth + 7);
-			// 	} else {
-			// 		console.log('Inside of the case when repositioning');
-			// 		this.element.layout(clientHeight + 10 + 6, clientWidth + 6);
-			// 	}
-			// 	this.editor.layoutContentWidget(this.resizableContentWidget);
-			// 	this.editor.render();
-			// 	this.hoverWidget.onContentsChanged();
-			// }
-
+			this.element.layout(clientHeight + 6, clientWidth + 6);
 			this.editor.layoutContentWidget(this.resizableContentWidget);
-			// this.editor.render();
 			this.hoverWidget.onContentsChanged();
 		}
 
 		console.log('Before changing the sash size');
 
-		const size = this.element.size;
-		let height = size.height;
-		const width = size.width;
-		this.element.northSash.el.style.width = width - 4 + 'px';
-		this.element.southSash.el.style.width = width - 4 + 'px';
-		this.element.northSash.el.style.left = 2 + 'px';
-		this.element.southSash.el.style.left = 2 + 'px';
+		const finalClientHeight = containerDomNode.clientHeight;
+		const finalClientWidth = containerDomNode.clientWidth;
 
-		if (hasHorizontalScrollbar && persistedSize) {
-			height = clientHeight + 12;
-		} else {
-			height = clientHeight + 2;
-		}
+		this.element.northSash.el.style.width = finalClientWidth + 'px';
+		this.element.southSash.el.style.width = finalClientWidth + 'px';
+		this.element.northSash.el.style.left = 3 + 'px';
+		this.element.southSash.el.style.left = 3 + 'px';
 
-		if (!persistedSize) {
-			this.element.eastSash.el.style.height = height + 'px';
-			this.element.westSash.el.style.height = height + 'px';
-		} else {
-			this.element.eastSash.el.style.height = height - 5 + 'px';
-			this.element.westSash.el.style.height = height - 5 + 'px';
-		}
-
-		this.element.eastSash.el.style.top = 2 + 'px';
-		this.element.westSash.el.style.top = 2 + 'px';
+		this.element.eastSash.el.style.height = finalClientHeight + 'px';
+		this.element.westSash.el.style.height = finalClientHeight + 'px';
+		this.element.eastSash.el.style.top = 3 + 'px';
+		this.element.westSash.el.style.top = 3 + 'px';
 
 		this.editor.layoutContentWidget(this.resizableContentWidget);
 	}
