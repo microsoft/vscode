@@ -39,11 +39,11 @@ registerAction2(class FocusNextCellAction extends NotebookCellAction {
 		super({
 			id: NOTEBOOK_FOCUS_NEXT_EDITOR,
 			title: localize('cursorMoveDown', 'Focus Next Cell Editor'),
-			precondition: CONTEXT_ACCESSIBILITY_MODE_ENABLED.negate(),
 			keybinding: [
 				{
 					when: ContextKeyExpr.and(
 						NOTEBOOK_EDITOR_FOCUSED,
+						CONTEXT_ACCESSIBILITY_MODE_ENABLED.negate(),
 						ContextKeyExpr.equals('config.notebook.navigation.allowNavigateToSurroundingCells', true),
 						ContextKeyExpr.and(
 							ContextKeyExpr.has(InputFocusedContextKey),
@@ -58,6 +58,7 @@ registerAction2(class FocusNextCellAction extends NotebookCellAction {
 				{
 					when: ContextKeyExpr.and(
 						NOTEBOOK_EDITOR_FOCUSED,
+						CONTEXT_ACCESSIBILITY_MODE_ENABLED.negate(),
 						ContextKeyExpr.equals('config.notebook.navigation.allowNavigateToSurroundingCells', true),
 						ContextKeyExpr.and(
 							NOTEBOOK_CELL_TYPE.isEqualTo('markup'),
@@ -108,6 +109,7 @@ registerAction2(class FocusPreviousCellAction extends NotebookCellAction {
 				{
 					when: ContextKeyExpr.and(
 						NOTEBOOK_EDITOR_FOCUSED,
+						CONTEXT_ACCESSIBILITY_MODE_ENABLED.negate(),
 						ContextKeyExpr.equals('config.notebook.navigation.allowNavigateToSurroundingCells', true),
 						ContextKeyExpr.and(
 							ContextKeyExpr.has(InputFocusedContextKey),
@@ -122,6 +124,7 @@ registerAction2(class FocusPreviousCellAction extends NotebookCellAction {
 				{
 					when: ContextKeyExpr.and(
 						NOTEBOOK_EDITOR_FOCUSED,
+						CONTEXT_ACCESSIBILITY_MODE_ENABLED.negate(),
 						ContextKeyExpr.equals('config.notebook.navigation.allowNavigateToSurroundingCells', true),
 						ContextKeyExpr.and(
 							NOTEBOOK_CELL_TYPE.isEqualTo('markup'),
@@ -388,7 +391,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 		'notebook.navigation.allowNavigateToSurroundingCells': {
 			type: 'boolean',
 			default: true,
-			markdownDescription: localize('notebook.navigation.allowNavigateToSurroundingCells', "When enabled cursor can navigate to the next/previous cell when the current cursor in the cell editor is at the first/last line. Note that due to accessibility issues, this will be disabled when a screen reader is detected.")
+			markdownDescription: localize('notebook.navigation.allowNavigateToSurroundingCells', "When enabled cursor can navigate to the next/previous cell when the current cursor in the cell editor is at the first/last line.")
 		}
 	}
 });
