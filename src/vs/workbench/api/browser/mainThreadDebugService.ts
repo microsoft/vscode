@@ -8,7 +8,7 @@ import { URI as uri, UriComponents } from 'vs/base/common/uri';
 import { IDebugService, IConfig, IDebugConfigurationProvider, IBreakpoint, IFunctionBreakpoint, IBreakpointData, IDebugAdapter, IDebugAdapterDescriptorFactory, IDebugSession, IDebugAdapterFactory, IDataBreakpoint, IDebugSessionOptions, IInstructionBreakpoint, DebugConfigurationProviderTriggerKind } from 'vs/workbench/contrib/debug/common/debug';
 import {
 	ExtHostContext, ExtHostDebugServiceShape, MainThreadDebugServiceShape, DebugSessionUUID, MainContext,
-	IBreakpointsDeltaDto, ISourceMultiBreakpointDto, ISourceBreakpointDto, IFunctionBreakpointDto, IDebugSessionDto, IDataBreakpointDto, IStartDebuggingOptions, IDebugConfiguration
+	IBreakpointsDeltaDto, ISourceMultiBreakpointDto, ISourceBreakpointDto, IFunctionBreakpointDto, IDebugSessionDto, IDataBreakpointDto, IStartDebuggingOptions, IDebugConfiguration, IThreadFocusDto, IStackFrameFocusDto
 } from 'vs/workbench/api/common/extHost.protocol';
 import { extHostNamedCustomer, IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
 import severity from 'vs/base/common/severity';
@@ -58,12 +58,26 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
 		this._sessions = new Set();
 
 		this.debugService.getViewModel().onDidFocusThread(({ thread, explicit, session }) => {
-			this._proxy.$acceptThreadFocus({ threadId: thread?.threadId, sessionId: session!.getId() });
+			if (session) {
+				const dto: IThreadFocusDto = {
+					kind: 'thread',
+					threadId: thread?.threadId,
+					sessionId: session!.getId(),
+				};
+				this._proxy.$acceptStackFrameFocus(dto);
+			}
 		});
 
 		this.debugService.getViewModel().onDidFocusStackFrame(({ stackFrame, explicit, session }) => {
-			const sessionId = session!.getId();
-			this._proxy.$acceptStackFrameFocus({ threadId: stackFrame!.thread.threadId, frameId: stackFrame?.frameId, sessionId });
+			if (session) {
+				const dto: IStackFrameFocusDto = {
+					kind: 'stackFrame',
+					threadId: stackFrame?.thread.threadId,
+					frameId: stackFrame?.frameId,
+					sessionId: session.getId(),
+				};
+				this._proxy.$acceptStackFrameFocus(dto);
+			}
 		});
 	}
 

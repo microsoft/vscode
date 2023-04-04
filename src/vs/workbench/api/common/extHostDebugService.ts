@@ -41,12 +41,8 @@ export interface IExtHostDebugService extends ExtHostDebugServiceShape {
 	onDidReceiveDebugSessionCustomEvent: Event<vscode.DebugSessionCustomEvent>;
 	onDidChangeBreakpoints: Event<vscode.BreakpointsChangeEvent>;
 	breakpoints: vscode.Breakpoint[];
-
-	onDidChangeThreadFocus: Event<vscode.ThreadContext>;
-	threadFocus: vscode.ThreadContext | undefined;
-
-	onDidChangeStackFrameFocus: Event<vscode.StackFrameContext>;
-	stackFrameFocus: vscode.StackFrameContext | undefined;
+	onDidChangeStackFrameFocus: Event<vscode.ThreadFocus | vscode.StackFrameFocus | undefined>;
+	focus: vscode.ThreadFocus | vscode.StackFrameFocus | undefined;
 
 	addBreakpoints(breakpoints0: readonly vscode.Breakpoint[]): Promise<void>;
 	removeBreakpoints(breakpoints0: readonly vscode.Breakpoint[]): Promise<void>;
@@ -97,11 +93,8 @@ export abstract class ExtHostDebugServiceBase implements IExtHostDebugService, E
 
 	private readonly _onDidChangeBreakpoints: Emitter<vscode.BreakpointsChangeEvent>;
 
-	private _stackFramefocus: vscode.StackFrameContext | undefined;
-	private readonly _onDidChangeStackFrameFocus: Emitter<vscode.StackFrameContext>;
-
-	private _threadFocus: vscode.ThreadContext | undefined;
-	private readonly _onDidChangeThreadFocus: Emitter<vscode.ThreadContext>;
+	private _focus: vscode.ThreadFocus | vscode.StackFrameFocus | undefined;
+	private readonly _onDidChangeStackFrameFocus: Emitter<vscode.ThreadFocus | vscode.StackFrameFocus | undefined>;
 
 	private _debugAdapters: Map<number, IDebugAdapter>;
 	private _debugAdaptersTrackers: Map<number, vscode.DebugAdapterTracker>;
@@ -141,8 +134,7 @@ export abstract class ExtHostDebugServiceBase implements IExtHostDebugService, E
 			}
 		});
 
-		this._onDidChangeThreadFocus = new Emitter<vscode.ThreadContext>();
-		this._onDidChangeStackFrameFocus = new Emitter<vscode.StackFrameContext>();
+		this._onDidChangeStackFrameFocus = new Emitter<vscode.ThreadFocus | vscode.StackFrameFocus | undefined>();
 
 		this._activeDebugConsole = new ExtHostDebugConsole(this._debugServiceProxy);
 
@@ -206,20 +198,12 @@ export abstract class ExtHostDebugServiceBase implements IExtHostDebugService, E
 	// extension debug API
 
 
-	get stackFrameFocus(): vscode.StackFrameContext | undefined {
-		return this._stackFramefocus;
+	get focus(): vscode.ThreadFocus | vscode.StackFrameFocus | undefined {
+		return this._focus;
 	}
 
-	get onDidChangeStackFrameFocus(): Event<vscode.StackFrameContext> {
+	get onDidChangeStackFrameFocus(): Event<vscode.ThreadFocus | vscode.StackFrameFocus | undefined> {
 		return this._onDidChangeStackFrameFocus.event;
-	}
-
-	get threadFocus(): vscode.ThreadContext | undefined {
-		return this._threadFocus;
-	}
-
-	get onDidChangeThreadFocus(): Event<vscode.ThreadContext> {
-		return this._onDidChangeThreadFocus.event;
 	}
 
 	get onDidChangeBreakpoints(): Event<vscode.BreakpointsChangeEvent> {
@@ -616,24 +600,30 @@ export abstract class ExtHostDebugServiceBase implements IExtHostDebugService, E
 		this.fireBreakpointChanges(a, r, c);
 	}
 
-	public $acceptThreadFocus(focusDto: IThreadFocusDto): void {
-		const focus: vscode.ThreadContext = {
-			threadId: focusDto.threadId,
-			sessionId: focusDto.sessionId
-		};
+	public async $acceptStackFrameFocus(focusDto: IThreadFocusDto | IStackFrameFocusDto): Promise<void> {
+		//
+		let focus: vscode.ThreadFocus | vscode.StackFrameFocus;
+		const session = focusDto.sessionId ? await this.getSession(focusDto.sessionId) : undefined;
+		if (!session) {
+			throw new Error('no DebugSession found for debug focus context');
+		}
 
-		this._threadFocus = focus;
-		this._onDidChangeThreadFocus.fire(focus);
-	}
+		if (focusDto.kind === 'thread') {
+			focus = {
+				kind: focusDto.kind,
+				threadId: focusDto.threadId,
+				session,
+			};
+		} else {
+			focus = {
+				kind: focusDto.kind,
+				threadId: focusDto.threadId,
+				frameId: focusDto.frameId,
+				session,
+			};
+		}
 
-	public $acceptStackFrameFocus(focusDto: IStackFrameFocusDto): void {
-		const focus: vscode.StackFrameContext = {
-			threadId: focusDto.threadId,
-			frameId: focusDto.frameId,
-			sessionId: focusDto.sessionId
-		};
-
-		this._stackFramefocus = focus;
+		this._focus = focus;
 		this._onDidChangeStackFrameFocus.fire(focus);
 	}
 

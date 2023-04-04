@@ -2019,15 +2019,19 @@ export interface IDebugSessionFullDto {
 
 export type IDebugSessionDto = IDebugSessionFullDto | DebugSessionUUID;
 
+export type IDebugFocusType = 'thread' | 'stackFrame' | 'empty';
+
 export interface IThreadFocusDto {
+	kind: 'thread';
 	threadId: number | undefined;
-	sessionId: string;
+	sessionId: string | undefined;
 }
 
 export interface IStackFrameFocusDto {
-	threadId: number;
+	kind: 'stackFrame';
+	threadId: number | undefined;
 	frameId: number | undefined;
-	sessionId: string;
+	sessionId: string | undefined;
 }
 
 
@@ -2047,8 +2051,7 @@ export interface ExtHostDebugServiceShape {
 	$acceptDebugSessionCustomEvent(session: IDebugSessionDto, event: any): void;
 	$acceptBreakpointsDelta(delta: IBreakpointsDeltaDto): void;
 	$acceptDebugSessionNameChanged(session: IDebugSessionDto, name: string): void;
-	$acceptThreadFocus(focus: IThreadFocusDto | undefined): void;
-	$acceptStackFrameFocus(focus: IStackFrameFocusDto | undefined): void;
+	$acceptStackFrameFocus(focus: IThreadFocusDto | IStackFrameFocusDto | undefined): void;
 }
 
 
