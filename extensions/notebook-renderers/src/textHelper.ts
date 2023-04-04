@@ -30,7 +30,7 @@ function generateViewMoreElement(outputId: string) {
 	const refreshSpan = document.createElement('span');
 	refreshSpan.classList.add('scroll-refresh');
 	const fifth = document.createElement('span');
-	fifth.textContent = '. Refresh to view ';
+	fifth.textContent = ', or view in a ';
 
 	const sixth = document.createElement('a');
 	sixth.textContent = 'scrollable element';

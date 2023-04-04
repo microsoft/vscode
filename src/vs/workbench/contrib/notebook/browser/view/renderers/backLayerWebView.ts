@@ -53,6 +53,8 @@ import { ITextEditorOptions } from 'vs/platform/editor/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { INotebookLoggingService } from 'vs/workbench/contrib/notebook/common/notebookLoggingService';
 import { IDisposable } from 'vs/base/common/lifecycle';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { WorkbenchActionExecutedClassification, WorkbenchActionExecutedEvent } from 'vs/base/common/actions';
 
 const LINE_COLUMN_REGEX = /:([\d]+)(?::([\d]+))?$/;
 const LineQueryRegex = /line=(\d+)$/;
@@ -170,6 +172,7 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 		@IPathService private readonly pathService: IPathService,
 		@INotebookLoggingService private readonly notebookLogService: INotebookLoggingService,
 		@IThemeService themeService: IThemeService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService
 	) {
 		super(themeService);
 
@@ -709,10 +712,17 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 							const cell = this.reversedInsetMapping.get(outputId);
 
 							if (cell) {
-								cell.resetRenderer();
+								this.telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>
+									('workbenchActionExecuted', { id: 'notebook.cell.toggleOutputScrolling', from: 'inlineLink' });
+
+								cell.cellViewModel.outputsViewModels.forEach((vm) => {
+									if (vm.model.metadata) {
+										vm.model.metadata['scrollable'] = true;
+										vm.resetRenderer();
+									}
+								});
 							}
 
-							console.log(outputId);
 							return;
 						}
 
