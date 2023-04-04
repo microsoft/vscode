@@ -166,7 +166,7 @@ function nodejs(platform, arch) {
 		let path;
 		if (product.nodejsRepository) {
 			base = 'https://github.com';
-			path = `${product.nodejsRepository}/releases/download/v${nodeVersion}/win-${arch}-node.exe`;
+			path = `/${product.nodejsRepository}/releases/download/v${nodeVersion}/win-${arch}-node.exe`;
 		} else {
 			base = 'https://nodejs.org';
 			path = `/dist/v${nodeVersion}/win-${arch}/node.exe`;
