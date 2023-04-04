@@ -8,6 +8,7 @@ import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { EditorExtensionsRegistry } from 'vs/editor/browser/editorExtensions';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { localize } from 'vs/nls';
+import { CONTEXT_ACCESSIBILITY_MODE_ENABLED } from 'vs/platform/accessibility/common/accessibility';
 import { registerAction2 } from 'vs/platform/actions/common/actions';
 import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
@@ -38,6 +39,7 @@ registerAction2(class FocusNextCellAction extends NotebookCellAction {
 		super({
 			id: NOTEBOOK_FOCUS_NEXT_EDITOR,
 			title: localize('cursorMoveDown', 'Focus Next Cell Editor'),
+			precondition: CONTEXT_ACCESSIBILITY_MODE_ENABLED.negate(),
 			keybinding: [
 				{
 					when: ContextKeyExpr.and(
@@ -101,6 +103,7 @@ registerAction2(class FocusPreviousCellAction extends NotebookCellAction {
 		super({
 			id: NOTEBOOK_FOCUS_PREVIOUS_EDITOR,
 			title: localize('cursorMoveUp', 'Focus Previous Cell Editor'),
+			precondition: CONTEXT_ACCESSIBILITY_MODE_ENABLED.negate(),
 			keybinding: [
 				{
 					when: ContextKeyExpr.and(
@@ -385,7 +388,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 		'notebook.navigation.allowNavigateToSurroundingCells': {
 			type: 'boolean',
 			default: true,
-			markdownDescription: localize('notebook.navigation.allowNavigateToSurroundingCells', "When enabled cursor can navigate to the next/previous cell when the current cursor in the cell editor is at the first/last line.")
+			markdownDescription: localize('notebook.navigation.allowNavigateToSurroundingCells', "When enabled cursor can navigate to the next/previous cell when the current cursor in the cell editor is at the first/last line. Note that due to accessibility issues, this will be disabled when a screen reader is detected.")
 		}
 	}
 });
