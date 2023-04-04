@@ -13,6 +13,10 @@ async function initAzureCloudAuthProvider(context: vscode.ExtensionContext, tele
 	let settingValue = vscode.workspace.getConfiguration('azure-cloud').get<string | undefined>('endpoint');
 	if (!settingValue) {
 		return undefined;
+	} else if (settingValue === 'Azure China') {
+		settingValue = 'https://login.chinacloudapi.cn/';
+	} else if (settingValue === 'Azure US Government') {
+		settingValue = 'https://login.microsoftonline.us/';
 	}
 
 	// validate user value

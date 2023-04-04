@@ -49,10 +49,6 @@
               {
                 "type": "string",
                 "enum": [
-                  "https://login.chinacloudapi.cn/",
-                  "https://login.microsoftonline.us/"
-                ],
-                "enumDescriptions": [
                   "Azure China",
                   "Azure US Government"
                 ]
