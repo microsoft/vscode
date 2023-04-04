@@ -6,7 +6,6 @@
 import * as dom from 'vs/base/browser/dom';
 import { IHistoryNavigationWidget } from 'vs/base/browser/history';
 import * as aria from 'vs/base/browser/ui/aria/aria';
-import { Button } from 'vs/base/browser/ui/button/button';
 import { ITreeContextMenuEvent, ITreeElement } from 'vs/base/browser/ui/tree/tree';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Emitter } from 'vs/base/common/event';
@@ -28,7 +27,6 @@ import { IInstantiationService, createDecorator } from 'vs/platform/instantiatio
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { WorkbenchObjectTree } from 'vs/platform/list/browser/listService';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { defaultButtonStyles } from 'vs/platform/theme/browser/defaultStyles';
 import { foreground } from 'vs/platform/theme/common/colorRegistry';
 import { DEFAULT_FONT_FAMILY } from 'vs/workbench/browser/style';
 import { Memento } from 'vs/workbench/common/memento';
@@ -101,12 +99,10 @@ export class InteractiveSessionWidget extends Disposable implements IInteractive
 	private inputModel: ITextModel | undefined;
 	private listContainer!: HTMLElement;
 	private container!: HTMLElement;
-	private welcomeViewContainer!: HTMLElement;
 
 	private followupsContainer!: HTMLElement;
 	private followupsDisposables = this._register(new DisposableStore());
 
-	private welcomeViewDisposables = this._register(new DisposableStore());
 	private bodyDimension: dom.Dimension | undefined;
 	private visible = false;
 	private requestInProgress: IContextKey<boolean>;
@@ -192,7 +188,6 @@ export class InteractiveSessionWidget extends Disposable implements IInteractive
 		this.listContainer = dom.append(this.container, $(`.interactive-list`));
 
 		this.inputOptions = this._register(this.instantiationService.createInstance(InteractiveSessionEditorOptions, this.viewId, this.inputEditorBackgroundColorDelegate, this.resultEditorBackgroundColorDelegate));
-		this.renderWelcomeView(this.container);
 		this.createList(this.listContainer);
 		this.createInput(this.container);
 
@@ -225,10 +220,6 @@ export class InteractiveSessionWidget extends Disposable implements IInteractive
 					collapsible: false
 				};
 			});
-
-			if (treeItems.length > 0) {
-				this.setWelcomeViewVisible(false);
-			}
 
 			this.tree.setChildren(null, treeItems, {
 				diffIdentityProvider: {
@@ -305,38 +296,6 @@ export class InteractiveSessionWidget extends Disposable implements IInteractive
 
 	private onDidStyleChange(): void {
 		this.container.style.setProperty('--vscode-interactive-result-editor-background-color', this.inputOptions.configuration.resultEditor.backgroundColor?.toString() ?? '');
-	}
-
-	private async renderWelcomeView(container: HTMLElement): Promise<void> {
-		if (this.welcomeViewContainer) {
-			dom.clearNode(this.welcomeViewContainer);
-		} else {
-			this.welcomeViewContainer = dom.append(container, $('.interactive-session-welcome-view'));
-		}
-
-		this.welcomeViewDisposables.clear();
-		const suggestions = await this.interactiveSessionService.provideSuggestions(this.providerId, CancellationToken.None);
-		const suggElements = suggestions?.map(sugg => {
-			const button = this.welcomeViewDisposables.add(new Button(this.welcomeViewContainer, defaultButtonStyles));
-			button.label = `"${sugg}"`;
-			this.welcomeViewDisposables.add(button.onDidClick(() => this.acceptInput(sugg)));
-			return button;
-		});
-		if (suggElements && suggElements.length > 0) {
-			this.setWelcomeViewVisible(false);
-		} else {
-			this.setWelcomeViewVisible(false);
-		}
-	}
-
-	private setWelcomeViewVisible(visible: boolean): void {
-		if (visible) {
-			dom.show(this.welcomeViewContainer);
-			dom.hide(this.listContainer);
-		} else {
-			dom.hide(this.welcomeViewContainer);
-			dom.show(this.listContainer);
-		}
 	}
 
 	private createList(listContainer: HTMLElement): void {
@@ -610,7 +569,6 @@ export class InteractiveSessionWidget extends Disposable implements IInteractive
 			this.interactiveSessionService.clearSession(this.viewModel.sessionId);
 			await this.initializeSessionModel();
 			this.focusInput();
-			this.renderWelcomeView(this.container);
 		}
 	}
 
@@ -636,7 +594,6 @@ export class InteractiveSessionWidget extends Disposable implements IInteractive
 			revealLastElement(this.tree);
 		}
 
-		this.welcomeViewContainer.style.height = `${height - inputPartHeight}px`;
 		this.listContainer.style.height = `${height - inputPartHeight}px`;
 
 		const editorBorder = 2;
