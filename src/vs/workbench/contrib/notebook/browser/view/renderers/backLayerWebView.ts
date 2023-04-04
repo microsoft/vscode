@@ -202,7 +202,6 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 			const baseUrl = this.asWebviewUri(this.getNotebookBaseUri(), undefined);
 			const htmlContent = this.generateContent(baseUrl.toString());
 			this.webview?.setHtml(htmlContent);
-			this.webview?.reload();
 		}));
 
 		this._register(TokenizationRegistry.onDidChange(() => {
