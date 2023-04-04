@@ -125,6 +125,8 @@ export class ItemRenderer implements IListRenderer<CompletionItem, ISuggestionTe
 
 		const readMore = append(right, $('span.readMore' + ThemeIcon.asCSSSelector(suggestMoreInfoIcon)));
 		readMore.title = nls.localize('readMore', "Read More");
+		readMore.role = 'button';
+		readMore.tabIndex = 0;
 
 		const configureFont = () => {
 			const options = this._editor.getOptions();
@@ -166,6 +168,11 @@ export class ItemRenderer implements IListRenderer<CompletionItem, ISuggestionTe
 		const { completion } = element;
 		data.root.id = getAriaId(index);
 		data.colorspan.style.backgroundColor = '';
+
+		// Set the description of the row to the documentation snippet. This provides a clearer
+		// description as the documentation is announced after list item semantics.
+		data.detailsLabel.id = `${data.root.id}-description`;
+		data.root.setAttribute('aria-describedby', data.detailsLabel.id);
 
 		const labelOptions: IIconLabelValueOptions = {
 			labelEscapeNewLines: true,
@@ -220,6 +227,9 @@ export class ItemRenderer implements IListRenderer<CompletionItem, ISuggestionTe
 
 		if (this._editor.getOption(EditorOption.suggest).showInlineDetails) {
 			show(data.detailsLabel);
+			// Some screen readers, specifically Voiceover, will concatenate the left and right
+			// details in the spoken ouput.
+			data.detailsLabel.ariaHidden = 'true';
 		} else {
 			hide(data.detailsLabel);
 		}

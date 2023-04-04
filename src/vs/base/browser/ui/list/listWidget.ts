@@ -1270,6 +1270,7 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 	private keyboardController: KeyboardController<T> | undefined;
 	private mouseController: MouseController<T>;
 	private _ariaLabel: string = '';
+	private _ariaDescribedBy: string = '';
 
 	protected readonly disposables = new DisposableStore();
 
@@ -1539,6 +1540,19 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 	set ariaLabel(value: string) {
 		this._ariaLabel = value;
 		this.view.domNode.setAttribute('aria-label', value);
+	}
+
+	get ariaDescribedBy(): string {
+		return this._ariaDescribedBy;
+	}
+
+	set ariaDescribedBy(value: string) {
+		this._ariaDescribedBy = value;
+		if (value === '') {
+			this.view.domNode.removeAttribute('aria-describedby');
+			return;
+		}
+		this.view.domNode.setAttribute('aria-describedby', value);
 	}
 
 	domFocus(): void {

@@ -708,6 +708,7 @@ export class SuggestWidget implements IDisposable {
 		this._pendingShowDetails.value = dom.runAtThisOrScheduleAtNextAnimationFrame(() => {
 			this._pendingShowDetails.clear();
 			this._details.show();
+			this._list.ariaDescribedBy = this._details.getId();
 			if (loading) {
 				this._details.widget.renderLoading();
 			} else {
@@ -760,6 +761,7 @@ export class SuggestWidget implements IDisposable {
 		if (position === null) {
 			if (this._isDetailsVisible()) {
 				this._details.hide(); //todo@jrieken soft-hide
+				this._list.ariaDescribedBy = '';
 			}
 			return;
 		}
@@ -769,6 +771,7 @@ export class SuggestWidget implements IDisposable {
 		}
 		if (this._isDetailsVisible()) {
 			this._details.show();
+			this._list.ariaDescribedBy = this._details.getId();
 		}
 		this._positionDetails();
 	}
