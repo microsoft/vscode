@@ -1104,8 +1104,8 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			get breakpoints() {
 				return extHostDebugService.breakpoints;
 			},
-			get focus() {
-				return extHostDebugService.focus;
+			get stackFrameFocus() {
+				return extHostDebugService.stackFrameFocus;
 			},
 			onDidStartDebugSession(listener, thisArg?, disposables?) {
 				return extHostDebugService.onDidStartDebugSession(listener, thisArg, disposables);

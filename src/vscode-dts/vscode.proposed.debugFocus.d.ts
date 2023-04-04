@@ -46,10 +46,10 @@ declare module 'vscode' {
 		/**
 		 * The currently focused thread or stack frame id, or `undefined` if this has not been set. (e.g. not in debug mode).
 		 */
-		export let focus: ThreadFocus | StackFrameFocus | undefined;
+		export let stackFrameFocus: ThreadFocus | StackFrameFocus | undefined;
 
 		/**
-		 * An {@link Event} which fires when the {@link debug.focus} changes. Provides a sessionId. threadId is not undefined
+		 * An {@link Event} which fires when the {@link debug.stackFrameFocus} changes. Provides a sessionId. threadId is not undefined
 		 * when a thread of frame has gained focus. frameId is defined when a stackFrame has gained focus.
 		 */
 		export const onDidChangeStackFrameFocus: Event<ThreadFocus | StackFrameFocus | undefined>;

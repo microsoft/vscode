@@ -42,7 +42,7 @@ export interface IExtHostDebugService extends ExtHostDebugServiceShape {
 	onDidChangeBreakpoints: Event<vscode.BreakpointsChangeEvent>;
 	breakpoints: vscode.Breakpoint[];
 	onDidChangeStackFrameFocus: Event<vscode.ThreadFocus | vscode.StackFrameFocus | undefined>;
-	focus: vscode.ThreadFocus | vscode.StackFrameFocus | undefined;
+	stackFrameFocus: vscode.ThreadFocus | vscode.StackFrameFocus | undefined;
 
 	addBreakpoints(breakpoints0: readonly vscode.Breakpoint[]): Promise<void>;
 	removeBreakpoints(breakpoints0: readonly vscode.Breakpoint[]): Promise<void>;
@@ -93,7 +93,7 @@ export abstract class ExtHostDebugServiceBase implements IExtHostDebugService, E
 
 	private readonly _onDidChangeBreakpoints: Emitter<vscode.BreakpointsChangeEvent>;
 
-	private _focus: vscode.ThreadFocus | vscode.StackFrameFocus | undefined;
+	private _stackFrameFocus: vscode.ThreadFocus | vscode.StackFrameFocus | undefined;
 	private readonly _onDidChangeStackFrameFocus: Emitter<vscode.ThreadFocus | vscode.StackFrameFocus | undefined>;
 
 	private _debugAdapters: Map<number, IDebugAdapter>;
@@ -198,8 +198,8 @@ export abstract class ExtHostDebugServiceBase implements IExtHostDebugService, E
 	// extension debug API
 
 
-	get focus(): vscode.ThreadFocus | vscode.StackFrameFocus | undefined {
-		return this._focus;
+	get stackFrameFocus(): vscode.ThreadFocus | vscode.StackFrameFocus | undefined {
+		return this._stackFrameFocus;
 	}
 
 	get onDidChangeStackFrameFocus(): Event<vscode.ThreadFocus | vscode.StackFrameFocus | undefined> {
@@ -623,7 +623,7 @@ export abstract class ExtHostDebugServiceBase implements IExtHostDebugService, E
 			};
 		}
 
-		this._focus = focus;
+		this._stackFrameFocus = focus;
 		this._onDidChangeStackFrameFocus.fire(focus);
 	}
 
