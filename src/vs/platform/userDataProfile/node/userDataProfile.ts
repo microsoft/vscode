@@ -12,7 +12,7 @@ import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity'
 import { IUserDataProfilesService, UserDataProfilesService as BaseUserDataProfilesService, StoredUserDataProfile, StoredProfileAssociations } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { IStringDictionary } from 'vs/base/common/collections';
 import { isString } from 'vs/base/common/types';
-import { SaveStrategy, StateService } from 'vs/platform/state/node/stateService';
+import { SaveStrategy, StateReadonlyService, StateService } from 'vs/platform/state/node/stateService';
 import { VSBuffer } from 'vs/base/common/buffer';
 
 type StoredUserDataProfileState = StoredUserDataProfile & { location: URI | string };
@@ -32,6 +32,7 @@ export class UserDataProfilesReadonlyService extends BaseUserDataProfilesService
 	}
 
 	override async init(): Promise<void> {
+		await (this.stateReadonlyService as StateReadonlyService).init();
 		super.init();
 		// Initialize default profile extensions file if the extensions folder does not exist
 		if (!(await this.fileService.exists(this.uriIdentityService.extUri.dirname(this.defaultProfile.extensionsResource)))) {
@@ -122,11 +123,6 @@ export class ServerUserDataProfilesService extends UserDataProfilesService imple
 		@ILogService logService: ILogService,
 	) {
 		super(new StateService(SaveStrategy.IMMEDIATE, environmentService, logService, fileService), uriIdentityService, environmentService, fileService, logService);
-	}
-
-	override async init(): Promise<void> {
-		await (this.stateService as StateService).init();
-		return super.init();
 	}
 
 }

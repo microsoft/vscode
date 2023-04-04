@@ -166,7 +166,7 @@ class CliMain extends Disposable {
 
 		// Initialize
 		await Promise.all([
-			stateService.init(),
+			userDataProfilesService.init(),
 			configurationService.initialize()
 		]);
 
@@ -179,9 +179,6 @@ class CliMain extends Disposable {
 				logService.error(error);
 			}
 		}
-
-		// Initialize user data profiles after initializing the state
-		await userDataProfilesService.init();
 
 		// URI Identity
 		services.set(IUriIdentityService, new UriIdentityService(fileService));

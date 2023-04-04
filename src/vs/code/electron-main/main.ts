@@ -256,11 +256,11 @@ class CodeMain {
 			stateService.init(),
 
 			// Configuration service
-			configurationService.initialize()
-		]);
+			configurationService.initialize(),
 
-		// Initialize user data profiles after initializing the state
-		await userDataProfilesMainService.init();
+			// Initialize Profiles
+			userDataProfilesMainService.init()
+		]);
 	}
 
 	private async claimInstance(logService: ILogService, environmentMainService: IEnvironmentMainService, lifecycleMainService: ILifecycleMainService, instantiationService: IInstantiationService, productService: IProductService, retry: boolean): Promise<NodeIPCServer> {
