@@ -7,8 +7,11 @@ import { handleANSIOutput } from './ansi';
 
 export const scrollableClass = 'scrollable';
 
+/**
+ * Output is Truncated. View as a [scrollable element] or open in a [text editor]. Adjust [settings...]
+ */
 function generateViewMoreElement(outputId: string) {
-	// Output is Truncated. View as a [scrollable element] or open in a [text editor]. Output layout settings
+
 	const container = document.createElement('div');
 	const first = document.createElement('span');
 	first.textContent = 'Output is Truncated. View as a ';
