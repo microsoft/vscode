@@ -200,7 +200,7 @@ stages:
 
       - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), eq(parameters.VSCODE_BUILD_ALPINE_ARM64, true)) }}:
         - job: CLIAlpineARM64
-          pool: vscode-1es-linux-20.04-arm64
+          pool: 1es-ubuntu-20.04-arm64
           steps:
             - bash: sudo apt update && sudo apt install -y unzip
               displayName: Install unzip
