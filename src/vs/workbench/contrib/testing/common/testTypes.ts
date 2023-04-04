@@ -20,6 +20,13 @@ export const enum TestResultState {
 	Errored = 6
 }
 
+/** note: keep in sync with TestRunProfileKind in vscode.d.ts */
+export const enum ExtTestRunProfileKind {
+	Run = 1,
+	Debug = 2,
+	Coverage = 3,
+}
+
 export const enum TestRunProfileBitset {
 	Run = 1 << 1,
 	Debug = 1 << 2,

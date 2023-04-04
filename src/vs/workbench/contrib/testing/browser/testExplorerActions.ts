@@ -38,7 +38,7 @@ import { ITestProfileService, canUseProfileWithTest } from 'vs/workbench/contrib
 import { ITestResult } from 'vs/workbench/contrib/testing/common/testResult';
 import { ITestResultService } from 'vs/workbench/contrib/testing/common/testResultService';
 import { IMainThreadTestCollection, ITestService, expandAndGetTestById, testsInFile } from 'vs/workbench/contrib/testing/common/testService';
-import { ITestRunProfile, InternalTestItem, TestRunProfileBitset } from 'vs/workbench/contrib/testing/common/testTypes';
+import { ExtTestRunProfileKind, ITestRunProfile, InternalTestItem, TestRunProfileBitset } from 'vs/workbench/contrib/testing/common/testTypes';
 import { TestingContextKeys } from 'vs/workbench/contrib/testing/common/testingContextKeys';
 import { ITestingContinuousRunService } from 'vs/workbench/contrib/testing/common/testingContinuousRunService';
 import { ITestingPeekOpener } from 'vs/workbench/contrib/testing/common/testingPeekOpener';
@@ -417,8 +417,49 @@ abstract class ExecuteSelectedAction extends ViewAction<TestingExplorerView> {
 	 * @override
 	 */
 	public runInView(accessor: ServicesAccessor, view: TestingExplorerView): Promise<ITestResult | undefined> {
-		const { include, exclude } = view.getSelectedOrVisibleItems();
+		const { include, exclude } = view.getTreeIncludeExclude();
 		return accessor.get(ITestService).runTests({ tests: include, exclude, group: this.group });
+	}
+}
+
+export class GetSelectedProfiles extends Action2 {
+	constructor() {
+		super({ id: TestCommandId.GetSelectedProfiles, title: localize('getSelectedProfiles', 'Get Selected Profiles') });
+	}
+
+	/**
+	 * @override
+	 */
+	public override run(accessor: ServicesAccessor) {
+		const profiles = accessor.get(ITestProfileService);
+		return [
+			...profiles.getGroupDefaultProfiles(TestRunProfileBitset.Run),
+			...profiles.getGroupDefaultProfiles(TestRunProfileBitset.Debug),
+			...profiles.getGroupDefaultProfiles(TestRunProfileBitset.Coverage),
+		].map(p => ({
+			controllerId: p.controllerId,
+			label: p.label,
+			kind: p.group & TestRunProfileBitset.Coverage
+				? ExtTestRunProfileKind.Coverage
+				: p.group & TestRunProfileBitset.Debug
+					? ExtTestRunProfileKind.Debug
+					: ExtTestRunProfileKind.Run,
+		}));
+	}
+}
+
+export class GetExplorerSelection extends ViewAction<TestingExplorerView> {
+	constructor() {
+		super({ id: TestCommandId.GetExplorerSelection, title: localize('getExplorerSelection', 'Get Explorer Selection'), viewId: Testing.ExplorerViewId });
+	}
+
+	/**
+	 * @override
+	 */
+	public override runInView(_accessor: ServicesAccessor, view: TestingExplorerView) {
+		const { include, exclude } = view.getTreeIncludeExclude(undefined, 'selected');
+		const mapper = (i: InternalTestItem) => i.item.extId;
+		return { include: include.map(mapper), exclude: exclude.map(mapper) };
 	}
 }
 
@@ -1334,6 +1375,8 @@ export const allTestActions = [
 	DebugLastRun,
 	DebugSelectedAction,
 	GoToTest,
+	GetExplorerSelection,
+	GetSelectedProfiles,
 	HideTestAction,
 	OpenOutputPeek,
 	RefreshTestsAction,
