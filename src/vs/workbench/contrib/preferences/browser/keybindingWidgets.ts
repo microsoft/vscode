@@ -248,7 +248,6 @@ export class DefineKeybindingWidget extends Widget {
 
 		if (this._chords) {
 			for (let i = 1; i < this._chords.length; i++) {
-				this._outputNode.appendChild(document.createTextNode(nls.localize('defineKeybinding.chordsTo', "chord to")));
 				const chordLabel = new KeybindingLabel(this._outputNode, OS, defaultKeybindingLabelStyles);
 				chordLabel.set(this._chords[i]);
 			}
