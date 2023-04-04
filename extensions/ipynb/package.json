@@ -10,7 +10,8 @@
 	},
 	"enabledApiProposals": [
 		"documentPaste",
-		"diffContentOptions"
+		"diffContentOptions",
+    "notebookDocumentWillSave"
 	],
 	"activationEvents": [
 		"onNotebook:jupyter-notebook"
