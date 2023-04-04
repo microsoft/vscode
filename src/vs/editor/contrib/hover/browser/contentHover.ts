@@ -4,26 +4,23 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from 'vs/base/browser/dom';
-import { HoverAction, HoverWidget } from 'vs/base/browser/ui/hover/hoverWidget';
+import { HoverAction } from 'vs/base/browser/ui/hover/hoverWidget';
 import { coalesce } from 'vs/base/common/arrays';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { Disposable, DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
-import { ContentWidgetPositionPreference, IActiveCodeEditor, ICodeEditor, IContentWidget, IContentWidgetPosition, IEditorMouseEvent, MouseTargetType } from 'vs/editor/browser/editorBrowser';
-import { ConfigurationChangedEvent, EditorOption } from 'vs/editor/common/config/editorOptions';
+import { IActiveCodeEditor, ICodeEditor, IEditorMouseEvent, MouseTargetType } from 'vs/editor/browser/editorBrowser';
+import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
-import { IModelDecoration, PositionAffinity } from 'vs/editor/common/model';
+import { IModelDecoration } from 'vs/editor/common/model';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 import { TokenizationRegistry } from 'vs/editor/common/languages';
 import { HoverOperation, HoverStartMode, HoverStartSource, IHoverComputer } from 'vs/editor/contrib/hover/browser/hoverOperation';
 import { HoverAnchor, HoverAnchorType, HoverParticipantRegistry, HoverRangeAnchor, IEditorHoverColorPickerWidget, IEditorHoverAction, IEditorHoverParticipant, IEditorHoverRenderContext, IEditorHoverStatusBar, IHoverPart } from 'vs/editor/contrib/hover/browser/hoverTypes';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { Context as SuggestContext } from 'vs/editor/contrib/suggest/browser/suggest';
 import { AsyncIterableObject } from 'vs/base/common/async';
-import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { ResizableHoverWidget } from 'vs/editor/contrib/hover/browser/resizableHoverWidget';
 
 const $ = dom.$;
@@ -151,6 +148,9 @@ export class ContentHoverController extends Disposable {
 		}
 
 		if (!anchor) {
+
+			console.log('no anchor');
+
 			this._setCurrentResult(null);
 			return false;
 		}
@@ -161,6 +161,9 @@ export class ContentHoverController extends Disposable {
 		}
 
 		if (!anchor.canAdoptVisibleHover(this._currentResult.anchor, this._widget.position)) {
+
+			console.log('can not adopt visible hover');
+
 			// The new anchor is not compatible with the previous anchor
 			this._setCurrentResult(null);
 			this._startHoverOperationIfNecessary(anchor, mode, source, focus, false);
@@ -447,258 +450,6 @@ class ContentHoverVisibleData {
 	) { }
 }
 
-export class ContentHoverWidget extends Disposable implements IContentWidget {
-
-	static readonly ID = 'editor.contrib.contentHoverWidget';
-
-	public readonly allowEditorOverflow = true;
-
-	private readonly _hoverVisibleKey = EditorContextKeys.hoverVisible.bindTo(this._contextKeyService);
-	private readonly _hoverFocusedKey = EditorContextKeys.hoverFocused.bindTo(this._contextKeyService);
-	private readonly _hover: HoverWidget = this._register(new HoverWidget());
-	private readonly _focusTracker = this._register(dom.trackFocus(this.getDomNode()));
-	private readonly _horizontalScrollingBy: number = 30;
-	private _visibleData: ContentHoverVisibleData | null = null;
-
-	/**
-	 * Returns `null` if the hover is not visible.
-	 */
-	public get position(): Position | null {
-		return this._visibleData?.showAtPosition ?? null;
-	}
-
-	public get isColorPickerVisible(): boolean {
-		return Boolean(this._visibleData?.colorPicker);
-	}
-
-	public get isVisibleFromKeyboard(): boolean {
-		return (this._visibleData?.source === HoverStartSource.Keyboard);
-	}
-
-	public get isVisible(): boolean {
-		return this._hoverVisibleKey.get() ?? false;
-	}
-
-	constructor(
-		private readonly _editor: ICodeEditor,
-		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
-	) {
-		super();
-
-		this._register(this._editor.onDidLayoutChange(() => this._layout()));
-		this._register(this._editor.onDidChangeConfiguration((e: ConfigurationChangedEvent) => {
-			if (e.hasChanged(EditorOption.fontInfo)) {
-				this._updateFont();
-			}
-		}));
-
-		this._setVisibleData(null);
-		this._layout();
-		this._editor.addContentWidget(this);
-
-		this._register(this._focusTracker.onDidFocus(() => {
-			this._hoverFocusedKey.set(true);
-		}));
-		this._register(this._focusTracker.onDidBlur(() => {
-			this._hoverFocusedKey.set(false);
-		}));
-	}
-
-	public override dispose(): void {
-		this._editor.removeContentWidget(this);
-		if (this._visibleData) {
-			this._visibleData.disposables.dispose();
-		}
-		super.dispose();
-	}
-
-	public getId(): string {
-		return ContentHoverWidget.ID;
-	}
-
-	public getDomNode(): HTMLElement {
-		return this._hover.containerDomNode;
-	}
-
-	public getPosition(): IContentWidgetPosition | null {
-		if (!this._visibleData) {
-			return null;
-		}
-		let preferAbove = this._visibleData.preferAbove;
-		if (!preferAbove && this._contextKeyService.getContextKeyValue<boolean>(SuggestContext.Visible.key)) {
-			// Prefer rendering above if the suggest widget is visible
-			preferAbove = true;
-		}
-
-		// :before content can align left of the text content
-		const affinity = this._visibleData.isBeforeContent ? PositionAffinity.LeftOfInjectedText : undefined;
-
-		return {
-			position: this._visibleData.showAtPosition,
-			secondaryPosition: this._visibleData.showAtSecondaryPosition,
-			preference: (
-				preferAbove
-					? [ContentWidgetPositionPreference.ABOVE, ContentWidgetPositionPreference.BELOW]
-					: [ContentWidgetPositionPreference.BELOW, ContentWidgetPositionPreference.ABOVE]
-			),
-			positionAffinity: affinity
-		};
-	}
-
-	public isMouseGettingCloser(posx: number, posy: number): boolean {
-		if (!this._visibleData) {
-			return false;
-		}
-		if (typeof this._visibleData.initialMousePosX === 'undefined' || typeof this._visibleData.initialMousePosY === 'undefined') {
-			this._visibleData.initialMousePosX = posx;
-			this._visibleData.initialMousePosY = posy;
-			return false;
-		}
-
-		const widgetRect = dom.getDomNodePagePosition(this.getDomNode());
-		if (typeof this._visibleData.closestMouseDistance === 'undefined') {
-			this._visibleData.closestMouseDistance = computeDistanceFromPointToRectangle(this._visibleData.initialMousePosX, this._visibleData.initialMousePosY, widgetRect.left, widgetRect.top, widgetRect.width, widgetRect.height);
-		}
-		const distance = computeDistanceFromPointToRectangle(posx, posy, widgetRect.left, widgetRect.top, widgetRect.width, widgetRect.height);
-		if (distance > this._visibleData.closestMouseDistance + 4 /* tolerance of 4 pixels */) {
-			// The mouse is getting farther away
-			return false;
-		}
-		this._visibleData.closestMouseDistance = Math.min(this._visibleData.closestMouseDistance, distance);
-		return true;
-	}
-
-	private _setVisibleData(visibleData: ContentHoverVisibleData | null): void {
-		if (this._visibleData) {
-			this._visibleData.disposables.dispose();
-		}
-		this._visibleData = visibleData;
-		this._hoverVisibleKey.set(!!this._visibleData);
-		this._hover.containerDomNode.classList.toggle('hidden', !this._visibleData);
-	}
-
-	private _layout(): void {
-		const height = Math.max(this._editor.getLayoutInfo().height / 4, 250);
-		const { fontSize, lineHeight } = this._editor.getOption(EditorOption.fontInfo);
-
-		this._hover.contentsDomNode.style.fontSize = `${fontSize}px`;
-		this._hover.contentsDomNode.style.lineHeight = `${lineHeight / fontSize}`;
-		this._hover.contentsDomNode.style.maxHeight = `${height}px`;
-		this._hover.contentsDomNode.style.maxWidth = `${Math.max(this._editor.getLayoutInfo().width * 0.66, 500)}px`;
-	}
-
-	private _updateFont(): void {
-		const codeClasses: HTMLElement[] = Array.prototype.slice.call(this._hover.contentsDomNode.getElementsByClassName('code'));
-		codeClasses.forEach(node => this._editor.applyFontInfo(node));
-	}
-
-	public showAt(node: DocumentFragment, visibleData: ContentHoverVisibleData): void {
-		this._setVisibleData(visibleData);
-
-		this._hover.contentsDomNode.textContent = '';
-		this._hover.contentsDomNode.appendChild(node);
-		this._hover.contentsDomNode.style.paddingBottom = '';
-		this._updateFont();
-
-		this.onContentsChanged();
-
-		// Simply force a synchronous render on the editor
-		// such that the widget does not really render with left = '0px'
-		this._editor.render();
-
-		// See https://github.com/microsoft/vscode/issues/140339
-		// TODO: Doing a second layout of the hover after force rendering the editor
-		this.onContentsChanged();
-
-		if (visibleData.stoleFocus) {
-			this._hover.containerDomNode.focus();
-		}
-		visibleData.colorPicker?.layout();
-	}
-
-	public hide(): void {
-		if (this._visibleData) {
-			const stoleFocus = this._visibleData.stoleFocus;
-			this._setVisibleData(null);
-			this._editor.layoutContentWidget(this);
-			if (stoleFocus) {
-				this._editor.focus();
-			}
-		}
-	}
-
-	public onContentsChanged(): void {
-		this._editor.layoutContentWidget(this);
-		this._hover.onContentsChanged();
-
-		const scrollDimensions = this._hover.scrollbar.getScrollDimensions();
-		const hasHorizontalScrollbar = (scrollDimensions.scrollWidth > scrollDimensions.width);
-		if (hasHorizontalScrollbar) {
-			// There is just a horizontal scrollbar
-			const extraBottomPadding = `${this._hover.scrollbar.options.horizontalScrollbarSize}px`;
-			if (this._hover.contentsDomNode.style.paddingBottom !== extraBottomPadding) {
-				this._hover.contentsDomNode.style.paddingBottom = extraBottomPadding;
-				this._editor.layoutContentWidget(this);
-				this._hover.onContentsChanged();
-			}
-		}
-	}
-
-	public clear(): void {
-		this._hover.contentsDomNode.textContent = '';
-	}
-
-	public focus(): void {
-		this._hover.containerDomNode.focus();
-	}
-
-	public scrollUp(): void {
-		const scrollTop = this._hover.scrollbar.getScrollPosition().scrollTop;
-		const fontInfo = this._editor.getOption(EditorOption.fontInfo);
-		this._hover.scrollbar.setScrollPosition({ scrollTop: scrollTop - fontInfo.lineHeight });
-	}
-
-	public scrollDown(): void {
-		const scrollTop = this._hover.scrollbar.getScrollPosition().scrollTop;
-		const fontInfo = this._editor.getOption(EditorOption.fontInfo);
-		this._hover.scrollbar.setScrollPosition({ scrollTop: scrollTop + fontInfo.lineHeight });
-	}
-
-	public scrollLeft(): void {
-		const scrollLeft = this._hover.scrollbar.getScrollPosition().scrollLeft;
-		this._hover.scrollbar.setScrollPosition({ scrollLeft: scrollLeft - this._horizontalScrollingBy });
-	}
-
-	public scrollRight(): void {
-		const scrollLeft = this._hover.scrollbar.getScrollPosition().scrollLeft;
-		this._hover.scrollbar.setScrollPosition({ scrollLeft: scrollLeft + this._horizontalScrollingBy });
-	}
-
-	public pageUp(): void {
-		const scrollTop = this._hover.scrollbar.getScrollPosition().scrollTop;
-		const scrollHeight = this._hover.scrollbar.getScrollDimensions().height;
-		this._hover.scrollbar.setScrollPosition({ scrollTop: scrollTop - scrollHeight });
-	}
-
-	public pageDown(): void {
-		const scrollTop = this._hover.scrollbar.getScrollPosition().scrollTop;
-		const scrollHeight = this._hover.scrollbar.getScrollDimensions().height;
-		this._hover.scrollbar.setScrollPosition({ scrollTop: scrollTop + scrollHeight });
-	}
-
-	public goToTop(): void {
-		this._hover.scrollbar.setScrollPosition({ scrollTop: 0 });
-	}
-
-	public goToBottom(): void {
-		this._hover.scrollbar.setScrollPosition({ scrollTop: this._hover.scrollbar.getScrollDimensions().scrollHeight });
-	}
-
-	public escape(): void {
-		this._editor.focus();
-	}
-}
-
 class EditorHoverStatusBar extends Disposable implements IEditorHoverStatusBar {
 
 	public readonly hoverElement: HTMLElement;
@@ -823,12 +574,4 @@ class ContentHoverComputer implements IHoverComputer<IHoverPart> {
 
 		return coalesce(result);
 	}
-}
-
-function computeDistanceFromPointToRectangle(pointX: number, pointY: number, left: number, top: number, width: number, height: number): number {
-	const x = (left + width / 2); // x center of rectangle
-	const y = (top + height / 2); // y center of rectangle
-	const dx = Math.max(Math.abs(pointX - x) - width / 2, 0);
-	const dy = Math.max(Math.abs(pointY - y) - height / 2, 0);
-	return Math.sqrt(dx * dx + dy * dy);
 }

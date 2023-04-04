@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { HoverWidget } from 'vs/base/browser/ui/hover/hoverWidget';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { ContentWidgetPositionPreference, ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
@@ -15,63 +14,51 @@ import { HoverStartSource } from 'vs/editor/contrib/hover/browser/hoverOperation
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { PositionAffinity } from 'vs/editor/common/model';
 import { IEditorHoverColorPickerWidget } from 'vs/editor/contrib/hover/browser/hoverTypes';
+import { HoverWidget } from 'vs/base/browser/ui/hover/hoverWidget';
 
 const SCROLLBAR_WIDTH = 10;
 
-// TODO: maybe don't need the resizable widget class
 // TODO: How to increase the z-index so that appears above the tabs? Somehow does not work
 
 export class ResizableHoverWidget extends ResizableWidget {
 
-	public static ID = 'editor.contrib.resizableContentHoverWidget';
-	private hoverDisposables = new DisposableStore();
+	private disposableStore = new DisposableStore();
 	private resizableContentWidget: ResizableContentHoverWidget;
-	public readonly hoverWidget: HoverWidget = this.hoverDisposables.add(new HoverWidget());
-
-	public readonly allowEditorOverflow = true;
-	private readonly editor: ICodeEditor;
-	private readonly hoverVisibleKey = EditorContextKeys.hoverVisible.bindTo(this._contextKeyService);
-	private readonly hoverFocusedKey = EditorContextKeys.hoverFocused.bindTo(this._contextKeyService);
-	private readonly focusTracker = this.hoverDisposables.add(dom.trackFocus(this.getDomNode()));
-	private readonly horizontalScrollingBy: number = 30;
 	private visibleData: ContentHoverVisibleData | null = null;
 	private renderingAbove: ContentWidgetPositionPreference;
+
+	public readonly hoverWidget: HoverWidget = this.disposableStore.add(new HoverWidget());
+	public readonly allowEditorOverflow = true;
+
+	private readonly hoverVisibleKey = EditorContextKeys.hoverVisible.bindTo(this._contextKeyService);
+	private readonly hoverFocusedKey = EditorContextKeys.hoverFocused.bindTo(this._contextKeyService);
+	private readonly focusTracker: dom.IFocusTracker = this.disposableStore.add(dom.trackFocus(this.getDomNode()));
+	private readonly horizontalScrollingBy: number = 30;
 
 	constructor(
 		editor: ICodeEditor,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService
 	) {
 		super(editor, new MultipleSizePersistingOptions());
+		dom.append(this.element.domNode, this.hoverWidget.containerDomNode);
 
-		this.editor = editor;
 		this.resizableContentWidget = new ResizableContentHoverWidget(this, editor);
 		this.renderingAbove = this.editor.getOption(EditorOption.hover).above ? ContentWidgetPositionPreference.ABOVE : ContentWidgetPositionPreference.BELOW;
 
-		// TODO: replace?
-		// this.hoverDisposables.add(this.element.onDidResize((e) => {
-		// 	// When the resizable hover overlay changes, resize the widget
-		// 	this.resize(e.dimension);
-		// }));
-
-		this.hoverDisposables.add(this.editor.onDidLayoutChange(() => this._layout()));
-		this.hoverDisposables.add(this.editor.onDidChangeConfiguration((e: ConfigurationChangedEvent) => {
+		this.disposableStore.add(this.editor.onDidLayoutChange(() => this._layout()));
+		this.disposableStore.add(this.editor.onDidChangeConfiguration((e: ConfigurationChangedEvent) => {
 			if (e.hasChanged(EditorOption.fontInfo)) {
 				this._updateFont();
 			}
 		}));
-		this._setVisibleData(null);
-		this._layout();
-
-		this.hoverDisposables.add(this.focusTracker.onDidFocus(() => {
+		this.disposableStore.add(this.focusTracker.onDidFocus(() => {
 			this.hoverFocusedKey.set(true);
 		}));
-		this.hoverDisposables.add(this.focusTracker.onDidBlur(() => {
+		this.disposableStore.add(this.focusTracker.onDidBlur(() => {
 			this.hoverFocusedKey.set(false);
 		}));
-
-		// containerDomNode added to the element dom node
-		// the element.domNode is returned by the getDomNode() of the ContentWidget
-		dom.append(this.element.domNode, this.hoverWidget.containerDomNode);
+		this._setVisibleData(null);
+		this._layout();
 	}
 
 	public get position(): Position | null {
@@ -93,36 +80,18 @@ export class ResizableHoverWidget extends ResizableWidget {
 	public override resize(size: dom.Dimension) {
 
 		console.log('Inside of resize');
+		console.log('size : ', size);
 
-		// Removing the max height and max width here - the max size is controlled by the resizable overlay
 		this.hoverWidget.contentsDomNode.style.maxHeight = 'none';
 		this.hoverWidget.contentsDomNode.style.maxWidth = 'none';
 
-		console.log('size : ', size);
-
+		// TODO: Change the pixel sizes
 		const width = size.width - 7 + 'px';
 		this.hoverWidget.containerDomNode.style.width = width;
 		this.hoverWidget.contentsDomNode.style.width = width;
 		const height = size.height - 7 + 'px';
 		this.hoverWidget.containerDomNode.style.height = height;
 		this.hoverWidget.contentsDomNode.style.height = height;
-
-		// const width = size.width - 2 * SASH_WIDTH + TOTAL_BORDER_WIDTH + 'px';
-		// const height = size.height - 2 * SASH_WIDTH + TOTAL_BORDER_WIDTH + 'px';
-
-		const scrollDimensions = this.hoverWidget.scrollbar.getScrollDimensions();
-		const hasHorizontalScrollbar = (scrollDimensions.scrollWidth > scrollDimensions.width);
-
-		if (hasHorizontalScrollbar) {
-			console.log('Inside of hasHorizontalScrollbar');
-			// When there is a horizontal scroll-bar use a different height to make the scroll-bar visible
-			const extraBottomPadding = `${this.hoverWidget.scrollbar.options.horizontalScrollbarSize}px`;
-			if (this.hoverWidget.contentsDomNode.style.paddingBottom !== extraBottomPadding) {
-				this.hoverWidget.contentsDomNode.style.paddingBottom = extraBottomPadding;
-			}
-			this.hoverWidget.contentsDomNode.style.height = size.height - SCROLLBAR_WIDTH - 7 + 'px';
-			//  - 2 * SASH_WIDTH + TOTAL_BORDER_WIDTH
-		}
 
 		const sashWidth = size.width - 5 + 'px';
 		const sashHeight = size.height - 5 + 'px';
@@ -135,11 +104,20 @@ export class ResizableHoverWidget extends ResizableWidget {
 		this.element.eastSash.el.style.top = 2 + 'px';
 		this.element.westSash.el.style.top = 2 + 'px';
 
+		const scrollDimensions = this.hoverWidget.scrollbar.getScrollDimensions();
+		const hasHorizontalScrollbar = (scrollDimensions.scrollWidth > scrollDimensions.width);
+
+		if (hasHorizontalScrollbar) {
+			// When there is a horizontal scroll-bar use a different height to make the scroll-bar visible
+			const extraBottomPadding = `${this.hoverWidget.scrollbar.options.horizontalScrollbarSize}px`;
+			if (this.hoverWidget.contentsDomNode.style.paddingBottom !== extraBottomPadding) {
+				this.hoverWidget.contentsDomNode.style.paddingBottom = extraBottomPadding;
+			}
+			this.hoverWidget.contentsDomNode.style.height = size.height - SCROLLBAR_WIDTH - 7 + 'px';
+		}
+
 		this.hoverWidget.scrollbar.scanDomNode();
 		this.editor.layoutContentWidget(this.resizableContentWidget);
-		this.editor.render();
-
-		console.log('this.resizableContentWidget.getDomNode() : ', this.resizableContentWidget.getDomNode());
 	}
 
 	public override findMaximumRenderingHeight(): number | undefined {
@@ -165,7 +143,9 @@ export class ResizableHoverWidget extends ResizableWidget {
 		}
 
 		if (this.hoverWidget.contentsDomNode.clientWidth < this.hoverWidget.contentsDomNode.scrollWidth) {
+
 			console.log('Adding the scrollbar width when there is a horizontal scrollbar');
+
 			divMaxHeight += SCROLLBAR_WIDTH;
 		}
 
@@ -249,20 +229,18 @@ export class ResizableHoverWidget extends ResizableWidget {
 
 	public showAt(node: DocumentFragment, visibleData: ContentHoverVisibleData): void {
 
-		if (this._persistingMechanism instanceof MultipleSizePersistingMechanism) {
-			this._persistingMechanism.tooltipPosition = visibleData.showAtPosition;
+		if (this.persistingMechanism instanceof MultipleSizePersistingMechanism) {
+			this.persistingMechanism.position = visibleData.showAtPosition;
 		}
 		this.resizableContentWidget.position = visibleData.showAtPosition;
 		this.resizableContentWidget.secondaryPosition = visibleData.showAtSecondaryPosition;
-		this.resizableContentWidget.preference = [this.renderingAbove];
 		this.resizableContentWidget.positionAffinity = visibleData.isBeforeContent ? PositionAffinity.LeftOfInjectedText : undefined;
+
 		this.resizableContentWidget.getDomNode().style.position = 'fixed';
-		this.resizableContentWidget.getDomNode().style.zIndex = '100';
+		this.resizableContentWidget.getDomNode().style.zIndex = '50';
 		this.editor.addContentWidget(this.resizableContentWidget);
 
 		const persistedSize = this.findPersistedSize();
-
-		console.log('persistedSize : ', persistedSize);
 
 		if (!this.editor || !this.editor.hasModel()) {
 			return;
@@ -336,6 +314,8 @@ export class ResizableHoverWidget extends ResizableWidget {
 			this.element.enableSashes(false, true, true, false);
 		}
 
+		this.resizableContentWidget.preference = [this.renderingAbove];
+
 		// See https://github.com/microsoft/vscode/issues/140339
 		// TODO: Doing a second layout of the hover after force rendering the editor
 		if (!persistedSize) {
@@ -350,19 +330,6 @@ export class ResizableHoverWidget extends ResizableWidget {
 		if (!this.visibleData) {
 			return;
 		}
-
-		// TODO: add maybe
-		// this.editor.layoutContentWidget(this.resizableContentWidget);
-		// this.editor.render();
-
-		// const clientHeight = this.hoverWidget.containerDomNode.clientHeight;
-		// const clientWidth = this.hoverWidget.containerDomNode.clientWidth;
-		// this.element.layout(clientHeight, clientWidth);
-
-		this.resizableContentWidget.preference = [this.renderingAbove];
-
-		console.log('this.renderingAbove : ', this.renderingAbove);
-		console.log('At the end of showAt');
 	}
 
 	public override hide(): void {
@@ -381,27 +348,24 @@ export class ResizableHoverWidget extends ResizableWidget {
 		}
 	}
 
-	public onContentsChanged(): void { // persistedSize?: dom.Dimension | undefined
-
-		const persistedSize = this.resizableContentWidget.findPersistedSize();
+	public onContentsChanged(): void {
 
 		console.log('Inside of onContentsChanged');
 
+		const persistedSize = this.resizableContentWidget.findPersistedSize();
 		const containerDomNode = this.getDomNode();
 		const contentsDomNode = this.getContentsDomNode();
 
 		// Suppose a persisted size is defined
 		if (persistedSize) {
 
-			const widthMinusSash = Math.min(this.findMaximumRenderingWidth() ?? Infinity, persistedSize.width - 7 - 7); //  - SASH_WIDTH
-			// const heightMinusSash = Math.min(this.findMaxRenderingHeight(this._renderingAbove) ?? Infinity, persistedSize.height - SASH_WIDTH);
-			const heightMinusSash = Math.min(this.findMaximumRenderingHeight() ?? Infinity, persistedSize.height - 7 - 7); // SASH_WIDTH
+			const width = Math.min(this.findMaximumRenderingWidth() ?? Infinity, persistedSize.width - 7 - 7);
+			const height = Math.min(this.findMaximumRenderingHeight() ?? Infinity, persistedSize.height - 7 - 7);
 
-			// Already setting directly the height and width parameters
-			containerDomNode.style.width = widthMinusSash + 'px';
-			containerDomNode.style.height = heightMinusSash + 'px';
-			contentsDomNode.style.width = widthMinusSash + 'px';
-			contentsDomNode.style.height = heightMinusSash + 'px';
+			containerDomNode.style.width = width + 'px';
+			containerDomNode.style.height = height + 'px';
+			contentsDomNode.style.width = width + 'px';
+			contentsDomNode.style.height = height + 'px';
 
 		} else {
 
@@ -420,18 +384,13 @@ export class ResizableHoverWidget extends ResizableWidget {
 
 		const clientHeight = this.hoverWidget.containerDomNode.clientHeight;
 		const clientWidth = this.hoverWidget.containerDomNode.clientWidth;
-		console.log('clientHeight: ', clientHeight);
-		console.log('clientWidth : ', clientWidth);
 
 		this.element.layout(clientHeight + 7, clientWidth + 7);
-		// this.element.layout(clientHeight, clientWidth);
 
 		const scrollDimensions = this.hoverWidget.scrollbar.getScrollDimensions();
 		const hasHorizontalScrollbar = (scrollDimensions.scrollWidth > scrollDimensions.width);
-		console.log('hasHorizontalScrollbar: ', hasHorizontalScrollbar);
 
 		if (hasHorizontalScrollbar) {
-			// There is just a horizontal scrollbar
 			const extraBottomPadding = `${this.hoverWidget.scrollbar.options.horizontalScrollbarSize}px`;
 			let reposition = false;
 			if (this.hoverWidget.contentsDomNode.style.paddingBottom !== extraBottomPadding) {
@@ -439,7 +398,8 @@ export class ResizableHoverWidget extends ResizableWidget {
 				reposition = true;
 			}
 			const maxRenderingHeight = this.findMaximumRenderingHeight();
-			// Need the following code since we are using an exact height when using the persisted size. If not used the horizontal scrollbar would just not be visible.
+
+			// Need the following code in order to make the scrollbar visible when exact persisted size is used
 			if (persistedSize && maxRenderingHeight) {
 				containerDomNode.style.height = Math.min(maxRenderingHeight, persistedSize.height - 9) + 'px'; //  - SASH_WIDTH
 				contentsDomNode.style.height = Math.min(maxRenderingHeight, persistedSize.height - 9 - SCROLLBAR_WIDTH) + 'px'; //  - SASH_WIDTH
@@ -451,22 +411,16 @@ export class ResizableHoverWidget extends ResizableWidget {
 				if (persistedSize) {
 					console.log('when using a persisted size');
 					this.element.layout(clientHeight + 17 - 6, clientWidth + 7);
-					this.editor.layoutContentWidget(this.resizableContentWidget);
-					this.editor.render();
-					this.hoverWidget.onContentsChanged();
 				} else {
 					console.log('Inside of the case when repositioning');
 					this.element.layout(clientHeight + 17, clientWidth + 7);
-					this.editor.layoutContentWidget(this.resizableContentWidget);
-					this.editor.render();
-					this.hoverWidget.onContentsChanged();
 				}
+
+				this.editor.layoutContentWidget(this.resizableContentWidget);
+				this.editor.render();
+				this.hoverWidget.onContentsChanged();
 			}
 		}
-
-		console.log('this.resizableContentWidget : ', this.resizableContentWidget);
-
-		// ---
 
 		console.log('Before changing the sash size');
 
@@ -494,7 +448,6 @@ export class ResizableHoverWidget extends ResizableWidget {
 
 		this.element.eastSash.el.style.top = 2 + 'px';
 		this.element.westSash.el.style.top = 2 + 'px';
-		// ---
 
 		this.editor.layoutContentWidget(this.resizableContentWidget);
 	}
@@ -556,12 +509,14 @@ export class ResizableHoverWidget extends ResizableWidget {
 
 export class ResizableContentHoverWidget extends ResizableContentWidget {
 
-	public ID = 'editor.contrib.resizableContentHoverWidget';
-	private hoverDisposables = new DisposableStore();
+	public static ID = 'editor.contrib.resizableContentHoverWidget';
 
 	constructor(resizableHoverWidget: ResizableHoverWidget, editor: ICodeEditor) {
 		super(resizableHoverWidget, editor);
-		console.log('Inside of resizable content hover widget');
+	}
+
+	public getId(): string {
+		return ResizableContentHoverWidget.ID;
 	}
 }
 

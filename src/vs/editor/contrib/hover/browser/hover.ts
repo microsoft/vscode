@@ -15,7 +15,7 @@ import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { ILanguageService } from 'vs/editor/common/languages/language';
 import { GotoDefinitionAtPositionEditorContribution } from 'vs/editor/contrib/gotoSymbol/browser/link/goToDefinitionAtPosition';
 import { HoverStartMode, HoverStartSource } from 'vs/editor/contrib/hover/browser/hoverOperation';
-import { ContentHoverWidget, ContentHoverController } from 'vs/editor/contrib/hover/browser/contentHover';
+import { ContentHoverController } from 'vs/editor/contrib/hover/browser/contentHover';
 import { MarginHoverWidget } from 'vs/editor/contrib/hover/browser/marginHover';
 import { AccessibilitySupport } from 'vs/platform/accessibility/common/accessibility';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -26,12 +26,11 @@ import { registerThemingParticipant } from 'vs/platform/theme/common/themeServic
 import { HoverParticipantRegistry } from 'vs/editor/contrib/hover/browser/hoverTypes';
 import { MarkdownHoverParticipant } from 'vs/editor/contrib/hover/browser/markdownHoverParticipant';
 import { MarkerHoverParticipant } from 'vs/editor/contrib/hover/browser/markerHoverParticipant';
-import 'vs/css!./hover';
 import { InlineSuggestionHintsContentWidget } from 'vs/editor/contrib/inlineCompletions/browser/inlineSuggestionHintsWidget';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { ResizableHoverWidget } from 'vs/editor/contrib/hover/browser/resizableHoverWidget';
+import { ResizableContentHoverWidget } from 'vs/editor/contrib/hover/browser/resizableHoverWidget';
 import * as nls from 'vs/nls';
-
+import 'vs/css!./hover';
 export class ModesHoverController implements IEditorContribution {
 
 	public static readonly ID = 'editor.contrib.hover';
@@ -108,7 +107,7 @@ export class ModesHoverController implements IEditorContribution {
 
 		const target = mouseEvent.target;
 
-		if (target.type === MouseTargetType.CONTENT_WIDGET && target.detail === ResizableHoverWidget.ID) { // ContentHoverWidget
+		if (target.type === MouseTargetType.CONTENT_WIDGET && target.detail === ResizableContentHoverWidget.ID) {
 			this._hoverClicked = true;
 			// mouse down on top of content hover widget
 			return;
@@ -146,7 +145,7 @@ export class ModesHoverController implements IEditorContribution {
 			return;
 		}
 
-		if (this._isHoverSticky && target.type === MouseTargetType.CONTENT_WIDGET && target.detail === ContentHoverWidget.ID) {
+		if (this._isHoverSticky && target.type === MouseTargetType.CONTENT_WIDGET && target.detail === ResizableContentHoverWidget.ID) {
 			// mouse moved on top of content hover widget
 			return;
 		}
@@ -157,7 +156,7 @@ export class ModesHoverController implements IEditorContribution {
 		}
 
 		if (
-			!this._isHoverSticky && target.type === MouseTargetType.CONTENT_WIDGET && target.detail === ContentHoverWidget.ID
+			!this._isHoverSticky && target.type === MouseTargetType.CONTENT_WIDGET && target.detail === ResizableContentHoverWidget.ID
 			&& this._contentWidget?.isColorPickerVisible()
 		) {
 			// though the hover is not sticky, the color picker needs to.
@@ -169,8 +168,8 @@ export class ModesHoverController implements IEditorContribution {
 			return;
 		}
 
-		if (target.type === MouseTargetType.CONTENT_WIDGET && target.detail === ResizableHoverWidget.ID) {
-			// mouse down on top of the overlay hover widget
+		if (target.type === MouseTargetType.CONTENT_WIDGET && target.detail === ResizableContentHoverWidget.ID) {
+			// mouse down on top of the content hover widget
 			return;
 		}
 
@@ -221,7 +220,6 @@ export class ModesHoverController implements IEditorContribution {
 	}
 
 	private _hideWidgets(): void {
-		console.log('inside of _hideWidgets');
 		if ((this._isMouseDown && this._hoverClicked && this._contentWidget?.isColorPickerVisible()) || InlineSuggestionHintsContentWidget.dropDownVisible) {
 			return;
 		}
@@ -229,7 +227,6 @@ export class ModesHoverController implements IEditorContribution {
 		this._hoverClicked = false;
 		this._glyphWidget?.hide();
 		if (!this._contentWidget?.widget.isResizing()) {
-			console.log('calling hide on content widget');
 			this._contentWidget?.hide();
 		}
 	}
