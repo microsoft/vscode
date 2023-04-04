@@ -78,9 +78,7 @@ export abstract class ResizableWidget implements IResizableWidget {
 		this.disposables.dispose();
 	}
 
-	resize(dimension: dom.Dimension): void {
-		this.element.layout(dimension.height, dimension.width);
-	}
+	resize(dimension: dom.Dimension): void { }
 
 	hide(): void {
 		this.resizing = false;
@@ -205,6 +203,7 @@ export class MultipleSizePersistingOptions implements IPersistingOptions {
 
 interface IPersistingMechanism extends IDisposable {
 	findSize(): dom.Dimension | undefined;
+	clear(): void;
 }
 
 export class SingleSizePersistingMechanism implements IPersistingMechanism {
@@ -258,6 +257,10 @@ export class SingleSizePersistingMechanism implements IPersistingMechanism {
 
 	dispose(): void {
 		this.disposables.dispose();
+	}
+
+	clear(): void {
+		this.persistedWidgetSize?.reset();
 	}
 }
 
@@ -376,6 +379,10 @@ export class MultipleSizePersistingMechanism implements IPersistingMechanism {
 
 	dispose(): void {
 		this.disposables.dispose();
+	}
+
+	clear(): void {
+		this.persistedWidgetSizes.clear();
 	}
 }
 

@@ -86,12 +86,14 @@ export class ResizableHoverWidget extends ResizableWidget {
 		this.hoverWidget.contentsDomNode.style.maxWidth = 'none';
 
 		// TODO: Change the pixel sizes
-		const width = size.width - 7 + 'px';
+		const width = size.width + 'px';
 		this.hoverWidget.containerDomNode.style.width = width;
 		this.hoverWidget.contentsDomNode.style.width = width;
-		const height = size.height - 7 + 'px';
+		const height = size.height + 'px';
 		this.hoverWidget.containerDomNode.style.height = height;
 		this.hoverWidget.contentsDomNode.style.height = height;
+
+		// this.element.layout(size.height + 6, size.width + 6);
 
 		const sashWidth = size.width - 5 + 'px';
 		const sashHeight = size.height - 5 + 'px';
@@ -520,6 +522,10 @@ export class ResizableHoverWidget extends ResizableWidget {
 
 	public escape(): void {
 		this.editor.focus();
+	}
+
+	public clearPersistedSizes(): void {
+		this.persistingMechanism.clear();
 	}
 }
 

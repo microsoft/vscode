@@ -391,6 +391,10 @@ export class ContentHoverController extends Disposable {
 	public escape(): void {
 		this._widget.escape();
 	}
+
+	public clearPersistedSizes(): void {
+		this._widget?.clearPersistedSizes();
+	}
 }
 
 class HoverResult {
