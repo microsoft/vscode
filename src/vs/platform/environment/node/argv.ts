@@ -66,7 +66,6 @@ export const OPTIONS: OptionDescriptions<Required<NativeParsedArgs>> = {
 			}
 		}
 	},
-
 	'diff': { type: 'boolean', cat: 'o', alias: 'd', args: ['file', 'file'], description: localize('diff', "Compare two files with each other.") },
 	'merge': { type: 'boolean', cat: 'o', alias: 'm', args: ['path1', 'path2', 'base', 'result'], description: localize('merge', "Perform a three-way merge by providing paths for two modified versions of a file, the common origin of both modified versions and the output file to save merge results.") },
 	'add': { type: 'boolean', cat: 'o', alias: 'a', args: 'folder', description: localize('add', "Add folder(s) to the last active window.") },
@@ -190,6 +189,7 @@ export const OPTIONS: OptionDescriptions<Required<NativeParsedArgs>> = {
 	'_urls': { type: 'string[]' },
 	'disable-dev-shm-usage': { type: 'boolean' },
 	'profile-temp': { type: 'boolean' },
+	'autoplay-policy': { type: 'string' },
 
 	_: { type: 'string[]' } // main arguments
 };

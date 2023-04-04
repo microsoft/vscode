@@ -259,6 +259,10 @@ export abstract class AbstractNativeEnvironmentService implements INativeEnviron
 		this.args['continueOn'] = value;
 	}
 
+	get autoplayPolicy(): string | undefined {
+		return this._args['autoplay-policy'];
+	}
+
 	get args(): NativeParsedArgs { return this._args; }
 
 	constructor(

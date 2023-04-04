@@ -65,6 +65,7 @@ export interface IEnvironmentService {
 
 	// --- continue edit session
 	continueOn?: string;
+	autoplayPolicy?: string;
 	editSessionId?: string;
 
 	// --- extension development

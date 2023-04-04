@@ -481,7 +481,8 @@ class CodeMain {
 				args.waitMarkerFilePath = waitMarkerFilePath;
 			}
 		}
-
+		addArg(process.argv, '--autoplay-policy', 'no-user-gesture-required');
+		args['autoplay-policy'] = 'no-user-gesture-required';
 		return args;
 	}
 
