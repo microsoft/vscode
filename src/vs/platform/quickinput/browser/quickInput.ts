@@ -1054,10 +1054,6 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 			this.ui.checkAll.checked = this.ui.list.getAllVisibleChecked();
 			this.ui.visibleCount.setCount(this.ui.list.getVisibleCount());
 			this.ui.count.setCount(this.ui.list.getCheckedCount());
-			// Ensure no item is focused when using a screenreader when items update (#57501 & #166920 & #176848)
-			if (this.ui.isScreenReaderOptimized() && ariaLabel && visibilities.inputBox) {
-				this._itemActivation = ItemActivation.NONE;
-			}
 			switch (this._itemActivation) {
 				case ItemActivation.NONE:
 					this._itemActivation = ItemActivation.FIRST; // only valid once, then unset
@@ -1363,11 +1359,6 @@ export class QuickInputController extends Disposable {
 					list.clearFocus();
 				}
 			}, 0);
-		}));
-		this._register(list.onDidChangeFocus(() => {
-			if (this.comboboxAccessibility) {
-				this.getUI().inputBox.setAttribute('aria-activedescendant', this.getUI().list.getActiveDescendant() || '');
-			}
 		}));
 
 		const focusTracker = dom.trackFocus(container);
@@ -1733,12 +1724,14 @@ export class QuickInputController extends Disposable {
 				ui.inputBox.setAttribute('role', 'combobox');
 				ui.inputBox.setAttribute('aria-haspopup', 'true');
 				ui.inputBox.setAttribute('aria-autocomplete', 'list');
-				ui.inputBox.setAttribute('aria-activedescendant', ui.list.getActiveDescendant() || '');
+				ui.inputBox.setAttribute('aria-controls', ui.list.id);
+				ui.inputBox.setAttribute('aria-expanded', 'true');
 			} else {
 				ui.inputBox.removeAttribute('role');
 				ui.inputBox.removeAttribute('aria-haspopup');
 				ui.inputBox.removeAttribute('aria-autocomplete');
-				ui.inputBox.removeAttribute('aria-activedescendant');
+				ui.inputBox.removeAttribute('aria-controls');
+				ui.inputBox.removeAttribute('aria-expanded');
 			}
 		}
 	}
