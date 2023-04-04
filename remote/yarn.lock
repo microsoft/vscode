@@ -80,10 +80,10 @@
     https-proxy-agent "^5.0.0"
     proxy-from-env "^1.1.0"
 
-"@vscode/spdlog@^0.13.9":
-  version "0.13.9"
-  resolved "https://registry.yarnpkg.com/@vscode/spdlog/-/spdlog-0.13.9.tgz#bac062762bc48ae9a6e86dd2d59c96b5ab63170c"
-  integrity sha512-c5Kmkhq+FyI0tCr569Q9aqIex2CgfRsa41PirK/9zpGRYRJlPyLo5U3Vp3THvfJYiDDLpQFeyRh/Sy5UJFW2gA==
+"@vscode/spdlog@^0.13.8":
+  version "0.13.8"
+  resolved "https://registry.yarnpkg.com/@vscode/spdlog/-/spdlog-0.13.8.tgz#6136438e149f90eeb9d493d7b396866a542e1229"
+  integrity sha512-yYgiAF2eOFJJRvDGdB3b7LNNS+CTdIkmHmAYUr8RaAu+aJlCsRkfCdMS/jisnyHzVLYlE4bZYn/gkAbROtEeYw==
   dependencies:
     bindings "^1.5.0"
     mkdirp "^0.5.5"
