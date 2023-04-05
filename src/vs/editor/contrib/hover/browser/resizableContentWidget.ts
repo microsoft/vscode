@@ -140,10 +140,6 @@ export abstract class ResizableContentWidget implements IContentWidget {
 	}
 
 	getDomNode(): HTMLElement {
-
-		console.log('Inside of getDomNode of ResizableContentWidget');
-		console.log('this.resizableWidget.element.domNode : ', this.resizableWidget.element.domNode);
-
 		return this.resizableWidget.element.domNode;
 	}
 

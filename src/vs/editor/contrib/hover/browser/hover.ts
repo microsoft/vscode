@@ -15,7 +15,7 @@ import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { ILanguageService } from 'vs/editor/common/languages/language';
 import { GotoDefinitionAtPositionEditorContribution } from 'vs/editor/contrib/gotoSymbol/browser/link/goToDefinitionAtPosition';
 import { HoverStartMode, HoverStartSource } from 'vs/editor/contrib/hover/browser/hoverOperation';
-import { ContentHoverController } from 'vs/editor/contrib/hover/browser/contentHover';
+import { ContentHoverController, ResizableContentHoverWidget } from 'vs/editor/contrib/hover/browser/contentHover';
 import { MarginHoverWidget } from 'vs/editor/contrib/hover/browser/marginHover';
 import { AccessibilitySupport } from 'vs/platform/accessibility/common/accessibility';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -28,7 +28,6 @@ import { MarkdownHoverParticipant } from 'vs/editor/contrib/hover/browser/markdo
 import { MarkerHoverParticipant } from 'vs/editor/contrib/hover/browser/markerHoverParticipant';
 import { InlineSuggestionHintsContentWidget } from 'vs/editor/contrib/inlineCompletions/browser/inlineSuggestionHintsWidget';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { ResizableContentHoverWidget } from 'vs/editor/contrib/hover/browser/resizableHoverWidget';
 import * as nls from 'vs/nls';
 import 'vs/css!./hover';
 
