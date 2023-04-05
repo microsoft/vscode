@@ -156,12 +156,13 @@ export class ResizableHTMLElement {
 			this.domNode.style.height = height + 'px';
 			this.domNode.style.width = width + 'px';
 			this._size = newSize;
-			console.log('this._size : ', this._size);
 			this._northSash.layout();
 			this._eastSash.layout();
 			this._southSash.layout();
 			this._westSash.layout();
 		}
+
+		console.log('this._size : ', this._size);
 	}
 
 	clearSashHoverState(): void {

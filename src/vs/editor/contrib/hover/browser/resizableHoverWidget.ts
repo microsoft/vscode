@@ -147,8 +147,7 @@ export class ResizableHoverWidget extends ResizableWidget {
 		console.log('this.resizableWidget.getDomNode() : ', this.resizableContentWidget.getDomNode());
 	}
 
-	public override findMaximumRenderingHeight(): number | undefined {
-
+	public findAvailableSpace(): number | undefined {
 		if (!this.editor || !this.editor.hasModel() || !this.visibleData?.showAtPosition) {
 			return;
 		}
@@ -164,8 +163,21 @@ export class ResizableHoverWidget extends ResizableWidget {
 			availableSpace = bodyBox.height - mouseBottom;
 		}
 
+		return availableSpace;
+	}
+
+	public override findMaximumRenderingHeight(): number | undefined {
+
+		const availableSpace = this.findAvailableSpace();
+		if (!availableSpace) {
+			return;
+		}
+
 		let divMaxHeight = 7;
 		for (const childHtmlElement of this.hoverWidget.contentsDomNode.children) {
+			console.log('childHTMLElement : ', childHtmlElement);
+			console.log('childHTMLElement.innerHTML : ', childHtmlElement.innerHTML);
+			console.log('childHtmlElement.clientHeight : ', childHtmlElement.clientHeight);
 			divMaxHeight += childHtmlElement.clientHeight;
 		}
 
@@ -394,14 +406,24 @@ export class ResizableHoverWidget extends ResizableWidget {
 		if (persistedSize) {
 
 			console.log('Using persisted size');
+			console.log('persistedSize.height: ' + persistedSize.height);
+			console.log('persistedSize.width: ' + persistedSize.width);
+
+			console.log('this.findMaximumRenderingWidth() : ', this.findMaximumRenderingWidth());
+			console.log('this.findMaximumRenderingHeight() : ', this.findMaximumRenderingHeight());
 
 			const width = Math.min(this.findMaximumRenderingWidth() ?? Infinity, persistedSize.width - 6);
-			const height = Math.min(this.findMaximumRenderingHeight() ?? Infinity, persistedSize.height - 6);
+			const height = Math.min(this.findAvailableSpace() ?? Infinity, persistedSize.height - 6);
+
+			console.log('width : ', width);
+			console.log('height : ', height);
 
 			containerDomNode.style.width = width + 'px';
 			containerDomNode.style.height = height + 'px';
 			contentsDomNode.style.width = width + 'px';
 			contentsDomNode.style.height = height + 'px';
+
+			this.element.layout(persistedSize.height, persistedSize.width);
 
 		} else {
 
@@ -469,6 +491,7 @@ export class ResizableHoverWidget extends ResizableWidget {
 		this.element.westSash.el.style.top = 2 + 'px';
 
 		this.editor.layoutContentWidget(this.resizableContentWidget);
+		this.editor.render();
 	}
 
 	public clear(): void {
