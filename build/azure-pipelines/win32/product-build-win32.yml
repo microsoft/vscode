@@ -84,8 +84,18 @@ steps:
 
   - powershell: |
       . build/azure-pipelines/win32/exec.ps1
+      $ErrorActionPreference = "Stop"
+      exec { cd .build }
+      exec { git clone -b "rzhao271/msvs-spectre" https://github.com/rzhao271/node-gyp.git }
+      exec { cd .. }
+    displayName: Install custom node-gyp
+    condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
+
+  - powershell: |
+      . build/azure-pipelines/win32/exec.ps1
       . build/azure-pipelines/win32/retry.ps1
       $ErrorActionPreference = "Stop"
+      $env:npm_config_node_gyp=".build/node-gyp/bin/node-gyp.js"
       $env:npm_config_arch="$(VSCODE_ARCH)"
       $env:CHILD_CONCURRENCY="1"
       retry { exec { yarn --frozen-lockfile --check-files } }
