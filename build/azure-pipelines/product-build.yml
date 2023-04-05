@@ -231,7 +231,7 @@ stages:
 
       - ${{ if eq(parameters.VSCODE_BUILD_WIN32, true) }}:
         - job: CLIWindowsX64
-          pool: 1es-windows-2022-x64
+          pool: 1es-windows-2019-x64
           steps:
             - template: ./win32/cli-build-win32.yml
               parameters:
@@ -240,7 +240,7 @@ stages:
 
       - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), eq(parameters.VSCODE_BUILD_WIN32_ARM64, true)) }}:
         - job: CLIWindowsARM64
-          pool: 1es-windows-2022-x64
+          pool: 1es-windows-2019-x64
           steps:
             - template: ./win32/cli-build-win32.yml
               parameters:
@@ -249,7 +249,7 @@ stages:
 
       - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), eq(parameters.VSCODE_BUILD_WIN32_32BIT, true)) }}:
         - job: CLIWindowsX86
-          pool: 1es-windows-2022-x64
+          pool: 1es-windows-2019-x64
           steps:
             - template: ./win32/cli-build-win32.yml
               parameters:
@@ -261,7 +261,7 @@ stages:
       dependsOn:
         - Compile
         - CompileCLI
-      pool: 1es-windows-2022-x64
+      pool: 1es-windows-2019-x64
       jobs:
         - ${{ if eq(variables['VSCODE_CIBUILD'], true) }}:
           - job: WindowsUnitTests
