@@ -8,18 +8,18 @@ import * as vscode from 'vscode';
 import { Utils } from 'vscode-uri';
 import { Command, CommandManager } from '../commands/commandManager';
 import { LearnMoreAboutRefactoringsCommand } from '../commands/learnMoreAboutRefactorings';
-import type * as Proto from '../protocol';
+import { DocumentSelector } from '../configuration/documentSelector';
+import * as fileSchemes from '../configuration/fileSchemes';
+import { Schemes } from '../configuration/schemes';
+import { TelemetryReporter } from '../logging/telemetry';
+import { API } from '../tsServer/api';
+import type * as Proto from '../tsServer/protocol/protocol';
+import * as typeConverters from '../typeConverters';
 import { ClientCapability, ITypeScriptServiceClient } from '../typescriptService';
-import API from '../utils/api';
 import { coalesce } from '../utils/arrays';
 import { nulToken } from '../utils/cancellation';
-import { conditionalRegistration, requireSomeCapability } from '../utils/dependentRegistration';
-import { DocumentSelector } from '../utils/documentSelector';
-import * as fileSchemes from '../utils/fileSchemes';
-import { Schemes } from '../utils/schemes';
-import { TelemetryReporter } from '../utils/telemetry';
-import * as typeConverters from '../utils/typeConverters';
 import FormattingOptionsManager from './fileConfigurationManager';
+import { conditionalRegistration, requireSomeCapability } from './util/dependentRegistration';
 
 function toWorkspaceEdit(client: ITypeScriptServiceClient, edits: readonly Proto.FileCodeEdits[]): vscode.WorkspaceEdit {
 	const workspaceEdit = new vscode.WorkspaceEdit();

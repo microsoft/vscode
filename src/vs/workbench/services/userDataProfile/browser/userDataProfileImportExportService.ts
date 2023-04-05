@@ -60,7 +60,6 @@ import { asText, IRequestService } from 'vs/platform/request/common/request';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { isUndefined } from 'vs/base/common/types';
 import { Action, ActionRunner, IAction, IActionRunner } from 'vs/base/common/actions';
-import { showWindowLogActionId } from 'vs/workbench/common/logConstants';
 import { isWeb } from 'vs/base/common/platform';
 import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
 import { Codicon } from 'vs/base/common/codicons';
@@ -70,6 +69,7 @@ import { ExtensionType } from 'vs/platform/extensions/common/extensions';
 import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { MarkdownString } from 'vs/base/common/htmlContent';
 import { renderMarkdown } from 'vs/base/browser/markdownRenderer';
+import { showWindowLogActionId } from 'vs/workbench/services/log/common/logConstants';
 
 interface IUserDataProfileTemplate {
 	readonly name: string;
@@ -529,7 +529,7 @@ export class UserDataProfileImportExportService extends Disposable implements IU
 	private async pickProfileContentHandler(name: string): Promise<string | undefined> {
 		await this.extensionService.activateByEvent('onProfile');
 		if (this.profileContentHandlers.size === 1) {
-			return this.profileContentHandlers.values().next().value;
+			return this.profileContentHandlers.keys().next().value;
 		}
 		const options: QuickPickItem[] = [];
 		for (const [id, profileContentHandler] of this.profileContentHandlers) {

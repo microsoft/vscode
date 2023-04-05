@@ -7,7 +7,6 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { Emitter } from 'vs/base/common/event';
 import { toDisposable } from 'vs/base/common/lifecycle';
 import { StopWatch } from 'vs/base/common/stopwatch';
-import { withNullAsUndefined } from 'vs/base/common/types';
 import { localize } from 'vs/nls';
 import { IRelaxedExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { ILogService } from 'vs/platform/log/common/log';
@@ -113,19 +112,6 @@ export class ExtHostInteractiveSession implements ExtHostInteractiveSessionShape
 		}
 
 		return undefined;
-	}
-
-	async $provideInitialSuggestions(handle: number, token: CancellationToken): Promise<string[] | undefined> {
-		const entry = this._interactiveSessionProvider.get(handle);
-		if (!entry) {
-			return undefined;
-		}
-
-		if (!entry.provider.provideInitialSuggestions) {
-			return undefined;
-		}
-
-		return withNullAsUndefined(await entry.provider.provideInitialSuggestions(token));
 	}
 
 	async $provideWelcomeMessage(handle: number, token: CancellationToken): Promise<(string | IInteractiveSessionReplyFollowup[])[] | undefined> {

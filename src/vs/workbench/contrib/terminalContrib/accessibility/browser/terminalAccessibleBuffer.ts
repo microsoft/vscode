@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { KeyCode } from 'vs/base/common/keyCodes';
-import { DisposableStore } from 'vs/base/common/lifecycle';
+import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import * as dom from 'vs/base/browser/dom';
 import { Event } from 'vs/base/common/event';
@@ -20,7 +20,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { TerminalSettingId } from 'vs/platform/terminal/common/terminal';
 import { SelectionClipboardContributionID } from 'vs/workbench/contrib/codeEditor/browser/selectionClipboard';
 import { getSimpleEditorOptions } from 'vs/workbench/contrib/codeEditor/browser/simpleEditorOptions';
-import { ITerminalInstance, IXtermTerminal } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { ITerminalInstance, ITerminalService, IXtermTerminal } from 'vs/workbench/contrib/terminal/browser/terminal';
 import type { Terminal } from 'xterm';
 import { TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
 import { IQuickInputService, IQuickPick, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
@@ -28,6 +28,9 @@ import { AudioCue, IAudioCueService } from 'vs/platform/audioCues/browser/audioC
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/terminalContextKey';
 import { withNullAsUndefined } from 'vs/base/common/types';
+import { BufferContentTracker } from 'vs/workbench/contrib/terminalContrib/accessibility/browser/bufferContentTracker';
+import { ILogService } from 'vs/platform/log/common/log';
+import { IEditorViewState } from 'vs/editor/common/editorCommon';
 
 const enum CssClass {
 	Active = 'active',
@@ -40,15 +43,25 @@ interface IAccessibleBufferQuickPickItem extends IQuickPickItem {
 }
 
 export class AccessibleBufferWidget extends DisposableStore {
+
 	private _accessibleBuffer: HTMLElement;
 	private _editorWidget: CodeEditorWidget;
 	private _editorContainer: HTMLElement;
 	private _xtermElement: HTMLElement;
+
 	private readonly _focusedContextKey: IContextKey<boolean>;
 	private readonly _focusTracker: dom.IFocusTracker;
 
+	private _listeners: IDisposable[] = [];
+	private _isUpdating: boolean = false;
+	private _pendingUpdates = 0;
+
+	private _bufferTracker: BufferContentTracker;
+
+	private _cursorPosition: { lineNumber: number; column: number } | undefined;
+
 	constructor(
-		private readonly _instance: ITerminalInstance,
+		private readonly _instance: Pick<ITerminalInstance, 'capabilities' | 'onDidRequestFocus' | 'resource'>,
 		private readonly _xterm: Pick<IXtermTerminal, 'getFont'> & { raw: Terminal },
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IModelService private readonly _modelService: IModelService,
@@ -56,17 +69,19 @@ export class AccessibleBufferWidget extends DisposableStore {
 		@IQuickInputService private readonly _quickInputService: IQuickInputService,
 		@IAudioCueService private readonly _audioCueService: IAudioCueService,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
+		@ILogService private readonly _logService: ILogService,
+		@ITerminalService private readonly _terminalService: ITerminalService
 	) {
 		super();
 		this._xtermElement = _xterm.raw.element!;
+		this._bufferTracker = this._instantiationService.createInstance(BufferContentTracker, _xterm);
 		this._accessibleBuffer = document.createElement('div');
 		this._accessibleBuffer.setAttribute('role', 'document');
 		this._accessibleBuffer.ariaRoleDescription = localize('terminal.integrated.accessibleBuffer', 'Terminal buffer');
 		this._accessibleBuffer.classList.add('accessible-buffer');
 		this._editorContainer = document.createElement('div');
 		const codeEditorWidgetOptions: ICodeEditorWidgetOptions = {
-			isSimpleWidget: true,
-			contributions: EditorExtensionsRegistry.getSomeEditorContributions([LinkDetector.ID, SelectionClipboardContributionID])
+			contributions: EditorExtensionsRegistry.getSomeEditorContributions([LinkDetector.ID, SelectionClipboardContributionID, 'editor.contrib.selectionAnchorController'])
 		};
 		const font = _xterm.getFont();
 		const editorOptions: IEditorConstructionOptions = {
@@ -94,14 +109,9 @@ export class AccessibleBufferWidget extends DisposableStore {
 
 		this._focusTracker = this.add(dom.trackFocus(this._editorContainer));
 		this._focusedContextKey = TerminalContextKeys.accessibleBufferFocus.bindTo(this._contextKeyService);
-		this._trackFocus();
+		this.add(this._focusTracker.onDidFocus(() => this._focusedContextKey.set(true)));
+		this.add(this._focusTracker.onDidBlur(() => this._focusedContextKey.reset()));
 
-		// initialize terminal listeners
-		this.add(this._instance.onDidRequestFocus(() => {
-			if (this._isActive()) {
-				this._editorWidget.focus();
-			}
-		}));
 		this.add(Event.runAndSubscribe(this._xterm.raw.onResize, () => this._layout()));
 		this.add(this._configurationService.onDidChangeConfiguration(e => {
 			if (e.affectedKeys.has(TerminalSettingId.FontFamily) || e.affectedKeys.has(TerminalSettingId.FontSize) || e.affectedKeys.has(TerminalSettingId.LineHeight) || e.affectedKeys.has(TerminalSettingId.LetterSpacing)) {
@@ -109,13 +119,6 @@ export class AccessibleBufferWidget extends DisposableStore {
 				this._editorWidget.updateOptions({ fontFamily: font.fontFamily, fontSize: font.fontSize, lineHeight: font.charHeight ? font.charHeight * font.lineHeight : 1, letterSpacing: font.letterSpacing });
 			}
 		}));
-		this.add(this._xterm.raw.onWriteParsed(async () => {
-			if (this._isActive()) {
-				await this._updateEditor(true);
-			}
-		}));
-
-		// initialize editor listeners
 		this.add(this._editorWidget.onKeyDown((e) => {
 			switch (e.keyCode) {
 				case KeyCode.Tab:
@@ -131,13 +134,15 @@ export class AccessibleBufferWidget extends DisposableStore {
 			}
 		}));
 		this.add(this._editorWidget.onDidFocusEditorText(async () => {
-			if (this._isActive()) {
+			this._terminalService.setActiveInstance(this._instance as ITerminalInstance);
+			if (this._accessibleBuffer.classList.contains(CssClass.Active)) {
 				// the user has focused the editor via mouse or
 				// Go to Command was run so we've already updated the editor
 				return;
 			}
 			// if the editor is focused via tab, we need to update the model
 			// and show it
+			this._registerListeners();
 			await this._updateEditor();
 			this._accessibleBuffer.classList.add(CssClass.Active);
 			this._xtermElement.classList.add(CssClass.Hide);
@@ -146,62 +151,35 @@ export class AccessibleBufferWidget extends DisposableStore {
 		this._updateEditor();
 	}
 
-	private _trackFocus(): void {
-		this.add(this._focusTracker.onDidFocus(() => this._focusedContextKey.set(true)));
-		this.add(this._focusTracker.onDidBlur(() => this._focusedContextKey.reset()));
+	override dispose(): void {
+		this._disposeListeners();
+		super.dispose();
 	}
 
-	private _isActive(): boolean {
-		return this._accessibleBuffer.classList.contains(CssClass.Active);
-	}
-
-	private _hide(): void {
-		this._accessibleBuffer.classList.remove(CssClass.Active);
-		this._xtermElement.classList.remove(CssClass.Hide);
-	}
-
-	private async _updateModel(insertion?: boolean): Promise<ITextModel> {
-		let model = this._editorWidget.getModel();
-		const lineCount = model?.getLineCount() ?? 0;
-		if (insertion && model && lineCount > this._xterm.raw.rows) {
-			const lineNumber = lineCount + 1;
-			model.pushEditOperations(null, [{
-				range: { startLineNumber: lineNumber, endLineNumber: lineNumber, startColumn: 1, endColumn: 1 }, text: this._getContent(1)
-			}], () => []);
-		} else {
-			model = await this._getTextModel(this._instance.resource.with({ fragment: this._getContent() }));
-		}
-		if (!model) {
-			throw new Error('Could not create accessible buffer editor model');
-		}
-		this._editorWidget.setModel(model);
-		return model;
-	}
-
-	private async _updateEditor(insertion?: boolean): Promise<void> {
-		const model = await this._updateModel(insertion);
-		if (!model) {
-			return;
-		}
-		const lineNumber = model.getLineCount() - 1;
-		const selection = this._editorWidget.getSelection();
-		// If the selection is at the top of the buffer, IE the default when not set, move it to the bottom
-		if (selection?.startColumn === 1 && selection.endColumn === 1 && selection.startLineNumber === 1 && selection.endLineNumber === 1) {
-			this._editorWidget.setSelection({ startLineNumber: lineNumber, startColumn: 1, endLineNumber: lineNumber, endColumn: 1 });
-		}
-		this._editorWidget.setScrollTop(this._editorWidget.getScrollHeight());
+	async show(): Promise<void> {
+		this._registerListeners();
+		await this._updateEditor();
+		this._accessibleBuffer.tabIndex = -1;
+		this._layout();
+		this._accessibleBuffer.classList.add(CssClass.Active);
+		this._xtermElement.classList.add(CssClass.Hide);
+		this._editorWidget.focus();
 	}
 
 	async createQuickPick(): Promise<IQuickPick<IAccessibleBufferQuickPickItem> | undefined> {
-		let currentPosition = withNullAsUndefined(this._editorWidget.getPosition());
+		this._cursorPosition = withNullAsUndefined(this._editorWidget.getPosition());
 		const commands = this._instance.capabilities.get(TerminalCapability.CommandDetection)?.commands;
 		if (!commands?.length) {
 			return;
 		}
 		const quickPickItems: IAccessibleBufferQuickPickItem[] = [];
 		for (const command of commands) {
-			const line = command.marker?.line;
-			if (!line || !command.command.length) {
+			let line = command.marker?.line;
+			if (line === undefined || !command.command.length || line < 0) {
+				continue;
+			}
+			line = this._bufferTracker.bufferToEditorLineMapping.get(line);
+			if (!line) {
 				continue;
 			}
 			quickPickItems.push(
@@ -221,10 +199,7 @@ export class AccessibleBufferWidget extends DisposableStore {
 			this._editorWidget.revealLine(activeItem.lineNumber, 0);
 		});
 		quickPick.onDidHide(() => {
-			if (currentPosition) {
-				this._editorWidget.setPosition(currentPosition);
-				this._editorWidget.revealLineInCenter(currentPosition.lineNumber);
-			}
+			this._resetPosition();
 			quickPick.dispose();
 		});
 		quickPick.onDidAccept(() => {
@@ -233,12 +208,10 @@ export class AccessibleBufferWidget extends DisposableStore {
 			if (!model) {
 				return;
 			}
-			if (!item && currentPosition) {
-				// reset
-				this._editorWidget.setPosition(currentPosition);
+			if (!item && this._cursorPosition) {
+				this._resetPosition();
 			} else {
-				this._editorWidget.setSelection({ startLineNumber: item.lineNumber, startColumn: 1, endLineNumber: item.lineNumber, endColumn: 1 });
-				currentPosition = this._editorWidget.getSelection()?.getPosition();
+				this._cursorPosition = { lineNumber: item.lineNumber, column: 1 };
 			}
 			this._editorWidget.focus();
 			return;
@@ -247,59 +220,108 @@ export class AccessibleBufferWidget extends DisposableStore {
 		return quickPick;
 	}
 
+	private _resetPosition(): void {
+		this._cursorPosition = this._cursorPosition ?? this._getDefaultCursorPosition();
+		if (!this._cursorPosition) {
+			return;
+		}
+		this._editorWidget.setPosition(this._cursorPosition);
+		this._editorWidget.setScrollPosition({ scrollTop: this._editorWidget.getTopForLineNumber(this._cursorPosition.lineNumber) });
+	}
+
+	private _hide(): void {
+		this._disposeListeners();
+		this._accessibleBuffer.classList.remove(CssClass.Active);
+		this._xtermElement.classList.remove(CssClass.Hide);
+	}
+
+	private async _updateEditor(dataChanged?: boolean): Promise<void> {
+		if (this._isUpdating) {
+			this._pendingUpdates++;
+			return;
+		}
+		this._isUpdating = true;
+		const model = await this._updateModel(dataChanged);
+		if (!model) {
+			return;
+		}
+		this._isUpdating = false;
+		if (this._pendingUpdates) {
+			this._logService.debug('TerminalAccessibleBuffer._updateEditor: pending updates', this._pendingUpdates);
+			this._pendingUpdates--;
+			await this._updateEditor(dataChanged);
+		}
+	}
+
 	private _layout(): void {
+		this._bufferTracker.reset();
 		this._editorWidget.layout({ width: this._xtermElement.clientWidth, height: this._xtermElement.clientHeight });
 	}
 
-	async show(): Promise<void> {
-		await this._updateEditor();
-		this._accessibleBuffer.tabIndex = -1;
-		this._layout();
-		this._accessibleBuffer.classList.add(CssClass.Active);
-		this._xtermElement.classList.add(CssClass.Hide);
-		this._editorWidget.focus();
+	private _registerListeners(): void {
+		this._xterm.raw.onWriteParsed(async () => {
+			if (this._xterm.raw.buffer.active.baseY === 0) {
+				await this._updateEditor(true);
+			}
+		});
+		const onRequestUpdateEditor = Event.latch(this._xterm.raw.onScroll);
+		this._listeners.push(onRequestUpdateEditor(async () => await this._updateEditor(true)));
+		this._listeners.push(this._instance.onDidRequestFocus(() => this._editorWidget.focus()));
 	}
 
-	private _getContent(startIndex?: number): string {
-		const buffer = this._xterm.raw.buffer.active;
-		if (!buffer) {
-			return '';
+	private _disposeListeners(): void {
+		for (const listener of this._listeners) {
+			listener.dispose();
 		}
-
-		const scrollback: number = this._configurationService.getValue(TerminalSettingId.Scrollback);
-		const maxBufferSize = scrollback + this._xterm.raw.rows - 1;
-		const end = Math.min(maxBufferSize, buffer.length - 1);
-		if (startIndex) {
-			// If the last buffer index is requested, this is as a result of
-			// a dynamic addition. Return only the last line to prevent duplication.
-			const line = buffer.getLine(end - 1)?.translateToString(false).replace(new RegExp(' ', 'g'), '\xA0');
-			const result = line ? line + '\n' : '';
-			return result;
-		}
-
-		const lines: string[] = [];
-		let currentLine: string = '';
-		for (let i = 0; i <= end; i++) {
-			const line = buffer.getLine(i);
-			if (!line) {
-				continue;
-			}
-			const isWrapped = buffer.getLine(i + 1)?.isWrapped;
-			currentLine += line.translateToString(!isWrapped);
-			if (currentLine && !isWrapped || i === end - 1) {
-				lines.push(currentLine.replace(new RegExp(' ', 'g'), '\xA0'));
-				currentLine = '';
-			}
-		}
-
-		return lines.join('\n');
 	}
 
-	private async _getTextModel(resource: URI): Promise<ITextModel | null> {
+	async getTextModel(resource: URI): Promise<ITextModel | null> {
 		const existing = this._modelService.getModel(resource);
 		if (existing && !existing.isDisposed()) {
 			return existing;
 		}
 		return this._modelService.createModel(resource.fragment, null, resource, false);
+	}
+
+	private _getDefaultCursorPosition(): { lineNumber: number; column: number } | undefined {
+		const modelLineCount = this._editorWidget.getModel()?.getLineCount();
+		return modelLineCount ? { lineNumber: modelLineCount, column: 1 } : undefined;
+	}
+
+	private async _updateModel(dataChanged?: boolean): Promise<ITextModel> {
+		const linesBefore = this._bufferTracker.lines.length;
+		this._bufferTracker.update();
+		const linesAfter = this._bufferTracker.lines.length;
+		const modelChanged = linesBefore !== linesAfter;
+
+		// Save the view state before the update if it was set by the user
+		let savedViewState: IEditorViewState | undefined;
+		if (dataChanged) {
+			savedViewState = withNullAsUndefined(this._editorWidget.saveViewState());
+		}
+
+		let model = this._editorWidget.getModel();
+		const text = this._bufferTracker.lines.join('\n');
+		if (model) {
+			model.setValue(text);
+		} else {
+			model = await this.getTextModel(this._instance.resource.with({ fragment: text }));
+		}
+		this._editorWidget.setModel(model);
+
+		// If the model changed due to new data, restore the view state
+		// If the model changed due to a refresh or the cursor is a the top, set to the bottom of the buffer
+		// Otherwise, don't change the position
+		const positionTopOfBuffer = this._editorWidget.getPosition()?.lineNumber === 1 && this._editorWidget.getPosition()?.column === 1;
+		if (savedViewState) {
+			this._editorWidget.restoreViewState(savedViewState);
+		} else if (modelChanged || positionTopOfBuffer) {
+			const defaultPosition = this._getDefaultCursorPosition();
+			if (defaultPosition) {
+				this._editorWidget.setPosition(defaultPosition);
+				this._editorWidget.setScrollPosition({ scrollTop: this._editorWidget.getTopForLineNumber(defaultPosition.lineNumber) });
+			}
+		}
+		return model!;
 	}
 }

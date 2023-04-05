@@ -282,6 +282,7 @@ export class TextMateTokenizationFeature extends Disposable implements ITextMate
 				r.initialState,
 				r.containsEmbeddedLanguages,
 				(textModel, tokenStore) => this._workerHost.createBackgroundTokenizer(textModel, tokenStore, maxTokenizationLineLength),
+				() => this._configurationService.getValue<boolean>('editor.experimental.asyncTokenizationVerification'),
 			);
 			tokenization.onDidEncounterLanguage((encodedLanguageId) => {
 				if (!this._encounteredLanguages[encodedLanguageId]) {

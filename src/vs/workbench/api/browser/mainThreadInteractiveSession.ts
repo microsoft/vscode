@@ -93,9 +93,6 @@ export class MainThreadInteractiveSession extends Disposable implements MainThre
 					this._activeRequestProgressCallbacks.delete(id);
 				}
 			},
-			provideSuggestions: (token) => {
-				return this._proxy.$provideInitialSuggestions(handle, token);
-			},
 			provideWelcomeMessage: (token) => {
 				return this._proxy.$provideWelcomeMessage(handle, token);
 			},

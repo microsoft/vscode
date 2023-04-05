@@ -770,6 +770,12 @@ configurationRegistry.registerConfiguration({
 			default: true,
 			tags: ['notebookLayout']
 		},
+		[NotebookSetting.diffOverviewRuler]: {
+			description: nls.localize('notebook.diff.enableOverviewRuler.description', "Whether to render the overview ruler in the diff editor for notebook."),
+			type: 'boolean',
+			default: false,
+			tags: ['notebookLayout']
+		},
 		[NotebookSetting.cellToolbarVisibility]: {
 			markdownDescription: nls.localize('notebook.cellToolbarVisibility.description', "Whether the cell toolbar should appear on hover or click."),
 			type: 'string',
@@ -856,7 +862,7 @@ configurationRegistry.registerConfiguration({
 			markdownDescription: nls.localize('notebook.textOutputLineLimit', "Controls how many lines of text are displayed in a text output. If {0} is enabled, this setting is used to determine the scroll height of the output.", '`#notebook.output.scrolling#`'),
 			type: 'number',
 			default: 30,
-			tags: ['notebookLayout']
+			tags: ['notebookLayout', 'notebookOutputLayout']
 		},
 		[NotebookSetting.markupFontSize]: {
 			markdownDescription: nls.localize('notebook.markup.fontSize', "Controls the font size in pixels of rendered markup in notebooks. When set to {0}, 120% of {1} is used.", '`0`', '`#editor.fontSize#`'),
@@ -875,29 +881,29 @@ configurationRegistry.registerConfiguration({
 			markdownDescription: nls.localize('notebook.outputLineHeight', "Line height of the output text within notebook cells.\n - When set to 0, editor line height is used.\n - Values between 0 and 8 will be used as a multiplier with the font size.\n - Values greater than or equal to 8 will be used as effective values."),
 			type: 'number',
 			default: 0,
-			tags: ['notebookLayout']
+			tags: ['notebookLayout', 'notebookOutputLayout']
 		},
 		[NotebookSetting.outputFontSize]: {
 			markdownDescription: nls.localize('notebook.outputFontSize', "Font size for the output text within notebook cells. When set to 0, {0} is used.", '`#editor.fontSize#`'),
 			type: 'number',
 			default: 0,
-			tags: ['notebookLayout']
+			tags: ['notebookLayout', 'notebookOutputLayout']
 		},
 		[NotebookSetting.outputFontFamily]: {
 			markdownDescription: nls.localize('notebook.outputFontFamily', "The font family of the output text within notebook cells. When set to empty, the {0} is used.", '`#editor.fontFamily#`'),
 			type: 'string',
-			tags: ['notebookLayout']
+			tags: ['notebookLayout', 'notebookOutputLayout']
 		},
 		[NotebookSetting.outputScrolling]: {
 			markdownDescription: nls.localize('notebook.outputScrolling', "Use a scrollable region for notebook output when longer than the limit"),
 			type: 'boolean',
-			tags: ['notebookLayout'],
+			tags: ['notebookLayout', 'notebookOutputLayout'],
 			default: typeof product.quality === 'string' && product.quality !== 'stable' // only enable as default in insiders
 		},
 		[NotebookSetting.outputWordWrap]: {
 			markdownDescription: nls.localize('notebook.outputWordWrap', "Controls whether the lines in output should wrap."),
 			type: 'boolean',
-			tags: ['notebookLayout'],
+			tags: ['notebookLayout', 'notebookOutputLayout'],
 			default: false
 		},
 		[NotebookSetting.formatOnSave]: {

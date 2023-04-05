@@ -1012,7 +1012,8 @@ export class MacLinuxKeyboardMapper implements IKeyboardMapper {
 
 	private static _redirectCharCode(charCode: number): number {
 		switch (charCode) {
-			// CJK: \u3002 \u300c \u300d \u3010 \u3011 \uff1b \uff0c
+			// allow-any-unicode-next-line
+			// CJK: 。 「 」 【 】 ； ，
 			// map: . [ ] [ ] ; ,
 			case CharCode.U_IDEOGRAPHIC_FULL_STOP: return CharCode.Period;
 			case CharCode.U_LEFT_CORNER_BRACKET: return CharCode.OpenSquareBracket;

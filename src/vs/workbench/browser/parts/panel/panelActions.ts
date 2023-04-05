@@ -256,7 +256,7 @@ export class PlaceHolderPanelActivityAction extends PanelActivityAction {
 export class PlaceHolderToggleCompositePinnedAction extends ToggleCompositePinnedAction {
 
 	constructor(id: string, compositeBar: ICompositeBar) {
-		super({ id, name: id, cssClass: undefined }, compositeBar);
+		super({ id, name: id, classNames: undefined }, compositeBar);
 	}
 
 	setActivity(activity: IActivity): void {

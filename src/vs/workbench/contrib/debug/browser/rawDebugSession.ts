@@ -172,6 +172,10 @@ export class RawDebugSession implements IDisposable {
 		this.debugAdapter.onRequest(request => this.dispatchRequest(request));
 	}
 
+	get isInShutdown() {
+		return this.inShutdown;
+	}
+
 	get onDidExitAdapter(): Event<AdapterEndEvent> {
 		return this._onDidExitAdapter.event;
 	}
@@ -307,7 +311,7 @@ export class RawDebugSession implements IDisposable {
 		if (this.capabilities.supportsTerminateRequest) {
 			if (!this.terminated) {
 				this.terminated = true;
-				return this.send('terminate', { restart }, undefined, 2000);
+				return this.send('terminate', { restart }, undefined);
 			}
 			return this.disconnect({ terminateDebuggee: true, restart });
 		}
