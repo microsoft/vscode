@@ -1036,8 +1036,8 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 				ariaLabel += ` - ${this.title}`;
 			}
 		}
-		if (this.ui.inputBox.ariaLabel !== ariaLabel) {
-			this.ui.inputBox.ariaLabel = ariaLabel;
+		if (this.ui.list.ariaLabel !== ariaLabel) {
+			this.ui.list.ariaLabel = ariaLabel;
 		}
 		this.ui.list.matchOnDescription = this.matchOnDescription;
 		this.ui.list.matchOnDetail = this.matchOnDetail;
@@ -1339,6 +1339,9 @@ export class QuickInputController extends Disposable {
 		const listId = this.idPrefix + 'list';
 		const list = this._register(new QuickInputList(container, listId, this.options));
 		inputBox.setAttribute('aria-controls', listId);
+		this._register(list.onDidChangeFocus(() => {
+			inputBox.setAttribute('aria-activedescendant', list.getActiveDescendant() ?? '');
+		}));
 		this._register(list.onChangedAllVisibleChecked(checked => {
 			checkAll.checked = checked;
 		}));
@@ -1680,7 +1683,6 @@ export class QuickInputController extends Disposable {
 		ui.list.matchOnLabel = true;
 		ui.list.sortByLabel = true;
 		ui.ignoreFocusOut = false;
-		ui.inputBox.ariaLabel = '';
 		ui.inputBox.toggles = undefined;
 
 		const backKeybindingLabel = this.options.backKeybindingLabel();

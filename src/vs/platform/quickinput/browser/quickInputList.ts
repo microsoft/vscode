@@ -6,7 +6,7 @@
 import * as dom from 'vs/base/browser/dom';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
-import { alert, AriaRole } from 'vs/base/browser/ui/aria/aria';
+import { AriaRole } from 'vs/base/browser/ui/aria/aria';
 import { HoverPosition } from 'vs/base/browser/ui/hover/hoverWidget';
 import { IHoverWidget } from 'vs/base/browser/ui/iconLabel/iconHoverDelegate';
 import { IconLabel, IIconLabelValueOptions } from 'vs/base/browser/ui/iconLabel/iconLabel';
@@ -336,11 +336,6 @@ export class QuickInputList {
 		} as IListOptions<ListElement>);
 		this.list.getHTMLElement().id = id;
 		this.disposables.push(this.list);
-		this.disposables.push(this.list.onDidChangeFocus(e => {
-			if (e.elements.length) {
-				alert(e.elements.map(el => el.saneAriaLabel).join(', '));
-			}
-		}));
 		this.disposables.push(this.list.onKeyDown(e => {
 			const event = new StandardKeyboardEvent(e);
 			switch (event.keyCode) {
@@ -466,6 +461,14 @@ export class QuickInputList {
 
 	set scrollTop(scrollTop: number) {
 		this.list.scrollTop = scrollTop;
+	}
+
+	get ariaLabel() {
+		return this.list.getHTMLElement().ariaLabel;
+	}
+
+	set ariaLabel(label: string | null) {
+		this.list.getHTMLElement().ariaLabel = label;
 	}
 
 	getAllVisibleChecked() {
