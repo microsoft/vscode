@@ -8,7 +8,7 @@ import { URI } from 'vs/base/common/uri';
 import * as perf from 'vs/base/common/performance';
 import { WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification } from 'vs/base/common/actions';
 import { memoize } from 'vs/base/common/decorators';
-import { IFilesConfiguration, ExplorerFolderContext, FilesExplorerFocusedContext, ExplorerFocusedContext, ExplorerRootContext, ExplorerResourceReadonlyContext, ExplorerResourceCut, ExplorerResourceMoveableToTrash, ExplorerCompressedFocusContext, ExplorerCompressedFirstFocusContext, ExplorerCompressedLastFocusContext, ExplorerResourceAvailableEditorIdsContext, VIEW_ID, VIEWLET_ID, ExplorerResourceNotReadonlyContext, ViewHasSomeCollapsibleRootItemContext } from 'vs/workbench/contrib/files/common/files';
+import { IFilesConfiguration, ExplorerFolderContext, FilesExplorerFocusedContext, ExplorerFocusedContext, ExplorerRootContext, ExplorerResourceReadonlyContext, ExplorerResourceCut, ExplorerResourceMoveableToTrash, ExplorerCompressedFocusContext, ExplorerCompressedFirstFocusContext, ExplorerCompressedLastFocusContext, ExplorerResourceAvailableEditorIdsContext, VIEW_ID, VIEWLET_ID, ExplorerResourceNotReadonlyContext, ViewHasSomeCollapsibleRootItemContext, FoldersViewVisibleContext } from 'vs/workbench/contrib/files/common/files';
 import { FileCopiedContext, NEW_FILE_COMMAND_ID, NEW_FOLDER_COMMAND_ID } from 'vs/workbench/contrib/files/browser/fileActions';
 import * as DOM from 'vs/base/browser/dom';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
@@ -144,6 +144,10 @@ export interface IExplorerViewContainerDelegate {
 	didOpenElement(event?: UIEvent): void;
 }
 
+export interface IExplorerViewPaneOptions extends IViewPaneOptions {
+	delegate: IExplorerViewContainerDelegate;
+}
+
 export class ExplorerView extends ViewPane implements IExplorerView {
 	static readonly TREE_VIEW_STATE_STORAGE_KEY: string = 'workbench.explorer.treeViewState';
 
@@ -167,16 +171,18 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 	private compressedFocusLastContext: IContextKey<boolean>;
 
 	private viewHasSomeCollapsibleRootItem: IContextKey<boolean>;
+	private viewVisibleContextKey: IContextKey<boolean>;
+
 
 	private horizontalScrolling: boolean | undefined;
 
 	private dragHandler!: DelayedDragHandler;
 	private autoReveal: boolean | 'force' | 'focusNoScroll' = false;
 	private decorationsProvider: ExplorerDecorationsProvider | undefined;
+	private readonly delegate: IExplorerViewContainerDelegate | undefined;
 
 	constructor(
-		options: IViewPaneOptions,
-		private readonly delegate: IExplorerViewContainerDelegate,
+		options: IExplorerViewPaneOptions,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IViewDescriptorService viewDescriptorService: IViewDescriptorService,
 		@IInstantiationService instantiationService: IInstantiationService,
@@ -202,6 +208,7 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 	) {
 		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService);
 
+		this.delegate = options.delegate;
 		this.resourceContext = instantiationService.createInstance(ResourceContextKey);
 		this._register(this.resourceContext);
 
@@ -214,6 +221,8 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 		this.compressedFocusFirstContext = ExplorerCompressedFirstFocusContext.bindTo(contextKeyService);
 		this.compressedFocusLastContext = ExplorerCompressedLastFocusContext.bindTo(contextKeyService);
 		this.viewHasSomeCollapsibleRootItem = ViewHasSomeCollapsibleRootItemContext.bindTo(contextKeyService);
+		this.viewVisibleContextKey = FoldersViewVisibleContext.bindTo(contextKeyService);
+
 
 		this.explorerService.registerView(this);
 	}
@@ -228,6 +237,11 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 
 	override set title(_: string) {
 		// noop
+	}
+
+	override setVisible(visible: boolean): void {
+		this.viewVisibleContextKey.set(visible);
+		super.setVisible(visible);
 	}
 
 	@memoize private get fileCopiedContextKey(): IContextKey<boolean> {
@@ -468,10 +482,10 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 				}
 				this.telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', { id: 'workbench.files.openFile', from: 'explorer' });
 				try {
-					this.delegate.willOpenElement(e.browserEvent);
+					this.delegate?.willOpenElement(e.browserEvent);
 					await this.editorService.openEditor({ resource: element.resource, options: { preserveFocus: e.editorOptions.preserveFocus, pinned: e.editorOptions.pinned, source: EditorOpenSource.USER } }, e.sideBySide ? SIDE_GROUP : ACTIVE_GROUP);
 				} finally {
-					this.delegate.didOpenElement();
+					this.delegate?.didOpenElement();
 				}
 			}
 		}));
@@ -498,7 +512,9 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 		this.updateAnyCollapsedContext();
 
 		this._register(this.tree.onMouseDblClick(e => {
-			if (e.element === null) {
+			// If empty space is clicked, and not scrolling by page enabled #173261
+			const scrollingByPage = this.configurationService.getValue<boolean>('workbench.list.scrollByPage');
+			if (e.element === null && !scrollingByPage) {
 				// click in empty area -> create a new file #116676
 				this.commandService.executeCommand(NEW_FILE_COMMAND_ID);
 			}
@@ -593,7 +609,7 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 		});
 	}
 
-	private onFocusChanged(elements: ExplorerItem[]): void {
+	private onFocusChanged(elements: readonly ExplorerItem[]): void {
 		const stat = elements && elements.length ? elements[0] : undefined;
 		this.setContextKeys(stat);
 
@@ -656,7 +672,7 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 		}
 		const roots = this.explorerService.roots;
 		let input: ExplorerItem | ExplorerItem[] = roots[0];
-		if (this.contextService.getWorkbenchState() !== WorkbenchState.FOLDER || roots[0].isError) {
+		if (this.contextService.getWorkbenchState() !== WorkbenchState.FOLDER || roots[0].error) {
 			// Display roots only when multi folder workspace
 			input = roots;
 		}

@@ -118,6 +118,8 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 	private static APPLICATION_LAUNCHED_VIA_CONTINUE_ON_STORAGE_KEY = 'applicationLaunchedViaContinueOn';
 	private accountsMenuBadgeDisposable = this._register(new MutableDisposable());
 
+	private registeredCommands = new Set<string>();
+
 	constructor(
 		@IEditSessionsStorageService private readonly editSessionsStorageService: IEditSessionsStorageService,
 		@IFileService private readonly fileService: IFileService,
@@ -156,7 +158,11 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 		this.shouldShowViewsContext = EDIT_SESSIONS_SHOW_VIEW.bindTo(this.contextKeyService);
 
 		this._register(this.fileService.registerProvider(EditSessionsFileSystemProvider.SCHEMA, new EditSessionsFileSystemProvider(this.editSessionsStorageService)));
-		this.lifecycleService.onWillShutdown((e) => e.join(this.autoStoreEditSession(), { id: 'autoStoreWorkingChanges', label: localize('autoStoreWorkingChanges', 'Storing current working changes...') }));
+		this.lifecycleService.onWillShutdown((e) => {
+			if (this.configurationService.getValue('workbench.experimental.cloudChanges.autoStore') === 'onShutdown' && !isWeb) {
+				e.join(this.autoStoreEditSession(), { id: 'autoStoreWorkingChanges', label: localize('autoStoreWorkingChanges', 'Storing current working changes...') });
+			}
+		});
 		this._register(this.editSessionsStorageService.onDidSignIn(() => this.updateAccountsMenuBadge()));
 		this._register(this.editSessionsStorageService.onDidSignOut(() => this.updateAccountsMenuBadge()));
 	}
@@ -195,7 +201,7 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 				hasApplicationLaunchedFromContinueOnFlow === false
 			) {
 				this.storageService.store(EditSessionsContribution.APPLICATION_LAUNCHED_VIA_CONTINUE_ON_STORAGE_KEY, true, StorageScope.APPLICATION, StorageTarget.MACHINE);
-				await this.editSessionsStorageService.initialize(true);
+				await this.editSessionsStorageService.initialize();
 				if (this.editSessionsStorageService.isSignedIn) {
 					await this.progressService.withProgress(resumeProgressOptions, async (progress) => await this.resumeEditSession(undefined, true, undefined, progress));
 				} else {
@@ -221,17 +227,15 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 	}
 
 	private async autoStoreEditSession() {
-		if (this.configurationService.getValue('workbench.experimental.cloudChanges.autoStore') === 'onShutdown' && !isWeb) {
-			const cancellationTokenSource = new CancellationTokenSource();
-			await this.progressService.withProgress({
-				location: ProgressLocation.Window,
-				type: 'syncing',
-				title: localize('store working changes', 'Storing working changes...')
-			}, async () => this.storeEditSession(false, cancellationTokenSource.token), () => {
-				cancellationTokenSource.cancel();
-				cancellationTokenSource.dispose();
-			});
-		}
+		const cancellationTokenSource = new CancellationTokenSource();
+		await this.progressService.withProgress({
+			location: ProgressLocation.Window,
+			type: 'syncing',
+			title: localize('store working changes', 'Storing working changes...')
+		}, async () => this.storeEditSession(false, cancellationTokenSource.token), () => {
+			cancellationTokenSource.cancel();
+			cancellationTokenSource.dispose();
+		});
 	}
 
 	private registerViews() {
@@ -396,8 +400,8 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 				});
 			}
 
-			async run(accessor: ServicesAccessor, editSessionId?: string): Promise<void> {
-				await that.progressService.withProgress({ ...resumeProgressOptions, title: resumeProgressOptionsTitle }, async () => await that.resumeEditSession(editSessionId));
+			async run(accessor: ServicesAccessor, editSessionId?: string, force?: boolean): Promise<void> {
+				await that.progressService.withProgress({ ...resumeProgressOptions, title: resumeProgressOptionsTitle }, async () => await that.resumeEditSession(editSessionId, undefined, force));
 			}
 		}));
 	}
@@ -447,7 +451,7 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 
 		this.logService.info(ref !== undefined ? `Resuming changes from cloud with ref ${ref}...` : 'Checking for pending cloud changes...');
 
-		if (silent && !(await this.editSessionsStorageService.initialize(false, true))) {
+		if (silent && !(await this.editSessionsStorageService.initialize(true))) {
 			return;
 		}
 
@@ -755,7 +759,32 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 
 		// Prompt the user to use edit sessions if they currently could benefit from using it
 		if (this.hasEditSession()) {
-			const initialized = await this.editSessionsStorageService.initialize(true);
+			const quickpick = this.quickInputService.createQuickPick<IQuickPickItem>();
+			quickpick.placeholder = localize('continue with cloud changes', "Select whether to bring your working changes with you");
+			quickpick.ok = false;
+			quickpick.ignoreFocusOut = true;
+			const withCloudChanges = { label: localize('with cloud changes', "Yes, continue with my working changes") };
+			const withoutCloudChanges = { label: localize('without cloud changes', "No, continue without my working changes") };
+			quickpick.items = [withCloudChanges, withoutCloudChanges];
+
+			const continueWithCloudChanges = await new Promise<boolean>((resolve, reject) => {
+				quickpick.onDidAccept(() => {
+					resolve(quickpick.selectedItems[0] === withCloudChanges);
+					quickpick.hide();
+				});
+				quickpick.onDidHide(() => {
+					reject(new CancellationError());
+					quickpick.hide();
+				});
+				quickpick.show();
+			});
+
+			if (!continueWithCloudChanges) {
+				this.telemetryService.publicLog2<EditSessionsAuthCheckEvent, EditSessionsAuthCheckClassification>('continueOn.editSessions.canStore.outcome', { outcome: 'didNotEnableEditSessionsWhenPrompted' });
+				return continueWithCloudChanges;
+			}
+
+			const initialized = await this.editSessionsStorageService.initialize();
 			if (!initialized) {
 				this.telemetryService.publicLog2<EditSessionsAuthCheckEvent, EditSessionsAuthCheckClassification>('continueOn.editSessions.canStore.outcome', { outcome: 'didNotEnableEditSessionsWhenPrompted' });
 			}
@@ -796,7 +825,7 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 					));
 
 					if (contribution.qualifiedName) {
-						this.generateStandaloneOptionCommand(command.id, contribution.qualifiedName, command.category, when, contribution.remoteGroup);
+						this.generateStandaloneOptionCommand(command.id, contribution.qualifiedName, contribution.category ?? command.category, when, contribution.remoteGroup);
 					}
 				}
 			}
@@ -813,22 +842,26 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 			f1: true
 		};
 
-		registerAction2(class StandaloneContinueOnOption extends Action2 {
-			constructor() {
-				super(command);
-			}
+		if (!this.registeredCommands.has(command.id)) {
+			this.registeredCommands.add(command.id);
 
-			async run(accessor: ServicesAccessor): Promise<void> {
-				return accessor.get(ICommandService).executeCommand(continueWorkingOnCommand.id, undefined, commandId);
-			}
-		});
+			registerAction2(class StandaloneContinueOnOption extends Action2 {
+				constructor() {
+					super(command);
+				}
 
-		if (remoteGroup !== undefined) {
-			MenuRegistry.appendMenuItem(MenuId.StatusBarRemoteIndicatorMenu, {
-				group: remoteGroup,
-				command: command,
-				when: command.precondition
+				async run(accessor: ServicesAccessor): Promise<void> {
+					return accessor.get(ICommandService).executeCommand(continueWorkingOnCommand.id, undefined, commandId);
+				}
 			});
+
+			if (remoteGroup !== undefined) {
+				MenuRegistry.appendMenuItem(MenuId.StatusBarRemoteIndicatorMenu, {
+					group: remoteGroup,
+					command: command,
+					when: command.precondition
+				});
+			}
 		}
 	}
 
@@ -980,6 +1013,7 @@ interface ICommand {
 	when: string;
 	documentation?: string;
 	qualifiedName?: string;
+	category?: string;
 	remoteGroup?: string;
 }
 

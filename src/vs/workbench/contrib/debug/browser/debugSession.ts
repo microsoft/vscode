@@ -139,12 +139,13 @@ export class DebugSession implements IDebugSession {
 		const parent = this._options.parentSession;
 		if (parent) {
 			toDispose.add(parent.onDidEndAdapter(() => {
-				// copy the parent repl and get a new detached repl for this child
-				if (!this.hasSeparateRepl()) {
+				// copy the parent repl and get a new detached repl for this child, and
+				// remove its parent, if it's still running
+				if (!this.hasSeparateRepl() && this.raw?.isInShutdown === false) {
 					this.repl = this.repl.clone();
 					replListener.value = this.repl.onDidChangeElements(() => this._onDidChangeREPLElements.fire());
+					this.parentSession = undefined;
 				}
-				this.parentSession = undefined;
 			}));
 		}
 	}
@@ -325,6 +326,7 @@ export class DebugSession implements IDebugSession {
 				supportsMemoryReferences: true, //#129684
 				supportsArgsCanBeInterpretedByShell: true, // #149910
 				supportsMemoryEvent: true, // #133643
+				supportsStartDebuggingRequest: true
 			});
 
 			this.initialized = true;

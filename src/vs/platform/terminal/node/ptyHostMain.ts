@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { join } from 'vs/base/common/path';
-import { URI } from 'vs/base/common/uri';
 import { DefaultURITransformer } from 'vs/base/common/uriIpc';
 import { ProxyChannel } from 'vs/base/parts/ipc/common/ipc';
 import { Server } from 'vs/base/parts/ipc/node/ipc.cp';
@@ -17,7 +15,7 @@ import { LogService } from 'vs/platform/log/common/logService';
 import { LoggerService } from 'vs/platform/log/node/loggerService';
 import product from 'vs/platform/product/common/product';
 import { IProductService } from 'vs/platform/product/common/productService';
-import { IReconnectConstants, TerminalIpcChannels, TerminalLogConstants } from 'vs/platform/terminal/common/terminal';
+import { IReconnectConstants, TerminalIpcChannels } from 'vs/platform/terminal/common/terminal';
 import { HeartbeatService } from 'vs/platform/terminal/node/heartbeatService';
 import { PtyService } from 'vs/platform/terminal/node/ptyService';
 
@@ -30,10 +28,11 @@ const productService: IProductService = { _serviceBrand: undefined, ...product }
 const environmentService = new NativeEnvironmentService(parseArgs(process.argv, OPTIONS), productService);
 
 // Logging
-const loggerService = new LoggerService(LogLevel.Info);
+const loggerService = new LoggerService(LogLevel.Info, environmentService.logsHome);
 server.registerChannel(TerminalIpcChannels.Logger, new LoggerChannel(loggerService, () => DefaultURITransformer));
-const logger = loggerService.createLogger(URI.file(join(environmentService.logsPath, `${TerminalLogConstants.FileName}.log`)), { name: process.env.VSCODE_PTY_LOG_NAME ?? localize('ptyHost', "Pty Host") });
-delete process.env.VSCODE_PTY_LOG_NAME;
+const isRemote = process.env.VSCODE_PTY_REMOTE === 'true';
+delete process.env.VSCODE_PTY_REMOTE;
+const logger = loggerService.createLogger(isRemote ? 'remoteptyhost' : 'ptyhost', { name: isRemote ? localize('remotePtyHost', "Pty Host (Remote)") : localize('ptyHost', "Pty Host") });
 const logService = new LogService(logger, [new ConsoleLogger()]);
 
 const heartbeatService = new HeartbeatService();

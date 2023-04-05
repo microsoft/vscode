@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Queue } from 'vs/base/common/async';
+import { ThrottledDelayer } from 'vs/base/common/async';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { basename, dirname, joinPath } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
@@ -16,8 +16,9 @@ const MAX_FILE_SIZE = 5 * ByteSize.MB;
 class FileLogger extends AbstractMessageLogger implements ILogger {
 
 	private readonly initializePromise: Promise<void>;
-	private readonly queue: Queue<void>;
+	private readonly flushDelayer: ThrottledDelayer<void>;
 	private backupIndex: number = 1;
+	private buffer: string = '';
 
 	constructor(
 		private readonly resource: URI,
@@ -27,11 +28,25 @@ class FileLogger extends AbstractMessageLogger implements ILogger {
 	) {
 		super();
 		this.setLevel(level);
-		this.queue = this._register(new Queue<void>());
+		this.flushDelayer = new ThrottledDelayer<void>(100 /* buffer saves over a short time */);
 		this.initializePromise = this.initialize();
 	}
 
-	override flush(): void {
+	override async flush(): Promise<void> {
+		if (!this.buffer) {
+			return;
+		}
+		await this.initializePromise;
+		let content = await this.loadContent();
+		if (content.length > MAX_FILE_SIZE) {
+			await this.fileService.writeFile(this.getBackupResource(), VSBuffer.fromString(content));
+			content = '';
+		}
+		if (this.buffer) {
+			content += this.buffer;
+			this.buffer = '';
+			await this.fileService.writeFile(this.resource, VSBuffer.fromString(content));
+		}
 	}
 
 	private async initialize(): Promise<void> {
@@ -45,20 +60,12 @@ class FileLogger extends AbstractMessageLogger implements ILogger {
 	}
 
 	protected log(level: LogLevel, message: string): void {
-		this.queue.queue(async () => {
-			await this.initializePromise;
-			let content = await this.loadContent();
-			if (content.length > MAX_FILE_SIZE) {
-				await this.fileService.writeFile(this.getBackupResource(), VSBuffer.fromString(content));
-				content = '';
-			}
-			if (this.donotUseFormatters) {
-				content += message;
-			} else {
-				content += `${this.getCurrentTimestamp()} [${this.stringifyLogLevel(level)}] ${message}\n`;
-			}
-			await this.fileService.writeFile(this.resource, VSBuffer.fromString(content));
-		});
+		if (this.donotUseFormatters) {
+			this.buffer += message;
+		} else {
+			this.buffer += `${this.getCurrentTimestamp()} [${this.stringifyLogLevel(level)}] ${message}\n`;
+		}
+		this.flushDelayer.trigger(() => this.flush());
 	}
 
 	private getCurrentTimestamp(): string {
@@ -99,9 +106,10 @@ export class FileLoggerService extends AbstractLoggerService implements ILoggerS
 
 	constructor(
 		logLevel: LogLevel,
-		@IFileService private readonly fileService: IFileService,
+		logsHome: URI,
+		private readonly fileService: IFileService,
 	) {
-		super(logLevel);
+		super(logLevel, logsHome);
 	}
 
 	protected doCreateLogger(resource: URI, logLevel: LogLevel, options?: ILoggerOptions): ILogger {

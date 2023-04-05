@@ -33,7 +33,7 @@
     "Programming Languages"
   ],
   "dependencies": {
-    "@vscode/extension-telemetry": "0.7.4-preview",
+    "@vscode/extension-telemetry": "0.7.5",
     "jsonc-parser": "^3.2.0",
     "semver": "5.5.1",
     "vscode-tas-client": "^0.1.63",
@@ -1559,59 +1559,6 @@
           {
             "kind": "source.organizeImports",
             "title": "%codeActions.source.organizeImports.title%"
-          }
-        ]
-      }
-    ],
-    "walkthroughs": [
-      {
-        "id": "nodejsWelcome",
-        "title": "%walkthroughs.nodejsWelcome.title%",
-        "icon": "media/nodejsWalkthroughIcon.png",
-        "description": "%walkthroughs.nodejsWelcome.description%",
-        "when": "false",
-        "steps": [
-          {
-            "id": "walkthroughs.nodejsWelcome.downloadNode.forMacOrWindows",
-            "title": "%walkthroughs.nodejsWelcome.downloadNode.forMacOrWindows.title%",
-            "description": "%walkthroughs.nodejsWelcome.downloadNode.forMacOrWindows.description%",
-            "media": {
-              "svg": "resources/walkthroughs/install-node-js.svg"
-            },
-            "when": "isWindows || isMac"
-          },
-          {
-            "id": "walkthroughs.nodejsWelcome.downloadNode.forLinux",
-            "title": "%walkthroughs.nodejsWelcome.downloadNode.forLinux.title%",
-            "description": "%walkthroughs.nodejsWelcome.downloadNode.forLinux.description%",
-            "media": {
-              "svg": "resources/walkthroughs/install-node-js.svg"
-            },
-            "when": "isLinux"
-          },
-          {
-            "id": "walkthroughs.nodejsWelcome.makeJsFile",
-            "title": "%walkthroughs.nodejsWelcome.makeJsFile.title%",
-            "description": "%walkthroughs.nodejsWelcome.makeJsFile.description%",
-            "media": {
-              "svg": "resources/walkthroughs/create-a-js-file.svg"
-            }
-          },
-          {
-            "id": "walkthroughs.nodejsWelcome.debugJsFile",
-            "title": "%walkthroughs.nodejsWelcome.debugJsFile.title%",
-            "description": "%walkthroughs.nodejsWelcome.debugJsFile.description%",
-            "media": {
-              "svg": "resources/walkthroughs/debug-and-run.svg"
-            }
-          },
-          {
-            "id": "walkthroughs.nodejsWelcome.learnMoreAboutJs",
-            "title": "%walkthroughs.nodejsWelcome.learnMoreAboutJs.title%",
-            "description": "%walkthroughs.nodejsWelcome.learnMoreAboutJs.description%",
-            "media": {
-              "svg": "resources/walkthroughs/learn-more.svg"
-            }
           }
         ]
       }

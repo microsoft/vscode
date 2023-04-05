@@ -98,7 +98,7 @@ export class FindModel extends Disposable {
 		}));
 
 		this._register(this._notebookEditor.onDidChangeCellState(e => {
-			if (e.cell.cellKind === CellKind.Markup) {
+			if (e.cell.cellKind === CellKind.Markup && e.source.editStateChanged) {
 				// research when markdown cell is switching between markdown preview and editing mode.
 				this.research();
 			}
@@ -414,8 +414,12 @@ export class FindModel extends Disposable {
 		}
 
 		this._state.change({ isSearching: false }, false);
-		return ret;
 
+		if (token.isCancellationRequested) {
+			return null;
+		}
+
+		return ret;
 	}
 
 	private _updateCurrentMatch(findMatches: CellFindMatchWithIndex[], currentMatchesPosition: number) {
@@ -457,11 +461,12 @@ export class FindModel extends Disposable {
 	private async highlightCurrentFindMatchDecoration(cellIndex: number, matchIndex: number): Promise<number | null> {
 		const cell = this._findMatches[cellIndex].cell;
 		const match = this._findMatches[cellIndex].getMatch(matchIndex);
-		return this._findMatchDecorationModel.highlightCurrentFindMatchDecoration(cell,
-			(matchIndex < this._findMatches[cellIndex].contentMatches.length) ?
-				(match as FindMatch) :
-				(match as CellWebviewFindMatch)
-		);
+
+		if (matchIndex < this._findMatches[cellIndex].contentMatches.length) {
+			return this._findMatchDecorationModel.highlightCurrentFindMatchDecorationInCell(cell, (match as FindMatch).range);
+		} else {
+			return this._findMatchDecorationModel.highlightCurrentFindMatchDecorationInWebview(cell, (match as CellWebviewFindMatch).index);
+		}
 	}
 
 	clear() {

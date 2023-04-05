@@ -1,0 +1,24 @@
+steps:
+  - pwsh: mkdir .build -ea 0
+    condition: and(succeeded(), contains(variables['Agent.OS'], 'windows'))
+    displayName: Create .build folder
+
+  - script: mkdir -p .build
+    condition: and(succeeded(), not(contains(variables['Agent.OS'], 'windows')))
+    displayName: Create .build folder
+
+  - script: node build/azure-pipelines/common/computeBuiltInDepsCacheKey.js > .build/builtindepshash
+    displayName: Prepare built-in extensions cache key
+
+  - task: Cache@2
+    inputs:
+      key: '"builtin-extensions" | .build/builtindepshash'
+      path: .build/builtInExtensions
+      cacheHitVar: BUILTIN_EXTENSIONS_RESTORED
+    displayName: Restore built-in extensions cache
+
+  - script: node build/lib/builtInExtensions.js
+    env:
+      GITHUB_TOKEN: "$(github-distro-mixin-password)"
+    condition: and(succeeded(), ne(variables.BUILTIN_EXTENSIONS_RESTORED, 'true'))
+    displayName: Download built-in extensions

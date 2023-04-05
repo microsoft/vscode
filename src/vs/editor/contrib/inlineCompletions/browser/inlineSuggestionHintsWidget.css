@@ -5,7 +5,7 @@
 
 .monaco-editor .inlineSuggestionsHints.withBorder {
 	z-index: 39;
-	color: var(--vscode-editor-hoverForeground);
+	color: var(--vscode-editorHoverWidget-foreground);
 	background-color: var(--vscode-editorHoverWidget-background);
 	border: 1px solid var(--vscode-editorHoverWidget-border);
 }

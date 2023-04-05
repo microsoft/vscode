@@ -6,7 +6,7 @@
 import * as osPath from 'vs/base/common/path';
 import { IMouseWheelEvent } from 'vs/base/browser/mouseEvent';
 import { coalesce } from 'vs/base/common/arrays';
-import { DeferredPromise } from 'vs/base/common/async';
+import { DeferredPromise, runWhenIdle } from 'vs/base/common/async';
 import { decodeBase64 } from 'vs/base/common/buffer';
 import { Emitter, Event } from 'vs/base/common/event';
 import { getExtensionForMimeType } from 'vs/base/common/mime';
@@ -52,6 +52,7 @@ import { IPathService } from 'vs/workbench/services/path/common/pathService';
 import { ITextEditorOptions } from 'vs/platform/editor/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { INotebookLoggingService } from 'vs/workbench/contrib/notebook/common/notebookLoggingService';
+import { IDisposable } from 'vs/base/common/lifecycle';
 
 const LINE_COLUMN_REGEX = /:([\d]+)(?::([\d]+))?$/;
 const LineQueryRegex = /line=(\d+)$/;
@@ -89,6 +90,7 @@ export interface INotebookDelegateForWebview {
 	didResizeOutput(cellId: string): void;
 	setScrollTop(scrollTop: number): void;
 	triggerScroll(event: IMouseWheelEvent): void;
+	updatePerformanceMetadata(cellId: string, executionId: string, duration: number, rendererId: string): void;
 }
 
 interface BacklayerWebviewOptions {
@@ -107,6 +109,7 @@ interface BacklayerWebviewOptions {
 	readonly markupFontSize: number;
 	readonly outputLineHeight: number;
 	readonly outputScrolling: boolean;
+	readonly outputWordWrap: boolean;
 	readonly outputLineLimit: number;
 }
 
@@ -123,6 +126,10 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 	element: HTMLElement;
 	webview: IWebviewElement | undefined = undefined;
 	insetMapping: Map<IDisplayOutputViewModel, ICachedInset<T>> = new Map();
+	pendingWebviewIdleCreationRequest: Map<IDisplayOutputViewModel, IDisposable> = new Map();
+	pendingWebviewIdleInsetMapping: Map<IDisplayOutputViewModel, ICachedInset<T>> = new Map();
+	private reversedPendingWebviewIdleInsetMapping: Map<string, IDisplayOutputViewModel> = new Map();
+
 	readonly markupPreviewMapping = new Map<string, IMarkupCellInitialization>();
 	private hiddenInsetMapping: Set<IDisplayOutputViewModel> = new Set();
 	private reversedInsetMapping: Map<string, IDisplayOutputViewModel> = new Map();
@@ -133,8 +140,6 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 	private _disposed = false;
 	private _currentKernel?: INotebookKernel;
 
-	private _initialized?: DeferredPromise<void>;
-	private _webviewPreloadInitialized?: DeferredPromise<void>;
 	private firstInit = true;
 	private initializeMarkupPromise?: { readonly requestId: string; readonly p: DeferredPromise<void>; readonly isFirstInit: boolean };
 
@@ -194,10 +199,9 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 		}
 
 		this._register(workspaceTrustManagementService.onDidChangeTrust(e => {
-			this._sendMessageToWebview({
-				type: 'updateWorkspaceTrust',
-				isTrusted: e,
-			});
+			const baseUrl = this.asWebviewUri(this.getNotebookBaseUri(), undefined);
+			const htmlContent = this.generateContent(baseUrl.toString());
+			this.webview?.setHtml(htmlContent);
 		}));
 
 		this._register(TokenizationRegistry.onDidChange(() => {
@@ -230,6 +234,11 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 			type: 'notebookOptions',
 			options: {
 				dragAndDropEnabled: this.options.dragAndDropEnabled
+			},
+			renderOptions: {
+				lineLimit: this.options.outputLineLimit,
+				outputScrolling: this.options.outputScrolling,
+				outputWordWrap: this.options.outputWordWrap
 			}
 		});
 	}
@@ -261,12 +270,13 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 		};
 	}
 
-	private generateContent(coreDependencies: string, baseUrl: string) {
+	private generateContent(baseUrl: string) {
 		const renderersData = this.getRendererData();
 		const preloadsData = this.getStaticPreloadsData();
 		const renderOptions = {
 			lineLimit: this.options.outputLineLimit,
-			outputScrolling: this.options.outputScrolling
+			outputScrolling: this.options.outputScrolling,
+			outputWordWrap: this.options.outputWordWrap
 		};
 		const preloadScript = preloadsScriptStr(
 			this.options,
@@ -316,14 +326,14 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 						font-size: var(--notebook-cell-output-font-size);
 						width: var(--notebook-output-width);
 						margin-left: var(--notebook-output-left-margin);
+						background-color: var(--theme-notebook-output-background);
 						padding-top: var(--notebook-output-node-padding);
 						padding-right: var(--notebook-output-node-padding);
 						padding-bottom: var(--notebook-output-node-padding);
 						padding-left: var(--notebook-output-node-left-padding);
 						box-sizing: border-box;
-						border-top: none !important;
+						border-top: none;
 						border: 1px solid var(--theme-notebook-output-border);
-						background-color: var(--theme-notebook-output-background);
 					}
 
 					/* markdown */
@@ -435,10 +445,6 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 				<style id="vscode-tokenization-styles" nonce="${this.nonce}">${getTokenizationCss()}</style>
 			</head>
 			<body style="overflow: hidden;">
-				<script>
-					self.require = {};
-				</script>
-				${coreDependencies}
 				<div id='findStart' tabIndex=-1></div>
 				<div id='container' class="widgetarea" style="position: absolute;width:100%;top: 0px"></div>
 				<div id="_defaultColorPalatte"></div>
@@ -495,67 +501,10 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 		return !!this.webview;
 	}
 
-	async createWebview(): Promise<void> {
+	createWebview(): Promise<void> {
 		const baseUrl = this.asWebviewUri(this.getNotebookBaseUri(), undefined);
-
-		// Python notebooks assume that requirejs is a global.
-		// For all other notebooks, they need to provide their own loader.
-		if (!this.documentUri.path.toLowerCase().endsWith('.ipynb')) {
-			const htmlContent = this.generateContent('', baseUrl.toString());
-			this._initialize(htmlContent);
-			return;
-		}
-
-		let coreDependencies = '';
-
-		this._initialized = new DeferredPromise();
-		this._webviewPreloadInitialized = new DeferredPromise();
-
-		if (!isWeb) {
-			const loaderUri = FileAccess.asFileUri('vs/loader.js');
-			const loader = this.asWebviewUri(loaderUri, undefined);
-
-			coreDependencies = `<script src="${loader}"></script><script>
-			var requirejs = (function() {
-				return require;
-			}());
-			</script>`;
-			const htmlContent = this.generateContent(coreDependencies, baseUrl.toString());
-			this._initialize(htmlContent);
-			this._initialized.complete();
-		} else {
-			const loaderUri = FileAccess.asBrowserUri('vs/loader.js');
-
-			fetch(loaderUri.toString(true)).then(async response => {
-				if (response.status !== 200) {
-					throw new Error(response.statusText);
-				}
-
-				const loaderJs = await response.text();
-
-				coreDependencies = `
-<script>
-${loaderJs}
-</script>
-<script>
-var requirejs = (function() {
-	return require;
-}());
-</script>
-`;
-
-				const htmlContent = this.generateContent(coreDependencies, baseUrl.toString());
-				this._initialize(htmlContent);
-				this._initialized!.complete();
-			}, error => {
-				// the fetch request is rejected
-				const htmlContent = this.generateContent(coreDependencies, baseUrl.toString());
-				this._initialize(htmlContent);
-				this._initialized!.complete();
-			});
-		}
-
-		await this._initialized.p;
+		const htmlContent = this.generateContent(baseUrl.toString());
+		return this._initialize(htmlContent);
 	}
 
 	private getNotebookBaseUri() {
@@ -590,7 +539,7 @@ var requirejs = (function() {
 		];
 	}
 
-	private _initialize(content: string) {
+	private _initialize(content: string): Promise<void> {
 		if (!document.body.contains(this.element)) {
 			throw new Error('Element is already detached from the DOM tree');
 		}
@@ -600,6 +549,12 @@ var requirejs = (function() {
 		this._register(this.webview);
 
 		this._register(new WebviewWindowDragMonitor(() => this.webview));
+
+		const initializePromise = new DeferredPromise<void>();
+
+		this._register(this.webview.onFatalError(e => {
+			initializePromise.error(new Error(`Could not initialize webview: ${e.message}}`));
+		}));
 
 		this._register(this.webview.onMessage(async (message) => {
 			const data: FromWebviewMessage | { readonly __vscode_notebook_message: undefined } = message.message;
@@ -613,7 +568,7 @@ var requirejs = (function() {
 
 			switch (data.type) {
 				case 'initialized': {
-					this._webviewPreloadInitialized?.complete();
+					initializePromise.complete();
 					this.initializeWebViewState();
 					break;
 				}
@@ -633,6 +588,25 @@ var requirejs = (function() {
 								const { cellInfo, output } = resolvedResult;
 								this.notebookEditor.updateOutputHeight(cellInfo, output, height, !!update.init, 'webview#dimension');
 								this.notebookEditor.scheduleOutputHeightAck(cellInfo, update.id, height);
+							} else if (update.init) {
+								// might be idle render request's ack
+								const outputRequest = this.reversedPendingWebviewIdleInsetMapping.get(update.id);
+								if (outputRequest) {
+									const inset = this.pendingWebviewIdleInsetMapping.get(outputRequest)!;
+
+									// clear the pending mapping
+									this.pendingWebviewIdleCreationRequest.delete(outputRequest);
+									this.pendingWebviewIdleCreationRequest.delete(outputRequest);
+
+									const cellInfo = inset.cellInfo;
+									this.reversedInsetMapping.set(update.id, outputRequest);
+									this.insetMapping.set(outputRequest, inset);
+									this.notebookEditor.updateOutputHeight(cellInfo, outputRequest, height, !!update.init, 'webview#dimension');
+									this.notebookEditor.scheduleOutputHeightAck(cellInfo, update.id, height);
+
+								}
+
+								this.reversedPendingWebviewIdleInsetMapping.delete(update.id);
 							}
 						} else {
 							this.notebookEditor.updateMarkupCellHeight(update.id, height, !!update.init);
@@ -730,6 +704,17 @@ var requirejs = (function() {
 							this.openerService.open(CellUri.generateCellOutputUri(this.documentUri, outputId));
 							return;
 						}
+						if (uri.path === 'cellOutput.enableScrolling') {
+							const outputId = uri.query;
+							const cell = this.reversedInsetMapping.get(outputId);
+
+							if (cell) {
+								cell.resetRenderer();
+							}
+
+							console.log(outputId);
+							return;
+						}
 
 						// We allow a very limited set of commands
 						this.openerService.open(data.href, {
@@ -739,6 +724,9 @@ var requirejs = (function() {
 								'github-issues.authNow',
 								'workbench.extensions.search',
 								'workbench.action.openSettings',
+								'_notebook.selectKernel',
+								// TODO@rebornix explore open output channel with name command
+								'jupyter.viewOutput'
 							],
 						});
 						return;
@@ -875,8 +863,14 @@ var requirejs = (function() {
 					this._logRendererDebugMessage(`${data.message}${data.data ? ' ' + JSON.stringify(data.data, null, 4) : ''}`);
 					break;
 				}
+				case 'notebookPerformanceMessage': {
+					this.notebookEditor.updatePerformanceMetadata(data.cellId, data.executionId, data.duration, data.rendererId);
+					break;
+				}
 			}
 		}));
+
+		return initializePromise.p;
 	}
 
 	private _handleNotebookCellResource(uri: URI) {
@@ -1297,11 +1291,6 @@ var requirejs = (function() {
 		const requestId = UUID.generateUuid();
 		this.initializeMarkupPromise = { p: new DeferredPromise(), requestId, isFirstInit: this.firstInit };
 
-		if (this._webviewPreloadInitialized) {
-			// wait for webview preload script module to be loaded
-			await this._webviewPreloadInitialized.p;
-		}
-
 		this.firstInit = false;
 
 		for (const cell of cells) {
@@ -1331,12 +1320,50 @@ var requirejs = (function() {
 		}
 	}
 
+	requestCreateOutputWhenWebviewIdle(cellInfo: T, content: IInsetRenderOutput, cellTop: number, offset: number) {
+		if (this._disposed) {
+			return;
+		}
+
+		if (this.insetMapping.has(content.source)) {
+			return;
+		}
+
+		if (this.pendingWebviewIdleCreationRequest.has(content.source)) {
+			return;
+		}
+
+		if (this.pendingWebviewIdleInsetMapping.has(content.source)) {
+			// handled in renderer process, waiting for webview to process it when idle
+			return;
+		}
+
+		this.pendingWebviewIdleCreationRequest.set(content.source, runWhenIdle(() => {
+			const { message, renderer, transfer: transferable } = this._createOutputCreationMessage(cellInfo, content, cellTop, offset, true, true);
+			this._sendMessageToWebview(message, transferable);
+			this.pendingWebviewIdleInsetMapping.set(content.source, { outputId: message.outputId, cellInfo: cellInfo, renderer, cachedCreation: message });
+			this.reversedPendingWebviewIdleInsetMapping.set(message.outputId, content.source);
+			this.pendingWebviewIdleCreationRequest.delete(content.source);
+		}));
+	}
+
 	createOutput(cellInfo: T, content: IInsetRenderOutput, cellTop: number, offset: number): void {
 		if (this._disposed) {
 			return;
 		}
 
 		const cachedInset = this.insetMapping.get(content.source);
+
+		// we now request to render the output immediately, so we can remove the pending request
+		// dispose the pending request in renderer process if it exists
+		this.pendingWebviewIdleCreationRequest.get(content.source)?.dispose();
+		this.pendingWebviewIdleCreationRequest.delete(content.source);
+
+		// if request has already been sent out, we then remove it from the pending mapping
+		this.pendingWebviewIdleInsetMapping.delete(content.source);
+		if (cachedInset) {
+			this.reversedPendingWebviewIdleInsetMapping.delete(cachedInset.outputId);
+		}
 
 		if (cachedInset && this._cachedInsetEqual(cachedInset, content)) {
 			this.hiddenInsetMapping.delete(content.source);
@@ -1350,14 +1377,31 @@ var requirejs = (function() {
 			return;
 		}
 
+		// create new output
+		const createOutput = () => {
+			const { message, renderer, transfer: transferable } = this._createOutputCreationMessage(cellInfo, content, cellTop, offset, false, false);
+			this._sendMessageToWebview(message, transferable);
+			this.insetMapping.set(content.source, { outputId: message.outputId, cellInfo: cellInfo, renderer, cachedCreation: message });
+			this.hiddenInsetMapping.delete(content.source);
+			this.reversedInsetMapping.set(message.outputId, content.source);
+		};
+
+		createOutput();
+	}
+
+	private _createOutputCreationMessage(cellInfo: T, content: IInsetRenderOutput, cellTop: number, offset: number, createOnIdle: boolean, initiallyHidden: boolean): { readonly message: ICreationRequestMessage; readonly renderer: INotebookRendererInfo | undefined; transfer: readonly ArrayBuffer[] } {
 		const messageBase = {
 			type: 'html',
+			executionId: cellInfo.executionId,
 			cellId: cellInfo.cellId,
 			cellTop: cellTop,
 			outputOffset: offset,
 			left: 0,
 			requiredPreloads: [],
+			createOnIdle: createOnIdle
 		} as const;
+
+		const transfer: ArrayBuffer[] = [];
 
 		let message: ICreationRequestMessage;
 		let renderer: INotebookRendererInfo | undefined;
@@ -1366,9 +1410,11 @@ var requirejs = (function() {
 			renderer = content.renderer;
 			const first = output.outputs.find(op => op.mime === content.mimeType)!;
 
-			// TODO@jrieken - the message can contain "bytes" and those are transferable
-			// which improves IPC performance and therefore should be used. However, it does
-			// means that the bytes cannot be used here anymore
+
+			// Copy the underlying buffer so we only send over the data we need
+			const valueBytes = new Uint8Array(first.data.buffer);
+			transfer.push(valueBytes.buffer);
+
 			message = {
 				...messageBase,
 				outputId: output.outputId,
@@ -1379,10 +1425,11 @@ var requirejs = (function() {
 					metadata: output.metadata,
 					output: {
 						mime: first.mime,
-						valueBytes: first.data.buffer,
+						valueBytes: valueBytes,
 					},
 					allOutputs: output.outputs.map(output => ({ mime: output.mime })),
 				},
+				initiallyHidden: initiallyHidden
 			};
 		} else {
 			message = {
@@ -1391,14 +1438,16 @@ var requirejs = (function() {
 				content: {
 					type: content.type,
 					htmlContent: content.htmlContent,
-				}
+				},
+				initiallyHidden: initiallyHidden
 			};
 		}
 
-		this._sendMessageToWebview(message);
-		this.insetMapping.set(content.source, { outputId: message.outputId, cellInfo: cellInfo, renderer, cachedCreation: message });
-		this.hiddenInsetMapping.delete(content.source);
-		this.reversedInsetMapping.set(message.outputId, content.source);
+		return {
+			message,
+			renderer,
+			transfer,
+		};
 	}
 
 	updateOutput(cellInfo: T, content: IInsetRenderOutput, cellTop: number, offset: number): void {
@@ -1461,6 +1510,10 @@ var requirejs = (function() {
 				cellId: outputCache.cellInfo.cellId
 			});
 			this.insetMapping.delete(output);
+			this.pendingWebviewIdleCreationRequest.get(output)?.dispose();
+			this.pendingWebviewIdleCreationRequest.delete(output);
+			this.pendingWebviewIdleInsetMapping.delete(output);
+			this.reversedPendingWebviewIdleInsetMapping.delete(id);
 			this.reversedInsetMapping.delete(id);
 		}
 	}
@@ -1507,7 +1560,7 @@ var requirejs = (function() {
 		});
 	}
 
-	async find(query: string, options: { wholeWord?: boolean; caseSensitive?: boolean; includeMarkup: boolean; includeOutput: boolean }): Promise<IFindMatch[]> {
+	async find(query: string, options: { wholeWord?: boolean; caseSensitive?: boolean; includeMarkup: boolean; includeOutput: boolean; shouldGetSearchPreviewInfo: boolean }): Promise<IFindMatch[]> {
 		if (query === '') {
 			return [];
 		}
@@ -1645,12 +1698,12 @@ var requirejs = (function() {
 		});
 	}
 
-	private _sendMessageToWebview(message: ToWebviewMessage) {
+	private _sendMessageToWebview(message: ToWebviewMessage, transfer?: readonly ArrayBuffer[]) {
 		if (this._disposed) {
 			return;
 		}
 
-		this.webview?.postMessage(message);
+		this.webview?.postMessage(message, transfer);
 	}
 
 	override dispose() {
@@ -1659,6 +1712,7 @@ var requirejs = (function() {
 		this.webview = undefined;
 		this.notebookEditor = null!;
 		this.insetMapping.clear();
+		this.pendingWebviewIdleCreationRequest.clear();
 		super.dispose();
 	}
 }

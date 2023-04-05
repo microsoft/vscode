@@ -9,7 +9,7 @@ import { URI } from 'vs/base/common/uri';
 import { IFileService } from 'vs/platform/files/common/files';
 import { registerRemoteContributions } from 'vs/workbench/contrib/terminal/electron-sandbox/terminalRemote';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
-import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
+import { INativeHostService } from 'vs/platform/native/common/native';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';

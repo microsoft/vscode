@@ -9,7 +9,7 @@ import { IDataTransferItem, UriList, VSDataTransfer } from 'vs/base/common/dataT
 import { once } from 'vs/base/common/functional';
 import * as htmlContent from 'vs/base/common/htmlContent';
 import { DisposableStore } from 'vs/base/common/lifecycle';
-import { ResourceSet } from 'vs/base/common/map';
+import { ResourceMap, ResourceSet } from 'vs/base/common/map';
 import { marked } from 'vs/base/common/marked/marked';
 import { parse } from 'vs/base/common/marshalling';
 import { Mimes } from 'vs/base/common/mime';
@@ -42,6 +42,7 @@ import { EditorGroupColumn } from 'vs/workbench/services/editor/common/editorGro
 import { ACTIVE_GROUP, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import type * as vscode from 'vscode';
 import * as types from './extHostTypes';
+import { IInteractiveSessionFollowup, IInteractiveSessionReplyFollowup, IInteractiveSessionResponseCommandFollowup } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionService';
 
 export namespace Command {
 
@@ -648,13 +649,30 @@ export namespace WorkspaceEdit {
 
 	export function to(value: extHostProtocol.IWorkspaceEditDto) {
 		const result = new types.WorkspaceEdit();
+		const edits = new ResourceMap<(types.TextEdit | types.SnippetTextEdit)[]>();
 		for (const edit of value.edits) {
 			if ((<extHostProtocol.IWorkspaceTextEditDto>edit).textEdit) {
-				result.replace(
-					URI.revive((<extHostProtocol.IWorkspaceTextEditDto>edit).resource),
-					Range.to((<extHostProtocol.IWorkspaceTextEditDto>edit).textEdit.range),
-					(<extHostProtocol.IWorkspaceTextEditDto>edit).textEdit.text
-				);
+
+				const item = <extHostProtocol.IWorkspaceTextEditDto>edit;
+				const uri = URI.revive(item.resource);
+				const range = Range.to(item.textEdit.range);
+				const text = item.textEdit.text;
+				const isSnippet = item.textEdit.insertAsSnippet;
+
+				let editOrSnippetTest: types.TextEdit | types.SnippetTextEdit;
+				if (isSnippet) {
+					editOrSnippetTest = types.SnippetTextEdit.replace(range, new types.SnippetString(text));
+				} else {
+					editOrSnippetTest = types.TextEdit.replace(range, text);
+				}
+
+				const array = edits.get(uri);
+				if (!array) {
+					edits.set(uri, [editOrSnippetTest]);
+				} else {
+					array.push(editOrSnippetTest);
+				}
+
 			} else {
 				result.renameFile(
 					URI.revive((<extHostProtocol.IWorkspaceFileEditDto>edit).oldResource!),
@@ -662,6 +680,10 @@ export namespace WorkspaceEdit {
 					(<extHostProtocol.IWorkspaceFileEditDto>edit).options
 				);
 			}
+		}
+
+		for (const [uri, array] of edits) {
+			result.set(uri, array);
 		}
 		return result;
 	}
@@ -2087,5 +2109,43 @@ export namespace DataTransfer {
 		await Promise.all(promises);
 
 		return newDTO;
+	}
+}
+
+export namespace InteractiveSessionReplyFollowup {
+	export function to(followup: IInteractiveSessionReplyFollowup): vscode.InteractiveSessionReplyFollowup {
+		return {
+			message: followup.message,
+			metadata: followup.metadata,
+			title: followup.title,
+			tooltip: followup.tooltip,
+		};
+	}
+
+	export function from(followup: vscode.InteractiveSessionReplyFollowup): IInteractiveSessionReplyFollowup {
+		return {
+			kind: 'reply',
+			message: followup.message,
+			metadata: followup.metadata,
+			title: followup.title,
+			tooltip: followup.tooltip,
+		};
+	}
+}
+
+export namespace InteractiveSessionFollowup {
+	export function from(followup: string | vscode.InteractiveSessionFollowup): IInteractiveSessionFollowup {
+		if (typeof followup === 'string') {
+			return <IInteractiveSessionReplyFollowup>{ title: followup, message: followup, kind: 'reply' };
+		} else if ('commandId' in followup) {
+			return <IInteractiveSessionResponseCommandFollowup>{
+				kind: 'command',
+				title: followup.title ?? '',
+				commandId: followup.commandId ?? '',
+				args: followup.args
+			};
+		} else {
+			return InteractiveSessionReplyFollowup.from(followup);
+		}
 	}
 }

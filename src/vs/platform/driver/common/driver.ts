@@ -28,9 +28,7 @@ export interface ILocalizedStrings {
 }
 
 export interface IWindowDriver {
-	click(selector: string, xoffset?: number | undefined, yoffset?: number | undefined): Promise<void>;
 	setValue(selector: string, text: string): Promise<void>;
-	getTitle(): Promise<string>;
 	isActiveElement(selector: string): Promise<boolean>;
 	getElements(selector: string, recursive: boolean): Promise<IElement[]>;
 	getElementXY(selector: string, xoffset?: number, yoffset?: number): Promise<{ x: number; y: number }>;

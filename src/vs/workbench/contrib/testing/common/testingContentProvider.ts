@@ -3,16 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { removeAnsiEscapeCodes } from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
+import { ILanguageSelection, ILanguageService } from 'vs/editor/common/languages/language';
 import { ITextModel } from 'vs/editor/common/model';
 import { IModelService } from 'vs/editor/common/services/model';
-import { ILanguageSelection, ILanguageService } from 'vs/editor/common/languages/language';
 import { ITextModelContentProvider, ITextModelService } from 'vs/editor/common/services/resolverService';
+import { localize } from 'vs/nls';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { TestMessageType } from 'vs/workbench/contrib/testing/common/testTypes';
-import { parseTestUri, TestUriType, TEST_DATA_SCHEME } from 'vs/workbench/contrib/testing/common/testingUri';
 import { ITestResultService } from 'vs/workbench/contrib/testing/common/testResultService';
-import { removeAnsiEscapeCodes } from 'vs/base/common/strings';
+import { TestMessageType } from 'vs/workbench/contrib/testing/common/testTypes';
+import { TEST_DATA_SCHEME, TestUriType, parseTestUri } from 'vs/workbench/contrib/testing/common/testingUri';
 
 /**
  * A content provider that returns various outputs for tests. This is used
@@ -43,8 +44,33 @@ export class TestingContentProvider implements IWorkbenchContribution, ITextMode
 		}
 
 		const result = this.resultService.getResult(parsed.resultId);
-		const test = result?.getStateById(parsed.testExtId);
+		if (!result) {
+			return null;
+		}
 
+		if (parsed.type === TestUriType.AllOutput) {
+			const stream = await result.getOutput();
+			const model = this.modelService.createModel('', null, resource, false);
+			const append = (text: string) => model.applyEdits([{
+				range: { startColumn: 1, endColumn: 1, startLineNumber: Infinity, endLineNumber: Infinity },
+				text,
+			}]);
+
+			let hadContent = false;
+			stream.on('data', buf => {
+				hadContent ||= buf.byteLength > 0;
+				append(removeAnsiEscapeCodes(buf.toString()));
+			});
+			stream.on('end', () => {
+				if (!hadContent) {
+					append(localize('runNoOutout', 'The test run did not record any output.'));
+				}
+			});
+			model.onWillDispose(() => stream.destroy());
+			return model;
+		}
+
+		const test = result?.getStateById(parsed.testExtId);
 		if (!test) {
 			return null;
 		}

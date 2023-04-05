@@ -547,7 +547,6 @@ suite('Inline Completions', () => {
 
 				assert.deepStrictEqual(context.getAndClearViewStates(), [
 					'',
-					'hello\n',
 					'hello[world]\n',
 					'hello\n',
 					'hello\nhello[world]',

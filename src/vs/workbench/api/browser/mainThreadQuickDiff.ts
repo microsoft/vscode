@@ -29,6 +29,7 @@ export class MainThreadQuickDiff implements MainThreadQuickDiffShape {
 			label,
 			rootUri: URI.revive(rootUri),
 			selector,
+			isSCM: false,
 			getOriginalResource: async (uri: URI) => {
 				return URI.revive(await this.proxy.$provideOriginalResource(handle, uri, new CancellationTokenSource().token));
 			}

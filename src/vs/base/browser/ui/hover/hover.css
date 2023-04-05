@@ -114,6 +114,11 @@
 	line-height: 22px;
 }
 
+.monaco-hover .hover-row.status-bar .info {
+	font-style: italic;
+	padding: 0px 8px;
+}
+
 .monaco-hover .hover-row.status-bar .actions {
 	display: flex;
 	padding: 0px 8px;
