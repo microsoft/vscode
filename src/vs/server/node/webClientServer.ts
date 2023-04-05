@@ -323,7 +323,7 @@ export class WebClientServer {
 
 		let productOverrides: Partial<IProductConfiguration> | undefined;
 		if (!this._environmentService.isBuilt) {
-			try { productOverrides = JSON.parse((await fsp.readFile(FileAccess.asFileUri('product.overrides.json').fsPath)).toString()); } catch (err) {/* Ignore Error */ }
+			try { productOverrides = JSON.parse((await fsp.readFile(join(APP_ROOT, 'product.overrides.json'))).toString()); } catch (err) {/* Ignore Error */ }
 		}
 
 		const nlsBaseUrl = this._productService.extensionsGallery?.nlsBaseUrl;
