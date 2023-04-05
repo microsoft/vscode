@@ -20,7 +20,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { TerminalSettingId } from 'vs/platform/terminal/common/terminal';
 import { SelectionClipboardContributionID } from 'vs/workbench/contrib/codeEditor/browser/selectionClipboard';
 import { getSimpleEditorOptions } from 'vs/workbench/contrib/codeEditor/browser/simpleEditorOptions';
-import { ITerminalInstance, IXtermTerminal } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { ITerminalInstance, ITerminalService, IXtermTerminal } from 'vs/workbench/contrib/terminal/browser/terminal';
 import type { Terminal } from 'xterm';
 import { TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
 import { IQuickInputService, IQuickPick, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
@@ -71,7 +71,8 @@ export class AccessibleBufferWidget extends DisposableStore {
 		@IQuickInputService private readonly _quickInputService: IQuickInputService,
 		@IAudioCueService private readonly _audioCueService: IAudioCueService,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
-		@ILogService private readonly _logService: ILogService
+		@ILogService private readonly _logService: ILogService,
+		@ITerminalService private readonly _terminalService: ITerminalService
 	) {
 		super();
 		this._xtermElement = _xterm.raw.element!;
@@ -135,6 +136,7 @@ export class AccessibleBufferWidget extends DisposableStore {
 			}
 		}));
 		this.add(this._editorWidget.onDidFocusEditorText(async () => {
+			this._terminalService.setActiveInstance(this._instance as ITerminalInstance);
 			if (this._accessibleBuffer.classList.contains(CssClass.Active)) {
 				// the user has focused the editor via mouse or
 				// Go to Command was run so we've already updated the editor
