@@ -459,7 +459,18 @@ export function registerLinkOpener(opener: ILinkOpener): IDisposable {
 	});
 }
 
+/**
+ * Represents an object that can handle editor open operations (e.g. when "go to definition" is called
+ * with a resource other than the current model).
+ */
 export interface ICodeEditorOpener {
+	/**
+	 * Callback that is invoked when a resource other than the current model should be opened (e.g. when "go to definition" is called).
+	 * The callback should return `true` if the request was handled and `false` otherwise.
+	 * @param source The code editor instance that initiated the request.
+	 * @param resource The URI of the resource that should be opened.
+	 * @param selectionOrPosition An optional position or selection inside the model corresponding to `resource` that can be used to set the cursor.
+	 */
 	openCodeEditor(source: ICodeEditor, resource: URI, selectionOrPosition?: IRange | IPosition): boolean | Promise<boolean>;
 }
 
@@ -468,6 +479,8 @@ export interface ICodeEditorOpener {
  * The handler callback should return `true` if the request was handled and `false` otherwise.
  *
  * Returns a disposable that can unregister the opener again.
+ *
+ * If no handler is registered the default behavior is to do nothing for models other than the currently attached one.
  */
 export function registerEditorOpener(opener: ICodeEditorOpener): IDisposable {
 	const codeEditorService = StandaloneServices.get(ICodeEditorService);
