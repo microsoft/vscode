@@ -199,10 +199,9 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 		}
 
 		this._register(workspaceTrustManagementService.onDidChangeTrust(e => {
-			this._sendMessageToWebview({
-				type: 'updateWorkspaceTrust',
-				isTrusted: e,
-			});
+			const baseUrl = this.asWebviewUri(this.getNotebookBaseUri(), undefined);
+			const htmlContent = this.generateContent(baseUrl.toString());
+			this.webview?.setHtml(htmlContent);
 		}));
 
 		this._register(TokenizationRegistry.onDidChange(() => {
