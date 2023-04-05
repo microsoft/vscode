@@ -334,6 +334,7 @@ export const activate: ActivationFunction<void> = (ctx) => {
 	#container div.truncation-message {
 		font-style: italic;
 		font-family: var(--theme-font-family);
+		padding-top: 4px;
 	}
 	#container div.output .scrollable div {
 		cursor: text;
