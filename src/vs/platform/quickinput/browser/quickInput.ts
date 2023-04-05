@@ -1405,8 +1405,10 @@ export class QuickInputController extends Disposable {
 						}
 						const stops = container.querySelectorAll<HTMLElement>(selectors.join(', '));
 						if (event.shiftKey && event.target === stops[0]) {
+							// Clear the focus from the list in order to allow
+							// screen readers to read operations in the input box.
 							dom.EventHelper.stop(e, true);
-							stops[stops.length - 1].focus();
+							list.clearFocus();
 						} else if (!event.shiftKey && event.target === stops[stops.length - 1]) {
 							dom.EventHelper.stop(e, true);
 							stops[0].focus();
