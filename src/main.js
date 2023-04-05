@@ -223,7 +223,6 @@ function configureCommandlineSwitchesSync(cliArgs) {
 			}
 		}
 
-
 		// Append main process flags to process.argv
 		else if (SUPPORTED_MAIN_PROCESS_SWITCHES.indexOf(argvKey) !== -1) {
 			switch (argvKey) {
