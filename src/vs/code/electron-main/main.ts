@@ -103,7 +103,9 @@ class CodeMain {
 
 			// Init services
 			try {
+				mark('code/willInitMainServices');
 				await this.initServices(environmentMainService, userDataProfilesMainService, configurationService, stateMainService, productService);
+				mark('code/didInitMainServices');
 			} catch (error) {
 
 				// Show a dialog for errors that can be resolved by the user
@@ -258,9 +260,12 @@ class CodeMain {
 			// Configuration service
 			configurationService.initialize(),
 
-			// Initialize Profiles
-			userDataProfilesMainService.init()
+			// Initialize Default Profile Extensions
+			userDataProfilesMainService.initializeDefaultProfileExtensions()
 		]);
+
+		// Initialize user data profiles after initializing the state
+		userDataProfilesMainService.init();
 	}
 
 	private async claimInstance(logService: ILogService, environmentMainService: IEnvironmentMainService, lifecycleMainService: ILifecycleMainService, instantiationService: IInstantiationService, productService: IProductService, retry: boolean): Promise<NodeIPCServer> {

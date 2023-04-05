@@ -166,8 +166,9 @@ class CliMain extends Disposable {
 
 		// Initialize
 		await Promise.all([
-			userDataProfilesService.init(),
-			configurationService.initialize()
+			stateService.init(),
+			configurationService.initialize(),
+			userDataProfilesService.initializeDefaultProfileExtensions(),
 		]);
 
 		// Get machine ID
@@ -179,6 +180,9 @@ class CliMain extends Disposable {
 				logService.error(error);
 			}
 		}
+
+		// Initialize user data profiles after initializing the state
+		userDataProfilesService.init();
 
 		// URI Identity
 		services.set(IUriIdentityService, new UriIdentityService(fileService));
