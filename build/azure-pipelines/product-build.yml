@@ -159,7 +159,7 @@ stages:
   - stage: Compile
     jobs:
       - job: Compile
-        pool: vscode-1es-linux
+        pool: 1es-ubuntu-20.04-x64
         variables:
           VSCODE_ARCH: x64
         steps:
@@ -172,7 +172,7 @@ stages:
     jobs:
       - ${{ if eq(parameters.VSCODE_BUILD_LINUX, true) }}:
         - job: CLILinuxX64
-          pool: vscode-1es-linux
+          pool: 1es-ubuntu-20.04-x64
           steps:
             - template: ./linux/cli-build-linux.yml
               parameters:
@@ -181,7 +181,7 @@ stages:
 
       - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), or(eq(parameters.VSCODE_BUILD_LINUX_ARMHF, true), eq(parameters.VSCODE_BUILD_LINUX_ARM64, true))) }}:
         - job: CLILinuxGnuARM
-          pool: vscode-1es-linux
+          pool: 1es-ubuntu-20.04-x64
           steps:
             - template: ./linux/cli-build-linux.yml
               parameters:
@@ -191,7 +191,7 @@ stages:
 
       - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), eq(parameters.VSCODE_BUILD_ALPINE, true)) }}:
         - job: CLIAlpineX64
-          pool: vscode-1es-linux
+          pool: 1es-ubuntu-20.04-x64
           steps:
             - template: ./alpine/cli-build-alpine.yml
               parameters:
@@ -200,7 +200,7 @@ stages:
 
       - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), eq(parameters.VSCODE_BUILD_ALPINE_ARM64, true)) }}:
         - job: CLIAlpineARM64
-          pool: vscode-1es-linux-20.04-arm64
+          pool: 1es-ubuntu-20.04-arm64
           steps:
             - bash: sudo apt update && sudo apt install -y unzip
               displayName: Install unzip
@@ -231,7 +231,7 @@ stages:
 
       - ${{ if eq(parameters.VSCODE_BUILD_WIN32, true) }}:
         - job: CLIWindowsX64
-          pool: vscode-1es-windows
+          pool: 1es-windows-2019-x64
           steps:
             - template: ./win32/cli-build-win32.yml
               parameters:
@@ -240,7 +240,7 @@ stages:
 
       - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), eq(parameters.VSCODE_BUILD_WIN32_ARM64, true)) }}:
         - job: CLIWindowsARM64
-          pool: vscode-1es-windows
+          pool: 1es-windows-2019-x64
           steps:
             - template: ./win32/cli-build-win32.yml
               parameters:
@@ -249,7 +249,7 @@ stages:
 
       - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), eq(parameters.VSCODE_BUILD_WIN32_32BIT, true)) }}:
         - job: CLIWindowsX86
-          pool: vscode-1es-windows
+          pool: 1es-windows-2019-x64
           steps:
             - template: ./win32/cli-build-win32.yml
               parameters:
@@ -261,7 +261,7 @@ stages:
       dependsOn:
         - Compile
         - CompileCLI
-      pool: vscode-1es-windows
+      pool: 1es-windows-2019-x64
       jobs:
         - ${{ if eq(variables['VSCODE_CIBUILD'], true) }}:
           - job: WindowsUnitTests
@@ -360,7 +360,7 @@ stages:
       dependsOn:
         - Compile
         - CompileCLI
-      pool: vscode-1es-linux
+      pool: 1es-ubuntu-20.04-x64
       jobs:
         - ${{ if eq(variables['VSCODE_CIBUILD'], true) }}:
           - job: Linuxx64UnitTest
@@ -476,7 +476,7 @@ stages:
       dependsOn:
         - Compile
         - CompileCLI
-      pool: vscode-1es-linux
+      pool: 1es-ubuntu-20.04-x64
       jobs:
         - ${{ if eq(parameters.VSCODE_BUILD_ALPINE, true) }}:
           - job: LinuxAlpine
@@ -636,7 +636,7 @@ stages:
     - stage: Web
       dependsOn:
         - Compile
-      pool: vscode-1es-linux
+      pool: 1es-ubuntu-20.04-x64
       jobs:
         - ${{ if eq(parameters.VSCODE_BUILD_WEB, true) }}:
           - job: Web
@@ -649,7 +649,7 @@ stages:
     - stage: Publish
       dependsOn:
         - Compile
-      pool: vscode-1es-linux
+      pool: 1es-ubuntu-20.04-x64
       variables:
         - name: BUILDS_API_URL
           value: $(System.CollectionUri)$(System.TeamProject)/_apis/build/builds/$(Build.BuildId)/
@@ -663,7 +663,7 @@ stages:
     - ${{ if and(parameters.VSCODE_RELEASE, eq(variables['VSCODE_PRIVATE_BUILD'], false)) }}:
       - stage: ApproveRelease
         dependsOn: [] # run in parallel to compile stage
-        pool: vscode-1es-linux
+        pool: 1es-ubuntu-20.04-x64
         jobs:
           - deployment: ApproveRelease
             displayName: "Approve Release"
@@ -682,7 +682,7 @@ stages:
           - Publish
           - ${{ if and(parameters.VSCODE_RELEASE, eq(variables['VSCODE_PRIVATE_BUILD'], false)) }}:
             - ApproveRelease
-        pool: vscode-1es-linux
+        pool: 1es-ubuntu-20.04-x64
         jobs:
           - job: ReleaseBuild
             displayName: Release Build
