@@ -164,7 +164,7 @@ function nodejs(platform, arch) {
 
 	if (platform === 'win32') {
 		if (product.nodejsRepository) {
-			return assetFromGithub(product.nodejsRepository, nodeVersion, `win-${arch}-node.exe`)
+			return assetFromGithub(product.nodejsRepository, nodeVersion, name => name === `win-${arch}-node.exe`)
 				.pipe(rename('node.exe'));
 		}
 

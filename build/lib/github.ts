@@ -23,17 +23,17 @@ const ghDownloadHeaders = {
 /**
  * @param repo for example `Microsoft/vscode`
  * @param version for example `16.17.1` - must be a valid releases tag
- * @param assetName for example `win-x64-node.exe` - must be an asset that exists
+ * @param assetName for example (name) => name === `win-x64-node.exe` - must be an asset that exists
  * @returns a stream with the asset as file
  */
-export function assetFromGithub(repo: string, version: string, assetName: string): Stream {
-	return remote(`/repos/${repo}/releases/tags/v${version}`, {
+export function assetFromGithub(repo: string, version: string, assetFilter: (name: string) => boolean): Stream {
+	return remote(`/repos/${repo.replace(/^\/|\/$/g, '')}/releases/tags/v${version}`, {
 		base: 'https://api.github.com',
 		requestOptions: { headers: ghApiHeaders }
 	}).pipe(through2.obj(function (file, _enc, callback) {
-		const asset = JSON.parse(file.contents.toString()).assets.find((a: { name: string }) => a.name === assetName);
+		const asset = JSON.parse(file.contents.toString()).assets.find((a: { name: string }) => assetFilter(a.name));
 		if (!asset) {
-			return callback(new Error(`Could not find asset ${assetName} in release of ${repo} @ ${version}`));
+			return callback(new Error(`Could not find asset in release of ${repo} @ ${version}`));
 		}
 
 		const res = got.stream(asset.url, { headers: ghDownloadHeaders, followRedirect: true });
