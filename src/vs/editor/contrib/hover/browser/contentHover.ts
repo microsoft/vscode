@@ -850,7 +850,7 @@ export class ResizableHoverWidget extends ResizableWidget {
 			contentsDomNode.style.width = 'auto';
 			contentsDomNode.style.height = 'auto';
 
-			// ---
+			// Added because otherwise the initial size of the hover content is not the initial one
 			this.element.domNode.style.width = 100000 + 'px';
 			this.element.domNode.style.height = 100000 + 'px';
 		}
@@ -884,11 +884,16 @@ export class ResizableHoverWidget extends ResizableWidget {
 		console.log('resizableClientHeight', resizableClientHeight);
 		console.log('resizableClientWidth : ', resizableClientWidth);
 
+		containerDomNode.style.height = clientHeight + 2 + 'px';
+		containerDomNode.style.width = clientWidth + 2 + 'px';
+
+		clientHeight = containerDomNode.clientHeight;
+		clientWidth = containerDomNode.clientWidth;
+
 		this.element.layout(clientHeight + 6, clientWidth + 6);
-		// ---
 		this.element.domNode.style.width = clientWidth + 6 + 'px';
 		this.element.domNode.style.height = clientHeight + 6 + 'px';
-		// ---
+
 		containerDomNode.style.height = clientHeight + 'px';
 		containerDomNode.style.width = clientWidth + 'px';
 		containerDomNode.style.top = 2 + 'px';
