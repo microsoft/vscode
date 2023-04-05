@@ -28,16 +28,6 @@ export interface IResizableWidget extends IDisposable {
 	resize(dimension: dom.Dimension): void;
 
 	/**
-	 * Method which should return the maximum current rendering height. By default is returns infinity.
-	 */
-	findMaximumRenderingHeight(): number | undefined;
-
-	/**
-	 * Method which should return the maximum current rendering width. By default is returns infinity.
-	 */
-	findMaximumRenderingWidth(): number | undefined;
-
-	/**
 	 * Method which returns the persisted size the resizable widget. It calls the findSize method of the persisting mechanism (whether single or multiple size persisting mechanism).
 	 */
 	findPersistedSize(): dom.Dimension | undefined;
@@ -95,14 +85,6 @@ export abstract class ResizableWidget implements IResizableWidget {
 
 	isResizing() {
 		return this.resizing;
-	}
-
-	findMaximumRenderingHeight(): number | undefined {
-		return Infinity;
-	}
-
-	findMaximumRenderingWidth(): number | undefined {
-		return Infinity;
 	}
 
 	findPersistedSize(): dom.Dimension | undefined {
@@ -260,12 +242,6 @@ export class SingleSizePersistingMechanism implements IPersistingMechanism {
 		}));
 		this.disposables.add(this.resizableWidget.element.onDidResize(e => {
 			this.resizableWidget.resize(new dom.Dimension(e.dimension.width, e.dimension.height));
-			const maxRenderingWidth = this.resizableWidget.findMaximumRenderingWidth();
-			const maxRenderingHeight = this.resizableWidget.findMaximumRenderingHeight();
-			if (!maxRenderingWidth || !maxRenderingHeight) {
-				return;
-			}
-			this.resizableWidget.element.maxSize = new dom.Dimension(maxRenderingWidth, maxRenderingHeight);
 			if (state) {
 				state.persistHeight = state.persistHeight || !!e.north || !!e.south;
 				state.persistWidth = state.persistWidth || !!e.east || !!e.west;
@@ -352,12 +328,6 @@ export class MultipleSizePersistingMechanism implements IPersistingMechanism {
 			const height = e.dimension.height;
 			const width = e.dimension.width;
 			this.resizableWidget.resize(new dom.Dimension(width, height));
-			const maxRenderingWidth = this.resizableWidget.findMaximumRenderingWidth();
-			const maxRenderingHeight = this.resizableWidget.findMaximumRenderingHeight();
-			if (!maxRenderingWidth || !maxRenderingHeight) {
-				return;
-			}
-			this.resizableWidget.element.maxSize = new dom.Dimension(maxRenderingWidth, maxRenderingHeight);
 			if (e.done) {
 				if (!this.editor.hasModel()) {
 					return;

@@ -509,7 +509,7 @@ export class ResizableHoverWidget extends ResizableWidget {
 		return this.hoverVisibleKey.get() ?? false;
 	}
 
-	public override resize(size: dom.Dimension) {
+	public resize(size: dom.Dimension) {
 
 		this.hoverWidget.contentsDomNode.style.maxHeight = 'none';
 		this.hoverWidget.contentsDomNode.style.maxWidth = 'none';
@@ -547,6 +547,12 @@ export class ResizableHoverWidget extends ResizableWidget {
 		this.element.eastSash.el.style.top = 2 * BORDER_WIDTH + 'px';
 		this.element.westSash.el.style.top = 2 * BORDER_WIDTH + 'px';
 
+		const maxRenderingWidth = this.findMaximumRenderingWidth();
+		const maxRenderingHeight = this.findMaximumRenderingHeight();
+		if (!maxRenderingWidth || !maxRenderingHeight) {
+			return;
+		}
+		this.element.maxSize = new dom.Dimension(maxRenderingWidth, maxRenderingHeight);
 		this.hoverWidget.scrollbar.scanDomNode();
 		this.editor.layoutContentWidget(this.resizableContentWidget);
 	}
@@ -574,7 +580,7 @@ export class ResizableHoverWidget extends ResizableWidget {
 		return this.findMaximumRenderingWidth();
 	}
 
-	public override findMaximumRenderingHeight(): number | undefined {
+	public findMaximumRenderingHeight(): number | undefined {
 
 		const availableSpace = this.findAvailableSpaceVertically();
 		if (!availableSpace) {
@@ -590,7 +596,7 @@ export class ResizableHoverWidget extends ResizableWidget {
 		return Math.min(availableSpace, divMaxHeight);
 	}
 
-	public override findMaximumRenderingWidth(): number | undefined {
+	public findMaximumRenderingWidth(): number | undefined {
 		if (!this.editor || !this.editor.hasModel()) {
 			return;
 		}
@@ -777,7 +783,6 @@ export class ResizableHoverWidget extends ResizableWidget {
 	}
 
 	public onContentsChanged(): void {
-
 		const persistedSize = this.findPersistedSize();
 		const containerDomNode = this.hoverWidget.containerDomNode;
 		const contentsDomNode = this.hoverWidget.contentsDomNode;
