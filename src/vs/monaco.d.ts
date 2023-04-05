@@ -2311,6 +2311,15 @@ declare namespace monaco.editor {
 	 */
 	export class LineRange {
 		/**
+		 * @param lineRanges An array of sorted line ranges.
+		 */
+		static joinMany(lineRanges: readonly (readonly LineRange[])[]): readonly LineRange[];
+		/**
+		 * @param lineRanges1 Must be sorted.
+		 * @param lineRanges2 Must be sorted.
+		 */
+		static join(lineRanges1: readonly LineRange[], lineRanges2: readonly LineRange[]): readonly LineRange[];
+		/**
 		 * The start line number.
 		 */
 		readonly startLineNumber: number;
@@ -2346,6 +2355,7 @@ declare namespace monaco.editor {
 		 */
 		intersect(other: LineRange): LineRange | undefined;
 		overlapOrTouch(other: LineRange): boolean;
+		equals(b: LineRange): boolean;
 	}
 
 	/**
@@ -7202,7 +7212,6 @@ declare namespace monaco.languages {
 	 */
 	export interface DocumentRangeFormattingEditProvider {
 		readonly displayName?: string;
-		readonly canFormatMultipleRanges: boolean;
 		/**
 		 * Provide formatting edits for a range in a document.
 		 *
@@ -7211,6 +7220,7 @@ declare namespace monaco.languages {
 		 * of the range to full syntax nodes.
 		 */
 		provideDocumentRangeFormattingEdits(model: editor.ITextModel, range: Range, options: FormattingOptions, token: CancellationToken): ProviderResult<TextEdit[]>;
+		provideDocumentRangesFormattingEdits?(model: editor.ITextModel, ranges: Range[], options: FormattingOptions, token: CancellationToken): ProviderResult<TextEdit[]>;
 	}
 
 	/**

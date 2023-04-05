@@ -29,6 +29,7 @@ import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/c
 import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/terminalContextKey';
 import { withNullAsUndefined } from 'vs/base/common/types';
 import { BufferContentTracker } from 'vs/workbench/contrib/terminalContrib/accessibility/browser/bufferContentTracker';
+import { ILogService } from 'vs/platform/log/common/log';
 
 const enum CssClass {
 	Active = 'active',
@@ -64,7 +65,8 @@ export class AccessibleBufferWidget extends DisposableStore {
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IQuickInputService private readonly _quickInputService: IQuickInputService,
 		@IAudioCueService private readonly _audioCueService: IAudioCueService,
-		@IContextKeyService private readonly _contextKeyService: IContextKeyService
+		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
+		@ILogService private readonly _logService: ILogService
 	) {
 		super();
 		this._xtermElement = _xterm.raw.element!;
@@ -75,8 +77,7 @@ export class AccessibleBufferWidget extends DisposableStore {
 		this._accessibleBuffer.classList.add('accessible-buffer');
 		this._editorContainer = document.createElement('div');
 		const codeEditorWidgetOptions: ICodeEditorWidgetOptions = {
-			isSimpleWidget: true,
-			contributions: EditorExtensionsRegistry.getSomeEditorContributions([LinkDetector.ID, SelectionClipboardContributionID])
+			contributions: EditorExtensionsRegistry.getSomeEditorContributions([LinkDetector.ID, SelectionClipboardContributionID, 'editor.contrib.selectionAnchorController'])
 		};
 		const font = _xterm.getFont();
 		const editorOptions: IEditorConstructionOptions = {
@@ -169,7 +170,7 @@ export class AccessibleBufferWidget extends DisposableStore {
 		const quickPickItems: IAccessibleBufferQuickPickItem[] = [];
 		for (const command of commands) {
 			const line = command.marker?.line;
-			if (!line || !command.command.length) {
+			if (line === undefined || !command.command.length || line < 0) {
 				continue;
 			}
 			quickPickItems.push(
@@ -240,6 +241,7 @@ export class AccessibleBufferWidget extends DisposableStore {
 		this._editorWidget.setScrollTop(this._editorWidget.getScrollHeight());
 		this._isUpdating = false;
 		if (this._pendingUpdates) {
+			this._logService.debug('TerminalAccessibleBuffer._updateEditor: pending updates', this._pendingUpdates);
 			this._pendingUpdates--;
 			await this._updateEditor();
 		}

@@ -245,20 +245,6 @@
 	margin: 16px 0;
 }
 
-.interactive-session .interactive-session-welcome-view {
-	box-sizing: border-box;
-	display: flex;
-	flex-direction: column;
-	justify-content: start;
-	padding: 20px;
-	gap: 16px;
-}
-
-.interactive-session .interactive-session-welcome-view .monaco-button {
-	max-width: 400px;
-	margin: 0;
-}
-
 .interactive-session .interactive-response .interactive-response-error-details {
 	display: flex;
 	align-items: start;

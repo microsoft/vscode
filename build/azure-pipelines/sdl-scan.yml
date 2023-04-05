@@ -102,6 +102,8 @@ stages:
 
           - script: node build/azure-pipelines/distro/mixin-quality
             displayName: Mixin distro quality
+            env:
+              VSCODE_QUALITY: stable
 
           - powershell: yarn compile
             displayName: Compile
@@ -238,6 +240,8 @@ stages:
 
           - script: node build/azure-pipelines/distro/mixin-quality
             displayName: Mixin distro quality
+            env:
+              VSCODE_QUALITY: stable
 
           - script: yarn gulp vscode-symbols-linux-$(VSCODE_ARCH)
             displayName: Build
