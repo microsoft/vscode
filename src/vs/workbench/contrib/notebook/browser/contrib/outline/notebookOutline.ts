@@ -353,8 +353,8 @@ export class NotebookCellOutline implements IOutline<OutlineEntry> {
 			this._onDidChange.fire({});
 		}));
 
-		this._dispoables.add(_notebookExecutionStateService.onDidChangeCellExecution(e => {
-			if (!!this._editor.textModel && e.affectsNotebook(this._editor.textModel?.uri)) {
+		this._dispoables.add(_notebookExecutionStateService.onDidChangeExecution(e => {
+			if (e.type === 'cell' && !!this._editor.textModel && e.affectsNotebook(this._editor.textModel?.uri)) {
 				this._recomputeState();
 			}
 		}));

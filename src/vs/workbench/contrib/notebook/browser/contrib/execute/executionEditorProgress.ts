@@ -21,8 +21,8 @@ export class ExecutionEditorProgressController extends Disposable implements INo
 
 		this._register(_notebookEditor.onDidScroll(() => this._update()));
 
-		this._register(_notebookExecutionStateService.onDidChangeCellExecution(e => {
-			if (e.notebook.toString() !== this._notebookEditor.textModel?.uri.toString()) {
+		this._register(_notebookExecutionStateService.onDidChangeExecution(e => {
+			if (e.type === 'cell' && e.notebook.toString() !== this._notebookEditor.textModel?.uri.toString()) {
 				return;
 			}
 

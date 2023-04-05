@@ -137,8 +137,10 @@ suite('NotebookExecutionStateService', () => {
 			const exe = executionStateService.createCellExecution(viewModel.uri, cell.handle);
 
 			let didFire = false;
-			disposables.add(executionStateService.onDidChangeCellExecution(e => {
-				didFire = !e.changed;
+			disposables.add(executionStateService.onDidChangeExecution(e => {
+				if (e.type === 'cell') {
+					didFire = !e.changed;
+				}
 			}));
 
 			viewModel.notebookDocument.applyEdits([{
@@ -162,8 +164,10 @@ suite('NotebookExecutionStateService', () => {
 			const exe = executionStateService.createCellExecution(viewModel.uri, cell.handle);
 
 			let didFire = false;
-			disposables.add(executionStateService.onDidChangeCellExecution(e => {
-				didFire = true;
+			disposables.add(executionStateService.onDidChangeExecution(e => {
+				if (e.type === 'cell') {
+					didFire = true;
+				}
 			}));
 
 			exe.update([{ editType: CellExecutionUpdateType.OutputItems, items: [], outputId: '1' }]);
@@ -187,17 +191,19 @@ suite('NotebookExecutionStateService', () => {
 			const cell = insertCellAtIndex(viewModel, 0, 'var c = 3', 'javascript', CellKind.Code, {}, [], true, true);
 
 			const deferred = new DeferredPromise<void>();
-			disposables.add(executionStateService.onDidChangeCellExecution(e => {
-				const cellUri = CellUri.generate(e.notebook, e.cellHandle);
-				const exe = executionStateService.getCellExecution(cellUri);
-				assert.ok(exe);
-				assert.strictEqual(e.notebook.toString(), exe.notebook.toString());
-				assert.strictEqual(e.cellHandle, exe.cellHandle);
+			disposables.add(executionStateService.onDidChangeExecution(e => {
+				if (e.type === 'cell') {
+					const cellUri = CellUri.generate(e.notebook, e.cellHandle);
+					const exe = executionStateService.getCellExecution(cellUri);
+					assert.ok(exe);
+					assert.strictEqual(e.notebook.toString(), exe.notebook.toString());
+					assert.strictEqual(e.cellHandle, exe.cellHandle);
 
-				assert.strictEqual(exe.notebook.toString(), e.changed?.notebook.toString());
-				assert.strictEqual(exe.cellHandle, e.changed?.cellHandle);
+					assert.strictEqual(exe.notebook.toString(), e.changed?.notebook.toString());
+					assert.strictEqual(exe.cellHandle, e.changed?.cellHandle);
 
-				deferred.complete();
+					deferred.complete();
+				}
 			}));
 
 			executionStateService.createCellExecution(viewModel.uri, cell.handle);

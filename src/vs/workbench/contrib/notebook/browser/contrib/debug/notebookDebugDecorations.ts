@@ -36,8 +36,8 @@ export class PausedCellDecorationContribution extends Disposable implements INot
 
 		this._register(_debugService.getModel().onDidChangeCallStack(() => this.updateExecutionDecorations()));
 		this._register(_debugService.getViewModel().onDidFocusStackFrame(() => this.updateExecutionDecorations()));
-		this._register(_notebookExecutionStateService.onDidChangeCellExecution(e => {
-			if (this._notebookEditor.textModel && e.affectsNotebook(this._notebookEditor.textModel.uri)) {
+		this._register(_notebookExecutionStateService.onDidChangeExecution(e => {
+			if (e.type === 'cell' && this._notebookEditor.textModel && e.affectsNotebook(this._notebookEditor.textModel.uri)) {
 				this.updateExecutionDecorations();
 			}
 		}));

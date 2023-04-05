@@ -29,10 +29,7 @@ export class NotebookExecutionStateService extends Disposable implements INotebo
 	private readonly _cellListeners = new ResourceMap<IDisposable>();
 	private readonly _lastFailedCells = new ResourceMap<IFailedCellInfo>();
 
-	private readonly _onDidChangeCellExecution = this._register(new Emitter<ICellExecutionStateChangedEvent>());
-	onDidChangeCellExecution = this._onDidChangeCellExecution.event;
-
-	private readonly _onDidChangeExecution = this._register(new Emitter<IExecutionStateChangedEvent>());
+	private readonly _onDidChangeExecution = this._register(new Emitter<ICellExecutionStateChangedEvent | IExecutionStateChangedEvent>());
 	onDidChangeExecution = this._onDidChangeExecution.event;
 
 	private readonly _onDidChangeLastRunFailState = this._register(new Emitter<INotebookFailStateChangedEvent>());
@@ -92,7 +89,7 @@ export class NotebookExecutionStateService extends Disposable implements INotebo
 	}
 
 	private _onCellExecutionDidChange(notebookUri: URI, cellHandle: number, exe: CellExecution): void {
-		this._onDidChangeCellExecution.fire(new NotebookCellExecutionEvent(notebookUri, cellHandle, exe));
+		this._onDidChangeExecution.fire(new NotebookCellExecutionEvent(notebookUri, cellHandle, exe));
 	}
 
 	private _onCellExecutionDidComplete(notebookUri: URI, cellHandle: number, exe: CellExecution, lastRunSuccess?: boolean): void {
@@ -125,7 +122,7 @@ export class NotebookExecutionStateService extends Disposable implements INotebo
 			}
 		}
 
-		this._onDidChangeCellExecution.fire(new NotebookCellExecutionEvent(notebookUri, cellHandle));
+		this._onDidChangeExecution.fire(new NotebookCellExecutionEvent(notebookUri, cellHandle));
 	}
 
 	private _onExecutionDidChange(notebookUri: URI, exe: NotebookExecution): void {
@@ -164,7 +161,7 @@ export class NotebookExecutionStateService extends Disposable implements INotebo
 			exe = this._createNotebookCellExecution(notebook, cellHandle);
 			notebookExecutionMap.set(cellHandle, exe);
 			exe.initialize();
-			this._onDidChangeCellExecution.fire(new NotebookCellExecutionEvent(notebookUri, cellHandle, exe));
+			this._onDidChangeExecution.fire(new NotebookCellExecutionEvent(notebookUri, cellHandle, exe));
 		}
 
 		return exe;
@@ -290,6 +287,7 @@ export class NotebookExecutionStateService extends Disposable implements INotebo
 }
 
 class NotebookCellExecutionEvent implements ICellExecutionStateChangedEvent {
+	readonly type = 'cell';
 	constructor(
 		readonly notebook: URI,
 		readonly cellHandle: number,
@@ -307,6 +305,7 @@ class NotebookCellExecutionEvent implements ICellExecutionStateChangedEvent {
 }
 
 class NotebookExecutionEvent implements IExecutionStateChangedEvent {
+	readonly type = 'notebook';
 	constructor(
 		readonly notebook: URI,
 		readonly changed?: NotebookExecution

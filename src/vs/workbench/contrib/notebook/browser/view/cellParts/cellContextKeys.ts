@@ -77,8 +77,8 @@ export class CellContextKeyManager extends Disposable {
 			}
 		});
 
-		this._register(this._notebookExecutionStateService.onDidChangeCellExecution(e => {
-			if (this.element && e.affectsCell(this.element.uri)) {
+		this._register(this._notebookExecutionStateService.onDidChangeExecution(e => {
+			if (e.type === 'cell' && this.element && e.affectsCell(this.element.uri)) {
 				this.updateForExecutionState();
 			}
 		}));

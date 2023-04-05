@@ -26,6 +26,7 @@ export interface ICellExecutionComplete {
 }
 
 export interface ICellExecutionStateChangedEvent {
+	type: 'cell';
 	notebook: URI;
 	cellHandle: number;
 	changed?: INotebookCellExecution; // undefined -> execution was completed
@@ -33,6 +34,7 @@ export interface ICellExecutionStateChangedEvent {
 	affectsNotebook(notebook: URI): boolean;
 }
 export interface IExecutionStateChangedEvent {
+	type: 'notebook';
 	notebook: URI;
 	changed?: INotebookExecution; // undefined -> execution was completed
 	affectsNotebook(notebook: URI): boolean;
@@ -53,8 +55,7 @@ export const INotebookExecutionStateService = createDecorator<INotebookExecution
 export interface INotebookExecutionStateService {
 	_serviceBrand: undefined;
 
-	onDidChangeExecution: Event<IExecutionStateChangedEvent>;
-	onDidChangeCellExecution: Event<ICellExecutionStateChangedEvent>;
+	onDidChangeExecution: Event<ICellExecutionStateChangedEvent | IExecutionStateChangedEvent>;
 	onDidChangeLastRunFailState: Event<INotebookFailStateChangedEvent>;
 
 	forceCancelNotebookExecutions(notebookUri: URI): void;

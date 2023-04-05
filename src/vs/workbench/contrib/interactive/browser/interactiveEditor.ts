@@ -153,8 +153,8 @@ export class InteractiveEditor extends EditorPane {
 
 		codeEditorService.registerDecorationType('interactive-decoration', DECORATION_KEY, {});
 		this._register(this.#keybindingService.onDidUpdateKeybindings(this.#updateInputDecoration, this));
-		this._register(this.#notebookExecutionStateService.onDidChangeCellExecution((e) => {
-			if (isEqual(e.notebook, this.#notebookWidget.value?.viewModel?.notebookDocument.uri)) {
+		this._register(this.#notebookExecutionStateService.onDidChangeExecution((e) => {
+			if (e.type === 'cell' && isEqual(e.notebook, this.#notebookWidget.value?.viewModel?.notebookDocument.uri)) {
 				const cell = this.#notebookWidget.value?.getCellByHandle(e.cellHandle);
 				if (cell && e.changed?.state) {
 					this.#scrollIfNecessary(cell);

@@ -419,8 +419,7 @@ class TestNotebookExecutionStateService implements INotebookExecutionStateServic
 
 	private _executions = new ResourceMap<INotebookCellExecution>();
 
-	onDidChangeCellExecution = new Emitter<ICellExecutionStateChangedEvent>().event;
-	onDidChangeExecution = new Emitter<IExecutionStateChangedEvent>().event;
+	onDidChangeExecution = new Emitter<ICellExecutionStateChangedEvent | IExecutionStateChangedEvent>().event;
 	onDidChangeLastRunFailState = new Emitter<INotebookFailStateChangedEvent>().event;
 
 	forceCancelNotebookExecutions(notebookUri: URI): void {

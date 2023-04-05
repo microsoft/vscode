@@ -138,8 +138,10 @@ export class MainThreadNotebookKernels implements MainThreadNotebookKernelsShape
 			this._notebookExecutions.forEach(e => e.complete());
 		}));
 
-		this._disposables.add(this._notebookExecutionStateService.onDidChangeCellExecution(e => {
-			this._proxy.$cellExecutionChanged(e.notebook, e.cellHandle, e.changed?.state);
+		this._disposables.add(this._notebookExecutionStateService.onDidChangeExecution(e => {
+			if (e.type === 'cell') {
+				this._proxy.$cellExecutionChanged(e.notebook, e.cellHandle, e.changed?.state);
+			}
 		}));
 	}
 

@@ -320,7 +320,10 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 			}
 		}));
 
-		this._register(notebookExecutionStateService.onDidChangeCellExecution(e => {
+		this._register(notebookExecutionStateService.onDidChangeExecution(e => {
+			if (e.type !== 'cell') {
+				return;
+			}
 			const cell = this.getCellByHandle(e.cellHandle);
 
 			if (cell instanceof CodeCellViewModel) {
