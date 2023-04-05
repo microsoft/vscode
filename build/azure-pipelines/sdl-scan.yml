@@ -105,6 +105,8 @@ stages:
             env:
               VSCODE_QUALITY: stable
 
+          - template: ./common/install-builtin-extensions.yml
+
           - powershell: yarn compile
             displayName: Compile
 
@@ -124,6 +126,7 @@ stages:
               TargetPattern: "guardianGlob"
               AnalyzeTargetGlob: '$(agent.builddirectory)\scanbin\**.dll;$(agent.builddirectory)\scanbin\**.exe;$(agent.builddirectory)\scanbin\**.node'
               AnalyzeLocalSymbolDirectories: '$(agent.builddirectory)\scanbin\VSCode-win32-$(VSCODE_ARCH)\pdb'
+              AnalyzeIgnorePdbLoadError: true
 
           - task: AntiMalware@4
             inputs:
