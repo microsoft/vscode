@@ -16,12 +16,11 @@ globalThis._VSCODE_NODE_MODULES = new Proxy(Object.create(null), { get: (_target
 
 // VSCODE_GLOBALS: package/product.json
 /** @type Record<string, any> */
-let product = require('../product.json');
+globalThis._VSCODE_PRODUCT_JSON = require('../product.json');
 if (process.env['VSCODE_DEV']) {
 	// Patch product overrides when running out of sources
-	try { product = Object.assign(product, require(require('path').join(__dirname, '../product.overrides.json'))); } catch (error) { /* ignore */ }
+	try { globalThis._VSCODE_PRODUCT_JSON = Object.assign(globalThis._VSCODE_PRODUCT_JSON, require(require('path').join(__dirname, '../product.overrides.json'))); } catch (error) { /* ignore */ }
 }
-globalThis._VSCODE_PRODUCT_JSON = product;
 globalThis._VSCODE_PACKAGE_JSON = require('../package.json');
 
 // @ts-ignore
