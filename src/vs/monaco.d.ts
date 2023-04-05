@@ -5951,6 +5951,10 @@ declare namespace monaco.languages {
 		 */
 		readonly hasAccessToAllModels?: boolean;
 		readonly exclusive?: boolean;
+		/**
+		 * This provider comes from a builtin extension.
+		 */
+		readonly isBuiltin?: boolean;
 	}
 
 	/**

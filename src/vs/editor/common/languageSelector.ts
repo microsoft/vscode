@@ -17,6 +17,11 @@ export interface LanguageFilter {
 	 */
 	readonly hasAccessToAllModels?: boolean;
 	readonly exclusive?: boolean;
+
+	/**
+	 * This provider comes from a builtin extension.
+	 */
+	readonly isBuiltin?: boolean;
 }
 
 export type LanguageSelector = string | LanguageFilter | ReadonlyArray<string | LanguageFilter>;
@@ -118,6 +123,10 @@ export function score(selector: LanguageSelector | undefined, candidateUri: URI,
 			} else {
 				return 0;
 			}
+		}
+
+		if ((selector as LanguageFilter).isBuiltin) {
+			ret = Math.max(ret - 0.5, 0);
 		}
 
 		return ret;
