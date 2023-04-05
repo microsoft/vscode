@@ -199,10 +199,12 @@ export class DebugHoverWidget implements IContentWidget {
 			this.hide();
 			return ShowDebugHoverResult.CANCELLED;
 		}
+
 		if (!result.range) {
 			this.hide();
 			return ShowDebugHoverResult.NOT_AVAILABLE;
 		}
+
 		if (this.isVisible() && !result.rangeChanged) {
 			return ShowDebugHoverResult.NOT_CHANGED;
 		}
@@ -212,6 +214,7 @@ export class DebugHoverWidget implements IContentWidget {
 			this.hide();
 			return ShowDebugHoverResult.CANCELLED;
 		}
+
 		if (!expression || (expression instanceof Expression && !expression.available)) {
 			this.hide();
 			return ShowDebugHoverResult.NOT_AVAILABLE;
