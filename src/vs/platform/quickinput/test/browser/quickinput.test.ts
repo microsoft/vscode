@@ -46,7 +46,6 @@ suite('QuickInput', () => { // https://github.com/microsoft/vscode/issues/147543
 			container: fixture,
 			idPrefix: 'testQuickInput',
 			ignoreFocusOut() { return true; },
-			isScreenReaderOptimized() { return false; },
 			returnFocus() { },
 			backKeybindingLabel() { return undefined; },
 			setContextKey() { return undefined; },
