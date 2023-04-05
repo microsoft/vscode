@@ -178,7 +178,7 @@ function configureCommandlineSwitchesSync(cliArgs) {
 		'disable-hardware-acceleration',
 
 		// override for the color profile to use
-		'force-color-profile',
+		'force-color-profile'
 	];
 
 	if (process.platform === 'linux') {
