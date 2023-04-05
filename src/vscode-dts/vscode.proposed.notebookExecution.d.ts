@@ -13,15 +13,6 @@ declare module 'vscode' {
 	 */
 	export interface NotebookExecution {
 		/**
-		 * A cancellation token which will be triggered when the execution is canceled
-		 * from the UI.
-		 *
-		 * _Note_ that the cancellation token will not be triggered when the {@link NotebookController controller}
-		 * that created this execution uses an {@link NotebookController.interruptHandler interrupt-handler}.
-		 */
-		readonly token: CancellationToken;
-
-		/**
 		 * Signal that the execution has begun.
 		 */
 		start(): void;

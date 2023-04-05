@@ -699,9 +699,7 @@ class NotebookExecutionTask extends Disposable {
 		this._tokenSource.cancel();
 	}
 	asApiObject(): vscode.NotebookExecution {
-		const token = this._tokenSource.token;
 		const result: vscode.NotebookExecution = {
-			get token() { return token; },
 			start: () => {
 				if (this._state === NotebookExecutionTaskState.Resolved || this._state === NotebookExecutionTaskState.Started) {
 					throw new Error('Cannot call start again');
