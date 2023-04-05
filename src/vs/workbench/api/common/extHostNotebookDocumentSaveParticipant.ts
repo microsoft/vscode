@@ -53,7 +53,7 @@ export class ExtHostNotebookDocumentSaveParticipant implements ExtHostNotebookDo
 
 		const edits: WorkspaceEdit[] = [];
 
-		await this._onWillSaveNotebookDocumentEvent.fireAsync({ document: document.apiNotebook, reason: TextDocumentSaveReason.to(reason) }, token, async (thenable: Promise<unknown>, listener) => {
+		await this._onWillSaveNotebookDocumentEvent.fireAsync({ notebook: document.apiNotebook, reason: TextDocumentSaveReason.to(reason) }, token, async (thenable: Promise<unknown>, listener) => {
 			const now = Date.now();
 			const data = await await Promise.resolve(thenable);
 			if (Date.now() - now > this._thresholds.timeout) {
