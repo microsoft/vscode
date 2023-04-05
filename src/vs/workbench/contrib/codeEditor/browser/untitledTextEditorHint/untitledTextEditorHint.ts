@@ -32,7 +32,7 @@ export class UntitledTextEditorHintContribution implements IEditorContribution {
 	private untitledTextHintContentWidget: UntitledTextEditorHintContentWidget | undefined;
 
 	constructor(
-		private editor: ICodeEditor,
+		private readonly editor: ICodeEditor,
 		@IEditorGroupsService private readonly editorGroupsService: IEditorGroupsService,
 		@ICommandService private readonly commandService: ICommandService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
@@ -142,11 +142,11 @@ class UntitledTextEditorHintContentWidget implements IContentWidget {
 
 			// ugly way to associate keybindings...
 			const keybindingsLookup = [ChangeLanguageAction.ID, ApplyFileSnippetAction.Id, 'welcome.showNewFileEntries'];
-			for (const anchor of hintElement.querySelectorAll('A')) {
-				(<HTMLAnchorElement>anchor).style.cursor = 'pointer';
+			for (const anchor of hintElement.querySelectorAll('a')) {
+				anchor.style.cursor = 'pointer';
 				const id = keybindingsLookup.shift();
 				const title = id && this.keybindingService.lookupKeybinding(id)?.getLabel();
-				(<HTMLAnchorElement>anchor).title = title ?? '';
+				anchor.title = title ?? '';
 			}
 
 			// the actual command handlers...

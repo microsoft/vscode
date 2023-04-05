@@ -1362,10 +1362,10 @@
   resolved "https://registry.yarnpkg.com/@vscode/vscode-languagedetection/-/vscode-languagedetection-1.0.21.tgz#89b48f293f6aa3341bb888c1118d16ff13b032d3"
   integrity sha512-zSUH9HYCw5qsCtd7b31yqkpaCU6jhtkKLkvOOA8yTrIRfBSOFb8PPhgmMicD7B/m+t4PwOJXzU1XDtrM9Fd3/g==
 
-"@vscode/vscode-perf@^0.0.6":
-  version "0.0.6"
-  resolved "https://registry.yarnpkg.com/@vscode/vscode-perf/-/vscode-perf-0.0.6.tgz#a2070882c953ba422badcf459d70e15852f93432"
-  integrity sha512-d/deAaHLT2SSA1hXPmPbM0mtm6G4fgBWohirk+AKkL+6IGQCVDeZadvY0yAWpeTeLdQFJcSRkOrXu1S05/eD0w==
+"@vscode/vscode-perf@^0.0.14":
+  version "0.0.14"
+  resolved "https://registry.yarnpkg.com/@vscode/vscode-perf/-/vscode-perf-0.0.14.tgz#0bc8d5fc02419df98e120ad4dc137c123191f7b1"
+  integrity sha512-mDJOIAVU3Ufj1FUX2/LZtLHobjl7zRA+oDKH3GSJYQ+RlfEvpFRoU1CRSwbE3u9fsKMX//uBDI4Q4B8+3s86uA==
   dependencies:
     chalk "^4.x"
     commander "^9.4.0"
