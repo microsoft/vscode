@@ -32,6 +32,7 @@
 		const ID = searchParams.get('id');
 		const webviewOrigin = searchParams.get('origin');
 		const onElectron = searchParams.get('platform') === 'electron';
+		const disableServiceWorker = searchParams.has('disableServiceWorker');
 		const expectedWorkerVersion = parseInt(searchParams.get('swVersion'));
 
 		/**
@@ -211,6 +212,10 @@
 
 		/** @type {Promise<void>} */
 		const workerReady = new Promise((resolve, reject) => {
+			if (disableServiceWorker) {
+				return resolve();
+			}
+
 			if (!areServiceWorkersEnabled()) {
 				return reject(new Error('Service Workers are not enabled. Webviews will not work. Try disabling private/incognito mode.'));
 			}
@@ -434,26 +439,29 @@
 			reduceMotion: false,
 		};
 
-		hostMessaging.onMessage('did-load-resource', (_event, data) => {
-			navigator.serviceWorker.getRegistration().then(registration => {
-				assertIsDefined(registration.active).postMessage({ channel: 'did-load-resource', data }, data.data?.buffer ? [data.data.buffer] : []);
+		if (!disableServiceWorker) {
+			hostMessaging.onMessage('did-load-resource', (_event, data) => {
+				navigator.serviceWorker.getRegistration().then(registration => {
+					assertIsDefined(registration.active).postMessage({ channel: 'did-load-resource', data }, data.data?.buffer ? [data.data.buffer] : []);
+				});
 			});
-		});
 
-		hostMessaging.onMessage('did-load-localhost', (_event, data) => {
-			navigator.serviceWorker.getRegistration().then(registration => {
-				assertIsDefined(registration.active).postMessage({ channel: 'did-load-localhost', data });
+			hostMessaging.onMessage('did-load-localhost', (_event, data) => {
+				navigator.serviceWorker.getRegistration().then(registration => {
+					assertIsDefined(registration.active).postMessage({ channel: 'did-load-localhost', data });
+				});
 			});
-		});
 
-		navigator.serviceWorker.addEventListener('message', event => {
-			switch (event.data.channel) {
-				case 'load-resource':
-				case 'load-localhost':
-					hostMessaging.postMessage(event.data.channel, event.data);
-					return;
-			}
-		});
+			navigator.serviceWorker.addEventListener('message', event => {
+				switch (event.data.channel) {
+					case 'load-resource':
+					case 'load-localhost':
+						hostMessaging.postMessage(event.data.channel, event.data);
+						return;
+				}
+			});
+		}
+
 		/**
 		 * @param {HTMLDocument?} document
 		 * @param {HTMLElement?} body
