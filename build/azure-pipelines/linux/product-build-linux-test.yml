@@ -38,8 +38,6 @@ steps:
         stat $ELECTRON_ROOT/chrome-sandbox
       displayName: Change setuid helper binary permission
 
-  - template: ../common/install-builtin-extensions.yml
-
   - ${{ if eq(parameters.VSCODE_RUN_UNIT_TESTS, true) }}:
     - ${{ if eq(parameters.VSCODE_QUALITY, 'oss') }}:
       - script: ./scripts/test.sh --tfs "Unit Tests"
