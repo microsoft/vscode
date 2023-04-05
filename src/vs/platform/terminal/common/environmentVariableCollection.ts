@@ -5,6 +5,7 @@
 
 import { IProcessEnvironment, isWindows } from 'vs/base/common/platform';
 import { EnvironmentVariableMutatorType, IEnvironmentVariableCollection, IExtensionOwnedEnvironmentVariableMutator, IMergedEnvironmentVariableCollection, IMergedEnvironmentVariableCollectionDiff } from 'vs/platform/terminal/common/environmentVariable';
+import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 
 type VariableResolver = (str: string) => Promise<string>;
 
@@ -18,7 +19,8 @@ export class MergedEnvironmentVariableCollection implements IMergedEnvironmentVa
 	readonly map: Map<string, IExtensionOwnedEnvironmentVariableMutator[]> = new Map();
 
 	constructor(
-		readonly collections: ReadonlyMap<string, IEnvironmentVariableCollection>
+		readonly collections: ReadonlyMap<string, IEnvironmentVariableCollection>,
+		readonly workspaceFolder?: IWorkspaceFolder
 	) {
 		collections.forEach((collection, extensionIdentifier) => {
 			const it = collection.map.entries();
@@ -26,6 +28,14 @@ export class MergedEnvironmentVariableCollection implements IMergedEnvironmentVa
 			while (!next.done) {
 				const variable = next.value[0];
 				let entry = this.map.get(variable);
+				if (this.workspaceFolder) {
+					// If the entry is scoped to a workspace folder, only apply it if the workspace
+					// folder matches.
+					if (entry && entry[0].scope?.workspaceFolder && entry[0].scope.workspaceFolder.uri.fsPath !== this.workspaceFolder.uri.fsPath) {
+						next = it.next();
+						continue;
+					}
+				}
 				if (!entry) {
 					entry = [];
 					this.map.set(variable, entry);
