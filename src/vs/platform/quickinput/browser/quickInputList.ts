@@ -325,7 +325,6 @@ export class QuickInputList {
 	) {
 		this.id = id;
 		this.container = dom.append(this.parent, $('.quick-input-list'));
-
 		const delegate = new ListElementDelegate();
 		const accessibilityProvider = new QuickInputAccessibilityProvider();
 		this.list = options.createList('QuickInput', this.container, delegate, [new ListElementRenderer()], {
@@ -462,6 +461,14 @@ export class QuickInputList {
 
 	set scrollTop(scrollTop: number) {
 		this.list.scrollTop = scrollTop;
+	}
+
+	get ariaLabel() {
+		return this.list.getHTMLElement().ariaLabel;
+	}
+
+	set ariaLabel(label: string | null) {
+		this.list.getHTMLElement().ariaLabel = label;
 	}
 
 	getAllVisibleChecked() {

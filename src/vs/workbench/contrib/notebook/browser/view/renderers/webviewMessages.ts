@@ -378,10 +378,6 @@ export interface INotebookOptionsMessage {
 	readonly renderOptions: RenderOptions;
 }
 
-export interface INotebookUpdateWorkspaceTrust {
-	readonly type: 'updateWorkspaceTrust';
-	readonly isTrusted: boolean;
-}
 export interface ITokenizedCodeBlockMessage {
 	readonly type: 'tokenizedCodeBlock';
 	readonly codeBlockId: string;
@@ -529,7 +525,6 @@ export type ToWebviewMessage = IClearMessage |
 	IInitializeMarkupCells |
 	INotebookStylesMessage |
 	INotebookOptionsMessage |
-	INotebookUpdateWorkspaceTrust |
 	ITokenizedCodeBlockMessage |
 	ITokenizedStylesChangedMessage |
 	IFindMessage |
