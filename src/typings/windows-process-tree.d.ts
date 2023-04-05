@@ -3,6 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+// Copied from the @vscode/windows-process-tree package.
+// The dependency is an optional dependency that is only used on Windows,
+// but we need the typings to compile on all platforms.
 declare module '@vscode/windows-process-tree' {
 	export enum ProcessDataFlag {
 		None = 0,
