@@ -252,6 +252,11 @@ function configureCommandlineSwitchesSync(cliArgs) {
 	 */
 	app.commandLine.appendSwitch('disable-features', 'CalculateNativeWinOcclusion');
 
+	/**
+	 * Allow media to play even if no user gesture is used to fix issues like #176284
+	 */
+	app.commandLine.appendSwitch('disable-features', 'CalculateNativeWinOcclusion,UnifiedAutoplay');
+
 	// Support JS Flags
 	const jsFlags = getJSFlags(cliArgs);
 	if (jsFlags) {
