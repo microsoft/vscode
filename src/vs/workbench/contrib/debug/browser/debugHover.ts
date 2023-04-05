@@ -204,7 +204,6 @@ export class DebugHoverWidget implements IContentWidget {
 			return ShowDebugHoverResult.NOT_AVAILABLE;
 		}
 		if (this.isVisible() && !result.rangeChanged) {
-			this.hide();
 			return ShowDebugHoverResult.NOT_CHANGED;
 		}
 
