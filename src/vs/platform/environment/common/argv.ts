@@ -45,7 +45,6 @@ export interface NativeParsedArgs {
 	'prof-duration-markers-file'?: string;
 	'prof-v8-extensions'?: boolean;
 	'no-cached-data'?: boolean;
-	'autoplay-policy'?: string;
 	verbose?: boolean;
 	trace?: boolean;
 	'trace-category-filter'?: string;
