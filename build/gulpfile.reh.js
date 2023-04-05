@@ -168,7 +168,7 @@ function nodejs(platform, arch) {
 				.pipe(rename('node.exe'));
 		}
 
-		return remote(`/dist/v${nodeVersion}/win-${arch}/node.exe`, { base: 'https://nodejs.org', requestOptions })
+		return remote(`/dist/v${nodeVersion}/win-${arch}/node.exe`, { base: 'https://nodejs.org' })
 			.pipe(rename('node.exe'));
 	}
 
