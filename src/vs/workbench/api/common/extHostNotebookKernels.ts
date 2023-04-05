@@ -221,6 +221,7 @@ export class ExtHostNotebookKernels implements ExtHostNotebookKernelsShape {
 				return that._createNotebookCellExecution(cell, createKernelId(extension.identifier, this.id));
 			},
 			createNotebookExecution(notebook) {
+				checkProposedApiEnabled(extension, 'notebookExecution');
 				if (isDisposed) {
 					throw new Error('notebook controller is DISPOSED');
 				}

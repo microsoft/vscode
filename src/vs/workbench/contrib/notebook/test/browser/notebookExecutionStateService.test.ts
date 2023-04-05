@@ -21,7 +21,7 @@ import { NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/viewMod
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
 import { CellEditType, CellKind, CellUri, IOutputDto, NotebookCellMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { CellExecutionUpdateType, INotebookExecutionService } from 'vs/workbench/contrib/notebook/common/notebookExecutionService';
-import { INotebookExecutionStateService } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
+import { INotebookExecutionStateService, NotebookExecutionType } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
 import { INotebookKernel, INotebookKernelService } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { setupInstantiationService, withTestNotebook as _withTestNotebook } from 'vs/workbench/contrib/notebook/test/browser/testNotebookEditor';
@@ -138,7 +138,7 @@ suite('NotebookExecutionStateService', () => {
 
 			let didFire = false;
 			disposables.add(executionStateService.onDidChangeExecution(e => {
-				if (e.type === 'cell') {
+				if (e.type === NotebookExecutionType.cell) {
 					didFire = !e.changed;
 				}
 			}));
@@ -165,7 +165,7 @@ suite('NotebookExecutionStateService', () => {
 
 			let didFire = false;
 			disposables.add(executionStateService.onDidChangeExecution(e => {
-				if (e.type === 'cell') {
+				if (e.type === NotebookExecutionType.cell) {
 					didFire = true;
 				}
 			}));
@@ -192,7 +192,7 @@ suite('NotebookExecutionStateService', () => {
 
 			const deferred = new DeferredPromise<void>();
 			disposables.add(executionStateService.onDidChangeExecution(e => {
-				if (e.type === 'cell') {
+				if (e.type === NotebookExecutionType.cell) {
 					const cellUri = CellUri.generate(e.notebook, e.cellHandle);
 					const exe = executionStateService.getCellExecution(cellUri);
 					assert.ok(exe);

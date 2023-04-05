@@ -16,7 +16,7 @@ import { registerNotebookContribution } from 'vs/workbench/contrib/notebook/brow
 import { cellStatusIconError, cellStatusIconSuccess } from 'vs/workbench/contrib/notebook/browser/notebookEditorWidget';
 import { errorStateIcon, executingStateIcon, pendingStateIcon, successStateIcon } from 'vs/workbench/contrib/notebook/browser/notebookIcons';
 import { CellStatusbarAlignment, INotebookCellStatusBarItem, NotebookCellExecutionState, NotebookCellInternalMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { INotebookCellExecution, INotebookExecutionStateService } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
+import { INotebookCellExecution, INotebookExecutionStateService, NotebookExecutionType } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
 
@@ -113,7 +113,7 @@ class ExecutionStateCellStatusBarItem extends Disposable {
 
 		this._update();
 		this._register(this._executionStateService.onDidChangeExecution(e => {
-			if (e.type === 'cell' && e.affectsCell(this._cell.uri)) {
+			if (e.type === NotebookExecutionType.cell && e.affectsCell(this._cell.uri)) {
 				this._update();
 			}
 		}));

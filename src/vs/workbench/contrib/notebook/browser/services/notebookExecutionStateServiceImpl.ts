@@ -16,7 +16,7 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
 import { CellEditType, CellUri, ICellEditOperation, NotebookCellExecutionState, NotebookCellInternalMetadata, NotebookExecutionState, NotebookTextModelWillAddRemoveEvent } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { CellExecutionUpdateType, INotebookExecutionService } from 'vs/workbench/contrib/notebook/common/notebookExecutionService';
-import { ICellExecuteUpdate, ICellExecutionComplete, ICellExecutionStateChangedEvent, ICellExecutionStateUpdate, IExecutionStateChangedEvent, IFailedCellInfo, INotebookCellExecution, INotebookExecution, INotebookExecutionStateService, INotebookFailStateChangedEvent } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
+import { ICellExecuteUpdate, ICellExecutionComplete, ICellExecutionStateChangedEvent, ICellExecutionStateUpdate, IExecutionStateChangedEvent, IFailedCellInfo, INotebookCellExecution, INotebookExecution, INotebookExecutionStateService, INotebookFailStateChangedEvent, NotebookExecutionType } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
 import { INotebookKernelService } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 
@@ -279,6 +279,10 @@ export class NotebookExecutionStateService extends Disposable implements INotebo
 			executionMap.clear();
 		});
 		this._executions.clear();
+		this._notebookExecutions.forEach(disposables => {
+			disposables.forEach(d => d.dispose());
+		});
+		this._notebookExecutions.clear();
 
 		this._cellListeners.forEach(disposable => disposable.dispose());
 		this._notebookListeners.forEach(disposable => disposable.dispose());
@@ -287,7 +291,7 @@ export class NotebookExecutionStateService extends Disposable implements INotebo
 }
 
 class NotebookCellExecutionEvent implements ICellExecutionStateChangedEvent {
-	readonly type = 'cell';
+	readonly type = NotebookExecutionType.cell;
 	constructor(
 		readonly notebook: URI,
 		readonly cellHandle: number,
@@ -305,7 +309,7 @@ class NotebookCellExecutionEvent implements ICellExecutionStateChangedEvent {
 }
 
 class NotebookExecutionEvent implements IExecutionStateChangedEvent {
-	readonly type = 'notebook';
+	readonly type = NotebookExecutionType.notebook;
 	constructor(
 		readonly notebook: URI,
 		readonly changed?: NotebookExecution

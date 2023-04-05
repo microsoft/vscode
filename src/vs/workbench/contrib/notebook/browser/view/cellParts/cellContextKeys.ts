@@ -13,7 +13,7 @@ import { CodeCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewMod
 import { MarkupCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/markupCellViewModel';
 import { NotebookCellExecutionState } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { NotebookCellExecutionStateContext, NOTEBOOK_CELL_EDITABLE, NOTEBOOK_CELL_EDITOR_FOCUSED, NOTEBOOK_CELL_EXECUTING, NOTEBOOK_CELL_EXECUTION_STATE, NOTEBOOK_CELL_FOCUSED, NOTEBOOK_CELL_HAS_OUTPUTS, NOTEBOOK_CELL_INPUT_COLLAPSED, NOTEBOOK_CELL_LINE_NUMBERS, NOTEBOOK_CELL_MARKDOWN_EDIT_MODE, NOTEBOOK_CELL_OUTPUT_COLLAPSED, NOTEBOOK_CELL_RESOURCE, NOTEBOOK_CELL_TYPE } from 'vs/workbench/contrib/notebook/common/notebookContextKeys';
-import { INotebookExecutionStateService } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
+import { INotebookExecutionStateService, NotebookExecutionType } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
 
 export class CellContextKeyPart extends CellContentPart {
 	private cellContextKeyManager: CellContextKeyManager;
@@ -78,7 +78,7 @@ export class CellContextKeyManager extends Disposable {
 		});
 
 		this._register(this._notebookExecutionStateService.onDidChangeExecution(e => {
-			if (e.type === 'cell' && this.element && e.affectsCell(this.element.uri)) {
+			if (e.type === NotebookExecutionType.cell && this.element && e.affectsCell(this.element.uri)) {
 				this.updateForExecutionState();
 			}
 		}));

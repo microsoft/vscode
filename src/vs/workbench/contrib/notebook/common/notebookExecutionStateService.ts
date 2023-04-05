@@ -24,9 +24,12 @@ export interface ICellExecutionComplete {
 	runEndTime?: number;
 	lastRunSuccess?: boolean;
 }
-
+export enum NotebookExecutionType {
+	cell,
+	notebook
+}
 export interface ICellExecutionStateChangedEvent {
-	type: 'cell';
+	type: NotebookExecutionType.cell;
 	notebook: URI;
 	cellHandle: number;
 	changed?: INotebookCellExecution; // undefined -> execution was completed
@@ -34,7 +37,7 @@ export interface ICellExecutionStateChangedEvent {
 	affectsNotebook(notebook: URI): boolean;
 }
 export interface IExecutionStateChangedEvent {
-	type: 'notebook';
+	type: NotebookExecutionType.notebook;
 	notebook: URI;
 	changed?: INotebookExecution; // undefined -> execution was completed
 	affectsNotebook(notebook: URI): boolean;
