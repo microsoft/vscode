@@ -318,7 +318,7 @@ stages:
                   VSCODE_RUN_INTEGRATION_TESTS: ${{ eq(parameters.VSCODE_STEP_ON_IT, false) }}
                   VSCODE_RUN_SMOKE_TESTS: ${{ eq(parameters.VSCODE_STEP_ON_IT, false) }}
 
-          - job: windowsCLISign
+          - job: WindowsCLISign
             timeoutInMinutes: 90
             steps:
               - template:  win32/product-build-win32-cli-sign.yml
