@@ -9,8 +9,6 @@ import * as cp from 'child_process';
 import * as glob from 'glob';
 import * as gulp from 'gulp';
 import * as path from 'path';
-import * as through2 from 'through2';
-import got from 'got';
 import { Stream } from 'stream';
 import * as File from 'vinyl';
 import { createStatsStream } from './stats';
@@ -27,6 +25,7 @@ import { getProductionDependencies } from './dependencies';
 import { getExtensionStream } from './builtInExtensions';
 import { getVersion } from './getVersion';
 import { remote, IOptions as IRemoteSrcOptions } from './gulpRemoteSource';
+import { assetFromGithub } from './github';
 
 const root = path.dirname(path.dirname(__dirname));
 const commit = getVersion(root);
@@ -237,17 +236,6 @@ export function fromMarketplace(serviceUrl: string, { name: extensionName, versi
 		.pipe(packageJsonFilter.restore);
 }
 
-const ghApiHeaders: Record<string, string> = {
-	Accept: 'application/vnd.github.v3+json',
-	'User-Agent': userAgent,
-};
-if (process.env.GITHUB_TOKEN) {
-	ghApiHeaders.Authorization = 'Basic ' + Buffer.from(process.env.GITHUB_TOKEN).toString('base64');
-}
-const ghDownloadHeaders = {
-	...ghApiHeaders,
-	Accept: 'application/octet-stream',
-};
 
 export function fromGithub({ name, version, repo, metadata }: IBuiltInExtension): Stream {
 	const json = require('gulp-json-editor') as typeof import('gulp-json-editor');
@@ -256,19 +244,7 @@ export function fromGithub({ name, version, repo, metadata }: IBuiltInExtension)
 
 	const packageJsonFilter = filter('package.json', { restore: true });
 
-	return remote([`/repos${new URL(repo).pathname}/releases/tags/v${version}`], {
-		base: 'https://api.github.com',
-		fetchOptions: { headers: ghApiHeaders }
-	}).pipe(through2.obj(function (file, _enc, callback) {
-		const asset = JSON.parse(file.contents.toString()).assets.find((a: any) => a.name.endsWith('.vsix'));
-		if (!asset) {
-			return callback(new Error(`Could not find vsix in release of ${repo} @ ${version}`));
-		}
-
-		const res = got.stream(asset.url, { headers: ghDownloadHeaders, followRedirect: true });
-		file.contents = res.pipe(through2());
-		callback(null, file);
-	}))
+	return assetFromGithub(new URL(repo).pathname, version, name => name.endsWith('.vsix'))
 		.pipe(buffer())
 		.pipe(vzip.src())
 		.pipe(filter('extension/**'))
