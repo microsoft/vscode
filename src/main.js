@@ -178,7 +178,7 @@ function configureCommandlineSwitchesSync(cliArgs) {
 		'disable-hardware-acceleration',
 
 		// override for the color profile to use
-		'force-color-profile'
+		'force-color-profile',
 	];
 
 	if (process.platform === 'linux') {
@@ -198,6 +198,7 @@ function configureCommandlineSwitchesSync(cliArgs) {
 
 	// Read argv config
 	const argvConfig = readArgvConfigSync();
+	app.commandLine.appendSwitch('--autoplay-policy', 'no-user-gesture-required');
 
 	Object.keys(argvConfig).forEach(argvKey => {
 		const argvValue = argvConfig[argvKey];
@@ -221,6 +222,7 @@ function configureCommandlineSwitchesSync(cliArgs) {
 				}
 			}
 		}
+
 
 		// Append main process flags to process.argv
 		else if (SUPPORTED_MAIN_PROCESS_SWITCHES.indexOf(argvKey) !== -1) {
