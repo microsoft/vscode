@@ -321,11 +321,17 @@ export class WebClientServer {
 			callbackRoute: this._callbackRoute
 		};
 
+		let productOverrides: string | undefined;
+		if (!this._environmentService.isBuilt) {
+			try { productOverrides = (await fsp.readFile(FileAccess.asFileUri('product.overrides.json').fsPath)).toString(); } catch (err) {/* Ignore Error */ }
+		}
+
 		const nlsBaseUrl = this._productService.extensionsGallery?.nlsBaseUrl;
 		const values: { [key: string]: string } = {
 			WORKBENCH_WEB_CONFIGURATION: asJSON(workbenchWebConfiguration),
 			WORKBENCH_AUTH_SESSION: authSessionInfo ? asJSON(authSessionInfo) : '',
 			WORKBENCH_WEB_BASE_URL: this._staticRoute,
+			WORKBENCH_PRODUCT_OVERRIDES: productOverrides ?? '',
 			WORKBENCH_NLS_BASE_URL: nlsBaseUrl ? `${nlsBaseUrl}${!nlsBaseUrl.endsWith('/') ? '/' : ''}${this._productService.commit}/${this._productService.version}/` : '',
 		};
 
