@@ -321,9 +321,9 @@ export class WebClientServer {
 			callbackRoute: this._callbackRoute
 		};
 
-		let productOverrides: string | undefined;
+		let productOverrides: Partial<IProductConfiguration> | undefined;
 		if (!this._environmentService.isBuilt) {
-			try { productOverrides = (await fsp.readFile(FileAccess.asFileUri('product.overrides.json').fsPath)).toString(); } catch (err) {/* Ignore Error */ }
+			try { productOverrides = JSON.parse((await fsp.readFile(FileAccess.asFileUri('product.overrides.json').fsPath)).toString()); } catch (err) {/* Ignore Error */ }
 		}
 
 		const nlsBaseUrl = this._productService.extensionsGallery?.nlsBaseUrl;
@@ -331,7 +331,7 @@ export class WebClientServer {
 			WORKBENCH_WEB_CONFIGURATION: asJSON(workbenchWebConfiguration),
 			WORKBENCH_AUTH_SESSION: authSessionInfo ? asJSON(authSessionInfo) : '',
 			WORKBENCH_WEB_BASE_URL: this._staticRoute,
-			WORKBENCH_PRODUCT_OVERRIDES: productOverrides ?? '',
+			WORKBENCH_PRODUCT_OVERRIDES: productOverrides ? asJSON(productOverrides) : '',
 			WORKBENCH_NLS_BASE_URL: nlsBaseUrl ? `${nlsBaseUrl}${!nlsBaseUrl.endsWith('/') ? '/' : ''}${this._productService.commit}/${this._productService.version}/` : '',
 		};
 
