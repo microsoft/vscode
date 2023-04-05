@@ -136,9 +136,9 @@ export class NotebookExecutionStateService extends Disposable implements INotebo
 			return;
 		}
 
-		disposables.forEach(d => d.dispose());
 		this._notebookExecutions.delete(notebookUri);
 		this._onDidChangeExecution.fire(new NotebookExecutionEvent(notebookUri));
+		disposables.forEach(d => d.dispose());
 	}
 
 	createCellExecution(notebookUri: URI, cellHandle: number): INotebookCellExecution {
@@ -181,7 +181,6 @@ export class NotebookExecutionStateService extends Disposable implements INotebo
 		if (!info) {
 			info = this._createNotebookExecution(notebook);
 			this._notebookExecutions.set(notebookUri, info);
-			// exe.initialize();
 			this._onDidChangeExecution.fire(new NotebookExecutionEvent(notebookUri, info[0]));
 		}
 
