@@ -889,16 +889,16 @@ class EnvironmentVariableCollection implements vscode.EnvironmentVariableCollect
 		return this.map.size;
 	}
 
-	replace(variable: string, value: string): void {
-		this._setIfDiffers(variable, { value, type: EnvironmentVariableMutatorType.Replace });
+	replace(variable: string, value: string, scope?: vscode.EnvironmentVariableScope): void {
+		this._setIfDiffers(variable, { value, type: EnvironmentVariableMutatorType.Replace, scope });
 	}
 
-	append(variable: string, value: string): void {
-		this._setIfDiffers(variable, { value, type: EnvironmentVariableMutatorType.Append });
+	append(variable: string, value: string, scope?: vscode.EnvironmentVariableScope): void {
+		this._setIfDiffers(variable, { value, type: EnvironmentVariableMutatorType.Append, scope });
 	}
 
-	prepend(variable: string, value: string): void {
-		this._setIfDiffers(variable, { value, type: EnvironmentVariableMutatorType.Prepend });
+	prepend(variable: string, value: string, scope?: vscode.EnvironmentVariableScope): void {
+		this._setIfDiffers(variable, { value, type: EnvironmentVariableMutatorType.Prepend, scope });
 	}
 
 	private _setIfDiffers(variable: string, mutator: vscode.EnvironmentVariableMutator): void {

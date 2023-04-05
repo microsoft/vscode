@@ -43,7 +43,8 @@ export class MergedEnvironmentVariableCollection implements IMergedEnvironmentVa
 				entry.unshift({
 					extensionIdentifier,
 					value: mutator.value,
-					type: mutator.type
+					type: mutator.type,
+					scope: mutator.scope
 				});
 
 				next = it.next();
