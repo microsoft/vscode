@@ -2360,7 +2360,12 @@ export class Repository implements Disposable {
 
 	private updateBranchProtectionMatcher(): void {
 		const scopedConfig = workspace.getConfiguration('git', Uri.file(this.repository.root));
-		const branchProtectionGlobs = scopedConfig.get<string[]>('branchProtection')!.map(bp => bp.trim()).filter(bp => bp !== '');
+		const branchProtectionConfig = scopedConfig.get<unknown>('branchProtection') ?? [];
+		const branchProtectionValues = Array.isArray(branchProtectionConfig) ? branchProtectionConfig : [branchProtectionConfig];
+
+		const branchProtectionGlobs = branchProtectionValues
+			.map(bp => typeof bp === 'string' ? bp.trim() : '')
+			.filter(bp => bp !== '');
 
 		if (branchProtectionGlobs.length === 0) {
 			this.isBranchProtectedMatcher = undefined;

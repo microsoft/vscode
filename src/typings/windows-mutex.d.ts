@@ -3,5 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-export const rendererLogId = 'rendererLog';
-export const showWindowLogActionId = 'workbench.action.showWindowLog';
+declare module '@vscode/windows-mutex' {
+	export class Mutex {
+		constructor(name: string);
+		isActive(): boolean;
+		release(): void;
+	}
+
+	export function isActive(name: string): boolean;
+}
