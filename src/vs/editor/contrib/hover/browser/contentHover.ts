@@ -662,7 +662,6 @@ export class ResizableHoverWidget extends ResizableWidget {
 	}
 
 	public showAt(node: DocumentFragment, visibleData: ContentHoverVisibleData): void {
-
 		if (!this.editor || !this.editor.hasModel()) {
 			return;
 		}
@@ -757,7 +756,7 @@ export class ResizableHoverWidget extends ResizableWidget {
 		this.visible = true;
 	}
 
-	public override hide(): void {
+	public hide(): void {
 		this.visible = false;
 		this.element.maxSize = new dom.Dimension(Infinity, Infinity);
 		this.element.clearSashHoverState();
