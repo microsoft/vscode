@@ -162,19 +162,12 @@ function nodejs(platform, arch) {
 	}
 
 	if (platform === 'win32') {
-		let base;
-		let path;
-		let requestOptions = undefined;
 		if (product.nodejsRepository) {
-			base = 'https://github.com';
-			path = `/${product.nodejsRepository}/releases/download/v${nodeVersion}/win-${arch}-node.exe`;
-			requestOptions = { headers: { Authorization: `Bearer ${process.env['GITHUB_TOKEN'] }` } };
-		} else {
-			base = 'https://nodejs.org';
-			path = `/dist/v${nodeVersion}/win-${arch}/node.exe`;
+			return nodejsFromCustomRepository(`https://github.com/${product.nodejsRepository}`, nodeVersion, arch)
+				.pipe(rename('node.exe'));
 		}
 
-		return remote(path, { base, requestOptions })
+		return remote(`/dist/v${nodeVersion}/win-${arch}/node.exe`, { base: 'https://nodejs.org', requestOptions })
 			.pipe(rename('node.exe'));
 	}
 
@@ -193,6 +186,41 @@ function nodejs(platform, arch) {
 		.pipe(filter('**/node'))
 		.pipe(util.setExecutableBit('**'))
 		.pipe(rename('node'));
+}
+
+function nodejsFromCustomRepository(repo, nodeVersion, arch) {
+	const remote = require('gulp-remote-retry-src');
+	const got = require('got');
+	const through2 = require('through2');
+
+	const userAgent = 'VSCode Build';
+
+	const ghApiHeaders = {
+		Accept: 'application/vnd.github.v3+json',
+		'User-Agent': userAgent,
+		Authorization: 'Basic ' + Buffer.from(process.env.GITHUB_TOKEN).toString('base64')
+	};
+
+	const ghDownloadHeaders = {
+		...ghApiHeaders,
+		Accept: 'application/octet-stream'
+	};
+
+	const assetName = `win-${arch}-node.exe`;
+
+	return remote([`/repos${new URL(repo).pathname}/releases/tags/v${nodeVersion}`], {
+		base: 'https://api.github.com',
+		requestOptions: { headers: ghApiHeaders }
+	}).pipe(through2.obj(function (file, _enc, callback) {
+		const asset = JSON.parse(file.contents.toString()).assets.find(a => a.name === assetName);
+		if (!asset) {
+			return callback(new Error(`Could not find node.js in release of ${repo} @ ${nodeVersion}`));
+		}
+
+		const res = got.stream(asset.url, { headers: ghDownloadHeaders, followRedirect: true });
+		file.contents = res.pipe(through2());
+		callback(null, file);
+	}));
 }
 
 function packageTask(type, platform, arch, sourceFolderName, destinationFolderName) {
