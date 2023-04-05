@@ -16,4 +16,3 @@ vscode.lsif
 vscode.db
 /.profile-oss
 /cli/target
-product.overrides.json
