@@ -188,18 +188,16 @@ suite('NotebookExecutionStateService', () => {
 
 			const deferred = new DeferredPromise<void>();
 			disposables.add(executionStateService.onDidChangeCellExecution(e => {
-				if (typeof e.cellHandle === 'number') {
-					const cellUri = CellUri.generate(e.notebook, e.cellHandle);
-					const exe = executionStateService.getCellExecution(cellUri);
-					assert.ok(exe);
-					assert.strictEqual(e.notebook.toString(), exe.notebook.toString());
-					assert.strictEqual(e.cellHandle, exe.cellHandle);
+				const cellUri = CellUri.generate(e.notebook, e.cellHandle);
+				const exe = executionStateService.getCellExecution(cellUri);
+				assert.ok(exe);
+				assert.strictEqual(e.notebook.toString(), exe.notebook.toString());
+				assert.strictEqual(e.cellHandle, exe.cellHandle);
 
-					assert.strictEqual(exe.notebook.toString(), e.changed?.notebook.toString());
-					assert.strictEqual(exe.cellHandle, e.changed?.cellHandle);
+				assert.strictEqual(exe.notebook.toString(), e.changed?.notebook.toString());
+				assert.strictEqual(exe.cellHandle, e.changed?.cellHandle);
 
-					deferred.complete();
-				}
+				deferred.complete();
 			}));
 
 			executionStateService.createCellExecution(viewModel.uri, cell.handle);
