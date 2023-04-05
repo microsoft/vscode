@@ -30,6 +30,7 @@ import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/termin
 import { withNullAsUndefined } from 'vs/base/common/types';
 import { BufferContentTracker } from 'vs/workbench/contrib/terminalContrib/accessibility/browser/bufferContentTracker';
 import { ILogService } from 'vs/platform/log/common/log';
+import { IEditorViewState } from 'vs/editor/common/editorCommon';
 
 const enum CssClass {
 	Active = 'active',
@@ -58,6 +59,8 @@ export class AccessibleBufferWidget extends DisposableStore {
 	private _bufferTracker: BufferContentTracker;
 
 	private _cursorPosition: { lineNumber: number; column: number } | undefined;
+
+	private _lastModelLineCount?: number;
 
 	constructor(
 		private readonly _instance: Pick<ITerminalInstance, 'capabilities' | 'onDidRequestFocus' | 'resource'>,
@@ -129,13 +132,6 @@ export class AccessibleBufferWidget extends DisposableStore {
 					this._hide();
 					this._xterm.raw.focus();
 					break;
-			}
-		}));
-		this.add(this._editorWidget.onDidChangeCursorPosition((c) => {
-			if (c.source === 'mouse' || c.source === 'keyboard') {
-				this._cursorPosition = { lineNumber: c.position.lineNumber, column: c.position.column };
-			} else if (this._cursorPosition) {
-				this._resetPosition();
 			}
 		}));
 		this.add(this._editorWidget.onDidFocusEditorText(async () => {
@@ -225,10 +221,12 @@ export class AccessibleBufferWidget extends DisposableStore {
 	}
 
 	private _resetPosition(): void {
-		if (this._cursorPosition) {
-			this._editorWidget.setPosition(this._cursorPosition);
-			this._editorWidget.setScrollPosition({ scrollTop: this._editorWidget.getTopForLineNumber(this._cursorPosition.lineNumber) });
+		this._cursorPosition = this._cursorPosition ?? this._getDefaultCursorPosition('current');
+		if (!this._cursorPosition) {
+			return;
 		}
+		this._editorWidget.setPosition(this._cursorPosition);
+		this._editorWidget.setScrollPosition({ scrollTop: this._editorWidget.getTopForLineNumber(this._cursorPosition.lineNumber) });
 	}
 
 	private _hide(): void {
@@ -246,11 +244,6 @@ export class AccessibleBufferWidget extends DisposableStore {
 		const model = await this._updateModel();
 		if (!model) {
 			return;
-		}
-		this._resetPosition();
-		if (!this._cursorPosition) {
-			this._editorWidget.setPosition({ lineNumber: model?.getLineCount() || 1, column: 1 });
-			this._editorWidget.setScrollTop(this._editorWidget.getScrollHeight());
 		}
 		this._isUpdating = false;
 		if (this._pendingUpdates) {
@@ -290,8 +283,30 @@ export class AccessibleBufferWidget extends DisposableStore {
 		return this._modelService.createModel(resource.fragment, null, resource, false);
 	}
 
+	private _getDefaultCursorPosition(type: 'last' | 'current'): { lineNumber: number; column: number } | undefined {
+		if (type === 'last') {
+			return this._lastModelLineCount ? { lineNumber: this._lastModelLineCount, column: 1 } : undefined;
+		} else {
+			const modelLineCount = this._editorWidget.getModel()?.getLineCount();
+			return modelLineCount ? { lineNumber: modelLineCount, column: 1 } : undefined;
+		}
+	}
+
 	private async _updateModel(): Promise<ITextModel> {
 		this._bufferTracker.update();
+
+		// Save the view state before the update if it was set by the user
+		let viewState: IEditorViewState | undefined;
+		const currentPosition = this._editorWidget.getPosition();
+		const lastDefaultPosition = this._getDefaultCursorPosition('last');
+		const positionSetByUser = !lastDefaultPosition || (currentPosition && (currentPosition.lineNumber !== lastDefaultPosition.lineNumber || currentPosition.column !== lastDefaultPosition.column));
+		if (positionSetByUser) {
+			// only save the view state if the user has repositioned the cursor
+			// otherwise, we will save the view state when we position the cursor
+			// at the bottom of the editor, which could be stale the next time this is focused
+			viewState = withNullAsUndefined(this._editorWidget.saveViewState());
+		}
+
 		let model = this._editorWidget.getModel();
 		const text = this._bufferTracker.lines.join('\n');
 		if (model) {
@@ -300,6 +315,16 @@ export class AccessibleBufferWidget extends DisposableStore {
 			model = await this.getTextModel(this._instance.resource.with({ fragment: text }));
 		}
 		this._editorWidget.setModel(model);
+
+		// Restore the view state if it was set by the user; otherwise, position the cursor at the bottom of the editor
+		const defaultPosition = this._getDefaultCursorPosition('current');
+		if (viewState) {
+			this._editorWidget.restoreViewState(viewState);
+		} else if (defaultPosition) {
+			this._editorWidget.setPosition(defaultPosition);
+			this._editorWidget.setScrollPosition({ scrollTop: this._editorWidget.getTopForLineNumber(defaultPosition.lineNumber) });
+		}
+		this._lastModelLineCount = model?.getLineCount() ?? 0;
 		return model!;
 	}
 }
