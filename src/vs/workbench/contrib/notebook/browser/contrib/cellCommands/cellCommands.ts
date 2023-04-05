@@ -616,7 +616,6 @@ registerAction2(class ToggleCellOutputScrolling extends NotebookMultiCellAction 
 		if (cellMetadata) {
 			const currentlyEnabled = cellMetadata['scrollable'] !== undefined ? cellMetadata['scrollable'] : globalScrollSetting;
 			const shouldEnableScrolling = collapsed || !currentlyEnabled;
-			console.log(`shouldEnableScrolling: ${shouldEnableScrolling}, currentlyEnabled: ${currentlyEnabled}, globalSetting: ${globalScrollSetting}, metadata: ${JSON.stringify(cellMetadata)}`);
 			cellMetadata['scrollable'] = shouldEnableScrolling;
 			viewModel.resetRenderer();
 		}

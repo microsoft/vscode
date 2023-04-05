@@ -8,11 +8,12 @@ import { handleANSIOutput } from './ansi';
 export const scrollableClass = 'scrollable';
 
 /**
- * Output is Truncated. View as a [scrollable element] or open in a [text editor]. Adjust [settings...]
+ * Output is Truncated. View as a [scrollable element] or open in a [text editor]. Adjust cell output [settings...]
  */
 function generateViewMoreElement(outputId: string) {
 
 	const container = document.createElement('div');
+	container.classList.add('truncation-message');
 	const first = document.createElement('span');
 	first.textContent = 'Output is Truncated. View as a ';
 	container.appendChild(first);
@@ -34,7 +35,7 @@ function generateViewMoreElement(outputId: string) {
 	container.appendChild(openInTextEditorLink);
 
 	const third = document.createElement('span');
-	third.textContent = '. Adjust ';
+	third.textContent = '. Adjust cell output ';
 	container.appendChild(third);
 
 	const layoutSettingsLink = document.createElement('a');
