@@ -83,18 +83,18 @@ export class AttachmentCleaner implements vscode.CodeActionProvider {
 				this._delayer.dispose();
 
 				e.waitUntil(new Promise((resolve) => {
-					if (e.document.getCells().length === 0) {
+					if (e.notebook.getCells().length === 0) {
 						return;
 					}
 
 					const notebookEdits: vscode.NotebookEdit[] = [];
-					for (const cell of e.document.getCells()) {
+					for (const cell of e.notebook.getCells()) {
 						if (cell.kind !== vscode.NotebookCellKind.Markup) {
 							continue;
 						}
 
 						const metadataEdit = this.cleanNotebookAttachments({
-							notebook: e.document,
+							notebook: e.notebook,
 							cell: cell,
 							document: cell.document
 						});
@@ -105,7 +105,7 @@ export class AttachmentCleaner implements vscode.CodeActionProvider {
 					}
 
 					const workspaceEdit = new vscode.WorkspaceEdit();
-					workspaceEdit.set(e.document.uri, notebookEdits);
+					workspaceEdit.set(e.notebook.uri, notebookEdits);
 
 					resolve(workspaceEdit);
 				}));
