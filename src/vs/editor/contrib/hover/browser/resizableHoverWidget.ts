@@ -369,6 +369,7 @@ export class ResizableHoverWidget extends ResizableWidget {
 
 		console.log('Inside of hide of ResizableHoverWidget');
 		this.visible = false;
+		this.element.maxSize = new dom.Dimension(Infinity, Infinity);
 		this.element.clearSashHoverState();
 		this.editor.removeContentWidget(this.resizableContentWidget);
 		if (this.visibleData) {
