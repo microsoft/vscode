@@ -60,8 +60,6 @@ export class AccessibleBufferWidget extends DisposableStore {
 
 	private _cursorPosition: { lineNumber: number; column: number } | undefined;
 
-	private _lastModelLineCount?: number;
-
 	constructor(
 		private readonly _instance: Pick<ITerminalInstance, 'capabilities' | 'onDidRequestFocus' | 'resource'>,
 		private readonly _xterm: Pick<IXtermTerminal, 'getFont'> & { raw: Terminal },
@@ -223,7 +221,7 @@ export class AccessibleBufferWidget extends DisposableStore {
 	}
 
 	private _resetPosition(): void {
-		this._cursorPosition = this._cursorPosition ?? this._getDefaultCursorPosition('current');
+		this._cursorPosition = this._cursorPosition ?? this._getDefaultCursorPosition();
 		if (!this._cursorPosition) {
 			return;
 		}
@@ -237,13 +235,13 @@ export class AccessibleBufferWidget extends DisposableStore {
 		this._xtermElement.classList.remove(CssClass.Hide);
 	}
 
-	private async _updateEditor(): Promise<void> {
+	private async _updateEditor(dataChanged?: boolean): Promise<void> {
 		if (this._isUpdating) {
 			this._pendingUpdates++;
 			return;
 		}
 		this._isUpdating = true;
-		const model = await this._updateModel();
+		const model = await this._updateModel(dataChanged);
 		if (!model) {
 			return;
 		}
@@ -251,7 +249,7 @@ export class AccessibleBufferWidget extends DisposableStore {
 		if (this._pendingUpdates) {
 			this._logService.debug('TerminalAccessibleBuffer._updateEditor: pending updates', this._pendingUpdates);
 			this._pendingUpdates--;
-			await this._updateEditor();
+			await this._updateEditor(dataChanged);
 		}
 	}
 
@@ -263,11 +261,11 @@ export class AccessibleBufferWidget extends DisposableStore {
 	private _registerListeners(): void {
 		this._xterm.raw.onWriteParsed(async () => {
 			if (this._xterm.raw.buffer.active.baseY === 0) {
-				await this._updateEditor();
+				await this._updateEditor(true);
 			}
 		});
 		const onRequestUpdateEditor = Event.latch(this._xterm.raw.onScroll);
-		this._listeners.push(onRequestUpdateEditor(async () => await this._updateEditor()));
+		this._listeners.push(onRequestUpdateEditor(async () => await this._updateEditor(true)));
 		this._listeners.push(this._instance.onDidRequestFocus(() => this._editorWidget.focus()));
 	}
 
@@ -285,28 +283,21 @@ export class AccessibleBufferWidget extends DisposableStore {
 		return this._modelService.createModel(resource.fragment, null, resource, false);
 	}
 
-	private _getDefaultCursorPosition(type: 'last' | 'current'): { lineNumber: number; column: number } | undefined {
-		if (type === 'last') {
-			return this._lastModelLineCount ? { lineNumber: this._lastModelLineCount, column: 1 } : undefined;
-		} else {
-			const modelLineCount = this._editorWidget.getModel()?.getLineCount();
-			return modelLineCount ? { lineNumber: modelLineCount, column: 1 } : undefined;
-		}
+	private _getDefaultCursorPosition(): { lineNumber: number; column: number } | undefined {
+		const modelLineCount = this._editorWidget.getModel()?.getLineCount();
+		return modelLineCount ? { lineNumber: modelLineCount, column: 1 } : undefined;
 	}
 
-	private async _updateModel(): Promise<ITextModel> {
+	private async _updateModel(dataChanged?: boolean): Promise<ITextModel> {
+		const linesBefore = this._bufferTracker.lines.length;
 		this._bufferTracker.update();
+		const linesAfter = this._bufferTracker.lines.length;
+		const modelChanged = linesBefore !== linesAfter;
 
 		// Save the view state before the update if it was set by the user
-		let viewState: IEditorViewState | undefined;
-		const currentPosition = this._editorWidget.getPosition();
-		const lastDefaultPosition = this._getDefaultCursorPosition('last');
-		const positionSetByUser = !lastDefaultPosition || (currentPosition && (currentPosition.lineNumber !== lastDefaultPosition.lineNumber || currentPosition.column !== lastDefaultPosition.column));
-		if (positionSetByUser) {
-			// only save the view state if the user has repositioned the cursor
-			// otherwise, we will save the view state when we position the cursor
-			// at the bottom of the editor, which could be stale the next time this is focused
-			viewState = withNullAsUndefined(this._editorWidget.saveViewState());
+		let savedViewState: IEditorViewState | undefined;
+		if (dataChanged) {
+			savedViewState = withNullAsUndefined(this._editorWidget.saveViewState());
 		}
 
 		let model = this._editorWidget.getModel();
@@ -318,15 +309,19 @@ export class AccessibleBufferWidget extends DisposableStore {
 		}
 		this._editorWidget.setModel(model);
 
-		// Restore the view state if it was set by the user; otherwise, position the cursor at the bottom of the editor
-		const defaultPosition = this._getDefaultCursorPosition('current');
-		if (viewState) {
-			this._editorWidget.restoreViewState(viewState);
-		} else if (defaultPosition) {
-			this._editorWidget.setPosition(defaultPosition);
-			this._editorWidget.setScrollPosition({ scrollTop: this._editorWidget.getTopForLineNumber(defaultPosition.lineNumber) });
+		// If the model changed due to new data, restore the view state
+		// If the model changed due to a refresh or the cursor is a the top, set to the bottom of the buffer
+		// Otherwise, don't change the position
+		const positionTopOfBuffer = this._editorWidget.getPosition()?.lineNumber === 1 && this._editorWidget.getPosition()?.column === 1;
+		if (savedViewState) {
+			this._editorWidget.restoreViewState(savedViewState);
+		} else if (modelChanged || positionTopOfBuffer) {
+			const defaultPosition = this._getDefaultCursorPosition();
+			if (defaultPosition) {
+				this._editorWidget.setPosition(defaultPosition);
+				this._editorWidget.setScrollPosition({ scrollTop: this._editorWidget.getTopForLineNumber(defaultPosition.lineNumber) });
+			}
 		}
-		this._lastModelLineCount = model?.getLineCount() ?? 0;
 		return model!;
 	}
 }
