@@ -16,22 +16,45 @@ import * as dom from 'vs/base/browser/dom';
 
 export interface IResizableWidget extends IDisposable {
 
+	/**
+	 * This method returns a boolean indicating whether the widget is currently resizing.
+	 */
 	isResizing(): boolean;
 
+	/**
+	 * Abstract method called when the resizable element is resizing. Should be used to define the new size of the children of the resizable element.
+	 * @param dimension The new dimension of the resizable element.
+	 */
 	resize(dimension: dom.Dimension): void;
 
-	hide(): void;
-
+	/**
+	 * Method which should return the maximum current rendering height. By default is returns infinity.
+	 */
 	findMaximumRenderingHeight(): number | undefined;
 
+	/**
+	 * Method which should return the maximum current rendering width. By default is returns infinity.
+	 */
 	findMaximumRenderingWidth(): number | undefined;
 
+	/**
+	 * Method which returns the persisted size the resizable widget. It calls the findSize method of the persisting mechanism (whether single or multiple size persisting mechanism).
+	 */
 	findPersistedSize(): dom.Dimension | undefined;
 
+	/**
+	 * Method which is called first in the onDidWillResize call of the resizable element. By default it returns nothing.
+	 */
 	beforeOnDidWillResize(): void;
 
+	/**
+	 * Method which is called last in the onDidResize call of the resizable element. By default it returns nothing.
+	 */
 	afterOnDidResize(): void;
 
+	/**
+	 * Method which disposes the resizable widget.
+	 */
 	dispose(): void;
 }
 
@@ -68,19 +91,10 @@ export abstract class ResizableWidget implements IResizableWidget {
 		}));
 	}
 
+	abstract resize(dimension: dom.Dimension): void;
+
 	isResizing() {
 		return this.resizing;
-	}
-
-	dispose(): void {
-		this.disposables.dispose();
-	}
-
-	resize(dimension: dom.Dimension): void { }
-
-	hide(): void {
-		this.resizing = false;
-		this.element.clearSashHoverState();
 	}
 
 	findMaximumRenderingHeight(): number | undefined {
@@ -102,22 +116,51 @@ export abstract class ResizableWidget implements IResizableWidget {
 	afterOnDidResize() {
 		return;
 	}
+
+	dispose(): void {
+		this.disposables.dispose();
+	}
 }
 
-export interface IResizableContentWidget {
+export interface IResizableContentWidget extends IContentWidget {
 
-	findPersistedSize(): dom.Dimension | undefined;
-
+	/**
+	 * Abstract method which returns the ID of the content widget
+	 */
 	getId(): string;
 
+	/**
+	 * Method which returns the dom node of the resizable element of the resizable widget passed into the constructor
+	 */
 	getDomNode(): HTMLElement;
 
+	/**
+	 * Returns the position of the content widget.
+	 */
 	getPosition(): IContentWidgetPosition | null;
 
-	hide(): void;
+	/**
+	 * Method which sets the position of the content widget.
+	 */
+	set position(position: IPosition | null);
+
+	/**
+	 * Method which sets the secondary position of the content widget.
+	 */
+	set secondaryPosition(position: IPosition | null);
+
+	/**
+	 * Method which sets the preferred position of the content widget.
+	 */
+	set preference(preference: ContentWidgetPositionPreference[]);
+
+	/**
+	 * Method which sets the position affinity of the content widget.
+	 */
+	set positionAffinity(affinity: PositionAffinity | undefined);
 }
 
-export abstract class ResizableContentWidget implements IContentWidget {
+export abstract class ResizableContentWidget implements IResizableContentWidget {
 
 	private _position: IPosition | null = null;
 	private _secondaryPosition: IPosition | null = null;
@@ -125,15 +168,11 @@ export abstract class ResizableContentWidget implements IContentWidget {
 	private _positionAffinity: PositionAffinity | undefined = undefined;
 
 	constructor(
-		private readonly resizableWidget: ResizableWidget,
-		private readonly editor: ICodeEditor
+		private readonly resizableWidget: ResizableWidget
 	) { }
 
+	// Method is to abstract because generally we return a static ID
 	abstract getId(): string;
-
-	findPersistedSize(): dom.Dimension | undefined {
-		return this.resizableWidget.findPersistedSize();
-	}
 
 	getDomNode(): HTMLElement {
 		return this.resizableWidget.element.domNode;
@@ -147,10 +186,6 @@ export abstract class ResizableContentWidget implements IContentWidget {
 			positionAffinity: this._positionAffinity
 		};
 		return contentWidgetPosition;
-	}
-
-	hide(): void {
-		this.editor.removeContentWidget(this);
 	}
 
 	set position(position: IPosition | null) {
@@ -185,10 +220,26 @@ export class MultipleSizePersistingOptions implements IPersistingOptions {
 }
 
 interface IPersistingMechanism extends IDisposable {
+
+	/**
+	 * Method which returns the current appropriate persisted size of the widget.
+	 */
 	findSize(): dom.Dimension | undefined;
+
+	/**
+	 * Method which clears the persisted size(s) of the widget.
+	 */
 	clear(): void;
+
+	/**
+	 * Method which disposes the persisting mechanism.
+	 */
+	dispose(): void;
 }
 
+/**
+ * Class which can be used to define a mechanism that persists the size of a resizable widget. The persisted size is stored using the storage service.
+ */
 export class SingleSizePersistingMechanism implements IPersistingMechanism {
 
 	private readonly persistedWidgetSize: PersistedWidgetSize | null = null;
@@ -209,6 +260,12 @@ export class SingleSizePersistingMechanism implements IPersistingMechanism {
 		}));
 		this.disposables.add(this.resizableWidget.element.onDidResize(e => {
 			this.resizableWidget.resize(new dom.Dimension(e.dimension.width, e.dimension.height));
+			const maxRenderingWidth = this.resizableWidget.findMaximumRenderingWidth();
+			const maxRenderingHeight = this.resizableWidget.findMaximumRenderingHeight();
+			if (!maxRenderingWidth || !maxRenderingHeight) {
+				return;
+			}
+			this.resizableWidget.element.maxSize = new dom.Dimension(maxRenderingWidth, maxRenderingHeight);
 			if (state) {
 				state.persistHeight = state.persistHeight || !!e.north || !!e.south;
 				state.persistWidth = state.persistWidth || !!e.east || !!e.west;
@@ -229,8 +286,8 @@ export class SingleSizePersistingMechanism implements IPersistingMechanism {
 				}
 				this.persistedWidgetSize!.store(new dom.Dimension(width, height));
 			}
-			this.resizableWidget.afterOnDidResize();
 			state = undefined;
+			this.resizableWidget.afterOnDidResize();
 		}));
 	}
 
@@ -238,15 +295,19 @@ export class SingleSizePersistingMechanism implements IPersistingMechanism {
 		return this.persistedWidgetSize?.restore();
 	}
 
-	dispose(): void {
-		this.disposables.dispose();
-	}
-
 	clear(): void {
 		this.persistedWidgetSize?.reset();
 	}
+
+	dispose(): void {
+		this.disposables.dispose();
+	}
 }
 
+/**
+ * Class which can be used to define a mechanism which persists the sizes of a resizable widget on a per token-basis.
+ * The sizes are saved in a ResourceMap which maps the document URI to the token position and its dom.Dimension persisted size.
+ */
 export class MultipleSizePersistingMechanism implements IPersistingMechanism {
 
 	private readonly persistedWidgetSizes: ResourceMap<Map<string, dom.Dimension>> = new ResourceMap<Map<string, dom.Dimension>>();
@@ -284,9 +345,10 @@ export class MultipleSizePersistingMechanism implements IPersistingMechanism {
 			}
 			this.persistedWidgetSizes.set(uri, updatedPersistedSizesForUri);
 		}));
-
+		this.disposables.add(this.resizableWidget.element.onDidWillResize(() => {
+			this.resizableWidget.beforeOnDidWillResize();
+		}));
 		this.disposables.add(this.resizableWidget.element.onDidResize(e => {
-
 			const height = e.dimension.height;
 			const width = e.dimension.width;
 			this.resizableWidget.resize(new dom.Dimension(width, height));
@@ -321,6 +383,7 @@ export class MultipleSizePersistingMechanism implements IPersistingMechanism {
 					persistedWidgetSizesForUri.set(JSON.stringify([offset, length]), persistedSize);
 				}
 			}
+			this.resizableWidget.afterOnDidResize();
 		}));
 	}
 
@@ -346,15 +409,18 @@ export class MultipleSizePersistingMechanism implements IPersistingMechanism {
 		return persistedSizesForUri.get(JSON.stringify([offset, length]));
 	}
 
-	dispose(): void {
-		this.disposables.dispose();
-	}
-
 	clear(): void {
 		this.persistedWidgetSizes.clear();
 	}
+
+	dispose(): void {
+		this.disposables.dispose();
+	}
 }
 
+/**
+ * Class which is used in the single size persisting mechanism for resizable widgets.
+ */
 class PersistedWidgetSize {
 
 	constructor(
@@ -384,6 +450,9 @@ class PersistedWidgetSize {
 	}
 }
 
+/**
+ * Class which is used in the single size persisting mechanism for resizable widgets.
+ */
 class ResizeState {
 	constructor(
 		readonly persistedSize: dom.Dimension | undefined,
