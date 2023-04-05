@@ -26,6 +26,7 @@ import webpack = require('webpack');
 import { getProductionDependencies } from './dependencies';
 import { getExtensionStream } from './builtInExtensions';
 import { getVersion } from './getVersion';
+import { remote, IOptions as IRemoteSrcOptions } from './gulpRemoteSource';
 
 const root = path.dirname(path.dirname(__dirname));
 const commit = getVersion(root);
@@ -210,7 +211,6 @@ const baseHeaders = {
 };
 
 export function fromMarketplace(serviceUrl: string, { name: extensionName, version, metadata }: IBuiltInExtension): Stream {
-	const remote = require('gulp-remote-retry-src');
 	const json = require('gulp-json-editor') as typeof import('gulp-json-editor');
 
 	const [publisher, name] = extensionName.split('.');
@@ -218,10 +218,9 @@ export function fromMarketplace(serviceUrl: string, { name: extensionName, versi
 
 	fancyLog('Downloading extension:', ansiColors.yellow(`${extensionName}@${version}`), '...');
 
-	const options = {
+	const options: IRemoteSrcOptions = {
 		base: url,
-		requestOptions: {
-			gzip: true,
+		fetchOptions: {
 			headers: baseHeaders
 		}
 	};
@@ -251,7 +250,6 @@ const ghDownloadHeaders = {
 };
 
 export function fromGithub({ name, version, repo, metadata }: IBuiltInExtension): Stream {
-	const remote = require('gulp-remote-retry-src');
 	const json = require('gulp-json-editor') as typeof import('gulp-json-editor');
 
 	fancyLog('Downloading extension from GH:', ansiColors.yellow(`${name}@${version}`), '...');
@@ -260,7 +258,7 @@ export function fromGithub({ name, version, repo, metadata }: IBuiltInExtension)
 
 	return remote([`/repos${new URL(repo).pathname}/releases/tags/v${version}`], {
 		base: 'https://api.github.com',
-		requestOptions: { headers: ghApiHeaders }
+		fetchOptions: { headers: ghApiHeaders }
 	}).pipe(through2.obj(function (file, _enc, callback) {
 		const asset = JSON.parse(file.contents.toString()).assets.find((a: any) => a.name.endsWith('.vsix'));
 		if (!asset) {

@@ -31,7 +31,6 @@
     "@types/node": "16.x",
     "@types/p-limit": "^2.2.0",
     "@types/pump": "^1.0.1",
-    "@types/request": "^2.47.0",
     "@types/rimraf": "^2.0.4",
     "@types/through": "^0.0.29",
     "@types/through2": "^2.0.36",
