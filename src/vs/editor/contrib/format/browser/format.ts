@@ -217,12 +217,12 @@ export async function formatDocumentRangesWithProvider(
 	const allEdits: TextEdit[] = [];
 	const rawEditsList: TextEdit[][] = [];
 	try {
-		if (provider.canFormatMultipleRanges) {
+		if (typeof provider.provideDocumentRangesFormattingEdits === 'function') {
 			logService.trace(`[format][provideDocumentRangeFormattingEdits] (request)`, provider.extensionId?.value, ranges);
-			const result = (await provider.provideDocumentRangeFormattingEdits(
+			const result = (await provider.provideDocumentRangesFormattingEdits(
 				model,
-				ranges[0],
-				{ ...model.getFormattingOptions(), ranges },
+				ranges,
+				model.getFormattingOptions(),
 				cts.token
 			)) || [];
 			logService.trace(`[format][provideDocumentRangeFormattingEdits] (response)`, provider.extensionId?.value, result);

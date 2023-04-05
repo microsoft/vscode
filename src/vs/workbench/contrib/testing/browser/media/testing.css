@@ -70,9 +70,26 @@
 	margin-right: 0.8em;
 }
 
+.test-explorer .monaco-list-row .monaco-action-bar .codicon-testing-continuous-is-on {
+	color: var(--vscode-inputOption-activeForeground);
+	border-color: var(--vscode-inputOption-activeBorder);
+	background: var(--vscode-inputOption-activeBackground);
+	border: 1px solid var(--vscode-inputOption-activeBorder);
+	border-radius: 3px;
+}
+
+.test-explorer .monaco-list-row:not(.focused, :hover) .monaco-action-bar.testing-is-continuous-run .action-item {
+	display: none;
+}
+
+.test-explorer .monaco-list-row .monaco-action-bar.testing-is-continuous-run .action-item:last-child {
+	display: block !important;
+}
+
 .test-explorer .monaco-list-row:hover .monaco-action-bar,
-.test-output-peek-tree .monaco-list-row:hover .monaco-action-bar,
 .test-explorer .monaco-list-row.focused .monaco-action-bar,
+.test-explorer .monaco-list-row .monaco-action-bar.testing-is-continuous-run,
+.test-output-peek-tree .monaco-list-row:hover .monaco-action-bar,
 .test-output-peek-tree .monaco-list-row.focused .monaco-action-bar {
 	display: initial;
 }
@@ -124,7 +141,7 @@
 	.monaco-action-bar
 	.action-item
 	> .action-label {
-	padding: 2px;
+	padding: 1px 2px;
 	margin-right: 2px;
 }
 

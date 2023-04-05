@@ -1153,11 +1153,6 @@
   resolved "https://registry.yarnpkg.com/@types/windows-foreground-love/-/windows-foreground-love-0.3.0.tgz#26bc230b2568aa7ab7c56d35bb5653c0a6965a42"
   integrity sha512-tFUVA/fiofNqOh6lZlymvQiQYPY+cZXZPR9mn9wN6/KS8uwx0zgH4Ij/jmFyRYr+x+DGZWEIeknS2BMi7FZJAQ==
 
-"@types/windows-mutex@^0.4.0":
-  version "0.4.0"
-  resolved "https://registry.yarnpkg.com/@types/windows-mutex/-/windows-mutex-0.4.0.tgz#d27070418aa26047c6c860c704952ff26aeb961b"
-  integrity sha512-zUMH4nutIURLARU6f10Ls6XcZWhUkwmzVEALs26dt1ZbaLv/qxsGdYiePUbwhQmrQUp3EPZ1HxopWpzzC8ot5A==
-
 "@types/windows-process-tree@^0.2.0":
   version "0.2.0"
   resolved "https://registry.yarnpkg.com/@types/windows-process-tree/-/windows-process-tree-0.2.0.tgz#2fa205c838a8ef0a07697cd747c954653978d22c"
@@ -1325,10 +1320,10 @@
     https-proxy-agent "^5.0.0"
     proxy-from-env "^1.1.0"
 
-"@vscode/sqlite3@5.1.2-vscode":
-  version "5.1.2-vscode"
-  resolved "https://registry.yarnpkg.com/@vscode/sqlite3/-/sqlite3-5.1.2-vscode.tgz#ba15962d23ad784a43ecbaaa22c93f17f93b2400"
-  integrity sha512-CIH0BWzQJA97teb1f3aAoyylztPdg1WqThHEvVPWXr8UO0+VtIa+ha20Q2PGYV4AGfPtkPnhUrSYpJDxnVhW/g==
+"@vscode/sqlite3@5.1.3-vscode":
+  version "5.1.3-vscode"
+  resolved "https://registry.yarnpkg.com/@vscode/sqlite3/-/sqlite3-5.1.3-vscode.tgz#4fe81eb2422edef7b13869fe9d66663f4d925e93"
+  integrity sha512-B5PNGHzfdnLiAQiC4YjOt0YETtxVfRcyIJya39RdNNFW63ApCznsu4m+jrW6r1sDFCPSSTNurAwx1Bl25FCQFw==
   dependencies:
     node-addon-api "^4.2.0"
     tar "^6.1.11"
@@ -1390,6 +1385,14 @@
   integrity sha512-1B6hZAsqg125wuMsXiKIFkBgKx/J7YR4RT/ccYGkWAToPU9MVa40PRe+evLFUmLPH6NmPohEPlCzZLbqgvHCcQ==
   dependencies:
     node-addon-api "^3.0.2"
+
+"@vscode/windows-mutex@0.4.2":
+  version "0.4.2"
+  resolved "https://registry.yarnpkg.com/@vscode/windows-mutex/-/windows-mutex-0.4.2.tgz#3f796896c3bc2cf32bfe7148e608edb0cb7247db"
+  integrity sha512-7MSBH22cI7OwxXImjJ3VJ7QeHrEbumtyi/xqTgv6xqZCIZfUk/eu5MMBD2Vkehut8dGZU4xIjqt5AGdm0uPixQ==
+  dependencies:
+    bindings "^1.2.1"
+    nan "^2.14.0"
 
 "@vscode/windows-registry@1.0.6":
   version "1.0.6"
@@ -10598,14 +10601,6 @@ windows-foreground-love@0.5.0:
   version "0.5.0"
   resolved "https://registry.yarnpkg.com/windows-foreground-love/-/windows-foreground-love-0.5.0.tgz#7672b04eb05f934a6543cacdc3cd16ff34e3cb10"
   integrity sha512-yjBwmKEmQBDk3Z7yg/U9hizGWat8C6Pe4MQWl5bN6mvPU81Bt6HV2k/6mGlK3ETJLW1hCLhYx2wcGh+ykUUCyA==
-
-windows-mutex@0.4.1:
-  version "0.4.1"
-  resolved "https://registry.yarnpkg.com/windows-mutex/-/windows-mutex-0.4.1.tgz#2eccdfc312e15e7f212fb16280f060fc6b5f00cd"
-  integrity sha512-RW1xN6yzw8hAcfy1BKVClhJZg/PzuNz4Qz+CNhYmmdzJiwKSU9CqvVcmAvNrtdinNkXfSqTZVBVh5kUATg6xOA==
-  dependencies:
-    bindings "^1.2.1"
-    nan "^2.14.0"
 
 windows-process-tree@0.4.0:
   version "0.4.0"
