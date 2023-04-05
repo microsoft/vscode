@@ -255,7 +255,7 @@ function configureCommandlineSwitchesSync(cliArgs) {
 	/**
 	 * Allow media to play even if no user gesture is used to fix issues like #176284
 	 */
-	app.commandLine.appendSwitch('autoplay-policy', 'no-user-gesture-required');
+	app.commandLine.appendSwitch('disable-features', 'CalculateNativeWinOcclusion,UnifiedAutoplay');
 
 	// Support JS Flags
 	const jsFlags = getJSFlags(cliArgs);
