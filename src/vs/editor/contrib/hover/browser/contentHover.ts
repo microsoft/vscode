@@ -539,11 +539,13 @@ export class ResizableHoverWidget extends ResizableWidget {
 			if (this.hoverWidget.contentsDomNode.style.paddingBottom !== extraBottomPadding) {
 				this.hoverWidget.contentsDomNode.style.paddingBottom = extraBottomPadding;
 			}
-			this.hoverWidget.containerDomNode.style.height = size.height - 2 * SASH_WIDTH_MINUS_BORDER + 'px';
-			this.hoverWidget.contentsDomNode.style.height = size.height - SCROLLBAR_WIDTH - 2 * SASH_WIDTH_MINUS_BORDER + 'px';
+			const height = size.height - 2 * SASH_WIDTH_MINUS_BORDER;
+			this.hoverWidget.containerDomNode.style.height = height + 'px';
+			this.hoverWidget.contentsDomNode.style.height = height - SCROLLBAR_WIDTH + 'px';
 		} else {
-			this.hoverWidget.containerDomNode.style.height = size.height - 2 * SASH_WIDTH_MINUS_BORDER + 'px';
-			this.hoverWidget.contentsDomNode.style.height = size.height - 2 * SASH_WIDTH_MINUS_BORDER + 'px';
+			const height = size.height - 2 * SASH_WIDTH_MINUS_BORDER;
+			this.hoverWidget.containerDomNode.style.height = height + 'px';
+			this.hoverWidget.contentsDomNode.style.height = height + 'px';
 		}
 
 		this.hoverWidget.scrollbar.scanDomNode();
@@ -579,20 +581,16 @@ export class ResizableHoverWidget extends ResizableWidget {
 		if (!availableSpace) {
 			return;
 		}
-
-		let divMaxHeight = 2 * SASH_WIDTH_MINUS_BORDER + 1;
+		let divMaxHeight = 3 * SASH_WIDTH_MINUS_BORDER;
 		for (const childHtmlElement of this.hoverWidget.contentsDomNode.children) {
 			divMaxHeight += childHtmlElement.clientHeight;
 		}
-
 		if (this.hoverWidget.contentsDomNode.clientWidth < this.hoverWidget.contentsDomNode.scrollWidth) {
 			divMaxHeight += SCROLLBAR_WIDTH;
 		}
-
 		return Math.min(availableSpace, divMaxHeight);
 	}
 
-	// Here findMaximumRenderingWidth and findAvailableSpaceHorizontally are the same
 	public override findMaximumRenderingWidth(): number | undefined {
 		if (!this.editor || !this.editor.hasModel()) {
 			return;
@@ -670,42 +668,20 @@ export class ResizableHoverWidget extends ResizableWidget {
 
 	public showAt(node: DocumentFragment, visibleData: ContentHoverVisibleData): void {
 
-		console.log('Inside of showAt');
-
-		let clientHeight;
-		let clientWidth;
-		const containerDomNode = this.getDomNode();
-
 		if (!this.editor || !this.editor.hasModel()) {
 			return;
 		}
-
 		if (this.persistingMechanism instanceof MultipleSizePersistingMechanism) {
 			this.persistingMechanism.position = visibleData.showAtPosition;
 		}
 		this.resizableContentWidget.position = visibleData.showAtPosition;
 		this.resizableContentWidget.secondaryPosition = visibleData.showAtSecondaryPosition;
 		this.resizableContentWidget.positionAffinity = visibleData.isBeforeContent ? PositionAffinity.LeftOfInjectedText : undefined;
-		// const resizableContent = this.resizableContentWidget.getDomNode();
-		// resizableContent.style.width = 'auto';
-		// resizableContent.style.height = 'auto';
 		this._setVisibleData(visibleData);
-
-		clientHeight = containerDomNode.clientHeight;
-		clientWidth = containerDomNode.clientWidth;
-		console.log('Before adding content widget');
-		console.log('clientHeight', clientHeight);
-		console.log('clientWidth : ', clientWidth);
 
 		if (!this.visible) {
 			this.editor.addContentWidget(this.resizableContentWidget);
 		}
-
-		clientHeight = containerDomNode.clientHeight;
-		clientWidth = containerDomNode.clientWidth;
-		console.log('After adding content widget');
-		console.log('clientHeight', clientHeight);
-		console.log('clientWidth : ', clientWidth);
 
 		const persistedSize = this.findPersistedSize();
 		this.hoverWidget.contentsDomNode.textContent = '';
@@ -714,15 +690,10 @@ export class ResizableHoverWidget extends ResizableWidget {
 		this._updateFont();
 
 		let height;
-
-		// If there is no persisted size, then do normal rendering
+		// If there is no persisted size, then normally render
 		if (!persistedSize) {
 			this.hoverWidget.contentsDomNode.style.maxHeight = `${Math.max(this.editor.getLayoutInfo().height / 4, 250)}px`;
 			this.hoverWidget.contentsDomNode.style.maxWidth = `${Math.max(this.editor.getLayoutInfo().width * 0.66, 500)}px`;
-
-			// this.hoverWidget.containerDomNode.style.maxHeight = `${Math.max(this.editor.getLayoutInfo().height / 4, 250)}px`;
-			// this.hoverWidget.containerDomNode.style.maxWidth = `${Math.max(this.editor.getLayoutInfo().width * 0.66, 500)}px`;
-
 			this.onContentsChanged();
 			// Simply force a synchronous render on the editor
 			// such that the widget does not really render with left = '0px'
@@ -808,30 +779,9 @@ export class ResizableHoverWidget extends ResizableWidget {
 
 	public onContentsChanged(): void {
 
-		let clientHeight;
-		let clientWidth;
-		let resizableClientHeight;
-		let resizableClientWidth;
-
-		console.log('inside of on contents changed');
-		console.log('this.resizableContentWidget.getDomNode() : ', this.resizableContentWidget.getDomNode());
-
 		const persistedSize = this.resizableContentWidget.findPersistedSize();
-		// const resizableContent = this.resizableContentWidget.getDomNode();
 		const containerDomNode = this.getDomNode();
 		const contentsDomNode = this.getContentsDomNode();
-		const resizableContentDomNode = this.resizableContentWidget.getDomNode();
-		clientHeight = containerDomNode.clientHeight;
-		clientWidth = containerDomNode.clientWidth;
-		resizableClientHeight = resizableContentDomNode.clientHeight;
-		resizableClientWidth = resizableContentDomNode.clientWidth;
-
-		console.log('containerDomNode : ', containerDomNode);
-		console.log('contentsDomNode : ', contentsDomNode);
-		console.log('clientHeight', clientHeight);
-		console.log('clientWidth : ', clientWidth);
-		console.log('resizableClientHeight', resizableClientHeight);
-		console.log('resizableClientWidth : ', resizableClientWidth);
 
 		// Suppose a persisted size is defined
 		if (persistedSize) {
@@ -841,154 +791,72 @@ export class ResizableHoverWidget extends ResizableWidget {
 			containerDomNode.style.height = height + 'px';
 			contentsDomNode.style.width = width + 'px';
 			contentsDomNode.style.height = height + 'px';
-			// this.element.layout(persistedSize.height, persistedSize.width);
-
-			console.log('Before layoutContentWidget');
-			clientHeight = containerDomNode.clientHeight;
-			clientWidth = containerDomNode.clientWidth;
-			resizableClientHeight = resizableContentDomNode.clientHeight;
-			resizableClientWidth = resizableContentDomNode.clientWidth;
-
-			console.log('containerDomNode : ', containerDomNode);
-			console.log('contentsDomNode : ', contentsDomNode);
-			console.log('clientHeight', clientHeight);
-			console.log('clientWidth : ', clientWidth);
-			console.log('resizableClientHeight', resizableClientHeight);
-			console.log('resizableClientWidth : ', resizableClientWidth);
-
 			this.editor.layoutContentWidget(this.resizableContentWidget);
 			this.hoverWidget.onContentsChanged();
 
-			console.log('After layoutContentWidget');
-			clientHeight = containerDomNode.clientHeight;
-			clientWidth = containerDomNode.clientWidth;
-			resizableClientHeight = resizableContentDomNode.clientHeight;
-			resizableClientWidth = resizableContentDomNode.clientWidth;
-
-			console.log('containerDomNode : ', containerDomNode);
-			console.log('contentsDomNode : ', contentsDomNode);
-			console.log('clientHeight', clientHeight);
-			console.log('clientWidth : ', clientWidth);
-			console.log('resizableClientHeight', resizableClientHeight);
-			console.log('resizableClientWidth : ', resizableClientWidth);
-
 		} else {
 
-			console.log('Not using persisted size');
 			containerDomNode.style.width = 'auto';
 			containerDomNode.style.height = 'auto';
 			contentsDomNode.style.width = 'auto';
 			contentsDomNode.style.height = 'auto';
-
-			// Added because otherwise the initial size of the hover content is not the initial one
-			this.element.domNode.style.width = 100000 + 'px';
-			this.element.domNode.style.height = 100000 + 'px';
-
-			// ---
-
-			console.log('Before layoutContentWidget');
-			clientHeight = containerDomNode.clientHeight;
-			clientWidth = containerDomNode.clientWidth;
-			resizableClientHeight = resizableContentDomNode.clientHeight;
-			resizableClientWidth = resizableContentDomNode.clientWidth;
-
-			console.log('containerDomNode : ', containerDomNode);
-			console.log('contentsDomNode : ', contentsDomNode);
-			console.log('clientHeight', clientHeight);
-			console.log('clientWidth : ', clientWidth);
-			console.log('resizableClientHeight', resizableClientHeight);
-			console.log('resizableClientWidth : ', resizableClientWidth);
-
+			// Added because otherwise the initial size of the hover content is smaller than should be
+			this.element.domNode.style.width = this.editor.getLayoutInfo().width + 'px';
+			this.element.domNode.style.height = this.editor.getLayoutInfo().height + 'px';
 			this.editor.layoutContentWidget(this.resizableContentWidget);
 			this.hoverWidget.onContentsChanged();
-
-			console.log('After layoutContentWidget');
-			clientHeight = containerDomNode.clientHeight;
-			clientWidth = containerDomNode.clientWidth;
-			resizableClientHeight = resizableContentDomNode.clientHeight;
-			resizableClientWidth = resizableContentDomNode.clientWidth;
-
-			console.log('containerDomNode : ', containerDomNode);
-			console.log('contentsDomNode : ', contentsDomNode);
-			console.log('clientHeight', clientHeight);
-			console.log('clientWidth : ', clientWidth);
-			console.log('resizableClientHeight', resizableClientHeight);
-			console.log('resizableClientWidth : ', resizableClientWidth);
-
-			containerDomNode.style.height = clientHeight + 2 + 'px';
-			containerDomNode.style.width = clientWidth + 2 + 'px';
+			containerDomNode.style.width = containerDomNode.clientWidth + 2 + 'px';
 		}
 
-		clientHeight = containerDomNode.clientHeight;
-		clientWidth = containerDomNode.clientWidth;
+		const clientHeight = containerDomNode.clientHeight;
+		const clientWidth = containerDomNode.clientWidth;
 
-		this.element.layout(clientHeight + 6, clientWidth + 6);
-		this.element.domNode.style.width = clientWidth + 6 + 'px';
-		this.element.domNode.style.height = clientHeight + 6 + 'px';
+		this.element.layout(clientHeight + 2 * SASH_WIDTH_MINUS_BORDER, clientWidth + 2 * SASH_WIDTH_MINUS_BORDER);
+		this.element.domNode.style.width = clientWidth + 2 * SASH_WIDTH_MINUS_BORDER + 'px';
+		this.element.domNode.style.height = clientHeight + 2 * SASH_WIDTH_MINUS_BORDER + 'px';
 
 		containerDomNode.style.height = clientHeight + 'px';
 		containerDomNode.style.width = clientWidth + 'px';
-		containerDomNode.style.top = 2 + 'px';
-		containerDomNode.style.left = 2 + 'px';
+		containerDomNode.style.top = SASH_WIDTH_MINUS_BORDER - 1 + 'px';
+		containerDomNode.style.left = SASH_WIDTH_MINUS_BORDER - 1 + 'px';
 
 		const scrollDimensions = this.hoverWidget.scrollbar.getScrollDimensions();
 		const hasHorizontalScrollbar = (scrollDimensions.scrollWidth > scrollDimensions.width);
-
 		if (hasHorizontalScrollbar) {
-			console.log('has horizontal scrollbar');
-
 			const extraBottomPadding = `${this.hoverWidget.scrollbar.options.horizontalScrollbarSize}px`;
 			if (this.hoverWidget.contentsDomNode.style.paddingBottom !== extraBottomPadding) {
 				this.hoverWidget.contentsDomNode.style.paddingBottom = extraBottomPadding;
 			}
 			const maxRenderingHeight = this.findMaximumRenderingHeight();
-
 			if (!maxRenderingHeight) {
 				return;
 			}
-
 			if (persistedSize) {
-				containerDomNode.style.height = Math.min(maxRenderingHeight, persistedSize.height - 6) + 'px';
-				contentsDomNode.style.height = Math.min(maxRenderingHeight, persistedSize.height - 6 - SCROLLBAR_WIDTH) + 'px';
+				const persistedHeight = persistedSize.height - 2 * SASH_WIDTH_MINUS_BORDER;
+				containerDomNode.style.height = Math.min(maxRenderingHeight, persistedHeight) + 'px';
+				contentsDomNode.style.height = Math.min(maxRenderingHeight, persistedHeight - SCROLLBAR_WIDTH) + 'px';
 			} else {
 				containerDomNode.style.height = Math.min(maxRenderingHeight, clientHeight) + 'px';
 				contentsDomNode.style.height = Math.min(maxRenderingHeight, clientHeight - SCROLLBAR_WIDTH) + 'px';
 			}
-			this.element.layout(clientHeight + 6, clientWidth + 6);
-			this.editor.layoutContentWidget(this.resizableContentWidget);
+			this.element.layout(clientHeight + 2 * SASH_WIDTH_MINUS_BORDER, clientWidth + 2 * SASH_WIDTH_MINUS_BORDER);
 			this.hoverWidget.onContentsChanged();
 		}
 
-		console.log('Before changing the sash size');
+		const verticalSashLength = containerDomNode.clientHeight + 2 * BORDER_WIDTH;
+		const horizontalSashLength = containerDomNode.clientWidth + 2 * BORDER_WIDTH;
 
-		const finalClientHeight = containerDomNode.clientHeight + 2;
-		const finalClientWidth = containerDomNode.clientWidth + 2;
-
-		this.element.northSash.el.style.width = finalClientWidth + 'px';
-		this.element.southSash.el.style.width = finalClientWidth + 'px';
+		this.element.northSash.el.style.width = horizontalSashLength + 'px';
+		this.element.southSash.el.style.width = horizontalSashLength + 'px';
 		this.element.northSash.el.style.left = 2 + 'px';
 		this.element.southSash.el.style.left = 2 + 'px';
 
-		this.element.eastSash.el.style.height = finalClientHeight + 'px';
-		this.element.westSash.el.style.height = finalClientHeight + 'px';
+		this.element.eastSash.el.style.height = verticalSashLength + 'px';
+		this.element.westSash.el.style.height = verticalSashLength + 'px';
 		this.element.eastSash.el.style.top = 2 + 'px';
 		this.element.westSash.el.style.top = 2 + 'px';
 
 		this.editor.layoutContentWidget(this.resizableContentWidget);
-		this.editor.render();
-
-		console.log('At the end of on contents changed');
-		clientHeight = containerDomNode.clientHeight;
-		clientWidth = containerDomNode.clientWidth;
-		resizableClientHeight = resizableContentDomNode.clientHeight;
-		resizableClientWidth = resizableContentDomNode.clientWidth;
-
-		console.log('containerDomNode : ', containerDomNode);
-		console.log('contentsDomNode : ', contentsDomNode);
-		console.log('clientHeight', clientHeight);
-		console.log('clientWidth : ', clientWidth);
-		console.log('resizableClientHeight', resizableClientHeight);
-		console.log('resizableClientWidth : ', resizableClientWidth);
 	}
 
 	public clear(): void {

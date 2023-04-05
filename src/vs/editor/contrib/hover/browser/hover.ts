@@ -139,7 +139,6 @@ export class ModesHoverController implements IEditorContribution {
 	}
 
 	private _onEditorMouseMove(mouseEvent: IEditorMouseEvent): void {
-		// console.log('mouseEvent : ', mouseEvent);
 		const target = mouseEvent.target;
 
 		if (this._isMouseDown && this._hoverClicked) {

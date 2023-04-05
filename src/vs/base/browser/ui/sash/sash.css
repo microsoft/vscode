@@ -107,7 +107,7 @@
 	position: absolute;
 	width: 100%;
 	height: 100%;
-	background: red;
+	background: transparent;
 }
 
 .monaco-workbench:not(.reduce-motion) .monaco-sash:before {

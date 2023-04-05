@@ -47,8 +47,6 @@ export abstract class ResizableWidget implements IResizableWidget {
 		private readonly persistingOptions: IPersistingOptions,
 	) {
 
-		console.log('Inside of ResizableWidget constructor');
-
 		this.element = this.disposables.add(new ResizableHTMLElement());
 		this.element.minSize = new dom.Dimension(10, 24);
 
@@ -129,9 +127,7 @@ export abstract class ResizableContentWidget implements IContentWidget {
 	constructor(
 		private readonly resizableWidget: ResizableWidget,
 		private readonly editor: ICodeEditor
-	) {
-		console.log('Inside of ResizableContentWidget constructor');
-	}
+	) { }
 
 	abstract getId(): string;
 
@@ -144,25 +140,16 @@ export abstract class ResizableContentWidget implements IContentWidget {
 	}
 
 	getPosition(): IContentWidgetPosition | null {
-
-		console.log('Inside of getPosition of ResizableContentWidget');
-
 		const contentWidgetPosition = {
 			position: this._position,
 			secondaryPosition: this._secondaryPosition,
 			preference: (this._preference),
 			positionAffinity: this._positionAffinity
 		};
-
-		console.log('contentWidgetPosition: ', contentWidgetPosition);
-
 		return contentWidgetPosition;
 	}
 
 	hide(): void {
-
-		console.log('Inside of hide of the ResizableContentWidget');
-
 		this.editor.removeContentWidget(this);
 	}
 
@@ -270,9 +257,6 @@ export class MultipleSizePersistingMechanism implements IPersistingMechanism {
 		private readonly resizableWidget: ResizableWidget,
 		public readonly editor: ICodeEditor
 	) {
-
-		console.log('Inside of constructor of the multiple size persisting mechanism');
-
 		this.disposables.add(this.editor.onDidChangeModelContent((e) => {
 			const uri = this.editor.getModel()?.uri;
 			if (!uri || !this.persistedWidgetSizes.has(uri)) {
@@ -303,29 +287,15 @@ export class MultipleSizePersistingMechanism implements IPersistingMechanism {
 
 		this.disposables.add(this.resizableWidget.element.onDidResize(e => {
 
-			console.log('Inside of on did resize of the multiple size persisting mechanism');
-			console.log('this.resizableWidget.element.domNode : ', this.resizableWidget.element.domNode);
-			console.log('e : ', e);
-
 			const height = e.dimension.height;
 			const width = e.dimension.width;
-
 			this.resizableWidget.resize(new dom.Dimension(width, height));
-
-			console.log('this.resizableWidget.element.domNode : ', this.resizableWidget.element.domNode);
-
 			const maxRenderingWidth = this.resizableWidget.findMaximumRenderingWidth();
 			const maxRenderingHeight = this.resizableWidget.findMaximumRenderingHeight();
-
-			console.log('maxRenderingWidth : ', maxRenderingWidth);
-			console.log('maxRenderingHeight : ', maxRenderingHeight);
-
 			if (!maxRenderingWidth || !maxRenderingHeight) {
 				return;
 			}
-
 			this.resizableWidget.element.maxSize = new dom.Dimension(maxRenderingWidth, maxRenderingHeight);
-
 			if (e.done) {
 				if (!this.editor.hasModel()) {
 					return;
@@ -359,9 +329,6 @@ export class MultipleSizePersistingMechanism implements IPersistingMechanism {
 	}
 
 	findSize(): dom.Dimension | undefined {
-
-		console.log('Inside of findSize of the MultiplePersistingMechanisms');
-
 		if (!this._position || !this.editor.hasModel()) {
 			return;
 		}
