@@ -1,7 +1,7 @@
 {
   "name": "code-oss-dev",
   "version": "1.78.0",
-  "distro": "82145e3f5bdbc34403c6af911d61ab57ed0eaa05",
+  "distro": "42831772af6ef8d6bdc1e7e128ad6ec1e107c808",
   "author": {
     "name": "Microsoft Corporation"
   },
@@ -120,7 +120,6 @@
     "@types/webpack": "^5.28.1",
     "@types/wicg-file-system-access": "^2020.9.5",
     "@types/windows-foreground-love": "^0.3.0",
-    "@types/windows-mutex": "^0.4.0",
     "@types/windows-process-tree": "^0.2.0",
     "@types/winreg": "^1.2.30",
     "@types/yauzl": "^2.9.1",
@@ -230,9 +229,9 @@
     "url": "https://github.com/microsoft/vscode/issues"
   },
   "optionalDependencies": {
+    "@vscode/windows-mutex": "0.4.2",
     "@vscode/windows-registry": "1.0.6",
     "windows-foreground-love": "0.5.0",
-    "windows-mutex": "0.4.1",
     "windows-process-tree": "0.4.0"
   },
   "resolutions": {

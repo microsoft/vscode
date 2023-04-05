@@ -77,8 +77,7 @@ export class AccessibleBufferWidget extends DisposableStore {
 		this._accessibleBuffer.classList.add('accessible-buffer');
 		this._editorContainer = document.createElement('div');
 		const codeEditorWidgetOptions: ICodeEditorWidgetOptions = {
-			isSimpleWidget: true,
-			contributions: EditorExtensionsRegistry.getSomeEditorContributions([LinkDetector.ID, SelectionClipboardContributionID])
+			contributions: EditorExtensionsRegistry.getSomeEditorContributions([LinkDetector.ID, SelectionClipboardContributionID, 'editor.contrib.selectionAnchorController'])
 		};
 		const font = _xterm.getFont();
 		const editorOptions: IEditorConstructionOptions = {

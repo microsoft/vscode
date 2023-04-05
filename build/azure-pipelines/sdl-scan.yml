@@ -36,7 +36,7 @@ variables:
 stages:
   - stage: Windows
     condition: eq(variables.SCAN_WINDOWS, 'true')
-    pool: vscode-1es-windows
+    pool: 1es-windows-2019-x64
     jobs:
       - job: WindowsJob
         timeoutInMinutes: 0
