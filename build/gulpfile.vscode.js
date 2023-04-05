@@ -45,7 +45,6 @@ const vscodeEntryPoints = [
 	buildfile.workerExtensionHost,
 	buildfile.workerNotebook,
 	buildfile.workerLanguageDetection,
-	buildfile.workerSharedProcess,
 	buildfile.workerLocalFileSearch,
 	buildfile.workerProfileAnalysis,
 	buildfile.workbenchDesktop,
@@ -65,7 +64,7 @@ const vscodeResources = [
 	'out-build/vs/base/common/performance.js',
 	'out-build/vs/base/node/{stdForkStart.js,terminateProcess.sh,cpuUsage.sh,ps.sh}',
 	'out-build/vs/base/browser/ui/codicons/codicon/**',
-	'out-build/vs/base/parts/sandbox/electron-browser/preload.js',
+	'out-build/vs/base/parts/sandbox/electron-sandbox/preload.js',
 	'out-build/vs/workbench/browser/media/*-theme.css',
 	'out-build/vs/workbench/contrib/debug/**/*.json',
 	'out-build/vs/workbench/contrib/externalTerminal/**/*.scpt',
@@ -126,8 +125,7 @@ const optimizeVSCodeTask = task.define('optimize-vscode', task.series(
 			manual: [
 				{ src: [...windowBootstrapFiles, 'out-build/vs/code/electron-sandbox/workbench/workbench.js'], out: 'vs/code/electron-sandbox/workbench/workbench.js' },
 				{ src: [...windowBootstrapFiles, 'out-build/vs/code/electron-sandbox/issue/issueReporter.js'], out: 'vs/code/electron-sandbox/issue/issueReporter.js' },
-				{ src: [...windowBootstrapFiles, 'out-build/vs/code/electron-sandbox/processExplorer/processExplorer.js'], out: 'vs/code/electron-sandbox/processExplorer/processExplorer.js' },
-				{ src: [...windowBootstrapFiles, 'out-build/vs/code/node/sharedProcess/sharedProcess.js'], out: 'vs/code/node/sharedProcess/sharedProcess.js' }
+				{ src: [...windowBootstrapFiles, 'out-build/vs/code/electron-sandbox/processExplorer/processExplorer.js'], out: 'vs/code/electron-sandbox/processExplorer/processExplorer.js' }
 			]
 		}
 	)
@@ -199,7 +197,7 @@ function packageTask(platform, arch, sourceFolderName, destinationFolderName, op
 		const out = sourceFolderName;
 
 		const checksums = computeChecksums(out, [
-			'vs/base/parts/sandbox/electron-browser/preload.js',
+			'vs/base/parts/sandbox/electron-sandbox/preload.js',
 			'vs/workbench/workbench.desktop.main.js',
 			'vs/workbench/workbench.desktop.main.css',
 			'vs/workbench/api/node/extensionHostProcess.js',

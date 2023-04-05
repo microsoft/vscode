@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Codicon } from 'vs/base/common/codicons';
-import { isCodeEditor } from 'vs/editor/browser/editorBrowser';
+import { isCodeEditor, isDiffEditor } from 'vs/editor/browser/editorBrowser';
 import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { IBulkEditService, ResourceTextEdit } from 'vs/editor/browser/services/bulkEditService';
 import { Range } from 'vs/editor/common/core/range';
@@ -15,6 +15,7 @@ import { INTERACTIVE_SESSION_CATEGORY } from 'vs/workbench/contrib/interactiveSe
 import { IInteractiveSessionCopyAction, IInteractiveSessionService, IInteractiveSessionUserActionEvent, InteractiveSessionCopyKind } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionService';
 import { IInteractiveResponseViewModel } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionViewModel';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 
 export interface IInteractiveSessionCodeBlockActionContext {
 	code: string;
@@ -97,28 +98,42 @@ export function registerInteractiveSessionCodeBlockActions() {
 			const editorService = accessor.get(IEditorService);
 			const bulkEditService = accessor.get(IBulkEditService);
 			const interactiveSessionService = accessor.get(IInteractiveSessionService);
-			const activeEditorControl = editorService.activeTextEditorControl;
-			if (isCodeEditor(activeEditorControl)) {
-				const activeModel = activeEditorControl.getModel();
-				if (!activeModel) {
-					return;
-				}
+			const textFileService = accessor.get(ITextFileService);
 
-				const activeSelection = activeEditorControl.getSelection() ?? new Range(activeModel.getLineCount(), 1, activeModel.getLineCount(), 1);
-				await bulkEditService.apply([new ResourceTextEdit(activeModel.uri, {
-					range: activeSelection,
-					text: context.code,
-				})]);
-
-				interactiveSessionService.notifyUserAction(<IInteractiveSessionUserActionEvent>{
-					providerId: context.element.providerId,
-					action: {
-						kind: 'insert',
-						responseId: context.element.providerResponseId,
-						codeBlockIndex: context.codeBlockIndex,
-					}
-				});
+			let activeEditorControl = editorService.activeTextEditorControl;
+			if (isDiffEditor(activeEditorControl)) {
+				activeEditorControl = activeEditorControl.getOriginalEditor().hasTextFocus() ? activeEditorControl.getOriginalEditor() : activeEditorControl.getModifiedEditor();
 			}
+
+			if (!isCodeEditor(activeEditorControl)) {
+				return;
+			}
+
+			const activeModel = activeEditorControl.getModel();
+			if (!activeModel) {
+				return;
+			}
+
+			const activeTextModel = textFileService.files.get(activeModel.uri);
+			if (!activeTextModel || activeTextModel.isReadonly()) {
+				return;
+			}
+
+			const activeSelection = activeEditorControl.getSelection() ?? new Range(activeModel.getLineCount(), 1, activeModel.getLineCount(), 1);
+			await bulkEditService.apply([new ResourceTextEdit(activeModel.uri, {
+				range: activeSelection,
+				text: context.code,
+			})]);
+
+			interactiveSessionService.notifyUserAction(<IInteractiveSessionUserActionEvent>{
+				providerId: context.element.providerId,
+				action: {
+					kind: 'insert',
+					responseId: context.element.providerResponseId,
+					codeBlockIndex: context.codeBlockIndex,
+				}
+			});
 		}
+
 	});
 }

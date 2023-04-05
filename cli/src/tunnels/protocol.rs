@@ -184,6 +184,15 @@ pub mod singleton {
 
 	#[derive(Serialize, Deserialize)]
 	pub struct Status {
-		pub ok: bool,
+		pub tunnel: TunnelState,
+	}
+
+	#[derive(Deserialize, Serialize, Debug)]
+	pub struct LogReplayFinished {}
+
+	#[derive(Deserialize, Serialize, Debug)]
+	pub enum TunnelState {
+		Disconnected,
+		Connected { name: String },
 	}
 }

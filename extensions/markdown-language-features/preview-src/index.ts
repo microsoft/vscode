@@ -77,10 +77,16 @@ onceDocumentLoaded(() => {
 		doAfterImagesLoaded(() => {
 			// Try to scroll to fragment if available
 			if (settings.settings.fragment) {
+				let fragment: string;
+				try {
+					fragment = encodeURIComponent(settings.settings.fragment);
+				} catch {
+					fragment = settings.settings.fragment;
+				}
 				state.fragment = undefined;
 				vscode.setState(state);
 
-				const element = getLineElementForFragment(settings.settings.fragment, documentVersion);
+				const element = getLineElementForFragment(fragment, documentVersion);
 				if (element) {
 					scrollDisabledCount += 1;
 					scrollToRevealSourceLine(element.line, documentVersion, settings);

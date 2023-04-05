@@ -22,6 +22,7 @@ use crate::{
 	rpc::{RpcCaller, RpcDispatcher},
 	singleton::SingletonServer,
 	state::LauncherPaths,
+	tunnels::code_server::print_listening,
 	update_service::Platform,
 	util::{
 		errors::{AnyError, CodeError},
@@ -52,11 +53,13 @@ struct SingletonServerContext {
 	log: log::Logger,
 	shutdown_tx: broadcast::Sender<ShutdownSignal>,
 	broadcast_tx: broadcast::Sender<Vec<u8>>,
+	current_name: Arc<Mutex<Option<String>>>,
 }
 
 pub struct RpcServer {
 	fut: JoinHandle<Result<(), CodeError>>,
 	shutdown_broadcast: broadcast::Sender<ShutdownSignal>,
+	current_name: Arc<Mutex<Option<String>>>,
 }
 
 pub fn make_singleton_server(
@@ -68,10 +71,12 @@ pub fn make_singleton_server(
 	let (shutdown_broadcast, _) = broadcast::channel(4);
 	let rpc = new_json_rpc();
 
+	let current_name = Arc::new(Mutex::new(None));
 	let mut rpc = rpc.methods(SingletonServerContext {
 		log: log.clone(),
 		shutdown_tx: shutdown_broadcast.clone(),
 		broadcast_tx: log_broadcast.get_brocaster(),
+		current_name: current_name.clone(),
 	});
 
 	rpc.register_sync(
@@ -85,8 +90,13 @@ pub fn make_singleton_server(
 
 	rpc.register_sync(
 		protocol::singleton::METHOD_STATUS,
-		|_: protocol::EmptyObject, _| {
-			Ok(protocol::singleton::Status { ok: true }) // mostly placeholder
+		|_: protocol::EmptyObject, c| {
+			Ok(protocol::singleton::Status {
+				tunnel: match c.current_name.lock().unwrap().clone() {
+					Some(name) => protocol::singleton::TunnelState::Connected { name },
+					None => protocol::singleton::TunnelState::Disconnected,
+				},
+			})
 		},
 	);
 
@@ -114,6 +124,7 @@ pub fn make_singleton_server(
 	});
 	RpcServer {
 		shutdown_broadcast,
+		current_name,
 		fut,
 	}
 }
@@ -125,6 +136,12 @@ pub async fn start_singleton_server<'a>(
 		ShutdownRequest::Derived(Box::new(args.server.shutdown_broadcast.subscribe())),
 		ShutdownRequest::Derived(Box::new(args.shutdown.clone())),
 	]);
+
+	{
+		print_listening(&args.log, &args.tunnel.name);
+		let mut name = args.server.current_name.lock().unwrap();
+		*name = Some(args.tunnel.name.clone())
+	}
 
 	let serve_fut = super::serve(
 		&args.log,

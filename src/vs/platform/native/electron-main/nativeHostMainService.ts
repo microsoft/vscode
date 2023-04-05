@@ -30,7 +30,6 @@ import { ILifecycleMainService } from 'vs/platform/lifecycle/electron-main/lifec
 import { ILogService } from 'vs/platform/log/common/log';
 import { ICommonNativeHostService, IOSProperties, IOSStatistics } from 'vs/platform/native/common/native';
 import { IProductService } from 'vs/platform/product/common/productService';
-import { ISharedProcess } from 'vs/platform/sharedProcess/node/sharedProcess';
 import { IPartsSplash } from 'vs/platform/theme/common/themeService';
 import { IThemeMainService } from 'vs/platform/theme/electron-main/themeMainService';
 import { ICodeWindow } from 'vs/platform/window/electron-main/window';
@@ -53,7 +52,6 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 	declare readonly _serviceBrand: undefined;
 
 	constructor(
-		private sharedProcess: ISharedProcess,
 		@IWindowsMainService private readonly windowsMainService: IWindowsMainService,
 		@IDialogMainService private readonly dialogMainService: IDialogMainService,
 		@ILifecycleMainService private readonly lifecycleMainService: ILifecycleMainService,
@@ -455,12 +453,14 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 		const gdkBackend = process.env['GDK_BACKEND'];
 		const gioModuleDir = process.env['GIO_MODULE_DIR'];
 		const gtkExePrefix = process.env['GTK_EXE_PREFIX'];
+		const gsettingsSchemaDir = process.env['GSETTINGS_SCHEMA_DIR'];
 		delete process.env['GDK_PIXBUF_MODULE_FILE'];
 		delete process.env['GDK_PIXBUF_MODULEDIR'];
 		delete process.env['GTK_IM_MODULE_FILE'];
 		delete process.env['GDK_BACKEND'];
 		delete process.env['GIO_MODULE_DIR'];
 		delete process.env['GTK_EXE_PREFIX'];
+		delete process.env['GSETTINGS_SCHEMA_DIR'];
 
 		shell.openExternal(url);
 
@@ -471,6 +471,7 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 		process.env['GDK_BACKEND'] = gdkBackend;
 		process.env['GIO_MODULE_DIR'] = gioModuleDir;
 		process.env['GTK_EXE_PREFIX'] = gtkExePrefix;
+		process.env['GSETTINGS_SCHEMA_DIR'] = gsettingsSchemaDir;
 	}
 
 	moveItemToTrash(windowId: number | undefined, fullPath: string): Promise<void> {
@@ -783,10 +784,6 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 		} else {
 			this.stateService.removeItem('window.experimental.useSandbox');
 		}
-	}
-
-	async toggleSharedProcessWindow(): Promise<void> {
-		return this.sharedProcess.toggle();
 	}
 
 	//#endregion

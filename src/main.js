@@ -95,20 +95,12 @@ let nlsConfigurationPromise = undefined;
 /**
  * @type {String}
  **/
-let osLocale = 'en';
-// This if statement can be simplified once
-// VS Code moves to Electron 22.
-// Ref https://github.com/microsoft/vscode/issues/159813
-// and https://github.com/electron/electron/pull/36035
-if ('getPreferredSystemLanguages' in app
-	&& typeof app.getPreferredSystemLanguages === 'function') {
-	// Use the most preferred OS language for language recommendation.
-	// The API might return an empty array on Linux, such as when
-	// the 'C' locale is the user's only configured locale.
-	// No matter the OS, if the array is empty, default back to 'en'.
-	const resolved = app.getPreferredSystemLanguages()?.[0] ?? 'en';
-	osLocale = processZhLocale(resolved.toLowerCase());
-}
+// Use the most preferred OS language for language recommendation.
+// The API might return an empty array on Linux, such as when
+// the 'C' locale is the user's only configured locale.
+// No matter the OS, if the array is empty, default back to 'en'.
+const resolved = app.getPreferredSystemLanguages()?.[0] ?? 'en';
+const osLocale = processZhLocale(resolved.toLowerCase());
 const metaDataFile = path.join(__dirname, 'nls.metadata.json');
 const locale = getUserDefinedLocale(argvConfig);
 if (locale) {
@@ -259,6 +251,11 @@ function configureCommandlineSwitchesSync(cliArgs) {
 	 *	Refs https://groups.google.com/a/chromium.org/g/embedder-dev/c/ZF3uHHyWLKw/m/VDN2hDXMAAAJ
 	 */
 	app.commandLine.appendSwitch('disable-features', 'CalculateNativeWinOcclusion');
+
+	/**
+	 * Allow media to play even if no user gesture is used to fix issues like #176284
+	 */
+	app.commandLine.appendSwitch('disable-features', 'CalculateNativeWinOcclusion,UnifiedAutoplay');
 
 	// Support JS Flags
 	const jsFlags = getJSFlags(cliArgs);

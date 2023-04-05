@@ -11,14 +11,14 @@ import { ILogDirectoryProvider } from './tsServer/logDirectoryProvider';
 import { TsServerProcessFactory } from './tsServer/server';
 import { ITypeScriptVersionProvider } from './tsServer/versionProvider';
 import TypeScriptServiceClientHost from './typeScriptServiceClientHost';
-import { ActiveJsTsEditorTracker } from './utils/activeJsTsEditorTracker';
-import { ServiceConfigurationProvider } from './utils/configuration';
-import * as fileSchemes from './utils/fileSchemes';
-import { standardLanguageDescriptions } from './utils/languageDescription';
+import { ActiveJsTsEditorTracker } from './ui/activeJsTsEditorTracker';
+import ManagedFileContextManager from './ui/managedFileContext';
+import { ServiceConfigurationProvider } from './configuration/configuration';
+import * as fileSchemes from './configuration/fileSchemes';
+import { standardLanguageDescriptions } from './configuration/languageDescription';
 import { Lazy, lazy } from './utils/lazy';
-import { Logger } from './utils/logger';
-import ManagedFileContextManager from './utils/managedFileContext';
-import { PluginManager } from './utils/plugins';
+import { Logger } from './logging/logger';
+import { PluginManager } from './tsServer/plugins';
 
 export function createLazyClientHost(
 	context: vscode.ExtensionContext,

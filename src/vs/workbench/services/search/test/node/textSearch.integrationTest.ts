@@ -157,7 +157,7 @@ flakySuite('TextSearch-integration', function () {
 			contentPattern: { pattern: 'e' }
 		};
 
-		return doSearchTest(config, 788);
+		return doSearchTest(config, 781);
 	});
 
 	test('Text: e (with excludes)', () => {
@@ -167,7 +167,7 @@ flakySuite('TextSearch-integration', function () {
 			excludePattern: { '**/examples': true }
 		};
 
-		return doSearchTest(config, 394);
+		return doSearchTest(config, 387);
 	});
 
 	test('Text: e (with includes)', () => {
@@ -344,12 +344,12 @@ flakySuite('TextSearch-integration', function () {
 
 		return doSearchTest(config, 4).then(results => {
 			assert.strictEqual(results.length, 4);
-			assert.strictEqual((<ITextSearchContext>results[0].results![0]).lineNumber, 25);
+			assert.strictEqual((<ITextSearchContext>results[0].results![0]).lineNumber, 24);
 			assert.strictEqual((<ITextSearchContext>results[0].results![0]).text, '        compiler.addUnit(prog,"input.ts");');
 			// assert.strictEqual((<ITextSearchMatch>results[1].results[0]).preview.text, '        compiler.typeCheck();\n'); // See https://github.com/BurntSushi/ripgrep/issues/1095
-			assert.strictEqual((<ITextSearchContext>results[2].results![0]).lineNumber, 27);
+			assert.strictEqual((<ITextSearchContext>results[2].results![0]).lineNumber, 26);
 			assert.strictEqual((<ITextSearchContext>results[2].results![0]).text, '        compiler.emit();');
-			assert.strictEqual((<ITextSearchContext>results[3].results![0]).lineNumber, 28);
+			assert.strictEqual((<ITextSearchContext>results[3].results![0]).lineNumber, 27);
 			assert.strictEqual((<ITextSearchContext>results[3].results![0]).text, '');
 		});
 	});

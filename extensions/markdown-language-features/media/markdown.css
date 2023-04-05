@@ -98,6 +98,11 @@ body.showEditorSelection li.code-line:hover:before {
 	border-left: 3px solid rgba(255, 160, 0, 1);
 }
 
+/* Prevent `sub` and `sup` elements from affecting line height */
+sub,
+sup {
+	line-height: 0;
+}
 
 ul ul,
 ul ol,

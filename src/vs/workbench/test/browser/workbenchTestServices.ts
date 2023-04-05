@@ -320,7 +320,7 @@ export function workbenchInstantiationService(
 	instantiationService.stub(IPaneCompositePartService, new TestPaneCompositeService());
 	instantiationService.stub(IListService, new TestListService());
 	const hoverService = instantiationService.stub(IHoverService, instantiationService.createInstance(TestHoverService));
-	instantiationService.stub(IQuickInputService, disposables.add(new QuickInputService(configService, instantiationService, keybindingService, contextKeyService, themeService, accessibilityService, layoutService, hoverService)));
+	instantiationService.stub(IQuickInputService, disposables.add(new QuickInputService(configService, instantiationService, keybindingService, contextKeyService, themeService, layoutService, hoverService)));
 	instantiationService.stub(IWorkspacesService, new TestWorkspacesService());
 	instantiationService.stub(IWorkspaceTrustManagementService, new TestWorkspaceTrustManagementService());
 	instantiationService.stub(ITerminalInstanceService, new TestTerminalInstanceService());
@@ -1788,6 +1788,7 @@ export class TestTerminalInstanceService implements ITerminalInstanceService {
 	preparePathForTerminalAsync(path: string, executable: string | undefined, title: string, shellType: TerminalShellType, remoteAuthority: string | undefined): Promise<string> { throw new Error('Method not implemented.'); }
 	createInstance(options: ICreateTerminalOptions, target: TerminalLocation): ITerminalInstance { throw new Error('Method not implemented.'); }
 	async getBackend(remoteAuthority?: string): Promise<ITerminalBackend | undefined> { throw new Error('Method not implemented.'); }
+	didRegisterBackend(remoteAuthority?: string): void { throw new Error('Method not implemented.'); }
 }
 
 export class TestTerminalEditorService implements ITerminalEditorService {

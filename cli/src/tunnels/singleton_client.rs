@@ -17,9 +17,10 @@ use tokio::sync::mpsc;
 use crate::{
 	async_pipe::{socket_stream_split, AsyncPipe},
 	constants::IS_INTERACTIVE_CLI,
-	json_rpc::{new_json_rpc, start_json_rpc},
+	json_rpc::{new_json_rpc, start_json_rpc, JsonRpcSerializer},
 	log,
-	tunnels::protocol::EmptyObject,
+	rpc::RpcCaller,
+	tunnels::{code_server::print_listening, protocol::EmptyObject},
 	util::sync::Barrier,
 };
 
@@ -34,6 +35,7 @@ pub struct SingletonClientArgs {
 struct SingletonServerContext {
 	log: log::Logger,
 	exit_entirely: Arc<AtomicBool>,
+	caller: RpcCaller<JsonRpcSerializer>,
 }
 
 const CONTROL_INSTRUCTIONS_COMMON: &str =
@@ -61,7 +63,7 @@ pub async fn start_singleton_client(args: SingletonClientArgs) -> bool {
 		"An existing tunnel is running on this machine, connecting to it..."
 	);
 
-	let stdin_handle = rpc.get_caller(msg_tx);
+	let stdin_handle = rpc.get_caller(msg_tx.clone());
 	thread::spawn(move || {
 		let mut input = String::new();
 		loop {
@@ -85,9 +87,11 @@ pub async fn start_singleton_client(args: SingletonClientArgs) -> bool {
 		}
 	});
 
+	let caller = rpc.get_caller(msg_tx);
 	let mut rpc = rpc.methods(SingletonServerContext {
 		log: args.log.clone(),
 		exit_entirely: exit_entirely.clone(),
+		caller,
 	});
 
 	rpc.register_sync(protocol::singleton::METHOD_SHUTDOWN, |_: EmptyObject, c| {
@@ -95,14 +99,28 @@ pub async fn start_singleton_client(args: SingletonClientArgs) -> bool {
 		Ok(())
 	});
 
-	rpc.register_sync(
+	rpc.register_async(
 		protocol::singleton::METHOD_LOG_REPLY_DONE,
-		|_: EmptyObject, c| {
+		|_: EmptyObject, c| async move {
 			c.log.result(if *IS_INTERACTIVE_CLI {
 				CONTROL_INSTRUCTIONS_INTERACTIVE
 			} else {
 				CONTROL_INSTRUCTIONS_COMMON
 			});
+
+			let res = c.caller.call::<_, _, protocol::singleton::Status>(
+				protocol::singleton::METHOD_STATUS,
+				protocol::EmptyObject {},
+			);
+
+			// we want to ensure the "listening" string always gets printed for
+			// consumers (i.e. VS Code). Ask for it. If the tunnel is not currently
+			// connected though, it will be soon, and that'll be in the log replays.
+			if let Ok(Ok(s)) = res.await {
+				if let protocol::singleton::TunnelState::Connected { name } = s.tunnel {
+					print_listening(&c.log, &name);
+				}
+			}
 
 			Ok(())
 		},

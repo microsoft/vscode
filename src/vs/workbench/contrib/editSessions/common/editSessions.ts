@@ -28,7 +28,7 @@ export interface IEditSessionsStorageService {
 	readonly onDidSignIn: Event<void>;
 	readonly onDidSignOut: Event<void>;
 
-	initialize(fromContinueOn: boolean, silent?: boolean): Promise<boolean>;
+	initialize(silent?: boolean): Promise<boolean>;
 	read(ref: string | undefined): Promise<{ ref: string; editSession: EditSession } | undefined>;
 	write(editSession: EditSession): Promise<string>;
 	delete(ref: string | null): Promise<void>;

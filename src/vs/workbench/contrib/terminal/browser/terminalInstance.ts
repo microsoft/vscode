@@ -88,6 +88,7 @@ import { editorBackground } from 'vs/platform/theme/common/colorRegistry';
 import { PANEL_BACKGROUND, SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
 import { TerminalExtensionsRegistry } from 'vs/workbench/contrib/terminal/browser/terminalExtensions';
 import { ResolvedKeybinding } from 'vs/base/common/keybindings';
+import { ResultKind } from 'vs/platform/keybinding/common/keybindingResolver';
 
 const enum Constants {
 	/**
@@ -333,6 +334,8 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	readonly onMaximumDimensionsChanged = this._onMaximumDimensionsChanged.event;
 	private readonly _onDidFocus = this._register(new Emitter<ITerminalInstance>());
 	readonly onDidFocus = this._onDidFocus.event;
+	private readonly _onDidRequestFocus = this._register(new Emitter<void>());
+	readonly onDidRequestFocus = this._onDidRequestFocus.event;
 	private readonly _onDidBlur = this._register(new Emitter<ITerminalInstance>());
 	readonly onDidBlur = this._onDidBlur.event;
 	private readonly _onDidInputData = this._register(new Emitter<ITerminalInstance>());
@@ -939,7 +942,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			// Respect chords if the allowChords setting is set and it's not Escape. Escape is
 			// handled specially for Zen Mode's Escape, Escape chord, plus it's important in
 			// terminals generally
-			const isValidChord = resolveResult?.enterMultiChord && this._configHelper.config.allowChords && event.key !== 'Escape';
+			const isValidChord = resolveResult?.kind === ResultKind.MoreChordsNeeded && this._configHelper.config.allowChords && event.key !== 'Escape';
 			if (this._keybindingService.inChordMode || isValidChord) {
 				event.preventDefault();
 				return false;
@@ -959,7 +962,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 			// for keyboard events that resolve to commands described
 			// within commandsToSkipShell, either alert or skip processing by xterm.js
-			if (resolveResult && resolveResult.commandId && this._skipTerminalCommands.some(k => k === resolveResult.commandId) && !this._configHelper.config.sendKeybindingsToShell) {
+			if (resolveResult && resolveResult.kind === ResultKind.KbFound && resolveResult.commandId && this._skipTerminalCommands.some(k => k === resolveResult.commandId) && !this._configHelper.config.sendKeybindingsToShell) {
 				// don't alert when terminal is opened or closed
 				if (this._storageService.getBoolean(SHOW_TERMINAL_CONFIG_PROMPT_KEY, StorageScope.APPLICATION, true) &&
 					this._hasHadInput &&
@@ -1242,6 +1245,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		}
 		if (force || !window.getSelection()?.toString()) {
 			this.xterm.raw.focus();
+			this._onDidRequestFocus.fire();
 		}
 	}
 

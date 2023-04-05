@@ -5,13 +5,13 @@
 
 import * as path from 'path';
 import * as vscode from 'vscode';
-import type * as Proto from '../protocol';
+import { DocumentSelector } from '../configuration/documentSelector';
+import { API } from '../tsServer/api';
+import type * as Proto from '../tsServer/protocol/protocol';
+import * as typeConverters from '../typeConverters';
 import { ClientCapability, ITypeScriptServiceClient, ServerResponse } from '../typescriptService';
-import API from '../utils/api';
-import { conditionalRegistration, requireSomeCapability } from '../utils/dependentRegistration';
-import { DocumentSelector } from '../utils/documentSelector';
-import * as typeConverters from '../utils/typeConverters';
 import FileConfigurationManager from './fileConfigurationManager';
+import { conditionalRegistration, requireSomeCapability } from './util/dependentRegistration';
 
 
 class TypeScriptRenameProvider implements vscode.RenameProvider {

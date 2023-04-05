@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as fs from 'fs';
+import Tracer from '../logging/tracer';
 import { getTempFile } from '../utils/temp.electron';
-import Tracer from '../utils/tracer';
 import { OngoingRequestCanceller, OngoingRequestCancellerFactory } from './cancellation';
 
 export class NodeRequestCanceller implements OngoingRequestCanceller {
