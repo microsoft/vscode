@@ -139,10 +139,10 @@ export class NotebookEditorContextKeys {
 	private _updateForExecution(e: ICellExecutionStateChangedEvent | IExecutionStateChangedEvent): void {
 		if (this._editor.textModel) {
 			const notebookExe = this._notebookExecutionStateService.getExecution(this._editor.textModel.uri);
-			this._kernelRunning.set(!!notebookExe);
+			const notebookCellExe = this._notebookExecutionStateService.getCellExecutionsForNotebook(this._editor.textModel.uri);
+			this._kernelRunning.set(notebookCellExe.length > 0 || !!notebookExe);
 			if (e.type === 'cell') {
-				const notebookCellExe = this._notebookExecutionStateService.getCellExecutionsForNotebook(this._editor.textModel.uri);
-				this._someCellRunning.set(notebookCellExe.length > 0 || !!notebookExe);
+				this._someCellRunning.set(notebookCellExe.length > 0);
 			}
 		} else {
 			this._kernelRunning.set(false);
