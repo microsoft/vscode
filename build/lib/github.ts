@@ -5,7 +5,7 @@
 
 import { Stream } from 'stream';
 import got from 'got';
-import * as remote from 'gulp-remote-retry-src';
+import { remote } from './gulpRemoteSource';
 import * as through2 from 'through2';
 
 const ghApiHeaders: Record<string, string> = {
@@ -29,7 +29,7 @@ const ghDownloadHeaders = {
 export function assetFromGithub(repo: string, version: string, assetFilter: (name: string) => boolean): Stream {
 	return remote(`/repos/${repo.replace(/^\/|\/$/g, '')}/releases/tags/v${version}`, {
 		base: 'https://api.github.com',
-		requestOptions: { headers: ghApiHeaders }
+		fetchOptions: { headers: ghApiHeaders }
 	}).pipe(through2.obj(function (file, _enc, callback) {
 		const asset = JSON.parse(file.contents.toString()).assets.find((a: { name: string }) => assetFilter(a.name));
 		if (!asset) {

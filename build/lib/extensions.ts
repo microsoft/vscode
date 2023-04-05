@@ -24,6 +24,7 @@ import webpack = require('webpack');
 import { getProductionDependencies } from './dependencies';
 import { getExtensionStream } from './builtInExtensions';
 import { getVersion } from './getVersion';
+import { remote, IOptions as IRemoteSrcOptions } from './gulpRemoteSource';
 import { assetFromGithub } from './github';
 
 const root = path.dirname(path.dirname(__dirname));
@@ -209,7 +210,6 @@ const baseHeaders = {
 };
 
 export function fromMarketplace(serviceUrl: string, { name: extensionName, version, metadata }: IBuiltInExtension): Stream {
-	const remote = require('gulp-remote-retry-src');
 	const json = require('gulp-json-editor') as typeof import('gulp-json-editor');
 
 	const [publisher, name] = extensionName.split('.');
@@ -217,10 +217,9 @@ export function fromMarketplace(serviceUrl: string, { name: extensionName, versi
 
 	fancyLog('Downloading extension:', ansiColors.yellow(`${extensionName}@${version}`), '...');
 
-	const options = {
+	const options: IRemoteSrcOptions = {
 		base: url,
-		requestOptions: {
-			gzip: true,
+		fetchOptions: {
 			headers: baseHeaders
 		}
 	};

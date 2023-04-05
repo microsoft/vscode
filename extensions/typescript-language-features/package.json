@@ -232,17 +232,6 @@
           "description": "%typescript.tsserver.pluginPaths%",
           "scope": "machine"
         },
-        "typescript.tsserver.trace": {
-          "type": "string",
-          "enum": [
-            "off",
-            "messages",
-            "verbose"
-          ],
-          "default": "off",
-          "description": "%typescript.tsserver.trace%",
-          "scope": "window"
-        },
         "javascript.suggest.completeFunctionCalls": {
           "type": "boolean",
           "default": false,

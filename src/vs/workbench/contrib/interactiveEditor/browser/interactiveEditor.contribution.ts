@@ -31,5 +31,6 @@ registerAction2(interactiveEditorActions.UndoCommand);
 registerAction2(interactiveEditorActions.ToggleInlineDiff);
 registerAction2(interactiveEditorActions.FeebackHelpfulCommand);
 registerAction2(interactiveEditorActions.FeebackUnhelpfulCommand);
+registerAction2(interactiveEditorActions.ApplyPreviewEdits);
 
 registerAction2(interactiveEditorActions.CopyRecordings);

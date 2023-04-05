@@ -249,8 +249,9 @@ function configureCommandlineSwitchesSync(cliArgs) {
 	/* Following features are disabled from the runtime.
 	 * `CalculateNativeWinOcclusion` - Disable native window occlusion tracker,
 	 *	Refs https://groups.google.com/a/chromium.org/g/embedder-dev/c/ZF3uHHyWLKw/m/VDN2hDXMAAAJ
+	 * `UnifiedAutoplay` - Allow media to play even if no user gesture is used to fix issues like #176284
 	 */
-	app.commandLine.appendSwitch('disable-features', 'CalculateNativeWinOcclusion');
+	app.commandLine.appendSwitch('disable-features', 'CalculateNativeWinOcclusion,UnifiedAutoplay');
 
 	// Support JS Flags
 	const jsFlags = getJSFlags(cliArgs);
