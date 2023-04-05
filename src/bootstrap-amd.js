@@ -15,7 +15,11 @@ const nodeRequire = require;
 globalThis._VSCODE_NODE_MODULES = new Proxy(Object.create(null), { get: (_target, mod) => nodeRequire(String(mod)) });
 
 // VSCODE_GLOBALS: package/product.json
-globalThis._VSCODE_PRODUCT_JSON = require('../product.json');
+if (process.env['VSCODE_DEV']) {
+	globalThis._VSCODE_PRODUCT_JSON = Object.assign(require('../product.json'), require('../product.overrides.json'));
+} else {
+	globalThis._VSCODE_PRODUCT_JSON = require('../product.json');
+}
 globalThis._VSCODE_PACKAGE_JSON = require('../package.json');
 
 // @ts-ignore
