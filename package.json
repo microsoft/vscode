@@ -128,7 +128,7 @@
     "@typescript-eslint/parser": "^5.57.0",
     "@vscode/l10n-dev": "0.0.21",
     "@vscode/telemetry-extractor": "^1.9.9",
-    "@vscode/test-web": "^0.0.34",
+    "@vscode/test-web": "^0.0.40",
     "@vscode/vscode-perf": "^0.0.14",
     "ansi-colors": "^3.2.3",
     "asar": "^3.0.3",
