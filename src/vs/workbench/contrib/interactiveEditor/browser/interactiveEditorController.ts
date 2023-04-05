@@ -409,6 +409,7 @@ export class InteractiveEditorController implements IEditorContribution {
 			};
 			const task = provider.provideResponse(session, request, this._ctsRequest.token);
 			this._logService.trace('[IE] request started', provider.debugName, session, request);
+			value = input;
 
 			let reply: IInteractiveEditorResponse | null | undefined;
 			try {
@@ -433,13 +434,11 @@ export class InteractiveEditorController implements IEditorContribution {
 
 			if (this._ctsRequest.token.isCancellationRequested) {
 				this._logService.trace('[IE] request CANCELED', provider.debugName);
-				value = input;
 				continue;
 			}
 
 			if (!reply) {
 				this._logService.trace('[IE] NO reply or edits', provider.debugName);
-				value = input;
 				this._zone.widget.updateMessage(localize('empty', "No results, please refine your input and try again."), ['warn']);
 				continue;
 			}
@@ -540,7 +539,7 @@ export class InteractiveEditorController implements IEditorContribution {
 				);
 			}
 			placeholder = reply.placeholder ?? session.placeholder ?? '';
-			value = '';
+
 			data.rounds += round + '|';
 
 		} while (!thisSession.token.isCancellationRequested);
