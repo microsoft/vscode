@@ -286,6 +286,7 @@ export class QuickInputList {
 
 	readonly id: string;
 	private container: HTMLElement;
+	private liveElement: HTMLElement;
 	private list: List<ListElement>;
 	private inputElements: Array<QuickPickItem> = [];
 	private elements: ListElement[] = [];
@@ -325,6 +326,10 @@ export class QuickInputList {
 	) {
 		this.id = id;
 		this.container = dom.append(this.parent, $('.quick-input-list'));
+		this.liveElement = dom.append(this.container, $('div', {
+			'aria-live': 'polite',
+			'aria-relevant': 'additions'
+		}));
 
 		const delegate = new ListElementDelegate();
 		const accessibilityProvider = new QuickInputAccessibilityProvider();
@@ -337,6 +342,19 @@ export class QuickInputList {
 		} as IListOptions<ListElement>);
 		this.list.getHTMLElement().id = id;
 		this.disposables.push(this.list);
+		this.disposables.push(this.list.onDidChangeFocus(e => {
+			const item = $('div', {
+				'aria-labelledby': this.getActiveDescendant() ?? ''
+			});
+			if (this.liveElement.hasChildNodes()) {
+				dom.reset(this.liveElement, item);
+			} else {
+				// give NVDA time to register that the newly created live region - ref https://github.com/nvaccess/nvda/issues/8873
+				setTimeout(() => {
+					dom.reset(this.liveElement, item);
+				}, 500);
+			}
+		}));
 		this.disposables.push(this.list.onKeyDown(e => {
 			const event = new StandardKeyboardEvent(e);
 			switch (event.keyCode) {
