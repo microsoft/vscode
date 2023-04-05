@@ -467,14 +467,14 @@ const newCommands: ApiCommand[] = [
 	),
 	// --- saving
 	new ApiCommand(
-		'vscode.save', 'workbench.action.files.save', 'Saves the active editor and returns the resulting resource.',
-		[],
+		'vscode.save', '_workbench.save', 'Saves the editor identified by the given resource and returns the resulting resource or undefined if save was not successful.',
+		[ApiCommandArgument.Uri.with('uri', 'The resource of the editor to save.')],
 		new ApiCommandResult<Array<UriComponents>, { uri: URI } | undefined>('The resulting saved editor.', v => (v[0] ? { uri: URI.revive(v[0]) } : undefined))
 	),
 	new ApiCommand(
-		'vscode.saveAs', 'workbench.action.files.saveAs', 'Saves the active editor to a new file name as provided by the user and returns the resulting resource.',
-		[],
-		new ApiCommandResult<Array<UriComponents>, { uri: URI } | undefined>('The resulting saved editor.', v => (v[0] ? { uri: URI.revive(v[0]) } : undefined))
+		'vscode.saveAs', '_workbench.saveAs', 'Saves the editor identified by the given resource to a new file name as provided by the user and returns the resulting resource or undefined if save was not successful or cancelled.',
+		[ApiCommandArgument.Uri.with('uri', 'The resource of the editor to save as.')],
+		new ApiCommandResult<Array<UriComponents>, { uri: URI } | undefined>('The resulting saved as editor.', v => (v[0] ? { uri: URI.revive(v[0]) } : undefined))
 	),
 ];
 

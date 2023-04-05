@@ -5,6 +5,7 @@
 
 import * as nls from 'vs/nls';
 import { URI } from 'vs/base/common/uri';
+import { assertType } from 'vs/base/common/types';
 import { EditorResourceAccessor, IEditorCommandsContext, SideBySideEditor, IEditorIdentifier, SaveReason, EditorsOrder, EditorInputCapabilities } from 'vs/workbench/common/editor';
 import { SideBySideEditorInput } from 'vs/workbench/common/editor/sideBySideEditorInput';
 import { IWindowOpenable, IOpenWindowOptions, isWorkspaceToOpen, IOpenEmptyWindowOptions } from 'vs/platform/window/common/window';
@@ -466,9 +467,28 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	primary: KeyMod.CtrlCmd | KeyCode.KeyS,
 	id: SAVE_FILE_COMMAND_ID,
 	handler: async accessor => {
-		return saveResultToUris(await saveSelectedEditors(accessor, { reason: SaveReason.EXPLICIT, force: true /* force save even when non-dirty */ }));
+		await saveSelectedEditors(accessor, { reason: SaveReason.EXPLICIT, force: true /* force save even when non-dirty */ });
 	}
 });
+
+CommandsRegistry.registerCommand({
+	id: '_workbench.save',
+	handler: async (accessor, arg: unknown) => {
+		assertType(URI.isUri(arg));
+
+		const editorService = accessor.get(IEditorService);
+
+		return saveResultToUris(await doSaveEditors(accessor, [...editorService.findEditors(arg, { supportSideBySide: SideBySideEditor.PRIMARY })], { reason: SaveReason.EXPLICIT, force: true /* force save even when non-dirty */ }));
+	}
+});
+
+function saveResultToUris(result: ISaveEditorsResult): URI[] {
+	if (!result.success) {
+		return [];
+	}
+
+	return coalesce(result.editors.map(editor => EditorResourceAccessor.getCanonicalUri(editor, { supportSideBySide: SideBySideEditor.PRIMARY })));
+}
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	when: undefined,
@@ -477,7 +497,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	win: { primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyS) },
 	id: SAVE_FILE_WITHOUT_FORMATTING_COMMAND_ID,
 	handler: async accessor => {
-		return saveResultToUris(await saveSelectedEditors(accessor, { reason: SaveReason.EXPLICIT, force: true /* force save even when non-dirty */, skipSaveParticipants: true }));
+		await saveSelectedEditors(accessor, { reason: SaveReason.EXPLICIT, force: true /* force save even when non-dirty */, skipSaveParticipants: true });
 	}
 });
 
@@ -487,7 +507,18 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	when: undefined,
 	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyS,
 	handler: async accessor => {
-		return saveResultToUris(await saveSelectedEditors(accessor, { reason: SaveReason.EXPLICIT, saveAs: true }));
+		await saveSelectedEditors(accessor, { reason: SaveReason.EXPLICIT, saveAs: true });
+	}
+});
+
+CommandsRegistry.registerCommand({
+	id: '_workbench.saveAs',
+	handler: async (accessor, arg: unknown) => {
+		assertType(URI.isUri(arg));
+
+		const editorService = accessor.get(IEditorService);
+
+		return saveResultToUris(await doSaveEditors(accessor, [...editorService.findEditors(arg, { supportSideBySide: SideBySideEditor.PRIMARY })], { reason: SaveReason.EXPLICIT, saveAs: true }));
 	}
 });
 
@@ -499,7 +530,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	win: { primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyCode.KeyS) },
 	id: SAVE_ALL_COMMAND_ID,
 	handler: async accessor => {
-		return saveResultToUris(await saveDirtyEditorsOfGroups(accessor, accessor.get(IEditorGroupsService).getGroups(GroupsOrder.MOST_RECENTLY_ACTIVE), { reason: SaveReason.EXPLICIT }));
+		await saveDirtyEditorsOfGroups(accessor, accessor.get(IEditorGroupsService).getGroups(GroupsOrder.MOST_RECENTLY_ACTIVE), { reason: SaveReason.EXPLICIT });
 	}
 });
 
@@ -517,7 +548,7 @@ CommandsRegistry.registerCommand({
 			groups = coalesce(contexts.map(context => editorGroupService.getGroup(context.groupId)));
 		}
 
-		return saveResultToUris(await saveDirtyEditorsOfGroups(accessor, groups, { reason: SaveReason.EXPLICIT }));
+		await saveDirtyEditorsOfGroups(accessor, groups, { reason: SaveReason.EXPLICIT });
 	}
 });
 
@@ -526,17 +557,10 @@ CommandsRegistry.registerCommand({
 	handler: async accessor => {
 		const editorService = accessor.get(IEditorService);
 
-		return saveResultToUris(await editorService.saveAll({ includeUntitled: false, reason: SaveReason.EXPLICIT }));
+		const res = await editorService.saveAll({ includeUntitled: false, reason: SaveReason.EXPLICIT });
+		return res.success;
 	}
 });
-
-function saveResultToUris(result: ISaveEditorsResult): URI[] {
-	if (!result.success) {
-		return [];
-	}
-
-	return coalesce(result.editors.map(editor => EditorResourceAccessor.getCanonicalUri(editor, { supportSideBySide: SideBySideEditor.PRIMARY })));
-}
 
 CommandsRegistry.registerCommand({
 	id: REVERT_FILE_COMMAND_ID,
