@@ -92,6 +92,13 @@
   dependencies:
     node-addon-api "^3.0.2"
 
+"@vscode/windows-process-tree@0.4.2":
+  version "0.4.2"
+  resolved "https://registry.yarnpkg.com/@vscode/windows-process-tree/-/windows-process-tree-0.4.2.tgz#54d010fdeb06dfe3a9c6d58fcb3ed9acfc962f33"
+  integrity sha512-b20865s1HG1VtGt887KrB1blwFS6p4L1Fl1o/WplO9j7sGBle8sLqkNnGXbCaRNgdIgfXtitmzG366FVynJZdQ==
+  dependencies:
+    nan "^2.17.0"
+
 "@vscode/windows-registry@1.0.10":
   version "1.0.10"
   resolved "https://registry.yarnpkg.com/@vscode/windows-registry/-/windows-registry-1.0.10.tgz#17e4e2f8fdd41990206d1bab2daf99c803206247"
@@ -823,13 +830,6 @@ wide-align@^1.1.0:
   integrity sha512-eDMORYaPNZ4sQIuuYPDHdQvf4gyCF9rEEV/yPxGfwPkRodwEgiMUUXTx/dex+Me0wxx53S+NgUHaP7y3MGlDmg==
   dependencies:
     string-width "^1.0.2 || 2 || 3 || 4"
-
-windows-process-tree@0.4.0:
-  version "0.4.0"
-  resolved "https://registry.yarnpkg.com/windows-process-tree/-/windows-process-tree-0.4.0.tgz#31ac49c5da557e628ce7e37a5800972173d3349a"
-  integrity sha512-9LunDnc1WwuhyLeTAXMFX8wbActGJtDCBaiapQXFYk/nO4W4X9YxOKV5g/lQL3XX69QYxveDbjVVrdnTt1qqCQ==
-  dependencies:
-    nan "^2.17.0"
 
 wrappy@1:
   version "1.0.2"

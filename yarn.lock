@@ -1153,11 +1153,6 @@
   resolved "https://registry.yarnpkg.com/@types/windows-foreground-love/-/windows-foreground-love-0.3.0.tgz#26bc230b2568aa7ab7c56d35bb5653c0a6965a42"
   integrity sha512-tFUVA/fiofNqOh6lZlymvQiQYPY+cZXZPR9mn9wN6/KS8uwx0zgH4Ij/jmFyRYr+x+DGZWEIeknS2BMi7FZJAQ==
 
-"@types/windows-process-tree@^0.2.0":
-  version "0.2.0"
-  resolved "https://registry.yarnpkg.com/@types/windows-process-tree/-/windows-process-tree-0.2.0.tgz#2fa205c838a8ef0a07697cd747c954653978d22c"
-  integrity sha512-vQAnkWpMX4HUPjubkxKta4Rfh2EDy2ksalnr37gFHNrmk+uxx50PRH+/fM5nTsEBCi4ESFT/7t7Za3jGqyTZ4g==
-
 "@types/winreg@^1.2.30":
   version "1.2.30"
   resolved "https://registry.yarnpkg.com/@types/winreg/-/winreg-1.2.30.tgz#91d6710e536d345b9c9b017c574cf6a8da64c518"
@@ -1393,6 +1388,13 @@
   dependencies:
     bindings "^1.2.1"
     nan "^2.14.0"
+
+"@vscode/windows-process-tree@0.4.2":
+  version "0.4.2"
+  resolved "https://registry.yarnpkg.com/@vscode/windows-process-tree/-/windows-process-tree-0.4.2.tgz#54d010fdeb06dfe3a9c6d58fcb3ed9acfc962f33"
+  integrity sha512-b20865s1HG1VtGt887KrB1blwFS6p4L1Fl1o/WplO9j7sGBle8sLqkNnGXbCaRNgdIgfXtitmzG366FVynJZdQ==
+  dependencies:
+    nan "^2.17.0"
 
 "@vscode/windows-registry@1.0.10":
   version "1.0.10"
@@ -10601,13 +10603,6 @@ windows-foreground-love@0.5.0:
   version "0.5.0"
   resolved "https://registry.yarnpkg.com/windows-foreground-love/-/windows-foreground-love-0.5.0.tgz#7672b04eb05f934a6543cacdc3cd16ff34e3cb10"
   integrity sha512-yjBwmKEmQBDk3Z7yg/U9hizGWat8C6Pe4MQWl5bN6mvPU81Bt6HV2k/6mGlK3ETJLW1hCLhYx2wcGh+ykUUCyA==
-
-windows-process-tree@0.4.0:
-  version "0.4.0"
-  resolved "https://registry.yarnpkg.com/windows-process-tree/-/windows-process-tree-0.4.0.tgz#31ac49c5da557e628ce7e37a5800972173d3349a"
-  integrity sha512-9LunDnc1WwuhyLeTAXMFX8wbActGJtDCBaiapQXFYk/nO4W4X9YxOKV5g/lQL3XX69QYxveDbjVVrdnTt1qqCQ==
-  dependencies:
-    nan "^2.17.0"
 
 word-wrap@^1.2.3, word-wrap@~1.2.3:
   version "1.2.3"
