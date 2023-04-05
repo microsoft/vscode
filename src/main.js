@@ -199,7 +199,6 @@ function configureCommandlineSwitchesSync(cliArgs) {
 	// Read argv config
 	const argvConfig = readArgvConfigSync();
 
-
 	Object.keys(argvConfig).forEach(argvKey => {
 		const argvValue = argvConfig[argvKey];
 
