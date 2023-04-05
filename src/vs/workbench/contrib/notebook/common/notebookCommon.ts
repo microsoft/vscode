@@ -91,6 +91,11 @@ export enum NotebookCellExecutionState {
 	Pending = 2,
 	Executing = 3
 }
+export enum NotebookExecutionState {
+	Unconfirmed = 1,
+	Pending = 2,
+	Executing = 3
+}
 
 export interface INotebookCellPreviousExecutionResult {
 	executionOrder?: number;
