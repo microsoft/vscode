@@ -198,7 +198,7 @@ function configureCommandlineSwitchesSync(cliArgs) {
 
 	// Read argv config
 	const argvConfig = readArgvConfigSync();
-	app.commandLine.appendSwitch('--autoplay-policy', 'no-user-gesture-required');
+
 
 	Object.keys(argvConfig).forEach(argvKey => {
 		const argvValue = argvConfig[argvKey];
@@ -252,6 +252,11 @@ function configureCommandlineSwitchesSync(cliArgs) {
 	 *	Refs https://groups.google.com/a/chromium.org/g/embedder-dev/c/ZF3uHHyWLKw/m/VDN2hDXMAAAJ
 	 */
 	app.commandLine.appendSwitch('disable-features', 'CalculateNativeWinOcclusion');
+
+	/**
+	 * Allow media to play even if no user gesture is used to fix issues like #176284
+	 */
+	app.commandLine.appendSwitch('--autoplay-policy', 'no-user-gesture-required');
 
 	// Support JS Flags
 	const jsFlags = getJSFlags(cliArgs);
