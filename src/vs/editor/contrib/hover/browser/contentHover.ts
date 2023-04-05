@@ -456,15 +456,15 @@ export class ResizableHoverWidget extends ResizableWidget {
 
 	private disposableStore = new DisposableStore();
 	private resizableContentWidget: ResizableContentHoverWidget;
+	private hoverWidget: HoverWidget;
 	private visibleData: ContentHoverVisibleData | null = null;
 	private renderingAbove: ContentWidgetPositionPreference | null = null;
 	private visible: boolean = false;
 
 	public readonly allowEditorOverflow = true;
-	public readonly hoverWidget: HoverWidget = this.disposableStore.add(new HoverWidget());
 	private readonly hoverVisibleKey = EditorContextKeys.hoverVisible.bindTo(this.contextKeyService);
 	private readonly hoverFocusedKey = EditorContextKeys.hoverFocused.bindTo(this.contextKeyService);
-	private readonly focusTracker: dom.IFocusTracker = this.disposableStore.add(dom.trackFocus(this.hoverWidget.contentsDomNode));
+	private readonly focusTracker: dom.IFocusTracker;
 	private readonly horizontalScrollingBy: number = 30;
 
 	constructor(
@@ -474,9 +474,11 @@ export class ResizableHoverWidget extends ResizableWidget {
 		super(editor, new MultipleSizePersistingOptions());
 		this.element.domNode.style.position = 'absolute';
 		this.element.domNode.style.zIndex = '50';
-		dom.append(this.element.domNode, this.hoverWidget.containerDomNode);
 
 		this.resizableContentWidget = new ResizableContentHoverWidget(this, editor);
+		this.hoverWidget = this.resizableContentWidget.hoverWidget;
+		this.focusTracker = this.disposableStore.add(dom.trackFocus(this.hoverWidget.contentsDomNode));
+
 		this.disposableStore.add(this.editor.onDidLayoutChange(() => this._layout()));
 		this.disposableStore.add(this.editor.onDidChangeConfiguration((e: ConfigurationChangedEvent) => {
 			if (e.hasChanged(EditorOption.fontInfo)) {
@@ -915,14 +917,21 @@ export class ResizableHoverWidget extends ResizableWidget {
 
 export class ResizableContentHoverWidget extends ResizableContentWidget {
 
+	private _disposableStore = new DisposableStore();
+	private readonly _hoverWidget: HoverWidget = this._disposableStore.add(new HoverWidget());
 	public static ID = 'editor.contrib.resizableContentHoverWidget';
 
 	constructor(resizableHoverWidget: ResizableHoverWidget, editor: ICodeEditor) {
 		super(resizableHoverWidget);
+		dom.append(resizableHoverWidget.element.domNode, this._hoverWidget.containerDomNode);
 	}
 
 	public getId(): string {
 		return ResizableContentHoverWidget.ID;
+	}
+
+	get hoverWidget() {
+		return this._hoverWidget;
 	}
 }
 
