@@ -35,7 +35,7 @@
     "yazl": "^2.4.3"
   },
   "optionalDependencies": {
-    "@vscode/windows-registry": "1.0.6",
+    "@vscode/windows-registry": "1.0.10",
     "windows-process-tree": "0.4.0"
   }
 }

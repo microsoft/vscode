@@ -1394,10 +1394,10 @@
     bindings "^1.2.1"
     nan "^2.14.0"
 
-"@vscode/windows-registry@1.0.6":
-  version "1.0.6"
-  resolved "https://registry.yarnpkg.com/@vscode/windows-registry/-/windows-registry-1.0.6.tgz#8b9fb9a55bf5a0be4ea11849c45ae94c6910e3e4"
-  integrity sha512-ZW5bz9F3Ta6zsikce2dchyruF3QsRyWYKOJ2dEicS+inReD/oE8Um+KsLVcvrjIb44aSYpsm64DIUmMl15ujtg==
+"@vscode/windows-registry@1.0.10":
+  version "1.0.10"
+  resolved "https://registry.yarnpkg.com/@vscode/windows-registry/-/windows-registry-1.0.10.tgz#17e4e2f8fdd41990206d1bab2daf99c803206247"
+  integrity sha512-n2rLdTgv95fQUpDxZqgAURg9neQGymtOKkLW4eYP2SODmaxoL2WzgrxEz1kW0w5TI+J4tsPeuZylpRfrDJKQWw==
 
 "@webassemblyjs/ast@1.11.1":
   version "1.11.1"
