@@ -120,7 +120,7 @@
 			let product = (require.__$__nodeRequire ?? require)(configuration.appRoot + '/product.json');
 			if (process.env['VSCODE_DEV']) {
 				// Patch product overrides when running out of sources
-				product = Object.assign(product, (require.__$__nodeRequire ?? require)(configuration.appRoot + '/product.overrides.json'));
+				try { product = Object.assign(product, (require.__$__nodeRequire ?? require)(configuration.appRoot + '/product.overrides.json')); } catch (error) { /* ignore */ }
 			}
 			globalThis._VSCODE_PRODUCT_JSON = product;
 			globalThis._VSCODE_PACKAGE_JSON = (require.__$__nodeRequire ?? require)(configuration.appRoot + '/package.json');

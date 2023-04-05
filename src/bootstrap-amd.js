@@ -19,7 +19,7 @@ globalThis._VSCODE_NODE_MODULES = new Proxy(Object.create(null), { get: (_target
 let product = require('../product.json');
 if (process.env['VSCODE_DEV']) {
 	// Patch product overrides when running out of sources
-	product = Object.assign(product, require('../product.overrides.json'));
+	try { product = Object.assign(product, require(require('path').join(__dirname, '../product.overrides.json'))); } catch (error) { /* ignore */ }
 }
 globalThis._VSCODE_PRODUCT_JSON = product;
 globalThis._VSCODE_PACKAGE_JSON = require('../package.json');
