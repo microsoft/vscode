@@ -135,17 +135,28 @@ export class ResizableHTMLElement {
 
 	layout(height: number = this.size.height, width: number = this.size.width): void {
 
+		console.log('Inside of layout');
+		console.log('height : ', height);
+		console.log('width : ', width);
+
 		const { height: minHeight, width: minWidth } = this._minSize;
 		const { height: maxHeight, width: maxWidth } = this._maxSize;
+
+		console.log('minHeight : ', minHeight);
+		console.log('maxHeight : ', maxHeight);
 
 		height = Math.max(minHeight, Math.min(maxHeight, height));
 		width = Math.max(minWidth, Math.min(maxWidth, width));
 
 		const newSize = new Dimension(width, height);
+		console.log('newSize : ', newSize);
+		console.log('this._size : ', this._size);
+
 		if (!Dimension.equals(newSize, this._size)) {
 			this.domNode.style.height = height + 'px';
 			this.domNode.style.width = width + 'px';
 			this._size = newSize;
+			console.log('this._size : ', this._size);
 			this._northSash.layout();
 			this._eastSash.layout();
 			this._southSash.layout();

@@ -90,9 +90,11 @@ export class ResizableHoverWidget extends ResizableWidget {
 		const width = size.width - 6 + 'px';
 		this.hoverWidget.containerDomNode.style.width = width;
 		this.hoverWidget.contentsDomNode.style.width = width;
-		const height = size.height - 6 + 'px';
-		this.hoverWidget.containerDomNode.style.height = height;
-		this.hoverWidget.contentsDomNode.style.height = height;
+
+		// TODO: There are issues with this part
+		// const height = size.height - 6 + 'px';
+		// this.hoverWidget.containerDomNode.style.height = height;
+		// this.hoverWidget.contentsDomNode.style.height = height;
 
 		const horizontalSashLength = size.width - 4 + 'px';
 		this.element.northSash.el.style.width = horizontalSashLength;
@@ -117,11 +119,32 @@ export class ResizableHoverWidget extends ResizableWidget {
 			if (this.hoverWidget.contentsDomNode.style.paddingBottom !== extraBottomPadding) {
 				this.hoverWidget.contentsDomNode.style.paddingBottom = extraBottomPadding;
 			}
+			this.hoverWidget.containerDomNode.style.height = size.height - 6 + 'px';
 			this.hoverWidget.contentsDomNode.style.height = size.height - SCROLLBAR_WIDTH - 6 + 'px';
+		} else {
+
+			console.log('Does not have horizontal scrollbar in the resize function');
+			// TODO: There is still an error, why does the size change before event resize is called?
+			this.hoverWidget.containerDomNode.style.height = size.height - 6 + 'px';
+			this.hoverWidget.contentsDomNode.style.height = size.height - 6 + 'px';
+			// this.hoverWidget.contentsDomNode.style.height = size.height + 'px';
+			this.element.layout(size.height, size.width);
 		}
+
+		// const maximumRenderingWidth = this.findMaximumRenderingWidth();
+		// const maximumRenderingHeight = this.findMaximumRenderingHeight();
+		// console.log('maximumRenderingWidth : ', maximumRenderingWidth);
+		// console.log('maximumRenderingHeight : ', maximumRenderingHeight);
+		// if (!maximumRenderingWidth || !maximumRenderingHeight) {
+		// 	return;
+		// }
+		// this.element.maxSize = new dom.Dimension(maximumRenderingWidth, maximumRenderingHeight);
 
 		this.hoverWidget.scrollbar.scanDomNode();
 		this.editor.layoutContentWidget(this.resizableContentWidget);
+		this.editor.render();
+
+		console.log('this.resizableWidget.getDomNode() : ', this.resizableContentWidget.getDomNode());
 	}
 
 	public override findMaximumRenderingHeight(): number | undefined {
@@ -141,7 +164,7 @@ export class ResizableHoverWidget extends ResizableWidget {
 			availableSpace = bodyBox.height - mouseBottom;
 		}
 
-		let divMaxHeight = 0;
+		let divMaxHeight = 7;
 		for (const childHtmlElement of this.hoverWidget.contentsDomNode.children) {
 			divMaxHeight += childHtmlElement.clientHeight;
 		}
@@ -156,7 +179,7 @@ export class ResizableHoverWidget extends ResizableWidget {
 		return Math.min(availableSpace, divMaxHeight);
 	}
 
-	public findMaxRenderingWidth(): number | undefined {
+	public override findMaximumRenderingWidth(): number | undefined {
 		if (!this.editor || !this.editor.hasModel()) {
 			return;
 		}

@@ -81,7 +81,7 @@ export class ContentHoverController extends Disposable {
 	 */
 	public maybeShowAt(mouseEvent: IEditorMouseEvent): boolean {
 
-		console.log('Inside of maybeShowAt');
+		// console.log('Inside of maybeShowAt');
 		// While the hover overlay is resizing, the hover is showing
 		if (this._widget.isResizing()) {
 			return true;
@@ -127,7 +127,7 @@ export class ContentHoverController extends Disposable {
 	 * Returns true if the hover shows now or will show.
 	 */
 	private _startShowingOrUpdateHover(anchor: HoverAnchor | null, mode: HoverStartMode, source: HoverStartSource, focus: boolean, mouseEvent: IEditorMouseEvent | null): boolean {
-		console.log('Inside of _startShowOrUpdateHover');
+		// console.log('Inside of _startShowOrUpdateHover');
 
 		if (!this._widget.position || !this._currentResult) {
 			// The hover is not visible
@@ -189,7 +189,7 @@ export class ContentHoverController extends Disposable {
 	}
 
 	private _setCurrentResult(hoverResult: HoverResult | null): void {
-		console.log('Inside of _setCurrentResult');
+		// console.log('Inside of _setCurrentResult');
 		if (this._currentResult === hoverResult) {
 			// avoid updating the DOM to avoid resetting the user selection
 			return;
@@ -242,7 +242,7 @@ export class ContentHoverController extends Disposable {
 	}
 
 	private _withResult(hoverResult: HoverResult): void {
-		console.log('Inside of _withResult');
+		// console.log('Inside of _withResult');
 		if (this._widget.position && this._currentResult && this._currentResult.isComplete) {
 			// The hover is visible with a previous complete result.
 

@@ -308,6 +308,7 @@ export class MultipleSizePersistingMechanism implements IPersistingMechanism {
 		this.disposables.add(this.resizableWidget.element.onDidResize(e => {
 
 			console.log('Inside of on did resize of the multiple size persisting mechanism');
+			console.log('this.resizableWidget.element.domNode : ', this.resizableWidget.element.domNode);
 			console.log('e : ', e);
 
 			const height = e.dimension.height;
@@ -315,8 +316,13 @@ export class MultipleSizePersistingMechanism implements IPersistingMechanism {
 
 			this.resizableWidget.resize(new dom.Dimension(width, height));
 
+			console.log('this.resizableWidget.element.domNode : ', this.resizableWidget.element.domNode);
+
 			const maxRenderingWidth = this.resizableWidget.findMaximumRenderingWidth();
 			const maxRenderingHeight = this.resizableWidget.findMaximumRenderingHeight();
+
+			console.log('maxRenderingWidth : ', maxRenderingWidth);
+			console.log('maxRenderingHeight : ', maxRenderingHeight);
 
 			if (!maxRenderingWidth || !maxRenderingHeight) {
 				return;
