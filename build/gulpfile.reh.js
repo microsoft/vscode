@@ -17,6 +17,7 @@ const rename = require('gulp-rename');
 const replace = require('gulp-replace');
 const filter = require('gulp-filter');
 const { getProductionDependencies } = require('./lib/dependencies');
+const { assetFromGithub } = require('./lib/github');
 const vfs = require('vinyl-fs');
 const packageJson = require('../package.json');
 const flatmap = require('gulp-flatmap');
@@ -163,7 +164,7 @@ function nodejs(platform, arch) {
 
 	if (platform === 'win32') {
 		if (product.nodejsRepository) {
-			return nodejsFromCustomRepository(`https://github.com/${product.nodejsRepository}`, nodeVersion, arch)
+			return assetFromGithub(product.nodejsRepository, nodeVersion, `win-${arch}-node.exe`)
 				.pipe(rename('node.exe'));
 		}
 
@@ -186,41 +187,6 @@ function nodejs(platform, arch) {
 		.pipe(filter('**/node'))
 		.pipe(util.setExecutableBit('**'))
 		.pipe(rename('node'));
-}
-
-function nodejsFromCustomRepository(repo, nodeVersion, arch) {
-	const remote = require('gulp-remote-retry-src');
-	const got = require('got');
-	const through2 = require('through2');
-
-	const userAgent = 'VSCode Build';
-
-	const ghApiHeaders = {
-		Accept: 'application/vnd.github.v3+json',
-		'User-Agent': userAgent,
-		Authorization: 'Basic ' + Buffer.from(process.env.GITHUB_TOKEN).toString('base64')
-	};
-
-	const ghDownloadHeaders = {
-		...ghApiHeaders,
-		Accept: 'application/octet-stream'
-	};
-
-	const assetName = `win-${arch}-node.exe`;
-
-	return remote([`/repos${new URL(repo).pathname}/releases/tags/v${nodeVersion}`], {
-		base: 'https://api.github.com',
-		requestOptions: { headers: ghApiHeaders }
-	}).pipe(through2.obj(function (file, _enc, callback) {
-		const asset = JSON.parse(file.contents.toString()).assets.find(a => a.name === assetName);
-		if (!asset) {
-			return callback(new Error(`Could not find node.js in release of ${repo} @ ${nodeVersion}`));
-		}
-
-		const res = got.stream(asset.url, { headers: ghDownloadHeaders, followRedirect: true });
-		file.contents = res.pipe(through2());
-		callback(null, file);
-	}));
 }
 
 function packageTask(type, platform, arch, sourceFolderName, destinationFolderName) {
