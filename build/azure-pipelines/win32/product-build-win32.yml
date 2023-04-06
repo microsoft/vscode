@@ -87,6 +87,7 @@ steps:
       $ErrorActionPreference = "Stop"
       cd .build
       exec { git clone -b rzhao271/msvs-spectre https://github.com/rzhao271/node-gyp.git } "Cloning rzhao271/node-gyp failed"
+      npm install
       cd ..
     displayName: Install custom node-gyp
     condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
