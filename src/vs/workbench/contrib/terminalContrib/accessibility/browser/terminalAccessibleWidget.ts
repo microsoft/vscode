@@ -21,8 +21,7 @@ import { SelectionClipboardContributionID } from 'vs/workbench/contrib/codeEdito
 import { getSimpleEditorOptions } from 'vs/workbench/contrib/codeEditor/browser/simpleEditorOptions';
 import { ITerminalInstance, ITerminalService, IXtermTerminal } from 'vs/workbench/contrib/terminal/browser/terminal';
 import type { Terminal } from 'xterm';
-import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/terminalContextKey';
+import { IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 
 const enum CssClass {
 	Active = 'active',
@@ -40,17 +39,18 @@ export abstract class TerminalAccessibleWidget extends DisposableStore {
 
 	protected _listeners: IDisposable[] = [];
 
-	private readonly _focusedContextKey: IContextKey<boolean>;
-	private readonly _focusTracker: dom.IFocusTracker;
+	private readonly _focusedContextKey?: IContextKey<boolean>;
+	private readonly _focusTracker?: dom.IFocusTracker;
 
 	constructor(
 		private readonly _className: string,
-		protected readonly _instance: Pick<ITerminalInstance, 'capabilities' | 'onDidRequestFocus' | 'resource'>,
-		protected readonly _xterm: Pick<IXtermTerminal, 'getFont'> & { raw: Terminal },
+		protected readonly _instance: Pick<ITerminalInstance, 'shellType' | 'capabilities' | 'onDidRequestFocus' | 'resource'>,
+		protected readonly _xterm: Pick<IXtermTerminal, 'shellIntegration' | 'getFont'> & { raw: Terminal },
+		private _focusContextKey: RawContextKey<boolean> | undefined,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IModelService private readonly _modelService: IModelService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
-		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
+		@IContextKeyService protected readonly _contextKeyService: IContextKeyService,
 		@ITerminalService private readonly _terminalService: ITerminalService
 	) {
 		super();
@@ -86,10 +86,13 @@ export abstract class TerminalAccessibleWidget extends DisposableStore {
 		this._element.replaceChildren(this._editorContainer);
 		this._xtermElement.insertAdjacentElement('beforebegin', this._element);
 
-		this._focusTracker = this.add(dom.trackFocus(this._editorContainer));
-		this._focusedContextKey = TerminalContextKeys.accessibleBufferFocus.bindTo(this._contextKeyService);
-		this.add(this._focusTracker.onDidFocus(() => this._focusedContextKey.set(true)));
-		this.add(this._focusTracker.onDidBlur(() => this._focusedContextKey.reset()));
+		if (this._focusContextKey) {
+			this._focusTracker = this.add(dom.trackFocus(this._editorContainer));
+			this._focusedContextKey = this._focusContextKey.bindTo(this._contextKeyService);
+			this.add(this._focusTracker.onDidFocus(() => this._focusedContextKey?.set(true)));
+			this.add(this._focusTracker.onDidBlur(() => this._focusedContextKey?.reset()));
+		}
+
 
 		this.add(Event.runAndSubscribe(this._xterm.raw.onResize, () => this.layout()));
 		this.add(this._configurationService.onDidChangeConfiguration(e => {
@@ -120,13 +123,13 @@ export abstract class TerminalAccessibleWidget extends DisposableStore {
 			}
 			// if the editor is focused via tab, we need to update the model
 			// and show it
-			this.registerListeners?.();
+			this.registerListeners();
 			await this.updateEditor();
 			this.element.classList.add(CssClass.Active);
 		}));
 	}
 
-	abstract registerListeners?(): void;
+	abstract registerListeners(): void;
 
 	layout(): void {
 		this._editorWidget.layout({ width: this._xtermElement.clientWidth, height: this._xtermElement.clientHeight });
@@ -135,7 +138,7 @@ export abstract class TerminalAccessibleWidget extends DisposableStore {
 	abstract updateEditor(): Promise<void>;
 
 	async show(): Promise<void> {
-		this.registerListeners?.();
+		this.registerListeners();
 		await this.updateEditor();
 		this.element.tabIndex = -1;
 		this.layout();

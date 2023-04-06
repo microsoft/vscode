@@ -3,69 +3,40 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { addStandardDisposableListener } from 'vs/base/browser/dom';
-import { FastDomNode, createFastDomNode } from 'vs/base/browser/fastDomNode';
-import { Widget } from 'vs/base/browser/ui/widget';
-import { KeyCode } from 'vs/base/common/keyCodes';
-import { DisposableStore } from 'vs/base/common/lifecycle';
 import { format } from 'vs/base/common/strings';
-import { MarkdownRenderer } from 'vs/editor/contrib/markdownRenderer/browser/markdownRenderer';
+import { IModelService } from 'vs/editor/common/services/model';
 import { localize } from 'vs/nls';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { ShellIntegrationStatus, WindowsShellType } from 'vs/platform/terminal/common/terminal';
-import { ITerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { ITerminalInstance, ITerminalService, IXtermTerminal } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { TerminalCommandId } from 'vs/workbench/contrib/terminal/common/terminal';
+import { TerminalAccessibleWidget } from 'vs/workbench/contrib/terminalContrib/accessibility/browser/terminalAccessibleWidget';
+import type { Terminal } from 'xterm';
 
-export class AccessibilityHelpWidget extends Widget {
-	readonly id = 'help';
-	private _domNode: FastDomNode<HTMLElement>;
-	get element(): HTMLElement { return this._domNode.domNode; }
-	private _contentDomNode: FastDomNode<HTMLElement>;
+export const enum ClassName {
+	AccessibleBuffer = 'terminal-accessibility-help'
+}
+
+export class AccessibilityHelpWidget extends TerminalAccessibleWidget {
+
 	private readonly _hasShellIntegration: boolean;
-	private readonly _markdownRenderer: MarkdownRenderer;
 
 	constructor(
-		private readonly _instance: ITerminalInstance,
+		_instance: Pick<ITerminalInstance, 'shellType' | 'capabilities' | 'onDidRequestFocus' | 'resource'>,
+		_xterm: Pick<IXtermTerminal, 'getFont' | 'shellIntegration'> & { raw: Terminal },
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
-		@IInstantiationService instantiationService: IInstantiationService,
-		@IOpenerService private readonly _openerService: IOpenerService,
-		@IContextKeyService private readonly _contextKeyService: IContextKeyService
+		@IInstantiationService _instantiationService: IInstantiationService,
+		@IModelService _modelService: IModelService,
+		@IConfigurationService _configurationService: IConfigurationService,
+		@IContextKeyService _contextKeyService: IContextKeyService,
+		@ITerminalService _terminalService: ITerminalService,
 	) {
-		super();
-		this._hasShellIntegration = _instance.xterm?.shellIntegration.status === ShellIntegrationStatus.VSCode;
-		this._domNode = createFastDomNode(document.createElement('div'));
-		this._contentDomNode = createFastDomNode(document.createElement('div'));
-		this._contentDomNode.setClassName('terminal-accessibility-help');
-		this._contentDomNode.setAttribute('role', 'document');
-		this._domNode.setDisplay('none');
-		this._domNode.setAttribute('role', 'dialog');
-		this._domNode.setAttribute('aria-hidden', 'true');
-		this._domNode.appendChild(this._contentDomNode);
-		this._register(addStandardDisposableListener(this._contentDomNode.domNode, 'keydown', (e) => {
-			if (e.keyCode === KeyCode.Escape) {
-				this.hide();
-				_instance.focus();
-			}
-		}));
-		this._register(_instance.onDidFocus(() => this.hide()));
-		this._markdownRenderer = this._register(instantiationService.createInstance(MarkdownRenderer, {}));
-	}
-
-	public hide(): void {
-		this._domNode.setDisplay('none');
-		this._contentDomNode.setDisplay('none');
-		this._domNode.setAttribute('aria-hidden', 'true');
-	}
-
-	show(): void {
-		this._domNode.setDisplay('block');
-		this._domNode.setAttribute('aria-hidden', 'false');
-		this._contentDomNode.domNode.tabIndex = 0;
-		this._buildContent();
-		this._contentDomNode.domNode.focus();
+		super(ClassName.AccessibleBuffer, _instance, _xterm, undefined, _instantiationService, _modelService, _configurationService, _contextKeyService, _terminalService);
+		this._hasShellIntegration = _xterm?.shellIntegration.status === ShellIntegrationStatus.VSCode;
+		this.element.ariaRoleDescription = localize('terminal.integrated.accessiblityHelp', 'Terminal accessibility help');
 	}
 
 	private _descriptionForCommand(commandId: string, msg: string, noKbMsg: string): string {
@@ -76,7 +47,14 @@ export class AccessibilityHelpWidget extends Widget {
 		return format(noKbMsg, commandId);
 	}
 
-	private _buildContent(): void {
+	registerListeners(): void {
+		this._listeners.push(this._instance.onDidRequestFocus(() => this.editorWidget.focus()));
+	}
+
+	async updateEditor(): Promise<void> {
+		if (this.editorWidget.getModel()?.getValue().length) {
+			return;
+		}
 		const introMessage = localize('introMsg', "Welcome to Terminal Accessibility Help");
 		const focusAccessibleBufferNls = localize('focusAccessibleBuffer', 'The Focus Accessible Buffer ({0}) command enables screen readers to read terminal contents.');
 		const focusAccessibleBufferNoKb = localize('focusAccessibleBufferNoKb', 'The Focus Accessible Buffer command enables screen readers to read terminal contents and is currently not triggerable by a keybinding.');
@@ -115,21 +93,9 @@ export class AccessibilityHelpWidget extends Widget {
 		content.push(this._descriptionForCommand(TerminalCommandId.NewWithProfile, newWithProfile, newWithProfileNoKb));
 		content.push(accessibilitySettings);
 		content.push(readMoreLink, dismiss);
-		const element = renderElementAsMarkdown(this._markdownRenderer, this._openerService, content.join('\n\n'), this._register(new DisposableStore()));
-		const anchorElements = element.querySelectorAll('a');
-		for (const a of anchorElements) {
-			a.tabIndex = 0;
-		}
-		this._contentDomNode.domNode.appendChild(element);
-		this._contentDomNode.domNode.setAttribute('aria-label', introMessage);
+		const model = this.editorWidget.getModel() || await this.getTextModel(this._instance.resource);
+		model?.setValue(content.join('\n\n'));
+		this.editorWidget.setModel(model);
+		this.element.setAttribute('aria-label', introMessage);
 	}
-}
-function renderElementAsMarkdown(markdownRenderer: MarkdownRenderer, openerSerivce: IOpenerService, text: string, disposables: DisposableStore): HTMLElement {
-	const result = markdownRenderer.render({ value: text, isTrusted: true }, {
-		actionHandler: {
-			callback: (content: string) => openerSerivce.open(content),
-			disposables
-		}
-	});
-	return result.element;
 }

@@ -20,6 +20,7 @@ import { BufferContentTracker } from 'vs/workbench/contrib/terminalContrib/acces
 import { ILogService } from 'vs/platform/log/common/log';
 import { IEditorViewState } from 'vs/editor/common/editorCommon';
 import { TerminalAccessibleWidget } from 'vs/workbench/contrib/terminalContrib/accessibility/browser/terminalAccessibleWidget';
+import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/terminalContextKey';
 
 interface IAccessibleBufferQuickPickItem extends IQuickPickItem {
 	lineNumber: number;
@@ -39,8 +40,8 @@ export class AccessibleBufferWidget extends TerminalAccessibleWidget {
 	private _cursorPosition: { lineNumber: number; column: number } | undefined;
 
 	constructor(
-		_instance: Pick<ITerminalInstance, 'capabilities' | 'onDidRequestFocus' | 'resource'>,
-		_xterm: Pick<IXtermTerminal, 'getFont'> & { raw: Terminal },
+		_instance: Pick<ITerminalInstance, 'shellType' | 'capabilities' | 'onDidRequestFocus' | 'resource'>,
+		_xterm: Pick<IXtermTerminal, 'shellIntegration' | 'getFont'> & { raw: Terminal },
 		@IInstantiationService _instantiationService: IInstantiationService,
 		@IModelService _modelService: IModelService,
 		@IConfigurationService _configurationService: IConfigurationService,
@@ -48,9 +49,9 @@ export class AccessibleBufferWidget extends TerminalAccessibleWidget {
 		@IAudioCueService private readonly _audioCueService: IAudioCueService,
 		@IContextKeyService _contextKeyService: IContextKeyService,
 		@ILogService private readonly _logService: ILogService,
-		@ITerminalService _terminalService: ITerminalService,
+		@ITerminalService _terminalService: ITerminalService
 	) {
-		super(ClassName.AccessibleBuffer, _instance, _xterm, _instantiationService, _modelService, _configurationService, _contextKeyService, _terminalService);
+		super(ClassName.AccessibleBuffer, _instance, _xterm, TerminalContextKeys.accessibleBufferFocus, _instantiationService, _modelService, _configurationService, _contextKeyService, _terminalService);
 		this._bufferTracker = _instantiationService.createInstance(BufferContentTracker, _xterm);
 		this.element.ariaRoleDescription = localize('terminal.integrated.accessibleBuffer', 'Terminal buffer');
 		this.updateEditor();
