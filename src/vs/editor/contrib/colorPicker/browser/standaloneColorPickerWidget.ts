@@ -133,6 +133,7 @@ export class StandaloneColorPickerWidget implements IContentWidget {
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@ILanguageFeatureDebounceService private readonly languageFeatureDebounceService: ILanguageFeatureDebounceService
 	) {
+
 		// The position of the primary cursor
 		this._position = this.editor._getViewModel()?.getPrimaryCursorState().viewState.position;
 		// The primary selection
@@ -190,10 +191,17 @@ export class StandaloneColorPickerWidget implements IContentWidget {
 			this.focus();
 		}));
 
-		// Call the start function only when the first update has been completed, not before
-		this._disposables.add(this._standaloneColorPickerComputer.onUpdated(() => {
+		// Get all the providers associated with the textModel
+		const providers = this.languageFeaturesService.colorProvider.ordered(this.editor.getModel()!).reverse();
+		console.log('providers : ', providers);
+		if (providers.length === 0) {
+			// Call the start function only when the first update has been completed, not before
+			this._disposables.add(this._standaloneColorPickerComputer.onUpdated(() => {
+				this._standaloneColorPickerComputer.start();
+			}));
+		} else {
 			this._standaloneColorPickerComputer.start();
-		}));
+		}
 
 		this._colorHoverVisible = EditorContextKeys.standaloneColorPickerVisible.bindTo(this.contextKeyService);
 		this._colorHoverFocused = EditorContextKeys.standaloneColorPickerFocused.bindTo(this.contextKeyService);
