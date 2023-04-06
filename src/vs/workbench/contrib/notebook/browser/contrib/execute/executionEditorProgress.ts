@@ -21,7 +21,7 @@ export class ExecutionEditorProgressController extends Disposable implements INo
 
 		this._register(_notebookEditor.onDidScroll(() => this._update()));
 
-		this._register(_notebookExecutionStateService.onDidChangeCellExecution(e => {
+		this._register(_notebookExecutionStateService.onDidChangeExecution(e => {
 			if (e.notebook.toString() !== this._notebookEditor.textModel?.uri.toString()) {
 				return;
 			}
@@ -40,8 +40,9 @@ export class ExecutionEditorProgressController extends Disposable implements INo
 
 		const scrollPadding = this._notebookEditor.notebookOptions.computeTopInsertToolbarHeight(this._notebookEditor.textModel.viewType);
 
-		const executing = this._notebookExecutionStateService.getCellExecutionsForNotebook(this._notebookEditor.textModel?.uri)
+		const cellExecutions = this._notebookExecutionStateService.getCellExecutionsForNotebook(this._notebookEditor.textModel?.uri)
 			.filter(exe => exe.state === NotebookCellExecutionState.Executing);
+		const notebookExecution = this._notebookExecutionStateService.getExecution(this._notebookEditor.textModel?.uri);
 		const executionIsVisible = (exe: INotebookCellExecution) => {
 			for (const range of this._notebookEditor.visibleRanges) {
 				for (const cell of this._notebookEditor.getCellsInRange(range)) {
@@ -56,7 +57,9 @@ export class ExecutionEditorProgressController extends Disposable implements INo
 
 			return false;
 		};
-		if (!executing.length || executing.some(executionIsVisible) || executing.some(e => e.isPaused)) {
+		const noCellsRunning = !cellExecutions.length || cellExecutions.some(executionIsVisible) || cellExecutions.some(e => e.isPaused);
+		const isSomethingRunning = !!notebookExecution || !noCellsRunning;
+		if (isSomethingRunning) {
 			this._notebookEditor.hideProgress();
 		} else {
 			this._notebookEditor.showProgress();

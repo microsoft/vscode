@@ -33,7 +33,7 @@ import { CellKind, ICell, INotebookSearchOptions, ISelectionState, NotebookCells
 import { cellIndexesToRanges, cellRangesToIndexes, ICellRange, reduceCellRanges } from 'vs/workbench/contrib/notebook/common/notebookRange';
 import { NotebookLayoutInfo, NotebookMetadataChangedEvent } from 'vs/workbench/contrib/notebook/browser/notebookViewEvents';
 import { CellFindMatchModel } from 'vs/workbench/contrib/notebook/browser/contrib/find/findModel';
-import { INotebookExecutionStateService } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
+import { INotebookExecutionStateService, NotebookExecutionType } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
 
 const invalidFunc = () => { throw new Error(`Invalid change accessor`); };
 
@@ -320,7 +320,10 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 			}
 		}));
 
-		this._register(notebookExecutionStateService.onDidChangeCellExecution(e => {
+		this._register(notebookExecutionStateService.onDidChangeExecution(e => {
+			if (e.type !== NotebookExecutionType.cell) {
+				return;
+			}
 			const cell = this.getCellByHandle(e.cellHandle);
 
 			if (cell instanceof CodeCellViewModel) {
