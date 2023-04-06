@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Codicon } from 'vs/base/common/codicons';
-import { isCodeEditor } from 'vs/editor/browser/editorBrowser';
+import { isCodeEditor, isDiffEditor } from 'vs/editor/browser/editorBrowser';
 import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { IBulkEditService, ResourceTextEdit } from 'vs/editor/browser/services/bulkEditService';
 import { Range } from 'vs/editor/common/core/range';
@@ -12,10 +12,10 @@ import { localize } from 'vs/nls';
 import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { INTERACTIVE_SESSION_CATEGORY } from 'vs/workbench/contrib/interactiveSession/browser/actions/interactiveSessionActions';
-import { interactiveSessionResponseHasProviderId } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionContextKeys';
-import { IInteractiveSessionService, IInteractiveSessionUserActionEvent } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionService';
+import { IInteractiveSessionCopyAction, IInteractiveSessionService, IInteractiveSessionUserActionEvent, InteractiveSessionCopyKind } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionService';
 import { IInteractiveResponseViewModel } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionViewModel';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 
 export interface IInteractiveSessionCodeBlockActionContext {
 	code: string;
@@ -41,7 +41,6 @@ export function registerInteractiveSessionCodeBlockActions() {
 				icon: Codicon.copy,
 				menu: {
 					id: MenuId.InteractiveSessionCodeBlock,
-					when: interactiveSessionResponseHasProviderId,
 					group: 'navigation',
 				}
 			});
@@ -59,10 +58,14 @@ export function registerInteractiveSessionCodeBlockActions() {
 			const interactiveSessionService = accessor.get(IInteractiveSessionService);
 			interactiveSessionService.notifyUserAction(<IInteractiveSessionUserActionEvent>{
 				providerId: context.element.providerId,
-				action: {
+				action: <IInteractiveSessionCopyAction>{
 					kind: 'copy',
 					responseId: context.element.providerResponseId,
 					codeBlockIndex: context.codeBlockIndex,
+					copyType: InteractiveSessionCopyKind.Toolbar,
+					copiedCharacters: context.code.length,
+					totalCharacters: context.code.length,
+					copiedText: context.code,
 				}
 			});
 		}
@@ -78,9 +81,10 @@ export function registerInteractiveSessionCodeBlockActions() {
 				},
 				f1: false,
 				category: INTERACTIVE_SESSION_CATEGORY,
+				icon: Codicon.insert,
 				menu: {
 					id: MenuId.InteractiveSessionCodeBlock,
-					when: interactiveSessionResponseHasProviderId,
+					group: 'navigation',
 				}
 			});
 		}
@@ -94,29 +98,42 @@ export function registerInteractiveSessionCodeBlockActions() {
 			const editorService = accessor.get(IEditorService);
 			const bulkEditService = accessor.get(IBulkEditService);
 			const interactiveSessionService = accessor.get(IInteractiveSessionService);
-			const activeEditorControl = editorService.activeTextEditorControl;
-			if (isCodeEditor(activeEditorControl)) {
-				const activeModel = activeEditorControl.getModel();
-				if (!activeModel) {
-					return;
-				}
+			const textFileService = accessor.get(ITextFileService);
 
-				const activeSelection = activeEditorControl.getSelection() ?? new Range(activeModel.getLineCount(), 1, activeModel.getLineCount(), 1);
-				await bulkEditService.apply([new ResourceTextEdit(activeModel.uri, {
-					range: activeSelection,
-					text: context.code,
-					insertAsSnippet: true,
-				})]);
-
-				interactiveSessionService.notifyUserAction(<IInteractiveSessionUserActionEvent>{
-					providerId: context.element.providerId,
-					action: {
-						kind: 'insert',
-						responseId: context.element.providerResponseId,
-						codeBlockIndex: context.codeBlockIndex,
-					}
-				});
+			let activeEditorControl = editorService.activeTextEditorControl;
+			if (isDiffEditor(activeEditorControl)) {
+				activeEditorControl = activeEditorControl.getOriginalEditor().hasTextFocus() ? activeEditorControl.getOriginalEditor() : activeEditorControl.getModifiedEditor();
 			}
+
+			if (!isCodeEditor(activeEditorControl)) {
+				return;
+			}
+
+			const activeModel = activeEditorControl.getModel();
+			if (!activeModel) {
+				return;
+			}
+
+			const activeTextModel = textFileService.files.get(activeModel.uri);
+			if (!activeTextModel || activeTextModel.isReadonly()) {
+				return;
+			}
+
+			const activeSelection = activeEditorControl.getSelection() ?? new Range(activeModel.getLineCount(), 1, activeModel.getLineCount(), 1);
+			await bulkEditService.apply([new ResourceTextEdit(activeModel.uri, {
+				range: activeSelection,
+				text: context.code,
+			})]);
+
+			interactiveSessionService.notifyUserAction(<IInteractiveSessionUserActionEvent>{
+				providerId: context.element.providerId,
+				action: {
+					kind: 'insert',
+					responseId: context.element.providerResponseId,
+					codeBlockIndex: context.codeBlockIndex,
+				}
+			});
 		}
+
 	});
 }

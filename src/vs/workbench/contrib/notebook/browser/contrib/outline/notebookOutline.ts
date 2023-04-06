@@ -35,7 +35,7 @@ import { IdleValue } from 'vs/base/common/async';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
 import { renderMarkdownAsPlaintext } from 'vs/base/browser/markdownRenderer';
-import { INotebookExecutionStateService } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
+import { INotebookExecutionStateService, NotebookExecutionType } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
 import { executingStateIcon } from 'vs/workbench/contrib/notebook/browser/notebookIcons';
 import { URI } from 'vs/base/common/uri';
 import { getMarkdownHeadersInCell } from 'vs/workbench/contrib/notebook/browser/viewModel/foldingModel';
@@ -353,8 +353,8 @@ export class NotebookCellOutline implements IOutline<OutlineEntry> {
 			this._onDidChange.fire({});
 		}));
 
-		this._dispoables.add(_notebookExecutionStateService.onDidChangeCellExecution(e => {
-			if (!!this._editor.textModel && e.affectsNotebook(this._editor.textModel?.uri)) {
+		this._dispoables.add(_notebookExecutionStateService.onDidChangeExecution(e => {
+			if (e.type === NotebookExecutionType.cell && !!this._editor.textModel && e.affectsNotebook(this._editor.textModel?.uri)) {
 				this._recomputeState();
 			}
 		}));

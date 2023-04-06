@@ -6,7 +6,7 @@
 import { Color } from 'vs/base/common/color';
 import { Emitter } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { IBracketPairColorizationOptions } from 'vs/editor/common/config/editorOptions';
+import { IBracketPairColorizationOptions, IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IViewDescriptorService } from 'vs/workbench/common/views';
@@ -17,6 +17,7 @@ export interface IInteractiveSessionConfiguration {
 		readonly fontFamily: string;
 		readonly lineHeight: number;
 		readonly fontWeight: string;
+		readonly wordWrap: 'off' | 'on';
 	};
 }
 
@@ -32,11 +33,13 @@ export interface IInteractiveSessionInputEditorOptions {
 
 export interface IInteractiveSessionResultEditorOptions {
 	readonly fontSize: number;
-	readonly fontFamily: string;
+	readonly fontFamily: string | undefined;
 	readonly lineHeight: number;
 	readonly fontWeight: string;
 	readonly backgroundColor: Color | undefined;
 	readonly bracketPairColorization: IBracketPairColorizationOptions;
+	readonly fontLigatures: boolean | string | undefined;
+	readonly wordWrap: 'off' | 'on';
 
 	// Bring these back if we make the editors editable
 	// readonly cursorBlinking: string;
@@ -60,7 +63,9 @@ export class InteractiveSessionEditorOptions extends Disposable {
 		'interactiveSession.editor.fontSize',
 		'interactiveSession.editor.fontFamily',
 		'interactiveSession.editor.fontWeight',
+		'interactiveSession.editor.wordWrap',
 		'editor.cursorBlinking',
+		'editor.fontLigatures',
 		'editor.accessibilitySupport',
 		'editor.bracketPairColorization.enabled',
 		'editor.bracketPairColorization.independentColorPoolPerBracketType',
@@ -91,8 +96,10 @@ export class InteractiveSessionEditorOptions extends Disposable {
 	}
 
 	private update() {
-		const editorConfig = this.configurationService.getValue<any>('editor');
-		const interactiveSessionSidebarEditor = this.configurationService.getValue<IInteractiveSessionConfiguration>('interactiveSession').editor;
+		const editorConfig = this.configurationService.getValue<IEditorOptions>('editor');
+
+		// TODO shouldn't the setting keys be more specific?
+		const interactiveSessionEditorConfig = this.configurationService.getValue<IInteractiveSessionConfiguration>('interactiveSession').editor;
 		const accessibilitySupport = this.configurationService.getValue<'auto' | 'off' | 'on'>('editor.accessibilitySupport');
 		this._config = {
 			inputEditor: {
@@ -101,14 +108,16 @@ export class InteractiveSessionEditorOptions extends Disposable {
 			},
 			resultEditor: {
 				backgroundColor: this.themeService.getColorTheme().getColor(this.resultEditorBackgroundColorDelegate()),
-				fontSize: interactiveSessionSidebarEditor.fontSize,
-				fontFamily: interactiveSessionSidebarEditor.fontFamily === 'default' ? editorConfig.fontFamily : interactiveSessionSidebarEditor.fontFamily,
-				fontWeight: interactiveSessionSidebarEditor.fontWeight,
-				lineHeight: interactiveSessionSidebarEditor.lineHeight ? interactiveSessionSidebarEditor.lineHeight : InteractiveSessionEditorOptions.lineHeightEm * interactiveSessionSidebarEditor.fontSize,
+				fontSize: interactiveSessionEditorConfig.fontSize,
+				fontFamily: interactiveSessionEditorConfig.fontFamily === 'default' ? editorConfig.fontFamily : interactiveSessionEditorConfig.fontFamily,
+				fontWeight: interactiveSessionEditorConfig.fontWeight,
+				lineHeight: interactiveSessionEditorConfig.lineHeight ? interactiveSessionEditorConfig.lineHeight : InteractiveSessionEditorOptions.lineHeightEm * interactiveSessionEditorConfig.fontSize,
 				bracketPairColorization: {
 					enabled: this.configurationService.getValue<boolean>('editor.bracketPairColorization.enabled'),
 					independentColorPoolPerBracketType: this.configurationService.getValue<boolean>('editor.bracketPairColorization.independentColorPoolPerBracketType'),
 				},
+				wordWrap: interactiveSessionEditorConfig.wordWrap,
+				fontLigatures: editorConfig.fontLigatures,
 			}
 
 		};

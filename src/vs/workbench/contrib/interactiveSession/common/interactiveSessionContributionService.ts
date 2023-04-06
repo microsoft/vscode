@@ -18,11 +18,12 @@ export interface IInteractiveSessionContributionService {
 	_serviceBrand: undefined;
 
 	registeredProviders: IInteractiveSessionProviderContribution[];
+	getViewIdForProvider(providerId: string): string;
 }
 
 export interface IRawInteractiveSessionProviderContribution {
 	id: string;
 	label: string;
-	icon: string;
+	icon?: string;
 	when?: string;
 }

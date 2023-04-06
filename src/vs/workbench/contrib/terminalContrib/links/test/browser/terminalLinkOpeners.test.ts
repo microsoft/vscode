@@ -25,7 +25,7 @@ import { TestContextService } from 'vs/workbench/test/common/workbenchTestServic
 import { Terminal } from 'xterm';
 import { IFileQuery, ISearchComplete, ISearchService } from 'vs/workbench/services/search/common/search';
 import { SearchService } from 'vs/workbench/services/search/common/searchService';
-import { ITerminalOutputMatcher } from 'vs/platform/terminal/common/xterm/terminalQuickFix';
+import { ITerminalOutputMatcher } from 'vs/platform/terminal/common/terminal';
 
 interface ITerminalLinkActivationResult {
 	source: 'editor' | 'search';

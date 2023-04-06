@@ -5,9 +5,11 @@
 
 import { Disposable, DisposableMap } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
+import { ILogService } from 'vs/platform/log/common/log';
+import { IProductService } from 'vs/platform/product/common/productService';
 import { ExtHostContext, ExtHostInteractiveSessionShape, IInteractiveRequestDto, MainContext, MainThreadInteractiveSessionShape } from 'vs/workbench/api/common/extHost.protocol';
 import { IInteractiveSessionContributionService } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionContributionService';
-import { IInteractiveProgress, IInteractiveRequest, IInteractiveResponse, IInteractiveSession, IInteractiveSessionService } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionService';
+import { IInteractiveProgress, IInteractiveRequest, IInteractiveResponse, IInteractiveSession, IInteractiveSessionDynamicRequest, IInteractiveSessionService } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionService';
 import { IExtHostContext, extHostNamedCustomer } from 'vs/workbench/services/extensions/common/extHostCustomers';
 
 @extHostNamedCustomer(MainContext.MainThreadInteractiveSession)
@@ -22,6 +24,8 @@ export class MainThreadInteractiveSession extends Disposable implements MainThre
 		extHostContext: IExtHostContext,
 		@IInteractiveSessionService private readonly _interactiveSessionService: IInteractiveSessionService,
 		@IInteractiveSessionContributionService private readonly interactiveSessionContribService: IInteractiveSessionContributionService,
+		@IProductService private readonly productService: IProductService,
+		@ILogService private readonly logService: ILogService,
 	) {
 		super();
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostInteractiveSession);
@@ -31,7 +35,12 @@ export class MainThreadInteractiveSession extends Disposable implements MainThre
 		}));
 	}
 
-	async $registerInteractiveSessionProvider(handle: number, id: string, implementsProgress: boolean): Promise<void> {
+	async $registerInteractiveSessionProvider(handle: number, id: string): Promise<void> {
+		if (this.productService.quality === 'stable') {
+			this.logService.trace(`The interactive session API is not supported in stable VS Code.`);
+			return;
+		}
+
 		const registration = this.interactiveSessionContribService.registeredProviders.find(staticProvider => staticProvider.id === id);
 		if (!registration) {
 			throw new Error(`Provider ${id} must be declared in the package.json.`);
@@ -39,7 +48,6 @@ export class MainThreadInteractiveSession extends Disposable implements MainThre
 
 		const unreg = this._interactiveSessionService.registerProvider({
 			id,
-			progressiveRenderingEnabled: implementsProgress,
 			prepareSession: async (initialState, token) => {
 				const session = await this._proxy.$prepareInteractiveSession(handle, initialState, token);
 				if (!session) {
@@ -51,10 +59,11 @@ export class MainThreadInteractiveSession extends Disposable implements MainThre
 					registration.extensionIcon;
 				return <IInteractiveSession>{
 					id: session.id,
-					requesterUsername: session.requesterUsername ?? 'Username',
+					requesterUsername: session.requesterUsername,
 					requesterAvatarIconUri: URI.revive(session.requesterAvatarIconUri),
-					responderUsername: session.responderUsername ?? 'Response',
+					responderUsername: session.responderUsername,
 					responderAvatarIconUri,
+					inputPlaceholder: session.inputPlaceholder,
 					dispose: () => {
 						this._proxy.$releaseSession(session.id);
 					}
@@ -83,11 +92,14 @@ export class MainThreadInteractiveSession extends Disposable implements MainThre
 					this._activeRequestProgressCallbacks.delete(id);
 				}
 			},
-			provideSuggestions: (token) => {
-				return this._proxy.$provideInitialSuggestions(handle, token);
+			provideWelcomeMessage: (token) => {
+				return this._proxy.$provideWelcomeMessage(handle, token);
 			},
 			provideSlashCommands: (session, token) => {
 				return this._proxy.$provideSlashCommands(handle, session.id, token);
+			},
+			provideFollowups: (session, token) => {
+				return this._proxy.$provideFollowups(handle, session.id, token);
 			}
 		});
 
@@ -105,6 +117,10 @@ export class MainThreadInteractiveSession extends Disposable implements MainThre
 
 	$addInteractiveSessionRequest(context: any): void {
 		this._interactiveSessionService.addInteractiveRequest(context);
+	}
+
+	$sendInteractiveRequestToProvider(providerId: string, message: IInteractiveSessionDynamicRequest): void {
+		return this._interactiveSessionService.sendInteractiveRequestToProvider(providerId, message);
 	}
 
 	async $unregisterInteractiveSessionProvider(handle: number): Promise<void> {

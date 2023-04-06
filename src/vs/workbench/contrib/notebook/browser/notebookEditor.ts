@@ -6,6 +6,7 @@
 import * as DOM from 'vs/base/browser/dom';
 import { IActionViewItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IAction, toAction } from 'vs/base/common/actions';
+import { timeout } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Emitter, Event } from 'vs/base/common/event';
 import { DisposableStore, MutableDisposable } from 'vs/base/common/lifecycle';
@@ -37,6 +38,7 @@ import { NotebookPerfMarks } from 'vs/workbench/contrib/notebook/common/notebook
 import { IEditorDropService } from 'vs/workbench/services/editor/browser/editorDropService';
 import { GroupsOrder, IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IEditorProgressService } from 'vs/platform/progress/common/progress';
 
 const NOTEBOOK_EDITOR_VIEW_STATE_PREFERENCE_KEY = 'NotebookEditorViewState';
 
@@ -75,7 +77,8 @@ export class NotebookEditor extends EditorPane implements INotebookEditorPane {
 		@INotebookEditorService private readonly _notebookWidgetService: INotebookEditorService,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 		@IFileService private readonly _fileService: IFileService,
-		@ITextResourceConfigurationService configurationService: ITextResourceConfigurationService
+		@ITextResourceConfigurationService configurationService: ITextResourceConfigurationService,
+		@IEditorProgressService private readonly _editorProgressService: IEditorProgressService,
 	) {
 		super(NotebookEditor.ID, telemetryService, themeService, storageService);
 		this._editorMemento = this.getEditorMemento<INotebookEditorViewState>(_editorGroupService, configurationService, NOTEBOOK_EDITOR_VIEW_STATE_PREFERENCE_KEY);
@@ -168,6 +171,13 @@ export class NotebookEditor extends EditorPane implements INotebookEditorPane {
 
 	override async setInput(input: NotebookEditorInput, options: INotebookEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken, noRetry?: boolean): Promise<void> {
 		try {
+			let perfMarksCaptured = false;
+			const fileOpenMonitor = timeout(10000);
+			fileOpenMonitor.then(() => {
+				perfMarksCaptured = true;
+				this._handlePerfMark(perf, input);
+			});
+
 			const perf = new NotebookPerfMarks();
 			perf.mark('startTime');
 			const group = this.group!;
@@ -223,7 +233,10 @@ export class NotebookEditor extends EditorPane implements INotebookEditorPane {
 
 			const viewState = options?.viewState ?? this._loadNotebookEditorViewState(input);
 
-			this._widget.value?.setParentContextKeyService(this._contextKeyService);
+			// We might be moving the notebook widget between groups, and these services are tied to the group
+			this._widget.value!.setParentContextKeyService(this._contextKeyService);
+			this._widget.value!.setEditorProgressService(this._editorProgressService);
+
 			await this._widget.value!.setModel(model.notebook, viewState, perf);
 			const isReadOnly = input.hasCapability(EditorInputCapabilities.Readonly);
 			await this._widget.value!.setOptions({ ...options, isReadOnly });
@@ -236,58 +249,12 @@ export class NotebookEditor extends EditorPane implements INotebookEditorPane {
 
 			perf.mark('editorLoaded');
 
-			type WorkbenchNotebookOpenClassification = {
-				owner: 'rebornix';
-				comment: 'The notebook file open metrics. Used to get a better understanding of the performance of notebook file opening';
-				scheme: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'File system provider scheme for the notebook resource' };
-				ext: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'File extension for the notebook resource' };
-				viewType: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The view type of the notebook editor' };
-				extensionActivated: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Extension activation time for the resource opening' };
-				inputLoaded: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Editor Input loading time for the resource opening' };
-				webviewCommLoaded: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Webview initialization time for the resource opening' };
-				customMarkdownLoaded: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Custom markdown loading time for the resource opening' };
-				editorLoaded: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Overall editor loading time for the resource opening' };
-			};
-
-			type WorkbenchNotebookOpenEvent = {
-				scheme: string;
-				ext: string;
-				viewType: string;
-				extensionActivated: number;
-				inputLoaded: number;
-				webviewCommLoaded: number;
-				customMarkdownLoaded: number | undefined;
-				editorLoaded: number;
-			};
-
-			const perfMarks = perf.value;
-			if (perfMarks) {
-				const startTime = perfMarks['startTime'];
-				const extensionActivated = perfMarks['extensionActivated'];
-				const inputLoaded = perfMarks['inputLoaded'];
-				const customMarkdownLoaded = perfMarks['customMarkdownLoaded'];
-				const editorLoaded = perfMarks['editorLoaded'];
-
-				if (
-					startTime !== undefined
-					&& extensionActivated !== undefined
-					&& inputLoaded !== undefined
-					&& editorLoaded !== undefined
-				) {
-					this.telemetryService.publicLog2<WorkbenchNotebookOpenEvent, WorkbenchNotebookOpenClassification>('notebook/editorOpenPerf', {
-						scheme: model.notebook.uri.scheme,
-						ext: extname(model.notebook.uri),
-						viewType: model.notebook.viewType,
-						extensionActivated: extensionActivated - startTime,
-						inputLoaded: inputLoaded - startTime,
-						webviewCommLoaded: inputLoaded - startTime,
-						customMarkdownLoaded: typeof customMarkdownLoaded === 'number' ? customMarkdownLoaded - startTime : undefined,
-						editorLoaded: editorLoaded - startTime
-					});
-				} else {
-					console.warn(`notebook file open perf marks are broken: startTime ${startTime}, extensionActivated ${extensionActivated}, inputLoaded ${inputLoaded}, customMarkdownLoaded ${customMarkdownLoaded}, editorLoaded ${editorLoaded}`);
-				}
+			fileOpenMonitor.cancel();
+			if (perfMarksCaptured) {
+				return;
 			}
+
+			this._handlePerfMark(perf, input);
 		} catch (e) {
 			console.warn(e);
 			const error = createEditorOpenError(e instanceof Error ? e : new Error((e ? e.message : '')), [
@@ -321,6 +288,74 @@ export class NotebookEditor extends EditorPane implements INotebookEditorPane {
 
 			throw error;
 		}
+	}
+
+	private _handlePerfMark(perf: NotebookPerfMarks, input: NotebookEditorInput) {
+		const perfMarks = perf.value;
+
+		type WorkbenchNotebookOpenClassification = {
+			owner: 'rebornix';
+			comment: 'The notebook file open metrics. Used to get a better understanding of the performance of notebook file opening';
+			scheme: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'File system provider scheme for the notebook resource' };
+			ext: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'File extension for the notebook resource' };
+			viewType: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The view type of the notebook editor' };
+			extensionActivated: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Extension activation time for the resource opening' };
+			inputLoaded: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Editor Input loading time for the resource opening' };
+			webviewCommLoaded: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Webview initialization time for the resource opening' };
+			customMarkdownLoaded: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Custom markdown loading time for the resource opening' };
+			editorLoaded: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Overall editor loading time for the resource opening' };
+		};
+
+		type WorkbenchNotebookOpenEvent = {
+			scheme: string;
+			ext: string;
+			viewType: string;
+			extensionActivated: number;
+			inputLoaded: number;
+			webviewCommLoaded: number;
+			customMarkdownLoaded: number | undefined;
+			editorLoaded: number;
+		};
+
+		const startTime = perfMarks['startTime'];
+		const extensionActivated = perfMarks['extensionActivated'];
+		const inputLoaded = perfMarks['inputLoaded'];
+		const customMarkdownLoaded = perfMarks['customMarkdownLoaded'];
+		const editorLoaded = perfMarks['editorLoaded'];
+
+		let extensionActivationTimespan = -1;
+		let inputLoadingTimespan = -1;
+		let webviewCommLoadingTimespan = -1;
+		let customMarkdownLoadingTimespan = -1;
+		let editorLoadingTimespan = -1;
+
+		if (startTime !== undefined && extensionActivated !== undefined) {
+			extensionActivationTimespan = extensionActivated - startTime;
+
+			if (inputLoaded !== undefined) {
+				inputLoadingTimespan = inputLoaded - extensionActivated;
+				webviewCommLoadingTimespan = inputLoaded - extensionActivated; // TODO@rebornix, we don't track webview comm anymore
+			}
+
+			if (customMarkdownLoaded !== undefined) {
+				customMarkdownLoadingTimespan = customMarkdownLoaded - startTime;
+			}
+
+			if (editorLoaded !== undefined) {
+				editorLoadingTimespan = editorLoaded - startTime;
+			}
+		}
+
+		this.telemetryService.publicLog2<WorkbenchNotebookOpenEvent, WorkbenchNotebookOpenClassification>('notebook/editorOpenPerf', {
+			scheme: input.resource.scheme,
+			ext: extname(input.resource),
+			viewType: input.viewType,
+			extensionActivated: extensionActivationTimespan,
+			inputLoaded: inputLoadingTimespan,
+			webviewCommLoaded: webviewCommLoadingTimespan,
+			customMarkdownLoaded: customMarkdownLoadingTimespan,
+			editorLoaded: editorLoadingTimespan
+		});
 	}
 
 	override clearInput(): void {

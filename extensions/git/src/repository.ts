@@ -972,9 +972,13 @@ export class Repository implements Disposable {
 			return;
 		}
 
-		const path = uri.path;
+		// Ignore path that is inside a merge group
+		if (this.mergeGroup.resourceStates.some(r => r.resourceUri.path === uri.path)) {
+			return undefined;
+		}
 
-		if (this.mergeGroup.resourceStates.some(r => r.resourceUri.path === path)) {
+		// Ignore path that is inside a submodule
+		if (this.submodules.some(s => isDescendant(path.join(this.repository.root, s.path), uri.path))) {
 			return undefined;
 		}
 
@@ -2356,7 +2360,12 @@ export class Repository implements Disposable {
 
 	private updateBranchProtectionMatcher(): void {
 		const scopedConfig = workspace.getConfiguration('git', Uri.file(this.repository.root));
-		const branchProtectionGlobs = scopedConfig.get<string[]>('branchProtection')!.map(bp => bp.trim()).filter(bp => bp !== '');
+		const branchProtectionConfig = scopedConfig.get<unknown>('branchProtection') ?? [];
+		const branchProtectionValues = Array.isArray(branchProtectionConfig) ? branchProtectionConfig : [branchProtectionConfig];
+
+		const branchProtectionGlobs = branchProtectionValues
+			.map(bp => typeof bp === 'string' ? bp.trim() : '')
+			.filter(bp => bp !== '');
 
 		if (branchProtectionGlobs.length === 0) {
 			this.isBranchProtectedMatcher = undefined;

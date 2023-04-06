@@ -12,6 +12,7 @@ import { dispose } from './util';
 
 interface ActionButtonState {
 	readonly HEAD: Branch | undefined;
+	readonly isCheckoutInProgress: boolean;
 	readonly isCommitInProgress: boolean;
 	readonly isMergeInProgress: boolean;
 	readonly isRebaseInProgress: boolean;
@@ -39,6 +40,7 @@ export class ActionButtonCommand {
 		readonly postCommitCommandCenter: CommitCommandsCenter) {
 		this._state = {
 			HEAD: undefined,
+			isCheckoutInProgress: false,
 			isCommitInProgress: false,
 			isMergeInProgress: false,
 			isRebaseInProgress: false,
@@ -154,7 +156,7 @@ export class ActionButtonCommand {
 						l10n.t({ message: 'Publish Branch', comment: ['{Locked="Branch"}', 'Do not translate "Branch" as it is a git term'] })),
 				arguments: [this.repository.sourceControl],
 			},
-			enabled: !this.state.isSyncInProgress
+			enabled: !this.state.isCheckoutInProgress && !this.state.isSyncInProgress
 		};
 	}
 
@@ -180,11 +182,15 @@ export class ActionButtonCommand {
 				arguments: [this.repository.sourceControl],
 			},
 			description: `${icon}${behind}${ahead}`,
-			enabled: !this.state.isSyncInProgress
+			enabled: !this.state.isCheckoutInProgress && !this.state.isSyncInProgress
 		};
 	}
 
 	private onDidChangeOperations(): void {
+		const isCheckoutInProgress
+			= this.repository.operations.isRunning(OperationKind.Checkout) ||
+			this.repository.operations.isRunning(OperationKind.CheckoutTracking);
+
 		const isCommitInProgress =
 			this.repository.operations.isRunning(OperationKind.Commit) ||
 			this.repository.operations.isRunning(OperationKind.PostCommitCommand) ||
@@ -195,7 +201,7 @@ export class ActionButtonCommand {
 			this.repository.operations.isRunning(OperationKind.Push) ||
 			this.repository.operations.isRunning(OperationKind.Pull);
 
-		this.state = { ...this.state, isCommitInProgress, isSyncInProgress };
+		this.state = { ...this.state, isCheckoutInProgress, isCommitInProgress, isSyncInProgress };
 	}
 
 	private onDidChangeSmartCommitSettings(): void {

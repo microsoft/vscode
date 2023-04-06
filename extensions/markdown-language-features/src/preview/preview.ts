@@ -37,7 +37,7 @@ export class PreviewDocumentVersion {
 interface MarkdownPreviewDelegate {
 	getTitle?(resource: vscode.Uri): string;
 	getAdditionalState(): {};
-	openPreviewLinkToMarkdownFile(markdownLink: vscode.Uri, fragment: string): void;
+	openPreviewLinkToMarkdownFile(markdownLink: vscode.Uri, fragment: string | undefined): void;
 }
 
 class MarkdownPreview extends Disposable implements WebviewResourceProvider {
@@ -410,7 +410,7 @@ class MarkdownPreview extends Disposable implements WebviewResourceProvider {
 				try {
 					const doc = await vscode.workspace.openTextDocument(vscode.Uri.from(resolved.uri));
 					if (isMarkdownFile(doc)) {
-						return this._delegate.openPreviewLinkToMarkdownFile(doc.uri, resolved.fragment ?? '');
+						return this._delegate.openPreviewLinkToMarkdownFile(doc.uri, resolved.fragment ? decodeURIComponent(resolved.fragment) : undefined);
 					}
 				} catch {
 					// Noop

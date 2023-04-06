@@ -1,6 +1,12 @@
 {
-	"originalFileName": "./1.tst",
-	"modifiedFileName": "./2.tst",
+	"original": {
+		"content": "interface Test {\n    getDecorationsInViewport(visibleRange: Range): ViewModelDecoration[];\n\tgetViewLineRenderingData(visibleRange: Range, lineNumber: number): ViewLineRenderingData;\n    getViewLineData(lineNumber: number): ViewLineData;\n}",
+		"fileName": "./1.tst"
+	},
+	"modified": {
+		"content": "interface Test {\n    getDecorationsInViewport(visibleRange: Range): ViewModelDecoration[];\n    getViewportViewLineRenderingData(visibleRange: Range, lineNumber: number): ViewLineRenderingData;\n    getViewLineRenderingData(lineNumber: number): ViewLineRenderingData;\n    getViewLineData(lineNumber: number): ViewLineData;\n}",
+		"fileName": "./2.tst"
+	},
 	"diffs": [
 		{
 			"originalRange": "[3,4)",

@@ -284,7 +284,6 @@ async function getGitBashPaths(): Promise<string[]> {
 	if (gitExePath) {
 		const gitExeDir = dirname(gitExePath);
 		gitDirs.add(resolve(gitExeDir, '../..'));
-		console.log('gitDirs', gitDirs);
 	}
 	function addTruthy<T>(set: Set<T>, value: T | undefined): void {
 		if (value) {
@@ -302,7 +301,8 @@ async function getGitBashPaths(): Promise<string[]> {
 	for (const gitDir of gitDirs) {
 		gitBashPaths.push(
 			`${gitDir}\\Git\\bin\\bash.exe`,
-			`${gitDir}\\Git\\usr\\bin\\bash.exe`
+			`${gitDir}\\Git\\usr\\bin\\bash.exe`,
+			`${gitDir}\\usr\\bin\\bash.exe` // using Git for Windows SDK
 		);
 	}
 
