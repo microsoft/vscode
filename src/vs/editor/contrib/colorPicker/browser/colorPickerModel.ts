@@ -63,10 +63,6 @@ export class ColorPickerModel {
 	}
 
 	guessColorPresentation(color: Color, originalText: string): void {
-
-		console.log('inside of guessColorPresentation()');
-		console.log('originalText : ', originalText);
-
 		let presentationIndex = -1;
 		for (let i = 0; i < this.colorPresentations.length; i++) {
 			if (originalText.toLowerCase() === this.colorPresentations[i].label) {

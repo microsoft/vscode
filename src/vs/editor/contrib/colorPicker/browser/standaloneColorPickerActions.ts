@@ -35,7 +35,9 @@ export class ShowOrFocusStandaloneColorPicker extends EditorAction2 {
 	}
 
 	runEditorCommand(_accessor: ServicesAccessor, editor: ICodeEditor) {
-		console.log('inside of show or focus of standalone color picker');
+
+		console.log('Inside of show or focus of standalone color picker');
+
 		StandaloneColorPickerController.get(editor)?.showOrFocus();
 	}
 }
@@ -61,7 +63,9 @@ class HideStandaloneColorPicker extends EditorAction {
 	}
 
 	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
-		console.log('inside of hide of color picker');
+
+		console.log('Inside of hide of color picker');
+
 		StandaloneColorPickerController.get(editor)?.hide();
 	}
 }
@@ -87,7 +91,9 @@ class InsertColorFromStandaloneColorPicker extends EditorAction {
 	}
 
 	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
-		console.log('inside of update editor of color picker');
+
+		console.log('Inside of update editor of color picker');
+
 		StandaloneColorPickerController.get(editor)?.updateEditor();
 	}
 }

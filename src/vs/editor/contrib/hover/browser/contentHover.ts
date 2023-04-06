@@ -265,11 +265,8 @@ export class ContentHoverController extends Disposable {
 			hide: () => this.hide()
 		};
 
-		console.log('this._participants : ', this._participants);
 		for (const participant of this._participants) {
-			console.log('participant : ', participant);
 			const hoverParts = messages.filter(msg => msg.owner === participant);
-			console.log('hoverParts : ', hoverParts);
 			if (hoverParts.length > 0) {
 				disposables.add(participant.renderHoverParts(context, hoverParts));
 			}
@@ -588,7 +585,8 @@ export class ContentHoverWidget extends Disposable implements IContentWidget {
 
 	public showAt(node: DocumentFragment, visibleData: ContentHoverVisibleData): void {
 
-		console.log('inside of showAt');
+		console.log('Inside of showAt');
+
 		this._setVisibleData(visibleData);
 
 		this._hover.contentsDomNode.textContent = '';

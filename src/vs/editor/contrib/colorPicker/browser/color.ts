@@ -21,11 +21,11 @@ export interface IColorData {
 
 export function getColors(registry: LanguageFeatureRegistry<DocumentColorProvider>, model: ITextModel, token: CancellationToken): Promise<IColorData[]> {
 	const colors: IColorData[] = [];
-	// Not inside of the registry
 	const providers = registry.ordered(model).reverse();
-	// TODO: the document colors are retrieved when get colors is called
-	console.log('inside of getColors before provideDocumentColors');
-	console.log('before calling the provide document colors');
+
+	console.log('Inside of getColors before provideDocumentColors');
+	console.log('Before calling the provide document colors');
+
 	const promises = providers.map(provider => Promise.resolve(provider.provideDocumentColors(model, token)).then(result => {
 		if (Array.isArray(result)) {
 			for (const colorInfo of result) {
@@ -38,7 +38,9 @@ export function getColors(registry: LanguageFeatureRegistry<DocumentColorProvide
 }
 
 export function getColorPresentations(model: ITextModel, colorInfo: IColorInformation, provider: DocumentColorProvider, token: CancellationToken): Promise<IColorPresentation[] | null | undefined> {
-	console.log('before calling the provideColorPresentations');
+
+	console.log('Before calling the provideColorPresentations');
+
 	return Promise.resolve(provider.provideColorPresentations(model, colorInfo, token));
 }
 
@@ -56,7 +58,9 @@ CommandsRegistry.registerCommand('_executeDocumentColorProvider', function (acce
 
 	const rawCIs: { range: IRange; color: [number, number, number, number] }[] = [];
 	const providers = colorProviderRegistry.ordered(model).reverse();
-	console.log('before calling the provide document colors');
+
+	console.log('Before calling the provide document colors');
+
 	const promises = providers.map(provider => Promise.resolve(provider.provideDocumentColors(model, CancellationToken.None)).then(result => {
 		if (Array.isArray(result)) {
 			for (const ci of result) {

@@ -26,6 +26,7 @@ export class ColorPickerHeader extends Disposable {
 	private readonly _domNode: HTMLElement;
 	private readonly pickedColorNode: HTMLElement;
 	private backgroundColor: Color;
+	// Potential close button which appears in the standalone color picker
 	private readonly _closeButton: CloseButton | null = null;
 
 	constructor(container: HTMLElement, private readonly model: ColorPickerModel, themeService: IThemeService, private showingStandaloneColorPicker: boolean = false) {
@@ -58,7 +59,6 @@ export class ColorPickerHeader extends Disposable {
 		this.pickedColorNode.classList.toggle('light', model.color.rgba.a < 0.5 ? this.backgroundColor.isLighter() : model.color.isLighter());
 
 		this.onDidChangeColor(this.model.color);
-
 		if (this.showingStandaloneColorPicker) {
 			this._closeButton = new CloseButton(this._domNode);
 			this._register(this._closeButton);
@@ -189,7 +189,6 @@ export class ColorPickerBody extends Disposable {
 	}
 
 	layout(): void {
-		console.log('inside of layout of the color picker body');
 		this._saturationBox.layout();
 		this._opacityStrip.layout();
 		this._hueStrip.layout();
@@ -273,13 +272,8 @@ class SaturationBox extends Disposable {
 	}
 
 	layout(): void {
-		console.log('inside of the layout of the saturation box');
 		this.width = this._domNode.offsetWidth;
 		this.height = this._domNode.offsetHeight;
-		console.log('this.width : ', this.width);
-		console.log('this.heigth : ', this.height);
-
-		// TODO: works if hard-coding the values, need to figure out why the above is zero
 		this._canvas.width = this.width * this.pixelRatio;
 		this._canvas.height = this.height * this.pixelRatio;
 		this.paint();
@@ -355,9 +349,7 @@ abstract class Strip extends Disposable {
 	}
 
 	layout(): void {
-		console.log('inside of the layout of the strip');
 		this.height = this.domNode.offsetHeight - this.slider.offsetHeight;
-		console.log('this.height : ', this.height);
 		const value = this.getValue(this.model.color);
 		this.updateSliderPosition(value);
 	}
@@ -433,7 +425,7 @@ class HueStrip extends Strip {
 	}
 }
 
-class InsertButton extends Disposable {
+export class InsertButton extends Disposable {
 
 	private _button: HTMLElement;
 	private readonly _onClicked = this._register(new Emitter<void>());
@@ -481,7 +473,6 @@ export class ColorPickerWidget extends Widget implements IEditorHoverColorPicker
 	}
 
 	layout(): void {
-		console.log('inside of the color picker widget layout function');
 		this.body.layout();
 	}
 }
