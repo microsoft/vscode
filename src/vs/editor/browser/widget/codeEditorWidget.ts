@@ -976,6 +976,12 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		}
 		this._modelData.viewModel.viewLayout.setScrollPosition(position, scrollType);
 	}
+	public hasPendingScrollAnimation(): boolean {
+		if (!this._modelData) {
+			return false;
+		}
+		return this._modelData.viewModel.viewLayout.hasPendingScrollAnimation();
+	}
 
 	public saveViewState(): editorCommon.ICodeEditorViewState | null {
 		if (!this._modelData) {

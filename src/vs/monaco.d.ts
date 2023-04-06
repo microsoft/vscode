@@ -5620,6 +5620,10 @@ declare namespace monaco.editor {
 		 */
 		setScrollPosition(position: INewScrollPosition, scrollType?: ScrollType): void;
 		/**
+		 * Check if the editor is currently scrolling towards a different scroll position.
+		 */
+		hasPendingScrollAnimation(): boolean;
+		/**
 		 * Get an action that is a contribution to this editor.
 		 * @id Unique identifier of the contribution.
 		 * @return The action or null if action not found.
