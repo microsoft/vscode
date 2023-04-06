@@ -147,6 +147,7 @@ export interface IInteractiveSessionService {
 	_serviceBrand: undefined;
 	registerProvider(provider: IInteractiveProvider): IDisposable;
 	startSession(providerId: string, allowRestoringSession: boolean, token: CancellationToken): InteractiveSessionModel | undefined;
+	waitForSessionInitialization(sessionId: number): Promise<InteractiveSessionModel | undefined>;
 
 	/**
 	 * Returns whether the request was accepted.

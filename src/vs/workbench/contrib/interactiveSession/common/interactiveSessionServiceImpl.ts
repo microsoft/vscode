@@ -132,6 +132,10 @@ export class InteractiveSessionService extends Disposable implements IInteractiv
 		}));
 	}
 
+	async waitForSessionInitialization(sessionId: number): Promise<InteractiveSessionModel | undefined> {
+		return await this._initializedSessionModels.get(sessionId);
+	}
+
 	notifyUserAction(action: IInteractiveSessionUserActionEvent): void {
 		if (action.action.kind === 'vote') {
 			this.telemetryService.publicLog2<InteractiveSessionVoteEvent, InteractiveSessionVoteClassification>('interactiveSessionVote', {
