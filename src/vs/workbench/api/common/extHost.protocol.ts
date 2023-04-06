@@ -1056,6 +1056,10 @@ export interface MainThreadNotebookKernelsShape extends IDisposable {
 	$updateExecution(handle: number, data: SerializableObjectWithBuffers<ICellExecuteUpdateDto[]>): void;
 	$completeExecution(handle: number, data: SerializableObjectWithBuffers<ICellExecutionCompleteDto>): void;
 
+	$createNotebookExecution(handle: number, controllerId: string, uri: UriComponents): void;
+	$beginNotebookExecution(handle: number,): void;
+	$completeNotebookExecution(handle: number): void;
+
 	$addKernelDetectionTask(handle: number, notebookType: string): Promise<void>;
 	$removeKernelDetectionTask(handle: number): void;
 
@@ -1113,7 +1117,7 @@ export interface IInteractiveResponseDto {
 }
 
 export interface MainThreadInteractiveSessionShape extends IDisposable {
-	$registerInteractiveSessionProvider(handle: number, id: string, implementsProgress: boolean): Promise<void>;
+	$registerInteractiveSessionProvider(handle: number, id: string): Promise<void>;
 	$acceptInteractiveSessionState(sessionId: number, state: any): Promise<void>;
 	$addInteractiveSessionRequest(context: any): void;
 	$sendInteractiveRequestToProvider(providerId: string, message: IInteractiveSessionDynamicRequest): void;

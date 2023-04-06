@@ -114,8 +114,9 @@ steps:
     - powershell: node build/azure-pipelines/distro/mixin-quality
       displayName: Mixin distro quality
 
-    - template: ../common/install-builtin-extensions.yml
+  - template: ../common/install-builtin-extensions.yml
 
+  - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
     - powershell: node build\lib\policies
       displayName: Generate Group Policy definitions
       retryCountOnTaskFailure: 3

@@ -68,6 +68,8 @@ export interface Folder {
 	name: string;
 	canonicalIdentity: string | undefined;
 	workingChanges: Change[];
+	// additional data collected from workbench contributions
+	[key: string]: unknown;
 }
 
 export const EditSessionSchemaVersion = 2;

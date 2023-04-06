@@ -158,10 +158,6 @@ export class InteractiveSessionService extends Disposable implements IInteractiv
 		this._onDidPerformUserAction.fire(action);
 	}
 
-	progressiveRenderingEnabled(providerId: string): boolean {
-		return this._providers.get(providerId)?.progressiveRenderingEnabled ?? false;
-	}
-
 	private trace(method: string, message: string): void {
 		this.logService.trace(`InteractiveSessionService#${method}: ${message}`);
 	}

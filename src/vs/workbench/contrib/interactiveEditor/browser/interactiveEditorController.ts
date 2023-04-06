@@ -39,6 +39,7 @@ import { IInteractiveSessionService } from 'vs/workbench/contrib/interactiveSess
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { splitLines } from 'vs/base/common/strings';
 import { InteractiveEditorZoneWidget } from 'vs/workbench/contrib/interactiveEditor/browser/interactiveEditorWidget';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 
 
@@ -162,6 +163,8 @@ class LastEditorState {
 	) { }
 }
 
+type EditMode = 'preview' | 'direct';
+
 export class InteractiveEditorController implements IEditorContribution {
 
 	static ID = 'interactiveEditor';
@@ -211,6 +214,7 @@ export class InteractiveEditorController implements IEditorContribution {
 		@ILogService private readonly _logService: ILogService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@IStorageService private readonly _storageService: IStorageService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 
 	) {
@@ -233,6 +237,8 @@ export class InteractiveEditorController implements IEditorContribution {
 	}
 
 	async run(initialRange?: Range): Promise<void> {
+
+		const editMode: EditMode = this._configurationService.getValue('interactiveEditor.editMode');
 
 		this._ctsSession.dispose(true);
 
@@ -403,6 +409,7 @@ export class InteractiveEditorController implements IEditorContribution {
 			};
 			const task = provider.provideResponse(session, request, this._ctsRequest.token);
 			this._logService.trace('[IE] request started', provider.debugName, session, request);
+			value = input;
 
 			let reply: IInteractiveEditorResponse | null | undefined;
 			try {
@@ -427,13 +434,11 @@ export class InteractiveEditorController implements IEditorContribution {
 
 			if (this._ctsRequest.token.isCancellationRequested) {
 				this._logService.trace('[IE] request CANCELED', provider.debugName);
-				value = input;
 				continue;
 			}
 
 			if (!reply) {
 				this._logService.trace('[IE] NO reply or edits', provider.debugName);
-				value = input;
 				this._zone.widget.updateMessage(localize('empty', "No results, please refine your input and try again."), ['warn']);
 				continue;
 			}
@@ -453,14 +458,13 @@ export class InteractiveEditorController implements IEditorContribution {
 				continue;
 			}
 
-			// make edits more minimal
 			this._ctxLastEditKind.set(reply.edits.length === 1 ? 'simple' : '');
-			const moreMinimalEdits = (await this._editorWorkerService.computeHumanReadableDiff(textModel.uri, reply.edits));
-			this._logService.trace('[IE] edits from PROVIDER and after making them MORE MINIMAL', provider.debugName, reply.edits, moreMinimalEdits);
 			this._recorder.addExchange(session, request, reply);
 
 			// inline diff
 			inlineDiffDecorations.clear();
+
+			this._lastEditState = new LastEditorState(textModel, textModel.getAlternativeVersionId(), provider, session, reply);
 
 			// use whole range from reply
 			if (reply.wholeRange) {
@@ -470,65 +474,72 @@ export class InteractiveEditorController implements IEditorContribution {
 				}]);
 			}
 
-			this._lastEditState = new LastEditorState(textModel, textModel.getAlternativeVersionId(), provider, session, reply);
+			if (editMode === 'preview') {
+				// only preview changes
+				this._zone.widget.updateToolbar(true);
+				this._zone.widget.preview(textModel, reply.edits);
 
+			} else {
+				// make edits more minimal
+				const moreMinimalEdits = (await this._editorWorkerService.computeHumanReadableDiff(textModel.uri, reply.edits));
+				this._logService.trace('[IE] edits from PROVIDER and after making them MORE MINIMAL', provider.debugName, reply.edits, moreMinimalEdits);
 
-			try {
-				ignoreModelChanges = true;
+				try {
+					ignoreModelChanges = true;
 
-				const cursorStateComputerAndInlineDiffCollection: ICursorStateComputer = (undoEdits) => {
-					let last: Position | null = null;
-					for (const edit of undoEdits) {
-						last = !last || last.isBefore(edit.range.getEndPosition()) ? edit.range.getEndPosition() : last;
-						inlineDiffDecorations.collectEditOperation(edit);
-					}
-					return last && [Selection.fromPositions(last)];
-				};
+					const cursorStateComputerAndInlineDiffCollection: ICursorStateComputer = (undoEdits) => {
+						let last: Position | null = null;
+						for (const edit of undoEdits) {
+							last = !last || last.isBefore(edit.range.getEndPosition()) ? edit.range.getEndPosition() : last;
+							inlineDiffDecorations.collectEditOperation(edit);
+						}
+						return last && [Selection.fromPositions(last)];
+					};
 
-				this._editor.pushUndoStop();
-				this._editor.executeEdits(
-					'interactive-editor',
-					(moreMinimalEdits ?? reply.edits).map(edit => EditOperation.replace(Range.lift(edit.range), edit.text)),
-					cursorStateComputerAndInlineDiffCollection
-				);
-				this._editor.pushUndoStop();
+					this._editor.pushUndoStop();
+					this._editor.executeEdits(
+						'interactive-editor',
+						(moreMinimalEdits ?? reply.edits).map(edit => EditOperation.replace(Range.lift(edit.range), edit.text)),
+						cursorStateComputerAndInlineDiffCollection
+					);
+					this._editor.pushUndoStop();
 
-			} finally {
-				ignoreModelChanges = false;
-			}
+				} finally {
+					ignoreModelChanges = false;
+				}
 
-			inlineDiffDecorations.update();
+				inlineDiffDecorations.update();
 
-			// line count
-			const lineSet = new Set<number>();
-			let addRemoveCount = 0;
-			for (const edit of moreMinimalEdits ?? reply.edits) {
+				// line count
+				const lineSet = new Set<number>();
+				let addRemoveCount = 0;
+				for (const edit of moreMinimalEdits ?? reply.edits) {
 
-				const len2 = splitLines(edit.text).length - 1;
+					const len2 = splitLines(edit.text).length - 1;
 
-				if (Range.isEmpty(edit.range) && len2 > 0) {
-					// insert lines
-					addRemoveCount += len2;
-				} else if (Range.isEmpty(edit.range) && edit.text.length === 0) {
-					// delete
-					addRemoveCount += edit.range.endLineNumber - edit.range.startLineNumber + 1;
-				} else {
-					// edit
-					for (let line = edit.range.startLineNumber; line <= edit.range.endLineNumber; line++) {
-						lineSet.add(line);
+					if (Range.isEmpty(edit.range) && len2 > 0) {
+						// insert lines
+						addRemoveCount += len2;
+					} else if (Range.isEmpty(edit.range) && edit.text.length === 0) {
+						// delete
+						addRemoveCount += edit.range.endLineNumber - edit.range.startLineNumber + 1;
+					} else {
+						// edit
+						for (let line = edit.range.startLineNumber; line <= edit.range.endLineNumber; line++) {
+							lineSet.add(line);
+						}
 					}
 				}
+				const linesChanged = addRemoveCount + lineSet.size;
+
+				this._zone.widget.updateToolbar(true);
+				this._zone.widget.updateMessage(linesChanged === 1
+					? localize('lines.1', "Generated reply and changed 1 line.")
+					: localize('lines.N', "Generated reply and changed {0} lines.", linesChanged)
+				);
 			}
-			const linesChanged = addRemoveCount + lineSet.size;
-
-			this._zone.widget.updateToolbar(true);
-			this._zone.widget.updateMessage(linesChanged === 1
-				? localize('lines.1', "Generated reply and changed 1 line.")
-				: localize('lines.N', "Generated reply and changed {0} lines.", linesChanged)
-			);
-
 			placeholder = reply.placeholder ?? session.placeholder ?? '';
-			value = '';
+
 			data.rounds += round + '|';
 
 		} while (!thisSession.token.isCancellationRequested);
@@ -627,6 +638,20 @@ export class InteractiveEditorController implements IEditorContribution {
 			this._ctxLastFeedbackKind.set(helpful ? 'helpful' : 'unhelpful');
 			this._zone.widget.updateMessage('Thank you for your feedback!', undefined, 1250);
 		}
+	}
+
+	applyChanges() {
+		if (this._lastEditState) {
+			const { model, modelVersionId, response } = this._lastEditState;
+			if (model.getAlternativeVersionId() === modelVersionId) {
+				model.pushStackElement();
+				const edits = response.edits.map(edit => EditOperation.replace(Range.lift(edit.range), edit.text));
+				model.pushEditOperations(null, edits, () => null);
+				model.pushStackElement();
+				return true;
+			}
+		}
+		return false;
 	}
 }
 
