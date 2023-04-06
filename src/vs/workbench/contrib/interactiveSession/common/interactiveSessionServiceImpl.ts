@@ -201,14 +201,18 @@ export class InteractiveSessionService extends Disposable implements IInteractiv
 			if (!resolvedModel) {
 				model.dispose();
 				this._sessionModels.delete(model.sessionId);
+				this._initializedSessionModels.delete(model.sessionId);
 			}
+		}).catch(() => {
+			model.dispose();
+			this._sessionModels.delete(model.sessionId);
+			this._initializedSessionModels.delete(model.sessionId);
 		});
 
 		return model;
 	}
 
 	private async initializeSession(model: InteractiveSessionModel, sessionHistory: ISerializableInteractiveSessionData | undefined, token: CancellationToken): Promise<InteractiveSessionModel | undefined> {
-		// await this.extensionService.whenInstalledExtensionsRegistered(); // Needed?
 		await this.extensionService.activateByEvent(`onInteractiveSession:${model.providerId}`);
 
 		const provider = this._providers.get(model.providerId);
@@ -486,6 +490,7 @@ export class InteractiveSessionService extends Disposable implements IInteractiv
 
 		model.dispose();
 		this._sessionModels.delete(sessionId);
+		this._initializedSessionModels.delete(sessionId);
 		this._pendingRequests.get(sessionId)?.cancel();
 		this._releasedSessions.delete(sessionId);
 	}
