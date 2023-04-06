@@ -173,6 +173,7 @@ export class AccessibleBufferWidget extends DisposableStore {
 		if (!commands?.length || !currentLine) {
 			return;
 		}
+
 		const filteredCommands = type === NavigationType.Previous ? commands.filter(c => c.lineNumber < currentLine).sort((a, b) => b.lineNumber - a.lineNumber) : commands.filter(c => c.lineNumber > currentLine).sort((a, b) => a.lineNumber - b.lineNumber);
 		if (!filteredCommands.length) {
 			return;
@@ -193,12 +194,12 @@ export class AccessibleBufferWidget extends DisposableStore {
 		return line + 1;
 	}
 
-	private _getCommandsWithEditorLine(): ITerminalCommandInEditor[] | undefined {
+	private _getCommandsWithEditorLine(): ICommandWithEditorLine[] | undefined {
 		const commands = this._instance.capabilities.get(TerminalCapability.CommandDetection)?.commands;
 		if (!commands?.length) {
 			return;
 		}
-		const result: ITerminalCommandInEditor[] = [];
+		const result: ICommandWithEditorLine[] = [];
 		for (const command of commands) {
 			const lineNumber = this._getEditorLineForCommand(command);
 			if (!lineNumber) {
@@ -365,5 +366,5 @@ export class AccessibleBufferWidget extends DisposableStore {
 	}
 }
 
-interface ITerminalCommandInEditor { command: ITerminalCommand; lineNumber: number }
+interface ICommandWithEditorLine { command: ITerminalCommand; lineNumber: number }
 
