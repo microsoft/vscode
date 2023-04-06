@@ -2311,6 +2311,15 @@ declare namespace monaco.editor {
 	 */
 	export class LineRange {
 		/**
+		 * @param lineRanges An array of sorted line ranges.
+		 */
+		static joinMany(lineRanges: readonly (readonly LineRange[])[]): readonly LineRange[];
+		/**
+		 * @param lineRanges1 Must be sorted.
+		 * @param lineRanges2 Must be sorted.
+		 */
+		static join(lineRanges1: readonly LineRange[], lineRanges2: readonly LineRange[]): readonly LineRange[];
+		/**
 		 * The start line number.
 		 */
 		readonly startLineNumber: number;
@@ -2319,6 +2328,10 @@ declare namespace monaco.editor {
 		 */
 		readonly endLineNumberExclusive: number;
 		constructor(startLineNumber: number, endLineNumberExclusive: number);
+		/**
+		 * Indicates if this line range contains the given line number.
+		 */
+		contains(lineNumber: number): boolean;
 		/**
 		 * Indicates if this line range is empty.
 		 */
@@ -2336,6 +2349,13 @@ declare namespace monaco.editor {
 		 */
 		join(other: LineRange): LineRange;
 		toString(): string;
+		/**
+		 * The resulting range is empty if the ranges do not intersect, but touch.
+		 * If the ranges don't even touch, the result is undefined.
+		 */
+		intersect(other: LineRange): LineRange | undefined;
+		overlapOrTouch(other: LineRange): boolean;
+		equals(b: LineRange): boolean;
 	}
 
 	/**
@@ -2353,7 +2373,7 @@ declare namespace monaco.editor {
 		/**
 		 * If inner changes have not been computed, this is set to undefined.
 		 * Otherwise, it represents the character-level diff in this line range.
-		 * The original range of each range mapping should be contained in the original line range (same for modified).
+		 * The original range of each range mapping should be contained in the original line range (same for modified), exceptions are new-lines.
 		 * Must not be an empty array.
 		 */
 		readonly innerChanges: RangeMapping[] | undefined;
@@ -2887,6 +2907,10 @@ declare namespace monaco.editor {
 		 * The model has been reset to a new value.
 		 */
 		readonly isFlush: boolean;
+		/**
+		 * Flag that indicates that this event describes an eol change.
+		 */
+		readonly isEolChange: boolean;
 	}
 
 	/**
@@ -7164,6 +7188,10 @@ declare namespace monaco.languages {
 		 * Prefer spaces over tabs.
 		 */
 		insertSpaces: boolean;
+		/**
+		 * The list of multiple ranges to format at once, if the provider supports it.
+		 */
+		ranges?: Range[];
 	}
 
 	/**
@@ -7192,6 +7220,7 @@ declare namespace monaco.languages {
 		 * of the range to full syntax nodes.
 		 */
 		provideDocumentRangeFormattingEdits(model: editor.ITextModel, range: Range, options: FormattingOptions, token: CancellationToken): ProviderResult<TextEdit[]>;
+		provideDocumentRangesFormattingEdits?(model: editor.ITextModel, ranges: Range[], options: FormattingOptions, token: CancellationToken): ProviderResult<TextEdit[]>;
 	}
 
 	/**

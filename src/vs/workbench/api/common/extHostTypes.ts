@@ -623,12 +623,6 @@ export class TextEdit {
 	}
 }
 
-export enum NotebookDocumentSaveReason {
-	Manual = 1,
-	AfterDelay = 2,
-	FocusOut = 3
-}
-
 @es5ClassCompat
 export class NotebookEdit implements vscode.NotebookEdit {
 
@@ -3054,6 +3048,11 @@ export enum CommentThreadCollapsibleState {
 export enum CommentMode {
 	Editing = 0,
 	Preview = 1
+}
+
+export enum CommentState {
+	Published = 0,
+	Draft = 1
 }
 
 export enum CommentThreadState {

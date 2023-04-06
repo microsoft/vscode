@@ -9,7 +9,7 @@ import { MenuRegistry, MenuId, registerAction2 } from 'vs/platform/actions/commo
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import { isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
-import { ConfigureRuntimeArgumentsAction, ToggleDevToolsAction, ToggleSharedProcessAction, ReloadWindowWithExtensionsDisabledAction, OpenUserDataFolderAction } from 'vs/workbench/electron-sandbox/actions/developerActions';
+import { ConfigureRuntimeArgumentsAction, ToggleDevToolsAction, ReloadWindowWithExtensionsDisabledAction, OpenUserDataFolderAction } from 'vs/workbench/electron-sandbox/actions/developerActions';
 import { ZoomResetAction, ZoomOutAction, ZoomInAction, CloseWindowAction, SwitchWindowAction, QuickSwitchWindowAction, NewWindowTabHandler, ShowPreviousWindowTabHandler, ShowNextWindowTabHandler, MoveWindowTabToNewWindowHandler, MergeWindowTabsHandlerHandler, ToggleWindowTabsBarHandler } from 'vs/workbench/electron-sandbox/actions/windowActions';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
@@ -106,7 +106,6 @@ import { applicationConfigurationNodeBase } from 'vs/workbench/common/configurat
 	// Actions: Developer
 	registerAction2(ReloadWindowWithExtensionsDisabledAction);
 	registerAction2(ConfigureRuntimeArgumentsAction);
-	registerAction2(ToggleSharedProcessAction);
 	registerAction2(ToggleDevToolsAction);
 	registerAction2(OpenUserDataFolderAction);
 })();
@@ -262,15 +261,8 @@ import { applicationConfigurationNodeBase } from 'vs/workbench/common/configurat
 			'window.experimental.useSandbox': { // TODO@bpasero remove me once sandbox is final
 				type: 'boolean',
 				description: localize('experimentalUseSandbox', "Experimental: When enabled, the window will have sandbox mode enabled via Electron API."),
-				default: typeof product.quality === 'string' && product.quality !== 'stable', // disabled by default in stable for now
+				default: product.quality !== 'stable', // disabled by default in stable for now
 				tags: product.quality === 'stable' ? ['experimental'] : undefined,
-				'scope': ConfigurationScope.APPLICATION,
-				ignoreSync: true
-			},
-			'window.experimental.sharedProcessUseUtilityProcess': { // TODO@bpasero remove me once sandbox is final
-				type: 'boolean',
-				description: localize('experimentalUseSharedProcessUseUtilityProcess', "Experimental: When enabled, the window will have sandbox mode enabled via Electron API."),
-				default: typeof product.quality === 'string',
 				'scope': ConfigurationScope.APPLICATION,
 				ignoreSync: true
 			}

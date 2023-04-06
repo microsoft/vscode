@@ -125,8 +125,8 @@ export class InteractiveListItemRenderer extends Disposable implements ITreeRend
 		}
 	}
 
-	private shouldRenderProgressively(element: IInteractiveResponseViewModel): boolean {
-		return !this.configService.getValue('interactive.experimental.disableProgressiveRendering') && element.progressiveResponseRenderingEnabled;
+	private shouldRenderProgressively(): boolean {
+		return !this.configService.getValue('interactive.experimental.disableProgressiveRendering');
 	}
 
 	private getProgressiveRenderRate(element: IInteractiveResponseViewModel): number {
@@ -224,7 +224,7 @@ export class InteractiveListItemRenderer extends Disposable implements ITreeRend
 		// - And the response is not complete
 		//   - Or, we previously started a progressive rendering of this element (if the element is complete, we will finish progressive rendering with a very fast rate)
 		// - And, the feature is not disabled in configuration
-		if (isResponseVM(element) && index === this.delegate.getListLength() - 1 && (!element.isComplete || element.renderData) && this.shouldRenderProgressively(element)) {
+		if (isResponseVM(element) && index === this.delegate.getListLength() - 1 && (!element.isComplete || element.renderData) && this.shouldRenderProgressively()) {
 			this.traceLayout('renderElement', `start progressive render ${kind}, index=${index}`);
 			const progressiveRenderingDisposables = templateData.elementDisposables.add(new DisposableStore());
 			const timer = templateData.elementDisposables.add(new IntervalTimer());
@@ -615,7 +615,8 @@ class CodeBlockPart extends Disposable implements IInteractiveResultCodeBlockPar
 			this.layout(width);
 		}
 
-		this.setText(data.text);
+		const text = this.fixCodeText(data.text, data.languageId);
+		this.setText(text);
 		this.setLanguage(data.languageId);
 
 		this.layout(width);
@@ -636,6 +637,16 @@ class CodeBlockPart extends Disposable implements IInteractiveResultCodeBlockPar
 			codeBlockIndex: data.codeBlockIndex,
 			element: data.element
 		};
+	}
+
+	private fixCodeText(text: string, languageId: string): string {
+		if (languageId === 'php') {
+			if (!text.trim().startsWith('<')) {
+				return `<?php\n${text}\n?>`;
+			}
+		}
+
+		return text;
 	}
 
 	private setText(newText: string): void {

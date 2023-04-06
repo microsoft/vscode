@@ -47,12 +47,10 @@ export type IInteractiveProgress =
 export interface IPersistedInteractiveState { }
 export interface IInteractiveProvider {
 	readonly id: string;
-	readonly progressiveRenderingEnabled?: boolean;
 	readonly iconUrl?: string;
 	prepareSession(initialState: IPersistedInteractiveState | undefined, token: CancellationToken): ProviderResult<IInteractiveSession | undefined>;
 	resolveRequest?(session: IInteractiveSession, context: any, token: CancellationToken): ProviderResult<IInteractiveRequest>;
 	provideWelcomeMessage?(token: CancellationToken): ProviderResult<(string | IInteractiveSessionReplyFollowup[])[] | undefined>;
-	provideSuggestions?(token: CancellationToken): ProviderResult<string[] | undefined>;
 	provideFollowups?(session: IInteractiveSession, token: CancellationToken): ProviderResult<IInteractiveSessionFollowup[] | undefined>;
 	provideReply(request: IInteractiveRequest, progress: (progress: IInteractiveProgress) => void, token: CancellationToken): ProviderResult<IInteractiveResponse>;
 	provideSlashCommands?(session: IInteractiveSession, token: CancellationToken): ProviderResult<IInteractiveSlashCommand[]>;
@@ -148,7 +146,6 @@ export const IInteractiveSessionService = createDecorator<IInteractiveSessionSer
 export interface IInteractiveSessionService {
 	_serviceBrand: undefined;
 	registerProvider(provider: IInteractiveProvider): IDisposable;
-	progressiveRenderingEnabled(providerId: string): boolean;
 	startSession(providerId: string, allowRestoringSession: boolean, token: CancellationToken): Promise<InteractiveSessionModel | undefined>;
 
 	/**
@@ -162,7 +159,6 @@ export interface IInteractiveSessionService {
 	addInteractiveRequest(context: any): void;
 	addCompleteRequest(message: string, response: IInteractiveSessionCompleteResponse): void;
 	sendInteractiveRequestToProvider(providerId: string, message: IInteractiveSessionDynamicRequest): void;
-	provideSuggestions(providerId: string, token: CancellationToken): Promise<string[] | undefined>;
 	releaseSession(sessionId: number): void;
 
 	onDidPerformUserAction: Event<IInteractiveSessionUserActionEvent>;

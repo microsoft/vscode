@@ -17,6 +17,7 @@ const rename = require('gulp-rename');
 const replace = require('gulp-replace');
 const filter = require('gulp-filter');
 const { getProductionDependencies } = require('./lib/dependencies');
+const { assetFromGithub } = require('./lib/github');
 const vfs = require('vinyl-fs');
 const packageJson = require('../package.json');
 const flatmap = require('gulp-flatmap');
@@ -154,7 +155,7 @@ if (defaultNodeTask) {
 }
 
 function nodejs(platform, arch) {
-	const remote = require('gulp-remote-retry-src');
+	const { remote } = require('./lib/gulpRemoteSource');
 	const untar = require('gulp-untar');
 
 	if (arch === 'ia32') {
@@ -162,6 +163,11 @@ function nodejs(platform, arch) {
 	}
 
 	if (platform === 'win32') {
+		if (product.nodejsRepository) {
+			return assetFromGithub(product.nodejsRepository, nodeVersion, name => name === `win-${arch}-node.exe`)
+				.pipe(rename('node.exe'));
+		}
+
 		return remote(`/dist/v${nodeVersion}/win-${arch}/node.exe`, { base: 'https://nodejs.org' })
 			.pipe(rename('node.exe'));
 	}

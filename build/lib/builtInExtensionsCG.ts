@@ -15,7 +15,7 @@ const rootCG = path.join(root, 'extensionsCG');
 const productjson = JSON.parse(fs.readFileSync(path.join(__dirname, '../../product.json'), 'utf8'));
 const builtInExtensions = <IExtensionDefinition[]>productjson.builtInExtensions || [];
 const webBuiltInExtensions = <IExtensionDefinition[]>productjson.webBuiltInExtensions || [];
-const token = process.env['VSCODE_MIXIN_PASSWORD'] || process.env['GITHUB_TOKEN'] || undefined;
+const token = process.env['GITHUB_TOKEN'];
 
 const contentBasePath = 'raw.githubusercontent.com';
 const contentFileNames = ['package.json', 'package-lock.json', 'yarn.lock'];

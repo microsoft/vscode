@@ -41,12 +41,8 @@
 			"modifiedRange": "[19,20)",
 			"innerChanges": [
 				{
-					"originalRange": "[18,50 -> 18,91]",
-					"modifiedRange": "[19,50 -> 19,82]"
-				},
-				{
-					"originalRange": "[18,95 -> 18,107]",
-					"modifiedRange": "[19,86 -> 19,87]"
+					"originalRange": "[18,50 -> 18,107]",
+					"modifiedRange": "[19,50 -> 19,87]"
 				}
 			]
 		}

@@ -5,22 +5,22 @@
 
 import * as vscode from 'vscode';
 import { Command, CommandManager } from '../commands/commandManager';
-import type * as Proto from '../protocol';
-import * as PConst from '../protocol.const';
+import { DocumentSelector } from '../configuration/documentSelector';
+import { LanguageDescription } from '../configuration/languageDescription';
+import { TelemetryReporter } from '../logging/telemetry';
+import { API } from '../tsServer/api';
+import { parseKindModifier } from '../tsServer/protocol/modifiers';
+import type * as Proto from '../tsServer/protocol/protocol';
+import * as PConst from '../tsServer/protocol/protocol.const';
+import * as typeConverters from '../typeConverters';
 import { ClientCapability, ITypeScriptServiceClient, ServerResponse } from '../typescriptService';
-import API from '../utils/api';
+import TypingsStatus from '../ui/typingsStatus';
 import { nulToken } from '../utils/cancellation';
-import { applyCodeAction } from '../utils/codeAction';
-import { conditionalRegistration, requireSomeCapability } from '../utils/dependentRegistration';
-import { DocumentSelector } from '../utils/documentSelector';
-import { LanguageDescription } from '../utils/languageDescription';
-import { parseKindModifier } from '../utils/modifiers';
-import * as Previewer from '../utils/previewer';
-import { snippetForFunctionCall } from '../utils/snippetForFunctionCall';
-import { TelemetryReporter } from '../utils/telemetry';
-import * as typeConverters from '../utils/typeConverters';
-import TypingsStatus from '../utils/typingsStatus';
 import FileConfigurationManager from './fileConfigurationManager';
+import { applyCodeAction } from './util/codeAction';
+import { conditionalRegistration, requireSomeCapability } from './util/dependentRegistration';
+import { snippetForFunctionCall } from './util/snippetForFunctionCall';
+import * as Previewer from './util/textRendering';
 
 
 interface DotAccessorContext {
@@ -82,7 +82,7 @@ class MyCompletionItem extends vscode.CompletionItem {
 
 		const { sourceDisplay, isSnippet } = tsEntry;
 		if (sourceDisplay) {
-			this.label = { label: tsEntry.name, description: Previewer.plainWithLinks(sourceDisplay, client) };
+			this.label = { label: tsEntry.name, description: Previewer.asPlainTextWithLinks(sourceDisplay, client) };
 		}
 
 		if (tsEntry.labelDetails) {
@@ -255,7 +255,7 @@ class MyCompletionItem extends vscode.CompletionItem {
 			parts.push(action.description);
 		}
 
-		parts.push(Previewer.plainWithLinks(detail.displayParts, client));
+		parts.push(Previewer.asPlainTextWithLinks(detail.displayParts, client));
 		return parts.join('\n\n');
 	}
 
@@ -265,7 +265,7 @@ class MyCompletionItem extends vscode.CompletionItem {
 		baseUri: vscode.Uri,
 	): vscode.MarkdownString | undefined {
 		const documentation = new vscode.MarkdownString();
-		Previewer.addMarkdownDocumentation(documentation, detail.documentation, detail.tags, client);
+		Previewer.appendDocumentationAsMarkdown(documentation, detail.documentation, detail.tags, client);
 		documentation.baseUri = baseUri;
 		return documentation.value.length ? documentation : undefined;
 	}
@@ -305,7 +305,7 @@ class MyCompletionItem extends vscode.CompletionItem {
 		detail: Proto.CompletionEntryDetails,
 		filepath: string
 	): { command?: vscode.Command; additionalTextEdits?: vscode.TextEdit[] } {
-		if (!detail.codeActions || !detail.codeActions.length) {
+		if (!detail.codeActions?.length) {
 			return {};
 		}
 

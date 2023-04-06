@@ -307,6 +307,7 @@
 		"--vscode-interactive-requestBackground",
 		"--vscode-interactive-requestBorder",
 		"--vscode-interactiveEditor-border",
+		"--vscode-interactiveEditor-regionHighlight",
 		"--vscode-interactiveEditor-shadow",
 		"--vscode-interactiveEditorInput-background",
 		"--vscode-interactiveEditorInput-border",

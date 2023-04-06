@@ -23,16 +23,8 @@
 			"modifiedRange": "[4,5)",
 			"innerChanges": [
 				{
-					"originalRange": "[4,69 -> 4,103]",
-					"modifiedRange": "[4,69 -> 4,88]"
-				},
-				{
-					"originalRange": "[4,109 -> 4,110]",
-					"modifiedRange": "[4,94 -> 4,98]"
-				},
-				{
-					"originalRange": "[4,114 -> 4,126]",
-					"modifiedRange": "[4,102 -> 4,103]"
+					"originalRange": "[4,69 -> 4,126]",
+					"modifiedRange": "[4,69 -> 4,103]"
 				}
 			]
 		},
@@ -55,20 +47,8 @@
 					"modifiedRange": "[14,120 -> 14,162]"
 				},
 				{
-					"originalRange": "[14,165 -> 14,178]",
-					"modifiedRange": "[14,173 -> 16,22]"
-				},
-				{
-					"originalRange": "[14,181 -> 14,181]",
-					"modifiedRange": "[16,25 -> 16,30]"
-				},
-				{
-					"originalRange": "[14,191 -> 14,192]",
-					"modifiedRange": "[16,40 -> 16,47]"
-				},
-				{
-					"originalRange": "[14,196 -> 14,211]",
-					"modifiedRange": "[16,51 -> 17,1]"
+					"originalRange": "[14,165 -> 14,211]",
+					"modifiedRange": "[14,173 -> 17,1]"
 				}
 			]
 		},
@@ -81,36 +61,16 @@
 					"modifiedRange": "[20,1 -> 21,1]"
 				},
 				{
-					"originalRange": "[17,8 -> 17,8]",
-					"modifiedRange": "[21,8 -> 21,17]"
-				},
-				{
-					"originalRange": "[17,13 -> 17,14]",
-					"modifiedRange": "[21,22 -> 21,33]"
-				},
-				{
-					"originalRange": "[17,20 -> 17,28]",
-					"modifiedRange": "[21,39 -> 21,39]"
-				},
-				{
-					"originalRange": "[17,32 -> 17,40]",
-					"modifiedRange": "[21,43 -> 21,43]"
+					"originalRange": "[17,8 -> 17,40]",
+					"modifiedRange": "[21,8 -> 21,43]"
 				},
 				{
 					"originalRange": "[17,71 -> 17,72]",
 					"modifiedRange": "[21,74 -> 22,1]"
 				},
 				{
-					"originalRange": "[18,3 -> 19,26]",
-					"modifiedRange": "[23,3 -> 23,30]"
-				},
-				{
-					"originalRange": "[19,32 -> 19,32]",
-					"modifiedRange": "[23,36 -> 23,56]"
-				},
-				{
-					"originalRange": "[19,35 -> 23,4]",
-					"modifiedRange": "[23,59 -> 23,120]"
+					"originalRange": "[18,3 -> 23,4]",
+					"modifiedRange": "[23,3 -> 23,120]"
 				}
 			]
 		},
@@ -141,16 +101,8 @@
 					"modifiedRange": "[28,4 -> 29,36]"
 				},
 				{
-					"originalRange": "[30,4 -> 30,6]",
-					"modifiedRange": "[30,4 -> 30,16]"
-				},
-				{
-					"originalRange": "[30,10 -> 30,26]",
-					"modifiedRange": "[30,20 -> 34,16]"
-				},
-				{
-					"originalRange": "[30,30 -> 30,31]",
-					"modifiedRange": "[34,20 -> 37,9]"
+					"originalRange": "[30,4 -> 30,31]",
+					"modifiedRange": "[30,4 -> 37,9]"
 				}
 			]
 		}

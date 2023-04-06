@@ -225,7 +225,7 @@ export class TestingDecorationService extends Disposable implements ITestingDeco
 				if (decoration) {
 					const { object: actions } = decoration.getContextMenuActions();
 					for (const action of actions) {
-						result.push(action);
+						result.push(action, '1_testing');
 					}
 				}
 			}

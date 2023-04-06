@@ -90,6 +90,10 @@ suite('diff fixtures', () => {
 		}
 	}
 
+	test(`uiae`, () => {
+		runTest('subword', 'experimental');
+	});
+
 	for (const folder of folders) {
 		for (const diffingAlgoName of ['smart', 'experimental'] as const) {
 			test(`${folder}-${diffingAlgoName}`, () => {

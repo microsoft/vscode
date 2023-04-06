@@ -21,13 +21,13 @@ import { regExpFlags } from 'vs/base/common/strings';
 import { isNonEmptyArray } from 'vs/base/common/arrays';
 import { ILogService } from 'vs/platform/log/common/log';
 import { StopWatch } from 'vs/base/common/stopwatch';
-import { canceled } from 'vs/base/common/errors';
+import { canceled, onUnexpectedError } from 'vs/base/common/errors';
 import { UnicodeHighlighterOptions } from 'vs/editor/common/services/unicodeTextModelHighlighter';
 import { IEditorWorkerHost } from 'vs/editor/common/services/editorWorkerHost';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import { IChange } from 'vs/editor/common/diff/smartLinesDiffComputer';
 import { IDocumentDiff, IDocumentDiffProviderOptions } from 'vs/editor/common/diff/documentDiffProvider';
-import { LineRangeMapping, RangeMapping } from 'vs/editor/common/diff/linesDiffComputer';
+import { ILinesDiffComputerOptions, LineRangeMapping, RangeMapping } from 'vs/editor/common/diff/linesDiffComputer';
 import { LineRange } from 'vs/editor/common/core/lineRange';
 
 /**
@@ -153,9 +153,13 @@ export class EditorWorkerService extends Disposable implements IEditorWorkerServ
 				return Promise.resolve(edits); // File too large
 			}
 			const sw = StopWatch.create(true);
-			const result = this._workerManager.withWorker().then(client => client.computeHumanReadableDiff(resource, edits));
+			const result = this._workerManager.withWorker().then(client => client.computeHumanReadableDiff(resource, edits, { ignoreTrimWhitespace: false, maxComputationTimeMs: 1000 })).catch((err) => {
+				onUnexpectedError(err);
+				// In case of an exception, fall back to computeMoreMinimalEdits
+				return this.computeMoreMinimalEdits(resource, edits, true);
+			});
 			result.finally(() => this._logService.trace('FORMAT#computeHumanReadableDiff', resource.toString(true), sw.elapsed()));
-			return Promise.race([result, timeout(1000).then(() => edits)]);
+			return result;
 
 		} else {
 			return Promise.resolve(undefined);
@@ -550,9 +554,9 @@ export class EditorWorkerClient extends Disposable implements IEditorWorkerClien
 		});
 	}
 
-	public computeHumanReadableDiff(resource: URI, edits: languages.TextEdit[]): Promise<languages.TextEdit[]> {
+	public computeHumanReadableDiff(resource: URI, edits: languages.TextEdit[], options: ILinesDiffComputerOptions): Promise<languages.TextEdit[]> {
 		return this._withSyncedResources([resource]).then(proxy => {
-			return proxy.computeHumanReadableDiff(resource.toString(), edits);
+			return proxy.computeHumanReadableDiff(resource.toString(), edits, options);
 		});
 	}
 

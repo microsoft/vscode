@@ -147,7 +147,7 @@ class InPlaceReplaceUp extends EditorAction {
 		if (!controller) {
 			return Promise.resolve(undefined);
 		}
-		return controller.run(this.id, true);
+		return controller.run(this.id, false);
 	}
 }
 
@@ -172,11 +172,10 @@ class InPlaceReplaceDown extends EditorAction {
 		if (!controller) {
 			return Promise.resolve(undefined);
 		}
-		return controller.run(this.id, false);
+		return controller.run(this.id, true);
 	}
 }
 
 registerEditorContribution(InPlaceReplaceController.ID, InPlaceReplaceController, EditorContributionInstantiation.Lazy);
 registerEditorAction(InPlaceReplaceUp);
 registerEditorAction(InPlaceReplaceDown);
-
