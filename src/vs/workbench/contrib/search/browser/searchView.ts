@@ -71,7 +71,7 @@ import * as Constants from 'vs/workbench/contrib/search/common/constants';
 import { IReplaceService } from 'vs/workbench/contrib/search/browser/replace';
 import { getOutOfWorkspaceEditorResources, SearchStateKey, SearchUIState } from 'vs/workbench/contrib/search/common/search';
 import { ISearchHistoryService, ISearchHistoryValues } from 'vs/workbench/contrib/search/common/searchHistoryService';
-import { FileMatch, FileMatchOrMatch, FolderMatch, FolderMatchWithResource, IChangeEvent, ISearchWorkbenchService, Match, NotebookFileMatch, NotebookMatch, RenderableMatch, searchMatchComparer, SearchModel, SearchResult } from 'vs/workbench/contrib/search/browser/searchModel';
+import { FileMatch, FileMatchOrMatch, FolderMatch, FolderMatchWithResource, IChangeEvent, ISearchWorkbenchService, Match, NotebookMatch, RenderableMatch, searchMatchComparer, SearchModel, SearchResult } from 'vs/workbench/contrib/search/browser/searchModel';
 import { createEditorFromSearchResult } from 'vs/workbench/contrib/searchEditor/browser/searchEditorActions';
 import { ACTIVE_GROUP, IEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { IPreferencesService, ISettingsEditorOptions } from 'vs/workbench/services/preferences/common/preferences';
@@ -1856,7 +1856,7 @@ export class SearchView extends ViewPane {
 		}
 
 		if (editor instanceof NotebookEditor) {
-			const elemParent = element.parent() as NotebookFileMatch;
+			const elemParent = element.parent() as FileMatch;
 			const experimentalNotebooksEnabled = this.configurationService.getValue<ISearchConfigurationProperties>('search').experimental.notebookSearch;
 			if (experimentalNotebooksEnabled) {
 				if (element instanceof Match) {
