@@ -85,10 +85,12 @@ steps:
   - powershell: |
       . build/azure-pipelines/win32/exec.ps1
       $ErrorActionPreference = "Stop"
+      $curPath = $pwd.Path
       cd .build
       exec { git clone -b rzhao271/msvs-spectre https://github.com/rzhao271/node-gyp.git } "Cloning rzhao271/node-gyp failed"
+      cd node-gyp
       npm install
-      cd ..
+      cd "$curPath"
     displayName: Install custom node-gyp
     condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
 
