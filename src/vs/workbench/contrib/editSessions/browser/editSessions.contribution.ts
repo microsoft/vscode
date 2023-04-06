@@ -607,9 +607,9 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 				// apply additional state from registered edit session contributors
 				// look through all registered contributions to gather additional state
 				EditSessionRegistry.getEditSessionContributions().forEach(([key, contrib]) => {
-					const payload = folder[key];
-					if (payload) {
-						contrib.resume(workspaceFolder, payload);
+					const state = folder[key];
+					if (state) {
+						contrib.resumeState(workspaceFolder, state);
 					}
 				});
 			}
@@ -693,11 +693,7 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 
 				// look through all registered contributions to gather additional state
 				EditSessionRegistry.getEditSessionContributions().forEach(([key, contrib]) => {
-					contrib.store(workspaceFolder, {
-						push: (value: unknown) => {
-							contributedData[key] = value;
-						}
-					});
+					contributedData[key] = contrib.getStateToStore(workspaceFolder);
 				});
 			}
 

@@ -8,11 +8,11 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 
 export interface IEditSessionContribution {
-	store(workspaceFolder: IWorkspaceFolder, result: { push(value: unknown): void }): void;
-	resume(workspaceFolder: IWorkspaceFolder, value: unknown): void;
+	getStateToStore(workspaceFolder: IWorkspaceFolder): unknown;
+	resumeState(workspaceFolder: IWorkspaceFolder, state: unknown): void;
 }
 
-class EditSessionPayloadRegistryImpl {
+class EditSessionStateRegistryImpl {
 	private _registeredEditSessionContributions: Map<string, IEditSessionContribution> = new Map();
 
 	public registerEditSessionsContribution(contributionPoint: string, editSessionsContribution: IEditSessionContribution): IDisposable {
@@ -33,5 +33,5 @@ class EditSessionPayloadRegistryImpl {
 	}
 }
 
-Registry.add('editSessionPayloadRegistry', new EditSessionPayloadRegistryImpl());
-export const EditSessionRegistry: EditSessionPayloadRegistryImpl = Registry.as('editSessionPayloadRegistry');
+Registry.add('editSessionStateRegistry', new EditSessionStateRegistryImpl());
+export const EditSessionRegistry: EditSessionStateRegistryImpl = Registry.as('editSessionStateRegistry');
