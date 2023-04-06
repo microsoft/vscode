@@ -172,11 +172,11 @@ export class AccessibleBufferWidget extends DisposableStore {
 		if (!commands?.length || !currentLine) {
 			return;
 		}
-		const filteredCommands = type === 'previous' ? commands.filter(c => c.lineNumber + 1 < currentLine).sort((a, b) => b.lineNumber - a.lineNumber) : commands.filter(c => c.lineNumber + 1 > currentLine).sort((a, b) => a.lineNumber - b.lineNumber);
+		const filteredCommands = type === 'previous' ? commands.filter(c => c.lineNumber < currentLine).sort((a, b) => b.lineNumber - a.lineNumber) : commands.filter(c => c.lineNumber > currentLine).sort((a, b) => a.lineNumber - b.lineNumber);
 		if (!filteredCommands.length) {
 			return;
 		}
-		this._cursorPosition = { lineNumber: filteredCommands[0].lineNumber + 1, column: 1 };
+		this._cursorPosition = { lineNumber: filteredCommands[0].lineNumber, column: 1 };
 		this._resetPosition();
 	}
 
@@ -189,7 +189,7 @@ export class AccessibleBufferWidget extends DisposableStore {
 		if (!line) {
 			return;
 		}
-		return line;
+		return line + 1;
 	}
 
 	private _getCommandsWithEditorLine(): ITerminalCommandInEditor[] | undefined {
