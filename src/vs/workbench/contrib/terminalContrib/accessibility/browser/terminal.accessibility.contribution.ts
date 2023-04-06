@@ -159,11 +159,11 @@ registerTerminalAction({
 	title: { value: localize('workbench.action.terminal.accessibleBufferGoToPreviousCommand', 'Accessible Buffer Go to Previous Command'), original: 'Accessible Buffer Go to Previous Command' },
 	f1: true,
 	category,
-	precondition: ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated, TerminalContextKeys.accessibleBufferFocus),
+	precondition: ContextKeyExpr.and(ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated), TerminalContextKeys.accessibleBufferFocus),
 	keybinding: [
 		{
 			primary: KeyMod.CtrlCmd | KeyCode.UpArrow,
-			weight: KeybindingWeight.WorkbenchContrib + 2
+			weight: KeybindingWeight.WorkbenchContrib + 2,
 		}
 	],
 	run: async (c) => {
