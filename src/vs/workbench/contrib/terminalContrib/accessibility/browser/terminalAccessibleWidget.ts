@@ -95,7 +95,6 @@ export abstract class TerminalAccessibleWidget extends DisposableStore {
 			this.add(this._focusTracker.onDidBlur(() => this._focusedContextKey?.reset()));
 		}
 
-
 		this.add(Event.runAndSubscribe(this._xterm.raw.onResize, () => this.layout()));
 		this.add(this._configurationService.onDidChangeConfiguration(e => {
 			if (e.affectedKeys.has(TerminalSettingId.FontFamily) || e.affectedKeys.has(TerminalSettingId.FontSize) || e.affectedKeys.has(TerminalSettingId.LineHeight) || e.affectedKeys.has(TerminalSettingId.LetterSpacing)) {
@@ -118,6 +117,7 @@ export abstract class TerminalAccessibleWidget extends DisposableStore {
 		}));
 		this.add(this._editorWidget.onDidFocusEditorText(async () => {
 			this._terminalService.setActiveInstance(this._instance as ITerminalInstance);
+			this._xtermElement.classList.add(ClassName.Hide);
 			if (this.element.classList.contains(ClassName.Active)) {
 				// the user has focused the editor via mouse or
 				// Go to Command was run so we've already updated the editor
