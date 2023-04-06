@@ -55,6 +55,21 @@ else {
 	// Built time configuration (do NOT modify)
 	product = { /*BUILD->INSERT_PRODUCT_CONFIGURATION*/ } as IProductConfiguration;
 
+	// Running out of sources
+	if (Object.keys(product).length === 0) {
+		Object.assign(product, {
+			version: '1.72.0-dev',
+			nameShort: 'Code - OSS Dev',
+			nameLong: 'Code - OSS Dev',
+			applicationName: 'code-oss',
+			dataFolderName: '.vscode-oss',
+			urlProtocol: 'code-oss',
+			reportIssueUrl: 'https://github.com/microsoft/vscode/issues/new',
+			licenseName: 'MIT',
+			licenseUrl: 'https://github.com/microsoft/vscode/blob/main/LICENSE.txt',
+			serverLicenseUrl: 'https://github.com/microsoft/vscode/blob/main/LICENSE.txt'
+		});
+	}
 }
 
 /**

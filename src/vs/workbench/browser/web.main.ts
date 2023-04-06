@@ -84,7 +84,6 @@ import { BrowserUserDataProfilesService } from 'vs/platform/userDataProfile/brow
 import { timeout } from 'vs/base/common/async';
 import { windowLogId } from 'vs/workbench/services/log/common/logConstants';
 import { LogService } from 'vs/platform/log/common/logService';
-import { IProductConfiguration } from 'vs/base/common/product';
 
 export class BrowserMain extends Disposable {
 
@@ -234,7 +233,7 @@ export class BrowserMain extends Disposable {
 		const workspace = this.resolveWorkspace();
 
 		// Product
-		const productService: IProductService = mixin({ _serviceBrand: undefined, ...getProductConfiguration() }, this.configuration.productConfiguration);
+		const productService: IProductService = mixin({ _serviceBrand: undefined, ...product }, this.configuration.productConfiguration);
 		serviceCollection.set(IProductService, productService);
 
 		// Environment
@@ -542,34 +541,4 @@ export class BrowserMain extends Disposable {
 		// Empty window workspace
 		return UNKNOWN_EMPTY_WINDOW_WORKSPACE;
 	}
-}
-
-function getProductConfiguration(): IProductConfiguration {
-
-	const productConfiguration = product;
-
-	// Running out of sources
-	if (Object.keys(productConfiguration).length === 0) {
-		let productOverrides = {};
-		const productOverridesElement = document.getElementById('vscode-workbench-product-overrides');
-		const productOverridesElementAttribute = productOverridesElement ? productOverridesElement.getAttribute('data-settings') : undefined;
-		if (productOverridesElementAttribute) {
-			try { productOverrides = JSON.parse(productOverridesElementAttribute); } catch (error) { /* ignore error*/ }
-		}
-		Object.assign(productConfiguration, {
-			version: '1.72.0-dev',
-			nameShort: 'Code - OSS Dev',
-			nameLong: 'Code - OSS Dev',
-			applicationName: 'code-oss',
-			dataFolderName: '.vscode-oss',
-			urlProtocol: 'code-oss',
-			reportIssueUrl: 'https://github.com/microsoft/vscode/issues/new',
-			licenseName: 'MIT',
-			licenseUrl: 'https://github.com/microsoft/vscode/blob/main/LICENSE.txt',
-			serverLicenseUrl: 'https://github.com/microsoft/vscode/blob/main/LICENSE.txt',
-			...productOverrides
-		});
-	}
-
-	return productConfiguration;
 }

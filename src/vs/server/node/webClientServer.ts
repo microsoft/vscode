@@ -298,6 +298,24 @@ export class WebClientServer {
 			scopes: [['user:email'], ['repo']]
 		} : undefined;
 
+		const productConfiguration = <Partial<IProductConfiguration>>{
+			embedderIdentifier: 'server-distro',
+			extensionsGallery: this._webExtensionResourceUrlTemplate ? {
+				...this._productService.extensionsGallery,
+				'resourceUrlTemplate': this._webExtensionResourceUrlTemplate.with({
+					scheme: 'http',
+					authority: remoteAuthority,
+					path: `${this._webExtensionRoute}/${this._webExtensionResourceUrlTemplate.authority}${this._webExtensionResourceUrlTemplate.path}`
+				}).toString(true)
+			} : undefined
+		};
+
+		if (!this._environmentService.isBuilt) {
+			try {
+				const productOverrides = JSON.parse((await fsp.readFile(join(APP_ROOT, 'product.overrides.json'))).toString());
+				Object.assign(productConfiguration, productOverrides);
+			} catch (err) {/* Ignore Error */ }
+		}
 
 		const workbenchWebConfiguration = {
 			remoteAuthority,
@@ -307,31 +325,15 @@ export class WebClientServer {
 			enableWorkspaceTrust: !this._environmentService.args['disable-workspace-trust'],
 			folderUri: resolveWorkspaceURI(this._environmentService.args['default-folder']),
 			workspaceUri: resolveWorkspaceURI(this._environmentService.args['default-workspace']),
-			productConfiguration: <Partial<IProductConfiguration>>{
-				embedderIdentifier: 'server-distro',
-				extensionsGallery: this._webExtensionResourceUrlTemplate ? {
-					...this._productService.extensionsGallery,
-					'resourceUrlTemplate': this._webExtensionResourceUrlTemplate.with({
-						scheme: 'http',
-						authority: remoteAuthority,
-						path: `${this._webExtensionRoute}/${this._webExtensionResourceUrlTemplate.authority}${this._webExtensionResourceUrlTemplate.path}`
-					}).toString(true)
-				} : undefined
-			},
+			productConfiguration,
 			callbackRoute: this._callbackRoute
 		};
-
-		let productOverrides: Partial<IProductConfiguration> | undefined;
-		if (!this._environmentService.isBuilt) {
-			try { productOverrides = JSON.parse((await fsp.readFile(join(APP_ROOT, 'product.overrides.json'))).toString()); } catch (err) {/* Ignore Error */ }
-		}
 
 		const nlsBaseUrl = this._productService.extensionsGallery?.nlsBaseUrl;
 		const values: { [key: string]: string } = {
 			WORKBENCH_WEB_CONFIGURATION: asJSON(workbenchWebConfiguration),
 			WORKBENCH_AUTH_SESSION: authSessionInfo ? asJSON(authSessionInfo) : '',
 			WORKBENCH_WEB_BASE_URL: this._staticRoute,
-			WORKBENCH_PRODUCT_OVERRIDES: productOverrides ? asJSON(productOverrides) : '',
 			WORKBENCH_NLS_BASE_URL: nlsBaseUrl ? `${nlsBaseUrl}${!nlsBaseUrl.endsWith('/') ? '/' : ''}${this._productService.commit}/${this._productService.version}/` : '',
 		};
 
