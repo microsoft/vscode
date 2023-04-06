@@ -147,7 +147,7 @@ export class ColorDetector extends Disposable implements IEditorContribution {
 
 	private onModelChanged(): void {
 
-		console.log('inside of on model changed');
+		console.log('Inside of on model changed');
 
 		this.stop();
 
@@ -180,6 +180,9 @@ export class ColorDetector extends Disposable implements IEditorContribution {
 	}
 
 	public beginCompute(): void {
+
+		console.log('Inside of beginCompute');
+
 		this._computePromise = createCancelablePromise(async token => {
 			const model = this._editor.getModel();
 			if (!model) {
@@ -189,8 +192,10 @@ export class ColorDetector extends Disposable implements IEditorContribution {
 
 			console.log('Before getColors of beginCompute');
 
-			let colors = await getColors(this._languageFeaturesService.colorProvider, model, token);
+			// Now there is always a default document color provider, it should return the colors only when the setting is enabled
+			const colors = await getColors(this._languageFeaturesService.colorProvider, model, token);
 
+			/* Presumably do not need the following because we are already registering the default color provider
 			if (this.useDefaultColorProvider && colors.length === 0) {
 
 				console.log('entered into the first if loop of the beginCompute');
@@ -206,6 +211,7 @@ export class ColorDetector extends Disposable implements IEditorContribution {
 
 				// In this case, there are colors but there are also default colors, so we should not show duplicated, if duplicates are found
 			}
+			*/
 			this._debounceInformation.update(model, sw.elapsed());
 
 			console.log('colors : ', colors);

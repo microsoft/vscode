@@ -57,9 +57,8 @@ export class StandaloneColorPickerController extends Disposable implements IEdit
 		this._colorHoverVisible = EditorContextKeys.standaloneColorPickerVisible.bindTo(this._contextKeyService);
 		this._colorHoverFocused = EditorContextKeys.standaloneColorPickerFocused.bindTo(this._contextKeyService);
 
-		// TODO: AFTER CLEANING THE CODE DIRECTLY REGISTER THE COLOR DOCUMENT PROVIDER
-		// TODO: Registering a custom color document provider
-		// this._register(this._languageFeatureService.colorProvider.register('*', new DefaultDocumentColorProviderForStandaloneColorPicker()));
+		// TODO: Registering a custom color document provider, solves the errors arising after registering this
+		this._register(this._languageFeatureService.colorProvider.register('*', new DefaultDocumentColorProviderForStandaloneColorPicker()));
 	}
 
 	public showOrFocus() {

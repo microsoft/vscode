@@ -13,6 +13,7 @@ import { IModelService } from 'vs/editor/common/services/model';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import { LanguageFeatureRegistry } from 'vs/editor/common/languageFeatureRegistry';
+import { DefaultDocumentColorProviderForStandaloneColorPicker } from 'vs/editor/contrib/colorPicker/browser/defaultDocumentColorProvider';
 
 export interface IColorData {
 	colorInfo: IColorInformation;
@@ -21,11 +22,20 @@ export interface IColorData {
 
 export function getColors(registry: LanguageFeatureRegistry<DocumentColorProvider>, model: ITextModel, token: CancellationToken): Promise<IColorData[]> {
 	const colors: IColorData[] = [];
-	const providers = registry.ordered(model).reverse();
+	let providers = registry.ordered(model).reverse();
 
 	console.log('Inside of getColors before provideDocumentColors');
 	console.log('Before calling the provide document colors');
+	console.log('providers : ', providers);
 
+	// TODO: If in the settings we have the default inline decorations disabled or we already have another color provider, then remove the default color provider from here
+	// TODO: const usingDefaultEditorColorBoxes = this._editor.getOption(EditorOption.defaultColorDecorations);
+	const usingDefaultEditorColorBoxes = true;
+	if (providers.length > 1 || !usingDefaultEditorColorBoxes) {
+		providers = providers.filter(provider => {
+			return provider instanceof DefaultDocumentColorProviderForStandaloneColorPicker;
+		});
+	}
 	const promises = providers.map(provider => Promise.resolve(provider.provideDocumentColors(model, token)).then(result => {
 		if (Array.isArray(result)) {
 			for (const colorInfo of result) {
