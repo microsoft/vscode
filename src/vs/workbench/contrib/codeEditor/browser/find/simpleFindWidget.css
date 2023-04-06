@@ -99,3 +99,14 @@ div.simple-find-part-wrapper div.button:hover:not(.disabled) {
 	outline: 1px dashed var(--vscode-toolbar-hoverOutline);
 	outline-offset: -1px;
 }
+
+.monaco-workbench .simple-find-part .monaco-sash {
+	left: 0 !important;
+	border-left: 1px solid;
+	border-bottom-left-radius: 4px;
+}
+
+.monaco-workbench .simple-find-part .monaco-sash.vertical:before{
+	width: 2px;
+	left: calc(50% - (var(--vscode-sash-hover-size) / 4));
+}
