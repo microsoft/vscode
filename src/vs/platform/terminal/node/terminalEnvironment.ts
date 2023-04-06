@@ -256,7 +256,7 @@ function addEnvMixinPathPrefix(options: ITerminalProcessOptions, envMixin: IProc
 	if (isMacintosh && options.environmentVariableCollections) {
 		// Deserialize and merge
 		const deserialized = deserializeEnvironmentVariableCollections(options.environmentVariableCollections);
-		const merged = new MergedEnvironmentVariableCollection(deserialized);
+		const merged = new MergedEnvironmentVariableCollection(deserialized, options.workspaceFolder);
 
 		// Get all prepend PATH entries
 		const pathEntry = merged.map.get('PATH');

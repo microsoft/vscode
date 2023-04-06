@@ -22,7 +22,7 @@ import { NaiveCwdDetectionCapability } from 'vs/platform/terminal/common/capabil
 import { TerminalCapabilityStore } from 'vs/platform/terminal/common/capabilities/terminalCapabilityStore';
 import { FlowControlConstants, IProcessDataEvent, IProcessProperty, IProcessPropertyMap, IProcessReadyEvent, IReconnectionProperties, IShellLaunchConfig, ITerminalChildProcess, ITerminalDimensions, ITerminalEnvironment, ITerminalLaunchError, ITerminalProcessOptions, ProcessPropertyType, TerminalSettingId } from 'vs/platform/terminal/common/terminal';
 import { TerminalRecorder } from 'vs/platform/terminal/common/terminalRecorder';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { IWorkspaceContextService, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { EnvironmentVariableInfoChangesActive, EnvironmentVariableInfoStale } from 'vs/workbench/contrib/terminal/browser/environmentVariableInfo';
 import { ITerminalInstanceService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { IEnvironmentVariableInfo, IEnvironmentVariableService } from 'vs/workbench/contrib/terminal/common/environmentVariable';
@@ -116,6 +116,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 	readonly onProcessExit = this._onProcessExit.event;
 	private readonly _onRestoreCommands = this._register(new Emitter<ISerializedCommandDetectionCapability>());
 	readonly onRestoreCommands = this._onRestoreCommands.event;
+	private _lastActiveWorkspace: IWorkspaceFolder | undefined;
 
 	get persistentProcessId(): number | undefined { return this._process?.id; }
 	get shouldPersist(): boolean { return !!this.reconnectionProperties || (this._process ? this._process.shouldPersist : false); }
@@ -169,11 +170,11 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 		} else {
 			this.remoteAuthority = this._workbenchEnvironmentService.remoteAuthority;
 		}
+		const activeWorkspaceRootUri = this._historyService.getLastActiveWorkspaceRoot();
+		this._lastActiveWorkspace = activeWorkspaceRootUri ? withNullAsUndefined(this._workspaceContextService.getWorkspaceFolder(activeWorkspaceRootUri)) : undefined;
 
 		if (environmentVariableCollections) {
-			const activeWorkspaceRootUri = this._historyService.getLastActiveWorkspaceRoot();
-			const lastActiveWorkspace = activeWorkspaceRootUri ? withNullAsUndefined(this._workspaceContextService.getWorkspaceFolder(activeWorkspaceRootUri)) : undefined;
-			this._extEnvironmentVariableCollection = new MergedEnvironmentVariableCollection(environmentVariableCollections, lastActiveWorkspace);
+			this._extEnvironmentVariableCollection = new MergedEnvironmentVariableCollection(environmentVariableCollections, this._lastActiveWorkspace);
 			this._register(this._environmentVariableService.onDidChangeCollections(newCollection => this._onEnvironmentVariableCollectionChange(newCollection)));
 			this.environmentVariableInfo = this._instantiationService.createInstance(EnvironmentVariableInfoChangesActive, this._extEnvironmentVariableCollection);
 			this._onEnvironmentVariableInfoChange.fire(this.environmentVariableInfo);
@@ -241,9 +242,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 			this.backend = backend;
 
 			// Create variable resolver
-			const activeWorkspaceRootUri = this._historyService.getLastActiveWorkspaceRoot();
-			const lastActiveWorkspace = activeWorkspaceRootUri ? withNullAsUndefined(this._workspaceContextService.getWorkspaceFolder(activeWorkspaceRootUri)) : undefined;
-			const variableResolver = terminalEnvironment.createVariableResolver(lastActiveWorkspace, await this._terminalProfileResolverService.getEnvironment(this.remoteAuthority), this._configurationResolverService);
+			const variableResolver = terminalEnvironment.createVariableResolver(this._lastActiveWorkspace, await this._terminalProfileResolverService.getEnvironment(this.remoteAuthority), this._configurationResolverService);
 
 			// resolvedUserHome is needed here as remote resolvers can launch local terminals before
 			// they're connected to the remote.
@@ -284,7 +283,8 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 							suggestEnabled: this._configurationService.getValue(TerminalSettingId.ShellIntegrationSuggestEnabled),
 						},
 						windowsEnableConpty: this._configHelper.config.windowsEnableConpty,
-						environmentVariableCollections: this._extEnvironmentVariableCollection?.collections ? serializeEnvironmentVariableCollections(this._extEnvironmentVariableCollection.collections) : undefined
+						environmentVariableCollections: this._extEnvironmentVariableCollection?.collections ? serializeEnvironmentVariableCollections(this._extEnvironmentVariableCollection.collections) : undefined,
+						workspaceFolder: this._lastActiveWorkspace,
 					};
 					try {
 						newProcess = await backend.createProcess(
@@ -473,7 +473,8 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 				suggestEnabled: this._configurationService.getValue(TerminalSettingId.ShellIntegrationSuggestEnabled),
 			},
 			windowsEnableConpty: this._configHelper.config.windowsEnableConpty,
-			environmentVariableCollections: this._extEnvironmentVariableCollection ? serializeEnvironmentVariableCollections(this._extEnvironmentVariableCollection.collections) : undefined
+			environmentVariableCollections: this._extEnvironmentVariableCollection ? serializeEnvironmentVariableCollections(this._extEnvironmentVariableCollection.collections) : undefined,
+			workspaceFolder: this._lastActiveWorkspace,
 		};
 		const shouldPersist = ((this._configurationService.getValue(TaskSettingId.Reconnection) && shellLaunchConfig.reconnectionProperties) || !shellLaunchConfig.isFeatureTerminal) && this._configHelper.config.enablePersistentSessions && !shellLaunchConfig.isTransient;
 		return await backend.createProcess(shellLaunchConfig, initialCwd, cols, rows, this._configHelper.config.unicodeVersion, env, options, shouldPersist);

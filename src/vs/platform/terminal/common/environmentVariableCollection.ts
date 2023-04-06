@@ -20,7 +20,7 @@ export class MergedEnvironmentVariableCollection implements IMergedEnvironmentVa
 
 	constructor(
 		readonly collections: ReadonlyMap<string, IEnvironmentVariableCollection>,
-		readonly workspaceFolder?: IWorkspaceFolder
+		private readonly owningWorkspace?: IWorkspaceFolder
 	) {
 		collections.forEach((collection, extensionIdentifier) => {
 			const it = collection.map.entries();
@@ -28,10 +28,10 @@ export class MergedEnvironmentVariableCollection implements IMergedEnvironmentVa
 			while (!next.done) {
 				const variable = next.value[0];
 				let entry = this.map.get(variable);
-				if (this.workspaceFolder) {
+				if (this.owningWorkspace) {
 					// If the entry is scoped to a workspace folder, only apply it if the workspace
 					// folder matches.
-					if (entry && entry[0].scope?.workspaceFolder && entry[0].scope.workspaceFolder.uri.fsPath !== this.workspaceFolder.uri.fsPath) {
+					if (entry && entry[0].scope?.workspaceFolder && entry[0].scope.workspaceFolder.uri.fsPath !== this.owningWorkspace.uri.fsPath) {
 						next = it.next();
 						continue;
 					}
