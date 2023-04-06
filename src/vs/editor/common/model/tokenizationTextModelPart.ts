@@ -3,11 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { equals } from 'vs/base/common/arrays';
+import { RunOnceScheduler } from 'vs/base/common/async';
 import { CharCode } from 'vs/base/common/charCode';
 import { BugIndicatingError, onUnexpectedError } from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable, MutableDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableMap, MutableDisposable } from 'vs/base/common/lifecycle';
 import { countEOL } from 'vs/editor/common/core/eolCounter';
+import { LineRange } from 'vs/editor/common/core/lineRange';
 import { IPosition, Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { IWordAtPosition, getWordAtText } from 'vs/editor/common/core/wordHelper';
@@ -15,10 +18,11 @@ import { StandardTokenType } from 'vs/editor/common/encodedTokenAttributes';
 import { IBackgroundTokenizationStore, IBackgroundTokenizer, ILanguageIdCodec, IState, ITokenizationSupport, TokenizationRegistry } from 'vs/editor/common/languages';
 import { ILanguageService } from 'vs/editor/common/languages/language';
 import { ILanguageConfigurationService, ResolvedLanguageConfiguration } from 'vs/editor/common/languages/languageConfigurationRegistry';
+import { IAttachedView } from 'vs/editor/common/model';
 import { BracketPairsTextModelPart } from 'vs/editor/common/model/bracketPairsTextModelPart/bracketPairsImpl';
-import { TextModel } from 'vs/editor/common/model/textModel';
+import { AttachedViews, IAttachedViewState, TextModel } from 'vs/editor/common/model/textModel';
 import { TextModelPart } from 'vs/editor/common/model/textModelPart';
-import { DefaultBackgroundTokenizer, TokenizerWithStateStoreAndTextModel } from 'vs/editor/common/model/textModelTokens';
+import { DefaultBackgroundTokenizer, TokenizerWithStateStoreAndTextModel, TrackingTokenizationStateStore } from 'vs/editor/common/model/textModelTokens';
 import { IModelContentChangedEvent, IModelLanguageChangedEvent, IModelLanguageConfigurationChangedEvent, IModelTokensChangedEvent } from 'vs/editor/common/textModelEvents';
 import { BackgroundTokenizationState, ITokenizationTextModelPart } from 'vs/editor/common/tokenizationTextModelPart';
 import { ContiguousMultilineTokens } from 'vs/editor/common/tokens/contiguousMultilineTokens';
@@ -40,7 +44,7 @@ export class TokenizationTextModelPart extends TextModelPart implements ITokeniz
 	private readonly _onDidChangeTokens: Emitter<IModelTokensChangedEvent> = this._register(new Emitter<IModelTokensChangedEvent>());
 	public readonly onDidChangeTokens: Event<IModelTokensChangedEvent> = this._onDidChangeTokens.event;
 
-	private readonly grammarTokens = this._register(new GrammarTokens(this._languageService.languageIdCodec, this._textModel, () => this._languageId));
+	private readonly grammarTokens = this._register(new GrammarTokens(this._languageService.languageIdCodec, this._textModel, () => this._languageId, this._attachedViews));
 
 	constructor(
 		private readonly _languageService: ILanguageService,
@@ -48,6 +52,7 @@ export class TokenizationTextModelPart extends TextModelPart implements ITokeniz
 		private readonly _textModel: TextModel,
 		private readonly _bracketPairsTextModelPart: BracketPairsTextModelPart,
 		private _languageId: string,
+		private readonly _attachedViews: AttachedViews,
 	) {
 		super();
 
@@ -132,10 +137,6 @@ export class TokenizationTextModelPart extends TextModelPart implements ITokeniz
 		return this.grammarTokens.backgroundTokenizationState;
 	}
 
-	public refreshTokens(startLineNumber: number, endLineNumber: number): void {
-		this.grammarTokens.refreshTokens(startLineNumber, endLineNumber);
-	}
-
 	public forceTokenization(lineNumber: number): void {
 		this.validateLineNumber(lineNumber);
 		this.grammarTokens.forceTokenization(lineNumber);
@@ -167,7 +168,6 @@ export class TokenizationTextModelPart extends TextModelPart implements ITokeniz
 		this._semanticTokens.set(tokens, isComplete);
 
 		this._emitModelTokensChangedEvent({
-			tokenizationSupportChanged: false,
 			semanticTokensApplied: tokens !== null,
 			ranges: [{ fromLineNumber: 1, toLineNumber: this._textModel.getLineCount() }],
 		});
@@ -190,7 +190,6 @@ export class TokenizationTextModelPart extends TextModelPart implements ITokeniz
 		);
 
 		this._emitModelTokensChangedEvent({
-			tokenizationSupportChanged: false,
 			semanticTokensApplied: true,
 			ranges: [
 				{
@@ -337,6 +336,10 @@ class GrammarTokens extends Disposable {
 	private readonly _backgroundTokenizer = this._register(new MutableDisposable<IBackgroundTokenizer>());
 
 	private readonly _tokens = new ContiguousTokensStore(this._languageIdCodec);
+	private _debugBackgroundTokens: ContiguousTokensStore | undefined;
+	private _debugBackgroundStates: TrackingTokenizationStateStore<IState> | undefined;
+
+	private readonly _debugBackgroundTokenizer = this._register(new MutableDisposable<IBackgroundTokenizer>());
 
 	private _backgroundTokenizationState = BackgroundTokenizationState.InProgress;
 	public get backgroundTokenizationState(): BackgroundTokenizationState {
@@ -351,15 +354,18 @@ class GrammarTokens extends Disposable {
 	/** @internal, should not be exposed by the text model! */
 	public readonly onDidChangeTokens: Event<IModelTokensChangedEvent> = this._onDidChangeTokens.event;
 
+	private readonly _attachedViewStates = this._register(new DisposableMap<IAttachedView, AttachedViewHandler>());
+
 	constructor(
 		private readonly _languageIdCodec: ILanguageIdCodec,
 		private readonly _textModel: TextModel,
 		private getLanguageId: () => string,
+		attachedViews: AttachedViews,
 	) {
 		super();
 
 		this._register(TokenizationRegistry.onDidChange((e) => {
-			const languageId = this._textModel.getLanguageId();
+			const languageId = this.getLanguageId();
 			if (e.changedLanguages.indexOf(languageId) === -1) {
 				return;
 			}
@@ -367,13 +373,29 @@ class GrammarTokens extends Disposable {
 		}));
 
 		this.resetTokenization();
+
+		this._register(attachedViews.onDidChangeVisibleRanges(({ view, state }) => {
+			if (state) {
+				let existing = this._attachedViewStates.get(view);
+				if (!existing) {
+					existing = new AttachedViewHandler(() => this.refreshRanges(existing!.lineRanges));
+					this._attachedViewStates.set(view, existing);
+				}
+				existing.handleStateChange(state);
+			} else {
+				this._attachedViewStates.deleteAndDispose(view);
+			}
+		}));
 	}
 
 	public resetTokenization(fireTokenChangeEvent: boolean = true): void {
 		this._tokens.flush();
+		this._debugBackgroundTokens?.flush();
+		if (this._debugBackgroundStates) {
+			this._debugBackgroundStates = new TrackingTokenizationStateStore(this._textModel.getLineCount());
+		}
 		if (fireTokenChangeEvent) {
 			this._onDidChangeTokens.fire({
-				tokenizationSupportChanged: true,
 				semanticTokensApplied: false,
 				ranges: [
 					{
@@ -384,7 +406,25 @@ class GrammarTokens extends Disposable {
 			});
 		}
 
-		const [tokenizationSupport, initialState] = initializeTokenization(this._textModel, this.getLanguageId());
+		const initializeTokenization = (): [ITokenizationSupport, IState] | [null, null] => {
+			if (this._textModel.isTooLargeForTokenization()) {
+				return [null, null];
+			}
+			const tokenizationSupport = TokenizationRegistry.get(this.getLanguageId());
+			if (!tokenizationSupport) {
+				return [null, null];
+			}
+			let initialState: IState;
+			try {
+				initialState = tokenizationSupport.getInitialState();
+			} catch (e) {
+				onUnexpectedError(e);
+				return [null, null];
+			}
+			return [tokenizationSupport, initialState];
+		};
+
+		const [tokenizationSupport, initialState] = initializeTokenization();
 		if (tokenizationSupport && initialState) {
 			this._tokenizer = new TokenizerWithStateStoreAndTextModel(this._textModel.getLineCount(), tokenizationSupport, this._textModel, this._languageIdCodec);
 		} else {
@@ -420,7 +460,7 @@ class GrammarTokens extends Disposable {
 				},
 			};
 
-			if (tokenizationSupport && tokenizationSupport.createBackgroundTokenizer) {
+			if (tokenizationSupport && tokenizationSupport.createBackgroundTokenizer && !tokenizationSupport.backgroundTokenizerShouldOnlyVerifyTokens) {
 				this._backgroundTokenizer.value = tokenizationSupport.createBackgroundTokenizer(this._textModel, b);
 			}
 			if (!this._backgroundTokenizer.value) {
@@ -428,7 +468,29 @@ class GrammarTokens extends Disposable {
 					new DefaultBackgroundTokenizer(this._tokenizer, b);
 				this._defaultBackgroundTokenizer.handleChanges();
 			}
+
+			if (tokenizationSupport?.backgroundTokenizerShouldOnlyVerifyTokens && tokenizationSupport.createBackgroundTokenizer) {
+				this._debugBackgroundTokens = new ContiguousTokensStore(this._languageIdCodec);
+				this._debugBackgroundStates = new TrackingTokenizationStateStore(this._textModel.getLineCount());
+				this._debugBackgroundTokenizer.value = tokenizationSupport.createBackgroundTokenizer(this._textModel, {
+					setTokens: (tokens) => {
+						this._debugBackgroundTokens?.setMultilineTokens(tokens, this._textModel);
+					},
+					backgroundTokenizationFinished() {
+						// NO OP
+					},
+					setEndState: (lineNumber, state) => {
+						this._debugBackgroundStates?.setEndState(lineNumber, state);
+					},
+				});
+			} else {
+				this._debugBackgroundTokens = undefined;
+				this._debugBackgroundStates = undefined;
+				this._debugBackgroundTokenizer.value = undefined;
+			}
 		}
+
+		this.refreshAllVisibleLineTokens();
 	}
 
 	public handleDidChangeAttached() {
@@ -444,7 +506,9 @@ class GrammarTokens extends Disposable {
 				const [eolCount, firstLineLength] = countEOL(c.text);
 
 				this._tokens.acceptEdit(c.range, eolCount, firstLineLength);
+				this._debugBackgroundTokens?.acceptEdit(c.range, eolCount, firstLineLength);
 			}
+			this._debugBackgroundStates?.acceptChanges(e.changes);
 
 			if (this._tokenizer) {
 				this._tokenizer.store.acceptChanges(e.changes);
@@ -454,47 +518,27 @@ class GrammarTokens extends Disposable {
 	}
 
 	private setTokens(tokens: ContiguousMultilineTokens[]): { changes: { fromLineNumber: number; toLineNumber: number }[] } {
-		if (tokens.length === 0) {
-			return { changes: [] };
+		const { changes } = this._tokens.setMultilineTokens(tokens, this._textModel);
+
+		if (changes.length > 0) {
+			this._onDidChangeTokens.fire({ semanticTokensApplied: false, ranges: changes, });
 		}
 
-		const ranges: { fromLineNumber: number; toLineNumber: number }[] = [];
-
-		for (let i = 0, len = tokens.length; i < len; i++) {
-			const element = tokens[i];
-			let minChangedLineNumber = 0;
-			let maxChangedLineNumber = 0;
-			let hasChange = false;
-			for (let lineNumber = element.startLineNumber; lineNumber <= element.endLineNumber; lineNumber++) {
-				if (hasChange) {
-					this._tokens.setTokens(this._textModel.getLanguageId(), lineNumber - 1, this._textModel.getLineLength(lineNumber), element.getLineTokens(lineNumber), false);
-					maxChangedLineNumber = lineNumber;
-				} else {
-					const lineHasChange = this._tokens.setTokens(this._textModel.getLanguageId(), lineNumber - 1, this._textModel.getLineLength(lineNumber), element.getLineTokens(lineNumber), true);
-					if (lineHasChange) {
-						hasChange = true;
-						minChangedLineNumber = lineNumber;
-						maxChangedLineNumber = lineNumber;
-					}
-				}
-			}
-			if (hasChange) {
-				ranges.push({ fromLineNumber: minChangedLineNumber, toLineNumber: maxChangedLineNumber, });
-			}
-		}
-
-		if (ranges.length > 0) {
-			this._onDidChangeTokens.fire({
-				tokenizationSupportChanged: false,
-				semanticTokensApplied: false,
-				ranges: ranges,
-			});
-		}
-
-		return { changes: ranges };
+		return { changes: changes };
 	}
 
-	public refreshTokens(startLineNumber: number, endLineNumber: number): void {
+	private refreshAllVisibleLineTokens(): void {
+		const ranges = LineRange.joinMany([...this._attachedViewStates].map(([_, s]) => s.lineRanges));
+		this.refreshRanges(ranges);
+	}
+
+	private refreshRanges(ranges: readonly LineRange[]): void {
+		for (const range of ranges) {
+			this.refreshRange(range.startLineNumber, range.endLineNumberExclusive - 1);
+		}
+	}
+
+	private refreshRange(startLineNumber: number, endLineNumber: number): void {
 		if (!this._tokenizer) {
 			return;
 		}
@@ -540,11 +584,24 @@ class GrammarTokens extends Disposable {
 
 	public getLineTokens(lineNumber: number): LineTokens {
 		const lineText = this._textModel.getLineContent(lineNumber);
-		return this._tokens.getTokens(
+		const result = this._tokens.getTokens(
 			this._textModel.getLanguageId(),
 			lineNumber - 1,
 			lineText
 		);
+		if (this._debugBackgroundTokens && this._debugBackgroundStates && this._tokenizer) {
+			if (this._debugBackgroundStates.getFirstInvalidEndStateLineNumberOrMax() > lineNumber && this._tokenizer.store.getFirstInvalidEndStateLineNumberOrMax() > lineNumber) {
+				const backgroundResult = this._debugBackgroundTokens.getTokens(
+					this._textModel.getLanguageId(),
+					lineNumber - 1,
+					lineText
+				);
+				if (!result.equals(backgroundResult) && this._debugBackgroundTokenizer.value?.reportMismatchingTokens) {
+					this._debugBackgroundTokenizer.value.reportMismatchingTokens(lineNumber);
+				}
+			}
+		}
+		return result;
 	}
 
 	public getTokenTypeIfInsertingCharacter(lineNumber: number, column: number, character: string): StandardTokenType {
@@ -572,20 +629,32 @@ class GrammarTokens extends Disposable {
 	}
 }
 
-function initializeTokenization(textModel: TextModel, languageId: string): [ITokenizationSupport, IState] | [null, null] {
-	if (textModel.isTooLargeForTokenization()) {
-		return [null, null];
+class AttachedViewHandler extends Disposable {
+	private readonly runner = this._register(new RunOnceScheduler(() => this.update(), 50));
+
+	private _computedLineRanges: readonly LineRange[] = [];
+	private _lineRanges: readonly LineRange[] = [];
+	public get lineRanges(): readonly LineRange[] { return this._lineRanges; }
+
+	constructor(private readonly _refreshTokens: () => void) {
+		super();
 	}
-	const tokenizationSupport = TokenizationRegistry.get(languageId);
-	if (!tokenizationSupport) {
-		return [null, null];
+
+	private update(): void {
+		if (equals(this._computedLineRanges, this._lineRanges)) {
+			return;
+		}
+		this._computedLineRanges = this._lineRanges;
+		this._refreshTokens();
 	}
-	let initialState: IState;
-	try {
-		initialState = tokenizationSupport.getInitialState();
-	} catch (e) {
-		onUnexpectedError(e);
-		return [null, null];
+
+	public handleStateChange(state: IAttachedViewState): void {
+		this._lineRanges = state.visibleLineRanges;
+		if (state.stabilized) {
+			this.runner.cancel();
+			this.update();
+		} else {
+			this.runner.schedule();
+		}
 	}
-	return [tokenizationSupport, initialState];
 }

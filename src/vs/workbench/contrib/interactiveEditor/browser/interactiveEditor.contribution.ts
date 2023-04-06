@@ -5,7 +5,7 @@
 
 import { registerAction2 } from 'vs/platform/actions/common/actions';
 import { EditorContributionInstantiation, registerEditorContribution } from 'vs/editor/browser/editorExtensions';
-import { InteractiveEditorController } from 'vs/workbench/contrib/interactiveEditor/browser/interactiveEditorWidget';
+import { InteractiveEditorController } from 'vs/workbench/contrib/interactiveEditor/browser/interactiveEditorController';
 import * as interactiveEditorActions from 'vs/workbench/contrib/interactiveEditor/browser/interactiveEditorActions';
 import { IInteractiveEditorService } from 'vs/workbench/contrib/interactiveEditor/common/interactiveEditor';
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
@@ -31,5 +31,6 @@ registerAction2(interactiveEditorActions.UndoCommand);
 registerAction2(interactiveEditorActions.ToggleInlineDiff);
 registerAction2(interactiveEditorActions.FeebackHelpfulCommand);
 registerAction2(interactiveEditorActions.FeebackUnhelpfulCommand);
+registerAction2(interactiveEditorActions.ApplyPreviewEdits);
 
 registerAction2(interactiveEditorActions.CopyRecordings);

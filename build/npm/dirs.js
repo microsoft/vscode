@@ -3,8 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+const fs = require('fs');
+
 // Complete list of directories where yarn should be executed to install node modules
-exports.dirs = [
+const dirs = [
 	'',
 	'build',
 	'extensions',
@@ -50,3 +52,11 @@ exports.dirs = [
 	'test/monaco',
 	'test/smoke',
 ];
+
+if (fs.existsSync(`${__dirname}/../../.build/distro/npm`)) {
+	dirs.push('.build/distro/npm');
+	dirs.push('.build/distro/npm/remote');
+	dirs.push('.build/distro/npm/remote/web');
+}
+
+exports.dirs = dirs;

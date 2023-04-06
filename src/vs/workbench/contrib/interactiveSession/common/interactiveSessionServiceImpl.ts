@@ -158,10 +158,6 @@ export class InteractiveSessionService extends Disposable implements IInteractiv
 		this._onDidPerformUserAction.fire(action);
 	}
 
-	progressiveRenderingEnabled(providerId: string): boolean {
-		return this._providers.get(providerId)?.progressiveRenderingEnabled ?? false;
-	}
-
 	private trace(method: string, message: string): void {
 		this.logService.trace(`InteractiveSessionService#${method}: ${message}`);
 	}
@@ -478,23 +474,5 @@ export class InteractiveSessionService extends Disposable implements IInteractiv
 
 	getAll() {
 		return [...this._providers];
-	}
-
-	async provideSuggestions(providerId: string, token: CancellationToken): Promise<string[] | undefined> {
-		this.trace('provideSuggestions', `Called for provider ${providerId}`);
-		await this.extensionService.activateByEvent(`onInteractiveSession:${providerId}`);
-
-		const provider = this._providers.get(providerId);
-		if (!provider) {
-			throw new Error(`Unknown provider: ${providerId}`);
-		}
-
-		if (!provider.provideSuggestions) {
-			return;
-		}
-
-		const suggestions = await provider.provideSuggestions(token);
-		this.trace('provideSuggestions', `Provider returned ${suggestions?.length} suggestions`);
-		return withNullAsUndefined(suggestions);
 	}
 }

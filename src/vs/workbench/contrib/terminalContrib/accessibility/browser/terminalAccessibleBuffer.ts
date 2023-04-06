@@ -20,7 +20,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { TerminalSettingId } from 'vs/platform/terminal/common/terminal';
 import { SelectionClipboardContributionID } from 'vs/workbench/contrib/codeEditor/browser/selectionClipboard';
 import { getSimpleEditorOptions } from 'vs/workbench/contrib/codeEditor/browser/simpleEditorOptions';
-import { ITerminalInstance, IXtermTerminal } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { ITerminalInstance, ITerminalService, IXtermTerminal } from 'vs/workbench/contrib/terminal/browser/terminal';
 import type { Terminal } from 'xterm';
 import { TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
 import { IQuickInputService, IQuickPick, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
@@ -29,6 +29,8 @@ import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/c
 import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/terminalContextKey';
 import { withNullAsUndefined } from 'vs/base/common/types';
 import { BufferContentTracker } from 'vs/workbench/contrib/terminalContrib/accessibility/browser/bufferContentTracker';
+import { ILogService } from 'vs/platform/log/common/log';
+import { IEditorViewState } from 'vs/editor/common/editorCommon';
 
 const enum CssClass {
 	Active = 'active',
@@ -56,6 +58,8 @@ export class AccessibleBufferWidget extends DisposableStore {
 
 	private _bufferTracker: BufferContentTracker;
 
+	private _cursorPosition: { lineNumber: number; column: number } | undefined;
+
 	constructor(
 		private readonly _instance: Pick<ITerminalInstance, 'capabilities' | 'onDidRequestFocus' | 'resource'>,
 		private readonly _xterm: Pick<IXtermTerminal, 'getFont'> & { raw: Terminal },
@@ -64,7 +68,9 @@ export class AccessibleBufferWidget extends DisposableStore {
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IQuickInputService private readonly _quickInputService: IQuickInputService,
 		@IAudioCueService private readonly _audioCueService: IAudioCueService,
-		@IContextKeyService private readonly _contextKeyService: IContextKeyService
+		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
+		@ILogService private readonly _logService: ILogService,
+		@ITerminalService private readonly _terminalService: ITerminalService
 	) {
 		super();
 		this._xtermElement = _xterm.raw.element!;
@@ -75,8 +81,7 @@ export class AccessibleBufferWidget extends DisposableStore {
 		this._accessibleBuffer.classList.add('accessible-buffer');
 		this._editorContainer = document.createElement('div');
 		const codeEditorWidgetOptions: ICodeEditorWidgetOptions = {
-			isSimpleWidget: true,
-			contributions: EditorExtensionsRegistry.getSomeEditorContributions([LinkDetector.ID, SelectionClipboardContributionID])
+			contributions: EditorExtensionsRegistry.getSomeEditorContributions([LinkDetector.ID, SelectionClipboardContributionID, 'editor.contrib.selectionAnchorController'])
 		};
 		const font = _xterm.getFont();
 		const editorOptions: IEditorConstructionOptions = {
@@ -129,6 +134,7 @@ export class AccessibleBufferWidget extends DisposableStore {
 			}
 		}));
 		this.add(this._editorWidget.onDidFocusEditorText(async () => {
+			this._terminalService.setActiveInstance(this._instance as ITerminalInstance);
 			if (this._accessibleBuffer.classList.contains(CssClass.Active)) {
 				// the user has focused the editor via mouse or
 				// Go to Command was run so we've already updated the editor
@@ -161,15 +167,19 @@ export class AccessibleBufferWidget extends DisposableStore {
 	}
 
 	async createQuickPick(): Promise<IQuickPick<IAccessibleBufferQuickPickItem> | undefined> {
-		let currentPosition = withNullAsUndefined(this._editorWidget.getPosition());
+		this._cursorPosition = withNullAsUndefined(this._editorWidget.getPosition());
 		const commands = this._instance.capabilities.get(TerminalCapability.CommandDetection)?.commands;
 		if (!commands?.length) {
 			return;
 		}
 		const quickPickItems: IAccessibleBufferQuickPickItem[] = [];
 		for (const command of commands) {
-			const line = command.marker?.line;
-			if (!line || !command.command.length) {
+			let line = command.marker?.line;
+			if (line === undefined || !command.command.length || line < 0) {
+				continue;
+			}
+			line = this._bufferTracker.bufferToEditorLineMapping.get(line);
+			if (!line) {
 				continue;
 			}
 			quickPickItems.push(
@@ -189,10 +199,7 @@ export class AccessibleBufferWidget extends DisposableStore {
 			this._editorWidget.revealLine(activeItem.lineNumber, 0);
 		});
 		quickPick.onDidHide(() => {
-			if (currentPosition) {
-				this._editorWidget.setPosition(currentPosition);
-				this._editorWidget.revealLineInCenter(currentPosition.lineNumber);
-			}
+			this._resetPosition();
 			quickPick.dispose();
 		});
 		quickPick.onDidAccept(() => {
@@ -201,12 +208,10 @@ export class AccessibleBufferWidget extends DisposableStore {
 			if (!model) {
 				return;
 			}
-			if (!item && currentPosition) {
-				// reset
-				this._editorWidget.setPosition(currentPosition);
+			if (!item && this._cursorPosition) {
+				this._resetPosition();
 			} else {
-				this._editorWidget.setSelection({ startLineNumber: item.lineNumber, startColumn: 1, endLineNumber: item.lineNumber, endColumn: 1 });
-				currentPosition = this._editorWidget.getSelection()?.getPosition();
+				this._cursorPosition = { lineNumber: item.lineNumber, column: 1 };
 			}
 			this._editorWidget.focus();
 			return;
@@ -215,48 +220,52 @@ export class AccessibleBufferWidget extends DisposableStore {
 		return quickPick;
 	}
 
+	private _resetPosition(): void {
+		this._cursorPosition = this._cursorPosition ?? this._getDefaultCursorPosition();
+		if (!this._cursorPosition) {
+			return;
+		}
+		this._editorWidget.setPosition(this._cursorPosition);
+		this._editorWidget.setScrollPosition({ scrollTop: this._editorWidget.getTopForLineNumber(this._cursorPosition.lineNumber) });
+	}
+
 	private _hide(): void {
 		this._disposeListeners();
 		this._accessibleBuffer.classList.remove(CssClass.Active);
 		this._xtermElement.classList.remove(CssClass.Hide);
 	}
 
-	private async _updateEditor(): Promise<void> {
+	private async _updateEditor(dataChanged?: boolean): Promise<void> {
 		if (this._isUpdating) {
 			this._pendingUpdates++;
 			return;
 		}
 		this._isUpdating = true;
-		const model = await this._updateModel();
+		const model = await this._updateModel(dataChanged);
 		if (!model) {
 			return;
 		}
-		const lineNumber = model.getLineCount();
-		const selection = this._editorWidget.getSelection();
-		// If the selection is at the top of the buffer, IE the default when not set, move it to the bottom
-		if (selection?.startColumn === 1 && selection.endColumn === 1 && selection.startLineNumber === 1 && selection.endLineNumber === 1) {
-			this._editorWidget.setSelection({ startLineNumber: lineNumber, startColumn: 1, endLineNumber: lineNumber, endColumn: 1 });
-		}
-		this._editorWidget.setScrollTop(this._editorWidget.getScrollHeight());
 		this._isUpdating = false;
 		if (this._pendingUpdates) {
+			this._logService.debug('TerminalAccessibleBuffer._updateEditor: pending updates', this._pendingUpdates);
 			this._pendingUpdates--;
-			await this._updateEditor();
+			await this._updateEditor(dataChanged);
 		}
 	}
 
 	private _layout(): void {
+		this._bufferTracker.reset();
 		this._editorWidget.layout({ width: this._xtermElement.clientWidth, height: this._xtermElement.clientHeight });
 	}
 
 	private _registerListeners(): void {
 		this._xterm.raw.onWriteParsed(async () => {
 			if (this._xterm.raw.buffer.active.baseY === 0) {
-				await this._updateEditor();
+				await this._updateEditor(true);
 			}
 		});
 		const onRequestUpdateEditor = Event.latch(this._xterm.raw.onScroll);
-		this._listeners.push(onRequestUpdateEditor(async () => await this._updateEditor()));
+		this._listeners.push(onRequestUpdateEditor(async () => await this._updateEditor(true)));
 		this._listeners.push(this._instance.onDidRequestFocus(() => this._editorWidget.focus()));
 	}
 
@@ -274,9 +283,23 @@ export class AccessibleBufferWidget extends DisposableStore {
 		return this._modelService.createModel(resource.fragment, null, resource, false);
 	}
 
+	private _getDefaultCursorPosition(): { lineNumber: number; column: number } | undefined {
+		const modelLineCount = this._editorWidget.getModel()?.getLineCount();
+		return modelLineCount ? { lineNumber: modelLineCount, column: 1 } : undefined;
+	}
 
-	private async _updateModel(): Promise<ITextModel> {
+	private async _updateModel(dataChanged?: boolean): Promise<ITextModel> {
+		const linesBefore = this._bufferTracker.lines.length;
 		this._bufferTracker.update();
+		const linesAfter = this._bufferTracker.lines.length;
+		const modelChanged = linesBefore !== linesAfter;
+
+		// Save the view state before the update if it was set by the user
+		let savedViewState: IEditorViewState | undefined;
+		if (dataChanged) {
+			savedViewState = withNullAsUndefined(this._editorWidget.saveViewState());
+		}
+
 		let model = this._editorWidget.getModel();
 		const text = this._bufferTracker.lines.join('\n');
 		if (model) {
@@ -285,6 +308,20 @@ export class AccessibleBufferWidget extends DisposableStore {
 			model = await this.getTextModel(this._instance.resource.with({ fragment: text }));
 		}
 		this._editorWidget.setModel(model);
+
+		// If the model changed due to new data, restore the view state
+		// If the model changed due to a refresh or the cursor is a the top, set to the bottom of the buffer
+		// Otherwise, don't change the position
+		const positionTopOfBuffer = this._editorWidget.getPosition()?.lineNumber === 1 && this._editorWidget.getPosition()?.column === 1;
+		if (savedViewState) {
+			this._editorWidget.restoreViewState(savedViewState);
+		} else if (modelChanged || positionTopOfBuffer) {
+			const defaultPosition = this._getDefaultCursorPosition();
+			if (defaultPosition) {
+				this._editorWidget.setPosition(defaultPosition);
+				this._editorWidget.setScrollPosition({ scrollTop: this._editorWidget.getTopForLineNumber(defaultPosition.lineNumber) });
+			}
+		}
 		return model!;
 	}
 }

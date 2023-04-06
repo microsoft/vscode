@@ -17,7 +17,7 @@ import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { URI } from 'vs/base/common/uri';
 import { Event } from 'vs/base/common/event';
-import { rendererLogId, showWindowLogActionId } from 'vs/workbench/common/logConstants';
+import { windowLogId, showWindowLogActionId } from 'vs/workbench/services/log/common/logConstants';
 import { createCancelablePromise, timeout } from 'vs/base/common/async';
 import { CancellationError, getErrorMessage, isCancellationError } from 'vs/base/common/errors';
 import { CancellationToken } from 'vs/base/common/cancellation';
@@ -183,7 +183,7 @@ class LogOutputChannels extends Disposable implements IWorkbenchContribution {
 			}
 			async run(servicesAccessor: ServicesAccessor): Promise<void> {
 				const outputService = servicesAccessor.get(IOutputService);
-				outputService.showChannel(rendererLogId);
+				outputService.showChannel(windowLogId);
 			}
 		});
 	}

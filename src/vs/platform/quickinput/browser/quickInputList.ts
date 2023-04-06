@@ -18,6 +18,7 @@ import { range } from 'vs/base/common/arrays';
 import { ThrottledDelayer } from 'vs/base/common/async';
 import { compareAnything } from 'vs/base/common/comparers';
 import { memoize } from 'vs/base/common/decorators';
+import { isCancellationError } from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
 import { IMatch } from 'vs/base/common/filters';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
@@ -324,7 +325,6 @@ export class QuickInputList {
 	) {
 		this.id = id;
 		this.container = dom.append(this.parent, $('.quick-input-list'));
-
 		const delegate = new ListElementDelegate();
 		const accessibilityProvider = new QuickInputAccessibilityProvider();
 		this.list = options.createList('QuickInput', this.container, delegate, [new ListElementRenderer()], {
@@ -410,11 +410,18 @@ export class QuickInputList {
 			) {
 				return;
 			}
-			await delayer.trigger(async () => {
-				if (e.element) {
-					this.showHover(e.element);
+			try {
+				await delayer.trigger(async () => {
+					if (e.element) {
+						this.showHover(e.element);
+					}
+				});
+			} catch (e) {
+				// Ignore cancellation errors due to mouse out
+				if (!isCancellationError(e)) {
+					throw e;
 				}
-			});
+			}
 		}));
 		this.disposables.push(this.list.onMouseOut(e => {
 			// onMouseOut triggers every time a new element has been moused over
@@ -454,6 +461,14 @@ export class QuickInputList {
 
 	set scrollTop(scrollTop: number) {
 		this.list.scrollTop = scrollTop;
+	}
+
+	get ariaLabel() {
+		return this.list.getHTMLElement().ariaLabel;
+	}
+
+	set ariaLabel(label: string | null) {
+		this.list.getHTMLElement().ariaLabel = label;
 	}
 
 	getAllVisibleChecked() {

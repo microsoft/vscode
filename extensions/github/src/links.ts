@@ -149,7 +149,7 @@ export function getLink(gitAPI: GitAPI, useSelection: boolean, hostPrefix?: stri
 		return;
 	}
 
-	const blobSegment = (gitRepo.state.HEAD?.ahead === 0) ? `/blob/${linkType === 'headlink' ? gitRepo.state.HEAD.name : gitRepo.state.HEAD?.commit}` : '';
+	const blobSegment = gitRepo.state.HEAD ? (`/blob/${linkType === 'headlink' && gitRepo.state.HEAD.name ? gitRepo.state.HEAD.name : gitRepo.state.HEAD?.commit}`) : '';
 	const fileSegments = fileAndPosition.type === LinkType.File
 		? (useSelection ? `${uri.path.substring(gitRepo.rootUri.path.length)}${useRange ? rangeString(fileAndPosition.range) : ''}` : '')
 		: (useSelection ? `${uri.path.substring(gitRepo.rootUri.path.length)}${useRange ? notebookCellRangeString(fileAndPosition.cellIndex, fileAndPosition.range) : ''}` : '');
