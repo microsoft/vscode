@@ -192,16 +192,15 @@ export class StandaloneColorPickerWidget implements IContentWidget {
 
 		// Get all the providers associated with the textModel
 		const providers = this.languageFeaturesService.colorProvider.ordered(this.editor.getModel()!).reverse();
-		console.log('providers : ', providers);
-		if (providers.length === 0) {
-			// Call the start function only when the first update has been completed, not before
-			this._disposables.add(this._standaloneColorPickerComputer.onUpdated(() => {
-				this._standaloneColorPickerComputer.start();
-			}));
-		} else {
-			this._standaloneColorPickerComputer.start();
-		}
-
+		console.log('providers inside of standalone color picker widget : ', providers);
+		// if (providers.length === 0) {
+		// 	// Call the start function only when the first update has been completed, not before
+		// 	this._disposables.add(this._standaloneColorPickerComputer.onUpdated(() => {
+		// 		this._standaloneColorPickerComputer.start();
+		// 	}));
+		// } else {
+		this._standaloneColorPickerComputer.start();
+		// }
 		this._colorHoverVisible = EditorContextKeys.standaloneColorPickerVisible.bindTo(this.contextKeyService);
 		this._colorHoverFocused = EditorContextKeys.standaloneColorPickerFocused.bindTo(this.contextKeyService);
 	}
@@ -372,8 +371,8 @@ export class StandaloneColorPickerComputer extends Disposable implements IStanda
 	// Event emitters on the computer
 	private readonly _onResult = this._register(new Emitter<StandaloneColorPickerResult>());
 	public readonly onResult = this._onResult.event;
-	private readonly _updated = this._register(new Emitter<void>());
-	public readonly onUpdated = this._updated.event;
+	// private readonly _updated = this._register(new Emitter<void>());
+	// public readonly onUpdated = this._updated.event;
 
 	private readonly _disposables = this._register(new DisposableStore());
 	private readonly _localToDispose = this._register(new DisposableStore());
@@ -405,14 +404,13 @@ export class StandaloneColorPickerComputer extends Disposable implements IStanda
 		// Suppose that we do not have any document color providers
 		// TODO: When we register our own document color provider, we will have to change this
 		// TODO: Because then there will always be a document color provider (a default one always)
-		if (providers.length === 0) {
 
-			console.log('Entered into the case when there are no document color providers');
-
-			// Instantiate a default document color provider
-			this._defaultProvider = new DefaultDocumentColorProviderForStandaloneColorPicker();
-			this.onModelChanged();
-		}
+		// if (providers.length === 0) {
+		// 	console.log('Entered into the case when there are no document color providers');
+		// 	// Instantiate a default document color provider
+		// 	this._defaultProvider = new DefaultDocumentColorProviderForStandaloneColorPicker();
+		// 	this.onModelChanged();
+		// }
 
 		this._debounceInformation = languageFeatureDebounceService.for(languageFeaturesService.colorProvider, 'Document Colors', { min: ColorDetector.RECOMPUTE_TIME });
 	}
@@ -455,22 +453,21 @@ export class StandaloneColorPickerComputer extends Disposable implements IStanda
 		// TODO: When there are no providers, we still want to render a color picker
 		// TODO: For that we use a default provider
 
-		let createColorHoverResult: { colorHover: ColorHover; foundInMap: boolean } | null;
+		// let createColorHoverResult: { colorHover: ColorHover; foundInMap: boolean } | null;
+		// if (providers.length === 0) {
+		// 	if (!this._defaultProvider) {
+		// 		return null;
+		// 	}
+		// 	// New function added to the color hover participant which takes the default provider to do that
+		// 	createColorHoverResult = await this._participant.createColorHover(colorInfo, this._defaultProvider);
 
-		if (providers.length === 0) {
-			if (!this._defaultProvider) {
-				return null;
-			}
-			// New function added to the color hover participant which takes the default provider to do that
-			createColorHoverResult = await this._participant.createColorHover(colorInfo, this._defaultProvider);
+		// } else {
+		const provider = providers[0];
 
-		} else {
-			const provider = providers[0];
-
-			// TODO: do we need to set the provider for each participant, what does it do?
-			// TODO: What is the difference between the participants and the document color providers?
-			createColorHoverResult = await this._participant.createColorHover(colorInfo, provider);
-		}
+		// TODO: do we need to set the provider for each participant, what does it do?
+		// TODO: What is the difference between the participants and the document color providers?
+		const createColorHoverResult: { colorHover: ColorHover; foundInMap: boolean } | null = await this._participant.createColorHover(colorInfo, provider);
+		// }
 
 		if (!createColorHoverResult) {
 			return null;
@@ -483,104 +480,88 @@ export class StandaloneColorPickerComputer extends Disposable implements IStanda
 		return { result: result, foundInMap: foundInMap };
 	}
 
-	private onModelChanged(): void {
-
-		console.log('Inside of on model changed of standalone color picker computer');
-
-		const model = this._editor.getModel();
-		if (!model) {
-			return;
-		}
-
-		// When the model content has changed, we start recalculating the color data
-		this._localToDispose.add(this._editor.onDidChangeModelContent(() => {
-			if (!this._timeoutTimer) {
-				this._timeoutTimer = new TimeoutTimer();
-				this._timeoutTimer.cancelAndSet(() => {
-					this._timeoutTimer = null;
-					this.beginComputeColorDatas();
-				}, this._debounceInformation.get(model));
-			}
-		}));
-		// Initial compute the color datas, as well as doing it on the model content change
-		this.beginComputeColorDatas();
-	}
+	// private onModelChanged(): void {
+	// 	console.log('Inside of on model changed of standalone color picker computer');
+	// 	const model = this._editor.getModel();
+	// 	if (!model) {
+	// 		return;
+	// 	}
+	// 	// When the model content has changed, we start recalculating the color data
+	// 	this._localToDispose.add(this._editor.onDidChangeModelContent(() => {
+	// 		if (!this._timeoutTimer) {
+	// 			this._timeoutTimer = new TimeoutTimer();
+	// 			this._timeoutTimer.cancelAndSet(() => {
+	// 				this._timeoutTimer = null;
+	// 				this.beginComputeColorDatas();
+	// 			}, this._debounceInformation.get(model));
+	// 		}
+	// 	}));
+	// 	// Initial compute the color datas, as well as doing it on the model content change
+	// 	this.beginComputeColorDatas();
+	// }
 
 	// This function is called only using the default provider, hence why it does not take a provider as an argument
-	private beginComputeColorDatas(): void {
-
-		console.log('Inside of begin compute color datas');
-
-		this._computePromise = createCancelablePromise(async token => {
-			const model = this._editor.getModel();
-			if (!model) {
-				return Promise.resolve([]);
-			}
-			const sw = new StopWatch(false);
-
-			// Getting the colors for the whole document, not a specific range
-			const colors = await this.getColors(this._defaultProvider!, model, token);
-
-			console.log('after getColors');
-
-			this._debounceInformation.update(model, sw.elapsed());
-			return colors;
-		});
-		this._computePromise.then((colorInfos) => {
-
-			// Update the editor when the color infos are obtained
-			this.updateDecorations(colorInfos);
-			// this.updateColorDecorators(colorInfos);
-			this._computePromise = null;
-			this._updated.fire();
-		}, onUnexpectedError);
-	}
+	// private beginComputeColorDatas(): void {
+	// 	console.log('Inside of begin compute color datas');
+	// 	this._computePromise = createCancelablePromise(async token => {
+	// 		const model = this._editor.getModel();
+	// 		if (!model) {
+	// 			return Promise.resolve([]);
+	// 		}
+	// 		const sw = new StopWatch(false);
+	// 		// Getting the colors for the whole document, not a specific range
+	// 		const colors = await this.getColors(this._defaultProvider!, model, token);
+	// 		console.log('after getColors');
+	// 		this._debounceInformation.update(model, sw.elapsed());
+	// 		return colors;
+	// 	});
+	// 	this._computePromise.then((colorInfos) => {
+	// 		// Update the editor when the color infos are obtained
+	// 		this.updateDecorations(colorInfos);
+	// 		// this.updateColorDecorators(colorInfos);
+	// 		this._computePromise = null;
+	// 		this._updated.fire();
+	// 	}, onUnexpectedError);
+	// }
 
 	// Using the default document color provider here
-	private async getColors(provider: DocumentColorProvider, model: ITextModel, token: CancellationToken): Promise<IColorData[]> {
-		const colors: IColorData[] = [];
-
-		console.log('Inside of getColors');
-
-		// Calling the provide document colors of the default provider
-		const documentColors = await provider.provideDocumentColors(model, token)!;
-		if (Array.isArray(documentColors)) {
-			for (const colorInfo of documentColors) {
-				colors.push({ colorInfo, provider });
-			}
-		}
-		return colors;
-	}
+	// private async getColors(provider: DocumentColorProvider, model: ITextModel, token: CancellationToken): Promise<IColorData[]> {
+	// 	const colors: IColorData[] = [];
+	// 	console.log('Inside of getColors');
+	// 	// Calling the provide document colors of the default provider
+	// 	const documentColors = await provider.provideDocumentColors(model, token)!;
+	// 	if (Array.isArray(documentColors)) {
+	// 		for (const colorInfo of documentColors) {
+	// 			colors.push({ colorInfo, provider });
+	// 		}
+	// 	}
+	// 	return colors;
+	// }
 
 	// The update decorations function will update the editor text model
-	private updateDecorations(colorDatas: IColorData[]): void {
-
-		console.log('Inside of update decorations');
-		console.log('colorDatas : ', colorDatas);
-
-		const decorations = colorDatas.map(c => ({
-			range: {
-				startLineNumber: c.colorInfo.range.startLineNumber,
-				startColumn: c.colorInfo.range.startColumn,
-				endLineNumber: c.colorInfo.range.endLineNumber,
-				endColumn: c.colorInfo.range.endColumn
-			},
-			options: ModelDecorationOptions.EMPTY
-		}));
-
-		this._editor.changeDecorations((changeAccessor) => {
-
-			this._decorationsIds = changeAccessor.deltaDecorations(this._decorationsIds, decorations);
-
-			const colorDetector = ColorDetector.get(this._editor);
-			if (!colorDetector) {
-				return;
-			}
-			// Updating the colorDatas map of the color detector
-			colorDetector.colorDatas = new Map<string, IColorData>();
-			this._decorationsIds.forEach((id, i) => colorDetector.colorDatas.set(id, colorDatas[i]));
-		});
-	}
+	// private updateDecorations(colorDatas: IColorData[]): void {
+	// 	console.log('Inside of update decorations');
+	// 	console.log('colorDatas : ', colorDatas);
+	// 	const decorations = colorDatas.map(c => ({
+	// 		range: {
+	// 			startLineNumber: c.colorInfo.range.startLineNumber,
+	// 			startColumn: c.colorInfo.range.startColumn,
+	// 			endLineNumber: c.colorInfo.range.endLineNumber,
+	// 			endColumn: c.colorInfo.range.endColumn
+	// 		},
+	// 		options: ModelDecorationOptions.EMPTY
+	// 	}));
+	// 	this._editor.changeDecorations((changeAccessor) => {
+	// 		this._decorationsIds = changeAccessor.deltaDecorations(this._decorationsIds, decorations);
+	// 		const colorDetector = ColorDetector.get(this._editor);
+	// 		if (!colorDetector) {
+	// 			return;
+	// 		}
+	// 		// Updating the colorDatas map of the color detector
+	// 		colorDetector.colorDatas = new Map<string, IColorData>();
+	// 		this._decorationsIds.forEach((id, i) => colorDetector.colorDatas.set(id, colorDatas[i]));
+	// 	});
+	// }
 
 	public override dispose(): void {
 		super.dispose();
