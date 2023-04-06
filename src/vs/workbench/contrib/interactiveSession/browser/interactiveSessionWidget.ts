@@ -29,7 +29,6 @@ import { InteractiveSessionEditorOptions } from 'vs/workbench/contrib/interactiv
 import { CONTEXT_INTERACTIVE_REQUEST_IN_PROGRESS, CONTEXT_IN_INTERACTIVE_SESSION } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionContextKeys';
 import { IInteractiveSessionReplyFollowup, IInteractiveSessionService, IInteractiveSlashCommand } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionService';
 import { IInteractiveSessionViewModel, InteractiveSessionViewModel, isRequestVM, isResponseVM, isWelcomeVM } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionViewModel';
-import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 
 export const IInteractiveSessionWidgetService = createDecorator<IInteractiveSessionWidgetService>('interactiveSessionWidgetService');
 
@@ -79,8 +78,6 @@ export class InteractiveSessionWidget extends Disposable implements IInteractive
 
 	private previousTreeScrollHeight: number = 0;
 
-	private currentViewModelPromise: Promise<IInteractiveSessionViewModel | undefined> | undefined;
-
 	private viewModelDisposables = new DisposableStore();
 	private _viewModel: InteractiveSessionViewModel | undefined;
 	private set viewModel(viewModel: InteractiveSessionViewModel | undefined) {
@@ -95,7 +92,6 @@ export class InteractiveSessionWidget extends Disposable implements IInteractive
 			this.viewModelDisposables.add(viewModel);
 		}
 
-		this.currentViewModelPromise = undefined;
 		this.slashCommandsPromise = undefined;
 		this.lastSlashCommands = undefined;
 		this.getSlashCommands().then(() => {
@@ -124,7 +120,6 @@ export class InteractiveSessionWidget extends Disposable implements IInteractive
 		@IStorageService storageService: IStorageService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IExtensionService private readonly extensionService: IExtensionService,
 		@IInteractiveSessionService private readonly interactiveSessionService: IInteractiveSessionService,
 		@IInteractiveSessionWidgetService interactiveSessionWidgetService: IInteractiveSessionWidgetService,
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
@@ -340,49 +335,28 @@ export class InteractiveSessionWidget extends Disposable implements IInteractive
 		this.container.style.setProperty('--vscode-interactive-result-editor-background-color', this.editorOptions.configuration.resultEditor.backgroundColor?.toString() ?? '');
 	}
 
-	private async initializeSessionModel(initial = false) {
-		if (this.currentViewModelPromise) {
-			await this.currentViewModelPromise;
-			return;
+	private initializeSessionModel(initial = false) {
+		const model = this.interactiveSessionService.startSession(this.providerId, initial, CancellationToken.None);
+		if (!model) {
+			throw new Error('Failed to start session');
 		}
 
-		const doInitializeSessionModel = async () => {
-			await this.extensionService.whenInstalledExtensionsRegistered();
-			const model = await this.interactiveSessionService.startSession(this.providerId, initial, CancellationToken.None);
-			if (!model) {
-				throw new Error('Failed to start session');
-			}
+		this.viewModel = this.instantiationService.createInstance(InteractiveSessionViewModel, model);
+		this.viewModelDisposables.add(this.viewModel.onDidChange(() => {
+			this.slashCommandsPromise = undefined;
+			this.onDidChangeItems();
+		}));
+		this.viewModelDisposables.add(this.viewModel.onDidDisposeModel(() => {
+			this.viewModel = undefined;
+			this.onDidChangeItems();
+		}));
 
-			if (this.viewModel) {
-				// Oops, created two. TODO this could be better
-				return;
-			}
-
-			this.viewModel = this.instantiationService.createInstance(InteractiveSessionViewModel, model);
-			this.viewModelDisposables.add(this.viewModel.onDidChange(() => {
-				this.slashCommandsPromise = undefined;
-				this.onDidChangeItems();
-			}));
-			this.viewModelDisposables.add(this.viewModel.onDidDisposeModel(() => {
-				this.viewModel = undefined;
-				this.onDidChangeItems();
-			}));
-
-			if (this.tree) {
-				this.onDidChangeItems();
-			}
-		};
-		this.currentViewModelPromise = doInitializeSessionModel()
-			.then(() => this.viewModel);
-		await this.currentViewModelPromise;
+		if (this.tree) {
+			this.onDidChangeItems();
+		}
 	}
 
 	async acceptInput(query?: string | IInteractiveSessionReplyFollowup): Promise<void> {
-		if (!this.viewModel) {
-			// This currently shouldn't happen anymore, but leaving this here to make sure we don't get stuck without a viewmodel
-			await this.initializeSessionModel();
-		}
-
 		if (this.viewModel) {
 			const editorValue = this.inputPart.inputEditor.getValue();
 
@@ -395,10 +369,10 @@ export class InteractiveSessionWidget extends Disposable implements IInteractive
 			}
 
 			const input = query ?? editorValue;
-			const result = this.interactiveSessionService.sendRequest(this.viewModel.sessionId, input);
+			const result = await this.interactiveSessionService.sendRequest(this.viewModel.sessionId, input);
 			if (result) {
 				this.requestInProgress.set(true);
-				result.completePromise.finally(() => {
+				result.requestCompletePromise.finally(() => {
 					this.requestInProgress.set(false);
 				});
 
@@ -406,10 +380,6 @@ export class InteractiveSessionWidget extends Disposable implements IInteractive
 				this.inputPart.acceptInput(query);
 			}
 		}
-	}
-
-	async waitForViewModel(): Promise<IInteractiveSessionViewModel | undefined> {
-		return this.currentViewModelPromise;
 	}
 
 	focusLastMessage(): void {
@@ -430,7 +400,7 @@ export class InteractiveSessionWidget extends Disposable implements IInteractive
 	async clear(): Promise<void> {
 		if (this.viewModel) {
 			this.interactiveSessionService.clearSession(this.viewModel.sessionId);
-			await this.initializeSessionModel();
+			this.initializeSessionModel();
 			this.focusInput();
 		}
 	}
