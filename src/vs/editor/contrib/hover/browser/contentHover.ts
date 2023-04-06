@@ -17,14 +17,13 @@ import { IModelDecoration, PositionAffinity } from 'vs/editor/common/model';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 import { TokenizationRegistry } from 'vs/editor/common/languages';
 import { HoverOperation, HoverStartMode, HoverStartSource, IHoverComputer } from 'vs/editor/contrib/hover/browser/hoverOperation';
-import { HoverAnchor, HoverAnchorType, HoverParticipantRegistry, HoverRangeAnchor, IEditorHoverAction, IEditorHoverParticipant, IEditorHoverRenderContext, IEditorHoverStatusBar, IHoverPart } from 'vs/editor/contrib/hover/browser/hoverTypes';
+import { HoverAnchor, HoverAnchorType, HoverParticipantRegistry, HoverRangeAnchor, IEditorHoverColorPickerWidget, IEditorHoverAction, IEditorHoverParticipant, IEditorHoverRenderContext, IEditorHoverStatusBar, IHoverPart } from 'vs/editor/contrib/hover/browser/hoverTypes';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { Context as SuggestContext } from 'vs/editor/contrib/suggest/browser/suggest';
 import { AsyncIterableObject } from 'vs/base/common/async';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { ColorPickerWidget } from 'vs/editor/contrib/colorPicker/browser/colorPickerWidget';
 
 const $ = dom.$;
 
@@ -256,7 +255,7 @@ export class ContentHoverController extends Disposable {
 		const statusBar = disposables.add(new EditorHoverStatusBar(this._keybindingService));
 		const fragment = document.createDocumentFragment();
 
-		let colorPicker: ColorPickerWidget | null = null;
+		let colorPicker: IEditorHoverColorPickerWidget | null = null;
 		const context: IEditorHoverRenderContext = {
 			fragment,
 			statusBar,
@@ -425,7 +424,7 @@ class ContentHoverVisibleData {
 	public closestMouseDistance: number | undefined = undefined;
 
 	constructor(
-		public readonly colorPicker: ColorPickerWidget | null,
+		public readonly colorPicker: IEditorHoverColorPickerWidget | null,
 		public readonly showAtPosition: Position,
 		public readonly showAtSecondaryPosition: Position,
 		public readonly preferAbove: boolean,
@@ -584,9 +583,6 @@ export class ContentHoverWidget extends Disposable implements IContentWidget {
 	}
 
 	public showAt(node: DocumentFragment, visibleData: ContentHoverVisibleData): void {
-
-		console.log('Inside of showAt');
-
 		this._setVisibleData(visibleData);
 
 		this._hover.contentsDomNode.textContent = '';
