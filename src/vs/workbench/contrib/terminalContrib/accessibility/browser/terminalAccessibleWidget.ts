@@ -44,7 +44,7 @@ export abstract class TerminalAccessibleWidget extends DisposableStore {
 	private readonly _focusTracker: dom.IFocusTracker;
 
 	constructor(
-		className: string,
+		private readonly _className: string,
 		protected readonly _instance: Pick<ITerminalInstance, 'capabilities' | 'onDidRequestFocus' | 'resource'>,
 		protected readonly _xterm: Pick<IXtermTerminal, 'getFont'> & { raw: Terminal },
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
@@ -57,7 +57,7 @@ export abstract class TerminalAccessibleWidget extends DisposableStore {
 		this._xtermElement = _xterm.raw.element!;
 		this._element = document.createElement('div');
 		this._element.setAttribute('role', 'document');
-		this._element.classList.add(className);
+		this._element.classList.add(_className);
 		this._editorContainer = document.createElement('div');
 		const codeEditorWidgetOptions: ICodeEditorWidgetOptions = {
 			contributions: EditorExtensionsRegistry.getSomeEditorContributions([LinkDetector.ID, SelectionClipboardContributionID, 'editor.contrib.selectionAnchorController'])
@@ -166,6 +166,6 @@ export abstract class TerminalAccessibleWidget extends DisposableStore {
 		if (existing && !existing.isDisposed()) {
 			return existing;
 		}
-		return this._modelService.createModel(resource.fragment, null, resource, false);
+		return this._modelService.createModel(`${this._className}-${resource.fragment}`, null, resource, false);
 	}
 }

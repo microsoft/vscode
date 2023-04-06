@@ -26,6 +26,10 @@ interface IAccessibleBufferQuickPickItem extends IQuickPickItem {
 	exitCode?: number;
 }
 
+export const enum ClassName {
+	AccessibleBuffer = 'accessible-buffer'
+}
+
 export class AccessibleBufferWidget extends TerminalAccessibleWidget {
 	private _isUpdating: boolean = false;
 	private _pendingUpdates = 0;
@@ -46,7 +50,7 @@ export class AccessibleBufferWidget extends TerminalAccessibleWidget {
 		@ILogService private readonly _logService: ILogService,
 		@ITerminalService _terminalService: ITerminalService,
 	) {
-		super('accessible-buffer', _instance, _xterm, _instantiationService, _modelService, _configurationService, _contextKeyService, _terminalService);
+		super(ClassName.AccessibleBuffer, _instance, _xterm, _instantiationService, _modelService, _configurationService, _contextKeyService, _terminalService);
 		this._bufferTracker = _instantiationService.createInstance(BufferContentTracker, _xterm);
 		this.element.ariaRoleDescription = localize('terminal.integrated.accessibleBuffer', 'Terminal buffer');
 		this.updateEditor();
@@ -173,7 +177,7 @@ export class AccessibleBufferWidget extends TerminalAccessibleWidget {
 		if (model) {
 			model.setValue(text);
 		} else {
-			model = await this.getTextModel(this._instance.resource.with({ fragment: text }));
+			model = await this.getTextModel(this._instance.resource.with({ fragment: `${ClassName.AccessibleBuffer}-${text}` }));
 		}
 		this.editorWidget.setModel(model);
 
