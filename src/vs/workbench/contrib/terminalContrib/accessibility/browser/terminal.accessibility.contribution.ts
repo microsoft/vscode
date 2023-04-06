@@ -53,6 +53,10 @@ class AccessibleBufferContribution extends DisposableStore implements ITerminalC
 	async createCommandQuickPick(): Promise<IQuickPick<IQuickPickItem> | undefined> {
 		return this._accessibleBufferWidget?.createQuickPick();
 	}
+
+	navigateToCommand(type: 'next' | 'previous'): void {
+		return this._accessibleBufferWidget?.navigateToCommand(type);
+	}
 }
 registerTerminalContribution(AccessibleBufferContribution.ID, AccessibleBufferContribution);
 
@@ -124,5 +128,50 @@ registerTerminalAction({
 		}
 		const quickPick = await AccessibleBufferContribution.get(instance)?.createCommandQuickPick();
 		quickPick?.show();
+	}
+});
+
+registerTerminalAction({
+	id: TerminalCommandId.AccessibleBufferGoToNextCommand,
+	title: { value: localize('workbench.action.terminal.accessibleBufferGoToNextCommand', 'Accessible Buffer Go to Next Command'), original: 'Accessible Buffer Go to Next Command' },
+	f1: true,
+	category,
+	precondition: ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated, TerminalContextKeys.accessibleBufferFocus),
+	keybinding: [
+		{
+			primary: KeyMod.CtrlCmd | KeyCode.DownArrow,
+			weight: KeybindingWeight.WorkbenchContrib + 2,
+		}
+	],
+	run: async (c) => {
+		const instance = await c.service.getActiveOrCreateInstance();
+		await revealActiveTerminal(instance, c);
+		if (!instance) {
+			return;
+		}
+		await AccessibleBufferContribution.get(instance)?.navigateToCommand('next');
+	}
+});
+
+
+registerTerminalAction({
+	id: TerminalCommandId.AccessibleBufferGoToPreviousCommand,
+	title: { value: localize('workbench.action.terminal.accessibleBufferGoToPreviousCommand', 'Accessible Buffer Go to Previous Command'), original: 'Accessible Buffer Go to Previous Command' },
+	f1: true,
+	category,
+	precondition: ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated, TerminalContextKeys.accessibleBufferFocus),
+	keybinding: [
+		{
+			primary: KeyMod.CtrlCmd | KeyCode.UpArrow,
+			weight: KeybindingWeight.WorkbenchContrib + 2
+		}
+	],
+	run: async (c) => {
+		const instance = await c.service.getActiveOrCreateInstance();
+		await revealActiveTerminal(instance, c);
+		if (!instance) {
+			return;
+		}
+		await AccessibleBufferContribution.get(instance)?.navigateToCommand('previous');
 	}
 });

@@ -22,7 +22,7 @@ import { SelectionClipboardContributionID } from 'vs/workbench/contrib/codeEdito
 import { getSimpleEditorOptions } from 'vs/workbench/contrib/codeEditor/browser/simpleEditorOptions';
 import { ITerminalInstance, ITerminalService, IXtermTerminal } from 'vs/workbench/contrib/terminal/browser/terminal';
 import type { Terminal } from 'xterm';
-import { TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
+import { ITerminalCommand, TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
 import { IQuickInputService, IQuickPick, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
 import { AudioCue, IAudioCueService } from 'vs/platform/audioCues/browser/audioCueService';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
@@ -166,26 +166,64 @@ export class AccessibleBufferWidget extends DisposableStore {
 		this._editorWidget.focus();
 	}
 
-	async createQuickPick(): Promise<IQuickPick<IAccessibleBufferQuickPickItem> | undefined> {
-		this._cursorPosition = withNullAsUndefined(this._editorWidget.getPosition());
+	navigateToCommand(type: 'next' | 'previous'): void {
+		const currentLine = this._editorWidget.getPosition()?.lineNumber || this._getDefaultCursorPosition()?.lineNumber;
+		const commands = this._getCommandsWithEditorLine();
+		if (!commands || !currentLine) {
+			return;
+		}
+		const filteredCommands = type === 'previous' ? commands.filter(c => c.lineNumber + 1 < currentLine).sort((a, b) => b.lineNumber - a.lineNumber) : commands.filter(c => c.lineNumber + 1 > currentLine).sort((a, b) => a.lineNumber - b.lineNumber);
+		if (!filteredCommands.length) {
+			return;
+		}
+		this._cursorPosition = { lineNumber: filteredCommands[0].lineNumber + 1, column: 1 };
+		this._resetPosition();
+	}
+
+	private _getEditorLineForCommand(command: ITerminalCommand): number | undefined {
+		let line = command.marker?.line;
+		if (line === undefined || !command.command.length || line < 0) {
+			return;
+		}
+		line = this._bufferTracker.bufferToEditorLineMapping.get(line);
+		if (!line) {
+			return;
+		}
+		return line;
+	}
+
+	private _getCommandsWithEditorLine(): ITerminalCommandInEditor[] | undefined {
 		const commands = this._instance.capabilities.get(TerminalCapability.CommandDetection)?.commands;
 		if (!commands?.length) {
 			return;
 		}
-		const quickPickItems: IAccessibleBufferQuickPickItem[] = [];
+		const result: ITerminalCommandInEditor[] = [];
 		for (const command of commands) {
-			let line = command.marker?.line;
-			if (line === undefined || !command.command.length || line < 0) {
+			const lineNumber = this._getEditorLineForCommand(command);
+			if (!lineNumber) {
 				continue;
 			}
-			line = this._bufferTracker.bufferToEditorLineMapping.get(line);
+			result.push({ command, lineNumber });
+		}
+		return result;
+	}
+
+	async createQuickPick(): Promise<IQuickPick<IAccessibleBufferQuickPickItem> | undefined> {
+		this._cursorPosition = withNullAsUndefined(this._editorWidget.getPosition());
+		const commands = this._getCommandsWithEditorLine();
+		if (!commands) {
+			return;
+		}
+		const quickPickItems: IAccessibleBufferQuickPickItem[] = [];
+		for (const { command, lineNumber } of commands) {
+			const line = this._getEditorLineForCommand(command);
 			if (!line) {
 				continue;
 			}
 			quickPickItems.push(
 				{
 					label: localize('terminal.integrated.symbolQuickPick.labelNoExitCode', '{0}', command.command),
-					lineNumber: line + 1,
+					lineNumber,
 					exitCode: command.exitCode
 				});
 		}
@@ -325,3 +363,6 @@ export class AccessibleBufferWidget extends DisposableStore {
 		return model!;
 	}
 }
+
+interface ITerminalCommandInEditor { command: ITerminalCommand; lineNumber: number }
+
