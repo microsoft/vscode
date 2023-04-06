@@ -62,6 +62,7 @@ import { CancellationError } from 'vs/base/common/errors';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { IExtensionsViewPaneContainer, VIEWLET_ID } from 'vs/workbench/contrib/extensions/common/extensions';
 import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
+import { EditSessionRegistry } from 'vs/platform/workspace/browser/editSessionsStorageService';
 
 registerSingleton(IEditSessionsLogService, EditSessionsLogService, InstantiationType.Delayed);
 registerSingleton(IEditSessionsStorageService, EditSessionsWorkbenchService, InstantiationType.Delayed);
@@ -600,6 +601,18 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 					conflictingChanges.push({ uri, type: change.type, contents: change.contents });
 				}
 			}
+
+			const workspaceFolder = folderRoot;
+			if (workspaceFolder) {
+				// apply additional state from registered edit session contributors
+				// look through all registered contributions to gather additional state
+				EditSessionRegistry.getEditSessionContributions().forEach(([key, contrib]) => {
+					const state = folder[key];
+					if (state) {
+						contrib.resumeState(workspaceFolder, state);
+					}
+				});
+			}
 		}
 
 		return { changes, conflictingChanges };
@@ -674,11 +687,17 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 			}
 
 			let canonicalIdentity = undefined;
+			const contributedData: { [key: string]: unknown } = {};
 			if (workspaceFolder !== null && workspaceFolder !== undefined) {
 				canonicalIdentity = await this.editSessionIdentityService.getEditSessionIdentifier(workspaceFolder, cancellationToken);
+
+				// look through all registered contributions to gather additional state
+				EditSessionRegistry.getEditSessionContributions().forEach(([key, contrib]) => {
+					contributedData[key] = contrib.getStateToStore(workspaceFolder);
+				});
 			}
 
-			folders.push({ workingChanges, name: name ?? '', canonicalIdentity: canonicalIdentity ?? undefined });
+			folders.push({ ...contributedData, workingChanges, name: name ?? '', canonicalIdentity: canonicalIdentity ?? undefined });
 		}
 
 		if (!hasEdits) {
