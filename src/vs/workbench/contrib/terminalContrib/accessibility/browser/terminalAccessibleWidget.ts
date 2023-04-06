@@ -129,7 +129,9 @@ export abstract class TerminalAccessibleWidget extends DisposableStore {
 		}));
 	}
 
-	abstract registerListeners(): void;
+	registerListeners(): void {
+		this._listeners.push(this._instance.onDidRequestFocus(() => this.editorWidget.focus()));
+	}
 
 	layout(): void {
 		this._editorWidget.layout({ width: this._xtermElement.clientWidth, height: this._xtermElement.clientHeight });

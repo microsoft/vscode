@@ -47,10 +47,6 @@ export class AccessibilityHelpWidget extends TerminalAccessibleWidget {
 		return format(noKbMsg, commandId);
 	}
 
-	registerListeners(): void {
-		this._listeners.push(this._instance.onDidRequestFocus(() => this.editorWidget.focus()));
-	}
-
 	async updateEditor(): Promise<void> {
 		if (this.editorWidget.getModel()?.getValue().length) {
 			return;

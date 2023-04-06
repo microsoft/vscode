@@ -145,7 +145,8 @@ export class AccessibleBufferWidget extends TerminalAccessibleWidget {
 		}
 	}
 
-	registerListeners(): void {
+	override registerListeners(): void {
+		super.registerListeners();
 		this._xterm.raw.onWriteParsed(async () => {
 			if (this._xterm.raw.buffer.active.baseY === 0) {
 				await this.updateEditor(true);
@@ -153,7 +154,6 @@ export class AccessibleBufferWidget extends TerminalAccessibleWidget {
 		});
 		const onRequestUpdateEditor = Event.latch(this._xterm.raw.onScroll);
 		this._listeners.push(onRequestUpdateEditor(async () => await this.updateEditor(true)));
-		this._listeners.push(this._instance.onDidRequestFocus(() => this.editorWidget.focus()));
 	}
 
 	private _getDefaultCursorPosition(): { lineNumber: number; column: number } | undefined {
