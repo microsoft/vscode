@@ -24,6 +24,11 @@ import { AccessibilityHelpWidget } from 'vs/workbench/contrib/terminalContrib/ac
 import { AccessibleBufferWidget } from 'vs/workbench/contrib/terminalContrib/accessibility/browser/terminalAccessibleBuffer';
 import { Terminal } from 'xterm';
 
+export const enum NavigationType {
+	Next = 'next',
+	Previous = 'previous'
+}
+
 const category = terminalStrings.actionCategory;
 
 class AccessibleBufferContribution extends DisposableStore implements ITerminalContribution {
@@ -54,7 +59,7 @@ class AccessibleBufferContribution extends DisposableStore implements ITerminalC
 		return this._accessibleBufferWidget?.createQuickPick();
 	}
 
-	navigateToCommand(type: 'next' | 'previous'): void {
+	navigateToCommand(type: NavigationType): void {
 		return this._accessibleBufferWidget?.navigateToCommand(type);
 	}
 }
@@ -149,7 +154,7 @@ registerTerminalAction({
 		if (!instance) {
 			return;
 		}
-		await AccessibleBufferContribution.get(instance)?.navigateToCommand('next');
+		await AccessibleBufferContribution.get(instance)?.navigateToCommand(NavigationType.Next);
 	}
 });
 
@@ -172,6 +177,6 @@ registerTerminalAction({
 		if (!instance) {
 			return;
 		}
-		await AccessibleBufferContribution.get(instance)?.navigateToCommand('previous');
+		await AccessibleBufferContribution.get(instance)?.navigateToCommand(NavigationType.Previous);
 	}
 });

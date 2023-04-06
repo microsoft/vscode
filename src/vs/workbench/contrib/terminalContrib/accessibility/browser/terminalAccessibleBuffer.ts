@@ -31,6 +31,7 @@ import { withNullAsUndefined } from 'vs/base/common/types';
 import { BufferContentTracker } from 'vs/workbench/contrib/terminalContrib/accessibility/browser/bufferContentTracker';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IEditorViewState } from 'vs/editor/common/editorCommon';
+import { NavigationType } from 'vs/workbench/contrib/terminalContrib/accessibility/browser/terminal.accessibility.contribution';
 
 const enum CssClass {
 	Active = 'active',
@@ -166,13 +167,13 @@ export class AccessibleBufferWidget extends DisposableStore {
 		this._editorWidget.focus();
 	}
 
-	navigateToCommand(type: 'next' | 'previous'): void {
+	navigateToCommand(type: NavigationType): void {
 		const currentLine = this._editorWidget.getPosition()?.lineNumber || this._getDefaultCursorPosition()?.lineNumber;
 		const commands = this._getCommandsWithEditorLine();
 		if (!commands?.length || !currentLine) {
 			return;
 		}
-		const filteredCommands = type === 'previous' ? commands.filter(c => c.lineNumber < currentLine).sort((a, b) => b.lineNumber - a.lineNumber) : commands.filter(c => c.lineNumber > currentLine).sort((a, b) => a.lineNumber - b.lineNumber);
+		const filteredCommands = type === NavigationType.Previous ? commands.filter(c => c.lineNumber < currentLine).sort((a, b) => b.lineNumber - a.lineNumber) : commands.filter(c => c.lineNumber > currentLine).sort((a, b) => a.lineNumber - b.lineNumber);
 		if (!filteredCommands.length) {
 			return;
 		}
