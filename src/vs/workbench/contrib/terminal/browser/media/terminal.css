@@ -551,8 +551,7 @@
 	background-color: var(--vscode-scrollbarSlider-activeBackground);
 }
 
-.monaco-workbench .terminal-accessibility-help,
-.monaco-workbench .accessible-buffer {
+.monaco-workbench .terminal-accessible-widget {
 	position: absolute;
 	left: 10px;
 	top: 0;
@@ -568,14 +567,12 @@
 	z-index: 0;
 }
 
-.monaco-workbench .accessible-buffer div {
+.monaco-workbench .terminal-accessible-widget div {
 	white-space: pre-wrap;
 }
 
-.monaco-workbench .terminal-accessibility-help.focus-within,
-.monaco-workbench .terminal-accessibility-help.active,
-.monaco-workbench .accessible-buffer.focus-within,
-.monaco-workbench .accessible-buffer.active {
+.monaco-workbench .terminal-accessible-widget.focus-within,
+.monaco-workbench .terminal-accessible-widget.active {
 	pointer-events: all;
 	opacity: 1;
 	z-index: 33;

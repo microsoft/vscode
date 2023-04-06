@@ -23,9 +23,10 @@ import { ITerminalInstance, ITerminalService, IXtermTerminal } from 'vs/workbenc
 import type { Terminal } from 'xterm';
 import { IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 
-const enum CssClass {
+const enum ClassName {
 	Active = 'active',
-	Hide = 'hide'
+	Hide = 'hide',
+	Widget = 'terminal-accessible-widget'
 }
 
 export abstract class TerminalAccessibleWidget extends DisposableStore {
@@ -58,6 +59,7 @@ export abstract class TerminalAccessibleWidget extends DisposableStore {
 		this._element = document.createElement('div');
 		this._element.setAttribute('role', 'document');
 		this._element.classList.add(_className);
+		this._element.classList.add(ClassName.Widget);
 		this._editorContainer = document.createElement('div');
 		const codeEditorWidgetOptions: ICodeEditorWidgetOptions = {
 			contributions: EditorExtensionsRegistry.getSomeEditorContributions([LinkDetector.ID, SelectionClipboardContributionID, 'editor.contrib.selectionAnchorController'])
@@ -116,7 +118,7 @@ export abstract class TerminalAccessibleWidget extends DisposableStore {
 		}));
 		this.add(this._editorWidget.onDidFocusEditorText(async () => {
 			this._terminalService.setActiveInstance(this._instance as ITerminalInstance);
-			if (this.element.classList.contains(CssClass.Active)) {
+			if (this.element.classList.contains(ClassName.Active)) {
 				// the user has focused the editor via mouse or
 				// Go to Command was run so we've already updated the editor
 				return;
@@ -125,7 +127,7 @@ export abstract class TerminalAccessibleWidget extends DisposableStore {
 			// and show it
 			this.registerListeners();
 			await this.updateEditor();
-			this.element.classList.add(CssClass.Active);
+			this.element.classList.add(ClassName.Active);
 		}));
 	}
 
@@ -144,8 +146,8 @@ export abstract class TerminalAccessibleWidget extends DisposableStore {
 		await this.updateEditor();
 		this.element.tabIndex = -1;
 		this.layout();
-		this.element.classList.add(CssClass.Active);
-		this._xtermElement.classList.add(CssClass.Hide);
+		this.element.classList.add(ClassName.Active);
+		this._xtermElement.classList.add(ClassName.Hide);
 		this.editorWidget.focus();
 	}
 
@@ -162,8 +164,8 @@ export abstract class TerminalAccessibleWidget extends DisposableStore {
 
 	private _hide(): void {
 		this._disposeListeners();
-		this.element.classList.remove(CssClass.Active);
-		this._xtermElement.classList.remove(CssClass.Hide);
+		this.element.classList.remove(ClassName.Active);
+		this._xtermElement.classList.remove(ClassName.Hide);
 	}
 
 	async getTextModel(resource: URI): Promise<ITextModel | null> {
