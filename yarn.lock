@@ -1337,10 +1337,10 @@
     command-line-args "^5.2.1"
     ts-morph "^15.1.0"
 
-"@vscode/test-web@^0.0.34":
-  version "0.0.34"
-  resolved "https://registry.yarnpkg.com/@vscode/test-web/-/test-web-0.0.34.tgz#1e9aafacc06dd8206624cdb4c8336c82b1e001d7"
-  integrity sha512-KYoRogXJHBZrhajgWx5AAAbV+FufxlTQ+ywKDUu8C4/n3kI5HR+Ye/NCRHOW1DBMcMtEzznLr7RSgV7In4OCfg==
+"@vscode/test-web@^0.0.40":
+  version "0.0.40"
+  resolved "https://registry.yarnpkg.com/@vscode/test-web/-/test-web-0.0.40.tgz#f262416934ca976609e8a490fbc290b9dee804f5"
+  integrity sha512-BUepdJhnRobAD5onZgApafAoQ9KVyc0nwohq4Px/VqfpxG1fVrcUNYfmiaknDENZae/DZYu+wWZUTwWpEAjJbA==
   dependencies:
     "@koa/cors" "^4.0.0"
     "@koa/router" "^12.0.0"
@@ -1353,8 +1353,8 @@
     koa-morgan "^1.0.1"
     koa-mount "^4.0.0"
     koa-static "^5.0.0"
-    minimist "^1.2.7"
-    playwright "^1.29.2"
+    minimist "^1.2.8"
+    playwright "^1.32.2"
     vscode-uri "^3.0.7"
 
 "@vscode/vscode-languagedetection@1.0.21":
@@ -6861,10 +6861,15 @@ minimatch@^5.0.1, minimatch@^5.1.0:
   dependencies:
     brace-expansion "^2.0.1"
 
-minimist@^1.2.0, minimist@^1.2.3, minimist@^1.2.5, minimist@^1.2.6, minimist@^1.2.7:
+minimist@^1.2.0, minimist@^1.2.3, minimist@^1.2.5, minimist@^1.2.6:
   version "1.2.7"
   resolved "https://registry.yarnpkg.com/minimist/-/minimist-1.2.7.tgz#daa1c4d91f507390437c6a8bc01078e7000c4d18"
   integrity sha512-bzfL1YUZsP41gmu/qjrEk0Q6i2ix/cVeAhbCbqH9u3zYutS1cLg00qhrD0M2MVdCcx4Sc0UpP2eBWo9rotpq6g==
+
+minimist@^1.2.8:
+  version "1.2.8"
+  resolved "https://registry.yarnpkg.com/minimist/-/minimist-1.2.8.tgz#c1a464e7693302e082a075cee0c057741ac4772c"
+  integrity sha512-2yyAR8qBkN3YuheJanUpWC5U3bb5osDywNB8RzDVlDwDHbocAJveqqj1u8+SVD7jkWT4yvsHCpWqqWqAxb0zCA==
 
 minipass@^3.0.0:
   version "3.1.3"
@@ -7829,12 +7834,24 @@ playwright-core@1.32.1:
   resolved "https://registry.yarnpkg.com/playwright-core/-/playwright-core-1.32.1.tgz#5a10c32403323b07d75ea428ebeed866a80b76a1"
   integrity sha512-KZYUQC10mXD2Am1rGlidaalNGYk3LU1vZqqNk0gT4XPty1jOqgup8KDP8l2CUlqoNKhXM5IfGjWgW37xvGllBA==
 
+playwright-core@1.32.2:
+  version "1.32.2"
+  resolved "https://registry.yarnpkg.com/playwright-core/-/playwright-core-1.32.2.tgz#608810c3c4486fb86a224732ac0d3560a96ded8b"
+  integrity sha512-zD7aonO+07kOTthsrCR3YCVnDcqSHIJpdFUtZEMOb6//1Rc7/6mZDRdw+nlzcQiQltOOsiqI3rrSyn/SlyjnJQ==
+
 playwright@^1.29.2:
   version "1.30.0"
   resolved "https://registry.yarnpkg.com/playwright/-/playwright-1.30.0.tgz#b1d7be2d45d97fbb59f829f36f521f12010fe072"
   integrity sha512-ENbW5o75HYB3YhnMTKJLTErIBExrSlX2ZZ1C/FzmHjUYIfxj/UnI+DWpQr992m+OQVSg0rCExAOlRwB+x+yyIg==
   dependencies:
     playwright-core "1.30.0"
+
+playwright@^1.32.2:
+  version "1.32.2"
+  resolved "https://registry.yarnpkg.com/playwright/-/playwright-1.32.2.tgz#9f5a510274c74d87128f7edfb709016a1f957e01"
+  integrity sha512-jHVnXJke0PXpuPszKtk9y1zZSlzO5+2a+aockT/AND0oeXx46FiJEFrafthurglLygVZA+1gEbtUM1C7qtTV+Q==
+  dependencies:
+    playwright-core "1.32.2"
 
 plist@^3.0.1:
   version "3.0.5"
