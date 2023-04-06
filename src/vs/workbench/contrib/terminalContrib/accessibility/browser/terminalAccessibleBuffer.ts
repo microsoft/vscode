@@ -169,7 +169,7 @@ export class AccessibleBufferWidget extends DisposableStore {
 	navigateToCommand(type: 'next' | 'previous'): void {
 		const currentLine = this._editorWidget.getPosition()?.lineNumber || this._getDefaultCursorPosition()?.lineNumber;
 		const commands = this._getCommandsWithEditorLine();
-		if (!commands || !currentLine) {
+		if (!commands?.length || !currentLine) {
 			return;
 		}
 		const filteredCommands = type === 'previous' ? commands.filter(c => c.lineNumber + 1 < currentLine).sort((a, b) => b.lineNumber - a.lineNumber) : commands.filter(c => c.lineNumber + 1 > currentLine).sort((a, b) => a.lineNumber - b.lineNumber);
