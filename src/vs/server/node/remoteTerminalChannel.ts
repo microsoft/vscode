@@ -247,7 +247,7 @@ export class RemoteTerminalChannel extends Disposable implements IServerChannel<
 		const ipcHandlePath = createRandomIPCHandle();
 		env.VSCODE_IPC_HOOK_CLI = ipcHandlePath;
 
-		const persistentProcessId = await this._ptyService.createProcess(shellLaunchConfig, initialCwd, args.cols, args.rows, args.unicodeVersion, env, baseEnv, args.options, args.shouldPersistTerminal, args.workspaceId, args.workspaceName, activeWorkspaceFolder);
+		const persistentProcessId = await this._ptyService.createProcess(shellLaunchConfig, initialCwd, args.cols, args.rows, args.unicodeVersion, env, baseEnv, args.options, args.shouldPersistTerminal, args.workspaceId, args.workspaceName);
 		const commandsExecuter: ICommandsExecuter = {
 			executeCommand: <T>(id: string, ...args: any[]): Promise<T> => this._executeCommand(persistentProcessId, id, args, uriTransformer)
 		};

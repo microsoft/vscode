@@ -20,7 +20,7 @@ export class MergedEnvironmentVariableCollection implements IMergedEnvironmentVa
 
 	constructor(
 		readonly collections: ReadonlyMap<string, IEnvironmentVariableCollection>,
-		private readonly owningWorkspace?: IWorkspaceFolder
+		private readonly owningWorkspace: IWorkspaceFolder | undefined
 	) {
 		collections.forEach((collection, extensionIdentifier) => {
 			const it = collection.map.entries();
