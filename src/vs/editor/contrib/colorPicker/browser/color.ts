@@ -29,13 +29,14 @@ export function getColors(registry: LanguageFeatureRegistry<DocumentColorProvide
 	console.log('providers : ', providers);
 
 	// TODO: If in the settings we have the default inline decorations disabled or we already have another color provider, then remove the default color provider from here
-	// TODO: const usingDefaultEditorColorBoxes = this._editor.getOption(EditorOption.defaultColorDecorations);
-	const usingDefaultEditorColorBoxes = true;
-	if (providers.length > 1 || !usingDefaultEditorColorBoxes) {
+	if (providers.length > 1) {
 		providers = providers.filter(provider => {
-			return provider instanceof DefaultDocumentColorProviderForStandaloneColorPicker;
+			return !(provider instanceof DefaultDocumentColorProviderForStandaloneColorPicker);
 		});
 	}
+
+	console.log('providers after filtering : ', providers);
+
 	const promises = providers.map(provider => Promise.resolve(provider.provideDocumentColors(model, token)).then(result => {
 		if (Array.isArray(result)) {
 			for (const colorInfo of result) {
@@ -43,7 +44,6 @@ export function getColors(registry: LanguageFeatureRegistry<DocumentColorProvide
 			}
 		}
 	}));
-
 	return Promise.all(promises).then(() => colors);
 }
 

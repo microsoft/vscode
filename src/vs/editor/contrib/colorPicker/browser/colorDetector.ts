@@ -28,24 +28,6 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 
 export const ColorDecorationInjectedTextMarker = Object.create({});
 
-export function getDefaultColors(model: ITextModel, token: CancellationToken): Promise<IColorData[]> {
-
-	console.log('Inside of getDefaultColros');
-
-	const colors: IColorData[] = [];
-	const provider = new DefaultDocumentColorProviderForStandaloneColorPicker();
-	const result = provider.provideDocumentColors(model, token);
-	if (Array.isArray(result)) {
-		for (const colorInfo of result) {
-			colors.push({ colorInfo, provider });
-		}
-	}
-
-	console.log('colors inside of getDefaultColors: ', colors);
-
-	return Promise.resolve(colors);
-}
-
 export class ColorDetector extends Disposable implements IEditorContribution {
 
 	public static readonly ID: string = 'editor.contrib.colorDetector';
@@ -70,7 +52,7 @@ export class ColorDetector extends Disposable implements IEditorContribution {
 
 	// TODO: Transform into a setting later
 	// TODO: When this is enabled, this means we still want the color boxes to show up with the default color provider that makes boxes show up
-	private useDefaultColorProvider: boolean;
+	private useDefaultColorProviderForInlineDecorations: boolean;
 
 	constructor(
 		private readonly _editor: ICodeEditor,
@@ -80,9 +62,8 @@ export class ColorDetector extends Disposable implements IEditorContribution {
 	) {
 		super();
 		this._debounceInformation = languageFeatureDebounceService.for(_languageFeaturesService.colorProvider, 'Document Colors', { min: ColorDetector.RECOMPUTE_TIME });
-		this.useDefaultColorProvider = true;
-
-		// TODO: this._editor.getOption(EditorOption.defaultColorDecorations);
+		// TODO: this.useDefaultColorProvider = this._editor.getOption(EditorOption.defaultColorDecorations);
+		this.useDefaultColorProviderForInlineDecorations = true;
 
 		this._register(_editor.onDidChangeModel(() => {
 			this._isEnabled = this.isEnabled();
@@ -103,7 +84,7 @@ export class ColorDetector extends Disposable implements IEditorContribution {
 			}
 			// TODO: const defaultColorDecorations = e.hasChanged(EditorOption.defaultColorDecorations);
 			// if (defaultColorDecorations) {
-			// 	this.useDefaultColorProvider = this._editor.getOption(EditorOption.defaultColorDecorations);
+			// 	this.useDefaultColorProviderForInlineDecorations = this._editor.getOption(EditorOption.defaultColorDecorations);
 			// }
 		}));
 
@@ -158,14 +139,27 @@ export class ColorDetector extends Disposable implements IEditorContribution {
 			return;
 		}
 		const model = this._editor.getModel();
+		if (!model) {
+			return;
+		}
 
-		// Doing the early return when we are using the default color provider in order to display the color boxes
-		if (!model || !this._languageFeaturesService.colorProvider.has(model) && !this.useDefaultColorProvider) {
+		// Find if there is only one document color provider which is the default document color provider
+		const providers = this._languageFeaturesService.colorProvider.ordered(model!).reverse();
+		let onlyOneDefaultDocumentColorProvider = false;
+		if (providers.length === 1 && providers[0] instanceof DefaultDocumentColorProviderForStandaloneColorPicker) {
+			onlyOneDefaultDocumentColorProvider = true;
+		}
+
+		// Either there are no color providers
+		// Or there is only the default color document provider, but we do not want to use the default document colors
+		if (!this._languageFeaturesService.colorProvider.has(model) || onlyOneDefaultDocumentColorProvider && !this.useDefaultColorProviderForInlineDecorations) {
 
 			console.log('second early return');
 
 			return;
 		}
+
+		// Otherwise this means, we do want to display the inline box colors
 
 		this._localToDispose.add(this._editor.onDidChangeModelContent(() => {
 			if (!this._timeoutTimer) {
@@ -194,24 +188,6 @@ export class ColorDetector extends Disposable implements IEditorContribution {
 
 			// Now there is always a default document color provider, it should return the colors only when the setting is enabled
 			const colors = await getColors(this._languageFeaturesService.colorProvider, model, token);
-
-			/* Presumably do not need the following because we are already registering the default color provider
-			if (this.useDefaultColorProvider && colors.length === 0) {
-
-				console.log('entered into the first if loop of the beginCompute');
-
-				// When there are no colors and the default color provider is used, then compute the color data from this
-				colors = await getDefaultColors(model, token);
-
-				console.log('colors after getDefaultColors : ', colors);
-
-			} else if (this.useDefaultColorProvider) {
-
-				console.log('entered into the second if loop of begin compute');
-
-				// In this case, there are colors but there are also default colors, so we should not show duplicated, if duplicates are found
-			}
-			*/
 			this._debounceInformation.update(model, sw.elapsed());
 
 			console.log('colors : ', colors);
