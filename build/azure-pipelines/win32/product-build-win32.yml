@@ -85,9 +85,9 @@ steps:
   - powershell: |
       . build/azure-pipelines/win32/exec.ps1
       $ErrorActionPreference = "Stop"
-      exec { cd .build } "Got code $lastexitcode while trying to cd into builds"
-      exec { git clone -b rzhao271/msvs-spectre https://github.com/rzhao271/node-gyp.git } "Got code $lastexitcode while trying to clone"
-      exec { cd .. } "Got code $lastexitcode while trying to cd out of builds"
+      cd .build
+      exec { git clone -b rzhao271/msvs-spectre https://github.com/rzhao271/node-gyp.git } "Cloning rzhao271/node-gyp failed"
+      cd ..
     displayName: Install custom node-gyp
     condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
 
