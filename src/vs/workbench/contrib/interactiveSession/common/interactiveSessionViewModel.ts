@@ -174,7 +174,7 @@ export class InteractiveRequestViewModel implements IInteractiveRequestViewModel
 }
 
 export class InteractiveResponseViewModel extends Disposable implements IInteractiveResponseViewModel {
-	private _changeCount = 0;
+	private _modelChangeCount = 0;
 
 	private readonly _onDidChange = this._register(new Emitter<void>());
 	readonly onDidChange = this._onDidChange.event;
@@ -185,7 +185,7 @@ export class InteractiveResponseViewModel extends Disposable implements IInterac
 	}
 
 	get id() {
-		return this._model.id + `_${this._changeCount}`;
+		return this._model.id + `_${this._modelChangeCount}`;
 	}
 
 	get providerId() {
@@ -294,7 +294,7 @@ export class InteractiveResponseViewModel extends Disposable implements IInterac
 			}
 
 			// new data -> new id, new content to render
-			this._changeCount++;
+			this._modelChangeCount++;
 			if (this.renderData) {
 				this.renderData.isFullyRendered = false;
 				this.renderData.lastRenderTime = Date.now();
@@ -309,7 +309,7 @@ export class InteractiveResponseViewModel extends Disposable implements IInterac
 	}
 
 	setVote(vote: InteractiveSessionVoteDirection): void {
-		this._changeCount++;
+		this._modelChangeCount++;
 		this._model.setVote(vote);
 	}
 }
