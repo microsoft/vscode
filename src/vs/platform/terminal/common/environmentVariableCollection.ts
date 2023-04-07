@@ -61,10 +61,6 @@ export class MergedEnvironmentVariableCollection implements IMergedEnvironmentVa
 			const actualVariable = isWindows ? lowerToActualVariableNames![variable.toLowerCase()] || variable : variable;
 			for (const mutator of mutators) {
 				const value = variableResolver ? await variableResolver(mutator.value) : mutator.value;
-
-				// TODO: Remove me
-				(mutator as any).timing = EnvironmentVariableMutatorTiming.AfterShellIntegration;
-
 				if (mutator.timing === EnvironmentVariableMutatorTiming.AfterShellIntegration) {
 					const key = `VSCODE_ENV_${mutatorTypeToLabelMap.get(mutator.type)!}`;
 					env[key] = (env[key] ? env[key] + ':' : '') + variable + '=' + value;
