@@ -732,7 +732,10 @@ function installSlashCommandSupport(accessor: ServicesAccessor, editor: IActiveC
 
 async function showMessageResponse(accessor: ServicesAccessor, query: string, response: string) {
 	const interactiveSessionService = accessor.get(IInteractiveSessionService);
-	interactiveSessionService.addCompleteRequest(query, { message: response });
+	const providerId = interactiveSessionService.getProviders()[0];
+	if (await interactiveSessionService.revealSessionForProvider(providerId)) {
+		interactiveSessionService.addCompleteRequest(providerId, query, { message: response });
+	}
 }
 
 async function sendRequest(accessor: ServicesAccessor, query: string) {

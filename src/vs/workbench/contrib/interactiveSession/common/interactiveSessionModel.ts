@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { DeferredPromise } from 'vs/base/common/async';
 import { Emitter, Event } from 'vs/base/common/event';
 import { IMarkdownString, MarkdownString } from 'vs/base/common/htmlContent';
 import { Disposable } from 'vs/base/common/lifecycle';
@@ -155,6 +156,7 @@ export interface IInteractiveSessionModel {
 	readonly welcomeMessage: IInteractiveSessionWelcomeMessageModel | undefined;
 	readonly inputPlaceholder?: string;
 	getRequests(): IInteractiveRequestModel[];
+	waitForInitialization(): Promise<void>;
 }
 
 export interface ISerializableInteractiveSessionsData {
@@ -207,6 +209,7 @@ export class InteractiveSessionModel extends Disposable implements IInteractiveS
 	readonly onDidChange = this._onDidChange.event;
 
 	private _requests: InteractiveRequestModel[];
+	private _isInitializedDeferred = new DeferredPromise<void>();
 
 	private _session: IInteractiveSession | undefined;
 	get session(): IInteractiveSession | undefined {
@@ -261,6 +264,11 @@ export class InteractiveSessionModel extends Disposable implements IInteractiveS
 	initialize(session: IInteractiveSession, welcomeMessage: InteractiveSessionWelcomeMessageModel | undefined): void {
 		this._session = session;
 		this._welcomeMessage = welcomeMessage;
+		this._isInitializedDeferred.complete();
+	}
+
+	waitForInitialization(): Promise<void> {
+		return this._isInitializedDeferred.p;
 	}
 
 	acceptNewProviderState(providerState: any): void {
@@ -367,6 +375,10 @@ export class InteractiveSessionModel extends Disposable implements IInteractiveS
 		this._session?.dispose?.();
 		this._requests.forEach(r => r.response?.dispose());
 		this._onDidDispose.fire();
+		if (!this._isInitializedDeferred.isSettled) {
+			this._isInitializedDeferred.error(new Error('model disposed'));
+		}
+
 		super.dispose();
 	}
 }
