@@ -980,7 +980,7 @@ export class EditorGroupModel extends Disposable {
 		return clone;
 	}
 
-	serialize(): ISerializedEditorGroupModel {
+	serialize(relativePaths?: boolean): ISerializedEditorGroupModel {
 		const registry = Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory);
 
 		// Serialize all editor inputs so that we can store them.
@@ -997,7 +997,7 @@ export class EditorGroupModel extends Disposable {
 
 			const editorSerializer = registry.getEditorSerializer(editor);
 			if (editorSerializer) {
-				const value = editorSerializer.serialize(editor);
+				const value = editorSerializer.serialize(editor, relativePaths, this.instantiationService);
 
 				// Editor can be serialized
 				if (typeof value === 'string') {

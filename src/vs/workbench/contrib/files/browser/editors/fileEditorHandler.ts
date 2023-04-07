@@ -8,17 +8,19 @@ import { URI, UriComponents } from 'vs/base/common/uri';
 import { IEditorSerializer } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { ITextEditorService } from 'vs/workbench/services/textfile/common/textEditorService';
-import { isEqual } from 'vs/base/common/resources';
+import { isEqual, relativePath } from 'vs/base/common/resources';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { NO_TYPE_ID } from 'vs/workbench/services/workingCopy/common/workingCopy';
 import { IWorkingCopyEditorService } from 'vs/workbench/services/workingCopy/common/workingCopyEditorService';
 import { FileEditorInput } from 'vs/workbench/contrib/files/browser/editors/fileEditorInput';
 import { IFileService } from 'vs/platform/files/common/files';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 
 interface ISerializedFileEditorInput {
 	resourceJSON: UriComponents;
 	preferredResourceJSON?: UriComponents;
+	relativeFilePath?: string;
 	name?: string;
 	description?: string;
 	encoding?: string;
@@ -31,7 +33,7 @@ export class FileEditorInputSerializer implements IEditorSerializer {
 		return true;
 	}
 
-	serialize(editorInput: EditorInput): string {
+	serialize(editorInput: EditorInput, relativePaths?: boolean, instantiationService?: IInstantiationService): string {
 		const fileEditorInput = editorInput as FileEditorInput;
 		const resource = fileEditorInput.resource;
 		const preferredResource = fileEditorInput.preferredResource;
@@ -44,13 +46,27 @@ export class FileEditorInputSerializer implements IEditorSerializer {
 			modeId: fileEditorInput.getPreferredLanguageId() // only using the preferred user associated language here if available to not store redundant data
 		};
 
-		return JSON.stringify(serializedFileEditorInput);
+		if (!relativePaths || !instantiationService) {
+			return JSON.stringify(serializedFileEditorInput);
+		}
+
+		return instantiationService.invokeFunction(accessor => {
+			const workspaceFolder = accessor.get(IWorkspaceContextService).getWorkspaceFolder(resource)?.uri;
+			if (workspaceFolder) {
+				serializedFileEditorInput.relativeFilePath = relativePath(workspaceFolder, resource);
+			}
+			return JSON.stringify(serializedFileEditorInput);
+		});
 	}
 
 	deserialize(instantiationService: IInstantiationService, serializedEditorInput: string): FileEditorInput {
 		return instantiationService.invokeFunction(accessor => {
 			const serializedFileEditorInput: ISerializedFileEditorInput = JSON.parse(serializedEditorInput);
-			const resource = URI.revive(serializedFileEditorInput.resourceJSON);
+			let resource = URI.revive(serializedFileEditorInput.resourceJSON);
+			if (serializedFileEditorInput.relativeFilePath) {
+				const workspaceFolders = accessor.get(IWorkspaceContextService).getWorkspace().folders[0];
+				resource = workspaceFolders.toResource(serializedFileEditorInput.relativeFilePath);
+			}
 			const preferredResource = URI.revive(serializedFileEditorInput.preferredResourceJSON);
 			const name = serializedFileEditorInput.name;
 			const description = serializedFileEditorInput.description;

@@ -33,6 +33,8 @@ import { DeferredPromise, Promises } from 'vs/base/common/async';
 import { findGroup } from 'vs/workbench/services/editor/common/editorGroupFinder';
 import { SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { IBoundarySashes } from 'vs/base/browser/ui/sash/sash';
+import { EditSessionRegistry } from 'vs/platform/workspace/browser/editSessionsStorageService';
+import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 
 interface IEditorPartUIState {
 	serializedGrid: ISerializedGrid;
@@ -149,6 +151,23 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 		super(Parts.EDITOR_PART, { hasTitle: false }, themeService, storageService, layoutService);
 
 		this.registerListeners();
+
+		EditSessionRegistry.registerEditSessionsContribution('workbenchEditorLayout', this);
+	}
+
+	getStateToStore() {
+		return {
+			serializedGrid: this.gridWidget.serialize(true),
+			activeGroup: this._activeGroup.id,
+			mostRecentActiveGroups: this.mostRecentActiveGroups
+		};
+	}
+
+	resumeState(_workspaceFolder: IWorkspaceFolder, state: unknown) {
+		if (typeof state === 'object' && state !== null && 'serializedGrid' in state && 'activeGroup' in state && 'mostRecentActiveGroups' in state) {
+			this.mostRecentActiveGroups = (state as IEditorPartUIState).mostRecentActiveGroups;
+			this.doCreateGridControlWithState((state as IEditorPartUIState).serializedGrid, (state as IEditorPartUIState).activeGroup);
+		}
 	}
 
 	private registerListeners(): void {

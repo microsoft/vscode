@@ -421,7 +421,7 @@ export interface IEditorSerializer {
 	 * Returns a string representation of the provided editor that contains enough information
 	 * to deserialize back to the original editor from the deserialize() method.
 	 */
-	serialize(editor: EditorInput): string | undefined;
+	serialize(editor: EditorInput, relativePaths?: boolean, instantiationService?: IInstantiationService): string | undefined;
 
 	/**
 	 * Returns an editor from the provided serialized form of the editor. This form matches
