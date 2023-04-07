@@ -21,13 +21,8 @@ import { ITerminalProcessManager, TerminalCommandId } from 'vs/workbench/contrib
 import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/terminalContextKey';
 import { terminalStrings } from 'vs/workbench/contrib/terminal/common/terminalStrings';
 import { AccessibilityHelpWidget } from 'vs/workbench/contrib/terminalContrib/accessibility/browser/terminalAccessibilityHelp';
-import { AccessibleBufferWidget } from 'vs/workbench/contrib/terminalContrib/accessibility/browser/terminalAccessibleBuffer';
+import { AccessibleBufferWidget, NavigationType } from 'vs/workbench/contrib/terminalContrib/accessibility/browser/terminalAccessibleBuffer';
 import { Terminal } from 'xterm';
-
-export const enum NavigationType {
-	Next = 'next',
-	Previous = 'previous'
-}
 
 const category = terminalStrings.actionCategory;
 
@@ -92,8 +87,6 @@ registerTerminalAction({
 registerTerminalAction({
 	id: TerminalCommandId.FocusAccessibleBuffer,
 	title: { value: localize('workbench.action.terminal.focusAccessibleBuffer', 'Focus Accessible Buffer'), original: 'Focus Accessible Buffer' },
-	f1: true,
-	category,
 	precondition: ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated),
 	keybinding: [
 		{
@@ -136,8 +129,6 @@ registerTerminalAction({
 
 registerTerminalAction({
 	id: TerminalCommandId.AccessibleBufferGoToNextCommand,
-	f1: true,
-	category,
 	title: { value: localize('workbench.action.terminal.accessibleBufferGoToNextCommand', 'Accessible Buffer Go to Next Command'), original: 'Accessible Buffer Go to Next Command' },
 	precondition: ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated, TerminalContextKeys.accessibleBufferFocus),
 	keybinding: [
@@ -160,8 +151,6 @@ registerTerminalAction({
 
 registerTerminalAction({
 	id: TerminalCommandId.AccessibleBufferGoToPreviousCommand,
-	f1: true,
-	category,
 	title: { value: localize('workbench.action.terminal.accessibleBufferGoToPreviousCommand', 'Accessible Buffer Go to Previous Command'), original: 'Accessible Buffer Go to Previous Command' },
 	precondition: ContextKeyExpr.and(ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated), TerminalContextKeys.accessibleBufferFocus),
 	keybinding: [

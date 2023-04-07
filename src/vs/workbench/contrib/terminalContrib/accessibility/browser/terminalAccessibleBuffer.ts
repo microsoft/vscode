@@ -31,7 +31,11 @@ import { withNullAsUndefined } from 'vs/base/common/types';
 import { BufferContentTracker } from 'vs/workbench/contrib/terminalContrib/accessibility/browser/bufferContentTracker';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IEditorViewState } from 'vs/editor/common/editorCommon';
-import { NavigationType } from 'vs/workbench/contrib/terminalContrib/accessibility/browser/terminal.accessibility.contribution';
+
+export const enum NavigationType {
+	Next = 'next',
+	Previous = 'previous'
+}
 
 const enum CssClass {
 	Active = 'active',
