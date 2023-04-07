@@ -4,9 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IProcessEnvironment, isWindows } from 'vs/base/common/platform';
-import { EnvironmentVariableMutatorType, IEnvironmentVariableCollection, IExtensionOwnedEnvironmentVariableMutator, IMergedEnvironmentVariableCollection, IMergedEnvironmentVariableCollectionDiff } from 'vs/platform/terminal/common/environmentVariable';
+import { EnvironmentVariableMutatorTiming, EnvironmentVariableMutatorType, IEnvironmentVariableCollection, IExtensionOwnedEnvironmentVariableMutator, IMergedEnvironmentVariableCollection, IMergedEnvironmentVariableCollectionDiff } from 'vs/platform/terminal/common/environmentVariable';
 
 type VariableResolver = (str: string) => Promise<string>;
+
+const mutatorTypeToLabelMap: Map<EnvironmentVariableMutatorType, string> = new Map([
+	[EnvironmentVariableMutatorType.Append, 'APPEND'],
+	[EnvironmentVariableMutatorType.Prepend, 'PREPEND'],
+	[EnvironmentVariableMutatorType.Replace, 'REPLACE']
+]);
 
 export class MergedEnvironmentVariableCollection implements IMergedEnvironmentVariableCollection {
 	readonly map: Map<string, IExtensionOwnedEnvironmentVariableMutator[]> = new Map();
@@ -55,6 +61,15 @@ export class MergedEnvironmentVariableCollection implements IMergedEnvironmentVa
 			const actualVariable = isWindows ? lowerToActualVariableNames![variable.toLowerCase()] || variable : variable;
 			for (const mutator of mutators) {
 				const value = variableResolver ? await variableResolver(mutator.value) : mutator.value;
+
+				// TODO: Remove me
+				(mutator as any).timing = EnvironmentVariableMutatorTiming.AfterShellIntegration;
+
+				if (mutator.timing === EnvironmentVariableMutatorTiming.AfterShellIntegration) {
+					const key = `VSCODE_ENV_${mutatorTypeToLabelMap.get(mutator.type)!}`;
+					env[key] = (env[key] ? env[key] + ':' : '') + variable + '=' + value;
+					continue;
+				}
 				switch (mutator.type) {
 					case EnvironmentVariableMutatorType.Append:
 						env[actualVariable] = (env[actualVariable] || '') + value;
