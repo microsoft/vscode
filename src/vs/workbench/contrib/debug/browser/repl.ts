@@ -384,7 +384,9 @@ export class Repl extends FilterViewPane implements IHistoryNavigationWidget {
 	}
 
 	private navigateHistory(previous: boolean): void {
-		const historyInput = (previous ? this.history.previous() : this.history.next()) ?? '';
+		const historyInput = (previous ?
+			(this.history.previous() ?? this.history.first()) : this.history.next())
+			?? '';
 		this.replInput.setValue(historyInput);
 		aria.status(historyInput);
 		// always leave cursor at the end.

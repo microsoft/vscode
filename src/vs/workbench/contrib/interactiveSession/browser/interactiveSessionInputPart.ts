@@ -98,7 +98,9 @@ export class InteractiveSessionInputPart extends Disposable implements IHistoryN
 	}
 
 	private navigateHistory(previous: boolean): void {
-		const historyInput = (previous ? this.history.previous() : this.history.next()) ?? '';
+		const historyInput = (previous ?
+			(this.history.previous() ?? this.history.first()) : this.history.next())
+			?? '';
 
 		this.inputEditor.setValue(historyInput);
 		aria.status(historyInput);

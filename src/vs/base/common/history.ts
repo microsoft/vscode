@@ -36,7 +36,7 @@ export class HistoryNavigator<T> implements INavigator<T> {
 		if (this._currentPosition() !== 0) {
 			return this._navigator.previous();
 		}
-		return this.first();
+		return null;
 	}
 
 	public current(): T | null {
@@ -56,7 +56,7 @@ export class HistoryNavigator<T> implements INavigator<T> {
 	}
 
 	public isLast(): boolean {
-		return this._currentPosition() === this._elements.length - 1;
+		return this._currentPosition() >= this._elements.length - 1;
 	}
 
 	public isNowhere(): boolean {
