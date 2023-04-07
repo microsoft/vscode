@@ -28,7 +28,8 @@ interface IAccessibleBufferQuickPickItem extends IQuickPickItem {
 }
 
 export const enum ClassName {
-	AccessibleBuffer = 'accessible-buffer'
+	AccessibleBuffer = 'accessible-buffer',
+	Active = 'active'
 }
 
 export class AccessibleBufferWidget extends TerminalAccessibleWidget {
@@ -55,6 +56,18 @@ export class AccessibleBufferWidget extends TerminalAccessibleWidget {
 		this._bufferTracker = _instantiationService.createInstance(BufferContentTracker, _xterm);
 		this.element.ariaRoleDescription = localize('terminal.integrated.accessibleBuffer', 'Terminal buffer');
 		this.updateEditor();
+		this.add(this.editorWidget.onDidFocusEditorText(async () => {
+			if (this.element.classList.contains(ClassName.Active)) {
+				// the user has focused the editor via mouse or
+				// Go to Command was run so we've already updated the editor
+				return;
+			}
+			// if the editor is focused via tab, we need to update the model
+			// and show it
+			this.registerListeners();
+			await this.updateEditor();
+			this.element.classList.add(ClassName.Active);
+		}));
 	}
 
 	async createQuickPick(): Promise<IQuickPick<IAccessibleBufferQuickPickItem> | undefined> {

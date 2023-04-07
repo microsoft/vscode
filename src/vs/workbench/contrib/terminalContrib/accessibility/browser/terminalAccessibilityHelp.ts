@@ -3,9 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { once } from 'vs/base/common/functional';
 import { format } from 'vs/base/common/strings';
 import { IModelService } from 'vs/editor/common/services/model';
 import { localize } from 'vs/nls';
+import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -17,7 +19,9 @@ import { TerminalAccessibleWidget } from 'vs/workbench/contrib/terminalContrib/a
 import type { Terminal } from 'xterm';
 
 export const enum ClassName {
-	AccessibleBuffer = 'terminal-accessibility-help'
+	AccessibleBuffer = 'terminal-accessibility-help',
+	Active = 'active',
+	EditorTextArea = 'textarea'
 }
 
 export class AccessibilityHelpWidget extends TerminalAccessibleWidget {
@@ -31,20 +35,34 @@ export class AccessibilityHelpWidget extends TerminalAccessibleWidget {
 		@IInstantiationService _instantiationService: IInstantiationService,
 		@IModelService _modelService: IModelService,
 		@IConfigurationService _configurationService: IConfigurationService,
+		@IAccessibilityService private readonly _accessibilityService: IAccessibilityService,
 		@IContextKeyService _contextKeyService: IContextKeyService,
 		@ITerminalService _terminalService: ITerminalService,
 	) {
 		super(ClassName.AccessibleBuffer, _instance, _xterm, undefined, _instantiationService, _modelService, _configurationService, _contextKeyService, _terminalService);
-		this._hasShellIntegration = _xterm?.shellIntegration.status === ShellIntegrationStatus.VSCode;
+		this._hasShellIntegration = _xterm.shellIntegration.status === ShellIntegrationStatus.VSCode;
 		this.element.ariaRoleDescription = localize('terminal.integrated.accessiblityHelp', 'Terminal accessibility help');
+		this.add(once(this.editorWidget.onDidFocusEditorText)(() => {
+			// prevents tabbing into the editor
+			const editorTextArea = this.element.querySelector(ClassName.EditorTextArea) as HTMLElement;
+			if (editorTextArea) {
+				editorTextArea.tabIndex = -1;
+			}
+		}));
 	}
 
 	private _descriptionForCommand(commandId: string, msg: string, noKbMsg: string): string {
-		const kb = this._keybindingService.lookupKeybinding(commandId, this._contextKeyService);
-		if (kb) {
-			return format(msg, kb.getAriaLabel());
+		const kb = this._keybindingService.lookupKeybindings(commandId);
+		switch (kb.length) {
+			case 0:
+				format(noKbMsg, commandId);
+				break;
+			case 1:
+				return format(msg, kb[0].getAriaLabel());
 		}
-		return format(noKbMsg, commandId);
+		// Run recent command has multiple keybindings. lookupKeybinding just returns the first one regardless of the when context.
+		// Thus, we have to check if accessibility mode is enabled to determine which keybinding to use.
+		return this._accessibilityService.isScreenReaderOptimized() ? format(msg, kb[1].getAriaLabel()) : format(msg, kb[0].getAriaLabel());
 	}
 
 	async updateEditor(): Promise<void> {

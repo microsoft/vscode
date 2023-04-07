@@ -118,16 +118,6 @@ export abstract class TerminalAccessibleWidget extends DisposableStore {
 		this.add(this._editorWidget.onDidFocusEditorText(async () => {
 			this._terminalService.setActiveInstance(this._instance as ITerminalInstance);
 			this._xtermElement.classList.add(ClassName.Hide);
-			if (this.element.classList.contains(ClassName.Active)) {
-				// the user has focused the editor via mouse or
-				// Go to Command was run so we've already updated the editor
-				return;
-			}
-			// if the editor is focused via tab, we need to update the model
-			// and show it
-			this.registerListeners();
-			await this.updateEditor();
-			this.element.classList.add(ClassName.Active);
 		}));
 	}
 
