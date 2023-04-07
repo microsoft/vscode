@@ -42,7 +42,7 @@ interface IFindOptions {
 	appendWholeWordsLabel?: string;
 	type?: 'Terminal' | 'Webview';
 	initialWidth?: number;
-	disableSash?: boolean;
+	enableSash?: boolean;
 }
 
 const SIMPLE_FIND_WIDGET_INITIAL_WIDTH = 310;
@@ -203,13 +203,15 @@ export abstract class SimpleFindWidget extends Widget implements IVerticalSashLa
 			}));
 		}
 
-		if (options?.initialWidth) {
-			this._domNode.style.width = `${options.initialWidth}px`;
+		let initialMinWidth = options?.initialWidth;
+		if (initialMinWidth) {
+			initialMinWidth = initialMinWidth < SIMPLE_FIND_WIDGET_INITIAL_WIDTH ? SIMPLE_FIND_WIDGET_INITIAL_WIDTH : initialMinWidth;
+			this._domNode.style.width = `${initialMinWidth}px`;
 		}
 
-		if (options?.disableSash) {
-			const initialMinWidth = options?.initialWidth ?? SIMPLE_FIND_WIDGET_INITIAL_WIDTH;
-			let originalWidth = dom.getTotalWidth(this._domNode);
+		if (options?.enableSash) {
+			const _initialMinWidth = initialMinWidth ?? SIMPLE_FIND_WIDGET_INITIAL_WIDTH;
+			let originalWidth = _initialMinWidth;
 
 			// sash
 			const resizeSash = new Sash(this._innerDomNode, this, { orientation: Orientation.VERTICAL, size: 1 });
@@ -219,7 +221,7 @@ export abstract class SimpleFindWidget extends Widget implements IVerticalSashLa
 
 			this._register(resizeSash.onDidChange((e: ISashEvent) => {
 				const width = originalWidth + e.startX - e.currentX;
-				if (width < initialMinWidth) {
+				if (width < _initialMinWidth) {
 					return;
 				}
 				this._domNode.style.width = `${width}px`;
@@ -227,10 +229,10 @@ export abstract class SimpleFindWidget extends Widget implements IVerticalSashLa
 
 			this._register(resizeSash.onDidReset(e => {
 				const currentWidth = parseFloat(dom.getComputedStyle(this._domNode).width);
-				if (currentWidth === initialMinWidth) {
+				if (currentWidth === _initialMinWidth) {
 					this._domNode.style.width = '100%';
 				} else {
-					this._domNode.style.width = `${initialMinWidth}px`;
+					this._domNode.style.width = `${_initialMinWidth}px`;
 				}
 			}));
 		}
