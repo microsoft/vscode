@@ -17,7 +17,7 @@ import { IConfigurationChangeEvent, IConfigurationService } from 'vs/platform/co
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { IPickerQuickAccessItem, IPickerQuickAccessProviderOptions, PickerQuickAccessProvider } from 'vs/platform/quickinput/browser/pickerQuickAccess';
+import { FastAndSlowPicks, IPickerQuickAccessItem, IPickerQuickAccessProviderOptions, PickerQuickAccessProvider, Picks } from 'vs/platform/quickinput/browser/pickerQuickAccess';
 import { IQuickAccessProviderRunOptions } from 'vs/platform/quickinput/common/quickAccess';
 import { IQuickPickSeparator } from 'vs/platform/quickinput/common/quickInput';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
@@ -56,10 +56,10 @@ export abstract class AbstractCommandsQuickAccessProvider extends PickerQuickAcc
 		this.options = options;
 	}
 
-	protected async _getPicks(filter: string, _disposables: DisposableStore, token: CancellationToken, runOptions?: IQuickAccessProviderRunOptions): Promise<Array<ICommandQuickPick | IQuickPickSeparator>> {
+	protected _getPicks(filter: string, _disposables: DisposableStore, token: CancellationToken, runOptions?: IQuickAccessProviderRunOptions): Picks<ICommandQuickPick> | FastAndSlowPicks<ICommandQuickPick> {
 
 		// Ask subclass for all command picks
-		const allCommandPicks = await this.getCommandPicks(token);
+		const allCommandPicks = this.getCommandPicks(token);
 
 		if (token.isCancellationRequested) {
 			return [];
@@ -195,13 +195,21 @@ export abstract class AbstractCommandsQuickAccessProvider extends PickerQuickAcc
 			});
 		}
 
-		return commandPicks;
+		return {
+			picks: commandPicks,
+			additionalPicks: this.getAdditionalCommandPicks(allCommandPicks, filteredCommandPicks, filter, token)
+		};
 	}
 
 	/**
 	 * Subclasses to provide the actual command entries.
 	 */
-	protected abstract getCommandPicks(token: CancellationToken): Promise<Array<ICommandQuickPick>>;
+	protected abstract getCommandPicks(token: CancellationToken): Array<ICommandQuickPick>;
+
+	/**
+	 * Subclasses to provide the actual command entries.
+	 */
+	protected abstract getAdditionalCommandPicks(allPicks: ICommandQuickPick[], picksSoFar: ICommandQuickPick[], filter: string, token: CancellationToken): Promise<Array<ICommandQuickPick>>;
 }
 
 interface ISerializedCommandHistory {
