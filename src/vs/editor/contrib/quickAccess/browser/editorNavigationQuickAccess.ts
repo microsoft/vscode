@@ -148,9 +148,8 @@ export abstract class AbstractEditorNavigationQuickAccessProvider implements IQu
 			editor.focus();
 		}
 		const model = editor.getModel();
-		const lineContent = model && 'getLineContent' in model && model.getLineContent(options.range.startLineNumber) ? model.getLineContent(options.range.startLineNumber) : undefined;
-		if (lineContent) {
-			alert(`${lineContent}`);
+		if (model && 'getLineContent' in model) {
+			alert(`${model.getLineContent(options.range.startLineNumber)}`);
 		}
 	}
 
