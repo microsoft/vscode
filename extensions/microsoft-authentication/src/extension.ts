@@ -10,7 +10,7 @@ import { UriEventHandler } from './UriEventHandler';
 import TelemetryReporter from '@vscode/extension-telemetry';
 
 async function initAzureCloudAuthProvider(context: vscode.ExtensionContext, telemetryReporter: TelemetryReporter, uriHandler: UriEventHandler, tokenStorage: BetterTokenStorage<IStoredSession>): Promise<vscode.Disposable | undefined> {
-	let settingValue = vscode.workspace.getConfiguration('azure-cloud').get<string | undefined>('endpoint');
+	let settingValue = vscode.workspace.getConfiguration('microsoft-sovereign-cloud').get<string | undefined>('endpoint');
 	if (!settingValue) {
 		return undefined;
 	} else if (settingValue === 'Azure China') {
@@ -36,7 +36,7 @@ async function initAzureCloudAuthProvider(context: vscode.ExtensionContext, tele
 	const azureEnterpriseAuthProvider = new AzureActiveDirectoryService(context, uriHandler, tokenStorage, settingValue);
 	await azureEnterpriseAuthProvider.initialize();
 
-	const disposable = vscode.authentication.registerAuthenticationProvider('azure-cloud', settingValue, {
+	const disposable = vscode.authentication.registerAuthenticationProvider('microsoft-sovereign-cloud', settingValue, {
 		onDidChangeSessions: azureEnterpriseAuthProvider.onDidChangeSessions,
 		getSessions: (scopes: string[]) => azureEnterpriseAuthProvider.getSessions(scopes),
 		createSession: async (scopes: string[]) => {
@@ -144,7 +144,7 @@ export async function activate(context: vscode.ExtensionContext) {
 	let azureCloudAuthProviderDisposable = await initAzureCloudAuthProvider(context, telemetryReporter, uriHandler, betterSecretStorage);
 
 	context.subscriptions.push(vscode.workspace.onDidChangeConfiguration(async e => {
-		if (e.affectsConfiguration('azure-cloud.endpoint')) {
+		if (e.affectsConfiguration('microsoft-sovereign-cloud.endpoint')) {
 			azureCloudAuthProviderDisposable?.dispose();
 			azureCloudAuthProviderDisposable = await initAzureCloudAuthProvider(context, telemetryReporter, uriHandler, betterSecretStorage);
 		}

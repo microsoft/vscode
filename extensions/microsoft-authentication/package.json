@@ -33,15 +33,15 @@
         "id": "microsoft"
       },
       {
-        "label": "Azure Cloud",
-        "id": "azure-cloud"
+        "label": "Microsoft Sovereign Cloud",
+        "id": "microsoft-sovereign-cloud"
       }
     ],
     "configuration": [
       {
-        "title": "Azure Cloud",
+        "title": "Microsoft Sovereign Cloud",
         "properties": {
-          "azure-cloud.endpoint": {
+          "microsoft-sovereign-cloud.endpoint": {
             "anyOf": [
               {
                 "type": "string"
@@ -54,7 +54,7 @@
                 ]
               }
             ],
-            "description": "%azure-cloud.endpoint.description%"
+            "description": "%microsoft-sovereign-cloud.endpoint.description%"
           }
         }
       }
