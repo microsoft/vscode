@@ -62,7 +62,7 @@ if [ -n "$VSCODE_ENV_PREPEND" ]; then
 		VALUE="$(echo $ITEM | cut -d "=" -f 2)"
 		export $VARNAME="$VALUE${!VARNAME}"
 	done
-	builtin unset VSCODE_ENV_REPLACE
+	builtin unset VSCODE_ENV_PREPEND
 fi
 if [ -n "$VSCODE_ENV_APPEND" ]; then
 	IFS=':' read -ra ADDR <<< "$VSCODE_ENV_APPEND"
@@ -71,7 +71,7 @@ if [ -n "$VSCODE_ENV_APPEND" ]; then
 		VALUE="$(echo $ITEM | cut -d "=" -f 2)"
 		export $VARNAME="${!VARNAME}$VALUE"
 	done
-	builtin unset VSCODE_ENV_REPLACE
+	builtin unset VSCODE_ENV_APPEND
 fi
 
 __vsc_get_trap() {
