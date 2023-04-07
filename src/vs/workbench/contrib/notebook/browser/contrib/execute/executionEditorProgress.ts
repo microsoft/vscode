@@ -57,12 +57,12 @@ export class ExecutionEditorProgressController extends Disposable implements INo
 
 			return false;
 		};
-		const noCellsRunning = !cellExecutions.length || cellExecutions.some(executionIsVisible) || cellExecutions.some(e => e.isPaused);
-		const isSomethingRunning = !!notebookExecution || !noCellsRunning;
-		if (isSomethingRunning) {
-			this._notebookEditor.hideProgress();
-		} else {
+		const shouldShowEditorProgressbarForCellExecutions = cellExecutions.length && !cellExecutions.some(executionIsVisible) && !cellExecutions.some(e => e.isPaused);
+		const showEditorProgressBar = !!notebookExecution || shouldShowEditorProgressbarForCellExecutions;
+		if (showEditorProgressBar) {
 			this._notebookEditor.showProgress();
+		} else {
+			this._notebookEditor.hideProgress();
 		}
 	}
 }
