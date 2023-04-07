@@ -73,11 +73,11 @@ registerTerminalAction({
 		const instantiationService = accessor.get(IInstantiationService);
 		const instance = await c.service.getActiveOrCreateInstance();
 		await revealActiveTerminal(instance, c);
-		const widget = instantiationService.createInstance(AccessibilityHelpWidget, instance);
-		instance.registerChildElement({
-			element: widget.element
-		});
-		widget.show();
+		const terminal = instance?.xterm;
+		if (!terminal) {
+			return;
+		}
+		await instantiationService.createInstance(AccessibilityHelpWidget, instance, terminal).show();
 	}
 });
 
