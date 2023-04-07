@@ -57,7 +57,7 @@ if [ -n "$VSCODE_ENV_REPLACE" ]; then
 fi
 if [ -n "$VSCODE_ENV_PREPEND" ]; then
 	echo "VSCODE_ENV_PREPEND: $VSCODE_ENV_PREPEND"
-	IFS=':' read -ra ADDR <<< "$VSCODE_ENV_REPLACE"
+	IFS=':' read -ra ADDR <<< "$VSCODE_ENV_PREPEND"
 	for ITEM in "${ADDR[@]}"; do
 		VARNAME="$(echo $ITEM | cut -d "=" -f 1)"
 		VALUE="$(echo $ITEM | cut -d "=" -f 2)"
