@@ -70,9 +70,6 @@ export class AccessibilityHelpWidget extends TerminalAccessibleWidget {
 	}
 
 	async updateEditor(): Promise<void> {
-		if (this.editorWidget.getModel()?.getValue().length) {
-			return;
-		}
 		const introMessage = localize('introMsg', "Welcome to Terminal Accessibility Help");
 		const focusAccessibleBufferNls = localize('focusAccessibleBuffer', 'The Focus Accessible Buffer ({0}) command enables screen readers to read terminal contents.');
 		const focusAccessibleBufferNoKb = localize('focusAccessibleBufferNoKb', 'The Focus Accessible Buffer command enables screen readers to read terminal contents and is currently not triggerable by a keybinding.');
