@@ -433,7 +433,7 @@ export abstract class SimpleFindWidget extends Widget implements IVerticalSashLa
 	}
 }
 
-export const simpleFindWidgetSashBorder = registerColor('simpleFindWidget.sashBorder', { dark: '#454545', light: '#C8C8C8', hcDark: '6FC3DF', hcLight: '0F4A85' }, nls.localize('simpleFindWidget.sashBorder', 'Border color of the sash border.'));
+export const simpleFindWidgetSashBorder = registerColor('simpleFindWidget.sashBorder', { dark: '#454545', light: '#C8C8C8', hcDark: '#6FC3DF', hcLight: '#0F4A85' }, nls.localize('simpleFindWidget.sashBorder', 'Border color of the sash border.'));
 
 registerThemingParticipant((theme, collector) => {
 	const resizeBorderBackground = theme.getColor(simpleFindWidgetSashBorder);
