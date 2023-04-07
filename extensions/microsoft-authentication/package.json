@@ -54,6 +54,7 @@
                 ]
               }
             ],
+            "default": "",
             "description": "%microsoft-sovereign-cloud.endpoint.description%"
           }
         }
