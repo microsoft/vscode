@@ -142,6 +142,7 @@ registerTerminalAction({
 		{
 			primary: KeyMod.CtrlCmd | KeyCode.DownArrow,
 			weight: KeybindingWeight.WorkbenchContrib + 2,
+			when: TerminalContextKeys.accessibleBufferFocus
 		}
 	],
 	run: async (c) => {
@@ -163,6 +164,7 @@ registerTerminalAction({
 		{
 			primary: KeyMod.CtrlCmd | KeyCode.UpArrow,
 			weight: KeybindingWeight.WorkbenchContrib + 2,
+			when: TerminalContextKeys.accessibleBufferFocus
 		}
 	],
 	run: async (c) => {
