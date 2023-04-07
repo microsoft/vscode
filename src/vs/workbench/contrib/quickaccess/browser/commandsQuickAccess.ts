@@ -136,7 +136,7 @@ export class CommandsQuickAccessProvider extends AbstractEditorCommandsQuickAcce
 	}
 
 	protected async getAdditionalCommandPicks(allPicks: ICommandQuickPick[], picksSoFar: ICommandQuickPick[], filter: string, token: CancellationToken): Promise<ICommandQuickPick[]> {
-		if (!this.useSemanticSimilarity || filter === '' || token.isCancellationRequested) {
+		if (!this.useSemanticSimilarity || filter === '' || token.isCancellationRequested || !this.semanticSimilarityService.isEnabled()) {
 			return [];
 		}
 		const format = allPicks.map(p => p.commandId);
