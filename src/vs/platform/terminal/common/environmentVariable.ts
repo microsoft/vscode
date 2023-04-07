@@ -10,15 +10,15 @@ export enum EnvironmentVariableMutatorType {
 	Append = 2,
 	Prepend = 3
 }
-export enum EnvironmentVariableMutatorTiming {
-	AtSpawn = 1,
-	AfterShellIntegration = 2
-	// TODO: Do we need a both?
-}
+// export enum EnvironmentVariableMutatorTiming {
+// 	AtSpawn = 1,
+// 	AfterShellIntegration = 2
+// 	// TODO: Do we need a both?
+// }
 export interface IEnvironmentVariableMutator {
 	readonly value: string;
 	readonly type: EnvironmentVariableMutatorType;
-	readonly timing?: EnvironmentVariableMutatorTiming;
+	// readonly timing?: EnvironmentVariableMutatorTiming;
 }
 
 export interface IEnvironmentVariableCollection {
