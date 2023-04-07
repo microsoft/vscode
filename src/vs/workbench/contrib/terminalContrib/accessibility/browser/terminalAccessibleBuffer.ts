@@ -237,6 +237,9 @@ export class AccessibleBufferWidget extends DisposableStore {
 		quickPick.canSelectMany = false;
 		quickPick.onDidChangeActive(() => {
 			const activeItem = quickPick.activeItems[0];
+			if (!activeItem) {
+				return;
+			}
 			if (activeItem.exitCode) {
 				this._audioCueService.playAudioCue(AudioCue.error, true);
 			}

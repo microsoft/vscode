@@ -19,12 +19,9 @@ import { registerTerminalContribution } from 'vs/workbench/contrib/terminal/brow
 import { TerminalWidgetManager } from 'vs/workbench/contrib/terminal/browser/widgets/widgetManager';
 import { ITerminalProcessManager, TerminalCommandId } from 'vs/workbench/contrib/terminal/common/terminal';
 import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/terminalContextKey';
-import { terminalStrings } from 'vs/workbench/contrib/terminal/common/terminalStrings';
 import { AccessibilityHelpWidget } from 'vs/workbench/contrib/terminalContrib/accessibility/browser/terminalAccessibilityHelp';
 import { AccessibleBufferWidget, NavigationType } from 'vs/workbench/contrib/terminalContrib/accessibility/browser/terminalAccessibleBuffer';
 import { Terminal } from 'xterm';
-
-const category = terminalStrings.actionCategory;
 
 class AccessibleBufferContribution extends DisposableStore implements ITerminalContribution {
 	static readonly ID: 'terminal.accessible-buffer';
