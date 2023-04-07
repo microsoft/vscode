@@ -158,8 +158,6 @@ registerTerminalAction({
 registerTerminalAction({
 	id: TerminalCommandId.AccessibleBufferGoToPreviousCommand,
 	title: { value: localize('workbench.action.terminal.accessibleBufferGoToPreviousCommand', 'Accessible Buffer Go to Previous Command'), original: 'Accessible Buffer Go to Previous Command' },
-	f1: true,
-	category,
 	precondition: ContextKeyExpr.and(ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated), TerminalContextKeys.accessibleBufferFocus),
 	keybinding: [
 		{
