@@ -97,6 +97,7 @@ export class InteractiveListItemRenderer extends Disposable implements ITreeRend
 	private readonly _editorPool: EditorPool;
 
 	private _currentLayoutWidth: number = 0;
+	private _isVisible = true;
 
 	constructor(
 		private readonly editorOptions: InteractiveSessionEditorOptions,
@@ -148,6 +149,10 @@ export class InteractiveListItemRenderer extends Disposable implements ITreeRend
 		}
 
 		return 8;
+	}
+
+	setVisible(visible: boolean): void {
+		this._isVisible = visible;
 	}
 
 	layout(width: number): void {
@@ -239,8 +244,8 @@ export class InteractiveListItemRenderer extends Disposable implements ITreeRend
 					throw err;
 				}
 			};
-			runProgressiveRender(true);
 			timer.cancelAndSet(runProgressiveRender, 50);
+			runProgressiveRender(true);
 		} else if (isResponseVM(element)) {
 			this.basicRenderElement(element.response.value, element, index, templateData);
 		} else if (isRequestVM(element)) {
@@ -306,7 +311,14 @@ export class InteractiveListItemRenderer extends Disposable implements ITreeRend
 		}
 	}
 
+	/**
+	 *	@returns true if progressive rendering should be considered complete- the element's data is fully rendered or the view is not visible
+	 */
 	private doNextProgressiveRender(element: IInteractiveResponseViewModel, index: number, templateData: IInteractiveListItemTemplate, isInRenderElement: boolean, disposables: DisposableStore): boolean {
+		if (!this._isVisible) {
+			return true;
+		}
+
 		disposables.clear();
 
 		let isFullyRendered = false;
