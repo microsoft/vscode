@@ -74,6 +74,7 @@ export class InteractiveSessionWidget extends Disposable implements IInteractive
 
 	private bodyDimension: dom.Dimension | undefined;
 	private visible = false;
+	private visibleChangeCount = 0;
 	private requestInProgress: IContextKey<boolean>;
 
 	private previousTreeScrollHeight: number = 0;
@@ -184,7 +185,12 @@ export class InteractiveSessionWidget extends Disposable implements IInteractive
 			this.tree.setChildren(null, treeItems, {
 				diffIdentityProvider: {
 					getId: (element) => {
-						return element.id + `${(isRequestVM(element) || isWelcomeVM(element)) && !!this.lastSlashCommands ? '_scLoaded' : ''}`;
+						return element.id +
+							// Ensure re-rendering an element once slash commands are loaded, so the colorization can be applied.
+							`${(isRequestVM(element) || isWelcomeVM(element)) && !!this.lastSlashCommands ? '_scLoaded' : ''}` +
+							// If a response is in the process of progressive rendering, we need to ensure that it will
+							// be re-rendered so progressive rendering is restarted, even if the model wasn't updated.
+							`${isResponseVM(element) && element.renderData ? `_${this.visibleChangeCount}` : ''}`;
 					},
 				}
 			});
@@ -208,8 +214,11 @@ export class InteractiveSessionWidget extends Disposable implements IInteractive
 
 	setVisible(visible: boolean): void {
 		this.visible = visible;
+		this.visibleChangeCount++;
+		this.renderer.setVisible(visible);
+
 		if (visible) {
-			// Not sure why this is needed- the view is being rendered before it's visible, and then the list content doesn't show up
+			// Progressive rendering paused while hidden, so start it up again
 			this.onDidChangeItems();
 		}
 	}
