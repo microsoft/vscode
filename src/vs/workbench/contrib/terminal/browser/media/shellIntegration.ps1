@@ -25,7 +25,6 @@ if ($env:VSCODE_ENV_REPLACE) {
 	}
 	$env:VSCODE_ENV_REPLACE = $null
 }
-$env:VSCODE_ENV_PREPEND = "PATH=/a/"
 if ($env:VSCODE_ENV_PREPEND) {
 	$Split = $env:VSCODE_ENV_PREPEND.Split(":")
 	foreach ($Item in $Split) {
