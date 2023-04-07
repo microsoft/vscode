@@ -617,6 +617,8 @@
 
 .monaco-workbench .part.editor>.content .gettingStartedContainer .index-list.getting-started .button-link {
 	margin: 0;
+	outline: none;
+	user-select: none;
 }
 
 .monaco-workbench .part.editor>.content .gettingStartedContainer .index-list.getting-started .see-all-walkthroughs {
@@ -625,10 +627,6 @@
 
 .monaco-workbench .part.editor>.content .gettingStartedContainer.someWalkthroughsHidden .index-list.getting-started .see-all-walkthroughs {
 	display: inline;
-}
-
-.monaco-workbench .part.editor>.content .gettingStartedContainer .index-list.getting-started div {
-	text-align: center;
 }
 
 .monaco-workbench .part.editor>.content .gettingStartedContainer.noExtensions .index-list.featured-extensions {
