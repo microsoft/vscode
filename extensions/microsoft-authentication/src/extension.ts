@@ -11,11 +11,14 @@ import TelemetryReporter from '@vscode/extension-telemetry';
 
 async function initAzureCloudAuthProvider(context: vscode.ExtensionContext, telemetryReporter: TelemetryReporter, uriHandler: UriEventHandler, tokenStorage: BetterTokenStorage<IStoredSession>): Promise<vscode.Disposable | undefined> {
 	let settingValue = vscode.workspace.getConfiguration('microsoft-sovereign-cloud').get<string | undefined>('endpoint');
+	let authProviderName: string | undefined;
 	if (!settingValue) {
 		return undefined;
 	} else if (settingValue === 'Azure China') {
+		authProviderName = settingValue;
 		settingValue = 'https://login.chinacloudapi.cn/';
 	} else if (settingValue === 'Azure US Government') {
+		authProviderName = settingValue;
 		settingValue = 'https://login.microsoftonline.us/';
 	}
 
@@ -36,7 +39,8 @@ async function initAzureCloudAuthProvider(context: vscode.ExtensionContext, tele
 	const azureEnterpriseAuthProvider = new AzureActiveDirectoryService(context, uriHandler, tokenStorage, settingValue);
 	await azureEnterpriseAuthProvider.initialize();
 
-	const disposable = vscode.authentication.registerAuthenticationProvider('microsoft-sovereign-cloud', settingValue, {
+	authProviderName ||= uri.authority;
+	const disposable = vscode.authentication.registerAuthenticationProvider('microsoft-sovereign-cloud', authProviderName, {
 		onDidChangeSessions: azureEnterpriseAuthProvider.onDidChangeSessions,
 		getSessions: (scopes: string[]) => azureEnterpriseAuthProvider.getSessions(scopes),
 		createSession: async (scopes: string[]) => {
