@@ -44,7 +44,9 @@ class NotebookModelReferenceCollection extends ReferenceCollection<Promise<IReso
 
 		this._disposables.add(_notebookService.onWillRemoveViewType(viewType => {
 			const manager = this._workingCopyManagers.get(NotebookWorkingCopyTypeIdentifier.create(viewType));
-			manager?.destroy().catch(err => _logService.error(err));
+			if (!manager?.workingCopies.find(w => w.isDirty())) {
+				manager?.destroy().catch(err => _logService.error(err));
+			}
 		}));
 	}
 

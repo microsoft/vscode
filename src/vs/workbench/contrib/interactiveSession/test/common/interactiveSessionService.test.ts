@@ -62,10 +62,14 @@ suite('InteractiveSession', () => {
 		testService.registerProvider(provider1);
 		testService.registerProvider(provider2);
 
-		let session1 = await testService.startSession('provider1', true, CancellationToken.None);
+		let session1 = testService.startSession('provider1', true, CancellationToken.None);
+		await testService.waitForSessionInitialization(session1.sessionId);
 		session1!.addRequest('request 1');
-		let session2 = await testService.startSession('provider2', true, CancellationToken.None);
+
+		let session2 = testService.startSession('provider2', true, CancellationToken.None);
+		await testService.waitForSessionInitialization(session2.sessionId);
 		session2!.addRequest('request 2');
+
 		assert.strictEqual(provider1.lastInitialState, undefined);
 		assert.strictEqual(provider2.lastInitialState, undefined);
 		testService.acceptNewSessionState(session1!.sessionId, { state: 'provider1_state' });
@@ -75,8 +79,10 @@ suite('InteractiveSession', () => {
 		const testService2 = instantiationService.createInstance(InteractiveSessionService);
 		testService2.registerProvider(provider1);
 		testService2.registerProvider(provider2);
-		session1 = await testService2.startSession('provider1', true, CancellationToken.None);
-		session2 = await testService2.startSession('provider2', true, CancellationToken.None);
+		session1 = testService2.startSession('provider1', true, CancellationToken.None);
+		await testService2.waitForSessionInitialization(session1.sessionId);
+		session2 = testService2.startSession('provider2', true, CancellationToken.None);
+		await testService2.waitForSessionInitialization(session2.sessionId);
 		assert.deepStrictEqual(provider1.lastInitialState, { state: 'provider1_state' });
 		assert.deepStrictEqual(provider2.lastInitialState, { state: 'provider2_state' });
 	});

@@ -12,7 +12,7 @@ import { createDecorator } from 'vs/platform/instantiation/common/instantiation'
 import { InteractiveSessionModel } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionModel';
 
 export interface IInteractiveSession {
-	id: number;
+	id: number; // TODO This is only used by the provider internally, we can probably get rid of it
 	requesterUsername: string;
 	requesterAvatarIconUri?: URI;
 	responderUsername: string;
@@ -146,12 +146,13 @@ export const IInteractiveSessionService = createDecorator<IInteractiveSessionSer
 export interface IInteractiveSessionService {
 	_serviceBrand: undefined;
 	registerProvider(provider: IInteractiveProvider): IDisposable;
-	startSession(providerId: string, allowRestoringSession: boolean, token: CancellationToken): Promise<InteractiveSessionModel | undefined>;
+	startSession(providerId: string, allowRestoringSession: boolean, token: CancellationToken): InteractiveSessionModel | undefined;
+	waitForSessionInitialization(sessionId: number): Promise<InteractiveSessionModel | undefined>;
 
 	/**
 	 * Returns whether the request was accepted.
 	 */
-	sendRequest(sessionId: number, message: string | IInteractiveSessionReplyFollowup): { completePromise: Promise<void> } | undefined;
+	sendRequest(sessionId: number, message: string | IInteractiveSessionReplyFollowup): Promise<{ requestCompletePromise: Promise<void> } | undefined>;
 	cancelCurrentRequestForSession(sessionId: number): void;
 	getSlashCommands(sessionId: number, token: CancellationToken): Promise<IInteractiveSlashCommand[] | undefined>;
 	clearSession(sessionId: number): void;

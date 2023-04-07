@@ -20,8 +20,8 @@ import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storag
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IViewsService } from 'vs/workbench/common/views';
 import { IInteractiveSessionContributionService } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionContributionService';
-import { ISerializableInteractiveSessionData, ISerializableInteractiveSessionsData, InteractiveSessionModel, InteractiveWelcomeMessageModel } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionModel';
-import { IInteractiveProgress, IInteractiveProvider, IInteractiveSessionCompleteResponse, IInteractiveSessionDynamicRequest, IInteractiveSessionReplyFollowup, IInteractiveSessionService, IInteractiveSessionUserActionEvent, IInteractiveSlashCommand, InteractiveSessionCopyKind, InteractiveSessionVoteDirection } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionService';
+import { ISerializableInteractiveSessionData, ISerializableInteractiveSessionsData, InteractiveSessionModel, InteractiveSessionWelcomeMessageModel } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionModel';
+import { IInteractiveProgress, IInteractiveProvider, IInteractiveSession, IInteractiveSessionCompleteResponse, IInteractiveSessionDynamicRequest, IInteractiveSessionReplyFollowup, IInteractiveSessionService, IInteractiveSessionUserActionEvent, IInteractiveSlashCommand, InteractiveSessionCopyKind, InteractiveSessionVoteDirection } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionService';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 
 const serializedInteractiveSessionKey = 'interactive.sessions';
@@ -95,6 +95,7 @@ export class InteractiveSessionService extends Disposable implements IInteractiv
 
 	private readonly _providers = new Map<string, IInteractiveProvider>();
 	private readonly _sessionModels = new Map<number, InteractiveSessionModel>();
+	private readonly _initializedSessionModels = new Map<number, Promise<InteractiveSessionModel | undefined>>();
 	private readonly _releasedSessions = new Set<number>();
 	private readonly _pendingRequests = new Map<number, CancelablePromise<void>>();
 	private readonly _unprocessedPersistedSessions: ISerializableInteractiveSessionsData;
@@ -129,6 +130,10 @@ export class InteractiveSessionService extends Disposable implements IInteractiv
 			this.trace('onWillSaveState', `Persisting ${this._sessionModels.size} sessions`);
 			storageService.store(serializedInteractiveSessionKey, serialized, StorageScope.WORKSPACE, StorageTarget.MACHINE);
 		}));
+	}
+
+	async waitForSessionInitialization(sessionId: number): Promise<InteractiveSessionModel | undefined> {
+		return await this._initializedSessionModels.get(sessionId);
 	}
 
 	notifyUserAction(action: IInteractiveSessionUserActionEvent): void {
@@ -180,14 +185,8 @@ export class InteractiveSessionService extends Disposable implements IInteractiv
 		}
 	}
 
-	async startSession(providerId: string, allowRestoringSession: boolean, token: CancellationToken): Promise<InteractiveSessionModel | undefined> {
+	startSession(providerId: string, allowRestoringSession: boolean, token: CancellationToken): InteractiveSessionModel {
 		this.trace('startSession', `providerId=${providerId}, allowRestoringSession=${allowRestoringSession}`);
-		await this.extensionService.activateByEvent(`onInteractiveSession:${providerId}`);
-
-		const provider = this._providers.get(providerId);
-		if (!provider) {
-			throw new Error(`Unknown provider: ${providerId}`);
-		}
 
 		const restored = allowRestoringSession ? this.getNextRestoredSession(providerId) : undefined;
 		if (restored instanceof InteractiveSessionModel) {
@@ -197,24 +196,59 @@ export class InteractiveSessionService extends Disposable implements IInteractiv
 
 		const someSessionHistory = restored;
 		this.trace('startSession', `Has history: ${!!someSessionHistory}. Including provider state: ${!!someSessionHistory?.providerState}`);
-		const session = await provider.prepareSession(someSessionHistory?.providerState, token);
+
+		const model = this.instantiationService.createInstance(InteractiveSessionModel, providerId, someSessionHistory);
+		this._sessionModels.set(model.sessionId, model);
+		const modelInitPromise = this.initializeSession(model, someSessionHistory, token);
+		this._initializedSessionModels.set(model.sessionId, modelInitPromise);
+		modelInitPromise.then(resolvedModel => {
+			if (!resolvedModel) {
+				model.dispose();
+				this._sessionModels.delete(model.sessionId);
+				this._initializedSessionModels.delete(model.sessionId);
+			}
+		}).catch(() => {
+			model.dispose();
+			this._sessionModels.delete(model.sessionId);
+			this._initializedSessionModels.delete(model.sessionId);
+		});
+
+		return model;
+	}
+
+	private async initializeSession(model: InteractiveSessionModel, sessionHistory: ISerializableInteractiveSessionData | undefined, token: CancellationToken): Promise<InteractiveSessionModel | undefined> {
+		await this.extensionService.activateByEvent(`onInteractiveSession:${model.providerId}`);
+
+		const provider = this._providers.get(model.providerId);
+		if (!provider) {
+			throw new Error(`Unknown provider: ${model.providerId}`);
+		}
+
+		let session: IInteractiveSession | undefined;
+		try {
+			session = withNullAsUndefined(await provider.prepareSession(model.providerState, token));
+		} catch (err) {
+			this.trace('initializeSession', `Provider initializeSession threw: ${err}`);
+		}
+
 		if (!session) {
-			if (someSessionHistory) {
-				const providerData = this._unprocessedPersistedSessions[providerId];
-				providerData?.unshift(someSessionHistory);
+			if (sessionHistory) {
+				// sessionHistory was not used, so store it for later
+				const providerData = this._unprocessedPersistedSessions[model.providerId];
+				providerData?.unshift(sessionHistory);
 			}
 
 			this.trace('startSession', 'Provider returned no session');
 			return undefined;
 		}
 
-		this.trace('startSession', `Provider returned session with id ${session.id}`);
+		this.trace('startSession', `Provider returned session`);
 
-		const welcomeMessage = someSessionHistory ? undefined : await provider.provideWelcomeMessage?.(token);
-		const welcomeModel = welcomeMessage && new InteractiveWelcomeMessageModel(
+		const welcomeMessage = sessionHistory ? undefined : withNullAsUndefined(await provider.provideWelcomeMessage?.(token));
+		const welcomeModel = welcomeMessage && new InteractiveSessionWelcomeMessageModel(
 			welcomeMessage.map(item => typeof item === 'string' ? new MarkdownString(item) : item as IInteractiveSessionReplyFollowup[]), session.responderUsername, session.responderAvatarIconUri);
-		const model = this.instantiationService.createInstance(InteractiveSessionModel, session, providerId, withNullAsUndefined(welcomeModel), someSessionHistory);
-		this._sessionModels.set(model.sessionId, model);
+
+		model.initialize(session, welcomeModel);
 		return model;
 	}
 
@@ -234,7 +268,7 @@ export class InteractiveSessionService extends Disposable implements IInteractiv
 		this._releasedSessions.add(sessionId);
 	}
 
-	sendRequest(sessionId: number, request: string | IInteractiveSessionReplyFollowup): { completePromise: CancelablePromise<void> } | undefined {
+	async sendRequest(sessionId: number, request: string | IInteractiveSessionReplyFollowup): Promise<{ requestCompletePromise: CancelablePromise<void> } | undefined> {
 		const messageText = typeof request === 'string' ? request : request.message;
 		this.trace('sendRequest', `sessionId: ${sessionId}, message: ${messageText.substring(0, 20)}${messageText.length > 20 ? '[...]' : ''}}`);
 		if (!messageText.trim()) {
@@ -242,9 +276,14 @@ export class InteractiveSessionService extends Disposable implements IInteractiv
 			return undefined;
 		}
 
-		const model = this._sessionModels.get(sessionId);
-		if (!model) {
+		const modelPromise = this._initializedSessionModels.get(sessionId);
+		if (!modelPromise) {
 			throw new Error(`Unknown session: ${sessionId}`);
+		}
+
+		const model = await modelPromise;
+		if (!model) {
+			throw new Error(`Session ${sessionId} failed to start`);
 		}
 
 		const provider = this._providers.get(model.providerId);
@@ -257,7 +296,7 @@ export class InteractiveSessionService extends Disposable implements IInteractiv
 			return undefined;
 		}
 
-		return { completePromise: this._sendRequestAsync(model, provider, request) };
+		return { requestCompletePromise: this._sendRequestAsync(model, provider, request) };
 	}
 
 	private _sendRequestAsync(model: InteractiveSessionModel, provider: IInteractiveProvider, message: string | IInteractiveSessionReplyFollowup): CancelablePromise<void> {
@@ -297,13 +336,13 @@ export class InteractiveSessionService extends Disposable implements IInteractiv
 
 				model.cancelRequest(request);
 			});
-			let rawResponse = await provider.provideReply({ session: model.session, message: request.message }, progressCallback, token);
+			let rawResponse = await provider.provideReply({ session: model.session!, message: request.message }, progressCallback, token);
 			if (token.isCancellationRequested) {
 				return;
 			} else {
 				if (!rawResponse) {
 					this.trace('sendRequest', `Provider returned no response for session ${model.sessionId}`);
-					rawResponse = { session: model.session, errorDetails: { message: localize('emptyResponse', "Provider returned null response") } };
+					rawResponse = { session: model.session!, errorDetails: { message: localize('emptyResponse', "Provider returned null response") } };
 				}
 
 				const result = rawResponse.errorDetails?.responseIsFiltered ? 'filtered' :
@@ -321,7 +360,7 @@ export class InteractiveSessionService extends Disposable implements IInteractiv
 				this.trace('sendRequest', `Provider returned response for session ${model.sessionId}`);
 
 				if (provider.provideFollowups) {
-					Promise.resolve(provider.provideFollowups(model.session, CancellationToken.None)).then(followups => {
+					Promise.resolve(provider.provideFollowups(model.session!, CancellationToken.None)).then(followups => {
 						model.setFollowups(request, withNullAsUndefined(followups));
 					});
 				}
@@ -335,7 +374,7 @@ export class InteractiveSessionService extends Disposable implements IInteractiv
 	}
 
 	async getSlashCommands(sessionId: number, token: CancellationToken): Promise<IInteractiveSlashCommand[] | undefined> {
-		const model = this._sessionModels.get(sessionId);
+		const model = await this._initializedSessionModels.get(sessionId);
 		if (!model) {
 			throw new Error(`Unknown session: ${sessionId}`);
 		}
@@ -349,7 +388,7 @@ export class InteractiveSessionService extends Disposable implements IInteractiv
 			return;
 		}
 
-		return withNullAsUndefined(await provider.provideSlashCommands(model.session, token));
+		return withNullAsUndefined(await provider.provideSlashCommands(model.session!, token));
 	}
 
 	acceptNewSessionState(sessionId: number, state: any): void {
@@ -378,7 +417,7 @@ export class InteractiveSessionService extends Disposable implements IInteractiv
 		}
 
 		this.trace('addInteractiveRequest', `Calling resolveRequest for session ${model.sessionId}`);
-		const request = await provider.resolveRequest(model.session, context, CancellationToken.None);
+		const request = await provider.resolveRequest(model.session!, context, CancellationToken.None);
 		if (!request) {
 			this.trace('addInteractiveRequest', `Provider returned no request for session ${model.sessionId}`);
 			return;
@@ -393,16 +432,17 @@ export class InteractiveSessionService extends Disposable implements IInteractiv
 		this.trace('sendInteractiveRequestToProvider', `providerId: ${providerId}`);
 		const viewId = this.interactiveSessionContributionService.getViewIdForProvider(providerId);
 		const view = await this.viewsService.openView(viewId);
-		if (view) {
-			// TODO The ViewPane type is in /browser/, do this somewhere else
-			if ((view as any).acceptInput) {
-				this.trace('sendInteractiveRequestToProvider', `Sending request to view ${viewId}`);
-				(view as any).acceptInput(message.message); // TODO extend the request type to take metadata? Or call a resolve() method? Or something else.
-				return;
-			}
+		if (!view) {
+			return;
 		}
 
-		this.trace('sendInteractiveRequestToProvider', `Something went wrong, couldn't send request to view ${viewId}`);
+		// Currently we only support one session per provider
+		const modelForProvider = Iterable.find(this._sessionModels.values(), model => model.providerId === providerId);
+		if (!modelForProvider) {
+			throw new Error(`Could not start session for provider ${providerId}`);
+		}
+
+		await this.sendRequest(modelForProvider.sessionId, message.message);
 	}
 
 	async addCompleteRequest(message: string, response: IInteractiveSessionCompleteResponse): Promise<void> {
@@ -415,12 +455,7 @@ export class InteractiveSessionService extends Disposable implements IInteractiv
 		}
 
 		const viewId = this.interactiveSessionContributionService.getViewIdForProvider(providerId);
-		const view = await this.viewsService.openView(viewId);
-
-		if ((view as any).waitForViewModel) {
-			// TODO The ViewPane type is in /browser/, and the flow is a bit weird, rethink this
-			await (view as any).waitForViewModel();
-		}
+		await this.viewsService.openView(viewId);
 
 		// Currently we only support one session per provider
 		const modelForProvider = Iterable.find(this._sessionModels.values(), model => model.providerId === providerId);
@@ -429,12 +464,18 @@ export class InteractiveSessionService extends Disposable implements IInteractiv
 			throw new Error(`Could not start session for provider ${providerId}`);
 		}
 
-		const request = modelForProvider.addRequest(message);
-		modelForProvider.acceptResponseProgress(request, {
+		// TODO hmmmm...
+		const initializedModel = await this._initializedSessionModels.get(modelForProvider.sessionId);
+		if (!initializedModel) {
+			throw new Error(`Model failed to initialize for provider ${providerId}`);
+		}
+
+		const request = initializedModel.addRequest(message);
+		initializedModel.acceptResponseProgress(request, {
 			content: response.message,
 		});
-		modelForProvider.completeResponse(request, {
-			session: modelForProvider.session,
+		initializedModel.completeResponse(request, {
+			session: initializedModel.session!,
 			errorDetails: response.errorDetails,
 		});
 	}
@@ -453,6 +494,7 @@ export class InteractiveSessionService extends Disposable implements IInteractiv
 
 		model.dispose();
 		this._sessionModels.delete(sessionId);
+		this._initializedSessionModels.delete(sessionId);
 		this._pendingRequests.get(sessionId)?.cancel();
 		this._releasedSessions.delete(sessionId);
 	}
