@@ -106,12 +106,13 @@ export abstract class TerminalAccessibleWidget extends DisposableStore {
 			switch (e.keyCode) {
 				case KeyCode.Escape:
 					// On escape, hide the accessible buffer and force focus onto the terminal
+					this.hide();
 					this._xterm.raw.focus();
 					break;
 				case KeyCode.Tab:
 					// On tab or shift+tab, hide the accessible buffer and perform the default tab
 					// behavior
-					this._hide();
+					this.hide();
 					break;
 			}
 		}));
@@ -152,7 +153,7 @@ export abstract class TerminalAccessibleWidget extends DisposableStore {
 		}
 	}
 
-	private _hide(): void {
+	hide(): void {
 		this._disposeListeners();
 		this.element.classList.remove(ClassName.Active);
 		this._xtermElement.classList.remove(ClassName.Hide);

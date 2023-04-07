@@ -42,6 +42,10 @@ export class AccessibilityHelpWidget extends TerminalAccessibleWidget {
 		super(ClassName.AccessibleBuffer, _instance, _xterm, undefined, _instantiationService, _modelService, _configurationService, _contextKeyService, _terminalService);
 		this._hasShellIntegration = _xterm.shellIntegration.status === ShellIntegrationStatus.VSCode;
 		this.element.ariaRoleDescription = localize('terminal.integrated.accessiblityHelp', 'Terminal accessibility help');
+	}
+
+	override registerListeners(): void {
+		super.registerListeners();
 		this.add(once(this.editorWidget.onDidFocusEditorText)(() => {
 			// prevents tabbing into the editor
 			const editorTextArea = this.element.querySelector(ClassName.EditorTextArea) as HTMLElement;
@@ -49,14 +53,14 @@ export class AccessibilityHelpWidget extends TerminalAccessibleWidget {
 				editorTextArea.tabIndex = -1;
 			}
 		}));
+		this.add(this.editorWidget.onDidBlurEditorText(() => this.hide()));
 	}
 
 	private _descriptionForCommand(commandId: string, msg: string, noKbMsg: string): string {
 		const kb = this._keybindingService.lookupKeybindings(commandId);
 		switch (kb.length) {
 			case 0:
-				format(noKbMsg, commandId);
-				break;
+				return format(noKbMsg, commandId);
 			case 1:
 				return format(msg, kb[0].getAriaLabel());
 		}
@@ -82,7 +86,7 @@ export class AccessibilityHelpWidget extends TerminalAccessibleWidget {
 		const goToRecent = localize('goToRecentDirectory', 'Go to Recent Directory ({0})');
 		const goToRecentNoKb = localize('goToRecentDirectoryNoKb', 'Go to Recent Directory is currently not triggerable by a keybinding.');
 		const readMoreLink = localize('readMore', '[Read more about terminal accessibility](https://code.visualstudio.com/docs/editor/accessibility#_terminal-accessibility)');
-		const dismiss = localize('dismiss', "You can dismiss this dialog by pressing Escape or focusing elsewhere.");
+		const dismiss = localize('dismiss', "You can dismiss this dialog by pressing Escape, tab, or focusing elsewhere.");
 		const openDetectedLink = localize('openDetectedLink', 'The Open Detected Link ({0}) command enables screen readers to easily open links found in the terminal.');
 		const openDetectedLinkNoKb = localize('openDetectedLinkNoKb', 'The Open Detected Link command enables screen readers to easily open links found in the terminal and is currently not triggerable by a keybinding.');
 		const newWithProfile = localize('newWithProfile', 'The Create New Terminal (With Profile) ({0}) command allows for easy terminal creation using a specific profile.');
@@ -108,7 +112,7 @@ export class AccessibilityHelpWidget extends TerminalAccessibleWidget {
 		content.push(accessibilitySettings);
 		content.push(readMoreLink, dismiss);
 		const model = this.editorWidget.getModel() || await this.getTextModel(this._instance.resource);
-		model?.setValue(content.join('\n\n'));
+		model?.setValue(content.join('\n'));
 		this.editorWidget.setModel(model);
 		this.element.setAttribute('aria-label', introMessage);
 	}
