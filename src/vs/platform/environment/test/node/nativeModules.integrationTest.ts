@@ -123,16 +123,16 @@ flakySuite('Native Modules (all platforms)', () => {
 		assert.ok(typeof result === 'boolean', testErrorMessage('windows-foreground-love'));
 	});
 
-	test('@vscode/windows-process-tree', async () => {
-		const processTree = await import('@vscode/windows-process-tree');
-		assert.ok(typeof processTree.getProcessTree === 'function', testErrorMessage('@vscode/windows-process-tree'));
+	test('windows-process-tree', async () => {
+		const processTree = await import('windows-process-tree');
+		assert.ok(typeof processTree.getProcessTree === 'function', testErrorMessage('windows-process-tree'));
 
 		return new Promise((resolve, reject) => {
 			processTree.getProcessTree(process.pid, tree => {
 				if (tree) {
 					resolve();
 				} else {
-					reject(new Error(testErrorMessage('@vscode/windows-process-tree')));
+					reject(new Error(testErrorMessage('windows-process-tree')));
 				}
 			});
 		});
