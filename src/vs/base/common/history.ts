@@ -28,10 +28,8 @@ export class HistoryNavigator<T> implements INavigator<T> {
 	}
 
 	public next(): T | null {
-		if (this._currentPosition() !== this._elements.length - 1) {
-			return this._navigator.next();
-		}
-		return null;
+		// This will navigate past the end of the last element, and in that case the input should be cleared
+		return this._navigator.next();
 	}
 
 	public previous(): T | null {
@@ -58,7 +56,7 @@ export class HistoryNavigator<T> implements INavigator<T> {
 	}
 
 	public isLast(): boolean {
-		return this._currentPosition() === this._elements.length - 1;
+		return this._currentPosition() >= this._elements.length - 1;
 	}
 
 	public isNowhere(): boolean {
