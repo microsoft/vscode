@@ -115,6 +115,8 @@ export class LanguagesRegistry extends Disposable {
 		this._lowercaseNameMap = {};
 
 		clearPlatformLanguageAssociations();
+		const desc = (<ILanguageExtensionPoint[]>[]).concat(ModesRegistry.getLanguages()).concat(this._dynamicLanguages);
+		this._registerLanguages(desc);
 	}
 
 	registerLanguage(desc: ILanguageExtensionPoint): IDisposable {
@@ -152,7 +154,6 @@ export class LanguagesRegistry extends Disposable {
 		}
 
 		this._mergeLanguage(resolvedLanguage, lang);
-		// Rebuild fast path maps
 		if (resolvedLanguage.name) {
 			this._nameMap[resolvedLanguage.name] = resolvedLanguage.identifier;
 		}
