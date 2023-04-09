@@ -2336,6 +2336,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 				}
 			}
 			this._list.focusView();
+			this.updateEditorFocus();
 		}
 	}
 
