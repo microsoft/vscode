@@ -216,6 +216,13 @@ export class BreakpointWidget extends ZoneWidget implements IPrivateBreakpointWi
 		this.centerInputVertically();
 	}
 
+	protected override _onWidth(widthInPixel: number): void {
+		if (typeof this.heightInPx === 'number') {
+			this.input.layout({ height: this.heightInPx, width: widthInPixel });
+			this.centerInputVertically();
+		}
+	}
+
 	private createBreakpointInput(container: HTMLElement): void {
 		const scopedContextKeyService = this.contextKeyService.createScoped(container);
 		this.toDispose.push(scopedContextKeyService);
