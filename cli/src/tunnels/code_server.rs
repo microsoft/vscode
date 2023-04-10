@@ -16,7 +16,7 @@ use crate::util::command::{capture_command, kill_tree};
 use crate::util::errors::{
 	wrap, AnyError, ExtensionInstallFailed, MissingEntrypointError, WrappedError,
 };
-use crate::util::http::{self, SimpleHttp};
+use crate::util::http::{self, BoxedHttp};
 use crate::util::io::SilentCopyProgress;
 use crate::util::machine::process_exists;
 use crate::{debug, info, log, span, spanf, trace, warning};
@@ -176,7 +176,7 @@ impl ServerParamsRaw {
 	pub async fn resolve(
 		self,
 		log: &log::Logger,
-		http: impl SimpleHttp + Send + Sync + 'static,
+		http: BoxedHttp,
 	) -> Result<ResolvedServerParams, AnyError> {
 		Ok(ResolvedServerParams {
 			release: self.get_or_fetch_commit_id(log, http).await?,
@@ -187,7 +187,7 @@ impl ServerParamsRaw {
 	async fn get_or_fetch_commit_id(
 		&self,
 		log: &log::Logger,
-		http: impl SimpleHttp + Send + Sync + 'static,
+		http: BoxedHttp,
 	) -> Result<Release, AnyError> {
 		let target = match self.headless {
 			true => TargetKind::Server,
@@ -287,7 +287,7 @@ async fn install_server_if_needed(
 	log: &log::Logger,
 	paths: &ServerPaths,
 	release: &Release,
-	http: impl SimpleHttp + Send + Sync + 'static,
+	http: BoxedHttp,
 	existing_archive_path: Option<PathBuf>,
 ) -> Result<(), AnyError> {
 	if paths.executable.exists() {
@@ -321,7 +321,7 @@ async fn download_server(
 	path: &Path,
 	release: &Release,
 	log: &log::Logger,
-	http: impl SimpleHttp + Send + Sync + 'static,
+	http: BoxedHttp,
 ) -> Result<PathBuf, AnyError> {
 	let response = UpdateService::new(log.clone(), http)
 		.get_download_stream(release)
@@ -403,20 +403,20 @@ async fn do_extension_install_on_running_server(
 	}
 }
 
-pub struct ServerBuilder<'a, Http: SimpleHttp + Send + Sync + Clone> {
+pub struct ServerBuilder<'a> {
 	logger: &'a log::Logger,
 	server_params: &'a ResolvedServerParams,
 	last_used: LastUsedServers<'a>,
 	server_paths: ServerPaths,
-	http: Http,
+	http: BoxedHttp,
 }
 
-impl<'a, Http: SimpleHttp + Send + Sync + Clone + 'static> ServerBuilder<'a, Http> {
+impl<'a> ServerBuilder<'a> {
 	pub fn new(
 		logger: &'a log::Logger,
 		server_params: &'a ResolvedServerParams,
 		launcher_paths: &'a LauncherPaths,
-		http: Http,
+		http: BoxedHttp,
 	) -> Self {
 		Self {
 			logger,

@@ -259,18 +259,6 @@ impl std::fmt::Display for RefreshTokenNotAvailableError {
 }
 
 #[derive(Debug)]
-pub struct UnsupportedPlatformError();
-
-impl std::fmt::Display for UnsupportedPlatformError {
-	fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-		write!(
-			f,
-			"This operation is not supported on your current platform"
-		)
-	}
-}
-
-#[derive(Debug)]
 pub struct NoInstallInUserProvidedPath(pub String);
 
 impl std::fmt::Display for NoInstallInUserProvidedPath {
@@ -419,28 +407,6 @@ impl std::fmt::Display for OAuthError {
 	}
 }
 
-#[derive(Debug)]
-pub struct CommandFailed {
-	pub output: std::process::Output,
-	pub command: String,
-}
-
-impl std::fmt::Display for CommandFailed {
-	fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-		write!(
-			f,
-			"Failed to run command \"{}\" (code {}): {}",
-			self.command,
-			self.output.status,
-			String::from_utf8_lossy(if self.output.stderr.is_empty() {
-				&self.output.stdout
-			} else {
-				&self.output.stderr
-			})
-		)
-	}
-}
-
 // Makes an "AnyError" enum that contains any of the given errors, in the form
 // `enum AnyError { FooError(FooError) }` (when given `makeAnyError!(FooError)`).
 // Useful to easily deal with application error types without making tons of "From"
@@ -500,6 +466,17 @@ pub enum CodeError {
 	#[cfg(windows)]
 	#[error("could not get windows app lock: {0:?}")]
 	AppLockFailed(std::io::Error),
+	#[error("failed to run command \"{command}\" (code {code}): {output}")]
+	CommandFailed {
+		command: String,
+		code: i32,
+		output: String,
+	},
+
+	#[error("platform not currently supported: {0}")]
+	UnsupportedPlatform(String),
+	#[error("This machine not meet {name}'s prerequisites, expected either...: {bullets}")]
+	PrerequisitesFailed { name: &'static str, bullets: String },
 }
 
 makeAnyError!(
@@ -518,7 +495,6 @@ makeAnyError!(
 	ExtensionInstallFailed,
 	MismatchedLaunchModeError,
 	NoAttachedServerError,
-	UnsupportedPlatformError,
 	RefreshTokenNotAvailableError,
 	NoInstallInUserProvidedPath,
 	UserCancelledInstallation,
@@ -530,7 +506,6 @@ makeAnyError!(
 	UpdatesNotConfigured,
 	CorruptDownload,
 	MissingHomeDirectory,
-	CommandFailed,
 	OAuthError,
 	InvalidRpcDataError,
 	CodeError

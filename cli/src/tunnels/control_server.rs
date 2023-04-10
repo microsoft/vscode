@@ -73,7 +73,7 @@ struct HandlerContext {
 	/// install platform for the VS Code server
 	platform: Platform,
 	/// http client to make download/update requests
-	http: FallbackSimpleHttp,
+	http: Arc<FallbackSimpleHttp>,
 	/// requests being served by the client
 	http_requests: HttpRequestsMap,
 }
@@ -247,7 +247,10 @@ async fn process_socket(
 		server_bridges: server_bridges.clone(),
 		port_forwarding,
 		platform,
-		http: FallbackSimpleHttp::new(ReqwestSimpleHttp::new(), http_delegated),
+		http: Arc::new(FallbackSimpleHttp::new(
+			ReqwestSimpleHttp::new(),
+			http_delegated,
+		)),
 		http_requests: http_requests.clone(),
 	});
 
@@ -487,7 +490,9 @@ async fn handle_serve(
 	};
 
 	let resolved = if params.use_local_download {
-		params_raw.resolve(&c.log, c.http.delegated()).await
+		params_raw
+			.resolve(&c.log, Arc::new(c.http.delegated()))
+			.await
 	} else {
 		params_raw.resolve(&c.log, c.http.clone()).await
 	}?;
@@ -518,7 +523,7 @@ async fn handle_serve(
 					&install_log,
 					&resolved,
 					&c.launcher_paths,
-					c.http.delegated(),
+					Arc::new(c.http.delegated()),
 				);
 				do_setup!(sb)
 			} else {
@@ -606,7 +611,7 @@ fn handle_prune(paths: &LauncherPaths) -> Result<Vec<String>, AnyError> {
 }
 
 async fn handle_update(
-	http: &FallbackSimpleHttp,
+	http: &Arc<FallbackSimpleHttp>,
 	log: &log::Logger,
 	did_update: &AtomicBool,
 	params: &UpdateParams,
