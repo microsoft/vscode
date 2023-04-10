@@ -33,7 +33,7 @@ import { IPreferencesService } from 'vs/workbench/services/preferences/common/pr
 import { stripIcons } from 'vs/base/common/iconLabels';
 import { isFirefox } from 'vs/base/browser/browser';
 import { IProductService } from 'vs/platform/product/common/productService';
-import { ISemanticSimilarityService } from 'vs/workbench/contrib/quickaccess/browser/semanticSimilarityService';
+import { ISemanticSimilarityService } from 'vs/workbench/services/semanticSimilarity/common/semanticSimilarityService';
 import { timeout } from 'vs/base/common/async';
 
 export class CommandsQuickAccessProvider extends AbstractEditorCommandsQuickAccessProvider {

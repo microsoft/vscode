@@ -1555,6 +1555,15 @@ export interface ExtHostAuthenticationShape {
 	$setProviders(providers: AuthenticationProviderInformation[]): Promise<void>;
 }
 
+export interface ExtHostSemanticSimilarityShape {
+	$provideSimilarityScore(handle: number, string1: string, comparisons: string[], token: CancellationToken): Promise<number[]>;
+}
+
+export interface MainThreadSemanticSimilarityShape extends IDisposable {
+	$registerSemanticSimilarityProvider(handle: number, extensionId: string): void;
+	$unregisterSemanticSimilarityProvider(handle: number): void;
+}
+
 export interface ExtHostSecretStateShape {
 	$onDidChangePassword(e: { extensionId: string; key: string }): Promise<void>;
 }
@@ -2452,7 +2461,8 @@ export const MainContext = {
 	MainThreadTunnelService: createProxyIdentifier<MainThreadTunnelServiceShape>('MainThreadTunnelService'),
 	MainThreadTimeline: createProxyIdentifier<MainThreadTimelineShape>('MainThreadTimeline'),
 	MainThreadTesting: createProxyIdentifier<MainThreadTestingShape>('MainThreadTesting'),
-	MainThreadLocalization: createProxyIdentifier<MainThreadLocalizationShape>('MainThreadLocalizationShape')
+	MainThreadLocalization: createProxyIdentifier<MainThreadLocalizationShape>('MainThreadLocalizationShape'),
+	MainThreadSemanticSimilarity: createProxyIdentifier<MainThreadSemanticSimilarityShape>('MainThreadSemanticSimilarity')
 };
 
 export const ExtHostContext = {
@@ -2506,6 +2516,7 @@ export const ExtHostContext = {
 	ExtHostInteractive: createProxyIdentifier<ExtHostInteractiveShape>('ExtHostInteractive'),
 	ExtHostInteractiveEditor: createProxyIdentifier<ExtHostInteractiveEditorShape>('ExtHostInteractiveEditor'),
 	ExtHostInteractiveSession: createProxyIdentifier<ExtHostInteractiveSessionShape>('ExtHostInteractiveSession'),
+	ExtHostSemanticSimilarity: createProxyIdentifier<ExtHostSemanticSimilarityShape>('ExtHostSemanticSimilarity'),
 	ExtHostTheming: createProxyIdentifier<ExtHostThemingShape>('ExtHostTheming'),
 	ExtHostTunnelService: createProxyIdentifier<ExtHostTunnelServiceShape>('ExtHostTunnelService'),
 	ExtHostAuthentication: createProxyIdentifier<ExtHostAuthenticationShape>('ExtHostAuthentication'),
