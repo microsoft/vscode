@@ -142,10 +142,6 @@ export abstract class AbstractCommandsQuickAccessProvider extends PickerQuickAcc
 		let addCommonlyUsedSeparator = !!this.options.suggestedCommandIds;
 		for (let i = 0; i < filteredCommandPicks.length; i++) {
 			const commandPick = filteredCommandPicks[i];
-			const keybinding = this.keybindingService.lookupKeybinding(commandPick.commandId);
-			const ariaLabel = keybinding ?
-				localize('commandPickAriaLabelWithKeybinding', "{0}, {1}", commandPick.label, keybinding.getAriaLabel()) :
-				commandPick.label;
 
 			// Separator: recently used
 			if (i === 0 && this.commandsHistory.peek(commandPick.commandId)) {
@@ -167,37 +163,47 @@ export abstract class AbstractCommandsQuickAccessProvider extends PickerQuickAcc
 			}
 
 			// Command
-			commandPicks.push({
-				...commandPick,
-				ariaLabel,
-				detail: this.options.showAlias && commandPick.commandAlias !== commandPick.label ? commandPick.commandAlias : undefined,
-				keybinding,
-				accept: async () => {
-
-					// Add to history
-					this.commandsHistory.push(commandPick.commandId);
-
-					// Telementry
-					this.telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', {
-						id: commandPick.commandId,
-						from: runOptions?.from ?? 'quick open'
-					});
-
-					// Run
-					try {
-						await this.commandService.executeCommand(commandPick.commandId);
-					} catch (error) {
-						if (!isCancellationError(error)) {
-							this.dialogService.error(localize('canNotRun', "Command '{0}' resulted in an error", commandPick.label), toErrorMessage(error));
-						}
-					}
-				}
-			});
+			commandPicks.push(this.toCommandPick(commandPick, runOptions));
 		}
 
 		return {
 			picks: commandPicks,
 			additionalPicks: this.getAdditionalCommandPicks(allCommandPicks, filteredCommandPicks, filter, token)
+				.then(additionalCommandPicks => additionalCommandPicks.map(commandPick => this.toCommandPick(commandPick, runOptions)))
+		};
+	}
+
+	private toCommandPick(commandPick: ICommandQuickPick, runOptions?: IQuickAccessProviderRunOptions): ICommandQuickPick {
+		const keybinding = this.keybindingService.lookupKeybinding(commandPick.commandId);
+		const ariaLabel = keybinding ?
+			localize('commandPickAriaLabelWithKeybinding', "{0}, {1}", commandPick.label, keybinding.getAriaLabel()) :
+			commandPick.label;
+
+		return {
+			...commandPick,
+			ariaLabel,
+			detail: this.options.showAlias && commandPick.commandAlias !== commandPick.label ? commandPick.commandAlias : undefined,
+			keybinding,
+			accept: async () => {
+
+				// Add to history
+				this.commandsHistory.push(commandPick.commandId);
+
+				// Telementry
+				this.telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', {
+					id: commandPick.commandId,
+					from: runOptions?.from ?? 'quick open'
+				});
+
+				// Run
+				try {
+					await this.commandService.executeCommand(commandPick.commandId);
+				} catch (error) {
+					if (!isCancellationError(error)) {
+						this.dialogService.error(localize('canNotRun', "Command '{0}' resulted in an error", commandPick.label), toErrorMessage(error));
+					}
+				}
+			}
 		};
 	}
 
