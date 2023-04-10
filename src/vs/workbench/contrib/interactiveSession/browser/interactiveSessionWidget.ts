@@ -353,6 +353,7 @@ export class InteractiveSessionWidget extends Disposable implements IInteractive
 		this.viewModel = this.instantiationService.createInstance(InteractiveSessionViewModel, model);
 		this.viewModelDisposables.add(this.viewModel.onDidChange(() => {
 			this.slashCommandsPromise = undefined;
+			this.requestInProgress.set(this.viewModel!.requestInProgress);
 			this.onDidChangeItems();
 		}));
 		this.viewModelDisposables.add(this.viewModel.onDidDisposeModel(() => {
@@ -380,11 +381,6 @@ export class InteractiveSessionWidget extends Disposable implements IInteractive
 			const input = query ?? editorValue;
 			const result = await this.interactiveSessionService.sendRequest(this.viewModel.sessionId, input);
 			if (result) {
-				this.requestInProgress.set(true);
-				result.requestCompletePromise.finally(() => {
-					this.requestInProgress.set(false);
-				});
-
 				revealLastElement(this.tree);
 				this.inputPart.acceptInput(query);
 			}

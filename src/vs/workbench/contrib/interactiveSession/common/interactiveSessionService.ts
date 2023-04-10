@@ -152,7 +152,7 @@ export interface IInteractiveSessionService {
 	/**
 	 * Returns whether the request was accepted.
 	 */
-	sendRequest(sessionId: number, message: string | IInteractiveSessionReplyFollowup): Promise<{ requestCompletePromise: Promise<void> } | undefined>;
+	sendRequest(sessionId: number, message: string | IInteractiveSessionReplyFollowup): Promise<boolean>;
 	cancelCurrentRequestForSession(sessionId: number): void;
 	getSlashCommands(sessionId: number, token: CancellationToken): Promise<IInteractiveSlashCommand[] | undefined>;
 	clearSession(sessionId: number): void;

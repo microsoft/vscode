@@ -31,6 +31,7 @@ export interface IInteractiveSessionViewModel {
 	readonly onDidDisposeModel: Event<void>;
 	readonly onDidChange: Event<void>;
 	readonly welcomeMessage: IInteractiveWelcomeMessageViewModel | undefined;
+	readonly requestInProgress: boolean;
 	readonly inputPlaceholder?: string;
 	getItems(): (IInteractiveRequestViewModel | IInteractiveResponseViewModel)[];
 }
@@ -96,6 +97,10 @@ export class InteractiveSessionViewModel extends Disposable implements IInteract
 
 	get sessionId() {
 		return this._model.sessionId;
+	}
+
+	get requestInProgress(): boolean {
+		return this._model.requestInProgress;
 	}
 
 	constructor(
