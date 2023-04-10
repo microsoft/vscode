@@ -92,11 +92,9 @@ export function createUriListSnippet(document: vscode.TextDocument, uris: readon
 		const insertAsVideo = videoFileExtensions.has(ext);
 
 		if (insertAsVideo) {
-			snippet.appendText(`<video src="${mdPath}" placeholder="${mdPath}" autoplay loop controls muted title="`);
+			snippet.appendText(`<video src="${mdPath}" controls title="`);
 			snippet.appendPlaceholder('Title');
-			snippet.appendText(`">`);
-			snippet.appendPlaceholder('\n\t\tSorry, your browser doesn\'t support HTML 5 video.\n');
-			snippet.appendText('</video>');
+			snippet.appendText('"></video>');
 		} else {
 			snippet.appendText(insertAsImage ? '![' : '[');
 
