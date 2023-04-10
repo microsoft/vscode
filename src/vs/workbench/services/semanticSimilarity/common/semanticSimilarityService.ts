@@ -5,25 +5,110 @@
 
 import { CommandsRegistry, ICommandService } from 'vs/platform/commands/common/commands';
 import { IFileService } from 'vs/platform/files/common/files';
-import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { URI } from 'vs/base/common/uri';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { raceCancellation } from 'vs/base/common/async';
+import { CancelablePromise, createCancelablePromise, raceCancellablePromises, raceCancellation, timeout } from 'vs/base/common/async';
+import { IDisposable } from 'vs/base/common/lifecycle';
+import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 
-export const ISemanticSimilarityService = createDecorator<ISemanticSimilarityService>('IEmbeddingsService');
+export const ISemanticSimilarityService = createDecorator<ISemanticSimilarityService>('ISemanticSimilarityService');
 
 export interface ISemanticSimilarityService {
+	readonly _serviceBrand: undefined;
+
 	isEnabled(): boolean;
 	getSimilarityScore(string1: string, comparisons: string[], token: CancellationToken): Promise<number[]>;
+	registerSemanticSimilarityProvider(provider: ISemanticSimilarityProvider): IDisposable;
 }
+
+export interface ISemanticSimilarityProvider {
+	provideSimilarityScore(string1: string, comparisons: string[], token: CancellationToken): Promise<number[]>;
+}
+
+export class SemanticSimilarityService implements ISemanticSimilarityService {
+	readonly _serviceBrand: undefined;
+
+	static readonly DEFAULT_TIMEOUT = 1000 * 10; // 30 seconds
+
+	private readonly _providers: ISemanticSimilarityProvider[] = [];
+	// remove when we move over to API
+	private readonly oldService: OldSemanticSimilarityService;
+
+	constructor(
+		// for the old service
+		@ICommandService commandService: ICommandService,
+		@IFileService fileService: IFileService
+	) {
+		this.oldService = new OldSemanticSimilarityService(commandService, fileService);
+	}
+
+	isEnabled(): boolean {
+		return this._providers.length > 0;
+	}
+
+	registerSemanticSimilarityProvider(provider: ISemanticSimilarityProvider): IDisposable {
+		this._providers.push(provider);
+		return {
+			dispose: () => {
+				const index = this._providers.indexOf(provider);
+				if (index >= 0) {
+					this._providers.splice(index, 1);
+				}
+			}
+		};
+	}
+
+	async getSimilarityScore(string1: string, comparisons: string[], token: CancellationToken): Promise<number[]> {
+		if (this._providers.length === 0) {
+			// Remove when we have a provider shipping in extensions
+			if (this.oldService.isEnabled()) {
+				return this.oldService.getSimilarityScore(string1, comparisons, token);
+			}
+			throw new Error('No semantic similarity providers registered');
+		}
+
+		const cancellablePromises: Array<CancelablePromise<number[]>> = [];
+
+		const timer = timeout(SemanticSimilarityService.DEFAULT_TIMEOUT);
+		const disposible = token.onCancellationRequested(() => {
+			disposible.dispose();
+			timer.cancel();
+		});
+
+		for (const provider of this._providers) {
+			cancellablePromises.push(createCancelablePromise(async t => {
+				try {
+					return await provider.provideSimilarityScore(string1, comparisons, t);
+				} catch (e) {
+					// logged in extension host
+				}
+				await timer;
+				throw new Error('Semantic similarity provider timed out');
+			}));
+		}
+
+		cancellablePromises.push(createCancelablePromise(async (t) => {
+			const disposible = t.onCancellationRequested(() => {
+				timer.cancel();
+				disposible.dispose();
+			});
+			await timer;
+			throw new Error('Semantic similarity provider timed out');
+		}));
+
+		const result = await raceCancellablePromises(cancellablePromises);
+		return result;
+	}
+}
+
+// TODO: remove this when the extensions are updated
 
 interface ICommandsEmbeddingsCache {
 	[commandId: string]: { embedding: number[] };
 }
 
-// TODO: use proper API for this instead of commands
-export class SemanticSimilarityService implements ISemanticSimilarityService {
+class OldSemanticSimilarityService {
 	declare _serviceBrand: undefined;
 
 	static readonly CALCULATE_EMBEDDING_COMMAND_ID = '_vscode.ai.calculateEmbedding';
@@ -39,7 +124,7 @@ export class SemanticSimilarityService implements ISemanticSimilarityService {
 	}
 
 	private async loadCache(): Promise<ICommandsEmbeddingsCache> {
-		const path = await this.commandService.executeCommand<string>(SemanticSimilarityService.COMMAND_EMBEDDING_CACHE_COMMAND_ID);
+		const path = await this.commandService.executeCommand<string>(OldSemanticSimilarityService.COMMAND_EMBEDDING_CACHE_COMMAND_ID);
 		if (!path) {
 			return {};
 		}
@@ -48,11 +133,10 @@ export class SemanticSimilarityService implements ISemanticSimilarityService {
 	}
 
 	isEnabled(): boolean {
-		return !!CommandsRegistry.getCommand(SemanticSimilarityService.CALCULATE_EMBEDDING_COMMAND_ID);
+		return !!CommandsRegistry.getCommand(OldSemanticSimilarityService.CALCULATE_EMBEDDING_COMMAND_ID);
 	}
 
 	async getSimilarityScore(str: string, comparisons: string[], token: CancellationToken): Promise<number[]> {
-
 		const embedding1 = await this.computeEmbedding(str, token);
 		const scores: number[] = [];
 		for (const comparison of comparisons) {
@@ -74,7 +158,7 @@ export class SemanticSimilarityService implements ISemanticSimilarityService {
 		if (!this.isEnabled()) {
 			throw new Error('Embeddings are not enabled');
 		}
-		const result = await raceCancellation(this.commandService.executeCommand<number[][]>(SemanticSimilarityService.CALCULATE_EMBEDDING_COMMAND_ID, text), token);
+		const result = await raceCancellation(this.commandService.executeCommand<number[][]>(OldSemanticSimilarityService.CALCULATE_EMBEDDING_COMMAND_ID, text), token);
 		if (!result) {
 			throw new Error('No result');
 		}
