@@ -83,6 +83,9 @@ export class SemanticSimilarityService implements ISemanticSimilarityService {
 				} catch (e) {
 					// logged in extension host
 				}
+				// Wait for the timer to finish to allow for another provider to resolve.
+				// Alternatively, if something resolved, or we've timed out, this will throw
+				// as expected.
 				await timer;
 				throw new Error('Semantic similarity provider timed out');
 			}));
