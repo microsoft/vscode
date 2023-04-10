@@ -38,7 +38,7 @@ export class ExtHostSemanticSimilarity implements ExtHostSemanticSimilarityShape
 		const handle = this._nextHandle;
 		this._nextHandle++;
 		this._semanticSimilarityProviders.set(handle, provider);
-		this._proxy.$registerSemanticSimilarityProvider(handle, extension.identifier.value);
+		this._proxy.$registerSemanticSimilarityProvider(handle);
 		return new Disposable(() => {
 			this._proxy.$unregisterSemanticSimilarityProvider(handle);
 			this._semanticSimilarityProviders.delete(handle);

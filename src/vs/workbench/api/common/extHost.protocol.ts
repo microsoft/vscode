@@ -1560,7 +1560,7 @@ export interface ExtHostSemanticSimilarityShape {
 }
 
 export interface MainThreadSemanticSimilarityShape extends IDisposable {
-	$registerSemanticSimilarityProvider(handle: number, extensionId: string): void;
+	$registerSemanticSimilarityProvider(handle: number): void;
 	$unregisterSemanticSimilarityProvider(handle: number): void;
 }
 

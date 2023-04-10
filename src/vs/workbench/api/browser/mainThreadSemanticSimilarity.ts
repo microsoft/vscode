@@ -21,7 +21,7 @@ export class MainThreadSemanticSimilarity extends Disposable implements MainThre
 		this._proxy = context.getProxy(ExtHostContext.ExtHostSemanticSimilarity);
 	}
 
-	$registerSemanticSimilarityProvider(handle: number, extensionId: string): void {
+	$registerSemanticSimilarityProvider(handle: number): void {
 		const provider: ISemanticSimilarityProvider = {
 			provideSimilarityScore: (string1, comparisons, token) => {
 				return this._proxy.$provideSimilarityScore(handle, string1, comparisons, token);
