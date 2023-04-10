@@ -25,12 +25,12 @@ class JsxLinkedEditingSupport implements vscode.LinkedEditingRangeProvider {
 		}
 
 		const args = typeConverters.Position.toFileLocationRequestArgs(filepath, position);
-		const response = await this.client.execute('LinkedEditing', args, token);
+		const response = await this.client.execute('linkedEditingRange', args, token);
 		if (response.type !== 'response' || !response.body) {
 			return undefined;
 		}
 
-		const wordPattern = undefined;//response.body.wordPattern ? new RegExp(response.body.wordPattern) : undefined;
+		const wordPattern = response.body.wordPattern ? new RegExp(response.body.wordPattern) : undefined;
 		return new vscode.LinkedEditingRanges(response.body.ranges.map(range => typeConverters.Range.fromTextSpan(range)), wordPattern);
 	}
 }

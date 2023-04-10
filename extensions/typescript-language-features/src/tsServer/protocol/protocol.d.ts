@@ -52,17 +52,13 @@ declare module 'typescript/lib/tsserverlibrary' {
 			filepath: string;
 		};
 
-		interface LinkedEditingRequest extends FileLocationRequest {
-			readonly command: 'LinkedEditing';
-		}
-
-		interface LinkedEditingRanges {
+		interface LinkedEditingRangesBody {
 			ranges: TextSpan[];
 			wordPattern?: string;
 		}
 
-		interface LinkedEditingResponse extends Response {
-			readonly body: LinkedEditingRanges;
+		interface LinkedEditingRangeResponse extends Response {
+			readonly body: LinkedEditingRangesBody;
 		}
 	}
 }
