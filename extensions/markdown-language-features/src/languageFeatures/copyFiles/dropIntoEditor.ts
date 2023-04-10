@@ -24,6 +24,11 @@ export const imageFileExtensions = new Set<string>([
 	'webp',
 ]);
 
+const videoFileExtensions = new Set<string>([
+	'ogg',
+	'mp4'
+]);
+
 export function registerDropIntoEditorSupport(selector: vscode.DocumentSelector) {
 	return vscode.languages.registerDocumentDropEditProvider(selector, new class implements vscode.DocumentDropEditProvider {
 		async provideDocumentDropEdits(document: vscode.TextDocument, _position: vscode.Position, dataTransfer: vscode.DataTransfer, token: vscode.CancellationToken): Promise<vscode.DocumentDropEdit | undefined> {
@@ -84,14 +89,21 @@ export function createUriListSnippet(document: vscode.TextDocument, uris: readon
 
 		const ext = URI.Utils.extname(uri).toLowerCase().replace('.', '');
 		const insertAsImage = typeof options?.insertAsImage === 'undefined' ? imageFileExtensions.has(ext) : !!options.insertAsImage;
+		const insertAsVideo = videoFileExtensions.has(ext);
 
-		snippet.appendText(insertAsImage ? '![' : '[');
+		if (insertAsVideo) {
+			snippet.appendText(`<video src="${mdPath}" controls title="`);
+			snippet.appendPlaceholder('Title');
+			snippet.appendText('"></video>');
+		} else {
+			snippet.appendText(insertAsImage ? '![' : '[');
 
-		const placeholderText = options?.placeholderText ?? (insertAsImage ? 'Alt text' : 'label');
-		const placeholderIndex = typeof options?.placeholderStartIndex !== 'undefined' ? options?.placeholderStartIndex + i : undefined;
-		snippet.appendPlaceholder(placeholderText, placeholderIndex);
+			const placeholderText = options?.placeholderText ?? (insertAsImage ? 'Alt text' : 'label');
+			const placeholderIndex = typeof options?.placeholderStartIndex !== 'undefined' ? options?.placeholderStartIndex + i : undefined;
+			snippet.appendPlaceholder(placeholderText, placeholderIndex);
 
-		snippet.appendText(`](${mdPath})`);
+			snippet.appendText(`](${mdPath})`);
+		}
 
 		if (i < uris.length - 1 && uris.length > 1) {
 			snippet.appendText(options?.separator ?? ' ');
