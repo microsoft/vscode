@@ -495,7 +495,7 @@ export class SyntaxRoutingTsServer extends Disposable implements ITypeScriptServ
 		'format',
 		'formatonkey',
 		'docCommentTemplate',
-		'LinkedEditing'
+		'linkedEditingRange'
 	]);
 
 	/**
