@@ -77,7 +77,7 @@ export class MainThreadExtensionService implements MainThreadExtensionServiceSha
 		error.message = data.message;
 		error.stack = data.stack;
 		this._internalExtensionService._onExtensionRuntimeError(extensionId, error);
-		console.error(`[${extensionId}]${error.message}`);
+		console.error(`[${extensionId.value}]${error.message}`);
 		console.error(error.stack);
 	}
 	async $onExtensionActivationError(extensionId: ExtensionIdentifier, data: SerializedError, missingExtensionDependency: MissingExtensionDependency | null): Promise<void> {
