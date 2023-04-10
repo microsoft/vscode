@@ -23,7 +23,7 @@ import { IConfigurationChangeEvent, IConfigurationService } from 'vs/platform/co
 import { IWorkbenchQuickAccessConfiguration } from 'vs/workbench/browser/quickaccess';
 import { Codicon } from 'vs/base/common/codicons';
 import { ThemeIcon } from 'vs/base/common/themables';
-import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
+import { IQuickInputService, IQuickPickSeparator } from 'vs/platform/quickinput/common/quickInput';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
@@ -135,7 +135,7 @@ export class CommandsQuickAccessProvider extends AbstractEditorCommandsQuickAcce
 		}));
 	}
 
-	protected async getAdditionalCommandPicks(allPicks: ICommandQuickPick[], picksSoFar: ICommandQuickPick[], filter: string, token: CancellationToken): Promise<ICommandQuickPick[]> {
+	protected async getAdditionalCommandPicks(allPicks: ICommandQuickPick[], picksSoFar: ICommandQuickPick[], filter: string, token: CancellationToken): Promise<Array<ICommandQuickPick | IQuickPickSeparator>> {
 		if (!this.useSemanticSimilarity || filter === '' || token.isCancellationRequested || !this.semanticSimilarityService.isEnabled()) {
 			return [];
 		}
@@ -149,7 +149,12 @@ export class CommandsQuickAccessProvider extends AbstractEditorCommandsQuickAcce
 		}
 		const sortedIndices = scores.map((_, i) => i).sort((a, b) => scores[b] - scores[a]);
 		const setOfPicksSoFar = new Set(picksSoFar.map(p => p.commandId));
-		const additionalPicks: ICommandQuickPick[] = [];
+		const additionalPicks: Array<ICommandQuickPick | IQuickPickSeparator> = picksSoFar.length > 0
+			? [{
+				type: 'separator',
+				label: localize('semanticSimilarity', "similar commands")
+			}]
+			: [];
 		for (const i of sortedIndices) {
 			const score = scores[i];
 			if (score < 0.8) {
