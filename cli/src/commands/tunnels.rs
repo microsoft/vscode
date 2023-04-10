@@ -20,7 +20,7 @@ use super::{
 use crate::{
 	async_pipe::socket_stream_split,
 	auth::Auth,
-	constants::APPLICATION_NAME,
+	constants::{APPLICATION_NAME, TUNNEL_NO_SERVICE_LOCK_NAME, TUNNEL_SERVICE_LOCK_NAME},
 	json_rpc::{new_json_rpc, start_json_rpc},
 	log,
 	singleton::connect_as_client,
@@ -37,6 +37,7 @@ use crate::{
 		Next, ServiceContainer, ServiceManager,
 	},
 	util::{
+		app_lock::AppMutex,
 		errors::{wrap, AnyError, CodeError},
 		prereqs::PreReqChecker,
 	},
@@ -148,6 +149,7 @@ pub async fn service(
 			manager.show_logs().await?;
 		}
 		TunnelServiceSubCommands::InternalRun => {
+			let _lock = AppMutex::new(TUNNEL_SERVICE_LOCK_NAME);
 			manager
 				.run(ctx.paths.clone(), TunnelServiceContainer::new(ctx.args))
 				.await?;
@@ -384,6 +386,7 @@ async fn serve_with_csa(
 	let mut server =
 		make_singleton_server(log_broadcast.clone(), log.clone(), server, shutdown.clone());
 	let platform = spanf!(log, log.span("prereq"), PreReqChecker::new().verify())?;
+	let _lock = AppMutex::new(TUNNEL_NO_SERVICE_LOCK_NAME).unwrap();
 
 	let auth = Auth::new(&paths, log.clone());
 	let mut dt = dev_tunnels::DevTunnels::new(&log, auth, &paths);
