@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+#[cfg(windows)]
 use std::{io, ptr};
 
 #[cfg(windows)]
@@ -23,7 +24,7 @@ unsafe impl Send for AppMutex {}
 
 impl AppMutex {
 	#[cfg(unix)]
-	pub fn new(name: &str) -> Result<Self, CodeError> {
+	pub fn new(_name: &str) -> Result<Self, CodeError> {
 		Ok(Self {})
 	}
 
