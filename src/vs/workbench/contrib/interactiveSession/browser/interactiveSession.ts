@@ -15,5 +15,4 @@ export interface IInteractiveSessionWidget {
 
 	acceptInput(): void;
 	getSlashCommands(): Promise<IInteractiveSlashCommand[] | undefined>;
-	waitForViewModel(): Promise<IInteractiveSessionViewModel | undefined>;
 }

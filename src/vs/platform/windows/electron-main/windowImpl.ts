@@ -234,7 +234,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 			} else if (this.productService.quality === 'stable' && CodeWindow.sandboxState) {
 				useSandbox = true;
 			} else {
-				useSandbox = typeof this.productService.quality === 'string' && this.productService.quality !== 'stable';
+				useSandbox = this.productService.quality !== 'stable';
 			}
 
 			this._isSandboxed = useSandbox;

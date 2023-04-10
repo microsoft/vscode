@@ -119,6 +119,7 @@
 .interactive-list .monaco-list-row .value {
 	white-space: normal;
 	min-height: 36px;
+	word-wrap: break-word;
 }
 
 .interactive-list .monaco-list-row .value > :last-child:not(.rendered-markdown) {
@@ -158,8 +159,7 @@
 .interactive-list .monaco-list-row .monaco-tokenized-source,
 .interactive-list .monaco-list-row code {
 	font-family: var(--monaco-monospace-font);
-	word-break: break-all;
-	word-wrap: break-word;
+	color: var(--vscode-textPreformat-foreground);
 }
 
 .interactive-session .interactive-input-and-toolbar {
@@ -246,20 +246,6 @@
 	margin: 16px 0;
 }
 
-.interactive-session .interactive-session-welcome-view {
-	box-sizing: border-box;
-	display: flex;
-	flex-direction: column;
-	justify-content: start;
-	padding: 20px;
-	gap: 16px;
-}
-
-.interactive-session .interactive-session-welcome-view .monaco-button {
-	max-width: 400px;
-	margin: 0;
-}
-
 .interactive-session .interactive-response .interactive-response-error-details {
 	display: flex;
 	align-items: start;
@@ -321,6 +307,10 @@
 .interactive-session .interactive-input-part .interactive-input-followups .interactive-session-followups .monaco-button {
 	display: block;
 	color: var(--vscode-textLink-foreground);
+}
+
+.interactive-session .interactive-input-part .interactive-input-followups .interactive-session-followups code {
+	font-family: var(--monaco-monospace-font);
 }
 
 .interactive-session .interactive-input-part .interactive-input-followups .interactive-session-followups .monaco-button .codicon-sparkle {

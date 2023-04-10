@@ -10,7 +10,7 @@ import { URI } from 'vs/base/common/uri';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IInteractiveRequestModel, IInteractiveResponseModel, IInteractiveSessionModel, IInteractiveSessionWelcomeMessageModel, IInteractiveWelcomeMessageContent } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionModel';
-import { IInteractiveResponseErrorDetails, IInteractiveSessionReplyFollowup, IInteractiveSessionResponseCommandFollowup, IInteractiveSessionService, InteractiveSessionVoteDirection } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionService';
+import { IInteractiveResponseErrorDetails, IInteractiveSessionReplyFollowup, IInteractiveSessionResponseCommandFollowup, InteractiveSessionVoteDirection } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionService';
 import { countWords } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionWordCounter';
 
 export function isRequestVM(item: unknown): item is IInteractiveRequestViewModel {
@@ -71,7 +71,6 @@ export interface IInteractiveResponseViewModel {
 	readonly replyFollowups?: IInteractiveSessionReplyFollowup[];
 	readonly commandFollowups?: IInteractiveSessionResponseCommandFollowup[];
 	readonly errorDetails?: IInteractiveResponseErrorDetails;
-	readonly progressiveResponseRenderingEnabled: boolean;
 	readonly contentUpdateTimings?: IInteractiveSessionLiveUpdateData;
 	renderData?: IInteractiveResponseRenderData;
 	currentRenderedHeight: number | undefined;
@@ -99,19 +98,11 @@ export class InteractiveSessionViewModel extends Disposable implements IInteract
 		return this._model.sessionId;
 	}
 
-	private readonly _progressiveResponseRenderingEnabled: boolean;
-	get progressiveResponseRenderingEnabled(): boolean {
-		return this._progressiveResponseRenderingEnabled;
-	}
-
 	constructor(
 		private readonly _model: IInteractiveSessionModel,
-		@IInteractiveSessionService private readonly interactiveSessionService: IInteractiveSessionService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 	) {
 		super();
-
-		this._progressiveResponseRenderingEnabled = this.interactiveSessionService.progressiveRenderingEnabled(this._model.providerId);
 
 		_model.getRequests().forEach((request, i) => {
 			this._items.push(new InteractiveRequestViewModel(request));
@@ -139,7 +130,7 @@ export class InteractiveSessionViewModel extends Disposable implements IInteract
 	}
 
 	private onAddResponse(responseModel: IInteractiveResponseModel) {
-		const response = this.instantiationService.createInstance(InteractiveResponseViewModel, responseModel, this.progressiveResponseRenderingEnabled);
+		const response = this.instantiationService.createInstance(InteractiveResponseViewModel, responseModel);
 		this._register(response.onDidChange(() => this._onDidChange.fire()));
 		this._items.push(response);
 	}
@@ -183,7 +174,7 @@ export class InteractiveRequestViewModel implements IInteractiveRequestViewModel
 }
 
 export class InteractiveResponseViewModel extends Disposable implements IInteractiveResponseViewModel {
-	private _changeCount = 0;
+	private _modelChangeCount = 0;
 
 	private readonly _onDidChange = this._register(new Emitter<void>());
 	readonly onDidChange = this._onDidChange.event;
@@ -194,7 +185,7 @@ export class InteractiveResponseViewModel extends Disposable implements IInterac
 	}
 
 	get id() {
-		return this._model.id + `_${this._changeCount}`;
+		return this._model.id + `_${this._modelChangeCount}`;
 	}
 
 	get providerId() {
@@ -256,7 +247,6 @@ export class InteractiveResponseViewModel extends Disposable implements IInterac
 
 	constructor(
 		private readonly _model: IInteractiveResponseModel,
-		public readonly progressiveResponseRenderingEnabled: boolean,
 		@ILogService private readonly logService: ILogService
 	) {
 		super();
@@ -304,7 +294,7 @@ export class InteractiveResponseViewModel extends Disposable implements IInterac
 			}
 
 			// new data -> new id, new content to render
-			this._changeCount++;
+			this._modelChangeCount++;
 			if (this.renderData) {
 				this.renderData.isFullyRendered = false;
 				this.renderData.lastRenderTime = Date.now();
@@ -319,7 +309,7 @@ export class InteractiveResponseViewModel extends Disposable implements IInterac
 	}
 
 	setVote(vote: InteractiveSessionVoteDirection): void {
-		this._changeCount++;
+		this._modelChangeCount++;
 		this._model.setVote(vote);
 	}
 }

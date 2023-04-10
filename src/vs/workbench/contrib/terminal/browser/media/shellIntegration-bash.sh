@@ -45,6 +45,35 @@ if [ -z "$VSCODE_SHELL_INTEGRATION" ]; then
 	builtin return
 fi
 
+# Apply EnvironmentVariableCollections if needed
+if [ -n "$VSCODE_ENV_REPLACE" ]; then
+	IFS=':' read -ra ADDR <<< "$VSCODE_ENV_REPLACE"
+	for ITEM in "${ADDR[@]}"; do
+		VARNAME="$(echo $ITEM | cut -d "=" -f 1)"
+		VALUE="$(echo $ITEM | cut -d "=" -f 2)"
+		export $VARNAME="$VALUE"
+	done
+	builtin unset VSCODE_ENV_REPLACE
+fi
+if [ -n "$VSCODE_ENV_PREPEND" ]; then
+	IFS=':' read -ra ADDR <<< "$VSCODE_ENV_PREPEND"
+	for ITEM in "${ADDR[@]}"; do
+		VARNAME="$(echo $ITEM | cut -d "=" -f 1)"
+		VALUE="$(echo $ITEM | cut -d "=" -f 2)"
+		export $VARNAME="$VALUE${!VARNAME}"
+	done
+	builtin unset VSCODE_ENV_PREPEND
+fi
+if [ -n "$VSCODE_ENV_APPEND" ]; then
+	IFS=':' read -ra ADDR <<< "$VSCODE_ENV_APPEND"
+	for ITEM in "${ADDR[@]}"; do
+		VARNAME="$(echo $ITEM | cut -d "=" -f 1)"
+		VALUE="$(echo $ITEM | cut -d "=" -f 2)"
+		export $VARNAME="${!VARNAME}$VALUE"
+	done
+	builtin unset VSCODE_ENV_APPEND
+fi
+
 __vsc_get_trap() {
 	# 'trap -p DEBUG' outputs a shell command like `trap -- '…shellcode…' DEBUG`.
 	# The terms are quoted literals, but are not guaranteed to be on a single line.

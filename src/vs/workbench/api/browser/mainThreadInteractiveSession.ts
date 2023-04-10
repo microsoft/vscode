@@ -35,7 +35,7 @@ export class MainThreadInteractiveSession extends Disposable implements MainThre
 		}));
 	}
 
-	async $registerInteractiveSessionProvider(handle: number, id: string, implementsProgress: boolean): Promise<void> {
+	async $registerInteractiveSessionProvider(handle: number, id: string): Promise<void> {
 		if (this.productService.quality === 'stable') {
 			this.logService.trace(`The interactive session API is not supported in stable VS Code.`);
 			return;
@@ -48,7 +48,6 @@ export class MainThreadInteractiveSession extends Disposable implements MainThre
 
 		const unreg = this._interactiveSessionService.registerProvider({
 			id,
-			progressiveRenderingEnabled: implementsProgress,
 			prepareSession: async (initialState, token) => {
 				const session = await this._proxy.$prepareInteractiveSession(handle, initialState, token);
 				if (!session) {
@@ -92,9 +91,6 @@ export class MainThreadInteractiveSession extends Disposable implements MainThre
 				} finally {
 					this._activeRequestProgressCallbacks.delete(id);
 				}
-			},
-			provideSuggestions: (token) => {
-				return this._proxy.$provideInitialSuggestions(handle, token);
 			},
 			provideWelcomeMessage: (token) => {
 				return this._proxy.$provideWelcomeMessage(handle, token);

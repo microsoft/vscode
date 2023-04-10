@@ -558,6 +558,51 @@ function mergeRawTokenText(tokens: marked.Token[]): string {
 	return mergedTokenText;
 }
 
+function completeSingleLinePattern(token: marked.Tokens.ListItem | marked.Tokens.Paragraph): marked.Token | undefined {
+	const subtoken = token.tokens[0];
+	if (subtoken.type === 'text') {
+		const lines = subtoken.raw.split('\n');
+		const lastLine = lines[lines.length - 1];
+		if (lastLine.includes('`')) {
+			return completeCodespan(token);
+		} else if (lastLine.includes('**')) {
+			return completeDoublestar(token);
+		} else if (lastLine.match(/\*\w/)) {
+			return completeStar(token);
+		} else if (lastLine.match(/(^|\s)__\w/)) {
+			return completeDoubleUnderscore(token);
+		} else if (lastLine.match(/(^|\s)_\w/)) {
+			return completeUnderscore(token);
+		} else if (lastLine.match(/(^|\s)\[.*\]\(\w*/)) {
+			return completeLinkTarget(token);
+		} else if (lastLine.match(/(^|\s)\[\w/)) {
+			return completeLinkText(token);
+		}
+	}
+
+	return undefined;
+}
+
+// function completeListItemPattern(token: marked.Tokens.List): marked.Tokens.List | undefined {
+// 	// Patch up this one list item
+// 	const lastItem = token.items[token.items.length - 1];
+
+// 	const newList = completeSingleLinePattern(lastItem);
+// 	if (!newList || newList.type !== 'list') {
+// 		// Nothing to fix, or not a pattern we were expecting
+// 		return;
+// 	}
+
+// 	// Re-parse the whole list with the last item replaced
+// 	const completeList = marked.lexer(mergeRawTokenText(token.items.slice(0, token.items.length - 1)) + newList.items[0].raw);
+// 	if (completeList.length === 1 && completeList[0].type === 'list') {
+// 		return completeList[0];
+// 	}
+
+// 	// Not a pattern we were expecting
+// 	return undefined;
+// }
+
 export function fillInIncompleteTokens(tokens: marked.TokensList): marked.TokensList {
 	let i: number;
 	let newTokens: marked.Token[] | undefined;
@@ -573,12 +618,29 @@ export function fillInIncompleteTokens(tokens: marked.TokensList): marked.Tokens
 			newTokens = completeTable(tokens.slice(i));
 			break;
 		}
+
+		// if (i === tokens.length - 1 && token.type === 'list') {
+		// 	const newListToken = completeListItemPattern(token);
+		// 	if (newListToken) {
+		// 		newTokens = [newListToken];
+		// 		break;
+		// 	}
+		// }
+
+		if (i === tokens.length - 1 && token.type === 'paragraph') {
+			// Only operates on a single token, because any newline that follows this should break these patterns
+			const newToken = completeSingleLinePattern(token);
+			if (newToken) {
+				newTokens = [newToken];
+				break;
+			}
+		}
 	}
 
 	if (newTokens) {
 		const newTokensList = [
 			...tokens.slice(0, i),
-			...newTokens,
+			...newTokens
 		];
 		(newTokensList as marked.TokensList).links = tokens.links;
 		return newTokensList as marked.TokensList;
@@ -592,7 +654,43 @@ function completeCodeBlock(tokens: marked.Token[]): marked.Token[] {
 	return marked.lexer(mergedRawText + '\n```');
 }
 
-function completeTable(tokens: marked.Token[]): marked.Token[] {
+function completeCodespan(token: marked.Token): marked.Token {
+	return completeWithString(token, '`');
+}
+
+function completeStar(tokens: marked.Token): marked.Token {
+	return completeWithString(tokens, '*');
+}
+
+function completeUnderscore(tokens: marked.Token): marked.Token {
+	return completeWithString(tokens, '_');
+}
+
+function completeLinkTarget(tokens: marked.Token): marked.Token {
+	return completeWithString(tokens, ')');
+}
+
+function completeLinkText(tokens: marked.Token): marked.Token {
+	return completeWithString(tokens, '](about:blank)');
+}
+
+function completeDoublestar(tokens: marked.Token): marked.Token {
+	return completeWithString(tokens, '**');
+}
+
+function completeDoubleUnderscore(tokens: marked.Token): marked.Token {
+	return completeWithString(tokens, '__');
+}
+
+function completeWithString(tokens: marked.Token[] | marked.Token, closingString: string): marked.Token {
+	const mergedRawText = mergeRawTokenText(Array.isArray(tokens) ? tokens : [tokens]);
+
+	// If it was completed correctly, this should be a single token.
+	// Expecting either a Paragraph or a List
+	return marked.lexer(mergedRawText + closingString)[0] as marked.Token;
+}
+
+function completeTable(tokens: marked.Token[]): marked.Token[] | undefined {
 	const mergedRawText = mergeRawTokenText(tokens);
 	const lines = mergedRawText.split('\n');
 
@@ -610,14 +708,14 @@ function completeTable(tokens: marked.Token[]): marked.Token[] {
 				if (i !== lines.length - 1) {
 					// We got the line1 header row, and the line2 separator row, but there are more lines, and it wasn't parsed as a table!
 					// That's strange and means that the table is probably malformed in the source, so I won't try to patch it up.
-					return tokens;
+					return undefined;
 				}
 
 				// Got a line2 separator row- partial or complete, doesn't matter, we'll replace it with a correct one
 				hasSeparatorRow = true;
 			} else {
 				// The line after the header row isn't a valid separator row, so the table is malformed, don't fix it up
-				return tokens;
+				return undefined;
 			}
 		}
 	}
@@ -629,5 +727,5 @@ function completeTable(tokens: marked.Token[]): marked.Token[] {
 		return marked.lexer(newRawText);
 	}
 
-	return tokens;
+	return undefined;
 }

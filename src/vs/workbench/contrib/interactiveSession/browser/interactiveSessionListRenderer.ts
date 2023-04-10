@@ -97,6 +97,7 @@ export class InteractiveListItemRenderer extends Disposable implements ITreeRend
 	private readonly _editorPool: EditorPool;
 
 	private _currentLayoutWidth: number = 0;
+	private _isVisible = true;
 
 	constructor(
 		private readonly editorOptions: InteractiveSessionEditorOptions,
@@ -125,8 +126,8 @@ export class InteractiveListItemRenderer extends Disposable implements ITreeRend
 		}
 	}
 
-	private shouldRenderProgressively(element: IInteractiveResponseViewModel): boolean {
-		return !this.configService.getValue('interactive.experimental.disableProgressiveRendering') && element.progressiveResponseRenderingEnabled;
+	private shouldRenderProgressively(): boolean {
+		return !this.configService.getValue('interactive.experimental.disableProgressiveRendering');
 	}
 
 	private getProgressiveRenderRate(element: IInteractiveResponseViewModel): number {
@@ -148,6 +149,10 @@ export class InteractiveListItemRenderer extends Disposable implements ITreeRend
 		}
 
 		return 8;
+	}
+
+	setVisible(visible: boolean): void {
+		this._isVisible = visible;
 	}
 
 	layout(width: number): void {
@@ -224,7 +229,7 @@ export class InteractiveListItemRenderer extends Disposable implements ITreeRend
 		// - And the response is not complete
 		//   - Or, we previously started a progressive rendering of this element (if the element is complete, we will finish progressive rendering with a very fast rate)
 		// - And, the feature is not disabled in configuration
-		if (isResponseVM(element) && index === this.delegate.getListLength() - 1 && (!element.isComplete || element.renderData) && this.shouldRenderProgressively(element)) {
+		if (isResponseVM(element) && index === this.delegate.getListLength() - 1 && (!element.isComplete || element.renderData) && this.shouldRenderProgressively()) {
 			this.traceLayout('renderElement', `start progressive render ${kind}, index=${index}`);
 			const progressiveRenderingDisposables = templateData.elementDisposables.add(new DisposableStore());
 			const timer = templateData.elementDisposables.add(new IntervalTimer());
@@ -239,8 +244,8 @@ export class InteractiveListItemRenderer extends Disposable implements ITreeRend
 					throw err;
 				}
 			};
-			runProgressiveRender(true);
 			timer.cancelAndSet(runProgressiveRender, 50);
+			runProgressiveRender(true);
 		} else if (isResponseVM(element)) {
 			this.basicRenderElement(element.response.value, element, index, templateData);
 		} else if (isRequestVM(element)) {
@@ -306,7 +311,14 @@ export class InteractiveListItemRenderer extends Disposable implements ITreeRend
 		}
 	}
 
+	/**
+	 *	@returns true if progressive rendering should be considered complete- the element's data is fully rendered or the view is not visible
+	 */
 	private doNextProgressiveRender(element: IInteractiveResponseViewModel, index: number, templateData: IInteractiveListItemTemplate, isInRenderElement: boolean, disposables: DisposableStore): boolean {
+		if (!this._isVisible) {
+			return true;
+		}
+
 		disposables.clear();
 
 		let isFullyRendered = false;
@@ -615,7 +627,8 @@ class CodeBlockPart extends Disposable implements IInteractiveResultCodeBlockPar
 			this.layout(width);
 		}
 
-		this.setText(data.text);
+		const text = this.fixCodeText(data.text, data.languageId);
+		this.setText(text);
 		this.setLanguage(data.languageId);
 
 		this.layout(width);
@@ -636,6 +649,16 @@ class CodeBlockPart extends Disposable implements IInteractiveResultCodeBlockPar
 			codeBlockIndex: data.codeBlockIndex,
 			element: data.element
 		};
+	}
+
+	private fixCodeText(text: string, languageId: string): string {
+		if (languageId === 'php') {
+			if (!text.trim().startsWith('<')) {
+				return `<?php\n${text}\n?>`;
+			}
+		}
+
+		return text;
 	}
 
 	private setText(newText: string): void {

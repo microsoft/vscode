@@ -45,7 +45,6 @@ const vscodeEntryPoints = [
 	buildfile.workerExtensionHost,
 	buildfile.workerNotebook,
 	buildfile.workerLanguageDetection,
-	buildfile.workerSharedProcess,
 	buildfile.workerLocalFileSearch,
 	buildfile.workerProfileAnalysis,
 	buildfile.workbenchDesktop,
@@ -126,8 +125,7 @@ const optimizeVSCodeTask = task.define('optimize-vscode', task.series(
 			manual: [
 				{ src: [...windowBootstrapFiles, 'out-build/vs/code/electron-sandbox/workbench/workbench.js'], out: 'vs/code/electron-sandbox/workbench/workbench.js' },
 				{ src: [...windowBootstrapFiles, 'out-build/vs/code/electron-sandbox/issue/issueReporter.js'], out: 'vs/code/electron-sandbox/issue/issueReporter.js' },
-				{ src: [...windowBootstrapFiles, 'out-build/vs/code/electron-sandbox/processExplorer/processExplorer.js'], out: 'vs/code/electron-sandbox/processExplorer/processExplorer.js' },
-				{ src: [...windowBootstrapFiles, 'out-build/vs/code/node/sharedProcess/sharedProcess.js'], out: 'vs/code/node/sharedProcess/sharedProcess.js' }
+				{ src: [...windowBootstrapFiles, 'out-build/vs/code/electron-sandbox/processExplorer/processExplorer.js'], out: 'vs/code/electron-sandbox/processExplorer/processExplorer.js' }
 			]
 		}
 	)

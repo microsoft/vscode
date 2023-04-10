@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CONFIGURATION_KEY_HOST_NAME, CONFIGURATION_KEY_PREVENT_SLEEP, ConnectionInfo, IRemoteTunnelAccount, IRemoteTunnelService, LOGGER_NAME, LOG_ID, TunnelStates, TunnelStatus } from 'vs/platform/remoteTunnel/common/remoteTunnel';
+import { CONFIGURATION_KEY_HOST_NAME, CONFIGURATION_KEY_PREVENT_SLEEP, ConnectionInfo, IRemoteTunnelSession, IRemoteTunnelService, LOGGER_NAME, LOG_ID, TunnelStates, TunnelStatus } from 'vs/platform/remoteTunnel/common/remoteTunnel';
 import { Emitter } from 'vs/base/common/event';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { INativeEnvironmentService } from 'vs/platform/environment/common/environment';
@@ -18,6 +18,8 @@ import { ISharedProcessLifecycleService } from 'vs/platform/lifecycle/node/share
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { localize } from 'vs/nls';
 import { hostname, homedir } from 'os';
+import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
+import { isString } from 'vs/base/common/types';
 
 type RemoteTunnelEnablementClassification = {
 	owner: 'aeschli';
@@ -34,6 +36,11 @@ const restartTunnelOnConfigurationChanges: readonly string[] = [
 	CONFIGURATION_KEY_PREVENT_SLEEP,
 ];
 
+// This is the session used run the tunnel access.
+// if set, the remote tunnel access is currently enabled.
+// if not set, the remote tunnel access is currently disabled.
+const TUNNEL_ACCESS_SESSION = 'remoteTunnelSession';
+
 /**
  * This service runs on the shared service. It is running the `code-tunnel` command
  * to make the current machine available for remote access.
@@ -42,25 +49,27 @@ export class RemoteTunnelService extends Disposable implements IRemoteTunnelServ
 
 	declare readonly _serviceBrand: undefined;
 
-	private readonly _onDidTokenFailedEmitter = new Emitter<boolean>();
+	private readonly _onDidTokenFailedEmitter = new Emitter<IRemoteTunnelSession | undefined>();
 	public readonly onDidTokenFailed = this._onDidTokenFailedEmitter.event;
 
 	private readonly _onDidChangeTunnelStatusEmitter = new Emitter<TunnelStatus>();
 	public readonly onDidChangeTunnelStatus = this._onDidChangeTunnelStatusEmitter.event;
 
-	private readonly _onDidChangeAccountEmitter = new Emitter<IRemoteTunnelAccount | undefined>();
-	public readonly onDidChangeAccount = this._onDidChangeAccountEmitter.event;
+	private readonly _onDidChangeSessionEmitter = new Emitter<IRemoteTunnelSession | undefined>();
+	public readonly onDidChangeSession = this._onDidChangeSessionEmitter.event;
 
 	private readonly _logger: ILogger;
 
-	private _account: IRemoteTunnelAccount | undefined;
-	private _tunnelProcess: CancelablePromise<void> | undefined;
+	private _session: IRemoteTunnelSession | undefined;
 
-	private _tunnelStatus: TunnelStatus = TunnelStates.disconnected;
+	private _tunnelProcess: CancelablePromise<any> | undefined;
+
+	private _tunnelStatus: TunnelStatus;
 	private _startTunnelProcessDelayer: Delayer<void>;
 
 	private _tunnelCommand: string | undefined;
 
+	private _initialized = false;
 
 	constructor(
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
@@ -68,7 +77,8 @@ export class RemoteTunnelService extends Disposable implements IRemoteTunnelServ
 		@INativeEnvironmentService private readonly environmentService: INativeEnvironmentService,
 		@ILoggerService loggerService: ILoggerService,
 		@ISharedProcessLifecycleService sharedProcessLifecycleService: ISharedProcessLifecycleService,
-		@IConfigurationService private readonly configurationService: IConfigurationService
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IStorageService private readonly storageService: IStorageService
 	) {
 		super();
 		this._logger = this._register(loggerService.createLogger(LOG_ID, { name: LOGGER_NAME }));
@@ -87,30 +97,50 @@ export class RemoteTunnelService extends Disposable implements IRemoteTunnelServ
 				this._startTunnelProcessDelayer.trigger(() => this.updateTunnelProcess());
 			}
 		}));
+
+		this._session = this._restoreSession();
+		this._tunnelStatus = TunnelStates.uninitialized;
 	}
 
-	async getAccount(): Promise<IRemoteTunnelAccount | undefined> {
-		return this._account;
+	public async getTunnelStatus(): Promise<TunnelStatus> {
+		return this._tunnelStatus;
 	}
 
-	async updateAccount(account: IRemoteTunnelAccount | undefined): Promise<TunnelStatus> {
-		if (account && this._account ? account.token !== this._account.token || account.providerId !== this._account.providerId : account !== this._account) {
-			this._account = account;
-			this._onDidChangeAccountEmitter.fire(account);
+	private setTunnelStatus(tunnelStatus: TunnelStatus) {
+		this._tunnelStatus = tunnelStatus;
+		this._onDidChangeTunnelStatusEmitter.fire(tunnelStatus);
+	}
 
-			if (account) {
-				this._logger.info(`Account updated: ${account.accountLabel} (${account.providerId})`);
+	private setSession(session: IRemoteTunnelSession | undefined) {
+		if (!isSameSession(session, this._session)) {
+			this._session = session;
+			this._onDidChangeSessionEmitter.fire(session);
+			this._storeSession(session);
+			if (session) {
+				this._logger.info(`Session updated: ${session.accountLabel} (${session.providerId})`);
+				if (session.token) {
+					this._logger.info(`Session token updated: ${session.accountLabel} (${session.providerId})`);
+				}
 			} else {
-				this._logger.info(`Account reset`);
+				this._logger.info(`Session reset`);
 			}
+		}
+	}
 
-			this.telemetryService.publicLog2<RemoteTunnelEnablementEvent, RemoteTunnelEnablementClassification>('remoteTunnel.enablement', { enabled: !!account });
+	async getSession(): Promise<IRemoteTunnelSession | undefined> {
+		return this._session;
+	}
 
-			try {
-				await this._startTunnelProcessDelayer.trigger(() => this.updateTunnelProcess());
-			} catch (e) {
-				this._logger.error(e);
-			}
+	async initialize(session: IRemoteTunnelSession | undefined): Promise<TunnelStatus> {
+		if (this._initialized) {
+			return this._tunnelStatus;
+		}
+		this._initialized = true;
+		this.setSession(session);
+		try {
+			await this._startTunnelProcessDelayer.trigger(() => this.updateTunnelProcess());
+		} catch (e) {
+			this._logger.error(e);
 		}
 		return this._tunnelStatus;
 	}
@@ -134,20 +164,57 @@ export class RemoteTunnelService extends Disposable implements IRemoteTunnelServ
 		return this._tunnelCommand;
 	}
 
-	private async updateTunnelProcess(): Promise<void> {
+	async startTunnel(session: IRemoteTunnelSession): Promise<TunnelStatus> {
+		if (isSameSession(session, this._session)) {
+			return this._tunnelStatus;
+		}
+		this.setSession(session);
+
+		try {
+			await this._startTunnelProcessDelayer.trigger(() => this.updateTunnelProcess());
+		} catch (e) {
+			this._logger.error(e);
+		}
+		return this._tunnelStatus;
+	}
+
+
+	async stopTunnel(): Promise<void> {
+		this.setSession(undefined);
+
 		if (this._tunnelProcess) {
 			this._tunnelProcess.cancel();
 			this._tunnelProcess = undefined;
 		}
-		if (!this._account) {
-			this.setTunnelStatus(TunnelStates.disconnected);
-			return;
-		}
-		const { token, providerId, accountLabel: accountName } = this._account;
 
-		this.setTunnelStatus(TunnelStates.connecting(localize({ key: 'remoteTunnelService.authorizing', comment: ['{0} is a user account name, {1} a provider name (e.g. Github)'] }, 'Connecting as {0} ({1})', accountName, providerId)));
 		const onOutput = (a: string, isErr: boolean) => {
-			a = a.replaceAll(token, '*'.repeat(4));
+			if (isErr) {
+				this._logger.error(a);
+			} else {
+				this._logger.info(a);
+			}
+		};
+		try {
+			await this.runCodeTunneCommand('stop', ['kill'], onOutput);
+		} catch (e) {
+			this._logger.error(e);
+		}
+		this.setTunnelStatus(TunnelStates.disconnected());
+
+	}
+
+	private async updateTunnelProcess(): Promise<void> {
+		this.telemetryService.publicLog2<RemoteTunnelEnablementEvent, RemoteTunnelEnablementClassification>('remoteTunnel.enablement', { enabled: !!this._session });
+
+
+		if (this._tunnelProcess) {
+			this._tunnelProcess.cancel();
+			this._tunnelProcess = undefined;
+		}
+
+		let isAttached = false;
+
+		const onOutput = (a: string, isErr: boolean) => {
 			if (isErr) {
 				this._logger.error(a);
 			} else {
@@ -157,22 +224,54 @@ export class RemoteTunnelService extends Disposable implements IRemoteTunnelServ
 				this.setTunnelStatus(TunnelStates.connecting(localize('remoteTunnelService.building', 'Building CLI from sources')));
 			}
 		};
-		const loginProcess = this.runCodeTunneCommand('login', ['user', 'login', '--provider', providerId, '--access-token', token, '--log', LogLevelToString(this._logger.getLevel())], onOutput);
-		this._tunnelProcess = loginProcess;
+
+		const statusProcess = this.runCodeTunneCommand('status', ['status'], onOutput);
+		this._tunnelProcess = statusProcess;
 		try {
-			await loginProcess;
-			if (this._tunnelProcess !== loginProcess) {
+			const status = await statusProcess;
+			if (this._tunnelProcess !== statusProcess) {
+				return;
+			}
+			isAttached = status === 0;
+			this._logger.info(isAttached ? 'Other tunnel running, attaching...' : 'No other tunnel running');
+			if (!isAttached && !this._session) {
+				this._tunnelProcess = undefined;
+				this.setTunnelStatus(TunnelStates.disconnected());
 				return;
 			}
 		} catch (e) {
 			this._logger.error(e);
 			this._tunnelProcess = undefined;
-			this._onDidTokenFailedEmitter.fire(true);
-			this.setTunnelStatus(TunnelStates.disconnected);
+			this.setTunnelStatus(TunnelStates.disconnected());
 			return;
 		}
 
-		const hostName = this._getHostName();
+		const session = this._session;
+
+		if (session && session.token) {
+			const token = session.token;
+			this.setTunnelStatus(TunnelStates.connecting(localize({ key: 'remoteTunnelService.authorizing', comment: ['{0} is a user account name, {1} a provider name (e.g. Github)'] }, 'Connecting as {0} ({1})', session.accountLabel, session.providerId)));
+			const onLoginOutput = (a: string, isErr: boolean) => {
+				a = a.replaceAll(token, '*'.repeat(4));
+				onOutput(a, isErr);
+			};
+			const loginProcess = this.runCodeTunneCommand('login', ['user', 'login', '--provider', session.providerId, '--access-token', token, '--log', LogLevelToString(this._logger.getLevel())], onLoginOutput);
+			this._tunnelProcess = loginProcess;
+			try {
+				await loginProcess;
+				if (this._tunnelProcess !== loginProcess) {
+					return;
+				}
+			} catch (e) {
+				this._logger.error(e);
+				this._tunnelProcess = undefined;
+				this._onDidTokenFailedEmitter.fire(session);
+				this.setTunnelStatus(TunnelStates.disconnected(session));
+				return;
+			}
+		}
+
+		const hostName = this._getTunnelName();
 		if (hostName) {
 			this.setTunnelStatus(TunnelStates.connecting(localize({ key: 'remoteTunnelService.openTunnelWithName', comment: ['{0} is a tunnel name'] }, 'Opening tunnel {0}', hostName)));
 		} else {
@@ -193,14 +292,14 @@ export class RemoteTunnelService extends Disposable implements IRemoteTunnelServ
 			} else {
 				this._logger.info(message);
 			}
-			const m = message.match(/^\s*Open this link in your browser (https:\/\/([^\/\s]+)\/([^\/\s]+)\/([^\/\s]+))/);
+			const m = message.match(/Open this link in your browser (https:\/\/([^\/\s]+)\/([^\/\s]+)\/([^\/\s]+))/);
 			if (m) {
-				const info: ConnectionInfo = { link: m[1], domain: m[2], hostName: m[4] };
+				const info: ConnectionInfo = { link: m[1], domain: m[2], tunnelName: m[4], isAttached };
 				this.setTunnelStatus(TunnelStates.connected(info));
 			} else if (message.match(/error refreshing token/)) {
 				serveCommand.cancel();
-				this._onDidTokenFailedEmitter.fire(true);
-				this.setTunnelStatus(TunnelStates.disconnected);
+				this._onDidTokenFailedEmitter.fire(session);
+				this.setTunnelStatus(TunnelStates.disconnected(session));
 			}
 		});
 		this._tunnelProcess = serveCommand;
@@ -209,27 +308,18 @@ export class RemoteTunnelService extends Disposable implements IRemoteTunnelServ
 				// process exited unexpectedly
 				this._logger.info(`tunnel process terminated`);
 				this._tunnelProcess = undefined;
-				this._account = undefined;
+				this._session = undefined;
 
-				this.setTunnelStatus(TunnelStates.disconnected);
+				this.setTunnelStatus(TunnelStates.disconnected());
 			}
 		});
 	}
 
-	public async getTunnelStatus(): Promise<TunnelStatus> {
-		return this._tunnelStatus;
-	}
-
-	private setTunnelStatus(tunnelStatus: TunnelStatus) {
-		this._tunnelStatus = tunnelStatus;
-		this._onDidChangeTunnelStatusEmitter.fire(tunnelStatus);
-	}
-
-	private runCodeTunneCommand(logLabel: string, commandArgs: string[], onOutput: (message: string, isError: boolean) => void = () => { }): CancelablePromise<void> {
-		return createCancelablePromise<void>(token => {
+	private runCodeTunneCommand(logLabel: string, commandArgs: string[], onOutput: (message: string, isError: boolean) => void = () => { }): CancelablePromise<number> {
+		return createCancelablePromise<number>(token => {
 			return new Promise((resolve, reject) => {
 				if (token.isCancellationRequested) {
-					resolve();
+					resolve(-1);
 				}
 				let tunnelProcess: ChildProcess | undefined;
 				token.onCancellationRequested(() => {
@@ -265,11 +355,7 @@ export class RemoteTunnelService extends Disposable implements IRemoteTunnelServ
 					if (tunnelProcess) {
 						onOutput(`${logLabel} exit(${tunnelProcess.pid}): + ${e} `, false);
 						tunnelProcess = undefined;
-						if (e === 0) {
-							resolve();
-						} else {
-							reject();
-						}
+						resolve(e || 0);
 					}
 				});
 				tunnelProcess.on('error', e => {
@@ -283,18 +369,52 @@ export class RemoteTunnelService extends Disposable implements IRemoteTunnelServ
 		});
 	}
 
-	public async getHostName(): Promise<string | undefined> {
-		return this._getHostName();
+	public async getTunnelName(): Promise<string | undefined> {
+		return this._getTunnelName();
 	}
 
 	private _preventSleep() {
 		return !!this.configurationService.getValue<boolean>(CONFIGURATION_KEY_PREVENT_SLEEP);
 	}
 
-	private _getHostName(): string | undefined {
+	private _getTunnelName(): string | undefined {
 		let name = this.configurationService.getValue<string>(CONFIGURATION_KEY_HOST_NAME) || hostname();
 		name = name.replace(/^-+/g, '').replace(/[^\w-]/g, '').substring(0, 20);
 		return name || undefined;
 	}
 
+	private _restoreSession(): IRemoteTunnelSession | undefined {
+		try {
+			const tunnelAccessSession = this.storageService.get(TUNNEL_ACCESS_SESSION, StorageScope.APPLICATION);
+			if (tunnelAccessSession) {
+				const session = JSON.parse(tunnelAccessSession) as IRemoteTunnelSession;
+				if (session && isString(session.accountLabel) && isString(session.sessionId) && isString(session.providerId)) {
+					return session;
+				}
+				this._logger.error('Problems restoring session from storage, invalid format', session);
+			}
+		} catch (e) {
+			this._logger.error('Problems restoring session from storage', e);
+		}
+		return undefined;
+	}
+
+	private _storeSession(session: IRemoteTunnelSession | undefined): void {
+		if (session) {
+			const sessionWithoutToken = {
+				providerId: session.providerId, sessionId: session.sessionId, accountLabel: session.accountLabel
+			};
+			this.storageService.store(TUNNEL_ACCESS_SESSION, JSON.stringify(sessionWithoutToken), StorageScope.APPLICATION, StorageTarget.MACHINE);
+		} else {
+			this.storageService.remove(TUNNEL_ACCESS_SESSION, StorageScope.APPLICATION);
+		}
+	}
 }
+
+function isSameSession(a1: IRemoteTunnelSession | undefined, a2: IRemoteTunnelSession | undefined): boolean {
+	if (a1 && a2) {
+		return a1.sessionId === a2.sessionId && a1.providerId === a2.providerId && a1.token === a2.token;
+	}
+	return a1 === a2;
+}
+
