@@ -110,6 +110,7 @@ export interface IInteractiveSessionInsertAction {
 	kind: 'insert';
 	responseId: string;
 	codeBlockIndex: number;
+	totalCharacters: number;
 }
 
 export interface IInteractiveSessionCommandAction {
