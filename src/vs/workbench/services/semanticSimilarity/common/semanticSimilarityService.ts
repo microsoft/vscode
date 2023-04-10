@@ -20,7 +20,6 @@ export interface ISemanticSimilarityService {
 	isEnabled(): boolean;
 	getSimilarityScore(string1: string, comparisons: string[], token: CancellationToken): Promise<number[]>;
 	registerSemanticSimilarityProvider(provider: ISemanticSimilarityProvider): IDisposable;
-	unregisterSemanticSimilarityProvider(provider: ISemanticSimilarityProvider): void;
 }
 
 export interface ISemanticSimilarityProvider {
@@ -58,13 +57,6 @@ export class SemanticSimilarityService implements ISemanticSimilarityService {
 				}
 			}
 		};
-	}
-
-	unregisterSemanticSimilarityProvider(provider: ISemanticSimilarityProvider): void {
-		const index = this._providers.indexOf(provider);
-		if (index >= 0) {
-			this._providers.splice(index, 1);
-		}
 	}
 
 	async getSimilarityScore(string1: string, comparisons: string[], token: CancellationToken): Promise<number[]> {
