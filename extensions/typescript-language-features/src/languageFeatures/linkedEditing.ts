@@ -10,7 +10,7 @@ import * as typeConverters from '../typeConverters';
 import { ClientCapability, ITypeScriptServiceClient } from '../typescriptService';
 import { conditionalRegistration, requireMinVersion, requireSomeCapability } from './util/dependentRegistration';
 
-class JsxLinkedEditingSupport implements vscode.LinkedEditingRangeProvider {
+class LinkedEditingSupport implements vscode.LinkedEditingRangeProvider {
 
 	public static readonly minVersion = API.v510;
 
@@ -40,10 +40,10 @@ export function register(
 	client: ITypeScriptServiceClient
 ) {
 	return conditionalRegistration([
-		requireMinVersion(client, JsxLinkedEditingSupport.minVersion),
+		requireMinVersion(client, LinkedEditingSupport.minVersion),
 		requireSomeCapability(client, ClientCapability.Syntax),
 	], () => {
-		return vscode.languages.registerLinkedEditingRangeProvider(selector.semantic,
-			new JsxLinkedEditingSupport(client));
+		return vscode.languages.registerLinkedEditingRangeProvider(selector.syntax,
+			new LinkedEditingSupport(client));
 	});
 }
