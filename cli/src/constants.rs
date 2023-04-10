@@ -34,6 +34,26 @@ pub const VSCODE_CLI_COMMIT: Option<&'static str> = option_env!("VSCODE_CLI_COMM
 pub const VSCODE_CLI_UPDATE_ENDPOINT: Option<&'static str> =
 	option_env!("VSCODE_CLI_UPDATE_ENDPOINT");
 
+/// Windows lock name for the running tunnel service. Used by the setup script
+/// to detect a tunnel process. See #179265.
+pub const TUNNEL_SERVICE_LOCK_NAME: &str = concatcp!(
+	"code_tunnel_service_",
+	match VSCODE_CLI_QUALITY {
+		Some(n) => n,
+		None => "oss",
+	}
+);
+
+/// Windows lock name for the running tunnel without a service. Used by the setup
+/// script to detect a tunnel process. See #179265.
+pub const TUNNEL_NO_SERVICE_LOCK_NAME: &str = concatcp!(
+	"code_tunnel_",
+	match VSCODE_CLI_QUALITY {
+		Some(n) => n,
+		None => "oss",
+	}
+);
+
 pub const TUNNEL_SERVICE_USER_AGENT_ENV_VAR: &str = "TUNNEL_SERVICE_USER_AGENT";
 
 /// Application name as it appears on the CLI.
