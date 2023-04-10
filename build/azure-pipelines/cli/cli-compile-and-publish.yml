@@ -3,8 +3,6 @@ parameters:
     type: string
   - name: VSCODE_CLI_ARTIFACT
     type: string
-  - name: VSCODE_QUALITY
-    type: string
   - name: VSCODE_CLI_ENV
     type: object
     default: {}
@@ -15,8 +13,6 @@ steps:
     workingDirectory: $(Build.SourcesDirectory)/cli
     env:
       CARGO_NET_GIT_FETCH_WITH_CLI: true
-      VSCODE_CLI_PREPARE_ROOT: $(Build.SourcesDirectory)/.build/distro
-      VSCODE_QUALITY: ${{ parameters.VSCODE_QUALITY }}
       ${{ each pair in parameters.VSCODE_CLI_ENV }}:
         ${{ pair.key }}: ${{ pair.value }}
 
