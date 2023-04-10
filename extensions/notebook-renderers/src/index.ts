@@ -218,7 +218,10 @@ function findScrolledHeight(scrollableElement: HTMLElement): number | undefined 
 }
 
 function scrollingEnabled(output: OutputItem, options: RenderOptions) {
-	return output.metadata?.scrollable !== undefined ? output.metadata?.scrollable : options.outputScrolling;
+	const metadata = output.metadata;
+	return (typeof metadata === 'object' && metadata
+		&& 'scrollable' in metadata && typeof metadata.scrollable === 'boolean') ?
+		metadata.scrollable : options.outputScrolling;
 }
 
 function renderStream(outputInfo: OutputItem, outputElement: HTMLElement, error: boolean, ctx: IRichRenderContext): IDisposable {
