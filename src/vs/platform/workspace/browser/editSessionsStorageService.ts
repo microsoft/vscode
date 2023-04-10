@@ -17,7 +17,8 @@ class EditSessionStateRegistryImpl {
 
 	public registerEditSessionsContribution(contributionPoint: string, editSessionsContribution: IEditSessionContribution): IDisposable {
 		if (this._registeredEditSessionContributions.has(contributionPoint)) {
-			throw new Error(`Edit session contribution point with identifier ${contributionPoint} already exists`);
+			console.warn(`Edit session contribution point with identifier ${contributionPoint} already exists`);
+			return { dispose: () => { } };
 		}
 
 		this._registeredEditSessionContributions.set(contributionPoint, editSessionsContribution);

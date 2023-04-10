@@ -152,7 +152,7 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 
 		this.registerListeners();
 
-		EditSessionRegistry.registerEditSessionsContribution('workbenchEditorLayout', this);
+		this._register(EditSessionRegistry.registerEditSessionsContribution('workbenchEditorLayout', this));
 	}
 
 	getStateToStore() {
@@ -165,6 +165,7 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 
 	resumeState(_workspaceFolder: IWorkspaceFolder, state: unknown) {
 		if (typeof state === 'object' && state !== null && 'serializedGrid' in state && 'activeGroup' in state && 'mostRecentActiveGroups' in state) {
+			this.dispose();
 			this.mostRecentActiveGroups = (state as IEditorPartUIState).mostRecentActiveGroups;
 			this.doCreateGridControlWithState((state as IEditorPartUIState).serializedGrid, (state as IEditorPartUIState).activeGroup);
 		}
