@@ -34,6 +34,11 @@ fsevents/test/**
 @vscode/windows-mutex/src/**
 !@vscode/windows-mutex/**/*.node
 
+@vscode/windows-process-tree/binding.gyp
+@vscode/windows-process-tree/build/**
+@vscode/windows-process-tree/src/**
+!@vscode/windows-process-tree/**/*.node
+
 @vscode/windows-registry/binding.gyp
 @vscode/windows-registry/src/**
 @vscode/windows-registry/build/**
@@ -65,11 +70,6 @@ windows-foreground-love/binding.gyp
 windows-foreground-love/build/**
 windows-foreground-love/src/**
 !windows-foreground-love/**/*.node
-
-windows-process-tree/binding.gyp
-windows-process-tree/build/**
-windows-process-tree/src/**
-!windows-process-tree/**/*.node
 
 keytar/binding.gyp
 keytar/build/**
