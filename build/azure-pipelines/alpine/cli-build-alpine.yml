@@ -59,6 +59,7 @@ steps:
       parameters:
         VSCODE_CLI_TARGET: aarch64-unknown-linux-musl
         VSCODE_CLI_ARTIFACT: vscode_cli_alpine_arm64_cli
+        VSCODE_QUALITY: ${{ parameters.VSCODE_QUALITY }}
         VSCODE_CLI_ENV:
           CXX_aarch64-unknown-linux-musl: musl-g++
           CC_aarch64-unknown-linux-musl: musl-gcc
@@ -71,6 +72,7 @@ steps:
       parameters:
         VSCODE_CLI_TARGET: x86_64-unknown-linux-musl
         VSCODE_CLI_ARTIFACT: vscode_cli_alpine_x64_cli
+        VSCODE_QUALITY: ${{ parameters.VSCODE_QUALITY }}
         VSCODE_CLI_ENV:
           CXX_aarch64-unknown-linux-musl: musl-g++
           CC_aarch64-unknown-linux-musl: musl-gcc
