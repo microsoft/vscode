@@ -24,6 +24,8 @@ import { AsyncIterableObject } from 'vs/base/common/async';
 import { MultipleSizePersistingMechanism, MultipleSizePersistingOptions, ResizableContentWidget, ResizableWidget } from 'vs/editor/contrib/hover/browser/resizableContentWidget';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
+// EXAMPLE
+import { DummyResizeWidget } from 'vs/editor/contrib/hover/browser/exampleResizableContentWidget';
 const $ = dom.$;
 
 export class ContentHoverController extends Disposable {
@@ -41,6 +43,9 @@ export class ContentHoverController extends Disposable {
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
 	) {
 		super();
+
+		// EXAMPLE
+		_editor.addContentWidget(new DummyResizeWidget(this._editor, new MultipleSizePersistingOptions()));
 
 		// Instantiate participants and sort them by `hoverOrdinal` which is relevant for rendering order.
 		this._participants = [];
