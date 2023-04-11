@@ -48,6 +48,7 @@ export interface INotebookService {
 	readonly _serviceBrand: undefined;
 	canResolve(viewType: string): Promise<boolean>;
 
+	readonly onAddViewType: Event<string>;
 	readonly onWillRemoveViewType: Event<string>;
 	readonly onDidChangeOutputRenderers: Event<void>;
 	readonly onWillAddNotebookDocument: Event<NotebookTextModel>;
@@ -61,6 +62,7 @@ export interface INotebookService {
 
 	getOutputMimeTypeInfo(textModel: NotebookTextModel, kernelProvides: readonly string[] | undefined, output: IOutputDto): readonly IOrderedMimeType[];
 
+	getViewTypeProvider(viewType: string): string | undefined;
 	getRendererInfo(id: string): INotebookRendererInfo | undefined;
 	getRenderers(): INotebookRendererInfo[];
 
