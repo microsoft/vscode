@@ -124,7 +124,7 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 			minimapRenderCharacters: true,
 			minimapMaxColumn: 150,
 			pixelRatio: 1,
-			glyphMarginDecorationsCount: 0,
+			glyphMarginDecorationsCount: 1,
 		}, {
 			width: 1000,
 			height: 800,
@@ -193,7 +193,7 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 			minimapRenderCharacters: true,
 			minimapMaxColumn: 150,
 			pixelRatio: 1,
-			glyphMarginDecorationsCount: 0,
+			glyphMarginDecorationsCount: 1,
 		}, {
 			width: 1000,
 			height: 800,
@@ -262,7 +262,7 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 			minimapRenderCharacters: true,
 			minimapMaxColumn: 150,
 			pixelRatio: 1,
-			glyphMarginDecorationsCount: 0,
+			glyphMarginDecorationsCount: 1,
 		}, {
 			width: 900,
 			height: 800,
@@ -331,7 +331,7 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 			minimapRenderCharacters: true,
 			minimapMaxColumn: 150,
 			pixelRatio: 1,
-			glyphMarginDecorationsCount: 0,
+			glyphMarginDecorationsCount: 1,
 		}, {
 			width: 900,
 			height: 900,
@@ -400,7 +400,7 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 			minimapRenderCharacters: true,
 			minimapMaxColumn: 150,
 			pixelRatio: 1,
-			glyphMarginDecorationsCount: 0,
+			glyphMarginDecorationsCount: 1,
 		}, {
 			width: 900,
 			height: 900,
@@ -469,7 +469,7 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 			minimapRenderCharacters: true,
 			minimapMaxColumn: 150,
 			pixelRatio: 1,
-			glyphMarginDecorationsCount: 0,
+			glyphMarginDecorationsCount: 1,
 		}, {
 			width: 900,
 			height: 900,
@@ -538,7 +538,7 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 			minimapRenderCharacters: true,
 			minimapMaxColumn: 150,
 			pixelRatio: 1,
-			glyphMarginDecorationsCount: 0,
+			glyphMarginDecorationsCount: 1,
 		}, {
 			width: 900,
 			height: 900,
@@ -607,7 +607,7 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 			minimapRenderCharacters: true,
 			minimapMaxColumn: 150,
 			pixelRatio: 1,
-			glyphMarginDecorationsCount: 0,
+			glyphMarginDecorationsCount: 1,
 		}, {
 			width: 900,
 			height: 900,
@@ -676,7 +676,7 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 			minimapRenderCharacters: true,
 			minimapMaxColumn: 150,
 			pixelRatio: 1,
-			glyphMarginDecorationsCount: 0,
+			glyphMarginDecorationsCount: 1,
 		}, {
 			width: 900,
 			height: 900,
@@ -745,7 +745,7 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 			minimapRenderCharacters: true,
 			minimapMaxColumn: 150,
 			pixelRatio: 1,
-			glyphMarginDecorationsCount: 0,
+			glyphMarginDecorationsCount: 1,
 		}, {
 			width: 900,
 			height: 900,
@@ -814,7 +814,7 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 			minimapRenderCharacters: true,
 			minimapMaxColumn: 150,
 			pixelRatio: 1,
-			glyphMarginDecorationsCount: 0,
+			glyphMarginDecorationsCount: 1,
 		}, {
 			width: 1000,
 			height: 800,
@@ -883,7 +883,7 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 			minimapRenderCharacters: true,
 			minimapMaxColumn: 150,
 			pixelRatio: 2,
-			glyphMarginDecorationsCount: 0,
+			glyphMarginDecorationsCount: 1,
 		}, {
 			width: 1000,
 			height: 800,
@@ -952,7 +952,7 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 			minimapRenderCharacters: true,
 			minimapMaxColumn: 150,
 			pixelRatio: 4,
-			glyphMarginDecorationsCount: 0,
+			glyphMarginDecorationsCount: 1,
 		}, {
 			width: 1000,
 			height: 800,
@@ -1021,7 +1021,7 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 			minimapRenderCharacters: true,
 			minimapMaxColumn: 150,
 			pixelRatio: 4,
-			glyphMarginDecorationsCount: 0,
+			glyphMarginDecorationsCount: 1,
 		}, {
 			width: 1000,
 			height: 800,
@@ -1092,7 +1092,7 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 			minimapMaxColumn: 150,
 			minimapSize: 'fill',
 			pixelRatio: 2,
-			glyphMarginDecorationsCount: 0,
+			glyphMarginDecorationsCount: 1,
 		}, {
 			width: 1000,
 			height: 800,
@@ -1163,7 +1163,7 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 			minimapMaxColumn: 150,
 			minimapSize: 'fill',
 			pixelRatio: 2,
-			glyphMarginDecorationsCount: 0,
+			glyphMarginDecorationsCount: 1,
 		}, {
 			width: 1000,
 			height: 800,
@@ -1234,7 +1234,7 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 			minimapMaxColumn: 150,
 			minimapSize: 'fit',
 			pixelRatio: 2,
-			glyphMarginDecorationsCount: 0,
+			glyphMarginDecorationsCount: 1,
 		}, {
 			width: 1000,
 			height: 800,
@@ -1305,7 +1305,7 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 			minimapMaxColumn: 150,
 			minimapSize: 'fit',
 			pixelRatio: 2,
-			glyphMarginDecorationsCount: 0,
+			glyphMarginDecorationsCount: 1,
 		}, {
 			width: 1000,
 			height: 800,
@@ -1374,7 +1374,7 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 			minimapRenderCharacters: true,
 			minimapMaxColumn: 120,
 			pixelRatio: 2,
-			glyphMarginDecorationsCount: 0
+			glyphMarginDecorationsCount: 1
 		}, {
 			width: 1201,
 			height: 422,
