@@ -142,7 +142,7 @@ suite('Decoration Render Options', () => {
 		}
 
 		s.registerDecorationType('test', 'example', { gutterIconPath: URI.parse('http://test/pa\'th') });
-		assert(readStyleSheet(styleSheet).indexOf(`{background:url('http://test/pa%27th') center center no-repeat;}`) > 0);
+		assert(readStyleSheet(styleSheet).indexOf(`{background:url('http://test/pa%27th') no-repeat;}`) > 0);
 		s.removeDecorationType('example');
 	});
 });
