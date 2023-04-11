@@ -477,6 +477,9 @@ pub enum CodeError {
 	UnsupportedPlatform(String),
 	#[error("This machine not meet {name}'s prerequisites, expected either...: {bullets}")]
 	PrerequisitesFailed { name: &'static str, bullets: String },
+
+	#[error("failed to spawn process: {0:?}")]
+	ProcessSpawnFailed(std::io::Error)
 }
 
 makeAnyError!(
