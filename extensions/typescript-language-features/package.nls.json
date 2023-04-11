@@ -39,6 +39,7 @@
 	"format.semicolons.ignore": "Don't insert or remove any semicolons.",
 	"format.semicolons.insert": "Insert semicolons at statement ends.",
 	"format.semicolons.remove": "Remove unnecessary semicolons.",
+	"format.indentSwitchCase": "Indent case clauses in switch statements.",
 	"javascript.validate.enable": "Enable/disable JavaScript validation.",
 	"goToProjectConfig.title": "Go to Project Configuration",
 	"javascript.referencesCodeLens.enabled": "Enable/disable references CodeLens in JavaScript files.",
