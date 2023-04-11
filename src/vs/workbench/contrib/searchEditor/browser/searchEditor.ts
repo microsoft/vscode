@@ -494,7 +494,13 @@ export class SearchEditor extends AbstractTextCodeEditor<SearchEditorViewState> 
 			matchWholeWord: this.queryEditorWidget.searchInput?.getWholeWords() ?? false,
 			useExcludeSettingsAndIgnoreFiles: this.inputPatternExcludes.useExcludesAndIgnoreFiles(),
 			onlyOpenEditors: this.inputPatternIncludes.onlySearchInOpenEditors(),
-			showIncludesExcludes: this.showingIncludesExcludes
+			showIncludesExcludes: this.showingIncludesExcludes,
+			notebookSearchConfig: {
+				includeMarkupInput: this.queryEditorWidget.getNotebookFilters().markupInput,
+				includeMarkupPreview: this.queryEditorWidget.getNotebookFilters().markupPreview,
+				includeCodeInput: this.queryEditorWidget.getNotebookFilters().codeInput,
+				includeOutput: this.queryEditorWidget.getNotebookFilters().codeOutput,
+			}
 		};
 	}
 
@@ -537,7 +543,13 @@ export class SearchEditor extends AbstractTextCodeEditor<SearchEditorViewState> 
 			afterContext: config.contextLines,
 			beforeContext: config.contextLines,
 			isSmartCase: this.searchConfig.smartCase,
-			expandPatterns: true
+			expandPatterns: true,
+			notebookSearchConfig: {
+				includeMarkupInput: config.notebookSearchConfig.includeMarkupInput,
+				includeMarkupPreview: config.notebookSearchConfig.includeMarkupPreview,
+				includeCodeInput: config.notebookSearchConfig.includeCodeInput,
+				includeOutput: config.notebookSearchConfig.includeOutput,
+			}
 		};
 
 		const folderResources = this.contextService.getWorkspace().folders;
@@ -657,6 +669,7 @@ export class SearchEditor extends AbstractTextCodeEditor<SearchEditorViewState> 
 		if (config.onlyOpenEditors !== undefined) { this.inputPatternIncludes.setOnlySearchInOpenEditors(config.onlyOpenEditors); }
 		if (config.useExcludeSettingsAndIgnoreFiles !== undefined) { this.inputPatternExcludes.setUseExcludesAndIgnoreFiles(config.useExcludeSettingsAndIgnoreFiles); }
 		if (config.showIncludesExcludes !== undefined) { this.toggleIncludesExcludes(config.showIncludesExcludes); }
+		if (config.isCaseSensitive !== undefined) { this.queryEditorWidget.searchInput?.setCaseSensitive(config.isCaseSensitive); }
 	}
 
 	override async setInput(newInput: SearchEditorInput, options: IEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {

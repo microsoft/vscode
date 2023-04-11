@@ -500,7 +500,7 @@ export class SearchView extends ViewPane {
 		this._register(this.searchWidget.onSearchSubmit(options => this.triggerQueryChange(options)));
 		this._register(this.searchWidget.onSearchCancel(({ focus }) => this.cancelSearch(focus)));
 		this._register(this.searchWidget.searchInput.onDidOptionChange(() => this.triggerQueryChange()));
-		this._register(this.searchWidget.getFilters().onDidChange(() => this.triggerQueryChange()));
+		this._register(this.searchWidget.getNotebookFilters().onDidChange(() => this.triggerQueryChange()));
 
 		const updateHasPatternKey = () => this.hasSearchPatternKey.set(this.searchWidget.searchInput ? (this.searchWidget.searchInput.getValue().length > 0) : false);
 		updateHasPatternKey();
@@ -1409,9 +1409,9 @@ export class SearchView extends ViewPane {
 		}
 
 		const isRegex = this.searchWidget.searchInput.getRegex();
-		const isInNotebookMarkdownInput = this.searchWidget.getFilters().markupInput;
-		const isInNotebookCellInput = this.searchWidget.getFilters().codeInput;
-		const isInNotebookCellOutput = this.searchWidget.getFilters().codeOutput;
+		const isInNotebookMarkdownInput = this.searchWidget.getNotebookFilters().markupInput;
+		const isInNotebookCellInput = this.searchWidget.getNotebookFilters().codeInput;
+		const isInNotebookCellOutput = this.searchWidget.getNotebookFilters().codeOutput;
 
 		const isWholeWords = this.searchWidget.searchInput.getWholeWords();
 		const isCaseSensitive = this.searchWidget.searchInput.getCaseSensitive();
@@ -1868,6 +1868,7 @@ export class SearchView extends ViewPane {
 							// Ensure that the editor widget is binded. If if is, then this should return immediately.
 							// Otherwise, it will bind the widget.
 							await elemParent.bindNotebookEditorWidget(editorWidget);
+							await elemParent.updateMatchesForEditorWidget();
 
 							const matchIndex = oldParentMatches.findIndex(e => e.id() === element.id());
 							const matches = element.parent().matches();
@@ -2007,9 +2008,9 @@ export class SearchView extends ViewPane {
 			const isCaseSensitive = this.searchWidget.searchInput.getCaseSensitive();
 			const contentPattern = this.searchWidget.searchInput.getValue();
 
-			const isInNotebookCellInput = this.searchWidget.getFilters().codeInput;
-			const isInNotebookCellOutput = this.searchWidget.getFilters().codeOutput;
-			const isInNotebookMarkdownInput = this.searchWidget.getFilters().markupInput;
+			const isInNotebookCellInput = this.searchWidget.getNotebookFilters().codeInput;
+			const isInNotebookCellOutput = this.searchWidget.getNotebookFilters().codeOutput;
+			const isInNotebookMarkdownInput = this.searchWidget.getNotebookFilters().markupInput;
 
 			this.viewletState['query.contentPattern'] = contentPattern;
 			this.viewletState['query.regex'] = isRegex;
