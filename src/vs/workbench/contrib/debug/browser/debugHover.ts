@@ -36,6 +36,12 @@ import { getEvaluatableExpressionAtPosition } from 'vs/workbench/contrib/debug/c
 
 const $ = dom.$;
 
+export const enum ShowDebugHoverResult {
+	NOT_CHANGED,
+	NOT_AVAILABLE,
+	CANCELLED,
+}
+
 async function doFindExpression(container: IExpressionContainer, namesToFind: string[]): Promise<IExpression | null> {
 	if (!container) {
 		return null;
@@ -178,30 +184,40 @@ export class DebugHoverWidget implements IContentWidget {
 		return this.domNode;
 	}
 
-	async showAt(position: Position, focus: boolean): Promise<void> {
+	async showAt(position: Position, focus: boolean): Promise<void | ShowDebugHoverResult> {
 		this.showCancellationSource?.cancel();
 		const cancellationSource = this.showCancellationSource = new CancellationTokenSource();
 		const session = this.debugService.getViewModel().focusedSession;
 
 		if (!session || !this.editor.hasModel()) {
 			this.hide();
-			return;
+			return ShowDebugHoverResult.NOT_AVAILABLE;
 		}
 
 		const result = await this.debugHoverComputer.compute(position, cancellationSource.token);
-		if (this.isVisible() && !result.rangeChanged) {
-			return;
+		if (cancellationSource.token.isCancellationRequested) {
+			this.hide();
+			return ShowDebugHoverResult.CANCELLED;
 		}
 
-		if (!result.range || cancellationSource.token.isCancellationRequested) {
+		if (!result.range) {
 			this.hide();
-			return;
+			return ShowDebugHoverResult.NOT_AVAILABLE;
+		}
+
+		if (this.isVisible() && !result.rangeChanged) {
+			return ShowDebugHoverResult.NOT_CHANGED;
 		}
 
 		const expression = await this.debugHoverComputer.evaluate(session);
-		if (cancellationSource.token.isCancellationRequested || !expression || (expression instanceof Expression && !expression.available)) {
+		if (cancellationSource.token.isCancellationRequested) {
 			this.hide();
-			return;
+			return ShowDebugHoverResult.CANCELLED;
+		}
+
+		if (!expression || (expression instanceof Expression && !expression.available)) {
+			this.hide();
+			return ShowDebugHoverResult.NOT_AVAILABLE;
 		}
 
 		this.highlightDecorations.set([{

@@ -51,5 +51,14 @@ declare module 'typescript/lib/tsserverlibrary' {
 			action: string;
 			filepath: string;
 		};
+
+		interface LinkedEditingRangesBody {
+			ranges: TextSpan[];
+			wordPattern?: string;
+		}
+
+		interface LinkedEditingRangeResponse extends Response {
+			readonly body: LinkedEditingRangesBody;
+		}
 	}
 }

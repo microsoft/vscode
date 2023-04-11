@@ -481,7 +481,7 @@ class IssueReporterItem extends HelpItemBase {
 			return {
 				label: value.extensionDescription.displayName || value.extensionDescription.identifier.value,
 				description: '',
-				url: '',
+				url: await value.url,
 				extensionDescription: value.extensionDescription
 			};
 		}));

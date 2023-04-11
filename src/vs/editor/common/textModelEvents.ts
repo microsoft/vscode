@@ -97,7 +97,6 @@ export interface IModelDecorationsChangedEvent {
  * @internal
  */
 export interface IModelTokensChangedEvent {
-	readonly tokenizationSupportChanged: boolean;
 	readonly semanticTokensApplied: boolean;
 	readonly ranges: {
 		/**

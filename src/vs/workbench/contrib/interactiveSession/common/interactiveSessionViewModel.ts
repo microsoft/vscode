@@ -7,10 +7,11 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { IMarkdownString, MarkdownString } from 'vs/base/common/htmlContent';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
+import { localize } from 'vs/nls';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IInteractiveRequestModel, IInteractiveResponseModel, IInteractiveSessionModel, IInteractiveSessionWelcomeMessageModel, IInteractiveWelcomeMessageContent } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionModel';
-import { IInteractiveResponseErrorDetails, IInteractiveSessionReplyFollowup, IInteractiveSessionResponseCommandFollowup, IInteractiveSessionService, InteractiveSessionVoteDirection } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionService';
+import { IInteractiveResponseErrorDetails, IInteractiveSessionReplyFollowup, IInteractiveSessionResponseCommandFollowup, InteractiveSessionVoteDirection } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionService';
 import { countWords } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionWordCounter';
 
 export function isRequestVM(item: unknown): item is IInteractiveRequestViewModel {
@@ -30,6 +31,7 @@ export interface IInteractiveSessionViewModel {
 	readonly onDidDisposeModel: Event<void>;
 	readonly onDidChange: Event<void>;
 	readonly welcomeMessage: IInteractiveWelcomeMessageViewModel | undefined;
+	readonly requestInProgress: boolean;
 	readonly inputPlaceholder?: string;
 	getItems(): (IInteractiveRequestViewModel | IInteractiveResponseViewModel)[];
 }
@@ -66,12 +68,10 @@ export interface IInteractiveResponseViewModel {
 	readonly response: IMarkdownString;
 	readonly isComplete: boolean;
 	readonly isCanceled: boolean;
-	readonly isPlaceholder: boolean;
 	readonly vote: InteractiveSessionVoteDirection | undefined;
 	readonly replyFollowups?: IInteractiveSessionReplyFollowup[];
 	readonly commandFollowups?: IInteractiveSessionResponseCommandFollowup[];
 	readonly errorDetails?: IInteractiveResponseErrorDetails;
-	readonly progressiveResponseRenderingEnabled: boolean;
 	readonly contentUpdateTimings?: IInteractiveSessionLiveUpdateData;
 	renderData?: IInteractiveResponseRenderData;
 	currentRenderedHeight: number | undefined;
@@ -99,19 +99,15 @@ export class InteractiveSessionViewModel extends Disposable implements IInteract
 		return this._model.sessionId;
 	}
 
-	private readonly _progressiveResponseRenderingEnabled: boolean;
-	get progressiveResponseRenderingEnabled(): boolean {
-		return this._progressiveResponseRenderingEnabled;
+	get requestInProgress(): boolean {
+		return this._model.requestInProgress;
 	}
 
 	constructor(
 		private readonly _model: IInteractiveSessionModel,
-		@IInteractiveSessionService private readonly interactiveSessionService: IInteractiveSessionService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 	) {
 		super();
-
-		this._progressiveResponseRenderingEnabled = this.interactiveSessionService.progressiveRenderingEnabled(this._model.providerId);
 
 		_model.getRequests().forEach((request, i) => {
 			this._items.push(new InteractiveRequestViewModel(request));
@@ -139,7 +135,7 @@ export class InteractiveSessionViewModel extends Disposable implements IInteract
 	}
 
 	private onAddResponse(responseModel: IInteractiveResponseModel) {
-		const response = this.instantiationService.createInstance(InteractiveResponseViewModel, responseModel, this.progressiveResponseRenderingEnabled);
+		const response = this.instantiationService.createInstance(InteractiveResponseViewModel, responseModel);
 		this._register(response.onDidChange(() => this._onDidChange.fire()));
 		this._items.push(response);
 	}
@@ -183,18 +179,15 @@ export class InteractiveRequestViewModel implements IInteractiveRequestViewModel
 }
 
 export class InteractiveResponseViewModel extends Disposable implements IInteractiveResponseViewModel {
-	private _changeCount = 0;
+	private _modelChangeCount = 0;
 
 	private readonly _onDidChange = this._register(new Emitter<void>());
 	readonly onDidChange = this._onDidChange.event;
 
 	private _isPlaceholder = false;
-	get isPlaceholder() {
-		return this._isPlaceholder;
-	}
 
 	get id() {
-		return this._model.id + `_${this._changeCount}`;
+		return this._model.id + `_${this._modelChangeCount}`;
 	}
 
 	get providerId() {
@@ -215,7 +208,7 @@ export class InteractiveResponseViewModel extends Disposable implements IInterac
 
 	get response(): IMarkdownString {
 		if (this._isPlaceholder) {
-			return new MarkdownString('Thinking...');
+			return new MarkdownString(localize('thinking', "Thinking") + '\u2026');
 		}
 
 		return this._model.response;
@@ -256,7 +249,6 @@ export class InteractiveResponseViewModel extends Disposable implements IInterac
 
 	constructor(
 		private readonly _model: IInteractiveResponseModel,
-		public readonly progressiveResponseRenderingEnabled: boolean,
 		@ILogService private readonly logService: ILogService
 	) {
 		super();
@@ -274,6 +266,7 @@ export class InteractiveResponseViewModel extends Disposable implements IInterac
 
 		this._register(_model.onDidChange(() => {
 			if (this._isPlaceholder && (_model.response.value || this.isComplete)) {
+				// The VM is no longer rendered as a placeholder- clear the rendered word count
 				this._isPlaceholder = false;
 				if (this.renderData) {
 					this.renderData.renderedWordCount = 0;
@@ -292,8 +285,6 @@ export class InteractiveResponseViewModel extends Disposable implements IInterac
 						loadingStartTime: this._contentUpdateTimings!.loadingStartTime,
 						lastUpdateTime: now,
 						wordCountAfterLastUpdate: wordCount,
-						// lastUpdateNewWordCount: wordCount - this._contentUpdateTimings!.wordCountAfterLastUpdate,
-						// lastUpdateDuration: now - this._contentUpdateTimings!.lastUpdateTime, // none
 						impliedWordLoadRate
 					};
 				} else {
@@ -304,7 +295,7 @@ export class InteractiveResponseViewModel extends Disposable implements IInterac
 			}
 
 			// new data -> new id, new content to render
-			this._changeCount++;
+			this._modelChangeCount++;
 			if (this.renderData) {
 				this.renderData.isFullyRendered = false;
 				this.renderData.lastRenderTime = Date.now();
@@ -319,7 +310,7 @@ export class InteractiveResponseViewModel extends Disposable implements IInterac
 	}
 
 	setVote(vote: InteractiveSessionVoteDirection): void {
-		this._changeCount++;
+		this._modelChangeCount++;
 		this._model.setVote(vote);
 	}
 }

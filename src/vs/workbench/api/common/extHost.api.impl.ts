@@ -100,6 +100,7 @@ import { ExtHostQuickDiff } from 'vs/workbench/api/common/extHostQuickDiff';
 import { ExtHostInteractiveSession } from 'vs/workbench/api/common/extHostInteractiveSession';
 import { ExtHostInteractiveEditor } from 'vs/workbench/api/common/extHostInteractiveEditor';
 import { ExtHostNotebookDocumentSaveParticipant } from 'vs/workbench/api/common/extHostNotebookDocumentSaveParticipant';
+import { ExtHostSemanticSimilarity } from 'vs/workbench/api/common/extHostSemanticSimilarity';
 
 export interface IExtensionRegistries {
 	mine: ExtensionDescriptionRegistry;
@@ -197,6 +198,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 	rpcProtocol.set(ExtHostContext.ExtHostInteractive, new ExtHostInteractive(rpcProtocol, extHostNotebook, extHostDocumentsAndEditors, extHostCommands, extHostLogService));
 	const extHostInteractiveEditor = rpcProtocol.set(ExtHostContext.ExtHostInteractiveEditor, new ExtHostInteractiveEditor(rpcProtocol, extHostDocuments, extHostLogService));
 	const extHostInteractiveSession = rpcProtocol.set(ExtHostContext.ExtHostInteractiveSession, new ExtHostInteractiveSession(rpcProtocol, extHostLogService));
+	const extHostSemanticSimilarity = rpcProtocol.set(ExtHostContext.ExtHostSemanticSimilarity, new ExtHostSemanticSimilarity(rpcProtocol));
 
 	// Check that no named customers are missing
 	const expected = Object.values<ProxyIdentifier<any>>(ExtHostContext);
@@ -536,8 +538,8 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			registerDocumentFormattingEditProvider(selector: vscode.DocumentSelector, provider: vscode.DocumentFormattingEditProvider): vscode.Disposable {
 				return extHostLanguageFeatures.registerDocumentFormattingEditProvider(extension, checkSelector(selector), provider);
 			},
-			registerDocumentRangeFormattingEditProvider(selector: vscode.DocumentSelector, provider: vscode.DocumentRangeFormattingEditProvider, metadata?: vscode.DocumentRangeFormattingEditProviderMetadata): vscode.Disposable {
-				return extHostLanguageFeatures.registerDocumentRangeFormattingEditProvider(extension, checkSelector(selector), provider, metadata);
+			registerDocumentRangeFormattingEditProvider(selector: vscode.DocumentSelector, provider: vscode.DocumentRangeFormattingEditProvider): vscode.Disposable {
+				return extHostLanguageFeatures.registerDocumentRangeFormattingEditProvider(extension, checkSelector(selector), provider);
 			},
 			registerOnTypeFormattingEditProvider(selector: vscode.DocumentSelector, provider: vscode.OnTypeFormattingEditProvider, firstTriggerCharacter: string, ...moreTriggerCharacters: string[]): vscode.Disposable {
 				return extHostLanguageFeatures.registerOnTypeFormattingEditProvider(extension, checkSelector(selector), provider, [firstTriggerCharacter].concat(moreTriggerCharacters));
@@ -957,7 +959,6 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				return extHostNotebookDocuments.onDidChangeNotebookDocument(listener, thisArg, disposables);
 			},
 			onWillSaveNotebookDocument(listener, thisArg, disposables) {
-				checkProposedApiEnabled(extension, 'notebookDocumentWillSave');
 				return extHostNotebookDocumentSaveParticipant.getOnWillSaveNotebookDocumentEvent(extension)(listener, thisArg, disposables);
 			},
 			get onDidOpenNotebookDocument(): Event<vscode.NotebookDocument> {
@@ -1249,9 +1250,18 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			}
 		};
 
+		// namespace: ai
+		const ai: typeof vscode.ai = {
+			registerSemanticSimilarityProvider(provider: vscode.SemanticSimilarityProvider) {
+				checkProposedApiEnabled(extension, 'semanticSimilarity');
+				return extHostSemanticSimilarity.registerSemanticSimilarityProvider(extension, provider);
+			}
+		};
+
 		return <typeof vscode>{
 			version: initData.version,
 			// namespaces
+			ai,
 			authentication,
 			commands,
 			comments,

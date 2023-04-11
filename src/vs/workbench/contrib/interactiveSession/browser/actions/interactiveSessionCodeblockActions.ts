@@ -131,6 +131,7 @@ export function registerInteractiveSessionCodeBlockActions() {
 					kind: 'insert',
 					responseId: context.element.providerResponseId,
 					codeBlockIndex: context.codeBlockIndex,
+					totalCharacters: context.code.length,
 				}
 			});
 		}

@@ -18,7 +18,7 @@ import { regExpLeadsToEndlessLoop, regExpFlags } from 'vs/base/common/strings';
 import { IPosition } from 'vs/editor/common/core/position';
 import { IRange, Range as EditorRange } from 'vs/editor/common/core/range';
 import { isFalsyOrEmpty, isNonEmptyArray, coalesce } from 'vs/base/common/arrays';
-import { isObject } from 'vs/base/common/types';
+import { assertType, isObject } from 'vs/base/common/types';
 import { ISelection, Selection } from 'vs/editor/common/core/selection';
 import { ILogService } from 'vs/platform/log/common/log';
 import { CancellationToken } from 'vs/base/common/cancellation';
@@ -574,6 +574,18 @@ class RangeFormattingAdapter {
 		const ran = typeConvert.Range.to(range);
 
 		const value = await this._provider.provideDocumentRangeFormattingEdits(document, ran, <any>options, token);
+		if (Array.isArray(value)) {
+			return value.map(typeConvert.TextEdit.from);
+		}
+		return undefined;
+	}
+
+	async provideDocumentRangesFormattingEdits(resource: URI, ranges: IRange[], options: languages.FormattingOptions, token: CancellationToken): Promise<ISingleEditOperation[] | undefined> {
+		assertType(typeof this._provider.provideDocumentRangesFormattingEdits === 'function', 'INVALID invocation of `provideDocumentRangesFormattingEdits`');
+
+		const document = this._documents.getDocument(resource);
+		const _ranges = <Range[]>ranges.map(typeConvert.Range.to);
+		const value = await this._provider.provideDocumentRangesFormattingEdits(document, _ranges, <any>options, token);
 		if (Array.isArray(value)) {
 			return value.map(typeConvert.TextEdit.from);
 		}
@@ -2055,18 +2067,22 @@ export class ExtHostLanguageFeatures implements extHostProtocol.ExtHostLanguageF
 		return this._withAdapter(handle, DocumentFormattingAdapter, adapter => adapter.provideDocumentFormattingEdits(URI.revive(resource), options, token), undefined, token);
 	}
 
-	registerDocumentRangeFormattingEditProvider(extension: IExtensionDescription, selector: vscode.DocumentSelector, provider: vscode.DocumentRangeFormattingEditProvider, metadata?: vscode.DocumentRangeFormattingEditProviderMetadata): vscode.Disposable {
-		const canFormatMultipleRanges = metadata?.canFormatMultipleRanges ?? false;
+	registerDocumentRangeFormattingEditProvider(extension: IExtensionDescription, selector: vscode.DocumentSelector, provider: vscode.DocumentRangeFormattingEditProvider): vscode.Disposable {
+		const canFormatMultipleRanges = typeof provider.provideDocumentRangesFormattingEdits === 'function';
 		if (canFormatMultipleRanges) {
 			checkProposedApiEnabled(extension, 'formatMultipleRanges');
 		}
 		const handle = this._addNewAdapter(new RangeFormattingAdapter(this._documents, provider), extension);
-		this._proxy.$registerRangeFormattingSupport(handle, this._transformDocumentSelector(selector), extension.identifier, extension.displayName || extension.name, metadata ?? { canFormatMultipleRanges: false });
+		this._proxy.$registerRangeFormattingSupport(handle, this._transformDocumentSelector(selector), extension.identifier, extension.displayName || extension.name, canFormatMultipleRanges);
 		return this._createDisposable(handle);
 	}
 
 	$provideDocumentRangeFormattingEdits(handle: number, resource: UriComponents, range: IRange, options: languages.FormattingOptions, token: CancellationToken): Promise<ISingleEditOperation[] | undefined> {
 		return this._withAdapter(handle, RangeFormattingAdapter, adapter => adapter.provideDocumentRangeFormattingEdits(URI.revive(resource), range, options, token), undefined, token);
+	}
+
+	$provideDocumentRangesFormattingEdits(handle: number, resource: UriComponents, ranges: IRange[], options: languages.FormattingOptions, token: CancellationToken): Promise<ISingleEditOperation[] | undefined> {
+		return this._withAdapter(handle, RangeFormattingAdapter, adapter => adapter.provideDocumentRangesFormattingEdits(URI.revive(resource), ranges, options, token), undefined, token);
 	}
 
 	registerOnTypeFormattingEditProvider(extension: IExtensionDescription, selector: vscode.DocumentSelector, provider: vscode.OnTypeFormattingEditProvider, triggerCharacters: string[]): vscode.Disposable {

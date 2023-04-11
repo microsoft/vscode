@@ -356,10 +356,6 @@ export interface IDocumentFilterDto {
 	notebookType?: string;
 }
 
-export interface IRangeFormattingProviderMetadataDto {
-	readonly canFormatMultipleRanges?: boolean;
-}
-
 export interface ISignatureHelpProviderMetadataDto {
 	readonly triggerCharacters: readonly string[];
 	readonly retriggerCharacters: readonly string[];
@@ -392,7 +388,7 @@ export interface MainThreadLanguageFeaturesShape extends IDisposable {
 	$registerQuickFixSupport(handle: number, selector: IDocumentFilterDto[], metadata: ICodeActionProviderMetadataDto, displayName: string, supportsResolve: boolean): void;
 	$registerPasteEditProvider(handle: number, selector: IDocumentFilterDto[], supportsCopy: boolean, pasteMimeTypes: readonly string[]): void;
 	$registerDocumentFormattingSupport(handle: number, selector: IDocumentFilterDto[], extensionId: ExtensionIdentifier, displayName: string): void;
-	$registerRangeFormattingSupport(handle: number, selector: IDocumentFilterDto[], extensionId: ExtensionIdentifier, displayName: string, metadata: IRangeFormattingProviderMetadataDto): void;
+	$registerRangeFormattingSupport(handle: number, selector: IDocumentFilterDto[], extensionId: ExtensionIdentifier, displayName: string, supportRanges: boolean): void;
 	$registerOnTypeFormattingSupport(handle: number, selector: IDocumentFilterDto[], autoFormatTriggerCharacters: string[], extensionId: ExtensionIdentifier): void;
 	$registerNavigateTypeSupport(handle: number, supportsResolve: boolean): void;
 	$registerRenameSupport(handle: number, selector: IDocumentFilterDto[], supportsResolveInitialValues: boolean): void;
@@ -1060,6 +1056,10 @@ export interface MainThreadNotebookKernelsShape extends IDisposable {
 	$updateExecution(handle: number, data: SerializableObjectWithBuffers<ICellExecuteUpdateDto[]>): void;
 	$completeExecution(handle: number, data: SerializableObjectWithBuffers<ICellExecutionCompleteDto>): void;
 
+	$createNotebookExecution(handle: number, controllerId: string, uri: UriComponents): void;
+	$beginNotebookExecution(handle: number,): void;
+	$completeNotebookExecution(handle: number): void;
+
 	$addKernelDetectionTask(handle: number, notebookType: string): Promise<void>;
 	$removeKernelDetectionTask(handle: number): void;
 
@@ -1117,7 +1117,7 @@ export interface IInteractiveResponseDto {
 }
 
 export interface MainThreadInteractiveSessionShape extends IDisposable {
-	$registerInteractiveSessionProvider(handle: number, id: string, implementsProgress: boolean): Promise<void>;
+	$registerInteractiveSessionProvider(handle: number, id: string): Promise<void>;
 	$acceptInteractiveSessionState(sessionId: number, state: any): Promise<void>;
 	$addInteractiveSessionRequest(context: any): void;
 	$sendInteractiveRequestToProvider(providerId: string, message: IInteractiveSessionDynamicRequest): void;
@@ -1128,7 +1128,6 @@ export interface MainThreadInteractiveSessionShape extends IDisposable {
 export interface ExtHostInteractiveSessionShape {
 	$prepareInteractiveSession(handle: number, initialState: any, token: CancellationToken): Promise<IInteractiveSessionDto | undefined>;
 	$resolveInteractiveRequest(handle: number, sessionId: number, context: any, token: CancellationToken): Promise<Omit<IInteractiveRequestDto, 'id'> | undefined>;
-	$provideInitialSuggestions(handle: number, token: CancellationToken): Promise<string[] | undefined>;
 	$provideWelcomeMessage(handle: number, token: CancellationToken): Promise<(string | IInteractiveSessionReplyFollowup[])[] | undefined>;
 	$provideFollowups(handle: number, sessionId: number, token: CancellationToken): Promise<IInteractiveSessionFollowup[] | undefined>;
 	$provideInteractiveReply(handle: number, sessionId: number, request: IInteractiveRequestDto, token: CancellationToken): Promise<IInteractiveResponseDto | undefined>;
@@ -1556,6 +1555,15 @@ export interface ExtHostAuthenticationShape {
 	$setProviders(providers: AuthenticationProviderInformation[]): Promise<void>;
 }
 
+export interface ExtHostSemanticSimilarityShape {
+	$provideSimilarityScore(handle: number, string1: string, comparisons: string[], token: CancellationToken): Promise<number[]>;
+}
+
+export interface MainThreadSemanticSimilarityShape extends IDisposable {
+	$registerSemanticSimilarityProvider(handle: number): void;
+	$unregisterSemanticSimilarityProvider(handle: number): void;
+}
+
 export interface ExtHostSecretStateShape {
 	$onDidChangePassword(e: { extensionId: string; key: string }): Promise<void>;
 }
@@ -1835,6 +1843,7 @@ export interface ExtHostLanguageFeaturesShape {
 	$providePasteEdits(handle: number, requestId: number, uri: UriComponents, ranges: IRange[], dataTransfer: DataTransferDTO, token: CancellationToken): Promise<IPasteEditDto | undefined>;
 	$provideDocumentFormattingEdits(handle: number, resource: UriComponents, options: languages.FormattingOptions, token: CancellationToken): Promise<ISingleEditOperation[] | undefined>;
 	$provideDocumentRangeFormattingEdits(handle: number, resource: UriComponents, range: IRange, options: languages.FormattingOptions, token: CancellationToken): Promise<ISingleEditOperation[] | undefined>;
+	$provideDocumentRangesFormattingEdits(handle: number, resource: UriComponents, range: IRange[], options: languages.FormattingOptions, token: CancellationToken): Promise<ISingleEditOperation[] | undefined>;
 	$provideOnTypeFormattingEdits(handle: number, resource: UriComponents, position: IPosition, ch: string, options: languages.FormattingOptions, token: CancellationToken): Promise<ISingleEditOperation[] | undefined>;
 	$provideWorkspaceSymbols(handle: number, search: string, token: CancellationToken): Promise<IWorkspaceSymbolsDto>;
 	$resolveWorkspaceSymbol(handle: number, symbol: IWorkspaceSymbolDto, token: CancellationToken): Promise<IWorkspaceSymbolDto | undefined>;
@@ -2452,7 +2461,8 @@ export const MainContext = {
 	MainThreadTunnelService: createProxyIdentifier<MainThreadTunnelServiceShape>('MainThreadTunnelService'),
 	MainThreadTimeline: createProxyIdentifier<MainThreadTimelineShape>('MainThreadTimeline'),
 	MainThreadTesting: createProxyIdentifier<MainThreadTestingShape>('MainThreadTesting'),
-	MainThreadLocalization: createProxyIdentifier<MainThreadLocalizationShape>('MainThreadLocalizationShape')
+	MainThreadLocalization: createProxyIdentifier<MainThreadLocalizationShape>('MainThreadLocalizationShape'),
+	MainThreadSemanticSimilarity: createProxyIdentifier<MainThreadSemanticSimilarityShape>('MainThreadSemanticSimilarity')
 };
 
 export const ExtHostContext = {
@@ -2506,6 +2516,7 @@ export const ExtHostContext = {
 	ExtHostInteractive: createProxyIdentifier<ExtHostInteractiveShape>('ExtHostInteractive'),
 	ExtHostInteractiveEditor: createProxyIdentifier<ExtHostInteractiveEditorShape>('ExtHostInteractiveEditor'),
 	ExtHostInteractiveSession: createProxyIdentifier<ExtHostInteractiveSessionShape>('ExtHostInteractiveSession'),
+	ExtHostSemanticSimilarity: createProxyIdentifier<ExtHostSemanticSimilarityShape>('ExtHostSemanticSimilarity'),
 	ExtHostTheming: createProxyIdentifier<ExtHostThemingShape>('ExtHostTheming'),
 	ExtHostTunnelService: createProxyIdentifier<ExtHostTunnelServiceShape>('ExtHostTunnelService'),
 	ExtHostAuthentication: createProxyIdentifier<ExtHostAuthenticationShape>('ExtHostAuthentication'),
