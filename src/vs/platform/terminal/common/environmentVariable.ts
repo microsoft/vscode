@@ -17,6 +17,7 @@ export enum EnvironmentVariableMutatorType {
 // 	// TODO: Do we need a both?
 // }
 export interface IEnvironmentVariableMutator {
+	readonly variable: string;
 	readonly value: string;
 	readonly type: EnvironmentVariableMutatorType;
 	readonly scope: EnvironmentVariableScope | undefined;

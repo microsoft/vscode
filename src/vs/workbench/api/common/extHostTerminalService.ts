@@ -906,7 +906,8 @@ class EnvironmentVariableCollection implements vscode.EnvironmentVariableCollect
 		const current = this.map.get(key);
 		if (!current || current.value !== mutator.value || current.type !== mutator.type) {
 			const key = this.getKey(variable, mutator.scope);
-			this.map.set(key, mutator);
+			const value: IEnvironmentVariableMutator = { variable, ...mutator };
+			this.map.set(key, value);
 			this._onDidChangeCollection.fire();
 		}
 	}
@@ -922,7 +923,7 @@ class EnvironmentVariableCollection implements vscode.EnvironmentVariableCollect
 	}
 
 	forEach(callback: (variable: string, mutator: vscode.EnvironmentVariableMutator, collection: vscode.EnvironmentVariableCollection) => any, thisArg?: any): void {
-		this.map.forEach((value, key) => callback.call(thisArg, key, value, this));
+		this.map.forEach((value, key) => callback.call(thisArg, value.variable, value, this));
 	}
 
 	[Symbol.iterator](): IterableIterator<[variable: string, mutator: vscode.EnvironmentVariableMutator]> {

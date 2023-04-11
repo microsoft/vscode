@@ -54,7 +54,8 @@ export class MergedEnvironmentVariableCollection implements IMergedEnvironmentVa
 					extensionIdentifier,
 					value: mutator.value,
 					type: mutator.type,
-					scope: mutator.scope
+					scope: mutator.scope,
+					variable: mutator.variable
 				});
 
 				next = it.next();
