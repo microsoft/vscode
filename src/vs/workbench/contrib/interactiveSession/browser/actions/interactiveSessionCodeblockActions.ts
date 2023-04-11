@@ -23,7 +23,7 @@ export interface IInteractiveSessionCodeBlockActionContext {
 	element: IInteractiveResponseViewModel;
 }
 
-function isCodeBlockActionContext(thing: unknown): thing is IInteractiveSessionCodeBlockActionContext {
+export function isCodeBlockActionContext(thing: unknown): thing is IInteractiveSessionCodeBlockActionContext {
 	return typeof thing === 'object' && thing !== null && 'code' in thing && 'element' in thing;
 }
 
