@@ -30,7 +30,8 @@ export class MergedEnvironmentVariableCollection implements IMergedEnvironmentVa
 			const it = collection.map.entries();
 			let next = it.next();
 			while (!next.done) {
-				const variable = next.value[0];
+				const mutator = next.value[1];
+				const variable = mutator.variable;
 				let entry = this.variableMap.get(variable);
 				if (this.owningWorkspace) {
 					// If the entry is scoped to a workspace folder, only apply it if the workspace
@@ -53,7 +54,6 @@ export class MergedEnvironmentVariableCollection implements IMergedEnvironmentVa
 				}
 
 				// Mutators get applied in the reverse order than they are created
-				const mutator = next.value[1];
 				entry.unshift({
 					extensionIdentifier,
 					value: mutator.value,
