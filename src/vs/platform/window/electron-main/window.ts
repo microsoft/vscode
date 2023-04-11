@@ -44,6 +44,8 @@ export interface ICodeWindow extends IDisposable {
 	ready(): Promise<ICodeWindow>;
 	setReady(): void;
 
+	readonly isSandboxed: boolean;
+
 	addTabbedWindow(window: ICodeWindow): void;
 
 	load(config: INativeWindowConfiguration, options?: { isReload?: boolean }): void;

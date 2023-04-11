@@ -15,7 +15,7 @@ import { ThemeIcon } from 'vs/base/common/themables';
 import { EditorsOrder } from 'vs/workbench/common/editor';
 import { insertCell } from 'vs/workbench/contrib/notebook/browser/controller/cellOperations';
 import { cellExecutionArgs, CellToolbarOrder, CELL_TITLE_CELL_GROUP_ID, executeNotebookCondition, getContextFromActiveEditor, getContextFromUri, INotebookActionContext, INotebookCellActionContext, INotebookCellToolbarActionContext, INotebookCommandContext, NotebookAction, NotebookCellAction, NotebookMultiCellAction, NOTEBOOK_EDITOR_WIDGET_ACTION_WEIGHT, parseMultiCellExecutionArgs } from 'vs/workbench/contrib/notebook/browser/controller/coreActions';
-import { NOTEBOOK_CELL_EXECUTING, NOTEBOOK_CELL_EXECUTION_STATE, NOTEBOOK_CELL_LIST_FOCUSED, NOTEBOOK_CELL_TYPE, NOTEBOOK_HAS_RUNNING_CELL, NOTEBOOK_INTERRUPTIBLE_KERNEL, NOTEBOOK_IS_ACTIVE_EDITOR, NOTEBOOK_KERNEL_COUNT, NOTEBOOK_KERNEL_SOURCE_COUNT, NOTEBOOK_LAST_CELL_FAILED, NOTEBOOK_MISSING_KERNEL_EXTENSION } from 'vs/workbench/contrib/notebook/common/notebookContextKeys';
+import { NOTEBOOK_CELL_EXECUTING, NOTEBOOK_CELL_EXECUTION_STATE, NOTEBOOK_CELL_LIST_FOCUSED, NOTEBOOK_CELL_TYPE, NOTEBOOK_HAS_RUNNING_CELL, NOTEBOOK_HAS_SOMETHING_RUNNING, NOTEBOOK_INTERRUPTIBLE_KERNEL, NOTEBOOK_IS_ACTIVE_EDITOR, NOTEBOOK_KERNEL_COUNT, NOTEBOOK_KERNEL_SOURCE_COUNT, NOTEBOOK_LAST_CELL_FAILED, NOTEBOOK_MISSING_KERNEL_EXTENSION } from 'vs/workbench/contrib/notebook/common/notebookContextKeys';
 import { CellEditState, CellFocusMode, EXECUTE_CELL_COMMAND_ID } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import * as icons from 'vs/workbench/contrib/notebook/browser/notebookIcons';
 import { CellKind, CellUri, NotebookData, NotebookSetting } from 'vs/workbench/contrib/notebook/common/notebookCommon';
@@ -190,7 +190,7 @@ registerAction2(class ExecuteNotebookAction extends NotebookAction {
 					when: ContextKeyExpr.and(
 						NOTEBOOK_IS_ACTIVE_EDITOR,
 						executeNotebookCondition,
-						ContextKeyExpr.or(NOTEBOOK_INTERRUPTIBLE_KERNEL.toNegated(), NOTEBOOK_HAS_RUNNING_CELL.toNegated()),
+						ContextKeyExpr.or(NOTEBOOK_INTERRUPTIBLE_KERNEL.toNegated(), NOTEBOOK_HAS_SOMETHING_RUNNING.toNegated()),
 						ContextKeyExpr.notEquals('config.notebook.globalToolbar', true)
 					)
 				},
@@ -200,7 +200,7 @@ registerAction2(class ExecuteNotebookAction extends NotebookAction {
 					group: 'navigation/execute',
 					when: ContextKeyExpr.and(
 						executeNotebookCondition,
-						ContextKeyExpr.or(NOTEBOOK_INTERRUPTIBLE_KERNEL.toNegated(), NOTEBOOK_HAS_RUNNING_CELL.toNegated()),
+						ContextKeyExpr.or(NOTEBOOK_INTERRUPTIBLE_KERNEL.toNegated(), NOTEBOOK_HAS_SOMETHING_RUNNING.toNegated()),
 						ContextKeyExpr.equals('config.notebook.globalToolbar', true)
 					)
 				}
@@ -582,7 +582,7 @@ registerAction2(class CancelAllNotebook extends CancelNotebook {
 					group: 'navigation',
 					when: ContextKeyExpr.and(
 						NOTEBOOK_IS_ACTIVE_EDITOR,
-						NOTEBOOK_HAS_RUNNING_CELL,
+						NOTEBOOK_HAS_SOMETHING_RUNNING,
 						NOTEBOOK_INTERRUPTIBLE_KERNEL.toNegated(),
 						ContextKeyExpr.notEquals('config.notebook.globalToolbar', true)
 					)
@@ -592,7 +592,7 @@ registerAction2(class CancelAllNotebook extends CancelNotebook {
 					order: -1,
 					group: 'navigation/execute',
 					when: ContextKeyExpr.and(
-						NOTEBOOK_HAS_RUNNING_CELL,
+						NOTEBOOK_HAS_SOMETHING_RUNNING,
 						NOTEBOOK_INTERRUPTIBLE_KERNEL.toNegated(),
 						ContextKeyExpr.equals('config.notebook.globalToolbar', true)
 					)
@@ -618,7 +618,7 @@ registerAction2(class InterruptNotebook extends CancelNotebook {
 					group: 'navigation',
 					when: ContextKeyExpr.and(
 						NOTEBOOK_IS_ACTIVE_EDITOR,
-						NOTEBOOK_HAS_RUNNING_CELL,
+						NOTEBOOK_HAS_SOMETHING_RUNNING,
 						NOTEBOOK_INTERRUPTIBLE_KERNEL,
 						ContextKeyExpr.notEquals('config.notebook.globalToolbar', true)
 					)
@@ -628,10 +628,19 @@ registerAction2(class InterruptNotebook extends CancelNotebook {
 					order: -1,
 					group: 'navigation/execute',
 					when: ContextKeyExpr.and(
-						NOTEBOOK_HAS_RUNNING_CELL,
+						NOTEBOOK_HAS_SOMETHING_RUNNING,
 						NOTEBOOK_INTERRUPTIBLE_KERNEL,
 						ContextKeyExpr.equals('config.notebook.globalToolbar', true)
 					)
+				},
+				{
+					id: MenuId.InteractiveToolbar,
+					when: ContextKeyExpr.and(
+						NOTEBOOK_HAS_SOMETHING_RUNNING,
+						NOTEBOOK_INTERRUPTIBLE_KERNEL,
+						ContextKeyExpr.equals('resourceScheme', Schemas.vscodeInteractive)
+					),
+					group: 'navigation/execute'
 				}
 			]
 		});

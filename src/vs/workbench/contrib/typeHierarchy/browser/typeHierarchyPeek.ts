@@ -184,6 +184,7 @@ export class TypeHierarchyTreePeekWidget extends peekView.PeekViewWidget {
 			EmbeddedCodeEditorWidget,
 			editorContainer,
 			editorOptions,
+			{},
 			this.editor
 		);
 

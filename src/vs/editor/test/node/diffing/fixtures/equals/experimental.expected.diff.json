@@ -1,5 +1,11 @@
 {
-	"originalFileName": "./1.txt",
-	"modifiedFileName": "./2.txt",
+	"original": {
+		"content": "hello\nworld",
+		"fileName": "./1.txt"
+	},
+	"modified": {
+		"content": "hello\nworld",
+		"fileName": "./2.txt"
+	},
 	"diffs": []
 }

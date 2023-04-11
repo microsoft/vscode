@@ -21,15 +21,15 @@ fsevents/test/**
 @vscode/sqlite3/src/**
 !@vscode/sqlite3/build/Release/*.node
 
+@vscode/windows-mutex/binding.gyp
+@vscode/windows-mutex/build/**
+@vscode/windows-mutex/src/**
+!@vscode/windows-mutex/**/*.node
+
 @vscode/windows-registry/binding.gyp
 @vscode/windows-registry/src/**
 @vscode/windows-registry/build/**
 !@vscode/windows-registry/build/Release/*.node
-
-windows-mutex/binding.gyp
-windows-mutex/build/**
-windows-mutex/src/**
-!windows-mutex/**/*.node
 
 native-keymap/binding.gyp
 native-keymap/build/**
@@ -113,17 +113,17 @@ vscode-encrypt/binding.gyp
 vscode-encrypt/README.md
 !vscode-encrypt/build/Release/vscode-encrypt-native.node
 
-vscode-policy-watcher/build/**
-vscode-policy-watcher/.husky/**
-vscode-policy-watcher/src/**
-vscode-policy-watcher/binding.gyp
-vscode-policy-watcher/README.md
-vscode-policy-watcher/index.d.ts
-!vscode-policy-watcher/build/Release/vscode-policy-watcher.node
+@vscode/policy-watcher/build/**
+@vscode/policy-watcher/.husky/**
+@vscode/policy-watcher/src/**
+@vscode/policy-watcher/binding.gyp
+@vscode/policy-watcher/README.md
+@vscode/policy-watcher/index.d.ts
+!@vscode/policy-watcher/build/Release/vscode-policy-watcher.node
 
-vscode-windows-ca-certs/**/*
-!vscode-windows-ca-certs/package.json
-!vscode-windows-ca-certs/**/*.node
+@vscode/windows-ca-certs/**/*
+!@vscode/windows-ca-certs/package.json
+!@vscode/windows-ca-certs/**/*.node
 
 node-addon-api/**/*
 prebuild-install/**/*

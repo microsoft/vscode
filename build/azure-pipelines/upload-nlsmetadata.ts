@@ -13,7 +13,7 @@ import path = require('path');
 import { readFileSync } from 'fs';
 const azure = require('gulp-azure-storage');
 
-const commit = process.env['VSCODE_DISTRO_COMMIT'] || process.env['BUILD_SOURCEVERSION'];
+const commit = process.env['BUILD_SOURCEVERSION'];
 const credential = new ClientSecretCredential(process.env['AZURE_TENANT_ID']!, process.env['AZURE_CLIENT_ID']!, process.env['AZURE_CLIENT_SECRET']!);
 
 interface NlsMetadata {

@@ -586,12 +586,12 @@ suite('TextModelWithTokens regression tests', () => {
 		assertViewLineTokens(model, 1, true, [createViewLineToken(12, 1)]);
 		assertViewLineTokens(model, 2, true, [createViewLineToken(9, 1)]);
 
-		model.setMode(LANG_ID1);
+		model.setLanguage(LANG_ID1);
 
 		assertViewLineTokens(model, 1, true, [createViewLineToken(12, 11)]);
 		assertViewLineTokens(model, 2, true, [createViewLineToken(9, 12)]);
 
-		model.setMode(LANG_ID2);
+		model.setLanguage(LANG_ID2);
 
 		assertViewLineTokens(model, 1, false, [createViewLineToken(12, 1)]);
 		assertViewLineTokens(model, 2, false, [createViewLineToken(9, 1)]);

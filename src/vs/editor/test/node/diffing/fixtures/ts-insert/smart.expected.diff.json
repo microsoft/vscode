@@ -1,6 +1,12 @@
 {
-	"originalFileName": "./1.tst",
-	"modifiedFileName": "./2.tst",
+	"original": {
+		"content": "const sequence2 = new SequenceFromIntArray(tgtDocLines);",
+		"fileName": "./1.tst"
+	},
+	"modified": {
+		"content": "const sequence2 = new LineSequence(tgtDocLines, modifiedLines);",
+		"fileName": "./2.tst"
+	},
 	"diffs": [
 		{
 			"originalRange": "[1,2)",

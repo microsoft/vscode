@@ -218,6 +218,10 @@ export abstract class AbstractWatcherClient extends Disposable {
 		this.onLogMessage({ type: 'error', message: `[File Watcher (${this.options.type})] ${message}` });
 	}
 
+	protected trace(message: string) {
+		this.onLogMessage({ type: 'trace', message: `[File Watcher (${this.options.type})] ${message}` });
+	}
+
 	override dispose(): void {
 
 		// Render the watcher invalid from here

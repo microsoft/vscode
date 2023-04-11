@@ -5,12 +5,16 @@
 
 use tokio::{
 	io::{AsyncBufReadExt, AsyncRead, AsyncWrite, AsyncWriteExt, BufReader},
+	pin,
 	sync::mpsc,
 };
 
 use crate::{
 	rpc::{self, MaybeSync, Serialization},
-	util::errors::InvalidRpcDataError,
+	util::{
+		errors::InvalidRpcDataError,
+		sync::{Barrier, Receivable},
+	},
 };
 use std::io;
 
@@ -39,37 +43,41 @@ pub fn new_json_rpc() -> rpc::RpcBuilder<JsonRpcSerializer> {
 }
 
 #[allow(dead_code)]
-pub async fn start_json_rpc<C: Send + Sync + 'static, S>(
+pub async fn start_json_rpc<C: Send + Sync + 'static, S: Clone>(
 	dispatcher: rpc::RpcDispatcher<JsonRpcSerializer, C>,
 	read: impl AsyncRead + Unpin,
 	mut write: impl AsyncWrite + Unpin,
-	mut msg_rx: mpsc::UnboundedReceiver<Vec<u8>>,
-	mut shutdown_rx: mpsc::UnboundedReceiver<S>,
+	mut msg_rx: impl Receivable<Vec<u8>>,
+	mut shutdown_rx: Barrier<S>,
 ) -> io::Result<Option<S>> {
 	let (write_tx, mut write_rx) = mpsc::unbounded_channel::<Vec<u8>>();
 	let mut read = BufReader::new(read);
 
 	let mut read_buf = String::new();
+	let shutdown_fut = shutdown_rx.wait();
+	pin!(shutdown_fut);
 
 	loop {
 		tokio::select! {
-			r = shutdown_rx.recv() => return Ok(r),
+			r = &mut shutdown_fut => return Ok(r.ok()),
 			Some(w) = write_rx.recv() => {
 				write.write_all(&w).await?;
 			},
-			Some(w) = msg_rx.recv() => {
+			Some(w) = msg_rx.recv_msg() => {
 				write.write_all(&w).await?;
 			},
 			n = read.read_line(&mut read_buf) => {
 				let r = match n {
 					Ok(0) => return Ok(None),
-					Ok(n) =>  dispatcher.dispatch(read_buf[..n].as_bytes()),
+					Ok(n) => dispatcher.dispatch(read_buf[..n].as_bytes()),
 					Err(e) => return Err(e)
 				};
 
+				read_buf.truncate(0);
+
 				match r {
 					MaybeSync::Sync(Some(v)) => {
-						write_tx.send(v).ok();
+						write.write_all(&v).await?;
 					},
 					MaybeSync::Sync(None) => continue,
 					MaybeSync::Future(fut) => {

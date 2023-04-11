@@ -22,6 +22,7 @@ import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/act
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { category, getElementsToOperateOn, getSearchView, shouldRefocus } from 'vs/workbench/contrib/search/browser/searchActionsBase';
+import { equals } from 'vs/base/common/arrays';
 
 
 //#region Interfaces
@@ -134,6 +135,8 @@ registerAction2(class RemoveAction extends Action2 {
 				viewer.setFocus([nextFocusElement], getSelectionKeyboardEvent());
 				viewer.setSelection([nextFocusElement], getSelectionKeyboardEvent());
 			}
+		} else if (!equals(viewer.getFocus(), viewer.getSelection())) {
+			viewer.setSelection(viewer.getFocus());
 		}
 
 		viewer.domFocus();
@@ -153,20 +156,20 @@ registerAction2(class ReplaceAction extends Action2 {
 			category,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
-				when: ContextKeyExpr.and(Constants.SearchViewVisibleKey, Constants.ReplaceActiveKey, Constants.MatchFocusKey),
+				when: ContextKeyExpr.and(Constants.SearchViewVisibleKey, Constants.ReplaceActiveKey, Constants.MatchFocusKey, Constants.IsEditableItemKey),
 				primary: KeyMod.Shift | KeyMod.CtrlCmd | KeyCode.Digit1,
 			},
 			icon: searchReplaceIcon,
 			menu: [
 				{
 					id: MenuId.SearchContext,
-					when: ContextKeyExpr.and(Constants.ReplaceActiveKey, Constants.MatchFocusKey),
+					when: ContextKeyExpr.and(Constants.ReplaceActiveKey, Constants.MatchFocusKey, Constants.IsEditableItemKey),
 					group: 'search',
 					order: 1
 				},
 				{
 					id: MenuId.SearchActionMenu,
-					when: ContextKeyExpr.and(Constants.ReplaceActiveKey, Constants.MatchFocusKey),
+					when: ContextKeyExpr.and(Constants.ReplaceActiveKey, Constants.MatchFocusKey, Constants.IsEditableItemKey),
 					group: 'inline',
 					order: 1
 				}
@@ -192,7 +195,7 @@ registerAction2(class ReplaceAllAction extends Action2 {
 			category,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
-				when: ContextKeyExpr.and(Constants.SearchViewVisibleKey, Constants.ReplaceActiveKey, Constants.FileFocusKey),
+				when: ContextKeyExpr.and(Constants.SearchViewVisibleKey, Constants.ReplaceActiveKey, Constants.FileFocusKey, Constants.IsEditableItemKey),
 				primary: KeyMod.Shift | KeyMod.CtrlCmd | KeyCode.Digit1,
 				secondary: [KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Enter],
 			},
@@ -200,13 +203,13 @@ registerAction2(class ReplaceAllAction extends Action2 {
 			menu: [
 				{
 					id: MenuId.SearchContext,
-					when: ContextKeyExpr.and(Constants.ReplaceActiveKey, Constants.FileFocusKey),
+					when: ContextKeyExpr.and(Constants.ReplaceActiveKey, Constants.FileFocusKey, Constants.IsEditableItemKey),
 					group: 'search',
 					order: 1
 				},
 				{
 					id: MenuId.SearchActionMenu,
-					when: ContextKeyExpr.and(Constants.ReplaceActiveKey, Constants.FileFocusKey),
+					when: ContextKeyExpr.and(Constants.ReplaceActiveKey, Constants.FileFocusKey, Constants.IsEditableItemKey),
 					group: 'inline',
 					order: 1
 				}
@@ -231,7 +234,7 @@ registerAction2(class ReplaceAllInFolderAction extends Action2 {
 			category,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
-				when: ContextKeyExpr.and(Constants.SearchViewVisibleKey, Constants.ReplaceActiveKey, Constants.FolderFocusKey),
+				when: ContextKeyExpr.and(Constants.SearchViewVisibleKey, Constants.ReplaceActiveKey, Constants.FolderFocusKey, Constants.IsEditableItemKey),
 				primary: KeyMod.Shift | KeyMod.CtrlCmd | KeyCode.Digit1,
 				secondary: [KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Enter],
 			},
@@ -239,13 +242,13 @@ registerAction2(class ReplaceAllInFolderAction extends Action2 {
 			menu: [
 				{
 					id: MenuId.SearchContext,
-					when: ContextKeyExpr.and(Constants.ReplaceActiveKey, Constants.FolderFocusKey),
+					when: ContextKeyExpr.and(Constants.ReplaceActiveKey, Constants.FolderFocusKey, Constants.IsEditableItemKey),
 					group: 'search',
 					order: 1
 				},
 				{
 					id: MenuId.SearchActionMenu,
-					when: ContextKeyExpr.and(Constants.ReplaceActiveKey, Constants.FolderFocusKey),
+					when: ContextKeyExpr.and(Constants.ReplaceActiveKey, Constants.FolderFocusKey, Constants.IsEditableItemKey),
 					group: 'inline',
 					order: 1
 				}

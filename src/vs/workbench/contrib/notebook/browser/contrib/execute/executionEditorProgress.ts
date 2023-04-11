@@ -21,7 +21,7 @@ export class ExecutionEditorProgressController extends Disposable implements INo
 
 		this._register(_notebookEditor.onDidScroll(() => this._update()));
 
-		this._register(_notebookExecutionStateService.onDidChangeCellExecution(e => {
+		this._register(_notebookExecutionStateService.onDidChangeExecution(e => {
 			if (e.notebook.toString() !== this._notebookEditor.textModel?.uri.toString()) {
 				return;
 			}
@@ -38,14 +38,17 @@ export class ExecutionEditorProgressController extends Disposable implements INo
 			return;
 		}
 
-		const executing = this._notebookExecutionStateService.getCellExecutionsForNotebook(this._notebookEditor.textModel?.uri)
+		const scrollPadding = this._notebookEditor.notebookOptions.computeTopInsertToolbarHeight(this._notebookEditor.textModel.viewType);
+
+		const cellExecutions = this._notebookExecutionStateService.getCellExecutionsForNotebook(this._notebookEditor.textModel?.uri)
 			.filter(exe => exe.state === NotebookCellExecutionState.Executing);
+		const notebookExecution = this._notebookExecutionStateService.getExecution(this._notebookEditor.textModel?.uri);
 		const executionIsVisible = (exe: INotebookCellExecution) => {
 			for (const range of this._notebookEditor.visibleRanges) {
 				for (const cell of this._notebookEditor.getCellsInRange(range)) {
 					if (cell.handle === exe.cellHandle) {
 						const top = this._notebookEditor.getAbsoluteTopOfElement(cell);
-						if (this._notebookEditor.scrollTop < top + 30) {
+						if (this._notebookEditor.scrollTop < top + scrollPadding + 5) {
 							return true;
 						}
 					}
@@ -54,10 +57,12 @@ export class ExecutionEditorProgressController extends Disposable implements INo
 
 			return false;
 		};
-		if (!executing.length || executing.some(executionIsVisible) || executing.some(e => e.isPaused)) {
-			this._notebookEditor.hideProgress();
-		} else {
+		const shouldShowEditorProgressbarForCellExecutions = cellExecutions.length && !cellExecutions.some(executionIsVisible) && !cellExecutions.some(e => e.isPaused);
+		const showEditorProgressBar = !!notebookExecution || shouldShowEditorProgressbarForCellExecutions;
+		if (showEditorProgressBar) {
 			this._notebookEditor.showProgress();
+		} else {
+			this._notebookEditor.hideProgress();
 		}
 	}
 }

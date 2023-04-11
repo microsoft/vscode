@@ -24,11 +24,13 @@ export const IEditSessionsStorageService = createDecorator<IEditSessionsStorageS
 export interface IEditSessionsStorageService {
 	_serviceBrand: undefined;
 
+	readonly SIZE_LIMIT: number;
+
 	readonly isSignedIn: boolean;
 	readonly onDidSignIn: Event<void>;
 	readonly onDidSignOut: Event<void>;
 
-	initialize(fromContinueOn: boolean, silent?: boolean): Promise<boolean>;
+	initialize(silent?: boolean): Promise<boolean>;
 	read(ref: string | undefined): Promise<{ ref: string; editSession: EditSession } | undefined>;
 	write(editSession: EditSession): Promise<string>;
 	delete(ref: string | null): Promise<void>;
@@ -68,6 +70,8 @@ export interface Folder {
 	name: string;
 	canonicalIdentity: string | undefined;
 	workingChanges: Change[];
+	// additional data collected from workbench contributions
+	[key: string]: unknown;
 }
 
 export const EditSessionSchemaVersion = 2;
@@ -108,4 +112,4 @@ export function hashedEditSessionId(editSessionId: string) {
 	return sha1.digest();
 }
 
-export const editSessionsLogId = 'editSessionsSyncLog';
+export const editSessionsLogId = 'editSessions';

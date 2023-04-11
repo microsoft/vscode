@@ -19,6 +19,7 @@ import { Selection } from 'vs/editor/common/core/selection';
 import { LanguageId } from 'vs/editor/common/encodedTokenAttributes';
 import * as model from 'vs/editor/common/model';
 import { TokenizationRegistry as TokenizationRegistryImpl } from 'vs/editor/common/tokenizationRegistry';
+import { ContiguousMultilineTokens } from 'vs/editor/common/tokens/contiguousMultilineTokens';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { IMarkerData } from 'vs/platform/markers/common/markers';
 
@@ -33,14 +34,11 @@ export interface ILanguageIdCodec {
 export class Token {
 	_tokenBrand: void = undefined;
 
-	public readonly offset: number;
-	public readonly type: string;
-	public readonly language: string;
-
-	constructor(offset: number, type: string, language: string) {
-		this.offset = offset;
-		this.type = type;
-		this.language = language;
+	constructor(
+		public readonly offset: number,
+		public readonly type: string,
+		public readonly language: string,
+	) {
 	}
 
 	public toString(): string {
@@ -54,12 +52,10 @@ export class Token {
 export class TokenizationResult {
 	_tokenizationResultBrand: void = undefined;
 
-	public readonly tokens: Token[];
-	public readonly endState: IState;
-
-	constructor(tokens: Token[], endState: IState) {
-		this.tokens = tokens;
-		this.endState = endState;
+	constructor(
+		public readonly tokens: Token[],
+		public readonly endState: IState,
+	) {
 	}
 }
 
@@ -69,31 +65,70 @@ export class TokenizationResult {
 export class EncodedTokenizationResult {
 	_encodedTokenizationResultBrand: void = undefined;
 
-	/**
-	 * The tokens in binary format. Each token occupies two array indices. For token i:
-	 *  - at offset 2*i => startIndex
-	 *  - at offset 2*i + 1 => metadata
-	 *
-	 */
-	public readonly tokens: Uint32Array;
-	public readonly endState: IState;
-
-	constructor(tokens: Uint32Array, endState: IState) {
-		this.tokens = tokens;
-		this.endState = endState;
+	constructor(
+		/**
+		 * The tokens in binary format. Each token occupies two array indices. For token i:
+		 *  - at offset 2*i => startIndex
+		 *  - at offset 2*i + 1 => metadata
+		 *
+		 */
+		public readonly tokens: Uint32Array,
+		public readonly endState: IState,
+	) {
 	}
 }
 
 /**
  * @internal
  */
+export interface IBackgroundTokenizer extends IDisposable {
+	/**
+	 * Instructs the background tokenizer to set the tokens for the given range again.
+	 *
+	 * This might be necessary if the renderer overwrote those tokens with heuristically computed ones for some viewport,
+	 * when the change does not even propagate to that viewport.
+	 */
+	requestTokens(startLineNumber: number, endLineNumberExclusive: number): void;
+
+	reportMismatchingTokens?(lineNumber: number): void;
+}
+
+
+/**
+ * @internal
+ */
 export interface ITokenizationSupport {
+	/**
+	 * If true, the background tokenizer will only be used to verify tokens against the default background tokenizer.
+	 * Used for debugging.
+	 */
+	readonly backgroundTokenizerShouldOnlyVerifyTokens?: boolean;
 
 	getInitialState(): IState;
 
 	tokenize(line: string, hasEOL: boolean, state: IState): TokenizationResult;
 
 	tokenizeEncoded(line: string, hasEOL: boolean, state: IState): EncodedTokenizationResult;
+
+	/**
+	 * Can be/return undefined if default background tokenization should be used.
+	 */
+	createBackgroundTokenizer?(textModel: model.ITextModel, store: IBackgroundTokenizationStore): IBackgroundTokenizer | undefined;
+}
+
+/**
+ * @internal
+ */
+export interface IBackgroundTokenizationStore {
+	setTokens(tokens: ContiguousMultilineTokens[]): void;
+
+	setEndState(lineNumber: number, state: IState): void;
+
+	/**
+	 * Should be called to indicate that the background tokenization has finished for now.
+	 * (This triggers bracket pair colorization to re-parse the bracket pairs with token information)
+	 */
+	backgroundTokenizationFinished(): void;
 }
 
 /**
@@ -1154,6 +1189,10 @@ export interface FormattingOptions {
 	 * Prefer spaces over tabs.
 	 */
 	insertSpaces: boolean;
+	/**
+	 * The list of multiple ranges to format at once, if the provider supports it.
+	 */
+	ranges?: Range[];
 }
 /**
  * The document formatting provider interface defines the contract between extensions and
@@ -1193,6 +1232,8 @@ export interface DocumentRangeFormattingEditProvider {
 	 * of the range to full syntax nodes.
 	 */
 	provideDocumentRangeFormattingEdits(model: model.ITextModel, range: Range, options: FormattingOptions, token: CancellationToken): ProviderResult<TextEdit[]>;
+
+	provideDocumentRangesFormattingEdits?(model: model.ITextModel, ranges: Range[], options: FormattingOptions, token: CancellationToken): ProviderResult<TextEdit[]>;
 }
 /**
  * The document formatting provider interface defines the contract between extensions and
@@ -1565,7 +1606,7 @@ export interface CommentThread<T = IRange> {
 	extensionId?: string;
 	threadId: string;
 	resource: string | null;
-	range: T;
+	range: T | undefined;
 	label: string | undefined;
 	contextValue: string | undefined;
 	comments: Comment[] | undefined;
@@ -1577,7 +1618,7 @@ export interface CommentThread<T = IRange> {
 	canReply: boolean;
 	input?: CommentInput;
 	onDidChangeInput: Event<CommentInput | undefined>;
-	onDidChangeRange: Event<T>;
+	onDidChangeRange: Event<T | undefined>;
 	onDidChangeLabel: Event<string | undefined>;
 	onDidChangeCollapsibleState: Event<CommentThreadCollapsibleState | undefined>;
 	onDidChangeState: Event<CommentThreadState | undefined>;
@@ -1593,6 +1634,7 @@ export interface CommentThread<T = IRange> {
 export interface CommentingRanges {
 	readonly resource: URI;
 	ranges: IRange[];
+	fileComments: boolean;
 }
 
 /**
@@ -1632,11 +1674,19 @@ export enum CommentMode {
 /**
  * @internal
  */
+export enum CommentState {
+	Published = 0,
+	Draft = 1
+}
+
+/**
+ * @internal
+ */
 export interface Comment {
 	readonly uniqueIdInThread: number;
 	readonly body: string | IMarkdownString;
 	readonly userName: string;
-	readonly userIconPath?: string;
+	readonly userIconPath?: UriComponents;
 	readonly contextValue?: string;
 	readonly commentReactions?: CommentReaction[];
 	readonly label?: string;
@@ -1761,8 +1811,35 @@ export interface ITokenizationSupportChangedEvent {
 /**
  * @internal
  */
-export interface ITokenizationSupportFactory {
-	createTokenizationSupport(): ProviderResult<ITokenizationSupport>;
+export interface ILazyTokenizationSupport {
+	get tokenizationSupport(): Promise<ITokenizationSupport | null>;
+}
+
+/**
+ * @internal
+ */
+export class LazyTokenizationSupport implements IDisposable, ILazyTokenizationSupport {
+	private _tokenizationSupport: Promise<ITokenizationSupport & IDisposable | null> | null = null;
+
+	constructor(private readonly createSupport: () => Promise<ITokenizationSupport & IDisposable | null>) {
+	}
+
+	dispose(): void {
+		if (this._tokenizationSupport) {
+			this._tokenizationSupport.then((support) => {
+				if (support) {
+					support.dispose();
+				}
+			});
+		}
+	}
+
+	get tokenizationSupport(): Promise<ITokenizationSupport | null> {
+		if (!this._tokenizationSupport) {
+			this._tokenizationSupport = this.createSupport();
+		}
+		return this._tokenizationSupport;
+	}
 }
 
 /**
@@ -1781,7 +1858,7 @@ export interface ITokenizationRegistry {
 	 * Fire a change event for a language.
 	 * This is useful for languages that embed other languages.
 	 */
-	fire(languageIds: string[]): void;
+	handleChange(languageIds: string[]): void;
 
 	/**
 	 * Register a tokenization support.
@@ -1791,7 +1868,7 @@ export interface ITokenizationRegistry {
 	/**
 	 * Register a tokenization support factory.
 	 */
-	registerFactory(languageId: string, factory: ITokenizationSupportFactory): IDisposable;
+	registerFactory(languageId: string, factory: ILazyTokenizationSupport): IDisposable;
 
 	/**
 	 * Get or create the tokenization support for a language.

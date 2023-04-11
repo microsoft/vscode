@@ -9,57 +9,35 @@ parameters:
     type: boolean
 
 steps:
-  - powershell: |
-      . build/azure-pipelines/win32/exec.ps1
-      $ErrorActionPreference = "Stop"
-      $env:VSCODE_MIXIN_PASSWORD="$(github-distro-mixin-password)"
-      exec { yarn npm-run-all -lp "electron $(VSCODE_ARCH)" "playwright-install" }
+  - powershell: yarn npm-run-all -lp "electron $(VSCODE_ARCH)" "playwright-install"
+    env:
+      GITHUB_TOKEN: "$(github-distro-mixin-password)"
     displayName: Download Electron and Playwright
 
   - ${{ if eq(parameters.VSCODE_RUN_UNIT_TESTS, true) }}:
     - ${{ if eq(parameters.VSCODE_QUALITY, 'oss') }}:
-      - powershell: |
-          . build/azure-pipelines/win32/exec.ps1
-          $ErrorActionPreference = "Stop"
-          exec { yarn electron $(VSCODE_ARCH) }
-          exec { .\scripts\test.bat --tfs "Unit Tests" }
+      - powershell: .\scripts\test.bat --tfs "Unit Tests"
         displayName: Run unit tests (Electron)
         timeoutInMinutes: 15
 
-      - powershell: |
-          . build/azure-pipelines/win32/exec.ps1
-          $ErrorActionPreference = "Stop"
-          exec { yarn test-node }
+      - powershell: yarn test-node
         displayName: Run unit tests (node.js)
         timeoutInMinutes: 15
 
-      - powershell: |
-          . build/azure-pipelines/win32/exec.ps1
-          $ErrorActionPreference = "Stop"
-          exec { node test/unit/browser/index.js --sequential --browser chromium --tfs "Browser Unit Tests" }
+      - powershell: node test/unit/browser/index.js --sequential --browser chromium --tfs "Browser Unit Tests"
         displayName: Run unit tests (Browser, Chromium)
         timeoutInMinutes: 20
 
     - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
-      - powershell: |
-          . build/azure-pipelines/win32/exec.ps1
-          $ErrorActionPreference = "Stop"
-          exec { yarn electron $(VSCODE_ARCH) }
-          exec { .\scripts\test.bat --build --tfs "Unit Tests" }
+      - powershell: .\scripts\test.bat --build --tfs "Unit Tests"
         displayName: Run unit tests (Electron)
         timeoutInMinutes: 15
 
-      - powershell: |
-          . build/azure-pipelines/win32/exec.ps1
-          $ErrorActionPreference = "Stop"
-          exec { yarn test-node --build }
+      - powershell: yarn test-node --build
         displayName: Run unit tests (node.js)
         timeoutInMinutes: 15
 
-      - powershell: |
-          . build/azure-pipelines/win32/exec.ps1
-          $ErrorActionPreference = "Stop"
-          exec { yarn test-browser-no-install --sequential --build --browser chromium --tfs "Browser Unit Tests" }
+      - powershell: yarn test-browser-no-install --sequential --build --browser chromium --tfs "Browser Unit Tests"
         displayName: Run unit tests (Browser, Chromium)
         timeoutInMinutes: 20
 
@@ -88,24 +66,15 @@ steps:
       displayName: Build integration tests
 
     - ${{ if eq(parameters.VSCODE_QUALITY, 'oss') }}:
-      - powershell: |
-          . build/azure-pipelines/win32/exec.ps1
-          $ErrorActionPreference = "Stop"
-          exec { .\scripts\test-integration.bat --tfs "Integration Tests" }
+      - powershell: .\scripts\test-integration.bat --tfs "Integration Tests"
         displayName: Run integration tests (Electron)
         timeoutInMinutes: 20
 
-      - powershell: |
-          . build/azure-pipelines/win32/exec.ps1
-          $ErrorActionPreference = "Stop"
-          exec { .\scripts\test-web-integration.bat --browser firefox }
+      - powershell: .\scripts\test-web-integration.bat --browser firefox
         displayName: Run integration tests (Browser, Firefox)
         timeoutInMinutes: 20
 
-      - powershell: |
-          . build/azure-pipelines/win32/exec.ps1
-          $ErrorActionPreference = "Stop"
-          exec { .\scripts\test-remote-integration.bat }
+      - powershell: .\scripts\test-remote-integration.bat
         displayName: Run integration tests (Remote)
         timeoutInMinutes: 20
 
@@ -141,62 +110,44 @@ steps:
         timeoutInMinutes: 20
 
   - ${{ if eq(parameters.VSCODE_RUN_SMOKE_TESTS, true) }}:
-    - powershell: |
-        . build/azure-pipelines/win32/exec.ps1
-        exec {.\build\azure-pipelines\win32\listprocesses.bat }
+    - powershell: .\build\azure-pipelines\win32\listprocesses.bat
       displayName: Diagnostics before smoke test run
       continueOnError: true
       condition: succeededOrFailed()
 
     - ${{ if eq(parameters.VSCODE_QUALITY, 'oss') }}:
-      - powershell: |
-          . build/azure-pipelines/win32/exec.ps1
-          $ErrorActionPreference = "Stop"
-          exec { yarn --cwd test/smoke compile }
+      - powershell: yarn --cwd test/smoke compile
         displayName: Compile smoke tests
 
-      - script: |
-          set -e
-          yarn gulp compile-extension-media
+      - powershell: yarn gulp compile-extension-media
         displayName: Build extensions for smoke tests
 
-      - powershell: |
-          . build/azure-pipelines/win32/exec.ps1
-          $ErrorActionPreference = "Stop"
-          exec { yarn smoketest-no-compile --tracing }
+      - powershell: yarn smoketest-no-compile --tracing
         displayName: Run smoke tests (Electron)
         timeoutInMinutes: 20
 
     - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
-      - powershell: |
-          . build/azure-pipelines/win32/exec.ps1
-          $ErrorActionPreference = "Stop"
-          $AppRoot = "$(agent.builddirectory)\VSCode-win32-$(VSCODE_ARCH)"
-          exec { yarn smoketest-no-compile --tracing --build "$AppRoot" }
+      - powershell: yarn smoketest-no-compile --tracing --build "$(agent.builddirectory)\VSCode-win32-$(VSCODE_ARCH)"
         displayName: Run smoke tests (Electron)
         timeoutInMinutes: 20
 
-      - powershell: |
-          . build/azure-pipelines/win32/exec.ps1
-          $ErrorActionPreference = "Stop"
-          $env:VSCODE_REMOTE_SERVER_PATH = "$(agent.builddirectory)\vscode-reh-web-win32-$(VSCODE_ARCH)"
-          exec { yarn smoketest-no-compile --web --tracing --headless }
+      - powershell: yarn smoketest-no-compile --web --tracing --headless
+        env:
+          VSCODE_REMOTE_SERVER_PATH: $(agent.builddirectory)\vscode-reh-web-win32-$(VSCODE_ARCH)
         displayName: Run smoke tests (Browser, Chromium)
         timeoutInMinutes: 20
 
-      - powershell: |
-          . build/azure-pipelines/win32/exec.ps1
-          $ErrorActionPreference = "Stop"
-          $AppRoot = "$(agent.builddirectory)\VSCode-win32-$(VSCODE_ARCH)"
-          $env:VSCODE_REMOTE_SERVER_PATH = "$(agent.builddirectory)\vscode-reh-win32-$(VSCODE_ARCH)"
-          exec { yarn gulp compile-extension:vscode-test-resolver }
-          exec { yarn smoketest-no-compile --tracing --remote --build "$AppRoot" }
+      - powershell: yarn gulp compile-extension:vscode-test-resolver
+        displayName: Compile test resolver extension
+        timeoutInMinutes: 20
+
+      - powershell: yarn smoketest-no-compile --tracing --remote --build "$(agent.builddirectory)\VSCode-win32-$(VSCODE_ARCH)"
+        env:
+          VSCODE_REMOTE_SERVER_PATH: $(agent.builddirectory)\vscode-reh-win32-$(VSCODE_ARCH)
         displayName: Run smoke tests (Remote)
         timeoutInMinutes: 20
 
-    - powershell: |
-        . build/azure-pipelines/win32/exec.ps1
-        exec {.\build\azure-pipelines\win32\listprocesses.bat }
+    - powershell: .\build\azure-pipelines\win32\listprocesses.bat
       displayName: Diagnostics after smoke test run
       continueOnError: true
       condition: succeededOrFailed()

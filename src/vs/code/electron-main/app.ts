@@ -65,7 +65,7 @@ import { IProductService } from 'vs/platform/product/common/productService';
 import { getRemoteAuthority } from 'vs/platform/remote/common/remoteHosts';
 import { SharedProcess } from 'vs/platform/sharedProcess/electron-main/sharedProcess';
 import { ISignService } from 'vs/platform/sign/common/sign';
-import { IStateMainService } from 'vs/platform/state/electron-main/state';
+import { IStateService } from 'vs/platform/state/node/state';
 import { StorageDatabaseChannel } from 'vs/platform/storage/electron-main/storageIpc';
 import { ApplicationStorageMainService, IApplicationStorageMainService, IStorageMainService, StorageMainService } from 'vs/platform/storage/electron-main/storageMainService';
 import { resolveCommonProperties } from 'vs/platform/telemetry/common/commonProperties';
@@ -87,7 +87,7 @@ import { IWebviewManagerService } from 'vs/platform/webview/common/webviewManage
 import { WebviewMainService } from 'vs/platform/webview/electron-main/webviewMainService';
 import { IWindowOpenable } from 'vs/platform/window/common/window';
 import { IWindowsMainService, OpenContext } from 'vs/platform/windows/electron-main/windows';
-import { ICodeWindow, WindowError } from 'vs/platform/window/electron-main/window';
+import { ICodeWindow } from 'vs/platform/window/electron-main/window';
 import { WindowsMainService } from 'vs/platform/windows/electron-main/windowsMainService';
 import { ActiveWindowManager } from 'vs/platform/windows/node/windowTracker';
 import { hasWorkspaceFileExtension } from 'vs/platform/workspace/common/workspace';
@@ -113,6 +113,9 @@ import { LoggerChannel } from 'vs/platform/log/electron-main/logIpc';
 import { ILoggerMainService } from 'vs/platform/log/electron-main/loggerService';
 import { IInitialProtocolUrls, IProtocolUrl } from 'vs/platform/url/electron-main/url';
 import { massageMessageBoxOptions } from 'vs/platform/dialogs/common/dialogs';
+import { IUtilityProcessWorkerMainService, UtilityProcessWorkerMainService } from 'vs/platform/utilityProcess/electron-main/utilityProcessWorkerMainService';
+import { ipcUtilityProcessWorkerChannelName } from 'vs/platform/utilityProcess/common/utilityProcessWorkerService';
+import { firstOrDefault } from 'vs/base/common/arrays';
 
 /**
  * The main VS Code application. There will only ever be one instance,
@@ -131,7 +134,7 @@ export class CodeApplication extends Disposable {
 		@IEnvironmentMainService private readonly environmentMainService: IEnvironmentMainService,
 		@ILifecycleMainService private readonly lifecycleMainService: ILifecycleMainService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IStateMainService private readonly stateMainService: IStateMainService,
+		@IStateService private readonly stateService: IStateService,
 		@IFileService private readonly fileService: IFileService,
 		@IProductService private readonly productService: IProductService,
 		@IUserDataProfilesMainService private readonly userDataProfilesMainService: IUserDataProfilesMainService,
@@ -211,9 +214,8 @@ export class CodeApplication extends Disposable {
 		};
 
 		const isAllowedWebviewRequest = (uri: URI, details: Electron.OnBeforeRequestListenerDetails): boolean => {
-			// Only restrict top level page of webviews: index.html
 			if (uri.path !== '/index.html') {
-				return true;
+				return true; // Only restrict top level page of webviews: index.html
 			}
 
 			const frame = details.frame;
@@ -528,14 +530,14 @@ export class CodeApplication extends Disposable {
 
 		// Resolve unique machine ID
 		this.logService.trace('Resolving machine identifier...');
-		const machineId = await resolveMachineId(this.stateMainService);
+		const machineId = await resolveMachineId(this.stateService, this.logService);
 		this.logService.trace(`Resolved machine identifier: ${machineId}`);
 
 		// Shared process
-		const { sharedProcess, sharedProcessReady, sharedProcessClient } = this.setupSharedProcess(machineId);
+		const { sharedProcessReady, sharedProcessClient } = this.setupSharedProcess(machineId);
 
 		// Services
-		const appInstantiationService = await this.initServices(machineId, sharedProcess, sharedProcessReady);
+		const appInstantiationService = await this.initServices(machineId, sharedProcessReady);
 
 		// Auth Handler
 		this._register(appInstantiationService.createInstance(ProxyAuthHandler));
@@ -559,7 +561,7 @@ export class CodeApplication extends Disposable {
 		this.lifecycleMainService.phase = LifecycleMainPhase.AfterWindowOpen;
 
 		// Post Open Windows Tasks
-		appInstantiationService.invokeFunction(accessor => this.afterWindowOpen(accessor, sharedProcess));
+		this.afterWindowOpen();
 
 		// Set lifecycle phase to `Eventually` after a short delay and when idle (min 2.5sec, max 5sec)
 		const eventuallyPhaseScheduler = this._register(new RunOnceScheduler(() => {
@@ -666,7 +668,7 @@ export class CodeApplication extends Disposable {
 	private shouldBlockURI(uri: URI): boolean {
 		if (uri.authority === Schemas.file && isWindows) {
 			const { options, buttonIndeces } = massageMessageBoxOptions({
-				type: 'question',
+				type: 'warning',
 				buttons: [
 					localize({ key: 'open', comment: ['&& denotes a mnemonic'] }, "&&Yes"),
 					localize({ key: 'cancel', comment: ['&& denotes a mnemonic'] }, "&&No")
@@ -784,16 +786,16 @@ export class CodeApplication extends Disposable {
 		if (windowOpenableFromProtocolUrl) {
 			this.logService.trace('app#handleProtocolUrl() opening protocol url as window:', windowOpenableFromProtocolUrl, uri.toString(true));
 
-			const [window] = await windowsMainService.open({
+			const window = firstOrDefault(await windowsMainService.open({
 				context: OpenContext.API,
 				cli: { ...this.environmentMainService.args },
 				urisToOpen: [windowOpenableFromProtocolUrl],
 				forceNewWindow: shouldOpenInNewWindow,
 				gotoLineMode: true
 				// remoteAuthority: will be determined based on windowOpenableFromProtocolUrl
-			});
+			}));
 
-			window.focus(); // this should help ensuring that the right window gets focus when multiple are opened
+			window?.focus(); // this should help ensuring that the right window gets focus when multiple are opened
 
 			return true;
 		}
@@ -802,16 +804,16 @@ export class CodeApplication extends Disposable {
 		if (shouldOpenInNewWindow) {
 			this.logService.trace('app#handleProtocolUrl() opening empty window and passing in protocol url:', uri.toString(true));
 
-			const [window] = await windowsMainService.open({
+			const window = firstOrDefault(await windowsMainService.open({
 				context: OpenContext.API,
 				cli: { ...this.environmentMainService.args },
 				forceNewWindow: true,
 				forceEmpty: true,
 				gotoLineMode: true,
 				remoteAuthority: getRemoteAuthority(uri)
-			});
+			}));
 
-			await window.ready();
+			await window?.ready();
 
 			return urlService.open(uri, options);
 		}
@@ -821,8 +823,8 @@ export class CodeApplication extends Disposable {
 		return false;
 	}
 
-	private setupSharedProcess(machineId: string): { sharedProcess: SharedProcess; sharedProcessReady: Promise<MessagePortClient>; sharedProcessClient: Promise<MessagePortClient> } {
-		const sharedProcess = this._register(this.mainInstantiationService.createInstance(SharedProcess, machineId, this.userEnv));
+	private setupSharedProcess(machineId: string): { sharedProcessReady: Promise<MessagePortClient>; sharedProcessClient: Promise<MessagePortClient> } {
+		const sharedProcess = this._register(this.mainInstantiationService.createInstance(SharedProcess, machineId));
 
 		const sharedProcessClient = (async () => {
 			this.logService.trace('Main->SharedProcess#connect');
@@ -840,10 +842,10 @@ export class CodeApplication extends Disposable {
 			return sharedProcessClient;
 		})();
 
-		return { sharedProcess, sharedProcessReady, sharedProcessClient };
+		return { sharedProcessReady, sharedProcessClient };
 	}
 
-	private async initServices(machineId: string, sharedProcess: SharedProcess, sharedProcessReady: Promise<MessagePortClient>): Promise<IInstantiationService> {
+	private async initServices(machineId: string, sharedProcessReady: Promise<MessagePortClient>): Promise<IInstantiationService> {
 		const services = new ServiceCollection();
 
 		// Update
@@ -889,7 +891,7 @@ export class CodeApplication extends Disposable {
 		services.set(IKeyboardLayoutMainService, new SyncDescriptor(KeyboardLayoutMainService));
 
 		// Native Host
-		services.set(INativeHostMainService, new SyncDescriptor(NativeHostMainService, [sharedProcess], false /* proxied to other processes */));
+		services.set(INativeHostMainService, new SyncDescriptor(NativeHostMainService, undefined, false /* proxied to other processes */));
 
 		// Credentials
 		services.set(ICredentialsMainService, new SyncDescriptor(CredentialsNativeMainService));
@@ -920,7 +922,7 @@ export class CodeApplication extends Disposable {
 		}
 
 		// Backups
-		const backupMainService = new BackupMainService(this.environmentMainService, this.configurationService, this.logService, this.stateMainService);
+		const backupMainService = new BackupMainService(this.environmentMainService, this.configurationService, this.logService, this.stateService);
 		services.set(IBackupMainService, backupMainService);
 
 		// Workspaces
@@ -937,7 +939,7 @@ export class CodeApplication extends Disposable {
 			const isInternal = isInternalTelemetry(this.productService, this.configurationService);
 			const channel = getDelayedChannel(sharedProcessReady.then(client => client.getChannel('telemetryAppender')));
 			const appender = new TelemetryAppenderClient(channel);
-			const commonProperties = resolveCommonProperties(this.fileService, release(), hostname(), process.arch, this.productService.commit, this.productService.version, machineId, isInternal, this.environmentMainService.installSourcePath);
+			const commonProperties = resolveCommonProperties(release(), hostname(), process.arch, this.productService.commit, this.productService.version, machineId, isInternal);
 			const piiPaths = getPiiPathsFromEnvironment(this.environmentMainService);
 			const config: ITelemetryServiceConfig = { appenders: [appender], commonProperties, piiPaths, sendErrorTelemetry: true };
 
@@ -949,6 +951,9 @@ export class CodeApplication extends Disposable {
 		// Default Extensions Profile Init
 		services.set(IExtensionsProfileScannerService, new SyncDescriptor(ExtensionsProfileScannerService, undefined, true));
 		services.set(IExtensionsScannerService, new SyncDescriptor(ExtensionsScannerService, undefined, true));
+
+		// Utility Process Worker
+		services.set(IUtilityProcessWorkerMainService, new SyncDescriptor(UtilityProcessWorkerMainService, undefined, true));
 
 		// Init services that require it
 		await Promises.settled([
@@ -1068,6 +1073,10 @@ export class CodeApplication extends Disposable {
 		// Extension Host Starter
 		const extensionHostStarterChannel = ProxyChannel.fromService(accessor.get(IExtensionHostStarter));
 		mainProcessElectronServer.registerChannel(ipcExtensionHostStarterChannelName, extensionHostStarterChannel);
+
+		// Utility Process Worker
+		const utilityProcessWorkerChannel = ProxyChannel.fromService(accessor.get(IUtilityProcessWorkerMainService));
+		mainProcessElectronServer.registerChannel(ipcUtilityProcessWorkerChannelName, utilityProcessWorkerChannel);
 	}
 
 	private async openFirstWindow(accessor: ServicesAccessor, initialProtocolUrls: IInitialProtocolUrls | undefined): Promise<ICodeWindow[]> {
@@ -1185,12 +1194,7 @@ export class CodeApplication extends Disposable {
 		});
 	}
 
-	private afterWindowOpen(accessor: ServicesAccessor, sharedProcess: SharedProcess): void {
-		const telemetryService = accessor.get(ITelemetryService);
-		const updateService = accessor.get(IUpdateService);
-
-		// Observe shared process for errors
-		this.handleSharedProcessErrors(telemetryService, sharedProcess);
+	private afterWindowOpen(): void {
 
 		// Windows: mutex
 		this.installMutex();
@@ -1202,11 +1206,6 @@ export class CodeApplication extends Disposable {
 				method: request.method
 			});
 		});
-
-		// Initialize update service
-		if (updateService instanceof Win32UpdateService || updateService instanceof LinuxUpdateService || updateService instanceof DarwinUpdateService) {
-			updateService.initialize();
-		}
 
 		// Start to fetch shell environment (if needed) after window has opened
 		// Since this operation can take a long time, we want to warm it up while
@@ -1222,60 +1221,13 @@ export class CodeApplication extends Disposable {
 		const win32MutexName = this.productService.win32MutexName;
 		if (isWindows && win32MutexName) {
 			try {
-				const WindowsMutex = await import('windows-mutex');
+				const WindowsMutex = await import('@vscode/windows-mutex');
 				const mutex = new WindowsMutex.Mutex(win32MutexName);
 				once(this.lifecycleMainService.onWillShutdown)(() => mutex.release());
 			} catch (error) {
 				this.logService.error(error);
 			}
 		}
-	}
-
-	private handleSharedProcessErrors(telemetryService: ITelemetryService, sharedProcess: SharedProcess): void {
-		let willShutdown = false;
-		once(this.lifecycleMainService.onWillShutdown)(() => willShutdown = true);
-
-		this._register(sharedProcess.onDidError(({ type, details }) => {
-
-			// Logging
-			switch (type) {
-				case WindowError.PROCESS_GONE:
-					this.logService.error(`SharedProcess: renderer process gone (reason: ${details?.reason || '<unknown>'}, code: ${details?.exitCode || '<unknown>'})`);
-					break;
-				case WindowError.UNRESPONSIVE:
-					this.logService.error('SharedProcess: detected unresponsive');
-					break;
-				case WindowError.LOAD:
-					this.logService.error(`SharedProcess: failed to load (reason: ${details?.reason || '<unknown>'}, code: ${details?.exitCode || '<unknown>'})`);
-					break;
-			}
-
-			// Telemetry
-			type SharedProcessErrorClassification = {
-				type: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'The type of shared process crash to understand the nature of the crash better.' };
-				reason: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The reason of the shared process crash to understand the nature of the crash better.' };
-				code: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'The exit code of the shared process crash to understand the nature of the crash better.' };
-				visible: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Whether the shared process window was visible or not.' };
-				shuttingdown: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Whether the application is shutting down when the crash happens.' };
-				owner: 'bpasero';
-				comment: 'Event which fires whenever an error occurs in the shared process';
-
-			};
-			type SharedProcessErrorEvent = {
-				type: WindowError;
-				reason: string | undefined;
-				code: number | undefined;
-				visible: boolean;
-				shuttingdown: boolean;
-			};
-			telemetryService.publicLog2<SharedProcessErrorEvent, SharedProcessErrorClassification>('sharedprocesserror', {
-				type,
-				reason: details?.reason,
-				code: details?.exitCode,
-				visible: sharedProcess.isVisible(),
-				shuttingdown: willShutdown
-			});
-		}));
 	}
 
 	private async resolveShellEnvironment(args: NativeParsedArgs, env: IProcessEnvironment, notifyOnError: boolean): Promise<typeof process.env> {
