@@ -13,7 +13,7 @@ import { IModelService } from 'vs/editor/common/services/model';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import { LanguageFeatureRegistry } from 'vs/editor/common/languageFeatureRegistry';
-import { DefaultDocumentColorProviderForStandaloneColorPicker } from 'vs/editor/contrib/colorPicker/browser/defaultDocumentColorProvider';
+import { DefaultDocumentColorProvider } from 'vs/editor/contrib/colorPicker/browser/defaultDocumentColorProvider';
 
 export interface IColorData {
 	colorInfo: IColorInformation;
@@ -25,7 +25,7 @@ export function getColors(registry: LanguageFeatureRegistry<DocumentColorProvide
 	let providers = registry.ordered(model).reverse();
 	if (providers.length > 1) {
 		providers = providers.filter(provider => {
-			return !(provider instanceof DefaultDocumentColorProviderForStandaloneColorPicker);
+			return !(provider instanceof DefaultDocumentColorProvider);
 		});
 	}
 	const promises = providers.map(provider => Promise.resolve(provider.provideDocumentColors(model, token)).then(result => {

@@ -22,7 +22,7 @@ import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 import { IFeatureDebounceInformation, ILanguageFeatureDebounceService } from 'vs/editor/common/services/languageFeatureDebounce';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import { getColors, IColorData } from 'vs/editor/contrib/colorPicker/browser/color';
-import { DefaultDocumentColorProviderForStandaloneColorPicker } from 'vs/editor/contrib/colorPicker/browser/defaultDocumentColorProvider';
+import { DefaultDocumentColorProvider } from 'vs/editor/contrib/colorPicker/browser/defaultDocumentColorProvider';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 export const ColorDecorationInjectedTextMarker = Object.create({});
@@ -131,7 +131,7 @@ export class ColorDetector extends Disposable implements IEditorContribution {
 		// Find if there is only one document color provider which is the default document color provider
 		const providers = this._languageFeaturesService.colorProvider.ordered(model!).reverse();
 		let singleDefaultDocumentColorProvider = false;
-		if (providers.length === 1 && providers[0] instanceof DefaultDocumentColorProviderForStandaloneColorPicker) {
+		if (providers.length === 1 && providers[0] instanceof DefaultDocumentColorProvider) {
 			singleDefaultDocumentColorProvider = true;
 		}
 

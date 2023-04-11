@@ -314,7 +314,7 @@ export enum EditorOption {
 	tabFocusMode = 138,
 	layoutInfo = 139,
 	wrappingInfo = 140,
-	defaultColorDecorations = 141
+	defaultColorDecorators = 141
 }
 
 /**

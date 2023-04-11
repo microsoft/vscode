@@ -63,7 +63,7 @@ class HideStandaloneColorPicker extends EditorAction {
 	}
 }
 
-class InsertColorFromStandaloneColorPicker extends EditorAction {
+class InsertColorWithStandaloneColorPicker extends EditorAction {
 
 	constructor() {
 		super({
@@ -89,5 +89,5 @@ class InsertColorFromStandaloneColorPicker extends EditorAction {
 }
 
 registerEditorAction(HideStandaloneColorPicker);
-registerEditorAction(InsertColorFromStandaloneColorPicker);
+registerEditorAction(InsertColorWithStandaloneColorPicker);
 registerAction2(ShowOrFocusStandaloneColorPicker);

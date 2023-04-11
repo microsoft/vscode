@@ -23,7 +23,7 @@ import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { Selection } from 'vs/editor/common/core/selection';
 import { IRange } from 'vs/editor/common/core/range';
-import { DefaultDocumentColorProviderForStandaloneColorPicker as DefaultDocumentColorProvider } from 'vs/editor/contrib/colorPicker/browser/defaultDocumentColorProvider';
+import { DefaultDocumentColorProvider } from 'vs/editor/contrib/colorPicker/browser/defaultDocumentColorProvider';
 import * as dom from 'vs/base/browser/dom';
 import 'vs/css!./colorPicker';
 
@@ -53,11 +53,9 @@ export class StandaloneColorPickerController extends Disposable implements IEdit
 			return;
 		}
 		if (!this._standaloneColorPickerVisible.get()) {
-			this._standaloneColorPickerVisible.set(true);
 			this._standaloneColorPickerWidget = new StandaloneColorPickerWidget(this._editor, this._standaloneColorPickerVisible, this._standaloneColorPickerFocused, this._instantiationService, this._keybindingService, this._languageFeatureService);
 			this._editor.addContentWidget(this._standaloneColorPickerWidget);
 		} else if (!this._standaloneColorPickerFocused.get()) {
-			this._standaloneColorPickerFocused.set(true);
 			this._standaloneColorPickerWidget?.focus();
 		}
 	}
@@ -103,7 +101,7 @@ export class StandaloneColorPickerWidget implements IContentWidget {
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
 		@ILanguageFeaturesService private readonly languageFeaturesService: ILanguageFeaturesService
 	) {
-
+		this._standaloneColorPickerVisible.set(true);
 		this._position = this.editor._getViewModel()?.getPrimaryCursorState().viewState.position;
 		this._selection = this.editor.getSelection();
 		const selection = this._selection ?
@@ -236,6 +234,7 @@ export class StandaloneColorPickerWidget implements IContentWidget {
 	}
 
 	public focus(): void {
+		this._standaloneColorPickerFocused.set(true);
 		this.body.focus();
 	}
 }

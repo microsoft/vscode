@@ -4,179 +4,100 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { Color, RGBA } from 'vs/base/common/color';
-import { IRange } from 'vs/editor/common/core/range';
-import { ITextModel } from 'vs/editor/common/model';
+import { Color, HSLA, RGBA } from 'vs/base/common/color';
+import { FindMatch, ITextModel } from 'vs/editor/common/model';
 import { DocumentColorProvider, IColor, IColorInformation, IColorPresentation, ProviderResult } from 'vs/editor/common/languages';
 
-// TODO: clean the code, make it correct
-// TODO: clean the code so that the header is the corerct size when using the standalone color picker widget
-// TODO: make the standalone color picker widget bigger by default, so that the hsla can fit inside of the color header
-// TODO: Look into the CSS extension for how to use HSL values
-
-export class DefaultDocumentColorProviderForStandaloneColorPicker implements DocumentColorProvider {
+export class DefaultDocumentColorProvider implements DocumentColorProvider {
 
 	constructor() { }
 
-	private _findRange(model: ITextModel, match: RegExpMatchArray): IRange | undefined {
-		const index = match.index;
-		const length = match[0].length;
-		if (!index) {
-			return;
+	private _parseCaptureGroups(captureGroups: string[]) {
+		const values = [];
+		for (const captureGroup of captureGroups) {
+			const parsedNumber = Number(captureGroup);
+			if (parsedNumber) {
+				values.push(parsedNumber);
+			} else if (captureGroup === '0') {
+				values.push(0);
+			}
 		}
-		const startPosition = model.getPositionAt(index);
-		const endPosition = model.getPositionAt(index + length);
-		const range: IRange = {
-			startLineNumber: startPosition.lineNumber,
-			startColumn: startPosition.column,
-			endLineNumber: endPosition.lineNumber,
-			endColumn: endPosition.column
+		return values;
+	}
+
+	private _toIColor(r: number, g: number, b: number, a: number): IColor {
+		return {
+			red: r / 255,
+			blue: b / 255,
+			green: g / 255,
+			alpha: a
 		};
-		return range;
 	}
 
-	private _findRGBColorInformation(matches: RegExpMatchArray[], isAlpha: boolean, model: ITextModel) {
+	private _findRGBColorInformation(matches: FindMatch[], isAlpha: boolean, _model: ITextModel) {
 		const result: IColorInformation[] = [];
 		for (const match of matches) {
-			const range = this._findRange(model, match);
-			if (!range) {
-				return [];
+			const range = match.range;
+			const captureGroups = match.matches;
+			if (!range || !captureGroups) {
+				continue;
 			}
-			const regexNumbers = [];
-			for (const captureGroup of match) {
-				const parsedNumber = Number(captureGroup);
-				if (parsedNumber) {
-					regexNumbers.push(parsedNumber);
-				} else if (captureGroup === '0') {
-					regexNumbers.push(0);
-				}
-			}
-			const red = regexNumbers[0] / 255;
-			const green = regexNumbers[1] / 255;
-			const blue = regexNumbers[2] / 255;
-			const alpha = isAlpha ? regexNumbers[3] : 1;
-			const color: IColor = {
-				red: red,
-				blue: blue,
-				green: green,
-				alpha: alpha
-			};
-			const colorInformation = {
+			const parsedRegex = this._parseCaptureGroups(captureGroups);
+			result.push({
 				range: range,
-				color: color
-			};
-			result.push(colorInformation);
+				color: this._toIColor(parsedRegex[0], parsedRegex[1], parsedRegex[2], isAlpha ? parsedRegex[3] : 1)
+			});
 		}
 		return result;
 	}
 
-	private _findHexColorInformation(matches: RegExpMatchArray[], model: ITextModel) {
+	private _findHexColorInformation(matches: FindMatch[], _model: ITextModel) {
 		const result: IColorInformation[] = [];
 		for (const match of matches) {
-			const range = this._findRange(model, match);
-			if (!range) {
-				return [];
+			const range = match.range;
+			const captureGroups = match.matches;
+			if (!range || !captureGroups) {
+				continue;
 			}
-			const hexValue = match.at(0);
-			if (!hexValue) {
-				return [];
-			}
-			const parsedHexColor = Color.Format.CSS.parseHex(hexValue);
+			const parsedHexColor = Color.Format.CSS.parseHex(captureGroups[0]);
 			if (!parsedHexColor) {
-				return [];
+				continue;
 			}
-			const parsedHexIColor = {
-				red: parsedHexColor.rgba.r / 255,
-				green: parsedHexColor.rgba.g / 255,
-				blue: parsedHexColor.rgba.b / 255,
-				alpha: parsedHexColor.rgba.a
-			};
-			const colorInformation = {
+			result.push({
 				range: range,
-				color: parsedHexIColor
-			};
-			result.push(colorInformation);
+				color: this._toIColor(parsedHexColor.rgba.r, parsedHexColor.rgba.g, parsedHexColor.rgba.b, parsedHexColor.rgba.a)
+			});
 		}
 		return result;
 	}
 
-	private _findHSLColorInformation(matches: RegExpMatchArray[], isAlpha: boolean, model: ITextModel) {
+	private _findHSLColorInformation(matches: FindMatch[], isAlpha: boolean, _model: ITextModel) {
 		const result: IColorInformation[] = [];
 		for (const match of matches) {
-			const range = this._findRange(model, match);
-			if (!range) {
-				return [];
+			const range = match.range;
+			const captureGroups = match.matches;
+			if (!range || !captureGroups) {
+				continue;
 			}
-			const regexNumbers = [];
-			for (const element of match) {
-				const parsedNumber = Number(element);
-				if (parsedNumber) {
-					regexNumbers.push(parsedNumber);
-				} else if (element === '0') {
-					regexNumbers.push(0);
-				}
-			}
-			const h = regexNumbers[0];
-			const s = regexNumbers[1];
-			const l = regexNumbers[2];
-			const alpha = isAlpha ? regexNumbers[3] : 1;
-
-			const normalizedS = s / 100;
-			const normalizedL = l / 100;
-			const normalizedH = h / 60;
-
-			const c = (1 - Math.abs(2 * normalizedL - 1)) * normalizedS;
-			const x = c * (1 - Math.abs(normalizedH % 2 - 1));
-
-			let intermediaryResult;
-			if (normalizedH >= 0 && normalizedH < 1) {
-				intermediaryResult = [c, x, 0];
-			} else if (normalizedH >= 1 && normalizedH < 2) {
-				intermediaryResult = [x, c, 0];
-			} else if (normalizedH >= 2 && normalizedH < 3) {
-				intermediaryResult = [0, c, x];
-			} else if (normalizedH >= 3 && normalizedH < 4) {
-				intermediaryResult = [0, x, c];
-			} else if (normalizedH >= 4 && normalizedH < 5) {
-				intermediaryResult = [x, 0, c];
-			} else if (normalizedH >= 5 && normalizedH <= 6) {
-				intermediaryResult = [c, 0, x];
-			} else {
-				throw new Error('Invalid HSLA value');
-			}
-
-			const m = normalizedL - c / 2;
-			const parsedHslaValue = {
-				red: intermediaryResult[0] + m,
-				green: intermediaryResult[1] + m,
-				blue: intermediaryResult[2] + m,
-				alpha: alpha
-			};
-			const colorInformation = {
+			const parsedRegex = this._parseCaptureGroups(captureGroups);
+			const colorEquivalent = new Color(new HSLA(parsedRegex[0], parsedRegex[1] / 100, parsedRegex[2] / 100, isAlpha ? parsedRegex[3] : 1));
+			result.push({
 				range: range,
-				color: parsedHslaValue
-			};
-			result.push(colorInformation);
+				color: this._toIColor(colorEquivalent.rgba.r, colorEquivalent.rgba.g, colorEquivalent.rgba.b, colorEquivalent.rgba.a)
+			});
 		}
 		return result;
 	}
 
-	provideDocumentColors(model: ITextModel, token: CancellationToken): ProviderResult<IColorInformation[]> {
+	provideDocumentColors(model: ITextModel, _token: CancellationToken): ProviderResult<IColorInformation[]> {
 
 		let result: IColorInformation[] = [];
 
-		// TODO: Following does not work?
-		const initialRgbaRegex = `/rgba[(](\s*)([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])(\s*),(\s*)([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])(\s*),(\s*)([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])(\s*),(\s*)([01][.]|[01]|[.][0-9]+|[0][.][0-9]*)(\s*)[)]/gm`;
-		const matches = model.findMatches(initialRgbaRegex, false, true, false, null, true);
-		console.log('matches : ', matches);
-
-		const text = model.getLinesContent().join('\n');
-
 		// RGB and RGBA
-		const rgbaRegex = /rgba[(](\s*)([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])(\s*),(\s*)([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])(\s*),(\s*)([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])(\s*),(\s*)([01][.]|[01]|[.][0-9]+|[0][.][0-9]*)(\s*)[)]/gm;
-		const rgbRegex = /rgb[(](\s*)([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])(\s*),(\s*)([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])(\s*),(\s*)([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])(\s*)[)]/gm;
-		const rgbaMatches = [...text.matchAll(rgbaRegex)];
-		const rgbMatches = [...text.matchAll(rgbRegex)];
+		const rgbaRegex = `rgba[(](\\s*)([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])(\\s*),(\\s*)([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])(\\s*),(\\s*)([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])(\\s*),(\\s*)([01][.]|[01]|[.][0-9]+|[0][.][0-9]*)(\\s*)[)]`;
+		const rgbRegex = `rgb[(](\\s*)([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])(\\s*),(\\s*)([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])(\\s*),(\\s*)([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])(\\s*)[)]`;
+		const rgbaMatches = model.findMatches(rgbaRegex, false, true, false, null, true);
+		const rgbMatches = model.findMatches(rgbRegex, false, true, false, null, true);
 
 		const rgbaColorInformation = this._findRGBColorInformation(rgbaMatches, true, model);
 		result = result.concat(rgbaColorInformation);
@@ -185,10 +106,10 @@ export class DefaultDocumentColorProviderForStandaloneColorPicker implements Doc
 		result = result.concat(rgbColorInformation);
 
 		// HEX and HEXA
-		const hexaRegex = /#([A-Fa-f0-9]{8}(?![A-Fa-f0-9]))/gm;
-		const hexRegex = /#([A-Fa-f0-9]{6}(?![A-Fa-f0-9]))/gm;
-		const hexaMatches = [...text.matchAll(hexaRegex)];
-		const hexMatches = [...text.matchAll(hexRegex)];
+		const hexaRegex = `#([A-Fa-f0-9]{8}(?![A-Fa-f0-9]))`;
+		const hexRegex = `#([A-Fa-f0-9]{6}(?![A-Fa-f0-9]))`;
+		const hexaMatches = model.findMatches(hexaRegex, false, true, false, null, true);
+		const hexMatches = model.findMatches(hexRegex, false, true, false, null, true);
 
 		const hexaColorInformation = this._findHexColorInformation(hexaMatches, model);
 		result = result.concat(hexaColorInformation);
@@ -196,10 +117,10 @@ export class DefaultDocumentColorProviderForStandaloneColorPicker implements Doc
 		result = result.concat(hexColorInformation);
 
 		// HSL and HSLA
-		const hslaRegex = /hsla[(](\s*)(36[0]|3[0-5][0-9]|[12][0-9][0-9]|[1-9]?[0-9])(\s*),(\s*)(100|\d{1,2}|\d{1,2}[.]\d*)%(\s*),(\s*)(100|\d{1,2}|\d{1,2}[.]\d*)%(\s*),(\s*)([01][.]|[01]|[.][0-9]+|[0][.][0-9]*)(\s*)[)]/gm;
-		const hslRegex = /hsl[(](\s*)(36[0]|3[0-5][0-9]|[12][0-9][0-9]|[1-9]?[0-9])(\s*),(\s*)(100|\d{1,2}|\d{1,2}[.]\d*)%(\s*),(\s*)(100|\d{1,2}|\d{1,2}[.]\d*)%(\s*)[)]/gm;
-		const hslaMatches = [...text.matchAll(hslaRegex)];
-		const hslMatches = [...text.matchAll(hslRegex)];
+		const hslaRegex = `hsla[(](\\s*)(36[0]|3[0-5][0-9]|[12][0-9][0-9]|[1-9]?[0-9])(\\s*),(\\s*)(100|\\d{1,2}|\\d{1,2}[.]\\d*)%(\\s*),(\\s*)(100|\\d{1,2}|\\d{1,2}[.]\\d*)%(\\s*),(\\s*)([01][.]|[01]|[.][0-9]+|[0][.][0-9]*)(\\s*)[)]`;
+		const hslRegex = `hsl[(](\\s*)(36[0]|3[0-5][0-9]|[12][0-9][0-9]|[1-9]?[0-9])(\\s*),(\\s*)(100|\\d{1,2}|\\d{1,2}[.]\\d*)%(\\s*),(\\s*)(100|\\d{1,2}|\\d{1,2}[.]\\d*)%(\\s*)[)]`;
+		const hslaMatches = model.findMatches(hslaRegex, false, true, false, null, true);
+		const hslMatches = model.findMatches(hslRegex, false, true, false, null, true);
 
 		const hslaColorInformation = this._findHSLColorInformation(hslaMatches, true, model);
 		result = result.concat(hslaColorInformation);
@@ -209,7 +130,7 @@ export class DefaultDocumentColorProviderForStandaloneColorPicker implements Doc
 		return result;
 	}
 
-	provideColorPresentations(model: ITextModel, colorInfo: IColorInformation, _token: CancellationToken): ProviderResult<IColorPresentation[]> {
+	provideColorPresentations(_model: ITextModel, colorInfo: IColorInformation, _token: CancellationToken): ProviderResult<IColorPresentation[]> {
 
 		const range = colorInfo.range;
 		const colorFromInfo: IColor = colorInfo.color;
