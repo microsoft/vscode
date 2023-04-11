@@ -44,15 +44,12 @@ export class ColorDetector extends Disposable implements IEditorContribution {
 
 	private readonly _colorDecoratorIds = this._editor.createDecorationsCollection();
 
-	private _isEnabled: boolean;
+	private _isColorDecoratorsEnabled: boolean;
+	private _isDefaultColorDecoratorsEnabled: boolean;
 
 	private readonly _ruleFactory = new DynamicCssRules(this._editor);
 
 	private readonly _decoratorLimitReporter = new DecoratorLimitReporter();
-
-	// TODO: Transform into a setting later
-	// TODO: When this is enabled, this means we still want the color boxes to show up with the default color provider that makes boxes show up
-	private useDefaultColorProviderForInlineDecorations: boolean;
 
 	constructor(
 		private readonly _editor: ICodeEditor,
@@ -62,35 +59,32 @@ export class ColorDetector extends Disposable implements IEditorContribution {
 	) {
 		super();
 		this._debounceInformation = languageFeatureDebounceService.for(_languageFeaturesService.colorProvider, 'Document Colors', { min: ColorDetector.RECOMPUTE_TIME });
-		// TODO: this.useDefaultColorProvider = this._editor.getOption(EditorOption.defaultColorDecorations);
-		this.useDefaultColorProviderForInlineDecorations = true;
-
 		this._register(_editor.onDidChangeModel(() => {
-			this._isEnabled = this.isEnabled();
+			this._isColorDecoratorsEnabled = this.isEnabled();
 			this.onModelChanged();
 		}));
 		this._register(_editor.onDidChangeModelLanguage(() => this.onModelChanged()));
 		this._register(_languageFeaturesService.colorProvider.onDidChange(() => this.onModelChanged()));
 		this._register(_editor.onDidChangeConfiguration((e) => {
-			const prevIsEnabled = this._isEnabled;
-			this._isEnabled = this.isEnabled();
-			const updated = prevIsEnabled !== this._isEnabled || e.hasChanged(EditorOption.colorDecoratorsLimit);
-			if (updated) {
-				if (this._isEnabled) {
-					this.onModelChanged();
-				} else {
-					this.removeAllDecorations();
-				}
+			const prevIsEnabled = this._isColorDecoratorsEnabled;
+			this._isColorDecoratorsEnabled = this.isEnabled();
+			const prevIsDefaultColorsEnabled = this._isDefaultColorDecoratorsEnabled;
+			this._isDefaultColorDecoratorsEnabled = this._editor.getOption(EditorOption.defaultColorDecorations);
+
+			const updatedColorDecoratorsSetting = prevIsEnabled !== this._isColorDecoratorsEnabled || e.hasChanged(EditorOption.colorDecoratorsLimit);
+			const updatedDefaultColorDecoratorsSetting = prevIsDefaultColorsEnabled !== this._isDefaultColorDecoratorsEnabled || e.hasChanged(EditorOption.defaultColorDecorations);
+
+			if (updatedColorDecoratorsSetting && this._isColorDecoratorsEnabled || updatedDefaultColorDecoratorsSetting && this._isDefaultColorDecoratorsEnabled) {
+				this.onModelChanged();
+			} else {
+				this.removeAllDecorations();
 			}
-			// TODO: const defaultColorDecorations = e.hasChanged(EditorOption.defaultColorDecorations);
-			// if (defaultColorDecorations) {
-			// 	this.useDefaultColorProviderForInlineDecorations = this._editor.getOption(EditorOption.defaultColorDecorations);
-			// }
 		}));
 
 		this._timeoutTimer = null;
 		this._computePromise = null;
-		this._isEnabled = this.isEnabled();
+		this._isColorDecoratorsEnabled = this.isEnabled();
+		this._isDefaultColorDecoratorsEnabled = this._editor.getOption(EditorOption.defaultColorDecorations);
 		this.onModelChanged();
 	}
 
@@ -127,39 +121,24 @@ export class ColorDetector extends Disposable implements IEditorContribution {
 	}
 
 	private onModelChanged(): void {
-
-		console.log('Inside of on model changed');
-
 		this.stop();
-
-		if (!this._isEnabled) {
-
-			console.log('early return');
-
-			return;
-		}
 		const model = this._editor.getModel();
-		if (!model) {
+		if (!model || !this._isColorDecoratorsEnabled && !this._isDefaultColorDecoratorsEnabled) {
 			return;
 		}
-
 		// Find if there is only one document color provider which is the default document color provider
 		const providers = this._languageFeaturesService.colorProvider.ordered(model!).reverse();
-		let onlyOneDefaultDocumentColorProvider = false;
+		let singleDefaultDocumentColorProvider = false;
 		if (providers.length === 1 && providers[0] instanceof DefaultDocumentColorProviderForStandaloneColorPicker) {
-			onlyOneDefaultDocumentColorProvider = true;
+			singleDefaultDocumentColorProvider = true;
 		}
 
-		// Either there are no color providers
-		// Or there is only the default color document provider, but we do not want to use the default document colors
-		if (!this._languageFeaturesService.colorProvider.has(model) || onlyOneDefaultDocumentColorProvider && !this.useDefaultColorProviderForInlineDecorations) {
-
-			console.log('second early return');
-
+		// If there are no color providers
+		// Or if there is only the default color document provider and we do not want to use the default document colors
+		// Then do an early return
+		if (!this._languageFeaturesService.colorProvider.has(model) || singleDefaultDocumentColorProvider && !this._isDefaultColorDecoratorsEnabled) {
 			return;
 		}
-
-		// Otherwise this means, we do want to display the inline box colors
 
 		this._localToDispose.add(this._editor.onDidChangeModelContent(() => {
 			if (!this._timeoutTimer) {
@@ -173,31 +152,18 @@ export class ColorDetector extends Disposable implements IEditorContribution {
 		this.beginCompute();
 	}
 
-	public beginCompute(): void {
-
-		console.log('Inside of beginCompute');
-
+	private beginCompute(): void {
 		this._computePromise = createCancelablePromise(async token => {
 			const model = this._editor.getModel();
 			if (!model) {
 				return Promise.resolve([]);
 			}
 			const sw = new StopWatch(false);
-
-			console.log('Before getColors of beginCompute');
-
-			// Now there is always a default document color provider, it should return the colors only when the setting is enabled
 			const colors = await getColors(this._languageFeaturesService.colorProvider, model, token);
 			this._debounceInformation.update(model, sw.elapsed());
-
-			console.log('colors : ', colors);
-
 			return colors;
 		});
 		this._computePromise.then((colorInfos) => {
-
-			console.log('colorInfos : ', colorInfos);
-
 			this.updateDecorations(colorInfos);
 			this.updateColorDecorators(colorInfos);
 			this._computePromise = null;
@@ -217,10 +183,6 @@ export class ColorDetector extends Disposable implements IEditorContribution {
 	}
 
 	private updateDecorations(colorDatas: IColorData[]): void {
-
-		console.log('Inside of updateDecorations');
-		console.log('colorDatas: ', colorDatas);
-
 		const decorations = colorDatas.map(c => ({
 			range: {
 				startLineNumber: c.colorInfo.range.startLineNumber,
@@ -242,10 +204,6 @@ export class ColorDetector extends Disposable implements IEditorContribution {
 	private _colorDecorationClassRefs = this._register(new DisposableStore());
 
 	private updateColorDecorators(colorData: IColorData[]): void {
-
-		console.log('Inside of update color decorators');
-		console.log('colorDatas : ', colorData);
-
 		this._colorDecorationClassRefs.clear();
 
 		const decorations: IModelDeltaDecoration[] = [];
@@ -294,20 +252,7 @@ export class ColorDetector extends Disposable implements IEditorContribution {
 		this._colorDecorationClassRefs.clear();
 	}
 
-	public get colorDatas(): Map<string, IColorData> {
-		return this._colorDatas;
-	}
-
-	public set colorDatas(ids: Map<string, IColorData>) {
-		this._colorDatas = ids;
-	}
-
 	getColorData(position: Position): IColorData | null {
-
-		console.log('Inside of getColorData');
-		console.log('position : ', position);
-		console.log('this._colorDatas : ', this._colorDatas);
-
 		const model = this._editor.getModel();
 		if (!model) {
 			return null;
@@ -316,8 +261,6 @@ export class ColorDetector extends Disposable implements IEditorContribution {
 		const decorations = model
 			.getDecorationsInRange(Range.fromPositions(position, position))
 			.filter(d => this._colorDatas.has(d.id));
-
-		console.log('decorations : ', decorations);
 
 		if (decorations.length === 0) {
 			return null;
