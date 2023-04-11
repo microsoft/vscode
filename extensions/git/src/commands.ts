@@ -883,7 +883,7 @@ export class CommandCenter {
 			const document = window.activeTextEditor?.document;
 
 			// If the document doesn't match what we opened then don't attempt to select the range
-			// Additioanlly if there was no previous document we don't have information to select a range
+			// Additionally if there was no previous document we don't have information to select a range
 			if (document?.uri.toString() !== uri.toString() || !activeTextEditor || !previousURI || !previousSelection) {
 				continue;
 			}

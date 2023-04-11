@@ -91,6 +91,11 @@ export enum NotebookCellExecutionState {
 	Pending = 2,
 	Executing = 3
 }
+export enum NotebookExecutionState {
+	Unconfirmed = 1,
+	Pending = 2,
+	Executing = 3
+}
 
 export interface INotebookCellPreviousExecutionResult {
 	executionOrder?: number;
@@ -204,6 +209,7 @@ export interface IOutputDto {
 }
 
 export interface ICellOutput {
+	readonly versionId: number;
 	outputs: IOutputItemDto[];
 	metadata?: Record<string, any>;
 	outputId: string;

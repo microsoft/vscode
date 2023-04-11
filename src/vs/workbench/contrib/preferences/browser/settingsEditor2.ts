@@ -109,6 +109,7 @@ export class SettingsEditor2 extends EditorPane {
 	private static SUGGESTIONS: string[] = [
 		`@${MODIFIED_SETTING_TAG}`,
 		'@tag:notebookLayout',
+		'@tag:notebookOutputLayout',
 		`@tag:${REQUIRE_TRUSTED_WORKSPACE_SETTING_TAG}`,
 		`@tag:${WORKSPACE_TRUST_SETTING_TAG}`,
 		'@tag:sync',

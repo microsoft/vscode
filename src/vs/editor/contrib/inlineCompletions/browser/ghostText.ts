@@ -83,14 +83,6 @@ export class GhostTextPart {
 }
 
 export class GhostTextReplacement {
-	public readonly parts: ReadonlyArray<GhostTextPart> = [
-		new GhostTextPart(
-			this.columnStart + this.length,
-			this.newLines,
-			false
-		),
-	];
-
 	constructor(
 		readonly lineNumber: number,
 		readonly columnStart: number,
@@ -98,6 +90,13 @@ export class GhostTextReplacement {
 		readonly newLines: readonly string[],
 		public readonly additionalReservedLineCount: number = 0,
 	) { }
+	public readonly parts: ReadonlyArray<GhostTextPart> = [
+		new GhostTextPart(
+			this.columnStart + this.length,
+			this.newLines,
+			false
+		),
+	];
 
 	renderForScreenReader(_lineText: string): string {
 		return this.newLines.join('\n');

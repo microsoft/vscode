@@ -2805,7 +2805,7 @@ declare namespace monaco.editor {
 		/**
 		 * Replace all previous decorations with `newDecorations`.
 		 */
-		set(newDecorations: IModelDeltaDecoration[]): void;
+		set(newDecorations: readonly IModelDeltaDecoration[]): string[];
 		/**
 		 * Remove all previous decorations.
 		 */
@@ -4621,10 +4621,15 @@ declare namespace monaco.editor {
 	 */
 	export interface IDropIntoEditorOptions {
 		/**
-		 * Enable the dropping into editor.
+		 * Enable dropping into editor.
 		 * Defaults to true.
 		 */
 		enabled?: boolean;
+		/**
+		 * Controls if a widget is shown after a drop.
+		 * Defaults to 'afterDrop'.
+		 */
+		showDropSelector?: 'afterDrop' | 'never';
 	}
 
 	export enum EditorOption {
@@ -5619,6 +5624,10 @@ declare namespace monaco.editor {
 		 * Change the scroll position of the editor's viewport.
 		 */
 		setScrollPosition(position: INewScrollPosition, scrollType?: ScrollType): void;
+		/**
+		 * Check if the editor is currently scrolling towards a different scroll position.
+		 */
+		hasPendingScrollAnimation(): boolean;
 		/**
 		 * Get an action that is a contribution to this editor.
 		 * @id Unique identifier of the contribution.
