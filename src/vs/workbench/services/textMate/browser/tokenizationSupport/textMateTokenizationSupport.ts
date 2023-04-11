@@ -19,9 +19,14 @@ export class TextMateTokenizationSupport extends Disposable implements ITokeniza
 		private readonly _grammar: IGrammar,
 		private readonly _initialState: StateStack,
 		private readonly _containsEmbeddedLanguages: boolean,
-		private readonly _createBackgroundTokenizer?: (textModel: ITextModel, tokenStore: IBackgroundTokenizationStore) => IBackgroundTokenizer | undefined
+		private readonly _createBackgroundTokenizer?: (textModel: ITextModel, tokenStore: IBackgroundTokenizationStore) => IBackgroundTokenizer | undefined,
+		private readonly _backgroundTokenizerShouldOnlyVerifyTokens: () => boolean = () => false,
 	) {
 		super();
+	}
+
+	public get backgroundTokenizerShouldOnlyVerifyTokens(): boolean | undefined {
+		return this._backgroundTokenizerShouldOnlyVerifyTokens();
 	}
 
 	public getInitialState(): IState {

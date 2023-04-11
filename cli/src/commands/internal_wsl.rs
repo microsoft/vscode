@@ -4,14 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 use crate::{
-	tunnels::{serve_wsl, shutdown_signal::ShutdownSignal},
+	tunnels::{serve_wsl, shutdown_signal::ShutdownRequest},
 	util::{errors::AnyError, prereqs::PreReqChecker},
 };
 
 use super::CommandContext;
 
 pub async fn serve(ctx: CommandContext) -> Result<i32, AnyError> {
-	let signal = ShutdownSignal::create_rx(&[ShutdownSignal::CtrlC]);
+	let signal = ShutdownRequest::create_rx([ShutdownRequest::CtrlC]);
 	let platform = spanf!(
 		ctx.log,
 		ctx.log.span("prereq"),

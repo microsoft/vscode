@@ -276,18 +276,10 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 
 	public async getExtension(extensionId: string): Promise<IExtensionDescription | undefined> {
 		const ext = await this._mainThreadExtensionsProxy.$getExtension(extensionId);
-		let browserNlsBundleUris: { [language: string]: URI } | undefined;
-		if (ext?.browserNlsBundleUris) {
-			browserNlsBundleUris = {};
-			for (const language of Object.keys(ext.browserNlsBundleUris)) {
-				browserNlsBundleUris[language] = URI.revive(ext.browserNlsBundleUris[language]);
-			}
-		}
 		return ext && {
 			...ext,
 			identifier: new ExtensionIdentifier(ext.identifier.value),
-			extensionLocation: URI.revive(ext.extensionLocation),
-			browserNlsBundleUris
+			extensionLocation: URI.revive(ext.extensionLocation)
 		};
 	}
 
@@ -764,6 +756,10 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 
 		return this._readyToStartExtensionHost.wait()
 			.then(() => this._readyToRunExtensions.open())
+			.then(() => {
+				// wait for all activation events that came in during workbench startup, but at maximum 1s
+				return Promise.race([this._activator.waitForActivatingExtensions(), timeout(1000)]);
+			})
 			.then(() => this._handleEagerExtensions())
 			.then(() => {
 				this._eagerExtensionsActivated.open();

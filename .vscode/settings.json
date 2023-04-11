@@ -120,5 +120,10 @@
 	},
 	"githubPullRequests.assignCreated": "${user}",
 	"githubPullRequests.defaultMergeMethod": "squash",
-	"application.experimental.rendererProfiling": true
+	"githubPullRequests.ignoredPullRequestBranches": [
+		"main"
+	],
+	"application.experimental.rendererProfiling": true,
+	"editor.experimental.asyncTokenization": true,
+	"diffEditor.diffAlgorithm": "experimental"
 }

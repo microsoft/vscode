@@ -21,7 +21,7 @@ import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { BaseTerminalBackend } from 'vs/workbench/contrib/terminal/browser/baseTerminalBackend';
 import { RemotePty } from 'vs/workbench/contrib/terminal/browser/remotePty';
-import { ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { ITerminalInstanceService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { RemoteTerminalChannelClient, REMOTE_TERMINAL_CHANNEL_NAME } from 'vs/workbench/contrib/terminal/common/remoteTerminalChannel';
 import { ICompleteTerminalConfiguration, ITerminalBackend, ITerminalBackendRegistry, ITerminalConfiguration, TerminalExtensions, TERMINAL_CONFIG_SECTION } from 'vs/workbench/contrib/terminal/common/terminal';
 import { TerminalStorageKeys } from 'vs/workbench/contrib/terminal/common/terminalStorageKeys';
@@ -33,17 +33,14 @@ export class RemoteTerminalBackendContribution implements IWorkbenchContribution
 	constructor(
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IRemoteAgentService remoteAgentService: IRemoteAgentService,
-		@ITerminalService terminalService: ITerminalService
+		@ITerminalInstanceService terminalInstanceService: ITerminalInstanceService
 	) {
-		const remoteAuthority = remoteAgentService.getConnection()?.remoteAuthority;
-		if (remoteAuthority) {
-			const connection = remoteAgentService.getConnection();
-			if (connection) {
-				const channel = instantiationService.createInstance(RemoteTerminalChannelClient, connection.remoteAuthority, connection.getChannel(REMOTE_TERMINAL_CHANNEL_NAME));
-				const backend = instantiationService.createInstance(RemoteTerminalBackend, remoteAuthority, channel);
-				Registry.as<ITerminalBackendRegistry>(TerminalExtensions.Backend).registerTerminalBackend(backend);
-				terminalService.handleNewRegisteredBackend(backend);
-			}
+		const connection = remoteAgentService.getConnection();
+		if (connection?.remoteAuthority) {
+			const channel = instantiationService.createInstance(RemoteTerminalChannelClient, connection.remoteAuthority, connection.getChannel(REMOTE_TERMINAL_CHANNEL_NAME));
+			const backend = instantiationService.createInstance(RemoteTerminalBackend, connection.remoteAuthority, channel);
+			Registry.as<ITerminalBackendRegistry>(TerminalExtensions.Backend).registerTerminalBackend(backend);
+			terminalInstanceService.didRegisterBackend(backend.remoteAuthority);
 		}
 	}
 }

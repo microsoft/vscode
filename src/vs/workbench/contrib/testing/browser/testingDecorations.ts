@@ -50,7 +50,8 @@ import { LiveTestResult } from 'vs/workbench/contrib/testing/common/testResult';
 import { ITestResultService } from 'vs/workbench/contrib/testing/common/testResultService';
 import { getContextForTestItem, ITestService, testsInFile } from 'vs/workbench/contrib/testing/common/testService';
 import { IncrementalTestCollectionItem, InternalTestItem, IRichLocation, ITestMessage, ITestRunProfile, TestDiffOpType, TestMessageType, TestResultItem, TestResultState, TestRunProfileBitset } from 'vs/workbench/contrib/testing/common/testTypes';
-import { GutterActionsRegistry } from 'vs/workbench/contrib/codeEditor/browser/editorLineNumberMenu';
+import { EditorLineNumberContextMenu, GutterActionsRegistry } from 'vs/workbench/contrib/codeEditor/browser/editorLineNumberMenu';
+import { isMacintosh } from 'vs/base/common/platform';
 
 const MAX_INLINE_MESSAGE_LENGTH = 128;
 
@@ -224,7 +225,7 @@ export class TestingDecorationService extends Disposable implements ITestingDeco
 				if (decoration) {
 					const { object: actions } = decoration.getContextMenuActions();
 					for (const action of actions) {
-						result.push(action);
+						result.push(action, '1_testing');
 					}
 				}
 			}
@@ -711,6 +712,7 @@ abstract class RunTestDecoration {
 		}[],
 		private visible: boolean,
 		protected readonly model: ITextModel,
+		@ICodeEditorService private readonly codeEditorService: ICodeEditorService,
 		@ITestService protected readonly testService: ITestService,
 		@IContextMenuService protected readonly contextMenuService: IContextMenuService,
 		@ICommandService protected readonly commandService: ICommandService,
@@ -726,7 +728,11 @@ abstract class RunTestDecoration {
 
 	/** @inheritdoc */
 	public click(e: IEditorMouseEvent): boolean {
-		if (e.target.type !== MouseTargetType.GUTTER_GLYPH_MARGIN || e.event.rightButton) {
+		if (e.target.type !== MouseTargetType.GUTTER_GLYPH_MARGIN
+			// handled by editor gutter context menu
+			|| e.event.rightButton
+			|| isMacintosh && e.event.leftButton && e.event.ctrlKey
+		) {
 			return false;
 		}
 
@@ -794,10 +800,8 @@ abstract class RunTestDecoration {
 	}
 
 	private showContextMenu(e: IEditorMouseEvent) {
-		this.contextMenuService.showContextMenu({
-			menuId: MenuId.EditorLineNumberContext,
-			getAnchor: () => ({ x: e.event.posx, y: e.event.posy }),
-		});
+		const editor = this.codeEditorService.listCodeEditors().find(e => e.getModel() === this.model);
+		editor?.getContribution<EditorLineNumberContextMenu>(EditorLineNumberContextMenu.ID)?.show(e);
 	}
 
 	private getGutterLabel() {
@@ -933,6 +937,7 @@ class RunSingleTestDecoration extends RunTestDecoration implements ITestDecorati
 		resultItem: TestResultItem | undefined,
 		model: ITextModel,
 		visible: boolean,
+		@ICodeEditorService codeEditorService: ICodeEditorService,
 		@ITestService testService: ITestService,
 		@ICommandService commandService: ICommandService,
 		@IContextMenuService contextMenuService: IContextMenuService,
@@ -941,7 +946,7 @@ class RunSingleTestDecoration extends RunTestDecoration implements ITestDecorati
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IMenuService menuService: IMenuService,
 	) {
-		super([{ test, resultItem }], visible, model, testService, contextMenuService, commandService, configurationService, testProfiles, contextKeyService, menuService);
+		super([{ test, resultItem }], visible, model, codeEditorService, testService, contextMenuService, commandService, configurationService, testProfiles, contextKeyService, menuService);
 	}
 
 	override getContextMenuActions() {

@@ -109,10 +109,10 @@ flakySuite('Native Modules (all platforms)', () => {
 
 (!isWindows ? suite.skip : suite)('Native Modules (Windows)', () => {
 
-	(process.type === 'renderer' ? test.skip /* TODO@electron module is not context aware yet and thus cannot load in Electron renderer used by tests */ : test)('windows-mutex', async () => {
-		const mutex = await import('windows-mutex');
-		assert.ok(mutex && typeof mutex.isActive === 'function', testErrorMessage('windows-mutex'));
-		assert.ok(typeof mutex.isActive === 'function', testErrorMessage('windows-mutex'));
+	(process.type === 'renderer' ? test.skip /* TODO@electron module is not context aware yet and thus cannot load in Electron renderer used by tests */ : test)('@vscode/windows-mutex', async () => {
+		const mutex = await import('@vscode/windows-mutex');
+		assert.ok(mutex && typeof mutex.isActive === 'function', testErrorMessage('@vscode/windows-mutex'));
+		assert.ok(typeof mutex.isActive === 'function', testErrorMessage('@vscode/windows-mutex'));
 	});
 
 	test('windows-foreground-love', async () => {
@@ -146,13 +146,13 @@ flakySuite('Native Modules (all platforms)', () => {
 		assert.ok(typeof result === 'string' || typeof result === 'undefined', testErrorMessage('@vscode/windows-registry'));
 	});
 
-	test('vscode-windows-ca-certs', async () => {
+	test('@vscode/windows-ca-certs', async () => {
 		// @ts-ignore we do not directly depend on this module anymore
-		// but indirectly from our dependency to `vscode-proxy-agent`
+		// but indirectly from our dependency to `@vscode/proxy-agent`
 		// we still want to ensure this module can work properly.
-		const windowsCerts = await import('vscode-windows-ca-certs');
+		const windowsCerts = await import('@vscode/windows-ca-certs');
 		const store = new windowsCerts.Crypt32();
-		assert.ok(windowsCerts, testErrorMessage('vscode-windows-ca-certs'));
+		assert.ok(windowsCerts, testErrorMessage('@vscode/windows-ca-certs'));
 		let certCount = 0;
 		try {
 			while (store.next()) {

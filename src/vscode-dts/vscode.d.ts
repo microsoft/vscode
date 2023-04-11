@@ -6499,7 +6499,7 @@ declare module 'vscode' {
 		/**
 		 * Outputs the given trace message to the channel. Use this method to log verbose information.
 		 *
-		 * The message is only loggeed if the channel is configured to display {@link LogLevel.Trace trace} log level.
+		 * The message is only logged if the channel is configured to display {@link LogLevel.Trace trace} log level.
 		 *
 		 * @param message trace message to log
 		 */
@@ -6508,7 +6508,7 @@ declare module 'vscode' {
 		/**
 		 * Outputs the given debug message to the channel.
 		 *
-		 * The message is only loggeed if the channel is configured to display {@link LogLevel.Debug debug} log level or lower.
+		 * The message is only logged if the channel is configured to display {@link LogLevel.Debug debug} log level or lower.
 		 *
 		 * @param message debug message to log
 		 */
@@ -6517,7 +6517,7 @@ declare module 'vscode' {
 		/**
 		 * Outputs the given information message to the channel.
 		 *
-		 * The message is only loggeed if the channel is configured to display {@link LogLevel.Info info} log level or lower.
+		 * The message is only logged if the channel is configured to display {@link LogLevel.Info info} log level or lower.
 		 *
 		 * @param message info message to log
 		 */
@@ -6526,7 +6526,7 @@ declare module 'vscode' {
 		/**
 		 * Outputs the given warning message to the channel.
 		 *
-		 * The message is only loggeed if the channel is configured to display {@link LogLevel.Warning warning} log level or lower.
+		 * The message is only logged if the channel is configured to display {@link LogLevel.Warning warning} log level or lower.
 		 *
 		 * @param message warning message to log
 		 */
@@ -6535,7 +6535,7 @@ declare module 'vscode' {
 		/**
 		 * Outputs the given error or error message to the channel.
 		 *
-		 * The message is only loggeed if the channel is configured to display {@link LogLevel.Error error} log level or lower.
+		 * The message is only logged if the channel is configured to display {@link LogLevel.Error error} log level or lower.
 		 *
 		 * @param error Error or error message to log
 		 */
@@ -12490,6 +12490,21 @@ declare module 'vscode' {
 		export const onDidChangeNotebookDocument: Event<NotebookDocumentChangeEvent>;
 
 		/**
+		 * An event that is emitted when a {@link NotebookDocument notebook document} will be saved to disk.
+		 *
+		 * *Note 1:* Subscribers can delay saving by registering asynchronous work. For the sake of data integrity the editor
+		 * might save without firing this event. For instance when shutting down with dirty files.
+		 *
+		 * *Note 2:* Subscribers are called sequentially and they can {@link NotebookDocumentWillSaveEvent.waitUntil delay} saving
+		 * by registering asynchronous work. Protection against misbehaving listeners is implemented as such:
+		 *  * there is an overall time budget that all listeners share and if that is exhausted no further listener is called
+		 *  * listeners that take a long time or produce errors frequently will not be called anymore
+		 *
+		 * The current thresholds are 1.5 seconds as overall time budget and a listener can misbehave 3 times before being ignored.
+		 */
+		export const onWillSaveNotebookDocument: Event<NotebookDocumentWillSaveEvent>;
+
+		/**
 		 * An event that is emitted when a {@link NotebookDocument notebook} is saved.
 		 */
 		export const onDidSaveNotebookDocument: Event<NotebookDocument>;
@@ -13556,6 +13571,61 @@ declare module 'vscode' {
 		 * An array of {@link NotebookDocumentCellChange cell changes}.
 		 */
 		readonly cellChanges: readonly NotebookDocumentCellChange[];
+	}
+
+	/**
+	 * An event that is fired when a {@link NotebookDocument notebook document} will be saved.
+	 *
+	 * To make modifications to the document before it is being saved, call the
+	 * {@linkcode NotebookDocumentWillSaveEvent.waitUntil waitUntil}-function with a thenable
+	 * that resolves to a {@link WorkspaceEdit workspace edit}.
+	 */
+	export interface NotebookDocumentWillSaveEvent {
+		/**
+		 * A cancellation token.
+		 */
+		readonly token: CancellationToken;
+
+		/**
+		 * The {@link NotebookDocument notebook document} that will be saved.
+		 */
+		readonly notebook: NotebookDocument;
+
+		/**
+		 * The reason why save was triggered.
+		 */
+		readonly reason: TextDocumentSaveReason;
+
+		/**
+		 * Allows to pause the event loop and to apply {@link WorkspaceEdit workspace edit}.
+		 * Edits of subsequent calls to this function will be applied in order. The
+		 * edits will be *ignored* if concurrent modifications of the notebook document happened.
+		 *
+		 * *Note:* This function can only be called during event dispatch and not
+		 * in an asynchronous manner:
+		 *
+		 * ```ts
+		 * workspace.onWillSaveNotebookDocument(event => {
+		 * 	// async, will *throw* an error
+		 * 	setTimeout(() => event.waitUntil(promise));
+		 *
+		 * 	// sync, OK
+		 * 	event.waitUntil(promise);
+		 * })
+		 * ```
+		 *
+		 * @param thenable A thenable that resolves to {@link WorkspaceEdit workspace edit}.
+		 */
+		waitUntil(thenable: Thenable<WorkspaceEdit>): void;
+
+		/**
+		 * Allows to pause the event loop until the provided thenable resolved.
+		 *
+		 * *Note:* This function can only be called during event dispatch.
+		 *
+		 * @param thenable A thenable that delays saving.
+		 */
+		waitUntil(thenable: Thenable<any>): void;
 	}
 
 	/**
@@ -15947,6 +16017,13 @@ declare module 'vscode' {
 		isDefault: boolean;
 
 		/**
+		 * Whether this profile supports continuous running of requests. If so,
+		 * then {@link TestRunRequest.continuous} may be set to `true`. Defaults
+		 * to false.
+		 */
+		supportsContinuousRun: boolean;
+
+		/**
 		 * Associated tag for the profile. If this is set, only {@link TestItem}
 		 * instances with the same tag will be eligible to execute in this profile.
 		 */
@@ -15965,6 +16042,11 @@ declare module 'vscode' {
 		 * {@link TestController.createTestRun} at least once, and all test runs
 		 * associated with the request should be created before the function returns
 		 * or the returned promise is resolved.
+		 *
+		 * If {@link supportsContinuousRun} is set, then {@link TestRunRequest.continuous}
+		 * may be `true`. In this case, the profile should observe changes to
+		 * source code and create new test runs by calling {@link TestController.createTestRun},
+		 * until the cancellation is requested on the `token`.
 		 *
 		 * @param request Request information for the test run.
 		 * @param cancellationToken Token that signals the used asked to abort the
@@ -16020,10 +16102,11 @@ declare module 'vscode' {
 		 * @param runHandler Function called to start a test run.
 		 * @param isDefault Whether this is the default action for its kind.
 		 * @param tag Profile test tag.
+		 * @param supportsContinuousRun Whether the profile supports continuous running.
 		 * @returns An instance of a {@link TestRunProfile}, which is automatically
 		 * associated with this controller.
 		 */
-		createRunProfile(label: string, kind: TestRunProfileKind, runHandler: (request: TestRunRequest, token: CancellationToken) => Thenable<void> | void, isDefault?: boolean, tag?: TestTag): TestRunProfile;
+		createRunProfile(label: string, kind: TestRunProfileKind, runHandler: (request: TestRunRequest, token: CancellationToken) => Thenable<void> | void, isDefault?: boolean, tag?: TestTag, supportsContinuousRun?: boolean): TestRunProfile;
 
 		/**
 		 * A function provided by the extension that the editor may call to request
@@ -16139,11 +16222,18 @@ declare module 'vscode' {
 		readonly profile: TestRunProfile | undefined;
 
 		/**
+		 * Whether the profile should run continuously as source code changes. Only
+		 * relevant for profiles that set {@link TestRunProfile.supportsContinuousRun}.
+		 */
+		readonly continuous?: boolean;
+
+		/**
 		 * @param include Array of specific tests to run, or undefined to run all tests
 		 * @param exclude An array of tests to exclude from the run.
 		 * @param profile The run profile used for this request.
+		 * @param continuous Whether to run tests continuously as source changes.
 		 */
-		constructor(include?: readonly TestItem[], exclude?: readonly TestItem[], profile?: TestRunProfile);
+		constructor(include?: readonly TestItem[], exclude?: readonly TestItem[], profile?: TestRunProfile, continuous?: boolean);
 	}
 
 	/**

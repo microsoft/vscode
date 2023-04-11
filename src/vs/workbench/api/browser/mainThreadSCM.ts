@@ -286,7 +286,7 @@ class MainThreadSCMProvider implements ISCMProvider, QuickDiffProvider {
 	}
 
 	dispose(): void {
-
+		this._quickDiff?.dispose();
 	}
 }
 

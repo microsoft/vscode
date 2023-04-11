@@ -89,6 +89,8 @@ export interface IBackgroundTokenizer extends IDisposable {
 	 * when the change does not even propagate to that viewport.
 	 */
 	requestTokens(startLineNumber: number, endLineNumberExclusive: number): void;
+
+	reportMismatchingTokens?(lineNumber: number): void;
 }
 
 
@@ -96,6 +98,11 @@ export interface IBackgroundTokenizer extends IDisposable {
  * @internal
  */
 export interface ITokenizationSupport {
+	/**
+	 * If true, the background tokenizer will only be used to verify tokens against the default background tokenizer.
+	 * Used for debugging.
+	 */
+	readonly backgroundTokenizerShouldOnlyVerifyTokens?: boolean;
 
 	getInitialState(): IState;
 
@@ -1182,6 +1189,10 @@ export interface FormattingOptions {
 	 * Prefer spaces over tabs.
 	 */
 	insertSpaces: boolean;
+	/**
+	 * The list of multiple ranges to format at once, if the provider supports it.
+	 */
+	ranges?: Range[];
 }
 /**
  * The document formatting provider interface defines the contract between extensions and
@@ -1221,6 +1232,8 @@ export interface DocumentRangeFormattingEditProvider {
 	 * of the range to full syntax nodes.
 	 */
 	provideDocumentRangeFormattingEdits(model: model.ITextModel, range: Range, options: FormattingOptions, token: CancellationToken): ProviderResult<TextEdit[]>;
+
+	provideDocumentRangesFormattingEdits?(model: model.ITextModel, ranges: Range[], options: FormattingOptions, token: CancellationToken): ProviderResult<TextEdit[]>;
 }
 /**
  * The document formatting provider interface defines the contract between extensions and
@@ -1593,7 +1606,7 @@ export interface CommentThread<T = IRange> {
 	extensionId?: string;
 	threadId: string;
 	resource: string | null;
-	range: T;
+	range: T | undefined;
 	label: string | undefined;
 	contextValue: string | undefined;
 	comments: Comment[] | undefined;
@@ -1605,7 +1618,7 @@ export interface CommentThread<T = IRange> {
 	canReply: boolean;
 	input?: CommentInput;
 	onDidChangeInput: Event<CommentInput | undefined>;
-	onDidChangeRange: Event<T>;
+	onDidChangeRange: Event<T | undefined>;
 	onDidChangeLabel: Event<string | undefined>;
 	onDidChangeCollapsibleState: Event<CommentThreadCollapsibleState | undefined>;
 	onDidChangeState: Event<CommentThreadState | undefined>;
@@ -1621,6 +1634,7 @@ export interface CommentThread<T = IRange> {
 export interface CommentingRanges {
 	readonly resource: URI;
 	ranges: IRange[];
+	fileComments: boolean;
 }
 
 /**
@@ -1660,11 +1674,19 @@ export enum CommentMode {
 /**
  * @internal
  */
+export enum CommentState {
+	Published = 0,
+	Draft = 1
+}
+
+/**
+ * @internal
+ */
 export interface Comment {
 	readonly uniqueIdInThread: number;
 	readonly body: string | IMarkdownString;
 	readonly userName: string;
-	readonly userIconPath?: string;
+	readonly userIconPath?: UriComponents;
 	readonly contextValue?: string;
 	readonly commentReactions?: CommentReaction[];
 	readonly label?: string;
@@ -1789,8 +1811,35 @@ export interface ITokenizationSupportChangedEvent {
 /**
  * @internal
  */
-export interface ITokenizationSupportFactory {
-	createTokenizationSupport(): ProviderResult<ITokenizationSupport>;
+export interface ILazyTokenizationSupport {
+	get tokenizationSupport(): Promise<ITokenizationSupport | null>;
+}
+
+/**
+ * @internal
+ */
+export class LazyTokenizationSupport implements IDisposable, ILazyTokenizationSupport {
+	private _tokenizationSupport: Promise<ITokenizationSupport & IDisposable | null> | null = null;
+
+	constructor(private readonly createSupport: () => Promise<ITokenizationSupport & IDisposable | null>) {
+	}
+
+	dispose(): void {
+		if (this._tokenizationSupport) {
+			this._tokenizationSupport.then((support) => {
+				if (support) {
+					support.dispose();
+				}
+			});
+		}
+	}
+
+	get tokenizationSupport(): Promise<ITokenizationSupport | null> {
+		if (!this._tokenizationSupport) {
+			this._tokenizationSupport = this.createSupport();
+		}
+		return this._tokenizationSupport;
+	}
 }
 
 /**
@@ -1809,7 +1858,7 @@ export interface ITokenizationRegistry {
 	 * Fire a change event for a language.
 	 * This is useful for languages that embed other languages.
 	 */
-	fire(languageIds: string[]): void;
+	handleChange(languageIds: string[]): void;
 
 	/**
 	 * Register a tokenization support.
@@ -1819,7 +1868,7 @@ export interface ITokenizationRegistry {
 	/**
 	 * Register a tokenization support factory.
 	 */
-	registerFactory(languageId: string, factory: ITokenizationSupportFactory): IDisposable;
+	registerFactory(languageId: string, factory: ILazyTokenizationSupport): IDisposable;
 
 	/**
 	 * Get or create the tokenization support for a language.

@@ -87,12 +87,6 @@
 					"common",
 					"browser"
 				],
-				"electron-browser": [
-					"common",
-					"browser",
-					"node",
-					"electron-sandbox"
-				],
 				"electron-main": [
 					"common",
 					"node"
@@ -181,6 +175,7 @@
 							"invalidate",
 							"open",
 							"override",
+							"perform",
 							"receive",
 							"register",
 							"remove",
@@ -209,7 +204,6 @@
 						// imports that are allowed in all files of layers:
 						// - browser
 						// - electron-sandbox
-						// - electron-browser
 						"when": "hasBrowser",
 						"allow": [
 							"vs/css!./**/*"
@@ -218,7 +212,6 @@
 					{
 						// imports that are allowed in all files of layers:
 						// - node
-						// - electron-browser
 						// - electron-main
 						"when": "hasNode",
 						"allow": [
@@ -228,6 +221,7 @@
 							"@vscode/ripgrep",
 							"@vscode/iconv-lite-umd",
 							"@vscode/policy-watcher",
+							"@vscode/proxy-agent",
 							"assert",
 							"child_process",
 							"console",
@@ -255,7 +249,6 @@
 							"url",
 							"util",
 							"v8-inspect-profiler",
-							"vscode-proxy-agent",
 							"vscode-regexpp",
 							"vscode-textmate",
 							"windows-process-tree",
@@ -296,14 +289,12 @@
 					//  - src/vs/base/browser
 					//  - src/vs/base/electron-sandbox
 					//  - src/vs/base/node
-					//  - src/vs/base/electron-browser
 					//  - src/vs/base/electron-main
 					//  - src/vs/base/test/common
 					//  - src/vs/base/test/worker
 					//  - src/vs/base/test/browser
 					//  - src/vs/base/test/electron-sandbox
 					//  - src/vs/base/test/node
-					//  - src/vs/base/test/electron-browser
 					//  - src/vs/base/test/electron-main
 					//
 					// When /~ is used in the restrictions, it will be replaced with the correct

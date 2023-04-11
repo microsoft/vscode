@@ -69,16 +69,11 @@ function getFileAndPosition(context: LinkContext): IFilePosition | INotebookPosi
 			const cell = vscode.window.activeNotebookEditor.notebook.getCells().find(cell => cell.document.uri.fragment === uri?.fragment);
 			const cellIndex = cell?.index ?? vscode.window.activeNotebookEditor.selection.start;
 
-			let range;
-			if (lineNumber !== undefined) {
-				range = new vscode.Range(new vscode.Position(lineNumber - 1, 0), new vscode.Position(lineNumber - 1, 1));
-			} else if (cell !== undefined) {
-				range = vscode.window.activeTextEditor?.selection;
-			}
+			const range = getRangeOrSelection(lineNumber);
 			return { type: LinkType.Notebook, uri, cellIndex, range };
 		} else {
 			// the active editor is a text editor
-			range = lineNumber !== undefined ? new vscode.Range(lineNumber - 1, 0, lineNumber - 1, 1) : vscode.window.activeTextEditor?.selection;
+			range = getRangeOrSelection(lineNumber);
 			return { type: LinkType.File, uri, range };
 		}
 	}
@@ -89,6 +84,12 @@ function getFileAndPosition(context: LinkContext): IFilePosition | INotebookPosi
 	}
 
 	return undefined;
+}
+
+function getRangeOrSelection(lineNumber: number | undefined) {
+	return lineNumber !== undefined && (!vscode.window.activeTextEditor || vscode.window.activeTextEditor.selection.isEmpty || !vscode.window.activeTextEditor.selection.contains(new vscode.Position(lineNumber - 1, 0)))
+		? new vscode.Range(lineNumber - 1, 0, lineNumber - 1, 1)
+		: vscode.window.activeTextEditor?.selection;
 }
 
 function rangeString(range: vscode.Range | undefined) {
@@ -148,7 +149,7 @@ export function getLink(gitAPI: GitAPI, useSelection: boolean, hostPrefix?: stri
 		return;
 	}
 
-	const blobSegment = (gitRepo.state.HEAD?.ahead === 0) ? `/blob/${linkType === 'headlink' ? gitRepo.state.HEAD.name : gitRepo.state.HEAD?.commit}` : '';
+	const blobSegment = gitRepo.state.HEAD ? (`/blob/${linkType === 'headlink' && gitRepo.state.HEAD.name ? gitRepo.state.HEAD.name : gitRepo.state.HEAD?.commit}`) : '';
 	const fileSegments = fileAndPosition.type === LinkType.File
 		? (useSelection ? `${uri.path.substring(gitRepo.rootUri.path.length)}${useRange ? rangeString(fileAndPosition.range) : ''}` : '')
 		: (useSelection ? `${uri.path.substring(gitRepo.rootUri.path.length)}${useRange ? notebookCellRangeString(fileAndPosition.cellIndex, fileAndPosition.range) : ''}` : '');

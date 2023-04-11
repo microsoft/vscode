@@ -853,6 +853,13 @@ export class SearchResultModel extends SettingsTreeModel {
 		return this.rawSearchResults || [];
 	}
 
+	getUniqueResultsCount(): number {
+		const uniqueResults = this.getUniqueResults();
+		const localResultsCount = uniqueResults[0]?.filterMatches.length ?? 0;
+		const remoteResultsCount = uniqueResults[1]?.filterMatches.length ?? 0;
+		return localResultsCount + remoteResultsCount;
+	}
+
 	setResult(order: SearchResultIdx, result: ISearchResult | null): void {
 		this.cachedUniqueSearchResults = null;
 		this.newExtensionSearchResults = null;

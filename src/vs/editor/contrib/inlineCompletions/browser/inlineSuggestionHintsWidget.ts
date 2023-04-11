@@ -7,6 +7,7 @@ import { h } from 'vs/base/browser/dom';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { KeybindingLabel, unthemedKeybindingLabelOptions } from 'vs/base/browser/ui/keybindingLabel/keybindingLabel';
 import { Action, IAction, Separator } from 'vs/base/common/actions';
+import { equals } from 'vs/base/common/arrays';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { Codicon } from 'vs/base/common/codicons';
 import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
@@ -154,6 +155,10 @@ export class InlineSuggestionHintsContentWidget extends Disposable implements IC
 		this.previousAction.enabled = this.nextAction.enabled = false;
 	}, 100));
 
+	private lastCurrentSuggestionIdx = -1;
+	private lastSuggestionCount = -1;
+	private lastCommands: Command[] = [];
+
 	constructor(
 		private readonly editor: ICodeEditor,
 		private readonly withBorder: boolean,
@@ -186,7 +191,18 @@ export class InlineSuggestionHintsContentWidget extends Disposable implements IC
 	}
 
 	public update(position: Position | null, currentSuggestionIdx: number, suggestionCount: number | undefined, extraCommands: Command[]): void {
+		if (this.position === position
+			&& this.lastCurrentSuggestionIdx === currentSuggestionIdx
+			&& this.lastSuggestionCount === suggestionCount
+			&& equals(this.lastCommands, extraCommands)) {
+			// nothing to update
+			return;
+		}
+
 		this.position = position;
+		this.lastCurrentSuggestionIdx = currentSuggestionIdx;
+		this.lastSuggestionCount = suggestionCount ?? -1;
+		this.lastCommands = extraCommands;
 
 		if (suggestionCount !== undefined && suggestionCount > 1) {
 			this.disableButtonsDebounced.cancel();
@@ -298,6 +314,11 @@ export class CustomizedMenuWorkbenchToolBar extends WorkbenchToolBar {
 	}
 
 	setAdditionalSecondaryActions(actions: IAction[]): void {
+		if (equals(this.additionalActions, actions, (a, b) => a === b)) {
+			// don't update if the actions are the same
+			return;
+		}
+
 		this.additionalActions = actions;
 		this.updateToolbar();
 	}

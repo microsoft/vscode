@@ -12,8 +12,11 @@ pub mod input;
 pub mod io;
 pub mod machine;
 pub mod prereqs;
+pub mod ring_buffer;
 pub mod sync;
 pub use is_integrated::*;
+pub mod app_lock;
+pub mod file_lock;
 
 #[cfg(target_os = "linux")]
 pub mod tar;

@@ -10,6 +10,8 @@ import { isFalsyOrWhitespace } from 'vs/base/common/strings';
 import { Scanner, LexingError, Token, TokenType } from 'vs/platform/contextkey/common/scanner';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { localize } from 'vs/nls';
+import { IDisposable } from 'vs/base/common/lifecycle';
+import { illegalArgument } from 'vs/base/common/errors';
 
 const CONSTANT_VALUES = new Map<string, boolean>();
 CONSTANT_VALUES.set('false', false);
@@ -23,6 +25,13 @@ CONSTANT_VALUES.set('isEdge', isEdge);
 CONSTANT_VALUES.set('isFirefox', isFirefox);
 CONSTANT_VALUES.set('isChrome', isChrome);
 CONSTANT_VALUES.set('isSafari', isSafari);
+
+/** allow register constant context keys that are known only after startup; requires running `substituteConstants` on the context key - https://github.com/microsoft/vscode/issues/174218#issuecomment-1437972127 */
+export function setConstant(key: string, value: boolean) {
+	if (CONSTANT_VALUES.get(key) !== undefined) { throw illegalArgument('contextkey.setConstant(k, v) invoked with already set constant `k`'); }
+
+	CONSTANT_VALUES.set(key, value);
+}
 
 const hasOwnProperty = Object.prototype.hasOwnProperty;
 
@@ -128,8 +137,6 @@ const defaultConfig: ParserConfig = {
 	regexParsingWithErrorRecovery: true
 };
 
-class ParseError extends Error { }
-
 export type ParsingError = {
 	message: string;
 	offset: number;
@@ -166,6 +173,8 @@ const hintUnexpectedEOF = localize('contextkey.parser.error.unexpectedEOF.hint',
 export class Parser {
 	// Note: this doesn't produce an exact syntax tree but a normalized one
 	// ContextKeyExpression's that we use as AST nodes do not expose constructors that do not normalize
+
+	private static _parseError = new Error();
 
 	// lifetime note: `_scanner` lives as long as the parser does, i.e., is not reset between calls to `parse`
 	private readonly _scanner = new Scanner();
@@ -211,11 +220,11 @@ export class Parser {
 				const peek = this._peek();
 				const additionalInfo = peek.type === TokenType.Str ? hintUnexpectedToken : undefined;
 				this._parsingErrors.push({ message: errorUnexpectedToken, offset: peek.offset, lexeme: Scanner.getLexeme(peek), additionalInfo });
-				throw new ParseError();
+				throw Parser._parseError;
 			}
 			return expr;
 		} catch (e) {
-			if (!(e instanceof ParseError)) {
+			if (!(e === Parser._parseError)) {
 				throw e;
 			}
 			return undefined;
@@ -311,7 +320,7 @@ export class Parser {
 						}
 						const regexLexeme = expr.lexeme;
 						const closingSlashIndex = regexLexeme.lastIndexOf('/');
-						const flags = closingSlashIndex === regexLexeme.length - 1 ? undefined : regexLexeme.substring(closingSlashIndex + 1);
+						const flags = closingSlashIndex === regexLexeme.length - 1 ? undefined : this._removeFlagsGY(regexLexeme.substring(closingSlashIndex + 1));
 						let regexp: RegExp | null;
 						try {
 							regexp = new RegExp(regexLexeme.substring(1, closingSlashIndex), flags);
@@ -365,7 +374,7 @@ export class Parser {
 
 							const regexLexeme = lexemeReconstruction.join('');
 							const closingSlashIndex = regexLexeme.lastIndexOf('/');
-							const flags = closingSlashIndex === regexLexeme.length - 1 ? undefined : regexLexeme.substring(closingSlashIndex + 1);
+							const flags = closingSlashIndex === regexLexeme.length - 1 ? undefined : this._removeFlagsGY(regexLexeme.substring(closingSlashIndex + 1));
 							let regexp: RegExp | null;
 							try {
 								regexp = new RegExp(regexLexeme.substring(1, closingSlashIndex), flags);
@@ -481,7 +490,7 @@ export class Parser {
 
 			case TokenType.EOF:
 				this._parsingErrors.push({ message: errorUnexpectedEOF, offset: peek.offset, lexeme: '', additionalInfo: hintUnexpectedEOF });
-				throw new ParseError();
+				throw Parser._parseError;
 
 			default:
 				throw this._errExpectedButGot(`true | false | KEY \n\t| KEY '=~' REGEX \n\t| KEY ('==' | '!=' | '<' | '<=' | '>' | '>=' | 'in' | 'not' 'in') value`, this._peek());
@@ -510,6 +519,11 @@ export class Parser {
 				// we do not call `_advance` on purpose - we don't want to eat unintended tokens
 				return '';
 		}
+	}
+
+	private _flagsGYRe = /g|y/g;
+	private _removeFlagsGY(flags: string): string {
+		return flags.replaceAll(this._flagsGYRe, '');
 	}
 
 	// careful: this can throw if current token is the initial one (ie index = 0)
@@ -546,7 +560,7 @@ export class Parser {
 		const offset = got.offset;
 		const lexeme = Scanner.getLexeme(got);
 		this._parsingErrors.push({ message, offset, lexeme, additionalInfo });
-		return new ParseError();
+		return Parser._parseError;
 	}
 
 	private _check(type: TokenType) {
@@ -1558,7 +1572,7 @@ function eliminateConstantsInArray(arr: ContextKeyExpression[]): (ContextKeyExpr
 	return newArr;
 }
 
-class ContextKeyAndExpr implements IContextKeyExpression {
+export class ContextKeyAndExpr implements IContextKeyExpression {
 
 	public static create(_expr: ReadonlyArray<ContextKeyExpression | null | undefined>, negated: ContextKeyExpression | null, extraRedundantCheck: boolean): ContextKeyExpression | undefined {
 		return ContextKeyAndExpr._normalizeArr(_expr, negated, extraRedundantCheck);
@@ -1757,7 +1771,7 @@ class ContextKeyAndExpr implements IContextKeyExpression {
 	}
 }
 
-class ContextKeyOrExpr implements IContextKeyExpression {
+export class ContextKeyOrExpr implements IContextKeyExpression {
 
 	public static create(_expr: ReadonlyArray<ContextKeyExpression | null | undefined>, negated: ContextKeyExpression | null, extraRedundantCheck: boolean): ContextKeyExpression | undefined {
 		return ContextKeyOrExpr._normalizeArr(_expr, negated, extraRedundantCheck);
@@ -2026,9 +2040,10 @@ export interface IContextKeyChangeEvent {
 	allKeysContainedIn(keys: IReadableSet<string>): boolean;
 }
 
+export type IScopedContextKeyService = IContextKeyService & IDisposable;
+
 export interface IContextKeyService {
 	readonly _serviceBrand: undefined;
-	dispose(): void;
 
 	onDidChangeContext: Event<IContextKeyChangeEvent>;
 	bufferChangeEvents(callback: Function): void;
@@ -2037,7 +2052,7 @@ export interface IContextKeyService {
 	contextMatchesRules(rules: ContextKeyExpression | undefined): boolean;
 	getContextKeyValue<T>(key: string): T | undefined;
 
-	createScoped(target: IContextKeyServiceTarget): IContextKeyService;
+	createScoped(target: IContextKeyServiceTarget): IScopedContextKeyService;
 	createOverlay(overlay: Iterable<[string, any]>): IContextKeyService;
 	getContext(target: IContextKeyServiceTarget | null): IContext;
 

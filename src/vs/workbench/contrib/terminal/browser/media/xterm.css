@@ -210,5 +210,5 @@
 }
 
 .xterm.terminal.hide {
-	display: none;
+	visibility: hidden;
 }
