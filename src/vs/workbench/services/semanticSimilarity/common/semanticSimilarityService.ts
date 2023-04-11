@@ -29,7 +29,7 @@ export interface ISemanticSimilarityProvider {
 export class SemanticSimilarityService implements ISemanticSimilarityService {
 	readonly _serviceBrand: undefined;
 
-	static readonly DEFAULT_TIMEOUT = 1000 * 10; // 30 seconds
+	static readonly DEFAULT_TIMEOUT = 1000 * 10; // 10 seconds
 
 	private readonly _providers: ISemanticSimilarityProvider[] = [];
 	// remove when we move over to API
