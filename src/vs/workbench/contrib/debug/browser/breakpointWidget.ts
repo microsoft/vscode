@@ -212,13 +212,13 @@ export class BreakpointWidget extends ZoneWidget implements IPrivateBreakpointWi
 
 	protected override _doLayout(heightInPixel: number, widthInPixel: number): void {
 		this.heightInPx = heightInPixel;
-		this._onWidth(widthInPixel);
+		this.input.layout({ height: heightInPixel, width: widthInPixel - 113 });
+		this.centerInputVertically();
 	}
 
 	protected override _onWidth(widthInPixel: number): void {
 		if (typeof this.heightInPx === 'number') {
-			this.input.layout({ height: this.heightInPx, width: widthInPixel });
-			this.centerInputVertically();
+			this._doLayout(this.heightInPx, widthInPixel);
 		}
 	}
 
