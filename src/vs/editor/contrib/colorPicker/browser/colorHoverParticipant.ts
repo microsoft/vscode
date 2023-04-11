@@ -73,10 +73,6 @@ export class ColorHoverParticipant implements IEditorHoverParticipant<ColorHover
 	public renderHoverParts(context: IEditorHoverRenderContext, hoverParts: ColorHover[]): IDisposable {
 		return renderHoverParts(this, this._themeService, hoverParts, context, this._editor);
 	}
-
-	public updateEditorModel(colorHoverData: ColorHover[]): void {
-		updateEditorModel(this, colorHoverData, this._editor);
-	}
 }
 
 export class StandaloneColorPickerParticipant implements IEditorHoverParticipant<ColorHover> {
@@ -205,7 +201,6 @@ function renderHoverParts(owner: ColorHoverParticipant | StandaloneColorPickerPa
 		let newRange: Range;
 
 		if (model.presentation.textEdit) {
-
 			if (owner instanceof StandaloneColorPickerParticipant && owner.range) {
 				model.presentation.textEdit.range = owner.range;
 			}
@@ -238,7 +233,6 @@ function renderHoverParts(owner: ColorHoverParticipant | StandaloneColorPickerPa
 	};
 
 	const updateColorPresentations = (color: Color) => {
-
 		return getColorPresentations(editorModel, {
 			range: range,
 			color: {
@@ -269,7 +263,6 @@ function renderHoverParts(owner: ColorHoverParticipant | StandaloneColorPickerPa
 }
 
 function updateEditorModel(owner: ColorHoverParticipant | StandaloneColorPickerParticipant, colorHoverData: ColorHover[], editor: ICodeEditor): void {
-
 	if (!editor.hasModel()) {
 		return;
 	}

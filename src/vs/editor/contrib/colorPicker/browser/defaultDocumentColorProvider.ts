@@ -165,11 +165,10 @@ export class DefaultDocumentColorProviderForStandaloneColorPicker implements Doc
 
 		let result: IColorInformation[] = [];
 
-		console.log('Inside of provideDocumentColors of the DefaultDocumentColorProviderForStandaloneColorPicker');
-
-		// TODO: Not able to use the following?
-		// const rgbaRegex = `/rgba[(](\s*)([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])(\s*),(\s*)([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])(\s*),(\s*)([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])(\s*),(\s*)([01][.]|[01]|[.][0-9]+|[0][.][0-9]*)(\s*)[)]/gm`;
-		// const matches = model.findMatches(rgbaRegex, false, true, false, null, true);
+		// TODO: Following does not work?
+		const initialRgbaRegex = `/rgba[(](\s*)([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])(\s*),(\s*)([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])(\s*),(\s*)([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])(\s*),(\s*)([01][.]|[01]|[.][0-9]+|[0][.][0-9]*)(\s*)[)]/gm`;
+		const matches = model.findMatches(initialRgbaRegex, false, true, false, null, true);
+		console.log('matches : ', matches);
 
 		const text = model.getLinesContent().join('\n');
 
@@ -178,9 +177,6 @@ export class DefaultDocumentColorProviderForStandaloneColorPicker implements Doc
 		const rgbRegex = /rgb[(](\s*)([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])(\s*),(\s*)([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])(\s*),(\s*)([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])(\s*)[)]/gm;
 		const rgbaMatches = [...text.matchAll(rgbaRegex)];
 		const rgbMatches = [...text.matchAll(rgbRegex)];
-
-		console.log('rgbMatches : ', rgbMatches);
-		console.log('rgbaMatches : ', rgbaMatches);
 
 		const rgbaColorInformation = this._findRGBColorInformation(rgbaMatches, true, model);
 		result = result.concat(rgbaColorInformation);
@@ -194,12 +190,8 @@ export class DefaultDocumentColorProviderForStandaloneColorPicker implements Doc
 		const hexaMatches = [...text.matchAll(hexaRegex)];
 		const hexMatches = [...text.matchAll(hexRegex)];
 
-		console.log('hexMatches : ', hexMatches);
-		console.log('hexaMatches : ', hexaMatches);
-
 		const hexaColorInformation = this._findHexColorInformation(hexaMatches, model);
 		result = result.concat(hexaColorInformation);
-
 		const hexColorInformation = this._findHexColorInformation(hexMatches, model);
 		result = result.concat(hexColorInformation);
 
@@ -209,23 +201,15 @@ export class DefaultDocumentColorProviderForStandaloneColorPicker implements Doc
 		const hslaMatches = [...text.matchAll(hslaRegex)];
 		const hslMatches = [...text.matchAll(hslRegex)];
 
-		console.log('hslaMatches : ', hslaMatches);
-		console.log('hslMatches : ', hslMatches);
-
 		const hslaColorInformation = this._findHSLColorInformation(hslaMatches, true, model);
 		result = result.concat(hslaColorInformation);
-
 		const hslColorInformation = this._findHSLColorInformation(hslMatches, false, model);
 		result = result.concat(hslColorInformation);
 
-		console.log('result : ', result);
 		return result;
 	}
 
-	provideColorPresentations(model: ITextModel, colorInfo: IColorInformation, token: CancellationToken): ProviderResult<IColorPresentation[]> {
-
-		console.log('Inside of provideColorPresentations of the DefaultDocumentColorProvider');
-		console.log('colorInfo : ', colorInfo);
+	provideColorPresentations(model: ITextModel, colorInfo: IColorInformation, _token: CancellationToken): ProviderResult<IColorPresentation[]> {
 
 		const range = colorInfo.range;
 		const colorFromInfo: IColor = colorInfo.color;

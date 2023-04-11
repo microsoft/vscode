@@ -10,11 +10,10 @@ import { localize } from 'vs/nls';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { StandaloneColorPickerController } from 'vs/editor/contrib/colorPicker/browser/standaloneColorPickerWidget';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import 'vs/css!./colorPicker';
 import { MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
+import 'vs/css!./colorPicker';
 
 export class ShowOrFocusStandaloneColorPicker extends EditorAction2 {
-
 	constructor() {
 		super({
 			id: 'editor.action.showOrFocusStandaloneColorPicker',
@@ -35,9 +34,6 @@ export class ShowOrFocusStandaloneColorPicker extends EditorAction2 {
 	}
 
 	runEditorCommand(_accessor: ServicesAccessor, editor: ICodeEditor) {
-
-		console.log('Inside of show or focus of standalone color picker');
-
 		StandaloneColorPickerController.get(editor)?.showOrFocus();
 	}
 }
@@ -62,10 +58,7 @@ class HideStandaloneColorPicker extends EditorAction {
 		});
 	}
 
-	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
-
-		console.log('Inside of hide of color picker');
-
+	public run(_accessor: ServicesAccessor, editor: ICodeEditor): void {
 		StandaloneColorPickerController.get(editor)?.hide();
 	}
 }
@@ -74,14 +67,14 @@ class InsertColorFromStandaloneColorPicker extends EditorAction {
 
 	constructor() {
 		super({
-			id: 'editor.action.insertColorFromStandaloneColorPicker',
+			id: 'editor.action.insertColorWithStandaloneColorPicker',
 			label: localize({
-				key: 'insertColorFromStandaloneColorPicker',
+				key: 'insertColorWithStandaloneColorPicker',
 				comment: [
-					'Action that inserts color from standalone color picker'
+					'Action that inserts color with standalone color picker'
 				]
-			}, "Insert Color from Standalone Color Picker"),
-			alias: 'Insert Color from Standalone Color Picker',
+			}, "Insert Color with Standalone Color Picker"),
+			alias: 'Insert Color with Standalone Color Picker',
 			precondition: EditorContextKeys.standaloneColorPickerFocused.isEqualTo(true),
 			kbOpts: {
 				primary: KeyCode.Enter,
@@ -90,10 +83,7 @@ class InsertColorFromStandaloneColorPicker extends EditorAction {
 		});
 	}
 
-	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
-
-		console.log('Inside of update editor of color picker');
-
+	public run(_accessor: ServicesAccessor, editor: ICodeEditor): void {
 		StandaloneColorPickerController.get(editor)?.insertColor();
 	}
 }

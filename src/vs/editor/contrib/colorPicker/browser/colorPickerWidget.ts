@@ -25,9 +25,8 @@ export class ColorPickerHeader extends Disposable {
 
 	private readonly _domNode: HTMLElement;
 	private readonly pickedColorNode: HTMLElement;
-	private backgroundColor: Color;
-	// Potential close button which appears in the standalone color picker
 	private readonly _closeButton: CloseButton | null = null;
+	private backgroundColor: Color;
 
 	constructor(container: HTMLElement, private readonly model: ColorPickerModel, themeService: IThemeService, private showingStandaloneColorPicker: boolean = false) {
 		super();
@@ -59,12 +58,13 @@ export class ColorPickerHeader extends Disposable {
 		this.pickedColorNode.classList.toggle('light', model.color.rgba.a < 0.5 ? this.backgroundColor.isLighter() : model.color.isLighter());
 
 		this.onDidChangeColor(this.model.color);
+
+		// When the color picker widget is a standalone color picker widget, then add a close button
 		if (this.showingStandaloneColorPicker) {
-			this._closeButton = new CloseButton(this._domNode);
-			this._register(this._closeButton);
+			this._domNode.classList.add('standalone-color-picker');
+			this._closeButton = this._register(new CloseButton(this._domNode));
 			this.pickedColorNode.classList.add('picked-color-standalone');
 			colorBox.classList.add('original-color-standalone');
-			this._domNode.classList.add('standalone-color-picker');
 		}
 	}
 
@@ -97,11 +97,12 @@ class CloseButton extends Disposable {
 	constructor(container: HTMLElement) {
 		super();
 		this._button = document.createElement('div');
-		dom.append(container, this._button);
 		this._button.classList.add('close-button');
+		dom.append(container, this._button);
+
 		const innerDiv = document.createElement('div');
-		dom.append(this._button, innerDiv);
 		innerDiv.classList.add('close-button-inner-div');
+		dom.append(this._button, innerDiv);
 
 		const closeButton = dom.append(innerDiv, $('.button' + ThemeIcon.asCSSSelector(registerIcon('color-picker-close', Codicon.close, localize('closeIcon', 'Icon to close the color picker')))));
 		closeButton.classList.add('close-icon');
@@ -119,7 +120,7 @@ export class ColorPickerBody extends Disposable {
 	private readonly _opacityStrip: Strip;
 	private readonly _insertButton: InsertButton | null = null;
 
-	constructor(container: HTMLElement, private readonly model: ColorPickerModel, private pixelRatio: number, private showingStandaloneColorPicker: boolean = false) {
+	constructor(container: HTMLElement, private readonly model: ColorPickerModel, private pixelRatio: number, isStandaloneColorPicker: boolean = false) {
 		super();
 
 		this._domNode = $('.colorpicker-body');
@@ -130,19 +131,18 @@ export class ColorPickerBody extends Disposable {
 		this._register(this._saturationBox.onDidChange(this.onDidSaturationValueChange, this));
 		this._register(this._saturationBox.onColorFlushed(this.flushColor, this));
 
-		this._opacityStrip = new OpacityStrip(this._domNode, this.model, showingStandaloneColorPicker);
+		this._opacityStrip = new OpacityStrip(this._domNode, this.model, isStandaloneColorPicker);
 		this._register(this._opacityStrip);
 		this._register(this._opacityStrip.onDidChange(this.onDidOpacityChange, this));
 		this._register(this._opacityStrip.onColorFlushed(this.flushColor, this));
 
-		this._hueStrip = new HueStrip(this._domNode, this.model, showingStandaloneColorPicker);
+		this._hueStrip = new HueStrip(this._domNode, this.model, isStandaloneColorPicker);
 		this._register(this._hueStrip);
 		this._register(this._hueStrip.onDidChange(this.onDidHueChange, this));
 		this._register(this._hueStrip.onColorFlushed(this.flushColor, this));
 
-		if (this.showingStandaloneColorPicker) {
-			this._insertButton = new InsertButton(this._domNode);
-			this._register(this._insertButton);
+		if (isStandaloneColorPicker) {
+			this._insertButton = this._register(new InsertButton(this._domNode));
 			this._domNode.classList.add('standalone-color-picker');
 		}
 	}
@@ -340,7 +340,6 @@ abstract class Strip extends Disposable {
 			this.domNode = dom.append(container, $('.strip'));
 			this.overlay = dom.append(this.domNode, $('.overlay'));
 		}
-
 		this.slider = dom.append(this.domNode, $('.slider'));
 		this.slider.style.top = `0px`;
 
@@ -350,6 +349,7 @@ abstract class Strip extends Disposable {
 
 	layout(): void {
 		this.height = this.domNode.offsetHeight - this.slider.offsetHeight;
+
 		const value = this.getValue(this.model.color);
 		this.updateSliderPosition(value);
 	}
