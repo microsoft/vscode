@@ -145,13 +145,26 @@ export class QueryBuilder {
 		if (this.isMultiline(inputPattern)) {
 			newPattern.isMultiline = true;
 		}
-		if (!newPattern.notebookInfo) {
 
-			newPattern.notebookInfo = {
-				isInNotebookMarkdownInput: options.notebookSearchConfig?.includeMarkupInput ?? true,
-				isInNotebookCellInput: options.notebookSearchConfig?.includeCodeInput ?? true,
-				isInNotebookCellOutput: options.notebookSearchConfig?.includeOutput ?? true,
-			};
+		if (options.notebookSearchConfig?.includeMarkupInput) {
+			if (!newPattern.notebookInfo) {
+				newPattern.notebookInfo = {};
+			}
+			newPattern.notebookInfo.isInNotebookCellInput = options.notebookSearchConfig.includeMarkupInput;
+		}
+
+		if (options.notebookSearchConfig?.includeCodeInput) {
+			if (!newPattern.notebookInfo) {
+				newPattern.notebookInfo = {};
+			}
+			newPattern.notebookInfo.isInNotebookCellInput = options.notebookSearchConfig.includeCodeInput;
+		}
+
+		if (options.notebookSearchConfig?.includeOutput) {
+			if (!newPattern.notebookInfo) {
+				newPattern.notebookInfo = {};
+			}
+			newPattern.notebookInfo.isInNotebookCellOutput = options.notebookSearchConfig.includeOutput;
 		}
 
 		return newPattern;
