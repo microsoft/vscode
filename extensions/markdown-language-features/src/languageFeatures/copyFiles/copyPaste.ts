@@ -45,7 +45,7 @@ class PasteEditProvider implements vscode.DocumentPasteEditProvider {
 		}
 
 		const snippet = await tryGetUriListSnippet(document, dataTransfer, token);
-		return snippet ? new vscode.DocumentPasteEdit(snippet) : undefined;
+		return snippet ? new vscode.DocumentPasteEdit(snippet.snippet) : undefined;
 	}
 
 	private async _makeCreateImagePasteEdit(document: vscode.TextDocument, file: vscode.DataTransferFile, token: vscode.CancellationToken): Promise<vscode.DocumentPasteEdit | undefined> {
