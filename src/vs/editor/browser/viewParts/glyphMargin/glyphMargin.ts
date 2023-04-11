@@ -79,6 +79,7 @@ export class GlyphMarginOverlay extends DedupOverlay {
 	private readonly _context: ViewContext;
 	private _lineHeight: number;
 	private _glyphMargin: boolean;
+	private _glyphMarginDecorationsLimit: number;
 	private _glyphMarginLeft: number;
 	private _glyphMarginWidth: number;
 	private _renderResult: string[] | null;
@@ -94,6 +95,7 @@ export class GlyphMarginOverlay extends DedupOverlay {
 		this._glyphMargin = options.get(EditorOption.glyphMargin);
 		this._glyphMarginLeft = layoutInfo.glyphMarginLeft;
 		this._glyphMarginWidth = layoutInfo.glyphMarginWidth;
+		this._glyphMarginDecorationsLimit = options.get(EditorOption.glyphMarginDecorationsLimit);
 		this._renderResult = null;
 		this._context.addEventHandler(this);
 	}
@@ -112,6 +114,7 @@ export class GlyphMarginOverlay extends DedupOverlay {
 
 		this._lineHeight = options.get(EditorOption.lineHeight);
 		this._glyphMargin = options.get(EditorOption.glyphMargin);
+		this._glyphMarginDecorationsLimit = options.get(EditorOption.glyphMarginDecorationsLimit);
 		this._glyphMarginLeft = layoutInfo.glyphMarginLeft;
 		this._glyphMarginWidth = layoutInfo.glyphMarginWidth;
 		return true;
@@ -179,11 +182,13 @@ export class GlyphMarginOverlay extends DedupOverlay {
 				output[lineIndex] = '';
 			} else {
 				output[lineIndex] = classNames.map((className, idx) => (
-					'<div class="cgmr codicon '
-					+ className
-					+ common
-					+ 'left:' + (idx === 0 ? left : (this._lineHeight * idx)).toString() + 'px;cursor:pointer;'
-					+ '"></div>'
+					(this._glyphMarginDecorationsLimit === 0 || idx < this._glyphMarginDecorationsLimit) ? (
+						'<div class="cgmr codicon '
+						+ className
+						+ common
+						+ 'left:' + (idx === 0 ? left : (this._lineHeight * idx)).toString() + 'px;'
+						+ '"></div>'
+					) : ''
 				)).join(' ');
 			}
 		}

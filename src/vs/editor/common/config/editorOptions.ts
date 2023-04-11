@@ -125,6 +125,11 @@ export interface IEditorOptions {
 	 */
 	glyphMargin?: boolean;
 	/**
+	 * The maximum number of decorations to render in the glyph margin.
+	 * Defaults to 1 in vscode.
+	 */
+	glyphMarginDecorationsLimit?: number;
+	/**
 	 * The width reserved for line decorations (in px).
 	 * Line decorations are placed between line numbers and the editor content.
 	 * You can pass in a string in the format floating point followed by "ch". e.g. 1.3ch.
@@ -2466,7 +2471,7 @@ export class EditorLayoutInfoComputer extends ComputedEditorOption<EditorOption.
 
 		let glyphMarginWidth = 0;
 		if (showGlyphMargin) {
-			glyphMarginWidth = (env.glyphMarginDecorationsCount ?? 1) * lineHeight;
+			glyphMarginWidth = (options.get(EditorOption.glyphMarginDecorationsLimit) || (env.glyphMarginDecorationsCount ?? 1)) * lineHeight;
 		}
 
 		let glyphMarginLeft = 0;
@@ -4830,6 +4835,7 @@ export const enum EditorOption {
 	formatOnPaste,
 	formatOnType,
 	glyphMargin,
+	glyphMarginDecorationsLimit,
 	gotoLocation,
 	hideCursorInOverviewRuler,
 	hover,
@@ -5638,6 +5644,11 @@ export const EditorOptions = {
 		'inherit' as 'off' | 'on' | 'inherit',
 		['off', 'on', 'inherit'] as const
 	)),
+	glyphMarginDecorationsLimit: register(new EditorIntOption(
+		EditorOption.glyphMarginDecorationsLimit, 'glyphMarginDecorationsLimit',
+		1, 0, 10, {
+		markdownDescription: nls.localize('glyphMarginDecorationsLimit', "Controls the maximum number of decorations to render in the glyph margin when `#editor.glyphMargin#` is `true`. Set to 0 to render all decorations in the glyph margin.")
+	})),
 
 	// Leave these at the end (because they have dependencies!)
 	editorClassName: register(new EditorClassName()),
@@ -5648,7 +5659,7 @@ export const EditorOptions = {
 	layoutInfo: register(new EditorLayoutInfoComputer()),
 	wrappingInfo: register(new EditorWrappingInfoComputer()),
 	wrappingIndent: register(new WrappingIndentOption()),
-	wrappingStrategy: register(new WrappingStrategy())
+	wrappingStrategy: register(new WrappingStrategy()),
 };
 
 // add experimental setting for multiple decoration rendering strategy

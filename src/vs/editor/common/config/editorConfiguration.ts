@@ -56,7 +56,7 @@ export interface IEditorConfiguration extends IDisposable {
 	 */
 	setReservedHeight(reservedHeight: number): void;
 	/**
-	 * Set the maximum number of decorations to be rendered in the glyph margin.
+	 * Set the number of decorations to be rendered in the glyph margin.
 	 */
-	setGlyphMarginDecorations(decorationsCount: number): void;
+	setGlyphMarginDecorationsCount(decorationsCount: number): void;
 }

@@ -196,7 +196,7 @@ export class EditorConfiguration extends Disposable implements IEditorConfigurat
 		this._recomputeOptions();
 	}
 
-	public setGlyphMarginDecorations(decorationCount: number): void {
+	public setGlyphMarginDecorationsCount(decorationCount: number): void {
 		if (this._glyphMarginDecorationsCount === decorationCount) {
 			return;
 		}

@@ -461,20 +461,16 @@ export class ViewModel extends Disposable implements IViewModel {
 			this._decorations.onModelDecorationsChanged();
 
 			// Update editor options to reflect new decorations
-			platform.setTimeout0(() => {
-				const decorations = this.model.getAllDecorations();
-				const decorationCount = new Map<number, number>();
-				for (const decoration of decorations) {
-					if (decoration.options.glyphMarginClassName) {
-						for (let i = decoration.range.startLineNumber; i <= decoration.range.endLineNumber; i++) {
-							decorationCount.set(i, (decorationCount.get(i) ?? 0) + 1);
-						}
-					}
+			const decorations = this.model.getAllMarginDecorations();
+			const decorationCount = new Map<number, number>();
+			for (const decoration of decorations) {
+				for (let i = decoration.range.startLineNumber; i <= decoration.range.endLineNumber; i++) {
+					decorationCount.set(i, (decorationCount.get(i) ?? 0) + 1);
 				}
-				const maxDecorations = Math.max(...decorationCount.values(), 1);
+			}
+			const maxDecorations = Math.max(...decorationCount.values(), 1);
 
-				this._configuration.setGlyphMarginDecorations(maxDecorations);
-			});
+			this._configuration.setGlyphMarginDecorationsCount(maxDecorations);
 
 			this._eventDispatcher.emitSingleViewEvent(new viewEvents.ViewDecorationsChangedEvent(e));
 			this._eventDispatcher.emitOutgoingEvent(new ModelDecorationsChangedEvent(e));
