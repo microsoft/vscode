@@ -126,6 +126,7 @@ class AccessibilityHelpWidget extends Widget implements IOverlayWidget {
 		this._domNode.setAttribute('aria-labelledby', heading.id);
 
 		this._contentDomNode = createFastDomNode(document.createElement('div'));
+		this._contentDomNode.setAttribute('role', 'document');
 		this._contentDomNode.domNode.id = 'help-dialog-content';
 		this._domNode.appendChild(this._contentDomNode);
 		this._contentDomNode.setAttribute('aria-describedby', this._contentDomNode.domNode.id);
@@ -208,7 +209,7 @@ class AccessibilityHelpWidget extends Widget implements IOverlayWidget {
 		this._layout();
 		this._domNode.setDisplay('block');
 		this._domNode.setAttribute('aria-hidden', 'false');
-		this._contentDomNode.domNode.tabIndex = -1;
+		this._contentDomNode.domNode.tabIndex = 0;
 		this._buildContent();
 		this._contentDomNode.domNode.focus();
 	}
