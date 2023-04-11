@@ -12,7 +12,7 @@ import { ColorHover, StandaloneColorPickerParticipant } from 'vs/editor/contrib/
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { EditorHoverStatusBar } from 'vs/editor/contrib/hover/browser/contentHover';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { ColorPickerBody, ColorPickerHeader, ColorPickerWidget, InsertButton } from 'vs/editor/contrib/colorPicker/browser/colorPickerWidget';
+import { ColorPickerWidget, InsertButton } from 'vs/editor/contrib/colorPicker/browser/colorPickerWidget';
 import { Emitter } from 'vs/base/common/event';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { IColorInformation } from 'vs/editor/common/languages';
@@ -20,7 +20,6 @@ import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeat
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { EditorContributionInstantiation, registerEditorContribution } from 'vs/editor/browser/editorExtensions';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { ILanguageFeatureDebounceService } from 'vs/editor/common/services/languageFeatureDebounce';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { Selection } from 'vs/editor/common/core/selection';
 import { IRange } from 'vs/editor/common/core/range';
@@ -40,7 +39,6 @@ export class StandaloneColorPickerController extends Disposable implements IEdit
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@ILanguageFeaturesService private readonly _languageFeatureService: ILanguageFeaturesService,
-		@ILanguageFeatureDebounceService private readonly _languageFeatureDebounceService: ILanguageFeatureDebounceService,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService
 	) {
 		super();
@@ -56,7 +54,7 @@ export class StandaloneColorPickerController extends Disposable implements IEdit
 		}
 		if (!this._standaloneColorPickerVisible.get()) {
 			this._standaloneColorPickerVisible.set(true);
-			this._standaloneColorPickerWidget = new StandaloneColorPickerWidget(this._editor, this._standaloneColorPickerVisible, this._standaloneColorPickerFocused, this._instantiationService, this._keybindingService, this._languageFeatureService, this._languageFeatureDebounceService);
+			this._standaloneColorPickerWidget = new StandaloneColorPickerWidget(this._editor, this._standaloneColorPickerVisible, this._standaloneColorPickerFocused, this._instantiationService, this._keybindingService, this._languageFeatureService);
 			this._editor.addContentWidget(this._standaloneColorPickerWidget);
 		} else if (!this._standaloneColorPickerFocused.get()) {
 			this._standaloneColorPickerFocused.set(true);
@@ -90,15 +88,12 @@ export class StandaloneColorPickerWidget implements IContentWidget {
 
 	private readonly _position: Position | undefined = undefined;
 	private readonly _selection: Selection | null = null;
-
-	// private readonly _participant: ColorHoverParticipant;
 	private readonly _participant: StandaloneColorPickerParticipant;
 	private readonly _standaloneColorPickerComputer: StandaloneColorPickerComputer;
 
 	private _disposables: DisposableStore = new DisposableStore();
-	private _resultFound: boolean = false;
-	private _colorHoverData: ColorHover[] = [];
-	private _selectionForColorPicker: boolean = false;
+	private _colorHoverData: ColorHover | null = null;
+	private _selectionSetInEditor: boolean = false;
 
 	constructor(
 		private readonly editor: ICodeEditor,
@@ -106,15 +101,11 @@ export class StandaloneColorPickerWidget implements IContentWidget {
 		private readonly _standaloneColorPickerFocused: IContextKey<boolean>,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
-		@ILanguageFeaturesService private readonly languageFeaturesService: ILanguageFeaturesService,
-		@ILanguageFeatureDebounceService private readonly languageFeatureDebounceService: ILanguageFeatureDebounceService
+		@ILanguageFeaturesService private readonly languageFeaturesService: ILanguageFeaturesService
 	) {
 
 		this._position = this.editor._getViewModel()?.getPrimaryCursorState().viewState.position;
 		this._selection = this.editor.getSelection();
-		this._participant = this.instantiationService.createInstance(StandaloneColorPickerParticipant, this.editor);
-		const focusTracker = this._disposables.add(dom.trackFocus(this.body));
-
 		const selection = this._selection ?
 			{
 				startLineNumber: this._selection.startLineNumber,
@@ -122,36 +113,19 @@ export class StandaloneColorPickerWidget implements IContentWidget {
 				endLineNumber: this._selection.endLineNumber,
 				endColumn: this._selection.endColumn
 			} : { startLineNumber: 0, endLineNumber: 0, endColumn: 0, startColumn: 0 };
-
-		this._standaloneColorPickerComputer = new StandaloneColorPickerComputer(selection, this.editor, this._participant, this.languageFeaturesService, this.languageFeatureDebounceService);
-
-		// When a result is obtained from the computer, render the color picker
+		this._participant = this.instantiationService.createInstance(StandaloneColorPickerParticipant, this.editor);
+		const focusTracker = this._disposables.add(dom.trackFocus(this.body));
+		this._standaloneColorPickerComputer = new StandaloneColorPickerComputer(selection, this.editor, this._participant, this.languageFeaturesService);
 		this._disposables.add(this._standaloneColorPickerComputer.onResult((result) => {
-
-			console.log('Inside of on result of the hover operation');
-			console.log('result.value : ', result.value);
-
-			// When a result has been found, don't render a second time, only render with the first result
-			// TODO: But what about if there is a second result? Maybe we need it?
-			if (!this._resultFound && result.value.length !== 0) {
-				// The foundInMap variable is used to determine if the color computed has been found as one of the colors in the document
-				this._render(result.value, result.foundInMap);
-			}
+			this._render(result.value, result.foundInMap);
 		}));
-
 		// When the cursor position changes, hide the color picker
 		this._disposables.add(this.editor.onDidChangeCursorPosition(() => {
-
-			console.log('Inside of ondidchangeCursorPosition');
-			console.log('this._selectionForColorPicker : ', this._selectionForColorPicker);
-
-			// Selection for color picker variable is used to determine if the color picker was opened using the keybindins
-			// If not opened using the keybindings, then hide the color picker
-			if (!this._selectionForColorPicker) {
+			// Except when the cursor changes position because the selection is changed when the keybindings are used to make the color picker appear
+			if (!this._selectionSetInEditor) {
 				this.hide();
 			} else {
-				// Otherwise the variable is set to true
-				this._selectionForColorPicker = false;
+				this._selectionSetInEditor = false;
 			}
 		}));
 		this._disposables.add(focusTracker.onDidBlur(_ => {
@@ -160,37 +134,20 @@ export class StandaloneColorPickerWidget implements IContentWidget {
 		this._disposables.add(focusTracker.onDidFocus(_ => {
 			this.focus();
 		}));
-
-		// Get all the providers associated with the textModel
-		const providers = this.languageFeaturesService.colorProvider.ordered(this.editor.getModel()!).reverse();
-		console.log('providers inside of standalone color picker widget : ', providers);
 		this._standaloneColorPickerComputer.start();
 	}
 
-	// This function changes the editor model
 	public updateEditor() {
-
-		console.log('Inside of update editor of the standalone color picker widget');
-		console.log('this._colorHoverData.length : ', this._colorHoverData.length);
-
-		// TODO: Maybe I don't even need the participant, maybe I can work without the participant?
-		if (this._colorHoverData.length > 0) {
-			this._participant.updateEditorModel(this._colorHoverData);
+		if (this._colorHoverData) {
+			this._participant.updateEditorModel([this._colorHoverData]);
 		}
-
 	}
 
-	private _render(colorHoverData: ColorHover[], foundInMap: boolean) {
+	private _render(colorHoverData: ColorHover, foundInEditor: boolean) {
 
-		console.log('Entered into _render method');
-		console.log('foundInMap : ', foundInMap);
-		console.log('colorHoverData : ', colorHoverData);
-
-		// TODO: Once the messages have been found once, we do not want to render a second result
-		this._resultFound = true;
 		const fragment = document.createDocumentFragment();
 		const statusBar = this._disposables.add(new EditorHoverStatusBar(this.keybindingService));
-		let colorPickerWidget: ColorPickerWidget | null = null;
+		let colorPickerWidget: ColorPickerWidget | undefined;
 
 		const context: IEditorHoverRenderContext = {
 			fragment,
@@ -200,76 +157,39 @@ export class StandaloneColorPickerWidget implements IContentWidget {
 			hide: () => this.hide()
 		};
 
-		const hoverParts = colorHoverData.filter(msg => msg.owner === this._participant);
+		this._colorHoverData = colorHoverData;
+		this._disposables.add(this._participant.renderHoverParts(context, [colorHoverData]));
 
-		console.log('hoverParts : ', hoverParts);
-
-		if (hoverParts.length > 0) {
-			// Setting the hover parts, these are saved only, not directly used
-			this._colorHoverData = hoverParts;
-			// Setting the boolean variable
-			// Rendering the hoverParts using the renderHoverParts method
-			this._disposables.add(this._participant.renderHoverParts(context, hoverParts));
-		}
-
-		// Casting the color picker widget as a ColorPickerWidget
-		if (!((colorPickerWidget as any) instanceof ColorPickerWidget)) {
+		if (colorPickerWidget === undefined) {
 			return;
 		}
 
-		colorPickerWidget = (colorPickerWidget as any) as ColorPickerWidget;
-		const colorPickerBody: ColorPickerBody = colorPickerWidget.body;
-		const enterButton: InsertButton | null = colorPickerBody.enterButton;
-		const colorPickerHeader: ColorPickerHeader = colorPickerWidget.header;
-		const closeButton = colorPickerHeader.closeButton;
-
-		const maxHeight = Math.max(this.editor.getLayoutInfo().height / 4, 250);
-		const maxWidth = Math.max(this.editor.getLayoutInfo().width * 0.66, 500);
-
-		this.body.classList.add('standalone-color-picker-class');
-		// Setting a maximum height and width
-		this.body.style.maxHeight = maxHeight + 'px';
-		this.body.style.maxWidth = maxWidth + 'px';
-		this.body.style.display = 'block';
+		this.body.classList.add('standalone-color-picker-body');
+		this.body.style.maxHeight = Math.max(this.editor.getLayoutInfo().height / 4, 250) + 'px';
+		this.body.style.maxWidth = Math.max(this.editor.getLayoutInfo().width * 0.66, 500) + 'px';
 		this.body.tabIndex = 0;
 		this.body.appendChild(fragment);
 		colorPickerWidget.layout();
 
+		const enterButton: InsertButton | null = colorPickerWidget.body.enterButton;
 		enterButton?.onClicked(() => {
-
-			console.log('on the button click');
-
-			// When the button is clicked, we want to update the editor at that moment
 			this.updateEditor();
-			// Hiding the color picker when the enter button is picked
 			this.hide();
 		});
+		const closeButton = colorPickerWidget.header.closeButton;
 		closeButton?.onClicked(() => {
-
-			console.log('on the close button click');
-
-			// Directly hiding the close button when the close button is clicked
 			this.hide();
 		});
 
-		// Laying out the content widget
-		this.editor.layoutContentWidget(this);
-
-		// Suppose that the variable foundInMap is true, meaning we found the color in the editor
-		// If found in map is true then we want to highlight the selection in the editor
-		if (foundInMap) {
-
-			// The text of the enter button should be Replace not Insert
+		// When found in the editor, we want to highlight the selection in the editor
+		if (foundInEditor) {
 			if (enterButton) {
 				enterButton.button.textContent = 'Replace';
 			}
-			// The range will contain the range of the color data, set the selection
-			const range = colorHoverData[0].range;
-			// We set the selection in the editor model before replacing
-			this._selectionForColorPicker = true;
-			// Setting the selection directly in the editor
-			this.editor.setSelection(range);
+			this._selectionSetInEditor = true;
+			this.editor.setSelection(colorHoverData.range);
 		}
+		this.editor.layoutContentWidget(this);
 	}
 
 	public getId(): string {
@@ -277,9 +197,6 @@ export class StandaloneColorPickerWidget implements IContentWidget {
 	}
 
 	public getDomNode(): HTMLElement {
-
-		console.log('inside of this.getDomNode(), the body element : ', this.body);
-
 		return this.body;
 	}
 
@@ -287,7 +204,6 @@ export class StandaloneColorPickerWidget implements IContentWidget {
 		if (!this._position) {
 			return null;
 		}
-		// Depending on the position preference of the hover, place it there
 		const positionPreference = this.editor.getOption(EditorOption.hover).above;
 		return {
 			position: this._position,
@@ -298,14 +214,10 @@ export class StandaloneColorPickerWidget implements IContentWidget {
 	}
 
 	public hide(): void {
-		// Removing the content widget
 		this.editor.removeContentWidget(this);
-		this._resultFound = false;
 		this._disposables.dispose();
-		// Set all the contet keys to the false value
 		this._standaloneColorPickerVisible.set(false);
 		this._standaloneColorPickerFocused.set(false);
-		// Setting the focus back to the editor
 		this.editor.focus();
 	}
 
@@ -315,10 +227,9 @@ export class StandaloneColorPickerWidget implements IContentWidget {
 }
 
 export class StandaloneColorPickerResult {
-	// The color picker result consists of a boolean indicating if the color was found in the editor
-	// And an array of color results
+	// The color picker result consists of: n array of color results and a boolean indicating if the color was found in the editor
 	constructor(
-		public readonly value: ColorHover[],
+		public readonly value: ColorHover,
 		public readonly foundInMap: boolean
 	) { }
 }
@@ -335,67 +246,39 @@ export class StandaloneColorPickerComputer extends Disposable implements IStanda
 	constructor(
 		private readonly _range: IRange,
 		private readonly _editor: ICodeEditor,
-		// private readonly _participant: ColorHoverParticipant,
 		private readonly _participant: StandaloneColorPickerParticipant,
 		@ILanguageFeaturesService private readonly languageFeaturesService: ILanguageFeaturesService,
-		@ILanguageFeatureDebounceService languageFeatureDebounceService: ILanguageFeatureDebounceService,
 	) {
 		super();
 	}
 
 	public async start(): Promise<void> {
-		// Suppose that the range is not null then compute the result of the colors at that specific range
 		if (this._range !== null) {
 			const computeAsyncResult = await this.computeAsync(this._range);
 			if (!computeAsyncResult) {
 				return;
 			}
-			// When the result has been found, then fire the result along with the foundInMap boolean
-			this._onResult.fire(new StandaloneColorPickerResult(computeAsyncResult.result.slice(0), computeAsyncResult.foundInMap));
+			this._onResult.fire(new StandaloneColorPickerResult(computeAsyncResult.result, computeAsyncResult.foundInEditor));
 		}
 	}
 
-	// The result is computed asynchronously at the range
-	private async computeAsync(range: IRange): Promise<{ result: ColorHover[]; foundInMap: boolean } | null> {
-
-		console.log('Inside of computeAsync of ColorHoverComputer');
-
+	private async computeAsync(range: IRange): Promise<{ result: ColorHover; foundInEditor: boolean } | null> {
 		if (!this._editor.hasModel()) {
 			return null;
 		}
-
-		// Instantiation of the results to be returned
-		let result: ColorHover[] = [];
-		let foundInMap = false;
-
-		// The colorInfo contains the initial range and a default color
 		const colorInfo: IColorInformation = {
 			range: range,
 			color: { red: 0, green: 0, blue: 0, alpha: 1 }
 		};
 		const textModel = this._editor.getModel();
 		const providers = this.languageFeaturesService.colorProvider.ordered(textModel).reverse();
-
-		console.log('providers : ', providers);
-
-		// TODO: When there are no providers, we still want to render a color picker
-		// TODO: For that we use a default provider
-
-		const provider = providers[0];
-
-		// TODO: do we need to set the provider for each participant, what does it do?
-		// TODO: What is the difference between the participants and the document color providers?
-		const createColorHoverResult: { colorHover: ColorHover; foundInMap: boolean } | null = await this._participant.createColorHover(colorInfo, provider);
-
+		const createColorHoverResult: { colorHover: ColorHover; foundInMap: boolean } | null = await this._participant.createColorHover(colorInfo, providers[0]);
 		if (!createColorHoverResult) {
 			return null;
 		}
 		const colorHover = createColorHoverResult.colorHover;
-		if (colorHover) {
-			result = result.concat(colorHover);
-		}
-		foundInMap = createColorHoverResult.foundInMap;
-		return { result: result, foundInMap: foundInMap };
+		const foundInEditor = createColorHoverResult.foundInMap;
+		return { result: colorHover, foundInEditor: foundInEditor };
 	}
 
 	public override dispose(): void {

@@ -184,11 +184,12 @@
 	pointer-events: none;
 }
 
-.standalone-color-picker-class {
+.standalone-color-picker-body {
 	display: block;
 	border: 1px solid transparent;
 	border-bottom: 1px solid var(--vscode-editorHoverWidget-border);
 	overflow: hidden;
+	display : block;
 }
 
 .standalone-color-picker-class:focus {
