@@ -50,10 +50,6 @@
 	flex: 1;
 }
 
-.colorpicker-header .picked-color-standalone {
-	width: 226px;
-}
-
 .colorpicker-header .picked-color .codicon {
 	color: inherit;
 	font-size: 14px;
@@ -69,10 +65,6 @@
 	width: 74px;
 	z-index: inherit;
 	cursor: pointer;
-}
-
-.colorpicker-header .original-color-standalone {
-	width: 64px;
 }
 
 .colorpicker-header.standalone-color-picker {

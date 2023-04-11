@@ -273,9 +273,6 @@ function updateEditorModel(owner: ColorHoverParticipant | StandaloneColorPickerP
 	let range = new Range(colorHover.range.startLineNumber, colorHover.range.startColumn, colorHover.range.endLineNumber, colorHover.range.endColumn);
 
 	const updateEditorModel = () => {
-
-		console.log('Inside of inner update editor model');
-
 		let textEdits: ISingleEditOperation[];
 		let newRange: Range;
 		if (model.presentation.textEdit) {

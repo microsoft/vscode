@@ -177,16 +177,19 @@ export class StandaloneColorPickerWidget implements IContentWidget {
 		this.body.appendChild(fragment);
 		colorPickerWidget.layout();
 
-		// const colorPickerBody = colorPickerWidget.body;
-		// const width = colorPickerBody.saturationBox.domNode.clientWidth;
+		const colorPickerBody = colorPickerWidget.body;
+		const saturationBoxWidth = colorPickerBody.saturationBox.domNode.clientWidth;
+		const widthOfOriginalColorBox = colorPickerBody.domNode.clientWidth - saturationBoxWidth - 22 - 8;
 		const enterButton: InsertButton | null = colorPickerWidget.body.enterButton;
 		enterButton?.onClicked(() => {
 			this.updateEditor();
 			this.hide();
 		});
-		// const colorPickerheader = colorPickerWidget.header;
-		// const pickedColorNode = colorPickerheader.pickedColorNode;
-		// pickedColorNode.style.width = width - 10 + 'px';
+		const colorPickerHeader = colorPickerWidget.header;
+		const pickedColorNode = colorPickerHeader.pickedColorNode;
+		pickedColorNode.style.width = saturationBoxWidth + 8 + 'px';
+		const originalColorNode = colorPickerHeader.originalColorNode;
+		originalColorNode.style.width = widthOfOriginalColorBox + 'px';
 		const closeButton = colorPickerWidget.header.closeButton;
 		closeButton?.onClicked(() => {
 			this.hide();

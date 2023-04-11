@@ -25,6 +25,7 @@ export class ColorPickerHeader extends Disposable {
 
 	private readonly _domNode: HTMLElement;
 	private readonly _pickedColorNode: HTMLElement;
+	private readonly _originalColorNode: HTMLElement;
 	private readonly _closeButton: CloseButton | null = null;
 	private backgroundColor: Color;
 
@@ -39,8 +40,8 @@ export class ColorPickerHeader extends Disposable {
 		const tooltip = localize('clickToToggleColorOptions', "Click to toggle color options (rgb/hsl/hex)");
 		this._pickedColorNode.setAttribute('title', tooltip);
 
-		const colorBox = dom.append(this._domNode, $('.original-color'));
-		colorBox.style.backgroundColor = Color.Format.CSS.format(this.model.originalColor) || '';
+		this._originalColorNode = dom.append(this._domNode, $('.original-color'));
+		this._originalColorNode.style.backgroundColor = Color.Format.CSS.format(this.model.originalColor) || '';
 
 		this.backgroundColor = themeService.getColorTheme().getColor(editorHoverBackground) || Color.white;
 		this._register(themeService.onDidColorThemeChange(theme => {
@@ -48,7 +49,7 @@ export class ColorPickerHeader extends Disposable {
 		}));
 
 		this._register(dom.addDisposableListener(this._pickedColorNode, dom.EventType.CLICK, () => this.model.selectNextColorPresentation()));
-		this._register(dom.addDisposableListener(colorBox, dom.EventType.CLICK, () => {
+		this._register(dom.addDisposableListener(this._originalColorNode, dom.EventType.CLICK, () => {
 			this.model.color = this.model.originalColor;
 			this.model.flushColor();
 		}));
@@ -64,7 +65,7 @@ export class ColorPickerHeader extends Disposable {
 			this._domNode.classList.add('standalone-color-picker');
 			this._closeButton = this._register(new CloseButton(this._domNode));
 			this._pickedColorNode.classList.add('picked-color-standalone');
-			colorBox.classList.add('original-color-standalone');
+			this._originalColorNode.classList.add('original-color-standalone');
 		}
 	}
 
@@ -78,6 +79,10 @@ export class ColorPickerHeader extends Disposable {
 
 	public get pickedColorNode(): HTMLElement {
 		return this._pickedColorNode;
+	}
+
+	public get originalColorNode(): HTMLElement {
+		return this._originalColorNode;
 	}
 
 	private onDidChangeColor(color: Color): void {
