@@ -97,7 +97,9 @@ export class CommentsModel {
 
 			// Find comment node on resource that is that thread and remove it
 			const index = matchingResourceData?.commentThreads.findIndex((commentThread) => commentThread.threadId === thread.threadId) ?? 0;
-			matchingResourceData?.commentThreads.splice(index, 1);
+			if (index >= 0) {
+				matchingResourceData?.commentThreads.splice(index, 1);
+			}
 
 			// If the comment thread was the last thread for a resource, remove that resource from the list
 			if (matchingResourceData?.commentThreads.length === 0) {

@@ -184,6 +184,7 @@ declare module 'vscode' {
 		kind: 'insert';
 		responseId: string;
 		codeBlockIndex: number;
+		totalCharacters: number;
 	}
 
 	export interface InteractiveSessionCommandAction {

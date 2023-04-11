@@ -127,7 +127,7 @@ export function listProcesses(rootPid: number): Promise<ProcessItem> {
 				}
 			};
 
-			(import('@vscode/windows-process-tree')).then(windowsProcessTree => {
+			(import('windows-process-tree')).then(windowsProcessTree => {
 				windowsProcessTree.getProcessList(rootPid, (processList) => {
 					if (!processList) {
 						reject(new Error(`Root process ${rootPid} not found`));
