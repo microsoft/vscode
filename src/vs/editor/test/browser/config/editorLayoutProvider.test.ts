@@ -24,6 +24,8 @@ interface IEditorLayoutProviderOpts {
 	readonly typicalHalfwidthCharacterWidth: number;
 	readonly maxDigitWidth: number;
 
+	readonly glyphMarginDecorationsCount: number;
+
 	readonly verticalScrollbarWidth: number;
 	readonly verticalScrollbarHasArrows: boolean;
 	readonly scrollbarArrowSize: number;
@@ -96,6 +98,7 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 			typicalHalfwidthCharacterWidth: input.typicalHalfwidthCharacterWidth,
 			maxDigitWidth: input.maxDigitWidth,
 			pixelRatio: input.pixelRatio,
+			glyphMarginDecorationsCount: input.glyphMarginDecorationsCount
 		});
 		assert.deepStrictEqual(actual, expected);
 	}
@@ -121,6 +124,7 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 			minimapRenderCharacters: true,
 			minimapMaxColumn: 150,
 			pixelRatio: 1,
+			glyphMarginDecorationsCount: 0,
 		}, {
 			width: 1000,
 			height: 800,
@@ -189,6 +193,7 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 			minimapRenderCharacters: true,
 			minimapMaxColumn: 150,
 			pixelRatio: 1,
+			glyphMarginDecorationsCount: 0,
 		}, {
 			width: 1000,
 			height: 800,
@@ -257,6 +262,7 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 			minimapRenderCharacters: true,
 			minimapMaxColumn: 150,
 			pixelRatio: 1,
+			glyphMarginDecorationsCount: 0,
 		}, {
 			width: 900,
 			height: 800,
@@ -325,6 +331,7 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 			minimapRenderCharacters: true,
 			minimapMaxColumn: 150,
 			pixelRatio: 1,
+			glyphMarginDecorationsCount: 0,
 		}, {
 			width: 900,
 			height: 900,
@@ -393,6 +400,7 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 			minimapRenderCharacters: true,
 			minimapMaxColumn: 150,
 			pixelRatio: 1,
+			glyphMarginDecorationsCount: 0,
 		}, {
 			width: 900,
 			height: 900,
@@ -461,6 +469,7 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 			minimapRenderCharacters: true,
 			minimapMaxColumn: 150,
 			pixelRatio: 1,
+			glyphMarginDecorationsCount: 0,
 		}, {
 			width: 900,
 			height: 900,
@@ -529,6 +538,7 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 			minimapRenderCharacters: true,
 			minimapMaxColumn: 150,
 			pixelRatio: 1,
+			glyphMarginDecorationsCount: 0,
 		}, {
 			width: 900,
 			height: 900,
@@ -597,6 +607,7 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 			minimapRenderCharacters: true,
 			minimapMaxColumn: 150,
 			pixelRatio: 1,
+			glyphMarginDecorationsCount: 0,
 		}, {
 			width: 900,
 			height: 900,
@@ -665,6 +676,7 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 			minimapRenderCharacters: true,
 			minimapMaxColumn: 150,
 			pixelRatio: 1,
+			glyphMarginDecorationsCount: 0,
 		}, {
 			width: 900,
 			height: 900,
@@ -733,6 +745,7 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 			minimapRenderCharacters: true,
 			minimapMaxColumn: 150,
 			pixelRatio: 1,
+			glyphMarginDecorationsCount: 0,
 		}, {
 			width: 900,
 			height: 900,
@@ -801,6 +814,7 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 			minimapRenderCharacters: true,
 			minimapMaxColumn: 150,
 			pixelRatio: 1,
+			glyphMarginDecorationsCount: 0,
 		}, {
 			width: 1000,
 			height: 800,
@@ -869,6 +883,7 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 			minimapRenderCharacters: true,
 			minimapMaxColumn: 150,
 			pixelRatio: 2,
+			glyphMarginDecorationsCount: 0,
 		}, {
 			width: 1000,
 			height: 800,
@@ -937,6 +952,7 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 			minimapRenderCharacters: true,
 			minimapMaxColumn: 150,
 			pixelRatio: 4,
+			glyphMarginDecorationsCount: 0,
 		}, {
 			width: 1000,
 			height: 800,
@@ -1005,6 +1021,7 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 			minimapRenderCharacters: true,
 			minimapMaxColumn: 150,
 			pixelRatio: 4,
+			glyphMarginDecorationsCount: 0,
 		}, {
 			width: 1000,
 			height: 800,
@@ -1075,6 +1092,7 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 			minimapMaxColumn: 150,
 			minimapSize: 'fill',
 			pixelRatio: 2,
+			glyphMarginDecorationsCount: 0,
 		}, {
 			width: 1000,
 			height: 800,
@@ -1145,6 +1163,7 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 			minimapMaxColumn: 150,
 			minimapSize: 'fill',
 			pixelRatio: 2,
+			glyphMarginDecorationsCount: 0,
 		}, {
 			width: 1000,
 			height: 800,
@@ -1215,6 +1234,7 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 			minimapMaxColumn: 150,
 			minimapSize: 'fit',
 			pixelRatio: 2,
+			glyphMarginDecorationsCount: 0,
 		}, {
 			width: 1000,
 			height: 800,
@@ -1285,6 +1305,7 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 			minimapMaxColumn: 150,
 			minimapSize: 'fit',
 			pixelRatio: 2,
+			glyphMarginDecorationsCount: 0,
 		}, {
 			width: 1000,
 			height: 800,
@@ -1352,7 +1373,8 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 			minimapSide: 'right',
 			minimapRenderCharacters: true,
 			minimapMaxColumn: 120,
-			pixelRatio: 2
+			pixelRatio: 2,
+			glyphMarginDecorationsCount: 0
 		}, {
 			width: 1201,
 			height: 422,

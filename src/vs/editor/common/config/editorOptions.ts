@@ -826,6 +826,7 @@ export interface IEnvironmentalOptions {
 	readonly isDominatedByLongLines: boolean;
 	readonly viewLineCount: number;
 	readonly lineNumbersDigitCount: number;
+	readonly glyphMarginDecorationsCount: number;
 	readonly emptySelectionClipboard: boolean;
 	readonly pixelRatio: number;
 	readonly tabFocusMode: boolean;
@@ -2150,6 +2151,7 @@ export interface EditorLayoutInfoComputerEnv {
 	readonly typicalHalfwidthCharacterWidth: number;
 	readonly maxDigitWidth: number;
 	readonly pixelRatio: number;
+	readonly glyphMarginDecorationsCount: number;
 }
 
 /**
@@ -2215,6 +2217,7 @@ export class EditorLayoutInfoComputer extends ComputedEditorOption<EditorOption.
 			lineHeight: env.fontInfo.lineHeight,
 			viewLineCount: env.viewLineCount,
 			lineNumbersDigitCount: env.lineNumbersDigitCount,
+			glyphMarginDecorationsCount: env.glyphMarginDecorationsCount,
 			typicalHalfwidthCharacterWidth: env.fontInfo.typicalHalfwidthCharacterWidth,
 			maxDigitWidth: env.fontInfo.maxDigitWidth,
 			pixelRatio: env.pixelRatio
@@ -2463,7 +2466,7 @@ export class EditorLayoutInfoComputer extends ComputedEditorOption<EditorOption.
 
 		let glyphMarginWidth = 0;
 		if (showGlyphMargin) {
-			glyphMarginWidth = lineHeight;
+			glyphMarginWidth = (env.glyphMarginDecorationsCount ?? 1) * lineHeight;
 		}
 
 		let glyphMarginLeft = 0;
@@ -5647,6 +5650,9 @@ export const EditorOptions = {
 	wrappingIndent: register(new WrappingIndentOption()),
 	wrappingStrategy: register(new WrappingStrategy())
 };
+
+// add experimental setting for multiple decoration rendering strategy
+// default: 1, all: -1, other numbers--render up to that point then show the overflow menu
 
 type EditorOptionsType = typeof EditorOptions;
 type FindEditorOptionsKeyById<T extends EditorOption> = { [K in keyof EditorOptionsType]: EditorOptionsType[K]['id'] extends T ? K : never }[keyof EditorOptionsType];

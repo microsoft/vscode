@@ -162,12 +162,13 @@ export class GlyphMarginOverlay extends DedupOverlay {
 
 		const visibleStartLineNumber = ctx.visibleRange.startLineNumber;
 		const visibleEndLineNumber = ctx.visibleRange.endLineNumber;
-		const toRender = this._render(visibleStartLineNumber, visibleEndLineNumber, this._getDecorations(ctx));
+		const decorationsToRender = this._getDecorations(ctx);
+		const toRender = this._render(visibleStartLineNumber, visibleEndLineNumber, decorationsToRender);
 
 		const lineHeight = this._lineHeight.toString();
 		const left = this._glyphMarginLeft.toString();
 		const width = this._glyphMarginWidth.toString();
-		const common = '" style="left:' + left + 'px;width:' + width + 'px' + ';height:' + lineHeight + 'px;"></div>';
+		const common = '" style="width:' + width + 'px' + ';height:' + lineHeight + 'px;';
 
 		const output: string[] = [];
 		for (let lineNumber = visibleStartLineNumber; lineNumber <= visibleEndLineNumber; lineNumber++) {
@@ -177,11 +178,13 @@ export class GlyphMarginOverlay extends DedupOverlay {
 			if (classNames.length === 0) {
 				output[lineIndex] = '';
 			} else {
-				output[lineIndex] = (
+				output[lineIndex] = classNames.map((className, idx) => (
 					'<div class="cgmr codicon '
-					+ classNames.join(' ')
+					+ className
 					+ common
-				);
+					+ 'left:' + (idx === 0 ? left : (this._lineHeight * idx)).toString() + 'px;cursor:pointer;'
+					+ '"></div>'
+				)).join(' ');
 			}
 		}
 

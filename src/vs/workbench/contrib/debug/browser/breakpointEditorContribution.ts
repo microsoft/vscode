@@ -335,7 +335,7 @@ export class BreakpointEditorContribution implements IBreakpointEditorContributi
 				let showBreakpointHintAtLineNumber = -1;
 				const model = this.editor.getModel();
 				if (model && e.target.position && (e.target.type === MouseTargetType.GUTTER_GLYPH_MARGIN || e.target.type === MouseTargetType.GUTTER_LINE_NUMBERS) && this.debugService.canSetBreakpointsIn(model) &&
-					this.marginFreeFromNonDebugDecorations(e.target.position.lineNumber)) {
+					this.marginFreeFromNonDebugDecorations(e.target.position.lineNumber) && this.debugService.getModel().getBreakpoints({ lineNumber: e.target.position.lineNumber, uri: model.uri }).length === 0) {
 					const data = e.target.detail;
 					if (!data.isAfterLines) {
 						showBreakpointHintAtLineNumber = e.target.position.lineNumber;
