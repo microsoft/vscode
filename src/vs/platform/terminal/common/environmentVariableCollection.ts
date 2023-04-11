@@ -16,7 +16,11 @@ type VariableResolver = (str: string) => Promise<string>;
 // ]);
 
 export class MergedEnvironmentVariableCollection implements IMergedEnvironmentVariableCollection {
-	readonly map: Map<string, IExtensionOwnedEnvironmentVariableMutator[]> = new Map();
+	/**
+	 * Using variable as keys is okay here because each terminal instance has its own set of variables.
+	 * @karrtikr TODO: Rename it back to map.
+	 */
+	readonly variableMap: Map<string, IExtensionOwnedEnvironmentVariableMutator[]> = new Map();
 
 	constructor(
 		readonly collections: ReadonlyMap<string, IEnvironmentVariableCollection>,
@@ -27,7 +31,7 @@ export class MergedEnvironmentVariableCollection implements IMergedEnvironmentVa
 			let next = it.next();
 			while (!next.done) {
 				const variable = next.value[0];
-				let entry = this.map.get(variable);
+				let entry = this.variableMap.get(variable);
 				if (this.owningWorkspace) {
 					// If the entry is scoped to a workspace folder, only apply it if the workspace
 					// folder matches.
@@ -38,7 +42,7 @@ export class MergedEnvironmentVariableCollection implements IMergedEnvironmentVa
 				}
 				if (!entry) {
 					entry = [];
-					this.map.set(variable, entry);
+					this.variableMap.set(variable, entry);
 				}
 
 				// If the first item in the entry is replace ignore any other entries as they would
@@ -69,7 +73,7 @@ export class MergedEnvironmentVariableCollection implements IMergedEnvironmentVa
 			lowerToActualVariableNames = {};
 			Object.keys(env).forEach(e => lowerToActualVariableNames![e.toLowerCase()] = e);
 		}
-		for (const [variable, mutators] of this.map) {
+		for (const [variable, mutators] of this.variableMap) {
 			const actualVariable = isWindows ? lowerToActualVariableNames![variable.toLowerCase()] || variable : variable;
 			for (const mutator of mutators) {
 				const value = variableResolver ? await variableResolver(mutator.value) : mutator.value;
@@ -99,8 +103,8 @@ export class MergedEnvironmentVariableCollection implements IMergedEnvironmentVa
 		const removed: Map<string, IExtensionOwnedEnvironmentVariableMutator[]> = new Map();
 
 		// Find added
-		other.map.forEach((otherMutators, variable) => {
-			const currentMutators = this.map.get(variable);
+		other.variableMap.forEach((otherMutators, variable) => {
+			const currentMutators = this.variableMap.get(variable);
 			const result = getMissingMutatorsFromArray(otherMutators, currentMutators);
 			if (result) {
 				added.set(variable, result);
@@ -108,8 +112,8 @@ export class MergedEnvironmentVariableCollection implements IMergedEnvironmentVa
 		});
 
 		// Find removed
-		this.map.forEach((currentMutators, variable) => {
-			const otherMutators = other.map.get(variable);
+		this.variableMap.forEach((currentMutators, variable) => {
+			const otherMutators = other.variableMap.get(variable);
 			const result = getMissingMutatorsFromArray(currentMutators, otherMutators);
 			if (result) {
 				removed.set(variable, result);
@@ -117,8 +121,8 @@ export class MergedEnvironmentVariableCollection implements IMergedEnvironmentVa
 		});
 
 		// Find changed
-		this.map.forEach((currentMutators, variable) => {
-			const otherMutators = other.map.get(variable);
+		this.variableMap.forEach((currentMutators, variable) => {
+			const otherMutators = other.variableMap.get(variable);
 			const result = getChangedMutatorsFromArray(currentMutators, otherMutators);
 			if (result) {
 				changed.set(variable, result);

@@ -56,7 +56,7 @@ type VariableResolver = (str: string) => Promise<string>;
  */
 export interface IMergedEnvironmentVariableCollection {
 	readonly collections: ReadonlyMap<string, IEnvironmentVariableCollection>;
-	readonly map: ReadonlyMap<string, IExtensionOwnedEnvironmentVariableMutator[]>;
+	readonly variableMap: ReadonlyMap<string, IExtensionOwnedEnvironmentVariableMutator[]>;
 
 	/**
 	 * Applies this collection to a process environment.

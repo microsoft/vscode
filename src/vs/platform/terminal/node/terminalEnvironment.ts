@@ -259,7 +259,7 @@ function addEnvMixinPathPrefix(options: ITerminalProcessOptions, envMixin: IProc
 		const merged = new MergedEnvironmentVariableCollection(deserialized, options.workspaceFolder);
 
 		// Get all prepend PATH entries
-		const pathEntry = merged.map.get('PATH');
+		const pathEntry = merged.variableMap.get('PATH');
 		const prependToPath: string[] = [];
 		if (pathEntry) {
 			for (const mutator of pathEntry) {
