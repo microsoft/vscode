@@ -94,7 +94,7 @@ class InsertColorFromStandaloneColorPicker extends EditorAction {
 
 		console.log('Inside of update editor of color picker');
 
-		StandaloneColorPickerController.get(editor)?.updateEditor();
+		StandaloneColorPickerController.get(editor)?.insertColor();
 	}
 }
 

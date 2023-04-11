@@ -8,7 +8,7 @@ import { IEditorHoverRenderContext } from 'vs/editor/contrib/hover/browser/hover
 import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition } from 'vs/editor/browser/editorBrowser';
 import { PositionAffinity } from 'vs/editor/common/model';
 import { Position } from 'vs/editor/common/core/position';
-import { ColorHover, ColorHoverParticipant } from 'vs/editor/contrib/colorPicker/browser/colorHoverParticipant';
+import { ColorHover, StandaloneColorPickerParticipant } from 'vs/editor/contrib/colorPicker/browser/colorHoverParticipant';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { EditorHoverStatusBar } from 'vs/editor/contrib/hover/browser/contentHover';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
@@ -24,7 +24,7 @@ import { ILanguageFeatureDebounceService } from 'vs/editor/common/services/langu
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { Selection } from 'vs/editor/common/core/selection';
 import { IRange } from 'vs/editor/common/core/range';
-import { DefaultDocumentColorProviderForStandaloneColorPicker } from 'vs/editor/contrib/colorPicker/browser/defaultDocumentColorProvider';
+import { DefaultDocumentColorProviderForStandaloneColorPicker as DefaultDocumentColorProvider } from 'vs/editor/contrib/colorPicker/browser/defaultDocumentColorProvider';
 import * as dom from 'vs/base/browser/dom';
 import 'vs/css!./colorPicker';
 
@@ -32,8 +32,8 @@ export class StandaloneColorPickerController extends Disposable implements IEdit
 
 	public static ID = 'editor.contrib.standaloneColorPickerController';
 	private _standaloneColorPickerWidget: StandaloneColorPickerWidget | null = null;
-	private _colorHoverVisible: IContextKey<boolean>;
-	private _colorHoverFocused: IContextKey<boolean>;
+	private _standaloneColorPickerVisible: IContextKey<boolean>;
+	private _standaloneColorPickerFocused: IContextKey<boolean>;
 
 	constructor(
 		private readonly _editor: ICodeEditor,
@@ -44,49 +44,34 @@ export class StandaloneColorPickerController extends Disposable implements IEdit
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService
 	) {
 		super();
-
-		console.log('creating new instance of the standalone color picker widget');
-
-		this._colorHoverVisible = EditorContextKeys.standaloneColorPickerVisible.bindTo(this._contextKeyService);
-		this._colorHoverFocused = EditorContextKeys.standaloneColorPickerFocused.bindTo(this._contextKeyService);
-
-		// TODO: Registering a custom color document provider, solves the errors arising after registering this
-		this._register(this._languageFeatureService.colorProvider.register('*', new DefaultDocumentColorProviderForStandaloneColorPicker()));
+		this._standaloneColorPickerVisible = EditorContextKeys.standaloneColorPickerVisible.bindTo(this._contextKeyService);
+		this._standaloneColorPickerFocused = EditorContextKeys.standaloneColorPickerFocused.bindTo(this._contextKeyService);
+		// The default document color provider is used mostly for the standalone color picker but can also be used for the default inline color boxes
+		this._register(this._languageFeatureService.colorProvider.register('*', new DefaultDocumentColorProvider()));
 	}
 
 	public showOrFocus() {
-
-		if (!this._colorHoverVisible.get()) {
-
-			console.log('Inside of the case when the color hover is not visible');
-
-			this._colorHoverVisible.set(true);
-			this._standaloneColorPickerWidget = new StandaloneColorPickerWidget(this._editor, this._instantiationService, this._keybindingService, this._languageFeatureService, this._contextKeyService, this._languageFeatureDebounceService);
+		if (!this._editor.hasModel()) {
+			return;
+		}
+		if (!this._standaloneColorPickerVisible.get()) {
+			this._standaloneColorPickerVisible.set(true);
+			this._standaloneColorPickerWidget = new StandaloneColorPickerWidget(this._editor, this._standaloneColorPickerVisible, this._standaloneColorPickerFocused, this._instantiationService, this._keybindingService, this._languageFeatureService, this._languageFeatureDebounceService);
 			this._editor.addContentWidget(this._standaloneColorPickerWidget);
-
-		} else if (!this._colorHoverFocused.get()) {
-
-			console.log('Inside of the ccase when the color hover is visible but not focused');
-
-			this._colorHoverFocused.set(true);
+		} else if (!this._standaloneColorPickerFocused.get()) {
+			this._standaloneColorPickerFocused.set(true);
 			this._standaloneColorPickerWidget?.focus();
 		}
 	}
 
 	public hide() {
-
-		console.log('calling hide');
-
-		this._colorHoverFocused.set(false);
-		this._colorHoverVisible.set(false);
-		this._editor.focus();
+		this._standaloneColorPickerFocused.set(false);
+		this._standaloneColorPickerVisible.set(false);
 		this._standaloneColorPickerWidget?.hide();
+		this._editor.focus();
 	}
 
-	public updateEditor() {
-
-		console.log('Inside of udpate editor of the standalone color picker controller');
-
+	public insertColor() {
 		this._standaloneColorPickerWidget?.updateEditor();
 		this.hide();
 	}
@@ -98,7 +83,6 @@ export class StandaloneColorPickerController extends Disposable implements IEdit
 
 registerEditorContribution(StandaloneColorPickerController.ID, StandaloneColorPickerController, EditorContributionInstantiation.AfterFirstRender);
 
-// New Standalone Color Picker Widget is created when the ShowOrFocus function from above is called
 export class StandaloneColorPickerWidget implements IContentWidget {
 
 	static readonly ID = 'editor.contrib.standaloneColorPickerWidget';
@@ -107,34 +91,28 @@ export class StandaloneColorPickerWidget implements IContentWidget {
 	private readonly _position: Position | undefined = undefined;
 	private readonly _selection: Selection | null = null;
 
-	private readonly _participant: ColorHoverParticipant;
+	// private readonly _participant: ColorHoverParticipant;
+	private readonly _participant: StandaloneColorPickerParticipant;
 	private readonly _standaloneColorPickerComputer: StandaloneColorPickerComputer;
 
 	private _disposables: DisposableStore = new DisposableStore();
 	private _resultFound: boolean = false;
 	private _colorHoverData: ColorHover[] = [];
-	private _colorHoverVisible: IContextKey<boolean>;
-	private _colorHoverFocused: IContextKey<boolean>;
 	private _selectionForColorPicker: boolean = false;
 
 	constructor(
 		private readonly editor: ICodeEditor,
+		private readonly _standaloneColorPickerVisible: IContextKey<boolean>,
+		private readonly _standaloneColorPickerFocused: IContextKey<boolean>,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
 		@ILanguageFeaturesService private readonly languageFeaturesService: ILanguageFeaturesService,
-		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@ILanguageFeatureDebounceService private readonly languageFeatureDebounceService: ILanguageFeatureDebounceService
 	) {
 
-		// The position of the primary cursor
 		this._position = this.editor._getViewModel()?.getPrimaryCursorState().viewState.position;
-		// The primary selection
 		this._selection = this.editor.getSelection();
-		// Creating an instance of the color hover participant, presumably only one color hover participant
-		this._participant = this.instantiationService.createInstance(ColorHoverParticipant, this.editor);
-		// TODO: Signalling that we are using a standalone color picker widget, maybe no longer need with the registration
-		this._participant.standaloneColorPickerWidget = true;
-
+		this._participant = this.instantiationService.createInstance(StandaloneColorPickerParticipant, this.editor);
 		const focusTracker = this._disposables.add(dom.trackFocus(this.body));
 
 		const selection = this._selection ?
@@ -187,8 +165,6 @@ export class StandaloneColorPickerWidget implements IContentWidget {
 		const providers = this.languageFeaturesService.colorProvider.ordered(this.editor.getModel()!).reverse();
 		console.log('providers inside of standalone color picker widget : ', providers);
 		this._standaloneColorPickerComputer.start();
-		this._colorHoverVisible = EditorContextKeys.standaloneColorPickerVisible.bindTo(this.contextKeyService);
-		this._colorHoverFocused = EditorContextKeys.standaloneColorPickerFocused.bindTo(this.contextKeyService);
 	}
 
 	// This function changes the editor model
@@ -327,8 +303,8 @@ export class StandaloneColorPickerWidget implements IContentWidget {
 		this._resultFound = false;
 		this._disposables.dispose();
 		// Set all the contet keys to the false value
-		this._colorHoverFocused.set(false);
-		this._colorHoverVisible.set(false);
+		this._standaloneColorPickerVisible.set(false);
+		this._standaloneColorPickerFocused.set(false);
 		// Setting the focus back to the editor
 		this.editor.focus();
 	}
@@ -353,30 +329,18 @@ export interface IStandaloneColorPickerComputer {
 
 export class StandaloneColorPickerComputer extends Disposable implements IStandaloneColorPickerComputer {
 
-	// Event emitters on the computer
 	private readonly _onResult = this._register(new Emitter<StandaloneColorPickerResult>());
 	public readonly onResult = this._onResult.event;
 
 	constructor(
 		private readonly _range: IRange,
 		private readonly _editor: ICodeEditor,
-		private readonly _participant: ColorHoverParticipant,
+		// private readonly _participant: ColorHoverParticipant,
+		private readonly _participant: StandaloneColorPickerParticipant,
 		@ILanguageFeaturesService private readonly languageFeaturesService: ILanguageFeaturesService,
 		@ILanguageFeatureDebounceService languageFeatureDebounceService: ILanguageFeatureDebounceService,
 	) {
 		super();
-
-		const textModel = this._editor.getModel();
-		if (!textModel) {
-			return;
-		}
-		// Get all the providers associated with the textModel
-		const providers = this.languageFeaturesService.colorProvider.ordered(textModel).reverse();
-		console.log('providers : ', providers);
-
-		// Suppose that we do not have any document color providers
-		// TODO: When we register our own document color provider, we will have to change this
-		// TODO: Because then there will always be a document color provider (a default one always)
 	}
 
 	public async start(): Promise<void> {
