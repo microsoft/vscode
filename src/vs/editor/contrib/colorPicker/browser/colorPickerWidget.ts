@@ -24,7 +24,7 @@ const $ = dom.$;
 export class ColorPickerHeader extends Disposable {
 
 	private readonly _domNode: HTMLElement;
-	private readonly pickedColorNode: HTMLElement;
+	private readonly _pickedColorNode: HTMLElement;
 	private readonly _closeButton: CloseButton | null = null;
 	private backgroundColor: Color;
 
@@ -34,10 +34,10 @@ export class ColorPickerHeader extends Disposable {
 		this._domNode = $('.colorpicker-header');
 		dom.append(container, this._domNode);
 
-		this.pickedColorNode = dom.append(this._domNode, $('.picked-color'));
+		this._pickedColorNode = dom.append(this._domNode, $('.picked-color'));
 
 		const tooltip = localize('clickToToggleColorOptions', "Click to toggle color options (rgb/hsl/hex)");
-		this.pickedColorNode.setAttribute('title', tooltip);
+		this._pickedColorNode.setAttribute('title', tooltip);
 
 		const colorBox = dom.append(this._domNode, $('.original-color'));
 		colorBox.style.backgroundColor = Color.Format.CSS.format(this.model.originalColor) || '';
@@ -47,15 +47,15 @@ export class ColorPickerHeader extends Disposable {
 			this.backgroundColor = theme.getColor(editorHoverBackground) || Color.white;
 		}));
 
-		this._register(dom.addDisposableListener(this.pickedColorNode, dom.EventType.CLICK, () => this.model.selectNextColorPresentation()));
+		this._register(dom.addDisposableListener(this._pickedColorNode, dom.EventType.CLICK, () => this.model.selectNextColorPresentation()));
 		this._register(dom.addDisposableListener(colorBox, dom.EventType.CLICK, () => {
 			this.model.color = this.model.originalColor;
 			this.model.flushColor();
 		}));
 		this._register(model.onDidChangeColor(this.onDidChangeColor, this));
 		this._register(model.onDidChangePresentation(this.onDidChangePresentation, this));
-		this.pickedColorNode.style.backgroundColor = Color.Format.CSS.format(model.color) || '';
-		this.pickedColorNode.classList.toggle('light', model.color.rgba.a < 0.5 ? this.backgroundColor.isLighter() : model.color.isLighter());
+		this._pickedColorNode.style.backgroundColor = Color.Format.CSS.format(model.color) || '';
+		this._pickedColorNode.classList.toggle('light', model.color.rgba.a < 0.5 ? this.backgroundColor.isLighter() : model.color.isLighter());
 
 		this.onDidChangeColor(this.model.color);
 
@@ -63,7 +63,7 @@ export class ColorPickerHeader extends Disposable {
 		if (this.showingStandaloneColorPicker) {
 			this._domNode.classList.add('standalone-color-picker');
 			this._closeButton = this._register(new CloseButton(this._domNode));
-			this.pickedColorNode.classList.add('picked-color-standalone');
+			this._pickedColorNode.classList.add('picked-color-standalone');
 			colorBox.classList.add('original-color-standalone');
 		}
 	}
@@ -76,15 +76,19 @@ export class ColorPickerHeader extends Disposable {
 		return this._closeButton;
 	}
 
+	public get pickedColorNode(): HTMLElement {
+		return this._pickedColorNode;
+	}
+
 	private onDidChangeColor(color: Color): void {
-		this.pickedColorNode.style.backgroundColor = Color.Format.CSS.format(color) || '';
-		this.pickedColorNode.classList.toggle('light', color.rgba.a < 0.5 ? this.backgroundColor.isLighter() : color.isLighter());
+		this._pickedColorNode.style.backgroundColor = Color.Format.CSS.format(color) || '';
+		this._pickedColorNode.classList.toggle('light', color.rgba.a < 0.5 ? this.backgroundColor.isLighter() : color.isLighter());
 		this.onDidChangePresentation();
 	}
 
 	private onDidChangePresentation(): void {
-		this.pickedColorNode.textContent = this.model.presentation ? this.model.presentation.label : '';
-		this.pickedColorNode.prepend($('.codicon.codicon-color-mode'));
+		this._pickedColorNode.textContent = this.model.presentation ? this.model.presentation.label : '';
+		this._pickedColorNode.prepend($('.codicon.codicon-color-mode'));
 	}
 }
 
@@ -461,11 +465,8 @@ export class ColorPickerWidget extends Widget implements IEditorHoverColorPicker
 		const element = $('.colorpicker-widget');
 		container.appendChild(element);
 
-		this.header = new ColorPickerHeader(element, this.model, themeService, standaloneColorPicker);
-		this.body = new ColorPickerBody(element, this.model, this.pixelRatio, standaloneColorPicker);
-
-		this._register(this.header);
-		this._register(this.body);
+		this.header = this._register(new ColorPickerHeader(element, this.model, themeService, standaloneColorPicker));
+		this.body = this._register(new ColorPickerBody(element, this.model, this.pixelRatio, standaloneColorPicker));
 	}
 
 	getId(): string {

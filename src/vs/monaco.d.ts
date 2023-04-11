@@ -3250,7 +3250,7 @@ declare namespace monaco.editor {
 		fontVariations?: boolean | string;
 		/**
 		 * Controls whether to use default color decorations or not using the default document color provider
-		*/
+		 */
 		defaultColorDecorations?: boolean;
 		/**
 		 * Disable the use of `transform: translate3d(0px, 0px, 0px)` for the editor margin and lines layers.

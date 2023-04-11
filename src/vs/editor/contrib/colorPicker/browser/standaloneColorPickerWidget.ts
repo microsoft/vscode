@@ -128,6 +128,12 @@ export class StandaloneColorPickerWidget implements IContentWidget {
 				this._selectionSetInEditor = false;
 			}
 		}));
+		this._disposables.add(this.editor.onMouseMove((e) => {
+			const classList = e.target.element?.classList;
+			if (classList && classList.contains('colorpicker-color-decoration')) {
+				this.hide();
+			}
+		}));
 		this._disposables.add(focusTracker.onDidBlur(_ => {
 			this.hide();
 		}));
@@ -171,11 +177,16 @@ export class StandaloneColorPickerWidget implements IContentWidget {
 		this.body.appendChild(fragment);
 		colorPickerWidget.layout();
 
+		// const colorPickerBody = colorPickerWidget.body;
+		// const width = colorPickerBody.saturationBox.domNode.clientWidth;
 		const enterButton: InsertButton | null = colorPickerWidget.body.enterButton;
 		enterButton?.onClicked(() => {
 			this.updateEditor();
 			this.hide();
 		});
+		// const colorPickerheader = colorPickerWidget.header;
+		// const pickedColorNode = colorPickerheader.pickedColorNode;
+		// pickedColorNode.style.width = width - 10 + 'px';
 		const closeButton = colorPickerWidget.header.closeButton;
 		closeButton?.onClicked(() => {
 			this.hide();

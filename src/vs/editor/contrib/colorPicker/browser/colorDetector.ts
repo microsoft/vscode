@@ -74,10 +74,12 @@ export class ColorDetector extends Disposable implements IEditorContribution {
 			const updatedColorDecoratorsSetting = prevIsEnabled !== this._isColorDecoratorsEnabled || e.hasChanged(EditorOption.colorDecoratorsLimit);
 			const updatedDefaultColorDecoratorsSetting = prevIsDefaultColorsEnabled !== this._isDefaultColorDecoratorsEnabled || e.hasChanged(EditorOption.defaultColorDecorations);
 
-			if (updatedColorDecoratorsSetting && this._isColorDecoratorsEnabled || updatedDefaultColorDecoratorsSetting && this._isDefaultColorDecoratorsEnabled) {
-				this.onModelChanged();
-			} else {
-				this.removeAllDecorations();
+			if (updatedColorDecoratorsSetting || updatedDefaultColorDecoratorsSetting) {
+				if (this._isColorDecoratorsEnabled || this._isDefaultColorDecoratorsEnabled) {
+					this.onModelChanged();
+				} else {
+					this.removeAllDecorations();
+				}
 			}
 		}));
 
