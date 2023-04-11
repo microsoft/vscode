@@ -85,12 +85,21 @@ stages:
             displayName: CodeQL Initialize
             condition: eq(variables['Codeql.enabled'], 'True')
 
+           - powershell: |
+              . build/azure-pipelines/win32/exec.ps1
+              $ErrorActionPreference = "Stop"
+              exec { git clone https://github.com/rzhao271/node-gyp.git .build/node-gyp && git checkout 102b347da0c92c29f9c67df22e864e70249cf086 } "Cloning rzhao271/node-gyp failed"
+              exec { npm install -C .build/node-gyp } "Building rzhao271/node-gyp failed"
+            displayName: Install custom node-gyp
+            condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
+
           - powershell: |
               . build/azure-pipelines/win32/exec.ps1
               . build/azure-pipelines/win32/retry.ps1
               $ErrorActionPreference = "Stop"
               retry { exec { yarn --frozen-lockfile --check-files } }
             env:
+              npm_config_node_gyp: "$(Join-Path $pwd.Path '.build/node-gyp/bin/node-gyp.js')"
               npm_config_arch: "$(NPM_ARCH)"
               PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
               GITHUB_TOKEN: "$(github-distro-mixin-password)"
