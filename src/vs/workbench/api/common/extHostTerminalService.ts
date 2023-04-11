@@ -17,7 +17,7 @@ import { NotSupportedError } from 'vs/base/common/errors';
 import { serializeEnvironmentVariableCollection } from 'vs/platform/terminal/common/environmentVariableShared';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { generateUuid } from 'vs/base/common/uuid';
-import { ISerializableEnvironmentVariableCollection } from 'vs/platform/terminal/common/environmentVariable';
+import { IEnvironmentVariableMutator, ISerializableEnvironmentVariableCollection } from 'vs/platform/terminal/common/environmentVariable';
 import { ICreateContributedTerminalProfileOptions, IProcessReadyEvent, IShellLaunchConfigDto, ITerminalChildProcess, ITerminalLaunchError, ITerminalProfile, TerminalIcon, TerminalLocation, IProcessProperty, ProcessPropertyType, IProcessPropertyMap } from 'vs/platform/terminal/common/terminal';
 import { TerminalDataBufferer } from 'vs/platform/terminal/common/terminalDataBuffering';
 import { ThemeColor } from 'vs/base/common/themables';
@@ -867,7 +867,7 @@ export abstract class BaseExtHostTerminalService extends Disposable implements I
 }
 
 class EnvironmentVariableCollection implements vscode.EnvironmentVariableCollection {
-	readonly map: Map<string, vscode.EnvironmentVariableMutator> = new Map();
+	readonly map: Map<string, IEnvironmentVariableMutator> = new Map();
 	private _persistent: boolean = true;
 
 	public get persistent(): boolean { return this._persistent; }
@@ -902,15 +902,23 @@ class EnvironmentVariableCollection implements vscode.EnvironmentVariableCollect
 	}
 
 	private _setIfDiffers(variable: string, mutator: vscode.EnvironmentVariableMutator): void {
-		const current = this.map.get(variable);
+		const key = this.getKey(variable, mutator.scope);
+		const current = this.map.get(key);
 		if (!current || current.value !== mutator.value || current.type !== mutator.type) {
-			this.map.set(variable, mutator);
+			const key = this.getKey(variable, mutator.scope);
+			this.map.set(key, mutator);
 			this._onDidChangeCollection.fire();
 		}
 	}
 
-	get(variable: string): vscode.EnvironmentVariableMutator | undefined {
-		return this.map.get(variable);
+	get(variable: string, scope?: vscode.EnvironmentVariableScope): vscode.EnvironmentVariableMutator | undefined {
+		const key = this.getKey(variable, scope);
+		return this.map.get(key);
+	}
+
+	private getKey(variable: string, scope: vscode.EnvironmentVariableScope | undefined) {
+		// TODO: Create key using workspace
+		return variable;
 	}
 
 	forEach(callback: (variable: string, mutator: vscode.EnvironmentVariableMutator, collection: vscode.EnvironmentVariableCollection) => any, thisArg?: any): void {
@@ -921,8 +929,9 @@ class EnvironmentVariableCollection implements vscode.EnvironmentVariableCollect
 		return this.map.entries();
 	}
 
-	delete(variable: string): void {
-		this.map.delete(variable);
+	delete(variable: string, scope?: vscode.EnvironmentVariableScope): void {
+		const key = this.getKey(variable, scope);
+		this.map.delete(key);
 		this._onDidChangeCollection.fire();
 	}
 
