@@ -268,12 +268,12 @@ export class InteractiveSessionService extends Disposable implements IInteractiv
 		this._releasedSessions.add(sessionId);
 	}
 
-	async sendRequest(sessionId: number, request: string | IInteractiveSessionReplyFollowup): Promise<{ requestCompletePromise: CancelablePromise<void> } | undefined> {
+	async sendRequest(sessionId: number, request: string | IInteractiveSessionReplyFollowup): Promise<boolean> {
 		const messageText = typeof request === 'string' ? request : request.message;
 		this.trace('sendRequest', `sessionId: ${sessionId}, message: ${messageText.substring(0, 20)}${messageText.length > 20 ? '[...]' : ''}}`);
 		if (!messageText.trim()) {
 			this.trace('sendRequest', 'Rejected empty message');
-			return undefined;
+			return false;
 		}
 
 		const modelPromise = this._initializedSessionModels.get(sessionId);
@@ -293,10 +293,12 @@ export class InteractiveSessionService extends Disposable implements IInteractiv
 
 		if (this._pendingRequests.has(sessionId)) {
 			this.trace('sendRequest', `Session ${sessionId} already has a pending request`);
-			return undefined;
+			return false;
 		}
 
-		return { requestCompletePromise: this._sendRequestAsync(model, provider, request) };
+		// This method is only returning whether the request was accepted - don't block on the actual request
+		this._sendRequestAsync(model, provider, request);
+		return true;
 	}
 
 	private _sendRequestAsync(model: InteractiveSessionModel, provider: IInteractiveProvider, message: string | IInteractiveSessionReplyFollowup): CancelablePromise<void> {

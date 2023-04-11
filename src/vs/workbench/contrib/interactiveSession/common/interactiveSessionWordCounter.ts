@@ -5,7 +5,13 @@
 
 const wordSeparatorCharPattern = /[\s\|\-]/;
 
-export function getNWords(str: string, numWordsToCount: number): { value: string; actualWordCount: number; isFullString: boolean } {
+export interface IWordCountResult {
+	value: string;
+	actualWordCount: number;
+	isFullString: boolean;
+}
+
+export function getNWords(str: string, numWordsToCount: number): IWordCountResult {
 	let wordCount = numWordsToCount;
 	let i = 0;
 	while (i < str.length && wordCount > 0) {
