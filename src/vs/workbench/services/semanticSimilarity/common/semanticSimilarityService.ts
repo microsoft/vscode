@@ -44,7 +44,7 @@ export class SemanticSimilarityService implements ISemanticSimilarityService {
 	}
 
 	isEnabled(): boolean {
-		return this._providers.length > 0;
+		return this._providers.length > 0 || this.oldService.isEnabled();
 	}
 
 	registerSemanticSimilarityProvider(provider: ISemanticSimilarityProvider): IDisposable {
