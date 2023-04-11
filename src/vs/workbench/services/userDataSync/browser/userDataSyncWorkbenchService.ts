@@ -63,6 +63,7 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 	_serviceBrand: any;
 
 	private static DONOT_USE_WORKBENCH_SESSION_STORAGE_KEY = 'userDataSyncAccount.donotUseWorkbenchSession';
+	private static CACHED_AUTHENTICATION_PROVIDER_KEY = 'userDataSyncAccountProvider';
 	private static CACHED_SESSION_STORAGE_KEY = 'userDataSyncAccountPreference';
 
 	get enabled() { return !!this.userDataSyncStoreManagementService.userDataSyncStore; }
@@ -221,6 +222,9 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 
 		this._all = allAccounts;
 		const current = this.current;
+		if (current) {
+			this.currentAuthenticationProviderId = current.authenticationProviderId;
+		}
 		await this.updateToken(current);
 		this.updateAccountStatus(current ? AccountStatus.Available : AccountStatus.Unavailable);
 	}
@@ -293,22 +297,6 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 			throw new Error(localize('no account', "No account available"));
 		}
 
-		await this.turnOnUsingCurrentAccount();
-	}
-
-	async turnOnUsingCurrentAccount(): Promise<void> {
-		if (this.userDataSyncEnablementService.isEnabled()) {
-			return;
-		}
-
-		if (this.userDataSyncService.status !== SyncStatus.Idle) {
-			throw new Error('Cannot turn on sync while syncing');
-		}
-
-		if (this.accountStatus !== AccountStatus.Available) {
-			throw new Error(localize('no account', "No account available"));
-		}
-
 		const turnOnSyncCancellationToken = this.turnOnSyncCancellationToken = new CancellationTokenSource();
 		const disposable = isWeb ? Disposable.None : this.lifecycleService.onBeforeShutdown(e => e.veto((async () => {
 			const { confirmed } = await this.dialogService.confirm({
@@ -335,6 +323,7 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 			await this.synchroniseUserDataSyncStoreType();
 		}
 
+		this.currentAuthenticationProviderId = this.current?.authenticationProviderId;
 		this.notificationService.info(localize('sync turned on', "{0} is turned on", SYNC_TITLE));
 	}
 
@@ -485,7 +474,13 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 	}
 
 	async signIn(): Promise<void> {
-		await this.pick();
+		const currentAuthenticationProviderId = this.currentAuthenticationProviderId;
+		const authenticationProvider = currentAuthenticationProviderId ? this.authenticationProviders.find(p => p.id === currentAuthenticationProviderId) : undefined;
+		if (authenticationProvider) {
+			await this.doSignIn(authenticationProvider);
+		} else {
+			await this.pick();
+		}
 	}
 
 	private async pick(): Promise<boolean> {
@@ -493,20 +488,7 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 		if (!result) {
 			return false;
 		}
-		let sessionId: string, accountName: string, accountId: string, authenticationProviderId: string;
-		if (isAuthenticationProvider(result)) {
-			const session = await this.authenticationService.createSession(result.id, result.scopes);
-			sessionId = session.id;
-			accountName = session.account.label;
-			accountId = session.account.id;
-			authenticationProviderId = result.id;
-		} else {
-			sessionId = result.sessionId;
-			accountName = result.accountName;
-			accountId = result.accountId;
-			authenticationProviderId = result.authenticationProviderId;
-		}
-		await this.switch(sessionId, accountName, accountId, authenticationProviderId);
+		await this.doSignIn(result);
 		return true;
 	}
 
@@ -580,7 +562,16 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 		return quickPickItems;
 	}
 
-	private async switch(sessionId: string, accountName: string, accountId: string, authenticationProviderId: string): Promise<void> {
+	private async doSignIn(accountOrAuthProvider: UserDataSyncAccount | IAuthenticationProvider): Promise<void> {
+		let sessionId: string, accountName: string;
+		if (isAuthenticationProvider(accountOrAuthProvider)) {
+			const session = await this.authenticationService.createSession(accountOrAuthProvider.id, accountOrAuthProvider.scopes);
+			sessionId = session.id;
+			accountName = session.account.label;
+		} else {
+			sessionId = accountOrAuthProvider.sessionId;
+			accountName = accountOrAuthProvider.accountName;
+		}
 		const currentAccount = this.current;
 		if (this.userDataSyncEnablementService.isEnabled() && (currentAccount && currentAccount.accountName !== accountName)) {
 			// accounts are switched while sync is enabled.
@@ -617,6 +608,25 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 			&& this.currentSessionId !== this.getStoredCachedSessionId() /* This checks if current window changed the value or not */) {
 			this._cachedCurrentSessionId = null;
 			this.update();
+		}
+	}
+
+	private _cachedCurrentAuthenticationProviderId: string | undefined | null = null;
+	private get currentAuthenticationProviderId(): string | undefined {
+		if (this._cachedCurrentAuthenticationProviderId === null) {
+			this._cachedCurrentAuthenticationProviderId = this.storageService.get(UserDataSyncWorkbenchService.CACHED_AUTHENTICATION_PROVIDER_KEY, StorageScope.APPLICATION);
+		}
+		return this._cachedCurrentAuthenticationProviderId;
+	}
+
+	private set currentAuthenticationProviderId(currentAuthenticationProviderId: string | undefined) {
+		if (this._cachedCurrentAuthenticationProviderId !== currentAuthenticationProviderId) {
+			this._cachedCurrentAuthenticationProviderId = currentAuthenticationProviderId;
+			if (currentAuthenticationProviderId === undefined) {
+				this.storageService.remove(UserDataSyncWorkbenchService.CACHED_AUTHENTICATION_PROVIDER_KEY, StorageScope.APPLICATION);
+			} else {
+				this.storageService.store(UserDataSyncWorkbenchService.CACHED_AUTHENTICATION_PROVIDER_KEY, currentAuthenticationProviderId, StorageScope.APPLICATION, StorageTarget.MACHINE);
+			}
 		}
 	}
 
