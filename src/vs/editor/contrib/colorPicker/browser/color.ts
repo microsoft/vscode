@@ -23,20 +23,11 @@ export interface IColorData {
 export function getColors(registry: LanguageFeatureRegistry<DocumentColorProvider>, model: ITextModel, token: CancellationToken): Promise<IColorData[]> {
 	const colors: IColorData[] = [];
 	let providers = registry.ordered(model).reverse();
-
-	console.log('Inside of getColors before provideDocumentColors');
-	console.log('Before calling the provide document colors');
-	console.log('providers : ', providers);
-
-	// TODO: If in the settings we have the default inline decorations disabled or we already have another color provider, then remove the default color provider from here
 	if (providers.length > 1) {
 		providers = providers.filter(provider => {
 			return !(provider instanceof DefaultDocumentColorProviderForStandaloneColorPicker);
 		});
 	}
-
-	console.log('providers after filtering : ', providers);
-
 	const promises = providers.map(provider => Promise.resolve(provider.provideDocumentColors(model, token)).then(result => {
 		if (Array.isArray(result)) {
 			for (const colorInfo of result) {
@@ -44,13 +35,11 @@ export function getColors(registry: LanguageFeatureRegistry<DocumentColorProvide
 			}
 		}
 	}));
+
 	return Promise.all(promises).then(() => colors);
 }
 
 export function getColorPresentations(model: ITextModel, colorInfo: IColorInformation, provider: DocumentColorProvider, token: CancellationToken): Promise<IColorPresentation[] | null | undefined> {
-
-	console.log('Before calling the provideColorPresentations');
-
 	return Promise.resolve(provider.provideColorPresentations(model, colorInfo, token));
 }
 
@@ -68,9 +57,6 @@ CommandsRegistry.registerCommand('_executeDocumentColorProvider', function (acce
 
 	const rawCIs: { range: IRange; color: [number, number, number, number] }[] = [];
 	const providers = colorProviderRegistry.ordered(model).reverse();
-
-	console.log('Before calling the provide document colors');
-
 	const promises = providers.map(provider => Promise.resolve(provider.provideDocumentColors(model, CancellationToken.None)).then(result => {
 		if (Array.isArray(result)) {
 			for (const ci of result) {
