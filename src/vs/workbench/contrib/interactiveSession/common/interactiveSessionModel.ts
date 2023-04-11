@@ -234,7 +234,7 @@ export class InteractiveSessionModel extends Disposable implements IInteractiveS
 	}
 
 	get requestInProgress(): boolean {
-		const lastRequest = this._requests.at(-1);
+		const lastRequest = this._requests[this._requests.length - 1];
 		return !!lastRequest && !!lastRequest.response && !lastRequest.response.isComplete;
 	}
 
