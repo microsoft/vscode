@@ -8,6 +8,7 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { UriList, VSDataTransfer } from 'vs/base/common/dataTransfer';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { Mimes } from 'vs/base/common/mime';
+import { Schemas } from 'vs/base/common/network';
 import { relativePath } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { addExternalEditorsDropData, toVSDataTransfer } from 'vs/editor/browser/dnd';
@@ -150,21 +151,21 @@ class DefaultOnDropProvider implements DocumentOnDropEditProvider {
 	}
 
 	private getUriListInsertText(strUriList: string): string | undefined {
-		const uris: URI[] = [];
-		for (const resource of UriList.parse(strUriList)) {
+		const entries: { readonly uri: URI; readonly originalText: string }[] = [];
+		for (const entry of UriList.parse(strUriList)) {
 			try {
-				uris.push(URI.parse(resource));
+				entries.push({ uri: URI.parse(entry), originalText: entry });
 			} catch {
 				// noop
 			}
 		}
 
-		if (!uris.length) {
+		if (!entries.length) {
 			return;
 		}
 
-		return uris
-			.map(uri => {
+		return entries
+			.map(({ uri, originalText }) => {
 				const root = this._workspaceContextService.getWorkspaceFolder(uri);
 				if (root) {
 					const rel = relativePath(root.uri, uri);
@@ -172,7 +173,8 @@ class DefaultOnDropProvider implements DocumentOnDropEditProvider {
 						return rel;
 					}
 				}
-				return uri.fsPath;
+
+				return uri.scheme === Schemas.file ? uri.fsPath : originalText;
 			})
 			.join(' ');
 	}
