@@ -352,7 +352,7 @@ export abstract class CompositePart<T extends Composite> extends Part {
 		return this.activeComposite;
 	}
 
-	protected getLastActiveCompositetId(): string {
+	protected getLastActiveCompositeId(): string {
 		return this.lastActiveCompositeId;
 	}
 
