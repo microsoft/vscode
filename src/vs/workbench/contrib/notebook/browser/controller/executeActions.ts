@@ -8,7 +8,7 @@ import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { ILanguageService } from 'vs/editor/common/languages/language';
 import { localize } from 'vs/nls';
-import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
+import { MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { ThemeIcon } from 'vs/base/common/themables';
@@ -18,19 +18,13 @@ import { cellExecutionArgs, CellToolbarOrder, CELL_TITLE_CELL_GROUP_ID, executeN
 import { NOTEBOOK_CELL_EXECUTING, NOTEBOOK_CELL_EXECUTION_STATE, NOTEBOOK_CELL_LIST_FOCUSED, NOTEBOOK_CELL_TYPE, NOTEBOOK_HAS_RUNNING_CELL, NOTEBOOK_HAS_SOMETHING_RUNNING, NOTEBOOK_INTERRUPTIBLE_KERNEL, NOTEBOOK_IS_ACTIVE_EDITOR, NOTEBOOK_KERNEL_COUNT, NOTEBOOK_KERNEL_SOURCE_COUNT, NOTEBOOK_LAST_CELL_FAILED, NOTEBOOK_MISSING_KERNEL_EXTENSION } from 'vs/workbench/contrib/notebook/common/notebookContextKeys';
 import { CellEditState, CellFocusMode, EXECUTE_CELL_COMMAND_ID } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import * as icons from 'vs/workbench/contrib/notebook/browser/notebookIcons';
-import { CellKind, CellUri, NotebookData, NotebookSetting } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellKind, CellUri, NotebookSetting } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { NotebookEditorInput } from 'vs/workbench/contrib/notebook/common/notebookEditorInput';
 import { INotebookExecutionStateService } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { Schemas } from 'vs/base/common/network';
 import { IDebugService } from 'vs/workbench/contrib/debug/common/debug';
-import { streamToBuffer } from 'vs/base/common/buffer';
-import { IFileService } from 'vs/platform/files/common/files';
-import { ILogService } from 'vs/platform/log/common/log';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { INotebookService, SimpleNotebookProviderInfo } from 'vs/workbench/contrib/notebook/common/notebookService';
-import * as glob from 'glob';
 
 const EXECUTE_NOTEBOOK_COMMAND_ID = 'notebook.execute';
 const CANCEL_NOTEBOOK_COMMAND_ID = 'notebook.cancelExecution';
@@ -93,66 +87,6 @@ async function runCell(editorGroupsService: IEditorGroupsService, context: INote
 		}
 	}
 }
-
-registerAction2(class NotebookDeserializeTest extends Action2 {
-
-	constructor(
-	) {
-		super({
-			id: 'NotebookDeserializeTest',
-			title: {
-				value: localize('notebookDeserializeTest', 'Test Deserialize Perf'),
-				original: 'Test Deserialize Perf'
-			},
-			f1: true
-		});
-	}
-	async run(accessor: ServicesAccessor) {
-		const fileService = accessor.get(IFileService);
-		const notebookService = accessor.get(INotebookService);
-		const workspacesService = accessor.get(IWorkspaceContextService);
-		const logService = accessor.get(ILogService);
-
-		const currWorkspace = workspacesService.getWorkspace();
-		const dir = currWorkspace.folders[0].uri.fsPath;
-
-		glob(dir + '/**/*.ipynb', {}, async (err, files) => {
-			logService.info('notebook deserialize START');
-			let processedFiles = 0;
-			let processedBytes = 0;
-			let processedCells = 0;
-			const start = Date.now();
-			for (const addr of files) {
-				const uri = URI.file(addr);
-				const content = await fileService.readFileStream(uri);
-				try {
-					const info = await notebookService.withNotebookDataProvider('jupyter-notebook');
-					if (!(info instanceof SimpleNotebookProviderInfo)) {
-						throw new Error('CANNOT open file notebook with this provider');
-					}
-
-					let _data: NotebookData = {
-						metadata: {},
-						cells: []
-					};
-					if (uri.scheme !== Schemas.vscodeInteractive) {
-						const bytes = await streamToBuffer(content.value);
-						processedBytes += bytes.byteLength;
-						_data = await info.serializer.dataToNotebook(bytes);
-					}
-
-					processedFiles += 1;
-					processedCells += _data.cells.length;
-				} catch (e) {
-					logService.info('error: ' + e);
-					continue;
-				}
-			}
-			const end = Date.now();
-			logService.info(`notebook deserialize END | ${end - start}ms | ${((processedBytes / 1024) / 1024).toFixed(2)}MB | Number of Files: ${processedFiles} | Number of Cells: ${processedCells}`);
-		});
-	}
-});
 
 registerAction2(class RenderAllMarkdownCellsAction extends NotebookAction {
 	constructor() {
