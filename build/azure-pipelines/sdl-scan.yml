@@ -100,10 +100,10 @@ stages:
               . build/azure-pipelines/win32/exec.ps1
               . build/azure-pipelines/win32/retry.ps1
               $ErrorActionPreference = "Stop"
+              $env:npm_config_node_gyp = "$(Join-Path $pwd.Path '.build/node-gyp/bin/node-gyp.js')"
+              $env:npm_config_arch = "$(NPM_ARCH)"
               retry { exec { yarn --frozen-lockfile --check-files } }
             env:
-              npm_config_node_gyp: "$(Join-Path $pwd.Path '.build/node-gyp/bin/node-gyp.js')"
-              npm_config_arch: "$(NPM_ARCH)"
               PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
               GITHUB_TOKEN: "$(github-distro-mixin-password)"
               CHILD_CONCURRENCY: 1
