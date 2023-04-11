@@ -287,10 +287,6 @@ export class NotebookMatch extends Match {
 		return this.isWebviewMatch() ? 'webview' : 'content';
 	}
 
-	// private getRangeString(): string {
-	// 	return `[${this._notebookMatchInfo.matchStartIndex},${this._notebookMatchInfo.matchStartIndex}]`;
-	// }
-
 	public isWebviewMatch() {
 		return this._webviewIndex !== undefined;
 	}
@@ -298,14 +294,6 @@ export class NotebookMatch extends Match {
 	get cellIndex() {
 		return this._cellParent.cellIndex;
 	}
-
-	// get matchStartIndex() {
-	// 	return this._notebookMatchInfo.matchStartIndex;
-	// }
-
-	// get matchEndIndex() {
-	// 	return this._notebookMatchInfo.matchEndIndex;
-	// }
 
 	get webviewIndex() {
 		return this._webviewIndex;
@@ -719,7 +707,7 @@ export class FileMatch extends Disposable implements IFileMatch {
 		super.dispose();
 	}
 
-	// #region notebook methods
+	// #region strictly notebook methods
 	bindNotebookEditorWidget(widget: NotebookEditorWidget) {
 		if (this._notebookEditorWidget === widget) {
 			return;
@@ -950,7 +938,7 @@ export class FolderMatch extends Disposable {
 		const fileMatch = this._fileMatches.get(resource);
 
 		if (fileMatch) {
-			await fileMatch.bindNotebookEditorWidget(editor);
+			fileMatch.bindNotebookEditorWidget(editor);
 			await fileMatch.updateMatchesForEditorWidget();
 		} else {
 			const folderMatches = this.folderMatchesIterator();
@@ -1894,7 +1882,6 @@ export class SearchResult extends Disposable {
 	}
 }
 
-
 export class SearchModel extends Disposable {
 
 	private _searchResult: SearchResult;
@@ -2079,7 +2066,7 @@ export class SearchModel extends Disposable {
 					"duration" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true }
 				}
 			*/
-			this.telemetryService.publicLog('searchResuFltsFirstRender', { duration: Date.now() - start });
+			this.telemetryService.publicLog('searchResultsFirstRender', { duration: Date.now() - start });
 		});
 
 		currentRequest.then(
