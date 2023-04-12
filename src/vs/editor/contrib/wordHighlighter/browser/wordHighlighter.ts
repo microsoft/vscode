@@ -117,6 +117,9 @@ class SemanticOccurenceAtPositionRequest extends OccurenceAtPositionRequest {
 	}
 
 	protected _compute(model: ITextModel, selection: Selection, wordSeparators: string, token: CancellationToken): Promise<DocumentHighlight[]> {
+		if (!selection.isEmpty()) {
+			return [];
+		}
 		return getOccurrencesAtPosition(this._providers, model, selection.getPosition(), token).then(value => value || []);
 	}
 }
