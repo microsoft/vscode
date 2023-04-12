@@ -39,7 +39,6 @@ pub fn new_msgpack_rpc() -> rpc::RpcBuilder<MsgPackSerializer> {
 	rpc::RpcBuilder::new(MsgPackSerializer {})
 }
 
-#[allow(clippy::read_zero_byte_vec)] // false positive
 pub async fn start_msgpack_rpc<C: Send + Sync + 'static, S: Clone>(
 	dispatcher: rpc::RpcDispatcher<MsgPackSerializer, C>,
 	read: impl AsyncRead + Unpin,
