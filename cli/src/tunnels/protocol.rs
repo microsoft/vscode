@@ -158,6 +158,20 @@ impl Default for VersionParams {
 	}
 }
 
+#[derive(Deserialize)]
+pub struct SpawnParams {
+	pub command: String,
+	pub args: Vec<String>,
+	#[serde(default)]
+	pub env: HashMap<String, String>,
+}
+
+#[derive(Serialize)]
+pub struct SpawnResult {
+	pub message: String,
+	pub exit_code: i32,
+}
+
 pub mod singleton {
 	use crate::log;
 	use serde::{Deserialize, Serialize};

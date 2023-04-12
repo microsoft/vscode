@@ -8,11 +8,7 @@
 // but we need the typings to compile on all platforms.
 // The `@types/windows-process-tree` package has also been deprecated.
 declare module '@vscode/windows-process-tree' {
-	export enum ProcessDataFlag {
-		None = 0,
-		Memory = 1,
-		CommandLine = 2
-	}
+	export enum ProcessDataFlag { }
 
 	export interface IProcessInfo {
 		pid: number;

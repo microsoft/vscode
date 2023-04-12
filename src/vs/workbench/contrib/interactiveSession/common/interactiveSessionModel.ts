@@ -52,7 +52,10 @@ export class InteractiveRequestModel implements IInteractiveRequestModel {
 		return this._id;
 	}
 
-	constructor(public readonly message: string | IInteractiveSessionReplyFollowup, public readonly username: string, public readonly avatarIconUri?: URI) {
+	constructor(
+		public readonly message: string | IInteractiveSessionReplyFollowup,
+		public readonly username: string,
+		public readonly avatarIconUri?: URI) {
 		this._id = 'request_' + InteractiveRequestModel.nextId++;
 	}
 }
@@ -68,50 +71,47 @@ export class InteractiveResponseModel extends Disposable implements IInteractive
 		return this._id;
 	}
 
-	private _providerResponseId: string | undefined;
 	public get providerResponseId(): string | undefined {
 		return this._providerResponseId;
 	}
 
-	private _isComplete: boolean;
 	public get isComplete(): boolean {
 		return this._isComplete;
 	}
 
-	private _isCanceled: boolean;
 	public get isCanceled(): boolean {
 		return this._isCanceled;
 	}
 
-	private _vote: InteractiveSessionVoteDirection | undefined;
 	public get vote(): InteractiveSessionVoteDirection | undefined {
 		return this._vote;
 	}
 
-	private _followups: IInteractiveSessionFollowup[] | undefined;
 	public get followups(): IInteractiveSessionFollowup[] | undefined {
 		return this._followups;
 	}
 
-	private _response: IMarkdownString;
 	public get response(): IMarkdownString {
 		return this._response;
 	}
 
-	private _errorDetails: IInteractiveResponseErrorDetails | undefined;
 	public get errorDetails(): IInteractiveResponseErrorDetails | undefined {
 		return this._errorDetails;
 	}
 
-	constructor(response: IMarkdownString, public readonly username: string, public readonly providerId: string, public readonly avatarIconUri?: URI, isComplete: boolean = false, isCanceled = false, vote?: InteractiveSessionVoteDirection, providerResponseId?: string, errorDetails?: IInteractiveResponseErrorDetails, followups?: IInteractiveSessionFollowup[]) {
+	constructor(
+		private _response: IMarkdownString,
+		public readonly username: string,
+		public readonly providerId: string,
+		public readonly avatarIconUri?: URI,
+		private _isComplete: boolean = false,
+		private _isCanceled = false,
+		private _vote?: InteractiveSessionVoteDirection,
+		private _providerResponseId?: string,
+		private _errorDetails?: IInteractiveResponseErrorDetails,
+		private _followups?: IInteractiveSessionFollowup[]
+	) {
 		super();
-		this._response = response;
-		this._isComplete = isComplete;
-		this._followups = followups;
-		this._providerResponseId = providerResponseId;
-		this._errorDetails = errorDetails;
-		this._isCanceled = isCanceled;
-		this._vote = vote;
 		this._id = 'response_' + InteractiveResponseModel.nextId++;
 	}
 
@@ -153,6 +153,7 @@ export interface IInteractiveSessionModel {
 	readonly sessionId: number;
 	readonly providerId: string;
 	readonly welcomeMessage: IInteractiveSessionWelcomeMessageModel | undefined;
+	readonly requestInProgress: boolean;
 	readonly inputPlaceholder?: string;
 	getRequests(): IInteractiveRequestModel[];
 }
@@ -232,6 +233,11 @@ export class InteractiveSessionModel extends Disposable implements IInteractiveS
 		return this._session?.inputPlaceholder;
 	}
 
+	get requestInProgress(): boolean {
+		const lastRequest = this._requests[this._requests.length - 1];
+		return !!lastRequest && !!lastRequest.response && !lastRequest.response.isComplete;
+	}
+
 	constructor(
 		public readonly providerId: string,
 		initialData: ISerializableInteractiveSessionData | undefined,
@@ -283,9 +289,6 @@ export class InteractiveSessionModel extends Disposable implements IInteractiveS
 		}
 
 		const request = new InteractiveRequestModel(message, this._session.requesterUsername, this._session.requesterAvatarIconUri);
-
-		// TODO this is suspicious, maybe the request should know that it is "in progress" instead of having a fake response model.
-		// But the response already knows that it is "in progress" and so does a map in the session service.
 		request.response = new InteractiveResponseModel(new MarkdownString(''), this._session.responderUsername, this.providerId, this._session.responderAvatarIconUri);
 
 		this._requests.push(request);
@@ -300,6 +303,10 @@ export class InteractiveSessionModel extends Disposable implements IInteractiveS
 
 		if (!request.response) {
 			request.response = new InteractiveResponseModel(new MarkdownString(''), this._session.responderUsername, this.providerId, this._session.responderAvatarIconUri);
+		}
+
+		if (request.response.isComplete) {
+			throw new Error('acceptResponseProgress: Adding progress to a completed response');
 		}
 
 		if ('content' in progress) {

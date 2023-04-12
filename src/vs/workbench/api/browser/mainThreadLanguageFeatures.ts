@@ -907,8 +907,8 @@ export class MainThreadLanguageFeatures extends Disposable implements MainThread
 
 	private readonly _documentOnDropEditProviders = new Map<number, MainThreadDocumentOnDropEditProvider>();
 
-	$registerDocumentOnDropEditProvider(handle: number, selector: IDocumentFilterDto[]): void {
-		const provider = new MainThreadDocumentOnDropEditProvider(handle, this._proxy, this._uriIdentService);
+	$registerDocumentOnDropEditProvider(handle: number, selector: IDocumentFilterDto[], metadata?: { id: string; dropMimeTypes?: string[] }): void {
+		const provider = new MainThreadDocumentOnDropEditProvider(handle, metadata, this._proxy, this._uriIdentService);
 		this._documentOnDropEditProviders.set(handle, provider);
 		this._registrations.set(handle, combinedDisposable(
 			this._languageFeaturesService.documentOnDropEditProvider.register(selector, provider),
@@ -990,11 +990,18 @@ class MainThreadDocumentOnDropEditProvider implements languages.DocumentOnDropEd
 
 	private readonly dataTransfers = new DataTransferCache();
 
+	readonly id?: string;
+	readonly dropMimeTypes?: readonly string[];
+
 	constructor(
 		private readonly handle: number,
+		metadata: { id: string; dropMimeTypes?: readonly string[] } | undefined,
 		private readonly _proxy: ExtHostLanguageFeaturesShape,
 		@IUriIdentityService private readonly _uriIdentService: IUriIdentityService
-	) { }
+	) {
+		this.id = metadata?.id;
+		this.dropMimeTypes = metadata?.dropMimeTypes;
+	}
 
 	async provideDocumentOnDropEdits(model: ITextModel, position: IPosition, dataTransfer: VSDataTransfer, token: CancellationToken): Promise<languages.DocumentOnDropEdit | null | undefined> {
 		const request = this.dataTransfers.add(dataTransfer);
@@ -1005,6 +1012,7 @@ class MainThreadDocumentOnDropEditProvider implements languages.DocumentOnDropEd
 				return undefined;
 			}
 			return {
+				label: edit.label,
 				insertText: edit.insertText,
 				additionalEdit: reviveWorkspaceEditDto(edit.additionalEdit, this._uriIdentService),
 			};

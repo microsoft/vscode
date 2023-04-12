@@ -12,6 +12,7 @@ import { DisposableStore, repositoryHasGitHubRemote } from './util';
 import { GithubPushErrorHandler } from './pushErrorHandler';
 import { GitBaseExtension } from './typings/git-base';
 import { GithubRemoteSourcePublisher } from './remoteSourcePublisher';
+import { GithubBranchProtectionProviderManager } from './branchProtection';
 
 export function activate(context: ExtensionContext): void {
 	context.subscriptions.push(initializeGitBaseExtension());
@@ -77,6 +78,7 @@ function initializeGitExtension(): Disposable {
 
 						disposables.add(registerCommands(gitAPI));
 						disposables.add(new GithubCredentialProviderManager(gitAPI));
+						disposables.add(new GithubBranchProtectionProviderManager(gitAPI));
 						disposables.add(gitAPI.registerPushErrorHandler(new GithubPushErrorHandler()));
 						disposables.add(gitAPI.registerRemoteSourcePublisher(new GithubRemoteSourcePublisher(gitAPI)));
 						setGitHubContext(gitAPI, disposables);

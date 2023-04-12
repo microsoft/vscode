@@ -68,7 +68,7 @@ impl ServerPaths {
 
 	// VS Code Server pid
 	pub fn write_pid(&self, pid: u32) -> Result<(), WrappedError> {
-		write(&self.pidfile, &format!("{}", pid)).map_err(|e| {
+		write(&self.pidfile, format!("{}", pid)).map_err(|e| {
 			wrap(
 				e,
 				format!("error writing process id into {}", self.pidfile.display()),
