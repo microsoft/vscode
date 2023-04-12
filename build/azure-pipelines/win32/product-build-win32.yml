@@ -82,15 +82,24 @@ steps:
     condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'), ne(variables['NPM_REGISTRY'], 'none'))
     displayName: Setup NPM Authentication
 
+
   - powershell: |
       . build/azure-pipelines/win32/exec.ps1
       $ErrorActionPreference = "Stop"
-      exec { git clone https://github.com/rzhao271/node-gyp.git .build/node-gyp } "Cloning rzhao271/node-gyp failed"
-      cd .build/node-gyp
+      exec { mkdir -Force .build/node-gyp }
+    displayName: Create custom node-gyp directory
+    condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
+  
+  - powershell: |
+      . build/azure-pipelines/win32/exec.ps1
+      $ErrorActionPreference = "Stop"
+      # TODO: Should be replaced with upstream URL once https://github.com/nodejs/node-gyp/pull/2825
+      # gets merged.
+      exec { git clone https://github.com/rzhao271/node-gyp.git . } "Cloning rzhao271/node-gyp failed"
       exec { git checkout 102b347da0c92c29f9c67df22e864e70249cf086 } "Checking out 102b347 failed"
       exec { npm install } "Building rzhao271/node-gyp failed"
-      cd ../..
     displayName: Install custom node-gyp
+    workingDirectory: .build/node-gyp
     condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
 
   - powershell: |
