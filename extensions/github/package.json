@@ -133,7 +133,7 @@
           "github.branchProtection": {
             "type": "boolean",
             "scope": "resource",
-            "default": true,
+            "default": false,
             "description": "%config.branchProtection%"
           },
           "github.gitAuthentication": {
