@@ -5,6 +5,8 @@
 
 import { isWindows } from 'vs/base/common/platform';
 import { localize } from 'vs/nls';
+import { IProductService } from 'vs/platform/product/common/productService';
+import { IWorkbenchAssignmentService } from 'vs/workbench/services/assignment/common/assignmentService';
 export interface ITOCEntry<T> {
 	id: string;
 	label: string;
@@ -13,11 +15,29 @@ export interface ITOCEntry<T> {
 	settings?: Array<T>;
 }
 
-export const commonlyUsedData: ITOCEntry<string> = {
-	id: 'commonlyUsed',
-	label: localize('commonlyUsed', "Commonly Used"),
-	settings: ['files.autoSave', 'editor.fontSize', 'editor.fontFamily', 'editor.tabSize', 'editor.renderWhitespace', 'editor.cursorStyle', 'editor.multiCursorModifier', 'editor.insertSpaces', 'editor.wordWrap', 'files.exclude', 'files.associations', 'workbench.editor.enablePreview']
-};
+const defaultCommonlyUsedSettings: string[] = [
+	'files.autoSave',
+	'editor.fontSize',
+	'editor.fontFamily',
+	'editor.tabSize',
+	'editor.renderWhitespace',
+	'editor.cursorStyle',
+	'editor.multiCursorModifier',
+	'editor.insertSpaces',
+	'editor.wordWrap',
+	'files.exclude',
+	'files.associations',
+	'workbench.editor.enablePreview'
+];
+
+export async function getCommonlyUsedData(productService: IProductService, workbenchAssignmentService: IWorkbenchAssignmentService): Promise<ITOCEntry<string>> {
+	const isTreatment = await workbenchAssignmentService.getTreatment<boolean>('ExtensionToggleSettings');
+	return {
+		id: 'commonlyUsed',
+		label: localize('commonlyUsed', "Commonly Used"),
+		settings: ((isTreatment || !productService.quality) && productService?.commonlyUsedSettings) || defaultCommonlyUsedSettings
+	};
+}
 
 export const tocData: ITOCEntry<string> = {
 	id: 'root',

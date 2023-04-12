@@ -191,6 +191,9 @@ export interface IProductConfiguration {
 	readonly 'editSessions.store'?: Omit<ConfigurationSyncStore, 'insidersUrl' | 'stableUrl'>;
 	readonly darwinUniversalAssetId?: string;
 	readonly profileTemplatesUrl?: string;
+
+	readonly extensionToggleConfigurations?: any;
+	readonly commonlyUsedSettings?: string[];
 }
 
 export interface ITunnelApplicationConfig {

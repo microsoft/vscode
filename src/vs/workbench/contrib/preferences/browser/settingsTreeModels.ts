@@ -21,6 +21,7 @@ import { ConfigurationScope, EditPresentationTypes, Extensions, IConfigurationRe
 import { ILanguageService } from 'vs/editor/common/languages/language';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
+import { IProductService } from 'vs/platform/product/common/productService';
 
 export const ONLINE_SERVICES_SETTING_TAG = 'usesOnlineServices';
 
@@ -168,7 +169,8 @@ export class SettingsTreeSettingElement extends SettingsTreeElement {
 		parent: SettingsTreeGroupElement,
 		inspectResult: IInspectResult,
 		isWorkspaceTrusted: boolean,
-		private readonly languageService: ILanguageService
+		private readonly languageService: ILanguageService,
+		private readonly productService: IProductService
 	) {
 		super(sanitizeId(parent.id + '_' + setting.key));
 		this.setting = setting;
@@ -303,7 +305,10 @@ export class SettingsTreeSettingElement extends SettingsTreeElement {
 			this.description = this.setting.description.join('\n');
 		}
 
-		if (this.setting.enum && (!this.setting.type || settingTypeEnumRenderable(this.setting.type))) {
+		if (this.productService.extensionToggleConfigurations &&
+			this.setting.key in this.productService.extensionToggleConfigurations.properties) {
+			this.valueType = SettingValueType.ExtensionToggle;
+		} else if (this.setting.enum && (!this.setting.type || settingTypeEnumRenderable(this.setting.type))) {
 			this.valueType = SettingValueType.Enum;
 		} else if (this.setting.type === 'string') {
 			if (this.setting.editPresentation === EditPresentationTypes.Multiline) {
@@ -476,6 +481,7 @@ export class SettingsTreeModel {
 		@IWorkbenchConfigurationService private readonly _configurationService: IWorkbenchConfigurationService,
 		@ILanguageService private readonly _languageService: ILanguageService,
 		@IUserDataProfileService private readonly _userDataProfileService: IUserDataProfileService,
+		@IProductService private readonly _productService: IProductService
 	) {
 	}
 
@@ -583,7 +589,7 @@ export class SettingsTreeModel {
 	private createSettingsTreeSettingElement(setting: ISetting, parent: SettingsTreeGroupElement): SettingsTreeSettingElement {
 		const target = this.getTargetToInspect(setting.scope);
 		const inspectResult = inspectSetting(setting.key, target, this._viewState.languageFilter, this._configurationService);
-		const element = new SettingsTreeSettingElement(setting, parent, inspectResult, this._isWorkspaceTrusted, this._languageService);
+		const element = new SettingsTreeSettingElement(setting, parent, inspectResult, this._isWorkspaceTrusted, this._languageService, this._productService);
 
 		const nameElements = this._treeElementsBySettingName.get(setting.key) || [];
 		nameElements.push(element);
@@ -826,8 +832,9 @@ export class SearchResultModel extends SettingsTreeModel {
 		@IWorkbenchEnvironmentService private environmentService: IWorkbenchEnvironmentService,
 		@ILanguageService languageService: ILanguageService,
 		@IUserDataProfileService userDataProfileService: IUserDataProfileService,
+		@IProductService productService: IProductService
 	) {
-		super(viewState, isWorkspaceTrusted, configurationService, languageService, userDataProfileService);
+		super(viewState, isWorkspaceTrusted, configurationService, languageService, userDataProfileService, productService);
 		this.update({ id: 'searchResultModel', label: '' });
 	}
 

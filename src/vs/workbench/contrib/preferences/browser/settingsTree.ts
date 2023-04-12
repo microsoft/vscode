@@ -64,6 +64,11 @@ import { IUserDataProfilesService } from 'vs/platform/userDataProfile/common/use
 import { defaultButtonStyles, getInputBoxStyle, getListStyles, getSelectBoxStyles } from 'vs/platform/theme/browser/defaultStyles';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { RenderIndentGuides } from 'vs/base/browser/ui/tree/abstractTree';
+import { IExtensionManagementService } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IExtension, IExtensionsWorkbenchService } from 'vs/workbench/contrib/extensions/common/extensions';
+import { IProductService } from 'vs/platform/product/common/productService';
+import { EnablementState } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 
 const $ = DOM.$;
 
@@ -603,6 +608,10 @@ interface ISettingBoolItemTemplate extends ISettingItemTemplate<boolean> {
 	checkbox: Toggle;
 }
 
+interface ISettingExtensionToggleItemTemplate extends ISettingItemTemplate<undefined> {
+	actionButton: Button;
+}
+
 interface ISettingTextItemTemplate extends ISettingItemTemplate<string> {
 	inputBox: InputBox;
 	validationErrorMessageElement: HTMLElement;
@@ -659,6 +668,7 @@ const SETTINGS_BOOL_OBJECT_TEMPLATE_ID = 'settings.boolObject.template';
 const SETTINGS_COMPLEX_TEMPLATE_ID = 'settings.complex.template';
 const SETTINGS_NEW_EXTENSIONS_TEMPLATE_ID = 'settings.newExtensions.template';
 const SETTINGS_ELEMENT_TEMPLATE_ID = 'settings.group.template';
+const SETTINGS_EXTENSION_TOGGLE_TEMPLATE_ID = 'settings.boolWithEnable.template';
 
 export interface ISettingChangeEvent {
 	key: string;
@@ -758,6 +768,10 @@ export abstract class AbstractSettingRenderer extends Disposable implements ITre
 		@IContextMenuService protected readonly _contextMenuService: IContextMenuService,
 		@IKeybindingService protected readonly _keybindingService: IKeybindingService,
 		@IConfigurationService protected readonly _configService: IConfigurationService,
+		@IExtensionManagementService protected readonly _extensionManagementService: IExtensionManagementService,
+		@IExtensionsWorkbenchService protected readonly _extensionsWorkbenchService: IExtensionsWorkbenchService,
+		@IProductService protected readonly _productService: IProductService,
+		@ITelemetryService protected readonly _telemetryService: ITelemetryService,
 	) {
 		super();
 
@@ -1878,6 +1892,112 @@ export class SettingBoolRenderer extends AbstractSettingRenderer implements ITre
 	}
 }
 
+type ExtensionToggleSettingTelemetryClassification = {
+	action: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The type of action performed by the setting button' };
+	owner: 'rzhao271';
+	comment: 'Event used to gain insights into when users are using the experimental service enable setting';
+};
+
+export class SettingsExtensionToggleRenderer extends AbstractSettingRenderer implements ITreeRenderer<SettingsTreeSettingElement, never, ISettingExtensionToggleItemTemplate> {
+	templateId = SETTINGS_EXTENSION_TOGGLE_TEMPLATE_ID;
+
+	renderTemplate(_container: HTMLElement): ISettingExtensionToggleItemTemplate {
+		const common = super.renderCommonTemplate(null, _container, 'extension-toggle');
+
+		const actionButton = new Button(common.containerElement, {
+			title: true,
+			...defaultButtonStyles
+		});
+		actionButton.element.classList.add('setting-item-extension-toggle-button');
+
+		const template: ISettingExtensionToggleItemTemplate = {
+			...common,
+			actionButton
+		};
+
+		this.addSettingElementFocusHandler(template);
+
+		return template;
+	}
+
+	renderElement(element: ITreeNode<SettingsTreeSettingElement, never>, index: number, templateData: ISettingExtensionToggleItemTemplate): void {
+		super.renderSettingElement(element, index, templateData);
+	}
+
+	private getExtensionEnablementState(extensionName: string, insidersExtensionName: string): { extension: IExtension | undefined; installed: boolean; enabled: boolean } {
+		const isStable = this._productService.quality === 'stable';
+		let extensionQuery = isStable ? extensionName : insidersExtensionName;
+		let extension: IExtension | undefined = this._extensionsWorkbenchService.installed.find(e => e.identifier.id === extensionQuery);
+		if (!extension) {
+			extensionQuery = isStable ? insidersExtensionName : extensionName;
+			extension = this._extensionsWorkbenchService.installed.find(e => e.identifier.id === extensionQuery);
+		}
+		const installed = !!extension;
+		const enabled = extension?.enablementState === EnablementState.EnabledGlobally;
+		return { extension, installed, enabled };
+	}
+
+	private renderControls(actionButton: Button, installed: boolean, enabled: boolean, installButtonText: string, enableButtonText: string, disableButtonText: string): void {
+		if (!installed) {
+			actionButton.element.textContent = installButtonText;
+		} else if (!enabled) {
+			actionButton.element.textContent = enableButtonText;
+		} else {
+			actionButton.element.textContent = disableButtonText;
+		}
+		actionButton.element.title = actionButton.element.textContent;
+		actionButton.label = actionButton.element.textContent;
+	}
+
+	protected renderValue(dataElement: SettingsTreeSettingElement, template: ISettingExtensionToggleItemTemplate, onChange: (value: boolean) => void): void {
+		template.elementDisposables.clear();
+		const extensionName = dataElement.setting?.extensionName ?? '';
+		const nightlyExtensionName = dataElement.setting?.nightlyExtensionName ?? '';
+		const installButtonText = dataElement.setting?.installButtonText ?? '';
+		const enableButtonText = dataElement.setting?.enableButtonText ?? '';
+		const disableButtonText = dataElement.setting?.disableButtonText ?? '';
+
+		// Hide the button if and only if the extension has been installed.
+		template.elementDisposables.add(this._extensionsWorkbenchService.onChange((e) => {
+			if ([extensionName, nightlyExtensionName].includes(e?.identifier.id ?? '')) {
+				const { installed, enabled } = this.getExtensionEnablementState(extensionName, nightlyExtensionName);
+				this.renderControls(template.actionButton, installed, enabled, installButtonText, enableButtonText, disableButtonText);
+			}
+		}));
+
+		template.elementDisposables.add(template.actionButton.onDidClick(async () => {
+			let enablementState = this.getExtensionEnablementState(extensionName, nightlyExtensionName);
+			let action = '';
+			if (!enablementState.installed) {
+				action = 'install';
+				await this._commandService.executeCommand('workbench.extensions.installExtension',
+					this._productService.quality !== 'stable' ? nightlyExtensionName : extensionName);
+			} else if (!enablementState.extension) {
+				action = 'error';
+			} else if (!enablementState.enabled) {
+				action = 'enable';
+				await this._extensionsWorkbenchService.setEnablement(enablementState.extension, EnablementState.EnabledGlobally);
+				if (dataElement.setting?.requiresReloadOnEnable) {
+					await this._commandService.executeCommand('workbench.action.reloadWindow');
+				}
+			} else {
+				action = 'disable';
+				await this._extensionsWorkbenchService.setEnablement(enablementState.extension, EnablementState.DisabledGlobally);
+				if (dataElement.setting?.requiresReloadOnDisable) {
+					await this._commandService.executeCommand('workbench.action.reloadWindow');
+				}
+			}
+			this._telemetryService.publicLog2<{ action: string }, ExtensionToggleSettingTelemetryClassification>('ExtensionToggleClick', { action });
+
+			enablementState = this.getExtensionEnablementState(extensionName, nightlyExtensionName);
+			this.renderControls(template.actionButton, enablementState.installed, enablementState.enabled, installButtonText, enableButtonText, disableButtonText);
+		}));
+
+		const enablementState = this.getExtensionEnablementState(extensionName, nightlyExtensionName);
+		this.renderControls(template.actionButton, enablementState.installed, enablementState.enabled, installButtonText, enableButtonText, disableButtonText);
+	}
+}
+
 export class SettingTreeRenderers {
 	readonly onDidClickOverrideElement: Event<ISettingOverrideClickEvent>;
 
@@ -1936,6 +2056,7 @@ export class SettingTreeRenderers {
 			this._instantiationService.createInstance(SettingEnumRenderer, this.settingActions, actionFactory),
 			this._instantiationService.createInstance(SettingObjectRenderer, this.settingActions, actionFactory),
 			this._instantiationService.createInstance(SettingBoolObjectRenderer, this.settingActions, actionFactory),
+			this._instantiationService.createInstance(SettingsExtensionToggleRenderer, this.settingActions, actionFactory)
 		];
 
 		this.onDidClickOverrideElement = Event.any(...settingRenderers.map(r => r.onDidClickOverrideElement));
@@ -2146,6 +2267,10 @@ class SettingsTreeDelegate extends CachedListVirtualDelegate<SettingsTreeGroupCh
 		}
 
 		if (element instanceof SettingsTreeSettingElement) {
+			if (element.valueType === SettingValueType.ExtensionToggle) {
+				return SETTINGS_EXTENSION_TOGGLE_TEMPLATE_ID;
+			}
+
 			const invalidTypeError = element.isConfigured && getInvalidTypeError(element.value, element.setting.type);
 			if (invalidTypeError) {
 				return SETTINGS_COMPLEX_TEMPLATE_ID;

@@ -213,6 +213,15 @@ export interface IConfigurationPropertySchema extends IJSONSchema {
 	 * a system-wide policy.
 	 */
 	policy?: IPolicy;
+
+	// Experimental properties for ExtensionToggle settings
+	extensionName?: string;
+	nightlyExtensionName?: string;
+	installButtonText?: string;
+	enableButtonText?: string;
+	disableButtonText?: string;
+	requiresReloadOnDisable?: boolean;
+	requiresReloadOnEnable?: boolean;
 }
 
 export interface IExtensionInfo {

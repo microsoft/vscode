@@ -39,7 +39,7 @@ import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
 import { IEditorMemento, IEditorOpenContext, IEditorPane } from 'vs/workbench/common/editor';
 import { SuggestEnabledInput } from 'vs/workbench/contrib/codeEditor/browser/suggestEnabledInput/suggestEnabledInput';
 import { SettingsTarget, SettingsTargetsWidget } from 'vs/workbench/contrib/preferences/browser/preferencesWidgets';
-import { commonlyUsedData, tocData } from 'vs/workbench/contrib/preferences/browser/settingsLayout';
+import { getCommonlyUsedData, tocData } from 'vs/workbench/contrib/preferences/browser/settingsLayout';
 import { AbstractSettingRenderer, HeightChangeParams, ISettingLinkClickEvent, resolveConfiguredUntrustedSettings, createTocTreeForExtensionSettings, resolveSettingsTree, SettingsTree, SettingTreeRenderers } from 'vs/workbench/contrib/preferences/browser/settingsTree';
 import { ISettingsEditorViewState, parseQuery, SearchResultIdx, SearchResultModel, SettingsTreeElement, SettingsTreeGroupChild, SettingsTreeGroupElement, SettingsTreeModel, SettingsTreeSettingElement } from 'vs/workbench/contrib/preferences/browser/settingsTreeModels';
 import { createTOCIterator, TOCTree, TOCTreeModel } from 'vs/workbench/contrib/preferences/browser/tocTree';
@@ -64,6 +64,8 @@ import { ISettingOverrideClickEvent } from 'vs/workbench/contrib/preferences/bro
 import { ConfigurationScope, Extensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { defaultButtonStyles } from 'vs/platform/theme/browser/defaultStyles';
+import { IWorkbenchAssignmentService } from 'vs/workbench/services/assignment/common/assignmentService';
+import { IProductService } from 'vs/platform/product/common/productService';
 
 export const enum SettingsFocusContext {
 	Search,
@@ -229,7 +231,9 @@ export class SettingsEditor2 extends EditorPane {
 		@IWorkspaceTrustManagementService private readonly workspaceTrustManagementService: IWorkspaceTrustManagementService,
 		@IExtensionService private readonly extensionService: IExtensionService,
 		@ILanguageService private readonly languageService: ILanguageService,
-		@IExtensionManagementService extensionManagementService: IExtensionManagementService
+		@IExtensionManagementService extensionManagementService: IExtensionManagementService,
+		@IWorkbenchAssignmentService private readonly workbenchAssignmentService: IWorkbenchAssignmentService,
+		@IProductService private readonly productService: IProductService
 	) {
 		super(SettingsEditor2.ID, telemetryService, themeService, storageService);
 		this.delayedFilterLogging = new Delayer<void>(1000);
@@ -1210,7 +1214,8 @@ export class SettingsEditor2 extends EditorPane {
 			this.hasWarnedMissingSettings = true;
 		}
 
-		const commonlyUsed = resolveSettingsTree(commonlyUsedData, dividedGroups.core, this.logService);
+		const commonlyUsedDataToUse = await getCommonlyUsedData(this.productService, this.workbenchAssignmentService);
+		const commonlyUsed = resolveSettingsTree(commonlyUsedDataToUse, dividedGroups.core, this.logService);
 		resolvedSettingsRoot.children!.unshift(commonlyUsed.tree);
 
 		resolvedSettingsRoot.children!.push(await createTocTreeForExtensionSettings(this.extensionService, dividedGroups.extension || []));

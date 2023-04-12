@@ -9,8 +9,10 @@ import { IConfigurationRegistry, Extensions as ConfigurationExtensions, Configur
 import { isMacintosh, isWindows, isLinux, isWeb, isNative } from 'vs/base/common/platform';
 import { ConfigurationMigrationWorkbenchContribution, securityConfigurationNodeBase, workbenchConfigurationNodeBase } from 'vs/workbench/common/configuration';
 import { isStandalone } from 'vs/base/browser/browser';
-import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
+import { IWorkbenchContribution, IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
+import { IWorkbenchAssignmentService } from 'vs/workbench/services/assignment/common/assignmentService';
+import { IProductService } from 'vs/platform/product/common/productService';
 
 const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
 
@@ -491,7 +493,7 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				'type': 'boolean',
 				'default': true,
 				'description': localize('tips.enabled', "When enabled, will show the watermark tips when no editor is open.")
-			},
+			}
 		}
 	});
 
@@ -708,3 +710,21 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 		}
 	});
 })();
+
+class ExtensionToggleSettingContribution implements IWorkbenchContribution {
+	constructor(
+		@IWorkbenchAssignmentService workbenchAssignmentService: IWorkbenchAssignmentService,
+		@IProductService productService: IProductService
+	) {
+		workbenchAssignmentService.getTreatment<boolean>('ExtensionToggleSettings').then(isTreatment => {
+			if ((isTreatment || !productService.quality) && productService.extensionToggleConfigurations) {
+				registry.registerConfiguration({
+					...workbenchConfigurationNodeBase,
+					...productService.extensionToggleConfigurations
+				});
+			}
+		});
+	}
+}
+
+Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(ExtensionToggleSettingContribution, LifecyclePhase.Restored);
