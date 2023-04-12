@@ -17,7 +17,7 @@ import { assertType } from 'vs/base/common/types';
 import { CTX_INTERACTIVE_EDITOR_FOCUSED, CTX_INTERACTIVE_EDITOR_INNER_CURSOR_FIRST, CTX_INTERACTIVE_EDITOR_INNER_CURSOR_LAST, CTX_INTERACTIVE_EDITOR_EMPTY, CTX_INTERACTIVE_EDITOR_OUTER_CURSOR_POSITION, CTX_INTERACTIVE_EDITOR_VISIBLE, MENU_INTERACTIVE_EDITOR_WIDGET, MENU_INTERACTIVE_EDITOR_WIDGET_STATUS } from 'vs/workbench/contrib/interactiveEditor/common/interactiveEditor';
 import { ITextModel } from 'vs/editor/common/model';
 import { Dimension, addDisposableListener, getTotalHeight, getTotalWidth, h, reset } from 'vs/base/browser/dom';
-import { Emitter, Event } from 'vs/base/common/event';
+import { Event, MicrotaskEmitter } from 'vs/base/common/event';
 import { IEditorConstructionOptions } from 'vs/editor/browser/config/editorConfiguration';
 import { ICodeEditorWidgetOptions } from 'vs/editor/browser/widget/codeEditorWidget';
 import { EditorExtensionsRegistry } from 'vs/editor/browser/editorExtensions';
@@ -35,6 +35,8 @@ import { createActionViewItem } from 'vs/platform/actions/browser/menuEntryActio
 import { TextEdit } from 'vs/editor/common/languages';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { ILanguageSelection } from 'vs/editor/common/languages/language';
+import { ResourceLabel } from 'vs/workbench/browser/labels';
+import { FileKind } from 'vs/platform/files/common/files';
 
 const _commonEditorOptions: IEditorConstructionOptions = {
 	padding: { top: 3, bottom: 2 },
@@ -86,6 +88,7 @@ const _inputEditorOptions: IEditorConstructionOptions = {
 
 const _previewEditorEditorOptions: IDiffEditorConstructionOptions = {
 	..._commonEditorOptions,
+	readOnly: true,
 	wordWrap: 'off',
 	enableSplitViewResizing: true,
 	isInEmbeddedEditor: true,
@@ -116,7 +119,9 @@ class InteractiveEditorWidget {
 				]),
 			]),
 			h('div.progress@progress'),
-			h('div.preview@preview'),
+			h('div.previewDiff@previewDiff'),
+			h('div.previewCreateTitle.show-file-icons@previewCreateTitle'),
+			h('div.previewCreate@previewCreate'),
 			h('div.status@status', [
 				h('div.actions.hidden@statusToolbar'),
 				h('div.label@statusLabel'),
@@ -126,7 +131,6 @@ class InteractiveEditorWidget {
 
 	private readonly _store = new DisposableStore();
 	private readonly _historyStore = new DisposableStore();
-	private readonly _previewModel = this._store.add(new MutableDisposable());
 
 	readonly inputEditor: ICodeEditor;
 	private readonly _inputModel: ITextModel;
@@ -134,9 +138,14 @@ class InteractiveEditorWidget {
 
 	private readonly _progressBar: ProgressBar;
 
-	private readonly _previewEditor: EmbeddedDiffEditorWidget;
+	private readonly _previewDiffEditor: EmbeddedDiffEditorWidget;
+	private readonly _previewDiffModel = this._store.add(new MutableDisposable());
 
-	private readonly _onDidChangeHeight = new Emitter<void>();
+	private readonly _previewCreateTitle: ResourceLabel;
+	private readonly _previewCreateEditor: ICodeEditor;
+	private readonly _previewCreateModel = this._store.add(new MutableDisposable());
+
+	private readonly _onDidChangeHeight = new MicrotaskEmitter<void>();
 	readonly onDidChangeHeight: Event<void> = Event.filter(this._onDidChangeHeight.event, _ => !this._isLayouting);
 
 	private _lastDim: Dimension | undefined;
@@ -213,10 +222,12 @@ class InteractiveEditorWidget {
 
 		this._historyStore.add(statusToolbar);
 
-		// preview editor
+		// preview editors
+		this._previewDiffEditor = this._store.add(_instantiationService.createInstance(EmbeddedDiffEditorWidget, this._elements.previewDiff, _previewEditorEditorOptions, parentEditor));
 
-		this._previewEditor = _instantiationService.createInstance(EmbeddedDiffEditorWidget, this._elements.preview, _previewEditorEditorOptions, parentEditor);
-		this._store.add(this._previewEditor);
+		this._previewCreateTitle = this._store.add(_instantiationService.createInstance(ResourceLabel, this._elements.previewCreateTitle, { supportIcons: true }));
+		this._previewCreateEditor = this._store.add(_instantiationService.createInstance(EmbeddedCodeEditorWidget, this._elements.previewCreate, _previewEditorEditorOptions, codeEditorWidgetOptions, parentEditor));
+
 	}
 
 	dispose(): void {
@@ -239,9 +250,13 @@ class InteractiveEditorWidget {
 				this.inputEditor.layout(new Dimension(innerEditorWidth, this.inputEditor.getContentHeight()));
 				this._elements.placeholder.style.width = `${innerEditorWidth  /* input-padding*/}px`;
 
-				const previewDim = new Dimension(dim.width, Math.min(300, Math.max(0, this._previewEditor.getContentHeight())));
-				this._previewEditor.layout(previewDim);
-				this._elements.preview.style.height = `${previewDim.height}px`;
+				const previewDiffDim = new Dimension(dim.width, Math.min(300, Math.max(0, this._previewDiffEditor.getContentHeight())));
+				this._previewDiffEditor.layout(previewDiffDim);
+				this._elements.previewDiff.style.height = `${previewDiffDim.height}px`;
+
+				const previewCreateDim = new Dimension(dim.width, Math.min(300, Math.max(0, this._previewCreateEditor.getContentHeight())));
+				this._previewCreateEditor.layout(previewCreateDim);
+				this._elements.previewCreate.style.height = `${previewCreateDim.height}px`;
 			}
 		} finally {
 			this._isLayouting = false;
@@ -251,8 +266,10 @@ class InteractiveEditorWidget {
 	getHeight(): number {
 		const base = getTotalHeight(this._elements.progress) + getTotalHeight(this._elements.status);
 		const editorHeight = this.inputEditor.getContentHeight() + 12 /* padding and border */;
-		const previewHeight = this._previewEditor.getModel() ? 12 + Math.min(300, Math.max(0, this._previewEditor.getContentHeight())) : 0;
-		return base + editorHeight + previewHeight + 18 /* padding */ + 8 /*shadow*/;
+		const previewDiffHeight = this._previewDiffEditor.getModel().modified ? 12 + Math.min(300, Math.max(0, this._previewDiffEditor.getContentHeight())) : 0;
+		const previewCreateTitleHeight = getTotalHeight(this._elements.previewCreateTitle);
+		const previewCreateHeight = this._previewCreateEditor.getModel() ? 18 + Math.min(300, Math.max(0, this._previewCreateEditor.getContentHeight())) : 0;
+		return base + editorHeight + previewDiffHeight + previewCreateTitleHeight + previewCreateHeight + 18 /* padding */ + 8 /*shadow*/;
 	}
 
 	updateProgress(show: boolean) {
@@ -381,9 +398,8 @@ class InteractiveEditorWidget {
 		this._ctxInputEmpty.reset();
 		reset(this._elements.statusLabel);
 		this._elements.statusToolbar.classList.add('hidden');
-		this._previewEditor.setModel(null);
-		this._previewModel.clear();
-		this._elements.root.classList.remove('preview');
+		this.hideCreatePreview();
+		this.hideEditsPreview();
 		this._onDidChangeHeight.fire();
 	}
 
@@ -393,8 +409,9 @@ class InteractiveEditorWidget {
 
 	// --- preview
 
-	preview(actualModel: ITextModel, edits: TextEdit[]) {
+	showEditsPreview(actualModel: ITextModel, edits: TextEdit[]) {
 		this._elements.root.classList.add('preview');
+		this._elements.previewDiff.classList.remove('hidden');
 
 		const pad = 3;
 		const unionRange = (ranges: IRange[]) => ranges.reduce((p, c) => Range.plusRange(p, c));
@@ -417,12 +434,42 @@ class InteractiveEditorWidget {
 		const original = this._modelService.createModel(originalValue, languageSelection, baseModel.uri.with({ scheme: 'vscode', query: 'original' }), true);
 		const modified = this._modelService.createModel(modifiedValue, languageSelection, baseModel.uri.with({ scheme: 'vscode', query: 'modified' }), true);
 
-		this._previewModel.value = toDisposable(() => {
+		this._previewDiffModel.value = toDisposable(() => {
 			original.dispose();
 			modified.dispose();
 		});
 
-		this._previewEditor.setModel({ original, modified });
+		this._previewDiffEditor.setModel({ original, modified });
+		this._onDidChangeHeight.fire();
+	}
+
+	hideEditsPreview() {
+		this._elements.root.classList.remove('preview');
+		this._elements.previewDiff.classList.add('hidden');
+		this._previewDiffEditor.setModel(null);
+		this._previewDiffModel.clear();
+		this._onDidChangeHeight.fire();
+	}
+
+	showCreatePreview(uri: URI, edits: TextEdit[]): void {
+		this._elements.root.classList.add('preview');
+		this._elements.previewCreateTitle.classList.remove('hidden');
+		this._elements.previewCreate.classList.remove('hidden');
+
+		this._previewCreateTitle.element.setFile(uri, { fileKind: FileKind.FILE });
+
+		const model = this._modelService.createModel('', null, undefined, true);
+		model.applyEdits(edits.map(edit => EditOperation.replace(Range.lift(edit.range), edit.text)));
+		this._previewCreateModel.value = model;
+		this._previewCreateEditor.setModel(model);
+		this._onDidChangeHeight.fire();
+	}
+
+	hideCreatePreview() {
+		this._elements.previewCreateTitle.classList.add('hidden');
+		this._elements.previewCreate.classList.add('hidden');
+		this._previewCreateEditor.setModel(null);
+		this._previewCreateTitle.element.clear();
 		this._onDidChangeHeight.fire();
 	}
 }

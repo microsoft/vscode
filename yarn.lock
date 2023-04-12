@@ -1143,10 +1143,10 @@
     tapable "^2.2.0"
     webpack "^5"
 
-"@types/wicg-file-system-access@^2020.9.5":
-  version "2020.9.5"
-  resolved "https://registry.yarnpkg.com/@types/wicg-file-system-access/-/wicg-file-system-access-2020.9.5.tgz#4a0c8f3d1ed101525f329e86c978f7735404474f"
-  integrity sha512-UYK244awtmcUYQfs7FR8710MJcefL2WvkyHMjA8yJzxd1mo0Gfn88sRZ1Bls7hiUhA2w7ne1gpJ9T5g3G0wOyA==
+"@types/wicg-file-system-access@^2020.9.6":
+  version "2020.9.6"
+  resolved "https://registry.yarnpkg.com/@types/wicg-file-system-access/-/wicg-file-system-access-2020.9.6.tgz#da34476b1e29451c8b7aa1a6db86b185647cd970"
+  integrity sha512-6hogE75Hl2Ov/jgp8ZhDaGmIF/q3J07GtXf8nCJCwKTHq7971po5+DId7grft09zG7plBwpF6ZU0yx9Du4/e1A==
 
 "@types/windows-foreground-love@^0.3.0":
   version "0.3.0"
@@ -10053,10 +10053,10 @@ typescript@^4.7.4:
   resolved "https://registry.yarnpkg.com/typescript/-/typescript-4.8.4.tgz#c464abca159669597be5f96b8943500b238e60e6"
   integrity sha512-QCh+85mCy+h0IGff8r5XWzOVSbBO+KfeYrMQh7NJ58QujwcE22u+NUSmUxqF+un70P9GXKxa2HCNiTTMJknyjQ==
 
-typescript@^5.1.0-dev.20230328:
-  version "5.1.0-dev.20230328"
-  resolved "https://registry.yarnpkg.com/typescript/-/typescript-5.1.0-dev.20230328.tgz#00e4f9d9ac4c7c7b17add10949a7b950ddf3f6d5"
-  integrity sha512-pylwLhhCSsZX72UUJTSD+5DKoEUUKsqQg6w4bLdRVbYVXDCxPLExUayWWCaRSmx9WJjf00YwMA2MXS2z2t5+2g==
+typescript@^5.1.0-dev.20230411:
+  version "5.1.0-dev.20230411"
+  resolved "https://registry.yarnpkg.com/typescript/-/typescript-5.1.0-dev.20230411.tgz#28ee14d54d82594647763172a804379e872fa6ac"
+  integrity sha512-3yO7RzC4rZID1/u1alMwKKAhp/kyDkFiR+73vsvK5z99GYRVbUJIy9f3w2pGNZI3K7YI5Hv1bN2XWkPgZhB2CA==
 
 typical@^4.0.0:
   version "4.0.0"
