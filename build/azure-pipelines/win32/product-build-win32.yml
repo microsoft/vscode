@@ -83,9 +83,7 @@ steps:
     displayName: Setup NPM Authentication
 
   - powershell: |
-      . build/azure-pipelines/win32/exec.ps1
-      $ErrorActionPreference = "Stop"
-      exec { mkdir -Force .build/node-gyp }
+      mkdir -Force .build/node-gyp
     displayName: Create custom node-gyp directory
     condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
 
