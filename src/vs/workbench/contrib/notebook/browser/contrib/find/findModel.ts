@@ -17,6 +17,7 @@ import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/no
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { NotebookFindFilters } from 'vs/workbench/contrib/notebook/browser/contrib/find/findFilters';
 import { FindMatchDecorationModel } from 'vs/workbench/contrib/notebook/browser/contrib/find/findMatchDecorationModel';
+import { NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModelImpl';
 
 export class CellFindMatchModel implements CellFindMatchWithIndex {
 	readonly cell: ICellViewModel;
@@ -84,7 +85,19 @@ export class FindModel extends Disposable {
 		this._computePromise = null;
 
 		this._register(_state.onFindReplaceStateChange(e => {
-			if (e.searchString || e.isRegex || e.matchCase || e.searchScope || e.wholeWord || (e.isRevealed && this._state.isRevealed) || e.filters) {
+			if (e.isReplaceRevealed) {
+				const viewModel = this._notebookEditor._getViewModel() as NotebookViewModel | undefined;
+				if (viewModel) {
+					for (let i = 0; i < viewModel.length; i++) {
+						const cell = viewModel.cellAt(i);
+						if (cell && cell.cellKind === CellKind.Markup) {
+							cell.updateEditState(this._state.isReplaceRevealed ? CellEditState.Editing : CellEditState.Preview, 'Find');
+						}
+					}
+				}
+			}
+
+			if (e.searchString || e.isRegex || e.matchCase || e.searchScope || e.wholeWord || (e.isRevealed && this._state.isRevealed) || e.filters || e.isReplaceRevealed) {
 				this.research();
 			}
 
