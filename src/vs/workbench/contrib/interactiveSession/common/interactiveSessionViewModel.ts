@@ -7,6 +7,7 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { IMarkdownString, MarkdownString } from 'vs/base/common/htmlContent';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
+import { localize } from 'vs/nls';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IInteractiveRequestModel, IInteractiveResponseModel, IInteractiveSessionModel, IInteractiveSessionWelcomeMessageModel, IInteractiveWelcomeMessageContent } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionModel';
@@ -30,6 +31,7 @@ export interface IInteractiveSessionViewModel {
 	readonly onDidDisposeModel: Event<void>;
 	readonly onDidChange: Event<void>;
 	readonly welcomeMessage: IInteractiveWelcomeMessageViewModel | undefined;
+	readonly requestInProgress: boolean;
 	readonly inputPlaceholder?: string;
 	getItems(): (IInteractiveRequestViewModel | IInteractiveResponseViewModel)[];
 }
@@ -66,7 +68,6 @@ export interface IInteractiveResponseViewModel {
 	readonly response: IMarkdownString;
 	readonly isComplete: boolean;
 	readonly isCanceled: boolean;
-	readonly isPlaceholder: boolean;
 	readonly vote: InteractiveSessionVoteDirection | undefined;
 	readonly replyFollowups?: IInteractiveSessionReplyFollowup[];
 	readonly commandFollowups?: IInteractiveSessionResponseCommandFollowup[];
@@ -96,6 +97,10 @@ export class InteractiveSessionViewModel extends Disposable implements IInteract
 
 	get sessionId() {
 		return this._model.sessionId;
+	}
+
+	get requestInProgress(): boolean {
+		return this._model.requestInProgress;
 	}
 
 	constructor(
@@ -174,18 +179,15 @@ export class InteractiveRequestViewModel implements IInteractiveRequestViewModel
 }
 
 export class InteractiveResponseViewModel extends Disposable implements IInteractiveResponseViewModel {
-	private _changeCount = 0;
+	private _modelChangeCount = 0;
 
 	private readonly _onDidChange = this._register(new Emitter<void>());
 	readonly onDidChange = this._onDidChange.event;
 
 	private _isPlaceholder = false;
-	get isPlaceholder() {
-		return this._isPlaceholder;
-	}
 
 	get id() {
-		return this._model.id + `_${this._changeCount}`;
+		return this._model.id + `_${this._modelChangeCount}`;
 	}
 
 	get providerId() {
@@ -206,7 +208,7 @@ export class InteractiveResponseViewModel extends Disposable implements IInterac
 
 	get response(): IMarkdownString {
 		if (this._isPlaceholder) {
-			return new MarkdownString('Thinking...');
+			return new MarkdownString(localize('thinking', "Thinking") + '\u2026');
 		}
 
 		return this._model.response;
@@ -264,6 +266,7 @@ export class InteractiveResponseViewModel extends Disposable implements IInterac
 
 		this._register(_model.onDidChange(() => {
 			if (this._isPlaceholder && (_model.response.value || this.isComplete)) {
+				// The VM is no longer rendered as a placeholder- clear the rendered word count
 				this._isPlaceholder = false;
 				if (this.renderData) {
 					this.renderData.renderedWordCount = 0;
@@ -282,8 +285,6 @@ export class InteractiveResponseViewModel extends Disposable implements IInterac
 						loadingStartTime: this._contentUpdateTimings!.loadingStartTime,
 						lastUpdateTime: now,
 						wordCountAfterLastUpdate: wordCount,
-						// lastUpdateNewWordCount: wordCount - this._contentUpdateTimings!.wordCountAfterLastUpdate,
-						// lastUpdateDuration: now - this._contentUpdateTimings!.lastUpdateTime, // none
 						impliedWordLoadRate
 					};
 				} else {
@@ -294,7 +295,7 @@ export class InteractiveResponseViewModel extends Disposable implements IInterac
 			}
 
 			// new data -> new id, new content to render
-			this._changeCount++;
+			this._modelChangeCount++;
 			if (this.renderData) {
 				this.renderData.isFullyRendered = false;
 				this.renderData.lastRenderTime = Date.now();
@@ -309,7 +310,7 @@ export class InteractiveResponseViewModel extends Disposable implements IInterac
 	}
 
 	setVote(vote: InteractiveSessionVoteDirection): void {
-		this._changeCount++;
+		this._modelChangeCount++;
 		this._model.setVote(vote);
 	}
 }

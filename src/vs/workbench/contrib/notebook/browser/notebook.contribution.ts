@@ -568,7 +568,7 @@ class NotebookEditorManager implements IWorkbenchContribution {
 		// CLOSE notebook editor for models that have no more serializer
 		const listener = notebookService.onWillRemoveViewType(e => {
 			for (const group of editorGroups.groups) {
-				const staleInputs = group.editors.filter(input => input instanceof NotebookEditorInput && input.viewType === e);
+				const staleInputs = group.editors.filter(input => input instanceof NotebookEditorInput && input.viewType === e && !input.isDirty());
 				group.closeEditors(staleInputs);
 			}
 		});

@@ -583,25 +583,25 @@ function completeSingleLinePattern(token: marked.Tokens.ListItem | marked.Tokens
 	return undefined;
 }
 
-function completeListItemPattern(token: marked.Tokens.List): marked.Tokens.List | undefined {
-	// Patch up this one list item
-	const lastItem = token.items[token.items.length - 1];
+// function completeListItemPattern(token: marked.Tokens.List): marked.Tokens.List | undefined {
+// 	// Patch up this one list item
+// 	const lastItem = token.items[token.items.length - 1];
 
-	const newList = completeSingleLinePattern(lastItem);
-	if (!newList || newList.type !== 'list') {
-		// Nothing to fix, or not a pattern we were expecting
-		return;
-	}
+// 	const newList = completeSingleLinePattern(lastItem);
+// 	if (!newList || newList.type !== 'list') {
+// 		// Nothing to fix, or not a pattern we were expecting
+// 		return;
+// 	}
 
-	// Re-parse the whole list with the last item replaced
-	const completeList = marked.lexer(mergeRawTokenText(token.items.slice(0, token.items.length - 1)) + newList.items[0].raw);
-	if (completeList.length === 1 && completeList[0].type === 'list') {
-		return completeList[0];
-	}
+// 	// Re-parse the whole list with the last item replaced
+// 	const completeList = marked.lexer(mergeRawTokenText(token.items.slice(0, token.items.length - 1)) + newList.items[0].raw);
+// 	if (completeList.length === 1 && completeList[0].type === 'list') {
+// 		return completeList[0];
+// 	}
 
-	// Not a pattern we were expecting
-	return undefined;
-}
+// 	// Not a pattern we were expecting
+// 	return undefined;
+// }
 
 export function fillInIncompleteTokens(tokens: marked.TokensList): marked.TokensList {
 	let i: number;
@@ -619,13 +619,13 @@ export function fillInIncompleteTokens(tokens: marked.TokensList): marked.Tokens
 			break;
 		}
 
-		if (i === tokens.length - 1 && token.type === 'list') {
-			const newListToken = completeListItemPattern(token);
-			if (newListToken) {
-				newTokens = [newListToken];
-				break;
-			}
-		}
+		// if (i === tokens.length - 1 && token.type === 'list') {
+		// 	const newListToken = completeListItemPattern(token);
+		// 	if (newListToken) {
+		// 		newTokens = [newListToken];
+		// 		break;
+		// 	}
+		// }
 
 		if (i === tokens.length - 1 && token.type === 'paragraph') {
 			// Only operates on a single token, because any newline that follows this should break these patterns

@@ -494,6 +494,12 @@ pub enum CodeError {
 	NoRunningTunnel,
 	#[error("rpc call failed: {0:?}")]
 	TunnelRpcCallFailed(ResponseError),
+	#[cfg(windows)]
+	#[error("the windows app lock {0} already exists")]
+	AppAlreadyLocked(String),
+	#[cfg(windows)]
+	#[error("could not get windows app lock: {0:?}")]
+	AppLockFailed(std::io::Error),
 }
 
 makeAnyError!(
