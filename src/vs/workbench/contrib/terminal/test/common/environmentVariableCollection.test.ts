@@ -36,10 +36,10 @@ suite('EnvironmentVariable - MergedEnvironmentVariableCollection', () => {
 			]), undefined);
 			deepStrictEqual([...merged.variableMap.entries()], [
 				['A', [
-					{ extensionIdentifier: 'ext4', type: EnvironmentVariableMutatorType.Append, value: 'a4' },
-					{ extensionIdentifier: 'ext3', type: EnvironmentVariableMutatorType.Prepend, value: 'a3' },
-					{ extensionIdentifier: 'ext2', type: EnvironmentVariableMutatorType.Append, value: 'a2' },
-					{ extensionIdentifier: 'ext1', type: EnvironmentVariableMutatorType.Prepend, value: 'a1' }
+					{ extensionIdentifier: 'ext4', type: EnvironmentVariableMutatorType.Append, value: 'a4', scope: undefined, variable: 'A' },
+					{ extensionIdentifier: 'ext3', type: EnvironmentVariableMutatorType.Prepend, value: 'a3', scope: undefined, variable: 'A' },
+					{ extensionIdentifier: 'ext2', type: EnvironmentVariableMutatorType.Append, value: 'a2', scope: undefined, variable: 'A' },
+					{ extensionIdentifier: 'ext1', type: EnvironmentVariableMutatorType.Prepend, value: 'a1', scope: undefined, variable: 'A' }
 				]]
 			]);
 		});
@@ -69,9 +69,9 @@ suite('EnvironmentVariable - MergedEnvironmentVariableCollection', () => {
 			]), undefined);
 			deepStrictEqual([...merged.variableMap.entries()], [
 				['A', [
-					{ extensionIdentifier: 'ext3', type: EnvironmentVariableMutatorType.Replace, value: 'a3' },
-					{ extensionIdentifier: 'ext2', type: EnvironmentVariableMutatorType.Append, value: 'a2' },
-					{ extensionIdentifier: 'ext1', type: EnvironmentVariableMutatorType.Prepend, value: 'a1' }
+					{ extensionIdentifier: 'ext3', type: EnvironmentVariableMutatorType.Replace, value: 'a3', scope: undefined, variable: 'A' },
+					{ extensionIdentifier: 'ext2', type: EnvironmentVariableMutatorType.Append, value: 'a2', scope: undefined, variable: 'A' },
+					{ extensionIdentifier: 'ext1', type: EnvironmentVariableMutatorType.Prepend, value: 'a1', scope: undefined, variable: 'A' }
 				]]
 			], 'The ext4 entry should be removed as it comes after a Replace');
 		});
@@ -188,7 +188,7 @@ suite('EnvironmentVariable - MergedEnvironmentVariableCollection', () => {
 			strictEqual(diff.removed.size, 0);
 			const entries = [...diff.added.entries()];
 			deepStrictEqual(entries, [
-				['A', [{ extensionIdentifier: 'ext1', value: 'a', type: EnvironmentVariableMutatorType.Replace, scope: undefined }]]
+				['A', [{ extensionIdentifier: 'ext1', value: 'a', type: EnvironmentVariableMutatorType.Replace, scope: undefined, variable: 'A' }]]
 			]);
 		});
 
@@ -213,7 +213,7 @@ suite('EnvironmentVariable - MergedEnvironmentVariableCollection', () => {
 			strictEqual(diff.removed.size, 0);
 			const entries = [...diff.added.entries()];
 			deepStrictEqual(entries, [
-				['B', [{ extensionIdentifier: 'ext1', value: 'b', type: EnvironmentVariableMutatorType.Append, scope: undefined }]]
+				['B', [{ extensionIdentifier: 'ext1', value: 'b', type: EnvironmentVariableMutatorType.Append, scope: undefined, variable: 'B' }]]
 			]);
 		});
 
@@ -242,7 +242,7 @@ suite('EnvironmentVariable - MergedEnvironmentVariableCollection', () => {
 			strictEqual(diff.changed.size, 0);
 			strictEqual(diff.removed.size, 0);
 			deepStrictEqual([...diff.added.entries()], [
-				['A', [{ extensionIdentifier: 'ext2', value: 'a2', type: EnvironmentVariableMutatorType.Append, scope: undefined }]]
+				['A', [{ extensionIdentifier: 'ext2', value: 'a2', type: EnvironmentVariableMutatorType.Append, scope: undefined, variable: 'A' }]]
 			]);
 
 			const merged3 = new MergedEnvironmentVariableCollection(new Map([
@@ -309,7 +309,7 @@ suite('EnvironmentVariable - MergedEnvironmentVariableCollection', () => {
 			strictEqual(diff.changed.size, 0);
 			strictEqual(diff.added.size, 0);
 			deepStrictEqual([...diff.removed.entries()], [
-				['B', [{ extensionIdentifier: 'ext1', value: 'b', type: EnvironmentVariableMutatorType.Replace, scope: undefined }]]
+				['B', [{ extensionIdentifier: 'ext1', value: 'b', type: EnvironmentVariableMutatorType.Replace, scope: undefined, variable: 'B' }]]
 			]);
 		});
 
@@ -334,8 +334,8 @@ suite('EnvironmentVariable - MergedEnvironmentVariableCollection', () => {
 			strictEqual(diff.added.size, 0);
 			strictEqual(diff.removed.size, 0);
 			deepStrictEqual([...diff.changed.entries()], [
-				['A', [{ extensionIdentifier: 'ext1', value: 'a2', type: EnvironmentVariableMutatorType.Replace, scope: undefined }]],
-				['B', [{ extensionIdentifier: 'ext1', value: 'b', type: EnvironmentVariableMutatorType.Append, scope: undefined }]]
+				['A', [{ extensionIdentifier: 'ext1', value: 'a2', type: EnvironmentVariableMutatorType.Replace, scope: undefined, variable: 'A' }]],
+				['B', [{ extensionIdentifier: 'ext1', value: 'b', type: EnvironmentVariableMutatorType.Append, scope: undefined, variable: 'B' }]]
 			]);
 		});
 
@@ -358,13 +358,13 @@ suite('EnvironmentVariable - MergedEnvironmentVariableCollection', () => {
 			]), undefined);
 			const diff = merged1.diff(merged2)!;
 			deepStrictEqual([...diff.added.entries()], [
-				['C', [{ extensionIdentifier: 'ext1', value: 'c', type: EnvironmentVariableMutatorType.Append, scope: undefined }]],
+				['C', [{ extensionIdentifier: 'ext1', value: 'c', type: EnvironmentVariableMutatorType.Append, scope: undefined, variable: 'C' }]],
 			]);
 			deepStrictEqual([...diff.removed.entries()], [
-				['B', [{ extensionIdentifier: 'ext1', value: 'b', type: EnvironmentVariableMutatorType.Prepend, scope: undefined }]]
+				['B', [{ extensionIdentifier: 'ext1', value: 'b', type: EnvironmentVariableMutatorType.Prepend, scope: undefined, variable: 'B' }]]
 			]);
 			deepStrictEqual([...diff.changed.entries()], [
-				['A', [{ extensionIdentifier: 'ext1', value: 'a2', type: EnvironmentVariableMutatorType.Replace, scope: undefined }]]
+				['A', [{ extensionIdentifier: 'ext1', value: 'a2', type: EnvironmentVariableMutatorType.Replace, scope: undefined, variable: 'A' }]]
 			]);
 		});
 	});
