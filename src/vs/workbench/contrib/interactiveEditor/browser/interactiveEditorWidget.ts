@@ -472,6 +472,11 @@ class InteractiveEditorWidget {
 		this._previewCreateTitle.element.clear();
 		this._onDidChangeHeight.fire();
 	}
+
+	showsAnyPreview() {
+		return !this._elements.previewDiff.classList.contains('hidden') ||
+			!this._elements.previewCreate.classList.contains('hidden');
+	}
 }
 
 export class InteractiveEditorZoneWidget extends ZoneWidget {
@@ -524,19 +529,20 @@ export class InteractiveEditorZoneWidget extends ZoneWidget {
 		container.appendChild(this.widget.domNode);
 	}
 
-	protected override _onWidth(widthInPixel: number): void {
-		if (this._dimension) {
-			this._doLayout(this._dimension.height, widthInPixel);
-		}
-	}
+	// protected override _onWidth(_widthInPixel: number): void {
+	// 	if (this._dimension) {
+	// 		this._doLayout(this._dimension.height);
+	// 	}
+	// }
 
-	protected override _doLayout(heightInPixel: number, widthInPixel: number): void {
+	protected override _doLayout(heightInPixel: number): void {
 
 		const info = this.editor.getLayoutInfo();
 		const spaceLeft = info.lineNumbersWidth + info.glyphMarginWidth + info.decorationsWidth;
 		const spaceRight = info.minimap.minimapWidth + info.verticalScrollbarWidth;
 
-		const width = Math.min(640, info.contentWidth - (info.glyphMarginWidth + info.decorationsWidth));
+		const maxWidth = !this.widget.showsAnyPreview() ? 640 : Number.MAX_SAFE_INTEGER;
+		const width = Math.min(maxWidth, info.contentWidth - (info.glyphMarginWidth + info.decorationsWidth));
 		this._dimension = new Dimension(width, heightInPixel);
 		this.widget.domNode.style.marginLeft = `${spaceLeft}px`;
 		this.widget.domNode.style.marginRight = `${spaceRight}px`;
@@ -550,6 +556,9 @@ export class InteractiveEditorZoneWidget extends ZoneWidget {
 	}
 
 	protected override _relayout() {
+		if (this._dimension) {
+			this._doLayout(this._dimension.height);
+		}
 		super._relayout(this._computeHeightInLines());
 	}
 

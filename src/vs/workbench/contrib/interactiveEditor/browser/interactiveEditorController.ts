@@ -159,8 +159,9 @@ class UIEditResponse {
 	readonly localEdits: TextEdit[] = [];
 	readonly singleCreateFileEdit: { uri: URI; edits: TextEdit[] } | undefined;
 	readonly workspaceEdits: ResourceEdit[] | undefined;
+	readonly workspaceEditsIncludeLocalEdits: boolean = false;
 
-	constructor(uri: URI, readonly raw: IInteractiveEditorBulkEditResponse | IInteractiveEditorEditResponse) {
+	constructor(localUri: URI, readonly raw: IInteractiveEditorBulkEditResponse | IInteractiveEditorEditResponse) {
 		if (raw.type === 'editorEdit') {
 			//
 			this.localEdits = raw.edits;
@@ -170,6 +171,7 @@ class UIEditResponse {
 		} else {
 			//
 			const edits = ResourceEdit.convert(raw.edits);
+			this.workspaceEdits = edits;
 
 			let isComplexEdit = false;
 
@@ -190,8 +192,10 @@ class UIEditResponse {
 					}
 				} else if (edit instanceof ResourceTextEdit) {
 					//
-					if (isEqual(edit.resource, uri)) {
+					if (isEqual(edit.resource, localUri)) {
 						this.localEdits.push(edit.textEdit);
+						this.workspaceEditsIncludeLocalEdits = true;
+
 					} else if (isEqual(this.singleCreateFileEdit?.uri, edit.resource)) {
 						this.singleCreateFileEdit!.edits.push(edit.textEdit);
 					} else {
@@ -201,9 +205,8 @@ class UIEditResponse {
 			}
 
 			if (isComplexEdit) {
-				this.workspaceEdits = edits;
+				this.singleCreateFileEdit = undefined;
 			}
-
 		}
 	}
 }
@@ -510,7 +513,7 @@ export class InteractiveEditorController implements IEditorContribution {
 
 			const editResponse = new UIEditResponse(textModel.uri, reply);
 
-			if (editResponse.workspaceEdits) {
+			if (editResponse.workspaceEdits && (!editResponse.singleCreateFileEdit || editMode === 'direct')) {
 				this._bulkEditService.apply(editResponse.workspaceEdits, { editor: this._editor, label: localize('ie', "{0}", input), showPreview: true });
 				// todo@jrieken keep interactive editor?
 				break;
@@ -708,15 +711,22 @@ export class InteractiveEditorController implements IEditorContribution {
 		}
 	}
 
-	applyChanges() {
+	async applyChanges() {
 		if (this._lastEditState) {
 			const { model, modelVersionId, response } = this._lastEditState;
-			if (model.getAlternativeVersionId() === modelVersionId) {
-				model.pushStackElement();
-				const edits = response.localEdits.map(edit => EditOperation.replace(Range.lift(edit.range), edit.text));
-				model.pushEditOperations(null, edits, () => null);
-				model.pushStackElement();
+
+			if (response.workspaceEdits) {
+				await this._bulkEditService.apply(response.workspaceEdits);
 				return true;
+
+			} else if (!response.workspaceEditsIncludeLocalEdits) {
+				if (model.getAlternativeVersionId() === modelVersionId) {
+					model.pushStackElement();
+					const edits = response.localEdits.map(edit => EditOperation.replace(Range.lift(edit.range), edit.text));
+					model.pushEditOperations(null, edits, () => null);
+					model.pushStackElement();
+					return true;
+				}
 			}
 		}
 		return false;
