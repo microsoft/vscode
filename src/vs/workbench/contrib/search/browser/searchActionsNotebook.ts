@@ -15,6 +15,7 @@ import { INotebookService, SimpleNotebookProviderInfo } from 'vs/workbench/contr
 import { NotebookData } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { IFileQuery, ISearchService, QueryType } from 'vs/workbench/services/search/common/search';
 import { CancellationToken } from 'vs/base/common/cancellation';
+import { category } from 'vs/workbench/contrib/search/browser/searchActionsBase';
 
 registerAction2(class NotebookDeserializeTest extends Action2 {
 
@@ -26,7 +27,8 @@ registerAction2(class NotebookDeserializeTest extends Action2 {
 				value: localize('notebookDeserializeTest', 'Test Deserialize Perf'),
 				original: 'Test Deserialize Perf'
 			},
-			f1: true
+			f1: true,
+			category,
 		});
 	}
 	async run(accessor: ServicesAccessor) {
@@ -58,7 +60,13 @@ registerAction2(class NotebookDeserializeTest extends Action2 {
 		let processedBytes = 0;
 		let processedCells = 0;
 		const start = Date.now();
+		// const pattern = "text";
+		let i = 0;
 		for (const fileMatch of searchComplete.results) {
+			if (i > 10) {
+				break;
+			}
+			i++;
 			const uri = fileMatch.resource;
 			const content = await fileService.readFileStream(uri);
 			try {
@@ -77,8 +85,15 @@ registerAction2(class NotebookDeserializeTest extends Action2 {
 					_data = await info.serializer.dataToNotebook(bytes);
 				}
 
+
+				_data.cells.forEach(cell => {
+					const input = cell.source;
+					logService.info(input);
+				});
+
 				processedFiles += 1;
 				processedCells += _data.cells.length;
+
 			} catch (e) {
 				logService.info('error: ' + e);
 				continue;
