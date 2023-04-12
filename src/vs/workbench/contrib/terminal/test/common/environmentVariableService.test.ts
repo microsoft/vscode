@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { deepStrictEqual } from 'assert';
-import { TestExtensionService, TestStorageService } from 'vs/workbench/test/common/workbenchTestServices';
+import { TestExtensionService, TestHistoryService, TestStorageService } from 'vs/workbench/test/common/workbenchTestServices';
 import { EnvironmentVariableService } from 'vs/workbench/contrib/terminal/common/environmentVariableService';
 import { EnvironmentVariableMutatorType, IEnvironmentVariableMutator } from 'vs/platform/terminal/common/environmentVariable';
 import { IStorageService } from 'vs/platform/storage/common/storage';
@@ -12,6 +12,7 @@ import { TestInstantiationService } from 'vs/platform/instantiation/test/common/
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { Emitter } from 'vs/base/common/event';
 import { IProcessEnvironment } from 'vs/base/common/platform';
+import { IHistoryService } from 'vs/workbench/services/history/common/history';
 
 class TestEnvironmentVariableService extends EnvironmentVariableService {
 	persistCollections(): void { this._persistCollections(); }
@@ -22,6 +23,7 @@ suite('EnvironmentVariable - EnvironmentVariableService', () => {
 	let instantiationService: TestInstantiationService;
 	let environmentVariableService: TestEnvironmentVariableService;
 	let storageService: TestStorageService;
+	let historyService: TestHistoryService;
 	let changeExtensionsEvent: Emitter<void>;
 
 	setup(() => {
@@ -30,6 +32,7 @@ suite('EnvironmentVariable - EnvironmentVariableService', () => {
 		instantiationService = new TestInstantiationService();
 		instantiationService.stub(IExtensionService, TestExtensionService);
 		storageService = new TestStorageService();
+		historyService = new TestHistoryService();
 		instantiationService.stub(IStorageService, storageService);
 		instantiationService.stub(IExtensionService, TestExtensionService);
 		instantiationService.stub(IExtensionService, 'onDidChangeExtensions', changeExtensionsEvent.event);
@@ -38,6 +41,7 @@ suite('EnvironmentVariable - EnvironmentVariableService', () => {
 			{ identifier: { value: 'ext2' } },
 			{ identifier: { value: 'ext3' } }
 		]);
+		instantiationService.stub(IHistoryService, historyService);
 
 		environmentVariableService = instantiationService.createInstance(TestEnvironmentVariableService);
 	});
