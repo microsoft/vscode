@@ -14,11 +14,13 @@ import { StopWatch } from 'vs/base/common/stopwatch';
 import { withNullAsUndefined } from 'vs/base/common/types';
 import { localize } from 'vs/nls';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
+import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IViewsService } from 'vs/workbench/common/views';
+import { CONTEXT_PROVIDER_EXISTS } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionContextKeys';
 import { IInteractiveSessionContributionService } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionContributionService';
 import { ISerializableInteractiveSessionData, ISerializableInteractiveSessionsData, InteractiveSessionModel, InteractiveSessionWelcomeMessageModel } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionModel';
 import { IInteractiveProgress, IInteractiveProvider, IInteractiveSession, IInteractiveSessionCompleteResponse, IInteractiveSessionDynamicRequest, IInteractiveSessionReplyFollowup, IInteractiveSessionService, IInteractiveSessionUserActionEvent, IInteractiveSlashCommand, InteractiveSessionCopyKind, InteractiveSessionVoteDirection } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionService';
@@ -99,6 +101,7 @@ export class InteractiveSessionService extends Disposable implements IInteractiv
 	private readonly _releasedSessions = new Set<number>();
 	private readonly _pendingRequests = new Map<number, CancelablePromise<void>>();
 	private readonly _unprocessedPersistedSessions: ISerializableInteractiveSessionsData;
+	private readonly _hasProvider: IContextKey<boolean>;
 
 	private readonly _onDidPerformUserAction = this._register(new Emitter<IInteractiveSessionUserActionEvent>());
 	public readonly onDidPerformUserAction: Event<IInteractiveSessionUserActionEvent> = this._onDidPerformUserAction.event;
@@ -111,8 +114,12 @@ export class InteractiveSessionService extends Disposable implements IInteractiv
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IViewsService private readonly viewsService: IViewsService,
 		@IInteractiveSessionContributionService private readonly interactiveSessionContributionService: IInteractiveSessionContributionService,
+		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 	) {
 		super();
+
+		this._hasProvider = CONTEXT_PROVIDER_EXISTS.bindTo(this.contextKeyService);
+
 		const sessionData = storageService.get(serializedInteractiveSessionKey, StorageScope.WORKSPACE, '');
 		if (sessionData) {
 			this._unprocessedPersistedSessions = this.deserializeInteractiveSessions(sessionData);
@@ -508,6 +515,7 @@ export class InteractiveSessionService extends Disposable implements IInteractiv
 			throw new Error(`Provider ${provider.id} already registered`);
 		}
 
+		this._hasProvider.set(true);
 		this._providers.set(provider.id, provider);
 
 		return toDisposable(() => {
@@ -516,7 +524,7 @@ export class InteractiveSessionService extends Disposable implements IInteractiv
 		});
 	}
 
-	getAll() {
-		return [...this._providers];
+	getProviderIds(): string[] {
+		return Array.from(this._providers.keys());
 	}
 }
