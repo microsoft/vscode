@@ -6,10 +6,10 @@
 import * as assert from 'assert';
 import { Range } from 'vs/editor/common/core/range';
 import { FindMatch, IReadonlyTextBuffer } from 'vs/editor/common/model';
-import { notebookEditorMatchesToTextSearchResults } from 'vs/workbench/contrib/search/browser/searchNotebookHelpers';
 import { ISearchRange } from 'vs/workbench/services/search/common/search';
 import { CellFindMatchWithIndex, ICellViewModel, CellWebviewFindMatch } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { CellKind } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { contentMatchesToTextSearchMatches } from 'vs/workbench/contrib/search/browser/searchNotebookHelpers';
 
 suite('searchNotebookHelpers', () => {
 	setup(() => {
@@ -54,7 +54,7 @@ suite('searchNotebookHelpers', () => {
 				webviewMatches: []
 			};
 
-			const results = notebookEditorMatchesToTextSearchResults([cellFindMatchWithIndex]);
+			const results = contentMatchesToTextSearchMatches(cellFindMatchWithIndex.contentMatches, cell);
 			assert.strictEqual(results.length, 1);
 			assert.strictEqual(results[0].preview.text, 'test\n');
 			assertRangesEqual(results[0].preview.matches, [new Range(0, 0, 0, 1)]);

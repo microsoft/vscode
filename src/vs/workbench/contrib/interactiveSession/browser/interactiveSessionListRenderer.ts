@@ -53,7 +53,7 @@ import { InteractiveSessionEditorOptions } from 'vs/workbench/contrib/interactiv
 import { CONTEXT_RESPONSE_HAS_PROVIDER_ID, CONTEXT_RESPONSE_VOTE } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionContextKeys';
 import { IInteractiveSessionReplyFollowup, IInteractiveSessionService, IInteractiveSlashCommand, InteractiveSessionVoteDirection } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionService';
 import { IInteractiveRequestViewModel, IInteractiveResponseViewModel, IInteractiveWelcomeMessageViewModel, isRequestVM, isResponseVM, isWelcomeVM } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionViewModel';
-import { getNWords } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionWordCounter';
+import { IWordCountResult, getNWords } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionWordCounter';
 
 const $ = dom.$;
 
@@ -199,7 +199,7 @@ export class InteractiveListItemRenderer extends Disposable implements ITreeRend
 				'welcome';
 		this.traceLayout('renderElement', `${kind}, index=${index}`);
 
-		CONTEXT_RESPONSE_HAS_PROVIDER_ID.bindTo(templateData.contextKeyService).set(isResponseVM(element) && !!element.providerResponseId && !element.isPlaceholder);
+		CONTEXT_RESPONSE_HAS_PROVIDER_ID.bindTo(templateData.contextKeyService).set(isResponseVM(element) && !!element.providerResponseId);
 		if (isResponseVM(element)) {
 			CONTEXT_RESPONSE_VOTE.bindTo(templateData.contextKeyService).set(element.vote === InteractiveSessionVoteDirection.Up ? 'up' : element.vote === InteractiveSessionVoteDirection.Down ? 'down' : '');
 		} else {
@@ -328,8 +328,7 @@ export class InteractiveListItemRenderer extends Disposable implements ITreeRend
 			this.basicRenderElement(element.response.value, element, index, templateData);
 			isFullyRendered = true;
 		} else {
-			// TODO- this method has the side effect of updating element.renderData
-			const toRender = this.getProgressiveMarkdownToRender(element);
+			const renderValue = this.getWordsForProgressiveRender(element);
 			isFullyRendered = !!element.renderData?.isFullyRendered;
 			if (isFullyRendered) {
 				// We've reached the end of the available content, so do a normal render
@@ -342,9 +341,17 @@ export class InteractiveListItemRenderer extends Disposable implements ITreeRend
 				}
 				disposables.clear();
 				this.basicRenderElement(element.response.value, element, index, templateData);
-			} else if (toRender) {
+			} else if (renderValue) {
+				element.renderData = {
+					renderedWordCount: renderValue.actualWordCount,
+					lastRenderTime: Date.now(),
+					isFullyRendered: renderValue.isFullString
+				};
+
 				// Doing the progressive render
-				const plusCursor = toRender.match(/```.*$/) ? toRender + `\n${InteractiveListItemRenderer.cursorCharacter}` : toRender + ` ${InteractiveListItemRenderer.cursorCharacter}`;
+				const plusCursor = renderValue.value.match(/```.*$/) ?
+					renderValue.value :
+					renderValue.value + ` ${InteractiveListItemRenderer.cursorCharacter}`;
 				const result = this.renderMarkdown(new MarkdownString(plusCursor), element, disposables, templateData, true);
 				dom.clearNode(templateData.value);
 				templateData.value.appendChild(result.element);
@@ -412,7 +419,7 @@ export class InteractiveListItemRenderer extends Disposable implements ITreeRend
 		return ref;
 	}
 
-	private getProgressiveMarkdownToRender(element: IInteractiveResponseViewModel): string | undefined {
+	private getWordsForProgressiveRender(element: IInteractiveResponseViewModel): IWordCountResult | undefined {
 		const renderData = element.renderData ?? { renderedWordCount: 0, lastRenderTime: 0 };
 		const rate = this.getProgressiveRenderRate(element);
 		const numWordsToRender = renderData.lastRenderTime === 0 ?
@@ -425,15 +432,7 @@ export class InteractiveListItemRenderer extends Disposable implements ITreeRend
 			return undefined;
 		}
 
-		const result = getNWords(element.response.value, numWordsToRender);
-
-		element.renderData = {
-			renderedWordCount: result.actualWordCount,
-			lastRenderTime: Date.now(),
-			isFullyRendered: result.isFullString
-		};
-
-		return result.value;
+		return getNWords(element.response.value, numWordsToRender);
 	}
 
 	disposeElement(node: ITreeNode<InteractiveTreeItem, FuzzyScore>, index: number, templateData: IInteractiveListItemTemplate): void {
