@@ -914,7 +914,8 @@ class EnvironmentVariableCollection implements vscode.EnvironmentVariableCollect
 
 	get(variable: string, scope?: vscode.EnvironmentVariableScope): vscode.EnvironmentVariableMutator | undefined {
 		const key = this.getKey(variable, scope);
-		return this.map.get(key);
+		const value = this.map.get(key);
+		return value ? convertMutator(value) : undefined;
 	}
 
 	private getKey(variable: string, scope: vscode.EnvironmentVariableScope | undefined) {
@@ -923,7 +924,7 @@ class EnvironmentVariableCollection implements vscode.EnvironmentVariableCollect
 	}
 
 	forEach(callback: (variable: string, mutator: vscode.EnvironmentVariableMutator, collection: vscode.EnvironmentVariableCollection) => any, thisArg?: any): void {
-		this.map.forEach((value, key) => callback.call(thisArg, value.variable, value, this));
+		this.map.forEach((value, key) => callback.call(thisArg, value.variable, convertMutator(value), this));
 	}
 
 	[Symbol.iterator](): IterableIterator<[key: string, mutator: IEnvironmentVariableMutator]> {
@@ -975,4 +976,10 @@ function asTerminalIcon(iconPath?: vscode.Uri | { light: vscode.Uri; dark: vscod
 
 function asTerminalColor(color?: vscode.ThemeColor): ThemeColor | undefined {
 	return ThemeColor.isThemeColor(color) ? color as ThemeColor : undefined;
+}
+
+function convertMutator(mutator: IEnvironmentVariableMutator): vscode.EnvironmentVariableMutator {
+	const newMutator: vscode.EnvironmentVariableMutator = { ...mutator };
+	delete (newMutator as any).variable;
+	return newMutator;
 }
