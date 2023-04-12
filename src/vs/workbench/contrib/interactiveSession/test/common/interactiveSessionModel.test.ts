@@ -16,12 +16,11 @@ import { TestExtensionService, TestStorageService } from 'vs/workbench/test/comm
 suite('InteractiveSessionModel', () => {
 	const testDisposables = new DisposableStore();
 
-	let storageService: IStorageService;
 	let instantiationService: TestInstantiationService;
 
 	suiteSetup(async () => {
 		instantiationService = new TestInstantiationService();
-		instantiationService.stub(IStorageService, storageService = new TestStorageService());
+		instantiationService.stub(IStorageService, new TestStorageService());
 		instantiationService.stub(ILogService, new NullLogService());
 		instantiationService.stub(IExtensionService, new TestExtensionService());
 	});
