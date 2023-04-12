@@ -275,8 +275,8 @@ export interface PushErrorHandler {
 }
 
 export interface BranchProtectionProvider {
-	onDidChangeProtectedBranches: Event<Uri>;
-	provideProtectedBranches(): Map<string, string[]>;
+	onDidChangeBranchProtection: Event<Uri>;
+	provideBranchProtection(): Map<string, string[]>;
 }
 
 export type APIState = 'uninitialized' | 'initialized';

@@ -744,8 +744,7 @@ export class Repository implements Disposable {
 	private isRepositoryHuge: false | { limit: number } = false;
 	private didWarnAboutLimit = false;
 
-	private protectedBranches = new Map<string, picomatch.Matcher | undefined>();
-	// private isBranchProtectedMatcher: picomatch.Matcher | undefined;
+	private branchProtection = new Map<string, picomatch.Matcher | undefined>();
 	private commitCommandCenter: CommitCommandsCenter;
 	private resourceCommandResolver = new ResourceCommandResolver(this);
 	private updateModelStateCancellationTokenSource: CancellationTokenSource | undefined;
@@ -869,7 +868,7 @@ export class Repository implements Disposable {
 
 		// Default branch protection provider
 		const onBranchProtectionProviderChanged = filterEvent(this.branchProtectionProviderRegistry.onDidChangeBranchProtectionProviders, e => pathEquals(e.fsPath, root.fsPath));
-		this.disposables.push(onBranchProtectionProviderChanged(() => this.updateBranchProtectionMatchers()));
+		this.disposables.push(onBranchProtectionProviderChanged(root => this.updateBranchProtectionMatchers(root)));
 		this.disposables.push(this.branchProtectionProviderRegistry.registerBranchProtectionProvider(root, new GitBranchProtectionProvider(root)));
 
 		const statusBar = new StatusBarCommands(this, remoteSourcePublisherRegistry);
@@ -2364,10 +2363,10 @@ export class Repository implements Disposable {
 		}
 	}
 
-	private updateBranchProtectionMatchers(): void {
-		for (const provider of this.branchProtectionProviderRegistry.getBranchProtectionProviders(Uri.file(this.repository.root))) {
-			for (const [remote, branches] of provider.provideProtectedBranches().entries()) {
-				this.protectedBranches.set(remote, branches.length !== 0 ? picomatch(branches) : undefined);
+	private updateBranchProtectionMatchers(root: Uri): void {
+		for (const provider of this.branchProtectionProviderRegistry.getBranchProtectionProviders(root)) {
+			for (const [remote, branches] of provider.provideBranchProtection().entries()) {
+				this.branchProtection.set(remote, branches.length !== 0 ? picomatch(branches) : undefined);
 			}
 		}
 
@@ -2411,17 +2410,17 @@ export class Repository implements Disposable {
 		return true;
 	}
 
-	public isBranchProtected(branch: Branch | undefined = this.HEAD): boolean {
+	public isBranchProtected(branch = this.HEAD): boolean {
 		if (branch?.name) {
 			// Default branch protection (settings)
-			const defaultBranchProtectionMatcher = this.protectedBranches.get('');
+			const defaultBranchProtectionMatcher = this.branchProtection.get('');
 			if (defaultBranchProtectionMatcher && defaultBranchProtectionMatcher(branch.name)) {
 				return true;
 			}
 
 			if (branch.upstream?.remote) {
 				// Branch protection (contributed)
-				const remoteBranchProtectionMatcher = this.protectedBranches.get(branch.upstream.remote);
+				const remoteBranchProtectionMatcher = this.branchProtection.get(branch.upstream.remote);
 				return remoteBranchProtectionMatcher ? remoteBranchProtectionMatcher(branch.name) : false;
 			}
 		}

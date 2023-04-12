@@ -152,7 +152,7 @@ export class Model implements IBranchProtectionProviderRegistry, IRemoteSourcePu
 	private _onDidChangePostCommitCommandsProviders = new EventEmitter<void>();
 	readonly onDidChangePostCommitCommandsProviders = this._onDidChangePostCommitCommandsProviders.event;
 
-	private branchProtectionProviders = new Map<string, Set<BranchProtectionProvider>>();
+	private branchProtectionProviders = new Map<Uri, Set<BranchProtectionProvider>>();
 
 	private _onDidChangeBranchProtectionProviders = new EventEmitter<Uri>();
 	readonly onDidChangeBranchProtectionProviders = this._onDidChangeBranchProtectionProviders.event;
@@ -769,17 +769,17 @@ export class Model implements IBranchProtectionProviderRegistry, IRemoteSourcePu
 	registerBranchProtectionProvider(root: Uri, provider: BranchProtectionProvider): Disposable {
 		const providerDisposables: Disposable[] = [];
 
-		this.branchProtectionProviders.set(root.fsPath, (this.branchProtectionProviders.get(root.fsPath) ?? new Set()).add(provider));
-		providerDisposables.push(provider.onDidChangeProtectedBranches(uri => this._onDidChangeBranchProtectionProviders.fire(uri)));
+		this.branchProtectionProviders.set(root, (this.branchProtectionProviders.get(root) ?? new Set()).add(provider));
+		providerDisposables.push(provider.onDidChangeBranchProtection(uri => this._onDidChangeBranchProtectionProviders.fire(uri)));
 
 		this._onDidChangeBranchProtectionProviders.fire(root);
 
 		return toDisposable(() => {
-			const providers = this.branchProtectionProviders.get(root.fsPath);
+			const providers = this.branchProtectionProviders.get(root);
 
 			if (providers && providers.has(provider)) {
 				providers.delete(provider);
-				this.branchProtectionProviders.set(root.fsPath, providers);
+				this.branchProtectionProviders.set(root, providers);
 			}
 
 			dispose(providerDisposables);
@@ -787,7 +787,7 @@ export class Model implements IBranchProtectionProviderRegistry, IRemoteSourcePu
 	}
 
 	getBranchProtectionProviders(root: Uri): BranchProtectionProvider[] {
-		return [...(this.branchProtectionProviders.get(root.fsPath) ?? new Set()).values()];
+		return [...(this.branchProtectionProviders.get(root) ?? new Set()).values()];
 	}
 
 	registerPostCommitCommandsProvider(provider: PostCommitCommandsProvider): Disposable {
