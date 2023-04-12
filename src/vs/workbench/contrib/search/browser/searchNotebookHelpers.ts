@@ -9,7 +9,7 @@ import { IFileMatch, ITextSearchMatch, TextSearchMatch } from 'vs/workbench/serv
 import { Range } from 'vs/editor/common/core/range';
 
 export interface IFileMatchWithCells extends IFileMatch {
-	cellResults?: ICellMatch[];
+	cellResults: ICellMatch[];
 }
 
 export interface ICellMatch {

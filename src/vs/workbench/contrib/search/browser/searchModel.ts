@@ -181,8 +181,8 @@ export class Match {
 }
 
 export class CellMatch {
-	private _contentMatches: Map<string, NotebookMatch>;
-	private _webviewMatches: Map<string, NotebookMatch>;
+	private _contentMatches: Map<string, MatchInNotebook>;
+	private _webviewMatches: Map<string, MatchInNotebook>;
 	private _context: Map<number, string>;
 
 	constructor(
@@ -191,8 +191,8 @@ export class CellMatch {
 		private readonly _cellIndex: number,
 	) {
 
-		this._contentMatches = new Map<string, NotebookMatch>();
-		this._webviewMatches = new Map<string, NotebookMatch>();
+		this._contentMatches = new Map<string, MatchInNotebook>();
+		this._webviewMatches = new Map<string, MatchInNotebook>();
 		this._context = new Map<number, string>();
 	}
 
@@ -204,15 +204,15 @@ export class CellMatch {
 		return [...this._contentMatches.values(), ... this._webviewMatches.values()];
 	}
 
-	get contentMatches(): NotebookMatch[] {
+	get contentMatches(): MatchInNotebook[] {
 		return Array.from(this._contentMatches.values());
 	}
 
-	get webviewMatches(): NotebookMatch[] {
+	get webviewMatches(): MatchInNotebook[] {
 		return Array.from(this._webviewMatches.values());
 	}
 
-	remove(matches: NotebookMatch | NotebookMatch[]): void {
+	remove(matches: MatchInNotebook | MatchInNotebook[]): void {
 		if (!Array.isArray(matches)) {
 			matches = [matches];
 		}
@@ -266,7 +266,7 @@ export class CellMatch {
 
 }
 
-export class NotebookMatch extends Match {
+export class MatchInNotebook extends Match {
 	private _webviewIndex: number | undefined;
 
 	constructor(private readonly _cellParent: CellMatch, _fullPreviewLines: string[], _fullPreviewRange: ISearchRange, _documentRange: ISearchRange, webviewIndex?: number) {
@@ -435,7 +435,7 @@ export class FileMatch extends Disposable implements IFileMatch {
 	}
 
 	hasWebviewMatches(): boolean {
-		return this.matches().some(m => m instanceof NotebookMatch && m.isWebviewMatch());
+		return this.matches().some(m => m instanceof MatchInNotebook && m.isWebviewMatch());
 	}
 
 	createMatches(): void {
@@ -582,7 +582,7 @@ export class FileMatch extends Disposable implements IFileMatch {
 	}
 
 	matches(): Match[] {
-		const cellMatches: NotebookMatch[] = Array.from(this._cellMatches.values()).flatMap((e) => e.matches());
+		const cellMatches: MatchInNotebook[] = Array.from(this._cellMatches.values()).flatMap((e) => e.matches());
 		return [...this._textMatches.values(), ...cellMatches];
 	}
 
@@ -668,7 +668,7 @@ export class FileMatch extends Disposable implements IFileMatch {
 
 	private removeMatch(match: Match) {
 
-		if (match instanceof NotebookMatch) {
+		if (match instanceof MatchInNotebook) {
 			match.cellParent.remove(match);
 			if (match.cellParent.matches().length === 0) {
 				this._cellMatches.delete(match.cellParent.id);
@@ -682,7 +682,7 @@ export class FileMatch extends Disposable implements IFileMatch {
 		} else {
 			this.updateHighlights();
 		}
-		if (match instanceof NotebookMatch) {
+		if (match instanceof MatchInNotebook) {
 			this.setNotebookFindMatchDecorationsUsingCellMatches(this.cellMatches());
 		}
 	}
@@ -805,13 +805,13 @@ export class FileMatch extends Disposable implements IFileMatch {
 		this.updateNotebookMatches(allMatches, true);
 	}
 
-	public async showMatch(match: NotebookMatch) {
+	public async showMatch(match: MatchInNotebook) {
 		const offset = await this.highlightCurrentFindMatchDecoration(match);
 		this.setSelectedMatch(match);
 		this.revealCellRange(match, offset);
 	}
 
-	private async highlightCurrentFindMatchDecoration(match: NotebookMatch): Promise<number | null> {
+	private async highlightCurrentFindMatchDecoration(match: MatchInNotebook): Promise<number | null> {
 		if (!this._findMatchDecorationModel) {
 			return null;
 		}
@@ -822,7 +822,7 @@ export class FileMatch extends Disposable implements IFileMatch {
 		}
 	}
 
-	private revealCellRange(match: NotebookMatch, outputOffset: number | null) {
+	private revealCellRange(match: MatchInNotebook, outputOffset: number | null) {
 		if (!this._notebookEditorWidget) {
 			return;
 		}
@@ -1432,7 +1432,7 @@ export function searchMatchComparer(elementA: RenderableMatch, elementB: Rendera
 		}
 	}
 
-	if (elementA instanceof NotebookMatch && elementB instanceof NotebookMatch) {
+	if (elementA instanceof MatchInNotebook && elementB instanceof MatchInNotebook) {
 		return compareNotebookPos(elementA, elementB);
 	}
 
@@ -1443,7 +1443,7 @@ export function searchMatchComparer(elementA: RenderableMatch, elementB: Rendera
 	return 0;
 }
 
-export function compareNotebookPos(match1: NotebookMatch, match2: NotebookMatch): number {
+export function compareNotebookPos(match1: MatchInNotebook, match2: MatchInNotebook): number {
 	if (match1.cellIndex === match2.cellIndex) {
 
 		if (match1.webviewIndex !== undefined && match2.webviewIndex !== undefined) {
@@ -1948,7 +1948,7 @@ export class SearchModel extends Disposable {
 	}
 
 	private async getLocalNotebookResults(query: ITextQuery, token: CancellationToken): Promise<{ results: ResourceMap<IFileMatchWithCells | null>; limitHit: boolean }> {
-		const localResults = new ResourceMap<IFileMatch | null>(uri => this.uriIdentityService.extUri.getComparisonKey(uri));
+		const localResults = new ResourceMap<IFileMatchWithCells | null>(uri => this.uriIdentityService.extUri.getComparisonKey(uri));
 		let limitHit = false;
 
 		if (query.type === QueryType.Text) {
@@ -2298,19 +2298,19 @@ function textSearchResultToMatches(rawMatch: ITextSearchMatch, fileMatch: FileMa
 
 // text search to notebook matches
 
-export function textSearchMatchesToNotebookMatches(textSearchMatches: ITextSearchMatch[], cell: CellMatch): NotebookMatch[] {
-	const notebookMatches: NotebookMatch[] = [];
+export function textSearchMatchesToNotebookMatches(textSearchMatches: ITextSearchMatch[], cell: CellMatch): MatchInNotebook[] {
+	const notebookMatches: MatchInNotebook[] = [];
 	textSearchMatches.map((textSearchMatch) => {
 		const previewLines = textSearchMatch.preview.text.split('\n');
 		if (Array.isArray(textSearchMatch.ranges)) {
 			textSearchMatch.ranges.forEach((r, i) => {
 				const previewRange: ISearchRange = (<ISearchRange[]>textSearchMatch.preview.matches)[i];
-				const match = new NotebookMatch(cell, previewLines, previewRange, r, textSearchMatch.webviewIndex);
+				const match = new MatchInNotebook(cell, previewLines, previewRange, r, textSearchMatch.webviewIndex);
 				notebookMatches.push(match);
 			});
 		} else {
 			const previewRange = <ISearchRange>textSearchMatch.preview.matches;
-			const match = new NotebookMatch(cell, previewLines, previewRange, textSearchMatch.ranges, textSearchMatch.webviewIndex);
+			const match = new MatchInNotebook(cell, previewLines, previewRange, textSearchMatch.ranges, textSearchMatch.webviewIndex);
 			notebookMatches.push(match);
 		}
 	});

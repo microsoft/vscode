@@ -71,7 +71,7 @@ import * as Constants from 'vs/workbench/contrib/search/common/constants';
 import { IReplaceService } from 'vs/workbench/contrib/search/browser/replace';
 import { getOutOfWorkspaceEditorResources, SearchStateKey, SearchUIState } from 'vs/workbench/contrib/search/common/search';
 import { ISearchHistoryService, ISearchHistoryValues } from 'vs/workbench/contrib/search/common/searchHistoryService';
-import { FileMatch, FileMatchOrMatch, FolderMatch, FolderMatchWithResource, IChangeEvent, ISearchWorkbenchService, Match, NotebookMatch, RenderableMatch, searchMatchComparer, SearchModel, SearchResult } from 'vs/workbench/contrib/search/browser/searchModel';
+import { FileMatch, FileMatchOrMatch, FolderMatch, FolderMatchWithResource, IChangeEvent, ISearchWorkbenchService, Match, MatchInNotebook, RenderableMatch, searchMatchComparer, SearchModel, SearchResult } from 'vs/workbench/contrib/search/browser/searchModel';
 import { createEditorFromSearchResult } from 'vs/workbench/contrib/searchEditor/browser/searchEditorActions';
 import { ACTIVE_GROUP, IEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { IPreferencesService, ISettingsEditorOptions } from 'vs/workbench/services/preferences/common/preferences';
@@ -852,7 +852,7 @@ export class SearchView extends ViewPane {
 			}
 
 			// we don't need to check experimental flag here because NotebookMatches only exist when the flag is enabled
-			const editable = (!(focus instanceof NotebookMatch)) || !focus.isWebviewMatch();
+			const editable = (!(focus instanceof MatchInNotebook)) || !focus.isWebviewMatch();
 			this.isEditableItem.set(editable);
 		}));
 
@@ -1813,7 +1813,7 @@ export class SearchView extends ViewPane {
 		// Since untitled files are already open, then untitled notebooks should return NotebookMatch results.
 
 		// notebookMatch are only created when search.experimental.notebookSearch is enabled, so this should never return true if experimental flag is disabled.
-		return match instanceof NotebookMatch || (uri.scheme !== network.Schemas.untitled && this.notebookService.getContributedNotebookTypes(uri).length > 0);
+		return match instanceof MatchInNotebook || (uri.scheme !== network.Schemas.untitled && this.notebookService.getContributedNotebookTypes(uri).length > 0);
 	}
 
 	private onFocus(lineMatch: Match, preserveFocus?: boolean, sideBySide?: boolean, pinned?: boolean): Promise<any> {
@@ -1860,7 +1860,7 @@ export class SearchView extends ViewPane {
 			const experimentalNotebooksEnabled = this.configurationService.getValue<ISearchConfigurationProperties>('search').experimental.notebookSearch;
 			if (experimentalNotebooksEnabled) {
 				if (element instanceof Match) {
-					if (element instanceof NotebookMatch) {
+					if (element instanceof MatchInNotebook) {
 						element.parent().showMatch(element);
 					} else {
 						const editorWidget = editor.getControl();
@@ -1874,7 +1874,7 @@ export class SearchView extends ViewPane {
 							const matches = element.parent().matches();
 							const match = matchIndex >= matches.length ? matches[matches.length - 1] : matches[matchIndex];
 
-							if (match instanceof NotebookMatch) {
+							if (match instanceof MatchInNotebook) {
 								elemParent.showMatch(match);
 							}
 
