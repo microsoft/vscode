@@ -924,7 +924,7 @@ class EnvironmentVariableCollection implements vscode.EnvironmentVariableCollect
 	}
 
 	forEach(callback: (variable: string, mutator: vscode.EnvironmentVariableMutator, collection: vscode.EnvironmentVariableCollection) => any, thisArg?: any): void {
-		this.map.forEach((value, key) => callback.call(thisArg, value.variable, convertMutator(value), this));
+		this.map.forEach((value, _) => callback.call(thisArg, value.variable, convertMutator(value), this));
 	}
 
 	[Symbol.iterator](): IterableIterator<[key: string, mutator: IEnvironmentVariableMutator]> {
