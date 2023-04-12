@@ -23,6 +23,7 @@ export interface IColorData {
 export function getColors(registry: LanguageFeatureRegistry<DocumentColorProvider>, model: ITextModel, token: CancellationToken): Promise<IColorData[]> {
 	const colors: IColorData[] = [];
 	let providers = registry.ordered(model).reverse();
+	// If there are more than one document color provider, remove the default document color provider
 	if (providers.length > 1) {
 		providers = providers.filter(provider => {
 			return !(provider instanceof DefaultDocumentColorProvider);

@@ -3249,7 +3249,7 @@ declare namespace monaco.editor {
 		 */
 		fontVariations?: boolean | string;
 		/**
-		 * Enable default color decorators in the editor
+		 * Controls whether to use default color decorations or not using the default document color provider
 		 */
 		defaultColorDecorators?: boolean;
 		/**

@@ -69,10 +69,10 @@ export class ColorDetector extends Disposable implements IEditorContribution {
 			const prevIsEnabled = this._isColorDecoratorsEnabled;
 			this._isColorDecoratorsEnabled = this.isEnabled();
 			const prevIsDefaultColorsEnabled = this._isDefaultColorDecoratorsEnabled;
-			this._isDefaultColorDecoratorsEnabled = this._editor.getOption(EditorOption.defaultColorDecorations);
+			this._isDefaultColorDecoratorsEnabled = this._editor.getOption(EditorOption.defaultColorDecorators);
 
 			const updatedColorDecoratorsSetting = prevIsEnabled !== this._isColorDecoratorsEnabled || e.hasChanged(EditorOption.colorDecoratorsLimit);
-			const updatedDefaultColorDecoratorsSetting = prevIsDefaultColorsEnabled !== this._isDefaultColorDecoratorsEnabled || e.hasChanged(EditorOption.defaultColorDecorations);
+			const updatedDefaultColorDecoratorsSetting = prevIsDefaultColorsEnabled !== this._isDefaultColorDecoratorsEnabled || e.hasChanged(EditorOption.defaultColorDecorators);
 
 			if (updatedColorDecoratorsSetting || updatedDefaultColorDecoratorsSetting) {
 				if (this._isColorDecoratorsEnabled || this._isDefaultColorDecoratorsEnabled) {
@@ -86,7 +86,7 @@ export class ColorDetector extends Disposable implements IEditorContribution {
 		this._timeoutTimer = null;
 		this._computePromise = null;
 		this._isColorDecoratorsEnabled = this.isEnabled();
-		this._isDefaultColorDecoratorsEnabled = this._editor.getOption(EditorOption.defaultColorDecorations);
+		this._isDefaultColorDecoratorsEnabled = this._editor.getOption(EditorOption.defaultColorDecorators);
 		this.onModelChanged();
 	}
 

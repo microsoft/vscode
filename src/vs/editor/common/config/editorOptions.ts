@@ -243,7 +243,7 @@ export interface IEditorOptions {
 	/**
 	 * Controls whether to use default color decorations or not using the default document color provider
 	 */
-	defaultColorDecorations?: boolean;
+	defaultColorDecorators?: boolean;
 	/**
 	 * Disable the use of `transform: translate3d(0px, 0px, 0px)` for the editor margin and lines layers.
 	 * The usage of `transform: translate3d(0px, 0px, 0px)` acts as a hint for browsers to create an extra layer.
@@ -4917,7 +4917,7 @@ export const enum EditorOption {
 	tabFocusMode,
 	layoutInfo,
 	wrappingInfo,
-	defaultColorDecorations
+	defaultColorDecorators
 }
 
 export const EditorOptions = {
@@ -5643,9 +5643,9 @@ export const EditorOptions = {
 
 	// Leave these at the end (because they have dependencies!)
 	editorClassName: register(new EditorClassName()),
-	defaultColorDecorations: register(new EditorBooleanOption(
-		EditorOption.defaultColorDecorations, 'defaultColorDecorations', false,
-		{ markdownDescription: nls.localize('defaultColorDecorations', "Controls whether color boxes should be shown by default in the editor") }
+	defaultColorDecorators: register(new EditorBooleanOption(
+		EditorOption.defaultColorDecorators, 'defaultColorDecorators', false,
+		{ markdownDescription: nls.localize('defaultColorDecorators', "Controls whether inline color decorations should be shown using the default document color provider") }
 	)),
 	pixelRatio: register(new EditorPixelRatio()),
 	tabFocusMode: register(new EditorBooleanOption(EditorOption.tabFocusMode, 'tabFocusMode', false,
