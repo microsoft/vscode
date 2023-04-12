@@ -12,7 +12,7 @@ import { IRange, Range } from 'vs/editor/common/core/range';
 import { EndOfLineSequence, ITextModel } from 'vs/editor/common/model';
 import { IMirrorTextModel, IModelChangedEvent, MirrorTextModel as BaseMirrorModel } from 'vs/editor/common/model/mirrorTextModel';
 import { ensureValidWordDefinition, getWordAtText, IWordAtPosition } from 'vs/editor/common/core/wordHelper';
-import { IInplaceReplaceSupportResult, ILink, TextEdit } from 'vs/editor/common/languages';
+import { IColorInformation, IInplaceReplaceSupportResult, ILink, TextEdit } from 'vs/editor/common/languages';
 import { ILinkComputerTarget, computeLinks } from 'vs/editor/common/languages/linkComputer';
 import { BasicInplaceReplace } from 'vs/editor/common/languages/supports/inplaceReplaceSupport';
 import { DiffAlgorithmName, IDiffComputationResult, IUnicodeHighlightsResult } from 'vs/editor/common/services/editorWorker';
@@ -26,6 +26,7 @@ import { linesDiffComputers } from 'vs/editor/common/diff/linesDiffComputers';
 import { createProxyObject, getAllMethodNames } from 'vs/base/common/objects';
 import { IDocumentDiffProviderOptions } from 'vs/editor/common/diff/documentDiffProvider';
 import { BugIndicatingError } from 'vs/base/common/errors';
+import { computeDefaultDocumentColors } from 'vs/editor/common/languages/defaultDocumentColors';
 
 export interface IMirrorModel extends IMirrorTextModel {
 	readonly uri: URI;
@@ -638,6 +639,16 @@ export class EditorSimpleWorker implements IRequestHandler, IDisposable {
 		}
 
 		return computeLinks(model);
+	}
+
+	// --- BEGIN default document colors -----------------------------------------------------------
+
+	public async computeDefaultDocumentColors(modelUrl: string): Promise<IColorInformation[] | null> {
+		const model = this._getModel(modelUrl);
+		if (!model) {
+			return null;
+		}
+		return computeDefaultDocumentColors(model);
 	}
 
 	// ---- BEGIN suggest --------------------------------------------------------------------------

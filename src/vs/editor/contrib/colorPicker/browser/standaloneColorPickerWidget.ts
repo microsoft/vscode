@@ -26,6 +26,8 @@ import { IRange } from 'vs/editor/common/core/range';
 import { DefaultDocumentColorProvider } from 'vs/editor/contrib/colorPicker/browser/defaultDocumentColorProvider';
 import * as dom from 'vs/base/browser/dom';
 import 'vs/css!./colorPicker';
+import { IModelService } from 'vs/editor/common/services/model';
+import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
 
 export class StandaloneColorPickerController extends Disposable implements IEditorContribution {
 
@@ -36,15 +38,17 @@ export class StandaloneColorPickerController extends Disposable implements IEdit
 
 	constructor(
 		private readonly _editor: ICodeEditor,
+		@IModelService _modelService: IModelService,
+		@IContextKeyService _contextKeyService: IContextKeyService,
+		@ILanguageConfigurationService _languageConfigurationService: ILanguageConfigurationService,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
-		@ILanguageFeaturesService private readonly _languageFeatureService: ILanguageFeaturesService,
-		@IContextKeyService private readonly _contextKeyService: IContextKeyService
+		@ILanguageFeaturesService private readonly _languageFeatureService: ILanguageFeaturesService
 	) {
 		super();
-		this._standaloneColorPickerVisible = EditorContextKeys.standaloneColorPickerVisible.bindTo(this._contextKeyService);
-		this._standaloneColorPickerFocused = EditorContextKeys.standaloneColorPickerFocused.bindTo(this._contextKeyService);
-		this._register(this._languageFeatureService.colorProvider.register('*', new DefaultDocumentColorProvider()));
+		this._standaloneColorPickerVisible = EditorContextKeys.standaloneColorPickerVisible.bindTo(_contextKeyService);
+		this._standaloneColorPickerFocused = EditorContextKeys.standaloneColorPickerFocused.bindTo(_contextKeyService);
+		this._register(this._languageFeatureService.colorProvider.register('*', new DefaultDocumentColorProvider(_modelService, _languageConfigurationService)));
 	}
 
 	public showOrFocus() {
