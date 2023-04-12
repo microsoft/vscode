@@ -595,7 +595,7 @@ export namespace WorkspaceEdit {
 						if (ArrayBuffer.isView(entry.options.contents)) {
 							contents = { type: 'base64', value: encodeBase64(VSBuffer.wrap(entry.options.contents)) };
 						} else {
-							contents = { type: 'dataTransferItem', id: (entry.options.contents as types.DataTransferItem).id };
+							contents = { type: 'dataTransferItem', id: (entry.options.contents as types.DataTransferFile)._itemId };
 						}
 					}
 
@@ -2036,12 +2036,8 @@ export namespace DataTransferItem {
 		const file = item.fileData;
 		if (file) {
 			return new class extends types.DataTransferItem {
-				override asFile(): vscode.DataTransferFile {
-					return {
-						name: file.name,
-						uri: URI.revive(file.uri),
-						data: once(() => resolveFileData()),
-					};
+				override asFile() {
+					return new types.DataTransferFile(file.name, URI.revive(file.uri), item.id, once(() => resolveFileData()));
 				}
 			}('', item.id);
 		}

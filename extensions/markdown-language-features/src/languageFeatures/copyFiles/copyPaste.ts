@@ -34,7 +34,7 @@ class PasteEditProvider implements vscode.DocumentPasteEditProvider {
 			const item = dataTransfer.get(imageMime);
 			const file = item?.asFile();
 			if (item && file) {
-				const edit = await this._makeCreateImagePasteEdit(document, item, file, token);
+				const edit = await this._makeCreateImagePasteEdit(document, file, token);
 				if (token.isCancellationRequested) {
 					return;
 				}
@@ -49,7 +49,7 @@ class PasteEditProvider implements vscode.DocumentPasteEditProvider {
 		return snippet ? new vscode.DocumentPasteEdit(snippet.snippet) : undefined;
 	}
 
-	private async _makeCreateImagePasteEdit(document: vscode.TextDocument, item: vscode.DataTransferItem, file: vscode.DataTransferFile, token: vscode.CancellationToken): Promise<vscode.DocumentPasteEdit | undefined> {
+	private async _makeCreateImagePasteEdit(document: vscode.TextDocument, file: vscode.DataTransferFile, token: vscode.CancellationToken): Promise<vscode.DocumentPasteEdit | undefined> {
 		if (file.uri) {
 			// If file is already in workspace, we don't want to create a copy of it
 			const workspaceFolder = vscode.workspace.getWorkspaceFolder(file.uri);
@@ -71,7 +71,7 @@ class PasteEditProvider implements vscode.DocumentPasteEditProvider {
 
 		// Note that there is currently no way to undo the file creation :/
 		const workspaceEdit = new vscode.WorkspaceEdit();
-		workspaceEdit.createFile(uri, { contents: item });
+		workspaceEdit.createFile(uri, { contents: file });
 
 		const pasteEdit = new vscode.DocumentPasteEdit(snippet);
 		pasteEdit.additionalEdit = workspaceEdit;
