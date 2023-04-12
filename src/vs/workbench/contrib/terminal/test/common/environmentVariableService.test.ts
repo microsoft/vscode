@@ -62,9 +62,9 @@ suite('EnvironmentVariable - EnvironmentVariableService', () => {
 		environmentVariableService.persistCollections();
 		const service2: TestEnvironmentVariableService = instantiationService.createInstance(TestEnvironmentVariableService);
 		deepStrictEqual([...service2.mergedCollection.variableMap.entries()], [
-			['A', [{ extensionIdentifier: 'ext1', type: EnvironmentVariableMutatorType.Replace, value: 'a' }]],
-			['B', [{ extensionIdentifier: 'ext1', type: EnvironmentVariableMutatorType.Append, value: 'b' }]],
-			['C', [{ extensionIdentifier: 'ext1', type: EnvironmentVariableMutatorType.Prepend, value: 'c' }]]
+			['A', [{ extensionIdentifier: 'ext1', type: EnvironmentVariableMutatorType.Replace, value: 'a', scope: undefined, variable: 'A' }]],
+			['B', [{ extensionIdentifier: 'ext1', type: EnvironmentVariableMutatorType.Append, value: 'b', scope: undefined, variable: 'B' }]],
+			['C', [{ extensionIdentifier: 'ext1', type: EnvironmentVariableMutatorType.Prepend, value: 'c', scope: undefined, variable: 'C' }]]
 		]);
 	});
 
