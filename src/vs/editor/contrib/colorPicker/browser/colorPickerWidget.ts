@@ -62,10 +62,8 @@ export class ColorPickerHeader extends Disposable {
 
 		// When the color picker widget is a standalone color picker widget, then add a close button
 		if (this.showingStandaloneColorPicker) {
-			this._domNode.classList.add('standalone-color-picker');
+			this._domNode.classList.add('standalone-colorpicker');
 			this._closeButton = this._register(new CloseButton(this._domNode));
-			this._pickedColorNode.classList.add('picked-color-standalone');
-			this._originalColorNode.classList.add('original-color-standalone');
 		}
 	}
 
@@ -152,7 +150,7 @@ export class ColorPickerBody extends Disposable {
 
 		if (isStandaloneColorPicker) {
 			this._insertButton = this._register(new InsertButton(this._domNode));
-			this._domNode.classList.add('standalone-color-picker');
+			this._domNode.classList.add('standalone-colorpicker');
 		}
 	}
 
@@ -329,7 +327,7 @@ class SaturationBox extends Disposable {
 
 abstract class Strip extends Disposable {
 
-	public domNode: HTMLElement;
+	protected domNode: HTMLElement;
 	protected overlay: HTMLElement;
 	protected slider: HTMLElement;
 	private height!: number;
@@ -343,8 +341,8 @@ abstract class Strip extends Disposable {
 	constructor(container: HTMLElement, protected model: ColorPickerModel, showingStandaloneColorPicker: boolean = false) {
 		super();
 		if (showingStandaloneColorPicker) {
-			this.domNode = dom.append(container, $('.modified-strip'));
-			this.overlay = dom.append(this.domNode, $('.modified-overlay'));
+			this.domNode = dom.append(container, $('.standalone-strip'));
+			this.overlay = dom.append(this.domNode, $('.standalone-overlay'));
 		} else {
 			this.domNode = dom.append(container, $('.strip'));
 			this.overlay = dom.append(this.domNode, $('.overlay'));

@@ -16,10 +16,8 @@ export class DefaultDocumentColorProvider implements DocumentColorProvider {
 		const values = [];
 		for (const captureGroup of captureGroups) {
 			const parsedNumber = Number(captureGroup);
-			if (parsedNumber) {
+			if (parsedNumber || parsedNumber === 0 && captureGroup.replace(/\s/g, '') !== '') {
 				values.push(parsedNumber);
-			} else if (captureGroup === '0') {
-				values.push(0);
 			}
 		}
 		return values;
@@ -89,6 +87,10 @@ export class DefaultDocumentColorProvider implements DocumentColorProvider {
 		return result;
 	}
 
+	private _findMatches(model: ITextModel, regex: string): FindMatch[] {
+		return model.findMatches(regex, false, true, false, null, true);
+	}
+
 	provideDocumentColors(model: ITextModel, _token: CancellationToken): ProviderResult<IColorInformation[]> {
 
 		let result: IColorInformation[] = [];
@@ -96,36 +98,26 @@ export class DefaultDocumentColorProvider implements DocumentColorProvider {
 		// RGB and RGBA
 		const rgbaRegex = `rgba[(](\\s*)([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])(\\s*),(\\s*)([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])(\\s*),(\\s*)([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])(\\s*),(\\s*)([01][.]|[01]|[.][0-9]+|[0][.][0-9]*)(\\s*)[)]`;
 		const rgbRegex = `rgb[(](\\s*)([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])(\\s*),(\\s*)([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])(\\s*),(\\s*)([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])(\\s*)[)]`;
-		const rgbaMatches = model.findMatches(rgbaRegex, false, true, false, null, true);
-		const rgbMatches = model.findMatches(rgbRegex, false, true, false, null, true);
-
-		const rgbaColorInformation = this._findRGBColorInformation(rgbaMatches, true, model);
-		result = result.concat(rgbaColorInformation);
-
-		const rgbColorInformation = this._findRGBColorInformation(rgbMatches, false, model);
-		result = result.concat(rgbColorInformation);
+		const rgbaMatches = this._findMatches(model, rgbaRegex);
+		const rgbMatches = this._findMatches(model, rgbRegex);
+		result = result.concat(this._findRGBColorInformation(rgbaMatches, true, model));
+		result = result.concat(this._findRGBColorInformation(rgbMatches, false, model));
 
 		// HEX and HEXA
 		const hexaRegex = `#([A-Fa-f0-9]{8}(?![A-Fa-f0-9]))`;
 		const hexRegex = `#([A-Fa-f0-9]{6}(?![A-Fa-f0-9]))`;
-		const hexaMatches = model.findMatches(hexaRegex, false, true, false, null, true);
-		const hexMatches = model.findMatches(hexRegex, false, true, false, null, true);
-
-		const hexaColorInformation = this._findHexColorInformation(hexaMatches, model);
-		result = result.concat(hexaColorInformation);
-		const hexColorInformation = this._findHexColorInformation(hexMatches, model);
-		result = result.concat(hexColorInformation);
+		const hexaMatches = this._findMatches(model, hexaRegex);
+		const hexMatches = this._findMatches(model, hexRegex);
+		result = result.concat(this._findHexColorInformation(hexaMatches, model));
+		result = result.concat(this._findHexColorInformation(hexMatches, model));
 
 		// HSL and HSLA
 		const hslaRegex = `hsla[(](\\s*)(36[0]|3[0-5][0-9]|[12][0-9][0-9]|[1-9]?[0-9])(\\s*),(\\s*)(100|\\d{1,2}|\\d{1,2}[.]\\d*)%(\\s*),(\\s*)(100|\\d{1,2}|\\d{1,2}[.]\\d*)%(\\s*),(\\s*)([01][.]|[01]|[.][0-9]+|[0][.][0-9]*)(\\s*)[)]`;
 		const hslRegex = `hsl[(](\\s*)(36[0]|3[0-5][0-9]|[12][0-9][0-9]|[1-9]?[0-9])(\\s*),(\\s*)(100|\\d{1,2}|\\d{1,2}[.]\\d*)%(\\s*),(\\s*)(100|\\d{1,2}|\\d{1,2}[.]\\d*)%(\\s*)[)]`;
-		const hslaMatches = model.findMatches(hslaRegex, false, true, false, null, true);
-		const hslMatches = model.findMatches(hslRegex, false, true, false, null, true);
-
-		const hslaColorInformation = this._findHSLColorInformation(hslaMatches, true, model);
-		result = result.concat(hslaColorInformation);
-		const hslColorInformation = this._findHSLColorInformation(hslMatches, false, model);
-		result = result.concat(hslColorInformation);
+		const hslaMatches = this._findMatches(model, hslaRegex);
+		const hslMatches = this._findMatches(model, hslRegex);
+		result = result.concat(this._findHSLColorInformation(hslaMatches, true, model));
+		result = result.concat(this._findHSLColorInformation(hslMatches, false, model));
 
 		return result;
 	}
@@ -137,10 +129,9 @@ export class DefaultDocumentColorProvider implements DocumentColorProvider {
 		const alpha = colorFromInfo.alpha;
 		const color = new Color(new RGBA(Math.round(255 * colorFromInfo.red), Math.round(255 * colorFromInfo.green), Math.round(255 * colorFromInfo.blue), alpha));
 
-		const isAlpha = alpha === 1;
-		const rgb = isAlpha ? Color.Format.CSS.formatRGB(color) : Color.Format.CSS.formatRGBA(color);
-		const hsl = isAlpha ? Color.Format.CSS.formatHSL(color) : Color.Format.CSS.formatHSLA(color);
-		const hex = isAlpha ? Color.Format.CSS.formatHex(color) : Color.Format.CSS.formatHexA(color);
+		const rgb = alpha ? Color.Format.CSS.formatRGB(color) : Color.Format.CSS.formatRGBA(color);
+		const hsl = alpha ? Color.Format.CSS.formatHSL(color) : Color.Format.CSS.formatHSLA(color);
+		const hex = alpha ? Color.Format.CSS.formatHex(color) : Color.Format.CSS.formatHexA(color);
 
 		const colorPresentations: IColorPresentation[] = [];
 		colorPresentations.push({ label: rgb, textEdit: { range: range, text: rgb } });

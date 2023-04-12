@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
+import { Disposable } from 'vs/base/common/lifecycle';
 import { IEditorHoverRenderContext } from 'vs/editor/contrib/hover/browser/hoverTypes';
 import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition } from 'vs/editor/browser/editorBrowser';
 import { PositionAffinity } from 'vs/editor/common/model';
@@ -44,7 +44,6 @@ export class StandaloneColorPickerController extends Disposable implements IEdit
 		super();
 		this._standaloneColorPickerVisible = EditorContextKeys.standaloneColorPickerVisible.bindTo(this._contextKeyService);
 		this._standaloneColorPickerFocused = EditorContextKeys.standaloneColorPickerFocused.bindTo(this._contextKeyService);
-		// The default document color provider is used mostly for the standalone color picker but can also be used for the default inline color boxes
 		this._register(this._languageFeatureService.colorProvider.register('*', new DefaultDocumentColorProvider()));
 	}
 
@@ -79,18 +78,20 @@ export class StandaloneColorPickerController extends Disposable implements IEdit
 
 registerEditorContribution(StandaloneColorPickerController.ID, StandaloneColorPickerController, EditorContributionInstantiation.AfterFirstRender);
 
-export class StandaloneColorPickerWidget implements IContentWidget {
+const PADDING = 8;
+const CLOSE_BUTTON_WIDTH = 22;
+
+export class StandaloneColorPickerWidget extends Disposable implements IContentWidget {
 
 	static readonly ID = 'editor.contrib.standaloneColorPickerWidget';
 	private body: HTMLElement = document.createElement('div');
 
 	private readonly _position: Position | undefined = undefined;
 	private readonly _selection: Selection | null = null;
-	private readonly _participant: StandaloneColorPickerParticipant;
+	private readonly _standaloneColorPickerParticipant: StandaloneColorPickerParticipant;
 	private readonly _standaloneColorPickerComputer: StandaloneColorPickerComputer;
 
-	private _disposables: DisposableStore = new DisposableStore();
-	private _colorHoverData: ColorHover | null = null;
+	private _colorHover: ColorHover | null = null;
 	private _selectionSetInEditor: boolean = false;
 
 	constructor(
@@ -101,6 +102,7 @@ export class StandaloneColorPickerWidget implements IContentWidget {
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
 		@ILanguageFeaturesService private readonly languageFeaturesService: ILanguageFeaturesService
 	) {
+		super();
 		this._standaloneColorPickerVisible.set(true);
 		this._position = this.editor._getViewModel()?.getPrimaryCursorState().viewState.position;
 		this._selection = this.editor.getSelection();
@@ -111,46 +113,46 @@ export class StandaloneColorPickerWidget implements IContentWidget {
 				endLineNumber: this._selection.endLineNumber,
 				endColumn: this._selection.endColumn
 			} : { startLineNumber: 0, endLineNumber: 0, endColumn: 0, startColumn: 0 };
-		this._participant = this.instantiationService.createInstance(StandaloneColorPickerParticipant, this.editor);
-		const focusTracker = this._disposables.add(dom.trackFocus(this.body));
-		this._standaloneColorPickerComputer = new StandaloneColorPickerComputer(selection, this.editor, this._participant, this.languageFeaturesService);
-		this._disposables.add(this._standaloneColorPickerComputer.onResult((result) => {
-			this._render(result.value, result.foundInMap);
+		this._standaloneColorPickerParticipant = this.instantiationService.createInstance(StandaloneColorPickerParticipant, this.editor);
+		const focusTracker = this._register(dom.trackFocus(this.body));
+		this._standaloneColorPickerComputer = new StandaloneColorPickerComputer(selection, this.editor, this._standaloneColorPickerParticipant, this.languageFeaturesService);
+		this._register(this._standaloneColorPickerComputer.onResult((result) => {
+			this._render(result.value, result.foundInEditor);
 		}));
 		// When the cursor position changes, hide the color picker
-		this._disposables.add(this.editor.onDidChangeCursorPosition(() => {
-			// Except when the cursor changes position because the selection is changed when the keybindings are used to make the color picker appear
+		this._register(this.editor.onDidChangeCursorPosition(() => {
+			// Do not hide when the cursor changes position because the selection is changed when the keybindings are used to make the color picker appear
 			if (!this._selectionSetInEditor) {
 				this.hide();
 			} else {
 				this._selectionSetInEditor = false;
 			}
 		}));
-		this._disposables.add(this.editor.onMouseMove((e) => {
+		this._register(this.editor.onMouseMove((e) => {
 			const classList = e.target.element?.classList;
 			if (classList && classList.contains('colorpicker-color-decoration')) {
 				this.hide();
 			}
 		}));
-		this._disposables.add(focusTracker.onDidBlur(_ => {
+		this._register(focusTracker.onDidBlur(_ => {
 			this.hide();
 		}));
-		this._disposables.add(focusTracker.onDidFocus(_ => {
+		this._register(focusTracker.onDidFocus(_ => {
 			this.focus();
 		}));
 		this._standaloneColorPickerComputer.start();
 	}
 
 	public updateEditor() {
-		if (this._colorHoverData) {
-			this._participant.updateEditorModel([this._colorHoverData]);
+		if (this._colorHover) {
+			this._standaloneColorPickerParticipant.updateEditorModel(this._colorHover);
 		}
 	}
 
-	private _render(colorHoverData: ColorHover, foundInEditor: boolean) {
+	private _render(colorHover: ColorHover, foundInEditor: boolean) {
 
 		const fragment = document.createDocumentFragment();
-		const statusBar = this._disposables.add(new EditorHoverStatusBar(this.keybindingService));
+		const statusBar = this._register(new EditorHoverStatusBar(this.keybindingService));
 		let colorPickerWidget: ColorPickerWidget | undefined;
 
 		const context: IEditorHoverRenderContext = {
@@ -161,14 +163,12 @@ export class StandaloneColorPickerWidget implements IContentWidget {
 			hide: () => this.hide()
 		};
 
-		this._colorHoverData = colorHoverData;
-		this._disposables.add(this._participant.renderHoverParts(context, [colorHoverData]));
-
+		this._colorHover = colorHover;
+		this._register(this._standaloneColorPickerParticipant.renderHoverParts(context, [colorHover]));
 		if (colorPickerWidget === undefined) {
 			return;
 		}
-
-		this.body.classList.add('standalone-color-picker-body');
+		this.body.classList.add('standalone-colorpicker-body');
 		this.body.style.maxHeight = Math.max(this.editor.getLayoutInfo().height / 4, 250) + 'px';
 		this.body.style.maxWidth = Math.max(this.editor.getLayoutInfo().width * 0.66, 500) + 'px';
 		this.body.tabIndex = 0;
@@ -177,7 +177,7 @@ export class StandaloneColorPickerWidget implements IContentWidget {
 
 		const colorPickerBody = colorPickerWidget.body;
 		const saturationBoxWidth = colorPickerBody.saturationBox.domNode.clientWidth;
-		const widthOfOriginalColorBox = colorPickerBody.domNode.clientWidth - saturationBoxWidth - 22 - 8;
+		const widthOfOriginalColorBox = colorPickerBody.domNode.clientWidth - saturationBoxWidth - CLOSE_BUTTON_WIDTH - PADDING;
 		const enterButton: InsertButton | null = colorPickerWidget.body.enterButton;
 		enterButton?.onClicked(() => {
 			this.updateEditor();
@@ -185,21 +185,20 @@ export class StandaloneColorPickerWidget implements IContentWidget {
 		});
 		const colorPickerHeader = colorPickerWidget.header;
 		const pickedColorNode = colorPickerHeader.pickedColorNode;
-		pickedColorNode.style.width = saturationBoxWidth + 8 + 'px';
+		pickedColorNode.style.width = saturationBoxWidth + PADDING + 'px';
 		const originalColorNode = colorPickerHeader.originalColorNode;
 		originalColorNode.style.width = widthOfOriginalColorBox + 'px';
 		const closeButton = colorPickerWidget.header.closeButton;
 		closeButton?.onClicked(() => {
 			this.hide();
 		});
-
-		// When found in the editor, we want to highlight the selection in the editor
+		// When found in the editor, highlight the selection in the editor
 		if (foundInEditor) {
 			if (enterButton) {
 				enterButton.button.textContent = 'Replace';
 			}
 			this._selectionSetInEditor = true;
-			this.editor.setSelection(colorHoverData.range);
+			this.editor.setSelection(colorHover.range);
 		}
 		this.editor.layoutContentWidget(this);
 	}
@@ -226,10 +225,10 @@ export class StandaloneColorPickerWidget implements IContentWidget {
 	}
 
 	public hide(): void {
-		this.editor.removeContentWidget(this);
-		this._disposables.dispose();
+		this.dispose();
 		this._standaloneColorPickerVisible.set(false);
 		this._standaloneColorPickerFocused.set(false);
+		this.editor.removeContentWidget(this);
 		this.editor.focus();
 	}
 
@@ -240,10 +239,10 @@ export class StandaloneColorPickerWidget implements IContentWidget {
 }
 
 export class StandaloneColorPickerResult {
-	// The color picker result consists of: n array of color results and a boolean indicating if the color was found in the editor
+	// The color picker result consists of: an array of color results and a boolean indicating if the color was found in the editor
 	constructor(
 		public readonly value: ColorHover,
-		public readonly foundInMap: boolean
+		public readonly foundInEditor: boolean
 	) { }
 }
 
@@ -283,15 +282,12 @@ export class StandaloneColorPickerComputer extends Disposable implements IStanda
 			range: range,
 			color: { red: 0, green: 0, blue: 0, alpha: 1 }
 		};
-		const textModel = this._editor.getModel();
-		const providers = this.languageFeaturesService.colorProvider.ordered(textModel).reverse();
-		const createColorHoverResult: { colorHover: ColorHover; foundInMap: boolean } | null = await this._participant.createColorHover(colorInfo, providers[0]);
-		if (!createColorHoverResult) {
+		const providers = this.languageFeaturesService.colorProvider.ordered(this._editor.getModel()).reverse();
+		const colorHoverResult: { colorHover: ColorHover; foundInEditor: boolean } | null = await this._participant.createColorHover(colorInfo, providers[0]);
+		if (!colorHoverResult) {
 			return null;
 		}
-		const colorHover = createColorHoverResult.colorHover;
-		const foundInEditor = createColorHoverResult.foundInMap;
-		return { result: colorHover, foundInEditor: foundInEditor };
+		return { result: colorHoverResult.colorHover, foundInEditor: colorHoverResult.foundInEditor };
 	}
 
 	public override dispose(): void {

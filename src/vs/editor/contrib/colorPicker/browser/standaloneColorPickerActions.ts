@@ -5,7 +5,7 @@
 
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditorAction, EditorAction2, ServicesAccessor, registerEditorAction } from 'vs/editor/browser/editorExtensions';
-import { KeyChord, KeyCode, KeyMod } from 'vs/base/common/keyCodes';
+import { KeyCode } from 'vs/base/common/keyCodes';
 import { localize } from 'vs/nls';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { StandaloneColorPickerController } from 'vs/editor/contrib/colorPicker/browser/standaloneColorPickerWidget';
@@ -25,21 +25,15 @@ export class ShowOrFocusStandaloneColorPicker extends EditorAction2 {
 			precondition: undefined,
 			menu: [
 				{ id: MenuId.CommandPalette },
-			],
-			keybinding: {
-				weight: KeybindingWeight.EditorContrib,
-				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyMod.CtrlCmd | KeyCode.KeyP),
-			}
+			]
 		});
 	}
-
 	runEditorCommand(_accessor: ServicesAccessor, editor: ICodeEditor) {
 		StandaloneColorPickerController.get(editor)?.showOrFocus();
 	}
 }
 
 class HideStandaloneColorPicker extends EditorAction {
-
 	constructor() {
 		super({
 			id: 'editor.action.hideColorPicker',
@@ -57,7 +51,6 @@ class HideStandaloneColorPicker extends EditorAction {
 			}
 		});
 	}
-
 	public run(_accessor: ServicesAccessor, editor: ICodeEditor): void {
 		StandaloneColorPickerController.get(editor)?.hide();
 	}
@@ -82,7 +75,6 @@ class InsertColorWithStandaloneColorPicker extends EditorAction {
 			}
 		});
 	}
-
 	public run(_accessor: ServicesAccessor, editor: ICodeEditor): void {
 		StandaloneColorPickerController.get(editor)?.insertColor();
 	}

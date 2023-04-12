@@ -66,7 +66,7 @@ export class ColorHoverParticipant implements IEditorHoverParticipant<ColorHover
 		return _computeAsync(this, this._editor, lineDecorations);
 	}
 
-	public async createColorHover(colorInfo: IColorInformation, provider: DocumentColorProvider): Promise<{ colorHover: ColorHover; foundInMap: boolean } | null> {
+	public async createColorHover(colorInfo: IColorInformation, provider: DocumentColorProvider): Promise<{ colorHover: ColorHover; foundInEditor: boolean } | null> {
 		return createColorHover(this, this._editor, colorInfo, provider);
 	}
 
@@ -98,7 +98,7 @@ export class StandaloneColorPickerParticipant implements IEditorHoverParticipant
 		return _computeAsync(this, this._editor, lineDecorations);
 	}
 
-	public async createColorHover(colorInfo: IColorInformation, provider: DocumentColorProvider): Promise<{ colorHover: ColorHover; foundInMap: boolean } | null> {
+	public async createColorHover(colorInfo: IColorInformation, provider: DocumentColorProvider): Promise<{ colorHover: ColorHover; foundInEditor: boolean } | null> {
 		return createColorHover(this, this._editor, colorInfo, provider);
 	}
 
@@ -106,7 +106,7 @@ export class StandaloneColorPickerParticipant implements IEditorHoverParticipant
 		return renderHoverParts(this, this._themeService, hoverParts, context, this._editor);
 	}
 
-	public updateEditorModel(colorHoverData: ColorHover[]): void {
+	public updateEditorModel(colorHoverData: ColorHover): void {
 		updateEditorModel(this, colorHoverData, this._editor);
 	}
 
@@ -139,16 +139,18 @@ async function _computeAsync(owner: IEditorHoverParticipant<ColorHover>, editor:
 		if (!colorDetector.isColorDecoration(d)) {
 			continue;
 		}
+
 		const colorData = colorDetector.getColorData(d.range.getStartPosition());
 		if (colorData) {
 			const colorHover = await _createColorHover(owner, editor.getModel(), colorData.colorInfo, colorData.provider);
 			return [colorHover];
 		}
+
 	}
 	return [];
 }
 
-async function createColorHover(owner: IEditorHoverParticipant<ColorHover>, editor: ICodeEditor, colorInfo: IColorInformation, provider: DocumentColorProvider): Promise<{ colorHover: ColorHover; foundInMap: boolean } | null> {
+async function createColorHover(owner: IEditorHoverParticipant<ColorHover>, editor: ICodeEditor, defaultColorInfo: IColorInformation, provider: DocumentColorProvider): Promise<{ colorHover: ColorHover; foundInEditor: boolean } | null> {
 	if (!editor.hasModel()) {
 		return null;
 	}
@@ -156,17 +158,10 @@ async function createColorHover(owner: IEditorHoverParticipant<ColorHover>, edit
 	if (!colorDetector) {
 		return null;
 	}
-	let finalColorInfo = colorInfo;
-	const colorDetectorData = colorDetector.getColorData(new Position(colorInfo.range.startLineNumber, colorInfo.range.startColumn));
-
-	let foundInMap = false;
-	if (colorDetectorData) {
-		foundInMap = true;
-		finalColorInfo = colorDetectorData.colorInfo;
-	}
-
-	const colorHover = await _createColorHover(owner, editor.getModel(), finalColorInfo, provider);
-	return { colorHover: colorHover, foundInMap: foundInMap };
+	const colorDetectorData = colorDetector.getColorData(new Position(defaultColorInfo.range.startLineNumber, defaultColorInfo.range.startColumn));
+	const colorInfo = colorDetectorData ? colorDetectorData.colorInfo : defaultColorInfo;
+	const foundInEditor = colorDetectorData ? true : false;
+	return { colorHover: await _createColorHover(owner, editor.getModel(), colorInfo, provider), foundInEditor: foundInEditor };
 }
 
 async function _createColorHover(owner: IEditorHoverParticipant<ColorHover>, editorModel: ITextModel, colorInfo: IColorInformation, provider: DocumentColorProvider) {
@@ -174,10 +169,12 @@ async function _createColorHover(owner: IEditorHoverParticipant<ColorHover>, edi
 	const { red, green, blue, alpha } = colorInfo.color;
 	const rgba = new RGBA(Math.round(red * 255), Math.round(green * 255), Math.round(blue * 255), alpha);
 	const color = new Color(rgba);
+
 	const colorPresentations = await getColorPresentations(editorModel, colorInfo, provider, CancellationToken.None);
 	const model = new ColorPickerModel(color, [], 0);
 	model.colorPresentations = colorPresentations || [];
 	model.guessColorPresentation(color, originalText);
+
 	return new ColorHover(owner, Range.lift(colorInfo.range), model, provider);
 }
 
@@ -196,22 +193,23 @@ function renderHoverParts(owner: ColorHoverParticipant | StandaloneColorPickerPa
 	let range = new Range(colorHover.range.startLineNumber, colorHover.range.startColumn, colorHover.range.endLineNumber, colorHover.range.endColumn);
 
 	const updateEditorModel = () => {
-
 		let textEdits: ISingleEditOperation[];
 		let newRange: Range;
-
 		if (model.presentation.textEdit) {
-			if (owner instanceof StandaloneColorPickerParticipant && owner.range) {
-				model.presentation.textEdit.range = owner.range;
-			}
 			textEdits = [model.presentation.textEdit];
-			newRange = new Range(
-				model.presentation.textEdit.range.startLineNumber,
-				model.presentation.textEdit.range.startColumn,
-				model.presentation.textEdit.range.endLineNumber,
-				model.presentation.textEdit.range.endColumn
-			);
-
+			newRange = owner instanceof StandaloneColorPickerParticipant && owner.range ?
+				new Range(
+					owner.range.startLineNumber,
+					owner.range.startColumn,
+					owner.range.endLineNumber,
+					owner.range.endColumn
+				) :
+				new Range(
+					model.presentation.textEdit.range.startLineNumber,
+					model.presentation.textEdit.range.startColumn,
+					model.presentation.textEdit.range.endLineNumber,
+					model.presentation.textEdit.range.endColumn
+				);
 			const trackedRange = editor.getModel()!._setTrackedRange(null, newRange, TrackedRangeStickiness.GrowsOnlyWhenTypingAfter);
 			editor.pushUndoStop();
 			editor.executeEdits('colorpicker', textEdits);
@@ -248,8 +246,8 @@ function renderHoverParts(owner: ColorHoverParticipant | StandaloneColorPickerPa
 
 	if (owner instanceof StandaloneColorPickerParticipant) {
 		const color = hoverParts[0].model.color;
-		updateColorPresentations(color);
 		owner.color = color;
+		updateColorPresentations(color);
 		disposables.add(model.onColorFlushed((color: Color) => {
 			owner.color = color;
 		}));
@@ -259,15 +257,15 @@ function renderHoverParts(owner: ColorHoverParticipant | StandaloneColorPickerPa
 		}));
 	}
 	disposables.add(model.onDidChangeColor(updateColorPresentations));
+
 	return disposables;
 }
 
-function updateEditorModel(owner: ColorHoverParticipant | StandaloneColorPickerParticipant, colorHoverData: ColorHover[], editor: ICodeEditor): void {
+function updateEditorModel(owner: ColorHoverParticipant | StandaloneColorPickerParticipant, colorHover: ColorHover, editor: ICodeEditor): void {
 	if (!editor.hasModel()) {
 		return;
 	}
 
-	const colorHover = colorHoverData[0];
 	const editorModel = editor.getModel();
 	const model = colorHover.model;
 	let range = new Range(colorHover.range.startLineNumber, colorHover.range.startColumn, colorHover.range.endLineNumber, colorHover.range.endColumn);
