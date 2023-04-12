@@ -9,7 +9,7 @@ import { MenuRegistry, MenuId, Action2, registerAction2, ISubmenuItem } from 'vs
 import { equalsIgnoreCase } from 'vs/base/common/strings';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { Categories } from 'vs/platform/action/common/actionCommonCategories';
-import { IWorkbenchThemeService, IWorkbenchTheme, ThemeSettingTarget, IWorkbenchColorTheme, IWorkbenchFileIconTheme, IWorkbenchProductIconTheme, ThemeSettings } from 'vs/workbench/services/themes/common/workbenchThemeService';
+import { IWorkbenchThemeService, IWorkbenchTheme, ThemeSettingTarget, IWorkbenchColorTheme, IWorkbenchFileIconTheme, IWorkbenchProductIconTheme, ThemeSettings, ThemeSettingDefaults } from 'vs/workbench/services/themes/common/workbenchThemeService';
 import { VIEWLET_ID, IExtensionsViewPaneContainer } from 'vs/workbench/contrib/extensions/common/extensions';
 import { IExtensionGalleryService, IExtensionManagementService, IGalleryExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IColorRegistry, Extensions as ColorRegistryExtensions } from 'vs/platform/theme/common/colorRegistry';
@@ -33,10 +33,16 @@ import { Emitter } from 'vs/base/common/event';
 import { IExtensionResourceLoaderService } from 'vs/platform/extensionResourceLoader/common/extensionResourceLoader';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { CommandsRegistry } from 'vs/platform/commands/common/commands';
+import { CommandsRegistry, ICommandService } from 'vs/platform/commands/common/commands';
 import { FileIconThemeData } from 'vs/workbench/services/themes/browser/fileIconThemeData';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
+import { IWorkbenchContribution, IWorkbenchContributionsRegistry, Extensions } from 'vs/workbench/common/contributions';
+import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
+import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
+import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
+import { toAction } from 'vs/base/common/actions';
+import { isWeb } from 'vs/base/common/platform';
 
 export const manageExtensionIcon = registerIcon('theme-selection-manage-extension', Codicon.gear, localize('manageExtensionIcon', 'Icon for the \'Manage\' action in the theme selection quick pick.'));
 
@@ -693,3 +699,49 @@ MenuRegistry.appendMenuItem(ThemesSubMenu, {
 	order: 3
 });
 
+class DefaultThemeUpdatedNotificationContribution implements IWorkbenchContribution {
+
+	static STORAGE_KEY = 'themeUpdatedNotificationShown';
+
+	constructor(
+		@INotificationService private readonly _notificationService: INotificationService,
+		@IWorkbenchThemeService private readonly _workbenchThemeService: IWorkbenchThemeService,
+		@IStorageService private readonly _storageService: IStorageService,
+		@ICommandService private readonly _commandService: ICommandService,
+	) {
+		if (!this._workbenchThemeService.hasUpdatedDefaultThemes()) {
+			return;
+		}
+		if (_storageService.getBoolean(DefaultThemeUpdatedNotificationContribution.STORAGE_KEY, StorageScope.APPLICATION)) {
+			return;
+		}
+		setTimeout(() => {
+			this._showNotification();
+		}, 6000);
+	}
+
+	private async _showNotification(): Promise<void> {
+		this._storageService.store(DefaultThemeUpdatedNotificationContribution.STORAGE_KEY, true, StorageScope.APPLICATION, StorageTarget.USER);
+		await this._notificationService.notify({
+			id: 'themeUpdatedNotification',
+			severity: Severity.Info,
+			message: localize({ key: 'themeUpdatedNotification', comment: ['{0} is the name of the new default theme'] }, "VS Code now ships with a new default theme '{0}'. We hope you like it. If not, you can switch back to the old theme or try one of the many other color themes available.", this._workbenchThemeService.getColorTheme().label),
+			actions: {
+				primary: [
+					toAction({ id: 'themeUpdated.browseThemes', label: localize('browseThemes', "Browse Themes"), run: () => this._commandService.executeCommand(SelectColorThemeCommandId) }),
+					toAction({
+						id: 'themeUpdated.revert', label: localize('revert', "Revert"), run: async () => {
+							const oldSettingsId = isWeb ? ThemeSettingDefaults.COLOR_THEME_LIGHT_OLD : ThemeSettingDefaults.COLOR_THEME_DARK_OLD;
+							const oldTheme = (await this._workbenchThemeService.getColorThemes()).find(theme => theme.settingsId === oldSettingsId);
+							if (oldTheme) {
+								this._workbenchThemeService.setColorTheme(oldTheme, 'auto');
+							}
+						}
+					})
+				]
+			}
+		});
+	}
+}
+const workbenchRegistry = Registry.as<IWorkbenchContributionsRegistry>(Extensions.Workbench);
+workbenchRegistry.registerWorkbenchContribution(DefaultThemeUpdatedNotificationContribution, LifecyclePhase.Ready);
