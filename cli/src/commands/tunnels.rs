@@ -190,7 +190,7 @@ pub async fn rename(ctx: CommandContext, rename_args: TunnelRenameArgs) -> Resul
 	let auth = Auth::new(&ctx.paths, ctx.log.clone());
 	let mut dt = dev_tunnels::DevTunnels::new(&ctx.log, auth, &ctx.paths);
 	dt.rename_tunnel(&rename_args.name).await?;
-	ctx.log.result(&format!(
+	ctx.log.result(format!(
 		"Successfully renamed this gateway to {}",
 		&rename_args.name
 	));
@@ -287,7 +287,7 @@ pub async fn prune(ctx: CommandContext) -> Result<i32, AnyError> {
 		.filter(|s| s.get_running_pid().is_none())
 		.try_for_each(|s| {
 			ctx.log
-				.result(&format!("Deleted {}", s.server_dir.display()));
+				.result(format!("Deleted {}", s.server_dir.display()));
 			s.delete()
 		})
 		.map_err(AnyError::from)?;
