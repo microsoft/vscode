@@ -731,6 +731,7 @@ function installSlashCommandSupport(accessor: ServicesAccessor, editor: IActiveC
 }
 
 async function showMessageResponse(accessor: ServicesAccessor, query: string, response: string) {
+	console.log('Inside of showMessageResponse');
 	const interactiveSessionService = accessor.get(IInteractiveSessionService);
 	interactiveSessionService.addCompleteRequest(query, { message: response });
 }

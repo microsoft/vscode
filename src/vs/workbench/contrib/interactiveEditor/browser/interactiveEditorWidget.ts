@@ -352,6 +352,8 @@ class InteractiveEditorWidget {
 	}
 
 	updateMessage(message: string, classes?: string[], resetAfter?: number) {
+		console.log('Inside of update message of Interactive Editor Widget');
+		console.log('message : ', message);
 		const isTempMessage = typeof resetAfter === 'number';
 		if (isTempMessage && !this._elements.statusLabel.dataset['state']) {
 			const messageNow = this._elements.statusLabel.innerText;
