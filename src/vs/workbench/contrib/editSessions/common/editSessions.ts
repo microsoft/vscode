@@ -24,6 +24,8 @@ export const IEditSessionsStorageService = createDecorator<IEditSessionsStorageS
 export interface IEditSessionsStorageService {
 	_serviceBrand: undefined;
 
+	readonly SIZE_LIMIT: number;
+
 	readonly isSignedIn: boolean;
 	readonly onDidSignIn: Event<void>;
 	readonly onDidSignOut: Event<void>;

@@ -16,7 +16,7 @@ use hyper::{
 	HeaderMap, StatusCode,
 };
 use serde::de::DeserializeOwned;
-use std::{io, pin::Pin, str::FromStr, task::Poll};
+use std::{io, pin::Pin, str::FromStr, sync::Arc, task::Poll};
 use tokio::{
 	fs,
 	io::{AsyncRead, AsyncReadExt},
@@ -115,6 +115,8 @@ pub trait SimpleHttp {
 		url: String,
 	) -> Result<SimpleResponse, AnyError>;
 }
+
+pub type BoxedHttp = Arc<dyn SimpleHttp + Send + Sync + 'static>;
 
 // Implementation of SimpleHttp that uses a reqwest client.
 #[derive(Clone)]
@@ -324,7 +326,6 @@ impl AsyncRead for DelegatedReader {
 
 /// Simple http implementation that falls back to delegated http if
 /// making a direct reqwest fails.
-#[derive(Clone)]
 pub struct FallbackSimpleHttp {
 	native: ReqwestSimpleHttp,
 	delegated: DelegatedSimpleHttp,

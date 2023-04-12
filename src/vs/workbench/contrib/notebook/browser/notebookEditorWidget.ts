@@ -2336,6 +2336,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 				}
 			}
 			this._list.focusView();
+			this.updateEditorFocus();
 		}
 	}
 
@@ -2695,6 +2696,8 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 				// switch mimetype
 				this._webview.removeInsets([output.source]);
 				this._webview.createOutput({ cellId: cell.id, cellHandle: cell.handle, cellUri: cell.uri }, output, cellTop, offset);
+			} else if (existingOutput.versionId !== output.source.model.versionId) {
+				this._webview.updateOutput({ cellId: cell.id, cellHandle: cell.handle, cellUri: cell.uri, executionId: cell.internalMetadata.executionId }, output, cellTop, offset);
 			} else {
 				const outputIndex = cell.outputsViewModels.indexOf(output.source);
 				const outputOffset = cell.getOutputOffset(outputIndex);
