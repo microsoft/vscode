@@ -16,9 +16,9 @@ suite('EnvironmentVariable - deserializeEnvironmentVariableCollection', () => {
 		]);
 		const keys = [...c.keys()];
 		deepStrictEqual(keys, ['A', 'B', 'C']);
-		deepStrictEqual(c.get('A'), { value: 'a', type: EnvironmentVariableMutatorType.Replace, scope: undefined });
-		deepStrictEqual(c.get('B'), { value: 'b', type: EnvironmentVariableMutatorType.Append });
-		deepStrictEqual(c.get('C'), { value: 'c', type: EnvironmentVariableMutatorType.Prepend });
+		deepStrictEqual(c.get('A'), { value: 'a', type: EnvironmentVariableMutatorType.Replace, scope: undefined, variable: 'A' });
+		deepStrictEqual(c.get('B'), { value: 'b', type: EnvironmentVariableMutatorType.Append, scope: undefined, variable: 'B' });
+		deepStrictEqual(c.get('C'), { value: 'c', type: EnvironmentVariableMutatorType.Prepend, scope: undefined, variable: 'C' });
 	});
 });
 
@@ -30,9 +30,9 @@ suite('EnvironmentVariable - serializeEnvironmentVariableCollection', () => {
 		collection.set('B', { value: 'b', type: EnvironmentVariableMutatorType.Append, scope: undefined, variable: 'B' });
 		collection.set('C', { value: 'c', type: EnvironmentVariableMutatorType.Prepend, scope: undefined, variable: 'C' });
 		deepStrictEqual(serializeEnvironmentVariableCollection(collection), [
-			['A', { value: 'a', type: EnvironmentVariableMutatorType.Replace, scope: undefined }],
-			['B', { value: 'b', type: EnvironmentVariableMutatorType.Append }],
-			['C', { value: 'c', type: EnvironmentVariableMutatorType.Prepend }]
+			['A', { value: 'a', type: EnvironmentVariableMutatorType.Replace, scope: undefined, variable: 'A' }],
+			['B', { value: 'b', type: EnvironmentVariableMutatorType.Append, scope: undefined, variable: 'B' }],
+			['C', { value: 'c', type: EnvironmentVariableMutatorType.Prepend, scope: undefined, variable: 'C' }]
 		]);
 	});
 });
