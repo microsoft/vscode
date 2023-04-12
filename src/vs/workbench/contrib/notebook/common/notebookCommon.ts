@@ -945,6 +945,7 @@ export const NotebookSetting = {
 	outputFontFamilyDeprecated: 'notebook.outputFontFamily',
 	outputFontFamily: 'notebook.output.fontFamily',
 	logging: 'notebook.logging',
+	confirmDeleteRunningCell: 'notebook.confirmDeleteRunningCell',
 } as const;
 
 export const enum CellStatusbarAlignment {

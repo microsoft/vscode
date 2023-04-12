@@ -911,6 +911,11 @@ configurationRegistry.registerConfiguration({
 			type: 'boolean',
 			tags: ['notebookLayout'],
 			default: false
+		},
+		[NotebookSetting.confirmDeleteRunningCell]: {
+			markdownDescription: nls.localize('notebook.confirmDeleteRunningCell', "Control whether a confirmation prompt is required to delete a running cell."),
+			type: 'boolean',
+			default: true
 		}
 	}
 });
