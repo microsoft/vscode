@@ -7,7 +7,9 @@ import * as assert from 'assert';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { ProviderResult } from 'vs/editor/common/languages';
+import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
+import { MockContextKeyService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
 import { ILogService, NullLogService } from 'vs/platform/log/common/log';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IInteractiveProgress, IInteractiveProvider, IInteractiveRequest, IInteractiveResponse, IInteractiveSession, IPersistedInteractiveState } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionService';
@@ -26,6 +28,7 @@ suite('InteractiveSession', () => {
 		instantiationService.stub(IStorageService, storageService = new TestStorageService());
 		instantiationService.stub(ILogService, new NullLogService());
 		instantiationService.stub(IExtensionService, new TestExtensionService());
+		instantiationService.stub(IContextKeyService, new MockContextKeyService());
 	});
 
 	teardown(() => {
