@@ -16,6 +16,8 @@ import { NotebookData } from 'vs/workbench/contrib/notebook/common/notebookCommo
 import { IFileQuery, ISearchService, QueryType } from 'vs/workbench/services/search/common/search';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { category } from 'vs/workbench/contrib/search/browser/searchActionsBase';
+import { URI } from 'vs/base/common/uri';
+import { CellSearchModel } from 'vs/workbench/contrib/search/browser/searchNotebookHelpers';
 
 registerAction2(class NotebookDeserializeTest extends Action2 {
 
@@ -41,10 +43,6 @@ registerAction2(class NotebookDeserializeTest extends Action2 {
 		const currWorkspace = workspacesService.getWorkspace();
 		const uri = currWorkspace.folders[0].uri;
 
-
-		// const queryBuilder = instantiationService.createInstance(QueryBuilder);
-
-		// const query = queryBuilder.text(content, folderResources.map(folder => folder.uri))
 		const query: IFileQuery = {
 			type: QueryType.File,
 			filePattern: '**/*.ipynb',
@@ -54,16 +52,16 @@ registerAction2(class NotebookDeserializeTest extends Action2 {
 			query,
 			CancellationToken.None
 		);
-		// glob(dir + '/**/*.ipynb', {}, async (err, files) => {
 		logService.info('notebook deserialize START');
 		let processedFiles = 0;
 		let processedBytes = 0;
 		let processedCells = 0;
+		let matchCount = 0;
 		const start = Date.now();
-		// const pattern = "text";
+		const pattern = 'start_index';
 		let i = 0;
 		for (const fileMatch of searchComplete.results) {
-			if (i > 10) {
+			if (i > Number.MAX_SAFE_INTEGER) {
 				break;
 			}
 			i++;
@@ -86,9 +84,10 @@ registerAction2(class NotebookDeserializeTest extends Action2 {
 				}
 
 
-				_data.cells.forEach(cell => {
+				_data.cells.forEach((cell, index) => {
 					const input = cell.source;
-					logService.info(input);
+					const matches = this.getMatches(input, uri, index, pattern);
+					matchCount += matches.length;
 				});
 
 				processedFiles += 1;
@@ -100,7 +99,14 @@ registerAction2(class NotebookDeserializeTest extends Action2 {
 			}
 		}
 		const end = Date.now();
+		logService.info(`${matchCount} matches found`);
 		logService.info(`notebook deserialize END | ${end - start}ms | ${((processedBytes / 1024) / 1024).toFixed(2)}MB | Number of Files: ${processedFiles} | Number of Cells: ${processedCells}`);
-		// });
+
+	}
+
+	getMatches(source: string, uri: URI, cellIndex: number, target: string) {
+		const cellModel = new CellSearchModel(source, uri, cellIndex);
+		return cellModel.find(target);
 	}
 });
+
