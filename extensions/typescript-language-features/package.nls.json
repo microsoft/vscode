@@ -80,6 +80,7 @@
 	"configuration.implicitProjectConfig.strictFunctionTypes": "Enable/disable [strict function types](https://www.typescriptlang.org/tsconfig#strictFunctionTypes) in JavaScript and TypeScript files that are not part of a project. Existing `jsconfig.json` or `tsconfig.json` files override this setting.",
 	"configuration.suggest.jsdoc.generateReturns": "Enable/disable generating `@returns` annotations for JSDoc templates.",
 	"configuration.suggest.autoImports": "Enable/disable auto import suggestions.",
+	"configuration.preferGoToSourceDefinition": "Makes Go to Definition avoid type declaration files when possible by triggering Go to Source Definition instead. This allows Go to Source Definition to be triggered with the mouse gesture. Requires using TypeScript 4.7+ in the workspace.",
 	"inlayHints.parameterNames.none": "Disable parameter name hints.",
 	"inlayHints.parameterNames.literals": "Enable parameter name hints only for literal arguments.",
 	"inlayHints.parameterNames.all": "Enable parameter name hints for literal and non-literal arguments.",

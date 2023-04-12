@@ -24,7 +24,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { Selection } from 'vs/editor/common/core/selection';
 import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
-import { DEFAULT_EDITOR_ASSOCIATION, EditorInputCapabilities, EditorPaneSelectionChangeReason, EditorPaneSelectionCompareResult, EditorResourceAccessor, IEditorMemento, IEditorOpenContext, IEditorPaneSelection, IEditorPaneSelectionChangeEvent, createEditorOpenError } from 'vs/workbench/common/editor';
+import { DEFAULT_EDITOR_ASSOCIATION, EditorInputCapabilities, EditorPaneSelectionChangeReason, EditorPaneSelectionCompareResult, EditorResourceAccessor, IEditorMemento, IEditorOpenContext, IEditorPaneSelection, IEditorPaneSelectionChangeEvent, createEditorOpenError, isEditorOpenError } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { SELECT_KERNEL_ID } from 'vs/workbench/contrib/notebook/browser/controller/coreActions';
 import { INotebookEditorOptions, INotebookEditorPane, INotebookEditorViewState } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
@@ -38,6 +38,9 @@ import { NotebookPerfMarks } from 'vs/workbench/contrib/notebook/common/notebook
 import { IEditorDropService } from 'vs/workbench/services/editor/browser/editorDropService';
 import { GroupsOrder, IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IEditorProgressService } from 'vs/platform/progress/common/progress';
+import { InstallRecommendedExtensionAction } from 'vs/workbench/contrib/extensions/browser/extensionsActions';
+import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 
 const NOTEBOOK_EDITOR_VIEW_STATE_PREFERENCE_KEY = 'NotebookEditorViewState';
 
@@ -76,7 +79,9 @@ export class NotebookEditor extends EditorPane implements INotebookEditorPane {
 		@INotebookEditorService private readonly _notebookWidgetService: INotebookEditorService,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 		@IFileService private readonly _fileService: IFileService,
-		@ITextResourceConfigurationService configurationService: ITextResourceConfigurationService
+		@ITextResourceConfigurationService configurationService: ITextResourceConfigurationService,
+		@IEditorProgressService private readonly _editorProgressService: IEditorProgressService,
+		@INotebookService private readonly _notebookService: INotebookService,
 	) {
 		super(NotebookEditor.ID, telemetryService, themeService, storageService);
 		this._editorMemento = this.getEditorMemento<INotebookEditorViewState>(_editorGroupService, configurationService, NOTEBOOK_EDITOR_VIEW_STATE_PREFERENCE_KEY);
@@ -224,14 +229,36 @@ export class NotebookEditor extends EditorPane implements INotebookEditorPane {
 			}
 
 			if (model === null) {
-				throw new Error(localize('fail.noEditor', "Cannot open resource with notebook editor type '{0}', please check if you have the right extension installed and enabled.", input.viewType));
+				const knownProvider = this._notebookService.getViewTypeProvider(input.viewType);
+
+				if (knownProvider) {
+					throw createEditorOpenError(new Error(localize('fail.noEditor', "Cannot open resource with notebook editor type '{0}', please check if you have the right extension installed and enabled.", input.viewType)), [
+						toAction({
+							id: 'workbench.notebook.action.installMissing', label: localize('notebookOpenInstallMissingViewType', "Install extension for '{0}'", input.viewType), run: async () => {
+								const d = this._notebookService.onAddViewType(viewType => {
+									if (viewType === input.viewType) {
+										// serializer is registered, try to open again
+										this._editorService.openEditor({ resource: input.resource });
+										d.dispose();
+									}
+								});
+								await this._instantiationService.createInstance(InstallRecommendedExtensionAction, knownProvider).run();
+							}
+						})
+					], { allowDialog: true });
+				} else {
+					throw new Error(localize('fail.noEditor', "Cannot open resource with notebook editor type '{0}', please check if you have the right extension installed and enabled.", input.viewType));
+				}
 			}
 
 			this._widgetDisposableStore.add(model.notebook.onDidChangeContent(() => this._onDidChangeSelection.fire({ reason: EditorPaneSelectionChangeReason.EDIT })));
 
 			const viewState = options?.viewState ?? this._loadNotebookEditorViewState(input);
 
-			this._widget.value?.setParentContextKeyService(this._contextKeyService);
+			// We might be moving the notebook widget between groups, and these services are tied to the group
+			this._widget.value!.setParentContextKeyService(this._contextKeyService);
+			this._widget.value!.setEditorProgressService(this._editorProgressService);
+
 			await this._widget.value!.setModel(model.notebook, viewState, perf);
 			const isReadOnly = input.hasCapability(EditorInputCapabilities.Readonly);
 			await this._widget.value!.setOptions({ ...options, isReadOnly });
@@ -252,6 +279,10 @@ export class NotebookEditor extends EditorPane implements INotebookEditorPane {
 			this._handlePerfMark(perf, input);
 		} catch (e) {
 			console.warn(e);
+			if (isEditorOpenError(e)) {
+				throw e;
+			}
+
 			const error = createEditorOpenError(e instanceof Error ? e : new Error((e ? e.message : '')), [
 				toAction({
 					id: 'workbench.notebook.action.openInTextEditor', label: localize('notebookOpenInTextEditor', "Open in Text Editor"), run: async () => {

@@ -409,6 +409,7 @@ class DirtyDiffWidget extends PeekViewWidget {
 			readOnly: false,
 			renderIndicators: false,
 			diffAlgorithm: 'smart',
+			stickyScroll: { enabled: false }
 		};
 
 		this.diffEditor = this.instantiationService.createInstance(EmbeddedDiffEditorWidget, container, options, this.editor);
@@ -664,10 +665,13 @@ async function playAudioCueForChange(change: IChange, audioCueService: IAudioCue
 	switch (changeType) {
 		case ChangeType.Add:
 			audioCueService.playAudioCue(AudioCue.diffLineInserted, true);
+			break;
 		case ChangeType.Delete:
 			audioCueService.playAudioCue(AudioCue.diffLineDeleted, true);
+			break;
 		case ChangeType.Modify:
 			audioCueService.playAudioCue(AudioCue.diffLineModified, true);
+			break;
 	}
 }
 

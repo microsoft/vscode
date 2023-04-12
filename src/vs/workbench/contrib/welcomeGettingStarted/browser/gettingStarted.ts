@@ -242,6 +242,7 @@ export class GettingStartedPage extends EditorPane {
 			}
 		}));
 
+		this._register(this.gettingStartedService.onDidAddBuiltInWalkthrough(rerender));
 		this._register(this.gettingStartedService.onDidAddWalkthrough(rerender));
 		this._register(this.gettingStartedService.onDidRemoveWalkthrough(rerender));
 
@@ -694,8 +695,8 @@ export class GettingStartedPage extends EditorPane {
 		}
 	}
 
-	private async selectStep(id: string | undefined, delayFocus = true, forceRebuild = false) {
-		if (id && this.editorInput.selectedStep === id && !forceRebuild) { return; }
+	private async selectStep(id: string | undefined, delayFocus = true) {
+		if (id && this.editorInput.selectedStep === id) { return; }
 
 		if (id) {
 			let stepElement = this.container.querySelector<HTMLDivElement>(`[data-step-id="${id}"]`);
@@ -1366,13 +1367,13 @@ export class GettingStartedPage extends EditorPane {
 			if (event.keyCode === KeyCode.UpArrow) {
 				const toExpand = category.steps.filter((step, index) => index < currentStepIndex() && this.contextService.contextMatchesRules(step.when));
 				if (toExpand.length) {
-					this.selectStep(toExpand[toExpand.length - 1].id, false, false);
+					this.selectStep(toExpand[toExpand.length - 1].id, false);
 				}
 			}
 			if (event.keyCode === KeyCode.DownArrow) {
 				const toExpand = category.steps.find((step, index) => index > currentStepIndex() && this.contextService.contextMatchesRules(step.when));
 				if (toExpand) {
-					this.selectStep(toExpand.id, false, false);
+					this.selectStep(toExpand.id, false);
 				}
 			}
 		}));
@@ -1439,7 +1440,7 @@ export class GettingStartedPage extends EditorPane {
 			if (e.affectsSome(contextKeysToWatch)) {
 				buildStepList();
 				this.registerDispatchListeners();
-				this.selectStep(this.editorInput.selectedStep, false, true);
+				this.selectStep(this.editorInput.selectedStep, false);
 			}
 		}));
 
@@ -1466,7 +1467,7 @@ export class GettingStartedPage extends EditorPane {
 		reset(this.stepsContent, categoryDescriptorComponent, stepListComponent, this.stepMediaComponent, categoryFooter);
 
 		const toExpand = category.steps.find(step => this.contextService.contextMatchesRules(step.when) && !step.done) ?? category.steps[0];
-		this.selectStep(selectedStep ?? toExpand.id, !selectedStep, true);
+		this.selectStep(selectedStep ?? toExpand.id, !selectedStep);
 
 		this.detailsScrollbar.scanDomNode();
 		this.detailsPageScrollbar?.scanDomNode();

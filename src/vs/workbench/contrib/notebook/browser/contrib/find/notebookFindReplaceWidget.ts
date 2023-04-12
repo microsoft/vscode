@@ -171,6 +171,7 @@ export class NotebookFindInputFilterButton extends Disposable {
 		this._filtersAction = new Action('notebookFindFilterAction', tooltip, 'notebook-filters ' + ThemeIcon.asClassName(filterIcon));
 		this._filtersAction.checked = false;
 		this._filterButtonContainer = dom.$('.find-filter-button');
+		this._filterButtonContainer.classList.add('monaco-custom-toggle');
 		this.createFilters(this._filterButtonContainer);
 
 		this._register(this.filters.onDidChange(() => {
@@ -193,6 +194,8 @@ export class NotebookFindInputFilterButton extends Disposable {
 	applyStyles(filterChecked: boolean): void {
 		const toggleStyles = this._toggleStyles;
 
+		this._filterButtonContainer.style.border = '1px solid transparent';
+		this._filterButtonContainer.style.borderRadius = '3px';
 		this._filterButtonContainer.style.borderColor = (filterChecked && toggleStyles.inputActiveOptionBorder) || '';
 		this._filterButtonContainer.style.color = (filterChecked && toggleStyles.inputActiveOptionForeground) || 'inherit';
 		this._filterButtonContainer.style.backgroundColor = (filterChecked && toggleStyles.inputActiveOptionBackground) || '';

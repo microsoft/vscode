@@ -664,7 +664,8 @@ export class KernelPickerMRUStrategy extends KernelPickerStrategyBase {
 			const res: SourcePick = {
 				action: sourceAction,
 				picked: false,
-				label: sourceAction.action.label
+				label: sourceAction.action.label,
+				tooltip: sourceAction.action.tooltip
 			};
 
 			quickPickItems.push(res);

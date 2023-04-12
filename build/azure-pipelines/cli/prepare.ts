@@ -16,13 +16,13 @@ const isOSS = process.env.VSCODE_QUALITY === 'oss' || !process.env.VSCODE_QUALIT
 if (isOSS) {
 	productJsonPath = path.join(root, 'product.json');
 } else {
-	productJsonPath = path.join(root, 'quality', process.env.VSCODE_QUALITY!, 'product.json');
+	productJsonPath = path.join(root, 'mixin', process.env.VSCODE_QUALITY!, 'product.json');
 }
 
 console.error('Loading product.json from', productJsonPath);
 const product = readJSON(productJsonPath);
-const allProductsAndQualities = isOSS ? [product] : fs.readdirSync(path.join(root, 'quality'))
-	.map(quality => ({ quality, json: readJSON(path.join(root, 'quality', quality, 'product.json')) }));
+const allProductsAndQualities = isOSS ? [product] : fs.readdirSync(path.join(root, 'mixin'))
+	.map(quality => ({ quality, json: readJSON(path.join(root, 'mixin', quality, 'product.json')) }));
 const commit = getVersion(root);
 
 const makeQualityMap = <T>(m: (productJson: any, quality: string) => T): Record<string, T> => {

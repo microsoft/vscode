@@ -27,7 +27,6 @@
   },
   "enabledApiProposals": [
     "contribShareMenu",
-    "contribEditorLineNumberMenu",
     "contribEditSessions"
   ],
   "contributes": {

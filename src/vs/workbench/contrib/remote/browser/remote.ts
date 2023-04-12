@@ -55,16 +55,30 @@ import { getRemoteName } from 'vs/platform/remote/common/remoteHosts';
 import { IActionViewItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { connectionHealthToString } from 'vs/base/parts/ipc/common/ipc.net';
 import { getVirtualWorkspaceLocation } from 'vs/platform/workspace/common/virtualWorkspace';
+import { IJSONSchema } from 'vs/base/common/jsonSchema';
+import { IWalkthroughsService } from 'vs/workbench/contrib/welcomeGettingStarted/browser/gettingStartedService';
+import { Schemas } from 'vs/base/common/network';
 
 interface HelpInformation {
 	extensionDescription: IExtensionDescription;
-	getStarted?: string;
+	getStarted?: string | { id: string };
 	documentation?: string;
-	feedback?: string;
 	issues?: string;
+	reportIssue?: string;
 	remoteName?: string[] | string;
 	virtualWorkspace?: string;
 }
+
+const getStartedWalkthrough: IJSONSchema = {
+	type: 'object',
+	required: ['id'],
+	properties: {
+		id: {
+			description: nls.localize('getStartedWalkthrough.id', 'The ID of a Get Started walkthrough to open.'),
+			type: 'string'
+		},
+	}
+};
 
 const remoteHelpExtPoint = ExtensionsRegistry.registerExtensionPoint<HelpInformation>({
 	extensionPoint: 'remoteHelp',
@@ -73,8 +87,11 @@ const remoteHelpExtPoint = ExtensionsRegistry.registerExtensionPoint<HelpInforma
 		type: 'object',
 		properties: {
 			'getStarted': {
-				description: nls.localize('RemoteHelpInformationExtPoint.getStarted', "The url, or a command that returns the url, to your project's Getting Started page"),
-				type: 'string'
+				description: nls.localize('RemoteHelpInformationExtPoint.getStarted', "The url, or a command that returns the url, to your project's Getting Started page, or a walkthrough ID contributed by your project's extension"),
+				oneOf: [
+					{ type: 'string' },
+					getStartedWalkthrough
+				]
 			},
 			'documentation': {
 				description: nls.localize('RemoteHelpInformationExtPoint.documentation', "The url, or a command that returns the url, to your project's documentation page"),
@@ -82,6 +99,11 @@ const remoteHelpExtPoint = ExtensionsRegistry.registerExtensionPoint<HelpInforma
 			},
 			'feedback': {
 				description: nls.localize('RemoteHelpInformationExtPoint.feedback', "The url, or a command that returns the url, to your project's feedback reporter"),
+				type: 'string',
+				markdownDeprecationMessage: nls.localize('RemoteHelpInformationExtPoint.feedback.deprecated', "Use {0} instead", '`reportIssue`')
+			},
+			'reportIssue': {
+				description: nls.localize('RemoteHelpInformationExtPoint.reportIssue', "The url, or a command that returns the url, to your project's issue reporter"),
 				type: 'string'
 			},
 			'issues': {
@@ -164,26 +186,29 @@ class HelpModel {
 		commandService: ICommandService,
 		remoteExplorerService: IRemoteExplorerService,
 		environmentService: IWorkbenchEnvironmentService,
-		workspaceContextService: IWorkspaceContextService
+		workspaceContextService: IWorkspaceContextService,
+		walkthroughsService: IWalkthroughsService
 	) {
 		const helpItems: IHelpItem[] = [];
 		const getStarted = viewModel.helpInformation.filter(info => info.getStarted);
 
 		if (getStarted.length) {
-			helpItems.push(new HelpItem(
+			helpItems.push(new GetStartedHelpItem(
 				icons.getStartedIcon,
 				nls.localize('remote.help.getStarted', "Get Started"),
 				getStarted.map((info: HelpInformation) => (new HelpItemValue(commandService,
+					walkthroughsService,
 					info.extensionDescription,
 					(typeof info.remoteName === 'string') ? [info.remoteName] : info.remoteName,
 					info.virtualWorkspace,
-					info.getStarted!)
+					info.getStarted)
 				)),
 				quickInputService,
 				environmentService,
 				openerService,
 				remoteExplorerService,
-				workspaceContextService
+				workspaceContextService,
+				commandService
 			));
 		}
 
@@ -194,30 +219,11 @@ class HelpModel {
 				icons.documentationIcon,
 				nls.localize('remote.help.documentation', "Read Documentation"),
 				documentation.map((info: HelpInformation) => (new HelpItemValue(commandService,
+					walkthroughsService,
 					info.extensionDescription,
 					(typeof info.remoteName === 'string') ? [info.remoteName] : info.remoteName,
 					info.virtualWorkspace,
 					info.documentation!)
-				)),
-				quickInputService,
-				environmentService,
-				openerService,
-				remoteExplorerService,
-				workspaceContextService
-			));
-		}
-
-		const feedback = viewModel.helpInformation.filter(info => info.feedback);
-
-		if (feedback.length) {
-			helpItems.push(new HelpItem(
-				icons.feedbackIcon,
-				nls.localize('remote.help.feedback', "Provide Feedback"),
-				feedback.map((info: HelpInformation) => (new HelpItemValue(commandService,
-					info.extensionDescription,
-					(typeof info.remoteName === 'string') ? [info.remoteName] : info.remoteName,
-					info.virtualWorkspace,
-					info.feedback!)
 				)),
 				quickInputService,
 				environmentService,
@@ -234,6 +240,7 @@ class HelpModel {
 				icons.reviewIssuesIcon,
 				nls.localize('remote.help.issues', "Review Issues"),
 				issues.map((info: HelpInformation) => (new HelpItemValue(commandService,
+					walkthroughsService,
 					info.extensionDescription,
 					(typeof info.remoteName === 'string') ? [info.remoteName] : info.remoteName,
 					info.virtualWorkspace,
@@ -252,13 +259,16 @@ class HelpModel {
 				icons.reportIssuesIcon,
 				nls.localize('remote.help.report', "Report Issue"),
 				viewModel.helpInformation.map(info => (new HelpItemValue(commandService,
+					walkthroughsService,
 					info.extensionDescription,
 					(typeof info.remoteName === 'string') ? [info.remoteName] : info.remoteName,
-					info.virtualWorkspace
+					info.virtualWorkspace,
+					info.reportIssue
 				))),
 				quickInputService,
 				environmentService,
 				commandService,
+				openerService,
 				remoteExplorerService,
 				workspaceContextService
 			));
@@ -272,7 +282,14 @@ class HelpModel {
 
 class HelpItemValue {
 	private _url: string | undefined;
-	constructor(private commandService: ICommandService, public extensionDescription: IExtensionDescription, public readonly remoteAuthority: string[] | undefined, public readonly virtualWorkspace: string | undefined, private urlOrCommand?: string) { }
+	private _description: string | undefined;
+
+	constructor(private commandService: ICommandService, private walkthroughService: IWalkthroughsService, public extensionDescription: IExtensionDescription, public readonly remoteAuthority: string[] | undefined, public readonly virtualWorkspace: string | undefined, private urlOrCommandOrId?: string | { id: string }) {
+	}
+
+	get description(): Promise<string | undefined> {
+		return this.getUrl().then(() => this._description);
+	}
 
 	get url(): Promise<string> {
 		return this.getUrl();
@@ -280,16 +297,27 @@ class HelpItemValue {
 
 	private async getUrl(): Promise<string> {
 		if (this._url === undefined) {
-			if (this.urlOrCommand) {
-				const url = URI.parse(this.urlOrCommand);
+			if (typeof this.urlOrCommandOrId === 'string') {
+				const url = URI.parse(this.urlOrCommandOrId);
 				if (url.authority) {
-					this._url = this.urlOrCommand;
+					this._url = this.urlOrCommandOrId;
 				} else {
-					const urlCommand: Promise<string | undefined> = this.commandService.executeCommand(this.urlOrCommand);
+					const urlCommand: Promise<string | undefined> = this.commandService.executeCommand(this.urlOrCommandOrId).then((result) => {
+						// if executing this command times out, cache its value whenever it eventually resolves
+						this._url = result;
+						return this._url;
+					});
 					// We must be defensive. The command may never return, meaning that no help at all is ever shown!
 					const emptyString: Promise<string> = new Promise(resolve => setTimeout(() => resolve(''), 500));
 					this._url = await Promise.race([urlCommand, emptyString]);
 				}
+			} else if (this.urlOrCommandOrId?.id) {
+				try {
+					const walkthroughId = `${this.extensionDescription.id}#${this.urlOrCommandOrId.id}`;
+					const walkthrough = this.walkthroughService.getWalkthrough(walkthroughId);
+					this._description = walkthrough.title;
+					this._url = walkthroughId;
+				} catch { }
 			}
 		}
 		if (this._url === undefined) {
@@ -316,13 +344,15 @@ abstract class HelpItemBase implements IHelpItem {
 
 	protected async getActions(): Promise<{
 		label: string;
+		url: string;
 		description: string;
 		extensionDescription: Readonly<IRelaxedExtensionDescription>;
 	}[]> {
 		return (await Promise.all(this.values.map(async (value) => {
 			return {
 				label: value.extensionDescription.displayName || value.extensionDescription.identifier.value,
-				description: await value.url,
+				description: await value.description ?? await value.url,
+				url: await value.url,
 				extensionDescription: value.extensionDescription
 			};
 		}))).filter(item => item.description);
@@ -370,7 +400,7 @@ abstract class HelpItemBase implements IHelpItem {
 			if (actions.length) {
 				const action = await this.quickInputService.pick(actions, { placeHolder: nls.localize('pickRemoteExtension', "Select url to open") });
 				if (action) {
-					await this.takeAction(action.extensionDescription, action.description);
+					await this.takeAction(action.extensionDescription, action.url);
 				}
 			}
 		} else {
@@ -380,6 +410,31 @@ abstract class HelpItemBase implements IHelpItem {
 	}
 
 	protected abstract takeAction(extensionDescription: IExtensionDescription, url?: string): Promise<void>;
+}
+
+class GetStartedHelpItem extends HelpItemBase {
+	constructor(
+		icon: ThemeIcon,
+		label: string,
+		values: HelpItemValue[],
+		quickInputService: IQuickInputService,
+		environmentService: IWorkbenchEnvironmentService,
+		private openerService: IOpenerService,
+		remoteExplorerService: IRemoteExplorerService,
+		workspaceContextService: IWorkspaceContextService,
+		private commandService: ICommandService
+	) {
+		super(icon, label, values, quickInputService, environmentService, remoteExplorerService, workspaceContextService);
+	}
+
+	protected async takeAction(extensionDescription: IExtensionDescription, urlOrWalkthroughId: string): Promise<void> {
+		if (URI.parse(urlOrWalkthroughId).scheme in [Schemas.http, Schemas.https]) {
+			this.openerService.open(urlOrWalkthroughId, { allowCommands: true });
+			return;
+		}
+
+		this.commandService.executeCommand('workbench.action.openWalkthrough', urlOrWalkthroughId);
+	}
 }
 
 class HelpItem extends HelpItemBase {
@@ -409,6 +464,7 @@ class IssueReporterItem extends HelpItemBase {
 		quickInputService: IQuickInputService,
 		environmentService: IWorkbenchEnvironmentService,
 		private commandService: ICommandService,
+		private openerService: IOpenerService,
 		remoteExplorerService: IRemoteExplorerService,
 		workspaceContextService: IWorkspaceContextService
 	) {
@@ -418,19 +474,25 @@ class IssueReporterItem extends HelpItemBase {
 	protected override async getActions(): Promise<{
 		label: string;
 		description: string;
+		url: string;
 		extensionDescription: Readonly<IRelaxedExtensionDescription>;
 	}[]> {
 		return Promise.all(this.values.map(async (value) => {
 			return {
 				label: value.extensionDescription.displayName || value.extensionDescription.identifier.value,
 				description: '',
+				url: await value.url,
 				extensionDescription: value.extensionDescription
 			};
 		}));
 	}
 
-	protected async takeAction(extensionDescription: IExtensionDescription): Promise<void> {
-		await this.commandService.executeCommand('workbench.action.openIssueReporter', [extensionDescription.identifier.value]);
+	protected async takeAction(extensionDescription: IExtensionDescription, url: string): Promise<void> {
+		if (!url) {
+			await this.commandService.executeCommand('workbench.action.openIssueReporter', [extensionDescription.identifier.value]);
+		} else {
+			await this.openerService.open(URI.parse(url));
+		}
 	}
 }
 
@@ -455,7 +517,8 @@ class HelpPanel extends ViewPane {
 		@IWorkbenchEnvironmentService protected readonly environmentService: IWorkbenchEnvironmentService,
 		@IThemeService themeService: IThemeService,
 		@ITelemetryService telemetryService: ITelemetryService,
-		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService
+		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
+		@IWalkthroughsService private readonly walkthroughsService: IWalkthroughsService,
 	) {
 		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService);
 	}
@@ -484,7 +547,7 @@ class HelpPanel extends ViewPane {
 			}
 		);
 
-		const model = new HelpModel(this.viewModel, this.openerService, this.quickInputService, this.commandService, this.remoteExplorerService, this.environmentService, this.workspaceContextService);
+		const model = new HelpModel(this.viewModel, this.openerService, this.quickInputService, this.commandService, this.remoteExplorerService, this.environmentService, this.workspaceContextService, this.walkthroughsService);
 
 		this.tree.setInput(model);
 
@@ -556,7 +619,7 @@ class RemoteViewPaneContainer extends FilterViewPaneContainer implements IViewMo
 			return;
 		}
 
-		if (!extension.value.documentation && !extension.value.feedback && !extension.value.getStarted && !extension.value.issues) {
+		if (!extension.value.documentation && !extension.value.getStarted && !extension.value.issues) {
 			return;
 		}
 
@@ -564,7 +627,7 @@ class RemoteViewPaneContainer extends FilterViewPaneContainer implements IViewMo
 			extensionDescription: extension.description,
 			getStarted: extension.value.getStarted,
 			documentation: extension.value.documentation,
-			feedback: extension.value.feedback,
+			reportIssue: extension.value.reportIssue,
 			issues: extension.value.issues,
 			remoteName: extension.value.remoteName,
 			virtualWorkspace: extension.value.virtualWorkspace

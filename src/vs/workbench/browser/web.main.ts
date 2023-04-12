@@ -82,7 +82,7 @@ import { UserDataProfileService } from 'vs/workbench/services/userDataProfile/co
 import { IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
 import { BrowserUserDataProfilesService } from 'vs/platform/userDataProfile/browser/userDataProfile';
 import { timeout } from 'vs/base/common/async';
-import { rendererLogId } from 'vs/workbench/common/logConstants';
+import { windowLogId } from 'vs/workbench/services/log/common/logConstants';
 import { LogService } from 'vs/platform/log/common/logService';
 
 export class BrowserMain extends Disposable {
@@ -419,7 +419,7 @@ export class BrowserMain extends Disposable {
 			fileService.registerProvider(logsPath.scheme, new InMemoryFileSystemProvider());
 		}
 
-		bufferLogger.logger = loggerService.createLogger(environmentService.logFile, { id: rendererLogId, name: localize('rendererLog', "Window") });
+		bufferLogger.logger = loggerService.createLogger(environmentService.logFile, { id: windowLogId, name: localize('rendererLog', "Window") });
 
 		// User data
 		let userDataProvider;

@@ -3,14 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-.interactive-list .monaco-list-row:not(:first-of-type) .interactive-item-container {
-	border-top: 1px solid var(--vscode-interactive-responseBorder);
-}
-
-.interactive-list .monaco-list-row:last-of-type .interactive-item-container {
-	border-bottom: 1px solid var(--vscode-interactive-responseBorder);
-}
-
 .interactive-list .monaco-list-row .monaco-tl-twistie {
 	/* Hide twisties */
 	display: none !important;
@@ -21,6 +13,10 @@
 	display: flex;
 	flex-direction: column;
 	gap: 6px;
+
+	cursor: default;
+	user-select: text;
+	-webkit-user-select: text;
 }
 
 .interactive-list .interactive-item-container .header {
@@ -49,6 +45,8 @@
 	height: 24px;
 	border-radius: 50%;
 	background: var(--vscode-badge-background);
+	pointer-events: none;
+	user-select: none;
 }
 
 .interactive-list .interactive-item-container .header .avatar .icon {
@@ -69,6 +67,18 @@
 	display: initial;
 }
 
+.interactive-list .interactive-item-container .header .monaco-toolbar .action-label {
+	border: 1px solid transparent;
+	padding: 2px;
+}
+
+.interactive-list .interactive-item-container .header .monaco-toolbar .checked .action-label,
+.interactive-list .interactive-item-container .header .monaco-toolbar .checked .action-label:hover {
+	color: var(--vscode-inputOption-activeForeground) !important;
+	border-color: var(--vscode-inputOption-activeBorder);
+	background-color: var(--vscode-inputOption-activeBackground);
+}
+
 .interactive-list .interactive-item-container .value {
 	width: 100%;
 }
@@ -82,28 +92,34 @@
 .interactive-list .interactive-item-container .value table,
 .interactive-list .interactive-item-container .value table td,
 .interactive-list .interactive-item-container .value table th {
-	border: 1px solid var(--vscode-interactive-responseBorder);
+	border: 1px solid var(--vscode-interactive-requestBorder);
 	border-collapse: collapse;
 	padding: 4px 6px;
+}
+
+.interactive-list .interactive-item-container .value a {
+	color: var(--vscode-textLink-foreground);
+}
+
+.interactive-list .interactive-item-container .value a:hover,
+.interactive-list .interactive-item-container .value a:active {
+	color: var(--vscode-textLink-activeForeground);
 }
 
 .interactive-list {
 	overflow: hidden;
 }
 
-.interactive-list .monaco-list-row .interactive-request,
-.interactive-list .monaco-list-row .interactive-response {
-	user-select: text;
-	-webkit-user-select: text;
-}
-
-.interactive-list .monaco-list-row .interactive-response {
-	background-color: var(--vscode-interactive-responseBackground);
+.interactive-list .monaco-list-row .interactive-request {
+	background-color: var(--vscode-interactive-requestBackground);
+	border-bottom: 1px solid var(--vscode-interactive-requestBorder);
+	border-top: 1px solid var(--vscode-interactive-requestBorder);
 }
 
 .interactive-list .monaco-list-row .value {
 	white-space: normal;
 	min-height: 36px;
+	word-wrap: break-word;
 }
 
 .interactive-list .monaco-list-row .value > :last-child:not(.rendered-markdown) {
@@ -116,6 +132,25 @@
 	margin-bottom: 8px;
 }
 
+.interactive-list .monaco-list-row .value h1 {
+	font-size: 20px;
+	font-weight: 600;
+	margin: 16px 0;
+
+}
+
+.interactive-list .monaco-list-row .value h2 {
+	font-size: 16px;
+	font-weight: 600;
+	margin: 16px 0;
+}
+
+.interactive-list .monaco-list-row .value h3 {
+	font-size: 14px;
+	font-weight: 600;
+	margin: 16px 0;
+}
+
 .interactive-list .monaco-list-row .value p {
 	margin: 0 0 16px 0;
 	line-height: 1.6em;
@@ -124,6 +159,7 @@
 .interactive-list .monaco-list-row .monaco-tokenized-source,
 .interactive-list .monaco-list-row code {
 	font-family: var(--monaco-monospace-font);
+	color: var(--vscode-textPreformat-foreground);
 }
 
 .interactive-session .interactive-input-and-toolbar {
@@ -145,7 +181,7 @@
 
 .interactive-session .interactive-input-and-toolbar .monaco-editor,
 .interactive-session .interactive-input-and-toolbar .monaco-editor .monaco-editor-background {
-	background-color: transparent;
+	background-color: var(--vscode-input-background) !important;
 }
 
 .interactive-session .interactive-input-and-toolbar .monaco-editor .cursors-layer {
@@ -154,7 +190,10 @@
 
 .interactive-session .interactive-input-part .interactive-execute-toolbar {
 	position: absolute;
+	height: 22px;
+
 	right: 3px;
+	bottom: 6px;
 }
 
 .interactive-session .interactive-input-part .interactive-execute-toolbar .codicon-debug-stop {
@@ -176,7 +215,7 @@
 	right: 10px;
 	height: 26px;
 	background-color: var(--vscode-interactive-result-editor-background-color);
-	border: 1px solid var(--vscode-interactive-responseBorder);
+	border: 1px solid var(--vscode-interactive-requestBorder);
 	z-index: 100;
 }
 
@@ -194,9 +233,8 @@
 	display: initial;
 }
 
-.interactive-session .interactive-result-editor-wrapper .monaco-editor,
-.interactive-session .interactive-result-editor-wrapper .monaco-editor .overflow-guard {
-	border-radius: 4px;
+.interactive-session .interactive-result-editor-wrapper .interactive-result-editor {
+	border: 1px solid var(--vscode-input-border, transparent);
 }
 
 .interactive-session .interactive-response .monaco-editor .margin,
@@ -208,28 +246,22 @@
 	margin: 16px 0;
 }
 
-.interactive-session .interactive-session-welcome-view {
-	box-sizing: border-box;
-	display: flex;
-	flex-direction: column;
-	justify-content: start;
-	padding: 20px;
-	gap: 16px;
-}
-
-.interactive-session .interactive-session-welcome-view .monaco-button {
-	max-width: 400px;
-	margin: 0;
-}
-
 .interactive-session .interactive-response .interactive-response-error-details {
 	display: flex;
-	align-items: center;
+	align-items: start;
 	gap: 6px;
 }
 
 .interactive-session .interactive-response .interactive-response-error-details .codicon {
+	margin-top: 1px;
+}
+
+.interactive-session .interactive-response .interactive-response-error-details .codicon-error {
 	color: var(--vscode-errorForeground) !important; /* Have to override default styles which apply to all lists */
+}
+
+.interactive-session .interactive-response .interactive-response-error-details .codicon-info {
+	color: var(--vscode-notificationsInfoIcon-foreground) !important; /* Have to override default styles which apply to all lists */
 }
 
 .interactive-session .interactive-item-container .value .interactive-slash-command {
@@ -240,6 +272,7 @@
 	padding: 12px 0px;
 	display: flex;
 	flex-direction: column;
+	border-top: solid 1px var(--vscode-interactive-requestBorder);
 }
 
 .interactive-session .interactive-session-followups {
@@ -250,15 +283,13 @@
 }
 
 .interactive-session .interactive-session-followups .monaco-button {
-	width: initial;
-
-	color: var(--vscode-textLink-foreground);
-	justify-content: left;
 	text-align: left;
+	width: initial;
 }
 
 .interactive-session .interactive-session-followups .monaco-button .codicon {
 	margin-left: 0;
+	margin-top: 1px;
 }
 
 .interactive-session .interactive-response-followups .monaco-button {
@@ -271,6 +302,19 @@
 
 .interactive-session .interactive-input-part .interactive-input-followups .interactive-session-followups {
 	margin-bottom: 8px;
+}
+
+.interactive-session .interactive-input-part .interactive-input-followups .interactive-session-followups .monaco-button {
+	display: block;
+	color: var(--vscode-textLink-foreground);
+}
+
+.interactive-session .interactive-input-part .interactive-input-followups .interactive-session-followups code {
+	font-family: var(--monaco-monospace-font);
+}
+
+.interactive-session .interactive-input-part .interactive-input-followups .interactive-session-followups .monaco-button .codicon-sparkle {
+	float: left;
 }
 
 .interactive-session .interactive-session-followups .monaco-button.interactive-followup-reply {
@@ -286,5 +330,10 @@
 
 .interactive-list .interactive-item-container .monaco-toolbar .codicon {
 	/* Very aggressive list styles try to apply focus colors to every codicon in a list row. */
-	color: var(--vscode-foreground) !important;
+	color: var(--vscode-icon-foreground) !important;
+}
+
+.interactive-session .interactive-item-container.filtered-response .value .rendered-markdown {
+	-webkit-mask-image: linear-gradient(rgba(0, 0, 0, 0.85), rgba(0, 0, 0, 0.05));
+	mask-image: linear-gradient(rgba(0, 0, 0, 0.85), rgba(0, 0, 0, 0.05));
 }

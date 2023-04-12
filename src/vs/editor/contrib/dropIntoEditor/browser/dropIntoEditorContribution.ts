@@ -3,13 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { raceCancellation } from 'vs/base/common/async';
+import { coalesce } from 'vs/base/common/arrays';
+import { CancelablePromise, createCancelablePromise, raceCancellation } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { UriList, VSDataTransfer } from 'vs/base/common/dataTransfer';
+import { VSDataTransfer } from 'vs/base/common/dataTransfer';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { Mimes } from 'vs/base/common/mime';
-import { relativePath } from 'vs/base/common/resources';
-import { URI } from 'vs/base/common/uri';
 import { addExternalEditorsDropData, toVSDataTransfer } from 'vs/editor/browser/dnd';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditorContributionInstantiation, registerEditorContribution } from 'vs/editor/browser/editorExtensions';
@@ -17,32 +15,44 @@ import { IBulkEditService, ResourceTextEdit } from 'vs/editor/browser/services/b
 import { IPosition } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
-import { DocumentOnDropEdit, DocumentOnDropEditProvider, WorkspaceEdit } from 'vs/editor/common/languages';
-import { ITextModel } from 'vs/editor/common/model';
+import { DocumentOnDropEdit, WorkspaceEdit } from 'vs/editor/common/languages';
+import { TrackedRangeStickiness } from 'vs/editor/common/model';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
+import { DropProgressManager as DropProgressWidgetManager } from 'vs/editor/contrib/dropIntoEditor/browser/dropProgressWidget';
+import { PostDropWidgetManager } from 'vs/editor/contrib/dropIntoEditor/browser/postDropWidget';
 import { CodeEditorStateFlag, EditorStateCancellationTokenSource } from 'vs/editor/contrib/editorState/browser/editorState';
 import { SnippetParser } from 'vs/editor/contrib/snippet/browser/snippetParser';
-import { localize } from 'vs/nls';
-import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { registerDefaultDropProviders } from './defaultOnDropProviders';
+import { EditorOption } from 'vs/editor/common/config/editorOptions';
 
 
 export class DropIntoEditorController extends Disposable implements IEditorContribution {
 
 	public static readonly ID = 'editor.contrib.dropIntoEditorController';
 
+	private operationIdPool = 0;
+	private _currentOperation?: { readonly id: number; readonly promise: CancelablePromise<void> };
+
+	private readonly _dropProgressWidgetManager: DropProgressWidgetManager;
+	private readonly _postDropWidgetManager: PostDropWidgetManager;
+
 	constructor(
 		editor: ICodeEditor,
 		@IBulkEditService private readonly _bulkEditService: IBulkEditService,
 		@ILanguageFeaturesService private readonly _languageFeaturesService: ILanguageFeaturesService,
-		@IProgressService private readonly _progressService: IProgressService,
+		@IInstantiationService instantiationService: IInstantiationService,
 		@IWorkspaceContextService workspaceContextService: IWorkspaceContextService,
 	) {
 		super();
 
+		this._dropProgressWidgetManager = this._register(new DropProgressWidgetManager(editor, instantiationService));
+		this._postDropWidgetManager = this._register(new PostDropWidgetManager(editor, instantiationService));
+
 		this._register(editor.onDropIntoEditor(e => this.onDropIntoEditor(editor, e.position, e.event)));
 
-		this._languageFeaturesService.documentOnDropEditProvider.register('*', new DefaultOnDropProvider(workspaceContextService));
+		registerDefaultDropProviders(this._languageFeaturesService, workspaceContextService);
 	}
 
 	private async onDropIntoEditor(editor: ICodeEditor, position: IPosition, dragEvent: DragEvent) {
@@ -50,70 +60,67 @@ export class DropIntoEditorController extends Disposable implements IEditorContr
 			return;
 		}
 
-		const model = editor.getModel();
-		const initialModelVersion = model.getVersionId();
+		this._currentOperation?.promise.cancel();
+		this._dropProgressWidgetManager.clear();
 
-		const ourDataTransfer = await this.extractDataTransferData(dragEvent);
-		if (ourDataTransfer.size === 0) {
-			return;
-		}
+		editor.focus();
+		editor.setPosition(position);
 
-		if (editor.getModel().getVersionId() !== initialModelVersion) {
-			return;
-		}
+		const id = this.operationIdPool++;
 
-		const tokenSource = new EditorStateCancellationTokenSource(editor, CodeEditorStateFlag.Value);
-		try {
-			const providers = this._languageFeaturesService.documentOnDropEditProvider.ordered(model);
+		const p = createCancelablePromise(async (token) => {
+			const tokenSource = new EditorStateCancellationTokenSource(editor, CodeEditorStateFlag.Value, undefined, token);
 
-			const providerEdit = await this._progressService.withProgress({
-				location: ProgressLocation.Notification,
-				delay: 750,
-				title: localize('dropProgressTitle', "Running drop handlers..."),
-				cancellable: true,
-			}, () => {
-				return raceCancellation((async () => {
-					for (const provider of providers) {
-						const edit = await provider.provideDocumentOnDropEdits(model, position, ourDataTransfer, tokenSource.token);
-						if (tokenSource.token.isCancellationRequested) {
-							return undefined;
-						}
-						if (edit) {
-							return edit;
-						}
-					}
-					return undefined;
-				})(), tokenSource.token);
-			}, () => {
-				tokenSource.cancel();
+			this._dropProgressWidgetManager.setAtPosition(position, {
+				cancel: () => tokenSource.cancel()
 			});
 
-			if (tokenSource.token.isCancellationRequested || editor.getModel().getVersionId() !== initialModelVersion) {
-				return;
-			}
+			try {
+				const ourDataTransfer = await this.extractDataTransferData(dragEvent);
+				if (ourDataTransfer.size === 0 || tokenSource.token.isCancellationRequested) {
+					return;
+				}
 
-			if (providerEdit) {
-				const snippet = typeof providerEdit.insertText === 'string' ? SnippetParser.escape(providerEdit.insertText) : providerEdit.insertText.snippet;
-				const combinedWorkspaceEdit: WorkspaceEdit = {
-					edits: [
-						new ResourceTextEdit(model.uri, {
-							range: new Range(position.lineNumber, position.column, position.lineNumber, position.column),
-							text: snippet,
-							insertAsSnippet: true,
-						}),
-						...(providerEdit.additionalEdit?.edits ?? [])
-					]
-				};
-				editor.focus();
-				await this._bulkEditService.apply(combinedWorkspaceEdit, { editor });
-				return;
+				const model = editor.getModel();
+				if (!model) {
+					return;
+				}
+
+				const providers = this._languageFeaturesService.documentOnDropEditProvider
+					.ordered(model)
+					.filter(provider => {
+						if (!provider.dropMimeTypes) {
+							// Keep all providers that don't specify mime types
+							return true;
+						}
+						return provider.dropMimeTypes.some(mime => ourDataTransfer.has(mime));
+					});
+
+				const possibleDropEdits = await raceCancellation(Promise.all(providers.map(provider => {
+					return provider.provideDocumentOnDropEdits(model, position, ourDataTransfer, tokenSource.token);
+				})), tokenSource.token);
+				if (tokenSource.token.isCancellationRequested) {
+					return;
+				}
+
+				if (possibleDropEdits) {
+					// Pass in the parent token here as it tracks cancelling the entire drop operation.
+					await this.applyDropResult(editor, position, 0, coalesce(possibleDropEdits), token);
+				}
+			} finally {
+				tokenSource.dispose();
+
+				if (this._currentOperation?.id === id) {
+					this._dropProgressWidgetManager.clear();
+					this._currentOperation = undefined;
+				}
 			}
-		} finally {
-			tokenSource.dispose();
-		}
+		});
+
+		this._currentOperation = { id, promise: p };
 	}
 
-	public async extractDataTransferData(dragEvent: DragEvent): Promise<VSDataTransfer> {
+	private async extractDataTransferData(dragEvent: DragEvent): Promise<VSDataTransfer> {
 		if (!dragEvent.dataTransfer) {
 			return new VSDataTransfer();
 		}
@@ -122,62 +129,54 @@ export class DropIntoEditorController extends Disposable implements IEditorContr
 		addExternalEditorsDropData(textEditorDataTransfer, dragEvent);
 		return textEditorDataTransfer;
 	}
-}
 
-class DefaultOnDropProvider implements DocumentOnDropEditProvider {
-
-	constructor(
-		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
-	) { }
-
-	async provideDocumentOnDropEdits(_model: ITextModel, _position: IPosition, dataTransfer: VSDataTransfer, _token: CancellationToken): Promise<DocumentOnDropEdit | undefined> {
-		const urlListEntry = dataTransfer.get(Mimes.uriList);
-		if (urlListEntry) {
-			const urlList = await urlListEntry.asString();
-			const snippet = this.getUriListInsertText(urlList);
-			if (snippet) {
-				return { insertText: snippet };
-			}
-		}
-
-		const textEntry = dataTransfer.get('text') ?? dataTransfer.get(Mimes.text);
-		if (textEntry) {
-			const text = await textEntry.asString();
-			return { insertText: text };
-		}
-
-		return undefined;
-	}
-
-	private getUriListInsertText(strUriList: string): string | undefined {
-		const uris: URI[] = [];
-		for (const resource of UriList.parse(strUriList)) {
-			try {
-				uris.push(URI.parse(resource));
-			} catch {
-				// noop
-			}
-		}
-
-		if (!uris.length) {
+	private async applyDropResult(editor: ICodeEditor, position: IPosition, selectedEditIndex: number, allEdits: readonly DocumentOnDropEdit[], token: CancellationToken): Promise<void> {
+		const model = editor.getModel();
+		if (!model) {
 			return;
 		}
 
-		return uris
-			.map(uri => {
-				const root = this._workspaceContextService.getWorkspaceFolder(uri);
-				if (root) {
-					const rel = relativePath(root.uri, uri);
-					if (rel) {
-						return rel;
-					}
-				}
-				return uri.fsPath;
-			})
-			.join(' ');
+		const edit = allEdits[selectedEditIndex];
+		if (!edit) {
+			return;
+		}
+
+		const snippet = typeof edit.insertText === 'string' ? SnippetParser.escape(edit.insertText) : edit.insertText.snippet;
+		const combinedWorkspaceEdit: WorkspaceEdit = {
+			edits: [
+				new ResourceTextEdit(model.uri, {
+					range: Range.fromPositions(position),
+					text: snippet,
+					insertAsSnippet: true,
+				}),
+				...(edit.additionalEdit?.edits ?? [])
+			]
+		};
+
+		// Use a decoration to track edits around the cursor
+		const editTrackingDecoration = model.deltaDecorations([], [{
+			range: Range.fromPositions(position),
+			options: { description: 'drop-line-suffix', stickiness: TrackedRangeStickiness.AlwaysGrowsWhenTypingAtEdges }
+		}]);
+
+		const editResult = await this._bulkEditService.apply(combinedWorkspaceEdit, { editor, token });
+
+		const editRange = model.getDecorationRange(editTrackingDecoration[0]);
+		model.deltaDecorations(editTrackingDecoration, []);
+
+		if (editResult.isApplied && allEdits.length > 1) {
+			const options = editor.getOptions().get(EditorOption.dropIntoEditor);
+			if (options.showDropSelector === 'afterDrop') {
+				this._postDropWidgetManager.show(editRange ?? Range.fromPositions(position), {
+					activeEditIndex: selectedEditIndex,
+					allEdits: allEdits,
+				}, async (newEditIndex) => {
+					await model.undo();
+					this.applyDropResult(editor, position, newEditIndex, allEdits, token);
+				});
+			}
+		}
 	}
 }
 
-
 registerEditorContribution(DropIntoEditorController.ID, DropIntoEditorController, EditorContributionInstantiation.BeforeFirstInteraction);
-

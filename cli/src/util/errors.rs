@@ -2,9 +2,10 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-use crate::{constants::{
-	APPLICATION_NAME, CONTROL_PORT, DOCUMENTATION_URL, QUALITYLESS_PRODUCT_NAME,
-}, rpc::ResponseError};
+use crate::{
+	constants::{APPLICATION_NAME, CONTROL_PORT, DOCUMENTATION_URL, QUALITYLESS_PRODUCT_NAME},
+	rpc::ResponseError,
+};
 use std::fmt::Display;
 use thiserror::Error;
 
@@ -343,7 +344,7 @@ pub struct ServiceAlreadyRegistered();
 
 impl std::fmt::Display for ServiceAlreadyRegistered {
 	fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-		write!(f, "Already registered the service. Run `code tunnel service uninstall` to unregister it first")
+		write!(f, "Already registered the service. Run `{} tunnel service uninstall` to unregister it first", APPLICATION_NAME)
 	}
 }
 
@@ -493,6 +494,12 @@ pub enum CodeError {
 	NoRunningTunnel,
 	#[error("rpc call failed: {0:?}")]
 	TunnelRpcCallFailed(ResponseError),
+	#[cfg(windows)]
+	#[error("the windows app lock {0} already exists")]
+	AppAlreadyLocked(String),
+	#[cfg(windows)]
+	#[error("could not get windows app lock: {0:?}")]
+	AppLockFailed(std::io::Error),
 }
 
 makeAnyError!(

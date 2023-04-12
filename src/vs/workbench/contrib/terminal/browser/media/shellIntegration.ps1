@@ -17,6 +17,31 @@ $Global:__VSCodeOriginalPrompt = $function:Prompt
 
 $Global:__LastHistoryId = -1
 
+if ($env:VSCODE_ENV_REPLACE) {
+	$Split = $env:VSCODE_ENV_REPLACE.Split(":")
+	foreach ($Item in $Split) {
+		$Inner = $Item.Split('=')
+		[Environment]::SetEnvironmentVariable($Inner[0], $Inner[1])
+	}
+	$env:VSCODE_ENV_REPLACE = $null
+}
+if ($env:VSCODE_ENV_PREPEND) {
+	$Split = $env:VSCODE_ENV_PREPEND.Split(":")
+	foreach ($Item in $Split) {
+		$Inner = $Item.Split('=')
+		[Environment]::SetEnvironmentVariable($Inner[0], $Inner[1] + [Environment]::GetEnvironmentVariable($Inner[0]))
+	}
+	$env:VSCODE_ENV_PREPEND = $null
+}
+if ($env:VSCODE_ENV_APPEND) {
+	$Split = $env:VSCODE_ENV_APPEND.Split(":")
+	foreach ($Item in $Split) {
+		$Inner = $Item.Split('=')
+		[Environment]::SetEnvironmentVariable($Inner[0], [Environment]::GetEnvironmentVariable($Inner[0]) + $Inner[1])
+	}
+	$env:VSCODE_ENV_APPEND = $null
+}
+
 function Global:__VSCode-Escape-Value([string]$value) {
 	# NOTE: In PowerShell v6.1+, this can be written `$value -replace '…', { … }` instead of `[regex]::Replace`.
 	# Replace any non-alphanumeric characters.

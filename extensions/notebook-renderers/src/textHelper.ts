@@ -7,25 +7,42 @@ import { handleANSIOutput } from './ansi';
 
 export const scrollableClass = 'scrollable';
 
+/**
+ * Output is Truncated. View as a [scrollable element] or open in a [text editor]. Adjust cell output [settings...]
+ */
 function generateViewMoreElement(outputId: string) {
-	const container = document.createElement('div');
-	const first = document.createElement('span');
-	first.textContent = 'Output exceeds the ';
 
-	const second = document.createElement('a');
-	second.textContent = 'size limit';
-	second.href = `command:workbench.action.openSettings?%5B%22notebook.output.textLineLimit%22%5D`;
+	const container = document.createElement('div');
+	container.classList.add('truncation-message');
+	const first = document.createElement('span');
+	first.textContent = 'Output is Truncated. View as a ';
 	container.appendChild(first);
+
+	const viewAsScrollableLink = document.createElement('a');
+	viewAsScrollableLink.textContent = 'scrollable element';
+	viewAsScrollableLink.href = `command:cellOutput.enableScrolling?${outputId}`;
+	viewAsScrollableLink.ariaLabel = 'enable scrollable output';
+	container.appendChild(viewAsScrollableLink);
+
+	const second = document.createElement('span');
+	second.textContent = ' or open in a ';
 	container.appendChild(second);
 
-	const third = document.createElement('span');
-	third.textContent = '. Open the full output data ';
+	const openInTextEditorLink = document.createElement('a');
+	openInTextEditorLink.textContent = 'text editor';
+	openInTextEditorLink.href = `command:workbench.action.openLargeOutput?${outputId}`;
+	openInTextEditorLink.ariaLabel = 'open output in text editor';
+	container.appendChild(openInTextEditorLink);
 
-	const forth = document.createElement('a');
-	forth.textContent = 'in a text editor';
-	forth.href = `command:workbench.action.openLargeOutput?${outputId}`;
+	const third = document.createElement('span');
+	third.textContent = '. Adjust cell output ';
 	container.appendChild(third);
-	container.appendChild(forth);
+
+	const layoutSettingsLink = document.createElement('a');
+	layoutSettingsLink.textContent = 'settings...';
+	layoutSettingsLink.href = `command:workbench.action.openSettings?%5B%22%40tag%3AnotebookOutputLayout%22%5D`;
+	layoutSettingsLink.ariaLabel = 'notebook output settings';
+	container.appendChild(layoutSettingsLink);
 
 	return container;
 }
@@ -36,6 +53,7 @@ function generateNestedViewAllElement(outputId: string) {
 	const link = document.createElement('a');
 	link.textContent = '...';
 	link.href = `command:workbench.action.openLargeOutput?${outputId}`;
+	link.ariaLabel = 'Open full output in text editor';
 	link.title = 'Open full output in text editor';
 	link.style.setProperty('text-decoration', 'none');
 	container.appendChild(link);
@@ -53,7 +71,6 @@ function truncatedArrayOfString(id: string, buffer: string[], linesLimit: number
 		return container;
 	}
 
-	container.appendChild(generateViewMoreElement(id));
 	container.appendChild(handleANSIOutput(buffer.slice(0, linesLimit - 5).join('\n'), trustHtml));
 
 	// truncated piece
@@ -62,6 +79,8 @@ function truncatedArrayOfString(id: string, buffer: string[], linesLimit: number
 	container.appendChild(elipses);
 
 	container.appendChild(handleANSIOutput(buffer.slice(lineCount - 5).join('\n'), trustHtml));
+
+	container.appendChild(generateViewMoreElement(id));
 
 	return container;
 }

@@ -10,6 +10,9 @@ import { computeIndentLevel } from 'vs/editor/common/model/utils';
 import { MetadataConsts } from 'vs/editor/common/encodedTokenAttributes';
 import { TestLineToken, TestLineTokenFactory } from 'vs/editor/test/common/core/testLineToken';
 import { createTextModel } from 'vs/editor/test/common/testTextModel';
+import { ITokenizationSupport, TokenizationRegistry, IState, IBackgroundTokenizationStore, EncodedTokenizationResult, TokenizationResult, IBackgroundTokenizer } from 'vs/editor/common/languages';
+import { ITextModel } from 'vs/editor/common/model';
+import { ContiguousMultilineTokensBuilder } from 'vs/editor/common/tokens/contiguousMultilineTokensBuilder';
 
 interface ILineEdit {
 	startColumn: number;
@@ -93,6 +96,56 @@ class TestToken {
 	}
 }
 
+class ManualTokenizationSupport implements ITokenizationSupport {
+	private readonly tokens = new Map<number, Uint32Array>();
+	private readonly stores = new Set<IBackgroundTokenizationStore>();
+
+	public setLineTokens(lineNumber: number, tokens: Uint32Array): void {
+		const b = new ContiguousMultilineTokensBuilder();
+		b.add(lineNumber, tokens);
+		for (const s of this.stores) {
+			s.setTokens(b.finalize());
+		}
+	}
+
+	getInitialState(): IState {
+		return new LineState(1);
+	}
+
+	tokenize(line: string, hasEOL: boolean, state: IState): TokenizationResult {
+		throw new Error();
+	}
+
+	tokenizeEncoded(line: string, hasEOL: boolean, state: IState): EncodedTokenizationResult {
+		const s = state as LineState;
+		return new EncodedTokenizationResult(this.tokens.get(s.lineNumber)!, new LineState(s.lineNumber + 1));
+	}
+
+	/**
+	 * Can be/return undefined if default background tokenization should be used.
+	 */
+	createBackgroundTokenizer?(textModel: ITextModel, store: IBackgroundTokenizationStore): IBackgroundTokenizer | undefined {
+		this.stores.add(store);
+		return {
+			dispose: () => {
+				this.stores.delete(store);
+			},
+			requestTokens(startLineNumber, endLineNumberExclusive) {
+			},
+		};
+	}
+}
+
+class LineState implements IState {
+	constructor(public readonly lineNumber: number) { }
+	clone(): IState {
+		return this;
+	}
+	equals(other: IState): boolean {
+		return (other as LineState).lineNumber === this.lineNumber;
+	}
+}
+
 suite('ModelLinesTokens', () => {
 
 	interface IBufferLineState {
@@ -107,13 +160,18 @@ suite('ModelLinesTokens', () => {
 
 	function testApplyEdits(initial: IBufferLineState[], edits: IEdit[], expected: IBufferLineState[]): void {
 		const initialText = initial.map(el => el.text).join('\n');
+
+		const s = new ManualTokenizationSupport();
+		const d = TokenizationRegistry.register('test', s);
+
 		const model = createTextModel(initialText, 'test');
+		model.onBeforeAttached();
 		for (let lineIndex = 0; lineIndex < initial.length; lineIndex++) {
 			const lineTokens = initial[lineIndex].tokens;
 			const lineTextLength = model.getLineMaxColumn(lineIndex + 1) - 1;
 			const tokens = TestToken.toTokens(lineTokens);
 			LineTokens.convertToEndOffset(tokens, lineTextLength);
-			model.setLineTokens(lineIndex + 1, tokens);
+			s.setLineTokens(lineIndex + 1, tokens);
 		}
 
 		model.applyEdits(edits.map((ed) => ({
@@ -131,6 +189,7 @@ suite('ModelLinesTokens', () => {
 		}
 
 		model.dispose();
+		d.dispose();
 	}
 
 	test('single delete 1', () => {
@@ -445,17 +504,20 @@ suite('ModelLinesTokens', () => {
 	}
 
 	test('insertion on empty line', () => {
+		const s = new ManualTokenizationSupport();
+		const d = TokenizationRegistry.register('test', s);
+
 		const model = createTextModel('some text', 'test');
 		const tokens = TestToken.toTokens([new TestToken(0, 1)]);
 		LineTokens.convertToEndOffset(tokens, model.getLineMaxColumn(1) - 1);
-		model.setLineTokens(1, tokens);
+		s.setLineTokens(1, tokens);
 
 		model.applyEdits([{
 			range: new Range(1, 1, 1, 10),
 			text: ''
 		}]);
 
-		model.setLineTokens(1, new Uint32Array(0));
+		s.setLineTokens(1, new Uint32Array(0));
 
 		model.applyEdits([{
 			range: new Range(1, 1, 1, 1),
@@ -466,6 +528,7 @@ suite('ModelLinesTokens', () => {
 		assertLineTokens(actualTokens, [new TestToken(0, 1)]);
 
 		model.dispose();
+		d.dispose();
 	});
 
 	test('updates tokens on insertion 1', () => {

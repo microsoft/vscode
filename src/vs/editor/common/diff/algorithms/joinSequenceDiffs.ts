@@ -3,7 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ISequence, OffsetRange, SequenceDiff } from 'vs/editor/common/diff/algorithms/diffAlgorithm';
+import { OffsetRange } from 'vs/editor/common/core/offsetRange';
+import { ISequence, SequenceDiff } from 'vs/editor/common/diff/algorithms/diffAlgorithm';
 
 export function optimizeSequenceDiffs(sequence1: ISequence, sequence2: ISequence, sequenceDiffs: SequenceDiff[]): SequenceDiff[] {
 	let result = sequenceDiffs;
