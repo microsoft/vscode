@@ -305,6 +305,7 @@ export interface API {
 	registerCredentialsProvider(provider: CredentialsProvider): Disposable;
 	registerPostCommitCommandsProvider(provider: PostCommitCommandsProvider): Disposable;
 	registerPushErrorHandler(handler: PushErrorHandler): Disposable;
+	registerBranchProtectionProvider(root: Uri, provider: BranchProtectionProvider): Disposable;
 }
 
 export interface GitExtension {
