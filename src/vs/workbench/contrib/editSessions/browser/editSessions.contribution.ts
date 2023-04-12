@@ -405,6 +405,21 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 				await that.progressService.withProgress({ ...resumeProgressOptions, title: resumeProgressOptionsTitle }, async () => await that.resumeEditSession(editSessionId, undefined, force));
 			}
 		}));
+		this._register(registerAction2(class ResumeLatestEditSessionAction extends Action2 {
+			constructor() {
+				super({
+					id: 'workbench.editSessions.actions.resumeFromSerializedPayload',
+					title: { value: localize('resume cloud changes', "Resume Changes from Serialized Data"), original: 'Resume Changes from Serialized Data' },
+					category: 'Developer',
+					f1: true,
+				});
+			}
+
+			async run(accessor: ServicesAccessor, editSessionId?: string, force?: boolean): Promise<void> {
+				const data = await that.quickInputService.input({ prompt: 'Enter serialized data' });
+				await that.progressService.withProgress({ ...resumeProgressOptions, title: resumeProgressOptionsTitle }, async () => await that.resumeEditSession(editSessionId, undefined, force, undefined, data));
+			}
+		}));
 	}
 
 	private registerStoreLatestEditSessionAction(): void {
@@ -440,7 +455,7 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 		}));
 	}
 
-	async resumeEditSession(ref?: string, silent?: boolean, force?: boolean, progress?: IProgress<IProgressStep>): Promise<void> {
+	async resumeEditSession(ref?: string, silent?: boolean, force?: boolean, progress?: IProgress<IProgressStep>, serializedData?: string): Promise<void> {
 		// Wait for the remote environment to become available, if any
 		await this.remoteAgentService.getEnvironment();
 
@@ -467,7 +482,7 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 		performance.mark('code/willResumeEditSessionFromIdentifier');
 
 		progress?.report({ message: localize('checkingForWorkingChanges', 'Checking for pending cloud changes...') });
-		const data = await this.editSessionsStorageService.read(ref);
+		const data = serializedData ? { editSession: JSON.parse(serializedData), ref: '' } : await this.editSessionsStorageService.read(ref);
 		if (!data) {
 			if (ref === undefined && !silent) {
 				this.notificationService.info(localize('no cloud changes', 'There are no changes to resume from the cloud.'));
@@ -723,6 +738,7 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 
 		try {
 			this.logService.info(`Storing edit session...`);
+			console.log('data', JSON.stringify(data, null, 2));
 			const ref = await this.editSessionsStorageService.write(data);
 			this.logService.info(`Stored edit session with ref ${ref}.`);
 			return ref;

@@ -35,6 +35,7 @@ import { SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { IBoundarySashes } from 'vs/base/browser/ui/sash/sash';
 import { EditSessionRegistry } from 'vs/platform/workspace/browser/editSessionsStorageService';
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
+import { ICommandService } from 'vs/platform/commands/common/commands';
 
 interface IEditorPartUIState {
 	serializedGrid: ISerializedGrid;
@@ -165,9 +166,32 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 
 	resumeState(_workspaceFolder: IWorkspaceFolder, state: unknown) {
 		if (typeof state === 'object' && state !== null && 'serializedGrid' in state && 'activeGroup' in state && 'mostRecentActiveGroups' in state) {
-			this.dispose();
 			this.mostRecentActiveGroups = (state as IEditorPartUIState).mostRecentActiveGroups;
-			this.doCreateGridControlWithState((state as IEditorPartUIState).serializedGrid, (state as IEditorPartUIState).activeGroup);
+			this.instantiationService.invokeFunction(async (accessor) => {
+				const restoreFocus = this.shouldRestoreFocus(this.container);
+
+				await accessor.get(ICommandService).executeCommand('workbench.action.closeAllEditors');
+				this.doCreateGridControlWithState((state as IEditorPartUIState).serializedGrid, (state as IEditorPartUIState).activeGroup);
+
+				// Layout
+				this.doLayout(this._contentDimension);
+
+				// Update container
+				this.updateContainer();
+
+				// Events for groups that got added
+				for (const groupView of this.getGroups(GroupsOrder.GRID_APPEARANCE)) {
+					this._onDidAddGroup.fire(groupView);
+				}
+
+				// Notify group index change given layout has changed
+				this.notifyGroupIndexChange();
+
+				// Restore focus as needed
+				if (restoreFocus) {
+					this._activeGroup.focus();
+				}
+			});
 		}
 	}
 

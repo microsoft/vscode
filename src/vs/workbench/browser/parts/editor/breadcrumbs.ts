@@ -35,7 +35,7 @@ export class BreadcrumbsService implements IBreadcrumbsService {
 
 	register(group: number, widget: BreadcrumbsWidget): IDisposable {
 		if (this._map.has(group)) {
-			throw new Error(`group (${group}) has already a widget`);
+			console.error(`group (${group}) has already a widget`);
 		}
 		this._map.set(group, widget);
 		return {

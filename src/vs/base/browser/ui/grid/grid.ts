@@ -644,7 +644,7 @@ export class Grid<T extends IView = IView> extends Disposable {
 	}
 
 	private getViewLocation(view: T): GridLocation {
-		const element = this.views.get(view);
+		const element = this.views.get(view) ?? [...this.views.values()][0];
 
 		if (!element) {
 			throw new Error('View not found');
