@@ -515,12 +515,13 @@ export class InteractiveSessionService extends Disposable implements IInteractiv
 			throw new Error(`Provider ${provider.id} already registered`);
 		}
 
-		this._hasProvider.set(true);
 		this._providers.set(provider.id, provider);
+		this._hasProvider.set(true);
 
 		return toDisposable(() => {
 			this.trace('registerProvider', `Disposing interactive session provider`);
 			this._providers.delete(provider.id);
+			this._hasProvider.set(this._providers.size > 0);
 		});
 	}
 
