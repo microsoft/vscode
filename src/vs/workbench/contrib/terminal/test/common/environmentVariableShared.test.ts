@@ -10,9 +10,9 @@ import { EnvironmentVariableMutatorType, IEnvironmentVariableMutator } from 'vs/
 suite('EnvironmentVariable - deserializeEnvironmentVariableCollection', () => {
 	test('should construct correctly with 3 arguments', () => {
 		const c = deserializeEnvironmentVariableCollection([
-			['A', { value: 'a', type: EnvironmentVariableMutatorType.Replace, scope: undefined }],
-			['B', { value: 'b', type: EnvironmentVariableMutatorType.Append, scope: undefined }],
-			['C', { value: 'c', type: EnvironmentVariableMutatorType.Prepend, scope: undefined }]
+			['A', { value: 'a', type: EnvironmentVariableMutatorType.Replace, scope: undefined, variable: 'A' }],
+			['B', { value: 'b', type: EnvironmentVariableMutatorType.Append, scope: undefined, variable: 'B' }],
+			['C', { value: 'c', type: EnvironmentVariableMutatorType.Prepend, scope: undefined, variable: 'C' }]
 		]);
 		const keys = [...c.keys()];
 		deepStrictEqual(keys, ['A', 'B', 'C']);
@@ -26,9 +26,9 @@ suite('EnvironmentVariable - serializeEnvironmentVariableCollection', () => {
 	test('should correctly serialize the object', () => {
 		const collection = new Map<string, IEnvironmentVariableMutator>();
 		deepStrictEqual(serializeEnvironmentVariableCollection(collection), []);
-		collection.set('A', { value: 'a', type: EnvironmentVariableMutatorType.Replace, scope: undefined });
-		collection.set('B', { value: 'b', type: EnvironmentVariableMutatorType.Append, scope: undefined });
-		collection.set('C', { value: 'c', type: EnvironmentVariableMutatorType.Prepend, scope: undefined });
+		collection.set('A', { value: 'a', type: EnvironmentVariableMutatorType.Replace, scope: undefined, variable: 'A' });
+		collection.set('B', { value: 'b', type: EnvironmentVariableMutatorType.Append, scope: undefined, variable: 'B' });
+		collection.set('C', { value: 'c', type: EnvironmentVariableMutatorType.Prepend, scope: undefined, variable: 'C' });
 		deepStrictEqual(serializeEnvironmentVariableCollection(collection), [
 			['A', { value: 'a', type: EnvironmentVariableMutatorType.Replace, scope: undefined }],
 			['B', { value: 'b', type: EnvironmentVariableMutatorType.Append }],
