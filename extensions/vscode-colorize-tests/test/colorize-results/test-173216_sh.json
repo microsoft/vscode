@@ -59,28 +59,28 @@
 		"c": "-",
 		"t": "source.shell meta.statement.shell meta.statement.command.shell string.unquoted.argument.shell constant.other.option.dash.shell",
 		"r": {
-			"dark_plus": "string: #CE9178",
-			"light_plus": "string: #A31515",
+			"dark_plus": "constant.other.option: #569CD6",
+			"light_plus": "constant.other.option: #0000FF",
 			"dark_vs": "string: #CE9178",
 			"light_vs": "string: #A31515",
 			"hc_black": "string: #CE9178",
-			"dark_plus_experimental": "string: #CE9178",
+			"dark_plus_experimental": "constant.other.option: #569CD6",
 			"hc_light": "string: #0F4A85",
-			"light_plus_experimental": "string: #A31515"
+			"light_plus_experimental": "constant.other.option: #0000FF"
 		}
 	},
 	{
 		"c": "A",
 		"t": "source.shell meta.statement.shell meta.statement.command.shell string.unquoted.argument constant.other.option",
 		"r": {
-			"dark_plus": "string: #CE9178",
-			"light_plus": "string: #A31515",
+			"dark_plus": "constant.other.option: #569CD6",
+			"light_plus": "constant.other.option: #0000FF",
 			"dark_vs": "string: #CE9178",
 			"light_vs": "string: #A31515",
 			"hc_black": "string: #CE9178",
-			"dark_plus_experimental": "string: #CE9178",
+			"dark_plus_experimental": "constant.other.option: #569CD6",
 			"hc_light": "string: #0F4A85",
-			"light_plus_experimental": "string: #A31515"
+			"light_plus_experimental": "constant.other.option: #0000FF"
 		}
 	},
 	{
