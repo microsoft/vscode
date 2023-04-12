@@ -266,10 +266,10 @@ class InteractiveEditorWidget {
 	getHeight(): number {
 		const base = getTotalHeight(this._elements.progress) + getTotalHeight(this._elements.status);
 		const editorHeight = this.inputEditor.getContentHeight() + 12 /* padding and border */;
-		const previewDiffHeight = this._previewDiffEditor.getModel() ? 12 + Math.min(300, Math.max(0, this._previewDiffEditor.getContentHeight())) : 0;
+		const previewDiffHeight = this._previewDiffEditor.getModel().modified ? 12 + Math.min(300, Math.max(0, this._previewDiffEditor.getContentHeight())) : 0;
 		const previewCreateTitleHeight = getTotalHeight(this._elements.previewCreateTitle);
-		const previewCreateHeight = this._previewCreateEditor.getModel() ? 12 + Math.min(300, Math.max(0, this._previewCreateEditor.getContentHeight())) : 0;
-		return base + editorHeight + previewDiffHeight + previewCreateTitleHeight + previewCreateHeight + 24 /* padding */ + 8 /*shadow*/;
+		const previewCreateHeight = this._previewCreateEditor.getModel() ? 18 + Math.min(300, Math.max(0, this._previewCreateEditor.getContentHeight())) : 0;
+		return base + editorHeight + previewDiffHeight + previewCreateTitleHeight + previewCreateHeight + 18 /* padding */ + 8 /*shadow*/;
 	}
 
 	updateProgress(show: boolean) {
@@ -468,6 +468,7 @@ class InteractiveEditorWidget {
 	hideCreatePreview() {
 		this._elements.previewCreateTitle.classList.add('hidden');
 		this._elements.previewCreate.classList.add('hidden');
+		this._previewCreateEditor.setModel(null);
 		this._previewCreateTitle.element.clear();
 		this._onDidChangeHeight.fire();
 	}
