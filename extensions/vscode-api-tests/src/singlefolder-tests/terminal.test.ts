@@ -858,9 +858,9 @@ import { assertNoRpc, poll } from '../utils';
 				const entries: [string, EnvironmentVariableMutator][] = [];
 				collection.forEach((v, m) => entries.push([v, m]));
 				deepStrictEqual(entries, [
-					['A', { value: '~a2~', type: EnvironmentVariableMutatorType.Replace }],
-					['B', { value: '~b2~', type: EnvironmentVariableMutatorType.Append }],
-					['C', { value: '~c2~', type: EnvironmentVariableMutatorType.Prepend }]
+					['A', { value: '~a2~', type: EnvironmentVariableMutatorType.Replace, scope: undefined, variable: 'A' }],
+					['B', { value: '~b2~', type: EnvironmentVariableMutatorType.Append, scope: undefined, variable: 'B' }],
+					['C', { value: '~c2~', type: EnvironmentVariableMutatorType.Prepend, scope: undefined, variable: 'C' }]
 				]);
 			});
 		});
