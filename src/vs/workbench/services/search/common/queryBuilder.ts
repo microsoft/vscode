@@ -150,7 +150,7 @@ export class QueryBuilder {
 			if (!newPattern.notebookInfo) {
 				newPattern.notebookInfo = {};
 			}
-			newPattern.notebookInfo.isInNotebookCellInput = options.notebookSearchConfig.includeMarkupInput;
+			newPattern.notebookInfo.isInNotebookMarkdownInput = options.notebookSearchConfig.includeMarkupInput;
 		}
 
 		if (options.notebookSearchConfig?.includeCodeInput) {
