@@ -25,7 +25,7 @@ import { MultipleSizePersistingMechanism, MultipleSizePersistingOptions, Resizab
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 // EXAMPLE
-import { DummyResizeWidget } from 'vs/editor/contrib/hover/browser/exampleResizableContentWidget';
+import { DummyResizeWidget, ExampleMultipleSizePersistingOptions } from 'vs/editor/contrib/hover/browser/exampleResizableContentWidget';
 const $ = dom.$;
 
 export class ContentHoverController extends Disposable {
@@ -45,7 +45,7 @@ export class ContentHoverController extends Disposable {
 		super();
 
 		// EXAMPLE
-		_editor.addContentWidget(new DummyResizeWidget(this._editor, new MultipleSizePersistingOptions()));
+		_editor.addContentWidget(new DummyResizeWidget(this._editor, new ExampleMultipleSizePersistingOptions()));
 
 		// Instantiate participants and sort them by `hoverOrdinal` which is relevant for rendering order.
 		this._participants = [];
@@ -434,7 +434,7 @@ class FilteredHoverResult extends HoverResult {
 	}
 }
 
-class ContentHoverVisibleData {
+export class ContentHoverVisibleData {
 
 	public closestMouseDistance: number | undefined = undefined;
 
