@@ -406,8 +406,8 @@ export class ApplyPreviewEdits extends AbstractInteractiveEditorAction {
 		});
 	}
 
-	override runInteractiveEditorCommand(_accessor: ServicesAccessor, ctrl: InteractiveEditorController): void {
-		ctrl.applyChanges();
+	override async runInteractiveEditorCommand(_accessor: ServicesAccessor, ctrl: InteractiveEditorController): Promise<void> {
+		await ctrl.applyChanges();
 		ctrl.cancelSession();
 	}
 }
