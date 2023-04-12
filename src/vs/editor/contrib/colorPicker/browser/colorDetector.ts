@@ -75,7 +75,7 @@ export class ColorDetector extends Disposable implements IEditorContribution {
 			const updatedDefaultColorDecoratorsSetting = prevIsDefaultColorsEnabled !== this._isDefaultColorDecoratorsEnabled || e.hasChanged(EditorOption.defaultColorDecorators);
 
 			if (updatedColorDecoratorsSetting || updatedDefaultColorDecoratorsSetting) {
-				if (this._isColorDecoratorsEnabled || this._isDefaultColorDecoratorsEnabled) {
+				if (this._isColorDecoratorsEnabled) {
 					this.onModelChanged();
 				} else {
 					this.removeAllDecorations();
@@ -125,7 +125,7 @@ export class ColorDetector extends Disposable implements IEditorContribution {
 	private onModelChanged(): void {
 		this.stop();
 		const model = this._editor.getModel();
-		if (!model || !this._isColorDecoratorsEnabled && !this._isDefaultColorDecoratorsEnabled) {
+		if (!model || !this._isColorDecoratorsEnabled) {
 			return;
 		}
 		// Find if there is only one document color provider which is the default document color provider
