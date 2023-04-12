@@ -401,10 +401,10 @@ export class SearchAccessibilityProvider implements IListAccessibilityProvider<R
 			const range = match.range();
 			const matchText = match.text().substr(0, range.endColumn + 150);
 			if (replace) {
-				return nls.localize('replacePreviewResultAria', "Replace '{0}' with '{1}' at column {2} in line {3}", matchString, match.replaceString, range.startColumn + 1, matchText);
+				return nls.localize('replacePreviewResultAria', "Replace '{0}' with '{1}' in line '{2}' at column {3}", matchString, match.replaceString, matchText, range.startColumn + 1);
 			}
 
-			return nls.localize('searchResultAria', "Found '{0}' at column {1} in line '{2}'", matchString, range.startColumn + 1, matchText);
+			return nls.localize('searchResultAria', "Found '{0}' in line '{1}' at column {2}", matchString, matchText, range.startColumn + 1);
 		}
 		return null;
 	}
