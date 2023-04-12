@@ -80,7 +80,6 @@ pub async fn kill_tree(process_id: u32) -> Result<(), CodeError> {
 /// Kills and processes and all of its children.
 #[cfg(not(target_os = "windows"))]
 pub async fn kill_tree(process_id: u32) -> Result<(), CodeError> {
-	use crate::util::errors::wrap;
 	use futures::future::join_all;
 	use tokio::io::{AsyncBufReadExt, BufReader};
 
