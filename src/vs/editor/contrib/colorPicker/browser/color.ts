@@ -13,6 +13,7 @@ import { IModelService } from 'vs/editor/common/services/model';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import { LanguageFeatureRegistry } from 'vs/editor/common/languageFeatureRegistry';
+import { DefaultDocumentColorProvider } from 'vs/editor/contrib/colorPicker/browser/defaultDocumentColorProvider';
 
 
 export interface IColorData {
@@ -22,25 +23,38 @@ export interface IColorData {
 
 export async function getColors(registry: LanguageFeatureRegistry<DocumentColorProvider>, model: ITextModel, token: CancellationToken): Promise<IColorData[]> {
 	const colors: IColorData[] = [];
-	const orderedGroups = registry.orderedGroups(model);
-	for (const orderedGroup of orderedGroups) {
-		const promises = orderedGroup.map(provider => Promise.resolve(provider.provideDocumentColors(model, token)).then(result => {
-			if (Array.isArray(result)) {
-				for (const colorInfo of result) {
-					colors.push({ colorInfo, provider });
+	let validDocumentColorProviderFound = false;
+	const orderedDocumentColorProviderRegistry = registry.ordered(model).reverse();
+	const providers = orderedDocumentColorProviderRegistry.filter(provider => !(provider instanceof DefaultDocumentColorProvider));
+	const promises = providers.map(provider => Promise.resolve(provider.provideDocumentColors(model, token)).then(result => {
+		if (Array.isArray(result)) {
+			validDocumentColorProviderFound = true;
+			for (const colorInfo of result) {
+				colors.push({ colorInfo, provider });
+			}
+		}
+	}).catch((e) => {
+		onUnexpectedExternalError(e);
+	}));
+
+	await Promise.all(promises);
+	if (validDocumentColorProviderFound) {
+		return colors;
+	} else {
+		const defaultDocumentColorProvider = orderedDocumentColorProviderRegistry.find(provider => provider instanceof DefaultDocumentColorProvider);
+		if (!defaultDocumentColorProvider) {
+			return Promise.resolve([]);
+		} else {
+			const promise = Promise.resolve(defaultDocumentColorProvider.provideDocumentColors(model, token)).then(result => {
+				if (Array.isArray(result)) {
+					for (const colorInfo of result) {
+						colors.push({ colorInfo: colorInfo, provider: defaultDocumentColorProvider });
+					}
 				}
-			}
-		}));
-		try {
-			await Promise.all(promises);
-			if (colors.length > 0) {
-				return colors;
-			}
-		} catch (e) {
-			onUnexpectedExternalError(e);
+			});
+			return promise.then(() => colors);
 		}
 	}
-	return Promise.resolve([]);
 }
 
 export function getColorPresentations(model: ITextModel, colorInfo: IColorInformation, provider: DocumentColorProvider, token: CancellationToken): Promise<IColorPresentation[] | null | undefined> {
