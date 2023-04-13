@@ -275,7 +275,7 @@ export class AzureActiveDirectoryService {
 		const runsServerless = vscode.env.remoteName === undefined && vscode.env.uiKind === vscode.UIKind.Web;
 
 		if (runsServerless && this._loginEndpointUrl !== defaultLoginEndpointUrl) {
-			throw new Error('Sign in to non-public Azure clouds is not supported on the web.');
+			throw new Error('Sign in to non-public clouds is not supported on the web.');
 		}
 
 		if (runsRemote || runsServerless) {
