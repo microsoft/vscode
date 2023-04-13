@@ -26,7 +26,7 @@ import { linesDiffComputers } from 'vs/editor/common/diff/linesDiffComputers';
 import { createProxyObject, getAllMethodNames } from 'vs/base/common/objects';
 import { IDocumentDiffProviderOptions } from 'vs/editor/common/diff/documentDiffProvider';
 import { BugIndicatingError } from 'vs/base/common/errors';
-import { computeDefaultDocumentColors } from 'vs/editor/common/languages/defaultDocumentColors';
+import { computeDefaultDocumentColors } from 'vs/editor/common/languages/defaultDocumentColorsComputer';
 
 export interface IMirrorModel extends IMirrorTextModel {
 	readonly uri: URI;
