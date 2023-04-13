@@ -74,6 +74,7 @@ export interface ICommonModel extends ILinkComputerTarget, IMirrorModel {
 	getWordAtPosition(position: IPosition, wordDefinition: RegExp): Range | null;
 	offsetAt(position: IPosition): number;
 	positionAt(offset: number): IPosition;
+	findMatches(regex: RegExp): RegExpMatchArray[];
 }
 
 /**
@@ -106,6 +107,22 @@ class MirrorModel extends BaseMirrorModel implements ICommonModel {
 
 	public getValue(): string {
 		return this.getText();
+	}
+
+	public findMatches(regex: RegExp): RegExpMatchArray[] {
+		const matches = [];
+		for (let i = 0; i < this._lines.length; i++) {
+			const line = this._lines[i];
+			const offsetToAdd = this.offsetAt(new Position(i + 1, 1));
+			const iteratorOverMatches = line.matchAll(regex);
+			for (const match of iteratorOverMatches) {
+				if (match.index) {
+					match.index = match.index + offsetToAdd;
+				}
+				matches.push(match);
+			}
+		}
+		return matches;
 	}
 
 	public getLinesContent(): string[] {

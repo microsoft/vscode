@@ -11,6 +11,7 @@ import { IColor, IColorInformation } from 'vs/editor/common/languages';
 interface IDocumentColorComputerTarget {
 	getValue(): string;
 	positionAt(offset: number): IPosition;
+	findMatches(regex: RegExp): RegExpMatchArray[];
 }
 
 function _parseCaptureGroups(captureGroups: IterableIterator<string>) {
@@ -95,7 +96,7 @@ function _findMatches(model: IDocumentColorComputerTarget | string, regex: RegEx
 	if (typeof model === 'string') {
 		return [...model.matchAll(regex)];
 	} else {
-		return [...model.getValue().matchAll(regex)];
+		return model.findMatches(regex);
 	}
 }
 
