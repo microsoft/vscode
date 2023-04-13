@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { EventEmitter, Uri, workspace } from 'vscode';
+import { EventEmitter, Memento, Uri, workspace } from 'vscode';
 import { getOctokit } from './auth';
 import { API, BranchProtection, BranchProtectionProvider, Repository } from './typings/git';
 import { DisposableStore, getRepositoryFromUrl } from './util';
@@ -21,7 +21,7 @@ export class GithubBranchProtectionProviderManager {
 
 		if (enabled) {
 			for (const repository of this.gitAPI.repositories) {
-				this.providerDisposables.add(this.gitAPI.registerBranchProtectionProvider(repository.rootUri, new GithubBranchProtectionProvider(repository)));
+				this.providerDisposables.add(this.gitAPI.registerBranchProtectionProvider(repository.rootUri, new GithubBranchProtectionProvider(repository, this.globalState)));
 			}
 		} else {
 			this.providerDisposables.dispose();
@@ -30,10 +30,10 @@ export class GithubBranchProtectionProviderManager {
 		this._enabled = enabled;
 	}
 
-	constructor(private gitAPI: API) {
+	constructor(private readonly gitAPI: API, private readonly globalState: Memento) {
 		this.disposables.add(this.gitAPI.onDidOpenRepository(repository => {
 			if (this._enabled) {
-				this.providerDisposables.add(gitAPI.registerBranchProtectionProvider(repository.rootUri, new GithubBranchProtectionProvider(repository)));
+				this.providerDisposables.add(gitAPI.registerBranchProtectionProvider(repository.rootUri, new GithubBranchProtectionProvider(repository, this.globalState)));
 			}
 		}));
 
@@ -62,15 +62,19 @@ export class GithubBranchProtectionProvider implements BranchProtectionProvider 
 	private readonly _onDidChangeBranchProtection = new EventEmitter<Uri>();
 	onDidChangeBranchProtection = this._onDidChangeBranchProtection.event;
 
-	private branchProtection!: BranchProtection[];
+	private branchProtection: BranchProtection[];
+	private readonly globalStateKey = `branchProtection:${this.repository.rootUri.toString()}`;
 
-	constructor(private readonly repository: Repository) {
+	constructor(private readonly repository: Repository, private readonly globalState: Memento) {
+		// Restore branch protection from global state
+		this.branchProtection = this.globalState.get<BranchProtection[]>(this.globalStateKey, []);
+
 		repository.status()
 			.then(() => this.initializeBranchProtection());
 	}
 
 	provideBranchProtection(): BranchProtection[] {
-		return this.branchProtection ?? [];
+		return this.branchProtection;
 	}
 
 	private async initializeBranchProtection(): Promise<void> {
@@ -148,6 +152,9 @@ export class GithubBranchProtectionProvider implements BranchProtectionProvider 
 
 			this.branchProtection = branchProtection;
 			this._onDidChangeBranchProtection.fire(this.repository.rootUri);
+
+			// Save branch protection to global state
+			await this.globalState.update(this.globalStateKey, branchProtection);
 		} catch {
 			// todo@lszomoru - add logging
 		}
