@@ -478,6 +478,10 @@ export abstract class SimpleFindReplaceWidget extends Widget {
 		this._register(this._replaceInputFocusTracker.onDidFocus(this.onReplaceInputFocusTrackerFocus.bind(this)));
 		this._register(this._replaceInputFocusTracker.onDidBlur(this.onReplaceInputFocusTrackerBlur.bind(this)));
 
+		this._register(this._replaceInput.inputBox.onDidChange(() => {
+			this._state.change({ replaceString: this._replaceInput.getValue() }, true);
+		}));
+
 		this._domNode.appendChild(this._innerReplaceDomNode);
 
 		this._updateReplaceViewDisplay();
