@@ -169,7 +169,6 @@
     "gulp-sourcemaps": "^3.0.0",
     "gulp-svgmin": "^4.1.0",
     "gulp-untar": "^0.0.7",
-    "http-server": "^14.1.1",
     "husky": "^0.13.1",
     "innosetup": "6.0.5",
     "is": "^3.1.0",
