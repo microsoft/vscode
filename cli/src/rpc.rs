@@ -93,7 +93,7 @@ pub struct RpcMethodBuilder<S, C> {
 #[derive(Serialize)]
 struct DuplexStreamStarted {
 	pub for_request_id: u32,
-	pub stream_id: u32,
+	pub stream_ids: Vec<u32>,
 }
 
 impl<S: Serialization, C: Send + Sync + 'static> RpcMethodBuilder<S, C> {
@@ -196,12 +196,16 @@ impl<S: Serialization, C: Send + Sync + 'static> RpcMethodBuilder<S, C> {
 
 	/// Registers an async rpc call that returns a Future containing a duplex
 	/// stream that should be handled by the client.
-	pub fn register_duplex<P, R, Fut, F>(&mut self, method_name: &'static str, callback: F)
-	where
+	pub fn register_duplex<P, R, Fut, F>(
+		&mut self,
+		method_name: &'static str,
+		streams: usize,
+		callback: F,
+	) where
 		P: DeserializeOwned + Send + 'static,
 		R: Serialize + Send + Sync + 'static,
 		Fut: Future<Output = Result<R, AnyError>> + Send,
-		F: (Fn(DuplexStream, P, Arc<C>) -> Fut) + Clone + Send + Sync + 'static,
+		F: (Fn(Vec<DuplexStream>, P, Arc<C>) -> Fut) + Clone + Send + Sync + 'static,
 	{
 		let serial = self.serializer.clone();
 		let context = self.context.clone();
@@ -230,11 +234,21 @@ impl<S: Serialization, C: Send + Sync + 'static> RpcMethodBuilder<S, C> {
 				let callback = callback.clone();
 				let serial = serial.clone();
 				let context = context.clone();
-				let stream_id = next_message_id();
-				let (client, server) = tokio::io::duplex(8192);
+
+				let mut dto = StreamDto {
+					req_id: id.unwrap_or(0),
+					streams: Vec::with_capacity(streams),
+				};
+				let mut servers = Vec::with_capacity(streams);
+
+				for _ in 0..streams {
+					let (client, server) = tokio::io::duplex(8192);
+					servers.push(server);
+					dto.streams.push((next_message_id(), client));
+				}
 
 				let fut = async move {
-					match callback(server, param.params, context).await {
+					match callback(servers, param.params, context).await {
 						Ok(r) => id.map(|id| serial.serialize(&SuccessResponse { id, result: r })),
 						Err(err) => id.map(|id| {
 							serial.serialize(&ErrorResponse {
@@ -248,14 +262,7 @@ impl<S: Serialization, C: Send + Sync + 'static> RpcMethodBuilder<S, C> {
 					}
 				};
 
-				(
-					Some(StreamDto {
-						req_id: id.unwrap_or(0),
-						stream_id,
-						duplex: client,
-					}),
-					fut.boxed(),
-				)
+				(Some(dto), fut.boxed())
 			})),
 		);
 	}
@@ -447,74 +454,73 @@ impl<S: Serialization, C: Send + Sync> RpcDispatcher<S, C> {
 		write_tx: mpsc::Sender<impl 'static + From<Vec<u8>> + Send>,
 		dto: StreamDto,
 	) {
-		let stream_id = dto.stream_id;
-		let for_request_id = dto.req_id;
-		let (mut read, write) = tokio::io::split(dto.duplex);
-		let serial = self.serializer.clone();
+		let r = write_tx
+			.send(
+				self.serializer
+					.serialize(&FullRequest {
+						id: None,
+						method: METHOD_STREAMS_STARTED,
+						params: DuplexStreamStarted {
+							stream_ids: dto.streams.iter().map(|(id, _)| *id).collect(),
+							for_request_id: dto.req_id,
+						},
+					})
+					.into(),
+			)
+			.await;
 
-		self.streams.lock().await.insert(dto.stream_id, write);
+		if r.is_err() {
+			return;
+		}
 
-		tokio::spawn(async move {
-			let r = write_tx
-				.send(
-					serial
-						.serialize(&FullRequest {
-							id: None,
-							method: METHOD_STREAM_STARTED,
-							params: DuplexStreamStarted {
-								stream_id,
-								for_request_id,
-							},
-						})
-						.into(),
-				)
-				.await;
+		let mut streams_map = self.streams.lock().await;
+		for (stream_id, duplex) in dto.streams {
+			let (mut read, write) = tokio::io::split(duplex);
+			streams_map.insert(stream_id, write);
 
-			if r.is_err() {
-				return;
-			}
+			let write_tx = write_tx.clone();
+			let serial = self.serializer.clone();
+			tokio::spawn(async move {
+				let mut buf = vec![0; 4096];
+				loop {
+					match read.read(&mut buf).await {
+						Ok(0) | Err(_) => break,
+						Ok(n) => {
+							let r = write_tx
+								.send(
+									serial
+										.serialize(&FullRequest {
+											id: None,
+											method: METHOD_STREAM_DATA,
+											params: StreamDataParams {
+												segment: &buf[..n],
+												stream: stream_id,
+											},
+										})
+										.into(),
+								)
+								.await;
 
-			let mut buf = Vec::with_capacity(4096);
-			loop {
-				match read.read_buf(&mut buf).await {
-					Ok(0) | Err(_) => break,
-					Ok(n) => {
-						let r = write_tx
-							.send(
-								serial
-									.serialize(&FullRequest {
-										id: None,
-										method: METHOD_STREAM_DATA,
-										params: StreamDataParams {
-											segment: &buf[..n],
-											stream: stream_id,
-										},
-									})
-									.into(),
-							)
-							.await;
-
-						if r.is_err() {
-							return;
+							if r.is_err() {
+								return;
+							}
 						}
-
-						buf.truncate(0);
 					}
 				}
-			}
 
-			let _ = write_tx
-				.send(
-					serial
-						.serialize(&FullRequest {
-							id: None,
-							method: METHOD_STREAM_ENDED,
-							params: StreamEndedParams { stream: stream_id },
-						})
-						.into(),
-				)
-				.await;
-		});
+				let _ = write_tx
+					.send(
+						serial
+							.serialize(&FullRequest {
+								id: None,
+								method: METHOD_STREAM_ENDED,
+								params: StreamEndedParams { stream: stream_id },
+							})
+							.into(),
+					)
+					.await;
+			});
+		}
 	}
 
 	pub fn context(&self) -> Arc<C> {
@@ -522,7 +528,7 @@ impl<S: Serialization, C: Send + Sync> RpcDispatcher<S, C> {
 	}
 }
 
-const METHOD_STREAM_STARTED: &str = "stream_started";
+const METHOD_STREAMS_STARTED: &str = "streams_started";
 const METHOD_STREAM_DATA: &str = "stream_data";
 const METHOD_STREAM_ENDED: &str = "stream_ended";
 
@@ -592,9 +598,8 @@ enum Outcome {
 }
 
 pub struct StreamDto {
-	stream_id: u32,
 	req_id: u32,
-	duplex: DuplexStream,
+	streams: Vec<(u32, DuplexStream)>,
 }
 
 pub enum MaybeSync {
