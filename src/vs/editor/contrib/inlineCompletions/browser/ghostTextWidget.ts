@@ -166,10 +166,11 @@ export class GhostTextWidget extends Disposable {
 					if (lineText && this._lastSuggestion !== lineText) {
 						alert(ghostText.renderForScreenReader(lineText));
 					}
+					this._lastSuggestion = lineText;
+
 				}
 			});
 		}
-
 		if (0 < 0) {
 			// Not supported at the moment, condition is always false.
 			this.viewMoreContentWidget = this.renderViewMoreLines(
