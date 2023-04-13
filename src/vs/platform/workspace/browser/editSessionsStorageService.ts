@@ -18,6 +18,7 @@ export interface IEditSessionContribution {
 
 	/**
 	 *
+	 * Called as part of resuming an edit session.
 	 * @param state State that this contribution has previously provided in
 	 * {@link getStateToStore}.
 	 * @param uriResolver A handler capable of converting URIs which may have
