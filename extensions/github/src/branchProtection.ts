@@ -5,7 +5,7 @@
 
 import { EventEmitter, Uri, workspace } from 'vscode';
 import { getOctokit } from './auth';
-import { API, BranchProtectionProvider, Repository } from './typings/git';
+import { API, BranchProtection, BranchProtectionProvider, Repository } from './typings/git';
 import { DisposableStore, getRepositoryFromUrl } from './util';
 
 export class GithubBranchProtectionProviderManager {
@@ -62,15 +62,15 @@ export class GithubBranchProtectionProvider implements BranchProtectionProvider 
 	private readonly _onDidChangeBranchProtection = new EventEmitter<Uri>();
 	onDidChangeBranchProtection = this._onDidChangeBranchProtection.event;
 
-	private branchProtection = new Map<string, string[]>();
+	private branchProtection!: BranchProtection[];
 
 	constructor(private readonly repository: Repository) {
 		repository.status()
 			.then(() => this.initializeBranchProtection());
 	}
 
-	provideBranchProtection(): Map<string, string[]> {
-		return this.branchProtection;
+	provideBranchProtection(): BranchProtection[] {
+		return this.branchProtection ?? [];
 	}
 
 	private async initializeBranchProtection(): Promise<void> {
@@ -109,7 +109,7 @@ export class GithubBranchProtectionProvider implements BranchProtectionProvider 
 				return;
 			}
 
-			this.branchProtection.set(remote.name, [HEAD.name]);
+			this.branchProtection = [{ remote: remote.name, branches: [HEAD.name] }];
 			this._onDidChangeBranchProtection.fire(this.repository.rootUri);
 		} catch {
 			// todo@lszomoru - add logging
@@ -118,7 +118,7 @@ export class GithubBranchProtectionProvider implements BranchProtectionProvider 
 
 	private async updateBranchProtection(): Promise<void> {
 		try {
-			let branchProtectionUpdated = false;
+			const branchProtection: BranchProtection[] = [];
 
 			for (const remote of this.repository.state.remotes) {
 				const repository = getRepositoryFromUrl(remote.pushUrl ?? remote.fetchUrl ?? '');
@@ -143,15 +143,11 @@ export class GithubBranchProtectionProvider implements BranchProtectionProvider 
 					page++;
 				}
 
-				if (protectedBranches.length > 0) {
-					this.branchProtection.set(remote.name, protectedBranches);
-					branchProtectionUpdated = true;
-				}
+				branchProtection.push({ remote: remote.name, branches: protectedBranches });
 			}
 
-			if (branchProtectionUpdated) {
-				this._onDidChangeBranchProtection.fire(this.repository.rootUri);
-			}
+			this.branchProtection = branchProtection;
+			this._onDidChangeBranchProtection.fire(this.repository.rootUri);
 		} catch {
 			// todo@lszomoru - add logging
 		}

@@ -2367,7 +2367,7 @@ export class Repository implements Disposable {
 		this.branchProtection.clear();
 
 		for (const provider of this.branchProtectionProviderRegistry.getBranchProtectionProviders(root)) {
-			for (const [remote, branches] of provider.provideBranchProtection().entries()) {
+			for (const { remote, branches } of provider.provideBranchProtection()) {
 				this.branchProtection.set(remote, branches.length !== 0 ? picomatch(branches) : undefined);
 			}
 		}
