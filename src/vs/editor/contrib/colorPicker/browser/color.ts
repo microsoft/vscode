@@ -14,6 +14,7 @@ import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import { LanguageFeatureRegistry } from 'vs/editor/common/languageFeatureRegistry';
 
+
 export interface IColorData {
 	colorInfo: IColorInformation;
 	provider: DocumentColorProvider;

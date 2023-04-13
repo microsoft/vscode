@@ -69,10 +69,8 @@ export class ColorDetector extends Disposable implements IEditorContribution {
 			this._isColorDecoratorsEnabled = this.isEnabled();
 			const prevIsDefaultColorsEnabled = this._isDefaultColorDecoratorsEnabled;
 			this._isDefaultColorDecoratorsEnabled = this._editor.getOption(EditorOption.defaultColorDecorators);
-
 			const updatedColorDecoratorsSetting = prevIsEnabled !== this._isColorDecoratorsEnabled || e.hasChanged(EditorOption.colorDecoratorsLimit);
 			const updatedDefaultColorDecoratorsSetting = prevIsDefaultColorsEnabled !== this._isDefaultColorDecoratorsEnabled || e.hasChanged(EditorOption.defaultColorDecorators);
-
 			if (updatedColorDecoratorsSetting || updatedDefaultColorDecoratorsSetting) {
 				if (this._isColorDecoratorsEnabled) {
 					this.onModelChanged();
@@ -123,13 +121,16 @@ export class ColorDetector extends Disposable implements IEditorContribution {
 
 	private onModelChanged(): void {
 		this.stop();
+
+		if (!this._isColorDecoratorsEnabled) {
+			return;
+		}
 		const model = this._editor.getModel();
-		if (!model || !this._isColorDecoratorsEnabled) {
+
+		if (!model || !this._languageFeaturesService.colorProvider.has(model)) {
 			return;
 		}
-		if (!this._languageFeaturesService.colorProvider.has(model)) {
-			return;
-		}
+
 		this._localToDispose.add(this._editor.onDidChangeModelContent(() => {
 			if (!this._timeoutTimer) {
 				this._timeoutTimer = new TimeoutTimer();
