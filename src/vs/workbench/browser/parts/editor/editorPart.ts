@@ -178,7 +178,6 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 
 					const serializedGrid = (state as IEditorPartUIState).serializedGrid;
 
-					// todo@joyceerhl deserialize the grid widget using the uriResolver
 					this.doCreateGridControlWithState(serializedGrid, (state as IEditorPartUIState).activeGroup, undefined, uriResolver);
 
 					// Layout
