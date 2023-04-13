@@ -578,7 +578,11 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 				sessionId = (await this.authenticationService.createSession(accountOrAuthProvider.id, accountOrAuthProvider.scopes)).id;
 			}
 		} else {
-			sessionId = accountOrAuthProvider.sessionId;
+			if (this.environmentService.options?.settingsSyncOptions?.authenticationProvider?.id === accountOrAuthProvider.authenticationProviderId) {
+				sessionId = await this.environmentService.options?.settingsSyncOptions?.authenticationProvider?.signIn();
+			} else {
+				sessionId = accountOrAuthProvider.sessionId;
+			}
 		}
 		this.currentSessionId = sessionId;
 		await this.update();
