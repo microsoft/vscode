@@ -173,13 +173,13 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 
 		if (this.environmentService.editSessionId !== undefined) {
 			this.logService.info(`Resuming cloud changes, reason: found editSessionId ${this.environmentService.editSessionId} in environment service...`);
-			await this.progressService.withProgress(resumeProgressOptions, async (progress) => await this.resumeEditSession(this.environmentService.editSessionId, undefined, undefined, progress).finally(() => this.environmentService.editSessionId = undefined));
+			await this.progressService.withProgress(resumeProgressOptions, async (progress) => await this.resumeEditSession(this.environmentService.editSessionId, undefined, undefined, undefined, progress).finally(() => this.environmentService.editSessionId = undefined));
 		} else if (shouldAutoResumeOnReload && this.editSessionsStorageService.isSignedIn) {
 			this.logService.info('Resuming cloud changes, reason: cloud changes enabled...');
 			// Attempt to resume edit session based on edit workspace identifier
 			// Note: at this point if the user is not signed into edit sessions,
 			// we don't want them to be prompted to sign in and should just return early
-			await this.progressService.withProgress(resumeProgressOptions, async (progress) => await this.resumeEditSession(undefined, true, undefined, progress));
+			await this.progressService.withProgress(resumeProgressOptions, async (progress) => await this.resumeEditSession(undefined, true, undefined, undefined, progress));
 		} else if (shouldAutoResumeOnReload) {
 			// The application has previously launched via a protocol URL Continue On flow
 			const hasApplicationLaunchedFromContinueOnFlow = this.storageService.getBoolean(EditSessionsContribution.APPLICATION_LAUNCHED_VIA_CONTINUE_ON_STORAGE_KEY, StorageScope.APPLICATION, false);
@@ -190,7 +190,7 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 				// attempt a resume if we are in a pending state and the user just signed in
 				const disposable = this.editSessionsStorageService.onDidSignIn(async () => {
 					disposable.dispose();
-					await this.progressService.withProgress(resumeProgressOptions, async (progress) => await this.resumeEditSession(undefined, true, undefined, progress));
+					await this.progressService.withProgress(resumeProgressOptions, async (progress) => await this.resumeEditSession(undefined, true, undefined, undefined, progress));
 					this.storageService.remove(EditSessionsContribution.APPLICATION_LAUNCHED_VIA_CONTINUE_ON_STORAGE_KEY, StorageScope.APPLICATION);
 					this.environmentService.continueOn = undefined;
 				});
@@ -204,7 +204,7 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 				this.storageService.store(EditSessionsContribution.APPLICATION_LAUNCHED_VIA_CONTINUE_ON_STORAGE_KEY, true, StorageScope.APPLICATION, StorageTarget.MACHINE);
 				await this.editSessionsStorageService.initialize();
 				if (this.editSessionsStorageService.isSignedIn) {
-					await this.progressService.withProgress(resumeProgressOptions, async (progress) => await this.resumeEditSession(undefined, true, undefined, progress));
+					await this.progressService.withProgress(resumeProgressOptions, async (progress) => await this.resumeEditSession(undefined, true, undefined, undefined, progress));
 				} else {
 					handlePendingEditSessions();
 				}
@@ -401,8 +401,8 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 				});
 			}
 
-			async run(accessor: ServicesAccessor, editSessionId?: string, force?: boolean): Promise<void> {
-				await that.progressService.withProgress({ ...resumeProgressOptions, title: resumeProgressOptionsTitle }, async () => await that.resumeEditSession(editSessionId, undefined, force));
+			async run(accessor: ServicesAccessor, editSessionId?: string, forceApplyUnrelatedChange?: boolean): Promise<void> {
+				await that.progressService.withProgress({ ...resumeProgressOptions, title: resumeProgressOptionsTitle }, async () => await that.resumeEditSession(editSessionId, undefined, forceApplyUnrelatedChange));
 			}
 		}));
 		this._register(registerAction2(class ResumeLatestEditSessionAction extends Action2 {
@@ -415,9 +415,9 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 				});
 			}
 
-			async run(accessor: ServicesAccessor, editSessionId?: string, force?: boolean): Promise<void> {
+			async run(accessor: ServicesAccessor, editSessionId?: string): Promise<void> {
 				const data = await that.quickInputService.input({ prompt: 'Enter serialized data' });
-				await that.progressService.withProgress({ ...resumeProgressOptions, title: resumeProgressOptionsTitle }, async () => await that.resumeEditSession(editSessionId, undefined, force, undefined, data));
+				await that.progressService.withProgress({ ...resumeProgressOptions, title: resumeProgressOptionsTitle }, async () => await that.resumeEditSession(editSessionId, undefined, undefined, undefined, undefined, data));
 			}
 		}));
 	}
@@ -455,7 +455,7 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 		}));
 	}
 
-	async resumeEditSession(ref?: string, silent?: boolean, force?: boolean, progress?: IProgress<IProgressStep>, serializedData?: string): Promise<void> {
+	async resumeEditSession(ref?: string, silent?: boolean, forceApplyUnrelatedChange?: boolean, applyPartialMatch?: boolean, progress?: IProgress<IProgressStep>, serializedData?: string): Promise<void> {
 		// Wait for the remote environment to become available, if any
 		await this.remoteAgentService.getEnvironment();
 
@@ -504,7 +504,7 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 		}
 
 		try {
-			const { changes, conflictingChanges, contributedStateHandlers } = await this.generateChanges(editSession, ref, force);
+			const { changes, conflictingChanges, contributedStateHandlers } = await this.generateChanges(editSession, ref, forceApplyUnrelatedChange, applyPartialMatch);
 			if (changes.length === 0 && contributedStateHandlers.length === 0) {
 				return;
 			}
@@ -551,7 +551,7 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 		performance.mark('code/didResumeEditSessionFromIdentifier');
 	}
 
-	private async generateChanges(editSession: EditSession, ref: string, force = false) {
+	private async generateChanges(editSession: EditSession, ref: string, forceApplyUnrelatedChange = false, applyPartialMatch = false) {
 		const changes: ({ uri: URI; type: ChangeType; contents: string | undefined })[] = [];
 		const contributedStateHandlers: (() => void)[] = [];
 		const conflictingChanges = [];
@@ -567,7 +567,7 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 					const identity = await this.editSessionIdentityService.getEditSessionIdentifier(f, cancellationTokenSource.token);
 					this.logService.info(`Matching identity ${identity} against edit session folder identity ${folder.canonicalIdentity}...`);
 
-					if (equals(identity, folder.canonicalIdentity)) {
+					if (equals(identity, folder.canonicalIdentity) || forceApplyUnrelatedChange) {
 						folderRoot = f;
 						break;
 					}
@@ -580,12 +580,12 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 						} else if (match === EditSessionIdentityMatch.Partial &&
 							this.configurationService.getValue('workbench.experimental.cloudChanges.partialMatches.enabled') === true
 						) {
-							if (!force) {
+							if (!applyPartialMatch) {
 								// Surface partially matching edit session
 								this.notificationService.prompt(
 									Severity.Info,
 									localize('editSessionPartialMatch', 'You have pending working changes in the cloud for this workspace. Would you like to resume them?'),
-									[{ label: localize('resume', 'Resume'), run: () => this.resumeEditSession(ref, false, true) }]
+									[{ label: localize('resume', 'Resume'), run: () => this.resumeEditSession(ref, false, undefined, true) }]
 								);
 							} else {
 								folderRoot = f;

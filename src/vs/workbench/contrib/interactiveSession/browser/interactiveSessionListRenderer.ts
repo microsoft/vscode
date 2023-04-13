@@ -126,7 +126,7 @@ export class InteractiveListItemRenderer extends Disposable implements ITreeRend
 		}
 	}
 
-	private shouldRenderProgressively(): boolean {
+	private progressiveRenderEnabled(): boolean {
 		return !this.configService.getValue('interactive.experimental.disableProgressiveRendering');
 	}
 
@@ -226,10 +226,11 @@ export class InteractiveListItemRenderer extends Disposable implements ITreeRend
 
 		// Do a progressive render if
 		// - This the last response in the list
+		// - And it is not a placeholder response ("Thinking...")
 		// - And the response is not complete
 		//   - Or, we previously started a progressive rendering of this element (if the element is complete, we will finish progressive rendering with a very fast rate)
 		// - And, the feature is not disabled in configuration
-		if (isResponseVM(element) && index === this.delegate.getListLength() - 1 && (!element.isComplete || element.renderData) && this.shouldRenderProgressively()) {
+		if (isResponseVM(element) && index === this.delegate.getListLength() - 1 && !element.isPlaceholder && (!element.isComplete || element.renderData) && this.progressiveRenderEnabled()) {
 			this.traceLayout('renderElement', `start progressive render ${kind}, index=${index}`);
 			const progressiveRenderingDisposables = templateData.elementDisposables.add(new DisposableStore());
 			const timer = templateData.elementDisposables.add(new IntervalTimer());
@@ -348,11 +349,13 @@ export class InteractiveListItemRenderer extends Disposable implements ITreeRend
 					isFullyRendered: renderValue.isFullString
 				};
 
-				// Doing the progressive render
-				const plusCursor = renderValue.value.match(/```.*$/) ?
+				// Don't add the cursor if it will go after a codeblock, since this will always cause layout shifting
+				// when the codeblock is the last thing in the response, and that happens often.
+				const plusCursor = renderValue.value.match(/```\s*$/) ?
 					renderValue.value :
 					renderValue.value + ` ${InteractiveListItemRenderer.cursorCharacter}`;
 				const result = this.renderMarkdown(new MarkdownString(plusCursor), element, disposables, templateData, true);
+				// Doing the progressive render
 				dom.clearNode(templateData.value);
 				templateData.value.appendChild(result.element);
 				disposables.add(result);

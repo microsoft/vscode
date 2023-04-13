@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { EventEmitter, Uri, workspace } from 'vscode';
+import { EventEmitter, Memento, Uri, workspace } from 'vscode';
 import { getOctokit } from './auth';
-import { API, BranchProtectionProvider, Repository } from './typings/git';
+import { API, BranchProtection, BranchProtectionProvider, Repository } from './typings/git';
 import { DisposableStore, getRepositoryFromUrl } from './util';
 
 export class GithubBranchProtectionProviderManager {
@@ -21,7 +21,7 @@ export class GithubBranchProtectionProviderManager {
 
 		if (enabled) {
 			for (const repository of this.gitAPI.repositories) {
-				this.providerDisposables.add(this.gitAPI.registerBranchProtectionProvider(repository.rootUri, new GithubBranchProtectionProvider(repository)));
+				this.providerDisposables.add(this.gitAPI.registerBranchProtectionProvider(repository.rootUri, new GithubBranchProtectionProvider(repository, this.globalState)));
 			}
 		} else {
 			this.providerDisposables.dispose();
@@ -30,10 +30,10 @@ export class GithubBranchProtectionProviderManager {
 		this._enabled = enabled;
 	}
 
-	constructor(private gitAPI: API) {
+	constructor(private readonly gitAPI: API, private readonly globalState: Memento) {
 		this.disposables.add(this.gitAPI.onDidOpenRepository(repository => {
 			if (this._enabled) {
-				this.providerDisposables.add(gitAPI.registerBranchProtectionProvider(repository.rootUri, new GithubBranchProtectionProvider(repository)));
+				this.providerDisposables.add(gitAPI.registerBranchProtectionProvider(repository.rootUri, new GithubBranchProtectionProvider(repository, this.globalState)));
 			}
 		}));
 
@@ -62,14 +62,18 @@ export class GithubBranchProtectionProvider implements BranchProtectionProvider 
 	private readonly _onDidChangeBranchProtection = new EventEmitter<Uri>();
 	onDidChangeBranchProtection = this._onDidChangeBranchProtection.event;
 
-	private branchProtection = new Map<string, string[]>();
+	private branchProtection: BranchProtection[];
+	private readonly globalStateKey = `branchProtection:${this.repository.rootUri.toString()}`;
 
-	constructor(private readonly repository: Repository) {
+	constructor(private readonly repository: Repository, private readonly globalState: Memento) {
+		// Restore branch protection from global state
+		this.branchProtection = this.globalState.get<BranchProtection[]>(this.globalStateKey, []);
+
 		repository.status()
 			.then(() => this.initializeBranchProtection());
 	}
 
-	provideBranchProtection(): Map<string, string[]> {
+	provideBranchProtection(): BranchProtection[] {
 		return this.branchProtection;
 	}
 
@@ -79,6 +83,18 @@ export class GithubBranchProtectionProvider implements BranchProtectionProvider 
 
 		// Branch protection (remotes)
 		await this.updateBranchProtection();
+	}
+
+	private async checkPushPermission(repository: { owner: string; repo: string }): Promise<boolean> {
+		try {
+			const octokit = await getOctokit();
+			const response = await octokit.repos.get({ ...repository });
+
+			return response.data.permissions?.push === true;
+		} catch {
+			// todo@lszomoru - add logging
+			return false;
+		}
 	}
 
 	private async updateHEADBranchProtection(): Promise<void> {
@@ -102,6 +118,10 @@ export class GithubBranchProtectionProvider implements BranchProtectionProvider 
 				return;
 			}
 
+			if (!(await this.checkPushPermission(repository))) {
+				return;
+			}
+
 			const octokit = await getOctokit();
 			const response = await octokit.repos.getBranch({ ...repository, branch: HEAD.name });
 
@@ -109,7 +129,7 @@ export class GithubBranchProtectionProvider implements BranchProtectionProvider 
 				return;
 			}
 
-			this.branchProtection.set(remote.name, [HEAD.name]);
+			this.branchProtection = [{ remote: remote.name, branches: [HEAD.name] }];
 			this._onDidChangeBranchProtection.fire(this.repository.rootUri);
 		} catch {
 			// todo@lszomoru - add logging
@@ -118,12 +138,16 @@ export class GithubBranchProtectionProvider implements BranchProtectionProvider 
 
 	private async updateBranchProtection(): Promise<void> {
 		try {
-			let branchProtectionUpdated = false;
+			const branchProtection: BranchProtection[] = [];
 
 			for (const remote of this.repository.state.remotes) {
 				const repository = getRepositoryFromUrl(remote.pushUrl ?? remote.fetchUrl ?? '');
 
 				if (!repository) {
+					continue;
+				}
+
+				if (!(await this.checkPushPermission(repository))) {
 					continue;
 				}
 
@@ -143,15 +167,14 @@ export class GithubBranchProtectionProvider implements BranchProtectionProvider 
 					page++;
 				}
 
-				if (protectedBranches.length > 0) {
-					this.branchProtection.set(remote.name, protectedBranches);
-					branchProtectionUpdated = true;
-				}
+				branchProtection.push({ remote: remote.name, branches: protectedBranches });
 			}
 
-			if (branchProtectionUpdated) {
-				this._onDidChangeBranchProtection.fire(this.repository.rootUri);
-			}
+			this.branchProtection = branchProtection;
+			this._onDidChangeBranchProtection.fire(this.repository.rootUri);
+
+			// Save branch protection to global state
+			await this.globalState.update(this.globalStateKey, branchProtection);
 		} catch {
 			// todo@lszomoru - add logging
 		}

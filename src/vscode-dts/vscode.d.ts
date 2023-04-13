@@ -15880,12 +15880,15 @@ declare module 'vscode' {
 		 * Marks a string for localization. If a localized bundle is available for the language specified by
 		 * {@link env.language} and the bundle has a localized value for this message, then that localized
 		 * value will be returned (with injected {@link args} values for any templated values).
+		 *
 		 * @param message - The message to localize. Supports index templating where strings like `{0}` and `{1}` are
 		 * replaced by the item at that index in the {@link args} array.
 		 * @param args - The arguments to be used in the localized string. The index of the argument is used to
 		 * match the template placeholder in the localized string.
 		 * @returns localized string with injected arguments.
-		 * @example `l10n.t('Hello {0}!', 'World');`
+		 *
+		 * @example
+		 * l10n.t('Hello {0}!', 'World');
 		 */
 		export function t(message: string, ...args: Array<string | number | boolean>): string;
 
@@ -15893,18 +15896,22 @@ declare module 'vscode' {
 		 * Marks a string for localization. If a localized bundle is available for the language specified by
 		 * {@link env.language} and the bundle has a localized value for this message, then that localized
 		 * value will be returned (with injected {@link args} values for any templated values).
+		 *
 		 * @param message The message to localize. Supports named templating where strings like `{foo}` and `{bar}` are
 		 * replaced by the value in the Record for that key (foo, bar, etc).
 		 * @param args The arguments to be used in the localized string. The name of the key in the record is used to
 		 * match the template placeholder in the localized string.
 		 * @returns localized string with injected arguments.
-		 * @example `l10n.t('Hello {name}', { name: 'Erich' });`
+		 *
+		 * @example
+		 * l10n.t('Hello {name}', { name: 'Erich' });
 		 */
 		export function t(message: string, args: Record<string, any>): string;
 		/**
 		 * Marks a string for localization. If a localized bundle is available for the language specified by
 		 * {@link env.language} and the bundle has a localized value for this message, then that localized
 		 * value will be returned (with injected args values for any templated values).
+		 *
 		 * @param options The options to use when localizing the message.
 		 * @returns localized string with injected arguments.
 		 */

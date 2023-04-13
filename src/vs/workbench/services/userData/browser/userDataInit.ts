@@ -97,11 +97,6 @@ export class UserDataInitializationService implements IUserDataInitializationSer
 						return;
 					}
 
-					if (!this.environmentService.options?.settingsSyncOptions?.enabled) {
-						this.logService.trace(`Skipping initializing user data as settings sync is disabled`);
-						return;
-					}
-
 					let authenticationSession;
 					try {
 						authenticationSession = await getCurrentAuthenticationSessionInfo(this.credentialsService, this.productService);

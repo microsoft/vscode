@@ -4,11 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 .interactive-list .monaco-list-row .monaco-tl-twistie {
-	/* Hide twisties */
+	/* Hide twisties from tree rows */
 	display: none !important;
 }
 
-.interactive-list .interactive-item-container {
+.interactive-item-container {
 	padding: 16px 20px 0px 20px;
 	display: flex;
 	flex-direction: column;
@@ -19,25 +19,25 @@
 	-webkit-user-select: text;
 }
 
-.interactive-list .interactive-item-container .header {
+.interactive-item-container .header {
 	display: flex;
 	align-items: center;
 	justify-content: space-between;
 }
 
-.interactive-list .interactive-item-container .header .user {
+.interactive-item-container .header .user {
 	display: flex;
 	align-items: center;
 	gap: 6px;
 }
 
-.interactive-list .interactive-item-container .header .username {
+.interactive-item-container .header .username {
 	margin: 0;
 	font-size: 12px;
 	font-weight: 600;
 }
 
-.interactive-list .interactive-item-container .header .avatar {
+.interactive-item-container .header .avatar {
 	display: flex;
 	align-items: center;
 	justify-content: center;
@@ -49,60 +49,60 @@
 	user-select: none;
 }
 
-.interactive-list .interactive-item-container .header .avatar .icon {
+.interactive-item-container .header .avatar .icon {
 	width: 24px;
 	height: 24px;
 	border-radius: 50%;
 }
 
-.interactive-list .interactive-item-container .header .avatar .codicon {
+.interactive-item-container .header .avatar .codicon {
 	color: var(--vscode-badge-foreground) !important;
 }
 
-.interactive-list .interactive-item-container .header .monaco-toolbar {
+.interactive-item-container .header .monaco-toolbar {
 	display: none;
 }
 
-.interactive-list .interactive-item-container.interactive-response:hover .header .monaco-toolbar {
+.interactive-item-container.interactive-response:hover .header .monaco-toolbar {
 	display: initial;
 }
 
-.interactive-list .interactive-item-container .header .monaco-toolbar .action-label {
+.interactive-item-container .header .monaco-toolbar .action-label {
 	border: 1px solid transparent;
 	padding: 2px;
 }
 
-.interactive-list .interactive-item-container .header .monaco-toolbar .checked .action-label,
-.interactive-list .interactive-item-container .header .monaco-toolbar .checked .action-label:hover {
+.interactive-item-container .header .monaco-toolbar .checked .action-label,
+.interactive-item-container .header .monaco-toolbar .checked .action-label:hover {
 	color: var(--vscode-inputOption-activeForeground) !important;
 	border-color: var(--vscode-inputOption-activeBorder);
 	background-color: var(--vscode-inputOption-activeBackground);
 }
 
-.interactive-list .interactive-item-container .value {
+.interactive-item-container .value {
 	width: 100%;
 }
 
-.interactive-list .interactive-item-container .value table {
+.interactive-item-container .value table {
 	width: 100%;
 	text-align: left;
 	margin-bottom: 16px;
 }
 
-.interactive-list .interactive-item-container .value table,
-.interactive-list .interactive-item-container .value table td,
-.interactive-list .interactive-item-container .value table th {
+.interactive-item-container .value table,
+.interactive-item-container .value table td,
+.interactive-item-container .value table th {
 	border: 1px solid var(--vscode-interactive-requestBorder);
 	border-collapse: collapse;
 	padding: 4px 6px;
 }
 
-.interactive-list .interactive-item-container .value a {
+.interactive-item-container .value a {
 	color: var(--vscode-textLink-foreground);
 }
 
-.interactive-list .interactive-item-container .value a:hover,
-.interactive-list .interactive-item-container .value a:active {
+.interactive-item-container .value a:hover,
+.interactive-item-container .value a:active {
 	color: var(--vscode-textLink-activeForeground);
 }
 
@@ -110,54 +110,54 @@
 	overflow: hidden;
 }
 
-.interactive-list .monaco-list-row .interactive-request {
+.interactive-request {
 	background-color: var(--vscode-interactive-requestBackground);
 	border-bottom: 1px solid var(--vscode-interactive-requestBorder);
 	border-top: 1px solid var(--vscode-interactive-requestBorder);
 }
 
-.interactive-list .monaco-list-row .value {
+.interactive-item-container .value {
 	white-space: normal;
 	min-height: 36px;
 	word-wrap: break-word;
 }
 
-.interactive-list .monaco-list-row .value > :last-child:not(.rendered-markdown) {
+.interactive-item-container .value > :last-child:not(.rendered-markdown) {
 	/* The container has padding on all sides except the bottom. The last element needs to provide this margin. rendered-markdown has its own margin.
 		TODO Another approach could be removing the margin on the very last element inside the markdown container? */
 	margin-bottom: 16px;
 }
 
-.interactive-list .monaco-list-row .value > .interactive-response-error-details:not(:last-child) {
+.interactive-item-container .value > .interactive-response-error-details:not(:last-child) {
 	margin-bottom: 8px;
 }
 
-.interactive-list .monaco-list-row .value h1 {
+.interactive-item-container .value h1 {
 	font-size: 20px;
 	font-weight: 600;
 	margin: 16px 0;
 
 }
 
-.interactive-list .monaco-list-row .value h2 {
+.interactive-item-container .value h2 {
 	font-size: 16px;
 	font-weight: 600;
 	margin: 16px 0;
 }
 
-.interactive-list .monaco-list-row .value h3 {
+.interactive-item-container .value h3 {
 	font-size: 14px;
 	font-weight: 600;
 	margin: 16px 0;
 }
 
-.interactive-list .monaco-list-row .value p {
+.interactive-item-container .value p {
 	margin: 0 0 16px 0;
 	line-height: 1.6em;
 }
 
-.interactive-list .monaco-list-row .monaco-tokenized-source,
-.interactive-list .monaco-list-row code {
+.interactive-item-container .monaco-tokenized-source,
+.interactive-item-container code {
 	font-family: var(--monaco-monospace-font);
 	color: var(--vscode-textPreformat-foreground);
 }
@@ -200,71 +200,67 @@
 	color: var(--vscode-icon-foreground) !important;
 }
 
-.interactive-session .monaco-inputbox {
-	width: 100%;
-}
-
-.interactive-session .interactive-result-editor-wrapper {
+.interactive-item-container .interactive-result-editor-wrapper {
 	position: relative;
 }
 
-.interactive-session .interactive-result-editor-wrapper .monaco-toolbar {
+.interactive-item-container .interactive-result-editor-wrapper .monaco-toolbar {
 	display: none;
 	position: absolute;
 	top: -13px;
 	right: 10px;
 	height: 26px;
-	background-color: var(--vscode-interactive-result-editor-background-color);
+	background-color: var(--vscode-interactive-result-editor-background-color, var(--vscode-editor-background));
 	border: 1px solid var(--vscode-interactive-requestBorder);
 	z-index: 100;
 }
 
-.interactive-session .interactive-result-editor-wrapper .monaco-toolbar .action-item {
+.interactive-item-container .interactive-result-editor-wrapper .monaco-toolbar .action-item {
 	height: 24px;
 	width: 24px;
 	margin: 1px 2px;
 }
 
-.interactive-session .interactive-result-editor-wrapper .monaco-toolbar .action-item .codicon {
+.interactive-item-container .interactive-result-editor-wrapper .monaco-toolbar .action-item .codicon {
 	margin: 1px;
 }
 
-.interactive-session .interactive-result-editor-wrapper:hover .monaco-toolbar {
+.interactive-item-container .interactive-result-editor-wrapper:hover .monaco-toolbar {
 	display: initial;
 }
 
-.interactive-session .interactive-result-editor-wrapper .interactive-result-editor {
+.interactive-item-container .interactive-result-editor-wrapper .interactive-result-editor {
 	border: 1px solid var(--vscode-input-border, transparent);
 }
 
-.interactive-session .interactive-response .monaco-editor .margin,
-.interactive-session .interactive-response .monaco-editor .monaco-editor-background {
+.interactive-response .monaco-editor .margin,
+.interactive-response .monaco-editor .monaco-editor-background {
 	background-color: var(--vscode-interactive-result-editor-background-color);
 }
 
-.interactive-result-editor-wrapper {
+.interactive-item-container .interactive-result-editor-wrapper {
 	margin: 16px 0;
 }
 
-.interactive-session .interactive-response .interactive-response-error-details {
+.interactive-response .interactive-response-error-details {
 	display: flex;
 	align-items: start;
 	gap: 6px;
 }
 
-.interactive-session .interactive-response .interactive-response-error-details .codicon {
+.interactive-response .interactive-response-error-details .codicon {
 	margin-top: 1px;
 }
 
-.interactive-session .interactive-response .interactive-response-error-details .codicon-error {
+.interactive-response .interactive-response-error-details .codicon-error {
 	color: var(--vscode-errorForeground) !important; /* Have to override default styles which apply to all lists */
 }
 
-.interactive-session .interactive-response .interactive-response-error-details .codicon-info {
+.interactive-response .interactive-response-error-details .codicon-info {
 	color: var(--vscode-notificationsInfoIcon-foreground) !important; /* Have to override default styles which apply to all lists */
 }
 
-.interactive-session .interactive-item-container .value .interactive-slash-command {
+.interactive-item-container .value .interactive-slash-command {
 	color: var(--vscode-textLink-foreground);
 }
 
@@ -275,24 +271,24 @@
 	border-top: solid 1px var(--vscode-interactive-requestBorder);
 }
 
-.interactive-session .interactive-session-followups {
+.interactive-session-followups {
 	display: flex;
 	flex-direction: column;
 	gap: 5px;
 	align-items: start;
 }
 
-.interactive-session .interactive-session-followups .monaco-button {
+.interactive-session-followups .monaco-button {
 	text-align: left;
 	width: initial;
 }
 
-.interactive-session .interactive-session-followups .monaco-button .codicon {
+.interactive-session-followups .monaco-button .codicon {
 	margin-left: 0;
 	margin-top: 1px;
 }
 
-.interactive-session .interactive-response-followups .monaco-button {
+.interactive-item-container .interactive-response-followups .monaco-button {
 	padding: 4px 8px;
 }
 
@@ -317,23 +313,23 @@
 	float: left;
 }
 
-.interactive-session .interactive-session-followups .monaco-button.interactive-followup-reply {
+.interactive-session-followups .monaco-button.interactive-followup-reply {
 	padding: 0px;
 	font-size: 11px;
 	font-weight: 600;
 	border: none;
 }
 
-.interactive-session .interactive-welcome .value .interactive-session-followups {
+.interactive-welcome .value .interactive-session-followups {
 	margin-bottom: 10px;
 }
 
-.interactive-list .interactive-item-container .monaco-toolbar .codicon {
+.interactive-item-container .monaco-toolbar .codicon {
 	/* Very aggressive list styles try to apply focus colors to every codicon in a list row. */
 	color: var(--vscode-icon-foreground) !important;
 }
 
-.interactive-session .interactive-item-container.filtered-response .value .rendered-markdown {
+.interactive-item-container.filtered-response .value .rendered-markdown {
 	-webkit-mask-image: linear-gradient(rgba(0, 0, 0, 0.85), rgba(0, 0, 0, 0.05));
 	mask-image: linear-gradient(rgba(0, 0, 0, 0.85), rgba(0, 0, 0, 0.05));
 }
