@@ -21,7 +21,7 @@ export interface IColorData {
 	provider: DocumentColorProvider;
 }
 
-export async function getColors(registry: LanguageFeatureRegistry<DocumentColorProvider>, model: ITextModel, token: CancellationToken): Promise<IColorData[]> {
+export async function getColors(registry: LanguageFeatureRegistry<DocumentColorProvider>, model: ITextModel, token: CancellationToken): Promise<{ colorData: IColorData[]; usingDefaultDocumentColorProvider: boolean }> {
 	const colors: IColorData[] = [];
 	let validDocumentColorProviderFound = false;
 	const orderedDocumentColorProviderRegistry = registry.ordered(model).reverse();
@@ -39,11 +39,11 @@ export async function getColors(registry: LanguageFeatureRegistry<DocumentColorP
 
 	await Promise.all(promises);
 	if (validDocumentColorProviderFound) {
-		return colors;
+		return { colorData: colors, usingDefaultDocumentColorProvider: false };
 	} else {
 		const defaultDocumentColorProvider = orderedDocumentColorProviderRegistry.find(provider => provider instanceof DefaultDocumentColorProvider);
 		if (!defaultDocumentColorProvider) {
-			return Promise.resolve([]);
+			return Promise.resolve({ colorData: [], usingDefaultDocumentColorProvider: false });
 		} else {
 			const promise = Promise.resolve(defaultDocumentColorProvider.provideDocumentColors(model, token)).then(result => {
 				if (Array.isArray(result)) {
@@ -52,7 +52,7 @@ export async function getColors(registry: LanguageFeatureRegistry<DocumentColorP
 					}
 				}
 			});
-			return promise.then(() => colors);
+			return promise.then(() => { return { colorData: colors, usingDefaultDocumentColorProvider: true }; });
 		}
 	}
 }

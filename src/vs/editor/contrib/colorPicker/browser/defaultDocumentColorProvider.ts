@@ -25,9 +25,6 @@ export class DefaultDocumentColorProvider implements DocumentColorProvider {
 	}
 
 	provideDocumentColors(model: ITextModel, _token: CancellationToken): ProviderResult<IColorInformation[]> {
-		if (!this.configurationService.getValue('editor.defaultColorDecorators')) {
-			return [];
-		}
 		return this._editorWorkerClient?.computeDefaultDocumentColors(model.uri).then((documentColors) => {
 			return documentColors;
 		});
