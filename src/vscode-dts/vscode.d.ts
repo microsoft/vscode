@@ -10425,6 +10425,8 @@ declare module 'vscode' {
 
 	/**
 	 * A file associated with a {@linkcode DataTransferItem}.
+	 *
+	 * Instances of this type can only be created by the editor and not by extensions.
 	 */
 	export interface DataTransferFile {
 		/**
