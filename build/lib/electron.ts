@@ -199,7 +199,7 @@ function getElectron(arch: string): () => NodeJS.ReadWriteStream {
 		const electronOpts = _.extend({}, config, {
 			platform: process.platform,
 			arch: arch === 'armhf' ? 'arm' : arch,
-			ffmpegChromium: true,
+			ffmpegChromium: false,
 			keepDefaultApp: true
 		});
 
