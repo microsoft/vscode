@@ -42,7 +42,6 @@ import { InteractiveEditorZoneWidget } from 'vs/workbench/contrib/interactiveEdi
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { URI } from 'vs/base/common/uri';
 import { isEqual } from 'vs/base/common/resources';
-import { decodeBase64 } from 'vs/base/common/buffer';
 
 
 type Exchange = { req: IInteractiveEditorRequest; res: IInteractiveEditorResponse };
@@ -157,7 +156,7 @@ class InlineDiffDecorations {
 export class EditResponse {
 
 	readonly localEdits: TextEdit[] = [];
-	readonly singleCreateFileEdit: { uri: URI; edits: TextEdit[] } | undefined;
+	readonly singleCreateFileEdit: { uri: URI; edits: Promise<TextEdit>[] } | undefined;
 	readonly workspaceEdits: ResourceEdit[] | undefined;
 	readonly workspaceEditsIncludeLocalEdits: boolean = false;
 
@@ -184,9 +183,8 @@ export class EditResponse {
 							this.singleCreateFileEdit = undefined;
 						} else {
 							this.singleCreateFileEdit = { uri: edit.newResource, edits: [] };
-							if (edit.options.contentsBase64) {
-								const newText = decodeBase64(edit.options.contentsBase64).toString();
-								this.singleCreateFileEdit.edits.push({ range: new Range(1, 1, 1, 1), text: newText });
+							if (edit.options.contents) {
+								this.singleCreateFileEdit.edits.push(edit.options.contents.then(x => ({ range: new Range(1, 1, 1, 1), text: x.toString() })));
 							}
 						}
 					}
@@ -197,7 +195,7 @@ export class EditResponse {
 						this.workspaceEditsIncludeLocalEdits = true;
 
 					} else if (isEqual(this.singleCreateFileEdit?.uri, edit.resource)) {
-						this.singleCreateFileEdit!.edits.push(edit.textEdit);
+						this.singleCreateFileEdit!.edits.push(Promise.resolve(edit.textEdit));
 					} else {
 						isComplexEdit = true;
 					}
@@ -604,7 +602,7 @@ export class InteractiveEditorController implements IEditorContribution {
 			this._zone.widget.updateToolbar(true);
 
 			if (editResponse.singleCreateFileEdit) {
-				this._zone.widget.showCreatePreview(editResponse.singleCreateFileEdit.uri, editResponse.singleCreateFileEdit.edits);
+				this._zone.widget.showCreatePreview(editResponse.singleCreateFileEdit.uri, await Promise.all(editResponse.singleCreateFileEdit.edits));
 			} else {
 				this._zone.widget.hideCreatePreview();
 			}

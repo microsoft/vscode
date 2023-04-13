@@ -55,6 +55,7 @@ cfg-if = "1.0.0"
 pin-project = "1.0"
 console = "0.15"
 bytes = "1.4"
+tar = { version = "0.4" }
 
 [build-dependencies]
 serde = { version = "1.0" }
@@ -68,7 +69,6 @@ winapi = "0.3.9"
 core-foundation = "0.9.3"
 
 [target.'cfg(target_os = "linux")'.dependencies]
-tar = { version = "0.4" }
 zbus = { version = "3.4", default-features = false, features = ["tokio"] }
 
 [patch.crates-io]

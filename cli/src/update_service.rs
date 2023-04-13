@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-use std::{fmt, path::Path};
+use std::{ffi::OsStr, fmt, path::Path};
 
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 use crate::{
 	constants::VSCODE_CLI_UPDATE_ENDPOINT,
@@ -14,6 +14,7 @@ use crate::{
 		errors::{AnyError, CodeError, UpdatesNotConfigured, WrappedError},
 		http::{BoxedHttp, SimpleResponse},
 		io::ReportCopyProgress,
+		tar, zipper,
 	},
 };
 
@@ -175,14 +176,9 @@ pub fn unzip_downloaded_release<T>(
 where
 	T: ReportCopyProgress,
 {
-	#[cfg(any(target_os = "windows", target_os = "macos"))]
-	{
-		use crate::util::zipper;
+	if compressed_file.extension() == Some(OsStr::new("zip")) {
 		zipper::unzip_file(compressed_file, target_dir, reporter)
-	}
-	#[cfg(target_os = "linux")]
-	{
-		use crate::util::tar;
+	} else {
 		tar::decompress_tarball(compressed_file, target_dir, reporter)
 	}
 }
@@ -206,7 +202,7 @@ impl TargetKind {
 	}
 }
 
-#[derive(Debug, Copy, Clone, Eq, PartialEq)]
+#[derive(Debug, Copy, Clone, Eq, PartialEq, Serialize, Deserialize)]
 pub enum Platform {
 	LinuxAlpineX64,
 	LinuxAlpineARM64,
