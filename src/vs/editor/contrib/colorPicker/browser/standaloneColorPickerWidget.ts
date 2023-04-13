@@ -28,6 +28,7 @@ import * as dom from 'vs/base/browser/dom';
 import 'vs/css!./colorPicker';
 import { IModelService } from 'vs/editor/common/services/model';
 import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 export class StandaloneColorPickerController extends Disposable implements IEditorContribution {
 
@@ -40,6 +41,7 @@ export class StandaloneColorPickerController extends Disposable implements IEdit
 		private readonly _editor: ICodeEditor,
 		@IModelService _modelService: IModelService,
 		@IContextKeyService _contextKeyService: IContextKeyService,
+		@IConfigurationService _configurationService: IConfigurationService,
 		@ILanguageConfigurationService _languageConfigurationService: ILanguageConfigurationService,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
@@ -48,7 +50,7 @@ export class StandaloneColorPickerController extends Disposable implements IEdit
 		super();
 		this._standaloneColorPickerVisible = EditorContextKeys.standaloneColorPickerVisible.bindTo(_contextKeyService);
 		this._standaloneColorPickerFocused = EditorContextKeys.standaloneColorPickerFocused.bindTo(_contextKeyService);
-		this._register(this._languageFeatureService.colorProvider.register('*', new DefaultDocumentColorProvider(_modelService, _languageConfigurationService)));
+		this._register(this._languageFeatureService.colorProvider.register('*', new DefaultDocumentColorProvider(_modelService, _languageConfigurationService, _configurationService)));
 	}
 
 	public showOrFocus() {

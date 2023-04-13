@@ -10,6 +10,7 @@ import { DocumentColorProvider, IColor, IColorInformation, IColorPresentation, P
 import { EditorWorkerClient } from 'vs/editor/browser/services/editorWorkerService';
 import { IModelService } from 'vs/editor/common/services/model';
 import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 export class DefaultDocumentColorProvider implements DocumentColorProvider {
 
@@ -17,19 +18,22 @@ export class DefaultDocumentColorProvider implements DocumentColorProvider {
 
 	constructor(
 		modelService: IModelService,
-		languageConfigurationService: ILanguageConfigurationService
+		languageConfigurationService: ILanguageConfigurationService,
+		private readonly configurationService: IConfigurationService
 	) {
 		this._editorWorkerClient = new EditorWorkerClient(modelService, false, 'editorWorkerService', languageConfigurationService);
 	}
 
 	provideDocumentColors(model: ITextModel, _token: CancellationToken): ProviderResult<IColorInformation[]> {
+		if (!this.configurationService.getValue('editor.defaultColorDecorators')) {
+			return [];
+		}
 		return this._editorWorkerClient?.computeDefaultDocumentColors(model.uri).then((documentColors) => {
 			return documentColors;
 		});
 	}
 
 	provideColorPresentations(_model: ITextModel, colorInfo: IColorInformation, _token: CancellationToken): ProviderResult<IColorPresentation[]> {
-
 		const range = colorInfo.range;
 		const colorFromInfo: IColor = colorInfo.color;
 		const alpha = colorFromInfo.alpha;
