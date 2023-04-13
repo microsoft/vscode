@@ -39,7 +39,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IWorkbenchContribution, IWorkbenchContributionsRegistry, Extensions } from 'vs/workbench/common/contributions';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
+import { INotificationService, IPromptChoice, Severity } from 'vs/platform/notification/common/notification';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { toAction } from 'vs/base/common/actions';
 import { isWeb } from 'vs/base/common/platform';
@@ -709,25 +709,32 @@ class DefaultThemeUpdatedNotificationContribution implements IWorkbenchContribut
 		@IStorageService private readonly _storageService: IStorageService,
 		@ICommandService private readonly _commandService: ICommandService,
 	) {
-		if (!this._workbenchThemeService.hasUpdatedDefaultThemes()) {
-			return;
-		}
 		if (_storageService.getBoolean(DefaultThemeUpdatedNotificationContribution.STORAGE_KEY, StorageScope.APPLICATION)) {
 			return;
 		}
-		setTimeout(() => {
-			this._showNotification();
-		}, 6000);
+		if (this._workbenchThemeService.hasUpdatedDefaultThemes()) {
+			setTimeout(() => {
+				this._showYouGotMigratedNotification();
+			}, 6000);
+		} else {
+			const currentTheme = this._workbenchThemeService.getColorTheme().settingsId;
+			if (currentTheme === ThemeSettingDefaults.COLOR_THEME_LIGHT_OLD || currentTheme === ThemeSettingDefaults.COLOR_THEME_DARK_OLD) {
+				setTimeout(() => {
+					this._tryNewThemeNotification();
+				}, 6000);
+			}
+		}
 	}
 
-	private async _showNotification(): Promise<void> {
+	private async _showYouGotMigratedNotification(): Promise<void> {
 		this._storageService.store(DefaultThemeUpdatedNotificationContribution.STORAGE_KEY, true, StorageScope.APPLICATION, StorageTarget.USER);
 		await this._notificationService.notify({
 			id: 'themeUpdatedNotification',
 			severity: Severity.Info,
-			message: localize({ key: 'themeUpdatedNotification', comment: ['{0} is the name of the new default theme'] }, "VS Code now ships with a new default theme '{0}'. We hope you like it. If not, you can switch back to the old theme or try one of the many other color themes available.", this._workbenchThemeService.getColorTheme().label),
+			message: localize({ key: 'themeUpdatedNotification', comment: ['{0} is the name of the new default theme'] }, "Visual Studio Code now ships with a new default theme '{0}'. If you prefer, you can switch back to the old theme or try one of the many other color themes available.", this._workbenchThemeService.getColorTheme().label),
 			actions: {
 				primary: [
+					toAction({ id: 'themeUpdated.keep', label: localize('okButton', "Keep"), run: () => { } }),
 					toAction({ id: 'themeUpdated.browseThemes', label: localize('browseThemes', "Browse Themes"), run: () => this._commandService.executeCommand(SelectColorThemeCommandId) }),
 					toAction({
 						id: 'themeUpdated.revert', label: localize('revert', "Revert"), run: async () => {
@@ -741,6 +748,25 @@ class DefaultThemeUpdatedNotificationContribution implements IWorkbenchContribut
 				]
 			}
 		});
+	}
+
+	private async _tryNewThemeNotification(): Promise<void> {
+		this._storageService.store(DefaultThemeUpdatedNotificationContribution.STORAGE_KEY, true, StorageScope.APPLICATION, StorageTarget.USER);
+		const newThemeSettingsId = this._workbenchThemeService.getColorTheme().type === ColorScheme.LIGHT ? ThemeSettingDefaults.COLOR_THEME_LIGHT : ThemeSettingDefaults.COLOR_THEME_DARK;
+		const theme = (await this._workbenchThemeService.getColorThemes()).find(theme => theme.settingsId === newThemeSettingsId);
+		if (theme) {
+			const choices: IPromptChoice[] = [{
+				label: localize('button.tryTheme', "Try New Theme"),
+				run: () => this._workbenchThemeService.setColorTheme(theme, 'auto')
+			},
+			{
+				label: localize('button.cancel', "Cancel"),
+				run: () => { }
+			}];
+			await this._notificationService.prompt(Severity.Info, localize({ key: 'newThemeNotification', comment: ['{0} is the name of the new default theme'] }, "Visual Studio Code now ships with a new default theme '{0}'. Do you want to give it a try?", theme.label), choices);
+		}
+
+
 	}
 }
 const workbenchRegistry = Registry.as<IWorkbenchContributionsRegistry>(Extensions.Workbench);
