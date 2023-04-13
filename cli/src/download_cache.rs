@@ -86,12 +86,12 @@ impl DownloadCache {
 		let _ = remove_dir_all(&temp_dir).await; // cleanup any existing
 
 		create_dir_all(&temp_dir).map_err(|e| wrap(e, "error creating server directory"))?;
-		do_create(target_dir.clone()).await?;
+		do_create(temp_dir.clone()).await?;
 
 		let _ = self.touch(name.to_string());
 		std::fs::rename(&temp_dir, &target_dir)
 			.map_err(|e| wrap(e, "error renaming downloaded server"))?;
-		println!("done rename");
+
 		Ok(target_dir)
 	}
 
