@@ -1830,15 +1830,19 @@ export class SearchView extends ViewPane {
 		const oldParentMatches = element instanceof Match ? element.parent().matches() : [];
 		const resource = resourceInput ?? (element instanceof Match ? element.parent().resource : (<FileMatch>element).resource);
 		let editor: IEditorPane | undefined;
+
+		const options = {
+			preserveFocus,
+			pinned,
+			selection,
+			revealIfVisible: true,
+			indexedCellOptions: element instanceof MatchInNotebook ? { cellIndex: element.cellIndex, selection: element.range } : undefined,
+		};
+
 		try {
 			editor = await this.editorService.openEditor({
 				resource: resource,
-				options: {
-					preserveFocus,
-					pinned,
-					selection,
-					revealIfVisible: true
-				}
+				options,
 			}, sideBySide ? SIDE_GROUP : ACTIVE_GROUP);
 
 			const editorControl = editor?.getControl();
@@ -1867,7 +1871,7 @@ export class SearchView extends ViewPane {
 						if (editorWidget) {
 							// Ensure that the editor widget is binded. If if is, then this should return immediately.
 							// Otherwise, it will bind the widget.
-							await elemParent.bindNotebookEditorWidget(editorWidget);
+							elemParent.bindNotebookEditorWidget(editorWidget);
 							await elemParent.updateMatchesForEditorWidget();
 
 							const matchIndex = oldParentMatches.findIndex(e => e.id() === element.id());

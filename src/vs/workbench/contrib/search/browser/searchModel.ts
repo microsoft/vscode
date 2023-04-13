@@ -40,10 +40,11 @@ import { INotebookEditorService } from 'vs/workbench/contrib/notebook/browser/se
 import { NotebookCellsChangeType, NotebookData } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { INotebookService, SimpleNotebookProviderInfo } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { IReplaceService } from 'vs/workbench/contrib/search/browser/replace';
-import { CellSearchModel, ICellMatch, IFileMatchWithCells, contentMatchesToTextSearchMatches, isIFileMatchWithCells, webviewMatchesToTextSearchMatches } from 'vs/workbench/contrib/search/browser/searchNotebookHelpers';
+import { CellSearchModel, ICellMatch, IFileMatchWithCells, contentMatchesToTextSearchMatches, isIFileMatchWithCells, rawCellPrefix, webviewMatchesToTextSearchMatches } from 'vs/workbench/contrib/search/browser/searchNotebookHelpers';
 import { ReplacePattern } from 'vs/workbench/services/search/common/replace';
 import { IFileMatch, IFileQuery, IPatternInfo, ISearchComplete, ISearchConfigurationProperties, ISearchProgressItem, ISearchRange, ISearchService, ITextQuery, ITextSearchContext, ITextSearchMatch, ITextSearchPreviewOptions, ITextSearchResult, ITextSearchStats, OneLineRange, QueryType, resultIsMatch, SearchCompletionExitCode, SearchSortOrder } from 'vs/workbench/services/search/common/search';
 import { addContextToEditorMatches, editorMatchesToTextSearchResults } from 'vs/workbench/services/search/common/searchHelpers';
+
 
 export class Match {
 
@@ -189,7 +190,7 @@ export class CellMatch {
 
 	constructor(
 		private readonly _parent: FileMatch,
-		private readonly _cell: ICellViewModel | CellSearchModel,
+		private _cell: ICellViewModel | CellSearchModel,
 		private readonly _cellIndex: number,
 	) {
 
@@ -252,6 +253,10 @@ export class CellMatch {
 		// TODO: add webview results to context
 	}
 
+
+	setCellModel(cell: ICellViewModel) {
+		this._cell = cell;
+	}
 
 	get parent(): FileMatch {
 		return this._parent;
@@ -384,6 +389,7 @@ export class FileMatch extends Disposable implements IFileMatch {
 	private _editorWidgetListener: IDisposable | null = null;
 	private _notebookUpdateScheduler: RunOnceScheduler;
 	private _findMatchDecorationModel: FindMatchDecorationModel | undefined;
+	private _lastEditorWidgetIdForUpdate: string | undefined;
 	// #endregion
 
 	constructor(
@@ -749,12 +755,30 @@ export class FileMatch extends Disposable implements IFileMatch {
 		}
 		this._notebookEditorWidget = null;
 	}
+
 	private updateNotebookMatches(matches: CellFindMatchWithIndex[], modelChange: boolean): void {
+		if (!this._notebookEditorWidget) {
+			return;
+		}
+
+		if (this._notebookEditorWidget.getId() !== this._lastEditorWidgetIdForUpdate) {
+			this._cellMatches.clear();
+			this._lastEditorWidgetIdForUpdate = this._notebookEditorWidget.getId();
+		}
 		matches.forEach(match => {
-			let cell = this._cellMatches.get(match.cell.id);
-			if (!cell) {
-				cell = new CellMatch(this, match.cell, match.index);
+
+
+			let existingCell = this._cellMatches.get(match.cell.id);
+			if (this._notebookEditorWidget && !existingCell) {
+				const index = this._notebookEditorWidget.getCellIndex(match.cell);
+				const existingRawCell = this._cellMatches.get(`${rawCellPrefix}${index}`);
+				if (existingRawCell) {
+					existingRawCell.setCellModel(match.cell);
+					this._cellMatches.delete(`${rawCellPrefix}${index}`);
+					existingCell = existingRawCell;
+				}
 			}
+			const cell = existingCell ?? new CellMatch(this, match.cell, match.index);
 			cell.addContentMatches(contentMatchesToTextSearchMatches(match.contentMatches, match.cell));
 			cell.addWebviewMatches(webviewMatchesToTextSearchMatches(match.webviewMatches));
 			this._cellMatches.set(cell.id, cell);
@@ -1954,7 +1978,7 @@ export class SearchModel extends Disposable {
 	get searchResult(): SearchResult {
 		return this._searchResult;
 	}
-	private async getClosedNotebookResults(textQuery: ITextQuery, token: CancellationToken): Promise<{ results: ResourceMap<IFileMatchWithCells | null>; limitHit: boolean }> {
+	private async getClosedNotebookResults(textQuery: ITextQuery, scannedFiles: ResourceSet, token: CancellationToken): Promise<{ results: ResourceMap<IFileMatchWithCells | null>; limitHit: boolean }> {
 		const results = new ResourceMap<IFileMatchWithCells | null>(uri => this.uriIdentityService.extUri.getComparisonKey(uri));
 		const query: IFileQuery = {
 			type: QueryType.File,
@@ -1962,11 +1986,14 @@ export class SearchModel extends Disposable {
 			folderQueries: textQuery.folderQueries
 		};
 
+
 		const searchComplete = await this.searchService.fileSearch(
 			query,
 			CancellationToken.None
 		);
-		for (const fileMatch of searchComplete.results) {
+
+		const filesToSearch = searchComplete.results.filter((result) => !scannedFiles.has(result.resource));
+		for (const fileMatch of filesToSearch) {
 			const cellMatches: ICellMatch[] = [];
 			const uri = fileMatch.resource;
 			const content = await this.fileService.readFileStream(uri);
@@ -2082,7 +2109,8 @@ export class SearchModel extends Disposable {
 
 	async notebookSearch(query: ITextQuery, token: CancellationToken, onProgress?: (result: ISearchProgressItem) => void): Promise<{ completeData: ISearchComplete; scannedFiles: ResourceSet }> {
 		const localResults = await this.getLocalNotebookResults(query, token);
-		const closedResults = await this.getClosedNotebookResults(query, token);
+		const locallyScannedNotebookFiles = new ResourceSet([...localResults.results.keys()], uri => this.uriIdentityService.extUri.getComparisonKey(uri));
+		const closedResults = await this.getClosedNotebookResults(query, locallyScannedNotebookFiles, token);
 
 		if (onProgress) {
 			arrays.coalesce([...localResults.results.values(), ...closedResults.results.values()]).forEach(onProgress);

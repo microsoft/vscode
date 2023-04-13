@@ -79,6 +79,8 @@ export function webviewMatchesToTextSearchMatches(webviewMatches: CellWebviewFin
 
 // experimental
 
+export const rawCellPrefix = 'rawCell#';
+
 export class CellSearchModel extends Disposable {
 	constructor(readonly _source: string, private _uri: URI, private _cellIndex: number) {
 		// need cell index
@@ -86,7 +88,7 @@ export class CellSearchModel extends Disposable {
 	}
 
 	get id() {
-		return `${this._uri.toString()}#${this._cellIndex}`;
+		return `${rawCellPrefix}${this._cellIndex}`;
 	}
 
 	get uri() {
