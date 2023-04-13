@@ -4,12 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IDisposable } from 'vs/base/common/lifecycle';
+import { URI } from 'vs/base/common/uri';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 
 export interface IEditSessionContribution {
-	getStateToStore(workspaceFolder: IWorkspaceFolder): unknown;
-	resumeState(workspaceFolder: IWorkspaceFolder, state: unknown): void;
+	getStateToStore(): unknown;
+	resumeState(state: unknown, uriResolver: (uri: URI) => URI): void;
 }
 
 class EditSessionStateRegistryImpl {
@@ -17,7 +17,8 @@ class EditSessionStateRegistryImpl {
 
 	public registerEditSessionsContribution(contributionPoint: string, editSessionsContribution: IEditSessionContribution): IDisposable {
 		if (this._registeredEditSessionContributions.has(contributionPoint)) {
-			throw new Error(`Edit session contribution point with identifier ${contributionPoint} already exists`);
+			console.warn(`Edit session contribution point with identifier ${contributionPoint} already exists`);
+			return { dispose: () => { } };
 		}
 
 		this._registeredEditSessionContributions.set(contributionPoint, editSessionsContribution);
