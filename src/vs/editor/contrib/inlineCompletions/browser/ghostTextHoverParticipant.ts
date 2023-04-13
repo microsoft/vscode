@@ -166,7 +166,9 @@ export class InlineCompletionsHoverParticipant implements IEditorHoverParticipan
 			const ghostText = part.controller.activeModel?.inlineCompletionsModel?.ghostText;
 			if (ghostText) {
 				const lineText = this._editor.getModel()!.getLineContent(ghostText.lineNumber);
-				render(ghostText.renderForScreenReader(lineText));
+				if (!this._editor.getOption(EditorOption.screenReaderAnnounceInlineSuggestion)) {
+					render(ghostText.renderForScreenReader(lineText));
+				}
 			} else {
 				dom.reset(hoverContentsElement);
 			}

@@ -26,7 +26,7 @@ export interface IAudioCueService {
 
 export class AudioCueService extends Disposable implements IAudioCueService {
 	readonly _serviceBrand: undefined;
-
+	sounds: Map<string, HTMLAudioElement> = new Map();
 	private readonly screenReaderAttached = observableFromEvent(
 		this.accessibilityService.onDidChangeScreenReaderOptimized,
 		() => /** @description accessibilityService.onDidChangeScreenReaderOptimized */ this.accessibilityService.isScreenReaderOptimized()
@@ -74,7 +74,14 @@ export class AudioCueService extends Disposable implements IAudioCueService {
 		).toString(true);
 
 		try {
-			await playAudio(url, this.getVolumeInPercent() / 100);
+			const sound = this.sounds.get(url);
+			if (sound) {
+				sound.volume = this.getVolumeInPercent() / 100;
+				await sound.play();
+				return;
+			}
+			const playedSound = await playAudio(url, this.getVolumeInPercent() / 100);
+			this.sounds.set(url, playedSound);
 		} catch (e) {
 			console.error('Error while playing sound', e);
 		} finally {
@@ -130,12 +137,12 @@ export class AudioCueService extends Disposable implements IAudioCueService {
  * Play the given audio url.
  * @volume value between 0 and 1
  */
-function playAudio(url: string, volume: number): Promise<void> {
+function playAudio(url: string, volume: number): Promise<HTMLAudioElement> {
 	return new Promise((resolve, reject) => {
 		const audio = new Audio(url);
 		audio.volume = volume;
 		audio.addEventListener('ended', () => {
-			resolve();
+			resolve(audio);
 		});
 		audio.addEventListener('error', (e) => {
 			// When the error event fires, ended might not be called
