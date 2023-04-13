@@ -43,6 +43,9 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { URI } from 'vs/base/common/uri';
 import { isEqual } from 'vs/base/common/resources';
 import { decodeBase64 } from 'vs/base/common/buffer';
+import { InteractiveEditorDiffWidget } from 'vs/workbench/contrib/interactiveEditor/browser/interactiveEditorDiffWidget';
+import { IModelService } from 'vs/editor/common/services/model';
+import { Event } from 'vs/base/common/event';
 
 
 type Exchange = { req: IInteractiveEditorRequest; res: IInteractiveEditorResponse };
@@ -222,7 +225,7 @@ class LastEditorState {
 	) { }
 }
 
-type EditMode = 'preview' | 'direct';
+type EditMode = 'preview' | 'livePreview' | 'direct';
 
 export class InteractiveEditorController implements IEditorContribution {
 
@@ -274,6 +277,7 @@ export class InteractiveEditorController implements IEditorContribution {
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@IStorageService private readonly _storageService: IStorageService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@IModelService private readonly _modelService: IModelService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 
 	) {
@@ -412,6 +416,10 @@ export class InteractiveEditorController implements IEditorContribution {
 		const roundStore = new DisposableStore();
 		store.add(roundStore);
 
+		const diffBaseModel = this._modelService.createModel(textModel.getValue(), { languageId: textModel.getLanguageId(), onDidChange: Event.None }, undefined, true);
+		store.add(diffBaseModel);
+		const diffZone = this._instaService.createInstance(InteractiveEditorDiffWidget, this._editor, diffBaseModel);
+
 		do {
 
 			round += 1;
@@ -421,6 +429,10 @@ export class InteractiveEditorController implements IEditorContribution {
 				// nuked whole file contents?
 				this._logService.trace('[IE] ABORT wholeRange seems gone/collapsed');
 				break;
+			}
+
+			if (round > 1 && editMode === 'livePreview') {
+				diffZone.show(wholeRangeDecoration.getRange(0)!);
 			}
 
 			// visuals: add block decoration
@@ -617,6 +629,9 @@ export class InteractiveEditorController implements IEditorContribution {
 
 		this._inlineDiffEnabled = inlineDiffDecorations.visible;
 		this._storageService.store(InteractiveEditorController._inlineDiffStorageKey, this._inlineDiffEnabled, StorageScope.PROFILE, StorageTarget.USER);
+
+		diffZone.hide();
+		diffZone.dispose();
 
 		// done, cleanup
 		wholeRangeDecoration.clear();
