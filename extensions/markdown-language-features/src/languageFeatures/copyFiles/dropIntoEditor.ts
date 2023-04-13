@@ -24,6 +24,11 @@ export const imageFileExtensions = new Set<string>([
 	'webp',
 ]);
 
+const videoFileExtensions = new Set<string>([
+	'ogg',
+	'mp4'
+]);
+
 export function registerDropIntoEditorSupport(selector: vscode.DocumentSelector) {
 	return vscode.languages.registerDocumentDropEditProvider(selector, new class implements vscode.DocumentDropEditProvider {
 		async provideDocumentDropEdits(document: vscode.TextDocument, _position: vscode.Position, dataTransfer: vscode.DataTransfer, token: vscode.CancellationToken): Promise<vscode.DocumentDropEdit | undefined> {
@@ -33,12 +38,23 @@ export function registerDropIntoEditorSupport(selector: vscode.DocumentSelector)
 			}
 
 			const snippet = await tryGetUriListSnippet(document, dataTransfer, token);
-			return snippet ? new vscode.DocumentDropEdit(snippet) : undefined;
+			if (!snippet) {
+				return undefined;
+			}
+
+			const edit = new vscode.DocumentDropEdit(snippet.snippet);
+			edit.label = snippet.label;
+			return edit;
 		}
+	}, {
+		id: 'vscode.markdown.insertLink',
+		dropMimeTypes: [
+			'text/uri-list'
+		]
 	});
 }
 
-export async function tryGetUriListSnippet(document: vscode.TextDocument, dataTransfer: vscode.DataTransfer, token: vscode.CancellationToken): Promise<vscode.SnippetString | undefined> {
+export async function tryGetUriListSnippet(document: vscode.TextDocument, dataTransfer: vscode.DataTransfer, token: vscode.CancellationToken): Promise<{ snippet: vscode.SnippetString; label: string } | undefined> {
 	const urlList = await dataTransfer.get('text/uri-list')?.asString();
 	if (!urlList || token.isCancellationRequested) {
 		return undefined;
@@ -53,7 +69,17 @@ export async function tryGetUriListSnippet(document: vscode.TextDocument, dataTr
 		}
 	}
 
-	return createUriListSnippet(document, uris);
+	const snippet = createUriListSnippet(document, uris);
+	if (!snippet) {
+		return undefined;
+	}
+
+	return {
+		snippet: snippet,
+		label: uris.length > 1
+			? vscode.l10n.t('Insert uri links')
+			: vscode.l10n.t('Insert uri link')
+	};
 }
 
 interface UriListSnippetOptions {
@@ -84,14 +110,21 @@ export function createUriListSnippet(document: vscode.TextDocument, uris: readon
 
 		const ext = URI.Utils.extname(uri).toLowerCase().replace('.', '');
 		const insertAsImage = typeof options?.insertAsImage === 'undefined' ? imageFileExtensions.has(ext) : !!options.insertAsImage;
+		const insertAsVideo = videoFileExtensions.has(ext);
 
-		snippet.appendText(insertAsImage ? '![' : '[');
+		if (insertAsVideo) {
+			snippet.appendText(`<video src="${mdPath}" controls title="`);
+			snippet.appendPlaceholder('Title');
+			snippet.appendText('"></video>');
+		} else {
+			snippet.appendText(insertAsImage ? '![' : '[');
 
-		const placeholderText = options?.placeholderText ?? (insertAsImage ? 'Alt text' : 'label');
-		const placeholderIndex = typeof options?.placeholderStartIndex !== 'undefined' ? options?.placeholderStartIndex + i : undefined;
-		snippet.appendPlaceholder(placeholderText, placeholderIndex);
+			const placeholderText = options?.placeholderText ?? (insertAsImage ? 'Alt text' : 'label');
+			const placeholderIndex = typeof options?.placeholderStartIndex !== 'undefined' ? options?.placeholderStartIndex + i : undefined;
+			snippet.appendPlaceholder(placeholderText, placeholderIndex);
 
-		snippet.appendText(`](${mdPath})`);
+			snippet.appendText(`](${mdPath})`);
+		}
 
 		if (i < uris.length - 1 && uris.length > 1) {
 			snippet.appendText(options?.separator ?? ' ');

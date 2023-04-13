@@ -24,6 +24,8 @@ export const IEditSessionsStorageService = createDecorator<IEditSessionsStorageS
 export interface IEditSessionsStorageService {
 	_serviceBrand: undefined;
 
+	readonly SIZE_LIMIT: number;
+
 	readonly isSignedIn: boolean;
 	readonly onDidSignIn: Event<void>;
 	readonly onDidSignOut: Event<void>;
@@ -68,6 +70,8 @@ export interface Folder {
 	name: string;
 	canonicalIdentity: string | undefined;
 	workingChanges: Change[];
+	// additional data collected from workbench contributions
+	[key: string]: unknown;
 }
 
 export const EditSessionSchemaVersion = 2;

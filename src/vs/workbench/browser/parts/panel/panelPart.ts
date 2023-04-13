@@ -650,7 +650,7 @@ export abstract class BasePanelPart extends CompositePart<PaneComposite> impleme
 	}
 
 	getLastActivePaneCompositeId(): string {
-		return this.getLastActiveCompositetId();
+		return this.getLastActiveCompositeId();
 	}
 
 	hideActivePaneComposite(): void {

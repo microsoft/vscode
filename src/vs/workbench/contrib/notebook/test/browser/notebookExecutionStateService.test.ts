@@ -19,9 +19,9 @@ import { NotebookExecutionStateService } from 'vs/workbench/contrib/notebook/bro
 import { NotebookKernelService } from 'vs/workbench/contrib/notebook/browser/services/notebookKernelServiceImpl';
 import { NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModelImpl';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
-import { CellEditType, CellKind, CellUri, IOutputDto, NotebookCellMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellEditType, CellKind, CellUri, IOutputDto, NotebookCellMetadata, NotebookExecutionState } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { CellExecutionUpdateType, INotebookExecutionService } from 'vs/workbench/contrib/notebook/common/notebookExecutionService';
-import { INotebookExecutionStateService } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
+import { INotebookExecutionStateService, NotebookExecutionType } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
 import { INotebookKernel, INotebookKernelService } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { setupInstantiationService, withTestNotebook as _withTestNotebook } from 'vs/workbench/contrib/notebook/test/browser/testNotebookEditor';
@@ -137,8 +137,10 @@ suite('NotebookExecutionStateService', () => {
 			const exe = executionStateService.createCellExecution(viewModel.uri, cell.handle);
 
 			let didFire = false;
-			disposables.add(executionStateService.onDidChangeCellExecution(e => {
-				didFire = !e.changed;
+			disposables.add(executionStateService.onDidChangeExecution(e => {
+				if (e.type === NotebookExecutionType.cell) {
+					didFire = !e.changed;
+				}
 			}));
 
 			viewModel.notebookDocument.applyEdits([{
@@ -162,8 +164,10 @@ suite('NotebookExecutionStateService', () => {
 			const exe = executionStateService.createCellExecution(viewModel.uri, cell.handle);
 
 			let didFire = false;
-			disposables.add(executionStateService.onDidChangeCellExecution(e => {
-				didFire = true;
+			disposables.add(executionStateService.onDidChangeExecution(e => {
+				if (e.type === NotebookExecutionType.cell) {
+					didFire = true;
+				}
 			}));
 
 			exe.update([{ editType: CellExecutionUpdateType.OutputItems, items: [], outputId: '1' }]);
@@ -187,17 +191,19 @@ suite('NotebookExecutionStateService', () => {
 			const cell = insertCellAtIndex(viewModel, 0, 'var c = 3', 'javascript', CellKind.Code, {}, [], true, true);
 
 			const deferred = new DeferredPromise<void>();
-			disposables.add(executionStateService.onDidChangeCellExecution(e => {
-				const cellUri = CellUri.generate(e.notebook, e.cellHandle);
-				const exe = executionStateService.getCellExecution(cellUri);
-				assert.ok(exe);
-				assert.strictEqual(e.notebook.toString(), exe.notebook.toString());
-				assert.strictEqual(e.cellHandle, exe.cellHandle);
+			disposables.add(executionStateService.onDidChangeExecution(e => {
+				if (e.type === NotebookExecutionType.cell) {
+					const cellUri = CellUri.generate(e.notebook, e.cellHandle);
+					const exe = executionStateService.getCellExecution(cellUri);
+					assert.ok(exe);
+					assert.strictEqual(e.notebook.toString(), exe.notebook.toString());
+					assert.strictEqual(e.cellHandle, exe.cellHandle);
 
-				assert.strictEqual(exe.notebook.toString(), e.changed?.notebook.toString());
-				assert.strictEqual(exe.cellHandle, e.changed?.cellHandle);
+					assert.strictEqual(exe.notebook.toString(), e.changed?.notebook.toString());
+					assert.strictEqual(exe.cellHandle, e.changed?.cellHandle);
 
-				deferred.complete();
+					deferred.complete();
+				}
 			}));
 
 			executionStateService.createCellExecution(viewModel.uri, cell.handle);
@@ -205,8 +211,77 @@ suite('NotebookExecutionStateService', () => {
 			return deferred.p;
 		});
 	});
+	test('getExecution and onDidChangeExecution', async function () {
+		return withTestNotebook([], async viewModel => {
+			testNotebookModel = viewModel.notebookDocument;
 
-	test('force-cancel works', async function () {
+			const kernel = new TestNotebookKernel();
+			kernelService.registerKernel(kernel);
+			kernelService.selectKernelForNotebook(kernel, viewModel.notebookDocument);
+
+			const eventRaisedWithExecution: boolean[] = [];
+			const executionStateService: INotebookExecutionStateService = instantiationService.get(INotebookExecutionStateService);
+			executionStateService.onDidChangeExecution(e => eventRaisedWithExecution.push(e.type === NotebookExecutionType.notebook && !!e.changed), this, disposables);
+
+			const deferred = new DeferredPromise<void>();
+			disposables.add(executionStateService.onDidChangeExecution(e => {
+				if (e.type === NotebookExecutionType.notebook) {
+					const exe = executionStateService.getExecution(viewModel.uri);
+					assert.ok(exe);
+					assert.strictEqual(e.notebook.toString(), exe.notebook.toString());
+					assert.ok(e.affectsNotebook(viewModel.uri));
+					assert.deepStrictEqual(eventRaisedWithExecution, [true]);
+					deferred.complete();
+				}
+			}));
+
+			executionStateService.createExecution(viewModel.uri);
+
+			return deferred.p;
+		});
+	});
+
+	test('getExecution and onDidChangeExecution', async function () {
+		return withTestNotebook([], async viewModel => {
+			testNotebookModel = viewModel.notebookDocument;
+
+			const kernel = new TestNotebookKernel();
+			kernelService.registerKernel(kernel);
+			kernelService.selectKernelForNotebook(kernel, viewModel.notebookDocument);
+
+			const executionStateService: INotebookExecutionStateService = instantiationService.get(INotebookExecutionStateService);
+
+			const deferred = new DeferredPromise<void>();
+			const expectedNotebookEventStates: (NotebookExecutionState | undefined)[] = [NotebookExecutionState.Unconfirmed, NotebookExecutionState.Pending, NotebookExecutionState.Executing, undefined];
+			executionStateService.onDidChangeExecution(e => {
+				if (e.type === NotebookExecutionType.notebook) {
+					const expectedState = expectedNotebookEventStates.shift();
+					if (typeof expectedState === 'number') {
+						const exe = executionStateService.getExecution(viewModel.uri);
+						assert.ok(exe);
+						assert.strictEqual(e.notebook.toString(), exe.notebook.toString());
+						assert.strictEqual(e.changed?.state, expectedState);
+					} else {
+						assert.ok(e.changed === undefined);
+					}
+
+					assert.ok(e.affectsNotebook(viewModel.uri));
+					if (expectedNotebookEventStates.length === 0) {
+						deferred.complete();
+					}
+				}
+			}, this, disposables);
+
+			const execution = executionStateService.createExecution(viewModel.uri);
+			execution.confirm();
+			execution.begin();
+			execution.complete();
+
+			return deferred.p;
+		});
+	});
+
+	test('force-cancel works for Cell Execution', async function () {
 		return withTestNotebook([], async viewModel => {
 			testNotebookModel = viewModel.notebookDocument;
 
@@ -222,6 +297,51 @@ suite('NotebookExecutionStateService', () => {
 
 			executionStateService.forceCancelNotebookExecutions(viewModel.uri);
 			const exe2 = executionStateService.getCellExecution(cell.uri);
+			assert.strictEqual(exe2, undefined);
+		});
+	});
+	test('force-cancel works for Notebook Execution', async function () {
+		return withTestNotebook([], async viewModel => {
+			testNotebookModel = viewModel.notebookDocument;
+
+			const kernel = new TestNotebookKernel();
+			kernelService.registerKernel(kernel);
+			kernelService.selectKernelForNotebook(kernel, viewModel.notebookDocument);
+			const eventRaisedWithExecution: boolean[] = [];
+
+			const executionStateService: INotebookExecutionStateService = instantiationService.get(INotebookExecutionStateService);
+			executionStateService.onDidChangeExecution(e => eventRaisedWithExecution.push(e.type === NotebookExecutionType.notebook && !!e.changed), this, disposables);
+			executionStateService.createExecution(viewModel.uri);
+			const exe = executionStateService.getExecution(viewModel.uri);
+			assert.ok(exe);
+			assert.deepStrictEqual(eventRaisedWithExecution, [true]);
+
+			executionStateService.forceCancelNotebookExecutions(viewModel.uri);
+			const exe2 = executionStateService.getExecution(viewModel.uri);
+			assert.deepStrictEqual(eventRaisedWithExecution, [true, false]);
+			assert.strictEqual(exe2, undefined);
+		});
+	});
+	test('force-cancel works for Cell and Notebook Execution', async function () {
+		return withTestNotebook([], async viewModel => {
+			testNotebookModel = viewModel.notebookDocument;
+
+			const kernel = new TestNotebookKernel();
+			kernelService.registerKernel(kernel);
+			kernelService.selectKernelForNotebook(kernel, viewModel.notebookDocument);
+
+			const executionStateService: INotebookExecutionStateService = instantiationService.get(INotebookExecutionStateService);
+			executionStateService.createExecution(viewModel.uri);
+			executionStateService.createExecution(viewModel.uri);
+			const cellExe = executionStateService.getExecution(viewModel.uri);
+			const exe = executionStateService.getExecution(viewModel.uri);
+			assert.ok(cellExe);
+			assert.ok(exe);
+
+			executionStateService.forceCancelNotebookExecutions(viewModel.uri);
+			const cellExe2 = executionStateService.getExecution(viewModel.uri);
+			const exe2 = executionStateService.getExecution(viewModel.uri);
+			assert.strictEqual(cellExe2, undefined);
 			assert.strictEqual(exe2, undefined);
 		});
 	});

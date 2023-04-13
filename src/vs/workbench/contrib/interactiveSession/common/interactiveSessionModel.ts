@@ -3,10 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { DeferredPromise } from 'vs/base/common/async';
 import { Emitter, Event } from 'vs/base/common/event';
 import { IMarkdownString, MarkdownString } from 'vs/base/common/htmlContent';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { URI } from 'vs/base/common/uri';
+import { URI, UriComponents } from 'vs/base/common/uri';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IInteractiveProgress, IInteractiveResponse, IInteractiveResponseErrorDetails, IInteractiveSession, IInteractiveSessionFollowup, IInteractiveSessionReplyFollowup, InteractiveSessionVoteDirection } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionService';
 
@@ -52,7 +53,10 @@ export class InteractiveRequestModel implements IInteractiveRequestModel {
 		return this._id;
 	}
 
-	constructor(public readonly message: string | IInteractiveSessionReplyFollowup, public readonly username: string, public readonly avatarIconUri?: URI) {
+	constructor(
+		public readonly message: string | IInteractiveSessionReplyFollowup,
+		public readonly username: string,
+		public readonly avatarIconUri?: URI) {
 		this._id = 'request_' + InteractiveRequestModel.nextId++;
 	}
 }
@@ -68,50 +72,47 @@ export class InteractiveResponseModel extends Disposable implements IInteractive
 		return this._id;
 	}
 
-	private _providerResponseId: string | undefined;
 	public get providerResponseId(): string | undefined {
 		return this._providerResponseId;
 	}
 
-	private _isComplete: boolean;
 	public get isComplete(): boolean {
 		return this._isComplete;
 	}
 
-	private _isCanceled: boolean;
 	public get isCanceled(): boolean {
 		return this._isCanceled;
 	}
 
-	private _vote: InteractiveSessionVoteDirection | undefined;
 	public get vote(): InteractiveSessionVoteDirection | undefined {
 		return this._vote;
 	}
 
-	private _followups: IInteractiveSessionFollowup[] | undefined;
 	public get followups(): IInteractiveSessionFollowup[] | undefined {
 		return this._followups;
 	}
 
-	private _response: IMarkdownString;
 	public get response(): IMarkdownString {
 		return this._response;
 	}
 
-	private _errorDetails: IInteractiveResponseErrorDetails | undefined;
 	public get errorDetails(): IInteractiveResponseErrorDetails | undefined {
 		return this._errorDetails;
 	}
 
-	constructor(response: IMarkdownString, public readonly username: string, public readonly providerId: string, public readonly avatarIconUri?: URI, isComplete: boolean = false, isCanceled = false, vote?: InteractiveSessionVoteDirection, providerResponseId?: string, errorDetails?: IInteractiveResponseErrorDetails, followups?: IInteractiveSessionFollowup[]) {
+	constructor(
+		private _response: IMarkdownString,
+		public readonly username: string,
+		public readonly providerId: string,
+		public readonly avatarIconUri?: URI,
+		private _isComplete: boolean = false,
+		private _isCanceled = false,
+		private _vote?: InteractiveSessionVoteDirection,
+		private _providerResponseId?: string,
+		private _errorDetails?: IInteractiveResponseErrorDetails,
+		private _followups?: IInteractiveSessionFollowup[]
+	) {
 		super();
-		this._response = response;
-		this._isComplete = isComplete;
-		this._followups = followups;
-		this._providerResponseId = providerResponseId;
-		this._errorDetails = errorDetails;
-		this._isCanceled = isCanceled;
-		this._vote = vote;
 		this._id = 'response_' + InteractiveResponseModel.nextId++;
 	}
 
@@ -153,8 +154,10 @@ export interface IInteractiveSessionModel {
 	readonly sessionId: number;
 	readonly providerId: string;
 	readonly welcomeMessage: IInteractiveSessionWelcomeMessageModel | undefined;
+	readonly requestInProgress: boolean;
 	readonly inputPlaceholder?: string;
 	getRequests(): IInteractiveRequestModel[];
+	waitForInitialization(): Promise<void>;
 }
 
 export interface ISerializableInteractiveSessionsData {
@@ -173,6 +176,10 @@ export interface ISerializableInteractiveSessionRequestData {
 
 export interface ISerializableInteractiveSessionData {
 	requests: ISerializableInteractiveSessionRequestData[];
+	requesterUsername: string;
+	responderUsername: string;
+	requesterAvatarIconUri: UriComponents | undefined;
+	responderAvatarIconUri: UriComponents | undefined;
 	providerId: string;
 	providerState: any;
 }
@@ -194,6 +201,8 @@ export interface IInteractiveSessionClearEvent {
 }
 
 export class InteractiveSessionModel extends Disposable implements IInteractiveSessionModel {
+	private static nextId = 0;
+
 	private readonly _onDidDispose = this._register(new Emitter<void>());
 	readonly onDidDispose = this._onDidDispose.event;
 
@@ -201,20 +210,39 @@ export class InteractiveSessionModel extends Disposable implements IInteractiveS
 	readonly onDidChange = this._onDidChange.event;
 
 	private _requests: InteractiveRequestModel[];
-	private _providerState: any;
+	private _isInitializedDeferred = new DeferredPromise<void>();
 
+	private _session: IInteractiveSession | undefined;
+	get session(): IInteractiveSession | undefined {
+		return this._session;
+	}
+
+	private _welcomeMessage: InteractiveSessionWelcomeMessageModel | undefined;
+	get welcomeMessage(): InteractiveSessionWelcomeMessageModel | undefined {
+		return this._welcomeMessage;
+	}
+
+	private _providerState: any;
+	get providerState(): any {
+		return this._providerState;
+	}
+
+	private _sessionId = InteractiveSessionModel.nextId++;
 	get sessionId(): number {
-		return this.session.id;
+		return this._sessionId;
 	}
 
 	get inputPlaceholder(): string | undefined {
-		return this.session.inputPlaceholder;
+		return this._session?.inputPlaceholder;
+	}
+
+	get requestInProgress(): boolean {
+		const lastRequest = this._requests[this._requests.length - 1];
+		return !!lastRequest && !!lastRequest.response && !lastRequest.response.isComplete;
 	}
 
 	constructor(
-		public readonly session: IInteractiveSession,
 		public readonly providerId: string,
-		public readonly welcomeMessage: InteractiveWelcomeMessageModel | undefined,
 		initialData: ISerializableInteractiveSessionData | undefined,
 		@ILogService private readonly logService: ILogService
 	) {
@@ -231,12 +259,22 @@ export class InteractiveSessionModel extends Disposable implements IInteractiveS
 		}
 
 		return requests.map((raw: ISerializableInteractiveSessionRequestData) => {
-			const request = new InteractiveRequestModel(raw.message, this.session.requesterUsername, this.session.requesterAvatarIconUri);
+			const request = new InteractiveRequestModel(raw.message, obj.requesterUsername, obj.requesterAvatarIconUri && URI.revive(obj.requesterAvatarIconUri));
 			if (raw.response || raw.responseErrorDetails) {
-				request.response = new InteractiveResponseModel(new MarkdownString(raw.response), this.session.responderUsername, this.providerId, this.session.responderAvatarIconUri, true, raw.isCanceled, raw.vote, raw.providerResponseId, raw.responseErrorDetails, raw.followups);
+				request.response = new InteractiveResponseModel(new MarkdownString(raw.response), obj.responderUsername, this.providerId, obj.responderAvatarIconUri && URI.revive(obj.responderAvatarIconUri), true, raw.isCanceled, raw.vote, raw.providerResponseId, raw.responseErrorDetails, raw.followups);
 			}
 			return request;
 		});
+	}
+
+	initialize(session: IInteractiveSession, welcomeMessage: InteractiveSessionWelcomeMessageModel | undefined): void {
+		this._session = session;
+		this._welcomeMessage = welcomeMessage;
+		this._isInitializedDeferred.complete();
+	}
+
+	waitForInitialization(): Promise<void> {
+		return this._isInitializedDeferred.p;
 	}
 
 	acceptNewProviderState(providerState: any): void {
@@ -254,11 +292,12 @@ export class InteractiveSessionModel extends Disposable implements IInteractiveS
 	}
 
 	addRequest(message: string | IInteractiveSessionReplyFollowup): InteractiveRequestModel {
-		const request = new InteractiveRequestModel(message, this.session.requesterUsername, this.session.requesterAvatarIconUri);
+		if (!this._session) {
+			throw new Error('addRequest: No session');
+		}
 
-		// TODO this is suspicious, maybe the request should know that it is "in progress" instead of having a fake response model.
-		// But the response already knows that it is "in progress" and so does a map in the session service.
-		request.response = new InteractiveResponseModel(new MarkdownString(''), this.session.responderUsername, this.providerId, this.session.responderAvatarIconUri);
+		const request = new InteractiveRequestModel(message, this._session.requesterUsername, this._session.requesterAvatarIconUri);
+		request.response = new InteractiveResponseModel(new MarkdownString(''), this._session.responderUsername, this.providerId, this._session.responderAvatarIconUri);
 
 		this._requests.push(request);
 		this._onDidChange.fire({ kind: 'addRequest', request });
@@ -266,8 +305,16 @@ export class InteractiveSessionModel extends Disposable implements IInteractiveS
 	}
 
 	acceptResponseProgress(request: InteractiveRequestModel, progress: IInteractiveProgress): void {
+		if (!this._session) {
+			throw new Error('acceptResponseProgress: No session');
+		}
+
 		if (!request.response) {
-			request.response = new InteractiveResponseModel(new MarkdownString(''), this.session.responderUsername, this.providerId, this.session.responderAvatarIconUri);
+			request.response = new InteractiveResponseModel(new MarkdownString(''), this._session.responderUsername, this.providerId, this._session.responderAvatarIconUri);
+		}
+
+		if (request.response.isComplete) {
+			throw new Error('acceptResponseProgress: Adding progress to a completed response');
 		}
 
 		if ('content' in progress) {
@@ -284,8 +331,12 @@ export class InteractiveSessionModel extends Disposable implements IInteractiveS
 	}
 
 	completeResponse(request: InteractiveRequestModel, rawResponse: IInteractiveResponse): void {
+		if (!this._session) {
+			throw new Error('completeResponse: No session');
+		}
+
 		if (!request.response) {
-			request.response = new InteractiveResponseModel(new MarkdownString(''), this.session.responderUsername, this.providerId, this.session.responderAvatarIconUri);
+			request.response = new InteractiveResponseModel(new MarkdownString(''), this._session.responderUsername, this.providerId, this._session.responderAvatarIconUri);
 		}
 
 		request.response.complete(rawResponse.errorDetails);
@@ -307,6 +358,10 @@ export class InteractiveSessionModel extends Disposable implements IInteractiveS
 
 	toJSON(): ISerializableInteractiveSessionData {
 		return {
+			requesterUsername: this._session!.requesterUsername,
+			requesterAvatarIconUri: this._session!.requesterAvatarIconUri,
+			responderUsername: this._session!.responderUsername,
+			responderAvatarIconUri: this._session!.responderAvatarIconUri,
 			requests: this._requests.map((r): ISerializableInteractiveSessionRequestData => {
 				return {
 					providerResponseId: r.response?.providerResponseId,
@@ -324,9 +379,13 @@ export class InteractiveSessionModel extends Disposable implements IInteractiveS
 	}
 
 	override dispose() {
-		this.session.dispose?.();
+		this._session?.dispose?.();
 		this._requests.forEach(r => r.response?.dispose());
 		this._onDidDispose.fire();
+		if (!this._isInitializedDeferred.isSettled) {
+			this._isInitializedDeferred.error(new Error('model disposed'));
+		}
+
 		super.dispose();
 	}
 }
@@ -341,7 +400,7 @@ export interface IInteractiveSessionWelcomeMessageModel {
 
 }
 
-export class InteractiveWelcomeMessageModel implements IInteractiveSessionWelcomeMessageModel {
+export class InteractiveSessionWelcomeMessageModel implements IInteractiveSessionWelcomeMessageModel {
 	private static nextId = 0;
 
 	private _id: string;
@@ -350,6 +409,6 @@ export class InteractiveWelcomeMessageModel implements IInteractiveSessionWelcom
 	}
 
 	constructor(public readonly content: IInteractiveWelcomeMessageContent[], public readonly username: string, public readonly avatarIconUri?: URI) {
-		this._id = 'welcome_' + InteractiveWelcomeMessageModel.nextId++;
+		this._id = 'welcome_' + InteractiveSessionWelcomeMessageModel.nextId++;
 	}
 }

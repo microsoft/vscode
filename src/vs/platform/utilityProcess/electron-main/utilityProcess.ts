@@ -188,7 +188,7 @@ export class UtilityProcess extends Disposable {
 				this.logService.warn(logMsg);
 				break;
 			case Severity.Info:
-				this.logService.info(logMsg);
+				this.logService.trace(logMsg);
 				break;
 		}
 	}

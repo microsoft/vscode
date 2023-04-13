@@ -89,7 +89,7 @@ MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
 const ADD_COMMENT_COMMAND = 'workbench.action.addComment';
 CommandsRegistry.registerCommand({
 	id: ADD_COMMENT_COMMAND,
-	handler: (accessor, args: { range: IRange; fileComment: boolean }) => {
+	handler: (accessor, args?: { range: IRange; fileComment: boolean }) => {
 		const activeEditor = getActiveEditor(accessor);
 		if (!activeEditor) {
 			return Promise.resolve();
@@ -100,8 +100,8 @@ CommandsRegistry.registerCommand({
 			return Promise.resolve();
 		}
 
-		const position = args.range ? new Range(args.range.startLineNumber, args.range.startLineNumber, args.range.endLineNumber, args.range.endColumn)
-			: (args.fileComment ? undefined : activeEditor.getSelection());
+		const position = args?.range ? new Range(args.range.startLineNumber, args.range.startLineNumber, args.range.endLineNumber, args.range.endColumn)
+			: (args?.fileComment ? undefined : activeEditor.getSelection());
 		return controller.addOrToggleCommentAtLine(position, undefined);
 	}
 });

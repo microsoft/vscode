@@ -12,12 +12,13 @@ import { Git } from './git';
 import * as path from 'path';
 import * as fs from 'fs';
 import { fromGitUri } from './uri';
-import { APIState as State, CredentialsProvider, PushErrorHandler, PublishEvent, RemoteSourcePublisher, PostCommitCommandsProvider } from './api/git';
+import { APIState as State, CredentialsProvider, PushErrorHandler, PublishEvent, RemoteSourcePublisher, PostCommitCommandsProvider, BranchProtectionProvider } from './api/git';
 import { Askpass } from './askpass';
 import { IPushErrorHandlerRegistry } from './pushError';
 import { ApiRepository } from './api/api1';
 import { IRemoteSourcePublisherRegistry } from './remotePublisher';
 import { IPostCommitCommandsProviderRegistry } from './postCommitCommands';
+import { IBranchProtectionProviderRegistry } from './branchProtection';
 
 class RepositoryPick implements QuickPickItem {
 	@memoize get label(): string {
@@ -91,7 +92,7 @@ interface OpenRepository extends Disposable {
 	repository: Repository;
 }
 
-export class Model implements IRemoteSourcePublisherRegistry, IPostCommitCommandsProviderRegistry, IPushErrorHandlerRegistry {
+export class Model implements IBranchProtectionProviderRegistry, IRemoteSourcePublisherRegistry, IPostCommitCommandsProviderRegistry, IPushErrorHandlerRegistry {
 
 	private _onDidOpenRepository = new EventEmitter<Repository>();
 	readonly onDidOpenRepository: Event<Repository> = this._onDidOpenRepository.event;
@@ -150,6 +151,11 @@ export class Model implements IRemoteSourcePublisherRegistry, IPostCommitCommand
 
 	private _onDidChangePostCommitCommandsProviders = new EventEmitter<void>();
 	readonly onDidChangePostCommitCommandsProviders = this._onDidChangePostCommitCommandsProviders.event;
+
+	private branchProtectionProviders = new Map<Uri, Set<BranchProtectionProvider>>();
+
+	private _onDidChangeBranchProtectionProviders = new EventEmitter<Uri>();
+	readonly onDidChangeBranchProtectionProviders = this._onDidChangeBranchProtectionProviders.event;
 
 	private pushErrorHandlers = new Set<PushErrorHandler>();
 
@@ -476,7 +482,7 @@ export class Model implements IRemoteSourcePublisherRegistry, IPostCommitCommand
 
 			// Open repository
 			const dotGit = await this.git.getRepositoryDotGit(repositoryRoot);
-			const repository = new Repository(this.git.open(repositoryRoot, dotGit, this.logger), this, this, this, this.globalState, this.logger, this.telemetryReporter);
+			const repository = new Repository(this.git.open(repositoryRoot, dotGit, this.logger), this, this, this, this, this.globalState, this.logger, this.telemetryReporter);
 
 			this.open(repository);
 			repository.status(); // do not await this, we want SCM to know about the repo asap
@@ -758,6 +764,31 @@ export class Model implements IRemoteSourcePublisherRegistry, IPostCommitCommand
 
 	getRemoteSourcePublishers(): RemoteSourcePublisher[] {
 		return [...this.remoteSourcePublishers.values()];
+	}
+
+	registerBranchProtectionProvider(root: Uri, provider: BranchProtectionProvider): Disposable {
+		const providerDisposables: Disposable[] = [];
+
+		this.branchProtectionProviders.set(root, (this.branchProtectionProviders.get(root) ?? new Set()).add(provider));
+		providerDisposables.push(provider.onDidChangeBranchProtection(uri => this._onDidChangeBranchProtectionProviders.fire(uri)));
+
+		this._onDidChangeBranchProtectionProviders.fire(root);
+
+		return toDisposable(() => {
+			const providers = this.branchProtectionProviders.get(root);
+
+			if (providers && providers.has(provider)) {
+				providers.delete(provider);
+				this.branchProtectionProviders.set(root, providers);
+				this._onDidChangeBranchProtectionProviders.fire(root);
+			}
+
+			dispose(providerDisposables);
+		});
+	}
+
+	getBranchProtectionProviders(root: Uri): BranchProtectionProvider[] {
+		return [...(this.branchProtectionProviders.get(root) ?? new Set()).values()];
 	}
 
 	registerPostCommitCommandsProvider(provider: PostCommitCommandsProvider): Disposable {

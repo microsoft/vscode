@@ -498,6 +498,10 @@ class ScopedContextKeyService extends AbstractContextKeyService {
 	}
 
 	public updateParent(parentContextKeyService: AbstractContextKeyService): void {
+		if (this._parent === parentContextKeyService) {
+			return;
+		}
+
 		const thisContainer = this._parent.getContextValuesContainer(this._myContextId);
 		const oldAllValues = thisContainer.collectAllValues();
 		this._parent = parentContextKeyService;
