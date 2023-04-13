@@ -128,20 +128,13 @@ export class ColorDetector extends Disposable implements IEditorContribution {
 		if (!model || !this._isColorDecoratorsEnabled) {
 			return;
 		}
-		// Find if there is only one document color provider which is the default document color provider
-		const providers = this._languageFeaturesService.colorProvider.ordered(model!).reverse();
-		let singleDefaultDocumentColorProvider = false;
-		if (providers.length === 1 && providers[0] instanceof DefaultDocumentColorProvider) {
-			singleDefaultDocumentColorProvider = true;
-		}
-
 		// If there are no color providers
 		// Or if there is only the default color document provider and we do not want to use the default document colors
 		// Then do an early return
-		if (!this._languageFeaturesService.colorProvider.has(model) || singleDefaultDocumentColorProvider && !this._isDefaultColorDecoratorsEnabled) {
+		const registry = this._languageFeaturesService.colorProvider;
+		if (!registry.has(model) || registry.orderedGroups(model).length === 1 && !this._isDefaultColorDecoratorsEnabled) {
 			return;
 		}
-
 		this._localToDispose.add(this._editor.onDidChangeModelContent(() => {
 			if (!this._timeoutTimer) {
 				this._timeoutTimer = new TimeoutTimer();
