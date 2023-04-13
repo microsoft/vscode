@@ -94,7 +94,7 @@ export class DropIntoEditorController extends Disposable implements IEditorContr
 							// Keep all providers that don't specify mime types
 							return true;
 						}
-						return provider.dropMimeTypes.some(mime => ourDataTransfer.has(mime));
+						return provider.dropMimeTypes.some(mime => ourDataTransfer.matches(mime));
 					});
 
 				const possibleDropEdits = await raceCancellation(Promise.all(providers.map(provider => {
