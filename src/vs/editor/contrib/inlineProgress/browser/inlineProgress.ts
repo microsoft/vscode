@@ -9,7 +9,7 @@ import { Codicon } from 'vs/base/common/codicons';
 import { Disposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import { noBreakWhitespace } from 'vs/base/common/strings';
 import { ThemeIcon } from 'vs/base/common/themables';
-import 'vs/css!./dropProgressWidget';
+import 'vs/css!./inlineProgressWidget';
 import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition } from 'vs/editor/browser/editorBrowser';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { IPosition } from 'vs/editor/common/core/position';
@@ -17,26 +17,22 @@ import { Range } from 'vs/editor/common/core/range';
 import { IEditorDecorationsCollection } from 'vs/editor/common/editorCommon';
 import { TrackedRangeStickiness } from 'vs/editor/common/model';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
-import { localize } from 'vs/nls';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 
-const dropIntoEditorProgress = ModelDecorationOptions.register({
-	description: 'drop-into-editor-progress',
+const inlineProgressDecoration = ModelDecorationOptions.register({
+	description: 'inline-progress-widget',
 	stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
 	showIfCollapsed: true,
 	after: {
 		content: noBreakWhitespace,
-		inlineClassName: 'drop-into-editor-progress-decoration',
+		inlineClassName: 'inline-editor-progress-decoration',
 		inlineClassNameAffectsLetterSpacing: true,
 	}
 });
 
-interface DropProgressDelegate {
-	cancel(): void;
-}
 
-class InlineDropProgressWidget extends Disposable implements IContentWidget {
-	private static readonly ID = 'editor.widget.dropProgressWidget';
+class InlineProgressWidget extends Disposable implements IContentWidget {
+	private static readonly baseId = 'editor.widget.inlineProgressWidget';
 
 	allowEditorOverflow = false;
 	suppressMouseDown = true;
@@ -44,22 +40,24 @@ class InlineDropProgressWidget extends Disposable implements IContentWidget {
 	private domNode!: HTMLElement;
 
 	constructor(
+		private readonly typeId: string,
 		private readonly editor: ICodeEditor,
 		private readonly range: Range,
-		private readonly delegate: DropProgressDelegate,
+		title: string,
+		private readonly delegate: InlineProgressDelegate,
 	) {
 		super();
 
-		this.create();
+		this.create(title);
 
 		this.editor.addContentWidget(this);
 		this.editor.layoutContentWidget(this);
 	}
 
-	private create(): void {
-		this.domNode = dom.$('.inline-drop-progress-widget');
+	private create(title: string): void {
+		this.domNode = dom.$('.inline-progress-widget');
 		this.domNode.role = 'button';
-		this.domNode.title = localize('dropIntoEditorProgress', "Running drop handlers. Click to cancel");
+		this.domNode.title = title;
 
 		const iconElement = dom.$('span.icon');
 		this.domNode.append(iconElement);
@@ -85,7 +83,7 @@ class InlineDropProgressWidget extends Disposable implements IContentWidget {
 	}
 
 	getId(): string {
-		return InlineDropProgressWidget.ID;
+		return InlineProgressWidget.baseId + '.' + this.typeId;
 	}
 
 	getDomNode(): HTMLElement {
@@ -105,16 +103,21 @@ class InlineDropProgressWidget extends Disposable implements IContentWidget {
 	}
 }
 
-export class DropProgressManager extends Disposable {
+interface InlineProgressDelegate {
+	cancel(): void;
+}
+
+export class InlineProgressManager extends Disposable {
 
 	/** Delay before showing the progress widget */
 	private readonly _showDelay = 500; // ms
 	private readonly _showPromise = this._register(new MutableDisposable());
 
 	private readonly _currentDecorations: IEditorDecorationsCollection;
-	private readonly _currentWidget = new MutableDisposable<InlineDropProgressWidget>();
+	private readonly _currentWidget = new MutableDisposable<InlineProgressWidget>();
 
 	constructor(
+		readonly id: string,
 		private readonly _editor: ICodeEditor,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 	) {
@@ -123,18 +126,18 @@ export class DropProgressManager extends Disposable {
 		this._currentDecorations = _editor.createDecorationsCollection();
 	}
 
-	public setAtPosition(position: IPosition, delegate: DropProgressDelegate) {
+	public setAtPosition(position: IPosition, title: string, delegate: InlineProgressDelegate) {
 		this.clear();
 
 		this._showPromise.value = disposableTimeout(() => {
-			const range = new Range(position.lineNumber, position.column, position.lineNumber, position.column);
+			const range = Range.fromPositions(position);
 			const decorationIds = this._currentDecorations.set([{
 				range: range,
-				options: dropIntoEditorProgress,
+				options: inlineProgressDecoration,
 			}]);
 
 			if (decorationIds.length > 0) {
-				this._currentWidget.value = this._instantiationService.createInstance(InlineDropProgressWidget, this._editor, range, delegate);
+				this._currentWidget.value = this._instantiationService.createInstance(InlineProgressWidget, this.id, this._editor, range, title, delegate);
 			}
 		}, this._showDelay);
 	}

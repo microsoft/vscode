@@ -7,7 +7,6 @@ import * as dom from 'vs/base/browser/dom';
 import { Button } from 'vs/base/browser/ui/button/button';
 import { toAction } from 'vs/base/common/actions';
 import { Disposable, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import 'vs/css!./dropProgressWidget';
 import 'vs/css!./postDropWidget';
 import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition } from 'vs/editor/browser/editorBrowser';
 import { Range } from 'vs/editor/common/core/range';

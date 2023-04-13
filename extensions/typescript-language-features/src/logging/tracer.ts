@@ -45,6 +45,6 @@ export default class Tracer extends Disposable {
 	}
 
 	public trace(serverId: string, message: string, data?: unknown): void {
-		this.logger.trace(`<${serverId}> ${message}`, data);
+		this.logger.trace(`<${serverId}> ${message}`, ...(data ? [JSON.stringify(data, null, 4)] : []));
 	}
 }

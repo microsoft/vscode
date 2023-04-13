@@ -230,7 +230,7 @@ export class SearchWidget extends Widget {
 		return editors.some(editor => editor instanceof NotebookEditorInput);
 	}
 
-	getFilters() {
+	getNotebookFilters() {
 		return this._notebookFilters;
 	}
 

@@ -526,7 +526,7 @@
 			"name": "Monaco Editor Playground",
 			"type": "chrome",
 			"request": "launch",
-			"url": "https://microsoft.github.io/monaco-editor/playground.html?source=http%3A%2F%2Flocalhost%3A5001%2Fout%2Fvs",
+			"url": "http://localhost:5001",
 			"preLaunchTask": "Launch Http Server",
 			"presentation": {
 				"group": "monaco",

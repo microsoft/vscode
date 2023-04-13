@@ -36,7 +36,12 @@ async function initAzureCloudAuthProvider(context: vscode.ExtensionContext, tele
 		settingValue += '/';
 	}
 
-	const azureEnterpriseAuthProvider = new AzureActiveDirectoryService(context, uriHandler, tokenStorage, settingValue);
+	const azureEnterpriseAuthProvider = new AzureActiveDirectoryService(
+		vscode.window.createOutputChannel(vscode.l10n.t('Microsoft Sovereign Cloud Authentication'), { log: true }),
+		context,
+		uriHandler,
+		tokenStorage,
+		settingValue);
 	await azureEnterpriseAuthProvider.initialize();
 
 	authProviderName ||= uri.authority;
@@ -98,7 +103,11 @@ export async function activate(context: vscode.ExtensionContext) {
 
 	const betterSecretStorage = new BetterTokenStorage<IStoredSession>('microsoft.login.keylist', context);
 
-	const loginService = new AzureActiveDirectoryService(context, uriHandler, betterSecretStorage);
+	const loginService = new AzureActiveDirectoryService(
+		vscode.window.createOutputChannel(vscode.l10n.t('Microsoft Authentication'), { log: true }),
+		context,
+		uriHandler,
+		betterSecretStorage);
 	await loginService.initialize();
 
 	context.subscriptions.push(vscode.authentication.registerAuthenticationProvider('microsoft', 'Microsoft', {

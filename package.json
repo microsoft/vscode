@@ -1,7 +1,7 @@
 {
   "name": "code-oss-dev",
   "version": "1.78.0",
-  "distro": "7ba84c948f5b342f0295a3ba3c8547cca65410dd",
+  "distro": "3eae5e756c195281ebb3348c7492b0ef0d4f3a16",
   "author": {
     "name": "Microsoft Corporation"
   },
@@ -169,7 +169,6 @@
     "gulp-sourcemaps": "^3.0.0",
     "gulp-svgmin": "^4.1.0",
     "gulp-untar": "^0.0.7",
-    "http-server": "^14.1.1",
     "husky": "^0.13.1",
     "innosetup": "6.0.5",
     "is": "^3.1.0",

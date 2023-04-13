@@ -173,14 +173,6 @@ export class NotebookFindInputFilterButton extends Disposable {
 		this._filterButtonContainer = dom.$('.find-filter-button');
 		this._filterButtonContainer.classList.add('monaco-custom-toggle');
 		this.createFilters(this._filterButtonContainer);
-
-		this._register(this.filters.onDidChange(() => {
-			if (this.filters.codeInput !== true || this.filters.codeOutput !== true || this.filters.markupInput !== true || this.filters.markupPreview !== false) {
-				this._filtersAction.checked = true;
-			} else {
-				this._filtersAction.checked = false;
-			}
-		}));
 	}
 
 	get container() {
@@ -462,7 +454,7 @@ export abstract class SimpleFindReplaceWidget extends Widget {
 			}
 		});
 
-		this._focusTracker = this._register(dom.trackFocus(this._innerFindDomNode));
+		this._focusTracker = this._register(dom.trackFocus(this._domNode));
 		this._register(this._focusTracker.onDidFocus(this.onFocusTrackerFocus.bind(this)));
 		this._register(this._focusTracker.onDidBlur(this.onFocusTrackerBlur.bind(this)));
 
