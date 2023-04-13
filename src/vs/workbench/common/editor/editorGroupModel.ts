@@ -192,7 +192,7 @@ export class EditorGroupModel extends Disposable {
 
 	constructor(
 		labelOrSerializedGroup: ISerializedEditorGroupModel | undefined,
-		uriResolver: ((uri: URI) => URI | undefined) | undefined,
+		uriResolver: ((uri: URI) => URI) | undefined,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IConfigurationService private readonly configurationService: IConfigurationService
 	) {
@@ -1037,7 +1037,7 @@ export class EditorGroupModel extends Disposable {
 		};
 	}
 
-	private deserialize(data: ISerializedEditorGroupModel, uriResolver?: (uri: URI) => URI | undefined): number {
+	private deserialize(data: ISerializedEditorGroupModel, uriResolver?: (uri: URI) => URI): number {
 		const registry = Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory);
 
 		if (typeof data.id === 'number') {

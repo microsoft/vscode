@@ -164,7 +164,7 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 		};
 	}
 
-	resumeState(state: unknown, uriResolver: (uri: URI) => URI | undefined) {
+	resumeState(state: unknown, uriResolver: (uri: URI) => URI) {
 		if (typeof state === 'object' && state !== null && 'serializedGrid' in state && 'activeGroup' in state && 'mostRecentActiveGroups' in state) {
 			this.mostRecentActiveGroups = (state as IEditorPartUIState).mostRecentActiveGroups;
 			this.instantiationService.invokeFunction(async (accessor) => {
@@ -605,7 +605,7 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 		return this._partOptions.splitSizing === 'split' ? Sizing.Split : Sizing.Distribute;
 	}
 
-	private doCreateGroupView(from?: IEditorGroupView | ISerializedEditorGroupModel | null, uriResolver?: (uri: URI) => URI | undefined): IEditorGroupView {
+	private doCreateGroupView(from?: IEditorGroupView | ISerializedEditorGroupModel | null, uriResolver?: (uri: URI) => URI): IEditorGroupView {
 
 		// Create group view
 		let groupView: IEditorGroupView;
@@ -1112,7 +1112,7 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 		return true; // success
 	}
 
-	private doCreateGridControlWithState(serializedGrid: ISerializedGrid, activeGroupId: GroupIdentifier, editorGroupViewsToReuse?: IEditorGroupView[], uriResolver?: (uri: URI) => URI | undefined): void {
+	private doCreateGridControlWithState(serializedGrid: ISerializedGrid, activeGroupId: GroupIdentifier, editorGroupViewsToReuse?: IEditorGroupView[], uriResolver?: (uri: URI) => URI): void {
 
 		// Determine group views to reuse if any
 		let reuseGroupViews: IEditorGroupView[];

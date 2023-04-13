@@ -650,12 +650,12 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 							const [workspaceFolderUri, match] = incomingFolderUrisToIdentifiers.get(absoluteUri)!;
 							if (match === EditSessionIdentityMatch.Complete) {
 								const relativeFilePath = relativePath(URI.parse(absoluteUri), incomingUri);
-								return relativeFilePath ? joinPath(URI.parse(workspaceFolderUri), relativeFilePath) : undefined;
+								return relativeFilePath ? joinPath(URI.parse(workspaceFolderUri), relativeFilePath) : incomingUri;
 							}
 
 						}
 					}
-					return undefined;
+					return incomingUri;
 				}));
 			}
 		});

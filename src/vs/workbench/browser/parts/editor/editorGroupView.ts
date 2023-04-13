@@ -65,7 +65,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		return instantiationService.createInstance(EditorGroupView, accessor, null, index, undefined);
 	}
 
-	static createFromSerialized(serialized: ISerializedEditorGroupModel, accessor: IEditorGroupsAccessor, index: number, instantiationService: IInstantiationService, uriResolver?: (uri: URI) => URI | undefined): IEditorGroupView {
+	static createFromSerialized(serialized: ISerializedEditorGroupModel, accessor: IEditorGroupsAccessor, index: number, instantiationService: IInstantiationService, uriResolver?: (uri: URI) => URI): IEditorGroupView {
 		return instantiationService.createInstance(EditorGroupView, accessor, serialized, index, uriResolver);
 	}
 
@@ -139,7 +139,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		private accessor: IEditorGroupsAccessor,
 		from: IEditorGroupView | ISerializedEditorGroupModel | null,
 		private _index: number,
-		private readonly uriResolver: ((uri: URI) => URI | undefined) | undefined,
+		private readonly uriResolver: ((uri: URI) => URI) | undefined,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IThemeService themeService: IThemeService,

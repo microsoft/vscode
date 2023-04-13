@@ -427,7 +427,7 @@ export interface IEditorSerializer {
 	 * Returns an editor from the provided serialized form of the editor. This form matches
 	 * the value returned from the serialize() method.
 	 */
-	deserialize(instantiationService: IInstantiationService, serializedEditor: string, uriResolver?: ((uri: URI) => URI | undefined)): EditorInput | undefined;
+	deserialize(instantiationService: IInstantiationService, serializedEditor: string, uriResolver?: ((uri: URI) => URI)): EditorInput | undefined;
 }
 
 export interface IUntitledTextResourceEditorInput extends IBaseTextResourceEditorInput {
