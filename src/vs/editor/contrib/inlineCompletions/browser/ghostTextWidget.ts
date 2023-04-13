@@ -32,6 +32,7 @@ export class GhostTextWidget extends Disposable {
 	private readonly partsWidget = this._register(this.instantiationService.createInstance(DecorationsWidget, this.editor));
 	private readonly additionalLinesWidget = this._register(new AdditionalLinesWidget(this.editor, this.languageService.languageIdCodec));
 	private viewMoreContentWidget: ViewMoreLinesContentWidget | undefined = undefined;
+	private _lastSuggestion: string | undefined = undefined;
 
 	constructor(
 		private readonly editor: ICodeEditor,
@@ -162,7 +163,7 @@ export class GhostTextWidget extends Disposable {
 			this.audioCueService.playAudioCue(AudioCue.inlineSuggestion).then(() => {
 				if (this.editor.getOption(EditorOption.screenReaderAnnounceInlineSuggestion)) {
 					const lineText = this.editor.getModel()?.getLineContent(ghostText.lineNumber);
-					if (lineText) {
+					if (lineText && this._lastSuggestion !== lineText) {
 						alert(ghostText.renderForScreenReader(lineText));
 					}
 				}

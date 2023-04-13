@@ -166,11 +166,7 @@ export class InlineCompletionsHoverParticipant implements IEditorHoverParticipan
 			const ghostText = part.controller.activeModel?.inlineCompletionsModel?.ghostText;
 			if (ghostText) {
 				const lineText = this._editor.getModel()!.getLineContent(ghostText.lineNumber);
-				if (!this._editor.getOption(EditorOption.screenReaderAnnounceInlineSuggestion)) {
-					// this will be read by the screen reader once the audio cue has been played
-					// prevent it from reading it twice
-					render(ghostText.renderForScreenReader(lineText));
-				}
+				render(ghostText.renderForScreenReader(lineText));
 			} else {
 				dom.reset(hoverContentsElement);
 			}
