@@ -174,7 +174,7 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 				this.instantiationService.invokeFunction(async (accessor) => {
 					const restoreFocus = this.shouldRestoreFocus(this.container);
 
-					await accessor.get(ICommandService).executeCommand('workbench.action.closeAllEditors');
+					await accessor.get(ICommandService).executeCommand('workbench.action.closeAllEditors').catch(() => { });
 
 					const serializedGrid = (state as IEditorPartUIState).serializedGrid;
 
