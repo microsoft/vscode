@@ -167,12 +167,12 @@ registerAction2(class DeleteCellAction extends NotebookCellAction {
 
 		if (runState === NotebookCellExecutionState.Executing && configService.getValue(NotebookSetting.confirmDeleteRunningCell)) {
 			const dialogService = accessor.get(IDialogService);
-			const primaryButton = localize('confirmDeleteButton', 'Confirm Delete');
+			const primaryButton = localize('confirmDeleteButton', "Delete");
 
 			confirmation = await dialogService.confirm({
 				type: 'question',
-				message: localize('confirmDeleteButtonMessage', 'Are you sure you want to delete a running cell?'),
-				detail: localize('confirmDeleteButtonDetail', 'After deletion, the cell may not be recovered.'),
+				message: localize('confirmDeleteButtonMessage', "Are you sure you want to delete a running cell?"),
+				detail: localize('confirmDeleteButtonDetail', "After deletion, the cell may not be recovered."),
 				primaryButton: primaryButton,
 				checkbox: {
 					label: localize('doNotAskAgain', "Do not ask me again")
