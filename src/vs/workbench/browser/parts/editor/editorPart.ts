@@ -156,8 +156,11 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 		this._register(EditSessionRegistry.registerEditSessionsContribution('workbenchEditorLayout', this));
 	}
 
+	private static readonly EditSessionContributionSchemaVersion = 1;
+
 	getStateToStore() {
 		return {
+			version: EditorPart.EditSessionContributionSchemaVersion,
 			serializedGrid: this.gridWidget.serialize(),
 			activeGroup: this._activeGroup.id,
 			mostRecentActiveGroups: this.mostRecentActiveGroups
@@ -165,37 +168,39 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 	}
 
 	resumeState(state: unknown, uriResolver: (uri: URI) => URI) {
-		if (typeof state === 'object' && state !== null && 'serializedGrid' in state && 'activeGroup' in state && 'mostRecentActiveGroups' in state) {
-			this.mostRecentActiveGroups = (state as IEditorPartUIState).mostRecentActiveGroups;
-			this.instantiationService.invokeFunction(async (accessor) => {
-				const restoreFocus = this.shouldRestoreFocus(this.container);
+		if (typeof state === 'object' && state !== null && 'serializedGrid' in state && 'activeGroup' in state && 'mostRecentActiveGroups' in state && 'version' in state) {
+			if (state.version === EditorPart.EditSessionContributionSchemaVersion) {
+				this.mostRecentActiveGroups = (state as IEditorPartUIState).mostRecentActiveGroups;
+				this.instantiationService.invokeFunction(async (accessor) => {
+					const restoreFocus = this.shouldRestoreFocus(this.container);
 
-				await accessor.get(ICommandService).executeCommand('workbench.action.closeAllEditors');
+					await accessor.get(ICommandService).executeCommand('workbench.action.closeAllEditors');
 
-				const serializedGrid = (state as IEditorPartUIState).serializedGrid;
+					const serializedGrid = (state as IEditorPartUIState).serializedGrid;
 
-				// todo@joyceerhl deserialize the grid widget using the uriResolver
-				this.doCreateGridControlWithState(serializedGrid, (state as IEditorPartUIState).activeGroup, undefined, uriResolver);
+					// todo@joyceerhl deserialize the grid widget using the uriResolver
+					this.doCreateGridControlWithState(serializedGrid, (state as IEditorPartUIState).activeGroup, undefined, uriResolver);
 
-				// Layout
-				this.doLayout(this._contentDimension);
+					// Layout
+					this.doLayout(this._contentDimension);
 
-				// Update container
-				this.updateContainer();
+					// Update container
+					this.updateContainer();
 
-				// Events for groups that got added
-				for (const groupView of this.getGroups(GroupsOrder.GRID_APPEARANCE)) {
-					this._onDidAddGroup.fire(groupView);
-				}
+					// Events for groups that got added
+					for (const groupView of this.getGroups(GroupsOrder.GRID_APPEARANCE)) {
+						this._onDidAddGroup.fire(groupView);
+					}
 
-				// Notify group index change given layout has changed
-				this.notifyGroupIndexChange();
+					// Notify group index change given layout has changed
+					this.notifyGroupIndexChange();
 
-				// Restore focus as needed
-				if (restoreFocus) {
-					this._activeGroup.focus();
-				}
-			});
+					// Restore focus as needed
+					if (restoreFocus) {
+						this._activeGroup.focus();
+					}
+				});
+			}
 		}
 	}
 

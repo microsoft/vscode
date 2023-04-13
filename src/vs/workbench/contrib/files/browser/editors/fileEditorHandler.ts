@@ -47,7 +47,7 @@ export class FileEditorInputSerializer implements IEditorSerializer {
 		return JSON.stringify(serializedFileEditorInput);
 	}
 
-	deserialize(instantiationService: IInstantiationService, serializedEditorInput: string, uriHandler: ((uri: URI) => URI | undefined) | undefined): FileEditorInput {
+	deserialize(instantiationService: IInstantiationService, serializedEditorInput: string, uriHandler: ((uri: URI) => URI) | undefined): FileEditorInput {
 		return instantiationService.invokeFunction(accessor => {
 			const serializedFileEditorInput: ISerializedFileEditorInput = JSON.parse(serializedEditorInput);
 			const resource = URI.revive(serializedFileEditorInput.resourceJSON);
@@ -58,7 +58,7 @@ export class FileEditorInputSerializer implements IEditorSerializer {
 			const encoding = serializedFileEditorInput.encoding;
 			const languageId = serializedFileEditorInput.modeId;
 
-			const fileEditorInput = accessor.get(ITextEditorService).createTextEditor({ resource: resolvedResource ?? resource, label: name, description, encoding, languageId, forceFile: true }) as FileEditorInput;
+			const fileEditorInput = accessor.get(ITextEditorService).createTextEditor({ resource: resolvedResource, label: name, description, encoding, languageId, forceFile: true }) as FileEditorInput;
 			if (preferredResource) {
 				fileEditorInput.setPreferredResource(preferredResource);
 			}
