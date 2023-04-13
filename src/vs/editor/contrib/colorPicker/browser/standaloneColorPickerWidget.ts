@@ -59,7 +59,6 @@ export class StandaloneColorPickerController extends Disposable implements IEdit
 		}
 		if (!this._standaloneColorPickerVisible.get()) {
 			this._standaloneColorPickerWidget = new StandaloneColorPickerWidget(this._editor, this._standaloneColorPickerVisible, this._standaloneColorPickerFocused, this._instantiationService, this._keybindingService, this._languageFeatureService);
-			this._editor.addContentWidget(this._standaloneColorPickerWidget);
 		} else if (!this._standaloneColorPickerFocused.get()) {
 			this._standaloneColorPickerWidget?.focus();
 		}
@@ -101,17 +100,17 @@ export class StandaloneColorPickerWidget extends Disposable implements IContentW
 	private _selectionSetInEditor: boolean = false;
 
 	constructor(
-		private readonly editor: ICodeEditor,
+		private readonly _editor: ICodeEditor,
 		private readonly _standaloneColorPickerVisible: IContextKey<boolean>,
 		private readonly _standaloneColorPickerFocused: IContextKey<boolean>,
-		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IKeybindingService private readonly keybindingService: IKeybindingService,
-		@ILanguageFeaturesService private readonly languageFeaturesService: ILanguageFeaturesService
+		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@IKeybindingService private readonly _keybindingService: IKeybindingService,
+		@ILanguageFeaturesService private readonly _languageFeaturesService: ILanguageFeaturesService
 	) {
 		super();
 		this._standaloneColorPickerVisible.set(true);
-		this._position = this.editor._getViewModel()?.getPrimaryCursorState().viewState.position;
-		this._selection = this.editor.getSelection();
+		this._position = this._editor._getViewModel()?.getPrimaryCursorState().viewState.position;
+		this._selection = this._editor.getSelection();
 		const selection = this._selection ?
 			{
 				startLineNumber: this._selection.startLineNumber,
@@ -119,14 +118,14 @@ export class StandaloneColorPickerWidget extends Disposable implements IContentW
 				endLineNumber: this._selection.endLineNumber,
 				endColumn: this._selection.endColumn
 			} : { startLineNumber: 0, endLineNumber: 0, endColumn: 0, startColumn: 0 };
-		this._standaloneColorPickerParticipant = this.instantiationService.createInstance(StandaloneColorPickerParticipant, this.editor);
+		this._standaloneColorPickerParticipant = this._instantiationService.createInstance(StandaloneColorPickerParticipant, this._editor);
 		const focusTracker = this._register(dom.trackFocus(this.body));
-		this._standaloneColorPickerComputer = new StandaloneColorPickerComputer(selection, this.editor, this._standaloneColorPickerParticipant, this.languageFeaturesService);
+		this._standaloneColorPickerComputer = new StandaloneColorPickerComputer(selection, this._editor, this._standaloneColorPickerParticipant, this._languageFeaturesService);
 		this._register(this._standaloneColorPickerComputer.onResult((result) => {
 			this._render(result.value, result.foundInEditor);
 		}));
 		// When the cursor position changes, hide the color picker
-		this._register(this.editor.onDidChangeCursorPosition(() => {
+		this._register(this._editor.onDidChangeCursorPosition(() => {
 			// Do not hide when the cursor changes position because the selection is changed when the keybindings are used to make the color picker appear
 			if (!this._selectionSetInEditor) {
 				this.hide();
@@ -134,7 +133,7 @@ export class StandaloneColorPickerWidget extends Disposable implements IContentW
 				this._selectionSetInEditor = false;
 			}
 		}));
-		this._register(this.editor.onMouseMove((e) => {
+		this._register(this._editor.onMouseMove((e) => {
 			const classList = e.target.element?.classList;
 			if (classList && classList.contains('colorpicker-color-decoration')) {
 				this.hide();
@@ -147,6 +146,7 @@ export class StandaloneColorPickerWidget extends Disposable implements IContentW
 			this.focus();
 		}));
 		this._standaloneColorPickerComputer.start();
+		this._editor.addContentWidget(this);
 	}
 
 	public updateEditor() {
@@ -158,7 +158,7 @@ export class StandaloneColorPickerWidget extends Disposable implements IContentW
 	private _render(colorHover: ColorHover, foundInEditor: boolean) {
 
 		const fragment = document.createDocumentFragment();
-		const statusBar = this._register(new EditorHoverStatusBar(this.keybindingService));
+		const statusBar = this._register(new EditorHoverStatusBar(this._keybindingService));
 		let colorPickerWidget: ColorPickerWidget | undefined;
 
 		const context: IEditorHoverRenderContext = {
@@ -175,8 +175,8 @@ export class StandaloneColorPickerWidget extends Disposable implements IContentW
 			return;
 		}
 		this.body.classList.add('standalone-colorpicker-body');
-		this.body.style.maxHeight = Math.max(this.editor.getLayoutInfo().height / 4, 250) + 'px';
-		this.body.style.maxWidth = Math.max(this.editor.getLayoutInfo().width * 0.66, 500) + 'px';
+		this.body.style.maxHeight = Math.max(this._editor.getLayoutInfo().height / 4, 250) + 'px';
+		this.body.style.maxWidth = Math.max(this._editor.getLayoutInfo().width * 0.66, 500) + 'px';
 		this.body.tabIndex = 0;
 		this.body.appendChild(fragment);
 		colorPickerWidget.layout();
@@ -204,9 +204,9 @@ export class StandaloneColorPickerWidget extends Disposable implements IContentW
 				enterButton.button.textContent = 'Replace';
 			}
 			this._selectionSetInEditor = true;
-			this.editor.setSelection(colorHover.range);
+			this._editor.setSelection(colorHover.range);
 		}
-		this.editor.layoutContentWidget(this);
+		this._editor.layoutContentWidget(this);
 	}
 
 	public getId(): string {
@@ -221,7 +221,7 @@ export class StandaloneColorPickerWidget extends Disposable implements IContentW
 		if (!this._position) {
 			return null;
 		}
-		const positionPreference = this.editor.getOption(EditorOption.hover).above;
+		const positionPreference = this._editor.getOption(EditorOption.hover).above;
 		return {
 			position: this._position,
 			secondaryPosition: this._position,
@@ -234,8 +234,8 @@ export class StandaloneColorPickerWidget extends Disposable implements IContentW
 		this.dispose();
 		this._standaloneColorPickerVisible.set(false);
 		this._standaloneColorPickerFocused.set(false);
-		this.editor.removeContentWidget(this);
-		this.editor.focus();
+		this._editor.removeContentWidget(this);
+		this._editor.focus();
 	}
 
 	public focus(): void {
