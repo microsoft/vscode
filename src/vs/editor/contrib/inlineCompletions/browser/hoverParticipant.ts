@@ -14,8 +14,8 @@ import { Command } from 'vs/editor/common/languages';
 import { ILanguageService } from 'vs/editor/common/languages/language';
 import { IModelDecoration } from 'vs/editor/common/model';
 import { HoverAnchor, HoverAnchorType, HoverForeignElementAnchor, IEditorHoverParticipant, IEditorHoverRenderContext, IHoverPart } from 'vs/editor/contrib/hover/browser/hoverTypes';
-import { GhostTextController } from 'vs/editor/contrib/inlineCompletions/browser/ghostTextController';
-import { InlineSuggestionHintsContentWidget } from 'vs/editor/contrib/inlineCompletions/browser/inlineSuggestionHintsWidget';
+import { InlineCompletionsController } from 'vs/editor/contrib/inlineCompletions/browser/inlineCompletionsController';
+import { InlineSuggestionHintsContentWidget } from 'vs/editor/contrib/inlineCompletions/browser/inlineSuggestionsHintWidget';
 import { MarkdownRenderer } from 'vs/editor/contrib/markdownRenderer/browser/markdownRenderer';
 import * as nls from 'vs/nls';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
@@ -27,7 +27,7 @@ export class InlineCompletionsHover implements IHoverPart {
 	constructor(
 		public readonly owner: IEditorHoverParticipant<InlineCompletionsHover>,
 		public readonly range: Range,
-		public readonly controller: GhostTextController
+		public readonly controller: InlineCompletionsController
 	) { }
 
 	public isValidForHoverAnchor(anchor: HoverAnchor): boolean {
@@ -39,28 +39,31 @@ export class InlineCompletionsHover implements IHoverPart {
 	}
 
 	public requestExplicitContext(): void {
-		this.controller.activeModel?.activeInlineCompletionsModel?.completionSession.value?.ensureUpdateWithExplicitContext();
+		//this.controller.activeModel?.activeInlineCompletionsModel?.completionSession.value?.ensureUpdateWithExplicitContext();
 	}
 
 	public getInlineCompletionsCount(): number | undefined {
-		const session = this.controller.activeModel?.activeInlineCompletionsModel?.completionSession.value;
+		/*const session = this.controller.activeModel?.activeInlineCompletionsModel?.completionSession.value;
 		if (!session?.hasBeenTriggeredExplicitly) {
 			return undefined;
 		}
-		return session?.getInlineCompletionsCountSync();
+		return session?.getInlineCompletionsCountSync();*/
+		return 0;
 	}
 
 	public getInlineCompletionIndex(): number | undefined {
-		return this.controller.activeModel?.activeInlineCompletionsModel?.completionSession.value?.currentlySelectedIndex;
+		//return this.controller.activeModel?.activeInlineCompletionsModel?.completionSession.value?.currentlySelectedIndex;
+		return 0;
 	}
 
 	public onDidChange(handler: () => void): IDisposable {
-		const d = this.controller.activeModel?.activeInlineCompletionsModel?.onDidChange(handler);
+		const d = null; //this.controller.activeModel?.activeInlineCompletionsModel?.onDidChange(handler);
 		return d || Disposable.None;
 	}
 
 	public get commands(): Command[] {
-		return this.controller.activeModel?.activeInlineCompletionsModel?.completionSession.value?.commands || [];
+		return [];
+		//return this.controller.activeModel?.activeInlineCompletionsModel?.completionSession.value?.commands || [];
 	}
 }
 
@@ -79,7 +82,7 @@ export class InlineCompletionsHoverParticipant implements IEditorHoverParticipan
 	}
 
 	suggestHoverAnchor(mouseEvent: IEditorMouseEvent): HoverAnchor | null {
-		const controller = GhostTextController.get(this._editor);
+		const controller = InlineCompletionsController.get(this._editor);
 		if (!controller) {
 			return null;
 		}
@@ -113,7 +116,7 @@ export class InlineCompletionsHoverParticipant implements IEditorHoverParticipan
 			return [];
 		}
 
-		const controller = GhostTextController.get(this._editor);
+		const controller = InlineCompletionsController.get(this._editor);
 		if (controller && controller.shouldShowHoverAt(anchor.range)) {
 			return [new InlineCompletionsHover(this, anchor.range, controller)];
 		}
@@ -163,7 +166,7 @@ export class InlineCompletionsHoverParticipant implements IEditorHoverParticipan
 		};
 
 		disposableStore.add(Event.runAndSubscribe<void>(e => part.onDidChange(e), () => {
-			const ghostText = part.controller.activeModel?.inlineCompletionsModel?.ghostText;
+			const ghostText = part.controller.model.get()?.ghostText.get();
 			if (ghostText) {
 				const lineText = this._editor.getModel()!.getLineContent(ghostText.lineNumber);
 				render(ghostText.renderForScreenReader(lineText));

@@ -19,7 +19,6 @@ import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { Position } from 'vs/editor/common/core/position';
 import { Command } from 'vs/editor/common/languages';
 import { PositionAffinity } from 'vs/editor/common/model';
-import { showNextInlineSuggestionActionId, showPreviousInlineSuggestionActionId } from 'vs/editor/contrib/inlineCompletions/browser/consts';
 import { InlineCompletionsModel } from 'vs/editor/contrib/inlineCompletions/browser/inlineCompletionsModel';
 import { localize } from 'vs/nls';
 import { createAndFillInActionBarActions, MenuEntryActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
@@ -32,6 +31,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
+
 
 export class InlineSuggestionHintsWidget extends Disposable {
 	private readonly widget = this._register(this.instantiationService.createInstance(InlineSuggestionHintsContentWidget, this.editor, true));
@@ -48,7 +48,7 @@ export class InlineSuggestionHintsWidget extends Disposable {
 
 		editor.addContentWidget(this.widget);
 		this._register(toDisposable(() => editor.removeContentWidget(this.widget)));
-		this._register(model.onDidChange(() => this.update()));
+		//this._register(model.onDidChange(() => this.update()));
 		this._register(editor.onDidChangeConfiguration(() => this.update()));
 		this.update();
 	}
@@ -63,22 +63,24 @@ export class InlineSuggestionHintsWidget extends Disposable {
 			return;
 		}
 
+		const ghostText = this.model.ghostText.get();
+
 		const options = this.editor.getOption(EditorOption.inlineSuggest);
-		if (options.showToolbar !== 'always' || !this.model.ghostText) {
+		if (options.showToolbar !== 'always' || !ghostText) {
 			this.widget.update(null, 0, undefined, []);
 			this.sessionPosition = undefined;
 			return;
 		}
 
-		if (!this.model.completionSession.value) {
+		/*if (!this.model.completionSession.value) {
 			return;
 		}
 
 		if (!this.model.completionSession.value.hasBeenTriggeredExplicitly) {
 			this.model.completionSession.value.ensureUpdateWithExplicitContext();
-		}
+		}*/
 
-		const ghostText = this.model.ghostText;
+
 
 		const firstColumn = ghostText.parts[0].column;
 		if (this.sessionPosition && this.sessionPosition.lineNumber !== ghostText.lineNumber) {
@@ -90,9 +92,9 @@ export class InlineSuggestionHintsWidget extends Disposable {
 
 		this.widget.update(
 			this.sessionPosition,
-			this.model.completionSession.value.currentlySelectedIndex,
-			this.model.completionSession.value.hasBeenTriggeredExplicitly ? this.model.completionSession.value.getInlineCompletionsCountSync() : undefined,
-			this.model.completionSession.value.commands,
+			0, //this.model.currentlySelectedIndex,
+			0, //this.model.hasBeenTriggeredExplicitly ? this.model.completionSession.value.getInlineCompletionsCountSync() : undefined,
+			[] /*this.model.commands*/,
 		);
 	}
 }
@@ -114,6 +116,7 @@ export class InlineSuggestionHintsContentWidget extends Disposable implements IC
 		h('div', { style: { display: 'flex' } }, [
 			h('div@actionBar', { className: 'custom-actions' }),
 			h('div@toolBar'),
+			"xia"
 		])
 	]);
 	private position: Position | null = null;
@@ -135,9 +138,9 @@ export class InlineSuggestionHintsContentWidget extends Disposable implements IC
 		return action;
 	}
 
-	private readonly previousAction = this.createCommandAction(showPreviousInlineSuggestionActionId, localize('previous', 'Previous'), ThemeIcon.asClassName(inlineSuggestionHintsPreviousIcon));
+	private readonly previousAction = this.createCommandAction("showPreviousInlineSuggestionActionId", localize('previous', 'Previous'), ThemeIcon.asClassName(inlineSuggestionHintsPreviousIcon));
 	private readonly availableSuggestionCountAction = new Action('inlineSuggestionHints.availableSuggestionCount', '', undefined, false);
-	private readonly nextAction = this.createCommandAction(showNextInlineSuggestionActionId, localize('next', 'Next'), ThemeIcon.asClassName(inlineSuggestionHintsNextIcon));
+	private readonly nextAction = this.createCommandAction("showNextInlineSuggestionActionId", localize('next', 'Next'), ThemeIcon.asClassName(inlineSuggestionHintsNextIcon));
 
 	private readonly toolBar: CustomizedMenuWorkbenchToolBar;
 

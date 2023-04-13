@@ -5,91 +5,69 @@
 
 import { IDiffChange, LcsDiff } from 'vs/base/common/diff/diff';
 import * as strings from 'vs/base/common/strings';
+import { commonPrefixLength, commonSuffixLength } from 'vs/base/common/strings';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
-import { ITextModel } from 'vs/editor/common/model';
-import { Command } from 'vs/editor/common/languages';
+import { EndOfLinePreference, ITextModel } from 'vs/editor/common/model';
 import { GhostText, GhostTextPart } from 'vs/editor/contrib/inlineCompletions/browser/ghostText';
-import { ISingleEditOperation } from 'vs/editor/common/core/editOperation';
 
-/**
- * A normalized inline completion is an inline completion with a defined range.
-*/
-export interface NormalizedInlineCompletion {
-	readonly filterText: string;
-	readonly command?: Command;
-	readonly range: Range;
-	readonly insertText: string;
-	readonly snippetInfo:
-	| {
-		snippet: string;
-		/* Could be different than the main range */
-		range: Range;
+export class Replacement {
+	constructor(
+		public readonly range: Range,
+		public readonly text: string
+	) {
 	}
-	| undefined;
 
-	readonly additionalTextEdits: readonly ISingleEditOperation[];
-}
+	/**
+	 * Shrinks the range if the text has a suffix/prefix that agrees with the text buffer.
+	 * E.g. text buffer: `ab[cdef]ghi`, [...] is the replace range, `cxyzf` is the new text.
+	 * Then the minimized inline completion has range `abc[de]fghi` and text `xyz`.
+	 */
+	minimize(model: ITextModel): Replacement {
+		const valueToReplace = model.getValueInRange(this.range);
+		const commonPrefixLen = commonPrefixLength(valueToReplace, this.text);
+		const startOffset = model.getOffsetAt(this.range.getStartPosition()) + commonPrefixLen;
+		const start = model.getPositionAt(startOffset);
 
-/**
- * Shrinks the range if the text has a suffix/prefix that agrees with the text buffer.
- * E.g. text buffer: `ab[cdef]ghi`, [...] is the replace range, `cxyzf` is the new text.
- * Then the minimized inline completion has range `abc[de]fghi` and text `xyz`.
- */
-export function minimizeInlineCompletion(model: ITextModel, inlineCompletion: NormalizedInlineCompletion): NormalizedInlineCompletion;
-export function minimizeInlineCompletion(model: ITextModel, inlineCompletion: NormalizedInlineCompletion | undefined): NormalizedInlineCompletion | undefined;
-export function minimizeInlineCompletion(model: ITextModel, inlineCompletion: NormalizedInlineCompletion | undefined): NormalizedInlineCompletion | undefined {
-	if (!inlineCompletion) {
-		return inlineCompletion;
+		const remainingValueToReplace = valueToReplace.substring(commonPrefixLen);
+		const commonSuffixLen = commonSuffixLength(remainingValueToReplace, this.text);
+		const end = model.getPositionAt(Math.max(startOffset, model.getOffsetAt(this.range.getEndPosition()) - commonSuffixLen));
+
+		const text = this.text.substring(commonPrefixLen, this.text.length - commonSuffixLen);
+
+		return new Replacement(Range.fromPositions(start, end), text);
 	}
-	const valueToReplace = model.getValueInRange(inlineCompletion.range);
-	const commonPrefixLen = strings.commonPrefixLength(valueToReplace, inlineCompletion.insertText);
-	const startOffset = model.getOffsetAt(inlineCompletion.range.getStartPosition()) + commonPrefixLen;
-	const start = model.getPositionAt(startOffset);
-
-	const remainingValueToReplace = valueToReplace.substr(commonPrefixLen);
-	const commonSuffixLen = strings.commonSuffixLength(remainingValueToReplace, inlineCompletion.insertText);
-	const end = model.getPositionAt(Math.max(startOffset, model.getOffsetAt(inlineCompletion.range.getEndPosition()) - commonSuffixLen));
-
-	return {
-		range: Range.fromPositions(start, end),
-		insertText: inlineCompletion.insertText.substr(commonPrefixLen, inlineCompletion.insertText.length - commonPrefixLen - commonSuffixLen),
-		snippetInfo: inlineCompletion.snippetInfo,
-		filterText: inlineCompletion.filterText,
-		additionalTextEdits: inlineCompletion.additionalTextEdits,
-	};
-}
-
-export function normalizedInlineCompletionsEquals(a: NormalizedInlineCompletion | undefined, b: NormalizedInlineCompletion | undefined): boolean {
-	if (a === b) {
-		return true;
-	}
-	if (!a || !b) {
-		return false;
-	}
-	return a.range.equalsRange(b.range) && a.insertText === b.insertText && a.command === b.command;
 }
 
 /**
  * @param previewSuffixLength Sets where to split `inlineCompletion.text`.
  * 	If the text is `hello` and the suffix length is 2, the non-preview part is `hel` and the preview-part is `lo`.
 */
-export function inlineCompletionToGhostText(
-	inlineCompletion: NormalizedInlineCompletion,
+export function computeGhostText(
+	replacement: Replacement,
 	textModel: ITextModel,
 	mode: 'prefix' | 'subword' | 'subwordSmart',
 	cursorPosition?: Position,
 	previewSuffixLength = 0
 ): GhostText | undefined {
-	if (inlineCompletion.range.startLineNumber !== inlineCompletion.range.endLineNumber) {
-		// Only single line replacements are supported.
-		return undefined;
+	let { range, text } = replacement;
+
+	if (range.endLineNumber !== range.startLineNumber) {
+		// try to minimize
+		const textLines = text.split('\n');
+		const actualText = textModel.getValueInRange(new Range(range.startLineNumber, range.startColumn, range.endLineNumber - 1, Number.MAX_SAFE_INTEGER), EndOfLinePreference.LF);
+		if (textLines.slice(0, range.endLineNumber - range.startLineNumber).join('\n') !== actualText) {
+			// first lines don't agree -> don't show ghost text
+			return undefined;
+		}
+		text = textLines.slice(range.endLineNumber - range.startLineNumber).join('\n');
+		range = new Range(range.endLineNumber, 1, range.endLineNumber, range.endColumn);
 	}
 
-	const sourceLine = textModel.getLineContent(inlineCompletion.range.startLineNumber);
+	const sourceLine = textModel.getLineContent(range.startLineNumber);
 	const sourceIndentationLength = strings.getLeadingWhitespace(sourceLine).length;
 
-	const suggestionTouchesIndentation = inlineCompletion.range.startColumn - 1 <= sourceIndentationLength;
+	const suggestionTouchesIndentation = range.startColumn - 1 <= sourceIndentationLength;
 	if (suggestionTouchesIndentation) {
 		// source:      ··········[······abc]
 		//                         ^^^^^^^^^ inlineCompletion.range
@@ -100,42 +78,36 @@ export function inlineCompletionToGhostText(
 		// inlineCompletion.text: '··foo'
 		//                         ^^ suggestionAddedIndentationLength
 
-		const suggestionAddedIndentationLength = strings.getLeadingWhitespace(inlineCompletion.insertText).length;
+		const suggestionAddedIndentationLength = strings.getLeadingWhitespace(text).length;
 
-		const replacedIndentation = sourceLine.substring(inlineCompletion.range.startColumn - 1, sourceIndentationLength);
+		const replacedIndentation = sourceLine.substring(range.startColumn - 1, sourceIndentationLength);
 		const rangeThatDoesNotReplaceIndentation = Range.fromPositions(
-			inlineCompletion.range.getStartPosition().delta(0, replacedIndentation.length),
-			inlineCompletion.range.getEndPosition()
+			range.getStartPosition().delta(0, replacedIndentation.length),
+			range.getEndPosition()
 		);
 
 		const suggestionWithoutIndentationChange =
-			inlineCompletion.insertText.startsWith(replacedIndentation)
+			text.startsWith(replacedIndentation)
 				// Adds more indentation without changing existing indentation: We can add ghost text for this
-				? inlineCompletion.insertText.substring(replacedIndentation.length)
+				? text.substring(replacedIndentation.length)
 				// Changes or removes existing indentation. Only add ghost text for the non-indentation part.
-				: inlineCompletion.insertText.substring(suggestionAddedIndentationLength);
+				: text.substring(suggestionAddedIndentationLength);
 
-		inlineCompletion = {
-			range: rangeThatDoesNotReplaceIndentation,
-			insertText: suggestionWithoutIndentationChange,
-			command: inlineCompletion.command,
-			snippetInfo: undefined,
-			filterText: inlineCompletion.filterText,
-			additionalTextEdits: inlineCompletion.additionalTextEdits,
-		};
+		text = suggestionWithoutIndentationChange;
+		range = rangeThatDoesNotReplaceIndentation;
 	}
 
 	// This is a single line string
-	const valueToBeReplaced = textModel.getValueInRange(inlineCompletion.range);
+	const valueToBeReplaced = textModel.getValueInRange(range);
 
-	const changes = cachingDiff(valueToBeReplaced, inlineCompletion.insertText);
+	const changes = cachingDiff(valueToBeReplaced, text);
 
 	if (!changes) {
 		// No ghost text in case the diff would be too slow to compute
 		return undefined;
 	}
 
-	const lineNumber = inlineCompletion.range.startLineNumber;
+	const lineNumber = range.startLineNumber;
 
 	const parts = new Array<GhostTextPart>();
 
@@ -147,12 +119,12 @@ export function inlineCompletionToGhostText(
 		}
 	}
 
-	const previewStartInCompletionText = inlineCompletion.insertText.length - previewSuffixLength;
+	const previewStartInCompletionText = text.length - previewSuffixLength;
 
 	for (const c of changes) {
-		const insertColumn = inlineCompletion.range.startColumn + c.originalStart + c.originalLength;
+		const insertColumn = range.startColumn + c.originalStart + c.originalLength;
 
-		if (mode === 'subwordSmart' && cursorPosition && cursorPosition.lineNumber === inlineCompletion.range.startLineNumber && insertColumn < cursorPosition.column) {
+		if (mode === 'subwordSmart' && cursorPosition && cursorPosition.lineNumber === range.startLineNumber && insertColumn < cursorPosition.column) {
 			// No ghost text before cursor
 			return undefined;
 		}
@@ -167,8 +139,8 @@ export function inlineCompletionToGhostText(
 
 		const modifiedEnd = c.modifiedStart + c.modifiedLength;
 		const nonPreviewTextEnd = Math.max(c.modifiedStart, Math.min(modifiedEnd, previewStartInCompletionText));
-		const nonPreviewText = inlineCompletion.insertText.substring(c.modifiedStart, nonPreviewTextEnd);
-		const italicText = inlineCompletion.insertText.substring(nonPreviewTextEnd, Math.max(c.modifiedStart, modifiedEnd));
+		const nonPreviewText = text.substring(c.modifiedStart, nonPreviewTextEnd);
+		const italicText = text.substring(nonPreviewTextEnd, Math.max(c.modifiedStart, modifiedEnd));
 
 		if (nonPreviewText.length > 0) {
 			const lines = strings.splitLines(nonPreviewText);

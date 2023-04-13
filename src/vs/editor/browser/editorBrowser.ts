@@ -1036,6 +1036,8 @@ export interface ICodeEditor extends editorCommon.IEditor {
 	hasModel(): this is IActiveCodeEditor;
 
 	setBanner(bannerDomNode: HTMLElement | null, height: number): void;
+
+	continueProcessingDeliveryQueue(): void;
 }
 
 /**

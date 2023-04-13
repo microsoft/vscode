@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-.monaco-editor .inlineSuggestionsHints.withBorder {
+ .monaco-editor .inlineSuggestionsHints.withBorder {
 	z-index: 39;
 	color: var(--vscode-editorHoverWidget-foreground);
 	background-color: var(--vscode-editorHoverWidget-background);
@@ -38,3 +38,4 @@
 .monaco-editor .inlineSuggestionStatusBarItemLabel {
 	margin-right: 2px;
 }
+

@@ -3,16 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IDisposable, IReference } from 'vs/base/common/lifecycle';
+import { BugIndicatingError } from 'vs/base/common/errors';
+import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
+import { IObservable, autorun } from 'vs/base/common/observable';
+import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { Position } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
-
-export function createDisposableRef<T>(object: T, disposable?: IDisposable): IReference<T> {
-	return {
-		object,
-		dispose: () => disposable?.dispose(),
-	};
-}
+import { IModelDeltaDecoration } from 'vs/editor/common/model';
 
 export function applyEdits(text: string, edits: { range: IRange; text: string }[]): string {
 	const transformer = new PositionOffsetTransformer(text);
@@ -55,4 +52,45 @@ class PositionOffsetTransformer {
 const array: ReadonlyArray<any> = [];
 export function getReadonlyEmptyArray<T>(): readonly T[] {
 	return array;
+}
+
+export class ColumnRange {
+	constructor(
+		public readonly startColumn: number,
+		public readonly endColumnExclusive: number,
+	) {
+		if (startColumn > endColumnExclusive) {
+			throw new BugIndicatingError(`startColumn ${startColumn} cannot be after endColumnExclusive ${endColumnExclusive}`);
+		}
+	}
+
+	toRange(lineNumber: number): Range {
+		return new Range(lineNumber, this.startColumn, lineNumber, this.endColumnExclusive);
+	}
+}
+
+export function applyObservableDecorations(editor: ICodeEditor, decorations: IObservable<IModelDeltaDecoration[]>): IDisposable {
+	const d = new DisposableStore();
+	let decorationIds: string[] = [];
+	d.add(autorun(`Apply decorations from ${decorations.debugName}`, reader => {
+		const d = decorations.read(reader);
+		editor.changeDecorations(a => {
+			decorationIds = a.deltaDecorations(decorationIds, d);
+		});
+	}));
+	d.add({
+		dispose: () => {
+			editor.changeDecorations(a => {
+				decorationIds = a.deltaDecorations(decorationIds, []);
+			});
+		}
+	});
+	return d;
+}
+
+export function rangeExtends(extendingRange: Range, rangeToExtend: Range): boolean {
+	return extendingRange.startLineNumber === rangeToExtend.startLineNumber &&
+		extendingRange.startColumn === rangeToExtend.startColumn &&
+		((extendingRange.endLineNumber === rangeToExtend.endLineNumber && extendingRange.endColumn >= rangeToExtend.endColumn)
+			|| extendingRange.endLineNumber > rangeToExtend.endLineNumber);
 }

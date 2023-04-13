@@ -19,7 +19,7 @@ import { GhostTextContext, MockInlineCompletionsProvider } from 'vs/editor/contr
 import { ITestCodeEditor, TestCodeEditorInstantiationOptions, withAsyncTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
 import { createTextModel } from 'vs/editor/test/common/testTextModel';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { inlineCompletionToGhostText } from '../../browser/inlineCompletionToGhostText';
+import { getGhostText } from '../../browser/inlineCompletionToGhostText';
 
 suite('Inline Completions', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -35,7 +35,7 @@ suite('Inline Completions', () => {
 			const options = ['prefix', 'subword'] as const;
 			const result = {} as any;
 			for (const option of options) {
-				result[option] = inlineCompletionToGhostText(
+				result[option] = getGhostText(
 					{ insertText: suggestion, filterText: suggestion, snippetInfo: undefined, range, additionalTextEdits: [], },
 					tempModel,
 					option
