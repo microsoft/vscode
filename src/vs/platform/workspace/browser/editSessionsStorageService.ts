@@ -4,12 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IDisposable } from 'vs/base/common/lifecycle';
+import { URI } from 'vs/base/common/uri';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 
 export interface IEditSessionContribution {
-	getStateToStore(workspaceFolder: IWorkspaceFolder): unknown;
-	resumeState(workspaceFolder: IWorkspaceFolder, state: unknown): void;
+	getStateToStore(): unknown;
+	resumeState(state: unknown, uriResolver: (uri: URI) => Promise<URI | undefined>): void;
 }
 
 class EditSessionStateRegistryImpl {

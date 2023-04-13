@@ -15,7 +15,7 @@ import { ISCMRepository, ISCMService } from 'vs/workbench/contrib/scm/common/scm
 import { IFileService } from 'vs/platform/files/common/files';
 import { IWorkspaceContextService, IWorkspaceFolder, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { URI } from 'vs/base/common/uri';
-import { basename, joinPath, relativePath } from 'vs/base/common/resources';
+import { basename, isEqualOrParent, joinPath, relativePath } from 'vs/base/common/resources';
 import { encodeBase64 } from 'vs/base/common/buffer';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IProgress, IProgressService, IProgressStep, ProgressLocation } from 'vs/platform/progress/common/progress';
@@ -556,9 +556,9 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 		const contributedStateHandlers: (() => void)[] = [];
 		const conflictingChanges = [];
 		const workspaceFolders = this.contextService.getWorkspace().folders;
+		const cancellationTokenSource = new CancellationTokenSource();
 
 		for (const folder of editSession.folders) {
-			const cancellationTokenSource = new CancellationTokenSource();
 			let folderRoot: IWorkspaceFolder | undefined;
 
 			if (folder.canonicalIdentity) {
@@ -621,18 +621,44 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 					conflictingChanges.push({ uri, type: change.type, contents: change.contents });
 				}
 			}
+		}
 
-			const workspaceFolder = folderRoot;
-			if (workspaceFolder) {
-				// look through all registered contributions to gather additional state
-				EditSessionRegistry.getEditSessionContributions().forEach(([key, contrib]) => {
-					const state = folder[key];
-					if (state) {
-						contributedStateHandlers.push(() => contrib.resumeState(workspaceFolder, state));
-					}
-				});
+		const incomingFolderUrisToIdentifiers = new Map<string, [string, EditSessionIdentityMatch]>();
+		for (const folder of editSession.folders) {
+			const { canonicalIdentity } = folder;
+			for (const workspaceFolder of workspaceFolders) {
+				const identity = await this.editSessionIdentityService.getEditSessionIdentifier(workspaceFolder, cancellationTokenSource.token);
+				if (!identity || !canonicalIdentity || !folder.absoluteUri) {
+					continue;
+				}
+				const match = identity === canonicalIdentity
+					? EditSessionIdentityMatch.Complete
+					: await this.editSessionIdentityService.provideEditSessionIdentityMatch(workspaceFolder, identity, canonicalIdentity, cancellationTokenSource.token);
+				if (!match) {
+					continue;
+				}
+				incomingFolderUrisToIdentifiers.set(folder.absoluteUri.toString(), [workspaceFolder.uri.toString(), match]);
 			}
 		}
+
+		EditSessionRegistry.getEditSessionContributions().forEach(([key, contrib]) => {
+			const state = editSession.state[key];
+			if (state) {
+				contributedStateHandlers.push(() => contrib.resumeState(state, async (incomingUri: URI) => {
+					for (const absoluteUri of incomingFolderUrisToIdentifiers.keys()) {
+						if (isEqualOrParent(incomingUri, URI.parse(absoluteUri))) {
+							const [workspaceFolderUri, match] = incomingFolderUrisToIdentifiers.get(absoluteUri)!;
+							if (match === EditSessionIdentityMatch.Complete) {
+								const relativeFilePath = relativePath(URI.parse(absoluteUri), incomingUri);
+								return relativeFilePath ? joinPath(URI.parse(workspaceFolderUri), relativeFilePath) : undefined;
+							}
+
+						}
+					}
+					return undefined;
+				}));
+			}
+		});
 
 		return { changes, conflictingChanges, contributedStateHandlers };
 	}
@@ -713,18 +739,19 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 			}
 
 			let canonicalIdentity = undefined;
-			const contributedData: { [key: string]: unknown } = {};
 			if (workspaceFolder !== null && workspaceFolder !== undefined) {
 				canonicalIdentity = await this.editSessionIdentityService.getEditSessionIdentifier(workspaceFolder, cancellationToken);
-
-				// look through all registered contributions to gather additional state
-				EditSessionRegistry.getEditSessionContributions().forEach(([key, contrib]) => {
-					contributedData[key] = contrib.getStateToStore(workspaceFolder);
-				});
 			}
 
-			folders.push({ ...contributedData, workingChanges, name: name ?? '', canonicalIdentity: canonicalIdentity ?? undefined });
+			// TODO@joyceerhl debt: don't store working changes as a child of the folder
+			folders.push({ workingChanges, name: name ?? '', canonicalIdentity: canonicalIdentity ?? undefined, absoluteUri: workspaceFolder?.toString() });
 		}
+
+		// Look through all registered contributions to gather additional state
+		const contributedData: { [key: string]: unknown } = {};
+		EditSessionRegistry.getEditSessionContributions().forEach(([key, contrib]) => {
+			contributedData[key] = contrib.getStateToStore();
+		});
 
 		if (!hasEdits) {
 			this.logService.info('Skipped storing working changes in the cloud as there are no edits to store.');
@@ -734,11 +761,10 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 			return undefined;
 		}
 
-		const data: EditSession = { folders, version: 2 };
+		const data: EditSession = { folders, version: 2, state: contributedData };
 
 		try {
 			this.logService.info(`Storing edit session...`);
-			console.log('data', JSON.stringify(data, null, 2));
 			const ref = await this.editSessionsStorageService.write(data);
 			this.logService.info(`Stored edit session with ref ${ref}.`);
 			return ref;

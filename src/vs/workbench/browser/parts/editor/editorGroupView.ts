@@ -1930,8 +1930,8 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		this.editorPane.setBoundarySashes(sashes);
 	}
 
-	toJSON(relativePaths?: boolean): ISerializedEditorGroupModel {
-		return this.model.serialize(relativePaths);
+	toJSON(): ISerializedEditorGroupModel {
+		return this.model.serialize();
 	}
 
 	//#endregion

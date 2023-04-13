@@ -34,8 +34,8 @@ import { findGroup } from 'vs/workbench/services/editor/common/editorGroupFinder
 import { SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { IBoundarySashes } from 'vs/base/browser/ui/sash/sash';
 import { EditSessionRegistry } from 'vs/platform/workspace/browser/editSessionsStorageService';
-import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { ICommandService } from 'vs/platform/commands/common/commands';
+import { URI } from 'vs/base/common/uri';
 
 interface IEditorPartUIState {
 	serializedGrid: ISerializedGrid;
@@ -158,20 +158,24 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 
 	getStateToStore() {
 		return {
-			serializedGrid: this.gridWidget.serialize(true),
+			serializedGrid: this.gridWidget.serialize(),
 			activeGroup: this._activeGroup.id,
 			mostRecentActiveGroups: this.mostRecentActiveGroups
 		};
 	}
 
-	resumeState(_workspaceFolder: IWorkspaceFolder, state: unknown) {
+	resumeState(state: unknown, uriResolver: (uri: URI) => Promise<URI | undefined>) {
 		if (typeof state === 'object' && state !== null && 'serializedGrid' in state && 'activeGroup' in state && 'mostRecentActiveGroups' in state) {
 			this.mostRecentActiveGroups = (state as IEditorPartUIState).mostRecentActiveGroups;
 			this.instantiationService.invokeFunction(async (accessor) => {
 				const restoreFocus = this.shouldRestoreFocus(this.container);
 
 				await accessor.get(ICommandService).executeCommand('workbench.action.closeAllEditors');
-				this.doCreateGridControlWithState((state as IEditorPartUIState).serializedGrid, (state as IEditorPartUIState).activeGroup);
+
+				const serializedGrid = (state as IEditorPartUIState).serializedGrid;
+
+				// todo@joyceerhl deserialize the grid widget using the uriResolver
+				this.doCreateGridControlWithState(serializedGrid, (state as IEditorPartUIState).activeGroup);
 
 				// Layout
 				this.doLayout(this._contentDimension);

@@ -421,13 +421,13 @@ export interface IEditorSerializer {
 	 * Returns a string representation of the provided editor that contains enough information
 	 * to deserialize back to the original editor from the deserialize() method.
 	 */
-	serialize(editor: EditorInput, relativePaths?: boolean, instantiationService?: IInstantiationService): string | undefined;
+	serialize(editor: EditorInput): string | undefined;
 
 	/**
 	 * Returns an editor from the provided serialized form of the editor. This form matches
 	 * the value returned from the serialize() method.
 	 */
-	deserialize(instantiationService: IInstantiationService, serializedEditor: string): EditorInput | undefined;
+	deserialize(instantiationService: IInstantiationService, serializedEditor: string, uriResolver?: ((uri: URI) => URI | undefined)): EditorInput | undefined;
 }
 
 export interface IUntitledTextResourceEditorInput extends IBaseTextResourceEditorInput {
