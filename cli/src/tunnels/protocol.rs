@@ -4,7 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 use std::collections::HashMap;
 
-use crate::{constants::{VSCODE_CLI_VERSION, PROTOCOL_VERSION}, options::Quality};
+use crate::{
+	constants::{PROTOCOL_VERSION, VSCODE_CLI_VERSION},
+	options::Quality,
+};
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Debug)]
@@ -152,5 +155,58 @@ impl Default for VersionParams {
 			version: VSCODE_CLI_VERSION.unwrap_or("dev"),
 			protocol_version: PROTOCOL_VERSION,
 		}
+	}
+}
+
+#[derive(Deserialize)]
+pub struct SpawnParams {
+	pub command: String,
+	pub args: Vec<String>,
+	#[serde(default)]
+	pub env: HashMap<String, String>,
+}
+
+#[derive(Serialize)]
+pub struct SpawnResult {
+	pub message: String,
+	pub exit_code: i32,
+}
+
+pub mod singleton {
+	use crate::log;
+	use serde::{Deserialize, Serialize};
+
+	pub const METHOD_RESTART: &str = "restart";
+	pub const METHOD_SHUTDOWN: &str = "shutdown";
+	pub const METHOD_STATUS: &str = "status";
+	pub const METHOD_LOG: &str = "log";
+	pub const METHOD_LOG_REPLY_DONE: &str = "log_done";
+
+	#[derive(Serialize)]
+	pub struct LogMessage<'a> {
+		pub level: Option<log::Level>,
+		pub prefix: &'a str,
+		pub message: &'a str,
+	}
+
+	#[derive(Deserialize)]
+	pub struct LogMessageOwned {
+		pub level: Option<log::Level>,
+		pub prefix: String,
+		pub message: String,
+	}
+
+	#[derive(Serialize, Deserialize)]
+	pub struct Status {
+		pub tunnel: TunnelState,
+	}
+
+	#[derive(Deserialize, Serialize, Debug)]
+	pub struct LogReplayFinished {}
+
+	#[derive(Deserialize, Serialize, Debug)]
+	pub enum TunnelState {
+		Disconnected,
+		Connected { name: String },
 	}
 }

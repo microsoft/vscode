@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-use std::path::Path;
+use std::{fmt, path::Path};
 
 use serde::Deserialize;
 
@@ -11,19 +11,20 @@ use crate::{
 	constants::VSCODE_CLI_UPDATE_ENDPOINT,
 	debug, log, options, spanf,
 	util::{
-		errors::{AnyError, UnsupportedPlatformError, UpdatesNotConfigured, WrappedError},
-		http::{SimpleHttp, SimpleResponse},
+		errors::{AnyError, CodeError, UpdatesNotConfigured, WrappedError},
+		http::{BoxedHttp, SimpleResponse},
 		io::ReportCopyProgress,
 	},
 };
 
 /// Implementation of the VS Code Update service for use in the CLI.
 pub struct UpdateService {
-	client: Box<dyn SimpleHttp + Send + Sync + 'static>,
+	client: BoxedHttp,
 	log: log::Logger,
 }
 
 /// Describes a specific release, can be created manually or returned from the update service.
+#[derive(Clone, Eq, PartialEq)]
 pub struct Release {
 	pub name: String,
 	pub platform: Platform,
@@ -53,11 +54,8 @@ fn quality_download_segment(quality: options::Quality) -> &'static str {
 }
 
 impl UpdateService {
-	pub fn new(log: log::Logger, http: impl SimpleHttp + Send + Sync + 'static) -> Self {
-		UpdateService {
-			client: Box::new(http),
-			log,
-		}
+	pub fn new(log: log::Logger, http: BoxedHttp) -> Self {
+		UpdateService { client: http, log }
 	}
 
 	pub async fn get_release_by_semver_version(
@@ -71,7 +69,7 @@ impl UpdateService {
 			VSCODE_CLI_UPDATE_ENDPOINT.ok_or_else(UpdatesNotConfigured::no_url)?;
 		let download_segment = target
 			.download_segment(platform)
-			.ok_or(UnsupportedPlatformError())?;
+			.ok_or_else(|| CodeError::UnsupportedPlatform(platform.to_string()))?;
 		let download_url = format!(
 			"{}/api/versions/{}/{}/{}",
 			update_endpoint,
@@ -113,7 +111,7 @@ impl UpdateService {
 			VSCODE_CLI_UPDATE_ENDPOINT.ok_or_else(UpdatesNotConfigured::no_url)?;
 		let download_segment = target
 			.download_segment(platform)
-			.ok_or(UnsupportedPlatformError())?;
+			.ok_or_else(|| CodeError::UnsupportedPlatform(platform.to_string()))?;
 		let download_url = format!(
 			"{}/api/latest/{}/{}",
 			update_endpoint,
@@ -150,7 +148,7 @@ impl UpdateService {
 		let download_segment = release
 			.target
 			.download_segment(release.platform)
-			.ok_or(UnsupportedPlatformError())?;
+			.ok_or_else(|| CodeError::UnsupportedPlatform(release.platform.to_string()))?;
 
 		let download_url = format!(
 			"{}/commit:{}/{}/{}",
@@ -208,7 +206,7 @@ impl TargetKind {
 	}
 }
 
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug, Copy, Clone, Eq, PartialEq)]
 pub enum Platform {
 	LinuxAlpineX64,
 	LinuxAlpineARM64,
@@ -304,5 +302,22 @@ impl Platform {
 		} else {
 			None
 		}
+	}
+}
+
+impl fmt::Display for Platform {
+	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+		f.write_str(match self {
+			Platform::LinuxAlpineARM64 => "LinuxAlpineARM64",
+			Platform::LinuxAlpineX64 => "LinuxAlpineX64",
+			Platform::LinuxX64 => "LinuxX64",
+			Platform::LinuxARM64 => "LinuxARM64",
+			Platform::LinuxARM32 => "LinuxARM32",
+			Platform::DarwinX64 => "DarwinX64",
+			Platform::DarwinARM64 => "DarwinARM64",
+			Platform::WindowsX64 => "WindowsX64",
+			Platform::WindowsX86 => "WindowsX86",
+			Platform::WindowsARM64 => "WindowsARM64",
+		})
 	}
 }

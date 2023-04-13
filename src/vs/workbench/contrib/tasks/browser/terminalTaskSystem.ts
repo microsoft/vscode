@@ -51,6 +51,7 @@ import { IOutputService } from 'vs/workbench/services/output/common/output';
 import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
 import { IPathService } from 'vs/workbench/services/path/common/pathService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IDisposable } from 'xterm';
 
 interface ITerminalData {
 	terminal: ITerminalInstance;
@@ -896,20 +897,25 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 				this._logService.error('Task terminal process never got ready');
 			});
 			this._fireTaskEvent(TaskEvent.create(TaskEventKind.Start, task, terminal.instanceId, resolver.values));
-			const onData = terminal.onLineData((line) => {
-				watchingProblemMatcher.processLine(line);
-				if (!delayer) {
-					delayer = new Async.Delayer(3000);
-				}
-				delayer.trigger(() => {
-					watchingProblemMatcher.forceDelivery();
-					delayer = undefined;
+			let onData: IDisposable | undefined;
+			if (problemMatchers.length) {
+				// prevent https://github.com/microsoft/vscode/issues/174511 from happening
+				onData = terminal.onLineData((line) => {
+					watchingProblemMatcher.processLine(line);
+					if (!delayer) {
+						delayer = new Async.Delayer(3000);
+					}
+					delayer.trigger(() => {
+						watchingProblemMatcher.forceDelivery();
+						delayer = undefined;
+					});
 				});
-			});
+			}
+
 			promise = new Promise<ITaskSummary>((resolve, reject) => {
 				const onExit = terminal!.onExit((terminalLaunchResult) => {
 					const exitCode = typeof terminalLaunchResult === 'number' ? terminalLaunchResult : terminalLaunchResult?.code;
-					onData.dispose();
+					onData?.dispose();
 					onExit.dispose();
 					const key = task.getMapKey();
 					if (this._busyTasks[mapKey]) {

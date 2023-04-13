@@ -3,6 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+use std::sync::Arc;
+
 use tokio::sync::mpsc;
 
 use crate::{
@@ -16,6 +18,7 @@ use crate::{
 			wrap, AnyError, InvalidRpcDataError, MismatchedLaunchModeError, NoAttachedServerError,
 		},
 		http::ReqwestSimpleHttp,
+		sync::Barrier,
 	},
 };
 
@@ -69,7 +72,7 @@ pub async fn serve_wsl(
 	code_server_args: CodeServerArgs,
 	platform: Platform,
 	http: reqwest::Client,
-	shutdown_rx: mpsc::UnboundedReceiver<ShutdownSignal>,
+	shutdown_rx: Barrier<ShutdownSignal>,
 ) -> Result<i32, AnyError> {
 	let (caller_tx, caller_rx) = mpsc::unbounded_channel();
 	let mut rpc = new_msgpack_rpc();
@@ -138,7 +141,12 @@ async fn handle_serve(
 		},
 	};
 
-	let sb = ServerBuilder::new(&c.log, &resolved, &c.launcher_paths, c.http.clone());
+	let sb = ServerBuilder::new(
+		&c.log,
+		&resolved,
+		&c.launcher_paths,
+		Arc::new(c.http.clone()),
+	);
 	let code_server = match sb.get_running().await? {
 		Some(AnyCodeServer::Socket(s)) => s,
 		Some(_) => return Err(MismatchedLaunchModeError().into()),

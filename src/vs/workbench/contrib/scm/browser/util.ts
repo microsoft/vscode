@@ -99,7 +99,7 @@ class StatusBarActionViewItem extends ActionViewItem {
 		super(null, action, {});
 	}
 
-	override updateLabel(): void {
+	protected override updateLabel(): void {
 		if (this.options.label && this.label) {
 			reset(this.label, ...renderLabelWithIcons(this.action.label));
 		}

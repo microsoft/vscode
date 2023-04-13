@@ -37,7 +37,7 @@ import { alert } from 'vs/base/browser/ui/aria/aria';
 import { IListContextMenuEvent } from 'vs/base/browser/ui/list/list';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IAction, Action, Separator, ActionRunner } from 'vs/base/common/actions';
-import { ExtensionIdentifier, ExtensionUntrustedWorkspaceSupportType, ExtensionVirtualWorkspaceSupportType, IExtensionDescription, isLanguagePackExtension } from 'vs/platform/extensions/common/extensions';
+import { ExtensionIdentifierMap, ExtensionUntrustedWorkspaceSupportType, ExtensionVirtualWorkspaceSupportType, IExtensionDescription, isLanguagePackExtension } from 'vs/platform/extensions/common/extensions';
 import { CancelablePromise, createCancelablePromise, ThrottledDelayer } from 'vs/base/common/async';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { SeverityIcon } from 'vs/platform/severityIcon/browser/severityIcon';
@@ -193,7 +193,7 @@ export class ExtensionsListView extends ViewPane {
 					if (!extension) {
 						return '';
 					}
-					const publisher = localize('extension.arialabel.publihser', "Publisher {0}", extension.publisherDisplayName);
+					const publisher = extension.publisherDomain?.verified ? localize('extension.arialabel.verifiedPublihser', "Verified Publisher {0}", extension.publisherDisplayName) : localize('extension.arialabel.publihser', "Publisher {0}", extension.publisherDisplayName);
 					const deprecated = extension?.deprecationInfo ? localize('extension.arialabel.deprecated', "Deprecated") : '';
 					return `${extension.displayName}, ${deprecated ? `${deprecated}, ` : ''}${extension.version}, ${publisher}, ${extension.description}`;
 				},
@@ -477,12 +477,12 @@ export class ExtensionsListView extends ViewPane {
 			return this.sortExtensions(themesExtensions, options);
 		}
 
-		const isLangaugeBasicExtension = (e: IExtension): boolean => {
+		const isLanguageBasicExtension = (e: IExtension): boolean => {
 			return FORCE_FEATURE_EXTENSIONS.indexOf(e.identifier.id) === -1
 				&& (Array.isArray(e.local?.manifest?.contributes?.grammars) && e.local!.manifest!.contributes!.grammars.length > 0);
 		};
 		if (showBasicsOnly) {
-			const basics = result.filter(isLangaugeBasicExtension);
+			const basics = result.filter(isLanguageBasicExtension);
 			return this.sortExtensions(basics, options);
 		}
 		if (showFeaturesOnly) {
@@ -490,7 +490,7 @@ export class ExtensionsListView extends ViewPane {
 				return e.local
 					&& e.local.manifest
 					&& !isThemeExtension(e)
-					&& !isLangaugeBasicExtension(e);
+					&& !isLanguageBasicExtension(e);
 			});
 			return this.sortExtensions(others, options);
 		}
@@ -524,12 +524,12 @@ export class ExtensionsListView extends ViewPane {
 			result = this.sortExtensions(result, options);
 		} else {
 			result = local.filter(e => (!e.isBuiltin || e.outdated || e.reloadRequiredStatus !== undefined) && matchingText(e));
-			const runningExtensionsById = runningExtensions.reduce((result, e) => { result.set(ExtensionIdentifier.toKey(e.identifier.value), e); return result; }, new Map<string, IExtensionDescription>());
+			const runningExtensionsById = runningExtensions.reduce((result, e) => { result.set(e.identifier.value, e); return result; }, new ExtensionIdentifierMap<IExtensionDescription>());
 
 			const defaultSort = (e1: IExtension, e2: IExtension) => {
-				const running1 = runningExtensionsById.get(ExtensionIdentifier.toKey(e1.identifier.id));
+				const running1 = runningExtensionsById.get(e1.identifier.id);
 				const isE1Running = !!running1 && this.extensionManagementServerService.getExtensionManagementServer(toExtension(running1)) === e1.server;
-				const running2 = runningExtensionsById.get(ExtensionIdentifier.toKey(e2.identifier.id));
+				const running2 = runningExtensionsById.get(e2.identifier.id);
 				const isE2Running = running2 && this.extensionManagementServerService.getExtensionManagementServer(toExtension(running2)) === e2.server;
 				if ((isE1Running && isE2Running)) {
 					return e1.displayName.localeCompare(e2.displayName);
@@ -840,6 +840,7 @@ export class ExtensionsListView extends ViewPane {
 			|| ExtensionsListView.isKeymapsRecommendedExtensionsQuery(query.value)
 			|| ExtensionsListView.isLanguageRecommendedExtensionsQuery(query.value)
 			|| ExtensionsListView.isExeRecommendedExtensionsQuery(query.value)
+			|| ExtensionsListView.isRemoteRecommendedExtensionsQuery(query.value)
 			|| /@recommended:all/i.test(query.value)
 			|| ExtensionsListView.isSearchRecommendedExtensionsQuery(query.value)
 			|| ExtensionsListView.isRecommendedExtensionsQuery(query.value);
@@ -864,6 +865,11 @@ export class ExtensionsListView extends ViewPane {
 		// Exe recommendations
 		if (ExtensionsListView.isExeRecommendedExtensionsQuery(query.value)) {
 			return this.getExeRecommendationsModel(query, options, token);
+		}
+
+		// Remote recommendations
+		if (ExtensionsListView.isRemoteRecommendedExtensionsQuery(query.value)) {
+			return this.getRemoteRecommendationsModel(query, options, token);
 		}
 
 		// All recommendations
@@ -928,6 +934,14 @@ export class ExtensionsListView extends ViewPane {
 		const value = query.value.replace(/@recommended:languages/g, '').trim().toLowerCase();
 		const recommendations = this.extensionRecommendationsService.getLanguageRecommendations();
 		const installableRecommendations = (await this.getInstallableRecommendations(recommendations, { ...options, source: 'recommendations-languages' }, token))
+			.filter(extension => extension.identifier.id.toLowerCase().indexOf(value) > -1);
+		return new PagedModel(installableRecommendations);
+	}
+
+	private async getRemoteRecommendationsModel(query: Query, options: IQueryOptions, token: CancellationToken): Promise<IPagedModel<IExtension>> {
+		const value = query.value.replace(/@recommended:remotes/g, '').trim().toLowerCase();
+		const recommendations = this.extensionRecommendationsService.getRemoteRecommendations();
+		const installableRecommendations = (await this.getInstallableRecommendations(recommendations, { ...options, source: 'recommendations-remotes' }, token))
 			.filter(extension => extension.identifier.id.toLowerCase().indexOf(value) > -1);
 		return new PagedModel(installableRecommendations);
 	}
@@ -1162,6 +1176,10 @@ export class ExtensionsListView extends ViewPane {
 
 	static isExeRecommendedExtensionsQuery(query: string): boolean {
 		return /@exe:.+/i.test(query);
+	}
+
+	static isRemoteRecommendedExtensionsQuery(query: string): boolean {
+		return /@recommended:remotes/i.test(query);
 	}
 
 	static isKeymapsRecommendedExtensionsQuery(query: string): boolean {

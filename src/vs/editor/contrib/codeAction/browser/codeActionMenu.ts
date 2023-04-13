@@ -11,7 +11,7 @@ import { CodeAction } from 'vs/editor/common/languages';
 import { CodeActionItem, CodeActionKind } from 'vs/editor/contrib/codeAction/common/types';
 import 'vs/editor/contrib/symbolIcons/browser/symbolIcons'; // The codicon symbol colors are defined here and must be loaded to get colors
 import { localize } from 'vs/nls';
-import { ActionListItemKind, IListMenuItem } from 'vs/platform/actionWidget/browser/actionList';
+import { ActionListItemKind, IActionListItem } from 'vs/platform/actionWidget/browser/actionList';
 
 interface ActionGroup {
 	readonly kind: CodeActionKind;
@@ -36,9 +36,9 @@ export function toMenuItems(
 	inputCodeActions: readonly CodeActionItem[],
 	showHeaders: boolean,
 	keybindingResolver: (action: CodeAction) => ResolvedKeybinding | undefined
-): IListMenuItem<CodeActionItem>[] {
+): IActionListItem<CodeActionItem>[] {
 	if (!showHeaders) {
-		return inputCodeActions.map((action): IListMenuItem<CodeActionItem> => {
+		return inputCodeActions.map((action): IActionListItem<CodeActionItem> => {
 			return {
 				kind: ActionListItemKind.Action,
 				item: action,
@@ -62,7 +62,7 @@ export function toMenuItems(
 		}
 	}
 
-	const allMenuItems: IListMenuItem<CodeActionItem>[] = [];
+	const allMenuItems: IActionListItem<CodeActionItem>[] = [];
 	for (const menuEntry of menuEntries) {
 		if (menuEntry.actions.length) {
 			allMenuItems.push({ kind: ActionListItemKind.Header, group: menuEntry.group });

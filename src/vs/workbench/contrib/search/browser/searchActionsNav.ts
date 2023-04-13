@@ -12,7 +12,7 @@ import { WorkbenchCompressibleObjectTree } from 'vs/platform/list/browser/listSe
 import { IViewsService } from 'vs/workbench/common/views';
 import * as Constants from 'vs/workbench/contrib/search/common/constants';
 import * as SearchEditorConstants from 'vs/workbench/contrib/searchEditor/browser/constants';
-import { FileMatchOrMatch, FolderMatch, RenderableMatch } from 'vs/workbench/contrib/search/common/searchModel';
+import { FileMatchOrMatch, FolderMatch, RenderableMatch } from 'vs/workbench/contrib/search/browser/searchModel';
 import { SearchEditor } from 'vs/workbench/contrib/searchEditor/browser/searchEditor';
 import { SearchEditorInput } from 'vs/workbench/contrib/searchEditor/browser/searchEditorInput';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';

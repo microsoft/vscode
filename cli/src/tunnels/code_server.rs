@@ -3,7 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 use super::paths::{InstalledServer, LastUsedServers, ServerPaths};
-use crate::constants::{APPLICATION_NAME, QUALITYLESS_PRODUCT_NAME, QUALITYLESS_SERVER_NAME};
+use crate::async_pipe::get_socket_name;
+use crate::constants::{
+	APPLICATION_NAME, EDITOR_WEB_URL, QUALITYLESS_PRODUCT_NAME, QUALITYLESS_SERVER_NAME,
+};
 use crate::options::{Quality, TelemetryLevel};
 use crate::state::LauncherPaths;
 use crate::update_service::{
@@ -13,7 +16,7 @@ use crate::util::command::{capture_command, kill_tree};
 use crate::util::errors::{
 	wrap, AnyError, ExtensionInstallFailed, MissingEntrypointError, WrappedError,
 };
-use crate::util::http::{self, SimpleHttp};
+use crate::util::http::{self, BoxedHttp};
 use crate::util::io::SilentCopyProgress;
 use crate::util::machine::process_exists;
 use crate::{debug, info, log, span, spanf, trace, warning};
@@ -32,7 +35,6 @@ use tokio::io::{AsyncBufReadExt, BufReader};
 use tokio::process::{Child, Command};
 use tokio::sync::oneshot::Receiver;
 use tokio::time::{interval, timeout};
-use uuid::Uuid;
 
 lazy_static! {
 	static ref LISTENING_PORT_RE: Regex =
@@ -174,7 +176,7 @@ impl ServerParamsRaw {
 	pub async fn resolve(
 		self,
 		log: &log::Logger,
-		http: impl SimpleHttp + Send + Sync + 'static,
+		http: BoxedHttp,
 	) -> Result<ResolvedServerParams, AnyError> {
 		Ok(ResolvedServerParams {
 			release: self.get_or_fetch_commit_id(log, http).await?,
@@ -185,7 +187,7 @@ impl ServerParamsRaw {
 	async fn get_or_fetch_commit_id(
 		&self,
 		log: &log::Logger,
-		http: impl SimpleHttp + Send + Sync + 'static,
+		http: BoxedHttp,
 	) -> Result<Release, AnyError> {
 		let target = match self.headless {
 			true => TargetKind::Server,
@@ -285,7 +287,7 @@ async fn install_server_if_needed(
 	log: &log::Logger,
 	paths: &ServerPaths,
 	release: &Release,
-	http: impl SimpleHttp + Send + Sync + 'static,
+	http: BoxedHttp,
 	existing_archive_path: Option<PathBuf>,
 ) -> Result<(), AnyError> {
 	if paths.executable.exists() {
@@ -319,7 +321,7 @@ async fn download_server(
 	path: &Path,
 	release: &Release,
 	log: &log::Logger,
-	http: impl SimpleHttp + Send + Sync + 'static,
+	http: BoxedHttp,
 ) -> Result<PathBuf, AnyError> {
 	let response = UpdateService::new(log.clone(), http)
 		.get_download_stream(release)
@@ -401,20 +403,20 @@ async fn do_extension_install_on_running_server(
 	}
 }
 
-pub struct ServerBuilder<'a, Http: SimpleHttp + Send + Sync + Clone> {
+pub struct ServerBuilder<'a> {
 	logger: &'a log::Logger,
 	server_params: &'a ResolvedServerParams,
 	last_used: LastUsedServers<'a>,
 	server_paths: ServerPaths,
-	http: Http,
+	http: BoxedHttp,
 }
 
-impl<'a, Http: SimpleHttp + Send + Sync + Clone + 'static> ServerBuilder<'a, Http> {
+impl<'a> ServerBuilder<'a> {
 	pub fn new(
 		logger: &'a log::Logger,
 		server_params: &'a ResolvedServerParams,
 		launcher_paths: &'a LauncherPaths,
-		http: Http,
+		http: BoxedHttp,
 	) -> Self {
 		Self {
 			logger,
@@ -539,12 +541,7 @@ impl<'a, Http: SimpleHttp + Send + Sync + Clone + 'static> ServerBuilder<'a, Htt
 	}
 
 	pub async fn listen_on_default_socket(&self) -> Result<SocketCodeServer, AnyError> {
-		let requested_file = if cfg!(target_os = "windows") {
-			PathBuf::from(format!(r"\\.\pipe\vscode-server-{}", Uuid::new_v4()))
-		} else {
-			std::env::temp_dir().join(format!("vscode-server-{}", Uuid::new_v4()))
-		};
-
+		let requested_file = get_socket_name();
 		self.listen_on_socket(&requested_file).await
 	}
 
@@ -801,4 +798,41 @@ fn parse_port_from(text: &str) -> Option<u16> {
 		cap.get(1)
 			.and_then(|path| path.as_str().parse::<u16>().ok())
 	})
+}
+
+pub fn print_listening(log: &log::Logger, tunnel_name: &str) {
+	debug!(
+		log,
+		"{} is listening for incoming connections", QUALITYLESS_SERVER_NAME
+	);
+
+	let home_dir = dirs::home_dir().unwrap_or_else(|| PathBuf::from(""));
+	let current_dir = std::env::current_dir().unwrap_or_else(|_| PathBuf::from(""));
+
+	let dir = if home_dir == current_dir {
+		PathBuf::from("")
+	} else {
+		current_dir
+	};
+
+	let base_web_url = match EDITOR_WEB_URL {
+		Some(u) => u,
+		None => return,
+	};
+
+	let mut addr = url::Url::parse(base_web_url).unwrap();
+	{
+		let mut ps = addr.path_segments_mut().unwrap();
+		ps.push("tunnel");
+		ps.push(tunnel_name);
+		for segment in &dir {
+			let as_str = segment.to_string_lossy();
+			if !(as_str.len() == 1 && as_str.starts_with(std::path::MAIN_SEPARATOR)) {
+				ps.push(as_str.as_ref());
+			}
+		}
+	}
+
+	let message = &format!("\nOpen this link in your browser {}\n", addr);
+	log.result(message);
 }

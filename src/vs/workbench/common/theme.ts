@@ -625,6 +625,22 @@ export const ACTIVITY_BAR_BADGE_FOREGROUND = registerColor('activityBarBadge.for
 	hcLight: Color.white
 }, localize('activityBarBadgeForeground', "Activity notification badge foreground color. The activity bar is showing on the far left or right and allows to switch between views of the side bar."));
 
+// < --- Profiles --- >
+
+export const PROFILE_BADGE_BACKGROUND = registerColor('profileBadge.background', {
+	dark: '#4D4D4D',
+	light: '#C4C4C4',
+	hcDark: Color.white,
+	hcLight: Color.black
+}, localize('profileBadgeBackground', "Profile badge background color. The profile badge shows on top of the settings gear icon in the activity bar."));
+
+export const PROFILE_BADGE_FOREGROUND = registerColor('profileBadge.foreground', {
+	dark: Color.white,
+	light: '#333333',
+	hcDark: Color.black,
+	hcLight: Color.white
+}, localize('profileBadgeForeground', "Profile badge foreground color. The profile badge shows on top of the settings gear icon in the activity bar."));
+
 // < --- Remote --- >
 
 export const STATUS_BAR_HOST_NAME_BACKGROUND = registerColor('statusBarItem.remoteBackground', {

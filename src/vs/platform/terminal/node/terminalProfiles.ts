@@ -16,6 +16,7 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { ITerminalEnvironment, ITerminalExecutable, ITerminalProfile, ITerminalProfileSource, ITerminalUnsafePath, ProfileSource, TerminalIcon, TerminalSettingId } from 'vs/platform/terminal/common/terminal';
 import { findExecutable, getWindowsBuildNumber } from 'vs/platform/terminal/node/terminalEnvironment';
 import { ThemeIcon } from 'vs/base/common/themables';
+import { dirname, resolve } from 'path';
 
 let profileSources: Map<string, IPotentialTerminalProfile> | undefined;
 let logIfWslNotInstalled: boolean = true;
@@ -257,27 +258,58 @@ async function initializeWindowsProfiles(testPwshSourcePaths?: string[]): Promis
 		return;
 	}
 
+	const [gitBashPaths, pwshPaths] = await Promise.all([getGitBashPaths(), testPwshSourcePaths || getPowershellPaths()]);
+
 	profileSources = new Map();
 	profileSources.set(
-		'Git Bash', {
+		ProfileSource.GitBash, {
 		profileName: 'Git Bash',
-		paths: [
-			`${process.env['ProgramW6432']}\\Git\\bin\\bash.exe`,
-			`${process.env['ProgramW6432']}\\Git\\usr\\bin\\bash.exe`,
-			`${process.env['ProgramFiles']}\\Git\\bin\\bash.exe`,
-			`${process.env['ProgramFiles']}\\Git\\usr\\bin\\bash.exe`,
-			`${process.env['ProgramFiles(X86)']}\\Git\\bin\\bash.exe`,
-			`${process.env['ProgramFiles(X86)']}\\Git\\usr\\bin\\bash.exe`,
-			`${process.env['LocalAppData']}\\Programs\\Git\\bin\\bash.exe`,
-			`${process.env['UserProfile']}\\scoop\\apps\\git-with-openssh\\current\\bin\\bash.exe`,
-		],
+		paths: gitBashPaths,
 		args: ['--login', '-i']
 	});
-	profileSources.set('PowerShell', {
+	profileSources.set(ProfileSource.Pwsh, {
 		profileName: 'PowerShell',
-		paths: testPwshSourcePaths || await getPowershellPaths(),
+		paths: pwshPaths,
 		icon: Codicon.terminalPowershell
 	});
+}
+
+async function getGitBashPaths(): Promise<string[]> {
+	const gitDirs: Set<string> = new Set();
+
+	// Look for git.exe on the PATH and use that if found. git.exe is located at
+	// `<installdir>/cmd/git.exe`. This is not an unsafe location because the git executable is
+	// located on the PATH which is only controlled by the user/admin.
+	const gitExePath = await findExecutable('git.exe');
+	if (gitExePath) {
+		const gitExeDir = dirname(gitExePath);
+		gitDirs.add(resolve(gitExeDir, '../..'));
+	}
+	function addTruthy<T>(set: Set<T>, value: T | undefined): void {
+		if (value) {
+			set.add(value);
+		}
+	}
+
+	// Add common git install locations
+	addTruthy(gitDirs, process.env['ProgramW6432']);
+	addTruthy(gitDirs, process.env['ProgramFiles']);
+	addTruthy(gitDirs, process.env['ProgramFiles(X86)']);
+	addTruthy(gitDirs, `${process.env['LocalAppData']}\\Program`);
+
+	const gitBashPaths: string[] = [];
+	for (const gitDir of gitDirs) {
+		gitBashPaths.push(
+			`${gitDir}\\Git\\bin\\bash.exe`,
+			`${gitDir}\\Git\\usr\\bin\\bash.exe`,
+			`${gitDir}\\usr\\bin\\bash.exe` // using Git for Windows SDK
+		);
+	}
+
+	// Add special installs that don't follow the standard directory structure
+	gitBashPaths.push(`${process.env['UserProfile']}\\scoop\\apps\\git-with-openssh\\current\\bin\\bash.exe`);
+
+	return gitBashPaths;
 }
 
 async function getPowershellPaths(): Promise<string[]> {

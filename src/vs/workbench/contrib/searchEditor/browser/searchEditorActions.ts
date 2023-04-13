@@ -17,7 +17,7 @@ import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace
 import { EditorsOrder } from 'vs/workbench/common/editor';
 import { IViewsService } from 'vs/workbench/common/views';
 import { getSearchView } from 'vs/workbench/contrib/search/browser/searchActionsBase';
-import { SearchResult } from 'vs/workbench/contrib/search/common/searchModel';
+import { SearchResult } from 'vs/workbench/contrib/search/browser/searchModel';
 import { SearchEditor } from 'vs/workbench/contrib/searchEditor/browser/searchEditor';
 import { OpenSearchEditorArgs } from 'vs/workbench/contrib/searchEditor/browser/searchEditor.contribution';
 import { getOrMakeSearchEditorInput, SearchEditorInput } from 'vs/workbench/contrib/searchEditor/browser/searchEditorInput';
@@ -85,9 +85,9 @@ export async function openSearchEditor(accessor: ServicesAccessor): Promise<void
 			filesToInclude: searchView.searchIncludePattern.getValue(),
 			onlyOpenEditors: searchView.searchIncludePattern.onlySearchInOpenEditors(),
 			filesToExclude: searchView.searchExcludePattern.getValue(),
-			isRegexp: searchView.searchAndReplaceWidget.searchInput.getRegex(),
-			isCaseSensitive: searchView.searchAndReplaceWidget.searchInput.getCaseSensitive(),
-			matchWholeWord: searchView.searchAndReplaceWidget.searchInput.getWholeWords(),
+			isRegexp: searchView.searchAndReplaceWidget.searchInput?.getRegex(),
+			isCaseSensitive: searchView.searchAndReplaceWidget.searchInput?.getCaseSensitive(),
+			matchWholeWord: searchView.searchAndReplaceWidget.searchInput?.getWholeWords(),
 			useExcludeSettingsAndIgnoreFiles: searchView.searchExcludePattern.useExcludesAndIgnoreFiles(),
 			showIncludesExcludes: !!(searchView.searchIncludePattern.getValue() || searchView.searchExcludePattern.getValue() || !searchView.searchExcludePattern.useExcludesAndIgnoreFiles())
 		});

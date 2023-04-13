@@ -3,35 +3,61 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+const fs = require('fs');
+const path = require('path');
+const os = require('os');
 const cp = require('child_process');
 const { dirs } = require('./dirs');
 const { setupBuildYarnrc } = require('./setupBuildYarnrc');
 const yarn = process.platform === 'win32' ? 'yarn.cmd' : 'yarn';
+const root = path.dirname(path.dirname(__dirname));
+
+function run(command, args, opts) {
+	console.log('$ ' + command + ' ' + args.join(' '));
+
+	const result = cp.spawnSync(command, args, opts);
+
+	if (result.error) {
+		console.error(`ERR Failed to spawn process: ${result.error}`);
+		process.exit(1);
+	} else if (result.status !== 0) {
+		console.error(`ERR Process exited with code: ${result.status}`);
+		process.exit(result.status);
+	}
+}
 
 /**
- * @param {string} location
+ * @param {string} dir
  * @param {*} [opts]
  */
-function yarnInstall(location, opts) {
-	opts = opts || { env: process.env };
-	opts.cwd = location;
-	opts.stdio = 'inherit';
+function yarnInstall(dir, opts) {
+	opts = {
+		env: { ...process.env },
+		...(opts ?? {}),
+		cwd: dir,
+		stdio: 'inherit',
+	};
 
 	const raw = process.env['npm_config_argv'] || '{}';
 	const argv = JSON.parse(raw);
 	const original = argv.original || [];
 	const args = original.filter(arg => arg === '--ignore-optional' || arg === '--frozen-lockfile' || arg === '--check-files');
+
 	if (opts.ignoreEngines) {
 		args.push('--ignore-engines');
 		delete opts.ignoreEngines;
 	}
 
-	console.log(`Installing dependencies in ${location}...`);
-	console.log(`$ yarn ${args.join(' ')}`);
-	const result = cp.spawnSync(yarn, args, opts);
+	if (process.env['VSCODE_REMOTE_DEPENDENCIES_CONTAINER_NAME'] && /^(.build\/distro\/npm\/)?remote$/.test(dir)) {
+		const userinfo = os.userInfo();
+		console.log(`Installing dependencies in ${dir} inside container ${process.env['VSCODE_REMOTE_DEPENDENCIES_CONTAINER_NAME']}...`);
 
-	if (result.error || result.status !== 0) {
-		process.exit(1);
+		opts.cwd = root;
+		run('docker', ['run', '-e', 'GITHUB_TOKEN', '-e', 'npm_config_arch', '-v', `/mnt/vss/_work/1/s:/root/vscode`, '-v', `/mnt/vss/_work/1/s/.build/.netrc:/root/.netrc`, process.env['VSCODE_REMOTE_DEPENDENCIES_CONTAINER_NAME'], 'yarn', '--cwd', dir, ...args], opts);
+		run('sudo', ['chown', '-R', `${userinfo.uid}:${userinfo.gid}`, `${dir}/node_modules`], opts);
+	} else {
+		console.log(`Installing dependencies in ${dir}...`);
+		run(yarn, args, opts);
 	}
 }
 
@@ -42,7 +68,16 @@ for (let dir of dirs) {
 		continue;
 	}
 
-	if (/^remote/.test(dir) && process.platform === 'win32' && (process.arch === 'arm64' || process.env['npm_config_arch'] === 'arm64')) {
+	if (/^.build\/distro\/npm(\/?)/.test(dir)) {
+		const ossPath = path.relative('.build/distro/npm', dir);
+		const ossYarnRc = path.join(ossPath, '.yarnrc');
+
+		if (fs.existsSync(ossYarnRc)) {
+			fs.cpSync(ossYarnRc, path.join(dir, '.yarnrc'));
+		}
+	}
+
+	if (/^(.build\/distro\/npm\/)?remote/.test(dir) && process.platform === 'win32' && (process.arch === 'arm64' || process.env['npm_config_arch'] === 'arm64')) {
 		// windows arm: do not execute `yarn` on remote folder
 		continue;
 	}
@@ -55,7 +90,7 @@ for (let dir of dirs) {
 
 	let opts;
 
-	if (dir === 'remote') {
+	if (/^(.build\/distro\/npm\/)?remote$/.test(dir)) {
 		// node modules used by vscode server
 		const env = { ...process.env };
 		if (process.env['VSCODE_REMOTE_CC']) { env['CC'] = process.env['VSCODE_REMOTE_CC']; }

@@ -173,7 +173,7 @@ export class WorkspaceTrustRequestHandler extends Disposable implements IWorkben
 						{ markdown: new MarkdownString(localize('immediateTrustRequestLearnMore', "If you don't trust the authors of these files, we do not recommend continuing as the files may be malicious. See [our docs](https://aka.ms/vscode-workspace-trust) to learn more.")) }
 					]
 				},
-				buttons: buttons.map(button => {
+				buttons: buttons.filter(b => b.type !== 'Cancel').map(button => {
 					return {
 						label: button.label,
 						run: () => button.type

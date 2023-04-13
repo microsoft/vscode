@@ -260,14 +260,15 @@
 			// Used for monaco editor playground launch config
 			"label": "Launch Http Server",
 			"type": "shell",
-			"command": "node_modules/.bin/http-server --cors --port 5001 -a 127.0.0.1 -s -c-1",
+			"command": "node_modules/.bin/ts-node -T ./scripts/playground-server",
 			"isBackground": true,
 			"problemMatcher": {
 				"pattern": {
 					"regexp": ""
 				},
 				"background": {
-					"beginsPattern": ".*",
+					"activeOnStart": true,
+					"beginsPattern": "never match",
 					"endsPattern": ".*"
 				}
 			},

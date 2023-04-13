@@ -183,8 +183,15 @@ export class MainThreadLanguageFeatures extends Disposable implements MainThread
 					dispose: () => listDto.cacheId && this._proxy.$releaseCodeLenses(handle, listDto.cacheId)
 				};
 			},
-			resolveCodeLens: (_model: ITextModel, codeLens: languages.CodeLens, token: CancellationToken): Promise<languages.CodeLens | undefined> => {
-				return this._proxy.$resolveCodeLens(handle, codeLens, token);
+			resolveCodeLens: async (model: ITextModel, codeLens: languages.CodeLens, token: CancellationToken): Promise<languages.CodeLens | undefined> => {
+				const result = await this._proxy.$resolveCodeLens(handle, codeLens, token);
+				if (!result) {
+					return undefined;
+				}
+				return {
+					...result,
+					range: model.validateRange(result.range),
+				};
 			}
 		};
 
@@ -345,8 +352,15 @@ export class MainThreadLanguageFeatures extends Disposable implements MainThread
 
 		if (supportsResolve) {
 			provider.resolveCodeAction = async (codeAction: languages.CodeAction, token: CancellationToken): Promise<languages.CodeAction> => {
-				const data = await this._proxy.$resolveCodeAction(handle, (<ICodeActionDto>codeAction).cacheId!, token);
-				codeAction.edit = reviveWorkspaceEditDto(data, this._uriIdentService);
+				const resolved = await this._proxy.$resolveCodeAction(handle, (<ICodeActionDto>codeAction).cacheId!, token);
+				if (resolved.edit) {
+					codeAction.edit = reviveWorkspaceEditDto(resolved.edit, this._uriIdentService);
+				}
+
+				if (resolved.command) {
+					codeAction.command = resolved.command;
+				}
+
 				return codeAction;
 			};
 		}
@@ -387,13 +401,18 @@ export class MainThreadLanguageFeatures extends Disposable implements MainThread
 		}));
 	}
 
-	$registerRangeFormattingSupport(handle: number, selector: IDocumentFilterDto[], extensionId: ExtensionIdentifier, displayName: string): void {
+	$registerRangeFormattingSupport(handle: number, selector: IDocumentFilterDto[], extensionId: ExtensionIdentifier, displayName: string, supportsRanges: boolean): void {
 		this._registrations.set(handle, this._languageFeaturesService.documentRangeFormattingEditProvider.register(selector, <languages.DocumentRangeFormattingEditProvider>{
 			extensionId,
 			displayName,
 			provideDocumentRangeFormattingEdits: (model: ITextModel, range: EditorRange, options: languages.FormattingOptions, token: CancellationToken): Promise<ISingleEditOperation[] | undefined> => {
 				return this._proxy.$provideDocumentRangeFormattingEdits(handle, model.uri, range, options, token);
-			}
+			},
+			provideDocumentRangesFormattingEdits: !supportsRanges
+				? undefined
+				: (model, ranges, options, token) => {
+					return this._proxy.$provideDocumentRangesFormattingEdits(handle, model.uri, ranges, options, token);
+				},
 		}));
 	}
 
@@ -888,8 +907,8 @@ export class MainThreadLanguageFeatures extends Disposable implements MainThread
 
 	private readonly _documentOnDropEditProviders = new Map<number, MainThreadDocumentOnDropEditProvider>();
 
-	$registerDocumentOnDropEditProvider(handle: number, selector: IDocumentFilterDto[]): void {
-		const provider = new MainThreadDocumentOnDropEditProvider(handle, this._proxy, this._uriIdentService);
+	$registerDocumentOnDropEditProvider(handle: number, selector: IDocumentFilterDto[], metadata?: { id: string; dropMimeTypes?: string[] }): void {
+		const provider = new MainThreadDocumentOnDropEditProvider(handle, metadata, this._proxy, this._uriIdentService);
 		this._documentOnDropEditProviders.set(handle, provider);
 		this._registrations.set(handle, combinedDisposable(
 			this._languageFeaturesService.documentOnDropEditProvider.register(selector, provider),
@@ -971,11 +990,18 @@ class MainThreadDocumentOnDropEditProvider implements languages.DocumentOnDropEd
 
 	private readonly dataTransfers = new DataTransferCache();
 
+	readonly id?: string;
+	readonly dropMimeTypes?: readonly string[];
+
 	constructor(
 		private readonly handle: number,
+		metadata: { id: string; dropMimeTypes?: readonly string[] } | undefined,
 		private readonly _proxy: ExtHostLanguageFeaturesShape,
 		@IUriIdentityService private readonly _uriIdentService: IUriIdentityService
-	) { }
+	) {
+		this.id = metadata?.id;
+		this.dropMimeTypes = metadata?.dropMimeTypes;
+	}
 
 	async provideDocumentOnDropEdits(model: ITextModel, position: IPosition, dataTransfer: VSDataTransfer, token: CancellationToken): Promise<languages.DocumentOnDropEdit | null | undefined> {
 		const request = this.dataTransfers.add(dataTransfer);
@@ -986,6 +1012,7 @@ class MainThreadDocumentOnDropEditProvider implements languages.DocumentOnDropEd
 				return undefined;
 			}
 			return {
+				label: edit.label,
 				insertText: edit.insertText,
 				additionalEdit: reviveWorkspaceEditDto(edit.additionalEdit, this._uriIdentService),
 			};

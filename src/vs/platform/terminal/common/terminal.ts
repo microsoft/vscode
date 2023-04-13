@@ -11,6 +11,9 @@ import { IPtyHostProcessReplayEvent, ISerializedCommandDetectionCapability, ITer
 import { IGetTerminalLayoutInfoArgs, IProcessDetails, ISetTerminalLayoutInfoArgs } from 'vs/platform/terminal/common/terminalProcess';
 import { ThemeIcon } from 'vs/base/common/themables';
 import { ISerializableEnvironmentVariableCollections } from 'vs/platform/terminal/common/environmentVariable';
+import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
+
+export const terminalTabFocusContextKey = new RawContextKey<boolean>('terminalTabFocusMode', false, true);
 
 export const enum TerminalSettingPrefix {
 	Shell = 'terminal.integrated.shell.',
@@ -84,6 +87,7 @@ export const enum TerminalSettingId {
 	CommandsToSkipShell = 'terminal.integrated.commandsToSkipShell',
 	AllowChords = 'terminal.integrated.allowChords',
 	AllowMnemonics = 'terminal.integrated.allowMnemonics',
+	TabFocusMode = 'terminal.integrated.tabFocusMode',
 	EnvMacOs = 'terminal.integrated.env.osx',
 	EnvLinux = 'terminal.integrated.env.linux',
 	EnvWindows = 'terminal.integrated.env.windows',
@@ -112,12 +116,7 @@ export const enum TerminalSettingId {
 	ShellIntegrationDecorationsEnabled = 'terminal.integrated.shellIntegration.decorationsEnabled',
 	ShellIntegrationCommandHistory = 'terminal.integrated.shellIntegration.history',
 	ShellIntegrationSuggestEnabled = 'terminal.integrated.shellIntegration.suggestEnabled',
-	SmoothScrolling = 'terminal.integrated.smoothScrolling',
-	AccessibleBufferContentEditable = 'terminal.integrated.accessibleBufferContentEditable'
-}
-
-export const enum TerminalLogConstants {
-	FileName = 'ptyhost'
+	SmoothScrolling = 'terminal.integrated.smoothScrolling'
 }
 
 export const enum PosixShellType {
@@ -308,7 +307,7 @@ export interface IPtyService extends IPtyHostController {
 	 */
 	listProcesses(): Promise<IProcessDetails[]>;
 
-	start(id: number): Promise<ITerminalLaunchError | undefined>;
+	start(id: number): Promise<ITerminalLaunchError | { injectedArgs: string[] } | undefined>;
 	shutdown(id: number, immediate: boolean): Promise<void>;
 	input(id: number, data: string): Promise<void>;
 	resize(id: number, cols: number, rows: number): Promise<void>;
@@ -647,7 +646,7 @@ export interface ITerminalChildProcess {
 	 * @returns undefined when the process was successfully started, otherwise an object containing
 	 * information on what went wrong.
 	 */
-	start(): Promise<ITerminalLaunchError | undefined>;
+	start(): Promise<ITerminalLaunchError | { injectedArgs: string[] } | undefined>;
 
 	/**
 	 * Detach the process from the UI and await reconnect.
@@ -859,4 +858,47 @@ export enum TerminalExitReason {
 	Process = 2,
 	User = 3,
 	Extension = 4,
+}
+
+export interface ITerminalOutputMatch {
+	regexMatch: RegExpMatchArray;
+	outputLines: string[];
+}
+
+/**
+ * A matcher that runs on a sub-section of a terminal command's output
+ */
+export interface ITerminalOutputMatcher {
+	/**
+	 * A string or regex to match against the unwrapped line. If this is a regex with the multiline
+	 * flag, it will scan an amount of lines equal to `\n` instances in the regex + 1.
+	 */
+	lineMatcher: string | RegExp;
+	/**
+	 * Which side of the output to anchor the {@link offset} and {@link length} against.
+	 */
+	anchor: 'top' | 'bottom';
+	/**
+	 * The number of rows above or below the {@link anchor} to start matching against.
+	 */
+	offset: number;
+	/**
+	 * The number of rows to match against, this should be as small as possible for performance
+	 * reasons. This is capped at 40.
+	 */
+	length: number;
+
+	/**
+	 * If multiple matches are expected - this will result in {@link outputLines} being returned
+	 * when there's a {@link regexMatch} from {@link offset} to {@link length}
+	 */
+	multipleMatches?: boolean;
+}
+
+export interface ITerminalCommandSelector {
+	id: string;
+	commandLineMatcher: string | RegExp;
+	outputMatcher?: ITerminalOutputMatcher;
+	exitStatus: boolean;
+	commandExitResult: 'success' | 'error';
 }

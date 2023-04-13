@@ -14,6 +14,7 @@ import { INotebookEditor, INotebookEditorCreationOptions } from 'vs/workbench/co
 import { Emitter } from 'vs/base/common/event';
 import { GroupIdentifier } from 'vs/workbench/common/editor';
 import { Dimension } from 'vs/base/browser/dom';
+import { URI } from 'vs/base/common/uri';
 
 export class NotebookEditorWidgetService implements INotebookEditorService {
 
@@ -127,6 +128,26 @@ export class NotebookEditorWidgetService implements INotebookEditorService {
 			this._borrowableEditors.set(targetID, targetMap);
 		}
 		targetMap.set(input.resource, widget);
+	}
+
+	retrieveExistingWidgetFromURI(resource: URI): IBorrowValue<NotebookEditorWidget> | undefined {
+		for (const widgetInfo of this._borrowableEditors.values()) {
+			const widget = widgetInfo.get(resource);
+			if (widget) {
+				return this._createBorrowValue(widget.token!, widget);
+			}
+		}
+		return undefined;
+	}
+
+	retrieveAllExistingWidgets(): IBorrowValue<NotebookEditorWidget>[] {
+		const ret: IBorrowValue<NotebookEditorWidget>[] = [];
+		for (const widgetInfo of this._borrowableEditors.values()) {
+			for (const widget of widgetInfo.values()) {
+				ret.push(this._createBorrowValue(widget.token!, widget));
+			}
+		}
+		return ret;
 	}
 
 	retrieveWidget(accessor: ServicesAccessor, group: IEditorGroup, input: NotebookEditorInput, creationOptions?: INotebookEditorCreationOptions, initialDimension?: Dimension): IBorrowValue<NotebookEditorWidget> {
