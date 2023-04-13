@@ -37,6 +37,8 @@ import { ISemanticSimilarityService } from 'vs/workbench/services/semanticSimila
 import { timeout } from 'vs/base/common/async';
 
 export class CommandsQuickAccessProvider extends AbstractEditorCommandsQuickAccessProvider {
+	private static SEMANTIC_SIMILARITY_MAX_PICKS = 3;
+	private static SEMANTIC_SIMILARITY_THRESHOLD = 0.8;
 
 	// TODO: bring this back once we have a chosen strategy for FastAndSlowPicks where Fast is also Promise based
 	// If extensions are not yet registered, we wait for a little moment to give them
@@ -155,14 +157,17 @@ export class CommandsQuickAccessProvider extends AbstractEditorCommandsQuickAcce
 				label: localize('semanticSimilarity', "similar commands")
 			}]
 			: [];
+
+		let numOfSmartPicks = 0;
 		for (const i of sortedIndices) {
 			const score = scores[i];
-			if (score < 0.8) {
+			if (score < CommandsQuickAccessProvider.SEMANTIC_SIMILARITY_THRESHOLD || numOfSmartPicks === CommandsQuickAccessProvider.SEMANTIC_SIMILARITY_MAX_PICKS) {
 				break;
 			}
 			const pick = allPicks[i];
 			if (!setOfPicksSoFar.has(pick.commandId)) {
 				additionalPicks.push(pick);
+				numOfSmartPicks++;
 			}
 		}
 		return additionalPicks;
