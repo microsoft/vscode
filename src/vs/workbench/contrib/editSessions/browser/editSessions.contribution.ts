@@ -644,7 +644,7 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 		EditSessionRegistry.getEditSessionContributions().forEach(([key, contrib]) => {
 			const state = editSession.state[key];
 			if (state) {
-				contributedStateHandlers.push(() => contrib.resumeState(state, async (incomingUri: URI) => {
+				contributedStateHandlers.push(() => contrib.resumeState(state, (incomingUri: URI) => {
 					for (const absoluteUri of incomingFolderUrisToIdentifiers.keys()) {
 						if (isEqualOrParent(incomingUri, URI.parse(absoluteUri))) {
 							const [workspaceFolderUri, match] = incomingFolderUrisToIdentifiers.get(absoluteUri)!;

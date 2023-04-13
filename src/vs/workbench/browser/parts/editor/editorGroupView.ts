@@ -62,15 +62,15 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 	//#region factory
 
 	static createNew(accessor: IEditorGroupsAccessor, index: number, instantiationService: IInstantiationService): IEditorGroupView {
-		return instantiationService.createInstance(EditorGroupView, accessor, null, index);
+		return instantiationService.createInstance(EditorGroupView, accessor, null, index, undefined);
 	}
 
-	static createFromSerialized(serialized: ISerializedEditorGroupModel, accessor: IEditorGroupsAccessor, index: number, instantiationService: IInstantiationService): IEditorGroupView {
-		return instantiationService.createInstance(EditorGroupView, accessor, serialized, index);
+	static createFromSerialized(serialized: ISerializedEditorGroupModel, accessor: IEditorGroupsAccessor, index: number, instantiationService: IInstantiationService, uriResolver?: (uri: URI) => URI | undefined): IEditorGroupView {
+		return instantiationService.createInstance(EditorGroupView, accessor, serialized, index, uriResolver);
 	}
 
 	static createCopy(copyFrom: IEditorGroupView, accessor: IEditorGroupsAccessor, index: number, instantiationService: IInstantiationService): IEditorGroupView {
-		return instantiationService.createInstance(EditorGroupView, accessor, copyFrom, index);
+		return instantiationService.createInstance(EditorGroupView, accessor, copyFrom, index, undefined);
 	}
 
 	//#endregion
@@ -139,6 +139,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		private accessor: IEditorGroupsAccessor,
 		from: IEditorGroupView | ISerializedEditorGroupModel | null,
 		private _index: number,
+		private readonly uriResolver: ((uri: URI) => URI | undefined) | undefined,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IThemeService themeService: IThemeService,
@@ -157,9 +158,9 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		if (from instanceof EditorGroupView) {
 			this.model = this._register(from.model.clone());
 		} else if (isSerializedEditorGroupModel(from)) {
-			this.model = this._register(instantiationService.createInstance(EditorGroupModel, from));
+			this.model = this._register(instantiationService.createInstance(EditorGroupModel, from, this.uriResolver));
 		} else {
-			this.model = this._register(instantiationService.createInstance(EditorGroupModel, undefined));
+			this.model = this._register(instantiationService.createInstance(EditorGroupModel, undefined, this.uriResolver));
 		}
 
 		//#region create()

@@ -164,7 +164,7 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 		};
 	}
 
-	resumeState(state: unknown, uriResolver: (uri: URI) => Promise<URI | undefined>) {
+	resumeState(state: unknown, uriResolver: (uri: URI) => URI | undefined) {
 		if (typeof state === 'object' && state !== null && 'serializedGrid' in state && 'activeGroup' in state && 'mostRecentActiveGroups' in state) {
 			this.mostRecentActiveGroups = (state as IEditorPartUIState).mostRecentActiveGroups;
 			this.instantiationService.invokeFunction(async (accessor) => {
@@ -175,7 +175,7 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 				const serializedGrid = (state as IEditorPartUIState).serializedGrid;
 
 				// todo@joyceerhl deserialize the grid widget using the uriResolver
-				this.doCreateGridControlWithState(serializedGrid, (state as IEditorPartUIState).activeGroup);
+				this.doCreateGridControlWithState(serializedGrid, (state as IEditorPartUIState).activeGroup, undefined, uriResolver);
 
 				// Layout
 				this.doLayout(this._contentDimension);
@@ -605,14 +605,14 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 		return this._partOptions.splitSizing === 'split' ? Sizing.Split : Sizing.Distribute;
 	}
 
-	private doCreateGroupView(from?: IEditorGroupView | ISerializedEditorGroupModel | null): IEditorGroupView {
+	private doCreateGroupView(from?: IEditorGroupView | ISerializedEditorGroupModel | null, uriResolver?: (uri: URI) => URI | undefined): IEditorGroupView {
 
 		// Create group view
 		let groupView: IEditorGroupView;
 		if (from instanceof EditorGroupView) {
 			groupView = EditorGroupView.createCopy(from, this, this.count, this.instantiationService);
 		} else if (isSerializedEditorGroupModel(from)) {
-			groupView = EditorGroupView.createFromSerialized(from, this, this.count, this.instantiationService);
+			groupView = EditorGroupView.createFromSerialized(from, this, this.count, this.instantiationService, uriResolver);
 		} else {
 			groupView = EditorGroupView.createNew(this, this.count, this.instantiationService);
 		}
@@ -1112,7 +1112,7 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 		return true; // success
 	}
 
-	private doCreateGridControlWithState(serializedGrid: ISerializedGrid, activeGroupId: GroupIdentifier, editorGroupViewsToReuse?: IEditorGroupView[]): void {
+	private doCreateGridControlWithState(serializedGrid: ISerializedGrid, activeGroupId: GroupIdentifier, editorGroupViewsToReuse?: IEditorGroupView[], uriResolver?: (uri: URI) => URI | undefined): void {
 
 		// Determine group views to reuse if any
 		let reuseGroupViews: IEditorGroupView[];
@@ -1130,7 +1130,7 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 				if (reuseGroupViews.length > 0) {
 					groupView = reuseGroupViews.shift()!;
 				} else {
-					groupView = this.doCreateGroupView(serializedEditorGroup);
+					groupView = this.doCreateGroupView(serializedEditorGroup, uriResolver);
 				}
 
 				groupViews.push(groupView);

@@ -12,6 +12,7 @@ import { IConfigurationChangeEvent, IConfigurationService } from 'vs/platform/co
 import { dispose, Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { coalesce } from 'vs/base/common/arrays';
+import { URI } from 'vs/base/common/uri';
 
 const EditorOpenPositioning = {
 	LEFT: 'left',
@@ -191,13 +192,14 @@ export class EditorGroupModel extends Disposable {
 
 	constructor(
 		labelOrSerializedGroup: ISerializedEditorGroupModel | undefined,
+		uriResolver: ((uri: URI) => URI | undefined) | undefined,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IConfigurationService private readonly configurationService: IConfigurationService
 	) {
 		super();
 
 		if (isSerializedEditorGroupModel(labelOrSerializedGroup)) {
-			this._id = this.deserialize(labelOrSerializedGroup);
+			this._id = this.deserialize(labelOrSerializedGroup, uriResolver);
 		} else {
 			this._id = EditorGroupModel.IDS++;
 		}
@@ -963,7 +965,7 @@ export class EditorGroupModel extends Disposable {
 	}
 
 	clone(): EditorGroupModel {
-		const clone = this.instantiationService.createInstance(EditorGroupModel, undefined);
+		const clone = this.instantiationService.createInstance(EditorGroupModel, undefined, undefined);
 
 		// Copy over group properties
 		clone.editors = this.editors.slice(0);
@@ -1035,7 +1037,7 @@ export class EditorGroupModel extends Disposable {
 		};
 	}
 
-	private deserialize(data: ISerializedEditorGroupModel): number {
+	private deserialize(data: ISerializedEditorGroupModel, uriResolver?: (uri: URI) => URI | undefined): number {
 		const registry = Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory);
 
 		if (typeof data.id === 'number') {
@@ -1055,7 +1057,7 @@ export class EditorGroupModel extends Disposable {
 
 			const editorSerializer = registry.getEditorSerializer(e.id);
 			if (editorSerializer) {
-				const deserializedEditor = editorSerializer.deserialize(this.instantiationService, e.value);
+				const deserializedEditor = editorSerializer.deserialize(this.instantiationService, e.value, uriResolver);
 				if (deserializedEditor instanceof EditorInput) {
 					editor = deserializedEditor;
 					this.registerEditorListeners(editor);

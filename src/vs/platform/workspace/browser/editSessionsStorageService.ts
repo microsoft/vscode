@@ -9,7 +9,7 @@ import { Registry } from 'vs/platform/registry/common/platform';
 
 export interface IEditSessionContribution {
 	getStateToStore(): unknown;
-	resumeState(state: unknown, uriResolver: (uri: URI) => Promise<URI | undefined>): void;
+	resumeState(state: unknown, uriResolver: (uri: URI) => URI | undefined): void;
 }
 
 class EditSessionStateRegistryImpl {

@@ -43,7 +43,7 @@ suite('EditorGroupModel', () => {
 	}
 
 	function createEditorGroupModel(serialized?: ISerializedEditorGroupModel): EditorGroupModel {
-		return inst().createInstance(EditorGroupModel, serialized);
+		return inst().createInstance(EditorGroupModel, serialized, undefined);
 	}
 
 	function closeAllEditors(group: EditorGroupModel): void {
@@ -1041,7 +1041,7 @@ suite('EditorGroupModel', () => {
 		inst.stub(IConfigurationService, config);
 		config.setUserConfiguration('workbench', { editor: { openPositioning: 'left' } });
 
-		const group: EditorGroupModel = inst.createInstance(EditorGroupModel, undefined);
+		const group: EditorGroupModel = inst.createInstance(EditorGroupModel, undefined, undefined);
 
 		const events = groupListener(group);
 
@@ -1273,7 +1273,7 @@ suite('EditorGroupModel', () => {
 		config.setUserConfiguration('workbench', { editor: { focusRecentEditorAfterClose: false } });
 		inst.stub(IConfigurationService, config);
 
-		const group = inst.createInstance(EditorGroupModel, undefined);
+		const group = inst.createInstance(EditorGroupModel, undefined, undefined);
 		const events = groupListener(group);
 
 		const input1 = input();
@@ -1665,7 +1665,7 @@ suite('EditorGroupModel', () => {
 		assert.strictEqual(group.isActive(input1), true);
 
 		// Create model again - should load from storage
-		group = inst.createInstance(EditorGroupModel, group.serialize());
+		group = inst.createInstance(EditorGroupModel, group.serialize(), undefined);
 
 		assert.strictEqual(group.count, 1);
 		assert.strictEqual(group.activeEditor!.matches(input1), true);
@@ -1724,8 +1724,8 @@ suite('EditorGroupModel', () => {
 		assert.strictEqual(group2.getEditors(EditorsOrder.MOST_RECENTLY_ACTIVE)[2].matches(g2_input2), true);
 
 		// Create model again - should load from storage
-		group1 = inst.createInstance(EditorGroupModel, group1.serialize());
-		group2 = inst.createInstance(EditorGroupModel, group2.serialize());
+		group1 = inst.createInstance(EditorGroupModel, group1.serialize(), undefined);
+		group2 = inst.createInstance(EditorGroupModel, group2.serialize(), undefined);
 
 		assert.strictEqual(group1.count, 3);
 		assert.strictEqual(group2.count, 3);
@@ -1777,7 +1777,7 @@ suite('EditorGroupModel', () => {
 		assert.strictEqual(group.getEditors(EditorsOrder.MOST_RECENTLY_ACTIVE)[2].matches(serializableInput1), true);
 
 		// Create model again - should load from storage
-		group = inst.createInstance(EditorGroupModel, group.serialize());
+		group = inst.createInstance(EditorGroupModel, group.serialize(), undefined);
 
 		assert.strictEqual(group.count, 2);
 		assert.strictEqual(group.activeEditor!.matches(serializableInput2), true);
@@ -1816,7 +1816,7 @@ suite('EditorGroupModel', () => {
 		assert.strictEqual(group.stickyCount, 1);
 
 		// Create model again - should load from storage
-		group = inst.createInstance(EditorGroupModel, group.serialize());
+		group = inst.createInstance(EditorGroupModel, group.serialize(), undefined);
 
 		assert.strictEqual(group.count, 2);
 		assert.strictEqual(group.stickyCount, 0);
@@ -1850,8 +1850,8 @@ suite('EditorGroupModel', () => {
 		group2.openEditor(nonSerializableInput);
 
 		// Create model again - should load from storage
-		group1 = inst.createInstance(EditorGroupModel, group1.serialize());
-		group2 = inst.createInstance(EditorGroupModel, group2.serialize());
+		group1 = inst.createInstance(EditorGroupModel, group1.serialize(), undefined);
+		group2 = inst.createInstance(EditorGroupModel, group2.serialize(), undefined);
 
 		assert.strictEqual(group1.count, 2);
 		assert.strictEqual(group1.getEditors(EditorsOrder.SEQUENTIAL)[0].matches(serializableInput1), true);

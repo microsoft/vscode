@@ -752,7 +752,7 @@ export class SerializableGrid<T extends ISerializableView> extends Grid<T> {
 			throw new Error('Invalid JSON: \'height\' property must be a number.');
 		}
 
-		const gridview = GridView.deserialize(json, deserializer, options);
+		const gridview = GridView.deserialize(json, deserializer, options); // TODO@joyceerhl remember to actually pass in the uriResolver
 		const result = new SerializableGrid<T>(gridview, options);
 
 		return result;
