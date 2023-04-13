@@ -330,11 +330,7 @@ export abstract class SimpleFindReplaceWidget extends Widget {
 				() => {
 					this._isReplaceVisible = !this._isReplaceVisible;
 					this._state.change({ isReplaceRevealed: this._isReplaceVisible }, false);
-					if (this._isReplaceVisible) {
-						this._innerReplaceDomNode.style.display = 'flex';
-					} else {
-						this._innerReplaceDomNode.style.display = 'none';
-					}
+					this._updateReplaceViewDisplay();
 				}
 		}));
 		this._toggleReplaceBtn.setEnabled(!isInteractiveWindow);
@@ -482,13 +478,13 @@ export abstract class SimpleFindReplaceWidget extends Widget {
 		this._register(this._replaceInputFocusTracker.onDidFocus(this.onReplaceInputFocusTrackerFocus.bind(this)));
 		this._register(this._replaceInputFocusTracker.onDidBlur(this.onReplaceInputFocusTrackerBlur.bind(this)));
 
+		this._register(this._replaceInput.inputBox.onDidChange(() => {
+			this._state.change({ replaceString: this._replaceInput.getValue() }, true);
+		}));
+
 		this._domNode.appendChild(this._innerReplaceDomNode);
 
-		if (this._isReplaceVisible) {
-			this._innerReplaceDomNode.style.display = 'flex';
-		} else {
-			this._innerReplaceDomNode.style.display = 'none';
-		}
+		this._updateReplaceViewDisplay();
 
 		this._replaceBtn = this._register(new SimpleButton({
 			label: NLS_REPLACE_BTN_LABEL,
@@ -691,11 +687,7 @@ export abstract class SimpleFindReplaceWidget extends Widget {
 		this._isVisible = true;
 		this._isReplaceVisible = true;
 		this._state.change({ isReplaceRevealed: this._isReplaceVisible }, false);
-		if (this._isReplaceVisible) {
-			this._innerReplaceDomNode.style.display = 'flex';
-		} else {
-			this._innerReplaceDomNode.style.display = 'none';
-		}
+		this._updateReplaceViewDisplay();
 
 		setTimeout(() => {
 			this._domNode.classList.add('visible', 'visible-transition');
@@ -704,6 +696,16 @@ export abstract class SimpleFindReplaceWidget extends Widget {
 
 			this._replaceInput.focus();
 		}, 0);
+	}
+
+	private _updateReplaceViewDisplay(): void {
+		if (this._isReplaceVisible) {
+			this._innerReplaceDomNode.style.display = 'flex';
+		} else {
+			this._innerReplaceDomNode.style.display = 'none';
+		}
+
+		this._replaceInput.width = dom.getTotalWidth(this._findInput.domNode);
 	}
 
 	public hide(): void {
