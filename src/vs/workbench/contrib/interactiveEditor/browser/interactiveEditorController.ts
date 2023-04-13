@@ -154,7 +154,7 @@ class InlineDiffDecorations {
 	}
 }
 
-class UIEditResponse {
+export class EditResponse {
 
 	readonly localEdits: TextEdit[] = [];
 	readonly singleCreateFileEdit: { uri: URI; edits: TextEdit[] } | undefined;
@@ -218,7 +218,7 @@ class LastEditorState {
 		readonly modelVersionId: number,
 		readonly provider: IInteractiveEditorSessionProvider,
 		readonly session: IInteractiveEditorSession,
-		readonly response: UIEditResponse,
+		readonly response: EditResponse,
 	) { }
 }
 
@@ -511,7 +511,7 @@ export class InteractiveEditorController implements IEditorContribution {
 				continue;
 			}
 
-			const editResponse = new UIEditResponse(textModel.uri, reply);
+			const editResponse = new EditResponse(textModel.uri, reply);
 
 			if (editResponse.workspaceEdits && (!editResponse.singleCreateFileEdit || editMode === 'direct')) {
 				this._bulkEditService.apply(editResponse.workspaceEdits, { editor: this._editor, label: localize('ie', "{0}", input), showPreview: true });
@@ -712,24 +712,25 @@ export class InteractiveEditorController implements IEditorContribution {
 	}
 
 	async applyChanges() {
-		if (this._lastEditState) {
-			const { model, modelVersionId, response } = this._lastEditState;
+		if (!this._lastEditState) {
+			return undefined;
+		}
 
-			if (response.workspaceEdits) {
-				await this._bulkEditService.apply(response.workspaceEdits);
-				return true;
+		const { model, modelVersionId, response } = this._lastEditState;
 
-			} else if (!response.workspaceEditsIncludeLocalEdits) {
-				if (model.getAlternativeVersionId() === modelVersionId) {
-					model.pushStackElement();
-					const edits = response.localEdits.map(edit => EditOperation.replace(Range.lift(edit.range), edit.text));
-					model.pushEditOperations(null, edits, () => null);
-					model.pushStackElement();
-					return true;
-				}
+		if (response.workspaceEdits) {
+			await this._bulkEditService.apply(response.workspaceEdits);
+
+		} else if (!response.workspaceEditsIncludeLocalEdits) {
+			if (model.getAlternativeVersionId() === modelVersionId) {
+				model.pushStackElement();
+				const edits = response.localEdits.map(edit => EditOperation.replace(Range.lift(edit.range), edit.text));
+				model.pushEditOperations(null, edits, () => null);
+				model.pushStackElement();
 			}
 		}
-		return false;
+
+		return response;
 	}
 }
 
