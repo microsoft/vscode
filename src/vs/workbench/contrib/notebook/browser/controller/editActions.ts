@@ -171,7 +171,7 @@ registerAction2(class DeleteCellAction extends NotebookCellAction {
 
 			confirmation = await dialogService.confirm({
 				type: 'question',
-				message: localize('confirmDeleteButtonMessage', "Are you sure you want to delete a running cell?"),
+				message: localize('confirmDeleteButtonMessage', "This cell is running, are you sure you want to delete it?"),
 				detail: localize('confirmDeleteButtonDetail', "After deletion, the cell may not be recovered."),
 				primaryButton: primaryButton,
 				checkbox: {
