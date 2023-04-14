@@ -39,6 +39,7 @@ import { INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookB
 import { defaultInputBoxStyles, defaultProgressBarStyles, defaultToggleStyles } from 'vs/platform/theme/browser/defaultStyles';
 import { IToggleStyles } from 'vs/base/browser/ui/toggle/toggle';
 import { Disposable } from 'vs/base/common/lifecycle';
+import { NotebookSetting } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 
 const NLS_FIND_INPUT_LABEL = nls.localize('label.find', "Find");
 const NLS_FIND_INPUT_PLACEHOLDER = nls.localize('placeholder.find', "Find");
@@ -305,7 +306,9 @@ export abstract class SimpleFindReplaceWidget extends Widget {
 	) {
 		super();
 
-		this._filters = new NotebookFindFilters(true, true, true, true);
+		const findInMarkdownMode = this._configurationService.getValue<{ source: boolean; preview: boolean }>(NotebookSetting.experimentalFindInMarkdownMode) ?? { source: true, preview: false };
+
+		this._filters = new NotebookFindFilters(findInMarkdownMode.source, findInMarkdownMode.preview, true, true);
 		this._state.change({ filters: this._filters }, false);
 
 		this._filters.onDidChange(() => {
