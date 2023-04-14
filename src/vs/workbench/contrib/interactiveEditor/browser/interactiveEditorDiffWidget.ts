@@ -15,8 +15,10 @@ import { ScrollType } from 'vs/editor/common/editorCommon';
 import { ITextModel } from 'vs/editor/common/model';
 import { ZoneWidget } from 'vs/editor/contrib/zoneWidget/browser/zoneWidget';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import * as colorRegistry from 'vs/platform/theme/common/colorRegistry';
+import * as editorColorRegistry from 'vs/editor/common/core/editorColorRegistry';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { interactiveEditorRegionHighlight } from 'vs/workbench/contrib/interactiveEditor/common/interactiveEditor';
+import { interactiveEditorDiffInserted, interactiveEditorDiffRemoved, interactiveEditorRegionHighlight } from 'vs/workbench/contrib/interactiveEditor/common/interactiveEditor';
 
 export class InteractiveEditorDiffWidget extends ZoneWidget {
 
@@ -46,9 +48,27 @@ export class InteractiveEditorDiffWidget extends ZoneWidget {
 		}, editor);
 		this._disposables.add(this._diffEditor);
 
-		const highlightBgColor = themeService.getColorTheme().getColor(interactiveEditorRegionHighlight)?.toString() ?? '';
-		this._elements.domNode.style.setProperty('--vscode-editor-background', highlightBgColor);
-		this._elements.domNode.style.setProperty('--vscode-editorGutter-background', highlightBgColor);
+		const doStyle = () => {
+			const theme = themeService.getColorTheme();
+			const overrides: [target: string, source: string][] = [
+				[colorRegistry.editorBackground, interactiveEditorRegionHighlight],
+				[editorColorRegistry.editorGutter, interactiveEditorRegionHighlight],
+				[colorRegistry.diffInsertedLine, interactiveEditorDiffInserted],
+				[colorRegistry.diffInserted, interactiveEditorDiffInserted],
+				[colorRegistry.diffRemovedLine, interactiveEditorDiffRemoved],
+				[colorRegistry.diffRemoved, interactiveEditorDiffRemoved],
+			];
+
+			for (const [target, source] of overrides) {
+				const value = theme.getColor(source);
+				if (value) {
+					this._elements.domNode.style.setProperty(colorRegistry.asCssVariableName(target), String(value));
+				}
+			}
+		};
+		doStyle();
+		this._disposables.add(themeService.onDidColorThemeChange(doStyle));
+
 	}
 
 	protected override _fillContainer(container: HTMLElement): void {

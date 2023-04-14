@@ -17,7 +17,7 @@ import { Extensions, IConfigurationRegistry } from 'vs/platform/configuration/co
 import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { editorHoverHighlight, editorWidgetBorder, focusBorder, inputBackground, inputPlaceholderForeground, registerColor, widgetShadow } from 'vs/platform/theme/common/colorRegistry';
+import { diffInserted, diffRemoved, editorHoverHighlight, editorWidgetBorder, focusBorder, inputBackground, inputPlaceholderForeground, registerColor, transparent, widgetShadow } from 'vs/platform/theme/common/colorRegistry';
 
 export interface IInteractiveEditorSlashCommand {
 	command: string;
@@ -130,6 +130,9 @@ export const interactiveEditorInputBorder = registerColor('interactiveEditorInpu
 export const interactiveEditorInputFocusBorder = registerColor('interactiveEditorInput.focusBorder', { dark: focusBorder, light: focusBorder, hcDark: focusBorder, hcLight: focusBorder }, localize('interactiveEditorInput.focusBorder', "Border color of the interactive editor input when focused"));
 export const interactiveEditorInputPlaceholderForeground = registerColor('interactiveEditorInput.placeholderForeground', { dark: inputPlaceholderForeground, light: inputPlaceholderForeground, hcDark: inputPlaceholderForeground, hcLight: inputPlaceholderForeground }, localize('interactiveEditorInput.placeholderForeground', "Foreground color of the interactive editor input placeholder"));
 export const interactiveEditorInputBackground = registerColor('interactiveEditorInput.background', { dark: inputBackground, light: inputBackground, hcDark: inputBackground, hcLight: inputBackground }, localize('interactiveEditorInput.background', "Background color of the interactive editor input"));
+
+export const interactiveEditorDiffInserted = registerColor('interactiveEditorDiff.inserted', { dark: transparent(diffInserted, .5), light: transparent(diffInserted, .5), hcDark: transparent(diffInserted, .5), hcLight: transparent(diffInserted, .5) }, localize('interactiveEditorDiff.inserted', "Background color of inserted text in the interactive editor input"));
+export const interactiveEditorDiffRemoved = registerColor('interactiveEditorDiff.removed', { dark: transparent(diffRemoved, .5), light: transparent(diffRemoved, .5), hcDark: transparent(diffRemoved, .5), hcLight: transparent(diffRemoved, .5) }, localize('interactiveEditorDiff.removed', "Background color of removed text in the interactive editor input"));
 
 // settings
 
