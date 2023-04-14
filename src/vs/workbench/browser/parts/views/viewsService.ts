@@ -264,6 +264,17 @@ export class ViewsService extends Disposable implements IViewsService {
 		return null;
 	}
 
+	simpleCloseView(id: string): void {
+		const viewContainer = this.viewDescriptorService.getViewContainerByViewId(id);
+		if (viewContainer) {
+			const activeViewPaneContainer = this.getActiveViewPaneContainer(viewContainer);
+			if (activeViewPaneContainer) {
+				const view = activeViewPaneContainer.getView(id);
+				view?.setExpanded(false);
+			}
+		}
+	}
+
 	closeView(id: string): void {
 		const viewContainer = this.viewDescriptorService.getViewContainerByViewId(id);
 		if (viewContainer) {
