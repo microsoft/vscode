@@ -35,6 +35,9 @@ import { isFirefox } from 'vs/base/browser/browser';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { ISemanticSimilarityService } from 'vs/workbench/services/semanticSimilarity/common/semanticSimilarityService';
 import { timeout } from 'vs/base/common/async';
+import { IInteractiveSessionService } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionService';
+import { ILogService } from 'vs/platform/log/common/log';
+import { IInteractiveSessionWidgetService } from 'vs/workbench/contrib/interactiveSession/browser/interactiveSessionWidget';
 
 export class CommandsQuickAccessProvider extends AbstractEditorCommandsQuickAccessProvider {
 	private static SEMANTIC_SIMILARITY_MAX_PICKS = 3;
@@ -76,12 +79,21 @@ export class CommandsQuickAccessProvider extends AbstractEditorCommandsQuickAcce
 		@IPreferencesService private readonly preferencesService: IPreferencesService,
 		@IProductService private readonly productService: IProductService,
 		@ISemanticSimilarityService private readonly semanticSimilarityService: ISemanticSimilarityService,
+		@IInteractiveSessionService private readonly interactiveSessionService: IInteractiveSessionService
 	) {
 		super({
 			showAlias: !Language.isDefaultVariant(),
-			noResultsPick: {
-				label: localize('noCommandResults', "No matching commands"),
-				commandId: ''
+			noResultsPick: (filter) => {
+				return this.interactiveSessionService.getProviderIds().length
+					? {
+						label: localize('askXInInteractiveSession', "Ask '{0}' in an Interactive Session", filter),
+						commandId: AskInInteractiveAction.ID,
+						accept: () => commandService.executeCommand(AskInInteractiveAction.ID, filter)
+					}
+					: {
+						label: localize('noCommandResults', "No matching commands"),
+						commandId: ''
+					};
 			},
 		}, instantiationService, keybindingService, commandService, telemetryService, dialogService);
 
@@ -144,6 +156,7 @@ export class CommandsQuickAccessProvider extends AbstractEditorCommandsQuickAcce
 		const format = allPicks.map(p => p.commandId);
 		let scores: number[];
 		try {
+			// Wait a bit to see if the user is still typing
 			await timeout(800, token);
 			scores = await this.semanticSimilarityService.getSimilarityScore(filter, format, token);
 		} catch (e) {
@@ -269,6 +282,49 @@ export class ClearCommandHistoryAction extends Action2 {
 			}
 
 			CommandsHistory.clearHistory(configurationService, storageService);
+		}
+	}
+}
+
+// TODO: Should this live here? It seems fairly generic and could live in the interactive code.
+export class AskInInteractiveAction extends Action2 {
+
+	static readonly ID = 'workbench.action.askCommandInInteractiveSession';
+
+	constructor() {
+		super({
+			id: AskInInteractiveAction.ID,
+			title: { value: localize('askInInteractiveSession', "Ask In Interactive Session"), original: 'Ask In Interactive Session' },
+			f1: false
+		});
+	}
+
+	async run(accessor: ServicesAccessor, filter?: string): Promise<void> {
+		const interactiveSessionService = accessor.get(IInteractiveSessionService);
+		const interactiveSessionWidgetService = accessor.get(IInteractiveSessionWidgetService);
+		const logService = accessor.get(ILogService);
+
+		if (!filter) {
+			throw new Error('No filter provided.');
+		}
+
+		let providerId: string;
+		switch (interactiveSessionService.getProviderIds().length) {
+			case 0:
+				throw new Error('No interactive session provider found.');
+			case 1:
+				providerId = interactiveSessionService.getProviderIds()[0];
+				break;
+			default:
+				logService.warn('Multiple interactive session providers found. Using the first one.');
+				providerId = interactiveSessionService.getProviderIds()[0];
+				break;
+		}
+
+		const widget = await interactiveSessionWidgetService.revealViewForProvider(providerId);
+		if (widget?.viewModel) {
+			// TODO: Maybe this could provide metadata saying it came from the command palette?
+			interactiveSessionService.sendInteractiveRequestToProvider(widget.viewModel.sessionId, { message: filter });
 		}
 	}
 }
