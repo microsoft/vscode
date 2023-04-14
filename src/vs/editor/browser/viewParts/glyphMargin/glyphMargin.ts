@@ -17,21 +17,21 @@ export class DecorationToRender {
 	public startLineNumber: number;
 	public endLineNumber: number;
 	public className: string;
-	public readonly zIndex: number | undefined;
+	public readonly zIndex: number;
 
 	constructor(startLineNumber: number, endLineNumber: number, className: string, zIndex?: number) {
 		this.startLineNumber = +startLineNumber;
 		this.endLineNumber = +endLineNumber;
 		this.className = String(className);
-		this.zIndex = zIndex;
+		this.zIndex = zIndex ?? 0;
 	}
 }
 
 export abstract class DedupOverlay extends DynamicViewOverlay {
 
-	protected _render(visibleStartLineNumber: number, visibleEndLineNumber: number, decorations: DecorationToRender[]): [string, number | undefined][][] {
+	protected _render(visibleStartLineNumber: number, visibleEndLineNumber: number, decorations: DecorationToRender[]): [string, number][][] {
 
-		const output: [string, number | undefined][][] = [];
+		const output: [string, number][][] = [];
 		for (let lineNumber = visibleStartLineNumber; lineNumber <= visibleEndLineNumber; lineNumber++) {
 			const lineIndex = lineNumber - visibleStartLineNumber;
 			output[lineIndex] = [];
@@ -184,13 +184,7 @@ export class GlyphMarginOverlay extends DedupOverlay {
 			} else {
 				// Sort decorations to render in descending order by zIndex
 				renderInfo.sort(([_, aIndex], [__, bIndex]) => {
-					if (aIndex === undefined) {
-						return 1;
-					} else if (bIndex === undefined) {
-						return -1;
-					} else {
-						return bIndex - aIndex;
-					}
+					return bIndex - aIndex;
 				});
 
 				output[lineIndex] = (
