@@ -104,7 +104,7 @@ export class ViewModel implements IViewModel {
 			this._onDidFocusSession.fire(session);
 		}
 
-		// should not fire this if a stack frame focus is fired.
+		// should not call onDidFocusThread if onDidFocusStackFrame is called.
 		if (shouldEmitForStackFrame) {
 			this._onDidFocusStackFrame.fire({ stackFrame, explicit, session });
 		} else if (shouldEmitForThread) {

@@ -57,7 +57,7 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
 		this._debugAdapterDescriptorFactories = new Map();
 		this._sessions = new Set();
 
-		this.debugService.getViewModel().onDidFocusThread(({ thread, explicit, session }) => {
+		this._toDispose.add(this.debugService.getViewModel().onDidFocusThread(({ thread, explicit, session }) => {
 			if (session) {
 				const dto: IThreadFocusDto = {
 					kind: 'thread',
@@ -66,9 +66,9 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
 				};
 				this._proxy.$acceptStackFrameFocus(dto);
 			}
-		});
+		}));
 
-		this.debugService.getViewModel().onDidFocusStackFrame(({ stackFrame, explicit, session }) => {
+		this._toDispose.add(this.debugService.getViewModel().onDidFocusStackFrame(({ stackFrame, explicit, session }) => {
 			if (session) {
 				const dto: IStackFrameFocusDto = {
 					kind: 'stackFrame',
@@ -78,7 +78,7 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
 				};
 				this._proxy.$acceptStackFrameFocus(dto);
 			}
-		});
+		}));
 	}
 
 	public dispose(): void {

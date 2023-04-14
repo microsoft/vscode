@@ -12,7 +12,7 @@ declare module 'vscode' {
 		kind: 'thread';
 
 		/**
-		 * Id of the debug session (DAP id).
+		 * Debug session for thread.
 		 */
 		readonly session: DebugSession;
 
@@ -27,7 +27,7 @@ declare module 'vscode' {
 		kind: 'stackFrame';
 
 		/**
-		 * Id of the debug session (DAP id).
+		 * Debug session for thread.
 		 */
 		readonly session: DebugSession;
 

@@ -2018,8 +2018,6 @@ export interface IDebugSessionFullDto {
 
 export type IDebugSessionDto = IDebugSessionFullDto | DebugSessionUUID;
 
-export type IDebugFocusType = 'thread' | 'stackFrame' | 'empty';
-
 export interface IThreadFocusDto {
 	kind: 'thread';
 	threadId: number | undefined;
