@@ -45,6 +45,9 @@ export class InteractiveEditorDiffWidget extends ZoneWidget {
 			diffCodeLens: false,
 			scrollBeyondLastLine: false,
 			stickyScroll: { enabled: false }
+		}, {
+			originalEditor: { contributions: [] },
+			modifiedEditor: { contributions: [] }
 		}, editor);
 		this._disposables.add(this._diffEditor);
 

@@ -412,7 +412,7 @@ class DirtyDiffWidget extends PeekViewWidget {
 			stickyScroll: { enabled: false }
 		};
 
-		this.diffEditor = this.instantiationService.createInstance(EmbeddedDiffEditorWidget, container, options, this.editor);
+		this.diffEditor = this.instantiationService.createInstance(EmbeddedDiffEditorWidget, container, options, {}, this.editor);
 		this._disposables.add(this.diffEditor);
 	}
 
