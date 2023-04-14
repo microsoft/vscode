@@ -124,25 +124,6 @@ export class StopRequestAction extends AbstractInteractiveEditorAction {
 	}
 }
 
-export class CancelSessionAction extends AbstractInteractiveEditorAction {
-
-	constructor() {
-		super({
-			id: 'interactiveEditor.cancel',
-			title: localize('cancel', 'Cancel'),
-			precondition: CTX_INTERACTIVE_EDITOR_VISIBLE,
-			keybinding: {
-				weight: KeybindingWeight.EditorContrib - 1,
-				primary: KeyCode.Escape
-			}
-		});
-	}
-
-	runInteractiveEditorCommand(_accessor: ServicesAccessor, ctrl: InteractiveEditorController, _editor: ICodeEditor, ..._args: any[]): void {
-		ctrl.cancelSession();
-	}
-}
-
 export class ArrowOutUpAction extends AbstractInteractiveEditorAction {
 	constructor() {
 		super({
@@ -380,7 +361,7 @@ export class ToggleInlineDiff extends AbstractInteractiveEditorAction {
 				id: MENU_INTERACTIVE_EDITOR_WIDGET_STATUS,
 				when: CTX_INTERACTIVE_EDITOR_EDIT_MODE.isEqualTo('direct'),
 				group: '0_main',
-				order: 1
+				order: 10
 			}
 		});
 	}
@@ -397,10 +378,14 @@ export class ApplyPreviewEdits extends AbstractInteractiveEditorAction {
 			id: 'interactiveEditor.applyEdits',
 			title: localize('applyEdits', 'Apply Changes'),
 			icon: Codicon.check,
-			precondition: ContextKeyExpr.and(CTX_INTERACTIVE_EDITOR_VISIBLE, CTX_INTERACTIVE_EDITOR_EDIT_MODE.isEqualTo('preview')),
+			precondition: ContextKeyExpr.and(CTX_INTERACTIVE_EDITOR_VISIBLE),
+			keybinding: {
+				weight: KeybindingWeight.EditorContrib + 10,
+				primary: KeyMod.CtrlCmd | KeyCode.Enter
+			},
 			menu: {
 				id: MENU_INTERACTIVE_EDITOR_WIDGET_STATUS,
-				when: CTX_INTERACTIVE_EDITOR_EDIT_MODE.isEqualTo('preview'),
+				// when: CTX_INTERACTIVE_EDITOR_EDIT_MODE.isEqualTo('preview'),
 				group: '0_main',
 				order: 0
 			}
@@ -415,11 +400,36 @@ export class ApplyPreviewEdits extends AbstractInteractiveEditorAction {
 			logService.warn('FAILED to apply changes, no edit response');
 			return;
 		}
-		ctrl.cancelSession();
 		if (edit.singleCreateFileEdit) {
 			editorService.openEditor({ resource: edit.singleCreateFileEdit.uri }, SIDE_GROUP);
 		}
 
+	}
+}
+
+export class CancelSessionAction extends AbstractInteractiveEditorAction {
+
+	constructor() {
+		super({
+			id: 'interactiveEditor.cancel',
+			title: localize('cancel', 'Cancel'),
+			icon: Codicon.clearAll,
+			precondition: CTX_INTERACTIVE_EDITOR_VISIBLE,
+			keybinding: {
+				weight: KeybindingWeight.EditorContrib - 1,
+				primary: KeyCode.Escape
+			},
+			menu: {
+				id: MENU_INTERACTIVE_EDITOR_WIDGET_STATUS,
+				// when: CTX_INTERACTIVE_EDITOR_EDIT_MODE.isEqualTo('preview'),
+				group: '0_main',
+				order: 1
+			}
+		});
+	}
+
+	runInteractiveEditorCommand(_accessor: ServicesAccessor, ctrl: InteractiveEditorController, _editor: ICodeEditor, ..._args: any[]): void {
+		ctrl.cancelSession();
 	}
 }
 
