@@ -61,8 +61,8 @@ export abstract class RestrictedRenderingContext {
 		return this._viewLayout.getVerticalOffsetAfterLineNumber(lineNumber, includeViewZones);
 	}
 
-	public getDecorationsInViewport(): ViewModelDecoration[] {
-		return this.viewportData.getDecorationsInViewport();
+	public getDecorationsInViewport(onlyMarginDecorations?: boolean): ViewModelDecoration[] {
+		return this.viewportData.getDecorationsInViewport(onlyMarginDecorations);
 	}
 
 }

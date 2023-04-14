@@ -688,8 +688,8 @@ export class ViewModel extends Disposable implements IViewModel {
 		return result + 2;
 	}
 
-	public getDecorationsInViewport(visibleRange: Range, onlyMinimapDecorations: boolean = false): ViewModelDecoration[] {
-		return this._decorations.getDecorationsViewportData(visibleRange, onlyMinimapDecorations).decorations;
+	public getDecorationsInViewport(visibleRange: Range, onlyMinimapDecorations: boolean = false, onlyMarginDecorations: boolean = false): ViewModelDecoration[] {
+		return this._decorations.getDecorationsViewportData(visibleRange, onlyMinimapDecorations, onlyMarginDecorations).decorations;
 	}
 
 	public getInjectedTextAt(viewPosition: Position): InjectedText | null {
