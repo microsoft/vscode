@@ -8,7 +8,7 @@ import { IPosition } from 'vs/editor/common/core/position';
 import { IRange } from 'vs/editor/common/core/range';
 import { IColor, IColorInformation } from 'vs/editor/common/languages';
 
-interface IDocumentColorComputerTarget {
+export interface IDocumentColorComputerTarget {
 	getValue(): string;
 	positionAt(offset: number): IPosition;
 	findMatches(regex: RegExp): RegExpMatchArray[];

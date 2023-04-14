@@ -26,7 +26,7 @@ import { linesDiffComputers } from 'vs/editor/common/diff/linesDiffComputers';
 import { createProxyObject, getAllMethodNames } from 'vs/base/common/objects';
 import { IDocumentDiffProviderOptions } from 'vs/editor/common/diff/documentDiffProvider';
 import { BugIndicatingError } from 'vs/base/common/errors';
-import { computeDefaultDocumentColors } from 'vs/editor/common/languages/defaultDocumentColorsComputer';
+import { IDocumentColorComputerTarget, computeDefaultDocumentColors } from 'vs/editor/common/languages/defaultDocumentColorsComputer';
 
 export interface IMirrorModel extends IMirrorTextModel {
 	readonly uri: URI;
@@ -58,7 +58,7 @@ export interface IRawModelData {
 /**
  * @internal
  */
-export interface ICommonModel extends ILinkComputerTarget, IMirrorModel {
+export interface ICommonModel extends ILinkComputerTarget, IDocumentColorComputerTarget, IMirrorModel {
 	uri: URI;
 	version: number;
 	eol: string;
