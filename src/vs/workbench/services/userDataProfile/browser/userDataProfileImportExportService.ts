@@ -202,7 +202,7 @@ export class UserDataProfileImportExportService extends Disposable implements IU
 			const profileTemplate = await this.progressService.withProgress({
 				location: ProgressLocation.Window,
 				command: showWindowLogActionId,
-				title: localize('resolving uri', "{0}: Resolving profile content...", options?.preview ? localize('preview profile', "Preview Profile") : localize('import profile', "Create Profile")),
+				title: localize('resolving uri', "{0}: Resolving profile content...", options?.preview ? localize('preview profile', "Preview Profile") : localize('import profile', "Import Profile")),
 			}, () => this.resolveProfileTemplate(uri));
 			if (!profileTemplate) {
 				return;
@@ -210,7 +210,7 @@ export class UserDataProfileImportExportService extends Disposable implements IU
 			if (options?.preview) {
 				await this.previewProfile(uri, profileTemplate);
 			} else {
-				await this.doImportProfile(profileTemplate);
+				await this.doImportProfile(uri, profileTemplate);
 			}
 		} finally {
 			disposables.dispose();
@@ -243,16 +243,6 @@ export class UserDataProfileImportExportService extends Disposable implements IU
 			await this.hideProfilePreviewView(EXPORT_PROFILE_PREVIEW_VIEW);
 		} finally {
 			disposables.dispose();
-		}
-	}
-
-	async createFromCurrentProfile(name: string): Promise<void> {
-		const userDataProfilesExportState = this.instantiationService.createInstance(UserDataProfileExportState, this.userDataProfileService.currentProfile);
-		try {
-			const profileTemplate = await userDataProfilesExportState.getProfileTemplate(name, undefined);
-			await this.doImportProfile(profileTemplate);
-		} finally {
-			userDataProfilesExportState.dispose();
 		}
 	}
 
@@ -351,7 +341,7 @@ export class UserDataProfileImportExportService extends Disposable implements IU
 			const barrier = new Barrier();
 			const importAction = this.getImportAction(barrier, userDataProfileImportState);
 			const primaryAction = isWeb
-				? new Action('importInDesktop', localize('import in desktop', "Create Profile in {0}", this.productService.nameLong), undefined, true, async () => this.openerService.open(uri, { openExternal: true }))
+				? new Action('importInDesktop', localize('import in desktop', "Import Profile in {1}", importedProfile.name, this.productService.nameLong), undefined, true, async () => this.openerService.open(uri, { openExternal: true }))
 				: importAction;
 			const secondaryAction = isWeb
 				? importAction
@@ -408,8 +398,9 @@ export class UserDataProfileImportExportService extends Disposable implements IU
 		}
 	}
 
-	private async doImportProfile(profileTemplate: IUserDataProfileTemplate): Promise<void> {
+	private async doImportProfile(uri: URI, profileTemplate: IUserDataProfileTemplate): Promise<void> {
 		const disposables = new DisposableStore();
+
 		try {
 			const userDataProfileImportState = disposables.add(this.instantiationService.createInstance(UserDataProfileImportState, profileTemplate));
 			const barrier = new Barrier();
@@ -427,7 +418,7 @@ export class UserDataProfileImportExportService extends Disposable implements IU
 	}
 
 	private getImportAction(barrier: Barrier, userDataProfileImportState: UserDataProfileImportState): IAction {
-		const title = localize('import', "Create Profile", userDataProfileImportState.profile.name);
+		const title = localize('import', "Import Profile", userDataProfileImportState.profile.name);
 		const importAction = new BarrierAction(barrier, new Action('import', title, undefined, true, () => {
 			const importProfileFn = async () => {
 				importAction.enabled = false;
@@ -436,6 +427,13 @@ export class UserDataProfileImportExportService extends Disposable implements IU
 				if (!importedProfile) {
 					return;
 				}
+				this.notificationService.notify({
+					severity: Severity.Info,
+					message: localize('imported profile', "Profile '{0}' is imported successfully.", importedProfile.name),
+					actions: {
+						primary: [new Action('profiles.showProfileContents', localize('show profile contents', "Show Profile Contents"), undefined, true, () => this.showProfileContents())]
+					}
+				});
 			};
 			if (userDataProfileImportState.isEmpty()) {
 				return importProfileFn();
@@ -945,7 +943,7 @@ abstract class UserDataProfileImportExportState extends Disposable implements IT
 		return this.roots.some(root => this.isSelected(root));
 	}
 
-	async getProfileTemplate(name: string, shortName: string | undefined): Promise<IUserDataProfileTemplate> {
+	protected async getProfileTemplate(name: string, shortName: string | undefined): Promise<IUserDataProfileTemplate> {
 		const roots = await this.getRoots();
 		let settings: string | undefined;
 		let keybindings: string | undefined;

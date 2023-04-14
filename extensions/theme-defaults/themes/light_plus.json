@@ -1,6 +1,6 @@
 {
 	"$schema": "vscode://schemas/color-theme",
-	"name": "Light+",
+	"name": "Light+ (default light)",
 	"include": "./light_vs.json",
 	"tokenColors": [ // adds rules to the light vs rules
 		{

@@ -40,19 +40,6 @@ export enum ThemeSettings {
 	DETECT_HC = 'window.autoDetectHighContrast'
 }
 
-export enum ThemeSettingDefaults {
-	COLOR_THEME_DARK = 'Default Dark+ Experimental',
-	COLOR_THEME_LIGHT = 'Default Light+ Experimental',
-	COLOR_THEME_HC_DARK = 'Default High Contrast',
-	COLOR_THEME_HC_LIGHT = 'Default High Contrast Light',
-
-	COLOR_THEME_DARK_OLD = 'Default Dark+',
-	COLOR_THEME_LIGHT_OLD = 'Default Light+',
-
-	FILE_ICON_THEME = 'vs-seti',
-	PRODUCT_ICON_THEME = 'Default'
-}
-
 export interface IWorkbenchTheme {
 	readonly id: string;
 	readonly label: string;
@@ -89,8 +76,6 @@ export interface IWorkbenchThemeService extends IThemeService {
 	getColorThemes(): Promise<IWorkbenchColorTheme[]>;
 	getMarketplaceColorThemes(publisher: string, name: string, version: string): Promise<IWorkbenchColorTheme[]>;
 	onDidColorThemeChange: Event<IWorkbenchColorTheme>;
-
-	hasUpdatedDefaultThemes(): boolean;
 
 	setFileIconTheme(iconThemeId: string | undefined | IWorkbenchFileIconTheme, settingsTarget: ThemeSettingTarget): Promise<IWorkbenchFileIconTheme>;
 	getFileIconTheme(): IWorkbenchFileIconTheme;

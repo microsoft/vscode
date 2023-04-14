@@ -7,12 +7,13 @@ use std::cmp::Ordering;
 use super::command::capture_command;
 use crate::constants::QUALITYLESS_SERVER_NAME;
 use crate::update_service::Platform;
+use crate::util::errors::SetupError;
 use lazy_static::lazy_static;
 use regex::bytes::Regex as BinRegex;
 use regex::Regex;
 use tokio::fs;
 
-use super::errors::CodeError;
+use super::errors::AnyError;
 
 lazy_static! {
 	static ref LDCONFIG_STDC_RE: Regex = Regex::new(r"libstdc\+\+.* => (.+)").unwrap();
@@ -40,18 +41,19 @@ impl PreReqChecker {
 	}
 
 	#[cfg(not(target_os = "linux"))]
-	pub async fn verify(&self) -> Result<Platform, CodeError> {
+	pub async fn verify(&self) -> Result<Platform, AnyError> {
+		use crate::constants::QUALITYLESS_PRODUCT_NAME;
 		Platform::env_default().ok_or_else(|| {
-			CodeError::UnsupportedPlatform(format!(
-				"{} {}",
-				std::env::consts::OS,
-				std::env::consts::ARCH
+			SetupError(format!(
+				"{} is not supported on this platform",
+				QUALITYLESS_PRODUCT_NAME
 			))
+			.into()
 		})
 	}
 
 	#[cfg(target_os = "linux")]
-	pub async fn verify(&self) -> Result<Platform, CodeError> {
+	pub async fn verify(&self) -> Result<Platform, AnyError> {
 		let (is_nixos, gnu_a, gnu_b, or_musl) = tokio::join!(
 			check_is_nixos(),
 			check_glibc_version(),
@@ -94,10 +96,10 @@ impl PreReqChecker {
 			.collect::<Vec<String>>()
 			.join("\n");
 
-		Err(CodeError::PrerequisitesFailed {
-			bullets,
-			name: QUALITYLESS_SERVER_NAME,
-		})
+		Err(AnyError::from(SetupError(format!(
+			"This machine not meet {}'s prerequisites, expected either...\n{}",
+			QUALITYLESS_SERVER_NAME, bullets,
+		))))
 	}
 }
 

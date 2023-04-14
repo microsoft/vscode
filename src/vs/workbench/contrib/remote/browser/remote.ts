@@ -428,7 +428,7 @@ class GetStartedHelpItem extends HelpItemBase {
 	}
 
 	protected async takeAction(extensionDescription: IExtensionDescription, urlOrWalkthroughId: string): Promise<void> {
-		if ([Schemas.http, Schemas.https].includes(URI.parse(urlOrWalkthroughId).scheme)) {
+		if (URI.parse(urlOrWalkthroughId).scheme in [Schemas.http, Schemas.https]) {
 			this.openerService.open(urlOrWalkthroughId, { allowCommands: true });
 			return;
 		}

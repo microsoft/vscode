@@ -15,7 +15,6 @@ use serde::{de::DeserializeOwned, Serialize};
 
 use crate::{
 	constants::VSCODE_CLI_QUALITY,
-	download_cache::DownloadCache,
 	util::errors::{wrap, AnyError, NoHomeForLauncherError, WrappedError},
 };
 
@@ -23,8 +22,6 @@ const HOME_DIR_ALTS: [&str; 2] = ["$HOME", "~"];
 
 #[derive(Clone)]
 pub struct LauncherPaths {
-	pub server_cache: DownloadCache,
-	pub cli_cache: DownloadCache,
 	root: PathBuf,
 }
 
@@ -98,10 +95,14 @@ where
 	}
 
 	/// Mutates persisted state.
-	pub fn update<R>(&self, mutator: impl FnOnce(&mut T) -> R) -> Result<R, WrappedError> {
+	pub fn update_with<V, R>(
+		&self,
+		v: V,
+		mutator: fn(v: V, state: &mut T) -> R,
+	) -> Result<R, WrappedError> {
 		let mut container = self.container.lock().unwrap();
 		let mut state = container.load_or_get();
-		let r = mutator(&mut state);
+		let r = mutator(v, &mut state);
 		container.save(state).map(|_| r)
 	}
 }
@@ -131,15 +132,7 @@ impl LauncherPaths {
 	}
 
 	pub fn new_without_replacements(root: PathBuf) -> LauncherPaths {
-		// cleanup folders that existed before the new LRU strategy:
-		let _ = std::fs::remove_dir_all(root.join("server-insiders"));
-		let _ = std::fs::remove_dir_all(root.join("server-stable"));
-
-		LauncherPaths {
-			server_cache: DownloadCache::new(root.join("servers")),
-			cli_cache: DownloadCache::new(root.join("cli")),
-			root,
-		}
+		LauncherPaths { root }
 	}
 
 	/// Root directory for the server launcher

@@ -5,8 +5,9 @@
 
 import 'vs/css!./accessibility';
 import * as nls from 'vs/nls';
-import { $, append, addStandardDisposableListener, clearNode } from 'vs/base/browser/dom';
+import * as dom from 'vs/base/browser/dom';
 import { FastDomNode, createFastDomNode } from 'vs/base/browser/fastDomNode';
+import { renderFormattedText } from 'vs/base/browser/formattedTextRenderer';
 import { alert } from 'vs/base/browser/ui/aria/aria';
 import { Widget } from 'vs/base/browser/ui/widget';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
@@ -71,7 +72,7 @@ class AccessibilityHelpWidget extends Widget implements IOverlayWidget {
 
 	private static readonly ID = 'editor.contrib.accessibilityHelpWidget';
 	private static readonly WIDTH = 500;
-	private static readonly HEIGHT = 320;
+	private static readonly HEIGHT = 300;
 
 	private _editor: ICodeEditor;
 	private _domNode: FastDomNode<HTMLElement>;
@@ -97,18 +98,11 @@ class AccessibilityHelpWidget extends Widget implements IOverlayWidget {
 		this._domNode.setHeight(AccessibilityHelpWidget.HEIGHT);
 		this._domNode.setDisplay('none');
 		this._domNode.setAttribute('role', 'dialog');
-		this._domNode.setAttribute('aria-modal', 'true');
 		this._domNode.setAttribute('aria-hidden', 'true');
-
-		const heading = append(this._domNode.domNode, $('h1', undefined, nls.localize('accessibilityHelpTitle', "Accessibility Help")));
-		heading.id = 'help-dialog-heading';
-		this._domNode.setAttribute('aria-labelledby', heading.id);
 
 		this._contentDomNode = createFastDomNode(document.createElement('div'));
 		this._contentDomNode.setAttribute('role', 'document');
-		this._contentDomNode.domNode.id = 'help-dialog-content';
 		this._domNode.appendChild(this._contentDomNode);
-		this._domNode.setAttribute('aria-describedby', this._contentDomNode.domNode.id);
 
 		this._isVisible = false;
 
@@ -119,7 +113,7 @@ class AccessibilityHelpWidget extends Widget implements IOverlayWidget {
 		}));
 
 		// Intentionally not configurable!
-		this._register(addStandardDisposableListener(this._contentDomNode.domNode, 'keydown', (e) => {
+		this._register(dom.addStandardDisposableListener(this._contentDomNode.domNode, 'keydown', (e) => {
 			if (!this._isVisible) {
 				return;
 			}
@@ -192,11 +186,10 @@ class AccessibilityHelpWidget extends Widget implements IOverlayWidget {
 	}
 
 	private _buildContent() {
-		const contentDomNode = this._contentDomNode.domNode;
 		const options = this._editor.getOptions();
+		let text = nls.localize('introMsg', "Thank you for trying out VS Code's accessibility options.");
 
-		append(contentDomNode, $('p', undefined, nls.localize('introMsg', "Thank you for trying out VS Code's accessibility options.")));
-		append(contentDomNode, $('p', undefined, nls.localize('status', "Status:")));
+		text += '\n\n' + nls.localize('status', "Status:");
 
 		const configuredValue = this._configurationService.getValue<IEditorOptions>('editor').accessibilitySupport;
 		const actualValue = options.get(EditorOption.accessibilitySupport);
@@ -207,27 +200,28 @@ class AccessibilityHelpWidget extends Widget implements IOverlayWidget {
 				: nls.localize('changeConfigToOnWinLinux', "To configure the editor to be permanently optimized for usage with a Screen Reader press Control+E now.")
 		);
 
-		const instructions = append(contentDomNode, $('ul'));
 		switch (configuredValue) {
 			case 'auto':
 				switch (actualValue) {
 					case AccessibilitySupport.Unknown:
 						// Should never happen in VS Code
-						append(instructions, $('li', undefined, nls.localize('auto_unknown', "The editor is configured to use platform APIs to detect when a Screen Reader is attached, but the current runtime does not support this.")));
+						text += '\n\n - ' + nls.localize('auto_unknown', "The editor is configured to use platform APIs to detect when a Screen Reader is attached, but the current runtime does not support this.");
 						break;
 					case AccessibilitySupport.Enabled:
-						append(instructions, $('li', undefined, nls.localize('auto_on', "The editor has automatically detected a Screen Reader is attached.")));
+						text += '\n\n - ' + nls.localize('auto_on', "The editor has automatically detected a Screen Reader is attached.");
 						break;
 					case AccessibilitySupport.Disabled:
-						append(instructions, $('li', undefined, nls.localize('auto_off', "The editor is configured to automatically detect when a Screen Reader is attached, which is not the case at this time."), ' ' + emergencyTurnOnMessage));
+						text += '\n\n - ' + nls.localize('auto_off', "The editor is configured to automatically detect when a Screen Reader is attached, which is not the case at this time.");
+						text += ' ' + emergencyTurnOnMessage;
 						break;
 				}
 				break;
 			case 'on':
-				append(instructions, $('li', undefined, nls.localize('configuredOn', "The editor is configured to be permanently optimized for usage with a Screen Reader - you can change this via the command `Toggle Screen Reader Accessibility Mode` or by editing the setting `editor.accessibilitySupport`")));
+				text += '\n\n - ' + nls.localize('configuredOn', "The editor is configured to be permanently optimized for usage with a Screen Reader - you can change this via the command `Toggle Screen Reader Accessibility Mode` or by editing the setting `editor.accessibilitySupport`");
 				break;
 			case 'off':
-				append(instructions, $('li', undefined, nls.localize('configuredOff', "The editor is configured to never be optimized for usage with a Screen Reader.", ' ' + emergencyTurnOnMessage)));
+				text += '\n\n - ' + nls.localize('configuredOff', "The editor is configured to never be optimized for usage with a Screen Reader.");
+				text += ' ' + emergencyTurnOnMessage;
 				break;
 		}
 
@@ -237,18 +231,24 @@ class AccessibilityHelpWidget extends Widget implements IOverlayWidget {
 		const NLS_TAB_FOCUS_MODE_OFF_NO_KB = nls.localize('tabFocusModeOffMsgNoKb', "Pressing Tab in the current editor will insert the tab character. The command {0} is currently not triggerable by a keybinding.");
 
 		if (TabFocus.getTabFocusMode(TabFocusContext.Editor)) {
-			append(instructions, $('li', undefined, this._descriptionForCommand(ToggleTabFocusModeAction.ID, NLS_TAB_FOCUS_MODE_ON, NLS_TAB_FOCUS_MODE_ON_NO_KB)));
+			text += '\n\n - ' + this._descriptionForCommand(ToggleTabFocusModeAction.ID, NLS_TAB_FOCUS_MODE_ON, NLS_TAB_FOCUS_MODE_ON_NO_KB);
 		} else {
-			append(instructions, $('li', undefined, this._descriptionForCommand(ToggleTabFocusModeAction.ID, NLS_TAB_FOCUS_MODE_OFF, NLS_TAB_FOCUS_MODE_OFF_NO_KB)));
+			text += '\n\n - ' + this._descriptionForCommand(ToggleTabFocusModeAction.ID, NLS_TAB_FOCUS_MODE_OFF, NLS_TAB_FOCUS_MODE_OFF_NO_KB);
 		}
 
-		append(contentDomNode, (
+		const openDocMessage = (
 			platform.isMacintosh
 				? nls.localize('openDocMac', "Press Command+H now to open a browser window with more VS Code information related to Accessibility.")
 				: nls.localize('openDocWinLinux', "Press Control+H now to open a browser window with more VS Code information related to Accessibility.")
-		));
+		);
 
-		append(contentDomNode, $('p', undefined, nls.localize('outroMsg', "You can dismiss this tooltip and return to the editor by pressing Escape or Shift+Escape.")));
+		text += '\n\n' + openDocMessage;
+
+		text += '\n\n' + nls.localize('outroMsg', "You can dismiss this tooltip and return to the editor by pressing Escape or Shift+Escape.");
+
+		this._contentDomNode.domNode.appendChild(renderFormattedText(text));
+		// Per https://www.w3.org/TR/wai-aria/roles#document, Authors SHOULD provide a title or label for documents
+		this._contentDomNode.domNode.setAttribute('aria-label', text);
 	}
 
 	public hide(): void {
@@ -260,7 +260,7 @@ class AccessibilityHelpWidget extends Widget implements IOverlayWidget {
 		this._domNode.setDisplay('none');
 		this._domNode.setAttribute('aria-hidden', 'true');
 		this._contentDomNode.domNode.tabIndex = -1;
-		clearNode(this._contentDomNode.domNode);
+		dom.clearNode(this._contentDomNode.domNode);
 
 		this._editor.focus();
 	}

@@ -27,19 +27,21 @@ pub fn next_counter() -> u32 {
 
 // Log level
 #[derive(clap::ArgEnum, PartialEq, Eq, PartialOrd, Clone, Copy, Debug, Serialize, Deserialize)]
-#[derive(Default)]
 pub enum Level {
 	Trace = 0,
 	Debug,
-	#[default]
- Info,
+	Info,
 	Warn,
 	Error,
 	Critical,
 	Off,
 }
 
-
+impl Default for Level {
+	fn default() -> Self {
+		Level::Info
+	}
+}
 
 impl fmt::Display for Level {
 	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {

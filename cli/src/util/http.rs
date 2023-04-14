@@ -16,7 +16,7 @@ use hyper::{
 	HeaderMap, StatusCode,
 };
 use serde::de::DeserializeOwned;
-use std::{io, pin::Pin, str::FromStr, sync::Arc, task::Poll};
+use std::{io, pin::Pin, str::FromStr, task::Poll};
 use tokio::{
 	fs,
 	io::{AsyncRead, AsyncReadExt},
@@ -59,23 +59,14 @@ pub struct SimpleResponse {
 	pub status_code: StatusCode,
 	pub headers: HeaderMap,
 	pub read: Pin<Box<dyn Send + AsyncRead + 'static>>,
-	pub url: Option<url::Url>,
+	pub url: String,
 }
 
 impl SimpleResponse {
-	pub fn url_path_basename(&self) -> Option<String> {
-		self.url.as_ref().and_then(|u| {
-			u.path_segments()
-				.and_then(|s| s.last().map(|s| s.to_owned()))
-		})
-	}
-}
-
-impl SimpleResponse {
-	pub fn generic_error(url: &str) -> Self {
+	pub fn generic_error(url: String) -> Self {
 		let (_, rx) = mpsc::unbounded_channel();
 		SimpleResponse {
-			url: url::Url::parse(url).ok(),
+			url,
 			status_code: StatusCode::INTERNAL_SERVER_ERROR,
 			headers: HeaderMap::new(),
 			read: Box::pin(DelegatedReader::new(rx)),
@@ -88,10 +79,7 @@ impl SimpleResponse {
 		self.read.read_to_string(&mut body).await.ok();
 
 		StatusError {
-			url: self
-				.url
-				.map(|u| u.to_string())
-				.unwrap_or_else(|| "<invalid url>".to_owned()),
+			url: self.url,
 			status_code: self.status_code.as_u16(),
 			body,
 		}
@@ -109,7 +97,7 @@ impl SimpleResponse {
 			.map_err(|e| wrap(e, "error reading response"))?;
 
 		let t = serde_json::from_slice(&buf)
-			.map_err(|e| wrap(e, format!("error decoding json from {:?}", self.url)))?;
+			.map_err(|e| wrap(e, format!("error decoding json from {}", self.url)))?;
 
 		Ok(t)
 	}
@@ -127,8 +115,6 @@ pub trait SimpleHttp {
 		url: String,
 	) -> Result<SimpleResponse, AnyError>;
 }
-
-pub type BoxedHttp = Arc<dyn SimpleHttp + Send + Sync + 'static>;
 
 // Implementation of SimpleHttp that uses a reqwest client.
 #[derive(Clone)]
@@ -173,7 +159,7 @@ impl SimpleHttp for ReqwestSimpleHttp {
 		Ok(SimpleResponse {
 			status_code: res.status(),
 			headers: res.headers().clone(),
-			url: Some(res.url().clone()),
+			url,
 			read: Box::pin(
 				res.bytes_stream()
 					.map_err(|e| futures::io::Error::new(futures::io::ErrorKind::Other, e))
@@ -262,7 +248,7 @@ impl SimpleHttp for DelegatedSimpleHttp {
 			.await;
 
 		if sent.is_err() {
-			return Ok(SimpleResponse::generic_error(&url)); // sender shut down
+			return Ok(SimpleResponse::generic_error(url)); // sender shut down
 		}
 
 		match rx.recv().await {
@@ -287,16 +273,16 @@ impl SimpleHttp for DelegatedSimpleHttp {
 				}
 
 				Ok(SimpleResponse {
-					url: url::Url::parse(&url).ok(),
+					url,
 					status_code: StatusCode::from_u16(status_code)
 						.unwrap_or(StatusCode::INTERNAL_SERVER_ERROR),
 					headers: headers_map,
 					read: Box::pin(DelegatedReader::new(rx)),
 				})
 			}
-			Some(DelegatedHttpEvent::End) => Ok(SimpleResponse::generic_error(&url)),
+			Some(DelegatedHttpEvent::End) => Ok(SimpleResponse::generic_error(url)),
 			Some(_) => panic!("expected initresponse as first message from delegated http"),
-			None => Ok(SimpleResponse::generic_error(&url)), // sender shut down
+			None => Ok(SimpleResponse::generic_error(url)), // sender shut down
 		}
 	}
 }
@@ -338,6 +324,7 @@ impl AsyncRead for DelegatedReader {
 
 /// Simple http implementation that falls back to delegated http if
 /// making a direct reqwest fails.
+#[derive(Clone)]
 pub struct FallbackSimpleHttp {
 	native: ReqwestSimpleHttp,
 	delegated: DelegatedSimpleHttp,

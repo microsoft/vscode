@@ -33,12 +33,12 @@ import { minimapFindMatch, overviewRulerFindMatchForeground } from 'vs/platform/
 import { themeColorFromId } from 'vs/platform/theme/common/themeService';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { FindMatchDecorationModel } from 'vs/workbench/contrib/notebook/browser/contrib/find/findMatchDecorationModel';
-import { CellEditState, CellFindMatchWithIndex, CellWebviewFindMatch, ICellViewModel } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { CellEditState, CellFindMatchWithIndex } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { NotebookEditorWidget } from 'vs/workbench/contrib/notebook/browser/notebookEditorWidget';
 import { INotebookEditorService } from 'vs/workbench/contrib/notebook/browser/services/notebookEditorService';
 import { NotebookCellsChangeType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { IReplaceService } from 'vs/workbench/contrib/search/browser/replace';
-import { ICellMatch, IFileMatchWithCells, contentMatchesToTextSearchMatches, isIFileMatchWithCells, webviewMatchesToTextSearchMatches } from 'vs/workbench/contrib/search/browser/searchNotebookHelpers';
+import { notebookEditorMatchesToTextSearchResults, NotebookMatchInfo, NotebookTextSearchMatch } from 'vs/workbench/contrib/search/browser/searchNotebookHelpers';
 import { ReplacePattern } from 'vs/workbench/services/search/common/replace';
 import { IFileMatch, IPatternInfo, ISearchComplete, ISearchConfigurationProperties, ISearchProgressItem, ISearchRange, ISearchService, ITextQuery, ITextSearchContext, ITextSearchMatch, ITextSearchPreviewOptions, ITextSearchResult, ITextSearchStats, OneLineRange, QueryType, resultIsMatch, SearchCompletionExitCode, SearchSortOrder } from 'vs/workbench/services/search/common/search';
 import { addContextToEditorMatches, editorMatchesToTextSearchResults } from 'vs/workbench/services/search/common/searchHelpers';
@@ -180,127 +180,43 @@ export class Match {
 	}
 }
 
-export class CellMatch {
-	private _contentMatches: Map<string, MatchInNotebook>;
-	private _webviewMatches: Map<string, MatchInNotebook>;
-	private _context: Map<number, string>;
+export class NotebookMatch extends Match {
+	constructor(_parent: FileMatch, _fullPreviewLines: string[], _fullPreviewRange: ISearchRange, _documentRange: ISearchRange, private _notebookMatchInfo: NotebookMatchInfo) {
+		super(_parent, _fullPreviewLines, _fullPreviewRange, _documentRange);
 
-	constructor(
-		private readonly _parent: FileMatch,
-		private readonly _cell: ICellViewModel,
-		private readonly _cellIndex: number,
-	) {
-
-		this._contentMatches = new Map<string, MatchInNotebook>();
-		this._webviewMatches = new Map<string, MatchInNotebook>();
-		this._context = new Map<number, string>();
-	}
-
-	get context(): Map<number, string> {
-		return new Map(this._context);
-	}
-
-	matches() {
-		return [...this._contentMatches.values(), ... this._webviewMatches.values()];
-	}
-
-	get contentMatches(): MatchInNotebook[] {
-		return Array.from(this._contentMatches.values());
-	}
-
-	get webviewMatches(): MatchInNotebook[] {
-		return Array.from(this._webviewMatches.values());
-	}
-
-	remove(matches: MatchInNotebook | MatchInNotebook[]): void {
-		if (!Array.isArray(matches)) {
-			matches = [matches];
-		}
-		for (const match of matches) {
-			this._contentMatches.delete(match.id());
-			this._webviewMatches.delete(match.id());
-		}
-	}
-
-	addContentMatches(textSearchMatches: ITextSearchMatch[]) {
-		const contentMatches = textSearchMatchesToNotebookMatches(textSearchMatches, this);
-		contentMatches.forEach((match) => {
-			this._contentMatches.set(match.id(), match);
-		});
-		this.addContext(textSearchMatches);
-	}
-
-	public addContext(textSearchMatches: ITextSearchMatch[]) {
-		this.cell.resolveTextModel().then((textModel) => {
-			const textResultsWithContext = addContextToEditorMatches(textSearchMatches, textModel, this.parent.parent().query!);
-			const contexts = textResultsWithContext.filter((result => !resultIsMatch(result)) as ((a: any) => a is ITextSearchContext));
-			contexts.map(context => ({ ...context, lineNumber: context.lineNumber + 1 }))
-				.forEach((context) => { this._context.set(context.lineNumber, context.text); });
-		});
-	}
-
-	addWebviewMatches(textSearchMatches: ITextSearchMatch[]) {
-		const webviewMatches = textSearchMatchesToNotebookMatches(textSearchMatches, this);
-		webviewMatches.forEach((match) => {
-			this._webviewMatches.set(match.id(), match);
-		});
-		// TODO: add webview results to context
-	}
-
-
-	get parent(): FileMatch {
-		return this._parent;
-	}
-
-	get id(): string {
-		return this._cell.id;
-	}
-
-	get cellIndex(): number {
-		return this._cellIndex;
-	}
-
-	get cell(): ICellViewModel {
-		return this._cell;
-	}
-
-}
-
-export class MatchInNotebook extends Match {
-	private _webviewIndex: number | undefined;
-
-	constructor(private readonly _cellParent: CellMatch, _fullPreviewLines: string[], _fullPreviewRange: ISearchRange, _documentRange: ISearchRange, webviewIndex?: number) {
-		super(_cellParent.parent, _fullPreviewLines, _fullPreviewRange, _documentRange);
-		this._id = this._parent.id() + '>' + this._cellParent.cellIndex + (webviewIndex ? '_' + webviewIndex : '') + '_' + this.notebookMatchTypeString() + this._range + this.getMatchString();
-		this._webviewIndex = webviewIndex;
-	}
-
-	override parent(): FileMatch { // visible parent in search tree
-		return this._cellParent.parent;
-	}
-
-	get cellParent(): CellMatch {
-		return this._cellParent;
+		this._id = this._parent.id() + '>' + this._notebookMatchInfo.cellIndex + '_' + this.notebookMatchTypeString() + this.getRangeString() + this._range + this.getMatchString();
 	}
 
 	private notebookMatchTypeString(): string {
 		return this.isWebviewMatch() ? 'webview' : 'content';
 	}
 
+	private getRangeString(): string {
+		return `[${this._notebookMatchInfo.matchStartIndex},${this._notebookMatchInfo.matchStartIndex}]`;
+	}
+
 	public isWebviewMatch() {
-		return this._webviewIndex !== undefined;
+		return this._notebookMatchInfo.webviewMatchInfo !== undefined;
 	}
 
 	get cellIndex() {
-		return this._cellParent.cellIndex;
+		return this._notebookMatchInfo.cellIndex;
+	}
+
+	get matchStartIndex() {
+		return this._notebookMatchInfo.matchStartIndex;
+	}
+
+	get matchEndIndex() {
+		return this._notebookMatchInfo.matchEndIndex;
 	}
 
 	get webviewIndex() {
-		return this._webviewIndex;
+		return this._notebookMatchInfo.webviewMatchInfo?.index;
 	}
 
 	get cell() {
-		return this._cellParent.cell;
+		return this._notebookMatchInfo.cell;
 	}
 }
 
@@ -340,7 +256,7 @@ export class FileMatch extends Disposable implements IFileMatch {
 		return (selected ? FileMatch._CURRENT_FIND_MATCH : FileMatch._FIND_MATCH);
 	}
 
-	protected _onChange = this._register(new Emitter<{ didRemove?: boolean; forceUpdateModel?: boolean }>());
+	private _onChange = this._register(new Emitter<{ didRemove?: boolean; forceUpdateModel?: boolean }>());
 	readonly onChange: Event<{ didRemove?: boolean; forceUpdateModel?: boolean }> = this._onChange.event;
 
 	private _onDispose = this._register(new Emitter<void>());
@@ -349,38 +265,23 @@ export class FileMatch extends Disposable implements IFileMatch {
 	private _resource: URI;
 	private _fileStat?: IFileStatWithPartialMetadata;
 	private _model: ITextModel | null = null;
+	private _notebookEditorWidget: NotebookEditorWidget | null = null;
 	private _modelListener: IDisposable | null = null;
-	private _textMatches: Map<string, Match>;
-	private _cellMatches: Map<string, CellMatch>;
-
-	private _removedTextMatches: Set<string>;
+	private _editorWidgetListener: IDisposable | null = null;
+	private _matches: Map<string, Match>;
+	private _removedMatches: Set<string>;
 	private _selectedMatch: Match | null = null;
 	private _name: Lazy<string>;
 
 	private _updateScheduler: RunOnceScheduler;
+	private _notebookUpdateScheduler: RunOnceScheduler;
 	private _modelDecorations: string[] = [];
+	private _findMatchDecorationModel: FindMatchDecorationModel | undefined;
 
 	private _context: Map<number, string> = new Map();
-
 	public get context(): Map<number, string> {
 		return new Map(this._context);
 	}
-
-	public get cellContext(): Map<string, Map<number, string>> {
-		const cellContext = new Map<string, Map<number, string>>();
-		this._cellMatches.forEach(cellMatch => {
-			cellContext.set(cellMatch.id, cellMatch.context);
-		});
-		return cellContext;
-	}
-
-	// #region notebook fields
-	private _notebookEditorWidget: NotebookEditorWidget | null = null;
-	private _editorWidgetListener: IDisposable | null = null;
-	private _notebookUpdateScheduler: RunOnceScheduler;
-	private _findMatchDecorationModel: FindMatchDecorationModel | undefined;
-	private _lastEditorWidgetIdForUpdate: string | undefined;
-	// #endregion
 
 	constructor(
 		private _query: IPatternInfo,
@@ -397,38 +298,12 @@ export class FileMatch extends Disposable implements IFileMatch {
 	) {
 		super();
 		this._resource = this.rawMatch.resource;
-		this._textMatches = new Map<string, Match>();
-		this._removedTextMatches = new Set<string>();
+		this._matches = new Map<string, Match>();
+		this._removedMatches = new Set<string>();
 		this._updateScheduler = new RunOnceScheduler(this.updateMatchesForModel.bind(this), 250);
-		this._name = new Lazy(() => labelService.getUriBasenameLabel(this.resource));
-		this._cellMatches = new Map<string, CellMatch>();
 		this._notebookUpdateScheduler = new RunOnceScheduler(this.updateMatchesForEditorWidget.bind(this), 250);
+		this._name = new Lazy(() => labelService.getUriBasenameLabel(this.resource));
 		this.createMatches();
-	}
-
-	addWebviewMatchesToCell(cellID: string, webviewMatches: ITextSearchMatch[]) {
-		const cellMatch = this.getCellMatch(cellID);
-		if (cellMatch !== undefined) {
-			cellMatch.addWebviewMatches(webviewMatches);
-		}
-	}
-
-	addContentMatchesToCell(cellID: string, contentMatches: ITextSearchMatch[]) {
-		const cellMatch = this.getCellMatch(cellID);
-		if (cellMatch !== undefined) {
-			cellMatch.addContentMatches(contentMatches);
-		}
-	}
-
-	getCellMatch(cellID: string): CellMatch | undefined {
-		return this._cellMatches.get(cellID);
-	}
-
-	addCellMatch(rawCell: ICellMatch) {
-		const cellMatch = new CellMatch(this, rawCell.cell, rawCell.index);
-		this._cellMatches.set(cellMatch.id, cellMatch);
-		this.addWebviewMatchesToCell(rawCell.cell.id, rawCell.webviewResults);
-		this.addContentMatchesToCell(rawCell.cell.id, rawCell.contentResults);
 	}
 
 	get closestRoot(): FolderMatchWorkspaceRoot | null {
@@ -436,35 +311,25 @@ export class FileMatch extends Disposable implements IFileMatch {
 	}
 
 	hasWebviewMatches(): boolean {
-		return this.matches().some(m => m instanceof MatchInNotebook && m.isWebviewMatch());
+		return this.matches().some(m => m instanceof NotebookMatch && m.isWebviewMatch());
 	}
-
-	createMatches(): void {
+	private async createMatches(): Promise<void> {
 		const model = this.modelService.getModel(this._resource);
-		if (model) {
+		const experimentalNotebooksEnabled = this.configurationService.getValue<ISearchConfigurationProperties>('search').experimental.notebookSearch;
+		const notebookEditorWidgetBorrow = experimentalNotebooksEnabled ? this.notebookEditorService.retrieveExistingWidgetFromURI(this._resource) : undefined;
+		if (notebookEditorWidgetBorrow?.value) {
+			await this.bindNotebookEditorWidget(notebookEditorWidgetBorrow.value);
+		} else if (model) {
 			this.bindModel(model);
 			this.updateMatchesForModel();
 		} else {
-			const experimentalNotebooksEnabled = this.configurationService.getValue<ISearchConfigurationProperties>('search').experimental.notebookSearch;
-			const notebookEditorWidgetBorrow = experimentalNotebooksEnabled ? this.notebookEditorService.retrieveExistingWidgetFromURI(this.resource) : undefined;
+			this.rawMatch.results!
+				.filter(resultIsMatch)
+				.forEach(rawMatch => {
+					textSearchResultToMatches(rawMatch, this)
+						.forEach(m => this.add(m));
+				});
 
-			if (notebookEditorWidgetBorrow?.value) {
-				this.bindNotebookEditorWidget(notebookEditorWidgetBorrow.value);
-			}
-			if (this.rawMatch.results) {
-				this.rawMatch.results
-					.filter(resultIsMatch)
-					.forEach(rawMatch => {
-						textSearchResultToMatches(rawMatch, this)
-							.forEach(m => this.add(m));
-					});
-			}
-
-			if (isIFileMatchWithCells(this.rawMatch)) {
-				this.rawMatch.cellResults?.forEach(cell => this.addCellMatch(cell));
-				this.setNotebookFindMatchDecorationsUsingCellMatches(this.cellMatches());
-				this._onChange.fire({ forceUpdateModel: true });
-			}
 			this.addContext(this.rawMatch.results);
 		}
 	}
@@ -495,13 +360,52 @@ export class FileMatch extends Disposable implements IFileMatch {
 		}
 	}
 
+	async bindNotebookEditorWidget(widget: NotebookEditorWidget) {
+
+		if (this._notebookEditorWidget === widget) {
+			// ensure that the matches are up to date, but everything else should be configured already.
+			// TODO: try to reduce calls that occur when the notebook hasn't loaded yet
+			await this.updateMatchesForEditorWidget();
+			return;
+		}
+
+		this._notebookEditorWidget = widget;
+
+		this._editorWidgetListener = this._notebookEditorWidget.textModel?.onDidChangeContent((e) => {
+			if (!e.rawEvents.some(event => event.kind === NotebookCellsChangeType.ChangeCellContent || event.kind === NotebookCellsChangeType.ModelChange)) {
+				return;
+			}
+			this._notebookUpdateScheduler.schedule();
+		}) ?? null;
+		await this.updateMatchesForEditorWidget();
+	}
+
+	unbindNotebookEditorWidget(widget?: NotebookEditorWidget) {
+		if (widget && this._notebookEditorWidget !== widget) {
+			return;
+		}
+
+		if (this._notebookEditorWidget) {
+			this._notebookUpdateScheduler.cancel();
+			this._findMatchDecorationModel?.dispose();
+			this._findMatchDecorationModel = undefined;
+			this._editorWidgetListener?.dispose();
+		}
+
+		if (this._findMatchDecorationModel) {
+			this._findMatchDecorationModel?.dispose();
+			this._findMatchDecorationModel = undefined;
+		}
+		this._notebookEditorWidget = null;
+	}
+
 	private updateMatchesForModel(): void {
 		// this is called from a timeout and might fire
 		// after the model has been disposed
 		if (!this._model) {
 			return;
 		}
-		this._textMatches = new Map<string, Match>();
+		this._matches = new Map<string, Match>();
 
 		const wordSeparators = this._query.isWordMatch && this._query.wordSeparators ? this._query.wordSeparators : null;
 		const matches = this._model
@@ -510,9 +414,33 @@ export class FileMatch extends Disposable implements IFileMatch {
 		this.updateMatches(matches, true, this._model);
 	}
 
+	private async updateMatchesForEditorWidget(): Promise<void> {
+		if (!this._notebookEditorWidget) {
+			return;
+		}
 
+		this._findMatchDecorationModel?.dispose();
+		this._findMatchDecorationModel = new FindMatchDecorationModel(this._notebookEditorWidget);
 
-	protected async updatesMatchesForLineAfterReplace(lineNumber: number, modelChange: boolean): Promise<void> {
+		this._matches = new Map<string, Match>();
+
+		const wordSeparators = this._query.isWordMatch && this._query.wordSeparators ? this._query.wordSeparators : null;
+		const allMatches = await this._notebookEditorWidget
+			.find(this._query.pattern, {
+				regex: this._query.isRegExp,
+				wholeWord: this._query.isWordMatch,
+				caseSensitive: this._query.isCaseSensitive,
+				wordSeparators: wordSeparators ?? undefined,
+				includeMarkupInput: this._query.notebookInfo?.isInNotebookMarkdownInput,
+				includeMarkupPreview: !this._query.notebookInfo?.isInNotebookMarkdownInput,
+				includeCodeInput: this._query.notebookInfo?.isInNotebookCellInput,
+				includeOutput: this._query.notebookInfo?.isInNotebookCellOutput,
+			}, CancellationToken.None, false, true);
+
+		this.updateNotebookMatches(allMatches, true);
+	}
+
+	private async updatesMatchesForLineAfterReplace(lineNumber: number, modelChange: boolean): Promise<void> {
 		if (!this._model) {
 			return;
 		}
@@ -522,23 +450,37 @@ export class FileMatch extends Disposable implements IFileMatch {
 			endLineNumber: lineNumber,
 			endColumn: this._model.getLineMaxColumn(lineNumber)
 		};
-		const oldMatches = Array.from(this._textMatches.values()).filter(match => match.range().startLineNumber === lineNumber);
-		oldMatches.forEach(match => this._textMatches.delete(match.id()));
+		const oldMatches = Array.from(this._matches.values()).filter(match => match.range().startLineNumber === lineNumber);
+		oldMatches.forEach(match => this._matches.delete(match.id()));
 
 		const wordSeparators = this._query.isWordMatch && this._query.wordSeparators ? this._query.wordSeparators : null;
 		const matches = this._model.findMatches(this._query.pattern, range, !!this._query.isRegExp, !!this._query.isCaseSensitive, wordSeparators, false, this._maxResults ?? Number.MAX_SAFE_INTEGER);
 		this.updateMatches(matches, modelChange, this._model);
-
-		// await this.updateMatchesForEditorWidget();
+		await this.updateMatchesForEditorWidget();
 	}
 
+	private updateNotebookMatches(matches: CellFindMatchWithIndex[], modelChange: boolean): void {
+		const textSearchResults = notebookEditorMatchesToTextSearchResults(matches, this._previewOptions);
+		textSearchResults.forEach(textSearchResult => {
+			textSearchResultToNotebookMatches(textSearchResult, this).forEach(match => {
+				if (!this._removedMatches.has(match.id())) {
+					this.add(match);
+					if (this.isMatchSelected(match)) {
+						this._selectedMatch = match;
+					}
+				}
+			});
+		});
 
+		this._findMatchDecorationModel?.setAllFindMatchesDecorations(matches);
+		this._onChange.fire({ forceUpdateModel: modelChange });
+	}
 
 	private updateMatches(matches: FindMatch[], modelChange: boolean, model: ITextModel): void {
 		const textSearchResults = editorMatchesToTextSearchResults(matches, model, this._previewOptions);
 		textSearchResults.forEach(textSearchResult => {
 			textSearchResultToMatches(textSearchResult, this).forEach(match => {
-				if (!this._removedTextMatches.has(match.id())) {
+				if (!this._removedMatches.has(match.id())) {
 					this.add(match);
 					if (this.isMatchSelected(match)) {
 						this._selectedMatch = match;
@@ -583,16 +525,7 @@ export class FileMatch extends Disposable implements IFileMatch {
 	}
 
 	matches(): Match[] {
-		const cellMatches: MatchInNotebook[] = Array.from(this._cellMatches.values()).flatMap((e) => e.matches());
-		return [...this._textMatches.values(), ...cellMatches];
-	}
-
-	textMatches(): Match[] {
-		return Array.from(this._textMatches.values());
-	}
-
-	cellMatches(): CellMatch[] {
-		return Array.from(this._cellMatches.values());
+		return Array.from(this._matches.values());
 	}
 
 	remove(matches: Match | Match[]): void {
@@ -602,7 +535,7 @@ export class FileMatch extends Disposable implements IFileMatch {
 
 		for (const match of matches) {
 			this.removeMatch(match);
-			this._removedTextMatches.add(match.id());
+			this._removedMatches.add(match.id());
 		}
 
 		this._onChange.fire({ didRemove: true });
@@ -618,7 +551,7 @@ export class FileMatch extends Disposable implements IFileMatch {
 
 	setSelectedMatch(match: Match | null): void {
 		if (match) {
-			if (!this._textMatches.has(match.id())) {
+			if (!this._matches.has(match.id())) {
 				return;
 			}
 			if (this.isMatchSelected(match)) {
@@ -653,38 +586,24 @@ export class FileMatch extends Disposable implements IFileMatch {
 	addContext(results: ITextSearchResult[] | undefined) {
 		if (!results) { return; }
 
-		const contexts = results
-			.filter((result =>
-				!resultIsMatch(result)) as ((a: any) => a is ITextSearchContext));
-
-		return contexts.forEach(context => this._context.set(context.lineNumber, context.text));
+		results
+			.filter((result => !resultIsMatch(result)) as ((a: any) => a is ITextSearchContext))
+			.forEach(context => this._context.set(context.lineNumber, context.text));
 	}
 
 	add(match: Match, trigger?: boolean) {
-		this._textMatches.set(match.id(), match);
+		this._matches.set(match.id(), match);
 		if (trigger) {
 			this._onChange.fire({ forceUpdateModel: true });
 		}
 	}
 
 	private removeMatch(match: Match) {
-
-		if (match instanceof MatchInNotebook) {
-			match.cellParent.remove(match);
-			if (match.cellParent.matches().length === 0) {
-				this._cellMatches.delete(match.cellParent.id);
-			}
-		} else {
-			this._textMatches.delete(match.id());
-		}
+		this._matches.delete(match.id());
 		if (this.isMatchSelected(match)) {
 			this.setSelectedMatch(null);
-			this._findMatchDecorationModel?.clearCurrentFindMatchDecoration();
 		} else {
 			this.updateHighlights();
-		}
-		if (match instanceof MatchInNotebook) {
-			this.setNotebookFindMatchDecorationsUsingCellMatches(this.cellMatches());
 		}
 	}
 
@@ -708,121 +627,12 @@ export class FileMatch extends Disposable implements IFileMatch {
 		super.dispose();
 	}
 
-	// #region strictly notebook methods
-	bindNotebookEditorWidget(widget: NotebookEditorWidget) {
-		if (this._notebookEditorWidget === widget) {
-			return;
-		}
-
-		this._notebookEditorWidget = widget;
-
-		this._editorWidgetListener = this._notebookEditorWidget.textModel?.onDidChangeContent((e) => {
-			if (!e.rawEvents.some(event => event.kind === NotebookCellsChangeType.ChangeCellContent || event.kind === NotebookCellsChangeType.ModelChange)) {
-				return;
-			}
-			this._notebookUpdateScheduler.schedule();
-		}) ?? null;
-
-		this._findMatchDecorationModel?.dispose();
-		this._findMatchDecorationModel = new FindMatchDecorationModel(this._notebookEditorWidget);
-	}
-
-	unbindNotebookEditorWidget(widget?: NotebookEditorWidget) {
-		if (widget && this._notebookEditorWidget !== widget) {
-			return;
-		}
-
-		if (this._notebookEditorWidget) {
-			this._notebookUpdateScheduler.cancel();
-			this._findMatchDecorationModel?.dispose();
-			this._findMatchDecorationModel = undefined;
-			this._editorWidgetListener?.dispose();
-		}
-
-		if (this._findMatchDecorationModel) {
-			this._findMatchDecorationModel?.dispose();
-			this._findMatchDecorationModel = undefined;
-		}
-		this._notebookEditorWidget = null;
-	}
-	private updateNotebookMatches(matches: CellFindMatchWithIndex[], modelChange: boolean): void {
-
-		if (!this._notebookEditorWidget) {
-			return;
-		}
-
-		if (this._notebookEditorWidget.getId() !== this._lastEditorWidgetIdForUpdate) {
-			this._cellMatches.clear();
-			this._lastEditorWidgetIdForUpdate = this._notebookEditorWidget.getId();
-		}
-
-		matches.forEach(match => {
-			let cell = this._cellMatches.get(match.cell.id);
-			if (!cell) {
-				cell = new CellMatch(this, match.cell, match.index);
-			}
-			cell.addContentMatches(contentMatchesToTextSearchMatches(match.contentMatches, match.cell));
-			cell.addWebviewMatches(webviewMatchesToTextSearchMatches(match.webviewMatches));
-			this._cellMatches.set(cell.id, cell);
-
-		});
-
-		this._findMatchDecorationModel?.setAllFindMatchesDecorations(matches);
-		this._onChange.fire({ forceUpdateModel: modelChange });
-	}
-
-	private setNotebookFindMatchDecorationsUsingCellMatches(cells: CellMatch[]): void {
-		if (!this._findMatchDecorationModel) {
-			return;
-		}
-		const cellFindMatch: CellFindMatchWithIndex[] = cells.map((cell) => {
-			const webviewMatches: CellWebviewFindMatch[] = cell.webviewMatches.map(match => {
-				return <CellWebviewFindMatch>{
-					index: match.webviewIndex,
-				};
-			});
-			const findMatches: FindMatch[] = cell.contentMatches.map(match => {
-				return new FindMatch(match.range(), [match.text()]);
-			});
-			return <CellFindMatchWithIndex>{
-				cell: cell.cell,
-				index: cell.cellIndex,
-				contentMatches: findMatches,
-				webviewMatches: webviewMatches
-			};
-		});
-		this._findMatchDecorationModel.setAllFindMatchesDecorations(cellFindMatch);
-	}
-	async updateMatchesForEditorWidget(): Promise<void> {
-		if (!this._notebookEditorWidget) {
-			return;
-		}
-
-		this._textMatches = new Map<string, Match>();
-
-		const wordSeparators = this._query.isWordMatch && this._query.wordSeparators ? this._query.wordSeparators : null;
-		const allMatches = await this._notebookEditorWidget
-			.find(this._query.pattern, {
-				regex: this._query.isRegExp,
-				wholeWord: this._query.isWordMatch,
-				caseSensitive: this._query.isCaseSensitive,
-				wordSeparators: wordSeparators ?? undefined,
-				includeMarkupInput: this._query.notebookInfo?.isInNotebookMarkdownInput,
-				includeMarkupPreview: !this._query.notebookInfo?.isInNotebookMarkdownInput,
-				includeCodeInput: this._query.notebookInfo?.isInNotebookCellInput,
-				includeOutput: this._query.notebookInfo?.isInNotebookCellOutput,
-			}, CancellationToken.None, false, true);
-
-		this.updateNotebookMatches(allMatches, true);
-	}
-
-	public async showMatch(match: MatchInNotebook) {
+	public async showMatch(match: NotebookMatch) {
 		const offset = await this.highlightCurrentFindMatchDecoration(match);
-		this.setSelectedMatch(match);
 		this.revealCellRange(match, offset);
 	}
 
-	private async highlightCurrentFindMatchDecoration(match: MatchInNotebook): Promise<number | null> {
+	private async highlightCurrentFindMatchDecoration(match: NotebookMatch): Promise<number | null> {
 		if (!this._findMatchDecorationModel) {
 			return null;
 		}
@@ -833,7 +643,7 @@ export class FileMatch extends Disposable implements IFileMatch {
 		}
 	}
 
-	private revealCellRange(match: MatchInNotebook, outputOffset: number | null) {
+	private revealCellRange(match: NotebookMatch, outputOffset: number | null) {
 		if (!this._notebookEditorWidget) {
 			return;
 		}
@@ -848,8 +658,6 @@ export class FileMatch extends Disposable implements IFileMatch {
 			this._notebookEditorWidget.revealRangeInCenterIfOutsideViewportAsync(match.cell, match.range());
 		}
 	}
-
-	//#endregion
 }
 
 export interface IChangeEvent {
@@ -949,8 +757,7 @@ export class FolderMatch extends Disposable {
 		const fileMatch = this._fileMatches.get(resource);
 
 		if (fileMatch) {
-			fileMatch.bindNotebookEditorWidget(editor);
-			await fileMatch.updateMatchesForEditorWidget();
+			await fileMatch.bindNotebookEditorWidget(editor);
 		} else {
 			const folderMatches = this.folderMatchesIterator();
 			for (const elem of folderMatches) {
@@ -1090,20 +897,6 @@ export class FolderMatch extends Disposable {
 						textSearchResultToMatches(m, existingFileMatch)
 							.forEach(m => existingFileMatch.add(m));
 					});
-
-				// add cell matches
-				if (isIFileMatchWithCells(rawFileMatch)) {
-					rawFileMatch.cellResults?.forEach(rawCellMatch => {
-						const existingCellMatch = existingFileMatch.getCellMatch(rawCellMatch.cell.id);
-						if (existingCellMatch) {
-							existingCellMatch.addContentMatches(rawCellMatch.contentResults);
-							existingCellMatch.addContentMatches(rawCellMatch.webviewResults);
-						} else {
-							existingFileMatch.addCellMatch(rawCellMatch);
-						}
-					});
-				}
-
 				updated.push(existingFileMatch);
 
 				existingFileMatch.addContext(rawFileMatch.results);
@@ -1271,7 +1064,7 @@ export class FolderMatchWorkspaceRoot extends FolderMatchWithResource {
 		@IInstantiationService instantiationService: IInstantiationService,
 		@ILabelService labelService: ILabelService,
 		@IUriIdentityService uriIdentityService: IUriIdentityService,
-		@ILogService private readonly _logService: ILogService
+		@ILogService private readonly _logService: ILogService,
 	) {
 		super(_resource, _id, _index, _query, _parent, _searchModel, null, replaceService, instantiationService, labelService, uriIdentityService);
 	}
@@ -1285,16 +1078,7 @@ export class FolderMatchWorkspaceRoot extends FolderMatchWithResource {
 	}
 
 	private createFileMatch(query: IPatternInfo, previewOptions: ITextSearchPreviewOptions | undefined, maxResults: number | undefined, parent: FolderMatch, rawFileMatch: IFileMatch, closestRoot: FolderMatchWorkspaceRoot | null,): FileMatch {
-		const fileMatch =
-			this.instantiationService.createInstance(
-				FileMatch,
-				query,
-				previewOptions,
-				maxResults,
-				parent,
-				rawFileMatch,
-				closestRoot
-			);
+		const fileMatch = this.instantiationService.createInstance(FileMatch, query, previewOptions, maxResults, parent, rawFileMatch, closestRoot);
 		parent.doAddFile(fileMatch);
 		const disposable = fileMatch.onChange(({ didRemove }) => parent.onFileChange(fileMatch, didRemove));
 		fileMatch.onDispose(() => disposable.dispose());
@@ -1357,20 +1141,13 @@ export class FolderMatchNoRoot extends FolderMatch {
 		@IReplaceService replaceService: IReplaceService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@ILabelService labelService: ILabelService,
-		@IUriIdentityService uriIdentityService: IUriIdentityService,
-
+		@IUriIdentityService uriIdentityService: IUriIdentityService
 	) {
 		super(null, _id, _index, _query, _parent, _searchModel, null, replaceService, instantiationService, labelService, uriIdentityService);
 	}
 
 	createAndConfigureFileMatch(rawFileMatch: IFileMatch): FileMatch {
-		const fileMatch = this.instantiationService.createInstance(
-			FileMatch,
-			this._query.contentPattern,
-			this._query.previewOptions,
-			this._query.maxResults,
-			this, rawFileMatch,
-			null);
+		const fileMatch = this.instantiationService.createInstance(FileMatch, this._query.contentPattern, this._query.previewOptions, this._query.maxResults, this, rawFileMatch, null);
 		this.doAddFile(fileMatch);
 		const disposable = fileMatch.onChange(({ didRemove }) => this.onFileChange(fileMatch, didRemove));
 		fileMatch.onDispose(() => disposable.dispose());
@@ -1443,7 +1220,7 @@ export function searchMatchComparer(elementA: RenderableMatch, elementB: Rendera
 		}
 	}
 
-	if (elementA instanceof MatchInNotebook && elementB instanceof MatchInNotebook) {
+	if (elementA instanceof NotebookMatch && elementB instanceof NotebookMatch) {
 		return compareNotebookPos(elementA, elementB);
 	}
 
@@ -1454,13 +1231,19 @@ export function searchMatchComparer(elementA: RenderableMatch, elementB: Rendera
 	return 0;
 }
 
-export function compareNotebookPos(match1: MatchInNotebook, match2: MatchInNotebook): number {
+export function compareNotebookPos(match1: NotebookMatch, match2: NotebookMatch): number {
 	if (match1.cellIndex === match2.cellIndex) {
 
 		if (match1.webviewIndex !== undefined && match2.webviewIndex !== undefined) {
 			return match1.webviewIndex - match2.webviewIndex;
 		} else if (match1.webviewIndex === undefined && match2.webviewIndex === undefined) {
-			return Range.compareRangesUsingStarts(match1.range(), match2.range());
+			if (match1.matchStartIndex === match2.matchStartIndex) {
+				return match1.matchEndIndex - match2.matchEndIndex;
+			} else if (match1.matchStartIndex < match2.matchStartIndex) {
+				return -1;
+			} else {
+				return 1;
+			}
 		} else {
 			// webview matches should always be after content matches
 			if (match1.webviewIndex !== undefined) {
@@ -1958,8 +1741,8 @@ export class SearchModel extends Disposable {
 		return this._searchResult;
 	}
 
-	private async getLocalNotebookResults(query: ITextQuery, token: CancellationToken): Promise<{ results: ResourceMap<IFileMatchWithCells | null>; limitHit: boolean }> {
-		const localResults = new ResourceMap<IFileMatchWithCells | null>(uri => this.uriIdentityService.extUri.getComparisonKey(uri));
+	private async getLocalNotebookResults(query: ITextQuery, token: CancellationToken): Promise<{ results: ResourceMap<IFileMatch | null>; limitHit: boolean }> {
+		const localResults = new ResourceMap<IFileMatch | null>(uri => this.uriIdentityService.extUri.getComparisonKey(uri));
 		let limitHit = false;
 
 		if (query.type === QueryType.Text) {
@@ -1988,20 +1771,7 @@ export class SearchModel extends Disposable {
 						limitHit = true;
 						matches = matches.slice(0, askMax - 1);
 					}
-					const cellResults: ICellMatch[] = matches.map(match => {
-						const contentResults = contentMatchesToTextSearchMatches(match.contentMatches, match.cell);
-						const webviewResults = webviewMatchesToTextSearchMatches(match.webviewMatches);
-						return {
-							cell: match.cell,
-							index: match.index,
-							contentResults: contentResults,
-							webviewResults: webviewResults,
-						};
-					});
-
-					const fileMatch: IFileMatchWithCells = {
-						resource: widget.viewModel.uri, cellResults: cellResults
-					};
+					const fileMatch = { resource: widget.viewModel.uri, results: notebookEditorMatchesToTextSearchResults(matches, query.previewOptions) };
 					localResults.set(widget.viewModel.uri, fileMatch);
 				} else {
 					localResults.set(widget.viewModel.uri, null);
@@ -2307,25 +2077,19 @@ function textSearchResultToMatches(rawMatch: ITextSearchMatch, fileMatch: FileMa
 	}
 }
 
-// text search to notebook matches
+function textSearchResultToNotebookMatches(rawMatch: NotebookTextSearchMatch, fileMatch: FileMatch): NotebookMatch[] {
+	const previewLines = rawMatch.preview.text.split('\n');
+	if (Array.isArray(rawMatch.ranges)) {
 
-export function textSearchMatchesToNotebookMatches(textSearchMatches: ITextSearchMatch[], cell: CellMatch): MatchInNotebook[] {
-	const notebookMatches: MatchInNotebook[] = [];
-	textSearchMatches.map((textSearchMatch) => {
-		const previewLines = textSearchMatch.preview.text.split('\n');
-		if (Array.isArray(textSearchMatch.ranges)) {
-			textSearchMatch.ranges.forEach((r, i) => {
-				const previewRange: ISearchRange = (<ISearchRange[]>textSearchMatch.preview.matches)[i];
-				const match = new MatchInNotebook(cell, previewLines, previewRange, r, textSearchMatch.webviewIndex);
-				notebookMatches.push(match);
-			});
-		} else {
-			const previewRange = <ISearchRange>textSearchMatch.preview.matches;
-			const match = new MatchInNotebook(cell, previewLines, previewRange, textSearchMatch.ranges, textSearchMatch.webviewIndex);
-			notebookMatches.push(match);
-		}
-	});
-	return notebookMatches;
+		return rawMatch.ranges.map((r, i) => {
+			const previewRange: ISearchRange = (<ISearchRange[]>rawMatch.preview.matches)[i];
+			return new NotebookMatch(fileMatch, previewLines, previewRange, r, rawMatch.notebookMatchInfo);
+		});
+	} else {
+		const previewRange = <ISearchRange>rawMatch.preview.matches;
+		const match = new NotebookMatch(fileMatch, previewLines, previewRange, rawMatch.ranges, rawMatch.notebookMatchInfo);
+		return [match];
+	}
 }
 
 export function arrayContainsElementOrParent(element: RenderableMatch, testArray: RenderableMatch[]): boolean {

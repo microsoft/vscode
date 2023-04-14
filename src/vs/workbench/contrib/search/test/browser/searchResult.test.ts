@@ -5,7 +5,7 @@
 import * as assert from 'assert';
 import * as sinon from 'sinon';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
-import { Match, FileMatch, SearchResult, SearchModel, FolderMatch, CellMatch } from 'vs/workbench/contrib/search/browser/searchModel';
+import { Match, FileMatch, SearchResult, SearchModel, FolderMatch } from 'vs/workbench/contrib/search/browser/searchModel';
 import { URI } from 'vs/base/common/uri';
 import { IFileMatch, TextSearchMatch, OneLineRange, ITextSearchMatch, QueryType } from 'vs/workbench/services/search/common/search';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -29,9 +29,9 @@ import { INotebookEditorService } from 'vs/workbench/contrib/notebook/browser/se
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { TestEditorGroupsService } from 'vs/workbench/test/browser/workbenchTestServices';
 import { NotebookEditorWidgetService } from 'vs/workbench/contrib/notebook/browser/services/notebookEditorServiceImpl';
-import { ICellMatch, IFileMatchWithCells } from 'vs/workbench/contrib/search/browser/searchNotebookHelpers';
-import { ICellViewModel } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { NotebookTextSearchMatch } from 'vs/workbench/contrib/search/browser/searchNotebookHelpers';
 import { CellKind } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { ICellViewModel } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 
 const lineOneRange = new OneLineRange(1, 0, 1);
 
@@ -225,40 +225,33 @@ suite('SearchResult', () => {
 
 	test('Adding multiple raw notebook matches', function () {
 		const testObject = aSearchResult();
-		const modelTarget = instantiationService.spy(IModelService, 'getModel');
-		const cell1 = { cellKind: CellKind.Code } as ICellViewModel;
-		const cell2 = { cellKind: CellKind.Code } as ICellViewModel;
 
-		sinon.stub(CellMatch.prototype, 'addContext');
+		const modelTarget = instantiationService.spy(IModelService, 'getModel');
+		const cell = { cellKind: CellKind.Code } as ICellViewModel;
 		const target = [
-			aRawFileMatchWithCells('/1',
-				{
-					cell: cell1,
-					index: 0,
-					contentResults: [
-						new TextSearchMatch('preview 1', new OneLineRange(1, 1, 4)),
-					],
-					webviewResults: [
-						new TextSearchMatch('preview 1', new OneLineRange(1, 4, 11)),
-						new TextSearchMatch('preview 2', lineOneRange)
-					]
-				},),
-			aRawFileMatchWithCells('/2',
-				{
-					cell: cell2,
-					index: 0,
-					contentResults: [
-						new TextSearchMatch('preview 1', new OneLineRange(1, 1, 4)),
-					],
-					webviewResults: [
-						new TextSearchMatch('preview 1', new OneLineRange(1, 4, 11)),
-						new TextSearchMatch('preview 2', lineOneRange)
-					]
-				})
-		];
+			aRawMatch('/1',
+				new NotebookTextSearchMatch('preview 1', new OneLineRange(1, 1, 4), {
+					cellIndex: 0,
+					matchStartIndex: 0,
+					matchEndIndex: 1,
+					cell,
+				}),
+				new NotebookTextSearchMatch('preview 1', new OneLineRange(1, 4, 11), {
+					cellIndex: 0,
+					matchStartIndex: 0,
+					matchEndIndex: 1,
+					cell,
+				})),
+			aRawMatch('/2',
+				new NotebookTextSearchMatch('preview 2', lineOneRange, {
+					cellIndex: 0,
+					matchStartIndex: 0,
+					matchEndIndex: 1,
+					cell,
+				}))];
 
 		testObject.add(target);
-		assert.strictEqual(6, testObject.count());
+		assert.strictEqual(3, testObject.count());
 
 		// when a model is binded, the results are queried once again.
 		assert.ok(modelTarget.calledTwice);
@@ -549,13 +542,6 @@ suite('SearchResult', () => {
 
 	function aRawMatch(resource: string, ...results: ITextSearchMatch[]): IFileMatch {
 		return { resource: createFileUriFromPathFromRoot(resource), results };
-	}
-
-	function aRawFileMatchWithCells(resource: string, ...cellMatches: ICellMatch[]): IFileMatchWithCells {
-		return {
-			resource: createFileUriFromPathFromRoot(resource),
-			cellResults: cellMatches
-		};
 	}
 
 	function stubModelService(instantiationService: TestInstantiationService): IModelService {

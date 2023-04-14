@@ -4,8 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./accessibilityHelp';
-import { $, addStandardDisposableListener, append, clearNode, } from 'vs/base/browser/dom';
+import * as dom from 'vs/base/browser/dom';
 import { FastDomNode, createFastDomNode } from 'vs/base/browser/fastDomNode';
+import { renderFormattedText } from 'vs/base/browser/formattedTextRenderer';
 import { alert } from 'vs/base/browser/ui/aria/aria';
 import { Widget } from 'vs/base/browser/ui/widget';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
@@ -118,18 +119,11 @@ class AccessibilityHelpWidget extends Widget implements IOverlayWidget {
 		this._domNode.setClassName('accessibilityHelpWidget');
 		this._domNode.setDisplay('none');
 		this._domNode.setAttribute('role', 'dialog');
-		this._domNode.setAttribute('aria-modal', 'true');
 		this._domNode.setAttribute('aria-hidden', 'true');
-
-		const heading = append(this._domNode.domNode, $('h1', undefined, AccessibilityHelpNLS.accessibilityHelpTitle));
-		heading.id = 'help-dialog-heading';
-		this._domNode.setAttribute('aria-labelledby', heading.id);
 
 		this._contentDomNode = createFastDomNode(document.createElement('div'));
 		this._contentDomNode.setAttribute('role', 'document');
-		this._contentDomNode.domNode.id = 'help-dialog-content';
 		this._domNode.appendChild(this._contentDomNode);
-		this._contentDomNode.setAttribute('aria-describedby', this._contentDomNode.domNode.id);
 
 		this._isVisible = false;
 
@@ -140,7 +134,7 @@ class AccessibilityHelpWidget extends Widget implements IOverlayWidget {
 		}));
 
 		// Intentionally not configurable!
-		this._register(addStandardDisposableListener(this._contentDomNode.domNode, 'keydown', (e) => {
+		this._register(dom.addStandardDisposableListener(this._contentDomNode.domNode, 'keydown', (e) => {
 			if (!this._isVisible) {
 				return;
 			}
@@ -152,7 +146,7 @@ class AccessibilityHelpWidget extends Widget implements IOverlayWidget {
 					accessibilitySupport: 'on'
 				});
 
-				clearNode(this._contentDomNode.domNode);
+				dom.clearNode(this._contentDomNode.domNode);
 				this._buildContent();
 				this._contentDomNode.domNode.focus();
 
@@ -223,7 +217,6 @@ class AccessibilityHelpWidget extends Widget implements IOverlayWidget {
 	}
 
 	private _buildContent() {
-		const contentDomNode = this._contentDomNode.domNode;
 		const options = this._editor.getOptions();
 
 		const selections = this._editor.getSelections();
@@ -238,24 +231,22 @@ class AccessibilityHelpWidget extends Widget implements IOverlayWidget {
 			}
 		}
 
-		append(contentDomNode, $('p', undefined, getSelectionLabel(selections, charactersSelected)));
-		const top = append(contentDomNode, $('p'));
+		let text = getSelectionLabel(selections, charactersSelected);
 
 		if (options.get(EditorOption.inDiffEditor)) {
 			if (options.get(EditorOption.readOnly)) {
-				top.textContent = AccessibilityHelpNLS.readonlyDiffEditor;
+				text += AccessibilityHelpNLS.readonlyDiffEditor;
 			} else {
-				top.textContent = AccessibilityHelpNLS.editableDiffEditor;
+				text += AccessibilityHelpNLS.editableDiffEditor;
 			}
 		} else {
 			if (options.get(EditorOption.readOnly)) {
-				top.textContent = AccessibilityHelpNLS.readonlyEditor;
+				text += AccessibilityHelpNLS.readonlyEditor;
 			} else {
-				top.textContent = AccessibilityHelpNLS.editableEditor;
+				text += AccessibilityHelpNLS.editableEditor;
 			}
 		}
 
-		const instructions = append(contentDomNode, $('ul'));
 		const turnOnMessage = (
 			platform.isMacintosh
 				? AccessibilityHelpNLS.changeConfigToOnMac
@@ -263,20 +254,22 @@ class AccessibilityHelpWidget extends Widget implements IOverlayWidget {
 		);
 		switch (options.get(EditorOption.accessibilitySupport)) {
 			case AccessibilitySupport.Unknown:
-				append(instructions, $('li', undefined, turnOnMessage));
+				text += '\n\n - ' + turnOnMessage;
 				break;
 			case AccessibilitySupport.Enabled:
-				append(instructions, $('li', undefined, AccessibilityHelpNLS.auto_on));
+				text += '\n\n - ' + AccessibilityHelpNLS.auto_on;
 				break;
 			case AccessibilitySupport.Disabled:
-				append(instructions, $('li', undefined, AccessibilityHelpNLS.auto_off, turnOnMessage));
+				text += '\n\n - ' + AccessibilityHelpNLS.auto_off;
+				text += ' ' + turnOnMessage;
 				break;
 		}
 
+
 		if (options.get(EditorOption.tabFocusMode)) {
-			append(instructions, $('li', undefined, this._descriptionForCommand(ToggleTabFocusModeAction.ID, AccessibilityHelpNLS.tabFocusModeOnMsg, AccessibilityHelpNLS.tabFocusModeOnMsgNoKb)));
+			text += '\n\n - ' + this._descriptionForCommand(ToggleTabFocusModeAction.ID, AccessibilityHelpNLS.tabFocusModeOnMsg, AccessibilityHelpNLS.tabFocusModeOnMsgNoKb);
 		} else {
-			append(instructions, $('li', undefined, this._descriptionForCommand(ToggleTabFocusModeAction.ID, AccessibilityHelpNLS.tabFocusModeOffMsg, AccessibilityHelpNLS.tabFocusModeOffMsgNoKb)));
+			text += '\n\n - ' + this._descriptionForCommand(ToggleTabFocusModeAction.ID, AccessibilityHelpNLS.tabFocusModeOffMsg, AccessibilityHelpNLS.tabFocusModeOffMsgNoKb);
 		}
 
 		const openDocMessage = (
@@ -285,8 +278,13 @@ class AccessibilityHelpWidget extends Widget implements IOverlayWidget {
 				: AccessibilityHelpNLS.openDocWinLinux
 		);
 
-		append(instructions, $('li', undefined, openDocMessage));
-		append(contentDomNode, $('p', undefined, AccessibilityHelpNLS.outroMsg));
+		text += '\n\n - ' + openDocMessage;
+
+		text += '\n\n' + AccessibilityHelpNLS.outroMsg;
+
+		this._contentDomNode.domNode.appendChild(renderFormattedText(text));
+		// Per https://www.w3.org/TR/wai-aria/roles#document, Authors SHOULD provide a title or label for documents
+		this._contentDomNode.domNode.setAttribute('aria-label', text);
 	}
 
 	public hide(): void {
@@ -298,7 +296,7 @@ class AccessibilityHelpWidget extends Widget implements IOverlayWidget {
 		this._domNode.setDisplay('none');
 		this._domNode.setAttribute('aria-hidden', 'true');
 		this._contentDomNode.domNode.tabIndex = -1;
-		clearNode(this._contentDomNode.domNode);
+		dom.clearNode(this._contentDomNode.domNode);
 
 		this._editor.focus();
 	}

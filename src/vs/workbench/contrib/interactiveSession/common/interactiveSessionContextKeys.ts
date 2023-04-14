@@ -13,5 +13,3 @@ export const CONTEXT_INTERACTIVE_REQUEST_IN_PROGRESS = new RawContextKey<boolean
 export const CONTEXT_INTERACTIVE_INPUT_HAS_TEXT = new RawContextKey<boolean>('interactiveInputHasText', false, { type: 'boolean', description: localize('interactiveInputHasText', "True when the interactive input has text.") });
 export const CONTEXT_IN_INTERACTIVE_INPUT = new RawContextKey<boolean>('inInteractiveInput', false, { type: 'boolean', description: localize('inInteractiveInput', "True when focus is in the interactive input, false otherwise.") });
 export const CONTEXT_IN_INTERACTIVE_SESSION = new RawContextKey<boolean>('inInteractiveSession', false, { type: 'boolean', description: localize('inInteractiveSession', "True when focus is in the interactive session widget, false otherwise.") });
-
-export const CONTEXT_PROVIDER_EXISTS = new RawContextKey<boolean>('hasInteractiveSessionProvider', false, { type: 'boolean', description: localize('hasInteractiveSessionProvider', "True when some interactive session provider has been registered.") });

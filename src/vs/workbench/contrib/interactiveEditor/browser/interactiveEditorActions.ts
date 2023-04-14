@@ -20,7 +20,6 @@ import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegis
 import { IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
 import { IEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { IUntitledTextResourceEditorInput } from 'vs/workbench/common/editor';
-import { ILogService } from 'vs/platform/log/common/log';
 
 export class StartSessionAction extends EditorAction2 {
 
@@ -407,19 +406,9 @@ export class ApplyPreviewEdits extends AbstractInteractiveEditorAction {
 		});
 	}
 
-	override async runInteractiveEditorCommand(accessor: ServicesAccessor, ctrl: InteractiveEditorController): Promise<void> {
-		const logService = accessor.get(ILogService);
-		const editorService = accessor.get(IEditorService);
-		const edit = await ctrl.applyChanges();
-		if (!edit) {
-			logService.warn('FAILED to apply changes, no edit response');
-			return;
-		}
+	override runInteractiveEditorCommand(_accessor: ServicesAccessor, ctrl: InteractiveEditorController): void {
+		ctrl.applyChanges();
 		ctrl.cancelSession();
-		if (edit.singleCreateFileEdit) {
-			editorService.openEditor({ resource: edit.singleCreateFileEdit.uri }, SIDE_GROUP);
-		}
-
 	}
 }
 

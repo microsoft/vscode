@@ -9,6 +9,7 @@ import { GlobalStateInitializer, UserDataSyncStoreTypeSynchronizer } from 'vs/pl
 import { KeybindingsInitializer } from 'vs/platform/userDataSync/common/keybindingsSync';
 import { SettingsInitializer } from 'vs/platform/userDataSync/common/settingsSync';
 import { SnippetsInitializer } from 'vs/platform/userDataSync/common/snippetsSync';
+import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IFileService } from 'vs/platform/files/common/files';
 import { createDecorator, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILogService } from 'vs/platform/log/common/log';
@@ -37,7 +38,6 @@ import { IExtensionStorageService } from 'vs/platform/extensionManagement/common
 import { ICredentialsService } from 'vs/platform/credentials/common/credentials';
 import { TasksInitializer } from 'vs/platform/userDataSync/common/tasksSync';
 import { IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
-import { IBrowserWorkbenchEnvironmentService } from 'vs/workbench/services/environment/browser/environmentService';
 
 export const IUserDataInitializationService = createDecorator<IUserDataInitializationService>('IUserDataInitializationService');
 export interface IUserDataInitializationService {
@@ -59,7 +59,7 @@ export class UserDataInitializationService implements IUserDataInitializationSer
 	private globalStateUserData: IUserData | null = null;
 
 	constructor(
-		@IBrowserWorkbenchEnvironmentService private readonly environmentService: IBrowserWorkbenchEnvironmentService,
+		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 		@ICredentialsService private readonly credentialsService: ICredentialsService,
 		@IUserDataSyncStoreManagementService private readonly userDataSyncStoreManagementService: IUserDataSyncStoreManagementService,
 		@IFileService private readonly fileService: IFileService,

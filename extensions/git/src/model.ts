@@ -780,7 +780,6 @@ export class Model implements IBranchProtectionProviderRegistry, IRemoteSourcePu
 			if (providers && providers.has(provider)) {
 				providers.delete(provider);
 				this.branchProtectionProviders.set(root, providers);
-				this._onDidChangeBranchProtectionProviders.fire(root);
 			}
 
 			dispose(providerDisposables);

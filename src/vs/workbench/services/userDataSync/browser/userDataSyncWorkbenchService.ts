@@ -18,6 +18,7 @@ import { IStorageService, IStorageValueChangeEvent, StorageScope, StorageTarget 
 import { ILogService } from 'vs/platform/log/common/log';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
+import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { localize } from 'vs/nls';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
@@ -38,7 +39,6 @@ import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cance
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { isDiffEditorInput } from 'vs/workbench/common/editor';
-import { IBrowserWorkbenchEnvironmentService } from 'vs/workbench/services/environment/browser/environmentService';
 
 type AccountQuickPickItem = { label: string; authenticationProvider: IAuthenticationProvider; account?: UserDataSyncAccount; description?: string };
 
@@ -103,7 +103,7 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 		@ILogService private readonly logService: ILogService,
 		@IProductService private readonly productService: IProductService,
 		@IExtensionService private readonly extensionService: IExtensionService,
-		@IBrowserWorkbenchEnvironmentService private readonly environmentService: IBrowserWorkbenchEnvironmentService,
+		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 		@ICredentialsService private readonly credentialsService: ICredentialsService,
 		@INotificationService private readonly notificationService: INotificationService,
 		@IProgressService private readonly progressService: IProgressService,
@@ -324,22 +324,15 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 		}
 
 		this.currentAuthenticationProviderId = this.current?.authenticationProviderId;
-		if (this.environmentService.options?.settingsSyncOptions?.enablementHandler && this.currentAuthenticationProviderId) {
-			this.environmentService.options.settingsSyncOptions.enablementHandler(true, this.currentAuthenticationProviderId);
-		}
-
 		this.notificationService.info(localize('sync turned on', "{0} is turned on", SYNC_TITLE));
 	}
 
 	async turnoff(everywhere: boolean): Promise<void> {
 		if (this.userDataSyncEnablementService.isEnabled()) {
-			await this.userDataAutoSyncService.turnOff(everywhere);
-			if (this.environmentService.options?.settingsSyncOptions?.enablementHandler && this.currentAuthenticationProviderId) {
-				this.environmentService.options.settingsSyncOptions.enablementHandler(false, this.currentAuthenticationProviderId);
-			}
+			return this.userDataAutoSyncService.turnOff(everywhere);
 		}
 		if (this.turnOnSyncCancellationToken) {
-			this.turnOnSyncCancellationToken.cancel();
+			return this.turnOnSyncCancellationToken.cancel();
 		}
 	}
 
@@ -570,19 +563,18 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 	}
 
 	private async doSignIn(accountOrAuthProvider: UserDataSyncAccount | IAuthenticationProvider): Promise<void> {
-		let sessionId: string;
+		let sessionId: string, accountName: string;
 		if (isAuthenticationProvider(accountOrAuthProvider)) {
-			if (this.environmentService.options?.settingsSyncOptions?.authenticationProvider?.id === accountOrAuthProvider.id) {
-				sessionId = await this.environmentService.options?.settingsSyncOptions?.authenticationProvider?.signIn();
-			} else {
-				sessionId = (await this.authenticationService.createSession(accountOrAuthProvider.id, accountOrAuthProvider.scopes)).id;
-			}
+			const session = await this.authenticationService.createSession(accountOrAuthProvider.id, accountOrAuthProvider.scopes);
+			sessionId = session.id;
+			accountName = session.account.label;
 		} else {
-			if (this.environmentService.options?.settingsSyncOptions?.authenticationProvider?.id === accountOrAuthProvider.authenticationProviderId) {
-				sessionId = await this.environmentService.options?.settingsSyncOptions?.authenticationProvider?.signIn();
-			} else {
-				sessionId = accountOrAuthProvider.sessionId;
-			}
+			sessionId = accountOrAuthProvider.sessionId;
+			accountName = accountOrAuthProvider.accountName;
+		}
+		const currentAccount = this.current;
+		if (this.userDataSyncEnablementService.isEnabled() && (currentAccount && currentAccount.accountName !== accountName)) {
+			// accounts are switched while sync is enabled.
 		}
 		this.currentSessionId = sessionId;
 		await this.update();

@@ -810,7 +810,6 @@ export class CommentController implements IEditorContribution {
 	public addCommentAtLine(range: Range | undefined, e: IEditorMouseEvent | undefined): Promise<void> {
 		const newCommentInfos = this._commentingRangeDecorator.getMatchedCommentAction(range);
 		if (!newCommentInfos.length || !this.editor?.hasModel()) {
-			this._addInProgress = false;
 			return Promise.resolve();
 		}
 

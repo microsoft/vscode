@@ -119,8 +119,7 @@ export class MainThreadInteractiveSession extends Disposable implements MainThre
 		this._interactiveSessionService.addInteractiveRequest(context);
 	}
 
-	async $sendInteractiveRequestToProvider(providerId: string, message: IInteractiveSessionDynamicRequest): Promise<void> {
-		await this._interactiveSessionService.revealSessionForProvider(providerId);
+	$sendInteractiveRequestToProvider(providerId: string, message: IInteractiveSessionDynamicRequest): void {
 		return this._interactiveSessionService.sendInteractiveRequestToProvider(providerId, message);
 	}
 

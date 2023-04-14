@@ -71,7 +71,7 @@ import * as Constants from 'vs/workbench/contrib/search/common/constants';
 import { IReplaceService } from 'vs/workbench/contrib/search/browser/replace';
 import { getOutOfWorkspaceEditorResources, SearchStateKey, SearchUIState } from 'vs/workbench/contrib/search/common/search';
 import { ISearchHistoryService, ISearchHistoryValues } from 'vs/workbench/contrib/search/common/searchHistoryService';
-import { FileMatch, FileMatchOrMatch, FolderMatch, FolderMatchWithResource, IChangeEvent, ISearchWorkbenchService, Match, MatchInNotebook, RenderableMatch, searchMatchComparer, SearchModel, SearchResult } from 'vs/workbench/contrib/search/browser/searchModel';
+import { FileMatch, FileMatchOrMatch, FolderMatch, FolderMatchWithResource, IChangeEvent, ISearchWorkbenchService, Match, NotebookMatch, RenderableMatch, searchMatchComparer, SearchModel, SearchResult } from 'vs/workbench/contrib/search/browser/searchModel';
 import { createEditorFromSearchResult } from 'vs/workbench/contrib/searchEditor/browser/searchEditorActions';
 import { ACTIVE_GROUP, IEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { IPreferencesService, ISettingsEditorOptions } from 'vs/workbench/services/preferences/common/preferences';
@@ -500,7 +500,7 @@ export class SearchView extends ViewPane {
 		this._register(this.searchWidget.onSearchSubmit(options => this.triggerQueryChange(options)));
 		this._register(this.searchWidget.onSearchCancel(({ focus }) => this.cancelSearch(focus)));
 		this._register(this.searchWidget.searchInput.onDidOptionChange(() => this.triggerQueryChange()));
-		this._register(this.searchWidget.getNotebookFilters().onDidChange(() => this.triggerQueryChange()));
+		this._register(this.searchWidget.getFilters().onDidChange(() => this.triggerQueryChange()));
 
 		const updateHasPatternKey = () => this.hasSearchPatternKey.set(this.searchWidget.searchInput ? (this.searchWidget.searchInput.getValue().length > 0) : false);
 		updateHasPatternKey();
@@ -852,7 +852,7 @@ export class SearchView extends ViewPane {
 			}
 
 			// we don't need to check experimental flag here because NotebookMatches only exist when the flag is enabled
-			const editable = (!(focus instanceof MatchInNotebook)) || !focus.isWebviewMatch();
+			const editable = (!(focus instanceof NotebookMatch)) || !focus.isWebviewMatch();
 			this.isEditableItem.set(editable);
 		}));
 
@@ -1409,9 +1409,9 @@ export class SearchView extends ViewPane {
 		}
 
 		const isRegex = this.searchWidget.searchInput.getRegex();
-		const isInNotebookMarkdownInput = this.searchWidget.getNotebookFilters().markupInput;
-		const isInNotebookCellInput = this.searchWidget.getNotebookFilters().codeInput;
-		const isInNotebookCellOutput = this.searchWidget.getNotebookFilters().codeOutput;
+		const isInNotebookMarkdownInput = this.searchWidget.getFilters().markupInput;
+		const isInNotebookCellInput = this.searchWidget.getFilters().codeInput;
+		const isInNotebookCellOutput = this.searchWidget.getFilters().codeOutput;
 
 		const isWholeWords = this.searchWidget.searchInput.getWholeWords();
 		const isCaseSensitive = this.searchWidget.searchInput.getCaseSensitive();
@@ -1813,7 +1813,7 @@ export class SearchView extends ViewPane {
 		// Since untitled files are already open, then untitled notebooks should return NotebookMatch results.
 
 		// notebookMatch are only created when search.experimental.notebookSearch is enabled, so this should never return true if experimental flag is disabled.
-		return match instanceof MatchInNotebook || (uri.scheme !== network.Schemas.untitled && this.notebookService.getContributedNotebookTypes(uri).length > 0);
+		return match instanceof NotebookMatch || (uri.scheme !== network.Schemas.untitled && this.notebookService.getContributedNotebookTypes(uri).length > 0);
 	}
 
 	private onFocus(lineMatch: Match, preserveFocus?: boolean, sideBySide?: boolean, pinned?: boolean): Promise<any> {
@@ -1856,26 +1856,24 @@ export class SearchView extends ViewPane {
 		}
 
 		if (editor instanceof NotebookEditor) {
-			const elemParent = element.parent() as FileMatch;
 			const experimentalNotebooksEnabled = this.configurationService.getValue<ISearchConfigurationProperties>('search').experimental.notebookSearch;
 			if (experimentalNotebooksEnabled) {
 				if (element instanceof Match) {
-					if (element instanceof MatchInNotebook) {
+					if (element instanceof NotebookMatch) {
 						element.parent().showMatch(element);
 					} else {
 						const editorWidget = editor.getControl();
 						if (editorWidget) {
 							// Ensure that the editor widget is binded. If if is, then this should return immediately.
 							// Otherwise, it will bind the widget.
-							await elemParent.bindNotebookEditorWidget(editorWidget);
-							await elemParent.updateMatchesForEditorWidget();
+							await element.parent().bindNotebookEditorWidget(editorWidget);
 
 							const matchIndex = oldParentMatches.findIndex(e => e.id() === element.id());
 							const matches = element.parent().matches();
 							const match = matchIndex >= matches.length ? matches[matches.length - 1] : matches[matchIndex];
 
-							if (match instanceof MatchInNotebook) {
-								elemParent.showMatch(match);
+							if (match instanceof NotebookMatch) {
+								element.parent().showMatch(match);
 							}
 
 							if (!this.tree.getFocus().includes(match) || !this.tree.getSelection().includes(match)) {
@@ -2008,9 +2006,9 @@ export class SearchView extends ViewPane {
 			const isCaseSensitive = this.searchWidget.searchInput.getCaseSensitive();
 			const contentPattern = this.searchWidget.searchInput.getValue();
 
-			const isInNotebookCellInput = this.searchWidget.getNotebookFilters().codeInput;
-			const isInNotebookCellOutput = this.searchWidget.getNotebookFilters().codeOutput;
-			const isInNotebookMarkdownInput = this.searchWidget.getNotebookFilters().markupInput;
+			const isInNotebookCellInput = this.searchWidget.getFilters().codeInput;
+			const isInNotebookCellOutput = this.searchWidget.getFilters().codeOutput;
+			const isInNotebookMarkdownInput = this.searchWidget.getFilters().markupInput;
 
 			this.viewletState['query.contentPattern'] = contentPattern;
 			this.viewletState['query.regex'] = isRegex;

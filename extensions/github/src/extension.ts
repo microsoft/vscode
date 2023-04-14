@@ -12,11 +12,10 @@ import { DisposableStore, repositoryHasGitHubRemote } from './util';
 import { GithubPushErrorHandler } from './pushErrorHandler';
 import { GitBaseExtension } from './typings/git-base';
 import { GithubRemoteSourcePublisher } from './remoteSourcePublisher';
-import { GithubBranchProtectionProviderManager } from './branchProtection';
 
 export function activate(context: ExtensionContext): void {
 	context.subscriptions.push(initializeGitBaseExtension());
-	context.subscriptions.push(initializeGitExtension(context));
+	context.subscriptions.push(initializeGitExtension());
 }
 
 function initializeGitBaseExtension(): Disposable {
@@ -64,7 +63,7 @@ function setGitHubContext(gitAPI: API, disposables: DisposableStore) {
 	}
 }
 
-function initializeGitExtension(context: ExtensionContext): Disposable {
+function initializeGitExtension(): Disposable {
 	const disposables = new DisposableStore();
 
 	let gitExtension = extensions.getExtension<GitExtension>('vscode.git');
@@ -78,7 +77,6 @@ function initializeGitExtension(context: ExtensionContext): Disposable {
 
 						disposables.add(registerCommands(gitAPI));
 						disposables.add(new GithubCredentialProviderManager(gitAPI));
-						disposables.add(new GithubBranchProtectionProviderManager(gitAPI, context.globalState));
 						disposables.add(gitAPI.registerPushErrorHandler(new GithubPushErrorHandler()));
 						disposables.add(gitAPI.registerRemoteSourcePublisher(new GithubRemoteSourcePublisher(gitAPI)));
 						setGitHubContext(gitAPI, disposables);

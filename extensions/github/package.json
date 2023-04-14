@@ -125,17 +125,12 @@
           "group": "0_vscode@0"
         }
       ]
+
     },
     "configuration": [
       {
         "title": "GitHub",
         "properties": {
-          "github.branchProtection": {
-            "type": "boolean",
-            "scope": "resource",
-            "default": false,
-            "description": "%config.branchProtection%"
-          },
           "github.gitAuthentication": {
             "type": "boolean",
             "scope": "resource",

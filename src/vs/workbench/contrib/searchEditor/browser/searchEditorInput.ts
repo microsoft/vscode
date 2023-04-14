@@ -44,12 +44,6 @@ export type SearchConfiguration = {
 	useExcludeSettingsAndIgnoreFiles: boolean;
 	showIncludesExcludes: boolean;
 	onlyOpenEditors: boolean;
-	notebookSearchConfig: {
-		includeMarkupInput: boolean;
-		includeMarkupPreview: boolean;
-		includeCodeInput: boolean;
-		includeOutput: boolean;
-	};
 };
 
 export const SEARCH_EDITOR_EXT = '.code-search';

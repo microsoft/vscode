@@ -41,8 +41,6 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { IEditorProgressService } from 'vs/platform/progress/common/progress';
 import { InstallRecommendedExtensionAction } from 'vs/workbench/contrib/extensions/browser/extensionsActions';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
-import { IExtensionsWorkbenchService } from 'vs/workbench/contrib/extensions/common/extensions';
-import { EnablementState } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 
 const NOTEBOOK_EDITOR_VIEW_STATE_PREFERENCE_KEY = 'NotebookEditorViewState';
 
@@ -84,7 +82,6 @@ export class NotebookEditor extends EditorPane implements INotebookEditorPane {
 		@ITextResourceConfigurationService configurationService: ITextResourceConfigurationService,
 		@IEditorProgressService private readonly _editorProgressService: IEditorProgressService,
 		@INotebookService private readonly _notebookService: INotebookService,
-		@IExtensionsWorkbenchService private readonly _extensionsWorkbenchService: IExtensionsWorkbenchService,
 	) {
 		super(NotebookEditor.ID, telemetryService, themeService, storageService);
 		this._editorMemento = this.getEditorMemento<INotebookEditorViewState>(_editorGroupService, configurationService, NOTEBOOK_EDITOR_VIEW_STATE_PREFERENCE_KEY);
@@ -234,31 +231,24 @@ export class NotebookEditor extends EditorPane implements INotebookEditorPane {
 			if (model === null) {
 				const knownProvider = this._notebookService.getViewTypeProvider(input.viewType);
 
-				if (!knownProvider) {
-					throw new Error(localize('fail.noEditor', "Cannot open resource with notebook editor type '{0}', please check if you have the right extension installed and enabled.", input.viewType));
-				}
-
-				throw createEditorOpenError(new Error(localize('fail.noEditor.extensionMissing', "Cannot open resource with notebook editor type '{0}', please check if you have the right extension installed and enabled.", input.viewType)), [
-					toAction({
-						id: 'workbench.notebook.action.installOrEnableMissing', label: localize('notebookOpenInstallOrEnableMissingViewType', "Install and enable extension for '{0}'", input.viewType), run: async () => {
-							const d = this._notebookService.onAddViewType(viewType => {
-								if (viewType === input.viewType) {
-									// serializer is registered, try to open again
-									this._editorService.openEditor({ resource: input.resource });
-									d.dispose();
-								}
-							});
-							const extensionInfo = this._extensionsWorkbenchService.local.find(e => e.identifier.id === knownProvider);
-
-							if (extensionInfo) {
-								await this._extensionsWorkbenchService.setEnablement(extensionInfo, extensionInfo.enablementState === EnablementState.DisabledWorkspace ? EnablementState.EnabledWorkspace : EnablementState.EnabledGlobally);
-							} else {
+				if (knownProvider) {
+					throw createEditorOpenError(new Error(localize('fail.noEditor', "Cannot open resource with notebook editor type '{0}', please check if you have the right extension installed and enabled.", input.viewType)), [
+						toAction({
+							id: 'workbench.notebook.action.installMissing', label: localize('notebookOpenInstallMissingViewType', "Install extension for '{0}'", input.viewType), run: async () => {
+								const d = this._notebookService.onAddViewType(viewType => {
+									if (viewType === input.viewType) {
+										// serializer is registered, try to open again
+										this._editorService.openEditor({ resource: input.resource });
+										d.dispose();
+									}
+								});
 								await this._instantiationService.createInstance(InstallRecommendedExtensionAction, knownProvider).run();
 							}
-						}
-					})
-				], { allowDialog: true });
-
+						})
+					], { allowDialog: true });
+				} else {
+					throw new Error(localize('fail.noEditor', "Cannot open resource with notebook editor type '{0}', please check if you have the right extension installed and enabled.", input.viewType));
+				}
 			}
 
 			this._widgetDisposableStore.add(model.notebook.onDidChangeContent(() => this._onDidChangeSelection.fire({ reason: EditorPaneSelectionChangeReason.EDIT })));
