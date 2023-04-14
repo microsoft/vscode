@@ -19,6 +19,7 @@ import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecyc
 import { ResourceMap } from 'vs/base/common/map';
 import { FileAccess } from 'vs/base/common/network';
 import { ThemeIcon } from 'vs/base/common/themables';
+import { withNullAsUndefined } from 'vs/base/common/types';
 import { EditorExtensionsRegistry } from 'vs/editor/browser/editorExtensions';
 import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
 import { EDITOR_FONT_DEFAULTS, IEditorOptions } from 'vs/editor/common/config/editorOptions';
@@ -650,7 +651,9 @@ class CodeBlockPart extends Disposable implements IInteractiveResultCodeBlockPar
 
 		const text = this.fixCodeText(data.text, data.languageId);
 		this.setText(text);
-		this.setLanguage(data.languageId);
+
+		const vscodeLanguageId = withNullAsUndefined(this.languageService.getLanguageIdByLanguageName(data.languageId));
+		this.setLanguage(vscodeLanguageId);
 
 		this.layout(width);
 
@@ -668,7 +671,8 @@ class CodeBlockPart extends Disposable implements IInteractiveResultCodeBlockPar
 		this.toolbar.context = <IInteractiveSessionCodeBlockActionContext>{
 			code: data.text,
 			codeBlockIndex: data.codeBlockIndex,
-			element: data.element
+			element: data.element,
+			languageId: vscodeLanguageId
 		};
 	}
 
@@ -711,8 +715,7 @@ class CodeBlockPart extends Disposable implements IInteractiveResultCodeBlockPar
 		}
 	}
 
-	private setLanguage(languageId: string): void {
-		const vscodeLanguageId = this.languageService.getLanguageIdByLanguageName(languageId);
+	private setLanguage(vscodeLanguageId: string | undefined): void {
 		this.textModel.setLanguage(vscodeLanguageId ?? PLAINTEXT_LANGUAGE_ID);
 	}
 }
