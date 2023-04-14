@@ -75,6 +75,7 @@ type TelemetryData = {
 	terminalEdits: boolean;
 	startTime: string;
 	endTime: string;
+	editMode: string;
 };
 
 type TelemetryDataClassification = {
@@ -87,6 +88,7 @@ type TelemetryDataClassification = {
 	terminalEdits: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Did edits terminal the session' };
 	startTime: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'When the session started' };
 	endTime: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'When the session ended' };
+	editMode: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'What edit mode was choosen: live, livePreview, preview' };
 };
 
 class InlineDiffDecorations {
@@ -335,7 +337,8 @@ export class InteractiveEditorController implements IEditorContribution {
 			edits: false,
 			terminalEdits: false,
 			rounds: '',
-			undos: ''
+			undos: '',
+			editMode
 		};
 
 		this._strategy = this._instaService.createInstance(
