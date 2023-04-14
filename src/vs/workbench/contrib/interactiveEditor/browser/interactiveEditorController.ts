@@ -12,7 +12,7 @@ import { IEditorContribution, IEditorDecorationsCollection, ScrollType } from 'v
 import { localize } from 'vs/nls';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { IInteractiveEditorResponse, IInteractiveEditorService, CTX_INTERACTIVE_EDITOR_HAS_ACTIVE_REQUEST, IInteractiveEditorRequest, IInteractiveEditorSession, IInteractiveEditorSlashCommand, IInteractiveEditorSessionProvider, InteractiveEditorResponseFeedbackKind, IInteractiveEditorEditResponse, CTX_INTERACTIVE_EDITOR_LAST_EDIT_TYPE as CTX_INTERACTIVE_EDITOR_LAST_EDIT_KIND, CTX_INTERACTIVE_EDITOR_LAST_FEEDBACK as CTX_INTERACTIVE_EDITOR_LAST_FEEDBACK_KIND, CTX_INTERACTIVE_EDITOR_INLNE_DIFF, CTX_INTERACTIVE_EDITOR_HAS_RESPONSE } from 'vs/workbench/contrib/interactiveEditor/common/interactiveEditor';
+import { IInteractiveEditorResponse, IInteractiveEditorService, CTX_INTERACTIVE_EDITOR_HAS_ACTIVE_REQUEST, IInteractiveEditorRequest, IInteractiveEditorSession, IInteractiveEditorSlashCommand, IInteractiveEditorSessionProvider, InteractiveEditorResponseFeedbackKind, IInteractiveEditorEditResponse, CTX_INTERACTIVE_EDITOR_LAST_EDIT_TYPE as CTX_INTERACTIVE_EDITOR_LAST_EDIT_KIND, CTX_INTERACTIVE_EDITOR_LAST_FEEDBACK as CTX_INTERACTIVE_EDITOR_LAST_FEEDBACK_KIND, CTX_INTERACTIVE_EDITOR_INLNE_DIFF, CTX_INTERACTIVE_EDITOR_HAS_RESPONSE, IInteractiveEditorBulkEditResponse } from 'vs/workbench/contrib/interactiveEditor/common/interactiveEditor';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { Iterable } from 'vs/base/common/iterator';
 import { ICursorStateComputer, IModelDecorationOptions, IModelDeltaDecoration, ITextModel, IValidEditOperation } from 'vs/editor/common/model';
@@ -26,21 +26,22 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { StopWatch } from 'vs/base/common/stopwatch';
 import { LRUCache } from 'vs/base/common/map';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IBulkEditService } from 'vs/editor/browser/services/bulkEditService';
+import { IBulkEditService, ResourceEdit, ResourceFileEdit, ResourceTextEdit } from 'vs/editor/browser/services/bulkEditService';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { IInteractiveSessionWidgetService } from 'vs/workbench/contrib/interactiveSession/browser/interactiveSessionWidget';
 import { IViewsService } from 'vs/workbench/common/views';
 import { IInteractiveSessionContributionService } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionContributionService';
 import { InteractiveSessionViewPane } from 'vs/workbench/contrib/interactiveSession/browser/interactiveSessionSidebar';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
-import { CompletionContext, CompletionItem, CompletionItemInsertTextRule, CompletionItemKind, CompletionItemProvider, CompletionList, ProviderResult } from 'vs/editor/common/languages';
+import { CompletionContext, CompletionItem, CompletionItemInsertTextRule, CompletionItemKind, CompletionItemProvider, CompletionList, ProviderResult, TextEdit } from 'vs/editor/common/languages';
 import { LanguageSelector } from 'vs/editor/common/languageSelector';
 import { IInteractiveSessionService } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionService';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { splitLines } from 'vs/base/common/strings';
 import { InteractiveEditorZoneWidget } from 'vs/workbench/contrib/interactiveEditor/browser/interactiveEditorWidget';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-
+import { URI } from 'vs/base/common/uri';
+import { isEqual } from 'vs/base/common/resources';
 
 
 type Exchange = { req: IInteractiveEditorRequest; res: IInteractiveEditorResponse };
@@ -152,6 +153,62 @@ class InlineDiffDecorations {
 	}
 }
 
+export class EditResponse {
+
+	readonly localEdits: TextEdit[] = [];
+	readonly singleCreateFileEdit: { uri: URI; edits: Promise<TextEdit>[] } | undefined;
+	readonly workspaceEdits: ResourceEdit[] | undefined;
+	readonly workspaceEditsIncludeLocalEdits: boolean = false;
+
+	constructor(localUri: URI, readonly raw: IInteractiveEditorBulkEditResponse | IInteractiveEditorEditResponse) {
+		if (raw.type === 'editorEdit') {
+			//
+			this.localEdits = raw.edits;
+			this.singleCreateFileEdit = undefined;
+			this.workspaceEdits = undefined;
+
+		} else {
+			//
+			const edits = ResourceEdit.convert(raw.edits);
+			this.workspaceEdits = edits;
+
+			let isComplexEdit = false;
+
+			for (const edit of edits) {
+				if (edit instanceof ResourceFileEdit) {
+					if (!isComplexEdit && edit.newResource && !edit.oldResource) {
+						// file create
+						if (this.singleCreateFileEdit) {
+							isComplexEdit = true;
+							this.singleCreateFileEdit = undefined;
+						} else {
+							this.singleCreateFileEdit = { uri: edit.newResource, edits: [] };
+							if (edit.options.contents) {
+								this.singleCreateFileEdit.edits.push(edit.options.contents.then(x => ({ range: new Range(1, 1, 1, 1), text: x.toString() })));
+							}
+						}
+					}
+				} else if (edit instanceof ResourceTextEdit) {
+					//
+					if (isEqual(edit.resource, localUri)) {
+						this.localEdits.push(edit.textEdit);
+						this.workspaceEditsIncludeLocalEdits = true;
+
+					} else if (isEqual(this.singleCreateFileEdit?.uri, edit.resource)) {
+						this.singleCreateFileEdit!.edits.push(Promise.resolve(edit.textEdit));
+					} else {
+						isComplexEdit = true;
+					}
+				}
+			}
+
+			if (isComplexEdit) {
+				this.singleCreateFileEdit = undefined;
+			}
+		}
+	}
+}
+
 class LastEditorState {
 
 	constructor(
@@ -159,7 +216,7 @@ class LastEditorState {
 		readonly modelVersionId: number,
 		readonly provider: IInteractiveEditorSessionProvider,
 		readonly session: IInteractiveEditorSession,
-		readonly response: IInteractiveEditorEditResponse,
+		readonly response: EditResponse,
 	) { }
 }
 
@@ -443,29 +500,30 @@ export class InteractiveEditorController implements IEditorContribution {
 				continue;
 			}
 
-			if (reply.type === 'bulkEdit') {
-				this._logService.info('[IE] performaing a BULK EDIT, exiting interactive editor', provider.debugName);
-				this._bulkEditService.apply(reply.edits, { editor: this._editor, label: localize('ie', "{0}", input), showPreview: true });
-				// todo@jrieken preview bulk edit?
-				// todo@jrieken keep interactive editor?
-				break;
-			}
+
+			this._recorder.addExchange(session, request, reply);
 
 			if (reply.type === 'message') {
 				console.log('inside of reply type message');
 				this._logService.info('[IE] received a MESSAGE, continuing outside editor', provider.debugName);
 				this._instaService.invokeFunction(showMessageResponse, request.prompt, reply.message.value);
-
 				continue;
 			}
 
-			this._ctxLastEditKind.set(reply.edits.length === 1 ? 'simple' : '');
-			this._recorder.addExchange(session, request, reply);
+			const editResponse = new EditResponse(textModel.uri, reply);
+
+			if (editResponse.workspaceEdits && (!editResponse.singleCreateFileEdit || editMode === 'direct')) {
+				this._bulkEditService.apply(editResponse.workspaceEdits, { editor: this._editor, label: localize('ie', "{0}", input), showPreview: true });
+				// todo@jrieken keep interactive editor?
+				break;
+			}
+
+			this._ctxLastEditKind.set(editResponse.localEdits.length === 1 ? 'simple' : '');
 
 			// inline diff
 			inlineDiffDecorations.clear();
 
-			this._lastEditState = new LastEditorState(textModel, textModel.getAlternativeVersionId(), provider, session, reply);
+			this._lastEditState = new LastEditorState(textModel, textModel.getAlternativeVersionId(), provider, session, editResponse);
 
 			// use whole range from reply
 			if (reply.wholeRange) {
@@ -477,13 +535,16 @@ export class InteractiveEditorController implements IEditorContribution {
 
 			if (editMode === 'preview') {
 				// only preview changes
-				this._zone.widget.updateToolbar(true);
-				this._zone.widget.preview(textModel, reply.edits);
+				if (editResponse.localEdits.length > 0) {
+					this._zone.widget.showEditsPreview(textModel, editResponse.localEdits);
+				} else {
+					this._zone.widget.hideEditsPreview();
+				}
 
 			} else {
 				// make edits more minimal
-				const moreMinimalEdits = (await this._editorWorkerService.computeHumanReadableDiff(textModel.uri, reply.edits));
-				this._logService.trace('[IE] edits from PROVIDER and after making them MORE MINIMAL', provider.debugName, reply.edits, moreMinimalEdits);
+				const moreMinimalEdits = (await this._editorWorkerService.computeHumanReadableDiff(textModel.uri, editResponse.localEdits));
+				this._logService.trace('[IE] edits from PROVIDER and after making them MORE MINIMAL', provider.debugName, editResponse.localEdits, moreMinimalEdits);
 
 				try {
 					ignoreModelChanges = true;
@@ -500,7 +561,7 @@ export class InteractiveEditorController implements IEditorContribution {
 					this._editor.pushUndoStop();
 					this._editor.executeEdits(
 						'interactive-editor',
-						(moreMinimalEdits ?? reply.edits).map(edit => EditOperation.replace(Range.lift(edit.range), edit.text)),
+						(moreMinimalEdits ?? editResponse.localEdits).map(edit => EditOperation.replace(Range.lift(edit.range), edit.text)),
 						cursorStateComputerAndInlineDiffCollection
 					);
 					this._editor.pushUndoStop();
@@ -514,7 +575,7 @@ export class InteractiveEditorController implements IEditorContribution {
 				// line count
 				const lineSet = new Set<number>();
 				let addRemoveCount = 0;
-				for (const edit of moreMinimalEdits ?? reply.edits) {
+				for (const edit of moreMinimalEdits ?? editResponse.localEdits) {
 
 					const len2 = splitLines(edit.text).length - 1;
 
@@ -533,12 +594,20 @@ export class InteractiveEditorController implements IEditorContribution {
 				}
 				const linesChanged = addRemoveCount + lineSet.size;
 
-				this._zone.widget.updateToolbar(true);
 				this._zone.widget.updateMessage(linesChanged === 1
 					? localize('lines.1', "Generated reply and changed 1 line.")
 					: localize('lines.N', "Generated reply and changed {0} lines.", linesChanged)
 				);
 			}
+
+			this._zone.widget.updateToolbar(true);
+
+			if (editResponse.singleCreateFileEdit) {
+				this._zone.widget.showCreatePreview(editResponse.singleCreateFileEdit.uri, await Promise.all(editResponse.singleCreateFileEdit.edits));
+			} else {
+				this._zone.widget.hideCreatePreview();
+			}
+
 			placeholder = reply.placeholder ?? session.placeholder ?? '';
 
 			data.rounds += round + '|';
@@ -627,32 +696,40 @@ export class InteractiveEditorController implements IEditorContribution {
 			while (model.getAlternativeVersionId() !== modelVersionId) {
 				model.undo();
 			}
-			this._lastEditState.provider.handleInteractiveEditorResponseFeedback?.(this._lastEditState.session, this._lastEditState.response, InteractiveEditorResponseFeedbackKind.Undone);
-			return this._lastEditState.response.edits[0].text;
+			this._lastEditState.provider.handleInteractiveEditorResponseFeedback?.(this._lastEditState.session, this._lastEditState.response.raw, InteractiveEditorResponseFeedbackKind.Undone);
+			return this._lastEditState.response.localEdits[0].text;
 		}
 	}
 
 	feedbackLast(helpful: boolean) {
 		if (this._lastEditState) {
 			const kind = helpful ? InteractiveEditorResponseFeedbackKind.Helpful : InteractiveEditorResponseFeedbackKind.Unhelpful;
-			this._lastEditState.provider.handleInteractiveEditorResponseFeedback?.(this._lastEditState.session, this._lastEditState.response, kind);
+			this._lastEditState.provider.handleInteractiveEditorResponseFeedback?.(this._lastEditState.session, this._lastEditState.response.raw, kind);
 			this._ctxLastFeedbackKind.set(helpful ? 'helpful' : 'unhelpful');
 			this._zone.widget.updateMessage('Thank you for your feedback!', undefined, 1250);
 		}
 	}
 
-	applyChanges() {
-		if (this._lastEditState) {
-			const { model, modelVersionId, response } = this._lastEditState;
+	async applyChanges() {
+		if (!this._lastEditState) {
+			return undefined;
+		}
+
+		const { model, modelVersionId, response } = this._lastEditState;
+
+		if (response.workspaceEdits) {
+			await this._bulkEditService.apply(response.workspaceEdits);
+
+		} else if (!response.workspaceEditsIncludeLocalEdits) {
 			if (model.getAlternativeVersionId() === modelVersionId) {
 				model.pushStackElement();
-				const edits = response.edits.map(edit => EditOperation.replace(Range.lift(edit.range), edit.text));
+				const edits = response.localEdits.map(edit => EditOperation.replace(Range.lift(edit.range), edit.text));
 				model.pushEditOperations(null, edits, () => null);
 				model.pushStackElement();
-				return true;
 			}
 		}
-		return false;
+
+		return response;
 	}
 }
 
@@ -735,7 +812,10 @@ async function showMessageResponse(accessor: ServicesAccessor, query: string, re
 	console.log('Inside of showMessageResponse');
 	console.log('response : ', response);
 	const interactiveSessionService = accessor.get(IInteractiveSessionService);
-	interactiveSessionService.addCompleteRequest(query, { message: response });
+	const providerId = interactiveSessionService.getProviders()[0];
+	if (await interactiveSessionService.revealSessionForProvider(providerId)) {
+		interactiveSessionService.addCompleteRequest(providerId, query, { message: response });
+	}
 }
 
 async function sendRequest(accessor: ServicesAccessor, query: string) {

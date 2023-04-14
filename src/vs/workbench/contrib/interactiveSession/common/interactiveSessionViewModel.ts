@@ -68,6 +68,7 @@ export interface IInteractiveResponseViewModel {
 	readonly response: IMarkdownString;
 	readonly isComplete: boolean;
 	readonly isCanceled: boolean;
+	readonly isPlaceholder: boolean;
 	readonly vote: InteractiveSessionVoteDirection | undefined;
 	readonly replyFollowups?: IInteractiveSessionReplyFollowup[];
 	readonly commandFollowups?: IInteractiveSessionResponseCommandFollowup[];
@@ -185,8 +186,6 @@ export class InteractiveResponseViewModel extends Disposable implements IInterac
 	private readonly _onDidChange = this._register(new Emitter<void>());
 	readonly onDidChange = this._onDidChange.event;
 
-	private _isPlaceholder = false;
-
 	get id() {
 		return this._model.id + `_${this._modelChangeCount}`;
 	}
@@ -221,6 +220,11 @@ export class InteractiveResponseViewModel extends Disposable implements IInterac
 
 	get isCanceled() {
 		return this._model.isCanceled;
+	}
+
+	private _isPlaceholder = false;
+	get isPlaceholder() {
+		return this._isPlaceholder;
 	}
 
 	get replyFollowups() {
@@ -269,11 +273,7 @@ export class InteractiveResponseViewModel extends Disposable implements IInterac
 
 			console.log('inside of on did change of the interactive response view model');
 			if (this._isPlaceholder && (_model.response.value || this.isComplete)) {
-				// The VM is no longer rendered as a placeholder- clear the rendered word count
 				this._isPlaceholder = false;
-				if (this.renderData) {
-					this.renderData.renderedWordCount = 0;
-				}
 			}
 
 			if (this._contentUpdateTimings) {

@@ -134,6 +134,6 @@
 		"titleBar.inactiveForeground": "#8b949e",
 		"welcomePage.tileBackground": "#ffffff0f",
 		"welcomePage.progress.foreground": "#0078d4",
-		"widgetBorder": "#ffffff15",
+		"widget.border": "#ffffff15",
 	},
 }
