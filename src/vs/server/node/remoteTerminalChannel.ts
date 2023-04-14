@@ -31,6 +31,7 @@ import { IServerEnvironmentService } from 'vs/server/node/serverEnvironmentServi
 import { IProductService } from 'vs/platform/product/common/productService';
 import { IExtensionManagementService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { withNullAsUndefined } from 'vs/base/common/types';
 
 class CustomVariableResolver extends AbstractVariableResolverService {
 	constructor(
@@ -236,8 +237,11 @@ export class RemoteTerminalChannel extends Disposable implements IServerChannel<
 				entries.push([k, { map: deserializeEnvironmentVariableCollection(v) }]);
 			}
 			const envVariableCollections = new Map<string, IEnvironmentVariableCollection>(entries);
-			const mergedCollection = new MergedEnvironmentVariableCollection(envVariableCollections, activeWorkspaceFolder);
-			await mergedCollection.applyToProcessEnvironment(env, variableResolver);
+			const mergedCollection = new MergedEnvironmentVariableCollection(envVariableCollections);
+			const cwdUri = typeof shellLaunchConfig.cwd === 'string' ? URI.parse(shellLaunchConfig.cwd) : shellLaunchConfig.cwd;
+			const workspaceFolder = cwdUri ? withNullAsUndefined(activeWorkspaceFolder) : undefined;
+			// @karrtikr TODO: Pass workspace folder to applyToProcessEnvironment
+			await mergedCollection.applyToProcessEnvironment(env, { workspaceFolder }, variableResolver);
 		}
 
 		// Fork the process and listen for messages

@@ -12,9 +12,6 @@ import { deserializeEnvironmentVariableCollection, serializeEnvironmentVariableC
 import { IEnvironmentVariableCollectionWithPersistence, IEnvironmentVariableService } from 'vs/workbench/contrib/terminal/common/environmentVariable';
 import { TerminalStorageKeys } from 'vs/workbench/contrib/terminal/common/terminalStorageKeys';
 import { IMergedEnvironmentVariableCollection, ISerializableEnvironmentVariableCollection } from 'vs/platform/terminal/common/environmentVariable';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { IHistoryService } from 'vs/workbench/services/history/common/history';
-import { withNullAsUndefined } from 'vs/base/common/types';
 
 interface ISerializableExtensionEnvironmentVariableCollection {
 	extensionIdentifier: string;
@@ -36,8 +33,6 @@ export class EnvironmentVariableService implements IEnvironmentVariableService {
 	constructor(
 		@IExtensionService private readonly _extensionService: IExtensionService,
 		@IStorageService private readonly _storageService: IStorageService,
-		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
-		@IHistoryService private readonly _historyService: IHistoryService,
 	) {
 		const serializedPersistedCollections = this._storageService.get(TerminalStorageKeys.EnvironmentVariableCollections, StorageScope.WORKSPACE);
 		if (serializedPersistedCollections) {
@@ -103,9 +98,7 @@ export class EnvironmentVariableService implements IEnvironmentVariableService {
 	}
 
 	private _resolveMergedCollection(): IMergedEnvironmentVariableCollection {
-		const activeWorkspaceRootUri = this._historyService.getLastActiveWorkspaceRoot();
-		const lastActiveWorkspace = activeWorkspaceRootUri ? withNullAsUndefined(this._workspaceContextService.getWorkspaceFolder(activeWorkspaceRootUri)) : undefined;
-		return new MergedEnvironmentVariableCollection(this.collections, lastActiveWorkspace);
+		return new MergedEnvironmentVariableCollection(this.collections);
 	}
 
 	private async _invalidateExtensionCollections(): Promise<void> {

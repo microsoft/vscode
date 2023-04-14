@@ -55,7 +55,6 @@ type VariableResolver = (str: string) => Promise<string>;
  * together.
  */
 export interface IMergedEnvironmentVariableCollection {
-	readonly owningWorkspace: IWorkspaceFolderData | undefined;
 	readonly collections: ReadonlyMap<string, IEnvironmentVariableCollection>;
 	readonly variableMap: ReadonlyMap<string, IExtensionOwnedEnvironmentVariableMutator[]>;
 
@@ -64,7 +63,7 @@ export interface IMergedEnvironmentVariableCollection {
 	 * @param variableResolver An optional function to use to resolve variables within the
 	 * environment values.
 	 */
-	applyToProcessEnvironment(env: IProcessEnvironment, variableResolver?: VariableResolver): Promise<void>;
+	applyToProcessEnvironment(env: IProcessEnvironment, scope: EnvironmentVariableScope | undefined, variableResolver?: VariableResolver): Promise<void>;
 
 	/**
 	 * Generates a diff of this collection against another. Returns undefined if the collections are

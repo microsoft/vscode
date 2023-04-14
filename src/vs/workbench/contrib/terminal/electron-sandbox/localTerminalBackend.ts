@@ -262,7 +262,9 @@ class LocalTerminalBackend extends BaseTerminalBackend implements ITerminalBacke
 		const baseEnv = await (shellLaunchConfig.useShellEnvironment ? this.getShellEnvironment() : this.getEnvironment());
 		const env = await terminalEnvironment.createTerminalEnvironment(shellLaunchConfig, envFromConfigValue, variableResolver, this._productService.version, this._configurationService.getValue(TerminalSettingId.DetectLocale), baseEnv);
 		if (!shellLaunchConfig.strictEnv && !shellLaunchConfig.hideFromUser) {
-			await this._environmentVariableService.mergedCollection.applyToProcessEnvironment(env, variableResolver);
+			const cwdUri = typeof shellLaunchConfig.cwd === 'string' ? URI.parse(shellLaunchConfig.cwd) : shellLaunchConfig.cwd;
+			const workspaceFolder = cwdUri ? withNullAsUndefined(this._workspaceContextService.getWorkspaceFolder(cwdUri)) : undefined;
+			await this._environmentVariableService.mergedCollection.applyToProcessEnvironment(env, { workspaceFolder }, variableResolver);
 		}
 		return env;
 	}

@@ -174,7 +174,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 		this._lastActiveWorkspace = activeWorkspaceRootUri ? withNullAsUndefined(this._workspaceContextService.getWorkspaceFolder(activeWorkspaceRootUri)) : undefined;
 
 		if (environmentVariableCollections) {
-			this._extEnvironmentVariableCollection = new MergedEnvironmentVariableCollection(environmentVariableCollections, this._lastActiveWorkspace);
+			this._extEnvironmentVariableCollection = new MergedEnvironmentVariableCollection(environmentVariableCollections);
 			this._register(this._environmentVariableService.onDidChangeCollections(newCollection => this._onEnvironmentVariableCollectionChange(newCollection)));
 			this.environmentVariableInfo = this._instantiationService.createInstance(EnvironmentVariableInfoChangesActive, this._extEnvironmentVariableCollection);
 			this._onEnvironmentVariableInfoChange.fire(this.environmentVariableInfo);
@@ -411,6 +411,8 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 
 	// Fetch any extension environment additions and apply them
 	private async _resolveEnvironment(backend: ITerminalBackend, variableResolver: terminalEnvironment.VariableResolver | undefined, shellLaunchConfig: IShellLaunchConfig): Promise<IProcessEnvironment> {
+		const cwdUri = typeof shellLaunchConfig.cwd === 'string' ? URI.parse(shellLaunchConfig.cwd) : shellLaunchConfig.cwd;
+		const workspaceFolder = cwdUri ? withNullAsUndefined(this._workspaceContextService.getWorkspaceFolder(cwdUri)) : undefined;
 		const platformKey = isWindows ? 'windows' : (isMacintosh ? 'osx' : 'linux');
 		const envFromConfigValue = this._configurationService.getValue<ITerminalEnvironment | undefined>(`terminal.integrated.env.${platformKey}`);
 		this._configHelper.showRecommendations(shellLaunchConfig);
@@ -433,7 +435,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 			// info widget. While technically these could differ due to the slight change of a race
 			// condition, the chance is minimal plus the impact on the user is also not that great
 			// if it happens - it's not worth adding plumbing to sync back the resolved collection.
-			await this._extEnvironmentVariableCollection.applyToProcessEnvironment(env, variableResolver);
+			await this._extEnvironmentVariableCollection.applyToProcessEnvironment(env, { workspaceFolder }, variableResolver);
 			if (this._extEnvironmentVariableCollection.variableMap.size > 0) {
 				this.environmentVariableInfo = this._instantiationService.createInstance(EnvironmentVariableInfoChangesActive, this._extEnvironmentVariableCollection);
 				this._onEnvironmentVariableInfoChange.fire(this.environmentVariableInfo);

@@ -4,8 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IProcessEnvironment, isWindows } from 'vs/base/common/platform';
-import { EnvironmentVariableMutatorType, IEnvironmentVariableCollection, IExtensionOwnedEnvironmentVariableMutator, IMergedEnvironmentVariableCollection, IMergedEnvironmentVariableCollectionDiff } from 'vs/platform/terminal/common/environmentVariable';
-import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
+import { EnvironmentVariableMutatorType, EnvironmentVariableScope, IEnvironmentVariableCollection, IExtensionOwnedEnvironmentVariableMutator, IMergedEnvironmentVariableCollection, IMergedEnvironmentVariableCollectionDiff } from 'vs/platform/terminal/common/environmentVariable';
 
 type VariableResolver = (str: string) => Promise<string>;
 
@@ -19,15 +18,12 @@ export class MergedEnvironmentVariableCollection implements IMergedEnvironmentVa
 	/**
 	 * Using variable as keys is okay here because each terminal instance has its own set of variables.
 	 * @karrtikr TODO: Rename it back to map.
+	 * @karrtikr TODO: Check all references of variableMap.
 	 */
 	readonly variableMap: Map<string, IExtensionOwnedEnvironmentVariableMutator[]> = new Map();
 
 	constructor(
 		readonly collections: ReadonlyMap<string, IEnvironmentVariableCollection>,
-		/**
-		 * @karrtikr TODO: Change it back to private.
-		 */
-		public readonly owningWorkspace: IWorkspaceFolder | undefined
 	) {
 		collections.forEach((collection, extensionIdentifier) => {
 			const it = collection.map.entries();
@@ -36,14 +32,6 @@ export class MergedEnvironmentVariableCollection implements IMergedEnvironmentVa
 				const mutator = next.value[1];
 				const variable = mutator.variable;
 				let entry = this.variableMap.get(variable);
-				if (this.owningWorkspace) {
-					// If a mutator is scoped to a workspace folder, only apply it if the workspace
-					// folder matches.
-					if (mutator.scope?.workspaceFolder && mutator.scope.workspaceFolder.uri.fsPath !== this.owningWorkspace.uri.fsPath) {
-						next = it.next();
-						continue;
-					}
-				}
 				if (!entry) {
 					entry = [];
 					this.variableMap.set(variable, entry);
@@ -70,7 +58,7 @@ export class MergedEnvironmentVariableCollection implements IMergedEnvironmentVa
 		});
 	}
 
-	async applyToProcessEnvironment(env: IProcessEnvironment, variableResolver?: VariableResolver): Promise<void> {
+	async applyToProcessEnvironment(env: IProcessEnvironment, scope: EnvironmentVariableScope | undefined, variableResolver?: VariableResolver): Promise<void> {
 		let lowerToActualVariableNames: { [lowerKey: string]: string | undefined } | undefined;
 		if (isWindows) {
 			lowerToActualVariableNames = {};
@@ -79,6 +67,9 @@ export class MergedEnvironmentVariableCollection implements IMergedEnvironmentVa
 		for (const [variable, mutators] of this.variableMap) {
 			const actualVariable = isWindows ? lowerToActualVariableNames![variable.toLowerCase()] || variable : variable;
 			for (const mutator of mutators) {
+				if (filterScope(mutator, scope) === false) {
+					continue;
+				}
 				const value = variableResolver ? await variableResolver(mutator.value) : mutator.value;
 				// if (mutator.timing === EnvironmentVariableMutatorTiming.AfterShellIntegration) {
 				// 	const key = `VSCODE_ENV_${mutatorTypeToLabelMap.get(mutator.type)!}`;
@@ -138,6 +129,24 @@ export class MergedEnvironmentVariableCollection implements IMergedEnvironmentVa
 
 		return { added, changed, removed };
 	}
+}
+
+function filterScope(
+	mutator: IExtensionOwnedEnvironmentVariableMutator,
+	scope: EnvironmentVariableScope | undefined
+): boolean {
+	if (!scope) {
+		return true;
+	}
+	if (!mutator.scope) {
+		return true;
+	}
+	// If a mutator is scoped to a workspace folder, only apply it if the workspace
+	// folder matches.
+	if (mutator.scope.workspaceFolder && scope.workspaceFolder && mutator.scope.workspaceFolder.index === scope.workspaceFolder.index) {
+		return true;
+	}
+	return false;
 }
 
 function getMissingMutatorsFromArray(
