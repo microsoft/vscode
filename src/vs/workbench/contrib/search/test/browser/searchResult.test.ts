@@ -223,47 +223,45 @@ suite('SearchResult', () => {
 		assert.ok(new Range(2, 1, 2, 2).equalsRange(actuaMatches[0].range()));
 	});
 
-	test('Adding multiple raw notebook matches', function () {
+	test('Test that notebook matches get added correctly', function () {
 		const testObject = aSearchResult();
-		const modelTarget = instantiationService.spy(IModelService, 'getModel');
 		const cell1 = { cellKind: CellKind.Code } as ICellViewModel;
 		const cell2 = { cellKind: CellKind.Code } as ICellViewModel;
 
 		sinon.stub(CellMatch.prototype, 'addContext');
-		const target = [
-			aRawFileMatchWithCells('/1',
-				{
-					cell: cell1,
-					index: 0,
-					contentResults: [
-						new TextSearchMatch('preview 1', new OneLineRange(1, 1, 4)),
-					],
-					webviewResults: [
-						new TextSearchMatch('preview 1', new OneLineRange(1, 4, 11)),
-						new TextSearchMatch('preview 2', lineOneRange)
-					]
-				},),
-			aRawFileMatchWithCells('/2',
-				{
-					cell: cell2,
-					index: 0,
-					contentResults: [
-						new TextSearchMatch('preview 1', new OneLineRange(1, 1, 4)),
-					],
-					webviewResults: [
-						new TextSearchMatch('preview 1', new OneLineRange(1, 4, 11)),
-						new TextSearchMatch('preview 2', lineOneRange)
-					]
-				})
-		];
+		const addFileMatch = sinon.spy(FolderMatch.prototype, "addFileMatch");
+		const fileMatch1 = aRawFileMatchWithCells('/1',
+			{
+				cell: cell1,
+				index: 0,
+				contentResults: [
+					new TextSearchMatch('preview 1', new OneLineRange(1, 1, 4)),
+				],
+				webviewResults: [
+					new TextSearchMatch('preview 1', new OneLineRange(1, 4, 11)),
+					new TextSearchMatch('preview 2', lineOneRange)
+				]
+			},);
+		const fileMatch2 = aRawFileMatchWithCells('/2',
+			{
+				cell: cell2,
+				index: 0,
+				contentResults: [
+					new TextSearchMatch('preview 1', new OneLineRange(1, 1, 4)),
+				],
+				webviewResults: [
+					new TextSearchMatch('preview 1', new OneLineRange(1, 4, 11)),
+					new TextSearchMatch('preview 2', lineOneRange)
+				]
+			});
+		const target = [fileMatch1, fileMatch2];
 
 		testObject.add(target);
 		assert.strictEqual(6, testObject.count());
-
-		// when a model is binded, the results are queried once again.
-		assert.ok(modelTarget.calledTwice);
-		assert.ok(modelTarget.calledWith(testObject.matches()[0].resource));
-		assert.ok(modelTarget.calledWith(testObject.matches()[1].resource));
+		assert.deepStrictEqual(fileMatch1.cellResults[0].contentResults, (addFileMatch.getCall(0).args[0][0] as IFileMatchWithCells).cellResults[0].contentResults);
+		assert.deepStrictEqual(fileMatch1.cellResults[0].webviewResults, (addFileMatch.getCall(0).args[0][0] as IFileMatchWithCells).cellResults[0].webviewResults);
+		assert.deepStrictEqual(fileMatch2.cellResults[0].contentResults, (addFileMatch.getCall(0).args[0][1] as IFileMatchWithCells).cellResults[0].contentResults);
+		assert.deepStrictEqual(fileMatch2.cellResults[0].webviewResults, (addFileMatch.getCall(0).args[0][1] as IFileMatchWithCells).cellResults[0].webviewResults);
 	});
 
 	test('Dispose disposes matches', function () {
