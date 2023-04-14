@@ -201,6 +201,8 @@ export class InteractiveSessionInputPart extends Disposable implements IHistoryN
 	}
 
 	async renderFollowups(items?: IInteractiveSessionReplyFollowup[]): Promise<void> {
+		console.log('inside of render followups');
+		console.log('items : ', items);
 		this.followupsDisposables.clear();
 		dom.clearNode(this.followupsContainer);
 

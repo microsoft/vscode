@@ -448,15 +448,20 @@ export class InteractiveSessionService extends Disposable implements IInteractiv
 	}
 
 	async addCompleteRequest(message: string, response: IInteractiveSessionCompleteResponse): Promise<void> {
+		console.log('Inside of addCompleteRequest');
+
 		this.trace('addCompleteRequest', `message: ${message}`);
 
 		// TODO this api should take a providerId, but there is no relation between the interactive editor provider and this provider, so just grab the first one
 		const providerId = Iterable.first(this._providers.keys());
+		console.log('providerId : ', providerId);
+
 		if (!providerId) {
 			throw new Error('No providers available');
 		}
 
 		const viewId = this.interactiveSessionContributionService.getViewIdForProvider(providerId);
+		console.log('viewId : ', viewId);
 		await this.viewsService.openView(viewId);
 
 		// Currently we only support one session per provider

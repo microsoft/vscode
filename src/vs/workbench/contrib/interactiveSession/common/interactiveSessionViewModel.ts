@@ -135,6 +135,7 @@ export class InteractiveSessionViewModel extends Disposable implements IInteract
 	}
 
 	private onAddResponse(responseModel: IInteractiveResponseModel) {
+		console.log('inside of on add response');
 		const response = this.instantiationService.createInstance(InteractiveResponseViewModel, responseModel);
 		this._register(response.onDidChange(() => this._onDidChange.fire()));
 		this._items.push(response);
@@ -265,6 +266,8 @@ export class InteractiveResponseViewModel extends Disposable implements IInterac
 		}
 
 		this._register(_model.onDidChange(() => {
+
+			console.log('inside of on did change of the interactive response view model');
 			if (this._isPlaceholder && (_model.response.value || this.isComplete)) {
 				// The VM is no longer rendered as a placeholder- clear the rendered word count
 				this._isPlaceholder = false;

@@ -452,6 +452,7 @@ export class InteractiveEditorController implements IEditorContribution {
 			}
 
 			if (reply.type === 'message') {
+				console.log('inside of reply type message');
 				this._logService.info('[IE] received a MESSAGE, continuing outside editor', provider.debugName);
 				this._instaService.invokeFunction(showMessageResponse, request.prompt, reply.message.value);
 
@@ -732,6 +733,7 @@ function installSlashCommandSupport(accessor: ServicesAccessor, editor: IActiveC
 
 async function showMessageResponse(accessor: ServicesAccessor, query: string, response: string) {
 	console.log('Inside of showMessageResponse');
+	console.log('response : ', response);
 	const interactiveSessionService = accessor.get(IInteractiveSessionService);
 	interactiveSessionService.addCompleteRequest(query, { message: response });
 }

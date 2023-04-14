@@ -125,6 +125,7 @@ export class InteractiveResponseModel extends Disposable implements IInteractive
 	}
 
 	complete(errorDetails?: IInteractiveResponseErrorDetails): void {
+		console.log('inside of complete');
 		this._isComplete = true;
 		this._errorDetails = errorDetails;
 		this._onDidChange.fire();
@@ -323,6 +324,9 @@ export class InteractiveSessionModel extends Disposable implements IInteractiveS
 	}
 
 	completeResponse(request: InteractiveRequestModel, rawResponse: IInteractiveResponse): void {
+		console.log('Inside of completeResponse');
+		console.log('request : ', request);
+
 		if (!this._session) {
 			throw new Error('completeResponse: No session');
 		}

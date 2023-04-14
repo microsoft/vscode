@@ -168,6 +168,7 @@ export class InteractiveSessionWidget extends Disposable implements IInteractive
 	}
 
 	private onDidChangeItems() {
+		console.log('inside of on did change items');
 		if (this.tree && this.visible) {
 			const items: InteractiveTreeItem[] = this.viewModel?.getItems() ?? [];
 			if (this.viewModel?.welcomeMessage) {
@@ -205,6 +206,8 @@ export class InteractiveSessionWidget extends Disposable implements IInteractive
 	}
 
 	private async renderFollowups(items?: IInteractiveSessionReplyFollowup[]): Promise<void> {
+		console.log('inside if render followups');
+		console.log('items : ', items);
 		this.inputPart.renderFollowups(items);
 
 		if (this.bodyDimension) {
@@ -352,6 +355,7 @@ export class InteractiveSessionWidget extends Disposable implements IInteractive
 
 		this.viewModel = this.instantiationService.createInstance(InteractiveSessionViewModel, model);
 		this.viewModelDisposables.add(this.viewModel.onDidChange(() => {
+			console.log('inside of the on did change of the initialize session model');
 			this.slashCommandsPromise = undefined;
 			this.requestInProgress.set(this.viewModel!.requestInProgress);
 			this.onDidChangeItems();
