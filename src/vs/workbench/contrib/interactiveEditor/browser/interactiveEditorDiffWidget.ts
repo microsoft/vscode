@@ -116,6 +116,9 @@ export class InteractiveEditorDiffWidget extends ZoneWidget {
 
 	override hide(): void {
 		this.editor.setHiddenAreas([], InteractiveEditorDiffWidget._hideId);
+		this._diffEditor.getOriginalEditor().setHiddenAreas([], InteractiveEditorDiffWidget._hideId);
+		this._diffEditor.getModifiedEditor().setHiddenAreas([], InteractiveEditorDiffWidget._hideId);
+		this._diffEditor.setModel(null);
 		super.hide();
 	}
 

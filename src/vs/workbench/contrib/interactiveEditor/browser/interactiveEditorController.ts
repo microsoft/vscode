@@ -261,7 +261,7 @@ export class InteractiveEditorController implements IEditorContribution {
 	private readonly _ctxLastFeedbackKind: IContextKey<'helpful' | 'unhelpful' | ''>;
 
 	private _lastEditState?: LastEditorState;
-	private _strategy?: LiveStrategy | PreviewStrategy;
+	private _strategy?: EditModeStrategy;
 	private _lastInlineDecorations?: InlineDiffDecorations;
 	private _inlineDiffEnabled: boolean = false;
 
@@ -340,7 +340,10 @@ export class InteractiveEditorController implements IEditorContribution {
 			undos: ''
 		};
 
-		this._strategy = this._instaService.createInstance(editMode === 'preview' ? PreviewStrategy : LiveStrategy, textModel, textModel.getAlternativeVersionId());
+		this._strategy = this._instaService.createInstance(
+			editMode === 'preview' ? PreviewStrategy : editMode === 'livePreview' ? LivePreviewStrategy : LiveStrategy,
+			textModel, textModel.getAlternativeVersionId()
+		);
 
 		this._inlineDiffEnabled = this._storageService.getBoolean(InteractiveEditorController._inlineDiffStorageKey, StorageScope.PROFILE, false);
 		const inlineDiffDecorations = new InlineDiffDecorations(this._editor, this._inlineDiffEnabled);
@@ -438,7 +441,11 @@ export class InteractiveEditorController implements IEditorContribution {
 			}
 
 			if (round > 1 && editMode === 'livePreview') {
-				diffZone.show(wholeRangeDecoration.getRange(0)!);
+				if (!textModel.equalsTextBuffer(diffBaseModel.getTextBuffer())) {
+					diffZone.show(wholeRangeDecoration.getRange(0)!);
+				} else {
+					diffZone.hide();
+				}
 			}
 
 			// visuals: add block decoration
@@ -745,7 +752,16 @@ export class InteractiveEditorController implements IEditorContribution {
 	}
 }
 
-class PreviewStrategy {
+abstract class EditModeStrategy {
+
+	abstract update(response: EditResponse): boolean;
+
+	abstract apply(): Promise<void>;
+
+	abstract cancel(): void;
+}
+
+class PreviewStrategy extends EditModeStrategy {
 
 	private _lastResponse?: EditResponse;
 
@@ -753,7 +769,9 @@ class PreviewStrategy {
 		private readonly _model: ITextModel,
 		private readonly _versionId: number,
 		@IBulkEditService private readonly _bulkEditService: IBulkEditService,
-	) { }
+	) {
+		super();
+	}
 
 	update(response: EditResponse): boolean {
 		this._lastResponse = response;
@@ -790,13 +808,15 @@ class PreviewStrategy {
 	}
 }
 
-class LiveStrategy {
+class LiveStrategy extends EditModeStrategy {
 
 	constructor(
-		private readonly _model: ITextModel,
-		private readonly _versionId: number,
-		@IBulkEditService private readonly _bulkEditService: IBulkEditService,
-	) { }
+		protected readonly _model: ITextModel,
+		protected readonly _versionId: number,
+		@IBulkEditService protected readonly _bulkEditService: IBulkEditService,
+	) {
+		super();
+	}
 
 	update(response: EditResponse): boolean {
 		if (response.workspaceEdits) {
@@ -813,6 +833,26 @@ class LiveStrategy {
 	cancel(): void {
 		while (this._model.getAlternativeVersionId() !== this._versionId) {
 			this._model.undo();
+		}
+	}
+}
+
+class LivePreviewStrategy extends LiveStrategy {
+
+	private _lastResponse?: EditResponse;
+
+	override update(response: EditResponse): boolean {
+		this._lastResponse = response;
+		if (response.singleCreateFileEdit) {
+			// preview stategy can handle simple workspace edit (single file create)
+			return true;
+		}
+		return super.update(response);
+	}
+
+	override async apply() {
+		if (this._lastResponse?.workspaceEdits) {
+			await this._bulkEditService.apply(this._lastResponse.workspaceEdits);
 		}
 	}
 }
