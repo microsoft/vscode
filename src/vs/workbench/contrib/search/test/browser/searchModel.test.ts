@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 import * as assert from 'assert';
 import * as sinon from 'sinon';
+import * as arrays from 'vs/base/common/arrays';
 import { DeferredPromise, timeout } from 'vs/base/common/async';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { URI } from 'vs/base/common/uri';
@@ -245,16 +246,22 @@ suite('SearchModel', () => {
 		};
 
 		const model: SearchModel = instantiationService.createInstance(SearchModel);
-		const notebookSearch = sinon.stub(model, <any>"getLocalNotebookResults").callsFake(() => {
+		const notebookSearch = sinon.stub(model, "notebookSearch").callsFake((): Promise<{ completeData: ISearchComplete; scannedFiles: ResourceSet }> => {
 			const localResults = new ResourceMap<IFileMatchWithCells | null>(uri => uri.path);
 			const fileMatch = aRawMatchWithCells('/1', cellMatchMd, cellMatchCode);
 			localResults.set(notebookUri, fileMatch);
 			return Promise.resolve(
 				{
-					results: localResults,
-					limitHit: false
+					completeData: {
+						messages: [],
+						results: arrays.coalesce([...localResults.values()]),
+						limitHit: false
+					},
+					scannedFiles: new ResourceSet([...localResults.keys()]),
 				});
 		});
+		restoreStubs.push(notebookSearch);
+
 
 		await model.search({ contentPattern: { pattern: 'test' }, type: QueryType.Text, folderQueries });
 		const actual = model.searchResult.matches();
