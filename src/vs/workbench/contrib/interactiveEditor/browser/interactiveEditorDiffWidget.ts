@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { h } from 'vs/base/browser/dom';
+import { Dimension, h } from 'vs/base/browser/dom';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { assertType } from 'vs/base/common/types';
 import { ICodeEditor, IDiffEditor } from 'vs/editor/browser/editorBrowser';
@@ -26,6 +26,7 @@ export class InteractiveEditorDiffWidget extends ZoneWidget {
 
 	private readonly _diffEditor: IDiffEditor;
 	private readonly _sessionStore = this._disposables.add(new DisposableStore());
+	private _dim: Dimension | undefined;
 
 	constructor(
 		editor: ICodeEditor,
@@ -107,7 +108,18 @@ export class InteractiveEditorDiffWidget extends ZoneWidget {
 		super.hide();
 	}
 
+	protected override _onWidth(widthInPixel: number): void {
+		if (this._dim) {
+			this._doLayout(this._dim.height, widthInPixel);
+		}
+	}
+
 	protected override _doLayout(heightInPixel: number, widthInPixel: number): void {
-		this._diffEditor.layout({ height: heightInPixel - 12 /* padding */, width: widthInPixel });
+		const newDim = new Dimension(widthInPixel, heightInPixel);
+		if (Dimension.equals(this._dim, newDim)) {
+			return;
+		}
+		this._dim = newDim;
+		this._diffEditor.layout(this._dim.with(undefined, this._dim.height - 12 /* padding */));
 	}
 }
