@@ -256,7 +256,7 @@ const terminalConfiguration: IConfigurationNode = {
 		[TerminalSettingId.CursorBlinking]: {
 			description: localize('terminal.integrated.cursorBlinking', "Controls whether the terminal cursor blinks."),
 			type: 'boolean',
-			default: false
+			default: true
 		},
 		[TerminalSettingId.CursorStyle]: {
 			description: localize('terminal.integrated.cursorStyle', "Controls the style of terminal cursor."),
