@@ -187,3 +187,9 @@
 .monaco-editor .interactive-editor-slash-command-detail {
 	opacity: 0.5;
 }
+
+/* diff zone */
+
+.monaco-editor .interactive-editor-diff-widget {
+	padding: 6px 0;
+}

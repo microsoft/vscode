@@ -47,7 +47,7 @@ export function registerDropIntoEditorSupport(selector: vscode.DocumentSelector)
 			return edit;
 		}
 	}, {
-		id: 'vscode.markdown.insertLink',
+		id: 'insertLink',
 		dropMimeTypes: [
 			'text/uri-list'
 		]

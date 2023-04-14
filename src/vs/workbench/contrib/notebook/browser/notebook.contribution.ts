@@ -911,6 +911,25 @@ configurationRegistry.registerConfiguration({
 			type: 'boolean',
 			tags: ['notebookLayout'],
 			default: false
+		},
+		[NotebookSetting.experimentalFindInMarkdownMode]: {
+			markdownDescription: nls.localize('notebook.experimental.findInMarkdownMode', "Customize the Find Widget behavior for searching within markdown cells. When both are enabled, the Find Widget will search either the content or preview based on the current state of the markdown cell. Toggle the boolean values to control the Find Widget's scope for each mode as needed."),
+			type: 'object',
+			properties: {
+				source: {
+					type: 'boolean',
+					default: true
+				},
+				preview: {
+					type: 'boolean',
+					default: false
+				}
+			},
+			default: {
+				source: true,
+				preview: false
+			},
+			tags: ['notebookLayout']
 		}
 	}
 });

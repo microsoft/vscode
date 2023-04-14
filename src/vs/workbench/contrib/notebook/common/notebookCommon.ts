@@ -944,6 +944,7 @@ export const NotebookSetting = {
 	outputFontSize: 'notebook.output.fontSize',
 	outputFontFamilyDeprecated: 'notebook.outputFontFamily',
 	outputFontFamily: 'notebook.output.fontFamily',
+	experimentalFindInMarkdownMode: 'notebook.experimental.findInMarkdownMode',
 	logging: 'notebook.logging',
 } as const;
 

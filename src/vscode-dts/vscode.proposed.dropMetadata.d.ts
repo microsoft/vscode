@@ -17,13 +17,17 @@ declare module 'vscode' {
 	export interface DocumentDropEditProviderMetadata {
 		/**
 		 * Unique identifier for the provider.
+		 *
+		 * This id should be unique within the extension but does not need to be unique across extensions.
 		 */
 		readonly id: string;
 
 		/**
 		 * List of data transfer types that the provider supports.
+		 *
+		 * This can either be an exact mime type such as `image/png`, or a wildcard pattern such as `image/*`.
 		 */
-		readonly dropMimeTypes?: readonly string[];
+		readonly dropMimeTypes: readonly string[];
 	}
 
 	export namespace languages {
