@@ -190,11 +190,10 @@ export class SearchWidget extends Widget {
 		const notebookOptions = options.notebookOptions ?? { isInNotebookMarkdownInput: true, isInNotebookCellInput: true, isInNotebookCellOutput: true };
 		this._notebookFilters = this._register(
 			new NotebookFindFilters(
-				false,
-				notebookOptions?.isInNotebookMarkdownInput ?? true,
-				!notebookOptions?.isInNotebookMarkdownInput ?? false,
-				notebookOptions?.isInNotebookCellInput ?? true,
-				notebookOptions?.isInNotebookCellOutput ?? false
+				notebookOptions.isInNotebookMarkdownInput,
+				!notebookOptions.isInNotebookMarkdownInput,
+				notebookOptions.isInNotebookCellInput,
+				notebookOptions.isInNotebookCellOutput
 			));
 
 		this._register(

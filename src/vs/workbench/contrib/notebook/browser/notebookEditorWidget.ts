@@ -2438,30 +2438,16 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 
 		const findMatches = this._notebookViewModel.find(query, options).filter(match => match.length > 0);
 
-		if (!options.includeMarkupPreview && !options.includeOutput && !options.markupHybrid) {
+		if (!options.includeMarkupPreview && !options.includeOutput) {
 			this._webview?.findStop();
-
-			return findMatches.filter(match =>
-				(match.cell.cellKind === CellKind.Code && options.includeCodeInput) ||
-				(match.cell.cellKind === CellKind.Markup && options.includeMarkupInput)
-			);
+			return findMatches;
 		}
 
 		// search in webview enabled
 
 		const matchMap: { [key: string]: CellFindMatchWithIndex } = {};
 		findMatches.forEach(match => {
-			if (match.cell.cellKind === CellKind.Code && options.includeCodeInput) {
-				matchMap[match.cell.id] = match;
-			}
-
-			if (match.cell.cellKind === CellKind.Markup) {
-				if (options.markupHybrid && match.cell.getEditState() === CellEditState.Editing) {
-					matchMap[match.cell.id] = match;
-				} else if (options.includeMarkupInput) {
-					matchMap[match.cell.id] = match;
-				}
-			}
+			matchMap[match.cell.id] = match;
 		});
 
 		if (this._webview) {
@@ -2476,7 +2462,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 				return [];
 			}
 
-			const webviewMatches = await this._webview.find(query, { caseSensitive: options.caseSensitive, wholeWord: options.wholeWord, includeMarkup: !!options.includeMarkupPreview || !!options.markupHybrid, includeOutput: !!options.includeOutput, shouldGetSearchPreviewInfo });
+			const webviewMatches = await this._webview.find(query, { caseSensitive: options.caseSensitive, wholeWord: options.wholeWord, includeMarkup: !!options.includeMarkupPreview, includeOutput: !!options.includeOutput, shouldGetSearchPreviewInfo });
 
 			if (token.isCancellationRequested) {
 				return [];
@@ -2491,14 +2477,19 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 				}
 
 				if (match.type === 'preview') {
-					if (cell.getEditState() === CellEditState.Preview && !options.markupHybrid && !options.includeMarkupPreview) {
+					// markup preview
+					if (cell.getEditState() === CellEditState.Preview && !options.includeMarkupPreview) {
 						return;
 					}
-				}
 
-				if (!options.includeOutput && match.type === 'output') {
-					// skip outputs if not included
-					return;
+					if (cell.getEditState() === CellEditState.Editing && options.includeMarkupInput) {
+						return;
+					}
+				} else {
+					if (!options.includeOutput) {
+						// skip outputs if not included
+						return;
+					}
 				}
 
 				const exisitingMatch = matchMap[match.cellId];

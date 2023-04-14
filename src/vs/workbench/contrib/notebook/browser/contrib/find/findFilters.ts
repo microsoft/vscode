@@ -7,7 +7,6 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { Event, Emitter } from 'vs/base/common/event';
 
 export interface INotebookFindFiltersChangeEvent {
-	markupHybrid?: boolean;
 	markupInput?: boolean;
 	markupPreview?: boolean;
 	codeInput?: boolean;
@@ -18,19 +17,6 @@ export class NotebookFindFilters extends Disposable {
 	private readonly _onDidChange: Emitter<INotebookFindFiltersChangeEvent> = this._register(new Emitter<INotebookFindFiltersChangeEvent>());
 	readonly onDidChange: Event<INotebookFindFiltersChangeEvent> = this._onDidChange.event;
 
-	private _markupHybrid: boolean = true;
-
-	get markupHybrid(): boolean {
-		return this._markupHybrid;
-	}
-
-	set markupHybrid(value: boolean) {
-		if (this._markupHybrid !== value) {
-			this._markupHybrid = value;
-			this._onDidChange.fire({ markupHybrid: value });
-		}
-	}
-
 	private _markupInput: boolean = true;
 
 	get markupInput(): boolean {
@@ -40,8 +26,7 @@ export class NotebookFindFilters extends Disposable {
 	set markupInput(value: boolean) {
 		if (this._markupInput !== value) {
 			this._markupInput = value;
-			this._markupPreview = !value;
-			this._onDidChange.fire({ markupInput: value, markupPreview: this._markupPreview });
+			this._onDidChange.fire({ markupInput: value });
 		}
 	}
 
@@ -54,8 +39,7 @@ export class NotebookFindFilters extends Disposable {
 	set markupPreview(value: boolean) {
 		if (this._markupPreview !== value) {
 			this._markupPreview = value;
-			this._markupInput = !value;
-			this._onDidChange.fire({ markupPreview: value, markupInput: this._markupInput });
+			this._onDidChange.fire({ markupPreview: value });
 		}
 	}
 	private _codeInput: boolean = true;
@@ -85,7 +69,6 @@ export class NotebookFindFilters extends Disposable {
 	}
 
 	constructor(
-		markupHybrid: boolean,
 		markupInput: boolean,
 		markupPreview: boolean,
 		codeInput: boolean,
@@ -93,11 +76,14 @@ export class NotebookFindFilters extends Disposable {
 	) {
 		super();
 
-		this._markupHybrid = markupHybrid;
 		this._markupInput = markupInput;
 		this._markupPreview = markupPreview;
 		this._codeInput = codeInput;
 		this._codeOutput = codeOutput;
+	}
+
+	isModified(): boolean {
+		return !this.markupInput || !this.markupPreview || !this.codeOutput || !this.codeInput;
 	}
 
 	update(v: NotebookFindFilters) {
