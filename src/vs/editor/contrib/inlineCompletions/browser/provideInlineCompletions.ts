@@ -15,7 +15,7 @@ import { Command, InlineCompletion, InlineCompletionContext, InlineCompletions, 
 import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
 import { ITextModel } from 'vs/editor/common/model';
 import { fixBracketsInLine } from 'vs/editor/common/model/bracketPairsTextModelPart/fixBrackets';
-import { Replacement } from 'vs/editor/contrib/inlineCompletions/browser/inlineCompletionToGhostText';
+import { SingleTextEdit } from 'vs/editor/contrib/inlineCompletions/browser/singleTextEdit';
 import { getReadonlyEmptyArray } from 'vs/editor/contrib/inlineCompletions/browser/utils';
 import { SnippetParser, Text } from 'vs/editor/contrib/snippet/browser/snippetParser';
 
@@ -39,6 +39,7 @@ export async function provideInlineCompletions(
 	}));
 
 	const defaultReplaceRange = getDefaultRange(position, model);
+
 	const itemsByHash = new Map<string, InlineCompletionItem>();
 	const lists: InlineCompletionList[] = [];
 	for (const result of providerResults) {
@@ -61,23 +62,22 @@ export async function provideInlineCompletions(
 		}
 	}
 
-	return new InlineCompletionProviderResult(Array.from(itemsByHash.values()), lists);
+	return new InlineCompletionProviderResult(Array.from(itemsByHash.values()), new Set(itemsByHash.keys()), lists);
 }
 
 export class InlineCompletionProviderResult implements IDisposable {
+
 	constructor(
 		/**
 		 * Free of duplicates.
 		 */
 		public readonly completions: readonly InlineCompletionItem[],
+		private readonly hashs: Set<string>,
 		private readonly providerResults: readonly InlineCompletionList[],
 	) { }
 
-	public withExternalInlineCompletion(inlineCompletion: InlineCompletionItem): InlineCompletionProviderResult {
-		return new InlineCompletionProviderResult(
-			[inlineCompletion].concat(this.completions),
-			[inlineCompletion.source].concat(this.providerResults),
-		);
+	public has(item: InlineCompletionItem): boolean {
+		return this.hashs.has(item.hash());
 	}
 
 	dispose(): void {
@@ -230,8 +230,8 @@ export class InlineCompletionItem {
 		return JSON.stringify({ insertText: this.insertText, range: this.range.toString() });
 	}
 
-	public toReplacement(): Replacement {
-		return new Replacement(this.range, this.insertText);
+	public toSingleTextEdit(): SingleTextEdit {
+		return new SingleTextEdit(this.range, this.insertText);
 	}
 }
 

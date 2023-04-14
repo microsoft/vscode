@@ -34,7 +34,7 @@ import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace
 import { rangeStartsWith } from 'vs/editor/contrib/inlineCompletions/browser/suggestWidgetInlineCompletionProvider';
 import { LanguageFeaturesService } from 'vs/editor/common/services/languageFeaturesService';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
-import { minimizeInlineCompletion } from 'vs/editor/contrib/inlineCompletions/browser/inlineCompletionToGhostText';
+import { minimizeInlineCompletion } from 'vs/editor/contrib/inlineCompletions/browser/singleTextEdit';
 
 suite('Suggest Widget Model', () => {
 	test('rangeStartsWith', () => {

@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event } from 'vs/base/common/event';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { constObservable, observableValue } from 'vs/base/common/observable';
-import { ITransaction, disposableObservableValue, transaction } from 'vs/base/common/observableImpl/base';
+import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
+import { autorun, constObservable, observableFromEvent, observableValue } from 'vs/base/common/observable';
+import { IObservable, ITransaction, disposableObservableValue, transaction } from 'vs/base/common/observableImpl/base';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
@@ -14,8 +14,19 @@ import { CursorChangeReason } from 'vs/editor/common/cursorEvents';
 import { GhostTextWidget } from 'vs/editor/contrib/inlineCompletions/browser/ghostTextWidget';
 import { InlineCompletionsModel } from 'vs/editor/contrib/inlineCompletions/browser/inlineCompletionsModel';
 import { SuggestWidgetAdaptor } from 'vs/editor/contrib/inlineCompletions/browser/suggestWidgetInlineCompletionProvider';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import * as nls from 'vs/nls';
+import { CursorColumns } from 'vs/editor/common/core/cursorColumns';
+import { firstNonWhitespaceIndex } from 'vs/base/common/strings';
+import { InlineSuggestionHintsContentWidget } from 'vs/editor/contrib/inlineCompletions/browser/inlineSuggestionsHintsWidget';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { ICommandService } from 'vs/platform/commands/common/commands';
+import { CoreEditingCommands } from 'vs/editor/browser/coreCommands';
+import { inlineSuggestCommitId } from 'vs/editor/contrib/inlineCompletions/browser/commandIds';
+import { ILanguageFeatureDebounceService } from 'vs/editor/common/services/languageFeatureDebounce';
+import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
+import { EditorOption } from 'vs/editor/common/config/editorOptions';
 
 export class InlineCompletionsController extends Disposable {
 	static ID = 'editor.contrib.inlineCompletionsController';
@@ -26,7 +37,7 @@ export class InlineCompletionsController extends Disposable {
 
 	private readonly suggestWidgetAdaptor = new SuggestWidgetAdaptor(
 		this.editor,
-		() => this.model.get()?.currentInlineCompletion.get()?.toInlineCompletion(),
+		() => this.model.get()?.currentInlineCompletion.get()?.toSingleTextEdit(),
 		(tx) => this.updateObservables(tx)
 	);
 
@@ -40,37 +51,114 @@ export class InlineCompletionsController extends Disposable {
 		targetTextModel: this.model.map(v => v?.textModel),
 	});
 
+	private readonly _debounceValue = this.debounceService.for(
+		this.languageFeaturesService.inlineCompletionsProvider,
+		'InlineCompletionsDebounce',
+		{ min: 50, max: 50 }
+	);
+
 	constructor(
 		public readonly editor: ICodeEditor,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@ICommandService private readonly commandService: ICommandService,
+		@ILanguageFeatureDebounceService private readonly debounceService: ILanguageFeatureDebounceService,
+		@ILanguageFeaturesService private readonly languageFeaturesService: ILanguageFeaturesService,
 	) {
 		super();
 
-		this._register(Event.runAndSubscribe(editor.onDidChangeModel, () => transaction(tx => {
-			this.model.set(undefined, tx); // This disposes the model
-			this.updateObservables(tx);
-			const textModel = editor.getModel();
-			if (textModel) {
-				const model = new InlineCompletionsModel(textModel, this.suggestWidgetAdaptor.selectedItem, this.cursorPosition, this.textModelVersionId, instantiationService);
-				this.model.set(model, tx);
-			}
-		})));
+		this._register(new InlineCompletionContextKeys(this.contextKeyService, this.model));
 
-		this._register(editor.onDidChangeModelContent(e => transaction(tx =>
+		const enabled = observableFromEvent(editor.onDidChangeConfiguration, () => editor.getOption(EditorOption.inlineSuggest).enabled);
+
+		this._register(Event.runAndSubscribe(editor.onDidChangeModel, () => {
+			this.model.set(undefined, undefined); // This disposes the model (do this outside of the transaction to dispose autoruns)
+			transaction(tx => {
+				this.updateObservables(tx);
+				const textModel = editor.getModel();
+				if (textModel) {
+					const model = instantiationService.createInstance(
+						InlineCompletionsModel,
+						textModel,
+						this.suggestWidgetAdaptor.selectedItem,
+						this.cursorPosition,
+						this.textModelVersionId,
+						this._debounceValue,
+						observableFromEvent(editor.onDidChangeConfiguration, () => editor.getOption(EditorOption.suggest).preview),
+						observableFromEvent(editor.onDidChangeConfiguration, () => editor.getOption(EditorOption.suggest).previewMode),
+						observableFromEvent(editor.onDidChangeConfiguration, () => editor.getOption(EditorOption.inlineSuggest).mode),
+						enabled
+					);
+					this.model.set(model, tx);
+				}
+			});
+		}));
+
+		this._register(editor.onDidChangeModelContent(() => transaction(tx =>
 			this.updateObservables(tx)
 		)));
 
-		editor.onDidChangeCursorPosition(e => transaction(tx => {
+		this._register(editor.onDidChangeCursorPosition(e => transaction(tx => {
 			this.updateObservables(tx);
 			if (e.reason === CursorChangeReason.Explicit) {
-				this.model.get()?.clear(tx);
+				this.model.get()?.stop(tx);
+			}
+		})));
+
+		this._register(editor.onDidType(() => transaction(tx => {
+			this.updateObservables(tx);
+			if (enabled.get()) {
+				this.model.get()?.trigger(tx);
+			}
+		})));
+
+		this._register(
+			this.commandService.onDidExecuteCommand((e) => {
+				// These commands don't trigger onDidType.
+				const commands = new Set([
+					CoreEditingCommands.Tab.id,
+					CoreEditingCommands.DeleteLeft.id,
+					CoreEditingCommands.DeleteRight.id,
+					inlineSuggestCommitId,
+					'acceptSelectedSuggestion',
+				]);
+				if (commands.has(e.commandId) && editor.hasTextFocus()) {
+					transaction(tx => {
+						this.model.get()?.trigger(tx);
+					});
+				}
+			})
+		);
+
+		this._register(this.editor.onDidBlurEditorWidget(() => {
+			// This is a hidden setting very useful for debugging
+			if (this.configurationService.getValue('editor.inlineSuggest.keepOnBlur')) {
+				return;
+			}
+			if (InlineSuggestionHintsContentWidget.dropDownVisible) {
+				return;
+			}
+			transaction(tx => {
+				this.model.get()?.stop(tx);
+			});
+		}));
+
+		this._register(autorun('forceRenderingAbove', reader => {
+			const model = this.model.read(reader);
+			const ghostText = model?.ghostText.read(reader);
+			const selectedSuggestItem = this.suggestWidgetAdaptor.selectedItem.read(reader);
+			if (selectedSuggestItem) {
+				if (ghostText && ghostText.lineCount >= 2) {
+					this.suggestWidgetAdaptor.forceRenderingAbove();
+				}
+			} else {
+				this.suggestWidgetAdaptor.stopForceRenderingAbove();
 			}
 		}));
 
-		editor.onDidType(() => transaction(tx => {
-			this.updateObservables(tx);
-			this.model.get()?.trigger(tx);
+		this._register(toDisposable(() => {
+			this.suggestWidgetAdaptor.stopForceRenderingAbove();
 		}));
 	}
 
@@ -90,5 +178,62 @@ export class InlineCompletionsController extends Disposable {
 
 	public shouldShowHoverAtViewZone(viewZoneId: string): boolean {
 		return this.ghostTextWidget.ownsViewZone(viewZoneId);
+	}
+}
+
+export class InlineCompletionContextKeys extends Disposable {
+	public static readonly inlineSuggestionVisible = new RawContextKey<boolean>('inlineSuggestionVisible', false, nls.localize('inlineSuggestionVisible', "Whether an inline suggestion is visible"));
+	public static readonly inlineSuggestionHasIndentation = new RawContextKey<boolean>('inlineSuggestionHasIndentation', false, nls.localize('inlineSuggestionHasIndentation', "Whether the inline suggestion starts with whitespace"));
+	public static readonly inlineSuggestionHasIndentationLessThanTabSize = new RawContextKey<boolean>('inlineSuggestionHasIndentationLessThanTabSize', true, nls.localize('inlineSuggestionHasIndentationLessThanTabSize', "Whether the inline suggestion starts with whitespace that is less than what would be inserted by tab"));
+	public static readonly alwaysShowInlineSuggestionToolbar = new RawContextKey<boolean>('alwaysShowInlineSuggestionToolbar', false, nls.localize('alwaysShowInlineSuggestionToolbar', "Whether the inline suggestion toolbar should always be visible"));
+
+	public readonly inlineCompletionVisible = InlineCompletionContextKeys.inlineSuggestionVisible.bindTo(this.contextKeyService);
+	public readonly inlineCompletionSuggestsIndentation = InlineCompletionContextKeys.inlineSuggestionHasIndentation.bindTo(this.contextKeyService);
+	public readonly inlineCompletionSuggestsIndentationLessThanTabSize = InlineCompletionContextKeys.inlineSuggestionHasIndentationLessThanTabSize.bindTo(this.contextKeyService);
+
+	constructor(
+		private readonly contextKeyService: IContextKeyService,
+		private readonly model: IObservable<InlineCompletionsModel | undefined>,
+	) {
+		super();
+
+		this._register(autorun('update context key: inlineCompletionVisible', (reader) => {
+			const model = this.model.read(reader);
+			const ghostText = model?.ghostText.read(reader);
+			const selectedSuggestItem = model?.selectedSuggestItem.read(reader);
+			this.inlineCompletionVisible.set(selectedSuggestItem === undefined && ghostText !== undefined);
+		}));
+
+		this._register(autorun('update context key: inlineCompletionSuggestsIndentation, inlineCompletionSuggestsIndentationLessThanTabSize', (reader) => {
+			const model = this.model.read(reader);
+
+			let startsWithIndentation = false;
+			let startsWithIndentationLessThanTabSize = true;
+
+			const ghostText = model?.ghostText.read(reader);
+			if (!!model?.selectedSuggestItem && ghostText && ghostText.parts.length > 0) {
+				const { column, lines } = ghostText.parts[0];
+
+				const firstLine = lines[0];
+
+				const indentationEndColumn = model.textModel.getLineIndentColumn(ghostText.lineNumber);
+				const inIndentation = column <= indentationEndColumn;
+
+				if (inIndentation) {
+					let firstNonWsIdx = firstNonWhitespaceIndex(firstLine);
+					if (firstNonWsIdx === -1) {
+						firstNonWsIdx = firstLine.length - 1;
+					}
+					startsWithIndentation = firstNonWsIdx > 0;
+
+					const tabSize = model.textModel.getOptions().tabSize;
+					const visibleColumnIndentation = CursorColumns.visibleColumnFromColumn(firstLine, firstNonWsIdx + 1, tabSize);
+					startsWithIndentationLessThanTabSize = visibleColumnIndentation < tabSize;
+				}
+			}
+
+			this.inlineCompletionSuggestsIndentation.set(startsWithIndentation);
+			this.inlineCompletionSuggestsIndentationLessThanTabSize.set(startsWithIndentationLessThanTabSize);
+		}));
 	}
 }

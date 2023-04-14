@@ -19,7 +19,7 @@ import { GhostTextContext, MockInlineCompletionsProvider } from 'vs/editor/contr
 import { ITestCodeEditor, TestCodeEditorInstantiationOptions, withAsyncTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
 import { createTextModel } from 'vs/editor/test/common/testTextModel';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { getGhostText } from '../../browser/inlineCompletionToGhostText';
+import { getGhostText } from '../../browser/singleTextEdit';
 
 suite('Inline Completions', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();

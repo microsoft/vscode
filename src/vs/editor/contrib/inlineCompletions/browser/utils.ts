@@ -88,9 +88,20 @@ export function applyObservableDecorations(editor: ICodeEditor, decorations: IOb
 	return d;
 }
 
-export function rangeExtends(extendingRange: Range, rangeToExtend: Range): boolean {
-	return extendingRange.startLineNumber === rangeToExtend.startLineNumber &&
-		extendingRange.startColumn === rangeToExtend.startColumn &&
-		((extendingRange.endLineNumber === rangeToExtend.endLineNumber && extendingRange.endColumn >= rangeToExtend.endColumn)
-			|| extendingRange.endLineNumber > rangeToExtend.endLineNumber);
+export function addPositions(pos1: Position, pos2: Position): Position {
+	return new Position(pos1.lineNumber + pos2.lineNumber - 1, pos2.lineNumber === 1 ? pos1.column + pos2.column - 1 : pos2.column);
+}
+
+export function lengthOfText(text: string): Position {
+	let line = 1;
+	let column = 1;
+	for (const c of text) {
+		if (c === '\n') {
+			line++;
+			column = 1;
+		} else {
+			column++;
+		}
+	}
+	return new Position(line, column);
 }

@@ -14,8 +14,7 @@ import { SnippetSession } from 'vs/editor/contrib/snippet/browser/snippetSession
 import { CompletionItem } from 'vs/editor/contrib/suggest/browser/suggest';
 import { SuggestController } from 'vs/editor/contrib/suggest/browser/suggestController';
 import { IObservable, ITransaction, observableValue, transaction } from 'vs/base/common/observable';
-import { InlineCompletionItem } from 'vs/editor/contrib/inlineCompletions/browser/provideInlineCompletions';
-import { Replacement } from 'vs/editor/contrib/inlineCompletions/browser/inlineCompletionToGhostText';
+import { SingleTextEdit } from 'vs/editor/contrib/inlineCompletions/browser/singleTextEdit';
 import { ITextModel } from 'vs/editor/common/model';
 import { compareBy, findMaxBy, numberComparator } from 'vs/base/common/arrays';
 
@@ -33,7 +32,7 @@ export class SuggestWidgetAdaptor extends Disposable {
 
 	constructor(
 		private readonly editor: ICodeEditor,
-		private readonly suggestControllerPreselector: () => InlineCompletionItem | undefined,
+		private readonly suggestControllerPreselector: () => SingleTextEdit | undefined,
 		private readonly checkModelVersion: (tx: ITransaction) => void,
 	) {
 		super();
@@ -65,22 +64,18 @@ export class SuggestWidgetAdaptor extends Disposable {
 						return -1;
 					}
 
-					const normalizedItemToPreselect = this.suggestControllerPreselector()?.toReplacement().minimize(textModel);
-					if (!normalizedItemToPreselect) {
+					const itemToPreselect = this.suggestControllerPreselector()?.removeCommonPrefix(textModel);
+					if (!itemToPreselect) {
 						return -1;
 					}
 					const position = Position.lift(pos);
 
 					const candidates = suggestItems
 						.map((suggestItem, index) => {
-							const inlineSuggestItem = SuggestItemInfo.fromSuggestion(suggestController, textModel, position, suggestItem, this.isShiftKeyPressed);
-							const normalizedSuggestItem = inlineSuggestItem.toReplacement().minimize(textModel);
-							if (!normalizedSuggestItem) {
-								return undefined;
-							}
-							const valid = rangeStartsWith(normalizedItemToPreselect.range, normalizedSuggestItem.range) &&
-								normalizedItemToPreselect.text.startsWith(normalizedSuggestItem.text);
-							return { index, valid, prefixLength: normalizedSuggestItem.text.length, suggestItem };
+							const suggestItemInfo = SuggestItemInfo.fromSuggestion(suggestController, textModel, position, suggestItem, this.isShiftKeyPressed);
+							const suggestItemTextEdit = suggestItemInfo.toSingleTextEdit().removeCommonPrefix(textModel);
+							const valid = itemToPreselect.augments(suggestItemTextEdit);
+							return { index, valid, prefixLength: suggestItemTextEdit.text.length, suggestItem };
 						})
 						.filter(item => item && item.valid && item.prefixLength > 0);
 
@@ -215,19 +210,9 @@ export class SuggestItemInfo {
 		return new SelectedSuggestionInfo(this.range, this.insertText, this.completionItemKind, this.isSnippetText);
 	}
 
-	public toReplacement(): Replacement {
-		return new Replacement(this.range, this.insertText);
+	public toSingleTextEdit(): SingleTextEdit {
+		return new SingleTextEdit(this.range, this.insertText);
 	}
-}
-
-export function rangeStartsWith(rangeToTest: Range, prefix: Range): boolean {
-	return (
-		prefix.startLineNumber === rangeToTest.startLineNumber &&
-		prefix.startColumn === rangeToTest.startColumn &&
-		(prefix.endLineNumber < rangeToTest.endLineNumber ||
-			(prefix.endLineNumber === rangeToTest.endLineNumber &&
-				prefix.endColumn <= rangeToTest.endColumn))
-	);
 }
 
 function suggestItemInfoEquals(a: SuggestItemInfo | undefined, b: SuggestItemInfo | undefined): boolean {

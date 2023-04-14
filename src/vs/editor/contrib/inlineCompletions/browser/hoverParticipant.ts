@@ -4,18 +4,17 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from 'vs/base/browser/dom';
-import { Event } from 'vs/base/common/event';
 import { MarkdownString } from 'vs/base/common/htmlContent';
-import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
+import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
+import { autorun, constObservable } from 'vs/base/common/observable';
 import { ICodeEditor, IEditorMouseEvent, MouseTargetType } from 'vs/editor/browser/editorBrowser';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { Range } from 'vs/editor/common/core/range';
-import { Command } from 'vs/editor/common/languages';
 import { ILanguageService } from 'vs/editor/common/languages/language';
 import { IModelDecoration } from 'vs/editor/common/model';
 import { HoverAnchor, HoverAnchorType, HoverForeignElementAnchor, IEditorHoverParticipant, IEditorHoverRenderContext, IHoverPart } from 'vs/editor/contrib/hover/browser/hoverTypes';
 import { InlineCompletionsController } from 'vs/editor/contrib/inlineCompletions/browser/inlineCompletionsController';
-import { InlineSuggestionHintsContentWidget } from 'vs/editor/contrib/inlineCompletions/browser/inlineSuggestionsHintWidget';
+import { InlineSuggestionHintsContentWidget } from 'vs/editor/contrib/inlineCompletions/browser/inlineSuggestionsHintsWidget';
 import { MarkdownRenderer } from 'vs/editor/contrib/markdownRenderer/browser/markdownRenderer';
 import * as nls from 'vs/nls';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
@@ -36,34 +35,6 @@ export class InlineCompletionsHover implements IHoverPart {
 			&& this.range.startColumn <= anchor.range.startColumn
 			&& this.range.endColumn >= anchor.range.endColumn
 		);
-	}
-
-	public requestExplicitContext(): void {
-		//this.controller.activeModel?.activeInlineCompletionsModel?.completionSession.value?.ensureUpdateWithExplicitContext();
-	}
-
-	public getInlineCompletionsCount(): number | undefined {
-		/*const session = this.controller.activeModel?.activeInlineCompletionsModel?.completionSession.value;
-		if (!session?.hasBeenTriggeredExplicitly) {
-			return undefined;
-		}
-		return session?.getInlineCompletionsCountSync();*/
-		return 0;
-	}
-
-	public getInlineCompletionIndex(): number | undefined {
-		//return this.controller.activeModel?.activeInlineCompletionsModel?.completionSession.value?.currentlySelectedIndex;
-		return 0;
-	}
-
-	public onDidChange(handler: () => void): IDisposable {
-		const d = null; //this.controller.activeModel?.activeInlineCompletionsModel?.onDidChange(handler);
-		return d || Disposable.None;
-	}
-
-	public get commands(): Command[] {
-		return [];
-		//return this.controller.activeModel?.activeInlineCompletionsModel?.completionSession.value?.commands || [];
 	}
 }
 
@@ -136,15 +107,18 @@ export class InlineCompletionsHoverParticipant implements IEditorHoverParticipan
 			this.renderScreenReaderText(context, part, disposableStore);
 		}
 
-		const w = this._instantiationService.createInstance(InlineSuggestionHintsContentWidget, this._editor, false);
+		const model = part.controller.model.get()!;
+
+		const w = this._instantiationService.createInstance(InlineSuggestionHintsContentWidget, this._editor, false,
+			constObservable(null),
+			model.currentInlineCompletionIndex,
+			model.inlineCompletionsCount,
+			model.currentInlineCompletion.map(v => v?.inlineCompletion.source.inlineCompletions.commands ?? []),);
 		context.fragment.appendChild(w.getDomNode());
 
-		w.update(null, part.getInlineCompletionIndex() || 0, part.getInlineCompletionsCount(), part.commands);
-		part.requestExplicitContext();
+		model.triggerExplicitly();
 
-		disposableStore.add(part.onDidChange(() => {
-			w.update(null, part.getInlineCompletionIndex() || 0, part.getInlineCompletionsCount(), part.commands);
-		}));
+		disposableStore.add(w);
 
 		return disposableStore;
 	}
@@ -165,8 +139,8 @@ export class InlineCompletionsHoverParticipant implements IEditorHoverParticipan
 			hoverContentsElement.replaceChildren(renderedContents.element);
 		};
 
-		disposableStore.add(Event.runAndSubscribe<void>(e => part.onDidChange(e), () => {
-			const ghostText = part.controller.model.get()?.ghostText.get();
+		disposableStore.add(autorun('update hover', (reader) => {
+			const ghostText = part.controller.model.read(reader)?.ghostText.read(reader);
 			if (ghostText) {
 				const lineText = this._editor.getModel()!.getLineContent(ghostText.lineNumber);
 				render(ghostText.renderForScreenReader(lineText));
@@ -174,7 +148,6 @@ export class InlineCompletionsHoverParticipant implements IEditorHoverParticipan
 				dom.reset(hoverContentsElement);
 			}
 		}));
-
 
 		context.fragment.appendChild(markdownHoverElement);
 	}

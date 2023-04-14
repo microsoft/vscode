@@ -24,8 +24,6 @@ import { InlineDecorationType } from 'vs/editor/common/viewModel';
 import { GhostText, GhostTextReplacement } from 'vs/editor/contrib/inlineCompletions/browser/ghostText';
 import { ColumnRange, applyObservableDecorations } from 'vs/editor/contrib/inlineCompletions/browser/utils';
 
-const ttPolicy = window.trustedTypes?.createPolicy('editorGhostText', { createHTML: value => value });
-
 export interface IGhostTextWidgetModel {
 	readonly targetTextModel: IObservable<ITextModel | undefined>;
 	readonly ghostText: IObservable<GhostText | GhostTextReplacement | undefined>;
@@ -322,3 +320,5 @@ function renderLines(domNode: HTMLElement, tabSize: number, lines: LineData[], o
 	const trustedhtml = ttPolicy ? ttPolicy.createHTML(html) : html;
 	domNode.innerHTML = trustedhtml as string;
 }
+
+const ttPolicy = window.trustedTypes?.createPolicy('editorGhostText', { createHTML: value => value });

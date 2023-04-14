@@ -48,7 +48,7 @@ import { hash } from 'vs/base/common/hash';
 
 // sticky suggest widget which doesn't disappear on focus out and such
 const _sticky = false
-	// || Boolean("true") // done "weirdly" so that a lint warning prevents you from pushing this
+	|| Boolean("true") // done "weirdly" so that a lint warning prevents you from pushing this
 	;
 
 class LineSuffix {

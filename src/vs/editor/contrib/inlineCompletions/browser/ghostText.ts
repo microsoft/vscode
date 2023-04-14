@@ -7,10 +7,6 @@ import { Range } from 'vs/editor/common/core/range';
 import { ColumnRange, applyEdits } from 'vs/editor/contrib/inlineCompletions/browser/utils';
 
 export class GhostText {
-	public static equals(a: GhostText | undefined, b: GhostText | undefined): boolean {
-		return a === b || (!!a && !!b && a.equals(b));
-	}
-
 	constructor(
 		public readonly lineNumber: number,
 		public readonly parts: GhostTextPart[],
@@ -56,6 +52,10 @@ export class GhostText {
 
 	isEmpty(): boolean {
 		return this.parts.every(p => p.lines.length === 0);
+	}
+
+	get lineCount(): number {
+		return 1 + this.parts.reduce((r, p) => r + p.lines.length - 1, 0);
 	}
 }
 
@@ -110,6 +110,10 @@ export class GhostTextReplacement {
 				{ range: replaceRange, text: this.newLines.join('\n') }
 			]);
 		}
+	}
+
+	get lineCount(): number {
+		return this.newLines.length;
 	}
 }
 
