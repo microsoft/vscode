@@ -144,7 +144,7 @@ export class GlyphMarginOverlay extends DedupOverlay {
 	// --- end event handlers
 
 	protected _getDecorations(ctx: RenderingContext): DecorationToRender[] {
-		const decorations = ctx.getDecorationsInViewport();
+		const decorations = ctx.getDecorationsInViewport(true);
 		const r: DecorationToRender[] = [];
 		let rLen = 0;
 		for (let i = 0, len = decorations.length; i < len; i++) {
