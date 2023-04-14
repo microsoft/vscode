@@ -3,6 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-// empty placeholder declaration for the `editor/lineNumber/context` menu contribution point
+import * as vscode from 'vscode';
 
-// https://github.com/microsoft/vscode/issues/175945 @joyceerhl
+export class UriEventHandler extends vscode.EventEmitter<vscode.Uri> implements vscode.UriHandler {
+	public handleUri(uri: vscode.Uri) {
+		this.fire(uri);
+	}
+}

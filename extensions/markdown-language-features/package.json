@@ -16,7 +16,8 @@
     "Programming Languages"
   ],
   "enabledApiProposals": [
-    "documentPaste"
+    "documentPaste",
+    "dropMetadata"
   ],
   "activationEvents": [
     "onLanguage:markdown",

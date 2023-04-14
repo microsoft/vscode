@@ -95,19 +95,36 @@ suite('Buffer Content Tracker', () => {
 	test('should add lines in the viewport and full scrollback', async () => {
 		await writeAndAssertBufferState(promptPlusData, 1030, xterm.raw, bufferTracker);
 	});
-	test('should always refresh viewport', async () => {
+	test('should refresh viewport', async () => {
 		await writeAndAssertBufferState(promptPlusData, 6, xterm.raw, bufferTracker);
 		await writeP(xterm.raw, '\x1b[3Ainserteddata');
 		await bufferTracker.update();
 		assert.deepStrictEqual(bufferTracker.lines, [promptPlusData, promptPlusData, `${promptPlusData}inserteddata`, promptPlusData, promptPlusData, promptPlusData].map(s => s.replace(new RegExp(' ', 'g'), '\xA0')));
 	});
-	test('should always refresh viewport with full scrollback', async () => {
+	test('should refresh viewport with full scrollback', async () => {
 		const content = `${prompt}\r\n`.repeat(1030).trimEnd().replace(new RegExp(' ', 'g'), '\xA0');
-		await writeAndAssertBufferState(prompt, 1030, xterm.raw, bufferTracker);
+		await writeP(xterm.raw, content);
+		await bufferTracker.update();
 		await writeP(xterm.raw, '\x1b[4Ainsertion');
 		await bufferTracker.update();
 		const expected = content.split('\r\n');
 		expected[1025] = `${prompt}insertion`;
+		assert.deepStrictEqual(bufferTracker.lines[1025], `${prompt}insertion`);
+	});
+	test('should cap the size of the cached lines, removing old lines in favor of new lines', async () => {
+		const content = `${prompt}\r\n`.repeat(1036).trimEnd();
+		await writeP(xterm.raw, content);
+		await bufferTracker.update();
+		const expected = content.split('\r\n').map(s => s.replace(new RegExp(' ', 'g'), '\xA0'));
+		// delete the 6 lines that should be trimmed
+		for (let i = 0; i < 6; i++) {
+			expected.pop();
+		}
+		// insert a new character
+		await writeP(xterm.raw, '\x1b[2Ainsertion');
+		await bufferTracker.update();
+		expected[1027] = `${prompt}insertion`;
+		assert.strictEqual(bufferTracker.lines.length, expected.length);
 		assert.deepStrictEqual(bufferTracker.lines, expected);
 	});
 });

@@ -1044,6 +1044,7 @@ class DiffContentProvider extends Disposable implements IPeekOutputRenderer {
 				EmbeddedDiffEditorWidget,
 				this.container,
 				diffEditorOptions,
+				{},
 				this.editor,
 			) : this.instantiationService.createInstance(
 				DiffEditorWidget,

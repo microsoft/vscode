@@ -577,6 +577,7 @@ const createRunTestDecoration = (tests: readonly IncrementalTestCollectionItem[]
 			},
 			glyphMarginClassName,
 			stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
+			zIndex: 10000,
 		}
 	};
 };

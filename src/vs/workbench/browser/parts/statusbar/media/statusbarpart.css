@@ -35,7 +35,7 @@
 }
 
 .monaco-workbench .part.statusbar > .right-items {
-	flex-wrap: wrap ; /* overflow elements by wrapping */
+	flex-wrap: wrap; /* overflow elements by wrapping */
 	flex-direction: row-reverse; /* let the elements to the left wrap first */
 }
 
