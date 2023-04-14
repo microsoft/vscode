@@ -81,7 +81,7 @@ export class EnvironmentVariableInfoChangesActive implements IEnvironmentVariabl
 
 	private _getInfo(scope: EnvironmentVariableScope | undefined): string {
 		const extSet: Set<string> = new Set();
-		addExtensionIdentifiers(extSet, this._collection.getVariableMap(scope).values());
+		addExtensionIdentifiers(extSet, this._collection.getMapForScope(scope).values());
 
 		let message = localize('extensionEnvironmentContributionInfoActive', "The following extensions have contributed to this terminal's environment:");
 		message += '\n';

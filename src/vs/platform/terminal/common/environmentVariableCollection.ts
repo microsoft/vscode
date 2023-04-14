@@ -15,12 +15,7 @@ type VariableResolver = (str: string) => Promise<string>;
 // ]);
 
 export class MergedEnvironmentVariableCollection implements IMergedEnvironmentVariableCollection {
-	/**
-	 * Using variable as keys is okay here because each terminal instance has its own set of variables.
-	 * @karrtikr TODO: Rename it back to map.
-	 * @karrtikr TODO: Check all references of variableMap.
-	 */
-	private readonly variableMap: Map<string, IExtensionOwnedEnvironmentVariableMutator[]> = new Map();
+	private readonly map: Map<string, IExtensionOwnedEnvironmentVariableMutator[]> = new Map();
 
 	constructor(
 		readonly collections: ReadonlyMap<string, IEnvironmentVariableCollection>,
@@ -30,11 +25,11 @@ export class MergedEnvironmentVariableCollection implements IMergedEnvironmentVa
 			let next = it.next();
 			while (!next.done) {
 				const mutator = next.value[1];
-				const variable = mutator.variable;
-				let entry = this.variableMap.get(variable);
+				const key = next.value[0];
+				let entry = this.map.get(key);
 				if (!entry) {
 					entry = [];
-					this.variableMap.set(variable, entry);
+					this.map.set(key, entry);
 				}
 
 				// If the first item in the entry is replace ignore any other entries as they would
@@ -64,9 +59,9 @@ export class MergedEnvironmentVariableCollection implements IMergedEnvironmentVa
 			lowerToActualVariableNames = {};
 			Object.keys(env).forEach(e => lowerToActualVariableNames![e.toLowerCase()] = e);
 		}
-		for (const [variable, mutators] of this.getVariableMap(scope)) {
-			const actualVariable = isWindows ? lowerToActualVariableNames![variable.toLowerCase()] || variable : variable;
+		for (const [_, mutators] of this.getMapForScope(scope)) {
 			for (const mutator of mutators) {
+				const actualVariable = isWindows ? lowerToActualVariableNames![mutator.variable.toLowerCase()] || mutator.variable : mutator.variable;
 				const value = variableResolver ? await variableResolver(mutator.value) : mutator.value;
 				// if (mutator.timing === EnvironmentVariableMutatorTiming.AfterShellIntegration) {
 				// 	const key = `VSCODE_ENV_${mutatorTypeToLabelMap.get(mutator.type)!}`;
@@ -94,8 +89,8 @@ export class MergedEnvironmentVariableCollection implements IMergedEnvironmentVa
 		const removed: Map<string, IExtensionOwnedEnvironmentVariableMutator[]> = new Map();
 
 		// Find added
-		other.getVariableMap(scope).forEach((otherMutators, key) => {
-			const currentMutators = this.getVariableMap(scope).get(key);
+		other.getMapForScope(scope).forEach((otherMutators, key) => {
+			const currentMutators = this.getMapForScope(scope).get(key);
 			const result = getMissingMutatorsFromArray(otherMutators, currentMutators);
 			if (result) {
 				added.set(key, result);
@@ -103,8 +98,8 @@ export class MergedEnvironmentVariableCollection implements IMergedEnvironmentVa
 		});
 
 		// Find removed
-		this.getVariableMap(scope).forEach((currentMutators, key) => {
-			const otherMutators = other.getVariableMap(scope).get(key);
+		this.getMapForScope(scope).forEach((currentMutators, key) => {
+			const otherMutators = other.getMapForScope(scope).get(key);
 			const result = getMissingMutatorsFromArray(currentMutators, otherMutators);
 			if (result) {
 				removed.set(key, result);
@@ -112,8 +107,8 @@ export class MergedEnvironmentVariableCollection implements IMergedEnvironmentVa
 		});
 
 		// Find changed
-		this.getVariableMap(scope).forEach((currentMutators, key) => {
-			const otherMutators = other.getVariableMap(scope).get(key);
+		this.getMapForScope(scope).forEach((currentMutators, key) => {
+			const otherMutators = other.getMapForScope(scope).get(key);
 			const result = getChangedMutatorsFromArray(currentMutators, otherMutators);
 			if (result) {
 				changed.set(key, result);
@@ -127,12 +122,12 @@ export class MergedEnvironmentVariableCollection implements IMergedEnvironmentVa
 		return { added, changed, removed };
 	}
 
-	getVariableMap(scope: EnvironmentVariableScope | undefined): Map<string, IExtensionOwnedEnvironmentVariableMutator[]> {
+	getMapForScope(scope: EnvironmentVariableScope | undefined): Map<string, IExtensionOwnedEnvironmentVariableMutator[]> {
 		const result = new Map<string, IExtensionOwnedEnvironmentVariableMutator[]>();
-		this.variableMap.forEach((mutators, variable) => {
+		this.map.forEach((mutators, key) => {
 			const filteredMutators = mutators.filter(m => filterScope(m, scope));
 			if (filteredMutators.length > 0) {
-				result.set(variable, filteredMutators);
+				result.set(key, filteredMutators);
 			}
 		});
 		return result;

@@ -52,7 +52,7 @@ suite('EnvironmentVariable - EnvironmentVariableService', () => {
 		collection.set('B', { value: 'b', type: EnvironmentVariableMutatorType.Append, scope: undefined, variable: 'B' });
 		collection.set('C', { value: 'c', type: EnvironmentVariableMutatorType.Prepend, scope: undefined, variable: 'C' });
 		environmentVariableService.set('ext1', { map: collection, persistent: true });
-		deepStrictEqual([...environmentVariableService.mergedCollection.getVariableMap(undefined).entries()], [
+		deepStrictEqual([...environmentVariableService.mergedCollection.getMapForScope(undefined).entries()], [
 			['A', [{ extensionIdentifier: 'ext1', type: EnvironmentVariableMutatorType.Replace, value: 'a', scope: undefined, variable: 'A' }]],
 			['B', [{ extensionIdentifier: 'ext1', type: EnvironmentVariableMutatorType.Append, value: 'b', scope: undefined, variable: 'B' }]],
 			['C', [{ extensionIdentifier: 'ext1', type: EnvironmentVariableMutatorType.Prepend, value: 'c', scope: undefined, variable: 'C' }]]
@@ -61,7 +61,7 @@ suite('EnvironmentVariable - EnvironmentVariableService', () => {
 		// Persist with old service, create a new service with the same storage service to verify restore
 		environmentVariableService.persistCollections();
 		const service2: TestEnvironmentVariableService = instantiationService.createInstance(TestEnvironmentVariableService);
-		deepStrictEqual([...service2.mergedCollection.getVariableMap(undefined).entries()], [
+		deepStrictEqual([...service2.mergedCollection.getMapForScope(undefined).entries()], [
 			['A', [{ extensionIdentifier: 'ext1', type: EnvironmentVariableMutatorType.Replace, value: 'a', scope: undefined, variable: 'A' }]],
 			['B', [{ extensionIdentifier: 'ext1', type: EnvironmentVariableMutatorType.Append, value: 'b', scope: undefined, variable: 'B' }]],
 			['C', [{ extensionIdentifier: 'ext1', type: EnvironmentVariableMutatorType.Prepend, value: 'c', scope: undefined, variable: 'C' }]]
@@ -82,7 +82,7 @@ suite('EnvironmentVariable - EnvironmentVariableService', () => {
 			environmentVariableService.set('ext1', { map: collection1, persistent: true });
 			environmentVariableService.set('ext2', { map: collection2, persistent: true });
 			environmentVariableService.set('ext3', { map: collection3, persistent: true });
-			deepStrictEqual([...environmentVariableService.mergedCollection.getVariableMap(undefined).entries()], [
+			deepStrictEqual([...environmentVariableService.mergedCollection.getMapForScope(undefined).entries()], [
 				['A', [
 					{ extensionIdentifier: 'ext2', type: EnvironmentVariableMutatorType.Replace, value: 'a2', scope: undefined, variable: 'A' },
 					{ extensionIdentifier: 'ext1', type: EnvironmentVariableMutatorType.Append, value: 'a1', scope: undefined, variable: 'A' }
@@ -103,7 +103,7 @@ suite('EnvironmentVariable - EnvironmentVariableService', () => {
 			environmentVariableService.set('ext3', { map: collection3, persistent: true });
 
 			// The entries should be ordered in the order they are applied
-			deepStrictEqual([...environmentVariableService.mergedCollection.getVariableMap(undefined).entries()], [
+			deepStrictEqual([...environmentVariableService.mergedCollection.getMapForScope(undefined).entries()], [
 				['A', [
 					{ extensionIdentifier: 'ext3', type: EnvironmentVariableMutatorType.Replace, value: 'a3', scope: undefined, variable: 'A' },
 					{ extensionIdentifier: 'ext2', type: EnvironmentVariableMutatorType.Prepend, value: 'a2:', scope: undefined, variable: 'A' },
