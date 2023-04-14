@@ -659,11 +659,20 @@ MenuRegistry.appendMenuItem(MenuId.MenubarFileMenu, {
 MenuRegistry.appendMenuItem(MenuId.MenubarFileMenu, {
 	group: '6_close',
 	command: {
+		id: 'workbench.action.reloadWindow',
+		title: nls.localize({ key: 'miReloadWindow', comment: ['&& denotes a mnemonic'] }, "Re&&load Window"),
+	},
+	order: 2
+});
+
+MenuRegistry.appendMenuItem(MenuId.MenubarFileMenu, {
+	group: '6_close',
+	command: {
 		id: CLOSE_EDITOR_COMMAND_ID,
 		title: nls.localize({ key: 'miCloseEditor', comment: ['&& denotes a mnemonic'] }, "&&Close Editor"),
 		precondition: ContextKeyExpr.or(ActiveEditorContext, ContextKeyExpr.and(FoldersViewVisibleContext, SidebarFocusContext))
 	},
-	order: 2
+	order: 3
 });
 
 // Go to menu
