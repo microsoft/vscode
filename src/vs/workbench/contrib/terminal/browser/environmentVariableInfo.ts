@@ -25,11 +25,11 @@ export class EnvironmentVariableInfoStale implements IEnvironmentVariableInfo {
 	) {
 	}
 
-	private _getInfo(scope: EnvironmentVariableScope | undefined): string {
+	private _getInfo(): string {
 		const extSet: Set<string> = new Set();
-		addExtensionIdentifiers(extSet, this._getScopedDiff(this._diff.added, scope).values());
-		addExtensionIdentifiers(extSet, this._getScopedDiff(this._diff.removed, scope).values());
-		addExtensionIdentifiers(extSet, this._getScopedDiff(this._diff.changed, scope).values());
+		addExtensionIdentifiers(extSet, this._diff.added.values());
+		addExtensionIdentifiers(extSet, this._diff.removed.values());
+		addExtensionIdentifiers(extSet, this._diff.changed.values());
 
 		let message = localize('extensionEnvironmentContributionInfoStale', "The following extensions want to relaunch the terminal to contribute to its environment:");
 		message += '\n';
@@ -37,17 +37,6 @@ export class EnvironmentVariableInfoStale implements IEnvironmentVariableInfo {
 			message += `\n- \`${getExtensionName(ext, this._extensionService)}\``;
 		}
 		return message;
-	}
-
-	private _getScopedDiff(diff: ReadonlyMap<string, IExtensionOwnedEnvironmentVariableMutator[]>, scope: EnvironmentVariableScope | undefined): ReadonlyMap<string, IExtensionOwnedEnvironmentVariableMutator[]> {
-		const scopedDiff = new Map<string, IExtensionOwnedEnvironmentVariableMutator[]>();
-		for (const [key, mutators] of diff) {
-			const scopedMutators = mutators.filter(m => filterScope(m, scope));
-			if (scopedMutators.length > 0) {
-				scopedDiff.set(key, scopedMutators);
-			}
-		}
-		return scopedDiff;
 	}
 
 	private _getActions(): ITerminalStatusHoverAction[] {
@@ -58,12 +47,12 @@ export class EnvironmentVariableInfoStale implements IEnvironmentVariableInfo {
 		}];
 	}
 
-	getStatus(scope: EnvironmentVariableScope | undefined): ITerminalStatus {
+	getStatus(_: EnvironmentVariableScope | undefined): ITerminalStatus {
 		return {
 			id: TerminalStatus.RelaunchNeeded,
 			severity: Severity.Warning,
 			icon: Codicon.warning,
-			tooltip: this._getInfo(scope),
+			tooltip: this._getInfo(),
 			hoverActions: this._getActions()
 		};
 	}
@@ -119,22 +108,4 @@ function addExtensionIdentifiers(extSet: Set<string>, diff: IterableIterator<IEx
 
 function getExtensionName(id: string, extensionService: IExtensionService): string {
 	return extensionService.extensions.find(e => e.id === id)?.displayName || id;
-}
-
-function filterScope(
-	mutator: IExtensionOwnedEnvironmentVariableMutator,
-	scope: EnvironmentVariableScope | undefined
-): boolean {
-	if (!scope) {
-		return true;
-	}
-	if (!mutator.scope) {
-		return true;
-	}
-	// If a mutator is scoped to a workspace folder, only apply it if the workspace
-	// folder matches.
-	if (mutator.scope.workspaceFolder && scope.workspaceFolder && mutator.scope.workspaceFolder.index === scope.workspaceFolder.index) {
-		return true;
-	}
-	return false;
 }
