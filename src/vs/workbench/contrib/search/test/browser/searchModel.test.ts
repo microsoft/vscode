@@ -14,7 +14,7 @@ import { ModelService } from 'vs/editor/common/services/modelService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
-import { IFileMatch, IFileSearchStats, IFolderQuery, ISearchComplete, ISearchProgressItem, ISearchQuery, ISearchService, ITextSearchMatch, OneLineRange, QueryType, TextSearchMatch } from 'vs/workbench/services/search/common/search';
+import { IFileMatch, IFileSearchStats, IFolderQuery, ISearchComplete, ISearchProgressItem, ISearchQuery, ISearchService, ITextQuery, ITextSearchMatch, OneLineRange, QueryType, TextSearchMatch } from 'vs/workbench/services/search/common/search';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
 import { CellMatch, MatchInNotebook, SearchModel } from 'vs/workbench/contrib/search/browser/searchModel';
@@ -246,10 +246,14 @@ suite('SearchModel', () => {
 		};
 
 		const model: SearchModel = instantiationService.createInstance(SearchModel);
-		const notebookSearch = sinon.stub(model, "notebookSearch").callsFake((): Promise<{ completeData: ISearchComplete; scannedFiles: ResourceSet }> => {
+		const notebookSearch = sinon.stub(model, "notebookSearch").callsFake((query: ITextQuery, token: CancellationToken, onProgress?: (result: ISearchProgressItem) => void): Promise<{ completeData: ISearchComplete; scannedFiles: ResourceSet }> => {
 			const localResults = new ResourceMap<IFileMatchWithCells | null>(uri => uri.path);
 			const fileMatch = aRawMatchWithCells('/1', cellMatchMd, cellMatchCode);
 			localResults.set(notebookUri, fileMatch);
+
+			if (onProgress) {
+				arrays.coalesce([...localResults.values()]).forEach(onProgress);
+			}
 			return Promise.resolve(
 				{
 					completeData: {
