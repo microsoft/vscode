@@ -103,7 +103,7 @@ function _findMatches(model: IDocumentColorComputerTarget | string, regex: RegEx
 function computeColors(model: IDocumentColorComputerTarget): IColorInformation[] {
 	const result: IColorInformation[] = [];
 	// Early validation for RGB and HSL
-	const initialValidationRegex = /(rgb|rgba|hsl|hsla)(\([0-9\s,.\%]*\))|(#)([A-Fa-f0-9]{6}(?![A-Fa-f0-9]))|(#)([A-Fa-f0-9]{8}(?![A-Fa-f0-9]))/gm;
+	const initialValidationRegex = /\b(rgb|rgba|hsl|hsla)(\([0-9\s,.\%]*\))|(#)([A-Fa-f0-9]{6})\b|(#)([A-Fa-f0-9]{8})\b/gm;
 	const initialValidationMatches = _findMatches(model, initialValidationRegex);
 
 	// Potential colors have been found, validate the parameters
