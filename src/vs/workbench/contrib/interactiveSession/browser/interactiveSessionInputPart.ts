@@ -98,17 +98,17 @@ export class InteractiveSessionInputPart extends Disposable implements IHistoryN
 	}
 
 	private navigateHistory(previous: boolean): void {
-		const historyInput = previous ? this.history.previous() : this.history.next();
+		const historyInput = (previous ?
+			(this.history.previous() ?? this.history.first()) : this.history.next())
+			?? '';
 
+		this.inputEditor.setValue(historyInput);
+		aria.status(historyInput);
 		if (historyInput) {
-			this.inputEditor.setValue(historyInput);
-			aria.status(historyInput);
-			if (historyInput) {
-				// always leave cursor at the end.
-				this.inputEditor.setPosition({ lineNumber: 1, column: historyInput.length + 1 });
-			}
-			this.setHistoryNavigationEnablement(true);
+			// always leave cursor at the end.
+			this.inputEditor.setPosition({ lineNumber: 1, column: historyInput.length + 1 });
 		}
+		this.setHistoryNavigationEnablement(true);
 	}
 
 	focus() {

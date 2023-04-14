@@ -59,7 +59,7 @@ impl CliServiceManager for WindowsService {
 		};
 
 		for arg in args {
-			add_arg(*arg);
+			add_arg(arg);
 		}
 
 		add_arg("--log-to-file");

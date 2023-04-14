@@ -47,6 +47,8 @@ steps:
   - script: node build/azure-pipelines/cli/prepare.js
     displayName: Prepare CLI build
     env:
+      VSCODE_CLI_PREPARE_ROOT: $(Build.SourcesDirectory)/.build/distro
+      VSCODE_QUALITY: ${{ parameters.VSCODE_QUALITY }}
       GITHUB_TOKEN: "$(github-distro-mixin-password)"
 
   - template: ../cli/install-rust-posix.yml

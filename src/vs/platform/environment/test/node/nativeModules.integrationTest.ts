@@ -40,10 +40,10 @@ flakySuite('Native Modules (all platforms)', () => {
 		assert.ok(typeof nodePty.spawn === 'function', testErrorMessage('node-pty'));
 	});
 
-	(process.type === 'renderer' ? test.skip /* TODO@electron module is not context aware yet and thus cannot load in Electron renderer used by tests */ : test)('spdlog', async () => {
-		const spdlog = await import('spdlog');
-		assert.ok(typeof spdlog.createRotatingLogger === 'function', testErrorMessage('spdlog'));
-		assert.ok(typeof spdlog.version === 'number', testErrorMessage('spdlog'));
+	(process.type === 'renderer' ? test.skip /* TODO@electron module is not context aware yet and thus cannot load in Electron renderer used by tests */ : test)('@vscode/spdlog', async () => {
+		const spdlog = await import('@vscode/spdlog');
+		assert.ok(typeof spdlog.createRotatingLogger === 'function', testErrorMessage('@vscode/spdlog'));
+		assert.ok(typeof spdlog.version === 'number', testErrorMessage('@vscode/spdlog'));
 	});
 
 	test('@parcel/watcher', async () => {
@@ -123,16 +123,16 @@ flakySuite('Native Modules (all platforms)', () => {
 		assert.ok(typeof result === 'boolean', testErrorMessage('windows-foreground-love'));
 	});
 
-	test('windows-process-tree', async () => {
-		const processTree = await import('windows-process-tree');
-		assert.ok(typeof processTree.getProcessTree === 'function', testErrorMessage('windows-process-tree'));
+	test('@vscode/windows-process-tree', async () => {
+		const processTree = await import('@vscode/windows-process-tree');
+		assert.ok(typeof processTree.getProcessTree === 'function', testErrorMessage('@vscode/windows-process-tree'));
 
 		return new Promise((resolve, reject) => {
 			processTree.getProcessTree(process.pid, tree => {
 				if (tree) {
 					resolve();
 				} else {
-					reject(new Error(testErrorMessage('windows-process-tree')));
+					reject(new Error(testErrorMessage('@vscode/windows-process-tree')));
 				}
 			});
 		});

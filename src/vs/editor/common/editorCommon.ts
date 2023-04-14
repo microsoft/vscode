@@ -545,7 +545,7 @@ export interface IEditorDecorationsCollection {
 	/**
 	 * Replace all previous decorations with `newDecorations`.
 	 */
-	set(newDecorations: IModelDeltaDecoration[]): void;
+	set(newDecorations: readonly IModelDeltaDecoration[]): string[];
 	/**
 	 * Remove all previous decorations.
 	 */
