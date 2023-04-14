@@ -520,6 +520,8 @@ export interface IInteractiveResultCodeBlockInfo {
 
 export const codeBlockInfosByModelUri = new ResourceMap<IInteractiveResultCodeBlockInfo>();
 
+const defaultCodeblockPadding = 10;
+
 class CodeBlockPart extends Disposable implements IInteractiveResultCodeBlockPart {
 	private readonly _onDidChangeContentHeight = this._register(new Emitter<number>());
 	public readonly onDidChangeContentHeight = this._onDidChangeContentHeight.event;
@@ -530,6 +532,8 @@ class CodeBlockPart extends Disposable implements IInteractiveResultCodeBlockPar
 
 	public readonly textModel: ITextModel;
 	public readonly element: HTMLElement;
+
+	private currentScrollWidth = 0;
 
 	constructor(
 		private readonly options: InteractiveSessionEditorOptions,
@@ -558,7 +562,7 @@ class CodeBlockPart extends Disposable implements IInteractiveResultCodeBlockPar
 			scrollBeyondLastLine: false,
 			lineDecorationsWidth: 8,
 			dragAndDrop: false,
-			padding: { top: 2, bottom: 2 },
+			padding: { top: defaultCodeblockPadding, bottom: defaultCodeblockPadding },
 			mouseWheelZoom: false,
 			scrollbar: {
 				alwaysConsumeMouseWheel: false
@@ -583,6 +587,9 @@ class CodeBlockPart extends Disposable implements IInteractiveResultCodeBlockPar
 			this.editor.updateOptions(this.getEditorOptionsFromConfig());
 		}));
 
+		this._register(this.editor.onDidScrollChange(e => {
+			this.currentScrollWidth = e.scrollWidth;
+		}));
 		this._register(this.editor.onDidContentSizeChange(e => {
 			if (e.contentHeightChanged) {
 				this._onDidChangeContentHeight.fire(e.contentHeight);
@@ -598,6 +605,17 @@ class CodeBlockPart extends Disposable implements IInteractiveResultCodeBlockPar
 		const vscodeLanguageId = this.languageService.getLanguageIdByLanguageName('javascript');
 		this.textModel = this._register(this.modelService.createModel('', this.languageService.createById(vscodeLanguageId), undefined));
 		this.editor.setModel(this.textModel);
+	}
+
+	private updatePaddingForLayout() {
+		// scrollWidth = "the width of the content that needs to be scrolled"
+		// contentWidth = "the width of the area where content is displayed"
+		const horizontalScrollbarVisible = this.currentScrollWidth > this.editor.getLayoutInfo().contentWidth;
+		const scrollbarHeight = this.editor.getLayoutInfo().horizontalScrollbarHeight;
+		const bottomPadding = horizontalScrollbarVisible ?
+			Math.max(defaultCodeblockPadding - scrollbarHeight, 2) :
+			defaultCodeblockPadding;
+		this.editor.updateOptions({ padding: { top: defaultCodeblockPadding, bottom: bottomPadding } });
 	}
 
 	private getEditorOptionsFromConfig(): IEditorOptions {
@@ -618,6 +636,7 @@ class CodeBlockPart extends Disposable implements IInteractiveResultCodeBlockPar
 		const realContentHeight = this.editor.getContentHeight();
 		const editorBorder = 2;
 		this.editor.layout({ width: width - editorBorder, height: realContentHeight });
+		this.updatePaddingForLayout();
 	}
 
 	render(data: IInteractiveResultCodeBlockData, width: number): void {
