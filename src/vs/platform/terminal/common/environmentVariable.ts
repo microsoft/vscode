@@ -60,7 +60,7 @@ export interface IMergedEnvironmentVariableCollection {
 	 * Gets the variable map for a given scope.
 	 * @param scope The scope to get the variable map for. If undefined, the global scope is used.
 	 */
-	getMapForScope(scope: EnvironmentVariableScope | undefined): Map<string, IExtensionOwnedEnvironmentVariableMutator[]>;
+	getVariableMap(scope: EnvironmentVariableScope | undefined): Map<string, IExtensionOwnedEnvironmentVariableMutator[]>;
 	/**
 	 * Applies this collection to a process environment.
 	 * @param variableResolver An optional function to use to resolve variables within the

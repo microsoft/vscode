@@ -34,7 +34,7 @@ suite('EnvironmentVariable - MergedEnvironmentVariableCollection', () => {
 					])
 				}]
 			]), undefined);
-			deepStrictEqual([...merged.getMapForScope(undefined).entries()], [
+			deepStrictEqual([...merged.getVariableMap(undefined).entries()], [
 				['A', [
 					{ extensionIdentifier: 'ext4', type: EnvironmentVariableMutatorType.Append, value: 'a4', scope: undefined, variable: 'A' },
 					{ extensionIdentifier: 'ext3', type: EnvironmentVariableMutatorType.Prepend, value: 'a3', scope: undefined, variable: 'A' },
@@ -67,7 +67,7 @@ suite('EnvironmentVariable - MergedEnvironmentVariableCollection', () => {
 					])
 				}]
 			]), undefined);
-			deepStrictEqual([...merged.getMapForScope(undefined).entries()], [
+			deepStrictEqual([...merged.getVariableMap(undefined).entries()], [
 				['A', [
 					{ extensionIdentifier: 'ext3', type: EnvironmentVariableMutatorType.Replace, value: 'a3', scope: undefined, variable: 'A' },
 					{ extensionIdentifier: 'ext2', type: EnvironmentVariableMutatorType.Append, value: 'a2', scope: undefined, variable: 'A' },

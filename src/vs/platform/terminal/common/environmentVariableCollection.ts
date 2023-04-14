@@ -59,7 +59,7 @@ export class MergedEnvironmentVariableCollection implements IMergedEnvironmentVa
 			lowerToActualVariableNames = {};
 			Object.keys(env).forEach(e => lowerToActualVariableNames![e.toLowerCase()] = e);
 		}
-		for (const [_, mutators] of this.getMapForScope(scope)) {
+		for (const [_, mutators] of this.getVariableMap(scope)) {
 			for (const mutator of mutators) {
 				const actualVariable = isWindows ? lowerToActualVariableNames![mutator.variable.toLowerCase()] || mutator.variable : mutator.variable;
 				const value = variableResolver ? await variableResolver(mutator.value) : mutator.value;
@@ -89,8 +89,8 @@ export class MergedEnvironmentVariableCollection implements IMergedEnvironmentVa
 		const removed: Map<string, IExtensionOwnedEnvironmentVariableMutator[]> = new Map();
 
 		// Find added
-		other.getMapForScope(scope).forEach((otherMutators, key) => {
-			const currentMutators = this.getMapForScope(scope).get(key);
+		other.getVariableMap(scope).forEach((otherMutators, key) => {
+			const currentMutators = this.getVariableMap(scope).get(key);
 			const result = getMissingMutatorsFromArray(otherMutators, currentMutators);
 			if (result) {
 				added.set(key, result);
@@ -98,8 +98,8 @@ export class MergedEnvironmentVariableCollection implements IMergedEnvironmentVa
 		});
 
 		// Find removed
-		this.getMapForScope(scope).forEach((currentMutators, key) => {
-			const otherMutators = other.getMapForScope(scope).get(key);
+		this.getVariableMap(scope).forEach((currentMutators, key) => {
+			const otherMutators = other.getVariableMap(scope).get(key);
 			const result = getMissingMutatorsFromArray(currentMutators, otherMutators);
 			if (result) {
 				removed.set(key, result);
@@ -107,8 +107,8 @@ export class MergedEnvironmentVariableCollection implements IMergedEnvironmentVa
 		});
 
 		// Find changed
-		this.getMapForScope(scope).forEach((currentMutators, key) => {
-			const otherMutators = other.getMapForScope(scope).get(key);
+		this.getVariableMap(scope).forEach((currentMutators, key) => {
+			const otherMutators = other.getVariableMap(scope).get(key);
 			const result = getChangedMutatorsFromArray(currentMutators, otherMutators);
 			if (result) {
 				changed.set(key, result);
@@ -122,12 +122,13 @@ export class MergedEnvironmentVariableCollection implements IMergedEnvironmentVa
 		return { added, changed, removed };
 	}
 
-	getMapForScope(scope: EnvironmentVariableScope | undefined): Map<string, IExtensionOwnedEnvironmentVariableMutator[]> {
+	getVariableMap(scope: EnvironmentVariableScope | undefined): Map<string, IExtensionOwnedEnvironmentVariableMutator[]> {
 		const result = new Map<string, IExtensionOwnedEnvironmentVariableMutator[]>();
-		this.map.forEach((mutators, key) => {
+		this.map.forEach((mutators, _key) => {
 			const filteredMutators = mutators.filter(m => filterScope(m, scope));
 			if (filteredMutators.length > 0) {
-				result.set(key, filteredMutators);
+				// All of these mutators are for the same variable because they are in the same scope, hence choose anyone to form a key.
+				result.set(filteredMutators[0].variable, filteredMutators);
 			}
 		});
 		return result;
