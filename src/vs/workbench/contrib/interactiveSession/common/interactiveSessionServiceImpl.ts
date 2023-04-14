@@ -267,6 +267,15 @@ export class InteractiveSessionService extends Disposable implements IInteractiv
 		this._releasedSessions.add(sessionId);
 	}
 
+	retrieveSession(sessionId: number): InteractiveSessionModel | undefined {
+		if (this._releasedSessions.has(sessionId)) {
+			this._releasedSessions.delete(sessionId);
+			return this._sessionModels.get(sessionId);
+		}
+
+		return undefined;
+	}
+
 	async sendRequest(sessionId: number, request: string | IInteractiveSessionReplyFollowup): Promise<boolean> {
 		const messageText = typeof request === 'string' ? request : request.message;
 		this.trace('sendRequest', `sessionId: ${sessionId}, message: ${messageText.substring(0, 20)}${messageText.length > 20 ? '[...]' : ''}}`);

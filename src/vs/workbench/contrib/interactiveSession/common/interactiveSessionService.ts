@@ -9,7 +9,7 @@ import { IDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { ProviderResult } from 'vs/editor/common/languages';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { InteractiveSessionModel } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionModel';
+import { IInteractiveSessionModel, InteractiveSessionModel } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionModel';
 
 export interface IInteractiveSession {
 	id: number;
@@ -149,6 +149,7 @@ export interface IInteractiveSessionService {
 	registerProvider(provider: IInteractiveProvider): IDisposable;
 	getProviderIds(): string[];
 	startSession(providerId: string, allowRestoringSession: boolean, token: CancellationToken): InteractiveSessionModel | undefined;
+	retrieveSession(sessionId: number): IInteractiveSessionModel | undefined;
 
 	/**
 	 * Returns whether the request was accepted.

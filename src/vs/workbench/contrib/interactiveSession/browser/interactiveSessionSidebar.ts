@@ -42,7 +42,7 @@ export class InteractiveSessionViewPane extends ViewPane {
 	) {
 		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService);
 		const scopedInstantiationService = this.instantiationService.createChild(new ServiceCollection([IContextKeyService, this.scopedContextKeyService]));
-		this.view = this._register(scopedInstantiationService.createInstance(InteractiveSessionWidget, interactiveSessionViewOptions.providerId, this.id, () => this.getBackgroundColor(), () => this.getBackgroundColor(), () => editorBackground));
+		this.view = this._register(scopedInstantiationService.createInstance(InteractiveSessionWidget, interactiveSessionViewOptions.providerId, undefined, this.id, () => this.getBackgroundColor(), () => this.getBackgroundColor(), () => editorBackground));
 
 		this._register(this.onDidChangeBodyVisibility(visible => {
 			this.view.setVisible(visible);

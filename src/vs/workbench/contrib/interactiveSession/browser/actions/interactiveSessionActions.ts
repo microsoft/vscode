@@ -16,6 +16,7 @@ import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegis
 import { ViewAction } from 'vs/workbench/browser/parts/views/viewPane';
 import { ActiveEditorContext } from 'vs/workbench/common/contextkeys';
 import { IInteractiveSessionEditorOptions, InteractiveSessionEditor } from 'vs/workbench/contrib/interactiveSession/browser/interactiveSessionEditor';
+import { InteractiveSessionEditorInput } from 'vs/workbench/contrib/interactiveSession/browser/interactiveSessionEditorInput';
 import { InteractiveSessionViewPane } from 'vs/workbench/contrib/interactiveSession/browser/interactiveSessionSidebar';
 import { IInteractiveSessionWidgetService } from 'vs/workbench/contrib/interactiveSession/browser/interactiveSessionWidget';
 import { CONTEXT_IN_INTERACTIVE_INPUT, CONTEXT_IN_INTERACTIVE_SESSION } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionContextKeys';
@@ -173,7 +174,7 @@ export function getOpenInteractiveSessionEditorAction(id: string, label: string,
 
 		async run(accessor: ServicesAccessor) {
 			const editorService = accessor.get(IEditorService);
-			await editorService.openEditor({ resource: InteractiveSessionEditor.getNewEditorUri(), options: <IInteractiveSessionEditorOptions>{ providerId: id } });
+			await editorService.openEditor({ resource: InteractiveSessionEditorInput.getNewEditorUri(), options: <IInteractiveSessionEditorOptions>{ providerId: id, pinned: true } });
 		}
 	};
 }

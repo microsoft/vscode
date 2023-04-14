@@ -27,6 +27,7 @@ import { InteractiveSessionInputPart } from 'vs/workbench/contrib/interactiveSes
 import { IInteractiveSessionRendererDelegate, InteractiveListItemRenderer, InteractiveSessionAccessibilityProvider, InteractiveSessionListDelegate, InteractiveTreeItem } from 'vs/workbench/contrib/interactiveSession/browser/interactiveSessionListRenderer';
 import { InteractiveSessionEditorOptions } from 'vs/workbench/contrib/interactiveSession/browser/interactiveSessionOptions';
 import { CONTEXT_INTERACTIVE_REQUEST_IN_PROGRESS, CONTEXT_IN_INTERACTIVE_SESSION } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionContextKeys';
+import { IInteractiveSessionModel } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionModel';
 import { IInteractiveSessionReplyFollowup, IInteractiveSessionService, IInteractiveSlashCommand } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionService';
 import { IInteractiveSessionViewModel, InteractiveSessionViewModel, isRequestVM, isResponseVM, isWelcomeVM } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionViewModel';
 
@@ -114,6 +115,7 @@ export class InteractiveSessionWidget extends Disposable implements IInteractive
 
 	constructor(
 		private readonly providerId: string,
+		initialModel: IInteractiveSessionModel | undefined,
 		readonly viewId: string | undefined,
 		private readonly listBackgroundColorDelegate: () => string,
 		private readonly inputEditorBackgroundColorDelegate: () => string,
@@ -130,7 +132,7 @@ export class InteractiveSessionWidget extends Disposable implements IInteractive
 		this.requestInProgress = CONTEXT_INTERACTIVE_REQUEST_IN_PROGRESS.bindTo(contextKeyService);
 
 		this._register((interactiveSessionWidgetService as InteractiveSessionWidgetService).register(this));
-		this.initializeSessionModel(true);
+		this.initializeSessionModel(true, initialModel);
 
 		this.memento = new Memento('interactive-session-' + this.providerId, storageService);
 		this.viewState = this.memento.getMemento(StorageScope.WORKSPACE, StorageTarget.USER) as IViewState;
@@ -318,8 +320,7 @@ export class InteractiveSessionWidget extends Disposable implements IInteractive
 		if (this.tree.scrollHeight !== this.previousTreeScrollHeight) {
 			// Due to rounding, the scrollTop + renderHeight will not exactly match the scrollHeight.
 			// Consider the tree to be scrolled all the way down if it is within 2px of the bottom.
-			// const lastElementWasVisible = this.list.scrollTop + this.list.renderHeight >= this.previousTreeScrollHeight - 2;
-			const lastElementWasVisible = this.tree.scrollTop + this.tree.renderHeight >= this.previousTreeScrollHeight;
+			const lastElementWasVisible = this.tree.scrollTop + this.tree.renderHeight >= this.previousTreeScrollHeight - 2;
 			if (lastElementWasVisible) {
 				dom.scheduleAtNextAnimationFrame(() => {
 					// Can't set scrollTop during this event listener, the list might overwrite the change
@@ -344,8 +345,8 @@ export class InteractiveSessionWidget extends Disposable implements IInteractive
 		this.container.style.setProperty('--vscode-interactive-result-editor-background-color', this.editorOptions.configuration.resultEditor.backgroundColor?.toString() ?? '');
 	}
 
-	private initializeSessionModel(initial = false) {
-		const model = this.interactiveSessionService.startSession(this.providerId, initial, CancellationToken.None);
+	private initializeSessionModel(initial = false, initialModel?: IInteractiveSessionModel | undefined) {
+		const model = initialModel ?? this.interactiveSessionService.startSession(this.providerId, initial, CancellationToken.None);
 		if (!model) {
 			throw new Error('Failed to start session');
 		}
