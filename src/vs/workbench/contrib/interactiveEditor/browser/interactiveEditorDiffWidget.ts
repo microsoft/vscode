@@ -66,8 +66,7 @@ export class InteractiveEditorDiffWidget extends ZoneWidget {
 
 		this._diffEditor.setModel({ original: this._originalModel, modified });
 		this._diffEditor.revealRange(range, ScrollType.Immediate);
-		this._diffEditor.getModifiedEditor().setHiddenAreas(InteractiveEditorDiffWidget._invert(range, modified), InteractiveEditorDiffWidget._hideId);
-		// this._diffEditor.getOriginalEditor().setHiddenAreas(InteractiveEditorDiffWidget._invert(rangeOriginal, this._originalModel), InteractiveEditorDiffWidget._hideId);
+		this._diffEditor.getModifiedEditor().setHiddenAreas(invertRange(range, modified), InteractiveEditorDiffWidget._hideId);
 
 		const updateHiddenAreasOriginal = () => {
 			// todo@jrieken this needs work when both are equal
@@ -78,29 +77,21 @@ export class InteractiveEditorDiffWidget extends ZoneWidget {
 			let startLine = Number.MAX_VALUE;
 			let endLine = 0;
 			for (const change of changes) {
-				startLine = Math.min(startLine, change.originalStartLineNumber);
-				endLine = Math.max(endLine, change.originalEndLineNumber || change.originalStartLineNumber);
+				startLine = Math.min(startLine, change.originalStartLineNumber, change.modifiedStartLineNumber);
+				endLine = Math.max(endLine, change.originalEndLineNumber || change.originalStartLineNumber, change.modifiedEndLineNumber || change.modifiedStartLineNumber);
 			}
-			const originalRange = this._originalModel.validateRange({ startLineNumber: startLine, startColumn: 1, endLineNumber: endLine, endColumn: Number.MAX_VALUE });
+			const combinedRange = this._originalModel.validateRange({ startLineNumber: startLine, startColumn: 1, endLineNumber: endLine, endColumn: Number.MAX_VALUE });
 
-			const hiddenRanges = InteractiveEditorDiffWidget._invert(originalRange, this._originalModel);
-			this._diffEditor.getOriginalEditor().setHiddenAreas(hiddenRanges, InteractiveEditorDiffWidget._hideId);
+			const hiddenRangesOriginal = invertRange(combinedRange, this._originalModel);
+			this._diffEditor.getOriginalEditor().setHiddenAreas(hiddenRangesOriginal, InteractiveEditorDiffWidget._hideId);
+
+			const hiddenRangesModified = invertRange(combinedRange, modified);
+			this._diffEditor.getModifiedEditor().setHiddenAreas(hiddenRangesModified, InteractiveEditorDiffWidget._hideId);
 		};
 		this._diffEditor.onDidUpdateDiff(updateHiddenAreasOriginal, undefined, this._sessionStore);
 		updateHiddenAreasOriginal();
 
 		super.show(new Position(range.endLineNumber, 1), lineHeightDiff + lineHeightPadding);
-	}
-
-	private static _invert(range: IRange, model: ITextModel): IRange[] {
-		const result: IRange[] = [];
-		if (range.startLineNumber > 1) {
-			result.push({ startLineNumber: 1, startColumn: 1, endLineNumber: range.startLineNumber - 1, endColumn: 1 });
-		}
-		if (range.endLineNumber < model.getLineCount()) {
-			result.push({ startLineNumber: range.endLineNumber + 1, startColumn: 1, endLineNumber: model.getLineCount(), endColumn: 1 });
-		}
-		return result;
 	}
 
 	override hide(): void {
@@ -122,4 +113,15 @@ export class InteractiveEditorDiffWidget extends ZoneWidget {
 		this._dim = newDim;
 		this._diffEditor.layout(this._dim.with(undefined, this._dim.height - 12 /* padding */));
 	}
+}
+
+function invertRange(range: IRange, model: ITextModel): IRange[] {
+	const result: IRange[] = [];
+	if (range.startLineNumber > 1) {
+		result.push({ startLineNumber: 1, startColumn: 1, endLineNumber: range.startLineNumber - 1, endColumn: 1 });
+	}
+	if (range.endLineNumber < model.getLineCount()) {
+		result.push({ startLineNumber: range.endLineNumber + 1, startColumn: 1, endLineNumber: model.getLineCount(), endColumn: 1 });
+	}
+	return result;
 }
