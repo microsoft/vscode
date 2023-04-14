@@ -10,6 +10,7 @@ on:
 # also make changes in ./on-label.yml
 jobs:
   main:
+    if: github.repository_owner == 'microsoft'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Actions
