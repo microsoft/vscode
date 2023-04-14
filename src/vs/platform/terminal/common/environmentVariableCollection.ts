@@ -88,14 +88,14 @@ export class MergedEnvironmentVariableCollection implements IMergedEnvironmentVa
 		}
 	}
 
-	diff(other: IMergedEnvironmentVariableCollection): IMergedEnvironmentVariableCollectionDiff | undefined {
+	diff(other: IMergedEnvironmentVariableCollection, scope: EnvironmentVariableScope | undefined): IMergedEnvironmentVariableCollectionDiff | undefined {
 		const added: Map<string, IExtensionOwnedEnvironmentVariableMutator[]> = new Map();
 		const changed: Map<string, IExtensionOwnedEnvironmentVariableMutator[]> = new Map();
 		const removed: Map<string, IExtensionOwnedEnvironmentVariableMutator[]> = new Map();
 
 		// Find added
-		other.variableMap.forEach((otherMutators, variable) => {
-			const currentMutators = this.variableMap.get(variable);
+		other.getVariableMap(scope).forEach((otherMutators, variable) => {
+			const currentMutators = this.getVariableMap(scope).get(variable);
 			const result = getMissingMutatorsFromArray(otherMutators, currentMutators);
 			if (result) {
 				added.set(variable, result);
@@ -103,8 +103,8 @@ export class MergedEnvironmentVariableCollection implements IMergedEnvironmentVa
 		});
 
 		// Find removed
-		this.variableMap.forEach((currentMutators, variable) => {
-			const otherMutators = other.variableMap.get(variable);
+		this.getVariableMap(scope).forEach((currentMutators, variable) => {
+			const otherMutators = other.getVariableMap(scope).get(variable);
 			const result = getMissingMutatorsFromArray(currentMutators, otherMutators);
 			if (result) {
 				removed.set(variable, result);
@@ -112,8 +112,8 @@ export class MergedEnvironmentVariableCollection implements IMergedEnvironmentVa
 		});
 
 		// Find changed
-		this.variableMap.forEach((currentMutators, variable) => {
-			const otherMutators = other.variableMap.get(variable);
+		this.getVariableMap(scope).forEach((currentMutators, variable) => {
+			const otherMutators = other.getVariableMap(scope).get(variable);
 			const result = getChangedMutatorsFromArray(currentMutators, otherMutators);
 			if (result) {
 				changed.set(variable, result);

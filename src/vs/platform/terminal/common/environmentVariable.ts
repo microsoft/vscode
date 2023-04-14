@@ -73,5 +73,5 @@ export interface IMergedEnvironmentVariableCollection {
 	 * Generates a diff of this collection against another. Returns undefined if the collections are
 	 * the same.
 	 */
-	diff(other: IMergedEnvironmentVariableCollection): IMergedEnvironmentVariableCollectionDiff | undefined;
+	diff(other: IMergedEnvironmentVariableCollection, scope: EnvironmentVariableScope | undefined): IMergedEnvironmentVariableCollectionDiff | undefined;
 }
