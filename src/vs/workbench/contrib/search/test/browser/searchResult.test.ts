@@ -228,7 +228,8 @@ suite('SearchResult', () => {
 		const cell1 = { cellKind: CellKind.Code } as ICellViewModel;
 		const cell2 = { cellKind: CellKind.Code } as ICellViewModel;
 
-		sinon.stub(CellMatch.prototype, 'addContext');
+		const addContext = sinon.stub(CellMatch.prototype, 'addContext');
+
 		const addFileMatch = sinon.spy(FolderMatch.prototype, "addFileMatch");
 		const fileMatch1 = aRawFileMatchWithCells('/1',
 			{
@@ -262,6 +263,7 @@ suite('SearchResult', () => {
 		assert.deepStrictEqual(fileMatch1.cellResults[0].webviewResults, (addFileMatch.getCall(0).args[0][0] as IFileMatchWithCells).cellResults[0].webviewResults);
 		assert.deepStrictEqual(fileMatch2.cellResults[0].contentResults, (addFileMatch.getCall(0).args[0][1] as IFileMatchWithCells).cellResults[0].contentResults);
 		assert.deepStrictEqual(fileMatch2.cellResults[0].webviewResults, (addFileMatch.getCall(0).args[0][1] as IFileMatchWithCells).cellResults[0].webviewResults);
+		addContext.restore();
 	});
 
 	test('Dispose disposes matches', function () {

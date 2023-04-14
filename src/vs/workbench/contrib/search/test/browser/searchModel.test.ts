@@ -173,7 +173,8 @@ suite('SearchModel', () => {
 				new TextSearchMatch('this is a test', new OneLineRange(1, 11, 15))),
 			aRawMatch('/3', new TextSearchMatch('test', lineOneRange))];
 		const searchService = instantiationService.stub(ISearchService, searchServiceWithResults(results));
-		sinon.stub(CellMatch.prototype, 'addContext');
+		const addContext = sinon.stub(CellMatch.prototype, 'addContext');
+		restoreStubs.push(addContext);
 
 		const textSearch = sinon.spy(searchService, 'textSearch');
 		const mdInputCell = {
