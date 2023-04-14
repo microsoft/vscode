@@ -377,7 +377,7 @@ export class InteractiveEditorController implements IEditorContribution {
 		this._zone.widget.updateMessage(session.message ?? localize('welcome.1', "AI-generated code may be incorrect."));
 
 		// CANCEL when input changes
-		this._editor.onDidChangeModel(this._ctsSession.cancel, this._ctsSession, store);
+		this._editor.onDidChangeModel(this.cancelSession, this, store);
 
 		// REposition the zone widget whenever the block decoration changes
 		let lastPost: Position | undefined;
