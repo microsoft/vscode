@@ -448,6 +448,11 @@ export class InteractiveSessionService extends Disposable implements IInteractiv
 	}
 
 	async addCompleteRequest(providerId: string, message: string, response: IInteractiveSessionCompleteResponse): Promise<void> {
+
+		console.log('Inside of addCompleteRequest');
+		console.log('message : ', message);
+		console.log('response : ', response);
+
 		this.trace('addCompleteRequest', `message: ${message}`);
 
 		// Currently we only support one session per provider
