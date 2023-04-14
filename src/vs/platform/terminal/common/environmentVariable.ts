@@ -56,8 +56,11 @@ type VariableResolver = (str: string) => Promise<string>;
  */
 export interface IMergedEnvironmentVariableCollection {
 	readonly collections: ReadonlyMap<string, IEnvironmentVariableCollection>;
-	readonly variableMap: ReadonlyMap<string, IExtensionOwnedEnvironmentVariableMutator[]>;
-
+	/**
+	 * Gets the variable map for a given scope.
+	 * @param scope The scope to get the variable map for. If undefined, the global scope is used.
+	 */
+	getVariableMap(scope: EnvironmentVariableScope | undefined): Map<string, IExtensionOwnedEnvironmentVariableMutator[]>;
 	/**
 	 * Applies this collection to a process environment.
 	 * @param variableResolver An optional function to use to resolve variables within the

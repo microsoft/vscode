@@ -2160,9 +2160,11 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			this.relaunch();
 			return;
 		}
+		const cwdUri = typeof this.shellLaunchConfig.cwd === 'string' ? URI.parse(this.shellLaunchConfig.cwd) : this.shellLaunchConfig.cwd;
+		const workspaceFolder = cwdUri ? withNullAsUndefined(this._workspaceContextService.getWorkspaceFolder(cwdUri)) : undefined;
 
 		// Re-create statuses
-		this.statusList.add(info.getStatus());
+		this.statusList.add(info.getStatus({ workspaceFolder }));
 	}
 
 	async toggleEscapeSequenceLogging(): Promise<boolean> {

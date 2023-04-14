@@ -64,12 +64,9 @@ export class MergedEnvironmentVariableCollection implements IMergedEnvironmentVa
 			lowerToActualVariableNames = {};
 			Object.keys(env).forEach(e => lowerToActualVariableNames![e.toLowerCase()] = e);
 		}
-		for (const [variable, mutators] of this.variableMap) {
+		for (const [variable, mutators] of this.getVariableMap(scope)) {
 			const actualVariable = isWindows ? lowerToActualVariableNames![variable.toLowerCase()] || variable : variable;
 			for (const mutator of mutators) {
-				if (filterScope(mutator, scope) === false) {
-					continue;
-				}
 				const value = variableResolver ? await variableResolver(mutator.value) : mutator.value;
 				// if (mutator.timing === EnvironmentVariableMutatorTiming.AfterShellIntegration) {
 				// 	const key = `VSCODE_ENV_${mutatorTypeToLabelMap.get(mutator.type)!}`;
@@ -128,6 +125,17 @@ export class MergedEnvironmentVariableCollection implements IMergedEnvironmentVa
 		}
 
 		return { added, changed, removed };
+	}
+
+	getVariableMap(scope: EnvironmentVariableScope | undefined): Map<string, IExtensionOwnedEnvironmentVariableMutator[]> {
+		const result = new Map<string, IExtensionOwnedEnvironmentVariableMutator[]>();
+		this.variableMap.forEach((mutators, variable) => {
+			const filteredMutators = mutators.filter(m => filterScope(m, scope));
+			if (filteredMutators.length > 0) {
+				result.set(variable, filteredMutators);
+			}
+		});
+		return result;
 	}
 }
 
