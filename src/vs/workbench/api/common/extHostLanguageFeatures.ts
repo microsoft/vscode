@@ -2386,7 +2386,9 @@ export class ExtHostLanguageFeatures implements extHostProtocol.ExtHostLanguageF
 	registerDocumentOnDropEditProvider(extension: IExtensionDescription, selector: vscode.DocumentSelector, provider: vscode.DocumentDropEditProvider, metadata?: vscode.DocumentDropEditProviderMetadata) {
 		const handle = this._nextHandle();
 		this._adapter.set(handle, new AdapterData(new DocumentOnDropEditAdapter(this._proxy, this._documents, provider, handle, extension), extension));
-		this._proxy.$registerDocumentOnDropEditProvider(handle, this._transformDocumentSelector(selector), metadata);
+
+		this._proxy.$registerDocumentOnDropEditProvider(handle, this._transformDocumentSelector(selector), extension.identifier, isProposedApiEnabled(extension, 'dropMetadata') ? metadata : undefined);
+
 		return this._createDisposable(handle);
 	}
 
