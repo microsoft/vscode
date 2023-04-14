@@ -665,6 +665,7 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 	}
 
 	setVisible(visible: boolean): void {
+		console.log('Inside of setVisible of the ViewPaneContainer : ', visible);
 		if (this.visible !== !!visible) {
 			this.visible = visible;
 
@@ -751,6 +752,7 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 	}
 
 	openView(id: string, focus?: boolean): IView | undefined {
+		console.log('Inside of toggleViewVisibility');
 		let view = this.getView(id);
 		if (!view) {
 			this.toggleViewVisibility(id);
@@ -820,6 +822,7 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 
 	toggleViewVisibility(viewId: string): void {
 		// Check if view is active
+		console.log('Inside of toggleViewVisibility');
 		if (this.viewContainerModel.activeViewDescriptors.some(viewDescriptor => viewDescriptor.id === viewId)) {
 			const visible = !this.viewContainerModel.isVisible(viewId);
 			this.viewContainerModel.setVisible(viewId, visible);

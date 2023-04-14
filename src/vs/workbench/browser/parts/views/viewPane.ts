@@ -242,6 +242,8 @@ export abstract class ViewPane extends Pane implements IView {
 	}
 
 	setVisible(visible: boolean): void {
+		console.log('Inside of setVisible of the ViewPane');
+		console.log('visible: ' + visible);
 		if (this._isVisible !== visible) {
 			this._isVisible = visible;
 

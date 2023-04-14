@@ -188,6 +188,8 @@ export class InteractiveSessionService extends Disposable implements IInteractiv
 	}
 
 	startSession(providerId: string, allowRestoringSession: boolean, token: CancellationToken): InteractiveSessionModel {
+		console.log('Inside of start session');
+
 		this.trace('startSession', `providerId=${providerId}, allowRestoringSession=${allowRestoringSession}`);
 
 		const restored = allowRestoringSession ? this.getNextRestoredSession(providerId) : undefined;
@@ -252,6 +254,7 @@ export class InteractiveSessionService extends Disposable implements IInteractiv
 	}
 
 	private getNextRestoredSession(providerId: string): InteractiveSessionModel | ISerializableInteractiveSessionData | undefined {
+		console.log('Inside of getNextRestoredSession');
 		const releasedSessionId = Iterable.find(this._releasedSessions.values(), sessionId => this._sessionModels.get(sessionId)?.providerId === providerId);
 		if (typeof releasedSessionId === 'number') {
 			this._releasedSessions.delete(releasedSessionId);
@@ -426,12 +429,13 @@ export class InteractiveSessionService extends Disposable implements IInteractiv
 		this.sendRequest(model.sessionId, request.message);
 	}
 
-	async revealSessionForProvider(providerId: string): Promise<boolean> {
+	async revealSessionForProvider(providerId: string, close: boolean = false): Promise<boolean> {
 		console.log('Inside of reveal session for provider');
+		console.log('close : ', close);
 		const viewId = this.interactiveSessionContributionService.getViewIdForProvider(providerId);
 		console.log('viewId : ', viewId);
 		console.log('calling the openView method');
-		return !!(await this.viewsService.openView(viewId));
+		return !!(await this.viewsService.openView(viewId, close));
 	}
 
 	async sendInteractiveRequestToProvider(providerId: string, message: IInteractiveSessionDynamicRequest): Promise<void> {
@@ -460,6 +464,7 @@ export class InteractiveSessionService extends Disposable implements IInteractiv
 		this.trace('addCompleteRequest', `message: ${message}`);
 
 		// Currently we only support one session per provider
+		console.log('this._sessionModels.values() : ', this._sessionModels.values());
 		const modelForProvider = Iterable.find(this._sessionModels.values(), model => model.providerId === providerId);
 		console.log('modelForProvider : ', modelForProvider);
 

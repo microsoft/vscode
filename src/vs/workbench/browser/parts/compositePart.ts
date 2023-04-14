@@ -203,6 +203,8 @@ export abstract class CompositePart<T extends Composite> extends Part {
 
 	protected showComposite(composite: Composite): void {
 
+		console.log('Inside of showComposite');
+
 		// Remember Composite
 		this.activeComposite = composite;
 
@@ -357,6 +359,9 @@ export abstract class CompositePart<T extends Composite> extends Part {
 	}
 
 	protected hideActiveComposite(): Composite | undefined {
+
+		console.log('Inside of hide active composite');
+
 		if (!this.activeComposite) {
 			return undefined; // Nothing to do
 		}

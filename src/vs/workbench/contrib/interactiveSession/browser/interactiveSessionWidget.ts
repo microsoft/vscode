@@ -130,6 +130,7 @@ export class InteractiveSessionWidget extends Disposable implements IInteractive
 		this.requestInProgress = CONTEXT_INTERACTIVE_REQUEST_IN_PROGRESS.bindTo(contextKeyService);
 
 		this._register((interactiveSessionWidgetService as InteractiveSessionWidgetService).register(this));
+		console.log('Inside of the constructor of the interactive session widget');
 		this.initializeSessionModel(true);
 
 		this.memento = new Memento('interactive-session-' + this.providerId, storageService);
@@ -145,6 +146,8 @@ export class InteractiveSessionWidget extends Disposable implements IInteractive
 	}
 
 	render(parent: HTMLElement): void {
+		console.log('Inside of render of InteractiveSessionWidget');
+		// TODO: find a way to start a session without rendering necessarily
 		this.container = dom.append(parent, $('.interactive-session'));
 		this.listContainer = dom.append(this.container, $(`.interactive-list`));
 
@@ -251,6 +254,7 @@ export class InteractiveSessionWidget extends Disposable implements IInteractive
 	}
 
 	private createList(listContainer: HTMLElement): void {
+		console.log('Inside of createList');
 		const scopedInstantiationService = this.instantiationService.createChild(new ServiceCollection([IContextKeyService, this.contextKeyService]));
 		const delegate = scopedInstantiationService.createInstance(InteractiveSessionListDelegate);
 		const rendererDelegate: IInteractiveSessionRendererDelegate = {
@@ -348,6 +352,7 @@ export class InteractiveSessionWidget extends Disposable implements IInteractive
 	}
 
 	private initializeSessionModel(initial = false) {
+		console.log('Inside of initializeSessionModel');
 		const model = this.interactiveSessionService.startSession(this.providerId, initial, CancellationToken.None);
 		if (!model) {
 			throw new Error('Failed to start session');

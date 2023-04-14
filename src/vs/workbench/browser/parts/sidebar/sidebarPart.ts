@@ -223,6 +223,7 @@ export class SidebarPart extends CompositePart<PaneComposite> implements IPaneCo
 	}
 
 	hideActivePaneComposite(): void {
+		console.log('Inside of hide active pane composite');
 		this.hideActiveComposite();
 	}
 

@@ -654,6 +654,8 @@ export abstract class BasePanelPart extends CompositePart<PaneComposite> impleme
 	}
 
 	hideActivePaneComposite(): void {
+		console.log('Inside of hide active pane composite');
+
 		// First check if panel is visible and hide if so
 		if (this.layoutService.isVisible(this.partId)) {
 			this.layoutService.setPartHidden(true, this.partId);

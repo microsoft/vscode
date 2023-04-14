@@ -146,6 +146,7 @@ export abstract class EditorPane extends Composite implements IEditorPane {
 	}
 
 	override setVisible(visible: boolean, group?: IEditorGroup): void {
+		console.log('Inside of setVisible of EditorPane');
 		super.setVisible(visible);
 
 		// Propagate to Editor

@@ -419,10 +419,12 @@ export class ViewContainerModel extends Disposable implements IViewContainerMode
 	}
 
 	setVisible(id: string, visible: boolean): void {
+		console.log('Insid eof updaeVisibility');
 		this.updateVisibility([{ id, visible }]);
 	}
 
 	private updateVisibility(viewDescriptors: { id: string; visible: boolean }[]): void {
+		console.log('Inside of updateVisibility');
 		// First: Update and remove the view descriptors which are asked to be hidden
 		const viewDescriptorItemsToHide = coalesce(viewDescriptors.filter(({ visible }) => !visible)
 			.map(({ id }) => this.findAndIgnoreIfNotFound(id)));
