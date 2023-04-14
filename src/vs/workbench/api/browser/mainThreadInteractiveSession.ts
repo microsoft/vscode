@@ -123,7 +123,7 @@ export class MainThreadInteractiveSession extends Disposable implements MainThre
 
 	async $sendInteractiveRequestToProvider(providerId: string, message: IInteractiveSessionDynamicRequest): Promise<void> {
 		const widget = await this._interactiveSessionWidgetService.revealViewForProvider(providerId);
-		if (widget && widget.viewModel?.sessionId) {
+		if (widget && widget.viewModel) {
 			this._interactiveSessionService.sendInteractiveRequestToProvider(widget.viewModel.sessionId, message);
 		}
 	}
