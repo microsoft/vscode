@@ -202,6 +202,7 @@ export interface IValidateInput {
 export class ExtHostSCMInputBox implements vscode.SourceControlInputBox {
 
 	#proxy: MainThreadSCMShape;
+	#extHostDocuments: ExtHostDocuments;
 
 	private _value: string = '';
 
@@ -288,10 +289,11 @@ export class ExtHostSCMInputBox implements vscode.SourceControlInputBox {
 	get document(): vscode.TextDocument {
 		checkProposedApiEnabled(this._extension, 'scmTextDocument');
 
-		return this._extHostDocuments.getDocument(this._documentUri);
+		return this.#extHostDocuments.getDocument(this._documentUri);
 	}
 
-	constructor(private _extension: IExtensionDescription, private _extHostDocuments: ExtHostDocuments, proxy: MainThreadSCMShape, private _sourceControlHandle: number, private _documentUri: URI) {
+	constructor(private _extension: IExtensionDescription, _extHostDocuments: ExtHostDocuments, proxy: MainThreadSCMShape, private _sourceControlHandle: number, private _documentUri: URI) {
+		this.#extHostDocuments = _extHostDocuments;
 		this.#proxy = proxy;
 	}
 
