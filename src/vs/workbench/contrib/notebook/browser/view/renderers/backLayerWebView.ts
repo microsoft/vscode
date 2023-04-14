@@ -62,6 +62,7 @@ const LineQueryRegex = /line=(\d+)$/;
 
 export interface ICachedInset<K extends ICommonCellInfo> {
 	outputId: string;
+	versionId: number;
 	cellInfo: K;
 	renderer?: INotebookRendererInfo;
 	cachedCreation: ICreationRequestMessage;
@@ -1351,7 +1352,7 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 		this.pendingWebviewIdleCreationRequest.set(content.source, runWhenIdle(() => {
 			const { message, renderer, transfer: transferable } = this._createOutputCreationMessage(cellInfo, content, cellTop, offset, true, true);
 			this._sendMessageToWebview(message, transferable);
-			this.pendingWebviewIdleInsetMapping.set(content.source, { outputId: message.outputId, cellInfo: cellInfo, renderer, cachedCreation: message });
+			this.pendingWebviewIdleInsetMapping.set(content.source, { outputId: message.outputId, versionId: content.source.model.versionId, cellInfo: cellInfo, renderer, cachedCreation: message });
 			this.reversedPendingWebviewIdleInsetMapping.set(message.outputId, content.source);
 			this.pendingWebviewIdleCreationRequest.delete(content.source);
 		}));
@@ -1391,7 +1392,7 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 		const createOutput = () => {
 			const { message, renderer, transfer: transferable } = this._createOutputCreationMessage(cellInfo, content, cellTop, offset, false, false);
 			this._sendMessageToWebview(message, transferable);
-			this.insetMapping.set(content.source, { outputId: message.outputId, cellInfo: cellInfo, renderer, cachedCreation: message });
+			this.insetMapping.set(content.source, { outputId: message.outputId, versionId: content.source.model.versionId, cellInfo: cellInfo, renderer, cachedCreation: message });
 			this.hiddenInsetMapping.delete(content.source);
 			this.reversedInsetMapping.set(message.outputId, content.source);
 		};
@@ -1496,6 +1497,8 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 			outputOffset: offset,
 			content: updatedContent
 		});
+
+		outputCache.versionId = content.source.model.versionId;
 		return;
 	}
 

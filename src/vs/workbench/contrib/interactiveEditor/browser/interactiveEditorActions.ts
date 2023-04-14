@@ -20,6 +20,7 @@ import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegis
 import { IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
 import { IEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { IUntitledTextResourceEditorInput } from 'vs/workbench/common/editor';
+import { ILogService } from 'vs/platform/log/common/log';
 
 export class StartSessionAction extends EditorAction2 {
 
@@ -306,6 +307,10 @@ export class UndoCommand extends AbstractInteractiveEditorAction {
 			title: localize('undo', 'Undo'),
 			icon: Codicon.commentDiscussion,
 			precondition: ContextKeyExpr.and(CTX_INTERACTIVE_EDITOR_VISIBLE, CTX_INTERACTIVE_EDITOR_LAST_EDIT_TYPE.isEqualTo('simple')),
+			keybinding: {
+				weight: KeybindingWeight.EditorContrib + 10,
+				primary: KeyMod.CtrlCmd | KeyCode.KeyZ,
+			},
 			menu: {
 				when: CTX_INTERACTIVE_EDITOR_LAST_EDIT_TYPE.isEqualTo('simple'),
 				id: MENU_INTERACTIVE_EDITOR_WIDGET_UNDO,
@@ -402,9 +407,19 @@ export class ApplyPreviewEdits extends AbstractInteractiveEditorAction {
 		});
 	}
 
-	override runInteractiveEditorCommand(_accessor: ServicesAccessor, ctrl: InteractiveEditorController): void {
-		ctrl.applyChanges();
+	override async runInteractiveEditorCommand(accessor: ServicesAccessor, ctrl: InteractiveEditorController): Promise<void> {
+		const logService = accessor.get(ILogService);
+		const editorService = accessor.get(IEditorService);
+		const edit = await ctrl.applyChanges();
+		if (!edit) {
+			logService.warn('FAILED to apply changes, no edit response');
+			return;
+		}
 		ctrl.cancelSession();
+		if (edit.singleCreateFileEdit) {
+			editorService.openEditor({ resource: edit.singleCreateFileEdit.uri }, SIDE_GROUP);
+		}
+
 	}
 }
 

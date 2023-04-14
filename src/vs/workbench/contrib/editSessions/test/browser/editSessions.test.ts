@@ -42,6 +42,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
+import { IEditSessionIdentityService } from 'vs/platform/workspace/common/editSessions';
 
 const folderName = 'test-folder';
 const folderUri = URI.file(`/${folderName}`);
@@ -130,6 +131,11 @@ suite('Edit session sync', () => {
 		});
 		instantiationService.stub(IEditorService, new class extends mock<IEditorService>() {
 			override saveAll = async (_options: ISaveAllEditorsOptions) => true;
+		});
+		instantiationService.stub(IEditSessionIdentityService, new class extends mock<IEditSessionIdentityService>() {
+			override async getEditSessionIdentifier() {
+				return 'test-identity';
+			}
 		});
 
 		editSessionsContribution = instantiationService.createInstance(EditSessionsContribution);

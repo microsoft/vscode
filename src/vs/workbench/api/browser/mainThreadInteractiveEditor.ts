@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { DisposableMap } from 'vs/base/common/lifecycle';
-import { IInteractiveEditorResponse, IInteractiveEditorService } from 'vs/workbench/contrib/interactiveEditor/common/interactiveEditor';
+import { IInteractiveEditorBulkEditResponse, IInteractiveEditorResponse, IInteractiveEditorService } from 'vs/workbench/contrib/interactiveEditor/common/interactiveEditor';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { reviveWorkspaceEditDto } from 'vs/workbench/api/browser/mainThreadBulkEdits';
 import { ExtHostContext, ExtHostInteractiveEditorShape, MainContext, MainThreadInteractiveEditorShape } from 'vs/workbench/api/common/extHost.protocol';
@@ -55,7 +55,7 @@ export class MainThreadInteractiveEditor implements MainThreadInteractiveEditorS
 			provideResponse: async (item, request, token) => {
 				const result = await this._proxy.$provideResponse(handle, item, request, token);
 				if (result?.type === 'bulkEdit') {
-					result.edits = reviveWorkspaceEditDto(result.edits, this._uriIdentService);
+					(<IInteractiveEditorBulkEditResponse>result).edits = reviveWorkspaceEditDto(result.edits, this._uriIdentService);
 				}
 				return <IInteractiveEditorResponse | undefined>result;
 			},

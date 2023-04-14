@@ -110,6 +110,7 @@ export interface IInteractiveSessionInsertAction {
 	kind: 'insert';
 	responseId: string;
 	codeBlockIndex: number;
+	totalCharacters: number;
 }
 
 export interface IInteractiveSessionCommandAction {
@@ -146,18 +147,21 @@ export const IInteractiveSessionService = createDecorator<IInteractiveSessionSer
 export interface IInteractiveSessionService {
 	_serviceBrand: undefined;
 	registerProvider(provider: IInteractiveProvider): IDisposable;
-	startSession(providerId: string, allowRestoringSession: boolean, token: CancellationToken): Promise<InteractiveSessionModel | undefined>;
+	getProviderIds(): string[];
+	startSession(providerId: string, allowRestoringSession: boolean, token: CancellationToken): InteractiveSessionModel | undefined;
 
 	/**
 	 * Returns whether the request was accepted.
 	 */
-	sendRequest(sessionId: number, message: string | IInteractiveSessionReplyFollowup): { completePromise: Promise<void> } | undefined;
+	sendRequest(sessionId: number, message: string | IInteractiveSessionReplyFollowup): Promise<boolean>;
 	cancelCurrentRequestForSession(sessionId: number): void;
 	getSlashCommands(sessionId: number, token: CancellationToken): Promise<IInteractiveSlashCommand[] | undefined>;
 	clearSession(sessionId: number): void;
 	acceptNewSessionState(sessionId: number, state: any): void;
+	getProviders(): string[];
+	revealSessionForProvider(providerId: string): Promise<boolean>;
 	addInteractiveRequest(context: any): void;
-	addCompleteRequest(message: string, response: IInteractiveSessionCompleteResponse): void;
+	addCompleteRequest(providerId: string, message: string, response: IInteractiveSessionCompleteResponse): void;
 	sendInteractiveRequestToProvider(providerId: string, message: IInteractiveSessionDynamicRequest): void;
 	releaseSession(sessionId: number): void;
 
