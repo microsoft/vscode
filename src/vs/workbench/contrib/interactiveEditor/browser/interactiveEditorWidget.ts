@@ -42,8 +42,10 @@ const _inputEditorOptions: IEditorConstructionOptions = {
 	padding: { top: 3, bottom: 2 },
 	overviewRulerLanes: 0,
 	glyphMargin: false,
+	lineNumbers: 'off',
 	folding: false,
 	hideCursorInOverviewRuler: true,
+	selectOnLineNumbers: false,
 	selectionHighlight: false,
 	scrollbar: {
 		useShadows: false,
@@ -51,6 +53,7 @@ const _inputEditorOptions: IEditorConstructionOptions = {
 		horizontal: 'auto',
 		alwaysConsumeMouseWheel: false
 	},
+	lineDecorationsWidth: 0,
 	overviewRulerBorder: false,
 	scrollBeyondLastLine: false,
 	renderLineHighlight: 'none',
@@ -60,8 +63,10 @@ const _inputEditorOptions: IEditorConstructionOptions = {
 	minimap: { enabled: false },
 	guides: { indentation: false },
 	rulers: [],
+	cursorWidth: 1,
 	wrappingStrategy: 'advanced',
 	wrappingIndent: 'none',
+	renderWhitespace: 'none',
 	dropIntoEditor: { enabled: true },
 	quickSuggestions: false,
 	suggest: {
