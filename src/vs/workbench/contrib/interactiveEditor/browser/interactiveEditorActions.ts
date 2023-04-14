@@ -7,7 +7,7 @@ import { Codicon } from 'vs/base/common/codicons';
 import { KeyChord, KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditorAction2 } from 'vs/editor/browser/editorExtensions';
-import { EmbeddedCodeEditorWidget } from 'vs/editor/browser/widget/embeddedCodeEditorWidget';
+import { EmbeddedCodeEditorWidget, EmbeddedDiffEditorWidget } from 'vs/editor/browser/widget/embeddedCodeEditorWidget';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { InteractiveEditorController, Recording } from 'vs/workbench/contrib/interactiveEditor/browser/interactiveEditorController';
 import { CTX_INTERACTIVE_EDITOR_FOCUSED, CTX_INTERACTIVE_EDITOR_HAS_ACTIVE_REQUEST, CTX_INTERACTIVE_EDITOR_HAS_PROVIDER, CTX_INTERACTIVE_EDITOR_INNER_CURSOR_FIRST, CTX_INTERACTIVE_EDITOR_INNER_CURSOR_LAST, CTX_INTERACTIVE_EDITOR_EMPTY, CTX_INTERACTIVE_EDITOR_OUTER_CURSOR_POSITION, CTX_INTERACTIVE_EDITOR_VISIBLE, MENU_INTERACTIVE_EDITOR_WIDGET, CTX_INTERACTIVE_EDITOR_LAST_EDIT_TYPE, MENU_INTERACTIVE_EDITOR_WIDGET_UNDO, MENU_INTERACTIVE_EDITOR_WIDGET_STATUS, CTX_INTERACTIVE_EDITOR_LAST_FEEDBACK, CTX_INTERACTIVE_EDITOR_INLNE_DIFF, CTX_INTERACTIVE_EDITOR_HAS_RESPONSE, CTX_INTERACTIVE_EDITOR_EDIT_MODE } from 'vs/workbench/contrib/interactiveEditor/common/interactiveEditor';
@@ -21,6 +21,7 @@ import { IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/commo
 import { IEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { IUntitledTextResourceEditorInput } from 'vs/workbench/common/editor';
 import { ILogService } from 'vs/platform/log/common/log';
+import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 
 export class StartSessionAction extends EditorAction2 {
 
@@ -62,6 +63,13 @@ abstract class AbstractInteractiveEditorAction extends EditorAction2 {
 		}
 		const ctrl = InteractiveEditorController.get(editor);
 		if (!ctrl) {
+			for (const diffEditor of accessor.get(ICodeEditorService).listDiffEditors()) {
+				if (diffEditor.getOriginalEditor() === editor || diffEditor.getModifiedEditor() === editor) {
+					if (diffEditor instanceof EmbeddedDiffEditorWidget) {
+						this.runEditorCommand(accessor, diffEditor.getParentEditor(), ..._args);
+					}
+				}
+			}
 			return;
 		}
 		this.runInteractiveEditorCommand(accessor, ctrl, editor, ..._args);
@@ -121,25 +129,6 @@ export class StopRequestAction extends AbstractInteractiveEditorAction {
 
 	runInteractiveEditorCommand(_accessor: ServicesAccessor, ctrl: InteractiveEditorController, _editor: ICodeEditor, ..._args: any[]): void {
 		ctrl.cancelCurrentRequest();
-	}
-}
-
-export class CancelSessionAction extends AbstractInteractiveEditorAction {
-
-	constructor() {
-		super({
-			id: 'interactiveEditor.cancel',
-			title: localize('cancel', 'Cancel'),
-			precondition: CTX_INTERACTIVE_EDITOR_VISIBLE,
-			keybinding: {
-				weight: KeybindingWeight.EditorContrib - 1,
-				primary: KeyCode.Escape
-			}
-		});
-	}
-
-	runInteractiveEditorCommand(_accessor: ServicesAccessor, ctrl: InteractiveEditorController, _editor: ICodeEditor, ..._args: any[]): void {
-		ctrl.cancelSession();
 	}
 }
 
@@ -380,7 +369,7 @@ export class ToggleInlineDiff extends AbstractInteractiveEditorAction {
 				id: MENU_INTERACTIVE_EDITOR_WIDGET_STATUS,
 				when: CTX_INTERACTIVE_EDITOR_EDIT_MODE.isEqualTo('direct'),
 				group: '0_main',
-				order: 1
+				order: 10
 			}
 		});
 	}
@@ -397,10 +386,14 @@ export class ApplyPreviewEdits extends AbstractInteractiveEditorAction {
 			id: 'interactiveEditor.applyEdits',
 			title: localize('applyEdits', 'Apply Changes'),
 			icon: Codicon.check,
-			precondition: ContextKeyExpr.and(CTX_INTERACTIVE_EDITOR_VISIBLE, CTX_INTERACTIVE_EDITOR_EDIT_MODE.isEqualTo('preview')),
+			precondition: ContextKeyExpr.and(CTX_INTERACTIVE_EDITOR_VISIBLE),
+			keybinding: {
+				weight: KeybindingWeight.EditorContrib + 10,
+				primary: KeyMod.CtrlCmd | KeyCode.Enter
+			},
 			menu: {
 				id: MENU_INTERACTIVE_EDITOR_WIDGET_STATUS,
-				when: CTX_INTERACTIVE_EDITOR_EDIT_MODE.isEqualTo('preview'),
+				// when: CTX_INTERACTIVE_EDITOR_EDIT_MODE.isEqualTo('preview'),
 				group: '0_main',
 				order: 0
 			}
@@ -415,11 +408,36 @@ export class ApplyPreviewEdits extends AbstractInteractiveEditorAction {
 			logService.warn('FAILED to apply changes, no edit response');
 			return;
 		}
-		ctrl.cancelSession();
 		if (edit.singleCreateFileEdit) {
 			editorService.openEditor({ resource: edit.singleCreateFileEdit.uri }, SIDE_GROUP);
 		}
 
+	}
+}
+
+export class CancelSessionAction extends AbstractInteractiveEditorAction {
+
+	constructor() {
+		super({
+			id: 'interactiveEditor.cancel',
+			title: localize('discard', 'Discard Changes'),
+			icon: Codicon.clearAll,
+			precondition: CTX_INTERACTIVE_EDITOR_VISIBLE,
+			keybinding: {
+				weight: KeybindingWeight.EditorContrib - 1,
+				primary: KeyCode.Escape
+			},
+			menu: {
+				id: MENU_INTERACTIVE_EDITOR_WIDGET_STATUS,
+				// when: CTX_INTERACTIVE_EDITOR_EDIT_MODE.isEqualTo('preview'),
+				group: '0_main',
+				order: 1
+			}
+		});
+	}
+
+	runInteractiveEditorCommand(_accessor: ServicesAccessor, ctrl: InteractiveEditorController, _editor: ICodeEditor, ..._args: any[]): void {
+		ctrl.cancelSession();
 	}
 }
 

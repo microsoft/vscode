@@ -38,7 +38,7 @@ import { ILanguageSelection } from 'vs/editor/common/languages/language';
 import { ResourceLabel } from 'vs/workbench/browser/labels';
 import { FileKind } from 'vs/platform/files/common/files';
 
-const _commonEditorOptions: IEditorConstructionOptions = {
+const _inputEditorOptions: IEditorConstructionOptions = {
 	padding: { top: 3, bottom: 2 },
 	overviewRulerLanes: 0,
 	glyphMargin: false,
@@ -68,16 +68,7 @@ const _commonEditorOptions: IEditorConstructionOptions = {
 		showIcons: false,
 		showSnippets: false,
 		showStatusBar: false,
-	}
-};
-
-const _inputEditorOptions: IEditorConstructionOptions = {
-	..._commonEditorOptions,
-	lineNumbers: 'off',
-	selectOnLineNumbers: false,
-	lineDecorationsWidth: 0,
-	renderWhitespace: 'none',
-	cursorWidth: 1,
+	},
 	wordWrap: 'on',
 	ariaLabel: localize('aria-label', "Interactive Editor Input"),
 	fontFamily: DEFAULT_FONT_FAMILY,
@@ -86,17 +77,15 @@ const _inputEditorOptions: IEditorConstructionOptions = {
 };
 
 const _previewEditorEditorOptions: IDiffEditorConstructionOptions = {
-	..._commonEditorOptions,
-	readOnly: true,
-	wordWrap: 'off',
-	enableSplitViewResizing: true,
-	isInEmbeddedEditor: true,
-	renderOverviewRuler: false,
-	ignoreTrimWhitespace: false,
-	renderSideBySide: true,
+	scrollbar: { useShadows: false, alwaysConsumeMouseWheel: false },
+	renderMarginRevertIcon: false,
+	diffCodeLens: false,
+	scrollBeyondLastLine: false,
+	stickyScroll: { enabled: false },
 	originalAriaLabel: localize('modified', 'Modified'),
 	modifiedAriaLabel: localize('original', 'Original'),
 	diffAlgorithm: 'smart',
+	readOnly: true,
 };
 
 class InteractiveEditorWidget {
@@ -118,9 +107,9 @@ class InteractiveEditorWidget {
 				]),
 			]),
 			h('div.progress@progress'),
-			h('div.previewDiff@previewDiff'),
+			h('div.previewDiff.hidden@previewDiff'),
 			h('div.previewCreateTitle.show-file-icons@previewCreateTitle'),
-			h('div.previewCreate@previewCreate'),
+			h('div.previewCreate.hidden@previewCreate'),
 			h('div.status@status', [
 				h('div.actions.hidden@statusToolbar'),
 				h('div.label@statusLabel'),
@@ -222,7 +211,7 @@ class InteractiveEditorWidget {
 		this._historyStore.add(statusToolbar);
 
 		// preview editors
-		this._previewDiffEditor = this._store.add(_instantiationService.createInstance(EmbeddedDiffEditorWidget, this._elements.previewDiff, _previewEditorEditorOptions, parentEditor));
+		this._previewDiffEditor = this._store.add(_instantiationService.createInstance(EmbeddedDiffEditorWidget, this._elements.previewDiff, _previewEditorEditorOptions, { modifiedEditor: codeEditorWidgetOptions, originalEditor: codeEditorWidgetOptions }, parentEditor));
 
 		this._previewCreateTitle = this._store.add(_instantiationService.createInstance(ResourceLabel, this._elements.previewCreateTitle, { supportIcons: true }));
 		this._previewCreateEditor = this._store.add(_instantiationService.createInstance(EmbeddedCodeEditorWidget, this._elements.previewCreate, _previewEditorEditorOptions, codeEditorWidgetOptions, parentEditor));
