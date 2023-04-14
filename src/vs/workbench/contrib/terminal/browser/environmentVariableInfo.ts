@@ -47,7 +47,7 @@ export class EnvironmentVariableInfoStale implements IEnvironmentVariableInfo {
 		}];
 	}
 
-	getStatus(_: EnvironmentVariableScope | undefined): ITerminalStatus {
+	getStatus(): ITerminalStatus {
 		return {
 			id: TerminalStatus.RelaunchNeeded,
 			severity: Severity.Warning,

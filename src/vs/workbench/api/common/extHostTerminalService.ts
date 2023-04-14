@@ -919,11 +919,12 @@ class EnvironmentVariableCollection implements vscode.EnvironmentVariableCollect
 	}
 
 	private getKey(variable: string, scope: vscode.EnvironmentVariableScope | undefined) {
-		return `${variable}:::${this.getWorkspaceKey(scope?.workspaceFolder)}`;
+		const workspaceKey = this.getWorkspaceKey(scope?.workspaceFolder);
+		return workspaceKey ? `${variable}:::${workspaceKey}` : variable;
 	}
 
-	private getWorkspaceKey(workspaceFolder: vscode.WorkspaceFolder | undefined): string {
-		return workspaceFolder ? workspaceFolder.uri.toString() : '';
+	private getWorkspaceKey(workspaceFolder: vscode.WorkspaceFolder | undefined): string | undefined {
+		return workspaceFolder ? workspaceFolder.uri.toString() : undefined;
 	}
 
 	forEach(callback: (variable: string, mutator: vscode.EnvironmentVariableMutator, collection: vscode.EnvironmentVariableCollection) => any, thisArg?: any): void {
