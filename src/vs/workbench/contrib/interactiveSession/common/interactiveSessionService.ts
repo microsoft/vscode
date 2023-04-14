@@ -159,11 +159,9 @@ export interface IInteractiveSessionService {
 	getSlashCommands(sessionId: number, token: CancellationToken): Promise<IInteractiveSlashCommand[] | undefined>;
 	clearSession(sessionId: number): void;
 	acceptNewSessionState(sessionId: number, state: any): void;
-	getProviders(): string[];
-	revealSessionForProvider(providerId: string): Promise<boolean>;
 	addInteractiveRequest(context: any): void;
-	addCompleteRequest(providerId: string, message: string, response: IInteractiveSessionCompleteResponse): void;
-	sendInteractiveRequestToProvider(providerId: string, message: IInteractiveSessionDynamicRequest): void;
+	addCompleteRequest(sessionId: number, message: string, response: IInteractiveSessionCompleteResponse): void;
+	sendInteractiveRequestToProvider(sessionId: number, message: IInteractiveSessionDynamicRequest): void;
 	releaseSession(sessionId: number): void;
 
 	onDidPerformUserAction: Event<IInteractiveSessionUserActionEvent>;

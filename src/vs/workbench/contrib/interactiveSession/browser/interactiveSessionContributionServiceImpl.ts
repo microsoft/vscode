@@ -17,7 +17,7 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { ViewPaneContainer } from 'vs/workbench/browser/parts/views/viewPaneContainer';
 import { IViewContainersRegistry, IViewDescriptor, IViewsRegistry, ViewContainer, ViewContainerLocation, Extensions as ViewExtensions } from 'vs/workbench/common/views';
 import { getClearAction, getOpenInteractiveSessionEditorAction } from 'vs/workbench/contrib/interactiveSession/browser/actions/interactiveSessionActions';
-import { IInteractiveSessionViewOptions, INTERACTIVE_SIDEBAR_PANEL_ID, InteractiveSessionViewPane } from 'vs/workbench/contrib/interactiveSession/browser/interactiveSessionSidebar';
+import { IInteractiveSessionViewOptions, INTERACTIVE_SIDEBAR_PANEL_ID, InteractiveSessionViewPane } from 'vs/workbench/contrib/interactiveSession/browser/interactiveSessionViewPane';
 import { IInteractiveSessionContributionService, IInteractiveSessionProviderContribution, IRawInteractiveSessionProviderContribution } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionContributionService';
 import * as extensionsRegistry from 'vs/workbench/services/extensions/common/extensionsRegistry';
 

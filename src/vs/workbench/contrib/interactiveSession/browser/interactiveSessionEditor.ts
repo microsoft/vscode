@@ -88,7 +88,7 @@ export class InteractiveSessionEditor extends EditorPane {
 
 		this._scopedContextKeyService.value = this._register(this.contextKeyService.createScoped(this.parentElement));
 		const scopedInstantiationService = this.instantiationService.createChild(new ServiceCollection([IContextKeyService, this.scopedContextKeyService]));
-		this.widget.value = scopedInstantiationService.createInstance(InteractiveSessionWidget, editorModel.model.providerId, editorModel.model, undefined, () => editorBackground, () => SIDE_BAR_BACKGROUND, () => SIDE_BAR_BACKGROUND);
+		this.widget.value = scopedInstantiationService.createInstance(InteractiveSessionWidget, editorModel.model.providerId, editorModel.model, { resource: input.resource }, () => editorBackground, () => SIDE_BAR_BACKGROUND, () => SIDE_BAR_BACKGROUND);
 		this.widget.value.render(this.parentElement);
 		this.widget.value.setVisible(true);
 
