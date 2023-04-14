@@ -3710,7 +3710,18 @@ declare module 'vscode' {
 		 * the file is being created with.
 		 * @param metadata Optional metadata for the entry.
 		 */
-		createFile(uri: Uri, options?: { readonly overwrite?: boolean; readonly ignoreIfExists?: boolean; readonly contents?: Uint8Array }, metadata?: WorkspaceEditEntryMetadata): void;
+		createFile(uri: Uri, options?: {
+			readonly overwrite?: boolean;
+			readonly ignoreIfExists?: boolean;
+
+			/**
+			 * The initial contents of the new file.
+			 *
+			 * If creating a file from a {@link DocumentDropEditProvider drop operation}, you can
+			 * pass in a {@link DataTransferFile} to improve performance by avoiding extra data copying.
+			 */
+			readonly contents?: Uint8Array | DataTransferFile;
+		}, metadata?: WorkspaceEditEntryMetadata): void;
 
 		/**
 		 * Delete a file or folder.
@@ -10414,6 +10425,8 @@ declare module 'vscode' {
 
 	/**
 	 * A file associated with a {@linkcode DataTransferItem}.
+	 *
+	 * Instances of this type can only be created by the editor and not by extensions.
 	 */
 	export interface DataTransferFile {
 		/**

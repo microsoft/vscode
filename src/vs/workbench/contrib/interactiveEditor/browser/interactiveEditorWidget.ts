@@ -42,9 +42,7 @@ const _inputEditorOptions: IEditorConstructionOptions = {
 	padding: { top: 3, bottom: 2 },
 	overviewRulerLanes: 0,
 	glyphMargin: false,
-	lineNumbers: 'off',
 	folding: false,
-	selectOnLineNumbers: false,
 	hideCursorInOverviewRuler: true,
 	selectionHighlight: false,
 	scrollbar: {
@@ -53,7 +51,6 @@ const _inputEditorOptions: IEditorConstructionOptions = {
 		horizontal: 'auto',
 		alwaysConsumeMouseWheel: false
 	},
-	lineDecorationsWidth: 0,
 	overviewRulerBorder: false,
 	scrollBeyondLastLine: false,
 	renderLineHighlight: 'none',
@@ -63,10 +60,8 @@ const _inputEditorOptions: IEditorConstructionOptions = {
 	minimap: { enabled: false },
 	guides: { indentation: false },
 	rulers: [],
-	cursorWidth: 1,
 	wrappingStrategy: 'advanced',
 	wrappingIndent: 'none',
-	renderWhitespace: 'none',
 	dropIntoEditor: { enabled: true },
 	quickSuggestions: false,
 	suggest: {
@@ -522,11 +517,6 @@ export class InteractiveEditorZoneWidget extends ZoneWidget {
 		container.appendChild(this.widget.domNode);
 	}
 
-	// protected override _onWidth(_widthInPixel: number): void {
-	// 	if (this._dimension) {
-	// 		this._doLayout(this._dimension.height);
-	// 	}
-	// }
 
 	protected override _doLayout(heightInPixel: number): void {
 

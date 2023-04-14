@@ -16,7 +16,7 @@ import { GithubBranchProtectionProviderManager } from './branchProtection';
 
 export function activate(context: ExtensionContext): void {
 	context.subscriptions.push(initializeGitBaseExtension());
-	context.subscriptions.push(initializeGitExtension());
+	context.subscriptions.push(initializeGitExtension(context));
 }
 
 function initializeGitBaseExtension(): Disposable {
@@ -64,7 +64,7 @@ function setGitHubContext(gitAPI: API, disposables: DisposableStore) {
 	}
 }
 
-function initializeGitExtension(): Disposable {
+function initializeGitExtension(context: ExtensionContext): Disposable {
 	const disposables = new DisposableStore();
 
 	let gitExtension = extensions.getExtension<GitExtension>('vscode.git');
@@ -78,7 +78,7 @@ function initializeGitExtension(): Disposable {
 
 						disposables.add(registerCommands(gitAPI));
 						disposables.add(new GithubCredentialProviderManager(gitAPI));
-						disposables.add(new GithubBranchProtectionProviderManager(gitAPI));
+						disposables.add(new GithubBranchProtectionProviderManager(gitAPI, context.globalState));
 						disposables.add(gitAPI.registerPushErrorHandler(new GithubPushErrorHandler()));
 						disposables.add(gitAPI.registerRemoteSourcePublisher(new GithubRemoteSourcePublisher(gitAPI)));
 						setGitHubContext(gitAPI, disposables);

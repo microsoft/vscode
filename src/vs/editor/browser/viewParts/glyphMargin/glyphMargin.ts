@@ -17,19 +17,21 @@ export class DecorationToRender {
 	public startLineNumber: number;
 	public endLineNumber: number;
 	public className: string;
+	public readonly zIndex: number;
 
-	constructor(startLineNumber: number, endLineNumber: number, className: string) {
+	constructor(startLineNumber: number, endLineNumber: number, className: string, zIndex?: number) {
 		this.startLineNumber = +startLineNumber;
 		this.endLineNumber = +endLineNumber;
 		this.className = String(className);
+		this.zIndex = zIndex ?? 0;
 	}
 }
 
 export abstract class DedupOverlay extends DynamicViewOverlay {
 
-	protected _render(visibleStartLineNumber: number, visibleEndLineNumber: number, decorations: DecorationToRender[]): string[][] {
+	protected _render(visibleStartLineNumber: number, visibleEndLineNumber: number, decorations: DecorationToRender[]): [string, number][][] {
 
-		const output: string[][] = [];
+		const output: [string, number][][] = [];
 		for (let lineNumber = visibleStartLineNumber; lineNumber <= visibleEndLineNumber; lineNumber++) {
 			const lineIndex = lineNumber - visibleStartLineNumber;
 			output[lineIndex] = [];
@@ -54,6 +56,7 @@ export abstract class DedupOverlay extends DynamicViewOverlay {
 		for (let i = 0, len = decorations.length; i < len; i++) {
 			const d = decorations[i];
 			const className = d.className;
+			const zIndex = d.zIndex;
 			let startLineIndex = Math.max(d.startLineNumber, visibleStartLineNumber) - visibleStartLineNumber;
 			const endLineIndex = Math.min(d.endLineNumber, visibleEndLineNumber) - visibleStartLineNumber;
 
@@ -66,7 +69,7 @@ export abstract class DedupOverlay extends DynamicViewOverlay {
 			}
 
 			for (let i = startLineIndex; i <= prevEndLineIndex; i++) {
-				output[i].push(prevClassName);
+				output[i].push([className, zIndex]);
 			}
 		}
 
@@ -147,8 +150,9 @@ export class GlyphMarginOverlay extends DedupOverlay {
 		for (let i = 0, len = decorations.length; i < len; i++) {
 			const d = decorations[i];
 			const glyphMarginClassName = d.options.glyphMarginClassName;
+			const zIndex = d.options.zIndex;
 			if (glyphMarginClassName) {
-				r[rLen++] = new DecorationToRender(d.range.startLineNumber, d.range.endLineNumber, glyphMarginClassName);
+				r[rLen++] = new DecorationToRender(d.range.startLineNumber, d.range.endLineNumber, glyphMarginClassName, zIndex);
 			}
 		}
 		return r;
@@ -162,7 +166,8 @@ export class GlyphMarginOverlay extends DedupOverlay {
 
 		const visibleStartLineNumber = ctx.visibleRange.startLineNumber;
 		const visibleEndLineNumber = ctx.visibleRange.endLineNumber;
-		const toRender = this._render(visibleStartLineNumber, visibleEndLineNumber, this._getDecorations(ctx));
+		const decorationsToRender = this._getDecorations(ctx);
+		const toRender = this._render(visibleStartLineNumber, visibleEndLineNumber, decorationsToRender);
 
 		const lineHeight = this._lineHeight.toString();
 		const left = this._glyphMarginLeft.toString();
@@ -172,14 +177,19 @@ export class GlyphMarginOverlay extends DedupOverlay {
 		const output: string[] = [];
 		for (let lineNumber = visibleStartLineNumber; lineNumber <= visibleEndLineNumber; lineNumber++) {
 			const lineIndex = lineNumber - visibleStartLineNumber;
-			const classNames = toRender[lineIndex];
+			const renderInfo = toRender[lineIndex];
 
-			if (classNames.length === 0) {
+			if (renderInfo.length === 0) {
 				output[lineIndex] = '';
 			} else {
+				// Sort decorations to render in descending order by zIndex
+				renderInfo.sort(([_, aIndex], [__, bIndex]) => {
+					return bIndex - aIndex;
+				});
+
 				output[lineIndex] = (
 					'<div class="cgmr codicon '
-					+ classNames.join(' ')
+					+ renderInfo[0][0]
 					+ common
 				);
 			}

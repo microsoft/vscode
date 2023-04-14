@@ -3,19 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-mod is_integrated;
+declare module 'vscode' {
+	// https://github.com/microsoft/vscode/issues/166615
 
-pub mod command;
-pub mod errors;
-pub mod http;
-pub mod input;
-pub mod io;
-pub mod machine;
-pub mod prereqs;
-pub mod ring_buffer;
-pub mod sync;
-pub use is_integrated::*;
-pub mod app_lock;
-pub mod file_lock;
-pub mod tar;
-pub mod zipper;
+	/**
+	 * Represents the input box in the Source Control viewlet.
+	 */
+	export interface SourceControlInputBox {
+
+		/**
+		 * The {@link TextDocument text} of the input box.
+		 */
+		readonly document: TextDocument;
+	}
+}

@@ -708,7 +708,7 @@ export interface IFileOperationOptions {
 	readonly ignoreIfExists?: boolean;
 	readonly ignoreIfNotExists?: boolean;
 	readonly recursive?: boolean;
-	readonly contents?: Uint8Array;
+	readonly contents?: Uint8Array | vscode.DataTransferFile;
 }
 
 export const enum FileEditType {
@@ -778,7 +778,7 @@ export class WorkspaceEdit implements vscode.WorkspaceEdit {
 		this._edits.push({ _type: FileEditType.File, from, to, options, metadata });
 	}
 
-	createFile(uri: vscode.Uri, options?: { readonly overwrite?: boolean; readonly ignoreIfExists?: boolean; readonly contents?: Uint8Array }, metadata?: vscode.WorkspaceEditEntryMetadata): void {
+	createFile(uri: vscode.Uri, options?: { readonly overwrite?: boolean; readonly ignoreIfExists?: boolean; readonly contents?: Uint8Array | vscode.DataTransferFile }, metadata?: vscode.WorkspaceEditEntryMetadata): void {
 		this._edits.push({ _type: FileEditType.File, from: undefined, to: uri, options, metadata });
 	}
 
@@ -2582,7 +2582,7 @@ export enum TreeItemCheckboxState {
 }
 
 @es5ClassCompat
-export class DataTransferItem {
+export class DataTransferItem implements vscode.DataTransferItem {
 
 	async asString(): Promise<string> {
 		return typeof this.value === 'string' ? this.value : JSON.stringify(this.value);
@@ -2599,6 +2599,29 @@ export class DataTransferItem {
 		id?: string,
 	) {
 		this.id = id ?? generateUuid();
+	}
+}
+
+/**
+ * Intentionally not exported to extensions
+ */
+export class DataTransferFile implements vscode.DataTransferFile {
+
+	public readonly name: string;
+	public readonly uri: vscode.Uri | undefined;
+
+	public readonly _itemId: string;
+	private readonly _getData: () => Promise<Uint8Array>;
+
+	constructor(name: string, uri: vscode.Uri | undefined, itemId: string, getData: () => Promise<Uint8Array>) {
+		this.name = name;
+		this.uri = uri;
+		this._itemId = itemId;
+		this._getData = getData;
+	}
+
+	data(): Promise<Uint8Array> {
+		return this._getData();
 	}
 }
 
