@@ -3,12 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as dom from 'vs/base/browser/dom';
 import { localize } from 'vs/nls';
 import { ICommandQuickPick, CommandsHistory } from 'vs/platform/quickinput/browser/commandsQuickAccess';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IMenuService, MenuId, MenuItemAction, SubmenuItemAction, Action2 } from 'vs/platform/actions/common/actions';
+import { IMenuService, MenuId, MenuItemAction, SubmenuItemAction, Action2, registerAction2 } from 'vs/platform/actions/common/actions';
 // import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { CancellationToken } from 'vs/base/common/cancellation';
+import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 // import { timeout } from 'vs/base/common/async';
 import { AbstractEditorCommandsQuickAccessProvider } from 'vs/editor/contrib/quickAccess/browser/commandsQuickAccess';
 import { IEditor } from 'vs/editor/common/editorCommon';
@@ -35,6 +36,13 @@ import { isFirefox } from 'vs/base/browser/browser';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { ISemanticSimilarityService } from 'vs/workbench/services/semanticSimilarity/common/semanticSimilarityService';
 import { timeout } from 'vs/base/common/async';
+import { IInteractiveSessionService } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionService';
+import { InteractiveListItemRenderer } from 'vs/workbench/contrib/interactiveSession/browser/interactiveSessionListRenderer';
+import { InteractiveSessionEditorOptions } from 'vs/workbench/contrib/interactiveSession/browser/interactiveSessionOptions';
+import { editorBackground } from 'vs/platform/theme/common/colorRegistry';
+import { InteractiveSessionViewModel } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionViewModel';
+import { IInteractiveSessionModel, InteractiveSessionModel } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionModel';
+import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 
 export class CommandsQuickAccessProvider extends AbstractEditorCommandsQuickAccessProvider {
 	private static SEMANTIC_SIMILARITY_MAX_PICKS = 3;
@@ -151,7 +159,7 @@ export class CommandsQuickAccessProvider extends AbstractEditorCommandsQuickAcce
 		}
 		const sortedIndices = scores.map((_, i) => i).sort((a, b) => scores[b] - scores[a]);
 		const setOfPicksSoFar = new Set(picksSoFar.map(p => p.commandId));
-		const additionalPicks: Array<ICommandQuickPick | IQuickPickSeparator> = picksSoFar.length > 0
+		const additionalPicks: Array<ICommandQuickPick | IQuickPickSeparator> = picksSoFar.length && sortedIndices.length
 			? [{
 				type: 'separator',
 				label: localize('semanticSimilarity', "similar commands")
@@ -170,7 +178,16 @@ export class CommandsQuickAccessProvider extends AbstractEditorCommandsQuickAcce
 				numOfSmartPicks++;
 			}
 		}
-		return additionalPicks;
+
+		return additionalPicks.length ? additionalPicks : [
+			{
+				label: localize('askInChat', "Ask '{0}' in chat...", filter),
+				commandId: 'workbench.action.quickOpenAsk',
+				accept: (keyMods, event) => {
+					this.commandService.executeCommand('workbench.action.quickOpenAsk', filter);
+				}
+			}
+		];
 	}
 
 	private getGlobalCommandPicks(): ICommandQuickPick[] {
@@ -272,5 +289,177 @@ export class ClearCommandHistoryAction extends Action2 {
 		}
 	}
 }
+
+export class AskMeAction extends Action2 {
+
+	private _previousModel: InteractiveSessionModel | undefined;
+	private _previousQuery: string | undefined;
+	private _currentTimer: NodeJS.Timeout | undefined;
+
+	constructor() {
+		super({
+			id: 'workbench.action.quickOpenAsk',
+			title: { value: localize('askme', "Ask Me"), original: 'Ask Me' },
+			f1: true,
+			keybinding: {
+				weight: KeybindingWeight.WorkbenchContrib,
+				mac: {
+					primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyI
+				},
+			}
+		});
+	}
+
+	async run(accessor: ServicesAccessor, query: string): Promise<void> {
+		const quickInputService = accessor.get(IQuickInputService);
+		const interactiveSessionService = accessor.get(IInteractiveSessionService);
+		const instantiationService = accessor.get(IInstantiationService);
+
+		clearTimeout(this._currentTimer);
+		this._currentTimer = undefined;
+
+		if (query) {
+			this._previousModel = undefined;
+		}
+
+		const cts = new CancellationTokenSource();
+		const model = this._previousModel ?? interactiveSessionService.startSession('copilot', false, cts.token);
+		if (!model) {
+			return;
+		}
+
+		const containerList = dom.$('.interactive-list');
+		const containerSession = dom.$('.interactive-session', undefined, containerList);
+		containerList.style.position = 'relative';
+
+		const input = quickInputService.createQuickPick();
+		input.ignoreFocusOut = true;
+		input.description = containerSession;
+		input.title = localize('askabot', "Ask Copilot");
+		input.placeholder = localize('askabot', "Ask Copilot");
+		input.items = [{
+			type: 'separator',
+			label: localize('askabotasdf', "commands"),
+		},
+		{
+			label: localize('askabotsdfsdf', "Sort Lines"),
+		},
+		{
+			label: localize('askabotsdfsdasdff', "Download everything"),
+		},
+		];
+		input.onDidChangeValue(() => {
+			input.activeItems = [];
+		});
+		input.activeItems = [];
+		input.matchOnLabel = false;
+		input.buttons = [{
+			iconClass: ThemeIcon.asClassName(Codicon.commentDiscussion),
+			tooltip: localize('cancel', "Go to chat"),
+		}];
+		// input.onDidTriggerButton(() => {
+		// 	interactiveSessionService.addCompleteRequest(input.value, )
+		// });
+		input.onDidHide(() => {
+			disposables.dispose();
+			this._currentTimer = setTimeout(() => {
+				this._previousModel?.dispose();
+				this._previousModel = undefined;
+				this._previousQuery = undefined;
+			}, 1000 * 10); // 10 seconds
+		});
+		input.show();
+
+		let disposables = this.createSession(containerList, containerList.offsetWidth, model, instantiationService);
+		input.onDidAccept(async () => {
+			disposables.dispose();
+			// model?.dispose();
+			// model = interactiveSessionService.startSession('copilot', false, cts.token);
+			// if (!model) {
+			// 	return;
+			// }
+			this._previousQuery = input.value;
+			this._previousModel = model;
+			disposables = this.createSession(containerList, containerList.offsetWidth, model, instantiationService);
+			await interactiveSessionService.sendRequest(model.sessionId, input.value);
+		});
+
+		if (query) {
+			input.value = query;
+			input.description = containerSession;
+			this._previousQuery = query;
+			this._previousModel = model;
+			await interactiveSessionService.sendRequest(model.sessionId, query);
+		} else if (this._previousQuery) {
+			input.value = this._previousQuery;
+		}
+	}
+
+	createSession(container: HTMLElement, offsetWidth: number, model: InteractiveSessionModel, instantiationService: IInstantiationService): IDisposable {
+		const disposables = new DisposableStore();
+		const viewModel = new InteractiveSessionViewModel(model, instantiationService);
+		disposables.add(viewModel);
+		const thing = instantiationService.createInstance(InteractiveSessionEditorOptions, 'qp', () => editorBackground, () => editorBackground);
+		disposables.add(thing);
+		const list = instantiationService.createInstance(
+			InteractiveListItemRenderer,
+			thing,
+			{
+				getListLength() {
+					return viewModel.getItems().length;
+				},
+				getSlashCommands() {
+					return [];
+				},
+			}
+		);
+		disposables.add(list);
+
+		dom.reset(container);
+		const template = list.renderTemplate(container);
+		list.layout(offsetWidth);
+		disposables.add(viewModel.onDidChange(() => {
+			if (viewModel.getItems().length % 2 !== 0) {
+				return;
+			}
+
+			const items = viewModel.getItems();
+			const node = {
+				element: items[items.length - 1],
+				children: [],
+				collapsed: false,
+				collapsible: false,
+				depth: 0,
+				filterData: undefined,
+				visible: true,
+				visibleChildIndex: 0,
+				visibleChildrenCount: 1,
+			};
+			list.disposeElement(node, 0, template);
+			list.renderElement(node, 0, template);
+		}));
+
+		if (viewModel.getItems().length > 1) {
+			const items = viewModel.getItems();
+			const node = {
+				element: items[items.length - 1],
+				children: [],
+				collapsed: false,
+				collapsible: false,
+				depth: 0,
+				filterData: undefined,
+				visible: true,
+				visibleChildIndex: 0,
+				visibleChildrenCount: 1,
+			};
+			list.disposeElement(node, 0, template);
+			list.renderElement(node, 0, template);
+		}
+
+		return disposables;
+	}
+}
+
+registerAction2(AskMeAction);
 
 //#endregion

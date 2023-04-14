@@ -140,7 +140,7 @@ class QuickInput extends Disposable implements IQuickInput {
 	protected static readonly noPromptMessage = localize('inputModeEntry', "Press 'Enter' to confirm your input or 'Escape' to cancel");
 
 	private _title: string | undefined;
-	private _description: string | undefined;
+	private _description: string | HTMLElement | undefined;
 	private _steps: number | undefined;
 	private _totalSteps: number | undefined;
 	protected visible = false;
@@ -184,7 +184,7 @@ class QuickInput extends Disposable implements IQuickInput {
 		return this._description;
 	}
 
-	set description(description: string | undefined) {
+	set description(description: string | HTMLElement | undefined) {
 		this._description = description;
 		this.update();
 	}
@@ -346,10 +346,18 @@ class QuickInput extends Disposable implements IQuickInput {
 		}
 		const description = this.getDescription();
 		if (this.ui.description1.textContent !== description) {
-			this.ui.description1.textContent = description;
+			if (description instanceof HTMLElement) {
+				dom.reset(this.ui.description1, description);
+			} else {
+				this.ui.description1.textContent = description;
+			}
 		}
 		if (this.ui.description2.textContent !== description) {
-			this.ui.description2.textContent = description;
+			if (description instanceof HTMLElement) {
+				dom.reset(this.ui.description2, description.cloneNode(true));
+			} else {
+				this.ui.description2.textContent = description;
+			}
 		}
 		if (this.busy && !this.busyDelay) {
 			this.busyDelay = new TimeoutTimer();
@@ -1286,8 +1294,8 @@ export class QuickInputController extends Disposable {
 		const rightActionBar = this._register(new ActionBar(titleBar));
 		rightActionBar.domNode.classList.add('quick-input-right-action-bar');
 
-		const description1 = dom.append(container, $('.quick-input-description'));
 		const headerContainer = dom.append(container, $('.quick-input-header'));
+		const description1 = dom.append(container, $('.quick-input-description'));
 
 		const checkAll = <HTMLInputElement>dom.append(headerContainer, $('input.quick-input-check-all'));
 		checkAll.type = 'checkbox';

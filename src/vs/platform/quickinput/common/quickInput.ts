@@ -210,7 +210,7 @@ export interface IQuickInput extends IDisposable {
 
 	title: string | undefined;
 
-	description: string | undefined;
+	description: string | HTMLElement | undefined;
 
 	step: number | undefined;
 

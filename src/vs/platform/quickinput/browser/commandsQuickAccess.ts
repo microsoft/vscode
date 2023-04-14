@@ -47,7 +47,7 @@ export abstract class AbstractCommandsQuickAccessProvider extends PickerQuickAcc
 		options: ICommandsQuickAccessOptions,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
-		@ICommandService private readonly commandService: ICommandService,
+		@ICommandService protected readonly commandService: ICommandService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IDialogService private readonly dialogService: IDialogService
 	) {
@@ -183,10 +183,6 @@ export abstract class AbstractCommandsQuickAccessProvider extends PickerQuickAcc
 			commandPick.label;
 
 		return {
-			...commandPick,
-			ariaLabel,
-			detail: this.options.showAlias && commandPick.commandAlias !== commandPick.label ? commandPick.commandAlias : undefined,
-			keybinding,
 			accept: async () => {
 
 				// Add to history
@@ -206,7 +202,11 @@ export abstract class AbstractCommandsQuickAccessProvider extends PickerQuickAcc
 						this.dialogService.error(localize('canNotRun', "Command '{0}' resulted in an error", commandPick.label), toErrorMessage(error));
 					}
 				}
-			}
+			},
+			...commandPick,
+			ariaLabel,
+			detail: this.options.showAlias && commandPick.commandAlias !== commandPick.label ? commandPick.commandAlias : undefined,
+			keybinding
 		};
 	}
 
