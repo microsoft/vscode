@@ -37,8 +37,14 @@ function describeEnvironmentChanges(collection: IMergedEnvironmentVariableCollec
 	for (const [ext, coll] of collection.collections) {
 		content += `\n\n## ${localize('extension', 'Extension: {0}', ext)}`;
 		content += '\n';
-		for (const [variable, mutator] of coll.map.entries()) {
-			content += `\n- \`${mutatorTypeLabel(mutator.type, mutator.value, variable)}\``;
+		for (const [_, mutator] of coll.map.entries()) {
+			if (collection.owningWorkspace) {
+				// Only mutators which are applicable on the relevant workspace should be shown.
+				if (mutator.scope?.workspaceFolder && mutator.scope.workspaceFolder.index !== collection.owningWorkspace.index) {
+					continue;
+				}
+			}
+			content += `\n- \`${mutatorTypeLabel(mutator.type, mutator.value, mutator.variable)}\``;
 		}
 	}
 	return content;

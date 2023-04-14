@@ -37,7 +37,7 @@ export class MergedEnvironmentVariableCollection implements IMergedEnvironmentVa
 				const variable = mutator.variable;
 				let entry = this.variableMap.get(variable);
 				if (this.owningWorkspace) {
-					// If the entry is scoped to a workspace folder, only apply it if the workspace
+					// If a mutator is scoped to a workspace folder, only apply it if the workspace
 					// folder matches.
 					if (mutator.scope?.workspaceFolder && mutator.scope.workspaceFolder.uri.fsPath !== this.owningWorkspace.uri.fsPath) {
 						next = it.next();
@@ -68,7 +68,6 @@ export class MergedEnvironmentVariableCollection implements IMergedEnvironmentVa
 				next = it.next();
 			}
 		});
-		const x = 'hey brother';
 	}
 
 	async applyToProcessEnvironment(env: IProcessEnvironment, variableResolver?: VariableResolver): Promise<void> {
@@ -105,8 +104,6 @@ export class MergedEnvironmentVariableCollection implements IMergedEnvironmentVa
 		const added: Map<string, IExtensionOwnedEnvironmentVariableMutator[]> = new Map();
 		const changed: Map<string, IExtensionOwnedEnvironmentVariableMutator[]> = new Map();
 		const removed: Map<string, IExtensionOwnedEnvironmentVariableMutator[]> = new Map();
-		const workspaceName = this.owningWorkspace?.name;
-		const x = 2;
 
 		// Find added
 		other.variableMap.forEach((otherMutators, variable) => {
@@ -184,7 +181,7 @@ function getChangedMutatorsFromArray(
 	const result: IExtensionOwnedEnvironmentVariableMutator[] = [];
 	current.forEach(mutator => {
 		const otherMutator = otherMutatorExtensions.get(mutator.extensionIdentifier);
-		if (otherMutator && (mutator.type !== otherMutator.type || mutator.value !== otherMutator.value)) {
+		if (otherMutator && (mutator.type !== otherMutator.type || mutator.value !== otherMutator.value || mutator.scope?.workspaceFolder?.index !== otherMutator.scope?.workspaceFolder?.index)) {
 			// Return the new result, not the old one
 			result.push(otherMutator);
 		}
