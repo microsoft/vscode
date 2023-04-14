@@ -38,7 +38,7 @@ async function _findDocumentColors(source: Source, registry: LanguageFeatureRegi
 		if (Array.isArray(result)) {
 			validDocumentColorProviderFound = true;
 			for (const colorInfo of result) {
-				colors.push(source === Source.InBuiltCode ? { range: colorInfo.range, color: [colorInfo.color.red, colorInfo.color.green, colorInfo.color.blue, colorInfo.color.alpha] } : { colorInfo, provider });
+				colors.push(source === Source.InBuiltCode ? { colorInfo, provider } : { range: colorInfo.range, color: [colorInfo.color.red, colorInfo.color.green, colorInfo.color.blue, colorInfo.color.alpha] });
 			}
 		}
 	}).catch((e) => {
@@ -47,7 +47,7 @@ async function _findDocumentColors(source: Source, registry: LanguageFeatureRegi
 
 	await Promise.all(promises);
 	if (validDocumentColorProviderFound) {
-		return { colorData: colors, usingDefaultDocumentColorProvider: false };
+		return source === Source.InBuiltCode ? { colorData: colors, usingDefaultDocumentColorProvider: false } : colors;
 	} else {
 		const defaultDocumentColorProvider = orderedDocumentColorProviderRegistry.find(provider => provider instanceof DefaultDocumentColorProvider);
 		if (!defaultDocumentColorProvider) {
@@ -59,7 +59,7 @@ async function _findDocumentColors(source: Source, registry: LanguageFeatureRegi
 						colors.push(source === Source.InBuiltCode ? { colorInfo, provider: defaultDocumentColorProvider } : { range: colorInfo.range, color: [colorInfo.color.red, colorInfo.color.green, colorInfo.color.blue, colorInfo.color.alpha] });
 					}
 				}
-				return { colorData: colors, usingDefaultDocumentColorProvider: true };
+				return source === Source.InBuiltCode ? { colorData: colors, usingDefaultDocumentColorProvider: true } : colors;
 			});
 		}
 	}
@@ -84,7 +84,6 @@ CommandsRegistry.registerCommand('_executeDocumentColorProvider', function (acce
 	if (!model) {
 		throw illegalArgument();
 	}
-
 	return _findDocumentColors(Source.Extension, colorProviderRegistry, model, CancellationToken.None);
 });
 
