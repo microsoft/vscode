@@ -139,15 +139,12 @@ function filterScope(
 	mutator: IExtensionOwnedEnvironmentVariableMutator,
 	scope: EnvironmentVariableScope | undefined
 ): boolean {
-	if (!scope) {
-		return true;
-	}
 	if (!mutator.scope) {
 		return true;
 	}
 	// If a mutator is scoped to a workspace folder, only apply it if the workspace
 	// folder matches.
-	if (mutator.scope.workspaceFolder && scope.workspaceFolder && mutator.scope.workspaceFolder.index === scope.workspaceFolder.index) {
+	if (mutator.scope.workspaceFolder && scope?.workspaceFolder && mutator.scope.workspaceFolder.index === scope.workspaceFolder.index) {
 		return true;
 	}
 	return false;
