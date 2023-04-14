@@ -510,8 +510,11 @@ export class InteractiveEditorController implements IEditorContribution {
 				this._zone.widget.updateMessage(reply.message.value);
 				const viewInChatLink = this._zone.widget.addStatusLink('View in chat');
 				const messageReply = reply.message.value;
+				// still need to save the message reply in the view, even if not making it appears
+				// need to have a separation between showing the pannel and saving the message
+				this._instaService.invokeFunction(saveMessageResponse, request.prompt, messageReply);
 				viewInChatLink.onclick = () => {
-					this._instaService.invokeFunction(showMessageResponse, request.prompt, messageReply);
+					this._instaService.invokeFunction(revealView);
 				};
 				// END ADDED
 				continue;
@@ -815,15 +818,21 @@ function installSlashCommandSupport(accessor: ServicesAccessor, editor: IActiveC
 	return store;
 }
 
-async function showMessageResponse(accessor: ServicesAccessor, query: string, response: string) {
+async function saveMessageResponse(accessor: ServicesAccessor, query: string, response: string) {
 	console.log('inside of showMessageResponse');
 	console.log('query : ', query);
 	console.log('response : ', response);
 	const interactiveSessionService = accessor.get(IInteractiveSessionService);
 	const providerId = interactiveSessionService.getProviders()[0];
-	if (await interactiveSessionService.revealSessionForProvider(providerId)) {
-		interactiveSessionService.addCompleteRequest(providerId, query, { message: response });
-	}
+	// if (await interactiveSessionService.revealSessionForProvider(providerId)) {
+	interactiveSessionService.addCompleteRequest(providerId, query, { message: response });
+	// }
+}
+
+async function revealView(accessor: ServicesAccessor) {
+	const interactiveSessionService = accessor.get(IInteractiveSessionService);
+	const providerId = interactiveSessionService.getProviders()[0];
+	await interactiveSessionService.revealSessionForProvider(providerId);
 }
 
 async function sendRequest(accessor: ServicesAccessor, query: string) {
