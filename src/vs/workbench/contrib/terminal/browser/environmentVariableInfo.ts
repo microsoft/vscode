@@ -91,10 +91,10 @@ export class EnvironmentVariableInfoChangesActive implements IEnvironmentVariabl
 		return message;
 	}
 
-	private _getActions(): ITerminalStatusHoverAction[] {
+	private _getActions(scope: EnvironmentVariableScope | undefined): ITerminalStatusHoverAction[] {
 		return [{
 			label: localize('showEnvironmentContributions', "Show environment contributions"),
-			run: () => this._commandService.executeCommand(TerminalCommandId.ShowEnvironmentContributions),
+			run: () => this._commandService.executeCommand(TerminalCommandId.ShowEnvironmentContributions, scope),
 			commandId: TerminalCommandId.ShowEnvironmentContributions
 		}];
 	}
@@ -104,7 +104,7 @@ export class EnvironmentVariableInfoChangesActive implements IEnvironmentVariabl
 			id: TerminalStatus.EnvironmentVariableInfoChangesActive,
 			severity: Severity.Info,
 			tooltip: this._getInfo(scope),
-			hoverActions: this._getActions()
+			hoverActions: this._getActions(scope)
 		};
 	}
 }
