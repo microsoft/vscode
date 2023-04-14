@@ -147,6 +147,5 @@ export function computeDefaultDocumentColors(model: IDocumentColorComputerTarget
 		// Unknown caller!
 		return [];
 	}
-	const colorInformation = computeColors(model);
-	return colorInformation;
+	return computeColors(model);
 }

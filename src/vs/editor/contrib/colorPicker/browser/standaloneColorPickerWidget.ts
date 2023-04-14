@@ -23,25 +23,10 @@ import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { Selection } from 'vs/editor/common/core/selection';
 import { IRange } from 'vs/editor/common/core/range';
-import { DefaultDocumentColorProvider } from 'vs/editor/contrib/colorPicker/browser/defaultDocumentColorProvider';
 import { IModelService } from 'vs/editor/common/services/model';
 import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
-import { registerEditorFeature } from 'vs/editor/common/editorFeatures';
 import * as dom from 'vs/base/browser/dom';
 import 'vs/css!./colorPicker';
-
-export class DefaultDocumentColorProviderFeature extends Disposable {
-	constructor(
-		@IModelService _modelService: IModelService,
-		@ILanguageConfigurationService _languageConfigurationService: ILanguageConfigurationService,
-		@ILanguageFeaturesService _languageFeaturesService: ILanguageFeaturesService,
-	) {
-		super();
-		this._register(_languageFeaturesService.colorProvider.register('*', new DefaultDocumentColorProvider(_modelService, _languageConfigurationService)));
-	}
-}
-
-registerEditorFeature(DefaultDocumentColorProviderFeature);
 
 export class StandaloneColorPickerController extends Disposable implements IEditorContribution {
 

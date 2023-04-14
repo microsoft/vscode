@@ -19,6 +19,7 @@ import { localize } from 'vs/nls';
 import { editorHoverBackground } from 'vs/platform/theme/common/colorRegistry';
 import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
+
 const $ = dom.$;
 
 export class ColorPickerHeader extends Disposable {

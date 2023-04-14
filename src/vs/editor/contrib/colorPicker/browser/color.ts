@@ -6,7 +6,7 @@
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { illegalArgument, onUnexpectedExternalError } from 'vs/base/common/errors';
 import { URI } from 'vs/base/common/uri';
-import { Range } from 'vs/editor/common/core/range';
+import { IRange, Range } from 'vs/editor/common/core/range';
 import { ITextModel } from 'vs/editor/common/model';
 import { DocumentColorProvider, IColorInformation, IColorPresentation } from 'vs/editor/common/languages';
 import { IModelService } from 'vs/editor/common/services/model';
@@ -26,20 +26,19 @@ enum Source {
 	Extension
 }
 
-async function _findDocumentColors(source: Source, registry: LanguageFeatureRegistry<DocumentColorProvider>, model: ITextModel, token: CancellationToken) {
+type IExtColorData = { range: IRange; color: [number, number, number, number] };
+
+async function _findDocumentColors<T extends Source>(source: T, registry: LanguageFeatureRegistry<DocumentColorProvider>, model: ITextModel, token: CancellationToken): Promise<T extends Source.Extension ? IExtColorData[] : { colorData: IColorData[]; usingDefaultDocumentColorProvider: boolean }>;
+async function _findDocumentColors(source: Source, registry: LanguageFeatureRegistry<DocumentColorProvider>, model: ITextModel, token: CancellationToken): Promise<IExtColorData[] | { colorData: IColorData[]; usingDefaultDocumentColorProvider: boolean }> {
 	const colors: any[] = [];
 	let validDocumentColorProviderFound = false;
 	const orderedDocumentColorProviderRegistry = registry.ordered(model).reverse();
-	const providers = orderedDocumentColorProviderRegistry.filter(provider => !(provider instanceof DefaultDocumentColorProvider));
-	const promises = providers.map(provider => Promise.resolve(provider.provideDocumentColors(model, token)).then(result => {
+	const providersFromExtensions = orderedDocumentColorProviderRegistry.filter(provider => !(provider instanceof DefaultDocumentColorProvider));
+	const promises = providersFromExtensions.map(provider => Promise.resolve(provider.provideDocumentColors(model, token)).then(result => {
 		if (Array.isArray(result)) {
 			validDocumentColorProviderFound = true;
 			for (const colorInfo of result) {
-				if (source === Source.InBuiltCode) {
-					colors.push({ colorInfo, provider });
-				} else {
-					colors.push({ range: colorInfo.range, color: [colorInfo.color.red, colorInfo.color.green, colorInfo.color.blue, colorInfo.color.alpha] });
-				}
+				colors.push(source === Source.InBuiltCode ? { range: colorInfo.range, color: [colorInfo.color.red, colorInfo.color.green, colorInfo.color.blue, colorInfo.color.alpha] } : { colorInfo, provider });
 			}
 		}
 	}).catch((e) => {
@@ -54,18 +53,14 @@ async function _findDocumentColors(source: Source, registry: LanguageFeatureRegi
 		if (!defaultDocumentColorProvider) {
 			return Promise.resolve({ colorData: [], usingDefaultDocumentColorProvider: false });
 		} else {
-			const promise = Promise.resolve(defaultDocumentColorProvider.provideDocumentColors(model, token)).then(result => {
+			return Promise.resolve(defaultDocumentColorProvider.provideDocumentColors(model, token)).then(result => {
 				if (Array.isArray(result)) {
 					for (const colorInfo of result) {
-						if (source === Source.InBuiltCode) {
-							colors.push({ colorInfo, provider: defaultDocumentColorProvider });
-						} else {
-							colors.push({ range: colorInfo.range, color: [colorInfo.color.red, colorInfo.color.green, colorInfo.color.blue, colorInfo.color.alpha] });
-						}
+						colors.push(source === Source.InBuiltCode ? { colorInfo, provider: defaultDocumentColorProvider } : { range: colorInfo.range, color: [colorInfo.color.red, colorInfo.color.green, colorInfo.color.blue, colorInfo.color.alpha] });
 					}
 				}
+				return { colorData: colors, usingDefaultDocumentColorProvider: true };
 			});
-			return promise.then(() => { return { colorData: colors, usingDefaultDocumentColorProvider: true }; });
 		}
 	}
 }

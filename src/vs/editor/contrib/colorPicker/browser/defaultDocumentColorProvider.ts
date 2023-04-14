@@ -10,6 +10,9 @@ import { DocumentColorProvider, IColor, IColorInformation, IColorPresentation, P
 import { EditorWorkerClient } from 'vs/editor/browser/services/editorWorkerService';
 import { IModelService } from 'vs/editor/common/services/model';
 import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
+import { Disposable } from 'vs/base/common/lifecycle';
+import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
+import { registerEditorFeature } from 'vs/editor/common/editorFeatures';
 
 export class DefaultDocumentColorProvider implements DocumentColorProvider {
 
@@ -46,3 +49,15 @@ export class DefaultDocumentColorProvider implements DocumentColorProvider {
 	}
 }
 
+class DefaultDocumentColorProviderFeature extends Disposable {
+	constructor(
+		@IModelService _modelService: IModelService,
+		@ILanguageConfigurationService _languageConfigurationService: ILanguageConfigurationService,
+		@ILanguageFeaturesService _languageFeaturesService: ILanguageFeaturesService,
+	) {
+		super();
+		this._register(_languageFeaturesService.colorProvider.register('*', new DefaultDocumentColorProvider(_modelService, _languageConfigurationService)));
+	}
+}
+
+registerEditorFeature(DefaultDocumentColorProviderFeature);

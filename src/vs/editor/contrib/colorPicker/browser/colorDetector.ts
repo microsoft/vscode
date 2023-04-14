@@ -76,6 +76,7 @@ export class ColorDetector extends Disposable implements IEditorContribution {
 					this.removeAllDecorations();
 				}
 				// Update the color data in all cases so the color picker can use the default document color provider
+				// even when the decorators are disabled.
 				this.updateColors();
 			}
 		}));
@@ -153,7 +154,9 @@ export class ColorDetector extends Disposable implements IEditorContribution {
 		this._computePromise.then((colorInfos) => {
 			const colorData = colorInfos.colorData;
 			const usingDefaultDocumentColorProvider = colorInfos.usingDefaultDocumentColorProvider;
+			// Update the underlying color data in all cases
 			this.updateDecorations(colorData);
+			// Update the inline color decorators if they are enabled
 			if (this._isColorDecoratorsEnabled && this._isDefaultColorDecoratorsEnabled
 				|| this._isColorDecoratorsEnabled && !this._isDefaultColorDecoratorsEnabled && !usingDefaultDocumentColorProvider) {
 				this.updateColorDecorators(colorData);
