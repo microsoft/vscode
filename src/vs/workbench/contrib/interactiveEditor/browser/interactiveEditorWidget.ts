@@ -38,7 +38,7 @@ import { ILanguageSelection } from 'vs/editor/common/languages/language';
 import { ResourceLabel } from 'vs/workbench/browser/labels';
 import { FileKind } from 'vs/platform/files/common/files';
 
-const _commonEditorOptions: IEditorConstructionOptions = {
+const _inputEditorOptions: IEditorConstructionOptions = {
 	padding: { top: 3, bottom: 2 },
 	overviewRulerLanes: 0,
 	glyphMargin: false,
@@ -68,17 +68,12 @@ const _commonEditorOptions: IEditorConstructionOptions = {
 	wrappingIndent: 'none',
 	renderWhitespace: 'none',
 	dropIntoEditor: { enabled: true },
-
 	quickSuggestions: false,
 	suggest: {
 		showIcons: false,
 		showSnippets: false,
 		showStatusBar: false,
-	}
-};
-
-const _inputEditorOptions: IEditorConstructionOptions = {
-	..._commonEditorOptions,
+	},
 	wordWrap: 'on',
 	ariaLabel: localize('aria-label', "Interactive Editor Input"),
 	fontFamily: DEFAULT_FONT_FAMILY,
@@ -87,17 +82,15 @@ const _inputEditorOptions: IEditorConstructionOptions = {
 };
 
 const _previewEditorEditorOptions: IDiffEditorConstructionOptions = {
-	..._commonEditorOptions,
-	readOnly: true,
-	wordWrap: 'off',
-	enableSplitViewResizing: true,
-	isInEmbeddedEditor: true,
-	renderOverviewRuler: false,
-	ignoreTrimWhitespace: false,
-	renderSideBySide: true,
+	scrollbar: { useShadows: false, alwaysConsumeMouseWheel: false },
+	renderMarginRevertIcon: false,
+	diffCodeLens: false,
+	scrollBeyondLastLine: false,
+	stickyScroll: { enabled: false },
 	originalAriaLabel: localize('modified', 'Modified'),
 	modifiedAriaLabel: localize('original', 'Original'),
 	diffAlgorithm: 'smart',
+	readOnly: true,
 };
 
 class InteractiveEditorWidget {
