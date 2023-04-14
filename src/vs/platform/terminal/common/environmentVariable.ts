@@ -55,6 +55,7 @@ type VariableResolver = (str: string) => Promise<string>;
  * together.
  */
 export interface IMergedEnvironmentVariableCollection {
+	readonly owningWorkspace: IWorkspaceFolderData | undefined;
 	readonly collections: ReadonlyMap<string, IEnvironmentVariableCollection>;
 	readonly variableMap: ReadonlyMap<string, IExtensionOwnedEnvironmentVariableMutator[]>;
 

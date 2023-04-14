@@ -24,7 +24,10 @@ export class MergedEnvironmentVariableCollection implements IMergedEnvironmentVa
 
 	constructor(
 		readonly collections: ReadonlyMap<string, IEnvironmentVariableCollection>,
-		private readonly owningWorkspace: IWorkspaceFolder | undefined
+		/**
+		 * @karrtikr TODO: Change it back to private.
+		 */
+		public readonly owningWorkspace: IWorkspaceFolder | undefined
 	) {
 		collections.forEach((collection, extensionIdentifier) => {
 			const it = collection.map.entries();
@@ -36,7 +39,7 @@ export class MergedEnvironmentVariableCollection implements IMergedEnvironmentVa
 				if (this.owningWorkspace) {
 					// If the entry is scoped to a workspace folder, only apply it if the workspace
 					// folder matches.
-					if (entry && entry[0].scope?.workspaceFolder && entry[0].scope.workspaceFolder.uri.fsPath !== this.owningWorkspace.uri.fsPath) {
+					if (mutator.scope?.workspaceFolder && mutator.scope.workspaceFolder.uri.fsPath !== this.owningWorkspace.uri.fsPath) {
 						next = it.next();
 						continue;
 					}
@@ -65,6 +68,7 @@ export class MergedEnvironmentVariableCollection implements IMergedEnvironmentVa
 				next = it.next();
 			}
 		});
+		const x = 'hey brother';
 	}
 
 	async applyToProcessEnvironment(env: IProcessEnvironment, variableResolver?: VariableResolver): Promise<void> {
@@ -101,6 +105,8 @@ export class MergedEnvironmentVariableCollection implements IMergedEnvironmentVa
 		const added: Map<string, IExtensionOwnedEnvironmentVariableMutator[]> = new Map();
 		const changed: Map<string, IExtensionOwnedEnvironmentVariableMutator[]> = new Map();
 		const removed: Map<string, IExtensionOwnedEnvironmentVariableMutator[]> = new Map();
+		const workspaceName = this.owningWorkspace?.name;
+		const x = 2;
 
 		// Find added
 		other.variableMap.forEach((otherMutators, variable) => {

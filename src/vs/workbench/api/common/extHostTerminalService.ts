@@ -902,9 +902,12 @@ class EnvironmentVariableCollection implements vscode.EnvironmentVariableCollect
 	}
 
 	private _setIfDiffers(variable: string, mutator: vscode.EnvironmentVariableMutator): void {
+		if (variable === 'VIRTUAL_ENV') {
+			console.log('Set variable to mutator', JSON.stringify(mutator));
+		}
 		const key = this.getKey(variable, mutator.scope);
 		const current = this.map.get(key);
-		if (!current || current.value !== mutator.value || current.type !== mutator.type) {
+		if (!current || current.value !== mutator.value || current.type !== mutator.type || current.scope?.workspaceFolder?.index !== mutator.scope?.workspaceFolder?.index) {
 			const key = this.getKey(variable, mutator.scope);
 			const value: IEnvironmentVariableMutator = { variable, ...mutator };
 			this.map.set(key, value);
@@ -919,8 +922,11 @@ class EnvironmentVariableCollection implements vscode.EnvironmentVariableCollect
 	}
 
 	private getKey(variable: string, scope: vscode.EnvironmentVariableScope | undefined) {
-		// @karrtikr TODO: Create key using workspace
-		return variable;
+		return variable.concat(this.getWorkspaceKey(scope?.workspaceFolder));
+	}
+
+	private getWorkspaceKey(workspaceFolder: vscode.WorkspaceFolder | undefined): string {
+		return workspaceFolder ? workspaceFolder.uri.toString() : '';
 	}
 
 	forEach(callback: (variable: string, mutator: vscode.EnvironmentVariableMutator, collection: vscode.EnvironmentVariableCollection) => any, thisArg?: any): void {
