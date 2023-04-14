@@ -151,7 +151,7 @@
     "file-loader": "^6.2.0",
     "glob": "^5.0.13",
     "gulp": "^4.0.0",
-    "gulp-atom-electron": "^1.33.0",
+    "gulp-atom-electron": "https://github.com/joaomoreno/gulp-atom-electron.git#af94fda9885da085152e81853733bb6590ce8fe1",
     "gulp-azure-storage": "^0.12.1",
     "gulp-bom": "^3.0.0",
     "gulp-buffer": "0.0.2",
