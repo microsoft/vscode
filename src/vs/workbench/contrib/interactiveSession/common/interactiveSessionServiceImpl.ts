@@ -427,7 +427,10 @@ export class InteractiveSessionService extends Disposable implements IInteractiv
 	}
 
 	async revealSessionForProvider(providerId: string): Promise<boolean> {
+		console.log('Inside of reveal session for provider');
 		const viewId = this.interactiveSessionContributionService.getViewIdForProvider(providerId);
+		console.log('viewId : ', viewId);
+		console.log('calling the openView method');
 		return !!(await this.viewsService.openView(viewId));
 	}
 
@@ -452,11 +455,13 @@ export class InteractiveSessionService extends Disposable implements IInteractiv
 		console.log('Inside of addCompleteRequest');
 		console.log('message : ', message);
 		console.log('response : ', response);
+		console.log('providerId : ', providerId);
 
 		this.trace('addCompleteRequest', `message: ${message}`);
 
 		// Currently we only support one session per provider
 		const modelForProvider = Iterable.find(this._sessionModels.values(), model => model.providerId === providerId);
+		console.log('modelForProvider : ', modelForProvider);
 
 		if (!modelForProvider) {
 			throw new Error(`Could not start session for provider ${providerId}`);
@@ -464,6 +469,9 @@ export class InteractiveSessionService extends Disposable implements IInteractiv
 
 		await modelForProvider.waitForInitialization();
 		const request = modelForProvider.addRequest(message);
+
+		console.log('request : ', request);
+
 		modelForProvider.acceptResponseProgress(request, {
 			content: response.message,
 		});

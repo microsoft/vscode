@@ -168,6 +168,9 @@ export class InteractiveSessionWidget extends Disposable implements IInteractive
 	}
 
 	private onDidChangeItems() {
+		console.log('Inside of onDidChangeItems');
+		console.log('this.visible : ', this.visible);
+		console.log('this.tree : ', this.tree);
 		if (this.tree && this.visible) {
 			const items: InteractiveTreeItem[] = this.viewModel?.getItems() ?? [];
 			if (this.viewModel?.welcomeMessage) {
@@ -352,6 +355,7 @@ export class InteractiveSessionWidget extends Disposable implements IInteractive
 
 		this.viewModel = this.instantiationService.createInstance(InteractiveSessionViewModel, model);
 		this.viewModelDisposables.add(this.viewModel.onDidChange(() => {
+			console.log('Inside of onDidChangeModel of the initializeSessionModel');
 			this.slashCommandsPromise = undefined;
 			this.requestInProgress.set(this.viewModel!.requestInProgress);
 			this.onDidChangeItems();

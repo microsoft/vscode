@@ -16,7 +16,7 @@ import { ZoneWidget } from 'vs/editor/contrib/zoneWidget/browser/zoneWidget';
 import { assertType } from 'vs/base/common/types';
 import { CTX_INTERACTIVE_EDITOR_FOCUSED, CTX_INTERACTIVE_EDITOR_INNER_CURSOR_FIRST, CTX_INTERACTIVE_EDITOR_INNER_CURSOR_LAST, CTX_INTERACTIVE_EDITOR_EMPTY, CTX_INTERACTIVE_EDITOR_OUTER_CURSOR_POSITION, CTX_INTERACTIVE_EDITOR_VISIBLE, MENU_INTERACTIVE_EDITOR_WIDGET, MENU_INTERACTIVE_EDITOR_WIDGET_STATUS } from 'vs/workbench/contrib/interactiveEditor/common/interactiveEditor';
 import { ITextModel } from 'vs/editor/common/model';
-import { Dimension, addDisposableListener, getTotalHeight, getTotalWidth, h, reset } from 'vs/base/browser/dom';
+import { Dimension, addDisposableListener, getTotalHeight, getTotalWidth, h, reset, append } from 'vs/base/browser/dom';
 import { Event, MicrotaskEmitter } from 'vs/base/common/event';
 import { IEditorConstructionOptions } from 'vs/editor/browser/config/editorConfiguration';
 import { ICodeEditorWidgetOptions } from 'vs/editor/browser/widget/codeEditorWidget';
@@ -367,7 +367,23 @@ class InteractiveEditorWidget {
 		this._onDidChangeHeight.fire();
 	}
 
+	addStatusLink(message: string) {
+		this._elements.statusLabel.style.width = '100%';
+		const linkNode = document.createElement('a');
+		linkNode.innerText = message;
+		linkNode.style.float = 'right';
+		append(this._elements.statusLabel, linkNode);
+
+		console.log('linkNode : ', linkNode);
+		console.log('this._element.statusLabel : ', this._elements.statusLabel);
+
+		return linkNode;
+	}
+
 	updateMessage(message: string, classes?: string[], resetAfter?: number) {
+		console.log('Inside of the updateMessage function');
+		console.log('message : ', message);
+
 		const isTempMessage = typeof resetAfter === 'number';
 		if (isTempMessage && !this._elements.statusLabel.dataset['state']) {
 			const messageNow = this._elements.statusLabel.innerText;

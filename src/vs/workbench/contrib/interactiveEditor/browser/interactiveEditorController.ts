@@ -505,7 +505,15 @@ export class InteractiveEditorController implements IEditorContribution {
 
 			if (reply.type === 'message') {
 				this._logService.info('[IE] received a MESSAGE, continuing outside editor', provider.debugName);
-				this._instaService.invokeFunction(showMessageResponse, request.prompt, reply.message.value);
+				// When message, we want to render the reply first
+				// ADDED
+				this._zone.widget.updateMessage(reply.message.value);
+				const viewInChatLink = this._zone.widget.addStatusLink('View in chat');
+				const messageReply = reply.message.value;
+				viewInChatLink.onclick = () => {
+					this._instaService.invokeFunction(showMessageResponse, request.prompt, messageReply);
+				};
+				// END ADDED
 				continue;
 			}
 
@@ -809,6 +817,7 @@ function installSlashCommandSupport(accessor: ServicesAccessor, editor: IActiveC
 
 async function showMessageResponse(accessor: ServicesAccessor, query: string, response: string) {
 	console.log('inside of showMessageResponse');
+	console.log('query : ', query);
 	console.log('response : ', response);
 	const interactiveSessionService = accessor.get(IInteractiveSessionService);
 	const providerId = interactiveSessionService.getProviders()[0];
