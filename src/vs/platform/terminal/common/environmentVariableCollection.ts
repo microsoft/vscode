@@ -89,29 +89,29 @@ export class MergedEnvironmentVariableCollection implements IMergedEnvironmentVa
 		const removed: Map<string, IExtensionOwnedEnvironmentVariableMutator[]> = new Map();
 
 		// Find added
-		other.getVariableMap(scope).forEach((otherMutators, key) => {
-			const currentMutators = this.getVariableMap(scope).get(key);
+		other.getVariableMap(scope).forEach((otherMutators, variable) => {
+			const currentMutators = this.getVariableMap(scope).get(variable);
 			const result = getMissingMutatorsFromArray(otherMutators, currentMutators);
 			if (result) {
-				added.set(key, result);
+				added.set(variable, result);
 			}
 		});
 
 		// Find removed
-		this.getVariableMap(scope).forEach((currentMutators, key) => {
-			const otherMutators = other.getVariableMap(scope).get(key);
+		this.getVariableMap(scope).forEach((currentMutators, variable) => {
+			const otherMutators = other.getVariableMap(scope).get(variable);
 			const result = getMissingMutatorsFromArray(currentMutators, otherMutators);
 			if (result) {
-				removed.set(key, result);
+				removed.set(variable, result);
 			}
 		});
 
 		// Find changed
-		this.getVariableMap(scope).forEach((currentMutators, key) => {
-			const otherMutators = other.getVariableMap(scope).get(key);
+		this.getVariableMap(scope).forEach((currentMutators, variable) => {
+			const otherMutators = other.getVariableMap(scope).get(variable);
 			const result = getChangedMutatorsFromArray(currentMutators, otherMutators);
 			if (result) {
-				changed.set(key, result);
+				changed.set(variable, result);
 			}
 		});
 

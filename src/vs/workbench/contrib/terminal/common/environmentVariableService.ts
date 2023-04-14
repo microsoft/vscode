@@ -32,7 +32,7 @@ export class EnvironmentVariableService implements IEnvironmentVariableService {
 
 	constructor(
 		@IExtensionService private readonly _extensionService: IExtensionService,
-		@IStorageService private readonly _storageService: IStorageService,
+		@IStorageService private readonly _storageService: IStorageService
 	) {
 		const serializedPersistedCollections = this._storageService.get(TerminalStorageKeys.EnvironmentVariableCollections, StorageScope.WORKSPACE);
 		if (serializedPersistedCollections) {

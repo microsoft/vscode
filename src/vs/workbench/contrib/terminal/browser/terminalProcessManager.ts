@@ -286,7 +286,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 						},
 						windowsEnableConpty: this._configHelper.config.windowsEnableConpty,
 						environmentVariableCollections: this._extEnvironmentVariableCollection?.collections ? serializeEnvironmentVariableCollections(this._extEnvironmentVariableCollection.collections) : undefined,
-						workspaceFolder: this._lastActiveWorkspace,
+						workspaceFolder: this._cwdWorkspaceFolder,
 					};
 					try {
 						newProcess = await backend.createProcess(
@@ -478,7 +478,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 			},
 			windowsEnableConpty: this._configHelper.config.windowsEnableConpty,
 			environmentVariableCollections: this._extEnvironmentVariableCollection ? serializeEnvironmentVariableCollections(this._extEnvironmentVariableCollection.collections) : undefined,
-			workspaceFolder: this._lastActiveWorkspace,
+			workspaceFolder: this._cwdWorkspaceFolder,
 		};
 		const shouldPersist = ((this._configurationService.getValue(TaskSettingId.Reconnection) && shellLaunchConfig.reconnectionProperties) || !shellLaunchConfig.isFeatureTerminal) && this._configHelper.config.enablePersistentSessions && !shellLaunchConfig.isTransient;
 		return await backend.createProcess(shellLaunchConfig, initialCwd, cols, rows, this._configHelper.config.unicodeVersion, env, options, shouldPersist);
