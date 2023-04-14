@@ -412,7 +412,7 @@ export class CancelSessionAction extends AbstractInteractiveEditorAction {
 	constructor() {
 		super({
 			id: 'interactiveEditor.cancel',
-			title: localize('cancel', 'Cancel'),
+			title: localize('discard', 'Discard Changes'),
 			icon: Codicon.clearAll,
 			precondition: CTX_INTERACTIVE_EDITOR_VISIBLE,
 			keybinding: {
