@@ -59,9 +59,9 @@ export class MergedEnvironmentVariableCollection implements IMergedEnvironmentVa
 			lowerToActualVariableNames = {};
 			Object.keys(env).forEach(e => lowerToActualVariableNames![e.toLowerCase()] = e);
 		}
-		for (const [_, mutators] of this.getVariableMap(scope)) {
+		for (const [variable, mutators] of this.getVariableMap(scope)) {
+			const actualVariable = isWindows ? lowerToActualVariableNames![variable.toLowerCase()] || variable : variable;
 			for (const mutator of mutators) {
-				const actualVariable = isWindows ? lowerToActualVariableNames![mutator.variable.toLowerCase()] || mutator.variable : mutator.variable;
 				const value = variableResolver ? await variableResolver(mutator.value) : mutator.value;
 				// if (mutator.timing === EnvironmentVariableMutatorTiming.AfterShellIntegration) {
 				// 	const key = `VSCODE_ENV_${mutatorTypeToLabelMap.get(mutator.type)!}`;
