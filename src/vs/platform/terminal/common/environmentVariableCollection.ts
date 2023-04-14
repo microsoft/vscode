@@ -20,7 +20,7 @@ export class MergedEnvironmentVariableCollection implements IMergedEnvironmentVa
 	 * @karrtikr TODO: Rename it back to map.
 	 * @karrtikr TODO: Check all references of variableMap.
 	 */
-	readonly variableMap: Map<string, IExtensionOwnedEnvironmentVariableMutator[]> = new Map();
+	private readonly variableMap: Map<string, IExtensionOwnedEnvironmentVariableMutator[]> = new Map();
 
 	constructor(
 		readonly collections: ReadonlyMap<string, IEnvironmentVariableCollection>,
@@ -94,29 +94,29 @@ export class MergedEnvironmentVariableCollection implements IMergedEnvironmentVa
 		const removed: Map<string, IExtensionOwnedEnvironmentVariableMutator[]> = new Map();
 
 		// Find added
-		other.getVariableMap(scope).forEach((otherMutators, variable) => {
-			const currentMutators = this.getVariableMap(scope).get(variable);
+		other.getVariableMap(scope).forEach((otherMutators, key) => {
+			const currentMutators = this.getVariableMap(scope).get(key);
 			const result = getMissingMutatorsFromArray(otherMutators, currentMutators);
 			if (result) {
-				added.set(variable, result);
+				added.set(key, result);
 			}
 		});
 
 		// Find removed
-		this.getVariableMap(scope).forEach((currentMutators, variable) => {
-			const otherMutators = other.getVariableMap(scope).get(variable);
+		this.getVariableMap(scope).forEach((currentMutators, key) => {
+			const otherMutators = other.getVariableMap(scope).get(key);
 			const result = getMissingMutatorsFromArray(currentMutators, otherMutators);
 			if (result) {
-				removed.set(variable, result);
+				removed.set(key, result);
 			}
 		});
 
 		// Find changed
-		this.getVariableMap(scope).forEach((currentMutators, variable) => {
-			const otherMutators = other.getVariableMap(scope).get(variable);
+		this.getVariableMap(scope).forEach((currentMutators, key) => {
+			const otherMutators = other.getVariableMap(scope).get(key);
 			const result = getChangedMutatorsFromArray(currentMutators, otherMutators);
 			if (result) {
-				changed.set(variable, result);
+				changed.set(key, result);
 			}
 		});
 

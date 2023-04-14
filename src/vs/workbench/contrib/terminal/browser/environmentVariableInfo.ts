@@ -41,10 +41,10 @@ export class EnvironmentVariableInfoStale implements IEnvironmentVariableInfo {
 
 	private _getScopedDiff(diff: ReadonlyMap<string, IExtensionOwnedEnvironmentVariableMutator[]>, scope: EnvironmentVariableScope | undefined): ReadonlyMap<string, IExtensionOwnedEnvironmentVariableMutator[]> {
 		const scopedDiff = new Map<string, IExtensionOwnedEnvironmentVariableMutator[]>();
-		for (const [variable, mutators] of diff) {
+		for (const [key, mutators] of diff) {
 			const scopedMutators = mutators.filter(m => filterScope(m, scope));
 			if (scopedMutators.length > 0) {
-				scopedDiff.set(variable, scopedMutators);
+				scopedDiff.set(key, scopedMutators);
 			}
 		}
 		return scopedDiff;
