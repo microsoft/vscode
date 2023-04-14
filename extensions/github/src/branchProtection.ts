@@ -85,6 +85,18 @@ export class GithubBranchProtectionProvider implements BranchProtectionProvider 
 		await this.updateBranchProtection();
 	}
 
+	private async checkPushPermission(repository: { owner: string; repo: string }): Promise<boolean> {
+		try {
+			const octokit = await getOctokit();
+			const response = await octokit.repos.get({ ...repository });
+
+			return response.data.permissions?.push === true;
+		} catch {
+			// todo@lszomoru - add logging
+			return false;
+		}
+	}
+
 	private async updateHEADBranchProtection(): Promise<void> {
 		try {
 			const HEAD = this.repository.state.HEAD;
@@ -103,6 +115,10 @@ export class GithubBranchProtectionProvider implements BranchProtectionProvider 
 			const repository = getRepositoryFromUrl(remote.pushUrl ?? remote.fetchUrl ?? '');
 
 			if (!repository) {
+				return;
+			}
+
+			if (!(await this.checkPushPermission(repository))) {
 				return;
 			}
 
@@ -128,6 +144,10 @@ export class GithubBranchProtectionProvider implements BranchProtectionProvider 
 				const repository = getRepositoryFromUrl(remote.pushUrl ?? remote.fetchUrl ?? '');
 
 				if (!repository) {
+					continue;
+				}
+
+				if (!(await this.checkPushPermission(repository))) {
 					continue;
 				}
 

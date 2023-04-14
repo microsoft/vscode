@@ -22,13 +22,17 @@ import { WorkbenchObjectTree } from 'vs/platform/list/browser/listService';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { foreground } from 'vs/platform/theme/common/colorRegistry';
 import { Memento } from 'vs/workbench/common/memento';
+import { IViewsService } from 'vs/workbench/common/views';
 import { IInteractiveSessionWidget } from 'vs/workbench/contrib/interactiveSession/browser/interactiveSession';
 import { InteractiveSessionInputPart } from 'vs/workbench/contrib/interactiveSession/browser/interactiveSessionInputPart';
 import { IInteractiveSessionRendererDelegate, InteractiveListItemRenderer, InteractiveSessionAccessibilityProvider, InteractiveSessionListDelegate, InteractiveTreeItem } from 'vs/workbench/contrib/interactiveSession/browser/interactiveSessionListRenderer';
 import { InteractiveSessionEditorOptions } from 'vs/workbench/contrib/interactiveSession/browser/interactiveSessionOptions';
+import { InteractiveSessionViewPane } from 'vs/workbench/contrib/interactiveSession/browser/interactiveSessionViewPane';
 import { CONTEXT_INTERACTIVE_REQUEST_IN_PROGRESS, CONTEXT_IN_INTERACTIVE_SESSION } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionContextKeys';
+import { IInteractiveSessionContributionService } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionContributionService';
+import { IInteractiveSessionModel } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionModel';
 import { IInteractiveSessionReplyFollowup, IInteractiveSessionService, IInteractiveSlashCommand } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionService';
-import { IInteractiveSessionViewModel, InteractiveSessionViewModel, isRequestVM, isResponseVM, isWelcomeVM } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionViewModel';
+import { InteractiveSessionViewModel, isRequestVM, isResponseVM, isWelcomeVM } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionViewModel';
 
 export const IInteractiveSessionWidgetService = createDecorator<IInteractiveSessionWidgetService>('interactiveSessionWidgetService');
 
@@ -37,11 +41,16 @@ export interface IInteractiveSessionWidgetService {
 	readonly _serviceBrand: undefined;
 
 	/**
-	 * Returns the currently focused widget if any.
+	 * Returns the most recently focused widget if any.
 	 */
-	readonly lastFocusedWidget: InteractiveSessionWidget | undefined;
+	readonly lastFocusedWidget: IInteractiveSessionWidget | undefined;
 
-	getWidgetByInputUri(uri: URI): InteractiveSessionWidget | undefined;
+	/**
+	 * Returns whether a view was successfully revealed.
+	 */
+	revealViewForProvider(providerId: string): Promise<IInteractiveSessionWidget | undefined>;
+
+	getWidgetByInputUri(uri: URI): IInteractiveSessionWidget | undefined;
 }
 
 const $ = dom.$;
@@ -53,6 +62,8 @@ function revealLastElement(list: WorkbenchObjectTree<any>) {
 interface IViewState {
 	inputValue: string;
 }
+
+export type IInteractiveSessionWidgetViewContext = { viewId: string } | { resource: URI };
 
 export class InteractiveSessionWidget extends Disposable implements IInteractiveSessionWidget {
 	public static readonly CONTRIBS: { new(...args: [IInteractiveSessionWidget, ...any]): any }[] = [];
@@ -114,7 +125,8 @@ export class InteractiveSessionWidget extends Disposable implements IInteractive
 
 	constructor(
 		private readonly providerId: string,
-		readonly viewId: string | undefined,
+		initialModel: IInteractiveSessionModel | undefined,
+		readonly viewContext: IInteractiveSessionWidgetViewContext,
 		private readonly listBackgroundColorDelegate: () => string,
 		private readonly inputEditorBackgroundColorDelegate: () => string,
 		private readonly resultEditorBackgroundColorDelegate: () => string,
@@ -130,7 +142,7 @@ export class InteractiveSessionWidget extends Disposable implements IInteractive
 		this.requestInProgress = CONTEXT_INTERACTIVE_REQUEST_IN_PROGRESS.bindTo(contextKeyService);
 
 		this._register((interactiveSessionWidgetService as InteractiveSessionWidgetService).register(this));
-		this.initializeSessionModel(true);
+		this.initializeSessionModel(true, initialModel);
 
 		this.memento = new Memento('interactive-session-' + this.providerId, storageService);
 		this.viewState = this.memento.getMemento(StorageScope.WORKSPACE, StorageTarget.USER) as IViewState;
@@ -148,7 +160,8 @@ export class InteractiveSessionWidget extends Disposable implements IInteractive
 		this.container = dom.append(parent, $('.interactive-session'));
 		this.listContainer = dom.append(this.container, $(`.interactive-list`));
 
-		this.editorOptions = this._register(this.instantiationService.createInstance(InteractiveSessionEditorOptions, this.viewId, this.inputEditorBackgroundColorDelegate, this.resultEditorBackgroundColorDelegate));
+		const viewId = 'viewId' in this.viewContext ? this.viewContext.viewId : undefined;
+		this.editorOptions = this._register(this.instantiationService.createInstance(InteractiveSessionEditorOptions, viewId, this.inputEditorBackgroundColorDelegate, this.resultEditorBackgroundColorDelegate));
 		this.createList(this.listContainer);
 		this.createInput(this.container);
 
@@ -158,6 +171,7 @@ export class InteractiveSessionWidget extends Disposable implements IInteractive
 		// Do initial render
 		if (this.viewModel) {
 			this.onDidChangeItems();
+			revealLastElement(this.tree);
 		}
 
 		InteractiveSessionWidget.CONTRIBS.forEach(contrib => this._register(this.instantiationService.createInstance(contrib, this)));
@@ -318,8 +332,7 @@ export class InteractiveSessionWidget extends Disposable implements IInteractive
 		if (this.tree.scrollHeight !== this.previousTreeScrollHeight) {
 			// Due to rounding, the scrollTop + renderHeight will not exactly match the scrollHeight.
 			// Consider the tree to be scrolled all the way down if it is within 2px of the bottom.
-			// const lastElementWasVisible = this.list.scrollTop + this.list.renderHeight >= this.previousTreeScrollHeight - 2;
-			const lastElementWasVisible = this.tree.scrollTop + this.tree.renderHeight >= this.previousTreeScrollHeight;
+			const lastElementWasVisible = this.tree.scrollTop + this.tree.renderHeight >= this.previousTreeScrollHeight - 2;
 			if (lastElementWasVisible) {
 				dom.scheduleAtNextAnimationFrame(() => {
 					// Can't set scrollTop during this event listener, the list might overwrite the change
@@ -344,8 +357,8 @@ export class InteractiveSessionWidget extends Disposable implements IInteractive
 		this.container.style.setProperty('--vscode-interactive-result-editor-background-color', this.editorOptions.configuration.resultEditor.backgroundColor?.toString() ?? '');
 	}
 
-	private initializeSessionModel(initial = false) {
-		const model = this.interactiveSessionService.startSession(this.providerId, initial, CancellationToken.None);
+	private initializeSessionModel(initial = false, initialModel?: IInteractiveSessionModel | undefined) {
+		const model = initialModel ?? this.interactiveSessionService.startSession(this.providerId, initial, CancellationToken.None);
 		if (!model) {
 			throw new Error('Failed to start session');
 		}
@@ -363,6 +376,7 @@ export class InteractiveSessionWidget extends Disposable implements IInteractive
 
 		if (this.tree) {
 			this.onDidChangeItems();
+			revealLastElement(this.tree);
 		}
 	}
 
@@ -408,10 +422,6 @@ export class InteractiveSessionWidget extends Disposable implements IInteractive
 			this.initializeSessionModel();
 			this.focusInput();
 		}
-	}
-
-	getModel(): IInteractiveSessionViewModel | undefined {
-		return this.viewModel;
 	}
 
 	layout(height: number, width: number): void {
@@ -460,10 +470,20 @@ export class InteractiveSessionWidgetService implements IInteractiveSessionWidge
 		return this._lastFocusedWidget;
 	}
 
-	constructor() { }
+	constructor(
+		@IViewsService private readonly viewsService: IViewsService,
+		@IInteractiveSessionContributionService private readonly interactiveSessionContributionService: IInteractiveSessionContributionService,
+	) { }
 
 	getWidgetByInputUri(uri: URI): InteractiveSessionWidget | undefined {
 		return this._widgets.find(w => isEqual(w.inputUri, uri));
+	}
+
+	async revealViewForProvider(providerId: string): Promise<InteractiveSessionWidget | undefined> {
+		const viewId = this.interactiveSessionContributionService.getViewIdForProvider(providerId);
+		const view = await this.viewsService.openView<InteractiveSessionViewPane>(viewId);
+
+		return view?.widget;
 	}
 
 	private setLastFocusedWidget(widget: InteractiveSessionWidget | undefined): void {

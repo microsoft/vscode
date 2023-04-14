@@ -20,7 +20,7 @@ import { registerInteractiveSessionCopyActions } from 'vs/workbench/contrib/inte
 import { registerInteractiveSessionExecuteActions } from 'vs/workbench/contrib/interactiveSession/browser/actions/interactiveSessionExecuteActions';
 import { registerInteractiveSessionTitleActions } from 'vs/workbench/contrib/interactiveSession/browser/actions/interactiveSessionTitleActions';
 import { InteractiveSessionContributionService } from 'vs/workbench/contrib/interactiveSession/browser/interactiveSessionContributionServiceImpl';
-import { InteractiveSessionEditor } from 'vs/workbench/contrib/interactiveSession/browser/interactiveSessionEditor';
+import { IInteractiveSessionEditorOptions, InteractiveSessionEditor } from 'vs/workbench/contrib/interactiveSession/browser/interactiveSessionEditor';
 import { InteractiveSessionEditorInput } from 'vs/workbench/contrib/interactiveSession/browser/interactiveSessionEditorInput';
 import { IInteractiveSessionWidgetService, InteractiveSessionWidgetService } from 'vs/workbench/contrib/interactiveSession/browser/interactiveSessionWidget';
 import { IInteractiveSessionContributionService } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionContributionService';
@@ -87,7 +87,7 @@ class InteractiveSessionResolverContribution extends Disposable {
 		super();
 
 		this._register(editorResolverService.registerEditor(
-			`${InteractiveSessionEditor.SCHEME}:**/**`,
+			`${Schemas.vscodeInteractiveSesssion}:**/**`,
 			{
 				id: InteractiveSessionEditor.ID,
 				label: nls.localize('interactiveSession', "Interactive Session"),
@@ -95,11 +95,11 @@ class InteractiveSessionResolverContribution extends Disposable {
 			},
 			{
 				singlePerResource: true,
-				canSupportResource: resource => resource.scheme === InteractiveSessionEditor.SCHEME
+				canSupportResource: resource => resource.scheme === Schemas.vscodeInteractiveSesssion
 			},
 			{
 				createEditorInput: ({ resource, options }) => {
-					return { editor: instantiationService.createInstance(InteractiveSessionEditorInput, resource), options };
+					return { editor: instantiationService.createInstance(InteractiveSessionEditorInput, resource, options as IInteractiveSessionEditorOptions), options };
 				}
 			}
 		));
@@ -122,4 +122,5 @@ registerSingleton(IInteractiveSessionWidgetHistoryService, InteractiveSessionWid
 
 import 'vs/workbench/contrib/interactiveSession/browser/contrib/interactiveSessionCodeBlockCopy';
 import 'vs/workbench/contrib/interactiveSession/browser/contrib/interactiveSessionInputEditorContrib';
+import { Schemas } from 'vs/base/common/network';
 

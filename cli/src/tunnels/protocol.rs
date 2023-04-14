@@ -7,6 +7,7 @@ use std::collections::HashMap;
 use crate::{
 	constants::{PROTOCOL_VERSION, VSCODE_CLI_VERSION},
 	options::Quality,
+	update_service::Platform,
 };
 use serde::{Deserialize, Serialize};
 
@@ -164,6 +165,15 @@ pub struct SpawnParams {
 	pub args: Vec<String>,
 	#[serde(default)]
 	pub env: HashMap<String, String>,
+}
+
+#[derive(Deserialize)]
+pub struct AcquireCliParams {
+	pub platform: Platform,
+	pub quality: Quality,
+	pub commit_id: Option<String>,
+	#[serde(flatten)]
+	pub spawn: SpawnParams,
 }
 
 #[derive(Serialize)]

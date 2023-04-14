@@ -379,6 +379,7 @@ export class FileMatch extends Disposable implements IFileMatch {
 	private _editorWidgetListener: IDisposable | null = null;
 	private _notebookUpdateScheduler: RunOnceScheduler;
 	private _findMatchDecorationModel: FindMatchDecorationModel | undefined;
+	private _lastEditorWidgetIdForUpdate: string | undefined;
 	// #endregion
 
 	constructor(
@@ -745,6 +746,16 @@ export class FileMatch extends Disposable implements IFileMatch {
 		this._notebookEditorWidget = null;
 	}
 	private updateNotebookMatches(matches: CellFindMatchWithIndex[], modelChange: boolean): void {
+
+		if (!this._notebookEditorWidget) {
+			return;
+		}
+
+		if (this._notebookEditorWidget.getId() !== this._lastEditorWidgetIdForUpdate) {
+			this._cellMatches.clear();
+			this._lastEditorWidgetIdForUpdate = this._notebookEditorWidget.getId();
+		}
+
 		matches.forEach(match => {
 			let cell = this._cellMatches.get(match.cell.id);
 			if (!cell) {

@@ -731,41 +731,44 @@ class DefaultThemeUpdatedNotificationContribution implements IWorkbenchContribut
 
 	private async _showYouGotMigratedNotification(): Promise<void> {
 		this._storageService.store(DefaultThemeUpdatedNotificationContribution.STORAGE_KEY, true, StorageScope.APPLICATION, StorageTarget.USER);
-		const choices = [
-			{
-				label: localize('button.keep', "Keep New Theme"),
-				run: () => {
-					this._writeTelemetry('keepNew');
-				}
-			},
-			{
-				label: localize('button.browse', "Browse Themes"),
-				run: () => {
-					this._writeTelemetry('browse');
-					this._commandService.executeCommand(SelectColorThemeCommandId);
-				}
-			},
-			{
-				label: localize('button.revert', "Revert"),
-				run: async () => {
-					this._writeTelemetry('keepOld');
-					const oldSettingsId = isWeb ? ThemeSettingDefaults.COLOR_THEME_LIGHT_OLD : ThemeSettingDefaults.COLOR_THEME_DARK_OLD;
-					const oldTheme = (await this._workbenchThemeService.getColorThemes()).find(theme => theme.settingsId === oldSettingsId);
-					if (oldTheme) {
-						this._workbenchThemeService.setColorTheme(oldTheme, 'auto');
+		const newThemeSettingsId = isWeb ? ThemeSettingDefaults.COLOR_THEME_LIGHT : ThemeSettingDefaults.COLOR_THEME_DARK;
+		const newTheme = (await this._workbenchThemeService.getColorThemes()).find(theme => theme.settingsId === newThemeSettingsId);
+		if (newTheme) {
+			const choices = [
+				{
+					label: localize('button.keep', "Keep New Theme"),
+					run: () => {
+						this._writeTelemetry('keepNew');
+					}
+				},
+				{
+					label: localize('button.browse', "Browse Themes"),
+					run: () => {
+						this._writeTelemetry('browse');
+						this._commandService.executeCommand(SelectColorThemeCommandId);
+					}
+				},
+				{
+					label: localize('button.revert', "Revert"),
+					run: async () => {
+						this._writeTelemetry('keepOld');
+						const oldSettingsId = isWeb ? ThemeSettingDefaults.COLOR_THEME_LIGHT_OLD : ThemeSettingDefaults.COLOR_THEME_DARK_OLD;
+						const oldTheme = (await this._workbenchThemeService.getColorThemes()).find(theme => theme.settingsId === oldSettingsId);
+						if (oldTheme) {
+							this._workbenchThemeService.setColorTheme(oldTheme, 'auto');
+						}
 					}
 				}
-			}
-		];
-		await this._notificationService.prompt(
-			Severity.Info,
-			localize({ key: 'themeUpdatedNotification', comment: ['{0} is the name of the new default theme'] }, "Visual Studio Code now ships with a new default theme '{0}'. If you prefer, you can switch back to the old theme or try one of the many other color themes available.", this._workbenchThemeService.getColorTheme().label),
-			choices,
-			{
-				onCancel: () => this._writeTelemetry('cancel')
-			}
-		);
-
+			];
+			await this._notificationService.prompt(
+				Severity.Info,
+				localize({ key: 'themeUpdatedNotification', comment: ['{0} is the name of the new default theme'] }, "Visual Studio Code now ships with a new default theme '{0}'. If you prefer, you can switch back to the old theme or try one of the many other color themes available.", newTheme.label),
+				choices,
+				{
+					onCancel: () => this._writeTelemetry('cancel')
+				}
+			);
+		}
 	}
 
 	private async _tryNewThemeNotification(): Promise<void> {

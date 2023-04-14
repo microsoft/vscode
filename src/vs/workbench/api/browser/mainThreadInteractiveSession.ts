@@ -8,6 +8,7 @@ import { URI } from 'vs/base/common/uri';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { ExtHostContext, ExtHostInteractiveSessionShape, IInteractiveRequestDto, MainContext, MainThreadInteractiveSessionShape } from 'vs/workbench/api/common/extHost.protocol';
+import { IInteractiveSessionWidgetService } from 'vs/workbench/contrib/interactiveSession/browser/interactiveSessionWidget';
 import { IInteractiveSessionContributionService } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionContributionService';
 import { IInteractiveProgress, IInteractiveRequest, IInteractiveResponse, IInteractiveSession, IInteractiveSessionDynamicRequest, IInteractiveSessionService } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionService';
 import { IExtHostContext, extHostNamedCustomer } from 'vs/workbench/services/extensions/common/extHostCustomers';
@@ -23,6 +24,7 @@ export class MainThreadInteractiveSession extends Disposable implements MainThre
 	constructor(
 		extHostContext: IExtHostContext,
 		@IInteractiveSessionService private readonly _interactiveSessionService: IInteractiveSessionService,
+		@IInteractiveSessionWidgetService private readonly _interactiveSessionWidgetService: IInteractiveSessionWidgetService,
 		@IInteractiveSessionContributionService private readonly interactiveSessionContribService: IInteractiveSessionContributionService,
 		@IProductService private readonly productService: IProductService,
 		@ILogService private readonly logService: ILogService,
@@ -120,8 +122,10 @@ export class MainThreadInteractiveSession extends Disposable implements MainThre
 	}
 
 	async $sendInteractiveRequestToProvider(providerId: string, message: IInteractiveSessionDynamicRequest): Promise<void> {
-		await this._interactiveSessionService.revealSessionForProvider(providerId);
-		return this._interactiveSessionService.sendInteractiveRequestToProvider(providerId, message);
+		const widget = await this._interactiveSessionWidgetService.revealViewForProvider(providerId);
+		if (widget && widget.viewModel?.sessionId) {
+			this._interactiveSessionService.sendInteractiveRequestToProvider(widget.viewModel.sessionId, message);
+		}
 	}
 
 	async $unregisterInteractiveSessionProvider(handle: number): Promise<void> {
