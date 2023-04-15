@@ -22,7 +22,7 @@ import { createURITransformer } from 'vs/workbench/api/node/uriTransformer';
 import { CLIServerBase, ICommandsExecuter } from 'vs/workbench/api/node/extHostCLIServer';
 import { IEnvironmentVariableCollection } from 'vs/platform/terminal/common/environmentVariable';
 import { MergedEnvironmentVariableCollection } from 'vs/platform/terminal/common/environmentVariableCollection';
-import { deserializeEnvironmentVariableCollection } from 'vs/platform/terminal/common/environmentVariableShared';
+import { deserializeEnvironmentDescriptionMap, deserializeEnvironmentVariableCollection } from 'vs/platform/terminal/common/environmentVariableShared';
 import { ICreateTerminalProcessArguments, ICreateTerminalProcessResult, IWorkspaceFolderData } from 'vs/workbench/contrib/terminal/common/remoteTerminalChannel';
 import * as terminalEnvironment from 'vs/workbench/contrib/terminal/common/terminalEnvironment';
 import { AbstractVariableResolverService } from 'vs/workbench/services/configurationResolver/common/variableResolver';
@@ -233,8 +233,8 @@ export class RemoteTerminalChannel extends Disposable implements IServerChannel<
 		// Apply extension environment variable collections to the environment
 		if (!shellLaunchConfig.strictEnv) {
 			const entries: [string, IEnvironmentVariableCollection][] = [];
-			for (const [k, v] of args.envVariableCollections) {
-				entries.push([k, { map: deserializeEnvironmentVariableCollection(v) }]);
+			for (const [k, v, d] of args.envVariableCollections) {
+				entries.push([k, { map: deserializeEnvironmentVariableCollection(v), descriptionMap: deserializeEnvironmentDescriptionMap(d) }]);
 			}
 			const envVariableCollections = new Map<string, IEnvironmentVariableCollection>(entries);
 			const mergedCollection = new MergedEnvironmentVariableCollection(envVariableCollections);
