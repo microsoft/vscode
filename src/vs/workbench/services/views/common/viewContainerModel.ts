@@ -459,6 +459,7 @@ export class ViewContainerModel extends Disposable implements IViewContainerMode
 	}
 
 	private updateViewDescriptorItemVisibility(viewDescriptorItem: IViewDescriptorItem, visible: boolean): boolean {
+		console.log('inside of updateViewDescriptorItemVisibility');
 		if (!viewDescriptorItem.viewDescriptor.canToggleVisibility) {
 			return false;
 		}
@@ -666,6 +667,7 @@ export class ViewContainerModel extends Disposable implements IViewContainerMode
 	}
 
 	private broadCastAddedVisibleViewDescriptors(added: IAddedViewDescriptorRef[]): void {
+		console.log('inside of broadCastAddedVisibleViewDescriptors');
 		if (added.length) {
 			this._onDidAddVisibleViewDescriptors.fire(added.sort((a, b) => a.index - b.index));
 			this.updateState(`Added views:${added.map(v => v.viewDescriptor.id).join(',')} in ${this.viewContainer.id}`);
@@ -691,6 +693,7 @@ export class ViewContainerModel extends Disposable implements IViewContainerMode
 	}
 
 	private isViewDescriptorVisible(viewDescriptorItem: IViewDescriptorItem): boolean {
+		console.log('Inside of isViewDescriptorVisible');
 		if (!viewDescriptorItem.state.active) {
 			return false;
 		}

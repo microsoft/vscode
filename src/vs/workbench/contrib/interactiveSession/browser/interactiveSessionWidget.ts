@@ -70,7 +70,7 @@ export class InteractiveSessionWidget extends Disposable implements IInteractive
 	private editorOptions!: InteractiveSessionEditorOptions;
 
 	private listContainer!: HTMLElement;
-	private container!: HTMLElement;
+	public container!: HTMLElement;
 
 	private bodyDimension: dom.Dimension | undefined;
 	private visible = false;
@@ -131,6 +131,7 @@ export class InteractiveSessionWidget extends Disposable implements IInteractive
 
 		this._register((interactiveSessionWidgetService as InteractiveSessionWidgetService).register(this));
 		console.log('Inside of the constructor of the interactive session widget');
+		// session is initialized when the interactive session widget is created, but we do not want it to be visible initially
 		this.initializeSessionModel(true);
 
 		this.memento = new Memento('interactive-session-' + this.providerId, storageService);
@@ -148,10 +149,13 @@ export class InteractiveSessionWidget extends Disposable implements IInteractive
 	render(parent: HTMLElement): void {
 		console.log('Inside of render of InteractiveSessionWidget');
 		// TODO: find a way to start a session without rendering necessarily
+		// Only when the render is called, it appears that the list and the tree are generated, but we don't want this necessarily
+		// We want the tree to be present even if it is not rendered
 		this.container = dom.append(parent, $('.interactive-session'));
 		this.listContainer = dom.append(this.container, $(`.interactive-list`));
 
 		this.editorOptions = this._register(this.instantiationService.createInstance(InteractiveSessionEditorOptions, this.viewId, this.inputEditorBackgroundColorDelegate, this.resultEditorBackgroundColorDelegate));
+		// Initially htis list is empty when rendered at the begginging of the session
 		this.createList(this.listContainer);
 		this.createInput(this.container);
 
@@ -162,7 +166,7 @@ export class InteractiveSessionWidget extends Disposable implements IInteractive
 		if (this.viewModel) {
 			this.onDidChangeItems();
 		}
-
+		// Instatiating the interactive session input edior decorations
 		InteractiveSessionWidget.CONTRIBS.forEach(contrib => this._register(this.instantiationService.createInstance(contrib, this)));
 	}
 

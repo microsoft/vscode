@@ -753,11 +753,13 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 
 	openView(id: string, focus?: boolean): IView | undefined {
 		console.log('Inside of toggleViewVisibility');
+		console.log('id : ', id);
 		let view = this.getView(id);
 		if (!view) {
 			this.toggleViewVisibility(id);
 		}
 		view = this.getView(id);
+		// tODO: maybe set expanded to false when open view with expanded false?
 		if (view) {
 			view.setExpanded(true);
 			if (focus) {
@@ -768,6 +770,7 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 	}
 
 	protected onDidAddViewDescriptors(added: IAddedViewDescriptorRef[]): ViewPane[] {
+		console.log('Inside of onDidAddViewDescriptors');
 		const panesToAdd: { pane: ViewPane; size: number; index: number }[] = [];
 
 		for (const { viewDescriptor, collapsed, index, size } of added) {

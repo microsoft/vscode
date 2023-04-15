@@ -427,6 +427,7 @@ export abstract class ViewPane extends Pane implements IView {
 	private scrollableElement!: DomScrollableElement;
 
 	protected renderBody(container: HTMLElement): void {
+		console.log('Inside of renderBody of the ViewPane class');
 		this.bodyContainer = container;
 
 		const viewWelcomeContainer = append(container, $('.welcome-view'));

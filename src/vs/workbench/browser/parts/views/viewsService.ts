@@ -241,6 +241,7 @@ export class ViewsService extends Disposable implements IViewsService {
 
 	async openView<T extends IView>(id: string, focus?: boolean, close?: boolean): Promise<T | null> {
 		console.log('Inside of openView');
+		console.log('id : ', id);
 		const viewContainer = this.viewDescriptorService.getViewContainerByViewId(id);
 		if (!viewContainer) {
 			return null;
@@ -270,6 +271,7 @@ export class ViewsService extends Disposable implements IViewsService {
 			const activeViewPaneContainer = this.getActiveViewPaneContainer(viewContainer);
 			if (activeViewPaneContainer) {
 				const view = activeViewPaneContainer.getView(id);
+				console.log('view : ', view);
 				view?.setExpanded(false);
 			}
 		}
@@ -285,6 +287,7 @@ export class ViewsService extends Disposable implements IViewsService {
 					if (activeViewPaneContainer.views.length === 1) {
 						const location = this.viewDescriptorService.getViewContainerLocation(viewContainer);
 						if (location === ViewContainerLocation.Sidebar) {
+							console.log('sidebar location');
 							this.layoutService.setPartHidden(true, Parts.SIDEBAR_PART);
 						} else if (location === ViewContainerLocation.Panel || location === ViewContainerLocation.AuxiliaryBar) {
 							this.paneCompositeService.hideActivePaneComposite(location);

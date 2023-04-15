@@ -154,6 +154,7 @@ export abstract class Pane extends Disposable implements IView {
 	}
 
 	setExpanded(expanded: boolean): boolean {
+		// TODO: Play with setExpanded?
 		if (this._expanded === !!expanded) {
 			return false;
 		}
@@ -220,6 +221,7 @@ export abstract class Pane extends Disposable implements IView {
 	}
 
 	render(): void {
+		console.log('inside of render of the pane');
 		this.element.classList.toggle('expanded', this.isExpanded());
 		this.element.classList.toggle('horizontal', this.orientation === Orientation.HORIZONTAL);
 		this.element.classList.toggle('vertical', this.orientation === Orientation.VERTICAL);
@@ -259,6 +261,8 @@ export abstract class Pane extends Disposable implements IView {
 			}));
 		});
 
+		// TODO: The pane-body for copilot should not be shown, it should exist, but not be visible, initially
+		// TODO: Then when it is requested, it should be shown
 		this.body = append(this.element, $('.pane-body'));
 
 		// Only render the body if it will be visible

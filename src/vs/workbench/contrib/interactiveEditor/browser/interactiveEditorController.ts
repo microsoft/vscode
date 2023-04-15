@@ -835,12 +835,17 @@ async function saveMessageResponse(accessor: ServicesAccessor, query: string, re
 	// Currently is is only created when the revealView function is called, the logic should be separated
 	// crea
 	// interactiveSessionService.addCompleteRequest(providerId, query, { message: response });
+
+	// TODO: discuss with Jo
 	if (await interactiveSessionService.revealSessionForProvider(providerId)) {
 		interactiveSessionService.addCompleteRequest(providerId, query, { message: response });
 	}
-	if (viewService) {
-		viewService.closeView('workbench.panel.interactiveSession.view.copilot');
-	}
+	// TODO: doing the following with closeView or closeSimpleView causes either the wrong false expansion
+	// Or the whole sidebar disappears, which we do not want
+	// TODO: Make it so that the session starts on the rendering, but the rendering doesn't necessarily happen, the dom nodes are not visible
+	// if (viewService) {
+	// 	viewService.closeView('workbench.panel.interactiveSession.view.copilot');
+	// }
 }
 
 async function revealView(accessor: ServicesAccessor) {

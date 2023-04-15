@@ -52,6 +52,7 @@ export class InteractiveSessionViewPane extends ViewPane {
 
 	protected override renderBody(parent: HTMLElement): void {
 		console.log('Inside of renderBody of InteractiveSessionViewPane');
+		console.log('parent : ', parent);
 		super.renderBody(parent);
 		this.view.render(parent);
 	}
