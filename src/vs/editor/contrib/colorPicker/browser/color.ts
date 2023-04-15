@@ -59,78 +59,80 @@ function _pushToColorsArray(source: Source, colors: any[], provider: DocumentCol
 	}
 }
 
-async function _computeDocumentColorsFromExtensionDocumentColorProviders(providersFromExtensions: DocumentColorProvider[], model: ITextModel, token: CancellationToken, source: Source, colors: any[]) {
-	let validDocumentColorProviderFound = false;
-	await Promise.all(providersFromExtensions.map(provider => Promise.resolve(provider.provideDocumentColors(model, token)).then(documentColors => {
-		validDocumentColorProviderFound = Array.isArray(documentColors) ? true : validDocumentColorProviderFound;
-		_pushToColorsArray(source, colors, provider, documentColors);
-	}).catch((e) => {
-		onUnexpectedExternalError(e);
-	})));
-	return validDocumentColorProviderFound;
-}
-
-async function _computeDocumentColorsFromDefaultDocumentColorProvider(defaultDocumentColorProvider: DocumentColorProvider, model: ITextModel, token: CancellationToken, source: Source, colors: any[]) {
-	return Promise.resolve(defaultDocumentColorProvider.provideDocumentColors(model, token)).then(documentColors => {
-		_pushToColorsArray(source, colors, defaultDocumentColorProvider, documentColors);
-	});
-}
-
 async function _findDocumentColors<T extends Source>(source: T, registry: LanguageFeatureRegistry<DocumentColorProvider>, model: ITextModel, token: CancellationToken): Promise<T extends Source.Extension ? IExtColorData[] : { colorData: IColorData[]; usingDefaultDocumentColorProvider: boolean }>;
-async function _findDocumentColors(source: Source, registry: LanguageFeatureRegistry<DocumentColorProvider>, model: ITextModel, token: CancellationToken): Promise<IExtColorData[] | { colorData: IColorData[]; usingDefaultDocumentColorProvider: boolean }> {
+async function _findDocumentColors(source: Source, colorProviderRegistry: LanguageFeatureRegistry<DocumentColorProvider>, model: ITextModel, token: CancellationToken): Promise<IExtColorData[] | { colorData: IColorData[]; usingDefaultDocumentColorProvider: boolean }> {
+	let validDocumentColorProviderFound = false;
+	let defaultDocumentColorProvider: DefaultDocumentColorProvider | null = null;
 	const colors: any[] = [];
-	const orderedDocumentColorProviderRegistry = registry.ordered(model).reverse();
-	const providersFromExtensions = orderedDocumentColorProviderRegistry.filter(provider => !(provider instanceof DefaultDocumentColorProvider));
-	const validDocumentColorProviderFound = await _computeDocumentColorsFromExtensionDocumentColorProviders(providersFromExtensions, model, token, source, colors);
+	const promises: Promise<void>[] = [];
+	const documentColorProviders = colorProviderRegistry.ordered(model);
+	for (let i = documentColorProviders.length - 1; i >= 0; i--) {
+		const provider = documentColorProviders[i];
+		if (provider instanceof DefaultDocumentColorProvider) {
+			defaultDocumentColorProvider = provider;
+		} else {
+			promises.push(Promise.resolve(provider.provideDocumentColors(model, token)).then(documentColors => {
+				validDocumentColorProviderFound = Array.isArray(documentColors) ? true : validDocumentColorProviderFound;
+				_pushToColorsArray(source, colors, provider, documentColors);
+			}).catch((e) => {
+				onUnexpectedExternalError(e);
+			}));
+		}
+	}
+	await Promise.all(promises);
 	if (validDocumentColorProviderFound) {
 		return _formatReturnColorData(colors, false);
 	}
-	const defaultDocumentColorProvider = orderedDocumentColorProviderRegistry.find(provider => provider instanceof DefaultDocumentColorProvider);
 	if (!defaultDocumentColorProvider) {
 		return { colorData: [], usingDefaultDocumentColorProvider: false };
 	} else {
-		await _computeDocumentColorsFromDefaultDocumentColorProvider(defaultDocumentColorProvider, model, token, source, colors);
+		// Added in order to avoid case when defaultDocumentColorProvider is null inside of the then() callback
+		const defaultDocumentColorProviderUsed = defaultDocumentColorProvider;
+		await Promise.resolve(defaultDocumentColorProviderUsed.provideDocumentColors(model, token)).then(documentColors => {
+			_pushToColorsArray(source, colors, defaultDocumentColorProviderUsed, documentColors);
+		});
 		return _formatReturnColorData(colors, true);
 	}
 }
 
-async function _computeColorPresentationsFromExtensionDocumentColorProviders(providersFromExtensions: DocumentColorProvider[], model: ITextModel, colorInfo: IColorInformation, presentations: IColorPresentation[]) {
-	let validDocumentColorProviderFound = false;
-	await Promise.all(providersFromExtensions.map(provider => Promise.resolve(provider.provideColorPresentations(model, colorInfo, CancellationToken.None)).then(result => {
-		if (Array.isArray(result)) {
-			validDocumentColorProviderFound = true;
-			presentations.push(...result);
-		}
-	})));
-	return validDocumentColorProviderFound;
-}
-
-async function _computeColorPresentationsFromDefaultDocumentColorProvider(defaultDocumentColorProvider: DocumentColorProvider, model: ITextModel, colorInfo: IColorInformation, presentations: IColorPresentation[]) {
-	return Promise.resolve(defaultDocumentColorProvider.provideColorPresentations(model, colorInfo, CancellationToken.None)).then(result => {
-		if (Array.isArray(result)) {
-			presentations.push(...result);
-		}
-	});
-}
-
 async function _findColorPresentations(colorProviderRegistry: LanguageFeatureRegistry<DocumentColorProvider>, model: ITextModel, range: IRange, color: number[]): Promise<IColorPresentation[]> {
+	let validDocumentColorProviderFound = false;
+	let defaultDocumentColorProvider: DefaultDocumentColorProvider | null = null;
 	const [red, green, blue, alpha] = color;
 	const colorInfo = {
 		range,
 		color: { red, green, blue, alpha }
 	};
 	const presentations: IColorPresentation[] = [];
-	const orderedDocumentColorProviderRegistry = colorProviderRegistry.ordered(model).reverse();
-	const providersFromExtensions = orderedDocumentColorProviderRegistry.filter(provider => !(provider instanceof DefaultDocumentColorProvider));
-	const validDocumentColorProviderFound = await _computeColorPresentationsFromExtensionDocumentColorProviders(providersFromExtensions, model, colorInfo, presentations);
+	const promises: Promise<void>[] = [];
+	const documentColorProviders = colorProviderRegistry.ordered(model);
+	for (let i = documentColorProviders.length - 1; i >= 0; i--) {
+		const provider = documentColorProviders[i];
+		if (provider instanceof DefaultDocumentColorProvider) {
+			defaultDocumentColorProvider = provider;
+		} else {
+			promises.push(Promise.resolve(provider.provideColorPresentations(model, colorInfo, CancellationToken.None)).then(result => {
+				if (Array.isArray(result)) {
+					validDocumentColorProviderFound = true;
+					presentations.push(...result);
+				}
+			}).catch((e) => {
+				onUnexpectedExternalError(e);
+			}));
+		}
+	}
+	await Promise.all(promises);
 	if (validDocumentColorProviderFound) {
 		return presentations;
 	}
-	const defaultDocumentColorProvider = orderedDocumentColorProviderRegistry.find(provider => provider instanceof DefaultDocumentColorProvider);
 	if (!defaultDocumentColorProvider) {
 		return [];
 	} else {
-		await _computeColorPresentationsFromDefaultDocumentColorProvider(defaultDocumentColorProvider, model, colorInfo, presentations);
+		await Promise.resolve(defaultDocumentColorProvider.provideColorPresentations(model, colorInfo, CancellationToken.None)).then(result => {
+			if (Array.isArray(result)) {
+				presentations.push(...result);
+			}
+		});
 		return presentations;
 	}
 }
