@@ -87,11 +87,10 @@ async function _findDocumentColors(source: Source, registry: LanguageFeatureRegi
 	}
 	const defaultDocumentColorProvider = orderedDocumentColorProviderRegistry.find(provider => provider instanceof DefaultDocumentColorProvider);
 	if (!defaultDocumentColorProvider) {
-		return Promise.resolve({ colorData: [], usingDefaultDocumentColorProvider: false });
+		return { colorData: [], usingDefaultDocumentColorProvider: false };
 	} else {
-		return _computeDocumentColorsFromDefaultDocumentColorProvider(defaultDocumentColorProvider, model, token, source, colors).then(() => {
-			return _formatReturnColorData(colors, true);
-		});
+		await _computeDocumentColorsFromDefaultDocumentColorProvider(defaultDocumentColorProvider, model, token, source, colors);
+		return _formatReturnColorData(colors, true);
 	}
 }
 
