@@ -70,10 +70,12 @@ type InteractiveSessionCopyClassification = {
 
 type InteractiveSessionInsertEvent = {
 	providerId: string;
+	newFile: boolean;
 };
 
 type InteractiveSessionInsertClassification = {
 	providerId: { classification: 'PublicNonPersonalData'; purpose: 'FeatureInsight'; comment: 'The identifier of the provider that this codeblock response came from.' };
+	newFile: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the code was inserted into a new untitled file.' };
 	owner: 'roblourens';
 	comment: 'Provides insight into the usage of InteractiveSession features.';
 };
@@ -86,6 +88,18 @@ type InteractiveSessionCommandEvent = {
 type InteractiveSessionCommandClassification = {
 	providerId: { classification: 'PublicNonPersonalData'; purpose: 'FeatureInsight'; comment: 'The identifier of the provider that this codeblock response came from.' };
 	commandId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The id of the command that was executed.' };
+	owner: 'roblourens';
+	comment: 'Provides insight into the usage of InteractiveSession features.';
+};
+
+type InteractiveSessionTerminalEvent = {
+	providerId: string;
+	languageId: string;
+};
+
+type InteractiveSessionTerminalClassification = {
+	providerId: { classification: 'PublicNonPersonalData'; purpose: 'FeatureInsight'; comment: 'The identifier of the provider that this codeblock response came from.' };
+	languageId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The language of the code that was run in the terminal.' };
 	owner: 'roblourens';
 	comment: 'Provides insight into the usage of InteractiveSession features.';
 };
@@ -148,6 +162,7 @@ export class InteractiveSessionService extends Disposable implements IInteractiv
 		} else if (action.action.kind === 'insert') {
 			this.telemetryService.publicLog2<InteractiveSessionInsertEvent, InteractiveSessionInsertClassification>('interactiveSessionInsert', {
 				providerId: action.providerId,
+				newFile: !!action.action.newFile
 			});
 		} else if (action.action.kind === 'command') {
 			const command = CommandsRegistry.getCommand(action.action.command.commandId);
@@ -155,6 +170,11 @@ export class InteractiveSessionService extends Disposable implements IInteractiv
 			this.telemetryService.publicLog2<InteractiveSessionCommandEvent, InteractiveSessionCommandClassification>('interactiveSessionCommand', {
 				providerId: action.providerId,
 				commandId
+			});
+		} else if (action.action.kind === 'runInTerminal') {
+			this.telemetryService.publicLog2<InteractiveSessionTerminalEvent, InteractiveSessionTerminalClassification>('interactiveSessionRunInTerminal', {
+				providerId: action.providerId,
+				languageId: action.action.languageId ?? ''
 			});
 		}
 

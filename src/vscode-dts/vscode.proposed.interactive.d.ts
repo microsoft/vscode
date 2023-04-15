@@ -185,6 +185,14 @@ declare module 'vscode' {
 		responseId: string;
 		codeBlockIndex: number;
 		totalCharacters: number;
+		newFile?: boolean;
+	}
+
+	export interface InteractiveSessionTerminalAction {
+		kind: 'runInTerminal';
+		responseId: string;
+		codeBlockIndex: number;
+		languageId?: string;
 	}
 
 	export interface InteractiveSessionCommandAction {
@@ -192,7 +200,7 @@ declare module 'vscode' {
 		command: InteractiveResponseCommand;
 	}
 
-	export type InteractiveSessionUserAction = InteractiveSessionVoteAction | InteractiveSessionCopyAction | InteractiveSessionInsertAction | InteractiveSessionCommandAction;
+	export type InteractiveSessionUserAction = InteractiveSessionVoteAction | InteractiveSessionCopyAction | InteractiveSessionInsertAction | InteractiveSessionTerminalAction | InteractiveSessionCommandAction;
 
 	export interface InteractiveSessionUserActionEvent {
 		action: InteractiveSessionUserAction;
