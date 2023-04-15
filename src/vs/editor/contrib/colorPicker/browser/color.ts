@@ -128,11 +128,10 @@ async function _findColorPresentations(colorProviderRegistry: LanguageFeatureReg
 	}
 	const defaultDocumentColorProvider = orderedDocumentColorProviderRegistry.find(provider => provider instanceof DefaultDocumentColorProvider);
 	if (!defaultDocumentColorProvider) {
-		return Promise.resolve([]);
+		return [];
 	} else {
-		return _computeColorPresentationsFromDefaultDocumentColorProvider(defaultDocumentColorProvider, model, colorInfo, presentations).then(() => {
-			return presentations;
-		});
+		await _computeColorPresentationsFromDefaultDocumentColorProvider(defaultDocumentColorProvider, model, colorInfo, presentations);
+		return presentations;
 	}
 }
 
