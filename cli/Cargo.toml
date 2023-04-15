@@ -17,7 +17,7 @@ clap = { version = "3.0", features = ["derive", "env"] }
 open = { version = "2.1.0" }
 reqwest = { version = "0.11.9", default-features = false, features = ["json", "stream", "native-tls"] }
 tokio = { version = "1.24.2", features = ["full"] }
-tokio-util = { version = "0.7", features = ["compat"] }
+tokio-util = { version = "0.7", features = ["compat", "codec"] }
 flate2 = { version = "1.0.22" }
 zip = { version = "0.5.13", default-features = false, features = ["time", "deflate"] }
 regex = { version = "1.5.5" }
@@ -54,6 +54,8 @@ thiserror = "1.0"
 cfg-if = "1.0.0"
 pin-project = "1.0"
 console = "0.15"
+bytes = "1.4"
+tar = { version = "0.4" }
 
 [build-dependencies]
 serde = { version = "1.0" }
@@ -67,7 +69,6 @@ winapi = "0.3.9"
 core-foundation = "0.9.3"
 
 [target.'cfg(target_os = "linux")'.dependencies]
-tar = { version = "0.4" }
 zbus = { version = "3.4", default-features = false, features = ["tokio"] }
 
 [patch.crates-io]

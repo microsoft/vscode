@@ -17,7 +17,7 @@ use crate::{
 	state::LauncherPaths,
 	util::{
 		command::capture_command_and_check_status,
-		errors::{wrap, AnyError, MissingHomeDirectory},
+		errors::{wrap, AnyError, CodeError, MissingHomeDirectory},
 	},
 };
 
@@ -81,8 +81,8 @@ impl ServiceManager for LaunchdService {
 		match capture_command_and_check_status("launchctl", &["stop", &get_service_label()]).await {
 			Ok(_) => {}
 			// status 3 == "no such process"
-			Err(AnyError::CommandFailed(e)) if e.output.status.code() == Some(3) => {}
-			Err(e) => return Err(e),
+			Err(CodeError::CommandFailed { code, .. }) if code == 3 => {}
+			Err(e) => return Err(wrap(e, "error stopping service").into()),
 		};
 
 		info!(self.log, "Successfully stopped service...");

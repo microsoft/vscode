@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable, Event, EventEmitter, Uri, workspace } from 'vscode';
-import { BranchProtectionProvider } from './api/git';
+import { BranchProtection, BranchProtectionProvider } from './api/git';
 import { dispose, filterEvent } from './util';
 
 export interface IBranchProtectionProviderRegistry {
@@ -19,7 +19,8 @@ export class GitBranchProtectionProvider implements BranchProtectionProvider {
 	private readonly _onDidChangeBranchProtection = new EventEmitter<Uri>();
 	onDidChangeBranchProtection = this._onDidChangeBranchProtection.event;
 
-	private branchProtection = new Map<'', string[]>();
+	private branchProtection!: BranchProtection;
+
 	private disposables: Disposable[] = [];
 
 	constructor(private readonly repositoryRoot: Uri) {
@@ -28,8 +29,8 @@ export class GitBranchProtectionProvider implements BranchProtectionProvider {
 		this.updateBranchProtection();
 	}
 
-	provideBranchProtection(): Map<string, string[]> {
-		return this.branchProtection;
+	provideBranchProtection(): BranchProtection[] {
+		return [this.branchProtection];
 	}
 
 	private updateBranchProtection(): void {
@@ -37,10 +38,11 @@ export class GitBranchProtectionProvider implements BranchProtectionProvider {
 		const branchProtectionConfig = scopedConfig.get<unknown>('branchProtection') ?? [];
 		const branchProtectionValues = Array.isArray(branchProtectionConfig) ? branchProtectionConfig : [branchProtectionConfig];
 
-		this.branchProtection.set('', branchProtectionValues
+		const branches = branchProtectionValues
 			.map(bp => typeof bp === 'string' ? bp.trim() : '')
-			.filter(bp => bp !== ''));
+			.filter(bp => bp !== '');
 
+		this.branchProtection = { remote: '', branches };
 		this._onDidChangeBranchProtection.fire(this.repositoryRoot);
 	}
 
