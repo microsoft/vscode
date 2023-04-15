@@ -2354,6 +2354,7 @@ class DidChangeDecorationsEmitter extends Disposable {
 	private _affectsMinimap: boolean;
 	private _affectsOverviewRuler: boolean;
 	private _affectedInjectedTextLines: Set<number> | null = null;
+	private _affectsGlyphMargin: boolean;
 
 	constructor(private readonly handleBeforeFire: (affectedInjectedTextLines: Set<number> | null) => void) {
 		super();
@@ -2361,6 +2362,7 @@ class DidChangeDecorationsEmitter extends Disposable {
 		this._shouldFireDeferred = false;
 		this._affectsMinimap = false;
 		this._affectsOverviewRuler = false;
+		this._affectsGlyphMargin = false;
 	}
 
 	hasListeners(): boolean {
@@ -2397,12 +2399,16 @@ class DidChangeDecorationsEmitter extends Disposable {
 		if (!this._affectsOverviewRuler) {
 			this._affectsOverviewRuler = options.overviewRuler && options.overviewRuler.color ? true : false;
 		}
+		if (!this._affectsGlyphMargin) {
+			this._affectsGlyphMargin = options.glyphMarginClassName ? true : false;
+		}
 		this.tryFire();
 	}
 
 	public fire(): void {
 		this._affectsMinimap = true;
 		this._affectsOverviewRuler = true;
+		this._affectsGlyphMargin = true;
 		this.tryFire();
 	}
 
@@ -2419,11 +2425,13 @@ class DidChangeDecorationsEmitter extends Disposable {
 
 		const event: IModelDecorationsChangedEvent = {
 			affectsMinimap: this._affectsMinimap,
-			affectsOverviewRuler: this._affectsOverviewRuler
+			affectsOverviewRuler: this._affectsOverviewRuler,
+			affectsGlyphMargin: this._affectsGlyphMargin
 		};
 		this._shouldFireDeferred = false;
 		this._affectsMinimap = false;
 		this._affectsOverviewRuler = false;
+		this._affectsGlyphMargin = false;
 		this._actual.fire(event);
 	}
 }

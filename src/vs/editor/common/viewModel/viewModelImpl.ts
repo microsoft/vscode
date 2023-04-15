@@ -461,17 +461,19 @@ export class ViewModel extends Disposable implements IViewModel {
 			this._decorations.onModelDecorationsChanged();
 
 			// Determine whether we need to resize the glyph margin
-			const decorations = this.model.getAllMarginDecorations();
-			const decorationLanes = new Map<number, Set<GlyphMarginLane>>();
-			for (const decoration of decorations) {
-				for (let i = decoration.range.startLineNumber; i <= decoration.range.endLineNumber; i++) {
-					const position = decoration.options.glyphMargin?.position ?? GlyphMarginLane.Left;
-					decorationLanes.set(i, (decorationLanes.get(i) ?? new Set()).add(position));
+			if (e.affectsGlyphMargin) {
+				const decorations = this.model.getAllMarginDecorations();
+				const decorationLanes = new Map<number, Set<GlyphMarginLane>>();
+				for (const decoration of decorations) {
+					for (let i = decoration.range.startLineNumber; i <= decoration.range.endLineNumber; i++) {
+						const position = decoration.options.glyphMargin?.position ?? GlyphMarginLane.Left;
+						decorationLanes.set(i, (decorationLanes.get(i) ?? new Set()).add(position));
+					}
 				}
+				const widestDecorationLane = [...decorationLanes.values()].reduce((prev, curr) => curr.size > prev ? curr.size : prev, 0);
+				const maxDecorations = Math.max(widestDecorationLane, 1);
+				this._configuration.setGlyphMarginDecorationLaneCount(maxDecorations);
 			}
-			const widestDecorationLane = [...decorationLanes.values()].reduce((prev, curr) => curr.size > prev ? curr.size : prev, 0);
-			const maxDecorations = Math.max(widestDecorationLane, 1);
-			this._configuration.setGlyphMarginDecorationLaneCount(maxDecorations);
 
 			this._eventDispatcher.emitSingleViewEvent(new viewEvents.ViewDecorationsChangedEvent(e));
 			this._eventDispatcher.emitOutgoingEvent(new ModelDecorationsChangedEvent(e));
