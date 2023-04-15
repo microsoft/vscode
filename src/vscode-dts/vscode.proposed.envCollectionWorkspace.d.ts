@@ -19,12 +19,12 @@ declare module 'vscode' {
 		prepend(variable: string, value: string, scope?: EnvironmentVariableScope): void;
 		get(variable: string, scope?: EnvironmentVariableScope): EnvironmentVariableMutator | undefined;
 		delete(variable: string, scope?: EnvironmentVariableScope): void;
+		clear(scope?: EnvironmentVariableScope): void;
 	}
 
 	export type EnvironmentVariableScope = {
 		/**
-		 * The workspace folder to which this environment variable collection applies to.
-		 * If unspecified, the collection applies to all workspace folders.
+		 * The workspace folder to which this collection applies to. If unspecified, collection applies to all workspace folders.
 		 */
 		workspaceFolder?: WorkspaceFolder;
 	};

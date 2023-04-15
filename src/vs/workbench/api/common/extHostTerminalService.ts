@@ -941,8 +941,16 @@ class EnvironmentVariableCollection implements vscode.EnvironmentVariableCollect
 		this._onDidChangeCollection.fire();
 	}
 
-	clear(): void {
-		this.map.clear();
+	clear(scope?: vscode.EnvironmentVariableScope): void {
+		if (scope?.workspaceFolder) {
+			for (const [key, mutator] of this.map) {
+				if (mutator.scope?.workspaceFolder?.index === scope.workspaceFolder.index) {
+					this.map.delete(key);
+				}
+			}
+		} else {
+			this.map.clear();
+		}
 		this._onDidChangeCollection.fire();
 	}
 }
