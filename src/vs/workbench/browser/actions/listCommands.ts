@@ -415,6 +415,13 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 						}
 					}
 				}
+				else if (focus && !widget.getNode(focus).visible) {
+					// https://github.com/microsoft/vscode/issues/177444
+					// When filtering hides a just-resolved folder that was expanded by keyboard arrow-right we need to fix the focus
+					//  so that the next arrow-right correctly expands (and potentially resolves) the next folder.
+					widget.focusPrevious();
+					widget.focusNext();
+				}
 			});
 		}
 	}
