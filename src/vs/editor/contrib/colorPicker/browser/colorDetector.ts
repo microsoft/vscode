@@ -71,12 +71,14 @@ export class ColorDetector extends Disposable implements IEditorContribution {
 			const updatedColorDecoratorsSetting = prevIsEnabled !== this._isColorDecoratorsEnabled || e.hasChanged(EditorOption.colorDecoratorsLimit);
 			const updatedDefaultColorDecoratorsSetting = e.hasChanged(EditorOption.defaultColorDecorators);
 			if (updatedColorDecoratorsSetting || updatedDefaultColorDecoratorsSetting) {
-				if (!this._isColorDecoratorsEnabled) {
+				// Set back to the case that when the color decorators are enabled, only then update the colors
+				if (this._isColorDecoratorsEnabled) {
+					this.updateColors();
+				}
+				// Otherwise remove the decorations
+				else {
 					this.removeAllDecorations();
 				}
-				// Update the color data in all cases so the color picker can use the default document color provider
-				// even when the decorators are disabled.
-				this.updateColors();
 			}
 		}));
 
@@ -121,6 +123,10 @@ export class ColorDetector extends Disposable implements IEditorContribution {
 
 	private updateColors(): void {
 		this.stop();
+
+		if (!this._isColorDecoratorsEnabled) {
+			return;
+		}
 		const model = this._editor.getModel();
 
 		if (!model || !this._languageFeaturesService.colorProvider.has(model)) {
@@ -152,12 +158,14 @@ export class ColorDetector extends Disposable implements IEditorContribution {
 		});
 		this._computePromise.then((colorInfos) => {
 			const colorData = colorInfos.colorData;
-			const usingDefaultDocumentColorProvider = colorInfos.usingDefaultDocumentColorProvider;
-			// Update the underlying color data in all cases
-			this.updateDecorations(colorData);
-			// Update the inline color decorators if they are enabled
-			if (this._isColorDecoratorsEnabled && (this._isDefaultColorDecoratorsEnabled || !usingDefaultDocumentColorProvider)) {
+			// The color decorations have to be calculated depending on the values of the two settings
+			if (this._isColorDecoratorsEnabled && (this._isDefaultColorDecoratorsEnabled || !colorInfos.usingDefaultDocumentColorProvider)) {
+				// Update the underlying color data in all cases
+				this.updateDecorations(colorData);
 				this.updateColorDecorators(colorData);
+			} else {
+				this.updateDecorations([]);
+				this.updateColorDecorators([]);
 			}
 			this._computePromise = null;
 		}, onUnexpectedError);

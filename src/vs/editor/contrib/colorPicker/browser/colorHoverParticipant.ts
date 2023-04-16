@@ -12,14 +12,14 @@ import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { Range } from 'vs/editor/common/core/range';
 import { IModelDecoration, ITextModel, TrackedRangeStickiness } from 'vs/editor/common/model';
 import { DocumentColorProvider, IColorInformation } from 'vs/editor/common/languages';
-import { getColorPresentations } from 'vs/editor/contrib/colorPicker/browser/color';
+import { getColorPresentations, getColors } from 'vs/editor/contrib/colorPicker/browser/color';
 import { ColorDetector } from 'vs/editor/contrib/colorPicker/browser/colorDetector';
 import { ColorPickerModel } from 'vs/editor/contrib/colorPicker/browser/colorPickerModel';
 import { ColorPickerWidget } from 'vs/editor/contrib/colorPicker/browser/colorPickerWidget';
 import { HoverAnchor, HoverAnchorType, IEditorHoverParticipant, IEditorHoverRenderContext, IHoverPart } from 'vs/editor/contrib/hover/browser/hoverTypes';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { ISingleEditOperation } from 'vs/editor/common/core/editOperation';
-import { Position } from 'vs/editor/common/core/position';
+import { LanguageFeatureRegistry } from 'vs/editor/common/languageFeatureRegistry';
 
 export class ColorHover implements IHoverPart {
 
@@ -66,15 +66,14 @@ export class ColorHoverParticipant implements IEditorHoverParticipant<ColorHover
 		return _computeAsync(this, this._editor, lineDecorations);
 	}
 
-	public async createColorHover(colorInfo: IColorInformation, provider: DocumentColorProvider): Promise<{ colorHover: ColorHover; foundInEditor: boolean } | null> {
-		return createColorHover(this, this._editor, colorInfo, provider);
-	}
-
 	public renderHoverParts(context: IEditorHoverRenderContext, hoverParts: ColorHover[]): IDisposable {
 		return renderHoverParts(this, this._editor, this._themeService, hoverParts, context);
 	}
 }
 
+// TODO: Should I be using a standalone color picker participant?
+// Maybe since don't need to compute all the time, should not be in the form of a participant?
+// Are there any negative unwanted consequences from this?
 export class StandaloneColorPickerParticipant implements IEditorHoverParticipant<ColorHover> {
 
 	public readonly hoverOrdinal: number = 2;
@@ -98,8 +97,8 @@ export class StandaloneColorPickerParticipant implements IEditorHoverParticipant
 		return _computeAsync(this, this._editor, lineDecorations);
 	}
 
-	public async createColorHover(colorInfo: IColorInformation, provider: DocumentColorProvider): Promise<{ colorHover: ColorHover; foundInEditor: boolean } | null> {
-		return createColorHover(this, this._editor, colorInfo, provider);
+	public async createColorHover(colorInfo: IColorInformation, colorProviderRegistry: LanguageFeatureRegistry<DocumentColorProvider>, defaultColorProvider: DocumentColorProvider): Promise<{ colorHover: ColorHover; foundInEditor: boolean } | null> {
+		return createColorHover(this, this._editor, colorInfo, colorProviderRegistry, defaultColorProvider);
 	}
 
 	public renderHoverParts(context: IEditorHoverRenderContext, hoverParts: ColorHover[]): IDisposable {
@@ -150,7 +149,8 @@ async function _computeAsync(participant: ColorHoverParticipant | StandaloneColo
 	return [];
 }
 
-async function createColorHover(participant: ColorHoverParticipant | StandaloneColorPickerParticipant, editor: ICodeEditor, defaultColorInfo: IColorInformation, provider: DocumentColorProvider): Promise<{ colorHover: ColorHover; foundInEditor: boolean } | null> {
+async function createColorHover(participant: ColorHoverParticipant | StandaloneColorPickerParticipant, editor: ICodeEditor, defaultColorInfo: IColorInformation, colorProviderRegistry: LanguageFeatureRegistry<DocumentColorProvider>, defaultColorProvider: DocumentColorProvider): Promise<{ colorHover: ColorHover; foundInEditor: boolean } | null> {
+	console.log('Inside of createColorHover');
 	if (!editor.hasModel()) {
 		return null;
 	}
@@ -158,10 +158,30 @@ async function createColorHover(participant: ColorHoverParticipant | StandaloneC
 	if (!colorDetector) {
 		return null;
 	}
-	const colorDetectorData = colorDetector.getColorData(new Position(defaultColorInfo.range.startLineNumber, defaultColorInfo.range.startColumn));
-	const colorInfo = colorDetectorData ? colorDetectorData.colorInfo : defaultColorInfo;
-	const foundInEditor = !!colorDetectorData;
-	return { colorHover: await _createColorHover(participant, editor.getModel(), colorInfo, provider), foundInEditor: foundInEditor };
+	// TODO: compute the color ranges here and see if there are any colors, otherwise just return the default color info
+	// Computing all the color datas anew, because need to know the colors and their ranges in order to be decide wether to use default or not
+	// Using the genenric getColors method
+
+	// Directly get the colors from the getColors function
+	const colors = await getColors(colorProviderRegistry, editor.getModel(), CancellationToken.None);
+	console.log('colors : ', colors);
+	// Verify if among the obtained colors, we find a color for the range we asked for
+	let foundColorInfo: IColorInformation | null = null;
+	let foundColorProvider: DocumentColorProvider | null = null;
+	for (const colorData of colors.colorData) {
+		const colorInfo = colorData.colorInfo;
+		if (colorInfo.range === defaultColorInfo.range) {
+			// TODO: But this could be reassigned depending on if there are several providers giving information for the same range?
+			// How to deal with the case when several color infos are used
+			foundColorInfo = colorInfo;
+			foundColorProvider = colorData.provider;
+		}
+	}
+	// When the variable existingColorInfo has been assigned, then use this variable, otherwise use the default color information
+	const colorInfo = foundColorInfo ? foundColorInfo : defaultColorInfo;
+	const colorProvider = foundColorProvider ? foundColorProvider : defaultColorProvider;
+	const foundInEditor = !!foundColorInfo;
+	return { colorHover: await _createColorHover(participant, editor.getModel(), colorInfo, colorProvider), foundInEditor: foundInEditor };
 }
 
 async function _createColorHover(participant: ColorHoverParticipant | StandaloneColorPickerParticipant, editorModel: ITextModel, colorInfo: IColorInformation, provider: DocumentColorProvider) {
@@ -170,11 +190,11 @@ async function _createColorHover(participant: ColorHoverParticipant | Standalone
 	const rgba = new RGBA(Math.round(red * 255), Math.round(green * 255), Math.round(blue * 255), alpha);
 	const color = new Color(rgba);
 
+	// For the specific color info and the provider which has been chosen compute the color presentations
 	const colorPresentations = await getColorPresentations(editorModel, colorInfo, provider, CancellationToken.None);
 	const model = new ColorPickerModel(color, [], 0);
 	model.colorPresentations = colorPresentations || [];
 	model.guessColorPresentation(color, originalText);
-
 	return new ColorHover(participant, Range.lift(colorInfo.range), model, provider);
 }
 
