@@ -8,7 +8,7 @@ import { IEditorHoverRenderContext } from 'vs/editor/contrib/hover/browser/hover
 import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition } from 'vs/editor/browser/editorBrowser';
 import { PositionAffinity } from 'vs/editor/common/model';
 import { Position } from 'vs/editor/common/core/position';
-import { ColorHover, StandaloneColorPickerParticipant } from 'vs/editor/contrib/colorPicker/browser/colorHoverParticipant';
+import { StandaloneColorPickerHover, StandaloneColorPickerParticipant } from 'vs/editor/contrib/colorPicker/browser/colorHoverParticipant';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { EditorHoverStatusBar } from 'vs/editor/contrib/hover/browser/contentHover';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
@@ -93,7 +93,7 @@ export class StandaloneColorPickerWidget extends Disposable implements IContentW
 	private readonly _standaloneColorPickerParticipant: StandaloneColorPickerParticipant;
 	private readonly _standaloneColorPickerComputer: StandaloneColorPickerComputer;
 
-	private _colorHover: ColorHover | null = null;
+	private _colorHover: StandaloneColorPickerHover | null = null;
 	private _selectionSetInEditor: boolean = false;
 
 	constructor(
@@ -119,13 +119,13 @@ export class StandaloneColorPickerWidget extends Disposable implements IContentW
 			} : { startLineNumber: 0, endLineNumber: 0, endColumn: 0, startColumn: 0 };
 		this._standaloneColorPickerParticipant = this._instantiationService.createInstance(StandaloneColorPickerParticipant, this._editor);
 		const focusTracker = this._register(dom.trackFocus(this.body));
-		this._standaloneColorPickerComputer = new StandaloneColorPickerComputer(selection, this._editor, this._standaloneColorPickerParticipant, this._languageFeaturesService, this._modelService, this._languageConfigurationService);
+		this._standaloneColorPickerComputer = new StandaloneColorPickerComputer(selection, this._editor, this._standaloneColorPickerParticipant, this._modelService, this._languageFeaturesService, this._languageConfigurationService);
 		this._register(this._standaloneColorPickerComputer.onResult((result) => {
 			this._render(result.value, result.foundInEditor);
 		}));
 		// When the cursor position changes, hide the color picker
 		this._register(this._editor.onDidChangeCursorPosition(() => {
-			// Do not hide when the cursor changes position because the selection is changed when the keybindings are used to make the color picker appear
+			// Do not hide the color picker when the cursor changes position due to the keybindings
 			if (!this._selectionSetInEditor) {
 				this.hide();
 			} else {
@@ -154,10 +154,7 @@ export class StandaloneColorPickerWidget extends Disposable implements IContentW
 		}
 	}
 
-	private _render(colorHover: ColorHover, foundInEditor: boolean) {
-
-		console.log('colorHover : ', colorHover);
-
+	private _render(colorHover: StandaloneColorPickerHover, foundInEditor: boolean) {
 		const fragment = document.createDocumentFragment();
 		const statusBar = this._register(new EditorHoverStatusBar(this._keybindingService));
 		let colorPickerWidget: ColorPickerWidget | undefined;
@@ -248,7 +245,7 @@ export class StandaloneColorPickerWidget extends Disposable implements IContentW
 export class StandaloneColorPickerResult {
 	// The color picker result consists of: an array of color results and a boolean indicating if the color was found in the editor
 	constructor(
-		public readonly value: ColorHover,
+		public readonly value: StandaloneColorPickerHover,
 		public readonly foundInEditor: boolean
 	) { }
 }
@@ -266,8 +263,8 @@ export class StandaloneColorPickerComputer extends Disposable implements IStanda
 		private readonly _range: IRange,
 		private readonly _editor: ICodeEditor,
 		private readonly _participant: StandaloneColorPickerParticipant,
-		@ILanguageFeaturesService private readonly languageFeaturesService: ILanguageFeaturesService,
 		@IModelService private readonly _modelService: IModelService,
+		@ILanguageFeaturesService private readonly languageFeaturesService: ILanguageFeaturesService,
 		@ILanguageConfigurationService private readonly _languageConfigurationService: ILanguageConfigurationService
 	) {
 		super();
@@ -275,7 +272,7 @@ export class StandaloneColorPickerComputer extends Disposable implements IStanda
 
 	public async start(): Promise<void> {
 		if (this._range !== null) {
-			const computeAsyncResult = await this.computeAsync(this._range);
+			const computeAsyncResult = await this._computeAsync(this._range);
 			if (!computeAsyncResult) {
 				return;
 			}
@@ -283,8 +280,7 @@ export class StandaloneColorPickerComputer extends Disposable implements IStanda
 		}
 	}
 
-	private async computeAsync(range: IRange): Promise<{ result: ColorHover; foundInEditor: boolean } | null> {
-		console.log('Inside of computeAsync');
+	private async _computeAsync(range: IRange): Promise<{ result: StandaloneColorPickerHover; foundInEditor: boolean } | null> {
 		if (!this._editor.hasModel()) {
 			return null;
 		}
@@ -292,9 +288,7 @@ export class StandaloneColorPickerComputer extends Disposable implements IStanda
 			range: range,
 			color: { red: 0, green: 0, blue: 0, alpha: 1 }
 		};
-		const defaultDocumentColorProvider = new DefaultDocumentColorProvider(this._modelService, this._languageConfigurationService);
-		const colorHoverResult: { colorHover: ColorHover; foundInEditor: boolean } | null = await this._participant.createColorHover(colorInfo, this.languageFeaturesService.colorProvider, defaultDocumentColorProvider);
-		console.log('colorHoverResult : ', colorHoverResult);
+		const colorHoverResult: { colorHover: StandaloneColorPickerHover; foundInEditor: boolean } | null = await this._participant.createColorHover(colorInfo, this.languageFeaturesService.colorProvider, new DefaultDocumentColorProvider(this._modelService, this._languageConfigurationService));
 		if (!colorHoverResult) {
 			return null;
 		}
