@@ -174,6 +174,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 		}
 		const activeWorkspaceRootUri = this._historyService.getLastActiveWorkspaceRoot();
 		this._lastActiveWorkspace = activeWorkspaceRootUri ? withNullAsUndefined(this._workspaceContextService.getWorkspaceFolder(activeWorkspaceRootUri)) : undefined;
+		this._cwdWorkspaceFolder = this._cwdWorkspaceFolder ?? this._lastActiveWorkspace; // fallback to last active workspace if cwd is not available or it is not in workspace
 
 		if (environmentVariableCollections) {
 			this._extEnvironmentVariableCollection = new MergedEnvironmentVariableCollection(environmentVariableCollections);
@@ -414,7 +415,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 	// Fetch any extension environment additions and apply them
 	private async _resolveEnvironment(backend: ITerminalBackend, variableResolver: terminalEnvironment.VariableResolver | undefined, shellLaunchConfig: IShellLaunchConfig): Promise<IProcessEnvironment> {
 		const cwdUri = typeof shellLaunchConfig.cwd === 'string' ? URI.parse(shellLaunchConfig.cwd) : shellLaunchConfig.cwd;
-		const workspaceFolder = cwdUri ? withNullAsUndefined(this._workspaceContextService.getWorkspaceFolder(cwdUri)) : undefined;
+		const workspaceFolder = cwdUri ? withNullAsUndefined(this._workspaceContextService.getWorkspaceFolder(cwdUri)) : this._lastActiveWorkspace;
 		const platformKey = isWindows ? 'windows' : (isMacintosh ? 'osx' : 'linux');
 		const envFromConfigValue = this._configurationService.getValue<ITerminalEnvironment | undefined>(`terminal.integrated.env.${platformKey}`);
 		this._configHelper.showRecommendations(shellLaunchConfig);
