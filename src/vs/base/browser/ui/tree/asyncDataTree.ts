@@ -676,12 +676,12 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 		this.tree.setFocus(nodes, browserEvent);
 	}
 
-	focusNext(n = 1, loop = false, browserEvent?: UIEvent): void {
-		this.tree.focusNext(n, loop, browserEvent);
+	focusNext(n = 1, loop = false, browserEvent?: UIEvent, filter?: (node: any) => boolean): void {
+		this.tree.focusNext(n, loop, browserEvent, filter);
 	}
 
-	focusPrevious(n = 1, loop = false, browserEvent?: UIEvent): void {
-		this.tree.focusPrevious(n, loop, browserEvent);
+	focusPrevious(n = 1, loop = false, browserEvent?: UIEvent, filter?: (node: any) => boolean): void {
+		this.tree.focusPrevious(n, loop, browserEvent, filter);
 	}
 
 	focusNextPage(browserEvent?: UIEvent): Promise<void> {
@@ -692,12 +692,12 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 		return this.tree.focusPreviousPage(browserEvent);
 	}
 
-	focusLast(browserEvent?: UIEvent): void {
-		this.tree.focusLast(browserEvent);
+	focusLast(browserEvent?: UIEvent, filter?: (node: any) => boolean): void {
+		this.tree.focusLast(browserEvent, filter);
 	}
 
-	focusFirst(browserEvent?: UIEvent): void {
-		this.tree.focusFirst(browserEvent);
+	focusFirst(browserEvent?: UIEvent, filter?: (node: any) => boolean): void {
+		this.tree.focusFirst(browserEvent, filter);
 	}
 
 	getFocus(): T[] {

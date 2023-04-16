@@ -18,6 +18,7 @@ import { ITreeNode } from 'vs/base/browser/ui/tree/tree';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { Table } from 'vs/base/browser/ui/table/tableWidget';
 import { AbstractTree, TreeFindMode } from 'vs/base/browser/ui/tree/abstractTree';
+import { FuzzyScore } from 'vs/base/common/filters';
 
 function ensureDOMFocus(widget: ListWidget | undefined): void {
 	// it can happen that one of the commands is executed while
@@ -101,6 +102,40 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 });
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({
+	id: 'list.focusNextMatchDown',
+	weight: KeybindingWeight.WorkbenchContrib,
+	when: WorkbenchListFocusContextKey,
+	primary: KeyMod.Alt | KeyCode.DownArrow,
+	mac: {
+		primary: KeyMod.Alt | KeyCode.DownArrow,
+		secondary: [KeyMod.WinCtrl | KeyMod.Alt | KeyCode.KeyN]
+	},
+	handler: (accessor, arg2) => {
+		navigate(accessor.get(IListService).lastFocusedList, async widget => {
+			const fakeKeyboardEvent = new KeyboardEvent('keydown');
+			await widget.focusNext(typeof arg2 === 'number' ? arg2 : 1, false, fakeKeyboardEvent, node => !FuzzyScore.isDefault(node.filterData as any as FuzzyScore));
+		});
+	}
+});
+
+KeybindingsRegistry.registerCommandAndKeybindingRule({
+	id: 'list.focusNextMatchUp',
+	weight: KeybindingWeight.WorkbenchContrib,
+	when: WorkbenchListFocusContextKey,
+	primary: KeyMod.Alt | KeyCode.UpArrow,
+	mac: {
+		primary: KeyMod.Alt | KeyCode.UpArrow,
+		secondary: [KeyMod.WinCtrl | KeyMod.Alt | KeyCode.KeyP]
+	},
+	handler: (accessor, arg2) => {
+		navigate(accessor.get(IListService).lastFocusedList, async widget => {
+			const fakeKeyboardEvent = new KeyboardEvent('keydown');
+			await widget.focusPrevious(typeof arg2 === 'number' ? arg2 : 1, false, fakeKeyboardEvent, node => !FuzzyScore.isDefault(node.filterData as any as FuzzyScore));
+		});
+	}
+});
+
+KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: 'list.focusPageDown',
 	weight: KeybindingWeight.WorkbenchContrib,
 	when: WorkbenchListFocusContextKey,
@@ -148,6 +183,32 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 		navigate(accessor.get(IListService).lastFocusedList, async widget => {
 			const fakeKeyboardEvent = new KeyboardEvent('keydown');
 			await widget.focusLast(fakeKeyboardEvent);
+		});
+	}
+});
+
+KeybindingsRegistry.registerCommandAndKeybindingRule({
+	id: 'list.focusFirstMatch',
+	weight: KeybindingWeight.WorkbenchContrib,
+	when: WorkbenchListFocusContextKey,
+	primary: KeyMod.Alt | KeyCode.Home,
+	handler: (accessor) => {
+		navigate(accessor.get(IListService).lastFocusedList, async widget => {
+			const fakeKeyboardEvent = new KeyboardEvent('keydown');
+			await widget.focusFirst(fakeKeyboardEvent, node => !FuzzyScore.isDefault(node.filterData as any as FuzzyScore));
+		});
+	}
+});
+
+KeybindingsRegistry.registerCommandAndKeybindingRule({
+	id: 'list.focusLastMatch',
+	weight: KeybindingWeight.WorkbenchContrib,
+	when: WorkbenchListFocusContextKey,
+	primary: KeyMod.Alt | KeyCode.End,
+	handler: (accessor) => {
+		navigate(accessor.get(IListService).lastFocusedList, async widget => {
+			const fakeKeyboardEvent = new KeyboardEvent('keydown');
+			await widget.focusLast(fakeKeyboardEvent, node => !FuzzyScore.isDefault(node.filterData as any as FuzzyScore));
 		});
 	}
 });
