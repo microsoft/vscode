@@ -14,10 +14,10 @@ import { Disposable as VSCodeDisposable, EnvironmentVariableMutatorType, Termina
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { localize } from 'vs/nls';
 import { NotSupportedError } from 'vs/base/common/errors';
-import { serializeEnvironmentDescriptionMap, serializeEnvironmentVariableCollection } from 'vs/platform/terminal/common/environmentVariableShared';
+import { serializeEnvironmentVariableCollection } from 'vs/platform/terminal/common/environmentVariableShared';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { generateUuid } from 'vs/base/common/uuid';
-import { IEnvironmentDescriptionMutator, IEnvironmentVariableMutator, ISerializableEnvironmentDescriptionMap, ISerializableEnvironmentVariableCollection } from 'vs/platform/terminal/common/environmentVariable';
+import { IEnvironmentVariableMutator, ISerializableEnvironmentVariableCollection } from 'vs/platform/terminal/common/environmentVariable';
 import { ICreateContributedTerminalProfileOptions, IProcessReadyEvent, IShellLaunchConfigDto, ITerminalChildProcess, ITerminalLaunchError, ITerminalProfile, TerminalIcon, TerminalLocation, IProcessProperty, ProcessPropertyType, IProcessPropertyMap } from 'vs/platform/terminal/common/terminal';
 import { TerminalDataBufferer } from 'vs/platform/terminal/common/terminalDataBuffering';
 import { ThemeColor } from 'vs/base/common/themables';
@@ -834,8 +834,7 @@ export abstract class BaseExtHostTerminalService extends Disposable implements I
 
 	private _syncEnvironmentVariableCollection(extensionIdentifier: string, collection: EnvironmentVariableCollection): void {
 		const serialized = serializeEnvironmentVariableCollection(collection.map);
-		const serializedDescription = serializeEnvironmentDescriptionMap(collection.descriptionMap);
-		this._proxy.$setEnvironmentVariableCollection(extensionIdentifier, collection.persistent, serialized.length === 0 ? undefined : serialized, serializedDescription);
+		this._proxy.$setEnvironmentVariableCollection(extensionIdentifier, collection.persistent, serialized.length === 0 ? undefined : serialized);
 	}
 
 	public $initEnvironmentVariableCollections(collections: [string, ISerializableEnvironmentVariableCollection][]): void {
@@ -869,7 +868,6 @@ export abstract class BaseExtHostTerminalService extends Disposable implements I
 
 class EnvironmentVariableCollection implements vscode.EnvironmentVariableCollection {
 	readonly map: Map<string, IEnvironmentVariableMutator> = new Map();
-	readonly descriptionMap: Map<string, IEnvironmentDescriptionMutator> = new Map();
 	private _persistent: boolean = true;
 
 	public get persistent(): boolean { return this._persistent; }
@@ -950,27 +948,10 @@ class EnvironmentVariableCollection implements vscode.EnvironmentVariableCollect
 					this.map.delete(key);
 				}
 			}
-			this.clearDescription(scope);
 		} else {
 			this.map.clear();
-			this.descriptionMap.clear();
 		}
 		this._onDidChangeCollection.fire();
-	}
-
-	setDescription(description: string | undefined, scope?: vscode.EnvironmentVariableScope): void {
-		const key = this.getKey('', scope);
-		const current = this.descriptionMap.get(key);
-		if (!current || current.description !== description) {
-			const value: IEnvironmentDescriptionMutator = { description, scope };
-			this.descriptionMap.set(key, value);
-			this._onDidChangeCollection.fire();
-		}
-	}
-
-	private clearDescription(scope?: vscode.EnvironmentVariableScope): void {
-		const key = this.getKey('', scope);
-		this.descriptionMap.delete(key);
 	}
 }
 

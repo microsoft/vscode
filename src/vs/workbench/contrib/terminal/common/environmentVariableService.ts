@@ -8,15 +8,14 @@ import { debounce, throttle } from 'vs/base/common/decorators';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { MergedEnvironmentVariableCollection } from 'vs/platform/terminal/common/environmentVariableCollection';
-import { deserializeEnvironmentDescriptionMap, deserializeEnvironmentVariableCollection, serializeEnvironmentDescriptionMap, serializeEnvironmentVariableCollection } from 'vs/platform/terminal/common/environmentVariableShared';
+import { deserializeEnvironmentVariableCollection, serializeEnvironmentVariableCollection } from 'vs/platform/terminal/common/environmentVariableShared';
 import { IEnvironmentVariableCollectionWithPersistence, IEnvironmentVariableService } from 'vs/workbench/contrib/terminal/common/environmentVariable';
 import { TerminalStorageKeys } from 'vs/workbench/contrib/terminal/common/terminalStorageKeys';
-import { IMergedEnvironmentVariableCollection, ISerializableEnvironmentDescriptionMap, ISerializableEnvironmentVariableCollection } from 'vs/platform/terminal/common/environmentVariable';
+import { IMergedEnvironmentVariableCollection, ISerializableEnvironmentVariableCollection } from 'vs/platform/terminal/common/environmentVariable';
 
 interface ISerializableExtensionEnvironmentVariableCollection {
 	extensionIdentifier: string;
 	collection: ISerializableEnvironmentVariableCollection;
-	description: ISerializableEnvironmentDescriptionMap;
 }
 
 /**
@@ -40,8 +39,7 @@ export class EnvironmentVariableService implements IEnvironmentVariableService {
 			const collectionsJson: ISerializableExtensionEnvironmentVariableCollection[] = JSON.parse(serializedPersistedCollections);
 			collectionsJson.forEach(c => this.collections.set(c.extensionIdentifier, {
 				persistent: true,
-				map: deserializeEnvironmentVariableCollection(c.collection),
-				descriptionMap: deserializeEnvironmentDescriptionMap(c.description)
+				map: deserializeEnvironmentVariableCollection(c.collection)
 			}));
 
 			// Asynchronously invalidate collections where extensions have been uninstalled, this is
@@ -82,8 +80,7 @@ export class EnvironmentVariableService implements IEnvironmentVariableService {
 			if (collection.persistent) {
 				collectionsJson.push({
 					extensionIdentifier,
-					collection: serializeEnvironmentVariableCollection(this.collections.get(extensionIdentifier)!.map),
-					description: serializeEnvironmentDescriptionMap(collection.descriptionMap)
+					collection: serializeEnvironmentVariableCollection(this.collections.get(extensionIdentifier)!.map)
 				});
 			}
 		});
