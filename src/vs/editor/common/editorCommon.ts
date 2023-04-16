@@ -150,7 +150,7 @@ export interface IEditorAction {
 	readonly label: string;
 	readonly alias: string;
 	isSupported(): boolean;
-	run(): Promise<void>;
+	run(args?: unknown): Promise<void>;
 }
 
 export type IEditorModel = ITextModel | IDiffEditorModel;
@@ -545,7 +545,7 @@ export interface IEditorDecorationsCollection {
 	/**
 	 * Replace all previous decorations with `newDecorations`.
 	 */
-	set(newDecorations: IModelDeltaDecoration[]): void;
+	set(newDecorations: readonly IModelDeltaDecoration[]): string[];
 	/**
 	 * Remove all previous decorations.
 	 */

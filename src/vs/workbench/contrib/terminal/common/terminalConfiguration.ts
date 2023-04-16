@@ -107,9 +107,9 @@ const terminalConfiguration: IConfigurationNode = {
 			description: localize('terminal.integrated.tabs.location', "Controls the location of the terminal tabs, either to the left or right of the actual terminal(s).")
 		},
 		[TerminalSettingId.TabFocusMode]: {
-			markdownDescription: localize('tabFocusMode', "Controls whether the terminal receives tabs or defers them to the workbench for navigation."),
-			type: 'boolean',
-			default: false
+			markdownDescription: localize('tabFocusMode', "Controls whether the terminal receives tabs or defers them to the workbench for navigation. When set, this overrides {0} when the terminal is focused.", '`#editor.tabFocusMode#`'),
+			type: ['boolean', 'null'],
+			default: null
 		},
 		[TerminalSettingId.DefaultLocation]: {
 			type: 'string',
@@ -451,7 +451,7 @@ const terminalConfiguration: IConfigurationNode = {
 			description: localize('terminal.integrated.wordSeparators', "A string containing all characters to be considered word separators by the double-click to select word feature."),
 			type: 'string',
 			// allow-any-unicode-next-line
-			default: ' ()[]{}\',"`─‘’'
+			default: ' ()[]{}\',"`─‘’|'
 		},
 		[TerminalSettingId.EnableFileLinks]: {
 			description: localize('terminal.integrated.enableFileLinks', "Whether to enable file links in terminals. Links can be slow when working on a network drive in particular because each file link is verified against the file system. Changing this will take effect only in new terminals."),
@@ -533,7 +533,7 @@ const terminalConfiguration: IConfigurationNode = {
 			default: 'onExit'
 		},
 		[TerminalSettingId.CustomGlyphs]: {
-			description: localize('terminal.integrated.customGlyphs', "Whether to draw custom glyphs for block element and box drawing characters instead of using the font, which typically yields better rendering with continuous lines. Note that this doesn't work with the DOM renderer."),
+			description: localize('terminal.integrated.customGlyphs', "Whether to draw custom glyphs for block element and box drawing characters instead of using the font, which typically yields better rendering with continuous lines. Note that this doesn't work when {0} is disabled.", `\`#${TerminalSettingId.GpuAcceleration}#\``),
 			type: 'boolean',
 			default: true
 		},

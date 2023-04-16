@@ -129,13 +129,11 @@ export class BaseTextEditorModel extends EditorModel implements ITextEditorModel
 		}
 
 		const lang = await this.languageDetectionService.detectLanguage(this.textEditorModelHandle);
-		if (lang && !this.isDisposed()) {
+		const prevLang = this.getLanguageId();
+		if (lang && lang !== prevLang && !this.isDisposed()) {
 			this.setLanguageIdInternal(lang, LanguageDetectionLanguageEventSource);
-
 			const languageName = this.languageService.getLanguageName(lang);
-			if (languageName) {
-				this.accessibilityService.alert(localize('languageAutoDetected', "Language {0} was automatically detected and set as the language mode.", languageName));
-			}
+			this.accessibilityService.alert(localize('languageAutoDetected', "Language {0} was automatically detected and set as the language mode.", languageName ?? lang));
 		}
 	}
 

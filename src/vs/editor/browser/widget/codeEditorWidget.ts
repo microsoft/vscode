@@ -32,7 +32,7 @@ import { ISelection, Selection } from 'vs/editor/common/core/selection';
 import { InternalEditorAction } from 'vs/editor/common/editorAction';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { EndOfLinePreference, IIdentifiedSingleEditOperation, IModelDecoration, IModelDecorationOptions, IModelDecorationsChangeAccessor, IModelDeltaDecoration, ITextModel, ICursorStateComputer } from 'vs/editor/common/model';
+import { EndOfLinePreference, IIdentifiedSingleEditOperation, IModelDecoration, IModelDecorationOptions, IModelDecorationsChangeAccessor, IModelDeltaDecoration, ITextModel, ICursorStateComputer, IAttachedView } from 'vs/editor/common/model';
 import { IWordAtPosition } from 'vs/editor/common/core/wordHelper';
 import { ClassName } from 'vs/editor/common/model/intervalTree';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
@@ -85,23 +85,19 @@ export interface ICodeEditorWidgetOptions {
 }
 
 class ModelData {
-	public readonly model: ITextModel;
-	public readonly viewModel: ViewModel;
-	public readonly view: View;
-	public readonly hasRealView: boolean;
-	public readonly listenersToRemove: IDisposable[];
-
-	constructor(model: ITextModel, viewModel: ViewModel, view: View, hasRealView: boolean, listenersToRemove: IDisposable[]) {
-		this.model = model;
-		this.viewModel = viewModel;
-		this.view = view;
-		this.hasRealView = hasRealView;
-		this.listenersToRemove = listenersToRemove;
+	constructor(
+		public readonly model: ITextModel,
+		public readonly viewModel: ViewModel,
+		public readonly view: View,
+		public readonly hasRealView: boolean,
+		public readonly listenersToRemove: IDisposable[],
+		public readonly attachedView: IAttachedView,
+	) {
 	}
 
 	public dispose(): void {
 		dispose(this.listenersToRemove);
-		this.model.onBeforeDetached();
+		this.model.onBeforeDetached(this.attachedView);
 		if (this.hasRealView) {
 			this.view.dispose();
 		}
@@ -980,6 +976,12 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		}
 		this._modelData.viewModel.viewLayout.setScrollPosition(position, scrollType);
 	}
+	public hasPendingScrollAnimation(): boolean {
+		if (!this._modelData) {
+			return false;
+		}
+		return this._modelData.viewModel.viewLayout.hasPendingScrollAnimation();
+	}
 
 	public saveViewState(): editorCommon.ICodeEditorViewState | null {
 		if (!this._modelData) {
@@ -1083,7 +1085,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 
 		const action = this.getAction(handlerId);
 		if (action) {
-			Promise.resolve(action.run()).then(undefined, onUnexpectedError);
+			Promise.resolve(action.run(payload)).then(undefined, onUnexpectedError);
 			return;
 		}
 
@@ -1591,7 +1593,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		this._configuration.setIsDominatedByLongLines(model.isDominatedByLongLines());
 		this._configuration.setModelLineCount(model.getLineCount());
 
-		model.onBeforeAttached();
+		const attachedView = model.onBeforeAttached();
 
 		const viewModel = new ViewModel(
 			this._id,
@@ -1601,7 +1603,8 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 			MonospaceLineBreaksComputerFactory.create(this._configuration.options),
 			(callback) => dom.scheduleAtNextAnimationFrame(callback),
 			this.languageConfigurationService,
-			this._themeService
+			this._themeService,
+			attachedView,
 		);
 
 		// Someone might destroy the model from under the editor, so prevent any exceptions by setting a null model
@@ -1719,7 +1722,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 			view.domNode.domNode.setAttribute('data-uri', model.uri.toString());
 		}
 
-		this._modelData = new ModelData(model, viewModel, view, hasRealView, listenersToRemove);
+		this._modelData = new ModelData(model, viewModel, view, hasRealView, listenersToRemove, attachedView);
 	}
 
 	protected _createView(viewModel: ViewModel): [View, boolean] {
@@ -1977,7 +1980,7 @@ class EditorContextKeysManager extends Disposable {
 	private _updateFromConfig(): void {
 		const options = this._editor.getOptions();
 
-		this._editorTabMovesFocus.set(options.get(EditorOption.tabFocusMode));
+		this._editorTabMovesFocus.set(TabFocus.getTabFocusMode(TabFocusContext.Editor));
 		this._editorReadonly.set(options.get(EditorOption.readOnly));
 		this._inDiffEditor.set(options.get(EditorOption.inDiffEditor));
 		this._editorColumnSelection.set(options.get(EditorOption.columnSelection));
@@ -2239,7 +2242,7 @@ class EditorDecorationsCollection implements editorCommon.IEditorDecorationsColl
 		this.set([]);
 	}
 
-	public set(newDecorations: IModelDeltaDecoration[]): void {
+	public set(newDecorations: readonly IModelDeltaDecoration[]): string[] {
 		try {
 			this._isChangingDecorations = true;
 			this._editor.changeDecorations((accessor) => {
@@ -2248,6 +2251,7 @@ class EditorDecorationsCollection implements editorCommon.IEditorDecorationsColl
 		} finally {
 			this._isChangingDecorations = false;
 		}
+		return this._decorationIds;
 	}
 }
 

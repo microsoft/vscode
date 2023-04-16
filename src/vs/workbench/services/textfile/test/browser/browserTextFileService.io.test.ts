@@ -16,7 +16,7 @@ import { URI } from 'vs/base/common/uri';
 import { join } from 'vs/base/common/path';
 import { UTF16le, detectEncodingByBOMFromBuffer, UTF8_with_bom, UTF16be, toCanonicalName } from 'vs/workbench/services/textfile/common/encoding';
 import { VSBuffer } from 'vs/base/common/buffer';
-import files from 'vs/workbench/services/textfile/test/browser/fixtures/files';
+import files from 'vs/workbench/services/textfile/test/common/fixtures/files';
 import createSuite from 'vs/workbench/services/textfile/test/common/textFileService.io.test';
 import { isWeb } from 'vs/base/common/platform';
 import { IWorkingCopyFileService, WorkingCopyFileService } from 'vs/workbench/services/workingCopy/common/workingCopyFileService';

@@ -36,6 +36,7 @@ export class PlaywrightDriver {
 		private readonly context: playwright.BrowserContext,
 		private readonly page: playwright.Page,
 		private readonly serverProcess: ChildProcess | undefined,
+		private readonly whenLoaded: Promise<unknown>,
 		private readonly options: LaunchOptions
 	) {
 	}
@@ -78,14 +79,7 @@ export class PlaywrightDriver {
 	}
 
 	async didFinishLoad(): Promise<void> {
-
-		// Web: via `load` state
-		if (this.options.web) {
-			return this.page.waitForLoadState('load');
-		}
-
-		// Desktop: already loaded when `electron.firstWindow()` returns
-		return;
+		await this.whenLoaded;
 	}
 
 	private async takeScreenshot(name: string): Promise<void> {
@@ -177,7 +171,7 @@ export class PlaywrightDriver {
 	}
 
 	async getTitle() {
-		return this.evaluateWithDriver(([driver]) => driver.getTitle());
+		return this.page.title();
 	}
 
 	async isActiveElement(selector: string) {

@@ -99,6 +99,9 @@ export interface IModelDecorationOptions {
 	 * In this case, the range must be empty and set to the last line.
 	 */
 	blockIsAfterEnd?: boolean | null;
+	blockDoesNotCollapse?: boolean | null;
+	blockPadding?: [top: number, right: number, bottom: number, left: number] | null;
+
 	/**
 	 * Message to be rendered when hovering over the glyph margin decoration.
 	 */
@@ -304,7 +307,7 @@ export interface IModelDecorationsChangeAccessor {
 	 * @param newDecorations Array describing what decorations should result after the call.
 	 * @return An array containing the new decorations identifiers.
 	 */
-	deltaDecorations(oldDecorations: string[], newDecorations: IModelDeltaDecoration[]): string[];
+	deltaDecorations(oldDecorations: readonly string[], newDecorations: readonly IModelDeltaDecoration[]): string[];
 }
 
 /**
@@ -1165,12 +1168,12 @@ export interface ITextModel {
 	/**
 	 * @internal
 	 */
-	onBeforeAttached(): void;
+	onBeforeAttached(): IAttachedView;
 
 	/**
 	 * @internal
 	 */
-	onBeforeDetached(): void;
+	onBeforeDetached(view: IAttachedView): void;
 
 	/**
 	 * Returns if this model is attached to an editor or not.
@@ -1219,6 +1222,18 @@ export interface ITextModel {
 	 * @internal
 	 */
 	readonly tokenization: ITokenizationTextModelPart;
+}
+
+/**
+ * @internal
+ */
+export interface IAttachedView {
+	/**
+	 * @param stabilized Indicates if the visible lines are probably going to change soon or can be considered stable.
+	 * Is true on reveal range and false on scroll.
+	 * Tokenizers should tokenize synchronously if stabilized is true.
+	 */
+	setVisibleLines(visibleLines: { startLineNumber: number; endLineNumber: number }[], stabilized: boolean): void;
 }
 
 export const enum PositionAffinity {

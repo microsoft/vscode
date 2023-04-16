@@ -91,6 +91,11 @@ export enum NotebookCellExecutionState {
 	Pending = 2,
 	Executing = 3
 }
+export enum NotebookExecutionState {
+	Unconfirmed = 1,
+	Pending = 2,
+	Executing = 3
+}
 
 export interface INotebookCellPreviousExecutionResult {
 	executionOrder?: number;
@@ -204,6 +209,7 @@ export interface IOutputDto {
 }
 
 export interface ICellOutput {
+	readonly versionId: number;
 	outputs: IOutputItemDto[];
 	metadata?: Record<string, any>;
 	outputId: string;
@@ -911,6 +917,7 @@ export const NotebookSetting = {
 	cellToolbarVisibility: 'notebook.cellToolbarVisibility',
 	showCellStatusBar: 'notebook.showCellStatusBar',
 	textDiffEditorPreview: 'notebook.diff.enablePreview',
+	diffOverviewRuler: 'notebook.diff.overviewRuler',
 	experimentalInsertToolbarAlignment: 'notebook.experimental.insertToolbarAlignment',
 	compactView: 'notebook.compactView',
 	focusIndicator: 'notebook.cellFocusIndicator',
@@ -923,16 +930,21 @@ export const NotebookSetting = {
 	cellEditorOptionsCustomizations: 'notebook.editorOptionsCustomizations',
 	consolidatedRunButton: 'notebook.consolidatedRunButton',
 	openGettingStarted: 'notebook.experimental.openGettingStarted',
-	textOutputLineLimit: 'notebook.output.textLineLimit',
 	globalToolbarShowLabel: 'notebook.globalToolbarShowLabel',
 	markupFontSize: 'notebook.markup.fontSize',
 	interactiveWindowCollapseCodeCells: 'interactiveWindow.collapseCellInputCode',
-	outputLineHeight: 'notebook.outputLineHeight',
-	outputFontSize: 'notebook.outputFontSize',
-	outputFontFamily: 'notebook.outputFontFamily',
-	kernelPickerType: 'notebook.kernelPicker.type',
-	outputScrolling: 'notebook.experimental.outputScrolling',
+	outputScrollingDeprecated: 'notebook.experimental.outputScrolling',
+	outputScrolling: 'notebook.output.scrolling',
+	textOutputLineLimit: 'notebook.output.textLineLimit',
+	formatOnSave: 'notebook.formatOnSave.enabled',
 	outputWordWrap: 'notebook.output.wordWrap',
+	outputLineHeightDeprecated: 'notebook.outputLineHeight',
+	outputLineHeight: 'notebook.output.lineHeight',
+	outputFontSizeDeprecated: 'notebook.outputFontSize',
+	outputFontSize: 'notebook.output.fontSize',
+	outputFontFamilyDeprecated: 'notebook.outputFontFamily',
+	outputFontFamily: 'notebook.output.fontFamily',
+	experimentalFindInMarkdownMode: 'notebook.experimental.findInMarkdownMode',
 	logging: 'notebook.logging',
 } as const;
 

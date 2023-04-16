@@ -77,61 +77,66 @@ export function objectEquals(one: any, other: any) {
 	return true;
 }
 
-interface Options<T> {
-	callback: (value: T) => void;
+/**
+ * A helper to delay/debounce execution of a task, includes cancellation/disposal support.
+ * Pulled from https://github.com/microsoft/vscode/blob/3059063b805ed0ac10a6d9539e213386bfcfb852/extensions/markdown-language-features/src/util/async.ts
+ */
+export class Delayer<T> {
 
-	merge?: (input: T[]) => T;
-	delay?: number;
+	public defaultDelay: number;
+	private _timeout: any; // Timer
+	private _cancelTimeout: Promise<T | null> | null;
+	private _onSuccess: ((value: T | PromiseLike<T> | undefined) => void) | null;
+	private _task: ITask<T> | null;
+
+	constructor(defaultDelay: number) {
+		this.defaultDelay = defaultDelay;
+		this._timeout = null;
+		this._cancelTimeout = null;
+		this._onSuccess = null;
+		this._task = null;
+	}
+
+	dispose() {
+		this._doCancelTimeout();
+	}
+
+	public trigger(task: ITask<T>, delay: number = this.defaultDelay): Promise<T | null> {
+		this._task = task;
+		if (delay >= 0) {
+			this._doCancelTimeout();
+		}
+
+		if (!this._cancelTimeout) {
+			this._cancelTimeout = new Promise<T | undefined>((resolve) => {
+				this._onSuccess = resolve;
+			}).then(() => {
+				this._cancelTimeout = null;
+				this._onSuccess = null;
+				const result = this._task && this._task?.();
+				this._task = null;
+				return result;
+			});
+		}
+
+		if (delay >= 0 || this._timeout === null) {
+			this._timeout = setTimeout(() => {
+				this._timeout = null;
+				this._onSuccess?.(undefined);
+			}, delay >= 0 ? delay : this.defaultDelay);
+		}
+
+		return this._cancelTimeout;
+	}
+
+	private _doCancelTimeout(): void {
+		if (this._timeout !== null) {
+			clearTimeout(this._timeout);
+			this._timeout = null;
+		}
+	}
 }
 
-
-export class DebounceTrigger<T> {
-
-	private _isPaused = 0;
-	protected _queue: T[] = [];
-	private _callbackFn: (value: T) => void;
-	private _mergeFn?: (input: T[]) => T;
-	private readonly _delay: number;
-	private _handle: any | undefined;
-
-	constructor(options: Options<T>) {
-		this._callbackFn = options.callback;
-		this._mergeFn = options.merge;
-		this._delay = options.delay ?? 100;
-	}
-
-	private pause(): void {
-		this._isPaused++;
-	}
-
-	private resume(): void {
-		if (this._isPaused !== 0 && --this._isPaused === 0) {
-			if (this._mergeFn) {
-				const items = Array.from(this._queue);
-				this._queue = [];
-				this._callbackFn(this._mergeFn(items));
-
-			} else {
-				while (!this._isPaused && this._queue.length !== 0) {
-					this._callbackFn(this._queue.shift()!);
-				}
-			}
-		}
-	}
-
-	trigger(item: T): void {
-		if (!this._handle) {
-			this.pause();
-			this._handle = setTimeout(() => {
-				this._handle = undefined;
-				this.resume();
-			}, this._delay);
-		}
-
-		if (this._isPaused !== 0) {
-			this._queue.push(item);
-		} else {
-			this._callbackFn(item);
-		}
-	}
+export interface ITask<T> {
+	(): T;
 }

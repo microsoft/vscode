@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { RenderOutputType } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import type { PreloadOptions } from 'vs/workbench/contrib/notebook/browser/view/renderers/webviewPreloads';
+import type { PreloadOptions, RenderOptions } from 'vs/workbench/contrib/notebook/browser/view/renderers/webviewPreloads';
 import { NotebookCellMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 
 interface BaseToWebviewMessage {
@@ -201,6 +201,7 @@ export interface ICreationRequestMessage {
 	readonly initiallyHidden?: boolean;
 	readonly rendererId?: string | undefined;
 	readonly executionId?: string | undefined;
+	readonly createOnIdle: boolean;
 }
 
 export interface IContentWidgetTopRequest {
@@ -374,12 +375,9 @@ export interface INotebookStylesMessage {
 export interface INotebookOptionsMessage {
 	readonly type: 'notebookOptions';
 	readonly options: PreloadOptions;
+	readonly renderOptions: RenderOptions;
 }
 
-export interface INotebookUpdateWorkspaceTrust {
-	readonly type: 'updateWorkspaceTrust';
-	readonly isTrusted: boolean;
-}
 export interface ITokenizedCodeBlockMessage {
 	readonly type: 'tokenizedCodeBlock';
 	readonly codeBlockId: string;
@@ -394,7 +392,7 @@ export interface ITokenizedStylesChangedMessage {
 export interface IFindMessage {
 	readonly type: 'find';
 	readonly query: string;
-	readonly options: { wholeWord?: boolean; caseSensitive?: boolean; includeMarkup: boolean; includeOutput: boolean };
+	readonly options: { wholeWord?: boolean; caseSensitive?: boolean; includeMarkup: boolean; includeOutput: boolean; shouldGetSearchPreviewInfo: boolean };
 }
 
 
@@ -527,7 +525,6 @@ export type ToWebviewMessage = IClearMessage |
 	IInitializeMarkupCells |
 	INotebookStylesMessage |
 	INotebookOptionsMessage |
-	INotebookUpdateWorkspaceTrust |
 	ITokenizedCodeBlockMessage |
 	ITokenizedStylesChangedMessage |
 	IFindMessage |

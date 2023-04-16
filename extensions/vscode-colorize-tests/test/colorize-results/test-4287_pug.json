@@ -1,16 +1,16 @@
 [
 	{
 		"c": ".ssdsd",
-		"t": "text.pug entity.other.attribute-name.class.pug",
+		"t": "text.pug meta.selector.css entity.other.attribute-name.class.css.pug",
 		"r": {
-			"dark_plus": "entity.other.attribute-name: #9CDCFE",
-			"light_plus": "entity.other.attribute-name: #E50000",
-			"dark_vs": "entity.other.attribute-name: #9CDCFE",
-			"light_vs": "entity.other.attribute-name: #E50000",
-			"hc_black": "entity.other.attribute-name: #9CDCFE",
-			"dark_plus_experimental": "entity.other.attribute-name: #9CDCFE",
-			"hc_light": "entity.other.attribute-name: #264F78",
-			"light_plus_experimental": "entity.other.attribute-name: #E50000"
+			"dark_plus": "entity.other.attribute-name.class.css: #D7BA7D",
+			"light_plus": "entity.other.attribute-name.class.css: #800000",
+			"dark_vs": "entity.other.attribute-name.class.css: #D7BA7D",
+			"light_vs": "entity.other.attribute-name.class.css: #800000",
+			"hc_black": "entity.other.attribute-name.class.css: #D7BA7D",
+			"dark_plus_experimental": "entity.other.attribute-name.class.css: #D7BA7D",
+			"hc_light": "entity.other.attribute-name.class.css: #0F4A85",
+			"light_plus_experimental": "entity.other.attribute-name.class.css: #800000"
 		}
 	},
 	{

@@ -96,6 +96,8 @@ suite('ModelSemanticColoring', () => {
 			}));
 
 			const textModel = disposables.add(modelService.createModel('Hello world', languageService.createById('testMode')));
+			// pretend the text model is attached to an editor (so that semantic tokens are computed)
+			textModel.onBeforeAttached();
 
 			// wait for the provider to be called
 			await inFirstCall.wait();
@@ -151,6 +153,8 @@ suite('ModelSemanticColoring', () => {
 			}));
 
 			const textModel = disposables.add(modelService.createModel('', languageService.createById('testMode')));
+			// pretend the text model is attached to an editor (so that semantic tokens are computed)
+			textModel.onBeforeAttached();
 
 			// wait for the semantic tokens to be fetched
 			await Event.toPromise(textModel.onDidChangeTokens);
@@ -192,7 +196,9 @@ suite('ModelSemanticColoring', () => {
 				}
 			}));
 
-			disposables.add(modelService.createModel('', languageService.createById('testMode')));
+			const textModel = disposables.add(modelService.createModel('', languageService.createById('testMode')));
+			// pretend the text model is attached to an editor (so that semantic tokens are computed)
+			textModel.onBeforeAttached();
 
 			await timeout(5000);
 			assert.deepStrictEqual(requestCount, 2);

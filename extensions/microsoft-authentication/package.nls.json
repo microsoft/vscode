@@ -2,5 +2,6 @@
 	"displayName": "Microsoft Account",
 	"description": "Microsoft authentication provider",
 	"signIn": "Sign In",
-	"signOut": "Sign Out"
+	"signOut": "Sign Out",
+	"microsoft-sovereign-cloud.endpoint.description": "Login endpoint for Azure authentication. Select a national cloud or enter the login URL for a custom Azure cloud."
 }

@@ -19,7 +19,7 @@ import { Extensions, IConfigurationPropertySchema, IConfigurationRegistry } from
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
+import { ILifecycleService, LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { EditorPaneDescriptor, IEditorPaneRegistry } from 'vs/workbench/browser/editor';
 import { Extensions as WorkbenchExtensions, IWorkbenchContribution, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
@@ -71,6 +71,7 @@ import 'vs/workbench/contrib/notebook/browser/controller/foldingController';
 import 'vs/workbench/contrib/notebook/browser/contrib/clipboard/notebookClipboard';
 import 'vs/workbench/contrib/notebook/browser/contrib/find/notebookFind';
 import 'vs/workbench/contrib/notebook/browser/contrib/format/formatting';
+import 'vs/workbench/contrib/notebook/browser/contrib/saveParticipants/saveParticipants';
 import 'vs/workbench/contrib/notebook/browser/contrib/gettingStarted/notebookGettingStarted';
 import 'vs/workbench/contrib/notebook/browser/contrib/layout/layoutActions';
 import 'vs/workbench/contrib/notebook/browser/contrib/marker/markerProvider';
@@ -83,7 +84,7 @@ import 'vs/workbench/contrib/notebook/browser/contrib/cellStatusBar/executionSta
 import 'vs/workbench/contrib/notebook/browser/contrib/editorStatusBar/editorStatusBar';
 import 'vs/workbench/contrib/notebook/browser/contrib/undoRedo/notebookUndoRedo';
 import 'vs/workbench/contrib/notebook/browser/contrib/cellCommands/cellCommands';
-import 'vs/workbench/contrib/notebook/browser/contrib/viewportCustomMarkdown/viewportCustomMarkdown';
+import 'vs/workbench/contrib/notebook/browser/contrib/viewportWarmup/viewportWarmup';
 import 'vs/workbench/contrib/notebook/browser/contrib/troubleshoot/layout';
 import 'vs/workbench/contrib/notebook/browser/contrib/debug/notebookBreakpoints';
 import 'vs/workbench/contrib/notebook/browser/contrib/debug/notebookCellPausing';
@@ -110,6 +111,7 @@ import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService
 import { NotebookKernelHistoryService } from 'vs/workbench/contrib/notebook/browser/services/notebookKernelHistoryServiceImpl';
 import { INotebookLoggingService } from 'vs/workbench/contrib/notebook/common/notebookLoggingService';
 import { NotebookLoggingService } from 'vs/workbench/contrib/notebook/browser/services/notebookLoggingServiceImpl';
+import product from 'vs/platform/product/common/product';
 
 /*--------------------------------------------------------------------------------------------- */
 
@@ -553,8 +555,8 @@ class NotebookEditorManager implements IWorkbenchContribution {
 		@INotebookEditorModelResolverService private readonly _notebookEditorModelService: INotebookEditorModelResolverService,
 		@INotebookService notebookService: INotebookService,
 		@IEditorGroupsService editorGroups: IEditorGroupsService,
+		@ILifecycleService lifecycleService: ILifecycleService,
 	) {
-
 		// OPEN notebook editor for models that have turned dirty without being visible in an editor
 		type E = IResolvedNotebookEditorModel;
 		this._disposables.add(Event.debounce<E, E[]>(
@@ -564,12 +566,18 @@ class NotebookEditorManager implements IWorkbenchContribution {
 		)(this._openMissingDirtyNotebookEditors, this));
 
 		// CLOSE notebook editor for models that have no more serializer
-		this._disposables.add(notebookService.onWillRemoveViewType(e => {
+		const listener = notebookService.onWillRemoveViewType(e => {
 			for (const group of editorGroups.groups) {
-				const staleInputs = group.editors.filter(input => input instanceof NotebookEditorInput && input.viewType === e);
+				const staleInputs = group.editors.filter(input => input instanceof NotebookEditorInput && input.viewType === e && !input.isDirty());
 				group.closeEditors(staleInputs);
 			}
-		}));
+		});
+
+		this._disposables.add(listener);
+		// don't react to view types disposing if the workbench is shutting down anyway
+		Event.once(lifecycleService.onWillShutdown)((e) => {
+			listener.dispose();
+		});
 
 		// CLOSE editors when we are about to open conflicting notebooks
 		this._disposables.add(_notebookEditorModelService.onWillFailWithConflict(e => {
@@ -762,6 +770,12 @@ configurationRegistry.registerConfiguration({
 			default: true,
 			tags: ['notebookLayout']
 		},
+		[NotebookSetting.diffOverviewRuler]: {
+			description: nls.localize('notebook.diff.enableOverviewRuler.description', "Whether to render the overview ruler in the diff editor for notebook."),
+			type: 'boolean',
+			default: false,
+			tags: ['notebookLayout']
+		},
 		[NotebookSetting.cellToolbarVisibility]: {
 			markdownDescription: nls.localize('notebook.cellToolbarVisibility.description', "Whether the cell toolbar should appear on hover or click."),
 			type: 'string',
@@ -845,10 +859,10 @@ configurationRegistry.registerConfiguration({
 			tags: ['notebookLayout']
 		},
 		[NotebookSetting.textOutputLineLimit]: {
-			description: nls.localize('notebook.textOutputLineLimit', "Control how many lines of text in a text output is rendered."),
+			markdownDescription: nls.localize('notebook.textOutputLineLimit', "Controls how many lines of text are displayed in a text output. If {0} is enabled, this setting is used to determine the scroll height of the output.", '`#notebook.output.scrolling#`'),
 			type: 'number',
 			default: 30,
-			tags: ['notebookLayout']
+			tags: ['notebookLayout', 'notebookOutputLayout']
 		},
 		[NotebookSetting.markupFontSize]: {
 			markdownDescription: nls.localize('notebook.markup.fontSize', "Controls the font size in pixels of rendered markup in notebooks. When set to {0}, 120% of {1} is used.", '`0`', '`#editor.fontSize#`'),
@@ -864,45 +878,59 @@ configurationRegistry.registerConfiguration({
 			default: 'fromEditor'
 		},
 		[NotebookSetting.outputLineHeight]: {
-			markdownDescription: nls.localize('notebook.outputLineHeight', "Line height of the output text for notebook cells.\n - When set to 0, editor line height is used.\n - Values between 0 and 8 will be used as a multiplier with the font size.\n - Values greater than or equal to 8 will be used as effective values."),
+			markdownDescription: nls.localize('notebook.outputLineHeight', "Line height of the output text within notebook cells.\n - When set to 0, editor line height is used.\n - Values between 0 and 8 will be used as a multiplier with the font size.\n - Values greater than or equal to 8 will be used as effective values."),
 			type: 'number',
 			default: 0,
-			tags: ['notebookLayout']
+			tags: ['notebookLayout', 'notebookOutputLayout']
 		},
 		[NotebookSetting.outputFontSize]: {
-			markdownDescription: nls.localize('notebook.outputFontSize', "Font size for the output text for notebook cells. When set to 0, {0} is used.", '`#editor.fontSize#`'),
+			markdownDescription: nls.localize('notebook.outputFontSize', "Font size for the output text within notebook cells. When set to 0, {0} is used.", '`#editor.fontSize#`'),
 			type: 'number',
 			default: 0,
-			tags: ['notebookLayout']
+			tags: ['notebookLayout', 'notebookOutputLayout']
 		},
 		[NotebookSetting.outputFontFamily]: {
-			markdownDescription: nls.localize('notebook.outputFontFamily', "The font family for the output text for notebook cells. When set to empty, the {0} is used.", '`#editor.fontFamily#`'),
+			markdownDescription: nls.localize('notebook.outputFontFamily', "The font family of the output text within notebook cells. When set to empty, the {0} is used.", '`#editor.fontFamily#`'),
 			type: 'string',
-			tags: ['notebookLayout']
-		},
-		[NotebookSetting.kernelPickerType]: {
-			markdownDescription: nls.localize('notebook.kernelPickerType', "Controls the type of kernel picker to use."),
-			type: 'string',
-			enum: ['all', 'mru'],
-			enumDescriptions: [
-				nls.localize('notebook.kernelPickerType.all', "Show all kernels."),
-				nls.localize('notebook.kernelPickerType.mru', "Experiment: show recently used kernels."),
-			],
-			tags: ['notebookLayout'],
-			default: 'mru'
+			tags: ['notebookLayout', 'notebookOutputLayout']
 		},
 		[NotebookSetting.outputScrolling]: {
 			markdownDescription: nls.localize('notebook.outputScrolling', "Use a scrollable region for notebook output when longer than the limit"),
 			type: 'boolean',
-			tags: ['notebookLayout'],
-			default: false
+			tags: ['notebookLayout', 'notebookOutputLayout'],
+			default: typeof product.quality === 'string' && product.quality !== 'stable' // only enable as default in insiders
 		},
 		[NotebookSetting.outputWordWrap]: {
 			markdownDescription: nls.localize('notebook.outputWordWrap', "Controls whether the lines in output should wrap."),
 			type: 'boolean',
+			tags: ['notebookLayout', 'notebookOutputLayout'],
+			default: false
+		},
+		[NotebookSetting.formatOnSave]: {
+			markdownDescription: nls.localize('notebook.formatOnSave', "Format a notebook on save. A formatter must be available, the file must not be saved after delay, and the editor must not be shutting down."),
+			type: 'boolean',
 			tags: ['notebookLayout'],
 			default: false
 		},
+		[NotebookSetting.experimentalFindInMarkdownMode]: {
+			markdownDescription: nls.localize('notebook.experimental.findInMarkdownMode', "Customize the Find Widget behavior for searching within markdown cells. When both are enabled, the Find Widget will search either the content or preview based on the current state of the markdown cell. Toggle the boolean values to control the Find Widget's scope for each mode as needed."),
+			type: 'object',
+			properties: {
+				source: {
+					type: 'boolean',
+					default: true
+				},
+				preview: {
+					type: 'boolean',
+					default: false
+				}
+			},
+			default: {
+				source: true,
+				preview: false
+			},
+			tags: ['notebookLayout']
+		}
 	}
 });
 

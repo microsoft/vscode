@@ -27,10 +27,10 @@ request-light@^0.7.0:
   resolved "https://registry.yarnpkg.com/request-light/-/request-light-0.7.0.tgz#885628bb2f8040c26401ebf258ec51c4ae98ac2a"
   integrity sha512-lMbBMrDoxgsyO+yB3sDcrDuX85yYt7sS8BfQd11jtbW/z5ZWgLZRcEGLsLoYw7I0WSUGQBs8CC8ScIxkTX1+6Q==
 
-vscode-json-languageservice@^5.3.1:
-  version "5.3.1"
-  resolved "https://registry.yarnpkg.com/vscode-json-languageservice/-/vscode-json-languageservice-5.3.1.tgz#c36175d05f425fbd8f47dcee6f2a72096bdda36f"
-  integrity sha512-tPRf/2LOBS6uFflFLABdj8T3ol2/QgZ0kpzZHFCs+cbxpnjBNiCo+rfh3th0dtdytq5dSnWo5iFJj99zF6jZWQ==
+vscode-json-languageservice@^5.3.2:
+  version "5.3.2"
+  resolved "https://registry.yarnpkg.com/vscode-json-languageservice/-/vscode-json-languageservice-5.3.2.tgz#11e530ba9ec541eaeb421dc274a22efdb5d580ef"
+  integrity sha512-5td6olfoNdtyxnNA4uocq7V9jdTJt63o9mGEntQb6cbD2HiObZW2XgbSj6nRaebWwBCiYdWpFklNjm6Wz6Xy1Q==
   dependencies:
     "@vscode/l10n" "^0.0.11"
     jsonc-parser "^3.2.0"

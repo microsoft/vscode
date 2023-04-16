@@ -442,6 +442,7 @@ export interface INotebookEditor {
 	 * An event emitted when the model of this editor has changed.
 	 */
 	readonly onDidChangeModel: Event<NotebookTextModel | undefined>;
+	readonly onDidAttachViewModel: Event<void>;
 	readonly onDidFocusWidget: Event<void>;
 	readonly onDidBlurWidget: Event<void>;
 	readonly onDidScroll: Event<void>;
@@ -537,7 +538,7 @@ export interface INotebookEditor {
 	/**
 	 * Render the output in webview layer
 	 */
-	createOutput(cell: ICellViewModel, output: IInsetRenderOutput, offset: number): Promise<void>;
+	createOutput(cell: ICellViewModel, output: IInsetRenderOutput, offset: number, createWhenIdle: boolean): Promise<void>;
 
 	/**
 	 * Update the output in webview layer with latest content. It will delegate to `createOutput` is the output is not rendered yet

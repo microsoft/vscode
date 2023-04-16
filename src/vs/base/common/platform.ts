@@ -18,11 +18,13 @@ let _isCI = false;
 let _isMobile = false;
 let _locale: string | undefined = undefined;
 let _language: string = LANGUAGE_DEFAULT;
+let _platformLocale: string = LANGUAGE_DEFAULT;
 let _translationsConfigFile: string | undefined = undefined;
 let _userAgent: string | undefined = undefined;
 
 interface NLSConfig {
 	locale: string;
+	osLocale: string;
 	availableLanguages: { [key: string]: string };
 	_translationsConfigFile: string;
 }
@@ -44,6 +46,7 @@ export interface INodeProcess {
 	env: IProcessEnvironment;
 	versions?: {
 		electron?: string;
+		chrome?: string;
 	};
 	type?: string;
 	cwd: () => string;
@@ -73,6 +76,7 @@ const isElectronRenderer = isElectronProcess && nodeProcess?.type === 'renderer'
 interface INavigator {
 	userAgent: string;
 	maxTouchPoints?: number;
+	language: string;
 }
 declare const navigator: INavigator;
 
@@ -95,8 +99,8 @@ if (typeof navigator === 'object' && !isElectronRenderer) {
 	);
 
 	_locale = configuredLocale || LANGUAGE_DEFAULT;
-
 	_language = _locale;
+	_platformLocale = navigator.language;
 }
 
 // Native environment
@@ -115,6 +119,7 @@ else if (typeof nodeProcess === 'object') {
 			const nlsConfig: NLSConfig = JSON.parse(rawNlsConfig);
 			const resolved = nlsConfig.availableLanguages['*'];
 			_locale = nlsConfig.locale;
+			_platformLocale = nlsConfig.osLocale;
 			// VSCode's default language is 'en'
 			_language = resolved ? resolved : LANGUAGE_DEFAULT;
 			_translationsConfigFile = nlsConfig._translationsConfigFile;
@@ -174,8 +179,8 @@ export const platform = _platform;
 export const userAgent = _userAgent;
 
 /**
- * The language used for the user interface. or the locale specified by --locale
- * The format of the string is all lower case (e.g. zh-tw for Traditional
+ * The language used for the user interface. The format of
+ * the string is all lower case (e.g. zh-tw for Traditional
  * Chinese)
  */
 export const language = _language;
@@ -202,10 +207,19 @@ export namespace Language {
 }
 
 /**
- * The OS locale. The format of the string is all lower case (e.g. zh-tw for Traditional
+ * The OS locale or the locale specified by --locale. The format of
+ * the string is all lower case (e.g. zh-tw for Traditional
  * Chinese). The UI is not necessarily shown in the provided locale.
  */
 export const locale = _locale;
+
+/**
+ * This will always be set to the OS/browser's locale regardless of
+ * what was specified by --locale. The format of the string is all
+ * lower case (e.g. zh-tw for Traditional Chinese). The UI is not
+ * necessarily shown in the provided locale.
+ */
+export const platformLocale = _platformLocale;
 
 /**
  * The translations that are available through language packs.

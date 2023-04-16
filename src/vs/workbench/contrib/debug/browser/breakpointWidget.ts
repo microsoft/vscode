@@ -216,6 +216,12 @@ export class BreakpointWidget extends ZoneWidget implements IPrivateBreakpointWi
 		this.centerInputVertically();
 	}
 
+	protected override _onWidth(widthInPixel: number): void {
+		if (typeof this.heightInPx === 'number') {
+			this._doLayout(this.heightInPx, widthInPixel);
+		}
+	}
+
 	private createBreakpointInput(container: HTMLElement): void {
 		const scopedContextKeyService = this.contextKeyService.createScoped(container);
 		this.toDispose.push(scopedContextKeyService);
@@ -329,7 +335,7 @@ export class BreakpointWidget extends ZoneWidget implements IPrivateBreakpointWi
 					hitCondition,
 					logMessage
 				});
-				this.debugService.updateBreakpoints(this.breakpoint.uri, data, false).then(undefined, onUnexpectedError);
+				this.debugService.updateBreakpoints(this.breakpoint.originalUri, data, false).then(undefined, onUnexpectedError);
 			} else {
 				const model = this.editor.getModel();
 				if (model) {

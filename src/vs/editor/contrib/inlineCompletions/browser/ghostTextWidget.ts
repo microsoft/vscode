@@ -22,6 +22,8 @@ import { RenderLineInput, renderViewLine } from 'vs/editor/common/viewLayout/vie
 import { InlineDecorationType } from 'vs/editor/common/viewModel';
 import { GhostTextReplacement, GhostTextWidgetModel } from 'vs/editor/contrib/inlineCompletions/browser/ghostText';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { alert } from 'vs/base/browser/ui/aria/aria';
+import { AudioCue, IAudioCueService } from 'vs/platform/audioCues/browser/audioCueService';
 
 const ttPolicy = window.trustedTypes?.createPolicy('editorGhostText', { createHTML: value => value });
 
@@ -30,12 +32,14 @@ export class GhostTextWidget extends Disposable {
 	private readonly partsWidget = this._register(this.instantiationService.createInstance(DecorationsWidget, this.editor));
 	private readonly additionalLinesWidget = this._register(new AdditionalLinesWidget(this.editor, this.languageService.languageIdCodec));
 	private viewMoreContentWidget: ViewMoreLinesContentWidget | undefined = undefined;
+	private _lastSuggestion: string | undefined = undefined;
 
 	constructor(
 		private readonly editor: ICodeEditor,
 		private readonly model: GhostTextWidgetModel,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@ILanguageService private readonly languageService: ILanguageService,
+		@IAudioCueService private readonly audioCueService: IAudioCueService
 	) {
 		super();
 
@@ -61,10 +65,8 @@ export class GhostTextWidget extends Disposable {
 			this.viewMoreContentWidget = undefined;
 		}));
 
-		this._register(model.onDidChange(() => {
-			this.update();
-		}));
-		this.update();
+		this._register(model.onDidChange(() => this.update(true)));
+		this.update(true);
 	}
 
 	public shouldShowHoverAtViewZone(viewZoneId: string): boolean {
@@ -73,7 +75,7 @@ export class GhostTextWidget extends Disposable {
 
 	private readonly replacementDecoration = this._register(new DisposableDecorations(this.editor));
 
-	private update(): void {
+	private update(notifyUser?: boolean): void {
 		const ghostText = this.model.ghostText;
 
 		if (!this.editor.hasModel() || !ghostText || this.disposed) {
@@ -157,6 +159,17 @@ export class GhostTextWidget extends Disposable {
 			hiddenTextStartColumn !== undefined ? { column: hiddenTextStartColumn, length: textBufferLine.length + 1 - hiddenTextStartColumn } : undefined);
 		this.additionalLinesWidget.updateLines(ghostText.lineNumber, additionalLines, ghostText.additionalReservedLineCount);
 
+		if (notifyUser) {
+			const lineText = this.editor.getModel()?.getLineContent(ghostText.lineNumber);
+			if (lineText && this._lastSuggestion !== lineText) {
+				this._lastSuggestion = lineText;
+				this.audioCueService.playAudioCue(AudioCue.inlineSuggestion).then(() => {
+					if (this.editor.getOption(EditorOption.screenReaderAnnounceInlineSuggestion)) {
+						alert(ghostText.renderForScreenReader(lineText));
+					}
+				});
+			}
+		}
 		if (0 < 0) {
 			// Not supported at the moment, condition is always false.
 			this.viewMoreContentWidget = this.renderViewMoreLines(

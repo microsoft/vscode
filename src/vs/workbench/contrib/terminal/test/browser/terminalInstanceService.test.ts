@@ -13,6 +13,8 @@ import { TerminalInstanceService } from 'vs/workbench/contrib/terminal/browser/t
 import { ITerminalProfile } from 'vs/platform/terminal/common/terminal';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
+import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
+import { TestEnvironmentService } from 'vs/workbench/test/browser/workbenchTestServices';
 
 suite('Workbench - TerminalInstanceService', () => {
 	let instantiationService: TestInstantiationService;
@@ -29,6 +31,7 @@ suite('Workbench - TerminalInstanceService', () => {
 			}
 		}));
 		instantiationService.stub(IContextKeyService, instantiationService.createInstance(ContextKeyService));
+		instantiationService.stub(IWorkbenchEnvironmentService, TestEnvironmentService);
 
 		terminalInstanceService = instantiationService.createInstance(TerminalInstanceService);
 	});

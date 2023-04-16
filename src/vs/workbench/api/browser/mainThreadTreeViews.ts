@@ -154,7 +154,9 @@ export class MainThreadTreeViews extends Disposable implements MainThreadTreeVie
 			if (select) {
 				treeView.setSelection([item]);
 			}
-			if (focus) {
+			if (focus === false) {
+				treeView.setFocus();
+			} else if (focus) {
 				treeView.setFocus(item);
 			}
 			let itemsToExpand = [item];
@@ -243,7 +245,7 @@ class TreeViewDragAndDropController implements ITreeViewDragAndDropController {
 	}
 
 	public resolveDropFileData(requestId: number, dataItemId: string): Promise<VSBuffer> {
-		return this.dataTransfersCache.resolveDropFileData(requestId, dataItemId);
+		return this.dataTransfersCache.resolveFileData(requestId, dataItemId);
 	}
 }
 

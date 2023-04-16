@@ -47,7 +47,6 @@ exports.base = [
 
 exports.workerExtensionHost = [createEditorWorkerModuleDescription('vs/workbench/api/worker/extensionHostWorker')];
 exports.workerNotebook = [createEditorWorkerModuleDescription('vs/workbench/contrib/notebook/common/services/notebookSimpleWorker')];
-exports.workerSharedProcess = [createEditorWorkerModuleDescription('vs/platform/sharedProcess/electron-browser/sharedProcessWorkerMain')];
 exports.workerLanguageDetection = [createEditorWorkerModuleDescription('vs/workbench/services/languageDetection/browser/languageDetectionSimpleWorker')];
 exports.workerLocalFileSearch = [createEditorWorkerModuleDescription('vs/workbench/services/search/worker/localFileSearch')];
 exports.workerProfileAnalysis = [createEditorWorkerModuleDescription('vs/platform/profiling/electron-sandbox/profileAnalysisWorker')];
