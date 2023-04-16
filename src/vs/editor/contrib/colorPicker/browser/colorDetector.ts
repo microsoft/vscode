@@ -156,8 +156,7 @@ export class ColorDetector extends Disposable implements IEditorContribution {
 			// Update the underlying color data in all cases
 			this.updateDecorations(colorData);
 			// Update the inline color decorators if they are enabled
-			if (this._isColorDecoratorsEnabled && this._isDefaultColorDecoratorsEnabled
-				|| this._isColorDecoratorsEnabled && !this._isDefaultColorDecoratorsEnabled && !usingDefaultDocumentColorProvider) {
+			if (this._isColorDecoratorsEnabled && (this._isDefaultColorDecoratorsEnabled || !usingDefaultDocumentColorProvider)) {
 				this.updateColorDecorators(colorData);
 			}
 			this._computePromise = null;
