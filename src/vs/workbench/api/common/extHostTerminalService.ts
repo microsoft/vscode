@@ -950,8 +950,10 @@ class EnvironmentVariableCollection implements vscode.EnvironmentVariableCollect
 					this.map.delete(key);
 				}
 			}
+			this.clearDescription(scope);
 		} else {
 			this.map.clear();
+			this.descriptionMap.clear();
 		}
 		this._onDidChangeCollection.fire();
 	}
@@ -964,6 +966,11 @@ class EnvironmentVariableCollection implements vscode.EnvironmentVariableCollect
 			this.descriptionMap.set(key, value);
 			this._onDidChangeCollection.fire();
 		}
+	}
+
+	private clearDescription(scope?: vscode.EnvironmentVariableScope): void {
+		const key = this.getKey('', scope);
+		this.descriptionMap.delete(key);
 	}
 }
 
