@@ -46,7 +46,6 @@ export class ContentHoverController extends Disposable {
 		// Instantiate participants and sort them by `hoverOrdinal` which is relevant for rendering order.
 		this._participants = [];
 		for (const participant of HoverParticipantRegistry.getAll()) {
-			console.log('participant : ', participant);
 			this._participants.push(this._instantiationService.createInstance(participant, this._editor));
 		}
 		this._participants.sort((p1, p2) => p1.hoverOrdinal - p2.hoverOrdinal);

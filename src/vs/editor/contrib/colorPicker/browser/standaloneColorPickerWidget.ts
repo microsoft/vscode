@@ -25,9 +25,9 @@ import { Selection } from 'vs/editor/common/core/selection';
 import { IRange } from 'vs/editor/common/core/range';
 import { IModelService } from 'vs/editor/common/services/model';
 import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
+import { DefaultDocumentColorProvider } from 'vs/editor/contrib/colorPicker/browser/defaultDocumentColorProvider';
 import * as dom from 'vs/base/browser/dom';
 import 'vs/css!./colorPicker';
-import { DefaultDocumentColorProvider } from 'vs/editor/contrib/colorPicker/browser/defaultDocumentColorProvider';
 
 export class StandaloneColorPickerController extends Disposable implements IEditorContribution {
 
@@ -40,10 +40,10 @@ export class StandaloneColorPickerController extends Disposable implements IEdit
 		private readonly _editor: ICodeEditor,
 		@IContextKeyService _contextKeyService: IContextKeyService,
 		@IModelService private readonly _modelService: IModelService,
-		@ILanguageConfigurationService private readonly _languageConfigurationService: ILanguageConfigurationService,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
-		@ILanguageFeaturesService private readonly _languageFeatureService: ILanguageFeaturesService
+		@ILanguageFeaturesService private readonly _languageFeatureService: ILanguageFeaturesService,
+		@ILanguageConfigurationService private readonly _languageConfigurationService: ILanguageConfigurationService
 	) {
 		super();
 		this._standaloneColorPickerVisible = EditorContextKeys.standaloneColorPickerVisible.bindTo(_contextKeyService);
@@ -288,7 +288,7 @@ export class StandaloneColorPickerComputer extends Disposable implements IStanda
 			range: range,
 			color: { red: 0, green: 0, blue: 0, alpha: 1 }
 		};
-		const colorHoverResult: { colorHover: StandaloneColorPickerHover; foundInEditor: boolean } | null = await this._participant.createColorHover(colorInfo, this.languageFeaturesService.colorProvider, new DefaultDocumentColorProvider(this._modelService, this._languageConfigurationService));
+		const colorHoverResult: { colorHover: StandaloneColorPickerHover; foundInEditor: boolean } | null = await this._participant.createColorHover(colorInfo, new DefaultDocumentColorProvider(this._modelService, this._languageConfigurationService), this.languageFeaturesService.colorProvider);
 		if (!colorHoverResult) {
 			return null;
 		}
