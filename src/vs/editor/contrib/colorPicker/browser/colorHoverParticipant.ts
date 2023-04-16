@@ -160,7 +160,7 @@ async function createColorHover(participant: ColorHoverParticipant | StandaloneC
 	}
 	const colorDetectorData = colorDetector.getColorData(new Position(defaultColorInfo.range.startLineNumber, defaultColorInfo.range.startColumn));
 	const colorInfo = colorDetectorData ? colorDetectorData.colorInfo : defaultColorInfo;
-	const foundInEditor = colorDetectorData ? true : false;
+	const foundInEditor = !!colorDetectorData;
 	return { colorHover: await _createColorHover(participant, editor.getModel(), colorInfo, provider), foundInEditor: foundInEditor };
 }
 
