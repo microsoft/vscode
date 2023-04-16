@@ -138,6 +138,7 @@ async function _findColorPresentations(colorProviderRegistry: LanguageFeatureReg
 }
 
 CommandsRegistry.registerCommand('_executeDocumentColorProvider', function (accessor, ...args) {
+
 	const [resource] = args;
 	if (!(resource instanceof URI)) {
 		throw illegalArgument();

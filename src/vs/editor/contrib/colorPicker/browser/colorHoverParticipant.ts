@@ -170,7 +170,12 @@ async function createColorHover(participant: ColorHoverParticipant | StandaloneC
 	let foundColorProvider: DocumentColorProvider | null = null;
 	for (const colorData of colors.colorData) {
 		const colorInfo = colorData.colorInfo;
-		if (colorInfo.range === defaultColorInfo.range) {
+		console.log('colorInfo.range : ', colorInfo.range);
+		console.log('defaultColorInfo.range : ', defaultColorInfo.range);
+		// Not checking for equality, but checking that the current position is contained in another position
+		if (colorInfo.range.startLineNumber === defaultColorInfo.range.startLineNumber
+			&& defaultColorInfo.range.startColumn >= colorInfo.range.startColumn
+			&& defaultColorInfo.range.endColumn <= colorInfo.range.endColumn) {
 			// TODO: But this could be reassigned depending on if there are several providers giving information for the same range?
 			// How to deal with the case when several color infos are used
 			foundColorInfo = colorInfo;
@@ -178,6 +183,8 @@ async function createColorHover(participant: ColorHoverParticipant | StandaloneC
 		}
 	}
 	// When the variable existingColorInfo has been assigned, then use this variable, otherwise use the default color information
+	console.log('foundColorInfo : ', foundColorInfo);
+	console.log('foundColorProvider : ', foundColorProvider);
 	const colorInfo = foundColorInfo ? foundColorInfo : defaultColorInfo;
 	const colorProvider = foundColorProvider ? foundColorProvider : defaultColorProvider;
 	const foundInEditor = !!foundColorInfo;
