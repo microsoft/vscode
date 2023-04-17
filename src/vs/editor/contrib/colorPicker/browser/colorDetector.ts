@@ -143,7 +143,7 @@ export class ColorDetector extends Disposable implements IEditorContribution {
 		this.beginCompute();
 	}
 
-	private beginCompute(): void {
+	private async beginCompute(): Promise<void> {
 		this._computePromise = createCancelablePromise(async token => {
 			const model = this._editor.getModel();
 			if (!model) {
@@ -154,12 +154,15 @@ export class ColorDetector extends Disposable implements IEditorContribution {
 			this._debounceInformation.update(model, sw.elapsed());
 			return colorInfos;
 		});
-		this._computePromise.then((colorInfos) => {
+		const colorInfos = await this._computePromise;
+		try {
 			const colorData = this._isColorDecoratorsEnabled && (this._isDefaultColorDecoratorsEnabled || !colorInfos.usingDefaultDocumentColorProvider) ? colorInfos.colorData : [];
 			this.updateDecorations(colorData);
 			this.updateColorDecorators(colorData);
 			this._computePromise = null;
-		}, onUnexpectedError);
+		} catch (e) {
+			onUnexpectedError(e);
+		}
 	}
 
 	private stop(): void {

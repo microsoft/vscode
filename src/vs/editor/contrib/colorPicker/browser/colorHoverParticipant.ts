@@ -123,27 +123,26 @@ export class StandaloneColorPickerParticipant {
 		let foundColorProvider: DocumentColorProvider | null = null;
 		for (const colorData of colors.colorData) {
 			const colorInfo = colorData.colorInfo;
-			if (colorInfo.range.startLineNumber === defaultColorInfo.range.startLineNumber
-				&& defaultColorInfo.range.startColumn >= colorInfo.range.startColumn
-				&& defaultColorInfo.range.endColumn <= colorInfo.range.endColumn) {
+			if (Range.containsRange(colorInfo.range, defaultColorInfo.range)) {
 				foundColorInfo = colorInfo;
 				foundColorProvider = colorData.provider;
 			}
 		}
-		const colorInfo = foundColorInfo ? foundColorInfo : defaultColorInfo;
-		const colorProvider = foundColorProvider ? foundColorProvider : defaultColorProvider;
+		const colorInfo = foundColorInfo ?? defaultColorInfo;
+		const colorProvider = foundColorProvider ?? defaultColorProvider;
 		const foundInEditor = !!foundColorInfo;
 		return { colorHover: await _createColorHover(this, this._editor.getModel(), colorInfo, colorProvider), foundInEditor: foundInEditor };
 	}
 
-	public updateEditorModel(colorHoverData: StandaloneColorPickerHover): void {
+	public async updateEditorModel(colorHoverData: StandaloneColorPickerHover): Promise<void> {
 		if (!this._editor.hasModel()) {
 			return;
 		}
 		const colorPickerModel = colorHoverData.model;
 		let range = new Range(colorHoverData.range.startLineNumber, colorHoverData.range.startColumn, colorHoverData.range.endLineNumber, colorHoverData.range.endColumn);
 		if (this._color) {
-			_updateColorPresentations(this._editor.getModel(), colorPickerModel, this._color, range, colorHoverData).then(() => range = _updateEditorModel(this, this._editor, range, colorPickerModel));
+			await _updateColorPresentations(this._editor.getModel(), colorPickerModel, this._color, range, colorHoverData);
+			range = _updateEditorModel(this, this._editor, range, colorPickerModel);
 		}
 	}
 
@@ -208,8 +207,9 @@ function renderHoverParts(participant: ColorHoverParticipant | StandaloneColorPi
 			participant.color = color;
 		}));
 	} else {
-		disposables.add(model.onColorFlushed((color: Color) => {
-			_updateColorPresentations(editorModel, model, color, range, colorHover).then(() => range = _updateEditorModel(participant, editor, range, model, context));
+		disposables.add(model.onColorFlushed(async (color: Color) => {
+			await _updateColorPresentations(editorModel, model, color, range, colorHover);
+			range = _updateEditorModel(participant, editor, range, model, context);
 		}));
 	}
 	disposables.add(model.onDidChangeColor((color: Color) => { _updateColorPresentations(editorModel, model, color, range, colorHover); }));
@@ -257,7 +257,7 @@ function _updateEditorModel(participant: ColorHoverParticipant | StandaloneColor
 }
 
 async function _updateColorPresentations(editorModel: ITextModel, colorPickerModel: ColorPickerModel, color: Color, range: Range, colorHover: ColorHover | StandaloneColorPickerHover) {
-	return getColorPresentations(editorModel, {
+	const colorPresentations = await getColorPresentations(editorModel, {
 		range: range,
 		color: {
 			red: color.rgba.r / 255,
@@ -265,7 +265,6 @@ async function _updateColorPresentations(editorModel: ITextModel, colorPickerMod
 			blue: color.rgba.b / 255,
 			alpha: color.rgba.a
 		}
-	}, colorHover.provider, CancellationToken.None).then((colorPresentations) => {
-		colorPickerModel.colorPresentations = colorPresentations || [];
-	});
+	}, colorHover.provider, CancellationToken.None);
+	colorPickerModel.colorPresentations = colorPresentations || [];
 }

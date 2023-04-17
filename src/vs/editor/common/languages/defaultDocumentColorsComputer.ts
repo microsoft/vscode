@@ -40,12 +40,11 @@ function _findRange(model: IDocumentColorComputerTarget, match: RegExpMatchArray
 		return;
 	}
 	const startPosition = model.positionAt(index);
-	const endPosition = model.positionAt(index + length);
 	const range: IRange = {
 		startLineNumber: startPosition.lineNumber,
 		startColumn: startPosition.column,
-		endLineNumber: endPosition.lineNumber,
-		endColumn: endPosition.column
+		endLineNumber: startPosition.lineNumber,
+		endColumn: startPosition.column + length
 	};
 	return range;
 }

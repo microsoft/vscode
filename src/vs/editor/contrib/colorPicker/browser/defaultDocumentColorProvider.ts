@@ -6,7 +6,7 @@
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Color, RGBA } from 'vs/base/common/color';
 import { ITextModel } from 'vs/editor/common/model';
-import { DocumentColorProvider, IColor, IColorInformation, IColorPresentation, ProviderResult } from 'vs/editor/common/languages';
+import { DocumentColorProvider, IColor, IColorInformation, IColorPresentation } from 'vs/editor/common/languages';
 import { EditorWorkerClient } from 'vs/editor/browser/services/editorWorkerService';
 import { IModelService } from 'vs/editor/common/services/model';
 import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
@@ -25,13 +25,11 @@ export class DefaultDocumentColorProvider implements DocumentColorProvider {
 		this._editorWorkerClient = new EditorWorkerClient(modelService, false, 'editorWorkerService', languageConfigurationService);
 	}
 
-	provideDocumentColors(model: ITextModel, _token: CancellationToken): ProviderResult<IColorInformation[]> {
-		return this._editorWorkerClient.computeDefaultDocumentColors(model.uri).then((documentColors) => {
-			return documentColors;
-		});
+	async provideDocumentColors(model: ITextModel, _token: CancellationToken): Promise<IColorInformation[] | null> {
+		return this._editorWorkerClient.computeDefaultDocumentColors(model.uri);
 	}
 
-	provideColorPresentations(_model: ITextModel, colorInfo: IColorInformation, _token: CancellationToken): ProviderResult<IColorPresentation[]> {
+	provideColorPresentations(_model: ITextModel, colorInfo: IColorInformation, _token: CancellationToken): IColorPresentation[] {
 		const range = colorInfo.range;
 		const colorFromInfo: IColor = colorInfo.color;
 		const alpha = colorFromInfo.alpha;
