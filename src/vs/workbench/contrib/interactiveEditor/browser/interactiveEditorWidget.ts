@@ -170,7 +170,7 @@ class InteractiveEditorWidget {
 	public acceptInput: () => void = InteractiveEditorWidget._noop;
 	private _cancelInput: () => void = InteractiveEditorWidget._noop;
 
-	private _linkNode: StatusLink;
+	private _statusLink: StatusLink;
 
 	constructor(
 		parentEditor: ICodeEditor,
@@ -246,7 +246,11 @@ class InteractiveEditorWidget {
 		this._previewCreateTitle = this._store.add(_instantiationService.createInstance(ResourceLabel, this._elements.previewCreateTitle, { supportIcons: true }));
 		this._previewCreateEditor = this._store.add(_instantiationService.createInstance(EmbeddedCodeEditorWidget, this._elements.previewCreate, _previewEditorEditorOptions, codeEditorWidgetOptions, parentEditor));
 
-		this._linkNode = new StatusLink(this._elements.statusLink);
+		this._statusLink = new StatusLink(this._elements.statusLink);
+	}
+
+	get statusLink() {
+		return this._statusLink;
 	}
 
 	dispose(): void {
@@ -387,23 +391,22 @@ class InteractiveEditorWidget {
 		this._onDidChangeHeight.fire();
 	}
 
-	showLink() {
-		this._linkNode.domNode.style.display = 'inline';
-		return this._linkNode;
+	showLink(): void {
+		this._statusLink.domNode.style.display = 'inline';
 	}
 
-	hideLink() {
-		this._linkNode.domNode.style.display = 'none';
+	hideLink(): void {
+		this._statusLink.domNode.style.display = 'none';
 	}
 
-	updateMessage(message: string, oneLine: boolean = false, classes?: string[], resetAfter?: number) {
+	updateMessage(message: string, isMessageReply: boolean = false, classes?: string[], resetAfter?: number) {
 		const isTempMessage = typeof resetAfter === 'number';
 		if (isTempMessage && !this._elements.statusLabel.dataset['state']) {
 			const messageNow = this._elements.statusLabel.innerText;
 			const classes = Array.from(this._elements.statusLabel.classList.values());
 			setTimeout(() => {
 				if (messageNow) {
-					this.updateMessage(messageNow, oneLine, classes);
+					this.updateMessage(messageNow, isMessageReply, classes);
 				} else {
 					reset(this._elements.statusLabel);
 				}
@@ -413,17 +416,10 @@ class InteractiveEditorWidget {
 		this._elements.status.classList.toggle('hidden', false);
 
 		reset(this._elements.statusLabel, message);
-
-		if (oneLine) {
-			this._elements.statusLabel.style.textOverflow = 'ellipsis';
-			this._elements.statusLabel.style.overflow = 'hidden';
-			this._elements.statusLabel.style.webkitLineClamp = '1';
-			this._elements.statusLabel.style.display = 'block';
-			this._elements.statusLabel.style.maxHeight = '1.5em';
-			this._elements.statusLabel.style.maxWidth = '100%';
-			this._elements.statusLabel.style.whiteSpace = 'nowrap';
-		}
 		this._elements.statusLabel.className = `label ${(classes ?? []).join(' ')}`;
+		if (isMessageReply) {
+			this._elements.statusLabel.classList.add('message');
+		}
 		if (isTempMessage) {
 			this._elements.statusLabel.dataset['state'] = 'temp';
 		} else {
@@ -631,5 +627,3 @@ export class InteractiveEditorZoneWidget extends ZoneWidget {
 		super.hide();
 	}
 }
-
-

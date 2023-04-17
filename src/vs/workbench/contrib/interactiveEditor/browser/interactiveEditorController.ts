@@ -5,7 +5,7 @@
 
 import 'vs/css!./interactiveEditor';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
-import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
+import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { IActiveCodeEditor, ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { Range } from 'vs/editor/common/core/range';
 import { IEditorContribution, IEditorDecorationsCollection, ScrollType } from 'vs/editor/common/editorCommon';
@@ -262,7 +262,7 @@ export class InteractiveEditorController implements IEditorContribution {
 	private _ctsSession: CancellationTokenSource = new CancellationTokenSource();
 	private _ctsRequest?: CancellationTokenSource;
 
-	private _onLinkClickListener: IDisposable | null = null;
+	private _onStatusLinkClickListener: IDisposable | null = null;
 
 	constructor(
 		private readonly _editor: ICodeEditor,
@@ -295,10 +295,14 @@ export class InteractiveEditorController implements IEditorContribution {
 		return InteractiveEditorController.ID;
 	}
 
-	removeLinkUpdateMessage(message: string, oneLineMessage: boolean = false, classes?: string[] | undefined, resetAfter?: number | undefined): void {
-		this._onLinkClickListener?.dispose();
-		this._zone.widget.hideLink();
-		this._zone.widget.updateMessage(message, oneLineMessage, classes, resetAfter);
+	updateLinkAndMessage(message: string, isMessageReply: boolean = false, classes?: string[] | undefined, resetAfter?: number | undefined): void {
+		if (isMessageReply) {
+			this._zone.widget.showLink();
+		} else {
+			this._onStatusLinkClickListener?.dispose();
+			this._zone.widget.hideLink();
+		}
+		this._zone.widget.updateMessage(message, isMessageReply, classes, resetAfter);
 	}
 
 	async run(initialRange?: Range): Promise<void> {
@@ -370,7 +374,7 @@ export class InteractiveEditorController implements IEditorContribution {
 			store.add(this._instaService.invokeFunction(installSlashCommandSupport, this._zone.widget.inputEditor as IActiveCodeEditor, session.slashCommands));
 		}
 
-		this.removeLinkUpdateMessage(session.message ?? localize('welcome.1', "AI-generated code may be incorrect."));
+		this.updateLinkAndMessage(session.message ?? localize('welcome.1', "AI-generated code may be incorrect."));
 
 		// CANCEL when input changes
 		this._editor.onDidChangeModel(this._ctsSession.cancel, this._ctsSession, store);
@@ -486,7 +490,7 @@ export class InteractiveEditorController implements IEditorContribution {
 				if (!isCancellationError(e)) {
 					this._logService.error('[IE] ERROR during request', provider.debugName);
 					this._logService.error(e);
-					this.removeLinkUpdateMessage(toErrorMessage(e), false, ['error']);
+					this.updateLinkAndMessage(toErrorMessage(e), false, ['error']);
 					// statusWidget
 					continue;
 				}
@@ -504,7 +508,7 @@ export class InteractiveEditorController implements IEditorContribution {
 
 			if (!reply) {
 				this._logService.trace('[IE] NO reply or edits', provider.debugName);
-				this.removeLinkUpdateMessage(localize('empty', "No results, please refine your input and try again."), false, ['warn']);
+				this.updateLinkAndMessage(localize('empty', "No results, please refine your input and try again."), false, ['warn']);
 				continue;
 			}
 
@@ -514,13 +518,12 @@ export class InteractiveEditorController implements IEditorContribution {
 			if (reply.type === 'message') {
 				this._logService.info('[IE] received a MESSAGE, continuing outside editor', provider.debugName);
 				const messageReply = reply.message.value;
-				this._zone.widget.updateMessage(messageReply, true);
-				const redirectToChatLink = this._zone.widget.showLink();
+				this.updateLinkAndMessage(messageReply, true);
 				if (!this._zone.widget.isStatusLabelOverflowing()) {
-					this._onLinkClickListener?.dispose();
+					this._onStatusLinkClickListener?.dispose();
 					this._zone.widget.hideLink();
 				}
-				this._onLinkClickListener = redirectToChatLink.onClicked(() => {
+				this._onStatusLinkClickListener = this._zone.widget.statusLink.onClicked(() => {
 					this._instaService.invokeFunction(showMessageResponse, request.prompt, messageReply);
 				});
 				continue;
@@ -610,7 +613,7 @@ export class InteractiveEditorController implements IEditorContribution {
 				}
 				const linesChanged = addRemoveCount + lineSet.size;
 
-				this.removeLinkUpdateMessage(linesChanged === 1
+				this.updateLinkAndMessage(linesChanged === 1
 					? localize('lines.1', "Generated reply and changed 1 line.")
 					: localize('lines.N', "Generated reply and changed {0} lines.", linesChanged)
 				);
@@ -722,7 +725,7 @@ export class InteractiveEditorController implements IEditorContribution {
 			const kind = helpful ? InteractiveEditorResponseFeedbackKind.Helpful : InteractiveEditorResponseFeedbackKind.Unhelpful;
 			this._lastEditState.provider.handleInteractiveEditorResponseFeedback?.(this._lastEditState.session, this._lastEditState.response.raw, kind);
 			this._ctxLastFeedbackKind.set(helpful ? 'helpful' : 'unhelpful');
-			this.removeLinkUpdateMessage('Thank you for your feedback!', false, undefined, 1250);
+			this.updateLinkAndMessage('Thank you for your feedback!', false, undefined, 1250);
 		}
 	}
 

@@ -117,6 +117,12 @@
 	font-size: 12px;
 }
 
+.monaco-editor .interactive-editor .status .label.message {
+	text-overflow : ellipsis;
+	overflow : hidden;
+	white-space : nowrap;
+}
+
 .monaco-editor .interactive-editor .status .label A {
 	color: var(--vscode-textLink-foreground);
 	cursor: pointer;
