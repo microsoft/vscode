@@ -42,6 +42,7 @@ import { IInteractiveSessionWidgetService } from 'vs/workbench/contrib/interacti
 export class CommandsQuickAccessProvider extends AbstractEditorCommandsQuickAccessProvider {
 	private static SEMANTIC_SIMILARITY_MAX_PICKS = 3;
 	private static SEMANTIC_SIMILARITY_THRESHOLD = 0.8;
+	private static SEMANTIC_SIMILARITY_DEBOUNCE = 200;
 
 	// TODO: bring this back once we have a chosen strategy for FastAndSlowPicks where Fast is also Promise based
 	// If extensions are not yet registered, we wait for a little moment to give them
@@ -157,7 +158,7 @@ export class CommandsQuickAccessProvider extends AbstractEditorCommandsQuickAcce
 		let scores: number[];
 		try {
 			// Wait a bit to see if the user is still typing
-			await timeout(800, token);
+			await timeout(CommandsQuickAccessProvider.SEMANTIC_SIMILARITY_DEBOUNCE, token);
 			scores = await this.semanticSimilarityService.getSimilarityScore(filter, format, token);
 		} catch (e) {
 			return [];
