@@ -5,7 +5,7 @@
 
 import 'vs/css!./interactiveEditor';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { DisposableStore, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { ICodeEditor, IDiffEditorConstructionOptions } from 'vs/editor/browser/editorBrowser';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { IRange, Range } from 'vs/editor/common/core/range';
@@ -17,7 +17,7 @@ import { assertType } from 'vs/base/common/types';
 import { CTX_INTERACTIVE_EDITOR_FOCUSED, CTX_INTERACTIVE_EDITOR_INNER_CURSOR_FIRST, CTX_INTERACTIVE_EDITOR_INNER_CURSOR_LAST, CTX_INTERACTIVE_EDITOR_EMPTY, CTX_INTERACTIVE_EDITOR_OUTER_CURSOR_POSITION, CTX_INTERACTIVE_EDITOR_VISIBLE, MENU_INTERACTIVE_EDITOR_WIDGET, MENU_INTERACTIVE_EDITOR_WIDGET_STATUS } from 'vs/workbench/contrib/interactiveEditor/common/interactiveEditor';
 import { ITextModel } from 'vs/editor/common/model';
 import { Dimension, addDisposableListener, getTotalHeight, getTotalWidth, h, reset, append } from 'vs/base/browser/dom';
-import { Event, MicrotaskEmitter } from 'vs/base/common/event';
+import { Emitter, Event, MicrotaskEmitter } from 'vs/base/common/event';
 import { IEditorConstructionOptions } from 'vs/editor/browser/config/editorConfiguration';
 import { ICodeEditorWidgetOptions } from 'vs/editor/browser/widget/codeEditorWidget';
 import { EditorExtensionsRegistry } from 'vs/editor/browser/editorExtensions';
@@ -99,6 +99,22 @@ const _previewEditorEditorOptions: IDiffEditorConstructionOptions = {
 	diffAlgorithm: 'smart',
 };
 
+class StatusLink extends Disposable {
+	public domNode: HTMLAnchorElement;
+	private readonly _onClicked = this._register(new Emitter<void>());
+	public readonly onClicked = this._onClicked.event;
+
+	constructor(container: HTMLDivElement) {
+		super();
+		const linkNode = document.createElement('a');
+		linkNode.innerText = 'View in chat';
+		this.domNode = append(container, linkNode);
+		this.domNode.onclick = () => {
+			this._onClicked.fire();
+		};
+	}
+}
+
 class InteractiveEditorWidget {
 
 	private static _modelPool: number = 1;
@@ -154,7 +170,7 @@ class InteractiveEditorWidget {
 	public acceptInput: () => void = InteractiveEditorWidget._noop;
 	private _cancelInput: () => void = InteractiveEditorWidget._noop;
 
-	private _linkNode: HTMLAnchorElement;
+	private _linkNode: StatusLink;
 
 	constructor(
 		parentEditor: ICodeEditor,
@@ -230,9 +246,7 @@ class InteractiveEditorWidget {
 		this._previewCreateTitle = this._store.add(_instantiationService.createInstance(ResourceLabel, this._elements.previewCreateTitle, { supportIcons: true }));
 		this._previewCreateEditor = this._store.add(_instantiationService.createInstance(EmbeddedCodeEditorWidget, this._elements.previewCreate, _previewEditorEditorOptions, codeEditorWidgetOptions, parentEditor));
 
-		const linkNode = document.createElement('a');
-		linkNode.innerText = 'View in chat';
-		this._linkNode = append(this._elements.statusLink, linkNode);
+		this._linkNode = new StatusLink(this._elements.statusLink);
 	}
 
 	dispose(): void {
@@ -374,15 +388,12 @@ class InteractiveEditorWidget {
 	}
 
 	showLink() {
-		console.log('inside of show link');
-		this._linkNode.style.display = 'inline';
-		console.log('this._linkNode.style.display : ', this._linkNode.style.display);
+		this._linkNode.domNode.style.display = 'inline';
 		return this._linkNode;
 	}
 
-	removeLink() {
-		console.log('removing the link');
-		this._linkNode.style.display = 'none';
+	hideLink() {
+		this._linkNode.domNode.style.display = 'none';
 	}
 
 	updateMessage(message: string, oneLine: boolean = false, classes?: string[], resetAfter?: number) {
@@ -620,3 +631,5 @@ export class InteractiveEditorZoneWidget extends ZoneWidget {
 		super.hide();
 	}
 }
+
+

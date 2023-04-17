@@ -105,10 +105,10 @@
 }
 
 .monaco-editor .interactive-editor .status .link {
-	font-size: 12px;
-	display: inline-block;
 	color: var(--vscode-textLink-foreground);
 	cursor: pointer;
+	display: inline-block;
+	font-size: 12px;
 	padding-left: 10px;
 	white-space: nowrap;
 }
