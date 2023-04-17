@@ -361,7 +361,7 @@ export class InteractiveEditorController implements IEditorContribution {
 		if (session.slashCommands) {
 			store.add(this._instaService.invokeFunction(installSlashCommandSupport, this._zone.widget.inputEditor as IActiveCodeEditor, session.slashCommands));
 		}
-
+		this._zone.widget.removeLink();
 		this._zone.widget.updateMessage(session.message ?? localize('welcome.1', "AI-generated code may be incorrect."));
 
 		// CANCEL when input changes
@@ -411,9 +411,8 @@ export class InteractiveEditorController implements IEditorContribution {
 		store.add(roundStore);
 
 		do {
-
+			console.log('inisde of do');
 			round += 1;
-
 			const wholeRange = wholeRangeDecoration.getRange(0);
 			if (!wholeRange) {
 				// nuked whole file contents?
@@ -478,6 +477,7 @@ export class InteractiveEditorController implements IEditorContribution {
 				if (!isCancellationError(e)) {
 					this._logService.error('[IE] ERROR during request', provider.debugName);
 					this._logService.error(e);
+					this._zone.widget.removeLink();
 					this._zone.widget.updateMessage(toErrorMessage(e), false, ['error']);
 					// statusWidget
 					continue;
@@ -496,6 +496,7 @@ export class InteractiveEditorController implements IEditorContribution {
 
 			if (!reply) {
 				this._logService.trace('[IE] NO reply or edits', provider.debugName);
+				this._zone.widget.removeLink();
 				this._zone.widget.updateMessage(localize('empty', "No results, please refine your input and try again."), false, ['warn']);
 				continue;
 			}
@@ -508,7 +509,9 @@ export class InteractiveEditorController implements IEditorContribution {
 				this._zone.widget.updateMessage(reply.message.value, true);
 				const messageReply = reply.message.value;
 				const viewInChatLink = this._zone.widget.showLink();
+				console.log('viewInChatLink : ', viewInChatLink);
 				if (!this._zone.widget.isStatusLabelOverflowing()) {
+					console.log('inside of the case when removing the link');
 					this._zone.widget.removeLink();
 				}
 				viewInChatLink.onclick = () => {
@@ -600,7 +603,7 @@ export class InteractiveEditorController implements IEditorContribution {
 					}
 				}
 				const linesChanged = addRemoveCount + lineSet.size;
-
+				this._zone.widget.removeLink();
 				this._zone.widget.updateMessage(linesChanged === 1
 					? localize('lines.1', "Generated reply and changed 1 line.")
 					: localize('lines.N', "Generated reply and changed {0} lines.", false, linesChanged)
@@ -713,6 +716,7 @@ export class InteractiveEditorController implements IEditorContribution {
 			const kind = helpful ? InteractiveEditorResponseFeedbackKind.Helpful : InteractiveEditorResponseFeedbackKind.Unhelpful;
 			this._lastEditState.provider.handleInteractiveEditorResponseFeedback?.(this._lastEditState.session, this._lastEditState.response.raw, kind);
 			this._ctxLastFeedbackKind.set(helpful ? 'helpful' : 'unhelpful');
+			this._zone.widget.removeLink();
 			this._zone.widget.updateMessage('Thank you for your feedback!', false, undefined, 1250);
 		}
 	}

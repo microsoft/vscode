@@ -374,11 +374,14 @@ class InteractiveEditorWidget {
 	}
 
 	showLink() {
-		this._linkNode.style.display = 'block';
+		console.log('inside of show link');
+		this._linkNode.style.display = 'inline';
+		console.log('this._linkNode.style.display : ', this._linkNode.style.display);
 		return this._linkNode;
 	}
 
 	removeLink() {
+		console.log('removing the link');
 		this._linkNode.style.display = 'none';
 	}
 
