@@ -601,7 +601,6 @@ export abstract class ExtHostDebugServiceBase implements IExtHostDebugService, E
 	}
 
 	public async $acceptStackFrameFocus(focusDto: IThreadFocusDto | IStackFrameFocusDto): Promise<void> {
-		//
 		let focus: vscode.ThreadFocus | vscode.StackFrameFocus;
 		const session = focusDto.sessionId ? await this.getSession(focusDto.sessionId) : undefined;
 		if (!session) {

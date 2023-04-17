@@ -8,7 +8,6 @@ declare module 'vscode' {
 	// See https://github.com/microsoft/vscode/issues/63943
 
 	export interface ThreadFocus {
-		// discriminator
 		kind: 'thread';
 
 		/**
@@ -23,7 +22,6 @@ declare module 'vscode' {
 	}
 
 	export interface StackFrameFocus {
-		// discriminator
 		kind: 'stackFrame';
 
 		/**
