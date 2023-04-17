@@ -3,14 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { VSBuffer } from 'vs/base/common/buffer';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Codicon } from 'vs/base/common/codicons';
-import { ThemeIcon } from 'vs/base/common/themables';
 import { Color } from 'vs/base/common/color';
 import { VSDataTransfer } from 'vs/base/common/dataTransfer';
 import { Event } from 'vs/base/common/event';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { IDisposable } from 'vs/base/common/lifecycle';
+import { ThemeIcon } from 'vs/base/common/themables';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { ISingleEditOperation } from 'vs/editor/common/core/editOperation';
 import { IPosition, Position } from 'vs/editor/common/core/position';
@@ -89,6 +90,8 @@ export interface IBackgroundTokenizer extends IDisposable {
 	 * when the change does not even propagate to that viewport.
 	 */
 	requestTokens(startLineNumber: number, endLineNumberExclusive: number): void;
+
+	reportMismatchingTokens?(lineNumber: number): void;
 }
 
 
@@ -96,6 +99,11 @@ export interface IBackgroundTokenizer extends IDisposable {
  * @internal
  */
 export interface ITokenizationSupport {
+	/**
+	 * If true, the background tokenizer will only be used to verify tokens against the default background tokenizer.
+	 * Used for debugging.
+	 */
+	readonly backgroundTokenizerShouldOnlyVerifyTokens?: boolean;
 
 	getInitialState(): IState;
 
@@ -1217,8 +1225,6 @@ export interface DocumentRangeFormattingEditProvider {
 
 	readonly displayName?: string;
 
-	readonly canFormatMultipleRanges: boolean;
-
 	/**
 	 * Provide formatting edits for a range in a document.
 	 *
@@ -1227,6 +1233,8 @@ export interface DocumentRangeFormattingEditProvider {
 	 * of the range to full syntax nodes.
 	 */
 	provideDocumentRangeFormattingEdits(model: model.ITextModel, range: Range, options: FormattingOptions, token: CancellationToken): ProviderResult<TextEdit[]>;
+
+	provideDocumentRangesFormattingEdits?(model: model.ITextModel, ranges: Range[], options: FormattingOptions, token: CancellationToken): ProviderResult<TextEdit[]>;
 }
 /**
  * The document formatting provider interface defines the contract between extensions and
@@ -1471,7 +1479,11 @@ export interface WorkspaceFileEditOptions {
 	folder?: boolean;
 	skipTrashBin?: boolean;
 	maxSize?: number;
-	contentsBase64?: string;
+
+	/**
+	 * @internal
+	 */
+	contents?: Promise<VSBuffer>;
 }
 
 export interface IWorkspaceFileEdit {
@@ -1910,6 +1922,8 @@ export enum ExternalUriOpenerPriority {
  * @internal
  */
 export interface DocumentOnDropEdit {
+	readonly label: string;
+
 	insertText: string | { snippet: string };
 	additionalEdit?: WorkspaceEdit;
 }
@@ -1918,5 +1932,8 @@ export interface DocumentOnDropEdit {
  * @internal
  */
 export interface DocumentOnDropEditProvider {
+	readonly id: string;
+	readonly dropMimeTypes?: readonly string[];
+
 	provideDocumentOnDropEdits(model: model.ITextModel, position: IPosition, dataTransfer: VSDataTransfer, token: CancellationToken): ProviderResult<DocumentOnDropEdit>;
 }

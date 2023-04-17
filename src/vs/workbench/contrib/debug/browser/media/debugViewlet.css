@@ -108,6 +108,7 @@
 .debug-pane .debug-call-stack .thread,
 .debug-pane .debug-call-stack .session {
 	display: flex;
+	align-items: center;
 }
 
 .debug-pane .debug-call-stack .thread > .name,

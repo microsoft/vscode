@@ -72,18 +72,18 @@
   optionalDependencies:
     "@vscode/windows-ca-certs" "^0.3.1"
 
-"@vscode/ripgrep@^1.15.0":
-  version "1.15.0"
-  resolved "https://registry.yarnpkg.com/@vscode/ripgrep/-/ripgrep-1.15.0.tgz#d6fec68d7c44d594967f21a6e6c97416cc7fb2bc"
-  integrity sha512-qbLYP3XPTfS5a80+WnGvDLhsD01LDrs03zjbbtWWnvwt8G9hP3j8mc3ckaIid7pj86MBSTyUb/ECaIWmJIGBYw==
+"@vscode/ripgrep@^1.15.2":
+  version "1.15.2"
+  resolved "https://registry.yarnpkg.com/@vscode/ripgrep/-/ripgrep-1.15.2.tgz#85b55181353d6d204210e64e03853c5e2ee6edd9"
+  integrity sha512-8zmyoxV6F+CY1Rinaq7LO/bGShaX2+B333X+Nqo984nC6jg2OvfZtQHzU+PKNQte2fjhm9h2ZlZTufnJxHaX9w==
   dependencies:
     https-proxy-agent "^5.0.0"
     proxy-from-env "^1.1.0"
 
-"@vscode/spdlog@^0.13.8":
-  version "0.13.8"
-  resolved "https://registry.yarnpkg.com/@vscode/spdlog/-/spdlog-0.13.8.tgz#6136438e149f90eeb9d493d7b396866a542e1229"
-  integrity sha512-yYgiAF2eOFJJRvDGdB3b7LNNS+CTdIkmHmAYUr8RaAu+aJlCsRkfCdMS/jisnyHzVLYlE4bZYn/gkAbROtEeYw==
+"@vscode/spdlog@^0.13.10":
+  version "0.13.10"
+  resolved "https://registry.yarnpkg.com/@vscode/spdlog/-/spdlog-0.13.10.tgz#5476853b968a1bcc389b92175d11e636464858e8"
+  integrity sha512-BHJN/r2XurLDR0doBhyQ5b+DUjFjqwnOcD4ZjW/7MkuShO+Wn5KVKOl6x/xQLCAlOlQqVVe42n2A7FwuIFpkWw==
   dependencies:
     bindings "^1.5.0"
     mkdirp "^0.5.5"
@@ -101,10 +101,17 @@
   dependencies:
     node-addon-api "^3.0.2"
 
-"@vscode/windows-registry@1.0.6":
-  version "1.0.6"
-  resolved "https://registry.yarnpkg.com/@vscode/windows-registry/-/windows-registry-1.0.6.tgz#8b9fb9a55bf5a0be4ea11849c45ae94c6910e3e4"
-  integrity sha512-ZW5bz9F3Ta6zsikce2dchyruF3QsRyWYKOJ2dEicS+inReD/oE8Um+KsLVcvrjIb44aSYpsm64DIUmMl15ujtg==
+"@vscode/windows-process-tree@0.4.2":
+  version "0.4.2"
+  resolved "https://registry.yarnpkg.com/@vscode/windows-process-tree/-/windows-process-tree-0.4.2.tgz#54d010fdeb06dfe3a9c6d58fcb3ed9acfc962f33"
+  integrity sha512-b20865s1HG1VtGt887KrB1blwFS6p4L1Fl1o/WplO9j7sGBle8sLqkNnGXbCaRNgdIgfXtitmzG366FVynJZdQ==
+  dependencies:
+    nan "^2.17.0"
+
+"@vscode/windows-registry@1.0.10":
+  version "1.0.10"
+  resolved "https://registry.yarnpkg.com/@vscode/windows-registry/-/windows-registry-1.0.10.tgz#17e4e2f8fdd41990206d1bab2daf99c803206247"
+  integrity sha512-n2rLdTgv95fQUpDxZqgAURg9neQGymtOKkLW4eYP2SODmaxoL2WzgrxEz1kW0w5TI+J4tsPeuZylpRfrDJKQWw==
 
 agent-base@4:
   version "4.2.0"
@@ -823,13 +830,6 @@ wide-align@^1.1.0:
   integrity sha512-eDMORYaPNZ4sQIuuYPDHdQvf4gyCF9rEEV/yPxGfwPkRodwEgiMUUXTx/dex+Me0wxx53S+NgUHaP7y3MGlDmg==
   dependencies:
     string-width "^1.0.2 || 2 || 3 || 4"
-
-windows-process-tree@0.4.0:
-  version "0.4.0"
-  resolved "https://registry.yarnpkg.com/windows-process-tree/-/windows-process-tree-0.4.0.tgz#31ac49c5da557e628ce7e37a5800972173d3349a"
-  integrity sha512-9LunDnc1WwuhyLeTAXMFX8wbActGJtDCBaiapQXFYk/nO4W4X9YxOKV5g/lQL3XX69QYxveDbjVVrdnTt1qqCQ==
-  dependencies:
-    nan "^2.17.0"
 
 wrappy@1:
   version "1.0.2"

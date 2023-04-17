@@ -109,10 +109,10 @@ flakySuite('Native Modules (all platforms)', () => {
 
 (!isWindows ? suite.skip : suite)('Native Modules (Windows)', () => {
 
-	(process.type === 'renderer' ? test.skip /* TODO@electron module is not context aware yet and thus cannot load in Electron renderer used by tests */ : test)('windows-mutex', async () => {
-		const mutex = await import('windows-mutex');
-		assert.ok(mutex && typeof mutex.isActive === 'function', testErrorMessage('windows-mutex'));
-		assert.ok(typeof mutex.isActive === 'function', testErrorMessage('windows-mutex'));
+	(process.type === 'renderer' ? test.skip /* TODO@electron module is not context aware yet and thus cannot load in Electron renderer used by tests */ : test)('@vscode/windows-mutex', async () => {
+		const mutex = await import('@vscode/windows-mutex');
+		assert.ok(mutex && typeof mutex.isActive === 'function', testErrorMessage('@vscode/windows-mutex'));
+		assert.ok(typeof mutex.isActive === 'function', testErrorMessage('@vscode/windows-mutex'));
 	});
 
 	test('windows-foreground-love', async () => {
@@ -123,16 +123,16 @@ flakySuite('Native Modules (all platforms)', () => {
 		assert.ok(typeof result === 'boolean', testErrorMessage('windows-foreground-love'));
 	});
 
-	test('windows-process-tree', async () => {
-		const processTree = await import('windows-process-tree');
-		assert.ok(typeof processTree.getProcessTree === 'function', testErrorMessage('windows-process-tree'));
+	test('@vscode/windows-process-tree', async () => {
+		const processTree = await import('@vscode/windows-process-tree');
+		assert.ok(typeof processTree.getProcessTree === 'function', testErrorMessage('@vscode/windows-process-tree'));
 
 		return new Promise((resolve, reject) => {
 			processTree.getProcessTree(process.pid, tree => {
 				if (tree) {
 					resolve();
 				} else {
-					reject(new Error(testErrorMessage('windows-process-tree')));
+					reject(new Error(testErrorMessage('@vscode/windows-process-tree')));
 				}
 			});
 		});

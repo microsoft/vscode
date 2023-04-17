@@ -1109,6 +1109,31 @@ declare namespace monaco.editor {
 	 */
 	export function registerLinkOpener(opener: ILinkOpener): IDisposable;
 
+	/**
+	 * Represents an object that can handle editor open operations (e.g. when "go to definition" is called
+	 * with a resource other than the current model).
+	 */
+	export interface ICodeEditorOpener {
+		/**
+		 * Callback that is invoked when a resource other than the current model should be opened (e.g. when "go to definition" is called).
+		 * The callback should return `true` if the request was handled and `false` otherwise.
+		 * @param source The code editor instance that initiated the request.
+		 * @param resource The Uri of the resource that should be opened.
+		 * @param selectionOrPosition An optional position or selection inside the model corresponding to `resource` that can be used to set the cursor.
+		 */
+		openCodeEditor(source: ICodeEditor, resource: Uri, selectionOrPosition?: IRange | IPosition): boolean | Promise<boolean>;
+	}
+
+	/**
+	 * Registers a handler that is called when a resource other than the current model should be opened in the editor (e.g. "go to definition").
+	 * The handler callback should return `true` if the request was handled and `false` otherwise.
+	 *
+	 * Returns a disposable that can unregister the opener again.
+	 *
+	 * If no handler is registered the default behavior is to do nothing for models other than the currently attached one.
+	 */
+	export function registerEditorOpener(opener: ICodeEditorOpener): IDisposable;
+
 	export type BuiltinTheme = 'vs' | 'vs-dark' | 'hc-black' | 'hc-light';
 
 	export interface IStandaloneThemeData {
@@ -2805,7 +2830,7 @@ declare namespace monaco.editor {
 		/**
 		 * Replace all previous decorations with `newDecorations`.
 		 */
-		set(newDecorations: IModelDeltaDecoration[]): void;
+		set(newDecorations: readonly IModelDeltaDecoration[]): string[];
 		/**
 		 * Remove all previous decorations.
 		 */
@@ -4621,10 +4646,15 @@ declare namespace monaco.editor {
 	 */
 	export interface IDropIntoEditorOptions {
 		/**
-		 * Enable the dropping into editor.
+		 * Enable dropping into editor.
 		 * Defaults to true.
 		 */
 		enabled?: boolean;
+		/**
+		 * Controls if a widget is shown after a drop.
+		 * Defaults to 'afterDrop'.
+		 */
+		showDropSelector?: 'afterDrop' | 'never';
 	}
 
 	export enum EditorOption {
@@ -5619,6 +5649,10 @@ declare namespace monaco.editor {
 		 * Change the scroll position of the editor's viewport.
 		 */
 		setScrollPosition(position: INewScrollPosition, scrollType?: ScrollType): void;
+		/**
+		 * Check if the editor is currently scrolling towards a different scroll position.
+		 */
+		hasPendingScrollAnimation(): boolean;
 		/**
 		 * Get an action that is a contribution to this editor.
 		 * @id Unique identifier of the contribution.
@@ -7212,7 +7246,6 @@ declare namespace monaco.languages {
 	 */
 	export interface DocumentRangeFormattingEditProvider {
 		readonly displayName?: string;
-		readonly canFormatMultipleRanges: boolean;
 		/**
 		 * Provide formatting edits for a range in a document.
 		 *
@@ -7221,6 +7254,7 @@ declare namespace monaco.languages {
 		 * of the range to full syntax nodes.
 		 */
 		provideDocumentRangeFormattingEdits(model: editor.ITextModel, range: Range, options: FormattingOptions, token: CancellationToken): ProviderResult<TextEdit[]>;
+		provideDocumentRangesFormattingEdits?(model: editor.ITextModel, ranges: Range[], options: FormattingOptions, token: CancellationToken): ProviderResult<TextEdit[]>;
 	}
 
 	/**
@@ -7423,7 +7457,6 @@ declare namespace monaco.languages {
 		folder?: boolean;
 		skipTrashBin?: boolean;
 		maxSize?: number;
-		contentsBase64?: string;
 	}
 
 	export interface IWorkspaceFileEdit {

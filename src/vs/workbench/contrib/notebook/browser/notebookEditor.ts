@@ -24,7 +24,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { Selection } from 'vs/editor/common/core/selection';
 import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
-import { DEFAULT_EDITOR_ASSOCIATION, EditorInputCapabilities, EditorPaneSelectionChangeReason, EditorPaneSelectionCompareResult, EditorResourceAccessor, IEditorMemento, IEditorOpenContext, IEditorPaneSelection, IEditorPaneSelectionChangeEvent, createEditorOpenError } from 'vs/workbench/common/editor';
+import { DEFAULT_EDITOR_ASSOCIATION, EditorInputCapabilities, EditorPaneSelectionChangeReason, EditorPaneSelectionCompareResult, EditorResourceAccessor, IEditorMemento, IEditorOpenContext, IEditorPaneSelection, IEditorPaneSelectionChangeEvent, createEditorOpenError, isEditorOpenError } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { SELECT_KERNEL_ID } from 'vs/workbench/contrib/notebook/browser/controller/coreActions';
 import { INotebookEditorOptions, INotebookEditorPane, INotebookEditorViewState } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
@@ -39,6 +39,10 @@ import { IEditorDropService } from 'vs/workbench/services/editor/browser/editorD
 import { GroupsOrder, IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IEditorProgressService } from 'vs/platform/progress/common/progress';
+import { InstallRecommendedExtensionAction } from 'vs/workbench/contrib/extensions/browser/extensionsActions';
+import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
+import { IExtensionsWorkbenchService } from 'vs/workbench/contrib/extensions/common/extensions';
+import { EnablementState } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 
 const NOTEBOOK_EDITOR_VIEW_STATE_PREFERENCE_KEY = 'NotebookEditorViewState';
 
@@ -79,6 +83,8 @@ export class NotebookEditor extends EditorPane implements INotebookEditorPane {
 		@IFileService private readonly _fileService: IFileService,
 		@ITextResourceConfigurationService configurationService: ITextResourceConfigurationService,
 		@IEditorProgressService private readonly _editorProgressService: IEditorProgressService,
+		@INotebookService private readonly _notebookService: INotebookService,
+		@IExtensionsWorkbenchService private readonly _extensionsWorkbenchService: IExtensionsWorkbenchService,
 	) {
 		super(NotebookEditor.ID, telemetryService, themeService, storageService);
 		this._editorMemento = this.getEditorMemento<INotebookEditorViewState>(_editorGroupService, configurationService, NOTEBOOK_EDITOR_VIEW_STATE_PREFERENCE_KEY);
@@ -226,7 +232,33 @@ export class NotebookEditor extends EditorPane implements INotebookEditorPane {
 			}
 
 			if (model === null) {
-				throw new Error(localize('fail.noEditor', "Cannot open resource with notebook editor type '{0}', please check if you have the right extension installed and enabled.", input.viewType));
+				const knownProvider = this._notebookService.getViewTypeProvider(input.viewType);
+
+				if (!knownProvider) {
+					throw new Error(localize('fail.noEditor', "Cannot open resource with notebook editor type '{0}', please check if you have the right extension installed and enabled.", input.viewType));
+				}
+
+				throw createEditorOpenError(new Error(localize('fail.noEditor.extensionMissing', "Cannot open resource with notebook editor type '{0}', please check if you have the right extension installed and enabled.", input.viewType)), [
+					toAction({
+						id: 'workbench.notebook.action.installOrEnableMissing', label: localize('notebookOpenInstallOrEnableMissingViewType', "Install and enable extension for '{0}'", input.viewType), run: async () => {
+							const d = this._notebookService.onAddViewType(viewType => {
+								if (viewType === input.viewType) {
+									// serializer is registered, try to open again
+									this._editorService.openEditor({ resource: input.resource });
+									d.dispose();
+								}
+							});
+							const extensionInfo = this._extensionsWorkbenchService.local.find(e => e.identifier.id === knownProvider);
+
+							if (extensionInfo) {
+								await this._extensionsWorkbenchService.setEnablement(extensionInfo, extensionInfo.enablementState === EnablementState.DisabledWorkspace ? EnablementState.EnabledWorkspace : EnablementState.EnabledGlobally);
+							} else {
+								await this._instantiationService.createInstance(InstallRecommendedExtensionAction, knownProvider).run();
+							}
+						}
+					})
+				], { allowDialog: true });
+
 			}
 
 			this._widgetDisposableStore.add(model.notebook.onDidChangeContent(() => this._onDidChangeSelection.fire({ reason: EditorPaneSelectionChangeReason.EDIT })));
@@ -257,6 +289,10 @@ export class NotebookEditor extends EditorPane implements INotebookEditorPane {
 			this._handlePerfMark(perf, input);
 		} catch (e) {
 			console.warn(e);
+			if (isEditorOpenError(e)) {
+				throw e;
+			}
+
 			const error = createEditorOpenError(e instanceof Error ? e : new Error((e ? e.message : '')), [
 				toAction({
 					id: 'workbench.notebook.action.openInTextEditor', label: localize('notebookOpenInTextEditor', "Open in Text Editor"), run: async () => {

@@ -8,7 +8,7 @@ import { INotebookEditor, CellEditState, CellFindMatchWithIndex, CellWebviewFind
 import { Range } from 'vs/editor/common/core/range';
 import { FindMatch } from 'vs/editor/common/model';
 import { PrefixSumComputer } from 'vs/editor/common/model/prefixSumComputer';
-import { FindReplaceState } from 'vs/editor/contrib/find/browser/findState';
+import { FindReplaceState, FindReplaceStateChangedEvent } from 'vs/editor/contrib/find/browser/findState';
 import { CellKind, INotebookSearchOptions, NotebookCellsChangeType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
@@ -17,6 +17,7 @@ import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/no
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { NotebookFindFilters } from 'vs/workbench/contrib/notebook/browser/contrib/find/findFilters';
 import { FindMatchDecorationModel } from 'vs/workbench/contrib/notebook/browser/contrib/find/findMatchDecorationModel';
+import { NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModelImpl';
 
 export class CellFindMatchModel implements CellFindMatchWithIndex {
 	readonly cell: ICellViewModel;
@@ -84,7 +85,9 @@ export class FindModel extends Disposable {
 		this._computePromise = null;
 
 		this._register(_state.onFindReplaceStateChange(e => {
-			if (e.searchString || e.isRegex || e.matchCase || e.searchScope || e.wholeWord || (e.isRevealed && this._state.isRevealed) || e.filters) {
+			this._updateCellStates(e);
+
+			if (e.searchString || e.isRegex || e.matchCase || e.searchScope || e.wholeWord || (e.isRevealed && this._state.isRevealed) || e.filters || e.isReplaceRevealed) {
 				this.research();
 			}
 
@@ -109,6 +112,41 @@ export class FindModel extends Disposable {
 		}
 
 		this._findMatchDecorationModel = new FindMatchDecorationModel(this._notebookEditor);
+	}
+
+	private _updateCellStates(e: FindReplaceStateChangedEvent) {
+		if (!this._state.filters?.markupInput) {
+			return;
+		}
+
+		if (!this._state.filters?.markupPreview) {
+			return;
+		}
+
+		// we only update cell state if users are using the hybrid mode (both input and preview are enabled)
+		const updateEditingState = (editing: boolean) => {
+			const viewModel = this._notebookEditor._getViewModel() as NotebookViewModel | undefined;
+			if (viewModel) {
+				for (let i = 0; i < viewModel.length; i++) {
+					const cell = viewModel.cellAt(i);
+					if (cell && cell.cellKind === CellKind.Markup) {
+						cell.updateEditState(editing ? CellEditState.Editing : CellEditState.Preview, 'Find');
+					}
+				}
+			}
+		};
+
+		if (e.isReplaceRevealed) {
+			updateEditingState(this._state.replaceString.length > 0);
+		}
+
+		if (e.isRevealed && !this._state.isRevealed && this._state.isReplaceRevealed) {
+			updateEditingState(false);
+		}
+
+		if (e.replaceString && this._state.isRevealed && this._state.isReplaceRevealed && this._state.replaceString.length > 0) {
+			updateEditingState(true);
+		}
 	}
 
 	ensureFindMatches() {
@@ -233,8 +271,10 @@ export class FindModel extends Disposable {
 	}
 
 	async research() {
-		return this._throttledDelayer.trigger(() => {
-			return this._research();
+		return this._throttledDelayer.trigger(async () => {
+			this._state.change({ isSearching: true }, false);
+			await this._research();
+			this._state.change({ isSearching: false }, false);
 		});
 	}
 
@@ -390,7 +430,6 @@ export class FindModel extends Disposable {
 	}
 
 	private async _compute(token: CancellationToken): Promise<CellFindMatchWithIndex[] | null> {
-		this._state.change({ isSearching: true }, false);
 		let ret: CellFindMatchWithIndex[] | null = null;
 		const val = this._state.searchString;
 		const wordSeparators = this._configurationService.inspect<string>('editor.wordSeparators').value;
@@ -412,8 +451,6 @@ export class FindModel extends Disposable {
 		} else {
 			ret = await this._notebookEditor.find(val, options, token);
 		}
-
-		this._state.change({ isSearching: false }, false);
 
 		if (token.isCancellationRequested) {
 			return null;

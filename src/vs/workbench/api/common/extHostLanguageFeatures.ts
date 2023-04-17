@@ -18,7 +18,7 @@ import { regExpLeadsToEndlessLoop, regExpFlags } from 'vs/base/common/strings';
 import { IPosition } from 'vs/editor/common/core/position';
 import { IRange, Range as EditorRange } from 'vs/editor/common/core/range';
 import { isFalsyOrEmpty, isNonEmptyArray, coalesce } from 'vs/base/common/arrays';
-import { isObject } from 'vs/base/common/types';
+import { assertType, isObject } from 'vs/base/common/types';
 import { ISelection, Selection } from 'vs/editor/common/core/selection';
 import { ILogService } from 'vs/platform/log/common/log';
 import { CancellationToken } from 'vs/base/common/cancellation';
@@ -35,6 +35,7 @@ import { isCancellationError, NotImplementedError } from 'vs/base/common/errors'
 import { raceCancellationError } from 'vs/base/common/async';
 import { checkProposedApiEnabled, isProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
 import { IExtHostTelemetry } from 'vs/workbench/api/common/extHostTelemetry';
+import { localize } from 'vs/nls';
 
 // --- adapter
 
@@ -574,6 +575,18 @@ class RangeFormattingAdapter {
 		const ran = typeConvert.Range.to(range);
 
 		const value = await this._provider.provideDocumentRangeFormattingEdits(document, ran, <any>options, token);
+		if (Array.isArray(value)) {
+			return value.map(typeConvert.TextEdit.from);
+		}
+		return undefined;
+	}
+
+	async provideDocumentRangesFormattingEdits(resource: URI, ranges: IRange[], options: languages.FormattingOptions, token: CancellationToken): Promise<ISingleEditOperation[] | undefined> {
+		assertType(typeof this._provider.provideDocumentRangesFormattingEdits === 'function', 'INVALID invocation of `provideDocumentRangesFormattingEdits`');
+
+		const document = this._documents.getDocument(resource);
+		const _ranges = <Range[]>ranges.map(typeConvert.Range.to);
+		const value = await this._provider.provideDocumentRangesFormattingEdits(document, _ranges, <any>options, token);
 		if (Array.isArray(value)) {
 			return value.map(typeConvert.TextEdit.from);
 		}
@@ -1716,6 +1729,7 @@ class DocumentOnDropEditAdapter {
 		private readonly _documents: ExtHostDocuments,
 		private readonly _provider: vscode.DocumentDropEditProvider,
 		private readonly _handle: number,
+		private readonly _extension: IExtensionDescription,
 	) { }
 
 	async provideDocumentOnDropEdits(requestId: number, uri: URI, position: IPosition, dataTransferDto: extHostProtocol.DataTransferDTO, token: CancellationToken): Promise<extHostProtocol.IDocumentOnDropEditDto | undefined> {
@@ -1730,6 +1744,7 @@ class DocumentOnDropEditAdapter {
 			return undefined;
 		}
 		return {
+			label: edit.label ?? localize('defaultDropLabel', "Drop using '{0}' extension", this._extension.displayName || this._extension.name),
 			insertText: typeof edit.insertText === 'string' ? edit.insertText : { snippet: edit.insertText.value },
 			additionalEdit: edit.additionalEdit ? typeConvert.WorkspaceEdit.from(edit.additionalEdit, undefined) : undefined,
 		};
@@ -2055,18 +2070,22 @@ export class ExtHostLanguageFeatures implements extHostProtocol.ExtHostLanguageF
 		return this._withAdapter(handle, DocumentFormattingAdapter, adapter => adapter.provideDocumentFormattingEdits(URI.revive(resource), options, token), undefined, token);
 	}
 
-	registerDocumentRangeFormattingEditProvider(extension: IExtensionDescription, selector: vscode.DocumentSelector, provider: vscode.DocumentRangeFormattingEditProvider, metadata?: vscode.DocumentRangeFormattingEditProviderMetadata): vscode.Disposable {
-		const canFormatMultipleRanges = metadata?.canFormatMultipleRanges ?? false;
+	registerDocumentRangeFormattingEditProvider(extension: IExtensionDescription, selector: vscode.DocumentSelector, provider: vscode.DocumentRangeFormattingEditProvider): vscode.Disposable {
+		const canFormatMultipleRanges = typeof provider.provideDocumentRangesFormattingEdits === 'function';
 		if (canFormatMultipleRanges) {
 			checkProposedApiEnabled(extension, 'formatMultipleRanges');
 		}
 		const handle = this._addNewAdapter(new RangeFormattingAdapter(this._documents, provider), extension);
-		this._proxy.$registerRangeFormattingSupport(handle, this._transformDocumentSelector(selector), extension.identifier, extension.displayName || extension.name, metadata ?? { canFormatMultipleRanges: false });
+		this._proxy.$registerRangeFormattingSupport(handle, this._transformDocumentSelector(selector), extension.identifier, extension.displayName || extension.name, canFormatMultipleRanges);
 		return this._createDisposable(handle);
 	}
 
 	$provideDocumentRangeFormattingEdits(handle: number, resource: UriComponents, range: IRange, options: languages.FormattingOptions, token: CancellationToken): Promise<ISingleEditOperation[] | undefined> {
 		return this._withAdapter(handle, RangeFormattingAdapter, adapter => adapter.provideDocumentRangeFormattingEdits(URI.revive(resource), range, options, token), undefined, token);
+	}
+
+	$provideDocumentRangesFormattingEdits(handle: number, resource: UriComponents, ranges: IRange[], options: languages.FormattingOptions, token: CancellationToken): Promise<ISingleEditOperation[] | undefined> {
+		return this._withAdapter(handle, RangeFormattingAdapter, adapter => adapter.provideDocumentRangesFormattingEdits(URI.revive(resource), ranges, options, token), undefined, token);
 	}
 
 	registerOnTypeFormattingEditProvider(extension: IExtensionDescription, selector: vscode.DocumentSelector, provider: vscode.OnTypeFormattingEditProvider, triggerCharacters: string[]): vscode.Disposable {
@@ -2364,10 +2383,12 @@ export class ExtHostLanguageFeatures implements extHostProtocol.ExtHostLanguageF
 
 	// --- Document on drop
 
-	registerDocumentOnDropEditProvider(extension: IExtensionDescription, selector: vscode.DocumentSelector, provider: vscode.DocumentDropEditProvider) {
+	registerDocumentOnDropEditProvider(extension: IExtensionDescription, selector: vscode.DocumentSelector, provider: vscode.DocumentDropEditProvider, metadata?: vscode.DocumentDropEditProviderMetadata) {
 		const handle = this._nextHandle();
-		this._adapter.set(handle, new AdapterData(new DocumentOnDropEditAdapter(this._proxy, this._documents, provider, handle), extension));
-		this._proxy.$registerDocumentOnDropEditProvider(handle, this._transformDocumentSelector(selector));
+		this._adapter.set(handle, new AdapterData(new DocumentOnDropEditAdapter(this._proxy, this._documents, provider, handle, extension), extension));
+
+		this._proxy.$registerDocumentOnDropEditProvider(handle, this._transformDocumentSelector(selector), extension.identifier, isProposedApiEnabled(extension, 'dropMetadata') ? metadata : undefined);
+
 		return this._createDisposable(handle);
 	}
 
