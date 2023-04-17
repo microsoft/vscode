@@ -104,9 +104,17 @@
 	display: none;
 }
 
+.monaco-editor .interactive-editor .status .link {
+	font-size: 12px;
+	display: inline-block;
+	color: var(--vscode-textLink-foreground);
+	cursor: pointer;
+	padding-left: 10px;
+	white-space: nowrap;
+}
+
 .monaco-editor .interactive-editor .status .label {
 	font-size: 12px;
-	width: 100%;
 }
 
 .monaco-editor .interactive-editor .status .label A {

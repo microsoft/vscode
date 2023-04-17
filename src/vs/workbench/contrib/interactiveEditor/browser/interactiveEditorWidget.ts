@@ -124,6 +124,7 @@ class InteractiveEditorWidget {
 			h('div.status@status', [
 				h('div.actions.hidden@statusToolbar'),
 				h('div.label@statusLabel'),
+				h('div.link@statusLink'),
 			]),
 		]
 	);
@@ -370,8 +371,7 @@ class InteractiveEditorWidget {
 	addStatusLink(message: string) {
 		const linkNode = document.createElement('a');
 		linkNode.innerText = message;
-		linkNode.style.float = 'right';
-		append(this._elements.statusLabel, linkNode);
+		append(this._elements.statusLink, linkNode);
 		return linkNode;
 	}
 
@@ -395,6 +395,11 @@ class InteractiveEditorWidget {
 		if (oneLine) {
 			this._elements.statusLabel.style.textOverflow = 'ellipsis';
 			this._elements.statusLabel.style.overflow = 'hidden';
+			this._elements.statusLabel.style.webkitLineClamp = '1';
+			this._elements.statusLabel.style.display = 'block';
+			this._elements.statusLabel.style.maxHeight = '1.5em';
+			this._elements.statusLabel.style.maxWidth = '100%';
+			this._elements.statusLabel.style.whiteSpace = 'nowrap';
 		}
 		this._elements.statusLabel.className = `label ${(classes ?? []).join(' ')}`;
 		if (isTempMessage) {
