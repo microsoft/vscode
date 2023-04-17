@@ -120,7 +120,7 @@ export class StandaloneColorPickerParticipant {
 		const colors = await getColors(colorProviderRegistry, this._editor.getModel(), CancellationToken.None);
 		let foundColorInfo: IColorInformation | null = null;
 		let foundColorProvider: DocumentColorProvider | null = null;
-		for (const colorData of colors.colorData) {
+		for (const colorData of colors) {
 			const colorInfo = colorData.colorInfo;
 			if (Range.containsRange(colorInfo.range, defaultColorInfo.range)) {
 				foundColorInfo = colorInfo;

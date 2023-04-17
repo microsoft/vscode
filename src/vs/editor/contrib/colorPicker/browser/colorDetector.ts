@@ -34,7 +34,7 @@ export class ColorDetector extends Disposable implements IEditorContribution {
 	static readonly RECOMPUTE_TIME = 1000; // ms
 
 	private readonly _localToDispose = this._register(new DisposableStore());
-	private _computePromise: CancelablePromise<{ colorData: IColorData[]; usingDefaultDocumentColorProvider: boolean }> | null;
+	private _computePromise: CancelablePromise<IColorData[]> | null;
 	private _timeoutTimer: TimeoutTimer | null;
 	private _debounceInformation: IFeatureDebounceInformation;
 
@@ -147,18 +147,17 @@ export class ColorDetector extends Disposable implements IEditorContribution {
 		this._computePromise = createCancelablePromise(async token => {
 			const model = this._editor.getModel();
 			if (!model) {
-				return Promise.resolve({ colorData: [], usingDefaultDocumentColorProvider: false });
+				return [];
 			}
 			const sw = new StopWatch(false);
-			const colorInfos = await getColors(this._languageFeaturesService.colorProvider, model, token);
+			const colors = await getColors(this._languageFeaturesService.colorProvider, model, token, this._isDefaultColorDecoratorsEnabled);
 			this._debounceInformation.update(model, sw.elapsed());
-			return colorInfos;
+			return colors;
 		});
-		const colorInfos = await this._computePromise;
 		try {
-			const colorData = this._isColorDecoratorsEnabled && (this._isDefaultColorDecoratorsEnabled || !colorInfos.usingDefaultDocumentColorProvider) ? colorInfos.colorData : [];
-			this.updateDecorations(colorData);
-			this.updateColorDecorators(colorData);
+			const colors = await this._computePromise;
+			this.updateDecorations(colors);
+			this.updateColorDecorators(colors);
 			this._computePromise = null;
 		} catch (e) {
 			onUnexpectedError(e);
