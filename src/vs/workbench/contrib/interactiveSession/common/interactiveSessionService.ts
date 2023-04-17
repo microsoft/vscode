@@ -111,6 +111,14 @@ export interface IInteractiveSessionInsertAction {
 	responseId: string;
 	codeBlockIndex: number;
 	totalCharacters: number;
+	newFile?: boolean;
+}
+
+export interface IInteractiveSessionTerminalAction {
+	kind: 'runInTerminal';
+	responseId: string;
+	codeBlockIndex: number;
+	languageId?: string;
 }
 
 export interface IInteractiveSessionCommandAction {
@@ -118,7 +126,7 @@ export interface IInteractiveSessionCommandAction {
 	command: IInteractiveSessionResponseCommandFollowup;
 }
 
-export type InteractiveSessionUserAction = IInteractiveSessionVoteAction | IInteractiveSessionCopyAction | IInteractiveSessionInsertAction | IInteractiveSessionCommandAction;
+export type InteractiveSessionUserAction = IInteractiveSessionVoteAction | IInteractiveSessionCopyAction | IInteractiveSessionInsertAction | IInteractiveSessionTerminalAction | IInteractiveSessionCommandAction;
 
 export interface IInteractiveSessionUserActionEvent {
 	action: InteractiveSessionUserAction;

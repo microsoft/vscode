@@ -1731,6 +1731,8 @@ export class InlineSuggestionList implements vscode.InlineCompletionList {
 
 	commands: vscode.Command[] | undefined = undefined;
 
+	suppressSuggestions: boolean | undefined = undefined;
+
 	constructor(items: vscode.InlineCompletionItem[]) {
 		this.items = items;
 	}

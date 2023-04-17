@@ -9944,10 +9944,10 @@ typescript@^4.7.4:
   resolved "https://registry.yarnpkg.com/typescript/-/typescript-4.8.4.tgz#c464abca159669597be5f96b8943500b238e60e6"
   integrity sha512-QCh+85mCy+h0IGff8r5XWzOVSbBO+KfeYrMQh7NJ58QujwcE22u+NUSmUxqF+un70P9GXKxa2HCNiTTMJknyjQ==
 
-typescript@^5.1.0-dev.20230411:
-  version "5.1.0-dev.20230411"
-  resolved "https://registry.yarnpkg.com/typescript/-/typescript-5.1.0-dev.20230411.tgz#28ee14d54d82594647763172a804379e872fa6ac"
-  integrity sha512-3yO7RzC4rZID1/u1alMwKKAhp/kyDkFiR+73vsvK5z99GYRVbUJIy9f3w2pGNZI3K7YI5Hv1bN2XWkPgZhB2CA==
+typescript@^5.1.0-dev.20230417:
+  version "5.1.0-dev.20230417"
+  resolved "https://registry.yarnpkg.com/typescript/-/typescript-5.1.0-dev.20230417.tgz#3c6acdd4e49858bc10f7bdf535e768513ebc55e9"
+  integrity sha512-bEjKfPjxAgvrUViweybCkB++3y9qyF4hCBeXOf998QQDJpLAcaQWmub4IoPZ5yTvrkuGuNzFpy46tytA4p1fbA==
 
 typical@^4.0.0:
   version "4.0.0"
