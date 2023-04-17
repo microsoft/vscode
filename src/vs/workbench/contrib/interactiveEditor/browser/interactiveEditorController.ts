@@ -3,45 +3,45 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./interactiveEditor';
+import { raceCancellationError } from 'vs/base/common/async';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
-import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
-import { IActiveCodeEditor, ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { Range } from 'vs/editor/common/core/range';
-import { IEditorContribution, IEditorDecorationsCollection, ScrollType } from 'vs/editor/common/editorCommon';
-import { localize } from 'vs/nls';
-import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { IInteractiveEditorResponse, IInteractiveEditorService, CTX_INTERACTIVE_EDITOR_HAS_ACTIVE_REQUEST, IInteractiveEditorRequest, IInteractiveEditorSession, IInteractiveEditorSlashCommand, IInteractiveEditorSessionProvider, InteractiveEditorResponseFeedbackKind, IInteractiveEditorEditResponse, CTX_INTERACTIVE_EDITOR_LAST_EDIT_TYPE as CTX_INTERACTIVE_EDITOR_LAST_EDIT_KIND, CTX_INTERACTIVE_EDITOR_LAST_FEEDBACK as CTX_INTERACTIVE_EDITOR_LAST_FEEDBACK_KIND, CTX_INTERACTIVE_EDITOR_INLNE_DIFF, CTX_INTERACTIVE_EDITOR_HAS_RESPONSE, IInteractiveEditorBulkEditResponse } from 'vs/workbench/contrib/interactiveEditor/common/interactiveEditor';
-import { EditOperation } from 'vs/editor/common/core/editOperation';
+import { toErrorMessage } from 'vs/base/common/errorMessage';
+import { isCancellationError } from 'vs/base/common/errors';
+import { Event } from 'vs/base/common/event';
 import { Iterable } from 'vs/base/common/iterator';
+import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
+import { LRUCache } from 'vs/base/common/map';
+import { isEqual } from 'vs/base/common/resources';
+import { StopWatch } from 'vs/base/common/stopwatch';
+import { splitLines } from 'vs/base/common/strings';
+import { URI } from 'vs/base/common/uri';
+import 'vs/css!./interactiveEditor';
+import { IActiveCodeEditor, ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { IBulkEditService, ResourceEdit, ResourceFileEdit, ResourceTextEdit } from 'vs/editor/browser/services/bulkEditService';
+import { EditOperation } from 'vs/editor/common/core/editOperation';
+import { Position } from 'vs/editor/common/core/position';
+import { Range } from 'vs/editor/common/core/range';
+import { Selection } from 'vs/editor/common/core/selection';
+import { IEditorContribution, IEditorDecorationsCollection, ScrollType } from 'vs/editor/common/editorCommon';
+import { LanguageSelector } from 'vs/editor/common/languageSelector';
+import { CompletionContext, CompletionItem, CompletionItemInsertTextRule, CompletionItemKind, CompletionItemProvider, CompletionList, ProviderResult, TextEdit } from 'vs/editor/common/languages';
 import { ICursorStateComputer, IModelDecorationOptions, IModelDeltaDecoration, ITextModel, IValidEditOperation } from 'vs/editor/common/model';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
-import { Position } from 'vs/editor/common/core/position';
-import { Selection } from 'vs/editor/common/core/selection';
-import { raceCancellationError } from 'vs/base/common/async';
-import { isCancellationError } from 'vs/base/common/errors';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorker';
-import { ILogService } from 'vs/platform/log/common/log';
-import { StopWatch } from 'vs/base/common/stopwatch';
-import { LRUCache } from 'vs/base/common/map';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IBulkEditService, ResourceEdit, ResourceFileEdit, ResourceTextEdit } from 'vs/editor/browser/services/bulkEditService';
-import { toErrorMessage } from 'vs/base/common/errorMessage';
-import { IInteractiveSessionWidgetService } from 'vs/workbench/contrib/interactiveSession/browser/interactiveSessionWidget';
-import { IViewsService } from 'vs/workbench/common/views';
-import { IInteractiveSessionContributionService } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionContributionService';
-import { InteractiveSessionViewPane } from 'vs/workbench/contrib/interactiveSession/browser/interactiveSessionSidebar';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
-import { CompletionContext, CompletionItem, CompletionItemInsertTextRule, CompletionItemKind, CompletionItemProvider, CompletionList, ProviderResult, TextEdit } from 'vs/editor/common/languages';
-import { LanguageSelector } from 'vs/editor/common/languageSelector';
-import { IInteractiveSessionService } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionService';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { splitLines } from 'vs/base/common/strings';
-import { InteractiveEditorZoneWidget } from 'vs/workbench/contrib/interactiveEditor/browser/interactiveEditorWidget';
+import { IModelService } from 'vs/editor/common/services/model';
+import { localize } from 'vs/nls';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { URI } from 'vs/base/common/uri';
-import { isEqual } from 'vs/base/common/resources';
+import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { ILogService } from 'vs/platform/log/common/log';
+import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { InteractiveEditorDiffWidget } from 'vs/workbench/contrib/interactiveEditor/browser/interactiveEditorDiffWidget';
+import { InteractiveEditorZoneWidget } from 'vs/workbench/contrib/interactiveEditor/browser/interactiveEditorWidget';
+import { CTX_INTERACTIVE_EDITOR_HAS_ACTIVE_REQUEST, CTX_INTERACTIVE_EDITOR_HAS_RESPONSE, CTX_INTERACTIVE_EDITOR_INLNE_DIFF, CTX_INTERACTIVE_EDITOR_LAST_EDIT_TYPE as CTX_INTERACTIVE_EDITOR_LAST_EDIT_KIND, CTX_INTERACTIVE_EDITOR_LAST_FEEDBACK as CTX_INTERACTIVE_EDITOR_LAST_FEEDBACK_KIND, IInteractiveEditorBulkEditResponse, IInteractiveEditorEditResponse, IInteractiveEditorRequest, IInteractiveEditorResponse, IInteractiveEditorService, IInteractiveEditorSession, IInteractiveEditorSessionProvider, IInteractiveEditorSlashCommand, InteractiveEditorResponseFeedbackKind } from 'vs/workbench/contrib/interactiveEditor/common/interactiveEditor';
+import { IInteractiveSessionWidgetService } from 'vs/workbench/contrib/interactiveSession/browser/interactiveSessionWidget';
+import { IInteractiveSessionService } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionService';
 
 
 type Exchange = { req: IInteractiveEditorRequest; res: IInteractiveEditorResponse };
@@ -72,6 +72,7 @@ type TelemetryData = {
 	terminalEdits: boolean;
 	startTime: string;
 	endTime: string;
+	editMode: string;
 };
 
 type TelemetryDataClassification = {
@@ -84,6 +85,7 @@ type TelemetryDataClassification = {
 	terminalEdits: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Did edits terminal the session' };
 	startTime: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'When the session started' };
 	endTime: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'When the session ended' };
+	editMode: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'What edit mode was choosen: live, livePreview, preview' };
 };
 
 class InlineDiffDecorations {
@@ -220,7 +222,7 @@ class LastEditorState {
 	) { }
 }
 
-type EditMode = 'preview' | 'direct';
+type EditMode = 'live' | 'livePreview' | 'preview';
 
 export class InteractiveEditorController implements IEditorContribution {
 
@@ -256,6 +258,7 @@ export class InteractiveEditorController implements IEditorContribution {
 	private readonly _ctxLastFeedbackKind: IContextKey<'helpful' | 'unhelpful' | ''>;
 
 	private _lastEditState?: LastEditorState;
+	private _strategy?: EditModeStrategy;
 	private _lastInlineDecorations?: InlineDiffDecorations;
 	private _inlineDiffEnabled: boolean = false;
 
@@ -268,12 +271,12 @@ export class InteractiveEditorController implements IEditorContribution {
 		private readonly _editor: ICodeEditor,
 		@IInstantiationService private readonly _instaService: IInstantiationService,
 		@IInteractiveEditorService private readonly _interactiveEditorService: IInteractiveEditorService,
-		@IBulkEditService private readonly _bulkEditService: IBulkEditService,
 		@IEditorWorkerService private readonly _editorWorkerService: IEditorWorkerService,
 		@ILogService private readonly _logService: ILogService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@IStorageService private readonly _storageService: IStorageService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@IModelService private readonly _modelService: IModelService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 
 	) {
@@ -295,6 +298,10 @@ export class InteractiveEditorController implements IEditorContribution {
 		return InteractiveEditorController.ID;
 	}
 
+	private _getMode(): EditMode {
+		return this._configurationService.getValue('interactiveEditor.editMode');
+	}
+
 	updateLinkAndMessage(message: string, isMessageReply: boolean = false, classes?: string[] | undefined, resetAfter?: number | undefined): void {
 		if (isMessageReply) {
 			this._zone.widget.showLink();
@@ -307,7 +314,7 @@ export class InteractiveEditorController implements IEditorContribution {
 
 	async run(initialRange?: Range): Promise<void> {
 
-		const editMode: EditMode = this._configurationService.getValue('interactiveEditor.editMode');
+		const editMode = this._getMode();
 
 		this._ctsSession.dispose(true);
 
@@ -339,8 +346,14 @@ export class InteractiveEditorController implements IEditorContribution {
 			edits: false,
 			terminalEdits: false,
 			rounds: '',
-			undos: ''
+			undos: '',
+			editMode
 		};
+
+		this._strategy = this._instaService.createInstance(
+			editMode === 'preview' ? PreviewStrategy : editMode === 'livePreview' ? LivePreviewStrategy : LiveStrategy,
+			textModel, textModel.getAlternativeVersionId()
+		);
 
 		this._inlineDiffEnabled = this._storageService.getBoolean(InteractiveEditorController._inlineDiffStorageKey, StorageScope.PROFILE, false);
 		const inlineDiffDecorations = new InlineDiffDecorations(this._editor, this._inlineDiffEnabled);
@@ -377,7 +390,7 @@ export class InteractiveEditorController implements IEditorContribution {
 		this.updateLinkAndMessage(session.message ?? localize('welcome.1', "AI-generated code may be incorrect."));
 
 		// CANCEL when input changes
-		this._editor.onDidChangeModel(this._ctsSession.cancel, this._ctsSession, store);
+		this._editor.onDidChangeModel(this.cancelSession, this, store);
 
 		// REposition the zone widget whenever the block decoration changes
 		let lastPost: Position | undefined;
@@ -422,6 +435,10 @@ export class InteractiveEditorController implements IEditorContribution {
 		const roundStore = new DisposableStore();
 		store.add(roundStore);
 
+		const diffBaseModel = this._modelService.createModel(textModel.getValue(), { languageId: textModel.getLanguageId(), onDidChange: Event.None }, undefined, true);
+		store.add(diffBaseModel);
+		const diffZone = this._instaService.createInstance(InteractiveEditorDiffWidget, this._editor, diffBaseModel);
+
 		do {
 
 			round += 1;
@@ -431,6 +448,14 @@ export class InteractiveEditorController implements IEditorContribution {
 				// nuked whole file contents?
 				this._logService.trace('[IE] ABORT wholeRange seems gone/collapsed');
 				break;
+			}
+
+			if (round > 1 && editMode === 'livePreview') {
+				if (!textModel.equalsTextBuffer(diffBaseModel.getTextBuffer())) {
+					diffZone.show(wholeRangeDecoration.getRange(0)!);
+				} else {
+					diffZone.hide();
+				}
 			}
 
 			// visuals: add block decoration
@@ -531,9 +556,8 @@ export class InteractiveEditorController implements IEditorContribution {
 
 			const editResponse = new EditResponse(textModel.uri, reply);
 
-			if (editResponse.workspaceEdits && (!editResponse.singleCreateFileEdit || editMode === 'direct')) {
-				this._bulkEditService.apply(editResponse.workspaceEdits, { editor: this._editor, label: localize('ie', "{0}", input), showPreview: true });
-				// todo@jrieken keep interactive editor?
+			const canContinue = this._strategy.update(editResponse);
+			if (!canContinue) {
 				break;
 			}
 
@@ -589,7 +613,9 @@ export class InteractiveEditorController implements IEditorContribution {
 					ignoreModelChanges = false;
 				}
 
-				inlineDiffDecorations.update();
+				if (editMode === 'live') {
+					inlineDiffDecorations.update();
+				}
 
 				// line count
 				const lineSet = new Set<number>();
@@ -636,6 +662,9 @@ export class InteractiveEditorController implements IEditorContribution {
 		this._inlineDiffEnabled = inlineDiffDecorations.visible;
 		this._storageService.store(InteractiveEditorController._inlineDiffStorageKey, this._inlineDiffEnabled, StorageScope.PROFILE, StorageTarget.USER);
 
+		diffZone.hide();
+		diffZone.dispose();
+
 		// done, cleanup
 		wholeRangeDecoration.clear();
 		blockDecoration.clear();
@@ -665,10 +694,6 @@ export class InteractiveEditorController implements IEditorContribution {
 
 	cancelCurrentRequest(): void {
 		this._ctsRequest?.cancel();
-	}
-
-	cancelSession() {
-		this._ctsSession.cancel();
 	}
 
 	arrowOut(up: boolean): void {
@@ -733,22 +758,120 @@ export class InteractiveEditorController implements IEditorContribution {
 		if (!this._lastEditState) {
 			return undefined;
 		}
+		const { response } = this._lastEditState;
+		await this._strategy?.apply();
+		this._ctsSession.cancel();
+		return response;
+	}
 
-		const { model, modelVersionId, response } = this._lastEditState;
+	cancelSession() {
+		this._ctsSession.cancel();
+		this._strategy?.cancel();
+	}
+}
+
+abstract class EditModeStrategy {
+
+	abstract update(response: EditResponse): boolean;
+
+	abstract apply(): Promise<void>;
+
+	abstract cancel(): void;
+}
+
+class PreviewStrategy extends EditModeStrategy {
+
+	private _lastResponse?: EditResponse;
+
+	constructor(
+		private readonly _model: ITextModel,
+		private readonly _versionId: number,
+		@IBulkEditService private readonly _bulkEditService: IBulkEditService,
+	) {
+		super();
+	}
+
+	update(response: EditResponse): boolean {
+		this._lastResponse = response;
+		if (!response.workspaceEdits || response.singleCreateFileEdit) {
+			// preview stategy can handle simple workspace edit (single file create)
+			return true;
+		}
+		this._bulkEditService.apply(response.workspaceEdits, { showPreview: true });
+		return false;
+	}
+
+	async apply() {
+
+		const response = this._lastResponse;
+		if (!response) {
+			return;
+		}
 
 		if (response.workspaceEdits) {
 			await this._bulkEditService.apply(response.workspaceEdits);
 
 		} else if (!response.workspaceEditsIncludeLocalEdits) {
-			if (model.getAlternativeVersionId() === modelVersionId) {
-				model.pushStackElement();
+			if (this._model.getAlternativeVersionId() === this._versionId) {
+				this._model.pushStackElement();
 				const edits = response.localEdits.map(edit => EditOperation.replace(Range.lift(edit.range), edit.text));
-				model.pushEditOperations(null, edits, () => null);
-				model.pushStackElement();
+				this._model.pushEditOperations(null, edits, () => null);
+				this._model.pushStackElement();
 			}
 		}
+	}
 
-		return response;
+	cancel(): void {
+		// nothing to do
+	}
+}
+
+class LiveStrategy extends EditModeStrategy {
+
+	constructor(
+		protected readonly _model: ITextModel,
+		protected readonly _versionId: number,
+		@IBulkEditService protected readonly _bulkEditService: IBulkEditService,
+	) {
+		super();
+	}
+
+	update(response: EditResponse): boolean {
+		if (response.workspaceEdits) {
+			this._bulkEditService.apply(response.workspaceEdits, { showPreview: true });
+			return false;
+		}
+		return true;
+	}
+
+	async apply() {
+		// nothing to do
+	}
+
+	cancel(): void {
+		while (this._model.getAlternativeVersionId() !== this._versionId) {
+			this._model.undo();
+		}
+	}
+}
+
+class LivePreviewStrategy extends LiveStrategy {
+
+	private _lastResponse?: EditResponse;
+
+	override update(response: EditResponse): boolean {
+		this._lastResponse = response;
+		if (response.singleCreateFileEdit) {
+			// preview stategy can handle simple workspace edit (single file create)
+			return true;
+		}
+		return super.update(response);
+	}
+
+	override async apply() {
+		if (this._lastResponse?.workspaceEdits) {
+			await this._bulkEditService.apply(this._lastResponse.workspaceEdits);
+		}
 	}
 }
 
@@ -829,32 +952,24 @@ function installSlashCommandSupport(accessor: ServicesAccessor, editor: IActiveC
 
 async function showMessageResponse(accessor: ServicesAccessor, query: string, response: string) {
 	const interactiveSessionService = accessor.get(IInteractiveSessionService);
-	const providerId = interactiveSessionService.getProviders()[0];
-	if (await interactiveSessionService.revealSessionForProvider(providerId)) {
-		interactiveSessionService.addCompleteRequest(providerId, query, { message: response });
+	const providerId = interactiveSessionService.getProviderIds()[0];
+
+	const interactiveSessionWidgetService = accessor.get(IInteractiveSessionWidgetService);
+	const widget = await interactiveSessionWidgetService.revealViewForProvider(providerId);
+	if (widget && widget.viewModel) {
+		interactiveSessionService.addCompleteRequest(widget.viewModel.sessionId, query, { message: response });
 	}
 }
 
 async function sendRequest(accessor: ServicesAccessor, query: string) {
-
+	const interactiveSessionService = accessor.get(IInteractiveSessionService);
 	const widgetService = accessor.get(IInteractiveSessionWidgetService);
-	const viewsService = accessor.get(IViewsService);
-	const interactiveSessionContributionService = accessor.get(IInteractiveSessionContributionService);
 
-	if (widgetService.lastFocusedWidget && widgetService.lastFocusedWidget.viewId) {
-		// option 1 - take the most recent view
-		viewsService.openView(widgetService.lastFocusedWidget.viewId, true);
-		widgetService.lastFocusedWidget.acceptInput(query);
-
-	} else {
-		// fallback - take the first view that's openable
-		for (const { id } of interactiveSessionContributionService.registeredProviders) {
-			const viewId = interactiveSessionContributionService.getViewIdForProvider(id);
-			const view = await viewsService.openView<InteractiveSessionViewPane>(viewId, true);
-			if (view) {
-				view.acceptInput(query);
-				break;
-			}
-		}
+	const providerId = interactiveSessionService.getProviderIds()[0];
+	const widget = await widgetService.revealViewForProvider(providerId);
+	if (!widget) {
+		return;
 	}
+
+	widget.acceptInput(query);
 }

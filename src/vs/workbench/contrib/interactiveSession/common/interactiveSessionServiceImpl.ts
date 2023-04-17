@@ -19,9 +19,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { ILogService } from 'vs/platform/log/common/log';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IViewsService } from 'vs/workbench/common/views';
 import { CONTEXT_PROVIDER_EXISTS } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionContextKeys';
-import { IInteractiveSessionContributionService } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionContributionService';
 import { ISerializableInteractiveSessionData, ISerializableInteractiveSessionsData, InteractiveSessionModel, InteractiveSessionWelcomeMessageModel } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionModel';
 import { IInteractiveProgress, IInteractiveProvider, IInteractiveSession, IInteractiveSessionCompleteResponse, IInteractiveSessionDynamicRequest, IInteractiveSessionReplyFollowup, IInteractiveSessionService, IInteractiveSessionUserActionEvent, IInteractiveSlashCommand, InteractiveSessionCopyKind, InteractiveSessionVoteDirection } from 'vs/workbench/contrib/interactiveSession/common/interactiveSessionService';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
@@ -72,10 +70,12 @@ type InteractiveSessionCopyClassification = {
 
 type InteractiveSessionInsertEvent = {
 	providerId: string;
+	newFile: boolean;
 };
 
 type InteractiveSessionInsertClassification = {
 	providerId: { classification: 'PublicNonPersonalData'; purpose: 'FeatureInsight'; comment: 'The identifier of the provider that this codeblock response came from.' };
+	newFile: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the code was inserted into a new untitled file.' };
 	owner: 'roblourens';
 	comment: 'Provides insight into the usage of InteractiveSession features.';
 };
@@ -88,6 +88,18 @@ type InteractiveSessionCommandEvent = {
 type InteractiveSessionCommandClassification = {
 	providerId: { classification: 'PublicNonPersonalData'; purpose: 'FeatureInsight'; comment: 'The identifier of the provider that this codeblock response came from.' };
 	commandId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The id of the command that was executed.' };
+	owner: 'roblourens';
+	comment: 'Provides insight into the usage of InteractiveSession features.';
+};
+
+type InteractiveSessionTerminalEvent = {
+	providerId: string;
+	languageId: string;
+};
+
+type InteractiveSessionTerminalClassification = {
+	providerId: { classification: 'PublicNonPersonalData'; purpose: 'FeatureInsight'; comment: 'The identifier of the provider that this codeblock response came from.' };
+	languageId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The language of the code that was run in the terminal.' };
 	owner: 'roblourens';
 	comment: 'Provides insight into the usage of InteractiveSession features.';
 };
@@ -111,8 +123,6 @@ export class InteractiveSessionService extends Disposable implements IInteractiv
 		@IExtensionService private readonly extensionService: IExtensionService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
-		@IViewsService private readonly viewsService: IViewsService,
-		@IInteractiveSessionContributionService private readonly interactiveSessionContributionService: IInteractiveSessionContributionService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 	) {
 		super();
@@ -152,6 +162,7 @@ export class InteractiveSessionService extends Disposable implements IInteractiv
 		} else if (action.action.kind === 'insert') {
 			this.telemetryService.publicLog2<InteractiveSessionInsertEvent, InteractiveSessionInsertClassification>('interactiveSessionInsert', {
 				providerId: action.providerId,
+				newFile: !!action.action.newFile
 			});
 		} else if (action.action.kind === 'command') {
 			const command = CommandsRegistry.getCommand(action.action.command.commandId);
@@ -159,6 +170,11 @@ export class InteractiveSessionService extends Disposable implements IInteractiv
 			this.telemetryService.publicLog2<InteractiveSessionCommandEvent, InteractiveSessionCommandClassification>('interactiveSessionCommand', {
 				providerId: action.providerId,
 				commandId
+			});
+		} else if (action.action.kind === 'runInTerminal') {
+			this.telemetryService.publicLog2<InteractiveSessionTerminalEvent, InteractiveSessionTerminalClassification>('interactiveSessionRunInTerminal', {
+				providerId: action.providerId,
+				languageId: action.action.languageId ?? ''
 			});
 		}
 
@@ -265,6 +281,15 @@ export class InteractiveSessionService extends Disposable implements IInteractiv
 	releaseSession(sessionId: number): void {
 		this.trace('releaseSession', `sessionId=${sessionId}`);
 		this._releasedSessions.add(sessionId);
+	}
+
+	retrieveSession(sessionId: number): InteractiveSessionModel | undefined {
+		if (this._releasedSessions.has(sessionId)) {
+			this._releasedSessions.delete(sessionId);
+			return this._sessionModels.get(sessionId);
+		}
+
+		return undefined;
 	}
 
 	async sendRequest(sessionId: number, request: string | IInteractiveSessionReplyFollowup): Promise<boolean> {
@@ -400,6 +425,8 @@ export class InteractiveSessionService extends Disposable implements IInteractiv
 	}
 
 	async addInteractiveRequest(context: any): Promise<void> {
+		// This and resolveRequest are not currently used by any scenario, but leave for future use
+
 		// TODO How to decide which session this goes to?
 		const model = Iterable.first(this._sessionModels.values());
 		if (!model) {
@@ -426,44 +453,30 @@ export class InteractiveSessionService extends Disposable implements IInteractiv
 		this.sendRequest(model.sessionId, request.message);
 	}
 
-	async revealSessionForProvider(providerId: string): Promise<boolean> {
-		const viewId = this.interactiveSessionContributionService.getViewIdForProvider(providerId);
-		return !!(await this.viewsService.openView(viewId));
-	}
-
-	async sendInteractiveRequestToProvider(providerId: string, message: IInteractiveSessionDynamicRequest): Promise<void> {
-		this.trace('sendInteractiveRequestToProvider', `providerId: ${providerId}`);
-
-		// Currently we only support one session per provider
-		const modelForProvider = Iterable.find(this._sessionModels.values(), model => model.providerId === providerId);
-		if (!modelForProvider) {
-			throw new Error(`Could not start session for provider ${providerId}`);
-		}
-
-		await this.sendRequest(modelForProvider.sessionId, message.message);
+	async sendInteractiveRequestToProvider(sessionId: number, message: IInteractiveSessionDynamicRequest): Promise<void> {
+		this.trace('sendInteractiveRequestToProvider', `sessionId: ${sessionId}`);
+		await this.sendRequest(sessionId, message.message);
 	}
 
 	getProviders(): string[] {
 		return Array.from(this._providers.keys());
 	}
 
-	async addCompleteRequest(providerId: string, message: string, response: IInteractiveSessionCompleteResponse): Promise<void> {
+	async addCompleteRequest(sessionId: number, message: string, response: IInteractiveSessionCompleteResponse): Promise<void> {
 		this.trace('addCompleteRequest', `message: ${message}`);
 
-		// Currently we only support one session per provider
-		const modelForProvider = Iterable.find(this._sessionModels.values(), model => model.providerId === providerId);
-
-		if (!modelForProvider) {
-			throw new Error(`Could not start session for provider ${providerId}`);
+		const model = this._sessionModels.get(sessionId);
+		if (!model) {
+			throw new Error(`Unknown session: ${sessionId}`);
 		}
 
-		await modelForProvider.waitForInitialization();
-		const request = modelForProvider.addRequest(message);
-		modelForProvider.acceptResponseProgress(request, {
+		await model.waitForInitialization();
+		const request = model.addRequest(message);
+		model.acceptResponseProgress(request, {
 			content: response.message,
 		});
-		modelForProvider.completeResponse(request, {
-			session: modelForProvider.session!,
+		model.completeResponse(request, {
+			session: model.session!,
 			errorDetails: response.errorDetails,
 		});
 	}

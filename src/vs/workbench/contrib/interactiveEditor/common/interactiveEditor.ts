@@ -14,10 +14,10 @@ import { ITextModel } from 'vs/editor/common/model';
 import { localize } from 'vs/nls';
 import { MenuId, MenuRegistry } from 'vs/platform/actions/common/actions';
 import { Extensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
-import { ContextKeyExpr, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { editorHoverHighlight, editorWidgetBorder, focusBorder, inputBackground, inputPlaceholderForeground, registerColor, widgetShadow } from 'vs/platform/theme/common/colorRegistry';
+import { diffInserted, diffRemoved, editorHoverHighlight, editorWidgetBorder, focusBorder, inputBackground, inputPlaceholderForeground, registerColor, transparent, widgetShadow } from 'vs/platform/theme/common/colorRegistry';
 
 export interface IInteractiveEditorSlashCommand {
 	command: string;
@@ -105,9 +105,7 @@ export const CTX_INTERACTIVE_EDITOR_HAS_RESPONSE = new RawContextKey<boolean>('i
 export const CTX_INTERACTIVE_EDITOR_INLNE_DIFF = new RawContextKey<boolean>('interactiveEditorInlineDiff', false, localize('interactiveEditorInlineDiff', "Whether interactive editor show inline diffs for changes"));
 export const CTX_INTERACTIVE_EDITOR_LAST_EDIT_TYPE = new RawContextKey<'simple' | ''>('interactiveEditorLastEditKind', '', localize('interactiveEditorLastEditKind', "The last kind of edit that was performed"));
 export const CTX_INTERACTIVE_EDITOR_LAST_FEEDBACK = new RawContextKey<'unhelpful' | 'helpful' | ''>('interactiveEditorLastFeedbackKind', '', localize('interactiveEditorLastFeedbackKind', "The last kind of feedback that was provided"));
-
-export const CTX_VALUE_INTERACTIVE_EDITOR_EDIT_MODE_YOLO = ContextKeyExpr.equals('config.interactiveEditor.editMode', 'direct');
-export const CTX_INTERACTIVE_EDITOR_EDIT_MODE = new RawContextKey<'direct' | 'preview'>('config.interactiveEditor.editMode', 'direct');
+export const CTX_INTERACTIVE_EDITOR_EDIT_MODE = new RawContextKey<'live' | 'livePreview' | 'preview'>('config.interactiveEditor.editMode', 'live');
 
 // --- menus
 
@@ -119,19 +117,22 @@ MenuRegistry.appendMenuItem(MENU_INTERACTIVE_EDITOR_WIDGET_STATUS, {
 	title: localize('undo', "Undo..."),
 	icon: Codicon.discard,
 	group: '0_main',
-	order: 0,
+	order: 2,
 	when: CTX_INTERACTIVE_EDITOR_EDIT_MODE.isEqualTo('direct')
 });
 
 // --- colors
 
-registerColor('interactiveEditor.border', { dark: editorWidgetBorder, light: editorWidgetBorder, hcDark: editorWidgetBorder, hcLight: editorWidgetBorder }, localize('interactiveEditor.border', "Border color of the interactive editor widget"));
-registerColor('interactiveEditor.shadow', { dark: widgetShadow, light: widgetShadow, hcDark: widgetShadow, hcLight: widgetShadow }, localize('interactiveEditor.shadow', "Shadow color of the interactive editor widget"));
-registerColor('interactiveEditor.regionHighlight', { dark: editorHoverHighlight, light: editorHoverHighlight, hcDark: editorHoverHighlight, hcLight: editorHoverHighlight }, localize('interactiveEditor.regionHighlight', "Background highlighting of the current interactive region. Must be transparent."), true);
-registerColor('interactiveEditorInput.border', { dark: editorWidgetBorder, light: editorWidgetBorder, hcDark: editorWidgetBorder, hcLight: editorWidgetBorder }, localize('interactiveEditorInput.border', "Border color of the interactive editor input"));
-registerColor('interactiveEditorInput.focusBorder', { dark: focusBorder, light: focusBorder, hcDark: focusBorder, hcLight: focusBorder }, localize('interactiveEditorInput.focusBorder', "Border color of the interactive editor input when focused"));
-registerColor('interactiveEditorInput.placeholderForeground', { dark: inputPlaceholderForeground, light: inputPlaceholderForeground, hcDark: inputPlaceholderForeground, hcLight: inputPlaceholderForeground }, localize('interactiveEditorInput.placeholderForeground', "Foreground color of the interactive editor input placeholder"));
-registerColor('interactiveEditorInput.background', { dark: inputBackground, light: inputBackground, hcDark: inputBackground, hcLight: inputBackground }, localize('interactiveEditorInput.background', "Background color of the interactive editor input"));
+export const interactiveEditorBorder = registerColor('interactiveEditor.border', { dark: editorWidgetBorder, light: editorWidgetBorder, hcDark: editorWidgetBorder, hcLight: editorWidgetBorder }, localize('interactiveEditor.border', "Border color of the interactive editor widget"));
+export const interactiveEditorShadow = registerColor('interactiveEditor.shadow', { dark: widgetShadow, light: widgetShadow, hcDark: widgetShadow, hcLight: widgetShadow }, localize('interactiveEditor.shadow', "Shadow color of the interactive editor widget"));
+export const interactiveEditorRegionHighlight = registerColor('interactiveEditor.regionHighlight', { dark: editorHoverHighlight, light: editorHoverHighlight, hcDark: editorHoverHighlight, hcLight: editorHoverHighlight }, localize('interactiveEditor.regionHighlight', "Background highlighting of the current interactive region. Must be transparent."), true);
+export const interactiveEditorInputBorder = registerColor('interactiveEditorInput.border', { dark: editorWidgetBorder, light: editorWidgetBorder, hcDark: editorWidgetBorder, hcLight: editorWidgetBorder }, localize('interactiveEditorInput.border', "Border color of the interactive editor input"));
+export const interactiveEditorInputFocusBorder = registerColor('interactiveEditorInput.focusBorder', { dark: focusBorder, light: focusBorder, hcDark: focusBorder, hcLight: focusBorder }, localize('interactiveEditorInput.focusBorder', "Border color of the interactive editor input when focused"));
+export const interactiveEditorInputPlaceholderForeground = registerColor('interactiveEditorInput.placeholderForeground', { dark: inputPlaceholderForeground, light: inputPlaceholderForeground, hcDark: inputPlaceholderForeground, hcLight: inputPlaceholderForeground }, localize('interactiveEditorInput.placeholderForeground', "Foreground color of the interactive editor input placeholder"));
+export const interactiveEditorInputBackground = registerColor('interactiveEditorInput.background', { dark: inputBackground, light: inputBackground, hcDark: inputBackground, hcLight: inputBackground }, localize('interactiveEditorInput.background', "Background color of the interactive editor input"));
+
+export const interactiveEditorDiffInserted = registerColor('interactiveEditorDiff.inserted', { dark: transparent(diffInserted, .5), light: transparent(diffInserted, .5), hcDark: transparent(diffInserted, .5), hcLight: transparent(diffInserted, .5) }, localize('interactiveEditorDiff.inserted', "Background color of inserted text in the interactive editor input"));
+export const interactiveEditorDiffRemoved = registerColor('interactiveEditorDiff.removed', { dark: transparent(diffRemoved, .5), light: transparent(diffRemoved, .5), hcDark: transparent(diffRemoved, .5), hcLight: transparent(diffRemoved, .5) }, localize('interactiveEditorDiff.removed', "Background color of removed text in the interactive editor input"));
 
 // settings
 
@@ -140,9 +141,9 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfigurat
 	properties: {
 		'interactiveEditor.editMode': {
 			description: localize('editMode', "Configure if changes crafted in the interactive editor are applied directly or previewed first"),
-			default: 'direct',
+			default: 'live',
 			type: 'string',
-			enum: ['preview', 'direct']
+			enum: ['live', 'livePreview', 'preview']
 		}
 	}
 });

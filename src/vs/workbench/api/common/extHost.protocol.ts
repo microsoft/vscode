@@ -1283,7 +1283,7 @@ export type SCMRawResourceSplices = [
 ];
 
 export interface MainThreadSCMShape extends IDisposable {
-	$registerSourceControl(handle: number, id: string, label: string, rootUri: UriComponents | undefined): void;
+	$registerSourceControl(handle: number, id: string, label: string, rootUri: UriComponents | undefined, inputBoxDocumentUri: UriComponents): void;
 	$updateSourceControl(handle: number, features: SCMProviderFeatures): void;
 	$unregisterSourceControl(handle: number): void;
 
@@ -2032,6 +2032,20 @@ export interface IDebugSessionFullDto {
 
 export type IDebugSessionDto = IDebugSessionFullDto | DebugSessionUUID;
 
+export interface IThreadFocusDto {
+	kind: 'thread';
+	sessionId: string;
+	threadId: number | undefined;
+}
+
+export interface IStackFrameFocusDto {
+	kind: 'stackFrame';
+	sessionId: string;
+	threadId: number | undefined;
+	frameId: number | undefined;
+}
+
+
 export interface ExtHostDebugServiceShape {
 	$substituteVariables(folder: UriComponents | undefined, config: IConfig): Promise<IConfig>;
 	$runInTerminal(args: DebugProtocol.RunInTerminalRequestArguments, sessionId: string): Promise<number | undefined>;
@@ -2048,6 +2062,7 @@ export interface ExtHostDebugServiceShape {
 	$acceptDebugSessionCustomEvent(session: IDebugSessionDto, event: any): void;
 	$acceptBreakpointsDelta(delta: IBreakpointsDeltaDto): void;
 	$acceptDebugSessionNameChanged(session: IDebugSessionDto, name: string): void;
+	$acceptStackFrameFocus(focus: IThreadFocusDto | IStackFrameFocusDto | undefined): void;
 }
 
 

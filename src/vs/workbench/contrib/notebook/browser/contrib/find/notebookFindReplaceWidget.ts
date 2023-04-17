@@ -39,6 +39,7 @@ import { INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookB
 import { defaultInputBoxStyles, defaultProgressBarStyles, defaultToggleStyles } from 'vs/platform/theme/browser/defaultStyles';
 import { IToggleStyles } from 'vs/base/browser/ui/toggle/toggle';
 import { Disposable } from 'vs/base/common/lifecycle';
+import { NotebookSetting } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 
 const NLS_FIND_INPUT_LABEL = nls.localize('label.find', "Find");
 const NLS_FIND_INPUT_PLACEHOLDER = nls.localize('placeholder.find', "Find");
@@ -57,7 +58,7 @@ const NOTEBOOK_FIND_FILTERS = nls.localize('notebook.find.filter.filterAction', 
 const NOTEBOOK_FIND_IN_MARKUP_INPUT = nls.localize('notebook.find.filter.findInMarkupInput', "Markdown Source");
 const NOTEBOOK_FIND_IN_MARKUP_PREVIEW = nls.localize('notebook.find.filter.findInMarkupPreview', "Rendered Markdown");
 const NOTEBOOK_FIND_IN_CODE_INPUT = nls.localize('notebook.find.filter.findInCodeInput', "Code Cell Source");
-const NOTEBOOK_FIND_IN_CODE_OUTPUT = nls.localize('notebook.find.filter.findInCodeOutput', "Cell Output");
+const NOTEBOOK_FIND_IN_CODE_OUTPUT = nls.localize('notebook.find.filter.findInCodeOutput', "Code Cell Output");
 
 const NOTEBOOK_FIND_WIDGET_INITIAL_WIDTH = 318;
 const NOTEBOOK_FIND_WIDGET_INITIAL_HORIZONTAL_PADDING = 4;
@@ -305,7 +306,9 @@ export abstract class SimpleFindReplaceWidget extends Widget {
 	) {
 		super();
 
-		this._filters = new NotebookFindFilters(true, false, true, true);
+		const findInMarkdownMode = this._configurationService.getValue<{ source: boolean; preview: boolean }>(NotebookSetting.experimentalFindInMarkdownMode) ?? { source: true, preview: false };
+
+		this._filters = new NotebookFindFilters(findInMarkdownMode.source, findInMarkdownMode.preview, true, true);
 		this._state.change({ filters: this._filters }, false);
 
 		this._filters.onDidChange(() => {

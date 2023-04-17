@@ -272,17 +272,11 @@ export class AccountsActivityActionViewItem extends MenuActivityActionViewItem {
 		}));
 
 		this._register(this.authenticationService.onDidChangeSessions(async e => {
-			const promises = [];
-			for (const changed of e.event.changed) {
-				promises.push(this.addOrUpdateAccount(e.providerId, changed.account));
-			}
-			for (const added of e.event.added) {
-				promises.push(this.addOrUpdateAccount(e.providerId, added.account));
-			}
-			const result = await Promise.allSettled(promises);
-			for (const r of result) {
-				if (r.status === 'rejected') {
-					this.logService.error(r.reason);
+			for (const changed of [...e.event.changed, ...e.event.added]) {
+				try {
+					await this.addOrUpdateAccount(e.providerId, changed.account);
+				} catch (e) {
+					this.logService.error(e);
 				}
 			}
 			for (const removed of e.event.removed) {
@@ -395,13 +389,19 @@ export class AccountsActivityActionViewItem extends MenuActivityActionViewItem {
 	//#region groupedAccounts helpers
 
 	private async addOrUpdateAccount(providerId: string, account: AuthenticationSessionAccount): Promise<void> {
-		const accounts = this.groupedAccounts.get(providerId);
-		const existingAccount = accounts?.find(a => a.id === account.id);
-		if (existingAccount) {
-			if (existingAccount.label !== account.label) {
-				existingAccount.label = account.label;
+		let accounts = this.groupedAccounts.get(providerId);
+		if (accounts) {
+			const existingAccount = accounts.find(a => a.id === account.id);
+			if (existingAccount) {
+				// Update the label if it has changed
+				if (existingAccount.label !== account.label) {
+					existingAccount.label = account.label;
+				}
+				return;
 			}
-			return;
+		} else {
+			accounts = [];
+			this.groupedAccounts.set(providerId, accounts);
 		}
 
 		const sessionFromEmbedder = await this.sessionFromEmbedder;
@@ -415,11 +415,6 @@ export class AccountsActivityActionViewItem extends MenuActivityActionViewItem {
 				// The default if we don't have a session from the embedder is to allow sign out
 				canSignOut = true;
 			}
-		}
-
-		if (!accounts) {
-			this.groupedAccounts.set(providerId, [{ ...account, canSignOut }]);
-			return;
 		}
 
 		accounts.push({ ...account, canSignOut });
@@ -447,10 +442,11 @@ export class AccountsActivityActionViewItem extends MenuActivityActionViewItem {
 			const sessions = await this.authenticationService.getSessions(providerId);
 			this.problematicProviders.delete(providerId);
 
-			const result = await Promise.allSettled(sessions.map(s => this.addOrUpdateAccount(providerId, s.account)));
-			for (const r of result) {
-				if (r.status === 'rejected') {
-					this.logService.error(r.reason);
+			for (const session of sessions) {
+				try {
+					await this.addOrUpdateAccount(providerId, session.account);
+				} catch (e) {
+					this.logService.error(e);
 				}
 			}
 		} catch (e) {

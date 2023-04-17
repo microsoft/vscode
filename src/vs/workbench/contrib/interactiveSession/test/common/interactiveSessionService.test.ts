@@ -180,7 +180,7 @@ suite('InteractiveSession', () => {
 		const model = testService.startSession('testProvider', true, CancellationToken.None);
 		assert.strictEqual(model.getRequests().length, 0);
 
-		await testService.sendInteractiveRequestToProvider('testProvider', { message: 'test request' });
+		await testService.sendInteractiveRequestToProvider(model.sessionId, { message: 'test request' });
 		assert.strictEqual(model.getRequests().length, 1);
 	});
 
@@ -191,7 +191,7 @@ suite('InteractiveSession', () => {
 		const model = testService.startSession('testProvider', true, CancellationToken.None);
 		assert.strictEqual(model.getRequests().length, 0);
 
-		await testService.addCompleteRequest('testProvider', 'test request', { message: 'test response' });
+		await testService.addCompleteRequest(model.sessionId, 'test request', { message: 'test response' });
 		assert.strictEqual(model.getRequests().length, 1);
 		assert.ok(model.getRequests()[0].response);
 		assert.strictEqual(model.getRequests()[0].response?.response.value, 'test response');

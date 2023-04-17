@@ -180,7 +180,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 	const extHostFileSystem = rpcProtocol.set(ExtHostContext.ExtHostFileSystem, new ExtHostFileSystem(rpcProtocol, extHostLanguageFeatures));
 	const extHostFileSystemEvent = rpcProtocol.set(ExtHostContext.ExtHostFileSystemEventService, new ExtHostFileSystemEventService(rpcProtocol, extHostLogService, extHostDocumentsAndEditors));
 	const extHostQuickOpen = rpcProtocol.set(ExtHostContext.ExtHostQuickOpen, createExtHostQuickOpen(rpcProtocol, extHostWorkspace, extHostCommands));
-	const extHostSCM = rpcProtocol.set(ExtHostContext.ExtHostSCM, new ExtHostSCM(rpcProtocol, extHostCommands, extHostLogService));
+	const extHostSCM = rpcProtocol.set(ExtHostContext.ExtHostSCM, new ExtHostSCM(rpcProtocol, extHostCommands, extHostDocuments, extHostLogService));
 	const extHostQuickDiff = rpcProtocol.set(ExtHostContext.ExtHostQuickDiff, new ExtHostQuickDiff(rpcProtocol, uriTransformer));
 	const extHostComment = rpcProtocol.set(ExtHostContext.ExtHostComments, createExtHostComments(rpcProtocol, extHostCommands, extHostDocuments));
 	const extHostProgress = rpcProtocol.set(ExtHostContext.ExtHostProgress, new ExtHostProgress(rpcProtocol.getProxy(MainContext.MainThreadProgress)));
@@ -1105,6 +1105,9 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			get breakpoints() {
 				return extHostDebugService.breakpoints;
 			},
+			get stackFrameFocus() {
+				return extHostDebugService.stackFrameFocus;
+			},
 			onDidStartDebugSession(listener, thisArg?, disposables?) {
 				return extHostDebugService.onDidStartDebugSession(listener, thisArg, disposables);
 			},
@@ -1119,6 +1122,9 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			},
 			onDidChangeBreakpoints(listener, thisArgs?, disposables?) {
 				return extHostDebugService.onDidChangeBreakpoints(listener, thisArgs, disposables);
+			},
+			onDidChangeStackFrameFocus(listener, thisArg?, disposables?) {
+				return extHostDebugService.onDidChangeStackFrameFocus(listener, thisArg, disposables);
 			},
 			registerDebugConfigurationProvider(debugType: string, provider: vscode.DebugConfigurationProvider, triggerKind?: vscode.DebugConfigurationProviderTriggerKind) {
 				return extHostDebugService.registerDebugConfigurationProvider(debugType, provider, triggerKind || DebugConfigurationProviderTriggerKind.Initial);

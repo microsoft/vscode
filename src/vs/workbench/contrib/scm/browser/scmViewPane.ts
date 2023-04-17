@@ -57,7 +57,6 @@ import * as platform from 'vs/base/common/platform';
 import { compare, format } from 'vs/base/common/strings';
 import { SuggestController } from 'vs/editor/contrib/suggest/browser/suggestController';
 import { SnippetController2 } from 'vs/editor/contrib/snippet/browser/snippetController2';
-import { Schemas } from 'vs/base/common/network';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { ModesHoverController } from 'vs/editor/contrib/hover/browser/hover';
 import { ColorDetector } from 'vs/editor/contrib/colorPicker/browser/colorDetector';
@@ -89,9 +88,10 @@ import { DropIntoEditorController } from 'vs/editor/contrib/dropIntoEditor/brows
 import { MessageController } from 'vs/editor/contrib/message/browser/messageController';
 import { contrastBorder, registerColor } from 'vs/platform/theme/common/colorRegistry';
 import { defaultButtonStyles, defaultCountBadgeStyles } from 'vs/platform/theme/browser/defaultStyles';
-import { GhostTextController } from 'vs/editor/contrib/inlineCompletions/browser/ghostTextController';
+import { InlineCompletionsController } from 'vs/editor/contrib/inlineCompletions/browser/inlineCompletionsController';
 import { CodeActionController } from 'vs/editor/contrib/codeAction/browser/codeActionController';
 import { IResolvedTextEditorModel, ITextModelContentProvider, ITextModelService } from 'vs/editor/common/services/resolverService';
+import { Schemas } from 'vs/base/common/network';
 
 type TreeElement = ISCMRepository | ISCMInput | ISCMActionButton | ISCMResourceGroup | IResourceNode<ISCMResource, ISCMResourceGroup> | ISCMResource;
 
@@ -1763,18 +1763,7 @@ class SCMInputWidget {
 			return;
 		}
 
-		let query: string | undefined;
-
-		if (input.repository.provider.rootUri) {
-			query = `rootUri=${encodeURIComponent(input.repository.provider.rootUri.toString())}`;
-		}
-
-		const uri = URI.from({
-			scheme: Schemas.vscodeSourceControl,
-			path: `${input.repository.provider.contextValue}/${input.repository.provider.id}/input`,
-			query
-		});
-
+		const uri = input.repository.provider.inputBoxDocumentUri;
 		if (this.configurationService.getValue('editor.wordBasedSuggestions', { resource: uri }) !== false) {
 			this.configurationService.updateValue('editor.wordBasedSuggestions', false, { resource: uri }, ConfigurationTarget.MEMORY);
 		}
@@ -1975,7 +1964,7 @@ class SCMInputWidget {
 				SelectionClipboardContributionID,
 				SnippetController2.ID,
 				SuggestController.ID,
-				GhostTextController.ID,
+				InlineCompletionsController.ID,
 				CodeActionController.ID,
 			])
 		};
