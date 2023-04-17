@@ -126,11 +126,37 @@ export class FindModel extends Disposable {
 		// we only update cell state if users are using the hybrid mode (both input and preview are enabled)
 		const updateEditingState = (editing: boolean) => {
 			const viewModel = this._notebookEditor._getViewModel() as NotebookViewModel | undefined;
-			if (viewModel) {
+			if (!viewModel) {
+				return;
+			}
+
+			if (!editing) {
 				for (let i = 0; i < viewModel.length; i++) {
 					const cell = viewModel.cellAt(i);
 					if (cell && cell.cellKind === CellKind.Markup) {
-						cell.updateEditState(editing ? CellEditState.Editing : CellEditState.Preview, 'Find');
+						cell.updateEditState(CellEditState.Preview, 'Find');
+					}
+				}
+			} else {
+				// search markup sources first to decide if a markup cell should be in editing mode
+				const wordSeparators = this._configurationService.inspect<string>('editor.wordSeparators').value;
+				const options: INotebookSearchOptions = {
+					regex: this._state.isRegex,
+					wholeWord: this._state.wholeWord,
+					caseSensitive: this._state.matchCase,
+					wordSeparators: wordSeparators,
+					includeMarkupInput: true,
+					includeCodeInput: false,
+					includeMarkupPreview: false,
+					includeOutput: false
+				};
+
+				const contentMatches = viewModel.find(this._state.searchString, options);
+				for (let i = 0; i < viewModel.length; i++) {
+					const cell = viewModel.cellAt(i);
+					if (cell && cell.cellKind === CellKind.Markup) {
+						const foundContentMatch = contentMatches.find(m => m.cell.handle === cell.handle && m.contentMatches.length > 0);
+						cell.updateEditState(foundContentMatch ? CellEditState.Editing : CellEditState.Preview, 'Find');
 					}
 				}
 			}
@@ -144,7 +170,7 @@ export class FindModel extends Disposable {
 			updateEditingState(false);
 		}
 
-		if (e.replaceString && this._state.isRevealed && this._state.isReplaceRevealed && this._state.replaceString.length > 0) {
+		if ((e.searchString || e.replaceString) && this._state.isRevealed && this._state.isReplaceRevealed && this._state.replaceString.length > 0) {
 			updateEditingState(true);
 		}
 	}
