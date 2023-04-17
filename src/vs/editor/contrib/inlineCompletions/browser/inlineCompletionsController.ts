@@ -139,7 +139,8 @@ export class InlineCompletionsController extends Disposable {
 
 		this._register(this.editor.onDidBlurEditorWidget(() => {
 			// This is a hidden setting very useful for debugging
-			if (this.configurationService.getValue('editor.inlineSuggest.keepOnBlur')) {
+			if (this.configurationService.getValue('editor.inlineSuggest.keepOnBlur') ||
+				editor.getOption(EditorOption.inlineSuggest).keepOnBlur) {
 				return;
 			}
 			if (InlineSuggestionHintsContentWidget.dropDownVisible) {

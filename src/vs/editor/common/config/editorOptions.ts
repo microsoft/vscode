@@ -3807,6 +3807,11 @@ export interface IInlineSuggestOptions {
 	showToolbar?: 'always' | 'onHover';
 
 	suppressSuggestions?: boolean;
+
+	/**
+	 * Does not clear active inline suggestions when the editor loses focus.
+	 */
+	keepOnBlur?: boolean;
 }
 
 /**
@@ -3824,6 +3829,7 @@ class InlineEditorSuggest extends BaseEditorOption<EditorOption.inlineSuggest, I
 			mode: 'subwordSmart',
 			showToolbar: 'onHover',
 			suppressSuggestions: false,
+			keepOnBlur: false,
 		};
 
 		super(
@@ -3863,6 +3869,7 @@ class InlineEditorSuggest extends BaseEditorOption<EditorOption.inlineSuggest, I
 			mode: stringSet(input.mode, this.defaultValue.mode, ['prefix', 'subword', 'subwordSmart']),
 			showToolbar: stringSet(input.showToolbar, this.defaultValue.showToolbar, ['always', 'onHover']),
 			suppressSuggestions: boolean(input.suppressSuggestions, this.defaultValue.suppressSuggestions),
+			keepOnBlur: boolean(input.keepOnBlur, this.defaultValue.keepOnBlur),
 		};
 	}
 }
