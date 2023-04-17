@@ -116,7 +116,7 @@ class MirrorModel extends BaseMirrorModel implements ICommonModel {
 			const offsetToAdd = this.offsetAt(new Position(i + 1, 1));
 			const iteratorOverMatches = line.matchAll(regex);
 			for (const match of iteratorOverMatches) {
-				if (match.index) {
+				if (match.index || match.index === 0) {
 					match.index = match.index + offsetToAdd;
 				}
 				matches.push(match);
