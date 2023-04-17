@@ -16,7 +16,7 @@ import { registerEditorFeature } from 'vs/editor/common/editorFeatures';
 
 export class DefaultDocumentColorProvider implements DocumentColorProvider {
 
-	private _editorWorkerClient: EditorWorkerClient | null;
+	private _editorWorkerClient: EditorWorkerClient;
 
 	constructor(
 		modelService: IModelService,
@@ -26,7 +26,7 @@ export class DefaultDocumentColorProvider implements DocumentColorProvider {
 	}
 
 	provideDocumentColors(model: ITextModel, _token: CancellationToken): ProviderResult<IColorInformation[]> {
-		return this._editorWorkerClient?.computeDefaultDocumentColors(model.uri).then((documentColors) => {
+		return this._editorWorkerClient.computeDefaultDocumentColors(model.uri).then((documentColors) => {
 			return documentColors;
 		});
 	}
