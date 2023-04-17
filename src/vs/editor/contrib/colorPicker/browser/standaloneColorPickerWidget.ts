@@ -54,7 +54,7 @@ export class StandaloneColorPickerController extends Disposable implements IEdit
 			return;
 		}
 		if (!this._standaloneColorPickerVisible.get()) {
-			this._standaloneColorPickerWidget = new StandaloneColorPickerWidget(this._editor, this._standaloneColorPickerVisible, this._standaloneColorPickerFocused, this._instantiationService, this._keybindingService, this._languageFeatureService, this._modelService, this._languageConfigurationService);
+			this._standaloneColorPickerWidget = new StandaloneColorPickerWidget(this._editor, this._standaloneColorPickerVisible, this._standaloneColorPickerFocused, this._instantiationService, this._modelService, this._keybindingService, this._languageFeatureService, this._languageConfigurationService);
 		} else if (!this._standaloneColorPickerFocused.get()) {
 			this._standaloneColorPickerWidget?.focus();
 		}
@@ -101,13 +101,14 @@ export class StandaloneColorPickerWidget extends Disposable implements IContentW
 		private readonly _standaloneColorPickerVisible: IContextKey<boolean>,
 		private readonly _standaloneColorPickerFocused: IContextKey<boolean>,
 		@IInstantiationService _instantiationService: IInstantiationService,
+		@IModelService private readonly _modelService: IModelService,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
 		@ILanguageFeaturesService private readonly _languageFeaturesService: ILanguageFeaturesService,
-		@IModelService private readonly _modelService: IModelService,
 		@ILanguageConfigurationService private readonly _languageConfigurationService: ILanguageConfigurationService
 	) {
 		super();
 		this._standaloneColorPickerVisible.set(true);
+		this._standaloneColorPickerParticipant = _instantiationService.createInstance(StandaloneColorPickerParticipant, this._editor);
 		this._position = this._editor._getViewModel()?.getPrimaryCursorState().viewState.position;
 		const editorSelection = this._editor.getSelection();
 		const selection = editorSelection ?
@@ -117,7 +118,6 @@ export class StandaloneColorPickerWidget extends Disposable implements IContentW
 				endLineNumber: editorSelection.endLineNumber,
 				endColumn: editorSelection.endColumn
 			} : { startLineNumber: 0, endLineNumber: 0, endColumn: 0, startColumn: 0 };
-		this._standaloneColorPickerParticipant = _instantiationService.createInstance(StandaloneColorPickerParticipant, this._editor);
 		const focusTracker = this._register(dom.trackFocus(this.body));
 		this._register(focusTracker.onDidBlur(_ => {
 			this.hide();
@@ -195,9 +195,7 @@ export class StandaloneColorPickerWidget extends Disposable implements IContentW
 		this._onResult.fire(new StandaloneColorPickerResult(computeAsyncResult.result, computeAsyncResult.foundInEditor));
 	}
 
-	private async _computeAsync(
-		range: IRange
-	): Promise<{ result: StandaloneColorPickerHover; foundInEditor: boolean } | null> {
+	private async _computeAsync(range: IRange): Promise<{ result: StandaloneColorPickerHover; foundInEditor: boolean } | null> {
 		if (!this._editor.hasModel()) {
 			return null;
 		}

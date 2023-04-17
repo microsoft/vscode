@@ -57,7 +57,6 @@ class HideStandaloneColorPicker extends EditorAction {
 }
 
 class InsertColorWithStandaloneColorPicker extends EditorAction {
-
 	constructor() {
 		super({
 			id: 'editor.action.insertColorWithStandaloneColorPicker',

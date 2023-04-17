@@ -125,11 +125,10 @@ async function _findColorPresentations(colorProviderRegistry: LanguageFeatureReg
 	if (!defaultDocumentColorProvider) {
 		return [];
 	} else {
-		await Promise.resolve(defaultDocumentColorProvider.provideColorPresentations(model, colorInfo, CancellationToken.None)).then(result => {
-			if (Array.isArray(result)) {
-				presentations.push(...result);
-			}
-		});
+		const colorPresentation = await Promise.resolve(defaultDocumentColorProvider.provideColorPresentations(model, colorInfo, CancellationToken.None));
+		if (Array.isArray(colorPresentation)) {
+			presentations.push(...colorPresentation);
+		}
 		return presentations;
 	}
 }

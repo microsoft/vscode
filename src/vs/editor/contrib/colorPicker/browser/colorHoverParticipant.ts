@@ -102,7 +102,6 @@ export class StandaloneColorPickerHover {
 export class StandaloneColorPickerParticipant {
 
 	public readonly hoverOrdinal: number = 2;
-	private _range: Range | null = null;
 	private _color: Color | null = null;
 
 	constructor(
@@ -142,20 +141,12 @@ export class StandaloneColorPickerParticipant {
 		let range = new Range(colorHoverData.range.startLineNumber, colorHoverData.range.startColumn, colorHoverData.range.endLineNumber, colorHoverData.range.endColumn);
 		if (this._color) {
 			await _updateColorPresentations(this._editor.getModel(), colorPickerModel, this._color, range, colorHoverData);
-			range = _updateEditorModel(this, this._editor, range, colorPickerModel);
+			range = _updateEditorModel(this._editor, range, colorPickerModel);
 		}
 	}
 
 	public renderHoverParts(context: IEditorHoverRenderContext, hoverParts: ColorHover[] | StandaloneColorPickerHover[]): IDisposable {
 		return renderHoverParts(this, this._editor, this._themeService, hoverParts, context);
-	}
-
-	public set range(range: Range | null) {
-		this._range = range;
-	}
-
-	public get range(): Range | null {
-		return this._range;
 	}
 
 	public set color(color: Color | null) {
@@ -209,31 +200,24 @@ function renderHoverParts(participant: ColorHoverParticipant | StandaloneColorPi
 	} else {
 		disposables.add(model.onColorFlushed(async (color: Color) => {
 			await _updateColorPresentations(editorModel, model, color, range, colorHover);
-			range = _updateEditorModel(participant, editor, range, model, context);
+			range = _updateEditorModel(editor, range, model, context);
 		}));
 	}
 	disposables.add(model.onDidChangeColor((color: Color) => { _updateColorPresentations(editorModel, model, color, range, colorHover); }));
 	return disposables;
 }
 
-function _updateEditorModel(participant: ColorHoverParticipant | StandaloneColorPickerParticipant, editor: ICodeEditor, range: Range, model: ColorPickerModel, context?: IEditorHoverRenderContext) {
+function _updateEditorModel(editor: ICodeEditor, range: Range, model: ColorPickerModel, context?: IEditorHoverRenderContext) {
 	let textEdits: ISingleEditOperation[];
 	let newRange: Range;
 	if (model.presentation.textEdit) {
 		textEdits = [model.presentation.textEdit];
-		newRange = participant instanceof StandaloneColorPickerParticipant && participant.range ?
-			new Range(
-				participant.range.startLineNumber,
-				participant.range.startColumn,
-				participant.range.endLineNumber,
-				participant.range.endColumn
-			) :
-			new Range(
-				model.presentation.textEdit.range.startLineNumber,
-				model.presentation.textEdit.range.startColumn,
-				model.presentation.textEdit.range.endLineNumber,
-				model.presentation.textEdit.range.endColumn
-			);
+		newRange = new Range(
+			model.presentation.textEdit.range.startLineNumber,
+			model.presentation.textEdit.range.startColumn,
+			model.presentation.textEdit.range.endLineNumber,
+			model.presentation.textEdit.range.endColumn
+		);
 		const trackedRange = editor.getModel()!._setTrackedRange(null, newRange, TrackedRangeStickiness.GrowsOnlyWhenTypingAfter);
 		editor.pushUndoStop();
 		editor.executeEdits('colorpicker', textEdits);
