@@ -946,6 +946,7 @@ export const NotebookSetting = {
 	outputFontFamily: 'notebook.output.fontFamily',
 	experimentalFindInMarkdownMode: 'notebook.experimental.findInMarkdownMode',
 	logging: 'notebook.logging',
+	confirmDeleteRunningCell: 'notebook.confirmDeleteRunningCell',
 } as const;
 
 export const enum CellStatusbarAlignment {

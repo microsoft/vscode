@@ -912,6 +912,11 @@ configurationRegistry.registerConfiguration({
 			tags: ['notebookLayout'],
 			default: false
 		},
+		[NotebookSetting.confirmDeleteRunningCell]: {
+			markdownDescription: nls.localize('notebook.confirmDeleteRunningCell', "Control whether a confirmation prompt is required to delete a running cell."),
+			type: 'boolean',
+			default: true
+		},
 		[NotebookSetting.experimentalFindInMarkdownMode]: {
 			markdownDescription: nls.localize('notebook.experimental.findInMarkdownMode', "Customize the Find Widget behavior for searching within markdown cells. When both are enabled, the Find Widget will search either the content or preview based on the current state of the markdown cell. Toggle the boolean values to control the Find Widget's scope for each mode as needed."),
 			type: 'object',
