@@ -2034,15 +2034,15 @@ export type IDebugSessionDto = IDebugSessionFullDto | DebugSessionUUID;
 
 export interface IThreadFocusDto {
 	kind: 'thread';
+	sessionId: string;
 	threadId: number | undefined;
-	sessionId: string | undefined;
 }
 
 export interface IStackFrameFocusDto {
 	kind: 'stackFrame';
+	sessionId: string;
 	threadId: number | undefined;
 	frameId: number | undefined;
-	sessionId: string | undefined;
 }
 
 

@@ -75,8 +75,6 @@ export class ViewModel implements IViewModel {
 	setFocus(stackFrame: IStackFrame | undefined, thread: IThread | undefined, session: IDebugSession | undefined, explicit: boolean): void {
 		const shouldEmitForStackFrame = this._focusedStackFrame !== stackFrame;
 		const shouldEmitForSession = this._focusedSession !== session;
-		// currently, it does not happen that shouldEmitForThread === true, but shouldEmitForStackFrame === false.
-		// the stack frame object comparison above is always false, so selecting a thread results in a stack frame focus.
 		const shouldEmitForThread = this._focusedThread !== thread;
 
 
