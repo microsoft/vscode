@@ -146,7 +146,6 @@ export interface CodeActionTrigger {
 		readonly notAvailableMessage: string;
 		readonly position: Position;
 	};
-	readonly preview?: boolean;
 }
 
 export class CodeActionCommandArgs {
@@ -215,10 +214,5 @@ export interface CodeActionSet extends ActionSet<CodeActionItem> {
 	readonly validActions: readonly CodeActionItem[];
 	readonly allActions: readonly CodeActionItem[];
 
-	readonly documentation: readonly {
-		id: string;
-		title: string;
-		tooltip?: string;
-		commandArguments?: any[];
-	}[];
+	readonly documentation: readonly languages.Command[];
 }

@@ -1323,13 +1323,6 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 			}
 		}
 
-		let preferUtilityProcess = false;
-		if (typeof windowConfig?.experimental?.sharedProcessUseUtilityProcess === 'boolean') {
-			preferUtilityProcess = windowConfig.experimental.sharedProcessUseUtilityProcess;
-		} else {
-			preferUtilityProcess = product.quality !== 'stable';
-		}
-
 		// Build up the window configuration from provided options, config and environment
 		const configuration: INativeWindowConfiguration = {
 
@@ -1393,9 +1386,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 			accessibilitySupport: app.accessibilitySupportEnabled,
 			colorScheme: this.themeMainService.getColorScheme(),
 			policiesData: this.policyService.serialize(),
-			continueOn: this.environmentMainService.continueOn,
-
-			preferUtilityProcess
+			continueOn: this.environmentMainService.continueOn
 		};
 
 		// New window
@@ -1458,7 +1449,10 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 				configuration['extensions-dir'] = currentWindowConfig['extensions-dir'];
 				configuration['disable-extensions'] = currentWindowConfig['disable-extensions'];
 			}
-			configuration.loggers = currentWindowConfig?.loggers ?? configuration.loggers;
+			configuration.loggers = {
+				global: configuration.loggers.global,
+				window: currentWindowConfig?.loggers.window ?? configuration.loggers.window
+			};
 		}
 
 		// Update window identifier and session now

@@ -92,23 +92,20 @@ registerListeners();
  */
 let nlsConfigurationPromise = undefined;
 
-const metaDataFile = path.join(__dirname, 'nls.metadata.json');
-const language = getUserDefinedLocale(argvConfig);
 /**
- * @type {string | undefined}
+ * @type {String}
  **/
 // Use the most preferred OS language for language recommendation.
 // The API might return an empty array on Linux, such as when
 // the 'C' locale is the user's only configured locale.
 // No matter the OS, if the array is empty, default back to 'en'.
-let osLocale = app.getPreferredSystemLanguages()?.[0] ?? 'en';
-if (osLocale) {
-	osLocale = processZhLocale(osLocale.toLowerCase());
-}
-
-if (language && osLocale) {
+const resolved = app.getPreferredSystemLanguages()?.[0] ?? 'en';
+const osLocale = processZhLocale(resolved.toLowerCase());
+const metaDataFile = path.join(__dirname, 'nls.metadata.json');
+const locale = getUserDefinedLocale(argvConfig);
+if (locale) {
 	const { getNLSConfiguration } = require('./vs/base/node/languagePacks');
-	nlsConfigurationPromise = getNLSConfiguration(product.commit, userDataPath, metaDataFile, osLocale, language);
+	nlsConfigurationPromise = getNLSConfiguration(product.commit, userDataPath, metaDataFile, locale, osLocale);
 }
 
 // Pass in the locale to Electron so that the
@@ -120,7 +117,7 @@ if (language && osLocale) {
 // In that case, use `en` as the Electron locale.
 
 if (process.platform === 'win32' || process.platform === 'linux') {
-	const electronLocale = (!language || language === 'qps-ploc') ? 'en' : language;
+	const electronLocale = (!locale || locale === 'qps-ploc') ? 'en' : locale;
 	app.commandLine.appendSwitch('lang', electronLocale);
 }
 
@@ -249,10 +246,8 @@ function configureCommandlineSwitchesSync(cliArgs) {
 		}
 	});
 
-	/* Following features are disabled from the runtime.
-	 * `CalculateNativeWinOcclusion` - Disable native window occlusion tracker,
-	 *	Refs https://groups.google.com/a/chromium.org/g/embedder-dev/c/ZF3uHHyWLKw/m/VDN2hDXMAAAJ
-	 */
+	// Following features are disabled from the runtime:
+	// `CalculateNativeWinOcclusion` - Disable native window occlusion tracker (https://groups.google.com/a/chromium.org/g/embedder-dev/c/ZF3uHHyWLKw/m/VDN2hDXMAAAJ)
 	app.commandLine.appendSwitch('disable-features', 'CalculateNativeWinOcclusion');
 
 	// Support JS Flags
@@ -600,22 +595,28 @@ async function resolveNlsConfiguration() {
 	// First, we need to test a user defined locale. If it fails we try the app locale.
 	// If that fails we fall back to English.
 	let nlsConfiguration = nlsConfigurationPromise ? await nlsConfigurationPromise : undefined;
-	if (!nlsConfiguration) {
-		// fallback to using app.getLocale() so that we have something for the locale.
-		// This can be removed after the move to Electron 22. Please note that getLocale() is only
-		// valid after we have received the app ready event. This is why the code is here.
-		osLocale ??= processZhLocale(app.getLocale().toLowerCase());
-
-		const { getNLSConfiguration } = require('./vs/base/node/languagePacks');
-		nlsConfiguration = await getNLSConfiguration(product.commit, userDataPath, metaDataFile, osLocale, language);
-		if (!nlsConfiguration) {
-			nlsConfiguration = { locale: osLocale, availableLanguages: {} };
-		}
-	} else {
-		// We received a valid nlsConfig from a user defined locale
+	if (nlsConfiguration) {
+		return nlsConfiguration;
 	}
 
-	return nlsConfiguration;
+	// Try to use the app locale. Please note that the app locale is only
+	// valid after we have received the app ready event. This is why the
+	// code is here.
+
+	/**
+	 * @type string
+	 */
+	let appLocale = app.getLocale();
+	if (!appLocale) {
+		return { locale: 'en', osLocale, availableLanguages: {} };
+	}
+
+	// See above the comment about the loader and case sensitiveness
+	appLocale = processZhLocale(appLocale.toLowerCase());
+
+	const { getNLSConfiguration } = require('./vs/base/node/languagePacks');
+	nlsConfiguration = await getNLSConfiguration(product.commit, userDataPath, metaDataFile, appLocale, osLocale);
+	return nlsConfiguration ?? { locale: 'en', osLocale, availableLanguages: {} };
 }
 
 /**

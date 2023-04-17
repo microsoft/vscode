@@ -18,7 +18,7 @@ import { regExpLeadsToEndlessLoop, regExpFlags } from 'vs/base/common/strings';
 import { IPosition } from 'vs/editor/common/core/position';
 import { IRange, Range as EditorRange } from 'vs/editor/common/core/range';
 import { isFalsyOrEmpty, isNonEmptyArray, coalesce } from 'vs/base/common/arrays';
-import { isObject } from 'vs/base/common/types';
+import { assertType, isObject } from 'vs/base/common/types';
 import { ISelection, Selection } from 'vs/editor/common/core/selection';
 import { ILogService } from 'vs/platform/log/common/log';
 import { CancellationToken } from 'vs/base/common/cancellation';
@@ -33,8 +33,9 @@ import { Cache } from './cache';
 import { StopWatch } from 'vs/base/common/stopwatch';
 import { isCancellationError, NotImplementedError } from 'vs/base/common/errors';
 import { raceCancellationError } from 'vs/base/common/async';
-import { isProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
+import { checkProposedApiEnabled, isProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
 import { IExtHostTelemetry } from 'vs/workbench/api/common/extHostTelemetry';
+import { localize } from 'vs/nls';
 
 // --- adapter
 
@@ -457,19 +458,33 @@ class CodeActionAdapter {
 		return { cacheId, actions };
 	}
 
-	async resolveCodeAction(id: extHostProtocol.ChainedCacheId, token: CancellationToken): Promise<extHostProtocol.IWorkspaceEditDto | undefined> {
+	async resolveCodeAction(id: extHostProtocol.ChainedCacheId, token: CancellationToken): Promise<{ edit?: extHostProtocol.IWorkspaceEditDto; command?: extHostProtocol.ICommandDto }> {
 		const [sessionId, itemId] = id;
 		const item = this._cache.get(sessionId, itemId);
 		if (!item || CodeActionAdapter._isCommand(item)) {
-			return undefined; // code actions only!
+			return {}; // code actions only!
 		}
 		if (!this._provider.resolveCodeAction) {
-			return; // this should not happen...
+			return {}; // this should not happen...
 		}
+
+
 		const resolvedItem = (await this._provider.resolveCodeAction(item, token)) ?? item;
-		return resolvedItem?.edit
-			? typeConvert.WorkspaceEdit.from(resolvedItem.edit, undefined)
-			: undefined;
+
+		let resolvedEdit: extHostProtocol.IWorkspaceEditDto | undefined;
+		if (resolvedItem.edit) {
+			resolvedEdit = typeConvert.WorkspaceEdit.from(resolvedItem.edit, undefined);
+		}
+
+		let resolvedCommand: extHostProtocol.ICommandDto | undefined;
+		if (resolvedItem.command) {
+			const disposables = this._disposables.get(sessionId);
+			if (disposables) {
+				resolvedCommand = this._commands.toInternal(resolvedItem.command, disposables);
+			}
+		}
+
+		return { edit: resolvedEdit, command: resolvedCommand };
 	}
 
 	releaseCodeActions(cachedId: number): void {
@@ -560,6 +575,18 @@ class RangeFormattingAdapter {
 		const ran = typeConvert.Range.to(range);
 
 		const value = await this._provider.provideDocumentRangeFormattingEdits(document, ran, <any>options, token);
+		if (Array.isArray(value)) {
+			return value.map(typeConvert.TextEdit.from);
+		}
+		return undefined;
+	}
+
+	async provideDocumentRangesFormattingEdits(resource: URI, ranges: IRange[], options: languages.FormattingOptions, token: CancellationToken): Promise<ISingleEditOperation[] | undefined> {
+		assertType(typeof this._provider.provideDocumentRangesFormattingEdits === 'function', 'INVALID invocation of `provideDocumentRangesFormattingEdits`');
+
+		const document = this._documents.getDocument(resource);
+		const _ranges = <Range[]>ranges.map(typeConvert.Range.to);
+		const value = await this._provider.provideDocumentRangesFormattingEdits(document, _ranges, <any>options, token);
 		if (Array.isArray(value)) {
 			return value.map(typeConvert.TextEdit.from);
 		}
@@ -1134,6 +1161,8 @@ class InlineCompletionAdapter extends InlineCompletionAdapterBase {
 
 		const normalizedResult = Array.isArray(result) ? result : result.items;
 		const commands = this._isAdditionsProposedApiEnabled ? Array.isArray(result) ? [] : result.commands || [] : [];
+		const suppressSuggestions = this._isAdditionsProposedApiEnabled && !Array.isArray(result) ? result.suppressSuggestions : undefined;
+		const enableForwardStability = this._isAdditionsProposedApiEnabled && !Array.isArray(result) ? result.enableForwardStability : undefined;
 
 		let disposableStore: DisposableStore | undefined = undefined;
 		const pid = this._references.createReferenceId({
@@ -1161,7 +1190,7 @@ class InlineCompletionAdapter extends InlineCompletionAdapterBase {
 					range: item.range ? typeConvert.Range.from(item.range) : undefined,
 					command,
 					idx: idx,
-					completeBracketPairs: this._isAdditionsProposedApiEnabled ? item.completeBracketPairs : false
+					completeBracketPairs: this._isAdditionsProposedApiEnabled ? item.completeBracketPairs : false,
 				});
 			}),
 			commands: commands.map(c => {
@@ -1169,7 +1198,9 @@ class InlineCompletionAdapter extends InlineCompletionAdapterBase {
 					disposableStore = new DisposableStore();
 				}
 				return this._commands.toInternal(c, disposableStore);
-			})
+			}),
+			suppressSuggestions,
+			enableForwardStability,
 		};
 	}
 
@@ -1702,6 +1733,7 @@ class DocumentOnDropEditAdapter {
 		private readonly _documents: ExtHostDocuments,
 		private readonly _provider: vscode.DocumentDropEditProvider,
 		private readonly _handle: number,
+		private readonly _extension: IExtensionDescription,
 	) { }
 
 	async provideDocumentOnDropEdits(requestId: number, uri: URI, position: IPosition, dataTransferDto: extHostProtocol.DataTransferDTO, token: CancellationToken): Promise<extHostProtocol.IDocumentOnDropEditDto | undefined> {
@@ -1716,6 +1748,7 @@ class DocumentOnDropEditAdapter {
 			return undefined;
 		}
 		return {
+			label: edit.label ?? localize('defaultDropLabel', "Drop using '{0}' extension", this._extension.displayName || this._extension.name),
 			insertText: typeof edit.insertText === 'string' ? edit.insertText : { snippet: edit.insertText.value },
 			additionalEdit: edit.additionalEdit ? typeConvert.WorkspaceEdit.from(edit.additionalEdit, undefined) : undefined,
 		};
@@ -2021,8 +2054,8 @@ export class ExtHostLanguageFeatures implements extHostProtocol.ExtHostLanguageF
 		return this._withAdapter(handle, CodeActionAdapter, adapter => adapter.provideCodeActions(URI.revive(resource), rangeOrSelection, context, token), undefined, token);
 	}
 
-	$resolveCodeAction(handle: number, id: extHostProtocol.ChainedCacheId, token: CancellationToken): Promise<extHostProtocol.IWorkspaceEditDto | undefined> {
-		return this._withAdapter(handle, CodeActionAdapter, adapter => adapter.resolveCodeAction(id, token), undefined, undefined);
+	$resolveCodeAction(handle: number, id: extHostProtocol.ChainedCacheId, token: CancellationToken): Promise<{ edit?: extHostProtocol.IWorkspaceEditDto; command?: extHostProtocol.ICommandDto }> {
+		return this._withAdapter(handle, CodeActionAdapter, adapter => adapter.resolveCodeAction(id, token), {}, undefined);
 	}
 
 	$releaseCodeActions(handle: number, cacheId: number): void {
@@ -2042,13 +2075,21 @@ export class ExtHostLanguageFeatures implements extHostProtocol.ExtHostLanguageF
 	}
 
 	registerDocumentRangeFormattingEditProvider(extension: IExtensionDescription, selector: vscode.DocumentSelector, provider: vscode.DocumentRangeFormattingEditProvider): vscode.Disposable {
+		const canFormatMultipleRanges = typeof provider.provideDocumentRangesFormattingEdits === 'function';
+		if (canFormatMultipleRanges) {
+			checkProposedApiEnabled(extension, 'formatMultipleRanges');
+		}
 		const handle = this._addNewAdapter(new RangeFormattingAdapter(this._documents, provider), extension);
-		this._proxy.$registerRangeFormattingSupport(handle, this._transformDocumentSelector(selector), extension.identifier, extension.displayName || extension.name);
+		this._proxy.$registerRangeFormattingSupport(handle, this._transformDocumentSelector(selector), extension.identifier, extension.displayName || extension.name, canFormatMultipleRanges);
 		return this._createDisposable(handle);
 	}
 
 	$provideDocumentRangeFormattingEdits(handle: number, resource: UriComponents, range: IRange, options: languages.FormattingOptions, token: CancellationToken): Promise<ISingleEditOperation[] | undefined> {
 		return this._withAdapter(handle, RangeFormattingAdapter, adapter => adapter.provideDocumentRangeFormattingEdits(URI.revive(resource), range, options, token), undefined, token);
+	}
+
+	$provideDocumentRangesFormattingEdits(handle: number, resource: UriComponents, ranges: IRange[], options: languages.FormattingOptions, token: CancellationToken): Promise<ISingleEditOperation[] | undefined> {
+		return this._withAdapter(handle, RangeFormattingAdapter, adapter => adapter.provideDocumentRangesFormattingEdits(URI.revive(resource), ranges, options, token), undefined, token);
 	}
 
 	registerOnTypeFormattingEditProvider(extension: IExtensionDescription, selector: vscode.DocumentSelector, provider: vscode.OnTypeFormattingEditProvider, triggerCharacters: string[]): vscode.Disposable {
@@ -2346,10 +2387,12 @@ export class ExtHostLanguageFeatures implements extHostProtocol.ExtHostLanguageF
 
 	// --- Document on drop
 
-	registerDocumentOnDropEditProvider(extension: IExtensionDescription, selector: vscode.DocumentSelector, provider: vscode.DocumentDropEditProvider) {
+	registerDocumentOnDropEditProvider(extension: IExtensionDescription, selector: vscode.DocumentSelector, provider: vscode.DocumentDropEditProvider, metadata?: vscode.DocumentDropEditProviderMetadata) {
 		const handle = this._nextHandle();
-		this._adapter.set(handle, new AdapterData(new DocumentOnDropEditAdapter(this._proxy, this._documents, provider, handle), extension));
-		this._proxy.$registerDocumentOnDropEditProvider(handle, this._transformDocumentSelector(selector));
+		this._adapter.set(handle, new AdapterData(new DocumentOnDropEditAdapter(this._proxy, this._documents, provider, handle, extension), extension));
+
+		this._proxy.$registerDocumentOnDropEditProvider(handle, this._transformDocumentSelector(selector), extension.identifier, isProposedApiEnabled(extension, 'dropMetadata') ? metadata : undefined);
+
 		return this._createDisposable(handle);
 	}
 

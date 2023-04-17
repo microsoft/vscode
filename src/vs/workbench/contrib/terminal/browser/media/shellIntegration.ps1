@@ -17,6 +17,31 @@ $Global:__VSCodeOriginalPrompt = $function:Prompt
 
 $Global:__LastHistoryId = -1
 
+if ($env:VSCODE_ENV_REPLACE) {
+	$Split = $env:VSCODE_ENV_REPLACE.Split(":")
+	foreach ($Item in $Split) {
+		$Inner = $Item.Split('=')
+		[Environment]::SetEnvironmentVariable($Inner[0], $Inner[1])
+	}
+	$env:VSCODE_ENV_REPLACE = $null
+}
+if ($env:VSCODE_ENV_PREPEND) {
+	$Split = $env:VSCODE_ENV_PREPEND.Split(":")
+	foreach ($Item in $Split) {
+		$Inner = $Item.Split('=')
+		[Environment]::SetEnvironmentVariable($Inner[0], $Inner[1] + [Environment]::GetEnvironmentVariable($Inner[0]))
+	}
+	$env:VSCODE_ENV_PREPEND = $null
+}
+if ($env:VSCODE_ENV_APPEND) {
+	$Split = $env:VSCODE_ENV_APPEND.Split(":")
+	foreach ($Item in $Split) {
+		$Inner = $Item.Split('=')
+		[Environment]::SetEnvironmentVariable($Inner[0], [Environment]::GetEnvironmentVariable($Inner[0]) + $Inner[1])
+	}
+	$env:VSCODE_ENV_APPEND = $null
+}
+
 function Global:__VSCode-Escape-Value([string]$value) {
 	# NOTE: In PowerShell v6.1+, this can be written `$value -replace '…', { … }` instead of `[regex]::Replace`.
 	# Replace any non-alphanumeric characters.
@@ -95,7 +120,13 @@ if (Get-Module -Name PSReadLine) {
 # Set always on key handlers which map to default VS Code keybindings
 function Set-MappedKeyHandler {
 	param ([string[]] $Chord, [string[]]$Sequence)
-	$Handler = $(Get-PSReadLineKeyHandler -Chord $Chord | Select-Object -First 1)
+	try {
+		$Handler = Get-PSReadLineKeyHandler -Chord $Chord | Select-Object -First 1
+	} catch [System.Management.Automation.ParameterBindingException] {
+		# PowerShell 5.1 ships with PSReadLine 2.0.0 which does not have -Chord,
+		# so we check what's bound and filter it.
+		$Handler = Get-PSReadLineKeyHandler -Bound | Where-Object -FilterScript { $_.Key -eq $Chord } | Select-Object -First 1
+	}
 	if ($Handler) {
 		Set-PSReadLineKeyHandler -Chord $Sequence -Function $Handler.Function
 	}

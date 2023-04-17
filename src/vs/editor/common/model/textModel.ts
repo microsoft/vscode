@@ -44,6 +44,7 @@ import { ITokenizationTextModelPart } from 'vs/editor/common/tokenizationTextMod
 import { IColorTheme } from 'vs/platform/theme/common/themeService';
 import { ThemeColor } from 'vs/base/common/themables';
 import { IUndoRedoService, ResourceEditStackSnapshot, UndoRedoGroup } from 'vs/platform/undoRedo/common/undoRedo';
+import { LineRange } from 'vs/editor/common/core/lineRange';
 
 export function createTextBufferFactory(text: string): model.ITextBufferFactory {
 	const builder = new PieceTreeTextBufferBuilder();
@@ -286,6 +287,8 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 	private readonly _guidesTextModelPart: GuidesTextModelPart;
 	public get guides(): IGuidesTextModelPart { return this._guidesTextModelPart; }
 
+	private readonly _attachedViews = new AttachedViews();
+
 	constructor(
 		source: string | model.ITextBufferFactory,
 		languageIdOrSelection: string | ILanguageSelection,
@@ -327,7 +330,8 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 			this._languageConfigurationService,
 			this,
 			this._bracketPairs,
-			languageId
+			languageId,
+			this._attachedViews,
 		);
 
 		const bufferLineCount = this._buffer.getLineCount();
@@ -439,7 +443,7 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 		this._setValueFromTextBuffer(textBuffer, disposable);
 	}
 
-	private _createContentChanged2(range: Range, rangeOffset: number, rangeLength: number, text: string, isUndoing: boolean, isRedoing: boolean, isFlush: boolean): IModelContentChangedEvent {
+	private _createContentChanged2(range: Range, rangeOffset: number, rangeLength: number, text: string, isUndoing: boolean, isRedoing: boolean, isFlush: boolean, isEolChange: boolean): IModelContentChangedEvent {
 		return {
 			changes: [{
 				range: range,
@@ -448,6 +452,7 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 				text: text,
 			}],
 			eol: this._buffer.getEOL(),
+			isEolChange: isEolChange,
 			versionId: this.getVersionId(),
 			isUndoing: isUndoing,
 			isRedoing: isRedoing,
@@ -467,9 +472,6 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 		this._bufferDisposable = textBufferDisposable;
 		this._increaseVersionId();
 
-		// Flush all tokens
-		this._tokenizationTextModelPart.flush();
-
 		// Destroy all my decorations
 		this._decorations = Object.create(null);
 		this._decorationsTree = new DecorationsTrees();
@@ -487,7 +489,7 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 				false,
 				false
 			),
-			this._createContentChanged2(new Range(1, 1, endLineNumber, endColumn), 0, oldModelValueLength, this.getValue(), false, false, true)
+			this._createContentChanged2(new Range(1, 1, endLineNumber, endColumn), 0, oldModelValueLength, this.getValue(), false, false, true, false)
 		);
 	}
 
@@ -518,7 +520,7 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 				false,
 				false
 			),
-			this._createContentChanged2(new Range(1, 1, endLineNumber, endColumn), 0, oldModelValueLength, this.getValue(), false, false, false)
+			this._createContentChanged2(new Range(1, 1, endLineNumber, endColumn), 0, oldModelValueLength, this.getValue(), false, false, false, true)
 		);
 	}
 
@@ -551,20 +553,22 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 		}
 	}
 
-	public onBeforeAttached(): void {
+	public onBeforeAttached(): model.IAttachedView {
 		this._attachedEditorCount++;
 		if (this._attachedEditorCount === 1) {
 			this._tokenizationTextModelPart.handleDidChangeAttached();
 			this._onDidChangeAttached.fire(undefined);
 		}
+		return this._attachedViews.attachView();
 	}
 
-	public onBeforeDetached(): void {
+	public onBeforeDetached(view: model.IAttachedView): void {
 		this._attachedEditorCount--;
 		if (this._attachedEditorCount === 0) {
 			this._tokenizationTextModelPart.handleDidChangeAttached();
 			this._onDidChangeAttached.fire(undefined);
 		}
+		this._attachedViews.detachView(view);
 	}
 
 	public isAttachedToEditor(): boolean {
@@ -1410,14 +1414,12 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 		this._trimAutoWhitespaceLines = result.trimAutoWhitespaceLineNumbers;
 
 		if (contentChanges.length !== 0) {
-			// We do a first pass to update tokens and decorations
+			// We do a first pass to update decorations
 			// because we want to read decorations in the second pass
 			// where we will emit content change events
 			// and we want to read the final decorations
 			for (let i = 0, len = contentChanges.length; i < len; i++) {
 				const change = contentChanges[i];
-				const [eolCount, firstLineLength, lastLineLength] = countEOL(change.text);
-				this._tokenizationTextModelPart.acceptEdit(change.range, change.text, eolCount, firstLineLength, lastLineLength);
 				this._decorationsTree.acceptReplace(change.rangeOffset, change.rangeLength, change.text.length, change.forceMoveMarkers);
 			}
 
@@ -1515,6 +1517,7 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 				{
 					changes: contentChanges,
 					eol: this._buffer.getEOL(),
+					isEolChange: false,
 					versionId: this.getVersionId(),
 					isUndoing: this._isUndoing,
 					isRedoing: this._isRedoing,
@@ -1646,7 +1649,7 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 				return null;
 			}
 			// node doesn't exist, the request is to set => add the tracked range
-			return this._deltaDecorationsImpl(0, [], [{ range: newRange, options: TRACKED_RANGE_OPTIONS[newStickiness] }])[0];
+			return this._deltaDecorationsImpl(0, [], [{ range: newRange, options: TRACKED_RANGE_OPTIONS[newStickiness] }], true)[0];
 		}
 
 		if (!newRange) {
@@ -1818,7 +1821,7 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 		}
 	}
 
-	private _deltaDecorationsImpl(ownerId: number, oldDecorationsIds: string[], newDecorations: model.IModelDeltaDecoration[]): string[] {
+	private _deltaDecorationsImpl(ownerId: number, oldDecorationsIds: string[], newDecorations: model.IModelDeltaDecoration[], suppressEvents: boolean = false): string[] {
 		const versionId = this.getVersionId();
 
 		const oldDecorationsLen = oldDecorationsIds.length;
@@ -1853,7 +1856,9 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 
 						this._decorationsTree.delete(node);
 
-						this._onDidChangeDecorations.checkAffectedAndFire(node.options);
+						if (!suppressEvents) {
+							this._onDidChangeDecorations.checkAffectedAndFire(node.options);
+						}
 					}
 				}
 
@@ -1884,7 +1889,9 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 						this._onDidChangeDecorations.recordLineAffectedByInjectedText(range.startLineNumber);
 					}
 
-					this._onDidChangeDecorations.checkAffectedAndFire(options);
+					if (!suppressEvents) {
+						this._onDidChangeDecorations.checkAffectedAndFire(options);
+					}
 
 					this._decorationsTree.insert(node);
 
@@ -1930,9 +1937,6 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 
 	public getLanguageIdAtPosition(lineNumber: number, column: number): string {
 		return this.tokenization.getLanguageIdAtPosition(lineNumber, column);
-	}
-	public setLineTokens(lineNumber: number, tokens: Uint32Array | ArrayBuffer | null): void {
-		this._tokenizationTextModelPart.setLineTokens(lineNumber, tokens);
 	}
 
 	public getWordAtPosition(position: IPosition): IWordAtPosition | null {
@@ -2248,6 +2252,7 @@ export class ModelDecorationOptions implements model.IModelDecorationOptions {
 	readonly description: string;
 	readonly blockClassName: string | null;
 	readonly blockIsAfterEnd: boolean | null;
+	readonly blockDoesNotCollapse?: boolean | null;
 	readonly blockPadding: [top: number, right: number, bottom: number, left: number] | null;
 	readonly stickiness: model.TrackedRangeStickiness;
 	readonly zIndex: number;
@@ -2275,6 +2280,7 @@ export class ModelDecorationOptions implements model.IModelDecorationOptions {
 	private constructor(options: model.IModelDecorationOptions) {
 		this.description = options.description;
 		this.blockClassName = options.blockClassName ? cleanClassName(options.blockClassName) : null;
+		this.blockDoesNotCollapse = options.blockDoesNotCollapse ?? null;
 		this.blockIsAfterEnd = options.blockIsAfterEnd ?? null;
 		this.blockPadding = options.blockPadding ?? null;
 		this.stickiness = options.stickiness || model.TrackedRangeStickiness.AlwaysGrowsWhenTypingAtEdges;
@@ -2460,5 +2466,45 @@ class DidChangeContentEmitter extends Disposable {
 		}
 		this._fastEmitter.fire(e);
 		this._slowEmitter.fire(e);
+	}
+}
+
+/**
+ * @internal
+ */
+export class AttachedViews {
+	private readonly _onDidChangeVisibleRanges = new Emitter<{ view: model.IAttachedView; state: IAttachedViewState | undefined }>();
+	public readonly onDidChangeVisibleRanges = this._onDidChangeVisibleRanges.event;
+
+	private readonly _views = new Set<AttachedViewImpl>();
+
+	public attachView(): model.IAttachedView {
+		const view = new AttachedViewImpl((state) => {
+			this._onDidChangeVisibleRanges.fire({ view, state });
+		});
+		this._views.add(view);
+		return view;
+	}
+
+	public detachView(view: model.IAttachedView): void {
+		this._views.delete(view as AttachedViewImpl);
+		this._onDidChangeVisibleRanges.fire({ view, state: undefined });
+	}
+}
+
+/**
+ * @internal
+ */
+export interface IAttachedViewState {
+	readonly visibleLineRanges: readonly LineRange[];
+	readonly stabilized: boolean;
+}
+
+class AttachedViewImpl implements model.IAttachedView {
+	constructor(private readonly handleStateChange: (state: IAttachedViewState) => void) { }
+
+	setVisibleLines(visibleLines: { startLineNumber: number; endLineNumber: number }[], stabilized: boolean): void {
+		const visibleLineRanges = visibleLines.map((line) => new LineRange(line.startLineNumber, line.endLineNumber + 1));
+		this.handleStateChange({ visibleLineRanges, stabilized });
 	}
 }

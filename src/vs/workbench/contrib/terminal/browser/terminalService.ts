@@ -30,7 +30,7 @@ import { ThemeIcon } from 'vs/base/common/themables';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { VirtualWorkspaceContext } from 'vs/workbench/common/contextkeys';
 import { IEditableData, IViewsService } from 'vs/workbench/common/views';
-import { ICreateTerminalOptions, IRequestAddInstanceToGroupEvent, ITerminalEditorService, ITerminalExternalLinkProvider, ITerminalGroup, ITerminalGroupService, ITerminalInstance, ITerminalInstanceHost, ITerminalInstanceService, ITerminalLocationOptions, ITerminalService, ITerminalServiceNativeDelegate, TerminalConnectionState, TerminalEditorLocation } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { ICreateTerminalOptions, IRequestAddInstanceToGroupEvent, ITerminalEditorService, ITerminalGroup, ITerminalGroupService, ITerminalInstance, ITerminalInstanceHost, ITerminalInstanceService, ITerminalLocationOptions, ITerminalService, ITerminalServiceNativeDelegate, TerminalConnectionState, TerminalEditorLocation } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { getCwdForSplit } from 'vs/workbench/contrib/terminal/browser/terminalActions';
 import { TerminalConfigHelper } from 'vs/workbench/contrib/terminal/browser/terminalConfigHelper';
 import { TerminalEditorInput } from 'vs/workbench/contrib/terminal/browser/terminalEditorInput';
@@ -61,8 +61,6 @@ export class TerminalService implements ITerminalService {
 	private _isShuttingDown: boolean = false;
 	private _backgroundedTerminalInstances: ITerminalInstance[] = [];
 	private _backgroundedTerminalDisposables: Map<number, IDisposable[]> = new Map();
-	private _linkProviders: Set<ITerminalExternalLinkProvider> = new Set();
-	private _linkProviderDisposables: Map<ITerminalExternalLinkProvider, IDisposable[]> = new Map();
 	private _processSupportContextKey: IContextKey<boolean>;
 
 	private _primaryBackend?: ITerminalBackend;
@@ -116,8 +114,6 @@ export class TerminalService implements ITerminalService {
 	get onDidFocusInstance(): Event<ITerminalInstance> { return this._onDidFocusInstance.event; }
 	private readonly _onDidReceiveProcessId = new Emitter<ITerminalInstance>();
 	get onDidReceiveProcessId(): Event<ITerminalInstance> { return this._onDidReceiveProcessId.event; }
-	private readonly _onDidReceiveInstanceLinks = new Emitter<ITerminalInstance>();
-	get onDidReceiveInstanceLinks(): Event<ITerminalInstance> { return this._onDidReceiveInstanceLinks.event; }
 	private readonly _onDidRequestStartExtensionTerminal = new Emitter<IStartExtensionTerminalRequest>();
 	get onDidRequestStartExtensionTerminal(): Event<IStartExtensionTerminalRequest> { return this._onDidRequestStartExtensionTerminal.event; }
 	private readonly _onDidChangeInstanceDimensions = new Emitter<ITerminalInstance>();
@@ -183,8 +179,6 @@ export class TerminalService implements ITerminalService {
 			this._onDidCreateInstance.fire(instance);
 		});
 
-		this.onDidReceiveInstanceLinks(instance => this._setInstanceLinkProviders(instance));
-
 		// Hide the panel if there are no more instances, provided that VS Code is not shutting
 		// down. When shutting down the panel is locked in place so that it is restored upon next
 		// launch.
@@ -213,6 +207,8 @@ export class TerminalService implements ITerminalService {
 
 		_lifecycleService.onBeforeShutdown(async e => e.veto(this._onBeforeShutdown(e.reason), 'veto.terminal'));
 		_lifecycleService.onWillShutdown(e => this._onWillShutdown(e));
+
+		this.initializePrimaryBackend();
 
 		// Create async as the class depends on `this`
 		timeout(0).then(() => this._instantiationService.createInstance(TerminalEditorStyle, document.head));
@@ -257,44 +253,42 @@ export class TerminalService implements ITerminalService {
 		return undefined;
 	}
 
-	handleNewRegisteredBackend(backend: ITerminalBackend) {
-		if (backend.remoteAuthority === this._environmentService.remoteAuthority) {
-			this._primaryBackend = backend;
-			const enableTerminalReconnection = this.configHelper.config.enablePersistentSessions;
+	async initializePrimaryBackend() {
+		this._primaryBackend = await this._terminalInstanceService.getBackend(this._environmentService.remoteAuthority);
+		const enableTerminalReconnection = this.configHelper.config.enablePersistentSessions;
 
-			// Connect to the extension host if it's there, set the connection state to connected when
-			// it's done. This should happen even when there is no extension host.
-			this._connectionState = TerminalConnectionState.Connecting;
+		// Connect to the extension host if it's there, set the connection state to connected when
+		// it's done. This should happen even when there is no extension host.
+		this._connectionState = TerminalConnectionState.Connecting;
 
-			const isPersistentRemote = !!this._environmentService.remoteAuthority && enableTerminalReconnection;
+		const isPersistentRemote = !!this._environmentService.remoteAuthority && enableTerminalReconnection;
 
-			if (isPersistentRemote) {
-				this._reconnectToRemoteTerminals().then(() => this._setConnected());
-			} else if (enableTerminalReconnection) {
-				this._reconnectToLocalTerminals().then(() => this._setConnected());
-			} else {
-				Promise.resolve().then(() => this._setConnected());
-			}
-
-			backend.onDidRequestDetach(async (e) => {
-				const instanceToDetach = this.getInstanceFromResource(getTerminalUri(e.workspaceId, e.instanceId));
-				if (instanceToDetach) {
-					const persistentProcessId = instanceToDetach?.persistentProcessId;
-					if (persistentProcessId && !instanceToDetach.shellLaunchConfig.isFeatureTerminal && !instanceToDetach.shellLaunchConfig.customPtyImplementation) {
-						if (instanceToDetach.target === TerminalLocation.Editor) {
-							this._terminalEditorService.detachInstance(instanceToDetach);
-						} else {
-							this._terminalGroupService.getGroupForInstance(instanceToDetach)?.removeInstance(instanceToDetach);
-						}
-						await instanceToDetach.detachProcessAndDispose(TerminalExitReason.User);
-						await this._primaryBackend?.acceptDetachInstanceReply(e.requestId, persistentProcessId);
-					} else {
-						// will get rejected without a persistentProcessId to attach to
-						await this._primaryBackend?.acceptDetachInstanceReply(e.requestId, undefined);
-					}
-				}
-			});
+		if (isPersistentRemote) {
+			this._reconnectToRemoteTerminals().then(() => this._setConnected());
+		} else if (enableTerminalReconnection) {
+			this._reconnectToLocalTerminals().then(() => this._setConnected());
+		} else {
+			Promise.resolve().then(() => this._setConnected());
 		}
+
+		this._primaryBackend?.onDidRequestDetach(async (e) => {
+			const instanceToDetach = this.getInstanceFromResource(getTerminalUri(e.workspaceId, e.instanceId));
+			if (instanceToDetach) {
+				const persistentProcessId = instanceToDetach?.persistentProcessId;
+				if (persistentProcessId && !instanceToDetach.shellLaunchConfig.isFeatureTerminal && !instanceToDetach.shellLaunchConfig.customPtyImplementation) {
+					if (instanceToDetach.target === TerminalLocation.Editor) {
+						this._terminalEditorService.detachInstance(instanceToDetach);
+					} else {
+						this._terminalGroupService.getGroupForInstance(instanceToDetach)?.removeInstance(instanceToDetach);
+					}
+					await instanceToDetach.detachProcessAndDispose(TerminalExitReason.User);
+					await this._primaryBackend?.acceptDetachInstanceReply(e.requestId, persistentProcessId);
+				} else {
+					// will get rejected without a persistentProcessId to attach to
+					await this._primaryBackend?.acceptDetachInstanceReply(e.requestId, undefined);
+				}
+			}
+		});
 	}
 
 	getPrimaryBackend(): ITerminalBackend | undefined {
@@ -528,13 +522,6 @@ export class TerminalService implements ITerminalService {
 		return this._editable && this._editable.instance === instance ? this._editable.data : undefined;
 	}
 
-	showTerminalAccessibilityHelp(): void {
-		this.getActiveOrCreateInstance().then((instance) => {
-			this._terminalGroupService.showPanel();
-			instance.showAccessibilityHelp();
-		});
-	}
-
 	requestStartExtensionTerminal(proxy: ITerminalProcessExtHostProxy, cols: number, rows: number): Promise<ITerminalLaunchError | undefined> {
 		// The initial request came from the extension host, no need to wait for it
 		return new Promise<ITerminalLaunchError | undefined>(callback => {
@@ -694,13 +681,6 @@ export class TerminalService implements ITerminalService {
 		this._onDidChangeActiveGroup.fire(this._terminalGroupService.activeGroup);
 	}
 
-	doWithActiveInstance<T>(callback: (terminal: ITerminalInstance) => T): T | void {
-		const instance = this.activeInstance;
-		if (instance) {
-			return callback(instance);
-		}
-	}
-
 	getInstanceFromId(terminalId: number): ITerminalInstance | undefined {
 		let bgIndex = -1;
 		this._backgroundedTerminalInstances.forEach((terminalInstance, i) => {
@@ -792,7 +772,6 @@ export class TerminalService implements ITerminalService {
 			instance.onIconChanged(this._onDidChangeInstanceColor.fire, this._onDidChangeInstanceColor),
 			instance.onProcessIdReady(this._onDidReceiveProcessId.fire, this._onDidReceiveProcessId),
 			instance.statusList.onDidChangePrimaryStatus(() => this._onDidChangeInstancePrimaryStatus.fire(instance)),
-			instance.onLinksReady(this._onDidReceiveInstanceLinks.fire, this._onDidReceiveInstanceLinks),
 			instance.onDimensionsChanged(() => {
 				this._onDidChangeInstanceDimensions.fire(instance);
 				if (this.configHelper.config.enablePersistentSessions && this.isProcessSupportRegistered) {
@@ -847,34 +826,6 @@ export class TerminalService implements ITerminalService {
 		}
 		this._processSupportContextKey.set(isSupported);
 		this._onDidRegisterProcessSupport.fire();
-	}
-
-	registerLinkProvider(linkProvider: ITerminalExternalLinkProvider): IDisposable {
-		const disposables: IDisposable[] = [];
-		this._linkProviders.add(linkProvider);
-		for (const instance of this.instances) {
-			if (instance.areLinksReady) {
-				disposables.push(instance.registerLinkProvider(linkProvider));
-			}
-		}
-		this._linkProviderDisposables.set(linkProvider, disposables);
-		return {
-			dispose: () => {
-				const disposables = this._linkProviderDisposables.get(linkProvider) || [];
-				for (const disposable of disposables) {
-					disposable.dispose();
-				}
-				this._linkProviders.delete(linkProvider);
-			}
-		};
-	}
-
-	private _setInstanceLinkProviders(instance: ITerminalInstance): void {
-		for (const linkProvider of this._linkProviders) {
-			const disposables = this._linkProviderDisposables.get(linkProvider);
-			const provider = instance.registerLinkProvider(linkProvider);
-			disposables?.push(provider);
-		}
 	}
 
 	// TODO: Remove this, it should live in group/editor servioce

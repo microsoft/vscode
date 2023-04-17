@@ -29,6 +29,7 @@ import { IWordAtPosition } from 'vs/editor/common/core/wordHelper';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import { FuzzyScoreOptions } from 'vs/base/common/filters';
 import { assertType } from 'vs/base/common/types';
+import { InlineCompletionContextKeys } from 'vs/editor/contrib/inlineCompletions/browser/inlineCompletionContextKeys';
 
 export interface ICancelEvent {
 	readonly retrigger: boolean;
@@ -101,25 +102,16 @@ export const enum State {
 	Auto = 2
 }
 
-function isSuggestPreviewEnabled(editor: ICodeEditor): boolean {
-	return editor.getOption(EditorOption.suggest).preview;
-}
-
 function canShowQuickSuggest(editor: ICodeEditor, contextKeyService: IContextKeyService, configurationService: IConfigurationService): boolean {
-	if (!Boolean(contextKeyService.getContextKeyValue('inlineSuggestionVisible'))) {
+	if (!Boolean(contextKeyService.getContextKeyValue(InlineCompletionContextKeys.inlineSuggestionVisible.key))) {
 		// Allow if there is no inline suggestion.
 		return true;
 	}
-
-	const allowQuickSuggestions = configurationService.getValue('editor.inlineSuggest.allowQuickSuggestions', { overrideIdentifier: editor.getModel()?.getLanguageId(), resource: editor.getModel()?.uri });
-	if (allowQuickSuggestions !== undefined) {
-		// Use setting if available.
-		return Boolean(allowQuickSuggestions);
+	const suppressSuggestions = contextKeyService.getContextKeyValue<boolean | undefined>(InlineCompletionContextKeys.suppressSuggestions.key);
+	if (suppressSuggestions !== undefined) {
+		return !suppressSuggestions;
 	}
-
-	// Don't allow if inline suggestions are visible and no suggest preview is configured.
-	// TODO disabled for copilot
-	return false && isSuggestPreviewEnabled(editor);
+	return !editor.getOption(EditorOption.inlineSuggest).suppressSuggestions;
 }
 
 function canShowSuggestOnTriggerCharacters(editor: ICodeEditor, contextKeyService: IContextKeyService, configurationService: IConfigurationService): boolean {
@@ -127,13 +119,11 @@ function canShowSuggestOnTriggerCharacters(editor: ICodeEditor, contextKeyServic
 		// Allow if there is no inline suggestion.
 		return true;
 	}
-
-	const allowQuickSuggestions = configurationService.getValue('editor.inlineSuggest.allowSuggestOnTriggerCharacters', { overrideIdentifier: editor.getModel()?.getLanguageId(), resource: editor.getModel()?.uri });
-	if (allowQuickSuggestions !== undefined) {
-		// Use setting if available.
-		return Boolean(allowQuickSuggestions);
+	const suppressSuggestions = contextKeyService.getContextKeyValue<boolean | undefined>(InlineCompletionContextKeys.suppressSuggestions.key);
+	if (suppressSuggestions !== undefined) {
+		return !suppressSuggestions;
 	}
-	return true;
+	return !editor.getOption(EditorOption.inlineSuggest).suppressSuggestions;
 }
 
 export class SuggestModel implements IDisposable {

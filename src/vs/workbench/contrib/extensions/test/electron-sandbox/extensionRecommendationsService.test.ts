@@ -242,16 +242,45 @@ suite('ExtensionRecommendationsService Test', () => {
 				'msjsdiag.debugger-for-chrome': '{**/*.ts,**/*.tsx,**/*.js,**/*.jsx,**/*.es6,**/*.mjs,**/*.cjs,**/.babelrc}',
 				'lukehoban.Go': '**/*.go'
 			},
-			extensionImportantTips: {
+			extensionRecommendations: {
 				'ms-python.python': {
-					'name': 'Python',
-					'pattern': '{**/*.py}'
+					onFileOpen: [
+						{
+							'pathGlob': '{**/*.py}',
+							important: true
+						}
+					]
 				},
 				'ms-vscode.PowerShell': {
-					'name': 'PowerShell',
-					'pattern': '{**/*.ps,**/*.ps1}'
+					onFileOpen: [
+						{
+							'pathGlob': '{**/*.ps,**/*.ps1}',
+							important: true
+						}
+					]
+				},
+				'ms-dotnettools.csharp': {
+					onFileOpen: [
+						{
+							'pathGlob': '{**/*.cs,**/project.json,**/global.json,**/*.csproj,**/*.sln,**/appsettings.json}',
+						}
+					]
+				},
+				'msjsdiag.debugger-for-chrome': {
+					onFileOpen: [
+						{
+							'pathGlob': '{**/*.ts,**/*.tsx,**/*.js,**/*.jsx,**/*.es6,**/*.mjs,**/*.cjs,**/.babelrc}',
+						}
+					]
+				},
+				'lukehoban.Go': {
+					onFileOpen: [
+						{
+							'pathGlob': '**/*.go',
+						}
+					]
 				}
-			}
+			},
 		});
 
 		experimentService = instantiationService.createInstance(TestExperimentService);
@@ -369,11 +398,11 @@ suite('ExtensionRecommendationsService Test', () => {
 
 		await Event.toPromise(promptedEmitter.event);
 		const recommendations = Object.keys(testObject.getAllRecommendationsWithReason());
-		assert.strictEqual(recommendations.length, mockTestData.validRecommendedExtensions.length);
-		mockTestData.validRecommendedExtensions.forEach(x => {
+		const expected = [...mockTestData.validRecommendedExtensions, 'unknown.extension'];
+		assert.strictEqual(recommendations.length, expected.length);
+		expected.forEach(x => {
 			assert.strictEqual(recommendations.indexOf(x.toLowerCase()) > -1, true);
 		});
-
 	});
 
 	test('ExtensionRecommendationsService: No Prompt for valid workspace recommendations if they are already installed', () => {

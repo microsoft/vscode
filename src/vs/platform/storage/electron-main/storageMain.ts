@@ -163,7 +163,7 @@ abstract class BaseStorageMain extends Disposable implements IStorageMain {
 					// Await storage init
 					await this.doInit(storage);
 
-					// Ensure we track wether storage is new or not
+					// Ensure we track whether storage is new or not
 					const isNewStorage = storage.getBoolean(IS_NEW_KEY);
 					if (isNewStorage === undefined) {
 						storage.set(IS_NEW_KEY, true);

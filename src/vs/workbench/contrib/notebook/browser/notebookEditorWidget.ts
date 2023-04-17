@@ -130,6 +130,8 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 	readonly onWillChangeModel: Event<NotebookTextModel | undefined> = this._onWillChangeModel.event;
 	private readonly _onDidChangeModel = this._register(new Emitter<NotebookTextModel | undefined>());
 	readonly onDidChangeModel: Event<NotebookTextModel | undefined> = this._onDidChangeModel.event;
+	private readonly _onDidAttachViewModel = this._register(new Emitter<void>());
+	readonly onDidAttachViewModel: Event<void> = this._onDidAttachViewModel.event;
 	private readonly _onDidChangeOptions = this._register(new Emitter<void>());
 	readonly onDidChangeOptions: Event<void> = this._onDidChangeOptions.event;
 	private readonly _onDidChangeDecorations = this._register(new Emitter<void>());
@@ -158,6 +160,8 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 	readonly onDidReceiveMessage: Event<INotebookWebviewMessage> = this._onDidReceiveMessage.event;
 	private readonly _onDidRenderOutput = this._register(new Emitter<ICellOutputViewModel>());
 	private readonly onDidRenderOutput = this._onDidRenderOutput.event;
+	private readonly _onDidRemoveOutput = this._register(new Emitter<ICellOutputViewModel>());
+	private readonly onDidRemoveOutput = this._onDidRemoveOutput.event;
 	private readonly _onDidResizeOutputEmitter = this._register(new Emitter<ICellViewModel>());
 	readonly onDidResizeOutput = this._onDidResizeOutputEmitter.event;
 
@@ -273,7 +277,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@INotebookExecutionService private readonly notebookExecutionService: INotebookExecutionService,
 		@INotebookExecutionStateService notebookExecutionStateService: INotebookExecutionStateService,
-		@IEditorProgressService private readonly editorProgressService: IEditorProgressService,
+		@IEditorProgressService private editorProgressService: IEditorProgressService,
 		@INotebookLoggingService readonly logService: INotebookLoggingService,
 	) {
 		super();
@@ -1033,6 +1037,10 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		return this._webview?.webview;
 	}
 
+	setEditorProgressService(editorProgressService: IEditorProgressService): void {
+		this.editorProgressService = editorProgressService;
+	}
+
 	setParentContextKeyService(parentContextKeyService: IContextKeyService): void {
 		this.scopedContextKeyService.updateParent(parentContextKeyService);
 	}
@@ -1547,6 +1555,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		this._debug('finish initial viewport warmup and view state restore.');
 		this._webview!.element.style.visibility = 'visible';
 		this.logService.debug('NotebookEditorWidget', 'warmup - list view model attached, set to visible');
+		this._onDidAttachViewModel.fire();
 	}
 
 	private async _warmupViewport(viewModel: NotebookViewModel, viewState: INotebookEditorViewState | undefined) {
@@ -1560,17 +1569,18 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 
 			for (let i = 0; i < viewModel.length; i++) {
 				const cell = viewModel.cellAt(i)!;
+				const cellHeight = totalHeightCache[i] ?? 0;
 
-				if (offset + (totalHeightCache[i] ?? 0) < scrollTop) {
-					offset += (totalHeightCache ? totalHeightCache[i] : 0);
+				if (offset + cellHeight < scrollTop) {
+					offset += cellHeight;
 					continue;
-				} else {
-					if (cell.cellKind === CellKind.Markup) {
-						requests.push([cell, offset]);
-					}
 				}
 
-				offset += (totalHeightCache ? totalHeightCache[i] : 0);
+				if (cell.cellKind === CellKind.Markup) {
+					requests.push([cell, offset]);
+				}
+
+				offset += cellHeight;
 
 				if (offset > scrollBottom) {
 					break;
@@ -2297,7 +2307,9 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 				return;
 			}
 
-			this._webview.focusOutput(cell.id, this._webviewFocused);
+			if (!options?.skipReveal) {
+				this._webview.focusOutput(cell.id, this._webviewFocused);
+			}
 
 			cell.updateEditState(CellEditState.Preview, 'focusNotebookCell');
 			cell.focusMode = CellFocusMode.Output;
@@ -2324,6 +2336,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 				}
 			}
 			this._list.focusView();
+			this.updateEditorFocus();
 		}
 	}
 
@@ -2345,7 +2358,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 
 	//#region Find
 
-	private async _renderCell(viewCell: CodeCellViewModel) {
+	private async _warmupCell(viewCell: CodeCellViewModel) {
 		if (viewCell.isOutputCollapsed) {
 			return;
 		}
@@ -2372,14 +2385,17 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 			const result: IInsetRenderOutput = { type: RenderOutputType.Extension, renderer, source: output, mimeType: pickedMimeTypeRenderer.mimeType };
 			if (!this._webview?.insetMapping.has(result.source)) {
 				const p = new Promise<void>(resolve => {
-					this.onDidRenderOutput(e => {
+					this._register(Event.any(this.onDidRenderOutput, this.onDidRemoveOutput)(e => {
 						if (e.model === result.source.model) {
 							resolve();
 						}
-					});
+					}));
 				});
-				this.createOutput(viewCell, result, 0);
+				this.createOutput(viewCell, result, 0, false);
 				await p;
+			} else {
+				// request to update its visibility
+				this.createOutput(viewCell, result, 0, false);
 			}
 
 			return;
@@ -2401,12 +2417,12 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 			}
 		}
 
-		if (includeOutput) {
-			for (let i = 0; i < this.getLength(); i++) {
-				const cell = this.cellAt(i);
+		if (includeOutput && this._list) {
+			for (let i = 0; i < this._list.length; i++) {
+				const cell = this._list.element(i);
 
 				if (cell?.cellKind === CellKind.Code) {
-					requests.push(this._renderCell((cell as CodeCellViewModel)));
+					requests.push(this._warmupCell((cell as CodeCellViewModel)));
 				}
 			}
 		}
@@ -2415,7 +2431,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		return Promise.all(requests);
 	}
 
-	async find(query: string, options: INotebookSearchOptions, token: CancellationToken, skipWarmup: boolean = false): Promise<CellFindMatchWithIndex[]> {
+	async find(query: string, options: INotebookSearchOptions, token: CancellationToken, skipWarmup: boolean = false, shouldGetSearchPreviewInfo = false): Promise<CellFindMatchWithIndex[]> {
 		if (!this._notebookViewModel) {
 			return [];
 		}
@@ -2424,38 +2440,56 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 
 		if (!options.includeMarkupPreview && !options.includeOutput) {
 			this._webview?.findStop();
-
-			return findMatches.filter(match =>
-				(match.cell.cellKind === CellKind.Code && options.includeCodeInput) ||
-				(match.cell.cellKind === CellKind.Markup && options.includeMarkupInput)
-			);
+			return findMatches;
 		}
+
+		// search in webview enabled
 
 		const matchMap: { [key: string]: CellFindMatchWithIndex } = {};
 		findMatches.forEach(match => {
-			if (match.cell.cellKind === CellKind.Code && options.includeCodeInput) {
-				matchMap[match.cell.id] = match;
-			}
-
-			if (match.cell.cellKind === CellKind.Markup && options.includeMarkupInput) {
-				matchMap[match.cell.id] = match;
-			}
+			matchMap[match.cell.id] = match;
 		});
 
 		if (this._webview) {
 			// request all outputs to be rendered
+			// measure perf
+			const start = Date.now();
 			await this._warmupAll(!!options.includeOutput);
-			const webviewMatches = await this._webview.find(query, { caseSensitive: options.caseSensitive, wholeWord: options.wholeWord, includeMarkup: !!options.includeMarkupPreview, includeOutput: !!options.includeOutput });
+			const end = Date.now();
+			this.logService.debug('Find', `Warmup time: ${end - start}ms`);
+
+			if (token.isCancellationRequested) {
+				return [];
+			}
+
+			const webviewMatches = await this._webview.find(query, { caseSensitive: options.caseSensitive, wholeWord: options.wholeWord, includeMarkup: !!options.includeMarkupPreview, includeOutput: !!options.includeOutput, shouldGetSearchPreviewInfo });
+
+			if (token.isCancellationRequested) {
+				return [];
+			}
+
 			// attach webview matches to model find matches
 			webviewMatches.forEach(match => {
-				if (!options.includeMarkupPreview && match.type === 'preview') {
-					// skip outputs if not included
+				const cell = this._notebookViewModel!.viewCells.find(cell => cell.id === match.cellId);
+
+				if (!cell) {
 					return;
 				}
 
-				if (!options.includeOutput && match.type === 'output') {
-					// skip outputs if not included
-					return;
+				if (match.type === 'preview') {
+					// markup preview
+					if (cell.getEditState() === CellEditState.Preview && !options.includeMarkupPreview) {
+						return;
+					}
+
+					if (cell.getEditState() === CellEditState.Editing && options.includeMarkupInput) {
+						return;
+					}
+				} else {
+					if (!options.includeOutput) {
+						// skip outputs if not included
+						return;
+					}
 				}
 
 				const exisitingMatch = matchMap[match.cellId];
@@ -2622,7 +2656,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		await this._webview?.updateMarkupPreviewSelections(selectedCells.length > 1 ? selectedCells : []);
 	}
 
-	async createOutput(cell: CodeCellViewModel, output: IInsetRenderOutput, offset: number): Promise<void> {
+	async createOutput(cell: CodeCellViewModel, output: IInsetRenderOutput, offset: number, createWhenIdle: boolean): Promise<void> {
 		this._insetModifyQueueByOutputId.queue(output.source.model.outputId, async () => {
 			if (this._isDisposed || !this._webview) {
 				return;
@@ -2653,13 +2687,19 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 			if (!existingOutput
 				|| (!existingOutput.renderer && output.type === RenderOutputType.Extension)
 			) {
-				this._webview.createOutput({ cellId: cell.id, cellHandle: cell.handle, cellUri: cell.uri, executionId: cell.internalMetadata.executionId }, output, cellTop, offset);
+				if (createWhenIdle) {
+					this._webview.requestCreateOutputWhenWebviewIdle({ cellId: cell.id, cellHandle: cell.handle, cellUri: cell.uri, executionId: cell.internalMetadata.executionId }, output, cellTop, offset);
+				} else {
+					this._webview.createOutput({ cellId: cell.id, cellHandle: cell.handle, cellUri: cell.uri, executionId: cell.internalMetadata.executionId }, output, cellTop, offset);
+				}
 			} else if (existingOutput.renderer
 				&& output.type === RenderOutputType.Extension
 				&& existingOutput.renderer.id !== output.renderer.id) {
 				// switch mimetype
 				this._webview.removeInsets([output.source]);
 				this._webview.createOutput({ cellId: cell.id, cellHandle: cell.handle, cellUri: cell.uri }, output, cellTop, offset);
+			} else if (existingOutput.versionId !== output.source.model.versionId) {
+				this._webview.updateOutput({ cellId: cell.id, cellHandle: cell.handle, cellUri: cell.uri, executionId: cell.internalMetadata.executionId }, output, cellTop, offset);
 			} else {
 				const outputIndex = cell.outputsViewModels.indexOf(output.source);
 				const outputOffset = cell.getOutputOffset(outputIndex);
@@ -2689,7 +2729,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 			}
 
 			if (!this._webview.insetMapping.has(output.source)) {
-				return this.createOutput(cell, output, offset);
+				return this.createOutput(cell, output, offset, false);
 			}
 
 			if (output.type === RenderOutputType.Extension) {
@@ -2713,6 +2753,8 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 			if (this._webview?.isResolved()) {
 				this._webview.removeInsets([output]);
 			}
+
+			this._onDidRemoveOutput.fire(output);
 		});
 	}
 

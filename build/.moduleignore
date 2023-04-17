@@ -12,6 +12,14 @@ fsevents/src/**
 fsevents/test/**
 !fsevents/**/*.node
 
+@vscode/spdlog/binding.gyp
+@vscode/spdlog/build/**
+@vscode/spdlog/deps/**
+@vscode/spdlog/src/**
+@vscode/spdlog/test/**
+@vscode/spdlog/*.yml
+!@vscode/spdlog/build/Release/*.node
+
 @vscode/sqlite3/binding.gyp
 @vscode/sqlite3/benchmark/**
 @vscode/sqlite3/cloudformation/**
@@ -21,15 +29,20 @@ fsevents/test/**
 @vscode/sqlite3/src/**
 !@vscode/sqlite3/build/Release/*.node
 
+@vscode/windows-mutex/binding.gyp
+@vscode/windows-mutex/build/**
+@vscode/windows-mutex/src/**
+!@vscode/windows-mutex/**/*.node
+
+@vscode/windows-process-tree/binding.gyp
+@vscode/windows-process-tree/build/**
+@vscode/windows-process-tree/src/**
+!@vscode/windows-process-tree/**/*.node
+
 @vscode/windows-registry/binding.gyp
 @vscode/windows-registry/src/**
 @vscode/windows-registry/build/**
 !@vscode/windows-registry/build/Release/*.node
-
-windows-mutex/binding.gyp
-windows-mutex/build/**
-windows-mutex/src/**
-!windows-mutex/**/*.node
 
 native-keymap/binding.gyp
 native-keymap/build/**
@@ -53,23 +66,10 @@ node-vsce-sign/**
 !node-vsce-sign/package.json
 !node-vsce-sign/bin/**
 
-spdlog/binding.gyp
-spdlog/build/**
-spdlog/deps/**
-spdlog/src/**
-spdlog/test/**
-spdlog/*.yml
-!spdlog/build/Release/*.node
-
 windows-foreground-love/binding.gyp
 windows-foreground-love/build/**
 windows-foreground-love/src/**
 !windows-foreground-love/**/*.node
-
-windows-process-tree/binding.gyp
-windows-process-tree/build/**
-windows-process-tree/src/**
-!windows-process-tree/**/*.node
 
 keytar/binding.gyp
 keytar/build/**
@@ -121,9 +121,9 @@ vscode-encrypt/README.md
 @vscode/policy-watcher/index.d.ts
 !@vscode/policy-watcher/build/Release/vscode-policy-watcher.node
 
-vscode-windows-ca-certs/**/*
-!vscode-windows-ca-certs/package.json
-!vscode-windows-ca-certs/**/*.node
+@vscode/windows-ca-certs/**/*
+!@vscode/windows-ca-certs/package.json
+!@vscode/windows-ca-certs/**/*.node
 
 node-addon-api/**/*
 prebuild-install/**/*

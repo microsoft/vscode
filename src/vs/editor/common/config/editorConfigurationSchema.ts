@@ -101,6 +101,16 @@ const editorConfiguration: IConfigurationNode = {
 			description: nls.localize('editor.experimental.asyncTokenization', "Controls whether the tokenization should happen asynchronously on a web worker."),
 			tags: ['experimental'],
 		},
+		'editor.experimental.asyncTokenizationLogging': {
+			type: 'boolean',
+			default: false,
+			description: nls.localize('editor.experimental.asyncTokenizationLogging', "Controls whether async tokenization should be logged. For debugging only."),
+		},
+		'editor.experimental.asyncTokenizationVerification': {
+			type: 'boolean',
+			default: false,
+			description: nls.localize('editor.experimental.asyncTokenizationVerification', "Controls whether async tokenization should be verified against legacy background tokenization. Might slow down tokenization. For debugging only."),
+		},
 		'editor.language.brackets': {
 			type: ['array', 'null'],
 			default: null, // We want to distinguish the empty array from not configured.
@@ -185,7 +195,7 @@ const editorConfiguration: IConfigurationNode = {
 		'diffEditor.diffAlgorithm': {
 			type: 'string',
 			enum: ['smart', 'experimental'],
-			default: 'smart',
+			default: 'experimental',
 			markdownEnumDescriptions: [
 				nls.localize('diffAlgorithm.smart', "Uses the default diffing algorithm."),
 				nls.localize('diffAlgorithm.experimental', "Uses an experimental diffing algorithm."),
