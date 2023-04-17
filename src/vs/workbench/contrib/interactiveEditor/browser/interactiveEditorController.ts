@@ -507,7 +507,10 @@ export class InteractiveEditorController implements IEditorContribution {
 				this._logService.info('[IE] received a MESSAGE, continuing outside editor', provider.debugName);
 				this._zone.widget.updateMessage(reply.message.value, true);
 				const messageReply = reply.message.value;
-				const viewInChatLink = this._zone.widget.addStatusLink('View in chat');
+				const viewInChatLink = this._zone.widget.showLink();
+				if (!this._zone.widget.isStatusLabelOverflowing()) {
+					this._zone.widget.removeLink();
+				}
 				viewInChatLink.onclick = () => {
 					this._instaService.invokeFunction(showMessageResponse, request.prompt, messageReply);
 				};

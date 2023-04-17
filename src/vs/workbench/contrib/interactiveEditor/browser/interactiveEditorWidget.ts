@@ -154,6 +154,8 @@ class InteractiveEditorWidget {
 	public acceptInput: () => void = InteractiveEditorWidget._noop;
 	private _cancelInput: () => void = InteractiveEditorWidget._noop;
 
+	private _linkNode: HTMLAnchorElement;
+
 	constructor(
 		parentEditor: ICodeEditor,
 		@IModelService private readonly _modelService: IModelService,
@@ -228,6 +230,9 @@ class InteractiveEditorWidget {
 		this._previewCreateTitle = this._store.add(_instantiationService.createInstance(ResourceLabel, this._elements.previewCreateTitle, { supportIcons: true }));
 		this._previewCreateEditor = this._store.add(_instantiationService.createInstance(EmbeddedCodeEditorWidget, this._elements.previewCreate, _previewEditorEditorOptions, codeEditorWidgetOptions, parentEditor));
 
+		const linkNode = document.createElement('a');
+		linkNode.innerText = 'View in chat';
+		this._linkNode = append(this._elements.statusLink, linkNode);
 	}
 
 	dispose(): void {
@@ -368,11 +373,13 @@ class InteractiveEditorWidget {
 		this._onDidChangeHeight.fire();
 	}
 
-	addStatusLink(message: string) {
-		const linkNode = document.createElement('a');
-		linkNode.innerText = message;
-		append(this._elements.statusLink, linkNode);
-		return linkNode;
+	showLink() {
+		this._linkNode.style.display = 'block';
+		return this._linkNode;
+	}
+
+	removeLink() {
+		this._linkNode.style.display = 'none';
 	}
 
 	updateMessage(message: string, oneLine: boolean = false, classes?: string[], resetAfter?: number) {
@@ -392,6 +399,7 @@ class InteractiveEditorWidget {
 		this._elements.status.classList.toggle('hidden', false);
 
 		reset(this._elements.statusLabel, message);
+
 		if (oneLine) {
 			this._elements.statusLabel.style.textOverflow = 'ellipsis';
 			this._elements.statusLabel.style.overflow = 'hidden';
@@ -408,6 +416,10 @@ class InteractiveEditorWidget {
 			delete this._elements.statusLabel.dataset['state'];
 		}
 		this._onDidChangeHeight.fire();
+	}
+
+	isStatusLabelOverflowing(): boolean {
+		return (this._elements.statusLabel.offsetWidth < this._elements.statusLabel.scrollWidth);
 	}
 
 	reset() {
