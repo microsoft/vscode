@@ -203,7 +203,7 @@
     "ts-loader": "^9.4.2",
     "ts-node": "^10.9.1",
     "tsec": "0.1.4",
-    "typescript": "^5.1.0-dev.20230411",
+    "typescript": "^5.1.0-dev.20230417",
     "typescript-formatter": "7.1.0",
     "underscore": "^1.12.1",
     "util": "^0.12.4",
