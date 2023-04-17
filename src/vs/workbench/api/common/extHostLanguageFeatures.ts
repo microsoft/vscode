@@ -1162,6 +1162,7 @@ class InlineCompletionAdapter extends InlineCompletionAdapterBase {
 		const normalizedResult = Array.isArray(result) ? result : result.items;
 		const commands = this._isAdditionsProposedApiEnabled ? Array.isArray(result) ? [] : result.commands || [] : [];
 		const suppressSuggestions = this._isAdditionsProposedApiEnabled && !Array.isArray(result) ? result.suppressSuggestions : undefined;
+		const enableForwardStability = this._isAdditionsProposedApiEnabled && !Array.isArray(result) ? result.enableForwardStability : undefined;
 
 		let disposableStore: DisposableStore | undefined = undefined;
 		const pid = this._references.createReferenceId({
@@ -1199,6 +1200,7 @@ class InlineCompletionAdapter extends InlineCompletionAdapterBase {
 				return this._commands.toInternal(c, disposableStore);
 			}),
 			suppressSuggestions,
+			enableForwardStability,
 		};
 	}
 

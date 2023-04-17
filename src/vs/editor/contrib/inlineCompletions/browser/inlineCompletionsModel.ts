@@ -76,6 +76,8 @@ export class InlineCompletionsModel extends Disposable {
 	}
 
 	private async _update(reader: IReader | undefined, triggerKind: InlineCompletionTriggerKind, preserveCurrentCompletion: boolean = false): Promise<void> {
+		preserveCurrentCompletion = preserveCurrentCompletion || (this.currentInlineCompletion.get()?.inlineCompletion.source.inlineCompletions.enableForwardStability ?? false);
+
 		const suggestItem = this.selectedSuggestItem.read(reader);
 		const cursorPosition = this.cursorPosition.read(reader);
 		this.textModelVersionId.read(reader);
