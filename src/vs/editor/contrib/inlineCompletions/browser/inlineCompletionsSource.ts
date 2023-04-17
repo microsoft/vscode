@@ -289,7 +289,7 @@ export class InlineCompletionWithUpdatedRange {
 		}
 
 		const originalValue = model.getValueInRange(minimizedReplacement.range, EndOfLinePreference.LF).toLowerCase();
-		const filterText = this.inlineCompletion.filterText.toLowerCase();
+		const filterText = minimizedReplacement.text.toLowerCase();
 
 		const cursorPosIndex = Math.max(0, cursorPosition.column - minimizedReplacement.range.startColumn);
 
@@ -300,7 +300,7 @@ export class InlineCompletionWithUpdatedRange {
 		let originalValueAfter = originalValue.substring(cursorPosIndex);
 
 		const originalValueIndent = model.getLineIndentColumn(minimizedReplacement.range.startLineNumber);
-		if (this.updatedRange.startColumn <= originalValueIndent) {
+		if (minimizedReplacement.range.startColumn <= originalValueIndent) {
 			// Remove indentation
 			originalValueBefore = originalValueBefore.trimStart();
 			if (originalValueBefore.length === 0) {
