@@ -88,7 +88,7 @@ import { DropIntoEditorController } from 'vs/editor/contrib/dropIntoEditor/brows
 import { MessageController } from 'vs/editor/contrib/message/browser/messageController';
 import { contrastBorder, registerColor } from 'vs/platform/theme/common/colorRegistry';
 import { defaultButtonStyles, defaultCountBadgeStyles } from 'vs/platform/theme/browser/defaultStyles';
-import { GhostTextController } from 'vs/editor/contrib/inlineCompletions/browser/ghostTextController';
+import { InlineCompletionsController } from 'vs/editor/contrib/inlineCompletions/browser/inlineCompletionsController';
 import { CodeActionController } from 'vs/editor/contrib/codeAction/browser/codeActionController';
 import { IResolvedTextEditorModel, ITextModelContentProvider, ITextModelService } from 'vs/editor/common/services/resolverService';
 import { Schemas } from 'vs/base/common/network';
@@ -1964,7 +1964,7 @@ class SCMInputWidget {
 				SelectionClipboardContributionID,
 				SnippetController2.ID,
 				SuggestController.ID,
-				GhostTextController.ID,
+				InlineCompletionsController.ID,
 				CodeActionController.ID,
 			])
 		};

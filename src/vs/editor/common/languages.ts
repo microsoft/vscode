@@ -621,19 +621,29 @@ export enum InlineCompletionTriggerKind {
 }
 
 export interface InlineCompletionContext {
+
 	/**
 	 * How the completion was triggered.
 	 */
 	readonly triggerKind: InlineCompletionTriggerKind;
-
 	readonly selectedSuggestionInfo: SelectedSuggestionInfo | undefined;
 }
 
-export interface SelectedSuggestionInfo {
-	range: IRange;
-	text: string;
-	isSnippetText: boolean;
-	completionKind: CompletionItemKind;
+export class SelectedSuggestionInfo {
+	constructor(
+		public readonly range: IRange,
+		public readonly text: string,
+		public readonly completionKind: CompletionItemKind,
+		public readonly isSnippetText: boolean,
+	) {
+	}
+
+	public equals(other: SelectedSuggestionInfo) {
+		return Range.lift(this.range).equalsRange(other.range)
+			&& this.text === other.text
+			&& this.completionKind === other.completionKind
+			&& this.isSnippetText === other.isSnippetText;
+	}
 }
 
 export interface InlineCompletion {

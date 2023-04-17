@@ -3,90 +3,65 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as dom from 'vs/base/browser/dom';
-import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { Event } from 'vs/base/common/event';
+import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
+import { IObservable, autorun, derived, observableFromEvent, observableSignalFromEvent, observableValue } from 'vs/base/common/observable';
 import * as strings from 'vs/base/common/strings';
 import 'vs/css!./ghostText';
 import { applyFontInfo } from 'vs/editor/browser/config/domFontInfo';
-import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition } from 'vs/editor/browser/editorBrowser';
+import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditorFontLigatures, EditorOption, IComputedEditorOptions } from 'vs/editor/common/config/editorOptions';
-import { LineTokens } from 'vs/editor/common/tokens/lineTokens';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { StringBuilder } from 'vs/editor/common/core/stringBuilder';
-import { IModelDeltaDecoration, InjectedTextCursorStops, PositionAffinity } from 'vs/editor/common/model';
 import { ILanguageIdCodec } from 'vs/editor/common/languages';
 import { ILanguageService } from 'vs/editor/common/languages/language';
+import { IModelDeltaDecoration, ITextModel, InjectedTextCursorStops, PositionAffinity } from 'vs/editor/common/model';
+import { LineTokens } from 'vs/editor/common/tokens/lineTokens';
 import { LineDecoration } from 'vs/editor/common/viewLayout/lineDecorations';
 import { RenderLineInput, renderViewLine } from 'vs/editor/common/viewLayout/viewLineRenderer';
 import { InlineDecorationType } from 'vs/editor/common/viewModel';
-import { GhostTextReplacement, GhostTextWidgetModel } from 'vs/editor/contrib/inlineCompletions/browser/ghostText';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { alert } from 'vs/base/browser/ui/aria/aria';
-import { AudioCue, IAudioCueService } from 'vs/platform/audioCues/browser/audioCueService';
+import { GhostText, GhostTextReplacement } from 'vs/editor/contrib/inlineCompletions/browser/ghostText';
+import { ColumnRange, applyObservableDecorations } from 'vs/editor/contrib/inlineCompletions/browser/utils';
 
-const ttPolicy = window.trustedTypes?.createPolicy('editorGhostText', { createHTML: value => value });
+export interface IGhostTextWidgetModel {
+	readonly targetTextModel: IObservable<ITextModel | undefined>;
+	readonly ghostText: IObservable<GhostText | GhostTextReplacement | undefined>;
+	readonly minReservedLineCount: IObservable<number>;
+}
 
 export class GhostTextWidget extends Disposable {
-	private disposed = false;
-	private readonly partsWidget = this._register(this.instantiationService.createInstance(DecorationsWidget, this.editor));
-	private readonly additionalLinesWidget = this._register(new AdditionalLinesWidget(this.editor, this.languageService.languageIdCodec));
-	private viewMoreContentWidget: ViewMoreLinesContentWidget | undefined = undefined;
-	private _lastSuggestion: string | undefined = undefined;
+	private readonly isDisposed = observableValue('isDisposed', false);
+	private readonly currentTextModel = observableFromEvent(this.editor.onDidChangeModel, () => this.editor.getModel());
 
 	constructor(
 		private readonly editor: ICodeEditor,
-		private readonly model: GhostTextWidgetModel,
-		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		private readonly model: IGhostTextWidgetModel,
 		@ILanguageService private readonly languageService: ILanguageService,
-		@IAudioCueService private readonly audioCueService: IAudioCueService
 	) {
 		super();
 
-		this._register(this.editor.onDidChangeConfiguration((e) => {
-			if (
-				e.hasChanged(EditorOption.disableMonospaceOptimizations)
-				|| e.hasChanged(EditorOption.stopRenderingLineAfter)
-				|| e.hasChanged(EditorOption.renderWhitespace)
-				|| e.hasChanged(EditorOption.renderControlCharacters)
-				|| e.hasChanged(EditorOption.fontLigatures)
-				|| e.hasChanged(EditorOption.fontInfo)
-				|| e.hasChanged(EditorOption.lineHeight)
-			) {
-				this.update();
-			}
-		}));
-
-		this._register(toDisposable(() => {
-			this.disposed = true;
-			this.update();
-
-			this.viewMoreContentWidget?.dispose();
-			this.viewMoreContentWidget = undefined;
-		}));
-
-		this._register(model.onDidChange(() => this.update(true)));
-		this.update(true);
+		this._register(toDisposable(() => { this.isDisposed.set(true, undefined); }));
+		this._register(applyObservableDecorations(this.editor, this.decorations));
 	}
 
-	public shouldShowHoverAtViewZone(viewZoneId: string): boolean {
-		return (this.additionalLinesWidget.viewZoneId === viewZoneId);
-	}
-
-	private readonly replacementDecoration = this._register(new DisposableDecorations(this.editor));
-
-	private update(notifyUser?: boolean): void {
-		const ghostText = this.model.ghostText;
-
-		if (!this.editor.hasModel() || !ghostText || this.disposed) {
-			this.partsWidget.clear();
-			this.additionalLinesWidget.clear();
-			this.replacementDecoration.clear();
-			return;
+	private readonly uiState = derived('uiState', reader => {
+		if (this.isDisposed.read(reader)) {
+			return undefined;
+		}
+		const textModel = this.currentTextModel.read(reader);
+		if (textModel !== this.model.targetTextModel.read(reader)) {
+			return undefined;
+		}
+		const ghostText = this.model.ghostText.read(reader);
+		if (!ghostText) {
+			return undefined;
 		}
 
-		const inlineTexts = new Array<InsertedInlineText>();
-		const additionalLines = new Array<LineData>();
+		const replacedRange = ghostText instanceof GhostTextReplacement ? ghostText.columnRange : undefined;
+
+		const inlineTexts: { column: number; text: string; preview: boolean }[] = [];
+		const additionalLines: LineData[] = [];
 
 		function addToAdditionalLines(lines: readonly string[], className: string | undefined) {
 			if (additionalLines.length > 0) {
@@ -106,26 +81,7 @@ export class GhostTextWidget extends Disposable {
 			}
 		}
 
-		if (ghostText instanceof GhostTextReplacement) {
-			this.replacementDecoration.setDecorations([
-				{
-					range: new Range(
-						ghostText.lineNumber,
-						ghostText.columnStart,
-						ghostText.lineNumber,
-						ghostText.columnStart + ghostText.length
-					),
-					options: {
-						inlineClassName: 'inline-completion-text-to-replace',
-						description: 'GhostTextReplacement'
-					}
-				},
-			]);
-		} else {
-			this.replacementDecoration.setDecorations([]);
-		}
-
-		const textBufferLine = this.editor.getModel().getLineContent(ghostText.lineNumber);
+		const textBufferLine = textModel.getLineContent(ghostText.lineNumber);
 
 		let hiddenTextStartColumn: number | undefined = undefined;
 		let lastIdx = 0;
@@ -155,165 +111,116 @@ export class GhostTextWidget extends Disposable {
 			addToAdditionalLines([textBufferLine.substring(lastIdx)], undefined);
 		}
 
-		this.partsWidget.setParts(ghostText.lineNumber, inlineTexts,
-			hiddenTextStartColumn !== undefined ? { column: hiddenTextStartColumn, length: textBufferLine.length + 1 - hiddenTextStartColumn } : undefined);
-		this.additionalLinesWidget.updateLines(ghostText.lineNumber, additionalLines, ghostText.additionalReservedLineCount);
+		const hiddenRange = hiddenTextStartColumn !== undefined ? new ColumnRange(hiddenTextStartColumn, textBufferLine.length + 1) : undefined;
 
-		if (notifyUser) {
-			const lineText = this.editor.getModel()?.getLineContent(ghostText.lineNumber);
-			if (lineText && this._lastSuggestion !== lineText) {
-				this._lastSuggestion = lineText;
-				this.audioCueService.playAudioCue(AudioCue.inlineSuggestion).then(() => {
-					if (this.editor.getOption(EditorOption.screenReaderAnnounceInlineSuggestion)) {
-						alert(ghostText.renderForScreenReader(lineText));
-					}
-				});
-			}
-		}
-		if (0 < 0) {
-			// Not supported at the moment, condition is always false.
-			this.viewMoreContentWidget = this.renderViewMoreLines(
-				new Position(ghostText.lineNumber, this.editor.getModel()!.getLineMaxColumn(ghostText.lineNumber)),
-				'', 0
-			);
-		} else {
-			this.viewMoreContentWidget?.dispose();
-			this.viewMoreContentWidget = undefined;
-		}
-	}
+		return {
+			replacedRange,
+			inlineTexts,
+			additionalLines,
+			hiddenRange,
+			lineNumber: ghostText.lineNumber,
+			additionalReservedLineCount: ghostText.additionalReservedLineCount,
+			targetTextModel: textModel,
+		};
+	});
 
-	private renderViewMoreLines(position: Position, firstLineText: string, remainingLinesLength: number): ViewMoreLinesContentWidget {
-		const fontInfo = this.editor.getOption(EditorOption.fontInfo);
-		const domNode = document.createElement('div');
-		domNode.className = 'suggest-preview-additional-widget';
-		applyFontInfo(domNode, fontInfo);
-
-		const spacer = document.createElement('span');
-		spacer.className = 'content-spacer';
-		spacer.append(firstLineText);
-		domNode.append(spacer);
-
-		const newline = document.createElement('span');
-		newline.className = 'content-newline suggest-preview-text';
-		newline.append('⏎  ');
-		domNode.append(newline);
-
-		const disposableStore = new DisposableStore();
-
-		const button = document.createElement('div');
-		button.className = 'button suggest-preview-text';
-		button.append(`+${remainingLinesLength} lines…`);
-
-		disposableStore.add(dom.addStandardDisposableListener(button, 'mousedown', (e) => {
-			this.model?.setExpanded(true);
-			e.preventDefault();
-			this.editor.focus();
-		}));
-
-		domNode.append(button);
-		return new ViewMoreLinesContentWidget(this.editor, position, domNode, disposableStore);
-	}
-}
-
-class DisposableDecorations {
-	private decorationIds: string[] = [];
-
-	constructor(private readonly editor: ICodeEditor) {
-	}
-
-	public setDecorations(decorations: IModelDeltaDecoration[]): void {
-		// Using change decorations ensures that we update the id's before some event handler is called.
-		this.editor.changeDecorations(accessor => {
-			this.decorationIds = accessor.deltaDecorations(this.decorationIds, decorations);
-		});
-	}
-
-	public clear(): void {
-		this.setDecorations([]);
-	}
-
-	public dispose(): void {
-		this.clear();
-	}
-}
-
-interface HiddenText {
-	column: number;
-	length: number;
-}
-
-interface InsertedInlineText {
-	column: number;
-	text: string;
-	preview: boolean;
-}
-
-class DecorationsWidget implements IDisposable {
-	private decorationIds: string[] = [];
-
-	constructor(
-		private readonly editor: ICodeEditor
-	) {
-	}
-
-	public dispose(): void {
-		this.clear();
-	}
-
-	public clear(): void {
-		// Using change decorations ensures that we update the id's before some event handler is called.
-		this.editor.changeDecorations(accessor => {
-			this.decorationIds = accessor.deltaDecorations(this.decorationIds, []);
-		});
-	}
-
-	public setParts(lineNumber: number, parts: InsertedInlineText[], hiddenText?: HiddenText): void {
-		const textModel = this.editor.getModel();
-		if (!textModel) {
-			return;
+	private readonly decorations = derived('decorations', reader => {
+		const uiState = this.uiState.read(reader);
+		if (!uiState) {
+			return [];
 		}
 
-		const hiddenTextDecorations = new Array<IModelDeltaDecoration>();
-		if (hiddenText) {
-			hiddenTextDecorations.push({
-				range: Range.fromPositions(new Position(lineNumber, hiddenText.column), new Position(lineNumber, hiddenText.column + hiddenText.length)),
+		const decorations: IModelDeltaDecoration[] = [];
+
+		if (uiState.replacedRange) {
+			decorations.push({
+				range: uiState.replacedRange.toRange(uiState.lineNumber),
+				options: { inlineClassName: 'inline-completion-text-to-replace', description: 'GhostTextReplacement' }
+			});
+		}
+
+		if (uiState.hiddenRange) {
+			decorations.push({
+				range: uiState.hiddenRange.toRange(uiState.lineNumber),
+				options: { inlineClassName: 'ghost-text-hidden', description: 'ghost-text-hidden', }
+			});
+		}
+
+		for (const p of uiState.inlineTexts) {
+			decorations.push({
+				range: Range.fromPositions(new Position(uiState.lineNumber, p.column)),
 				options: {
-					inlineClassName: 'ghost-text-hidden',
-					description: 'ghost-text-hidden',
+					description: 'ghost-text',
+					after: { content: p.text, inlineClassName: p.preview ? 'ghost-text-decoration-preview' : 'ghost-text-decoration', cursorStops: InjectedTextCursorStops.Left },
+					showIfCollapsed: true,
 				}
 			});
 		}
 
-		// Using change decorations ensures that we update the id's before some event handler is called.
-		this.editor.changeDecorations(accessor => {
-			this.decorationIds = accessor.deltaDecorations(this.decorationIds, parts.map<IModelDeltaDecoration>(p => {
-				return ({
-					range: Range.fromPositions(new Position(lineNumber, p.column)),
-					options: {
-						description: 'ghost-text',
-						after: { content: p.text, inlineClassName: p.preview ? 'ghost-text-decoration-preview' : 'ghost-text-decoration', cursorStops: InjectedTextCursorStops.Left },
-						showIfCollapsed: true,
-					}
-				});
-			}).concat(hiddenTextDecorations));
-		});
+		return decorations;
+	});
+
+	private readonly additionalLinesWidget = this._register(
+		new AdditionalLinesWidget(
+			this.editor,
+			this.languageService.languageIdCodec,
+			derived('lines', (reader) => {
+				const uiState = this.uiState.read(reader);
+				return uiState ? {
+					lineNumber: uiState.lineNumber,
+					additionalLines: uiState.additionalLines,
+					minReservedLineCount: uiState.additionalReservedLineCount,
+					targetTextModel: uiState.targetTextModel,
+				} : undefined;
+			})
+		)
+	);
+
+	public ownsViewZone(viewZoneId: string): boolean {
+		return this.additionalLinesWidget.viewZoneId === viewZoneId;
 	}
 }
 
-class AdditionalLinesWidget implements IDisposable {
+class AdditionalLinesWidget extends Disposable {
 	private _viewZoneId: string | undefined = undefined;
 	public get viewZoneId(): string | undefined { return this._viewZoneId; }
 
+	private readonly editorOptionsChanged = observableSignalFromEvent('editorOptionChanged', Event.filter(
+		this.editor.onDidChangeConfiguration,
+		e => e.hasChanged(EditorOption.disableMonospaceOptimizations)
+			|| e.hasChanged(EditorOption.stopRenderingLineAfter)
+			|| e.hasChanged(EditorOption.renderWhitespace)
+			|| e.hasChanged(EditorOption.renderControlCharacters)
+			|| e.hasChanged(EditorOption.fontLigatures)
+			|| e.hasChanged(EditorOption.fontInfo)
+			|| e.hasChanged(EditorOption.lineHeight)
+	));
+
 	constructor(
 		private readonly editor: ICodeEditor,
-		private readonly languageIdCodec: ILanguageIdCodec
-	) { }
+		private readonly languageIdCodec: ILanguageIdCodec,
+		private readonly lines: IObservable<{ targetTextModel: ITextModel; lineNumber: number; additionalLines: LineData[]; minReservedLineCount: number } | undefined>
+	) {
+		super();
 
-	public dispose(): void {
+		this._register(autorun('update view zone', reader => {
+			const lines = this.lines.read(reader);
+			this.editorOptionsChanged.read(reader);
+
+			if (lines) {
+				this.updateLines(lines.lineNumber, lines.additionalLines, lines.minReservedLineCount);
+			} else {
+				this.clear();
+			}
+		}));
+	}
+
+	public override dispose(): void {
+		super.dispose();
 		this.clear();
 	}
 
-	public clear(): void {
+	private clear(): void {
 		this.editor.changeViewZones((changeAccessor) => {
 			if (this._viewZoneId) {
 				changeAccessor.removeZone(this._viewZoneId);
@@ -322,7 +229,7 @@ class AdditionalLinesWidget implements IDisposable {
 		});
 	}
 
-	public updateLines(lineNumber: number, additionalLines: LineData[], minReservedLineCount: number): void {
+	private updateLines(lineNumber: number, additionalLines: LineData[], minReservedLineCount: number): void {
 		const textModel = this.editor.getModel();
 		if (!textModel) {
 			return;
@@ -353,7 +260,7 @@ class AdditionalLinesWidget implements IDisposable {
 }
 
 interface LineData {
-	content: string;
+	content: string; // Must not contain a linebreak!
 	decorations: LineDecoration[];
 }
 
@@ -414,37 +321,4 @@ function renderLines(domNode: HTMLElement, tabSize: number, lines: LineData[], o
 	domNode.innerHTML = trustedhtml as string;
 }
 
-class ViewMoreLinesContentWidget extends Disposable implements IContentWidget {
-	readonly allowEditorOverflow = false;
-	readonly suppressMouseDown = false;
-
-	constructor(
-		private editor: ICodeEditor,
-		private position: Position,
-		private domNode: HTMLElement,
-		disposableStore: DisposableStore
-	) {
-		super();
-		this._register(disposableStore);
-		this._register(toDisposable(() => {
-			this.editor.removeContentWidget(this);
-		}));
-		this.editor.addContentWidget(this);
-	}
-
-	getId(): string {
-		return 'editor.widget.viewMoreLinesWidget';
-	}
-
-	getDomNode(): HTMLElement {
-		return this.domNode;
-	}
-
-	getPosition(): IContentWidgetPosition | null {
-		return {
-			position: this.position,
-			preference: [ContentWidgetPositionPreference.EXACT]
-		};
-	}
-}
-
+const ttPolicy = window.trustedTypes?.createPolicy('editorGhostText', { createHTML: value => value });
