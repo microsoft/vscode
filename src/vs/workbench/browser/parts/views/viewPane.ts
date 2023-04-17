@@ -242,8 +242,6 @@ export abstract class ViewPane extends Pane implements IView {
 	}
 
 	setVisible(visible: boolean): void {
-		console.log('Inside of setVisible of the ViewPane');
-		console.log('visible: ' + visible);
 		if (this._isVisible !== visible) {
 			this._isVisible = visible;
 
@@ -427,7 +425,6 @@ export abstract class ViewPane extends Pane implements IView {
 	private scrollableElement!: DomScrollableElement;
 
 	protected renderBody(container: HTMLElement): void {
-		console.log('Inside of renderBody of the ViewPane class');
 		this.bodyContainer = container;
 
 		const viewWelcomeContainer = append(container, $('.welcome-view'));

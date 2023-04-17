@@ -159,11 +159,7 @@ export class ViewsService extends Disposable implements IViewsService {
 		return this.paneCompositeService.openPaneComposite(compositeId, location, focus);
 	}
 
-	public async closeComposite(location: ViewContainerLocation) {
-		return this.paneCompositeService.hideActivePaneComposite(location);
-	}
-
-	public getComposite(compositeId: string, location: ViewContainerLocation): { id: string; name: string } | undefined {
+	private getComposite(compositeId: string, location: ViewContainerLocation): { id: string; name: string } | undefined {
 		return this.paneCompositeService.getPaneComposite(compositeId, location);
 	}
 
@@ -239,12 +235,7 @@ export class ViewsService extends Disposable implements IViewsService {
 		return null;
 	}
 
-	async openView<T extends IView>(id: string, focus?: boolean, close?: boolean): Promise<T | null> {
-		console.log('Inside of openView');
-		console.log('id : ', id);
-		console.log('focus : ', focus);
-		console.log('close : ', close);
-
+	async openView<T extends IView>(id: string, focus?: boolean): Promise<T | null> {
 		const viewContainer = this.viewDescriptorService.getViewContainerByViewId(id);
 		if (!viewContainer) {
 			return null;
@@ -258,28 +249,14 @@ export class ViewsService extends Disposable implements IViewsService {
 		const compositeDescriptor = this.getComposite(viewContainer.id, location!);
 		if (compositeDescriptor) {
 			const paneComposite = await this.openComposite(compositeDescriptor.id, location!) as IPaneComposite | undefined;
-
-			console.log('Before calling openView on paneComposite');
-
 			if (paneComposite && paneComposite.openView) {
 				return paneComposite.openView<T>(id, focus) || null;
 			} else if (focus) {
 				paneComposite?.focus();
 			}
 		}
-		return null;
-	}
 
-	simpleCloseView(id: string): void {
-		const viewContainer = this.viewDescriptorService.getViewContainerByViewId(id);
-		if (viewContainer) {
-			const activeViewPaneContainer = this.getActiveViewPaneContainer(viewContainer);
-			if (activeViewPaneContainer) {
-				const view = activeViewPaneContainer.getView(id);
-				console.log('view : ', view);
-				view?.setExpanded(false);
-			}
-		}
+		return null;
 	}
 
 	closeView(id: string): void {
@@ -292,7 +269,6 @@ export class ViewsService extends Disposable implements IViewsService {
 					if (activeViewPaneContainer.views.length === 1) {
 						const location = this.viewDescriptorService.getViewContainerLocation(viewContainer);
 						if (location === ViewContainerLocation.Sidebar) {
-							console.log('sidebar location');
 							this.layoutService.setPartHidden(true, Parts.SIDEBAR_PART);
 						} else if (location === ViewContainerLocation.Panel || location === ViewContainerLocation.AuxiliaryBar) {
 							this.paneCompositeService.hideActivePaneComposite(location);

@@ -269,9 +269,6 @@ export class InteractiveResponseViewModel extends Disposable implements IInterac
 		}
 
 		this._register(_model.onDidChange(() => {
-
-			console.log('Inside of onDidChange of the InteractiveResponseViewModel');
-
 			if (this._isPlaceholder && (_model.response.value || this.isComplete)) {
 				this._isPlaceholder = false;
 			}

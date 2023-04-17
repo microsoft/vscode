@@ -577,9 +577,6 @@ export abstract class BasePanelPart extends CompositePart<PaneComposite> impleme
 	}
 
 	doOpenPanel(id: string, focus?: boolean): PaneComposite | undefined {
-
-		console.log('inside of do open pael');
-
 		if (this.blockOpeningPanel) {
 			return undefined; // Workaround against a potential race condition
 		}
@@ -657,8 +654,6 @@ export abstract class BasePanelPart extends CompositePart<PaneComposite> impleme
 	}
 
 	hideActivePaneComposite(): void {
-		console.log('Inside of hide active pane composite of BasePanelPart');
-
 		// First check if panel is visible and hide if so
 		if (this.layoutService.isVisible(this.partId)) {
 			this.layoutService.setPartHidden(true, this.partId);

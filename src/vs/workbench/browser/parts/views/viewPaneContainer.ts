@@ -665,7 +665,6 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 	}
 
 	setVisible(visible: boolean): void {
-		console.log('Inside of setVisible of the ViewPaneContainer : ', visible);
 		if (this.visible !== !!visible) {
 			this.visible = visible;
 
@@ -752,31 +751,21 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 	}
 
 	openView(id: string, focus?: boolean): IView | undefined {
-
-		console.log('Inside of toggleViewVisibility');
-		console.log('id : ', id);
-
 		let view = this.getView(id);
 		if (!view) {
 			this.toggleViewVisibility(id);
 		}
 		view = this.getView(id);
-		// tODO: maybe set expanded to false when open view with expanded false?
 		if (view) {
-			// const shouldBeExpanded = false;
-			// console.log('shouldBeExpanded : ', shouldBeExpanded);
-			// if (shouldBeExpanded) {
 			view.setExpanded(true);
 			if (focus) {
 				view.focus();
 			}
-			// }
 		}
 		return view;
 	}
 
 	protected onDidAddViewDescriptors(added: IAddedViewDescriptorRef[]): ViewPane[] {
-		console.log('Inside of onDidAddViewDescriptors');
 		const panesToAdd: { pane: ViewPane; size: number; index: number }[] = [];
 
 		for (const { viewDescriptor, collapsed, index, size } of added) {
@@ -831,17 +820,8 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 
 	toggleViewVisibility(viewId: string): void {
 		// Check if view is active
-		console.log('Inside of toggleViewVisibility');
-		console.log('viewId : ', viewId);
-
 		if (this.viewContainerModel.activeViewDescriptors.some(viewDescriptor => viewDescriptor.id === viewId)) {
-			let visible = !this.viewContainerModel.isVisible(viewId);
-
-			if (viewId === 'workbench.panel.interactiveSession.view.copilot') {
-				visible = false;
-			}
-			console.log('visible : ', visible);
-
+			const visible = !this.viewContainerModel.isVisible(viewId);
 			this.viewContainerModel.setVisible(viewId, visible);
 		}
 	}

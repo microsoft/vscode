@@ -310,7 +310,6 @@ export class EditorPanes extends Disposable {
 
 	private doShowEditorPane(descriptor: IEditorPaneDescriptor): EditorPane {
 
-		console.log('Inside of doShowEditorPane');
 		// Return early if the currently active editor pane can handle the input
 		if (this._activeEditorPane && descriptor.describes(this._activeEditorPane)) {
 			return this._activeEditorPane;
@@ -439,7 +438,6 @@ export class EditorPanes extends Disposable {
 	}
 
 	private doHideActiveEditorPane(): void {
-		console.log('Inside of doHideActiveEditorPane');
 		if (!this._activeEditorPane) {
 			return;
 		}

@@ -273,7 +273,6 @@ export class InteractiveEditorController implements IEditorContribution {
 		@IStorageService private readonly _storageService: IStorageService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IContextKeyService contextKeyService: IContextKeyService,
-		@IViewsService private readonly viewService: IViewsService
 
 	) {
 		this._zone = this._store.add(_instaService.createInstance(InteractiveEditorZoneWidget, this._editor));
@@ -455,7 +454,6 @@ export class InteractiveEditorController implements IEditorContribution {
 			if (refer) {
 				this._logService.info('[IE] seeing refer command, continuing outside editor', provider.debugName);
 				this._editor.setSelection(wholeRange);
-				console.log('Before sending the request');
 				this._instaService.invokeFunction(sendRequest, input);
 				continue;
 			}
@@ -507,23 +505,12 @@ export class InteractiveEditorController implements IEditorContribution {
 
 			if (reply.type === 'message') {
 				this._logService.info('[IE] received a MESSAGE, continuing outside editor', provider.debugName);
-				// When message, we want to render the reply first
-				// ADDED
 				this._zone.widget.updateMessage(reply.message.value);
 				const viewInChatLink = this._zone.widget.addStatusLink('View in chat');
 				const messageReply = reply.message.value;
-				// still need to save the message reply in the view, even if not making it appears
-				// need to have a separation between showing the pannel and saving the message
-				console.log('Right before saving the message response');
-
-				this._instaService.invokeFunction(saveMessageResponse, request.prompt, messageReply, this.viewService);
-				// this.cancelSession();
-
 				viewInChatLink.onclick = () => {
-					console.log('Inside of revealView');
-					this._instaService.invokeFunction(revealView);
+					this._instaService.invokeFunction(showMessageResponse, request.prompt, messageReply);
 				};
-				// END ADDED
 				continue;
 			}
 
@@ -666,7 +653,6 @@ export class InteractiveEditorController implements IEditorContribution {
 	}
 
 	cancelSession() {
-		console.log('Inside of cancel session');
 		this._ctsSession.cancel();
 	}
 
@@ -826,34 +812,12 @@ function installSlashCommandSupport(accessor: ServicesAccessor, editor: IActiveC
 	return store;
 }
 
-async function saveMessageResponse(accessor: ServicesAccessor, query: string, response: string, viewService?: IViewsService) {
-	console.log('inside of showMessageResponse');
-	console.log('query : ', query);
-	console.log('response : ', response);
+async function showMessageResponse(accessor: ServicesAccessor, query: string, response: string) {
 	const interactiveSessionService = accessor.get(IInteractiveSessionService);
 	const providerId = interactiveSessionService.getProviders()[0];
-	// if (await interactiveSessionService.revealSessionForProvider(providerId)) {
-	// CODE works except for the first time, where a model needs to be initially created
-	// Currently is is only created when the revealView function is called, the logic should be separated
-	// crea
-	// interactiveSessionService.addCompleteRequest(providerId, query, { message: response });
-
-	// TODO: discuss with Jo
-	if (await interactiveSessionService.revealSessionForProvider(providerId, true)) {
+	if (await interactiveSessionService.revealSessionForProvider(providerId)) {
 		interactiveSessionService.addCompleteRequest(providerId, query, { message: response });
 	}
-	// TODO: doing the following with closeView or closeSimpleView causes either the wrong false expansion
-	// Or the whole sidebar disappears, which we do not want
-	// TODO: Make it so that the session starts on the rendering, but the rendering doesn't necessarily happen, the dom nodes are not visible
-	// if (viewService) {
-	// 	viewService.closeView('workbench.panel.interactiveSession.view.copilot');
-	// }
-}
-
-async function revealView(accessor: ServicesAccessor) {
-	const interactiveSessionService = accessor.get(IInteractiveSessionService);
-	const providerId = interactiveSessionService.getProviders()[0];
-	await interactiveSessionService.revealSessionForProvider(providerId);
 }
 
 async function sendRequest(accessor: ServicesAccessor, query: string) {
@@ -871,7 +835,6 @@ async function sendRequest(accessor: ServicesAccessor, query: string) {
 		// fallback - take the first view that's openable
 		for (const { id } of interactiveSessionContributionService.registeredProviders) {
 			const viewId = interactiveSessionContributionService.getViewIdForProvider(id);
-			console.log('Inside of sendRequest');
 			const view = await viewsService.openView<InteractiveSessionViewPane>(viewId, true);
 			if (view) {
 				view.acceptInput(query);

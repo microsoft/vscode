@@ -588,7 +588,6 @@ export interface IViewsService {
 	// View APIs
 	readonly onDidChangeViewVisibility: Event<{ id: string; visible: boolean }>;
 	isViewVisible(id: string): boolean;
-	simpleCloseView?(id: string): void;
 	openView<T extends IView>(id: string, focus?: boolean): Promise<T | null>;
 	closeView(id: string): void;
 	getActiveViewWithId<T extends IView>(id: string): T | null;

@@ -373,18 +373,10 @@ class InteractiveEditorWidget {
 		linkNode.innerText = message;
 		linkNode.style.float = 'right';
 		append(this._elements.statusLabel, linkNode);
-
-		console.log('linkNode : ', linkNode);
-		console.log('this._element.statusLabel : ', this._elements.statusLabel);
-
 		return linkNode;
 	}
 
 	updateMessage(message: string, classes?: string[], resetAfter?: number) {
-
-		console.log('Inside of the updateMessage function');
-		console.log('message : ', message);
-
 		const isTempMessage = typeof resetAfter === 'number';
 		if (isTempMessage && !this._elements.statusLabel.dataset['state']) {
 			const messageNow = this._elements.statusLabel.innerText;

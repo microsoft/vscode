@@ -47,7 +47,6 @@ export abstract class PaneComposite extends Composite implements IPaneComposite 
 	}
 
 	override setVisible(visible: boolean): void {
-		console.log('Inside of setVisible of the PaneComposite : ', visible);
 		super.setVisible(visible);
 		this.viewPaneContainer?.setVisible(visible);
 	}
@@ -65,7 +64,6 @@ export abstract class PaneComposite extends Composite implements IPaneComposite 
 	}
 
 	openView<T extends IView>(id: string, focus?: boolean): T | undefined {
-		console.log('Inside of open view of the pane composite');
 		return this.viewPaneContainer?.openView(id, focus) as T;
 	}
 
