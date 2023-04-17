@@ -23,6 +23,7 @@ export interface IWorkbenchQuickAccessConfiguration {
 			preserveInput: boolean;
 			experimental: {
 				suggestCommands: boolean;
+				useSemanticSimilarity: boolean;
 			};
 		};
 		quickOpen: {

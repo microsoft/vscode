@@ -2242,7 +2242,7 @@ class EditorDecorationsCollection implements editorCommon.IEditorDecorationsColl
 		this.set([]);
 	}
 
-	public set(newDecorations: IModelDeltaDecoration[]): void {
+	public set(newDecorations: readonly IModelDeltaDecoration[]): string[] {
 		try {
 			this._isChangingDecorations = true;
 			this._editor.changeDecorations((accessor) => {
@@ -2251,6 +2251,7 @@ class EditorDecorationsCollection implements editorCommon.IEditorDecorationsColl
 		} finally {
 			this._isChangingDecorations = false;
 		}
+		return this._decorationIds;
 	}
 }
 
