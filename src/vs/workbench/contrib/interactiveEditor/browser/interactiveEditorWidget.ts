@@ -368,7 +368,6 @@ class InteractiveEditorWidget {
 	}
 
 	addStatusLink(message: string) {
-		this._elements.statusLabel.style.width = '100%';
 		const linkNode = document.createElement('a');
 		linkNode.innerText = message;
 		linkNode.style.float = 'right';
@@ -376,14 +375,14 @@ class InteractiveEditorWidget {
 		return linkNode;
 	}
 
-	updateMessage(message: string, classes?: string[], resetAfter?: number) {
+	updateMessage(message: string, oneLine: boolean = false, classes?: string[], resetAfter?: number) {
 		const isTempMessage = typeof resetAfter === 'number';
 		if (isTempMessage && !this._elements.statusLabel.dataset['state']) {
 			const messageNow = this._elements.statusLabel.innerText;
 			const classes = Array.from(this._elements.statusLabel.classList.values());
 			setTimeout(() => {
 				if (messageNow) {
-					this.updateMessage(messageNow, classes);
+					this.updateMessage(messageNow, oneLine, classes);
 				} else {
 					reset(this._elements.statusLabel);
 				}
@@ -393,6 +392,10 @@ class InteractiveEditorWidget {
 		this._elements.status.classList.toggle('hidden', false);
 
 		reset(this._elements.statusLabel, message);
+		if (oneLine) {
+			this._elements.statusLabel.style.textOverflow = 'ellipsis';
+			this._elements.statusLabel.style.overflow = 'hidden';
+		}
 		this._elements.statusLabel.className = `label ${(classes ?? []).join(' ')}`;
 		if (isTempMessage) {
 			this._elements.statusLabel.dataset['state'] = 'temp';

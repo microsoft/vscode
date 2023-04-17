@@ -478,7 +478,7 @@ export class InteractiveEditorController implements IEditorContribution {
 				if (!isCancellationError(e)) {
 					this._logService.error('[IE] ERROR during request', provider.debugName);
 					this._logService.error(e);
-					this._zone.widget.updateMessage(toErrorMessage(e), ['error']);
+					this._zone.widget.updateMessage(toErrorMessage(e), false, ['error']);
 					// statusWidget
 					continue;
 				}
@@ -496,7 +496,7 @@ export class InteractiveEditorController implements IEditorContribution {
 
 			if (!reply) {
 				this._logService.trace('[IE] NO reply or edits', provider.debugName);
-				this._zone.widget.updateMessage(localize('empty', "No results, please refine your input and try again."), ['warn']);
+				this._zone.widget.updateMessage(localize('empty', "No results, please refine your input and try again."), false, ['warn']);
 				continue;
 			}
 
@@ -505,9 +505,9 @@ export class InteractiveEditorController implements IEditorContribution {
 
 			if (reply.type === 'message') {
 				this._logService.info('[IE] received a MESSAGE, continuing outside editor', provider.debugName);
-				this._zone.widget.updateMessage(reply.message.value);
-				const viewInChatLink = this._zone.widget.addStatusLink('View in chat');
+				this._zone.widget.updateMessage(reply.message.value, true);
 				const messageReply = reply.message.value;
+				const viewInChatLink = this._zone.widget.addStatusLink('View in chat');
 				viewInChatLink.onclick = () => {
 					this._instaService.invokeFunction(showMessageResponse, request.prompt, messageReply);
 				};
@@ -600,7 +600,7 @@ export class InteractiveEditorController implements IEditorContribution {
 
 				this._zone.widget.updateMessage(linesChanged === 1
 					? localize('lines.1', "Generated reply and changed 1 line.")
-					: localize('lines.N', "Generated reply and changed {0} lines.", linesChanged)
+					: localize('lines.N', "Generated reply and changed {0} lines.", false, linesChanged)
 				);
 			}
 
@@ -710,7 +710,7 @@ export class InteractiveEditorController implements IEditorContribution {
 			const kind = helpful ? InteractiveEditorResponseFeedbackKind.Helpful : InteractiveEditorResponseFeedbackKind.Unhelpful;
 			this._lastEditState.provider.handleInteractiveEditorResponseFeedback?.(this._lastEditState.session, this._lastEditState.response.raw, kind);
 			this._ctxLastFeedbackKind.set(helpful ? 'helpful' : 'unhelpful');
-			this._zone.widget.updateMessage('Thank you for your feedback!', undefined, 1250);
+			this._zone.widget.updateMessage('Thank you for your feedback!', false, undefined, 1250);
 		}
 	}
 

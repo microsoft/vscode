@@ -106,6 +106,7 @@
 
 .monaco-editor .interactive-editor .status .label {
 	font-size: 12px;
+	width: 100%;
 }
 
 .monaco-editor .interactive-editor .status .label A {
