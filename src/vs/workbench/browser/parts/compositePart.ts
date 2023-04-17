@@ -98,6 +98,8 @@ export abstract class CompositePart<T extends Composite> extends Part {
 
 	protected openComposite(id: string, focus?: boolean): Composite | undefined {
 
+		console.log('Inside of open composite');
+
 		// Check if composite already visible and just focus in that case
 		if (this.activeComposite?.getId() === id) {
 			if (focus) {
@@ -118,6 +120,10 @@ export abstract class CompositePart<T extends Composite> extends Part {
 	}
 
 	private doOpenComposite(id: string, focus: boolean = false): Composite | undefined {
+
+		console.log('Inside of doOpenComposite of CompositePart.ts');
+		console.log('id : ', id);
+		console.log('focus : ', focus);
 
 		// Use a generated token to avoid race conditions from long running promises
 		const currentCompositeOpenToken = defaultGenerator.nextId();
@@ -360,7 +366,7 @@ export abstract class CompositePart<T extends Composite> extends Part {
 
 	protected hideActiveComposite(): Composite | undefined {
 
-		console.log('Inside of hide active composite');
+		console.log('Inside of hide active composite of CompositePart');
 
 		if (!this.activeComposite) {
 			return undefined; // Nothing to do

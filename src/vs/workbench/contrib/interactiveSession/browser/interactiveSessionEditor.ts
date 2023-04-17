@@ -61,7 +61,9 @@ export class InteractiveSessionEditor extends EditorPane {
 	}
 
 	override async setInput(input: InteractiveSessionEditorInput, options: IInteractiveSessionEditorOptions, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
+
 		console.log('Inside of setInput');
+
 		super.setInput(input, options, context, token);
 
 		// TODO would be much cleaner if I can create the widget first and set its provider id later

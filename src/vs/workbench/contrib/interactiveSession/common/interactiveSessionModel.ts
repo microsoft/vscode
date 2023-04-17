@@ -126,7 +126,9 @@ export class InteractiveResponseModel extends Disposable implements IInteractive
 	}
 
 	complete(errorDetails?: IInteractiveResponseErrorDetails): void {
+
 		console.log('Inside of complete');
+
 		this._isComplete = true;
 		this._errorDetails = errorDetails;
 		this._onDidChange.fire();
@@ -248,7 +250,9 @@ export class InteractiveSessionModel extends Disposable implements IInteractiveS
 		@ILogService private readonly logService: ILogService
 	) {
 		super();
+
 		console.log('Inside of the constructor of the interactive session model');
+
 		this._requests = initialData ? this._deserialize(initialData) : [];
 		this._providerState = initialData ? initialData.providerState : undefined;
 	}

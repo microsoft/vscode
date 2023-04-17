@@ -381,6 +381,7 @@ class InteractiveEditorWidget {
 	}
 
 	updateMessage(message: string, classes?: string[], resetAfter?: number) {
+
 		console.log('Inside of the updateMessage function');
 		console.log('message : ', message);
 

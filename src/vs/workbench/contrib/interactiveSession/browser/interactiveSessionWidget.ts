@@ -70,7 +70,7 @@ export class InteractiveSessionWidget extends Disposable implements IInteractive
 	private editorOptions!: InteractiveSessionEditorOptions;
 
 	private listContainer!: HTMLElement;
-	public container!: HTMLElement;
+	private container!: HTMLElement;
 
 	private bodyDimension: dom.Dimension | undefined;
 	private visible = false;
@@ -130,8 +130,9 @@ export class InteractiveSessionWidget extends Disposable implements IInteractive
 		this.requestInProgress = CONTEXT_INTERACTIVE_REQUEST_IN_PROGRESS.bindTo(contextKeyService);
 
 		this._register((interactiveSessionWidgetService as InteractiveSessionWidgetService).register(this));
+
 		console.log('Inside of the constructor of the interactive session widget');
-		// session is initialized when the interactive session widget is created, but we do not want it to be visible initially
+
 		this.initializeSessionModel(true);
 
 		this.memento = new Memento('interactive-session-' + this.providerId, storageService);
@@ -147,15 +148,16 @@ export class InteractiveSessionWidget extends Disposable implements IInteractive
 	}
 
 	render(parent: HTMLElement): void {
+
 		console.log('Inside of render of InteractiveSessionWidget');
 		// TODO: find a way to start a session without rendering necessarily
-		// Only when the render is called, it appears that the list and the tree are generated, but we don't want this necessarily
-		// We want the tree to be present even if it is not rendered
+		// TODO: Only when the render is called, it appears that the list and the tree are generated, but we don't want this necessarily
+		// TODO: We want the tree to be present even if it is not rendered
+
 		this.container = dom.append(parent, $('.interactive-session'));
 		this.listContainer = dom.append(this.container, $(`.interactive-list`));
 
 		this.editorOptions = this._register(this.instantiationService.createInstance(InteractiveSessionEditorOptions, this.viewId, this.inputEditorBackgroundColorDelegate, this.resultEditorBackgroundColorDelegate));
-		// Initially htis list is empty when rendered at the begginging of the session
 		this.createList(this.listContainer);
 		this.createInput(this.container);
 
@@ -166,7 +168,7 @@ export class InteractiveSessionWidget extends Disposable implements IInteractive
 		if (this.viewModel) {
 			this.onDidChangeItems();
 		}
-		// Instatiating the interactive session input edior decorations
+
 		InteractiveSessionWidget.CONTRIBS.forEach(contrib => this._register(this.instantiationService.createInstance(contrib, this)));
 	}
 
@@ -175,9 +177,11 @@ export class InteractiveSessionWidget extends Disposable implements IInteractive
 	}
 
 	private onDidChangeItems() {
+
 		console.log('Inside of onDidChangeItems');
 		console.log('this.visible : ', this.visible);
 		console.log('this.tree : ', this.tree);
+
 		if (this.tree && this.visible) {
 			const items: InteractiveTreeItem[] = this.viewModel?.getItems() ?? [];
 			if (this.viewModel?.welcomeMessage) {
@@ -258,7 +262,9 @@ export class InteractiveSessionWidget extends Disposable implements IInteractive
 	}
 
 	private createList(listContainer: HTMLElement): void {
+
 		console.log('Inside of createList');
+
 		const scopedInstantiationService = this.instantiationService.createChild(new ServiceCollection([IContextKeyService, this.contextKeyService]));
 		const delegate = scopedInstantiationService.createInstance(InteractiveSessionListDelegate);
 		const rendererDelegate: IInteractiveSessionRendererDelegate = {
@@ -356,7 +362,9 @@ export class InteractiveSessionWidget extends Disposable implements IInteractive
 	}
 
 	private initializeSessionModel(initial = false) {
+
 		console.log('Inside of initializeSessionModel');
+
 		const model = this.interactiveSessionService.startSession(this.providerId, initial, CancellationToken.None);
 		if (!model) {
 			throw new Error('Failed to start session');
@@ -364,7 +372,9 @@ export class InteractiveSessionWidget extends Disposable implements IInteractive
 
 		this.viewModel = this.instantiationService.createInstance(InteractiveSessionViewModel, model);
 		this.viewModelDisposables.add(this.viewModel.onDidChange(() => {
+
 			console.log('Inside of onDidChangeModel of the initializeSessionModel');
+
 			this.slashCommandsPromise = undefined;
 			this.requestInProgress.set(this.viewModel!.requestInProgress);
 			this.onDidChangeItems();

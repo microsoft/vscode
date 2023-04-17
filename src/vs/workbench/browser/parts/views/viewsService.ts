@@ -242,6 +242,9 @@ export class ViewsService extends Disposable implements IViewsService {
 	async openView<T extends IView>(id: string, focus?: boolean, close?: boolean): Promise<T | null> {
 		console.log('Inside of openView');
 		console.log('id : ', id);
+		console.log('focus : ', focus);
+		console.log('close : ', close);
+
 		const viewContainer = this.viewDescriptorService.getViewContainerByViewId(id);
 		if (!viewContainer) {
 			return null;
@@ -255,7 +258,9 @@ export class ViewsService extends Disposable implements IViewsService {
 		const compositeDescriptor = this.getComposite(viewContainer.id, location!);
 		if (compositeDescriptor) {
 			const paneComposite = await this.openComposite(compositeDescriptor.id, location!) as IPaneComposite | undefined;
+
 			console.log('Before calling openView on paneComposite');
+
 			if (paneComposite && paneComposite.openView) {
 				return paneComposite.openView<T>(id, focus) || null;
 			} else if (focus) {

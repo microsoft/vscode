@@ -221,7 +221,9 @@ export abstract class Pane extends Disposable implements IView {
 	}
 
 	render(): void {
+
 		console.log('inside of render of the pane');
+
 		this.element.classList.toggle('expanded', this.isExpanded());
 		this.element.classList.toggle('horizontal', this.orientation === Orientation.HORIZONTAL);
 		this.element.classList.toggle('vertical', this.orientation === Orientation.VERTICAL);
@@ -267,9 +269,17 @@ export abstract class Pane extends Disposable implements IView {
 
 		// Only render the body if it will be visible
 		// Otherwise, render it when the pane is expanded
+
+		// TODO: initially should not be expanded
+		// const differentRendering = true;
+
 		if (!this._bodyRendered && this.isExpanded()) {
 			this.renderBody(this.body);
 			this._bodyRendered = true;
+
+			// if (differentRendering) {
+			// 	this.body.remove();
+			// }
 		}
 
 		if (!this.isExpanded()) {

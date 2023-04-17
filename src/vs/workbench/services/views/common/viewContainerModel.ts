@@ -373,6 +373,9 @@ export class ViewContainerModel extends Disposable implements IViewContainerMode
 	}
 
 	private updateContainerInfo(): void {
+
+		console.log('update container info');
+
 		/* Use default container info if one of the visible view descriptors belongs to the current container by default */
 		const useDefaultContainerInfo = this.viewContainer.alwaysUseContainerInfo || this.visibleViewDescriptors.length === 0 || this.visibleViewDescriptors.some(v => Registry.as<IViewsRegistry>(ViewExtensions.ViewsRegistry).getViewContainer(v.id) === this.viewContainer);
 		const title = useDefaultContainerInfo ? (typeof this.viewContainer.title === 'string' ? this.viewContainer.title : this.viewContainer.title.value) : this.visibleViewDescriptors[0]?.containerTitle || this.visibleViewDescriptors[0]?.name || '';
@@ -388,6 +391,8 @@ export class ViewContainerModel extends Disposable implements IViewContainerMode
 			this._icon = icon;
 			iconChanged = true;
 		}
+
+		// Can cancel session without the pane disappearing
 
 		const keybindingId = this.viewContainer.openCommandActionDescriptor?.id ?? this.activeViewDescriptors.find(v => v.openCommandActionDescriptor)?.openCommandActionDescriptor?.id;
 		let keybindingIdChanged: boolean = false;
@@ -419,12 +424,16 @@ export class ViewContainerModel extends Disposable implements IViewContainerMode
 	}
 
 	setVisible(id: string, visible: boolean): void {
+
 		console.log('Insid eof updaeVisibility');
+
 		this.updateVisibility([{ id, visible }]);
 	}
 
 	private updateVisibility(viewDescriptors: { id: string; visible: boolean }[]): void {
+
 		console.log('Inside of updateVisibility');
+
 		// First: Update and remove the view descriptors which are asked to be hidden
 		const viewDescriptorItemsToHide = coalesce(viewDescriptors.filter(({ visible }) => !visible)
 			.map(({ id }) => this.findAndIgnoreIfNotFound(id)));
@@ -459,7 +468,9 @@ export class ViewContainerModel extends Disposable implements IViewContainerMode
 	}
 
 	private updateViewDescriptorItemVisibility(viewDescriptorItem: IViewDescriptorItem, visible: boolean): boolean {
+
 		console.log('inside of updateViewDescriptorItemVisibility');
+
 		if (!viewDescriptorItem.viewDescriptor.canToggleVisibility) {
 			return false;
 		}
@@ -486,6 +497,9 @@ export class ViewContainerModel extends Disposable implements IViewContainerMode
 	}
 
 	setCollapsed(id: string, collapsed: boolean): void {
+
+		console.log('inside of set collapsed');
+		console.log('id : ', id);
 		const { viewDescriptorItem } = this.find(id);
 		if (viewDescriptorItem.state.collapsed !== collapsed) {
 			viewDescriptorItem.state.collapsed = collapsed;
@@ -524,6 +538,10 @@ export class ViewContainerModel extends Disposable implements IViewContainerMode
 	}
 
 	add(addedViewDescriptorStates: IAddedViewDescriptorState[]): void {
+
+		console.log('inside of add of viewcontainermodel');
+		console.log('addedViewDescriptorStates : ', addedViewDescriptorStates);
+
 		const addedItems: IViewDescriptorItem[] = [];
 		for (const addedViewDescriptorState of addedViewDescriptorStates) {
 			const viewDescriptor = addedViewDescriptorState.viewDescriptor;
@@ -584,6 +602,10 @@ export class ViewContainerModel extends Disposable implements IViewContainerMode
 	}
 
 	remove(viewDescriptors: IViewDescriptor[]): void {
+
+		console.log('inside of remove of viewcontainermodel');
+		console.log('viewDescriptors : ', viewDescriptors);
+
 		const removed: IViewDescriptor[] = [];
 		const removedItems: IViewDescriptorItem[] = [];
 		const removedActiveDescriptors: IViewDescriptor[] = [];
@@ -667,7 +689,9 @@ export class ViewContainerModel extends Disposable implements IViewContainerMode
 	}
 
 	private broadCastAddedVisibleViewDescriptors(added: IAddedViewDescriptorRef[]): void {
+
 		console.log('inside of broadCastAddedVisibleViewDescriptors');
+
 		if (added.length) {
 			this._onDidAddVisibleViewDescriptors.fire(added.sort((a, b) => a.index - b.index));
 			this.updateState(`Added views:${added.map(v => v.viewDescriptor.id).join(',')} in ${this.viewContainer.id}`);
@@ -687,13 +711,18 @@ export class ViewContainerModel extends Disposable implements IViewContainerMode
 	}
 
 	private updateState(reason: string): void {
+
+		console.log('updateState : ', reason);
+
 		this.logger.info(reason);
 		this.viewDescriptorsState.updateState(this.allViewDescriptors);
 		this.updateContainerInfo();
 	}
 
 	private isViewDescriptorVisible(viewDescriptorItem: IViewDescriptorItem): boolean {
+
 		console.log('Inside of isViewDescriptorVisible');
+
 		if (!viewDescriptorItem.state.active) {
 			return false;
 		}

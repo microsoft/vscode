@@ -223,7 +223,7 @@ export class SidebarPart extends CompositePart<PaneComposite> implements IPaneCo
 	}
 
 	hideActivePaneComposite(): void {
-		console.log('Inside of hide active pane composite');
+		console.log('Inside of hide active pane composite of SideBarPart');
 		this.hideActiveComposite();
 	}
 
@@ -260,6 +260,9 @@ export class SidebarPart extends CompositePart<PaneComposite> implements IPaneCo
 	}
 
 	private doOpenViewlet(id: string, focus?: boolean): PaneComposite | undefined {
+
+		console.log('Inside of do open viewlet');
+
 		if (this.blockOpeningViewlet) {
 			return undefined; // Workaround against a potential race condition
 		}

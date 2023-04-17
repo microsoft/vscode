@@ -159,7 +159,7 @@ export interface IInteractiveSessionService {
 	clearSession(sessionId: number): void;
 	acceptNewSessionState(sessionId: number, state: any): void;
 	getProviders(): string[];
-	revealSessionForProvider(providerId: string): Promise<boolean>;
+	revealSessionForProvider(providerId: string, close?: boolean): Promise<boolean>;
 	addInteractiveRequest(context: any): void;
 	addCompleteRequest(providerId: string, message: string, response: IInteractiveSessionCompleteResponse): void;
 	sendInteractiveRequestToProvider(providerId: string, message: IInteractiveSessionDynamicRequest): void;

@@ -752,8 +752,10 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 	}
 
 	openView(id: string, focus?: boolean): IView | undefined {
+
 		console.log('Inside of toggleViewVisibility');
 		console.log('id : ', id);
+
 		let view = this.getView(id);
 		if (!view) {
 			this.toggleViewVisibility(id);
@@ -761,10 +763,14 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 		view = this.getView(id);
 		// tODO: maybe set expanded to false when open view with expanded false?
 		if (view) {
+			// const shouldBeExpanded = false;
+			// console.log('shouldBeExpanded : ', shouldBeExpanded);
+			// if (shouldBeExpanded) {
 			view.setExpanded(true);
 			if (focus) {
 				view.focus();
 			}
+			// }
 		}
 		return view;
 	}
@@ -826,8 +832,16 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 	toggleViewVisibility(viewId: string): void {
 		// Check if view is active
 		console.log('Inside of toggleViewVisibility');
+		console.log('viewId : ', viewId);
+
 		if (this.viewContainerModel.activeViewDescriptors.some(viewDescriptor => viewDescriptor.id === viewId)) {
-			const visible = !this.viewContainerModel.isVisible(viewId);
+			let visible = !this.viewContainerModel.isVisible(viewId);
+
+			if (viewId === 'workbench.panel.interactiveSession.view.copilot') {
+				visible = false;
+			}
+			console.log('visible : ', visible);
+
 			this.viewContainerModel.setVisible(viewId, visible);
 		}
 	}

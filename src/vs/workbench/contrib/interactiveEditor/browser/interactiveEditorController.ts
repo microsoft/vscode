@@ -517,6 +517,8 @@ export class InteractiveEditorController implements IEditorContribution {
 				console.log('Right before saving the message response');
 
 				this._instaService.invokeFunction(saveMessageResponse, request.prompt, messageReply, this.viewService);
+				// this.cancelSession();
+
 				viewInChatLink.onclick = () => {
 					console.log('Inside of revealView');
 					this._instaService.invokeFunction(revealView);
@@ -837,7 +839,7 @@ async function saveMessageResponse(accessor: ServicesAccessor, query: string, re
 	// interactiveSessionService.addCompleteRequest(providerId, query, { message: response });
 
 	// TODO: discuss with Jo
-	if (await interactiveSessionService.revealSessionForProvider(providerId)) {
+	if (await interactiveSessionService.revealSessionForProvider(providerId, true)) {
 		interactiveSessionService.addCompleteRequest(providerId, query, { message: response });
 	}
 	// TODO: doing the following with closeView or closeSimpleView causes either the wrong false expansion

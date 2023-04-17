@@ -119,7 +119,9 @@ export class OutputViewPane extends ViewPane {
 
 
 	private onDidChangeVisibility(visible: boolean): void {
+
 		console.log('Inside of onDidChangeVisibility');
+
 		this.editor.setVisible(visible);
 		if (!visible) {
 			this.clearInput();
