@@ -3,32 +3,30 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { alert } from 'vs/base/browser/ui/aria/aria';
 import { Event } from 'vs/base/common/event';
 import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
 import { autorun, constObservable, observableFromEvent, observableValue } from 'vs/base/common/observable';
-import { IObservable, ITransaction, disposableObservableValue, transaction } from 'vs/base/common/observableImpl/base';
+import { ITransaction, disposableObservableValue, transaction } from 'vs/base/common/observableImpl/base';
+import { CoreEditingCommands } from 'vs/editor/browser/coreCommands';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { CursorChangeReason } from 'vs/editor/common/cursorEvents';
-import { GhostTextWidget } from 'vs/editor/contrib/inlineCompletions/browser/ghostTextWidget';
-import { InlineCompletionsModel, VersionIdChangeReason } from 'vs/editor/contrib/inlineCompletions/browser/inlineCompletionsModel';
-import { SuggestWidgetAdaptor } from 'vs/editor/contrib/inlineCompletions/browser/suggestWidgetInlineCompletionProvider';
-import { IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import * as nls from 'vs/nls';
-import { CursorColumns } from 'vs/editor/common/core/cursorColumns';
-import { firstNonWhitespaceIndex } from 'vs/base/common/strings';
-import { InlineSuggestionHintsContentWidget } from 'vs/editor/contrib/inlineCompletions/browser/inlineCompletionsHintsWidget';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ICommandService } from 'vs/platform/commands/common/commands';
-import { CoreEditingCommands } from 'vs/editor/browser/coreCommands';
-import { inlineSuggestCommitId } from 'vs/editor/contrib/inlineCompletions/browser/commandIds';
 import { ILanguageFeatureDebounceService } from 'vs/editor/common/services/languageFeatureDebounce';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
-import { EditorOption } from 'vs/editor/common/config/editorOptions';
+import { inlineSuggestCommitId } from 'vs/editor/contrib/inlineCompletions/browser/commandIds';
+import { GhostTextWidget } from 'vs/editor/contrib/inlineCompletions/browser/ghostTextWidget';
+import { InlineCompletionContextKeys } from 'vs/editor/contrib/inlineCompletions/browser/inlineCompletionContextKeys';
+import { InlineSuggestionHintsContentWidget } from 'vs/editor/contrib/inlineCompletions/browser/inlineCompletionsHintsWidget';
+import { InlineCompletionsModel, VersionIdChangeReason } from 'vs/editor/contrib/inlineCompletions/browser/inlineCompletionsModel';
+import { SuggestWidgetAdaptor } from 'vs/editor/contrib/inlineCompletions/browser/suggestWidgetInlineCompletionProvider';
 import { AudioCue, IAudioCueService } from 'vs/platform/audioCues/browser/audioCueService';
-import { alert } from 'vs/base/browser/ui/aria/aria';
+import { ICommandService } from 'vs/platform/commands/common/commands';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 
 export class InlineCompletionsController extends Disposable {
 	static ID = 'editor.contrib.inlineCompletionsController';
@@ -141,7 +139,8 @@ export class InlineCompletionsController extends Disposable {
 
 		this._register(this.editor.onDidBlurEditorWidget(() => {
 			// This is a hidden setting very useful for debugging
-			if (this.configurationService.getValue('editor.inlineSuggest.keepOnBlur')) {
+			if (this.configurationService.getValue('editor.inlineSuggest.keepOnBlur') ||
+				editor.getOption(EditorOption.inlineSuggest).keepOnBlur) {
 				return;
 			}
 			if (InlineSuggestionHintsContentWidget.dropDownVisible) {
@@ -205,62 +204,5 @@ export class InlineCompletionsController extends Disposable {
 
 	public shouldShowHoverAtViewZone(viewZoneId: string): boolean {
 		return this.ghostTextWidget.ownsViewZone(viewZoneId);
-	}
-}
-
-export class InlineCompletionContextKeys extends Disposable {
-	public static readonly inlineSuggestionVisible = new RawContextKey<boolean>('inlineSuggestionVisible', false, nls.localize('inlineSuggestionVisible', "Whether an inline suggestion is visible"));
-	public static readonly inlineSuggestionHasIndentation = new RawContextKey<boolean>('inlineSuggestionHasIndentation', false, nls.localize('inlineSuggestionHasIndentation', "Whether the inline suggestion starts with whitespace"));
-	public static readonly inlineSuggestionHasIndentationLessThanTabSize = new RawContextKey<boolean>('inlineSuggestionHasIndentationLessThanTabSize', true, nls.localize('inlineSuggestionHasIndentationLessThanTabSize', "Whether the inline suggestion starts with whitespace that is less than what would be inserted by tab"));
-	public static readonly alwaysShowInlineSuggestionToolbar = new RawContextKey<boolean>('alwaysShowInlineSuggestionToolbar', false, nls.localize('alwaysShowInlineSuggestionToolbar', "Whether the inline suggestion toolbar should always be visible"));
-
-	public readonly inlineCompletionVisible = InlineCompletionContextKeys.inlineSuggestionVisible.bindTo(this.contextKeyService);
-	public readonly inlineCompletionSuggestsIndentation = InlineCompletionContextKeys.inlineSuggestionHasIndentation.bindTo(this.contextKeyService);
-	public readonly inlineCompletionSuggestsIndentationLessThanTabSize = InlineCompletionContextKeys.inlineSuggestionHasIndentationLessThanTabSize.bindTo(this.contextKeyService);
-
-	constructor(
-		private readonly contextKeyService: IContextKeyService,
-		private readonly model: IObservable<InlineCompletionsModel | undefined>,
-	) {
-		super();
-
-		this._register(autorun('update context key: inlineCompletionVisible', (reader) => {
-			const model = this.model.read(reader);
-			const ghostText = model?.ghostText.read(reader);
-			const selectedSuggestItem = model?.selectedSuggestItem.read(reader);
-			this.inlineCompletionVisible.set(selectedSuggestItem === undefined && ghostText !== undefined);
-		}));
-
-		this._register(autorun('update context key: inlineCompletionSuggestsIndentation, inlineCompletionSuggestsIndentationLessThanTabSize', (reader) => {
-			const model = this.model.read(reader);
-
-			let startsWithIndentation = false;
-			let startsWithIndentationLessThanTabSize = true;
-
-			const ghostText = model?.ghostText.read(reader);
-			if (!!model?.selectedSuggestItem && ghostText && ghostText.parts.length > 0) {
-				const { column, lines } = ghostText.parts[0];
-
-				const firstLine = lines[0];
-
-				const indentationEndColumn = model.textModel.getLineIndentColumn(ghostText.lineNumber);
-				const inIndentation = column <= indentationEndColumn;
-
-				if (inIndentation) {
-					let firstNonWsIdx = firstNonWhitespaceIndex(firstLine);
-					if (firstNonWsIdx === -1) {
-						firstNonWsIdx = firstLine.length - 1;
-					}
-					startsWithIndentation = firstNonWsIdx > 0;
-
-					const tabSize = model.textModel.getOptions().tabSize;
-					const visibleColumnIndentation = CursorColumns.visibleColumnFromColumn(firstLine, firstNonWsIdx + 1, tabSize);
-					startsWithIndentationLessThanTabSize = visibleColumnIndentation < tabSize;
-				}
-			}
-
-			this.inlineCompletionSuggestsIndentation.set(startsWithIndentation);
-			this.inlineCompletionSuggestsIndentationLessThanTabSize.set(startsWithIndentationLessThanTabSize);
-		}));
 	}
 }

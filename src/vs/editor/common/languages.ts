@@ -691,6 +691,13 @@ export interface InlineCompletions<TItem extends InlineCompletion = InlineComple
 	 * A list of commands associated with the inline completions of this list.
 	 */
 	readonly commands?: Command[];
+
+	readonly suppressSuggestions?: boolean | undefined;
+
+	/**
+	 * When set and the user types a suggestion without derivating from it, the inline suggestion is not updated.
+	 */
+	readonly enableForwardStability?: boolean | undefined;
 }
 
 export interface InlineCompletionsProvider<T extends InlineCompletions = InlineCompletions> {

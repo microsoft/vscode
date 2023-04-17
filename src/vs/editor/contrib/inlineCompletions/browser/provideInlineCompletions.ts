@@ -92,7 +92,7 @@ export class InlineCompletionProviderResult implements IDisposable {
  * computed them.
  */
 export class InlineCompletionList {
-	private refCount = 0;
+	private refCount = 1;
 	constructor(
 		public readonly inlineCompletions: InlineCompletions,
 		public readonly provider: InlineCompletionsProvider,

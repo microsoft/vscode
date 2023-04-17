@@ -4401,6 +4401,10 @@ declare namespace monaco.editor {
 		mode?: 'prefix' | 'subword' | 'subwordSmart';
 		showToolbar?: 'always' | 'onHover';
 		suppressSuggestions?: boolean;
+		/**
+		 * Does not clear active inline suggestions when the editor loses focus.
+		 */
+		keepOnBlur?: boolean;
 	}
 
 	export interface IBracketPairColorizationOptions {
@@ -6837,6 +6841,11 @@ declare namespace monaco.languages {
 		 * A list of commands associated with the inline completions of this list.
 		 */
 		readonly commands?: Command[];
+		readonly suppressSuggestions?: boolean | undefined;
+		/**
+		 * When set and the user types a suggestion without derivating from it, the inline suggestion is not updated.
+		 */
+		readonly enableForwardStability?: boolean | undefined;
 	}
 
 	export interface InlineCompletionsProvider<T extends InlineCompletions = InlineCompletions> {

@@ -1161,6 +1161,8 @@ class InlineCompletionAdapter extends InlineCompletionAdapterBase {
 
 		const normalizedResult = Array.isArray(result) ? result : result.items;
 		const commands = this._isAdditionsProposedApiEnabled ? Array.isArray(result) ? [] : result.commands || [] : [];
+		const suppressSuggestions = this._isAdditionsProposedApiEnabled && !Array.isArray(result) ? result.suppressSuggestions : undefined;
+		const enableForwardStability = this._isAdditionsProposedApiEnabled && !Array.isArray(result) ? result.enableForwardStability : undefined;
 
 		let disposableStore: DisposableStore | undefined = undefined;
 		const pid = this._references.createReferenceId({
@@ -1188,7 +1190,7 @@ class InlineCompletionAdapter extends InlineCompletionAdapterBase {
 					range: item.range ? typeConvert.Range.from(item.range) : undefined,
 					command,
 					idx: idx,
-					completeBracketPairs: this._isAdditionsProposedApiEnabled ? item.completeBracketPairs : false
+					completeBracketPairs: this._isAdditionsProposedApiEnabled ? item.completeBracketPairs : false,
 				});
 			}),
 			commands: commands.map(c => {
@@ -1196,7 +1198,9 @@ class InlineCompletionAdapter extends InlineCompletionAdapterBase {
 					disposableStore = new DisposableStore();
 				}
 				return this._commands.toInternal(c, disposableStore);
-			})
+			}),
+			suppressSuggestions,
+			enableForwardStability,
 		};
 	}
 
