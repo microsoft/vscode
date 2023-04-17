@@ -54,7 +54,7 @@ export class InlineCompletionsModel extends Disposable {
 	) {
 		super();
 
-		let preserveCurrentCompletion = true;
+		let preserveCurrentCompletion = false;
 		const preserveCurrentCompletionReasons = new Set([
 			VersionIdChangeReason.Redo,
 			VersionIdChangeReason.Undo,
@@ -62,8 +62,8 @@ export class InlineCompletionsModel extends Disposable {
 		]);
 		this._register(autorunHandleChanges('update', {
 			handleChange: ctx => {
-				if (!(ctx.didChange(this.textModelVersionId) && preserveCurrentCompletionReasons.has(ctx.change))) {
-					preserveCurrentCompletion = false;
+				if (ctx.didChange(this.textModelVersionId) && preserveCurrentCompletionReasons.has(ctx.change)) {
+					preserveCurrentCompletion = true;
 				}
 				return true;
 			}
@@ -71,7 +71,7 @@ export class InlineCompletionsModel extends Disposable {
 			if ((this._enabled.read(reader) && this.selectedSuggestItem.read(reader)) || this._isActive.read(reader)) {
 				this._update(reader, InlineCompletionTriggerKind.Automatic, preserveCurrentCompletion);
 			}
-			preserveCurrentCompletion = true;
+			preserveCurrentCompletion = false;
 		}));
 	}
 
