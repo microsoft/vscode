@@ -52,7 +52,7 @@ async function _findDocumentColors<T extends Source>(source: T, registry: Langua
 async function _findDocumentColors(source: Source, colorProviderRegistry: LanguageFeatureRegistry<DocumentColorProvider>, model: ITextModel, token: CancellationToken, isDefaultColorDecoratorsEnabled: boolean): Promise<IExtColorData[] | IColorData[]> {
 	let validDocumentColorProviderFound = false;
 	let defaultDocumentColorProvider: DefaultDocumentColorProvider | null = null;
-	const colors: any[] = [];
+	const colors: IExtColorData[] | IColorData[] = [];
 	const documentColorProviders = colorProviderRegistry.ordered(model);
 	for (let i = documentColorProviders.length - 1; i >= 0; i--) {
 		const provider = documentColorProviders[i];
@@ -61,7 +61,7 @@ async function _findDocumentColors(source: Source, colorProviderRegistry: Langua
 		} else {
 			const documentColors = await provider.provideDocumentColors(model, token);
 			try {
-				validDocumentColorProviderFound = Array.isArray(documentColors) ? true : validDocumentColorProviderFound;
+				validDocumentColorProviderFound ||= Array.isArray(documentColors);
 				_pushToColorsArray(source, colors, provider, documentColors);
 			} catch (e) {
 				onUnexpectedExternalError(e);
