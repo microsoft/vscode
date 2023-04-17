@@ -33,5 +33,10 @@ declare module 'vscode' {
 		 * A list of commands associated with the inline completions of this list.
 		 */
 		commands?: Command[];
+
+		/**
+		 * When set, overrides the user setting of `editor.inlineSuggest.suppressSuggestions`.
+		 */
+		suppressSuggestions?: boolean;
 	}
 }
