@@ -155,9 +155,13 @@ export class FindModel extends Disposable {
 			}
 		};
 
-		if (e.isReplaceRevealed && this._state.replaceString.length > 0) {
+		if (this._state.replaceString.length === 0) {
+			return;
+		}
+
+		if (e.isReplaceRevealed) {
 			updateEditingState();
-		} else if ((e.filters || e.isRevealed || e.searchString || e.replaceString) && this._state.isRevealed && this._state.isReplaceRevealed && this._state.replaceString.length > 0) {
+		} else if ((e.filters || e.isRevealed || e.searchString || e.replaceString) && this._state.isRevealed && this._state.isReplaceRevealed) {
 			updateEditingState();
 		}
 	}
