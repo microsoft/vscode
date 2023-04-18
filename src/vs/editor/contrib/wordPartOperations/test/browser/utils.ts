@@ -15,7 +15,6 @@ export class StaticServiceAccessor implements ServicesAccessor {
 
 	public get<T>(id: ServiceIdentifier<T>): T {
 		const value = this.services.get(id);
-		console.log('value : ', value);
 		if (!value) {
 			throw new Error('Service does not exist');
 		}

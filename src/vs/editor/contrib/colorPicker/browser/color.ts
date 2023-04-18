@@ -133,9 +133,7 @@ CommandsRegistry.registerCommand('_executeDocumentColorProvider', function (acce
 	if (!model) {
 		throw illegalArgument();
 	}
-	const configurationService = accessor.get(IConfigurationService);
-	const isDefaultColorDecoratorsEnabled = configurationService.getValue<boolean>('editor.defaultColorDecorators', { resource });
-	console.log('isDefaultColorDecoratorsEnabled : ', isDefaultColorDecoratorsEnabled);
+	const isDefaultColorDecoratorsEnabled = accessor.get(IConfigurationService).getValue<boolean>('editor.defaultColorDecorators');
 	return _findDocumentColors(Source.Extension, colorProviderRegistry, model, CancellationToken.None, isDefaultColorDecoratorsEnabled);
 });
 
