@@ -1069,18 +1069,9 @@ export class StoredFileWorkingCopy<M extends IStoredFileWorkingCopyModel> extend
 			const isPermissionDenied = fileOperationError.fileOperationResult === FileOperationResult.FILE_PERMISSION_DENIED;
 			const canSaveElevated = this.elevatedFileService.isSupported(this.resource);
 
+			// Error with Actions
 			if (isErrorWithActions(error)) {
-				primaryActions.push(...error.actions.map(action => {
-					return toAction({
-						id: action.id,
-						label: action.label,
-						run: () => {
-							const result = action.run();
-							if (result instanceof Promise) {
-							}
-						}
-					});
-				}));
+				primaryActions.push(...error.actions);
 			}
 
 			// Save Elevated
