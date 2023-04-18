@@ -38,6 +38,9 @@ export class InlineCompletionsModel extends Disposable {
 	private _isAcceptingPartialWord = false;
 	public get isAcceptingPartialWord() { return this._isAcceptingPartialWord; }
 
+	private _isNavigatingCurrentInlineCompletion = false;
+	public get isNavigatingCurrentInlineCompletion() { return this._isNavigatingCurrentInlineCompletion; }
+
 	constructor(
 		public readonly textModel: ITextModel,
 		public readonly selectedSuggestItem: IObservable<SuggestItemInfo | undefined>,
@@ -209,27 +212,37 @@ export class InlineCompletionsModel extends Disposable {
 	public async next(): Promise<void> {
 		await this.triggerExplicitly();
 
-		const completions = this._filteredInlineCompletionItems.get() || [];
-		if (completions.length > 0) {
-			const newIdx = (this.currentInlineCompletionIndex.get() + 1) % completions.length;
-			this._currentInlineCompletionId = completions[newIdx].semanticId;
-		} else {
-			this._currentInlineCompletionId = undefined;
+		this._isNavigatingCurrentInlineCompletion = true;
+		try {
+			const completions = this._filteredInlineCompletionItems.get() || [];
+			if (completions.length > 0) {
+				const newIdx = (this.currentInlineCompletionIndex.get() + 1) % completions.length;
+				this._currentInlineCompletionId = completions[newIdx].semanticId;
+			} else {
+				this._currentInlineCompletionId = undefined;
+			}
+			this._selectedCompletionIdChanged.trigger(undefined);
+		} finally {
+			this._isNavigatingCurrentInlineCompletion = false;
 		}
-		this._selectedCompletionIdChanged.trigger(undefined);
 	}
 
 	public async previous(): Promise<void> {
 		await this.triggerExplicitly();
 
-		const completions = this._filteredInlineCompletionItems.get() || [];
-		if (completions.length > 0) {
-			const newIdx = (this.currentInlineCompletionIndex.get() + completions.length - 1) % completions.length;
-			this._currentInlineCompletionId = completions[newIdx].semanticId;
-		} else {
-			this._currentInlineCompletionId = undefined;
+		this._isNavigatingCurrentInlineCompletion = true;
+		try {
+			const completions = this._filteredInlineCompletionItems.get() || [];
+			if (completions.length > 0) {
+				const newIdx = (this.currentInlineCompletionIndex.get() + completions.length - 1) % completions.length;
+				this._currentInlineCompletionId = completions[newIdx].semanticId;
+			} else {
+				this._currentInlineCompletionId = undefined;
+			}
+			this._selectedCompletionIdChanged.trigger(undefined);
+		} finally {
+			this._isNavigatingCurrentInlineCompletion = false;
 		}
-		this._selectedCompletionIdChanged.trigger(undefined);
 	}
 
 	public async triggerExplicitly(): Promise<void> {

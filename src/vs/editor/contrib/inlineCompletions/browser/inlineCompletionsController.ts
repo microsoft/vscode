@@ -168,17 +168,27 @@ export class InlineCompletionsController extends Disposable {
 			this.suggestWidgetAdaptor.stopForceRenderingAbove();
 		}));
 
-		let lastEditorLine: string | undefined = undefined;
+		let lastInlineCompletionId: string | undefined = undefined;
 		this._register(autorun('play audio cue & read suggestion', reader => {
 			const model = this.model.read(reader);
-			const ghostText = model?.ghostText.read(reader);
-			if (!model || !ghostText) {
+			const currentInlineCompletion = model?.currentInlineCompletion.read(reader);
+			if (!model || !currentInlineCompletion) {
+				lastInlineCompletionId = undefined;
 				return;
 			}
 
+			const ghostText = model?.ghostText.get();
+			if (!ghostText) {
+				lastInlineCompletionId = undefined;
+				return;
+			}
 			const lineText = model.textModel.getLineContent(ghostText.lineNumber);
-			if (lastEditorLine !== lineText) {
-				lastEditorLine = lineText;
+
+			if (currentInlineCompletion.semanticId !== lastInlineCompletionId) {
+				lastInlineCompletionId = currentInlineCompletion.semanticId;
+				if (model.isNavigatingCurrentInlineCompletion) {
+					return;
+				}
 				this.audioCueService.playAudioCue(AudioCue.inlineSuggestion).then(() => {
 					if (this.editor.getOption(EditorOption.screenReaderAnnounceInlineSuggestion)) {
 						alert(ghostText.renderForScreenReader(lineText));
