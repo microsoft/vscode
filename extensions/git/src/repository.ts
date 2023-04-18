@@ -1132,6 +1132,47 @@ export class Repository implements Disposable {
 		this._onDidChangeOriginalResource.fire(resource);
 	}
 
+
+	async restore(resources: Uri[]): Promise<void> {
+		await this.run(
+			Operation.Restore(!this.optimisticUpdateEnabled()),
+			async () => {
+				const toRestore: string[] = [];
+				const resourceStates = [...this.workingTreeGroup.resourceStates, ...this.untrackedGroup.resourceStates];
+
+				resources.forEach(r => {
+					const fsPath = r.fsPath;
+
+					const raw = r.toString();
+					const scmResource = find(resourceStates, sr => sr.resourceUri.toString() === raw);
+
+					if (!scmResource) {
+						return;
+					}
+
+					toRestore.push(fsPath);
+
+				});
+
+				await this.repository.restore(toRestore);
+
+				this.closeDiffEditors([], [...toRestore]);
+			},
+			() => {
+				const resourcePaths = resources.map(r => r.fsPath);
+
+				// Remove resource(s) from working group
+				const workingTreeGroup = this.workingTreeGroup.resourceStates
+					.filter(r => !resourcePaths.includes(r.resourceUri.fsPath));
+
+				// Remove resource(s) from untracked group
+				const untrackedGroup = this.untrackedGroup.resourceStates
+					.filter(r => !resourcePaths.includes(r.resourceUri.fsPath));
+
+				return { workingTreeGroup, untrackedGroup };
+			});
+	}
+
 	async revert(resources: Uri[]): Promise<void> {
 		await this.run(
 			Operation.RevertFiles(!this.optimisticUpdateEnabled()),

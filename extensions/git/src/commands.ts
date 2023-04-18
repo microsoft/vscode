@@ -1450,6 +1450,80 @@ export class CommandCenter {
 		await this.runByRepository(modifiedUri, async (repository, resource) => await repository.stage(resource, result));
 	}
 
+	@command('git.restore')
+	async restore(...resourceStates: SourceControlResourceState[]): Promise<void> {
+		// Remove duplicate resources
+		const resourceUris = new Set<string>();
+		resourceStates = resourceStates.filter(s => {
+			if (s === undefined) {
+				return false;
+			}
+
+			if (resourceUris.has(s.resourceUri.toString())) {
+				return false;
+			}
+
+			resourceUris.add(s.resourceUri.toString());
+			return true;
+		});
+
+		if (resourceStates.length === 0 || (resourceStates[0] && !(resourceStates[0].resourceUri instanceof Uri))) {
+			const resource = this.getSCMResource();
+
+			if (!resource) {
+				return;
+			}
+
+			resourceStates = [resource];
+		}
+
+		const scmResources = resourceStates.filter(s => s instanceof Resource
+			&& (s.resourceGroupType === ResourceGroupType.WorkingTree || s.resourceGroupType === ResourceGroupType.Untracked)) as Resource[];
+
+		if (!scmResources.length) {
+			return;
+		}
+
+		const untrackedCount = scmResources.reduce((s, r) => s + (r.type === Status.UNTRACKED ? 1 : 0), 0);
+		let message: string;
+		let yes = l10n.t('Discard Changes');
+
+		if (scmResources.length === 1) {
+			if (untrackedCount > 0) {
+				message = l10n.t('Are you sure you want to DELETE {0}?\nThis is IRREVERSIBLE!\nThis file will be FOREVER LOST if you proceed.', path.basename(scmResources[0].resourceUri.fsPath));
+				yes = l10n.t('Delete file');
+			} else {
+				if (scmResources[0].type === Status.DELETED) {
+					yes = l10n.t('Restore file');
+					message = l10n.t('Are you sure you want to restore {0}?', path.basename(scmResources[0].resourceUri.fsPath));
+				} else {
+					message = l10n.t('Are you sure you want to discard changes in {0}?', path.basename(scmResources[0].resourceUri.fsPath));
+				}
+			}
+		} else {
+			if (scmResources.every(resource => resource.type === Status.DELETED)) {
+				yes = l10n.t('Restore files');
+				message = l10n.t('Are you sure you want to restore {0} files?', scmResources.length);
+			} else {
+				message = l10n.t('Are you sure you want to discard changes in {0} files?', scmResources.length);
+			}
+
+			if (untrackedCount > 0) {
+				message = `${message}\n\n${l10n.t('This will DELETE {0} untracked files!\nThis is IRREVERSIBLE!\nThese files will be FOREVER LOST.', untrackedCount)}`;
+			}
+		}
+
+		const pick = await window.showWarningMessage(message, { modal: true }, yes);
+
+		if (pick !== yes) {
+			return;
+		}
+
+		const resources = scmResources.map(r => r.resourceUri);
+		await this.runByRepository(resources, async (repository, resources) => repository.restore(resources));
+	}
+
+
 	@command('git.clean')
 	async clean(...resourceStates: SourceControlResourceState[]): Promise<void> {
 		// Remove duplicate resources

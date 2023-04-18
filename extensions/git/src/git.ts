@@ -1398,6 +1398,19 @@ export class Repository {
 		await this.exec(args);
 	}
 
+	async restore(paths: string[]): Promise<void> {
+		const args = ['restore'];
+
+		if (!paths || !paths.length) {
+			return;
+		}
+
+		args.push(...paths.map(sanitizePath));
+
+		await this.exec(args);
+	}
+
+
 	async stage(path: string, data: string): Promise<void> {
 		const child = this.stream(['hash-object', '--stdin', '-w', '--path', sanitizePath(path)], { stdio: [null, null, null] });
 		child.stdin!.end(data, 'utf8');

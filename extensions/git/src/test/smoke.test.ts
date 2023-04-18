@@ -128,6 +128,21 @@ suite('git smoke test', function () {
 		assert.strictEqual(repository.state.indexChanges.length, 0);
 	});
 
+	test('restores correctly', async function () {
+		const appjs = await open('app.js');
+		await type(appjs, ' restoration');
+		await appjs.save();
+		await repository.status();
+
+		assert.strictEqual(repository.state.workingTreeChanges.length, 1);
+		await commands.executeCommand('git.restore', appjs);
+		const restoredFileDoc = workspace.textDocuments.find(doc => doc.uri.fsPath === uri('app.js').fsPath);
+		if (restoredFileDoc) {
+			await window.showTextDocument(restoredFileDoc, { preview: false });
+		}
+		assert.strictEqual(repository.state.workingTreeChanges.length, 0);
+	});
+
 	test('rename/delete conflict', async function () {
 		cp.execSync('git branch test', { cwd });
 		cp.execSync('git checkout test', { cwd });
