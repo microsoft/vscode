@@ -125,10 +125,6 @@ export function score(selector: LanguageSelector | undefined, candidateUri: URI,
 			}
 		}
 
-		if ((selector as LanguageFilter).isBuiltin) {
-			ret = Math.max(ret - 0.5, 0);
-		}
-
 		return ret;
 
 	} else {
