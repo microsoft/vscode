@@ -1231,6 +1231,7 @@ suite('ExtHostLanguageFeatureCommands', function () {
 		}));
 
 		return rpcProtocol.sync().then(() => {
+			// await workspace.getConfiguration('editor').update('defaultColorDecorators', false);
 			return commands.executeCommand<vscode.ColorInformation[]>('vscode.executeDocumentColorProvider', model.uri).then(value => {
 				assert.strictEqual(value.length, 1);
 				const [first] = value;
