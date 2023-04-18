@@ -48,9 +48,9 @@ suite('EnvironmentVariable - EnvironmentVariableService', () => {
 
 	test('should persist collections to the storage service and be able to restore from them', () => {
 		const collection = new Map<string, IEnvironmentVariableMutator>();
-		collection.set('A', { value: 'a', type: EnvironmentVariableMutatorType.Replace, scope: undefined, variable: 'A' });
-		collection.set('B', { value: 'b', type: EnvironmentVariableMutatorType.Append, scope: undefined, variable: 'B' });
-		collection.set('C', { value: 'c', type: EnvironmentVariableMutatorType.Prepend, scope: undefined, variable: 'C' });
+		collection.set('A-key', { value: 'a', type: EnvironmentVariableMutatorType.Replace, scope: undefined, variable: 'A' });
+		collection.set('B-key', { value: 'b', type: EnvironmentVariableMutatorType.Append, scope: undefined, variable: 'B' });
+		collection.set('C-key', { value: 'c', type: EnvironmentVariableMutatorType.Prepend, scope: undefined, variable: 'C' });
 		environmentVariableService.set('ext1', { map: collection, persistent: true });
 		deepStrictEqual([...environmentVariableService.mergedCollection.getVariableMap(undefined).entries()], [
 			['A', [{ extensionIdentifier: 'ext1', type: EnvironmentVariableMutatorType.Replace, value: 'a', scope: undefined, variable: 'A' }]],
@@ -73,12 +73,12 @@ suite('EnvironmentVariable - EnvironmentVariableService', () => {
 			const collection1 = new Map<string, IEnvironmentVariableMutator>();
 			const collection2 = new Map<string, IEnvironmentVariableMutator>();
 			const collection3 = new Map<string, IEnvironmentVariableMutator>();
-			collection1.set('A', { value: 'a1', type: EnvironmentVariableMutatorType.Append, scope: undefined, variable: 'A' });
-			collection1.set('B', { value: 'b1', type: EnvironmentVariableMutatorType.Replace, scope: undefined, variable: 'B' });
-			collection2.set('A', { value: 'a2', type: EnvironmentVariableMutatorType.Replace, scope: undefined, variable: 'A' });
-			collection2.set('B', { value: 'b2', type: EnvironmentVariableMutatorType.Append, scope: undefined, variable: 'B' });
-			collection3.set('A', { value: 'a3', type: EnvironmentVariableMutatorType.Prepend, scope: undefined, variable: 'A' });
-			collection3.set('B', { value: 'b3', type: EnvironmentVariableMutatorType.Replace, scope: undefined, variable: 'B' });
+			collection1.set('A-key', { value: 'a1', type: EnvironmentVariableMutatorType.Append, scope: undefined, variable: 'A' });
+			collection1.set('B-key', { value: 'b1', type: EnvironmentVariableMutatorType.Replace, scope: undefined, variable: 'B' });
+			collection2.set('A-key', { value: 'a2', type: EnvironmentVariableMutatorType.Replace, scope: undefined, variable: 'A' });
+			collection2.set('B-key', { value: 'b2', type: EnvironmentVariableMutatorType.Append, scope: undefined, variable: 'B' });
+			collection3.set('A-key', { value: 'a3', type: EnvironmentVariableMutatorType.Prepend, scope: undefined, variable: 'A' });
+			collection3.set('B-key', { value: 'b3', type: EnvironmentVariableMutatorType.Replace, scope: undefined, variable: 'B' });
 			environmentVariableService.set('ext1', { map: collection1, persistent: true });
 			environmentVariableService.set('ext2', { map: collection2, persistent: true });
 			environmentVariableService.set('ext3', { map: collection3, persistent: true });
@@ -95,9 +95,9 @@ suite('EnvironmentVariable - EnvironmentVariableService', () => {
 			const collection1 = new Map<string, IEnvironmentVariableMutator>();
 			const collection2 = new Map<string, IEnvironmentVariableMutator>();
 			const collection3 = new Map<string, IEnvironmentVariableMutator>();
-			collection1.set('A', { value: ':a1', type: EnvironmentVariableMutatorType.Append, scope: undefined, variable: 'A' });
-			collection2.set('A', { value: 'a2:', type: EnvironmentVariableMutatorType.Prepend, scope: undefined, variable: 'A' });
-			collection3.set('A', { value: 'a3', type: EnvironmentVariableMutatorType.Replace, scope: undefined, variable: 'A' });
+			collection1.set('A-key', { value: ':a1', type: EnvironmentVariableMutatorType.Append, scope: undefined, variable: 'A' });
+			collection2.set('A-key', { value: 'a2:', type: EnvironmentVariableMutatorType.Prepend, scope: undefined, variable: 'A' });
+			collection3.set('A-key', { value: 'a3', type: EnvironmentVariableMutatorType.Replace, scope: undefined, variable: 'A' });
 			environmentVariableService.set('ext1', { map: collection1, persistent: true });
 			environmentVariableService.set('ext2', { map: collection2, persistent: true });
 			environmentVariableService.set('ext3', { map: collection3, persistent: true });
