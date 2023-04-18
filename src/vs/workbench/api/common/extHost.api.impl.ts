@@ -1124,6 +1124,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				return extHostDebugService.onDidChangeBreakpoints(listener, thisArgs, disposables);
 			},
 			onDidChangeStackFrameFocus(listener, thisArg?, disposables?) {
+				checkProposedApiEnabled(extension, 'debugFocus');
 				return extHostDebugService.onDidChangeStackFrameFocus(listener, thisArg, disposables);
 			},
 			registerDebugConfigurationProvider(debugType: string, provider: vscode.DebugConfigurationProvider, triggerKind?: vscode.DebugConfigurationProviderTriggerKind) {
