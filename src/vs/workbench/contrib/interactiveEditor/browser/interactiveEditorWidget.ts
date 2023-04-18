@@ -5,7 +5,7 @@
 
 import 'vs/css!./interactiveEditor';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { DisposableStore, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { ICodeEditor, IDiffEditorConstructionOptions } from 'vs/editor/browser/editorBrowser';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { IRange, Range } from 'vs/editor/common/core/range';
@@ -16,8 +16,8 @@ import { ZoneWidget } from 'vs/editor/contrib/zoneWidget/browser/zoneWidget';
 import { assertType } from 'vs/base/common/types';
 import { CTX_INTERACTIVE_EDITOR_FOCUSED, CTX_INTERACTIVE_EDITOR_INNER_CURSOR_FIRST, CTX_INTERACTIVE_EDITOR_INNER_CURSOR_LAST, CTX_INTERACTIVE_EDITOR_EMPTY, CTX_INTERACTIVE_EDITOR_OUTER_CURSOR_POSITION, CTX_INTERACTIVE_EDITOR_VISIBLE, MENU_INTERACTIVE_EDITOR_WIDGET, MENU_INTERACTIVE_EDITOR_WIDGET_STATUS } from 'vs/workbench/contrib/interactiveEditor/common/interactiveEditor';
 import { ITextModel } from 'vs/editor/common/model';
-import { Dimension, addDisposableListener, getTotalHeight, getTotalWidth, h, reset } from 'vs/base/browser/dom';
-import { Event, MicrotaskEmitter } from 'vs/base/common/event';
+import { Dimension, addDisposableListener, getTotalHeight, getTotalWidth, h, reset, append } from 'vs/base/browser/dom';
+import { Emitter, Event, MicrotaskEmitter } from 'vs/base/common/event';
 import { IEditorConstructionOptions } from 'vs/editor/browser/config/editorConfiguration';
 import { ICodeEditorWidgetOptions } from 'vs/editor/browser/widget/codeEditorWidget';
 import { EditorExtensionsRegistry } from 'vs/editor/browser/editorExtensions';
@@ -37,6 +37,7 @@ import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { ILanguageSelection } from 'vs/editor/common/languages/language';
 import { ResourceLabel } from 'vs/workbench/browser/labels';
 import { FileKind } from 'vs/platform/files/common/files';
+import { renderLabelWithIcons } from 'vs/base/browser/ui/iconLabel/iconLabels';
 
 const _inputEditorOptions: IEditorConstructionOptions = {
 	padding: { top: 3, bottom: 2 },
@@ -93,6 +94,30 @@ const _previewEditorEditorOptions: IDiffEditorConstructionOptions = {
 	readOnly: true,
 };
 
+class StatusLink extends Disposable {
+
+	private readonly _domNode: HTMLAnchorElement;
+	private readonly _onClicked = this._register(new Emitter<void>());
+	readonly onClicked = this._onClicked.event;
+
+	constructor(container: HTMLElement) {
+		super();
+		const linkNode = document.createElement('a');
+		const codicon = renderLabelWithIcons('$(comment-discussion)' + localize('viewInChat', 'View in Chat'));
+		reset(linkNode, ...codicon);
+		this._domNode = append(container, linkNode);
+		this._register(addDisposableListener(this._domNode, 'click', () => this._onClicked.fire()));
+	}
+
+	show(): void {
+		this._domNode.style.display = 'flex';
+	}
+
+	hide(): void {
+		this._domNode.style.display = 'none';
+	}
+}
+
 class InteractiveEditorWidget {
 
 	private static _modelPool: number = 1;
@@ -117,7 +142,8 @@ class InteractiveEditorWidget {
 			h('div.previewCreate.hidden@previewCreate'),
 			h('div.status@status', [
 				h('div.actions.hidden@statusToolbar'),
-				h('div.label@statusLabel'),
+				h('span.label@statusLabel'),
+				h('span.link@statusLink'),
 			]),
 		]
 	);
@@ -146,6 +172,9 @@ class InteractiveEditorWidget {
 
 	public acceptInput: () => void = InteractiveEditorWidget._noop;
 	private _cancelInput: () => void = InteractiveEditorWidget._noop;
+
+	private readonly _statusLink: StatusLink;
+	private readonly _statusLinkListener = this._store.add(new MutableDisposable());
 
 	constructor(
 		parentEditor: ICodeEditor,
@@ -221,6 +250,7 @@ class InteractiveEditorWidget {
 		this._previewCreateTitle = this._store.add(_instantiationService.createInstance(ResourceLabel, this._elements.previewCreateTitle, { supportIcons: true }));
 		this._previewCreateEditor = this._store.add(_instantiationService.createInstance(EmbeddedCodeEditorWidget, this._elements.previewCreate, _previewEditorEditorOptions, codeEditorWidgetOptions, parentEditor));
 
+		this._statusLink = new StatusLink(this._elements.statusLink);
 	}
 
 	dispose(): void {
@@ -361,24 +391,32 @@ class InteractiveEditorWidget {
 		this._onDidChangeHeight.fire();
 	}
 
-	updateMessage(message: string, classes?: string[], resetAfter?: number) {
-		const isTempMessage = typeof resetAfter === 'number';
+	updateMessage(message: string | HTMLElement, ops: { linkListener?: () => void; isMessageReply?: boolean; classes?: string[]; resetAfter?: number } = {}) {
+		this._statusLinkListener.clear();
+		if (ops.isMessageReply) {
+			this._statusLink.show();
+			this._statusLinkListener.value = this._statusLink.onClicked(() => ops.linkListener?.());
+		} else {
+			this._statusLink.hide();
+		}
+		const isTempMessage = typeof ops.resetAfter === 'number';
 		if (isTempMessage && !this._elements.statusLabel.dataset['state']) {
 			const messageNow = this._elements.statusLabel.innerText;
 			const classes = Array.from(this._elements.statusLabel.classList.values());
 			setTimeout(() => {
 				if (messageNow) {
-					this.updateMessage(messageNow, classes);
+					this.updateMessage(messageNow, { ...ops, classes });
 				} else {
 					reset(this._elements.statusLabel);
 				}
-			}, resetAfter);
+			}, ops.resetAfter);
 		}
 
 		this._elements.status.classList.toggle('hidden', false);
 
 		reset(this._elements.statusLabel, message);
-		this._elements.statusLabel.className = `label ${(classes ?? []).join(' ')}`;
+		this._elements.statusLabel.className = `label ${(ops.classes ?? []).join(' ')}`;
+		this._elements.statusLabel.classList.toggle('message', ops.isMessageReply);
 		if (isTempMessage) {
 			this._elements.statusLabel.dataset['state'] = 'temp';
 		} else {
