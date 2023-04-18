@@ -36,8 +36,6 @@ export class ViewModelDecorations implements IDisposable {
 
 	private _cachedModelDecorationsResolver: IDecorationsViewportData | null;
 	private _cachedModelDecorationsResolverViewRange: Range | null;
-	private _cachedOnlyMinimapDecorations: boolean | null = null;
-	private _cachedOnlyMarginDecorations: boolean | null = null;
 
 	constructor(editorId: number, model: ITextModel, configuration: IEditorConfiguration, linesCollection: IViewModelLines, coordinatesConverter: ICoordinatesConverter) {
 		this.editorId = editorId;
@@ -98,15 +96,16 @@ export class ViewModelDecorations implements IDisposable {
 		return r;
 	}
 
-	public getDecorationsViewportData(viewRange: Range, onlyMinimapDecorations: boolean = false, onlyMarginDecorations: boolean = false): IDecorationsViewportData {
+	public getMinimapDecorationsInRange(range: Range): ViewModelDecoration[] {
+		return this._getDecorationsInRange(range, true, false).decorations;
+	}
+
+	public getDecorationsViewportData(viewRange: Range): IDecorationsViewportData {
 		let cacheIsValid = (this._cachedModelDecorationsResolver !== null);
 		cacheIsValid = cacheIsValid && (viewRange.equalsRange(this._cachedModelDecorationsResolverViewRange));
-		cacheIsValid = cacheIsValid && (this._cachedOnlyMinimapDecorations === onlyMinimapDecorations) && (this._cachedOnlyMarginDecorations === onlyMarginDecorations);
 		if (!cacheIsValid) {
-			this._cachedModelDecorationsResolver = this._getDecorationsInRange(viewRange, onlyMinimapDecorations, onlyMarginDecorations);
+			this._cachedModelDecorationsResolver = this._getDecorationsInRange(viewRange, false, false);
 			this._cachedModelDecorationsResolverViewRange = viewRange;
-			this._cachedOnlyMinimapDecorations = onlyMinimapDecorations;
-			this._cachedOnlyMarginDecorations = onlyMarginDecorations;
 		}
 		return this._cachedModelDecorationsResolver!;
 	}
