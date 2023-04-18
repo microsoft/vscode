@@ -82,7 +82,7 @@ async function _findDocumentColors(source: Source, colorProviderRegistry: Langua
 	}
 }
 
-async function _findColorPresentations(colorProviderRegistry: LanguageFeatureRegistry<DocumentColorProvider>, model: ITextModel, range: IRange, color: number[]): Promise<IColorPresentation[]> {
+async function _findColorPresentations(colorProviderRegistry: LanguageFeatureRegistry<DocumentColorProvider>, model: ITextModel, range: IRange, color: number[], isDefaultColorDecoratorsEnabled: boolean): Promise<IColorPresentation[]> {
 	let validDocumentColorProviderFound = false;
 	let defaultDocumentColorProvider: DefaultDocumentColorProvider | null = null;
 	const [red, green, blue, alpha] = color;
@@ -111,7 +111,7 @@ async function _findColorPresentations(colorProviderRegistry: LanguageFeatureReg
 	if (validDocumentColorProviderFound) {
 		return presentations;
 	}
-	if (!defaultDocumentColorProvider) {
+	if (!defaultDocumentColorProvider || !isDefaultColorDecoratorsEnabled) {
 		return [];
 	} else {
 		const colorPresentation = await Promise.resolve(defaultDocumentColorProvider.provideColorPresentations(model, colorInfo, CancellationToken.None));
@@ -149,5 +149,6 @@ CommandsRegistry.registerCommand('_executeColorPresentationProvider', function (
 	if (!model) {
 		throw illegalArgument();
 	}
-	return _findColorPresentations(colorProviderRegistry, model, range, color);
+	const isDefaultColorDecoratorsEnabled = accessor.get(IConfigurationService).getValue<boolean>('editor.defaultColorDecorators');
+	return _findColorPresentations(colorProviderRegistry, model, range, color, isDefaultColorDecoratorsEnabled);
 });
