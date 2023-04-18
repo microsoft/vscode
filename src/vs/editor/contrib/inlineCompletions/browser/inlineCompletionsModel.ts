@@ -206,6 +206,8 @@ export class InlineCompletionsModel extends Disposable {
 		}
 	});
 
+	public readonly hasNonEmptyGhostText = this.ghostText.map(v => !!v && !v.isEmpty());
+
 	public async next(): Promise<void> {
 		await this.triggerExplicitly();
 
