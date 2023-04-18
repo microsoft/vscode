@@ -8,6 +8,7 @@ import { EnvironmentVariableMutatorType } from 'vs/platform/terminal/common/envi
 import { IProcessEnvironment, isWindows } from 'vs/base/common/platform';
 import { MergedEnvironmentVariableCollection } from 'vs/platform/terminal/common/environmentVariableCollection';
 import { deserializeEnvironmentVariableCollection } from 'vs/platform/terminal/common/environmentVariableShared';
+import { URI } from 'vs/base/common/uri';
 
 suite('EnvironmentVariable - MergedEnvironmentVariableCollection', () => {
 	suite('ctor', () => {
@@ -75,6 +76,74 @@ suite('EnvironmentVariable - MergedEnvironmentVariableCollection', () => {
 				]]
 			], 'The ext4 entry should be removed as it comes after a Replace');
 		});
+
+		test('Workspace scoped entries are not included when looking for global entries', () => {
+			const workspaceScope1 = { workspaceFolder: { uri: URI.file('workspace1'), name: 'workspace1', index: 0 } };
+			const workspaceScope2 = { workspaceFolder: { uri: URI.file('workspace2'), name: 'workspace2', index: 3 } };
+			const merged = new MergedEnvironmentVariableCollection(new Map([
+				['ext1', {
+					map: deserializeEnvironmentVariableCollection([
+						['A-key', { value: 'a1', type: EnvironmentVariableMutatorType.Prepend, scope: workspaceScope1, variable: 'A' }]
+					])
+				}],
+				['ext2', {
+					map: deserializeEnvironmentVariableCollection([
+						['A-key', { value: 'a2', type: EnvironmentVariableMutatorType.Append, scope: undefined, variable: 'A' }]
+					])
+				}],
+				['ext3', {
+					map: deserializeEnvironmentVariableCollection([
+						['A-key', { value: 'a3', type: EnvironmentVariableMutatorType.Prepend, scope: workspaceScope2, variable: 'A' }]
+					])
+				}],
+				['ext4', {
+					map: deserializeEnvironmentVariableCollection([
+						['A-key', { value: 'a4', type: EnvironmentVariableMutatorType.Append, scope: undefined, variable: 'A' }]
+					])
+				}]
+			]));
+			deepStrictEqual([...merged.getVariableMap(undefined).entries()], [
+				['A', [
+					{ extensionIdentifier: 'ext4', type: EnvironmentVariableMutatorType.Append, value: 'a4', scope: undefined, variable: 'A' },
+					{ extensionIdentifier: 'ext2', type: EnvironmentVariableMutatorType.Append, value: 'a2', scope: undefined, variable: 'A' },
+				]]
+			]);
+		});
+
+		test('Appropriate workspace scoped entries are returned when querying for a particular workspace folder', () => {
+			const workspaceScope1 = { workspaceFolder: { uri: URI.file('workspace1'), name: 'workspace1', index: 0 } };
+			const workspaceScope2 = { workspaceFolder: { uri: URI.file('workspace2'), name: 'workspace2', index: 3 } };
+			const merged = new MergedEnvironmentVariableCollection(new Map([
+				['ext1', {
+					map: deserializeEnvironmentVariableCollection([
+						['A-key', { value: 'a1', type: EnvironmentVariableMutatorType.Prepend, scope: workspaceScope1, variable: 'A' }]
+					])
+				}],
+				['ext2', {
+					map: deserializeEnvironmentVariableCollection([
+						['A-key', { value: 'a2', type: EnvironmentVariableMutatorType.Append, scope: undefined, variable: 'A' }]
+					])
+				}],
+				['ext3', {
+					map: deserializeEnvironmentVariableCollection([
+						['A-key', { value: 'a3', type: EnvironmentVariableMutatorType.Prepend, scope: workspaceScope2, variable: 'A' }]
+					])
+				}],
+				['ext4', {
+					map: deserializeEnvironmentVariableCollection([
+						['A-key', { value: 'a4', type: EnvironmentVariableMutatorType.Append, scope: undefined, variable: 'A' }]
+					])
+				}]
+			]));
+			deepStrictEqual([...merged.getVariableMap(workspaceScope2).entries()], [
+				['A', [
+					{ extensionIdentifier: 'ext4', type: EnvironmentVariableMutatorType.Append, value: 'a4', scope: undefined, variable: 'A' },
+					{ extensionIdentifier: 'ext3', type: EnvironmentVariableMutatorType.Prepend, value: 'a3', scope: workspaceScope2, variable: 'A' },
+					{ extensionIdentifier: 'ext2', type: EnvironmentVariableMutatorType.Append, value: 'a2', scope: undefined, variable: 'A' },
+				]]
+			]);
+		});
+
 	});
 
 	suite('applyToProcessEnvironment', () => {
