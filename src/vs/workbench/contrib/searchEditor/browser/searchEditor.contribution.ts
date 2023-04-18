@@ -35,8 +35,8 @@ import { VIEW_ID } from 'vs/workbench/services/search/common/search';
 import { RegisteredEditorPriority, IEditorResolverService } from 'vs/workbench/services/editor/common/editorResolverService';
 import { IWorkingCopyEditorHandler, IWorkingCopyEditorService } from 'vs/workbench/services/workingCopy/common/workingCopyEditorService';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { IWorkingCopyIdentifier } from 'vs/workbench/services/workingCopy/common/workingCopy';
+import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 
 
 const OpenInEditorCommandId = 'search.action.openInEditor';
