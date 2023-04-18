@@ -256,10 +256,15 @@ export class NotebookEditor extends EditorPane implements INotebookEditorPane {
 							});
 							const extensionInfo = this._extensionsWorkbenchService.local.find(e => e.identifier.id === knownProvider);
 
-							if (extensionInfo) {
-								await this._extensionsWorkbenchService.setEnablement(extensionInfo, extensionInfo.enablementState === EnablementState.DisabledWorkspace ? EnablementState.EnabledWorkspace : EnablementState.EnabledGlobally);
-							} else {
-								await this._instantiationService.createInstance(InstallRecommendedExtensionAction, knownProvider).run();
+							try {
+								if (extensionInfo) {
+									await this._extensionsWorkbenchService.setEnablement(extensionInfo, extensionInfo.enablementState === EnablementState.DisabledWorkspace ? EnablementState.EnabledWorkspace : EnablementState.EnabledGlobally);
+								} else {
+									await this._instantiationService.createInstance(InstallRecommendedExtensionAction, knownProvider).run();
+								}
+							} catch (ex) {
+								this.logService.error(`Failed to install or enable extension ${knownProvider}`, ex);
+								d.dispose();
 							}
 						}
 					}),
