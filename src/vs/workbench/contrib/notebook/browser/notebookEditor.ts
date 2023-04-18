@@ -45,7 +45,6 @@ import { IExtensionsWorkbenchService } from 'vs/workbench/contrib/extensions/com
 import { EnablementState } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { IWorkingCopyBackupService } from 'vs/workbench/services/workingCopy/common/workingCopyBackup';
 import { streamToBuffer } from 'vs/base/common/buffer';
-import { coalesce } from 'vs/base/common/arrays';
 
 const NOTEBOOK_EDITOR_VIEW_STATE_PREFERENCE_KEY = 'NotebookEditorViewState';
 
@@ -242,9 +241,8 @@ export class NotebookEditor extends EditorPane implements INotebookEditorPane {
 					throw new Error(localize('fail.noEditor', "Cannot open resource with notebook editor type '{0}', please check if you have the right extension installed and enabled.", input.viewType));
 				}
 
-				const backup = await this._workingCopyBackupService.resolve({ resource: input.resource, typeId: NotebookWorkingCopyTypeIdentifier.create(input.viewType) });
 
-				throw createEditorOpenError(new Error(localize('fail.noEditor.extensionMissing', "Cannot open resource with notebook editor type '{0}', please check if you have the right extension installed and enabled.", input.viewType)), coalesce([
+				throw createEditorOpenError(new Error(localize('fail.noEditor.extensionMissing', "Cannot open resource with notebook editor type '{0}', please check if you have the right extension installed and enabled.", input.viewType)), [
 					toAction({
 						id: 'workbench.notebook.action.installOrEnableMissing', label: localize('notebookOpenInstallOrEnableMissingViewType', "Install and enable extension for '{0}'", input.viewType), run: async () => {
 							const d = this._notebookService.onAddViewType(viewType => {
@@ -263,13 +261,21 @@ export class NotebookEditor extends EditorPane implements INotebookEditorPane {
 							}
 						}
 					}),
-					backup ? toAction({
-						id: 'workbench.notebook.action.openBackup', label: localize('notebookOpenBackup', "Open As Text"), run: async () => {
-							const contents = await streamToBuffer(backup.value);
-							this._editorService.openEditor({ resource: undefined, contents: contents.toString() });
+					toAction({
+						id: 'workbench.notebook.action.openAsText', label: localize('notebookOpenAsText', "Open As Text"), run: async () => {
+							const backup = await this._workingCopyBackupService.resolve({ resource: input.resource, typeId: NotebookWorkingCopyTypeIdentifier.create(input.viewType) });
+							if (backup) {
+								// with a backup present, we must resort to opening the backup contents
+								// as untitled text file to not show the wrong data to the user
+								const contents = await streamToBuffer(backup.value);
+								this._editorService.openEditor({ resource: undefined, contents: contents.toString() });
+							} else {
+								// without a backup present, we can open the original resource
+								this._editorService.openEditor({ resource: input.resource, options: { override: DEFAULT_EDITOR_ASSOCIATION.id, pinned: true } });
+							}
 						}
-					}) : undefined
-				]), { allowDialog: true });
+					})
+				], { allowDialog: true });
 
 			}
 
