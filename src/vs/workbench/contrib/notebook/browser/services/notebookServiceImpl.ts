@@ -7,7 +7,6 @@ import { localize } from 'vs/nls';
 import { toAction } from 'vs/base/common/actions';
 import { createErrorWithActions } from 'vs/base/common/errorMessage';
 import { PixelRatio } from 'vs/base/browser/browser';
-import { runWhenIdle } from 'vs/base/common/async';
 import { Emitter, Event } from 'vs/base/common/event';
 import * as glob from 'vs/base/common/glob';
 import { Iterable } from 'vs/base/common/iterator';
@@ -693,13 +692,8 @@ export class NotebookService extends Disposable implements INotebookService {
 	}
 
 
-	private _persistSoonHandle?: IDisposable;
-
 	private _persistMementos(): void {
-		this._persistSoonHandle?.dispose();
-		this._persistSoonHandle = runWhenIdle(() => {
-			this._memento.saveMemento();
-		}, 100);
+		this._memento.saveMemento();
 	}
 
 	getViewTypeProvider(viewType: string): string | undefined {
