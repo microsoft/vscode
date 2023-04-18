@@ -8,6 +8,23 @@ import { getOctokit } from './auth';
 import { API, BranchProtection, BranchProtectionProvider, Repository } from './typings/git';
 import { DisposableStore, getRepositoryFromUrl } from './util';
 
+interface RepositoryRuleset {
+	readonly id: number;
+	readonly conditions: {
+		ref_name: {
+			exclude: string[];
+			include: string[];
+		};
+	};
+	readonly enforcement: 'active' | 'disabled' | 'evaluate';
+	readonly rules: RepositoryRule[];
+	readonly target: 'branch' | 'tag';
+}
+
+interface RepositoryRule {
+	readonly type: string;
+}
+
 export class GithubBranchProtectionProviderManager {
 
 	private readonly disposables = new DisposableStore();
@@ -85,7 +102,7 @@ export class GithubBranchProtectionProvider implements BranchProtectionProvider 
 		await this.updateBranchProtection();
 	}
 
-	private async checkPushPermission(repository: { owner: string; repo: string }): Promise<boolean> {
+	private async hasPushPermission(repository: { owner: string; repo: string }): Promise<boolean> {
 		try {
 			const octokit = await getOctokit();
 			const response = await octokit.repos.get({ ...repository });
@@ -94,6 +111,81 @@ export class GithubBranchProtectionProvider implements BranchProtectionProvider 
 		} catch {
 			// todo@lszomoru - add logging
 			return false;
+		}
+	}
+
+	private async getBranchRules(repository: { owner: string; repo: string }, branch: string): Promise<RepositoryRule[]> {
+		try {
+			const octokit = await getOctokit();
+			const response = await octokit.request('/repos/{owner}/{repo}/rules/branches/{branch}', {
+				...repository,
+				branch,
+				headers: {
+					'X-GitHub-Api-Version': '2022-11-28'
+				}
+			});
+			return response.data as RepositoryRule[];
+		} catch {
+			// todo@lszomoru - add logging
+			return [];
+		}
+	}
+
+	private async getRepositoryDefaultBranch(repository: { owner: string; repo: string }): Promise<string | undefined> {
+		try {
+			const octokit = await getOctokit();
+			const response = await octokit.repos.get({ ...repository });
+			return response.data.default_branch;
+		} catch {
+			// todo@lszomoru - add logging
+			return undefined;
+		}
+	}
+
+	private async getRepositoryRuleset(repository: { owner: string; repo: string }, id: number): Promise<RepositoryRuleset | undefined> {
+		try {
+			const octokit = await getOctokit();
+			const response = await octokit.request('GET /repos/{owner}/{repo}/rulesets/{id}', {
+				...repository,
+				id,
+				headers: {
+					'X-GitHub-Api-Version': '2022-11-28'
+				}
+			});
+			return response.data as RepositoryRuleset;
+		} catch {
+			// todo@lszomoru - add logging
+			return undefined;
+		}
+	}
+
+	private async getRepositoryRulesets(repository: { owner: string; repo: string }): Promise<RepositoryRuleset[]> {
+		const rulesets: RepositoryRuleset[] = [];
+
+		try {
+			const octokit = await getOctokit();
+			for await (const response of octokit.paginate.iterator('GET /repos/{owner}/{repo}/rulesets', { ...repository })) {
+				if (response.status !== 200) {
+					continue;
+				}
+
+				for (const ruleset of response.data as RepositoryRuleset[]) {
+					if (ruleset.target !== 'branch' || ruleset.enforcement !== 'active') {
+						continue;
+					}
+
+					const rulesetWithDetails = await this.getRepositoryRuleset(repository, ruleset.id);
+					if (rulesetWithDetails?.rules.find(r => r.type === 'pull_request')) {
+						rulesets.push(rulesetWithDetails);
+					}
+				}
+			}
+
+			return rulesets;
+		}
+		catch {
+			// todo@lszomoru - add logging
+			return rulesets;
 		}
 	}
 
@@ -118,20 +210,18 @@ export class GithubBranchProtectionProvider implements BranchProtectionProvider 
 				return;
 			}
 
-			if (!(await this.checkPushPermission(repository))) {
+			if (!(await this.hasPushPermission(repository))) {
 				return;
 			}
 
-			const octokit = await getOctokit();
-			const response = await octokit.repos.getBranch({ ...repository, branch: HEAD.name });
-
-			if (!response.data.protected) {
+			const rules = await this.getBranchRules(repository, HEAD.name);
+			if (!rules.find(r => r.type === 'pull_request')) {
 				return;
 			}
 
 			this.branchProtection = [{ remote: remote.name, branches: [HEAD.name] }];
 			this._onDidChangeBranchProtection.fire(this.repository.rootUri);
-		} catch {
+		} catch (err) {
 			// todo@lszomoru - add logging
 		}
 	}
@@ -147,27 +237,29 @@ export class GithubBranchProtectionProvider implements BranchProtectionProvider 
 					continue;
 				}
 
-				if (!(await this.checkPushPermission(repository))) {
+				if (!(await this.hasPushPermission(repository))) {
 					continue;
 				}
 
-				const octokit = await getOctokit();
+				const rulesets = await this.getRepositoryRulesets(repository);
 
-				let page = 1;
-				const protectedBranches: string[] = [];
-
-				while (true) {
-					const response = await octokit.repos.listBranches({ ...repository, protected: true, per_page: 100, page });
-
-					if (response.data.length === 0) {
-						break;
-					}
-
-					protectedBranches.push(...response.data.map(b => b.name));
-					page++;
+				// All branches (~ALL)
+				if (rulesets.find(r => r.conditions.ref_name.include.includes('~ALL'))) {
+					branchProtection.push({ remote: remote.name, branches: ['**'] });
+					continue;
 				}
 
-				branchProtection.push({ remote: remote.name, branches: protectedBranches });
+
+
+
+
+				// Default branch (~DEFAULT_BRANCH)
+
+				// Protected branches
+
+
+
+
 			}
 
 			this.branchProtection = branchProtection;
