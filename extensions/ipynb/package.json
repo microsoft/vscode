@@ -11,7 +11,7 @@
 	"enabledApiProposals": [
 		"documentPaste",
 		"diffContentOptions",
-    "dropMetadata"
+		"dropMetadata"
 	],
 	"activationEvents": [
 		"onNotebook:jupyter-notebook"
