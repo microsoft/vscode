@@ -75,7 +75,11 @@ class PostDropWidget extends Disposable implements IContentWidget {
 						id: '',
 						label: edit.label,
 						checked: i === this.edits.activeEditIndex,
-						run: () => this.onSelectNewEdit(i),
+						run: () => {
+							if (i !== this.edits.activeEditIndex) {
+								return this.onSelectNewEdit(i);
+							}
+						},
 					}));
 				}
 			});
