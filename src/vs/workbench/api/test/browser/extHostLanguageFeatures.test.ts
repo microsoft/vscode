@@ -1233,8 +1233,8 @@ suite('ExtHostLanguageFeatures', function () {
 
 		await rpcProtocol.sync();
 		const value = await getColors(languageFeaturesService.colorProvider, model, CancellationToken.None);
-		assert.strictEqual(value.colorData.length, 1);
-		const [first] = value.colorData;
+		assert.strictEqual(value.length, 1);
+		const [first] = value;
 		assert.deepStrictEqual(first.colorInfo.color, { red: 0.1, green: 0.2, blue: 0.3, alpha: 0.4 });
 		assert.deepStrictEqual(first.colorInfo.range, { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 21 });
 	});
