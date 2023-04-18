@@ -922,7 +922,25 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 			}
 		});
 
-		return matches;
+		// filter based on options and editing state
+
+		return matches.filter(match => {
+			if (match.cell.cellKind === CellKind.Code) {
+				// code cell, we only include its match if include input is enabled
+				return options.includeCodeInput;
+			}
+
+			// markup cell, it depends on the editing state
+			if (match.cell.getEditState() === CellEditState.Editing) {
+				// editing, even if we includeMarkupPreview
+				return options.includeMarkupInput;
+			} else {
+				// cell in preview mode, we should only include it if includeMarkupPreview is false but includeMarkupInput is true
+				// if includeMarkupPreview is true, then we should include the webview match result other than this
+				return !options.includeMarkupPreview && options.includeMarkupInput;
+			}
+		}
+		);
 	}
 
 	replaceOne(cell: ICellViewModel, range: Range, text: string): Promise<void> {

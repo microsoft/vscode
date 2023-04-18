@@ -73,7 +73,7 @@ export class ViewportData {
 		return this._model.getViewportViewLineRenderingData(this.visibleRange, lineNumber);
 	}
 
-	public getDecorationsInViewport(onlyMarginDecorations?: boolean): ViewModelDecoration[] {
-		return this._model.getDecorationsInViewport(this.visibleRange, false, onlyMarginDecorations);
+	public getDecorationsInViewport(): ViewModelDecoration[] {
+		return this._model.getDecorationsInViewport(this.visibleRange);
 	}
 }

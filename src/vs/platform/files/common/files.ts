@@ -293,12 +293,6 @@ export interface IFileReadLimits {
 	 * `FILE_TOO_LARGE` will be thrown.
 	 */
 	size?: number;
-
-	/**
-	 * If the file exceeds the given size, an error of kind
-	 * `FILE_EXCEEDS_MEMORY_LIMIT` will be thrown.
-	 */
-	memory?: number;
 }
 
 export interface IFileReadStreamOptions {
@@ -610,7 +604,6 @@ export enum FileSystemProviderErrorCode {
 	FileNotFound = 'EntryNotFound',
 	FileNotADirectory = 'EntryNotADirectory',
 	FileIsADirectory = 'EntryIsADirectory',
-	FileExceedsMemoryLimit = 'EntryExceedsMemoryLimit',
 	FileExceedsStorageQuota = 'EntryExceedsStorageQuota',
 	FileTooLarge = 'EntryTooLarge',
 	FileWriteLocked = 'EntryWriteLocked',
@@ -680,7 +673,6 @@ export function toFileSystemProviderErrorCode(error: Error | undefined | null): 
 		case FileSystemProviderErrorCode.FileIsADirectory: return FileSystemProviderErrorCode.FileIsADirectory;
 		case FileSystemProviderErrorCode.FileNotADirectory: return FileSystemProviderErrorCode.FileNotADirectory;
 		case FileSystemProviderErrorCode.FileNotFound: return FileSystemProviderErrorCode.FileNotFound;
-		case FileSystemProviderErrorCode.FileExceedsMemoryLimit: return FileSystemProviderErrorCode.FileExceedsMemoryLimit;
 		case FileSystemProviderErrorCode.FileTooLarge: return FileSystemProviderErrorCode.FileTooLarge;
 		case FileSystemProviderErrorCode.FileWriteLocked: return FileSystemProviderErrorCode.FileWriteLocked;
 		case FileSystemProviderErrorCode.NoPermissions: return FileSystemProviderErrorCode.NoPermissions;
@@ -711,8 +703,6 @@ export function toFileOperationResult(error: Error): FileOperationResult {
 			return FileOperationResult.FILE_PERMISSION_DENIED;
 		case FileSystemProviderErrorCode.FileExists:
 			return FileOperationResult.FILE_MOVE_CONFLICT;
-		case FileSystemProviderErrorCode.FileExceedsMemoryLimit:
-			return FileOperationResult.FILE_EXCEEDS_MEMORY_LIMIT;
 		case FileSystemProviderErrorCode.FileTooLarge:
 			return FileOperationResult.FILE_TOO_LARGE;
 		default:
@@ -1187,7 +1177,7 @@ export class FileOperationError extends Error {
 export class TooLargeFileOperationError extends FileOperationError {
 	constructor(
 		message: string,
-		override readonly fileOperationResult: FileOperationResult.FILE_TOO_LARGE | FileOperationResult.FILE_EXCEEDS_MEMORY_LIMIT,
+		override readonly fileOperationResult: FileOperationResult.FILE_TOO_LARGE,
 		readonly size: number,
 		options?: IReadFileOptions
 	) {
@@ -1216,7 +1206,6 @@ export const enum FileOperationResult {
 	FILE_PERMISSION_DENIED,
 	FILE_TOO_LARGE,
 	FILE_INVALID_PATH,
-	FILE_EXCEEDS_MEMORY_LIMIT,
 	FILE_NOT_DIRECTORY,
 	FILE_OTHER_ERROR
 }
@@ -1301,12 +1290,6 @@ export async function whenProviderRegistered(file: URI, fileService: IFileServic
 }
 
 /**
- * Native only: limits for memory sizes
- */
-export const MIN_MAX_MEMORY_SIZE_MB = 2048;
-export const FALLBACK_MAX_MEMORY_SIZE_MB = 4096;
-
-/**
  * Helper to format a raw byte size into a human readable label.
  */
 export class ByteSize {
@@ -1342,23 +1325,6 @@ export class ByteSize {
 }
 
 // File limits
-
-export interface IFileLimits {
-	readonly maxFileSize: number;
-	readonly maxHeapSize: number;
-}
-
-export const enum Arch {
-	IA32,
-	OTHER
-}
-
-export function getPlatformFileLimits(arch: Arch): IFileLimits {
-	return {
-		maxFileSize: arch === Arch.IA32 ? 300 * ByteSize.MB : 16 * ByteSize.GB,  // https://github.com/microsoft/vscode/issues/30180
-		maxHeapSize: arch === Arch.IA32 ? 700 * ByteSize.MB : 2 * 700 * ByteSize.MB, // https://github.com/v8/v8/blob/5918a23a3d571b9625e5cce246bdd5b46ff7cd8b/src/heap/heap.cc#L149
-	};
-}
 
 export function getLargeFileConfirmationLimit(remoteAuthority?: string): number;
 export function getLargeFileConfirmationLimit(uri?: URI): number;
