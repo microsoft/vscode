@@ -15,22 +15,22 @@ suite('EnvironmentVariable - MergedEnvironmentVariableCollection', () => {
 			const merged = new MergedEnvironmentVariableCollection(new Map([
 				['ext1', {
 					map: deserializeEnvironmentVariableCollection([
-						['A', { value: 'a1', type: EnvironmentVariableMutatorType.Prepend, scope: undefined, variable: 'A' }]
+						['A-key', { value: 'a1', type: EnvironmentVariableMutatorType.Prepend, scope: undefined, variable: 'A' }]
 					])
 				}],
 				['ext2', {
 					map: deserializeEnvironmentVariableCollection([
-						['A', { value: 'a2', type: EnvironmentVariableMutatorType.Append, scope: undefined, variable: 'A' }]
+						['A-key', { value: 'a2', type: EnvironmentVariableMutatorType.Append, scope: undefined, variable: 'A' }]
 					])
 				}],
 				['ext3', {
 					map: deserializeEnvironmentVariableCollection([
-						['A', { value: 'a3', type: EnvironmentVariableMutatorType.Prepend, scope: undefined, variable: 'A' }]
+						['A-key', { value: 'a3', type: EnvironmentVariableMutatorType.Prepend, scope: undefined, variable: 'A' }]
 					])
 				}],
 				['ext4', {
 					map: deserializeEnvironmentVariableCollection([
-						['A', { value: 'a4', type: EnvironmentVariableMutatorType.Append, scope: undefined, variable: 'A' }]
+						['A-key', { value: 'a4', type: EnvironmentVariableMutatorType.Append, scope: undefined, variable: 'A' }]
 					])
 				}]
 			]));
@@ -48,22 +48,22 @@ suite('EnvironmentVariable - MergedEnvironmentVariableCollection', () => {
 			const merged = new MergedEnvironmentVariableCollection(new Map([
 				['ext1', {
 					map: deserializeEnvironmentVariableCollection([
-						['A', { value: 'a1', type: EnvironmentVariableMutatorType.Prepend, scope: undefined, variable: 'A' }]
+						['A-key', { value: 'a1', type: EnvironmentVariableMutatorType.Prepend, scope: undefined, variable: 'A' }]
 					])
 				}],
 				['ext2', {
 					map: deserializeEnvironmentVariableCollection([
-						['A', { value: 'a2', type: EnvironmentVariableMutatorType.Append, scope: undefined, variable: 'A' }]
+						['A-key', { value: 'a2', type: EnvironmentVariableMutatorType.Append, scope: undefined, variable: 'A' }]
 					])
 				}],
 				['ext3', {
 					map: deserializeEnvironmentVariableCollection([
-						['A', { value: 'a3', type: EnvironmentVariableMutatorType.Replace, scope: undefined, variable: 'A' }]
+						['A-key', { value: 'a3', type: EnvironmentVariableMutatorType.Replace, scope: undefined, variable: 'A' }]
 					])
 				}],
 				['ext4', {
 					map: deserializeEnvironmentVariableCollection([
-						['A', { value: 'a4', type: EnvironmentVariableMutatorType.Append, scope: undefined, variable: 'A' }]
+						['A-key', { value: 'a4', type: EnvironmentVariableMutatorType.Append, scope: undefined, variable: 'A' }]
 					])
 				}]
 			]));
@@ -82,7 +82,7 @@ suite('EnvironmentVariable - MergedEnvironmentVariableCollection', () => {
 			const merged = new MergedEnvironmentVariableCollection(new Map([
 				['ext', {
 					map: deserializeEnvironmentVariableCollection([
-						['A', { value: 'a', type: EnvironmentVariableMutatorType.Replace, scope: undefined, variable: 'A' }],
+						['A-key', { value: 'a', type: EnvironmentVariableMutatorType.Replace, scope: undefined, variable: 'A' }],
 						['B', { value: 'b', type: EnvironmentVariableMutatorType.Append, scope: undefined, variable: 'B' }],
 						['C', { value: 'c', type: EnvironmentVariableMutatorType.Prepend, scope: undefined, variable: 'C' }]
 					])
@@ -105,7 +105,7 @@ suite('EnvironmentVariable - MergedEnvironmentVariableCollection', () => {
 			const merged = new MergedEnvironmentVariableCollection(new Map([
 				['ext', {
 					map: deserializeEnvironmentVariableCollection([
-						['A', { value: 'a', type: EnvironmentVariableMutatorType.Replace, scope: undefined, variable: 'A' }],
+						['A-key', { value: 'a', type: EnvironmentVariableMutatorType.Replace, scope: undefined, variable: 'A' }],
 						['B', { value: 'b', type: EnvironmentVariableMutatorType.Append, scope: undefined, variable: 'B' }],
 						['C', { value: 'c', type: EnvironmentVariableMutatorType.Prepend, scope: undefined, variable: 'C' }]
 					])
@@ -124,7 +124,7 @@ suite('EnvironmentVariable - MergedEnvironmentVariableCollection', () => {
 			const merged = new MergedEnvironmentVariableCollection(new Map([
 				['ext', {
 					map: deserializeEnvironmentVariableCollection([
-						['a', { value: 'a', type: EnvironmentVariableMutatorType.Replace, scope: undefined, variable: 'a' }],
+						['A-key', { value: 'a', type: EnvironmentVariableMutatorType.Replace, scope: undefined, variable: 'a' }],
 						['b', { value: 'b', type: EnvironmentVariableMutatorType.Append, scope: undefined, variable: 'b' }],
 						['c', { value: 'c', type: EnvironmentVariableMutatorType.Prepend, scope: undefined, variable: 'c' }]
 					])
@@ -160,14 +160,14 @@ suite('EnvironmentVariable - MergedEnvironmentVariableCollection', () => {
 			const merged1 = new MergedEnvironmentVariableCollection(new Map([
 				['ext1', {
 					map: deserializeEnvironmentVariableCollection([
-						['A', { value: 'a', type: EnvironmentVariableMutatorType.Replace, scope: undefined, variable: 'A' }]
+						['A-key', { value: 'a', type: EnvironmentVariableMutatorType.Replace, scope: undefined, variable: 'A' }]
 					])
 				}]
 			]));
 			const merged2 = new MergedEnvironmentVariableCollection(new Map([
 				['ext1', {
 					map: deserializeEnvironmentVariableCollection([
-						['A', { value: 'a', type: EnvironmentVariableMutatorType.Replace, scope: undefined, variable: 'A' }]
+						['A-key', { value: 'a', type: EnvironmentVariableMutatorType.Replace, scope: undefined, variable: 'A' }]
 					])
 				}]
 			]));
@@ -179,7 +179,7 @@ suite('EnvironmentVariable - MergedEnvironmentVariableCollection', () => {
 			const merged2 = new MergedEnvironmentVariableCollection(new Map([
 				['ext1', {
 					map: deserializeEnvironmentVariableCollection([
-						['A', { value: 'a', type: EnvironmentVariableMutatorType.Replace, scope: undefined, variable: 'A' }]
+						['A-key', { value: 'a', type: EnvironmentVariableMutatorType.Replace, scope: undefined, variable: 'A' }]
 					])
 				}]
 			]));
@@ -196,14 +196,14 @@ suite('EnvironmentVariable - MergedEnvironmentVariableCollection', () => {
 			const merged1 = new MergedEnvironmentVariableCollection(new Map([
 				['ext1', {
 					map: deserializeEnvironmentVariableCollection([
-						['A', { value: 'a', type: EnvironmentVariableMutatorType.Replace, scope: undefined, variable: 'A' }]
+						['A-key', { value: 'a', type: EnvironmentVariableMutatorType.Replace, scope: undefined, variable: 'A' }]
 					])
 				}]
 			]));
 			const merged2 = new MergedEnvironmentVariableCollection(new Map([
 				['ext1', {
 					map: deserializeEnvironmentVariableCollection([
-						['A', { value: 'a', type: EnvironmentVariableMutatorType.Replace, scope: undefined, variable: 'A' }],
+						['A-key', { value: 'a', type: EnvironmentVariableMutatorType.Replace, scope: undefined, variable: 'A' }],
 						['B', { value: 'b', type: EnvironmentVariableMutatorType.Append, scope: undefined, variable: 'B' }]
 					])
 				}]
@@ -221,7 +221,7 @@ suite('EnvironmentVariable - MergedEnvironmentVariableCollection', () => {
 			const merged1 = new MergedEnvironmentVariableCollection(new Map([
 				['ext1', {
 					map: deserializeEnvironmentVariableCollection([
-						['A', { value: 'a1', type: EnvironmentVariableMutatorType.Prepend, scope: undefined, variable: 'A' }]
+						['A-key', { value: 'a1', type: EnvironmentVariableMutatorType.Prepend, scope: undefined, variable: 'A' }]
 					])
 				}]
 			]));
@@ -229,12 +229,12 @@ suite('EnvironmentVariable - MergedEnvironmentVariableCollection', () => {
 			const merged2 = new MergedEnvironmentVariableCollection(new Map([
 				['ext2', {
 					map: deserializeEnvironmentVariableCollection([
-						['A', { value: 'a2', type: EnvironmentVariableMutatorType.Append, scope: undefined, variable: 'A' }]
+						['A-key', { value: 'a2', type: EnvironmentVariableMutatorType.Append, scope: undefined, variable: 'A' }]
 					])
 				}],
 				['ext1', {
 					map: deserializeEnvironmentVariableCollection([
-						['A', { value: 'a1', type: EnvironmentVariableMutatorType.Prepend, scope: undefined, variable: 'A' }]
+						['A-key', { value: 'a1', type: EnvironmentVariableMutatorType.Prepend, scope: undefined, variable: 'A' }]
 					])
 				}]
 			]));
@@ -248,13 +248,13 @@ suite('EnvironmentVariable - MergedEnvironmentVariableCollection', () => {
 			const merged3 = new MergedEnvironmentVariableCollection(new Map([
 				['ext1', {
 					map: deserializeEnvironmentVariableCollection([
-						['A', { value: 'a1', type: EnvironmentVariableMutatorType.Prepend, scope: undefined, variable: 'A' }]
+						['A-key', { value: 'a1', type: EnvironmentVariableMutatorType.Prepend, scope: undefined, variable: 'A' }]
 					])
 				}],
 				// This entry should get removed
 				['ext2', {
 					map: deserializeEnvironmentVariableCollection([
-						['A', { value: 'a2', type: EnvironmentVariableMutatorType.Append, scope: undefined, variable: 'A' }]
+						['A-key', { value: 'a2', type: EnvironmentVariableMutatorType.Append, scope: undefined, variable: 'A' }]
 					])
 				}]
 			]));
@@ -268,20 +268,20 @@ suite('EnvironmentVariable - MergedEnvironmentVariableCollection', () => {
 			const merged1 = new MergedEnvironmentVariableCollection(new Map([
 				['ext1', {
 					map: deserializeEnvironmentVariableCollection([
-						['A', { value: 'a1', type: EnvironmentVariableMutatorType.Replace, scope: undefined, variable: 'A' }]
+						['A-key', { value: 'a1', type: EnvironmentVariableMutatorType.Replace, scope: undefined, variable: 'A' }]
 					])
 				}]
 			]));
 			const merged4 = new MergedEnvironmentVariableCollection(new Map([
 				['ext1', {
 					map: deserializeEnvironmentVariableCollection([
-						['A', { value: 'a1', type: EnvironmentVariableMutatorType.Replace, scope: undefined, variable: 'A' }]
+						['A-key', { value: 'a1', type: EnvironmentVariableMutatorType.Replace, scope: undefined, variable: 'A' }]
 					])
 				}],
 				// This entry should get removed as it comes after a replace
 				['ext2', {
 					map: deserializeEnvironmentVariableCollection([
-						['A', { value: 'a2', type: EnvironmentVariableMutatorType.Append, scope: undefined, variable: 'A' }]
+						['A-key', { value: 'a2', type: EnvironmentVariableMutatorType.Append, scope: undefined, variable: 'A' }]
 					])
 				}]
 			]));
@@ -293,7 +293,7 @@ suite('EnvironmentVariable - MergedEnvironmentVariableCollection', () => {
 			const merged1 = new MergedEnvironmentVariableCollection(new Map([
 				['ext1', {
 					map: deserializeEnvironmentVariableCollection([
-						['A', { value: 'a', type: EnvironmentVariableMutatorType.Replace, scope: undefined, variable: 'A' }],
+						['A-key', { value: 'a', type: EnvironmentVariableMutatorType.Replace, scope: undefined, variable: 'A' }],
 						['B', { value: 'b', type: EnvironmentVariableMutatorType.Replace, scope: undefined, variable: 'B' }]
 					])
 				}]
@@ -301,7 +301,7 @@ suite('EnvironmentVariable - MergedEnvironmentVariableCollection', () => {
 			const merged2 = new MergedEnvironmentVariableCollection(new Map([
 				['ext1', {
 					map: deserializeEnvironmentVariableCollection([
-						['A', { value: 'a', type: EnvironmentVariableMutatorType.Replace, scope: undefined, variable: 'A' }]
+						['A-key', { value: 'a', type: EnvironmentVariableMutatorType.Replace, scope: undefined, variable: 'A' }]
 					])
 				}]
 			]));
@@ -317,7 +317,7 @@ suite('EnvironmentVariable - MergedEnvironmentVariableCollection', () => {
 			const merged1 = new MergedEnvironmentVariableCollection(new Map([
 				['ext1', {
 					map: deserializeEnvironmentVariableCollection([
-						['A', { value: 'a1', type: EnvironmentVariableMutatorType.Replace, scope: undefined, variable: 'A' }],
+						['A-key', { value: 'a1', type: EnvironmentVariableMutatorType.Replace, scope: undefined, variable: 'A' }],
 						['B', { value: 'b', type: EnvironmentVariableMutatorType.Replace, scope: undefined, variable: 'B' }]
 					])
 				}]
@@ -325,7 +325,7 @@ suite('EnvironmentVariable - MergedEnvironmentVariableCollection', () => {
 			const merged2 = new MergedEnvironmentVariableCollection(new Map([
 				['ext1', {
 					map: deserializeEnvironmentVariableCollection([
-						['A', { value: 'a2', type: EnvironmentVariableMutatorType.Replace, scope: undefined, variable: 'A' }],
+						['A-key', { value: 'a2', type: EnvironmentVariableMutatorType.Replace, scope: undefined, variable: 'A' }],
 						['B', { value: 'b', type: EnvironmentVariableMutatorType.Append, scope: undefined, variable: 'B' }]
 					])
 				}]
@@ -343,7 +343,7 @@ suite('EnvironmentVariable - MergedEnvironmentVariableCollection', () => {
 			const merged1 = new MergedEnvironmentVariableCollection(new Map([
 				['ext1', {
 					map: deserializeEnvironmentVariableCollection([
-						['A', { value: 'a1', type: EnvironmentVariableMutatorType.Replace, scope: undefined, variable: 'A' }],
+						['A-key', { value: 'a1', type: EnvironmentVariableMutatorType.Replace, scope: undefined, variable: 'A' }],
 						['B', { value: 'b', type: EnvironmentVariableMutatorType.Prepend, scope: undefined, variable: 'B' }]
 					])
 				}]
@@ -351,7 +351,7 @@ suite('EnvironmentVariable - MergedEnvironmentVariableCollection', () => {
 			const merged2 = new MergedEnvironmentVariableCollection(new Map([
 				['ext1', {
 					map: deserializeEnvironmentVariableCollection([
-						['A', { value: 'a2', type: EnvironmentVariableMutatorType.Replace, scope: undefined, variable: 'A' }],
+						['A-key', { value: 'a2', type: EnvironmentVariableMutatorType.Replace, scope: undefined, variable: 'A' }],
 						['C', { value: 'c', type: EnvironmentVariableMutatorType.Append, scope: undefined, variable: 'C' }]
 					])
 				}]
