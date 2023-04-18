@@ -98,7 +98,8 @@ class StatusLink extends Disposable {
 
 	private readonly _domNode: HTMLAnchorElement;
 	private readonly _onClicked = this._register(new Emitter<void>());
-	public readonly onClicked = this._onClicked.event;
+	readonly onClicked = this._onClicked.event;
+
 	constructor(container: HTMLElement) {
 		super();
 		const linkNode = document.createElement('a');
@@ -172,7 +173,7 @@ class InteractiveEditorWidget {
 	public acceptInput: () => void = InteractiveEditorWidget._noop;
 	private _cancelInput: () => void = InteractiveEditorWidget._noop;
 
-	private _statusLink: StatusLink;
+	private readonly _statusLink: StatusLink;
 	private readonly _statusLinkListener = this._store.add(new MutableDisposable());
 
 	constructor(
@@ -250,10 +251,6 @@ class InteractiveEditorWidget {
 		this._previewCreateEditor = this._store.add(_instantiationService.createInstance(EmbeddedCodeEditorWidget, this._elements.previewCreate, _previewEditorEditorOptions, codeEditorWidgetOptions, parentEditor));
 
 		this._statusLink = new StatusLink(this._elements.statusLink);
-	}
-
-	get statusLink() {
-		return this._statusLink;
 	}
 
 	dispose(): void {
@@ -394,14 +391,6 @@ class InteractiveEditorWidget {
 		this._onDidChangeHeight.fire();
 	}
 
-	showLink(): void {
-		this._statusLink.show();
-	}
-
-	hideLink(): void {
-		this._statusLink.hide();
-	}
-
 	updateMessage(message: string | HTMLElement, ops: { linkListener?: () => void; isMessageReply?: boolean; classes?: string[]; resetAfter?: number } = {}) {
 		this._statusLinkListener.clear();
 		if (ops.isMessageReply) {
@@ -427,20 +416,13 @@ class InteractiveEditorWidget {
 
 		reset(this._elements.statusLabel, message);
 		this._elements.statusLabel.className = `label ${(ops.classes ?? []).join(' ')}`;
-		if (ops.isMessageReply) {
-			this._elements.statusLabel.classList.add('message');
-		}
-		console.log('this._elements.statusLabel : ', this._elements.statusLabel);
+		this._elements.statusLabel.classList.toggle('message', ops.isMessageReply);
 		if (isTempMessage) {
 			this._elements.statusLabel.dataset['state'] = 'temp';
 		} else {
 			delete this._elements.statusLabel.dataset['state'];
 		}
 		this._onDidChangeHeight.fire();
-	}
-
-	isStatusLabelOverflowing(): boolean {
-		return (this._elements.statusLabel.offsetWidth < this._elements.statusLabel.scrollWidth);
 	}
 
 	reset() {

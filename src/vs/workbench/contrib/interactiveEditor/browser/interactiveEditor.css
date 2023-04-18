@@ -58,7 +58,6 @@
 .monaco-editor .interactive-editor .body .content .input .editor-container {
 	vertical-align: middle;
 }
-
 .monaco-editor .interactive-editor .body .toolbar {
 	display: flex;
 	flex-direction: column;
@@ -198,7 +197,6 @@
 	background-color: var(--vscode-diffEditor-removedTextBackground);
 	opacity: 0.6;
 }
-
 .monaco-editor .interactive-editor-lines-inserted-range {
 	background-color: var(--vscode-diffEditor-insertedTextBackground);
 }
