@@ -31,7 +31,7 @@ _@@APPNAME@@()
 			COMPREPLY=( $( compgen -W 'critical error warn info debug trace off' ) )
 			return
 			;;
-		--folder-uri|--disable-extension|--max-memory)
+		--folder-uri|--disable-extension)
 			# argument required but no completions available
 			return 0
 			;;
@@ -50,8 +50,7 @@ _@@APPNAME@@()
 			--uninstall-extension --enable-proposed-api --verbose --log -s
 			--status -p --performance --prof-startup --disable-extensions
 			--disable-extension --inspect-extensions
-			--inspect-brk-extensions --disable-gpu
-			--max-memory=' -- "$cur") )
+			--inspect-brk-extensions --disable-gpu' -- "$cur") )
 		[[ $COMPREPLY == *= ]] && compopt -o nospace
 		return
 	fi

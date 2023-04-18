@@ -53,7 +53,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { ColorScheme } from 'vs/platform/theme/common/theme';
 import { FileThemeIcon, FolderThemeIcon, IThemeService } from 'vs/platform/theme/common/themeService';
 import { ThemeIcon } from 'vs/base/common/themables';
-import { DraggedTreeItemsIdentifier, fillEditorsDragData, LocalSelectionTransfer } from 'vs/workbench/browser/dnd';
+import { fillEditorsDragData } from 'vs/workbench/browser/dnd';
 import { IResourceLabel, ResourceLabels } from 'vs/workbench/browser/labels';
 import { API_OPEN_DIFF_EDITOR_COMMAND_ID, API_OPEN_EDITOR_COMMAND_ID } from 'vs/workbench/browser/parts/editor/editorCommands';
 import { IViewPaneOptions, ViewPane } from 'vs/workbench/browser/parts/views/viewPane';
@@ -64,13 +64,14 @@ import { IActivityService, NumberBadge } from 'vs/workbench/services/activity/co
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IHoverService } from 'vs/workbench/services/hover/browser/hover';
 import { ITreeViewsService } from 'vs/workbench/services/views/browser/treeViewsService';
-import { CodeDataTransfers } from 'vs/platform/dnd/browser/dnd';
+import { CodeDataTransfers, LocalSelectionTransfer } from 'vs/platform/dnd/browser/dnd';
 import { addExternalEditorsDropData, toVSDataTransfer } from 'vs/editor/browser/dnd';
 import { CheckboxStateHandler, TreeItemCheckbox } from 'vs/workbench/browser/parts/views/checkbox';
 import { setTimeout0 } from 'vs/base/common/platform';
 import { AriaRole } from 'vs/base/browser/ui/aria/aria';
 import { TelemetryTrustedValue } from 'vs/platform/telemetry/common/telemetryUtils';
 import { ITreeViewsDnDService } from 'vs/editor/common/services/treeViewsDndService';
+import { DraggedTreeItemsIdentifier } from 'vs/editor/common/services/treeViewsDnd';
 
 export class TreeViewPane extends ViewPane {
 

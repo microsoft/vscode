@@ -1225,6 +1225,8 @@ async function webviewPreloads(ctx: PreloadContext) {
 
 		viewModel.toggleDragDropEnabled(currentOptions.dragAndDropEnabled);
 
+		document.designMode = 'Off';
+
 		postNotebookMessage('didFind', {
 			matches: matches.map((match, index) => ({
 				type: match.type,
@@ -1638,9 +1640,9 @@ async function webviewPreloads(ctx: PreloadContext) {
 				const controller = new AbortController();
 				this.outputs.set(outputId, { abort: controller, queue: new Promise(r => r(action(controller.signal))) });
 			} else {
-				record.queue = record.queue.then(r => {
+				record.queue = record.queue.then(async r => {
 					if (!record.abort.signal.aborted) {
-						return action(record.abort.signal);
+						await action(record.abort.signal);
 					}
 				});
 			}

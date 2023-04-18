@@ -107,7 +107,6 @@ export class FindMatchDecorationModel extends Disposable {
 		this._currentMatchCellDecorations = this._notebookEditor.deltaCellDecorations(this._currentMatchCellDecorations, []);
 	}
 
-
 	public setAllFindMatchesDecorations(cellFindMatches: CellFindMatchWithIndex[]) {
 		this._notebookEditor.changeModelDecorations((accessor) => {
 

@@ -173,7 +173,10 @@ export abstract class AbstractCommandsQuickAccessProvider extends PickerQuickAcc
 		};
 	}
 
-	private toCommandPick(commandPick: ICommandQuickPick, runOptions?: IQuickAccessProviderRunOptions): ICommandQuickPick {
+	private toCommandPick(commandPick: ICommandQuickPick | IQuickPickSeparator, runOptions?: IQuickAccessProviderRunOptions): ICommandQuickPick | IQuickPickSeparator {
+		if (commandPick.type === 'separator') {
+			return commandPick;
+		}
 		const keybinding = this.keybindingService.lookupKeybinding(commandPick.commandId);
 		const ariaLabel = keybinding ?
 			localize('commandPickAriaLabelWithKeybinding', "{0}, {1}", commandPick.label, keybinding.getAriaLabel()) :
@@ -215,7 +218,7 @@ export abstract class AbstractCommandsQuickAccessProvider extends PickerQuickAcc
 	/**
 	 * Subclasses to provide the actual command entries.
 	 */
-	protected abstract getAdditionalCommandPicks(allPicks: ICommandQuickPick[], picksSoFar: ICommandQuickPick[], filter: string, token: CancellationToken): Promise<Array<ICommandQuickPick>>;
+	protected abstract getAdditionalCommandPicks(allPicks: ICommandQuickPick[], picksSoFar: ICommandQuickPick[], filter: string, token: CancellationToken): Promise<Array<ICommandQuickPick | IQuickPickSeparator>>;
 }
 
 interface ISerializedCommandHistory {

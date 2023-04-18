@@ -25,7 +25,8 @@ export const INTERACTIVE_SIDEBAR_PANEL_ID = 'workbench.panel.interactiveSessionS
 export class InteractiveSessionViewPane extends ViewPane {
 	static ID = 'workbench.panel.interactiveSession.view';
 
-	private view: InteractiveSessionWidget;
+	private _widget: InteractiveSessionWidget;
+	get widget(): InteractiveSessionWidget { return this._widget; }
 
 	constructor(
 		interactiveSessionViewOptions: IInteractiveSessionViewOptions,
@@ -42,42 +43,42 @@ export class InteractiveSessionViewPane extends ViewPane {
 	) {
 		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService);
 		const scopedInstantiationService = this.instantiationService.createChild(new ServiceCollection([IContextKeyService, this.scopedContextKeyService]));
-		this.view = this._register(scopedInstantiationService.createInstance(InteractiveSessionWidget, interactiveSessionViewOptions.providerId, this.id, () => this.getBackgroundColor(), () => this.getBackgroundColor(), () => editorBackground));
+		this._widget = this._register(scopedInstantiationService.createInstance(InteractiveSessionWidget, interactiveSessionViewOptions.providerId, undefined, { viewId: this.id }, () => this.getBackgroundColor(), () => this.getBackgroundColor(), () => editorBackground));
 
 		this._register(this.onDidChangeBodyVisibility(visible => {
-			this.view.setVisible(visible);
+			this._widget.setVisible(visible);
 		}));
 	}
 
 	protected override renderBody(parent: HTMLElement): void {
 		super.renderBody(parent);
-		this.view.render(parent);
+		this._widget.render(parent);
 	}
 
 	acceptInput(query?: string): void {
-		this.view.acceptInput(query);
+		this._widget.acceptInput(query);
 	}
 
 	async clear(): Promise<void> {
-		await this.view.clear();
+		await this._widget.clear();
 	}
 
 	focusInput(): void {
-		this.view.focusInput();
+		this._widget.focusInput();
 	}
 
 	override focus(): void {
 		super.focus();
-		this.view.focusInput();
+		this._widget.focusInput();
 	}
 
 	protected override layoutBody(height: number, width: number): void {
 		super.layoutBody(height, width);
-		this.view.layout(height, width);
+		this._widget.layout(height, width);
 	}
 
 	override saveState(): void {
-		this.view.saveState();
+		this._widget.saveState();
 		super.saveState();
 	}
 }

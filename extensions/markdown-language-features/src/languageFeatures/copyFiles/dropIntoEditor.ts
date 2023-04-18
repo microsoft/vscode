@@ -38,12 +38,23 @@ export function registerDropIntoEditorSupport(selector: vscode.DocumentSelector)
 			}
 
 			const snippet = await tryGetUriListSnippet(document, dataTransfer, token);
-			return snippet ? new vscode.DocumentDropEdit(snippet) : undefined;
+			if (!snippet) {
+				return undefined;
+			}
+
+			const edit = new vscode.DocumentDropEdit(snippet.snippet);
+			edit.label = snippet.label;
+			return edit;
 		}
+	}, {
+		id: 'insertLink',
+		dropMimeTypes: [
+			'text/uri-list'
+		]
 	});
 }
 
-export async function tryGetUriListSnippet(document: vscode.TextDocument, dataTransfer: vscode.DataTransfer, token: vscode.CancellationToken): Promise<vscode.SnippetString | undefined> {
+export async function tryGetUriListSnippet(document: vscode.TextDocument, dataTransfer: vscode.DataTransfer, token: vscode.CancellationToken): Promise<{ snippet: vscode.SnippetString; label: string } | undefined> {
 	const urlList = await dataTransfer.get('text/uri-list')?.asString();
 	if (!urlList || token.isCancellationRequested) {
 		return undefined;
@@ -58,7 +69,17 @@ export async function tryGetUriListSnippet(document: vscode.TextDocument, dataTr
 		}
 	}
 
-	return createUriListSnippet(document, uris);
+	const snippet = createUriListSnippet(document, uris);
+	if (!snippet) {
+		return undefined;
+	}
+
+	return {
+		snippet: snippet,
+		label: uris.length > 1
+			? vscode.l10n.t('Insert uri links')
+			: vscode.l10n.t('Insert uri link')
+	};
 }
 
 interface UriListSnippetOptions {

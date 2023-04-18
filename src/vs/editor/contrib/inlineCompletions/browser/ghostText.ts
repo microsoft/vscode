@@ -3,17 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { IActiveCodeEditor } from 'vs/editor/browser/editorBrowser';
-import { EditorOption } from 'vs/editor/common/config/editorOptions';
-import { applyEdits } from 'vs/editor/contrib/inlineCompletions/browser/utils';
+import { Range } from 'vs/editor/common/core/range';
+import { ColumnRange, applyEdits } from 'vs/editor/contrib/inlineCompletions/browser/utils';
 
 export class GhostText {
-	public static equals(a: GhostText | undefined, b: GhostText | undefined): boolean {
-		return a === b || (!!a && !!b && a.equals(b));
-	}
-
 	constructor(
 		public readonly lineNumber: number,
 		public readonly parts: GhostTextPart[],
@@ -32,14 +25,12 @@ export class GhostText {
 	*/
 	render(documentText: string, debug: boolean = false): string {
 		const l = this.lineNumber;
-		return applyEdits(documentText,
-			[
-				...this.parts.map(p => ({
-					range: { startLineNumber: l, endLineNumber: l, startColumn: p.column, endColumn: p.column },
-					text: debug ? `[${p.lines.join('\n')}]` : p.lines.join('\n')
-				})),
-			]
-		);
+		return applyEdits(documentText, [
+			...this.parts.map(p => ({
+				range: { startLineNumber: l, endLineNumber: l, startColumn: p.column, endColumn: p.column },
+				text: debug ? `[${p.lines.join('\n')}]` : p.lines.join('\n')
+			})),
+		]);
 	}
 
 	renderForScreenReader(lineText: string): string {
@@ -62,6 +53,10 @@ export class GhostText {
 	isEmpty(): boolean {
 		return this.parts.every(p => p.lines.length === 0);
 	}
+
+	get lineCount(): number {
+		return 1 + this.parts.reduce((r, p) => r + p.lines.length - 1, 0);
+	}
 }
 
 export class GhostTextPart {
@@ -83,96 +78,43 @@ export class GhostTextPart {
 }
 
 export class GhostTextReplacement {
-	constructor(
-		readonly lineNumber: number,
-		readonly columnStart: number,
-		readonly length: number,
-		readonly newLines: readonly string[],
-		public readonly additionalReservedLineCount: number = 0,
-	) { }
 	public readonly parts: ReadonlyArray<GhostTextPart> = [
 		new GhostTextPart(
-			this.columnStart + this.length,
+			this.columnRange.endColumnExclusive,
 			this.newLines,
 			false
 		),
 	];
+
+	constructor(
+		readonly lineNumber: number,
+		readonly columnRange: ColumnRange,
+		readonly newLines: readonly string[],
+		public readonly additionalReservedLineCount: number = 0,
+	) { }
 
 	renderForScreenReader(_lineText: string): string {
 		return this.newLines.join('\n');
 	}
 
 	render(documentText: string, debug: boolean = false): string {
-		const startLineNumber = this.lineNumber;
-		const endLineNumber = this.lineNumber;
+		const replaceRange = this.columnRange.toRange(this.lineNumber);
 
 		if (debug) {
-			return applyEdits(documentText,
-				[
-					{
-						range: { startLineNumber, endLineNumber, startColumn: this.columnStart, endColumn: this.columnStart },
-						text: `(`
-					},
-					{
-						range: { startLineNumber, endLineNumber, startColumn: this.columnStart + this.length, endColumn: this.columnStart + this.length },
-						text: `)[${this.newLines.join('\n')}]`
-					}
-				]
-			);
+			return applyEdits(documentText, [
+				{ range: Range.fromPositions(replaceRange.getStartPosition()), text: `(` },
+				{ range: Range.fromPositions(replaceRange.getEndPosition()), text: `)[${this.newLines.join('\n')}]` }
+			]);
 		} else {
-			return applyEdits(documentText,
-				[
-					{
-						range: { startLineNumber, endLineNumber, startColumn: this.columnStart, endColumn: this.columnStart + this.length },
-						text: this.newLines.join('\n')
-					}
-				]
-			);
+			return applyEdits(documentText, [
+				{ range: replaceRange, text: this.newLines.join('\n') }
+			]);
 		}
 	}
-}
 
-export interface GhostTextWidgetModel {
-	readonly onDidChange: Event<void>;
-	readonly ghostText: GhostText | GhostTextReplacement | undefined;
-
-	setExpanded(expanded: boolean): void;
-	readonly expanded: boolean;
-
-	readonly minReservedLineCount: number;
-}
-
-export abstract class BaseGhostTextWidgetModel extends Disposable implements GhostTextWidgetModel {
-	public abstract readonly ghostText: GhostText | GhostTextReplacement | undefined;
-
-	private _expanded: boolean | undefined = undefined;
-
-	protected readonly onDidChangeEmitter = new Emitter<void>();
-	public readonly onDidChange = this.onDidChangeEmitter.event;
-
-	public abstract readonly minReservedLineCount: number;
-
-	public get expanded() {
-		if (this._expanded === undefined) {
-			// TODO this should use a global hidden setting.
-			// See https://github.com/microsoft/vscode/issues/125037.
-			return true;
-		}
-		return this._expanded;
-	}
-
-	constructor(protected readonly editor: IActiveCodeEditor) {
-		super();
-
-		this._register(editor.onDidChangeConfiguration((e) => {
-			if (e.hasChanged(EditorOption.suggest) && this._expanded === undefined) {
-				this.onDidChangeEmitter.fire();
-			}
-		}));
-	}
-
-	public setExpanded(expanded: boolean): void {
-		this._expanded = true;
-		this.onDidChangeEmitter.fire();
+	get lineCount(): number {
+		return this.newLines.length;
 	}
 }
+
+export type GhostTextOrReplacement = GhostText | GhostTextReplacement;

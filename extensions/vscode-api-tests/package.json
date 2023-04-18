@@ -27,6 +27,7 @@
     "resolvers",
     "scmActionButton",
     "scmSelectedProvider",
+    "scmTextDocument",
     "scmValidation",
     "taskPresentationGroup",
     "terminalDataWriteEvent",

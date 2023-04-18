@@ -35,6 +35,7 @@ import { isCancellationError, NotImplementedError } from 'vs/base/common/errors'
 import { raceCancellationError } from 'vs/base/common/async';
 import { checkProposedApiEnabled, isProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
 import { IExtHostTelemetry } from 'vs/workbench/api/common/extHostTelemetry';
+import { localize } from 'vs/nls';
 
 // --- adapter
 
@@ -1160,6 +1161,8 @@ class InlineCompletionAdapter extends InlineCompletionAdapterBase {
 
 		const normalizedResult = Array.isArray(result) ? result : result.items;
 		const commands = this._isAdditionsProposedApiEnabled ? Array.isArray(result) ? [] : result.commands || [] : [];
+		const suppressSuggestions = this._isAdditionsProposedApiEnabled && !Array.isArray(result) ? result.suppressSuggestions : undefined;
+		const enableForwardStability = this._isAdditionsProposedApiEnabled && !Array.isArray(result) ? result.enableForwardStability : undefined;
 
 		let disposableStore: DisposableStore | undefined = undefined;
 		const pid = this._references.createReferenceId({
@@ -1187,7 +1190,7 @@ class InlineCompletionAdapter extends InlineCompletionAdapterBase {
 					range: item.range ? typeConvert.Range.from(item.range) : undefined,
 					command,
 					idx: idx,
-					completeBracketPairs: this._isAdditionsProposedApiEnabled ? item.completeBracketPairs : false
+					completeBracketPairs: this._isAdditionsProposedApiEnabled ? item.completeBracketPairs : false,
 				});
 			}),
 			commands: commands.map(c => {
@@ -1195,7 +1198,9 @@ class InlineCompletionAdapter extends InlineCompletionAdapterBase {
 					disposableStore = new DisposableStore();
 				}
 				return this._commands.toInternal(c, disposableStore);
-			})
+			}),
+			suppressSuggestions,
+			enableForwardStability,
 		};
 	}
 
@@ -1728,6 +1733,7 @@ class DocumentOnDropEditAdapter {
 		private readonly _documents: ExtHostDocuments,
 		private readonly _provider: vscode.DocumentDropEditProvider,
 		private readonly _handle: number,
+		private readonly _extension: IExtensionDescription,
 	) { }
 
 	async provideDocumentOnDropEdits(requestId: number, uri: URI, position: IPosition, dataTransferDto: extHostProtocol.DataTransferDTO, token: CancellationToken): Promise<extHostProtocol.IDocumentOnDropEditDto | undefined> {
@@ -1742,6 +1748,7 @@ class DocumentOnDropEditAdapter {
 			return undefined;
 		}
 		return {
+			label: edit.label ?? localize('defaultDropLabel', "Drop using '{0}' extension", this._extension.displayName || this._extension.name),
 			insertText: typeof edit.insertText === 'string' ? edit.insertText : { snippet: edit.insertText.value },
 			additionalEdit: edit.additionalEdit ? typeConvert.WorkspaceEdit.from(edit.additionalEdit, undefined) : undefined,
 		};
@@ -2380,10 +2387,12 @@ export class ExtHostLanguageFeatures implements extHostProtocol.ExtHostLanguageF
 
 	// --- Document on drop
 
-	registerDocumentOnDropEditProvider(extension: IExtensionDescription, selector: vscode.DocumentSelector, provider: vscode.DocumentDropEditProvider) {
+	registerDocumentOnDropEditProvider(extension: IExtensionDescription, selector: vscode.DocumentSelector, provider: vscode.DocumentDropEditProvider, metadata?: vscode.DocumentDropEditProviderMetadata) {
 		const handle = this._nextHandle();
-		this._adapter.set(handle, new AdapterData(new DocumentOnDropEditAdapter(this._proxy, this._documents, provider, handle), extension));
-		this._proxy.$registerDocumentOnDropEditProvider(handle, this._transformDocumentSelector(selector));
+		this._adapter.set(handle, new AdapterData(new DocumentOnDropEditAdapter(this._proxy, this._documents, provider, handle, extension), extension));
+
+		this._proxy.$registerDocumentOnDropEditProvider(handle, this._transformDocumentSelector(selector), extension.identifier, isProposedApiEnabled(extension, 'dropMetadata') ? metadata : undefined);
+
 		return this._createDisposable(handle);
 	}
 

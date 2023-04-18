@@ -11,7 +11,7 @@ import type { LogLevel } from 'vs/platform/log/common/log';
 import type { IUpdateProvider } from 'vs/workbench/services/update/browser/updateService';
 import type { Event } from 'vs/base/common/event';
 import type { IWorkspaceProvider } from 'vs/workbench/services/host/browser/browserHostService';
-import type { IProductConfiguration } from 'vs/base/common/product';
+import type { IProductConfiguration, IProfileTemplateInfo } from 'vs/base/common/product';
 import type { ICredentialsProvider } from 'vs/platform/credentials/common/credentials';
 import type { TunnelProviderFeatures } from 'vs/platform/tunnel/common/tunnel';
 import type { IProgress, IProgressCompositeOptions, IProgressDialogOptions, IProgressNotificationOptions, IProgressOptions, IProgressStep, IProgressWindowOptions } from 'vs/platform/progress/common/progress';
@@ -263,6 +263,11 @@ export interface IWorkbenchConstructionOptions {
 	 * URI of the profile to preview.
 	 */
 	readonly profileToPreview?: UriComponents;
+
+	/**
+	 * Additional profile templates can be used to create new profiles.
+	 */
+	readonly additionalProfileTemplates?: readonly IProfileTemplateInfo[];
 
 	//#endregion
 
@@ -709,7 +714,23 @@ export interface ISettingsSyncOptions {
 	/**
 	 * Handler is being called when the user changes Settings Sync enablement.
 	 */
-	enablementHandler?(enablement: boolean): void;
+	enablementHandler?(enablement: boolean, authenticationProvider: string): void;
+
+	/**
+	 * Authentication provider
+	 */
+	readonly authenticationProvider?: {
+		/**
+		 * Unique identifier of the authentication provider.
+		 */
+		readonly id: string;
+
+		/**
+		 * Called when the user wants to signin to Settings Sync using the given authentication provider.
+		 * The returned promise should resolve to the authentication session id.
+		 */
+		signIn(): Promise<string>;
+	};
 }
 
 export interface IDevelopmentOptions {

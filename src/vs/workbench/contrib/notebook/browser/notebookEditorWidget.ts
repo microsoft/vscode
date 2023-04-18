@@ -2440,24 +2440,14 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 
 		if (!options.includeMarkupPreview && !options.includeOutput) {
 			this._webview?.findStop();
-
-			return findMatches.filter(match =>
-				(match.cell.cellKind === CellKind.Code && options.includeCodeInput) ||
-				(match.cell.cellKind === CellKind.Markup && options.includeMarkupInput)
-			);
+			return findMatches;
 		}
 
 		// search in webview enabled
 
 		const matchMap: { [key: string]: CellFindMatchWithIndex } = {};
 		findMatches.forEach(match => {
-			if (match.cell.cellKind === CellKind.Code && options.includeCodeInput) {
-				matchMap[match.cell.id] = match;
-			}
-
-			if (match.cell.cellKind === CellKind.Markup && options.includeMarkupInput) {
-				matchMap[match.cell.id] = match;
-			}
+			matchMap[match.cell.id] = match;
 		});
 
 		if (this._webview) {
@@ -2480,14 +2470,26 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 
 			// attach webview matches to model find matches
 			webviewMatches.forEach(match => {
-				if (!options.includeMarkupPreview && match.type === 'preview') {
-					// skip outputs if not included
+				const cell = this._notebookViewModel!.viewCells.find(cell => cell.id === match.cellId);
+
+				if (!cell) {
 					return;
 				}
 
-				if (!options.includeOutput && match.type === 'output') {
-					// skip outputs if not included
-					return;
+				if (match.type === 'preview') {
+					// markup preview
+					if (cell.getEditState() === CellEditState.Preview && !options.includeMarkupPreview) {
+						return;
+					}
+
+					if (cell.getEditState() === CellEditState.Editing && options.includeMarkupInput) {
+						return;
+					}
+				} else {
+					if (!options.includeOutput) {
+						// skip outputs if not included
+						return;
+					}
 				}
 
 				const exisitingMatch = matchMap[match.cellId];
