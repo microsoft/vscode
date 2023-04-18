@@ -13,6 +13,7 @@ import { IExtensionService } from 'vs/workbench/services/extensions/common/exten
 import { Emitter } from 'vs/base/common/event';
 import { IProcessEnvironment } from 'vs/base/common/platform';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
+import { URI } from 'vs/base/common/uri';
 
 class TestEnvironmentVariableService extends EnvironmentVariableService {
 	persistCollections(): void { this._persistCollections(); }
@@ -115,6 +116,33 @@ suite('EnvironmentVariable - EnvironmentVariableService', () => {
 			const env: IProcessEnvironment = { A: 'foo' };
 			await environmentVariableService.mergedCollection.applyToProcessEnvironment(env, undefined);
 			deepStrictEqual(env, { A: 'a2:a3:a1' });
+		});
+
+		test('should correctly apply the workspace specific environment values from multiple extension contributions in the correct order', async () => {
+			const scope1 = { workspaceFolder: { uri: URI.file('workspace1'), name: 'workspace1', index: 0 } };
+			const scope2 = { workspaceFolder: { uri: URI.file('workspace2'), name: 'workspace2', index: 3 } };
+			const collection1 = new Map<string, IEnvironmentVariableMutator>();
+			const collection2 = new Map<string, IEnvironmentVariableMutator>();
+			const collection3 = new Map<string, IEnvironmentVariableMutator>();
+			collection1.set('A-key', { value: ':a1', type: EnvironmentVariableMutatorType.Append, scope: scope1, variable: 'A' });
+			collection2.set('A-key', { value: 'a2:', type: EnvironmentVariableMutatorType.Prepend, scope: undefined, variable: 'A' });
+			collection3.set('A-key', { value: 'a3', type: EnvironmentVariableMutatorType.Replace, scope: scope2, variable: 'A' });
+			environmentVariableService.set('ext1', { map: collection1, persistent: true });
+			environmentVariableService.set('ext2', { map: collection2, persistent: true });
+			environmentVariableService.set('ext3', { map: collection3, persistent: true });
+
+			// The entries should be ordered in the order they are applied
+			deepStrictEqual([...environmentVariableService.mergedCollection.getVariableMap(scope1).entries()], [
+				['A', [
+					{ extensionIdentifier: 'ext2', type: EnvironmentVariableMutatorType.Prepend, value: 'a2:', scope: undefined, variable: 'A' },
+					{ extensionIdentifier: 'ext1', type: EnvironmentVariableMutatorType.Append, value: ':a1', scope: scope1, variable: 'A' }
+				]]
+			]);
+
+			// Verify the entries get applied to the environment as expected
+			const env: IProcessEnvironment = { A: 'foo' };
+			await environmentVariableService.mergedCollection.applyToProcessEnvironment(env, scope1);
+			deepStrictEqual(env, { A: 'a2:foo:a1' });
 		});
 	});
 });
