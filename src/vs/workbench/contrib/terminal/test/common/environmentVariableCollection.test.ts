@@ -78,12 +78,12 @@ suite('EnvironmentVariable - MergedEnvironmentVariableCollection', () => {
 		});
 
 		test('Appropriate workspace scoped entries are returned when querying for a particular workspace folder', () => {
-			const workspaceScope1 = { workspaceFolder: { uri: URI.file('workspace1'), name: 'workspace1', index: 0 } };
-			const workspaceScope2 = { workspaceFolder: { uri: URI.file('workspace2'), name: 'workspace2', index: 3 } };
+			const scope1 = { workspaceFolder: { uri: URI.file('workspace1'), name: 'workspace1', index: 0 } };
+			const scope2 = { workspaceFolder: { uri: URI.file('workspace2'), name: 'workspace2', index: 3 } };
 			const merged = new MergedEnvironmentVariableCollection(new Map([
 				['ext1', {
 					map: deserializeEnvironmentVariableCollection([
-						['A-key', { value: 'a1', type: EnvironmentVariableMutatorType.Prepend, scope: workspaceScope1, variable: 'A' }]
+						['A-key', { value: 'a1', type: EnvironmentVariableMutatorType.Prepend, scope: scope1, variable: 'A' }]
 					])
 				}],
 				['ext2', {
@@ -93,7 +93,7 @@ suite('EnvironmentVariable - MergedEnvironmentVariableCollection', () => {
 				}],
 				['ext3', {
 					map: deserializeEnvironmentVariableCollection([
-						['A-key', { value: 'a3', type: EnvironmentVariableMutatorType.Prepend, scope: workspaceScope2, variable: 'A' }]
+						['A-key', { value: 'a3', type: EnvironmentVariableMutatorType.Prepend, scope: scope2, variable: 'A' }]
 					])
 				}],
 				['ext4', {
@@ -102,22 +102,22 @@ suite('EnvironmentVariable - MergedEnvironmentVariableCollection', () => {
 					])
 				}]
 			]));
-			deepStrictEqual([...merged.getVariableMap(workspaceScope2).entries()], [
+			deepStrictEqual([...merged.getVariableMap(scope2).entries()], [
 				['A', [
 					{ extensionIdentifier: 'ext4', type: EnvironmentVariableMutatorType.Append, value: 'a4', scope: undefined, variable: 'A' },
-					{ extensionIdentifier: 'ext3', type: EnvironmentVariableMutatorType.Prepend, value: 'a3', scope: workspaceScope2, variable: 'A' },
+					{ extensionIdentifier: 'ext3', type: EnvironmentVariableMutatorType.Prepend, value: 'a3', scope: scope2, variable: 'A' },
 					{ extensionIdentifier: 'ext2', type: EnvironmentVariableMutatorType.Append, value: 'a2', scope: undefined, variable: 'A' },
 				]]
 			]);
 		});
 
 		test('Workspace scoped entries are not included when looking for global entries', () => {
-			const workspaceScope1 = { workspaceFolder: { uri: URI.file('workspace1'), name: 'workspace1', index: 0 } };
-			const workspaceScope2 = { workspaceFolder: { uri: URI.file('workspace2'), name: 'workspace2', index: 3 } };
+			const scope1 = { workspaceFolder: { uri: URI.file('workspace1'), name: 'workspace1', index: 0 } };
+			const scope2 = { workspaceFolder: { uri: URI.file('workspace2'), name: 'workspace2', index: 3 } };
 			const merged = new MergedEnvironmentVariableCollection(new Map([
 				['ext1', {
 					map: deserializeEnvironmentVariableCollection([
-						['A-key', { value: 'a1', type: EnvironmentVariableMutatorType.Prepend, scope: workspaceScope1, variable: 'A' }]
+						['A-key', { value: 'a1', type: EnvironmentVariableMutatorType.Prepend, scope: scope1, variable: 'A' }]
 					])
 				}],
 				['ext2', {
@@ -127,7 +127,7 @@ suite('EnvironmentVariable - MergedEnvironmentVariableCollection', () => {
 				}],
 				['ext3', {
 					map: deserializeEnvironmentVariableCollection([
-						['A-key', { value: 'a3', type: EnvironmentVariableMutatorType.Prepend, scope: workspaceScope2, variable: 'A' }]
+						['A-key', { value: 'a3', type: EnvironmentVariableMutatorType.Prepend, scope: scope2, variable: 'A' }]
 					])
 				}],
 				['ext4', {
@@ -171,13 +171,13 @@ suite('EnvironmentVariable - MergedEnvironmentVariableCollection', () => {
 		});
 
 		test('should apply the appropriate workspace scoped entries to an environment', async () => {
-			const workspaceScope1 = { workspaceFolder: { uri: URI.file('workspace1'), name: 'workspace1', index: 0 } };
-			const workspaceScope2 = { workspaceFolder: { uri: URI.file('workspace2'), name: 'workspace2', index: 3 } };
+			const scope1 = { workspaceFolder: { uri: URI.file('workspace1'), name: 'workspace1', index: 0 } };
+			const scope2 = { workspaceFolder: { uri: URI.file('workspace2'), name: 'workspace2', index: 3 } };
 			const merged = new MergedEnvironmentVariableCollection(new Map([
 				['ext', {
 					map: deserializeEnvironmentVariableCollection([
-						['A-key', { value: 'a', type: EnvironmentVariableMutatorType.Replace, scope: workspaceScope1, variable: 'A' }],
-						['B', { value: 'b', type: EnvironmentVariableMutatorType.Append, scope: workspaceScope2, variable: 'B' }],
+						['A-key', { value: 'a', type: EnvironmentVariableMutatorType.Replace, scope: scope1, variable: 'A' }],
+						['B', { value: 'b', type: EnvironmentVariableMutatorType.Append, scope: scope2, variable: 'B' }],
 						['C', { value: 'c', type: EnvironmentVariableMutatorType.Prepend, scope: undefined, variable: 'C' }]
 					])
 				}]
@@ -187,7 +187,7 @@ suite('EnvironmentVariable - MergedEnvironmentVariableCollection', () => {
 				B: 'bar',
 				C: 'baz'
 			};
-			await merged.applyToProcessEnvironment(env, workspaceScope1);
+			await merged.applyToProcessEnvironment(env, scope1);
 			deepStrictEqual(env, {
 				A: 'a',
 				B: 'bar', // This is not changed because the scope does not match
@@ -454,6 +454,35 @@ suite('EnvironmentVariable - MergedEnvironmentVariableCollection', () => {
 			deepStrictEqual([...diff.added.entries()], [
 				['C', [{ extensionIdentifier: 'ext1', value: 'c', type: EnvironmentVariableMutatorType.Append, scope: undefined, variable: 'C' }]],
 			]);
+			deepStrictEqual([...diff.removed.entries()], [
+				['B', [{ extensionIdentifier: 'ext1', value: 'b', type: EnvironmentVariableMutatorType.Prepend, scope: undefined, variable: 'B' }]]
+			]);
+			deepStrictEqual([...diff.changed.entries()], [
+				['A', [{ extensionIdentifier: 'ext1', value: 'a2', type: EnvironmentVariableMutatorType.Replace, scope: undefined, variable: 'A' }]]
+			]);
+		});
+
+		test('should only generate workspace specific diffs', () => {
+			const scope1 = { workspaceFolder: { uri: URI.file('workspace1'), name: 'workspace1', index: 0 } };
+			const scope2 = { workspaceFolder: { uri: URI.file('workspace2'), name: 'workspace2', index: 3 } };
+			const merged1 = new MergedEnvironmentVariableCollection(new Map([
+				['ext1', {
+					map: deserializeEnvironmentVariableCollection([
+						['A-key', { value: 'a1', type: EnvironmentVariableMutatorType.Replace, scope: scope1, variable: 'A' }],
+						['B', { value: 'b', type: EnvironmentVariableMutatorType.Prepend, scope: undefined, variable: 'B' }]
+					])
+				}]
+			]));
+			const merged2 = new MergedEnvironmentVariableCollection(new Map([
+				['ext1', {
+					map: deserializeEnvironmentVariableCollection([
+						['A-key', { value: 'a2', type: EnvironmentVariableMutatorType.Replace, scope: scope1, variable: 'A' }],
+						['C', { value: 'c', type: EnvironmentVariableMutatorType.Append, scope: scope2, variable: 'C' }]
+					])
+				}]
+			]));
+			const diff = merged1.diff(merged2, undefined)!;
+			deepStrictEqual([...diff.added.entries()], [[]]);
 			deepStrictEqual([...diff.removed.entries()], [
 				['B', [{ extensionIdentifier: 'ext1', value: 'b', type: EnvironmentVariableMutatorType.Prepend, scope: undefined, variable: 'B' }]]
 			]);
